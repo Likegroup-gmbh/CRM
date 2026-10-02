@@ -77,10 +77,6 @@ function buildFragenPrompt(ctx, params, history) {
   task += '# VORLIEGENDE CRM-DATEN ZU DIESEM AUFTRAG\n';
   task += buildKontextText(ctx, params) || '(keine Daten vorhanden)\n';
 
-  if (ctx.dna.length) {
-    task += `\nAktive Skript-DNA-Layer: ${ctx.dna.map((d) => `${d.layer_typ} (v${d.version})`).join(', ')}\n`;
-  }
-
   task += '\n# AUFGABE\n';
   task += history.some((h) => h.rolle === 'user')
     ? 'Werte die Antworten des Users aus. Pruefe anhand des Leitfadens, ob noch kritische Punkte offen sind.\n'
@@ -165,7 +161,6 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
       branche_id: skript.branche_id,
       briefing_id: skript.briefing_id,
       bereich: skript.bereich,
-      mit_dna: skript.mit_dna,
       video_idee: skript.video_idee,
       location: skript.location,
       video_laenge: skript.video_laenge,
@@ -173,9 +168,7 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
       tonalitaet: skript.tonalitaet
     };
 
-    // Schlank: der Fragen-Prompt braucht weder Beispiel-/Anti-Skripte noch
-    // die DNA-Texte - nur welche Layer aktiv sind
-    const ctx = await loadContext(supabase, params, { schlank: true });
+    const ctx = await loadContext(supabase, params);
 
     // Bisheriger Rueckfragen-Dialog (ohne die pending Assistant-Message)
     const { data: historyRaw } = await supabase.from('skript_chat_messages')

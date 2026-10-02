@@ -251,6 +251,10 @@ _Avoid_: Fit Score, LLM-Ranking, position als Sortierung
 **Aktivieren**:
 Einen Casting-Vorschlag zum Casting-Eintrag mit `creator_id` machen.
 
+**Creator-Tausch**:
+Ein abspringender Creator wird in einer Produktion durch einen anderen Casting-Eintrag desselben Castings ersetzt. Videoideen, Skripte und Kooperation wechseln zum Ersatz, der alte Eintrag gilt als Abgesagt und zählt in Track. Der Ersatz muss vorher selbst im Casting stehen und die Gates erfüllen (Kunden-Prio, Zusage oder Gebucht). Nicht tauschbar ist, sobald ein Vertrag unterschrieben ist, eine Rechnung existiert oder ein Video hochgeladen wurde. Nicht unterschriebene Verträge des Abspringers bleiben als Abgelehnt in der Historie. Das Skript behält Text und Kundenfreigabe, bekommt aber einen Hinweis und eine Festlegung zur neuen Besetzung.
+_Avoid_: Ersetzen (das ist Videoidee-Vorschläge ablösen), Wechsel, Absage-Flow, Umbesetzen
+
 **Übernehmen**:
 Einen KI-Vorschlag zur Stammdaten-Entity machen: Videoidee-Vorschlag wird zur normalen Videoidee (Flag weg, Ohne Kategorie); Persona-Vorschlag `typ=neu` wird zur Persona unter Unternehmen/Marke. Speichern des Produkts allein übernimmt keine Persona.
 _Avoid_: Aktivieren (Casting), Annehmen (Persona)
@@ -509,6 +513,13 @@ belegt, worauf ein verschicktes Update beruhte. Die Ansicht rechnet immer live; 
 wird nie korrigiert, sondern durch einen neuen Stand ersetzt.
 _Avoid_: Snapshot, Report, Export
 
+**Dashboard-Ergebnis**:
+Das fertig gerechnete Ergebnis fuer das Investor-Dashboard: je Auftrag eine Zeile plus die
+Monatsauswertung. Es entsteht in `berechneDashboard` (eine Implementation), normalerweise in der
+Netlify-Function `stakeholder-dashboard`, sonst im Browser. Jahr und Leistungsbereich filtert der
+Browser nur noch auf den Zeilen. Wird nie gecacht (ADR 0040).
+_Avoid_: Finanzbestand (das sind die Rohzeilen, die Datenqualitaet braucht), Aggregat, Snapshot
+
 **Investor**:
 View-only Lesezugang auf Finanzuebersicht und operative Plattform. Zwei Wege, dieselbe
 Einschraenkung: die Rolle `investor` (eigener Login, RLS-Wahrheit) oder die
@@ -537,6 +548,23 @@ Admin-Toggles schlagen die Klassen-Zeile (Klasse ist Default, kein hartes Preset
 bleibt die Server-Wahrheit; die UI versteckt nur, was ohne Recht eh fehlschluege.
 _Avoid_: Rolle-Check im Renderer, `!isKunde` als Write-Gate, `can_edit !== false`
 
+**Berechtigung**:
+Das Modul in `src/core/PermissionSystem.js`. UI fragt Capabilities ueber `can(entity, verb)`
+mit den vier Verben `view / create / edit / delete` — nie Rollen wie `isKunde`/`isMitarbeiter`
+und nie Roh-Flags wie `permissions?.x?.can_edit`. Rolle, Mitarbeiter-Klasse, zugriffsrechte
+und das user_permissions-Overlay bleiben Implementation des Moduls. Eine neue Rolle oder
+Klasse ist eine Zeile True/False in der Matrix, kein neuer Code-Pfad. Admin-Toggles schlagen
+die Klassen-Zeile (Klasse ist Default, kein hartes Preset). RLS bleibt die Server-Wahrheit;
+die UI versteckt nur, was ohne Recht eh fehlschluege.
+_Avoid_: Rolle-Check im Renderer, `!isKunde` als Write-Gate, `can_edit !== false`
+
+**Investor**:
+Die Mitarbeiter-Klasse Finanzen. Intern (`rolle = mitarbeiter`, sieht Preise), aber
+view-only: `create`/`edit`/`delete` ueberall false. Buttons und Aktionsmenüs, die nur
+`!isKunde` fragen, sind genau deshalb die Leak-Stellen — die Investor-Ansicht laeuft ueber
+Capabilities, nicht ueber die Rolle.
+_Avoid_: Stakeholder (das ist die Finanzuebersicht), Finanzen-Rolle (das ist die Klasse)
+
 **Datenqualitaetsanzeige**:
 Seite im Accounting-Bereich, die Pflegemaengel an Finanzdaten nach Kampagne gruppiert und nach
 betroffenem Geldvolumen sortiert zeigt. Sie benennt die Faelle; korrigiert wird von den Teams.
@@ -547,3 +575,10 @@ _Avoid_: Qualitaetsdashboard, Fehlerliste, Audit
 Anteil fehlerfreier gepruefter Einheiten (Videos, Kooperationen, Auftraege, Rechnungen) einer
 Kampagne in der Datenqualitaetsanzeige. 100 % heisst: alles Gepruefte ist vollstaendig gepflegt.
 _Avoid_: Score, Qualitaetsindex, Ampel
+
+**Navigations-Spur**:
+Eine Konsolen-Tabelle pro Navigation, von Klick bis fertigem Render: Phasen (Marken) und Supabase-Requests
+mit Header-Zeit, Body-Zeit und dekodierten Bytes. Aktiv in DEV, mit `?perf=1` oder
+`localStorage.perfMonitor = '1'`; `crmPerf()` gibt die letzte Spur erneut aus. Komprimierte Groessen
+liefert nur DevTools Network (Supabase sendet kein Timing-Allow-Origin).
+_Avoid_: PerformanceMonitor-Session, Perf-Log

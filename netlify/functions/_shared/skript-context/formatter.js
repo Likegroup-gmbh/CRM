@@ -6,7 +6,6 @@
 // Edit-Pfad hat seine EDIT_*_MAX in skript-edit-prompt.js). Schuetzt vor
 // aufgeblaehten CRM-Feldern und bremst Injection-Versuche ein.
 const KONTEXT_MAX = {
-  dna: 4000,
   beschreibung: 2000,
   beispiel: 2000,
   antiPattern: 1000,

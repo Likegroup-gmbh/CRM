@@ -32,7 +32,7 @@ function ctx({ skript = {}, briefing = null, kontext = {}, rueckfragen = '', his
     skript: { ...SKRIPT, ...skript },
     history,
     rueckfragen,
-    kontext: { dna: [], master: [], briefing, ...kontext },
+    kontext: { master: [], briefing, ...kontext },
     modus: null
   };
 }
@@ -252,14 +252,12 @@ describe('buildEditPrompt: VERBINDLICHE REGELN in allen Zweigen', () => {
   });
 
   it('neu_schreiben behaelt Figuren und Setting', () => {
-    const { task } = buildEditPrompt(ctx({
-      kontext: { dna: [{ name: 'Global', layer_typ: 'global', version: 1, inhalt: 'No-Go' }] }
-    }), { aktion: 'neu_schreiben', sektion: 'hook', selektion_text: 'Kennst du das?' });
+    const { task } = buildEditPrompt(ctx(), { aktion: 'neu_schreiben', sektion: 'hook', selektion_text: 'Kennst du das?' });
     expect(task).toContain('Figuren, Setting, Produktaussagen und die Aussage bleiben');
     expect(task).not.toContain('nichts aus dem bisherigen Wortlaut.');
     expect(task).toContain('# LEITER');
-    expect(task).not.toContain('DNA hat Vorrang');
-    expect(task).toContain('Anweisung schlaegt die DNA beim Ton');
+    expect(task).not.toContain('DNA');
+    expect(task).toContain('schlaegt das Master-Regelwerk beim Ton');
   });
 
   it('neue_geschichte wechselt Situation und Einstieg', () => {
@@ -424,7 +422,7 @@ describe('loadEditContext', () => {
 // Generierung
 // ---------------------------------------------------------------------------
 describe('buildPrompt: harte Grenzen und Rueckfragen', () => {
-  const base = { dna: [], beispiele: [], antiPatterns: [], briefing: FLOW };
+  const base = { beispiele: [], antiPatterns: [], briefing: FLOW };
 
   it('Grenzen-Satz nach dem Kontext, vor den Rueckfragen', () => {
     const { task } = buildPrompt(base, { video_idee: 'Papa im Auto' }, 'User: CTA ist Link in der Bio');
@@ -438,7 +436,24 @@ describe('buildPrompt: harte Grenzen und Rueckfragen', () => {
   });
 
   it('ohne Briefing kein Grenzen-Satz', () => {
-    const { task } = buildPrompt({ dna: [], beispiele: [], antiPatterns: [] }, { video_idee: 'x' });
+    const { task } = buildPrompt({ beispiele: [], antiPatterns: [] }, { video_idee: 'x' });
     expect(task).not.toContain('Die harten Grenzen schlagen');
+  });
+
+  it('Aufbau-Flags: Rezept- und Text-Hook-Block nur bei gesetztem Toggle', () => {
+    const ohne = buildPrompt(base, { video_idee: 'x' });
+    expect(ohne.task).not.toContain('# REZEPT-BLOCK');
+    expect(ohne.task).not.toContain('# TEXT-HOOK');
+    expect(ohne.task).not.toMatch(/Felder: [^\n]*rezept/);
+    expect(ohne.task).not.toMatch(/Felder: [^\n]*text_hook/);
+
+    const mit = buildPrompt(base, { video_idee: 'x', mit_rezept: true, mit_text_hook: true });
+    expect(mit.task).toContain('# REZEPT-BLOCK');
+    expect(mit.task).toContain('aus der Caption');
+    expect(mit.task).toContain('erfinde keins');
+    expect(mit.task).toContain('# TEXT-HOOK');
+    expect(mit.task).toContain('Texteinblendung');
+    expect(mit.task).toMatch(/Felder: [^\n]*rezept/);
+    expect(mit.task).toMatch(/Felder: [^\n]*text_hook/);
   });
 });

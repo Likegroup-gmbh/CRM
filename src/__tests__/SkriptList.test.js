@@ -214,7 +214,7 @@ describe('createButtonHtml Kunden', () => {
     const html = createButtonHtml();
     expect(html).toContain('btn-skript-new');
     expect(html).toContain('/skripte/master');
-    expect(html).toContain('/skripte/dna');
+    expect(html).not.toContain('/skripte/dna');
   });
 
   it('kein create-Recht (Kunde, Investor) sieht keinen Create-Button', () => {

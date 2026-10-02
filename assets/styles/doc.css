@@ -874,11 +874,13 @@
   opacity: 0.75;
 }
 
-/* Der Chat lebt immer in der Seitenspalte (.doc__side) - am Doc-Worksheet
-   (Produkt, Persona) genauso wie am Briefing-Multistep. Deshalb haengen die
-   Styles an .doc__side, nicht an .doc: sonst muesste jede Seite ein .doc
-   vortaeuschen, nur damit Liky aussieht wie Liky. */
-.doc__side .doc-chat__field {
+/* Der Chat lebt in der Seitenspalte (.doc__side) und im Konzept-Panel
+   (.konzept-liky, chat-inline-question.css) - am Doc-Worksheet (Produkt,
+   Persona) genauso wie am Briefing-Multistep und am Konzept-Drawer. Deshalb
+   haengen die Styles an den Hosts, nicht an .doc: sonst muesste jede Seite
+   ein .doc vortaeuschen, nur damit Liky aussieht wie Liky. */
+.doc__side .doc-chat__field,
+.konzept-liky .doc-chat__field {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
@@ -886,7 +888,8 @@
   margin: 0;
 }
 
-.doc__side .doc-chat__field > label {
+.doc__side .doc-chat__field > label,
+.konzept-liky .doc-chat__field > label {
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--text-xs);
@@ -894,7 +897,9 @@
 
 /* Die Karte ist der Rahmen, deshalb tritt das Feld selbst komplett zurueck */
 .doc__side .doc-chat__input,
-.doc__side .doc-chat__input:focus-within {
+.doc__side .doc-chat__input:focus-within,
+.konzept-liky .doc-chat__input,
+.konzept-liky .doc-chat__input:focus-within {
   min-width: 0;
   border: none;
   border-radius: 0;
@@ -902,7 +907,8 @@
   box-shadow: none;
 }
 
-.doc__side .doc-chat__input .url-input {
+.doc__side .doc-chat__input .url-input,
+.konzept-liky .doc-chat__input .url-input {
   min-width: 0;
   padding: 0;
   font-size: var(--text-sm);
@@ -910,7 +916,8 @@
 
 /* Schlichte Eingabezeile ohne eigenes Feld-Chrome (Liky-Slot).
    Textarea bricht um und waechst mit (field-sizing), bis max-height. */
-.doc__side .doc-chat__eingabe {
+.doc__side .doc-chat__eingabe,
+.konzept-liky .doc-chat__eingabe {
   display: block;
   width: 100%;
   min-width: 0;
@@ -933,13 +940,15 @@
   field-sizing: content;
 }
 
-.doc__side .doc-chat__eingabe:focus {
+.doc__side .doc-chat__eingabe:focus,
+.konzept-liky .doc-chat__eingabe:focus {
   border: none;
   outline: none;
   box-shadow: none;
 }
 
-.doc__side .doc-chat__eingabe:disabled {
+.doc__side .doc-chat__eingabe:disabled,
+.konzept-liky .doc-chat__eingabe:disabled {
   color: var(--gray-400);
   cursor: default;
 }
@@ -1043,13 +1052,15 @@
 }
 
 /* Abgelegte Datei (z.B. Kundenbriefing-PDF) als Chip ueber der Eingabe */
-.doc__side .doc-chat__chips {
+.doc__side .doc-chat__chips,
+.konzept-liky .doc-chat__chips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-xxs);
 }
 
-.doc__side .doc-chat__chips:empty {
+.doc__side .doc-chat__chips:empty,
+.konzept-liky .doc-chat__chips:empty {
   display: none;
 }
 

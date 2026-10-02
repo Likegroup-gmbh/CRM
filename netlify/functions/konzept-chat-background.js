@@ -118,8 +118,11 @@ Regeln:
 - Uebernehmen geht nicht ueber den Chat. Wird danach gefragt, sagt die Antwort, dass der Button in der Tabelle uebernimmt.
 - "die", "die zweite", "nochmal" beziehen sich auf den Verlauf und die Liste. Nur eindeutige Treffer bekommen eine Aktion.
 - Kein Treffer, mehrere moegliche Treffer oder ein unklarer Wunsch: rueckfrage setzen, keine Aktion.
+- "ueberarbeiten", "umschreiben", "aendern", "verbessern" genannter Nummern: umschreiben dieser Vorschlaege. Die Nummern [1], [2], ... in der Liste oben sind die Nummern, die das Team in der Tabelle sieht.
 - umschreiben und verwerfen/ersetzen derselben Idee in einer Nachricht: die Idee wird nicht umgeschrieben, sie geht weg.
+- neu nur, wenn ausdruecklich zusaetzliche Ideen gewuenscht sind ("noch drei dazu", "weitere Ideen"). Ueberarbeiten ist nie neu.
 - neu ohne Zahl im Text: anzahl null, der Client fragt die Zahl ueber die Karte ab.
+- Reine Diskussion oder Frage ohne Aenderungswunsch: rueckfrage, keine Aktion.
 - Antworten kurz, Deutsch, Du-Form.`;
 
   const task = `Aktuelle Vorschlaege:

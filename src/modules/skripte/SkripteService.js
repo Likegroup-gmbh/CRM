@@ -3,11 +3,11 @@
 // Alle Queries laufen ueber window.supabase (RLS: intern voll, Kunden nur eigener Scope).
 
 import { dropAnschreibenWarm } from '../../core/anschreiben/openAnschreiben.js';
-import { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
+import { FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
 import { briefingVorgaben } from './briefingVorgaben.js';
 
-export { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE };
+export { FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
 // Gateway-/Last-Fehler beim Function-Invoke, bei denen ein Retry sinnvoll ist
 const TRANSIENT_TRIGGER_STATUS = new Set([408, 429, 500, 502, 503, 504]);
@@ -61,7 +61,7 @@ export class SkripteService {
     return data || [];
   }
 
-  /** Picker-Loader (DNA-Scope etc.): nur Label-Felder, kein select('*'). */
+  /** Picker-Loader (Scope-Auswahl etc.): nur Label-Felder, kein select('*'). */
   async loadPersonas() {
     const { data } = await this.db.from('personas').select('id, name, oberbegriff')
       .order('oberbegriff', { nullsFirst: false }).order('name');
@@ -195,7 +195,7 @@ export class SkripteService {
     // hauptteil/cta bleiben draussen (nie angezeigt),
     // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
     let query = this.db.from('skripte')
-      .select(`id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name),
+      .select(`id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name),
         briefing:briefing_id(id, aktivierung_name), produkt(id, name), personas(id, name),
         strategie_item:strategie_item_id(
           id, creator_name, creator_auswahl_item_id,
@@ -422,7 +422,6 @@ export class SkripteService {
       tonalitaet: enriched.tonalitaet || null,
       herkunft: 'generiert',
       status: 'fragen',
-      mit_dna: enriched.mit_dna !== false,
       prompt_kontext: { generator_payload: enriched },
       created_by: user?.id
     }).select().single();
@@ -482,11 +481,25 @@ export class SkripteService {
       video_laenge: payload.video_laenge || null,
       funnel_stufe: payload.funnel_stufe || null,
       tonalitaet: payload.tonalitaet || null,
-      mit_dna: payload.mit_dna !== false,
       prompt_kontext: { ...(existing?.prompt_kontext || {}), generator_payload: payload }
     }).eq('id', id).select().single();
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  /**
+   * Aufbau-Flags (mit_rezept / mit_text_hook) in den generator_payload
+   * mergen - gleicher Merge-Ansatz wie updateSkriptStub, aber ohne die
+   * uebrigen Stub-Felder anzufassen.
+   */
+  async updateGeneratorFlags(id, flags) {
+    const { data: existing } = await this.db.from('skripte')
+      .select('prompt_kontext').eq('id', id).single();
+    const pk = existing?.prompt_kontext || {};
+    const { error } = await this.db.from('skripte').update({
+      prompt_kontext: { ...pk, generator_payload: { ...(pk.generator_payload || {}), ...flags } }
+    }).eq('id', id);
+    if (error) throw new Error(error.message);
   }
 
   // ------------------------------------------------------------------
@@ -543,7 +556,7 @@ export class SkripteService {
   // ------------------------------------------------------------------
   async getVersionen(skriptId) {
     const { data, error } = await this.db.from('skript_versionen')
-      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, hook_variante_1, hook_variante_2, hook_variante_3, inhalt_md, aenderung_beschreibung, created_at')
+      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, hook_variante_1, hook_variante_2, hook_variante_3, rezept, text_hook, inhalt_md, aenderung_beschreibung, created_at')
       .eq('skript_id', skriptId).order('version_nr').order('sub_nr');
     if (error) throw new Error(error.message);
     return data || [];
@@ -611,79 +624,11 @@ export class SkripteService {
       hook_variante_1: version.hook_variante_1 ?? null,
       hook_variante_2: version.hook_variante_2 ?? null,
       hook_variante_3: version.hook_variante_3 ?? null,
+      rezept: version.rezept ?? null,
+      text_hook: version.text_hook ?? null,
       inhalt_md: version.inhalt_md ?? null,
       aktive_version_nr: version.version_nr,
       aktive_sub_nr: version.sub_nr || 0
-    });
-  }
-
-  // ------------------------------------------------------------------
-  // DNA
-  // ------------------------------------------------------------------
-  /** Aktive DNA-Dokumente fuer die Auswahl im Generator. */
-  async loadAktiveDna() {
-    const { data } = await this.db.from('skript_dna')
-      .select('id, name, layer_typ, version, branchen(name), personas(name, oberbegriff), marke(markenname)')
-      .eq('status', 'aktiv')
-      .order('layer_typ').order('version', { ascending: false });
-    return data || [];
-  }
-
-  async loadDnaDokumente() {
-    const { data } = await this.db.from('skript_dna')
-      .select('*, branchen(name), personas(name, oberbegriff), marke(markenname)')
-      .order('layer_typ').order('version', { ascending: false });
-    return data || [];
-  }
-
-  async loadDna(id) {
-    const { data, error } = await this.db.from('skript_dna')
-      .select('*, branchen(name), personas(name, oberbegriff), marke(markenname)')
-      .eq('id', id).maybeSingle();
-    if (error) throw new Error(error.message);
-    return data;
-  }
-
-  async createDna({ name, inhalt, layer_typ, branche_id = null, persona_id = null, marke_id = null }) {
-    let maxQ = this.db.from('skript_dna').select('version')
-      .eq('layer_typ', layer_typ)
-      .order('version', { ascending: false }).limit(1);
-    if (branche_id) maxQ = maxQ.eq('branche_id', branche_id);
-    if (persona_id) maxQ = maxQ.eq('persona_id', persona_id);
-    if (marke_id) maxQ = maxQ.eq('marke_id', marke_id);
-    const { data: maxRows } = await maxQ;
-    const { data, error } = await this.db.from('skript_dna').insert({
-      name: (name || '').trim() || null,
-      inhalt: inhalt ?? '',
-      layer_typ,
-      branche_id: branche_id || null,
-      persona_id: persona_id || null,
-      marke_id: marke_id || null,
-      version: (maxRows?.[0]?.version || 0) + 1,
-      status: 'entwurf'
-    }).select('*, branchen(name), personas(name, oberbegriff), marke(markenname)').single();
-    if (error) throw new Error(error.message);
-    return data;
-  }
-
-  async updateDna(id, patch) {
-    const { error } = await this.db.from('skript_dna').update(patch).eq('id', id);
-    if (error) throw new Error(error.message);
-  }
-
-  /** Aktiviert eine DNA-Version und archiviert die bisher aktive desselben Scopes. */
-  async aktiviereDna(doc) {
-    const { data: { user } } = await this.db.auth.getUser();
-    let q = this.db.from('skript_dna').update({ status: 'archiviert' })
-      .eq('layer_typ', doc.layer_typ).eq('status', 'aktiv').neq('id', doc.id);
-    if (doc.branche_id) q = q.eq('branche_id', doc.branche_id);
-    if (doc.persona_id) q = q.eq('persona_id', doc.persona_id);
-    if (doc.marke_id) q = q.eq('marke_id', doc.marke_id);
-    await q;
-    await this.updateDna(doc.id, {
-      status: 'aktiv',
-      freigegeben_von: user?.id || null,
-      freigegeben_am: new Date().toISOString()
     });
   }
 

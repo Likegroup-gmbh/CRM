@@ -22,7 +22,7 @@ in dieser Reihenfolge:
    verbindlichste Quelle (Ziele, Umsetzung, Situationen, CTA-URL/Code,
    Creator-Rolle, Sprache).
 2. CRM-Daten (Marken-Kickoff, Produktdaten, Kampagne, Persona,
-   Skript-DNA, Video-Idee, Location).
+   Master-Regelwerk, Video-Idee, Location).
 3. **Videovorlage (Referenzvideo)** – falls vorhanden, und NUR für kreative
    Fragen: Aufbau, Hook-Typ, Dramaturgie, Pace und CTA-Mechanik gelten durch
    die Vorlage als beantwortet – dazu keine Fragen stellen. Die Vorlage ist
@@ -33,7 +33,7 @@ in dieser Reihenfolge:
    bei uns gibt.
 
    Liegt keine Videovorlage vor, entscheidest du die kreative Bauweise selbst
-   aus der Skript-DNA – dazu keine Geschmacksfragen stellen.
+   aus dem Master-Regelwerk – dazu keine Geschmacksfragen stellen.
    Frag höchstens nach, wenn eine konkrete Referenz oder ein gewünschtes
    Format inhaltlich entscheidend ist.
 

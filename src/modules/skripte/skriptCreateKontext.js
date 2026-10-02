@@ -27,7 +27,6 @@ export function resolveSkriptCreatePayload(item, { produktIds = [] } = {}) {
     persona_id: eintrag?.persona_id || null,
     produkt_id: item?.produkt_id || pickProduktId(produktIds),
     strategie_item_id: item?.id || null,
-    video_idee: (item?.beschreibung || '').trim() || null,
-    mit_dna: false
+    video_idee: (item?.beschreibung || '').trim() || null
   };
 }

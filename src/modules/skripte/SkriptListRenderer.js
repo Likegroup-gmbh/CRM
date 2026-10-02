@@ -15,7 +15,6 @@ import { renderCreatorNameCell } from '../creator/CreatorTable.js';
 export function createButtonHtml() {
   if (!window.canCreate?.('skripte')) return '';
   return '<button id="btn-skript-new" class="mdc-btn">Neues Skript erstellen</button>'
-    + ' <a href="/skripte/dna" class="mdc-btn mdc-btn--secondary">DNA verwalten</a>'
     + ' <a href="/skripte/master" class="mdc-btn mdc-btn--secondary">Master-Regelwerk</a>';
 }
 

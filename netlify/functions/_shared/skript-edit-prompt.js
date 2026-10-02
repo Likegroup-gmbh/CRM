@@ -7,12 +7,12 @@ const fs = require('fs');
 const path = require('path');
 const {
   loadContext, buildKontextText, briefingSkriptSprache,
-  videoLaengeHinweis, WOERTER_PRO_SEKUNDE, kuerzeTranskript,
+  videoLaengeHinweis, kuerzeTranskript,
   cap, KONTEXT_MAX, BRIEFING_MAX
 } = require('./skript-context');
 const { fmtMasterBlock } = require('./skript-master');
-const { vertragBlock, DNA_KOPF } = require('./skript-vertrag');
-const { zusatzInfosMarkdown } = require('./skript-creator-facing');
+const { vertragBlock } = require('./skript-vertrag');
+const { zusatzInfosMarkdown, istMasterDokument } = require('./skript-creator-facing');
 const { verlaufZuMessages } = require('./chat-verlauf');
 
 const VERBINDLICHE_REGELN = `
@@ -27,6 +27,33 @@ Nichts erfinden, was nicht im Briefing, in den Leitplanken oder im bestehenden S
 `;
 
 const GRID_SEKTIONEN = ['hook', 'hauptteil', 'cta', 'hook_variante_1', 'hook_variante_2', 'hook_variante_3'];
+
+/** Zellen-Feldname einer Aenderung: titel, <sektion> oder <sektion>_visuell. */
+function aenderungFeld(a) {
+  if (a.sektion === 'titel') return 'titel';
+  return a.spalte === 'visuell' ? `${a.sektion}_visuell` : a.sektion;
+}
+
+/**
+ * Festgezogene Zellen im Bundle des freien Chats. Der Umfang kommt vom Modell
+ * (Tool-Feld umfang), der Server setzt ihn durch:
+ * alles = nichts verwerfen, teil = nur festgezogene Zellen der genannten
+ * Sektion bleiben, markierung/keiner/fehlend = alle festgezogenen Zellen raus.
+ */
+function filtereFestgezogen(aenderungen, gezogen, { umfang = null, umfang_sektion = null } = {}) {
+  const liste = Array.isArray(aenderungen) ? aenderungen : [];
+  const gesperrt = new Set(Array.isArray(gezogen) ? gezogen : []);
+  if (!gesperrt.size || umfang === 'alles') return { behalten: liste.slice(), verworfen: [] };
+  const teil = umfang === 'teil' ? String(umfang_sektion || '').trim().toLowerCase() : null;
+  const behalten = [];
+  const verworfen = [];
+  for (const a of liste) {
+    const festgezogen = gesperrt.has(aenderungFeld(a));
+    const offen = !festgezogen || (teil && a.sektion === teil);
+    (offen ? behalten : verworfen).push(a);
+  }
+  return { behalten, verworfen };
+}
 
 const AKTION_LABELS = {
   neu_schreiben: 'Neu formulieren',
@@ -52,6 +79,16 @@ const AKTION_ANWEISUNGEN = {
 
 const VERLAUF_SKIP = new Set(['error', 'cancelled', 'pending', 'running']);
 
+/** Mehr-Zellen-Vorschlag als Klartext, damit der naechste Turn ihn als Basis sieht. */
+function bundleText(aenderungen) {
+  const liste = Array.isArray(aenderungen) ? aenderungen : [];
+  const zeilen = liste
+    .filter((a) => a && a.sektion && a.vorschlag_text)
+    .map((a) => `- ${a.sektion} (${a.spalte === 'visuell' ? 'visuell' : 'gesprochen'}): ${cap(a.vorschlag_text, KONTEXT_MAX.userText).trim()}`);
+  if (!zeilen.length) return '';
+  return `Vorschlag (${zeilen.length} ${zeilen.length === 1 ? 'Zelle' : 'Zellen'}):\n${zeilen.join('\n')}`;
+}
+
 /** Assistant-Turn als Klartext. Pending und Fehler kommen nicht in den Verlauf. */
 function skriptVerlaufFormat(row) {
   if (!row || VERLAUF_SKIP.has(row.status)) return null;
@@ -65,6 +102,8 @@ function skriptVerlaufFormat(row) {
   const vorschlag = cap(row.vorschlag_text, KONTEXT_MAX.userText).trim();
   if (antwort) teile.push(antwort);
   if (vorschlag) teile.push(`Vorschlag:\n${vorschlag}`);
+  const bundle = bundleText(row.aenderungen);
+  if (bundle) teile.push(bundle);
   if (!teile.length) return null;
   return { role: 'assistant', content: teile.join('\n\n') };
 }
@@ -73,7 +112,7 @@ function letzterEnthaltenerAssistant(history) {
   for (let i = (history || []).length - 1; i >= 0; i--) {
     const row = history[i];
     if (!row || row.rolle === 'user' || VERLAUF_SKIP.has(row.status)) continue;
-    if (row.rolle === 'assistant' && (row.inhalt || row.vorschlag_text)) return row;
+    if (row.rolle === 'assistant' && (row.inhalt || row.vorschlag_text || bundleText(row.aenderungen))) return row;
   }
   return null;
 }
@@ -143,12 +182,6 @@ async function resolveModusSlug(supabase, message) {
   return (same || rows[0]).modus;
 }
 
-const VISUELL_VORGAENGER = {
-  hook: null,
-  hauptteil: { visuell: 'hook_visuell', spoken: 'hook', label: 'Hook' },
-  cta: { visuell: 'hauptteil_visuell', spoken: 'hauptteil', label: 'Hauptteil' }
-};
-
 /** Wandelt "0:03", "1:30", "0,5", "3" in Sekunden. */
 function parseZeitSekunden(token) {
   const trimmed = String(token || '').trim();
@@ -170,19 +203,6 @@ function formatZeitstempel(sekunden) {
   const min = Math.floor(total / 60);
   const sec = total % 60;
   return `${min}:${String(sec).padStart(2, '0')}`;
-}
-
-function geschaetzteDauerSekunden(gesprochen) {
-  const woerter = String(gesprochen || '').trim().split(/\s+/).filter(Boolean).length;
-  if (!woerter) return null;
-  return Math.max(1, Math.round(woerter / WOERTER_PRO_SEKUNDE));
-}
-
-function videoLaengeEndeSekunden(spanne) {
-  if (!spanne) return null;
-  const teile = String(spanne).split('-').map((n) => parseInt(n, 10));
-  const ende = teile.length > 1 ? teile[1] : teile[0];
-  return Number.isFinite(ende) && ende > 0 ? ende : null;
 }
 
 /**
@@ -211,39 +231,6 @@ function letzterZeitstempel(text) {
   return formatZeitstempel(max);
 }
 
-function buildVisuellZeitplan(skript, sektion) {
-  let block = '\n# ZEITPLAN UND KONTINUITAET\n';
-  block += '- Zeitmarker alle 5–10 Sekunden, nicht pro Shot und nicht sekündlich. Ein Block darf z.B. „0:00–0:08“ oder „B-Roll (ca. 10 Sek.)“ sein.\n';
-  block += '- M:SS–M:SS ist erlaubt, aber kein Pflicht-Format für jeden Satz.\n';
-  block += '- Baue auf der Regie der vorherigen Sektionen auf – Stil, Orte und Props konsistent halten, keine Szenen wiederholen.\n';
-
-  if (sektion === 'hook' || !VISUELL_VORGAENGER[sektion]) {
-    block += '- Beginne bei 0:00.\n';
-    return block;
-  }
-
-  const vorg = VISUELL_VORGAENGER[sektion];
-  const parsed = letzterZeitstempel(skript?.[vorg.visuell] || '');
-  const geschaetzt = formatZeitstempel(geschaetzteDauerSekunden(skript?.[vorg.spoken]));
-
-  if (parsed) {
-    block += `- Die Sektion davor (${vorg.label}) endet bei ${parsed}. Dein erster Block MUSS bei ${parsed} beginnen, die Zeiten laufen nahtlos weiter. Nicht bei 0:00 neu starten.\n`;
-  } else if (geschaetzt) {
-    block += `- Keine Zeitstempel in der Sektion davor (${vorg.label}) gefunden. Schaetze den Start aus dem gesprochenen ${vorg.label}-Text: ca. ${geschaetzt}. Dein erster Block MUSS dort beginnen, nicht bei 0:00.\n`;
-  } else {
-    block += `- Keine Zeitstempel in der Sektion davor (${vorg.label}) gefunden. Setze die Zeiten nahtlos an die vorherige Sektion an, nicht bei 0:00 neu starten.\n`;
-  }
-
-  if (sektion === 'cta') {
-    const ende = formatZeitstempel(videoLaengeEndeSekunden(skript?.video_laenge));
-    if (ende) {
-      block += `- Der letzte Block soll bei ${ende} enden (Video-Laenge ${skript.video_laenge}).\n`;
-    }
-  }
-
-  return block;
-}
-
 // ---------------------------------------------------------------------------
 // Kontext: derselbe Loader wie Generierung und Rueckfragen (loadContext),
 // plus Verlauf und geklaerte Rueckfragen. Spoken-Beispiele bewusst NICHT
@@ -254,13 +241,13 @@ function buildVisuellZeitplan(skript, sektion) {
 const EDIT_SKRIPT_COLS = 'id, titel, hook, hook_visuell, hauptteil, hauptteil_visuell, cta, cta_visuell, '
   + 'hook_variante_1, hook_variante_2, hook_variante_3, inhalt_md, '
   + 'tonalitaet, video_laenge, funnel_stufe, video_idee, location, regieanweisung, prompt_kontext, festlegungen, festgezogen, '
-  + 'mit_dna, branche_id, persona_id, marke_id, briefing_id, bereich, unternehmen_id, kampagne_id, produkt_id, strategie_item_id';
+  + 'branche_id, persona_id, marke_id, briefing_id, bereich, unternehmen_id, kampagne_id, produkt_id, strategie_item_id';
 
 const EDIT_VERLAUF_LIMIT = 12;
 
 /**
  * loadContext-Params aus der Skript-Row (Stand nach Edits), nicht aus dem
- * generator_payload. Ohne dna_id: loadContext wirft bei inaktiver DNA.
+ * generator_payload.
  */
 function editParams(skript) {
   const pk = skript?.prompt_kontext || {};
@@ -273,7 +260,6 @@ function editParams(skript) {
     branche_id: skript?.branche_id || null,
     briefing_id: skript?.briefing_id || null,
     bereich: skript?.bereich || null,
-    mit_dna: skript?.mit_dna,
     video_idee: skript?.video_idee || null,
     strategie_item_id: skript?.strategie_item_id || pk.generator_payload?.strategie_item_id || null,
     location: skript?.location || null,
@@ -304,11 +290,17 @@ function zielZelle(message) {
   return message.sektion;
 }
 
-function festgezogenBlock(skript, message) {
+function festgezogenBlock(skript, message, { freierChat = false } = {}) {
   const alle = Array.isArray(skript?.festgezogen) ? skript.festgezogen : [];
   const ziel = zielZelle(message);
   const gesperrt = alle.filter((z) => z && z !== ziel);
   if (!gesperrt.length) return '';
+  if (freierChat) {
+    return `\n# FESTGEZOGEN\nFestgezogen sind: ${gesperrt.join(', ')}. `
+      + 'Diese Zellen aendern nur, wenn dein Umfang sie einschliesst: bei „alles“ alle, bei einem benannten Teil nur die Zellen dieser Sektion, '
+      + 'bei einer Markierung allein oder ohne Umfang nie. Setze dafuer umfang (und bei einem Teil umfang_sektion) im Tool. '
+      + 'Der Server verwirft festgezogene Zellen ausserhalb deines Umfangs. Ein Satz ist nur geschuetzt, wenn er markiert ist.\n';
+  }
   return `\n# FESTGEZOGEN\nDiese Zellen nicht zurueckgeben und nicht umschreiben: ${gesperrt.join(', ')}. `
     + 'Nur die Zelle aus dem Auftrag darf sich aendern. Ein Satz ist nur geschuetzt, wenn er markiert ist.\n';
 }
@@ -328,7 +320,7 @@ async function loadEditContext(supabase, message) {
   // Chat-Verlauf (letzte 12 lebende Messages VOR der pending Assistant-Message).
   // Rueckfragen kommen separat und ohne Limit.
   const historyPromise = supabase.from('skript_chat_messages')
-    .select('rolle, inhalt, aktion, sektion, selektion_text, vorschlag_text, status')
+    .select('rolle, inhalt, aktion, sektion, selektion_text, vorschlag_text, aenderungen, status')
     .eq('skript_id', message.skript_id)
     .neq('id', message.id)
     .or('aktion.is.null,aktion.neq.rueckfrage')
@@ -375,19 +367,17 @@ async function loadEditContext(supabase, message) {
 function buildEditPrompt(ctx, message) {
   const { skript, history, modus } = ctx;
   const kontext = ctx.kontext || {};
-  const dna = kontext.dna || [];
   const master = kontext.master || [];
   const hatGrid = Boolean(skript.hook || skript.hauptteil || skript.cta
     || skript.hook_visuell || skript.hauptteil_visuell || skript.cta_visuell);
-  const istMasterSektion = Boolean(skript.inhalt_md)
-    && !GRID_SEKTIONEN.includes(message.sektion);
-  const istMaster = Boolean(skript.inhalt_md) && !hatGrid;
+  const istMaster = istMasterDokument(skript);
+  const istMasterSektion = istMaster && !GRID_SEKTIONEN.includes(message.sektion);
 
   const visualSpalte = !istMaster && brauchtVisualStil(message);
   // Freier Chat auf einem Grid darf die Spalte selbst wählen – dafür braucht er das Format.
   const chatWaehltSpalte = message.aktion === 'chat' && hatGrid && !istMaster;
 
-  // Block 1 (stabil, cachebar): Rolle + Master + DNA (+ Visual-Stil, wenn die Visual-Spalte geschrieben werden kann)
+  // Block 1 (stabil, cachebar): Rolle + Master (+ Visual-Stil, wenn die Visual-Spalte geschrieben werden kann)
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
     + 'und ueberarbeitest ein bestehendes Video-Konzept im Dialog mit einem Mitarbeiter. '
     + 'Du aenderst nur die verlangte Stelle. '
@@ -395,13 +385,6 @@ function buildEditPrompt(ctx, message) {
     + 'Donts im Leitplanken-Block bleiben Verbote. Dos nur, wo der Fakt belegt ist.\n';
 
   stable += fmtMasterBlock(master);
-
-  if (dna.length) {
-    stable += DNA_KOPF;
-    for (const d of dna) {
-      stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${cap(d.inhalt, KONTEXT_MAX.dna)}\n`;
-    }
-  }
 
   if (visualSpalte || chatWaehltSpalte) {
     stable += '\n# VISUELLER STIL (verbindliches Format fuer "Was zu sehen ist")\n'
@@ -494,7 +477,7 @@ function buildEditPrompt(ctx, message) {
     task += '\nDer letzte Vorschlag wurde abgelehnt. Formulierungen daraus nicht wiederverwenden.\n';
   }
 
-  task += festgezogenBlock(skript, message);
+  task += festgezogenBlock(skript, message, { freierChat: chatWaehltSpalte });
   task += festlegungBlock(skript);
   task += VERBINDLICHE_REGELN;
 
@@ -543,18 +526,17 @@ function buildEditPrompt(ctx, message) {
 
   task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "aenderung_abgeben" '
     + (chatWaehltSpalte
-      ? '(Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion, aenderungen).\n'
+      ? '(Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion, aenderungen, umfang, umfang_sektion).\n'
       : '(Felder: antwort, sektion, vorschlag_text).\n')
     + 'Regeln:\n'
     + '- Innerhalb der Texte typografische Anfuehrungszeichen („…“) statt gerader (") verwenden.\n'
-    + (dna.length
-      ? '- DNA-No-Gos und Markenworte gelten. Eine ausdrueckliche Anweisung schlaegt die DNA beim Ton.\n'
-      : '')
     + '- vorschlag_text muss zur Zielgruppe passen (siehe Zielgruppen-Persona) und den Ton des restlichen Skripts erhalten.\n'
     + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
     + (chatWaehltSpalte
       ? '- Umfang alles oder benannter Teil: aenderungen = Liste aus { sektion, spalte, vorschlag_text }, ein Eintrag pro geaenderter Zelle. '
         + 'spalte ist gesprochen oder visuell. vorschlag_text ist die komplette neue Zelle. sektion, vorschlag_text, spalte und ganze_sektion oben bleiben null.\n'
+        + '- umfang immer setzen: alles, teil (dann umfang_sektion = hook, hauptteil oder cta), markierung oder keiner. '
+        + 'Nur bei alles oder teil duerfen festgezogene Zellen in aenderungen stehen.\n'
         + '- Nur eine Markierung ohne Umfang: aenderungen = null. spalte=visuell oder gesprochen, vorschlag_text ist der Ersatz der markierten Stelle, ganze_sektion=false.\n'
         + '- Bei reinen Fragen: aenderungen = null, vorschlag_text = null, sektion = null, spalte = null.\n'
       : '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
@@ -619,6 +601,7 @@ module.exports = {
   brauchtVisualStil,
   resolveModusSlug,
   editParams,
+  filtereFestgezogen,
   VERBINDLICHE_REGELN,
   EDIT_VERLAUF_LIMIT,
   GRID_SEKTIONEN

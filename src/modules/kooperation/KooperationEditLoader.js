@@ -38,7 +38,8 @@ export class KooperationEditLoader {
       andereKooperationen,
       kooperationVideos,
       tagTypen,
-      koopTags
+      koopTags,
+      mitarbeiter
     ] = await Promise.all([
       this._loadUnternehmen(unternehmenId),
       this._loadMarke(markeId),
@@ -51,7 +52,8 @@ export class KooperationEditLoader {
       this._loadAndereKooperationen(kampagneId, kooperationId),
       this._loadKooperationVideos(kooperationId),
       this._loadTagTypen(),
-      this._loadKoopTags(kooperationId)
+      this._loadKoopTags(kooperationId),
+      this._loadMitarbeiter()
     ]);
 
     const t1 = performance.now();
@@ -62,14 +64,19 @@ export class KooperationEditLoader {
     const readonlyLabels = {
       unternehmen: unternehmen?.firmenname || 'Unternehmen',
       marke: marke?.markenname || 'Keine Marke',
-      kampagne: kampagne?.kampagnenname || kampagne?.eigener_name || 'Kampagne'
+      kampagne: kampagne?.kampagnenname || kampagne?.eigener_name || 'Kampagne',
+      creator: `${currentCreator?.vorname || ''} ${currentCreator?.nachname || ''}`.trim() || 'Kein Creator'
     };
     this._setReadonlyField(form, 'unternehmen_id', unternehmenId, readonlyLabels.unternehmen);
     this._setReadonlyField(form, 'marke_id', markeId, readonlyLabels.marke, !markeId);
     this._setReadonlyField(form, 'kampagne_id', kampagneId, readonlyLabels.kampagne);
 
     this._fillSelectField(form, 'briefing_id', briefings, data?.briefing_id, { displayField: 'aktivierung_name' });
+    // Altbestand hat keinen Mitarbeiter: bleibt leer, bis jemand bewusst einen wählt (kein Default im Edit)
+    this._fillSelectField(form, 'assignee_id', mitarbeiter, data?.assignee_id || null);
     this._fillCreatorField(form, creators, creatorId, currentCreator);
+    // Creator nur noch ueber den Creator-Tausch aenderbar (haelt Casting, Skript und Kooperation konsistent)
+    this._setReadonlyField(form, 'creator_id', creatorId, readonlyLabels.creator, !creatorId);
 
     const totalVideos = await this._getKampagneTotalVideosWithBlocks(kampagne);
     const usedVideos = (andereKooperationen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
@@ -105,7 +112,8 @@ export class KooperationEditLoader {
     // aktuellen Wert synchronisieren. initializeSearchableSelects setzt Hidden+Label nicht zuverlässig,
     // wenn der select-slice(1)-Trick Options ohne selected-Flag überträgt.
     this._syncSearchableContainerValue(form, 'briefing_id');
-    this._syncSearchableContainerValue(form, 'creator_id');
+    this._syncSearchableContainerValue(form, 'assignee_id');
+    this._applyReadonlyToSearchableContainer(form, 'creator_id', ctx.readonlyLabels?.creator, !data?.creator_id);
 
     const videoInput = form.querySelector('input[name="videoanzahl"]');
     const videosList = form.querySelector('.videos-list');
@@ -199,6 +207,18 @@ export class KooperationEditLoader {
         .eq('unternehmen_id', unternehmenId),
       'campaign_briefings'
     ).order('aktivierung_name');
+    return data || [];
+  }
+
+  // Mitarbeiter wie im Create-Flow: intern, ohne Kunden und Gäste
+  async _loadMitarbeiter() {
+    if (!window.supabase) return [];
+    const { data } = await window.supabase
+      .from('benutzer')
+      .select('id, name')
+      .neq('rolle', 'kunde')
+      .neq('rolle', 'gast')
+      .order('name');
     return data || [];
   }
 
@@ -510,7 +530,9 @@ export class KooperationEditLoader {
 
   // Synct den searchable-Container (Input-Label + Hidden-Input) mit dem aktuellen Select-Value.
   _syncSearchableContainerValue(form, fieldName) {
-    const select = form.querySelector(`select[name="${fieldName}"]`);
+    // Das Searchable-Select entfernt name vom <select> und merkt ihn in data-field-name
+    const select = form.querySelector(`select[name="${fieldName}"]`)
+      || form.querySelector(`select[data-field-name="${fieldName}"]`);
     if (!select) return;
     const container = select.parentNode.querySelector('.searchable-select-container');
     if (!container) return;

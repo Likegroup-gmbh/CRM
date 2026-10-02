@@ -104,7 +104,7 @@ export class KooperationDetail extends PersonDetailBase {
           id, name, videoanzahl,
           einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
-          creator_id, kampagne_id, unternehmen_id, briefing_id,
+          creator_id, kampagne_id, unternehmen_id, briefing_id, assignee_id,
           kampagne:kampagne_id ( id, marke:marke_id ( id ) )
         `)
         .eq('id', kooperationId)
@@ -151,7 +151,8 @@ export class KooperationDetail extends PersonDetailBase {
           id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
           videoanzahl,
-          creator_id, kampagne_id, unternehmen_id, briefing_id,
+          creator_id, kampagne_id, unternehmen_id, briefing_id, assignee_id,
+          assignee:assignee_id ( id, name ),
           creator:creator_id (
             id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail,
             lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
@@ -416,6 +417,7 @@ export class KooperationDetail extends PersonDetailBase {
     ];
     const items = [
       ...campaignItems,
+      ...(!isKunde ? [{ icon: 'creator', label: 'Verantwortlich', value: this.kooperation?.assignee?.name || '-' }] : []),
       ...(!isKunde ? [{ icon: 'currency', label: 'EK Gesamt', value: this.formatCurrency(this.kooperation?.einkaufspreis_gesamt) }] : []),
       ...(!isKunde ? [{ icon: 'currency', label: 'VK Gesamt', value: this.formatCurrency(this.kooperation?.verkaufspreis_gesamt) }] : []),
       { icon: 'info', label: 'Videoanzahl', value: this.kooperation?.videoanzahl || '-' }

@@ -8,7 +8,7 @@ import { ChatPanelShell } from '../../core/chat/ChatPanelShell.js';
 import { bindChatLog } from '../../core/chat/chatLog.js';
 import { mountInlineQuestion } from '../../core/chat/inlineQuestion.js';
 import { pushStep, renderThinking } from '../../core/chat/thinking.js';
-import { renderLikyEingabe, renderLikySend, setLikySendBusy } from '../../core/chat/likyComposer.js';
+import { renderLikyComposer, renderLikyEingabe, renderLikySend, setLikySendBusy } from '../../core/chat/likyComposer.js';
 import { VideoideeVorschlagService } from './VideoideeVorschlagService.js';
 import { KonzeptChatService } from './KonzeptChatService.js';
 
@@ -46,6 +46,7 @@ export class KonzeptLikyPanel {
     this._onChatProgress = null;
     this._verlaufGeladen = false;
     this._pendingAktion = null;
+    this._frageHerkunft = null;
   }
 
   get sichtbar() {
@@ -73,19 +74,19 @@ export class KonzeptLikyPanel {
       titleHtml: HEAD,
       bodyHtml: `
         <div class="chat-log konzept-liky__log" id="konzept-liky-log"></div>
-        <div class="konzept-liky__composer">
-          <div class="konzept-liky__input">
-            ${renderLikyEingabe({
-              id: 'konzept-liky-input',
-              placeholder: 'Feedback zu den Vorschlägen…'
-            })}
-            ${renderLikySend({
-              id: 'konzept-liky-send',
-              title: 'An Liky schicken'
-            })}
-          </div>
-        </div>`,
-      onOpen: () => this._pin(true)
+        ${renderLikyComposer({
+          composerId: 'konzept-liky-composer',
+          inputHtml: renderLikyEingabe({
+            id: 'konzept-liky-input',
+            placeholder: 'Feedback zu den Vorschlägen…'
+          }),
+          sendHtml: renderLikySend({
+            id: 'konzept-liky-send',
+            title: 'An Liky schicken'
+          })
+        })}`,
+      onOpen: () => this._pin(true),
+      onToggle: () => this._handleHeaderToggle()
     });
 
     this._log = bindChatLog(this._feed());
@@ -111,10 +112,35 @@ export class KonzeptLikyPanel {
     this._thinkingEl = null;
     this._verlaufGeladen = false;
     this._pendingAktion = null;
+    this._frageHerkunft = null;
   }
 
   fokussieren() {
     this._shell?.open();
+  }
+
+  /**
+   * Header-Klick: offene Anzahl-Karte vom Button "Ideen vorschlagen"
+   * verwerfen und den Composer freigeben. Eine Karte, die der Chat selbst
+   * nachgefragt hat (braucht_anzahl), bleibt stehen. Sonst normales auf/zu.
+   */
+  _handleHeaderToggle() {
+    if (this._frageOffen && this._frageHerkunft === 'button' && !this._laeuft) {
+      this._verwerfeAnzahlFrage();
+      this._shell?.open();
+      return;
+    }
+    this._shell?.toggle();
+  }
+
+  _verwerfeAnzahlFrage() {
+    this._question?.destroy();
+    this._question = null;
+    this._frageOffen = false;
+    this._frageHerkunft = null;
+    this._hooks = null;
+    this._pendingAktion = null;
+    this._setComposerEnabled(true);
   }
 
   /** Button-Pfad. Offene Karte oder laufender Job: nur das Panel holen. */
@@ -128,6 +154,7 @@ export class KonzeptLikyPanel {
 
     this._hooks = hooks;
     this._pendingAktion = hooks.pendingAktion || null;
+    this._frageHerkunft = hooks.pendingAktion ? 'chat' : 'button';
     this._frageOffen = true;
 
     const turn = document.createElement('div');
@@ -147,9 +174,9 @@ export class KonzeptLikyPanel {
       hint: 'Trag die Anzahl in die Karte ein.'
     }, {
       onAnswer: (answer) => { void this._starte(answer); },
-      setComposerEnabled: () => this._lockComposer()
+      setComposerEnabled: (enabled) => this._setComposerEnabled(enabled)
     });
-    this._lockComposer();
+    this._setComposerEnabled(false);
     this._pin(true);
   }
 
@@ -232,6 +259,7 @@ export class KonzeptLikyPanel {
 
   async _starte(answer) {
     this._frageOffen = false;
+    this._frageHerkunft = null;
     this._question = null;
     const anzahl = answer.value;
     this._pushUser(String(anzahl));
@@ -299,10 +327,17 @@ export class KonzeptLikyPanel {
   }
 
   _lockComposer() {
+    this._setComposerEnabled(false);
+  }
+
+  _setComposerEnabled(enabled) {
     const input = document.getElementById('konzept-liky-input');
     const send = document.getElementById('konzept-liky-send');
-    if (input) input.disabled = true;
-    if (send) send.disabled = true;
+    if (input) input.disabled = !enabled;
+    if (send) {
+      send.disabled = !enabled;
+      if (enabled) send.classList.remove('is-stop');
+    }
   }
 
   _setComposerBusy(busy) {

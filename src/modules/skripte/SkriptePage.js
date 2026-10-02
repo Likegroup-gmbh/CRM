@@ -1,23 +1,23 @@
 // SkriptePage.js
 // /skripte = Table-Liste, /skripte/:id = 3-Spalten-Editor,
-// /skripte/dna|/master = Regelwerk-Liste, /:id = Dokument-Seite.
+// /skripte/master = Regelwerk-Liste, /:id = Dokument-Seite.
+// /skripte/dna (Skript-DNA entfallen, ADR 0038) leitet auf /skripte/master um.
 
 import { SkriptEditorView } from './SkriptEditorView.js';
 import { SkriptList } from './SkriptList.js';
 import { SkriptRegelwerkList } from './regelwerk/SkriptRegelwerkList.js';
 import { SkriptRegelwerkDetail } from './regelwerk/SkriptRegelwerkDetail.js';
-import { dnaAdapter, masterAdapter } from './regelwerk/regelwerkAdapters.js';
+import { masterAdapter } from './regelwerk/regelwerkAdapters.js';
 import { replaceSkriptUrl } from './SkripteUtils.js';
 
 const KONTEXT_KEY = 'skripte:kontext';
-const REGELWERK = { dna: dnaAdapter, master: masterAdapter };
+const REGELWERK = { master: masterAdapter };
 
 export class SkriptePage {
   constructor() {
     this.list = new SkriptList();
     this.editorView = new SkriptEditorView(this);
     this.regelwerkListen = {
-      dna: new SkriptRegelwerkList(dnaAdapter),
       master: new SkriptRegelwerkList(masterAdapter)
     };
     this.regelwerkDetail = new SkriptRegelwerkDetail();
@@ -37,11 +37,17 @@ export class SkriptePage {
 
     await this.editorView.cleanup?.();
     this.list.destroy?.();
-    this.regelwerkListen.dna.cleanup();
     this.regelwerkListen.master.cleanup();
     await this.regelwerkDetail.cleanup();
 
-    if (id === 'dna' || id === 'master') {
+    if (id === 'dna') {
+      // Alte Lesezeichen der entfallenen Skript-DNA
+      window.history.replaceState({ route: '/skripte/master' }, '', '/skripte/master');
+      id = 'master';
+      childId = null;
+    }
+
+    if (id === 'master') {
       if (window.isKunde?.()) {
         window.history.replaceState({ route: '/skripte' }, '', '/skripte');
         id = null;
@@ -140,7 +146,6 @@ export class SkriptePage {
 
   destroy() {
     this.list.destroy?.();
-    this.regelwerkListen.dna.cleanup();
     this.regelwerkListen.master.cleanup();
     const detail = this.regelwerkDetail.cleanup();
     const editor = this.editorView.cleanup?.();

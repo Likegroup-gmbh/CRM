@@ -12,8 +12,8 @@ function leiterBlock() {
   return '\n# LEITER\n'
     + 'Von oben nach unten. Das Obere schlaegt das Untere.\n'
     + '1. Don\'ts und belegte Fakten (Claims, Preis, Mechanik, Besetzung). Verletzt die Anweisung das: nicht umsetzen.\n'
-    + '2. Eine ausdrueckliche Anweisung im Editor schlaegt DNA und Master beim Ton und bei der Geschichte.\n'
-    + '3. DNA gilt fuer No-Gos und Markenworte, nicht als Werbeton und nicht vor einer Anweisung.\n'
+    + '2. Eine ausdrueckliche Anweisung im Editor schlaegt das Master-Regelwerk beim Ton und bei der Geschichte.\n'
+    + '3. Das Master-Regelwerk gilt fuer Aufbau und Bereichssystem, nicht als Werbeton und nicht vor einer Anweisung.\n'
     + '4. Dos sind Soll, kein Lock.\n';
 }
 
@@ -38,13 +38,9 @@ function vertragBlock(bereich) {
   return text;
 }
 
-const DNA_KOPF = '\n# SKRIPT-DNA (No-Gos und Markenworte, geschichtet - spaetere Layer haben Vorrang)\n'
-  + 'Die DNA ist kein Werbeton. Eine ausdrueckliche Anweisung schlaegt sie beim Ton.\n';
-
 module.exports = {
   EMPFEHLUNG_BEREICHE,
   istEmpfehlungBereich,
   leiterBlock,
-  vertragBlock,
-  DNA_KOPF
+  vertragBlock
 };

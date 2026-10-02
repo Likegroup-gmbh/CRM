@@ -24,9 +24,8 @@ describe('resolveSkriptBereich', () => {
 });
 
 describe('buildPrompt Master + inhalt_md', () => {
-  it('legt Master vor DNA und verlangt inhalt_md', () => {
+  it('nimmt nur das Master-Regelwerk und verlangt inhalt_md', () => {
     const { stable, task } = buildPrompt({
-      dna: [{ name: 'Global', layer_typ: 'global', version: 1, inhalt: 'DNA-Regel' }],
       master: MASTER,
       bereich: 'owned_social'
     }, { video_idee: 'Airfryer' });
@@ -34,8 +33,7 @@ describe('buildPrompt Master + inhalt_md', () => {
     expect(stable).toContain('MASTER-REGELWERK');
     expect(stable).toContain('Nichts erfinden.');
     expect(stable).not.toContain('Drehfertiger Aufbau');
-    expect(stable.indexOf('MASTER-REGELWERK')).toBeLessThan(stable.indexOf('SKRIPT-DNA'));
-    expect(stable).toContain('DNA-Regel');
+    expect(stable).not.toContain('SKRIPT-DNA');
     expect(task).toContain('inhalt_md');
     expect(task).toContain('hook, hauptteil, cta');
     expect(task).toContain('NICHT in inhalt_md');
@@ -52,7 +50,6 @@ describe('buildPrompt Master + inhalt_md', () => {
 
   it('nimmt keine fremden Beispiel-Skripte in den Prompt auf', () => {
     const { stable } = buildPrompt({
-      dna: [],
       master: [],
       bereich: 'owned_social',
       beispiele: [{ titel: 'Viral-Hook', hook: 'DARF-NICHT', performance_label: 'viral' }],
@@ -66,7 +63,7 @@ describe('buildPrompt Master + inhalt_md', () => {
 
   it('injiziert Regie-Modus in den Task-Block', () => {
     const { stable, task } = buildPrompt({
-      dna: [], master: [],
+      master: [],
       bereich: 'paid_creator_ads',
       modus: { name: 'Dynamisch', inhalt: 'Schnelle Wechsel.' }
     }, { video_idee: 'x' });
@@ -122,7 +119,7 @@ describe('buildEditPrompt Master-Dokument', () => {
     const { task } = buildEditPrompt({
       skript: { titel: 'Test', inhalt_md: '## Hook-Paket\nAudio: hi', prompt_kontext: {} },
       history: [],
-      kontext: { dna: [], briefing: null, master: MASTER }
+      kontext: { briefing: null, master: MASTER }
     }, { aktion: 'chat', sektion: 'hook-paket', inhalt: 'Kuerzer' });
 
     expect(task).toContain('## Hook-Paket');
@@ -139,7 +136,7 @@ describe('buildEditPrompt Master-Dokument', () => {
         prompt_kontext: {}
       },
       history: [],
-      kontext: { dna: [], briefing: null, master: [] }
+      kontext: { briefing: null, master: [] }
     }, { aktion: 'kuerzen', sektion: 'hook_variante_1', inhalt: '' });
 
     expect(task).toContain('HOOK-VARIANTEN');

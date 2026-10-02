@@ -23,7 +23,6 @@ function baseCtx(overrides = {}) {
     history: overrides.history || [],
     rueckfragen: overrides.rueckfragen || '',
     kontext: {
-      dna: [],
       master: [],
       briefing: overrides.briefing ?? null,
       ...(overrides.kontext || {})

@@ -1,5 +1,5 @@
-// Geklaerte Rueckfragen (Dialog vor der Generierung) fuer Generierung und
-// Edit. Ohne Limit: die Antworten gelten, bis der User sie aendert.
+// Geklaerte Rueckfragen (Dialog vor der Generierung). Nur die Generierung
+// liest sie; der Edit laedt den Dialog nicht (ADR 0037). Ohne Limit.
 
 const RUECKFRAGEN_SKIP_STATUS = ['pending', 'running', 'error', 'cancelled'];
 

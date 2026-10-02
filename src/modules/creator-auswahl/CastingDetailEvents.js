@@ -6,6 +6,7 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import { TAUSCH_ACTION, tauscheImCasting } from '../creator-tausch/creatorTauschUi.js';
 import {
   OHNE_PERSONA_KEY,
   personaDisplayLabel,
@@ -50,6 +51,10 @@ export function bindEvents() {
         case 'connect-videoidee':
           e.preventDefault();
           this.handleConnectVideoidee(id);
+          break;
+        case TAUSCH_ACTION:
+          e.preventDefault();
+          tauscheImCasting(this, id);
           break;
       }
     };

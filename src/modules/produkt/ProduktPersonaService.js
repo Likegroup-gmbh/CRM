@@ -20,7 +20,7 @@
 //
 // Verwerfen/Zuruecknehmen einer akzeptierten neuen Persona: die Persona wird
 // hart geloescht, wenn sie unbenutzt ist (keine anderen akzeptierten Links,
-// keine Skript-/DNA-/Briefing-Referenz) - sonst bleibt sie stehen.
+// keine Skript-/Briefing-Referenz) - sonst bleibt sie stehen.
 
 import { PersonaService } from '../persona/PersonaService.js';
 import { istKiBereit } from '../persona/audienceSituationGate.js';
@@ -614,7 +614,7 @@ export class ProduktPersonaService {
     return fehlende;
   }
 
-  /** Unbenutzt = kein anderer akzeptierter Link, kein Skript, keine DNA, kein Briefing. */
+  /** Unbenutzt = kein anderer akzeptierter Link, kein Skript, kein Briefing. */
   static async personaUnbenutzt(personaId, eigeneVorschlagId = null) {
     let linkQuery = window.supabase
       .from('produkt_persona_vorschlag')
@@ -623,14 +623,13 @@ export class ProduktPersonaService {
       .eq('status', 'accepted');
     if (eigeneVorschlagId) linkQuery = linkQuery.neq('id', eigeneVorschlagId);
 
-    const [links, skripte, dna, briefings] = await Promise.all([
+    const [links, skripte, briefings] = await Promise.all([
       linkQuery,
       window.supabase.from('skripte').select('id', { count: 'exact', head: true }).eq('persona_id', personaId),
-      window.supabase.from('skript_dna').select('id', { count: 'exact', head: true }).eq('persona_id', personaId),
       window.supabase.from('campaign_briefings').select('id', { count: 'exact', head: true }).contains('persona_ids', [personaId])
     ]);
 
-    return !(links.count > 0 || skripte.count > 0 || dna.count > 0 || briefings.count > 0);
+    return !(links.count > 0 || skripte.count > 0 || briefings.count > 0);
   }
 
   // --- Persona-seitige Verknuepfung ---

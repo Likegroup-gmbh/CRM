@@ -87,6 +87,15 @@ export async function loadDirectQueryOptions(field, form) {
       await this.loadRechnungDependentFieldsImproved(field, form, options);
     }
 
+    // Vorbelegung mit dem eingeloggten User, nur beim Anlegen und nur wenn nichts gewählt ist
+    if (field.defaultCurrentUser && form.dataset.isEditMode !== 'true') {
+      const currentUserId = window.currentUser?.id;
+      if (currentUserId && !options.some(o => o.selected)) {
+        const own = options.find(o => o.value === currentUserId);
+        if (own) own.selected = true;
+      }
+    }
+
     if (field.type === 'phone' && field.defaultCountry && field.table === 'eu_laender') {
       const hasSelectedValue = options.some(o => o.selected);
 

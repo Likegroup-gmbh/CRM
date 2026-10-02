@@ -279,6 +279,7 @@ export const EntityRegistry = {
       produktion_id: 'uuid',
       briefing_id: 'uuid',
       unternehmen_id: 'uuid',
+      assignee_id: 'uuid',
       einkaufspreis_netto: 'number',
       einkaufspreis_zusatzkosten: 'number',
       einkaufspreis_ust: 'number',
@@ -302,7 +303,8 @@ export const EntityRegistry = {
     relations: {
       creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
       kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'name' },
-      briefing: { table: 'campaign_briefings', foreignKey: 'briefing_id', displayField: 'aktivierung_name' }
+      briefing: { table: 'campaign_briefings', foreignKey: 'briefing_id', displayField: 'aktivierung_name' },
+      assignee: { table: 'benutzer', foreignKey: 'assignee_id', displayField: 'name' }
     },
     manyToMany: {
       tags: {

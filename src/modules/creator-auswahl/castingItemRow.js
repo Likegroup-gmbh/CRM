@@ -26,6 +26,7 @@ import {
   renderAutoCpmCell,
   beschreibeAusreisser
 } from './castingPreisZellen.js';
+import { tauschMenuItemHtml } from '../creator-tausch/creatorTauschUi.js';
 
 /**
  * Status-Zelle: der interne Prozess (Offen / Angefragt / In Verhandlung /
@@ -411,6 +412,7 @@ export function renderItemRow(ctx, item, index) {
                   Mit Videoidee verbinden
                 </a>
               ` : ''}
+              ${tauschMenuItemHtml(item, ctx)}
               ${ctx.canDelete ? `
               <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
                 ${window.ActionsDropdown?.getHeroIcon('delete') || ''}

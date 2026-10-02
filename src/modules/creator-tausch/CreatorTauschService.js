@@ -1,0 +1,107 @@
+// CreatorTauschService.js
+// Laden, Pruefen und Ausfuehren des Creator-Tauschs. Die Umbuchung selbst
+// macht die RPC creator_tausch in einer Transaktion.
+
+import {
+  ersatzSperre, datenSperre, tauschFehlerKey, tauschGrundText
+} from './creatorTauschSperren.js';
+
+const ITEM_COLS = 'id, creator_auswahl_id, creator_id, persona_id, name, prio_1, prio_2, zusage, gebucht, absage, '
+  + 'creator:creator_id(id, vorname, nachname), persona:persona_id(name, oberbegriff)';
+
+const db = () => window.supabase;
+
+export function creatorName(creator, fallback = 'Creator') {
+  return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || fallback;
+}
+
+export function itemCreatorName(item) {
+  return creatorName(item?.creator, item?.name || 'Creator');
+}
+
+async function einzeln(query) {
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Vertraege, Rechnungen und Videos des Abspringers in dieser Produktion. */
+async function ladeAbspringerDaten(creatorId, produktionId) {
+  if (!creatorId || !produktionId) return { vertraege: [], rechnungen: [], videos: [] };
+  const koops = await einzeln(db().from('kooperationen').select('id')
+    .eq('creator_id', creatorId).eq('produktion_id', produktionId));
+  const koopIds = (koops || []).map((k) => k.id);
+
+  const ohneKoop = `and(kooperation_id.is.null,creator_id.eq.${creatorId},produktion_id.eq.${produktionId})`;
+  const vertraege = await einzeln(db().from('vertraege')
+    .select('id, status, dropbox_file_url, unterschriebener_vertrag_url')
+    .or(koopIds.length ? `kooperation_id.in.(${koopIds.join(',')}),${ohneKoop}` : ohneKoop));
+  if (!koopIds.length) return { vertraege: vertraege || [], rechnungen: [], videos: [] };
+
+  const vertragIds = (vertraege || []).map((v) => v.id);
+  const rechnungFilter = vertragIds.length
+    ? `kooperation_id.in.(${koopIds.join(',')}),vertrag_id.in.(${vertragIds.join(',')})`
+    : `kooperation_id.in.(${koopIds.join(',')})`;
+  const [rechnungen, videos] = await Promise.all([
+    einzeln(db().from('rechnung').select('id').or(rechnungFilter)),
+    einzeln(db().from('kooperation_videos').select('id, asset_url').in('kooperation_id', koopIds))
+  ]);
+  return { vertraege: vertraege || [], rechnungen: rechnungen || [], videos: videos || [] };
+}
+
+/**
+ * Alles fuer den Dialog: abspringender Eintrag, Ersatz-Kandidaten mit Sperrgrund
+ * (null = waehlbar), Persona-Abweichung und Sperrgrund aus den Daten des Abspringers.
+ */
+export async function ladeTauschKontext(alterItemId) {
+  const alt = await einzeln(db().from('creator_auswahl_items')
+    .select(ITEM_COLS).eq('id', alterItemId).single());
+  const liste = await einzeln(db().from('creator_auswahl')
+    .select('produktion_id').eq('id', alt.creator_auswahl_id).single());
+  const items = await einzeln(db().from('creator_auswahl_items').select(ITEM_COLS)
+    .eq('creator_auswahl_id', alt.creator_auswahl_id).neq('id', alterItemId)
+    .not('creator_id', 'is', null).order('name'));
+  const daten = await ladeAbspringerDaten(alt.creator_id, liste?.produktion_id);
+
+  return {
+    alt,
+    datenSperre: datenSperre(daten),
+    kandidaten: (items || []).map((item) => ({
+      item,
+      sperre: ersatzSperre(alt, item),
+      anderePersona: (item.persona_id || null) !== (alt.persona_id || null)
+    }))
+  };
+}
+
+/**
+ * Casting-Eintrag zu einem Skript: ueber die Videoidee, sonst ueber den Creator
+ * der Kooperation in der Produktion des Skripts. null bei Altbestand ohne Eintrag.
+ */
+export async function findeAlterEintragFuerSkript(skript, verknuepfungen = []) {
+  if (skript?.strategie_item_id) {
+    const idee = await einzeln(db().from('strategie_items')
+      .select('creator_auswahl_item_id').eq('id', skript.strategie_item_id).maybeSingle());
+    if (idee?.creator_auswahl_item_id) return idee.creator_auswahl_item_id;
+  }
+  const creatorId = verknuepfungen.map((v) => v.kooperation?.creator?.id).find(Boolean);
+  if (!creatorId || !skript?.produktion_id) return null;
+  const treffer = await einzeln(db().from('creator_auswahl_items')
+    .select('id, creator_auswahl:creator_auswahl_id!inner(produktion_id)')
+    .eq('creator_id', creatorId).eq('absage', false)
+    .eq('creator_auswahl.produktion_id', skript.produktion_id).limit(1));
+  return treffer?.[0]?.id || null;
+}
+
+export async function tauscheCreator({ alterItemId, ersatzItemId, grund = '' }) {
+  const { data, error } = await db().rpc('creator_tausch', {
+    p_alter_item: alterItemId,
+    p_ersatz_item: ersatzItemId,
+    p_grund: grund?.trim() || null
+  });
+  if (error) {
+    const key = tauschFehlerKey(error);
+    throw new Error(key ? tauschGrundText(key) : error.message);
+  }
+  return data;
+}

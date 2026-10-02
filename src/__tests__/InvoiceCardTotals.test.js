@@ -6,6 +6,14 @@ import {
 } from '../modules/rechnung/invoiceCardTotals.js';
 import { kundenrechnungZeilen } from '../modules/rechnung/Monatsblatt.js';
 import { kartenSummen } from '../modules/stakeholder/daten/stakeholderOverviewData.js';
+import { berechneDashboard } from '../modules/stakeholder/daten/stakeholderDashboard.js';
+
+// Das Dashboard summiert die gerechneten Auftragszeilen; die Kacheln muessen
+// dieselben Betraege ergeben wie die Rohzeilen-Summen der Listen.
+function dashboardPage(bestand, filter = { selectedYear: 'all', activeTab: 'gesamt_mit' }) {
+  const d = berechneDashboard(bestand);
+  return { auftraege: d.zeilen, contractingOhneAuftrag: d.contractingOhneAuftrag, ...filter };
+}
 
 const kundenZeilen = [
   { id: 'a1', nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, rechnung_gestellt_am: '2026-08-01', ueberwiesen_am: '2026-09-01' },
@@ -70,7 +78,7 @@ describe('Karten-Summen sind eine Quelle', () => {
     ];
     const zeilen = kundenrechnungZeilen(auftraege, teilrechnungen);
     const cards = summarizeKundenrechnungRows(zeilen);
-    const page = {
+    const page = dashboardPage({
       auftraege,
       teilrechnungen,
       rechnungen: [
@@ -80,9 +88,7 @@ describe('Karten-Summen sind eine Quelle', () => {
       kampagnen: [{ id: 'k1', auftrag_id: 'a1' }],
       kooperationen: [{ id: 'koop1', kampagne_id: 'k1' }],
       blocks: [],
-      selectedYear: 'all',
-      activeTab: 'gesamt_mit',
-    };
+    });
 
     const summen = kartenSummen(page);
     expect(summen.kunden).toEqual(cards);
@@ -94,7 +100,7 @@ describe('Karten-Summen sind eine Quelle', () => {
   });
 
   it('Creator-Rechnung ohne Kooperation zählt über auftrag_id', () => {
-    const page = {
+    const page = dashboardPage({
       auftraege: [
         { id: 'a1', auftragsname: 'Ganz', nettobetrag: 1000, is_draft: false, start: '2026-01-01' },
       ],
@@ -107,9 +113,7 @@ describe('Karten-Summen sind eine Quelle', () => {
       kampagnen: [{ id: 'k1', auftrag_id: 'a1' }],
       kooperationen: [],
       blocks: [],
-      selectedYear: 'all',
-      activeTab: 'gesamt_mit',
-    };
+    });
 
     const summen = kartenSummen(page);
     expect(summen.creator.nettobetrag).toBe(100);

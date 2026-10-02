@@ -119,7 +119,7 @@ describe('SkriptEditorChatRenderer', () => {
 });
 
 describe('SkriptEditorDocRenderer', () => {
-  it('fragenModusHtml zeigt Titel, Rueckfragen-Badge und Generieren-Button', () => {
+  it('fragenModusHtml zeigt Titel, Rueckfragen-Badge und Aufbau-Toggles statt Generieren-Button', () => {
     const html = fragenModusHtml({
       skript: { titel: 'Mein <Skript>' },
       genStatus: null,
@@ -128,17 +128,30 @@ describe('SkriptEditorDocRenderer', () => {
     });
     expect(html).toContain('Mein &lt;Skript&gt;');
     expect(html).toContain('Rückfragen');
-    expect(html).toContain('id="ed-fragen-gen"');
+    expect(html).not.toContain('id="ed-fragen-gen"');
+    expect(html).toContain('data-aufbau-flag="mit_rezept"');
+    expect(html).toContain('data-aufbau-flag="mit_text_hook"');
     expect(html).toContain('<div>Vorgaben</div>');
     expect(html).not.toContain('skripte-actions-row--sticky');
   });
 
-  it('fragenModusHtml deaktiviert den Button waehrend Generierung', () => {
+  it('fragenModusHtml spiegelt gesetzte Aufbau-Flags aus dem generator_payload', () => {
+    const html = fragenModusHtml({
+      skript: { prompt_kontext: { generator_payload: { mit_rezept: true, mit_text_hook: false } } },
+      genStatus: null, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    const rezept = html.match(/<input[^>]*data-aufbau-flag="mit_rezept"[^>]*>/)?.[0] || '';
+    const textHook = html.match(/<input[^>]*data-aufbau-flag="mit_text_hook"[^>]*>/)?.[0] || '';
+    expect(rezept).toContain('checked');
+    expect(textHook).not.toContain('checked');
+  });
+
+  it('fragenModusHtml deaktiviert die Toggles waehrend Generierung', () => {
     const html = fragenModusHtml({
       skript: {}, genStatus: { laeuft: true }, docHeadActionsHtml: '', vorgabenPanelHtml: ''
     });
     expect(html).toContain('disabled');
-    expect(html).toContain('Läuft…');
+    expect(html).not.toContain('id="ed-fragen-gen"');
   });
 
   it('skriptDocHtml rendert Sektionen mit gesprochenem Text', () => {
@@ -215,6 +228,33 @@ describe('SkriptEditorDocRenderer', () => {
     });
     expect(html).not.toContain('Hook-Varianten');
     expect(html).not.toContain('Zweiter');
+  });
+
+  it('skriptDocHtml zeigt Rezept-Zeile und Text-Hook nur bei Flag oder Inhalt', () => {
+    const basis = { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E' };
+    const ohne = skriptDocHtml({
+      skript: { ...basis },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    expect(ohne).not.toContain('data-sektion="rezept"');
+    expect(ohne).not.toContain('data-feld="text_hook"');
+
+    const mitFlags = skriptDocHtml({
+      skript: { ...basis, prompt_kontext: { generator_payload: { mit_rezept: true, mit_text_hook: true } } },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    expect(mitFlags).toContain('data-sektion="rezept"');
+    expect(mitFlags).toContain('colspan="2"');
+    expect(mitFlags).toContain('data-feld="rezept"');
+    expect(mitFlags).toContain('data-feld="text_hook"');
+    expect(mitFlags).toContain('Text-Hook');
+
+    const mitInhalt = skriptDocHtml({
+      skript: { ...basis, rezept: '200g Mehl', text_hook: 'Nur 3 Zutaten' },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    expect(mitInhalt).toContain('200g Mehl');
+    expect(mitInhalt).toContain('Nur 3 Zutaten');
   });
 
   it('skriptDocHtml wechselt bei inhalt_md auf Markdown-Sektionen', () => {

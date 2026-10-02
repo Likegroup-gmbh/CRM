@@ -2,17 +2,21 @@
 // Gemeinsamer Load des Finanzbestands fuer die Admin-Finanzseiten
 // (Datenqualitaetsanzeige, Stakeholder-Uebersicht). Beide rechnen gegen
 // denselben Bestand — ohne dieses Modul scannt jede Page die Tabellen
-// selbst, und ModuleRegistry.destroy() wirft das Ergebnis bei jeder
-// Navigation weg.
+// selbst.
 //
 // Interface ist der Bestand, nicht die Tabellenliste: Pages bekommen ein
 // Objekt und mappen es auf ihre Felder. Die Selects und die Pagination
 // (fetchAllRows) bleiben implementation des Moduls.
 //
-// Cache auf Modul-Ebene, inkl. In-Flight: ein zweiter Caller wartet auf
-// dasselbe Promise statt denselben Scan zu starten. Nicht StaticDataCache
-// (24h, Stammdaten) — der Bestand gilt nur innerhalb des Adminbereichs;
-// ModuleRegistry.invalidiert ihn, sobald die Route hinausfuehrt.
+// Frische-Vertrag: Zahlen werden NIE gecacht. Mitarbeiter arbeiten live an
+// den Daten, Externe schauen aufs Dashboard — jeder Aufruf liefert den
+// Stand von jetzt. Zwei Ausnahmen, beide nur um Wartezeit zu ueberlappen:
+//   - In-Flight: wer waehrend eines laufenden Loads fragt, teilt ihn sich
+//     (kein Doppel-RPC).
+//   - Prefetch: der Boot startet den Load, waehrend noch Auth laeuft. Das
+//     Ergebnis wird von genau einem Load uebernommen, hoechstens
+//     PREFETCH_MAX_ALTER_MS nach dem Start, danach ist es verbraucht.
+// Jeder Bestand traegt `geladenAm` (ms), damit die Anzeige den Stand nennt.
 //
 // Der Load geht ueber stakeholder_finanzbestand(): ein Call, Rolle einmal
 // geprueft, ohne die pro-Zeile-RLS der Einzel-Selects. Fehlt die Funktion
@@ -20,10 +24,12 @@
 
 import { fetchAllRows, fetchAllRowsWave } from '../fetchAllRows.js';
 import { fetchBerichtsstaende } from './berichtsstandStore.js';
+import { navMark } from '../dev/navTrace.js';
 import { dropTestunternehmenBestand } from './testunternehmen.js';
+import { createVorlauf } from './vorlauf.js';
 
-let cached = null;
-let inFlight = null;
+// So lange darf ein Prefetch zwischen Start und Uebernahme liegen.
+export const PREFETCH_MAX_ALTER_MS = 15000;
 
 // Superset der bisherigen loadData-Selects der beiden Pages. Unterschiede
 // sind bewusst: DQ braucht creator und video-Labels (titel, video_name),
@@ -132,27 +138,28 @@ async function loadViaTables(supabase) {
 }
 
 async function load(supabase) {
+  navMark('finanzbestand:start');
   const viaRpc = await loadViaRpc(supabase);
-  if (viaRpc) return viaRpc;
-  return loadViaTables(supabase);
+  const bestand = viaRpc || await loadViaTables(supabase);
+  navMark('finanzbestand:ende');
+  return { ...bestand, geladenAm: Date.now() };
+}
+
+const vorlauf = createVorlauf(load, { maxAlterMs: PREFETCH_MAX_ALTER_MS });
+
+// Boot-Prefetch: laeuft parallel zur Auth-Kette. Fehler (z. B. forbidden bei
+// falscher Rollen-Vermutung) werden verschluckt; der spaetere Load laedt dann
+// selbst. Ein zweiter Prefetch waehrend eines frischen ersten ist ein No-op.
+export function prefetchFinanzbestand(supabase) {
+  if (!supabase) return;
+  if (vorlauf.prefetch(supabase)) navMark('prefetch:start');
 }
 
 export async function loadFinanzbestand(supabase) {
   if (!supabase) throw new Error('Supabase nicht verfügbar');
-  if (cached) return cached;
-  if (inFlight) return inFlight;
-  inFlight = load(supabase)
-    .then((bestand) => {
-      cached = bestand;
-      return bestand;
-    })
-    .finally(() => {
-      inFlight = null;
-    });
-  return inFlight;
+  return vorlauf.load(supabase);
 }
 
 export function invalidateFinanzbestand() {
-  cached = null;
-  inFlight = null;
+  vorlauf.invalidate();
 }

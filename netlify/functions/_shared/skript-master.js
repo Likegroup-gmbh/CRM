@@ -64,7 +64,8 @@ function stripMasterVorlagen(md) {
 
 function fmtMasterBlock(docs) {
   if (!docs?.length) return '';
-  let out = '\n# MASTER-REGELWERK (verbindlich - Bereichssysteme nicht vermischen)\n';
+  let out = '\n# MASTER-REGELWERK (verbindlich - Bereichssysteme nicht vermischen)\n'
+    + 'Ausgabeformat, Felder und Visual-Stil regelt der AUSGABEFORMAT-Block im Task, nicht das Master-Regelwerk.\n';
   for (const d of docs) {
     const label = MASTER_BEREICH_LABELS[d.bereich] || d.bereich;
     const inhalt = stripMasterVorlagen(d.inhalt);

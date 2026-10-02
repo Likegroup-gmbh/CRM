@@ -30,7 +30,7 @@ describe('buildKontextText / buildReferenzText (Prompt)', () => {
   };
 
   it('enthaelt Referenz-Sektion mit Delimitern, Anti-Copy und Untrusted-Regel', () => {
-    const text = buildKontextText({ dna: [] }, { video_idee: 'Morgenroutine', referenz_video: referenz });
+    const text = buildKontextText({}, { video_idee: 'Morgenroutine', referenz_video: referenz });
     expect(text).toContain('VIDEOVORLAGE');
     expect(text).toContain('<referenzvideo>');
     expect(text).toContain('</referenzvideo>');
@@ -44,13 +44,13 @@ describe('buildKontextText / buildReferenzText (Prompt)', () => {
   });
 
   it('Engagement-Metriken (Likes etc.) landen NICHT im Prompt', () => {
-    const text = buildKontextText({ dna: [] }, { video_idee: 'x', referenz_video: referenz });
+    const text = buildKontextText({}, { video_idee: 'x', referenz_video: referenz });
     expect(text).not.toContain('1200');
     expect(text).not.toMatch(/likes/i);
   });
 
   it('ohne Referenz keine Sektion (Legacy/Rueckfragen-Fallback)', () => {
-    const text = buildKontextText({ dna: [] }, { video_idee: 'x' });
+    const text = buildKontextText({}, { video_idee: 'x' });
     expect(text).not.toContain('referenzvideo');
   });
 

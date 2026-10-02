@@ -153,4 +153,34 @@ describe('KonzeptLikyPanel Anzahl', () => {
     panel.fragAnzahl();
     expect(document.querySelectorAll('.chat-ask')).toHaveLength(1);
   });
+
+  it('Header-Klick verwirft die Button-Anzahl-Karte und gibt den Composer frei', () => {
+    panel = new KonzeptLikyPanel({ canCreate: true, isKunde: false, strategieId: 's1' });
+    panel.mount();
+    panel.fragAnzahl();
+
+    expect(document.querySelectorAll('.chat-ask')).toHaveLength(1);
+    expect(document.getElementById('konzept-liky-input').disabled).toBe(true);
+    expect(document.getElementById('konzept-liky-send').disabled).toBe(true);
+
+    document.getElementById('header-chat-toggle').click();
+
+    expect(document.querySelectorAll('.chat-ask')).toHaveLength(0);
+    expect(document.getElementById('konzept-liky-input').disabled).toBe(false);
+    expect(document.getElementById('konzept-liky-send').disabled).toBe(false);
+    expect(panel.blockiert()).toBe(false);
+    expect(document.getElementById('konzept-liky-panel').hidden).toBe(false);
+  });
+
+  it('Header-Klick laesst eine Chat-Anzahl-Karte (braucht_anzahl) stehen', () => {
+    panel = new KonzeptLikyPanel({ canCreate: true, isKunde: false, strategieId: 's1' });
+    panel.mount();
+    panel.fragAnzahl({ pendingAktion: { text: 'entwirf noch welche' } });
+
+    document.getElementById('header-chat-toggle').click();
+
+    expect(document.querySelectorAll('.chat-ask')).toHaveLength(1);
+    expect(document.getElementById('konzept-liky-input').disabled).toBe(true);
+    expect(document.getElementById('konzept-liky-panel').hidden).toBe(true);
+  });
 });

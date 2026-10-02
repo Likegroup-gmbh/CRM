@@ -10,12 +10,13 @@ const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
 const { setThinking } = require('./_shared/thinking');
+const { istMasterDokument } = require('./_shared/skript-creator-facing');
 const { logPrompt } = require('./_shared/prompt-log');
 const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
 const { stempelSekunden, pruefeSkript } = require('./_shared/skript-context/formatter');
 const {
   loadEditContext, buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel, formatZeitstempel,
-  ladeVisuellStil, brauchtVisualStil, resolveModusSlug, editParams, GRID_SEKTIONEN
+  ladeVisuellStil, brauchtVisualStil, resolveModusSlug, editParams, filtereFestgezogen, GRID_SEKTIONEN
 } = require('./_shared/skript-edit-prompt');
 
 // Tool-Call fuer strukturierte Antworten. Bei Schreib-Aktionen laeuft
@@ -39,6 +40,15 @@ const EDIT_TOOL = {
       ganze_sektion: {
         type: 'boolean',
         description: 'Nur freier Chat: true = vorschlag_text ersetzt die ganze Zelle der Sektion, nicht nur die markierte Stelle.'
+      },
+      umfang: {
+        type: ['string', 'null'],
+        enum: ['alles', 'teil', 'markierung', 'keiner', null],
+        description: 'Nur freier Chat: Umfang der Anweisung. alles, teil (benannte Sektion), markierung (nur markierte Stelle) oder keiner.'
+      },
+      umfang_sektion: {
+        type: ['string', 'null'],
+        description: 'Nur bei umfang=teil: hook, hauptteil oder cta. Sonst null.'
       },
       aenderungen: {
         type: ['array', 'null'],
@@ -155,11 +165,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     }
 
     const parsed = result.json || extractJson(result.text, {
-      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion', 'titel', 'festlegung', 'aenderungen']
+      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion', 'titel', 'festlegung', 'umfang', 'umfang_sektion', 'aenderungen']
     });
     let vorschlag = stripToolXml(parsed.vorschlag_text);
     const antwort = stripToolXml(parsed.antwort);
-    const istMaster = Boolean(ctx.skript?.inhalt_md);
+    const istMaster = istMasterDokument(ctx.skript);
     const parsedSektion = (parsed.sektion || '').trim() || null;
     const titelWunsch = stripToolXml(parsed.titel);
     let sektion = istMaster
@@ -179,7 +189,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const ziel = message.ist_visuell || message.aktion === 'visuell'
       ? `${message.sektion}_visuell`
       : message.sektion;
-    if (gezogen.includes(getroffen) && getroffen !== ziel) vorschlag = null;
+    // Umfang vom Modell: alles oder der benannte Teil oeffnet Festgezogen
+    const umfang = message.aktion === 'chat' ? (parsed.umfang || null) : null;
+    const umfangSektion = String(parsed.umfang_sektion || '').trim().toLowerCase();
+    const umfangOeffnet = umfang === 'alles' || (umfang === 'teil' && sektion === umfangSektion);
+    if (gezogen.includes(getroffen) && getroffen !== ziel && !umfangOeffnet) vorschlag = null;
     if (spalte.ist_visuell && vorschlag && !spalte.selektion_text && ['hook', 'hauptteil', 'cta'].includes(sektion)) {
       const visKey = `${sektion}_visuell`;
       const draft = {
@@ -197,7 +211,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     // Freier Chat mit Umfang: Liste der geaenderten Zellen. Jede wird wie
     // eine einzelne Zelle geprueft; die Visual-Zellen bekommen die Sekunden
     // aus dem gesamten Entwurf, nicht nur aus der eigenen Zelle.
-    const aenderungen = (message.aktion === 'chat' && Array.isArray(parsed.aenderungen))
+    const aenderungenRoh = (message.aktion === 'chat' && Array.isArray(parsed.aenderungen))
       ? parsed.aenderungen
           .filter((a) => a && typeof a === 'object')
           .map((a) => ({
@@ -207,6 +221,14 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
           }))
           .filter((a) => a.vorschlag_text && (GRID_SEKTIONEN.includes(a.sektion) || a.sektion === 'titel'))
       : null;
+    // Festgezogene Zellen ausserhalb des Umfangs verwirft der Server
+    let ausgelassen = 0;
+    let aenderungen = aenderungenRoh;
+    if (aenderungenRoh) {
+      const gefiltert = filtereFestgezogen(aenderungenRoh, gezogen, { umfang, umfang_sektion: umfangSektion });
+      aenderungen = gefiltert.behalten;
+      ausgelassen = gefiltert.verworfen.length;
+    }
     if (aenderungen && aenderungen.length) {
       const draft = {
         hook: ctx.skript.hook,
@@ -260,7 +282,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
 
     await supabase.from('skript_chat_messages').update({
       status: (aenderungen && aenderungen.length) || (vorschlag && sektion && sektion !== 'gesamt') ? 'vorschlag' : 'fertig',
-      inhalt: antwort,
+      inhalt: ausgelassen
+        ? [antwort, `${ausgelassen} festgezogene ${ausgelassen === 1 ? 'Zelle' : 'Zellen'} ausgelassen (nicht im Umfang).`].filter(Boolean).join(' ')
+        : antwort,
       vorschlag_text: vorschlag,
       aenderungen: aenderungen && aenderungen.length ? aenderungen : null,
       sektion: (aenderungen && aenderungen.length) ? 'gesamt' : (sektion || message.sektion),

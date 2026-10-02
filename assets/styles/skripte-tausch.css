@@ -1,0 +1,18 @@
+/* Creator-Tausch im Skript-Editor: Hinweis-Banner unter dem Doc-Kopf */
+
+.skripte-editor-tausch-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+}
+
+.skripte-editor-tausch-banner .mdc-btn {
+  flex-shrink: 0;
+}

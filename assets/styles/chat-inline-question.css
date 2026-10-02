@@ -261,40 +261,8 @@
   padding: var(--space-lg);
 }
 
-.konzept-liky__composer {
-  flex-shrink: 0;
-  padding: 0 var(--space-lg) var(--space-lg);
-}
-
-.konzept-liky__input {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-sm);
-}
-
-.konzept-liky__input .doc-chat__input {
-  flex: 1;
-  min-width: 0;
-}
-
-.konzept-liky__input textarea {
-  display: block;
-  width: 100%;
-  min-height: 2.5em;
-  padding: var(--space-sm) var(--space-md);
-  border: var(--border-xs) solid var(--border-primary);
-  border-radius: var(--radius-xl);
-  background: var(--bg-primary);
-  box-shadow: var(--shadow-sm);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  resize: none;
-  cursor: not-allowed;
-}
-
-.konzept-liky__input textarea:disabled {
-  background: var(--gray-50, var(--bg-primary));
-  opacity: 0.85;
+/* Composer ist die gemeinsame Liky-Karte (renderLikyComposer, Styles in
+   doc.css am .konzept-liky-Host) - hier nur der Abstand zum Panel-Rand. */
+.konzept-liky .doc-chat__composer {
+  margin: 0 var(--space-lg) var(--space-lg);
 }

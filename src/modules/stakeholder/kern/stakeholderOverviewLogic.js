@@ -261,10 +261,10 @@ export function tabForAuftrag(auftrag, blocks) {
 }
 
 // Dieselbe Menge wie die Kalkulationskarten: Jahr plus Leistungsbereich.
+// page.auftraege sind die gerechneten Zeilen; ihr Tab steht schon drin.
 export function auftraegeImFilter(page) {
-  const blockMap = blocksByAuftrag(page);
   return filteredAuftraege(page).filter(a => {
-    const tab = tabForAuftrag(a, blockMap.get(a.id));
+    const tab = a.tab;
     if (!isGesamtTab(page.activeTab) && tab !== page.activeTab) return false;
     if (page.activeTab === TAB_GESAMT_OHNE && tab === TAB_CONTRACTING) return false;
     return true;
@@ -273,9 +273,8 @@ export function auftraegeImFilter(page) {
 
 export function tabCounts(page) {
   const counts = new Map(TABS.map(t => [t.key, 0]));
-  const blockMap = blocksByAuftrag(page);
   filteredAuftraege(page).forEach(a => {
-    const tab = tabForAuftrag(a, blockMap.get(a.id));
+    const tab = a.tab;
     counts.set(tab, (counts.get(tab) || 0) + 1);
     counts.set(TAB_GESAMT_MIT, (counts.get(TAB_GESAMT_MIT) || 0) + 1);
     if (tab !== TAB_CONTRACTING) {

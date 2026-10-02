@@ -62,7 +62,6 @@ export class SkriptEditorGeneration {
       briefing_id: v.skript.briefing_id,
       bereich: v.skript.bereich,
       modus: v.skript.prompt_kontext?.modus || v.skript.prompt_kontext?.generator_payload?.modus || null,
-      mit_dna: v.skript.mit_dna,
       video_idee: v.skript.video_idee,
       location: v.skript.location,
       regieanweisung: v.skript.regieanweisung,

@@ -1,32 +1,19 @@
-// Laden und Rechnen der Stakeholder-Übersicht.
-// Schreibt geladene Zeilen auf die Page; Aggregation und Status sind reine Aufrufe.
-// Der Bestand kommt aus dem gemeinsamen Finanzbestand (core/budget), der
-// Entwürfe und Testunternehmen schon filtert und im Adminbereich cached.
+// Laden und Summieren der Stakeholder-Übersicht.
+// Gerechnet wird vorher (stakeholderDashboard.js, auf dem Server): die Page
+// bekommt je Auftrag eine fertige Zeile und filtert, gruppiert und addiert
+// sie nur noch. Jahr und Leistungsbereich bleiben damit reine Browser-Filter.
 
-import { getChipFromKampagnenartName } from '../../auftrag/logic/kampagnenartChip.js';
-import { calculateBudgetOverview } from '../../../core/budget/calculateBudgetOverview.js';
-import { calculateCreatorPaymentSummary } from '../../../core/budget/EkVkAgencyFeeHelper.js';
-import { loadFinanzbestand } from '../../../core/budget/finanzbestand.js';
-import { calculateMonatsauswertung } from '../../../core/budget/monatsauswertung.js';
+import { loadDashboard } from './dashboardLoad.js';
 import {
-  summarizeKundenrechnungRows,
-  summarizeRechnungRows,
+  emptyKundenSummary,
+  emptyRechnungSummary,
 } from '../../rechnung/invoiceCardTotals.js';
-import { kundenrechnungZeilen } from '../../../core/budget/kundenrechnungZeilen.js';
 import {
-  INFLUENCER_CHIPS,
   TAB_INFLUENCER,
   auftraegeImFilter,
-  blocksByAuftrag,
   elapsedRatio,
   filteredAuftraege,
-  kampagnenByAuftrag,
-  koopsByAuftrag,
-  mergeFeeSource,
-  resolvePercentageFee,
-  resolveVolumen,
-  tabForAuftrag,
-  videosByKoop,
+  isGesamtTab,
 } from '../kern/stakeholderOverviewLogic.js';
 
 const SUPABASE = () => window.supabase;
@@ -35,79 +22,59 @@ export async function loadData(page) {
   const supabase = SUPABASE();
   if (!supabase) throw new Error('Supabase nicht verfügbar');
 
-  const bestand = await loadFinanzbestand(supabase);
+  const dashboard = await loadDashboard(supabase);
 
-  page.auftraege = bestand.auftraege;
-  page.blocks = bestand.blocks;
-  page.kampagnen = bestand.kampagnen;
-  page.kooperationen = bestand.kooperationen;
-  page.videos = bestand.videos;
-  page.rechnungen = bestand.rechnungen;
-  page.teilrechnungen = bestand.teilrechnungen;
-  page.detailsByAuftrag = new Map((bestand.details || []).map(d => [d.auftrag_id, d]));
-  page.unternehmenById = new Map((bestand.unternehmen || []).map(u => [u.id, u]));
-  page.berichtsstaende = bestand.berichtsstaende;
+  page.auftraege = dashboard.zeilen;
+  page.contractingOhneAuftrag = dashboard.contractingOhneAuftrag || emptyRechnungSummary();
+  page.unternehmenById = new Map((dashboard.unternehmen || []).map(u => [u.id, u]));
+  page.berichtsstaende = dashboard.berichtsstaende || [];
+  page.geladenAm = dashboard.geladenAm || Date.now();
+  // Die Monatsauswertung kommt fertig mit; sie gehoert zum selben Stand.
+  page._monats = dashboard.monatsauswertung;
+}
+
+// GESAMT zeigt das Auftragsvolumen. In einem Kategorie-Tab ist der gepflegte
+// Kampagnenart-Umsatz die genauere Zahl; ohne gepflegten Block bleibt der Nettobetrag.
+function zeilenVolumen(zeile, activeTab) {
+  if (isGesamtTab(activeTab)) return zeile.volumen_netto;
+  return zeile.hat_bloecke ? zeile.volumen_bloecke : zeile.volumen_netto;
 }
 
 export function aggregate(page) {
-  const auftraege = auftraegeImFilter(page);
-  const blockMap = blocksByAuftrag(page);
-  const koopMap = koopsByAuftrag(page);
-  const videoMap = videosByKoop(page);
-  const kampMap = kampagnenByAuftrag(page);
+  const zeilen = auftraegeImFilter(page);
   const rows = [];
-  let sumVolumen = 0;
-  let sumVerfuegbar = 0;
-  let sumVerbraucht = 0;
-  let sumCreator = 0;
-  let sumAgentur = 0;
-  let sumAgenturFest = 0;
-  let sumAgenturMargin = 0;
-  let sumAgenturVoll = 0;
-  let sumKsk = 0;
-  let sumZusatz = 0;
-  let sumDb = 0;
-  let sumCreatorPaid = 0;
-  let sumCreatorOpen = 0;
-  let sumFestVolumen = 0;
-  let sumFestAgentur = 0;
-  let sumEkvkVolumen = 0;
-  let sumEkvkVk = 0;
-  let sumEkvkRealisiert = 0;
+  const totals = {
+    volumen: 0,
+    verfuegbar: 0,
+    verbraucht: 0,
+    creator: 0,
+    creatorPaid: 0,
+    creatorOpen: 0,
+    agentur: 0,
+    agenturFest: 0,
+    agenturMargin: 0,
+    agenturVoll: 0,
+    ksk: 0,
+    zusatz: 0,
+    db: 0,
+    festVolumen: 0,
+    festAgentur: 0,
+    ekvkVolumen: 0,
+    ekvkVk: 0,
+    ekvkRealisiert: 0,
+  };
 
-  auftraege.forEach(a => {
-    const blocks = blockMap.get(a.id) || [];
-    const tab = tabForAuftrag(a, blocks);
+  zeilen.forEach(z => {
+    const volumen = zeilenVolumen(z, page.activeTab);
+    const creator = z.creator;
+    const ksk = z.ksk;
+    const zusatz = z.zusatz;
 
-    const details = mergeFeeSource(page.detailsByAuftrag.get(a.id), a);
-    const koops = koopMap.get(a.id) || [];
-    const kampagnen = kampMap.get(a.id) || [];
-    const videos = koops.flatMap(k => videoMap.get(k.id) || []);
-
-    const summary = calculateBudgetOverview({
-      auftrag: a,
-      details,
-      kooperationen: koops,
-      videos,
-      kampagnen
-    });
-
-    const volumen = resolveVolumen(a, blocks, page.activeTab);
-    const creator = summary.creatorAnteil || 0;
-    const koopIds = new Set(koops.map(k => k.id));
-    const auftragRechnungen = (page.rechnungen || []).filter(r => {
-      if (r.auftrag_id) return r.auftrag_id === a.id;
-      return koopIds.has(r.kooperation_id);
-    });
-    const creatorPayment = calculateCreatorPaymentSummary(creator, auftragRechnungen);
-    const ksk = summary.agencyFeeSummary?.kskValue || 0;
-    const zusatz = summary.extraKostenVkSum || 0;
-
-    const feeRaw = resolvePercentageFee(details);
-    const agenturFest = tab === TAB_INFLUENCER
-      ? feeRaw * elapsedRatio(a.start, a.ende)
+    const feeRaw = z.fee_roh;
+    const agenturFest = z.tab === TAB_INFLUENCER
+      ? feeRaw * elapsedRatio(z.start, z.ende)
       : feeRaw;
-    const agenturMargin = summary.agencyFeeSummary?.ekVkMargin || 0;
+    const agenturMargin = z.agentur_marge;
     const agentur = agenturFest + agenturMargin;
     const agenturVoll = feeRaw + agenturMargin;
 
@@ -116,109 +83,63 @@ export function aggregate(page) {
     const verfuegbar = volumen - verbraucht;
     const db = agentur;
 
-    sumVolumen += volumen;
-    sumVerfuegbar += verfuegbar;
-    sumVerbraucht += verbraucht;
-    sumCreator += creator;
-    sumAgentur += agentur;
-    sumAgenturFest += agenturFest;
-    sumAgenturMargin += agenturMargin;
-    sumAgenturVoll += agenturVoll;
-    sumKsk += ksk;
-    sumZusatz += zusatz;
-    sumDb += db;
-    sumCreatorPaid += creatorPayment.paid;
-    sumCreatorOpen += creatorPayment.open;
+    totals.volumen += volumen;
+    totals.verfuegbar += verfuegbar;
+    totals.verbraucht += verbraucht;
+    totals.creator += creator;
+    totals.agentur += agentur;
+    totals.agenturFest += agenturFest;
+    totals.agenturMargin += agenturMargin;
+    totals.agenturVoll += agenturVoll;
+    totals.ksk += ksk;
+    totals.zusatz += zusatz;
+    totals.db += db;
+    totals.creatorPaid += z.creator_bezahlt;
+    totals.creatorOpen += z.creator_offen;
 
     // Volumen bleibt exklusiv: Fee-Auftrag nur in „fest“, sonst nur in EK/VK.
     // Die Fee steht voll (nicht zeitanteilig). Die EK/VK-Marge zählt immer,
     // auch wenn derselbe Auftrag zusätzlich eine Fee hat.
     if (feeRaw > 0) {
-      sumFestVolumen += volumen;
-      sumFestAgentur += feeRaw;
+      totals.festVolumen += volumen;
+      totals.festAgentur += feeRaw;
     } else {
-      sumEkvkVolumen += volumen;
+      totals.ekvkVolumen += volumen;
     }
-    sumEkvkVk += summary.vkSum || 0;
-    sumEkvkRealisiert += summary.ekVkMarginSum || 0;
+    totals.ekvkVk += z.ekvk_vk;
+    totals.ekvkRealisiert += z.ekvk_realisiert;
 
     rows.push({
-      auftrag: a,
-      details,
-      summary,
+      auftrag: z,
+      details: { percentage_fee_enabled: z.fee_aktiv },
       volumen,
       verfuegbar,
       verbraucht,
       creator,
-      creatorPaid: creatorPayment.paid,
-      creatorOpen: creatorPayment.open,
+      creatorPaid: z.creator_bezahlt,
+      creatorOpen: z.creator_offen,
       agentur,
       agenturVoll,
+      agenturMargin,
       ksk,
       zusatz,
-      db
+      db,
     });
   });
 
-  return {
-    rows,
-    totals: {
-      volumen: sumVolumen,
-      verfuegbar: sumVerfuegbar,
-      verbraucht: sumVerbraucht,
-      creator: sumCreator,
-      creatorPaid: sumCreatorPaid,
-      creatorOpen: sumCreatorOpen,
-      agentur: sumAgentur,
-      agenturFest: sumAgenturFest,
-      agenturMargin: sumAgenturMargin,
-      agenturVoll: sumAgenturVoll,
-      ksk: sumKsk,
-      zusatz: sumZusatz,
-      db: sumDb,
-      festVolumen: sumFestVolumen,
-      festAgentur: sumFestAgentur,
-      ekvkVolumen: sumEkvkVolumen,
-      ekvkVk: sumEkvkVk,
-      ekvkRealisiert: sumEkvkRealisiert
-    }
-  };
+  return { rows, totals };
 }
 
 export function influencerOffenesCreatorBudget(page) {
   // Nur für den Influencer-Tab: Σ creator_budget der Influencer-Aufträge
   // + KSK-Umbuchung − Σ VK der Influencer-Videos.
-  const auftraege = filteredAuftraege(page);
-  const blockMap = blocksByAuftrag(page);
-  const koopMap = koopsByAuftrag(page);
-  const videoMap = videosByKoop(page);
-
   let budget = 0;
   let verbraucht = 0;
 
-  auftraege.forEach(a => {
-    const blocks = blockMap.get(a.id) || [];
-    if (tabForAuftrag(a, blocks) !== TAB_INFLUENCER) return;
-
-    const details = page.detailsByAuftrag.get(a.id) || {};
-    const chips = Array.isArray(details.campaign_type) ? details.campaign_type : [];
-    const influencerChips = chips.filter(c => INFLUENCER_CHIPS.has(c));
-    const totalChips = chips.length || 1;
-    const influencerShare = influencerChips.length / totalChips;
-
-    const creatorBudget = (parseFloat(a.creator_budget) || 0) * influencerShare;
-    budget += creatorBudget;
-
-    const koops = koopMap.get(a.id) || [];
-    koops.forEach(k => {
-      const videos = videoMap.get(k.id) || [];
-      videos.forEach(v => {
-        const slug = getChipFromKampagnenartName(v.kampagnenart);
-        if (slug && INFLUENCER_CHIPS.has(slug)) {
-          verbraucht += parseFloat(v.verkaufspreis_netto) || 0;
-        }
-      });
-    });
+  filteredAuftraege(page).forEach(z => {
+    if (z.tab !== TAB_INFLUENCER || !z.influencer) return;
+    budget += z.influencer.budget;
+    verbraucht += z.influencer.verbraucht;
   });
 
   // Negativ = mehr VK gebucht als Creator-Budget vorhanden (ADR 0007).
@@ -226,70 +147,28 @@ export function influencerOffenesCreatorBudget(page) {
 }
 
 export function monatsauswertung(page) {
-  if (!page._monats) {
-    page._monats = calculateMonatsauswertung({
-      auftraege: page.auftraege,
-      blocks: page.blocks,
-      kampagnen: page.kampagnen,
-      kooperationen: page.kooperationen,
-      videos: page.videos,
-      rechnungen: page.rechnungen,
-      teilrechnungen: page.teilrechnungen,
-    });
-  }
   return page._monats;
 }
 
-function auftragIdVonKoop(koop, kampagneToAuftrag) {
-  return koop ? (kampagneToAuftrag.get(koop.kampagne_id) || null) : null;
-}
-
-// Auftrag der Rechnung: direkte Id, sonst Kampagne, sonst Kooperation.
-function auftragIdVonRechnung(rechnung, koop, kampagneToAuftrag) {
-  if (rechnung.auftrag_id) return rechnung.auftrag_id;
-  if (rechnung.kampagne_id) {
-    const vonKampagne = kampagneToAuftrag.get(rechnung.kampagne_id);
-    if (vonKampagne) return vonKampagne;
-  }
-  return auftragIdVonKoop(koop, kampagneToAuftrag);
-}
-
-// Creator: Auftrag über auftrag_id, Kampagne oder Kooperation, und der Auftrag
-// muss im Filter liegen. Contracting ohne Auftrag bleibt in der Summe.
-function rechnungenImFilter(page) {
-  const ids = new Set(auftraegeImFilter(page).map(a => a.id));
-  const koopById = new Map((page.kooperationen || []).map(k => [k.id, k]));
-  const kampagneToAuftrag = new Map((page.kampagnen || []).map(k => [k.id, k.auftrag_id]));
-  const creator = [];
-  const contracting = [];
-  for (const rechnung of page.rechnungen || []) {
-    const koop = rechnung.kooperation_id ? koopById.get(rechnung.kooperation_id) : null;
-    const auftragId = auftragIdVonRechnung(rechnung, koop, kampagneToAuftrag);
-    if (rechnung.rechnungstyp === 'contracting') {
-      if (auftragId && !ids.has(auftragId)) continue;
-      contracting.push(rechnung);
-      continue;
-    }
-    if (!auftragId || !ids.has(auftragId)) continue;
-    creator.push(rechnung);
-  }
-  return { creator, contracting, auftragById: new Map(auftraegeImFilter(page).map(a => [a.id, a])) };
-}
-
-function kundenZeilenImFilter(page) {
-  const auftraege = auftraegeImFilter(page);
-  const ids = new Set(auftraege.map(a => a.id));
-  const teile = (page.teilrechnungen || []).filter(t => ids.has(t.auftrag_id));
-  return kundenrechnungZeilen(auftraege, teile);
+function addiere(summe, teil) {
+  if (!teil) return;
+  for (const key of Object.keys(summe)) summe[key] += teil[key] || 0;
 }
 
 // Kachelsummen für den gefilterten Auftragskreis (Jahr + Leistungsbereich).
 // Kunden aus Kundenrechnungen, Creator und Contracting aus Rechnungen.
+// Contracting-Rechnungen ohne Auftrag bleiben immer in der Summe.
 export function kartenSummen(page) {
-  const { creator, contracting } = rechnungenImFilter(page);
-  return {
-    kunden: summarizeKundenrechnungRows(kundenZeilenImFilter(page)),
-    creator: summarizeRechnungRows(creator),
-    contracting: summarizeRechnungRows(contracting),
-  };
+  const kunden = emptyKundenSummary();
+  const creator = emptyRechnungSummary();
+  const contracting = emptyRechnungSummary();
+
+  auftraegeImFilter(page).forEach(z => {
+    addiere(kunden, z.karten?.kunden);
+    addiere(creator, z.karten?.creator);
+    addiere(contracting, z.karten?.contracting);
+  });
+  addiere(contracting, page.contractingOhneAuftrag);
+
+  return { kunden, creator, contracting };
 }

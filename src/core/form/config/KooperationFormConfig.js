@@ -18,6 +18,10 @@ export const kooperationConfig = {
     // Tags
     { name: 'tags', label: 'Tags', type: 'custom', customType: 'koopTagInput', required: false, max: 7, section: 'zuordnung' },
 
+    // Verantwortlicher Mitarbeiter: Einkauf und Verkauf der Kooperation zählen auf ihn.
+    // Vorbelegung beim Anlegen ist der eingeloggte User (DirectQueryLoader, defaultCurrentUser).
+    { name: 'assignee_id', label: 'Verantwortlicher Mitarbeiter', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Mitarbeiter suchen und auswählen...', table: 'benutzer', displayField: 'name', valueField: 'id', defaultCurrentUser: true, section: 'zuordnung' },
+
     // Sektion 2: Content
     { name: 'videoanzahl', label: 'Video Anzahl', type: 'number', required: false, validation: { type: 'number', min: 1 }, section: 'content', sectionTitle: 'Content' },
     { name: 'videos', label: 'Videos', type: 'custom', customType: 'videos', options: CONTENT_ART_OPTIONS, section: 'content' },

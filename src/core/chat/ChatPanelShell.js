@@ -35,10 +35,11 @@ export class ChatPanelShell {
     ids = {},
     panelClass = '',
     onOpen = null,
-    onClose = null
+    onClose = null,
+    onToggle = null
   } = {}) {
     this.destroy();
-    this._opts = { trigger, persistKey, ids, onOpen, onClose };
+    this._opts = { trigger, persistKey, ids, onOpen, onClose, onToggle };
 
     const root = document.createElement('div');
     root.className = `chat-panel chat-panel--${trigger === 'fab' ? 'fab' : 'header'}`;
@@ -72,7 +73,13 @@ export class ChatPanelShell {
     if (trigger === 'fab') {
       root.querySelector('.chat-panel__fab').addEventListener('click', () => this.toggle());
     } else {
-      registerHeaderChatToggle({ title: headerTitle, onToggle: () => this.toggle() });
+      registerHeaderChatToggle({
+        title: headerTitle,
+        onToggle: () => {
+          if (this._opts?.onToggle) this._opts.onToggle();
+          else this.toggle();
+        }
+      });
     }
 
     this._size = this.getStoredState().size || this._defaultSize();

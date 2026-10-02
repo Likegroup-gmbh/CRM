@@ -46,7 +46,6 @@ const ROUTE_CONFIG = {
     label: 'Skripte',
     entity: 'skripte',
     children: {
-      dna:    { label: 'DNA' },
       master: { label: 'Master-Regelwerk' }
     }
   },

@@ -243,7 +243,7 @@ Der Generator liefert:
 7. Brand-Integrationspunkte,
 8. CTA,
 
-9. Shot-/Text-Vorschläge,
+9. visuelle Anweisungen und On-Screen-Texte pro Beat,
 10. begründete Testvarianten,
 11. Annahmen und unbelegte, nicht verwendbare Angaben.
 

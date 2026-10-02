@@ -209,19 +209,7 @@ describe('BreadcrumbSystem Rework', () => {
     });
   });
 
-  describe('Skripte-Kinder dna/master', () => {
-    it('setzt DNA statt Platzhalter für /skripte/dna', async () => {
-      const system = await createBreadcrumbSystem();
-      system.setFromRoute('skripte', 'dna');
-
-      const items = container.querySelectorAll('.breadcrumb-item');
-      expect(items).toHaveLength(2);
-      expect(items[0].textContent).toContain('Skripte');
-      expect(items[1].textContent).toContain('DNA');
-      expect(items[1].textContent).not.toContain('...');
-      expect(container.querySelector('.breadcrumb-link')?.getAttribute('data-route')).toBe('/skripte');
-    });
-
+  describe('Skripte-Kinder master', () => {
     it('setzt Master-Regelwerk für /skripte/master', async () => {
       const system = await createBreadcrumbSystem();
       system.setFromRoute('skripte', 'master');
@@ -231,15 +219,15 @@ describe('BreadcrumbSystem Rework', () => {
       expect(items[1].textContent).toContain('Master-Regelwerk');
     });
 
-    it('drittes Segment Neu auf /skripte/dna/new', async () => {
+    it('drittes Segment Neu auf /skripte/master/new', async () => {
       const system = await createBreadcrumbSystem();
-      system.setFromRoute('skripte', 'dna', { action: 'new' });
+      system.setFromRoute('skripte', 'master', { action: 'new' });
 
       const items = container.querySelectorAll('.breadcrumb-item');
       expect(items).toHaveLength(3);
-      expect(items[1].textContent).toContain('DNA');
+      expect(items[1].textContent).toContain('Master-Regelwerk');
       expect(items[2].textContent).toContain('Neu');
-      expect(container.querySelector('.breadcrumb-link[data-route="/skripte/dna"]')).not.toBeNull();
+      expect(container.querySelector('.breadcrumb-link[data-route="/skripte/master"]')).not.toBeNull();
     });
 
     it('unbekannte Skript-ID bleibt Platzhalter', async () => {

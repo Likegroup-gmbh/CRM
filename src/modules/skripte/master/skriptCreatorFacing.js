@@ -7,5 +7,6 @@ export const mapHookVariantenSpalten = creatorFacing.mapHookVariantenSpalten;
 export const zusatzInfosMarkdown = creatorFacing.zusatzInfosMarkdown;
 export const hatZusatzInfos = creatorFacing.hatZusatzInfos;
 export const hatGridInhalt = creatorFacing.hatGridInhalt;
+export const istMasterDokument = creatorFacing.istMasterDokument;
 export const gridFelderFuerSkript = creatorFacing.gridFelderFuerSkript;
 export const istCreatorFacingSektion = creatorFacing.istCreatorFacingSektion;

@@ -157,7 +157,7 @@ Der Generator liefert:
 5. natürliche Hook-Optionen,
 6. Hook-, Hauptteil- und CTA-Beats,
 7. Produkt- und Proof-Momente,
-8. visuelle Szenen und B-Roll,
+8. visuelle Szenen pro Beat,
 9. nicht verhandelbare Pflichtbestandteile,
 10. kreative Freiheitsgrade,
 11. Do's und Don'ts,

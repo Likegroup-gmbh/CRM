@@ -39,7 +39,7 @@ class ClaudeTimeoutError extends Error {
 /**
  * Ruft die Anthropic Messages API auf.
  * systemBlocks: Array von { text, cache } - cache:true setzt cache_control
- * (stabile Prefixe wie DNA/Beispiele -> ~90% Rabatt ab dem 2. Call).
+ * (stabile Prefixe wie Master-Regelwerk -> ~90% Rabatt ab dem 2. Call).
  * thinking: true aktiviert Extended Thinking (Budget via thinkingBudget,
  * Default 2048 Tokens; max_tokens muss groesser sein als das Budget).
  * timeoutMs: bricht den Call ab, statt ihn offen laufen zu lassen. Pflicht in

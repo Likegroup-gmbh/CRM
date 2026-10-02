@@ -90,13 +90,6 @@ export function bindEvents(list) {
       return;
     }
 
-    const dnaLink = e.target.closest('a[href="/skripte/dna"]');
-    if (dnaLink) {
-      e.preventDefault();
-      window.navigateTo('/skripte/dna');
-      return;
-    }
-
     const masterLink = e.target.closest('a[href="/skripte/master"]');
     if (masterLink) {
       e.preventDefault();

@@ -10,7 +10,7 @@ import {
   currentHistoryRoute
 } from './NavigationScroll.js';
 import { unregisterHeaderChatToggle } from './chat/HeaderChatSlot.js';
-import { invalidateFinanzbestand } from './budget/finanzbestand.js';
+import { navMark } from './dev/navTrace.js';
 export { OptionsManager };
 
 export class ModuleRegistry {
@@ -18,6 +18,9 @@ export class ModuleRegistry {
     this.modules = new Map();
     this.currentModule = null;
     this._isNavigating = false;
+    this._activeRoute = null;
+    this._pendingNav = null;
+    this._navSeq = 0;
     this._cleanupCallbacks = [];
   }
 
@@ -33,9 +36,16 @@ export class ModuleRegistry {
   }
 
   async navigateTo(route, skipPushState = false) {
-    if (this._isNavigating) return;
+    if (this._isNavigating) {
+      this._queueNavigation(route, skipPushState);
+      return;
+    }
     this._isNavigating = true;
+    this._activeRoute = route;
+    this._navSeq = (this._navSeq || 0) + 1;
+    const seq = this._navSeq;
     this._didInitModule = false;
+    navMark('nav:start');
 
     try {
       // Vor pushState merken: nach popstate ist die URL schon das Ziel.
@@ -45,7 +55,15 @@ export class ModuleRegistry {
       }
       const result = await this._doNavigate(route, skipPushState);
       if (this._didInitModule) {
-        await this._restoreScrollAfterNav();
+        const ready = this.currentModule?.ready;
+        if (ready && typeof ready.then === 'function') {
+          // Das Modul kehrt vor dem Laden zurueck (Skeleton): der Scroll passt
+          // erst, wenn der Inhalt steht. Ausserhalb der Sperre warten, sonst
+          // blockiert der Load wieder jeden Klick.
+          this._restoreScrollWhenReady(ready, seq);
+        } else {
+          await this._restoreScrollAfterNav();
+        }
       }
       return result;
     } catch (error) {
@@ -56,7 +74,34 @@ export class ModuleRegistry {
       return null;
     } finally {
       this._isNavigating = false;
+      this._activeRoute = null;
+      const next = this._pendingNav;
+      this._pendingNav = null;
+      if (next) this.navigateTo(next.route, next.skipPushState);
     }
+  }
+
+  // Latest-wins: ein Klick waehrend einer laufenden Navigation geht nicht
+  // verloren, sondern laeuft danach. Mehrere Klicks: nur der letzte zaehlt.
+  // Gleiches Ziel wie die laufende Navigation ist ein Doppelklick und bleibt
+  // wirkungslos (Mehrfach-Klick-Schutz). Ein laufendes init() wird nie
+  // abgebrochen: nicht jedes Modul hat ein Abbruch-Token.
+  _queueNavigation(route, skipPushState) {
+    if (route === this._activeRoute) {
+      this._pendingNav = null;
+      return;
+    }
+    this._pendingNav = { route, skipPushState };
+  }
+
+  _restoreScrollWhenReady(ready, seq) {
+    Promise.resolve(ready)
+      .then(() => {
+        // Seitdem navigiert (oder neu initialisiert): Scroll gehoert nicht mehr uns.
+        if (seq !== this._navSeq) return undefined;
+        return this._restoreScrollAfterNav();
+      })
+      .catch((e) => console.warn('⚠️ Scroll-Restore nach ready fehlgeschlagen:', e?.message));
   }
 
   async _restoreScrollAfterNav() {
@@ -178,15 +223,6 @@ export class ModuleRegistry {
 
     const pathOnly = String(route || '').split(/[?#]/)[0];
     const path = pathOnly.replace(/^\//, '');
-
-    // Finanzbestand (Admin-Finanzseiten) halten, solange man im Adminbereich,
-    // auf der Stakeholder-Uebersicht oder auf dem Dashboard bleibt. Sobald die
-    // Route auf eine Detailseite zeigt (Video/Kampagne/Auftrag/Rechnung/…),
-    // wird verworfen — die naechste Datenqualitaet liest frisch.
-    const FINANZBESTAND_KEEP = /^\/?(admin|stakeholder|dashboard)(\/|$)/;
-    if (!FINANZBESTAND_KEEP.test(pathOnly)) {
-      invalidateFinanzbestand();
-    }
 
     const pathParts = path.split('/');
     const [segment, idRaw, actionRaw] = pathParts;

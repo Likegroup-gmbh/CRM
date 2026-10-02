@@ -101,6 +101,7 @@ describe('AdminPage', () => {
     window.supabase = createMockSupabase(FIXTURE);
     const page = createPage();
     await page.init();
+    await page.ready;
 
     const html = window.content.innerHTML;
     // Alle acht Pruefungen sind als Karten sichtbar
@@ -128,6 +129,7 @@ describe('AdminPage', () => {
     window.supabase = createMockSupabase(FIXTURE);
     const page = createPage();
     await page.init('gibts-nicht');
+    await page.ready;
     // Die Datenqualitaetsanzeige ist gerendert (Pruefungs-Karten sichtbar).
     expect(window.content.innerHTML).toContain('Videos ohne Einkaufspreis');
   });
@@ -136,6 +138,7 @@ describe('AdminPage', () => {
     window.supabase = createMockSupabase(FIXTURE);
     const page = createPage();
     await page.init();
+    await page.ready;
 
     const toggle = window.content.querySelector('[data-dq-toggle="k2"]');
     const detail = window.content.querySelector('[data-dq-detail="k2"]');
@@ -156,6 +159,7 @@ describe('AdminPage', () => {
     window.supabase = createMockSupabase(FIXTURE);
     const page = createPage();
     await page.init();
+    await page.ready;
 
     window.content.querySelector('[data-dq-toggle="k2"]')
       .dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -173,6 +177,33 @@ describe('AdminPage', () => {
     });
     const page = createPage();
     await page.init();
+    await page.ready;
     expect(window.content.innerHTML).toContain('Keine Mängel gefunden');
+  });
+
+  it('kehrt nach dem Platzhalter zurueck und rendert erst nach ready', async () => {
+    window.supabase = createMockSupabase(FIXTURE);
+    const page = createPage();
+    await page.init();
+
+    expect(window.content.innerHTML).toContain('Lade Datenqualitätsanzeige');
+    expect(window.content.innerHTML).not.toContain('Videos ohne Einkaufspreis');
+
+    await page.ready;
+    expect(window.content.innerHTML).toContain('Videos ohne Einkaufspreis');
+  });
+
+  it('rendert nach destroy() nicht mehr in die naechste Seite', async () => {
+    window.supabase = createMockSupabase(FIXTURE);
+    const page = createPage();
+    await page.init();
+    const ready = page.ready;
+
+    page.destroy();
+    window.content.innerHTML = '<p id="naechste-seite">andere Seite</p>';
+    await ready;
+
+    expect(window.content.innerHTML).toContain('naechste-seite');
+    expect(window.content.innerHTML).not.toContain('Videos ohne Einkaufspreis');
   });
 });

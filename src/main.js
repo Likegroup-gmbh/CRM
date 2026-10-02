@@ -1,5 +1,5 @@
 // Performance Monitor – muss erster Import sein (self-initialising side-effect)
-import './core/PerformanceMonitor.js';
+import { navMark, tracedFetch } from './core/dev/navTrace.js';
 
 // Dev-Mode Listener Monitor (muss vor allen anderen addEventListener-Aufrufen laufen)
 import { initListenerMonitor } from './core/dev/ListenerMonitor.js';
@@ -137,6 +137,7 @@ import { vertraegeCreate } from './modules/vertrag/create/VertraegeCreate.js';
 import { projektErstellenModule } from './modules/projekt-erstellen/ProjektErstellenModule.js';
 import { transcribeTestPage } from './modules/transcribe/TranscribeTestPage.js';
 import { stakeholderOverviewPage } from './modules/stakeholder/kern/StakeholderOverviewPage.js';
+import { startFinanzbestandPrefetch } from './core/budget/finanzbestandBoot.js';
 import { adminPage } from './modules/admin/AdminPage.js';
 import { skriptePage } from './modules/skripte/SkriptePage.js';
 import { sharesAdminPage } from './modules/shares/SharesAdminPage.js';
@@ -352,6 +353,7 @@ if (import.meta.env.DEV) {
 // Initialisiere nach DOM-Load
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('🎯 Initialisiere Event-basiertes Modul-System...');
+  navMark('boot:start');
 
   // Mausrad-Schutz: verhindert versehentliche Wertaenderung bei fokussierten number-Inputs
   document.addEventListener('wheel', () => {
@@ -381,7 +383,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.CONFIG.SUPABASE.KEY,
         {
           global: {
-            fetch: (...args) => window.fetch(...args),
+            fetch: tracedFetch((...args) => window.fetch(...args)),
           },
         }
       );
@@ -421,6 +423,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initGuestShare(shareMatch[1]);
     return; // Kein normaler Auth-Flow
   }
+
+  // Finanzbestand schon jetzt anfragen, wenn das Dashboard das Ziel ist: der
+  // RPC laeuft dann parallel zur Auth-Kette statt danach. Spekulativ — der
+  // Bestand wird nur uebernommen, wenn das Dashboard binnen Sekunden laedt.
+  startFinanzbestandPrefetch(window.supabase, location.pathname);
 
   // Auth-Check durchführen
   const isAuthenticated = await authService.checkAuth();

@@ -4,6 +4,7 @@
 import { bindCollapsible } from '../../core/collapsiblePanel.js';
 import { entityIcon } from '../../core/icons/entityIcons.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { startHoverPrefetch } from '../../core/budget/finanzbestandBoot.js';
 
 export class NavigationSystem {
   constructor() {
@@ -364,6 +365,16 @@ export class NavigationSystem {
         const route = link.getAttribute('data-route');
         this.navigateTo(route);
       });
+
+      // Dashboard/Datenqualitaet: Load schon beim Anvisieren starten.
+      const vorladen = () => {
+        // Schon auf dieser Seite: der Klick lädt nichts Neues.
+        if (link.getAttribute('data-route') === location.pathname) return;
+        const darf = !!(window.canViewAccounting?.() || window.isAdmin?.());
+        startHoverPrefetch(window.supabase, link.getAttribute('data-route'), darf);
+      };
+      link.addEventListener('pointerenter', vorladen);
+      link.addEventListener('pointerdown', vorladen);
     });
 
     // Section-Toggle Events

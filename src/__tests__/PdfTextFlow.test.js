@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ensureSpace, renderPaginatedText, renderZusatzBestimmung } from '../modules/vertrag/create/pdf/PdfTextFlow.js';
+import { ensureSpace, renderPaginatedText, renderZusatzBestimmung, createPdfLayout } from '../modules/vertrag/create/pdf/PdfTextFlow.js';
 
 /** Mock-jsPDF: splitTextToSize bricht bei \n und alle `charsPerLine` Zeichen um */
 function createMockDoc(charsPerLine = 100) {
@@ -169,5 +169,123 @@ describe('renderZusatzBestimmung', () => {
       { line: 'Zusätzliche Bestimmung:', y: 20 },
       { line: 'Zusatztext', y: 26 }
     ]);
+  });
+});
+
+/** Mock-Doc für createPdfLayout: zeichnet Texte mit Seitennummer mit */
+function createLayoutDoc(charsPerLine = 100) {
+  const doc = createMockDoc(charsPerLine);
+  doc.page = 1;
+  doc.fontSize = 10;
+  doc.font = { fontName: 'helvetica', fontStyle: 'normal' };
+  doc.rects = [];
+  doc.getFontSize = () => doc.fontSize;
+  doc.setFontSize = (s) => { doc.fontSize = s; };
+  doc.getFont = () => ({ ...doc.font });
+  doc.setFont = (fontName, fontStyle) => { doc.font = { fontName, fontStyle }; };
+  doc.getTextWidth = (t) => String(t).length * 1.8;
+  doc.rect = (x, y) => { doc.rects.push({ x, y, page: doc.page }); };
+  doc.line = () => {};
+  doc.addPage = () => { doc.page++; };
+  const origText = doc.text.bind(doc);
+  doc.text = (line, x, y, opts) => { origText(line, x, y); doc.texts[doc.texts.length - 1].page = doc.page; doc.texts[doc.texts.length - 1].opts = opts; };
+  return doc;
+}
+
+describe('createPdfLayout', () => {
+  const setup = (charsPerLine) => {
+    const doc = createLayoutDoc(charsPerLine);
+    const onPageBreak = vi.fn(() => { doc.page++; return 20; });
+    // addPage wird vom echten onPageBreak aufgerufen; hier zählt der Mock selbst
+    const layout = createPdfLayout(doc, { maxContentY: 250, onPageBreak });
+    return { doc, layout, onPageBreak };
+  };
+
+  it('section: zeichnet in place, wenn der Abschnitt auf die Restseite passt', () => {
+    const { doc, layout, onPageBreak } = setup();
+    const end = layout.section(100, (y) => { doc.text('A', 14, y); doc.text('B', 14, y + 5); return y + 5; }, { gap: 14 });
+    expect(onPageBreak).not.toHaveBeenCalled();
+    expect(doc.texts.map(t => t.y)).toEqual([114, 119]);
+    expect(end).toBe(119);
+  });
+
+  it('section: bricht um (Abschnitt bleibt zusammen), wenn er nicht mehr passt', () => {
+    const { doc, layout, onPageBreak } = setup();
+    // Höhe 30 ab y=236 -> Ende 266 > 250
+    const end = layout.section(222, (y) => { doc.text('Kopf', 14, y); doc.text('Ende', 14, y + 30); return y + 30; }, { gap: 14 });
+    expect(onPageBreak).toHaveBeenCalledTimes(1);
+    // Beide Zeilen auf der neuen Seite, Gap entfällt
+    expect(doc.texts.map(t => t.y)).toEqual([20, 50]);
+    expect(end).toBe(50);
+  });
+
+  it('section: Trockenlauf zeichnet nichts und stellt den Font wieder her', () => {
+    const { doc, layout } = setup();
+    doc.setFontSize(10);
+    layout.section(20, (y) => { doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.text('X', 14, y); return y; });
+    // Genau ein echter Zeichenaufruf (Messlauf zählt nicht)
+    expect(doc.texts).toHaveLength(1);
+    // Font-Änderung stammt vom echten Lauf, Messlauf hat nichts hinterlassen
+    expect(doc.getFontSize()).toBe(12);
+  });
+
+  it('section: überlanger Abschnitt (splittable) sichert nur head und paginiert den Text', () => {
+    const { doc, layout, onPageBreak } = setup(10);
+    const text = 'x'.repeat(10 * 80); // 80 Zeilen = 400mm
+    const end = layout.section(240, (y) => layout.paginated(text, { y, maxWidth: 180 }), { gap: 0, head: 20, splittable: true });
+    expect(onPageBreak).toHaveBeenCalled();
+    expect(doc.texts).toHaveLength(80);
+    expect(doc.texts.every(t => t.y <= 250)).toBe(true);
+    expect(end).toBeGreaterThan(20);
+  });
+
+  it('section: überlanger Abschnitt ohne splittable paginiert ebenfalls (länger als eine Seite)', () => {
+    const { doc, layout } = setup(10);
+    const text = 'x'.repeat(10 * 80);
+    layout.section(100, (y) => layout.paginated(text, { y, maxWidth: 180 }), { head: 20 });
+    expect(doc.texts).toHaveLength(80);
+    expect(doc.texts.every(t => t.y <= 250)).toBe(true);
+  });
+
+  it('section: verschachtelte Abschnitte im Messlauf brechen nicht um', () => {
+    const { doc, layout, onPageBreak } = setup();
+    layout.section(200, (y) => {
+      doc.text('outer', 14, y);
+      return layout.section(y + 5, (y2) => { doc.text('inner', 14, y2); return y2; }, { gap: 5 });
+    });
+    expect(onPageBreak).not.toHaveBeenCalled();
+    expect(doc.texts.map(t => t.line)).toEqual(['outer', 'inner']);
+  });
+
+  it('line: bricht lange Einzeilen um und liefert die Baseline der letzten Zeile', () => {
+    const { doc, layout } = setup(10);
+    const y = layout.line('x'.repeat(25), 14, 100, { maxWidth: 50 });
+    expect(doc.texts.map(t => t.y)).toEqual([100, 105, 110]);
+    expect(y).toBe(110);
+  });
+
+  it('line: zentriert nutzt align center', () => {
+    const { doc, layout } = setup();
+    layout.line('Mitte', 105, 50, { align: 'center' });
+    expect(doc.texts[0].opts).toEqual({ align: 'center' });
+  });
+
+  it('checkbox: Label bricht um, Folgezeilen stehen unter dem Label', () => {
+    const { doc, layout } = setup(10);
+    const y = layout.checkbox(14, 100, true, 'x'.repeat(30), { maxWidth: 40 });
+    expect(doc.rects).toHaveLength(1);
+    expect(doc.texts.map(t => t.y)).toEqual([100, 105, 110]);
+    expect(doc.texts.every(t => t.x === 19)).toBe(true);
+    expect(y).toBe(110);
+  });
+
+  it('meldet Überlauf (y über Limit, x über Rand) im Sicherheitsnetz', () => {
+    const { doc, layout } = setup();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    doc.text('zu tief', 14, 260);
+    doc.text('x'.repeat(120), 14, 100); // 216mm breit
+    doc.text('Fußzeile', 14, 285); // Fußzeile zählt nicht
+    expect(layout.overflows.map(o => o.reason)).toEqual(['y', 'x']);
+    warn.mockRestore();
   });
 });

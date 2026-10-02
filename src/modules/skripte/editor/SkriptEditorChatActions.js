@@ -519,7 +519,11 @@ export class SkriptEditorChatActions {
         break;
       }
     }
-    const stueck = String(msg.vorschlag_text || '').trim().slice(0, 180);
+    const bundle = (Array.isArray(msg.aenderungen) ? msg.aenderungen : [])
+      .map((a) => String(a?.vorschlag_text || '').trim())
+      .filter(Boolean)
+      .join(' / ');
+    const stueck = (String(msg.vorschlag_text || '').trim() || bundle).slice(0, 180);
     const text = [
       anweisung.trim(),
       stueck ? `Diesen Vorschlag nicht wiederholen: ${stueck}` : 'Diesen Vorschlag nicht wiederholen.'

@@ -94,7 +94,6 @@ describe('fmtAudienceSituations / Prompts', () => {
 describe('Downstream: Skript vs Briefing-Situationen', () => {
   it('Skript-Kontext nutzt Audience Situations, nicht persona.kontext', () => {
     const text = buildKontextText({
-      dna: [],
       persona: {
         name: 'Sarah',
         kontext: 'DIESER ALTTEXT DARF NICHT REIN',

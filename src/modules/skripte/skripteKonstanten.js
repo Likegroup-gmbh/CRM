@@ -23,13 +23,6 @@ export const VIDEO_LAENGEN = {
   '165-180': '2:45–3:00 Min.'
 };
 
-export const DNA_LAYER = {
-  global: 'Global',
-  branche: 'Branche',
-  zielgruppe: 'Zielgruppe',
-  marke: 'Marke'
-};
-
 // Briefing-Bereich = Master-Doc (ohne 'basis', das ist immer dabei)
 export const SKRIPT_BEREICHE = {
   owned_social: 'Owned Social',

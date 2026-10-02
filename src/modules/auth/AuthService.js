@@ -1,6 +1,9 @@
 import { permissionSystem } from '../../core/PermissionSystem.js';
 import { isDevModeEmail, isDevEnv } from '../../core/dev/DevModeAccess.js';
 import { ensureListenerMonitor, hideListenerMonitor } from '../../core/dev/ListenerMonitor.js';
+import { navMark } from '../../core/dev/navTrace.js';
+import { invalidateDashboard } from '../stakeholder/daten/dashboardLoad.js';
+import { INVESTOR_HINT_KEY } from '../../core/budget/finanzbestandBoot.js';
 // AuthService.js (ES6-Modul)
 // Authentifizierung und Benutzer-Management
 
@@ -39,7 +42,14 @@ export class AuthService {
       // bis zum Ablauf signaturgueltig und der Nutzer landet in einer App, in
       // der jede Netlify Function 401 liefert. getUser() geht an GoTrue und
       // entlarvt genau das.
-      const { error: userError } = await window.supabase.auth.getUser();
+      // Die Benutzer-Zeile haengt nur an der auth_user_id aus der Session und
+      // laeuft deshalb parallel zu getUser(). Gerendert wird erst nach beiden,
+      // eine ungueltige Session zeigt also nie die App.
+      const [{ error: userError }, benutzerResult] = await Promise.all([
+        window.supabase.auth.getUser(),
+        this._fetchBenutzer(session.user.id),
+      ]);
+      navMark('auth:getUser+benutzer');
       if (userError) {
         console.warn(`❌ Session serverseitig ungültig (${userError.code || 'unbekannt'}): ${userError.message}`);
         await window.supabase.auth.signOut({ scope: 'local' });
@@ -47,7 +57,15 @@ export class AuthService {
       }
 
       console.log('✅ Session gefunden:', session.user.email);
-      await this.loadCurrentUser(session.user.id);
+      // boot: main.js initialisiert Navigation/Header und navigiert danach
+      // selbst; ein zweites navigateTo hier waere doppelte Arbeit.
+      await this.loadCurrentUser(session.user.id, { benutzerResult, boot: true });
+      navMark('auth:fertig');
+      // Hinweis fuer den naechsten Boot: Investoren landen auf dem Dashboard,
+      // dort startet der Finanzbestand-Prefetch schon vor der Auth-Kette.
+      try {
+        localStorage.setItem(INVESTOR_HINT_KEY, window.isInvestor?.() ? '1' : '0');
+      } catch { /* localStorage gesperrt: kein Hint */ }
       return true;
     } catch (error) {
       console.error('❌ Auth check failed:', error);
@@ -55,19 +73,31 @@ export class AuthService {
     }
   }
 
+  // Benutzer-Zeile holen. Liefert immer { data, error } und wirft nie, damit
+  // Promise.all in checkAuth nicht an einem Netzfehler hier abbricht.
+  async _fetchBenutzer(authUserId) {
+    try {
+      return await window.supabase
+        .from('benutzer')
+        .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+        .eq('auth_user_id', authUserId)
+        .single();
+    } catch (e) {
+      return { data: null, error: e };
+    }
+  }
+
   // Aktuellen Benutzer laden
-  async loadCurrentUser(authUserId) {
+  // benutzerResult: schon geladene Zeile aus checkAuth (spart den Roundtrip).
+  // boot: Erstladung durch main.js, das UI-Init und Navigation selbst macht.
+  async loadCurrentUser(authUserId, { benutzerResult = null, boot = false } = {}) {
     try {
       if (!window.supabase) {
         console.error('❌ Supabase nicht verfügbar');
         return;
       }
 
-      const { data, error } = await window.supabase
-        .from('benutzer')
-        .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
-        .eq('auth_user_id', authUserId)
-        .single();
+      const { data, error } = benutzerResult || await this._fetchBenutzer(authUserId);
 
       if (error) {
         console.error('❌ Fehler beim Laden des Benutzers:', error);
@@ -124,17 +154,19 @@ export class AuthService {
         
         // 3) UI/Navigation/Dropdowns nach Rollenwechsel re-initialisieren
         try {
-          window.setupHeaderUI?.();
-          window.navigationSystem?.init?.();
-          window.actionsDropdown?.init?.();
-          window.bulkActionSystem?.init?.();
+          if (!boot) {
+            window.setupHeaderUI?.();
+            window.navigationSystem?.init?.();
+            window.actionsDropdown?.init?.();
+            window.bulkActionSystem?.init?.();
+          }
           
           // Header-Buttons basierend auf Rolle anpassen (Education, Notifications für Kunden ausblenden)
           this.updateHeaderForRole(data.rolle);
           
           // Aktuelle Route neu navigieren, damit Berechtigungen greifen
           const currentRoute = location.pathname;
-          if (currentRoute) {
+          if (!boot && currentRoute) {
             window.moduleRegistry?.navigateTo?.(currentRoute);
           }
         } catch (uiErr) {
@@ -567,6 +599,9 @@ export class AuthService {
       }
       
       window.currentUser = null;
+      // Keine Finanzzahlen und kein Rollen-Hint ueber den Logout hinaus.
+      invalidateDashboard();
+      try { localStorage.removeItem(INVESTOR_HINT_KEY); } catch { /* ignorieren */ }
       
       console.log('✅ Abmeldung erfolgreich');
       return { error: null };

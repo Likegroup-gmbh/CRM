@@ -36,6 +36,11 @@ export class AdminPage {
     await this.activePage.init();
   }
 
+  // Reicht das Ready der Unterseite durch (Skeleton-Muster, siehe ModuleRegistry).
+  get ready() {
+    return this.activePage?.ready ?? Promise.resolve();
+  }
+
   destroy() {
     this.activePage?.destroy?.();
     this.activePage = null;

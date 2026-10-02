@@ -50,7 +50,7 @@ describe('resolveSkriptCreatePayload', () => {
     expect(payload.bereich).toBe('owned_social');
     expect(payload.strategie_item_id).toBe('si-1');
     expect(payload.video_idee).toBe('Glow Routine');
-    expect(payload.mit_dna).toBe(false);
+    expect(payload.mit_dna).toBeUndefined();
     expect(payload.briefing.bereich).toBe('owned_social');
   });
 

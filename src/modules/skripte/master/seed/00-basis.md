@@ -395,14 +395,14 @@ geprüft werden.
 
 ## Visuelle Leitplanken für die Creator-Spalte
 
-Das Produktionsformat der Spalte „Was zu sehen ist“ bleibt verbindlich (Zeitmarker,
-Text Overlay, Visual, B-Roll). Diese Leitplanken steuern zusätzlich Inhalt und Ton
+Das Ausgabeformat der Spalte „Was zu sehen ist“ legt der Generator fest (ein
+schlichter Satz pro Beat, ohne Zeitmarker). Diese Leitplanken steuern Inhalt und Ton
 jeder visuellen Anweisung: authentisch, im Alltag, Produkt in der Anwendung.
 
 ### Formulierungen
 
 Für „Was zu sehen ist“ reichen einfache Hinweise. Der Generator wählt pro Beat die
-passende Leitplanke und schreibt sie im bestehenden Produktionsformat aus:
+passende Leitplanke und schreibt sie als schlichten Satz aus:
 
 - Creator spricht direkt in die Kamera.
 - Produkt ist bereits im ersten Bild sichtbar.
@@ -444,7 +444,6 @@ Platz für Untertitel und Plattformelemente.
 
 ### Abgrenzung zum Schnitt
 
-Cuts, Zooms und Übergänge bleiben im Schnittteil der Zusatzinfos. In der
-Creator-Spalte reicht pro Beat eine klare visuelle Leitplanke, weiter im
-bestehenden Produktionsformat. Die genaue Schnittregie gehört nicht in die Felder
-für „Was zu sehen ist“.
+Cuts, Zooms und Übergänge gehören nicht in die Creator-Spalte. Dort reicht pro
+Beat eine klare visuelle Leitplanke als schlichter Satz. Die genaue Schnittregie
+gehört nicht in die Felder für „Was zu sehen ist“.

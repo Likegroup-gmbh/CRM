@@ -10,7 +10,7 @@ import { resolve } from 'path';
 
 const require = createRequire(import.meta.url);
 const { _internals } = require('../../netlify/functions/konzept-chat-background.js');
-const { fuehrePlanAus, fasseErgebnis, buildRewritePrompt } = _internals;
+const { fuehrePlanAus, fasseErgebnis, buildRewritePrompt, buildPlanPrompt } = _internals;
 
 const IDEE = (titel) => ({
   titel,
@@ -176,6 +176,16 @@ describe('fasseErgebnis', () => {
     expect(fasseErgebnis({
       umgeschrieben: [], verworfen: 0, neu: [], ersetzt: { alt: [], neu: [] }
     })).toContain('Nichts zu tun');
+  });
+});
+
+describe('buildPlanPrompt', () => {
+  it('ordnet Ueberarbeiten dem umschreiben zu, neu nur bei zusaetzlichen Ideen', () => {
+    const { stable } = buildPlanPrompt({ vorschlaege: [], history: [], nachricht: 'x' });
+    expect(stable).toContain('ueberarbeiten');
+    expect(stable).toContain('umschreiben dieser Vorschlaege');
+    expect(stable).toContain('Ueberarbeiten ist nie neu');
+    expect(stable).toContain('Reine Diskussion oder Frage ohne Aenderungswunsch: rueckfrage');
   });
 });
 

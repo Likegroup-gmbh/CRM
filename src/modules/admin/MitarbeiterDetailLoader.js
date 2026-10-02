@@ -40,8 +40,9 @@ export async function loadMitarbeiterData(detail) {
         .eq('mitarbeiter_id', detail.userId),
       window.supabase
         .from('kooperationen')
-        .select('id, name, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt')
-        .eq('assignee_id', detail.userId),
+        .select('id, name, created_at, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt, verkaufspreis_netto')
+        .eq('assignee_id', detail.userId)
+        .order('created_at', { ascending: false }),
       staticDataCache.get('kampagne_status', 'id, name, sort_order', 'sort_order'),
       window.supabase
         .from('mitarbeiter_unternehmen')
@@ -138,6 +139,7 @@ export async function loadMitarbeiterData(detail) {
       return {
         kampagnen: Array.from(allKampagnenMap.values()),
         kooperationen: allKoops,
+        eigeneKoops: directKoops,
         invoicesByKoop,
         totals
       };
@@ -176,7 +178,11 @@ export async function loadMitarbeiterData(detail) {
     detail.assignments.kampagnen = branchAResult.kampagnen;
     detail.assignments.kooperationen = branchAResult.kooperationen;
     detail.assignments.auftragsdetails = auftragsdetails;
-    detail.budget = { invoicesByKoop: branchAResult.invoicesByKoop, totals: branchAResult.totals };
+    detail.budget = {
+      invoicesByKoop: branchAResult.invoicesByKoop,
+      totals: branchAResult.totals,
+      eigeneKoops: branchAResult.eigeneKoops
+    };
 
     detail.statusOptions = statusRows || [];
     detail.euLaender = euLaenderRows || [];

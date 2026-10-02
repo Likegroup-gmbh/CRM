@@ -163,7 +163,7 @@ describe('briefingSkriptSprache', () => {
 describe('buildKontextText mit Campaign-Briefing', () => {
   it('setzt Briefing-Sektion VOR den Video-Vorgaben', () => {
     const text = buildKontextText(
-      { dna: [], briefing: IM_BRIEFING },
+      { briefing: IM_BRIEFING },
       { video_idee: 'Morgenroutine', funnel_stufe: 'bottom' }
     );
     expect(text).toContain('# CAMPAIGN-BRIEFING');
@@ -172,14 +172,14 @@ describe('buildKontextText mit Campaign-Briefing', () => {
   });
 
   it('ohne Briefing keine Sektion (Legacy/ohne Auswahl)', () => {
-    const text = buildKontextText({ dna: [] }, { video_idee: 'x' });
+    const text = buildKontextText({}, { video_idee: 'x' });
     expect(text).not.toContain('CAMPAIGN-BRIEFING');
   });
 });
 
 describe('buildPrompt Vorrang + Sprache + Anti-Erfindung', () => {
   it('nennt CAMPAIGN-BRIEFING statt PDF und setzt Vorrang-Regel', () => {
-    const { task } = buildPrompt({ dna: [], beispiele: [], antiPatterns: [], briefing: IM_BRIEFING }, {
+    const { task } = buildPrompt({ beispiele: [], antiPatterns: [], briefing: IM_BRIEFING }, {
       video_idee: 'Glow Routine',
       video_laenge: '30-45',
       funnel_stufe: 'bottom'
@@ -191,7 +191,7 @@ describe('buildPrompt Vorrang + Sprache + Anti-Erfindung', () => {
   });
 
   it('ohne Briefing keine Vorrang-/Briefing-Regel', () => {
-    const { task } = buildPrompt({ dna: [], beispiele: [], antiPatterns: [] }, { video_idee: 'x' });
+    const { task } = buildPrompt({ beispiele: [], antiPatterns: [] }, { video_idee: 'x' });
     expect(task).not.toContain('CAMPAIGN-BRIEFING');
     expect(task).not.toContain('Vorrang vor Briefing-Defaults');
     expect(task).toContain('auf Deutsch');
@@ -199,7 +199,7 @@ describe('buildPrompt Vorrang + Sprache + Anti-Erfindung', () => {
 
   it('setzt Skript-Sprache wenn Briefing nicht nur Deutsch ist', () => {
     const { task } = buildPrompt({
-      dna: [], beispiele: [], antiPatterns: [],
+      beispiele: [], antiPatterns: [],
       briefing: { ...IM_BRIEFING, sprachen: ['englisch'] }
     }, { video_idee: 'Glow' });
     expect(task).toContain('auf Englisch');

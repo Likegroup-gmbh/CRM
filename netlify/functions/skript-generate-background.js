@@ -1,16 +1,16 @@
 // Netlify Background Function: Skript-Generierung (Layer 1)
 // Ablauf: Kontext per SQL sammeln (Pick-and-pull, kein LLM) ->
-//         DNA-Layer in den Prompt ->
+//         Master-Regelwerk in den Prompt ->
 //         Claude schreibt EIN drehfertiges Markdown-Dokument (inhalt_md) -> Supabase.
 // Background Function: antwortet sofort 202, Fortschritt kommt asynchron
 // ueber die skript_generation_jobs-Tabelle (Realtime in der UI).
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
-const { loadContext, loadReferenzVideo, buildKontextText, videoLaengeHinweis, briefingSkriptSprache, cap, KONTEXT_MAX } = require('./_shared/skript-context');
+const { loadContext, loadReferenzVideo, buildKontextText, videoLaengeHinweis, briefingSkriptSprache } = require('./_shared/skript-context');
 const { stempelSekunden, pruefeSkript } = require('./_shared/skript-context/formatter');
 const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
 const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
-const { vertragBlock, DNA_KOPF } = require('./_shared/skript-vertrag');
+const { vertragBlock } = require('./_shared/skript-vertrag');
 const { extractSkriptAusMaster } = require('./_shared/skript-creator-facing');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
@@ -30,14 +30,16 @@ const SKRIPT_TOOL = {
       titel: { type: 'string', description: 'Kurzer Arbeitstitel' },
       inhalt_md: {
         type: 'string',
-        description: 'Nur Zusatzinfos (Produktionskopf, Timing, Shotlist, Brand-Hinweise). KEINE Creator-facing-Tabelle, KEINE Variantenuebersicht, KEINE alternativen Opener/Hooks/CTAs.'
+        description: 'Nur Zusatzinfos (Produktionskopf, Brand-Hinweise, Pflicht-Shots aus dem Briefing). KEINE Shotlist, KEINE Creator-facing-Tabelle, KEINE Variantenuebersicht, KEINE alternativen Opener/Hooks/CTAs.'
       },
-      hook: { type: 'string', description: 'Gesprochener Hook der Hauptvariante A. Jeder Zeitbeat eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hook_visuell.' },
-      hauptteil: { type: 'string', description: 'Gesprochener Hauptteil der Hauptvariante A. Jeder Zeitbeat eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hauptteil_visuell.' },
-      cta: { type: 'string', description: 'Gesprochener CTA der Hauptvariante A. Jeder Zeitbeat eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie cta_visuell.' },
-      hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Jeder Zeitmarker (Sek. 0–3:) beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
-      hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
-      cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
+      hook: { type: 'string', description: 'Gesprochener Hook der Hauptvariante A. Jeder Beat ein eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hook_visuell.' },
+      hauptteil: { type: 'string', description: 'Gesprochener Hauptteil der Hauptvariante A. Jeder Beat ein eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hauptteil_visuell.' },
+      cta: { type: 'string', description: 'Gesprochener CTA der Hauptvariante A. Jeder Beat ein eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie cta_visuell.' },
+      hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat.' },
+      hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat.' },
+      cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat.' },
+      rezept: { type: 'string', description: 'Rezept-Block unter dem CTA (volle Breite, kein Visual). Zutaten und Zubereitung kompakt aus der Caption der Videovorlage. NUR befuellen, wenn der Auftrag einen Rezept-Block waehlt - sonst weglassen.' },
+      text_hook: { type: 'string', description: 'Kurzer On-Screen-Text-Hook (Texteinblendung im Hook, max. ca. 5 Woerter). NUR befuellen, wenn der Auftrag einen Text-Hook waehlt - sonst weglassen.' },
       hook_varianten: {
         type: 'array',
         description: 'Zwei bis drei alternative gesprochene Hooks, deutlich anders als Variante A. Nur Sprechertext, kein Visual, kein Hauptteil/CTA. Nicht in inhalt_md wiederholen.',
@@ -57,9 +59,8 @@ const HARTE_GRENZEN_GENERIERUNG = 'Harte Grenzen: alles unter # DONTS und jede Z
 // ---------------------------------------------------------------------------
 function buildPrompt(ctx, params, rueckfragenDialog = '') {
   const master = ctx.master || [];
-  const dna = ctx.dna || [];
 
-  // Block 1 (stabil, cachebar): Rolle + Master + DNA
+  // Block 1 (stabil, cachebar): Rolle + Master
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
     + '(Owned Media, Paid Ads, Influencer-Konzepte; TikTok, Instagram Reels). '
     + 'Du schreibst drehfertige Konzepte nach dem verbindlichen Master-Regelwerk. '
@@ -69,13 +70,6 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     + 'Dos nur, wo der Fakt belegt ist.\n';
 
   stable += fmtMasterBlock(master);
-
-  if (dna.length) {
-    stable += DNA_KOPF;
-    for (const d of dna) {
-      stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${cap(d.inhalt, KONTEXT_MAX.dna)}\n`;
-    }
-  }
 
   // Block 2 (variabel): Auftrag dieser Generierung
   const sprache = briefingSkriptSprache(ctx.briefing);
@@ -100,8 +94,13 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     task += `\n# REGIE-MODUS: ${ctx.modus.name}\n${ctx.modus.inhalt}\n`;
   }
 
+  const ausgabeFelder = ['titel', 'inhalt_md', 'hook', 'hauptteil', 'cta',
+    'hook_visuell', 'hauptteil_visuell', 'cta_visuell'];
+  if (params.mit_rezept) ausgabeFelder.push('rezept');
+  if (params.mit_text_hook) ausgabeFelder.push('text_hook');
+  ausgabeFelder.push('hook_varianten');
   task += '\n# AUSGABEFORMAT\nGib das Dokument AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
-    + '(Felder: titel, inhalt_md, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, hook_varianten).\n'
+    + `(Felder: ${ausgabeFelder.join(', ')}).\n`
     + `Bereich: ${bereichLabel}. `
     + 'inhalt_md = NUR Zusatzinfos: Produktionskopf, Brand-Hinweise, Pflicht-Shots aus dem Briefing. '
     + 'Keine Shotlist, kein Storyboard. Mit ##-Ueberschriften nach den Hauptbloecken '
@@ -114,7 +113,7 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     + 'Keine Zeitmarker, keine Shotlist, kein Produktions-Storyboard. Sekunden setzt das System nach dem Schreiben.\n'
     + 'hook_varianten: genau zwei oder drei alternative GESPROCHENE Hooks, deutlich anders als Variante A. '
     + 'Nur Sprechertext, kein Visual, kein Hauptteil/CTA. NICHT in inhalt_md wiederholen.\n'
-    + 'Tabellen als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
+    + 'Tabellen nur in den Zusatzinfos und nur wenn noetig, dann als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
     + (ctx.briefing ? 'im CAMPAIGN-BRIEFING, ' : '')
@@ -132,6 +131,19 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
       + '(Hook-Typ, Dramaturgie, Pace, Szenenfolge, CTA-Mechanik). '
       + 'KEINE Hook-Formulierung, KEINE Satzstruktur im Wortlaut, KEINE CTA-Formulierung '
       + 'und KEINE Behauptung aus der Vorlage woertlich oder nah paraphrasiert uebernehmen.';
+  }
+
+  // Aufbau-Optionen aus den Editor-Toggles (Rueckfragen-Phase)
+  if (params.mit_rezept) {
+    task += '\n# REZEPT-BLOCK (gewaehlt)\nDas Skript bekommt unter dem CTA einen Rezept-Block ueber die volle Breite '
+      + '(eigene Zeile, kein "Was zu sehen ist"). Fuelle das Feld rezept mit dem Rezept aus der Caption '
+      + 'der Videovorlage: Zutaten und Zubereitungsschritte kompakt, je Schritt eine eigene Zeile. '
+      + 'Steht in der Caption kein Rezept, lasse rezept leer - erfinde keins.\n';
+  }
+  if (params.mit_text_hook) {
+    task += '\n# TEXT-HOOK (gewaehlt)\nDer Hook bekommt eine kurze Texteinblendung (On-Screen-Text, max. ca. 5 Woerter). '
+      + 'Schreibe sie in das Feld text_hook. Sie ersetzt weder den gesprochenen Hook noch das Visual '
+      + 'und steht im Dokument oben in der Hook-Zelle "Was zu sehen ist".\n';
   }
 
   // Harte Laengen-Regel: Wort-Budget aus der gewaehlten Video-Laenge
@@ -191,7 +203,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     }
     job.log(referenzVideo
       ? `Videovorlage: ${referenzVideo.quelle === 'strategie_item' ? `Strategie-Item (${referenzVideo.platform || 'unbekannt'})` : referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`
-      : 'Keine Videovorlage - Aufbau kommt aus DNA');
+      : 'Keine Videovorlage - Aufbau kommt aus dem Master');
 
     const ctx = await loadContext(supabase, payload);
     if (!ctx.bereich) {
@@ -205,7 +217,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         .maybeSingle();
       ctx.modus = modus || null;
     }
-    job.log(`Kontext: Bereich ${ctx.bereich}, ${ctx.master.length} Master-Docs, ${ctx.dna.length} DNA-Layer`
+    job.log(`Kontext: Bereich ${ctx.bereich}, ${ctx.master.length} Master-Docs`
       + `${ctx.briefing ? ', Briefing' : ''}${ctx.produkt ? ', Produkt' : ''}${ctx.modus ? `, Modus ${ctx.modus.slug}` : ''}`);
 
     // Rueckfragen-Stub: geklaerten Frage/Antwort-Dialog in den Prompt aufnehmen
@@ -245,7 +257,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     job.step('speichern', 'Fast fertig – ich speichere…');
     const parsed = result.json || extractJson(result.text, {
       keys: ['titel', 'inhalt_md', 'hook', 'hauptteil', 'cta',
-        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'hook_varianten', 'varianten'],
+        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'rezept', 'text_hook',
+        'hook_varianten', 'varianten'],
       onWarn: (msg) => job.log(msg)
     });
     if (!(parsed.inhalt_md || '').trim()) {
@@ -254,6 +267,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const extrahiert = extractSkriptAusMaster(parsed.inhalt_md, parsed);
     const stempel = stempelSekunden(extrahiert.felder);
     const felder = { ...extrahiert.felder, ...stempel };
+    // Aufbau-Optionen: nur bei gesetztem Toggle uebernehmen, sonst hart null
+    felder.rezept = payload.mit_rezept ? (String(parsed.rezept || '').trim() || null) : null;
+    felder.text_hook = payload.mit_text_hook ? (String(parsed.text_hook || '').trim() || null) : null;
+    if (payload.mit_rezept) job.log(felder.rezept ? 'Rezept-Block aus der Caption' : 'Rezept gewaehlt, aber keins in der Caption gefunden');
+    if (payload.mit_text_hook) job.log(felder.text_hook ? 'Text-Hook gesetzt' : 'Text-Hook gewaehlt, aber keiner geliefert');
     const hook_varianten = extrahiert.hook_varianten;
     const extraMd = extrahiert.inhalt_md;
     const inhaltMd = extraMd || '';
@@ -295,6 +313,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       hook_visuell: felder.hook_visuell,
       hauptteil_visuell: felder.hauptteil_visuell,
       cta_visuell: felder.cta_visuell,
+      rezept: felder.rezept,
+      text_hook: felder.text_hook,
       hook_variante_1: hook_varianten?.hook_variante_1 || null,
       hook_variante_2: hook_varianten?.hook_variante_2 || null,
       hook_variante_3: hook_varianten?.hook_variante_3 || null,
@@ -308,7 +328,6 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       tonalitaet: payload.tonalitaet || null,
       herkunft: 'generiert',
       status: 'entwurf',
-      mit_dna: payload.mit_dna !== false,
       model: result.model,
       pruefung: pruefeSkript(felder, {
         video_laenge: payload.video_laenge,
@@ -321,7 +340,6 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         generator_payload: generatorPayload,
         referenz_video: referenzVideo,
         referenz_karte: payload.referenz_karte || null,
-        dna_versionen: ctx.dnaVersionen,
         master_versionen: ctx.masterVersionen,
         bereich: ctx.bereich,
         modus: payload.modus || null,
@@ -388,6 +406,8 @@ function buildErstgenerierungVersionRow({ skriptId, parsed, felder, hook_variant
     hook_visuell: felder.hook_visuell,
     hauptteil_visuell: felder.hauptteil_visuell,
     cta_visuell: felder.cta_visuell,
+    rezept: felder.rezept || null,
+    text_hook: felder.text_hook || null,
     hook_variante_1: hook_varianten?.hook_variante_1 || null,
     hook_variante_2: hook_varianten?.hook_variante_2 || null,
     hook_variante_3: hook_varianten?.hook_variante_3 || null,

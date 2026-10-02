@@ -168,7 +168,7 @@ Der Generator liefert:
 4. Audio-, Text- und Visual-Hook,
 5. ausformuliertes, sprechbares Skript,
 6. Retention- und Payoff-Momente,
-7. Shot-/Visual-Vorschläge,
+7. visuelle Anweisungen pro Beat,
 8. natürlichen Interaktionsimpuls,
 9. Varianten oder nächste Testhypothese.
 

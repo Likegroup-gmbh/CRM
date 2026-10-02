@@ -8,6 +8,9 @@ import {
   verknuepfungenHtml, konzeptCreatorFromSkript
 } from './SkriptEditorDocRenderer.js';
 import { SkriptKooperationDrawer } from '../SkriptKooperationDrawer.js';
+import { openCreatorTausch } from '../../creator-tausch/creatorTauschUi.js';
+import { findeAlterEintragFuerSkript } from '../../creator-tausch/CreatorTauschService.js';
+import { quittiereTausch } from './skriptTauschBanner.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
 
 SkriptEditorView.prototype.bindDocHeadActions = function(el) {
@@ -97,7 +100,9 @@ SkriptEditorView.prototype.renderDoc = function() {
       docHeadActionsHtml: this.docHeadActions(),
       vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
     });
-    el.querySelector('#ed-fragen-gen')?.addEventListener('click', () => this.startGenerationAusFragen());
+    el.querySelectorAll('[data-aufbau-flag]').forEach((toggle) => {
+      toggle.addEventListener('change', () => this.saveGeneratorFlag(toggle.dataset.aufbauFlag, toggle.checked));
+    });
     this.bindDocHeadActions(el);
     this.bindVerknuepfungen(el);
     const input = document.getElementById('ed-input');
@@ -133,6 +138,26 @@ SkriptEditorView.prototype.renderDoc = function() {
   this.renderVersionSelect();
 };
 
+/**
+ * Aufbau-Toggle in der Rueckfragen-Phase: Flag sofort lokal mitziehen
+ * (startGenerationAusFragen liest den Payload von hier) und in
+ * prompt_kontext.generator_payload persistieren, damit ein Reload den
+ * Stand haelt.
+ */
+SkriptEditorView.prototype.saveGeneratorFlag = async function(flag, wert) {
+  if (!this.skript?.id) return;
+  const pk = this.skript.prompt_kontext || {};
+  this.skript.prompt_kontext = {
+    ...pk,
+    generator_payload: { ...(pk.generator_payload || {}), [flag]: wert }
+  };
+  try {
+    await skripteService.updateGeneratorFlags(this.skript.id, { [flag]: wert });
+  } catch (err) {
+    window.toastSystem?.error(err.message);
+  }
+};
+
 SkriptEditorView.prototype.renderVerknuepfungenHtml = function() {
   return verknuepfungenHtml({
     verknuepfungen: this.verknuepfungen,
@@ -143,6 +168,32 @@ SkriptEditorView.prototype.renderVerknuepfungenHtml = function() {
 
 SkriptEditorView.prototype.bindVerknuepfungen = function(el) {
   el.querySelector('#ed-skript-zuweisen')?.addEventListener('click', () => this.openKooperationDrawer());
+  el.querySelector('#ed-creator-tauschen')?.addEventListener('click', () => this.openCreatorTauschFuerSkript());
+  el.querySelector('#ed-tausch-quittieren')?.addEventListener('click', () => quittiereTausch(this));
+};
+
+/** Creator tauschen: alten Casting-Eintrag aus dem Skript aufloesen, dann derselbe Dialog wie im Casting. */
+SkriptEditorView.prototype.openCreatorTauschFuerSkript = async function() {
+  if (!this.kannZuweisen || !this.skript?.id) return;
+  try {
+    const alterItemId = await findeAlterEintragFuerSkript(this.skript, this.verknuepfungen);
+    if (!alterItemId) {
+      window.toastSystem?.show('Zu diesem Skript gibt es keinen Casting-Eintrag (Altbestand). Tausch nicht möglich.', 'info');
+      return;
+    }
+    await openCreatorTausch({
+      alterItemId,
+      onSuccess: async () => {
+        const id = this.skript.id;
+        const fresh = await skripteService.loadSkript(id);
+        if (fresh) this.upsertSkriptInListe(fresh);
+        this.skript = null;
+        await this.switchSkript(id);
+      }
+    });
+  } catch (err) {
+    window.toastSystem?.error(err.message);
+  }
 };
 
 SkriptEditorView.prototype.reloadVerknuepfungen = async function() {

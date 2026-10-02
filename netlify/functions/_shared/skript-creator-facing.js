@@ -3,7 +3,9 @@
 // "Alternativer Opener B:"-Zeilen). Reines CJS, von Generate + UI genutzt.
 
 const CREATOR_FACING_RE = /creator-facing|links gesprochen|rechts zu sehen|was gesprochen wird|was zu sehen ist/i;
-const VARIANTEN_SEKTION_RE = /varianten(uebersicht|übersicht)?|alternative[nr]?[-\s](opener|hooks?|ctas?|closer)|hook-optionen|hook-varianten/i;
+// Am Titelanfang verankert (optional mit Gliederung "B." / "2)"): "Produktvarianten im Bild"
+// ist eine Zusatzinfo, keine Variantenuebersicht.
+const VARIANTEN_SEKTION_RE = /^\s*(?:[a-z0-9]{1,2}[.)]\s*)?(varianten(uebersicht|übersicht)?|alternative[nr]?[-\s](opener|hooks?|ctas?|closer)|hook-optionen|hook-varianten)/i;
 const OPENER_LINE_RE = /^\s*(?:[-*]|\d+\.)?\s*alternativ(?:er|e|es)?\s+(?:opener|hook|cta|closer)\s+[A-Z0-9]+/i;
 
 function slugifyHeading(title) {
@@ -451,6 +453,15 @@ function hatPersistiertesGrid(skript) {
   );
 }
 
+/**
+ * Master-Dokument = reines Markdown ohne Grid. Ein Skript mit Grid und
+ * Zusatzinfos (inhalt_md) ist ein Grid-Skript, kein Master-Dokument.
+ * Eine Definition fuer Prompt, Edit-Handler und Editor.
+ */
+function istMasterDokument(skript) {
+  return Boolean(skript?.inhalt_md) && !hatPersistiertesGrid(skript);
+}
+
 function hatGridInhalt(skript) {
   if (hatPersistiertesGrid(skript)) return true;
   if (!skript?.inhalt_md) return false;
@@ -483,6 +494,7 @@ module.exports = {
   zusatzInfosMarkdown,
   hatZusatzInfos,
   hatGridInhalt,
+  istMasterDokument,
   gridFelderFuerSkript,
   istCreatorFacingSektion,
   istVariantenSektion,
