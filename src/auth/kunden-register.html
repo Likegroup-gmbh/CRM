@@ -56,7 +56,9 @@
           </div>
           <div class="register-links-row">
             <a href="/" class="register-link-btn">
-              ${icon('arrow-left-on-rectangle')}
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+              </svg>
               Zurück zum Login
             </a>
           </div>
@@ -72,7 +74,6 @@
   import { initPasswordHints } from './password-hints.js'
 
   const cfg = getSupabaseConfig();
-import { icon } from '../core/icons/IconSystem.js';
   if (!cfg) {
     const msg = document.getElementById('msg');
     msg.style.display = 'block';

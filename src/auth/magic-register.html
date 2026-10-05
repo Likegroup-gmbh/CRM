@@ -57,7 +57,9 @@
 
         <!-- Error State -->
         <div id="error-state" class="error-state" style="display: none;">
-          ${icon('exclamation-circle')}
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+          </svg>
           <h2>Link ungültig</h2>
           <p id="error-message">Dieser Link ist ungültig oder abgelaufen.</p>
           <a href="/" class="btn primary-btn" style="margin-top: var(--space-md);">Zurück zur Startseite</a>
@@ -92,8 +94,11 @@
               <label class="label" for="password">Passwort</label>
               <div class="password-input-container">
                 <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
-                <button type="button" class="password-toggle" id="togglePassword">
-                  ${icon('eye-outline')}
+                <button type="button" class="password-toggle" id="togglePassword" aria-label="Passwort anzeigen">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                  </svg>
                 </button>
               </div>
             </div>
@@ -121,7 +126,6 @@
 
   // State Elements
   const loadingState = document.getElementById('loading-state');
-import { icon } from '../core/icons/IconSystem.js';
   const errorState = document.getElementById('error-state');
   const registerState = document.getElementById('register-state');
   const errorMessage = document.getElementById('error-message');
