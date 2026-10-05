@@ -105,6 +105,7 @@ export class KooperationDetail extends PersonDetailBase {
           id, name, videoanzahl,
           einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
+          ksk_selbstzahler, ksk_betrag, ksk_prozent,
           creator_id, kampagne_id, unternehmen_id, briefing_id,
           kampagne:kampagne_id ( id, marke:marke_id ( id ) )
         `)
@@ -149,6 +150,7 @@ export class KooperationDetail extends PersonDetailBase {
         .select(`
           id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
+          ksk_selbstzahler, ksk_betrag, ksk_prozent,
           videoanzahl,
           creator_id, kampagne_id, unternehmen_id, briefing_id,
           creator:creator_id (
@@ -998,8 +1000,26 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   async handleEditFormSubmit() {
+    const form = document.getElementById('kooperation-form');
+    const btn = form?.querySelector('.mdc-btn.mdc-btn--create');
+    const labelEl = btn?.querySelector('.mdc-btn__label');
+    const initialLabel = labelEl?.textContent || 'Aktualisieren';
+    if (btn?.dataset.locked === 'true') return;
+
+    if (btn) {
+      btn.dataset.locked = 'true';
+      btn.classList.add('is-loading');
+      if (labelEl) labelEl.textContent = 'Wird aktualisiert…';
+    }
+
+    const stopLoading = () => {
+      if (!btn || btn.classList.contains('is-success')) return;
+      btn.classList.remove('is-loading');
+      btn.dataset.locked = 'false';
+      if (labelEl) labelEl.textContent = initialLabel;
+    };
+
     try {
-      const form = document.getElementById('kooperation-form');
       const formData = new FormData(form);
       const submitData = {};
 
@@ -1034,12 +1054,26 @@ export class KooperationDetail extends PersonDetailBase {
       const result = await window.dataService.updateEntity('kooperation', this.kooperationId, submitData);
 
       if (result.success) {
+        let videoError = null;
         if (window.formSystem) {
-          await window.formSystem.handleKooperationVideos(this.kooperationId, form);
+          const videoResult = await window.formSystem.handleKooperationVideos(this.kooperationId, form);
           await window.formSystem.handleKooperationTags(this.kooperationId, form);
+          if (videoResult && videoResult.success === false) {
+            videoError = videoResult.error || 'Videos konnten nicht gespeichert werden';
+          }
+        }
+
+        if (videoError) {
+          this.showErrorMessage(`Kooperation gespeichert, Videos fehlgeschlagen: ${videoError}`);
+          return;
         }
 
         this.showSuccessMessage('Kooperation erfolgreich aktualisiert!');
+        if (btn) {
+          btn.classList.remove('is-loading');
+          btn.classList.add('is-success');
+          if (labelEl) labelEl.textContent = 'Aktualisiert';
+        }
         window.dispatchEvent(new CustomEvent('entityUpdated', {
           detail: { entity: 'kooperation', action: 'updated', id: this.kooperationId }
         }));
@@ -1053,6 +1087,8 @@ export class KooperationDetail extends PersonDetailBase {
     } catch (error) {
       console.error('❌ Fehler beim Aktualisieren der Kooperation:', error);
       this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
+    } finally {
+      stopLoading();
     }
   }
 

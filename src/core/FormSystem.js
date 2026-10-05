@@ -294,8 +294,12 @@ export class FormSystem {
 
         // Spezielle Behandlung: Kooperation → Videos-Repeater speichern
         if (entity === 'kooperation') {
-          await this.handleKooperationVideos(result.id, form);
+          const videoResult = await this.handleKooperationVideos(result.id, form);
           await this.handleKooperationTags(result.id, form);
+          if (videoResult && videoResult.success === false) {
+            this.validator.showErrorMessage(`Kooperation gespeichert, Videos fehlgeschlagen: ${videoResult.error || 'Videos konnten nicht gespeichert werden'}`);
+            return { success: false };
+          }
         }
 
         // File-Upload für Ansprechpartner Profilbild
