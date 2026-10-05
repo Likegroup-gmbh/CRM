@@ -5,7 +5,6 @@ import { icon } from '../../../core/icons/IconSystem.js';
 import { skripteService } from '../SkripteService.js';
 import { escapeHtml, replaceSkriptUrl } from '../SkripteUtils.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
-import { showProduktionLeaf } from '../../../core/navHerkunft.js';
 
 SkriptEditorView.prototype.render = async function(container, skriptId) {
   await this.cleanup();
@@ -128,8 +127,7 @@ SkriptEditorView.prototype.renderLayout = function() {
   }
 };
 
-/** Breadcrumb: "Skripte" (klickbar, fuehrt zur Hauptseite) > aktueller Skript-Titel.
- *  Aus einer Produktion: Kampagnen > Kampagne > Produktion > Titel. */
+/** Breadcrumb: "Skripte" (klickbar, fuehrt zur Hauptseite) > aktueller Skript-Titel. */
 SkriptEditorView.prototype.updateBreadcrumb = async function() {
   const label = this.skript?.titel || 'Skript';
   window.setHeadline('Skripte');
@@ -138,10 +136,9 @@ SkriptEditorView.prototype.updateBreadcrumb = async function() {
     window.breadcrumbSystem?.updateBreadcrumb([{ label, clickable: false }]);
     return;
   }
-  if (await showProduktionLeaf(label)) return;
   window.breadcrumbSystem?.updateBreadcrumb([
     { label: 'Skripte', url: '/skripte', clickable: true },
-    { label, clickable: false }
+    { label, url: this.skript?.id ? `/skripte/${this.skript.id}` : null, clickable: false }
   ]);
 };
 

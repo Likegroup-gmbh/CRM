@@ -2095,6 +2095,10 @@
 .data-table.data-table--kampagne th.col-marke,
 .data-table.data-table--kampagne td.col-marke { min-width: 10em; }
 
+/* Leistungszeitraum (einheitlich in allen Listen mit Kampagnenbezug) */
+.data-table th.col-leistungszeitraum,
+.data-table td.col-leistungszeitraum { min-width: 11em; white-space: nowrap; }
+
 .data-table.data-table--kampagne th.col-auftrag,
 .data-table.data-table--kampagne td.col-auftrag { min-width: 14em; }
 

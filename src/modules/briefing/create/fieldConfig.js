@@ -217,7 +217,6 @@ export const FLOW_STEPS = [
             { name: 'ziel_produktion_id', label: 'Produktion', type: 'entitySelect', displayField: 'name', dependsOn: 'kampagne_id', placeholder: 'Produktion auswählen...' }
           ]),
           fieldGroup('zuordnung-titel', 'stack', [
-            { name: 'aktivierung_name', label: 'Titel', type: 'text', required: true, placeholder: 'z.B. Make-up September' },
             { name: 'beschreibung', label: 'Schwerpunkt (optional)', type: 'textarea', rows: 2, placeholder: 'Worum geht es in diesem Briefing?' },
             {
               name: 'tkp',

@@ -10,6 +10,7 @@ import {
   formatMonthEmptyText
 } from '../modules/auftrag/logic/InvoiceMonthFilter.js';
 import RechnungDataModule from '../core/data/entities/RechnungDataModule.js';
+import { EntityRegistry } from '../core/data/entities/index.js';
 import { RechnungList, getRechnungTabKey } from '../modules/rechnung/RechnungList.js';
 import { animateNumber } from '../core/animation/animateNumber.js';
 import {
@@ -103,8 +104,8 @@ describe('RechnungDataModule Sortierung', () => {
   });
 
   it('hat gestellt_am als DB-Sort', () => {
-    expect(RechnungDataModule.config.sortBy).toBe('gestellt_am');
-    expect(RechnungDataModule.config.sortOrder).toBe('desc');
+    expect(EntityRegistry.rechnung.sortBy).toBe('gestellt_am');
+    expect(EntityRegistry.rechnung.sortOrder).toBe('desc');
   });
 });
 

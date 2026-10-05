@@ -6,8 +6,6 @@ import { finalStills, stillsForVideoCell } from '../../core/stills/stillAssets.j
 import { STILL_FINAL_VARIANT } from '../../core/PromoteFinalAsset.js';
 import { toRawDropboxUrl, canPreviewImageAsset } from '../../core/VideoUploadUtils.js';
 import { escapeHtml } from './videoTableFieldCells.js';
-import { withProduktionHerkunft } from '../../core/navHerkunft.js';
-
 const PLAY_ICON = `${icon('play-circle')}`;
 const FOLDER_ICON = `${icon('folder-open')}`;
 const STORYS_ICON = `${icon('device-phone')}`;
@@ -21,7 +19,7 @@ function renderIdeeInhalt(ctx, item) {
   const beschreibung = item.beschreibung || 'Konzept-Idee';
   const title = escapeHtml(beschreibung);
   const conceptHref = item.strategie_id
-    ? withProduktionHerkunft(`/konzepte/${item.strategie_id}`, ctx.t?.produktionId, 'produktion')
+    ? `/konzepte/${item.strategie_id}`
     : '';
   const inner = `${IDEE_ICON}<span class="skript-link-title">${title}</span>`;
 
@@ -48,7 +46,7 @@ export function renderSkriptCell(koop, video, table = null) {
   const titel = (skript?.titel || '').trim() || 'Skript';
 
   if (skriptId) {
-    const href = withProduktionHerkunft(`/skripte/${skriptId}`, table?.produktionId, 'produktion');
+    const href = `/skripte/${skriptId}`;
     if (isGast) {
       return `
           <span class="skript-link-cell skript-link-cell--static">

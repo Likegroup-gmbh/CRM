@@ -6,7 +6,7 @@ import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { PageTransitionHelper } from '../../../core/PageTransitionHelper.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
-import { backTarget } from '../../../core/navHerkunft.js';
+import { backTarget } from '../../../core/breadcrumbTrail.js';
 
 VertraegeCreate.prototype.render = function() {
     // Verhindere doppeltes Rendern

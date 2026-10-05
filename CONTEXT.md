@@ -20,12 +20,16 @@ _Avoid_: Brand, Label
 Das Kundenprojekt mit Volumen, Laufzeit und Teilrechnungen. Ein neuer Auftrag hat genau eine Kampagne. Bestand darf mehrere Kampagnen aus dem früheren Split haben; deren Volumen wird nicht zusammengelegt.
 _Avoid_: Deal, Job, Projekt (in der UI heisst der Anlege-Flow so, die Entity bleibt Auftrag)
 
+**Projektname**:
+Der Titel des Auftrags (`auftrag.titel`) und Basisname der Namenskette. Die Kampagne trägt ihn als Kampagnenname; Produktion, Briefing, Casting und Konzept leiten ihre Namen davon ab (ADR 0041). Eine Umbenennung zieht Bestand nicht nach.
+_Avoid_: Eigener Name der Kampagne als Basis
+
 **Kampagne**:
 Überübersicht unter einem Auftrag. Hält den Budget-Topf, die Kampagnenarten und das Video- und Creator-Soll. Parent der Produktionen. Die Seite zeigt Summe und Soll, keine Workflow-Tabs.
 _Avoid_: Überkampagne, Auftrag
 
 **Produktion**:
-Lauf unter genau einer Kampagne. Mit Briefing heißt sie wie das Briefing, das Produkt kommt danach; ohne Briefing hat sie einen freien Namen und ein Produktionsbudget. Kein eigenes Soll. Darunter hängen Casting, Konzept, Skripte, Verträge, Kooperationen, Videos und Auswertung.
+Lauf unter genau einer Kampagne. Mit Briefing heißt sie wie das Briefing, das Produkt kommt danach; ohne Briefing heißt sie `Projektname – Produktion N` (frei änderbar) und hat ein Produktionsbudget. Kein eigenes Soll. Darunter hängen Casting, Konzept, Skripte, Verträge, Kooperationen, Videos und Auswertung.
 _Avoid_: Kooperation, Vor-Ort-Produktion, Geist
 
 **Produktionsbudget**:
@@ -117,7 +121,7 @@ geht es dem Vertragstext vor.
 _Avoid_: Anhang, Briefing
 
 **Briefing**:
-Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Ablage bleibt dort, die Firmenliste zeigt alle. Operativ genau einer Produktion zugeordnet und nicht wiederverwendet. Beim Anlegen wird kein Produkt gewählt; das Produkt entsteht danach. Titel frei, Vorschlag ist der Kampagnenname. Verbindliche Grundlage für Casting und Konzept dieser Produktion.
+Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Ablage bleibt dort, die Firmenliste zeigt alle. Operativ genau einer Produktion zugeordnet und nicht wiederverwendet. Beim Anlegen wird kein Produkt gewählt; das Produkt entsteht danach. Titel ist der Projektname, optional mit Zusatz (`Projektname – Zusatz`); im Formular weiter änderbar. Verbindliche Grundlage für Casting und Konzept dieser Produktion.
 _Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
 
 **Entwurf**:
@@ -582,3 +586,15 @@ mit Header-Zeit, Body-Zeit und dekodierten Bytes. Aktiv in DEV, mit `?perf=1` od
 `localStorage.perfMonitor = '1'`; `crmPerf()` gibt die letzte Spur erneut aus. Komprimierte Groessen
 liefert nur DevTools Network (Supabase sendet kein Timing-Allow-Origin).
 _Avoid_: PerformanceMonitor-Session, Perf-Log
+
+**Klickpfad**:
+Die Ebenen in der Breadcrumb, über die man auf die aktuelle Seite gekommen ist (z. B. Produktion > Casting > Creator).
+Ersetzt den offiziellen Weg, solange man sich durch Detailseiten klickt; ein Sprung auf eine Liste oder über die
+Sidebar beginnt neu. Abbrechen und Speichern führen auf die vorige Ebene zurück. Ein neuer Tab oder geteilter Link
+zeigt den offiziellen Weg (ADR 0042).
+_Avoid_: Herkunft, `von`, Return-To, Brotkrumen-Historie
+
+**Offizieller Weg**:
+Die feste Breadcrumb-Kette einer Seite aus ihrer Stammdaten-Hierarchie (z. B. Kampagnen > Kampagne > Produktion),
+unabhängig davon, woher man kam.
+_Avoid_: Standard-Breadcrumb, statische Kette

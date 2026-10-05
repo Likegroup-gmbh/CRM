@@ -613,17 +613,6 @@
   margin-top: var(--space-sm);
 }
 
-/* Thumb-Ersatz, wenn sich das Bild nicht einbetten laesst (Sharing-Link) */
-.media-gallery-thumb-label {
-  display: block;
-  padding: var(--space-xxs);
-  font-size: 10px;
-  line-height: 1.2;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .media-viewer-fallback-actions .vpl-fallback-download {
   display: inline-flex;
   align-items: center;
@@ -760,36 +749,6 @@
   
   color: var(--gray-500);
   
-}
-
-/* --- Bilder-Galerie Thumbnails --- */
-
-.media-gallery-thumbs {
-  display: flex;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-  margin-top: 0.85rem;
-}
-
-.media-gallery-thumb {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-  background: #000;
-}
-
-.media-gallery-thumb.active {
-  border-color: var(--primary, #3b82f6);
-}
-
-.media-gallery-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 /* --- Rohmaterial-Ansicht (/videos -> Kampagne -> Rohmaterial) --- */

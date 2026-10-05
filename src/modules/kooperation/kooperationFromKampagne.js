@@ -1,6 +1,4 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { withProduktionHerkunft } from '../../core/navHerkunft.js';
-
 export function setKooperationPrefillCache(kampagneId, kampagneData, produktionId = null) {
   if (!kampagneId || !kampagneData) return;
   window.kooperationPrefillCache = {
@@ -23,9 +21,7 @@ export function navigateToNewKooperationFromKampagne(kampagneId, kampagneData = 
   const params = new URLSearchParams({ kampagne_id: kampagneId });
   if (produktion) params.set('produktion_id', produktion);
   const route = `/kooperation/new?${params.toString()}`;
-  window.navigateTo(produktion
-    ? withProduktionHerkunft(route, produktion, 'produktion')
-    : route);
+  window.navigateTo(route);
 }
 
 export function resolveKampagneIdFromCreateContext({ submitData, form, search } = {}) {

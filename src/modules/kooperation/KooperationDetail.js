@@ -18,7 +18,7 @@ import {
   VIDEO_FEEDBACK_FIELDS
 } from '../../core/VideoFeedbackBuckets.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
-import { parseProduktionHerkunft, produktionReturnPath, readHerkunft, showProduktionLeaf } from '../../core/navHerkunft.js';
+import { backTarget, trailProduktion } from '../../core/breadcrumbTrail.js';
 
 export class KooperationDetail extends PersonDetailBase {
   constructor() {
@@ -51,7 +51,7 @@ export class KooperationDetail extends PersonDetailBase {
   async init(kooperationId) {
     console.log('🎯 KOOPERATIONDETAIL: Initialisiere für ID:', kooperationId);
 
-    this.returnToRoute = readHerkunft();
+    this.returnToRoute = null;
     this.kooperationId = kooperationId;
     this.activeMainTab = getTabQueryParam() || 'informationen';
 
@@ -66,9 +66,7 @@ export class KooperationDetail extends PersonDetailBase {
       if (window.breadcrumbSystem && this.kooperation) {
         const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || false;
         const label = this.kooperation.name || 'Details';
-        const editButton = { id: 'btn-edit-kooperation', canEdit };
-        const shown = await showProduktionLeaf(label, editButton);
-        if (!shown) window.breadcrumbSystem.updateDetailLabel(label, editButton);
+        window.breadcrumbSystem.updateDetailLabel(label, { id: 'btn-edit-kooperation', canEdit });
       }
 
       this.render();
@@ -89,7 +87,7 @@ export class KooperationDetail extends PersonDetailBase {
   async initForEdit(kooperationId) {
     console.log('⚡ KOOPERATIONDETAIL: Fast-Path initForEdit für ID:', kooperationId);
 
-    this.returnToRoute = readHerkunft();
+    this.returnToRoute = backTarget(null);
     this.kooperationId = kooperationId;
 
     if (window.moduleRegistry?.currentModule !== this) {
@@ -117,12 +115,6 @@ export class KooperationDetail extends PersonDetailBase {
       }
 
       this.kooperation = data;
-
-      if (window.breadcrumbSystem) {
-        const label = data.name || 'Bearbeiten';
-        const shown = await showProduktionLeaf(label, { canEdit: false });
-        if (!shown) window.breadcrumbSystem.updateDetailLabel(label, { canEdit: false });
-      }
 
       await this.showEditForm();
       console.log('✅ KOOPERATIONDETAIL: Fast-Path abgeschlossen');
@@ -495,12 +487,9 @@ export class KooperationDetail extends PersonDetailBase {
   // ============================================
 
   _kampagneZiel() {
-    const parsed = parseProduktionHerkunft(this.returnToRoute);
-    if (parsed) {
-      return {
-        route: produktionReturnPath(parsed.produktionId, parsed.tab),
-        label: 'Produktion anzeigen'
-      };
+    const produktion = trailProduktion();
+    if (produktion) {
+      return { route: produktion.url, label: 'Produktion anzeigen' };
     }
     return {
       route: `/kampagne/${this.kampagne?.id || ''}`,
@@ -989,10 +978,7 @@ export class KooperationDetail extends PersonDetailBase {
     console.log('🎯 KOOPERATIONDETAIL: Zeige Bearbeitungsformular');
     window.setHeadline('Kooperation bearbeiten');
 
-    if (window.breadcrumbSystem && this.kooperation) {
-      const shown = await showProduktionLeaf('Bearbeiten', { canEdit: false });
-      if (!shown) window.breadcrumbSystem.updateDetailLabel('Bearbeiten', { canEdit: false });
-    }
+    if (this.kooperation) window.breadcrumbSystem?.showEditLeaf();
 
     const formData = { ...this.kooperation };
     formData._isEditMode = true;

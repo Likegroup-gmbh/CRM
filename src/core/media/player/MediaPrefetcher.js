@@ -1,18 +1,16 @@
 // MediaPrefetcher
 // Beschleunigt das Blaettern im Player: Preconnect zu Dropbox, vorheriges
 // Aufloesen von Nachbar-Assets/Temp-Links und Byte-Prefetch der Nachbarvideos.
-// Greift ueber einen schlanken Kontext (ctx = Player) auf Items/State zu.
+// host = VideoPlayerLightbox: session (Items/Index/Tabelle), assetLoader, stage.
 
-import { resolveStreamUrl } from './mediaSrc.js';
-import * as MediaCache from './MediaCache.js';
-
-// Container-Formate ohne Caching (spiegelt RISKY_VIDEO_EXT im Player) -> diese
-// Nachbarn nur mit Metadaten vorladen, nicht als Blob.
-const RISKY_VIDEO_EXT = /\.(mov|avi|mkv|m4v)(?:\?|#|$)/i;
+import { resolveStreamUrl } from '../mediaSrc.js';
+import * as MediaCache from '../MediaCache.js';
+import { isRiskyFormat, lookupPath } from './mediaIdentity.js';
+import { resolveItemMedia, defaultPicksFor } from './resolveItemMedia.js';
 
 export class MediaPrefetcher {
-  constructor(ctx) {
-    this.ctx = ctx;
+  constructor(host) {
+    this.host = host;
     this._preconnected = false;
     this._container = null;
     this._bytePrefetch = new Map();
@@ -32,7 +30,8 @@ export class MediaPrefetcher {
   }
 
   prefetchNeighborAssets() {
-    const { items, index, assetLoader } = this.ctx;
+    const { items, index } = this.host.session;
+    const { assetLoader } = this.host;
     [index - 1, index + 1].forEach(i => {
       const e = items[i];
       if (e && e.type === 'video' && !assetLoader.has(e.video.id)) {
@@ -42,15 +41,15 @@ export class MediaPrefetcher {
   }
 
   scheduleNeighborPrefetch() {
-    const token = this.ctx._srcToken;
-    const stage = this.ctx.lightbox?.contentEl?.querySelector('.media-viewer-stage');
+    const token = this.host.stage.token;
+    const stage = this.host.stage.el();
     const video = stage?.querySelector('.vpl-video');
     let done = false;
     const run = () => {
       if (done) return;
       done = true;
       this._prefetchTimerId = null;
-      if (token === this.ctx._srcToken) this.prefetchNeighbors();
+      if (token === this.host.stage.token) this.prefetchNeighbors();
     };
     // Erst starten, wenn das AKTIVE Video durchgehend abspielbar ist
     // (canplaythrough) -> der Voll-Blob-Prewarm der Nachbarn zieht keine
@@ -65,29 +64,16 @@ export class MediaPrefetcher {
   }
 
   prefetchNeighbors() {
-    const { items, index, storyVersions, storyAsset } = this.ctx;
+    const { items, index } = this.host.session;
     const blobTasks = []; // Bild/Story: vollstaendig als Blob vorwaermen
 
     [index - 1, index + 1].forEach(i => {
       const e = items[i];
-      if (!e) return;
-      if (e.type === 'story') {
-        const versions = storyVersions(e.slot);
-        const a = storyAsset(e.slot, versions[versions.length - 1] || 1);
-        if (a?.id && (a.file_path || a.file_url)) {
-          blobTasks.push({
-            key: `story:${a.id}:${a.created_at || a.file_size || ''}`,
-            lookup: { file_path: a.file_path || null, file_url: a.file_url || null }
-          });
-        }
-      } else if (e.type === 'bild') {
-        const img = e.image;
-        if (img?.id && (img.file_path || img.file_url)) {
-          blobTasks.push({
-            key: `bild:${img.id}:${img.created_at || ''}`,
-            lookup: { file_path: img.file_path || null, file_url: img.file_url || null }
-          });
-        }
+      if (!e || e.type === 'video') return;
+      // Gleiche Default-Auswahl + gleicher Key wie der Player beim Oeffnen.
+      const media = resolveItemMedia(e, defaultPicksFor(e, { table: this.host.session.table }));
+      if (media.key && (media.lookup.file_path || media.lookup.file_url)) {
+        blobTasks.push({ key: media.key, lookup: media.lookup });
       }
     });
 
@@ -117,7 +103,7 @@ export class MediaPrefetcher {
 
   /** Indizes der naechsten Video-Items in beide Richtungen (vom aktuellen aus). */
   _nearestVideoIndices({ back = 1, ahead = 2 } = {}) {
-    const { items, index } = this.ctx;
+    const { items, index } = this.host.session;
     const result = [];
     let n = 0;
     for (let i = index - 1; i >= 0 && n < back; i--) {
@@ -140,27 +126,22 @@ export class MediaPrefetcher {
     const video = item?.video;
     if (!video?.id) return null;
 
-    let assets = this.ctx.assetLoader.get(video.id);
-    if (!assets) assets = await this.ctx.assetLoader.load(video.id).catch(() => null);
+    let assets = this.host.assetLoader.get(video.id);
+    if (!assets) assets = await this.host.assetLoader.load(video.id).catch(() => null);
     if (!assets) return null;
 
-    const comments = this.ctx.table.videoComments?.[video.id];
-    const sel = this.ctx.assetLoader.applyDefaultSelection(assets, comments);
-    const asset = this.ctx.assetLoader.selectedAsset(assets, sel.selectedAssetId) || video.currentAsset;
-    if (!asset?.id) return null;
-
-    const key = `video:${asset.id}:${asset.created_at || ''}`;
+    // Gleiche Default-Auswahl (inkl. Kunden-Final) wie der Player -> gleicher Key.
+    const { assetLoader } = this.host;
+    const { table } = this.host.session;
+    const media = resolveItemMedia(item, defaultPicksFor(item, { assetLoader, assets, table }));
+    const { key, lookup } = media;
+    if (!key) return null;
     if (MediaCache.getObjectUrl(key)) return null; // schon vorgewaermt
 
-    const lookup = {
-      file_path: asset.file_path || null,
-      file_url: asset.file_url || video.file_url || video.link_content || video.asset_url || null,
-    };
     const url = await resolveStreamUrl(lookup).catch(() => null);
     if (!url) return null;
 
-    const path = lookup.file_path || lookup.file_url || '';
-    return { key, url, risky: RISKY_VIDEO_EXT.test(path) };
+    return { key, url, risky: isRiskyFormat(lookupPath(lookup)) };
   }
 
   _ensureContainer() {

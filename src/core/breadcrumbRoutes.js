@@ -19,8 +19,6 @@ const ROUTE_CONFIG = {
   kampagne:           { label: 'Kampagne',          entity: 'kampagne' },
   produktion:         { label: 'Produktion',        entity: 'kampagne' },
   produktionen:       { label: 'Produktion',        entity: 'kampagne' },
-  strategie:          { label: 'Strategien',        entity: 'strategie' },
-  sourcing:           { label: 'Sourcing',          entity: 'sourcing' },
   konzepte:           { label: 'Konzepte',          entity: 'strategie' },
   castings:           { label: 'Castings',          entity: 'sourcing' },
   vertraege:          { label: 'Verträge',          entity: 'vertraege' },
@@ -30,8 +28,6 @@ const ROUTE_CONFIG = {
   briefing:           { label: 'Briefing',          entity: 'briefing' },
   mitarbeiter:        { label: 'Mitarbeiter',       entity: 'mitarbeiter' },
   'kunden-admin':     { label: 'Kunden',            entity: 'kunden-admin' },
-  'admin/kunden':     { label: 'Kunden',            entity: 'kunden-admin' },
-  kunde:              { label: 'Kunden',            entity: 'kunden-admin' },
   kunden:             { label: 'Übersicht',         entity: 'kunden' },
   tabellen:           { label: 'Tabellen',          entity: 'tabellen' },
   feedback:           { label: 'Feedback',          entity: 'feedback' },
@@ -81,10 +77,6 @@ export function getRouteConfig(segment, rolle) {
   if (base) return { ...base };
 
   return { label: capitalize(segment), entity: null };
-}
-
-export function getRouteLabel(segment, rolle) {
-  return getRouteConfig(segment, rolle).label;
 }
 
 function capitalize(str) {

@@ -14,11 +14,6 @@ function _on() {
   return typeof window !== 'undefined' && !!window.__mediaPerf;
 }
 
-/** True, wenn das Debug-Flag gesetzt ist. */
-export function perfEnabled() {
-  return _on();
-}
-
 /** Loggt ein Player-Performance-Event, wenn das Flag aktiv ist. */
 export function perfLog(event, data = {}) {
   if (!_on()) return;

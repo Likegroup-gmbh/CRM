@@ -6,9 +6,7 @@ import { normalizeFormUrlFields } from '../../core/UrlHelper.js';
 
 export async function showEditForm(detail) {
   try {
-    if (window.breadcrumbSystem && detail.unternehmen) {
-      window.breadcrumbSystem.updateDetailLabel('Bearbeiten');
-    }
+    if (detail.unternehmen) window.breadcrumbSystem?.showEditLeaf();
 
     const formData = { ...detail.unternehmen };
     formData._isEditMode = true;

@@ -1,5 +1,7 @@
 // SkripteUtils.js - kleine Helfer fuer das Skripte-Modul
 
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
+
 export function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -91,7 +93,7 @@ export function replaceSkriptUrl(skriptId) {
   // den Zugang (kein /share/:token-Match mehr nach dem Umschreiben).
   if (window.permissionSystem?.isGast) return;
   const path = skriptEditorPath(skriptId);
-  window.history.replaceState({ route: path }, '', path);
+  replaceRoute(path);
 }
 
 export const OHNE_QUERY = 'ohne';

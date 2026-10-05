@@ -1,8 +1,9 @@
 // ProduktionBriefingDrawer.js
-// Auf der Kampagne: Titel, dann Briefing-Anlage. Das Produkt entsteht danach.
+// Auf der Kampagne: Titel (Basis aus dem Projektnamen + optionaler Zusatz), dann Briefing-Anlage.
+// Das Produkt entsteht danach.
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { withProduktionHerkunft } from '../../core/navHerkunft.js';
+import { basisName, briefingTitel } from './produktionNames.js';
 
 function esc(value) {
   return window.validatorSystem?.sanitizeHtml(String(value ?? '')) || '';
@@ -10,7 +11,7 @@ function esc(value) {
 
 export async function openProduktionBriefingDrawer(detail, { produktionId = null } = {}) {
   const k = detail.kampagneData || {};
-  const defaultTitel = detail.lineTitle || KampagneUtils.getDisplayName(k) || '';
+  const basis = basisName(k) || KampagneUtils.getDisplayName(k) || '';
 
   const modal = document.createElement('div');
   modal.className = 'modal overlay-modal';
@@ -22,8 +23,13 @@ export async function openProduktionBriefingDrawer(detail, { produktionId = null
       </div>
       <form class="modal-body" id="produktion-briefing-form">
         <div class="form-field">
-          <label for="produktion-briefing-titel">Titel</label>
-          <input id="produktion-briefing-titel" name="titel" class="form-input" value="${esc(defaultTitel)}" required>
+          <label for="produktion-briefing-basis">Projektname</label>
+          <input id="produktion-briefing-basis" name="basis" class="form-input" value="${esc(basis)}" readonly>
+        </div>
+        <div class="form-field">
+          <label for="produktion-briefing-zusatz">Zusatz (optional)</label>
+          <input id="produktion-briefing-zusatz" name="zusatz" class="form-input" placeholder="z.B. Serum Launch" autocomplete="off">
+          <small class="form-hint" data-vorschau></small>
         </div>
       </form>
       <div class="modal-footer">
@@ -32,11 +38,21 @@ export async function openProduktionBriefingDrawer(detail, { produktionId = null
       </div>
     </div>`;
 
+  const zusatzInput = modal.querySelector('[name="zusatz"]');
+  const vorschau = modal.querySelector('[data-vorschau]');
+  const aktuellerTitel = () => briefingTitel(basis, zusatzInput.value);
+  const zeigeVorschau = () => {
+    const titel = aktuellerTitel();
+    vorschau.textContent = titel ? `Titel: ${titel}` : '';
+  };
+  zusatzInput.addEventListener('input', zeigeVorschau);
+  zeigeVorschau();
+
   const close = () => modal.remove();
   modal.querySelector('[data-action="close"]').onclick = close;
   modal.querySelector('[data-action="cancel"]').onclick = close;
   modal.querySelector('[data-action="confirm"]').onclick = () => {
-    const titel = modal.querySelector('[name="titel"]').value.trim();
+    const titel = aktuellerTitel();
     if (!titel) {
       window.toastSystem?.show('Titel ist Pflicht.', 'warning');
       return;
@@ -50,11 +66,7 @@ export async function openProduktionBriefingDrawer(detail, { produktionId = null
     if (produktionId) params.set('produktion', produktionId);
     if (detail.produktion?.produkt_id) params.set('produkt', detail.produktion.produkt_id);
     close();
-    window.navigateTo(withProduktionHerkunft(
-      `/briefing/new?${params.toString()}`,
-      produktionId,
-      'briefing'
-    ));
+    window.navigateTo(`/briefing/new?${params.toString()}`);
   };
   document.body.appendChild(modal);
 }

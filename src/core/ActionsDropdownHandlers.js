@@ -37,7 +37,7 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'edit':
-      await handleEdit(entityId, entityType, actionItem);
+      await handleEdit(entityId, entityType);
       break;
 
     case 'continue':

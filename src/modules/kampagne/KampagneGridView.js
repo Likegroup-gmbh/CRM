@@ -4,6 +4,7 @@
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
 import {
   NUR_UNTERNEHMEN_LABEL,
   parseFolderQuery,
@@ -43,7 +44,7 @@ export function setKampagneAnsicht(ansicht, { search = window.location.search, p
   else if (ansicht === 'list') params.delete('ansicht');
   const query = params.toString();
   const url = query ? `${pathname}?${query}` : pathname;
-  window.history.replaceState({ route: url }, '', url);
+  replaceRoute(url);
 }
 
 export function buildGridRpcParams(folder = {}, hideCompleted = true) {
@@ -308,7 +309,7 @@ export class KampagneGridView {
     const parsed = new URL(url, window.location.origin);
     parsed.searchParams.set('ansicht', 'grid');
     const withAnsicht = `${parsed.pathname}${parsed.search}`;
-    window.history.replaceState({ route: withAnsicht }, '', withAnsicht);
+    replaceRoute(withAnsicht);
   }
 
   updateBreadcrumb() {

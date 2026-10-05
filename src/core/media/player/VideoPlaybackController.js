@@ -2,7 +2,7 @@
 // Verdrahtet ein <video>-Element im Stage-Bereich mit den Custom-Controls
 // (Play/Pause, Seek, Mute, Fullscreen). Reine UI-Steuerung ohne State-Bezug.
 
-import { ICON_PLAY, ICON_PAUSE, ICON_VOLUME, ICON_MUTE, ICON_FS, ICON_FS_EXIT, formatTime } from './mediaPlayerIcons.js';
+import { ICON_PLAY, ICON_PAUSE, ICON_VOLUME, ICON_MUTE, ICON_FS, ICON_FS_EXIT, formatTime } from '../mediaPlayerIcons.js';
 
 export class VideoPlaybackController {
   constructor() {

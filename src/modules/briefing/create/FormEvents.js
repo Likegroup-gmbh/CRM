@@ -10,7 +10,7 @@ import {
 } from '../videolaenge.js';
 import { escapeHtml } from './FieldRenderer.js';
 import { icon } from '../../../core/icons/IconSystem.js';
-import { backTarget } from '../../../core/navHerkunft.js';
+import { backTarget } from '../../../core/breadcrumbTrail.js';
 
 BriefingCreate.prototype.bindMultistepEvents = function() {
   const cancelBtn = document.getElementById('btn-cancel');

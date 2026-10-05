@@ -300,10 +300,6 @@ export function getSwitcherConfig(segment) {
   return SWITCHER_CONFIG[resolveSwitcherSegment(segment)] || null;
 }
 
-export function hasSwitcherConfig(segment) {
-  return Boolean(getSwitcherConfig(segment));
-}
-
 export function nestedSwitcherContext(segment, id, ctx) {
   if (!id || !ctx) return null;
   return {

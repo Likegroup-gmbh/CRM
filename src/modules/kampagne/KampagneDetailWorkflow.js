@@ -31,7 +31,6 @@ import {
   unmountKatalogPanes
 } from './KampagneDetailKatalog.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
-import { withProduktionHerkunft } from '../../core/navHerkunft.js';
 import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
 
 export const WORKFLOW_TABS = [
@@ -62,12 +61,6 @@ const WORKFLOW_TABLE_ROUTES = {
 
 export function getWorkflowTableRoute(table, id) {
   return WORKFLOW_TABLE_ROUTES[table]?.(id) || null;
-}
-
-export function workflowExitRoute(table, id, { produktionId = null, tab = null } = {}) {
-  const route = getWorkflowTableRoute(table, id);
-  if (!route || table === 'creator' || !produktionId) return route;
-  return withProduktionHerkunft(route, produktionId, tab);
 }
 
 const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || '';

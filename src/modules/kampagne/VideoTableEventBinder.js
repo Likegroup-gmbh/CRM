@@ -10,8 +10,6 @@ import { getVideoFeedbackSlotByField } from '../../core/VideoFeedbackBuckets.js'
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
 import { applyLiveLinkCellState, findVideoInTable } from './liveLinkCell.js';
-import { withProduktionHerkunft } from '../../core/navHerkunft.js';
-
 export class VideoTableEventBinder {
   constructor(table) {
     this.table = table;
@@ -218,7 +216,7 @@ export class VideoTableEventBinder {
       if (openSkript) {
         e.preventDefault();
         const skriptId = openSkript.dataset.skriptId;
-        if (skriptId) window.navigateTo(withProduktionHerkunft(`/skripte/${skriptId}`, t.produktionId, 'produktion'));
+        if (skriptId) window.navigateTo(`/skripte/${skriptId}`);
         return;
       }
       const linkSkript = e.target.closest('[data-action="link-skript"]');

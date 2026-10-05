@@ -7,6 +7,7 @@ import { renderEmptyState, renderEmptyStateRow } from '../../core/components/Emp
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 import {
   renderVerknuepfungen,
   namedLinks,
@@ -177,6 +178,7 @@ export function renderBrandsView(list) {
               <tr>
                 <th>Name</th>
                 <th>Kampagne</th>
+                <th class="col-leistungszeitraum">Leistungszeitraum</th>
                 <th>Erstellt von</th>
                 <th>Briefing</th>
                 <th>Casting</th>
@@ -229,6 +231,7 @@ export function renderItemsRows(list, items) {
           </a>
         </td>
         <td>${kampagneName}</td>
+        ${renderLeistungszeitraumCell(strategie.kampagne)}
         <td>${list.sanitize(strategie.created_by_user?.name || '-')}</td>
         <td>${renderVerknuepfungen(namedLinks(strategie.briefing, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
         <td>${renderVerknuepfungen(namedLinks(strategie.creator_auswahl, { labelKey: 'name', kind: 'casting' }))}</td>
@@ -250,7 +253,7 @@ export function updateCompanyOnlyTable(list) {
       icon: 'building',
       title: 'Keine unternehmensweiten Konzepte ohne Marke',
       actionsHtml: strategieCreateButtonHtml()
-    }, 7);
+    }, 8);
     return;
   }
 
@@ -282,6 +285,7 @@ export function renderItemsView(list) {
             <tr>
               <th class="col-name">Name</th>
               <th class="col-kampagne">Kampagne</th>
+              <th class="col-leistungszeitraum">Leistungszeitraum</th>
               <th class="col-erstellt-von">Erstellt von</th>
               <th>Briefing</th>
               <th>Casting</th>
@@ -290,7 +294,7 @@ export function renderItemsView(list) {
             </tr>
           </thead>
           <tbody id="strategien-table-body">
-            <tr><td colspan="7" class="table-empty-cell">Lade Konzepte...</td></tr>
+            <tr><td colspan="8" class="table-empty-cell">Lade Konzepte...</td></tr>
           </tbody>
         </table>
       </div>
@@ -308,7 +312,7 @@ export function updateItemsTable(list) {
       icon: 'clipboard',
       title: 'Keine Konzepte für diese Marke vorhanden',
       actionsHtml: strategieCreateButtonHtml()
-    }, 7);
+    }, 8);
     list.pagination.updateTotal(0);
     list.pagination.render();
     return;

@@ -7,6 +7,7 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { getPaymentRowStatusClass, isInvoiceRowPaid } from './logic/PaymentRowStatus.js';
 import { defaultReNrPrefix, isBareReNrPrefix } from './logic/PrefixedNumberSort.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { formatLeistungszeitraum } from '../../core/utils/leistungszeitraum.js';
 
 const currencyFormatter = new Intl.NumberFormat('de-DE', {
   style: 'currency', currency: 'EUR',
@@ -296,21 +297,7 @@ AuftragList.prototype.formatKampagneArtTags = function(arten) {
 };
 
 AuftragList.prototype.formatLeistungszeitraum = function(start, ende) {
-  if (!start && !ende) return '-';
-  const fmtShort = (d) => {
-    const dt = new Date(d);
-    return `${String(dt.getDate()).padStart(2, '0')}.${String(dt.getMonth() + 1).padStart(2, '0')}.`;
-  };
-  const fmtFull = (d) => {
-    const dt = new Date(d);
-    return `${String(dt.getDate()).padStart(2, '0')}.${String(dt.getMonth() + 1).padStart(2, '0')}.${dt.getFullYear()}`;
-  };
-  if (start && !ende) return fmtFull(start);
-  if (!start && ende) return fmtFull(ende);
-  const sameYear = new Date(start).getFullYear() === new Date(ende).getFullYear();
-  return sameYear
-    ? `${fmtShort(start)} – ${fmtFull(ende)}`
-    : `${fmtFull(start)} – ${fmtFull(ende)}`;
+  return formatLeistungszeitraum(start, ende);
 };
 
 AuftragList.prototype.formatRechnungskontakte = function(kontakte) {

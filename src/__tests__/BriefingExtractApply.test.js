@@ -74,7 +74,7 @@ const IRONCLAD_CHAT = {
 
 describe('normalizeValue', () => {
   it('Text: Wrapper und Arrays werden String, nie "[object Object]"', () => {
-    const field = byName('aktivierung_name');
+    const field = byName('aufgabe');
     expect(normalizeValue(field, 'Launch')).toBe('Launch');
     expect(normalizeValue(field, { value: 'Launch', kind: 'fact' })).toBe('Launch');
     expect(normalizeValue(field, ['Zeile 1', 'Zeile 2'])).toBe('Zeile 1\nZeile 2');
@@ -164,7 +164,7 @@ describe('BriefingExtractApply.apply (Extract)', () => {
     const { applied } = apply.apply(IRONCLAD_EXTRACT, SPEC);
     const data = apply.briefing.formData;
 
-    expect(data.aktivierung_name).toBe('IRONCLAD FORCE-FIT Leggings — Creator-Kampagne');
+    expect(data).not.toHaveProperty('aktivierung_name');
     expect(data.veroeffentlichungszeitraum).toBe('KW 46–48 / Go-Live 17.11.2026');
     expect(data.funnel_stufen).toEqual(['upper', 'mid']);
     expect(data.publish_channels).toEqual({ instagram: ['reel', 'story'], tiktok: ['video'] });
@@ -180,11 +180,12 @@ describe('BriefingExtractApply.apply (Extract)', () => {
   });
 
   it('vom Nutzer gefuellte Felder bleiben stehen', () => {
-    apply.briefing.formData.aktivierung_name = 'Eigener Name';
+    const label = byName('aufgabe').label;
+    apply.briefing.formData.aufgabe = 'Eigene Aufgabe';
     const { applied, skipped } = apply.apply(IRONCLAD_EXTRACT, SPEC);
-    expect(apply.briefing.formData.aktivierung_name).toBe('Eigener Name');
-    expect(skipped).toContain('Titel');
-    expect(applied).not.toContain('Titel');
+    expect(apply.briefing.formData.aufgabe).toBe('Eigene Aufgabe');
+    expect(skipped).toContain(label);
+    expect(applied).not.toContain(label);
   });
 });
 
@@ -247,10 +248,10 @@ describe('BriefingExtractApply.applyPatches (Chat)', () => {
     const { applied } = apply.applyPatches(IRONCLAD_CHAT, SPEC);
     const data = apply.briefing.formData;
 
-    expect(data.aktivierung_name).toBe('IRONCLAD FORCE-FIT Leggings Launch Kampagne');
+    expect(data).not.toHaveProperty('aktivierung_name');
     expect(data.aufgabe).toBe('Creator testen die Leggings im Training.');
     expect(data.publish_channels).toEqual({ instagram: ['reel', 'story'] });
-    expect(applied.length).toBe(3);
+    expect(applied.length).toBe(2);
 
     for (const value of Object.values(data)) {
       expect(String(typeof value === 'object' ? JSON.stringify(value) : value))
@@ -259,10 +260,10 @@ describe('BriefingExtractApply.applyPatches (Chat)', () => {
   });
 
   it('darf vorhandene Werte ueberschreiben', () => {
-    const apply = createApply({ aktivierung_name: 'Alt' });
+    const apply = createApply({ aufgabe: 'Alt', aktivierung_name: 'Projekt A' });
     apply.applyPatches(IRONCLAD_CHAT, SPEC);
-    expect(apply.briefing.formData.aktivierung_name)
-      .toBe('IRONCLAD FORCE-FIT Leggings Launch Kampagne');
+    expect(apply.briefing.formData.aufgabe).toBe('Creator testen die Leggings im Training.');
+    expect(apply.briefing.formData.aktivierung_name).toBe('Projekt A');
   });
 });
 

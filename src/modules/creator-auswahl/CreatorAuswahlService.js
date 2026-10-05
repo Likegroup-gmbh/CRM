@@ -63,7 +63,7 @@ export class CreatorAuswahlService {
         *,
         unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
         marke:marke_id(id, markenname, logo_url),
-        kampagne:kampagne_id(id, kampagnenname, eigener_name),
+        kampagne:kampagne_id(id, kampagnenname, eigener_name, start, deadline, auftrag:auftrag_id(start, ende)),
         created_by_user:created_by(id, name, profile_image_url),
         creator_auswahl_items(count),
         briefing:briefing_id(id, aktivierung_name),

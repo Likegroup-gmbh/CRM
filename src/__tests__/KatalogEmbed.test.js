@@ -101,13 +101,13 @@ describe('Listen embedded in der Produktion', () => {
       ['in', ['id', ['serum']]]
     ]));
     expect(list.resolveDetailRoute('abc')).toBe(
-      '/produkt/abc?von=%2Fproduktion%2Fp1%3Ftab%3Dprodukte'
+      '/produkt/abc'
     );
 
     window.navigateTo = vi.fn();
     list.showCreateForm();
     expect(window.navigateTo).toHaveBeenCalledWith(
-      '/produkt/new?unternehmen=u1&marke=m1&briefing=b1&produktion=p1&von=%2Fproduktion%2Fp1%3Ftab%3Dprodukte'
+      '/produkt/new?unternehmen=u1&marke=m1&briefing=b1&produktion=p1'
     );
     list.destroy();
   });
@@ -165,7 +165,7 @@ describe('Listen embedded in der Produktion', () => {
       ['in', ['id', ['pe1', 'pe2']]]
     ]));
     expect(list.resolveDetailRoute('abc')).toBe(
-      '/persona/abc?von=%2Fproduktion%2Fp1%3Ftab%3Dpersonas'
+      '/persona/abc'
     );
 
     list.openCreateDrawer();

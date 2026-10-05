@@ -1,12 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { resolveVideoFeedbackTarget, getVideoFeedbackSlot } from '../core/VideoFeedbackBuckets.js';
 import { getTemporaryLink, toRawDropboxUrl, _resetProxyAvailability } from '../core/VideoUploadUtils.js';
-import { VideoPlayerLightbox } from '../core/media/VideoPlayerLightbox.js';
-import { MediaItemBuilder } from '../core/media/MediaItemBuilder.js';
-import { VideoAssetLoader } from '../core/media/VideoAssetLoader.js';
+import { VideoPlayerLightbox } from '../core/media/player/VideoPlayerLightbox.js';
+import { MediaItemBuilder } from '../core/media/player/MediaItemBuilder.js';
+import { VideoAssetLoader } from '../core/media/player/VideoAssetLoader.js';
 import { resolveStreamUrl, _clearMediaSrcCache } from '../core/media/mediaSrc.js';
 import * as MediaCache from '../core/media/MediaCache.js';
-import { VideoElementPool } from '../core/media/VideoElementPool.js';
+import { VideoElementPool } from '../core/media/player/VideoElementPool.js';
+import { feedbackTargetFor } from '../core/media/player/playerFeedbackTarget.js';
+import { applyVideoDefault } from '../core/media/player/selection/video.js';
+import { applyStillDefault } from '../core/media/player/selection/still.js';
+import { storyVersions, storyFinalVariants, storyAssetFor } from '../core/media/player/selection/story.js';
 
 describe('resolveVideoFeedbackTarget – Version->Runde Mapping', () => {
   it('Version 1 -> Runde 1, CJ fuer interne Rolle', () => {
@@ -465,9 +469,9 @@ describe('VideoPlayerView – Bild-Stage bei nicht einbettbaren Links', () => {
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
     const table = makeFakeTable(koops, videos);
     const player = new VideoPlayerLightbox(table);
-    player.items = new MediaItemBuilder(table).build();
-    player.index = player.items.findIndex(it => it.type === 'bild');
-    player.loading = false;
+    player.session.items = new MediaItemBuilder(table).build();
+    player.session.index = player.session.items.findIndex(it => it.type === 'bild');
+    player.session.loading = false;
     return player;
   }
 
@@ -477,7 +481,7 @@ describe('VideoPlayerView – Bild-Stage bei nicht einbettbaren Links', () => {
       file_path: null,
       file_url: 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc?e=xyz',
     });
-    player.src = 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc?e=xyz';
+    player.session.src = 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc?e=xyz';
 
     document.body.innerHTML = player.view.renderStageInner();
     expect(document.querySelector('img.vpl-image')).toBeNull();
@@ -493,7 +497,7 @@ describe('VideoPlayerView – Bild-Stage bei nicht einbettbaren Links', () => {
       file_path: null,
       file_url: 'https://cdn.example.com/p.png',
     });
-    player.src = 'https://cdn.example.com/p.png';
+    player.session.src = 'https://cdn.example.com/p.png';
 
     document.body.innerHTML = player.view.renderStageInner();
     expect(document.querySelector('img.vpl-image')).not.toBeNull();
@@ -504,7 +508,7 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
   function playerWith(koops, videos) {
     const table = makeFakeTable(koops, videos);
     const player = new VideoPlayerLightbox(table);
-    player.items = new MediaItemBuilder(table).build();
+    player.session.items = new MediaItemBuilder(table).build();
     return player;
   }
 
@@ -518,12 +522,12 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
     };
     const player = playerWith(koops, videos);
 
-    player.index = player.items.findIndex(e => e.type === 'story');
-    player.storyVersion = 1;
-    expect(player.feedbackTarget().videoId).toBe('v1');
+    player.session.index = player.session.items.findIndex(e => e.type === 'story');
+    player.session.story.version = 1;
+    expect(feedbackTargetFor(player.session).videoId).toBe('v1');
 
-    player.index = player.items.findIndex(e => e.type === 'bild');
-    const bildTarget = player.feedbackTarget();
+    player.session.index = player.session.items.findIndex(e => e.type === 'bild');
+    const bildTarget = feedbackTargetFor(player.session);
     expect(bildTarget.videoId).toBe('v1');
     expect(bildTarget.target.runde).toBe(1);
   });
@@ -538,15 +542,13 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
         { id: 'f2', version_number: 1, is_final: true, variant_name: '4:5' },
       ],
     };
-    const player = playerWith([{ id: 'k1' }], { k1: [] });
-    expect(player.storyVersions(slot)).toEqual([1, 2]);
-    expect(player.storyFinalVariants(slot).map(a => a.id)).toEqual(['f1', 'f2']);
-    // storyAsset('final') liefert gewaehlte Variante bzw. erste finale
-    expect(player.storyAsset(slot, 'final')?.id).toBe('f1');
-    player.storyFinalAssetId = 'f2';
-    expect(player.storyAsset(slot, 'final')?.id).toBe('f2');
+    expect(storyVersions(slot)).toEqual([1, 2]);
+    expect(storyFinalVariants(slot).map(a => a.id)).toEqual(['f1', 'f2']);
+    // storyAssetFor('final') liefert gewaehlte Variante bzw. erste finale
+    expect(storyAssetFor(slot, 'final')?.id).toBe('f1');
+    expect(storyAssetFor(slot, 'final', 'f2')?.id).toBe('f2');
     // Loop-Version bleibt unbeeinflusst von finalen Assets
-    expect(player.storyAsset(slot, 2)?.id).toBe('b');
+    expect(storyAssetFor(slot, 2)?.id).toBe('b');
   });
 
   it('feedbackTarget fuer finale Story-Version ist readonly ohne Feedback-Slot', () => {
@@ -564,9 +566,9 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
       }],
     };
     const player = playerWith(koops, videos);
-    player.index = player.items.findIndex(e => e.type === 'story');
-    player.storyVersion = 'final';
-    const target = player.feedbackTarget();
+    player.session.index = player.session.items.findIndex(e => e.type === 'story');
+    player.session.story.version = 'final';
+    const target = feedbackTargetFor(player.session);
     expect(target.videoId).toBe('v1');
     expect(target.target.isFinal).toBe(true);
     expect(target.target.readonly).toBe(true);
@@ -577,8 +579,8 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
     const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
     const videos = { k1: [] };
     const player = playerWith(koops, videos);
-    player.index = 0;
-    expect(player.feedbackTarget()).toBeNull();
+    player.session.index = 0;
+    expect(feedbackTargetFor(player.session)).toBeNull();
   });
 
   it('feedbackTarget mappt Bild mit video_id auf sein Video (nicht erstes Koop-Video)', () => {
@@ -587,20 +589,20 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
       k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }],
     };
     const player = playerWith(koops, videos);
-    player.index = player.items.findIndex(e => e.type === 'bild');
-    expect(player.feedbackTarget().videoId).toBe('v2');
+    player.session.index = player.session.items.findIndex(e => e.type === 'bild');
+    expect(feedbackTargetFor(player.session).videoId).toBe('v2');
   });
 
   it('Prev/Next-Grenzen via hasPrev/hasNext-Logik', () => {
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
     const player = playerWith(koops, videos);
-    player.index = 0;
-    expect(player.index > 0).toBe(false);
-    expect(player.index < player.items.length - 1).toBe(true);
-    player.index = 1;
-    expect(player.index > 0).toBe(true);
-    expect(player.index < player.items.length - 1).toBe(false);
+    player.session.index = 0;
+    expect(player.session.index > 0).toBe(false);
+    expect(player.session.index < player.session.items.length - 1).toBe(true);
+    player.session.index = 1;
+    expect(player.session.index > 0).toBe(true);
+    expect(player.session.index < player.session.items.length - 1).toBe(false);
   });
 });
 
@@ -611,7 +613,7 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     player.itemBuilder.ensureBilderLoaded = async () => {};
     player.lightbox = { open: () => {}, update: () => {}, close: () => {} };
     player.prefetcher = { addPreconnect: () => {}, cleanup: () => {}, prefetchNeighborAssets: () => {}, scheduleNeighborPrefetch: () => {} };
-    player._loadCurrent = async () => {};
+    player.loadCurrent = async () => {};
     return player;
   }
 
@@ -624,9 +626,9 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     };
     const player = openabledPlayer(koops, videos);
     await player.openStory('v1', 'k1');
-    expect(player.current?.type).toBe('story');
-    expect(player.current?.koop.id).toBe('k1');
-    expect(player.current?.slot.id).toBe('s1');
+    expect(player.session.current?.type).toBe('story');
+    expect(player.session.current?.koop.id).toBe('k1');
+    expect(player.session.current?.slot.id).toBe('s1');
   });
 
   it('zeigt Leer-Zustand (index -1) statt fremder Koop, wenn Ziel-Koop keine Medien hat', async () => {
@@ -639,8 +641,8 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     };
     const player = openabledPlayer(koops, videos);
     await player.openStory('v1', 'k1');
-    expect(player.index).toBe(-1);
-    expect(player.current).toBeNull();
+    expect(player.session.index).toBe(-1);
+    expect(player.session.current).toBeNull();
   });
 
   it('laedt fehlende story_slots beim Oeffnen on-demand und zeigt dann die Story', async () => {
@@ -661,12 +663,12 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     player.itemBuilder.ensureBilderLoaded = async () => {};
     player.lightbox = { open: () => {}, update: () => {}, close: () => {} };
     player.prefetcher = { addPreconnect: () => {}, cleanup: () => {}, prefetchNeighborAssets: () => {}, scheduleNeighborPrefetch: () => {} };
-    player._loadCurrent = async () => {};
+    player.loadCurrent = async () => {};
 
     await player.openStory('v1', 'k1');
-    expect(player.current?.type).toBe('story');
-    expect(player.current?.koop.id).toBe('k1');
-    expect(player.current?.slot.id).toBe('s1');
+    expect(player.session.current?.type).toBe('story');
+    expect(player.session.current?.koop.id).toBe('k1');
+    expect(player.session.current?.slot.id).toBe('s1');
   });
 
   it('scopt auf die richtige Koop, wenn keine Story aber anderes Medium vorhanden ist', async () => {
@@ -678,7 +680,7 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     };
     const player = openabledPlayer(koops, videos);
     await player.openStory('v1', 'k1');
-    expect(player.current?.koop.id).toBe('k1');
+    expect(player.session.current?.koop.id).toBe('k1');
   });
 
   it('openBilder(videoId, koopId) springt zum Bild des Videos, nicht zum ersten Bild der Koop', async () => {
@@ -692,8 +694,8 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
     const player = openabledPlayer(koops, videos);
     await player.openBilder('v2', 'k1');
-    expect(player.current?.type).toBe('bild');
-    expect(player.current?.image.id).toBe('imgV2');
+    expect(player.session.current?.type).toBe('bild');
+    expect(player.session.current?.image.id).toBe('imgV2');
   });
 
   it('openBilder faellt auf unzugeordnete Altbilder zurueck, wenn das Video keine eigenen hat', async () => {
@@ -701,8 +703,8 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
     const player = openabledPlayer(koops, videos);
     await player.openBilder('v2', 'k1');
-    expect(player.current?.type).toBe('bild');
-    expect(player.current?.image.id).toBe('imgAlt');
+    expect(player.session.current?.type).toBe('bild');
+    expect(player.session.current?.image.id).toBe('imgAlt');
   });
 
   it('openBilder ohne videoId (Alt-Signatur) oeffnet Bilder der Koop', async () => {
@@ -710,8 +712,8 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
     const player = openabledPlayer(koops, videos);
     await player.openBilder('k1');
-    expect(player.current?.type).toBe('bild');
-    expect(player.current?.image.id).toBe('img1');
+    expect(player.session.current?.type).toBe('bild');
+    expect(player.session.current?.image.id).toBe('img1');
   });
 });
 
@@ -732,19 +734,19 @@ describe('VideoPlayerLightbox – Stills-Galerie zeigt das Item-Bild', () => {
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
     const table = makeFakeTable(koops, videos);
     const player = new VideoPlayerLightbox(table);
-    player.items = new MediaItemBuilder(table).build();
+    player.session.items = new MediaItemBuilder(table).build();
     return player;
   }
 
   it('baut 7 bild-Items und jedes zeigt sein eigenes Bild trotz is_current-Drift', () => {
     const player = stillsPlayer();
-    const bilder = player.items.filter(it => it.type === 'bild');
+    const bilder = player.session.items.filter(it => it.type === 'bild');
     expect(bilder.map(it => it.image.id)).toEqual(['s1', 's2', 's3', 's4', 's5', 's6', 's7']);
 
     const urls = bilder.map((_, i) => {
-      player.index = player.items.findIndex(it => it.type === 'bild' && it.image.id === `s${i + 1}`);
-      player._applyStillDefaultSelection();
-      return player.currentLookup().file_url;
+      player.session.index = player.session.items.findIndex(it => it.type === 'bild' && it.image.id === `s${i + 1}`);
+      applyStillDefault(player.session);
+      return player.currentMedia().lookup.file_url;
     });
     expect(urls).toEqual([
       'https://cdn.example.com/still-1.jpg',
@@ -759,16 +761,16 @@ describe('VideoPlayerLightbox – Stills-Galerie zeigt das Item-Bild', () => {
 
   it('Prev/Weiter wechselt das angezeigte Still', () => {
     const player = stillsPlayer();
-    const firstBild = player.items.findIndex(it => it.type === 'bild');
-    player.index = firstBild;
-    player._applyStillDefaultSelection();
-    expect(player.stillAssetId).toBe('s1');
+    const firstBild = player.session.items.findIndex(it => it.type === 'bild');
+    player.session.index = firstBild;
+    applyStillDefault(player.session);
+    expect(player.session.still.assetId).toBe('s1');
 
-    player.index = firstBild + 3;
-    player._resetItemState();
-    player._applyStillDefaultSelection();
-    expect(player.stillAssetId).toBe('s4');
-    expect(player.currentLookup().file_url).toBe('https://cdn.example.com/still-4.jpg');
+    player.session.index = firstBild + 3;
+    player.session.resetItemState();
+    applyStillDefault(player.session);
+    expect(player.session.still.assetId).toBe('s4');
+    expect(player.currentMedia().lookup.file_url).toBe('https://cdn.example.com/still-4.jpg');
   });
 });
 
@@ -874,7 +876,7 @@ describe('VideoPlayerLightbox.currentCacheKey – Content-Key', () => {
   function playerWith(koops, videos) {
     const table = makeFakeTable(koops, videos);
     const player = new VideoPlayerLightbox(table);
-    player.items = new MediaItemBuilder(table).build();
+    player.session.items = new MediaItemBuilder(table).build();
     return player;
   }
 
@@ -882,33 +884,33 @@ describe('VideoPlayerLightbox.currentCacheKey – Content-Key', () => {
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
     const player = playerWith(koops, videos);
-    player.index = 0;
+    player.session.index = 0;
 
-    player.assets = [{ id: 'a1', created_at: 't1', version_number: 1, is_current: true }];
-    player.selectedAssetId = 'a1';
-    expect(player.currentCacheKey()).toBe('video:a1:t1');
+    player.session.assets = [{ id: 'a1', created_at: 't1', version_number: 1, is_current: true }];
+    player.session.video.assetId = 'a1';
+    expect((player.currentMedia()?.key ?? null)).toBe('video:a1:t1');
 
     // Replace ueberschreibt dieselbe Zeile (gleiche id), neues created_at.
-    player.assets = [{ id: 'a1', created_at: 't2', version_number: 1, is_current: true }];
-    expect(player.currentCacheKey()).toBe('video:a1:t2');
+    player.session.assets = [{ id: 'a1', created_at: 't2', version_number: 1, is_current: true }];
+    expect((player.currentMedia()?.key ?? null)).toBe('video:a1:t2');
   });
 
   it('Bild-Key nutzt image.id + created_at', () => {
     const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1', created_at: 'c1' }] }];
     const videos = { k1: [] };
     const player = playerWith(koops, videos);
-    player.index = player.items.findIndex(e => e.type === 'bild');
-    expect(player.currentCacheKey()).toBe('bild:img1:c1');
+    player.session.index = player.session.items.findIndex(e => e.type === 'bild');
+    expect((player.currentMedia()?.key ?? null)).toBe('bild:img1:c1');
   });
 
   it('null wenn kein Asset/keine id -> Caching wird uebersprungen', () => {
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
     const player = playerWith(koops, videos);
-    player.index = 0;
-    player.assets = [];
-    player.selectedAssetId = null;
-    expect(player.currentCacheKey()).toBeNull();
+    player.session.index = 0;
+    player.session.assets = [];
+    player.session.video.assetId = null;
+    expect((player.currentMedia()?.key ?? null)).toBeNull();
   });
 });
 
@@ -982,7 +984,7 @@ describe('VideoPlayerLightbox._bindFormatHint – Hinweis bei Playback ausblende
 
   function bind(stage) {
     const player = new VideoPlayerLightbox(makeFakeTable([], {}));
-    player._bindFormatHint(stage);
+    player.stage.bindFormatHint(stage);
     return stage.querySelector('.vpl-format-hint');
   }
 
@@ -1016,20 +1018,20 @@ describe('VideoPlayerLightbox._applySrc – Element-Retention beim Zurueckblaett
   function makePlayer(koops, videos) {
     const table = makeFakeTable(koops, videos);
     const player = new VideoPlayerLightbox(table);
-    player.items = new MediaItemBuilder(table).build();
+    player.session.items = new MediaItemBuilder(table).build();
     // Schlanke Lightbox-Attrappe: nur das, was _applySrc braucht.
     const host = document.createElement('div');
     host.innerHTML = '<div class="media-viewer-stage"></div>';
     player.lightbox = { isOpen: () => true, contentEl: host };
-    player.loading = false;
-    player.src = 'blob:dummy';
+    player.session.loading = false;
+    player.session.src = 'blob:dummy';
     return player;
   }
 
   function selectVideo(player, index, asset) {
-    player.index = index;
-    player.assets = [asset];
-    player.selectedAssetId = asset.id;
+    player.session.index = index;
+    player.session.assets = [asset];
+    player.session.video.assetId = asset.id;
   }
 
   it('Zurueck zu bereits gesehenem Video verwendet dasselbe <video> wieder (kein Re-Render)', () => {
@@ -1040,27 +1042,27 @@ describe('VideoPlayerLightbox._applySrc – Element-Retention beim Zurueckblaett
 
     // v1 oeffnen -> frisch gerendert, Element markieren.
     selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
-    player._applySrc();
-    expect(player._activeVideoKey).toBe('video:a1:t1');
+    player.stage.apply();
+    expect(player.stage.activeVideoKey).toBe('video:a1:t1');
     const v1El = stage().querySelector('.vpl-video');
     v1El.dataset.testid = 'v1-instance';
 
     // Weiter zu v2: erst parken (wie onBeforeRerender), dann v2 rendern.
-    player._parkStageVideo();
+    player.stage.park();
     expect(player.videoPool.size).toBe(1);
     selectVideo(player, 1, { id: 'a2', created_at: 't2', version_number: 1, is_current: true, file_path: '/x/v2.mp4' });
-    player._applySrc();
+    player.stage.apply();
     expect(stage().querySelector('.vpl-video').dataset.testid).toBeUndefined(); // anderes Element
 
     // Zurueck zu v1: parken von v2, dann v1 aus dem Pool wiederverwenden.
-    player._parkStageVideo();
+    player.stage.park();
     selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
     const renderSpy = vi.spyOn(player.view, 'renderStageInner');
-    player._applySrc();
+    player.stage.apply();
 
     expect(renderSpy).not.toHaveBeenCalled(); // kein Neu-Rendern
     expect(stage().querySelector('.vpl-video').dataset.testid).toBe('v1-instance');
-    expect(player._activeVideoKey).toBe('video:a1:t1');
+    expect(player.stage.activeVideoKey).toBe('video:a1:t1');
   });
 
   it('riskante Formate (.mov) werden nicht gepoolt (_activeVideoKey bleibt null)', () => {
@@ -1068,10 +1070,10 @@ describe('VideoPlayerLightbox._applySrc – Element-Retention beim Zurueckblaett
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
     const player = makePlayer(koops, videos);
     selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mov' });
-    player._applySrc();
-    expect(player._activeVideoKey).toBeNull();
+    player.stage.apply();
+    expect(player.stage.activeVideoKey).toBeNull();
 
-    player._parkStageVideo();
+    player.stage.park();
     expect(player.videoPool.size).toBe(0); // nichts geparkt
   });
 });
@@ -1080,7 +1082,7 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
   function makePlayer(koops, videos) {
     const table = makeFakeTable(koops, videos);
     const player = new VideoPlayerLightbox(table);
-    player.items = new MediaItemBuilder(table).build();
+    player.session.items = new MediaItemBuilder(table).build();
     const host = document.createElement('div');
     host.innerHTML = '<div class="media-viewer-stage"></div>';
     player.lightbox = { isOpen: () => true, contentEl: host, update: () => {} };
@@ -1090,9 +1092,9 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
   }
 
   function selectVideo(player, index, asset) {
-    player.index = index;
-    player.assets = [asset];
-    player.selectedAssetId = asset.id;
+    player.session.index = index;
+    player.session.assets = [asset];
+    player.session.video.assetId = asset.id;
   }
 
   beforeEach(() => {
@@ -1117,10 +1119,10 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
     // Ab jetzt haengt jede Netz-Aufloesung (resolveStreamUrl) -> darf src NICHT blockieren.
     global.fetch = vi.fn(() => new Promise(() => {}));
 
-    await player._resolveSrc();
+    await player.stage.show();
 
-    expect(player.src).toBe('blob:obj-1');
-    expect(player.loading).toBe(false);
+    expect(player.session.src).toBe('blob:obj-1');
+    expect(player.session.loading).toBe(false);
     const v = player.lightbox.contentEl.querySelector('.vpl-video');
     expect(v).not.toBeNull();
     expect(v.getAttribute('src')).toContain('blob:obj-1');
@@ -1139,19 +1141,19 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
       return { ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) };
     });
 
-    await player._resolveSrc();
+    await player.stage.show();
 
     // Zunaechst Dropbox-Stream-URL (Cache-Miss).
     const v = player.lightbox.contentEl.querySelector('.vpl-video');
     expect(v.getAttribute('src')).toContain('https://dl/v1.mp4');
-    expect(player._activeVideoKey).toBe('video:a1:t1');
+    expect(player.stage.activeVideoKey).toBe('video:a1:t1');
 
     // Sobald der Blob fertig ist, upgradet das aktive Element.
     await vi.waitFor(() => {
       const cur = player.lightbox.contentEl.querySelector('.vpl-video');
       expect(cur.getAttribute('src')).toContain('blob:obj-1');
     });
-    expect(player.src).toBe('blob:obj-1');
+    expect(player.session.src).toBe('blob:obj-1');
   });
 });
 
@@ -1182,8 +1184,8 @@ describe('MediaPrefetcher.prefetchNeighbors – Nachbar-Videos voll vorwaermen',
     };
     const table = makeFakeTable(koops, videos);
     const player = new VideoPlayerLightbox(table);
-    player.items = new MediaItemBuilder(table).build();
-    player.index = 0; // aktiv = v1, Nachbarn ahead = v2, v3
+    player.session.items = new MediaItemBuilder(table).build();
+    player.session.index = 0; // aktiv = v1, Nachbarn ahead = v2, v3
 
     // Assets vorab cachen, damit kein Supabase-Load noetig ist.
     player.assetLoader._cache.set('v2', [{ id: 'a2', created_at: 't2', version_number: 1, is_current: true, file_path: '/x/v2.mp4' }]);
@@ -1207,13 +1209,73 @@ describe('MediaPrefetcher.prefetchNeighbors – Nachbar-Videos voll vorwaermen',
     };
     const table = makeFakeTable(koops, videos);
     const player = new VideoPlayerLightbox(table);
-    player.items = new MediaItemBuilder(table).build(); // [v1, s1, v2, bild]
-    player.index = 0;
+    player.session.items = new MediaItemBuilder(table).build(); // [v1, s1, v2, bild]
+    player.session.index = 0;
 
     const idx = player.prefetcher._nearestVideoIndices({ back: 1, ahead: 2 });
     // v2 liegt an Index 2 (hinter der Story), nicht an index+1.
     expect(idx).toContain(2);
-    expect(player.items[2].type).toBe('video');
-    expect(player.items[2].video.id).toBe('v2');
+    expect(player.session.items[2].type).toBe('video');
+    expect(player.session.items[2].video.id).toBe('v2');
+  });
+
+  describe('Key-Paritaet Prewarm <-> Player', () => {
+    const assets = [
+      { id: 'loop1', created_at: 't1', version_number: 1, is_current: true, is_final: false, file_path: '/x/loop.mp4' },
+      { id: 'fin1', created_at: 't2', version_number: 1, is_current: false, is_final: true, file_path: '/x/final.mp4' },
+    ];
+
+    async function prewarmVsPlayer(isKunde) {
+      const koops = [{ id: 'k1' }];
+      const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
+      const table = makeFakeTable(koops, videos);
+      table.isKundeRole = () => isKunde;
+      const player = new VideoPlayerLightbox(table);
+      player.session.items = new MediaItemBuilder(table).build();
+      player.assetLoader._cache.set('v2', assets);
+
+      player.session.index = 0;
+      const task = await player.prefetcher._resolveVideoTask(player.session.items[1]);
+
+      // Player oeffnet danach v2
+      player.session.index = 1;
+      player.session.assets = assets;
+      applyVideoDefault(player.session, player.assetLoader);
+      return { prewarmKey: task.key, playerKey: (player.currentMedia()?.key ?? null) };
+    }
+
+    it('Kunde mit finalen Assets: Prewarm waermt die Finale vor (wie der Player)', async () => {
+      const { prewarmKey, playerKey } = await prewarmVsPlayer(true);
+      expect(prewarmKey).toBe('video:fin1:t2');
+      expect(prewarmKey).toBe(playerKey);
+    });
+
+    it('Nicht-Kunde: Prewarm waermt die Schleifen-Version vor (wie der Player)', async () => {
+      const { prewarmKey, playerKey } = await prewarmVsPlayer(false);
+      expect(prewarmKey).toBe('video:loop1:t1');
+      expect(prewarmKey).toBe(playerKey);
+    });
+
+    it('Story mit nur finalen Assets: Nachbar wird mit der Finale vorgewaermt', async () => {
+      const koops = [{ id: 'k1' }];
+      const videos = {
+        k1: [{
+          id: 'v1', file_url: 'u1',
+          story_slots: [{ id: 's1', video_id: 'v1', slot_index: 1, assets: [
+            { id: 'sf', is_final: true, created_at: 'tf', file_path: '/x/story-final.jpg' },
+          ] }],
+        }],
+      };
+      const table = makeFakeTable(koops, videos);
+      const player = new VideoPlayerLightbox(table);
+      player.session.items = new MediaItemBuilder(table).build(); // [v1, s1]
+      player.session.index = 0;
+
+      player.prefetcher.prefetchNeighbors();
+
+      await vi.waitFor(() => {
+        expect(MediaCache.getObjectUrl('story:sf:tf')).not.toBeNull();
+      });
+    });
   });
 });

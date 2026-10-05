@@ -9,6 +9,7 @@ import { SkriptRegelwerkList } from './regelwerk/SkriptRegelwerkList.js';
 import { SkriptRegelwerkDetail } from './regelwerk/SkriptRegelwerkDetail.js';
 import { masterAdapter } from './regelwerk/regelwerkAdapters.js';
 import { replaceSkriptUrl } from './SkripteUtils.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
 
 const KONTEXT_KEY = 'skripte:kontext';
 const REGELWERK = { master: masterAdapter };
@@ -42,14 +43,14 @@ export class SkriptePage {
 
     if (id === 'dna') {
       // Alte Lesezeichen der entfallenen Skript-DNA
-      window.history.replaceState({ route: '/skripte/master' }, '', '/skripte/master');
+      replaceRoute('/skripte/master');
       id = 'master';
       childId = null;
     }
 
     if (id === 'master') {
       if (window.isKunde?.()) {
-        window.history.replaceState({ route: '/skripte' }, '', '/skripte');
+        replaceRoute('/skripte');
         id = null;
       } else {
         await this.openRegelwerk(id, childId);
@@ -59,7 +60,7 @@ export class SkriptePage {
 
     // Legacy: /skripte/new und ?skript=neu → Liste (Create sitzt im Drawer)
     if (id === 'new' || id === 'neu') {
-      window.history.replaceState({ route: '/skripte' }, '', '/skripte');
+      replaceRoute('/skripte');
       id = null;
     }
 

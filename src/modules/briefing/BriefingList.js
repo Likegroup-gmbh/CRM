@@ -25,6 +25,8 @@ import {
   OHNE_QUERY
 } from './BriefingFolders.js';
 import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
+import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 import {
   renderCompaniesView, updateCompaniesGrid,
   renderBrandsView, updateBrandsGrid,
@@ -122,7 +124,7 @@ export class BriefingList {
 
   syncListUrl() {
     const url = this.listViewMode === 'list' ? '/briefing' : this.listUrl();
-    window.history.replaceState({ route: url }, '', url);
+    replaceRoute(url);
   }
 
   updateBreadcrumbDisplay() {
@@ -330,6 +332,7 @@ export class BriefingList {
         unternehmen_id, marke_id, persona_ids,
         unternehmen:unternehmen_id(id, firmenname, logo_url),
         marke:marke_id(id, markenname, logo_url),
+        kampagne:kampagne_id(id, start, deadline, auftrag:auftrag_id(start, ende)),
         produkte:campaign_briefing_produkt(produkt:produkt_id(id, name)),
         creator_auswahl(id, name),
         strategie(id, name),
@@ -421,6 +424,7 @@ export class BriefingList {
               <th class="col-name">Aktivierung</th>
               <th>Unternehmen</th>
               <th>Marke</th>
+              <th class="col-leistungszeitraum">Leistungszeitraum</th>
               <th>Bereich</th>
               <th>Status</th>
               <th>Erstellt am</th>
@@ -435,7 +439,7 @@ export class BriefingList {
           </thead>
           <tbody id="briefings-table-body">
             <tr>
-              <td colspan="${canBulkDelete ? '14' : '13'}" class="loading">Lade Briefings...</td>
+              <td colspan="${canBulkDelete ? '15' : '14'}" class="loading">Lade Briefings...</td>
             </tr>
           </tbody>
         </table>
@@ -748,6 +752,7 @@ export class BriefingList {
         </td>
         <td>${this.renderUnternehmen(b)}</td>
         <td>${this.renderMarke(b)}</td>
+        ${renderLeistungszeitraumCell(b.kampagne)}
         <td>${this.renderBereich(b.bereich)}</td>
         <td>${this.renderStatus(b.is_draft)}</td>
         <td>${b.created_at ? new Date(b.created_at).toLocaleDateString('de-DE') : '-'}</td>
@@ -772,7 +777,7 @@ export class BriefingList {
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!items || items.length === 0) {
-        const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 13;
+        const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 14;
         const html = resolveEmptyState({
           hasActiveFilters: this.hasActiveFilters(),
           states: {

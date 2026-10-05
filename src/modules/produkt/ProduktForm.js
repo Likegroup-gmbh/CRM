@@ -26,7 +26,7 @@ import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
-import { backTarget } from '../../core/navHerkunft.js';
+import { backTarget } from '../../core/breadcrumbTrail.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export class ProduktForm {
@@ -220,16 +220,38 @@ export class ProduktForm {
         type: 'select',
         searchable: true
       });
-      return;
+    } else {
+      select.innerHTML = '<option value="">Unternehmen suchen und auswählen...</option>';
+      options.forEach(opt => {
+        const el = document.createElement('option');
+        el.value = opt.value;
+        el.textContent = opt.label;
+        select.appendChild(el);
+      });
     }
 
-    select.innerHTML = '<option value="">Unternehmen suchen und auswählen...</option>';
-    options.forEach(opt => {
+    this.commitUnternehmenPrefill(select, options, wanted);
+  }
+
+  /**
+   * Der Prefill setzt nur das Label im Searchable. Marke und Briefing laden
+   * ihre Optionen ueber das change-Event auf unternehmen_id (filterBy) und
+   * lesen dabei select.value - die Option muss also im nativen Select stehen.
+   */
+  commitUnternehmenPrefill(select, options, wanted) {
+    if (!wanted) return;
+    const option = options.find(o => o.value === wanted);
+    if (!option) return;
+
+    if (!Array.from(select.options).some(o => o.value === wanted)) {
       const el = document.createElement('option');
-      el.value = opt.value;
-      el.textContent = opt.label;
+      el.value = wanted;
+      el.textContent = option.label;
       select.appendChild(el);
-    });
+    }
+    select.value = wanted;
+    if (!select.dataset.fieldName) select.dataset.fieldName = 'unternehmen_id';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   syncMarkenFeldSichtbarkeit() {

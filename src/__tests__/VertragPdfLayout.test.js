@@ -160,6 +160,8 @@ async function generate(typ, vertrag) {
 
 async function expectKeinUeberlauf(typ, vertrag, label) {
   const doc = await generate(typ, vertrag);
+  // Schutz gegen leeres Ergebnis (Generator schluckt Fehler z.B. im catch)
+  expect(doc?.calls.length, `${typ} / ${label}: kein PDF erzeugt`).toBeGreaterThan(0);
   const violations = findViolations(doc.calls, LIMITS[typ]);
   expect(violations, `${typ} / ${label}`).toEqual([]);
   return doc;

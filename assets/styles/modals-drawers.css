@@ -1435,15 +1435,6 @@
   cursor: pointer;
 }
 
-/* Bilder-Thumbnails im Panel: wachsen + scrollen, Nav bleibt unten */
-
-.media-split-lightbox .vpl-panel .media-gallery-thumbs {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  align-content: flex-start;
-  margin-top: var(--space-sm);
-}
-
 .media-split-lightbox .media-viewer-control {
   display: flex;
   flex-direction: column;

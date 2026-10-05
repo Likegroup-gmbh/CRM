@@ -2,11 +2,10 @@
 // Event-Binding und -Teardown für die Kampagnen-Detailseite
 
 import {
-  workflowExitRoute,
+  getWorkflowTableRoute,
   handleWorkflowTableSelect,
   reloadWorkflowPane
 } from './KampagneDetailWorkflow.js';
-import { withProduktionHerkunft } from '../../core/navHerkunft.js';
 import { handleVertragListAction } from '../vertrag/VertraegeListHandlers.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
@@ -212,22 +211,14 @@ export function setupEvents(detail) {
     }
 
     if (e.target.closest('.workflow-pane:not([data-pane="produktion"])')) {
-      const herkunft = {
-        produktionId: detail.produktionId,
-        tab: detail.activeWorkflowTab
-      };
       const vertragEdit = e.target.closest('[data-vertrag-open="edit"]');
       if (vertragEdit?.dataset.id) {
         e.preventDefault();
-        window.navigateTo(withProduktionHerkunft(
-          `/vertraege/${vertragEdit.dataset.id}/edit`,
-          herkunft.produktionId,
-          herkunft.tab
-        ));
+        window.navigateTo(`/vertraege/${vertragEdit.dataset.id}/edit`);
         return;
       }
       const link = e.target.closest('.table-link[data-table][data-id]');
-      const route = link && workflowExitRoute(link.dataset.table, link.dataset.id, herkunft);
+      const route = link && getWorkflowTableRoute(link.dataset.table, link.dataset.id);
       if (route) {
         e.preventDefault();
         window.navigateTo(route);

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { KampagneUtils } from '../modules/kampagne/KampagneUtils.js';
 import {
   SWITCHER_LIMIT,
-  hasSwitcherConfig,
+  getSwitcherConfig,
   shouldEnableSwitcher,
   loadSwitcherItems,
   escapeSwitcherQuery
@@ -48,13 +48,13 @@ describe('breadcrumbSwitcher', () => {
   });
 
   it('hat Config für die v1-Entities, nicht für skripte/dashboard', () => {
-    expect(hasSwitcherConfig('kampagne')).toBe(true);
-    expect(hasSwitcherConfig('unternehmen')).toBe(true);
-    expect(hasSwitcherConfig('briefing')).toBe(true);
-    expect(hasSwitcherConfig('konzepte')).toBe(true);
-    expect(hasSwitcherConfig('castings')).toBe(true);
-    expect(hasSwitcherConfig('skripte')).toBe(false);
-    expect(hasSwitcherConfig('dashboard')).toBe(false);
+    expect(getSwitcherConfig('kampagne')).not.toBeNull();
+    expect(getSwitcherConfig('unternehmen')).not.toBeNull();
+    expect(getSwitcherConfig('briefing')).not.toBeNull();
+    expect(getSwitcherConfig('konzepte')).not.toBeNull();
+    expect(getSwitcherConfig('castings')).not.toBeNull();
+    expect(getSwitcherConfig('skripte')).toBeNull();
+    expect(getSwitcherConfig('dashboard')).toBeNull();
   });
 
   it('aktiviert den Switcher nur auf klassischen Detail-IDs mit can_view', () => {

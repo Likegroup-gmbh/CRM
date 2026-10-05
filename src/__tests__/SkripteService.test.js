@@ -53,7 +53,7 @@ describe('SkripteService.loadSkripte', () => {
     expect(result).toHaveLength(2);
     expect(select).toHaveBeenCalledWith(expect.stringContaining('unternehmen(id, firmenname, internes_kuerzel, logo_url)'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('marke(id, markenname, logo_url)'));
-    expect(select).toHaveBeenCalledWith(expect.stringContaining('kampagne(id, kampagnenname, eigener_name)'));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('kampagne(id, kampagnenname, eigener_name, start, deadline, auftrag:auftrag_id(start, ende))'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('strategie_item:strategie_item_id'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('kooperation_videos('));

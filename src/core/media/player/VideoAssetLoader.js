@@ -7,8 +7,8 @@
 // frueher enthaltene Spalte liess die Query dauerhaft fehlschlagen, wodurch
 // gar keine Versionen/Varianten geladen wurden (kein Auswahl-Select sichtbar).
 
-import { normalizeVideoFeedbackComments, VIDEO_FEEDBACK_FIELDS } from '../VideoFeedbackBuckets.js';
-import { pickLatestAsset } from '../stills/stillAssets.js';
+import { normalizeVideoFeedbackComments, VIDEO_FEEDBACK_FIELDS } from '../../VideoFeedbackBuckets.js';
+import { pickLatestAsset } from '../../stills/stillAssets.js';
 
 const ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, description, is_current, is_final, source_asset_id, created_at';
 
@@ -23,6 +23,17 @@ export class VideoAssetLoader {
 
   get(videoId) {
     return this._cache.get(videoId);
+  }
+
+  /** Verwirft den gecachten Stand eines Videos (naechstes load() holt neu). */
+  invalidate(videoId) {
+    this._cache.delete(videoId);
+  }
+
+  /** Erzwingt einen frischen Load (z. B. nach Final-Markierung). */
+  reload(videoId) {
+    this.invalidate(videoId);
+    return this.load(videoId);
   }
 
   async load(videoId) {

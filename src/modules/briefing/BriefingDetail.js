@@ -9,7 +9,7 @@ import { formatVideolaenge, tokenLabel } from './videolaenge.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderBriefingDoc, bindBriefingDoc } from './BriefingDocView.js';
 import { loadBriefingProdukte } from './BriefingProdukte.js';
-import { backTarget, showProduktionLeaf, withHerkunft } from '../../core/navHerkunft.js';
+import { backTarget } from '../../core/breadcrumbTrail.js';
 
 export class BriefingDetail {
   constructor() {
@@ -36,9 +36,7 @@ export class BriefingDetail {
 
       if (window.breadcrumbSystem && this.briefing) {
         const label = this.briefing.aktivierung_name || 'Details';
-        const editButton = { id: 'btn-edit-briefing', canEdit: this.canEdit() };
-        const shown = await showProduktionLeaf(label, editButton);
-        if (!shown) window.breadcrumbSystem.updateDetailLabel(label, editButton);
+        window.breadcrumbSystem.updateDetailLabel(label, { id: 'btn-edit-briefing', canEdit: this.canEdit() });
       }
 
       await this.render();
@@ -280,7 +278,7 @@ export class BriefingDetail {
       if (e.target.closest('#btn-edit-briefing')) {
         e.preventDefault();
         this._unbindDoc().finally(() => {
-          window.navigateTo(withHerkunft(`/briefing/${this.briefingId}/edit`));
+          window.navigateTo(`/briefing/${this.briefingId}/edit`);
         });
       }
       if (e.target.closest('#btn-briefing-fields-toggle')) {

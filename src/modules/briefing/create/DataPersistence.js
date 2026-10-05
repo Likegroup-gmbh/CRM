@@ -7,7 +7,7 @@ import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
 import { intervallOderNull, videolaengeAusBriefing } from '../videolaenge.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
-import { backTarget } from '../../../core/navHerkunft.js';
+import { backTarget } from '../../../core/breadcrumbTrail.js';
 
 function collectableFields() {
   const fields = [];
@@ -172,6 +172,17 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
 };
 
 // ---------------------------------------------------------------
+// Briefing-Name: kein Formularfeld, Basis ist der Projektname (ADR 0041)
+// ---------------------------------------------------------------
+BriefingCreate.prototype.resolveBriefingName = function() {
+  const gesetzt = String(this.formData.aktivierung_name || '').trim();
+  if (gesetzt) return gesetzt;
+  const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
+  const kampagne = (this.kampagnen || []).find(k => k.id === kampagneId);
+  return String(kampagne?.kampagnenname || '').trim() || null;
+};
+
+// ---------------------------------------------------------------
 // formData -> DB-Payload
 // ---------------------------------------------------------------
 BriefingCreate.prototype.prepareDataForDB = function() {
@@ -181,7 +192,8 @@ BriefingCreate.prototype.prepareDataForDB = function() {
     bereich,
     unternehmen_id: this.formData.unternehmen_id || null,
     marke_id: this.formData.marke_id || null,
-    assignee_id: this.formData.assignee_id || null
+    assignee_id: this.formData.assignee_id || null,
+    aktivierung_name: this.resolveBriefingName()
   };
 
   for (const field of getAllFields()) {
@@ -371,15 +383,15 @@ BriefingCreate.prototype.handleSubmit = async function() {
     window.toastSystem?.show('Bitte ein Unternehmen zuordnen (Schritt Grundlage).', 'warning');
     return;
   }
-  if (!this.formData.aktivierung_name) {
-    window.toastSystem?.show('Bitte einen Titel vergeben (Schritt Grundlage).', 'warning');
-    return;
-  }
   const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
   const produktId = this.formData.produkt_id || this._produktionKontext?.produktId || null;
   const produktionId = this.formData.ziel_produktion_id || this._produktionKontext?.produktionId || null;
   if (!kampagneId) {
     window.toastSystem?.show('Bitte eine Kampagne zuordnen (Schritt Grundlage).', 'warning');
+    return;
+  }
+  if (!this.resolveBriefingName()) {
+    window.toastSystem?.show('Die Kampagne hat keinen Projektnamen. Bitte im Auftrag ergänzen.', 'warning');
     return;
   }
   if (window.supabase) {
@@ -501,6 +513,7 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     const laenge = videolaengeAusBriefing(briefing);
     if (laenge) this.formData.videolaenge = laenge;
 
+    if (briefing.aktivierung_name) this.formData.aktivierung_name = briefing.aktivierung_name;
     this.formData.bereich = briefing.bereich;
     this.formData.unternehmen_id = briefing.unternehmen_id;
     this.formData.marke_id = briefing.marke_id;

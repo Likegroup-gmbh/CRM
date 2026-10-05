@@ -255,6 +255,78 @@ describe('BreadcrumbSystem Rework', () => {
     });
   });
 
+  describe('Klickpfad', () => {
+    const trail = [
+      { label: 'Kampagnen', url: '/kampagne' },
+      { label: 'Sommer', url: '/kampagne/k1' },
+      { label: 'Serum Oktober', url: '/produktion/p1?tab=casting' }
+    ];
+
+    it('hängt die Seite an den Pfad statt an den offiziellen Weg', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('creator', 'cr1', { trail });
+      system.updateDetailLabel('Max Muster');
+
+      const labels = [...container.querySelectorAll('.breadcrumb-item')].map((el) => el.textContent.trim());
+      expect(labels).toEqual(['Kampagnen', 'Sommer', 'Serum Oktober', 'Max Muster']);
+      expect(container.querySelector('.breadcrumb-link[data-route="/produktion/p1?tab=casting"]')).not.toBeNull();
+    });
+
+    it('offizielle Kette eines Moduls liefert mit Pfad nur das Blatt', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('konzepte', 's1', { trail });
+      system.updateBreadcrumb([
+        { label: 'Konzepte', url: '/konzepte', clickable: true },
+        { label: 'ACME', url: '/konzepte?unternehmen=u1', clickable: true },
+        { label: 'Hook-Idee', url: '/konzepte/s1', clickable: false }
+      ]);
+      const labels = [...container.querySelectorAll('.breadcrumb-item')].map((el) => el.textContent.trim());
+      expect(labels).toEqual(['Kampagnen', 'Sommer', 'Serum Oktober', 'Hook-Idee']);
+    });
+
+    it('klappt lange Pfade zusammen und öffnet sie per Klick', async () => {
+      const system = await createBreadcrumbSystem();
+      const long = [1, 2, 3, 4, 5, 6].map((n) => ({ label: `E${n}`, url: `/creator/c${n}` }));
+      system.setFromRoute('kooperation', 'k9', { trail: long });
+      expect(container.querySelector('.breadcrumb-collapsed')).not.toBeNull();
+      container.querySelector('.breadcrumb-collapsed').click();
+      expect(container.querySelector('.breadcrumb-collapsed')).toBeNull();
+      expect(container.querySelectorAll('.breadcrumb-item')).toHaveLength(7);
+    });
+
+    it('zeigt bekannte Labels sofort statt Platzhalter', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('kampagne', 'k1');
+      system.updateDetailLabel('Sommer');
+      system.setFromRoute('creator', 'cr1');
+      system.setFromRoute('kampagne', 'k1');
+      expect(container.querySelector('.breadcrumb-current').textContent).toContain('Sommer');
+    });
+
+    it('Inline-Bearbeiten hängt einen Crumb an und lässt das Entitäts-Label stehen', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('unternehmen', 'u1');
+      system.updateDetailLabel('ACME', { id: 'btn-edit-unternehmen', canEdit: true });
+      system.showEditLeaf();
+
+      const labels = [...container.querySelectorAll('.breadcrumb-item')].map((el) => el.textContent.trim());
+      expect(labels).toEqual(['Unternehmen', 'ACME', 'Bearbeiten']);
+      expect(container.querySelector('.breadcrumb-edit-button')).toBeNull();
+
+      system.updateDetailLabel('ACME GmbH');
+      expect([...container.querySelectorAll('.breadcrumb-item')].map((el) => el.textContent.trim()))
+        .toEqual(['Unternehmen', 'ACME GmbH']);
+    });
+
+    it('Edit-Route benennt das Blatt um', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('kooperation', 'k1', { action: 'edit' });
+      system.showEditLeaf();
+      const labels = [...container.querySelectorAll('.breadcrumb-item')].map((el) => el.textContent.trim());
+      expect(labels).toEqual(['Kooperation', 'Bearbeiten']);
+    });
+  });
+
   describe('Switcher-Gate', () => {
     afterEach(() => {
       window.currentUser = null;

@@ -11,6 +11,7 @@ import {
 } from './NavigationScroll.js';
 import { unregisterHeaderChatToggle } from './chat/HeaderChatSlot.js';
 import { navMark } from './dev/navTrace.js';
+import { currentTrail, nextTrail, replaceRoute, trailForRoute } from './breadcrumbTrail.js';
 export { OptionsManager };
 
 export class ModuleRegistry {
@@ -150,11 +151,18 @@ export class ModuleRegistry {
       .replace(/^(\/?)strategie(?=[/?#]|$)/, '$1konzepte')
       .replace(/^(\/?)sourcing(?=[/?#]|$)/, '$1castings');
 
+    let trail = trailForRoute(route);
     if (!skipPushState) {
       try {
         if (window.history && window.history.pushState) {
           const url = route.startsWith('/') ? route : `/${route}`;
-          window.history.pushState({ route: url }, '', url);
+          trail = nextTrail({
+            currentTrail: currentTrail(),
+            currentCrumbs: window.breadcrumbSystem?.currentBreadcrumbs,
+            currentUrl: `${window.location.pathname}${window.location.search}`,
+            targetRoute: url
+          });
+          window.history.pushState({ route: url, trail }, '', url);
         }
       } catch (err) {
         console.warn('⚠️ History pushState fehlgeschlagen:', err?.message);
@@ -201,9 +209,7 @@ export class ModuleRegistry {
       if (adminAlias && ADMIN_MOVED[adminAlias[1]]) {
         const dest = ADMIN_MOVED[adminAlias[1]] + adminAlias[2];
         try {
-          if (window.history?.replaceState) {
-            window.history.replaceState({ route: dest }, '', dest);
-          }
+          replaceRoute(dest);
         } catch (err) {
           console.warn('⚠️ History replaceState fehlgeschlagen:', err?.message);
         }
@@ -316,7 +322,7 @@ export class ModuleRegistry {
     this._globalCleanup();
 
     if (window.breadcrumbSystem?.setFromRoute) {
-      window.breadcrumbSystem.setFromRoute(segment, id || null, { action: action || null });
+      window.breadcrumbSystem.setFromRoute(segment, id || null, { action: action || null, trail });
     }
 
     // Navigationsbereich (Haupt-Navigation vs. Accounting-Bereich) mit der Route

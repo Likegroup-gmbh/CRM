@@ -1,12 +1,16 @@
 // BreadcrumbSystem.js (ES6-Modul)
-// Zentrale Breadcrumb-Navigation für das CRM
+// Zentrale Breadcrumb-Navigation für das CRM.
+// Module liefern die offizielle Kette ihrer Seite; liegt ein Klickpfad vor
+// (breadcrumbTrail.js), wird die Seite an diesen Pfad gehängt.
 
 import { getRouteConfig } from './breadcrumbRoutes.js';
 import { entityIcon } from './icons/entityIcons.js';
 import { icon } from '../core/icons/IconSystem.js';
 import { loadSwitcherItems, shouldEnableSwitcher } from './breadcrumbSwitcher.js';
+import { collapse, composeCrumbs, createLabelCache } from './breadcrumbTrail.js';
 
 const SWITCHER_DEBOUNCE_MS = 200;
+const PLACEHOLDER = '...';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -20,6 +24,12 @@ function escapeHtml(value) {
 export class BreadcrumbSystem {
   constructor() {
     this._container = null;
+    this._boundContainer = null;
+    this._official = [];
+    this._trail = [];
+    this._editLeaf = null;
+    this._expanded = false;
+    this._labels = createLabelCache();
     this.currentBreadcrumbs = [];
     this.editButton = null;
     this.actionsHtml = '';
@@ -40,71 +50,47 @@ export class BreadcrumbSystem {
     return this._container;
   }
 
-  // Edit-Icon SVG
-  getEditIcon() {
-    return `${icon('pencil-square')}`;
+  get trail() {
+    return this._trail;
   }
 
-  // Finde das Icon für eine gegebene URL über die Route-Config
   getIconForUrl(url) {
     if (!url) return null;
-
-    // Extrahiere das Segment (z.B. auftrag aus /auftrag/123)
-    const segment = url.split('/').filter(Boolean)[0];
+    const segment = url.split(/[?#]/)[0].split('/').filter(Boolean)[0];
     if (!segment) return null;
-
     const entity = getRouteConfig(segment, window.currentUser?.rolle?.toLowerCase()).entity;
     return entity ? entityIcon(entity, { stroke: 1.5 }) : null;
   }
 
   init() {
     this._container = document.getElementById('breadcrumb-container');
-    if (!this._container) {
-      console.warn('⚠️ BreadcrumbSystem: Container nicht gefunden');
-      return;
-    }
-    console.log('✅ BreadcrumbSystem: Initialisiert');
+    if (!this._container) console.warn('⚠️ BreadcrumbSystem: Container nicht gefunden');
   }
 
-  // Breadcrumb aktualisieren
-  // editButton: { id: string, canEdit: boolean } - optional
+  // Offizielle Kette der Seite setzen.
+  // editButton: { id, canEdit, actionsHtml } - optional
   // options.switcher: Context für den letzten Crumb, oder null zum Abschalten.
   // Ohne options.switcher bleibt der Context aus setFromRoute.
   updateBreadcrumb(crumbs, editButton = null, options = {}) {
-    if (!this.container) {
-      console.warn('⚠️ BreadcrumbSystem: Container nicht initialisiert');
-      return;
-    }
-
-    this.currentBreadcrumbs = crumbs;
-    this.editButton = editButton;
-    this.actionsHtml = editButton?.actionsHtml || '';
+    if (!this.container) return;
+    this._official = Array.isArray(crumbs) ? crumbs.map((crumb) => ({ ...crumb })) : [];
+    this._editLeaf = null;
+    this._setEditButton(editButton);
     if (Object.prototype.hasOwnProperty.call(options, 'switcher')) {
       this._switcherContext = options.switcher;
     }
     this.render();
   }
 
-  // Breadcrumb zurücksetzen
-  reset() {
-    this.closeSwitcher();
-    this._switcherContext = null;
-    this.currentBreadcrumbs = [];
-    this.editButton = null;
-    this.actionsHtml = '';
-    if (this.container) {
-      this.container.innerHTML = '';
-    }
-  }
-
-  // Breadcrumb zentral aus Route setzen (aufgerufen vom Router)
+  // Vom Router: offizielle Kette aus der Route + Klickpfad aus history.state.
   setFromRoute(segment, id, options = {}) {
     if (!this.container) return;
 
     this.navigationId++;
-    this.editButton = null;
-    this.actionsHtml = '';
-    this.closeSwitcher();
+    this._setEditButton(null);
+    this._editLeaf = null;
+    this._expanded = false;
+    this._trail = Array.isArray(options.trail) ? options.trail : [];
 
     const rolle = options.rolle || window.currentUser?.rolle?.toLowerCase();
     const action = options.action || null;
@@ -115,205 +101,177 @@ export class BreadcrumbSystem {
       ? { segment, id }
       : null;
 
-    let nextCrumbs;
     if (child) {
       const childUrl = `${url}/${id}`;
-      nextCrumbs = [
+      this._official = [
         { label: config.label, url, clickable: true },
         { label: child.label, url: childUrl, clickable: Boolean(action) },
       ];
       if (action) {
-        nextCrumbs.push({
-          label: action === 'new' ? 'Neu' : '...',
-          url: `${childUrl}/${action}`,
-          clickable: false,
-        });
+        this._official.push({ label: action === 'new' ? 'Neu' : PLACEHOLDER, url: `${childUrl}/${action}`, clickable: false });
       }
     } else if (id) {
-      nextCrumbs = [
-        { label: config.label, url, clickable: true },
-        { label: '...', url: `${url}/${id}`, clickable: false },
-      ];
+      const entityUrl = `${url}/${id}`;
+      const leafUrl = action ? `${entityUrl}/${action}` : entityUrl;
+      this._official = [{ label: config.label, url, clickable: true }];
+      const entityLabel = this._labels.get(entityUrl);
+      if (action && entityLabel) {
+        this._official.push({ label: entityLabel, url: entityUrl, clickable: true });
+      }
+      this._official.push({ label: this._labels.get(leafUrl) || PLACEHOLDER, url: leafUrl, clickable: false });
     } else {
-      nextCrumbs = [
-        { label: config.label, url, clickable: false },
-      ];
+      this._official = [{ label: config.label, url, clickable: false }];
     }
-
-    // Persona/Produkt-Formulare im selben Owner: alte Krumen stehen lassen,
-    // bis das Modul nach dem Laden atomar umrendert. Verhindert das Flackern
-    // auf "Unternehmen > ...".
-    if (this._isNestedOwnerForm(segment, action) && this._sharesContextPrefix(nextCrumbs)) {
-      return;
-    }
-
-    this.currentBreadcrumbs = nextCrumbs.map((crumb, i) => {
-      const prev = this.currentBreadcrumbs[i];
-      return prev && prev.url === crumb.url ? { ...crumb, label: prev.label } : crumb;
-    });
 
     this.render();
   }
 
-  _isNestedOwnerForm(segment, action) {
-    return (segment === 'unternehmen' || segment === 'marke')
-      && (action === 'persona' || action === 'produkt');
-  }
-
-  _sharesContextPrefix(nextCrumbs) {
-    return nextCrumbs.length > 0
-      && nextCrumbs.every((crumb, i) => this.currentBreadcrumbs[i]?.url === crumb.url);
-  }
-
-  // Detail-Label aktualisieren (Platzhalter ersetzen)
+  // Blatt-Label der Seite setzen (Platzhalter ersetzen).
   updateDetailLabel(label, editButton = null, navId) {
     if (!this.container) return;
-
     if (navId !== undefined && navId !== this.navigationId) return;
 
-    if (this.currentBreadcrumbs.length >= 2) {
-      this.currentBreadcrumbs[this.currentBreadcrumbs.length - 1].label = label;
-    }
-
-    this.editButton = editButton;
-    this.actionsHtml = editButton?.actionsHtml || '';
+    const leaf = this._official[this._official.length - 1];
+    if (leaf && (this._official.length >= 2 || this._trail.length)) leaf.label = label;
+    this._editLeaf = null;
+    this._setEditButton(editButton);
     this.render();
   }
 
-  // Breadcrumb rendern
+  // Bearbeiten-Ansicht: Auf einer Edit-Route wird das Blatt umbenannt, auf der
+  // Detailseite (Inline-Edit) hängt ein Extra-Crumb dran — das Entitäts-Label
+  // bleibt so für Pfad und Label-Cache erhalten.
+  showEditLeaf(label = 'Bearbeiten') {
+    if (!this.container) return;
+    const leaf = this._official[this._official.length - 1];
+    const onEditRoute = /\/edit$/.test(String(leaf?.url || '').split(/[?#]/)[0]);
+    if (onEditRoute) {
+      leaf.label = label;
+      this._editLeaf = null;
+    } else {
+      this._editLeaf = { label, clickable: false };
+    }
+    this._setEditButton(null);
+    this.render();
+  }
+
+  _setEditButton(editButton) {
+    this.editButton = editButton;
+    this.actionsHtml = editButton?.actionsHtml || '';
+  }
+
+  _composed() {
+    const crumbs = composeCrumbs(this._trail, this._official).map((crumb) => (
+      crumb.label === PLACEHOLDER && crumb.url
+        ? { ...crumb, label: this._labels.get(crumb.url) || PLACEHOLDER }
+        : crumb
+    ));
+    if (!this._editLeaf || !crumbs.length) return crumbs;
+    const last = crumbs[crumbs.length - 1];
+    return [...crumbs.slice(0, -1), { ...last, clickable: Boolean(last.url) }, this._editLeaf];
+  }
+
   render() {
     this.closeSwitcher();
+    const container = this.container;
+    this.currentBreadcrumbs = this._composed();
 
-    if (!this.container || !this.currentBreadcrumbs.length) {
-      if (this.container) {
-        this.container.innerHTML = '';
-      }
+    if (!container) return;
+    if (!this.currentBreadcrumbs.length) {
+      container.innerHTML = '';
       return;
     }
 
-    const breadcrumbHtml = this.currentBreadcrumbs.map((crumb, index) => {
+    this.currentBreadcrumbs.forEach((crumb) => this._labels.set(crumb.url, crumb.label));
+
+    const total = this.currentBreadcrumbs.length;
+    const { visible, hidden } = this._expanded
+      ? { visible: this.currentBreadcrumbs, hidden: [] }
+      : collapse(this.currentBreadcrumbs);
+    const separator = `<span class="breadcrumb-separator">${icon('chevron-right', { className: 'icon-14' })}</span>`;
+
+    const breadcrumbHtml = visible.map((crumb, index) => {
+      if (crumb.collapsed) {
+        const title = escapeHtml(hidden.map((c) => c.label).join(' › '));
+        return `<button type="button" class="breadcrumb-item breadcrumb-link breadcrumb-collapsed" title="${title}">…</button>${separator}`;
+      }
+
       const isFirst = index === 0;
-      const isLast = index === this.currentBreadcrumbs.length - 1;
-      const sanitizedLabel = window.validatorSystem?.sanitizeHtml?.(crumb.label) || crumb.label;
-      
-      // Für den ersten Eintrag das passende Icon aus der Navigation holen
+      const isLast = index === visible.length - 1;
+      const label = window.validatorSystem?.sanitizeHtml?.(crumb.label) || escapeHtml(crumb.label);
       const iconHtml = isFirst ? this.getIconForUrl(crumb.url) : null;
       const iconPrefix = iconHtml ? `<span class="breadcrumb-icon">${iconHtml}</span>` : '';
-      
-      if (isLast && this._switcherContext && this.currentBreadcrumbs.length >= 2) {
+
+      if (isLast && this._switcherContext && !this._editLeaf && total >= 2) {
         return `
           <button type="button" class="breadcrumb-item breadcrumb-current breadcrumb-switcher" aria-haspopup="listbox" aria-expanded="false">
-            <span class="breadcrumb-switcher-label">${sanitizedLabel}</span>
+            <span class="breadcrumb-switcher-label">${label}</span>
             <span class="breadcrumb-switcher-icon">${icon('switcher-chevrons', { className: 'icon-14' })}</span>
           </button>
         `;
       }
 
-      if (isLast || !crumb.clickable) {
-        // Aktuelle Seite - nicht klickbar
-        return `<span class="breadcrumb-item breadcrumb-current">${iconPrefix}${sanitizedLabel}</span>`;
-      } else {
-        // Klickbare Breadcrumb-Items
-        return `
-          <a href="${crumb.url}" class="breadcrumb-item breadcrumb-link" data-route="${crumb.url}">
-            ${iconPrefix}${sanitizedLabel}
-          </a>
-          <span class="breadcrumb-separator">
-            ${icon('chevron-right', { className: 'icon-14' })}
-          </span>
-        `;
+      if (isLast) {
+        return `<span class="breadcrumb-item breadcrumb-current">${iconPrefix}${label}</span>`;
       }
+      if (!crumb.clickable || !crumb.url) {
+        return `<span class="breadcrumb-item">${iconPrefix}${label}</span>${separator}`;
+      }
+      return `<a href="${escapeHtml(crumb.url)}" class="breadcrumb-item breadcrumb-link" data-route="${escapeHtml(crumb.url)}">${iconPrefix}${label}</a>${separator}`;
     }).join('');
 
-    // Edit-Button HTML generieren wenn vorhanden und canEdit true ist
-    let editButtonHtml = '';
-    if (this.editButton && this.editButton.canEdit) {
-      editButtonHtml = `
-        <button id="${this.editButton.id}" class="breadcrumb-edit-button">
-          ${this.getEditIcon()}
-          <span>Bearbeiten</span>
-        </button>
-      `;
-    }
-
-    const actionsHtml = this.actionsHtml || '';
-    const trailingHtml = (editButtonHtml || actionsHtml)
-      ? `<div class="breadcrumb-actions">${editButtonHtml}${actionsHtml}</div>`
+    const editButtonHtml = this.editButton?.canEdit
+      ? `<button id="${escapeHtml(this.editButton.id)}" class="breadcrumb-edit-button">${icon('pencil-square')}<span>Bearbeiten</span></button>`
+      : '';
+    const trailingHtml = (editButtonHtml || this.actionsHtml)
+      ? `<div class="breadcrumb-actions">${editButtonHtml}${this.actionsHtml}</div>`
       : '';
 
-    this.container.innerHTML = `
-      <nav class="breadcrumb" aria-label="Breadcrumb">
-        ${breadcrumbHtml}
-        ${trailingHtml}
-      </nav>
-    `;
-
-    // Events für klickbare Links binden
-    this.bindEvents();
+    container.innerHTML = `<nav class="breadcrumb" aria-label="Breadcrumb">${breadcrumbHtml}${trailingHtml}</nav>`;
+    this._bindContainer(container);
   }
 
-  // Events binden
-  bindEvents() {
-    if (!this.container) return;
+  // Ein Listener pro Container statt pro Render.
+  _bindContainer(container) {
+    if (this._boundContainer === container) return;
+    this._boundContainer = container;
+    container.addEventListener('click', (e) => this._onClick(e));
+  }
 
-    const links = this.container.querySelectorAll('.breadcrumb-link');
-    links.forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const route = link.getAttribute('data-route');
-        if (route && window.navigateTo) {
-          window.navigateTo(route);
-        }
-      });
-    });
+  _onClick(e) {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
 
-    const switcher = this.container.querySelector('.breadcrumb-switcher');
+    if (target.closest('.breadcrumb-collapsed')) {
+      e.preventDefault();
+      this._expanded = true;
+      this.render();
+      return;
+    }
+
+    const link = target.closest('.breadcrumb-link');
+    if (link) {
+      e.preventDefault();
+      const route = link.getAttribute('data-route');
+      if (route && window.navigateTo) window.navigateTo(route);
+      return;
+    }
+
+    const switcher = target.closest('.breadcrumb-switcher');
     if (switcher) {
-      switcher.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.toggleSwitcher(switcher);
-      });
+      e.preventDefault();
+      e.stopPropagation();
+      this.toggleSwitcher(switcher);
+      return;
     }
 
-    // Edit-Button Event binden (dispatcht Custom Event)
-    if (this.editButton) {
-      const editBtn = this.container.querySelector(`#${this.editButton.id}`);
-      console.log('🔧 BREADCRUMB: Edit-Button Binding', { 
-        editButtonId: this.editButton.id, 
-        editBtnFound: !!editBtn,
-        canEdit: this.editButton.canEdit 
-      });
-      if (editBtn) {
-        editBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          console.log('🖱️ BREADCRUMB: Edit-Button geklickt, dispatche Event:', this.editButton.id);
-          // Custom Event dispatchen, damit Detail-Seiten darauf reagieren können
-          window.dispatchEvent(new CustomEvent('breadcrumbEditClick', {
-            detail: { buttonId: this.editButton.id }
-          }));
-        });
-      }
+    const editBtn = this.editButton && target.closest('.breadcrumb-edit-button');
+    if (editBtn && editBtn.id === this.editButton.id) {
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('breadcrumbEditClick', {
+        detail: { buttonId: this.editButton.id }
+      }));
     }
-  }
-
-  // Generiere Breadcrumb basierend auf Route und Daten
-  generateBreadcrumb(moduleName, moduleUrl, details = []) {
-    const crumbs = [
-      { label: moduleName, url: moduleUrl, clickable: true }
-    ];
-
-    // Füge Detail-Ebenen hinzu
-    details.forEach((detail, index) => {
-      const isLast = index === details.length - 1;
-      crumbs.push({
-        label: detail.label,
-        url: detail.url || '#',
-        clickable: detail.clickable !== false && !isLast
-      });
-    });
-
-    return crumbs;
   }
 
   toggleSwitcher(trigger) {
@@ -340,8 +298,7 @@ export class BreadcrumbSystem {
     this.positionSwitcherPortal(trigger);
     this.bindSwitcherChrome(trigger);
 
-    const input = this._portal.querySelector('.breadcrumb-switcher-input');
-    input?.focus();
+    this._portal.querySelector('.breadcrumb-switcher-input')?.focus();
     this._switcherQuery = '';
     this.loadAndRenderSwitcherItems('');
   }
@@ -456,12 +413,9 @@ export class BreadcrumbSystem {
   selectSwitcherItem(index) {
     const item = this._switcherItems[index];
     if (!item) return;
-    if (String(item.id) === String(this._switcherContext?.id)) {
-      this.closeSwitcher();
-      return;
-    }
     this.closeSwitcher();
-    this.updateDetailLabel(item.label);
+    if (String(item.id) === String(this._switcherContext?.id)) return;
+    this._labels.set(item.route, item.label);
     if (item.route && window.navigateTo) window.navigateTo(item.route);
   }
 
@@ -483,23 +437,18 @@ export class BreadcrumbSystem {
       this.moveSwitcherFocus(-1);
       return;
     }
-    if (e.key === 'Enter') {
-      if (this._focusedIndex >= 0) {
-        e.preventDefault();
-        this.selectSwitcherItem(this._focusedIndex);
-      }
+    if (e.key === 'Enter' && this._focusedIndex >= 0) {
+      e.preventDefault();
+      this.selectSwitcherItem(this._focusedIndex);
     }
   }
 
   moveSwitcherFocus(delta) {
     if (!this._switcherItems.length) return;
-    const next = (this._focusedIndex + delta + this._switcherItems.length) % this._switcherItems.length;
-    this._focusedIndex = next;
+    this._focusedIndex = (this._focusedIndex + delta + this._switcherItems.length) % this._switcherItems.length;
     this.renderSwitcherItems();
     this._portal?.querySelector('.breadcrumb-switcher-item.is-focused')?.scrollIntoView({ block: 'nearest' });
   }
 }
 
-// Exportiere Instanz für globale Nutzung
 export const breadcrumbSystem = new BreadcrumbSystem();
-

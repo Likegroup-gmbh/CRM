@@ -1,41 +1,3 @@
-const config = {
-  table: 'marke',
-  displayField: 'markenname',
-  fields: {
-    markenname: 'string',
-    unternehmen_id: 'uuid',
-    webseite: 'string',
-    branche: 'string',
-    branche_id: 'uuid',
-    created_at: 'date',
-    updated_at: 'date',
-    logo_url: 'string',
-    logo_path: 'string'
-  },
-  relations: {
-    unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' }
-  },
-  manyToMany: {
-    branchen: {
-      table: 'branchen',
-      junctionTable: 'marke_branchen',
-      localKey: 'marke_id',
-      foreignKey: 'branche_id',
-      displayField: 'name'
-    },
-    ansprechpartner: {
-      table: 'ansprechpartner',
-      junctionTable: 'ansprechpartner_marke',
-      localKey: 'marke_id',
-      foreignKey: 'ansprechpartner_id',
-      displayField: 'id,vorname,nachname,email'
-    }
-  },
-  filters: ['markenname', 'unternehmen_id', 'branche_id'],
-  sortBy: 'created_at',
-  sortOrder: 'desc'
-};
-
 function buildSelectClause(context) {
   return `*,
 unternehmen:unternehmen_id (
@@ -149,7 +111,6 @@ async function loadExtraFilterData(filterOptions, supabase) {
 }
 
 export default {
-  config,
   buildSelectClause,
   applyJunctionFilters,
   skipFieldForSupabase,

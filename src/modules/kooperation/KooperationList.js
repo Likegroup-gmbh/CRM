@@ -7,11 +7,12 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KooperationFilterLogic } from './filters/KooperationFilterLogic.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 import {
   resolveKampagneIdFromCreateContext,
   resolveKooperationCreateRedirect
 } from './kooperationFromKampagne.js';
-import { parseProduktionHerkunft, produktionReturnPath, readHerkunft, showProduktionLeaf } from '../../core/navHerkunft.js';
+import { trailProduktion } from '../../core/breadcrumbTrail.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 
@@ -196,7 +197,7 @@ export class KooperationList {
         if (kampagneIds.length > 0) {
           const { data: kampagnen } = await window.supabase
             .from('kampagne')
-            .select('id, kampagnenname, eigener_name, status, start, deadline')
+            .select('id, kampagnenname, eigener_name, status, start, deadline, auftrag:auftrag_id(start, ende)')
             .in('id', kampagneIds);
           kampagneMap = (kampagnen || []).reduce((acc, k) => { acc[k.id] = k; return acc; }, {});
         }
@@ -282,6 +283,7 @@ export class KooperationList {
               ${canBulkDelete ? '<th class="col-checkbox"><input type="checkbox" id="select-all-kooperationen"></th>' : ''}
               <th class="col-name">Name</th>
               <th>Kampagne</th>
+              <th class="col-leistungszeitraum">Leistungszeitraum</th>
               <th>Creator</th>
               <th>Videos</th>
               <th>Einkaufspreis</th>
@@ -293,7 +295,7 @@ export class KooperationList {
           </thead>
           <tbody id="kooperationen-table-body">
             <tr>
-              <td colspan="13" class="loading">Lade Kooperationen...</td>
+              <td colspan="14" class="loading">Lade Kooperationen...</td>
             </tr>
           </tbody>
         </table>
@@ -519,6 +521,7 @@ export class KooperationList {
             </a>
           </td>
           <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(kooperation.kampagne) !== 'Unbenannte Kampagne' ? KampagneUtils.getDisplayName(kooperation.kampagne) : (this._kampagneMap?.[kooperation.kampagne_id] ? KampagneUtils.getDisplayName(this._kampagneMap[kooperation.kampagne_id]) : 'Unbekannt'))}</td>
+          ${renderLeistungszeitraumCell(this._kampagneMap?.[kooperation.kampagne_id] || kooperation.kampagne)}
           <td>
             ${window.validatorSystem.sanitizeHtml(kooperation.creator ? `${kooperation.creator.vorname} ${kooperation.creator.nachname}` : (this._creatorMap?.[kooperation.creator_id] ? `${this._creatorMap[kooperation.creator_id].vorname} ${this._creatorMap[kooperation.creator_id].nachname}` : 'Unbekannt'))}
           </td>
@@ -711,7 +714,7 @@ export class KooperationList {
   async showCreateForm() {
     console.log('🎯 Zeige Kooperations-Erstellungsformular');
     window.setHeadline('Neue Kooperation anlegen');
-    await showProduktionLeaf('Neue Kooperation');
+    window.breadcrumbSystem?.updateDetailLabel('Neue Kooperation');
     
     // Prüfe auf kampagne_id Query-Parameter
     const urlParams = new URLSearchParams(window.location.search);
@@ -763,10 +766,6 @@ export class KooperationList {
       
       // Wenn Kampagne verfügbar, formData erstellen
       if (kampagne) {
-        if (window.breadcrumbSystem) {
-          window.breadcrumbSystem.updateDetailLabel('Neue Kooperation');
-        }
-        
         // formData mit allen Prefill-Daten erstellen
         formData = {
           kampagne_id: kampagneId,
@@ -781,14 +780,6 @@ export class KooperationList {
         };
         
         console.log('📦 KOOPERATION-PREFILL: formData erstellt:', formData);
-      } else {
-        if (window.breadcrumbSystem) {
-          window.breadcrumbSystem.updateDetailLabel('Neue Kooperation');
-        }
-      }
-    } else {
-      if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateDetailLabel('Neue Kooperation');
       }
     }
     
@@ -896,9 +887,9 @@ export class KooperationList {
           }
         }));
 
-        const herkunft = parseProduktionHerkunft(readHerkunft());
+        const herkunft = trailProduktion();
         const redirect = herkunft
-          ? produktionReturnPath(herkunft.produktionId, herkunft.tab)
+          ? herkunft.url
           : resolveKooperationCreateRedirect({
             kampagneId,
             produktionId: submitData.produktion_id || new URLSearchParams(window.location.search).get('produktion_id'),

@@ -3,6 +3,7 @@
 
 import { renderRegelwerkDokument, bindRegelwerkDokument } from '../../../core/components/RegelwerkDokument.js';
 import { adapterFor } from './regelwerkAdapters.js';
+import { replaceRoute } from '../../../core/breadcrumbTrail.js';
 
 export class SkriptRegelwerkDetail {
   constructor() {
@@ -100,7 +101,7 @@ export class SkriptRegelwerkDetail {
         const felder = this.readFelder();
         this.doc = await this.adapter.create({ ...meta, ...felder, [feld]: text });
         const path = `${this.adapter.listPath}/${this.doc.id}`;
-        window.history.replaceState({ route: path }, '', path);
+        replaceRoute(path);
         this.renderToolbar();
         this.updateChrome();
         return;

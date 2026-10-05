@@ -7,7 +7,7 @@ import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
 import { SplitButtonConfig } from '../../../core/components/SplitButtonConfig.js';
 import { missingRequiredFields } from './vertragStepValidation.js';
-import { backTarget } from '../../../core/navHerkunft.js';
+import { backTarget } from '../../../core/breadcrumbTrail.js';
 
 VertraegeCreate.prototype.bindMultistepEvents = function() {
     const cancelBtn = document.getElementById('btn-cancel');

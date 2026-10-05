@@ -62,7 +62,8 @@ export const EntityRegistry = {
       ksk_selbstzahler: 'boolean',
       haustier_beschreibung: 'string',
       hat_kinder: 'boolean',
-      kinder_beschreibung: 'string'
+      kinder_beschreibung: 'string',
+      hauptadresse_quelle: 'string'
     },
     relations: {},
     manyToMany: {
@@ -801,81 +802,7 @@ export const EntityRegistry = {
       vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
       gesamt_videos: 'number',
       gesamt_creator: 'number',
-      campaign_type: 'array',
-      agency_services_enabled: 'boolean',
-      retainer_type: 'string',
-      retainer_amount: 'number',
-      extra_services: 'jsonb',
-      percentage_fee_enabled: 'boolean',
-      percentage_fee_value: 'number',
-      percentage_fee_base: 'string',
-      ksk_enabled: 'boolean',
-      ksk_type: 'string',
-      ksk_value: 'number',
-      created_by_id: 'uuid'
-    },
-    relations: {
-      auftrag: { table: 'auftrag', foreignKey: 'auftrag_id', displayField: 'auftragsname' },
-      created_by: { table: 'benutzer', foreignKey: 'created_by_id', displayField: 'name' }
-    },
-    filters: ['auftrag_id', 'kampagnenanzahl', 'gesamt_videos', 'gesamt_creator', 'created_at'],
-    sortBy: 'created_at',
-    sortOrder: 'desc'
-  },
-  auftragsdetails: {
-    table: 'auftrag_details',
-    displayField: 'id',
-    fields: {
-      auftrag_id: 'uuid',
-      kampagnenanzahl: 'number',
-      ugc_paid_video_anzahl: 'number',
-      ugc_paid_creator_anzahl: 'number',
-      ugc_paid_budget_info: 'text',
-      ugc_paid_einkaufspreis_netto_von: 'number',
-      ugc_paid_einkaufspreis_netto_bis: 'number',
-      ugc_paid_verkaufspreis_netto_von: 'number',
-      ugc_paid_verkaufspreis_netto_bis: 'number',
-      ugc_organic_video_anzahl: 'number',
-      ugc_organic_creator_anzahl: 'number',
-      ugc_organic_budget_info: 'text',
-      ugc_organic_einkaufspreis_netto_von: 'number',
-      ugc_organic_einkaufspreis_netto_bis: 'number',
-      ugc_organic_verkaufspreis_netto_von: 'number',
-      ugc_organic_verkaufspreis_netto_bis: 'number',
-      influencer_video_anzahl: 'number',
-      influencer_creator_anzahl: 'number',
-      influencer_bilder_anzahl: 'number',
-      influencer_budget_info: 'text',
-      influencer_einkaufspreis_netto_von: 'number',
-      influencer_einkaufspreis_netto_bis: 'number',
-      influencer_verkaufspreis_netto_von: 'number',
-      influencer_verkaufspreis_netto_bis: 'number',
-      story_video_anzahl: 'number',
-      story_creator_anzahl: 'number',
-      story_budget_info: 'text',
-      story_einkaufspreis_netto_von: 'number',
-      story_einkaufspreis_netto_bis: 'number',
-      story_verkaufspreis_netto_von: 'number',
-      story_verkaufspreis_netto_bis: 'number',
-      vor_ort_video_anzahl: 'number',
-      vor_ort_creator_anzahl: 'number',
-      vor_ort_bilder_anzahl: 'number',
-      vor_ort_videographen_anzahl: 'number',
-      vor_ort_budget_info: 'text',
-      vor_ort_einkaufspreis_netto_von: 'number',
-      vor_ort_einkaufspreis_netto_bis: 'number',
-      vor_ort_verkaufspreis_netto_von: 'number',
-      vor_ort_verkaufspreis_netto_bis: 'number',
-      vor_ort_mitarbeiter_video_anzahl: 'number',
-      vor_ort_mitarbeiter_bilder_anzahl: 'number',
-      vor_ort_mitarbeiter_videographen_anzahl: 'number',
-      vor_ort_mitarbeiter_budget_info: 'text',
-      vor_ort_mitarbeiter_einkaufspreis_netto_von: 'number',
-      vor_ort_mitarbeiter_einkaufspreis_netto_bis: 'number',
-      vor_ort_mitarbeiter_verkaufspreis_netto_von: 'number',
-      vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
-      gesamt_videos: 'number',
-      gesamt_creator: 'number',
+      abrechnung_hinweis: 'text',
       campaign_type: 'array',
       agency_services_enabled: 'boolean',
       retainer_type: 'string',
@@ -929,6 +856,7 @@ export const EntityRegistry = {
       pdf_path: 'string',
       vertrag_id: 'uuid',
       rechnungstyp: 'string',
+      ist_schlussrechnung: 'boolean',
       contracting_position_id: 'uuid',
       created_by_id: 'uuid',
       created_at: 'date',
@@ -945,8 +873,8 @@ export const EntityRegistry = {
       contracting_position: { table: 'contracting_position', foreignKey: 'contracting_position_id', displayField: 'beschreibung' }
     },
     filters: ['rechnung_nr', 'rechnungstyp', 'kooperation_id', 'kampagne_id', 'unternehmen_id', 'auftrag_id', 'status', 'gestellt_am', 'zahlungsziel', 'bezahlt_am', 'nettobetrag', 'land'],
-    sortBy: 'zahlungsziel',
-    sortOrder: 'asc'
+    sortBy: 'gestellt_am',
+    sortOrder: 'desc'
   },
   creator_list: {
     table: 'creator_list',
@@ -1060,3 +988,6 @@ export const EntityRegistry = {
     sortOrder: 'desc'
   }
 };
+
+// Alias: beide Keys werden im System als entityType benutzt (Filter, DataService)
+EntityRegistry.auftragsdetails = EntityRegistry.auftrag_details;

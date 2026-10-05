@@ -22,6 +22,7 @@ import {
 } from './KampagneGridView.js';
 import { parseFolderQuery, folderListUrl, folderCrumbs, NUR_UNTERNEHMEN_LABEL, markenEbeneEntfaellt } from '../../core/folderListNav.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
 
 const createHandler = new KampagneCreateHandler();
 
@@ -715,7 +716,7 @@ export class KampagneList {
     const parsed = new URL(url, window.location.origin);
     parsed.searchParams.delete('ansicht');
     const clean = `${parsed.pathname}${parsed.search}`;
-    window.history.replaceState({ route: clean }, '', clean);
+    replaceRoute(clean);
     this.pagination.currentPage = 1;
     this.updateBreadcrumbForFolder(folder);
     return this.loadData();

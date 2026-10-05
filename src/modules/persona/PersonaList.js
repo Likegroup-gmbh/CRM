@@ -10,7 +10,7 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
-import { withHerkunft } from '../../core/navHerkunft.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
 import { PersonaFilterLogic } from './filters/PersonaFilterLogic.js';
 import { PersonaService } from './PersonaService.js';
 import {
@@ -125,7 +125,7 @@ export class PersonaList extends BasePaginatedList {
   syncListUrl() {
     if (this.embedded) return;
     const url = this.listViewMode === 'list' ? '/persona' : this.listUrl();
-    window.history.replaceState({ route: url }, '', url);
+    replaceRoute(url);
   }
 
   updateBreadcrumbDisplay() {
@@ -597,8 +597,7 @@ export class PersonaList extends BasePaginatedList {
   }
 
   resolveDetailRoute(itemId) {
-    const route = withFolderQuery(`/persona/${itemId}`);
-    return this.embedded ? withHerkunft(route) : route;
+    return withFolderQuery(`/persona/${itemId}`);
   }
 
   async initializeFilterBar() {

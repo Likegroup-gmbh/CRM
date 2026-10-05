@@ -14,7 +14,6 @@ import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import CONFIG from '../../../core/ConfigSystem.js';
 import { expandParagraphZusaetze, expandAwarenessFelder, expandEhgFelder } from './paragraphZusatz.js';
 import { applyFinalisiertFilter } from '../../../core/finalisiert.js';
-import { showProduktionLeaf } from '../../../core/navHerkunft.js';
 
 export class VertraegeCreate {
   constructor() {
@@ -138,10 +137,7 @@ VertraegeCreate.prototype.init = async function(draftId = null) {
     window.setHeadline(draftId ? 'Vertrag bearbeiten' : 'Neuer Vertrag');
     
     const crumbLabel = draftId ? 'Bearbeiten' : 'Neuer Vertrag';
-    const shown = await showProduktionLeaf(crumbLabel);
-    if (!shown && window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateDetailLabel(crumbLabel);
-    }
+    window.breadcrumbSystem?.updateDetailLabel(crumbLabel);
     
     // Berechtigungsprüfung (einheitlich über PermissionSystem + Overrides)
     const { canEdit } = this.getVertragPermissions();

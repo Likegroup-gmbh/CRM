@@ -11,6 +11,8 @@ import {
   roundMoney,
   sumBudgets
 } from '../../produktion/produktionsbudget.js';
+import { geistProduktionName } from '../../produktion/produktionNames.js';
+import { kampagneDisplayName } from '../logic/kampagnenSplit.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -61,6 +63,7 @@ export class StepProduktion {
       return {
         nummer,
         id: slot.id || null,
+        basis: kampagneDisplayName(this.wizard.formData.auftrag?.titel, index, slots.length) || '',
         name: slot.eigener_name || slot.kampagnenname || (slots.length > 1 ? `Kampagne ${nummer}` : ''),
         volumen: budgetOrNull(slot.volumen) || 0,
         rows: own
@@ -77,7 +80,7 @@ export class StepProduktion {
       : '';
 
     return `
-      <div class="projekt-erstellen-subsection" data-kampagne-nummer="${group.nummer}" data-kampagne-id="${escapeHtml(group.id || '')}">
+      <div class="projekt-erstellen-subsection" data-kampagne-nummer="${group.nummer}" data-kampagne-id="${escapeHtml(group.id || '')}" data-basis="${escapeHtml(group.basis || '')}">
         ${title}
         <p class="projekt-erstellen-umsatz-hint" data-prod-hint>
           ${formatMoney(summe)} von ${formatMoney(group.volumen)} vergeben, Rest ${formatMoney(rest)}
@@ -155,7 +158,7 @@ export class StepProduktion {
       _key: nextKey(),
       kampagnen_nummer: nummer,
       kampagne_id: groupEl.dataset.kampagneId || null,
-      name: `Produktion ${count}`,
+      name: geistProduktionName(groupEl.dataset.basis || '', count),
       budget: null,
       briefing_id: null,
       verbrauch: 0

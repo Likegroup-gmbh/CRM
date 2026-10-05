@@ -56,6 +56,15 @@ export class CreatorDetail extends PersonDetailBase {
     try {
       await this.loadCriticalData();
 
+      if (window.breadcrumbSystem && this.creator) {
+        const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Details';
+        const canEdit = window.canEdit?.('creator') ?? false;
+        window.breadcrumbSystem.updateDetailLabel(creatorName, {
+          id: 'btn-edit-creator',
+          canEdit: canEdit
+        });
+      }
+
       const tabParam = getTabQueryParam();
       if (tabParam) {
         this.activeMainTab = tabParam;
@@ -65,16 +74,7 @@ export class CreatorDetail extends PersonDetailBase {
 
       await this.loadKooperationen();
       await this.loadProfileCounts();
-      
-      if (window.breadcrumbSystem && this.creator) {
-        const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Details';
-        const canEdit = window.canEdit?.('creator') ?? false;
-        window.breadcrumbSystem.updateDetailLabel(creatorName, {
-          id: 'btn-edit-creator',
-          canEdit: canEdit
-        });
-      }
-      
+
       await this.render();
       
       if (!this.eventsBound) {

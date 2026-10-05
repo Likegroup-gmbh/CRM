@@ -254,8 +254,11 @@ const PRODUKTION_LIST_SELECT = `
     produkte:campaign_briefing_produkt(produkt:produkt_id(id, name))
   ),
   kampagne:kampagne_id(
-    id, kampagnenname, eigener_name, volumen, creator_budget,
-    auftrag:auftrag_id(creator_budget, gesamt_budget, nettobetrag)
+    id, kampagnenname, eigener_name, volumen, creator_budget, start, deadline,
+    unternehmen_id, marke_id,
+    unternehmen:unternehmen_id(id, firmenname, logo_url),
+    marke:marke_id(id, markenname, logo_url),
+    auftrag:auftrag_id(creator_budget, gesamt_budget, nettobetrag, start, ende)
   ),
   creator_auswahl(id, name),
   strategie(id, name),

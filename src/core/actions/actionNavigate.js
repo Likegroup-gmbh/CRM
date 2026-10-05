@@ -3,8 +3,6 @@
 
 import { produktFormRoute, produktListDetailRoute } from '../../modules/produkt/ProduktService.js';
 import { personaFormRoute } from '../../modules/persona/PersonaService.js';
-import { isAllowedHerkunft, withHerkunft } from '../navHerkunft.js';
-
 const VIEW_ROUTES = {
   strategie: (id) => `/konzepte/${id}`,
   creator_auswahl: (id) => `/castings/${id}`,
@@ -41,7 +39,7 @@ export async function handleView(entityId, entityType) {
   window.navigateTo(route);
 }
 
-export async function handleEdit(entityId, entityType, actionItem) {
+export async function handleEdit(entityId, entityType) {
   if (entityType === 'produkt') {
     await navigateToProduktForm(entityId);
     return;
@@ -67,9 +65,7 @@ export async function handleEdit(entityId, entityType, actionItem) {
     return;
   }
 
-  const requested = actionItem?.dataset?.returnTo;
-  const herkunft = requested && isAllowedHerkunft(requested) ? requested : undefined;
-  window.navigateTo(withHerkunft(`/${entityType}/${entityId}/edit`, herkunft));
+  window.navigateTo(`/${entityType}/${entityId}/edit`);
 }
 
 export function handleContinue(entityId) {
@@ -109,26 +105,26 @@ async function resolveAuftragIdForKampagne(kampagneId) {
 async function navigateToProduktForm(produktId) {
   const markeDetail = window.moduleRegistry?.modules?.get('marke-detail');
   if (markeDetail?.markeId && location.pathname.includes('/marke/')) {
-    window.navigateTo(withHerkunft(`/marke/${markeDetail.markeId}/produkt?produkt=${produktId}`));
+    window.navigateTo(`/marke/${markeDetail.markeId}/produkt?produkt=${produktId}`);
     return;
   }
   const unternehmenDetail = window.moduleRegistry?.modules?.get('unternehmen-detail');
   if (unternehmenDetail?.unternehmenId && location.pathname.includes('/unternehmen/')) {
-    window.navigateTo(withHerkunft(produktFormRoute(unternehmenDetail.unternehmenId, produktId)));
+    window.navigateTo(produktFormRoute(unternehmenDetail.unternehmenId, produktId));
     return;
   }
-  window.navigateTo(withHerkunft(produktListDetailRoute(produktId)));
+  window.navigateTo(produktListDetailRoute(produktId));
 }
 
 async function navigateToPersonaForm(personaId) {
   const markeDetail = window.moduleRegistry?.modules?.get('marke-detail');
   if (markeDetail?.markeId && location.pathname.includes('/marke/')) {
-    window.navigateTo(withHerkunft(personaFormRoute('marke', markeDetail.markeId, personaId)));
+    window.navigateTo(personaFormRoute('marke', markeDetail.markeId, personaId));
     return;
   }
   const unternehmenDetail = window.moduleRegistry?.modules?.get('unternehmen-detail');
   if (unternehmenDetail?.unternehmenId && location.pathname.includes('/unternehmen/')) {
-    window.navigateTo(withHerkunft(personaFormRoute('unternehmen', unternehmenDetail.unternehmenId, personaId)));
+    window.navigateTo(personaFormRoute('unternehmen', unternehmenDetail.unternehmenId, personaId));
     return;
   }
   const { data, error } = await window.supabase
@@ -140,5 +136,5 @@ async function navigateToPersonaForm(personaId) {
     window.toastSystem?.error?.('Persona konnte nicht geöffnet werden.');
     return;
   }
-  window.navigateTo(withHerkunft(personaFormRoute('unternehmen', data.unternehmen_id, personaId)));
+  window.navigateTo(personaFormRoute('unternehmen', data.unternehmen_id, personaId));
 }

@@ -26,8 +26,6 @@ import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
 import { unmountKatalogPanes } from './KampagneDetailKatalog.js';
-import { produktionCrumbList } from '../../core/navHerkunft.js';
-
 export class KampagneDetail {
   constructor() {
     this.kampagneId = null;
@@ -159,31 +157,17 @@ export class KampagneDetail {
       try {
         const isKunde = window.isKunde();
 
-        const [, tableData] = await Promise.all([
-          this.loadCriticalData(),
-          loadFullTableData(this.kampagneId, this.store, isKunde, {
-            produktionId: this.mode === 'workflow' ? this.produktionId : null
-          })
-        ]);
+        const tablePromise = loadFullTableData(this.kampagneId, this.store, isKunde, {
+          produktionId: this.mode === 'workflow' ? this.produktionId : null
+        });
+        tablePromise.catch(() => {});
 
+        await this.loadCriticalData();
         if (!this._isMounted) return;
+        this._updateBreadcrumb();
 
-        if (window.breadcrumbSystem && this.kampagneData) {
-          if (this.mode === 'workflow') {
-            window.breadcrumbSystem.updateBreadcrumb(produktionCrumbList({
-              kampagneId: this.kampagneId,
-              kampagneName: KampagneUtils.getDisplayName(this.kampagneData),
-              produktionId: this.produktionId,
-              produktionTitle: this.lineTitle || this.produktion?.name || 'Produktion'
-            }), null, { switcher: null });
-          } else {
-            const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
-            window.breadcrumbSystem.updateDetailLabel(KampagneUtils.getDisplayName(this.kampagneData), {
-              id: 'btn-edit-kampagne',
-              canEdit
-            });
-          }
-        }
+        const tableData = await tablePromise;
+        if (!this._isMounted) return;
 
         this._applySummaryFromStore();
         if (this.mode !== 'overview') this._createVideoTable(tableData);
@@ -207,6 +191,21 @@ export class KampagneDetail {
     })();
 
     return this._initPromise;
+  }
+
+  _updateBreadcrumb() {
+    if (!window.breadcrumbSystem || !this.kampagneData) return;
+    const kampagneName = KampagneUtils.getDisplayName(this.kampagneData);
+    if (this.mode === 'workflow') {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Kampagnen', url: '/kampagne', clickable: true },
+        { label: kampagneName || 'Kampagne', url: `/kampagne/${this.kampagneId}`, clickable: true },
+        { label: this.lineTitle || this.produktion?.name || 'Produktion', url: `/produktion/${this.produktionId}`, clickable: false }
+      ], null, { switcher: null });
+      return;
+    }
+    const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
+    window.breadcrumbSystem.updateDetailLabel(kampagneName, { id: 'btn-edit-kampagne', canEdit });
   }
 
   _showLoading() {

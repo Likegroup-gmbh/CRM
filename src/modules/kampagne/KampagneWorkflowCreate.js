@@ -6,8 +6,6 @@ import { resolveCreateAction, renderCreateButton } from '../../core/actions/Crea
 import { openSkriptCreateDrawer } from '../skripte/SkriptCreateDrawer.js';
 import { lineNames } from '../produktion/produktionNames.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
-import { withProduktionHerkunft } from '../../core/navHerkunft.js';
-
 const EXISTS_REASON = {
   briefing: 'Diese Produktion hat bereits ein Briefing.'
 };
@@ -114,11 +112,7 @@ export function handleWorkflowCreate(detail, action) {
   }
 
   if (spec.mode === 'navigate') {
-    window.navigateTo(withProduktionHerkunft(
-      spec.url(detail),
-      detail.produktionId,
-      detail.activeWorkflowTab
-    ));
+    window.navigateTo(spec.url(detail));
     return;
   }
 

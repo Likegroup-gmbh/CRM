@@ -12,7 +12,7 @@ import { renderStep } from './FieldRenderer.js';
 import { renderLikyComposer, renderLikySend, renderLikyColumn, renderLikyEingabe } from '../../../core/chat/likyComposer.js';
 import { likyCapability } from '../../../core/chat/likyCapabilities.js';
 import { BriefingLikyPanel } from './BriefingLikyPanel.js';
-import { backTarget } from '../../../core/navHerkunft.js';
+import { backTarget } from '../../../core/breadcrumbTrail.js';
 
 BriefingCreate.prototype.render = function() {
   if (this._isRendering) {

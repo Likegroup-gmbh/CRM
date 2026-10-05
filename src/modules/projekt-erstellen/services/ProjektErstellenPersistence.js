@@ -21,6 +21,7 @@ import {
 } from '../logic/kampagnenSplit.js';
 import { uploadAuftragsbestaetigungen } from '../../../core/AuftragsbestaetigungUploader.js';
 import { budgetOrNull } from '../../produktion/produktionsbudget.js';
+import { geistProduktionName } from '../../produktion/produktionNames.js';
 
 const SUPABASE = () => window.supabase;
 
@@ -938,6 +939,19 @@ export class ProjektErstellenPersistence {
       idByNummer.set(slot.kampagnen_nummer || index + 1, savedIds[index] || slot.id || null);
     });
 
+    // Basis je Kampagne = Projektname (Slot 2+: "Projektname (2)")
+    const basisByKampagne = new Map();
+    slots.forEach((slot, index) => {
+      const id = savedIds[index] || slot.id || null;
+      if (id) basisByKampagne.set(id, kampagneDisplayName(formData?.auftrag?.titel, index, slots.length) || '');
+    });
+    const fallbackCount = new Map();
+    const fallbackName = (kampagneId) => {
+      const n = (fallbackCount.get(kampagneId) || 0) + 1;
+      fallbackCount.set(kampagneId, n);
+      return geistProduktionName(basisByKampagne.get(kampagneId) || '', n);
+    };
+
     const incoming = (formData.produktionen || []).map(row => ({
       ...row,
       kampagne_id: row.kampagne_id || idByNummer.get(row.kampagnen_nummer || 1) || null,
@@ -956,7 +970,7 @@ export class ProjektErstellenPersistence {
       kept.add(row.id);
       const patch = { budget: row.budget };
       if (!row.briefing_id) {
-        patch.name = (row.name || '').trim() || 'Produktion';
+        patch.name = (row.name || '').trim() || fallbackName(row.kampagne_id);
       }
       const { error } = await supabase.from('produktion').update(patch).eq('id', row.id);
       if (error) throw error;
@@ -965,7 +979,7 @@ export class ProjektErstellenPersistence {
     for (const row of incoming.filter(item => !item.id && item.budget != null)) {
       const { error } = await supabase.from('produktion').insert({
         kampagne_id: row.kampagne_id,
-        name: (row.name || '').trim() || 'Produktion',
+        name: (row.name || '').trim() || fallbackName(row.kampagne_id),
         budget: row.budget
       });
       if (error) throw error;

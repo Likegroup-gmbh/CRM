@@ -144,7 +144,7 @@ describe('Listen-Zeilen', () => {
     const expected = ['Status', 'Erstellt am', 'Content Deadline'];
     const folderHeaders = headers(renderBriefingItems({}));
     expect(folderHeaders.slice(folderHeaders.indexOf('Status'), folderHeaders.indexOf('Status') + 3)).toEqual(expected);
-    expect(renderBriefingItems({})).toContain('colspan="13"');
+    expect(renderBriefingItems({})).toContain('colspan="14"');
 
     const content = document.createElement('div');
     window.content = content;
@@ -153,7 +153,7 @@ describe('Listen-Zeilen', () => {
     return list.render().then(() => {
       const listHeaders = headers(content.innerHTML);
       expect(listHeaders.slice(listHeaders.indexOf('Status'), listHeaders.indexOf('Status') + 3)).toEqual(expected);
-      expect(content.innerHTML).toContain('colspan="13"');
+      expect(content.innerHTML).toContain('colspan="14"');
     });
   });
 

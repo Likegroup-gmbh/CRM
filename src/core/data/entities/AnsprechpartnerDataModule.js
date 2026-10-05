@@ -1,65 +1,3 @@
-const config = {
-  table: 'ansprechpartner',
-  displayField: 'vorname',
-  fields: {
-    vorname: 'string',
-    nachname: 'string',
-    unternehmen_id: 'uuid',
-    management_id: 'uuid',
-    position_id: 'uuid',
-    email: 'string',
-    telefonnummer: 'string',
-    telefonnummer_land_id: 'uuid',
-    telefonnummer_office: 'string',
-    telefonnummer_office_land_id: 'uuid',
-    linkedin: 'string',
-    stadt: 'string',
-    land_id: 'uuid',
-    geburtsdatum: 'date',
-    sprache_id: 'uuid',
-    notiz: 'string',
-    erlaubt_updates: 'toggle',
-    erlaubt_newsletter: 'toggle',
-    erlaubt_webinare: 'toggle',
-    ist_rechnungsverantwortlich: 'toggle'
-  },
-  relations: {
-    unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
-    management: { table: 'management', foreignKey: 'management_id', displayField: 'firmenname' },
-    sprache: { table: 'sprachen', foreignKey: 'sprache_id', displayField: 'name' },
-    position: { table: 'positionen', foreignKey: 'position_id', displayField: 'name' },
-    telefonnummer_land: { table: 'eu_laender', foreignKey: 'telefonnummer_land_id', displayField: 'name_de' },
-    telefonnummer_office_land: { table: 'eu_laender', foreignKey: 'telefonnummer_office_land_id', displayField: 'name_de' },
-    land: { table: 'eu_laender', foreignKey: 'land_id', displayField: 'name_de' }
-  },
-  manyToMany: {
-    unternehmen: {
-      table: 'unternehmen',
-      junctionTable: 'ansprechpartner_unternehmen',
-      localKey: 'ansprechpartner_id',
-      foreignKey: 'unternehmen_id',
-      displayField: 'firmenname'
-    },
-    marken: {
-      table: 'marke',
-      junctionTable: 'ansprechpartner_marke',
-      localKey: 'ansprechpartner_id',
-      foreignKey: 'marke_id',
-      displayField: 'markenname'
-    },
-    sprachen: {
-      table: 'sprachen',
-      junctionTable: 'ansprechpartner_sprache',
-      localKey: 'ansprechpartner_id',
-      foreignKey: 'sprache_id',
-      displayField: 'name'
-    }
-  },
-  filters: ['vorname', 'nachname', 'position_id', 'unternehmen_id', 'stadt', 'sprache_id'],
-  sortBy: 'created_at',
-  sortOrder: 'desc'
-};
-
 function buildSelectClause(context) {
   if (context === 'list') {
     return `*,
@@ -266,7 +204,6 @@ async function extractFilterOptions(data, supabase) {
 }
 
 export default {
-  config,
   buildSelectClause,
   applyJunctionFilters,
   transformResult,

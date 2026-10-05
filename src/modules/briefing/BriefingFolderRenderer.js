@@ -167,6 +167,7 @@ export function renderItemsView(list) {
               <th class="col-name">Aktivierung</th>
               <th>Unternehmen</th>
               <th>Marke</th>
+              <th class="col-leistungszeitraum">Leistungszeitraum</th>
               <th>Bereich</th>
               <th>Status</th>
               <th>Erstellt am</th>
@@ -180,7 +181,7 @@ export function renderItemsView(list) {
             </tr>
           </thead>
           <tbody id="briefings-items-body">
-            <tr><td colspan="13" class="loading">Lade Briefings...</td></tr>
+            <tr><td colspan="14" class="loading">Lade Briefings...</td></tr>
           </tbody>
         </table>
       </div>
@@ -204,7 +205,7 @@ export function updateItemsTable(list) {
         }
       }
     }, 'default');
-    tbody.innerHTML = `<tr><td colspan="13" class="empty-state-cell">${html}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="empty-state-cell">${html}</td></tr>`;
     return;
   }
 

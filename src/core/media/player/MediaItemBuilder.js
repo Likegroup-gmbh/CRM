@@ -5,7 +5,8 @@
 // nicht zugeordneten Bilder (video_id = NULL, Altdaten) der Kooperation.
 //   Koop -> [V1, Storys(V1)..., Bilder(V1)..., V2, ...] -> [Bilder ohne video_id] -> naechste Koop
 
-import { sortStills } from '../stills/stillAssets.js';
+import { sortStills } from '../../stills/stillAssets.js';
+import { videoFallbackUrl } from './mediaIdentity.js';
 
 export class MediaItemBuilder {
   /** @param {object} table - KampagneKooperationenVideoTable (Datenquelle) */
@@ -14,7 +15,7 @@ export class MediaItemBuilder {
   }
 
   hasUpload(video) {
-    return !!(video.file_url || video.link_content || video.asset_url || video.currentAsset?.file_path
+    return !!(videoFallbackUrl(video) || video.currentAsset?.file_path
       || (video.finalAssets || []).length > 0);
   }
 

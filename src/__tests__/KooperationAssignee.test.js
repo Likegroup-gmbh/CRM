@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { loadDirectQueryOptions } from '../core/form/data/DirectQueryLoader.js';
 import { kooperationConfig } from '../core/form/config/KooperationFormConfig.js';
 import { EntityRegistry } from '../core/data/entities/index.js';
-import KooperationDataModule from '../core/data/entities/KooperationDataModule.js';
 import { DataPreparer } from '../core/data/DataPreparer.js';
 import { DynamicDataLoader } from '../core/form/data/DynamicDataLoader.js';
 import { summiereBuchungenNachJahr } from '../modules/admin/mitarbeiterBuchungen.js';
@@ -41,9 +40,8 @@ describe('Kooperation: Feld assignee_id', () => {
     });
   });
 
-  it('steht in EntityRegistry und im DataModule', () => {
+  it('steht in der EntityRegistry', () => {
     expect(EntityRegistry.kooperation.fields.assignee_id).toBe('uuid');
-    expect(KooperationDataModule.config.fields.assignee_id).toBe('uuid');
     expect(EntityRegistry.kooperation.relations.assignee.table).toBe('benutzer');
   });
 

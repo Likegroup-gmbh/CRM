@@ -46,7 +46,8 @@ describe('Briefing fieldConfig Schema', () => {
     const fields = flattenFields(FLOW_STEPS[0].sections.flatMap(s => s.fields));
     const required = fields.filter(f => f.required).map(f => f.name);
     expect(required).toContain('unternehmen_id');
-    expect(required).toContain('aktivierung_name');
+    expect(required).not.toContain('aktivierung_name');
+    expect(getAllFields().map(f => f.name)).not.toContain('aktivierung_name');
     expect(required).toContain('kampagne_id');
     expect(required).toContain('tkp');
     expect(required).not.toContain('produkt_id');

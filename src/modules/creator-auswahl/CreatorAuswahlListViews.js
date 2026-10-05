@@ -7,6 +7,7 @@ import { renderEmptyState, renderEmptyStateRow } from '../../core/components/Emp
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 import {
   renderVerknuepfungen,
   namedLinks,
@@ -215,6 +216,7 @@ export function renderBrandsView() {
               <tr>
                 <th>Name</th>
                 <th>Kampagne</th>
+                <th class="col-leistungszeitraum">Leistungszeitraum</th>
                 <th>Creator</th>
                   <th>Erstellt von</th>
                   <th>Erstellt am</th>
@@ -275,6 +277,7 @@ export function renderItemsRows(items) {
           </a>
         </td>
         <td>${kampagneName}</td>
+        ${renderLeistungszeitraumCell(liste.kampagne)}
         <td>${liste.item_count ?? 0}</td>
         <td>${this.sanitize(liste.created_by_user?.name || '-')}</td>
         <td>${formatDate(liste.created_at)}</td>
@@ -294,7 +297,7 @@ export function updateCompanyOnlyTable() {
   if (!tbody) return;
 
   if (this.companyOnlyItems.length === 0) {
-    tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine unternehmensweiten Einträge ohne Marke', 'building'), 9);
+    tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine unternehmensweiten Einträge ohne Marke', 'building'), 10);
     return;
   }
 
@@ -325,6 +328,7 @@ export function renderItemsView() {
             <tr>
               <th class="col-name ca-col-name">Name</th>
               <th class="ca-col-kampagne">Kampagne</th>
+              <th class="col-leistungszeitraum">Leistungszeitraum</th>
               <th class="ca-col-creator-count">Creator</th>
               <th class="ca-col-erstellt-von">Erstellt von</th>
               <th class="ca-col-erstellt-am">Erstellt am</th>
@@ -335,7 +339,7 @@ export function renderItemsView() {
             </tr>
           </thead>
           <tbody id="creator-auswahl-table-body">
-            <tr><td colspan="9" class="table-state-cell">Lade Casting-Listen...</td></tr>
+            <tr><td colspan="10" class="table-state-cell">Lade Casting-Listen...</td></tr>
           </tbody>
         </table>
       </div>
@@ -349,7 +353,7 @@ export function updateItemsTable() {
   if (!tbody) return;
 
   if (this.currentItems.length === 0) {
-    tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Casting-Listen für diese Marke vorhanden'), 9);
+    tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Casting-Listen für diese Marke vorhanden'), 10);
     this.pagination.updateTotal(0);
     this.pagination.render();
     return;

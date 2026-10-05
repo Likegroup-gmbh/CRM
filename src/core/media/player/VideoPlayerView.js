@@ -1,53 +1,86 @@
 // VideoPlayerView
 // Reines Rendering des Player-Bodys (Stage, Auswahl-Selects, Feedback, Nav)
 // sowie der Fallback-Ansicht fuer nicht abspielbare Formate. Liest den State
-// ueber einen schlanken Kontext (ctx = Player), erzeugt nur HTML-Strings.
+// aus der Session, erzeugt nur HTML-Strings.
+// host = VideoPlayerLightbox: session, assetLoader, currentMedia(), promote.
 
-import {
-  escapeHtml,
-  getAssetDisplayLabel,
-  toRawDropboxUrl,
-  canPreviewImageAsset,
-} from '../VideoUploadUtils.js';
-import { DOWNLOAD_ICON } from './downloadMediaAsset.js';
+import { getAssetDisplayLabel, canPreviewImageAsset } from '../../VideoUploadUtils.js';
+import { escapeHtml } from '../../format.js';
+import { DOWNLOAD_ICON } from '../downloadMediaAsset.js';
 import {
   formatVideoFeedbackValue,
   normalizeVideoFeedbackComments
-} from '../VideoFeedbackBuckets.js';
-import { ICON_PLAY, ICON_VOLUME, ICON_FS, ICON_CLOSE } from './mediaPlayerIcons.js';
+} from '../../VideoFeedbackBuckets.js';
+import { finalStills, stillVersions } from '../../stills/stillAssets.js';
+import { ICON_PLAY, ICON_VOLUME, ICON_FS, ICON_CLOSE } from '../mediaPlayerIcons.js';
+import { isRiskyFormat, itemLabel, lookupPath } from './mediaIdentity.js';
+import { storyVersions, storyFinalVariants } from './selection/story.js';
+import { stillImages, stillsForSelectedVersion, currentStillAsset } from './selection/still.js';
+import { feedbackTargetFor } from './playerFeedbackTarget.js';
 
-// Container-Formate, die im Browser haeufig nicht abspielbar sind (v. a. .mov).
-const RISKY_VIDEO_EXT = /\.(mov|avi|mkv|m4v)(?:\?|#|$)/i;
+/** <option>-Liste "Feedbackschleife N" (+ "Finale Version"). */
+function versionOptions(versions, hasFinal, selected) {
+  let options = versions.map(ver =>
+    `<option value="${ver}" ${ver === selected ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
+  ).join('');
+  if (hasFinal) {
+    options += `<option value="final" ${selected === 'final' ? 'selected' : ''}>Finale Version</option>`;
+  }
+  return options;
+}
+
+/** Versions-Select; leer, wenn es nichts zu waehlen gibt. */
+function versionSelect(cls, versions, hasFinal, selected) {
+  if (versions.length + (hasFinal ? 1 : 0) <= 1) return '';
+  return `
+      <div class="media-viewer-control">
+        <select class="${cls}">${versionOptions(versions, hasFinal, selected)}</select>
+      </div>`;
+}
+
+/** Varianten-Select mit Label; leer bei weniger als zwei Varianten. */
+function variantSelect({ cls, label, assets, selectedId, text }) {
+  if (assets.length <= 1) return '';
+  const options = assets.map(a =>
+    `<option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${escapeHtml(text(a))}</option>`
+  ).join('');
+  return `
+      <div class="media-viewer-control">
+        <label>${label}</label>
+        <select class="${cls}">${options}</select>
+      </div>`;
+}
 
 export class VideoPlayerView {
-  constructor(ctx) {
-    this.ctx = ctx;
+  constructor(host) {
+    this.host = host;
+  }
+
+  get session() {
+    return this.host.session;
   }
 
   renderBody() {
-    const item = this.ctx.current;
+    const s = this.session;
+    const item = s.current;
     if (!item) return '<div class="media-viewer-empty">Kein Inhalt gefunden.</div>';
 
     const koop = item.koop;
     const creatorName = `${koop.creator?.vorname || ''} ${koop.creator?.nachname || ''}`.trim() || 'Unbekannt';
-    const counter = `${this.ctx.index + 1} / ${this.ctx.items.length}`;
+    const counter = `${s.index + 1} / ${s.items.length}`;
 
-    let title;
     let controls;
     if (item.type === 'video') {
-      title = item.video.video_name || item.video.thema || 'Video';
       controls = `${this.renderVersionSelect()}${this.renderVariantSelect()}${this.renderPromoteControl()}`;
     } else if (item.type === 'story') {
-      title = item.slot.slot_name || `Story ${item.slot.slot_index || ''}`.trim();
       controls = this.renderStoryVersionSelect();
     } else {
-      title = getAssetDisplayLabel(this.ctx.stillAsset() || item.image) || 'Still';
       controls = `${this.renderStillVersionSelect()}${this.renderStillVariantSelect()}${this.renderPromoteControl()}`;
     }
-    title += this._typeCounter(item);
+    const title = itemLabel(item, item.type === 'bild' ? currentStillAsset(s) : null) + this._typeCounter(item);
 
-    const hasPrev = this.ctx.index > 0;
-    const hasNext = this.ctx.index >= 0 && this.ctx.index < this.ctx.items.length - 1;
+    const hasPrev = s.index > 0;
+    const hasNext = s.index >= 0 && s.index < s.items.length - 1;
 
     return `
       <div class="vpl-stage media-viewer-stage">${this.renderStageInner()}</div>
@@ -73,7 +106,7 @@ export class VideoPlayerView {
   // Items (gleicher type, gleicher Creator) in der flachen Medienliste. Leer,
   // wenn es nur ein Medium dieses Typs beim Creator gibt.
   _typeCounter(item) {
-    const same = this.ctx.items.filter(
+    const same = this.session.items.filter(
       it => it.type === item.type && it.koop?.id === item.koop?.id
     );
     const pos = same.indexOf(item) + 1;
@@ -81,22 +114,23 @@ export class VideoPlayerView {
   }
 
   renderStageInner() {
-    if (this.ctx.loading) {
+    const s = this.session;
+    if (s.loading) {
       return `<div class="media-viewer-loading"><div class="media-viewer-spinner"></div><span>Wird geladen...</span></div>`;
     }
 
-    const item = this.ctx.current;
+    const item = s.current;
     if (item?.type === 'bild') {
-      const asset = this.ctx.stillAsset?.() || item.image;
+      const asset = currentStillAsset(s) || item.image;
       if (!canPreviewImageAsset(asset)) return this.renderImageNotPreviewable(asset);
-      if (this.ctx.src) {
-        return `<img class="vpl-image" src="${escapeHtml(this.ctx.src)}" alt="${escapeHtml(getAssetDisplayLabel(asset) || 'Bild')}">`;
+      if (s.src) {
+        return `<img class="vpl-image" src="${escapeHtml(s.src)}" alt="${escapeHtml(getAssetDisplayLabel(asset) || 'Bild')}">`;
       }
       return `<div class="media-viewer-empty"><span>Bild kann nicht geladen werden.</span></div>`;
     }
 
-    if (this.ctx.src) {
-      const previewSrc = this.ctx.src + (this.ctx.src.includes('#') ? '' : '#t=0.1');
+    if (s.src) {
+      const previewSrc = s.src + (s.src.includes('#') ? '' : '#t=0.1');
       return `
         <video class="vpl-video" playsinline preload="auto" src="${escapeHtml(previewSrc)}"></video>
         <div class="vpl-controls">
@@ -133,8 +167,8 @@ export class VideoPlayerView {
   // Proaktiver Hinweis bei riskanten Containerformaten (z. B. .mov), die in
   // manchen Browsern nicht abspielen – ohne den Player zu blockieren.
   _formatHint() {
-    const path = this.ctx.currentMediaPath?.() || '';
-    if (!RISKY_VIDEO_EXT.test(path)) return '';
+    const path = lookupPath(this.host.currentMedia()?.lookup);
+    if (!isRiskyFormat(path)) return '';
     return `<div class="vpl-format-hint">
         <span class="vpl-format-hint-text">Falls das Video nicht abspielt, lädt es ggf. nur in einem anderen Browser oder per Download (z.&nbsp;B. .mov in Chrome/Firefox).</span>
         <button type="button" class="vpl-format-hint-close" aria-label="Hinweis schließen">${ICON_CLOSE}</button>
@@ -154,127 +188,83 @@ export class VideoPlayerView {
   }
 
   renderVersionSelect() {
-    const item = this.ctx.current;
-    const comments = this.ctx.table.videoComments[item.video.id];
-    const versions = this.ctx.assetLoader.combinedVersions(this.ctx.assets, comments);
-    const hasFinal = this.ctx.assetLoader.finalVariants(this.ctx.assets).length > 0;
-    if (versions.length + (hasFinal ? 1 : 0) <= 1) return '';
-    let options = versions.map(ver =>
-      `<option value="${ver}" ${ver === this.ctx.selectedVersion ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
-    ).join('');
-    if (hasFinal) {
-      options += `<option value="final" ${this.ctx.selectedVersion === 'final' ? 'selected' : ''}>Finale Version</option>`;
-    }
-    return `
-      <div class="media-viewer-control">
-        <select class="player-version-select">${options}</select>
-      </div>`;
-  }
-
-  renderStillVersionSelect() {
-    const images = this.ctx.stillImages();
-    const versions = this.ctx.stillVersions(images);
-    const hasFinal = this.ctx.stillFinalVariants(images).length > 0;
-    if (versions.length + (hasFinal ? 1 : 0) <= 1) return '';
-    let options = versions.map(ver =>
-      `<option value="${ver}" ${ver === this.ctx.stillVersion ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
-    ).join('');
-    if (hasFinal) {
-      options += `<option value="final" ${this.ctx.stillVersion === 'final' ? 'selected' : ''}>Finale Version</option>`;
-    }
-    return `
-      <div class="media-viewer-control">
-        <select class="still-version-select">${options}</select>
-      </div>`;
-  }
-
-  renderStillVariantSelect() {
-    const variants = this.ctx.stillsForSelectedVersion();
-    if (variants.length <= 1) return '';
-    const options = variants.map(a =>
-      `<option value="${a.id}" ${a.id === this.ctx.stillAssetId ? 'selected' : ''}>${escapeHtml(getAssetDisplayLabel(a) || 'Still')}</option>`
-    ).join('');
-    return `
-      <div class="media-viewer-control">
-        <label>Still</label>
-        <select class="still-variant-select">${options}</select>
-      </div>`;
-  }
-
-  renderPromoteControl() {
-    if (this.ctx.table?.isKundeRole?.()) return '';
-    const item = this.ctx.current;
-    if (!item || item.type === 'story') return '';
-    if (item.type === 'video' && this.ctx.selectedVersion === 'final') return '';
-    if (item.type === 'bild' && this.ctx.stillVersion === 'final') return '';
-    const html = this.ctx.renderPromoteMenuHtml?.();
-    return html || '';
+    const s = this.session;
+    const { assetLoader } = this.host;
+    const comments = s.table.videoComments[s.current.video.id];
+    return versionSelect(
+      'player-version-select',
+      assetLoader.combinedVersions(s.assets, comments),
+      assetLoader.finalVariants(s.assets).length > 0,
+      s.video.version
+    );
   }
 
   renderVariantSelect() {
-    const variants = this.ctx.assetLoader.variantsForVersion(this.ctx.assets, this.ctx.selectedVersion);
-    if (variants.length <= 1) return '';
-    const options = variants.map(a =>
-      `<option value="${a.id}" ${a.id === this.ctx.selectedAssetId ? 'selected' : ''}>${escapeHtml(a.variant_name || 'Variante')}</option>`
-    ).join('');
-    return `
-      <div class="media-viewer-control">
-        <label>Variante</label>
-        <select class="player-variant-select">${options}</select>
-      </div>`;
+    const s = this.session;
+    return variantSelect({
+      cls: 'player-variant-select',
+      label: 'Variante',
+      assets: this.host.assetLoader.variantsForVersion(s.assets, s.video.version),
+      selectedId: s.video.assetId,
+      text: a => a.variant_name || 'Variante',
+    });
+  }
+
+  renderStillVersionSelect() {
+    const s = this.session;
+    const images = stillImages(s);
+    return versionSelect(
+      'still-version-select',
+      stillVersions(images),
+      finalStills(images).length > 0,
+      s.still.version
+    );
+  }
+
+  renderStillVariantSelect() {
+    const s = this.session;
+    return variantSelect({
+      cls: 'still-variant-select',
+      label: 'Still',
+      assets: stillsForSelectedVersion(s),
+      selectedId: s.still.assetId,
+      text: a => getAssetDisplayLabel(a) || 'Still',
+    });
   }
 
   renderStoryVersionSelect() {
-    const slot = this.ctx.current.slot;
-    const versions = this.ctx.storyVersions(slot);
-    const finals = this.ctx.storyFinalVariants(slot);
-    const hasFinal = finals.length > 0;
-    if (versions.length + (hasFinal ? 1 : 0) <= 1) return '';
-    let options = versions.map(ver =>
-      `<option value="${ver}" ${ver === this.ctx.storyVersion ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
-    ).join('');
-    if (hasFinal) {
-      options += `<option value="final" ${this.ctx.storyVersion === 'final' ? 'selected' : ''}>Finale Version</option>`;
-    }
-    return `
-      <div class="media-viewer-control">
-        <select class="story-version-select">${options}</select>
-      </div>${this.renderStoryFinalVariantSelect(finals)}`;
+    const s = this.session;
+    const slot = s.current.slot;
+    const finals = storyFinalVariants(slot);
+    const select = versionSelect('story-version-select', storyVersions(slot), finals.length > 0, s.story.version);
+    if (!select) return '';
+    return select + this.renderStoryFinalVariantSelect(finals);
   }
 
   // Varianten-Select (9:16 / 4:5) fuer die finale Story-Version
   renderStoryFinalVariantSelect(finals) {
-    if (this.ctx.storyVersion !== 'final' || finals.length <= 1) return '';
-    const selectedId = this.ctx.storyFinalAssetId || finals[0]?.id;
-    const options = finals.map(a =>
-      `<option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${escapeHtml(a.variant_name || 'Variante')}</option>`
-    ).join('');
-    return `
-      <div class="media-viewer-control">
-        <label>Variante</label>
-        <select class="story-final-variant-select">${options}</select>
-      </div>`;
+    const s = this.session;
+    if (s.story.version !== 'final') return '';
+    return variantSelect({
+      cls: 'story-final-variant-select',
+      label: 'Variante',
+      assets: finals,
+      selectedId: s.story.finalAssetId || finals[0]?.id,
+      text: a => a.variant_name || 'Variante',
+    });
   }
 
-  renderThumbs() {
-    const images = this.ctx.current.koop._bilder || [];
-    if (images.length <= 1) return '';
-    const currentId = this.ctx.current.image.id;
-    const thumbs = images.map(img => {
-      const itemIndex = this.ctx.items.findIndex(it => it.type === 'bild' && it.image.id === img.id);
-      const label = getAssetDisplayLabel(img);
-      const inner = canPreviewImageAsset(img)
-        ? `<img src="${escapeHtml(toRawDropboxUrl(img.file_url) || '')}" alt="${escapeHtml(label)}" loading="lazy">`
-        : `<span class="media-gallery-thumb-label">${escapeHtml(label)}</span>`;
-      return `<button type="button" class="media-gallery-thumb ${img.id === currentId ? 'active' : ''}" data-item-index="${itemIndex}">
-        ${inner}
-      </button>`;
-    }).join('');
-    return `<div class="media-gallery-thumbs">${thumbs}</div>`;
+  renderPromoteControl() {
+    const s = this.session;
+    if (s.table?.isKundeRole?.()) return '';
+    const item = s.current;
+    if (!item || item.type === 'story') return '';
+    return this.host.promote.html() || '';
   }
 
   renderFeedback() {
-    const ft = this.ctx.feedbackTarget();
+    const s = this.session;
+    const ft = feedbackTargetFor(s);
     if (!ft) {
       return `
         <div class="media-viewer-feedback">
@@ -292,15 +282,15 @@ export class VideoPlayerView {
     if (!target.slot) return '';
 
     const commentsMap = kind === 'still'
-      ? (this.ctx.table.stillComments || {})
-      : this.ctx.table.videoComments;
+      ? (s.table.stillComments || {})
+      : s.table.videoComments;
     const comments = normalizeVideoFeedbackComments(commentsMap[videoId]);
     const ownValue = formatVideoFeedbackValue(comments, target.slot.bucket);
     const counterpartValue = target.counterpartSlot
       ? formatVideoFeedbackValue(comments, target.counterpartSlot.bucket)
       : '';
 
-    const editable = !target.readonly && this.ctx.table.isFieldEditableForUser('video', target.slot.field);
+    const editable = !target.readonly && s.table.isFieldEditableForUser('video', target.slot.field);
 
     const counterpartHtml = counterpartValue
       ? `<div class="media-viewer-feedback-context">

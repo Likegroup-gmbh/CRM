@@ -7,7 +7,7 @@ import { collectEhgFelder } from './EhgVertragGating.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
 import { statusOnFinalize } from '../vertragStatus.js';
 import { missingRequiredFields } from './vertragStepValidation.js';
-import { backTarget } from '../../../core/navHerkunft.js';
+import { backTarget } from '../../../core/breadcrumbTrail.js';
 
 VertraegeCreate.prototype.saveDraftToDB = async function() {
     // Erst aktuelle Formulardaten sammeln!

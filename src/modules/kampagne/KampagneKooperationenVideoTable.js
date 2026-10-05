@@ -6,7 +6,7 @@ import { VideoTableFieldHandler } from './VideoTableFieldHandler.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
 import { LinkSkriptDrawer } from '../skripte/LinkSkriptDrawer.js';
-import { VideoPlayerLightbox } from '../../core/media/VideoPlayerLightbox.js';
+import { VideoPlayerLightbox } from '../../core/media/player/VideoPlayerLightbox.js';
 import { VideoFeedbackSaveController } from '../../core/videoFeedback/VideoFeedbackSaveController.js';
 import { VideoFeedbackBinding } from './VideoFeedbackBinding.js';
 import { VideoTableEventBinder } from './VideoTableEventBinder.js';

@@ -72,7 +72,7 @@ describe('navigateToNewKooperationFromKampagne', () => {
     expect(window.navigateTo).toHaveBeenCalledWith('/kooperation/new?kampagne_id=kamp-1');
   });
 
-  it('hängt von mit Tab Produktion an, wenn die Buchung aus der Produktion kommt', () => {
+  it('gibt die Produktion als Prefill mit, die Herkunft steckt im Klickpfad', () => {
     navigateToNewKooperationFromKampagne('kamp-1', {
       kampagnenname: 'Sommer',
       unternehmen_id: 'u1'
@@ -83,7 +83,7 @@ describe('navigateToNewKooperationFromKampagne', () => {
     expect(url.pathname).toBe('/kooperation/new');
     expect(url.searchParams.get('kampagne_id')).toBe('kamp-1');
     expect(url.searchParams.get('produktion_id')).toBe('p1');
-    expect(url.searchParams.get('von')).toBe('/produktion/p1?tab=produktion');
+    expect(url.searchParams.has('von')).toBe(false);
   });
 
   it('nutzt kampagneDetail wenn keine Daten übergeben wurden', () => {

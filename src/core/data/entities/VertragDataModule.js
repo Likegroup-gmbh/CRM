@@ -1,32 +1,4 @@
 export default {
-  config: {
-    table: 'vertraege',
-    displayField: 'name',
-    fields: {
-      name: 'string',
-      typ: 'string',
-      kunde_unternehmen_id: 'uuid',
-      kampagne_id: 'uuid',
-      produktion_id: 'uuid',
-      creator_id: 'uuid',
-      kooperation_id: 'uuid',
-      contracting_auftrag_id: 'uuid',
-      is_draft: 'boolean',
-      mehrere_rechnungen_erlaubt: 'boolean',
-      status: 'string',
-      created_at: 'date'
-    },
-    relations: {
-      kunde: { table: 'unternehmen', foreignKey: 'kunde_unternehmen_id', displayField: 'firmenname' },
-      kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'kampagnenname' },
-      creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
-      contracting_auftrag: { table: 'auftrag', foreignKey: 'contracting_auftrag_id', displayField: 'auftragsname' }
-    },
-    filters: ['typ', 'kunde_unternehmen_id', 'kampagne_id', 'creator_id', 'contracting_auftrag_id', 'status'],
-    sortBy: 'created_at',
-    sortOrder: 'desc'
-  },
-
   async loadFilterDataOverride(supabase) {
     const CACHE_KEY = 'vertrag_filter_options';
     const CACHE_TTL = 5 * 60 * 1000;

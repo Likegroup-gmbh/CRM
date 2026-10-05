@@ -14,6 +14,7 @@ import {
 import { bindEvents as _bindEvents } from './SkriptListEvents.js';
 import { OHNE_QUERY, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL } from './SkripteUtils.js';
 import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
 
 export { OHNE_QUERY, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL };
 
@@ -148,7 +149,7 @@ export class SkriptList {
 
   syncListUrl() {
     const url = this.listUrl();
-    window.history.replaceState({ route: url }, '', url);
+    replaceRoute(url);
   }
 
   async loadAndRender() {

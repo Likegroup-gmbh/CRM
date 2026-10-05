@@ -6,7 +6,6 @@
 
 import { loadProdukteForBriefing } from '../BriefingProdukte.js';
 import { OHNE_QUERY } from '../BriefingFolders.js';
-import { showProduktionLeaf } from '../../../core/navHerkunft.js';
 
 export class BriefingCreate {
   constructor() {
@@ -43,10 +42,7 @@ BriefingCreate.prototype.init = async function(editId = null) {
   window.setHeadline(editId ? 'Briefing bearbeiten' : 'Neues Briefing');
 
   const crumbLabel = editId ? 'Bearbeiten' : 'Neues Briefing';
-  const shown = await showProduktionLeaf(crumbLabel);
-  if (!shown && window.breadcrumbSystem) {
-    window.breadcrumbSystem.updateDetailLabel(crumbLabel);
-  }
+  window.breadcrumbSystem?.updateDetailLabel(crumbLabel);
 
   const { canEdit } = this.getBriefingPermissions();
   if (!canEdit) {
@@ -121,6 +117,7 @@ BriefingCreate.prototype.loadStammdaten = async function() {
     this.kampagnen = (kampagnen || []).map(k => ({
       id: k.id,
       label: k.eigener_name || k.kampagnenname || 'Unbenannte Kampagne',
+      kampagnenname: k.kampagnenname || '',
       unternehmen_id: k.unternehmen_id,
       marke_id: k.marke_id
     }));

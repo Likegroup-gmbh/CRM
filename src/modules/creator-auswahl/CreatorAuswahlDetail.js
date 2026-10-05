@@ -27,7 +27,6 @@ import { castingDetailTableUxMethods } from './CastingDetailTableUx.js';
 import { castingDetailRowActionsMethods } from './CastingDetailRowActions.js';
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
-import { showProduktionLeaf } from '../../core/navHerkunft.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -132,8 +131,7 @@ export class CreatorAuswahlDetail {
       this.loadColumnVisibilitySettings();
 
       if (!this.embedded && window.breadcrumbSystem && this.liste) {
-        const shown = await showProduktionLeaf(this.liste.name);
-        if (!shown) window.breadcrumbSystem.updateDetailLabel(this.liste.name);
+        window.breadcrumbSystem.updateDetailLabel(this.liste.name);
       }
 
       if (this.items.length === 0 && !this.personas.length && !this.isKunde && this._canSourcing('create')) {

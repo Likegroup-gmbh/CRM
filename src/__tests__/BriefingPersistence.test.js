@@ -123,7 +123,7 @@ describe('Briefing DataPersistence', () => {
   it('saveCurrentStepData sammelt Felder typgerecht aus dem DOM', () => {
     document.body.innerHTML = `
       <form id="briefing-form">
-        <input type="text" name="aktivierung_name" value="Summer Glow">
+        <input type="text" name="aktivierung_name" value="Fremdwert">
         <input type="checkbox" name="nischen" value="beauty" checked>
         <input type="checkbox" name="nischen" value="fashion">
         <input type="text" name="creator_merkmale__alter" value="25-34">
@@ -138,7 +138,7 @@ describe('Briefing DataPersistence', () => {
     const instance = createInstance();
     instance.saveCurrentStepData();
 
-    expect(instance.formData.aktivierung_name).toBe('Summer Glow');
+    expect(instance.formData).not.toHaveProperty('aktivierung_name');
     expect(instance.formData.nischen).toEqual(['beauty']);
     expect(instance.formData.creator_merkmale).toEqual({
       alter: '25-34', geschlecht: '', standort: ''
@@ -261,6 +261,35 @@ describe('Briefing DataPersistence', () => {
     expect(data.videolaenge_bis).toBeNull();
     expect(data).not.toHaveProperty('videolaenge');
     expect(data).not.toHaveProperty('pa_videolaengen');
+  });
+
+  it('prepareDataForDB nimmt den Namen aus formData (Drawer, Bestand), sonst den Kampagnennamen', () => {
+    const instance = createInstance();
+    instance.kampagnen = [{ id: 'k1', label: 'Anzeige', kampagnenname: 'Projekt A' }];
+
+    instance.formData = { kampagne_id: 'k1', aktivierung_name: 'Projekt A – Serum' };
+    expect(instance.prepareDataForDB().aktivierung_name).toBe('Projekt A – Serum');
+
+    instance.formData = { kampagne_id: 'k1' };
+    expect(instance.prepareDataForDB().aktivierung_name).toBe('Projekt A');
+
+    instance.formData = {};
+    instance._produktionKontext = { kampagneId: 'k1' };
+    expect(instance.prepareDataForDB().aktivierung_name).toBe('Projekt A');
+  });
+
+  it('handleSubmit bricht ab, wenn die Kampagne keinen Projektnamen liefert', async () => {
+    const { sb, calls } = mockSupabase();
+    window.supabase = sb;
+
+    const instance = createInstance();
+    instance.kampagnen = [{ id: 'k1', label: 'Anzeige', kampagnenname: '' }];
+    instance.formData = { unternehmen_id: 'u1', kampagne_id: 'k1' };
+
+    await instance.handleSubmit();
+
+    expect(calls.insert.length).toBe(0);
+    expect(window.toastSystem.show).toHaveBeenCalledWith(expect.stringContaining('Projektnamen'), 'warning');
   });
 
   it('prepareDataForDB schreibt das Sekundenintervall und lässt Altspalten weg', () => {
