@@ -75,8 +75,11 @@ export class KooperationEditLoader {
     this._enableNativeSelect(form, 'creator_id');
 
     const totalVideos = await this._getKampagneTotalVideosWithBlocks(kampagne);
+    // usedVideos zählt nur die anderen Kooperationen (neq auf die eigene id).
+    // Die eigene videoanzahl darf deshalb nicht noch einmal gutgeschrieben
+    // werden, sonst lässt der Stepper mehr zu als die Limit-Prüfung beim Speichern.
     const usedVideos = (andereKooperationen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-    const remainingVideos = Math.max(0, totalVideos - usedVideos + (parseInt(data?.videoanzahl, 10) || 0));
+    const remainingVideos = Math.max(0, totalVideos - usedVideos);
     const isUnlimited = totalVideos === 0;
 
     this._initVideoStepper(form, data?.videoanzahl, remainingVideos, isUnlimited);
