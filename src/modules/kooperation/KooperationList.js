@@ -869,8 +869,12 @@ export class KooperationList {
       const result = await window.dataService.createEntity('kooperation', submitData);
       // Speichere Video-Items in Verknüpfungstabelle
       if (result.success && window.formSystem) {
-        await window.formSystem.handleKooperationVideos(result.id, form);
+        const videoResult = await window.formSystem.handleKooperationVideos(result.id, form);
         await window.formSystem.handleKooperationTags(result.id, form);
+        if (videoResult && videoResult.success === false) {
+          this.showErrorMessage(`Kooperation gespeichert, Videos fehlgeschlagen: ${videoResult.error || 'Videos konnten nicht gespeichert werden'}`);
+          return;
+        }
       }
       
       if (result.success) {

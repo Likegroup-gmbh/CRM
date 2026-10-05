@@ -105,10 +105,10 @@ export class FormVideoHandler {
   // Haupt-Einstiegspunkt: Videos anlegen (Create) oder mit Stepper-Daten mergen (Edit).
   async handleKooperationVideos(kooperationId, form) {
     try {
-      if (!window.supabase) return;
+      if (!window.supabase) return { success: true };
 
       const videoanzahl = parseInt(form.querySelector('[name="videoanzahl"]')?.value || '0', 10);
-      if (videoanzahl <= 0) return;
+      if (videoanzahl <= 0) return { success: true };
 
       const contentArtFallback = null;
       const isEditMode = !!form.dataset.entityId;
@@ -120,8 +120,10 @@ export class FormVideoHandler {
       } else {
         await this._createKooperationVideos(kooperationId, videoanzahl, manualRows, contentArtFallback);
       }
+      return { success: true };
     } catch (error) {
       console.error('❌ Fehler in handleKooperationVideos:', error);
+      return { success: false, error: error.message || 'Videos konnten nicht gespeichert werden' };
     }
   }
 
@@ -131,16 +133,19 @@ export class FormVideoHandler {
     if (!list) return [];
 
     return Array.from(list.querySelectorAll('.video-item')).map((el, idx) => {
-      const id = el.getAttribute('data-video-id');
-      const contentArt = form.querySelector(`select[name="video_content_art_${id}"]`)?.value || null;
-      const kampagnenart = form.querySelector(`select[name="video_kampagnenart_${id}"]`)?.value || null;
-      const ekRaw = form.querySelector(`input[name="video_ek_netto_${id}"]`)?.value;
+      const rawId = el.getAttribute('data-video-id');
+      const id = rawId && !String(rawId).startsWith('video-') ? rawId : null;
+      const fieldKey = rawId || '';
+      const contentArt = form.querySelector(`select[name="video_content_art_${fieldKey}"]`)?.value || null;
+      const kampagnenart = form.querySelector(`select[name="video_kampagnenart_${fieldKey}"]`)?.value || null;
+      const ekRaw = form.querySelector(`input[name="video_ek_netto_${fieldKey}"]`)?.value;
       const einkaufspreis = (ekRaw !== null && ekRaw !== undefined && ekRaw !== '') ? parseFloat(ekRaw) : 0;
-      const vkRaw = form.querySelector(`input[name="video_vk_netto_${id}"]`)?.value;
+      const vkRaw = form.querySelector(`input[name="video_vk_netto_${fieldKey}"]`)?.value;
       const verkaufspreis = (vkRaw !== null && vkRaw !== undefined && vkRaw !== '') ? parseFloat(vkRaw) : 0;
-      const skriptDeadlineRaw = form.querySelector(`input[name="video_skript_deadline_${id}"]`)?.value;
-      const contentDeadlineRaw = form.querySelector(`input[name="video_content_deadline_${id}"]`)?.value;
+      const skriptDeadlineRaw = form.querySelector(`input[name="video_skript_deadline_${fieldKey}"]`)?.value;
+      const contentDeadlineRaw = form.querySelector(`input[name="video_content_deadline_${fieldKey}"]`)?.value;
       return {
+        id,
         kooperation_id: kooperationId,
         content_art: contentArt,
         kampagnenart: kampagnenart,
@@ -179,13 +184,13 @@ export class FormVideoHandler {
       .select('id, content_art, position');
 
     if (error) {
-      console.error('❌ Fehler beim Erstellen der Videos:', error);
-    } else {
-      console.log(`✅ ${inserted?.length || 0} Videos für Kooperation ${kooperationId} erstellt`);
+      throw new Error(error.message || 'Videos konnten nicht erstellt werden');
     }
+    console.log(`✅ ${inserted?.length || 0} Videos für Kooperation ${kooperationId} erstellt`);
   }
 
-  // Edit-Mode: Smart-Merge -- bestehende Videos erhalten, fehlende hinzufügen, überzählige entfernen
+  // Edit-Mode: bestehende Videos über ihre ID erhalten, neue anlegen, entfernte löschen.
+  // Index-Zuordnung würde eine neue Zeile vorne mit dem ersten bestehenden Video verwechseln.
   async _mergeKooperationVideos(kooperationId, videoanzahl, manualRows, contentArtFallback) {
     const { data: existing, error: loadErr } = await window.supabase
       .from('kooperation_videos')
@@ -194,17 +199,34 @@ export class FormVideoHandler {
       .order('position', { ascending: true });
 
     if (loadErr) {
-      console.error('❌ Fehler beim Laden bestehender Videos:', loadErr);
-      return;
+      throw new Error(loadErr.message || 'Bestehende Videos konnten nicht geladen werden');
     }
 
     const existingVideos = existing || [];
-    const currentCount = existingVideos.length;
+    const existingById = new Map(existingVideos.map(video => [String(video.id), video]));
+    const persisted = [];
+    const fresh = [];
 
-    const updatePromises = existingVideos.slice(0, videoanzahl).map((video, idx) => {
-      const manual = manualRows[idx];
-      if (!manual) return null;
+    manualRows.forEach((manual, idx) => {
+      const row = { ...manual, position: idx + 1 };
+      if (row.id && existingById.has(String(row.id))) persisted.push(row);
+      else fresh.push(row);
+    });
 
+    while (persisted.length + fresh.length < videoanzahl) {
+      fresh.push({
+        position: persisted.length + fresh.length + 1,
+        content_art: contentArtFallback,
+        kampagnenart: null,
+        einkaufspreis_netto: 0,
+        verkaufspreis_netto: 0,
+        skript_deadline: null,
+        content_deadline: null
+      });
+    }
+
+    const updatePromises = persisted.map(manual => {
+      const video = existingById.get(String(manual.id));
       const updates = {};
       if ((manual.content_art || null) !== (video.content_art || null)) {
         updates.content_art = manual.content_art || null;
@@ -218,14 +240,13 @@ export class FormVideoHandler {
       if (manual.verkaufspreis_netto !== video.verkaufspreis_netto) {
         updates.verkaufspreis_netto = manual.verkaufspreis_netto;
       }
-      // Deadlines immer durchreichen (auch null, damit gezielt geleert werden kann)
       if ((manual.skript_deadline || null) !== (video.skript_deadline || null)) {
         updates.skript_deadline = manual.skript_deadline || null;
       }
       if ((manual.content_deadline || null) !== (video.content_deadline || null)) {
         updates.content_deadline = manual.content_deadline || null;
       }
-      updates.position = idx + 1;
+      updates.position = manual.position;
 
       if (Object.keys(updates).length === 1 && updates.position === video.position) return null;
 
@@ -236,41 +257,39 @@ export class FormVideoHandler {
     }).filter(Boolean);
 
     if (updatePromises.length > 0) {
-      await Promise.all(updatePromises);
+      const results = await Promise.all(updatePromises);
+      const failedUpdate = results.find(result => result?.error);
+      if (failedUpdate?.error) {
+        throw new Error(failedUpdate.error.message || 'Bestehende Videos konnten nicht aktualisiert werden');
+      }
       console.log(`✅ ${updatePromises.length} bestehende Videos aktualisiert`);
     }
 
-    if (currentCount > videoanzahl) {
-      const toRemove = existingVideos.slice(videoanzahl).map(v => v.id);
-      const results = await Promise.allSettled(
-        toRemove.map(id => deleteVideoFull(id))
-      );
-      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value?.success));
+    const keptIds = new Set(persisted.map(row => String(row.id)));
+    const toRemove = existingVideos.filter(video => !keptIds.has(String(video.id))).map(video => video.id);
+    if (toRemove.length > 0) {
+      const results = await Promise.allSettled(toRemove.map(id => deleteVideoFull(id)));
+      const failed = results.filter(result => result.status === 'rejected' || (result.status === 'fulfilled' && !result.value?.success));
       if (failed.length > 0) {
-        console.error(`❌ ${failed.length} von ${toRemove.length} Videos konnten nicht vollständig gelöscht werden`);
-      } else {
-        console.log(`✅ ${toRemove.length} überzählige Videos entfernt (inkl. Dropbox + Assets)`);
+        throw new Error(`${failed.length} von ${toRemove.length} Videos konnten nicht gelöscht werden`);
       }
+      console.log(`✅ ${toRemove.length} überzählige Videos entfernt (inkl. Dropbox + Assets)`);
     }
 
-    if (videoanzahl > currentCount) {
-      const newRows = [];
-      for (let i = currentCount; i < videoanzahl; i++) {
-        const manual = manualRows[i];
-        newRows.push({
-          kooperation_id: kooperationId,
-          content_art: manual?.content_art || contentArtFallback,
-          kampagnenart: manual?.kampagnenart || null,
-          einkaufspreis_netto: manual?.einkaufspreis_netto || 0,
-          verkaufspreis_netto: manual?.verkaufspreis_netto || 0,
-          skript_deadline: manual?.skript_deadline || null,
-          content_deadline: manual?.content_deadline || null,
-          titel: null,
-          asset_url: null,
-          kommentar: null,
-          position: i + 1
-        });
-      }
+    if (fresh.length > 0) {
+      const newRows = fresh.map(manual => ({
+        kooperation_id: kooperationId,
+        content_art: manual.content_art || contentArtFallback,
+        kampagnenart: manual.kampagnenart || null,
+        einkaufspreis_netto: manual.einkaufspreis_netto || 0,
+        verkaufspreis_netto: manual.verkaufspreis_netto || 0,
+        skript_deadline: manual.skript_deadline || null,
+        content_deadline: manual.content_deadline || null,
+        titel: null,
+        asset_url: null,
+        kommentar: null,
+        position: manual.position
+      }));
 
       const { error: insErr } = await window.supabase
         .from('kooperation_videos')
@@ -278,10 +297,9 @@ export class FormVideoHandler {
         .select('id, content_art, position');
 
       if (insErr) {
-        console.error('❌ Fehler beim Hinzufügen neuer Videos:', insErr);
-      } else {
-        console.log(`✅ ${newRows.length} neue Videos hinzugefügt (Position ${currentCount + 1}-${videoanzahl})`);
+        throw new Error(insErr.message || 'Neue Videos konnten nicht hinzugefügt werden');
       }
+      console.log(`✅ ${newRows.length} neue Videos hinzugefügt`);
     }
   }
 }

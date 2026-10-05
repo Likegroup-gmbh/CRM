@@ -88,7 +88,7 @@ export class FormSearchableSelect {
     if (!options || options.length === 0) {
       options = Array.from(selectElement.options)
         .slice(1)
-        .map(o => ({ value: o.value, label: o.textContent }));
+        .map(o => ({ value: o.value, label: o.textContent, selected: o.selected }));
     }
     return this.createSimpleSearchableSelect(selectElement, options, field);
   }
@@ -193,7 +193,8 @@ export class FormSearchableSelect {
     container.appendChild(dropdown);
     container.appendChild(hiddenInput);
 
-    const selectedOption = options.find(option => option.selected);
+    const selectedOption = options.find(option => option.selected)
+      || options.find(option => option.value === initialValue);
     if (selectedOption) {
       if (isPhoneField && selectedOption.isoCode) {
         const flagEmoji = this.isoToFlagEmoji(selectedOption.isoCode);
