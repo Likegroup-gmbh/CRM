@@ -159,6 +159,44 @@ describe('Kooperation bearbeiten', () => {
     expect(video.querySelector('.video-content-select').value).toBe('Reel');
   });
 
+  // Der Stepper darf nur so weit hochzählen, wie die Prüfung beim Speichern
+  // durchlässt. Sonst bricht "Aktualisieren" ohne sichtbare Wirkung ab.
+  it('lässt den Stepper nur so weit zählen wie die Limit-Prüfung erlaubt', async () => {
+    const tables = editTables();
+    tables.kampagne[0].videoanzahl = 10;
+    tables.kooperationen = [{ id: 'koop-other', kampagne_id: IDS.kampagne, videoanzahl: 9 }];
+    window.supabase = createSupabase(tables);
+
+    const renderer = new FormRenderer();
+    const config = new FormConfig();
+    renderer.getFormConfig = config.getFormConfig.bind(config);
+
+    const data = {
+      id: IDS.kooperation,
+      _isEditMode: true,
+      _entityId: IDS.kooperation,
+      videoanzahl: 1,
+      unternehmen_id: IDS.unternehmen,
+      marke_id: IDS.marke,
+      kampagne_id: IDS.kampagne,
+      creator_id: IDS.creator
+    };
+
+    document.body.innerHTML = renderer.renderFormOnly('kooperation', data);
+    const form = document.getElementById('kooperation-form');
+    await new KooperationEditLoader().load(form, data);
+
+    const videoInput = form.querySelector('input[name="videoanzahl"]');
+    expect(videoInput.max).toBe('1');
+
+    const limit = await new FormVideoHandler().validateKooperationVideoLimit(
+      form,
+      { kampagne_id: IDS.kampagne, videoanzahl: videoInput.max },
+      IDS.kooperation
+    );
+    expect(limit.isValid).toBe(true);
+  });
+
   it('behält die Datenbank-ID an der Videozeile', () => {
     const list = document.createElement('div');
     addVideoRow(list, ['Reel'], {

@@ -949,6 +949,9 @@ export class KooperationList {
 
   // Zeige Fehlermeldung
   showErrorMessage(message) {
+    // Toast zuerst: die Meldung am Formularkopf liegt beim Absenden ausserhalb
+    // des Sichtbereichs, ein abgebrochenes Speichern sah deshalb aus wie nichts.
+    window.toastSystem?.show(message, 'error');
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert alert-danger';
     alertDiv.textContent = message;
@@ -956,6 +959,7 @@ export class KooperationList {
     const form = document.getElementById('kooperation-form');
     if (form) {
       form.parentNode.insertBefore(alertDiv, form);
+      alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
       
       setTimeout(() => {
         alertDiv.remove();
