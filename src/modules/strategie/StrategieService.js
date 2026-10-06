@@ -37,14 +37,20 @@ export class StrategieService {
       return filtered;
     }
 
-    // Für Mitarbeiter: erlaubte Kampagnen ermitteln
+    // Mitarbeiter: Kampagnen-Zuordnung ODER freigeschaltetes Unternehmen.
+    // Konzepte ohne kampagne_id (nur unternehmen_id) erscheinen sonst nur
+    // auf der Unternehmensseite, nicht unter /konzepte.
     const allowedKampagneIds = await this._getAllowedKampagneIds(user);
+    const allowedUnternehmenIds = await window.dataScopeService?.getAllowedUnternehmenIds?.();
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
 
     const allStrategien = await this._fetchAllStrategien();
-    const filtered = allStrategien.filter(
-      (s) => s.kampagne_id && allowedKampagneIds.includes(s.kampagne_id)
-    );
+    const filtered = allStrategien.filter((s) => {
+      if (s.kampagne_id && allowedKampagneIds.includes(s.kampagne_id)) return true;
+      if (allowedUnternehmenIds === null) return true;
+      if (s.unternehmen_id && allowedUnternehmenIds?.includes(s.unternehmen_id)) return true;
+      return false;
+    });
 
     console.log(`🔐 Strategien gefiltert: ${filtered.length} von ${allStrategien.length}`);
     return filtered;
