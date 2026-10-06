@@ -41,13 +41,19 @@ export class CreatorAuswahlService {
       return filtered;
     }
 
+    // Kampagnen-Zuordnung ODER freigeschaltetes Unternehmen: Listen ohne
+    // kampagne_id erscheinen sonst nur auf der Unternehmensseite.
     const allowedKampagneIds = await this._getAllowedKampagneIds(user);
+    const allowedUnternehmenIds = await window.dataScopeService?.getAllowedUnternehmenIds?.();
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
 
     const allListen = await this._fetchAllListen();
-    const filtered = allListen.filter(
-      (l) => l.kampagne_id && allowedKampagneIds.includes(l.kampagne_id)
-    );
+    const filtered = allListen.filter((l) => {
+      if (l.kampagne_id && allowedKampagneIds.includes(l.kampagne_id)) return true;
+      if (allowedUnternehmenIds === null) return true;
+      if (l.unternehmen_id && allowedUnternehmenIds?.includes(l.unternehmen_id)) return true;
+      return false;
+    });
 
     console.log(`🔐 Listen gefiltert: ${filtered.length} von ${allListen.length}`);
     return filtered;

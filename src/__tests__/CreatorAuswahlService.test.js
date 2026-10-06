@@ -185,5 +185,19 @@ describe('CreatorAuswahlService', () => {
       expect(window.supabase.from).not.toHaveBeenCalledWith('kampagne_mitarbeiter');
       expect(window.supabase.from).not.toHaveBeenCalledWith('mitarbeiter_unternehmen');
     });
+
+    it('zeigt Mitarbeitern Castings des freigeschalteten Unternehmens ohne Kampagne', async () => {
+      setupWindow({ isMitarbeiter: true });
+      createMockSupabase({
+        listenData: [
+          { id: 'l1', kampagne_id: null, unternehmen_id: 'u-drexel', creator_auswahl_items: [{ count: 3 }] },
+          { id: 'l2', kampagne_id: null, unternehmen_id: 'u-fremd', creator_auswahl_items: [{ count: 1 }] }
+        ]
+      });
+      window.dataScopeService = { getAllowedUnternehmenIds: vi.fn(async () => ['u-drexel']) };
+
+      const listen = await service.getAllListen();
+      expect(listen.map((l) => l.id)).toEqual(['l1']);
+    });
   });
 });
