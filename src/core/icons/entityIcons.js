@@ -16,6 +16,7 @@ export const ENTITY_ICONS = {
   sourcing: 'sourcing',
   casting: 'sourcing',
   castings: 'sourcing',
+  'creator-casting': 'sourcing',
   mitarbeiter: 'users',
   'kunden-admin': 'user-circle',
   auftrag: 'auftrag',

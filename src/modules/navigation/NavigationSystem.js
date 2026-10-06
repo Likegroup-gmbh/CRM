@@ -29,6 +29,7 @@ export class NavigationSystem {
         title: 'Creatordaten',
         items: [
           { id: 'creator', label: 'Creator', icon: 'creator', url: '/creator' },
+          { id: 'creator-casting', label: 'Creator Casting', icon: 'sourcing', url: '/creator-casting' },
           { id: 'management', label: 'Management', icon: 'management', url: '/management' }
         ]
       },
@@ -225,6 +226,7 @@ export class NavigationSystem {
         vertraege: 'vertraege',
         creator: 'creator',
         'creator-lists': 'creator',
+        'creator-casting': 'creator',
         'management-creator': 'creator',
         management: 'management',
         'sourcing': 'sourcing',

@@ -13,6 +13,7 @@ const ROUTE_CONFIG = {
   produkt:            { label: 'Produkte',           entity: 'produkt' },
   persona:            { label: 'Personas',           entity: 'persona' },
   creator:            { label: 'Creator',            entity: 'creator' },
+  'creator-casting':  { label: 'Creator Casting',    entity: 'creator-casting' },
   auftrag:            { label: 'Aufträge',          entity: 'auftrag' },
   'projekt-erstellen': { label: 'Projekt anlegen',   entity: 'projekt-erstellen' },
   auftragsdetails:    { label: 'Auftragsdetails',   entity: 'auftragsdetails' },

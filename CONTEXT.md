@@ -210,6 +210,10 @@ Stammdaten-Entity einer Person (Tabelle `creator`), mit Mail (`mail`) und Manage
 Nicht der Casting-Eintrag; der kann später zum Creator werden.
 _Avoid_: Casting-Eintrag, Influencer, Kandidat
 
+**Casting-Bestand**:
+Die Creator mit mindestens einem Casting-Eintrag, der eine Stammdaten-Identität hat. Eine Zeile pro Creator. Zähler für Castings (je Casting einmal), Prio 1, Prio 2, Abgelehnt und Produktion zählen die ganze Historie. Produktion ist die Zahl der Kooperationsdatensätze des Creators, unabhängig von Rechnungen. Dazu zeigt die Zeile die Branchen des Creators. Sortierbar über die Spaltenköpfe; Filter-Chips gibt es vorerst nicht, nur die Namenssuche.
+_Avoid_: Casting, Creator-Liste, Creator Casting
+
 **Bedarf**:
 Das gesuchte Creator-Profil eines Castings, abgeleitet aus Briefing, Produkt
 und den Briefing-Personas. Pro Briefing-Persona ein eigener Bedarf

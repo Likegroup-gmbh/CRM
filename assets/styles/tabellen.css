@@ -3484,3 +3484,55 @@ th[draggable="true"]:active {
 .table-loading-container--minh {
   min-height: 300px;
 }
+/* Sortierbare Spaltenköpfe (core/list/sortableHeader.js)
+   Zwei gestapelte Chevrons hinter dem Label; aria-sort waehlt die aktive Richtung. */
+.data-table th.th-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table th.th-sortable:hover,
+.data-table th.th-sortable:focus-visible,
+.data-table th.th-sortable[aria-sort="ascending"],
+.data-table th.th-sortable[aria-sort="descending"] {
+  color: var(--color-text-primary, var(--gray-900, inherit));
+}
+
+.data-table th.th-sortable:focus-visible {
+  outline: 2px solid var(--gray-300, currentColor);
+  outline-offset: -2px;
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+}
+
+.th-sort-icons {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.th-sort-icons .crm-icon {
+  --icon-size: 12px;
+  width: 12px;
+  height: 12px;
+  opacity: 0.35;
+}
+
+/* Die Chevrons ruecken zusammen, damit sie als ein Auf/Ab-Symbol lesbar sind */
+.th-sort-icons .th-sort-up {
+  margin-bottom: -4px;
+}
+
+.data-table th.th-sortable:hover .th-sort-icons .crm-icon {
+  opacity: 0.6;
+}
+
+.data-table th.th-sortable[aria-sort="ascending"] .th-sort-icons .th-sort-up.crm-icon,
+.data-table th.th-sortable[aria-sort="descending"] .th-sort-icons .th-sort-down.crm-icon {
+  opacity: 1;
+}

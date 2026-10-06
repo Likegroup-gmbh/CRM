@@ -402,6 +402,9 @@ export const ICON_DEFS = {
   'chevron-right': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />' },
   'chevron-up': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />' },
   'chevron-down': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />' },
+  // Runde Chevrons fuer Filter, Reihenfolge und Sortierung (z.B. sortierbare Tabellenkoepfe)
+  'arrow-chevron-down': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9" />' },
+  'arrow-chevron-up': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M18 14.99995C18 14.99995 13.5811 9 12 9C10.4188 9 6 15 6 15" />' },
   'chevron-down-filled': { viewBox: '0 0 24 24', body: '<path fill-rule="evenodd" clip-rule="evenodd" d="M12.53 16.28a.75.75 0 0 1-1.06 0l-7.5-7.5a.75.75 0 0 1 1.06-1.06L12 14.69l6.97-6.97a.75.75 0 1 1 1.06 1.06l-7.5 7.5Z" />' },
   download: { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />' },
   'arrow-left': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />' },
