@@ -332,8 +332,9 @@ export class FormSystem {
         }
         
         // Event auslösen für List-Update (dbEntity: Listen hören auf 'rechnung')
+        const isPageForm = !form.closest('.modal-overlay, .modal-content, .drawer, [class*="drawer"], [class*="Drawer"]');
         window.dispatchEvent(new CustomEvent('entityUpdated', { 
-          detail: { entity: dbEntity, id: result.id, action: data ? 'updated' : 'created' } 
+          detail: { entity: dbEntity, id: result.id, action: data ? 'updated' : 'created', redirect: isPageForm } 
         }));
         return { success: true, id: result.id };
       } else {

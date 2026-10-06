@@ -12,7 +12,7 @@ import {
   resolveKampagneIdFromCreateContext,
   resolveKooperationCreateRedirect
 } from './kooperationFromKampagne.js';
-import { trailProduktion } from '../../core/breadcrumbTrail.js';
+import { navigateBack } from '../../core/breadcrumbTrail.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 
@@ -738,7 +738,8 @@ export class KooperationList {
           marke_id: cache.marke_id,
           unternehmen: cache.unternehmen,
           marke: cache.marke,
-          produktion_id: cache.produktion_id || urlParams.get('produktion_id') || null
+          produktion_id: cache.produktion_id || urlParams.get('produktion_id') || null,
+          briefing_id: cache.briefing_id || urlParams.get('briefing_id') || null
         };
         // Cache leeren nach Verwendung
         delete window.kooperationPrefillCache;
@@ -770,6 +771,7 @@ export class KooperationList {
         formData = {
           kampagne_id: kampagneId,
           produktion_id: kampagne.produktion_id || urlParams.get('produktion_id') || null,
+          briefing_id: kampagne.briefing_id || urlParams.get('briefing_id') || null,
           unternehmen_id: kampagne.unternehmen_id,
           marke_id: kampagne.marke_id || null,
           _prefillFromKampagne: true,
@@ -847,6 +849,7 @@ export class KooperationList {
             submitData.marke_id = prefill.marke_id;
           }
           if (prefill.produktion_id) submitData.produktion_id = prefill.produktion_id;
+          if (prefill.briefing_id && !submitData.briefing_id) submitData.briefing_id = prefill.briefing_id;
         } catch (e) {
           console.warn('⚠️ KOOPERATION: Prefill-Daten konnten nicht gelesen werden', e);
         }
@@ -887,16 +890,13 @@ export class KooperationList {
           }
         }));
 
-        const herkunft = trailProduktion();
-        const redirect = herkunft
-          ? herkunft.url
-          : resolveKooperationCreateRedirect({
-            kampagneId,
-            produktionId: submitData.produktion_id || new URLSearchParams(window.location.search).get('produktion_id'),
-            newKooperationId: result.id
-          });
+        const fallback = resolveKooperationCreateRedirect({
+          kampagneId,
+          produktionId: submitData.produktion_id || new URLSearchParams(window.location.search).get('produktion_id'),
+          newKooperationId: result.id
+        });
         setTimeout(() => {
-          window.navigateTo(redirect);
+          navigateBack(fallback);
         }, 1500);
       } else {
         this.showErrorMessage(`Fehler beim Erstellen: ${result.error}`);

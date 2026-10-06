@@ -18,6 +18,7 @@ import {
   reservePoGesamtNummer
 } from '../auftrag/logic/PoNummerGenerator.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { navigateBack } from '../../core/breadcrumbTrail.js';
 
 export class ProjektErstellenWizard {
   constructor(container) {
@@ -656,10 +657,7 @@ export class ProjektErstellenWizard {
         }
 
         setTimeout(() => {
-          const target = isContract
-            ? `/contracts/${result.auftragId}`
-            : `/auftrag/${result.auftragId}`;
-          window.navigateTo?.(target);
+          navigateBack(isContract ? `/contracts/${result.auftragId}` : `/auftrag/${result.auftragId}`);
         }, 1200);
       } else {
         window.toastSystem?.show(

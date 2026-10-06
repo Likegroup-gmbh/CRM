@@ -36,9 +36,9 @@ export class ModuleRegistry {
     }
   }
 
-  async navigateTo(route, skipPushState = false) {
+  async navigateTo(route, skipPushState = false, options = {}) {
     if (this._isNavigating) {
-      this._queueNavigation(route, skipPushState);
+      this._queueNavigation(route, skipPushState, options);
       return;
     }
     this._isNavigating = true;
@@ -52,9 +52,9 @@ export class ModuleRegistry {
       // Vor pushState merken: nach popstate ist die URL schon das Ziel.
       if (!skipPushState) {
         rememberScrollForRoute();
-        saveScrollToCurrentHistory();
+        if (!options.replace) saveScrollToCurrentHistory();
       }
-      const result = await this._doNavigate(route, skipPushState);
+      const result = await this._doNavigate(route, skipPushState, options);
       if (this._didInitModule) {
         const ready = this.currentModule?.ready;
         if (ready && typeof ready.then === 'function') {
@@ -78,7 +78,7 @@ export class ModuleRegistry {
       this._activeRoute = null;
       const next = this._pendingNav;
       this._pendingNav = null;
-      if (next) this.navigateTo(next.route, next.skipPushState);
+      if (next) this.navigateTo(next.route, next.skipPushState, next.options);
     }
   }
 
@@ -87,12 +87,12 @@ export class ModuleRegistry {
   // Gleiches Ziel wie die laufende Navigation ist ein Doppelklick und bleibt
   // wirkungslos (Mehrfach-Klick-Schutz). Ein laufendes init() wird nie
   // abgebrochen: nicht jedes Modul hat ein Abbruch-Token.
-  _queueNavigation(route, skipPushState) {
+  _queueNavigation(route, skipPushState, options = {}) {
     if (route === this._activeRoute) {
       this._pendingNav = null;
       return;
     }
-    this._pendingNav = { route, skipPushState };
+    this._pendingNav = { route, skipPushState, options };
   }
 
   _restoreScrollWhenReady(ready, seq) {
@@ -120,7 +120,7 @@ export class ModuleRegistry {
     return this._doNavigate(route, true);
   }
 
-  async _doNavigate(route, skipPushState = false) {
+  async _doNavigate(route, skipPushState = false, { replace = false } = {}) {
     // Gast-Modus (Share-Link): strikt nur die geteilte Entität, keine anderen Routen
     if (window.guestShare) {
       const normalizedRoute = String(route || '').split(/[?#]/)[0];
@@ -162,7 +162,8 @@ export class ModuleRegistry {
             currentUrl: `${window.location.pathname}${window.location.search}`,
             targetRoute: url
           });
-          window.history.pushState({ route: url, trail }, '', url);
+          if (replace) window.history.replaceState({ route: url, trail }, '', url);
+          else window.history.pushState({ route: url, trail }, '', url);
         }
       } catch (err) {
         console.warn('⚠️ History pushState fehlgeschlagen:', err?.message);

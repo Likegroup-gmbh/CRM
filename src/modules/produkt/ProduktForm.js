@@ -26,7 +26,7 @@ import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
-import { backTarget } from '../../core/breadcrumbTrail.js';
+import { backTarget, returnTo } from '../../core/breadcrumbTrail.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export class ProduktForm {
@@ -99,7 +99,7 @@ export class ProduktForm {
         this.produkt = await ProduktService.loadOne(this.produktId, this.ctx);
         if (!this.produkt) {
           window.toastSystem?.error?.('Produkt nicht gefunden');
-          window.navigateTo(this.returnRoute);
+          returnTo(this.returnRoute);
           return;
         }
         [this.varianten, this.bilder, this.markenIds, this.briefingIds] = await Promise.all([
@@ -362,7 +362,7 @@ export class ProduktForm {
     // Abbrechen: Liste oder Produkte-Tab der Marke/Firma
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => window.navigateTo(this.returnRoute), opts);
+      cancelBtn.addEventListener('click', () => returnTo(this.returnRoute), opts);
     }
 
     if (this.isStandalone) {
@@ -498,7 +498,7 @@ export class ProduktForm {
       await this.flushPersonaPanel(produktId, data);
 
       window.toastSystem?.success?.(this.isEdit ? 'Produkt gespeichert' : 'Produkt angelegt');
-      window.navigateTo(this.returnRoute);
+      returnTo(this.returnRoute);
     } catch (err) {
       console.error('Produkt speichern fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Speichern: ' + err.message);
@@ -701,7 +701,7 @@ export class ProduktForm {
     try {
       await ProduktService.remove(this.produktId);
       window.toastSystem?.success?.('Produkt gelöscht');
-      window.navigateTo(this.returnRoute);
+      returnTo(this.returnRoute);
     } catch (err) {
       console.error('Produkt loeschen fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Löschen: ' + err.message);

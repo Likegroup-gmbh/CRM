@@ -26,6 +26,15 @@ import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
 import { unmountKatalogPanes } from './KampagneDetailKatalog.js';
+import {
+  ALLE,
+  koopLinie,
+  rememberLinie,
+  renderLinienBar,
+  resolveLinie,
+  syncLinieQueryParam,
+  syncLinienBar
+} from './linienScope.js';
 export class KampagneDetail {
   constructor() {
     this.kampagneId = null;
@@ -50,6 +59,9 @@ export class KampagneDetail {
     this.produktionen = [];
     this.produktion = null;
     this.produktionId = null;
+    this.linien = [];
+    this.linieId = null;
+    this.linieAlle = false;
     this.mode = 'overview';
     this.lineTitle = '';
     this.isKunde = false;
@@ -68,6 +80,9 @@ export class KampagneDetail {
     this.mode = 'overview';
     this.produktion = null;
     this.produktionId = null;
+    this.linien = [];
+    this.linieId = null;
+    this.linieAlle = false;
     this.lineTitle = '';
 
     if (openAsProduktion) {
@@ -99,7 +114,12 @@ export class KampagneDetail {
       }
       this.produktion = produktion;
       this.produktionId = produktion.id;
-      this.lineTitle = produktion.briefing?.aktivierung_name || produktion.name || '';
+      this.lineTitle = produktion.name || '';
+      this.linien = produktion.linien || [];
+      Object.assign(this, (() => {
+        const { linieId, alle } = resolveLinie(this.linien, produktion.id);
+        return { linieId, linieAlle: alle };
+      })());
       this.mode = 'workflow';
       kampagneId = produktion.kampagne_id;
     }
@@ -158,7 +178,8 @@ export class KampagneDetail {
         const isKunde = window.isKunde();
 
         const tablePromise = loadFullTableData(this.kampagneId, this.store, isKunde, {
-          produktionId: this.mode === 'workflow' ? this.produktionId : null
+          produktionId: this.mode === 'workflow' ? this.produktionId : null,
+          briefingId: this.mode === 'workflow' ? koopLinie(this) : null
         });
         tablePromise.catch(() => {});
 
@@ -184,7 +205,7 @@ export class KampagneDetail {
         console.log(`✅ KAMPAGNEDETAIL: Komplett geladen und gerendert in ${_renderTime.toFixed(0)}ms`);
       } catch (error) {
         console.error('❌ KAMPAGNEDETAIL: Fehler bei der Initialisierung:', error);
-        window.ErrorHandler.handle(error, 'KampagneDetail.init');
+        window.ErrorHandler?.handle?.(error, 'KampagneDetail.init');
       } finally {
         this._initPromise = null;
       }
@@ -201,7 +222,7 @@ export class KampagneDetail {
         { label: 'Kampagnen', url: '/kampagne', clickable: true },
         { label: kampagneName || 'Kampagne', url: `/kampagne/${this.kampagneId}`, clickable: true },
         { label: this.lineTitle || this.produktion?.name || 'Produktion', url: `/produktion/${this.produktionId}`, clickable: false }
-      ], null, { switcher: null });
+      ], null, { switcher: { segment: 'produktion', id: this.produktionId, kampagneId: this.kampagneId } });
       return;
     }
     const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
@@ -217,14 +238,8 @@ export class KampagneDetail {
     console.log('🔄 KAMPAGNEDETAIL: Lade kritische Daten parallel...');
     const startTime = performance.now();
     try {
-      const resolvedIds = this.produktion?.resolvedBriefingIds;
-      const briefingIds = Array.isArray(resolvedIds) && resolvedIds.length
-        ? resolvedIds
-        : (this.produktion?.briefing_id ? [this.produktion.briefing_id] : []);
       const data = await _loadCriticalData(this.kampagneId, {
-        produktionId: this.produktionId,
-        briefingId: briefingIds.length === 1 ? briefingIds[0] : null,
-        briefingIds
+        produktionId: this.produktionId
       });
 
       this.kampagneData = data.kampagneData;
@@ -277,7 +292,8 @@ export class KampagneDetail {
       mode: this.mode,
       produktionen: this.produktionen || [],
       produktion: this.produktion,
-      lineTitle: this.lineTitle
+      lineTitle: this.lineTitle,
+      linienBar: this.mode === 'workflow' ? renderLinienBar(this, this.activeWorkflowTab) : ''
     });
 
     window.setContentSafely(window.content, html);
@@ -304,6 +320,7 @@ export class KampagneDetail {
   _createVideoTable(tableData) {
     this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
     this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
+    this.kooperationenVideoTable.briefingId = this.mode === 'workflow' ? koopLinie(this) : null;
     this.kooperationenVideoTable.statusOptions = tableData?.statusOptions || [];
 
     const hiddenCols = this.kampagneData?.video_table_hidden_columns;
@@ -378,7 +395,8 @@ export class KampagneDetail {
     this._koopReloadRunning = true;
     try {
       await loadFullTableData(this.kampagneId, this.store, this.isKunde, {
-        produktionId: this.mode === 'workflow' ? this.produktionId : null
+        produktionId: this.mode === 'workflow' ? this.produktionId : null,
+        briefingId: this.mode === 'workflow' ? koopLinie(this) : null
       });
       if (!this._isMounted) return;
       this._refreshSummaryCards();
@@ -436,6 +454,31 @@ export class KampagneDetail {
 
   switchWorkflowTab(tabId) {
     activateWorkflowTab(this, tabId);
+  }
+
+  /**
+   * Linie wechseln (Chip in der Leiste oder "Alle Linien"). Der Tab bleibt,
+   * die Tabs laden mit der neuen Linie neu.
+   */
+  async switchLinie(value) {
+    if (this.mode !== 'workflow' || !this.linien.length) return;
+    const alle = value === ALLE;
+    if (!alle && !this.linien.some(l => l.id === value)) return;
+    const linieId = alle ? this.linieId : value;
+    if (alle === this.linieAlle && linieId === this.linieId) return;
+
+    this.linieAlle = alle;
+    this.linieId = linieId;
+    rememberLinie(this.produktionId, linieId);
+    syncLinieQueryParam(linieId, alle);
+    syncLinienBar(this, this.activeWorkflowTab);
+
+    if (this.kooperationenVideoTable) this.kooperationenVideoTable.briefingId = koopLinie(this);
+    cancelWorkflowPrefetch(this);
+    await this.reloadKooperationTable();
+    if (!this._isMounted) return;
+    refreshWorkflowAfterRender(this);
+    if (this.activeWorkflowTab === 'produktion') startWorkflowPrefetch(this);
   }
 
   switchTab(tabName) {
@@ -585,6 +628,7 @@ export class KampagneDetail {
     this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
     this.kooperationenVideoTable.reloadKooperationen = () => this.reloadKooperationTable();
     this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
+    this.kooperationenVideoTable.briefingId = this.mode === 'workflow' ? koopLinie(this) : null;
     this.kooperationenVideoTable.statusOptions = this.store.statusOptions || [];
 
     const hiddenCols = this.kampagneData?.video_table_hidden_columns;

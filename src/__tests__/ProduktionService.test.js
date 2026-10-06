@@ -1,159 +1,155 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   applyProduktionVerbrauch,
-  createProduktionForBriefing,
-  emptyProduktionId,
+  canDeleteLinie,
+  canDeleteProduktion,
+  createProduktion,
+  deleteLinieInhalt,
+  deleteProduktion,
+  linienFromBriefings,
   listAllProduktionen,
-  resolveProduktionLinks,
-  sumBudgetByProduktion
+  nextProduktionNummer,
+  scopeByLinie,
+  sumBudgetByProduktion,
+  withLinien
 } from '../modules/produktion/ProduktionService.js';
 
-function chain(result) {
-  const query = {
-    update: vi.fn(() => query),
-    insert: vi.fn(() => query),
-    select: vi.fn(() => query),
-    eq: vi.fn(() => query),
-    maybeSingle: vi.fn(() => Promise.resolve(result)),
-    single: vi.fn(() => Promise.resolve(result))
+function countQuery(counts) {
+  return (table) => {
+    const state = { filters: {} };
+    const query = {
+      select: vi.fn(() => query),
+      eq: vi.fn((col, val) => { state.filters[col] = val; return query; }),
+      then: (resolve, reject) => Promise.resolve({
+        count: counts[`${table}.${Object.keys(state.filters)[0]}`] ?? 0,
+        error: null
+      }).then(resolve, reject)
+    };
+    return query;
   };
-  return query;
 }
 
-describe('createProduktionForBriefing', () => {
-  beforeEach(() => {
+describe('Linien aus Briefings', () => {
+  const briefings = [
+    { id: 'b2', aktivierung_name: 'Winter', is_draft: false, created_at: '2026-02-01' },
+    { id: 'b1', aktivierung_name: 'Sommer', is_draft: true, created_at: '2026-01-01' }
+  ];
+
+  it('sortiert die Linien nach Anlage und markiert Entwürfe', () => {
+    expect(linienFromBriefings(briefings).map(l => [l.id, l.name, l.is_draft]))
+      .toEqual([['b1', 'Sommer', true], ['b2', 'Winter', false]]);
+  });
+
+  it('nimmt als Haupt-Briefing die erste finalisierte Linie, sonst die erste', () => {
+    expect(withLinien({ id: 'p1', briefings }).briefing.id).toBe('b2');
+    expect(withLinien({ id: 'p1', briefings: [briefings[1]] }).briefing.id).toBe('b1');
+    expect(withLinien({ id: 'p1', briefings: [] }).briefing).toBeNull();
+  });
+
+  it('scopeByLinie grenzt nur mit Linie ein', () => {
+    const query = { eq: vi.fn(() => 'scoped') };
+    expect(scopeByLinie(query, null)).toBe(query);
+    expect(scopeByLinie(query, 'b1')).toBe('scoped');
+    expect(query.eq).toHaveBeenCalledWith('briefing_id', 'b1');
+  });
+});
+
+describe('nextProduktionNummer', () => {
+  it('zählt über die höchste Nummer und die Anzahl hinaus', () => {
+    expect(nextProduktionNummer([])).toBe(1);
+    expect(nextProduktionNummer(['Serum – Produktion 1', 'Serum – Produktion 2'])).toBe(3);
+    expect(nextProduktionNummer(['Serum Sommer', 'Serum – Produktion 4'])).toBe(5);
+    expect(nextProduktionNummer(['A', 'B', 'C'])).toBe(4);
+  });
+});
+
+describe('createProduktion', () => {
+  it('legt eine Produktion mit der nächsten Nummer an, ohne Budget', async () => {
+    const insert = vi.fn(() => ({
+      select: () => ({ single: () => Promise.resolve({ data: { id: 'neu', name: 'x' }, error: null }) })
+    }));
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'kampagne') {
+          return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { kampagnenname: 'Serum' }, error: null }) }) }) };
+        }
+        return {
+          select: () => ({ eq: () => Promise.resolve({ data: [{ name: 'Serum – Produktion 1' }], error: null }) }),
+          insert
+        };
+      })
+    };
+
+    const row = await createProduktion({ kampagneId: 'k1' });
+
+    expect(row.id).toBe('neu');
+    const payload = insert.mock.calls[0][0];
+    expect(payload.kampagne_id).toBe('k1');
+    expect(payload.name).toMatch(/Produktion 2$/);
+    expect(payload).not.toHaveProperty('budget');
+  });
+
+  it('verlangt eine Kampagne', async () => {
     window.supabase = { from: vi.fn() };
-  });
-
-  it('aktualisiert eine bestehende Produktion statt eine zweite anzulegen', async () => {
-    const query = chain({ data: { id: 'prod-1' }, error: null });
-    window.supabase.from.mockReturnValue(query);
-
-    const row = await createProduktionForBriefing({
-      kampagneId: 'kamp-1',
-      briefingId: 'brief-1',
-      produktId: 'produkt-1',
-      titel: 'Funky Safari Ketchup',
-      produktionId: 'prod-1'
-    });
-
-    expect(row).toEqual({ id: 'prod-1' });
-    expect(query.update).toHaveBeenCalledWith({
-      briefing_id: 'brief-1',
-      produkt_id: 'produkt-1',
-      name: 'Funky Safari Ketchup'
-    });
-    expect(query.insert).not.toHaveBeenCalled();
-    expect(query.eq).toHaveBeenCalledWith('id', 'prod-1');
-    expect(query.eq).toHaveBeenCalledWith('kampagne_id', 'kamp-1');
-  });
-
-  it('legt eine neue Produktion an, wenn das Briefing noch frei ist', async () => {
-    const lookup = chain({ data: null, error: null });
-    const insert = chain({ data: { id: 'prod-neu' }, error: null });
-    window.supabase.from
-      .mockReturnValueOnce(lookup)
-      .mockReturnValueOnce(insert);
-
-    const row = await createProduktionForBriefing({
-      kampagneId: 'kamp-1',
-      briefingId: 'brief-2',
-      produktId: 'produkt-2',
-      titel: 'Neuer Süßer Senf 2.0'
-    });
-
-    expect(row).toEqual({ id: 'prod-neu' });
-    expect(insert.insert).toHaveBeenCalledWith({
-      kampagne_id: 'kamp-1',
-      briefing_id: 'brief-2',
-      produkt_id: 'produkt-2',
-      name: 'Neuer Süßer Senf 2.0'
-    });
+    await expect(createProduktion({})).rejects.toThrow('Kampagne fehlt');
   });
 });
 
-describe('resolveProduktionLinks', () => {
-  it('übernimmt die eine briefing_id der Kinder und den Briefing-Titel', () => {
-    const resolved = resolveProduktionLinks({
-      produktion: { briefing_id: null, produkt_id: null, name: 'Kampagne' },
-      childBriefingIds: ['brief-1', 'brief-1'],
-      briefing: { id: 'brief-1', aktivierung_name: 'Next Magenta' }
-    });
-
-    expect(resolved.briefingId).toBe('brief-1');
-    expect(resolved.ambiguous).toBe(false);
-    expect(resolved.patch).toEqual({
-      briefing_id: 'brief-1',
-      name: 'Next Magenta'
-    });
+describe('Lösch-Gates', () => {
+  it('sperrt eine Linie mit Kooperationen', async () => {
+    window.supabase = { from: vi.fn(countQuery({ 'kooperationen.briefing_id': 2 })) };
+    const gate = await canDeleteLinie('b1');
+    expect(gate.ok).toBe(false);
+    expect(gate.reason).toMatch(/Kooperationen/);
+    await expect(deleteLinieInhalt('b1')).rejects.toThrow(/Kooperationen/);
   });
 
-  it('schreibt zwei Briefings nicht zurück', () => {
-    const resolved = resolveProduktionLinks({
-      produktion: { briefing_id: null, produkt_id: null },
-      childBriefingIds: ['brief-1', 'brief-2']
-    });
+  it('löscht Skripte, Konzept und Casting einer Linie ohne Kooperationen', async () => {
+    const deleted = [];
+    const base = countQuery({});
+    window.supabase = {
+      from: vi.fn((table) => {
+        const query = base(table);
+        query.delete = vi.fn(() => ({
+          eq: vi.fn((col, val) => { deleted.push([table, col, val]); return Promise.resolve({ error: null }); })
+        }));
+        return query;
+      })
+    };
 
-    expect(resolved.briefingId).toBeNull();
-    expect(resolved.briefingIds).toEqual(['brief-1', 'brief-2']);
-    expect(resolved.ambiguous).toBe(true);
-    expect(resolved.patch).toBeNull();
+    await deleteLinieInhalt('b1');
+
+    expect(deleted).toEqual([
+      ['skripte', 'briefing_id', 'b1'],
+      ['strategie', 'briefing_id', 'b1'],
+      ['creator_auswahl', 'briefing_id', 'b1']
+    ]);
   });
 
-  it('füllt produkt_id, wenn das Briefing genau ein Produkt hat', () => {
-    const resolved = resolveProduktionLinks({
-      produktion: { briefing_id: 'brief-1', produkt_id: null },
-      briefingProdukte: [{ id: 'produkt-1', name: 'Magenta' }]
-    });
-
-    expect(resolved.produktId).toBe('produkt-1');
-    expect(resolved.produkt).toEqual({ id: 'produkt-1', name: 'Magenta' });
-    expect(resolved.patch).toEqual({ produkt_id: 'produkt-1' });
+  it('sperrt eine Produktion mit Briefing (auch Entwurf)', async () => {
+    window.supabase = { from: vi.fn(countQuery({ 'campaign_briefings.produktion_id': 1 })) };
+    const gate = await canDeleteProduktion('p1');
+    expect(gate.ok).toBe(false);
+    expect(gate.reason).toMatch(/Briefings/);
   });
 
-  it('lässt mehrere Produkte am Briefing ungesetzt', () => {
-    const resolved = resolveProduktionLinks({
-      produktion: { briefing_id: 'brief-1', produkt_id: null },
-      briefingProdukte: [
-        { id: 'produkt-1', name: 'A' },
-        { id: 'produkt-2', name: 'B' }
-      ]
-    });
-
-    expect(resolved.produktId).toBeNull();
-    expect(resolved.patch).toBeNull();
+  it('sperrt eine Produktion mit Kooperationen', async () => {
+    window.supabase = { from: vi.fn(countQuery({ 'kooperationen.produktion_id': 1 })) };
+    expect((await canDeleteProduktion('p1')).ok).toBe(false);
   });
 
-  it('schreibt ein Briefing nicht, das schon einer anderen Produktion gehört', () => {
-    const resolved = resolveProduktionLinks({
-      produktion: { briefing_id: null, produkt_id: null },
-      childBriefingIds: ['brief-1'],
-      takenBriefingIds: ['brief-1'],
-      briefing: { aktivierung_name: 'Next Magenta' }
-    });
-
-    expect(resolved.briefingId).toBe('brief-1');
-    expect(resolved.patch).toBeNull();
-  });
-});
-
-describe('emptyProduktionId', () => {
-  it('gibt die einzige leere Produktion zurück', () => {
-    expect(emptyProduktionId([
-      { id: 'p1', briefing_id: null, resolvedBriefingIds: [] },
-      { id: 'p2', briefing_id: 'brief-1' }
-    ])).toBe('p1');
+  it('löscht eine leere Produktion', async () => {
+    const del = vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) }));
+    const base = countQuery({});
+    window.supabase = { from: vi.fn((table) => ({ ...base(table), delete: del })) };
+    expect((await canDeleteProduktion('p1')).ok).toBe(true);
+    await deleteProduktion('p1');
+    expect(del).toHaveBeenCalled();
   });
 
-  it('gibt null zurück, wenn keine oder mehrere leer sind', () => {
-    expect(emptyProduktionId([])).toBeNull();
-    expect(emptyProduktionId([
-      { id: 'p1', briefing_id: null },
-      { id: 'p2', briefing_id: null }
-    ])).toBeNull();
-    expect(emptyProduktionId([
-      { id: 'p1', briefing_id: null, resolvedBriefingIds: ['brief-1'] }
-    ])).toBeNull();
+  it('löscht eine Produktion mit Linien nicht', async () => {
+    window.supabase = { from: vi.fn(countQuery({ 'campaign_briefings.produktion_id': 2 })) };
+    await expect(deleteProduktion('p1')).rejects.toThrow(/Briefings/);
   });
 });
 
@@ -256,7 +252,7 @@ describe('listAllProduktionen', () => {
       id: 'p1',
       name: 'Senf',
       created_at: '2026-02-01',
-      briefing: { id: 'b1', aktivierung_name: 'Brief', persona_ids: ['persona-1', 'persona-2'] }
+      briefings: [{ id: 'b1', aktivierung_name: 'Brief', persona_ids: ['persona-1', 'persona-2'] }]
     }];
     window.supabase = {
       from: vi.fn((table) => {
@@ -281,7 +277,7 @@ describe('listAllProduktionen', () => {
     const result = await listAllProduktionen();
 
     expect(window.supabase.from).toHaveBeenCalledWith('personas');
-    expect(result[0].briefing.verknuepfte_personas).toEqual([{ id: 'persona-1', name: 'Anna' }]);
+    expect(result[0].briefings[0].verknuepfte_personas).toEqual([{ id: 'persona-1', name: 'Anna' }]);
   });
 });
 

@@ -7,7 +7,13 @@
 import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import { buildAddItemQueueEntry, buildStrategieItemInsert, resolveVideoideeForm } from './addItemPayload.js';
+import {
+  buildAddItemQueueEntry,
+  buildStrategieItemInsert,
+  detectPlatform,
+  isTranscribableUrl,
+  resolveVideoideeForm
+} from './addItemPayload.js';
 
 export class AddItemDrawer {
   constructor() {
@@ -318,20 +324,14 @@ export class AddItemDrawer {
    */
   isAllowedUrl(url) {
     if (!url) return true; // Leere URL = Idee, erlaubt
-    const urlLower = url.toLowerCase();
-    return ['tiktok.com', 'instagram.com'].some(domain => urlLower.includes(domain));
+    return isTranscribableUrl(url);
   }
 
   /**
    * Plattform aus URL erkennen
    */
   detectPlatform(url) {
-    if (!url) return 'idea';
-    const urlLower = url.toLowerCase();
-    if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) return 'youtube';
-    if (urlLower.includes('tiktok.com')) return 'tiktok';
-    if (urlLower.includes('instagram.com')) return 'instagram';
-    return 'other';
+    return detectPlatform(url) || 'idea';
   }
 
   /**

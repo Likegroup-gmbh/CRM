@@ -106,20 +106,23 @@ export function produktionStartEntscheidung(kontext, existing) {
     return { open: false, message: 'Am Konzept hängt keine Produktion' };
   }
   if (existing) {
-    return { open: false, message: 'Für diesen Creator gibt es in der Produktion schon eine Kooperation' };
+    return { open: false, message: 'Für diesen Creator gibt es in dieser Linie schon eine Kooperation' };
   }
   return { open: true, message: null };
 }
 
-export async function findKooperationForCreator(client, { produktionId, creatorId }) {
+// Eine Kooperation pro Creator und Linie: derselbe Creator darf in zwei Linien
+// derselben Produktion je eine eigene Kooperation haben.
+export async function findKooperationForCreator(client, { produktionId, creatorId, briefingId = null }) {
   if (!client || !produktionId || !creatorId) return null;
 
-  const { data, error } = await client
+  let query = client
     .from('kooperationen')
     .select('id')
     .eq('produktion_id', produktionId)
-    .eq('creator_id', creatorId)
-    .limit(1);
+    .eq('creator_id', creatorId);
+  if (briefingId) query = query.eq('briefing_id', briefingId);
+  const { data, error } = await query.limit(1);
 
   if (error) throw new Error(error.message || 'Kooperationen konnten nicht geladen werden');
   return data?.[0] || null;
@@ -141,7 +144,8 @@ export async function startProduktionFromItem(detail, itemId, deps = {}) {
     const client = deps.client || (typeof window !== 'undefined' ? window.supabase : null);
     const existing = await findKooperationForCreator(client, {
       produktionId: kontext.produktion_id,
-      creatorId: kontext.creator_id
+      creatorId: kontext.creator_id,
+      briefingId: kontext.briefing_id || null
     });
     const decision = produktionStartEntscheidung(kontext, existing);
 

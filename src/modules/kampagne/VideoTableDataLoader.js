@@ -219,7 +219,8 @@ export class VideoTableDataLoader {
       try {
         const { ideen, skripte } = await loadKonzeptInhalte(sb, {
           kampagneId: t.kampagneId,
-          produktionId: t.produktionId || null
+          produktionId: t.produktionId || null,
+          briefingId: t.briefingId || null
         });
         t.videos = zuordnenKonzeptInhalte(t.kooperationen, t.videos, ideen, skripte);
       } catch (e) {

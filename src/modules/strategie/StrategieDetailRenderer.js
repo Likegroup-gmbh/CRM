@@ -12,7 +12,7 @@ import { actionState } from '../../core/actions/actionState.js';
 import { produktionStartChecks } from '../kooperation/produktionStart.js';
 
 /** Klartext zu verarbeitung_step fuer die Fortschrittsanzeige in der Zeile. */
-const VERARBEITUNG_LABELS = {
+export const VERARBEITUNG_LABELS = {
   browser: 'Browser startet...',
   screenshot: 'Screenshot...',
   navigation: 'Seite laden...',
@@ -643,12 +643,10 @@ function renderSkriptFreigabeAction(item) {
 }
 
 export function getPlatformIcon(platform) {
-  const icons = {
-    youtube: `${icon('youtube', { className: 'icon-20' })}`,
-    tiktok: `${icon('tiktok', { className: 'icon-20' })}`,
-    instagram: `${icon('instagram', { className: 'icon-20' })}`
-  };
-  return icons[platform] || '';
+  // Nur das Icon der gewuenschten Plattform bauen, sonst meldet das IconSystem
+  // bei jedem Aufruf die uebrigen (z. B. das fehlende youtube-Icon).
+  if (!['youtube', 'tiktok', 'instagram'].includes(platform)) return '';
+  return icon(platform, { className: 'icon-20' });
 }
 
 function findItemRow(detail, itemId) {

@@ -1,13 +1,12 @@
-// Schritt Produktion: Budgets von Hand, Decke ist das Volumen der Kampagne.
-// Zeilen ohne Briefing sind die Planung. Bestehende mit Briefing bleiben,
-// sobald irgendein Budget gesetzt ist.
+// Schritt Produktion: Anzahl und Budgets von Hand, Decke ist das Volumen der Kampagne.
+// Jede Zeile wird beim Speichern eine Produktion, auch ohne Budget (ADR 0045).
+// Gespeicherte Zeilen bleiben: die Anzahl lässt sich nur erhöhen.
 
 import { icon } from '../../../core/icons/IconSystem.js';
 import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
 import { bindMoneyInputs, renderMoneyInput } from '../../../core/form/moneyInput.js';
 import {
   budgetOrNull,
-  hatGesetztesBudget,
   roundMoney,
   sumBudgets
 } from '../../produktion/produktionsbudget.js';
@@ -72,7 +71,6 @@ export class StepProduktion {
   }
 
   _renderGroup(group) {
-    const showBound = hatGesetztesBudget(group.rows);
     const summe = sumBudgets(group.rows);
     const rest = roundMoney(group.volumen - summe);
     const title = group.name
@@ -95,7 +93,7 @@ export class StepProduktion {
               </tr>
             </thead>
             <tbody data-prod-rows>
-              ${group.rows.map(row => this._renderRow(row, group, showBound)).join('')}
+              ${group.rows.map(row => this._renderRow(row, group)).join('')}
             </tbody>
           </table>
         </div>
@@ -106,21 +104,20 @@ export class StepProduktion {
     `;
   }
 
-  _renderRow(row, group, showBound) {
+  _renderRow(row, group) {
     const key = row.id || row._key;
-    const bound = !!row.briefing_id;
-    const hidden = bound && budgetOrNull(row.budget) == null && !showBound;
+    const saved = !!row.id;
     const budget = budgetOrNull(row.budget);
     return `
-      <tr data-prod-row data-key="${escapeHtml(key)}" data-id="${escapeHtml(row.id || '')}" data-briefing-id="${escapeHtml(row.briefing_id || '')}" ${hidden ? 'hidden' : ''}>
+      <tr data-prod-row data-key="${escapeHtml(key)}" data-id="${escapeHtml(row.id || '')}" >
         <td>
-          <input type="text" class="cell-input" data-prod-name value="${escapeHtml(row.name || '')}" ${bound ? 'readonly' : ''}>
+          <input type="text" class="cell-input" data-prod-name value="${escapeHtml(row.name || '')}">
         </td>
         <td>
           ${renderMoneyInput({ value: budget, attrs: { 'data-prod-budget': true } })}
         </td>
         <td class="col-actions">
-          ${bound ? '' : `<button type="button" class="btn-icon" data-prod-remove title="Entfernen" aria-label="Entfernen">${icon('trash')}</button>`}
+          ${saved ? '' : `<button type="button" class="btn-icon" data-prod-remove title="Entfernen" aria-label="Entfernen">${icon('trash')}</button>`}
         </td>
       </tr>
     `;
@@ -139,13 +136,11 @@ export class StepProduktion {
       if (remove) {
         remove.closest('[data-prod-row]')?.remove();
         this._refreshHints();
-        this._revealBound();
       }
     });
     this.host.addEventListener('input', (event) => {
       if (!event.target.matches('[data-prod-budget], [data-prod-name]')) return;
       this._refreshHints();
-      this._revealBound();
     });
   }
 
@@ -160,7 +155,6 @@ export class StepProduktion {
       kampagne_id: groupEl.dataset.kampagneId || null,
       name: geistProduktionName(groupEl.dataset.basis || '', count),
       budget: null,
-      briefing_id: null,
       verbrauch: 0
     };
     const group = this._groups().find(item => item.nummer === nummer) || {
@@ -168,16 +162,9 @@ export class StepProduktion {
       volumen: 0,
       rows: []
     };
-    rowsHost.insertAdjacentHTML('beforeend', this._renderRow(row, group, hatGesetztesBudget(this.collectData().produktionen)));
+    rowsHost.insertAdjacentHTML('beforeend', this._renderRow(row, group));
     bindMoneyInputs(rowsHost);
-    this._revealBound();
-  }
-
-  _revealBound() {
-    if (!hatGesetztesBudget(this.collectData().produktionen)) return;
-    this.host?.querySelectorAll('[data-prod-row][hidden]').forEach(row => {
-      row.hidden = false;
-    });
+    this._refreshHints();
   }
 
   _refreshHints() {
@@ -220,7 +207,6 @@ export class StepProduktion {
           kampagnen_nummer: nummer,
           name: rowEl.querySelector('[data-prod-name]')?.value || '',
           budget: parseCurrencyInput(rowEl.querySelector('[data-prod-budget]')?.value),
-          briefing_id: rowEl.dataset.briefingId || null,
           verbrauch: existing?.verbrauch || 0
         });
       });

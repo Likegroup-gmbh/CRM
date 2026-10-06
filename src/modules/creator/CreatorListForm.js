@@ -313,12 +313,8 @@ CreatorList.prototype.handleFormSubmit = async function() {
       this.showSuccessMessage('Creator erfolgreich erstellt!');
 
       window.dispatchEvent(new CustomEvent('entityUpdated', {
-        detail: { entity: 'creator', id: result.id, action: 'created' }
+        detail: { entity: 'creator', id: result.id, action: 'created', redirect: true }
       }));
-
-      setTimeout(() => {
-        window.navigateTo('/creator');
-      }, 800);
     } else {
       throw new Error(result.error || 'Unbekannter Fehler');
     }

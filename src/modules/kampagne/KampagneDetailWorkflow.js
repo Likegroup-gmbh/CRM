@@ -5,6 +5,7 @@
 // Der Tab „Produktion“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
 
 import { canViewTab, syncTabQueryParam, getTabQueryParam } from '../../core/TabUtils.js';
+import { refreshDocumentTitle } from '../../core/documentTitle.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -17,6 +18,7 @@ import {
 } from '../vertrag/VertraegeListHandlers.js';
 import { skripteService } from '../skripte/SkripteService.js';
 import { scopeByProduktion } from '../produktion/ProduktionService.js';
+import { effectiveLinie, syncLinienBar } from './linienScope.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
 import { renderCreatorNameCell } from '../creator/CreatorTable.js';
@@ -215,6 +217,8 @@ export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
   });
 
   if (syncUrl) syncTabQueryParam(tabId);
+  refreshDocumentTitle(tabId);
+  syncLinienBar(detail, tabId);
 
   if (tabId === 'produktion') {
     // Tabelle/Board wurden nur versteckt, nicht zerstört — Counts auffrischen.
@@ -430,7 +434,18 @@ async function getWorkflowData(detail, key, loader) {
 }
 
 async function loadVertraege(detail) {
-  const query = scopeByProduktion(
+  // Verträge tragen keine Linie; sie hängen über ihre Kooperation daran.
+  const briefingId = effectiveLinie(detail, 'vertraege');
+  let koopIds = null;
+  if (briefingId) {
+    let koopQuery = window.supabase.from('kooperationen').select('id').eq('briefing_id', briefingId);
+    if (detail.produktionId) koopQuery = koopQuery.eq('produktion_id', detail.produktionId);
+    const { data: koops, error: koopError } = await koopQuery;
+    if (koopError) throw new Error(koopError.message);
+    koopIds = (koops || []).map(k => k.id);
+    if (!koopIds.length) return [];
+  }
+  let query = scopeByProduktion(
     window.supabase
       .from('vertraege')
       .select(`
@@ -450,6 +465,7 @@ async function loadVertraege(detail) {
       .order('created_at', { ascending: false }),
     detail.produktionId
   );
+  if (koopIds) query = query.in('kooperation_id', koopIds);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   return data || [];
@@ -506,7 +522,8 @@ export function mountVertraegePane(detail) {
 
 // Briefing der Produktion: direkt oder über Casting, Konzept, Skripte, Kooperationen.
 function renderBriefingPane(detail) {
-  const briefings = detail.briefings || [];
+  const linie = effectiveLinie(detail, 'briefing');
+  const briefings = (detail.briefings || []).filter(b => !linie || b.id === linie);
 
   if (!briefings.length) {
     return renderEmptyState({
@@ -554,7 +571,8 @@ async function renderSkriptePane(detail) {
   const skripte = await getWorkflowData(detail, 'skripte', () =>
     skripteService.loadSkripte({
       kampagneId: detail.kampagneId,
-      produktionId: detail.produktionId || null
+      produktionId: detail.produktionId || null,
+      briefingId: effectiveLinie(detail, 'skripte')
     })
   );
 
@@ -663,6 +681,7 @@ async function renderVideosPane(detail) {
     VideoDataLoader.loadVideos({
       kampagneId: detail.kampagneId,
       produktionId: detail.produktionId || null,
+      briefingId: effectiveLinie(detail, 'videos'),
       from: 0,
       to: 199
     })

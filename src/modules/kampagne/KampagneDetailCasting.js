@@ -1,6 +1,7 @@
 // KampagneDetailCasting.js
 // Mountet das volle Casting-Worksheet in den Kampagnen-Workflow-Pane.
 
+import { effectiveLinie, leerHinweis } from './linienScope.js';
 import { CreatorAuswahlDetail } from '../creator-auswahl/CreatorAuswahlDetail.js';
 import { creatorAuswahlService } from '../creator-auswahl/CreatorAuswahlService.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
@@ -34,7 +35,8 @@ function prefetchStillCurrent(detail, gen) {
 
 async function loadCastingListen(detail) {
   return creatorAuswahlService.getListenByKampagneId(detail.kampagneId, {
-    produktionId: detail.produktionId || null
+    produktionId: detail.produktionId || null,
+    briefingId: effectiveLinie(detail, 'casting')
   });
 }
 
@@ -106,7 +108,7 @@ export async function mountCastingPane(detail) {
 
     if (!listen.length) {
       dropWorksheet(prefetched?.worksheet, detail);
-      pane.innerHTML = renderEmptyCasting();
+      pane.innerHTML = renderEmptyCasting(detail);
       return;
     }
 
@@ -135,11 +137,11 @@ export async function mountCastingPane(detail) {
   }
 }
 
-function renderEmptyCasting() {
+function renderEmptyCasting(detail) {
   return renderEmptyState({
     icon: 'users',
     title: 'Keine Casting-Liste',
-    text: 'Für diese Kampagne wurde noch keine Casting-Liste angelegt.'
+    text: leerHinweis(detail, 'casting', 'Für diese Linie wurde noch keine Casting-Liste angelegt.')
   });
 }
 

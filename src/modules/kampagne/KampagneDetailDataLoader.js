@@ -5,7 +5,7 @@ import { VideoTableDataLoader } from './VideoTableDataLoader.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
 import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
 import { filterBlocksForKampagne } from '../projekt-erstellen/logic/kampagnenSplit.js';
-import { listProduktionen, scopeByProduktion } from '../produktion/ProduktionService.js';
+import { listProduktionen, scopeByLinie, scopeByProduktion } from '../produktion/ProduktionService.js';
 
 /**
  * Lädt Kampagne-Metadaten (ohne Kooperationen/Videos — die kommen via loadFullTableData).
@@ -14,9 +14,6 @@ export async function loadCriticalData(kampagneId, scope = {}) {
   console.log('🔄 KAMPAGNEDETAIL: Lade kritische Daten parallel...');
   const startTime = performance.now();
   const produktionId = scope.produktionId || null;
-  const briefingIds = Array.isArray(scope.briefingIds) && scope.briefingIds.length
-    ? scope.briefingIds.filter(Boolean)
-    : (scope.briefingId ? [scope.briefingId] : []);
 
   const [
     kampagneResult,
@@ -197,11 +194,12 @@ export async function loadCriticalData(kampagneId, scope = {}) {
         .order('created_at', { ascending: false }),
       produktionId
     ),
-    briefingIds.length
+    produktionId
       ? window.supabase
         .from('campaign_briefings')
         .select('id, aktivierung_name, bereich, is_draft, content_deadline, created_at')
-        .in('id', briefingIds)
+        .eq('produktion_id', produktionId)
+        .order('created_at', { ascending: true })
       : Promise.resolve({ data: [], error: null }),
     scopeByProduktion(
       window.supabase
@@ -244,17 +242,17 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
 
   const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
   const koopSelect = isKunde
-    ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`
-    : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`;
+    ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, briefing_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`
+    : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, briefing_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`;
 
-  const kooperationenResult = await scopeByProduktion(
+  const kooperationenResult = await scopeByLinie(scopeByProduktion(
     window.supabase
       .from('kooperationen')
       .select(koopSelect)
       .eq('kampagne_id', kampagneId)
       .order('created_at', { ascending: false }),
     scope.produktionId || null
-  );
+  ), scope.briefingId || null);
 
   if (kooperationenResult.error) throw kooperationenResult.error;
 
@@ -369,7 +367,8 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
   try {
     const { ideen, skripte } = await loadKonzeptInhalte(sb, {
       kampagneId,
-      produktionId: scope.produktionId || null
+      produktionId: scope.produktionId || null,
+      briefingId: scope.briefingId || null
     });
     videosByKoopId = zuordnenKonzeptInhalte(kooperationen, videosByKoopId, ideen, skripte);
   } catch (e) {

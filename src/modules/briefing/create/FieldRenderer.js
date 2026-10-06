@@ -478,6 +478,7 @@ function renderEntitySelect(field, formData, context) {
       const kept = (context?.[field.table] || []).find(o => o.id === current);
       if (kept) options = [kept, ...options];
     }
+    if (!current) emptyLabel = '–';
   }
 
   const opts = options.map(o => `

@@ -154,6 +154,14 @@ function nestedOwnerRoute(kind) {
   };
 }
 
+// Geschwister-Produktionen derselben Kampagne. Der Tab bleibt beim Wechsel, die Linie nicht
+// (Linien-IDs gehören zu genau einer Produktion).
+function produktionRoute(row) {
+  if (!row?.id) return '#';
+  const tab = new URLSearchParams(window.location.search).get('tab');
+  return tab ? `/produktion/${row.id}?tab=${encodeURIComponent(tab)}` : `/produktion/${row.id}`;
+}
+
 export const SWITCHER_CONFIG = {
   unternehmen: {
     table: 'unternehmen',
@@ -179,6 +187,17 @@ export const SWITCHER_CONFIG = {
     searchFields: ['kampagnenname', 'eigener_name'],
     buildLabel: (row) => KampagneUtils.getDisplayName(row),
     resolveScope: () => scopeKampagneColumn('id')
+  },
+  produktion: {
+    table: 'produktion',
+    permKey: 'kampagne',
+    labelField: 'name',
+    searchFields: ['name'],
+    orderBy: { field: 'created_at', ascending: true },
+    buildRoute: produktionRoute,
+    resolveScope: async (context) => context?.kampagneId
+      ? { in: { column: 'kampagne_id', ids: [context.kampagneId] } }
+      : { empty: true }
   },
   creator: {
     table: 'creator',
@@ -375,6 +394,13 @@ async function runQuery(config, { search, scope }) {
     query = applySearch(query, config, search);
     return query.order(orderField, { ascending: false }).limit(SWITCHER_LIMIT);
   };
+
+  if (config.orderBy) {
+    const { field, ascending } = config.orderBy;
+    const query = window.supabase.from(config.table).select(selectColumns(config));
+    const scoped = scope?.in ? query.in(scope.in.column, scope.in.ids) : query;
+    return applySearch(scoped, config, search).order(field, { ascending }).limit(SWITCHER_LIMIT);
+  }
 
   let result = await build('updated_at');
   if (result?.error && isMissingOrderColumn(result.error)) {

@@ -10,7 +10,7 @@ import {
 } from '../videolaenge.js';
 import { escapeHtml } from './FieldRenderer.js';
 import { icon } from '../../../core/icons/IconSystem.js';
-import { backTarget } from '../../../core/breadcrumbTrail.js';
+import { navigateBack } from '../../../core/breadcrumbTrail.js';
 
 BriefingCreate.prototype.bindMultistepEvents = function() {
   const cancelBtn = document.getElementById('btn-cancel');
@@ -21,7 +21,7 @@ BriefingCreate.prototype.bindMultistepEvents = function() {
 
   if (cancelBtn) {
     cancelBtn.addEventListener('click', () => {
-      window.navigateTo(backTarget('/briefing'));
+      navigateBack('/briefing');
     });
   }
 
@@ -198,7 +198,7 @@ BriefingCreate.prototype.bindConditionalEvents = function() {
     this.saveCurrentStepData();
     this.refreshConditions();
     if (e.target?.id === 'kampagne_id' && !this._linieGesperrt) {
-      this.formData.ziel_produktion_id = null;
+      this.formData.produktion_id = null;
       void this.syncZielProduktion();
     }
   });
@@ -212,20 +212,20 @@ function produktionOptionLabel(row) {
 }
 
 BriefingCreate.prototype.syncZielProduktion = async function() {
-  const select = document.getElementById('ziel_produktion_id');
+  const select = document.getElementById('produktion_id');
   if (!select || !window.supabase) return;
   const field = select.closest('.form-field');
   const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
   if (!kampagneId) {
     field?.classList.add('hidden');
     select.required = false;
-    this._produktionPflicht = false;
+    this.formData.produktion_id = null;
     return;
   }
 
   const { data, error } = await window.supabase
     .from('produktion')
-    .select('id, name, budget, briefing_id')
+    .select('id, name, budget')
     .eq('kampagne_id', kampagneId)
     .order('created_at', { ascending: true });
   if (error) {
@@ -233,31 +233,20 @@ BriefingCreate.prototype.syncZielProduktion = async function() {
     return;
   }
 
+  // Eine Produktion nimmt beliebig viele Briefings auf (Linien, ADR 0045).
   const rows = data || [];
-  const regime = rows.some(row => row.budget != null);
   const boundId = this._produktionKontext?.produktionId || null;
-  const bound = rows.find(row => row.id === boundId) || null;
-  if (!regime) {
-    field?.classList.add('hidden');
-    select.required = false;
-    this._produktionPflicht = false;
-    if (!boundId) this.formData.ziel_produktion_id = null;
-    return;
-  }
-
   field?.classList.remove('hidden');
-  const freie = rows.filter(row => !row.briefing_id || row.id === boundId);
-  const current = this.formData.ziel_produktion_id || boundId || '';
-  const placeholder = freie.length ? 'Produktion auswählen...' : 'Keine freie Produktion';
-  select.innerHTML = `<option value="">${placeholder}</option>${freie.map(row => `
+  const current = this.formData.produktion_id || boundId || '';
+  const placeholder = rows.length ? 'Produktion auswählen...' : 'Keine Produktion – im Auftrag oder in der Kampagne anlegen';
+  select.innerHTML = `<option value="">${placeholder}</option>${rows.map(row => `
     <option value="${row.id}">${window.validatorSystem?.sanitizeHtml(produktionOptionLabel(row)) || produktionOptionLabel(row)}</option>
   `).join('')}`;
-  select.value = freie.some(row => row.id === current) ? current : '';
-  const locked = !!(bound?.briefing_id);
+  select.value = rows.some(row => row.id === current) ? current : '';
+  const locked = !!boundId && rows.some(row => row.id === boundId);
   select.disabled = locked;
   select.required = !locked;
-  this._produktionPflicht = !locked;
-  this.formData.ziel_produktion_id = select.value || null;
+  this.formData.produktion_id = select.value || null;
 };
 
 BriefingCreate.prototype.refreshConditions = function() {
@@ -429,12 +418,15 @@ BriefingCreate.prototype.uploadBriefingAsset = async function(fileInput) {
 // Unternehmen -> Marke Kaskade
 // ---------------------------------------------------------------
 BriefingCreate.prototype.bindCascadeEvents = function() {
+  // Gesperrter Kontext (aus Produktion/Kampagne): Unternehmen und Marke sind fix.
+  if (this._linieGesperrt) return;
+
   const unternehmenSelect = document.getElementById('unternehmen_id');
   if (unternehmenSelect) {
     unternehmenSelect.addEventListener('change', async (e) => {
       this.formData.unternehmen_id = e.target.value || null;
       this.formData.marke_id = null;
-      if (!this._linieGesperrt) this.formData.kampagne_id = null;
+      this.formData.kampagne_id = null;
       this.rebuildMarkeSelect();
       await this.refreshProdukte();
       this.rebuildLinieSelects();
@@ -445,7 +437,7 @@ BriefingCreate.prototype.bindCascadeEvents = function() {
   if (markeSelect) {
     markeSelect.addEventListener('change', async (e) => {
       this.formData.marke_id = e.target.value || null;
-      if (!this._linieGesperrt) this.formData.kampagne_id = null;
+      this.formData.kampagne_id = null;
       await this.refreshProdukte();
       this.rebuildLinieSelects();
     });
@@ -460,6 +452,11 @@ BriefingCreate.prototype.rebuildLinieSelects = function() {
     if (markeId && k.marke_id && k.marke_id !== markeId) return false;
     return true;
   });
+  // Gesperrt: die vorbelegte Kampagne bleibt sichtbar, auch wenn der Filter sie ausschließt.
+  if (this._linieGesperrt) {
+    const gewaehlt = (this.kampagnen || []).find(k => k.id === this.formData.kampagne_id);
+    if (gewaehlt && !kampagnen.some(k => k.id === gewaehlt.id)) kampagnen.unshift(gewaehlt);
+  }
   this.rebuildEntitySelect('kampagne_id', kampagnen, {
     labelKey: 'label',
     placeholder: unternehmenId ? 'Kampagne auswählen...' : 'Bitte zuerst Unternehmen wählen...',
@@ -509,14 +506,21 @@ BriefingCreate.prototype.rebuildMarkeSelect = function() {
 
   const unternehmenId = this.formData.unternehmen_id;
   const filtered = unternehmenId ? this.marken.filter(m => m.unternehmen_id === unternehmenId) : [];
+  const gesperrt = !!this._linieGesperrt;
+  const aktuell = this.formData.marke_id || '';
+  if (gesperrt && aktuell && !filtered.some(m => m.id === aktuell)) {
+    const gewaehlt = this.marken.find(m => m.id === aktuell);
+    if (gewaehlt) filtered.unshift(gewaehlt);
+  }
 
   markeSelect.innerHTML = `
-    <option value="">${unternehmenId ? 'Marke auswählen (optional)...' : 'Bitte zuerst Unternehmen wählen...'}</option>
-    ${filtered.map(m => `<option value="${m.id}">${escapeHtml(m.markenname)}</option>`).join('')}
+    <option value="">${gesperrt ? '–' : (unternehmenId ? 'Marke auswählen (optional)...' : 'Bitte zuerst Unternehmen wählen...')}</option>
+    ${filtered.map(m => `<option value="${m.id}" ${gesperrt && aktuell === m.id ? 'selected' : ''}>${escapeHtml(m.markenname)}</option>`).join('')}
   `;
-  markeSelect.disabled = !unternehmenId;
+  markeSelect.disabled = gesperrt || !unternehmenId;
+  if (gesperrt) markeSelect.value = aktuell;
 
-  if (unternehmenId && window.formSystem?.createSearchableSelect) {
+  if (!gesperrt && unternehmenId && window.formSystem?.createSearchableSelect) {
     window.formSystem.createSearchableSelect(markeSelect, filtered.map(m => ({ value: m.id, label: m.markenname })), {
       name: 'marke_id',
       placeholder: 'Marke suchen...',
@@ -533,7 +537,7 @@ BriefingCreate.prototype.initSearchableSelects = function() {
 
   try {
     const unternehmenSelect = document.getElementById('unternehmen_id');
-    if (unternehmenSelect && window.formSystem?.createSearchableSelect) {
+    if (unternehmenSelect && !this._linieGesperrt && window.formSystem?.createSearchableSelect) {
       window.formSystem.createSearchableSelect(unternehmenSelect, this.unternehmen.map(u => ({
         value: u.id,
         label: u.firmenname,
@@ -546,7 +550,7 @@ BriefingCreate.prototype.initSearchableSelects = function() {
     }
 
     const markeSelect = document.getElementById('marke_id');
-    if (markeSelect && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
+    if (markeSelect && !this._linieGesperrt && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
       const filtered = this.marken.filter(m => m.unternehmen_id === this.formData.unternehmen_id);
       window.formSystem.createSearchableSelect(markeSelect, filtered.map(m => ({
         value: m.id,

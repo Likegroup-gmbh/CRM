@@ -3536,3 +3536,66 @@ th[draggable="true"]:active {
 .data-table th.th-sortable[aria-sort="descending"] .th-sort-icons .th-sort-down.crm-icon {
   opacity: 1;
 }
+
+/* === LINIEN-LEISTE (Produktion mit mehreren Briefings, ADR 0045) === */
+.linien-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.linien-bar__label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.linien-bar__chips {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.linien-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-sm);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  max-width: 280px;
+}
+
+.linien-chip:hover {
+  background: var(--bg-secondary);
+}
+
+.linien-chip.active {
+  border-color: var(--border-focus);
+  background: var(--bg-secondary);
+  font-weight: 600;
+}
+
+.linien-chip--neu {
+  border-style: dashed;
+  color: var(--text-secondary);
+}
+
+.linien-chip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linien-chip__badge {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-xs);
+}

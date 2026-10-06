@@ -3,6 +3,7 @@
 
 import { uploadRechnungPdf, uploadRechnungBeleg } from '../../core/DropboxDocumentUploader.js';
 import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
+import { navigateBack } from '../../core/breadcrumbTrail.js';
 
 // --- Segmented Control ---
 
@@ -104,7 +105,7 @@ export async function handleContractingCreateSubmit(form) {
     await uploadBelege(form, rechnungId, pathMeta);
 
     alert('Contracting-Rechnung erstellt');
-    window.navigateTo(`/rechnung/${rechnungId}`);
+    navigateBack(`/rechnung/${rechnungId}`);
     return rechnungId;
   } catch (e) {
     alert(`Fehler: ${e.message}`);

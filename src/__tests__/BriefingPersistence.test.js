@@ -26,6 +26,8 @@ function looseChain() {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
     not: vi.fn(() => query),
+    is: vi.fn(() => query),
+    neq: vi.fn(() => query),
     limit: vi.fn(() => query),
     insert: vi.fn(() => query),
     update: vi.fn(() => query),
@@ -41,7 +43,15 @@ function mockSupabase({ row = null, produkte = [] } = {}) {
   const calls = { insert: [], update: [], junctionInsert: [], junctionDelete: 0 };
   const sb = {
     from: vi.fn((table) => {
-      if (table === 'produktion' || table === 'creator_auswahl' || table === 'strategie') {
+      if (table === 'produktion') {
+        const chain = looseChain();
+        chain.maybeSingle = vi.fn(async () => ({
+          data: { id: 'pn1', name: 'Serum Sommer', kampagne_id: 'k1' },
+          error: null
+        }));
+        return chain;
+      }
+      if (table === 'creator_auswahl' || table === 'strategie') {
         return looseChain();
       }
       if (table === 'campaign_briefing_produkt') {
@@ -342,6 +352,7 @@ describe('Briefing DataPersistence', () => {
       unternehmen_id: 'u1',
       aktivierung_name: 'Final',
       kampagne_id: 'k1',
+      produktion_id: 'pn1',
       produkt_id: 'p1'
     };
 
@@ -356,6 +367,42 @@ describe('Briefing DataPersistence', () => {
       'success'
     );
     vi.useRealTimers();
+  });
+
+  it('handleSubmit kehrt zur Herkunft zurück, nicht in die Produktion', async () => {
+    vi.useFakeTimers();
+    const { sb } = mockSupabase();
+    window.supabase = sb;
+    const submit = async () => {
+      const instance = createInstance();
+      instance.editId = 'briefing-1';
+      instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Final', kampagne_id: 'k1', produktion_id: 'pn1' };
+      await instance.handleSubmit();
+      vi.advanceTimersByTime(500);
+    };
+
+    try {
+      window.history.replaceState({
+        route: '/briefing/briefing-1/edit',
+        trail: [{ label: 'Briefings', url: '/briefing?status=offen' }, { label: 'Final', url: '/briefing/briefing-1' }]
+      }, '', '/briefing/briefing-1/edit');
+      await submit();
+      expect(window.navigateTo).toHaveBeenLastCalledWith('/briefing/briefing-1');
+
+      window.history.replaceState({ route: '/briefing/new', trail: [] }, '', '/briefing/new');
+      await submit();
+      expect(window.navigateTo).toHaveBeenLastCalledWith('/briefing/briefing-1');
+
+      window.history.replaceState({
+        route: '/briefing/new',
+        trail: [{ label: 'Serum', url: '/produktion/p1?tab=briefing' }]
+      }, '', '/briefing/new');
+      await submit();
+      expect(window.navigateTo).toHaveBeenLastCalledWith('/produktion/p1?tab=briefing');
+    } finally {
+      window.history.replaceState(null, '', '/');
+      vi.useRealTimers();
+    }
   });
 
   it('handleSubmit bricht ohne Pflichtfelder ab', async () => {

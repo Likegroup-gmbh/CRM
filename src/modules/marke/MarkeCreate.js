@@ -4,6 +4,7 @@
 import { MarkeService } from './services/MarkeService.js';
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
 import { normalizeFormUrlFields } from '../../core/UrlHelper.js';
+import { navigateBack } from '../../core/breadcrumbTrail.js';
 
 export class MarkeCreate {
   constructor() {
@@ -272,9 +273,8 @@ export class MarkeCreate {
 
         this.showSuccessMessage('Marke erfolgreich erstellt!');
         
-        // Kurz warten, dann zur Übersicht
         setTimeout(() => {
-          window.navigateTo(result.id ? `/marke/${result.id}` : '/unternehmen');
+          navigateBack(result.id ? `/marke/${result.id}` : '/unternehmen');
         }, 1500);
       } else {
         throw new Error(result.error || 'Fehler beim Erstellen der Marke');

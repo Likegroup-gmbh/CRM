@@ -2,6 +2,7 @@
 // Management-Erstellungsseite mit FormSystem + Creator-Zuordnung via Tag-Multi-Select
 
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
+import { navigateBack } from '../../core/breadcrumbTrail.js';
 
 export class ManagementCreate {
   constructor() {
@@ -108,7 +109,7 @@ export class ManagementCreate {
         window.toastSystem.success('Management erfolgreich erstellt!');
       }
 
-      window.navigateTo(`/management/${managementId}`);
+      navigateBack(`/management/${managementId}`);
 
     } catch (error) {
       console.error('❌ MANAGEMENTCREATE: Fehler beim Erstellen:', error);

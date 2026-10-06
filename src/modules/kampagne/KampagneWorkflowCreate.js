@@ -6,25 +6,23 @@ import { resolveCreateAction, renderCreateButton } from '../../core/actions/Crea
 import { openSkriptCreateDrawer } from '../skripte/SkriptCreateDrawer.js';
 import { lineNames } from '../produktion/produktionNames.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
-const EXISTS_REASON = {
-  briefing: 'Diese Produktion hat bereits ein Briefing.'
-};
+const EXISTS_REASON = {};
 
 const ACTION_SPECS = {
   briefing: {
     permission: 'briefing',
     label: 'Briefing anlegen',
     mode: 'navigate',
-    exists(detail) {
-      const ids = detail.produktion?.resolvedBriefingIds;
-      if (Array.isArray(ids) && ids.length > 0) return true;
-      if (detail.produktion?.briefing_id) return true;
-      return (detail.briefings || []).length > 0;
+    // Eine Produktion nimmt beliebig viele Briefings auf (Linien, ADR 0045).
+    exists() {
+      return false;
     },
     url(detail) {
       const u = detail.kampagneData?.unternehmen_id || '';
       const m = detail.kampagneData?.marke_id || '';
-      return `/briefing/new?unternehmen=${encodeURIComponent(u)}&marke=${encodeURIComponent(m)}`;
+      const params = new URLSearchParams({ unternehmen: u, marke: m, kampagne: detail.kampagneId || '' });
+      if (detail.produktionId) params.set('produktion', detail.produktionId);
+      return `/briefing/new?${params.toString()}`;
     }
   },
   skripte: {
@@ -48,15 +46,15 @@ const ACTION_SPECS = {
 
 function campaignPrefill(detail) {
   const k = detail.kampagneData || {};
-  const names = lineNames(detail.lineTitle);
+  const linie = (detail.linien || []).find(l => l.id === detail.linieId) || null;
+  const lineTitle = linie?.name || detail.lineTitle || '';
+  const names = lineNames(lineTitle);
   return {
     unternehmen_id: k.unternehmen_id,
     kampagne_id: detail.kampagneId,
     produktion_id: detail.produktionId || null,
-    briefing_id: detail.produktion?.briefing_id
-      || (detail.produktion?.resolvedBriefingIds?.length === 1 ? detail.produktion.resolvedBriefingIds[0] : null)
-      || null,
-    lineTitle: detail.lineTitle || '',
+    briefing_id: detail.linieId || null,
+    lineTitle,
     castingName: names.casting,
     konzeptName: names.konzept,
     unternehmenName: k.unternehmen?.firmenname || k.unternehmen?.internes_kuerzel || 'Unternehmen'

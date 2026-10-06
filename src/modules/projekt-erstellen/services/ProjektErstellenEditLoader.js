@@ -99,7 +99,7 @@ export class ProjektErstellenEditLoader {
     if (!ids.length) return [];
     const { data, error } = await supabase
       .from('produktion')
-      .select('id, name, kampagne_id, briefing_id, budget')
+      .select('id, name, kampagne_id, budget')
       .in('kampagne_id', ids)
       .order('created_at', { ascending: true });
     if (error) throw error;

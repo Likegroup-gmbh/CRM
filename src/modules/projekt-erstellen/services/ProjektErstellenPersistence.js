@@ -964,19 +964,17 @@ export class ProjektErstellenPersistence {
       const bOld = budgetOrNull(previous.get(b.id)?.budget) || 0;
       return ((a.budget || 0) - aOld) - ((b.budget || 0) - bOld);
     });
-    const kept = new Set();
-
     for (const row of updates) {
-      kept.add(row.id);
-      const patch = { budget: row.budget };
-      if (!row.briefing_id) {
-        patch.name = (row.name || '').trim() || fallbackName(row.kampagne_id);
-      }
+      const patch = {
+        budget: row.budget,
+        name: (row.name || '').trim() || fallbackName(row.kampagne_id)
+      };
       const { error } = await supabase.from('produktion').update(patch).eq('id', row.id);
       if (error) throw error;
     }
 
-    for (const row of incoming.filter(item => !item.id && item.budget != null)) {
+    // Produktionen entstehen immer mit dem Auftrag, auch ohne Budget (ADR 0045).
+    for (const row of incoming.filter(item => !item.id)) {
       const { error } = await supabase.from('produktion').insert({
         kampagne_id: row.kampagne_id,
         name: (row.name || '').trim() || fallbackName(row.kampagne_id),
@@ -984,12 +982,7 @@ export class ProjektErstellenPersistence {
       });
       if (error) throw error;
     }
-
-    for (const old of existingRows || []) {
-      if (!old?.id || kept.has(old.id) || old.briefing_id) continue;
-      const { error } = await supabase.from('produktion').delete().eq('id', old.id);
-      if (error) throw error;
-    }
+    // Die Anzahl lässt sich nur erhöhen: bestehende Produktionen werden hier nie gelöscht.
   }
 
   friendlyError(e, fallback) {

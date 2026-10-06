@@ -191,7 +191,7 @@ export class SkripteService {
    * Editor auf eine Kampagne; null = explizit „ohne Kampagne“. Ohne Argument
    * bleibt das bisherige Verhalten (alles, Limit 200) fuer SkriptList.
    */
-  async loadSkripte({ kampagneId, produktionId = null } = {}) {
+  async loadSkripte({ kampagneId, produktionId = null, briefingId = null } = {}) {
     // hauptteil/cta bleiben draussen (nie angezeigt),
     // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
     let query = this.db.from('skripte')
@@ -217,6 +217,7 @@ export class SkripteService {
     if (kampagneId) query = query.eq('kampagne_id', kampagneId);
     else if (kampagneId === null) query = query.is('kampagne_id', null);
     if (produktionId) query = query.eq('produktion_id', produktionId);
+    if (briefingId) query = query.eq('briefing_id', briefingId);
 
     const { data, error } = await query;
 

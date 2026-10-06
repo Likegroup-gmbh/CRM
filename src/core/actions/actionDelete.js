@@ -61,6 +61,10 @@ export async function handleDelete(entityId, entityType) {
     await confirmDeleteCreatorAuswahl(entityId);
     return;
   }
+  if (entityType === 'briefing') {
+    await confirmDeleteBriefing(entityId);
+    return;
+  }
   if (entityType === 'vertraege') {
     dispatchVertragListAction('delete', entityId);
     return;
@@ -70,6 +74,29 @@ export async function handleDelete(entityId, entityType) {
     return;
   }
   await confirmDelete(entityId, entityType);
+}
+
+export async function confirmDeleteBriefing(entityId) {
+  const { canDeleteLinie, deleteBriefingMitLinie, LINIE_LOESCHEN_HINWEIS } = await import('../../modules/produktion/ProduktionService.js');
+  try {
+    const gate = await canDeleteLinie(entityId);
+    if (!gate.ok) {
+      window.toastSystem?.show(gate.reason, 'warning');
+      return;
+    }
+    const proceed = await confirmDanger({
+      title: 'Löschvorgang bestätigen',
+      message: `Möchten Sie wirklich das Briefing löschen? ${LINIE_LOESCHEN_HINWEIS} Diese Aktion kann nicht rückgängig gemacht werden.`,
+    });
+    if (!proceed) return;
+    await deleteBriefingMitLinie(entityId);
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: 'briefing', action: 'deleted', id: entityId }
+    }));
+  } catch (err) {
+    console.error('Briefing-Löschung fehlgeschlagen:', err);
+    window.toastSystem?.show('Briefing konnte nicht gelöscht werden.', 'error');
+  }
 }
 
 export async function confirmDeleteProdukt(entityId) {

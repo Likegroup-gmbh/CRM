@@ -118,6 +118,7 @@ import { bulkActionSystem } from './core/BulkActionSystem.js';
 import { AvatarBubbles } from './core/components/AvatarBubbles.js';
 import { dashboardModule } from './modules/dashboard/DashboardModule.js';
 import { breadcrumbSystem } from './core/BreadcrumbSystem.js';
+import { navigateBack } from './core/breadcrumbTrail.js';
 import { TaskDetailDrawer } from './modules/tasks/TaskDetailDrawer.js';
 import { taskListPage } from './modules/tasks/TaskListPage.js';
 import { tabellenModule } from './modules/tabellen/TabellenModule.js';
@@ -248,6 +249,9 @@ window.moduleRegistry = moduleRegistry;
 window.navigateTo = (route, skipPushState = false) => {
   moduleRegistry.navigateTo(route, skipPushState);
 };
+window.navigateReplace = (route) => moduleRegistry.navigateTo(route, false, { replace: true });
+// Für Abbrechen-Buttons in Template-Strings (onclick)
+window.navigateBack = navigateBack;
 
 // Browser-Zurück/-Vor: URL ist bereits geändert, nur Inhalt synchronisieren
 window.addEventListener('popstate', (event) => {

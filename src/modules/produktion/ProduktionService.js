@@ -1,96 +1,68 @@
 // ProduktionService.js
-// Anlegen der Produktion zum Briefing und Auflisten unter der Kampagne.
+// Produktion (Container unter der Kampagne) und ihre Linien (ADR 0045).
+// Eine Linie ist ein Briefing mit seinem Casting und Konzept; die Zuordnung steht
+// am Briefing (campaign_briefings.produktion_id).
 
 import { fetchAllRows } from '../../core/fetchAllRows.js';
-import { lineNames } from './produktionNames.js';
+import { geistProduktionName, lineNames } from './produktionNames.js';
 import { castingPresetFromBriefing } from './castingPresetFromBriefing.js';
 import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN, wendePresetAn } from '../creator-auswahl/sourcingSpaltenPreset.js';
 import { syncBriefingProdukte } from '../briefing/BriefingProdukte.js';
-
-const CHILD_BRIEFING_TABLES = ['creator_auswahl', 'strategie', 'skripte', 'kooperationen'];
 
 export function scopeByProduktion(query, produktionId) {
   if (!produktionId) return query;
   return query.eq('produktion_id', produktionId);
 }
 
+/** Linie einer Produktion eingrenzen: Casting, Konzept, Skripte, Kooperationen tragen briefing_id. */
+export function scopeByLinie(query, briefingId) {
+  if (!briefingId) return query;
+  return query.eq('briefing_id', briefingId);
+}
+
 export function uniqueIds(values) {
   return [...new Set((values || []).filter(Boolean))];
 }
 
-function uniqueProducts(products) {
-  const map = new Map();
-  for (const produkt of products || []) {
-    if (produkt?.id && !map.has(produkt.id)) map.set(produkt.id, produkt);
-  }
-  return [...map.values()];
+const BRIEFINGS_EMBED = `briefings:campaign_briefings!produktion_id(
+    id, aktivierung_name, bereich, is_draft, content_deadline, persona_ids, created_at,
+    produkte:campaign_briefing_produkt(produkt:produkt_id(id, name))
+  )`;
+
+/** Linien einer Produktion aus ihren Briefings, älteste zuerst. */
+export function linienFromBriefings(briefings) {
+  return (briefings || [])
+    .filter(b => b?.id)
+    .slice()
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+    .map(b => ({
+      id: b.id,
+      briefing_id: b.id,
+      name: b.aktivierung_name || 'Briefing',
+      is_draft: !!b.is_draft,
+      bereich: b.bereich || null,
+      briefing: b
+    }));
 }
 
 /**
- * Briefing einer Produktion: eigene FK, sonst die eine gemeinsame briefing_id
- * der Kinder. Produkt: eigene FK, sonst das eine Produkt dieses Briefings.
- * Mehrdeutige Treffer werden nicht geraten.
+ * Setzt `linien` und `briefing` (die erste finalisierte, sonst die erste Linie)
+ * auf eine Produktionszeile. Listen und Karten zeigen damit weiter ein Briefing,
+ * `briefings` hält alle.
  */
-export function resolveProduktionLinks({
-  produktion,
-  childBriefingIds = [],
-  briefingProdukte = [],
-  takenBriefingIds = [],
-  briefing = null
-}) {
-  const ownBriefing = produktion?.briefing_id || null;
-  const fromChildren = uniqueIds(childBriefingIds);
-  const taken = new Set((takenBriefingIds || []).filter(id => id && id !== ownBriefing));
-
-  let briefingIds = [];
-  let ambiguous = false;
-  if (ownBriefing) {
-    briefingIds = [ownBriefing];
-  } else if (fromChildren.length === 1) {
-    briefingIds = fromChildren;
-  } else if (fromChildren.length > 1) {
-    briefingIds = fromChildren;
-    ambiguous = true;
-  }
-
-  const briefingId = ambiguous ? null : (briefingIds[0] || null);
-  let produktId = produktion?.produkt_id || null;
-  let produkt = null;
-  if (!produktId && briefingId) {
-    const products = uniqueProducts(briefingProdukte);
-    if (products.length === 1) {
-      produktId = products[0].id;
-      produkt = products[0];
-    }
-  }
-
-  const patch = {};
-  if (briefingId && !ownBriefing && !taken.has(briefingId)) {
-    patch.briefing_id = briefingId;
-    const titel = String(briefing?.aktivierung_name || '').trim();
-    if (titel) patch.name = titel;
-  }
-  if (produktId && !produktion?.produkt_id) {
-    patch.produkt_id = produktId;
-  }
-
+export function withLinien(row) {
+  if (!row) return row;
+  const briefings = Array.isArray(row.briefings)
+    ? row.briefings
+    : (row.briefing ? [row.briefing] : []);
+  const linien = linienFromBriefings(briefings);
+  const primary = linien.find(l => !l.is_draft) || linien[0] || null;
   return {
-    briefingIds,
-    briefingId,
-    produktId: produktId || null,
-    produkt,
-    ambiguous,
-    patch: Object.keys(patch).length ? patch : null
+    ...row,
+    briefings: linien.map(l => l.briefing),
+    linien,
+    briefing: primary?.briefing || null
   };
-}
-
-/** Genau eine Produktion ohne Briefing: deren Id, sonst null. */
-export function emptyProduktionId(produktionen) {
-  const empty = (produktionen || []).filter(p => {
-    if (p?.briefing_id) return false;
-    return (p?.resolvedBriefingIds || []).length === 0;
-  });
-  return empty.length === 1 ? empty[0].id : null;
 }
 
 export function sumBudgetByProduktion(kooperationen, videos) {
@@ -106,121 +78,6 @@ export function sumBudgetByProduktion(kooperationen, videos) {
     sums.set(produktionId, (sums.get(produktionId) || 0) + amount);
   }
   return sums;
-}
-
-async function loadChildBriefingIds(produktionIds) {
-  const map = new Map();
-  if (!produktionIds.length || !window.supabase) return map;
-  const results = await Promise.all(CHILD_BRIEFING_TABLES.map(table =>
-    window.supabase
-      .from(table)
-      .select('produktion_id, briefing_id')
-      .in('produktion_id', produktionIds)
-  ));
-  for (const result of results) {
-    if (result.error) throw result.error;
-    for (const row of result.data || []) {
-      if (!row.produktion_id || !row.briefing_id) continue;
-      const list = map.get(row.produktion_id) || [];
-      list.push(row.briefing_id);
-      map.set(row.produktion_id, list);
-    }
-  }
-  return map;
-}
-
-async function loadBriefings(ids) {
-  const map = new Map();
-  if (!ids.length || !window.supabase) return map;
-  const { data, error } = await window.supabase
-    .from('campaign_briefings')
-    .select('id, aktivierung_name, bereich, is_draft, content_deadline, created_at')
-    .in('id', ids);
-  if (error) throw error;
-  for (const row of data || []) map.set(row.id, row);
-  return map;
-}
-
-async function loadProdukteByBriefing(briefingIds) {
-  const map = new Map();
-  if (!briefingIds.length || !window.supabase) return map;
-  const { data, error } = await window.supabase
-    .from('campaign_briefing_produkt')
-    .select('briefing_id, produkt:produkt_id(id, name)')
-    .in('briefing_id', briefingIds);
-  if (error) throw error;
-  for (const row of data || []) {
-    if (!row.produkt?.id) continue;
-    const list = map.get(row.briefing_id) || [];
-    list.push(row.produkt);
-    map.set(row.briefing_id, list);
-  }
-  return map;
-}
-
-async function persistPatch(id, patch) {
-  const { error } = await window.supabase.from('produktion').update(patch).eq('id', id);
-  if (!error) return { ...patch };
-  if (error.code === '23505' && patch.briefing_id && patch.produkt_id) {
-    const rest = { produkt_id: patch.produkt_id };
-    const retry = await window.supabase.from('produktion').update(rest).eq('id', id);
-    if (!retry.error) return rest;
-    console.error('Produktion-Produkt nicht geschrieben', retry.error);
-    return {};
-  }
-  console.error('Produktion-Verknüpfung nicht geschrieben', error);
-  return {};
-}
-
-export async function attachProduktionLinks(rows) {
-  if (!rows?.length || !window.supabase) return rows || [];
-
-  const needsChildren = rows.filter(row => !row.briefing_id).map(row => row.id);
-  const childMap = await loadChildBriefingIds(needsChildren);
-  const taken = new Set(rows.map(row => row.briefing_id).filter(Boolean));
-
-  const planned = rows.map(row => {
-    const childBriefingIds = childMap.get(row.id) || [];
-    const preview = resolveProduktionLinks({
-      produktion: row,
-      childBriefingIds,
-      takenBriefingIds: [...taken]
-    });
-    return { row, childBriefingIds, preview };
-  });
-
-  const briefingIds = uniqueIds(planned.flatMap(item => item.preview.briefingIds));
-  const [briefingsById, productsByBriefing] = await Promise.all([
-    loadBriefings(briefingIds),
-    loadProdukteByBriefing(uniqueIds(
-      planned.filter(item => item.preview.briefingId && !item.row.produkt_id).map(item => item.preview.briefingId)
-    ))
-  ]);
-
-  const next = [];
-  for (const item of planned) {
-    const briefing = item.preview.briefingId ? briefingsById.get(item.preview.briefingId) || null : null;
-    const resolution = resolveProduktionLinks({
-      produktion: item.row,
-      childBriefingIds: item.childBriefingIds,
-      briefingProdukte: item.preview.briefingId ? (productsByBriefing.get(item.preview.briefingId) || []) : [],
-      takenBriefingIds: [...taken],
-      briefing
-    });
-    let row = {
-      ...item.row,
-      resolvedBriefingIds: resolution.briefingIds
-    };
-    if (briefing) row.briefing = briefing;
-    if (resolution.produkt) row.produkt = resolution.produkt;
-    if (resolution.patch) {
-      const applied = await persistPatch(row.id, resolution.patch);
-      row = { ...row, ...applied };
-      if (applied.briefing_id) taken.add(applied.briefing_id);
-    }
-    next.push(row);
-  }
-  return next;
 }
 
 async function attachProduktionBudget(rows, kampagneId) {
@@ -247,10 +104,10 @@ async function attachProduktionBudget(rows, kampagneId) {
 }
 
 const PRODUKTION_LIST_SELECT = `
-  id, name, budget, kampagne_id, produkt_id, briefing_id, created_at,
+  id, name, budget, kampagne_id, produkt_id, created_at,
   produkt:produkt_id(id, name),
-  briefing:briefing_id(
-    id, aktivierung_name, persona_ids,
+  briefings:campaign_briefings!produktion_id(
+    id, aktivierung_name, persona_ids, is_draft, created_at,
     produkte:campaign_briefing_produkt(produkt:produkt_id(id, name))
   ),
   kampagne:kampagne_id(
@@ -267,8 +124,9 @@ const PRODUKTION_LIST_SELECT = `
 `;
 
 async function attachProduktionPersonas(rows) {
-  const ids = uniqueIds((rows || []).flatMap(row => row.briefing?.persona_ids || []));
-  if (!ids.length || !window.supabase) return rows || [];
+  const normalized = (rows || []).map(withLinien);
+  const ids = uniqueIds(normalized.flatMap(row => (row.briefings || []).flatMap(b => b.persona_ids || [])));
+  if (!ids.length || !window.supabase) return normalized;
 
   const { data, error } = await window.supabase
     .from('personas')
@@ -277,12 +135,13 @@ async function attachProduktionPersonas(rows) {
   if (error) throw error;
 
   const byId = new Map((data || []).map(persona => [persona.id, persona]));
-  return rows.map(row => {
-    if (!row.briefing) return row;
-    const verknuepfte_personas = (row.briefing.persona_ids || [])
-      .map(id => byId.get(id))
-      .filter(Boolean);
-    return { ...row, briefing: { ...row.briefing, verknuepfte_personas } };
+  const enrich = briefing => ({
+    ...briefing,
+    verknuepfte_personas: (briefing.persona_ids || []).map(id => byId.get(id)).filter(Boolean)
+  });
+  return normalized.map(row => {
+    if (!row.briefings.length) return row;
+    return withLinien({ ...row, briefings: row.briefings.map(enrich) });
   });
 }
 
@@ -309,11 +168,10 @@ function loadProduktionVerbrauch() {
 }
 
 /**
- * Alle sichtbaren Produktionen, neueste zuerst.
+ * Alle Produktionen, neueste zuerst (auch ohne Briefing).
  * Verbrauch kommt aus produktion_verbrauch (eine Summe je Produktion), nicht
  * aus allen Video-Zeilen. onRows feuert, sobald die Produktionen da sind —
  * mit budgetUsed, wenn die Summe schon da ist, sonst ohne.
- * Kein attachProduktionLinks: das schreibt fehlende FKs und gehört nicht in die Liste.
  */
 export async function listAllProduktionen({ onRows } = {}) {
   if (!window.supabase) {
@@ -333,8 +191,7 @@ export async function listAllProduktionen({ onRows } = {}) {
       error => ({ ok: false, error })
     );
 
-  const rows = (await attachProduktionPersonas(await rowsPromise))
-    .filter(row => row.briefing_id);
+  const rows = await attachProduktionPersonas(await rowsPromise);
   const winner = await Promise.race([
     budgetPromise,
     Promise.resolve(null)
@@ -360,25 +217,22 @@ export async function listProduktionen(kampagneId) {
   if (!kampagneId || !window.supabase) return [];
   const { data, error } = await window.supabase
     .from('produktion')
-    .select('id, name, budget, kampagne_id, produkt_id, briefing_id, created_at, produkt:produkt_id(id, name), briefing:briefing_id(id, aktivierung_name)')
+    .select(`id, name, budget, kampagne_id, produkt_id, created_at, produkt:produkt_id(id, name), ${BRIEFINGS_EMBED}`)
     .eq('kampagne_id', kampagneId)
-    .not('briefing_id', 'is', null)
     .order('created_at', { ascending: true });
   if (error) throw error;
-  const linked = await attachProduktionLinks(data || []);
-  return attachProduktionBudget(linked, kampagneId);
+  return attachProduktionBudget((data || []).map(withLinien), kampagneId);
 }
 
 export async function loadProduktion(produktionId) {
   if (!produktionId || !window.supabase) return null;
   const { data, error } = await window.supabase
     .from('produktion')
-    .select('id, name, budget, kampagne_id, produkt_id, briefing_id, created_at, produkt:produkt_id(id, name), briefing:briefing_id(id, aktivierung_name, bereich, is_draft, content_deadline, created_at)')
+    .select(`id, name, budget, kampagne_id, produkt_id, created_at, produkt:produkt_id(id, name), ${BRIEFINGS_EMBED}`)
     .eq('id', produktionId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const [linked] = await attachProduktionLinks([data]);
   const { data: verbrauch, error: verbrauchError } = await window.supabase
     .from('produktion_verbrauch')
     .select('budget_used')
@@ -386,142 +240,220 @@ export async function loadProduktion(produktionId) {
     .maybeSingle();
   if (verbrauchError) throw verbrauchError;
   return {
-    ...linked,
+    ...withLinien(data),
     budgetUsed: parseFloat(verbrauch?.budget_used) || 0
   };
 }
 
-async function kampagneHatProduktionsbudget(kampagneId) {
+/** Linien einer Produktion (Briefings, auch Entwürfe), älteste zuerst. */
+export async function listLinien(produktionId) {
+  if (!produktionId || !window.supabase) return [];
   const { data, error } = await window.supabase
-    .from('produktion')
-    .select('id')
-    .eq('kampagne_id', kampagneId)
-    .not('budget', 'is', null)
-    .limit(1);
+    .from('campaign_briefings')
+    .select('id, aktivierung_name, bereich, is_draft, created_at')
+    .eq('produktion_id', produktionId);
   if (error) throw error;
-  return (data || []).length > 0;
+  return linienFromBriefings(data || []);
 }
 
-export async function createProduktionForBriefing({ kampagneId, briefingId, produktId, titel, produktionId = null }) {
+/** Nächste freie Nummer für `Basis – Produktion N`. */
+export function nextProduktionNummer(namen) {
+  let max = 0;
+  for (const name of namen || []) {
+    const match = /Produktion (\d+)\s*$/.exec(String(name || ''));
+    if (match) max = Math.max(max, parseInt(match[1], 10));
+  }
+  return Math.max(max, (namen || []).length) + 1;
+}
+
+/** Legt von Hand eine weitere Produktion unter der Kampagne an. */
+export async function createProduktion({ kampagneId, name = '' } = {}) {
   if (!window.supabase) throw new Error('Supabase nicht verfügbar');
   if (!kampagneId) throw new Error('Kampagne fehlt');
-  if (!briefingId) throw new Error('Briefing fehlt');
 
-  const names = lineNames(titel);
-  const payload = {
-    briefing_id: briefingId,
-    name: names.produktion || titel || 'Produktion'
-  };
-  if (produktId) payload.produkt_id = produktId;
+  const [{ data: kampagne, error: kampagneError }, { data: bestand, error: bestandError }] = await Promise.all([
+    window.supabase.from('kampagne').select('kampagnenname, eigener_name').eq('id', kampagneId).maybeSingle(),
+    window.supabase.from('produktion').select('name').eq('kampagne_id', kampagneId)
+  ]);
+  if (kampagneError) throw kampagneError;
+  if (bestandError) throw bestandError;
 
-  if (produktionId) {
-    const { data: current, error: loadError } = await window.supabase
-      .from('produktion')
-      .select('id, briefing_id')
-      .eq('id', produktionId)
-      .eq('kampagne_id', kampagneId)
-      .maybeSingle();
-    if (loadError) throw loadError;
-    if (!current) throw new Error('Produktion nicht gefunden');
-    if (current.briefing_id && current.briefing_id !== briefingId) {
-      throw new Error('Diese Produktion ist schon einem Briefing zugeordnet.');
-    }
-
-    const { data, error } = await window.supabase
-      .from('produktion')
-      .update(payload)
-      .eq('id', produktionId)
-      .eq('kampagne_id', kampagneId)
-      .select('id')
-      .single();
-    if (error) throw error;
-    return data;
-  }
-
-  const { data: existing, error: existingError } = await window.supabase
-    .from('produktion')
-    .select('id')
-    .eq('briefing_id', briefingId)
-    .maybeSingle();
-  if (existingError) throw existingError;
-  if (existing?.id) return existing;
-
+  const basis = String(kampagne?.kampagnenname || kampagne?.eigener_name || '').trim();
+  const n = nextProduktionNummer((bestand || []).map(row => row.name));
   const { data, error } = await window.supabase
     .from('produktion')
     .insert({
       kampagne_id: kampagneId,
-      ...payload
+      name: String(name || '').trim() || geistProduktionName(basis, n)
     })
-    .select('id')
+    .select('id, name')
     .single();
   if (error) throw error;
   return data;
 }
 
-async function rowsForProduktion(table, produktionId, columns) {
-  const { data, error } = await window.supabase
+async function countRows(table, column, value) {
+  const { count, error } = await window.supabase
     .from(table)
-    .select(columns)
-    .eq('produktion_id', produktionId);
+    .select('id', { count: 'exact', head: true })
+    .eq(column, value);
   if (error) throw error;
-  return data || [];
+  return count || 0;
+}
+
+/** Eine Linie ist nicht löschbar, sobald sie Kooperationen hat. */
+export async function canDeleteLinie(briefingId) {
+  if (!briefingId || !window.supabase) return { ok: false, reason: 'Linie fehlt' };
+  const koops = await countRows('kooperationen', 'briefing_id', briefingId);
+  if (koops > 0) {
+    return { ok: false, reason: 'Diese Linie hat Kooperationen und kann nicht gelöscht werden.' };
+  }
+  return { ok: true, reason: '' };
+}
+
+/**
+ * Löscht Skripte, Konzept und Casting der Linie. Das Briefing selbst löscht der Aufrufer.
+ * Vorher mit canDeleteLinie prüfen und bestätigen lassen.
+ */
+export async function deleteLinieInhalt(briefingId) {
+  const gate = await canDeleteLinie(briefingId);
+  if (!gate.ok) throw new Error(gate.reason);
+  for (const table of ['skripte', 'strategie', 'creator_auswahl']) {
+    const { error } = await window.supabase.from(table).delete().eq('briefing_id', briefingId);
+    if (error) throw error;
+  }
+}
+
+/** Briefing samt Linien-Inhalt löschen (Gate: keine Kooperationen). Bestätigung macht der Aufrufer. */
+export async function deleteBriefingMitLinie(briefingId) {
+  await deleteLinieInhalt(briefingId);
+  const { error } = await window.supabase.from('campaign_briefings').delete().eq('id', briefingId);
+  if (error) throw error;
+}
+
+export const LINIE_LOESCHEN_HINWEIS = 'Casting, Konzept und Skripte dieser Linie werden mit gelöscht.';
+
+/** Eine Produktion ist nur ohne Linien (Entwürfe eingeschlossen) löschbar. */
+export async function canDeleteProduktion(produktionId) {
+  if (!produktionId || !window.supabase) return { ok: false, reason: 'Produktion fehlt' };
+  const linien = await countRows('campaign_briefings', 'produktion_id', produktionId);
+  if (linien > 0) {
+    return { ok: false, reason: 'Diese Produktion hat Briefings und kann nicht gelöscht werden.' };
+  }
+  const koops = await countRows('kooperationen', 'produktion_id', produktionId);
+  if (koops > 0) {
+    return { ok: false, reason: 'Diese Produktion hat Kooperationen und kann nicht gelöscht werden.' };
+  }
+  return { ok: true, reason: '' };
+}
+
+/** Leere Produktion löschen (Gate: keine Briefings/Entwürfe, keine Kooperationen). */
+export async function deleteProduktion(produktionId) {
+  const gate = await canDeleteProduktion(produktionId);
+  if (!gate.ok) throw new Error(gate.reason);
+  const { error } = await window.supabase.from('produktion').delete().eq('id', produktionId);
+  if (error) throw error;
 }
 
 function hiddenForNewList(preset) {
   return [...berechneHiddenColumns(preset), ...STANDARD_VERSTECKTE_SPALTEN];
 }
 
+const GEIST_NAME = /Produktion \d+\s*$/;
+
+async function ladeProduktionFuerLinie(produktionId, kampagneId) {
+  const { data, error } = await window.supabase
+    .from('produktion')
+    .select('id, name, kampagne_id')
+    .eq('id', produktionId)
+    .eq('kampagne_id', kampagneId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('Produktion nicht gefunden');
+  return data;
+}
+
+async function zeileFuerLinie(table, briefingId, produktionId, columns) {
+  const own = await window.supabase
+    .from(table)
+    .select(columns)
+    .eq('briefing_id', briefingId)
+    .limit(1);
+  if (own.error) throw own.error;
+  if (own.data?.length) return own.data[0];
+  if (!produktionId) return null;
+
+  // Altbestand ohne Briefing-Link in dieser Produktion übernehmen
+  const orphan = await window.supabase
+    .from(table)
+    .select(columns)
+    .eq('produktion_id', produktionId)
+    .is('briefing_id', null)
+    .limit(1);
+  if (orphan.error) throw orphan.error;
+  return orphan.data?.[0] || null;
+}
+
 /**
- * Finalisiertes Briefing: eine Produktion, ein Casting, ein Konzept.
+ * Finalisiertes Briefing: eine Linie mit einem Casting und einem Konzept.
  * Fehlende Kinder werden nachgelegt, vorhandene nicht verdoppelt.
- * Listenwerte kommen aus dem Briefing und überschreiben Mix-Bestand dieser Produktion.
+ * Listenwerte kommen aus dem Briefing und überschreiben nur das Casting dieser Linie.
+ * Der Produktionsname wird nur beim ersten Finalisieren der ersten Linie übernommen.
  */
 export async function ensureBriefingLine({ briefing, kampagneId, produktId, produktionId = null }) {
   if (!briefing?.id) throw new Error('Briefing fehlt');
   if (briefing.is_draft) return null;
   if (!kampagneId) throw new Error('Kampagne ist Pflicht.');
 
-  if (!produktionId && await kampagneHatProduktionsbudget(kampagneId)) {
-    throw new Error('Bitte eine freie Produktion wählen.');
+  const zielId = produktionId || briefing.produktion_id || null;
+  if (!zielId) throw new Error('Bitte eine Produktion wählen.');
+
+  const produktion = await ladeProduktionFuerLinie(zielId, kampagneId);
+  const names = lineNames(briefing.aktivierung_name);
+
+  const vorhandenesCasting = await zeileFuerLinie('creator_auswahl', briefing.id, produktion.id, 'id, briefing_id, hidden_columns, strategie_id');
+  if (briefing.produktion_id && briefing.produktion_id !== produktion.id && vorhandenesCasting?.briefing_id) {
+    throw new Error('Dieses Briefing gehört schon zu einer anderen Produktion.');
   }
 
-  const produktion = await createProduktionForBriefing({
-    kampagneId,
-    briefingId: briefing.id,
-    produktId,
-    titel: briefing.aktivierung_name,
-    produktionId
-  });
+  if (briefing.produktion_id !== produktion.id) {
+    const { error } = await window.supabase
+      .from('campaign_briefings')
+      .update({ produktion_id: produktion.id })
+      .eq('id', briefing.id);
+    if (error) throw error;
+  }
 
-  const names = lineNames(briefing.aktivierung_name);
-  const patch = {
-    briefing_id: briefing.id,
-    name: names.produktion || briefing.aktivierung_name || 'Produktion'
-  };
-  if (produktId) patch.produkt_id = produktId;
-  const { error: patchError } = await window.supabase
-    .from('produktion')
-    .update(patch)
-    .eq('id', produktion.id);
-  if (patchError) throw patchError;
+  if (names.produktion && !vorhandenesCasting && GEIST_NAME.test(produktion.name || '')) {
+    const { count, error: otherError } = await window.supabase
+      .from('campaign_briefings')
+      .select('id', { count: 'exact', head: true })
+      .eq('produktion_id', produktion.id)
+      .eq('is_draft', false)
+      .neq('id', briefing.id);
+    if (otherError) throw otherError;
+    if (!count) {
+      const { error } = await window.supabase
+        .from('produktion')
+        .update({ name: names.produktion })
+        .eq('id', produktion.id);
+      if (error) throw error;
+    }
+  }
 
   if (produktId) await syncBriefingProdukte(briefing.id, [produktId]);
 
   const preset = castingPresetFromBriefing(briefing);
-  await syncCastings(produktion.id, briefing, kampagneId, names, preset);
+  await syncCasting(produktion.id, briefing, kampagneId, names, preset);
   await syncKonzept(produktion.id, briefing, kampagneId, names);
-  await linkLinePair(produktion.id);
+  await linkLinePair(briefing.id);
   return produktion;
 }
 
-async function syncCastings(produktionId, briefing, kampagneId, names, preset) {
-  const listen = await rowsForProduktion(
-    'creator_auswahl',
-    produktionId,
-    'id, hidden_columns, strategie_id'
-  );
+async function syncCasting(produktionId, briefing, kampagneId, names, preset) {
+  const liste = await zeileFuerLinie('creator_auswahl', briefing.id, produktionId, 'id, hidden_columns, strategie_id');
 
-  if (!listen.length) {
+  if (!liste) {
     const { error } = await window.supabase
       .from('creator_auswahl')
       .insert({
@@ -542,36 +474,32 @@ async function syncCastings(produktionId, briefing, kampagneId, names, preset) {
     return;
   }
 
-  for (const liste of listen) {
-    const { error } = await window.supabase
-      .from('creator_auswahl')
-      .update({
-        name: names.casting,
-        briefing_id: briefing.id,
-        liste_typ: preset.liste_typ,
-        plattformen: preset.plattformen,
-        ig_formate: preset.ig_formate,
-        tkp: preset.tkp,
-        hidden_columns: wendePresetAn(liste.hidden_columns || [], preset)
-      })
-      .eq('id', liste.id);
-    if (error) throw error;
-  }
+  const { error } = await window.supabase
+    .from('creator_auswahl')
+    .update({
+      name: names.casting,
+      briefing_id: briefing.id,
+      liste_typ: preset.liste_typ,
+      plattformen: preset.plattformen,
+      ig_formate: preset.ig_formate,
+      tkp: preset.tkp,
+      hidden_columns: wendePresetAn(liste.hidden_columns || [], preset)
+    })
+    .eq('id', liste.id);
+  if (error) throw error;
 }
 
 async function syncKonzept(produktionId, briefing, kampagneId, names) {
-  const konzepte = await rowsForProduktion('strategie', produktionId, 'id, creator_auswahl_id');
-  if (konzepte.length) {
-    for (const konzept of konzepte) {
-      const { error } = await window.supabase
-        .from('strategie')
-        .update({
-          name: names.konzept,
-          briefing_id: briefing.id
-        })
-        .eq('id', konzept.id);
-      if (error) throw error;
-    }
+  const konzept = await zeileFuerLinie('strategie', briefing.id, produktionId, 'id, creator_auswahl_id');
+  if (konzept) {
+    const { error } = await window.supabase
+      .from('strategie')
+      .update({
+        name: names.konzept,
+        briefing_id: briefing.id
+      })
+      .eq('id', konzept.id);
+    if (error) throw error;
     return;
   }
 
@@ -589,11 +517,9 @@ async function syncKonzept(produktionId, briefing, kampagneId, names) {
   if (error) throw error;
 }
 
-async function linkLinePair(produktionId) {
-  const listen = await rowsForProduktion('creator_auswahl', produktionId, 'id, strategie_id');
-  const konzepte = await rowsForProduktion('strategie', produktionId, 'id, creator_auswahl_id');
-  const casting = listen[0];
-  const konzept = konzepte[0];
+async function linkLinePair(briefingId) {
+  const casting = await zeileFuerLinie('creator_auswahl', briefingId, null, 'id, strategie_id');
+  const konzept = await zeileFuerLinie('strategie', briefingId, null, 'id, creator_auswahl_id');
   if (!casting || !konzept) return;
   if (casting.strategie_id || konzept.creator_auswahl_id) return;
 

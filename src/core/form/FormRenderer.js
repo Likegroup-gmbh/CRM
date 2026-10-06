@@ -3,7 +3,6 @@ import { icon } from '../icons/IconSystem.js';
 import { UploaderField } from './fields/UploaderField.js';
 import { PhoneNumberField } from './fields/PhoneNumberField.js';
 import { CountryField } from './fields/CountryField.js';
-import { backTarget } from '../breadcrumbTrail.js';
 import { applyKontextAnlage } from '../../modules/kooperation/produktionStart.js';
 
 export class FormRenderer {
@@ -234,11 +233,14 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
     if (currentRow !== null) parts.push('</div>');
     if (currentSection !== null) parts.push('</div>');
 
+    const routeEntity = entity === 'rechnung_contracting' ? 'rechnung' : entity;
+    const entityId = data?.id || data?._entityId || '';
+    const cancelFallback = data?._isEditMode && entityId ? `/${routeEntity}/${entityId}` : `/${routeEntity}`;
     return `
-      <form id="${entity}-form" data-entity="${entity}" data-entity-id="${data?.id || data?._entityId || ''}" data-is-edit-mode="${data?._isEditMode ? 'true' : 'false'}">
+      <form id="${entity}-form" data-entity="${entity}" data-entity-id="${entityId}" data-is-edit-mode="${data?._isEditMode ? 'true' : 'false'}">
         ${parts.join('')}
         <div class="form-actions">
-          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('${backTarget(`/${entity}`).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
+          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateBack('${cancelFallback.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
             <span class="mdc-btn__icon" aria-hidden="true">${this.getCancelIcon()}</span>
             <span class="mdc-btn__label">Abbrechen</span>
           </button>

@@ -74,10 +74,10 @@ export class VideoDataLoader {
    * RLS beschraenkt automatisch - kein Client-Filter noetig.
    * @returns {Promise<{videos: Array, total: number}>}
    */
-  static async loadVideos({ kampagneId, produktionId = null, activeFilters, from, to }) {
+  static async loadVideos({ kampagneId, produktionId = null, briefingId = null, activeFilters, from, to }) {
     if (!window.supabase) return { videos: [], total: 0 };
 
-    const scopeKoop = Boolean(kampagneId || produktionId);
+    const scopeKoop = Boolean(kampagneId || produktionId || briefingId);
     const koopJoin = scopeKoop ? '!inner' : '';
 
     const selectFields = `
@@ -91,7 +91,7 @@ export class VideoDataLoader {
     `;
 
     const countSelect = scopeKoop
-      ? 'id, kooperation:kooperation_id!inner(kampagne_id, produktion_id)'
+      ? 'id, kooperation:kooperation_id!inner(kampagne_id, produktion_id, briefing_id)'
       : '*';
 
     let countQuery = window.supabase
@@ -103,6 +103,9 @@ export class VideoDataLoader {
     }
     if (produktionId) {
       countQuery = countQuery.eq('kooperation.produktion_id', produktionId);
+    }
+    if (briefingId) {
+      countQuery = countQuery.eq('kooperation.briefing_id', briefingId);
     }
     countQuery = VideoFilterLogic.buildSupabaseQuery(countQuery, activeFilters);
 
@@ -117,6 +120,9 @@ export class VideoDataLoader {
     }
     if (produktionId) {
       videoQuery = videoQuery.eq('kooperation.produktion_id', produktionId);
+    }
+    if (briefingId) {
+      videoQuery = videoQuery.eq('kooperation.briefing_id', briefingId);
     }
     videoQuery = VideoFilterLogic.buildSupabaseQuery(videoQuery, activeFilters);
 

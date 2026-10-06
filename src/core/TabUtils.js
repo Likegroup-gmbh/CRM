@@ -2,6 +2,7 @@
 // Zentrale Tab-Utility mit Icon-Mapping, Permission-Prüfung und Rendering-Funktionen
 
 import { entityIcon } from './icons/entityIcons.js';
+import { refreshDocumentTitle } from './documentTitle.js';
 
 /**
  * Tab-Permission-Mapping
@@ -292,6 +293,7 @@ export function activateSecondaryNavTab(tab, { dataAttr = 'data-tab' } = {}) {
   const pane = document.getElementById(`${panePrefix}-${tab}`);
   if (pane) pane.classList.add('active');
   syncTabQueryParam(tab);
+  refreshDocumentTitle(tab);
   return pane;
 }
 

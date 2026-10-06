@@ -22,7 +22,7 @@ import { PersonaAudienceSituationPanel } from './PersonaAudienceSituationPanel.j
 import { PersonaLikyPanel } from './PersonaLikyPanel.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
-import { backTarget } from '../../core/breadcrumbTrail.js';
+import { backTarget, returnTo } from '../../core/breadcrumbTrail.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { loadBriefingIdsForPersona, setPersonaBriefings } from '../briefing/BriefingPersonas.js';
 import { readCreateScope, resolveCreateScopeLabels } from './personaCreateScope.js';
@@ -74,7 +74,7 @@ export class PersonaForm {
           this.persona = await PersonaService.loadOne(this.personaId);
           if (!this.persona) {
             window.toastSystem?.error?.('Persona nicht gefunden');
-            window.navigateTo(this.returnRoute);
+            returnTo(this.returnRoute);
             return;
           }
           this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
@@ -100,7 +100,7 @@ export class PersonaForm {
           this.persona = await PersonaService.loadOne(this.personaId, this.ctx);
           if (!this.persona) {
             window.toastSystem?.error?.('Persona nicht gefunden');
-            window.navigateTo(this.returnRoute);
+            returnTo(this.returnRoute);
             return;
           }
           this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
@@ -111,7 +111,7 @@ export class PersonaForm {
       if (!this.isEdit) {
         this.createScope = readCreateScope(window.location.search, this.isStandalone ? null : this.ctx);
         if (!this.createScope) {
-          window.navigateTo(this.returnRoute);
+          returnTo(this.returnRoute);
           return;
         }
         this.ctx.unternehmenId = this.createScope.unternehmenId;
@@ -248,7 +248,7 @@ export class PersonaForm {
     // Abbrechen: Liste oder Personas-Tab der Marke/des Unternehmens
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => window.navigateTo(this.returnRoute), opts);
+      cancelBtn.addEventListener('click', () => returnTo(this.returnRoute), opts);
     }
 
     if (this.isEdit) {
@@ -337,7 +337,7 @@ export class PersonaForm {
       }
 
       window.toastSystem?.success?.(this.isEdit ? 'Persona gespeichert' : 'Persona angelegt');
-      window.navigateTo(this.returnRoute);
+      returnTo(this.returnRoute);
     } catch (err) {
       console.error('Persona speichern fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Speichern: ' + err.message);
@@ -390,7 +390,7 @@ export class PersonaForm {
     try {
       await PersonaService.remove(this.personaId);
       window.toastSystem?.success?.('Persona gelöscht');
-      window.navigateTo(this.returnRoute);
+      returnTo(this.returnRoute);
     } catch (err) {
       console.error('Persona loeschen fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Löschen: ' + err.message);

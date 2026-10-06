@@ -8,6 +8,7 @@ import { entityIcon } from './icons/entityIcons.js';
 import { icon } from '../core/icons/IconSystem.js';
 import { loadSwitcherItems, shouldEnableSwitcher } from './breadcrumbSwitcher.js';
 import { collapse, composeCrumbs, createLabelCache } from './breadcrumbTrail.js';
+import { refreshDocumentTitle } from './documentTitle.js';
 
 const SWITCHER_DEBOUNCE_MS = 200;
 const PLACEHOLDER = '...';
@@ -175,6 +176,7 @@ export class BreadcrumbSystem {
     this.closeSwitcher();
     const container = this.container;
     this.currentBreadcrumbs = this._composed();
+    refreshDocumentTitle(undefined, this.currentBreadcrumbs);
 
     if (!container) return;
     if (!this.currentBreadcrumbs.length) {

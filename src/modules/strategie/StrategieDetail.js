@@ -5,7 +5,7 @@ import { strategieService } from './StrategieService.js';
 import { AddItemDrawer } from './AddItemDrawer.js';
 import { renderItemsTable, rerenderItemsTable as _rerenderItemsTable, updateItemRow, refreshItemActions } from './StrategieDetailRenderer.js';
 import { bindTableEvents, cleanupTableEvents, destroyDragToScroll } from './StrategieDetailTableEvents.js';
-import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeEditItemDrawer as _closeEditItemDrawer } from './StrategieDetailEditDrawer.js';
+import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeEditItemDrawer as _closeEditItemDrawer } from './VideoideeDrawer.js';
 import { showKategorienModal as _showKategorienModal, removeKategorienDrawer } from './StrategieDetailKategorienDrawer.js';
 import { handleDeleteItem as _handleDeleteItem } from './StrategieDetailItemActions.js';
 import { StrategieCreatorDrawer, removeStrategieCreatorDrawer } from './StrategieCreatorDrawer.js';

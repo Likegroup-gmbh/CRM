@@ -190,7 +190,7 @@ export class UnternehmenCreate {
         this.showSuccessMessage('Unternehmen erfolgreich erstellt!');
 
         window.dispatchEvent(new CustomEvent('entityUpdated', {
-          detail: { entity: 'unternehmen', id: result.id, action: 'created' }
+          detail: { entity: 'unternehmen', id: result.id, action: 'created', redirect: true }
         }));
       } else {
         throw new Error(result.error || 'Unbekannter Fehler');

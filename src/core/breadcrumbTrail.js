@@ -32,20 +32,29 @@ function snapshot(crumbs, currentUrl) {
   return list;
 }
 
+// Anlegen/Bearbeiten: der Pfad muss die Herkunft halten, sonst findet
+// Speichern/Abbrechen nicht dorthin zurück.
+export function isFormRoute(url) {
+  const parts = pathOf(url).replace(/^\/admin(?=\/)/, '').split('/').filter(Boolean);
+  if (parts[0] === 'projekt-erstellen') return true;
+  return parts.slice(1).some((part) => part === 'new' || part === 'edit');
+}
+
 // Pfad für das Ziel einer Navigation.
 // currentTrail/currentCrumbs/currentUrl beschreiben die Seite, die man verlässt.
 export function nextTrail({ currentTrail = [], currentCrumbs = [], currentUrl = '', targetRoute }) {
   const target = parseRoute(targetRoute);
   const prev = parseRoute(currentUrl);
+  const form = isFormRoute(targetRoute);
 
-  if (!target.id) return [];
+  if (!target.id && !form) return [];
   if (target.path === prev.path) return currentTrail;
 
   const crumbs = snapshot(currentCrumbs, currentUrl);
   const hit = crumbs.findIndex((crumb) => pathOf(crumb.url) === target.path);
   if (hit !== -1) return crumbs.slice(0, hit);
 
-  if (target.segment === prev.segment) {
+  if (!form && target.segment === prev.segment) {
     if (!prev.id) return [];
     if (!target.action && !prev.action && target.id !== prev.id) return currentTrail;
   }
@@ -103,6 +112,22 @@ export function replaceRoute(url) {
 export function backTarget(fallback) {
   const trail = currentTrail();
   return trail[trail.length - 1]?.url || fallback;
+}
+
+// Nach Speichern/Abbrechen zurück zur Herkunft. Ersetzt den History-Eintrag,
+// sonst landet Browser-Zurück wieder im ausgefüllten Formular.
+// Außerhalb einer Formular-Route (Inline-Bearbeiten im Detail) zählt der
+// Fallback: die letzte Pfad-Ebene wäre dort "Detail verlassen".
+export function navigateBack(fallback) {
+  if (typeof window === 'undefined') return undefined;
+  return returnTo(isFormRoute(window.location.pathname) ? backTarget(fallback) : fallback);
+}
+
+// Wie navigateBack, aber mit fertigem Ziel (Seiten, die selbst Formular sind).
+export function returnTo(url) {
+  if (typeof window === 'undefined') return undefined;
+  const go = window.navigateReplace || window.navigateTo;
+  return go?.(url);
 }
 
 // Nächste Produktion im Pfad (z. B. Kooperation aus der Produktion angelegt).

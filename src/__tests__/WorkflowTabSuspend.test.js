@@ -66,7 +66,7 @@ describe('Workflow-Tab schließen (Casting)', () => {
 
     await activateWorkflowTab(detail, 'casting');
 
-    expect(creatorAuswahlService.getListenByKampagneId).toHaveBeenCalledWith('k1', { produktionId: 'p1' });
+    expect(creatorAuswahlService.getListenByKampagneId).toHaveBeenCalledWith('k1', { produktionId: 'p1', briefingId: null });
     expect(document.getElementById('workflow-pane-casting').textContent).toContain('Keine Casting-Liste');
   });
 

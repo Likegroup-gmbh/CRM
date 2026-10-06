@@ -8,10 +8,10 @@ import {
 } from './KampagneDetailWorkflow.js';
 import { handleVertragListAction } from '../vertrag/VertraegeListHandlers.js';
 import { KampagneUtils } from './KampagneUtils.js';
+import { koopLinie } from './linienScope.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
 import { handleWorkflowCreate } from './KampagneWorkflowCreate.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
-import { emptyProduktionId } from '../produktion/ProduktionService.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
@@ -139,10 +139,52 @@ export function setupEvents(detail) {
   initToolbarMenu(signal);
   initKooperationenSearch(detail, signal);
 
-  document.getElementById('btn-new-produktion')?.addEventListener('click', () => {
-    openProduktionBriefingDrawer(detail, {
-      produktionId: emptyProduktionId(detail.produktionen)
-    });
+  document.getElementById('btn-new-produktion')?.addEventListener('click', async (e) => {
+    const button = e.currentTarget;
+    button.disabled = true;
+    try {
+      const { createProduktion } = await import('../produktion/ProduktionService.js');
+      const created = await createProduktion({ kampagneId: detail.kampagneId });
+      window.toastSystem?.show('Produktion angelegt', 'success');
+      if (created?.id) window.navigateTo(`/produktion/${created.id}`);
+    } catch (error) {
+      console.error('Produktion konnte nicht angelegt werden:', error);
+      window.toastSystem?.show(error.message || 'Produktion konnte nicht angelegt werden', 'error');
+      button.disabled = false;
+    }
+  }, { signal });
+
+  // Linien-Leiste in der Produktion: Chip wechselt die Linie, "+ Briefing" legt eine weitere an.
+  document.addEventListener('click', async (e) => {
+    const loeschen = e.target.closest('[data-produktion-loeschen]');
+    if (loeschen) {
+      e.preventDefault();
+      const { deleteProduktion } = await import('../produktion/ProduktionService.js');
+      const { confirmDanger } = await import('../../core/actions/actionDelete.js');
+      if (!await confirmDanger({
+        title: 'Produktion löschen',
+        message: 'Möchten Sie diese leere Produktion wirklich löschen?'
+      })) return;
+      try {
+        await deleteProduktion(loeschen.dataset.produktionLoeschen);
+        window.toastSystem?.show('Produktion gelöscht', 'success');
+        await detail.loadCriticalData();
+        detail.render();
+      } catch (error) {
+        window.toastSystem?.show(error.message || 'Produktion konnte nicht gelöscht werden', 'warning');
+      }
+      return;
+    }
+    const chip = e.target.closest('[data-linie]');
+    if (chip) {
+      e.preventDefault();
+      void detail.switchLinie(chip.dataset.linie);
+      return;
+    }
+    if (e.target.closest('[data-linie-neu]')) {
+      e.preventDefault();
+      openProduktionBriefingDrawer(detail, { produktionId: detail.produktionId || null });
+    }
   }, { signal });
 
   document.querySelectorAll('a[data-table="produktion"]').forEach(link => {
@@ -302,7 +344,7 @@ export function setupEvents(detail) {
   if (btnNewKooperation) {
     btnNewKooperation.addEventListener('click', (e) => {
       e.preventDefault();
-      navigateToNewKooperationFromKampagne(detail.kampagneId, detail.kampagneData, detail.produktionId);
+      navigateToNewKooperationFromKampagne(detail.kampagneId, detail.kampagneData, detail.produktionId, koopLinie(detail));
     }, { signal });
   }
 

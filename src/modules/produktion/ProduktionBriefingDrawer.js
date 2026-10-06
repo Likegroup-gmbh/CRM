@@ -64,7 +64,6 @@ export async function openProduktionBriefingDrawer(detail, { produktionId = null
       titel
     });
     if (produktionId) params.set('produktion', produktionId);
-    if (detail.produktion?.produkt_id) params.set('produkt', detail.produktion.produkt_id);
     close();
     window.navigateTo(`/briefing/new?${params.toString()}`);
   };

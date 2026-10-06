@@ -69,7 +69,7 @@ export class AuftragsdetailsCreateView {
           </div>
 
           <div class="form-actions">
-            <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/auftragsdetails')">
+            <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateBack('/auftragsdetails')">
               <span class="mdc-btn__icon" aria-hidden="true">
                 ${icon('x-circle-filled')}
               </span>

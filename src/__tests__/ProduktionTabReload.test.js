@@ -35,7 +35,7 @@ describe('reloadKooperationTable', () => {
 
     await detail.reloadKooperationTable();
 
-    expect(loadFullTableData).toHaveBeenCalledWith('k1', detail.store, false, { produktionId: 'p1' });
+    expect(loadFullTableData).toHaveBeenCalledWith('k1', detail.store, false, { produktionId: 'p1', briefingId: null });
     expect(detail._refreshSummaryCards).toHaveBeenCalled();
     expect(detail.kooperationenVideoTable.refilter).toHaveBeenCalled();
   });
@@ -93,7 +93,7 @@ describe('Produktion-Tab nach dem Anlegen', () => {
     }));
     await vi.waitUntil(() => loadFullTableData.mock.calls.length === 1);
 
-    expect(loadFullTableData).toHaveBeenCalledWith('k1', detail.store, false, { produktionId: 'p1' });
+    expect(loadFullTableData).toHaveBeenCalledWith('k1', detail.store, false, { produktionId: 'p1', briefingId: null });
     window.removeEventListener('entityUpdated', detail.kooperationenVideoTable._entityUpdatedHandler);
   });
 });

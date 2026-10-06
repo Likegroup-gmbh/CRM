@@ -7,7 +7,7 @@ import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
 import { intervallOderNull, videolaengeAusBriefing } from '../videolaenge.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
-import { backTarget } from '../../../core/breadcrumbTrail.js';
+import { navigateBack } from '../../../core/breadcrumbTrail.js';
 
 function collectableFields() {
   const fields = [];
@@ -334,7 +334,7 @@ BriefingCreate.prototype.saveDraftToDB = async function() {
     await this.persistDraft();
     window.toastSystem?.show(this.editId ? 'Entwurf aktualisiert!' : 'Entwurf gespeichert!', 'success');
     setTimeout(() => {
-      window.navigateTo(backTarget('/briefing'));
+      navigateBack('/briefing');
     }, 500);
   } catch (error) {
     console.error('Fehler beim Speichern des Entwurfs:', error);
@@ -385,7 +385,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
   }
   const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
   const produktId = this.formData.produkt_id || this._produktionKontext?.produktId || null;
-  const produktionId = this.formData.ziel_produktion_id || this._produktionKontext?.produktionId || null;
+  const produktionId = this.formData.produktion_id || this._produktionKontext?.produktionId || null;
   if (!kampagneId) {
     window.toastSystem?.show('Bitte eine Kampagne zuordnen (Schritt Grundlage).', 'warning');
     return;
@@ -394,24 +394,9 @@ BriefingCreate.prototype.handleSubmit = async function() {
     window.toastSystem?.show('Die Kampagne hat keinen Projektnamen. Bitte im Auftrag ergänzen.', 'warning');
     return;
   }
-  if (window.supabase) {
-    const { data: geplante, error: geplantError } = await window.supabase
-      .from('produktion')
-      .select('id, budget, briefing_id')
-      .eq('kampagne_id', kampagneId);
-    if (geplantError) {
-      window.toastSystem?.show('Produktionen konnten nicht geladen werden.', 'error');
-      return;
-    }
-    const regime = (geplante || []).some(row => row.budget != null);
-    if (regime) {
-      const ziel = (geplante || []).find(row => row.id === produktionId);
-      const frei = !!ziel && (!ziel.briefing_id || ziel.briefing_id === this.editId);
-      if (!frei) {
-        window.toastSystem?.show('Bitte eine freie Produktion wählen. Sonst im Auftrag eine anlegen.', 'warning');
-        return;
-      }
-    }
+  if (!produktionId) {
+    window.toastSystem?.show('Bitte eine Produktion wählen. Sonst im Auftrag oder in der Kampagne eine anlegen.', 'warning');
+    return;
   }
 
   const submitBtn = document.getElementById('btn-submit');
@@ -450,7 +435,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
     }
 
     const { ensureBriefingLine } = await import('../../produktion/ProduktionService.js');
-    const produktion = await ensureBriefingLine({
+    await ensureBriefingLine({
       briefing: {
         id: this.editId,
         is_draft: false,
@@ -461,6 +446,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
         unternehmen_id: data.unternehmen_id,
         marke_id: data.marke_id,
         kampagne_id: kampagneId,
+        produktion_id: produktionId,
         produkt_id: produktId
       },
       kampagneId,
@@ -476,8 +462,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
     );
 
     setTimeout(() => {
-      const ziel = produktion?.id ? `/produktion/${produktion.id}` : backTarget('/briefing');
-      Promise.resolve(window.navigateTo(ziel)).catch((navError) => {
+      Promise.resolve(navigateBack(`/briefing/${this.editId}`)).catch((navError) => {
         console.error('Weiterleitung nach dem Speichern fehlgeschlagen:', navError);
         window.toastSystem?.show('Gespeichert, aber die Weiterleitung ist fehlgeschlagen. Bitte Seite neu laden.', 'error');
       });
@@ -519,12 +504,15 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     this.formData.marke_id = briefing.marke_id;
     this.formData.assignee_id = briefing.assignee_id;
 
-    const { data: produktion } = await window.supabase
-      .from('produktion')
-      .select('id, kampagne_id, produkt_id')
-      .eq('briefing_id', id)
-      .maybeSingle();
+    const { data: produktion } = briefing.produktion_id
+      ? await window.supabase
+        .from('produktion')
+        .select('id, kampagne_id, produkt_id')
+        .eq('id', briefing.produktion_id)
+        .maybeSingle()
+      : { data: null };
     if (produktion?.id) {
+      this.formData.produktion_id = produktion.id;
       if (produktion.kampagne_id) this.formData.kampagne_id = produktion.kampagne_id;
       if (produktion.produkt_id) this.formData.produkt_id = produktion.produkt_id;
       this._produktionKontext = {

@@ -1,6 +1,7 @@
 // KampagneDetailKonzept.js
 // Mountet das volle Konzept-Worksheet in den Kampagnen-Workflow-Pane.
 
+import { effectiveLinie, leerHinweis } from './linienScope.js';
 import { StrategieDetail } from '../strategie/StrategieDetail.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
@@ -96,7 +97,7 @@ export async function mountKonzeptPane(detail) {
 
     if (!listen.length) {
       dropWorksheet(prefetched?.worksheet, detail);
-      pane.innerHTML = renderEmptyKonzept();
+      pane.innerHTML = renderEmptyKonzept(detail);
       return;
     }
 
@@ -132,16 +133,18 @@ async function loadKonzepte(detail) {
     .eq('kampagne_id', detail.kampagneId)
     .order('created_at', { ascending: true });
   if (detail.produktionId) query = query.eq('produktion_id', detail.produktionId);
+  const briefingId = effectiveLinie(detail, 'konzepte');
+  if (briefingId) query = query.eq('briefing_id', briefingId);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   return data || [];
 }
 
-function renderEmptyKonzept() {
+function renderEmptyKonzept(detail) {
   return renderEmptyState({
     icon: 'clipboard',
     title: 'Kein Konzept',
-    text: 'Für diese Kampagne wurde noch kein Konzept angelegt.'
+    text: leerHinweis(detail, 'konzepte', 'Für diese Linie wurde noch kein Konzept angelegt.')
   });
 }
 

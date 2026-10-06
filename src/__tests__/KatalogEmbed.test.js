@@ -192,16 +192,13 @@ describe('Listen embedded in der Produktion', () => {
 });
 
 describe('katalogScope', () => {
-  it('nimmt Briefing und Produkt von der Produktion', () => {
+  it('nimmt die aktive Linie als Briefing, Produkt kommt aus dem Briefing', () => {
     expect(katalogScope({
       produktionId: 'p1',
-      produktion: {
-        id: 'p1',
-        briefing_id: 'b1',
-        produkt_id: 'serum',
-        briefing: { aktivierung_name: 'Sommer' },
-        produkt: { name: 'Serum' }
-      },
+      produktion: { id: 'p1' },
+      linien: [{ id: 'b1', name: 'Sommer' }],
+      linieId: 'b1',
+      linieAlle: false,
       kampagneData: {
         unternehmen_id: 'u1',
         marke_id: 'm1',
@@ -211,8 +208,8 @@ describe('katalogScope', () => {
     })).toMatchObject({
       briefingId: 'b1',
       briefingName: 'Sommer',
-      produktId: 'serum',
-      produktName: 'Serum',
+      produktId: null,
+      produktName: null,
       produktionId: 'p1',
       unternehmenId: 'u1',
       unternehmenName: 'Hautica',

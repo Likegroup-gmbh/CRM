@@ -55,7 +55,7 @@ export async function syncBriefingProdukte(briefingId, produktIds) {
 }
 
 /**
- * Das Produkt der Produktion ist das einzige Briefing-Produkt (ADR 0029).
+ * Das Produkt der Linie ist das einzige Briefing-Produkt (ADR 0045).
  * Ohne gesetztes Produkt bleibt die Persona-Union für Altbestand (ADR 0021).
  */
 export async function recomputeBriefingProdukte(briefingId) {
@@ -70,17 +70,6 @@ export async function recomputeBriefingProdukte(briefingId) {
 
   if (briefing?.produkt_id) {
     await syncBriefingProdukte(briefingId, [briefing.produkt_id]);
-    return;
-  }
-
-  const { data: produktion, error: produktionError } = await window.supabase
-    .from('produktion')
-    .select('produkt_id')
-    .eq('briefing_id', briefingId)
-    .maybeSingle();
-  if (produktionError) throw produktionError;
-  if (produktion?.produkt_id) {
-    await syncBriefingProdukte(briefingId, [produktion.produkt_id]);
     return;
   }
 

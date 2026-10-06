@@ -54,4 +54,31 @@ describe('Produktion ohne Briefing: Name aus dem Projektnamen', () => {
     );
     expect(inserts[0].name).toBe('Serum Launch (2) – Produktion 1');
   });
+
+  it('legt geplante Produktionen auch ohne Budget an und löscht bestehende nie', async () => {
+    const { supabase, inserts, updates } = fakeSupabase();
+    const deletes = vi.fn();
+    const from = supabase.from;
+    supabase.from = vi.fn((table) => ({ ...from(table), delete: deletes }));
+    const persistence = new ProjektErstellenPersistence();
+    await persistence._syncProduktionen(
+      supabase,
+      {
+        auftrag: { titel: 'Serum Launch' },
+        produktionen: [
+          { _key: 'a', id: 'p-alt', kampagnen_nummer: 1, name: 'Alt', budget: 500 },
+          { _key: 'b', kampagnen_nummer: 1, name: '', budget: null },
+          { _key: 'c', kampagnen_nummer: 1, name: '', budget: null }
+        ]
+      },
+      [{ kampagnen_nummer: 1 }],
+      ['k1']
+    );
+    expect(updates).toHaveLength(1);
+    expect(inserts.map(row => row.name)).toEqual([
+      'Serum Launch – Produktion 1',
+      'Serum Launch – Produktion 2'
+    ]);
+    expect(deletes).not.toHaveBeenCalled();
+  });
 });

@@ -18,14 +18,13 @@ import {
   VIDEO_FEEDBACK_FIELDS
 } from '../../core/VideoFeedbackBuckets.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
-import { backTarget, trailProduktion } from '../../core/breadcrumbTrail.js';
+import { navigateBack, trailProduktion } from '../../core/breadcrumbTrail.js';
 
 export class KooperationDetail extends PersonDetailBase {
   constructor() {
     super();
     this.kooperationId = null;
     this.kooperation = null;
-    this.returnToRoute = null;
     this.creator = null;
     this.kampagne = null;
     this.rechnungen = [];
@@ -51,7 +50,6 @@ export class KooperationDetail extends PersonDetailBase {
   async init(kooperationId) {
     console.log('🎯 KOOPERATIONDETAIL: Initialisiere für ID:', kooperationId);
 
-    this.returnToRoute = null;
     this.kooperationId = kooperationId;
     this.activeMainTab = getTabQueryParam() || 'informationen';
 
@@ -87,7 +85,6 @@ export class KooperationDetail extends PersonDetailBase {
   async initForEdit(kooperationId) {
     console.log('⚡ KOOPERATIONDETAIL: Fast-Path initForEdit für ID:', kooperationId);
 
-    this.returnToRoute = backTarget(null);
     this.kooperationId = kooperationId;
 
     if (window.moduleRegistry?.currentModule !== this) {
@@ -1050,7 +1047,7 @@ export class KooperationDetail extends PersonDetailBase {
         }));
 
         setTimeout(() => {
-          window.navigateTo(this.returnToRoute || `/kooperation/${this.kooperationId}`);
+          navigateBack(`/kooperation/${this.kooperationId}`);
         }, 1500);
       } else {
         this.showErrorMessage(`Fehler beim Aktualisieren: ${result.error}`);

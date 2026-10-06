@@ -13,6 +13,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { magicLinkService } from '../auth/MagicLinkService.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { backTarget } from '../../core/breadcrumbTrail.js';
 
 export class AnsprechpartnerDetail extends PersonDetailBase {
   constructor() {
@@ -545,7 +546,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       }
       if (e.target.id === 'btn-back' || e.target.closest('#btn-back') || e.target.id === 'btn-back-error' || e.target.closest('#btn-back-error')) {
         e.preventDefault();
-        window.navigateTo('/ansprechpartner');
+        window.navigateTo(backTarget('/ansprechpartner'));
         return;
       }
       if (e.target.classList.contains('table-link')) {

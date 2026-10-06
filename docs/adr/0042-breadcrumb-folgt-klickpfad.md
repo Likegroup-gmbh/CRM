@@ -6,6 +6,7 @@ Die Breadcrumb zeigte immer den offiziellen Weg einer Seite. Wer von einer Produ
 
 - Der Klickpfad liegt in `history.state.trail` (Liste aus `{ label, url }`). Beim Navigieren legt der Router einen Schnappschuss der aktuellen Breadcrumb ab; die Labels kommen aus der gerenderten Breadcrumb, nicht aus der Datenbank.
 - Regeln (`src/core/breadcrumbTrail.js`, `nextTrail`):
+  - Formular-Routen (`/x/new`, `/x/:id/edit`, `/projekt-erstellen`) halten immer die Herkunft (siehe 0043).
   - Ziel ohne ID (Liste, Sidebar) setzt den Pfad zurück.
   - Gleicher Pfad (Tab-Wechsel, Reload) behält ihn.
   - Ziel steht schon im Pfad: Pfad wird bis davor gekürzt (keine Zyklen).
@@ -13,7 +14,7 @@ Die Breadcrumb zeigte immer den offiziellen Weg einer Seite. Wer von einer Produ
   - Geschwister derselben Entität (Switcher) behalten den Pfad.
   - Sonst: Pfad = Schnappschuss der verlassenen Seite (inkl. `?tab=`).
 - Module liefern weiter ihren offiziellen Weg (`updateBreadcrumb`) bzw. das Blatt (`updateDetailLabel`). Liegt ein Pfad vor, hängt das System nur das Blatt an — oder setzt den offiziellen Weg ab dem letzten Pfad-Crumb fort (Kampagne → Produktion, Unternehmen → Persona-Form).
-- `backTarget(fallback)` (Abbrechen/Speichern) nimmt die letzte Pfad-Ebene.
+- `backTarget(fallback)` (Abbrechen/Speichern) nimmt die letzte Pfad-Ebene; Formulare springen über `navigateBack` (0043).
 - `?von=`/`returnTo` und `navHerkunft.js` entfallen vollständig.
 - URL-Rewrites ohne Navigation laufen über `replaceRoute`, damit der Pfad im History-Eintrag bleibt.
 - Ein Label-Cache (in-memory, nur Entitäts-Pfade) zeigt bekannte Namen sofort statt `...`.

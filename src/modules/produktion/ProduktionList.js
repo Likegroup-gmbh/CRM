@@ -87,15 +87,15 @@ function textBits(values) {
 export function matchesProduktionSearch(produktion, query) {
   const needle = String(query || '').trim().toLowerCase();
   if (!needle) return true;
-  const briefing = produktion?.briefing;
+  const briefings = briefingsOf(produktion);
   const haystack = textBits([
     produktion?.name,
     produktion?.kampagne?.eigener_name,
     produktion?.kampagne?.kampagnenname,
     produktion?.produkt?.name,
-    briefing?.aktivierung_name,
-    (briefing?.produkte || []).map(row => row?.produkt?.name),
-    (briefing?.verknuepfte_personas || []).map(persona => persona?.name),
+    briefings.map(b => b?.aktivierung_name),
+    briefings.flatMap(b => (b?.produkte || []).map(row => row?.produkt?.name)),
+    briefings.flatMap(b => (b?.verknuepfte_personas || []).map(persona => persona?.name)),
     (produktion?.creator_auswahl || []).map(casting => casting?.name),
     (produktion?.strategie || []).map(konzept => konzept?.name),
     (produktion?.skripte || []).map(skript => skript?.titel || skript?.hook),
@@ -104,8 +104,14 @@ export function matchesProduktionSearch(produktion, query) {
   return haystack.some(value => value.includes(needle));
 }
 
+// Eine Produktion hat mehrere Briefings (Linien); ältere Zeilen tragen nur `briefing`.
+function briefingsOf(produktion) {
+  if (Array.isArray(produktion?.briefings) && produktion.briefings.length) return produktion.briefings;
+  return produktion?.briefing ? [produktion.briefing] : [];
+}
+
 function produktionProduktLinks(produktion) {
-  const links = produktLinksFromJunction(produktion?.briefing?.produkte);
+  const links = produktLinksFromJunction(briefingsOf(produktion).flatMap(b => b?.produkte || []));
   const own = produktion?.produkt;
   if (own?.id && own?.name && !links.some(item => String(item.id) === String(own.id))) {
     links.unshift({ id: own.id, label: own.name, kind: 'produkt' });
@@ -114,7 +120,7 @@ function produktionProduktLinks(produktion) {
 }
 
 function renderRow(produktion, zeile) {
-  const briefingName = produktion.briefing?.aktivierung_name || '';
+  const briefingName = briefingsOf(produktion).map(b => b?.aktivierung_name).filter(Boolean).join(', ');
   const name = produktion.name || briefingName || 'Produktion';
   const briefing = briefingName || '–';
   const kampagne = produktion.kampagne;
@@ -128,7 +134,7 @@ function renderRow(produktion, zeile) {
       ${renderLeistungszeitraumCell(kampagne)}
       <td>${renderVerknuepfungen(produktionProduktLinks(produktion))}</td>
       <td>${esc(briefing)}</td>
-      <td>${renderVerknuepfungen(namedLinks(produktion.briefing?.verknuepfte_personas, { labelKey: 'name', kind: 'persona' }))}</td>
+      <td>${renderVerknuepfungen(namedLinks(briefingsOf(produktion).flatMap(b => b?.verknuepfte_personas || []), { labelKey: 'name', kind: 'persona' }))}</td>
       <td>${renderVerknuepfungen(namedLinks(produktion.creator_auswahl, { labelKey: 'name', kind: 'casting' }))}</td>
       <td>${renderVerknuepfungen(namedLinks(produktion.strategie, { labelKey: 'name', kind: 'konzept' }))}</td>
       <td>${renderVerknuepfungen(skriptLinks(produktion.skripte))}</td>

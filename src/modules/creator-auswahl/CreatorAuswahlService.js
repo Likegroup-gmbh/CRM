@@ -85,7 +85,7 @@ export class CreatorAuswahlService {
   /**
    * Casting-Listen einer Kampagne (id + name für Switcher / Empty-Check).
    */
-  async getListenByKampagneId(kampagneId, { produktionId } = {}) {
+  async getListenByKampagneId(kampagneId, { produktionId, briefingId } = {}) {
     if (!kampagneId) return [];
     let query = window.supabase
       .from('creator_auswahl')
@@ -93,6 +93,7 @@ export class CreatorAuswahlService {
       .eq('kampagne_id', kampagneId)
       .order('created_at', { ascending: false });
     if (produktionId) query = query.eq('produktion_id', produktionId);
+    if (briefingId) query = query.eq('briefing_id', briefingId);
     const { data, error } = await query;
     if (error) {
       console.error('Fehler beim Abrufen der Casting-Listen:', error);

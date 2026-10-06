@@ -4,6 +4,7 @@
 
 import { AuftragsdetailsCreateController } from './AuftragsdetailsCreateCore.js';
 import { buildAuftragsdetailsPayload } from './logic/AuftragsdetailsPayload.js';
+import { navigateBack } from '../../core/breadcrumbTrail.js';
 
 const HINWEIS_UNTERNEHMEN_UND_AUFTRAG = 'Bitte wählen Sie ein Unternehmen und dann einen Auftrag aus.';
 const HINWEIS_AUFTRAG = 'Bitte wählen Sie einen Auftrag aus, um die Kampagnenart-Auswahl anzuzeigen.';
@@ -245,7 +246,7 @@ Object.assign(AuftragsdetailsCreateController.prototype, {
 
       // Kurz warten damit Success-State sichtbar ist, dann navigieren
       this._navigateTimer = setTimeout(() => {
-        window.navigateTo('/auftragsdetails');
+        navigateBack('/auftragsdetails');
       }, 400);
 
     } catch (error) {

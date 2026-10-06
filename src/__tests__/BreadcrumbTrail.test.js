@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   backTarget,
   collapse,
   composeCrumbs,
   createLabelCache,
+  isFormRoute,
+  navigateBack,
   nextTrail,
   replaceRoute,
   trailForRoute,
@@ -101,6 +103,53 @@ describe('nextTrail', () => {
     });
     expect(trail.map((c) => c.label)).toEqual(['Kooperation', 'Koop A']);
   });
+
+  it('Liste → Anlegen hält die Liste inkl. Filter als Herkunft', () => {
+    expect(nextTrail({
+      currentCrumbs: [{ label: 'Creator', url: '/creator' }],
+      currentUrl: '/creator?seite=2',
+      targetRoute: '/creator/new'
+    })).toEqual([{ label: 'Creator', url: '/creator?seite=2' }]);
+  });
+
+  it('Liste → Bearbeiten hält die Liste als Herkunft', () => {
+    expect(nextTrail({
+      currentCrumbs: [{ label: 'Ansprechpartner', url: '/ansprechpartner' }],
+      currentUrl: '/ansprechpartner',
+      targetRoute: '/ansprechpartner/a1/edit'
+    })).toEqual([{ label: 'Ansprechpartner', url: '/ansprechpartner' }]);
+  });
+
+  it('Projekt anlegen (ohne ID) hält die Herkunft', () => {
+    const trail = nextTrail({
+      currentCrumbs: produktionPage,
+      currentUrl: '/produktion/p1',
+      targetRoute: '/projekt-erstellen'
+    });
+    expect(trail.map((c) => c.url)).toEqual(['/kampagne', '/kampagne/k1', '/produktion/p1']);
+  });
+
+  it('Formular → zurück zur Herkunft kürzt den Pfad', () => {
+    const currentTrail = [{ label: 'Kampagnen', url: '/kampagne' }, { label: 'Sommer', url: '/kampagne/k1?tab=produktion' }];
+    expect(nextTrail({
+      currentTrail,
+      currentCrumbs: [...currentTrail, { label: 'Neue Kooperation', url: null }],
+      currentUrl: '/kooperation/new',
+      targetRoute: '/kampagne/k1?tab=produktion'
+    })).toEqual([{ label: 'Kampagnen', url: '/kampagne' }]);
+  });
+});
+
+describe('isFormRoute', () => {
+  it('erkennt Anlegen, Bearbeiten und den Projekt-Wizard', () => {
+    expect(isFormRoute('/creator/new?x=1')).toBe(true);
+    expect(isFormRoute('/briefing/b1/edit')).toBe(true);
+    expect(isFormRoute('/unternehmen/u1/persona/new')).toBe(true);
+    expect(isFormRoute('/admin/projekt-erstellen')).toBe(true);
+    expect(isFormRoute('/projekt-erstellen/edit/a1?step=kampagnen')).toBe(true);
+    expect(isFormRoute('/creator/cr1')).toBe(false);
+    expect(isFormRoute('/creator')).toBe(false);
+  });
 });
 
 describe('composeCrumbs', () => {
@@ -163,6 +212,20 @@ describe('History-State', () => {
     }, '', '/briefing/new');
     expect(backTarget('/briefing')).toBe('/produktion/p1?tab=briefing');
     expect(trailProduktion()).toEqual({ produktionId: 'p1', url: '/produktion/p1?tab=briefing' });
+  });
+
+  it('navigateBack: auf Formular-Route zur Herkunft, sonst zum Fallback', () => {
+    const navigateTo = vi.fn();
+    window.navigateTo = navigateTo;
+    const trail = [{ label: 'Serum', url: '/produktion/p1?tab=briefing' }];
+
+    window.history.replaceState({ route: '/briefing/b1/edit', trail }, '', '/briefing/b1/edit');
+    navigateBack('/briefing/b1');
+    expect(navigateTo).toHaveBeenLastCalledWith('/produktion/p1?tab=briefing');
+
+    window.history.replaceState({ route: '/briefing/b1', trail }, '', '/briefing/b1');
+    navigateBack('/briefing/b1');
+    expect(navigateTo).toHaveBeenLastCalledWith('/briefing/b1');
   });
 
   it('trailForRoute ignoriert Pfade fremder Einträge', () => {

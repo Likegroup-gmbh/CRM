@@ -5,21 +5,20 @@
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { ProduktList } from '../produkt/ProduktList.js';
 import { PersonaList } from '../persona/PersonaList.js';
+import { effectiveLinie } from './linienScope.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
 export function katalogScope(detail) {
   const produktion = detail?.produktion || {};
   const kampagne = detail?.kampagneData || {};
-  const resolved = Array.isArray(produktion.resolvedBriefingIds)
-    ? produktion.resolvedBriefingIds.filter(Boolean)
-    : [];
-  const briefingId = produktion.briefing_id || (resolved.length === 1 ? resolved[0] : null);
+  const briefingId = effectiveLinie(detail, 'produkte');
+  const linie = (detail?.linien || []).find(l => l.id === briefingId) || null;
 
   return {
     briefingId: briefingId || null,
-    briefingName: produktion.briefing?.aktivierung_name || null,
-    produktId: produktion.produkt_id || null,
-    produktName: produktion.produkt?.name || null,
+    briefingName: linie?.name || null,
+    produktId: null,
+    produktName: null,
     produktionId: detail?.produktionId || produktion.id || null,
     unternehmenId: kampagne.unternehmen_id || null,
     unternehmenName: kampagne.unternehmen?.firmenname || null,

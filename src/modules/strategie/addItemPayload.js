@@ -2,6 +2,25 @@
 // Videoreferenz: URL und Umsetzungsvorgabe Pflicht, Beschreibung optional.
 // Idee: Beschreibung Pflicht, kein Link, keine Vorgabe.
 
+/**
+ * Nur TikTok und Instagram: aus beiden laesst sich Tonspur bzw. Untertitel
+ * ziehen, YouTube nicht.
+ */
+export function isTranscribableUrl(url) {
+  const u = (url || '').toLowerCase();
+  return u.includes('tiktok.com') || u.includes('instagram.com');
+}
+
+/** Plattform aus der URL. Ohne URL null. YouTube bleibt fuer Altdaten erhalten. */
+export function detectPlatform(url) {
+  if (!url) return null;
+  const u = url.toLowerCase();
+  if (u.includes('tiktok.com')) return 'tiktok';
+  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
+  if (u.includes('instagram.com')) return 'instagram';
+  return 'other';
+}
+
 export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe, kategorie }) {
   const isReferenz = art !== 'idee';
   const cleanUrl = isReferenz ? (url?.trim() || null) : null;

@@ -295,13 +295,15 @@ export class BriefingDetail {
     document.addEventListener('click', async (e) => {
       if (e.target.closest('#btn-delete-briefing')) {
         e.preventDefault();
+        const { canDeleteLinie, deleteBriefingMitLinie, LINIE_LOESCHEN_HINWEIS } = await import('../produktion/ProduktionService.js');
+        const gate = await canDeleteLinie(this.briefingId);
+        if (!gate.ok) {
+          window.toastSystem?.show(gate.reason, 'warning');
+          return;
+        }
         const doDelete = async () => {
           try {
-            const { error } = await window.supabase
-              .from('campaign_briefings')
-              .delete()
-              .eq('id', this.briefingId);
-            if (error) throw error;
+            await deleteBriefingMitLinie(this.briefingId);
             window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'briefing', action: 'deleted', id: this.briefingId } }));
             window.navigateTo(backTarget('/briefing'));
           } catch (err) {
@@ -313,7 +315,7 @@ export class BriefingDetail {
         if (window.confirmationModal) {
           const res = await window.confirmationModal.open({
             title: 'Briefing löschen',
-            message: 'Dieses Briefing wirklich löschen?',
+            message: `Dieses Briefing wirklich löschen? ${LINIE_LOESCHEN_HINWEIS}`,
             confirmText: 'Endgültig löschen',
             cancelText: 'Abbrechen',
             danger: true

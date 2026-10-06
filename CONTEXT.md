@@ -29,15 +29,19 @@ _Avoid_: Eigener Name der Kampagne als Basis
 _Avoid_: Überkampagne, Auftrag
 
 **Produktion**:
-Lauf unter genau einer Kampagne. Mit Briefing heißt sie wie das Briefing, das Produkt kommt danach; ohne Briefing heißt sie `Projektname – Produktion N` (frei änderbar) und hat ein Produktionsbudget. Kein eigenes Soll. Darunter hängen Casting, Konzept, Skripte, Verträge, Kooperationen, Videos und Auswertung.
+Container unter genau einer Kampagne, immer sichtbar, auch ohne Briefing. Entsteht mit dem Auftrag (so viele, wie dort geplant) oder jederzeit von Hand. Heißt `Projektname – Produktion N` (frei änderbar); der Titel des ersten finalisierten Briefings wird einmalig übernommen, danach ist der Name eigenständig. Hat ein optionales Produktionsbudget, das alle Linien teilen. Kein eigenes Soll. Enthält null bis beliebig viele Linien; darunter hängen Verträge, Kooperationen, Videos und Auswertung über die Linien.
 _Avoid_: Kooperation, Vor-Ort-Produktion, Geist
 
 **Produktionsbudget**:
 Betrag, mit dem eine Produktion arbeitet, geschnitten aus dem Volumen ihrer Kampagne. Leer heißt, sie teilt sich das Volumen mit den anderen ohne Budget.
 _Avoid_: Creator-Budget, Kooperation, Geist, Anteil
 
+**Linie**:
+Ein Strang innerhalb einer Produktion: ein Briefing plus sein Casting, sein Konzept, seine Skripte und seine Kooperationen. Entsteht mit dem Finalisieren des Briefings; ein Entwurf erscheint schon als Linie mit Badge. Casting und Konzept lesen nur das Briefing ihrer Linie, nie das einer anderen. Eine Produktion kann mehrere Linien haben, etwa Nano-Influencer und UGC-Creator mit 20.000 Followern. Das Produkt sitzt an der Linie. Eine Linie mit Kooperationen lässt sich nicht löschen.
+_Avoid_: Strang, Briefing-Line, Geist, Zweig
+
 **Kooperation**:
-Creator-Buchung innerhalb einer Produktion. Dieselbe Person in einer zweiten Produktion ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Produktion.
+Creator-Buchung innerhalb einer Linie. Dieselbe Person in einer zweiten Linie, auch derselben Produktion, ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Produktion.
 _Avoid_: Produktion als Name der Buchung
 
 **Neuigkeit**:
@@ -121,7 +125,7 @@ geht es dem Vertragstext vor.
 _Avoid_: Anhang, Briefing
 
 **Briefing**:
-Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Ablage bleibt dort, die Firmenliste zeigt alle. Operativ genau einer Produktion zugeordnet und nicht wiederverwendet. Beim Anlegen wird kein Produkt gewählt; das Produkt entsteht danach. Titel ist der Projektname, optional mit Zusatz (`Projektname – Zusatz`); im Formular weiter änderbar. Verbindliche Grundlage für Casting und Konzept dieser Produktion.
+Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Ablage bleibt dort, die Firmenliste zeigt alle. Operativ genau einer Produktion zugeordnet (Pflicht, schon beim Anlegen) und nicht wiederverwendet; eine Produktion kann mehrere Briefings haben, jedes ist eine eigene Linie. Beim Anlegen wird kein Produkt gewählt; das Produkt entsteht danach. Titel ist der Projektname, optional mit Zusatz (`Projektname – Zusatz`); im Formular weiter änderbar. Verbindliche Grundlage für Casting und Konzept seiner Linie.
 _Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
 
 **Entwurf**:
@@ -187,11 +191,11 @@ Nicht das Briefing selbst.
 _Avoid_: Briefing, Quelldokument, Kundendokument
 
 **Casting**:
-Die Creator-Auswahlliste einer Produktion. Entsteht mit dem Finalisieren des Briefings. Heißt `{Briefing-Titel} Casting` und folgt der Umbenennung des Briefings. 1:1 mit dem Konzept dieser Produktion.
+Die Creator-Auswahlliste einer Linie. Entsteht mit dem Finalisieren des Briefings. Heißt `{Briefing-Titel} Casting` und folgt der Umbenennung des Briefings. 1:1 mit dem Konzept dieser Linie.
 _Avoid_: Sourcing (außer Code/Route), Creator-Liste, Art der Liste
 
 **Konzept**:
-Das Strategie-Dokument einer Produktion. Entsteht mit dem Finalisieren des Briefings. Heißt `{Briefing-Titel} Konzept` und folgt der Umbenennung des Briefings. Sammlung von Videoideen. 1:1 mit dem Casting dieser Produktion.
+Das Strategie-Dokument einer Produktion. Entsteht mit dem Finalisieren des Briefings. Heißt `{Briefing-Titel} Konzept` und folgt der Umbenennung des Briefings. Sammlung von Videoideen. 1:1 mit dem Casting dieser Linie.
 _Avoid_: Strategie (außer Tabelle `strategie`), Strategie-Doc
 
 **Casting-Eintrag**:

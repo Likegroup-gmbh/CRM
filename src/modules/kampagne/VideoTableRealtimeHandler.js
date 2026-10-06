@@ -171,6 +171,7 @@ export class VideoTableRealtimeHandler {
     const row = payload?.new || {};
     if (row.kampagne_id !== this.table.kampagneId) return;
     if (this.table.produktionId && row.produktion_id !== this.table.produktionId) return;
+    if (this.table.briefingId && row.briefing_id !== this.table.briefingId) return;
     if (typeof this.table.reloadKooperationen === 'function') {
       await this.table.reloadKooperationen();
       return;

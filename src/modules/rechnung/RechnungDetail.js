@@ -9,6 +9,7 @@ import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 import { RechnungPdfExtract, renderRechnungExtractCard } from './RechnungPdfExtract.js';
 import { likyCanExtractPdf } from '../../core/chat/likyCapabilities.js';
+import { navigateBack } from '../../core/breadcrumbTrail.js';
 
 // Pfade die mit "/" anfangen sind Dropbox-Pfade (neue Uploads), alle anderen
 // sind Legacy Supabase Storage-Pfade. Für Dropbox-Pfade reicht die
@@ -453,7 +454,7 @@ export class RechnungDetail {
           alert(`Rechnung erstellt, aber Beleg-Upload fehlgeschlagen: ${belegeErr?.message || belegeErr}`);
         }
         alert('Rechnung erstellt');
-        window.navigateTo(`/rechnung/${result.id}`);
+        navigateBack(`/rechnung/${result.id}`);
       } else {
         throw new Error(this.mapRechnungCreateError(result.error || 'Unbekannter Fehler'));
       }
@@ -574,7 +575,7 @@ export class RechnungDetail {
     window.content.innerHTML = `
       <div class="page-header">
         <div class="page-header-right">
-          <button onclick="window.navigateTo('/rechnung/${this.id}')" class="mdc-btn mdc-btn--cancel">
+          <button type="button" id="btn-rechnung-edit-cancel" class="mdc-btn mdc-btn--cancel">
             <span class="mdc-btn__icon" aria-hidden="true">
               ${icon('x-circle-filled')}
             </span>
@@ -589,6 +590,7 @@ export class RechnungDetail {
         <div class="form-split-right hidden" id="rechnung-split-right"></div>
       </div>
     `;
+    document.getElementById('btn-rechnung-edit-cancel')?.addEventListener('click', () => navigateBack(`/rechnung/${this.id}`));
     await window.formSystem.bindFormEvents(entity, editData);
 
     // Uploader werden per setTimeout(0) gemountet – kurz warten

@@ -31,8 +31,20 @@ function displayIdee(idee) {
   };
 }
 
-function poolKey(creatorId, produktionId) {
-  return produktionId ? `${creatorId}:${produktionId}` : creatorId;
+function poolKey(creatorId, produktionId, briefingId = null) {
+  const base = produktionId ? `${creatorId}:${produktionId}` : creatorId;
+  return briefingId ? `${base}:${briefingId}` : base;
+}
+
+// Kooperation ohne Linie (Altbestand): nimmt den Pool ihrer Produktion, egal welche Linie.
+function poolFuerKoop(pools, koop) {
+  const exakt = poolKey(koop.creator_id, koop.produktion_id || null, koop.briefing_id || null);
+  if (pools.has(exakt) || koop.briefing_id) return pools.get(exakt) || [];
+  const prefix = `${poolKey(koop.creator_id, koop.produktion_id || null)}:`;
+  for (const [key, pool] of pools) {
+    if (key.startsWith(prefix) && pool.length) return pool;
+  }
+  return [];
 }
 
 function istZuordenbareIdee(idee) {
@@ -65,7 +77,7 @@ export function zuordnenKonzeptInhalte(kooperationen, videosByKoopId, ideen, skr
   const passende = (ideen || []).filter(istZuordenbareIdee).sort(vergleicheIdeen);
   for (const idee of passende) {
     if (consumed.has(idee.id)) continue;
-    const key = poolKey(creatorIdOfIdee(idee), idee.produktion_id || null);
+    const key = poolKey(creatorIdOfIdee(idee), idee.produktion_id || null, idee.briefing_id || null);
     if (!pools.has(key)) pools.set(key, []);
     pools.get(key).push(idee);
   }
@@ -78,8 +90,7 @@ export function zuordnenKonzeptInhalte(kooperationen, videosByKoopId, ideen, skr
     const videos = [...(videosByKoop[koop.id] || [])].sort(
       (a, b) => (a.position ?? 0) - (b.position ?? 0)
     );
-    const key = poolKey(koop.creator_id, koop.produktion_id || null);
-    const pool = pools.get(key) || [];
+    const pool = poolFuerKoop(pools, koop);
     let cursor = 0;
 
     result[koop.id] = videos.map(video => {
@@ -119,13 +130,14 @@ export function zuordnenKonzeptInhalte(kooperationen, videosByKoopId, ideen, skr
   return result;
 }
 
-export async function loadKonzeptInhalte(client, { kampagneId, produktionId = null } = {}) {
+export async function loadKonzeptInhalte(client, { kampagneId, produktionId = null, briefingId = null } = {}) {
   if (!client) return { ideen: [], skripte: [] };
 
-  let query = client.from('strategie').select('id, produktion_id').order('created_at', { ascending: true });
+  let query = client.from('strategie').select('id, produktion_id, briefing_id').order('created_at', { ascending: true });
   if (produktionId) query = query.eq('produktion_id', produktionId);
   else if (kampagneId) query = query.eq('kampagne_id', kampagneId);
   else return { ideen: [], skripte: [] };
+  if (briefingId) query = query.eq('briefing_id', briefingId);
 
   const { data: strategien, error } = await query;
   if (error) throw new Error(error.message || 'Konzepte konnten nicht geladen werden');
@@ -135,6 +147,7 @@ export async function loadKonzeptInhalte(client, { kampagneId, produktionId = nu
 
   const index = new Map(liste.map((s, i) => [s.id, i]));
   const produktionByStrategie = new Map(liste.map(s => [s.id, s.produktion_id || null]));
+  const briefingByStrategie = new Map(liste.map(s => [s.id, s.briefing_id || null]));
 
   const { data: items, error: itemsError } = await client
     .from('strategie_items')
@@ -147,7 +160,8 @@ export async function loadKonzeptInhalte(client, { kampagneId, produktionId = nu
   const ideen = (items || []).map(item => ({
     ...item,
     konzeptIndex: index.get(item.strategie_id) ?? 0,
-    produktion_id: produktionByStrategie.get(item.strategie_id) || null
+    produktion_id: produktionByStrategie.get(item.strategie_id) || null,
+    briefing_id: briefingByStrategie.get(item.strategie_id) || null
   }));
 
   const itemIds = ideen.map(item => item.id).filter(Boolean);

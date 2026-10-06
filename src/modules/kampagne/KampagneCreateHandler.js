@@ -298,12 +298,8 @@ export class KampagneCreateHandler {
         this.showSuccessMessage('Kampagne erfolgreich erstellt!');
         
         window.dispatchEvent(new CustomEvent('entityUpdated', {
-          detail: { entity: 'kampagne', action: 'created', id: result.id }
+          detail: { entity: 'kampagne', action: 'created', id: result.id, redirect: true }
         }));
-        
-        setTimeout(() => {
-          window.navigateTo('/kampagne');
-        }, 1500);
       } else {
         if (btn) {
           btn.classList.remove('is-loading');

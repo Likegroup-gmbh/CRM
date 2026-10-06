@@ -26,16 +26,27 @@ async function einzeln(query) {
 }
 
 /** Vertraege, Rechnungen und Videos des Abspringers in dieser Produktion. */
-async function ladeAbspringerDaten(creatorId, produktionId) {
+async function ladeAbspringerDaten(creatorId, produktionId, briefingId = null) {
   if (!creatorId || !produktionId) return { vertraege: [], rechnungen: [], videos: [] };
-  const koops = await einzeln(db().from('kooperationen').select('id')
-    .eq('creator_id', creatorId).eq('produktion_id', produktionId));
+  // Nur die Kooperationen der Linie der Casting-Liste (Kooperation ohne Linie = Altbestand)
+  let koopQuery = db().from('kooperationen').select('id')
+    .eq('creator_id', creatorId).eq('produktion_id', produktionId);
+  if (briefingId) koopQuery = koopQuery.or(`briefing_id.eq.${briefingId},briefing_id.is.null`);
+  const koops = await einzeln(koopQuery);
   const koopIds = (koops || []).map((k) => k.id);
 
-  const ohneKoop = `and(kooperation_id.is.null,creator_id.eq.${creatorId},produktion_id.eq.${produktionId})`;
-  const vertraege = await einzeln(db().from('vertraege')
-    .select('id, status, dropbox_file_url, unterschriebener_vertrag_url')
-    .or(koopIds.length ? `kooperation_id.in.(${koopIds.join(',')}),${ohneKoop}` : ohneKoop));
+  // Vertraege ohne Kooperation kennen keine Linie: nur bei genau einer Linie eindeutig
+  const { count } = await db().from('campaign_briefings')
+    .select('id', { count: 'exact', head: true }).eq('produktion_id', produktionId);
+  const ohneKoop = (count ?? 0) <= 1
+    ? `and(kooperation_id.is.null,creator_id.eq.${creatorId},produktion_id.eq.${produktionId})`
+    : null;
+  const vertragFilter = [koopIds.length ? `kooperation_id.in.(${koopIds.join(',')})` : null, ohneKoop]
+    .filter(Boolean).join(',');
+  const vertraege = vertragFilter
+    ? await einzeln(db().from('vertraege')
+      .select('id, status, dropbox_file_url, unterschriebener_vertrag_url').or(vertragFilter))
+    : [];
   if (!koopIds.length) return { vertraege: vertraege || [], rechnungen: [], videos: [] };
 
   const vertragIds = (vertraege || []).map((v) => v.id);
@@ -57,11 +68,11 @@ export async function ladeTauschKontext(alterItemId) {
   const alt = await einzeln(db().from('creator_auswahl_items')
     .select(ITEM_COLS).eq('id', alterItemId).single());
   const liste = await einzeln(db().from('creator_auswahl')
-    .select('produktion_id').eq('id', alt.creator_auswahl_id).single());
+    .select('produktion_id, briefing_id').eq('id', alt.creator_auswahl_id).single());
   const items = await einzeln(db().from('creator_auswahl_items').select(ITEM_COLS)
     .eq('creator_auswahl_id', alt.creator_auswahl_id).neq('id', alterItemId)
     .not('creator_id', 'is', null).order('name'));
-  const daten = await ladeAbspringerDaten(alt.creator_id, liste?.produktion_id);
+  const daten = await ladeAbspringerDaten(alt.creator_id, liste?.produktion_id, liste?.briefing_id);
 
   return {
     alt,
@@ -86,10 +97,12 @@ export async function findeAlterEintragFuerSkript(skript, verknuepfungen = []) {
   }
   const creatorId = verknuepfungen.map((v) => v.kooperation?.creator?.id).find(Boolean);
   if (!creatorId || !skript?.produktion_id) return null;
-  const treffer = await einzeln(db().from('creator_auswahl_items')
-    .select('id, creator_auswahl:creator_auswahl_id!inner(produktion_id)')
+  let trefferQuery = db().from('creator_auswahl_items')
+    .select('id, creator_auswahl:creator_auswahl_id!inner(produktion_id, briefing_id)')
     .eq('creator_id', creatorId).eq('absage', false)
-    .eq('creator_auswahl.produktion_id', skript.produktion_id).limit(1));
+    .eq('creator_auswahl.produktion_id', skript.produktion_id);
+  if (skript.briefing_id) trefferQuery = trefferQuery.eq('creator_auswahl.briefing_id', skript.briefing_id);
+  const treffer = await einzeln(trefferQuery.limit(1));
   return treffer?.[0]?.id || null;
 }
 

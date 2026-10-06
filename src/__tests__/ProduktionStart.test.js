@@ -205,7 +205,7 @@ describe('Konzept-Aktionsmenü Produktion starten', () => {
 });
 
 describe('startProduktionFromItem', () => {
-  it('öffnet den Drawer nicht, wenn der Creator in der Produktion schon eine Kooperation hat', async () => {
+  it('öffnet den Drawer nicht, wenn der Creator in dieser Linie schon eine Kooperation hat', async () => {
     const client = supabaseReturning([{ id: 'koop-1' }]);
     const open = vi.fn();
     const toast = { show: vi.fn() };
@@ -219,7 +219,7 @@ describe('startProduktionFromItem', () => {
     expect(result.opened).toBe(false);
     expect(open).not.toHaveBeenCalled();
     expect(toast.show).toHaveBeenCalledWith(
-      'Für diesen Creator gibt es in der Produktion schon eine Kooperation',
+      'Für diesen Creator gibt es in dieser Linie schon eine Kooperation',
       'warning'
     );
     expect(client.from).toHaveBeenCalledWith('kooperationen');

@@ -60,6 +60,7 @@ BriefingCreate.prototype.init = async function(editId = null) {
     await this.loadFromDB(editId);
   } else {
     this.applyQueryPrefill();
+    await this.resolveProduktionKontext();
     this.formData.videolaenge = { von: 15, bis: 20 };
     await this.refreshProdukte();
   }
@@ -80,12 +81,48 @@ BriefingCreate.prototype.applyQueryPrefill = function() {
   if (marke && marke !== OHNE_QUERY) this.formData.marke_id = marke;
   if (titel) this.formData.aktivierung_name = titel;
   if (kampagne) this.formData.kampagne_id = kampagne;
-  if (produktion) this.formData.ziel_produktion_id = produktion;
+  if (produktion) this.formData.produktion_id = produktion;
   if (produkt) this.formData.produkt_id = produkt;
   this._linieGesperrt = !!kampagne;
   this._produktionKontext = kampagne
     ? { kampagneId: kampagne, produktId: produkt || null, produktionId: produktion || null }
     : null;
+  this.syncKontextAusKampagne();
+};
+
+// Gesperrter Kontext: Unternehmen und Marke gehören der Kampagne, nicht der URL.
+BriefingCreate.prototype.syncKontextAusKampagne = function() {
+  if (!this._linieGesperrt) return;
+  const kampagne = (this.kampagnen || []).find(k => k.id === this.formData.kampagne_id);
+  if (!kampagne) return;
+  if (kampagne.unternehmen_id) this.formData.unternehmen_id = kampagne.unternehmen_id;
+  if (kampagne.marke_id) this.formData.marke_id = kampagne.marke_id;
+  else delete this.formData.marke_id;
+};
+
+// Nur `produktion` in der URL: Kampagne kommt aus der Produktionszeile.
+BriefingCreate.prototype.resolveProduktionKontext = async function() {
+  const produktionId = this.formData.produktion_id;
+  if (!produktionId || this.formData.kampagne_id || !window.supabase) return;
+  try {
+    const { data } = await window.supabase
+      .from('produktion')
+      .select('id, kampagne_id, produkt_id')
+      .eq('id', produktionId)
+      .maybeSingle();
+    if (!data?.kampagne_id) return;
+    this.formData.kampagne_id = data.kampagne_id;
+    if (data.produkt_id && !this.formData.produkt_id) this.formData.produkt_id = data.produkt_id;
+    this._linieGesperrt = true;
+    this._produktionKontext = {
+      kampagneId: data.kampagne_id,
+      produktId: this.formData.produkt_id || null,
+      produktionId
+    };
+    this.syncKontextAusKampagne();
+  } catch (error) {
+    console.warn('Produktion für das Briefing nicht geladen', error);
+  }
 };
 
 BriefingCreate.prototype.loadStammdaten = async function() {

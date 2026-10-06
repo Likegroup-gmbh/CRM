@@ -228,6 +228,7 @@ export function renderMainPage(state) {
         </div>
       </div>
 
+      ${state.linienBar || ''}
       ${renderWorkflowTabBar(activeWorkflow)}
 
       <div class="content-section">
@@ -290,8 +291,14 @@ function renderKampagneOverview({
   const canCreateBriefing = window.canCreate?.('briefing') ?? false;
   const zeilen = verbrauchZeilen(produktionen || [], kampagneBudgetPot(kampagneData));
   const rows = (produktionen || []).map((p, index) => {
-    const produkt = p.produkt?.name || '–';
-    const briefing = p.briefing?.aktivierung_name || '–';
+    const linien = p.linien || [];
+    const produkte = [...new Set(linien.flatMap(l =>
+      (l.briefing?.produkte || []).map(row => row?.produkt?.name).filter(Boolean)
+    ))];
+    const produkt = produkte.length ? produkte.join(', ') : (p.produkt?.name || '–');
+    const briefing = linien.length
+      ? linien.map(l => `${l.name}${l.is_draft ? ' (Entwurf)' : ''}`).join(', ')
+      : '–';
     const zeile = zeilen[index] || { eigenesBudget: null, used: null, total: 0 };
     const budgetZelle = zeile.eigenesBudget != null
       ? KampagneUtils.formatCurrency(zeile.eigenesBudget)
@@ -300,9 +307,10 @@ function renderKampagneOverview({
       <tr>
         <td><a href="/produktion/${p.id}" class="table-link" data-table="produktion" data-id="${p.id}">${sanitize(p.name || briefing || 'Produktion')}</a></td>
         <td>${sanitize(produkt)}</td>
-        <td>${sanitize(briefing)}</td>
+        <td>${sanitize(briefing)}${linien.length > 1 ? ` <span class="text-muted">· ${linien.length} Linien</span>` : ''}</td>
         <td>${budgetZelle}</td>
         <td>${renderProduktionBudget(zeile.used, zeile.total)}</td>
+        <td>${canCreateBriefing && !linien.length ? `<button type="button" class="mdc-btn mdc-btn--text" data-produktion-loeschen="${p.id}">Löschen</button>` : ''}</td>
       </tr>`;
   }).join('');
 
@@ -315,17 +323,17 @@ function renderKampagneOverview({
           <h2 class="page-header-title">${sanitize(kampagneName)}</h2>
         </div>
         <div class="page-header-right">
-          ${canCreateBriefing ? `<button type="button" id="btn-new-produktion" class="mdc-btn">Briefing anlegen</button>` : ''}
+          ${canCreateBriefing ? `<button type="button" id="btn-new-produktion" class="mdc-btn">Produktion anlegen</button>` : ''}
         </div>
       </div>
       <div class="content-section">
         <div class="data-table-container">
           <table class="data-table">
             <thead>
-              <tr><th>Produktion</th><th>Produkt</th><th>Briefing</th><th>Budget</th><th>Verbrauch</th></tr>
+              <tr><th>Produktion</th><th>Produkt</th><th>Briefings</th><th>Budget</th><th>Verbrauch</th><th></th></tr>
             </thead>
             <tbody>
-              ${rows || `<tr><td colspan="5">Noch keine Produktion. Briefing anlegen startet die erste.</td></tr>`}
+              ${rows || `<tr><td colspan="6">Noch keine Produktion. Produktion anlegen oder im Auftrag eine planen.</td></tr>`}
             </tbody>
           </table>
         </div>

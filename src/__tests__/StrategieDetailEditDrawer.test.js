@@ -1,22 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  handleEditItemSubmit,
   showEditItemDrawer,
   removeEditItemDrawer,
   visibleVideoideen
-} from '../modules/strategie/StrategieDetailEditDrawer.js';
+} from '../modules/strategie/VideoideeDrawer.js';
+import { persistVideoideeEdit } from '../modules/strategie/videoideeEdit.js';
+import { detectPlatform, isTranscribableUrl } from '../modules/strategie/addItemPayload.js';
 import { syncVideoideeField } from '../modules/strategie/videoideeFieldSync.js';
 import { strategieService } from '../modules/strategie/StrategieService.js';
 
 const SCREENSHOT_URL = 'https://xxx.supabase.co/storage/v1/object/public/strategie-screenshots/screenshots/shot.jpg';
-
-function formData(fields) {
-  const data = new FormData();
-  for (const [key, value] of Object.entries(fields)) {
-    data.set(key, value);
-  }
-  return data;
-}
 
 function detailStub(item) {
   return {
@@ -39,14 +32,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
-  beforeEach(() => {
-    document.body.innerHTML = `
-      <form id="edit-item-form">
-        <button type="submit">Speichern</button>
-      </form>
-    `;
-  });
+describe('persistVideoideeEdit – Screenshot beim Link-Entfernen', () => {
   it('loescht den Screenshot und setzt screenshot_url auf null, wenn die URL geleert wird', async () => {
     const item = {
       id: 'i1',
@@ -57,13 +43,15 @@ describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
     };
     const detail = detailStub(item);
 
-    await handleEditItemSubmit(detail, 'i1', formData({
+    const result = await persistVideoideeEdit(detail, 'i1', {
       art: 'idee',
       video_link: '',
       teilbereich: 'Reels',
       beschreibung: 'Hook',
       umsetzungsvorgabe: 'alte Vorgabe'
-    }));
+    });
+
+    expect(result).toEqual({ ok: true });
 
     expect(strategieService.deleteScreenshot).toHaveBeenCalledWith(SCREENSHOT_URL);
     expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.objectContaining({
@@ -89,13 +77,13 @@ describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
     };
     const detail = detailStub(item);
 
-    await handleEditItemSubmit(detail, 'i1', formData({
+    await persistVideoideeEdit(detail, 'i1', {
       art: 'videoreferenz',
       video_link: 'https://instagram.com/reel/abc',
       teilbereich: '',
       beschreibung: '',
       umsetzungsvorgabe: 'Nur der Schnitt'
-    }));
+    });
 
     expect(strategieService.deleteScreenshot).toHaveBeenCalledWith(SCREENSHOT_URL);
     expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.objectContaining({
@@ -118,13 +106,13 @@ describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
       beschreibung: 'Neu'
     };
 
-    await handleEditItemSubmit(detailStub(item), 'i1', formData({
+    await persistVideoideeEdit(detailStub(item), 'i1', {
       art: 'videoreferenz',
       video_link: 'https://tiktok.com/@x/video/1',
       teilbereich: 'Reels',
       beschreibung: 'Neu',
       umsetzungsvorgabe: 'Die Hook'
-    }));
+    });
 
     expect(strategieService.deleteScreenshot).not.toHaveBeenCalled();
     expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.not.objectContaining({
@@ -143,15 +131,52 @@ describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
       beschreibung: 'Hook'
     };
 
-    await handleEditItemSubmit(detailStub(item), 'i1', formData({
+    const result = await persistVideoideeEdit(detailStub(item), 'i1', {
       art: 'videoreferenz',
       video_link: 'https://tiktok.com/@x/video/1',
       beschreibung: 'Hook',
       umsetzungsvorgabe: '  '
-    }));
+    });
 
     expect(strategieService.updateStrategieItem).not.toHaveBeenCalled();
-    expect(window.toastSystem.show).toHaveBeenCalledWith('Was sollen wir von diesem Video umsetzen?', 'warning');
+    expect(result).toEqual({ ok: false, error: 'Was sollen wir von diesem Video umsetzen?' });
+  });
+
+  it('behaelt bei bestehenden YouTube-Links die Plattform und startet keine Verarbeitung', async () => {
+    const item = {
+      id: 'i1',
+      video_link: 'https://youtube.com/watch?v=1',
+      plattform: 'youtube',
+      beschreibung: 'Alt'
+    };
+
+    const result = await persistVideoideeEdit(detailStub(item), 'i1', {
+      art: 'videoreferenz',
+      video_link: 'https://youtube.com/watch?v=1',
+      beschreibung: 'Neu',
+      umsetzungsvorgabe: 'Die Hook'
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.objectContaining({
+      plattform: 'youtube',
+      beschreibung: 'Neu'
+    }));
+    expect(strategieService.enqueueItemProcessing).not.toHaveBeenCalled();
+  });
+
+  it('lehnt einen neuen YouTube-Link ab', async () => {
+    const item = { id: 'i1', video_link: null, beschreibung: 'Idee' };
+
+    const result = await persistVideoideeEdit(detailStub(item), 'i1', {
+      art: 'videoreferenz',
+      video_link: 'https://youtube.com/watch?v=1',
+      beschreibung: 'Idee',
+      umsetzungsvorgabe: 'Die Hook'
+    });
+
+    expect(result).toEqual({ ok: false, error: 'Nur TikTok- und Instagram-Links sind erlaubt' });
+    expect(strategieService.updateStrategieItem).not.toHaveBeenCalled();
   });
 
   it('behaelt die Kundenadaption, wenn aus einer Idee eine Videoreferenz wird', async () => {
@@ -162,17 +187,35 @@ describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
       beschreibung: 'Idee'
     };
 
-    await handleEditItemSubmit(detailStub(item), 'i1', formData({
+    await persistVideoideeEdit(detailStub(item), 'i1', {
       art: 'videoreferenz',
       video_link: 'https://tiktok.com/@x/video/1',
       beschreibung: 'Idee',
       umsetzungsvorgabe: 'Die Hook'
-    }));
+    });
 
     const updates = strategieService.updateStrategieItem.mock.calls[0][1];
     expect(updates.kundenadaption).toBeUndefined();
     expect(updates.umsetzungsvorgabe).toBe('Die Hook');
     expect(updates.verarbeitung_status).toBe('pending');
+  });
+});
+
+describe('detectPlatform / isTranscribableUrl', () => {
+  it('erkennt die Plattform und liefert ohne URL null', () => {
+    expect(detectPlatform('')).toBeNull();
+    expect(detectPlatform(null)).toBeNull();
+    expect(detectPlatform('https://www.tiktok.com/@x/video/1')).toBe('tiktok');
+    expect(detectPlatform('https://instagram.com/reel/abc')).toBe('instagram');
+    expect(detectPlatform('https://youtu.be/abc')).toBe('youtube');
+    expect(detectPlatform('https://example.com')).toBe('other');
+  });
+
+  it('erlaubt nur TikTok und Instagram', () => {
+    expect(isTranscribableUrl('https://tiktok.com/x')).toBe(true);
+    expect(isTranscribableUrl('https://INSTAGRAM.com/reel/x')).toBe(true);
+    expect(isTranscribableUrl('https://youtube.com/watch?v=1')).toBe(false);
+    expect(isTranscribableUrl('')).toBe(false);
   });
 });
 

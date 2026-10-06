@@ -80,6 +80,10 @@ describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
     join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260924124935_videolaenge_sekundenintervall.sql'),
     'utf8'
   );
+  const produktionLinienSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261008_produktion_linien.sql'),
+    'utf8'
+  );
   const columns = new Set([
     ...extractColumns(sql),
     ...extractAlterColumns(flowSql),
@@ -87,7 +91,8 @@ describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
     ...extractAlterColumns(hooksSql),
     ...extractAlterColumns(linieSql),
     ...extractAlterColumns(dosSql),
-    ...extractAlterColumns(laengeSql)
+    ...extractAlterColumns(laengeSql),
+    ...extractAlterColumns(produktionLinienSql)
   ]);
   const notNullColumns = extractNotNullColumns(sql);
 

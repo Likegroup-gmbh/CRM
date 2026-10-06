@@ -211,10 +211,10 @@ export const FLOW_STEPS = [
         title: 'Zuordnung',
         fields: [
           fieldGroup('zuordnung-entities', 'stack', [
-            { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', required: true, placeholder: 'Unternehmen auswählen...' },
-            { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', placeholder: 'Marke auswählen...' },
+            { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', lockWithLinie: true, required: true, placeholder: 'Unternehmen auswählen...' },
+            { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', lockWithLinie: true, placeholder: 'Marke auswählen...' },
             { name: 'kampagne_id', label: 'Kampagne', type: 'entitySelect', table: 'kampagne', displayField: 'label', dependsOn: 'unternehmen_id', scopeMarke: true, lockWithLinie: true, required: true, placeholder: 'Kampagne auswählen...' },
-            { name: 'ziel_produktion_id', label: 'Produktion', type: 'entitySelect', displayField: 'name', dependsOn: 'kampagne_id', placeholder: 'Produktion auswählen...' }
+            { name: 'produktion_id', label: 'Produktion', type: 'entitySelect', displayField: 'name', dependsOn: 'kampagne_id', required: true, placeholder: 'Produktion auswählen...' }
           ]),
           fieldGroup('zuordnung-titel', 'stack', [
             { name: 'beschreibung', label: 'Schwerpunkt (optional)', type: 'textarea', rows: 2, placeholder: 'Worum geht es in diesem Briefing?' },
