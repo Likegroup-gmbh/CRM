@@ -40,6 +40,8 @@ export class StrategieService {
     // Mitarbeiter: Kampagnen-Zuordnung ODER freigeschaltetes Unternehmen.
     // Konzepte ohne kampagne_id (nur unternehmen_id) erscheinen sonst nur
     // auf der Unternehmensseite, nicht unter /konzepte.
+    // TEMPORAER bis der v2-Flow eine Kampagne erzwingt:
+    // tasks/issues/005-temporaerer-unternehmens-scope-zurueckbauen.md
     const allowedKampagneIds = await this._getAllowedKampagneIds(user);
     const allowedUnternehmenIds = await window.dataScopeService?.getAllowedUnternehmenIds?.();
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);

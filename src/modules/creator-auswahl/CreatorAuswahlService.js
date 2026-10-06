@@ -43,6 +43,8 @@ export class CreatorAuswahlService {
 
     // Kampagnen-Zuordnung ODER freigeschaltetes Unternehmen: Listen ohne
     // kampagne_id erscheinen sonst nur auf der Unternehmensseite.
+    // TEMPORAER bis der v2-Flow eine Kampagne erzwingt:
+    // tasks/issues/005-temporaerer-unternehmens-scope-zurueckbauen.md
     const allowedKampagneIds = await this._getAllowedKampagneIds(user);
     const allowedUnternehmenIds = await window.dataScopeService?.getAllowedUnternehmenIds?.();
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
