@@ -1,6 +1,8 @@
 // VideoFilterLogic.js (ES6-Modul)
 // Video-spezifische Filter-Verarbeitung
 
+import { CONTENT_ART_OPTIONS } from '../../kooperation/contentArtOptions.js';
+
 /**
  * Video-spezifische Filter-Verarbeitung
  */
@@ -105,7 +107,7 @@ export class VideoFilterLogic {
     
     // Content Art Validierung
     if (filters.content_art) {
-      const validContentArts = ['Paid', 'Organisch', 'Influencer', 'Videograph', 'Whitelisting', 'Spark-Ad'];
+      const validContentArts = CONTENT_ART_OPTIONS;
       const contentArtArray = Array.isArray(filters.content_art) ? filters.content_art : [filters.content_art];
       
       for (const art of contentArtArray) {
