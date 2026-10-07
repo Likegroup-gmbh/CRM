@@ -226,6 +226,28 @@ Eine Überarbeitungsrunde desselben Kooperationsvideos (`version_number`, max 3)
 Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
 _Avoid_: Version (alleinstehend), Revision
 
+**Story**:
+Ein Story-File in einer Kooperation, mit eigenen Feedbackschleifen und finalen Versionen.
+Nicht die Kampagnenart Influencer Story.
+_Avoid_: Influencer Story, Slot
+
+**Still**:
+Das finale Standbild eines Kooperationsvideos. Trägt kein Seitenverhältnis.
+_Avoid_: Bild, Thumbnail, Cover
+
+**Finale Version**:
+Das ausgelieferte File eines Kooperationsvideos oder einer Story, in genau einem Seitenverhältnis.
+Liegt neben der Feedbackschleife, nicht in ihr.
+_Avoid_: Final, Master, Export
+
+**Seitenverhältnis**:
+9:16, 4:5 oder 1:1 an einer finalen Version von Kooperationsvideo oder Story. Mehrere finale Versionen desselben Verhältnisses können nebeneinander liegen.
+_Avoid_: Format (Kollision mit Kampagnenart), Ratio, 16:9, 4:3
+
+**Abwählen**:
+Eine markierte finale Version zurücknehmen. Trifft nur diese eine Datei; die Feedbackschleife, aus der sie stammt, bleibt.
+_Avoid_: Löschen, Ersetzen
+
 **Kooperationstabelle**:
 Tabelle auf der Kampagne mit Kooperationen und Video-Stacks.
 _Avoid_: Kampagnen-Tabelle

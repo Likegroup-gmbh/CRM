@@ -805,7 +805,7 @@ export class VideoPlayerLightbox {
         btn.disabled = true;
         try {
           if (unmark) {
-            await unmarkFinalSlot(kind, source.video_id || this.current?.video?.id, slot);
+            await unmarkFinalSlot(kind, source.video_id || this.current?.video?.id, slot, kind === 'video' ? source.id : undefined);
           } else {
             await promoteAssetToFinal(kind, source, slot);
           }

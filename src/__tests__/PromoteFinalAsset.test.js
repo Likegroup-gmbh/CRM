@@ -55,8 +55,26 @@ describe('PromoteFinalAsset', () => {
   });
 
   it('lehnt unbekannte Video-Slots ab', async () => {
-    await expect(promoteAssetToFinal('video', { id: 'a', video_id: 'v' }, '1:1'))
+    await expect(promoteAssetToFinal('video', { id: 'a', video_id: 'v' }, '16:9'))
       .rejects.toThrow(/Unbekannter Final-Slot/);
+  });
+
+  it('akzeptiert 1:1 als Final-Slot', async () => {
+    const inserted = { id: 'f2', variant_name: '1:1', source_asset_id: 'src1', is_final: true };
+    const del = makeThenable({ error: null });
+    const ins = makeThenable({ data: inserted, error: null });
+    ins.single = vi.fn(() => Promise.resolve({ data: inserted, error: null }));
+    window.supabase = {
+      from: vi.fn(() => ({
+        delete: () => del,
+        insert: () => ins,
+      })),
+    };
+    const result = await promoteAssetToFinal('video', {
+      id: 'src1', video_id: 'v1', file_url: 'https://x/a.mp4', file_path: '/a.mp4',
+    }, '1:1');
+    expect(result.variant_name).toBe('1:1');
+    expect(del.eq).toHaveBeenCalledWith('source_asset_id', 'src1');
   });
 
   it('markedSlotsForSource findet die Slots des Quell-Assets', () => {
@@ -68,13 +86,18 @@ describe('PromoteFinalAsset', () => {
     expect(slots).toEqual(['9:16', '4:5']);
   });
 
-  it('unmarkFinalSlot loescht den Slot', async () => {
+  it('unmarkFinalSlot loescht nur den Verweis dieser Quelle', async () => {
     const del = makeThenable({ error: null });
     window.supabase = {
       from: vi.fn(() => ({ delete: () => del })),
     };
-    await unmarkFinalSlot('video', 'v1', '9:16');
+    await unmarkFinalSlot('video', 'v1', '9:16', 'src1');
     expect(window.supabase.from).toHaveBeenCalledWith('kooperation_video_asset');
     expect(del.eq).toHaveBeenCalledWith('variant_name', '9:16');
+    expect(del.eq).toHaveBeenCalledWith('source_asset_id', 'src1');
+  });
+
+  it('unmarkFinalSlot ohne Quelle loescht nicht den ganzen Slot', async () => {
+    await expect(unmarkFinalSlot('video', 'v1', '9:16')).rejects.toThrow(/sourceAssetId/);
   });
 });

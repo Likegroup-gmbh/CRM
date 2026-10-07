@@ -3,7 +3,7 @@
 // Keine DOM-Zugriffe — alle Status-Updates über ctx.updateItem.
 
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
-import { createFolderSharedLink, buildVersionedFileName, buildFinalFileName } from '../VideoUploadUtils.js';
+import { createFolderSharedLink, buildVersionedFileName, buildFinalFileName, nextFreeIndexedFileName } from '../VideoUploadUtils.js';
 
 function buildVersionedFileName_(file, versionNumber, metadaten) {
   const ext = (file.name.split('.').pop() || 'mp4');
@@ -103,6 +103,16 @@ async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versi
   if (error) throw error;
 }
 
+async function loadFinalFileNames(videoId) {
+  const { data, error } = await window.supabase
+    .from('kooperation_video_asset')
+    .select('file_path, file_url')
+    .eq('video_id', videoId)
+    .eq('is_final', true);
+  if (error) throw error;
+  return (data || []).map(a => a.file_path || a.file_url || '').filter(Boolean);
+}
+
 async function updateCurrentFlags(videoId) {
   const { data: assets } = await window.supabase
     .from('kooperation_video_asset')
@@ -146,6 +156,7 @@ export async function runVideoUploadJob(ctx) {
   let lastFileUrl = null;
   let folderUrl = null;
   let hasFinalUpload = false;
+  const takenFinalNames = await loadFinalFileNames(videoId);
 
   for (let i = 0; i < queue.length; i++) {
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -155,9 +166,13 @@ export async function runVideoUploadJob(ctx) {
     const variantName = (queueItem.variantName || '').trim();
     const versionNumber = String(queueItem.versionNumber || 1);
     const isFinal = !!queueItem.isFinal;
-    const fileName = isFinal
+    let fileName = isFinal
       ? buildFinalFileName_(file, variantName, metadaten)
       : buildVersionedFileName_(file, versionNumber, metadaten);
+    if (isFinal) {
+      fileName = nextFreeIndexedFileName(fileName, takenFinalNames);
+      takenFinalNames.push(fileName);
+    }
     const item = job.items[i];
 
     updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });

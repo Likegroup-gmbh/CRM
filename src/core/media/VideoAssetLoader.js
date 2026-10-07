@@ -50,7 +50,7 @@ export class VideoAssetLoader {
     return (assets || []).filter(a => !a.is_final);
   }
 
-  /** Finale-Version-Assets (is_final), z. B. Varianten 9:16 / 4:5. */
+  /** Finale-Version-Assets (is_final), z. B. Seitenverhaeltnisse 9:16 / 4:5 / 1:1. */
   finalVariants(assets) {
     return (assets || []).filter(a => !!a.is_final);
   }

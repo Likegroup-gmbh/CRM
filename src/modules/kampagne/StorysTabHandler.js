@@ -429,7 +429,7 @@ export class StorysTabHandler {
     return html;
   }
 
-  // Freitext-Varianten-Name (Feedbackschleifen) bzw. Preset-Select 9:16/4:5 (Finale)
+  // Freitext-Varianten-Name (Feedbackschleifen) bzw. Preset-Select 9:16/4:5/1:1 (Finale)
   _buildVariantField(item, idx) {
     if (item.isFinal) {
       const options = FINAL_VARIANTS.map(v =>

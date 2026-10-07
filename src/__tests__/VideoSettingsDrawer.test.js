@@ -241,6 +241,8 @@ describe('VideoSettingsDrawer', () => {
     expect(nineBySixteen.getAttribute('title')).toBe('Als finale Version auswählen (9:16)');
     expect(body.querySelector('.promote-final-btn[data-slot="4:5"]')?.getAttribute('title'))
       .toBe('Als finale Version auswählen (4:5)');
+    expect(body.querySelector('.promote-final-btn[data-slot="1:1"]')?.getAttribute('title'))
+      .toBe('Als finale Version auswählen (1:1)');
   });
 
   it('zeigt Legacy-Video-Link wenn keine Assets aber videoUrl gesetzt', async () => {

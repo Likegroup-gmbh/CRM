@@ -170,7 +170,7 @@ describe('VideoUploadDrawer', () => {
 
       const variantSelect = queueEl.querySelector('.video-final-variant-select');
       expect(variantSelect).not.toBeNull();
-      expect([...variantSelect.options].map(o => o.value)).toEqual(['9:16', '4:5']);
+      expect([...variantSelect.options].map(o => o.value)).toEqual(['9:16', '4:5', '1:1']);
       expect(queueEl.querySelector('.video-variant-name-input')).toBeNull();
 
       // Zurueck zu Feedbackschleife -> Freitext wieder da, Flag zurueckgesetzt

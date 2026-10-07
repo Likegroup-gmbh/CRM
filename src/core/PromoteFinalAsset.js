@@ -11,10 +11,12 @@ function userId() {
 }
 
 /**
- * Ersetzt den Final-Slot (last-write-wins) durch einen Pointer auf dasselbe File.
+ * Haengt eine weitere finale Version an. Andere finale Versionen desselben
+ * Seitenverhaeltnisses bleiben. Ein vorhandener Verweis derselben Quelle wird
+ * ersetzt, damit ein erneutes Markieren keine zweite Zeile erzeugt.
  * @param {'video'|'still'} kind
  * @param {object} sourceAsset
- * @param {string} slot  9:16 | 4:5 | Still
+ * @param {string} slot  9:16 | 4:5 | 1:1 | Still
  */
 export async function promoteAssetToFinal(kind, sourceAsset, slot) {
   if (!sourceAsset?.id) throw new Error('Quell-Asset fehlt');
@@ -25,15 +27,18 @@ export async function promoteAssetToFinal(kind, sourceAsset, slot) {
   return promoteStill(sourceAsset);
 }
 
-export async function unmarkFinalSlot(kind, videoId, slot) {
+export async function unmarkFinalSlot(kind, videoId, slot, sourceAssetId) {
   if (!videoId) throw new Error('videoId fehlt');
   if (kind === 'video') {
+    if (!sourceAssetId) throw new Error('sourceAssetId fehlt');
+    if (!slot) throw new Error('Final-Slot fehlt');
     const { error } = await window.supabase
       .from('kooperation_video_asset')
       .delete()
       .eq('video_id', videoId)
       .eq('is_final', true)
-      .eq('variant_name', slot);
+      .eq('variant_name', slot)
+      .eq('source_asset_id', sourceAssetId);
     if (error) throw error;
     return;
   }
@@ -46,12 +51,7 @@ export async function unmarkFinalSlot(kind, videoId, slot) {
 }
 
 async function promoteVideo(source, slot) {
-  await window.supabase
-    .from('kooperation_video_asset')
-    .delete()
-    .eq('video_id', source.video_id)
-    .eq('is_final', true)
-    .eq('variant_name', slot);
+  await unmarkFinalSlot('video', source.video_id, slot, source.id);
 
   const { data, error } = await window.supabase
     .from('kooperation_video_asset')

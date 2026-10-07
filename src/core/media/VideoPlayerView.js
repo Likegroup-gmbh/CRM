@@ -242,7 +242,7 @@ export class VideoPlayerView {
       </div>${this.renderStoryFinalVariantSelect(finals)}`;
   }
 
-  // Varianten-Select (9:16 / 4:5) fuer die finale Story-Version
+  // Varianten-Select (9:16 / 4:5 / 1:1) fuer die finale Story-Version
   renderStoryFinalVariantSelect(finals) {
     if (this.ctx.storyVersion !== 'final' || finals.length <= 1) return '';
     const selectedId = this.ctx.storyFinalAssetId || finals[0]?.id;

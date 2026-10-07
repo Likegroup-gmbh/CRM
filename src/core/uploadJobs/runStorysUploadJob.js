@@ -2,7 +2,7 @@
 // Pure Job-Runner für Storys-Upload (StorysTabHandler).
 
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
-import { createFolderSharedLink } from '../VideoUploadUtils.js';
+import { createFolderSharedLink, nextFreeIndexedFileName, sanitizeDropboxFileName, fileBasename } from '../VideoUploadUtils.js';
 
 async function prepareStorysUpload({ metadaten, slotIndex, versionNumber, variantName, fileName, isFinal }) {
   const payload = {
@@ -126,8 +126,23 @@ export async function runStorysUploadJob(ctx) {
     }
     slotsTouched.add(slotId);
 
+    const slot = storySlots.find(s => s.id === slotId);
+    let fileName = file.name;
+    if (isFinal && slot) {
+      const base = sanitizeDropboxFileName(file.name) || 'story.mp4';
+      if (!slot._finalNamesByVariant) slot._finalNamesByVariant = {};
+      if (!slot._finalNamesByVariant[variantName]) {
+        slot._finalNamesByVariant[variantName] = (slot.assets || [])
+          .filter(a => a.is_final && (a.variant_name || '') === variantName)
+          .map(a => fileBasename(a.file_path) || sanitizeDropboxFileName(a.file_name || ''))
+          .filter(Boolean);
+      }
+      fileName = nextFreeIndexedFileName(base, slot._finalNamesByVariant[variantName]);
+      slot._finalNamesByVariant[variantName].push(fileName);
+    }
+
     const prep = await prepareStorysUpload({
-      metadaten, slotIndex, versionNumber, variantName, fileName: file.name, isFinal,
+      metadaten, slotIndex, versionNumber, variantName, fileName, isFinal,
     });
     const token = prep.token;
     const dropboxPath = prep.dropboxPath;
@@ -135,7 +150,7 @@ export async function runStorysUploadJob(ctx) {
 
     const getToken = async () => {
       const fresh = await prepareStorysUpload({
-        metadaten, slotIndex, versionNumber, variantName, fileName: file.name, isFinal,
+        metadaten, slotIndex, versionNumber, variantName, fileName, isFinal,
       });
       return fresh.token;
     };
@@ -176,7 +191,7 @@ export async function runStorysUploadJob(ctx) {
         video_id: videoId,
         file_url: fileUrl,
         file_path: dropboxPath,
-        file_name: file.name,
+        file_name: fileName,
         file_size: file.size,
         version_number: versionNumber,
         variant_name: variantName || null,

@@ -717,7 +717,7 @@ export class VideoSettingsDrawer {
         btn.disabled = true;
         try {
           if (unmark) {
-            await unmarkFinalSlot(kind, source.video_id || this.videoId, slot || undefined);
+            await unmarkFinalSlot(kind, source.video_id || this.videoId, slot || undefined, kind === 'video' ? source.id : undefined);
           } else {
             await promoteAssetToFinal(kind, source, slot);
           }
