@@ -11,14 +11,43 @@ export function buildVideoSelectOptions(options = [], selectedValue = '') {
     .join('');
 }
 
+function numericFieldValue(raw) {
+  if (raw == null || raw === '') return '';
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? String(n) : '';
+}
+
+function inputValue(row, selector) {
+  return row?.querySelector(selector)?.value ?? '';
+}
+
+/** Kampagnenart, Content-Art, EK und VK der untersten Zeile. Deadlines bleiben außen vor. */
+export function carryOverFromLastVideo(list) {
+  const last = list?.querySelector('.video-item:last-of-type');
+  if (!last) return {};
+  return {
+    kampagnenart: inputValue(last, '.video-kampagnenart-select'),
+    content_art: inputValue(last, '.video-content-select'),
+    einkaufspreis_netto: inputValue(last, '.video-ek-input'),
+    verkaufspreis_netto: inputValue(last, '.video-vk-input')
+  };
+}
+
+export function appendCarriedVideoRows(list, count, contentArtOptions, kampagnenartenOpts, onPriceChange) {
+  for (let i = 0; i < count; i++) {
+    addVideoRow(list, contentArtOptions, carryOverFromLastVideo(list), kampagnenartenOpts, onPriceChange);
+  }
+  if (count > 0) onPriceChange?.();
+}
+
 export function addVideoRow(list, contentArtOptions = [], initial = {}, kampagnenartenOpts = [], onPriceChange = null) {
   const itemId = initial.id || `video-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const videoNum = list.querySelectorAll('.video-item').length + 1;
 
   const kampagnenartHtml = buildVideoSelectOptions(kampagnenartenOpts, initial.kampagnenart || '');
   const contentArtHtml = buildVideoSelectOptions(contentArtOptions, initial.content_art || '');
-  const ekValue = initial.einkaufspreis_netto != null ? parseFloat(initial.einkaufspreis_netto) || '' : '';
-  const vkValue = initial.verkaufspreis_netto != null ? parseFloat(initial.verkaufspreis_netto) || '' : '';
+  const ekValue = numericFieldValue(initial.einkaufspreis_netto);
+  const vkValue = numericFieldValue(initial.verkaufspreis_netto);
   const skriptDeadlineValue = initial.skript_deadline || '';
   const contentDeadlineValue = initial.content_deadline || '';
 
