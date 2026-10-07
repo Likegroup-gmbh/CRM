@@ -2,6 +2,8 @@
 // Zentrale Funktionen für Video-Lösch-Operationen (Dropbox + Assets + DB)
 // kooperation_video_asset ist die Single Source of Truth für Datei-URLs.
 
+import { pickLatestAsset } from './stills/stillAssets.js';
+
 async function dropboxDelete(filePath, fetchFn) {
   const resp = await fetchFn('/.netlify/functions/dropbox-delete', {
     method: 'POST',
@@ -25,54 +27,51 @@ async function loadAssets(supabase, videoId) {
 }
 
 /**
- * Soft-Delete: Löscht die aktuelle Datei (Dropbox + Asset), Video-Zeile bleibt.
- * Setzt link_content auf null. Schreibt NICHT file_url (existiert nicht in kooperation_videos).
+ * Gleicht ein Video nach dem Löschen EINER Asset-Zeile mit den verbleibenden
+ * Assets ab (Datei + Zeile sind bereits weg). Kein Dropbox-Zugriff, kein Ordner-Delete.
+ *
+ * - is_current: Loop-Assets der höchsten verbleibenden Feedbackschleife = true, Rest false.
+ * - link_content: nur neu gesetzt, wenn die gelöschte Datei ein Loop-Asset der
+ *   (bisher) höchsten Schleife war. Löschen aus älterer Runde / Finale fasst ihn nicht an.
+ * - folder_url: nur geleert, wenn gar kein Asset (Loop oder Final) übrig ist.
  */
-export async function deleteVideoFile(videoId, { supabase: sb, fetch: fetchFn } = {}) {
+export async function syncVideoAssetsAfterDelete(videoId, deletedAsset, { supabase: sb } = {}) {
   const supabase = sb || window.supabase;
-  const _fetch = fetchFn || globalThis.fetch;
 
-  const assets = await loadAssets(supabase, videoId);
-  const currentAsset = assets.find(a => a.is_current);
-
-  if (currentAsset?.file_path) {
-    await dropboxDelete(currentAsset.file_path, _fetch);
-  }
-
-  if (currentAsset) {
-    await supabase
-      .from('kooperation_video_asset')
-      .delete()
-      .eq('video_id', videoId)
-      .eq('is_current', true);
-  }
-
-  const { count } = await supabase
+  const { data } = await supabase
     .from('kooperation_video_asset')
-    .select('id', { count: 'exact', head: true })
+    .select('id, version_number, is_current, is_final, file_url, file_path, created_at')
     .eq('video_id', videoId);
+  const remaining = data || [];
+  const loops = remaining.filter(a => !a.is_final);
+  const finals = remaining.filter(a => a.is_final);
 
-  const hasRemainingAssets = (count ?? 0) > 0;
+  const maxVersion = loops.length ? Math.max(...loops.map(a => a.version_number || 1)) : 0;
+  const isTop = a => (a.version_number || 1) === maxVersion;
+  const setFlag = async (ids, is_current) => {
+    if (ids.length) await supabase.from('kooperation_video_asset').update({ is_current }).in('id', ids);
+  };
+  await setFlag(loops.filter(a => !isTop(a) && a.is_current).map(a => a.id), false);
+  await setFlag(loops.filter(a => isTop(a) && !a.is_current).map(a => a.id), true);
 
-  const updatePatch = { link_content: null };
-  if (!hasRemainingAssets) {
-    updatePatch.folder_url = null;
-    if (currentAsset?.file_path) {
-      const folderPath = currentAsset.file_path.substring(0, currentAsset.file_path.lastIndexOf('/'));
-      await _fetch('/.netlify/functions/dropbox-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: folderPath }),
-      }).catch(() => {});
-    }
+  const hasRemainingAssets = remaining.length > 0;
+  const patch = {};
+  const wasTopLoop = !!deletedAsset && !deletedAsset.is_final
+    && (loops.length === 0 || (deletedAsset.version_number || 1) >= maxVersion);
+  if (wasTopLoop) {
+    patch.link_content = pickLatestAsset(loops.filter(a => a.file_url))?.file_url ?? null;
+  }
+  if (!hasRemainingAssets) patch.folder_url = null;
+  if (Object.keys(patch).length) {
+    await supabase.from('kooperation_videos').update(patch).eq('id', videoId);
   }
 
-  await supabase
-    .from('kooperation_videos')
-    .update(updatePatch)
-    .eq('id', videoId);
-
-  return { success: true, hasRemainingAssets };
+  return {
+    currentAsset: pickLatestAsset(loops) || pickLatestAsset(finals),
+    linkContentChanged: 'link_content' in patch,
+    linkContent: patch.link_content ?? null,
+    hasRemainingAssets,
+  };
 }
 
 /**

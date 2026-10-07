@@ -12,7 +12,7 @@ const ITEM_RELATIONS = `
 // Kunde: keine Umsetzungsvorgabe. select * wuerde sie mitliefern.
 const KUNDE_ITEM_COLUMNS = [
   'id', 'strategie_id', 'video_link', 'plattform', 'sortierung', 'teilbereich',
-  'beschreibung', 'beschreibung_quelle', 'screenshot_url', 'creator_id', 'creator_name',
+  'beschreibung', 'beschreibung_quelle', 'beschreibung_struktur', 'screenshot_url', 'creator_id', 'creator_name',
   'creator_auswahl_item_id', 'produkt_id', 'transkript', 'transkript_quelle', 'caption',
   'transcription_job_id', 'verarbeitung_status', 'verarbeitung_step', 'verarbeitung_fehler',
   'ist_vorschlag', 'kunde_anmerkung', 'kunde_anmerkung_author_name', 'kunde_anmerkung_updated_at',
@@ -244,6 +244,26 @@ export async function generiereKundenadaption(itemId) {
     throw new Error(body.error || 'Kundenadaption fehlgeschlagen');
   }
   return body.kundenadaption;
+}
+
+/**
+ * Beschreibung neu analysieren (Titel, Angle, Hook, Visual Hook, Hauptteil, CTA).
+ * Ersetzt die vorhandene Beschreibung. Kein erneutes Scrapen.
+ */
+export async function analysiereBeschreibung(itemId) {
+  const response = await authorizedFetch('/.netlify/functions/beschreibung-analyse', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itemId })
+  });
+  let body = {};
+  try {
+    body = await response.json();
+  } catch (_) { /* leerer Body */ }
+  if (!response.ok) {
+    throw new Error(body.error || 'Analyse fehlgeschlagen');
+  }
+  return body.beschreibung;
 }
 
 export async function reprocessItem(itemId) {

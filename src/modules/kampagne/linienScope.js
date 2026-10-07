@@ -5,6 +5,8 @@
 // Briefing, Produkte, Personas, Casting, Konzepte und Skripte zeigen immer genau
 // eine Linie. Produktion, Verträge und Videos können zusätzlich alle Linien zeigen.
 
+import { icon } from '../../core/icons/IconSystem.js';
+
 export const ALLE = 'alle';
 const ALLE_TABS = new Set(['produktion', 'vertraege', 'videos']);
 const STORAGE_PREFIX = 'crm.linie.';
@@ -82,45 +84,79 @@ export function rememberLinie(produktionId, linieId) {
   if (produktionId) writeStored(produktionId, linieId);
 }
 
-/** Aktiver Chip in der Leiste für den aktuellen Tab. */
+/** Aktive Auswahl im Dropdown für den aktuellen Tab. */
 export function activeChip(detail, tabId) {
   if (tabHatAlleLinien(tabId) && detail.linieAlle) return ALLE;
   return detail.linieId || null;
 }
 
-export function renderLinienBar(detail, tabId) {
+const CHEVRON = `<span class="linien-switch__chevron">${icon('chevron-down')}</span>`;
+
+/**
+ * Linien-Dropdown, fest links in der Tab-Zeile (vor "Briefing").
+ * Trigger zeigt die aktive Linie, das Menü listet alle Linien, bei Bedarf
+ * "Alle Linien" und am Ende "+ Briefing".
+ */
+export function renderLinienSwitch(detail, tabId) {
   const linien = detail?.linien || [];
   if (!linien.length) return '';
 
   const active = activeChip(detail, tabId);
   const showAlle = tabHatAlleLinien(tabId) && linien.length > 1;
   const canCreate = window.canCreate?.('briefing') ?? false;
+  const current = linien.find(l => l.id === active);
+  const label = active === ALLE ? 'Alle Linien' : (current?.name || linien[0].name);
 
-  const alleChip = showAlle
-    ? `<button type="button" class="linien-chip${active === ALLE ? ' active' : ''}" data-linie="${ALLE}">Alle Linien</button>`
-    : '';
-  const chips = linien.map(linie => `
-    <button type="button" class="linien-chip${active === linie.id ? ' active' : ''}" data-linie="${esc(linie.id)}" title="${esc(linie.name)}">
-      <span class="linien-chip__name">${esc(linie.name)}</span>
-      ${linie.is_draft ? '<span class="linien-chip__badge">Entwurf</span>' : ''}
-    </button>`).join('');
+  const item = (value, text, { isActive, draft } = {}) => `
+    <button type="button" class="linien-switch__item${isActive ? ' active' : ''}" role="option" aria-selected="${isActive ? 'true' : 'false'}" data-linie="${esc(value)}" title="${esc(text)}">
+      <span class="linien-switch__name">${esc(text)}</span>
+      ${draft ? '<span class="linien-switch__badge">Entwurf</span>' : ''}
+    </button>`;
+
+  const alle = showAlle ? item(ALLE, 'Alle Linien', { isActive: active === ALLE }) : '';
+  const items = linien.map(l => item(l.id, l.name, { isActive: active === l.id, draft: l.is_draft })).join('');
   const neu = canCreate
-    ? '<button type="button" class="linien-chip linien-chip--neu" data-linie-neu title="Weiteres Briefing in dieser Produktion">+ Briefing</button>'
+    ? '<button type="button" class="linien-switch__item linien-switch__item--neu" data-linie-neu title="Weiteres Briefing in dieser Produktion">+ Briefing</button>'
     : '';
 
   return `
-    <div class="linien-bar" data-linien-bar>
-      <span class="linien-bar__label">Linie</span>
-      <div class="linien-bar__chips">${alleChip}${chips}${neu}</div>
+    <div class="linien-switch" data-linien-switch>
+      <button type="button" class="linien-switch__trigger" data-linien-toggle aria-haspopup="listbox" aria-expanded="false" title="Linie wechseln">
+        <span class="linien-switch__label">${esc(label)}</span>
+        ${CHEVRON}
+      </button>
+      <div class="linien-switch__menu" role="listbox" data-linien-menu>${alle}${items}${neu}</div>
     </div>`;
 }
 
-/** Leiste im DOM nachziehen (aktiver Chip, Alle-Chip je Tab). */
-export function syncLinienBar(detail, tabId) {
-  const bar = document.querySelector('[data-linien-bar]');
-  if (!bar) return;
+/** Dropdown im DOM nachziehen (aktive Linie, "Alle Linien" je Tab). */
+export function syncLinienSwitch(detail, tabId) {
+  const current = document.querySelector('[data-linien-switch]');
+  if (!current) return;
   const holder = document.createElement('div');
-  holder.innerHTML = renderLinienBar(detail, tabId);
+  holder.innerHTML = renderLinienSwitch(detail, tabId);
   const next = holder.firstElementChild;
-  if (next) bar.replaceWith(next);
+  if (next) current.replaceWith(next);
+}
+
+export function closeLinienMenu() {
+  document.querySelectorAll('[data-linien-switch].open').forEach(el => {
+    el.classList.remove('open');
+    el.querySelector('[data-linien-toggle]')?.setAttribute('aria-expanded', 'false');
+  });
+}
+
+/** Menü öffnen/schließen. Fixed positioniert, damit die scrollbare Tab-Zeile es nicht abschneidet. */
+export function toggleLinienMenu(switchEl) {
+  if (!switchEl) return;
+  const wasOpen = switchEl.classList.contains('open');
+  closeLinienMenu();
+  if (wasOpen) return;
+  const trigger = switchEl.querySelector('[data-linien-toggle]');
+  const menu = switchEl.querySelector('[data-linien-menu]');
+  const rect = trigger.getBoundingClientRect();
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.left = `${Math.max(8, rect.left)}px`;
+  switchEl.classList.add('open');
+  trigger.setAttribute('aria-expanded', 'true');
 }

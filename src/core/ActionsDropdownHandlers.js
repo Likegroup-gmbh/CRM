@@ -21,6 +21,8 @@ export const GLOBAL_ACTIONS = new Set([
   'add_to_campaign', 'favorite', 'add_to_list', 'add_to_casting', 'connect',
   'add-signed', 'edit-signed', 'replace-signed', 'remove-signed',
   'generate-pdf',
+  'vertrag-kooperationen',
+  'vertrag-verknuepfen',
   'anschreiben',
   'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
   'add_produkt', 'add_persona',
@@ -182,6 +184,20 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
         dispatchVertragListAction('generate-pdf', entityId);
       }
       break;
+
+    case 'vertrag-kooperationen':
+      if (entityType === 'vertraege') {
+        dispatchVertragListAction('vertrag-kooperationen', entityId);
+      }
+      break;
+
+    case 'vertrag-verknuepfen': {
+      const { openVertragVerknuepfen } = await import('../modules/vertrag/deckung/VertragDeckungDrawer.js');
+      await openVertragVerknuepfen(entityId, () => {
+        window.dispatchEvent(new Event('softRefresh'));
+      });
+      break;
+    }
 
     case 'anschreiben':
       window.dispatchEvent(new CustomEvent('vertrag-anschreiben-action', {

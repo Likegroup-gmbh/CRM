@@ -6,7 +6,7 @@ import { CREATOR_TYP_OPTIONS } from './creatorTypeOptions.js';
 import { DEAKTIVIERTE_SPALTEN } from './sourcingSpaltenKatalog.js';
 import { berechneHiddenColumns } from './sourcingSpaltenPreset.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
-import { personaDisplayLabel } from './castingPersonaGroups.js';
+import { OHNE_KATEGORIE } from './castingKategorien.js';
 
 export function renderForm() {
   const isDatabaseMode = this.mode === 'database';
@@ -14,10 +14,9 @@ export function renderForm() {
     .map(typ => `<option value="${typ}">${typ}</option>`)
     .join('');
 
-  const personas = this.detail?.personas || [];
-  const defaultPersonaId = personas.length === 1 ? personas[0].id : '';
-  const personaOptionsHtml = personas
-    .map(p => `<option value="${escapeAttr(p.id)}"${p.id === defaultPersonaId ? ' selected' : ''}>${escapeAttr(personaDisplayLabel(p))}</option>`)
+  const kategorien = this.detail?.getTeilbereiche?.() || [];
+  const kategorieOptionsHtml = kategorien
+    .map(name => `<option value="${escapeAttr(name)}">${escapeAttr(name)}</option>`)
     .join('');
 
   const searchSection = isDatabaseMode ? `
@@ -32,15 +31,16 @@ export function renderForm() {
     <div id="db-selected-info" class="sourcing-selected-info" style="display: none;"></div>
   ` : '';
 
-  const personaFeld = `
+  // Kategorie ist optional und erscheint nur, wenn das Casting welche hat
+  const kategorieFeld = kategorien.length ? `
         <div class="form-field">
-          <label class="form-label">Persona *</label>
-          <select id="creator-persona" name="persona_id" class="form-input" required>
-            <option value="">Bitte wählen...</option>
-            ${personaOptionsHtml}
+          <label class="form-label">Kategorie</label>
+          <select id="creator-kategorie" name="kategorie" class="form-input">
+            <option value="">${OHNE_KATEGORIE}</option>
+            ${kategorieOptionsHtml}
           </select>
         </div>
-  `;
+  ` : '';
 
   // EK/VK folgen demselben Schalter wie die Tabelle, sonst laesst der Drawer
   // Werte in Spalten laufen, die niemand mehr sieht
@@ -75,7 +75,7 @@ export function renderForm() {
           </select>
         </div>
 
-        ${personaFeld}
+        ${kategorieFeld}
 
         <div class="form-field">
           <label class="form-label">Name *</label>

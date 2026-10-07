@@ -357,42 +357,52 @@ describe('Videoidee-Drawer', () => {
     expect([...document.querySelectorAll('[data-videoidee-section]')].map((el) => el.dataset.videoideeSection)).toEqual([
       'kopf',
       'beschreibung',
+      'kundenadaption',
       'transkript',
       'umsetzungsvorgabe',
-      'kundenadaption',
       'anmerkung',
       'caption'
     ]);
   });
 
-  it('klappt nur die Caption auf und wieder zu', () => {
-    open([{ id: 'i1', video_link: 'https://tiktok.com/x', caption: 'Hook #ad', beschreibung: 'B' }]);
+  it('startet Transkript, Umsetzungsvorgabe, Anmerkung und Caption zugeklappt', () => {
+    open([{ id: 'i1', video_link: 'https://tiktok.com/x', caption: 'Hook #ad', transkript: 'T', umsetzungsvorgabe: 'U', beschreibung: 'B' }]);
 
-    for (const name of ['beschreibung', 'transkript', 'umsetzungsvorgabe', 'kundenadaption', 'anmerkung']) {
+    for (const name of ['beschreibung', 'kundenadaption']) {
       const section = document.querySelector(`[data-videoidee-section="${name}"]`);
       expect(section?.querySelector('[data-videoidee-toggle]')).toBeNull();
     }
 
-    const caption = document.querySelector('[data-videoidee-section="caption"]');
-    const btn = caption.querySelector('[data-videoidee-toggle="caption"]');
-    const body = caption.querySelector('.videoidee-doc__section-body');
+    for (const name of ['transkript', 'umsetzungsvorgabe', 'anmerkung', 'caption']) {
+      const section = document.querySelector(`[data-videoidee-section="${name}"]`);
+      expect(section.classList.contains('is-collapsed')).toBe(true);
+      expect(section.querySelector(`[data-videoidee-toggle="${name}"]`).getAttribute('aria-expanded')).toBe('false');
+      expect(section.querySelector('.videoidee-doc__section-body').hidden).toBe(true);
+    }
+  });
 
-    expect(caption.classList.contains('is-collapsed')).toBe(true);
-    expect(btn.getAttribute('aria-expanded')).toBe('false');
-    expect(body.hidden).toBe(true);
-    expect(body.querySelector('textarea').value).toBe('Hook #ad');
+  it('klappt jeden Akkordeon-Abschnitt auf und wieder zu', () => {
+    open([{ id: 'i1', video_link: 'https://tiktok.com/x', caption: 'Hook #ad', transkript: 'T', umsetzungsvorgabe: 'U', beschreibung: 'B' }]);
 
-    btn.click();
-    expect(caption.classList.contains('is-collapsed')).toBe(false);
-    expect(caption.classList.contains('is-expanded')).toBe(true);
-    expect(btn.getAttribute('aria-expanded')).toBe('true');
-    expect(body.hidden).toBe(false);
+    const expected = { transkript: 'T', umsetzungsvorgabe: 'U', caption: 'Hook #ad' };
+    for (const name of ['transkript', 'umsetzungsvorgabe', 'anmerkung', 'caption']) {
+      const section = document.querySelector(`[data-videoidee-section="${name}"]`);
+      const btn = section.querySelector(`[data-videoidee-toggle="${name}"]`);
+      const body = section.querySelector('.videoidee-doc__section-body');
+      if (expected[name]) expect(body.querySelector('textarea').value).toBe(expected[name]);
 
-    btn.click();
-    expect(caption.classList.contains('is-collapsed')).toBe(true);
-    expect(caption.classList.contains('is-expanded')).toBe(false);
-    expect(btn.getAttribute('aria-expanded')).toBe('false');
-    expect(body.hidden).toBe(true);
+      btn.click();
+      expect(section.classList.contains('is-collapsed')).toBe(false);
+      expect(section.classList.contains('is-expanded')).toBe(true);
+      expect(btn.getAttribute('aria-expanded')).toBe('true');
+      expect(body.hidden).toBe(false);
+
+      btn.click();
+      expect(section.classList.contains('is-collapsed')).toBe(true);
+      expect(section.classList.contains('is-expanded')).toBe(false);
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
+      expect(body.hidden).toBe(true);
+    }
   });
 
   it('zeigt einem Vorschlag Übernehmen und Verwerfen, der Inhalt bleibt lesbar', () => {

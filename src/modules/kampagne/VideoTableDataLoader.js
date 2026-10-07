@@ -8,6 +8,7 @@ import {
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
+import { vertraegeProKooperation, VERTRAG_ZELLE_COLS } from '../vertrag/deckung/vertragDeckung.js';
 import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
 import { BILDER_ASSET_SELECT, pickLatestAsset } from '../../core/stills/stillAssets.js';
 
@@ -157,7 +158,7 @@ export class VideoTableDataLoader {
 
         batchIn(
           sb.from('vertraege'),
-          'id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft, status, gesendet_am, created_at',
+          VERTRAG_ZELLE_COLS,
           'kooperation_id', koopIds
         ),
 
@@ -192,11 +193,13 @@ export class VideoTableDataLoader {
       t.creators.clear();
       creators.forEach(c => t.creators.set(c.id, c));
 
+      const vertraegeNachKoop = await vertraegeProKooperation(vertraege, koopIds, { columns: VERTRAG_ZELLE_COLS });
+
       t.kooperationen.forEach(koop => {
         if (koop.creator_id) {
           koop.creator = t.creators.get(koop.creator_id) || null;
         }
-        koop._vertraege = vertraege.filter(v => v.kooperation_id === koop.id);
+        koop._vertraege = vertraegeNachKoop.get(koop.id) || [];
         koop.status_name = koop.status_ref?.name || koop.status || null;
         koop._tags = allTags
           .filter(tag => tag.kooperation_id === koop.id)

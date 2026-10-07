@@ -9,8 +9,10 @@ import { renderSkriptFreigabeStatus } from '../StrategieDetailRenderer.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from '../strategiePrioOptions.js';
 import { renderTableSelect } from '../../../core/components/TableSelect.js';
 import { fieldSignature } from '../videoideeFieldSync.js';
+import { beschreibungStrukturVon } from './beschreibungStruktur.js';
 import {
   DRAWER_ID,
+  STRUKTUR_FIELD_PREFIX,
   contentEditable,
   fieldText,
   prioDisabled,
@@ -70,8 +72,14 @@ export function patchFields(panel, item) {
   panel.querySelectorAll('[data-field]').forEach((el) => {
     if (el === document.activeElement || el.contains(document.activeElement)) return;
     const field = el.dataset.field;
-    if (!field || field === 'strategie_prio' || !(field in item)) return;
     const tag = el.tagName;
+    if (field?.startsWith(STRUKTUR_FIELD_PREFIX)) {
+      if (tag !== 'TEXTAREA') return;
+      el.value = beschreibungStrukturVon(item)?.[field.slice(STRUKTUR_FIELD_PREFIX.length)] ?? '';
+      el.dataset.videoideeSaved = fieldSignature(el);
+      return;
+    }
+    if (!field || field === 'strategie_prio' || !(field in item)) return;
     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return;
     const value = field === 'teilbereich' ? (item.teilbereich || '') : fieldText(item, field);
     if (el.type === 'checkbox') el.checked = !!value;

@@ -375,7 +375,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
         if (shouldApplyKiBeschreibung(current?.beschreibung)) {
           const { error: descError } = await supabase
             .from('strategie_items')
-            .update({ beschreibung: result.description, beschreibung_quelle: 'ki' })
+            .update({
+              beschreibung: result.description,
+              beschreibung_quelle: 'ki',
+              beschreibung_struktur: result.beschreibungStruktur || null
+            })
             .eq('id', itemId);
           if (descError) throw new Error(descError.message);
         }

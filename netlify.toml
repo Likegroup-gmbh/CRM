@@ -44,6 +44,10 @@
 [functions."kundenadaption"]
   timeout = 60
 
+# Beschreibung neu analysieren: ein Llama-Call auf gespeichertem Transkript, kein Scrapen.
+[functions."beschreibung-analyse"]
+  timeout = 60
+
 # Dropbox Upload Function – Videos können groß sein
 [functions."dropbox-upload"]
   timeout = 300

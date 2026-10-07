@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ProjektErstellenValidator } from '../modules/projekt-erstellen/services/ProjektErstellenValidator.js';
 import {
+  budgetMeldung,
   kampagneBudgetPot,
+  kampagneCreatorDecke,
+  ladeBudgetStand,
   preisBleibtImBudget,
   validateProduktionsbudgets,
   verbrauchZeilen,
@@ -56,6 +59,46 @@ describe('Produktionsbudget', () => {
     expect(preisBleibtImBudget({ verbrauch: 14000, delta: 2000, decke: 15000 })).toBe(false);
     expect(preisBleibtImBudget({ verbrauch: 14000, delta: 1000, decke: 15000 })).toBe(true);
     expect(preisBleibtImBudget({ verbrauch: 0, delta: 100, decke: null })).toBe(true);
+  });
+
+  it('Decke ohne Produktionsbudget: Creator-Budget vor Volumen', () => {
+    const auftrag = { creator_budget: 40000 };
+    expect(kampagneCreatorDecke({ creator_budget: 30000, volumen: 50000, auftrag }))
+      .toEqual({ decke: 30000, quelle: 'creator' });
+    expect(kampagneCreatorDecke({ creator_budget: null, volumen: 50000, auftrag }))
+      .toEqual({ decke: 40000, quelle: 'creator' });
+    expect(kampagneCreatorDecke({ volumen: 50000 }))
+      .toEqual({ decke: 50000, quelle: 'volumen' });
+    expect(kampagneCreatorDecke({ creator_budget: 0, volumen: 50000 }))
+      .toEqual({ decke: 0, quelle: 'creator' });
+    expect(kampagneCreatorDecke({})).toEqual({ decke: null, quelle: null });
+    expect(budgetMeldung(false, 'creator')).toContain('Creator-Budget');
+    expect(budgetMeldung(false, 'volumen')).toContain('Volumen');
+  });
+
+  it('ladeBudgetStand: budget-lose Produktion rechnet gegen das Creator-Budget', async () => {
+    const tabellen = {
+      produktion: [{ id: 'p1', budget: null, kampagne_id: 'k1' }, { id: 'p2', budget: null, kampagne_id: 'k1' }],
+      produktion_verbrauch: [{ produktion_id: 'p1', budget_used: '1000' }, { produktion_id: 'p2', budget_used: '2000' }],
+      kampagne: [{ id: 'k1', volumen: 50000, creator_budget: 30000, auftrag: { creator_budget: 40000 } }]
+    };
+    const supabase = {
+      from(name) {
+        let rows = tabellen[name];
+        const query = {
+          select: () => query,
+          eq: (col, val) => { rows = rows.filter(r => (col === 'produktion_id' || col === 'id' || col === 'kampagne_id' ? r[col] === val : true)); return query; },
+          not: (col) => { rows = rows.filter(r => r[col] != null); return query; },
+          in: (col, vals) => { rows = rows.filter(r => vals.includes(r[col])); return query; },
+          limit: () => query,
+          maybeSingle: () => Promise.resolve({ data: rows[0] || null, error: null }),
+          then: (resolve) => resolve({ data: rows, error: null })
+        };
+        return query;
+      }
+    };
+    const stand = await ladeBudgetStand(supabase, 'p1');
+    expect(stand).toEqual({ decke: 30000, verbrauch: 3000, eigen: false, quelle: 'creator' });
   });
 
   it('Topf: Kampagnen-Budget schlägt Auftrags-Budget', () => {

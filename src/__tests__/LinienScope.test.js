@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ALLE, effectiveLinie, koopLinie, resolveLinie, tabHatAlleLinien
+  ALLE, effectiveLinie, koopLinie, renderLinienSwitch, resolveLinie, tabHatAlleLinien
 } from '../modules/kampagne/linienScope.js';
 import { findKooperationForCreator } from '../modules/kooperation/produktionStart.js';
 import { getSwitcherConfig, loadSwitcherItems } from '../core/breadcrumbSwitcher.js';
@@ -100,5 +100,36 @@ describe('Breadcrumb-Switcher Produktion', () => {
     window.canViewPage = () => true;
     const { items } = await loadSwitcherItems({ segment: 'produktion', context: { id: 'p1' } });
     expect(items).toEqual([]);
+  });
+});
+
+describe('renderLinienSwitch', () => {
+  const detail = { linien: [...linien, { id: 'b3', name: 'Herbst', is_draft: true }], linieId: 'b2', linieAlle: false };
+
+  it('zeigt die aktive Linie im Trigger und listet alle Linien', () => {
+    window.canCreate = () => false;
+    const html = renderLinienSwitch(detail, 'casting');
+    expect(html).toContain('data-linien-toggle');
+    expect(html).toMatch(/linien-switch__label">Winter</);
+    expect(html).toContain('data-linie="b1"');
+    expect(html).toContain('data-linie="b3"');
+    expect(html).toContain('Entwurf');
+  });
+
+  it('"Alle Linien" nur in Produktion, Verträgen und Videos', () => {
+    window.canCreate = () => false;
+    const alle = { ...detail, linieAlle: true };
+    expect(renderLinienSwitch(alle, 'casting')).not.toContain(`data-linie="${ALLE}"`);
+    const html = renderLinienSwitch(alle, 'produktion');
+    expect(html).toContain(`data-linie="${ALLE}"`);
+    expect(html).toMatch(/linien-switch__label">Alle Linien</);
+  });
+
+  it('"+ Briefing" nur mit Recht, nichts ohne Linien', () => {
+    window.canCreate = () => true;
+    expect(renderLinienSwitch(detail, 'casting')).toContain('data-linie-neu');
+    window.canCreate = () => false;
+    expect(renderLinienSwitch(detail, 'casting')).not.toContain('data-linie-neu');
+    expect(renderLinienSwitch({ linien: [] }, 'casting')).toBe('');
   });
 });

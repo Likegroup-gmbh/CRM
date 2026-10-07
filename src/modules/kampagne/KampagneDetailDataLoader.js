@@ -3,6 +3,7 @@
 
 import { VideoTableDataLoader } from './VideoTableDataLoader.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
+import { vertraegeProKooperation, VERTRAG_ZELLE_COLS } from '../vertrag/deckung/vertragDeckung.js';
 import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
 import { filterBlocksForKampagne } from '../projekt-erstellen/logic/kampagnenSplit.js';
 import { listProduktionen, scopeByLinie, scopeByProduktion } from '../produktion/ProduktionService.js';
@@ -299,7 +300,7 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
     ),
     batchIn(
       sb.from('vertraege'),
-      'id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft, status, gesendet_am, created_at',
+      VERTRAG_ZELLE_COLS,
       'kooperation_id', koopIds
     ),
     batchIn(
@@ -340,11 +341,13 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
   creators.forEach(c => creatorsMap.set(c.id, c));
   store.setCreators(creatorsMap);
 
+  const vertraegeNachKoop = await vertraegeProKooperation(vertraege, koopIds, { columns: VERTRAG_ZELLE_COLS });
+
   kooperationen.forEach(koop => {
     if (koop.creator_id) {
       koop.creator = creatorsMap.get(koop.creator_id) || null;
     }
-    koop._vertraege = vertraege.filter(v => v.kooperation_id === koop.id);
+    koop._vertraege = vertraegeNachKoop.get(koop.id) || [];
     koop.status_name = koop.status_ref?.name || koop.status || '';
     koop._tags = allTags
       .filter(tag => tag.kooperation_id === koop.id)

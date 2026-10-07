@@ -8,7 +8,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { escapeHtml } from '../../core/format.js';
 import { SOURCING_STATUS_FILTER_TAGS } from './sourcingStatusOptions.js';
-import { OHNE_PERSONA_KEY, orderedPersonaGroups } from './castingPersonaGroups.js';
+import { OHNE_KATEGORIE_KEY, orderedKategorieGroups } from './castingKategorien.js';
 import {
   isColumnVisibleForCustomer,
   getVisibleColumnCount,
@@ -82,6 +82,8 @@ const CUSTOM_COLUMNS_ICON = `
 
 const LINK_ICON = `${icon('link')}`;
 
+const KATEGORIEN_ICON = `${icon('tag')}`;
+
 function renderAddSectionActions(ctx = {}) {
   const kundenCallActive = ctx.kundenCallActive || false;
   return `
@@ -102,6 +104,7 @@ function renderAddSectionActions(ctx = {}) {
           itemsHtml: `
             ${renderStatusFilterSubmenu(ctx)}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-konzept-link', title: ctx.liste?.strategie_id ? 'Konzept-Verknüpfung lösen' : 'Konzept verknüpfen', icon: LINK_ICON, label: ctx.liste?.strategie_id ? 'Konzept lösen' : 'Konzept verknüpfen' })}
+            ${renderToolbarMenuItem({ id: 'btn-sourcing-kategorien', title: 'Kategorien verwalten', icon: KATEGORIEN_ICON, label: 'Kategorien' })}
             ${renderToolbarMenuItem({ id: 'btn-share-sourcing', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' })}
             ${renderToolbarMenuItem({ id: 'btn-kunden-call-toggle', title: 'EK und CPM für Kundenpräsentation ausblenden', icon: KUNDEN_CALL_ICON, label: 'Kunden Call', active: kundenCallActive })}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-tabelle-anpassen', title: 'TKP, Art der Liste und Spalten-Sichtbarkeit', icon: TABELLE_ANPASSEN_ICON, label: 'Tabelle anpassen' })}
@@ -157,7 +160,7 @@ export function renderItemsTable(ctx) {
       </div>
     `;
   }
-  if (ctx.items.length === 0 && !(ctx.personas || []).length) {
+  if (ctx.items.length === 0 && !(ctx.teilbereiche || []).length) {
     return `
       <div class="table-container table-container--empty">
         ${renderEmptyState({
@@ -263,10 +266,9 @@ export function renderItemsTable(ctx) {
   `;
 }
 
-function renderPersonaHeaderRow(group, colCount, ctx) {
+function renderKategorieHeaderRow(group, colCount, ctx) {
   const escapedKey = escapeAttr(group.key);
   const escapedLabel = escapeAttr(group.label);
-  const personaAttr = group.personaId ? escapeAttr(group.personaId) : '';
   const rowExtra = group.variant === 'rejected' ? ' kategorie-header-row--rejected' : '';
   const headerExtra = group.variant === 'rejected'
     ? ' kategorie-header--rejected'
@@ -276,15 +278,15 @@ function renderPersonaHeaderRow(group, colCount, ctx) {
   const label = group.variant === 'rejected'
     ? `${NICHT_UMSETZEN_ICON} ${escapedLabel}`
     : escapedLabel;
-  const checkboxTitle = group.key === OHNE_PERSONA_KEY
-    ? 'Alle ohne Persona auswählen'
+  const checkboxTitle = group.key === OHNE_KATEGORIE_KEY
+    ? 'Alle ohne Kategorie auswählen'
     : `Alle in '${group.label}' auswählen`;
   const checkbox = !ctx.isKunde && (ctx.canEdit ?? true)
     ? `<input type="checkbox" class="sourcing-group-select" data-group-key="${escapedKey}" title="${escapeAttr(checkboxTitle)}">`
     : '';
 
   return `
-      <tr class="kategorie-header-row${rowExtra}" data-group-key="${escapedKey}" data-persona-id="${personaAttr}">
+      <tr class="kategorie-header-row${rowExtra}" data-group-key="${escapedKey}">
         <td colspan="${colCount}" class="kategorie-header${headerExtra}">
           <div class="kategorie-header-content">
             ${checkbox}
@@ -297,18 +299,19 @@ function renderPersonaHeaderRow(group, colCount, ctx) {
 }
 
 function wrapGroupTbody(groupKey, innerHtml) {
-  return `<tbody class="persona-group-tbody" data-group-key="${escapeAttr(groupKey || OHNE_PERSONA_KEY)}">${innerHtml}</tbody>`;
+  return `<tbody class="kategorie-group-tbody" data-group-key="${escapeAttr(groupKey || OHNE_KATEGORIE_KEY)}">${innerHtml}</tbody>`;
 }
 
 export function renderGroupedItems(ctx) {
-  const personas = ctx.personas || [];
+  const teilbereiche = ctx.teilbereiche || [];
   const items = ctx.items || [];
 
-  if (!personas.length) {
-    const orphanGroups = orderedPersonaGroups(items, []);
-    if (orphanGroups.length <= 1 && orphanGroups[0]?.key === OHNE_PERSONA_KEY) {
+  // Ohne definierte Kategorien und ohne Kategorie an den Zeilen: flache Liste ohne Gruppenkopf
+  if (!teilbereiche.length) {
+    const gruppen = orderedKategorieGroups(items, []);
+    if (gruppen.length <= 1 && gruppen[0]?.key === OHNE_KATEGORIE_KEY) {
       const rows = items.map((item, index) => renderItemRow(ctx, item, index)).join('');
-      return wrapGroupTbody(OHNE_PERSONA_KEY, rows);
+      return wrapGroupTbody(OHNE_KATEGORIE_KEY, rows);
     }
   }
 
@@ -319,8 +322,8 @@ export function renderGroupedItems(ctx) {
 
   let html = '';
   let globalIndex = 0;
-  for (const group of orderedPersonaGroups(items, personas)) {
-    let inner = renderPersonaHeaderRow(group, colCount, ctx);
+  for (const group of orderedKategorieGroups(items, teilbereiche)) {
+    let inner = renderKategorieHeaderRow(group, colCount, ctx);
     for (const item of group.items) {
       inner += renderItemRow(ctx, item, globalIndex++);
     }

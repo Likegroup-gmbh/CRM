@@ -3877,6 +3877,8 @@ input.readonly-field {
   background: white;
   cursor: pointer;
   min-width: 180px;
+  max-width: 280px;
+  text-overflow: ellipsis;
 }
 
 .bulk-kategorie-select:focus {

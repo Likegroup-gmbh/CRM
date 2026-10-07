@@ -1,5 +1,7 @@
 # Casting gruppiert nach Briefing-Persona, nicht nach Freitext-Kategorie
 
+> Abgelöst durch ADR 0049: Das Casting gruppiert wieder nach eigenen Kategorien, die Quote gilt pro Casting.
+
 Casting-Listen hatten frei benennbare Kategorien (`teilbereich` CSV + `items.kategorie`). Die KI matchte Namen dagegen, die Tabelle zeigte tote Gruppen, sobald jemand umbenannte. Gruppenköpfe kommen jetzt live aus `campaign_briefings.persona_ids`; der Eintrag trägt `persona_id`. Freitext-Kategorien am Casting entfallen — `kategorie` bleibt nur für den Eimer „Nicht umsetzen“. Konzept-Kategorien sind unverändert.
 
 ## Considered Options

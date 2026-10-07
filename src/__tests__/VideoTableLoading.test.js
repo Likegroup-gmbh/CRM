@@ -15,7 +15,7 @@ vi.mock('./VideoTableUIHelpers.js', () => ({
 }));
 vi.mock('./VideoUploadDrawer.js', () => ({ VideoUploadDrawer: class {} }));
 vi.mock('./VideoSettingsDrawer.js', () => ({ VideoSettingsDrawer: class {} }));
-vi.mock('../../core/VideoDeleteHelper.js', () => ({ deleteVideoFile: vi.fn() }));
+vi.mock('../../core/VideoDeleteHelper.js', () => ({ syncVideoAssetsAfterDelete: vi.fn() }));
 vi.mock('../../core/VertragSyncHelper.js', () => ({ renderVertragCell: vi.fn() }));
 
 import { KampagneKooperationenVideoTable } from '../modules/kampagne/KampagneKooperationenVideoTable.js';

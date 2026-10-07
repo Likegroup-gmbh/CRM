@@ -215,8 +215,8 @@ describe('Sourcing – deaktivierte Spalten (EK/VK)', () => {
   });
 
   it('zaehlt sie nicht in der Spaltenanzahl mit', () => {
-    const doc = tableDoc([{ id: 'i1', persona_id: 'p1' }], {
-      personas: [{ id: 'p1', name: 'Persona A' }]
+    const doc = tableDoc([{ id: 'i1', kategorie: 'Food' }], {
+      teilbereiche: ['Food']
     });
     const colspan = Number(doc.querySelector('.kategorie-header').getAttribute('colspan'));
     const sichtbar = Array.from(doc.querySelectorAll('thead th'))

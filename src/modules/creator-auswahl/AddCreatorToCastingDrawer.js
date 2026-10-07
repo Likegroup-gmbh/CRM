@@ -1,12 +1,20 @@
 // Drawer: CRM-Creator auf ein Casting setzen (Auto-Suggestion, Mitarbeiter-Scope)
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { personaDisplayLabel } from './castingPersonaGroups.js';
+import { OHNE_KATEGORIE, parseTeilbereiche } from './castingKategorien.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 
 const DRAWER_ID = 'add-creator-to-casting-drawer';
+
+/** Text einer Casting-Option in Auswahllisten: "Casting — Kampagne". */
+export function castingPickerLabel(liste) {
+  const name = liste.name || 'Casting';
+  const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);
+  if (!liste.kampagne || kampagneName === 'Unbenannte Kampagne') return name;
+  return `${name} — ${kampagneName}`;
+}
 
 export function openAddCreatorToCastingDrawer(creatorId) {
   const drawer = new AddCreatorToCastingDrawer();
@@ -19,14 +27,14 @@ export class AddCreatorToCastingDrawer {
     this.creatorId = null;
     this.creatorName = '';
     this.selectedListeId = null;
-    this.selectedPersonaId = null;
+    this.selectedKategorie = null;
     this.listenById = new Map();
   }
 
   async open(creatorId) {
     this.creatorId = creatorId;
     this.selectedListeId = null;
-    this.selectedPersonaId = null;
+    this.selectedKategorie = null;
 
     try {
       this.createDrawer();
@@ -98,10 +106,7 @@ export class AddCreatorToCastingDrawer {
   }
 
   pickerLabel(liste) {
-    const name = liste.name || 'Casting';
-    const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);
-    if (!liste.kampagne || kampagneName === 'Unbenannte Kampagne') return name;
-    return `${name} — ${kampagneName}`;
+    return castingPickerLabel(liste);
   }
 
   renderBody(options) {
@@ -125,13 +130,12 @@ export class AddCreatorToCastingDrawer {
           <option value="">– Casting wählen –</option>
         </select>
       </div>
-      <div class="form-field" id="${this.drawerId}-persona-field" hidden>
-        <label for="${this.drawerId}-persona">Persona</label>
-        <select id="${this.drawerId}-persona" class="form-input">
-          <option value="">– Persona wählen –</option>
+      <div class="form-field" id="${this.drawerId}-kategorie-field" hidden>
+        <label for="${this.drawerId}-kategorie">Kategorie</label>
+        <select id="${this.drawerId}-kategorie" class="form-input">
+          <option value="">${OHNE_KATEGORIE}</option>
         </select>
       </div>
-      <p class="form-hint" id="${this.drawerId}-persona-hint" hidden></p>
       <div class="drawer-footer">
         <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close">
           <span class="mdc-btn__icon" aria-hidden="true">${icon('x-circle-filled')}</span>
@@ -167,13 +171,12 @@ export class AddCreatorToCastingDrawer {
 
     select.addEventListener('change', () => {
       this.selectedListeId = select.value || null;
-      this.selectedPersonaId = null;
-      void this.loadPersonasForListe();
+      this.selectedKategorie = null;
+      this.loadKategorienForListe();
     });
 
-    document.getElementById(`${this.drawerId}-persona`)?.addEventListener('change', (e) => {
-      this.selectedPersonaId = e.target.value || null;
-      this.syncSubmit();
+    document.getElementById(`${this.drawerId}-kategorie`)?.addEventListener('change', (e) => {
+      this.selectedKategorie = e.target.value || null;
     });
 
     document.getElementById(`${this.drawerId}-submit`)?.addEventListener('click', () => this.submit());
@@ -181,59 +184,34 @@ export class AddCreatorToCastingDrawer {
 
   syncSubmit() {
     const btn = document.getElementById(`${this.drawerId}-submit`);
-    if (btn) btn.disabled = !this.selectedListeId || !this.selectedPersonaId;
+    if (btn) btn.disabled = !this.selectedListeId;
   }
 
-  async loadPersonasForListe() {
-    const field = document.getElementById(`${this.drawerId}-persona-field`);
-    const select = document.getElementById(`${this.drawerId}-persona`);
-    const hint = document.getElementById(`${this.drawerId}-persona-hint`);
+  /** Kategorie ist optional: das Feld erscheint nur, wenn das Casting welche hat. */
+  loadKategorienForListe() {
+    const field = document.getElementById(`${this.drawerId}-kategorie-field`);
+    const select = document.getElementById(`${this.drawerId}-kategorie`);
     if (!field || !select) return;
 
-    this.selectedPersonaId = null;
-    select.innerHTML = '<option value="">– Persona wählen –</option>';
-    if (hint) {
-      hint.hidden = true;
-      hint.textContent = '';
-    }
+    this.selectedKategorie = null;
+    select.innerHTML = `<option value="">${OHNE_KATEGORIE}</option>`;
 
-    if (!this.selectedListeId) {
+    const liste = this.selectedListeId ? this.listenById.get(this.selectedListeId) : null;
+    const kategorien = parseTeilbereiche(liste?.teilbereich);
+    if (!kategorien.length) {
       field.hidden = true;
       this.syncSubmit();
       return;
     }
 
+    select.innerHTML = `<option value="">${OHNE_KATEGORIE}</option>`
+      + kategorien.map((name) => `<option value="${this.escapeHtml(name)}">${this.escapeHtml(name)}</option>`).join('');
     field.hidden = false;
-    const liste = this.listenById.get(this.selectedListeId);
-    let personas = [];
-    try {
-      personas = await creatorAuswahlService.loadBriefingPersonas(liste || { briefing_id: null });
-      if (!liste?.briefing_id && this.selectedListeId) {
-        const full = await creatorAuswahlService.getListeById(this.selectedListeId);
-        personas = await creatorAuswahlService.loadBriefingPersonas(full);
-      }
-    } catch (error) {
-      console.error('Fehler beim Laden der Personas:', error);
-    }
-
-    if (!personas.length) {
-      if (hint) {
-        hint.hidden = false;
-        hint.textContent = 'Dieses Casting hat keine Personas am Briefing.';
-      }
-      this.syncSubmit();
-      return;
-    }
-
-    const autoId = personas.length === 1 ? personas[0].id : '';
-    select.innerHTML = '<option value="">– Persona wählen –</option>'
-      + personas.map((p) => `<option value="${this.escapeHtml(p.id)}"${p.id === autoId ? ' selected' : ''}>${this.escapeHtml(personaDisplayLabel(p))}</option>`).join('');
-    this.selectedPersonaId = autoId || null;
     this.syncSubmit();
   }
 
   async submit() {
-    if (!this.selectedListeId || !this.creatorId || !this.selectedPersonaId) return;
+    if (!this.selectedListeId || !this.creatorId) return;
     const btn = document.getElementById(`${this.drawerId}-submit`);
     try {
       if (btn) {
@@ -244,7 +222,7 @@ export class AddCreatorToCastingDrawer {
       await creatorAuswahlService.addCreatorFromStammdaten(
         this.selectedListeId,
         this.creatorId,
-        this.selectedPersonaId
+        this.selectedKategorie
       );
 
       tabDataCache.invalidate('creator', this.creatorId);

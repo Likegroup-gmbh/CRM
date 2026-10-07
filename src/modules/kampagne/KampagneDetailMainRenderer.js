@@ -228,8 +228,7 @@ export function renderMainPage(state) {
         </div>
       </div>
 
-      ${state.linienBar || ''}
-      ${renderWorkflowTabBar(activeWorkflow)}
+      ${renderWorkflowTabBar(activeWorkflow, state.linienDetail)}
 
       <div class="content-section">
         <div class="workflow-pane" data-pane="produktion" id="workflow-pane-produktion"${activeWorkflow === 'produktion' ? '' : ' hidden'}>

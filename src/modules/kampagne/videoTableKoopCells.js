@@ -97,6 +97,12 @@ export function renderActionsInner(ctx) {
             Bearbeiten
           </a>
           ` : ''}
+          ${canEdit && koop.creator_id ? `
+          <a href="#" class="action-item" data-action="vertrag-verknuepfen" data-id="${koop.id}">
+            ${icon('link', { className: 'w-4 h-4' })}
+            Bestehenden Vertrag verknüpfen
+          </a>
+          ` : ''}
           ${canEdit ? renderCreatorUploadItems(ctx.t, koop) : ''}
           ${canDelete ? `
             <div class="action-separator"></div>

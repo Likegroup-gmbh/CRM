@@ -627,7 +627,9 @@ export class ProjektErstellenWizard {
         }
 
         if (Array.isArray(result.uploadErrors) && result.uploadErrors.length > 0) {
-          const failedNames = result.uploadErrors.map(e => e.fileName).join(', ');
+          const failedNames = result.uploadErrors
+            .map(e => `${e.fileName}${e.dokumentTyp === 'rechnung' ? ' (Rechnung)' : e.dokumentTyp ? ' (Auftragsbestätigung)' : ''}`)
+            .join(', ');
           window.toastSystem?.show(
             `Hinweis: ${result.uploadErrors.length} Datei(en) konnten nicht hochgeladen werden: ${failedNames}`,
             'warning'

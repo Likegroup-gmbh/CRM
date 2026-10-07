@@ -662,6 +662,9 @@ export async function updateItemField(detail, itemId, field, value, sourceEl) {
     // Von Hand geschriebene Beschreibungen werden als solche markiert
     if (field === 'beschreibung') {
       updates.beschreibung_quelle = value ? 'user' : null;
+      // Freitext ersetzt die strukturierte Analyse.
+      const vorhanden = detail.items.find(i => i.id === itemId);
+      if (vorhanden?.beschreibung_struktur) updates.beschreibung_struktur = null;
     }
     if (field === 'kundenadaption') {
       updates.kundenadaption_quelle = value ? 'user' : null;

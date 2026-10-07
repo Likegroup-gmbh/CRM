@@ -277,6 +277,52 @@ describe('VideoSettingsDrawer', () => {
       .toBe('Als finale Version auswählen (1:1)');
   });
 
+  describe('Video-Datei löschen', () => {
+    const asset = (id, extra = {}) => ({
+      id, file_url: `https://example.com/${id}.mp4`, file_path: null, version_number: 2,
+      is_current: true, is_final: false, variant_name: id, created_at: '2026-01-15T10:00:00Z', ...extra,
+    });
+
+    async function openWith(videoAssets, callbacks) {
+      const sb = createSettingsSupabase({ videoAssets });
+      const deleteEq = vi.fn(() => Promise.resolve({ error: null }));
+      const origFrom = sb.from;
+      sb.from = vi.fn((table) => {
+        const api = origFrom(table);
+        if (table === 'kooperation_video_asset') api.delete = vi.fn(() => ({ eq: deleteEq }));
+        return api;
+      });
+      window.supabase = sb;
+      await drawer.open({ videoId: 'vid-1', kooperationId: 'koop-1', videoTitel: 'Testvideo', ...callbacks });
+      return deleteEq;
+    }
+
+    it('löscht genau eine Zeile und übergibt sie an onDelete', async () => {
+      const onDelete = vi.fn();
+      const deleteEq = await openWith([asset('va-1'), asset('va-2')], { onDelete });
+
+      document.querySelector('.video-version-delete-btn[data-asset-id="va-2"]').click();
+      await vi.waitFor(() => expect(onDelete).toHaveBeenCalled());
+
+      expect(deleteEq).toHaveBeenCalledTimes(1);
+      expect(deleteEq).toHaveBeenCalledWith('id', 'va-2');
+      expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'va-2', is_final: false }));
+      expect(drawer.assets.map(a => a.id)).toEqual(['va-1']);
+    });
+
+    it('ruft bei Finale zusätzlich onFinaleChanged', async () => {
+      const onDelete = vi.fn();
+      const onFinaleChanged = vi.fn();
+      await openWith([asset('va-1'), asset('fin-1', { is_final: true, is_current: false, version_number: 1 })], { onDelete, onFinaleChanged });
+
+      document.querySelector('.video-version-delete-btn[data-asset-id="fin-1"]').click();
+      await vi.waitFor(() => expect(onDelete).toHaveBeenCalled());
+
+      expect(onFinaleChanged).toHaveBeenCalledTimes(1);
+      expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'fin-1', is_final: true }));
+    });
+  });
+
   it('zeigt Legacy-Video-Link wenn keine Assets aber videoUrl gesetzt', async () => {
     window.supabase = createSettingsSupabase({ videoAssets: [] });
 

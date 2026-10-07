@@ -4,6 +4,7 @@
 import { authService } from './AuthService.js';
 import { initPasswordHints } from '../../auth/password-hints.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { ALLOWED_EMPLOYEE_DOMAINS } from './AllowedEmailDomains.js';
 
 export class AuthUtils {
   constructor() {
@@ -181,6 +182,7 @@ export class AuthUtils {
               <div class="form-box">
                 <label for="registerEmail" class="label label-register">E-Mail *</label>
                 <input type="email" id="registerEmail" class="input" placeholder="ihre@email.com" required>
+                <small class="form-hint">Nur Firmen-E-Mails: ${ALLOWED_EMPLOYEE_DOMAINS.map((d) => `@${d}`).join(', ')}</small>
                 <div id="registerEmailError" class="text-error" style="display: none;"></div>
               </div>
               <div class="form-box">

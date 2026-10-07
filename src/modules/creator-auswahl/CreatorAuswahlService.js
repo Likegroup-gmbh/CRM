@@ -24,33 +24,69 @@ export class CreatorAuswahlService {
    * Filtert basierend auf Benutzerrolle und Kampagnen-Zuordnung
    */
   async getAllListen() {
+    return this._listenImScope(() => this._fetchAllListen());
+  }
+
+  /**
+   * Schmale Variante für Auswahllisten (Casting wählen): nur id, Name, Kategorien
+   * und Kampagnenname, mit demselben Zugriffs-Scope wie getAllListen.
+   */
+  async getListenFuerPicker() {
+    return this._listenImScope(() => this._fetchListenFuerPicker());
+  }
+
+  /**
+   * Zugriffs-Scope auf eine Listenabfrage anwenden. Scope und Abfrage laufen
+   * parallel; gefiltert wird danach.
+   */
+  async _listenImScope(fetchListen) {
     const user = window.currentUser;
-    
+
     if (window.isAdmin() || window.isInvestor?.()) {
-      return this._fetchAllListen();
+      return fetchListen();
     }
 
     if (window.isKunde()) {
-      const customerScope = await this._getCustomerAccessScope(user?.id);
+      const [customerScope, allListen] = await Promise.all([
+        this._getCustomerAccessScope(user?.id),
+        fetchListen()
+      ]);
       console.log('🔐 Kundenscope Sourcing:', customerScope);
 
-      const allListen = await this._fetchAllListen();
       const filtered = allListen.filter((liste) => this._isInCustomerScope(liste, customerScope));
 
       console.log(`🔐 Listen (Kunde) gefiltert: ${filtered.length} von ${allListen.length}`);
       return filtered;
     }
 
-    const allowedKampagneIds = await this._getAllowedKampagneIds(user);
+    const [allowedKampagneIds, allListen] = await Promise.all([
+      this._getAllowedKampagneIds(user),
+      fetchListen()
+    ]);
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
 
-    const allListen = await this._fetchAllListen();
     const filtered = allListen.filter(
       (l) => l.kampagne_id && allowedKampagneIds.includes(l.kampagne_id)
     );
 
     console.log(`🔐 Listen gefiltert: ${filtered.length} von ${allListen.length}`);
     return filtered;
+  }
+
+  async _fetchListenFuerPicker() {
+    const { data, error } = await window.supabase
+      .from('creator_auswahl')
+      .select(`
+        id, name, teilbereich, kampagne_id, marke_id, unternehmen_id,
+        kampagne:kampagne_id(id, kampagnenname, eigener_name)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Fehler beim Abrufen der Casting-Auswahl:', error);
+      throw error;
+    }
+    return data || [];
   }
 
   /**
@@ -257,7 +293,7 @@ export class CreatorAuswahlService {
     // Optionale Konzept-Verknuepfung (ADR 0010): laeuft nie direkt in den
     // Insert, sondern wird danach ueber linkCasting beidseitig gesetzt -
     // sonst entstuende ein halbes Paar (nur eine Seite geschrieben).
-    const { strategie_id: konzeptId, teilbereich: _teilbereich, ...insertData } = listeData;
+    const { strategie_id: konzeptId, ...insertData } = listeData;
 
     const { data, error } = await window.supabase
       .from('creator_auswahl')

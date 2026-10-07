@@ -9,6 +9,7 @@ import {
   renderBrandsView, updateBrandsTable, updateCompanyOnlyTable,
   renderItemsView, updateItemsTable as _updateItemsTable
 } from './StrategieListRenderer.js';
+import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
 import { bindEvents as _bindEvents } from './StrategieListEvents.js';
 import {
   showHowToModal as _showHowToModal,
@@ -31,6 +32,7 @@ export class StrategieList {
     this.currentUnternehmenName = null;
     this.currentMarkeId = null;
     this.currentMarkeName = null;
+    this._ohneMarke = false;
     this.currentItems = [];
 
     this.companyFolders = [];
@@ -40,6 +42,7 @@ export class StrategieList {
 
   async init() {
     this._forceReload = true;
+    this._ohneMarke = false;
 
     const params = new URLSearchParams(window.location.search);
     const qUnternehmenId = params.get('unternehmen');
@@ -92,6 +95,7 @@ export class StrategieList {
       this.buildCompanyFolders();
     } else if (this.viewMode === 'brands') {
       this.buildBrandFolders();
+      this.applyMarkenEbeneSprung();
     } else {
       this.buildCurrentItems();
     }
@@ -118,6 +122,14 @@ export class StrategieList {
     if (this.viewMode === 'companies') return;
 
     if (this.viewMode === 'brands') {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Konzepte', url: '/konzepte', clickable: true },
+        { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false }
+      ]);
+      return;
+    }
+
+    if (this._ohneMarke) {
       window.breadcrumbSystem.updateBreadcrumb([
         { label: 'Konzepte', url: '/konzepte', clickable: true },
         { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false }
@@ -183,9 +195,31 @@ export class StrategieList {
   }
 
   buildCurrentItems() {
-    this.currentItems = this.strategien.filter(
-      (item) => item.unternehmen_id === this.currentUnternehmenId && item.marke_id === this.currentMarkeId
-    );
+    this.currentItems = this.strategien.filter((item) => {
+      if (item.unternehmen_id !== this.currentUnternehmenId) return false;
+      return this._ohneMarke ? !item.marke_id : item.marke_id === this.currentMarkeId;
+    });
+  }
+
+  // Firma ohne echte Marke: die Marken-Seite fällt weg, die Konzepte hängen direkt an der Firma.
+  applyMarkenEbeneSprung() {
+    if (this.viewMode !== 'brands' || !this.currentUnternehmenId) return;
+    if (!markenEbeneEntfaellt(this.brandFolders.length, this.companyOnlyItems.length)) return;
+    this.viewMode = 'items';
+    this._ohneMarke = true;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this.pagination.currentPage = 1;
+    this.buildCurrentItems();
+  }
+
+  markenEbeneWeg() {
+    return this._ohneMarke && !!this.currentUnternehmenId;
+  }
+
+  backFromItems() {
+    if (this.markenEbeneWeg()) this.switchToCompaniesView();
+    else this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
   }
 
   // --- Delegations-Methoden (Renderer) ---
@@ -237,6 +271,7 @@ export class StrategieList {
     this.currentUnternehmenName = unternehmenName;
     this.currentMarkeId = null;
     this.currentMarkeName = null;
+    this._ohneMarke = false;
     this.loadAndRender();
   }
 
@@ -244,6 +279,7 @@ export class StrategieList {
     this.viewMode = 'items';
     this.currentMarkeId = markeId;
     this.currentMarkeName = markeName;
+    this._ohneMarke = false;
     this.pagination.currentPage = 1;
     this.loadAndRender();
   }
@@ -254,6 +290,7 @@ export class StrategieList {
     this.currentUnternehmenName = null;
     this.currentMarkeId = null;
     this.currentMarkeName = null;
+    this._ohneMarke = false;
     this.loadAndRender();
   }
 
@@ -266,6 +303,7 @@ export class StrategieList {
     this._boundEventListeners.clear();
     this.closeCreateDrawer();
     this.closeEditDrawer();
+    this._ohneMarke = false;
     this.strategien = [];
     this.companyFolders = [];
     this.brandFolders = [];

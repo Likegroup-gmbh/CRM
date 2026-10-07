@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const uploadMock = vi.hoisted(() => vi.fn());
+vi.mock('../core/AuftragsbestaetigungUploader.js', () => ({
+  uploadAuftragsbestaetigungen: uploadMock
+}));
+
 vi.mock('../modules/auftrag/logic/PoNummerGenerator.js', () => ({
   generatePoNummer: vi.fn(async () => ({ success: true, poNummer: 'PO-2026-001' }))
 }));
@@ -758,6 +763,86 @@ describe('ProjektErstellenPersistence', () => {
       ['kampagne-1', 'ugc_paid'],
       ['kampagne-1', 'influencer'],
       ['kampagne-1', 'ugc_organic']
+    ]);
+  });
+});
+
+describe('ProjektErstellenPersistence Contracting-Dokumente', () => {
+  let persistence;
+  const abFile = { name: 'ab.pdf' };
+  const reFile = { name: 'rechnung.pdf' };
+
+  const formData = () => ({
+    auftrag: {
+      auftragtype: 'Contracting',
+      unternehmen_id: 'unternehmen-1',
+      marke_id: null,
+      titel: 'Contract A',
+      auftragsbestaetigungen_files: [abFile],
+      rechnungen_files: [reFile]
+    },
+    details: {},
+    kampagne: {}
+  });
+
+  beforeEach(() => {
+    uploadMock.mockReset();
+    uploadMock.mockImplementation(async (files, opts) => ({
+      successes: files.map(f => ({ dateiname: f.name, dokumentTyp: opts.dokumentTyp || 'auftragsbestaetigung' })),
+      errors: []
+    }));
+
+    persistence = new ProjektErstellenPersistence();
+    vi.spyOn(persistence, '_saveContractingDetails').mockResolvedValue();
+    vi.spyOn(persistence, '_saveTeilrechnungen').mockResolvedValue();
+    vi.spyOn(persistence, '_syncTeilrechnungen').mockResolvedValue();
+
+    const tabelle = {
+      select: vi.fn(() => tabelle),
+      eq: vi.fn(() => tabelle),
+      single: vi.fn(async () => ({ data: { firmenname: 'U', markenname: 'M' }, error: null })),
+      update: vi.fn(() => tabelle),
+      insert: vi.fn(() => ({
+        select: vi.fn(() => ({ single: vi.fn(async () => ({ data: { id: 'auftrag-1' }, error: null })) }))
+      })),
+      then: (resolve) => resolve({ error: null })
+    };
+    window.supabase = { from: vi.fn(() => tabelle) };
+  });
+
+  it('laedt beim Anlegen Auftragsbestaetigung und Rechnung hoch', async () => {
+    const result = await persistence.submit({ formData: formData() });
+
+    expect(result.success).toBe(true);
+    expect(uploadMock).toHaveBeenCalledTimes(2);
+    const typen = uploadMock.mock.calls.map(([, opts]) => opts.dokumentTyp || 'auftragsbestaetigung');
+    expect(typen).toEqual(['auftragsbestaetigung', 'rechnung']);
+    expect(result.uploadedDocuments.map(d => d.dateiname)).toEqual(['ab.pdf', 'rechnung.pdf']);
+  });
+
+  it('laedt beim Bearbeiten Auftragsbestaetigung und Rechnung hoch', async () => {
+    const result = await persistence.submitEdit({
+      formData: formData(),
+      auftragId: 'auftrag-1',
+      existingRaw: { auftrag: { status: 'x', is_draft: false }, details: {} }
+    });
+
+    expect(result.success).toBe(true);
+    expect(uploadMock).toHaveBeenCalledTimes(2);
+    expect(result.uploadedDocuments.map(d => d.dateiname)).toEqual(['ab.pdf', 'rechnung.pdf']);
+  });
+
+  it('meldet Fehler mit Dokumenttyp', async () => {
+    uploadMock.mockImplementation(async (files, opts) => (
+      opts.dokumentTyp === 'rechnung'
+        ? { successes: [], errors: [{ fileName: 'rechnung.pdf', error: 'boom' }] }
+        : { successes: [{ dateiname: 'ab.pdf' }], errors: [] }
+    ));
+
+    const result = await persistence.submit({ formData: formData() });
+
+    expect(result.uploadErrors).toEqual([
+      { fileName: 'rechnung.pdf', error: 'boom', dokumentTyp: 'rechnung' }
     ]);
   });
 });

@@ -2,7 +2,7 @@
 // Drag-and-drop, Sortierung und horizontaler Scroll (Prototype-Mixin von CreatorAuswahlDetail)
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { applyGroupToItem } from './castingPersonaGroups.js';
+import { applyGroupToItem } from './castingKategorien.js';
 
 export function bindDragAndDropEvents() {
   const rows = this._qq('.item-row.draggable');
@@ -88,7 +88,7 @@ export function bindDragAndDropEvents() {
       const itemId = this.draggedItemId;
       const groupKey = header.dataset.groupKey;
       if (itemId && groupKey) {
-        await this.handlePersonaChange(itemId, groupKey, header.dataset.personaId || null);
+        await this.handleKategorieChange(itemId, groupKey);
       }
     };
     header.addEventListener('drop', dropHandler);
@@ -115,7 +115,7 @@ export async function handleSortUpdate() {
       currentHeader = currentHeader.previousElementSibling;
     }
     if (!currentHeader?.dataset.groupKey) return { ...item };
-    return applyGroupToItem(item, currentHeader.dataset.groupKey, currentHeader.dataset.personaId || null);
+    return applyGroupToItem(item, currentHeader.dataset.groupKey);
   }).filter(Boolean);
 
   // Nicht sichtbare Items (andere Reiter) behalten ihre Position:

@@ -1,67 +1,83 @@
 // CastingDetailBulk.js
-// Auswahl, Statusfilter im Toolbar-Menue und Bulk-Persona
+// Auswahl, Statusfilter im Toolbar-Menue und Bulk-Kategorie
 // (Prototype-Mixin von CreatorAuswahlDetail)
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { bindToolbarMenu as attachToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { SelectionBar, bindCheckboxSelection } from '../../core/list/SelectionBar.js';
 import {
   NICHT_UMSETZEN_KATEGORIE,
   NICHT_UMSETZEN_KEY,
-  OHNE_PERSONA_KEY,
-  personaDisplayLabel,
+  OHNE_KATEGORIE,
+  OHNE_KATEGORIE_KEY,
   updatesForGroupKey
-} from './castingPersonaGroups.js';
+} from './castingKategorien.js';
 
 export function renderBulkBar() {
-  let bar = document.getElementById('sourcing-bulk-bar');
-
-  const personaOptions = [
-    '<option value="">Persona zuweisen…</option>',
-    ...(this.personas || []).map(p => `<option value="${escapeAttr(p.id)}">${escapeAttr(personaDisplayLabel(p))}</option>`),
-    '<option value="Ohne Persona">Ohne Persona</option>',
-    `<option value="${NICHT_UMSETZEN_KATEGORIE}">${NICHT_UMSETZEN_KATEGORIE}</option>`
-  ].join('');
-
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.id = 'sourcing-bulk-bar';
-    bar.className = 'sourcing-bulk-bar';
-    bar.innerHTML = `
-      <span class="bulk-count" id="sourcing-bulk-count">0 ausgewählt</span>
-      <div class="bulk-bar-actions">
-        <select class="bulk-kategorie-select" id="sourcing-bulk-kategorie">
-          ${personaOptions}
-        </select>
-        <button class="mdc-btn mdc-btn--sm" id="btn-bulk-assign">Zuweisen</button>
-        <button class="mdc-btn mdc-btn--secondary mdc-btn--sm" id="btn-bulk-deselect">Auswahl aufheben</button>
-      </div>
-    `;
-    document.body.appendChild(bar);
-  } else {
-    const select = bar.querySelector('#sourcing-bulk-kategorie');
-    if (select) select.innerHTML = personaOptions;
+  if (!this.selectionBar) {
+    this.selectionBar = new SelectionBar({
+      id: 'sourcing-bulk-bar',
+      countLabel: 'Creator ausgewählt',
+      onAction: (name) => {
+        if (name === 'assign') this.handleBulkKategorieAssign();
+        else if (name === 'delete') this.handleBulkDelete();
+      },
+      onDeselect: () => this.clearSelection()
+    });
   }
 
-  bar.style.display = 'none';
+  const kategorieOptions = [
+    '<option value="">Kategorie zuweisen…</option>',
+    ...this.getTeilbereiche().map(name => `<option value="${escapeAttr(name)}">${escapeAttr(name)}</option>`),
+    `<option value="${OHNE_KATEGORIE_KEY}">${OHNE_KATEGORIE}</option>`,
+    `<option value="${NICHT_UMSETZEN_KEY}">${NICHT_UMSETZEN_KATEGORIE}</option>`
+  ].join('');
+
+  this.selectionBar.mount(`
+    <select class="bulk-kategorie-select" id="sourcing-bulk-kategorie">
+      ${kategorieOptions}
+    </select>
+    <button type="button" class="mdc-btn mdc-btn--sm" data-selection-action="assign">Zuweisen</button>
+    ${this._canSourcing('delete')
+      ? '<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm selection-bar-delete" data-selection-action="delete">Löschen</button>'
+      : ''}
+  `);
+  this.updateBulkBar();
 }
 
 export function bindSelectionEvents() {
-  const selectAll = this._q('.sourcing-select-all');
-  if (selectAll) {
-    const handler = (e) => {
-      const checked = e.target.checked;
-      this._qq('.sourcing-item-check').forEach(cb => {
-        cb.checked = checked;
-        if (checked) this.selectedItems.add(cb.dataset.itemId);
-        else this.selectedItems.delete(cb.dataset.itemId);
-      });
-      this._qq('.sourcing-group-select').forEach(cb => cb.checked = checked);
-      this.updateBulkBar();
-    };
-    selectAll.addEventListener('change', handler);
-    this._boundEventListeners.add(() => selectAll.removeEventListener('change', handler));
+  // Item-Checkboxen und Select-All laufen über die gemeinsame Auswahl-Bindung.
+  // Sie hängt am stabilen Root und wird bei jedem Rebind neu aufgebaut.
+  const root = this._getRoot();
+  if (root) {
+    this._selectionAbort?.abort();
+    this._selectionAbort = new AbortController();
+    if (!this._selectionAbortRegistered) {
+      this._selectionAbortRegistered = true;
+      this._boundEventListeners.add(() => this._selectionAbort?.abort());
+    }
+
+    this.selection = bindCheckboxSelection({
+      root,
+      signal: this._selectionAbort.signal,
+      selected: this.selectedItems,
+      itemSelector: '.sourcing-item-check',
+      selectAllSelector: '.sourcing-select-all',
+      keyOf: (cb) => cb.dataset.itemId,
+      onChange: ({ source, checkbox, checked }) => {
+        if (source === 'all') {
+          this._qq('.sourcing-group-select').forEach(cb => {
+            cb.checked = checked;
+            cb.indeterminate = false;
+          });
+        } else {
+          this.updateGroupSelectState(checkbox);
+        }
+        this.updateBulkBar();
+      }
+    });
   }
 
   this._qq('.sourcing-group-select').forEach(groupCb => {
@@ -85,40 +101,14 @@ export function bindSelectionEvents() {
     this._boundEventListeners.add(() => groupCb.removeEventListener('change', handler));
   });
 
-  this._qq('.sourcing-item-check').forEach(cb => {
-    const handler = () => {
-      if (cb.checked) this.selectedItems.add(cb.dataset.itemId);
-      else this.selectedItems.delete(cb.dataset.itemId);
-      this.updateGroupSelectState(cb);
-      this.updateSelectAllState();
-      this.updateBulkBar();
-    };
-    cb.addEventListener('change', handler);
-    this._boundEventListeners.add(() => cb.removeEventListener('change', handler));
-  });
-
-  // Restore selection after re-render
-  this.selectedItems.forEach(id => {
-    const cb = this._q(`.sourcing-item-check[data-item-id="${id}"]`);
-    if (cb) cb.checked = true;
-  });
-  // Remove stale IDs
-  const existingIds = new Set(
-    Array.from(this._qq('.sourcing-item-check')).map(cb => cb.dataset.itemId)
-  );
-  this.selectedItems.forEach(id => { if (!existingIds.has(id)) this.selectedItems.delete(id); });
+  // Nach dem Render: Häkchen wiederherstellen, verschwundene IDs verwerfen
+  this.selection?.restore({ prune: true });
 
   this.updateBulkBar();
 }
 
 export function updateSelectAllState() {
-  const all = this._qq('.sourcing-item-check');
-  const checked = this._qq('.sourcing-item-check:checked');
-  const selectAll = this._q('.sourcing-select-all');
-  if (selectAll) {
-    selectAll.checked = all.length > 0 && checked.length === all.length;
-    selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
-  }
+  this.selection?.syncSelectAll();
 }
 
 export function updateGroupSelectState(changedCheckbox) {
@@ -150,14 +140,15 @@ export function updateGroupSelectState(changedCheckbox) {
 }
 
 export function updateBulkBar() {
-  const bar = document.getElementById('sourcing-bulk-bar');
-  if (!bar) return;
+  this.selectionBar?.update(this.selectedItems.size);
+}
 
-  const count = this.selectedItems.size;
-  bar.style.display = count > 0 ? 'flex' : 'none';
-
-  const countEl = document.getElementById('sourcing-bulk-count');
-  if (countEl) countEl.textContent = `${count} Creator ausgewählt`;
+/** Auswahl komplett aufheben (Items, Gruppen, Select-All, Leiste). */
+export function clearSelection() {
+  if (this.selection) this.selection.clear();
+  else this.selectedItems.clear();
+  this._qq('.sourcing-group-select').forEach(cb => { cb.checked = false; cb.indeterminate = false; });
+  this.updateBulkBar();
 }
 
 export function bindToolbarMenu() {
@@ -242,45 +233,17 @@ export function _syncStatusFilterSubmenu() {
   });
 }
 
-export function bindBulkBarEvents() {
-  const assignBtn = document.getElementById('btn-bulk-assign');
-  if (assignBtn) {
-  const handler = () => this.handleBulkPersonaAssign();
-    assignBtn.addEventListener('click', handler);
-    this._boundEventListeners.add(() => assignBtn.removeEventListener('click', handler));
-  }
-
-  const deselectBtn = document.getElementById('btn-bulk-deselect');
-  if (deselectBtn) {
-    const handler = () => {
-      this.selectedItems.clear();
-      this._qq('.sourcing-item-check').forEach(cb => cb.checked = false);
-      this._qq('.sourcing-group-select').forEach(cb => { cb.checked = false; cb.indeterminate = false; });
-      const selectAll = this._q('.sourcing-select-all');
-      if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
-      this.updateBulkBar();
-    };
-    deselectBtn.addEventListener('click', handler);
-    this._boundEventListeners.add(() => deselectBtn.removeEventListener('click', handler));
-  }
-}
-
-export async function handleBulkPersonaAssign() {
+export async function handleBulkKategorieAssign() {
   const select = document.getElementById('sourcing-bulk-kategorie');
   if (!select || !select.value) {
-    window.toastSystem?.show('Bitte eine Persona auswählen', 'warning');
+    window.toastSystem?.show('Bitte eine Kategorie auswählen', 'warning');
     return;
   }
 
   const itemIds = Array.from(this.selectedItems);
   if (itemIds.length === 0) return;
 
-  const groupKey = select.value === NICHT_UMSETZEN_KATEGORIE
-    ? NICHT_UMSETZEN_KEY
-    : select.value === 'Ohne Persona'
-      ? OHNE_PERSONA_KEY
-      : select.value;
-  const updates = updatesForGroupKey(groupKey, groupKey === select.value ? select.value : null);
+  const updates = updatesForGroupKey(select.value);
 
   try {
     itemIds.forEach(id => {
@@ -308,14 +271,67 @@ export async function handleBulkPersonaAssign() {
   }
 }
 
+/** Alle markierten Creator entfernen (gleiche Absicherung wie das Einzel-Löschen). */
+export async function handleBulkDelete() {
+  if (!this._canSourcing('delete')) return;
+
+  const itemIds = Array.from(this.selectedItems);
+  if (itemIds.length === 0) return;
+
+  const anzahl = itemIds.length;
+  const result = await window.confirmationModal?.open({
+    title: anzahl === 1 ? 'Creator entfernen?' : `${anzahl} Creator entfernen?`,
+    message: anzahl === 1
+      ? 'Möchten Sie diesen Creator wirklich aus der Liste entfernen?'
+      : `Möchten Sie diese ${anzahl} Creator wirklich aus der Liste entfernen?`,
+    confirmText: 'Entfernen',
+    cancelText: 'Abbrechen',
+    danger: true
+  });
+
+  if (!result?.confirmed) return;
+
+  const geloescht = [];
+  let ersterFehler = null;
+
+  // Nacheinander: deleteItem löst Videoidee-Zuordnungen und blockt bei vorhandenem Skript.
+  for (const id of itemIds) {
+    try {
+      await creatorAuswahlService.deleteItem(id);
+      geloescht.push(id);
+    } catch (error) {
+      console.error('Fehler beim Bulk-Löschen:', error);
+      ersterFehler = ersterFehler || error;
+    }
+  }
+
+  if (geloescht.length > 0) {
+    this.items = this.items.filter(item => !geloescht.includes(item.id));
+    geloescht.forEach(id => this.selectedItems.delete(id));
+    this.rerenderTable();
+    this.updateBulkBar();
+  }
+
+  const gesamt = geloescht.length === 1 ? '1 Creator entfernt' : `${geloescht.length} Creator entfernt`;
+  const fehlerText = ersterFehler?.message || 'Fehler beim Löschen';
+  if (!ersterFehler) {
+    window.toastSystem?.show(gesamt, 'success');
+  } else if (geloescht.length > 0) {
+    window.toastSystem?.show(`${gesamt}, ${itemIds.length - geloescht.length} nicht: ${fehlerText}`, 'warning');
+  } else {
+    window.toastSystem?.show(fehlerText, 'error');
+  }
+}
+
 export const castingDetailBulkMethods = {
   renderBulkBar,
   bindSelectionEvents,
   updateSelectAllState,
   updateGroupSelectState,
   updateBulkBar,
+  clearSelection,
   bindToolbarMenu,
   _syncStatusFilterSubmenu,
-  bindBulkBarEvents,
-  handleBulkPersonaAssign
+  handleBulkKategorieAssign,
+  handleBulkDelete
 };

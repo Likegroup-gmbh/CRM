@@ -27,6 +27,8 @@ import { castingDetailTableUxMethods } from './CastingDetailTableUx.js';
 import { castingDetailRowActionsMethods } from './CastingDetailRowActions.js';
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
+import { parseTeilbereiche } from './castingKategorien.js';
+import { showCastingKategorienDrawer } from './CastingKategorienDrawer.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -47,7 +49,6 @@ export class CreatorAuswahlDetail {
     this.searchQuery = '';
     this.statusFilter = [];
     this.tabelleAnpassenDrawer = null;
-    this.personas = [];
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
     this.vorschlagPanel = new CastingVorschlagPanel(this);
     this.selectedItems = new Set();
@@ -95,11 +96,17 @@ export class CreatorAuswahlDetail {
       creatorAuswahlService.getItems(listeId),
       this.customColumns.init(listeId)
     ]);
-    const [personas] = await Promise.all([
-      creatorAuswahlService.loadBriefingPersonas(liste),
-      this.customColumns.loadValues(items.map(i => i.id))
-    ]);
-    return { liste, items, personas };
+    await this.customColumns.loadValues(items.map(i => i.id));
+    return { liste, items };
+  }
+
+  /** Kategorien des Castings in Anzeigereihenfolge (creator_auswahl.teilbereich). */
+  getTeilbereiche() {
+    return parseTeilbereiche(this.liste?.teilbereich);
+  }
+
+  openKategorienDrawer() {
+    showCastingKategorienDrawer(this);
   }
 
   async init(listeId, { root, chromeRoot, embedded, prefetched } = {}) {
@@ -123,10 +130,9 @@ export class CreatorAuswahlDetail {
     }
 
     try {
-      const { liste, items, personas } = prefetched || await this._fetchDataStages(listeId);
+      const { liste, items } = prefetched || await this._fetchDataStages(listeId);
       this.liste = liste;
       this.items = items;
-      this.personas = personas;
 
       this.loadColumnVisibilitySettings();
 
@@ -134,7 +140,7 @@ export class CreatorAuswahlDetail {
         window.breadcrumbSystem.updateDetailLabel(this.liste.name);
       }
 
-      if (this.items.length === 0 && !this.personas.length && !this.isKunde && this._canSourcing('create')) {
+      if (this.items.length === 0 && !this.getTeilbereiche().length && !this.isKunde && this._canSourcing('create')) {
         await this.addDrawer.createInitialEmptyRow();
       }
 
@@ -173,8 +179,8 @@ export class CreatorAuswahlDetail {
 
     this.vorschlagPanel?.unmount?.();
 
-    const bulkBar = document.getElementById('sourcing-bulk-bar');
-    if (bulkBar) bulkBar.remove();
+    this._selectionAbort?.abort();
+    this.selectionBar?.destroy();
     this.closePillDropdown();
 
     if (this.cleanupFloatingScrollbar) {
@@ -281,10 +287,7 @@ export class CreatorAuswahlDetail {
     // Streng nach Matching absteigend (ADR 0014); die DB liefert das schon,
     // die Sortierung hier faengt Alt-Daten ohne matching_score ab.
     return (this.vorschlagPanel?.vorschlaege || [])
-      .map(v => vorschlagToItem(v, {
-        listeTyp,
-        personaIds: (this.personas || []).map(p => p.id)
-      }))
+      .map(v => vorschlagToItem(v, { listeTyp }))
       .sort((a, b) => (b.matching_score ?? -1) - (a.matching_score ?? -1));
   }
 
@@ -393,7 +396,7 @@ export class CreatorAuswahlDetail {
       gastReadonly: window.isGastReadonly?.() || false,
       hiddenColumns: this.hiddenColumns,
       kundenCallActive: this.kundenCallActive,
-      personas: this.personas || [],
+      teilbereiche: this.getTeilbereiche(),
       customManager: this.customColumns,
       actionsOnly: this.embedded
     };

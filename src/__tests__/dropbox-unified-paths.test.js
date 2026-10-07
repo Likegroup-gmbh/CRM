@@ -5,6 +5,21 @@ import { buildVertragPath } from '../../netlify/functions/dropbox-upload-vertrag
 import { buildRechnungPath } from '../../netlify/functions/dropbox-upload-rechnung.js';
 import { buildBilderFolderPath, buildBilderRootFolderPath } from '../../netlify/functions/dropbox-upload-bilder.js';
 import { buildStorysBaseFolderPath, buildVideoFolderPath, buildStorysVersionFolderPath } from '../../netlify/functions/dropbox-upload-storys.js';
+import { buildAuftragsbestaetigungPath } from '../../netlify/functions/dropbox-upload-auftragsbestaetigung.js';
+
+describe('Auftragsbestaetigung-Pfad', () => {
+  const basis = { unternehmen: 'U', marke: 'M', auftragstitel: 'T', fileName: 'Dokument.pdf' };
+
+  it('legt Auftragsbestaetigungen direkt im Auftragsordner ab', () => {
+    expect(buildAuftragsbestaetigungPath(basis)).toBe('/Auftragsbestaetigungen/U/M/T/Dokument.pdf');
+  });
+
+  it('legt Rechnungen in einen eigenen Unterordner, damit gleichnamige Dateien sich nicht ueberschreiben', () => {
+    const rechnung = buildAuftragsbestaetigungPath({ ...basis, dokumentTyp: 'rechnung' });
+    expect(rechnung).toBe('/Auftragsbestaetigungen/U/M/T/Rechnungen/Dokument.pdf');
+    expect(rechnung).not.toBe(buildAuftragsbestaetigungPath(basis));
+  });
+});
 
 describe('buildUnifiedBasePath (Phase 1)', () => {
   it('baut den Basis-Pfad aus allen 4 Segmenten', () => {

@@ -43,10 +43,7 @@ export function bindEvents(list) {
   if (btnBackToBrands) {
     const handler = (e) => {
       e.preventDefault();
-      list.viewMode = 'brands';
-      list.currentMarkeId = null;
-      list.currentMarkeName = null;
-      list.loadAndRender();
+      list.backFromItems();
     };
     btnBackToBrands.addEventListener('click', handler);
     list._boundEventListeners.add(() => btnBackToBrands.removeEventListener('click', handler));

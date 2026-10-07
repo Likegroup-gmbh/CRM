@@ -5,7 +5,7 @@
 
 /** Sortierbare Spalten, Schluessel entsprechen p_sort der RPC. */
 export const CASTING_BESTAND_SORT_FIELDS = [
-  'name', 'castings', 'prio_1', 'prio_2', 'abgelehnt', 'produktionen', 'zuletzt'
+  'name', 'castings', 'prio_1', 'prio_2', 'abgelehnt', 'produktionen', 'marken', 'zuletzt'
 ];
 
 /** Erste Klickrichtung: Namen aufsteigend, Zaehler und Datum absteigend (groesste zuerst). */

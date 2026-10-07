@@ -49,7 +49,8 @@ export async function uploadAuftragsbestaetigung({
       unternehmen,
       marke,
       auftragstitel,
-      fileName: file.name
+      fileName: file.name,
+      dokumentTyp
     })
   });
 

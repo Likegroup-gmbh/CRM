@@ -1,4 +1,4 @@
-import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
+import { syncVertragFlags } from './deckung/vertragDeckung.js';
 import { backfillRechnungVertragId } from '../rechnung/RechnungVertragZuordnung.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -376,30 +376,26 @@ export class VertragUploadDrawer {
       updateData.kooperation_id = this.kooperationId;
     }
 
-    const { data: updatedRows, error } = await window.supabase
+    const { error } = await window.supabase
       .from('vertraege')
       .update(updateData)
-      .eq('id', this.vertragId)
-      .select('creator_id, kampagne_id');
+      .eq('id', this.vertragId);
 
     if (error) throw error;
 
-    // Vertrag-Checkbox auf Kooperation synchronisieren
-    if (this.kooperationId) {
-      await syncVertragCheckbox(this.kooperationId, true);
-    }
+    // Vertrag-Checkbox auf allen gedeckten Kooperationen synchronisieren
+    await syncVertragFlags(this.vertragId, true, {
+      extraKooperationIds: this.kooperationId ? [this.kooperationId] : []
+    });
 
-    // Retroaktiver Sync: alle Rechnungen mit vertrag_id=NULL nachtraeglich verknuepfen
-    const row = updatedRows?.[0];
-    if (row?.creator_id && row?.kampagne_id) {
-      try {
-        const result = await backfillRechnungVertragId(this.vertragId, row.creator_id, row.kampagne_id);
-        if (result.updatedCount > 0) {
-          console.log(`[VertragUpload] ${result.updatedCount} Rechnung(en) nachtraeglich verknuepft.`);
-        }
-      } catch (backfillErr) {
-        console.warn('[VertragUpload] Backfill der Rechnungen fehlgeschlagen (nicht kritisch):', backfillErr);
+    // Retroaktiver Sync: Rechnungen der gedeckten Kooperationen mit vertrag_id=NULL nachtraeglich verknuepfen
+    try {
+      const result = await backfillRechnungVertragId(this.vertragId);
+      if (result.updatedCount > 0) {
+        console.log(`[VertragUpload] ${result.updatedCount} Rechnung(en) nachtraeglich verknuepft.`);
       }
+    } catch (backfillErr) {
+      console.warn('[VertragUpload] Backfill der Rechnungen fehlgeschlagen (nicht kritisch):', backfillErr);
     }
   }
 

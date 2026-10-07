@@ -136,7 +136,8 @@ export function renderBrandsView(list) {
   const isKunde = window.isKunde();
   const canCreate = canCreateStrategie();
   const showBrandsSection = list.brandFolders.length > 0;
-  const showCompanyOnlySection = !isKunde || list.companyOnlyItems.length > 0;
+  const showCompanyOnlySection = list.companyOnlyItems.length > 0;
+  const nichtsDa = !showBrandsSection && !showCompanyOnlySection;
 
   return `
     <div class="list-container">
@@ -167,6 +168,12 @@ export function renderBrandsView(list) {
             </thead>
             <tbody id="brands-table-body"></tbody>
           </table>
+        </div>
+      ` : ''}
+
+      ${nichtsDa ? `
+        <div class="table-container table-container--empty">
+          ${renderEmptyState({ icon: 'clipboard', title: 'Keine Konzepte vorhanden' })}
         </div>
       ` : ''}
 
@@ -248,15 +255,6 @@ export function updateCompanyOnlyTable(list) {
   const tbody = document.getElementById('company-only-table-body');
   if (!tbody) return;
 
-  if (list.companyOnlyItems.length === 0) {
-    tbody.innerHTML = renderEmptyStateRow({
-      icon: 'building',
-      title: 'Keine unternehmensweiten Konzepte ohne Marke',
-      actionsHtml: strategieCreateButtonHtml()
-    }, 8);
-    return;
-  }
-
   tbody.innerHTML = renderItemsRows(list, list.companyOnlyItems);
 }
 
@@ -310,7 +308,7 @@ export function updateItemsTable(list) {
   if (list.currentItems.length === 0) {
     tbody.innerHTML = renderEmptyStateRow({
       icon: 'clipboard',
-      title: 'Keine Konzepte für diese Marke vorhanden',
+      title: list._ohneMarke ? 'Keine Konzepte vorhanden' : 'Keine Konzepte für diese Marke vorhanden',
       actionsHtml: strategieCreateButtonHtml()
     }, 8);
     list.pagination.updateTotal(0);

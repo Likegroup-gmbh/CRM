@@ -185,8 +185,7 @@ export class CastingVorschlagPanel {
     try {
       const item = await CastingVorschlagService.aktivieren(vorschlag, {
         listeId: this.detail.listeId,
-        listeTyp: this.detail.liste?.liste_typ,
-        personaIds: (this.detail.personas || []).map(p => p.id)
+        listeTyp: this.detail.liste?.liste_typ
       });
       this.vorschlaege = this.vorschlaege.filter(v => v.id !== vorschlagId);
       this.detail.items.push(item);

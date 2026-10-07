@@ -18,7 +18,7 @@ import {
 } from '../vertrag/VertraegeListHandlers.js';
 import { skripteService } from '../skripte/SkripteService.js';
 import { scopeByProduktion } from '../produktion/ProduktionService.js';
-import { effectiveLinie, syncLinienBar } from './linienScope.js';
+import { effectiveLinie, renderLinienSwitch, syncLinienSwitch } from './linienScope.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
 import { renderCreatorNameCell } from '../creator/CreatorTable.js';
@@ -91,13 +91,14 @@ export function resolveInitialWorkflowTab() {
  * schreibt data-tab und würde mit den Offen/Abgeschlossen-Filter-Tabs
  * kollidieren. Hier: data-workflow-tab.
  */
-export function renderWorkflowTabBar(activeTab) {
+export function renderWorkflowTabBar(activeTab, detail = null) {
   const buttons = getVisibleWorkflowTabs().map(t => `
     <button class="tab-button${t.id === activeTab ? ' active' : ''}" data-workflow-tab="${t.id}">
       ${t.label}
     </button>
   `).join('');
-  return `<div class="tab-navigation kampagne-workflow-tabs">${buttons}</div>`;
+  const linien = detail ? renderLinienSwitch(detail, activeTab) : '';
+  return `<div class="tab-navigation kampagne-workflow-tabs">${linien}${buttons}</div>`;
 }
 
 /**
@@ -218,7 +219,7 @@ export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
 
   if (syncUrl) syncTabQueryParam(tabId);
   refreshDocumentTitle(tabId);
-  syncLinienBar(detail, tabId);
+  syncLinienSwitch(detail, tabId);
 
   if (tabId === 'produktion') {
     // Tabelle/Board wurden nur versteckt, nicht zerstört — Counts auffrischen.

@@ -41,15 +41,30 @@ async function ladeAbspringerDaten(creatorId, produktionId, briefingId = null) {
   const ohneKoop = (count ?? 0) <= 1
     ? `and(kooperation_id.is.null,creator_id.eq.${creatorId},produktion_id.eq.${produktionId})`
     : null;
-  const vertragFilter = [koopIds.length ? `kooperation_id.in.(${koopIds.join(',')})` : null, ohneKoop]
-    .filter(Boolean).join(',');
+  // Vertraege, die eine dieser Kooperationen decken (ADR 0047), samt aller ihrer Mitglieder
+  const gedeckt = koopIds.length
+    ? await einzeln(db().from('vertrag_kooperation').select('vertrag_id').in('kooperation_id', koopIds))
+    : [];
+  const gedecktIds = [...new Set((gedeckt || []).map((r) => r.vertrag_id))];
+  const mitglieder = gedecktIds.length
+    ? await einzeln(db().from('vertrag_kooperation').select('vertrag_id, kooperation_id').in('vertrag_id', gedecktIds))
+    : [];
+  const vertragFilter = [
+    koopIds.length ? `kooperation_id.in.(${koopIds.join(',')})` : null,
+    gedecktIds.length ? `id.in.(${gedecktIds.join(',')})` : null,
+    ohneKoop
+  ].filter(Boolean).join(',');
   const vertraege = vertragFilter
     ? await einzeln(db().from('vertraege')
       .select('id, status, dropbox_file_url, unterschriebener_vertrag_url').or(vertragFilter))
     : [];
   if (!koopIds.length) return { vertraege: vertraege || [], rechnungen: [], videos: [] };
 
-  const vertragIds = (vertraege || []).map((v) => v.id);
+  // Rechnungen anderer gedeckter Kooperationen sperren nicht: nur Vertraege zaehlen,
+  // die nach dem Tausch keine andere Kooperation mehr decken
+  const koopSet = new Set(koopIds);
+  const vertragIds = (vertraege || []).map((v) => v.id).filter((id) => (mitglieder || [])
+    .filter((m) => m.vertrag_id === id).every((m) => koopSet.has(m.kooperation_id)));
   const rechnungFilter = vertragIds.length
     ? `kooperation_id.in.(${koopIds.join(',')}),vertrag_id.in.(${vertragIds.join(',')})`
     : `kooperation_id.in.(${koopIds.join(',')})`;

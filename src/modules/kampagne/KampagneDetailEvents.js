@@ -8,7 +8,7 @@ import {
 } from './KampagneDetailWorkflow.js';
 import { handleVertragListAction } from '../vertrag/VertraegeListHandlers.js';
 import { KampagneUtils } from './KampagneUtils.js';
-import { koopLinie } from './linienScope.js';
+import { closeLinienMenu, koopLinie, toggleLinienMenu } from './linienScope.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
 import { handleWorkflowCreate } from './KampagneWorkflowCreate.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
@@ -154,7 +154,7 @@ export function setupEvents(detail) {
     }
   }, { signal });
 
-  // Linien-Leiste in der Produktion: Chip wechselt die Linie, "+ Briefing" legt eine weitere an.
+  // Linien-Dropdown in der Tab-Zeile: Eintrag wechselt die Linie, "+ Briefing" legt eine weitere an.
   document.addEventListener('click', async (e) => {
     const loeschen = e.target.closest('[data-produktion-loeschen]');
     if (loeschen) {
@@ -175,17 +175,32 @@ export function setupEvents(detail) {
       }
       return;
     }
+    const toggle = e.target.closest('[data-linien-toggle]');
+    if (toggle) {
+      e.preventDefault();
+      toggleLinienMenu(toggle.closest('[data-linien-switch]'));
+      return;
+    }
     const chip = e.target.closest('[data-linie]');
     if (chip) {
       e.preventDefault();
+      closeLinienMenu();
       void detail.switchLinie(chip.dataset.linie);
       return;
     }
     if (e.target.closest('[data-linie-neu]')) {
       e.preventDefault();
+      closeLinienMenu();
       openProduktionBriefingDrawer(detail, { produktionId: detail.produktionId || null });
+      return;
     }
+    if (!e.target.closest('[data-linien-switch]')) closeLinienMenu();
   }, { signal });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLinienMenu();
+  }, { signal });
+  window.addEventListener('resize', closeLinienMenu, { signal });
 
   document.querySelectorAll('a[data-table="produktion"]').forEach(link => {
     link.addEventListener('click', (e) => {

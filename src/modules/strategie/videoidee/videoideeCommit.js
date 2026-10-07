@@ -6,7 +6,8 @@ import { strategieService } from '../StrategieService.js';
 import { updateItemField } from '../StrategieDetailTableEvents.js';
 import { persistVideoideeEdit } from '../videoideeEdit.js';
 import { cssEscape, fieldSignature } from '../videoideeFieldSync.js';
-import { DRAWER_ID } from './videoideeRender.js';
+import { DRAWER_ID, STRUKTUR_FIELD_PREFIX } from './videoideeRender.js';
+import { beschreibungStrukturVon, normalisiereStruktur, strukturZuText } from './beschreibungStruktur.js';
 
 export async function commitFocused(panel) {
   const el = document.activeElement;
@@ -29,6 +30,7 @@ export async function commitControl(detail, el, hooks) {
   if (field === 'video_link') ok = await commitLink(detail, el, item, hooks);
   else if (field === 'teilbereich') ok = await commitKategorie(detail, el, item, hooks);
   else if (field === 'video_umgesetzt') ok = await commitUmsetzen(detail, el, item);
+  else if (field.startsWith(STRUKTUR_FIELD_PREFIX)) ok = await commitStruktur(detail, el, item, hooks);
   else if (field === 'umsetzungsvorgabe' && linkDirty(el, item)) ok = await commitLink(detail, linkInput(el), item, hooks);
   else ok = await commitText(detail, el, item);
 
@@ -53,6 +55,79 @@ async function commitText(detail, el, item) {
   const current = item[field] ?? '';
   if (String(current ?? '') === String(value ?? '')) return true;
   await updateItemField(detail, item.id, field, value, el);
+  return true;
+}
+
+async function bestaetigeErsetzen() {
+  const options = {
+    title: 'Beschreibung ersetzen?',
+    message: 'Die Beschreibung wurde von Hand geschrieben. Die neue Analyse ersetzt sie.',
+    confirmText: 'Neu analysieren',
+    cancelText: 'Abbrechen',
+    danger: false
+  };
+  if (window.confirmationModal) {
+    const res = await window.confirmationModal.open(options);
+    return !!res?.confirmed;
+  }
+  return window.confirm(options.message);
+}
+
+/** Button „Neu analysieren“: Transkript durch Llama, Ergebnis als Tabelle. */
+export async function analysiereBeschreibungAktion(detail, itemId, hooks, button) {
+  const item = detail.items.find((entry) => String(entry.id) === String(itemId));
+  if (!item) return false;
+
+  if (item.beschreibung_quelle === 'user' && String(item.beschreibung || '').trim()) {
+    if (!(await bestaetigeErsetzen())) return false;
+  }
+
+  if (button) button.disabled = true;
+  try {
+    window.toastSystem?.show('Beschreibung wird analysiert', 'info');
+    const updates = await strategieService.analysiereBeschreibung(item.id);
+    Object.assign(item, updates);
+    detail.rerenderItemsTable?.();
+    hooks.renderOpenItem(detail, item.id, { scroll: false });
+    window.toastSystem?.show('Beschreibung aktualisiert', 'success');
+    return true;
+  } catch (error) {
+    console.error('Beschreibung-Analyse fehlgeschlagen:', error);
+    window.toastSystem?.show(error.message || 'Analyse fehlgeschlagen', 'error');
+    if (button) button.disabled = false;
+    return false;
+  }
+}
+
+/** Eine Zeile der Beschreibungs-Tabelle: alle Zeilen einsammeln, Fliesstext neu ableiten. */
+async function commitStruktur(detail, el, item, hooks) {
+  const panel = el.closest(`#${DRAWER_ID}`);
+  const eingabe = {};
+  panel?.querySelectorAll(`[data-field^="${STRUKTUR_FIELD_PREFIX}"]`).forEach((area) => {
+    eingabe[area.dataset.field.slice(STRUKTUR_FIELD_PREFIX.length)] = area.value;
+  });
+
+  const struktur = normalisiereStruktur(eingabe);
+  const aktuell = beschreibungStrukturVon(item);
+  if (JSON.stringify(struktur) === JSON.stringify(aktuell)) return true;
+
+  const beschreibung = struktur ? strukturZuText(struktur) : '';
+  const updates = {
+    beschreibung_struktur: struktur,
+    beschreibung,
+    beschreibung_quelle: beschreibung ? 'user' : null
+  };
+
+  try {
+    await strategieService.updateStrategieItem(item.id, updates);
+  } catch (error) {
+    console.error('Fehler beim Aktualisieren der Beschreibung:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    return false;
+  }
+  Object.assign(item, updates);
+  detail.rerenderItemsTable?.();
+  if (!struktur) hooks.renderOpenItem(detail, item.id, { scroll: false });
   return true;
 }
 
@@ -105,7 +180,10 @@ async function commitLink(detail, el, item, hooks) {
     const vorgabeFehlt = result.error === 'Was sollen wir von diesem Video umsetzen?';
     if (!vorgabeFehlt) el.value = item.video_link || '';
     const block = panel?.querySelector('[data-videoidee-section="umsetzungsvorgabe"]');
-    if (block && url.trim()) block.hidden = false;
+    if (block && url.trim()) {
+      block.hidden = false;
+      if (block.classList.contains('is-collapsed')) block.querySelector('[data-videoidee-toggle]')?.click();
+    }
     return false;
   }
 

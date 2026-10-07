@@ -41,7 +41,7 @@ Ein Strang innerhalb einer Produktion: ein Briefing plus sein Casting, sein Konz
 _Avoid_: Strang, Briefing-Line, Geist, Zweig
 
 **Kooperation**:
-Creator-Buchung innerhalb einer Linie. Dieselbe Person in einer zweiten Linie, auch derselben Produktion, ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Produktion.
+Creator-Buchung innerhalb einer Linie. Dieselbe Person in einer zweiten Linie, auch derselben Produktion, ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Produktion. Ein bestehender Vertrag desselben Creators in derselben Kampagne kann sie mitdecken, statt einen neuen Vertrag zu verlangen.
 _Avoid_: Produktion als Name der Buchung
 
 **Neuigkeit**:
@@ -77,8 +77,8 @@ Sitzt in der rechten Spalte der Detail-Worksheets (Produkt, Persona).
 _Avoid_: Bot, Chatbot, Copilot
 
 **Vertrag**:
-Rechtliches Dokument zwischen Parteien, wird als PDF generiert. Hat genau einen Vertragstyp.
-_Avoid_: Agreement, Kontrakt
+Rechtliches Dokument zwischen Parteien, wird als PDF generiert. Hat genau einen Vertragstyp. Deckt eine oder mehrere Kooperationen desselben Creators in derselben Kampagne, auch über Linien und Produktionen hinweg; das PDF ändert sich dadurch nicht. Eine Kooperation hat höchstens einen Vertrag, der nicht Abgelehnt ist. Die Summe der Videoanzahl der gedeckten Kooperationen darf `anzahl_videos` des Vertrags nicht übersteigen (gilt nur, wenn der Vertrag eine Videoanzahl nennt). Übersteigt die Summe der Einkaufspreise die Vergütung, wird das angezeigt, aber nicht gesperrt. Rechnungen laufen nur über gedeckte Kooperationen auf den Vertrag.
+_Avoid_: Agreement, Kontrakt, Rahmenvertrag, Nachtrag, Verträge kombinieren
 
 **Vertrag-Status**:
 Lebenszyklus des Vertragsdokuments: Entwurf, Erstellt, Gesendet, Unterschrieben, Verzögert, Abgelehnt.
@@ -199,10 +199,11 @@ Das Strategie-Dokument einer Produktion. Entsteht mit dem Finalisieren des Brief
 _Avoid_: Strategie (außer Tabelle `strategie`), Strategie-Doc
 
 **Casting-Eintrag**:
-Eine Person auf einem Casting, zugeordnet einer Persona des Briefings.
+Eine Person auf einem Casting, optional einer eigenen Kategorie des Castings zugeordnet.
+Ohne Kategorie steht sie unter „Ohne Kategorie“; „Nicht umsetzen“ ist ein reservierter Eimer.
 Nicht der CRM-Creator; die Stammdaten-Identität kann später entstehen.
 Darf an mehreren Videoideen des verknüpften Konzepts hängen.
-_Avoid_: Casting-Item, Kandidat, Sourcing-Creator, Kategorie
+_Avoid_: Casting-Item, Kandidat, Sourcing-Creator
 
 **Kundenfeedback**:
 Die Kundenbewertung eines Casting-Eintrags: Prio 1, Prio 2 oder Abgelehnt.
@@ -215,13 +216,13 @@ Nicht der Casting-Eintrag; der kann später zum Creator werden.
 _Avoid_: Casting-Eintrag, Influencer, Kandidat
 
 **Casting-Bestand**:
-Die Creator mit mindestens einem Casting-Eintrag, der eine Stammdaten-Identität hat. Eine Zeile pro Creator. Zähler für Castings (je Casting einmal), Prio 1, Prio 2, Abgelehnt und Produktion zählen die ganze Historie. Produktion ist die Zahl der Kooperationsdatensätze des Creators, unabhängig von Rechnungen. Dazu zeigt die Zeile die Branchen des Creators. Sortierbar über die Spaltenköpfe; Filter-Chips gibt es vorerst nicht, nur die Namenssuche.
-_Avoid_: Casting, Creator-Liste, Creator Casting
+Die Personen, die auf mindestens einem Casting standen, auch ohne Creator-Datensatz. Eine Zeile pro Person: mit Datensatz die des Creators, ohne Datensatz gruppiert über den Instagram-Handle, sonst über den Namen. Ein Eintrag ohne Datensatz, dessen Handle zu einem Creator gehört, zählt auf dessen Zeile. Ein Punkt am Bild zeigt, ob der Datensatz da ist (grün) oder fehlt (rot); nur grüne Zeilen öffnen den Creator. Zähler für Castings (je Casting einmal), Prio 1, Prio 2, Abgelehnt und Produktion zählen die ganze Historie. Produktion ist die Zahl der Kooperationsdatensätze des Creators, unabhängig von Rechnungen. Dazu zeigt die Zeile die Branchen des Creators. Sortierbar über die Spaltenköpfe; Filter-Chips gibt es vorerst nicht, nur die Namenssuche. Zeilen lassen sich markieren und auf ein Casting legen („Zu Casting hinzufügen“, Kategorie optional): jede markierte Person wird dort ein neuer Casting-Eintrag, mit Creator-Verknüpfung bei grünem Punkt, sonst ohne. Wer schon auf diesem Casting steht (Creator, sonst Instagram-Handle, sonst Name), wird übersprungen. Die Zeile im Bestand bleibt.
+_Avoid_: Casting, Creator-Liste, Creator Casting, Übernehmen, Verschieben
 
 **Bedarf**:
 Das gesuchte Creator-Profil eines Castings, abgeleitet aus Briefing, Produkt
-und den Briefing-Personas. Pro Briefing-Persona ein eigener Bedarf
-(Briefing plus diese Karte plus accepted Produkt-Fit).
+und den Briefing-Personas. Ein Bedarf je Casting; die Personas des Briefings
+fließen als Hinweis in den Fit ein, gruppieren aber nichts.
 _Avoid_: Suche, Zielgruppe, Filter
 
 **Buchungsbild**:
@@ -230,10 +231,9 @@ Dient als Wiederholungs- und Ablehnungsfilter (Gates) und liefert die Historie f
 _Avoid_: Qualitätsurteil, Proven-Slot
 
 **Casting-Vorschlag**:
-Ein für ein Casting vorgeschlagener Creator, zugeordnet genau einer Briefing-Persona.
-Wird durch Aktivieren zum Casting-Eintrag.
-Pro Briefing-Persona stehen bis zu sechs pending Vorschläge;
-innerhalb der Gruppe Ranking nach Matching.
+Ein für ein Casting vorgeschlagener Creator.
+Wird durch Aktivieren zum Casting-Eintrag unter „Ohne Kategorie“.
+Pro Casting stehen bis zu sechs pending Vorschläge in einer Liste, Ranking nach Matching.
 _Avoid_: Casting-Eintrag, Kategorie „Vorschläge“, Kandidat, Slot-Portfolio
 
 **Fit**:
@@ -264,7 +264,7 @@ _Avoid_: Fit Score, LLM-Ranking, position als Sortierung
 Einen Casting-Vorschlag zum Casting-Eintrag mit `creator_id` machen.
 
 **Creator-Tausch**:
-Ein abspringender Creator wird in einer Produktion durch einen anderen Casting-Eintrag desselben Castings ersetzt. Videoideen, Skripte und Kooperation wechseln zum Ersatz, der alte Eintrag gilt als Abgesagt und zählt in Track. Der Ersatz muss vorher selbst im Casting stehen und die Gates erfüllen (Kunden-Prio, Zusage oder Gebucht). Nicht tauschbar ist, sobald ein Vertrag unterschrieben ist, eine Rechnung existiert oder ein Video hochgeladen wurde. Nicht unterschriebene Verträge des Abspringers bleiben als Abgelehnt in der Historie. Das Skript behält Text und Kundenfreigabe, bekommt aber einen Hinweis und eine Festlegung zur neuen Besetzung.
+Ein abspringender Creator wird in einer Produktion durch einen anderen Casting-Eintrag desselben Castings ersetzt. Videoideen, Skripte und Kooperation wechseln zum Ersatz, der alte Eintrag gilt als Abgesagt und zählt in Track. Der Ersatz muss vorher selbst im Casting stehen und die Gates erfüllen (Kunden-Prio, Zusage oder Gebucht). Nicht tauschbar ist, sobald ein Vertrag unterschrieben ist, eine Rechnung existiert oder ein Video hochgeladen wurde. Ein unterschriebener Vertrag sperrt den Tausch auf jeder Kooperation, die er deckt. Nicht unterschriebene Verträge des Abspringers bleiben als Abgelehnt in der Historie, außer sie decken noch eine Kooperation, die nicht getauscht wird: dann bleibt der Vertrag und verliert nur die getauschte Kooperation. Das Skript behält Text und Kundenfreigabe, bekommt aber einen Hinweis und eine Festlegung zur neuen Besetzung.
 _Avoid_: Ersetzen (das ist Videoidee-Vorschläge ablösen), Wechsel, Absage-Flow, Umbesetzen
 
 **Übernehmen**:

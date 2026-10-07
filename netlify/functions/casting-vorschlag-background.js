@@ -6,9 +6,10 @@
 // Fehler per Service Role.
 //
 // Ablauf: Bedarf laden -> Kandidaten laden -> Gates -> Fit/Track/Fresh ->
-// Matching je Persona -> Quote 6 auffuellen (ADR 0020) -> Claude schreibt
-// fit_grund/Risiken auf den NEUEN Slots -> Validate + Backfill -> pending
-// incremental (Freeze bleibt, kein Delete-all).
+// Matching (bester Persona-Treffer je Creator, falls das Briefing Personas
+// hat) -> Quote 6 fuers ganze Casting auffuellen (ADR 0020, ADR 0049) ->
+// Claude schreibt fit_grund/Risiken auf den NEUEN Slots -> Validate +
+// Backfill -> pending incremental (Freeze bleibt, kein Delete-all).
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, MODELS } = require('./_shared/anthropic');
@@ -30,9 +31,9 @@ const {
   matchingScore,
   profilFuer,
   bedarfFuerPersona,
-  splitPendingNachPersona,
-  lueckenJePersona,
-  fuellePersonaQuoten,
+  besteZeileJeCreator,
+  castingLuecke,
+  fuelleCastingQuote,
   fitGrundDeterministisch,
   validateVorschlaege,
   CASTING_TOOL,
@@ -137,10 +138,6 @@ exports.handler = async (event) => {
 
     const { briefing, produktIds, personas } = await loadBedarfData(supabase, casting);
     const bedarf = buildBedarf(briefing, { produktIds, personas });
-    const briefingPersonaIds = bedarf.personas.map(p => p.id).filter(Boolean);
-    if (!briefingPersonaIds.length) {
-      throw new Error('Briefing ohne Persona: ohne Gruppen kein Lauf');
-    }
 
     // Substance-Gate: ohne Nische, Groesse, Merkmale und Personas kein Fundament
     const hatBedarf = (bedarf.nischen?.length || bedarf.groessen?.length
@@ -171,14 +168,12 @@ exports.handler = async (event) => {
     const freshSignale = await ladeFreshSignale(supabase, casting, bedarf);
 
     const { data: pendingRows } = await supabase.from('casting_vorschlag')
-      .select('id, creator_id, persona_ids, fit_grund, risiken, coverage, scores, matching_score')
+      .select('id, creator_id')
       .eq('casting_id', casting.id)
       .eq('status', 'pending');
     const pendingThisCasting = new Set((pendingRows || []).map(r => r.creator_id).filter(Boolean));
-    const { frozenByPersona, ohne } = splitPendingNachPersona(pendingRows, briefingPersonaIds);
-    const frozenIds = new Set(Object.values(frozenByPersona).flat().map(r => r.creator_id).filter(Boolean));
-    const ohneIds = new Set(ohne.map(r => r.creator_id).filter(Boolean));
-    const gap0 = lueckenJePersona(briefingPersonaIds, frozenByPersona);
+    const frozenIds = pendingThisCasting;
+    const luecke0 = castingLuecke((pendingRows || []).length);
 
     // --- Gates + Scores je Persona ---
     schreibeStep('lesen', bedarf.donts ? 'Don’ts werden gelesen' : 'Keine Don’ts');
@@ -207,8 +202,7 @@ exports.handler = async (event) => {
 
     schreibeStep('werten', `${kandidaten.length} Creator werden geprüft`);
     const { pass, raus } = applyGates(kandidaten, bedarf, bild, lesung);
-    const brauchtNeue = Object.values(gap0).some(n => n > 0) || ohneIds.size > 0;
-    if (!pass.length && brauchtNeue) {
+    if (!pass.length && luecke0 > 0) {
       throw new Error('Kein Creator besteht die Grundanforderungen (Sprache, Land, Typ)');
     }
 
@@ -236,15 +230,16 @@ exports.handler = async (event) => {
         vorschlaege30d: Math.max(0, (freshSignale.jeCreator30d.get(k.id) || 0) - (selfPending ? 1 : 0)),
         alwaysOnFortfuehren: fortfuehren
       }, profile.fresh);
-      for (const persona of bedarf.personas) {
-        if (!personaProfilPasst(k, persona)) continue;
-        const pb = bedarfFuerPersona(bedarf, persona);
+      // Mit Personas zaehlt der beste Treffer, ohne Personas der Briefing-Bedarf allein
+      const personenKarten = bedarf.personas.length ? bedarf.personas : [null];
+      for (const persona of personenKarten) {
+        if (persona && !personaProfilPasst(k, persona)) continue;
+        const pb = persona ? bedarfFuerPersona(bedarf, persona) : bedarf;
         const fitErgebnis = scoreFit(k, pb, profile.fit);
         const fit = fitErgebnis.wert;
         const matching = matchingScore({ fit, track, fresh, castings: hist.castings || 0 });
         scoredPairs.push({
           k,
-          personaId: persona.id,
           persona,
           fit,
           track,
@@ -257,15 +252,10 @@ exports.handler = async (event) => {
       }
     }
 
-    const { assigned: ohneAssigned, remaining: gapAfterOhne } = fuellePersonaQuoten(scoredPairs, {
-      gapByPersona: gap0,
-      takenIds: frozenIds,
-      onlyCreatorIds: ohneIds
-    });
-    const takenAfterOhne = new Set([...frozenIds, ...ohneAssigned.map(p => p.k.id)]);
-    const { assigned: neuPrimary } = fuellePersonaQuoten(scoredPairs, {
-      gapByPersona: gapAfterOhne,
-      takenIds: takenAfterOhne
+    const kandidatenZeilen = besteZeileJeCreator(scoredPairs);
+    const { assigned: neuPrimary } = fuelleCastingQuote(kandidatenZeilen, {
+      luecke: luecke0,
+      takenIds: frozenIds
     });
 
     let geprueft = { vorschlaege: [], verworfen: [] };
@@ -294,10 +284,8 @@ exports.handler = async (event) => {
       }
 
       schreibeStep('pruefen', 'Vorschläge werden validiert');
-      const assignedPersonaByCreator = Object.fromEntries(neuPrimary.map(s => [s.k.id, s.personaId]));
       geprueft = validateVorschlaege(result.json, {
-        shortlistIds: neuPrimary.map(s => s.k.id),
-        assignedPersonaByCreator
+        shortlistIds: neuPrimary.map(s => s.k.id)
       });
       kept = geprueft.vorschlaege;
       const keptIds = new Set(kept.map(v => v.creator_id));
@@ -307,52 +295,24 @@ exports.handler = async (event) => {
       await ki.abschliessen({ model: result.model, usage: result.usage });
     }
 
-    const keptByPersona = {};
-    for (const v of kept) {
-      const pid = v.persona_ids?.[0];
-      if (pid) keptByPersona[pid] = (keptByPersona[pid] || 0) + 1;
-    }
-    const gapAfterLlm = {};
-    for (const id of briefingPersonaIds) {
-      gapAfterLlm[id] = Math.max(0, (gapAfterOhne[id] || 0) - (keptByPersona[id] || 0));
-    }
+    const luecke1 = Math.max(0, luecke0 - kept.length);
     const takenFinal = new Set([
-      ...takenAfterOhne,
+      ...frozenIds,
       ...kept.map(v => v.creator_id),
       ...struckIds
     ]);
-    const { assigned: backfill } = fuellePersonaQuoten(scoredPairs, {
-      gapByPersona: gapAfterLlm,
+    const { assigned: backfill } = fuelleCastingQuote(kandidatenZeilen, {
+      luecke: luecke1,
       takenIds: takenFinal
     });
 
-    if (neuPrimary.length && !kept.length && !backfill.length && !ohneAssigned.length) {
+    if (neuPrimary.length && !kept.length && !backfill.length) {
       throw new Error('Die KI konnte aus der Shortlist keine tragfähigen Vorschläge begründen');
     }
 
     const pairJeId = new Map();
-    for (const p of [...ohneAssigned, ...neuPrimary, ...backfill]) {
+    for (const p of [...neuPrimary, ...backfill]) {
       pairJeId.set(p.k.id, p);
-    }
-
-    const ohneByCreator = new Map(ohne.map(r => [r.creator_id, r]));
-    for (const pair of ohneAssigned) {
-      const row = ohneByCreator.get(pair.k.id);
-      if (!row?.id) continue;
-      const { error: updErr } = await supabase.from('casting_vorschlag').update({
-        persona_ids: [pair.personaId],
-        matching_score: pair.matching,
-        coverage: pair.coverage,
-        scores: {
-          fit: pair.fit,
-          track: pair.track,
-          fresh: pair.fresh,
-          profile: pair.profileName,
-          castings: pair.hist.castings || 0
-        },
-        job_id: jobId
-      }).eq('id', row.id);
-      if (updErr) throw new Error(`Vorschlag konnte nicht zugeordnet werden: ${updErr.message}`);
     }
 
     const insertPairs = [];
@@ -383,7 +343,7 @@ exports.handler = async (event) => {
         kategorie_hint: null,
         fit_grund: entry.fit_grund,
         risiken: entry.risiken,
-        persona_ids: [s.personaId],
+        persona_ids: [],
         coverage: s.coverage,
         scores: {
           fit: s.fit,
@@ -405,13 +365,9 @@ exports.handler = async (event) => {
 
     const payload = {
       success: true,
-      anzahl: rows.length + ohneAssigned.length,
+      anzahl: rows.length,
       neu: rows.length,
-      zugeordnet: ohneAssigned.length,
-      vorschlaegeIds: [
-        ...ohneAssigned.map(p => p.k.id),
-        ...rows.map(r => r.creator_id)
-      ],
+      vorschlaegeIds: rows.map(r => r.creator_id),
       verworfen: geprueft.verworfen,
       rausAnzahl: raus.length,
       fingerprint: bedarf.fingerprint,

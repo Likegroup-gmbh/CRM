@@ -2857,8 +2857,8 @@ width: 18em;
   position: absolute;
   top: -2px;
   right: -2px;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 /* TD-Zellen mit Logo/Avatar: Elemente nebeneinander anzeigen */
@@ -2873,6 +2873,38 @@ width: 18em;
 .col-name-with-icon .table-logo,
 .col-name-with-icon .table-avatar {
   margin-right: var(--space-sm);
+}
+
+/* Avatar mit Status-Punkt: der Abstand sitzt am Wrapper, damit der Punkt am Bildrand bleibt */
+.col-name-with-icon .sourcing-avatar {
+  margin-right: var(--space-sm);
+  vertical-align: middle;
+}
+
+.col-name-with-icon .sourcing-avatar .table-avatar {
+  margin-right: 0;
+}
+
+.col-name-with-icon .table-text {
+  vertical-align: middle;
+}
+
+/* Auswahlmodus (core/list/SelectionBar.js): Die Checkbox-Spalte steht immer im HTML und
+   erscheint mit .is-auswahl an der Tabelle. Klick auf die Zeile wählt, der Namenslink ist klicktot. */
+.data-table:not(.is-auswahl) .col-auswahl {
+  display: none;
+}
+
+.data-table.is-auswahl tbody tr[data-auswahl-key] {
+  cursor: pointer;
+}
+
+.data-table.is-auswahl .col-name .table-link {
+  pointer-events: none;
+}
+
+.data-table tbody tr.row-selected td {
+  background: var(--gray-100);
 }
 
 /* External Link Icon für TikTok/Instagram */
@@ -3537,62 +3569,114 @@ th[draggable="true"]:active {
   opacity: 1;
 }
 
-/* === LINIEN-LEISTE (Produktion mit mehreren Briefings, ADR 0045) === */
-.linien-bar {
-  display: flex;
+/* === LINIEN-DROPDOWN (links in der Workflow-Tab-Zeile, ADR 0045) === */
+.linien-switch {
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-sm);
-  flex-wrap: wrap;
+  flex-shrink: 0;
+  margin-right: var(--space-sm);
+  padding-right: var(--space-sm);
+  border-right: 1px solid var(--border-primary);
 }
 
-.linien-bar__label {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-}
-
-.linien-bar__chips {
-  display: flex;
-  gap: var(--space-xs);
-  flex-wrap: wrap;
-}
-
-.linien-chip {
+.linien-switch__trigger {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
+  max-width: 240px;
   padding: var(--space-xxs) var(--space-sm);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: var(--text-sm);
+  font-weight: 600;
   cursor: pointer;
-  max-width: 280px;
+  white-space: nowrap;
 }
 
-.linien-chip:hover {
+.linien-switch__trigger:hover,
+.linien-switch.open .linien-switch__trigger {
   background: var(--bg-secondary);
 }
 
-.linien-chip.active {
-  border-color: var(--border-focus);
+.linien-switch__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.linien-switch__chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.linien-switch.open .linien-switch__chevron {
+  transform: rotate(180deg);
+}
+
+.linien-switch__menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 340px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--space-xxs) 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+}
+
+.linien-switch.open .linien-switch__menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.linien-switch__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.linien-switch__item:hover {
+  background: var(--bg-secondary);
+}
+
+.linien-switch__item.active {
   background: var(--bg-secondary);
   font-weight: 600;
 }
 
-.linien-chip--neu {
-  border-style: dashed;
+.linien-switch__item--neu {
+  border-top: 1px dashed var(--border-primary);
   color: var(--text-secondary);
 }
 
-.linien-chip__name {
+.linien-switch__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.linien-chip__badge {
+.linien-switch__badge {
+  flex-shrink: 0;
   font-size: var(--text-xs);
   color: var(--text-secondary);
   border: 1px solid var(--border-primary);

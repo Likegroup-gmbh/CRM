@@ -171,7 +171,10 @@ VertraegeCreate.prototype.bindDynamicFieldEvents = function() {
       kooperationSelect.addEventListener('change', (e) => {
         this.formData.kooperation_id = e.target.value || null;
         this.applyKooperationVerguetung(e.target.value);
+        this.refreshBestehendeVertraege?.();
       });
+      // Beim Zurueckkehren in den Schritt ist die Kooperation schon gewaehlt
+      this.refreshBestehendeVertraege?.();
     }
 
     // Exklusivität Toggle

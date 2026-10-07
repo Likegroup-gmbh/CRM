@@ -5544,9 +5544,9 @@ h3.section-title,
   font-weight: 500;
 }
 
-/* --- Floating Bulk-Action-Bar --- */
+/* --- Floating Auswahl-Leiste (core/list/SelectionBar.js) --- */
 
-.sourcing-bulk-bar {
+.selection-bar {
   position: fixed;
   bottom: var(--space-xxl);
   left: 50%;
@@ -5563,7 +5563,7 @@ h3.section-title,
   animation: bulkBarSlideIn 0.2s ease;
 }
 
-.sourcing-bulk-bar .bulk-count {
+.selection-bar .bulk-count {
   font-weight: 400;
   font-size: var(--text-sm);
   color: var(--gray-900);
@@ -5574,6 +5574,43 @@ h3.section-title,
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+}
+
+.selection-bar .selection-bar-delete {
+  color: var(--danger);
+}
+
+.selection-bar .selection-bar-delete:hover:not(:disabled) {
+  border-color: var(--danger);
+}
+
+/* Suchfeld (Auto-Suggestion) in der Leiste: kompakt wie .bulk-kategorie-select,
+   Vorschläge öffnen nach oben, weil die Leiste am unteren Rand sitzt. */
+.selection-bar .searchable-select-container {
+  width: 480px;
+}
+
+.selection-bar .searchable-select-input {
+  padding: 6px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  cursor: text;
+}
+
+.selection-bar .searchable-select-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+.selection-bar .searchable-select-dropdown {
+  top: auto;
+  bottom: calc(100% + 4px);
+  max-height: 240px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 @keyframes bulkBarSlideIn {

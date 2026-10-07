@@ -111,7 +111,7 @@ const SCHWELLEN = {
 };
 
 // Pending Casting-Vorschlaege pro Briefing-Persona (ADR 0020)
-const ANZAHL = { proPersona: 6 };
+const ANZAHL = { proCasting: 6 };
 
 const MAX_SHORTLIST_IM_PROMPT = 48;
 

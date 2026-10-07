@@ -1,10 +1,13 @@
 const { getAccessToken, sanitizePath } = require('./_shared/dropbox');
 
-function buildAuftragsbestaetigungPath({ unternehmen, marke, auftragstitel, fileName }) {
+function buildAuftragsbestaetigungPath({ unternehmen, marke, auftragstitel, fileName, dokumentTyp }) {
   const parts = ['/Auftragsbestaetigungen'];
   if (unternehmen) parts.push(sanitizePath(unternehmen));
   if (marke) parts.push(sanitizePath(marke));
   if (auftragstitel) parts.push(sanitizePath(auftragstitel));
+  // Rechnungen in eigenen Unterordner, sonst ueberschreibt eine gleichnamige
+  // Datei die Auftragsbestaetigung (Dropbox-Upload laeuft mit mode 'overwrite').
+  if (dokumentTyp === 'rechnung') parts.push('Rechnungen');
 
   const name = sanitizePath(fileName) || `Auftragsbestaetigung_${Date.now()}.pdf`;
   parts.push(name);
@@ -41,6 +44,7 @@ exports.handler = async (event) => {
       marke: fields.marke,
       auftragstitel: fields.auftragstitel,
       fileName: fields.fileName,
+      dokumentTyp: fields.dokumentTyp,
     });
 
     console.log('dropbox-upload-auftragsbestaetigung path:', dropboxPath);

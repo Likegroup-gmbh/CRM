@@ -105,11 +105,7 @@ export class CreatorAuswahlAddDrawer {
       return;
     }
 
-    const personaId = formData.get('persona_id')?.trim();
-    if (!personaId) {
-      window.toastSystem?.show('Bitte eine Persona wählen', 'warning');
-      return;
-    }
+    const kategorie = formData.get('kategorie')?.trim() || null;
 
     const submitBtn = document.getElementById('submit-btn');
 
@@ -131,7 +127,7 @@ export class CreatorAuswahlAddDrawer {
         follower_instagram: formData.get('follower_instagram') ? parseInt(formData.get('follower_instagram'), 10) : null,
         link_tiktok: formData.get('link_tiktok')?.trim() || null,
         follower_tiktok: formData.get('follower_tiktok') ? parseInt(formData.get('follower_tiktok'), 10) : null,
-        persona_id: personaId,
+        kategorie,
         wohnort: formData.get('wohnort')?.trim() || null,
         email: formData.get('email')?.trim() || null,
         telefon: formData.get('telefon')?.trim() || null,
@@ -164,10 +160,6 @@ export class CreatorAuswahlAddDrawer {
     }
   }
 
-  _defaultPersonaId() {
-    return this.detail?.personas?.[0]?.id || null;
-  }
-
   async createInitialEmptyRow() {
     try {
       const itemData = {
@@ -179,7 +171,6 @@ export class CreatorAuswahlAddDrawer {
         link_tiktok: null,
         follower_tiktok: null,
         absage: false,
-        persona_id: this._defaultPersonaId(),
         kategorie: null,
         wohnort: null,
         notiz: null,
@@ -212,7 +203,6 @@ export class CreatorAuswahlAddDrawer {
         link_tiktok: null,
         follower_tiktok: null,
         absage: false,
-        persona_id: this._defaultPersonaId(),
         kategorie: null,
         wohnort: null,
         notiz: null,

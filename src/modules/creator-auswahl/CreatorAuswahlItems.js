@@ -1,8 +1,9 @@
 // CreatorAuswahlItems.js
-// Eintraege, Sortierung, Persona-Zuordnung, Scrape und Instagram-Stats
+// Eintraege, Sortierung, Kategorie-Zuordnung, Scrape und Instagram-Stats
 // (Prototype-Mixin von CreatorAuswahlService)
 
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import { teileNachDuplikat } from './bestandZuCasting.js';
 
 /**
  * Items einer Liste abrufen
@@ -42,45 +43,13 @@ export async function getListeIdsForCreator(creatorId) {
 }
 
 /**
- * Briefing-Personas der Liste in Array-Reihenfolge.
- */
-
-export async function loadBriefingPersonas(liste) {
-  const briefingId = liste?.briefing_id;
-  if (!briefingId) return [];
-
-  const { data: briefing, error: briefingError } = await window.supabase
-    .from('campaign_briefings')
-    .select('persona_ids')
-    .eq('id', briefingId)
-    .maybeSingle();
-  if (briefingError) throw briefingError;
-
-  const ids = Array.isArray(briefing?.persona_ids)
-    ? briefing.persona_ids.filter(Boolean)
-    : [];
-  if (!ids.length) return [];
-
-  const { data, error } = await window.supabase
-    .from('personas')
-    .select('id, name, oberbegriff')
-    .in('id', ids);
-  if (error) throw error;
-
-  const byId = new Map((data || []).map(p => [p.id, p]));
-  return ids.map(id => byId.get(id)).filter(Boolean);
-}
-
-/**
  * CRM-Creator als Casting-Eintrag anlegen. Wirft, wenn der Creator
- * auf dieser Liste schon mit creator_id haengt.
+ * auf dieser Liste schon mit creator_id haengt. Ohne Kategorie landet
+ * der Eintrag in "Ohne Kategorie".
  */
-export async function addCreatorFromStammdaten(listeId, creatorId, personaId) {
+export async function addCreatorFromStammdaten(listeId, creatorId, kategorie = null) {
   if (!listeId || !creatorId) {
     throw new Error('Casting und Creator sind erforderlich');
-  }
-  if (!personaId) {
-    throw new Error('Bitte eine Persona wählen');
   }
 
   const { data: existing, error: existingError } = await window.supabase
@@ -116,8 +85,72 @@ export async function addCreatorFromStammdaten(listeId, creatorId, personaId) {
 
   return this.createItem({
     ...buildCastingEintragFromCreator(creator, listeId, sortierung),
-    persona_id: personaId
+    kategorie: String(kategorie || '').trim() || null
   });
+}
+
+/**
+ * Markierte Zeilen des Casting-Bestands als Casting-Einträge anlegen (ADR 0050).
+ * Grüne Zeilen (id) kopieren die Stammdaten und setzen creator_id, rote Zeilen
+ * werden Einträge ohne creator_id mit den Werten aus dem Bestand. Wer schon auf
+ * dem Casting steht, wird übersprungen. Ein Insert für alle, daher alles oder nichts.
+ *
+ * @param {string} listeId
+ * @param {Array<Object>} personen - Bestandszeilen
+ * @param {string|null} [kategorie]
+ * @returns {Promise<{added: Object[], skipped: Object[]}>}
+ */
+export async function addBestandPersonen(listeId, personen, kategorie = null) {
+  if (!listeId) throw new Error('Casting ist erforderlich');
+  if (!personen?.length) return { added: [], skipped: [] };
+
+  const { data: vorhandene, error: vorhandeneError } = await window.supabase
+    .from('creator_auswahl_items')
+    .select('creator_id, name, link_instagram, sortierung')
+    .eq('creator_auswahl_id', listeId);
+  if (vorhandeneError) throw vorhandeneError;
+
+  const { anlegen, ueberspringen } = teileNachDuplikat(personen, vorhandene);
+  if (!anlegen.length) return { added: [], skipped: ueberspringen };
+
+  // Stammdaten der grünen Zeilen frisch lesen (Mail und Telefon stehen nicht im Bestand)
+  const creatorIds = anlegen.map(p => p.id).filter(Boolean);
+  const stammdaten = new Map();
+  if (creatorIds.length) {
+    const { data: creators, error: creatorError } = await window.supabase
+      .from('creator')
+      .select('id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, lieferadresse_stadt, mail, telefonnummer')
+      .in('id', creatorIds);
+    if (creatorError) throw creatorError;
+    (creators || []).forEach(c => stammdaten.set(c.id, c));
+  }
+
+  const letzteSortierung = (vorhandene || []).reduce((max, e) => Math.max(max, e.sortierung ?? -1), -1);
+  const kategorieWert = String(kategorie || '').trim() || null;
+
+  const payloads = anlegen.map((person, index) => {
+    const quelle = person.id ? { ...person, ...(stammdaten.get(person.id) || {}) } : person;
+    const eintrag = {
+      ...buildCastingEintragFromCreator(quelle, listeId, letzteSortierung + 1 + index),
+      kategorie: kategorieWert,
+      created_by: window.currentUser?.id
+    };
+    if (!person.id) {
+      // Ohne Datensatz bringt der Bestand das Bild vom jüngsten Eintrag mit
+      eintrag.profile_image_url = person.profilbild_url || null;
+      eintrag.profile_image_thumb_url = person.profilbild_thumb_url || null;
+    }
+    eintrag.typ = this._assertValidCreatorTyp(eintrag.typ);
+    return eintrag;
+  });
+
+  const { error } = await window.supabase.from('creator_auswahl_items').insert(payloads);
+  if (error) {
+    console.error('Fehler beim Hinzufügen aus dem Casting-Bestand:', error);
+    throw error;
+  }
+
+  return { added: anlegen, skipped: ueberspringen };
 }
 
 /**
@@ -259,7 +292,7 @@ export async function updateItemsSortierung(items) {
 }
 
 /**
- * Sortierung und Persona-Gruppe mehrerer Items aktualisieren
+ * Sortierung und Kategorie mehrerer Items aktualisieren
  */
 export async function updateItemsSortierungWithKategorie(items) {
   const promises = items.map((item, index) =>
@@ -267,8 +300,8 @@ export async function updateItemsSortierungWithKategorie(items) {
       .from('creator_auswahl_items')
       .update({
         sortierung: index,
-        persona_id: item.persona_id ?? null,
-        kategorie: item.kategorie ?? null
+        kategorie: item.kategorie ?? null,
+        nicht_umsetzen: item.nicht_umsetzen === true
       })
       .eq('id', item.id)
   );
@@ -277,7 +310,7 @@ export async function updateItemsSortierungWithKategorie(items) {
 
   const errors = results.filter(r => r.error);
   if (errors.length > 0) {
-    console.error('Fehler beim Aktualisieren der Sortierung/Persona:', errors);
+    console.error('Fehler beim Aktualisieren der Sortierung/Kategorie:', errors);
     throw new Error('Sortierung konnte nicht aktualisiert werden');
   }
 }
@@ -290,7 +323,7 @@ export async function updateItemsGroup(itemIds, updates) {
     .select();
 
   if (error) {
-    console.error('Fehler beim Batch-Update der Persona-Gruppe:', error);
+    console.error('Fehler beim Batch-Update der Kategorie:', error);
     throw error;
   }
 
@@ -359,8 +392,8 @@ export async function fetchInstagramStats(itemId, { force = false } = {}) {
 export const creatorAuswahlItemsMethods = {
   getItems,
   getListeIdsForCreator,
-  loadBriefingPersonas,
   addCreatorFromStammdaten,
+  addBestandPersonen,
   createItem,
   updateItem,
   deleteItem,

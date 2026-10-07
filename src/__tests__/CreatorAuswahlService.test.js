@@ -188,9 +188,44 @@ describe('CreatorAuswahlService', () => {
   });
 
   describe('addCreatorFromStammdaten', () => {
-    it('verlangt eine Persona', async () => {
+    function mockQueries(itemRows) {
+      const chain = (result) => {
+        const q = {};
+        for (const m of ['select', 'eq', 'order', 'limit']) q[m] = vi.fn(() => q);
+        q.single = vi.fn(() => Promise.resolve({ data: result, error: null }));
+        q.then = (resolve) => resolve({ data: result, error: null });
+        return q;
+      };
+      let itemCalls = 0;
+      window.supabase = {
+        from: vi.fn((table) => {
+          if (table === 'creator') return chain({ id: 'c1', vorname: 'Jessie', nachname: 'Leidig' });
+          itemCalls += 1;
+          return chain(itemCalls === 1 ? [] : itemRows);
+        })
+      };
+    }
+
+    it('verlangt keine Persona und legt ohne Kategorie an', async () => {
       setupWindow();
-      await expect(service.addCreatorFromStammdaten('l1', 'c1')).rejects.toThrow('Persona');
+      mockQueries([{ sortierung: 2 }]);
+      const createItem = vi.spyOn(service, 'createItem').mockResolvedValue({ id: 'i1' });
+
+      await service.addCreatorFromStammdaten('l1', 'c1');
+
+      const payload = createItem.mock.calls[0][0];
+      expect(payload).toMatchObject({ creator_auswahl_id: 'l1', creator_id: 'c1', kategorie: null, sortierung: 3 });
+      expect(payload).not.toHaveProperty('persona_id');
+    });
+
+    it('übernimmt eine gewählte Kategorie', async () => {
+      setupWindow();
+      mockQueries([]);
+      const createItem = vi.spyOn(service, 'createItem').mockResolvedValue({ id: 'i1' });
+
+      await service.addCreatorFromStammdaten('l1', 'c1', 'Food');
+
+      expect(createItem.mock.calls[0][0].kategorie).toBe('Food');
     });
   });
 });

@@ -15,7 +15,10 @@ import { renderTableSelect, tableSelectDisabled } from '../../../core/components
 import { renderCustomField } from '../../../core/customColumns/EntityCustomColumnRenderer.js';
 import { makeCustomColumnId } from '../../../core/customColumns/entityColumnUtils.js';
 
+import { BESCHREIBUNG_FELDER, beschreibungStrukturVon } from './beschreibungStruktur.js';
+
 export const DRAWER_ID = 'edit-item-drawer';
+export const STRUKTUR_FIELD_PREFIX = 'beschreibung_struktur.';
 
 function hasText(value) {
   return String(value ?? '').trim().length > 0;
@@ -58,18 +61,21 @@ export function itemTitle(item) {
   return item.video_link ? 'Videoreferenz' : 'Idee';
 }
 
-function section(name, title, body, { hidden = false } = {}) {
+function section(name, title, body, { hidden = false, actions = '' } = {}) {
+  const heading = actions
+    ? `<div class="videoidee-doc__head"><h3 class="videoidee-doc__heading">${escapeHtml(title)}</h3>${actions}</div>`
+    : `<h3 class="videoidee-doc__heading">${escapeHtml(title)}</h3>`;
   return `
     <section class="videoidee-doc__section" data-videoidee-section="${name}" ${hidden ? 'hidden' : ''}>
-      <h3 class="videoidee-doc__heading">${escapeHtml(title)}</h3>
+      ${heading}
       ${body}
     </section>
   `;
 }
 
-function collapsibleSection(name, title, body) {
+function collapsibleSection(name, title, body, { hidden = false } = {}) {
   return `
-    <section class="videoidee-doc__section is-collapsed" data-videoidee-section="${name}">
+    <section class="videoidee-doc__section is-collapsed" data-videoidee-section="${name}" ${hidden ? 'hidden' : ''}>
       <button type="button" class="videoidee-doc__heading videoidee-doc__heading--toggle" data-videoidee-toggle="${name}" aria-expanded="false">
         ${icon('chevron-right')}
         <span>${escapeHtml(title)}</span>
@@ -307,9 +313,59 @@ export function renderEditProduktField(item, editable) {
   `, 'form-field--produkt', 'cube');
 }
 
+function strukturTabelle(detail, item, struktur) {
+  const editable = contentEditable(detail, item);
+  const rows = BESCHREIBUNG_FELDER
+    .filter(({ key }) => editable || hasText(struktur[key]))
+    .map(({ key, label }) => {
+      const wert = editable
+        ? `<textarea
+            class="videoidee-doc__text"
+            rows="1"
+            data-field="${STRUKTUR_FIELD_PREFIX}${key}"
+            data-item-id="${item.id}"
+            placeholder="${escapeAttr(`${label}...`)}"
+          >${escapeHtml(struktur[key])}</textarea>`
+        : `<div class="videoidee-doc__prose">${escapeHtml(struktur[key])}</div>`;
+      return `
+        <tr class="videoidee-struktur__row" data-videoidee-struktur="${key}">
+          <th scope="row" class="videoidee-struktur__label">${escapeHtml(label)}</th>
+          <td class="videoidee-struktur__value">${wert}</td>
+        </tr>
+      `;
+    }).join('');
+  return `<table class="videoidee-struktur"><tbody>${rows}</tbody></table>`;
+}
+
+/** Neu analysieren: nur Team, nur Videoreferenz, nur mit gespeichertem Transkript. */
+function renderAnalyseAktion(detail, item) {
+  if (!contentEditable(detail, item) || !item.video_link || !hasText(item.transkript)) return '';
+  return `
+    <button type="button" class="videoidee-doc__action" data-action="analysiere-beschreibung" data-item-id="${item.id}" title="Beschreibung aus dem Transkript neu analysieren">
+      ${icon('sparkles')}
+      <span>Neu analysieren</span>
+    </button>
+  `;
+}
+
+function renderBeschreibung(detail, item) {
+  const actions = renderAnalyseAktion(detail, item);
+  const struktur = beschreibungStrukturVon(item);
+  if (!struktur) {
+    if (!showFilledOrEditable(detail, item, item.beschreibung)) return '';
+    return section(
+      'beschreibung',
+      'Beschreibung',
+      proseOrField(detail, item, 'beschreibung', 'Beschreibung...'),
+      { actions }
+    );
+  }
+  return section('beschreibung', 'Beschreibung', strukturTabelle(detail, item, struktur), { actions });
+}
+
 function renderTranskript(detail, item) {
   if (!item.video_link || !showFilledOrEditable(detail, item, item.transkript)) return '';
-  return section('transkript', 'Transkript', proseOrField(detail, item, 'transkript', 'Transkript...'));
+  return collapsibleSection('transkript', 'Transkript', proseOrField(detail, item, 'transkript', 'Transkript...'));
 }
 
 function renderUmsetzungsvorgabe(detail, item) {
@@ -317,9 +373,9 @@ function renderUmsetzungsvorgabe(detail, item) {
   const referenz = !!item.video_link;
   if (isVideoideeVorschlag(item)) {
     if (!referenz || !hasText(item.umsetzungsvorgabe)) return '';
-    return section('umsetzungsvorgabe', 'Umsetzungsvorgabe', proseOrField(detail, item, 'umsetzungsvorgabe', ''));
+    return collapsibleSection('umsetzungsvorgabe', 'Umsetzungsvorgabe', proseOrField(detail, item, 'umsetzungsvorgabe', ''));
   }
-  return section(
+  return collapsibleSection(
     'umsetzungsvorgabe',
     'Umsetzungsvorgabe',
     proseOrField(detail, item, 'umsetzungsvorgabe', 'Was sollen wir von diesem Video umsetzen?'),
@@ -388,10 +444,10 @@ function renderKundenadaption(detail, item) {
 export function renderBody(detail, item) {
   return [
     renderKopf(detail, item),
-    renderTextSection(detail, item, 'beschreibung', 'Beschreibung', 'beschreibung', 'Beschreibung...'),
+    renderBeschreibung(detail, item),
+    renderKundenadaption(detail, item),
     renderTranskript(detail, item),
     renderUmsetzungsvorgabe(detail, item),
-    renderKundenadaption(detail, item),
     renderAnmerkung(detail, item),
     renderCaption(detail, item)
   ].join('');
@@ -424,7 +480,7 @@ function renderAnmerkung(detail, item) {
   const field = editable
     ? `<textarea class="videoidee-doc__text" data-field="kunde_anmerkung" data-item-id="${item.id}" placeholder="Ihre Anmerkung...">${escapeHtml(item.kunde_anmerkung || '')}</textarea>`
     : `<div class="videoidee-doc__prose" data-field="kunde_anmerkung" data-item-id="${item.id}">${escapeHtml(item.kunde_anmerkung || '') || '–'}</div>`;
-  return section('anmerkung', 'Anmerkung', `${field}${meta}`);
+  return collapsibleSection('anmerkung', 'Anmerkung', `${field}${meta}`);
 }
 
 function renderFooter(nav) {

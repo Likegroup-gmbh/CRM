@@ -145,7 +145,7 @@ export class ContractDetail {
 
           <div class="detail-section u-mt-lg">
             <h3 class="section-title section-title--spaced">Auftragsbestätigungen</h3>
-            ${this.renderDokumenteSection()}
+            ${this.renderDokumenteSection(this.dokumenteVonTyp('auftragsbestaetigung'))}
           </div>
 
           <div class="detail-section u-mt-lg">
@@ -156,6 +156,7 @@ export class ContractDetail {
           <div class="detail-section u-mt-lg">
             <h3 class="section-title section-title--spaced">Rechnungen</h3>
             ${this.renderRechnungenTable()}
+            ${this.renderRechnungDokumente()}
           </div>
         </div>
       </div>
@@ -164,9 +165,22 @@ export class ContractDetail {
     window.setContentSafely(window.content, html);
   }
 
-  renderDokumenteSection() {
+  // Dokumente ohne Typ gelten als Auftragsbestaetigung (Altbestand)
+  dokumenteVonTyp(typ) {
+    return (this.dokumente || []).filter(d => (d.dokument_typ || 'auftragsbestaetigung') === typ);
+  }
+
+  renderRechnungDokumente() {
+    const docs = this.dokumenteVonTyp('rechnung');
+    if (docs.length === 0) return '';
+    return `
+      <h4 class="section-title section-title--spaced">Hochgeladene Rechnungs-Dokumente</h4>
+      ${this.renderDokumenteSection(docs)}
+    `;
+  }
+
+  renderDokumenteSection(docs = this.dokumente || []) {
     const isAdmin = window.isAdmin?.();
-    const docs = this.dokumente || [];
 
     if (docs.length === 0) {
       return renderEmptyState({ icon: 'document', title: 'Noch keine Dokumente vorhanden' });

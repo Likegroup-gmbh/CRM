@@ -8,8 +8,6 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { matchingScore, normalizeInstagramUrl, normalizeTiktokUrl } from './sourcingMatching.js';
-import { pickFirstPersonaId } from './castingPersonaGroups.js';
-
 const ENDPOINT = '/.netlify/functions/casting-vorschlag-background';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 4 * 60 * 1000;
@@ -48,7 +46,7 @@ function creatorName(creator) {
  * Pending-Vorschlag als Tabellen-Item. Kein creator_auswahl_item – die id
  * ist die Vorschlag-UUID, isVorschlag markiert die virtuelle Zeile.
  */
-export function vorschlagToItem(vorschlag, { listeTyp, personaIds = [] } = {}) {
+export function vorschlagToItem(vorschlag, { listeTyp } = {}) {
   const creator = vorschlag?.creator || {};
   const scores = vorschlag?.scores || {};
   return {
@@ -60,7 +58,6 @@ export function vorschlagToItem(vorschlag, { listeTyp, personaIds = [] } = {}) {
     notiz: vorschlag.fit_grund || '',
     typ: pickCreatorTyp(creator, listeTyp),
     kategorie: null,
-    persona_id: pickFirstPersonaId(vorschlag.persona_ids, personaIds),
     wohnort: creator.lieferadresse_stadt || null,
     email: creator.mail || null,
     telefon: creator.telefonnummer || null,
@@ -186,10 +183,10 @@ export class CastingVorschlagService {
   // --- Aktivieren / Verwerfen ---
 
   /**
-   * Macht aus dem Vorschlag einen Casting-Eintrag mit creator_id (Persona:
-   * erste Bedarf-Persona aus persona_ids) und setzt den Vorschlag auf accepted.
+   * Macht aus dem Vorschlag einen Casting-Eintrag mit creator_id (ohne
+   * Kategorie) und setzt den Vorschlag auf accepted.
    */
-  static async aktivieren(vorschlag, { listeId, listeTyp, personaIds = [] } = {}) {
+  static async aktivieren(vorschlag, { listeId, listeTyp } = {}) {
     if (!vorschlag?.creator_id) throw new Error('Vorschlag ohne Creator');
 
     const { data: creator, error } = await window.supabase
@@ -200,7 +197,6 @@ export class CastingVorschlagService {
     if (error || !creator) throw new Error('Creator nicht gefunden');
 
     const name = creatorName(creator);
-    const personaId = pickFirstPersonaId(vorschlag.persona_ids, personaIds);
     const scores = vorschlag.scores || {};
 
     const itemData = {
@@ -211,7 +207,6 @@ export class CastingVorschlagService {
       follower_instagram: Number(creator.instagram_follower) || null,
       link_tiktok: normalizeTiktokUrl(creator.tiktok),
       follower_tiktok: Number(creator.tiktok_follower) || null,
-      persona_id: personaId,
       kategorie: null,
       wohnort: creator.lieferadresse_stadt || null,
       email: creator.mail || null,

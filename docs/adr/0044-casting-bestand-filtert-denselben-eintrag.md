@@ -2,6 +2,8 @@
 
 Creator, die schon auf Castings standen, werden beim nächsten Kunden neu eingetragen. Der Casting-Bestand ist die seitenweite Liste dafür, nicht ein weiteres Casting und nicht die aufgesplittete Historie.
 
+> Teilweise abgelöst durch ADR 0046: Einträge ohne Stammdaten-Identität stehen jetzt ebenfalls in der Liste.
+
 ## Entscheidung
 
 Eine Zeile pro Creator. Einträge ohne Stammdaten-Identität zählen nicht. Die Zähler (Castings, Prio 1, Prio 2, Abgelehnt, Produktion) und „Zuletzt“ (Anlegezeitpunkt des neuesten Eintrags) zeigen immer die ganze Historie. Der Filter entscheidet nur, wer in der Liste steht. Castings, Prio 1, Prio 2 und Abgelehnt zählen verschiedene Castings (`count(DISTINCT creator_auswahl_id)`), weil derselbe Creator in Altdaten doppelt im selben Casting steht. Produktion zählt die Kooperationsdatensätze des Creators, nicht Rechnungen.

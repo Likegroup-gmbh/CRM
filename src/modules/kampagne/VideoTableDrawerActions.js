@@ -1,9 +1,9 @@
 // VideoTableDrawerActions
-// Upload-/Settings-/Strategie-Link-Drawer und Video-Delete der Kampagnen-Video-
+// Upload-/Settings-/Strategie-Link-Drawer und Asset-Delete-Sync der Kampagnen-Video-
 // Tabelle. Kapselt die Drawer-Verdrahtung (Callbacks -> Store/refilter), damit
 // der Orchestrator (KampagneKooperationenVideoTable) schlank bleibt.
 
-import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
+import { syncVideoAssetsAfterDelete } from '../../core/VideoDeleteHelper.js';
 
 export class VideoTableDrawerActions {
   constructor(table) {
@@ -179,7 +179,7 @@ export class VideoTableDrawerActions {
       onReupload: () => this.openUploadDrawer(videoId, kooperationId),
       onStorysReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'storys' }),
       onBilderReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'bilder' }),
-      onDelete: () => this.executeVideoDelete(videoId, kooperationId),
+      onDelete: (deletedAsset) => this.syncAfterAssetDelete(videoId, kooperationId, deletedAsset),
       onBilderChanged: () => this.refreshBilderForKoop(kooperationId),
       onFinaleChanged: () => this.refreshFinalAssetsForVideo(videoId, kooperationId),
       onFolderCleared: () => {
@@ -243,10 +243,12 @@ export class VideoTableDrawerActions {
     t.refilter();
   }
 
-  async executeVideoDelete(videoId, kooperationId) {
+  async syncAfterAssetDelete(videoId, kooperationId, deletedAsset) {
     const t = this.table;
-    const { hasRemainingAssets } = await deleteVideoFile(videoId);
-    const patch = { file_url: null, link_content: null, currentAsset: null };
+    const { currentAsset, linkContentChanged, linkContent, hasRemainingAssets } =
+      await syncVideoAssetsAfterDelete(videoId, deletedAsset);
+    const patch = { currentAsset, file_url: currentAsset?.file_url || null };
+    if (linkContentChanged) patch.link_content = linkContent;
     if (!hasRemainingAssets) patch.folder_url = null;
     if (t.store) {
       t.store.updateVideo(videoId, patch);

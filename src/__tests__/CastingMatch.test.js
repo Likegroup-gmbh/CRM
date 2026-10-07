@@ -13,11 +13,11 @@ import castingMatch from '../../netlify/functions/_shared/casting-match.js';
 const {
   buildBedarf,
   bedarfFingerprint,
-  quoteProPersona,
+  quoteProCasting,
+  besteZeileJeCreator,
+  castingLuecke,
+  fuelleCastingQuote,
   bedarfFuerPersona,
-  lueckenJePersona,
-  fuellePersonaQuoten,
-  splitPendingNachPersona,
   fitGrundDeterministisch,
   normiereKandidat,
   applyGates,
@@ -152,9 +152,9 @@ describe('buildBedarf', () => {
   });
 });
 
-describe('quoteProPersona', () => {
-  it('ist 6, unabhaengig vom Kampagnen-Soll', () => {
-    expect(quoteProPersona()).toBe(6);
+describe('quoteProCasting', () => {
+  it('ist 6, unabhaengig vom Kampagnen-Soll und von der Persona-Zahl', () => {
+    expect(quoteProCasting()).toBe(6);
   });
 });
 
@@ -424,89 +424,59 @@ function pair(creatorId, personaId, matching, extra = {}) {
   return scored(creatorId, { matching, personaId, ...extra });
 }
 
-describe('lueckenJePersona / fuellePersonaQuoten', () => {
-  it('1 Persona => 6, 2 Personas => 12', () => {
-    const eins = Array.from({ length: 10 }, (_, i) => pair(`c${i}`, 'p1', 90 - i));
-    expect(fuellePersonaQuoten(eins, { gapByPersona: { p1: quoteProPersona() } }).assigned).toHaveLength(6);
-
-    const zwei = [];
-    for (let i = 0; i < 20; i++) {
-      zwei.push(pair(`c${i}`, 'p1', 80 - i));
-      zwei.push(pair(`c${i}`, 'p2', 70 - i));
-    }
-    const { assigned } = fuellePersonaQuoten(zwei, {
-      gapByPersona: { p1: quoteProPersona(), p2: quoteProPersona() }
-    });
-    expect(assigned).toHaveLength(12);
-    expect(new Set(assigned.map(a => a.k.id)).size).toBe(12);
-    expect(assigned.filter(a => a.personaId === 'p1')).toHaveLength(6);
-    expect(assigned.filter(a => a.personaId === 'p2')).toHaveLength(6);
+describe('castingLuecke / fuelleCastingQuote', () => {
+  it('fuellt die Quote auf 6, egal wie viele Personas das Briefing hat', () => {
+    const zeilen = Array.from({ length: 10 }, (_, i) => pair(`c${i}`, 'p1', 90 - i));
+    const { assigned } = fuelleCastingQuote(zeilen, { luecke: castingLuecke(0) });
+    expect(assigned.map(a => a.k.id)).toEqual(['c0', 'c1', 'c2', 'c3', 'c4', 'c5']);
   });
 
   it('Freeze 4 => Luecke 2', () => {
-    expect(lueckenJePersona(['p1'], { p1: ['a', 'b', 'c', 'd'] })).toEqual({ p1: 2 });
+    expect(castingLuecke(4)).toBe(2);
+    expect(castingLuecke(9)).toBe(0);
     const pairs = Array.from({ length: 8 }, (_, i) => pair(`n${i}`, 'p1', 90 - i));
-    const { assigned } = fuellePersonaQuoten(pairs, {
-      gapByPersona: { p1: 2 },
+    const { assigned } = fuelleCastingQuote(pairs, {
+      luecke: castingLuecke(4),
       takenIds: new Set(['a', 'b', 'c', 'd'])
     });
     expect(assigned).toHaveLength(2);
   });
 
-  it('Greedy: Creator top fuer A und B geht an das hoehere Paar', () => {
-    const pairs = [
+  it('besteZeileJeCreator: pro Creator zaehlt der hoechste Persona-Treffer', () => {
+    const zeilen = besteZeileJeCreator([
       pair('c1', 'pA', 90),
       pair('c1', 'pB', 80),
       pair('c2', 'pA', 70),
       pair('c2', 'pB', 75)
-    ];
-    const { assigned } = fuellePersonaQuoten(pairs, { gapByPersona: { pA: 1, pB: 1 } });
-    const byCreator = Object.fromEntries(assigned.map(a => [a.k.id, a.personaId]));
-    expect(byCreator.c1).toBe('pA');
-    expect(byCreator.c2).toBe('pB');
+    ]);
+    expect(zeilen).toHaveLength(2);
+    const byCreator = Object.fromEntries(zeilen.map(z => [z.k.id, z.personaId]));
+    expect(byCreator).toEqual({ c1: 'pA', c2: 'pB' });
   });
 
-  it('Ohne-Persona-Pending wandern in Luecken, nicht in volle Gruppen', () => {
-    const pairs = [
-      pair('ohne1', 'p1', 50),
-      pair('ohne1', 'p2', 99),
-      pair('pool1', 'p1', 40)
-    ];
-    const { assigned } = fuellePersonaQuoten(pairs, {
-      gapByPersona: { p1: 2, p2: 0 },
-      onlyCreatorIds: new Set(['ohne1'])
-    });
-    expect(assigned).toHaveLength(1);
-    expect(assigned[0].k.id).toBe('ohne1');
-    expect(assigned[0].personaId).toBe('p1');
+  it('Creator mit zwei Persona-Treffern belegt nur einen Platz', () => {
+    const zeilen = besteZeileJeCreator([
+      ...Array.from({ length: 4 }, (_, i) => pair(`c${i}`, 'pA', 90 - i)),
+      ...Array.from({ length: 4 }, (_, i) => pair(`c${i}`, 'pB', 80 - i))
+    ]);
+    const { assigned } = fuelleCastingQuote(zeilen, { luecke: 6 });
+    expect(assigned).toHaveLength(4);
+    expect(new Set(assigned.map(a => a.k.id)).size).toBe(4);
   });
 
-  it('LLM streicht 2 => Backfill auf 6 mit derselben Persona', () => {
+  it('LLM streicht 2 => Backfill auf 6 aus derselben Liste', () => {
     const pairs = Array.from({ length: 10 }, (_, i) => pair(`c${i}`, 'p1', 90 - i));
-    const { assigned: primary } = fuellePersonaQuoten(pairs, { gapByPersona: { p1: 6 } });
+    const { assigned: primary } = fuelleCastingQuote(pairs, { luecke: 6 });
     expect(primary.map(a => a.k.id)).toEqual(['c0', 'c1', 'c2', 'c3', 'c4', 'c5']);
     const keptIds = new Set(['c0', 'c1', 'c2', 'c3']);
     const struck = new Set(['c4', 'c5']);
-    const { assigned: backfill } = fuellePersonaQuoten(pairs, {
-      gapByPersona: { p1: 2 },
+    const { assigned: backfill } = fuelleCastingQuote(pairs, {
+      luecke: 2,
       takenIds: new Set([...keptIds, ...struck])
     });
     expect(backfill.map(a => a.k.id)).toEqual(['c6', 'c7']);
-    expect(backfill.every(a => a.personaId === 'p1')).toBe(true);
     expect(fitGrundDeterministisch(backfill[0], { name: 'Lena' })).toContain('Lena');
-  });
-});
-
-describe('splitPendingNachPersona', () => {
-  it('friert zugeordnete pending und sammelt Ohne Persona', () => {
-    const { frozenByPersona, ohne } = splitPendingNachPersona([
-      { id: 'r1', creator_id: 'c1', persona_ids: ['p1'] },
-      { id: 'r2', creator_id: 'c2', persona_ids: [] },
-      { id: 'r3', creator_id: 'c3', persona_ids: ['fremd'] }
-    ], ['p1', 'p2']);
-    expect(frozenByPersona.p1.map(r => r.creator_id)).toEqual(['c1']);
-    expect(frozenByPersona.p2).toEqual([]);
-    expect(ohne.map(r => r.creator_id).sort()).toEqual(['c2', 'c3']);
+    expect(fitGrundDeterministisch(backfill[0], null)).toBeTruthy();
   });
 });
 
@@ -522,12 +492,12 @@ describe('orderPersonasByIds', () => {
 });
 
 describe('validateVorschlaege', () => {
-  const ctx = { shortlistIds: ['c1', 'c2'], personaIds: ['p1'] };
+  const ctx = { shortlistIds: ['c1', 'c2'] };
 
   it('nimmt nur Shortlist-IDs mit belegtem fit_grund', () => {
     const { vorschlaege, verworfen } = validateVorschlaege({
       vorschlaege: [
-        { creator_id: 'c1', fit_grund: 'Beauty-Branche, 30k Follower', persona_ids: ['p1'] },
+        { creator_id: 'c1', fit_grund: 'Beauty-Branche, 30k Follower' },
         { creator_id: 'fremd', fit_grund: 'Halluziniert' },
         { creator_id: 'c2', fit_grund: '   ' }
       ]
@@ -537,28 +507,16 @@ describe('validateVorschlaege', () => {
     expect(verworfen).toHaveLength(2);
   });
 
-  it('Covered-Set: Doppelte fliegen, fremde persona_ids werden gefiltert', () => {
+  it('Covered-Set: Doppelte fliegen, persona_ids tauchen nicht mehr auf', () => {
     const { vorschlaege, verworfen } = validateVorschlaege({
       vorschlaege: [
-        { creator_id: 'c1', fit_grund: 'Passt', persona_ids: ['p1', 'fremd'] },
+        { creator_id: 'c1', fit_grund: 'Passt', persona_ids: ['p1'] },
         { creator_id: 'c1', fit_grund: 'Doppelt' },
         { creator_id: 'c2', fit_grund: 'Passt auch' }
       ]
     }, ctx);
     expect(vorschlaege).toHaveLength(2);
-    expect(vorschlaege[0].persona_ids).toEqual(['p1']);
+    expect(vorschlaege[0]).not.toHaveProperty('persona_ids');
     expect(verworfen.some(v => v.grund === 'doppelter Vorschlag')).toBe(true);
-  });
-
-  it('erzwingt die vorgegebene Persona-Zuweisung', () => {
-    const { vorschlaege, verworfen } = validateVorschlaege({
-      vorschlaege: [
-        { creator_id: 'c1', fit_grund: 'Passt', persona_id: 'p1' },
-        { creator_id: 'c2', fit_grund: 'Falsch umgehaengt', persona_id: 'p-fremd' }
-      ]
-    }, { shortlistIds: ['c1', 'c2'], assignedPersonaByCreator: { c1: 'p1', c2: 'p1' } });
-    expect(vorschlaege).toHaveLength(1);
-    expect(vorschlaege[0].persona_ids).toEqual(['p1']);
-    expect(verworfen.some(v => v.grund === 'persona_id weicht von der Zuweisung ab')).toBe(true);
   });
 });

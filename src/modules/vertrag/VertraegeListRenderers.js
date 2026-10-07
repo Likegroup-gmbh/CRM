@@ -288,6 +288,15 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
         Unterschriebenen Vertrag hochladen
       </a>`;
 
+  // Kooperationen, die der Vertrag deckt (ADR 0047). Nur mit Creator und Kampagne, nie bei Contracting.
+  const deckungAction = canEdit && vertrag.creator_id && vertrag.kampagne_id
+    && vertrag.typ !== 'Contracting' && vertrag.status !== 'abgelehnt'
+    ? `<a href="#" class="action-item" data-action="vertrag-kooperationen" data-id="${vertrag.id}">
+        ${signedIcon}
+        Kooperationen verwalten
+      </a>`
+    : '';
+
   if (isDraft) {
     actions = `
       ${canEdit ? `
@@ -299,6 +308,7 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
         ${window.ActionsDropdown?.getHeroIcon('view') || ''}
         Details anzeigen
       </a>
+      ${deckungAction}
       ${signedActions}
     `;
   } else {
@@ -330,6 +340,7 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
           Vertrag verschicken
         </a>
       ` : ''}
+      ${deckungAction}
       ${signedActions}
     `;
   }

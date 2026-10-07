@@ -1,5 +1,5 @@
-// Regeln für das Produktionsbudget. Die Decke ist das Volumen der Kampagne.
-// Leer heißt: die Produktion teilt sich das Volumen mit den anderen ohne Budget.
+// Regeln für das Produktionsbudget. Gesetzte Budgets summieren sich bis zum Volumen der Kampagne.
+// Leer heißt: die Produktion teilt sich das Creator-Budget der Kampagne mit den anderen ohne Budget.
 
 import { parseCurrencyInput } from '../../core/utils/parseCurrency.js';
 
@@ -162,10 +162,31 @@ export function preisBleibtImBudget({ verbrauch, delta, decke }) {
   return roundMoney((verbrauch || 0) + (delta || 0)) <= roundMoney(decke);
 }
 
-export function budgetMeldung(eigen) {
-  return eigen
-    ? 'Verkaufspreis übersteigt das Produktionsbudget.'
+export function budgetMeldung(eigen, quelle = 'volumen') {
+  if (eigen) return 'Verkaufspreis übersteigt das Produktionsbudget.';
+  return quelle === 'creator'
+    ? 'Verkaufspreis übersteigt das Creator-Budget der Kampagne.'
     : 'Verkaufspreis übersteigt das Volumen der Kampagne.';
+}
+
+function geldOderNull(value) {
+  if (value == null || value === '') return null;
+  const n = parseFloat(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Decke für Produktionen ohne eigenes Budget: Creator-Budget der Kampagne,
+ * sonst das des Auftrags, nur im Altbestand ohne Creator-Budget das Volumen.
+ * 0 zählt als Decke. Rückgabe { decke, quelle } mit quelle 'creator' | 'volumen'
+ * oder { decke: null, quelle: null }, wenn nichts gesetzt ist.
+ */
+export function kampagneCreatorDecke(kampagne) {
+  const creator = geldOderNull(kampagne?.creator_budget) ?? geldOderNull(kampagne?.auftrag?.creator_budget);
+  if (creator != null) return { decke: creator, quelle: 'creator' };
+  const volumen = geldOderNull(kampagne?.volumen);
+  if (volumen != null) return { decke: volumen, quelle: 'volumen' };
+  return { decke: null, quelle: null };
 }
 
 export async function ladeBudgetStand(supabase, produktionId) {
@@ -203,11 +224,12 @@ export async function ladeBudgetStand(supabase, produktionId) {
 
   const { data: kampagne, error: kampagneError } = await supabase
     .from('kampagne')
-    .select('volumen')
+    .select('volumen, creator_budget, auftrag:auftrag_id(creator_budget)')
     .eq('id', produktion.kampagne_id)
     .maybeSingle();
   if (kampagneError) throw kampagneError;
-  if (kampagne?.volumen == null) return { decke: null, verbrauch: eigenVerbrauch, eigen: false };
+  const { decke, quelle } = kampagneCreatorDecke(kampagne);
+  if (decke == null) return { decke: null, verbrauch: eigenVerbrauch, eigen: false, quelle: null };
 
   const { data: geschwister, error: geschwisterError } = await supabase
     .from('produktion')
@@ -216,7 +238,7 @@ export async function ladeBudgetStand(supabase, produktionId) {
   if (geschwisterError) throw geschwisterError;
   const ids = (geschwister || []).map(row => row.id);
   if (!ids.length) {
-    return { decke: parseFloat(kampagne.volumen) || 0, verbrauch: 0, eigen: false };
+    return { decke, verbrauch: 0, eigen: false, quelle };
   }
   const { data: sums, error: sumsError } = await supabase
     .from('produktion_verbrauch')
@@ -224,7 +246,7 @@ export async function ladeBudgetStand(supabase, produktionId) {
     .in('produktion_id', ids);
   if (sumsError) throw sumsError;
   const verbrauch = (sums || []).reduce((sum, row) => sum + (parseFloat(row.budget_used) || 0), 0);
-  return { decke: parseFloat(kampagne.volumen) || 0, verbrauch, eigen: false };
+  return { decke, verbrauch, eigen: false, quelle };
 }
 
 export async function assertVerkaufspreisDelta(supabase, produktionId, delta) {
@@ -232,6 +254,6 @@ export async function assertVerkaufspreisDelta(supabase, produktionId, delta) {
   const stand = await ladeBudgetStand(supabase, produktionId);
   if (!stand?.decke && stand?.decke !== 0) return;
   if (!preisBleibtImBudget({ verbrauch: stand.verbrauch, delta, decke: stand.decke })) {
-    throw new Error(budgetMeldung(stand.eigen));
+    throw new Error(budgetMeldung(stand.eigen, stand.quelle));
   }
 }

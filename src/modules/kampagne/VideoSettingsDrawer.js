@@ -805,10 +805,12 @@ export class VideoSettingsDrawer {
             .eq('id', assetId);
           if (error) throw error;
 
+          const deletedAsset = this.assets.find(a => a.id === assetId);
           this.assets = this.assets.filter(a => a.id !== assetId);
 
+          if (deletedAsset?.is_final) this.onFinaleChanged?.();
           if (typeof this.onDelete === 'function') {
-            await this.onDelete();
+            await this.onDelete(deletedAsset);
           }
 
           this.renderContent();

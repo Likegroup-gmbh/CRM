@@ -14,7 +14,7 @@ import {
   renderVorschlagActions,
   shellHtml
 } from './videoidee/videoideeRender.js';
-import { commitControl, commitFocused } from './videoidee/videoideeCommit.js';
+import { analysiereBeschreibungAktion, commitControl, commitFocused } from './videoidee/videoideeCommit.js';
 import {
   bindCreator,
   bindProdukt,
@@ -190,22 +190,21 @@ function bindDrawer(detail, panel) {
     });
   }
 
-  if (panel.dataset.captionBound !== '1') {
-    panel.dataset.captionBound = '1';
+  if (panel.dataset.toggleBound !== '1') {
+    panel.dataset.toggleBound = '1';
     panel.addEventListener('click', (e) => {
-      const btn = e.target.closest?.('[data-videoidee-toggle="caption"]');
+      const btn = e.target.closest?.('[data-videoidee-toggle]');
       if (!btn || !panel.contains(btn)) return;
-      const sectionEl = btn.closest('[data-videoidee-section="caption"]');
-      const body = sectionEl?.querySelector('.videoidee-doc__section-body');
-      const expanded = btn.getAttribute('aria-expanded') !== 'true';
-      btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      sectionEl?.classList.toggle('is-collapsed', !expanded);
-      sectionEl?.classList.toggle('is-expanded', expanded);
-      if (body) body.hidden = !expanded;
-      if (expanded) {
-        const area = body?.querySelector('textarea.videoidee-doc__text');
-        if (area) requestAnimationFrame(() => autogrow(area));
-      }
+      const sectionEl = btn.closest('[data-videoidee-section]');
+      setSectionExpanded(sectionEl, btn.getAttribute('aria-expanded') !== 'true');
+    });
+  }
+
+  const analyseBtn = panel.querySelector('[data-action="analysiere-beschreibung"]');
+  if (analyseBtn && analyseBtn.dataset.videoideeBound !== '1') {
+    analyseBtn.dataset.videoideeBound = '1';
+    analyseBtn.addEventListener('click', () => {
+      void analysiereBeschreibungAktion(detail, panel.dataset.itemId, COMMIT_HOOKS, analyseBtn);
     });
   }
 
@@ -327,6 +326,21 @@ function onTableRendered(detail) {
   }
   patchPrio(detail, panel, item);
   patchStatus(panel, item);
+}
+
+function setSectionExpanded(sectionEl, expanded) {
+  if (!sectionEl) return;
+  const btn = sectionEl.querySelector('[data-videoidee-toggle]');
+  const body = sectionEl.querySelector('.videoidee-doc__section-body');
+  btn?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  sectionEl.classList.toggle('is-collapsed', !expanded);
+  sectionEl.classList.toggle('is-expanded', expanded);
+  if (body) body.hidden = !expanded;
+  if (expanded) {
+    body?.querySelectorAll('textarea.videoidee-doc__text').forEach((area) => {
+      requestAnimationFrame(() => autogrow(area));
+    });
+  }
 }
 
 function autogrow(el) {

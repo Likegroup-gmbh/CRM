@@ -1,7 +1,7 @@
 // casting-match.js
 // Deterministischer Kern der Casting-Creator-Vorschlaege (ADR 0013/0014/0020):
 // Bedarf bauen, Gates, drei Scores (Fit/Track/Fresh), finaler Matching-Score,
-// Quote 6 pro Briefing-Persona (greedy, exklusiv), Validate.
+// Quote 6 pro Casting (eine Liste, ein Score je Creator), Validate.
 // Das LLM schreibt nur fit_grund/risiken auf der Shortlist - es rankt nie.
 
 const config = require('./casting-match-config');
@@ -219,8 +219,8 @@ function kanaeleAusBriefing(briefing, prefix) {
   return [...out];
 }
 
-function quoteProPersona() {
-  return ANZAHL.proPersona;
+function quoteProCasting() {
+  return ANZAHL.proCasting;
 }
 
 // ---------------------------------------------------------------------------
@@ -776,79 +776,62 @@ function profilFuer(k, listeTyp) {
 }
 
 // ---------------------------------------------------------------------------
-// Ranking: Top-N (Legacy) und Quote 6 pro Briefing-Persona (ADR 0020)
+// Ranking: Top-N und Quote 6 pro Casting (eine Liste, keine Persona-Gruppen)
 // ---------------------------------------------------------------------------
+
+function nachMatching(a, b) {
+  return (b.matching - a.matching) || (b.fit - a.fit) || (b.fresh - a.fresh);
+}
 
 /**
  * scored: [{ k, fit, track, fresh, matching, hist, profileName }]
  * Sortiert streng nach Matching absteigend; Tiebreak Fit, dann Fresh.
  */
 function topNNachMatching(scored, { anzahl } = {}) {
-  const n = Math.max(1, anzahl || quoteProPersona());
-  return [...scored]
-    .sort((a, b) => (b.matching - a.matching) || (b.fit - a.fit) || (b.fresh - a.fresh))
-    .slice(0, n);
-}
-
-function erstePersonaId(personaIds, allowedIds = []) {
-  const ids = Array.isArray(personaIds) ? personaIds.filter(Boolean) : [];
-  if (!ids.length) return null;
-  const allowed = (allowedIds || []).filter(Boolean);
-  if (!allowed.length) return ids[0];
-  const allowedSet = new Set(allowed);
-  return ids.find(id => allowedSet.has(id)) || null;
-}
-
-function splitPendingNachPersona(rows, briefingPersonaIds = []) {
-  const frozenByPersona = {};
-  for (const id of briefingPersonaIds) frozenByPersona[id] = [];
-  const ohne = [];
-  for (const row of rows || []) {
-    const pid = erstePersonaId(row.persona_ids, briefingPersonaIds);
-    if (pid && frozenByPersona[pid]) frozenByPersona[pid].push(row);
-    else ohne.push(row);
-  }
-  return { frozenByPersona, ohne };
-}
-
-function lueckenJePersona(personaIds, frozenByPersona = {}, quote = ANZAHL.proPersona) {
-  const gap = {};
-  for (const id of personaIds || []) {
-    const frozen = frozenByPersona[id];
-    const n = Array.isArray(frozen) ? frozen.length : Number(frozen) || 0;
-    gap[id] = Math.max(0, quote - n);
-  }
-  return gap;
+  const n = Math.max(1, anzahl || quoteProCasting());
+  return [...scored].sort(nachMatching).slice(0, n);
 }
 
 /**
- * Greedy: hoechstes Matching(Creator, Persona) zuerst, Unique creator_id.
- * scoredPairs: [{ k, personaId, matching, fit, fresh, ... }]
+ * Eine Zeile pro Creator: bei mehreren Persona-Treffern zaehlt das hoechste
+ * Matching. Die Persona bleibt als Hinweis am Paar, bildet aber keine Gruppe.
  */
-function fuellePersonaQuoten(scoredPairs, { gapByPersona = {}, takenIds = new Set(), onlyCreatorIds = null } = {}) {
-  const remaining = { ...gapByPersona };
+function besteZeileJeCreator(scoredPairs) {
+  const beste = new Map();
+  for (const pair of scoredPairs || []) {
+    const cid = pair.k?.id || pair.creatorId;
+    if (!cid) continue;
+    const alt = beste.get(cid);
+    if (!alt || nachMatching(alt, pair) > 0) beste.set(cid, pair);
+  }
+  return [...beste.values()];
+}
+
+/** Freie Plaetze der Casting-Quote nach Abzug der eingefrorenen pending-Zeilen. */
+function castingLuecke(pendingAnzahl, quote = ANZAHL.proCasting) {
+  return Math.max(0, quote - (Number(pendingAnzahl) || 0));
+}
+
+/**
+ * Greedy: hoechstes Matching zuerst, Unique creator_id, bis die Luecke zu ist.
+ * scoredPairs: [{ k, matching, fit, fresh, ... }]
+ */
+function fuelleCastingQuote(scoredPairs, { luecke = ANZAHL.proCasting, takenIds = new Set() } = {}) {
   const taken = new Set(takenIds);
   const assigned = [];
-  const only = onlyCreatorIds ? new Set(onlyCreatorIds) : null;
 
-  const sorted = [...(scoredPairs || [])].sort((a, b) =>
-    (b.matching - a.matching) || (b.fit - a.fit) || (b.fresh - a.fresh));
-
-  for (const pair of sorted) {
-    const pid = pair.personaId;
-    if (!pid || !(remaining[pid] > 0)) continue;
+  for (const pair of [...(scoredPairs || [])].sort(nachMatching)) {
+    if (assigned.length >= luecke) break;
     const cid = pair.k?.id || pair.creatorId;
     if (!cid || taken.has(cid)) continue;
-    if (only && !only.has(cid)) continue;
     taken.add(cid);
-    remaining[pid] -= 1;
     assigned.push(pair);
   }
-  return { assigned, remaining, taken };
+  return { assigned, remaining: Math.max(0, luecke - assigned.length), taken };
 }
 
 function fitGrundDeterministisch(s, persona) {
-  const name = persona?.name || 'Persona';
+  const name = persona?.name || null;
   const c = s?.coverage || {};
   const bits = [];
   if (c.nische === 'treffer') bits.push('Nische');
@@ -858,21 +841,16 @@ function fitGrundDeterministisch(s, persona) {
   if (c.mentions === 'treffer') bits.push('Mentions');
   if (c.standort === 'treffer') bits.push('Standort');
   if (c.text === 'treffer') bits.push('Profiltext');
-  if (!bits.length) return `Matching fuer ${name}.`;
-  return `${name}: ${bits.join(', ')}.`;
+  if (!bits.length) return name ? `Matching fuer ${name}.` : 'Passt zum Briefing.';
+  return `${name ? `${name}: ` : ''}${bits.join(', ')}.`;
 }
 
 // ---------------------------------------------------------------------------
 // Validate (Modell-Antwort gegen die Shortlist)
 // ---------------------------------------------------------------------------
 
-function validateVorschlaege(json, { shortlistIds = [], personaIds = [], assignedPersonaByCreator = {} } = {}) {
+function validateVorschlaege(json, { shortlistIds = [] } = {}) {
   const pool = new Set(shortlistIds);
-  const personaSet = new Set(personaIds);
-  const assignedMap = assignedPersonaByCreator && typeof assignedPersonaByCreator === 'object'
-    ? assignedPersonaByCreator
-    : {};
-  const hasAssigned = Object.keys(assignedMap).length > 0;
   const roh = Array.isArray(json?.vorschlaege) ? json.vorschlaege : [];
   const sauber = [];
   const verworfen = [];
@@ -893,30 +871,11 @@ function validateVorschlaege(json, { shortlistIds = [], personaIds = [], assigne
       verworfen.push({ grund: 'fit_grund ohne belegbares Feld', vorschlag: id });
       continue;
     }
-    const rawPid = v?.persona_id
-      || (Array.isArray(v?.persona_ids) ? v.persona_ids.find(Boolean) : null)
-      || null;
-    let pIds;
-    if (hasAssigned) {
-      const assigned = assignedMap[id];
-      if (!assigned) {
-        verworfen.push({ grund: 'keine Persona-Zuweisung', vorschlag: id });
-        continue;
-      }
-      if (rawPid && rawPid !== assigned) {
-        verworfen.push({ grund: 'persona_id weicht von der Zuweisung ab', vorschlag: id });
-        continue;
-      }
-      pIds = [assigned];
-    } else {
-      pIds = [...new Set((Array.isArray(v?.persona_ids) ? v.persona_ids : []).filter(p => personaSet.has(p)))];
-    }
     gesehen.add(id);
     sauber.push({
       creator_id: id,
       fit_grund: fitGrund,
-      risiken: v?.risiken ? String(v.risiken).trim() : null,
-      persona_ids: pIds
+      risiken: v?.risiken ? String(v.risiken).trim() : null
     });
   }
 
@@ -996,8 +955,7 @@ const CASTING_TOOL = {
           properties: {
             creator_id: { type: 'string', description: 'ID aus der Shortlist, keine anderen.' },
             fit_grund: { type: 'string', description: 'Zwei bis drei Saetze, nur belegbare Felder (Branche, Alter, Typ, Mentions, Historie). Keine Lyrik, keine Score-Zahlen.' },
-            risiken: { type: ['string', 'null'], description: 'Offene Punkte, z.B. unverified Voraussetzung.' },
-            persona_id: { type: 'string', description: 'Genau die Persona-ID, die am Shortlist-Eintrag steht.' }
+            risiken: { type: ['string', 'null'], description: 'Offene Punkte, z.B. unverified Voraussetzung.' }
           },
           required: ['creator_id', 'fit_grund']
         }
@@ -1016,8 +974,8 @@ function fmtKandidat(s) {
   const k = s.k;
   const name = `${k.vorname} ${k.nachname}`.trim() || 'Unbekannt';
   const alter = k.alter ? `${k.alter[0]}-${k.alter[1]}` : 'unbekannt';
-  const personaZeile = s.personaId
-    ? `Persona: ${s.persona?.name || '?'} (${s.personaId})`
+  const personaZeile = s.persona?.name
+    ? `Beste Passung zur Persona: ${s.persona.name}`
     : null;
   return [
     `ID: ${k.id} | Matching ${s.matching}`,
@@ -1075,7 +1033,7 @@ function buildPrompt(bedarf, { shortlist = [] } = {}) {
     + '3. Unbelegte Voraussetzungen (unverified) gehoeren in risiken, nicht in fit_grund.\n'
     + '4. Weniger ist mehr: uebernimm nur Kandidaten mit tragfaehigem Fit, keine Quote um jeden Preis.\n'
     + '5. KEINE SCORE-ZAHLEN im fit_grund: weder Matching noch Fit/Track/Fresh nennen - der Text erklaert die Passung in Worten.\n'
-    + '6. persona_id am Eintrag ist vorgegeben - nicht aendern, nicht umhaengen.\n'
+    + '6. Die Persona am Eintrag ist nur ein Hinweis auf die beste Passung; das Casting ist eine einzige Liste ohne Persona-Gruppen.\n'
     + '7. DONTS und DOS sind kein Streichgrund. Personen, die sie nicht erfuellen, sind schon raus.\n';
 
   let task = '# BEDARF\n';
@@ -1094,12 +1052,12 @@ function buildPrompt(bedarf, { shortlist = [] } = {}) {
     bedarf.personas.forEach(p => { task += `${fmtPersonaKarte(p)}\n`; });
   }
 
-  task += `\n# SHORTLIST (${shortlist.length} Kandidaten, IDs und Persona-Zuweisung sind verbindlich)\n`;
+  task += `\n# SHORTLIST (${shortlist.length} Kandidaten, die IDs sind verbindlich)\n`;
   shortlist.slice(0, MAX_SHORTLIST_IM_PROMPT).forEach(s => { task += `\n---\n${fmtKandidat(s)}\n`; });
 
   task += '\n# AUFTRAG\nGib das Ergebnis AUSSCHLIESSLICH ueber das Tool '
     + '"casting_vorschlaege_abgeben" ab: ein Eintrag je uebernommener Shortlist-ID, '
-    + 'persona_id wie am Eintrag, fit_grund mit belegbaren Feldern, risiken bei offenen Punkten. '
+    + 'fit_grund mit belegbaren Feldern, risiken bei offenen Punkten. '
     + 'Streichen ist erlaubt; nicht genannte IDs gelten als verworfen.';
 
   return { stable, task };
@@ -1297,15 +1255,14 @@ module.exports = {
   bedarfFingerprint,
   buildBedarf,
   kanaeleAusBriefing,
-  quoteProPersona,
+  quoteProCasting,
   mapPersona,
   personaFreitext,
   bedarfFuerPersona,
   personaLebenslageTrifft,
-  erstePersonaId,
-  splitPendingNachPersona,
-  lueckenJePersona,
-  fuellePersonaQuoten,
+  besteZeileJeCreator,
+  castingLuecke,
+  fuelleCastingQuote,
   fitGrundDeterministisch,
   normiereKandidat,
   nischenTreffer,

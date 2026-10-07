@@ -5,6 +5,7 @@
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
 import { creatorAuswahlListViewsMethods } from './CreatorAuswahlListViews.js';
 import { creatorAuswahlListDrawersMethods } from './CreatorAuswahlListDrawers.js';
 
@@ -22,6 +23,7 @@ export class CreatorAuswahlList {
     this.currentUnternehmenName = null;
     this.currentMarkeId = null;
     this.currentMarkeName = null;
+    this._ohneMarke = false;
     this.currentItems = [];
 
     this.companyFolders = [];
@@ -44,6 +46,7 @@ export class CreatorAuswahlList {
     this.currentUnternehmenName = null;
     this.currentMarkeId = null;
     this.currentMarkeName = null;
+    this._ohneMarke = false;
 
     const canView = window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_view;
     if (!canView) {
@@ -70,6 +73,7 @@ export class CreatorAuswahlList {
       this.buildCompanyFolders();
     } else if (this.viewMode === 'brands') {
       this.buildBrandFolders();
+      this.applyMarkenEbeneSprung();
     } else {
       this.buildCurrentItems();
     }
@@ -101,7 +105,30 @@ export class CreatorAuswahlList {
       return;
     }
 
-    window.breadcrumbSystem.updateDetailLabel(this.currentMarkeName || 'Marke');
+    window.breadcrumbSystem.updateDetailLabel(
+      this._ohneMarke ? (this.currentUnternehmenName || 'Unternehmen') : (this.currentMarkeName || 'Marke')
+    );
+  }
+
+  // Firma ohne echte Marke: die Marken-Seite fällt weg, die Castings hängen direkt an der Firma.
+  applyMarkenEbeneSprung() {
+    if (this.viewMode !== 'brands' || !this.currentUnternehmenId) return;
+    if (!markenEbeneEntfaellt(this.brandFolders.length, this.companyOnlyItems.length)) return;
+    this.viewMode = 'items';
+    this._ohneMarke = true;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this.pagination.currentPage = 1;
+    this.buildCurrentItems();
+  }
+
+  markenEbeneWeg() {
+    return this._ohneMarke && !!this.currentUnternehmenId;
+  }
+
+  backFromItems() {
+    if (this.markenEbeneWeg()) this.switchToCompaniesView();
+    else this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
   }
 
   sanitize(value) {
@@ -142,6 +169,7 @@ export class CreatorAuswahlList {
     this.currentUnternehmenName = unternehmenName;
     this.currentMarkeId = null;
     this.currentMarkeName = null;
+    this._ohneMarke = false;
     this.loadAndRender();
   }
 
@@ -149,6 +177,7 @@ export class CreatorAuswahlList {
     this.viewMode = 'items';
     this.currentMarkeId = markeId;
     this.currentMarkeName = markeName;
+    this._ohneMarke = false;
     this.pagination.currentPage = 1;
     this.loadAndRender();
   }
@@ -159,6 +188,7 @@ export class CreatorAuswahlList {
     this.currentUnternehmenName = null;
     this.currentMarkeId = null;
     this.currentMarkeName = null;
+    this._ohneMarke = false;
     this.loadAndRender();
   }
 
@@ -204,10 +234,7 @@ export class CreatorAuswahlList {
     if (btnBackToBrands) {
       const handler = (e) => {
         e.preventDefault();
-        this.viewMode = 'brands';
-        this.currentMarkeId = null;
-        this.currentMarkeName = null;
-        this.loadAndRender();
+        this.backFromItems();
       };
       btnBackToBrands.addEventListener('click', handler);
       this._boundEventListeners.add(() => btnBackToBrands.removeEventListener('click', handler));
@@ -300,6 +327,7 @@ export class CreatorAuswahlList {
     this._boundEventListeners.clear();
     this.closeCreateDrawer();
     this.closeRenameDrawer();
+    this._ohneMarke = false;
     this.listen = [];
     this.companyFolders = [];
     this.brandFolders = [];

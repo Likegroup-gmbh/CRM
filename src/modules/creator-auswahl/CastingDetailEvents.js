@@ -8,10 +8,10 @@ import { tableSelect } from '../../core/components/TableSelect.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { TAUSCH_ACTION, tauscheImCasting } from '../creator-tausch/creatorTauschUi.js';
 import {
-  OHNE_PERSONA_KEY,
-  personaDisplayLabel,
-  personaGroupKey
-} from './castingPersonaGroups.js';
+  OHNE_KATEGORIE,
+  OHNE_KATEGORIE_KEY,
+  kategorieGroupKey
+} from './castingKategorien.js';
 
 export function bindEvents() {
   this._boundEventListeners.forEach(cleanup => cleanup());
@@ -106,6 +106,13 @@ export function bindEvents() {
       this._boundEventListeners.add(() => customColumnsBtn.removeEventListener('click', handler));
     }
 
+    const kategorienBtn = this._q('#btn-sourcing-kategorien');
+    if (kategorienBtn) {
+      const handler = () => this.openKategorienDrawer();
+      kategorienBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => kategorienBtn.removeEventListener('click', handler));
+    }
+
     const konzeptLinkBtn = this._q('#btn-sourcing-konzept-link');
     if (konzeptLinkBtn) {
       const handler = () => this.handleKonzeptLink();
@@ -133,7 +140,6 @@ export function bindEvents() {
     this.bindDragAndDropEvents();
     this.bindSelectionEvents();
     this.bindPillEvents();
-    this.bindBulkBarEvents();
     this._bindCustomColumnEvents();
   }
 
@@ -274,16 +280,16 @@ export function openPillDropdown(itemId, pillElement) {
   this.closePillDropdown();
 
   const options = [
-    ...(this.personas || []).map(p => ({ key: p.id, personaId: p.id, label: personaDisplayLabel(p) })),
-    { key: OHNE_PERSONA_KEY, personaId: null, label: 'Ohne Persona' }
+    ...this.getTeilbereiche().map(name => ({ key: name, label: name })),
+    { key: OHNE_KATEGORIE_KEY, label: OHNE_KATEGORIE }
   ];
   const currentItem = this.items.find(i => i.id === itemId);
-  const currentKey = personaGroupKey(currentItem);
+  const currentKey = kategorieGroupKey(currentItem);
 
   const dropdown = document.createElement('div');
   dropdown.className = 'kategorie-pill-dropdown';
   dropdown.innerHTML = options.map(opt =>
-    `<div class="kategorie-pill-option${opt.key === currentKey ? ' active' : ''}" data-group-key="${escapeAttr(opt.key)}" data-persona-id="${escapeAttr(opt.personaId || '')}">${escapeAttr(opt.label)}</div>`
+    `<div class="kategorie-pill-option${opt.key === currentKey ? ' active' : ''}" data-group-key="${escapeAttr(opt.key)}">${escapeAttr(opt.label)}</div>`
   ).join('');
 
   const rect = pillElement.getBoundingClientRect();
@@ -308,7 +314,7 @@ export function openPillDropdown(itemId, pillElement) {
       if (row) row.classList.add('kategorie-moving-out');
       await new Promise(r => setTimeout(r, 300));
 
-      await this.handlePersonaChange(itemId, newKey, opt.dataset.personaId || null);
+      await this.handleKategorieChange(itemId, newKey);
     });
   });
 }

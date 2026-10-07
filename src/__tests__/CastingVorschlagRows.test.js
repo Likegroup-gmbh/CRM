@@ -53,7 +53,7 @@ describe('vorschlagToItem', () => {
     expect(item.wohnort).toBe('Köln');
     expect(item.email).toBe('jessie@example.com');
     expect(item.typ).toBe('UGC Paid');
-    expect(item.persona_id).toBe('p-food');
+    expect(item).not.toHaveProperty('persona_id');
     expect(item.kategorie).toBeNull();
     expect(item.matching_score).toBe(57);
     expect(item.matching_scores).toEqual({ fit: 58, track: 36, fresh: 100, castings: 4 });
@@ -137,8 +137,7 @@ describe('CastingVorschlagService.aktivieren', () => {
 
     const item = await CastingVorschlagService.aktivieren(vorschlag, {
       listeId: 'liste-1',
-      listeTyp: 'ugc',
-      personaIds: ['p-food']
+      listeTyp: 'ugc'
     });
 
     expect(item).toEqual(created);
@@ -152,9 +151,9 @@ describe('CastingVorschlagService.aktivieren', () => {
       matching_score: 57,
       matching_scores: { fit: 58, track: 36, fresh: 100, castings: 4 },
       creator_id: 'c-1',
-      persona_id: 'p-food',
       kategorie: null
     }));
+    expect(createItem.mock.calls[0][0]).not.toHaveProperty('persona_id');
     spy.mockRestore();
   });
 });

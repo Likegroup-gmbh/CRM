@@ -1,5 +1,5 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
+import { ladeGedeckteKooperationen, syncVertragFlags } from './deckung/vertragDeckung.js';
 import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
 import { VertragUtils } from './VertragUtils.js';
 import { fallbackStatusAfterUnsigned } from './vertragStatus.js';
@@ -102,6 +102,15 @@ export async function deleteVertrag(list, id) {
   try {
     const vertrag = list.vertraege?.find(v => v.id === id);
 
+    // Gedeckte Kooperationen vor dem Loeschen merken: die Junction faellt mit dem Vertrag weg
+    let gedeckteIds = vertrag?.kooperation_id ? [vertrag.kooperation_id] : [];
+    try {
+      const gedeckt = (await ladeGedeckteKooperationen([id])).get(id) || [];
+      gedeckteIds = [...new Set([...gedeckteIds, ...gedeckt.map(k => k.id)])];
+    } catch (deckErr) {
+      console.warn('Gedeckte Kooperationen konnten nicht geladen werden:', deckErr);
+    }
+
     if (vertrag?.datei_path) {
       if (vertrag.datei_path.startsWith('/')) {
         try {
@@ -136,8 +145,8 @@ export async function deleteVertrag(list, id) {
     if (error) throw error;
 
     const hadSigned = vertrag?.unterschriebener_vertrag_url || vertrag?.dropbox_file_url;
-    if (hadSigned && vertrag?.kooperation_id) {
-      await syncVertragCheckbox(vertrag.kooperation_id, false);
+    if (hadSigned && gedeckteIds.length) {
+      await syncVertragFlags(null, false, { extraKooperationIds: gedeckteIds });
     }
 
     window.toastSystem?.show('Vertrag gelöscht', 'success');
@@ -177,6 +186,15 @@ export async function handleVertragListAction(list, action, id) {
     case 'anschreiben':
       await openVertragAnschreiben(list, id);
       break;
+    case 'vertrag-kooperationen': {
+      if (!list.getVertragPermissions().canEdit) {
+        window.toastSystem?.show('Sie haben keine Berechtigung, Vertragsentwürfe zu bearbeiten.', 'warning');
+        break;
+      }
+      const { openVertragKooperationen } = await import('./deckung/VertragDeckungDrawer.js');
+      await openVertragKooperationen(id, () => list.reloadData());
+      break;
+    }
     case 'delete':
       await deleteVertrag(list, id);
       break;
@@ -272,9 +290,9 @@ export async function removeSignedContract(list, vertragId) {
     if (error) throw error;
 
     const vertrag = list.vertraege.find(v => v.id === vertragId);
-    if (vertrag?.kooperation_id) {
-      await syncVertragCheckbox(vertrag.kooperation_id, false);
-    }
+    await syncVertragFlags(vertragId, false, {
+      extraKooperationIds: vertrag?.kooperation_id ? [vertrag.kooperation_id] : []
+    });
 
     window.toastSystem?.show('Vertrag entfernt', 'success');
     await list.reloadData();

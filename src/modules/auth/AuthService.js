@@ -4,6 +4,11 @@ import { ensureListenerMonitor, hideListenerMonitor } from '../../core/dev/Liste
 import { navMark } from '../../core/dev/navTrace.js';
 import { invalidateDashboard } from '../stakeholder/daten/dashboardLoad.js';
 import { INVESTOR_HINT_KEY } from '../../core/budget/finanzbestandBoot.js';
+import {
+  isAllowedEmployeeEmail,
+  isEmployeeDomainError,
+  createEmployeeDomainError
+} from './AllowedEmailDomains.js';
 // AuthService.js (ES6-Modul)
 // Authentifizierung und Benutzer-Management
 
@@ -381,6 +386,11 @@ export class AuthService {
         throw new Error('Zu viele Registrierungsversuche. Bitte warten Sie 15 Minuten.');
       }
 
+      // Nur Firmen-E-Mails dürfen sich als Mitarbeiter registrieren (zusätzlich DB-Trigger)
+      if (!isAllowedEmployeeEmail(email)) {
+        throw createEmployeeDomainError();
+      }
+
       // Passwort-Stärke validieren
       if (!this.validatePasswordStrength(password)) {
         throw new Error('Passwort muss mindestens 4 Zeichen haben.');
@@ -408,6 +418,10 @@ export class AuthService {
 
       if (error) {
         this.recordFailedAttempt(email);
+
+        if (isEmployeeDomainError(error)) {
+          throw createEmployeeDomainError();
+        }
 
         if (this.isDuplicateEmailError(error)) {
           throw this.createDuplicateEmailError();

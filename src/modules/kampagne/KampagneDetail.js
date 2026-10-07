@@ -30,10 +30,9 @@ import {
   ALLE,
   koopLinie,
   rememberLinie,
-  renderLinienBar,
   resolveLinie,
   syncLinieQueryParam,
-  syncLinienBar
+  syncLinienSwitch
 } from './linienScope.js';
 export class KampagneDetail {
   constructor() {
@@ -293,7 +292,7 @@ export class KampagneDetail {
       produktionen: this.produktionen || [],
       produktion: this.produktion,
       lineTitle: this.lineTitle,
-      linienBar: this.mode === 'workflow' ? renderLinienBar(this, this.activeWorkflowTab) : ''
+      linienDetail: this.mode === 'workflow' ? this : null
     });
 
     window.setContentSafely(window.content, html);
@@ -471,7 +470,7 @@ export class KampagneDetail {
     this.linieId = linieId;
     rememberLinie(this.produktionId, linieId);
     syncLinieQueryParam(linieId, alle);
-    syncLinienBar(this, this.activeWorkflowTab);
+    syncLinienSwitch(this, this.activeWorkflowTab);
 
     if (this.kooperationenVideoTable) this.kooperationenVideoTable.briefingId = koopLinie(this);
     cancelWorkflowPrefetch(this);

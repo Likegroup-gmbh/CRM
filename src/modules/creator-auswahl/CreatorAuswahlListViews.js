@@ -67,9 +67,10 @@ export function buildBrandFolders() {
 }
 
 export function buildCurrentItems() {
-  this.currentItems = this.listen.filter(
-    (item) => item.unternehmen_id === this.currentUnternehmenId && item.marke_id === this.currentMarkeId
-  );
+  this.currentItems = this.listen.filter((item) => {
+    if (item.unternehmen_id !== this.currentUnternehmenId) return false;
+    return this._ohneMarke ? !item.marke_id : item.marke_id === this.currentMarkeId;
+  });
 }
 
 export function renderCompaniesView() {
@@ -172,10 +173,9 @@ export function updateCompaniesTable() {
 }
 
 export function renderBrandsView() {
-  const isKunde = window.isKunde();
   const canCreate = canCreateListe();
   const showBrandsSection = this.brandFolders.length > 0;
-  const showCompanyOnlySection = !isKunde || this.companyOnlyItems.length > 0;
+  const showCompanyOnlySection = this.companyOnlyItems.length > 0;
 
   return `
     <div class="list-container">
@@ -296,11 +296,6 @@ export function updateCompanyOnlyTable() {
   const tbody = document.getElementById('company-only-table-body');
   if (!tbody) return;
 
-  if (this.companyOnlyItems.length === 0) {
-    tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine unternehmensweiten Einträge ohne Marke', 'building'), 10);
-    return;
-  }
-
   tbody.innerHTML = this.renderItemsRows(this.companyOnlyItems);
 }
 
@@ -353,7 +348,7 @@ export function updateItemsTable() {
   if (!tbody) return;
 
   if (this.currentItems.length === 0) {
-    tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Casting-Listen für diese Marke vorhanden'), 10);
+    tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState(this._ohneMarke ? 'Keine Casting-Listen vorhanden' : 'Keine Casting-Listen für diese Marke vorhanden'), 10);
     this.pagination.updateTotal(0);
     this.pagination.render();
     return;

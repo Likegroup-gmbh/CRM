@@ -555,28 +555,14 @@ export class ProjektErstellenPersistence {
 
       await this._saveTeilrechnungen(supabase, formData, auftragId);
 
-      // Auftragsbestaetigungen nach Dropbox hochladen + DB-Eintraege anlegen
-      const uploadResult = await this.uploadAuftragsbestaetigungenIfAny({
+      const { uploadedDocuments, uploadErrors } = await this.uploadContractingDokumente({
         formData,
         auftragId,
         auftragPayload,
         currentBenutzerId
       });
 
-      // Rechnungen nach Dropbox hochladen + DB-Eintraege anlegen
-      const rechnungUploadResult = await this.uploadRechnungenIfAny({
-        formData,
-        auftragId,
-        auftragPayload,
-        currentBenutzerId
-      });
-
-      return {
-        success: true,
-        auftragId,
-        uploadedDocuments: [...uploadResult.successes, ...rechnungUploadResult.successes],
-        uploadErrors: [...uploadResult.errors, ...rechnungUploadResult.errors]
-      };
+      return { success: true, auftragId, uploadedDocuments, uploadErrors };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Contract konnte nicht angelegt werden');
       console.error('❌ submitContracting Fehler:', {
@@ -584,6 +570,25 @@ export class ProjektErstellenPersistence {
       });
       return { success: false, error: friendly };
     }
+  }
+
+  // Auftragsbestaetigungen + Rechnungen nach Dropbox hochladen + DB-Eintraege anlegen.
+  // Fehler werden pro Dokumenttyp markiert, damit die UI AB und Rechnung unterscheiden kann.
+  async uploadContractingDokumente({ formData, auftragId, auftragPayload, currentBenutzerId }) {
+    const abResult = await this.uploadAuftragsbestaetigungenIfAny({
+      formData, auftragId, auftragPayload, currentBenutzerId
+    });
+    const rechnungResult = await this.uploadRechnungenIfAny({
+      formData, auftragId, auftragPayload, currentBenutzerId
+    });
+
+    return {
+      uploadedDocuments: [...abResult.successes, ...rechnungResult.successes],
+      uploadErrors: [
+        ...abResult.errors.map(e => ({ ...e, dokumentTyp: 'auftragsbestaetigung' })),
+        ...rechnungResult.errors.map(e => ({ ...e, dokumentTyp: 'rechnung' }))
+      ]
+    };
   }
 
   async uploadAuftragsbestaetigungenIfAny({ formData, auftragId, auftragPayload, currentBenutzerId }) {
@@ -816,7 +821,14 @@ export class ProjektErstellenPersistence {
 
       await this._syncTeilrechnungen(supabase, formData, auftragId);
 
-      return { success: true, auftragId };
+      const { uploadedDocuments, uploadErrors } = await this.uploadContractingDokumente({
+        formData,
+        auftragId,
+        auftragPayload,
+        currentBenutzerId: createdById || await getCurrentBenutzerId()
+      });
+
+      return { success: true, auftragId, uploadedDocuments, uploadErrors };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Contract konnte nicht aktualisiert werden');
       console.error('❌ submitEditContracting Fehler:', {

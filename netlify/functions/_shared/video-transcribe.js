@@ -18,6 +18,8 @@ const {
   downloadSubtitleText
 } = require('../screenshot-utils/video-interceptor');
 
+const { BESCHREIBUNG_SCHEMA, parseStruktur, strukturZuText } = require('./beschreibung-struktur');
+
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4/accounts';
 const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo';
 const LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct';
@@ -130,27 +132,36 @@ async function runWhisper(videoBuffer, accountId, aiToken, opts = {}) {
   );
 }
 
-async function runDescription(transcript, caption, accountId, aiToken) {
+const BESCHREIBUNG_SYSTEM_PLAIN = 'Du bist ein Assistent einer Influencer-Marketing-Agentur. Erstelle eine praegnante deutsche Beschreibung (2-4 Saetze) des Videoinhalts basierend auf Transkript und Caption. Beschreibe Thema, Kernaussage und Stil des Videos. Antworte NUR mit der Beschreibung, ohne Einleitung.';
+
+const BESCHREIBUNG_SYSTEM_STRUKTUR = `Du bist ein Assistent einer Influencer-Marketing-Agentur. Analysiere ein Video anhand von Transkript und Caption und gib die Analyse als JSON-Objekt auf Deutsch zurueck.
+
+Felder (alle Strings):
+- titel: kurzer, merkbarer Titel, ohne Anfuehrungszeichen.
+- angle: der strategische Blickwinkel des Videos in einem Satz (Wie wird das Thema aufgehaengt?).
+- hook: der gesprochene Aufmacher der ersten Sekunden, woertlich aus dem Transkript.
+- visual_hook: was zu Beginn zu sehen ist. Nur wenn aus Transkript oder Caption erkennbar, sonst leerer String.
+- hauptteil: was im Mittelteil passiert, beschreibend in zwei bis vier Saetzen. Keine woertliche Wiedergabe.
+- cta: der Aufruf am Ende, woertlich aus dem Transkript oder der Caption. Leerer String, wenn keiner vorkommt.
+
+Erfinde nichts. Antworte NUR mit dem JSON-Objekt, ohne Einleitung und ohne Markdown.`;
+
+function describeContext(transcript, caption) {
   const contextParts = [];
   if (caption) contextParts.push(`Video-Caption: "${caption}"`);
   contextParts.push(`Transkript:\n${transcript}`);
+  return contextParts.join('\n\n');
+}
 
+/** Ein Llama-Aufruf. Liefert result.response (String oder, im JSON-Modus, Objekt). */
+async function runLlama(accountId, aiToken, body) {
   const res = await fetch(`${CF_API_BASE}/${accountId}/ai/run/${LLM_MODEL}`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${aiToken}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      messages: [
-        {
-          role: 'system',
-          content: 'Du bist ein Assistent einer Influencer-Marketing-Agentur. Erstelle eine praegnante deutsche Beschreibung (2-4 Saetze) des Videoinhalts basierend auf Transkript und Caption. Beschreibe Thema, Kernaussage und Stil des Videos. Antworte NUR mit der Beschreibung, ohne Einleitung.'
-        },
-        { role: 'user', content: contextParts.join('\n\n') }
-      ],
-      max_tokens: 512
-    })
+    body: JSON.stringify(body)
   });
 
   const json = await res.json();
@@ -158,7 +169,55 @@ async function runDescription(transcript, caption, accountId, aiToken) {
     const errMsg = (json.errors || []).map(e => e.message).join('; ') || `HTTP ${res.status}`;
     throw new Error(`Beschreibung fehlgeschlagen: ${errMsg}`);
   }
-  return (json.result?.response || '').trim();
+  return json.result?.response ?? '';
+}
+
+async function runPlainDescription(transcript, caption, accountId, aiToken) {
+  const response = await runLlama(accountId, aiToken, {
+    messages: [
+      { role: 'system', content: BESCHREIBUNG_SYSTEM_PLAIN },
+      { role: 'user', content: describeContext(transcript, caption) }
+    ],
+    max_tokens: 512
+  });
+  return String(response || '').trim();
+}
+
+/**
+ * Strukturierte Beschreibung (Titel, Angle, Hook, Visual Hook, Hauptteil, CTA).
+ * Erst mit JSON-Schema, dann ohne (Modell/Plan ohne JSON-Modus). Ist die Antwort
+ * nicht lesbar, faellt es auf den alten Fliesstext zurueck: struktur ist dann null.
+ *
+ * @returns {Promise<{ struktur: Object|null, text: string }>}
+ */
+async function runDescription(transcript, caption, accountId, aiToken) {
+  const body = {
+    messages: [
+      { role: 'system', content: BESCHREIBUNG_SYSTEM_STRUKTUR },
+      { role: 'user', content: describeContext(transcript, caption) }
+    ],
+    max_tokens: 700
+  };
+
+  let response = null;
+  try {
+    response = await runLlama(accountId, aiToken, {
+      ...body,
+      response_format: { type: 'json_schema', json_schema: BESCHREIBUNG_SCHEMA }
+    });
+  } catch (_) {
+    try {
+      response = await runLlama(accountId, aiToken, body);
+    } catch (_e) {
+      response = null;
+    }
+  }
+
+  const struktur = parseStruktur(response);
+  if (struktur) return { struktur, text: strukturZuText(struktur) };
+
+  const text = await runPlainDescription(transcript, caption, accountId, aiToken);
+  return { struktur: null, text };
 }
 
 /**
@@ -286,9 +345,9 @@ async function transcribeVideoOnPage({
   await onTranscript(transcript, transcriptSource);
 
   onStep('description', 'Beschreibung generieren (Llama 3.1)...');
-  let description;
+  let beschreibung;
   try {
-    description = await runDescription(transcript, videoData.caption, accountId, aiToken);
+    beschreibung = await runDescription(transcript, videoData.caption, accountId, aiToken);
   } catch (e) {
     onLog(`Beschreibung fehlgeschlagen: ${e.message}`);
     const err = new Error(e.message);
@@ -299,7 +358,8 @@ async function transcribeVideoOnPage({
   return {
     transcript,
     transcriptSource,
-    description,
+    description: beschreibung.text,
+    beschreibungStruktur: beschreibung.struktur,
     caption: videoData.caption || null,
     authorName: videoData.authorName || null,
     authorUrl: videoData.authorUrl || null,
@@ -327,5 +387,6 @@ module.exports = {
   collectVideoData,
   transcribeVideoOnPage,
   runWhisper,
-  runDescription
+  runDescription,
+  runPlainDescription
 };

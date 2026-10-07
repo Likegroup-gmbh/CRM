@@ -8,6 +8,7 @@ import { isFixedColumnVisible } from './strategieColumns.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { isVideoideeVorschlag, splitVideoideeVorschlaege } from './videoideeVorschlag.js';
+import { beschreibungStrukturVon } from './videoidee/beschreibungStruktur.js';
 import { actionState } from '../../core/actions/actionState.js';
 import { produktionStartChecks } from '../kooperation/produktionStart.js';
 
@@ -264,15 +265,18 @@ function openVideoideeId() {
  * Der volle Text liegt zusätzlich im Videoidee-Drawer.
  */
 function renderClippedTextCell(detail, item, field, cssClass, placeholder, readonly) {
-  const value = item[field] || '';
+  // Strukturierte Beschreibung: die Tabelle zeigt nur den Titel, der Rest liegt im Drawer.
+  const struktur = field === 'beschreibung' ? beschreibungStrukturVon(item) : null;
+  const value = struktur ? struktur.titel : (item[field] || '');
+  const locked = readonly || !!struktur;
 
   const inner = !detail.isKunde
     ? `<textarea
-          class="strategie-textarea${readonly ? ' readonly-textarea' : ''}"
+          class="strategie-textarea${locked ? ' readonly-textarea' : ''}"
           placeholder="${placeholder}"
           data-field="${field}"
           data-item-id="${item.id}"
-          ${readonly ? 'readonly' : ''}
+          ${locked ? 'readonly' : ''}
         >${escapeHtml(value)}</textarea>`
     : `<div class="cell-text-readonly">${escapeHtml(value) || '-'}</div>`;
 

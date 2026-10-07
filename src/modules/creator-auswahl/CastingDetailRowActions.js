@@ -1,5 +1,5 @@
 // CastingDetailRowActions.js
-// Zeilenaenderungen: Instagram-Abruf, Felder, Status, Feedback, Art, Persona, Loeschen
+// Zeilenaenderungen: Instagram-Abruf, Felder, Status, Feedback, Art, Kategorie, Loeschen
 // (Prototype-Mixin von CreatorAuswahlDetail)
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
@@ -16,9 +16,9 @@ import { preserveScroll } from '../../core/dom/preserveScroll.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import {
   NICHT_UMSETZEN_KATEGORIE,
-  personaGroupKey,
+  kategorieGroupKey,
   updatesForGroupKey
-} from './castingPersonaGroups.js';
+} from './castingKategorien.js';
 
 const IG_FETCH_FLASH_MS = 2000;
 
@@ -357,7 +357,7 @@ export function promoteBookedItemWithinCategory(itemId) {
   const item = this.items.find(entry => entry.id === itemId);
   if (!item) return this.items;
 
-  const getKey = (entry) => personaGroupKey(entry);
+  const getKey = (entry) => kategorieGroupKey(entry);
   const targetKey = getKey(item);
 
   const categoryIndexes = [];
@@ -415,19 +415,19 @@ export async function handleNichtUmsetzenChange(itemId, isNichtUmsetzen) {
   }
 }
 
-export async function handlePersonaChange(itemId, groupKey, personaId = null) {
+export async function handleKategorieChange(itemId, groupKey) {
   try {
-    const updates = updatesForGroupKey(groupKey, personaId);
+    const updates = updatesForGroupKey(groupKey);
     await creatorAuswahlService.updateItem(itemId, updates);
 
     const item = this.items.find(i => i.id === itemId);
     if (item) Object.assign(item, updates);
 
     this.rerenderTable([itemId]);
-    window.toastSystem?.show('Persona aktualisiert', 'success');
+    window.toastSystem?.show('Kategorie aktualisiert', 'success');
   } catch (error) {
-    console.error('Fehler beim Ändern der Persona:', error);
-    window.toastSystem?.show('Fehler beim Ändern der Persona', 'error');
+    console.error('Fehler beim Ändern der Kategorie:', error);
+    window.toastSystem?.show('Fehler beim Ändern der Kategorie', 'error');
   }
 }
 
@@ -465,6 +465,6 @@ export const castingDetailRowActionsMethods = {
   handleTypChange,
   promoteBookedItemWithinCategory,
   handleNichtUmsetzenChange,
-  handlePersonaChange,
+  handleKategorieChange,
   handleDeleteItem
 };

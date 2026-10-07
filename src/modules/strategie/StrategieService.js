@@ -18,6 +18,7 @@ import {
 } from './service/strategieFreigabe.js';
 import { assertKeinVorschlag, hasSkriptForItem } from './service/strategieItemGuards.js';
 import {
+  analysiereBeschreibung,
   createStrategieItem,
   deleteStrategieItem,
   enqueueItemProcessing,
@@ -129,6 +130,10 @@ export class StrategieService {
 
   generiereKundenadaption(itemId) {
     return generiereKundenadaption(itemId);
+  }
+
+  analysiereBeschreibung(itemId) {
+    return analysiereBeschreibung(itemId);
   }
 
   reprocessItem(itemId) {

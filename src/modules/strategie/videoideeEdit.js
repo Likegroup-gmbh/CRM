@@ -39,9 +39,12 @@ export async function persistVideoideeEdit(detail, itemId, data) {
 
   if (resolved.beschreibung !== (item?.beschreibung || null)) {
     updates.beschreibung_quelle = resolved.beschreibung ? 'user' : null;
+    // Freitext ersetzt die Analyse: die Tabelle wuerde sonst veralteten Inhalt zeigen.
+    if (item?.beschreibung_struktur) updates.beschreibung_struktur = null;
   }
 
   if (urlGeaendert) {
+    if (item?.beschreibung_struktur) updates.beschreibung_struktur = null;
     updates.transkript = null;
     updates.transkript_quelle = null;
     updates.caption = null;
