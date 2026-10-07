@@ -1,6 +1,6 @@
 // FinalVideoBulkDownload.js
 // Checkbox-Auswahl von Kooperationen in der Kooperationstabelle + Bulk-Download
-// aller finalen Video-Assets (is_final, alle Varianten wie 9:16/4:5).
+// aller finalen Video-Assets (is_final, alle Seitenverhaeltnisse wie 9:16/4:5/1:1).
 // Auswahl ist ephemeral (Set im Speicher), kein BulkActionSystem (das ist Delete).
 
 import { downloadMediaAsset } from '../../core/media/downloadMediaAsset.js';

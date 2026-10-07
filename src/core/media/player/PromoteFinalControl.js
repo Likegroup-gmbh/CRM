@@ -78,7 +78,7 @@ export class PromoteFinalControl {
     btn.disabled = true;
     try {
       if (unmark) {
-        await unmarkFinalSlot(kind, source.video_id || session.current?.video?.id, slot);
+        await unmarkFinalSlot(kind, source.video_id || session.current?.video?.id, slot, kind === 'video' ? source.id : undefined);
       } else {
         await promoteAssetToFinal(kind, source, slot);
       }

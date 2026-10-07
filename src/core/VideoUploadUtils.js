@@ -2,7 +2,7 @@ import { icon } from './icons/IconSystem.js';
 export const MAX_VERSIONS = 3;
 
 // Varianten-Presets fuer Finale-Version-Uploads (Videos + Storys)
-export const FINAL_VARIANTS = ['9:16', '4:5'];
+export const FINAL_VARIANTS = ['9:16', '4:5', '1:1'];
 
 function sanitizeForFilename(str) {
   if (!str) return '';
@@ -44,9 +44,62 @@ export function buildAssetDownloadName(meta, video, asset) {
   const ext = extMatch ? extMatch[1] : 'mp4';
   const position = video?.position || 1;
   if (asset?.is_final) {
-    return buildFinalFileName(meta?.creatorName, meta?.unternehmen, meta?.kampagne, position, asset?.variant_name, ext);
+    const rebuilt = buildFinalFileName(meta?.creatorName, meta?.unternehmen, meta?.kampagne, position, asset?.variant_name, ext);
+    return finalDownloadName(rebuilt, path);
   }
   return buildVersionedFileName(meta?.creatorName, meta?.unternehmen, meta?.kampagne, position, asset?.version_number || 1, ext);
+}
+
+/** Basename eines Dropbox-Pfads oder einer URL, ohne Query. */
+export function fileBasename(path) {
+  if (!path) return '';
+  const clean = String(path).split('?')[0].split('#')[0];
+  const slash = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
+  return slash >= 0 ? clean.slice(slash + 1) : clean;
+}
+
+/**
+ * Dropbox-Dateiname, gleiche Regeln wie sanitizePath in netlify/functions/_shared/dropbox.js.
+ * Muss damit uebereinstimmen, sonst erkennt der Client eine Kollision nicht.
+ */
+export function sanitizeDropboxFileName(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/[<>:"|?*\\/]/g, '-')
+    .replace(/-{2,}/g, '-')
+    .trim();
+}
+
+/**
+ * Erste Datei behaelt den Basisnamen. Ab der zweiten haengt ein Index an
+ * (`name_02.ext`), damit ein zweiter Upload dieselbe Dropbox-Datei nicht
+ * ueberschreibt. _01 gibt es nicht: die unindizierte Datei ist die erste.
+ */
+export function nextFreeIndexedFileName(baseFileName, existingNames) {
+  if (!baseFileName) return baseFileName;
+  const taken = new Set(
+    (existingNames || []).map(n => fileBasename(n).toLowerCase()).filter(Boolean)
+  );
+  if (!taken.has(baseFileName.toLowerCase())) return baseFileName;
+  let n = 2;
+  let candidate = withStillIndex(baseFileName, n);
+  while (taken.has(candidate.toLowerCase())) {
+    n += 1;
+    if (n > 999) return candidate;
+    candidate = withStillIndex(baseFileName, n);
+  }
+  return candidate;
+}
+
+function finalDownloadName(rebuilt, storedPath) {
+  const stored = fileBasename(storedPath);
+  if (!stored || !rebuilt) return rebuilt;
+  const dot = rebuilt.lastIndexOf('.');
+  const stem = dot > 0 ? rebuilt.slice(0, dot) : rebuilt;
+  const ext = dot > 0 ? rebuilt.slice(dot) : '';
+  const re = new RegExp(`^${escapeRegExp(stem)}(_\\d+)?${escapeRegExp(ext)}$`, 'i');
+  if (re.test(stored)) return stored;
+  return rebuilt;
 }
 
 export function getAvailableVersions(existingVersions, maxVersions = MAX_VERSIONS) {

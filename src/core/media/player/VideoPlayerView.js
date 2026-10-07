@@ -241,7 +241,7 @@ export class VideoPlayerView {
     return select + this.renderStoryFinalVariantSelect(finals);
   }
 
-  // Varianten-Select (9:16 / 4:5) fuer die finale Story-Version
+  // Varianten-Select (9:16 / 4:5 / 1:1) fuer die finale Story-Version
   renderStoryFinalVariantSelect(finals) {
     const s = this.session;
     if (s.story.version !== 'final') return '';

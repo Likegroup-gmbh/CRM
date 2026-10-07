@@ -14,6 +14,7 @@ import {
   withStillIndex,
   countStillNameUsage,
   createStillIndexCounter,
+  nextFreeIndexedFileName,
 } from '../core/VideoUploadUtils.js';
 
 describe('buildVersionedFileName', () => {
@@ -64,6 +65,36 @@ describe('buildFinalFileName', () => {
     const name = buildFinalFileName('Creator', 'Firma', 'Kampagne', undefined, '4:5', 'mov');
     expect(name).toBe('creator_firma_kampagne_1_final_4_5.mov');
   });
+
+  it('schreibt 1:1 als 1_1', () => {
+    const name = buildFinalFileName('Creator', 'Firma', 'Kampagne', 1, '1:1', 'mp4');
+    expect(name).toBe('creator_firma_kampagne_1_final_1_1.mp4');
+  });
+});
+
+describe('nextFreeIndexedFileName', () => {
+  const base = 'creator_firma_kampagne_1_final_1_1.mp4';
+
+  it('behaelt den Basisnamen, wenn er frei ist', () => {
+    expect(nextFreeIndexedFileName(base, [])).toBe(base);
+  });
+
+  it('haengt _02 an, wenn der Basisname belegt ist', () => {
+    expect(nextFreeIndexedFileName(base, [`/Finale/1_1/${base}`])).toBe(
+      'creator_firma_kampagne_1_final_1_1_02.mp4'
+    );
+  });
+
+  it('springt auf _03, wenn _02 schon existiert', () => {
+    expect(nextFreeIndexedFileName(base, [
+      base,
+      'creator_firma_kampagne_1_final_1_1_02.mp4',
+    ])).toBe('creator_firma_kampagne_1_final_1_1_03.mp4');
+  });
+
+  it('vergibt den Basisnamen neu, wenn nur _02 noch da ist', () => {
+    expect(nextFreeIndexedFileName(base, ['creator_firma_kampagne_1_final_1_1_02.mp4'])).toBe(base);
+  });
 });
 
 describe('buildAssetDownloadName', () => {
@@ -81,6 +112,15 @@ describe('buildAssetDownloadName', () => {
       is_final: true, variant_name: '9:16', file_path: '/x/y/alt.mov',
     });
     expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_1_final_9_16.mov');
+  });
+
+  it('behaelt den Index einer zweiten finalen Datei beim Download', () => {
+    const name = buildAssetDownloadName(meta, { position: 1 }, {
+      is_final: true,
+      variant_name: '1:1',
+      file_path: '/Finale_Version/1_1/max_mueller_firma_gmbh_sommer_2025_1_final_1_1_02.mp4',
+    });
+    expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_1_final_1_1_02.mp4');
   });
 
   it('nutzt die Extension aus file_url, wenn kein file_path vorhanden', () => {
