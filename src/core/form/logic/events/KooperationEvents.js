@@ -1,4 +1,4 @@
-import { buildVideoSelectOptions, addVideoRow } from './VideosFields.js';
+import { buildVideoSelectOptions, addVideoRow, appendCarriedVideoRows } from './VideosFields.js';
 import { setup as setupKooperationTags } from './KooperationTagsEvents.js';
 
 export async function setup(form, ctx) {
@@ -113,9 +113,7 @@ export async function setup(form, ctx) {
       const desired = parseInt(videoInput.value || '0', 10) || 0;
       const current = videosList.querySelectorAll('.video-item').length;
       if (desired > current) {
-        for (let i = 0; i < (desired - current); i++) {
-          addVideoRow(videosList, contentArtOptions, {}, kampagnenartenOptions, recalcAllPrices);
-        }
+        appendCarriedVideoRows(videosList, desired - current, contentArtOptions, kampagnenartenOptions, recalcAllPrices);
       } else if (desired < current) {
         for (let i = 0; i < (current - desired); i++) {
           const last = videosList.querySelector('.video-item:last-of-type');
@@ -336,7 +334,7 @@ export async function setup(form, ctx) {
         if (desired !== current) {
           const diff = desired - current;
           if (diff > 0) {
-            for (let i = 0; i < diff; i++) addVideoRow(videosList, contentArtOptions, {}, kampagnenartenOptions, recalcAllPrices);
+            appendCarriedVideoRows(videosList, diff, contentArtOptions, kampagnenartenOptions, recalcAllPrices);
           } else {
             for (let i = 0; i < Math.abs(diff); i++) {
               const last = videosList.querySelector('.video-item:last-of-type');
@@ -370,7 +368,7 @@ export async function setup(form, ctx) {
       if (desired !== current) {
         const diff = desired - current;
         if (diff > 0) {
-          for (let i = 0; i < diff; i++) addVideoRow(videosList, contentArtOptions, {}, kampagnenartenOptions, recalcAllPrices);
+          appendCarriedVideoRows(videosList, diff, contentArtOptions, kampagnenartenOptions, recalcAllPrices);
         } else {
           for (let i = 0; i < Math.abs(diff); i++) {
             const last = videosList.querySelector('.video-item:last-of-type');
