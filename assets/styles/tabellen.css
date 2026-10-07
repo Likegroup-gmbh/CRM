@@ -350,6 +350,12 @@
   border-bottom: 1px solid var(--kampagne-grid-border);
 }
 
+/* Trennlinie zwischen Kooperationen. Dicker als die Linien zwischen den
+   Videos derselben Zeile, damit die Bloecke auseinanderfallen. */
+.grid-table.kooperation-video-grid tbody tr.kooperation-row > td {
+  border-bottom: 2px solid var(--gray-300);
+}
+
 /* Header zusaetzlich mit border-top (gilt auch fuer data-col 0/1,
    deren generische !important-Rahmen unten ausgenommen werden) */
 .grid-table.kooperation-video-grid thead th {
@@ -500,7 +506,8 @@
   background: white;
 }
 
-.kooperation-video-grid tbody tr:hover td {
+.kooperation-video-grid tbody tr:hover td,
+.kooperation-video-grid tbody tr:hover td.col-creator {
   background: var(--gray-50);
 }
 
