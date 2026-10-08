@@ -58,12 +58,12 @@ export const STOP_ICON = icon('stop');
 export const SEKTION_LABELS = {
   hook: 'HOOK', hauptteil: 'HAUPTTEIL', cta: 'CTA', gesamt: 'GESAMT', titel: 'TITEL',
   hook_variante_1: 'HOOK 1', hook_variante_2: 'HOOK 2', hook_variante_3: 'HOOK 3',
-  rezept: 'REZEPT', text_hook: 'TEXT-HOOK'
+  rezept: 'REZEPT', text_hook: 'TEXT-HOOK', caption: 'CAPTION'
 };
 export const SEKTION_LABELS_KURZ = {
   hook: 'Hook', hauptteil: 'Hauptteil', cta: 'CTA', titel: 'Titel',
   hook_variante_1: 'Hook 1', hook_variante_2: 'Hook 2', hook_variante_3: 'Hook 3',
-  rezept: 'Rezept', text_hook: 'Text-Hook'
+  rezept: 'Rezept', text_hook: 'Text-Hook', caption: 'Caption'
 };
 export const HOOK_VARIANTE_FELDER = ['hook_variante_1', 'hook_variante_2', 'hook_variante_3'];
 export const GRID_SEKTIONEN = ['hook', 'hauptteil', 'cta', ...HOOK_VARIANTE_FELDER];

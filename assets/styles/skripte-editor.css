@@ -303,13 +303,26 @@
   overflow-y: auto;
 }
 
-.skripte-editor-doc-panel:has(.skripte-editor-hook-varianten) {
+.skripte-editor-doc-panel:has(.skripte-editor-hook-varianten),
+.skripte-editor-doc-panel:has(.skripte-editor-tabelle-zusatz) {
   overflow-y: auto;
 }
 
-.skripte-editor-doc-panel:has(.skripte-editor-hook-varianten) > .skripte-editor-doc-box {
+.skripte-editor-doc-panel:has(.skripte-editor-hook-varianten) > .skripte-editor-doc-box,
+.skripte-editor-doc-panel:has(.skripte-editor-tabelle-zusatz) > .skripte-editor-doc-box {
   flex: 0 0 auto;
   min-height: unset;
+  height: auto;
+}
+
+/* Zusatzzeilen (Rezept, Caption): Tabelle waechst mit dem Inhalt, die
+   drei Hauptzeilen teilen sich keine feste Hoehe mehr */
+.skripte-editor-tabelle:has(.skripte-editor-tabelle-zusatz) {
+  height: auto;
+  flex: none;
+}
+
+.skripte-editor-tabelle:has(.skripte-editor-tabelle-zusatz) tbody tr {
   height: auto;
 }
 
@@ -549,8 +562,8 @@
   margin-bottom: var(--space-xxxs);
 }
 
-/* Rezept-Zeile: eine Zelle ueber beide Inhaltsspalten */
-.skripte-editor-tabelle-rezept .skripte-editor-sektion-text {
+/* Rezept- und Caption-Zeile: eine Zelle ueber beide Inhaltsspalten */
+.skripte-editor-tabelle-zusatz .skripte-editor-sektion-text {
   white-space: pre-wrap;
 }
 

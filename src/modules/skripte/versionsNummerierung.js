@@ -7,7 +7,7 @@
 
 const SNAPSHOT_FIELDS = [
   'titel', 'hook', 'hauptteil', 'cta', 'hook_visuell', 'hauptteil_visuell', 'cta_visuell',
-  'hook_variante_1', 'hook_variante_2', 'hook_variante_3', 'rezept', 'text_hook', 'inhalt_md'
+  'hook_variante_1', 'hook_variante_2', 'hook_variante_3', 'rezept', 'text_hook', 'caption', 'inhalt_md'
 ];
 
 function snapshotRow(skriptId, stand, { versionNr, subNr, beschreibung, userId }) {

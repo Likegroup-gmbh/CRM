@@ -144,6 +144,7 @@ export class SkriptEditorVersionen {
         hook_variante_3: version.hook_variante_3 ?? null,
         rezept: version.rezept ?? null,
         text_hook: version.text_hook ?? null,
+        caption: version.caption ?? null,
         inhalt_md: version.inhalt_md ?? null,
         aktive_version_nr: nr,
         aktive_sub_nr: sub

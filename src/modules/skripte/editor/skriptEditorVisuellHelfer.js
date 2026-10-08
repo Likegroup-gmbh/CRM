@@ -73,6 +73,7 @@ export function skriptStand(s) {
     hook_variante_3: s.hook_variante_3,
     rezept: s.rezept,
     text_hook: s.text_hook,
+    caption: s.caption,
     inhalt_md: s.inhalt_md
   };
 }

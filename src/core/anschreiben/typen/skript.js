@@ -8,6 +8,7 @@ const CREATOR_FELDER = 'id, vorname, nachname, mail, instagram, tiktok, profilbi
 
 const SKRIPT_SELECT = `
   id, titel, created_at, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell,
+  rezept, text_hook, caption,
   unternehmen:unternehmen_id(firmenname, logo_url),
   marke:marke_id(markenname, logo_url),
   produkt:produkt_id(name),
@@ -324,6 +325,9 @@ export async function loadSkriptPdfItems(db, { dokumentId, anhang }) {
       hook_visuell: skript.hook_visuell || '',
       hauptteil_visuell: skript.hauptteil_visuell || '',
       cta_visuell: skript.cta_visuell || '',
+      rezept: skript.rezept || '',
+      text_hook: skript.text_hook || '',
+      caption: skript.caption || '',
       creators,
       creatorIds: creators.map((c) => c.id),
       creator,

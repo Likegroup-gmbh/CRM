@@ -471,4 +471,15 @@ describe('buildPrompt: harte Grenzen und Rueckfragen', () => {
     expect(mit.task).toMatch(/Felder: [^\n]*rezept/);
     expect(mit.task).toMatch(/Felder: [^\n]*text_hook/);
   });
+
+  it('Aufbau-Flag Caption: Block und Ausgabefeld nur bei gesetztem Toggle', () => {
+    const ohne = buildPrompt(base, { video_idee: 'x' });
+    expect(ohne.task).not.toContain('# CAPTION');
+    expect(ohne.task).not.toMatch(/Felder: [^\n]*caption/);
+
+    const mit = buildPrompt(base, { video_idee: 'x', mit_caption: true });
+    expect(mit.task).toContain('# CAPTION (gewaehlt)');
+    expect(mit.task).toContain('Posting-Caption');
+    expect(mit.task).toMatch(/Felder: [^\n]*caption/);
+  });
 });

@@ -169,6 +169,7 @@ export function fragenModusHtml({ skript, genStatus, docHeadActionsHtml, vorgabe
     <div class="skripte-editor-aufbau">
       ${aufbauToggle('ed-aufbau-rezept', 'mit_rezept', 'Rezept unter dem CTA')}
       ${aufbauToggle('ed-aufbau-text-hook', 'mit_text_hook', 'Text-Hook')}
+      ${aufbauToggle('ed-aufbau-caption', 'mit_caption', 'Caption')}
     </div>
   `;
 }
@@ -190,6 +191,7 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
   const genPayload = skript?.prompt_kontext?.generator_payload || {};
   const zeigeTextHook = Boolean(genPayload.mit_text_hook) || Boolean((skript?.text_hook || '').trim());
   const zeigeRezept = Boolean(genPayload.mit_rezept) || Boolean((skript?.rezept || '').trim());
+  const zeigeCaption = Boolean(genPayload.mit_caption) || Boolean((skript?.caption || '').trim());
   return `
     <div class="skripte-editor-doc-box">
       <table class="skripte-editor-tabelle">
@@ -244,10 +246,17 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
         `;
         }).join('')}
         ${zeigeRezept ? `
-          <tr data-sektion="rezept" class="skripte-editor-tabelle-rezept">
+          <tr data-sektion="rezept" class="skripte-editor-tabelle-zusatz">
             <th scope="row">Rezept</th>
             <td colspan="2">
               <div class="skripte-editor-sektion-text" data-sektion="rezept" data-feld="rezept" data-placeholder="Rezept aus der Caption…">${renderInlineMd(skript.rezept || '').html}</div>
+            </td>
+          </tr>` : ''}
+        ${zeigeCaption ? `
+          <tr data-sektion="caption" class="skripte-editor-tabelle-zusatz">
+            <th scope="row">Caption</th>
+            <td colspan="2">
+              <div class="skripte-editor-sektion-text" data-sektion="caption" data-feld="caption" data-placeholder="Caption für den Post…">${renderInlineMd(skript.caption || '').html}</div>
             </td>
           </tr>` : ''}
         </tbody>
@@ -417,7 +426,8 @@ export function vorgabenPanelHtml(skript) {
     ['Location', s.location],
     ['Regieanweisung', s.regieanweisung],
     ['Rezept unter dem CTA', genPayload.mit_rezept ? 'Ja' : null],
-    ['Text-Hook', genPayload.mit_text_hook ? 'Ja' : null]
+    ['Text-Hook', genPayload.mit_text_hook ? 'Ja' : null],
+    ['Caption', genPayload.mit_caption ? 'Ja' : null]
   ].filter(([, wert]) => wert);
 
   if (!zeilen.length) return '';

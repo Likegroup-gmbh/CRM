@@ -375,6 +375,22 @@ describe('createSkriptAnhang', () => {
     expect(doc.images.filter((img) => img.w === 12)).toHaveLength(0);
   });
 
+  it('zeichnet Rezept, Caption und Text-Hook, wenn sie gesetzt sind', async () => {
+    await createSkriptAnhang([{
+      ...ANNA,
+      rezept: 'Zutaten: 200g Mehl',
+      caption: 'Heute gibt es Brot',
+      text_hook: 'Nur 3 Zutaten',
+    }], { dateiname: 'Eins.pdf' });
+    const calls = MockJsPDF.last.textCalls;
+    expect(calls).toEqual(expect.arrayContaining(['REZEPT', 'CAPTION', 'Zutaten: 200g Mehl', 'Heute gibt es Brot']));
+    expect(calls.join('\n')).toContain('TEXT-HOOK: Nur 3 Zutaten');
+
+    await createSkriptAnhang([ANNA], { dateiname: 'Eins.pdf' });
+    expect(MockJsPDF.last.textCalls).not.toContain('REZEPT');
+    expect(MockJsPDF.last.textCalls).not.toContain('CAPTION');
+  });
+
   it('Sammel-PDF bricht pro Skript um', async () => {
     const result = await createSkriptAnhang([
       ANNA,

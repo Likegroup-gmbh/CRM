@@ -35,6 +35,10 @@ const ROWS = [
   ['HAUPTTEIL', 'hauptteil', 'hauptteil_visuell'],
   ['CTA', 'cta', 'cta_visuell'],
 ];
+const ZUSATZ_ROWS = [
+  ['REZEPT', 'rezept'],
+  ['CAPTION', 'caption'],
+];
 
 let jsPdfPromise = null;
 
@@ -229,12 +233,12 @@ function drawHeader(doc, y, newPage) {
   return y + h;
 }
 
-function drawRow(doc, y, h, cells) {
+function drawRow(doc, y, h, cells, widths = COLS.map((col) => col.w)) {
   doc.setDrawColor(...RULE);
   if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
   let x = MARGIN_X;
   cells.forEach((lines, i) => {
-    doc.rect(x, y, COLS[i].w, h);
+    doc.rect(x, y, widths[i], h);
     if (i === 0) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
@@ -248,8 +252,45 @@ function drawRow(doc, y, h, cells) {
     lines.forEach((line, li) => {
       if (line) doc.text(line, x + CELL_PAD, baseline + li * LINE);
     });
-    x += COLS[i].w;
+    x += widths[i];
   });
+}
+
+function rowHeight(lineCount) {
+  return CELL_PAD + ascentMm(9) + (Math.max(lineCount, 1) - 1) * LINE + descentMm(9) + CELL_PAD;
+}
+
+/** Text-Hook steht im Dokument oben in der Hook-Zelle "Was zu sehen ist". */
+function gesehenText(item, gesehenKey) {
+  const textHook = plain(item.text_hook);
+  if (gesehenKey !== 'hook_visuell' || !textHook) return item[gesehenKey];
+  return `TEXT-HOOK: ${textHook}\n\n${item[gesehenKey] || ''}`.trim();
+}
+
+/** Rezept/Caption: eine Zelle ueber beide Inhaltsspalten, bricht ueber Seiten um. */
+function drawZusatzRow(doc, y, label, text, newPage) {
+  const widths = [COLS[0].w, COLS[1].w + COLS[2].w];
+  const lines = linesOf(doc, text, widths[1] - CELL_PAD * 2);
+  let rest = lines;
+  let first = true;
+  let cursor = y;
+  while (rest.length) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const maxLines = Math.floor((MAX_CONTENT_Y - cursor - rowHeight(1)) / LINE) + 1;
+    if (maxLines < 2 && rest.length > 1) {
+      cursor = newPage();
+      continue;
+    }
+    const chunk = rest.slice(0, Math.max(maxLines, 1));
+    rest = rest.slice(chunk.length);
+    const h = rowHeight(chunk.length);
+    drawRow(doc, cursor, h, [first ? [label] : [''], chunk], widths);
+    cursor += h;
+    first = false;
+    if (rest.length) cursor = newPage();
+  }
+  return cursor;
 }
 
 function drawTable(doc, item, startY, newPage) {
@@ -261,7 +302,7 @@ function drawTable(doc, item, startY, newPage) {
     doc.setFontSize(9);
     const inner = (col) => col.w - CELL_PAD * 2;
     const gesagt = linesOf(doc, item[gesagtKey], inner(COLS[1]));
-    const gesehen = linesOf(doc, item[gesehenKey], inner(COLS[2]));
+    const gesehen = linesOf(doc, gesehenText(item, gesehenKey), inner(COLS[2]));
     const cells = [[label], gesagt, gesehen];
     const lines = Math.max(gesagt.length, gesehen.length, 1);
     const h = CELL_PAD + ascentMm(9) + (lines - 1) * LINE + descentMm(9) + CELL_PAD;
@@ -271,6 +312,10 @@ function drawTable(doc, item, startY, newPage) {
     }
     drawRow(doc, y, h, cells);
     y += h;
+  }
+  for (const [label, key] of ZUSATZ_ROWS) {
+    if (!plain(item[key])) continue;
+    y = drawZusatzRow(doc, y, label, item[key], newPage);
   }
   return y;
 }

@@ -257,6 +257,30 @@ describe('SkriptEditorDocRenderer', () => {
     expect(mitInhalt).toContain('Nur 3 Zutaten');
   });
 
+  it('skriptDocHtml zeigt die Caption-Zeile nur bei Flag oder Inhalt', () => {
+    const basis = { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E' };
+    const render = (skript) => skriptDocHtml({
+      skript, messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    expect(render({ ...basis })).not.toContain('data-feld="caption"');
+
+    const mitFlag = render({ ...basis, prompt_kontext: { generator_payload: { mit_caption: true } } });
+    expect(mitFlag).toContain('data-sektion="caption"');
+    expect(mitFlag).toContain('data-feld="caption"');
+    expect(mitFlag).toContain('skripte-editor-tabelle-zusatz');
+
+    expect(render({ ...basis, caption: 'Heute gibt es Brot' })).toContain('Heute gibt es Brot');
+  });
+
+  it('fragenModusHtml bietet den Caption-Toggle an', () => {
+    const html = fragenModusHtml({
+      skript: { prompt_kontext: { generator_payload: { mit_caption: true } } },
+      genStatus: null, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    const caption = html.match(/<input[^>]*data-aufbau-flag="mit_caption"[^>]*>/)?.[0] || '';
+    expect(caption).toContain('checked');
+  });
+
   it('skriptDocHtml wechselt bei inhalt_md auf Markdown-Sektionen', () => {
     const html = skriptDocHtml({
       skript: { titel: 'T', inhalt_md: '## Produktionskopf\nArbeitstitel: X' },
