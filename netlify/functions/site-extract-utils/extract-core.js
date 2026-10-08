@@ -115,6 +115,18 @@ function normalizeFields(raw, spec) {
       if (!value) continue;
     }
     if (field.name === 'invoice_email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) continue;
+    if (field.name === 'email') {
+      value = normalizeEmail(value);
+      if (!value) continue;
+    }
+    if (field.name === 'telefonnummer') {
+      value = normalizeTelefon(value);
+      if (!value) continue;
+    }
+    if (field.name === 'instagram') {
+      value = normalizeInstagram(value);
+      if (!value) continue;
+    }
     if (field.type === 'number') {
       value = normalizeNumber(value);
       if (!value) continue;
@@ -146,6 +158,27 @@ function normalizeProduktUrl(value) {
   } catch {
     return '';
   }
+}
+
+/** "mailto:" abziehen, nur eine echte Adresse durchlassen. */
+function normalizeEmail(value) {
+  const text = String(value || '').trim().replace(/^mailto:/i, '').split('?')[0].trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) ? text : '';
+}
+
+/** Wortlaut der Seite behalten, aber Muell ohne Rufnummer verwerfen (mind. 6 Ziffern). */
+function normalizeTelefon(value) {
+  const text = String(value || '').trim().replace(/^tel:/i, '').trim();
+  const ziffern = text.replace(/\D/g, '');
+  return ziffern.length >= 6 && ziffern.length <= 15 ? text : '';
+}
+
+/** Profil-URL, "@handle" oder "handle" zu "@handle". */
+function normalizeInstagram(value) {
+  const text = String(value || '').trim();
+  const fromUrl = text.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  const handle = (fromUrl ? fromUrl[1] : text.replace(/^@/, '')).replace(/\/+$/, '');
+  return /^[A-Za-z0-9._]{1,30}$/.test(handle) ? `@${handle}` : '';
 }
 
 function normalizeWebsite(value) {
@@ -348,7 +381,8 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
     const mainDistilled = distill(main.html, main.finalUrl, {
       followLinks: spec.followLinks || [],
       withLogo: Boolean(spec.logo),
-      withVarianten: Boolean(spec.varianten)
+      withVarianten: Boolean(spec.varianten),
+      withContactLinks: Boolean(spec.contactLinks)
     });
 
     // --- Einordnen ---------------------------------------------------------
@@ -391,7 +425,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
       try {
         onStep('laden', `${kind}-Seite laden...`);
         const sub = await fetcher.load(subUrl, { remainingMs: remaining() });
-        pages.push({ url: sub.finalUrl, role: kind, ...distill(sub.html, sub.finalUrl) });
+        pages.push({ url: sub.finalUrl, role: kind, ...distill(sub.html, sub.finalUrl, { withContactLinks: Boolean(spec.contactLinks) }) });
         diagnostics.seiten.push({ url: sub.finalUrl, rolle: kind, quelle: sub.source, zeichenHtml: sub.html.length, ...sub.timings });
       } catch (err) {
         notes.push(`${kind}-Seite nicht ladbar: ${err.message}`);

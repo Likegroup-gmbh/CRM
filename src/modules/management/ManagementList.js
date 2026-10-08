@@ -9,6 +9,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { ManagementConnect } from './ManagementConnect.js';
 
 export class ManagementList extends BasePaginatedList {
   constructor() {
@@ -26,6 +27,12 @@ export class ManagementList extends BasePaginatedList {
     });
 
     this.selectedManagement = this.selectedItems;
+
+    // Connect: Homepage suchen und leere Stammdaten befuellen (ausgewaehlte Zeilen)
+    this._connect = new ManagementConnect({
+      onProgress: (text) => this._setConnectLabel(text),
+      onFinish: () => this._syncConnectButton()
+    });
   }
 
   /**
@@ -142,7 +149,8 @@ export class ManagementList extends BasePaginatedList {
         <div class="table-actions">
           ${canBulkDelete ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
           <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
-          <span id="selected-count" style="display:none;">0 ausgewählt</span>` : ''}
+          <span id="selected-count" style="display:none;">0 ausgewählt</span>
+          ${this.canEdit ? '<button id="btn-management-connect" class="mdc-btn mdc-btn--secondary" style="display:none;">Connect</button>' : ''}` : ''}
           ${this.canEdit ? '<button id="btn-management-new" class="mdc-btn">Neues Management anlegen</button>' : ''}
         </div>
       </div>
@@ -196,7 +204,41 @@ export class ManagementList extends BasePaginatedList {
         e.preventDefault();
         window.navigateTo('/management/new');
       }
+      if (e.target.id === 'btn-management-connect') {
+        e.preventDefault();
+        this._connect.toggle(Array.from(this.selectedItems));
+      }
     }, { signal });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONNECT (Auswahl-Button)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /** Auswahl-UI der Basisklasse plus Connect-Button. */
+  updateSelection() {
+    super.updateSelection();
+    this._syncConnectButton();
+  }
+
+  /** Sichtbar bei Auswahl (oder waehrend des Laufs, dann als Stopp), Label mit Anzahl. */
+  _syncConnectButton() {
+    const btn = document.getElementById('btn-management-connect');
+    if (!btn) return;
+    const running = this._connect.running;
+    const count = this.selectedItems.size;
+    btn.style.display = running || count > 0 ? 'inline-block' : 'none';
+    if (!running) btn.textContent = count > 0 ? `Connect (${count})` : 'Connect';
+  }
+
+  _setConnectLabel(text) {
+    const btn = document.getElementById('btn-management-connect');
+    if (btn) btn.textContent = text;
+  }
+
+  destroy() {
+    this._connect.stop();
+    super.destroy();
   }
 
   async updateTable(managements) {

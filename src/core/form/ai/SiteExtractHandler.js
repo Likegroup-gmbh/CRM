@@ -29,6 +29,7 @@ const POLL_TIMEOUT_MS = 3 * 60 * 1000;
 // progress_step aus der Job-Zeile -> Kurztext am Button
 const STEP_LABELS = {
   start: 'Startet…',
+  suche: 'Sucht…',
   cache: 'Liest…',
   laden: 'Seite laden…',
   unterseite: 'Unterseiten…',
@@ -40,6 +41,7 @@ const STEP_LABELS = {
 // die Job-Zeile noch keine progress_steps hat.
 const STEP_CHAT_LABELS = {
   start: 'Ich schaue mir die Seite an',
+  suche: 'Ich suche die Agentur im Netz',
   cache: 'Die Seite kenne ich schon',
   laden: 'Seite wird geladen',
   unterseite: 'Ich gehe die Unterseiten durch',
@@ -94,19 +96,24 @@ function warte(ms) {
  * URL-Button ebenfalls.
  * @param {Object} opts
  * @param {string} opts.entity
- * @param {string} opts.url
+ * @param {string} [opts.url] - Pflicht, ausser es gibt eine entityId (dann sucht die Function die Homepage selbst)
+ * @param {string} [opts.entityId] - Datensatz, zu dem der Job gehoert (Management-Connect)
+ * @param {number} [opts.timeoutMs] - Poll-Limit, Default 3 Minuten; mit Suche davor knapp
  * @param {string} [opts.endpoint] - Default Shop-URL. Produkt-PDF geht an produkt-pdf-background.
  * @param {Function} [opts.onStep] - ({ step, label, steps }) => void
  * @param {AbortSignal} [opts.signal] - Abbruch: Poll endet mit AbortError, das Ergebnis wird nicht angewendet
  */
-export async function requestExtractJob({ entity, url, endpoint = ENDPOINT, onStep = () => {}, signal = null } = {}) {
+export async function requestExtractJob({ entity, url, entityId = null, timeoutMs = POLL_TIMEOUT_MS, endpoint = ENDPOINT, onStep = () => {}, signal = null } = {}) {
   const db = window.supabase;
   const session = await getSession();
   if (!db || !session) throw new Error('Keine aktive Sitzung');
-  if (!entity || !url) throw new Error('Entity oder URL fehlt');
+  if (!entity || (!url && !entityId)) throw new Error('Entity oder URL fehlt');
+
+  // Fuer die Console-Diagnose: ohne URL steht hier der Datensatz
+  const label = url || `${entity}:${entityId}`;
 
   const { data: job, error: insertError } = await db.from('extract_jobs')
-    .insert({ url, entity_type: entity, created_by: session.user.id })
+    .insert({ url: url || null, entity_id: entityId, entity_type: entity, created_by: session.user.id })
     .select('id').single();
   if (insertError) throw new Error(`Job konnte nicht angelegt werden: ${insertError.message}`);
 
@@ -122,7 +129,7 @@ export async function requestExtractJob({ entity, url, endpoint = ENDPOINT, onSt
     throw new Error(`Extraktion konnte nicht gestartet werden (HTTP ${response.status})`);
   }
 
-  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
   let letzterStep = null;
 
   while (Date.now() < deadline) {
@@ -138,13 +145,13 @@ export async function requestExtractJob({ entity, url, endpoint = ENDPOINT, onSt
 
     if (row.status === 'done') {
       const payload = row.result || {};
-      logExtractDiagnostics({ url, entity, payload });
+      logExtractDiagnostics({ url: label, entity, payload });
       if (!payload.success) throw new Error(payload.error || 'Extraktion ohne Ergebnis beendet');
       return payload;
     }
 
     if (row.status === 'error') {
-      logExtractDiagnostics({ url, entity, payload: row.result || null });
+      logExtractDiagnostics({ url: label, entity, payload: row.result || null });
       throw new Error(row.error_message || 'Extraktion fehlgeschlagen');
     }
 

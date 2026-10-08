@@ -17,10 +17,61 @@
 //   seitentyp - true: der Prompt bekommt einen Einordnungs-Block zum erkannten
 //               Seitentyp, und das Modell liefert _seitentyp und
 //               _vollstaendigkeit zurueck (beides nur fuer die Diagnose)
+//   contactLinks - true: mailto-, tel- und Instagram-Links der Seiten kommen
+//               als eigener Block in den Prompt (Mails und Telefonnummern
+//               stehen oft nur im href, nicht im sichtbaren Text)
+//   resolveUrl - true: der Job darf ohne URL starten, die Function sucht die
+//               Homepage selbst (agentur-resolver.js, Management-Connect)
 
 // Wird in den Cache-Key gehasht: Aenderungen an den Specs invalidieren
 // automatisch alte Extraktionen, statt veraltete Ergebnisse auszuliefern.
 const SPEC_VERSION = 5;
+
+// Anschrift aus dem Impressum. Gemeinsam fuer alle Entitaeten mit Adresse:
+// `prefix` ist der Spaltenpraefix des Formulars (unternehmen:
+// 'rechnungsadresse_', management: ''). Die Hints sind fuer alle gleich,
+// deshalb nur hier gepflegt.
+function adressFelder(prefix) {
+  return [
+    {
+      name: `${prefix}strasse`,
+      label: 'Strasse',
+      kind: 'fact',
+      hint: 'Nur der Strassenname ohne Hausnummer, z.B. "Musterweg". Aus der Anschrift im Impressum.'
+    },
+    {
+      name: `${prefix}hausnummer`,
+      label: 'Hausnummer',
+      kind: 'fact',
+      hint: 'Nur die Hausnummer, inklusive Zusatz wie "12a" oder "5-7". Getrennt vom Strassennamen.'
+    },
+    {
+      name: `${prefix}plz`,
+      label: 'PLZ',
+      kind: 'fact',
+      hint: 'Postleitzahl, z.B. "10115".'
+    },
+    {
+      name: `${prefix}stadt`,
+      label: 'Stadt',
+      kind: 'fact',
+      hint: 'Ort ohne PLZ und ohne Ortsteil-Zusatz in Klammern.'
+    },
+    {
+      name: `${prefix}land`,
+      label: 'Land',
+      kind: 'fact',
+      hint: 'Land ausgeschrieben auf Deutsch, z.B. "Deutschland", "Oesterreich", "Schweiz". Wenn die Adresse deutsch ist und kein Land genannt wird, "Deutschland".'
+    }
+  ];
+}
+
+const WEBSEITE_FELD = {
+  name: 'webseite',
+  label: 'Webseite',
+  kind: 'fact',
+  hint: 'Die Hauptdomain der Firma als vollstaendige URL mit https und ohne Pfad, Tracking-Parameter oder abschliessenden Slash, z.B. "https://www.muster.de".'
+};
 
 const SPECS = {
   unternehmen: {
@@ -34,42 +85,8 @@ const SPECS = {
         kind: 'fact',
         hint: 'Vollstaendiger rechtlicher Firmenname inklusive Rechtsform, z.B. "Muster Handels GmbH" oder "Beispiel AG". Bevorzugt aus dem Impressum. NICHT der verkuerzte Markenname aus dem Seitentitel oder Logo.'
       },
-      {
-        name: 'rechnungsadresse_strasse',
-        label: 'Strasse',
-        kind: 'fact',
-        hint: 'Nur der Strassenname ohne Hausnummer, z.B. "Musterweg". Aus der Anschrift im Impressum.'
-      },
-      {
-        name: 'rechnungsadresse_hausnummer',
-        label: 'Hausnummer',
-        kind: 'fact',
-        hint: 'Nur die Hausnummer, inklusive Zusatz wie "12a" oder "5-7". Getrennt vom Strassennamen.'
-      },
-      {
-        name: 'rechnungsadresse_plz',
-        label: 'PLZ',
-        kind: 'fact',
-        hint: 'Postleitzahl, z.B. "10115".'
-      },
-      {
-        name: 'rechnungsadresse_stadt',
-        label: 'Stadt',
-        kind: 'fact',
-        hint: 'Ort ohne PLZ und ohne Ortsteil-Zusatz in Klammern.'
-      },
-      {
-        name: 'rechnungsadresse_land',
-        label: 'Land',
-        kind: 'fact',
-        hint: 'Land ausgeschrieben auf Deutsch, z.B. "Deutschland", "Oesterreich", "Schweiz". Wenn die Adresse deutsch ist und kein Land genannt wird, "Deutschland".'
-      },
-      {
-        name: 'webseite',
-        label: 'Webseite',
-        kind: 'fact',
-        hint: 'Die Hauptdomain der Firma als vollstaendige URL mit https und ohne Pfad, Tracking-Parameter oder abschliessenden Slash, z.B. "https://www.muster.de".'
-      },
+      ...adressFelder('rechnungsadresse_'),
+      WEBSEITE_FELD,
       {
         name: 'invoice_email',
         label: 'Rechnungs-Email',
@@ -82,6 +99,46 @@ const SPECS = {
         kind: 'guess',
         hint: 'Zwei bis vier Saetze: was das Unternehmen tut, welche Produkte oder Leistungen es anbietet, in welchem Markt es taetig ist und welche Marken dazugehoeren, sofern die Seite das nennt. Sachlich zusammenfassen, keine Werbesprache. Nur was die Seite hergibt, nichts erfinden.'
       }
+    ]
+  },
+
+  // Management (Talent-Agentur). Die URL gibt hier niemand ein: sie kommt aus
+  // der Websuche (agentur-resolver.js, ausgeloest ueber resolveUrl). Alles
+  // BELEGBAR aus Impressum, Kontaktseite und den Kontakt-Links der Seite -
+  // "firmenname" dient nur dem Namensabgleich und wird nie gespeichert.
+  management: {
+    followLinks: ['impressum', 'kontakt'],
+    logo: false,
+    contactLinks: true,
+    resolveUrl: true,
+    preamble: 'Du liest die Stammdaten einer Talent- bzw. Influencer-Management-Agentur aus ihrer Webseite. Gesucht sind die Angaben der AGENTUR, nicht die ihrer Creator oder einzelner Mitarbeiter.',
+    fields: [
+      {
+        name: 'firmenname',
+        label: 'Firmenname',
+        kind: 'fact',
+        hint: 'Name der Agentur, wie er im Impressum oder im Seitentitel steht, mit Rechtsform wenn genannt. Dient nur dem Abgleich mit den Stammdaten.'
+      },
+      {
+        name: 'email',
+        label: 'E-Mail',
+        kind: 'fact',
+        hint: 'Allgemeine Kontakt-E-Mail der Agentur (z.B. info@, office@, hello@, kontakt@), bevorzugt aus Impressum oder Kontaktseite, sonst aus den Kontakt-Links der Seite (mailto). Keine Adresse einzelner Mitarbeiter oder Creator. Keine Adresse erfinden.'
+      },
+      {
+        name: 'telefonnummer',
+        label: 'Telefon',
+        kind: 'fact',
+        hint: 'Hauptrufnummer der Agentur im Wortlaut der Seite, mit Vorwahl, z.B. "+49 30 1234567". Aus Impressum, Kontaktseite oder den Kontakt-Links (tel). Keine Fax-Nummer, keine Durchwahl einzelner Personen.'
+      },
+      WEBSEITE_FELD,
+      {
+        name: 'instagram',
+        label: 'Instagram',
+        kind: 'fact',
+        hint: 'Instagram-Profil der Agentur selbst als @handle, nur wenn die Seite (Kontakt-Links, Footer) darauf verlinkt. Nicht das Profil eines Creators oder Mitarbeiters.'
+      },
+      ...adressFelder('')
     ]
   },
 

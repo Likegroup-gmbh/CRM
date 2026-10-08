@@ -10,6 +10,7 @@
 //   ANTHROPIC_MODEL_EXTRACT_RECHNUNG (Default: claude-sonnet-4-5) - Creator-Rechnungs-PDF: Betraege, Datum, Steuer
 //   ANTHROPIC_MODEL_PERSONA    (Default: claude-sonnet-4-5) - Persona-Vorschlaege aus dem Produkt
 //   ANTHROPIC_MODEL_KONZEPT    (Default: claude-sonnet-4-5) - Videoideen im Konzept
+//   ANTHROPIC_MODEL_RESOLVE    (Default: claude-haiku-4-5) - Websuche: Name -> Homepage (Management-Connect)
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 
@@ -24,7 +25,8 @@ const MODELS = {
   extract_rechnung: process.env.ANTHROPIC_MODEL_EXTRACT_RECHNUNG || 'claude-sonnet-4-5',
   persona: process.env.ANTHROPIC_MODEL_PERSONA || 'claude-sonnet-4-5',
   casting: process.env.ANTHROPIC_MODEL_CASTING || 'claude-sonnet-4-5',
-  konzept: process.env.ANTHROPIC_MODEL_KONZEPT || 'claude-sonnet-4-5'
+  konzept: process.env.ANTHROPIC_MODEL_KONZEPT || 'claude-sonnet-4-5',
+  resolve: process.env.ANTHROPIC_MODEL_RESOLVE || 'claude-haiku-4-5'
 };
 
 /** Wird geworfen, wenn timeoutMs greift - der Aufrufer kann so degradiert antworten. */
@@ -55,6 +57,11 @@ class ClaudeTimeoutError extends Error {
  * degradiert und der Aufrufer braucht einen Text-Fallback via extractJson.
  * messages: optionaler User/Assistant-Verlauf. Gesetzt, ersetzt er die eine
  * User-Message aus userPrompt. Sonst bleibt es bei einer User-Message.
+ * Websuche: ein Server-Tool ({ type: 'web_search_20250305', name: 'web_search', ... })
+ * geht ebenfalls als `tool` durch, dann mit toolForced: false. Die Treffer stehen
+ * danach in result.sources ([{ url, title }]), die Suchanfragen des Modells in
+ * result.searchQueries. Abgerechnet wird die Suche ueber usage.server_tool_use
+ * (siehe claude-cost.js).
  */
 async function callClaude({ model, systemBlocks = [], userPrompt, messages = null, maxTokens = 4096, thinking = false, thinkingBudget = 2048, timeoutMs = 0, tool = null, toolForced = true, document = null }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -119,9 +126,13 @@ async function callClaude({ model, systemBlocks = [], userPrompt, messages = nul
     throw new Error(`Anthropic API: ${msg}`);
   }
 
+  const { sources, searchQueries } = readWebSearch(data.content);
+
   return {
     // Thinking-Bloecke ueberspringen, nur Text-Bloecke zaehlen
     text: (data.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join(''),
+    sources,
+    searchQueries,
     // Strukturierte Antwort des Tool-Calls (null, wenn das Modell trotz
     // 'auto' als Text geantwortet hat -> Aufrufer faellt auf extractJson zurueck)
     json: parseToolInput((data.content || []).find((c) => c.type === 'tool_use')?.input),
@@ -129,6 +140,31 @@ async function callClaude({ model, systemBlocks = [], userPrompt, messages = nul
     model: data.model,
     stop_reason: data.stop_reason || null
   };
+}
+
+/**
+ * Zieht aus den Content-Bloecken, was die Websuche geliefert hat: die
+ * Trefferliste (Grundlage fuer das URL-Gate - eine URL, die hier nicht
+ * auftaucht, hat das Modell erfunden) und die Suchanfragen. Ohne Websuche
+ * beide leer.
+ */
+function readWebSearch(content) {
+  const sources = [];
+  const searchQueries = [];
+  for (const block of Array.isArray(content) ? content : []) {
+    if (block.type === 'server_tool_use' && block.name === 'web_search' && block.input?.query) {
+      searchQueries.push(String(block.input.query));
+    }
+    // Bei einem Suchfehler ist content ein Objekt (error), kein Array
+    if (block.type === 'web_search_tool_result' && Array.isArray(block.content)) {
+      for (const hit of block.content) {
+        if (hit?.type === 'web_search_result' && hit.url) {
+          sources.push({ url: hit.url, title: hit.title || null });
+        }
+      }
+    }
+  }
+  return { sources, searchQueries };
 }
 
 function documentBlock(document) {
@@ -386,4 +422,4 @@ function extractJson(text, { keys = [], onWarn } = {}) {
   }
 }
 
-module.exports = { callClaude, parseToolInput, extractJson, repairJsonStrings, extractByKeys, extractXmlParameters, MODELS, ClaudeTimeoutError };
+module.exports = { callClaude, readWebSearch, parseToolInput, extractJson, repairJsonStrings, extractByKeys, extractXmlParameters, MODELS, ClaudeTimeoutError };
