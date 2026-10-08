@@ -1,6 +1,6 @@
 // Workflow-Tabs auf der Produktions-Detailseite:
 // Briefing, Produkte, Personas, Casting, Konzepte, Skripte, Verträge,
-// Produktion (Default), Videos, Auswertung.
+// Produktion, Videos, Auswertung. Default beim Öffnen ist Briefing.
 //
 // Der Tab „Produktion“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
 
@@ -48,7 +48,7 @@ export const WORKFLOW_TABS = [
   { id: 'auswertung', label: 'Auswertung' }
 ];
 
-export const DEFAULT_WORKFLOW_TAB = 'produktion';
+export const DEFAULT_WORKFLOW_TAB = 'briefing';
 
 // table-link[data-table] → Route innerhalb der Workflow-Panes.
 // Deckt sich mit den Detailrouten der Nav-Seiten (/castings, /konzepte, ...).
@@ -77,13 +77,16 @@ export function getVisibleWorkflowTabs() {
 }
 
 /**
- * Initialen Tab bestimmen: ?tab= wenn bekannt + erlaubt, sonst Produktion.
+ * Initialen Tab bestimmen: ?tab= wenn bekannt + erlaubt, sonst Briefing
+ * (oder der erste sichtbare Tab, falls Briefing nicht erlaubt ist).
  */
 export function resolveInitialWorkflowTab() {
   const fromUrl = getTabQueryParam();
   const normalized = fromUrl === 'kooperation' ? 'produktion' : fromUrl;
   const visible = getVisibleWorkflowTabs().map(t => t.id);
-  return visible.includes(normalized) ? normalized : DEFAULT_WORKFLOW_TAB;
+  if (visible.includes(normalized)) return normalized;
+  if (visible.includes(DEFAULT_WORKFLOW_TAB)) return DEFAULT_WORKFLOW_TAB;
+  return visible[0] || DEFAULT_WORKFLOW_TAB;
 }
 
 /**

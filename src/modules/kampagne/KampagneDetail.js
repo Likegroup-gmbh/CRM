@@ -192,7 +192,7 @@ export class KampagneDetail {
       this.store = null;
     }
 
-    // Workflow-Tab aus ?tab= (unbekannt/nicht erlaubt → Produktion)
+    // Workflow-Tab aus ?tab= (unbekannt/nicht erlaubt → Briefing)
     this.activeWorkflowTab = resolveInitialWorkflowTab();
 
     if (window.moduleRegistry?.currentModule !== this) {
