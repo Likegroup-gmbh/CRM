@@ -107,6 +107,9 @@ VertraegeCreate.prototype.bindMultistepEvents = function() {
 
     this.bindDynamicFieldEvents();
     this.bindAddressPreviewEvents();
+    if (typeof this.focusPendingAuswahl === 'function') {
+      this.focusPendingAuswahl();
+    }
   };
 
 VertraegeCreate.prototype.updateSubmitDisabled = function() {
@@ -134,6 +137,13 @@ VertraegeCreate.prototype.bindDynamicFieldEvents = function() {
     if (!this._checkedRadios) this._checkedRadios = {};
     const form = document.getElementById('vertrag-form');
     if (form) {
+      form.querySelectorAll('[data-pflicht-auswahl]').forEach((select) => {
+        select.addEventListener('change', () => {
+          const missing = !String(select.value || '').trim();
+          select.classList.toggle('is-invalid', missing);
+          select.parentElement?.querySelector('[data-auswahl-hinweis]')?.classList.toggle('hidden', !missing);
+        });
+      });
       form.querySelectorAll('input[type="radio"]:checked').forEach(radio => {
         this._checkedRadios[radio.name] = radio.value;
       });

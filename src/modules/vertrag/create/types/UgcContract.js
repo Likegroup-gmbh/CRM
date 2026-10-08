@@ -3,6 +3,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { renderParagraphZusatz } from '../paragraphZusatz.js';
+import { auswahlFeldZustand, isKorrekturschleife, normalizeKorrekturschleifen } from '../pflichtAuswahlen.js';
 
 VertraegeCreate.prototype.renderStep2 = function() {
     // Filter nur initialisieren wenn noch nicht geschehen (z.B. bei Draft-Load bereits erledigt)
@@ -175,6 +176,7 @@ VertraegeCreate.prototype.renderStep3 = function() {
 };
 
 VertraegeCreate.prototype.renderStep4 = function() {
+    const nutzungsdauer = auswahlFeldZustand(this.formData.nutzungsdauer);
     return `
       <div class="step-section">
         <div class="step-section__header">
@@ -224,8 +226,8 @@ VertraegeCreate.prototype.renderStep4 = function() {
         </div>
 
         <div class="form-field">
-          <label for="nutzungsdauer">Nutzungsdauer</label>
-          <select id="nutzungsdauer" name="nutzungsdauer">
+          <label for="nutzungsdauer">Nutzungsdauer <span class="required">*</span></label>
+          <select id="nutzungsdauer" name="nutzungsdauer" required data-pflicht-auswahl${nutzungsdauer.selectAttr}>
             <option value="">Bitte wählen...</option>
             <option value="unbegrenzt" ${this.formData.nutzungsdauer === 'unbegrenzt' ? 'selected' : ''}>Unbegrenzt</option>
             <option value="12_monate" ${this.formData.nutzungsdauer === '12_monate' ? 'selected' : ''}>12 Monate</option>
@@ -233,6 +235,7 @@ VertraegeCreate.prototype.renderStep4 = function() {
             <option value="3_monate" ${this.formData.nutzungsdauer === '3_monate' ? 'selected' : ''}>3 Monate</option>
             <option value="individuell" ${this.formData.nutzungsdauer === 'individuell' ? 'selected' : ''}>Individuell</option>
           </select>
+          <p class="${nutzungsdauer.hintClass}" data-auswahl-hinweis>Bitte eine Auswahl treffen.</p>
         </div>
         <div class="form-field ${this.formData.nutzungsdauer === 'individuell' ? '' : 'hidden'}" id="nutzungsdauer-custom-wrapper">
           <label for="nutzungsdauer_custom_wert">Nutzungsdauer individuell</label>
@@ -274,6 +277,8 @@ VertraegeCreate.prototype.renderStep4 = function() {
 };
 
 VertraegeCreate.prototype.renderStep5 = function() {
+    const zahlungsziel = auswahlFeldZustand(this.formData.zahlungsziel);
+    const korrektur = auswahlFeldZustand(normalizeKorrekturschleifen(this.formData.korrekturschleifen));
     return `
       <div class="step-section">
         <div class="step-section__header">
@@ -291,12 +296,13 @@ VertraegeCreate.prototype.renderStep5 = function() {
             </div>
           </div>
           <div class="form-field">
-            <label for="zahlungsziel">Zahlungsziel</label>
-            <select id="zahlungsziel" name="zahlungsziel">
+            <label for="zahlungsziel">Zahlungsziel <span class="required">*</span></label>
+            <select id="zahlungsziel" name="zahlungsziel" required data-pflicht-auswahl${zahlungsziel.selectAttr}>
               <option value="">Bitte wählen...</option>
               <option value="30_tage" ${this.formData.zahlungsziel === '30_tage' ? 'selected' : ''}>30 Tage</option>
               <option value="60_tage" ${this.formData.zahlungsziel === '60_tage' ? 'selected' : ''}>60 Tage</option>
             </select>
+            <p class="${zahlungsziel.hintClass}" data-auswahl-hinweis>Bitte eine Auswahl treffen.</p>
           </div>
         </div>
 
@@ -340,12 +346,13 @@ VertraegeCreate.prototype.renderStep5 = function() {
                    value="${this.formData.content_deadline || ''}">
           </div>
           <div class="form-field">
-            <label for="korrekturschleifen">Korrekturschleifen</label>
-            <select id="korrekturschleifen" name="korrekturschleifen">
+            <label for="korrekturschleifen">Korrekturschleifen <span class="required">*</span></label>
+            <select id="korrekturschleifen" name="korrekturschleifen" required data-pflicht-auswahl${korrektur.selectAttr}>
               <option value="">Bitte wählen...</option>
-              <option value="1" ${this.formData.korrekturschleifen === 1 ? 'selected' : ''}>1</option>
-              <option value="2" ${this.formData.korrekturschleifen === 2 ? 'selected' : ''}>2</option>
+              <option value="1" ${isKorrekturschleife(this.formData.korrekturschleifen, 1) ? 'selected' : ''}>1</option>
+              <option value="2" ${isKorrekturschleife(this.formData.korrekturschleifen, 2) ? 'selected' : ''}>2</option>
             </select>
+            <p class="${korrektur.hintClass}" data-auswahl-hinweis>Bitte eine Auswahl treffen.</p>
           </div>
           <div class="form-field">
             <label for="abnahmedatum">Abnahmedatum</label>

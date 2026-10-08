@@ -5,6 +5,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { renderParagraphZusatz } from '../paragraphZusatz.js';
+import { isKorrekturschleife } from '../pflichtAuswahlen.js';
 
 VertraegeCreate.prototype.renderContractingStep2 = function() {
     if (!this._filtersInitialized) {
@@ -366,12 +367,12 @@ VertraegeCreate.prototype.renderContractingStep4 = function() {
             <div class="radio-group radio-group-inline">
               <label class="radio-option">
                 <input type="radio" name="korrekturschleifen" value="1"
-                       ${this.formData.korrekturschleifen === 1 || this.formData.korrekturschleifen === '1' ? 'checked' : ''}>
+                       ${isKorrekturschleife(this.formData.korrekturschleifen, 1) ? 'checked' : ''}>
                 <span>1</span>
               </label>
               <label class="radio-option">
                 <input type="radio" name="korrekturschleifen" value="2"
-                       ${this.formData.korrekturschleifen === 2 || this.formData.korrekturschleifen === '2' ? 'checked' : ''}>
+                       ${isKorrekturschleife(this.formData.korrekturschleifen, 2) ? 'checked' : ''}>
                 <span>2</span>
               </label>
             </div>
