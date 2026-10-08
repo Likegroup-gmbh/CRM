@@ -12,6 +12,7 @@ import castingMatch from '../../netlify/functions/_shared/casting-match.js';
 
 const {
   buildBedarf,
+  loadBedarfData,
   bedarfFingerprint,
   zielAnzahl,
   normiereKandidat,
@@ -108,12 +109,74 @@ describe('buildBedarf', () => {
     expect(b.nischen).toEqual(['fashion']);
   });
 
+  it('ohne Produkt und ohne Persona bleibt ein gueltiger Casting-Bedarf', () => {
+    const b = buildBedarf(
+      { bereich: 'influencer_marketing' },
+      { produktIds: [], personas: [] }
+    );
+    const hatBedarf = Boolean(
+      b.nischen?.length || b.groessen?.length || b.voraussetzungen?.length || b.personas?.length || b.typ
+    );
+    expect(hatBedarf).toBe(true);
+    expect(b.produktIds).toEqual([]);
+    expect(b.personas).toEqual([]);
+  });
+
   it('fingerprint ist stabil gegen Umordnung und unterscheidet Jobs', () => {
     const a = bedarf({ nischen: ['beauty', 'health'] });
     const b = bedarf({ nischen: ['health', 'beauty'] });
     const c = bedarf({ nischen: ['beauty'] });
     expect(bedarfFingerprint(a)).toBe(bedarfFingerprint(b));
     expect(bedarfFingerprint(a)).not.toBe(bedarfFingerprint(c));
+  });
+});
+
+describe('loadBedarfData', () => {
+  function supabaseFor({ briefing, links = [], vorschlaege = [], personas = [] }) {
+    const tables = {
+      campaign_briefings: { data: briefing },
+      campaign_briefing_produkt: { data: links },
+      produkt_persona_vorschlag: { data: vorschlaege },
+      personas: { data: personas },
+      creator_auswahl: { data: { teilbereich: '' } }
+    };
+    return {
+      from(table) {
+        const result = tables[table] || { data: null };
+        const chain = {
+          select() { return chain; },
+          eq() { return chain; },
+          in() { return chain; },
+          maybeSingle: async () => result,
+          then(resolve, reject) { return Promise.resolve(result).then(resolve, reject); }
+        };
+        return chain;
+      }
+    };
+  }
+
+  it('nimmt Personas vom Briefing, auch ohne Produkt', async () => {
+    const persona = { id: 'pe1', name: 'Sportliche', oberbegriff: 'Active' };
+    const { personas, produktIds } = await loadBedarfData(
+      supabaseFor({
+        briefing: { id: 'b1', bereich: 'influencer_marketing', persona_ids: ['pe1'] },
+        personas: [persona]
+      }),
+      { id: 'c1', briefing_id: 'b1' }
+    );
+    expect(produktIds).toEqual([]);
+    expect(personas).toEqual([persona]);
+  });
+
+  it('laesst Personas leer, wenn das Briefing keine nennt und kein Produkt haengt', async () => {
+    const { personas, produktIds } = await loadBedarfData(
+      supabaseFor({
+        briefing: { id: 'b1', bereich: 'owned_social', persona_ids: [] }
+      }),
+      { id: 'c1', briefing_id: 'b1' }
+    );
+    expect(produktIds).toEqual([]);
+    expect(personas).toEqual([]);
   });
 });
 

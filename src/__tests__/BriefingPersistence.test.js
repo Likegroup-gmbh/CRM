@@ -266,6 +266,83 @@ describe('Briefing DataPersistence', () => {
     vi.useRealTimers();
   });
 
+  it('handleSubmit bleibt ohne Produkt und Persona gesperrt', async () => {
+    const { sb, calls } = mockSupabase();
+    window.supabase = sb;
+
+    const instance = createInstance();
+    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Ohne Produkt' };
+
+    await instance.handleSubmit();
+
+    expect(calls.insert.length).toBe(0);
+    expect(window.toastSystem.show).toHaveBeenCalledWith(
+      'Bitte mindestens ein Produkt zuordnen.',
+      'warning'
+    );
+  });
+
+  it('handleSubmit laesst nur die gesetzte Seite leer', async () => {
+    vi.useFakeTimers();
+    const { sb, calls } = mockSupabase();
+    window.supabase = sb;
+
+    const nurOhneProdukt = createInstance();
+    nurOhneProdukt.formData = {
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Ohne Produkt',
+      ohne_produkt: true,
+      produkt_ids: ['p1'],
+      persona_ids: ['pe1']
+    };
+    await nurOhneProdukt.handleSubmit();
+
+    expect(calls.insert.length).toBe(1);
+    expect(calls.insert[0].persona_ids).toEqual(['pe1']);
+    expect(calls.insert[0]).not.toHaveProperty('ohne_produkt');
+    expect(calls.junctionInsert).toEqual([]);
+
+    const nurOhnePersona = createInstance();
+    nurOhnePersona.formData = {
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Ohne Persona',
+      ohne_persona: true,
+      produkt_ids: ['p1'],
+      persona_ids: ['pe1']
+    };
+    await nurOhnePersona.handleSubmit();
+
+    expect(calls.insert.length).toBe(2);
+    expect(calls.insert[1].persona_ids).toEqual([]);
+    expect(calls.junctionInsert[0]).toEqual([{ briefing_id: 'briefing-1', produkt_id: 'p1' }]);
+    vi.useRealTimers();
+  });
+
+  it('handleSubmit finalisiert ohne Produkt und ohne Persona', async () => {
+    vi.useFakeTimers();
+    const { sb, calls } = mockSupabase();
+    window.supabase = sb;
+
+    const instance = createInstance();
+    instance.formData = {
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Ohne beides',
+      ohne_produkt: true,
+      ohne_persona: true,
+      produkt_ids: ['p1'],
+      persona_ids: ['pe1']
+    };
+
+    await instance.handleSubmit();
+
+    expect(calls.insert.length).toBe(1);
+    expect(calls.insert[0].is_draft).toBe(false);
+    expect(calls.insert[0].persona_ids).toEqual([]);
+    expect(calls.insert[0]).not.toHaveProperty('produkt_ids');
+    expect(calls.junctionInsert).toEqual([]);
+    vi.useRealTimers();
+  });
+
   it('handleSubmit bricht ohne Pflichtfelder ab', async () => {
     const { sb, calls } = mockSupabase();
     window.supabase = sb;
@@ -310,5 +387,27 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.marke_id).toBe('m1');
     expect(instance.formData.produkt_ids).toEqual(['p1']);
     expect(instance.formData.persona_ids).toEqual(['pe1']);
+    expect(instance.formData.ohne_produkt).toBe(false);
+    expect(instance.formData.ohne_persona).toBe(false);
+  });
+
+  it('loadFromDB setzt nur die leere Seite', async () => {
+    const row = {
+      id: 'briefing-1',
+      bereich: 'influencer_marketing',
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Nur Produkt',
+      persona_ids: []
+    };
+    const { sb } = mockSupabase({ row, produkte: [{ id: 'p1', name: 'Serum' }] });
+    window.supabase = sb;
+
+    const instance = new BriefingCreate();
+    await instance.loadFromDB('briefing-1');
+
+    expect(instance.formData.ohne_produkt).toBe(false);
+    expect(instance.formData.ohne_persona).toBe(true);
+    expect(instance.formData.produkt_ids).toEqual(['p1']);
+    expect(instance.formData.persona_ids).toEqual([]);
   });
 });

@@ -165,6 +165,9 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
   if (produktSelect) {
     this.formData.produkt_ids = Array.from(produktSelect.selectedOptions).map(o => o.value);
   }
+
+  if (this.formData.ohne_produkt) this.formData.produkt_ids = [];
+  if (this.formData.ohne_persona) this.formData.persona_ids = [];
 };
 
 // ---------------------------------------------------------------
@@ -358,11 +361,15 @@ BriefingCreate.prototype.handleSubmit = async function() {
     window.toastSystem?.show('Bitte einen Titel vergeben (Schritt Grundlage).', 'warning');
     return;
   }
-  if (!this.formData.produkt_ids?.length) {
+  if (this.formData.ohne_produkt) {
+    this.formData.produkt_ids = [];
+  } else if (!this.formData.produkt_ids?.length) {
     window.toastSystem?.show('Bitte mindestens ein Produkt zuordnen.', 'warning');
     return;
   }
-  if (!this.formData.persona_ids?.length) {
+  if (this.formData.ohne_persona) {
+    this.formData.persona_ids = [];
+  } else if (!this.formData.persona_ids?.length) {
     window.toastSystem?.show('Bitte mindestens eine Persona zuordnen.', 'warning');
     return;
   }
@@ -450,6 +457,8 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
 
     const produkte = await loadBriefingProdukte(id);
     this.formData.produkt_ids = produkte.map(p => p.id);
+    this.formData.ohne_produkt = !this.formData.produkt_ids.length;
+    this.formData.ohne_persona = !this.formData.persona_ids.length;
     await this.refreshProdukte();
     await this.refreshPersonas();
 

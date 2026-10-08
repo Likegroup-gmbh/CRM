@@ -112,6 +112,7 @@ BriefingCreate.prototype.refreshConditions = function() {
 
     const condition = {};
     if (wrapper.dataset.conditionEquals !== undefined) condition.equals = parseConditionValue(wrapper.dataset.conditionEquals);
+    if (wrapper.dataset.conditionNotEquals !== undefined) condition.notEquals = parseConditionValue(wrapper.dataset.conditionNotEquals);
     if (wrapper.dataset.conditionIn) condition.in = wrapper.dataset.conditionIn.split(',');
     if (wrapper.dataset.conditionIncludes !== undefined) condition.includes = wrapper.dataset.conditionIncludes;
     if (wrapper.dataset.conditionIncludesAny) condition.includesAny = wrapper.dataset.conditionIncludesAny.split(',');
