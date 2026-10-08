@@ -1,4 +1,5 @@
 import { icon } from '../../../icons/IconSystem.js';
+import { escapeHtml } from '../../../format.js';
 // Optional: preloaded = { allTags: [{id,name}...], selectedTags: [{id,name}...] }
 // Wenn übergeben, werden die beiden Supabase-Calls übersprungen (Edit-Fast-Path).
 export async function setup(form, preloaded = null) {
@@ -94,7 +95,12 @@ export async function setup(form, preloaded = null) {
 
     let html = '';
     filtered.slice(0, 8).forEach(t => {
-      html += `<div class="suggestion-item" data-id="${t.id}" data-name="${t.name}">${t.name}</div>`;
+      const name = escapeHtml(t.name);
+      const id = escapeHtml(t.id);
+      html += `<div class="suggestion-item" data-id="${id}" data-name="${name}">
+        <span class="suggestion-item-name">${name}</span>
+        <button type="button" class="suggestion-item-remove" data-id="${id}" aria-label="Tag ${name} löschen">&times;</button>
+      </div>`;
     });
     if (filter && !allTags.find(t => t.name.toLowerCase() === lf)) {
       html += `<div class="suggestion-item suggestion-item--new" data-name="${filter}">
@@ -142,6 +148,57 @@ export async function setup(form, preloaded = null) {
     renderSelected();
   };
 
+  let deleting = false;
+
+  const usagePhrase = (count) => count === 1 ? '1 Kooperation' : `${count} Kooperationen`;
+
+  const dropTagLocally = (id) => {
+    allTags = allTags.filter(t => t.id !== id);
+    selectedTags = selectedTags.filter(t => t.id !== id);
+    renderSelected();
+    showSuggestions(input.value.trim());
+  };
+
+  const deleteCatalogTag = async (id) => {
+    if (deleting) return;
+    const tag = allTags.find(t => t.id === id);
+    if (!tag) return;
+    deleting = true;
+    try {
+      const { count, error: countError } = await window.supabase
+        .from('kooperation_tags')
+        .select('kooperation_id', { count: 'exact', head: true })
+        .eq('tag_id', id);
+      if (countError) throw countError;
+      const usedBy = count || 0;
+      if (usedBy > 0) {
+        const result = await window.confirmationModal?.open({
+          title: 'Tag löschen',
+          message: `„${escapeHtml(tag.name)}“ wird von ${usagePhrase(usedBy)} genutzt. Der Tag wird dort entfernt und gelöscht.`,
+          confirmText: 'Trotzdem löschen',
+          cancelText: 'Abbrechen',
+          danger: true
+        });
+        if (!result?.confirmed) {
+          showSuggestions(input.value.trim());
+          return;
+        }
+      }
+      const { error } = await window.supabase
+        .from('kooperation_tag_typen')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      dropTagLocally(id);
+    } catch (err) {
+      console.error('Fehler beim Löschen des Tags:', err);
+      window.toastSystem?.show('Tag konnte nicht gelöscht werden', 'error');
+      showSuggestions(input.value.trim());
+    } finally {
+      deleting = false;
+    }
+  };
+
   input.addEventListener('focus', () => showSuggestions(''));
   input.addEventListener('input', (e) => showSuggestions(e.target.value));
   input.addEventListener('keydown', async (e) => {
@@ -159,6 +216,13 @@ export async function setup(form, preloaded = null) {
   });
 
   suggestionsDiv.addEventListener('click', async (e) => {
+    const removeBtn = e.target.closest('.suggestion-item-remove');
+    if (removeBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      await deleteCatalogTag(normId(removeBtn.dataset.id));
+      return;
+    }
     const item = e.target.closest('.suggestion-item:not(.suggestion-item--new)');
     if (item && selectedTags.length < MAX_TAGS) {
       const id = normId(item.dataset.id);
