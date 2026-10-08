@@ -1279,6 +1279,64 @@
   display: none;
 }
 
+/* Kampagnen-Detail: die Tabelle füllt die restliche Höhe und scrollt selbst.
+   Der Sticky-Kopf klebt dann am oberen Rand dieses Bereichs. Summary, Titel
+   und Tabs bleiben darüber. Die Kanban-Ansicht hat keine Tabelle und scrollt
+   weiter die Seite. */
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) > .auftragsdetails-summary,
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) > .page-header,
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .tab-navigation {
+  flex-shrink: 0;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) > .content-section,
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .tab-content,
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .detail-section,
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) #kooperationen-videos-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .tab-content,
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) #kooperationen-videos-container {
+  overflow: hidden;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .grid-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-400) transparent;
+}
+
+/* Senkrechte Leiste zeigen, waagerechte native Leiste ausblenden
+   (dafür gibt es die schwebende Leiste). */
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .grid-wrapper::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+  height: 0;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .grid-wrapper::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+  border-radius: var(--radius-lg);
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .grid-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .grid-table {
   border-collapse: collapse;
   font-size: var(--text-sm);
