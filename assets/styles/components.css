@@ -4591,6 +4591,10 @@ h3.section-title,
   margin: 0;
 }
 
+.step-section .form-hint.form-hint--error {
+  margin-top: var(--space-xxs);
+}
+
 /* Fade-Animationen */
 
 @keyframes pe-fade-in {

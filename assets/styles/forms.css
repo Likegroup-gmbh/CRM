@@ -3354,7 +3354,8 @@ input.readonly-field {
 
 .form-input.is-invalid,
 .form-textarea.is-invalid,
-.form-select.is-invalid {
+.form-select.is-invalid,
+.form-field select.is-invalid {
   border-color: var(--red-500);
 }
 
