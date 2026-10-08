@@ -4862,6 +4862,33 @@ h3.section-title,
   background: var(--gray-50);
 }
 
+#koop_tag_suggestions .suggestion-item:not(.suggestion-item--new) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+#koop_tag_suggestions .suggestion-item-name {
+  min-width: 0;
+  flex: 1;
+}
+
+#koop_tag_suggestions .suggestion-item-remove {
+  flex-shrink: 0;
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: var(--text-md);
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+#koop_tag_suggestions .suggestion-item-remove:hover {
+  color: var(--text-primary);
+}
+
 .suggestion-item--new {
   display: flex;
   align-items: center;
