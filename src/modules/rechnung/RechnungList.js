@@ -125,9 +125,11 @@ export class RechnungList {
 
     const opts = this._blattOpts();
     if (!window.isAdmin() && window.isMitarbeiter()) opts.allowed = await loadRechnungMitarbeiterScope();
+    const listOpts = { ...opts };
+    delete listOpts.allowed;
 
     const [{ rows }, creatorKosten] = await Promise.all([
-      loadRows(opts),
+      loadRows(listOpts),
       this._loadCreatorKosten(opts)
     ]);
     if (requestId !== this._loadRequestId) return;

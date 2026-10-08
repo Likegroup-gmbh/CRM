@@ -91,6 +91,28 @@ describe('Monatsblatt Rechnung', () => {
     expect(rowQuery.calls.or.some(value => String(value).includes('unternehmen_id.in.(u1)'))).toBe(true);
   });
 
+  it('haengt keine Mitarbeiter-ID-Listen an die Query', async () => {
+    const queries = installSupabase({ rows: [{ id: 'r1' }] });
+    await loadRows({
+      year: 2026,
+      month: 9,
+      typeTab: 'rechnung',
+      allowed: {
+        kampagneIds: ['k1'],
+        koopIds: ['c1'],
+        unternehmenIds: ['u1']
+      }
+    });
+
+    const rowQuery = rechnungQueries(queries).find(query => !query.calls.selectOpts?.head);
+    const filters = rowQuery.calls.or.map(String).join(' ');
+    expect(filters).not.toContain('kooperation_id.in');
+    expect(filters).not.toContain('kampagne_id.in');
+    expect(filters).not.toContain('unternehmen_id.in');
+    expect(filters).not.toContain('rechnungstyp.eq.contracting');
+    expect(rowQuery.calls.gte).toContainEqual(['gestellt_am', '2026-10-01']);
+  });
+
   it('wendet den Monatsfilter an wenn search leer ist', async () => {
     const queries = installSupabase({ rows: [{ id: 'r1' }] });
     await loadRows({ year: 2026, month: 0, search: '', typeTab: 'rechnung' });
