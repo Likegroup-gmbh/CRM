@@ -7,7 +7,6 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { ALL_TAB, UNDATED_TAB, getCurrentMonthSelection, parseMonthTab } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { renderInvoiceMonthSheet, updateInvoiceMonthTabUI } from '../auftrag/logic/InvoiceMonthSheet.js';
 import { ENTITY_RECHNUNG, getRechnungTabKey, hydrateRechnungPdfs, loadCounts, loadRows } from './Monatsblatt.js';
-import { loadRechnungMitarbeiterScope, clearRechnungMitarbeiterScope } from './RechnungMitarbeiterScope.js';
 import { renderPageShell, updateTableRows, updateSingleRow, updateStatusTabCounts, patchPdfCells, updateInvoiceSummary } from './RechnungListRenderer.js';
 import { bindRechnungListEvents } from './RechnungListEvents.js';
 import { RechnungListSelection } from './RechnungListSelection.js';
@@ -68,7 +67,6 @@ export class RechnungList {
     clearTimeout(this._searchDebounceTimer);
     this._abortController?.abort();
     this._abortController = null;
-    clearRechnungMitarbeiterScope();
   }
 
   // ═══════════════════════════ Render ══════════════════════
@@ -122,8 +120,6 @@ export class RechnungList {
     if (!firstPaint) TableAnimationHelper.showLoadingOverlay(tbody);
 
     const opts = this._blattOpts();
-    if (!window.isAdmin() && window.isMitarbeiter()) opts.allowed = await loadRechnungMitarbeiterScope();
-
     const { rows } = await loadRows(opts);
     if (requestId !== this._loadRequestId) return;
     this.rechnungen = rows;

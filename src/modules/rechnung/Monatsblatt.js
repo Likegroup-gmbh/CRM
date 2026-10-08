@@ -214,19 +214,6 @@ function applyRechnungSearch(query, searchParts) {
   return query.or(orParts.join(','));
 }
 
-function applyRechnungPermissions(query, allowed) {
-  if (!allowed) return query;
-  const { kampagneIds = [], koopIds = [], unternehmenIds = [] } = allowed;
-  if (!kampagneIds.length && !koopIds.length && !unternehmenIds.length) {
-    return { shortCircuit: true };
-  }
-  const parts = ['rechnungstyp.eq.contracting'];
-  if (kampagneIds.length) parts.push(`kampagne_id.in.(${kampagneIds.join(',')})`);
-  if (koopIds.length) parts.push(`kooperation_id.in.(${koopIds.join(',')})`);
-  if (unternehmenIds.length) parts.push(`unternehmen_id.in.(${unternehmenIds.join(',')})`);
-  return query.or(parts.join(','));
-}
-
 function applyAuftragMode(query, mode) {
   if (mode === 'contracts') return query.eq('auftragtype', 'Contracting');
   return query.neq('auftragtype', 'Contracting');
@@ -404,13 +391,13 @@ export function sumPaidRechnungRows(rows) {
   }, { netto: 0, brutto: 0 });
 }
 
-function buildRechnungQuery(selectArgs, { year, month, filters, typeTab, allowed, searchParts, skipMonth }) {
+function buildRechnungQuery(selectArgs, { year, month, filters, typeTab, searchParts, skipMonth }) {
   let query = window.supabase.from('rechnung').select(...selectArgs);
   if (!skipMonth) query = applyRechnungMonth(query, year, month);
   query = applyRechnungFilters(query, filters);
   query = applyRechnungSearch(query, searchParts);
   query = applyRechnungType(query, typeTab);
-  return applyRechnungPermissions(query, allowed);
+  return query;
 }
 
 export function applyRechnungOrder(query, sortBy) {
@@ -429,7 +416,6 @@ async function fetchRechnungPages(opts) {
   let from = 0;
   while (true) {
     const query = buildRechnungQuery([RECHNUNG_LIST_SELECT], opts);
-    if (query?.shortCircuit) return [];
     const { data, error } = await applyRechnungOrder(query, opts.sortBy)
       .range(from, from + ROW_PAGE_SIZE - 1);
     if (error) throw error;
@@ -483,7 +469,7 @@ async function hydrateRechnungPdfs(rows) {
   return rows;
 }
 
-async function loadRechnungRows({ year, month, filters, search, typeTab, allowed, sortBy }) {
+async function loadRechnungRows({ year, month, filters, search, typeTab, sortBy }) {
   if (!window.supabase) return [];
   const searchParts = await resolveRechnungSearchParts(search);
   const rows = await fetchRechnungPages({
@@ -491,7 +477,6 @@ async function loadRechnungRows({ year, month, filters, search, typeTab, allowed
     month,
     filters,
     typeTab,
-    allowed,
     searchParts,
     sortBy,
     skipMonth: Boolean(searchParts)
@@ -500,19 +485,18 @@ async function loadRechnungRows({ year, month, filters, search, typeTab, allowed
 }
 
 async function headCount(query) {
-  if (!query || query.shortCircuit) return 0;
   const { count, error } = await query;
   if (error) throw error;
   return count || 0;
 }
 
-async function loadRechnungCounts({ year, filters, search, typeTab, allowed, statusIds }) {
+async function loadRechnungCounts({ year, filters, search, typeTab, statusIds }) {
   if (!window.supabase) {
     return { months: emptyCounts(), status: emptyStatusCounts(statusIds), type: { rechnung: 0, contracting: 0 } };
   }
 
   const searchParts = await resolveRechnungSearchParts(search);
-  const baseOpts = { year, month: ALL_TAB, filters, typeTab, allowed, searchParts, skipMonth: true };
+  const baseOpts = { year, month: ALL_TAB, filters, typeTab, searchParts, skipMonth: true };
 
   const typed = extra => buildRechnungQuery(['id', { count: 'exact', head: true }], {
     ...baseOpts,
@@ -520,10 +504,6 @@ async function loadRechnungCounts({ year, filters, search, typeTab, allowed, sta
   });
 
   const allQuery = typed({});
-  if (allQuery?.shortCircuit) {
-    return { months: emptyCounts(), status: emptyStatusCounts(statusIds), type: { rechnung: 0, contracting: 0 } };
-  }
-
   const monthQueries = Array.from({ length: 12 }, (_, index) => typed({
     month: index,
     skipMonth: false
