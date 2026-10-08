@@ -4,6 +4,7 @@
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { collectParagraphZusaetze } from './paragraphZusatz.js';
 import { collectEhgFelder } from './EhgVertragGating.js';
+import { missingUgcPflichtAuswahlen, normalizeKorrekturschleifen } from './pflichtAuswahlen.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
 
 VertraegeCreate.prototype.saveDraftToDB = async function() {
@@ -321,6 +322,10 @@ VertraegeCreate.prototype.validateCurrentStep = function() {
     const requiredFields = form.querySelectorAll('[required]');
     for (const field of requiredFields) {
       if (!field.value) {
+        if (field.matches('[data-pflicht-auswahl]')) {
+          field.classList.add('is-invalid');
+          field.parentElement?.querySelector('[data-auswahl-hinweis]')?.classList.remove('hidden');
+        }
         field.focus();
         window.toastSystem?.show('Bitte füllen Sie alle Pflichtfelder aus.', 'warning');
         return false;
@@ -328,6 +333,33 @@ VertraegeCreate.prototype.validateCurrentStep = function() {
     }
 
     return true;
+};
+
+VertraegeCreate.prototype.focusPendingAuswahl = function() {
+    const fieldName = this._pendingAuswahlFocus;
+    if (!fieldName) return;
+    this._pendingAuswahlFocus = null;
+    const field = document.getElementById(fieldName);
+    if (!field) return;
+    field.classList.add('is-invalid');
+    field.parentElement?.querySelector('[data-auswahl-hinweis]')?.classList.remove('hidden');
+    field.focus();
+};
+
+VertraegeCreate.prototype.ensureUgcPflichtAuswahlen = function() {
+    if (this.selectedTyp !== 'UGC') return true;
+    const missing = missingUgcPflichtAuswahlen(this.formData);
+    if (missing.length === 0) return true;
+
+    const first = missing[0];
+    window.toastSystem?.show('Bitte füllen Sie alle Pflichtfelder aus.', 'warning');
+    this._pendingAuswahlFocus = first.field;
+    if (this.currentStep !== first.step) {
+      this.goToStep(first.step);
+      return false;
+    }
+    this.focusPendingAuswahl();
+    return false;
 };
 
 
@@ -377,6 +409,10 @@ VertraegeCreate.prototype.saveCurrentStepData = function() {
         this.formData[name] = null;
       }
     });
+
+    if (form.querySelector('[name="korrekturschleifen"]')) {
+      this.formData.korrekturschleifen = normalizeKorrekturschleifen(this.formData.korrekturschleifen);
+    }
 
     // Array-Felder: Nur neu sammeln wenn die Checkboxen im aktuellen Step vorhanden sind
     // Ansonsten vorherige Werte beibehalten
@@ -447,6 +483,7 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
 
     if (!this.validateCurrentStep()) return;
     this.saveCurrentStepData();
+    if (!this.ensureUgcPflichtAuswahlen()) return;
 
     if (this.formData.creator_id) {
       const creator = this.creators.find(c => c.id === this.formData.creator_id);

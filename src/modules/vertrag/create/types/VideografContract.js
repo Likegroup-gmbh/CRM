@@ -3,6 +3,8 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { renderParagraphZusatz } from '../paragraphZusatz.js';
+import { isKorrekturschleife } from '../pflichtAuswahlen.js';
+
 VertraegeCreate.prototype.renderVideografStep2 = function() {
     if (!this._filtersInitialized) {
       this.updateFilteredKampagnen();
@@ -259,12 +261,12 @@ VertraegeCreate.prototype.renderVideografStep4 = function() {
           <div class="radio-group radio-group-inline">
             <label class="radio-option">
               <input type="radio" name="korrekturschleifen" value="1" 
-                     ${this.formData.korrekturschleifen == 1 ? 'checked' : ''} required>
+                     ${isKorrekturschleife(this.formData.korrekturschleifen, 1) ? 'checked' : ''} required>
               <span>1 Korrekturschleife</span>
             </label>
             <label class="radio-option">
               <input type="radio" name="korrekturschleifen" value="2" 
-                     ${this.formData.korrekturschleifen == 2 ? 'checked' : ''}>
+                     ${isKorrekturschleife(this.formData.korrekturschleifen, 2) ? 'checked' : ''}>
               <span>2 Korrekturschleifen</span>
             </label>
           </div>

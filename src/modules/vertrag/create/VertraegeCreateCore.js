@@ -13,6 +13,7 @@
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import CONFIG from '../../../core/ConfigSystem.js';
 import { expandParagraphZusaetze, expandAwarenessFelder, expandEhgFelder } from './paragraphZusatz.js';
+import { normalizeKorrekturschleifen } from './pflichtAuswahlen.js';
 
 export class VertraegeCreate {
   constructor() {
@@ -233,7 +234,7 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
           zahlungsziel: draft.zahlungsziel,
           skonto: draft.skonto,
           content_deadline: draft.content_deadline,
-          korrekturschleifen: draft.korrekturschleifen,
+          korrekturschleifen: normalizeKorrekturschleifen(draft.korrekturschleifen),
           abnahmedatum: draft.abnahmedatum,
           weitere_bestimmungen: draft.weitere_bestimmungen,
           // Influencer-spezifische Felder (Agentur-Adresse strukturiert)
