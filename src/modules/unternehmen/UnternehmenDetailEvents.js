@@ -101,7 +101,7 @@ export function bindUnternehmenDetailEvents(detail) {
     if (e.detail?.entity === 'unternehmen' && e.detail?.id === detail.unternehmenId) {
       detail.loadUnternehmenData().then(() => detail.render());
     }
-    if (['produkt', 'persona', 'strategie', 'creator_auswahl'].includes(e.detail?.entity)) {
+    if (['produkt', 'persona', 'strategie', 'creator_auswahl', 'kampagne'].includes(e.detail?.entity)) {
       detail.loadUnternehmenData().then(() => {
         detail.render(true);
         detail.bindDragToScroll();

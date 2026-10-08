@@ -26,6 +26,7 @@ import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
 import { unmountKatalogPanes } from './KampagneDetailKatalog.js';
+import { unmountBriefingPane } from './KampagneDetailBriefing.js';
 import {
   ALLE,
   koopLinie,
@@ -54,7 +55,6 @@ export class KampagneDetail {
     this.videoColumnVisibilityDrawer = null;
     this._customColumnsDrawer = null;
     this.strategien = [];
-    this.briefings = [];
     this.produktionen = [];
     this.produktion = null;
     this.produktionId = null;
@@ -69,6 +69,45 @@ export class KampagneDetail {
     this._isMounted = false;
     this._initPromise = null;
     this._visibilityHandler = null;
+  }
+
+  /** Produktion, Titel und Linien übernehmen; aktive Linie nach URL, Merker, Reihenfolge. */
+  _applyProduktion(produktion) {
+    this.produktion = produktion;
+    this.produktionId = produktion.id;
+    this.lineTitle = produktion.name || '';
+    this.linien = produktion.linien || [];
+    const { linieId, alle } = resolveLinie(this.linien, produktion.id);
+    this.linieId = linieId;
+    this.linieAlle = alle;
+  }
+
+  /**
+   * Linien neu laden (z. B. nach dem Löschen eines Briefings). Fällt die aktive
+   * Linie weg, greift resolveLinie; Tabelle und Tabs laden mit der Linie neu.
+   */
+  async reloadLinien() {
+    if (this.mode !== 'workflow' || !this.produktionId) return;
+    const { loadProduktion } = await import('../produktion/ProduktionService.js');
+    const produktion = await loadProduktion(this.produktionId);
+    if (!this._isMounted || !produktion) return;
+
+    this._applyProduktion(produktion);
+    await this._commitLinie();
+  }
+
+  /** Aktive Linie merken, in URL und Dropdown spiegeln, Tabelle und Tabs neu laden. */
+  async _commitLinie() {
+    rememberLinie(this.produktionId, this.linieId);
+    syncLinieQueryParam(this.linieId, this.linieAlle);
+    syncLinienSwitch(this, this.activeWorkflowTab);
+
+    if (this.kooperationenVideoTable) this.kooperationenVideoTable.briefingId = koopLinie(this);
+    cancelWorkflowPrefetch(this);
+    await this.reloadKooperationTable();
+    if (!this._isMounted) return;
+    refreshWorkflowAfterRender(this);
+    if (this.activeWorkflowTab === 'produktion') startWorkflowPrefetch(this);
   }
 
   async init(kampagneId) {
@@ -111,14 +150,7 @@ export class KampagneDetail {
         renderNotFound('Produktion');
         return;
       }
-      this.produktion = produktion;
-      this.produktionId = produktion.id;
-      this.lineTitle = produktion.name || '';
-      this.linien = produktion.linien || [];
-      Object.assign(this, (() => {
-        const { linieId, alle } = resolveLinie(this.linien, produktion.id);
-        return { linieId, linieAlle: alle };
-      })());
+      this._applyProduktion(produktion);
       this.mode = 'workflow';
       kampagneId = produktion.kampagne_id;
     }
@@ -140,6 +172,7 @@ export class KampagneDetail {
     unmountCastingWorksheet(this);
     unmountKonzeptWorksheet(this);
     unmountKatalogPanes(this);
+    unmountBriefingPane(this);
 
     if (this.kooperationenVideoTable) {
       if (typeof this.kooperationenVideoTable.destroy === 'function') {
@@ -243,7 +276,6 @@ export class KampagneDetail {
 
       this.kampagneData = data.kampagneData;
       this.strategien = data.strategien;
-      this.briefings = data.briefings;
       this.produktionen = data.produktionen || [];
       this.sourcingListenCount = data.sourcingListenCount;
 
@@ -468,16 +500,7 @@ export class KampagneDetail {
 
     this.linieAlle = alle;
     this.linieId = linieId;
-    rememberLinie(this.produktionId, linieId);
-    syncLinieQueryParam(linieId, alle);
-    syncLinienSwitch(this, this.activeWorkflowTab);
-
-    if (this.kooperationenVideoTable) this.kooperationenVideoTable.briefingId = koopLinie(this);
-    cancelWorkflowPrefetch(this);
-    await this.reloadKooperationTable();
-    if (!this._isMounted) return;
-    refreshWorkflowAfterRender(this);
-    if (this.activeWorkflowTab === 'produktion') startWorkflowPrefetch(this);
+    await this._commitLinie();
   }
 
   switchTab(tabName) {
@@ -680,6 +703,7 @@ export class KampagneDetail {
     unmountCastingWorksheet(this);
     unmountKonzeptWorksheet(this);
     unmountKatalogPanes(this);
+    unmountBriefingPane(this);
     unmountVertraegePane(this);
     nutzungsrechteModal._close();
 

@@ -4,6 +4,7 @@
 import { bindCollapsible } from '../../../core/collapsiblePanel.js';
 import { matchesKampagne } from '../SkriptList.js';
 import { openSkriptCreateDrawer } from '../SkriptCreateDrawer.js';
+import { skripteService } from '../SkripteService.js';
 import { escapeHtml, formatDate, skriptEditorPath } from '../SkripteUtils.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
 import { creatorsFuerListe, listeCreatorHtml } from './SkriptEditorDocRenderer.js';
@@ -28,11 +29,30 @@ SkriptEditorView.prototype.upsertSkriptInListe = function(skript) {
 };
 
 SkriptEditorView.prototype.bindListeHead = function() {
-  this.container.querySelector('#ed-neu')?.addEventListener('click', (e) => {
+  this.container.querySelector('#ed-neu')?.addEventListener('click', async (e) => {
     e.preventDefault();
     if (this.isReadonly) return;
-    openSkriptCreateDrawer();
+    openSkriptCreateDrawer(await this.neuPrefill());
   });
+};
+
+/**
+ * Vorbelegung fuer "Neues Skript" aus dem geoeffneten Skript: Unternehmen und
+ * Konzept, aenderbar (soft). Ohne Skript oder bei Fehlern: kein Prefill.
+ */
+SkriptEditorView.prototype.neuPrefill = async function() {
+  const s = this.skript;
+  if (!s?.unternehmen_id) return undefined;
+  let konzeptId = null;
+  try {
+    konzeptId = await skripteService.loadStrategieIdVonItem?.(s.strategie_item_id) || null;
+  } catch (_) { /* Konzept ist nur Komfort */ }
+  return {
+    unternehmen_id: s.unternehmen_id,
+    unternehmenName: s.unternehmen?.firmenname || null,
+    konzept_id: konzeptId,
+    soft: true
+  };
 };
 
 SkriptEditorView.prototype.sollListeStartCollapsed = function() {

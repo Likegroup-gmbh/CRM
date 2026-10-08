@@ -21,6 +21,57 @@ describe('resolveSkriptBereich', () => {
       .toBe('owned_social');
     expect(resolveSkriptBereich({}, {})).toBe(null);
   });
+
+  it('Kampagnenart als Fallback, nur bei eindeutigem Bereich', () => {
+    expect(resolveSkriptBereich({}, null, { art_der_kampagne: ['UGC Organic'] })).toBe('owned_social');
+    expect(resolveSkriptBereich({}, null, { art_der_kampagne: ['UGC Paid'] })).toBe('paid_creator_ads');
+    expect(resolveSkriptBereich({}, null, { art_der_kampagne: ['Influencer Kampagne', 'Influencer Story'] }))
+      .toBe('influencer_marketing');
+    // Mischkampagne: offen
+    expect(resolveSkriptBereich({}, null, { art_der_kampagne: ['UGC Paid', 'UGC Organic'] })).toBe(null);
+    // Vor-Ort hat keinen Bereich, Organic bleibt eindeutig
+    expect(resolveSkriptBereich({}, null, { art_der_kampagne: ['Vor-Ort-Produktion', 'UGC Organic'] }))
+      .toBe('owned_social');
+    expect(resolveSkriptBereich({}, null, { art_der_kampagne: ['Vor-Ort-Produktion'] })).toBe(null);
+    expect(resolveSkriptBereich({}, null, null)).toBe(null);
+  });
+
+  it('Briefing schlägt Kampagnenart', () => {
+    expect(resolveSkriptBereich({}, { bereich: 'paid_creator_ads' }, { art_der_kampagne: ['UGC Organic'] }))
+      .toBe('paid_creator_ads');
+  });
+});
+
+describe('buildFragenPrompt Bereich', () => {
+  const { buildFragenPrompt } = require('../../netlify/functions/skript-fragen-background.js');
+
+  it('Owned: eigener Bereichs-Block und Empfehlungs-Vertrag', () => {
+    const { task } = buildFragenPrompt(
+      { master: MASTER, bereich: 'owned_social', kampagne: { art_der_kampagne: ['UGC Paid', 'UGC Organic'] } },
+      { video_idee: 'x' }, []
+    );
+    expect(task).toContain('# BEREICH DIESES SKRIPTS: Owned Social');
+    expect(task).toContain('Frage nie nach dem Bereich');
+    expect(task).toContain('mehrere Arten');
+    expect(task).toContain('# STANDARDTON UND AUFBAU');
+    expect(task.indexOf('# BEREICH DIESES SKRIPTS')).toBeLessThan(task.indexOf('# VORLIEGENDE CRM-DATEN'));
+  });
+
+  it('Paid: Performance-Block, kein Mischhinweis bei einer Art', () => {
+    const { task } = buildFragenPrompt(
+      { master: [], bereich: 'paid_creator_ads', kampagne: { art_der_kampagne: ['UGC Paid'] } },
+      {}, []
+    );
+    expect(task).toContain('# PAID');
+    expect(task).not.toContain('mehrere Arten');
+    expect(task).not.toContain('# STANDARDTON UND AUFBAU');
+  });
+
+  it('ohne Bereich: Bereich ist die erste Frage', () => {
+    const { task } = buildFragenPrompt({ master: [], bereich: null }, {}, []);
+    expect(task).toContain('BEREICH DIESES SKRIPTS: unbekannt');
+    expect(task).toContain('ERSTE Frage ist der Bereich');
+  });
 });
 
 describe('buildPrompt Master + inhalt_md', () => {
@@ -111,6 +162,41 @@ describe('Generator Spoken-Hooks ohne Extra-Versionen', () => {
     expect(row.hook).toBe('A');
     expect(row.hook_visuell).toBe('V');
     expect([row].map((r) => r.version_nr)).toEqual([1]);
+  });
+});
+
+describe('Feedback-Frage nach der Erstgenerierung', () => {
+  const { legeFeedbackFrageAn, FEEDBACK_FRAGE } = require('../../netlify/functions/skript-generate-background.js');
+
+  function fakeSupabase({ vorhanden = [] } = {}) {
+    const inserts = [];
+    const supabase = {
+      from: () => ({
+        select: () => {
+          const q = { eq: () => q, limit: async () => ({ data: vorhanden, error: null }) };
+          return q;
+        },
+        insert: async (row) => { inserts.push(row); return { error: null }; }
+      })
+    };
+    return { supabase, inserts };
+  }
+
+  it('legt genau eine Assistant-Message im freien Chat an', async () => {
+    const { supabase, inserts } = fakeSupabase();
+    expect(await legeFeedbackFrageAn(supabase, { skriptId: 's1', userId: 'u1' })).toBe(true);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({
+      skript_id: 's1', rolle: 'assistant', aktion: 'chat', sektion: 'gesamt', status: 'fertig',
+      inhalt: FEEDBACK_FRAGE, created_by: 'u1'
+    });
+    expect(FEEDBACK_FRAGE).toContain('Geht es in die richtige Richtung?');
+  });
+
+  it('nichts, wenn schon eine Assistant-Chat-Message existiert', async () => {
+    const { supabase, inserts } = fakeSupabase({ vorhanden: [{ id: 'm1' }] });
+    expect(await legeFeedbackFrageAn(supabase, { skriptId: 's1', userId: 'u1' })).toBe(false);
+    expect(inserts).toHaveLength(0);
   });
 });
 

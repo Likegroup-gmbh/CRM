@@ -70,6 +70,27 @@ describe('fmtCampaignBriefing', () => {
     expect(text).not.toContain('SOLL-FEHLEN');
   });
 
+  it('Flow-Briefing: jede Umsetzungsidee steht in einer eigenen Zeile', () => {
+    const text = fmtCampaignBriefing({
+      bereich: 'paid_creator_ads',
+      aktivierung_name: 'Flow Push',
+      aufgabe: 'Produkt im Alltag zeigen',
+      umsetzungsideen: ['Vorher-Nachher in 20 Sekunden', 'Problem-Lösung, Kabel vs. Kabellos', '  ']
+    });
+    expect(text).toContain('- Vorhandene Umsetzungsideen:\n  - Vorher-Nachher in 20 Sekunden\n  - Problem-Lösung, Kabel vs. Kabellos');
+    expect(text).not.toContain('Vorher-Nachher in 20 Sekunden;');
+  });
+
+  it('Flow-Briefing: leere Ideenliste erzeugt keine Zeile', () => {
+    const text = fmtCampaignBriefing({
+      bereich: 'paid_creator_ads',
+      aktivierung_name: 'Flow Push',
+      aufgabe: 'Produkt im Alltag zeigen',
+      umsetzungsideen: []
+    });
+    expect(text).not.toContain('Umsetzungsideen');
+  });
+
   it('liefert leer ohne Briefing oder ohne befuellte Felder', () => {
     expect(fmtCampaignBriefing(null)).toBe('');
     expect(fmtCampaignBriefing({ bereich: 'owned_social' })).toContain('Owned Social');

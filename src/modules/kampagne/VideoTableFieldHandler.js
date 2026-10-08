@@ -1,4 +1,3 @@
-import { checkAuftragBudgetStatus } from '../auftrag/logic/AuftragStatusUtils.js';
 import {
   getVideoFeedbackSlotByField,
   replaceVideoFeedbackBucket
@@ -31,21 +30,6 @@ export class VideoTableFieldHandler {
 
   _getStore() {
     return this.table.store || null;
-  }
-
-  async _triggerBudgetCheck() {
-    try {
-      const { data } = await window.supabase
-        .from('kampagne')
-        .select('auftrag_id')
-        .eq('id', this.table.kampagneId)
-        .single();
-      if (data?.auftrag_id) {
-        checkAuftragBudgetStatus(data.auftrag_id);
-      }
-    } catch (e) {
-      console.warn('⚠️ Budget-Check Trigger fehlgeschlagen:', e);
-    }
   }
 
   /**
@@ -275,10 +259,6 @@ export class VideoTableFieldHandler {
           }
 
           console.log(`✅ ${entity} aktualisiert`);
-
-          if (entity === 'video' && fieldName === 'verkaufspreis_netto') {
-            this._triggerBudgetCheck();
-          }
 
           if (entity === 'video' && fieldName === 'skript_freigegeben') {
             await this._syncSkriptStatusZurCheckbox(id, value);

@@ -26,6 +26,8 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      // Label/Sichtbarkeit je Kampagne: kampagneAbschlussOptions (kampagneAbschluss.js)
+      { id: 'abschliessen', icon: 'check', label: 'Als abgeschlossen markieren', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],

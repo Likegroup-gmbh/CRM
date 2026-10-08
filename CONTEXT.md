@@ -351,7 +351,7 @@ Zelle eines Skripts, die ein späterer Auftrag nicht ersetzen darf, solange der 
 _Avoid_: Freigabe, Skript-Freigabe, Kundenfreigabe
 
 **Umfang**:
-Reichweite eines Auftrags im Editor. Steht im Text: Alles, ein benannter Teil (Hook, Hauptteil, CTA) oder eine Markierung. Alles und ein benannter Teil schlagen die Markierung und öffnen Festgezogen in diesem Umfang. Benannter Teil meint Was gesagt wird und Was zu sehen ist derselben Sektion. Ohne Umfang und ohne Markierung fragt Liky einmal nach der Sektion.
+Reichweite eines Auftrags im Editor. Steht im Text: Alles, ein benannter Teil (Hook, Hauptteil, CTA) oder eine Markierung. Alles und ein benannter Teil schlagen die Markierung und öffnen Festgezogen in diesem Umfang. Benannter Teil meint Was gesagt wird und Was zu sehen ist derselben Sektion. Ohne Umfang und ohne Markierung fragt Liky einmal nach der Sektion. Ein Wechsel von Figur, Besetzung, Ort oder Geschichte im freien Chat hat immer den Umfang Alles, auch ohne das Wort.
 _Avoid_: Sektion, Spalte, Kontext
 
 **Festlegung**:

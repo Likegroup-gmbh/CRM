@@ -102,11 +102,10 @@ describe('Produktionsbudget', () => {
   });
 
   it('Topf: Kampagnen-Budget schlägt Auftrags-Budget', () => {
-    const auftrag = { creator_budget: 40000, gesamt_budget: 60000, nettobetrag: 90000 };
+    const auftrag = { creator_budget: 40000, nettobetrag: 90000 };
     expect(kampagneBudgetPot({ creator_budget: 30000, volumen: 25000, auftrag })).toBe(30000);
     expect(kampagneBudgetPot({ volumen: 25000, auftrag })).toBe(25000);
     expect(kampagneBudgetPot({ auftrag })).toBe(40000);
-    expect(kampagneBudgetPot({ auftrag: { gesamt_budget: 60000, nettobetrag: 90000 } })).toBe(60000);
     expect(kampagneBudgetPot({ auftrag: { nettobetrag: 90000 } })).toBe(90000);
     expect(kampagneBudgetPot(null)).toBe(0);
   });

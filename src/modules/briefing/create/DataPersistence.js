@@ -6,8 +6,15 @@
 import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
 import { intervallOderNull, videolaengeAusBriefing } from '../videolaenge.js';
+import { ideenListe } from '../ideenSplit.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
-import { navigateBack } from '../../../core/breadcrumbTrail.js';
+import { backTarget, returnTo } from '../../../core/breadcrumbTrail.js';
+import { linieRueckkehr } from '../../kampagne/linienScope.js';
+
+// Nach dem Speichern zurück zur Herkunft; aus einer Produktion landet man auf dem Briefing-Tab dieses Briefings.
+function zurueckNachSpeichern(fallback, briefingId) {
+  return returnTo(linieRueckkehr(backTarget(fallback), briefingId));
+}
 
 function collectableFields() {
   const fields = [];
@@ -334,7 +341,7 @@ BriefingCreate.prototype.saveDraftToDB = async function() {
     await this.persistDraft();
     window.toastSystem?.show(this.editId ? 'Entwurf aktualisiert!' : 'Entwurf gespeichert!', 'success');
     setTimeout(() => {
-      navigateBack('/briefing');
+      zurueckNachSpeichern('/briefing', this.editId);
     }, 500);
   } catch (error) {
     console.error('Fehler beim Speichern des Entwurfs:', error);
@@ -462,7 +469,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
     );
 
     setTimeout(() => {
-      Promise.resolve(navigateBack(`/briefing/${this.editId}`)).catch((navError) => {
+      Promise.resolve(zurueckNachSpeichern(`/briefing/${this.editId}`, this.editId)).catch((navError) => {
         console.error('Weiterleitung nach dem Speichern fehlgeschlagen:', navError);
         window.toastSystem?.show('Gespeichert, aber die Weiterleitung ist fehlgeschlagen. Bitte Seite neu laden.', 'error');
       });
@@ -492,7 +499,11 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     this.formData = {};
     for (const field of getAllFields()) {
       if (briefing[field.name] !== undefined && briefing[field.name] !== null) {
-        this.formData[field.name] = briefing[field.name];
+        // Listenfeld, das frueher ein Freitext war: String/Klumpen in Eintraege teilen,
+        // sonst bleibt das Widget (prueft Array.isArray) leer
+        this.formData[field.name] = field.type === 'repeatableText'
+          ? ideenListe(briefing[field.name])
+          : briefing[field.name];
       }
     }
     const laenge = videolaengeAusBriefing(briefing);

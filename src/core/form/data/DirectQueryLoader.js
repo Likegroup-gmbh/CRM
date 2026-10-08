@@ -10,6 +10,7 @@ import {
   applyRelationTableSelected
 } from './EditModeSelectedHelper.js';
 import { applyFinalisiertFilter } from '../../finalisiert.js';
+import { applyPrefillSelected } from './PrefillSelected.js';
 
 function applyPickerFinalFilter(query, field) {
   if (field.includeDrafts) return query;
@@ -61,6 +62,7 @@ export async function loadDirectQueryOptions(field, form) {
 
     const options = data.map(item => mapRowToOption(item, field));
 
+    await applyPrefillSelected(form, field, options);
     await applyEditModeSelectedForDirectQuery(field, form, options);
 
     if (field.name === 'branche_id' && form.dataset.entityId && (form.dataset.entityType === 'unternehmen' || form.dataset.entityType === 'marke')) {

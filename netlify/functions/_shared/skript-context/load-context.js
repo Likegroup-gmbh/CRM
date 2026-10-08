@@ -100,7 +100,7 @@ async function loadContext(supabase, params) {
   // Branche: explizite Wahl aus der UI hat Vorrang vor Marke/Unternehmen/Persona
   ctx.brancheId = branche_id || ctx.marke?.branche_id || ctx.unternehmen?.branche_id || null;
 
-  ctx.bereich = resolveSkriptBereich(params, ctx.briefing);
+  ctx.bereich = resolveSkriptBereich(params, ctx.briefing, ctx.kampagne);
 
   // Welle 2: haengt an den Ergebnissen aus Welle 1 (brancheId, persona.branche_id, bereich)
   const branchePromise = ctx.brancheId

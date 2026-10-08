@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ALLE, effectiveLinie, koopLinie, renderLinienSwitch, resolveLinie, tabHatAlleLinien
+  ALLE, effectiveLinie, koopLinie, linieRueckkehr, renderLinienSwitch, resolveLinie, tabHatAlleLinien
 } from '../modules/kampagne/linienScope.js';
 import { findKooperationForCreator } from '../modules/kooperation/produktionStart.js';
 import { getSwitcherConfig, loadSwitcherItems } from '../core/breadcrumbSwitcher.js';
@@ -20,6 +20,27 @@ describe('resolveLinie', () => {
 
   it('liefert ohne Linien nichts', () => {
     expect(resolveLinie([], 'p1', '?linie=b1')).toEqual({ linieId: null, alle: false });
+  });
+});
+
+describe('linieRueckkehr', () => {
+  it('setzt Tab und Linie, wenn die Herkunft eine Produktion ist', () => {
+    expect(linieRueckkehr('/produktion/p1', 'b9')).toBe('/produktion/p1?tab=briefing&linie=b9');
+  });
+
+  it('ersetzt Tab und alte Linie, behält andere Parameter', () => {
+    expect(linieRueckkehr('/produktion/p1?tab=casting&linie=b1&x=1', 'b9'))
+      .toBe('/produktion/p1?tab=briefing&linie=b9&x=1');
+  });
+
+  it('lässt andere Herkünfte unverändert', () => {
+    expect(linieRueckkehr('/briefing', 'b9')).toBe('/briefing');
+    expect(linieRueckkehr('/briefing/b9', 'b9')).toBe('/briefing/b9');
+    expect(linieRueckkehr('/produktion/p1/edit', 'b9')).toBe('/produktion/p1/edit');
+  });
+
+  it('lässt die URL ohne Briefing-Id unverändert', () => {
+    expect(linieRueckkehr('/produktion/p1', null)).toBe('/produktion/p1');
   });
 });
 

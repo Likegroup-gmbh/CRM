@@ -80,6 +80,29 @@ export function syncLinieQueryParam(linieId, alle) {
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
+const PRODUKTION_PFAD = /^\/produktion\/[^/]+\/?$/;
+
+/**
+ * Rücksprung-URL aus dem Briefing-Formular: liegt die Herkunft auf einer Produktion,
+ * zeigt sie danach das Briefing-Tab mit diesem Briefing als Linie. Andere Herkünfte
+ * bleiben unverändert.
+ * @param {string} url - Herkunft (Pfad plus Query), meist backTarget(...)
+ * @param {string} briefingId
+ */
+export function linieRueckkehr(url, briefingId) {
+  if (!url || !briefingId) return url;
+  let parsed;
+  try {
+    parsed = new URL(url, 'http://local');
+  } catch {
+    return url;
+  }
+  if (!PRODUKTION_PFAD.test(parsed.pathname)) return url;
+  parsed.searchParams.set('tab', 'briefing');
+  parsed.searchParams.set('linie', briefingId);
+  return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+}
+
 export function rememberLinie(produktionId, linieId) {
   if (produktionId) writeStored(produktionId, linieId);
 }
@@ -137,6 +160,7 @@ export function syncLinienSwitch(detail, tabId) {
   holder.innerHTML = renderLinienSwitch(detail, tabId);
   const next = holder.firstElementChild;
   if (next) current.replaceWith(next);
+  else current.remove();
 }
 
 export function closeLinienMenu() {

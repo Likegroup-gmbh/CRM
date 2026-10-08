@@ -316,6 +316,7 @@ const BRIEFING_FLOW_FIELDS = [
   { name: 'vorgaben_ausschluesse', label: 'Vorgaben und Ausschluesse', prio: 1 },
   { name: 'cta', label: 'CTA', prio: 1 },
   { name: 'hook_vorgaben', label: 'Hook-/Conversion-Vorgaben', prio: 1 },
+  { name: 'umsetzungsideen', label: 'Vorhandene Umsetzungsideen', prio: 1, list: true },
   { name: 'learnings_text', label: 'Learnings', prio: 2 }
 ];
 
@@ -400,6 +401,14 @@ function collectBriefingLines(briefing) {
     if (EIGENER_BLOCK_FELDER.has(field.name)) continue;
     let raw = briefing[field.name];
     if (field.name === 'bereich') raw = BEREICH_LABELS[briefing.bereich] || briefing.bereich;
+    if (field.list && Array.isArray(raw)) {
+      // Listenfeld: eine Zeile pro Eintrag, nicht mit "; " zu einem Klumpen verkleben
+      const items = raw.map((item) => String(item ?? '').trim()).filter(Boolean);
+      if (!items.length) continue;
+      const einzeln = items.map((item) => `  - ${item}`).join('\n');
+      lines.push({ prio: field.prio, text: `- ${field.label}:\n${einzeln}` });
+      continue;
+    }
     const formatted = fmtBriefingValue(raw);
     if (!formatted) continue;
     lines.push({ prio: field.prio, text: `- ${field.label}: ${formatted}` });

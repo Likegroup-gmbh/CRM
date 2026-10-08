@@ -12,6 +12,7 @@ const path = require('path');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, buildKontextText, cap, KONTEXT_MAX } = require('./_shared/skript-context');
 const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
+const { vertragBlock } = require('./_shared/skript-vertrag');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
@@ -61,6 +62,28 @@ function ladeLeitfaden() {
 // ---------------------------------------------------------------------------
 // Prompt
 // ---------------------------------------------------------------------------
+/**
+ * Bereich als eigener Block (nicht nur Nebensatz in der Rolle). Mischkampagnen
+ * (mehrere Kampagnenarten) bekommen den Hinweis, dass nur der Bereich dieses
+ * Skripts gilt. Ohne Bereich ist der Bereich die erste Frage.
+ */
+function bereichBlock(ctx) {
+  if (!ctx.bereich) {
+    return '# BEREICH DIESES SKRIPTS: unbekannt\n'
+      + 'Weder Briefing noch Kampagne legen den Bereich eindeutig fest. '
+      + 'Deine ERSTE Frage ist der Bereich: Owned Social (Organic), Paid Creator Ads oder Influencer Marketing. '
+      + 'Ohne Bereich kann das Skript nicht generiert werden. Stelle sie vor allen anderen Fragen.\n\n';
+  }
+  const label = MASTER_BEREICH_LABELS[ctx.bereich] || ctx.bereich;
+  let text = `# BEREICH DIESES SKRIPTS: ${label}\n`
+    + 'Das steht fest. Frage nie nach dem Bereich und stelle keine Fragen, die zu einem anderen Bereich gehoeren.\n';
+  const arten = Array.isArray(ctx.kampagne?.art_der_kampagne) ? ctx.kampagne.art_der_kampagne : [];
+  if (new Set(arten).size > 1) {
+    text += 'Die Kampagne umfasst mehrere Arten. Massgeblich fuer dieses Skript ist nur der Bereich oben.\n';
+  }
+  return `${text}\n`;
+}
+
 function buildFragenPrompt(ctx, params, history) {
   // Block 1 (stabil, cachebar): Rolle + Leitfaden
   const bereichLabel = MASTER_BEREICH_LABELS[ctx.bereich] || ctx.bereich || 'unbekannt';
@@ -73,7 +96,7 @@ function buildFragenPrompt(ctx, params, history) {
   stable += '\n# LEITFADEN FUER DIE RUECKFRAGEN\n' + ladeLeitfaden();
 
   // Block 2 (variabel): Kontext (inkl. Campaign-Briefing) + bisheriger Dialog
-  let task = '';
+  let task = bereichBlock(ctx);
   task += '# VORLIEGENDE CRM-DATEN ZU DIESEM AUFTRAG\n';
   task += buildKontextText(ctx, params) || '(keine Daten vorhanden)\n';
 
@@ -92,6 +115,7 @@ function buildFragenPrompt(ctx, params, history) {
     + '- Stelle KEINE Frage, deren Antwort bereits im CAMPAIGN-BRIEFING, in den CRM-Daten oder im bisherigen Dialog steht.\n'
     + '- Steht im CRM-Kontext eine Creator-Sektion mit status "zugewiesen", ist der Creator final: '
     + 'keine Frage zum Creator-Status und keine creatorunabhaengige Fassung anbieten.';
+  task += vertragBlock(ctx.bereich);
 
   return {
     stable,
@@ -230,3 +254,4 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
 
 exports.handler = withSkriptHandler(verarbeiteRueckfrage);
 exports._verarbeiteRueckfrage = verarbeiteRueckfrage;
+exports.buildFragenPrompt = buildFragenPrompt;

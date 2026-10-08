@@ -3,6 +3,7 @@
 
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { kampagneAbschlussOptions } from '../../core/actions/kampagneAbschluss.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
@@ -188,7 +189,7 @@ export async function updateTable(kampagnen, { bindDragToScroll, hasActiveFilter
         ${!isKunde ? `<td class="col-ansprechpartner">${renderAnsprechpartner(kampagne.ansprechpartner)}</td>` : ''}
         ${!isKunde ? `<td class="col-mitarbeiter">${renderMitarbeiter(kampagne.mitarbeiter)}</td>` : ''}
         ${!isKunde ? `<td class="col-actions">
-          ${actionBuilder.create('kampagne', kampagne.id, window.currentUser)}
+          ${actionBuilder.create('kampagne', kampagne.id, window.currentUser, kampagneAbschlussOptions(kampagne))}
         </td>` : ''}
       </tr>
     `).join('');

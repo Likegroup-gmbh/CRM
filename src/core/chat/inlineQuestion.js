@@ -3,6 +3,7 @@
 // Briefing und Skript) haengen dieselbe Karte in ihren Feed.
 //   kind 'choice' — eine Option, Klick committet
 //   kind 'input'  — Text oder Zahl, Absenden in der Karte
+//   kind 'counts' — eine Zahl pro Zeile (z. B. Produkt), Summe 1..max, Absenden in der Karte
 // Solange die Karte offen ist, bleibt der Composer aus. Antwort lockt die Karte.
 
 import { icon } from '../icons/IconSystem.js';
@@ -19,8 +20,16 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+const COUNTS_MAX_DEFAULT = 12;
+
+function countsMax(spec) {
+  const max = Number(spec.max);
+  return Number.isInteger(max) && max > 0 ? max : COUNTS_MAX_DEFAULT;
+}
+
 function defaultHint(spec) {
   if (spec.hint != null) return String(spec.hint);
+  if (spec.kind === 'counts') return `0 oder leer lässt eine Zeile aus. Zusammen höchstens ${countsMax(spec)}.`;
   if (spec.kind === 'choice') return 'Wähl eine Option in der Karte.';
   if (spec.input?.type === 'number') return 'Trag die Zahl in die Karte ein.';
   return 'Tipp die Antwort in die Karte.';
@@ -67,10 +76,33 @@ function inputHtml(spec) {
   </form>`;
 }
 
+function countsHtml(spec) {
+  const rows = Array.isArray(spec.rows) ? spec.rows : [];
+  const max = countsMax(spec);
+  const zeilen = rows.map((row) => {
+    const id = escapeHtml(row?.id ?? '');
+    const label = escapeHtml(row?.label ?? '');
+    return `<label class="chat-ask__row">
+      <span class="chat-ask__row-label">${label}</span>
+      <input class="chat-ask__field chat-ask__field--count" type="number" min="0" max="${max}" step="1" inputmode="numeric" placeholder="0" data-row-id="${id}" aria-label="${label}" autocomplete="off">
+    </label>`;
+  }).join('');
+  return `<form class="chat-ask__form chat-ask__form--counts">
+    <div class="chat-ask__rows">${zeilen}</div>
+    <div class="chat-ask__footer">
+      <span class="chat-ask__sum" aria-live="polite">Zusammen 0 von ${max}</span>
+      <button type="submit" class="chat-ask__send" aria-label="Antworten">${SEND}</button>
+    </div>
+  </form>`;
+}
+
 function cardHtml(spec) {
   const prompt = String(spec.prompt || '').trim();
   const promptHtml = prompt ? `<p class="chat-ask__prompt">${escapeHtml(prompt)}</p>` : '';
-  const body = spec.kind === 'choice' ? choiceHtml(spec) : inputHtml(spec);
+  let body;
+  if (spec.kind === 'choice') body = choiceHtml(spec);
+  else if (spec.kind === 'counts') body = countsHtml(spec);
+  else body = inputHtml(spec);
   const hint = escapeHtml(defaultHint(spec));
   return `<div class="chat-ask__card">
     ${stepHtml(spec.step)}
@@ -92,7 +124,7 @@ function readNumber(raw, { min, max }) {
 /**
  * Haengt eine offene Frage in den Feed.
  * @param {HTMLElement} feedEl
- * @param {{ kind: 'choice'|'input', prompt?: string, options?: Array<{id: string, label: string}>, input?: { type?: 'text'|'number', placeholder?: string, min?: number, max?: number }, step?: { current: number, total: number }, hint?: string }} spec
+ * @param {{ kind: 'choice'|'input'|'counts', prompt?: string, options?: Array<{id: string, label: string}>, rows?: Array<{id: string, label: string}>, max?: number, input?: { type?: 'text'|'number', placeholder?: string, min?: number, max?: number }, step?: { current: number, total: number }, hint?: string }} spec
  * @param {{ onAnswer?: Function, setComposerEnabled?: Function }} [hooks]
  * @returns {{ destroy: Function, lock: Function }}
  */
@@ -102,7 +134,7 @@ export function mountInlineQuestion(feedEl, spec, { onAnswer, setComposerEnabled
 
   const root = document.createElement('div');
   root.className = 'chat-ask';
-  root.dataset.kind = spec.kind === 'choice' ? 'choice' : 'input';
+  root.dataset.kind = spec.kind === 'choice' || spec.kind === 'counts' ? spec.kind : 'input';
   root.innerHTML = cardHtml(spec);
   feedEl.appendChild(root);
 
@@ -138,10 +170,55 @@ export function mountInlineQuestion(feedEl, spec, { onAnswer, setComposerEnabled
     commit({ kind: 'choice', optionId, label, text: label, value: optionId });
   }, { signal: ac.signal });
 
+  const readCounts = () => {
+    const max = countsMax(spec);
+    const rows = Array.isArray(spec.rows) ? spec.rows : [];
+    const fields = [...root.querySelectorAll('[data-row-id]')];
+    const werte = [];
+    let summe = 0;
+    let gueltig = true;
+    for (const field of fields) {
+      const raw = String(field.value || '').trim();
+      const n = raw === '' ? 0 : readNumber(raw, { min: 0, max });
+      if (n == null) { gueltig = false; continue; }
+      summe += n;
+      const row = rows.find((r) => String(r?.id ?? '') === field.dataset.rowId);
+      if (n > 0 && row) werte.push({ id: row.id, label: String(row.label ?? ''), anzahl: n });
+    }
+    return { werte, summe, max, ok: gueltig && summe >= 1 && summe <= max };
+  };
+
+  const refreshSum = () => {
+    const sumEl = root.querySelector('.chat-ask__sum');
+    if (!sumEl) return { ok: false };
+    const state = readCounts();
+    sumEl.textContent = `Zusammen ${state.summe} von ${state.max}`;
+    sumEl.classList.toggle('is-invalid', state.summe > state.max);
+    return state;
+  };
+
+  if (spec.kind === 'counts') {
+    root.addEventListener('input', (e) => {
+      if (e.target.closest?.('[data-row-id]')) refreshSum();
+    }, { signal: ac.signal });
+  }
+
   root.addEventListener('submit', (e) => {
     if (e.target !== root.querySelector('.chat-ask__form')) return;
     e.preventDefault();
     if (answered || spec.kind === 'choice') return;
+    if (spec.kind === 'counts') {
+      const state = refreshSum();
+      if (!state.ok) return;
+      commit({
+        kind: 'counts',
+        optionId: null,
+        label: null,
+        text: state.werte.map((w) => `${w.label} ${w.anzahl}`).join(', '),
+        value: state.werte.map((w) => ({ id: w.id, anzahl: w.anzahl }))
+      });
+      return;
+    }
     const field = root.querySelector('.chat-ask__field');
     const raw = String(field?.value || '').trim();
     const input = spec.input || {};

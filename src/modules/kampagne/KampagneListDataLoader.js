@@ -153,7 +153,6 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
           auftragsname: k.auftrag.auftragsname,
           details_id: null,
           creator_budget: k.auftrag.creator_budget,
-          gesamt_budget: k.auftrag.gesamt_budget,
           bruttobetrag: k.auftrag.bruttobetrag,
           nettobetrag: k.auftrag.nettobetrag
         } : null,

@@ -115,7 +115,7 @@ const PRODUKTION_LIST_SELECT = `
     unternehmen_id, marke_id,
     unternehmen:unternehmen_id(id, firmenname, logo_url),
     marke:marke_id(id, markenname, logo_url),
-    auftrag:auftrag_id(creator_budget, gesamt_budget, nettobetrag, start, ende)
+    auftrag:auftrag_id(creator_budget, nettobetrag, start, ende)
   ),
   creator_auswahl(id, name),
   strategie(id, name),

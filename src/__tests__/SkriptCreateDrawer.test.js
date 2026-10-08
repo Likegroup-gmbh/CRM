@@ -64,6 +64,43 @@ describe('SkriptCreateDrawer', () => {
     expect(document.getElementById('skcreate-unternehmen').disabled).toBe(true);
   });
 
+  it('Editor-Prefill (soft): Unternehmen und Konzept gesetzt, nichts gesperrt', async () => {
+    skripteService.loadKonzepte.mockResolvedValue([
+      { id: 'st-1', name: 'Sommer' },
+      { id: 'st-2', name: 'Winter' }
+    ]);
+    openSkriptCreateDrawer({
+      unternehmen_id: 'u1',
+      unternehmenName: 'Hautica',
+      konzept_id: 'st-2',
+      soft: true
+    });
+    await flush();
+
+    expect(skripteService.loadKonzepte).toHaveBeenCalledWith({
+      unternehmenId: 'u1',
+      kampagneId: null,
+      produktionId: null
+    });
+    expect(document.getElementById('skcreate-unternehmen').value).toBe('u1');
+    expect(document.getElementById('skcreate-konzept').value).toBe('st-2');
+    expect(document.getElementById('skcreate-unternehmen').disabled).toBe(false);
+    expect(document.getElementById('skcreate-konzept').disabled).toBe(false);
+    expect(skripteService.loadFreigegebeneVideoideen).toHaveBeenCalledWith({
+      unternehmenId: 'u1',
+      strategieId: 'st-2'
+    });
+  });
+
+  it('Editor-Prefill (soft): unbekanntes Konzept wird ignoriert', async () => {
+    skripteService.loadKonzepte.mockResolvedValue([{ id: 'st-1', name: 'Sommer' }]);
+    openSkriptCreateDrawer({ unternehmen_id: 'u1', konzept_id: 'weg', soft: true });
+    await flush();
+
+    expect(document.getElementById('skcreate-konzept').value).toBe('');
+    expect(document.getElementById('skcreate-konzept').disabled).toBe(false);
+  });
+
   it('Kampagnen-Prefill: mehrere Konzepte bleiben wählbar', async () => {
     skripteService.loadKonzepte.mockResolvedValue([
       { id: 'st-1', name: 'Sommer' },

@@ -10,7 +10,6 @@ import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderBriefingDoc, bindBriefingDoc } from './BriefingDocView.js';
 import { loadBriefingProdukte } from './BriefingProdukte.js';
 import { backTarget } from '../../core/breadcrumbTrail.js';
-
 export class BriefingDetail {
   constructor() {
     this.briefingId = null;
@@ -18,13 +17,42 @@ export class BriefingDetail {
     this.compactView = true;
     this._abortController = null;
     this._docHandle = null;
+    // Eingebettet (Produktion, Tab Briefing): Host-Element statt Seite.
+    this.host = null;
+    this._onDeleted = null;
+    this._destroyed = false;
+  }
+
+  get embedded() {
+    return Boolean(this.host);
   }
 
   canEdit() {
     return Boolean(window.isAdmin?.() || window.currentUser?.permissions?.briefing?.can_edit);
   }
 
+  /**
+   * Dokumentansicht in ein Host-Element legen (Produktion, Tab Briefing).
+   * Kein Headline, kein Breadcrumb, kein Modul-Check: die Seite gehört dem Host.
+   * @param {HTMLElement} host
+   * @param {string} briefingId
+   * @param {{ onDeleted?: Function }} [opts]
+   */
+  async mountEmbedded(host, briefingId, { onDeleted } = {}) {
+    this._destroyed = false;
+    this.host = host;
+    this.briefingId = briefingId;
+    this._onDeleted = onDeleted || null;
+
+    await this.loadData();
+    if (this._destroyed || !this.host?.isConnected) return;
+    await this.render();
+    this.bindEvents();
+    this.setupCacheInvalidation();
+  }
+
   async init(briefingId) {
+    this._destroyed = false;
     this.briefingId = briefingId;
 
     if (window.moduleRegistry?.currentModule !== this) {
@@ -95,20 +123,37 @@ export class BriefingDetail {
         if (e.detail.action === 'updated') {
           this.loadData().then(() => this.render());
         }
+        if (e.detail.action === 'deleted') this._handleDeleted();
       }
     }, { signal });
   }
 
+  // Löschen läuft zentral über confirmDeleteBriefing; hier nur die Folge.
+  _handleDeleted() {
+    if (this.embedded) {
+      this._onDeleted?.(this.briefingId);
+      return;
+    }
+    window.navigateTo(backTarget('/briefing'));
+  }
+
+  _contentRoot() {
+    return this.host || window.content;
+  }
+
   async render() {
     await this._unbindDoc();
+    if (this._destroyed) return;
 
     if (!this.briefing) {
       this.showNotFound();
       return;
     }
 
-    const title = this.briefing.aktivierung_name || 'Briefing';
-    window.setHeadline(`Briefing: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
+    if (!this.embedded) {
+      const title = this.briefing.aktivierung_name || 'Briefing';
+      window.setHeadline(`Briefing: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
+    }
 
     const canDelete = window.isAdmin() || window.currentUser?.permissions?.briefing?.can_delete;
     const canAnschreiben = Boolean(window.isInternal?.()) && !this.briefing.is_draft;
@@ -117,15 +162,18 @@ export class BriefingDetail {
       compact: this.compactView,
       canDelete,
       canEdit: this.canEdit(),
-      canAnschreiben
+      canAnschreiben,
+      showEdit: this.embedded,
+      embedded: this.embedded
     });
 
-    window.setContentSafely(window.content, html);
+    if (this.embedded) this.host.innerHTML = html;
+    else window.setContentSafely(window.content, html);
     this._bindDoc();
   }
 
   _bindDoc() {
-    const root = window.content?.querySelector('.briefing-doc');
+    const root = this._contentRoot()?.querySelector('.briefing-doc');
     this._docHandle = bindBriefingDoc(root, {
       briefingId: this.briefingId,
       canEdit: this.canEdit(),
@@ -274,7 +322,9 @@ export class BriefingDetail {
     this._abortController = new AbortController();
     const signal = this._abortController.signal;
 
-    document.addEventListener('click', (e) => {
+    // Seite: Klicks aus Breadcrumb und Dokument am document. Eingebettet: nur im Host.
+    const scope = this.host || document;
+    scope.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-briefing')) {
         e.preventDefault();
         this._unbindDoc().finally(() => {
@@ -290,59 +340,44 @@ export class BriefingDetail {
         e.preventDefault();
         this._openAnschreiben();
       }
-    }, { signal });
-
-    document.addEventListener('click', async (e) => {
       if (e.target.closest('#btn-delete-briefing')) {
         e.preventDefault();
-        const { canDeleteLinie, deleteBriefingMitLinie, LINIE_LOESCHEN_HINWEIS } = await import('../produktion/ProduktionService.js');
-        const gate = await canDeleteLinie(this.briefingId);
-        if (!gate.ok) {
-          window.toastSystem?.show(gate.reason, 'warning');
-          return;
-        }
-        const doDelete = async () => {
-          try {
-            await deleteBriefingMitLinie(this.briefingId);
-            window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'briefing', action: 'deleted', id: this.briefingId } }));
-            window.navigateTo(backTarget('/briefing'));
-          } catch (err) {
-            console.error('Fehler beim Löschen des Briefings:', err);
-            window.toastSystem?.show('Löschen fehlgeschlagen.', 'error');
-          }
-        };
-
-        if (window.confirmationModal) {
-          const res = await window.confirmationModal.open({
-            title: 'Briefing löschen',
-            message: `Dieses Briefing wirklich löschen? ${LINIE_LOESCHEN_HINWEIS}`,
-            confirmText: 'Endgültig löschen',
-            cancelText: 'Abbrechen',
-            danger: true
-          });
-          if (res?.confirmed) await doDelete();
-        } else if (confirm('Dieses Briefing wirklich löschen?')) {
-          await doDelete();
-        }
+        this._confirmDelete();
       }
     }, { signal });
   }
 
+  async _confirmDelete() {
+    const { confirmDeleteBriefing } = await import('../../core/actions/actionDelete.js');
+    await confirmDeleteBriefing(this.briefingId);
+  }
+
   showNotFound() {
-    window.setHeadline('Briefing nicht gefunden');
-    window.content.innerHTML = `
+    const html = `
       <div class="error-message">
         <h2>Briefing nicht gefunden</h2>
         <p>Das angeforderte Briefing konnte nicht gefunden werden.</p>
       </div>
     `;
+    if (this.embedded) {
+      this.host.innerHTML = html;
+      return;
+    }
+    window.setHeadline('Briefing nicht gefunden');
+    window.content.innerHTML = html;
   }
 
   destroy() {
+    this._destroyed = true;
     this._abortController?.abort();
     this._abortController = null;
     this._unbindDoc();
     tabDataCache.invalidate('briefing', this.briefingId);
+    if (this.embedded) {
+      this.host = null;
+      this._onDeleted = null;
+      return;
+    }
     window.setContentSafely('');
   }
 }

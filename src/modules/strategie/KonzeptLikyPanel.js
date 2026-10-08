@@ -11,11 +11,13 @@ import { pushStep, renderThinking } from '../../core/chat/thinking.js';
 import { renderLikyComposer, renderLikyEingabe, renderLikySend, setLikySendBusy } from '../../core/chat/likyComposer.js';
 import { VideoideeVorschlagService } from './VideoideeVorschlagService.js';
 import { KonzeptChatService } from './KonzeptChatService.js';
+import { getBriefingProdukte } from './service/strategieFreigabe.js';
 
 // Gleicher Clamp wie normalisiereAnzahl in strategie-idee.js.
 const ANZAHL_MIN = 1;
 const ANZAHL_MAX = 12;
 const FRAGE = 'Wie viele Videoideen soll ich entwerfen?';
+const FRAGE_PRO_PRODUKT = 'Wie viele Videoideen soll ich pro Produkt entwerfen?';
 
 const HEAD = `<div class="chat-turn__head">
   <span class="chat-turn__avatar" aria-hidden="true">L</span>
@@ -47,6 +49,7 @@ export class KonzeptLikyPanel {
     this._verlaufGeladen = false;
     this._pendingAktion = null;
     this._frageHerkunft = null;
+    this._frageToken = 0;
   }
 
   get sichtbar() {
@@ -97,6 +100,7 @@ export class KonzeptLikyPanel {
   }
 
   destroy() {
+    this._frageToken++;
     this._question?.destroy();
     this._question = null;
     this._unbindJob();
@@ -134,6 +138,7 @@ export class KonzeptLikyPanel {
   }
 
   _verwerfeAnzahlFrage() {
+    this._frageToken++;
     this._question?.destroy();
     this._question = null;
     this._frageOffen = false;
@@ -143,36 +148,70 @@ export class KonzeptLikyPanel {
     this._setComposerEnabled(true);
   }
 
-  /** Button-Pfad. Offene Karte oder laufender Job: nur das Panel holen. */
+  /**
+   * Button-Pfad. Offene Karte oder laufender Job: nur das Panel holen.
+   * Hat das Briefing mehrere Produkte, fragt die Karte pro Produkt eine Zahl,
+   * sonst eine Gesamtzahl. Die Produkte kommen asynchron; bis die Karte steht,
+   * ist der Composer gesperrt und die Frage gilt als offen.
+   */
   fragAnzahl(hooks = {}) {
-    if (!this._shell) return;
+    if (!this._shell) return Promise.resolve();
     this.fokussieren();
-    if (this.blockiert()) return;
+    if (this.blockiert()) return Promise.resolve();
 
     const feed = this._feed();
-    if (!feed) return;
+    if (!feed) return Promise.resolve();
 
     this._hooks = hooks;
     this._pendingAktion = hooks.pendingAktion || null;
     this._frageHerkunft = hooks.pendingAktion ? 'chat' : 'button';
     this._frageOffen = true;
+    this._setComposerEnabled(false);
 
+    const token = ++this._frageToken;
+    return this._zeigeFrage(feed, token);
+  }
+
+  async _ladeProdukte() {
+    try {
+      const produkte = await getBriefingProdukte(this.detail.strategieId);
+      return Array.isArray(produkte) ? produkte : [];
+    } catch (error) {
+      console.error('Produkte des Konzepts konnten nicht geladen werden:', error);
+      return [];
+    }
+  }
+
+  async _zeigeFrage(feed, token) {
+    const produkte = await this._ladeProdukte();
+    if (token !== this._frageToken || !this._frageOffen || !this._shell) return;
+
+    const proProdukt = produkte.length > 1;
     const turn = document.createElement('div');
     turn.className = 'chat-turn chat-turn--liky';
     turn.innerHTML = HEAD;
     feed.appendChild(turn);
 
-    this._question = mountInlineQuestion(turn, {
-      kind: 'input',
-      prompt: FRAGE,
-      input: {
-        type: 'number',
-        placeholder: 'z. B. 5',
-        min: ANZAHL_MIN,
+    const spec = proProdukt
+      ? {
+        kind: 'counts',
+        prompt: FRAGE_PRO_PRODUKT,
+        rows: produkte.map((p) => ({ id: p.id, label: p.name || 'Produkt' })),
         max: ANZAHL_MAX
-      },
-      hint: 'Trag die Anzahl in die Karte ein.'
-    }, {
+      }
+      : {
+        kind: 'input',
+        prompt: FRAGE,
+        input: {
+          type: 'number',
+          placeholder: 'z. B. 5',
+          min: ANZAHL_MIN,
+          max: ANZAHL_MAX
+        },
+        hint: 'Trag die Anzahl in die Karte ein.'
+      };
+
+    this._question = mountInlineQuestion(turn, spec, {
       onAnswer: (answer) => { void this._starte(answer); },
       setComposerEnabled: (enabled) => this._setComposerEnabled(enabled)
     });
@@ -261,12 +300,25 @@ export class KonzeptLikyPanel {
     this._frageOffen = false;
     this._frageHerkunft = null;
     this._question = null;
-    const anzahl = answer.value;
-    this._pushUser(String(anzahl));
+    // Karte pro Produkt: value = [{ id, anzahl }], sonst eine Zahl.
+    const quoten = answer.kind === 'counts'
+      ? (Array.isArray(answer.value) ? answer.value : [])
+        .map((q) => ({ produkt_id: q.id, anzahl: q.anzahl }))
+      : null;
+    const anzahl = quoten
+      ? quoten.reduce((summe, q) => summe + q.anzahl, 0)
+      : answer.value;
+    this._pushUser(quoten ? String(answer.text || anzahl) : String(anzahl));
     this._laeuft = true;
     this._steps = [];
     this._thinkingEl = null;
     this._setComposerBusy(true);
+
+    // Pro Produkt laeuft immer der Job (die Quote ist strukturiert). Der Satz
+    // aus dem Chat bleibt als Hinweis, damit Liky ihn beim Entwerfen kennt.
+    const hinweis = quoten && this._pendingAktion ? this._pendingAktion.text : null;
+    const ausChat = !!this._pendingAktion;
+    if (quoten) this._pendingAktion = null;
 
     // Aus dem Chat: die Zahl geht als eigene Nachricht an die Function,
     // die den offenen neu/ersetzen-Plan damit ausfuehrt.
@@ -298,9 +350,12 @@ export class KonzeptLikyPanel {
     this._hooks?.onStart?.();
 
     try {
+      const input = quoten
+        ? { proProdukt: quoten, ...(hinweis ? { hinweis } : {}) }
+        : { anzahl };
       const payload = await VideoideeVorschlagService.starteJob({
         strategieId: this.detail.strategieId,
-        input: { anzahl }
+        input
       });
       this._doneThinking();
       const n = Number(payload?.anzahl);
@@ -308,6 +363,8 @@ export class KonzeptLikyPanel {
       this._pushLiky(gezeigt === 1
         ? '1 Idee liegt als Vorschlag in der Tabelle.'
         : `${gezeigt} Ideen liegen als Vorschläge in der Tabelle.`);
+      // Aus dem Chat gestartet: der Vorschlag-Block bindet den Job nicht selbst.
+      if (ausChat) await this._neuLaden();
     } catch (error) {
       console.error('Fehler bei den Videoidee-Vorschlägen:', error);
       this._doneThinking();

@@ -2,7 +2,7 @@
 // Instagram-Bulk-Connect und Bulk-Delete (Prototype-Mixin)
 
 import { CreatorList } from './CreatorListCore.js';
-import { connectInstagramSilent } from '../../core/ActionsDropdownHandlers.js';
+import { connectInstagramSilent } from '../../core/ActionsDropdownEffects.js';
 
 // ══════════════════════════════════════════════════════════════════════════
 // BULK INSTAGRAM CONNECT

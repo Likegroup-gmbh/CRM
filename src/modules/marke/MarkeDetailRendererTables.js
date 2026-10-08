@@ -3,6 +3,7 @@
 
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { kampagneAbschlussOptions } from '../../core/actions/kampagneAbschluss.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
@@ -30,7 +31,7 @@ export function renderKampagnen(detail) {
       <td>${kampagne.creatoranzahl || 0}</td>
       <td>${kampagne.videoanzahl || 0}</td>
       <td>
-        ${actionBuilder.create('kampagne', kampagne.id)}
+        ${actionBuilder.create('kampagne', kampagne.id, window.currentUser, kampagneAbschlussOptions(kampagne))}
       </td>
     </tr>
   `).join('');
@@ -74,7 +75,7 @@ export function renderAuftraege(detail) {
       </td>
       <td>${renderAuftragAmpel(auftrag.status)}</td>
       <td>${auftrag.auftragtype || '-'}</td>
-      <td>${detail.formatCurrency(auftrag.gesamt_budget)}</td>
+      <td>${detail.formatCurrency(auftrag.creator_budget)}</td>
       <td>${detail.formatDate(auftrag.created_at)}</td>
       <td>
         ${actionBuilder.create('auftrag', auftrag.id)}

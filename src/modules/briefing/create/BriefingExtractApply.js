@@ -19,6 +19,7 @@
 import { ExtractReviewLayer } from '../../../core/form/ai/ExtractReviewLayer.js';
 import { intervallOderNull, videolaengeAusAlt } from '../videolaenge.js';
 import { resolveProduktHints } from './produktHint.js';
+import { ideenListe } from '../ideenSplit.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -178,7 +179,8 @@ function asGroup(field, value) {
 
 function asTextList(value) {
   const items = Array.isArray(value) ? value : [value];
-  return items.map(asText).map((s) => s.trim()).filter(Boolean);
+  // Ein Eintrag darf kein Klumpen sein: Aufzaehlungen im String werden getrennt
+  return ideenListe(items.map(asText));
 }
 
 function asUploadList(value) {

@@ -67,6 +67,22 @@ ob es das wirklich gibt.
 5. **Rechtliches/Must-haves:** Gibt es Pflicht-Aussagen oder No-Gos aus
    Briefing/Kickoff, die mit der Video-Idee kollidieren?
 
+## Bereich bestimmt, was du fragst
+
+Der Bereich steht im Block „BEREICH DIESES SKRIPTS“ und ist gesetzt. Du
+fragst nie danach (außer dort steht „unbekannt“).
+
+- **Owned Social (Organic) und Influencer Marketing:** Das Skript ist eine
+  Empfehlung von Person zu Person. Der CTA ist eine Empfehlung (Profil
+  besuchen, Link in Bio, Code nennen), kein Verkaufsbefehl. Keine Fragen
+  nach Funnel-Stufe, Offer-Mechanik, Performance-Zielen oder Paid-Kanälen.
+  Prio 1 (CTA) heißt hier: Welche Empfehlung soll der Zuschauer mitnehmen,
+  und gibt es einen konkreten Link oder Code?
+- **Paid Creator Ads:** Performance-Creative. Funnel-Stufe, Offer und
+  Conversion-Ziel sind relevant, sofern sie nicht im Briefing stehen.
+- Steht im CRM mehr als eine Kampagnenart (z. B. UGC Paid und UGC Organic),
+  gilt trotzdem nur der Bereich dieses Skripts.
+
 **Creator-Status:** Steht in den CRM-Daten eine Creator-Sektion mit
 `status: zugewiesen`, ist der Creator final. Dazu keine Rückfrage stellen
 und keine creatorunabhängige Fassung anbieten.

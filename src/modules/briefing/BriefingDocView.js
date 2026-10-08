@@ -239,7 +239,7 @@ function renderActionButton({ id, label, title, variant = 'secondary', iconName 
     </button>`;
 }
 
-function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben = false, compact = true } = {}) {
+function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben = false, showEdit = false, compact = true } = {}) {
   const toggleLabel = compact ? 'Alle Felder' : 'Komprimiert';
   return `
     <div class="briefing-doc__actions">
@@ -250,6 +250,12 @@ function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben =
         title: compact ? 'Alle Felder anzeigen' : 'Ansicht komprimieren',
         iconName: compact ? 'list-bullet' : 'arrows-collapse'
       })}
+      ${showEdit && canEdit ? renderActionButton({
+        id: 'btn-edit-briefing',
+        label: 'Bearbeiten',
+        title: 'Briefing im Formular bearbeiten',
+        iconName: 'pencil-square'
+      }) : ''}
       ${canAnschreiben ? renderActionButton({
         id: 'btn-anschreiben-briefing',
         label: 'Anschreiben',
@@ -409,7 +415,8 @@ function renderGroupedSections(groups, detail, { canEdit = false } = {}) {
         ${renderHeading(group.title, detail)}
         ${prose.map(item => renderProseItem(item, {
           canEdit,
-          showLabel: showLabels && item.field.type === 'textarea'
+          // Listen (nicht inline editierbar) tragen ihr Label immer selbst
+          showLabel: item.field.type === 'repeatableText' || (showLabels && item.field.type === 'textarea')
         })).join('')}
         ${renderSpecTable(specs)}
       </section>
@@ -548,6 +555,8 @@ export function renderBriefingDoc({
   canDelete = false,
   canEdit = false,
   canAnschreiben = false,
+  showEdit = false,
+  embedded = false,
   print = false
 } = {}) {
   if (print) {
@@ -555,6 +564,7 @@ export function renderBriefingDoc({
     canDelete = false;
     canEdit = false;
     canAnschreiben = false;
+    showEdit = false;
   }
   const legacy = isLegacyBriefing(detail.briefing);
   const contentEditable = canEdit && !legacy;
@@ -593,9 +603,9 @@ export function renderBriefingDoc({
   if (print) return article;
 
   return `
-    <div class="briefing-detail">
+    <div class="briefing-detail${embedded ? ' briefing-detail--embedded' : ''}">
       <header class="briefing-doc-head">
-        ${renderDocActions({ canEdit, canDelete, canAnschreiben, compact })}
+        ${renderDocActions({ canEdit, canDelete, canAnschreiben, showEdit, compact })}
       </header>
       <div class="briefing-detail__scroll">
         ${article}

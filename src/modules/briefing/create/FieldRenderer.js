@@ -355,24 +355,37 @@ function renderRepeatableKpi(field, formData) {
 }
 
 // ["...", ...] -> jsonb
+// Optionen: multiline (Textarea je Eintrag), minRows (leere Startzeilen, damit
+// das Feld nicht unsichtbar ist), placeholder, hideLabel/hideAdd (Split-Header).
 function renderRepeatableText(field, formData) {
-  const rows = Array.isArray(formData[field.name]) ? formData[field.name] : [];
+  const rows = Array.isArray(formData[field.name]) ? [...formData[field.name]] : [];
+  while (rows.length < (field.minRows || 0)) rows.push('');
+  const placeholder = escapeHtml(field.placeholder || field.itemLabel || 'Eintrag');
+
+  const inputHtml = (entry) => field.multiline
+    ? `<textarea data-item rows="2" placeholder="${placeholder}">${escapeHtml(entry)}</textarea>`
+    : `<input type="text" data-item placeholder="${placeholder}" value="${escapeHtml(entry)}">`;
+
   const rowHtml = (entry = '') => `
     <div class="bf-repeatable-row" data-repeatable-row>
-      <input type="text" data-item placeholder="${escapeHtml(field.itemLabel || 'Eintrag')}" value="${escapeHtml(entry)}">
+      ${inputHtml(entry)}
       <button type="button" class="mdc-btn mdc-btn--icon bf-repeatable-remove" title="Entfernen">${icon('trash')}</button>
     </div>
   `;
 
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <div class="bf-repeatable" data-repeatable="${field.name}" data-repeatable-type="text" data-max="${field.max || 10}">
-        ${rows.map(rowHtml).join('')}
-      </div>
+  const addButton = field.hideAdd ? '' : `
       <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${field.name}">
         ${icon('plus')} ${escapeHtml(field.itemLabel || 'Eintrag')} hinzufügen
-      </button>
+      </button>`;
+
+  return `
+    <div class="form-field">
+      ${field.hideLabel ? '' : renderLabel(field)}
+      <div class="bf-repeatable" data-repeatable="${field.name}" data-repeatable-type="text" data-max="${field.max || 10}"
+           ${field.multiline ? 'data-multiline="true"' : ''} data-placeholder="${placeholder}">
+        ${rows.map(rowHtml).join('')}
+      </div>
+      ${addButton}
       ${renderHelper(field)}
     </div>
   `;
@@ -517,33 +530,43 @@ function classList(...parts) {
   return parts.filter(Boolean).join(' ');
 }
 
+const SPLIT_HEADER_LISTS = new Set(['repeatableText', 'repeatableUpload']);
+
+function splitHeaderAddLabel(field) {
+  return field.type === 'repeatableText'
+    ? `${field.itemLabel || 'Eintrag'} hinzufügen`
+    : 'Beispiel hinzufügen';
+}
+
+// Listenfelder: Label + Add-Button als Seite der Kopfzeile. Alles andere
+// (Textarea links) behaelt das klassische <label for>.
+function splitHeaderSide(field, { start }) {
+  if (!field) return '';
+  if (!SPLIT_HEADER_LISTS.has(field.type)) {
+    const required = field.required ? ' <span class="required">*</span>' : '';
+    return `<label for="${escapeHtml(field.name)}">${escapeHtml(field.label || '')}${required}</label>`;
+  }
+  return `
+        <div class="${classList('bf-split-header__side', start && 'bf-split-header__side--start')}">
+          <span class="bf-split-header__label">${escapeHtml(field.label || '')}</span>
+          <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${escapeHtml(field.name)}">${icon('plus')} ${escapeHtml(splitHeaderAddLabel(field))}</button>
+        </div>`;
+}
+
 function renderSplitHeaderGroup(field, formData, context) {
   const [left, right] = field.fields || [];
   const id = field.id || '';
   const classes = classList('bf-field-group', 'bf-field-group--split-header', id && `bf-field-group--${id}`);
-  const required = left?.required ? ' <span class="required">*</span>' : '';
-  const leftLabel = left
-    ? `<label for="${escapeHtml(left.name)}">${escapeHtml(left.label || '')}${required}</label>`
-    : '';
-  const rightLabel = right
-    ? `<span class="bf-split-header__label">${escapeHtml(right.label || '')}</span>`
-    : '';
-  const addButton = right
-    ? `<button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${escapeHtml(right.name)}">${icon('plus')} Beispiel hinzufügen</button>`
-    : '';
-  const bodies = [
-    left ? renderField({ ...left, hideLabel: true }, formData, context) : '',
-    right ? renderField({ ...right, hideLabel: true, hideAdd: true }, formData, context) : ''
-  ].join('');
+  const bodies = [left, right]
+    .filter(Boolean)
+    .map(f => renderField({ ...f, hideLabel: true, hideAdd: true }, formData, context))
+    .join('');
 
   return `
     <div class="${classes}"${id ? ` data-group="${escapeHtml(id)}"` : ''}>
       <div class="bf-split-header">
-        ${leftLabel}
-        <div class="bf-split-header__side">
-          ${rightLabel}
-          ${addButton}
-        </div>
+        ${splitHeaderSide(left, { start: true })}
+        ${splitHeaderSide(right, { start: false })}
       </div>
       ${bodies}
     </div>

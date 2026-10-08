@@ -35,19 +35,6 @@ describe('ContractDetail.calculateBudgetSummary', () => {
     expect(openBudget).toBe(7500);
   });
 
-  it('bevorzugt gesamt_budget vor nettobetrag als Fallback', () => {
-    const instance = createInstance({
-      nettobetrag: 10000,
-      creator_budget: null,
-      gesamt_budget: 8000,
-      rechnungen: []
-    });
-
-    const { totalBudget } = instance.calculateBudgetSummary();
-
-    expect(totalBudget).toBe(8000);
-  });
-
   // ADR 0007: Ueberfakturierung wird ausgewiesen, nicht auf 0 geklemmt.
   it('weist Überfakturierung als negatives offenes Budget aus', () => {
     const instance = createInstance({

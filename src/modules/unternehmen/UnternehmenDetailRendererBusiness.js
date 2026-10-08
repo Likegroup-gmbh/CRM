@@ -2,6 +2,7 @@
 // Tab-Renderer: Aufträge, Auftragsdetails, Briefings, Kampagnen
 
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { kampagneAbschlussOptions } from '../../core/actions/kampagneAbschluss.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 import { isInvoiceRowPaid } from '../auftrag/logic/PaymentRowStatus.js';
@@ -237,7 +238,7 @@ export function renderKampagnen(detail) {
       <td>${renderBudgetProgress(detail, k)}</td>
       <td>${k.creatoranzahl || 0}</td>
       <td>${k.videoanzahl || 0}</td>
-      ${!isKunde ? `<td>${actionBuilder.create('kampagne', k.id)}</td>` : ''}
+      ${!isKunde ? `<td>${actionBuilder.create('kampagne', k.id, window.currentUser, kampagneAbschlussOptions(k))}</td>` : ''}
     </tr>
   `).join('');
 

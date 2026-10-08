@@ -141,6 +141,17 @@ export class SkripteService {
     return data || null;
   }
 
+  /** Konzept (strategie_id) einer Videoidee, ohne Transkript. Fuer den Editor-Prefill. */
+  async loadStrategieIdVonItem(itemId) {
+    if (!itemId) return null;
+    const { data, error } = await this.db.from('strategie_items')
+      .select('strategie_id')
+      .eq('id', itemId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.strategie_id || null;
+  }
+
   /**
    * Accepted Produkt-Fits einer Persona. 0/1/n entscheidet der Resolver,
    * nicht der Caller.

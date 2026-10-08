@@ -43,7 +43,7 @@ function valueShape(field) {
     case 'checkboxes':
     case 'customMulti': return 'array von options.value (strings)';
     case 'repeatableKpi': return 'array von { kpi: kpiOptions.value, zielwert: string }';
-    case 'repeatableText': return 'array von strings';
+    case 'repeatableText': return 'array von strings, genau ein eigenstaendiger Punkt pro Eintrag';
     case 'channelGroup': return 'object: channel.key -> array von format-values (strings), z.B. { instagram: ["reel","story"] }';
     case 'group': return 'object mit den Sub-Feldern aus fields, jeder Wert ein string';
     case 'select': return 'ein options.value als string, sonst ein kurzer eigener Text';

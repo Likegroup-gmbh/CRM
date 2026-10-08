@@ -299,3 +299,32 @@ describe('formatExtractResult', () => {
     expect(text).toContain('gewählte Unternehmen bleibt');
   });
 });
+
+describe('umsetzungsideen als Liste', () => {
+  const field = byName('umsetzungsideen');
+
+  it('ist ein Listenfeld', () => {
+    expect(field.type).toBe('repeatableText');
+  });
+
+  it('uebernimmt ein Array eine Idee pro Eintrag', () => {
+    expect(normalizeValue(field, { value: ['Idee A', 'Idee B'], kind: 'fact' })).toEqual(['Idee A', 'Idee B']);
+  });
+
+  it('trennt einen Klumpen, den das Modell trotz Array-Vorgabe liefert', () => {
+    expect(normalizeValue(field, ['UGC-Ideen:\n• Idee A\n• Idee B'])).toEqual(['Idee A', 'Idee B']);
+    expect(normalizeValue(field, 'Stories: (1) Heiligabend. (2) Sommer.')).toEqual(['Heiligabend.', 'Sommer.']);
+  });
+
+  it('schreibt die Liste per apply in formData und laesst Befuelltes stehen', () => {
+    const apply = createApply({});
+    const { applied } = apply.apply({ umsetzungsideen: { value: ['A', 'B'], kind: 'fact' } }, SPEC);
+    expect(applied).toHaveLength(1);
+    expect(apply.briefing.formData.umsetzungsideen).toEqual(['A', 'B']);
+
+    const voll = createApply({ umsetzungsideen: ['Eigene Idee'] });
+    const { skipped } = voll.apply({ umsetzungsideen: { value: ['A'] } }, SPEC);
+    expect(skipped).toHaveLength(1);
+    expect(voll.briefing.formData.umsetzungsideen).toEqual(['Eigene Idee']);
+  });
+});

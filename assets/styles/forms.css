@@ -4183,6 +4183,16 @@ input.readonly-field {
   flex: 1;
 }
 
+.bf-repeatable-row textarea[data-item] {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+}
+
+.bf-repeatable-row:has(> textarea[data-item]) {
+  align-items: flex-start;
+}
+
 .bf-repeatable-row__select {
   min-width: 220px;
 }
@@ -4268,6 +4278,10 @@ input.readonly-field {
   align-items: center;
   gap: var(--space-sm);
   margin-left: auto;
+}
+
+.bf-split-header__side--start {
+  margin-left: 0;
 }
 
 .bf-split-header .bf-repeatable-add {

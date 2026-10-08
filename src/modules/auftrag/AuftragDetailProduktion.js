@@ -152,7 +152,7 @@ Object.assign(AuftragDetail.prototype, {
                      style="width: ${Math.min(100, this.getBudgetPercentage())}%">
                 </div>
               </div>
-              ${(this.auftrag?.creator_budget || this.auftrag?.gesamt_budget || this.auftrag?.nettobetrag) ? `<div class="summary-planned">${this.getBudgetPercentage()}%</div>` : ''}
+              ${(this.auftrag?.creator_budget || this.auftrag?.nettobetrag) ? `<div class="summary-planned">${this.getBudgetPercentage()}%</div>` : ''}
             </div>
             ${this.renderAuftragsbestaetigungCard()}
           </div>

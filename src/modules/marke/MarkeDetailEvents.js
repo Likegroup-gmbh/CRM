@@ -103,7 +103,8 @@ export function bindMarkeDetailEvents(detail) {
       produkt: 'produkte',
       persona: 'personas',
       strategie: 'strategien',
-      creator_auswahl: 'sourcing'
+      creator_auswahl: 'sourcing',
+      kampagne: 'kampagnen'
     };
     const tab = tabByEntity[e.detail?.entity];
     if (tab) {

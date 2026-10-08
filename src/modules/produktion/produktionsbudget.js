@@ -36,7 +36,6 @@ export function kampagneBudgetPot(kampagne) {
     kampagne?.creator_budget ||
     kampagne?.volumen ||
     kampagne?.auftrag?.creator_budget ||
-    kampagne?.auftrag?.gesamt_budget ||
     kampagne?.auftrag?.nettobetrag || 0
   ) || 0;
 }

@@ -27,7 +27,7 @@ function setupSupabaseMock(mitarbeiterByRoleData = []) {
     art_der_kampagne: [],
     unternehmen: { firmenname: 'TestGmbH', webseite: null, branche_id: null },
     marke: { markenname: 'TestMarke', webseite: null },
-    auftrag: { auftragsname: 'Auftrag1', status: 'aktiv', gesamt_budget: 1000, creator_budget: 500, bruttobetrag: 1190, nettobetrag: 1000 },
+    auftrag: { auftragsname: 'Auftrag1', status: 'aktiv', creator_budget: 500, bruttobetrag: 1190, nettobetrag: 1000 },
   };
 
   window.supabase = {

@@ -226,10 +226,9 @@ export class ContractDetail {
     const c = this.contract || {};
     const rechnungen = c.rechnungen || [];
 
-    // Gesamtbudget: creator_budget (Netto abzüglich Agentur Fee/KSK), Fallback gesamt_budget/nettobetrag
+    // Gesamtbudget: creator_budget (Netto abzüglich Agentur Fee/KSK), Fallback nettobetrag
     const totalBudget = parseFloat(
       c.creator_budget ||
-      c.gesamt_budget ||
       c.nettobetrag ||
       0
     ) || 0;

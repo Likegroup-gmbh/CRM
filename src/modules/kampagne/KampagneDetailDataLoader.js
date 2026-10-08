@@ -28,7 +28,7 @@ export async function loadCriticalData(kampagneId, scope = {}) {
         *,
         unternehmen:unternehmen_id(firmenname, webseite, branche_id, logo_url),
         marke:marke_id(markenname, webseite, logo_url),
-        auftrag:auftrag_id(auftragsname, status, gesamt_budget, creator_budget, bruttobetrag, nettobetrag)
+        auftrag:auftrag_id(auftragsname, status, creator_budget, bruttobetrag, nettobetrag)
       `)
       .eq('id', kampagneId)
       .single(),
@@ -180,8 +180,8 @@ export async function loadCriticalData(kampagneId, scope = {}) {
     kampagneData.kampagne_art_typen = kampagneArten || [];
   }
 
-  // Notizen, Ratings, Strategien, Briefings & Tab-Counts parallel laden
-  const [strategienResult, briefingsResult, sourcingCountResult, produktionen] = await Promise.all([
+  // Notizen, Ratings, Strategien & Tab-Counts parallel laden (Briefings stehen als Linien an der Produktion)
+  const [strategienResult, sourcingCountResult, produktionen] = await Promise.all([
     scopeByProduktion(
       window.supabase
         .from('strategie')
@@ -195,13 +195,6 @@ export async function loadCriticalData(kampagneId, scope = {}) {
         .order('created_at', { ascending: false }),
       produktionId
     ),
-    produktionId
-      ? window.supabase
-        .from('campaign_briefings')
-        .select('id, aktivierung_name, bereich, is_draft, content_deadline, created_at')
-        .eq('produktion_id', produktionId)
-        .order('created_at', { ascending: true })
-      : Promise.resolve({ data: [], error: null }),
     scopeByProduktion(
       window.supabase
         .from('creator_auswahl')
@@ -214,11 +207,6 @@ export async function loadCriticalData(kampagneId, scope = {}) {
 
   const strategien = strategienResult.data || [];
 
-  if (briefingsResult.error) {
-    console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der Briefings:', briefingsResult.error);
-  }
-  const briefings = briefingsResult.data || [];
-
   const sourcingListenCount = sourcingCountResult.count || 0;
 
   const loadTime = (performance.now() - startTime).toFixed(0);
@@ -227,7 +215,6 @@ export async function loadCriticalData(kampagneId, scope = {}) {
   return {
     kampagneData,
     strategien,
-    briefings,
     sourcingListenCount,
     produktionen
   };

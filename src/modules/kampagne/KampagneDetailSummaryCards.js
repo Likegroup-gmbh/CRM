@@ -68,7 +68,6 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
   // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
   const totalBudget = (parseFloat(
     kampagneData?.auftrag?.creator_budget ||
-    kampagneData?.auftrag?.gesamt_budget ||
     kampagneData?.auftrag?.nettobetrag || 0
   ) || 0) + (parseFloat(kskUmgebucht) || 0);
   const usedBudget = koopBudgetSum || 0;
@@ -175,7 +174,6 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
   // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
   const totalBudget = (parseFloat(
     kampagneData?.auftrag?.creator_budget ||
-    kampagneData?.auftrag?.gesamt_budget ||
     kampagneData?.auftrag?.nettobetrag || 0
   ) || 0) + (parseFloat(kskUmgebucht) || 0);
   const usedBudget = koopBudgetSum || 0;

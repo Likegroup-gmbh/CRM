@@ -398,7 +398,15 @@ describe('Briefing DataPersistence', () => {
         trail: [{ label: 'Serum', url: '/produktion/p1?tab=briefing' }]
       }, '', '/briefing/new');
       await submit();
-      expect(window.navigateTo).toHaveBeenLastCalledWith('/produktion/p1?tab=briefing');
+      // Aus der Produktion: zurück auf das Briefing-Tab, das neue Briefing ist die aktive Linie.
+      expect(window.navigateTo).toHaveBeenLastCalledWith('/produktion/p1?tab=briefing&linie=briefing-1');
+
+      window.history.replaceState({
+        route: '/briefing/new',
+        trail: [{ label: 'Serum', url: '/produktion/p1?tab=casting&linie=alt' }]
+      }, '', '/briefing/new');
+      await submit();
+      expect(window.navigateTo).toHaveBeenLastCalledWith('/produktion/p1?tab=briefing&linie=briefing-1');
     } finally {
       window.history.replaceState(null, '', '/');
       vi.useRealTimers();

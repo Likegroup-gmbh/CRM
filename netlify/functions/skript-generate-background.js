@@ -377,6 +377,16 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const { error: versionError } = await supabase.from('skript_versionen').insert(versionRows);
     if (versionError) job.log(`Hinweis: Versions-Snapshots fehlgeschlagen (${versionError.message})`);
 
+    // Nach der Erstgenerierung fragt Liky von sich aus nach Feedback (nur Fragen-Flow).
+    // Nicht kritisch: ein Fehler hier darf die fertige Generierung nicht kippen.
+    if (payload.skript_id) {
+      try {
+        await legeFeedbackFrageAn(supabase, { skriptId: skript.id, userId: user.id });
+      } catch (feedbackErr) {
+        job.log(`Hinweis: Feedback-Frage nicht angelegt (${feedbackErr.message})`);
+      }
+    }
+
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     job.log(`Fertig in ${elapsed}s (Tokens: ${result.usage?.input_tokens ?? '?'} in / ${result.usage?.output_tokens ?? '?'} out)`);
     await job.flushAndUpdate({ status: 'done', progress_step: 'done', skript_id: skript.id });
@@ -392,6 +402,37 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     return { statusCode: 500 };
   }
 });
+
+const FEEDBACK_FRAGE = 'Skript steht. Geht es in die richtige Richtung? '
+  + 'Sag mir alles, was dir nicht gefällt – Story, Figuren, Ort, Ton, Länge, einzelne Sätze. '
+  + 'Ich setze es im ganzen Skript um.';
+
+/**
+ * Feedback-Frage als normale Assistant-Message im freien Chat. Einmal pro
+ * Skript: gibt es schon eine Assistant-Message mit aktion 'chat', passiert nichts.
+ */
+async function legeFeedbackFrageAn(supabase, { skriptId, userId }) {
+  const { data: vorhanden, error } = await supabase.from('skript_chat_messages')
+    .select('id')
+    .eq('skript_id', skriptId)
+    .eq('rolle', 'assistant')
+    .eq('aktion', 'chat')
+    .limit(1);
+  if (error) throw new Error(error.message);
+  if (vorhanden?.length) return false;
+
+  const { error: insertError } = await supabase.from('skript_chat_messages').insert({
+    skript_id: skriptId,
+    rolle: 'assistant',
+    aktion: 'chat',
+    sektion: 'gesamt',
+    status: 'fertig',
+    inhalt: FEEDBACK_FRAGE,
+    created_by: userId
+  });
+  if (insertError) throw new Error(insertError.message);
+  return true;
+}
 
 function buildErstgenerierungVersionRow({ skriptId, parsed, felder, hook_varianten, inhaltMd, userId }) {
   return {
@@ -418,4 +459,6 @@ function buildErstgenerierungVersionRow({ skriptId, parsed, felder, hook_variant
 
 exports.buildPrompt = buildPrompt;
 exports.SKRIPT_TOOL = SKRIPT_TOOL;
+exports.legeFeedbackFrageAn = legeFeedbackFrageAn;
+exports.FEEDBACK_FRAGE = FEEDBACK_FRAGE;
 exports.buildErstgenerierungVersionRow = buildErstgenerierungVersionRow;

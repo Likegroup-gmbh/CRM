@@ -19,6 +19,34 @@
   min-height: 0;
 }
 
+/* Eingebettet (Produktion, Tab Briefing): wie die Briefing-Seite. Seitenkopf,
+   Tab-Leiste und Aktionsleiste bleiben stehen, nur das Dokument scrollt. */
+.main-wrapper:has(> .kampagne-detail-body[data-workflow="briefing"]) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.kampagne-detail-body[data-workflow="briefing"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.kampagne-detail-body[data-workflow="briefing"] > .tab-navigation {
+  flex-shrink: 0;
+}
+
+.kampagne-detail-body[data-workflow="briefing"] > .content-section,
+.kampagne-detail-body[data-workflow="briefing"] .workflow-pane[data-pane="briefing"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
 .briefing-doc-head {
   display: flex;
   flex-wrap: wrap;

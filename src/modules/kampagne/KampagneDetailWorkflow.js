@@ -23,7 +23,6 @@ import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
 import { renderCreatorNameCell } from '../creator/CreatorTable.js';
 import { VideoDataLoader } from '../video/VideoDataLoader.js';
-import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { mountCastingPane, unmountCastingWorksheet, loadCastingPrefetch } from './KampagneDetailCasting.js';
 import { mountKonzeptPane, unmountKonzeptWorksheet, loadKonzeptPrefetch } from './KampagneDetailKonzept.js';
@@ -32,6 +31,7 @@ import {
   mountProduktePane,
   unmountKatalogPanes
 } from './KampagneDetailKatalog.js';
+import { mountBriefingPane, unmountBriefingPane } from './KampagneDetailBriefing.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
 
@@ -240,12 +240,14 @@ export function suspendWorkflowTab(detail, tabId) {
 
   // Konzept/Casting/Katalog zählen in ihrem eigenen unmount mit. Die übrigen
   // Panes haben keinen Worksheet-unmount, hier reicht der Zähler.
-  if (tabId !== 'konzepte' && tabId !== 'casting' && tabId !== 'produkte' && tabId !== 'personas') {
+  if (tabId !== 'konzepte' && tabId !== 'casting' && tabId !== 'produkte' && tabId !== 'personas' && tabId !== 'briefing') {
     bumpPaneGen(detail, tabId);
   }
 
   if (tabId === 'produkte' || tabId === 'personas') {
     unmountKatalogPanes(detail);
+  } else if (tabId === 'briefing') {
+    unmountBriefingPane(detail);
   } else if (tabId === 'casting') {
     unmountCastingWorksheet(detail);
   } else if (tabId === 'konzepte') {
@@ -294,6 +296,18 @@ export async function loadWorkflowPane(detail, tabId) {
       return;
     }
     syncWorkflowCreateChrome(detail, 'konzepte');
+    return;
+  }
+
+  if (tabId === 'briefing') {
+    detail._workflowLoaded = detail._workflowLoaded || {};
+    if (detail._workflowLoaded.briefing) return;
+    const gen = paneGeneration(detail, 'briefing');
+    detail._workflowLoaded.briefing = true;
+    await mountBriefingPane(detail);
+    if (!isPaneGenCurrent(detail, 'briefing', gen)) {
+      detail._workflowLoaded.briefing = false;
+    }
     return;
   }
 
@@ -371,6 +385,7 @@ export function refreshWorkflowAfterRender(detail) {
   unmountKonzeptWorksheet(detail);
   unmountVertraegePane(detail);
   unmountKatalogPanes(detail);
+  unmountBriefingPane(detail);
   detail._workflowLoaded = {};
   detail._workflowData = {};
   const tab = detail.activeWorkflowTab;
@@ -520,53 +535,6 @@ export function mountVertraegePane(detail) {
 /* ------------------------------------------------------------------ */
 /* Pane-Renderer                                                       */
 /* ------------------------------------------------------------------ */
-
-// Briefing der Produktion: direkt oder über Casting, Konzept, Skripte, Kooperationen.
-function renderBriefingPane(detail) {
-  const linie = effectiveLinie(detail, 'briefing');
-  const briefings = (detail.briefings || []).filter(b => !linie || b.id === linie);
-
-  if (!briefings.length) {
-    return renderEmptyState({
-      icon: 'document',
-      title: 'Keine Briefings vorhanden',
-      text: 'Für diese Produktion wurde noch kein Briefing zugeordnet.'
-    });
-  }
-
-  const rows = briefings.map(b => `
-    <tr>
-      <td>
-        <a href="/briefing/${b.id}" class="table-link" data-table="briefing" data-id="${b.id}">
-          ${esc(b.aktivierung_name) || 'Unbekanntes Briefing'}
-        </a>
-      </td>
-      <td>${b.bereich ? `<span class="tag tag--type">${esc(BEREICH_LABELS[b.bereich] || b.bereich)}</span>` : '-'}</td>
-      <td><span class="status-badge ${b.is_draft ? 'status-entwurf' : 'status-final'}">${b.is_draft ? 'Entwurf' : 'Final'}</span></td>
-      <td>${formatDate(b.content_deadline)}</td>
-      <td>${formatDate(b.created_at)}</td>
-      <td class="col-actions">${actionBuilder.create('briefing', b.id)}</td>
-    </tr>
-  `).join('');
-
-  return `
-    <div class="data-table-container">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Aktivierung</th>
-            <th>Bereich</th>
-            <th>Status</th>
-            <th>Content-Deadline</th>
-            <th>Erstellt am</th>
-            <th class="col-actions">Aktionen</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
-}
 
 async function renderSkriptePane(detail) {
   const skripte = await getWorkflowData(detail, 'skripte', () =>
@@ -781,7 +749,6 @@ function renderAuswertungPane() {
 }
 
 const PANE_RENDERERS = {
-  briefing: renderBriefingPane,
   skripte: renderSkriptePane,
   vertraege: renderVertraegePane,
   videos: renderVideosPane,

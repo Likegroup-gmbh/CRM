@@ -5,7 +5,7 @@ const SUPABASE = () => window.supabase;
 
 const CONTRACT_SELECT = `
   id, titel, auftragsname, status, auftragtype,
-  nettobetrag, bruttobetrag, gesamt_budget, creator_budget,
+  nettobetrag, bruttobetrag, creator_budget,
   angebotsnummer, po, externe_po,
   start, ende, created_at,
   agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value,

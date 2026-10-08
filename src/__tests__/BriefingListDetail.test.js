@@ -292,4 +292,23 @@ describe('BriefingDocView', () => {
     expect(print).not.toContain('btn-briefing-fields-toggle');
     expect(print).not.toContain('btn-delete-briefing');
   });
+
+  it('Bearbeiten sitzt nur mit showEdit und canEdit zwischen Alle Felder und Anschreiben', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    const html = renderBriefingDoc({ detail, canEdit: true, showEdit: true, canAnschreiben: true, canDelete: true });
+    expect(html).toContain('btn-edit-briefing');
+    expect(html).toContain('#crm-icon-pencil-square');
+    expect(html.indexOf('btn-briefing-fields-toggle')).toBeLessThan(html.indexOf('btn-edit-briefing'));
+    expect(html.indexOf('btn-edit-briefing')).toBeLessThan(html.indexOf('btn-anschreiben-briefing'));
+
+    expect(renderBriefingDoc({ detail, canEdit: true })).not.toContain('btn-edit-briefing');
+    expect(renderBriefingDoc({ detail, canEdit: false, showEdit: true })).not.toContain('btn-edit-briefing');
+    expect(renderBriefingDoc({ detail, canEdit: true, showEdit: true, print: true })).not.toContain('btn-edit-briefing');
+  });
+
+  it('embedded setzt den Modifier für den Produktions-Tab', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    expect(renderBriefingDoc({ detail, embedded: true })).toContain('briefing-detail--embedded');
+    expect(renderBriefingDoc({ detail })).not.toContain('briefing-detail--embedded');
+  });
 });

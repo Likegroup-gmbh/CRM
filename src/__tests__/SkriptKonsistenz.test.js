@@ -301,6 +301,21 @@ describe('buildEditPrompt: VERBINDLICHE REGELN in allen Zweigen', () => {
     expect(task).toContain('Figuren, Setting, Requisiten und Produktvariante aus den anderen Sektionen');
   });
 
+  it('freier Chat: Besetzungs-/Ortswechsel ist skriptweit, Buttons bleiben Ein-Zellen', () => {
+    const chat = buildEditPrompt(ctx(), { aktion: 'chat', sektion: 'gesamt', inhalt: 'Kein Mama, ein Papa im Auto' });
+    expect(chat.task).toContain('Wechsel von Figur, Besetzung, Ort, Setting oder Geschichte');
+    expect(chat.task).toContain('setze es selbst in jeder betroffenen Zelle um');
+    expect(chat.task).toContain('Reste des alten Stands');
+    expect(chat.task).toContain('So verstehe ich dein Feedback:');
+    expect(chat.task).toContain('festlegungen');
+    expect(chat.stable).toContain('ist das ganze Skript die verlangte Stelle');
+    expect(chat.task).toContain(VERBINDLICHE_REGELN.trim());
+
+    const knopf = buildEditPrompt(ctx(), { aktion: 'kuerzen', sektion: 'hook', selektion_text: 'Kennst du das?' });
+    expect(knopf.task).not.toContain('Wechsel von Figur, Besetzung, Ort, Setting oder Geschichte');
+    expect(knopf.task).not.toContain('Reste des alten Stands');
+  });
+
   it('Visual-Ausgabeformat: bei Regelverstoss vorschlag_text = null', () => {
     const { task } = buildEditPrompt(ctx(), { aktion: 'visuell', sektion: 'hook', selektion_text: 'Kennst du das?' });
     expect(task).toContain('Verletzt die Anweisung eine harte Grenze: vorschlag_text = null');

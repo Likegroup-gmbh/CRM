@@ -83,7 +83,6 @@ export class AuftragsdetailsDetail {
             status,
             start,
             ende,
-            gesamt_budget,
             creator_budget,
             bruttobetrag,
             nettobetrag,

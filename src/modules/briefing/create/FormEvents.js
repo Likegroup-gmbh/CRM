@@ -302,7 +302,11 @@ BriefingCreate.prototype.bindRepeatableEvents = function() {
         window.toastSystem?.show(`Maximal ${max} Eintraege.`, 'warning');
         return;
       }
-      container.insertAdjacentHTML('beforeend', this.buildRepeatableRow(container.dataset.repeatableType, container.querySelectorAll('[data-repeatable-row]').length));
+      container.insertAdjacentHTML('beforeend', this.buildRepeatableRow(
+        container.dataset.repeatableType,
+        container.querySelectorAll('[data-repeatable-row]').length,
+        { multiline: container.dataset.multiline === 'true', placeholder: container.dataset.placeholder }
+      ));
       return;
     }
 
@@ -339,7 +343,7 @@ BriefingCreate.prototype.bindRepeatableEvents = function() {
   });
 };
 
-BriefingCreate.prototype.buildRepeatableRow = function(type, index) {
+BriefingCreate.prototype.buildRepeatableRow = function(type, index, options = {}) {
   if (type === 'kpi') {
     // KPI-Optionen aus dem sichtbaren Container uebernehmen (erste Zeile als Vorlage)
     const container = document.querySelector('.bf-repeatable[data-repeatable-type="kpi"]');
@@ -354,9 +358,13 @@ BriefingCreate.prototype.buildRepeatableRow = function(type, index) {
     `;
   }
   if (type === 'text') {
+    const placeholder = escapeHtml(options.placeholder || 'Eintrag');
+    const input = options.multiline
+      ? `<textarea data-item rows="2" placeholder="${placeholder}"></textarea>`
+      : `<input type="text" data-item placeholder="${placeholder}">`;
     return `
       <div class="bf-repeatable-row" data-repeatable-row>
-        <input type="text" data-item placeholder="Eintrag">
+        ${input}
         <button type="button" class="mdc-btn mdc-btn--icon bf-repeatable-remove" title="Entfernen">${icon('trash')}</button>
       </div>
     `;

@@ -350,7 +350,11 @@ export const FLOW_STEPS = [
         fields: [
           fieldGroup('konzept-ideen', 'stack', [
             fieldGroup('konzept-ideen-kopf', 'splitHeader', [
-              { name: 'umsetzungsideen', label: 'Vorhandene Umsetzungsideen', type: 'textarea', rows: 3, placeholder: 'z.B. Vorher-Nachher, Problem-Lösung in 20 Sekunden' },
+              {
+                name: 'umsetzungsideen', label: 'Vorhandene Umsetzungsideen', type: 'repeatableText',
+                itemLabel: 'Idee', multiline: true, minRows: 1, max: 20,
+                placeholder: 'Eine Idee pro Eintrag, z.B. Vorher-Nachher: Problem und Lösung in 20 Sekunden'
+              },
               { name: 'referenzen', label: 'Referenzen und Beispiele', type: 'repeatableUpload', max: 3 }
             ]),
             { name: 'learnings_text', label: 'Learnings aus vergangenen Produktionen', type: 'textarea', rows: 3, placeholder: 'z.B. Hook in den ersten zwei Sekunden, nicht zu werblich' }

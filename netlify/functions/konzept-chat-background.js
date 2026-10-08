@@ -16,12 +16,11 @@ const { starteKiRequest } = require('./_shared/ki-log');
 const { appendStep } = require('./_shared/thinking');
 const {
   normalisiereAnzahl,
-  konzeptTool,
+  planeLaeufe,
+  entwerfeLaeufe,
+  leereLaeufeFehler,
   loadIdeeInput,
-  buildPrompt,
   validateIdeen,
-  leerFehler,
-  ideenDiagnose,
   erstzeile,
   buildVorschlagInsert
 } = require('./_shared/strategie-idee');
@@ -168,41 +167,37 @@ Schreibe genau diesen Vorschlag neu. Titel darf sich aendern, wenn der Hook sich
 }
 
 /** Ideen entwerfen und inserieren. Gibt die neuen Zeilen zurueck. */
-async function entwerfeUndInseriere(supabase, { strategieId, anzahl, hinweis, benutzerId, kiFeature, entwerfen }) {
+async function entwerfeUndInseriere(supabase, { strategieId, anzahl, proProdukt = null, hinweis, benutzerId, kiFeature, entwerfen }) {
   const input = await loadIdeeInput(supabase, strategieId);
+  // Mehrere Produkte brauchen eine Quote pro Produkt, sonst wirft planeLaeufe.
+  const laeufe = planeLaeufe({
+    input: proProdukt ? { proProdukt } : { anzahl },
+    produkte: input.produkte
+  });
   const ki = await starteKiRequest(supabase, { userId: kiFeature.userId, feature: 'strategie_idee' });
-  let letzterResult = null;
+  const zustand = { model: null, usage: null, letzterResult: null };
   try {
-    const { stable, task } = buildPrompt({ ...input, anzahl, hinweis });
-    const tool = konzeptTool(anzahl);
-    const rufe = entwerfen || (() => callClaude({
-      model: MODELS.konzept,
-      systemBlocks: [{ text: stable, cache: true }],
-      userPrompt: task,
-      maxTokens: 8000,
-      tool,
-      toolForced: true
-    }));
+    const geschrieben = await entwerfeLaeufe({
+      input,
+      laeufe,
+      hinweis,
+      zustand,
+      rufe: entwerfen
+        ? () => entwerfen()
+        : ({ stable, task, tool }) => callClaude({
+          model: MODELS.konzept,
+          systemBlocks: [{ text: stable, cache: true }],
+          userPrompt: task,
+          maxTokens: 8000,
+          tool,
+          toolForced: true
+        }),
+      onDiagnose: (diagnose) => console.warn('konzept-chat: Lauf ohne Ideen:', diagnose)
+    });
 
-    letzterResult = await rufe();
-    let geprueft = letzterResult.json
-      ? validateIdeen(letzterResult.json, { ausschluss: input.ausschluss, anzahl })
-      : { ideen: [], verworfen: [] };
+    if (!geschrieben.ergebnisse.length) throw leereLaeufeFehler(geschrieben);
 
-    if (!geprueft.ideen.length) {
-      console.warn('konzept-chat: erster Lauf ohne Ideen:', ideenDiagnose(letzterResult.json, geprueft, letzterResult));
-      letzterResult = await rufe();
-      geprueft = letzterResult.json
-        ? validateIdeen(letzterResult.json, { ausschluss: input.ausschluss, anzahl })
-        : { ideen: [], verworfen: [] };
-    }
-
-    if (!geprueft.ideen.length) {
-      if (!letzterResult.json) throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
-      throw new Error(leerFehler(geprueft));
-    }
-
-    await ki.abschliessen({ model: letzterResult.model, usage: letzterResult.usage });
+    await ki.abschliessen({ model: zustand.model, usage: zustand.usage });
 
     const { data: maxRow } = await supabase.from('strategie_items')
       .select('sortierung')
@@ -212,19 +207,39 @@ async function entwerfeUndInseriere(supabase, { strategieId, anzahl, hinweis, be
       .maybeSingle();
     let sortierung = Number.isFinite(maxRow?.sortierung) ? maxRow.sortierung + 1 : 0;
 
-    const rows = geprueft.ideen.map((idee) => buildVorschlagInsert({
-      strategieId,
-      idee,
-      sortierung: sortierung++,
-      createdBy: benutzerId
-    }));
+    const rows = geschrieben.ergebnisse.flatMap(({ produkt, ideen }) => ideen.map((idee) => (
+      buildVorschlagInsert({
+        strategieId,
+        idee,
+        sortierung: sortierung++,
+        createdBy: benutzerId,
+        produktId: produkt?.id || null
+      })
+    )));
     const { data: inserted, error } = await supabase.from('strategie_items').insert(rows).select('id');
     if (error) throw new Error(`Ideen konnten nicht gespeichert werden: ${error.message}`);
     return { neu: inserted || [], input };
   } catch (error) {
-    await ki.fehlgeschlagen(error, { model: letzterResult?.model, usage: letzterResult?.usage });
+    await ki.fehlgeschlagen(error, { model: zustand.model, usage: zustand.usage });
     throw error;
   }
+}
+
+/**
+ * Quote fuer ein ersetzen aus den Produkten der genannten Vorschlaege:
+ * eine Idee pro ersetzter Idee, am selben Produkt. Null, wenn eine der
+ * Ideen kein bekanntes Produkt traegt (dann fragt die Karte).
+ */
+function quoteAusVorschlaegen(ids, vorschlaege, produkte) {
+  const bekannt = new Set((produkte || []).map((p) => p.id));
+  const zaehler = new Map();
+  for (const id of ids) {
+    const produktId = (vorschlaege || []).find((v) => v.id === id)?.produkt_id;
+    if (!produktId || !bekannt.has(produktId)) return null;
+    zaehler.set(produktId, (zaehler.get(produktId) || 0) + 1);
+  }
+  if (!zaehler.size) return null;
+  return [...zaehler].map(([produkt_id, n]) => ({ produkt_id, anzahl: n }));
 }
 
 async function schreibeUm(supabase, { vorschlag, anweisung, input, userId }) {
@@ -340,10 +355,25 @@ async function fuehrePlanAus(supabase, plan, ctx) {
       }
       anzahl = normalisiereAnzahl({ anzahl });
 
+      // Mehrere Produkte: die Zahl allein reicht nicht. Ersetzen kann die Quote
+      // aus den Produkten der genannten Ideen ziehen, alles andere fragt die Karte.
+      if (!ideeInput) ideeInput = await loadIdeeInput(supabase, strategieId);
+      let proProdukt = null;
+      if ((ideeInput.produkte || []).length > 1) {
+        proProdukt = aktion.typ === 'ersetzen'
+          ? quoteAusVorschlaegen(ids, vorschlaege, ideeInput.produkte)
+          : null;
+        if (!proProdukt) {
+          ergebnis.brauchtAnzahl = true;
+          continue;
+        }
+      }
+
       schreibeStep('generieren', `Liky entwirft ${anzahl} ${anzahl === 1 ? 'Videoidee' : 'Videoideen'}`);
       const { neu, input } = await entwerfeUndInseriere(supabase, {
         strategieId,
         anzahl,
+        proProdukt,
         hinweis: anweisung || nachricht,
         benutzerId,
         kiFeature: { userId },
@@ -473,7 +503,7 @@ exports.handler = async (event) => {
   let letzterResult = null;
   try {
     const { data: vorschlaege } = await supabase.from('strategie_items')
-      .select('id, beschreibung')
+      .select('id, beschreibung, produkt_id')
       .eq('strategie_id', message.strategie_id)
       .eq('ist_vorschlag', true)
       .order('sortierung');

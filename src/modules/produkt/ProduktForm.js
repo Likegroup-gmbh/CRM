@@ -28,6 +28,7 @@ import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { backTarget, returnTo } from '../../core/breadcrumbTrail.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { setPrefillValues } from '../../core/form/data/PrefillSelected.js';
 
 export class ProduktForm {
   constructor() {
@@ -168,6 +169,11 @@ export class ProduktForm {
 
     // Searchable-Selects und filterBy (Marke und Briefing nach Firma) muessen stehen,
     // bevor applyUnternehmenScope die Firmenliste setzt.
+    // Das Kontext-Briefing aus der URL kommt als Tag ins Feld: der Loader
+    // markiert es beim Optionen-Aufbau (siehe PrefillSelected).
+    if (!this.isEdit && this.createScope?.briefingId) {
+      setPrefillValues(form.querySelector('[name="briefing_ids"]'), [this.createScope.briefingId]);
+    }
     await window.formSystem.bindFormEvents('produkt', formData);
 
     this.mountBilderUploader(form);

@@ -142,7 +142,72 @@ async function loadIdeeInput(supabase, strategieId) {
   return { strategie, briefing, produkte, personas, ausschluss, vorhandeneAnzahl: (items || []).length };
 }
 
-function buildPrompt({ briefing, produkte, personas, ausschluss, anzahl, hinweis } = {}) {
+/**
+ * Quoten aus job.input.proProdukt: [{ produkt_id, anzahl }].
+ * Nur Produkte, die am Briefing haengen. Unbekannte IDs und Zahlen unter 1
+ * fliegen raus, doppelte IDs addieren sich, die Summe wird auf ANZAHL_MAX
+ * gekuerzt (frühere Eintraege behalten ihre Zahl).
+ * Gibt null zurueck, wenn der Input keine proProdukt-Liste traegt.
+ */
+function normalisiereQuoten(input, produkte) {
+  const raw = input && typeof input === 'object' ? input.proProdukt : undefined;
+  if (!Array.isArray(raw)) return null;
+
+  const bekannt = new Map((produkte || []).filter((p) => p?.id).map((p) => [p.id, p]));
+  const summen = new Map();
+  for (const eintrag of raw) {
+    const id = eintrag?.produkt_id;
+    if (!bekannt.has(id)) continue;
+    const n = typeof eintrag.anzahl === 'number' ? eintrag.anzahl : Number(eintrag.anzahl);
+    if (!Number.isInteger(n) || n < 1) continue;
+    summen.set(id, (summen.get(id) || 0) + n);
+  }
+
+  let rest = ANZAHL_MAX;
+  const quoten = [];
+  for (const [id, n] of summen) {
+    if (rest <= 0) break;
+    const anzahl = Math.min(n, rest);
+    quoten.push({ produkt: bekannt.get(id), anzahl });
+    rest -= anzahl;
+  }
+  return quoten;
+}
+
+/**
+ * Laeufe eines Auftrags: pro Lauf ein Produkt (oder keins) und eine Zahl.
+ * - proProdukt im Input: ein Lauf pro Quote.
+ * - sonst bei genau einem Produkt: ein Lauf fuer dieses Produkt.
+ * - sonst ohne Produkt: ein Lauf nur aus dem Briefing.
+ * - sonst (mehrere Produkte, keine Quote): Fehler, es wird nicht gemischt.
+ * @returns {Array<{ produkt: object|null, anzahl: number }>}
+ */
+function planeLaeufe({ input, produkte } = {}) {
+  const quoten = normalisiereQuoten(input, produkte);
+  if (quoten) {
+    if (!quoten.length) throw new Error('Keine gültige Produkt-Zuordnung im Auftrag');
+    return quoten;
+  }
+  const liste = (produkte || []).filter(Boolean);
+  if (liste.length > 1) {
+    throw new Error('Das Briefing hat mehrere Produkte: bitte pro Produkt eine Anzahl angeben');
+  }
+  return [{ produkt: liste[0] || null, anzahl: normalisiereAnzahl(input) }];
+}
+
+function summiereUsage(a, b) {
+  if (!a) return b ? { ...b } : null;
+  if (!b) return { ...a };
+  const summe = { ...a };
+  for (const [key, value] of Object.entries(b)) {
+    summe[key] = typeof value === 'number' && typeof summe[key] === 'number'
+      ? summe[key] + value
+      : (summe[key] ?? value);
+  }
+  return summe;
+}
+
+function buildPrompt({ briefing, produkte, personas, ausschluss, anzahl, hinweis, produktFix = false } = {}) {
   const n = normalisiereAnzahl({ anzahl });
   const briefingText = fmtCampaignBriefing(briefing) || '(Briefing ohne auswertbare Felder)';
   const produktText = (produkte || []).map(fmtProdukt).filter(Boolean).join('\n') || '(keine Produkte am Briefing)';
@@ -170,7 +235,9 @@ Form:
 - Titel = merkbare Kurzform des Hooks, eine Zeile, keine Anfuehrungszeichen.
 - Pain Point, Hook, Kernbotschaft, grober Ablauf: konkret, keine Agenturlyrik.
 - Ablauf: 2–4 Schritte, was passiert, keine Kameraanweisung.
-- Genau ${n} Ideen, quer ueber die Produkte (nicht ${n} pro Produkt). Ohne Produkt nur aus dem Briefing.
+${produktFix
+    ? `- Genau ${n} Ideen, alle fuer das eine genannte Produkt. Keine Idee fuer ein anderes Produkt, kein anderes Produkt im Text.`
+    : `- Genau ${n} Ideen, quer ueber die Produkte (nicht ${n} pro Produkt). Ohne Produkt nur aus dem Briefing.`}
 - Die Ideen unterscheiden sich in Situation und Einstieg. Anderer Drehort oder andere Formulierung derselben Szene reicht nicht.
 - Keine Idee, deren Titel einer ausgeschlossenen Erstzeile entspricht (Gross/Klein egal).`;
 
@@ -323,10 +390,86 @@ function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL } = {}) {
   return { ideen, verworfen };
 }
 
+/**
+ * Entwirft Ideen lauf-weise (ein Produkt pro Lauf). Je Lauf ein Modellaufruf,
+ * bei leerem Ergebnis ein zweiter. Bleibt ein Lauf leer, wird er uebersprungen;
+ * der Aufrufer wirft, wenn gar nichts zusammenkommt.
+ *
+ * rufe({ stable, task, tool, lauf }) -> Ergebnis von callClaude ({ json, model, usage, ... }).
+ * zustand wird laufend gefuellt (model, usage, letzterResult), damit der
+ * Aufrufer auch nach einem Abbruch abrechnen kann.
+ * Hooks: onStep(step, lauf), onDiagnose(diagnose).
+ *
+ * @returns {Promise<{ ergebnisse: Array<{ produkt: object|null, ideen: object[] }>, verworfen: object[], letzterResult: object|null, letzteGeprueft: object|null }>}
+ */
+async function entwerfeLaeufe({ input, laeufe, hinweis, rufe, zustand = {}, onStep, onDiagnose } = {}) {
+  const ausschluss = [...(input?.ausschluss || [])];
+  const ergebnisse = [];
+  const verworfen = [];
+  let letzteGeprueft = null;
+
+  const merke = (result) => {
+    zustand.letzterResult = result;
+    zustand.model = result?.model || zustand.model || null;
+    zustand.usage = summiereUsage(zustand.usage, result?.usage);
+  };
+
+  for (const lauf of laeufe) {
+    const produkte = lauf.produkt ? [lauf.produkt] : (input?.produkte || []);
+    const { stable, task } = buildPrompt({
+      ...input,
+      produkte,
+      produktFix: !!lauf.produkt,
+      ausschluss,
+      anzahl: lauf.anzahl,
+      hinweis
+    });
+    const tool = konzeptTool(lauf.anzahl);
+    const ruf = () => rufe({ stable, task, tool, lauf });
+    const pruefe = (result) => (result?.json
+      ? validateIdeen(result.json, { ausschluss, anzahl: lauf.anzahl })
+      : { ideen: [], verworfen: [] });
+
+    onStep?.('generieren', lauf);
+    let result = await ruf();
+    merke(result);
+    onStep?.('pruefen', lauf);
+    let geprueft = pruefe(result);
+
+    if (!geprueft.ideen.length) {
+      onDiagnose?.(ideenDiagnose(result?.json, geprueft, result));
+      onStep?.('wiederholen', lauf);
+      result = await ruf();
+      merke(result);
+      onStep?.('pruefen', lauf);
+      geprueft = pruefe(result);
+      if (!geprueft.ideen.length) {
+        onDiagnose?.({ ...ideenDiagnose(result?.json, geprueft, result), retry: true });
+      }
+    }
+
+    letzteGeprueft = geprueft;
+    verworfen.push(...geprueft.verworfen);
+    if (geprueft.ideen.length) {
+      ergebnisse.push({ produkt: lauf.produkt || null, ideen: geprueft.ideen });
+      for (const idee of geprueft.ideen) ausschluss.push(idee.titel);
+    }
+  }
+
+  return { ergebnisse, verworfen, letzterResult: zustand.letzterResult || null, letzteGeprueft };
+}
+
+/** Fehler, wenn alle Laeufe leer blieben. */
+function leereLaeufeFehler({ letzterResult, letzteGeprueft } = {}) {
+  if (!letzterResult?.json) return new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
+  return new Error(leerFehler(letzteGeprueft));
+}
+
 /** Ideen ohne Link: plattform null, analog addItemPayload. 'idea' knallt gegen strategie_items_plattform_check.
  *  createdBy ist benutzer.id (FK), nicht auth.users.id. */
-function buildVorschlagInsert({ strategieId, idee, sortierung, createdBy }) {
+function buildVorschlagInsert({ strategieId, idee, sortierung, createdBy, produktId = null }) {
   return {
+    ...(produktId ? { produkt_id: produktId } : {}),
     strategie_id: strategieId,
     video_link: null,
     plattform: null,
@@ -345,6 +488,10 @@ module.exports = {
   ANZAHL_MAX,
   KONZEPT_TOOL,
   normalisiereAnzahl,
+  normalisiereQuoten,
+  planeLaeufe,
+  entwerfeLaeufe,
+  leereLaeufeFehler,
   konzeptTool,
   erstzeile,
   formatBeschreibung,

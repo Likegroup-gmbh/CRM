@@ -87,18 +87,23 @@ describe('Briefing FieldRenderer Hierarchie', () => {
     const root = parse(html);
     const group = root.querySelector('[data-group="konzept-ideen-kopf"]');
     const header = group.querySelector(':scope > .bf-split-header');
-    const textarea = group.querySelector('textarea#umsetzungsideen');
+    const ideenListe = group.querySelector('[data-repeatable="umsetzungsideen"]');
     const repeatable = group.querySelector('[data-repeatable="referenzen"]');
+    const addIdee = header.querySelector('[data-repeatable-add="umsetzungsideen"]');
     const add = header.querySelector('[data-repeatable-add="referenzen"]');
+    const labels = [...header.querySelectorAll('.bf-split-header__label')].map(el => el.textContent);
 
     expect(group.classList.contains('bf-field-group--split-header')).toBe(true);
-    expect(header.querySelector('label[for="umsetzungsideen"]').textContent).toContain('Vorhandene Umsetzungsideen');
-    expect(header.querySelector('.bf-split-header__label').textContent).toBe('Referenzen und Beispiele');
+    expect(labels).toEqual(['Vorhandene Umsetzungsideen', 'Referenzen und Beispiele']);
+    expect(addIdee.textContent).toContain('Idee hinzufügen');
     expect(add.textContent).toContain('Beispiel hinzufügen');
-    expect(textarea.closest('.form-field').querySelector('label')).toBeNull();
+    expect(ideenListe.closest('.form-field').querySelector('label')).toBeNull();
+    expect(ideenListe.closest('.form-field').querySelector('[data-repeatable-add]')).toBeNull();
     expect(repeatable.closest('.form-field').querySelector('[data-repeatable-add]')).toBeNull();
-    expect(header.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(textarea.compareDocumentPosition(repeatable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(header.compareDocumentPosition(ideenListe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(ideenListe.compareDocumentPosition(repeatable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Ideen: eine leere Startzeile als Textarea, Referenzen bleiben leer
+    expect(ideenListe.querySelectorAll('textarea[data-item]')).toHaveLength(1);
     expect(repeatable.childElementCount).toBe(0);
 
     const ideen = root.querySelector('[data-group="konzept-ideen"]');

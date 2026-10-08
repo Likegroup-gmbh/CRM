@@ -1,6 +1,8 @@
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 import { findStrategy } from './CascadeStrategies.js';
 import { FieldStateHelpers } from './FieldStateHelpers.js';
+import { applyFinalisiertFilter } from '../../finalisiert.js';
+import { applyPrefillSelected } from '../data/PrefillSelected.js';
 
 // Kontext-Anlage: Zuordnung steht schon fest (Hidden-Input oder verstecktes
 // Select). Nachladen oder Leeren würde den Wert überschreiben.
@@ -680,6 +682,16 @@ export class DependentFields {
     }
   }
 
+  /** Werte der aktuell gesetzten Tags eines Tag-Multiselects. */
+  readSelectedTagValues(field) {
+    const values = new Set();
+    const tagsContainer = field?.closest?.('.form-field')?.querySelector('.tags-container');
+    tagsContainer?.querySelectorAll('.tag').forEach(tag => {
+      if (tag.dataset?.value) values.add(tag.dataset.value);
+    });
+    return values;
+  }
+
   // Gefiltertes Feld neu laden (für filterBy-Logik)
   async reloadFilteredField(form, fieldConfig, parentValue) {
     const field = form.querySelector(`[name="${fieldConfig.name}"]`);
@@ -691,12 +703,17 @@ export class DependentFields {
     
     try {
       let options = [];
+      // Bisherige Auswahl merken: gilt sie auch fuer den neuen Parent, bleibt sie stehen.
+      const bisherAusgewaehlt = fieldConfig.tagBased ? this.readSelectedTagValues(field) : new Set();
       
       if (parentValue && fieldConfig.table) {
-        const { data, error } = await window.supabase
+        let query = window.supabase
           .from(fieldConfig.table)
           .select('*')
-          .eq(fieldConfig.filterBy, parentValue)
+          .eq(fieldConfig.filterBy, parentValue);
+        // Gleiche Sichtbarkeit wie der Erst-Load (DirectQueryLoader): Entwuerfe nur mit includeDrafts
+        if (!fieldConfig.includeDrafts) query = applyFinalisiertFilter(query, fieldConfig.table);
+        const { data, error } = await query
           .order(fieldConfig.displayField || 'name', { ascending: true });
         
         if (error) {
@@ -719,6 +736,13 @@ export class DependentFields {
         }
       }
       
+      if (parentValue && fieldConfig.table) {
+        options.forEach(option => {
+          if (bisherAusgewaehlt.has(option.value)) option.selected = true;
+        });
+        await applyPrefillSelected(form, fieldConfig, options, parentValue);
+      }
+
       if (fieldConfig.tagBased && window.formSystem?.optionsManager) {
         const tagContainer = field.closest('.form-field')?.querySelector('.tag-based-select');
         if (tagContainer) {
@@ -726,6 +750,10 @@ export class DependentFields {
           if (tagsContainer) {
             const tags = tagsContainer.querySelectorAll('.tag');
             tags.forEach(tag => tag.remove());
+            // Versteckte Submit-Auswahl mitleeren, sonst bleiben Werte des alten Parents stehen.
+            // Die beibehaltenen und vorgemerkten Optionen traegt createTagBasedSelect wieder ein.
+            const hiddenSelect = document.getElementById(`${field.id}_hidden`);
+            if (hiddenSelect) hiddenSelect.innerHTML = '';
             
             const placeholder = document.createElement('span');
             placeholder.className = 'tags-placeholder';

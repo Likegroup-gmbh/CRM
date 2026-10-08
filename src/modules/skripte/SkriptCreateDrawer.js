@@ -204,6 +204,15 @@ class SkriptCreateDrawer {
     this.ensureOption('unternehmen', prefill.unternehmen_id, prefill.unternehmenName);
     this.setSearchableValue('unternehmen', prefill.unternehmen_id);
     await this.onUnternehmenChange();
+
+    // Editor: Unternehmen/Konzept vom aktuellen Skript, aenderbar (nicht gesperrt)
+    if (prefill.soft) {
+      if (prefill.konzept_id && this.konzepte.some((k) => k.id === prefill.konzept_id)) {
+        this.setSearchableValue('konzept', prefill.konzept_id);
+        await this.onKonzeptChange();
+      }
+      return;
+    }
     this.lockSearchable('unternehmen');
 
     if (this.konzepte.length === 1) {

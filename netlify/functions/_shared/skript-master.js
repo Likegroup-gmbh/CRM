@@ -11,10 +11,33 @@ const MASTER_BEREICH_LABELS = {
   influencer_marketing: 'Influencer Marketing'
 };
 
-function resolveSkriptBereich(params = {}, briefing = null) {
+// Kampagnenart (kampagne_art_typen.name) -> Skript-Bereich. Vor-Ort, Whitelisting
+// und Darkposting haben keinen eigenen Skript-Bereich.
+const KAMPAGNENART_BEREICH = {
+  'ugc organic': 'owned_social',
+  'ugc paid': 'paid_creator_ads',
+  'influencer kampagne': 'influencer_marketing',
+  'influencer story': 'influencer_marketing'
+};
+
+/**
+ * Bereich aus den Kampagnenarten, nur wenn genau EIN Bereich herauskommt.
+ * Mischkampagnen (z.B. UGC Paid + UGC Organic) bleiben offen: dann entscheidet
+ * das Briefing, sonst fragt Liky nach.
+ */
+function bereichAusKampagnenarten(arten) {
+  const bereiche = new Set(
+    (Array.isArray(arten) ? arten : [])
+      .map((a) => KAMPAGNENART_BEREICH[String(a || '').trim().toLowerCase()])
+      .filter(Boolean)
+  );
+  return bereiche.size === 1 ? [...bereiche][0] : null;
+}
+
+function resolveSkriptBereich(params = {}, briefing = null, kampagne = null) {
   if (SKRIPT_BEREICHE.includes(params.bereich)) return params.bereich;
   if (SKRIPT_BEREICHE.includes(briefing?.bereich)) return briefing.bereich;
-  return null;
+  return bereichAusKampagnenarten(kampagne?.art_der_kampagne);
 }
 
 async function loadMasterDocs(supabase, bereich, { schlank = false } = {}) {
@@ -79,6 +102,7 @@ module.exports = {
   SKRIPT_BEREICHE,
   MASTER_BEREICH_LABELS,
   resolveSkriptBereich,
+  bereichAusKampagnenarten,
   loadMasterDocs,
   fmtMasterBlock,
   stripMasterVorlagen

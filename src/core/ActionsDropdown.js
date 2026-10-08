@@ -1,24 +1,25 @@
 // ActionsDropdown.js — Fassade
-// Delegiert an ActionsDropdownHandlers, ActionsDropdownAnsprechpartner, ActionsDropdownModals
+// Delegiert an ActionsDropdownHandlers/-Effects und die Modal-Dateien
+// (ActionsDropdownAnsprechpartner, AnsprechpartnerRemoveModal, StaffAssignModals,
+// CreatorAssignModals, KooperationQuickView)
 
 import { iconRegistry } from './actions/IconRegistry.js';
 import { actionBuilder } from './actions/ActionBuilder.js';
 
-import { handleAction, setField, addToFavorites, GLOBAL_ACTIONS } from './ActionsDropdownHandlers.js';
+import { handleAction, setField, GLOBAL_ACTIONS } from './ActionsDropdownHandlers.js';
+import { addToFavorites } from './ActionsDropdownEffects.js';
 import {
   openAddAnsprechpartnerModal,
   openAddAnsprechpartnerToUnternehmenModal,
-  openRemoveAnsprechpartnerFromUnternehmenModal,
-  removeAnsprechpartnerFromUnternehmen
+  openAddAnsprechpartnerToKampagneModal
 } from './ActionsDropdownAnsprechpartner.js';
 import {
-  openKooperationQuickView,
-  openAssignStaffModal,
-  openAssignMarkeStaffModal,
-  openAddToCampaignModal,
-  openAddToListModal,
-  openAddAnsprechpartnerToKampagneModal
-} from './ActionsDropdownModals.js';
+  openRemoveAnsprechpartnerFromUnternehmenModal,
+  removeAnsprechpartnerFromUnternehmen
+} from './AnsprechpartnerRemoveModal.js';
+import { openAssignStaffModal, openAssignMarkeStaffModal } from './StaffAssignModals.js';
+import { openAddToCampaignModal, openAddToListModal } from './CreatorAssignModals.js';
+import { openKooperationQuickView } from './KooperationQuickView.js';
 
 export class ActionsDropdown {
   constructor() {

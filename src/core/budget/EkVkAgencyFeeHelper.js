@@ -14,7 +14,7 @@ export function isFilledPrice(value) {
  * werden aus dem KSK-Topf ins Creator-Budget umgebucht und erhoehen die Basis.
  */
 export function berechneVerfuegbaresBudget(auftrag, kooperationen = []) {
-  const basis = parseFloat(auftrag?.creator_budget ?? auftrag?.gesamt_budget ?? auftrag?.nettobetrag) || 0;
+  const basis = parseFloat(auftrag?.creator_budget ?? auftrag?.nettobetrag) || 0;
   const umgebucht = summeKskSelbstzahler(kooperationen);
   return { basis, umgebucht, verfuegbar: basis + umgebucht };
 }

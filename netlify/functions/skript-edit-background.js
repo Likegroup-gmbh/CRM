@@ -33,6 +33,11 @@ const EDIT_TOOL = {
       vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null. Bei sektion=titel der neue Skript-Titel.' },
       titel: { type: ['string', 'null'], description: 'Neuer Skript-Titel, nur wenn der Titel sich aendern soll. Sonst null.' },
       festlegung: { type: ['string', 'null'], description: 'Dauerhafte Vorgabe aus der Anweisung, sonst null. Nicht der vorgeschlagene Wortlaut.' },
+      festlegungen: {
+        type: ['array', 'null'],
+        description: 'Mehrere dauerhafte Vorgaben aus der Anweisung (z. B. Besetzung und Ort), je ein kurzer Satz. Sonst null.',
+        items: { type: 'string' }
+      },
       spalte: {
         type: ['string', 'null'],
         description: 'Nur freier Chat: gesprochen, visuell oder null. Welche Spalte vorschlag_text ersetzt.'
@@ -165,7 +170,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     }
 
     const parsed = result.json || extractJson(result.text, {
-      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion', 'titel', 'festlegung', 'umfang', 'umfang_sektion', 'aenderungen']
+      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion', 'titel', 'festlegung', 'festlegungen', 'umfang', 'umfang_sektion', 'aenderungen']
     });
     let vorschlag = stripToolXml(parsed.vorschlag_text);
     const antwort = stripToolXml(parsed.antwort);
@@ -252,13 +257,19 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       sektion = null;
     }
 
-    const festlegungText = stripToolXml(parsed.festlegung);
-    if (festlegungText) {
+    const festlegungTexte = [
+      stripToolXml(parsed.festlegung),
+      ...(Array.isArray(parsed.festlegungen) ? parsed.festlegungen.map(stripToolXml) : [])
+    ].filter(Boolean);
+    if (festlegungTexte.length) {
       const liste = Array.isArray(ctx.skript.festlegungen) ? ctx.skript.festlegungen.slice() : [];
-      if (!liste.some((f) => f?.text === festlegungText)) {
-        liste.push({ text: festlegungText, quelle: 'anweisung' });
-        await supabase.from('skripte').update({ festlegungen: liste }).eq('id', ctx.skript.id);
+      let neu = false;
+      for (const text of festlegungTexte) {
+        if (liste.some((f) => (typeof f === 'string' ? f : f?.text) === text)) continue;
+        liste.push({ text, quelle: 'anweisung' });
+        neu = true;
       }
+      if (neu) await supabase.from('skripte').update({ festlegungen: liste }).eq('id', ctx.skript.id);
     }
     if (message.aktion === 'neue_geschichte' && vorschlag && ['hook', 'hauptteil', 'cta'].includes(sektion) && !spalte.ist_visuell) {
       const felder = {

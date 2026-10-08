@@ -140,8 +140,9 @@ export class ActionBuilder {
    * Baut ein einzelnes Action-Item
    * @param {object} action - Die Action-Definition
    * @param {string|number} entityId - Die Entity-ID
-   * @param {object} options - Zusätzliche Optionen (disabledActions, actionStates, igConnected, dataset)
+   * @param {object} options - Zusätzliche Optionen (disabledActions, actionStates, actionOverrides, igConnected, dataset)
    *   options.actionStates: { [actionId]: { mode: 'enabled'|'disabled'|'hidden', title } }
+   *   options.actionOverrides: { [actionId]: { label, icon } } - ersetzt Label/Icon je Eintrag
    *   options.dataset: Objekt oder Funktion (action) => Objekt mit zusaetzlichen
    *   data-*-Attributen (z.B. { name: 'Listenname' } → data-name="...").
    * @returns {string} HTML-String
@@ -159,6 +160,10 @@ export class ActionBuilder {
       label = 'Refresh';
       iconName = 'ig-refresh';
     }
+
+    const override = options.actionOverrides?.[action.id];
+    if (override?.label) label = override.label;
+    if (override?.icon) iconName = override.icon;
 
     const disabledClass = state.mode === 'disabled' ? 'action-disabled' : '';
     const disabledAttr = state.mode === 'disabled' ? ' aria-disabled="true"' : '';

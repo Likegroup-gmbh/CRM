@@ -112,6 +112,7 @@ export const produktConfig = {
       searchable: true,
       tagBased: true,
       customField: true,
+      includeDrafts: true,
       table: 'campaign_briefings',
       displayField: 'aktivierung_name',
       valueField: 'id',

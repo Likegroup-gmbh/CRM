@@ -73,7 +73,9 @@ const AKTION_ANWEISUNGEN = {
   laenger: 'Baue die markierte Stelle aus: mehr Detail, mehr Emotion oder ein konkretes Beispiel – ohne zu labern.',
   anderer_ton: 'Schreibe die markierte Stelle in einem anderen Ton um. Beachte die Ton-Vorgabe des Users, falls vorhanden.',
   feedback: 'Der User hat die markierte Stelle bewertet und strukturiertes Feedback gegeben (Score, Begründung, ggf. eine Vorgabe "So sollte es sein"). Überarbeite die markierte Stelle so, dass das Feedback vollständig umgesetzt wird. Eine Vorgabe "So sollte es sein" ist verbindlich: übernimm ihre Richtung, aber formuliere sie sauber im Ton des restlichen Skripts aus.',
-  chat: 'Setze das Feedback um. „Neu“, „andere Formulierung“, „nicht so“ heisst anderer Text, keine Variante des letzten Vorschlags. Fehlt ein Fakt, der weder im Skript noch in der Anweisung steht: einmal nachfragen. Nennt die Anweisung den Umfang (alles oder eine Sektion), nicht fragen.',
+  chat: 'Setze das Feedback um. „Neu“, „andere Formulierung“, „nicht so“ heisst anderer Text, keine Variante des letzten Vorschlags. Fehlt ein Fakt, der weder im Skript noch in der Anweisung steht: einmal nachfragen. Nennt die Anweisung den Umfang (alles oder eine Sektion), nicht fragen. '
+    + 'Nennt die Anweisung mehrere Kritikpunkte, setze alle um, nicht nur den ersten, und beginne antwort mit „So verstehe ich dein Feedback:“ und einer kurzen Aufzaehlung. '
+    + 'Betrifft sie Figur, Besetzung, Ort, Setting oder die Geschichte, lies das ganze Skript als eine Geschichte und pruefe vor der Abgabe jede Zelle (Hook, Hauptteil, CTA, je gesprochen und visuell, Hook-Varianten, Titel) auf Reste des alten Stands.',
   visuell: 'Der gesamte gesprochene Text der Sektion steht unter "Markierte Stelle". Schreibe dazu einen schlichten Satz pro Beat fuer "Was zu sehen ist". Gleiche Absatz-Anzahl wie der gesprochene Text. Keine Zeitmarker, keine Shotlist, kein Storyboard. KEINEN zweiten Sprechertext, keine gesprochenen Worte. Der gesprochene Text bleibt unveraendert. Leitplanken und Briefing-Fakten gelten auch fuer On-Screen-Texte. Orte und Props aus den anderen Sektionen behalten.'
 };
 
@@ -380,7 +382,7 @@ function buildEditPrompt(ctx, message) {
   // Block 1 (stabil, cachebar): Rolle + Master (+ Visual-Stil, wenn die Visual-Spalte geschrieben werden kann)
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
     + 'und ueberarbeitest ein bestehendes Video-Konzept im Dialog mit einem Mitarbeiter. '
-    + 'Du aenderst nur die verlangte Stelle. '
+    + 'Du aenderst nur die verlangte Stelle. Ausnahme im freien Chat: bei einem Wechsel von Figur, Besetzung, Ort oder Geschichte ist das ganze Skript die verlangte Stelle. '
     + 'Will der User etwas Neues, paraphrasiere nicht: anderer Einstieg, andere Saetze, nichts aus dem bisherigen Wortlaut und nichts aus frueheren Vorschlaegen. '
     + 'Donts im Leitplanken-Block bleiben Verbote. Dos nur, wo der Fakt belegt ist.\n';
 
@@ -459,6 +461,9 @@ function buildEditPrompt(ctx, message) {
       + 'Titel nur, wenn die Anweisung den Titel nennt. Eine Zelle weglassen, wenn ihr Text sich nicht ändert.\n'
       + '- Benannter Teil („nur Hauptteil“): Was gesagt wird und Was zu sehen ist dieser Sektion. Andere Sektionen nicht anfassen. '
       + 'Ändert sich der gesprochene Text, die Regie derselben Sektion mitziehen, damit die Beats passen.\n'
+      + '- Wechsel von Figur, Besetzung, Ort, Setting oder Geschichte („nicht die Mutter, sondern ein Papa im Auto“): immer „alles“, auch ohne das Wort und auch bei gesetzter Markierung. '
+      + 'Hier gilt statt „sage in antwort, welche anderen Sektionen nicht mehr passen“: setze es selbst in jeder betroffenen Zelle um, in beiden Spalten, in Hook-Varianten und Titel. '
+      + 'Ueberbleibsel der alten Figur oder des alten Orts in einer Zelle sind ein Fehler. Setze dafuer festlegungen (z. B. „Papa mit zwei Kindern“, „spielt im Auto“).\n'
       + '- Nur eine Markierung, ohne Umfang im Text: nur diese Spanne.\n'
       + '- Kein Umfang und keine Markierung: einmal fragen, welche Sektion. Keine zweite Frage, sobald die Antwort den Umfang nennt.\n'
       + '- „alles“ und ein benannter Teil schlagen eine gesetzte Markierung und öffnen festgezogene Zellen in diesem Umfang.\n'
@@ -555,7 +560,7 @@ function buildEditPrompt(ctx, message) {
         ? '\n- HARTES WORT-BUDGET: Das Gesamt-Skript muss zur Video-Laenge passen '
           + `(${videoLaengeHinweis(skript.video_laenge)}). Auch bei "Laenger schreiben" darf das Gesamt-Budget nicht gesprengt werden - im Zweifel lieber knapp bleiben.`
         : ''))
-    + '\n- festlegung nur setzen, wenn die Anweisung eine dauerhafte Vorgabe ist (Besetzung, Verbot, abgelehnter Ansatz). Sonst null. Niemals den vorgeschlagenen Wortlaut.\n';
+    + '\n- festlegung nur setzen, wenn die Anweisung eine dauerhafte Vorgabe ist (Besetzung, Verbot, abgelehnter Ansatz). Sonst null. Niemals den vorgeschlagenen Wortlaut. Mehrere dauerhafte Vorgaben: festlegungen (Liste, je ein Satz).\n';
 
   task += vertragBlock(skript.bereich || kontext.bereich);
   return mitVerlauf(stable, task, history);
