@@ -215,13 +215,22 @@ export const FLOW_STEPS = [
             name: 'produkt_ids', label: 'Produkte', type: 'entityMulti',
             table: 'produkt', displayField: 'name', persist: false, dependsOn: 'unternehmen_id', required: true,
             placeholder: 'Produkte suchen und hinzufügen...',
-            helper: 'Mindestens eines. Mehrere, wenn Aufgabe und Persona zusammenpassen.'
+            helper: 'Mindestens eines. Mehrere, wenn Aufgabe und Persona zusammenpassen.',
+            condition: { field: 'ohne_produkt', notEquals: true }
+          },
+          {
+            name: 'ohne_produkt', label: 'Kein Produkt', type: 'checkbox', persist: false,
+            helper: 'Für Produktionen ohne Produkt oder mit zu vielen kleinen Produkten.'
           },
           {
             name: 'persona_ids', label: 'Personas', type: 'entityMulti',
             table: 'persona', displayField: 'label', dependsOn: 'unternehmen_id', required: true,
             placeholder: 'Personas suchen und hinzufügen...',
-            helper: 'Mindestens eine. Akzeptierte Produkt-Personas stehen oben.'
+            helper: 'Mindestens eine. Akzeptierte Produkt-Personas stehen oben.',
+            condition: { field: 'ohne_persona', notEquals: true }
+          },
+          {
+            name: 'ohne_persona', label: 'Keine Persona', type: 'checkbox', persist: false
           }
         ]
       },
@@ -485,6 +494,9 @@ export function evaluateCondition(condition, formData) {
 
   if (condition.equals !== undefined) {
     return value === condition.equals;
+  }
+  if (condition.notEquals !== undefined) {
+    return value !== condition.notEquals;
   }
   if (condition.in) {
     return condition.in.includes(value);

@@ -27,6 +27,7 @@ function conditionAttrs(condition) {
   }
   const parts = [`data-condition-field="${escapeHtml(condition.field)}"`];
   if (condition.equals !== undefined) parts.push(`data-condition-equals="${escapeHtml(condition.equals)}"`);
+  if (condition.notEquals !== undefined) parts.push(`data-condition-not-equals="${escapeHtml(condition.notEquals)}"`);
   if (condition.in) parts.push(`data-condition-in="${escapeHtml(condition.in.join(','))}"`);
   if (condition.includes !== undefined) parts.push(`data-condition-includes="${escapeHtml(condition.includes)}"`);
   if (condition.includesAny) parts.push(`data-condition-includes-any="${escapeHtml(condition.includesAny.join(','))}"`);

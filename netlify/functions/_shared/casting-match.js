@@ -796,17 +796,28 @@ async function loadBedarfData(supabase, casting) {
     .select('produkt_id').eq('briefing_id', briefing.id);
   const produktIds = (links || []).map(l => l.produkt_id).filter(Boolean);
 
-  let personas = [];
+  const personas = [];
+  const gesehen = new Set();
+  const merke = (p) => {
+    if (p && p.id && !gesehen.has(p.id)) { gesehen.add(p.id); personas.push(p); }
+  };
+
   if (produktIds.length) {
     const { data: vorschlaege } = await supabase.from('produkt_persona_vorschlag')
       .select('persona_id, persona:persona_id(id, name, oberbegriff, alter_von, alter_bis, geschlecht, lebenssituation, pain_points, beduerfnisse)')
       .in('produkt_id', produktIds)
       .eq('status', 'accepted');
-    const gesehen = new Set();
-    for (const v of (vorschlaege || [])) {
-      const p = v.persona;
-      if (p && p.id && !gesehen.has(p.id)) { gesehen.add(p.id); personas.push(p); }
-    }
+    for (const v of (vorschlaege || [])) merke(v.persona);
+  }
+
+  // Personas am Briefing gelten auch ohne Produkt. Leere Liste ist gültig.
+  const briefingPersonaIds = (Array.isArray(briefing.persona_ids) ? briefing.persona_ids : [])
+    .filter(id => id && !gesehen.has(id));
+  if (briefingPersonaIds.length) {
+    const { data: extra } = await supabase.from('personas')
+      .select('id, name, oberbegriff, alter_von, alter_bis, geschlecht, lebenssituation, pain_points, beduerfnisse')
+      .in('id', briefingPersonaIds);
+    for (const p of (extra || [])) merke(p);
   }
 
   const { data: kategorienZeilen } = await supabase.from('creator_auswahl')

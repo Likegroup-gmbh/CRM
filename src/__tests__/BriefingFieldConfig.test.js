@@ -50,6 +50,21 @@ describe('Briefing fieldConfig Schema', () => {
     expect(required).toContain('persona_ids');
   });
 
+  it('Kein Produkt und Keine Persona sind getrennte Checkboxen und keine DB-Felder', () => {
+    const fields = flattenFields(FLOW_STEPS[0].sections.flatMap(s => s.fields));
+    const names = getAllFields().map(f => f.name);
+    expect(fields.find(f => f.name === 'ohne_produkt')).toMatchObject({ type: 'checkbox', persist: false });
+    expect(fields.find(f => f.name === 'ohne_persona')).toMatchObject({ type: 'checkbox', persist: false });
+    expect(names).not.toContain('ohne_produkt');
+    expect(names).not.toContain('ohne_persona');
+    expect(fields.find(f => f.name === 'produkt_ids').condition).toEqual({
+      field: 'ohne_produkt', notEquals: true
+    });
+    expect(fields.find(f => f.name === 'persona_ids').condition).toEqual({
+      field: 'ohne_persona', notEquals: true
+    });
+  });
+
   it('produkt_ids liegt nicht in getAllFields (kein DB-Feld)', () => {
     expect(getAllFields().map(f => f.name)).not.toContain('produkt_ids');
     expect(getAllFields().map(f => f.name)).toContain('persona_ids');
