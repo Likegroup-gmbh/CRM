@@ -708,6 +708,9 @@ export class SkriptEditorView {
         vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
       });
       el.querySelector('#ed-fragen-gen')?.addEventListener('click', () => this.startGenerationAusFragen());
+      el.querySelectorAll('[data-aufbau-flag]').forEach((toggle) => {
+        toggle.addEventListener('change', () => this.saveGeneratorFlag(toggle.dataset.aufbauFlag, toggle.checked));
+      });
       this.bindShareButton(el);
       this.bindVerknuepfungen(el);
       const input = document.getElementById('ed-input');
@@ -988,6 +991,25 @@ export class SkriptEditorView {
   setGenButtonAktiv(aktiv) { this._generation.setGenButtonAktiv(aktiv); }
   startFragenRunde() { return this._generation.startFragenRunde(); }
   startGenerationAusFragen() { return this._generation.startGenerationAusFragen(); }
+
+  /**
+   * Aufbau-Toggle in der Rueckfragen-Phase: Flag sofort lokal mitziehen
+   * (startGenerationAusFragen liest den Payload von hier) und in
+   * prompt_kontext.generator_payload persistieren.
+   */
+  async saveGeneratorFlag(flag, wert) {
+    if (!this.skript?.id) return;
+    const pk = this.skript.prompt_kontext || {};
+    this.skript.prompt_kontext = {
+      ...pk,
+      generator_payload: { ...(pk.generator_payload || {}), [flag]: wert }
+    };
+    try {
+      await skripteService.updateGeneratorFlags(this.skript.id, { [flag]: wert });
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+    }
+  }
   sollFragenRundeStarten() {
     if (this.skript?.status !== 'fragen') return false;
     return !this.messages.some((m) => m.aktion === 'rueckfrage');

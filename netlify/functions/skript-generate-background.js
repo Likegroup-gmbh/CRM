@@ -33,6 +33,9 @@ const SKRIPT_TOOL = {
       hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Jeder Zeitmarker (Sek. 0–3:) beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
       hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
       cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
+      rezept: { type: 'string', description: 'Rezept-Block unter dem CTA (volle Breite, kein Visual). Zutaten und Zubereitung kompakt aus der Caption der Videovorlage. NUR befuellen, wenn der Auftrag einen Rezept-Block waehlt - sonst weglassen.' },
+      text_hook: { type: 'string', description: 'Kurzer On-Screen-Text-Hook (Texteinblendung im Hook, max. ca. 5 Woerter). NUR befuellen, wenn der Auftrag einen Text-Hook waehlt - sonst weglassen.' },
+      caption: { type: 'string', description: 'Posting-Caption (Text unter dem Post, volle Breite unter dem Rezept bzw. CTA). NUR befuellen, wenn der Auftrag eine Caption waehlt - sonst weglassen.' },
       varianten: {
         type: 'array',
         description: 'Genau zwei alternative Skript-Varianten (B und C). Nicht in inhalt_md wiederholen.',
@@ -102,8 +105,14 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     task += `\n# REGIE-MODUS: ${ctx.modus.name}\n${ctx.modus.inhalt}\n`;
   }
 
+  const ausgabeFelder = ['titel', 'inhalt_md', 'hook', 'hauptteil', 'cta',
+    'hook_visuell', 'hauptteil_visuell', 'cta_visuell'];
+  if (params.mit_rezept) ausgabeFelder.push('rezept');
+  if (params.mit_text_hook) ausgabeFelder.push('text_hook');
+  if (params.mit_caption) ausgabeFelder.push('caption');
+  ausgabeFelder.push('varianten');
   task += '\n# AUSGABEFORMAT\nGib das Dokument AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
-    + '(Felder: titel, inhalt_md, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, varianten).\n'
+    + `(Felder: ${ausgabeFelder.join(', ')}).\n`
     + `Bereich: ${bereichLabel}. Folge dem drehfertigen Aufbau im MASTER-BEREICH-Dokument. `
     + 'inhalt_md = NUR Zusatzinfos: Produktionskopf, Timing, Brand-Hinweise, Shotlist, Pflicht-Shots, '
     + 'On-Screen-Liste, Schnitt/Sound. Mit ##-Ueberschriften nach den Hauptbloecken '
@@ -136,6 +145,26 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
       + '(Hook-Typ, Dramaturgie, Pace, Szenenfolge, CTA-Mechanik). '
       + 'KEINE Hook-Formulierung, KEINE Satzstruktur im Wortlaut, KEINE CTA-Formulierung '
       + 'und KEINE Behauptung aus der Vorlage woertlich oder nah paraphrasiert uebernehmen.';
+  }
+
+  // Aufbau-Optionen aus den Editor-Toggles (Rueckfragen-Phase)
+  if (params.mit_rezept) {
+    task += '\n# REZEPT-BLOCK (gewaehlt)\nDas Skript bekommt unter dem CTA einen Rezept-Block ueber die volle Breite '
+      + '(eigene Zeile, kein "Was zu sehen ist"). Fuelle das Feld rezept mit dem Rezept aus der Caption '
+      + 'der Videovorlage: Zutaten und Zubereitungsschritte kompakt, je Schritt eine eigene Zeile. '
+      + 'Steht in der Caption kein Rezept, lasse rezept leer - erfinde keins.\n';
+  }
+  if (params.mit_text_hook) {
+    task += '\n# TEXT-HOOK (gewaehlt)\nDer Hook bekommt eine kurze Texteinblendung (On-Screen-Text, max. ca. 5 Woerter). '
+      + 'Schreibe sie in das Feld text_hook. Sie ersetzt weder den gesprochenen Hook noch das Visual '
+      + 'und steht im Dokument oben in der Hook-Zelle "Was zu sehen ist".\n';
+  }
+  if (params.mit_caption) {
+    task += '\n# CAPTION (gewaehlt)\nDas Skript bekommt eine Posting-Caption (der Text unter dem Post). '
+      + 'Schreibe sie in das Feld caption: passend zu Hook und Tonalitaet, kurz, mit passenden Hashtags und '
+      + 'Handlungsaufforderung nur dort, wo das Skript sie traegt. Behaupte nichts, was nicht im Skript, '
+      + 'im Briefing oder in den CRM-Daten steht. Die Caption der Videovorlage ist Inspiration fuer Aufbau und Ton, '
+      + 'nicht zum Abschreiben. Gibt es keine belastbare Grundlage, lasse caption leer.\n';
   }
 
   // Harte Laengen-Regel: Wort-Budget aus der gewaehlten Video-Laenge
@@ -250,13 +279,23 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     job.step('speichern', 'Fast fertig – ich speichere…');
     const parsed = result.json || extractJson(result.text, {
       keys: ['titel', 'inhalt_md', 'hook', 'hauptteil', 'cta',
-        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'varianten'],
+        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'rezept', 'text_hook', 'caption', 'varianten'],
       onWarn: (msg) => job.log(msg)
     });
     if (!(parsed.inhalt_md || '').trim()) {
       throw new Error('Antwort unvollstaendig (inhalt_md fehlt)');
     }
-    const { felder, varianten, inhalt_md: extraMd } = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    const { felder: grundFelder, varianten, inhalt_md: extraMd } = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    // Aufbau-Optionen: nur bei gesetztem Toggle uebernehmen, sonst hart null
+    const felder = {
+      ...grundFelder,
+      rezept: payload.mit_rezept ? (String(parsed.rezept || '').trim() || null) : null,
+      text_hook: payload.mit_text_hook ? (String(parsed.text_hook || '').trim() || null) : null,
+      caption: payload.mit_caption ? (String(parsed.caption || '').trim() || null) : null
+    };
+    if (payload.mit_caption) job.log(felder.caption ? 'Caption gesetzt' : 'Caption gewaehlt, aber keine geliefert');
+    if (payload.mit_rezept) job.log(felder.rezept ? 'Rezept-Block aus der Caption' : 'Rezept gewaehlt, aber keins in der Caption gefunden');
+    if (payload.mit_text_hook) job.log(felder.text_hook ? 'Text-Hook gesetzt' : 'Text-Hook gewaehlt, aber keiner geliefert');
     const inhaltMd = extraMd || '';
     if (varianten.length) {
       job.log(`${varianten.length} Alternative(n) als eigene Versionen`);
@@ -291,6 +330,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       hook_visuell: felder.hook_visuell,
       hauptteil_visuell: felder.hauptteil_visuell,
       cta_visuell: felder.cta_visuell,
+      rezept: felder.rezept,
+      text_hook: felder.text_hook,
+      caption: felder.caption,
       aktive_version_nr: 1,
       aktive_sub_nr: 0,
       video_idee: payload.video_idee || null,
@@ -349,6 +391,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         hook_visuell: felder.hook_visuell,
         hauptteil_visuell: felder.hauptteil_visuell,
         cta_visuell: felder.cta_visuell,
+        rezept: felder.rezept,
+        text_hook: felder.text_hook,
+        caption: felder.caption,
         aenderung_beschreibung: 'Erstgenerierung',
         created_by: user.id
       },
@@ -364,6 +409,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         hook_visuell: v.felder.hook_visuell,
         hauptteil_visuell: v.felder.hauptteil_visuell,
         cta_visuell: v.felder.cta_visuell,
+        rezept: felder.rezept,
+        text_hook: felder.text_hook,
+        caption: felder.caption,
         aenderung_beschreibung: v.beschreibung,
         created_by: user.id
       }))

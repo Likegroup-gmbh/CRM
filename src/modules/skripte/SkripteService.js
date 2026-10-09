@@ -439,6 +439,20 @@ export class SkripteService {
     return data;
   }
 
+  /**
+   * Aufbau-Flags (mit_rezept / mit_text_hook / mit_caption) in den
+   * generator_payload mergen, ohne die uebrigen Stub-Felder anzufassen.
+   */
+  async updateGeneratorFlags(id, flags) {
+    const { data: existing } = await this.db.from('skripte')
+      .select('prompt_kontext').eq('id', id).single();
+    const pk = existing?.prompt_kontext || {};
+    const { error } = await this.db.from('skripte').update({
+      prompt_kontext: { ...pk, generator_payload: { ...(pk.generator_payload || {}), ...flags } }
+    }).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
   // ------------------------------------------------------------------
   // Editor: Chat-Messages (Assistant-Message = Job, Status via Realtime)
   // ------------------------------------------------------------------
@@ -493,7 +507,7 @@ export class SkripteService {
   // ------------------------------------------------------------------
   async getVersionen(skriptId) {
     const { data, error } = await this.db.from('skript_versionen')
-      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, inhalt_md, aenderung_beschreibung, created_at')
+      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, rezept, text_hook, caption, inhalt_md, aenderung_beschreibung, created_at')
       .eq('skript_id', skriptId).order('version_nr').order('sub_nr');
     if (error) throw new Error(error.message);
     return data || [];
@@ -558,6 +572,9 @@ export class SkripteService {
       hook_visuell: version.hook_visuell ?? null,
       hauptteil_visuell: version.hauptteil_visuell ?? null,
       cta_visuell: version.cta_visuell ?? null,
+      rezept: version.rezept ?? null,
+      text_hook: version.text_hook ?? null,
+      caption: version.caption ?? null,
       inhalt_md: version.inhalt_md ?? null,
       aktive_version_nr: version.version_nr,
       aktive_sub_nr: version.sub_nr || 0
