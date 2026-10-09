@@ -150,6 +150,24 @@ export async function applyEditModeSelectedForDirectQuery(field, form, options) 
     }
   }
 
+  if (entityType === 'management' && field.name === 'creator_ids' && form.dataset.editModeData) {
+    try {
+      const editData = JSON.parse(form.dataset.editModeData);
+      const ids = (editData.creator_ids || [])
+        .map(item => (typeof item === 'object' && item !== null ? item.id : item))
+        .filter(Boolean);
+
+      if (ids.length > 0) {
+        options.forEach(option => {
+          if (ids.includes(option.value)) option.selected = true;
+        });
+        console.log('✅ DYNAMICDATALOADER: Management creator_ids vorausgewählt:', ids);
+      }
+    } catch (e) {
+      console.warn('⚠️ DYNAMICDATALOADER: Fehler beim Laden der Management Edit-Daten:', e);
+    }
+  }
+
   const existingMarkers = [
     { fieldName: 'unternehmen_id', datasetKey: 'existingUnternehmenId', emoji: '🏢', label: 'Unternehmen' },
     { fieldName: 'branche_id', datasetKey: 'existingBrancheId', emoji: '🏷️', label: 'Branche' },

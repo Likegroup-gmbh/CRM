@@ -7,6 +7,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { renderSecondaryNav, activateSecondaryNavTab, getSecondaryNavTabFromEvent, getTabQueryParam } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
+import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 
@@ -20,6 +21,7 @@ export class ManagementDetail extends PersonDetailBase {
     this.activeMainTab = null;
     this.eventsBound = false;
     this._isLoading = false;
+    this._isEditing = false;
     this._lastRenderTime = 0;
     this._renderDebounceMs = 500;
   }
@@ -30,6 +32,7 @@ export class ManagementDetail extends PersonDetailBase {
 
     try {
       this._isLoading = true;
+      this._isEditing = false;
       this.managementId = managementId;
       this.activeMainTab = getTabQueryParam() || 'creators';
       await this.loadManagementData();
@@ -366,6 +369,15 @@ export class ManagementDetail extends PersonDetailBase {
     };
     document.addEventListener('click', this._tableLinkClickHandler, { signal });
 
+    // Bearbeiten-Button im Breadcrumb
+    this._editClickHandler = (e) => {
+      if (e.target.closest('#btn-edit-management')) {
+        e.preventDefault();
+        this.showEditForm();
+      }
+    };
+    document.addEventListener('click', this._editClickHandler, { signal });
+
     document.addEventListener('click', async (e) => {
       if (e.target.id === 'btn-add-creator-to-management' || e.target.closest('#btn-add-creator-to-management')) {
         e.preventDefault();
@@ -380,6 +392,7 @@ export class ManagementDetail extends PersonDetailBase {
     }, { signal });
 
     this._entityUpdatedHandler = (e) => {
+      if (this._isEditing) return;
       if (e.detail?.entity === 'management' && e.detail?.id === this.managementId) {
         console.log('🔄 MANAGEMENTDETAIL: Management aktualisiert, lade neu');
         this.loadManagementData().then(() => this.render());
@@ -388,7 +401,7 @@ export class ManagementDetail extends PersonDetailBase {
     document.addEventListener('entityUpdated', this._entityUpdatedHandler, { signal });
 
     this._softRefreshHandler = async () => {
-      if (this._isLoading) return;
+      if (this._isLoading || this._isEditing) return;
       if (document.querySelector('form.edit-form, .drawer.show, .modal.show')) return;
       if (!this.managementId || !location.pathname.includes('/management/')) return;
 
@@ -404,6 +417,7 @@ export class ManagementDetail extends PersonDetailBase {
     this._eventsAbort = null;
     this._tabClickHandler = null;
     this._tableLinkClickHandler = null;
+    this._editClickHandler = null;
     this._entityUpdatedHandler = null;
     this._softRefreshHandler = null;
     this._sidebarTabsBound = false;
@@ -496,10 +510,134 @@ export class ManagementDetail extends PersonDetailBase {
     }
   }
 
+  // ── Bearbeiten ──────────────────────────────────────────────────────────
+
+  async showEditForm() {
+    if (!this.management || this._isEditing) return;
+
+    try {
+      this._isEditing = true;
+      window.breadcrumbSystem?.showEditLeaf();
+
+      const formData = {
+        ...this.management,
+        creator_ids: this.creators.map(c => c.id).filter(Boolean),
+        _isEditMode: true,
+        _entityId: this.managementId
+      };
+
+      const formHtml = window.formSystem.renderFormOnly('management', formData);
+
+      window.setHeadline(`${this.management.firmenname || 'Management'} bearbeiten`);
+      window.content.innerHTML = `
+        <div class="form-page form-page--half">
+          ${formHtml}
+        </div>
+      `;
+
+      await window.formSystem.bindFormEvents('management', formData);
+
+      const form = document.getElementById('management-form');
+      if (form) {
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          await this._handleEditSubmit(form);
+        };
+      }
+    } catch (error) {
+      this._isEditing = false;
+      console.error('❌ MANAGEMENTDETAIL: Fehler beim Öffnen des Bearbeiten-Formulars:', error);
+      window.toastSystem?.show('Formular konnte nicht geladen werden: ' + error.message, 'error');
+    }
+  }
+
+  async _handleEditSubmit(form) {
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn?.innerHTML;
+
+    try {
+      if (submitBtn) {
+        submitBtn.innerHTML = '<div class="loading-spinner"></div> Wird gespeichert...';
+        submitBtn.disabled = true;
+      }
+
+      const data = FormSubmitHelper.formDataToObject(
+        new FormData(form),
+        FormSubmitHelper.collectTagBasedSelects(form)
+      );
+
+      if (typeof data.firmenname === 'string') data.firmenname = data.firmenname.trim();
+      if (!data.firmenname || data.firmenname.length < 2) {
+        throw new Error('Bitte einen Firmennamen mit mindestens 2 Zeichen angeben.');
+      }
+
+      const creatorIds = Array.isArray(data.creator_ids) ? data.creator_ids : [];
+      delete data.creator_ids;
+
+      const result = await window.dataService.updateEntity('management', this.managementId, data);
+      if (!result.success) throw new Error(result.error || 'Fehler beim Speichern');
+
+      await this._syncCreatorZuordnung(creatorIds);
+
+      window.toastSystem?.success('Management erfolgreich aktualisiert!');
+      document.dispatchEvent(new CustomEvent('entityUpdated', {
+        detail: { entity: 'management', id: this.managementId }
+      }));
+
+      if (/\/edit\/?$/.test(location.pathname)) {
+        window.navigateTo(`/management/${this.managementId}`);
+      } else {
+        await this.init(this.managementId);
+      }
+    } catch (error) {
+      console.error('❌ MANAGEMENTDETAIL: Fehler beim Speichern:', error);
+      window.toastSystem?.show('Fehler beim Speichern: ' + error.message, 'error');
+      if (submitBtn) {
+        submitBtn.innerHTML = originalText || 'Speichern';
+        submitBtn.disabled = false;
+      }
+    }
+  }
+
+  // Gleicht creator_management mit der Auswahl ab: reaktivieren, deaktivieren, neu anlegen
+  async _syncCreatorZuordnung(creatorIds) {
+    const desired = new Set(creatorIds);
+
+    const { data: rows, error } = await window.supabase
+      .from('creator_management')
+      .select('id, creator_id, ist_aktiv')
+      .eq('management_id', this.managementId);
+    if (error) throw error;
+
+    const now = new Date().toISOString();
+    const existing = new Set();
+
+    for (const row of rows || []) {
+      existing.add(row.creator_id);
+      const shouldBeActive = desired.has(row.creator_id);
+      if (shouldBeActive === !!row.ist_aktiv) continue;
+      const { error: updError } = await window.supabase
+        .from('creator_management')
+        .update({ ist_aktiv: shouldBeActive, updated_at: now })
+        .eq('id', row.id);
+      if (updError) throw updError;
+    }
+
+    const toInsert = [...desired]
+      .filter(id => !existing.has(id))
+      .map(creator_id => ({ management_id: this.managementId, creator_id, ist_aktiv: true }));
+
+    if (toInsert.length > 0) {
+      const { error: insError } = await window.supabase.from('creator_management').insert(toInsert);
+      if (insError) throw insError;
+    }
+  }
+
   destroy() {
     console.log('ManagementDetail: Cleaning up...');
     this._removeAllEventListeners();
     this._isLoading = false;
+    this._isEditing = false;
     this._lastRenderTime = 0;
   }
 }
