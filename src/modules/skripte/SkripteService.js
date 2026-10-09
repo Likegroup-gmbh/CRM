@@ -288,7 +288,7 @@ export class SkripteService {
     if (!skriptId) return [];
     const { data, error } = await this.db
       .from('kooperation_videos')
-      .select('id, position, video_name, thema, kooperation_id, kooperation:kooperation_id(id, name, kampagne_id, creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url))')
+      .select('id, position, video_name, thema, kooperation_id, kooperation:kooperation_id(id, name, kampagne_id, videoanzahl, creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url))')
       .eq('skript_id', skriptId)
       .order('position', { ascending: true });
     if (error) throw new Error(error.message);

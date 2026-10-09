@@ -126,7 +126,22 @@ function creatorChipHtml(creators) {
     </button>`;
 }
 
-/** Doc-Kopf: Zuweisen-CTA oder Chip (Bubble + Name). */
+/** "Video 2/4" je verknuepftem Video; ohne Position kein Label. */
+function videoLabel(row) {
+  const pos = row?.position;
+  if (pos == null || pos === '') return '';
+  const total = row.kooperation?.videoanzahl;
+  return total ? `Video ${pos}/${total}` : `Video ${pos}`;
+}
+
+/** Reiner Anzeige-Chip neben dem Creator-Chip. */
+function videoChipHtml(verknuepfungen) {
+  const label = (verknuepfungen || []).map(videoLabel).filter(Boolean).join(', ');
+  if (!label) return '';
+  return `<span class="skripte-editor-video-chip" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+}
+
+/** Doc-Kopf: Zuweisen-CTA oder Chip (Bubble + Name) plus Video-Chip. */
 export function verknuepfungenHtml({
   verknuepfungen = [], konzeptCreator = null, kannZuweisen = false
 } = {}) {
@@ -140,7 +155,7 @@ export function verknuepfungenHtml({
         <span class="mdc-btn__label">Creator zuweisen</span>
       </button>`;
   }
-  return creatorChipHtml(creators) + tauschSkriptButtonHtml();
+  return creatorChipHtml(creators) + videoChipHtml(verknuepfungen) + tauschSkriptButtonHtml();
 }
 
 /** Rueckfragen-Phase: Vorgaben + Aufbau-Toggles statt (noch leerem) Skript-Inhalt. */

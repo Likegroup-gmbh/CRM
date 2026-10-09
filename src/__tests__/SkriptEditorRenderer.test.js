@@ -348,6 +348,38 @@ describe('verknuepfungenHtml', () => {
     expect(html).not.toContain('Tim Berg');
   });
 
+  it('Video-Chip zeigt Position/Anzahl neben dem Creator-Chip', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      verknuepfungen: [{
+        position: 2,
+        kooperation: { videoanzahl: 4, creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+      }]
+    });
+    expect(html).toContain('skripte-editor-video-chip');
+    expect(html).toContain('Video 2/4');
+    expect(html.indexOf('skripte-editor-zuweisen-chip')).toBeLessThan(html.indexOf('skripte-editor-video-chip'));
+  });
+
+  it('Video-Chip ohne videoanzahl nur mit Position', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      verknuepfungen: [{
+        position: 3,
+        kooperation: { creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+      }]
+    });
+    expect(html).toContain('Video 3<');
+  });
+
+  it('kein Video-Chip beim reinen Konzept-Creator', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      konzeptCreator: { vorname: 'Tim', nachname: 'Berg', name: 'Tim Berg' }
+    });
+    expect(html).not.toContain('skripte-editor-video-chip');
+  });
+
   it('ohne kannZuweisen leer', () => {
     expect(verknuepfungenHtml({
       kannZuweisen: false,

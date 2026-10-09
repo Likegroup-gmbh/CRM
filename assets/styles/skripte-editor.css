@@ -283,6 +283,19 @@
   white-space: nowrap;
 }
 
+/* Videonummer-Chip direkt neben dem Creator-Chip */
+.skripte-editor-video-chip {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-full, 999px);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm, 0.875rem);
+  white-space: nowrap;
+}
+
 .skripte-editor-doc-tabs {
   padding-left: var(--space-md);
   padding-right: var(--space-md);
