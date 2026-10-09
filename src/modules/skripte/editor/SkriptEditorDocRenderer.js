@@ -71,8 +71,19 @@ export function verknuepfungenHtml({ verknuepfungen = [], kannZuweisen = false }
     </button>`;
 }
 
-/** Rueckfragen-Phase: Vorgaben + Hinweis statt (noch leerem) Skript-Inhalt. */
+/** Rueckfragen-Phase: Vorgaben + Aufbau-Toggles + Hinweis statt (noch leerem) Skript-Inhalt. */
 export function fragenModusHtml({ skript, genStatus, docHeadActionsHtml, vorgabenPanelHtml }) {
+  const payload = skript?.prompt_kontext?.generator_payload || {};
+  const laeuft = Boolean(genStatus?.laeuft);
+  const aufbauToggle = (id, flag, label) => `
+      <label class="toggle-label" for="${id}">
+        <span class="toggle-text">${label}</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="${id}" data-aufbau-flag="${flag}"
+            ${payload[flag] ? 'checked' : ''} ${laeuft ? 'disabled' : ''}>
+          <span class="toggle-slider"></span>
+        </span>
+      </label>`;
   return `
     ${docHeadHtml(skript, `
       <span class="skripte-badge skripte-badge--info" title="Liky klärt erst offene Fragen, dann wird das Skript geschrieben">Rückfragen</span>
@@ -82,6 +93,11 @@ export function fragenModusHtml({ skript, genStatus, docHeadActionsHtml, vorgabe
     <div class="skripte-editor-fragen-info">
       <p>Liky prüft die Vorgaben und stellt dir rechts Rückfragen, bevor das Skript geschrieben wird.</p>
       <p class="skripte-hint">Antworte unten im Chat. Du kannst die Fragen auch überspringen und sofort generieren lassen.</p>
+    </div>
+    <div class="skripte-editor-aufbau">
+      ${aufbauToggle('ed-aufbau-rezept', 'mit_rezept', 'Rezept unter dem CTA')}
+      ${aufbauToggle('ed-aufbau-text-hook', 'mit_text_hook', 'Text-Hook')}
+      ${aufbauToggle('ed-aufbau-caption', 'mit_caption', 'Caption')}
     </div>
     <div class="skripte-actions-row">
       <button id="ed-fragen-gen" class="mdc-btn" ${genStatus?.laeuft ? 'disabled' : ''}>
@@ -103,6 +119,12 @@ export function masterDocHtml({ skript, docHeadActionsHtml, vorgabenPanelHtml })
 }
 
 function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
+  // Aufbau-Optionen aus der Generierung: Flag im Payload ODER bereits
+  // vorhandener Inhalt zeigt die Zeile/den Block (leer = manuell fuellbar).
+  const genPayload = skript?.prompt_kontext?.generator_payload || {};
+  const zeigeTextHook = Boolean(genPayload.mit_text_hook) || Boolean((skript?.text_hook || '').trim());
+  const zeigeRezept = Boolean(genPayload.mit_rezept) || Boolean((skript?.rezept || '').trim());
+  const zeigeCaption = Boolean(genPayload.mit_caption) || Boolean((skript?.caption || '').trim());
   return `
     <div class="skripte-editor-doc-box">
       <table class="skripte-editor-tabelle">
@@ -131,6 +153,11 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
           const visuellTitle = visuellGrund === 'vorgaenger'
             ? visuellVorgaengerTitle(sektion)
             : 'Was zu sehen ist per KI generieren';
+          const textHookBlock = sektion === 'hook' && zeigeTextHook ? `
+              <div class="skripte-editor-text-hook">
+                <span class="skripte-editor-text-hook-label">Text-Hook</span>
+                <div class="skripte-editor-sektion-visual skripte-editor-text-hook-text" data-sektion="text_hook" data-feld="text_hook" data-placeholder="On-Screen-Text im Hook…">${renderInlineMd(skript.text_hook || '').html}</div>
+              </div>` : '';
           return `
           <tr data-sektion="${sektion}">
             <th scope="row">${SEKTION_LABELS_KURZ[sektion]}</th>
@@ -138,6 +165,7 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
               <div class="skripte-editor-sektion-text" data-sektion="${sektion}" data-feld="${sektion}">${renderInlineMd(gesprochen).html}</div>
             </td>
             <td class="skripte-editor-tabelle-zelle--visual">
+              ${textHookBlock}
               ${isReadonly ? '' : `
               <button class="skripte-editor-visual-btn" data-sektion="${sektion}"
                 title="${escapeHtml(visuellTitle)}"
@@ -150,6 +178,20 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
           </tr>
         `;
         }).join('')}
+        ${zeigeRezept ? `
+          <tr data-sektion="rezept" class="skripte-editor-tabelle-zusatz">
+            <th scope="row">Rezept</th>
+            <td colspan="2">
+              <div class="skripte-editor-sektion-text" data-sektion="rezept" data-feld="rezept" data-placeholder="Rezept aus der Caption…">${renderInlineMd(skript.rezept || '').html}</div>
+            </td>
+          </tr>` : ''}
+        ${zeigeCaption ? `
+          <tr data-sektion="caption" class="skripte-editor-tabelle-zusatz">
+            <th scope="row">Caption</th>
+            <td colspan="2">
+              <div class="skripte-editor-sektion-text" data-sektion="caption" data-feld="caption" data-placeholder="Caption für den Post…">${renderInlineMd(skript.caption || '').html}</div>
+            </td>
+          </tr>` : ''}
         </tbody>
       </table>
     </div>
@@ -241,6 +283,7 @@ export function vorgabenPanelHtml(skript) {
       ? `${referenz.transkript_verwendet.slice(0, 220)}…`
       : referenz.transkript_verwendet)
     : null;
+  const genPayload = s.prompt_kontext?.generator_payload || {};
   const zeilen = [
     ['Unternehmen', s.unternehmen?.firmenname],
     ['Briefing', briefingName],
@@ -259,7 +302,10 @@ export function vorgabenPanelHtml(skript) {
     ['Skript-DNA', s.mit_dna === false ? 'Ohne DNA (Blindvergleich)' : 'Mit DNA'],
     ['Video-Idee', s.video_idee],
     ['Location', s.location],
-    ['Regieanweisung', s.regieanweisung]
+    ['Regieanweisung', s.regieanweisung],
+    ['Rezept unter dem CTA', genPayload.mit_rezept ? 'Ja' : null],
+    ['Text-Hook', genPayload.mit_text_hook ? 'Ja' : null],
+    ['Caption', genPayload.mit_caption ? 'Ja' : null]
   ].filter(([, wert]) => wert);
 
   if (!zeilen.length) return '';

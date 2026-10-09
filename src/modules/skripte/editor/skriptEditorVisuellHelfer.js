@@ -68,6 +68,9 @@ export function skriptStand(s) {
     hook_visuell: s.hook_visuell,
     hauptteil_visuell: s.hauptteil_visuell,
     cta_visuell: s.cta_visuell,
+    rezept: s.rezept,
+    text_hook: s.text_hook,
+    caption: s.caption,
     inhalt_md: s.inhalt_md
   };
 }
