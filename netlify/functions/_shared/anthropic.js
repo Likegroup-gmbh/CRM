@@ -1,33 +1,85 @@
 // Anthropic Messages API Client (ohne SDK, nur fetch)
 // Modelle via Env konfigurierbar:
-//   ANTHROPIC_MODEL_WRITE      (Default: claude-opus-4-7)  - Skript-Schreiben
-//   ANTHROPIC_MODEL_DISTILL    (Default: claude-haiku-4-5) - Verdichtung/Labeling
+//   ANTHROPIC_MODEL_WRITE      (Default: claude-opus-4-6)  - Skript-Schreiben
+//   ANTHROPIC_MODEL_DISTILL    (Default: claude-haiku-5-5) - Verdichtung/Labeling
 //   ANTHROPIC_MODEL_EDIT_WRITE (Default: claude-opus-4-6)  - Editor: alle Schreib-Aktionen (mit Extended Thinking)
-//   ANTHROPIC_MODEL_EDIT_FAST  (Default: claude-haiku-4-5) - Editor: freier Chat / Rueckfragen
-//   ANTHROPIC_MODEL_EXTRACT    (Default: claude-haiku-4-5) - Webseiten-Extraktion (site-extract)
-//   ANTHROPIC_MODEL_EXTRACT_PRODUKT (Default: claude-sonnet-4-5) - Produktseiten: mehr Felder, mehr Interpretation
-//   ANTHROPIC_MODEL_EXTRACT_BRIEFING (Default: claude-sonnet-4-5) - Kundenbriefing-PDF: viele Felder, Mapping
-//   ANTHROPIC_MODEL_EXTRACT_RECHNUNG (Default: claude-sonnet-4-5) - Creator-Rechnungs-PDF: Betraege, Datum, Steuer
-//   ANTHROPIC_MODEL_PERSONA    (Default: claude-sonnet-4-5) - Persona-Vorschlaege aus dem Produkt
-//   ANTHROPIC_MODEL_KONZEPT    (Default: claude-sonnet-4-5) - Videoideen im Konzept
-//   ANTHROPIC_MODEL_RESOLVE    (Default: claude-haiku-4-5) - Websuche: Name -> Homepage (Management-Connect)
+//   ANTHROPIC_MODEL_EDIT_FAST  (Default: claude-haiku-5-5) - Editor: freier Chat / Rueckfragen
+//   ANTHROPIC_MODEL_EXTRACT    (Default: claude-haiku-5-5) - Webseiten-Extraktion (site-extract)
+//   ANTHROPIC_MODEL_EXTRACT_PRODUKT (Default: claude-sonnet-5-5) - Produktseiten: mehr Felder, mehr Interpretation
+//   ANTHROPIC_MODEL_EXTRACT_BRIEFING (Default: claude-sonnet-5-5) - Kundenbriefing-PDF: viele Felder, Mapping
+//   ANTHROPIC_MODEL_EXTRACT_RECHNUNG (Default: claude-sonnet-5-5) - Creator-Rechnungs-PDF: Betraege, Datum, Steuer
+//   ANTHROPIC_MODEL_PERSONA    (Default: claude-sonnet-5-5) - Persona-Vorschlaege aus dem Produkt
+//   ANTHROPIC_MODEL_KONZEPT    (Default: claude-sonnet-5-5) - Videoideen im Konzept
+//   ANTHROPIC_MODEL_RESOLVE    (Default: claude-haiku-5-5) - Websuche: Name -> Homepage (Management-Connect)
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 
 const MODELS = {
-  write: process.env.ANTHROPIC_MODEL_WRITE || 'claude-opus-4-7',
-  distill: process.env.ANTHROPIC_MODEL_DISTILL || 'claude-haiku-4-5',
+  write: process.env.ANTHROPIC_MODEL_WRITE || 'claude-opus-4-6',
+  distill: process.env.ANTHROPIC_MODEL_DISTILL || 'claude-haiku-5-5',
   edit_write: process.env.ANTHROPIC_MODEL_EDIT_WRITE || 'claude-opus-4-6',
-  edit_fast: process.env.ANTHROPIC_MODEL_EDIT_FAST || 'claude-haiku-4-5',
-  extract: process.env.ANTHROPIC_MODEL_EXTRACT || 'claude-haiku-4-5',
-  extract_produkt: process.env.ANTHROPIC_MODEL_EXTRACT_PRODUKT || 'claude-sonnet-4-5',
-  extract_briefing: process.env.ANTHROPIC_MODEL_EXTRACT_BRIEFING || 'claude-sonnet-4-5',
-  extract_rechnung: process.env.ANTHROPIC_MODEL_EXTRACT_RECHNUNG || 'claude-sonnet-4-5',
-  persona: process.env.ANTHROPIC_MODEL_PERSONA || 'claude-sonnet-4-5',
-  casting: process.env.ANTHROPIC_MODEL_CASTING || 'claude-sonnet-4-5',
-  konzept: process.env.ANTHROPIC_MODEL_KONZEPT || 'claude-sonnet-4-5',
-  resolve: process.env.ANTHROPIC_MODEL_RESOLVE || 'claude-haiku-4-5'
+  edit_fast: process.env.ANTHROPIC_MODEL_EDIT_FAST || 'claude-haiku-5-5',
+  extract: process.env.ANTHROPIC_MODEL_EXTRACT || 'claude-haiku-5-5',
+  extract_produkt: process.env.ANTHROPIC_MODEL_EXTRACT_PRODUKT || 'claude-sonnet-5-5',
+  extract_briefing: process.env.ANTHROPIC_MODEL_EXTRACT_BRIEFING || 'claude-sonnet-5-5',
+  extract_rechnung: process.env.ANTHROPIC_MODEL_EXTRACT_RECHNUNG || 'claude-sonnet-5-5',
+  persona: process.env.ANTHROPIC_MODEL_PERSONA || 'claude-sonnet-5-5',
+  casting: process.env.ANTHROPIC_MODEL_CASTING || 'claude-sonnet-5-5',
+  konzept: process.env.ANTHROPIC_MODEL_KONZEPT || 'claude-sonnet-5-5',
+  resolve: process.env.ANTHROPIC_MODEL_RESOLVE || 'claude-haiku-5-5'
 };
+
+const isSonnet55 = (model) => String(model || '').startsWith('claude-sonnet-5-5');
+const isHaiku55 = (model) => String(model || '').startsWith('claude-haiku-5-5');
+
+/**
+ * Baut Thinking, max_tokens und tool_choice passend zur Modellfamilie.
+ * Die Call-Sites sagen nur "mit/ohne Thinking" und "Tool erzwingen" - was die
+ * API dafuer akzeptiert, haengt am Modell:
+ * - Opus 4.x / aeltere Modelle: Extended Thinking mit budget_tokens, erzwungenes
+ *   tool_choice nur ohne Thinking.
+ * - Sonnet 5.5: denkt ohne thinking-Feld von selbst. "Aus" heisst between_tools
+ *   ('disabled' und budget_tokens sind ein 400). Erzwungenes tool_choice ist
+ *   ein 400, deshalb 'auto' plus Hinweis im Prompt.
+ * - Haiku 5.5: denkt ohne thinking-Feld von selbst. "Aus" heisst disabled,
+ *   budget_tokens ist ein 400. Erzwungenes tool_choice bleibt erlaubt.
+ * Bei 5.5 mit thinking:true laeuft adaptives Thinking ohne Budget.
+ */
+function shapeRequest({ model, maxTokens = 4096, thinking = false, thinkingBudget = 2048, tool = null, toolForced = true }) {
+  const sonnet55 = isSonnet55(model);
+  const haiku55 = isHaiku55(model);
+  const adaptiveModel = sonnet55 || haiku55;
+
+  let thinkingParam = null;
+  if (adaptiveModel) {
+    if (thinking) thinkingParam = { type: 'adaptive' };
+    else thinkingParam = sonnet55 ? { type: 'between_tools' } : { type: 'disabled' };
+  } else if (thinking) {
+    thinkingParam = { type: 'enabled', budget_tokens: thinkingBudget };
+  }
+
+  // max_tokens umfasst bei Extended Thinking auch die Thinking-Tokens
+  const effectiveMaxTokens = thinking && !adaptiveModel
+    ? Math.max(maxTokens, thinkingBudget + 2048)
+    : maxTokens;
+
+  // Erzwungener Tool-Call ist mit Thinking nicht kombinierbar, auf Sonnet 5.5 gar nicht
+  const forced = !!(tool && toolForced && !thinking && !sonnet55);
+  const toolParams = tool
+    ? {
+      tools: [tool],
+      tool_choice: forced ? { type: 'tool', name: tool.name } : { type: 'auto' }
+    }
+    : {};
+
+  // Ohne Zwang muss der Prompt sagen, dass die Antwort ueber das Tool kommt.
+  // Als letzter System-Block ohne cache_control, damit der gecachte Prefix gleich bleibt.
+  const systemHint = sonnet55 && tool && toolForced
+    ? `Liefere deine Antwort ausschliesslich ueber einen Aufruf des Tools "${tool.name}".`
+    : null;
+
+  return { thinking: thinkingParam, maxTokens: effectiveMaxTokens, toolParams, systemHint };
+}
 
 /** Wird geworfen, wenn timeoutMs greift - der Aufrufer kann so degradiert antworten. */
 class ClaudeTimeoutError extends Error {
@@ -73,17 +125,8 @@ async function callClaude({ model, systemBlocks = [], userPrompt, messages = nul
     ...(b.cache ? { cache_control: { type: 'ephemeral' } } : {})
   }));
 
-  // max_tokens umfasst bei Extended Thinking auch die Thinking-Tokens
-  const effectiveMaxTokens = thinking ? Math.max(maxTokens, thinkingBudget + 2048) : maxTokens;
-
-  // Erzwungener Tool-Call ist mit Extended Thinking nicht kombinierbar
-  const forced = tool && toolForced && !thinking;
-  const toolParams = tool
-    ? {
-      tools: [tool],
-      tool_choice: forced ? { type: 'tool', name: tool.name } : { type: 'auto' }
-    }
-    : {};
+  const shaped = shapeRequest({ model, maxTokens, thinking, thinkingBudget, tool, toolForced });
+  if (shaped.systemHint) system.push({ type: 'text', text: shaped.systemHint });
 
   // PDF als Document-Block vor dem Text der letzten User-Message.
   const apiMessages = buildApiMessages({ userPrompt, messages, document });
@@ -105,9 +148,9 @@ async function callClaude({ model, systemBlocks = [], userPrompt, messages = nul
       },
       body: JSON.stringify({
         model,
-        max_tokens: effectiveMaxTokens,
-        ...(thinking ? { thinking: { type: 'enabled', budget_tokens: thinkingBudget } } : {}),
-        ...toolParams,
+        max_tokens: shaped.maxTokens,
+        ...(shaped.thinking ? { thinking: shaped.thinking } : {}),
+        ...shaped.toolParams,
         ...(system.length ? { system } : {}),
         messages: apiMessages
       }),
@@ -422,4 +465,4 @@ function extractJson(text, { keys = [], onWarn } = {}) {
   }
 }
 
-module.exports = { callClaude, readWebSearch, parseToolInput, extractJson, repairJsonStrings, extractByKeys, extractXmlParameters, MODELS, ClaudeTimeoutError };
+module.exports = { callClaude, shapeRequest, readWebSearch, parseToolInput, extractJson, repairJsonStrings, extractByKeys, extractXmlParameters, MODELS, ClaudeTimeoutError };
