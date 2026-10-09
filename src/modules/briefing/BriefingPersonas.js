@@ -1,8 +1,7 @@
 // BriefingPersonas.js
-// Membership Briefing <-> Persona (campaign_briefings.persona_ids) und
-// die daraus abgeleiteten Briefing-Produkte (ADR 0021).
+// Membership Briefing <-> Persona (campaign_briefings.persona_ids).
+// Die Produkte der Linie hängen nicht an den Personas (ADR 0052).
 
-import { recomputeBriefingProdukte } from './BriefingProdukte.js';
 import { applyFinalisiertFilter, isFinalisiert } from '../../core/finalisiert.js';
 
 function uniqueIds(ids) {
@@ -19,13 +18,6 @@ export async function loadBriefingIdsForPersona(personaId, { nurFinalisiert = fa
   const { data, error } = await query;
   if (error) throw error;
   return (data || []).map(r => r.id).filter(Boolean);
-}
-
-export async function recomputeBriefingProdukteForPersona(personaId) {
-  const briefingIds = await loadBriefingIdsForPersona(personaId);
-  for (const id of briefingIds) {
-    await recomputeBriefingProdukte(id);
-  }
 }
 
 async function ensurePersonaMarke(personaId, markeId) {
@@ -82,8 +74,6 @@ export async function setBriefingPersonas(briefingId, personaIds) {
       await ensurePersonaMarke(personaId, briefing.marke_id);
     }
   }
-
-  await recomputeBriefingProdukte(briefingId);
 }
 
 /**
@@ -122,7 +112,6 @@ export async function addPersonaToBriefing(briefingId, personaId) {
   if (error) throw error;
 
   if (briefing.marke_id) await ensurePersonaMarke(personaId, briefing.marke_id);
-  await recomputeBriefingProdukte(briefingId);
   return true;
 }
 
@@ -150,8 +139,6 @@ export async function removePersonaFromBriefing(briefingId, personaId) {
     .update({ persona_ids: [...members] })
     .eq('id', briefingId);
   if (error) throw error;
-
-  await recomputeBriefingProdukte(briefingId);
   return true;
 }
 
@@ -197,6 +184,5 @@ export async function setPersonaBriefings(personaId, briefingIds) {
       .update({ persona_ids: [...members] })
       .eq('id', briefing.id);
     if (error) throw error;
-    await recomputeBriefingProdukte(briefing.id);
   }
 }

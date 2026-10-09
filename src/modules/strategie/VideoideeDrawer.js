@@ -14,7 +14,12 @@ import {
   renderVorschlagActions,
   shellHtml
 } from './videoidee/videoideeRender.js';
-import { analysiereBeschreibungAktion, commitControl, commitFocused } from './videoidee/videoideeCommit.js';
+import {
+  analysiereBeschreibungAktion,
+  commitControl,
+  commitFocused,
+  toggleHookSperreAktion
+} from './videoidee/videoideeCommit.js';
 import {
   bindCreator,
   bindProdukt,
@@ -205,6 +210,14 @@ function bindDrawer(detail, panel) {
     analyseBtn.dataset.videoideeBound = '1';
     analyseBtn.addEventListener('click', () => {
       void analysiereBeschreibungAktion(detail, panel.dataset.itemId, COMMIT_HOOKS, analyseBtn);
+    });
+  }
+
+  const sperreBtn = panel.querySelector('[data-action="toggle-hook-sperre"]');
+  if (sperreBtn && sperreBtn.dataset.videoideeBound !== '1') {
+    sperreBtn.dataset.videoideeBound = '1';
+    sperreBtn.addEventListener('click', () => {
+      void toggleHookSperreAktion(detail, panel.dataset.itemId, COMMIT_HOOKS, sperreBtn);
     });
   }
 

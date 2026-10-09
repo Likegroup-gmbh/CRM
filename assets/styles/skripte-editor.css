@@ -219,6 +219,24 @@
   overflow: hidden;
 }
 
+/* Video-Tag unter dem Titel ("Video 2/4") */
+.skripte-editor-liste-video {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 1px var(--space-sm);
+  border-radius: var(--radius-full, 999px);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skripte-editor-liste-item.active .skripte-editor-liste-video {
+  background: var(--bg-primary);
+}
+
 /* Mittlere Spalte: Skript-Dokument (kein Composer mehr) */
 .skripte-editor-main {
   display: flex;
@@ -422,6 +440,21 @@
 
 .skripte-editor-tabelle tbody tr {
   height: calc(100% / 3);
+}
+
+/* Hook-Sperre (ADR 0054): Status neben dem Zeilenlabel Hook, gesetzt wird sie am Konzept */
+.skripte-editor-hook-sperre {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--space-xs);
+  color: var(--color-success, var(--gray-700));
+  vertical-align: middle;
+  cursor: default;
+}
+
+.skripte-editor-hook-sperre .crm-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .skripte-editor-tabelle tbody tr:last-child th,

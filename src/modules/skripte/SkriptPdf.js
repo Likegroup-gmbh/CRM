@@ -3,7 +3,8 @@
 // Lockup, Marke × Creator, Titel, Creator-Karte, dann Hook / Hauptteil / CTA.
 
 import { konzeptCreatorFromSkript } from './editor/SkriptEditorDocRenderer.js';
-import { loadCustomerLogoPng, toPdfImageDataUrl } from '../briefing/BriefingPdf.js';
+import { loadCustomerLogoPng, toPdfImageDataUrl } from '../../core/pdf/pdfImage.js';
+import { loadJsPdf } from '../../core/pdf/loadJsPdf.js';
 import {
   loadLikeGroupLogoPng,
   drawLikeGroupFooter,
@@ -12,8 +13,6 @@ import {
   PDF_BRAND,
 } from '../../core/pdf/PdfBrand.js';
 import { stripNonWinAnsi } from '../../core/pdf/pdfWinAnsi.js';
-
-export const JSPDF_URL = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
 
 const MARGIN_X = 14;
 const COLS = [{ w: 33 }, { w: 74.5 }, { w: 74.5 }];
@@ -39,33 +38,6 @@ const ZUSATZ_ROWS = [
   ['REZEPT', 'rezept'],
   ['CAPTION', 'caption'],
 ];
-
-let jsPdfPromise = null;
-
-function loadCdnScript(url) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = url;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('PDF-Bibliothek konnte nicht geladen werden'));
-    document.head.appendChild(script);
-  });
-}
-
-function ensureJsPdf() {
-  if (window.jspdf?.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
-  if (!jsPdfPromise) {
-    jsPdfPromise = loadCdnScript(JSPDF_URL).then(() => {
-      const ctor = window.jspdf?.jsPDF;
-      if (!ctor) throw new Error('jsPDF ohne jsPDF-Export geladen');
-      return ctor;
-    }).catch((err) => {
-      jsPdfPromise = null;
-      throw err;
-    });
-  }
-  return jsPdfPromise;
-}
 
 export function sanitizeSkriptFilename(name) {
   const base = String(name || 'Skript')
@@ -452,7 +424,7 @@ async function drawItem(doc, item, ctx) {
 }
 
 async function renderPdf(items, dateiname) {
-  const jsPDF = await ensureJsPdf();
+  const jsPDF = await loadJsPdf();
   const logoPng = await loadLikeGroupLogoPng();
   const logoCache = new Map();
   const logo = async (url) => {

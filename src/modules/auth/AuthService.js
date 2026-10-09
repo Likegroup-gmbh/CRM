@@ -9,6 +9,11 @@ import {
   isEmployeeDomainError,
   createEmployeeDomainError
 } from './AllowedEmailDomains.js';
+import {
+  passwordPolicyError,
+  isWeakPasswordError,
+  PASSWORD_POLICY_MESSAGE
+} from '../../auth/password-hints.js';
 // AuthService.js (ES6-Modul)
 // Authentifizierung und Benutzer-Management
 
@@ -391,9 +396,10 @@ export class AuthService {
         throw createEmployeeDomainError();
       }
 
-      // Passwort-Stärke validieren
-      if (!this.validatePasswordStrength(password)) {
-        throw new Error('Passwort muss mindestens 4 Zeichen haben.');
+      // Passwort-Regeln wie serverseitig (Supabase Auth)
+      const policyError = passwordPolicyError(password);
+      if (policyError) {
+        throw new Error(policyError);
       }
 
       if (!window.supabase) {
@@ -417,6 +423,11 @@ export class AuthService {
       });
 
       if (error) {
+        // Schwaches Passwort ist kein Fehlversuch und kein Duplikat
+        if (isWeakPasswordError(error)) {
+          throw new Error(PASSWORD_POLICY_MESSAGE);
+        }
+
         this.recordFailedAttempt(email);
 
         if (isEmployeeDomainError(error)) {
@@ -667,9 +678,10 @@ export class AuthService {
   // Passwort aktualisieren (für Reset-Seite)
   async updatePassword(newPassword) {
     try {
-      // Passwort-Stärke validieren
-      if (!this.validatePasswordStrength(newPassword)) {
-        throw new Error('Passwort muss mindestens 4 Zeichen haben.');
+      // Passwort-Regeln wie serverseitig (Supabase Auth)
+      const policyError = passwordPolicyError(newPassword);
+      if (policyError) {
+        throw new Error(policyError);
       }
 
       if (!window.supabase) {
@@ -681,6 +693,9 @@ export class AuthService {
       });
 
       if (error) {
+        if (isWeakPasswordError(error)) {
+          throw new Error(PASSWORD_POLICY_MESSAGE);
+        }
         throw error;
       }
 
@@ -702,9 +717,9 @@ export class AuthService {
 
     const rawMessage = `${error.message || ''} ${error.error_description || ''}`.toLowerCase();
     const errorCode = `${error.code || ''}`.toLowerCase();
-    const status = Number(error.status || 0);
 
-    if (status === 422) return true;
+    // Status 422 allein ist kein Duplikat (auch schwaches Passwort liefert 422)
+    if (isWeakPasswordError(error)) return false;
     if (errorCode === 'user_already_exists' || errorCode === 'email_exists') return true;
 
     const duplicateMarkers = [

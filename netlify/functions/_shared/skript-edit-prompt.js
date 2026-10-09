@@ -14,6 +14,7 @@ const { fmtMasterBlock } = require('./skript-master');
 const { vertragBlock } = require('./skript-vertrag');
 const { zusatzInfosMarkdown, istMasterDokument } = require('./skript-creator-facing');
 const { verlaufZuMessages } = require('./chat-verlauf');
+const { ladeGesperrtenHook, hookSperreEditBlock } = require('./hook-sperre');
 
 const VERBINDLICHE_REGELN = `
 # VERBINDLICHE REGELN
@@ -355,12 +356,14 @@ async function loadEditContext(supabase, message) {
     return data || null;
   })();
 
-  const [kontext, modus] = await Promise.all([
+  const [kontext, modus, gesperrterHook] = await Promise.all([
     loadContext(supabase, editParams(skript)),
-    modusPromise
+    modusPromise,
+    // Hook-Sperre (ADR 0054): live aus der Videoidee, nicht aus einer Kopie am Skript
+    ladeGesperrtenHook(supabase, editParams(skript).strategie_item_id)
   ]);
 
-  return { skript, history, kontext, modus };
+  return { skript, history, kontext, modus, gesperrterHook };
 }
 
 // ---------------------------------------------------------------------------
@@ -483,6 +486,7 @@ function buildEditPrompt(ctx, message) {
   }
 
   task += festgezogenBlock(skript, message, { freierChat: chatWaehltSpalte });
+  if (!istMaster) task += hookSperreEditBlock(ctx.gesperrterHook);
   task += festlegungBlock(skript);
   task += VERBINDLICHE_REGELN;
 

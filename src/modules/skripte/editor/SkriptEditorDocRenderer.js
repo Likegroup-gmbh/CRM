@@ -85,6 +85,40 @@ export function creatorsFuerListe(skript, verknuepfungen) {
   return Array.isArray(skript?.liste_creators) ? skript.liste_creators : [];
 }
 
+/**
+ * Sidebar-Reihenfolge: nach Creator (A-Z), darin nach Videonummer aufsteigend
+ * (Video 1, 2, 3 ...). Skripte ohne Creator kommen ans Ende, Skripte ohne
+ * Videonummer hinter die nummerierten ihres Creators; sonst bleibt die
+ * Eingangsreihenfolge (neueste zuerst) erhalten.
+ * `verknuepfungenFuer(skript)` liefert die Video-Zeilen je Skript.
+ */
+export function sortListeSkripte(skripte, verknuepfungenFuer) {
+  const rows = (skripte || []).map((skript, index) => {
+    const verknuepfungen = verknuepfungenFuer(skript) || [];
+    const creators = creatorsFuerListe(skript, verknuepfungen);
+    const positionen = verknuepfungen
+      .map((v) => (v?.position == null || v.position === '' ? NaN : Number(v.position)))
+      .filter(Number.isFinite);
+    return {
+      skript,
+      index,
+      creator: creators.length ? creatorDisplayName(creators[0]) : null,
+      position: positionen.length ? Math.min(...positionen) : null
+    };
+  });
+  rows.sort((a, b) => {
+    if ((a.creator === null) !== (b.creator === null)) return a.creator === null ? 1 : -1;
+    if (a.creator !== null) {
+      const byName = a.creator.localeCompare(b.creator, 'de', { sensitivity: 'base' });
+      if (byName) return byName;
+    }
+    if ((a.position === null) !== (b.position === null)) return a.position === null ? 1 : -1;
+    if (a.position !== null && a.position !== b.position) return a.position - b.position;
+    return a.index - b.index;
+  });
+  return rows.map((r) => r.skript);
+}
+
 export function creatorsFuerKopf(verknuepfungen, konzeptCreator) {
   const proCreator = new Map();
   for (const row of verknuepfungen || []) {
@@ -139,6 +173,13 @@ function videoChipHtml(verknuepfungen) {
   const label = (verknuepfungen || []).map(videoLabel).filter(Boolean).join(', ');
   if (!label) return '';
   return `<span class="skripte-editor-video-chip" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+}
+
+/** Sidebar-Zeile: Video-Tag ("Video 2/4") unter dem Titel; ohne Position leer. */
+export function listeVideoHtml(verknuepfungen) {
+  const label = (verknuepfungen || []).map(videoLabel).filter(Boolean).join(', ');
+  if (!label) return '';
+  return `<span class="skripte-editor-liste-video" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
 }
 
 /** Doc-Kopf: Zuweisen-CTA oder Chip (Bubble + Name) plus Video-Chip. */
@@ -207,6 +248,9 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
   const zeigeTextHook = Boolean(genPayload.mit_text_hook) || Boolean((skript?.text_hook || '').trim());
   const zeigeRezept = Boolean(genPayload.mit_rezept) || Boolean((skript?.rezept || '').trim());
   const zeigeCaption = Boolean(genPayload.mit_caption) || Boolean((skript?.caption || '').trim());
+  // Hook-Sperre (ADR 0054): Status aus der Videoidee, nur fuers Team
+  const zeigeHookSperre = Boolean(skript?.strategie_item?.hook_gesperrt)
+    && !window.isKunde?.() && !window.isGast?.();
   return `
     <div class="skripte-editor-doc-box">
       <table class="skripte-editor-tabelle">
@@ -242,7 +286,8 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
               </div>` : '';
           return `
           <tr data-sektion="${sektion}">
-            <th scope="row">${SEKTION_LABELS_KURZ[sektion]}</th>
+            <th scope="row">${SEKTION_LABELS_KURZ[sektion]}${sektion === 'hook' && zeigeHookSperre ? `
+              <span class="skripte-editor-hook-sperre" title="Hook gesperrt: Der Kunde hat ihn freigegeben, Liky ändert ihn nicht. Das Schloss öffnest du am Konzept." aria-label="Hook gesperrt">${icon('lock-closed')}</span>` : ''}</th>
             <td>
               <div class="skripte-editor-sektion-text" data-sektion="${sektion}" data-feld="${sektion}">${renderInlineMd(gesprochen).html}</div>
             </td>

@@ -665,6 +665,8 @@ export async function updateItemField(detail, itemId, field, value, sourceEl) {
       // Freitext ersetzt die strukturierte Analyse.
       const vorhanden = detail.items.find(i => i.id === itemId);
       if (vorhanden?.beschreibung_struktur) updates.beschreibung_struktur = null;
+      // Ohne Struktur gibt es keinen Hook mehr (ADR 0054)
+      if (vorhanden?.hook_gesperrt) updates.hook_gesperrt = false;
     }
     if (field === 'kundenadaption') {
       updates.kundenadaption_quelle = value ? 'user' : null;

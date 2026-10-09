@@ -24,7 +24,7 @@
 
 import { PersonaService } from '../persona/PersonaService.js';
 import { istKiBereit } from '../persona/audienceSituationGate.js';
-import { recomputeBriefingProdukteForPersona, addPersonaToBriefing, removePersonaFromBriefing } from '../briefing/BriefingPersonas.js';
+import { addPersonaToBriefing, removePersonaFromBriefing } from '../briefing/BriefingPersonas.js';
 
 const ENDPOINT = '/.netlify/functions/produkt-persona-background';
 const AUDIENCE_SITUATION_ENDPOINT = '/.netlify/functions/audience-situation-background';
@@ -283,14 +283,6 @@ export class ProduktPersonaService {
     }
 
     await this.flushVerworfeneMatches(produktId, verworfeneMatchIds, karten);
-
-    const personaIds = [...new Set([
-      ...ergebnisKarten.map(k => k.persona_id),
-      ...karten.map(k => k.persona_id || k.persisted?.persona_id)
-    ].filter(Boolean))];
-    for (const personaId of personaIds) {
-      await recomputeBriefingProdukteForPersona(personaId);
-    }
 
     const ergebnisUseCases = useCases
       .filter(uc => !uc.deleted)
@@ -730,8 +722,6 @@ export class ProduktPersonaService {
         if (error) throw error;
       }
     }
-
-    await recomputeBriefingProdukteForPersona(personaId);
   }
 
   static useCaseIdsFromKarte(karte) {
@@ -773,7 +763,6 @@ export class ProduktPersonaService {
       });
       next.id = id;
       next.persisted = { status: 'accepted', persona_id: materialisiert.personaId };
-      await recomputeBriefingProdukteForPersona(materialisiert.personaId);
     } else {
       next.persisted = null;
     }
@@ -846,7 +835,6 @@ export class ProduktPersonaService {
         position: karte.position ?? 0
       });
       next.persisted = { status: 'pending', persona_id: demat.personaId };
-      if (demat.personaId) await recomputeBriefingProdukteForPersona(demat.personaId);
     } else {
       next.persisted = karte.id ? { status: 'pending', persona_id: demat.personaId } : null;
     }

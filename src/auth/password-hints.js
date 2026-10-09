@@ -1,4 +1,40 @@
 /**
+ * Passwort-Regeln (gleich wie serverseitig in Supabase Auth).
+ * Reine Funktion ohne DOM, auch von Registrierungsseiten und AuthService nutzbar.
+ */
+export function checkPasswordCriteria(pw) {
+  const value = String(pw ?? '');
+  return {
+    length: value.length >= 8,
+    lowercase: /[a-z]/.test(value),
+    uppercase: /[A-Z]/.test(value),
+    digit: /\d/.test(value),
+    symbol: /[^a-zA-Z0-9]/.test(value)
+  };
+}
+
+export const PASSWORD_POLICY_MESSAGE =
+  'Das Passwort muss mindestens 8 Zeichen lang sein und Klein- und Großbuchstaben, eine Ziffer und ein Sonderzeichen enthalten.';
+
+/**
+ * @returns {string|null} Kurzer deutscher Hinweis oder null, wenn das Passwort passt.
+ */
+export function passwordPolicyError(pw) {
+  const r = checkPasswordCriteria(pw);
+  return Object.values(r).every(Boolean) ? null : PASSWORD_POLICY_MESSAGE;
+}
+
+/**
+ * Erkennt den Supabase-Auth-Fehler "weak_password" (422) bzw. dessen englischen Text.
+ */
+export function isWeakPasswordError(error) {
+  if (!error) return false;
+  const code = `${error.code || ''}`.toLowerCase();
+  const msg = `${error.message || ''}`.toLowerCase();
+  return code === 'weak_password' || msg.startsWith('password should') || msg.includes('weak password');
+}
+
+/**
  * Passwort-Hinweise: Einmal anzeigen bei Focus/Input, bleiben sichtbar, nur Inhalt wechselt
  * Nutzung: initPasswordHints('registerPassword') oder initPasswordHints('password')
  */
@@ -33,18 +69,8 @@ export function initPasswordHints(inputId) {
   const fullEl = hintsEl.querySelector('.password-hints-full');
   const successEl = hintsEl.querySelector('.password-hints-success');
 
-  function checkPassword(pw) {
-    return {
-      length: pw.length >= 8,
-      lowercase: /[a-z]/.test(pw),
-      uppercase: /[A-Z]/.test(pw),
-      digit: /\d/.test(pw),
-      symbol: /[^a-zA-Z0-9]/.test(pw)
-    };
-  }
-
   function updateHints(pw) {
-    const r = checkPassword(pw);
+    const r = checkPasswordCriteria(pw);
     const allOk = r.length && r.lowercase && r.uppercase && r.digit && r.symbol;
 
     if (allOk) {

@@ -5,6 +5,8 @@
 
 const { starteKiRequest } = require('./ki-log');
 const { cloudflareCredentials, runDescription } = require('./video-transcribe');
+const { normalisiereStruktur, strukturZuText } = require('./beschreibung-struktur');
+const { gesperrterHook } = require('./hook-sperre');
 
 function beschreibungBlocker(item) {
   if (!item?.video_link) return 'Nur eine Videoreferenz';
@@ -14,7 +16,7 @@ function beschreibungBlocker(item) {
 
 async function ersetzeBeschreibung(supabase, { userId, itemId }) {
   const { data: item, error } = await supabase.from('strategie_items')
-    .select('id, video_link, transkript, caption')
+    .select('id, video_link, transkript, caption, hook_gesperrt, beschreibung, beschreibung_struktur')
     .eq('id', itemId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -47,6 +49,15 @@ async function ersetzeBeschreibung(supabase, { userId, itemId }) {
     beschreibung_quelle: 'ki',
     beschreibung_struktur: beschreibung.struktur || null
   };
+
+  // Hook-Sperre (ADR 0054): der freigegebene Hook bleibt, alle anderen Zeilen kommen neu
+  const gesperrt = gesperrterHook(item);
+  if (gesperrt) {
+    const basis = beschreibung.struktur || normalisiereStruktur(item.beschreibung_struktur) || {};
+    const struktur = normalisiereStruktur({ ...basis, hook: gesperrt });
+    updates.beschreibung_struktur = struktur;
+    updates.beschreibung = strukturZuText(struktur);
+  }
   const { error: writeError } = await supabase.from('strategie_items')
     .update(updates)
     .eq('id', itemId);

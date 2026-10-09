@@ -313,6 +313,16 @@ describe('ensureBriefingLine', () => {
     expect(db.rows.campaign_briefing_produkt).toHaveLength(0);
   });
 
+  it('lässt übernommene Produkte der Linie beim Finalisieren und Speichern stehen', async () => {
+    db.rows.campaign_briefing_produkt.push({ briefing_id: 'brief-1', produkt_id: 'creme' });
+
+    await ensureBriefingLine({ briefing: influencer, kampagneId: 'kamp-1', produktId: 'serum', produktionId: 'prod-1' });
+    await ensureBriefingLine({ briefing: influencer, kampagneId: 'kamp-1', produktId: 'serum', produktionId: 'prod-1' });
+    await ensureBriefingLine({ briefing: influencer, kampagneId: 'kamp-1', produktId: null, produktionId: 'prod-1' });
+
+    expect(db.rows.campaign_briefing_produkt.map(r => r.produkt_id).sort()).toEqual(['creme', 'serum']);
+  });
+
   it('verlangt eine Produktion', async () => {
     await expect(ensureBriefingLine({ briefing: influencer, kampagneId: 'kamp-1' }))
       .rejects.toThrow('Produktion');

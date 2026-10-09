@@ -75,7 +75,7 @@ describe('AuthService.signUp Domain-Check', () => {
   });
 
   it('ruft supabase.auth.signUp bei erlaubter Domain mit role=mitarbeiter auf', async () => {
-    await auth.signUp('max@likegroup.de', 'Max', 'Mustermann', 'passwort123');
+    await auth.signUp('max@likegroup.de', 'Max', 'Mustermann', 'Passwort123!');
 
     expect(window.supabase.auth.signUp).toHaveBeenCalledTimes(1);
     const arg = window.supabase.auth.signUp.mock.calls[0][0];

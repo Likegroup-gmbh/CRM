@@ -3,7 +3,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
-import { createPdfLayout, ensureSpace } from './PdfTextFlow.js';
+import { createPdfLayout, ensureSpace } from '../../../../core/pdf/PdfTextFlow.js';
 import { KSK_SELBSTZAHLER_VERTRAGSTEXT_DE } from '../../../../core/budget/kskSelbstzahler.js';
 import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
 import { isKorrekturschleife } from '../pflichtAuswahlen.js';
@@ -325,7 +325,7 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
         doc.setFont('helvetica', 'normal');
         y += 6;
         drawCheckbox(14, y, isKorrekturschleife(vertrag.korrekturschleifen, 1), '1');
-        drawCheckbox(30, y, isKorrekturschleifen(vertrag.korrekturschleifen, 2), '2');
+        drawCheckbox(30, y, isKorrekturschleife(vertrag.korrekturschleifen, 2), '2');
         return y;
       }, { gap: 12 });
 

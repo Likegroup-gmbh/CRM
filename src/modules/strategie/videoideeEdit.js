@@ -41,10 +41,13 @@ export async function persistVideoideeEdit(detail, itemId, data) {
     updates.beschreibung_quelle = resolved.beschreibung ? 'user' : null;
     // Freitext ersetzt die Analyse: die Tabelle wuerde sonst veralteten Inhalt zeigen.
     if (item?.beschreibung_struktur) updates.beschreibung_struktur = null;
+    // Ohne Struktur gibt es keinen Hook mehr (ADR 0054)
+    if (item?.hook_gesperrt) updates.hook_gesperrt = false;
   }
 
   if (urlGeaendert) {
     if (item?.beschreibung_struktur) updates.beschreibung_struktur = null;
+    if (item?.hook_gesperrt) updates.hook_gesperrt = false;
     updates.transkript = null;
     updates.transkript_quelle = null;
     updates.caption = null;

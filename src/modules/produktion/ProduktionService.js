@@ -7,7 +7,7 @@ import { fetchAllRows } from '../../core/fetchAllRows.js';
 import { AUTOMATIK_PRODUKTION_NAME, geistProduktionName, lineNames } from './produktionNames.js';
 import { castingPresetFromBriefing } from './castingPresetFromBriefing.js';
 import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN, wendePresetAn } from '../creator-auswahl/sourcingSpaltenPreset.js';
-import { syncBriefingProdukte } from '../briefing/BriefingProdukte.js';
+import { addBriefingProdukte } from '../briefing/BriefingProdukte.js';
 
 export function scopeByProduktion(query, produktionId) {
   if (!produktionId) return query;
@@ -441,7 +441,8 @@ export async function ensureBriefingLine({ briefing, kampagneId, produktId, prod
     }
   }
 
-  if (produktId) await syncBriefingProdukte(briefing.id, [produktId]);
+  // Nur ergänzen: übernommene Produkte der Linie bleiben beim Speichern erhalten (ADR 0052)
+  if (produktId) await addBriefingProdukte(briefing.id, [produktId]);
 
   const preset = castingPresetFromBriefing(briefing);
   await syncCasting(produktion.id, briefing, kampagneId, names, preset);

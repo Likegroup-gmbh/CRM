@@ -1,8 +1,9 @@
 // CreatorListForm.js
-// Anlegeformular, Duplikat-Check und Submit (Prototype-Mixin)
+// Anlegeformular und Submit (Prototype-Mixin). Duplikat-Check: DuplicateCheckBinding
 
 import { CreatorList } from './CreatorListCore.js';
 import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
+import { bindDuplicateCheck } from '../../core/validation/DuplicateCheckBinding.js';
 
 // ══════════════════════════════════════════════════════════════════════════
 // CREATE FORM (für Routing)
@@ -40,173 +41,8 @@ CreatorList.prototype.showCreateForm = function() {
       await this.handleFormSubmit();
     };
 
-    this.setupDuplicateValidation(form);
-  }
-};
-
-CreatorList.prototype.setupDuplicateValidation = function(form) {
-  const vornameField = form.querySelector('#vorname, input[name="vorname"]');
-  const nachnameField = form.querySelector('#nachname, input[name="nachname"]');
-
-  if (!vornameField || !nachnameField) {
-    console.warn('⚠️ CREATORLIST: Vorname- oder Nachname-Feld nicht gefunden');
-    return;
-  }
-
-  let messageContainer = nachnameField.parentElement.querySelector('.duplicate-message-container');
-  if (!messageContainer) {
-    messageContainer = document.createElement('div');
-    messageContainer.className = 'duplicate-message-container';
-    nachnameField.parentElement.appendChild(messageContainer);
-  }
-
-  [vornameField, nachnameField].forEach(field => {
-    field.addEventListener('blur', async () => {
-      const vorname = vornameField.value.trim();
-      const nachname = nachnameField.value.trim();
-
-      if (vorname && nachname) {
-        await this.validateCreatorDuplicate(vorname, nachname, messageContainer);
-      } else {
-        this.clearDuplicateMessages(messageContainer);
-      }
-    });
-
-    field.addEventListener('input', () => {
-      this.clearDuplicateMessages(messageContainer);
-      this.enableSubmitButton();
-    });
-  });
-};
-
-CreatorList.prototype.validateCreatorDuplicate = async function(vorname, nachname, messageContainer) {
-  if (!vorname || !nachname || vorname.trim().length < 1 || nachname.trim().length < 1) {
-    this.clearDuplicateMessages(messageContainer);
-    return;
-  }
-
-  if (!window.duplicateChecker) {
-    console.warn('⚠️ CREATORLIST: DuplicateChecker nicht verfügbar');
-    return;
-  }
-
-  try {
-    const result = await window.duplicateChecker.checkCreator(vorname, nachname, null);
-
-    if (result.exact) {
-      this.showDuplicateError(messageContainer, result.similar);
-      this.disableSubmitButton(true);
-    } else if (result.similar.length > 0) {
-      this.showDuplicateWarning(messageContainer, result.similar);
-      this.enableSubmitButton();
-    } else {
-      this.clearDuplicateMessages(messageContainer);
-      this.enableSubmitButton();
-    }
-  } catch (error) {
-    console.error('❌ CREATORLIST: Fehler bei Duplikat-Validierung:', error);
-  }
-};
-
-CreatorList.prototype.showDuplicateError = function(container, entries) {
-  const sanitize = this.sanitize.bind(this);
-  const sanitizeImgUrl = (url) => window.validatorSystem?.sanitizeUrl(url);
-
-  container.innerHTML = `
-    <div class="duplicate-error">
-      <strong>Dieser Creator existiert bereits!</strong>
-      ${entries.length > 0 ? `
-        <ul class="duplicate-list">
-          ${entries.map(entry => {
-            const imgSource = entry.profilbild_thumb_url || entry.profilbild_url;
-            const safeImgUrl = imgSource ? sanitizeImgUrl(imgSource) : null;
-            return `
-            <li class="duplicate-list-item">
-              <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${sanitize(entry.id)}">
-                ${safeImgUrl ? `<img src="${safeImgUrl}" alt="${sanitize(entry.vorname)} ${sanitize(entry.nachname)}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
-                <span class="duplicate-name">${sanitize(entry.vorname)} ${sanitize(entry.nachname)}${entry.instagram ? ` <span class="duplicate-meta">(@${sanitize(entry.instagram)})</span>` : ''}</span>
-              </a>
-            </li>
-          `;}).join('')}
-        </ul>
-      ` : ''}
-    </div>
-  `;
-
-  this.bindDuplicateLinks(container, 'creator');
-};
-
-CreatorList.prototype.showDuplicateWarning = function(container, entries) {
-  const sanitize = this.sanitize.bind(this);
-  const sanitizeImgUrl = (url) => window.validatorSystem?.sanitizeUrl(url);
-
-  container.innerHTML = `
-    <div class="duplicate-warning">
-      <strong>Folgende ähnliche Einträge gefunden:</strong>
-      <ul class="duplicate-list">
-        ${entries.map(entry => {
-          const imgSource = entry.profilbild_thumb_url || entry.profilbild_url;
-          const safeImgUrl = imgSource ? sanitizeImgUrl(imgSource) : null;
-          return `
-          <li class="duplicate-list-item">
-            <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${sanitize(entry.id)}">
-              ${safeImgUrl ? `<img src="${safeImgUrl}" alt="${sanitize(entry.vorname)} ${sanitize(entry.nachname)}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
-              <span class="duplicate-name">${sanitize(entry.vorname)} ${sanitize(entry.nachname)}${entry.instagram ? ` <span class="duplicate-meta">(@${sanitize(entry.instagram)})</span>` : ''}</span>
-            </a>
-          </li>
-        `;}).join('')}
-      </ul>
-    </div>
-  `;
-
-  this.bindDuplicateLinks(container, 'creator');
-};
-
-CreatorList.prototype.bindDuplicateLinks = function(container, entityType) {
-  const links = container.querySelectorAll('.duplicate-link[data-entity-id]');
-  links.forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      const id = e.currentTarget.dataset.entityId;
-      if (id) {
-        const route = `/${entityType}/${id}`;
-        if (window.navigationSystem) {
-          window.navigationSystem.navigateTo(route);
-        }
-      }
-    });
-  });
-};
-
-CreatorList.prototype.clearDuplicateMessages = function(container) {
-  if (container) {
-    container.innerHTML = '';
-  }
-};
-
-CreatorList.prototype.disableSubmitButton = function(disable) {
-  const form = document.getElementById('creator-form');
-  if (form) {
-    const submitBtn = form.querySelector('button[type="submit"]');
-    if (submitBtn) {
-      submitBtn.disabled = disable;
-      if (disable) {
-        submitBtn.style.opacity = '0.5';
-        submitBtn.style.cursor = 'not-allowed';
-      }
-    }
-  }
-};
-
-CreatorList.prototype.enableSubmitButton = function() {
-  const form = document.getElementById('creator-form');
-  if (form) {
-    const submitBtn = form.querySelector('button[type="submit"]');
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.style.opacity = '1';
-      submitBtn.style.cursor = 'pointer';
-    }
+    this._duplicateCheck?.destroy();
+    this._duplicateCheck = bindDuplicateCheck('creator', form);
   }
 };
 

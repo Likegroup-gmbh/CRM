@@ -16,11 +16,13 @@ import {
   ProduktService,
   produktListDetailRoute
 } from './ProduktService.js';
-import { loadBriefingProdukte } from '../briefing/BriefingProdukte.js';
+import { loadBriefingProdukte, removeBriefingProdukt } from '../briefing/BriefingProdukte.js';
+import { openProduktUebernehmenDrawer } from './ProduktUebernehmenDrawer.js';
 import {
   renderVerknuepfungen,
   skriptLinks,
   acceptedPersonaLinks,
+  namedLinks,
   briefingLinksFromJunction
 } from '../../core/ui/tableVerknuepfungen.js';
 import {
@@ -45,7 +47,7 @@ const PRODUKT_LIST_SELECT = `
   bilder:produkt_bilder(id, storage_pfad, position, ist_hauptbild, variante_id),
   persona_vorschlaege:produkt_persona_vorschlag(status, persona:persona_id(id, name)),
   briefing_links:campaign_briefing_produkt(briefing:briefing_id(id, aktivierung_name)),
-  skripte(id, titel)
+  skripte(id, titel, briefing_id)
 `;
 
 export class ProduktList extends BasePaginatedList {
@@ -67,6 +69,7 @@ export class ProduktList extends BasePaginatedList {
     this._allProdukte = null;
     this.embedScope = null;
     this._embedProduktIds = null;
+    this._embedLinie = null;
 
     this.viewMode = 'companies';
     this.listViewMode = 'grid';
@@ -89,14 +92,28 @@ export class ProduktList extends BasePaginatedList {
       text: canEdit
         ? 'Legen Sie Ihr erstes Produkt an, um loszulegen.'
         : 'Es sind noch keine Produkte für Sie freigegeben.',
-      actionsHtml: canEdit ? '<button id="btn-produkt-new" class="mdc-btn">Produkt anlegen</button>' : ''
+      actionsHtml: canEdit
+        ? `${this.uebernehmenButtonHtml()}<button id="btn-produkt-new" class="mdc-btn">Produkt anlegen</button>`
+        : ''
     };
+  }
+
+  /** „Produkt übernehmen“ gibt es nur auf dem Produkte-Tab einer Linie (ADR 0052). */
+  get kannUebernehmen() {
+    return !!(this.embedScope?.briefingId && this.embedScope?.unternehmenId && this.canEdit);
+  }
+
+  uebernehmenButtonHtml() {
+    return this.kannUebernehmen
+      ? '<button id="btn-produkt-uebernehmen" class="mdc-btn mdc-btn--secondary">Produkt übernehmen</button>'
+      : '';
   }
 
   resetEntityCaches() {
     this._lastScope = null;
     this._allProdukte = null;
     this._embedProduktIds = null;
+    this._embedLinie = null;
   }
 
   applyQueryParams(params) {
@@ -196,6 +213,7 @@ export class ProduktList extends BasePaginatedList {
     this.embedded = true;
     this.embedScope = scope || {};
     this._embedProduktIds = null;
+    this._embedLinie = null;
     this.mountRoot = root;
     this._destroyed = false;
     this.options.enableDynamicResize = false;
@@ -333,6 +351,50 @@ export class ProduktList extends BasePaginatedList {
     return ids;
   }
 
+  /**
+   * Was die Linie selbst mitbringt: ihre Personas und ihr Standardprodukt
+   * (Produkt der Produktion bzw. des Briefings).
+   */
+  async resolveEmbedLinie() {
+    if (this._embedLinie) return this._embedLinie;
+    const { briefingId, produktionId } = this.embedScope || {};
+    if (!briefingId || !window.supabase) return null;
+
+    const { data: briefing, error } = await window.supabase
+      .from('campaign_briefings')
+      .select('persona_ids, produkt_id')
+      .eq('id', briefingId)
+      .maybeSingle();
+    if (error) throw error;
+
+    const standardProduktIds = new Set();
+    if (briefing?.produkt_id) standardProduktIds.add(briefing.produkt_id);
+    if (produktionId) {
+      const { data: produktion, error: pnError } = await window.supabase
+        .from('produktion')
+        .select('produkt_id')
+        .eq('id', produktionId)
+        .maybeSingle();
+      if (pnError) throw pnError;
+      if (produktion?.produkt_id) standardProduktIds.add(produktion.produkt_id);
+    }
+
+    const personaIds = (briefing?.persona_ids || []).filter(Boolean);
+    let personas = [];
+    if (personaIds.length) {
+      const { data, error: pError } = await window.supabase
+        .from('personas')
+        .select('id, name')
+        .in('id', personaIds);
+      if (pError) throw pError;
+      const byId = new Map((data || []).map(p => [p.id, p]));
+      personas = personaIds.map(id => byId.get(id)).filter(Boolean);
+    }
+
+    this._embedLinie = { standardProduktIds, personas };
+    return this._embedLinie;
+  }
+
   async loadAllProdukte() {
     if (!window.supabase) return [];
 
@@ -464,6 +526,7 @@ export class ProduktList extends BasePaginatedList {
       if (allowedIds && allowedIds.length === 0) return { data: [], total: 0 };
 
       const embedIds = this.embedScope ? await this.resolveEmbedProduktIds() : null;
+      if (this.embedScope?.briefingId) await this.resolveEmbedLinie();
       if (embedIds && embedIds.length === 0) return { data: [], total: 0 };
 
       let ids = allowedIds;
@@ -535,6 +598,7 @@ export class ProduktList extends BasePaginatedList {
     const thumb = this.renderThumb(produkt);
     const marken = this.renderMarken(produkt);
     const variantenAnzahl = (produkt.varianten || []).length;
+    const verknuepfungen = this.verknuepfungenFuerLinie(produkt);
 
     return `
       <tr data-id="${produkt.id}" data-unternehmen-id="${produkt.unternehmen_id || ''}">
@@ -550,14 +614,39 @@ export class ProduktList extends BasePaginatedList {
         <td>${sanitize(ProduktService.preisLabel(produkt))}</td>
         <td>${variantenAnzahl > 0 ? variantenAnzahl : '-'}</td>
         <td>${this._formatDate(produkt.created_at)}</td>
-        <td>${renderVerknuepfungen(acceptedPersonaLinks(produkt.persona_vorschlaege))}</td>
-        <td>${renderVerknuepfungen(briefingLinksFromJunction(produkt.briefing_links))}</td>
-        <td>${renderVerknuepfungen(skriptLinks(produkt.skripte))}</td>
+        <td>${renderVerknuepfungen(verknuepfungen.personas)}</td>
+        <td>${renderVerknuepfungen(verknuepfungen.briefings)}</td>
+        <td>${renderVerknuepfungen(verknuepfungen.skripte)}</td>
         <td class="col-actions">
-          ${actionBuilder.create('produkt', produkt.id)}
+          ${actionBuilder.create('produkt', produkt.id, null, {
+            actionStates: { 'produkt-von-linie-loesen': { mode: this.kannUebernehmen ? 'enabled' : 'hidden' } }
+          })}
         </td>
       </tr>
     `;
+  }
+
+  /**
+   * Personas, Briefings und Skripte einer Produkt-Zeile. Das Standardprodukt der
+   * Linie zeigt seine eigenen. Ein übernommenes Produkt bekommt die der Linie:
+   * ihre Personas, ihr Briefing, ihre Skripte; die der Herkunftslinie bleiben dort
+   * (ADR 0052). Nichts wird gelöscht, die Spalten filtern nur.
+   */
+  verknuepfungenFuerLinie(produkt) {
+    const eigene = {
+      personas: acceptedPersonaLinks(produkt.persona_vorschlaege),
+      briefings: briefingLinksFromJunction(produkt.briefing_links),
+      skripte: skriptLinks(produkt.skripte)
+    };
+    const briefingId = this.embedScope?.briefingId || null;
+    const linie = this._embedLinie;
+    if (!briefingId || !linie || linie.standardProduktIds.has(produkt.id)) return eigene;
+
+    return {
+      personas: namedLinks(linie.personas, { labelKey: 'name', kind: 'persona' }),
+      briefings: eigene.briefings.filter(b => b.id === briefingId),
+      skripte: skriptLinks((produkt.skripte || []).filter(s => s?.briefing_id === briefingId))
+    };
   }
 
   renderThumb(produkt) {
@@ -618,7 +707,7 @@ export class ProduktList extends BasePaginatedList {
           ${canBulkDelete ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
           <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>` : ''}
-          ${canEdit ? '<button id="btn-produkt-new" class="mdc-btn">Produkt anlegen</button>' : ''}
+          ${canEdit ? `${this.uebernehmenButtonHtml()}<button id="btn-produkt-new" class="mdc-btn">Produkt anlegen</button>` : ''}
         </div>
       </div>
 
@@ -676,6 +765,12 @@ export class ProduktList extends BasePaginatedList {
   }
 
   bindAdditionalEvents(signal) {
+    // Aktionsmenü der Zeile -> Rückfrage und Lösen (nur Produkte-Tab einer Linie)
+    window.addEventListener('produkt-von-linie-loesen', (e) => {
+      if (this._destroyed || !this.embedScope?.briefingId) return;
+      this.vonLinieLoesen(e.detail?.produktId);
+    }, { signal });
+
     if (this.byId('produkt-search-input')) {
       SearchInput.bind('produkt', (value) => this.handleSearch(value), signal);
     }
@@ -732,6 +827,12 @@ export class ProduktList extends BasePaginatedList {
         return;
       }
 
+      if (e.target.closest('#btn-produkt-uebernehmen')) {
+        e.preventDefault();
+        this.oeffneUebernehmen();
+        return;
+      }
+
       if (e.target.id === 'btn-produkt-new' || e.target.id === 'btn-produkt-new-filter') {
         e.preventDefault();
         this.showCreateForm();
@@ -749,6 +850,49 @@ export class ProduktList extends BasePaginatedList {
       route += `${route.includes('?') ? '&' : '?'}briefing=${encodeURIComponent(briefingId)}`;
     }
     window.navigateTo(route);
+  }
+
+  /** Embedded-Liste neu laden, nachdem sich die Produkte der Linie geändert haben. */
+  async reloadEmbedded() {
+    this._embedProduktIds = null;
+    this._embedLinie = null;
+    await this.loadData();
+  }
+
+  oeffneUebernehmen() {
+    const scope = this.embedScope;
+    if (!this.kannUebernehmen) return;
+    openProduktUebernehmenDrawer({
+      briefingId: scope.briefingId,
+      unternehmenId: scope.unternehmenId,
+      markeId: scope.markeId || null,
+      onDone: () => this.reloadEmbedded()
+    });
+  }
+
+  async vonLinieLoesen(produktId) {
+    const briefingId = this.embedScope?.briefingId;
+    if (!produktId || !briefingId || !this.kannUebernehmen) return;
+
+    const zeile = this.mountRoot?.querySelector?.(`tr[data-id="${produktId}"] .produkt-row-open`);
+    const produktName = zeile?.textContent?.trim() || '';
+
+    const { confirmed } = await window.confirmationModal.open({
+      title: 'Von der Linie lösen',
+      message: `„${this.sanitize(produktName || 'Produkt')}“ wird nur von dieser Linie gelöst. Das Produkt und seine anderen Linien bleiben.`,
+      confirmText: 'Lösen',
+      danger: false
+    });
+    if (!confirmed) return;
+
+    try {
+      await removeBriefingProdukt(briefingId, produktId);
+      window.toastSystem?.show('Produkt von der Linie gelöst', 'success');
+      await this.reloadEmbedded();
+    } catch (error) {
+      console.error('Fehler beim Lösen des Produkts:', error);
+      window.toastSystem?.show(error.message || 'Lösen fehlgeschlagen', 'error');
+    }
   }
 
   showCreateForm() {
@@ -785,6 +929,7 @@ export class ProduktList extends BasePaginatedList {
     super.destroy();
     this.embedScope = null;
     this._embedProduktIds = null;
+    this._embedLinie = null;
     this._allProdukte = null;
     this.companyFolders = [];
     this.brandFolders = [];

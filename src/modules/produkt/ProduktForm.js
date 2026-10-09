@@ -19,6 +19,7 @@ import { ProduktService, MAX_BILDER, isStandaloneProduktPath } from './ProduktSe
 import { ProduktVariantenPanel } from './ProduktVarianten.js';
 import { ProduktExtractPanel } from './ProduktExtractPanel.js';
 import { ProduktPersonaPanel } from './ProduktPersonaPanel.js';
+import { injectFormActions } from './ProduktFormActions.js';
 import { ProduktPersonaService } from './ProduktPersonaService.js';
 import { renderProduktDoc, bindProduktDoc, refreshDocHeights } from './ProduktDoc.js';
 import { bindProduktUrlSync, markPdfUrlSource } from './produktUrlSync.js';
@@ -27,7 +28,6 @@ import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { backTarget, returnTo } from '../../core/breadcrumbTrail.js';
-import { icon } from '../../core/icons/IconSystem.js';
 import { setPrefillValues } from '../../core/form/data/PrefillSelected.js';
 
 export class ProduktForm {
@@ -411,26 +411,23 @@ export class ProduktForm {
     }, opts);
 
     if (this.isEdit) {
-      this.injectDeleteButton(form, opts);
+      injectFormActions(form, {
+        onDelete: () => this.handleDelete(),
+        getPdfSource: () => this.pdfSource(),
+        signal
+      });
     }
   }
 
-  injectDeleteButton(form, opts) {
-    const actions = form.querySelector('.form-actions');
-    if (!actions || actions.querySelector('.produkt-delete-btn')) return;
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'mdc-btn mdc-btn--delete produkt-delete-btn';
-    btn.innerHTML = `
-      <span class="mdc-btn__icon" aria-hidden="true">
-        ${icon('trash-alt')}
-      </span>
-      <span class="mdc-btn__label">Löschen</span>
-    `;
-    btn.addEventListener('click', () => this.handleDelete(), opts);
-
-    actions.insertBefore(btn, actions.firstChild);
+  /** Quelle fuer das Produkt-PDF: der Live-Stand der Panels, nicht die Datenbank. */
+  pdfSource() {
+    return {
+      varianten: this.variantenPanel?.getVariantenMitBild() || [],
+      useCases: this.personaPanel?.getState().useCases || [],
+      uploader: this.getBilderUploader(),
+      unternehmenId: this.ctx.unternehmenId,
+      markeIds: this.currentMarkeIds()
+    };
   }
 
   async handleSubmit() {

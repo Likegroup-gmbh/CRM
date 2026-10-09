@@ -7,7 +7,7 @@ import { openSkriptCreateDrawer } from '../SkriptCreateDrawer.js';
 import { skripteService } from '../SkripteService.js';
 import { escapeHtml, formatDate, skriptEditorPath } from '../SkripteUtils.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
-import { creatorsFuerListe, listeCreatorHtml } from './SkriptEditorDocRenderer.js';
+import { creatorsFuerListe, listeCreatorHtml, listeVideoHtml, sortListeSkripte } from './SkriptEditorDocRenderer.js';
 
 /**
  * Einzelnes Skript in der Sidebar-Liste upserten statt nach jeder
@@ -87,12 +87,16 @@ SkriptEditorView.prototype.renderListe = function() {
   // Safety-Net: nur Skripte derselben Kampagne wie das geoeffnete.
   // Das geoeffnete Skript bleibt immer sichtbar, auch wenn kampagne_id null ist.
   const kampagneId = this.skript?.kampagne_id ?? null;
-  const items = this.skripte.filter((s) => s.id === this.skript?.id || matchesKampagne(s, kampagneId));
+  const verknuepfungenFuer = (s) => (s.id === this.skript?.id
+    ? (this.verknuepfungen || [])
+    : (s.kooperation_videos || []));
+  const items = sortListeSkripte(
+    this.skripte.filter((s) => s.id === this.skript?.id || matchesKampagne(s, kampagneId)),
+    verknuepfungenFuer
+  );
   el.innerHTML = items.map((s) => {
     const aktiv = s.id === this.skript?.id;
-    const verknuepfungen = aktiv
-      ? (this.verknuepfungen || [])
-      : (s.kooperation_videos || []);
+    const verknuepfungen = verknuepfungenFuer(s);
     const creators = creatorsFuerListe(s, verknuepfungen);
     return `
       <a href="${skriptEditorPath(s.id)}" class="skripte-editor-liste-item ${aktiv ? 'active' : ''}"
@@ -102,6 +106,7 @@ SkriptEditorView.prototype.renderListe = function() {
           <span class="skripte-editor-liste-datum">${escapeHtml(formatDate(s.created_at))}</span>
         </span>
         <span class="skripte-editor-liste-titel">${escapeHtml(s.titel || s.hook?.slice(0, 50) || '(ohne Titel)')}</span>
+        ${listeVideoHtml(verknuepfungen)}
       </a>
     `;
   }).join('');

@@ -18,6 +18,7 @@ const { starteKiRequest } = require('./_shared/ki-log');
 const { logPrompt } = require('./_shared/prompt-log');
 const { loadRueckfragenDialog, fmtRueckfragenBlock } = require('./_shared/skript-rueckfragen');
 const { beansprucheJob, autorisiereSkript, hatLaufendenJob, istJobAbgebrochen } = require('./_shared/skript-auftrag');
+const { ladeGesperrtenHook, hookSperreGenerierungBlock, varianteOhneGesperrtenHook } = require('./_shared/hook-sperre');
 
 // Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
 // Anfuehrungszeichen im Skript-Text koennen das Parsen nicht mehr brechen
@@ -58,7 +59,7 @@ const HARTE_GRENZEN_GENERIERUNG = 'Harte Grenzen: alles unter # DONTS und jede Z
 // ---------------------------------------------------------------------------
 // Prompt-Bau (Kontext-Aufbau + Sektions-Formatierung: _shared/skript-context)
 // ---------------------------------------------------------------------------
-function buildPrompt(ctx, params, rueckfragenDialog = '') {
+function buildPrompt(ctx, params, rueckfragenDialog = '', { gesperrterHook = null } = {}) {
   const master = ctx.master || [];
 
   // Block 1 (stabil, cachebar): Rolle + Master
@@ -155,6 +156,9 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
       + 'nicht zum Abschreiben. Gibt es keine belastbare Grundlage, lasse caption leer.\n';
   }
 
+  // Hook-Sperre (ADR 0054): freigegebener Hook wird woertlich uebernommen
+  task += hookSperreGenerierungBlock(gesperrterHook);
+
   // Harte Laengen-Regel: Wort-Budget aus der gewaehlten Video-Laenge
   const laengenHinweis = videoLaengeHinweis(params.video_laenge);
   if (laengenHinweis) {
@@ -233,7 +237,14 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const rueckfragenDialog = await loadRueckfragenDialog(supabase, payload.skript_id);
     if (rueckfragenDialog) job.log('Geklaerte Rueckfragen fliessen in den Prompt ein');
 
-    const { stable, task } = buildPrompt(ctx, payload, rueckfragenDialog);
+    // Hook-Sperre (ADR 0054): gesprochener Hook der Videoidee, vom Kunden freigegeben
+    const gesperrterHook = await ladeGesperrtenHook(
+      supabase,
+      payload.strategie_item_id || referenzVideo?.strategie_item_id || null
+    );
+    if (gesperrterHook) job.log('Hook gesperrt - wird woertlich uebernommen');
+
+    const { stable, task } = buildPrompt(ctx, payload, rueckfragenDialog, { gesperrterHook });
     logPrompt({ job: 'skript_generierung', id: payload.skript_id || `job:${jobId}`, stable, task });
     const model = MODELS.write;
 
@@ -274,6 +285,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       throw new Error('Antwort unvollstaendig (inhalt_md fehlt)');
     }
     const extrahiert = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    // Der Server setzt den gesperrten Hook hart, unabhaengig von der Modellantwort
+    if (gesperrterHook) {
+      extrahiert.felder.hook = gesperrterHook;
+      extrahiert.hook_varianten = varianteOhneGesperrtenHook(extrahiert.hook_varianten, gesperrterHook);
+    }
     const stempel = stempelSekunden(extrahiert.felder);
     const felder = { ...extrahiert.felder, ...stempel };
     // Aufbau-Optionen: nur bei gesetztem Toggle uebernehmen, sonst hart null

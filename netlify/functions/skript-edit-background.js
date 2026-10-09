@@ -14,6 +14,7 @@ const { istMasterDokument } = require('./_shared/skript-creator-facing');
 const { logPrompt } = require('./_shared/prompt-log');
 const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
 const { stempelSekunden, pruefeSkript } = require('./_shared/skript-context/formatter');
+const { filtereHookSperre, trifftGesprochenenHook, hookLagImAuftrag, mitHookHinweis } = require('./_shared/hook-sperre');
 const {
   loadEditContext, buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel, formatZeitstempel,
   ladeVisuellStil, brauchtVisualStil, resolveModusSlug, editParams, filtereFestgezogen, GRID_SEKTIONEN
@@ -199,6 +200,22 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const umfangSektion = String(parsed.umfang_sektion || '').trim().toLowerCase();
     const umfangOeffnet = umfang === 'alles' || (umfang === 'teil' && sektion === umfangSektion);
     if (gezogen.includes(getroffen) && getroffen !== ziel && !umfangOeffnet) vorschlag = null;
+
+    // Hook-Sperre (ADR 0054): der gesprochene Hook bleibt in jedem Auftrag, auch bei Umfang alles.
+    // Master-Dokumente haben keinen Grid-Hook.
+    const hookGesperrt = istMaster ? null : ctx.gesperrterHook;
+    let hookBetroffen = false;
+    if (hookGesperrt) {
+      hookBetroffen = hookLagImAuftrag({ message, umfang, umfangSektion });
+      // Der Visual-Button (aktion visuell) schreibt immer die Spalte „Was zu sehen ist“
+      if (vorschlag && trifftGesprochenenHook({
+        sektion,
+        ist_visuell: spalte.ist_visuell || message.aktion === 'visuell'
+      })) {
+        vorschlag = null;
+        hookBetroffen = true;
+      }
+    }
     if (spalte.ist_visuell && vorschlag && !spalte.selektion_text && ['hook', 'hauptteil', 'cta'].includes(sektion)) {
       const visKey = `${sektion}_visuell`;
       const draft = {
@@ -230,7 +247,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     let ausgelassen = 0;
     let aenderungen = aenderungenRoh;
     if (aenderungenRoh) {
-      const gefiltert = filtereFestgezogen(aenderungenRoh, gezogen, { umfang, umfang_sektion: umfangSektion });
+      const ohneHook = filtereHookSperre(aenderungenRoh, hookGesperrt);
+      if (ohneHook.verworfen.length) hookBetroffen = true;
+      const gefiltert = filtereFestgezogen(ohneHook.behalten, gezogen, { umfang, umfang_sektion: umfangSektion });
       aenderungen = gefiltert.behalten;
       ausgelassen = gefiltert.verworfen.length;
     }
@@ -291,11 +310,14 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       label: 'Ich speichere die Antwort…'
     });
 
+    // Hook-Sperre: der Mitarbeiter erfaehrt immer, dass der gesprochene Hook geblieben ist
+    const antwortMitHinweis = mitHookHinweis(antwort, hookBetroffen);
+
     await supabase.from('skript_chat_messages').update({
       status: (aenderungen && aenderungen.length) || (vorschlag && sektion && sektion !== 'gesamt') ? 'vorschlag' : 'fertig',
       inhalt: ausgelassen
-        ? [antwort, `${ausgelassen} festgezogene ${ausgelassen === 1 ? 'Zelle' : 'Zellen'} ausgelassen (nicht im Umfang).`].filter(Boolean).join(' ')
-        : antwort,
+        ? [antwortMitHinweis, `${ausgelassen} festgezogene ${ausgelassen === 1 ? 'Zelle' : 'Zellen'} ausgelassen (nicht im Umfang).`].filter(Boolean).join(' ')
+        : antwortMitHinweis,
       vorschlag_text: vorschlag,
       aenderungen: aenderungen && aenderungen.length ? aenderungen : null,
       sektion: (aenderungen && aenderungen.length) ? 'gesamt' : (sektion || message.sektion),

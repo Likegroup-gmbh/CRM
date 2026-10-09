@@ -28,7 +28,7 @@ export const GLOBAL_ACTIONS = new Set([
   'vertrag-verknuepfen',
   'anschreiben',
   'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
-  'add_produkt', 'add_persona',
+  'add_produkt', 'add_persona', 'produkt-von-linie-loesen',
   'remove_ansprechpartner_unternehmen', 'remove_ansprechpartner_link',
   'edit_creator_adresse', 'set_standard_adresse', 'set_hauptadresse_standard',
   'delete_creator_adresse', 'unassign-kampagne',
@@ -229,6 +229,11 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
 
     case 'add_produkt':
       window.navigateTo(`/${entityType}/${entityId}/produkt`);
+      break;
+
+    case 'produkt-von-linie-loesen':
+      // Die Produkte-Liste der Linie kennt Linie und Rückfrage (ADR 0052)
+      window.dispatchEvent(new CustomEvent('produkt-von-linie-loesen', { detail: { produktId: entityId } }));
       break;
 
     case 'add_persona': {

@@ -1,5 +1,5 @@
-// pdf/PdfTextFlow.js
-// Sichere Pagination für Freitext in Vertrags-PDFs (jsPDF).
+// core/pdf/PdfTextFlow.js
+// Sichere Pagination für Freitext in PDFs (jsPDF) - Verträge, Briefing, Produkt.
 // jsPDF bricht nie automatisch um – diese Helper paginieren zeilenweise
 // gegen MAX_CONTENT_Y und garantieren Mindestplatz für Blöcke (z.B. Unterschriften).
 
@@ -35,9 +35,10 @@ export function ensureSpace(y, needed, maxContentY, onPageBreak) {
  * @param {number} [opts.lineHeight=5] Zeilenhöhe in mm
  * @param {number} opts.maxContentY maximale Content-Y-Position der Seite
  * @param {() => number} opts.onPageBreak schreibt Footer, erzeugt neue Seite, liefert Start-Y
+ * @param {(doc, line: string, x: number, y: number) => void} [opts.drawLine] ersetzt doc.text (z.B. fuer Links)
  * @returns {number} Y-Position nach der letzten Zeile
  */
-export function renderPaginatedText(doc, text, { x = 14, y, maxWidth = 180, lineHeight = 5, maxContentY, onPageBreak }) {
+export function renderPaginatedText(doc, text, { x = 14, y, maxWidth = 180, lineHeight = 5, maxContentY, onPageBreak, drawLine }) {
   const lines = doc.splitTextToSize(String(text), maxWidth);
   let currentY = y;
   lines.forEach((line) => {
@@ -50,7 +51,8 @@ export function renderPaginatedText(doc, text, { x = 14, y, maxWidth = 180, line
       if (prevSize !== null) doc.setFontSize(prevSize);
       if (prevFont) doc.setFont(prevFont.fontName, prevFont.fontStyle);
     }
-    doc.text(line, x, currentY);
+    if (drawLine) drawLine(doc, line, x, currentY);
+    else doc.text(line, x, currentY);
     currentY += lineHeight;
   });
   return currentY;

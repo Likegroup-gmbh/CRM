@@ -1,7 +1,8 @@
 // UnternehmenCreate.js
-// Erstellungsformular für Unternehmen (Duplikat-Check, Submit, Logo)
+// Erstellungsformular für Unternehmen (Submit, Logo). Duplikat-Check: DuplicateCheckBinding
 
 import { UnternehmenService } from './services/UnternehmenService.js';
+import { bindDuplicateCheck } from '../../core/validation/DuplicateCheckBinding.js';
 
 export class UnternehmenCreate {
   showCreateForm() {
@@ -28,125 +29,9 @@ export class UnternehmenCreate {
         await this.handleFormSubmit();
       };
 
-      this.setupDuplicateValidation(form);
+      this._duplicateCheck?.destroy();
+      this._duplicateCheck = bindDuplicateCheck('unternehmen', form);
     }
-  }
-
-  setupDuplicateValidation(form) {
-    const firmennameField = form.querySelector('#firmenname, input[name="firmenname"]');
-    if (!firmennameField) return;
-
-    let messageContainer = firmennameField.parentElement.querySelector('.duplicate-message-container');
-    if (!messageContainer) {
-      messageContainer = document.createElement('div');
-      messageContainer.className = 'duplicate-message-container';
-      firmennameField.parentElement.appendChild(messageContainer);
-    }
-
-    firmennameField.addEventListener('blur', async (e) => {
-      await this.validateUnternehmenDuplicate(e.target.value, messageContainer);
-    });
-
-    firmennameField.addEventListener('input', () => {
-      this.clearDuplicateMessages(messageContainer);
-      this.enableSubmitButton();
-    });
-  }
-
-  async validateUnternehmenDuplicate(firmenname, messageContainer) {
-    if (!firmenname || firmenname.trim().length < 2) {
-      this.clearDuplicateMessages(messageContainer);
-      return;
-    }
-
-    if (!window.duplicateChecker) return;
-
-    try {
-      const result = await window.duplicateChecker.checkUnternehmen(firmenname, null);
-
-      if (result.exact) {
-        this.showDuplicateError(messageContainer, result.similar);
-        this.disableSubmitButton(true);
-      } else if (result.similar.length > 0) {
-        this.showDuplicateWarning(messageContainer, result.similar);
-        this.enableSubmitButton();
-      } else {
-        this.clearDuplicateMessages(messageContainer);
-        this.enableSubmitButton();
-      }
-    } catch (error) {
-      console.error('❌ Fehler bei Duplikat-Validierung:', error);
-    }
-  }
-
-  showDuplicateError(container, entries) {
-    container.innerHTML = `
-      <div class="duplicate-error">
-        <strong>Dieser Firmenname existiert bereits!</strong>
-        ${entries.length > 0 ? `
-          <ul class="duplicate-list">
-            ${entries.map(entry => `
-              <li class="duplicate-list-item">
-                <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
-                  ${entry.logo_url ? `<img src="${entry.logo_url}" alt="${entry.firmenname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
-                  <span class="duplicate-name">${entry.firmenname}</span>
-                </a>
-              </li>
-            `).join('')}
-          </ul>
-        ` : ''}
-      </div>
-    `;
-    this.bindDuplicateLinks(container, 'unternehmen');
-  }
-
-  showDuplicateWarning(container, entries) {
-    container.innerHTML = `
-      <div class="duplicate-warning">
-        <strong>Folgende ähnliche Einträge gefunden:</strong>
-        <ul class="duplicate-list">
-          ${entries.map(entry => `
-            <li class="duplicate-list-item">
-              <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
-                ${entry.logo_url ? `<img src="${entry.logo_url}" alt="${entry.firmenname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
-                <span class="duplicate-name">${entry.firmenname}</span>
-              </a>
-            </li>
-          `).join('')}
-        </ul>
-      </div>
-    `;
-    this.bindDuplicateLinks(container, 'unternehmen');
-  }
-
-  bindDuplicateLinks(container, entityType) {
-    container.querySelectorAll('.duplicate-link[data-entity-id]').forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const id = e.currentTarget.dataset.entityId;
-        if (id && window.navigationSystem) {
-          window.navigationSystem.navigateTo(`/${entityType}/${id}`);
-        }
-      });
-    });
-  }
-
-  clearDuplicateMessages(container) {
-    if (container) container.innerHTML = '';
-  }
-
-  disableSubmitButton(disable) {
-    const form = document.getElementById('unternehmen-form');
-    const submitBtn = form?.querySelector('button[type="submit"]');
-    if (submitBtn) {
-      submitBtn.disabled = disable;
-      submitBtn.style.opacity = disable ? '0.5' : '1';
-      submitBtn.style.cursor = disable ? 'not-allowed' : 'pointer';
-    }
-  }
-
-  enableSubmitButton() {
-    this.disableSubmitButton(false);
   }
 
   async handleFormSubmit() {

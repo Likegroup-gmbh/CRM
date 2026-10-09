@@ -3,7 +3,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
-import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
+import { renderPaginatedText, renderZusatzBestimmung } from '../../../../core/pdf/PdfTextFlow.js';
 import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
 
 VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {

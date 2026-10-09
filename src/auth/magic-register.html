@@ -127,7 +127,7 @@
 <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm'
   import { getSupabaseConfig } from './config.js'
-  import { initPasswordHints } from './password-hints.js'
+  import { initPasswordHints, passwordPolicyError, isWeakPasswordError, PASSWORD_POLICY_MESSAGE } from './password-hints.js'
 
   // State Elements
   const loadingState = document.getElementById('loading-state');
@@ -264,6 +264,14 @@
       return;
     }
 
+    const policyError = passwordPolicyError(password);
+    if (policyError) {
+      showMessage('error', policyError);
+      btn.disabled = false;
+      btn.textContent = 'Konto erstellen';
+      return;
+    }
+
     try {
       const ansprechpartner = validationData.ansprechpartner;
 
@@ -377,7 +385,7 @@
 
     } catch (error) {
       console.error('Registration error:', error);
-      showMessage('error', error?.message || 'Registrierung fehlgeschlagen');
+      showMessage('error', isWeakPasswordError(error) ? PASSWORD_POLICY_MESSAGE : (error?.message || 'Registrierung fehlgeschlagen'));
       btn.disabled = false;
       btn.textContent = 'Konto erstellen';
     }

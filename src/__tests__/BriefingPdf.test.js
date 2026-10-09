@@ -11,7 +11,8 @@ vi.mock('../core/pdf/PdfBrand.js', async (importOriginal) => {
 });
 
 import { BriefingDetail } from '../modules/briefing/BriefingDetail.js';
-import { createBriefingPdf, drawBriefingLockup } from '../modules/briefing/BriefingPdf.js';
+import { createBriefingPdf } from '../modules/briefing/BriefingPdf.js';
+import { drawLockup } from '../core/pdf/pdfLockup.js';
 import { buildBriefingPdfModel } from '../modules/briefing/BriefingDocView.js';
 import { LIKEGROUP_FOOTER_DE, PDF_BRAND } from '../core/pdf/PdfBrand.js';
 
@@ -155,7 +156,7 @@ describe('createBriefingPdf', () => {
 
   it('zeichnet LikeGroup × Kundenlogo, Quadrat bleibt quadratisch', () => {
     const doc = new MockJsPDF();
-    drawBriefingLockup(doc, 'data:image/png;base64,AAA', {
+    drawLockup(doc, 'data:image/png;base64,AAA', {
       dataUrl: 'data:image/png;base64,BBB',
       width: 400,
       height: 400,

@@ -10,6 +10,8 @@ function resolveItemState(action, options = {}) {
   if (fromMap?.mode === 'hidden' || fromMap?.mode === 'disabled' || fromMap?.mode === 'enabled') {
     return { mode: fromMap.mode, title: fromMap.title || '' };
   }
+  // optIn-Actions erscheinen nur, wenn die Liste sie per actionStates freigibt.
+  if (action.optIn) return { mode: 'hidden', title: '' };
   if (Array.isArray(options.disabledActions) && options.disabledActions.includes(action.id)) {
     return { mode: 'disabled', title: '' };
   }

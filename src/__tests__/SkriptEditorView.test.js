@@ -567,6 +567,53 @@ describe('SkriptEditorView Layout', () => {
     expect(zugewiesenEl.textContent).not.toContain('Tim Berg');
   });
 
+  it('Liste zeigt Video-Tag unter dem Titel, ohne Position keinen', async () => {
+    const offen = { ...skript };
+    const andere = {
+      ...skript,
+      id: 's2',
+      titel: 'Anderes',
+      kooperation_videos: [{ position: 2, kooperation: { videoanzahl: 3 } }]
+    };
+    const ohnePos = {
+      ...skript,
+      id: 's3',
+      titel: 'Ohne Position',
+      kooperation_videos: [{ position: null, kooperation: { videoanzahl: 3 } }]
+    };
+    mockService.loadSkript.mockResolvedValue({ ...offen });
+    mockService.loadSkriptVerknuepfungen.mockResolvedValueOnce([
+      { position: 1, kooperation: { videoanzahl: 3 } }
+    ]);
+    mockService.loadSkripte.mockResolvedValue([offen, andere, ohnePos]);
+
+    await view.render(container, 's1');
+
+    const tag = (id) => container.querySelector(`.skripte-editor-liste-item[data-id="${id}"] .skripte-editor-liste-video`);
+    expect(tag('s1').textContent).toBe('Video 1/3');
+    expect(tag('s2').textContent).toBe('Video 2/3');
+    expect(tag('s3')).toBeNull();
+  });
+
+  it('Liste sortiert nach Creator und Videonummer, offenes Skript inklusive', async () => {
+    const creator = (id, vorname) => ({ id, vorname, nachname: 'X' });
+    const vid = (position, c) => ({ position, kooperation: { videoanzahl: 3, creator: c } });
+    const anna = creator('c1', 'Anna');
+    const bea = creator('c2', 'Bea');
+    const offen = { ...skript, id: 's1', titel: 'Bea 2' };
+    const bea3 = { ...skript, id: 's2', titel: 'Bea 3', kooperation_videos: [vid(3, bea)] };
+    const anna1 = { ...skript, id: 's3', titel: 'Anna 1', kooperation_videos: [vid(1, anna)] };
+    const bea1 = { ...skript, id: 's4', titel: 'Bea 1', kooperation_videos: [vid(1, bea)] };
+    mockService.loadSkript.mockResolvedValue({ ...offen });
+    mockService.loadSkriptVerknuepfungen.mockResolvedValueOnce([vid(2, bea)]);
+    mockService.loadSkripte.mockResolvedValue([offen, bea3, anna1, bea1]);
+
+    await view.render(container, 's1');
+
+    const titel = [...container.querySelectorAll('.skripte-editor-liste-titel')].map((el) => el.textContent);
+    expect(titel).toEqual(['Anna 1', 'Bea 1', 'Bea 2', 'Bea 3']);
+  });
+
   it('Liste zeigt Gast-Creator wenn die Joins leer sind', async () => {
     mockService.loadSkript.mockResolvedValue({ ...skript });
     mockService.loadSkripte.mockResolvedValue([{

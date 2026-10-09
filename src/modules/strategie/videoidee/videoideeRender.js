@@ -313,6 +313,35 @@ export function renderEditProduktField(item, editable) {
   `, 'form-field--produkt', 'cube');
 }
 
+/**
+ * Schloss an der Hook-Zeile (ADR 0054). Team mit Rechten schaltet um, alle anderen im Team
+ * sehen den Status. Kunden sehen es nie. Ein leerer Hook lässt sich nicht sperren.
+ */
+export function renderHookSperre(detail, item, struktur) {
+  if (detail.isKunde) return '';
+  const hatHook = hasText(struktur?.hook);
+  const gesperrt = !!item.hook_gesperrt && hatHook;
+  const titel = gesperrt
+    ? 'Hook gesperrt: Liky ändert ihn nicht. Klicken zum Öffnen.'
+    : 'Hook sperren: Der Kunde hat ihn freigegeben, Liky ändert ihn dann nicht.';
+  if (!contentEditable(detail, item)) {
+    if (!gesperrt) return '';
+    return `<span class="videoidee-struktur__lock is-locked" title="Hook gesperrt: Liky ändert ihn nicht." aria-label="Hook gesperrt">${icon('lock-closed')}</span>`;
+  }
+  return `
+    <button type="button"
+      class="videoidee-struktur__lock${gesperrt ? ' is-locked' : ''}"
+      data-action="toggle-hook-sperre"
+      data-item-id="${item.id}"
+      aria-pressed="${gesperrt ? 'true' : 'false'}"
+      title="${escapeAttr(hatHook || gesperrt ? titel : 'Zuerst einen Hook eintragen')}"
+      aria-label="${gesperrt ? 'Hook entsperren' : 'Hook sperren'}"
+      ${hatHook || gesperrt ? '' : 'disabled'}>
+      ${icon(gesperrt ? 'lock-closed' : 'lock-open')}
+    </button>
+  `;
+}
+
 function strukturTabelle(detail, item, struktur) {
   const editable = contentEditable(detail, item);
   const rows = BESCHREIBUNG_FELDER
@@ -329,7 +358,7 @@ function strukturTabelle(detail, item, struktur) {
         : `<div class="videoidee-doc__prose">${escapeHtml(struktur[key])}</div>`;
       return `
         <tr class="videoidee-struktur__row" data-videoidee-struktur="${key}">
-          <th scope="row" class="videoidee-struktur__label">${escapeHtml(label)}</th>
+          <th scope="row" class="videoidee-struktur__label">${escapeHtml(label)}${key === 'hook' ? renderHookSperre(detail, item, struktur) : ''}</th>
           <td class="videoidee-struktur__value">${wert}</td>
         </tr>
       `;

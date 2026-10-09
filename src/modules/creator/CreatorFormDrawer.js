@@ -3,6 +3,7 @@
 // Prefill kommt vom Casting-Eintrag; Submit legt den Stammdatensatz an.
 
 import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
+import { bindDuplicateCheck } from '../../core/validation/DuplicateCheckBinding.js';
 
 const FOLLOWER_BUCKETS = [
   [2500, '0-2500'],
@@ -142,99 +143,18 @@ export class CreatorFormDrawer {
         e.preventDefault();
         await this.handleSubmit(form);
       };
-      this.setupDuplicateValidation(form);
+      this._duplicateCheck?.destroy();
+      this._duplicateCheck = bindDuplicateCheck('creator', form, {
+        // Treffer = bestehenden Creator verknüpfen und den Drawer schließen
+        onSelect: async (id) => {
+          if (!this.onUseExisting) return;
+          await this.onUseExisting(id);
+          this.close({ cancelled: false });
+        }
+      });
     }).catch(error => {
       console.error('CreatorFormDrawer: Formular-Init fehlgeschlagen:', error);
     });
-  }
-
-  setupDuplicateValidation(form) {
-    const vornameField = form.querySelector('#vorname, input[name="vorname"]');
-    const nachnameField = form.querySelector('#nachname, input[name="nachname"]');
-    if (!vornameField || !nachnameField) return;
-
-    let messageContainer = nachnameField.parentElement.querySelector('.duplicate-message-container');
-    if (!messageContainer) {
-      messageContainer = document.createElement('div');
-      messageContainer.className = 'duplicate-message-container';
-      nachnameField.parentElement.appendChild(messageContainer);
-    }
-
-    const runCheck = async () => {
-      const vorname = vornameField.value.trim();
-      const nachname = nachnameField.value.trim();
-      if (!vorname || !nachname || !window.duplicateChecker) {
-        messageContainer.innerHTML = '';
-        this.setSubmitDisabled(form, false);
-        return;
-      }
-      try {
-        const result = await window.duplicateChecker.checkCreator(vorname, nachname, null);
-        if (result.exact) {
-          this.renderDuplicate(messageContainer, result.similar, true);
-          this.setSubmitDisabled(form, true);
-        } else if (result.similar?.length) {
-          this.renderDuplicate(messageContainer, result.similar, false);
-          this.setSubmitDisabled(form, false);
-        } else {
-          messageContainer.innerHTML = '';
-          this.setSubmitDisabled(form, false);
-        }
-      } catch (error) {
-        console.error('Duplikat-Check fehlgeschlagen:', error);
-      }
-    };
-
-    [vornameField, nachnameField].forEach(field => {
-      field.addEventListener('blur', runCheck);
-      field.addEventListener('input', () => {
-        messageContainer.innerHTML = '';
-        this.setSubmitDisabled(form, false);
-      });
-    });
-  }
-
-  renderDuplicate(container, entries, isError) {
-    const list = (entries || []).map(entry => {
-      const name = `${entry.vorname || ''} ${entry.nachname || ''}`.trim();
-      const handle = entry.instagram ? ` (@${escapeHtml(entry.instagram)})` : '';
-      return `
-        <li class="duplicate-list-item">
-          <a href="#" class="duplicate-link" data-entity-id="${escapeHtml(entry.id)}">
-            <span class="duplicate-name">${escapeHtml(name)}${handle}</span>
-          </a>
-        </li>`;
-    }).join('');
-
-    container.innerHTML = `
-      <div class="${isError ? 'duplicate-error' : 'duplicate-warning'}">
-        <strong>${isError ? 'Dieser Creator existiert bereits!' : 'Folgende ähnliche Einträge gefunden:'}</strong>
-        ${list ? `<ul class="duplicate-list">${list}</ul>` : ''}
-      </div>
-    `;
-
-    container.querySelectorAll('.duplicate-link[data-entity-id]').forEach(link => {
-      link.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const id = link.dataset.entityId;
-        if (!id || !this.onUseExisting) return;
-        try {
-          await this.onUseExisting(id);
-          this.close({ cancelled: false });
-        } catch (error) {
-          console.error('Bestehenden Creator verknüpfen fehlgeschlagen:', error);
-          window.toastSystem?.show(error.message || 'Verknüpfen fehlgeschlagen', 'error');
-        }
-      });
-    });
-  }
-
-  setSubmitDisabled(form, disabled) {
-    const btn = form.querySelector('button[type="submit"]');
-    if (!btn) return;
-    btn.disabled = disabled;
-    btn.style.opacity = disabled ? '0.5' : '';
-    btn.style.cursor = disabled ? 'not-allowed' : '';
   }
 
   async handleSubmit(form) {
@@ -314,6 +234,7 @@ export class CreatorFormDrawer {
     if (this._closed) return;
     this._closed = true;
 
+    this._duplicateCheck?.destroy();
     if (cancelled && this.onCancel) this.onCancel();
 
     const panel = document.getElementById(DRAWER_ID);

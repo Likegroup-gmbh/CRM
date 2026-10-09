@@ -1,21 +1,15 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { setBriefingPersonas, setPersonaBriefings, addPersonaToBriefing, removePersonaFromBriefing } from '../modules/briefing/BriefingPersonas.js';
 
-vi.mock('../modules/briefing/BriefingProdukte.js', async () => {
-  const actual = await vi.importActual('../modules/briefing/BriefingProdukte.js');
-  return {
-    ...actual,
-    recomputeBriefingProdukte: vi.fn(async () => {})
-  };
-});
-
+// Die Mocks werfen bei jeder unbekannten Tabelle: Persona-Änderungen dürfen
+// campaign_briefing_produkt nicht anfassen (ADR 0052).
 describe('BriefingPersonas Membership', () => {
   afterEach(() => {
     delete window.supabase;
     vi.clearAllMocks();
   });
 
-  it('setBriefingPersonas schreibt nur Personas desselben Unternehmens und rechnet nach', async () => {
+  it('setBriefingPersonas schreibt nur Personas desselben Unternehmens und lässt die Produkte der Linie in Ruhe', async () => {
     const updates = [];
     window.supabase = {
       from: (table) => {
@@ -52,10 +46,8 @@ describe('BriefingPersonas Membership', () => {
       }
     };
 
-    const { recomputeBriefingProdukte } = await import('../modules/briefing/BriefingProdukte.js');
     await setBriefingPersonas('b1', ['pe1', 'pe2', 'pe1']);
     expect(updates[0].persona_ids).toEqual(['pe1']);
-    expect(recomputeBriefingProdukte).toHaveBeenCalledWith('b1');
   });
 
   it('setPersonaBriefings haengt an und löst vom anderen Briefing', async () => {
@@ -230,19 +222,17 @@ describe('addPersonaToBriefing / removePersonaFromBriefing', () => {
     return { updates, markeInserts };
   }
 
-  it('haengt die Persona an, ergaenzt die Briefing-Marke und rechnet nach', async () => {
+  it('haengt die Persona an und ergaenzt die Briefing-Marke', async () => {
     const { updates, markeInserts } = mockAddScope({
       briefing: { id: 'b1', unternehmen_id: 'u1', marke_id: 'm1', persona_ids: [] },
       persona: { id: 'pe1', unternehmen_id: 'u1' }
     });
 
-    const { recomputeBriefingProdukte } = await import('../modules/briefing/BriefingProdukte.js');
     const added = await addPersonaToBriefing('b1', 'pe1');
 
     expect(added).toBe(true);
     expect(updates[0].persona_ids).toEqual(['pe1']);
     expect(markeInserts).toEqual([{ persona_id: 'pe1', marke_id: 'm1' }]);
-    expect(recomputeBriefingProdukte).toHaveBeenCalledWith('b1');
   });
 
   it('ist idempotent: bereits verknuepfte Persona wird nicht nochmal geschrieben', async () => {
@@ -270,7 +260,7 @@ describe('addPersonaToBriefing / removePersonaFromBriefing', () => {
     expect(updates).toHaveLength(0);
   });
 
-  it('removePersonaFromBriefing loest die Verknuepfung und rechnet nach', async () => {
+  it('removePersonaFromBriefing loest die Verknuepfung', async () => {
     const updates = [];
     window.supabase = {
       from: (table) => {
@@ -294,12 +284,10 @@ describe('addPersonaToBriefing / removePersonaFromBriefing', () => {
       }
     };
 
-    const { recomputeBriefingProdukte } = await import('../modules/briefing/BriefingProdukte.js');
     const removed = await removePersonaFromBriefing('b1', 'pe1');
 
     expect(removed).toBe(true);
     expect(updates[0].persona_ids).toEqual(['pe2']);
-    expect(recomputeBriefingProdukte).toHaveBeenCalledWith('b1');
   });
 
   it('removePersonaFromBriefing ist idempotent', async () => {

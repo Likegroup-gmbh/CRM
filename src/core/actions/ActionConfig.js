@@ -111,6 +111,8 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Öffnen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      // Nur auf dem Produkte-Tab einer Linie (Liste schaltet es per actionStates frei, ADR 0052)
+      { id: 'produkt-von-linie-loesen', icon: 'unlink', label: 'Von der Linie lösen', roles: ['admin', 'mitarbeiter'], optIn: true },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],

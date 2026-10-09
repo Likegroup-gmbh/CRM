@@ -5,7 +5,7 @@ vi.mock('../core/pdf/PdfBrand.js', async (importOriginal) => {
   return { ...actual, loadLikeGroupLogoPng: vi.fn(async () => 'data:image/png;base64,LOGO') };
 });
 
-vi.mock('../modules/briefing/BriefingPdf.js', async (importOriginal) => {
+vi.mock('../core/pdf/pdfImage.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
@@ -13,7 +13,7 @@ vi.mock('../modules/briefing/BriefingPdf.js', async (importOriginal) => {
   };
 });
 
-import { loadCustomerLogoPng, toPdfImageDataUrl } from '../modules/briefing/BriefingPdf.js';
+import { loadCustomerLogoPng, toPdfImageDataUrl } from '../core/pdf/pdfImage.js';
 import { createSkriptAnhang, creatorFuerAnschreiben } from '../modules/skripte/SkriptPdf.js';
 import { PDF_BRAND } from '../core/pdf/PdfBrand.js';
 

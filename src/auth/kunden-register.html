@@ -71,7 +71,7 @@
 <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm'
   import { getSupabaseConfig } from './config.js'
-  import { initPasswordHints } from './password-hints.js'
+  import { initPasswordHints, passwordPolicyError, isWeakPasswordError, PASSWORD_POLICY_MESSAGE } from './password-hints.js'
 
   const cfg = getSupabaseConfig();
   if (!cfg) {
@@ -109,6 +109,13 @@
       return;
     }
 
+    const policyError = passwordPolicyError(password);
+    if (policyError) {
+      show('error', policyError);
+      btn.disabled = false;
+      return;
+    }
+
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -136,7 +143,7 @@
       window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden`;
     } catch (err) {
       console.error('❌ Registrierung fehlgeschlagen', err);
-      show('error', err?.message || 'Registrierung fehlgeschlagen');
+      show('error', isWeakPasswordError(err) ? PASSWORD_POLICY_MESSAGE : (err?.message || 'Registrierung fehlgeschlagen'));
     } finally {
       btn.disabled = false;
     }

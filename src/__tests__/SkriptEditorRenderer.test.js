@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   messageHtml, genStatusBubbleHtml, aktionTagHtml, chatLeerHtml, versionsHinweisHtml
 } from '../modules/skripte/editor/SkriptEditorChatRenderer.js';
-import { fragenModusHtml, skriptDocHtml, masterDocHtml, verknuepfungenHtml, konzeptCreatorFromSkript, docHeadActionsHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
+import { fragenModusHtml, skriptDocHtml, masterDocHtml, verknuepfungenHtml, konzeptCreatorFromSkript, docHeadActionsHtml, listeVideoHtml, sortListeSkripte } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
 
 describe('SkriptEditorChatRenderer', () => {
   it('User-Message rendert Inhalt und Selektion, escaped HTML', () => {
@@ -385,6 +385,59 @@ describe('verknuepfungenHtml', () => {
       kannZuweisen: false,
       konzeptCreator: { name: 'Tim Berg' }
     })).toBe('');
+  });
+});
+
+describe('listeVideoHtml', () => {
+  it('baut "Video 2/4", mehrere Videos kommagetrennt', () => {
+    const html = listeVideoHtml([
+      { position: 2, kooperation: { videoanzahl: 4 } },
+      { position: 3, kooperation: { videoanzahl: 4 } }
+    ]);
+    expect(html).toContain('skripte-editor-liste-video');
+    expect(html).toContain('Video 2/4, Video 3/4');
+  });
+
+  it('ohne Position oder Verknuepfung leer, ohne Anzahl nur "Video 2"', () => {
+    expect(listeVideoHtml([])).toBe('');
+    expect(listeVideoHtml(undefined)).toBe('');
+    expect(listeVideoHtml([{ position: null, kooperation: { videoanzahl: 3 } }])).toBe('');
+    expect(listeVideoHtml([{ position: 2, kooperation: {} }])).toContain('>Video 2<');
+  });
+});
+
+describe('sortListeSkripte', () => {
+  const video = (name, position) => ([{
+    position,
+    kooperation: { videoanzahl: 3, creator: { id: name, vorname: name, nachname: '' } }
+  }]);
+  const skript = (id, name, position) => ({
+    id,
+    kooperation_videos: name ? video(name, position) : []
+  });
+  const ids = (list) => list.map((s) => s.id);
+  const sortiere = (list) => sortListeSkripte(list, (s) => s.kooperation_videos);
+
+  it('gruppiert nach Creator A-Z, darin Video 1, 2, 3', () => {
+    const sorted = sortiere([
+      skript('b3', 'Bea', 3), skript('a2', 'Anna', 2),
+      skript('b1', 'Bea', 1), skript('a1', 'Anna', 1),
+      skript('b2', 'Bea', 2), skript('a3', 'Anna', 3)
+    ]);
+    expect(ids(sorted)).toEqual(['a1', 'a2', 'a3', 'b1', 'b2', 'b3']);
+  });
+
+  it('ohne Creator ans Ende, ohne Nummer hinter die nummerierten, sonst stabil', () => {
+    const sorted = sortiere([
+      skript('frei1', null), skript('a-ohne', 'Anna', null),
+      skript('a2', 'Anna', 2), skript('frei2', null), skript('a1', 'Anna', 1)
+    ]);
+    expect(ids(sorted)).toEqual(['a1', 'a2', 'a-ohne', 'frei1', 'frei2']);
+  });
+
+  it('Position als String wird numerisch sortiert (10 nach 2)', () => {
+    const sorted = sortiere([skript('x10', 'Anna', '10'), skript('x2', 'Anna', '2')]);
+    expect(ids(sorted)).toEqual(['x2', 'x10']);
   });
 });
 

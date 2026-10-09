@@ -99,24 +99,78 @@ export async function analysiereBeschreibungAktion(detail, itemId, hooks, button
   }
 }
 
-/** Eine Zeile der Beschreibungs-Tabelle: alle Zeilen einsammeln, Fliesstext neu ableiten. */
-async function commitStruktur(detail, el, item, hooks) {
-  const panel = el.closest(`#${DRAWER_ID}`);
+function strukturEingabe(panel) {
   const eingabe = {};
   panel?.querySelectorAll(`[data-field^="${STRUKTUR_FIELD_PREFIX}"]`).forEach((area) => {
     eingabe[area.dataset.field.slice(STRUKTUR_FIELD_PREFIX.length)] = area.value;
   });
+  return eingabe;
+}
+
+/** Updates für eine geänderte Struktur: Fliesstext neu ableiten, Quelle user. */
+function strukturUpdates(struktur) {
+  const beschreibung = struktur ? strukturZuText(struktur) : '';
+  return {
+    beschreibung_struktur: struktur,
+    beschreibung,
+    beschreibung_quelle: beschreibung ? 'user' : null
+  };
+}
+
+/**
+ * Schloss an der Hook-Zeile (ADR 0054). Sperren schreibt die Struktur mit, damit der
+ * Hook-Text auch bei Altbestand (nur Fliesstext) in beschreibung_struktur steht.
+ */
+export async function toggleHookSperreAktion(detail, itemId, hooks, button) {
+  const item = detail.items.find((entry) => String(entry.id) === String(itemId));
+  if (!item) return false;
+  const panel = button?.closest(`#${DRAWER_ID}`) || document.getElementById(DRAWER_ID);
+
+  const struktur = normalisiereStruktur(strukturEingabe(panel));
+  const sperren = !item.hook_gesperrt;
+  if (sperren && !String(struktur?.hook || '').trim()) {
+    window.toastSystem?.show('Zuerst einen Hook eintragen', 'warning');
+    return false;
+  }
+
+  const updates = { hook_gesperrt: sperren };
+  if (sperren) {
+    const gespeichert = normalisiereStruktur(item.beschreibung_struktur);
+    if (JSON.stringify(struktur) !== JSON.stringify(gespeichert)) {
+      // Altbestand ohne gespeicherte Struktur: der Fliesstext bleibt, nur die Struktur kommt dazu
+      const nurStruktur = JSON.stringify(struktur) === JSON.stringify(beschreibungStrukturVon(item));
+      Object.assign(updates, nurStruktur ? { beschreibung_struktur: struktur } : strukturUpdates(struktur));
+    }
+  }
+
+  if (button) button.disabled = true;
+  try {
+    await strategieService.updateStrategieItem(item.id, updates);
+  } catch (error) {
+    console.error('Hook-Sperre fehlgeschlagen:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    if (button) button.disabled = false;
+    return false;
+  }
+  Object.assign(item, updates);
+  detail.rerenderItemsTable?.();
+  hooks.renderOpenItem(detail, item.id, { scroll: false });
+  window.toastSystem?.show(sperren ? 'Hook gesperrt' : 'Hook entsperrt', 'success');
+  return true;
+}
+
+/** Eine Zeile der Beschreibungs-Tabelle: alle Zeilen einsammeln, Fliesstext neu ableiten. */
+async function commitStruktur(detail, el, item, hooks) {
+  const panel = el.closest(`#${DRAWER_ID}`);
+  const eingabe = strukturEingabe(panel);
 
   const struktur = normalisiereStruktur(eingabe);
   const aktuell = beschreibungStrukturVon(item);
   if (JSON.stringify(struktur) === JSON.stringify(aktuell)) return true;
 
-  const beschreibung = struktur ? strukturZuText(struktur) : '';
-  const updates = {
-    beschreibung_struktur: struktur,
-    beschreibung,
-    beschreibung_quelle: beschreibung ? 'user' : null
-  };
+  const updates = strukturUpdates(struktur);
+  // Ohne Hook-Text gibt es nichts zu sperren
+  if (item.hook_gesperrt && !String(struktur?.hook || '').trim()) updates.hook_gesperrt = false;
 
   try {
     await strategieService.updateStrategieItem(item.id, updates);
@@ -127,7 +181,7 @@ async function commitStruktur(detail, el, item, hooks) {
   }
   Object.assign(item, updates);
   detail.rerenderItemsTable?.();
-  if (!struktur) hooks.renderOpenItem(detail, item.id, { scroll: false });
+  if (!struktur || updates.hook_gesperrt === false) hooks.renderOpenItem(detail, item.id, { scroll: false });
   return true;
 }
 

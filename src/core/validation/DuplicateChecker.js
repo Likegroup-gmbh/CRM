@@ -1,8 +1,9 @@
 // DuplicateChecker.js (ES6-Modul)
-// Zentrale Duplikat- und Ähnlichkeitserkennung für Creator, Marke und Unternehmen
+// Zentrale Duplikat- und Ähnlichkeitserkennung für Creator, Marke, Unternehmen und Management
 // Kombiniert DB-basierte Exakt-Checks mit Frontend Fuzzy-Matching
 
 import Fuse from 'fuse.js';
+import { findeNamensgleiche } from './ManagementDuplikate.js';
 
 export class DuplicateChecker {
   constructor() {
@@ -21,7 +22,7 @@ export class DuplicateChecker {
 
   /**
    * Hauptmethode: Check Duplikate für eine Entity
-   * @param {string} entity - 'creator' | 'marke' | 'unternehmen'
+   * @param {string} entity - 'creator' | 'marke' | 'unternehmen' | 'management'
    * @param {object} fieldValues - Feld-Werte zum Prüfen
    * @param {string|null} excludeId - ID zum Ausschließen (bei Edit)
    * @returns {Promise<{exact: boolean, similar: Array}>}
@@ -35,12 +36,48 @@ export class DuplicateChecker {
           return await this.checkMarke(fieldValues.markenname, excludeId);
         case 'creator':
           return await this.checkCreator(fieldValues.vorname, fieldValues.nachname, excludeId);
+        case 'management':
+          return await this.checkManagement(fieldValues.firmenname, excludeId);
         default:
           console.warn('⚠️ DUPLICATECHECKER: Unbekannte Entity:', entity);
           return { exact: false, similar: [] };
       }
     } catch (error) {
       console.error('❌ DUPLICATECHECKER: Fehler beim Check:', error);
+      return { exact: false, similar: [] };
+    }
+  }
+
+  /**
+   * Check Management Duplikate (Talent-Agentur)
+   * "exact" heißt hier namensgleich: gleicher Kernname, Rechtsform, Groß/Klein,
+   * Leerzeichen und Satzzeichen egal ("Company XY" = "Company XY GmbH").
+   * Ähnliche Namen kommen nur als Warnung (Fuzzy).
+   * @param {string} firmenname - Name zum Prüfen
+   * @param {string|null} excludeId - ID zum Ausschließen
+   * @param {{frisch?: boolean}} opts - frisch: Cache umgehen (z.B. direkt vor dem Speichern)
+   * @returns {Promise<{exact: boolean, similar: Array}>}
+   */
+  async checkManagement(firmenname, excludeId = null, opts = {}) {
+    if (!firmenname || firmenname.trim().length < 2) {
+      return { exact: false, similar: [] };
+    }
+
+    try {
+      const all = await this.loadAllManagements(Boolean(opts.frisch));
+      const gleiche = findeNamensgleiche(firmenname, all, excludeId);
+
+      let fuzzyResults = [];
+      if (gleiche.length === 0 && all.length > 0) {
+        fuzzyResults = this.findSimilarLocal(firmenname, all, ['firmenname'], excludeId);
+      }
+
+      return {
+        exact: gleiche.length > 0,
+        similar: this.deduplicateSimilarEntries([...gleiche, ...fuzzyResults], 'id')
+      };
+    } catch (error) {
+      console.error('❌ DUPLICATECHECKER: Exception bei Management:', error);
       return { exact: false, similar: [] };
     }
   }
@@ -425,6 +462,34 @@ export class DuplicateChecker {
       console.error('❌ DUPLICATECHECKER: Fehler beim Laden von Creators:', error);
       return [];
     }
+  }
+
+  /**
+   * Lade alle Managements (mit Cache)
+   * @param {boolean} force - Cache umgehen
+   * @returns {Promise<Array>}
+   */
+  async loadAllManagements(force = false) {
+    const cacheKey = 'all_management';
+    const cacheDuration = 60000; // 1 Minute
+
+    if (!force && this.cache.has(cacheKey)) {
+      const cached = this.cache.get(cacheKey);
+      if (Date.now() - cached.timestamp < cacheDuration) {
+        return cached.data;
+      }
+    }
+
+    // Fehler hier nicht schlucken: ein leerer Bestand würde jeden Namen durchwinken
+    const { data, error } = await window.supabase
+      .from('management')
+      .select('id, firmenname, logo_url, email')
+      .order('firmenname');
+
+    if (error) throw error;
+
+    this.cache.set(cacheKey, { data: data || [], timestamp: Date.now() });
+    return data || [];
   }
 
   /**

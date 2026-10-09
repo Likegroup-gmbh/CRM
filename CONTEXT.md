@@ -37,7 +37,7 @@ Betrag, mit dem eine Produktion arbeitet, geschnitten aus dem Volumen ihrer Kamp
 _Avoid_: Creator-Budget, Kooperation, Geist, Anteil
 
 **Linie**:
-Ein Strang innerhalb einer Produktion: ein Briefing plus sein Casting, sein Konzept, seine Skripte und seine Kooperationen. Entsteht mit dem Finalisieren des Briefings; ein Entwurf erscheint schon als Linie mit Badge. Casting und Konzept lesen nur das Briefing ihrer Linie, nie das einer anderen. Eine Produktion kann mehrere Linien haben, etwa Nano-Influencer und UGC-Creator mit 20.000 Followern. Das Produkt sitzt an der Linie. Eine Linie mit Kooperationen lässt sich nicht löschen.
+Ein Strang innerhalb einer Produktion: ein Briefing plus sein Casting, sein Konzept, seine Skripte und seine Kooperationen. Entsteht mit dem Finalisieren des Briefings; ein Entwurf erscheint schon als Linie mit Badge. Casting und Konzept lesen nur das Briefing ihrer Linie, nie das einer anderen. Eine Produktion kann mehrere Linien haben, etwa Nano-Influencer und UGC-Creator mit 20.000 Followern. Das Produkt sitzt an der Linie; dasselbe Produkt kann an mehreren Linien hängen, auch in verschiedenen Produktionen. Eine Linie mit Kooperationen lässt sich nicht löschen.
 _Avoid_: Strang, Briefing-Line, Geist, Zweig
 
 **Kooperation**:
@@ -64,8 +64,12 @@ _Avoid_: Situation, Einsatzsituation, Use Case, Lebenssituation, Setting, Kontex
 
 **Produkt**:
 Angebot eines Unternehmens, optional mehreren Marken zugeordnet.
-Personas hängen über die Zuordnung, nicht als Eigentum des Produkts.
+Personas hängen über die Zuordnung, nicht als Eigentum des Produkts. Der Inhalt (Beschreibung, USP, Bilder, Varianten, Preis, Use Cases) liegt einmal am Produkt und gilt auf jeder Linie, die es hat; was je Linie anders ist, steht am Briefing und seinen Personas.
 _Avoid_: Artikel, SKU, Offer
+
+**Produkt übernehmen**:
+Ein vorhandenes Produkt des Unternehmens an die aktuelle Linie hängen. Es entsteht keine Kopie, andere Linien und der Katalog bleiben unverändert. Personas, Briefings und Skripte der Herkunftslinie kommen nicht mit: auf dem Produkte-Tab zeigt ein übernommenes Produkt die Personas, das Briefing und die Skripte der aktuellen Linie, das Standardprodukt der Linie (Produkt der Produktion) seine eigenen. Gegenstück ist „Von der Linie lösen“: nur diese Verknüpfung fällt weg.
+_Avoid_: Übertragen, Kopieren, Verschieben
 
 **Use Case**:
 Benannte Einsatzsituation eines Produkts. Sitzt am Produkt, nicht an der Persona.
@@ -276,6 +280,18 @@ Die Talent-Agentur als Stammdaten-Entity (Tabelle `management`), n:m zu Creator 
 Nicht die Mitarbeiter-Rolle `management`.
 _Avoid_: Agentur-Rolle, Mitarbeiter-Klasse Management
 
+**Namensgleich**:
+Zwei Managements mit demselben Kernnamen: Groß/Klein, Leerzeichen, Satzzeichen und eine Rechtsform (GmbH, GmbH & Co. KG, UG, AG, e.K., Ltd, Inc u. a.) zählen nicht. „Company XY“ und „Company XY GmbH“ sind namensgleich, „Company XY Management“ nicht (Management ist keine Rechtsform). Beim Anlegen sperrt Namensgleich das Speichern; ein nur ähnlicher Name warnt.
+_Avoid_: Duplikat (zu unscharf: ähnlich ist keins), Dublette
+
+**Zusammenlegen**:
+Mehrere namensgleiche Managements werden ein Datensatz: Creator, Ansprechpartner, Verträge und Anschreiben hängen danach am bleibenden, leere Felder füllt der andere, Notizen werden aneinandergehängt. Es bleibt der Datensatz mit den meisten Verknüpfungen, bei Gleichstand der ältere. Es geht nichts verloren: abweichende Angaben stehen als Weitere Angaben in der Notiz. Nur zwei verschiedene Rechtsformen (GmbH gegen AG) halten eine Gruppe zurück.
+_Avoid_: Mergen, Übernehmen (das ist KI-Vorschlag zur Stammdaten-Entity), Bereinigen
+
+**Weitere Angaben**:
+Abweichende Werte aus zusammengelegten Managements (zweite Mail, zweite Telefonnummer, zweite Adresse), die nicht ins Feld passen, weil es nur einen Wert aufnimmt. Das Feld behält den Wert des bleibenden Datensatzes, der Rest steht als Liste in der Notiz. Dieselbe Angabe in anderer Schreibweise (Straße/Strasse, Köln/Cologne, Instagram-Link/Handle, Straße mit oder ohne Hausnummer) ist keine abweichende Angabe; es gilt die vollständigere Form.
+_Avoid_: Feldkonflikt, Abweichung
+
 **Videoidee**:
 Eintrag in einem Konzept: Videoreferenz oder Idee. Genau eine Umsetzung, nicht
 eine Kernidee mit mehreren Creatorn. Höchstens ein Casting-Eintrag aus dem verknüpften Casting;
@@ -349,6 +365,10 @@ _Avoid_: Neuformulierung, Hook-Variante, Videoidee
 **Festgezogen**:
 Zelle eines Skripts, die ein späterer Auftrag nicht ersetzen darf, solange der Auftrag nicht genau diese Zelle verlangt. Ein Satz darin ist nur geschützt, wenn er markiert ist. Ein Auftrag mit Umfang Alles oder ein benannter Teil öffnet die Zellen in diesem Umfang; eine Markierung allein nicht.
 _Avoid_: Freigabe, Skript-Freigabe, Kundenfreigabe
+
+**Hook-Sperre**:
+Schloss am gesprochenen Hook einer Videoreferenz im Konzept. Der Hook ist vom Kunden freigegeben; Liky übernimmt ihn wörtlich ins Skript und ändert ihn in keinem Auftrag, auch nicht bei Umfang Alles oder Hook, sondern sagt im Chat, dass er bleibt. Das Team ändert den Text von Hand weiter und öffnet das Schloss am Konzept. Visual Hook, Text-Hook und Hook-Varianten bleiben für Liky offen.
+_Avoid_: Festgezogen (öffnet sich bei Umfang), Skript-Freigabe, Kundenfreigabe, Hook-Lock
 
 **Umfang**:
 Reichweite eines Auftrags im Editor. Steht im Text: Alles, ein benannter Teil (Hook, Hauptteil, CTA) oder eine Markierung. Alles und ein benannter Teil schlagen die Markierung und öffnen Festgezogen in diesem Umfang. Benannter Teil meint Was gesagt wird und Was zu sehen ist derselben Sektion. Ohne Umfang und ohne Markierung fragt Liky einmal nach der Sektion. Ein Wechsel von Figur, Besetzung, Ort oder Geschichte im freien Chat hat immer den Umfang Alles, auch ohne das Wort.

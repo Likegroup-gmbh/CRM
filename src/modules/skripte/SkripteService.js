@@ -217,8 +217,9 @@ export class SkripteService {
           )
         ),
         kooperation_videos(
-          id,
+          id, position,
           kooperation:kooperation_id(
+            videoanzahl,
             creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
           )
         )`)
@@ -272,7 +273,20 @@ export class SkripteService {
       .eq('id', id).maybeSingle();
 
     if (error) throw new Error(error.message);
-    return data || null;
+    return data ? await this.attachHookSperre(data) : null;
+  }
+
+  /**
+   * Hook-Sperre der Videoidee (ADR 0054) fuer die Statusanzeige im Editor.
+   * Eigene Abfrage, damit ein Fehler hier das Laden des Skripts nie kippt.
+   */
+  async attachHookSperre(skript) {
+    const itemId = skript?.strategie_item_id;
+    if (!itemId) return skript;
+    const { data } = await this.db.from('strategie_items')
+      .select('hook_gesperrt').eq('id', itemId).maybeSingle();
+    if (!data?.hook_gesperrt) return skript;
+    return { ...skript, strategie_item: { ...(skript.strategie_item || { id: itemId }), hook_gesperrt: true } };
   }
 
   async updateSkript(id, patch) {

@@ -3,6 +3,7 @@
 
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
 import { navigateBack } from '../../core/breadcrumbTrail.js';
+import { bindDuplicateCheck } from '../../core/validation/DuplicateCheckBinding.js';
 
 export class ManagementCreate {
   constructor() {
@@ -49,12 +50,22 @@ export class ManagementCreate {
         e.preventDefault();
         await this.handleFormSubmit();
       };
+
+      // Namensgleich sperrt, ähnlich warnt
+      this._duplicateCheck?.destroy();
+      this._duplicateCheck = bindDuplicateCheck('management', form);
     }
   }
 
   async handleFormSubmit() {
     const form = document.getElementById('management-form');
     if (!form) return;
+
+    // Frischer Check direkt vor dem Speichern (der Blur-Check kann zu spät kommen)
+    if (this._duplicateCheck && !(await this._duplicateCheck.pruefe())) {
+      window.toastSystem?.show('Dieses Management gibt es schon. Bitte den bestehenden Eintrag nutzen.', 'error');
+      return;
+    }
 
     try {
       console.log('🎯 MANAGEMENTCREATE: Verarbeite Submit');
@@ -81,6 +92,7 @@ export class ManagementCreate {
       }
 
       const managementId = result.id;
+      window.duplicateChecker?.clearCache('management');
 
       // Creator-Zuordnungen in creator_management einfuegen
       if (creatorIds.length > 0) {
@@ -133,6 +145,8 @@ export class ManagementCreate {
 
   destroy() {
     console.log('ManagementCreate: Cleaning up...');
+    this._duplicateCheck?.destroy();
+    this._duplicateCheck = null;
   }
 }
 

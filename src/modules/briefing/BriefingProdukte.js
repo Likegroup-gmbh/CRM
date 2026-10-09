@@ -1,5 +1,7 @@
 // BriefingProdukte.js
-// Laden und Sync der M:N-Zuordnung campaign_briefing_produkt.
+// Laden und Pflegen der M:N-Zuordnung campaign_briefing_produkt: die Produkte
+// einer Linie (ADR 0052). Die Tabelle ist die Liste der Linie; Persona-
+// Änderungen und Finalisieren schreiben sie nicht um.
 
 export async function loadProdukteForBriefing(unternehmenId, markeId = null) {
   if (!unternehmenId || !window.supabase) return [];
@@ -37,55 +39,92 @@ export async function loadBriefingProdukte(briefingId) {
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de'));
 }
 
-export async function syncBriefingProdukte(briefingId, produktIds) {
-  if (!briefingId || !window.supabase) return;
+/**
+ * Hängt vorhandene Produkte an die Linie. Idempotent und rein additiv:
+ * bestehende Zeilen bleiben, Personas und Briefing-Daten werden nicht berührt.
+ * @returns {Promise<string[]>} die neu verknüpften Produkt-IDs
+ */
+export async function addBriefingProdukte(briefingId, produktIds) {
+  if (!briefingId || !window.supabase) return [];
 
-  const ids = [...new Set((produktIds || []).filter(Boolean))];
-  const { error: delError } = await window.supabase
+  const wanted = [...new Set((produktIds || []).filter(Boolean))];
+  if (!wanted.length) return [];
+
+  const { data: vorhanden, error: readError } = await window.supabase
     .from('campaign_briefing_produkt')
-    .delete()
+    .select('produkt_id')
     .eq('briefing_id', briefingId);
-  if (delError) throw delError;
-  if (!ids.length) return;
+  if (readError) throw readError;
+
+  const schon = new Set((vorhanden || []).map(row => row.produkt_id));
+  const neu = wanted.filter(id => !schon.has(id));
+  if (!neu.length) return [];
 
   const { error } = await window.supabase
     .from('campaign_briefing_produkt')
-    .insert(ids.map(produkt_id => ({ briefing_id: briefingId, produkt_id })));
+    .insert(neu.map(produkt_id => ({ briefing_id: briefingId, produkt_id })));
+  if (error) throw error;
+  return neu;
+}
+
+/**
+ * „Von der Linie lösen“: genau diese Verknüpfung fällt weg. Das Produkt und
+ * seine Verknüpfungen zu anderen Linien bleiben.
+ */
+export async function removeBriefingProdukt(briefingId, produktId) {
+  if (!briefingId || !produktId || !window.supabase) return;
+
+  const { error } = await window.supabase
+    .from('campaign_briefing_produkt')
+    .delete()
+    .eq('briefing_id', briefingId)
+    .eq('produkt_id', produktId);
   if (error) throw error;
 }
 
 /**
- * Das Produkt der Linie ist das einzige Briefing-Produkt (ADR 0045).
- * Ohne gesetztes Produkt bleibt die Persona-Union für Altbestand (ADR 0021).
+ * „Produkt übernehmen“: Katalogprodukte des Unternehmens, die an dieser Linie
+ * noch fehlen. Marke wie beim Briefing: Produkt ohne Marke oder mit dieser Marke.
  */
-export async function recomputeBriefingProdukte(briefingId) {
-  if (!briefingId || !window.supabase) return;
+export async function loadUebernehmbareProdukte({ briefingId, unternehmenId, markeId = null }) {
+  if (!briefingId || !unternehmenId) return [];
 
-  const { data: briefing, error } = await window.supabase
+  const [katalog, vorhanden] = await Promise.all([
+    loadProdukteForBriefing(unternehmenId, markeId),
+    loadBriefingProdukte(briefingId)
+  ]);
+  const schon = new Set(vorhanden.map(p => p.id));
+  return katalog.filter(p => !schon.has(p.id));
+}
+
+/**
+ * Übernimmt Produkte an die Linie. Nur Produkte desselben Unternehmens wie das
+ * Briefing werden verknüpft. Personas, Briefings und Skripte der anderen Linie
+ * kommen nicht mit (ADR 0052).
+ * @returns {Promise<string[]>} die neu verknüpften Produkt-IDs
+ */
+export async function uebernehmeProdukte(briefingId, produktIds) {
+  if (!briefingId || !window.supabase) return [];
+
+  const wanted = [...new Set((produktIds || []).filter(Boolean))];
+  if (!wanted.length) return [];
+
+  const { data: briefing, error: bError } = await window.supabase
     .from('campaign_briefings')
-    .select('persona_ids, produkt_id')
+    .select('id, unternehmen_id')
     .eq('id', briefingId)
-    .single();
-  if (error) throw error;
+    .maybeSingle();
+  if (bError) throw bError;
+  if (!briefing) throw new Error('Briefing nicht gefunden');
 
-  if (briefing?.produkt_id) {
-    await syncBriefingProdukte(briefingId, [briefing.produkt_id]);
-    return;
-  }
+  const { data: produkte, error: pError } = await window.supabase
+    .from('produkt')
+    .select('id, unternehmen_id')
+    .in('id', wanted);
+  if (pError) throw pError;
 
-  const personaIds = Array.isArray(briefing?.persona_ids)
-    ? briefing.persona_ids.filter(Boolean)
-    : [];
-  let produktIds = [];
-  if (personaIds.length) {
-    const { data: rows, error: vErr } = await window.supabase
-      .from('produkt_persona_vorschlag')
-      .select('produkt_id')
-      .in('persona_id', personaIds)
-      .eq('status', 'accepted');
-    if (vErr) throw vErr;
-    produktIds = [...new Set((rows || []).map(r => r.produkt_id).filter(Boolean))];
-  }
-
-  await syncBriefingProdukte(briefingId, produktIds);
+  const erlaubt = (produkte || [])
+    .filter(p => p.unternehmen_id === briefing.unternehmen_id)
+    .map(p => p.id);
+  return addBriefingProdukte(briefingId, erlaubt);
 }

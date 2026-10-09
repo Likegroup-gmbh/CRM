@@ -705,6 +705,42 @@ td.videoidee-struktur__value {
   border-right: none;
 }
 
+/* Hook-Sperre (ADR 0054): Schloss neben dem Label der Hook-Zeile */
+.videoidee-struktur__lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--space-xs);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+span.videoidee-struktur__lock {
+  cursor: default;
+}
+
+.videoidee-struktur__lock:hover:not(:disabled) {
+  color: var(--gray-700);
+}
+
+.videoidee-struktur__lock.is-locked {
+  color: var(--color-success, var(--gray-700));
+}
+
+.videoidee-struktur__lock:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.videoidee-struktur__lock .crm-icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
 .videoidee-props {
   flex: 1;
   min-width: 0;
@@ -1606,3 +1642,8 @@ td.videoidee-struktur__value {
 .deckung-meta { color: var(--text-muted, #6b7280); font-size: 0.875rem; }
 .deckung-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-sm) 0; border-bottom: 1px solid var(--border-color, #e5e7eb); }
 .deckung-hinweis--warn { padding: var(--space-sm) var(--space-md); border-radius: 6px; background: #fff7ed; color: #9a3412; font-size: 0.875rem; }
+
+/* Produkt übernehmen (Drawer) */
+.produkt-uebernehmen-liste { display: flex; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-md); }
+.produkt-uebernehmen-item { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border: 1px solid var(--border-primary); border-radius: var(--radius-md); cursor: pointer; }
+.produkt-uebernehmen-item:hover { background: var(--gray-50); }
