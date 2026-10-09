@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   basisName,
+  briefingBasis,
   briefingTitel,
   geistProduktionName,
   lineNames
@@ -28,6 +29,23 @@ describe('basisName', () => {
   it('fällt ohne Kampagnennamen auf den eigenen Namen zurück', () => {
     expect(basisName({ eigener_name: ' Eigen ' })).toBe('Eigen');
     expect(basisName(null)).toBe('');
+  });
+});
+
+describe('briefingBasis', () => {
+  const kampagne = { kampagnenname: 'Fremdkosten - Q4 Telekom' };
+
+  it('nimmt den eigenen Produktionsnamen', () => {
+    expect(briefingBasis(kampagne, ' Q4 Telekom - Mobilfunk ')).toBe('Q4 Telekom - Mobilfunk');
+  });
+
+  it('bleibt bei einer Automatik-Produktion beim Projektnamen', () => {
+    expect(briefingBasis(kampagne, 'Fremdkosten - Q4 Telekom – Produktion 1')).toBe('Fremdkosten - Q4 Telekom');
+  });
+
+  it('nimmt ohne Produktion den Projektnamen', () => {
+    expect(briefingBasis(kampagne, '')).toBe('Fremdkosten - Q4 Telekom');
+    expect(briefingBasis(kampagne)).toBe('Fremdkosten - Q4 Telekom');
   });
 });
 

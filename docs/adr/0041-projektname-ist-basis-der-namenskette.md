@@ -7,6 +7,7 @@ Kampagne, Produktion, Briefing, Casting und Konzept eines Projekts hießen mal s
 - Projektname = `auftrag.titel`. Die Kampagne trägt ihn als `kampagnenname` (weitere Kampagnen: `Projektname (2)`). Das ist die Basis.
 - Abgeleitete Namen nehmen immer `kampagne.kampagnenname`, nie `eigener_name`. `eigener_name` bleibt eine reine Anzeige-Überschreibung der Kampagne.
 - Briefing-Titel = Basis, bei Bedarf `Basis – Zusatz` (Drawer: Basis fest, Zusatz optional). Das Briefing-Formular hat kein Titelfeld mehr: `aktivierung_name` kommt aus dem Drawer (`?titel=`), aus dem Bestand oder, sonst beim Speichern, aus `kampagne.kampagnenname`.
+- Der Drawer auf einer Produktion nimmt als Basis den eigenen Produktionsnamen, sofern er nicht dem Automatikschema `… Produktion N` folgt; sonst den Projektnamen (`briefingBasis`).
 - Produktion mit Briefing heißt wie das Briefing. Produktion ohne Briefing heißt `Basis – Produktion N`.
 - Casting = `{Briefing-Titel} Casting`, Konzept = `{Briefing-Titel} Konzept`. Die Altpfade für Casting- und Konzept-Anlage ohne Briefing nutzen dasselbe Schema (`lineNames`).
 - Die Kampagnenform im Altpfad nimmt den Projektnamen des Auftrags; nur ohne Projektname greift das alte Schema.

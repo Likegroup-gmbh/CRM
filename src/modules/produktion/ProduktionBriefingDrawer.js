@@ -1,9 +1,9 @@
 // ProduktionBriefingDrawer.js
-// Auf der Kampagne: Titel (Basis aus dem Projektnamen + optionaler Zusatz), dann Briefing-Anlage.
+// Auf der Produktion: Titel (Basis = Produktionsname, sonst Projektname, + optionaler Zusatz), dann Briefing-Anlage.
 // Das Produkt entsteht danach.
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { basisName, briefingTitel } from './produktionNames.js';
+import { briefingBasis, briefingTitel } from './produktionNames.js';
 
 function esc(value) {
   return window.validatorSystem?.sanitizeHtml(String(value ?? '')) || '';
@@ -11,7 +11,8 @@ function esc(value) {
 
 export async function openProduktionBriefingDrawer(detail, { produktionId = null } = {}) {
   const k = detail.kampagneData || {};
-  const basis = basisName(k) || KampagneUtils.getDisplayName(k) || '';
+  const produktionName = detail.produktion?.name || detail.lineTitle || '';
+  const basis = briefingBasis(k, produktionName) || KampagneUtils.getDisplayName(k) || '';
 
   const modal = document.createElement('div');
   modal.className = 'modal overlay-modal';

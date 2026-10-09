@@ -4,7 +4,7 @@
 // am Briefing (campaign_briefings.produktion_id).
 
 import { fetchAllRows } from '../../core/fetchAllRows.js';
-import { geistProduktionName, lineNames } from './produktionNames.js';
+import { AUTOMATIK_PRODUKTION_NAME, geistProduktionName, lineNames } from './produktionNames.js';
 import { castingPresetFromBriefing } from './castingPresetFromBriefing.js';
 import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN, wendePresetAn } from '../creator-auswahl/sourcingSpaltenPreset.js';
 import { syncBriefingProdukte } from '../briefing/BriefingProdukte.js';
@@ -359,7 +359,7 @@ function hiddenForNewList(preset) {
   return [...berechneHiddenColumns(preset), ...STANDARD_VERSTECKTE_SPALTEN];
 }
 
-const GEIST_NAME = /Produktion \d+\s*$/;
+const GEIST_NAME = AUTOMATIK_PRODUKTION_NAME;
 
 async function ladeProduktionFuerLinie(produktionId, kampagneId) {
   const { data, error } = await window.supabase
