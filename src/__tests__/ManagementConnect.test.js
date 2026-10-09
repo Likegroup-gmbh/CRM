@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRequire } from 'module';
-import { baueLeerFeldPatch, istLeer } from '../modules/management/ManagementConnect.js';
+import { baueLeerFeldPatch, istLeer, ManagementConnect } from '../modules/management/ManagementConnect.js';
+import { requestExtractJob } from '../core/form/ai/SiteExtractHandler.js';
+
+vi.mock('../core/form/ai/SiteExtractHandler.js', () => ({ requestExtractJob: vi.fn() }));
 
 const require = createRequire(import.meta.url);
 const {
@@ -223,5 +226,63 @@ describe('extractContactLinks', () => {
       tels: ['+49301234567'],
       instagram: ['@muster_talents']
     });
+  });
+});
+
+describe('ManagementConnect Lauf', () => {
+  const zeile = { id: 'm1', firmenname: 'Muster Talents', email: null, telefonnummer: null, webseite: null, instagram: null, strasse: null, hausnummer: null, plz: null, stadt: null, land: null };
+  let toast;
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'group').mockImplementation(() => {});
+    vi.spyOn(console, 'groupCollapsed').mockImplementation(() => {});
+    vi.spyOn(console, 'groupEnd').mockImplementation(() => {});
+    vi.spyOn(console, 'table').mockImplementation(() => {});
+    toast = { success: vi.fn(), info: vi.fn(), warning: vi.fn(), error: vi.fn() };
+    window.toastSystem = toast;
+    window.supabase = { from: () => ({ select: () => ({ in: async () => ({ data: [zeile], error: null }) }) }) };
+    window.dataService = { updateEntity: vi.fn(async () => ({ success: true })) };
+    requestExtractJob.mockReset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete window.toastSystem;
+    delete window.supabase;
+    delete window.dataService;
+  });
+
+  it('zeigt den Schritt aus der Job-Zeile im Progress-Label', async () => {
+    requestExtractJob.mockImplementation(async ({ onStep }) => {
+      onStep({ step: 'suche' });
+      onStep({ step: 'auswerten' });
+      return { matched: true, fields: { email: { value: 'info@muster.de', kind: 'fact' } }, cost: { eur: 0.01 } };
+    });
+    const labels = [];
+    const connect = new ManagementConnect({ onProgress: (t) => labels.push(t) });
+    await connect.start(['m1']);
+
+    expect(labels).toContain('Stopp · 1/1');
+    expect(labels).toContain('Stopp · 1/1 · Sucht…');
+    expect(labels).toContain('Stopp · 1/1 · KI wertet aus…');
+    expect(window.dataService.updateEntity).toHaveBeenCalledWith('management', 'm1', { email: 'info@muster.de' });
+    expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('meldet einen Abbruch statt des Erfolgs-Toasts und ruft onFinish trotzdem', async () => {
+    let connect;
+    requestExtractJob.mockImplementation(async () => {
+      connect.stop();
+      throw new DOMException('Vom Nutzer abgebrochen', 'AbortError');
+    });
+    const onFinish = vi.fn();
+    connect = new ManagementConnect({ onFinish });
+    await connect.start(['m1']);
+
+    expect(toast.info).toHaveBeenCalledWith('Connect abgebrochen (0 befüllt)');
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    expect(connect.running).toBe(false);
   });
 });

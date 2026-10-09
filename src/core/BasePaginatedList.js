@@ -467,6 +467,10 @@ export class BasePaginatedList {
       
       // Tabelle aktualisieren
       await this.updateTable(result.data || []);
+
+      // Neu gerenderte Zeilen haben leere Checkboxen: an selectedItems angleichen,
+      // sonst zeigt der Zaehler eine Auswahl, die man nicht sieht
+      this.restoreSelectionState();
       
       // Callback
       this.onDataLoaded(result.data || []);
@@ -733,6 +737,17 @@ export class BasePaginatedList {
     this._selection.syncSelectAll();
   }
   
+  /**
+   * Gleicht die sichtbaren Checkboxen nach einem Reload an die Auswahl an.
+   */
+  restoreSelectionState() {
+    this.queryAll(`.${this.options.checkboxClass}`).forEach(cb => {
+      cb.checked = this.selectedItems.has(cb.dataset.id);
+    });
+    this.updateSelectAllCheckbox();
+    this.updateSelection();
+  }
+
   /**
    * Hebt alle Auswahlen auf
    */

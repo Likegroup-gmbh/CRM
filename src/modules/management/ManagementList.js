@@ -31,7 +31,11 @@ export class ManagementList extends BasePaginatedList {
     // Connect: Homepage suchen und leere Stammdaten befuellen (ausgewaehlte Zeilen)
     this._connect = new ManagementConnect({
       onProgress: (text) => this._setConnectLabel(text),
-      onFinish: () => this._syncConnectButton()
+      onFinish: () => {
+        // Auswahl ist abgearbeitet: leeren, sonst laufen alte IDs beim naechsten Connect unsichtbar mit
+        this.deselectAll();
+        this._syncConnectButton();
+      }
     });
   }
 
@@ -228,12 +232,16 @@ export class ManagementList extends BasePaginatedList {
     const running = this._connect.running;
     const count = this.selectedItems.size;
     btn.style.display = running || count > 0 ? 'inline-block' : 'none';
+    btn.classList.toggle('is-running', running);
     if (!running) btn.textContent = count > 0 ? `Connect (${count})` : 'Connect';
   }
 
+  /** Label waehrend des Laufs; die Klasse is-running zeigt Spinner, Klick = Abbruch. */
   _setConnectLabel(text) {
     const btn = document.getElementById('btn-management-connect');
-    if (btn) btn.textContent = text;
+    if (!btn) return;
+    btn.classList.add('is-running');
+    btn.textContent = text;
   }
 
   destroy() {

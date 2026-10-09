@@ -21,6 +21,19 @@ export const CONNECT_FELDER = ['email', 'telefonnummer', 'webseite', 'instagram'
 // Suche (max. 60s) und Seitenauswertung (max. 120s) hintereinander
 const JOB_TIMEOUT_MS = 5 * 60 * 1000;
 
+// Button waehrend des Laufs: "Stopp" macht klar, dass ein weiterer Klick abbricht
+const LAUF_PREFIX = 'Stopp';
+
+// progress_step aus der Job-Zeile -> Kurztext am Button
+const STEP_TEXT = {
+  start: 'Startet…',
+  suche: 'Sucht…',
+  cache: 'Liest…',
+  laden: 'Seite laden…',
+  unterseite: 'Unterseiten…',
+  auswerten: 'KI wertet aus…'
+};
+
 const STATUS_TEXT = {
   gefuellt: 'befüllt',
   nichts_neu: 'nichts Neues',
@@ -171,7 +184,7 @@ export class ManagementConnect {
     let limitErreicht = false;
 
     try {
-      this.onProgress('Lade…');
+      this.onProgress(`${LAUF_PREFIX} · Lade…`);
       const { data: zeilen, error } = await window.supabase
         .from('management')
         .select(['id', 'firmenname', ...CONNECT_FELDER].join(', '))
@@ -184,8 +197,13 @@ export class ManagementConnect {
         const management = nachId.get(liste[i]);
         if (!management) continue;
 
-        this.onProgress(`Connect · ${i + 1}/${liste.length}`);
-        const ergebnis = await this._verarbeite(management);
+        const position = `${i + 1}/${liste.length}`;
+        this.onProgress(`${LAUF_PREFIX} · ${position}`);
+        const ergebnis = await this._verarbeite(management, (step) => {
+          if (this._abort?.signal.aborted) return;
+          const text = STEP_TEXT[step];
+          this.onProgress(text ? `${LAUF_PREFIX} · ${position} · ${text}` : `${LAUF_PREFIX} · ${position}`);
+        });
         if (ergebnis.abgebrochen) break;
         stats[ergebnis.status] += 1;
         stats.eur += ergebnis.eur || 0;
@@ -210,7 +228,9 @@ export class ManagementConnect {
           + `${stats.kein_treffer} kein Treffer, ${stats.fehler} Fehler · ${(stats.eur * 100).toFixed(2)} ct`
         );
       }
-      if (limitErreicht) {
+      if (abgebrochen) {
+        window.toastSystem?.info?.(`Connect abgebrochen (${stats.gefuellt} befüllt)`);
+      } else if (limitErreicht) {
         window.toastSystem?.warning?.('KI-Limit erreicht, Connect pausiert. Später mit den übrigen Einträgen erneut starten.');
       } else {
         window.toastSystem?.success?.(
@@ -228,7 +248,7 @@ export class ManagementConnect {
   }
 
   /** Ein Management: Job, Patch, Log. Wirft nie, liefert { status, eur, limit }. */
-  async _verarbeite(management) {
+  async _verarbeite(management, onStep = () => {}) {
     if (CONNECT_FELDER.every((name) => !istLeer(management[name]))) {
       logConnectErgebnis({ management, status: 'schon_komplett', payload: null, patch: {}, uebersprungen: [], nichtGefunden: [] });
       return { status: 'schon_komplett' };
@@ -240,6 +260,7 @@ export class ManagementConnect {
         entity: 'management',
         entityId: management.id,
         timeoutMs: JOB_TIMEOUT_MS,
+        onStep: ({ step }) => onStep(step),
         signal: this._abort.signal
       });
     } catch (err) {
