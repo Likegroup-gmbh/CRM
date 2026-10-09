@@ -480,6 +480,7 @@ async function syncCasting(produktionId, briefing, kampagneId, names, preset) {
     .update({
       name: names.casting,
       briefing_id: briefing.id,
+      produktion_id: produktionId,
       liste_typ: preset.liste_typ,
       plattformen: preset.plattformen,
       ig_formate: preset.ig_formate,
@@ -497,7 +498,8 @@ async function syncKonzept(produktionId, briefing, kampagneId, names) {
       .from('strategie')
       .update({
         name: names.konzept,
-        briefing_id: briefing.id
+        briefing_id: briefing.id,
+        produktion_id: produktionId
       })
       .eq('id', konzept.id);
     if (error) throw error;

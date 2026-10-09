@@ -5,6 +5,7 @@
 // Regeln:
 // - Create: briefing_id Pflicht, Briefing muss finalisiert sein
 //   (is_draft = false), Unternehmen muss matchen, gesetzte Marke muss matchen.
+//   Das Briefing braucht eine Produktion; produktion_id wird daraus übernommen.
 // - Update: gesetzter Link ist eingefroren (kein Wechsel, kein Leeren).
 //   Altbestand ohne Link (NULL) darf genau einmal gesetzt werden.
 
@@ -21,7 +22,7 @@ export async function assertBriefingForCreate(data, entityLabel) {
 
   const { data: briefing, error } = await window.supabase
     .from('campaign_briefings')
-    .select('id, unternehmen_id, marke_id, is_draft')
+    .select('id, unternehmen_id, marke_id, is_draft, produktion_id, produktion:produktion_id(kampagne_id)')
     .eq('id', briefingId)
     .single();
 
@@ -31,11 +32,21 @@ export async function assertBriefingForCreate(data, entityLabel) {
   if (briefing.is_draft) {
     throw new Error('Das Briefing ist noch ein Entwurf — bitte zuerst finalisieren.');
   }
+  if (!briefing.produktion_id) {
+    throw new Error(`Das Briefing hängt an keiner Produktion — ohne Produktion erscheint das ${entityLabel} nicht in der Kampagne. Bitte das Briefing zuerst einer Produktion zuordnen.`);
+  }
   if (data.unternehmen_id && briefing.unternehmen_id !== data.unternehmen_id) {
     throw new Error('Das Briefing gehört zu einem anderen Unternehmen.');
   }
   if (data.marke_id && briefing.marke_id !== data.marke_id) {
     throw new Error('Das Briefing gehört zu einer anderen Marke.');
+  }
+
+  // Die Linie ist das Briefing: Casting und Konzept erben dessen Produktion,
+  // sonst fehlen sie in der Kampagne. Andere Kampagne: nichts ableiten.
+  const produktionKampagne = briefing.produktion?.kampagne_id || null;
+  if (!data.produktion_id && (!data.kampagne_id || data.kampagne_id === produktionKampagne)) {
+    data.produktion_id = briefing.produktion_id;
   }
 }
 

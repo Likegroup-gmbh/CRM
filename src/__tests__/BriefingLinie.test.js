@@ -274,6 +274,18 @@ describe('ensureBriefingLine', () => {
     expect(db.rows.campaign_briefings.map(row => row.produktion_id)).toEqual(['prod-1', 'prod-1']);
   });
 
+  it('hängt beim erneuten Speichern ein Casting und Konzept ohne Produktion an die Produktion', async () => {
+    db.rows.creator_auswahl.push({ id: 'lose-liste', briefing_id: 'brief-1', produktion_id: null, hidden_columns: [] });
+    db.rows.strategie.push({ id: 'loses-konzept', briefing_id: 'brief-1', produktion_id: null });
+
+    await ensureBriefingLine({ briefing: influencer, kampagneId: 'kamp-1', produktionId: 'prod-1' });
+
+    expect(db.rows.creator_auswahl).toHaveLength(1);
+    expect(db.rows.strategie).toHaveLength(1);
+    expect(db.rows.creator_auswahl[0].produktion_id).toBe('prod-1');
+    expect(db.rows.strategie[0].produktion_id).toBe('prod-1');
+  });
+
   it('legt ein fehlendes Casting nach, ohne ein zweites Konzept', async () => {
     await ensureBriefingLine({ briefing: influencer, kampagneId: 'kamp-1', produktId: 'serum', produktionId: 'prod-1' });
     const konzeptId = db.rows.strategie[0].id;
