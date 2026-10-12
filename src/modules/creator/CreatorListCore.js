@@ -1,9 +1,24 @@
 // CreatorListCore.js
-// Klasse, Datenladen, View-Switch und Filter-Bau fuer CreatorList
+// Klasse, Laden, Sortierung, URL und Filter der Creator-Liste. Mixins: View, Bulk, Form
 
 import { BasePaginatedList } from '../../core/BasePaginatedList.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { CreatorGridView } from './CreatorGridView.js';
+import { GENERATIONEN, GROESSEN } from './creatorProfil.js';
+import { settleRezensionFilters } from './rezension.js';
+import { formatCreatorSumme, queryToSelection, selectionToQuery } from './creatorFilterQuery.js';
+import { ladeVideoAnzahl, normalizeSort, sortiereNachName, sortiereNachVideos } from './creatorBuchung.js';
+import { paintFilterValues } from './creatorFilterColumn.js';
+
+export const ANSICHT_KEY = 'creator-ansicht';
+
+function readAnsicht() {
+  try {
+    return localStorage.getItem(ANSICHT_KEY) === 'liste' ? 'liste' : 'grid';
+  } catch {
+    return 'grid';
+  }
+}
 
 export class CreatorList extends BasePaginatedList {
   constructor(opts = {}) {
@@ -34,66 +49,136 @@ export class CreatorList extends BasePaginatedList {
     // Zusätzliche Creator-spezifische Properties
     this.selectedCreator = this.selectedItems; // Alias für Kompatibilität
 
-    // View-Switch (Liste/Grid) mit separater Persistenz pro Modus
-    this._viewStorageKey = `creator-view-mode-${this.mode}`;
-    this.viewMode = this._readStoredViewMode(); // 'grid' (Default) | 'list'
+    this.groesseFilter = [];
+    this.generationFilter = '';
+    this.ansicht = readAnsicht();
+    this.sort = 'name';
+    this.videoTage = 0;
+    this._videoKey = '';
+    this._videoOrder = [];
     this.gridView = new CreatorGridView(this);
-
-    // Getrennte Zustände: welche Ansicht wurde mit welchen Kriterien geladen
-    this._listLoadedOnce = false;
     this._gridLoadedOnce = false;
-    this._listSignature = null;
 
     // Referenz auf Basis-loadData, um aus der Override heraus die Tabellen-Logik
     // aufrufen zu können.
     this._superLoadData = BasePaginatedList.prototype.loadData.bind(this);
   }
 
-  _readStoredViewMode() {
-    try {
-      const stored = window.localStorage?.getItem(this._viewStorageKey);
-      return stored === 'list' ? 'list' : 'grid';
-    } catch {
-      return 'grid';
-    }
-  }
-
-  _computeSignature() {
-    try {
-      return JSON.stringify(this.buildFilters());
-    } catch {
-      return String(Date.now());
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // IMPLEMENTIERUNG DER ABSTRAKTEN METHODEN
-  // ══════════════════════════════════════════════════════════════════════════
-
   /**
    * Lädt die Creator-Daten für eine Seite
    */
+  usesFilterColumn() {
+    return this.mode === 'all';
+  }
+
   async loadPageData(page, limit, filters) {
+    const sort = normalizeSort(filters?._sort);
+    if (sort === 'name') return this.loadNamePage(page, limit, filters);
+    if (sort === 'video30' || sort === 'video90' || sort === 'kooperation') {
+      const tage = sort === 'video30' ? 30 : sort === 'video90' ? 90 : 'alle';
+      return this.loadVideoPage(page, limit, filters, tage);
+    }
+    return this.loadCreatorPage(page, limit, filters);
+  }
+
+  async loadCreatorPage(page, limit, filters) {
+    const queryFilters = { ...filters };
+    delete queryFilters._videoTage;
+    delete queryFilters._sort;
+    // Summe über den Karten ist die genaue Trefferzahl, nicht die Schätzung fürs Weiterladen.
+    if (this.usesFilterColumn() && page === 1 && !queryFilters._idOnly) queryFilters._countExact = true;
+
     // Management-Modus: nur Creator mit aktiver Management-Verknüpfung laden
     if (this.mode === 'management' && window.supabase) {
       const ids = await this.loadManagementCreatorIds();
       if (!ids || ids.length === 0) {
         return { data: [], total: 0 };
       }
-      filters._allowedIds = ids;
+      queryFilters._allowedIds = ids;
     }
 
     const result = await window.dataService.loadEntitiesWithPagination(
       'creator',
-      filters,
+      queryFilters,
       page,
       limit
     );
-
+    
     return {
       data: result.data || [],
       total: result.total || 0
     };
+  }
+
+  orderBase(filters) {
+    const base = { ...filters };
+    delete base._videoTage;
+    delete base._sort;
+    delete base._sortBy;
+    delete base._sortOrder;
+    delete base._countExact;
+    delete base._idOnly;
+    return base;
+  }
+
+  async pageFromOrder(page, limit, order, stamp) {
+    const start = (page - 1) * limit;
+    const slice = (order || []).slice(start, start + limit);
+    if (!slice.length) return { data: [], total: order?.length || 0 };
+    const result = await this.loadCreatorPage(1, slice.length, { _allowedIds: slice.map((row) => row.id) });
+    const byId = new Map((result.data || []).map((creator) => [creator.id, creator]));
+    const data = slice.map((row) => {
+      const creator = byId.get(row.id);
+      if (creator && stamp) stamp(creator, row);
+      return creator;
+    }).filter(Boolean);
+    return { data, total: order.length };
+  }
+
+  async loadNamePage(page, limit, filters) {
+    const base = this.orderBase(filters);
+    const key = JSON.stringify(base);
+    if (this._nameKey !== key) {
+      const creators = await this.loadAllMatchingIds(base);
+      this._nameOrder = sortiereNachName(creators);
+      this._nameKey = key;
+    }
+    return this.pageFromOrder(page, limit, this._nameOrder);
+  }
+
+  async loadVideoPage(page, limit, filters, tage) {
+    const base = this.orderBase(filters);
+    const key = JSON.stringify(base);
+    if (this._videoKey !== key || this._videoTageCache !== tage) {
+      try {
+        const creators = await this.loadAllMatchingIds(base);
+        const counts = await ladeVideoAnzahl(window.supabase, tage);
+        this._videoOrder = sortiereNachVideos(creators, counts);
+        this._videoKey = key;
+        this._videoTageCache = tage;
+      } catch (error) {
+        console.error('Videozahl konnte nicht geladen werden', error);
+        window.toastSystem?.show('Videozahl konnte nicht geladen werden', 'error');
+        this.setSort('name', { reload: false });
+        return this.loadNamePage(page, limit, base);
+      }
+    }
+    return this.pageFromOrder(page, limit, this._videoOrder, (creator, row) => {
+      if (tage !== 'alle') creator.videos = row.anzahl;
+    });
+  }
+
+  async loadAllMatchingIds(filters) {
+    const creators = [];
+    const limit = 500;
+    let page = 1;
+    while (page < 20) {
+      const result = await this.loadCreatorPage(page, limit, { ...filters, _idOnly: true });
+      creators.push(...(result.data || []));
+      if ((result.data || []).length < limit) break;
+      page += 1;
+    }
+    return creators;
   }
 
   /**
@@ -126,23 +211,62 @@ export class CreatorList extends BasePaginatedList {
     this._managementCreatorIds = null;
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // VIEW-SWITCH (LISTE / GRID)
-  // ══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Override: lädt die aktuell aktive Ansicht. Die jeweils inaktive Ansicht
-   * wird dadurch veraltet und beim nächsten Wechsel neu synchronisiert.
-   */
+  /** Override: die Uebersicht ist immer das Grid, nie die Tabelle. */
   async loadData() {
-    if (this.viewMode === 'grid') {
-      this._gridLoadedOnce = true;
-      await this.gridView.reload();
-      return;
+    if (this._destroyed) return;
+    const scrollTop = this._gridLoadedOnce;
+    this._gridLoadedOnce = true;
+    this._nameKey = '';
+    this._videoKey = '';
+    this.writeSelectionToUrl();
+    await this.gridView.reload({ scrollTop });
+  }
+
+  onResultTotal(total) {
+    const el = document.getElementById('creator-result-count');
+    if (el) el.textContent = formatCreatorSumme(total);
+  }
+
+  readBarFromLocation() {
+    const selection = queryToSelection(window.location.search, {
+      groessen: GROESSEN,
+      generationen: GENERATIONEN.map((entry) => entry.label)
+    });
+    this.searchQuery = selection.search;
+    this.groesseFilter = selection.groesse;
+    this.generationFilter = selection.generation;
+    this.sort = selection.sort || 'name';
+    this.videoTage = this.sort === 'video30' ? 30 : this.sort === 'video90' ? 90 : 0;
+  }
+
+  writeSelectionToUrl() {
+    if (!this.usesFilterColumn()) return;
+    const filterIds = this._filterColumn
+      ? new Set(this._filterColumn.filters.map((filter) => filter.id))
+      : null;
+    const values = { ...filterSystem.getFilters(this.entityType) };
+    const params = selectionToQuery({
+      search: this.searchQuery,
+      groesse: this.usesFilterColumn() ? (Array.isArray(values.groesse) ? values.groesse : []) : this.groesseFilter,
+      generation: this.usesFilterColumn() ? (values.generation || '') : this.generationFilter,
+      sort: this.sort,
+      filters: values,
+      filterIds
+    });
+    const next = params.toString();
+    const url = next ? `/creator?${next}` : '/creator';
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (current === url) return;
+    try {
+      window.history.replaceState({ ...(window.history.state || {}), route: url }, '', url);
+    } catch {
+      // History nicht verfügbar
     }
-    this._listLoadedOnce = true;
-    await this._superLoadData();
-    this._listSignature = this._computeSignature();
+  }
+
+  async renderShell() {
+    if (this.usesFilterColumn() && !this._shellRendered) this.readBarFromLocation();
+    return super.renderShell();
   }
 
   /**
@@ -151,12 +275,11 @@ export class CreatorList extends BasePaginatedList {
    * @returns {Promise<boolean>} true = Full-Reload unterdrücken
    */
   async loadMoreForScroll() {
-    if (this.viewMode !== 'grid' || !this.gridView) return false;
+    if (!this.gridView) return false;
     return this.gridView.loadMoreForScroll();
   }
 
   async handleEntityUpdated(detail) {
-    if (this.viewMode !== 'grid') return false;
     if (!detail?.id) return false;
 
     const action = detail.action || '';
@@ -167,43 +290,9 @@ export class CreatorList extends BasePaginatedList {
     return this.gridView.refreshCard(detail.id);
   }
 
-  switchView(mode) {
-    if (mode !== 'grid' && mode !== 'list') return;
-    if (mode === this.viewMode) return;
-
-    this.viewMode = mode;
-    try { window.localStorage?.setItem(this._viewStorageKey, mode); } catch { /* ignore */ }
-
-    this._applyViewVisibility();
-    this._updateViewToggleButtons();
-
-    const needsLoad = mode === 'grid'
-      ? (!this._gridLoadedOnce || this.gridView.isStale())
-      : (!this._listLoadedOnce || this._listSignature !== this._computeSignature());
-
-    if (needsLoad) {
-      this.loadData();
-    }
-  }
-
-  _applyViewVisibility() {
-    const root = document.getElementById(`creator-views-${this.mode}`);
-    if (root) {
-      root.classList.toggle('view-grid', this.viewMode === 'grid');
-      root.classList.toggle('view-list', this.viewMode === 'list');
-    }
-  }
-
-  _updateViewToggleButtons() {
-    const listBtn = document.getElementById('btn-view-list');
-    const gridBtn = document.getElementById('btn-view-grid');
-    listBtn?.classList.toggle('active', this.viewMode === 'list');
-    gridBtn?.classList.toggle('active', this.viewMode === 'grid');
-  }
-
   destroy() {
+    clearTimeout(this._filterColumn?.timer);
     this.gridView?.destroy();
-    this._listLoadedOnce = false;
     this._gridLoadedOnce = false;
     super.destroy();
   }
@@ -213,13 +302,59 @@ export class CreatorList extends BasePaginatedList {
    */
   buildFilters() {
     const filters = super.buildFilters();
-
+    
     // Suchbegriff als name-Filter hinzufügen (sucht in vorname UND nachname)
     if (this.searchQuery && this.searchQuery.trim().length > 0) {
       filters.name = this.searchQuery.trim();
     }
+    if (!this.usesFilterColumn()) {
+      if (this.groesseFilter?.length) filters.groesse = [...this.groesseFilter];
+      if (this.generationFilter) filters.generation = this.generationFilter;
+    }
+    if (this.usesFilterColumn()) {
+      const sort = normalizeSort(this.sort);
+      filters._sort = sort;
+      if (sort === 'follower') {
+        filters._sortBy = 'instagram_follower';
+        filters._sortOrder = 'desc';
+      } else if (sort === 'rezension') {
+        filters._sortBy = 'rezension_schnitt';
+        filters._sortOrder = 'desc';
+      }
+    }
 
-    return filters;
+    return settleRezensionFilters(filters);
+  }
+
+  setSort(sort, { reload = true } = {}) {
+    const next = normalizeSort(sort);
+    this.sort = next;
+    this.videoTage = next === 'video30' ? 30 : next === 'video90' ? 90 : 0;
+    document.querySelectorAll('select[name="creator-sort"]').forEach((select) => {
+      select.value = next;
+    });
+    if (reload) this.loadData();
+  }
+
+  setFavoritVon(userId) {
+    if (!userId) return;
+    const current = { ...filterSystem.getFilters(this.entityType) };
+    current.favorit_von = [userId];
+    filterSystem.applyFilters(this.entityType, current);
+    const column = document.getElementById('creator-filter-column');
+    if (column && this._filterColumn) paintFilterValues(column, this._filterColumn.filters, current);
+    this._filterColumn?.renderChips();
+    this.pagination.currentPage = 1;
+    this.loadDataDebounced(50);
+  }
+
+  onFiltersReset() {
+    const column = document.getElementById('creator-filter-column');
+    if (column && this._filterColumn) paintFilterValues(column, this._filterColumn.filters, {});
+    filterSystem.resetFilters(this.entityType);
+    this.pagination.currentPage = 1;
+    this._filterColumn?.renderChips();
+    this.loadDataDebounced(50);
   }
 
   // Prüfe ob aktive Filter vorhanden

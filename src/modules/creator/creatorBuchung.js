@@ -60,3 +60,24 @@ export async function ladeVideoAnzahl(supabase, tage, jetzt = Date.now()) {
   if (error) throw error;
   return new Map((data || []).map((row) => [row.creator_id, Number(row.anzahl) || 0]));
 }
+
+export async function ladeKooperationsVideos(supabase, creatorIds) {
+  const { data: koops, error } = await supabase
+    .from('kooperationen')
+    .select('id, creator_id')
+    .in('creator_id', creatorIds);
+  if (error) throw error;
+  const koopToCreator = new Map((koops || []).map((row) => [row.id, row.creator_id]));
+  const counts = new Map();
+  if (!koopToCreator.size) return counts;
+  const { data, error: videoError } = await supabase
+    .from('kooperation_videos')
+    .select('kooperation_id')
+    .in('kooperation_id', [...koopToCreator.keys()]);
+  if (videoError) throw videoError;
+  for (const row of data || []) {
+    const creatorId = koopToCreator.get(row.kooperation_id);
+    if (creatorId) counts.set(creatorId, (counts.get(creatorId) || 0) + 1);
+  }
+  return counts;
+}

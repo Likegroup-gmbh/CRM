@@ -1,4 +1,4 @@
-import { berechnePreisAusViews, DEFAULT_TKP } from '../creator-auswahl/CreatorAuswahlTemplates.js';
+import { berechnePreisAusViews, DEFAULT_TKP } from '../creator-auswahl/castingPreisZellen.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { openDrawer } from './creatorDrawer.js';
 import { formatFollowerShort, searchTokens } from './creatorProfil.js';

@@ -9,7 +9,8 @@ import {
   renderColumnBody,
   readFiltersFromColumn,
   paintFilterValues,
-  groupColumnFilters
+  groupColumnFilters,
+  countActiveByGroup
 } from '../modules/creator/creatorFilterColumn.js';
 import { GROESSEN, GENERATIONEN } from '../modules/creator/creatorProfil.js';
 
@@ -80,20 +81,35 @@ describe('Filterspalte', () => {
     root.innerHTML = html;
 
     const groups = [...root.querySelectorAll('.creator-filter-group')];
-    expect(groups.map((group) => group.querySelector('summary').textContent)).toEqual([
+    expect(groups.map((group) => group.querySelector('.creator-filter-group__title').textContent)).toEqual([
       'Grundlagen', 'Social Media', 'Standort', 'Kontakt', 'Beziehungen', 'Zeit'
     ]);
+    expect(groups.every((group) => group.querySelector('[data-group-count]').hidden)).toBe(true);
     expect(groups[0].open).toBe(true);
     expect(groups[1].open).toBe(false);
     expect(root.textContent).toContain('Spielt Instrument');
     expect(root.textContent).not.toContain('Mehr anzeigen');
     expect(root.querySelector('.creator-filter-reset').textContent).toBe('Zurücksetzen');
-    expect(root.querySelector('.creator-sort legend').textContent).toBe('Sortierung');
-    expect(root.querySelector('input[name="creator-sort"][value="name"]').checked).toBe(true);
+    expect(root.querySelector('.creator-filter-sort .creator-filter-field__label').textContent).toBe('Sortieren nach');
+    expect(root.querySelector('select[name="creator-sort"]').value).toBe('name');
     const sorted = document.createElement('div');
     sorted.innerHTML = renderColumnBody(CREATOR_FILTERS, CREATOR_FILTER_GROUPS, {}, 'rezension');
-    expect(sorted.querySelector('input[name="creator-sort"][value="rezension"]').checked).toBe(true);
-    expect(sorted.querySelector('.creator-sort').nextElementSibling.classList.contains('creator-filter-group')).toBe(true);
+    expect(sorted.querySelector('select[name="creator-sort"]').value).toBe('rezension');
+    expect(sorted.querySelector('.creator-filter-sort').nextElementSibling.classList.contains('creator-filter-group')).toBe(true);
+  });
+
+  it('zählt aktive Filter je Gruppe', () => {
+    const sections = groupColumnFilters(CREATOR_FILTERS, CREATOR_FILTER_GROUPS);
+    const counts = countActiveByGroup(sections, { lieferadresse_stadt: 'Berlin', besitz_id: [], hat_haustier: false });
+    expect(counts.location).toBe(1);
+    expect(counts.basic).toBe(1);
+    expect(Object.values(counts).reduce((sum, n) => sum + n, 0)).toBe(2);
+
+    const root = document.createElement('div');
+    root.innerHTML = renderColumnBody(CREATOR_FILTERS, CREATOR_FILTER_GROUPS, { lieferadresse_stadt: 'Berlin' });
+    const badge = root.querySelector('.creator-filter-group[data-group="location"] [data-group-count]');
+    expect(badge.hidden).toBe(false);
+    expect(badge.textContent).toBe('1');
   });
 
   it('liest gesetzte Steuerungen und schreibt sie zurück', () => {

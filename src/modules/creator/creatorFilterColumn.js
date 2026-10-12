@@ -7,7 +7,6 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { loadSelectOptions } from '../../core/filters/FilterDropdownSelectOptions.js';
 import { renderFilterControl } from '../../core/filters/FilterDropdownRender.js';
 import { formatFilterValue } from '../../core/filters/FilterDropdownFormatApply.js';
-import { SIDEBAR_NARROW_QUERY } from '../../core/collapsiblePanel.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { CREATOR_SORTS, normalizeSort } from './creatorBuchung.js';
 import { GENERATIONEN, GROESSEN } from './creatorProfil.js';
@@ -16,6 +15,7 @@ import { queryToSelection } from './creatorFilterQuery.js';
 import { ladeFavoritPersonen } from './creatorFavorit.js';
 
 const STORAGE_KEY = 'creator-filter-column-collapsed';
+const SIDEBAR_NARROW_QUERY = '(max-width: 768px)';
 const APPLY_DELAY_MS = 250;
 
 function esc(value) {
@@ -85,25 +85,55 @@ export function groupColumnFilters(filters, groups) {
 export function renderSortBlock(sort = 'name') {
   const current = normalizeSort(sort);
   return `
-    <fieldset class="creator-sort">
-      <legend>Sortierung</legend>
-      <div class="radio-group">
-        ${CREATOR_SORTS.map((entry) => `
-          <label class="radio-option">
-            <input type="radio" name="creator-sort" value="${esc(entry.id)}"${entry.id === current ? ' checked' : ''}>
-            <span>${esc(entry.label)}</span>
-          </label>
-        `).join('')}
-      </div>
-    </fieldset>
+    <div class="creator-filter-sort">
+      <label class="creator-filter-field">
+        <span class="creator-filter-field__label">Sortieren nach</span>
+        <select class="filter-submenu-select" name="creator-sort">
+          ${CREATOR_SORTS.map((entry) => `
+            <option value="${esc(entry.id)}"${entry.id === current ? ' selected' : ''}>${esc(entry.label)}</option>
+          `).join('')}
+        </select>
+      </label>
+    </div>
   `;
+}
+
+export function countActiveByGroup(sections, values) {
+  const counts = {};
+  for (const section of sections) {
+    counts[section.id] = section.items.filter((filter) => isActive(values?.[filter.id])).length;
+  }
+  return counts;
+}
+
+function paintCounts(sections, values) {
+  const counts = countActiveByGroup(sections, values);
+  const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  document.querySelectorAll('.creator-filter-group[data-group]').forEach((group) => {
+    const badge = group.querySelector('[data-group-count]');
+    const n = counts[group.dataset.group] || 0;
+    if (badge) {
+      badge.textContent = String(n);
+      badge.hidden = n === 0;
+    }
+  });
+  const toggleBadge = document.getElementById('creator-filter-count');
+  if (toggleBadge) {
+    toggleBadge.textContent = String(total);
+    toggleBadge.hidden = total === 0;
+  }
 }
 
 export function renderColumnBody(filters, groups, values = {}, sort = 'name') {
   const sections = groupColumnFilters(filters, groups);
+  const counts = countActiveByGroup(sections, values);
   const groupsHtml = sections.map((section) => `
     <details class="creator-filter-group" data-group="${esc(section.id)}"${section.expanded ? ' open' : ''}>
-      <summary>${esc(section.label)}</summary>
+      <summary>
+        <span class="creator-filter-group__title">${esc(section.label)}</span>
+        <span class="filter-count-badge" data-group-count${counts[section.id] ? '' : ' hidden'}>${counts[section.id] || 0}</span>
+        <span class="creator-filter-group__chevron" aria-hidden="true">${icon('chevron-down')}</span>
+      </summary>
       <div class="creator-filter-group__body">
         ${section.items.map((filter) => `
           <label class="creator-filter-field" data-field="${esc(filter.id)}">
@@ -284,15 +314,17 @@ export async function mountCreatorFilterColumn(list, { debounceMs = APPLY_DELAY_
   const body = document.getElementById('creator-filter-column-body');
   if (body) body.innerHTML = renderColumnBody(filters, groups, values, list.sort);
 
+  const sections = groupColumnFilters(filters, groups);
   const api = {
     filters,
     timer: null,
     _chipReq: 0,
     async renderChips() {
+      const values = { ...filterSystem.getFilters('creator') };
+      paintCounts(sections, values);
       const host = document.getElementById('creator-column-chips');
       if (!host) return;
       const req = ++api._chipReq;
-      const values = { ...filterSystem.getFilters('creator') };
       const html = await chipHtml(filters, values);
       if (req !== api._chipReq) return;
       host.innerHTML = html;

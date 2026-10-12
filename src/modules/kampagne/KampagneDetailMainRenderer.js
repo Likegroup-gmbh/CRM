@@ -193,7 +193,7 @@ export function renderMainPage(state) {
           <div class="kampagne-tab-chrome" data-chrome="produktion">
             ${SearchInput.render('kampagne-koop', {
               placeholder: 'Suchen...',
-              currentValue: escapeAttr(searchQuery || '')
+              currentValue: searchQuery || ''
             })}
             ${(window.canFeature?.('mediaDownload') ?? false) ? `<button id="btn-download-finale" class="mdc-btn mdc-btn--secondary" title="Finale Videos der markierten Kooperationen herunterladen">Finale Videos downloaden</button>` : ''}
             ${canCreateKooperation ? `<button id="btn-new-kooperation" class="mdc-btn">Kooperation anlegen</button>` : ''}

@@ -7,14 +7,13 @@
 // bereits grosse CreatorList nicht mit Karten-Markup ueberladen wird. Datenladen,
 // Filter und Berechtigungen kommen von der uebergebenen CreatorList-Instanz.
 
-import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
-import { ageLabel, cardChips, formatFollowerShort, groesseOf, rankByName } from './creatorProfil.js';
-import { openCastingPicker } from './creatorCasting.js';
+import { rankByName } from './creatorProfil.js';
+import { renderCreatorCard, renderCreatorZeile } from './creatorCardRender.js';
 import { openCreatorSheet } from './creatorSheet.js';
-import { darfRezensionSehen, formatRezension } from './rezension.js';
-import { renderFavorit, renderFavoritNamen, toggleFavorit } from './creatorFavorit.js';
-import { renderTagZeile, passeTagZeilen } from './creatorTags.js';
+import { bindGridEvents } from './creatorGridEvents.js';
+import { ladeKooperationsVideos } from './creatorBuchung.js';
+import { passeTagZeilen } from './creatorTags.js';
 import { haengeMerkmaleAn } from './creatorMerkmale.js';
 import { getScrollContainer } from '../../core/NavigationScroll.js';
 
@@ -305,67 +304,7 @@ export class CreatorGridView {
 
   // ── Karten-Rendering ─────────────────────────────────────────────────────
   renderCard(c) {
-    if (this.list.ansicht === 'liste') return this.renderZeile(c);
-    const esc = (v) => window.validatorSystem?.sanitizeHtml?.(String(v ?? '')) ?? String(v ?? '');
-    const name = `${c.vorname || ''} ${c.nachname || ''}`.trim() || 'Unbekannt';
-    const id = c.id;
-
-    return `
-      <article class="creator-card" role="listitem" data-id="${id}">
-        <button type="button" class="creator-card__link" data-id="${id}" aria-label="Akte von ${esc(name)} öffnen"></button>
-        ${this._renderMedia(c)}
-        <div class="creator-card__body">
-          <div class="creator-card__header">
-            <h3 class="creator-card__name">${esc(name)}</h3>
-            <div class="creator-card__actions">
-              ${renderFavorit(c)}
-              ${this._renderActions(c)}
-            </div>
-          </div>
-          ${this._renderMeta(c)}
-          ${this._renderTagRow(c)}
-          ${renderTagZeile(c.tags)}
-          ${this._renderStats(c)}
-          <div class="creator-card__links">
-            <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm creator-card__casting" data-id="${id}">Ins Casting</button>
-          </div>
-        </div>
-      </article>
-    `;
-  }
-
-  renderZeile(c) {
-    const esc = (v) => window.validatorSystem?.sanitizeHtml?.(String(v ?? '')) ?? String(v ?? '');
-    const name = `${c.vorname || ''} ${c.nachname || ''}`.trim() || 'Unbekannt';
-    const id = c.id;
-    const stadt = c.lieferadresse_stadt ? esc(c.lieferadresse_stadt) : '';
-    const groesse = groesseOf(c);
-    const ig = c.instagram_follower ? formatFollowerShort(c.instagram_follower) : '';
-    const rezension = darfRezensionSehen() && c.rezension_schnitt != null
-      ? formatRezension(c.rezension_schnitt)
-      : '';
-    const videos = typeof c.videos === 'number' ? String(c.videos) : '';
-    const bits = [
-      stadt,
-      groesse,
-      ig ? `${ig} Instagram` : '',
-      rezension ? `${rezension} Rezension` : '',
-      videos !== '' ? `${videos} Videos` : ''
-    ].filter(Boolean);
-    return `
-      <article class="creator-card creator-card--zeile" role="listitem" data-id="${id}">
-        <button type="button" class="creator-card__link" data-id="${id}" aria-label="Akte von ${esc(name)} öffnen"></button>
-        ${this._renderMedia(c)}
-        <div class="creator-card__body">
-          <div class="creator-card__header">
-            <h3 class="creator-card__name">${esc(name)}</h3>
-            ${renderFavorit(c)}
-          </div>
-          <div class="creator-card__meta">${bits.map((bit) => `<span>${bit}</span>`).join('')}</div>
-          ${renderTagZeile(c.tags)}
-        </div>
-      </article>
-    `;
+    return this.list.ansicht === 'liste' ? renderCreatorZeile(c) : renderCreatorCard(c, this.list);
   }
 
   setAnsicht(ansicht) {
@@ -380,67 +319,6 @@ export class CreatorGridView {
     requestAnimationFrame(() => passeTagZeilen(container));
   }
 
-  _renderActions(c) {
-    const actionOptions = {};
-    if (!c.instagram) actionOptions.disabledActions = ['connect'];
-    if (c.ig_connected_at) actionOptions.igConnected = true;
-    return actionBuilder.create('creator', c.id, null, actionOptions);
-  }
-
-  _renderMedia(c) {
-    const esc = (v) => window.validatorSystem?.sanitizeHtml?.(String(v ?? '')) ?? String(v ?? '');
-    const name = `${c.vorname || ''} ${c.nachname || ''}`.trim() || 'Unbekannt';
-    // Cover fuellt die Kartenbreite im Quadrat - hier das Hauptbild, kein Thumb
-    const safeAvatar = c.profilbild_url ? window.validatorSystem?.sanitizeUrl?.(c.profilbild_url) : null;
-
-    const inner = safeAvatar
-      ? `<img src="${safeAvatar}" alt="${esc(name)}" class="creator-card__cover" loading="lazy" />`
-      : `<div class="creator-card__cover creator-card__cover--placeholder"><span>${esc((c.vorname || '?')[0].toUpperCase())}</span></div>`;
-
-    return `<div class="creator-card__media">${inner}</div>`;
-  }
-
-  _renderMeta(c) {
-    const stadt = c.lieferadresse_stadt ? this.list.renderLocationTag(c.lieferadresse_stadt, 'stadt') : '';
-    const age = ageLabel(c);
-    const ageHtml = age ? `<span class="creator-card__age">${this.list.sanitize(age)}</span>` : '';
-    const groesse = groesseOf(c);
-    const groesseHtml = groesse ? `<span class="creator-card__age">${this.list.sanitize(groesse)}</span>` : '';
-
-    if (!stadt && !ageHtml && !groesseHtml) return '';
-    return `<div class="creator-card__meta">${stadt}${ageHtml}${groesseHtml}</div>`;
-  }
-
-  _renderTagRow(c) {
-    const chips = cardChips(c.creator_types, c.branchen)
-      .map(({ label, art }) => `<span class="tag tag--${art}">${this.list.sanitize(label)}</span>`)
-      .join('');
-    if (!chips) return '';
-    return `<div class="creator-card__tags tags tags-compact">${chips}</div>`;
-  }
-
-  _renderStats(c) {
-    const stats = [];
-    if (darfRezensionSehen()) {
-      stats.push(`<div class="creator-card__stat"><span class="creator-card__stat-value">${formatRezension(c.rezension_schnitt)}</span><span class="creator-card__stat-label">Rezension</span></div>`);
-    }
-    if (typeof c.videos === 'number') {
-      stats.push(`<div class="creator-card__stat"><span class="creator-card__stat-value">${c.videos}</span><span class="creator-card__stat-label">Videos</span></div>`);
-    }
-    const ig = formatFollowerShort(c.instagram_follower);
-    const tt = formatFollowerShort(c.tiktok_follower);
-
-    if (ig != null) {
-      stats.push(`<div class="creator-card__stat"><span class="creator-card__stat-value">${ig}</span><span class="creator-card__stat-label">Instagram</span></div>`);
-    }
-    if (tt != null) {
-      stats.push(`<div class="creator-card__stat"><span class="creator-card__stat-value">${tt}</span><span class="creator-card__stat-label">TikTok</span></div>`);
-    }
-    stats.push(`<div class="creator-card__stat"><span class="creator-card__stat-value" data-video-count="${c.id}">0</span><span class="creator-card__stat-label">Kooperationsvideos</span></div>`);
-
-    return `<div class="creator-card__stats">${stats.join('')}</div>`;
-  }
-
   _remember(items) {
     if (!this._byId) this._byId = new Map();
     for (const creator of items || []) {
@@ -453,34 +331,12 @@ export class CreatorGridView {
     const ids = items.map((c) => c.id).filter(Boolean);
     if (!ids.length) return;
     try {
-      const { data: koops, error } = await window.supabase
-        .from('kooperationen')
-        .select('id, creator_id')
-        .in('creator_id', ids);
-      if (error) throw error;
-      const koopIds = (koops || []).map((row) => row.id);
-      let videoRows = [];
-      if (koopIds.length) {
-        const { data, error: videoError } = await window.supabase
-          .from('kooperation_videos')
-          .select('kooperation_id')
-          .in('kooperation_id', koopIds);
-        if (videoError) throw videoError;
-        videoRows = data || [];
-      }
+      const counts = await ladeKooperationsVideos(window.supabase, ids);
       if (reqId !== this._requestId || this.list._destroyed) return;
-      const koopToCreator = new Map((koops || []).map((row) => [row.id, row.creator_id]));
-      const counts = new Map();
-      for (const row of videoRows) {
-        const creatorId = koopToCreator.get(row.kooperation_id);
-        if (!creatorId) continue;
-        counts.set(creatorId, (counts.get(creatorId) || 0) + 1);
-      }
       const root = this.getContainer();
       for (const id of ids) {
         const node = root?.querySelector(`[data-video-count="${id}"]`);
-        if (!node) continue;
-        node.textContent = String(counts.get(id) || 0);
+        if (node) node.textContent = String(counts.get(id) || 0);
       }
     } catch (err) {
       console.warn('⚠️ CREATORGRID: Videoanzahl fehlgeschlagen', err?.message || err);
@@ -495,88 +351,11 @@ export class CreatorGridView {
 
   // ── Events ───────────────────────────────────────────────────────────────
   bindEvents(signal) {
-    document.addEventListener('click', async (e) => {
-      const favorit = e.target.closest('[data-action="toggle-favorit"]');
-      if (favorit && this._ownsNode(favorit)) {
-        e.preventDefault();
-        e.stopPropagation();
-        await this._toggleFavorit(favorit.dataset.id);
-        return;
-      }
-      const show = e.target.closest('[data-action="show-favoriten"]');
-      if (show && this._ownsNode(show)) {
-        e.preventDefault();
-        e.stopPropagation();
-        this._toggleNamen(show.dataset.id);
-        return;
-      }
-      const person = e.target.closest('[data-action="filter-favorit"]');
-      if (person && this._ownsNode(person)) {
-        e.preventDefault();
-        e.stopPropagation();
-        this.list.setFavoritVon?.(person.dataset.userId);
-        return;
-      }
-      const open = e.target.closest('.creator-card__link');
-      if (open && this._ownsNode(open)) {
-        e.preventDefault();
-        e.stopPropagation();
-        this.openKontakt(open.dataset.id);
-        return;
-      }
-      // Auch aus der Kontakt-Schublade heraus
-      const casting = e.target.closest('.creator-card__casting');
-      if (casting && (this._ownsNode(casting) || casting.closest('.drawer-panel'))) {
-        e.preventDefault();
-        e.stopPropagation();
-        const creator = this._byId?.get(casting.dataset.id);
-        if (creator) openCastingPicker(creator);
-        return;
-      }
-
-      // Retry nach Fehler
-      const retry = e.target.closest('.creator-grid-retry');
-      if (retry && retry.closest(`#${this.statusId}`)) {
-        e.preventDefault();
-        this.reload();
-      }
-    }, { signal });
-
-    window.addEventListener('creator-merkmale-changed', (event) => {
-      const detail = event.detail || {};
-      const creator = this._byId?.get(detail.id);
-      if (!creator) {
-        if (detail.favoritVon) this.list.setFavoritVon?.(detail.favoritVon);
-        return;
-      }
-      if (detail.favoriten) creator.favoriten = detail.favoriten;
-      if (detail.tags) creator.tags = detail.tags;
-      if (detail.favoritVon) this.list.setFavoritVon?.(detail.favoritVon);
-      else this._replaceCard(creator);
-    }, { signal });
+    bindGridEvents(this, signal);
   }
 
-  async _toggleFavorit(id) {
-    const creator = this._byId?.get(id);
-    if (!creator || !window.supabase) return;
-    try {
-      creator.favoriten = await toggleFavorit(window.supabase, id, creator.favoriten || []);
-      this._replaceCard(creator);
-    } catch (error) {
-      console.error('Favorit konnte nicht gesetzt werden', error);
-      window.toastSystem?.show('Favorit konnte nicht gesetzt werden', 'error');
-    }
-  }
 
-  _toggleNamen(id) {
-    const card = this._findCard(this.getContainer(), id);
-    const creator = this._byId?.get(id);
-    if (!card || !creator) return;
-    const host = card.querySelector('.creator-favorit');
-    const open = host?.querySelector('.creator-favorit__namen');
-    document.querySelectorAll('.creator-favorit__namen').forEach((node) => node.remove());
-    if (!open && host) host.insertAdjacentHTML('beforeend', renderFavoritNamen(creator.favoriten));
-  }
+
 
   _replaceCard(creator) {
     const container = this.getContainer();

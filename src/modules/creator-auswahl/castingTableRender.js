@@ -89,7 +89,7 @@ function renderAddSectionActions(ctx = {}) {
   return `
         ${SearchInput.render('sourcing-item', {
           placeholder: 'Name suchen...',
-          currentValue: escapeHtml(ctx.searchQuery || '')
+          currentValue: ctx.searchQuery || ''
         })}
         ${ctx.canCreate ? `
         <button type="button" class="mdc-btn" id="btn-open-add-drawer">

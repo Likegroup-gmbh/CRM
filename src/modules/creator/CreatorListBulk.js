@@ -4,10 +4,6 @@
 import { CreatorList } from './CreatorListCore.js';
 import { connectInstagramSilent } from '../../core/ActionsDropdownEffects.js';
 
-// ══════════════════════════════════════════════════════════════════════════
-// BULK INSTAGRAM CONNECT
-// ══════════════════════════════════════════════════════════════════════════
-
 /**
  * Basis-Query für nicht verbundene Creator (Instagram-Handle gesetzt,
  * ig_connected_at leer).
@@ -148,10 +144,6 @@ CreatorList.prototype.runBulkConnect = async function() {
   }
 };
 
-// ══════════════════════════════════════════════════════════════════════════
-// BULK DELETE
-// ══════════════════════════════════════════════════════════════════════════
-
 CreatorList.prototype.showDeleteSelectedConfirmation = async function() {
   const selectedCount = this.selectedItems.size;
   if (selectedCount === 0) {
@@ -159,8 +151,8 @@ CreatorList.prototype.showDeleteSelectedConfirmation = async function() {
     return;
   }
 
-  const message = selectedCount === 1
-    ? 'Möchten Sie den ausgewählten Creator wirklich löschen?'
+  const message = selectedCount === 1 
+    ? 'Möchten Sie den ausgewählten Creator wirklich löschen?' 
     : `Möchten Sie die ${selectedCount} ausgewählten Creator wirklich löschen?`;
 
   if (window.confirmationModal) {
@@ -175,9 +167,9 @@ CreatorList.prototype.showDeleteSelectedConfirmation = async function() {
 CreatorList.prototype.deleteSelectedCreators = async function() {
   const selectedIds = Array.from(this.selectedItems);
   const totalCount = selectedIds.length;
-
+  
   console.log(`🗑️ Lösche ${totalCount} Creator...`);
-
+  
   // Optimistisches UI-Update: Zeilen ausblenden
   selectedIds.forEach(id => {
     const row = document.querySelector(`tr[data-id="${id}"]`);
@@ -186,21 +178,21 @@ CreatorList.prototype.deleteSelectedCreators = async function() {
 
   try {
     const result = await window.dataService.deleteEntities('creator', selectedIds);
-
+    
     if (result.success) {
       selectedIds.forEach(id => {
         document.querySelector(`tr[data-id="${id}"]`)?.remove();
       });
-
+      
       alert(`✅ ${result.deletedCount} Creator erfolgreich gelöscht.`);
-
+      
       this.deselectAll();
-
+      
       const tbody = document.querySelector('.data-table tbody');
       if (tbody && tbody.children.length === 0) {
         await this.loadData();
       }
-
+      
       window.dispatchEvent(new CustomEvent('entityUpdated', {
         detail: { entity: 'creator', action: 'bulk-deleted', count: result.deletedCount }
       }));
@@ -212,10 +204,10 @@ CreatorList.prototype.deleteSelectedCreators = async function() {
       const row = document.querySelector(`tr[data-id="${id}"]`);
       if (row) row.style.opacity = '1';
     });
-
+    
     console.error('❌ Fehler beim Löschen:', error);
     alert(`❌ Fehler beim Löschen: ${error.message}`);
-
+    
     await this.loadData();
   }
 };
