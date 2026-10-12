@@ -87,6 +87,7 @@ export function renderForm() {
             <label class="form-label">Link Instagram</label>
             <input type="url" name="link_instagram" class="form-input" placeholder="https://instagram.com/...">
             <p id="ig-link-status" class="form-hint" hidden></p>
+            <div id="ig-db-hinweis" class="ig-db-hinweis" hidden></div>
           </div>
           <div class="form-field">
             <label class="form-label">Follower IG</label>
@@ -282,14 +283,7 @@ export function setupDbCreatorAutoSuggestion() {
       this.fillFormFromDbCreator(creator);
 
       document.getElementById('btn-remove-db-creator')?.addEventListener('click', () => {
-        this.selectedCreatorFromDb = null;
-        hiddenInput.value = '';
-        infoDiv.style.display = 'none';
-        if (ssContainer) ssContainer.style.display = '';
-        formFields.style.display = 'none';
-        selectEl.value = '';
-        const ssInput = ssContainer?.querySelector('.searchable-select-input');
-        if (ssInput) ssInput.value = '';
+        this.verwirfStammdatenAuswahl();
       });
 
     } catch (error) {
@@ -332,13 +326,17 @@ export function fillFormFromDbCreator(creator) {
     locationInput.value = creator.lieferadresse_stadt;
   }
 
-    const notizInput = document.querySelector('textarea[name="notiz"]');
-    if (notizInput && creator.notiz) {
-      notizInput.value = creator.notiz;
-    }
+  const mailInput = document.querySelector('input[name="email"]');
+  if (mailInput && creator.mail) mailInput.value = creator.mail;
 
-    this.nachStammdaten();
-  }
+  const telefonInput = document.querySelector('input[name="telefon"]');
+  if (telefonInput && creator.telefonnummer) telefonInput.value = creator.telefonnummer;
+
+  const notizInput = document.querySelector('textarea[name="notiz"]');
+  if (notizInput && creator.notiz) notizInput.value = creator.notiz;
+
+  this.nachStammdaten();
+}
 
 export function parseFollowerRange(rangeStr) {
   if (!rangeStr) return null;

@@ -4048,6 +4048,18 @@ input.readonly-field {
   color: var(--color-error);
 }
 
+.ig-db-hinweis__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.ig-db-hinweis__action {
+  padding: var(--space-xxs) var(--space-sm);
+  font-size: var(--text-xs);
+}
+
 /* Readonly-Kennzeichnung per Hintergrund (KampagnenartenMapping) */
 .input-readonly-bg {
   background-color: var(--gray-100);

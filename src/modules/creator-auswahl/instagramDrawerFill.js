@@ -5,6 +5,7 @@
 // Die Followerzahl folgt immer dem aktuellen Profil.
 
 import { parseSocialLink } from '../../core/format/socialLink.js';
+import { normalizeHandle } from '../creator/creatorProfil.js';
 
 export const IG_TEXT_FIELDS = ['name', 'email', 'telefon', 'wohnort', 'notiz'];
 
@@ -68,6 +69,26 @@ export function schuetzeGefuellte(owners, values) {
  * Reichweite, Bild und Pool-Bezug nur speichern, wenn sie zum Link im Feld
  * gehoeren. Follower und Textfelder kommen aus dem Formular.
  */
+/**
+ * Creator, deren Instagram-Handle zum Link passt. Gross/Klein und @ zaehlen
+ * nicht. Wer auf diesem Casting schon verknuepft ist, bleibt in der Liste,
+ * bekommt aber keine Uebernehmen-Aktion.
+ */
+export function stammdatenTreffer(creators, handle, castingCreatorIds = []) {
+  const ziel = normalizeHandle(handle);
+  if (!ziel) return [];
+  const aufCasting = new Set(castingCreatorIds.filter(Boolean));
+  return (creators || [])
+    .filter(creator => normalizeHandle(creator.instagram) === ziel)
+    .map(creator => ({
+      id: creator.id,
+      name: `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt',
+      handle: ziel,
+      bereitsAufCasting: aufCasting.has(creator.id),
+      creator
+    }));
+}
+
 export function statsForSave(payload, linkValue) {
   const handle = instagramProfilHandle(linkValue);
   if (!payload || !handle || String(payload.username || '').toLowerCase() !== handle) return null;

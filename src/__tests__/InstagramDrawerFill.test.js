@@ -7,6 +7,7 @@ import {
   leereIgOwners,
   markUserEdit,
   schuetzeGefuellte,
+  stammdatenTreffer,
   statsForSave
 } from '../modules/creator-auswahl/instagramDrawerFill.js';
 
@@ -98,6 +99,20 @@ describe('instagramDrawerFill', () => {
     expect(statsForSave(payload, 'https://www.instagram.com/bob/')).toBeNull();
     expect(statsForSave(payload, 'kein link')).toBeNull();
   });
+
+  it('erkennt denselben Handle und markiert, wer schon auf dem Casting steht', () => {
+    const creators = [
+      { id: 'c1', vorname: 'Ada', nachname: 'Lovelace', instagram: '@Ada' },
+      { id: 'c2', vorname: 'Ada', nachname: 'Zweite', instagram: 'https://instagram.com/ada/' },
+      { id: 'c3', vorname: 'Bob', nachname: 'Anders', instagram: 'bob' }
+    ];
+    const treffer = stammdatenTreffer(creators, 'https://www.instagram.com/ADA', ['c1']);
+    expect(treffer.map(t => t.id)).toEqual(['c1', 'c2']);
+    expect(treffer[0].bereitsAufCasting).toBe(true);
+    expect(treffer[1].bereitsAufCasting).toBe(false);
+    expect(treffer[0].name).toBe('Ada Lovelace');
+    expect(treffer[0].handle).toBe('ada');
+  });
 });
 
 describe('Creator hinzufuegen liest den Instagram-Link', () => {
@@ -106,6 +121,7 @@ describe('Creator hinzufuegen liest den Instagram-Link', () => {
   afterEach(() => {
     drawer?.remove();
     document.body.innerHTML = '';
+    delete window.supabase;
     vi.restoreAllMocks();
   });
 
@@ -248,5 +264,142 @@ describe('Creator hinzufuegen liest den Instagram-Link', () => {
     expect(document.querySelector('[name="wohnort"]').value).toBe('Berlin');
     expect(document.querySelector('[name="notiz"]').value).toBe('Aus Stammdaten');
     expect(document.querySelector('[name="email"]').value).toBe('ada@example.com');
+  });
+
+  function mitStammdaten(creators) {
+    window.supabase = {
+      from: () => ({
+        select: () => ({
+          ilike: () => ({
+            limit: () => Promise.resolve({ data: creators, error: null })
+          })
+        })
+      })
+    };
+  }
+
+  const ADA = {
+    id: 'c1',
+    vorname: 'Ada',
+    nachname: 'Lovelace',
+    instagram: '@ada',
+    mail: 'ada@firma.de',
+    telefonnummer: '+49111',
+    lieferadresse_stadt: 'Berlin',
+    notiz: 'Aus Stammdaten'
+  };
+
+  const BOB = {
+    id: 'c2',
+    vorname: 'Bob',
+    nachname: 'Anders',
+    instagram: 'bob',
+    mail: 'bob@firma.de'
+  };
+
+  async function hinweisAbwarten(text) {
+    await vi.waitFor(() => {
+      expect(document.getElementById('ig-db-hinweis').textContent).toMatch(text);
+    });
+  }
+
+  it('zeigt einen Treffer und uebernimmt ihn als Stammdaten', async () => {
+    oeffnen();
+    mitStammdaten([ADA]);
+    document.querySelector('[name="typ"]').value = 'UGC Paid';
+    await linkVerlassen('https://instagram.com/ada');
+    await hinweisAbwarten(/Ada Lovelace \(@ada\) ist schon in der Datenbank/);
+
+    document.querySelector('.ig-db-hinweis__action').click();
+    await vi.waitFor(() => {
+      expect(document.querySelector('#add-creator-drawer .view-toggle .mdc-btn.active').dataset.mode).toBe('database');
+    });
+    expect(document.getElementById('creator-name').value).toBe('Ada Lovelace');
+    expect(document.querySelector('[name="email"]').value).toBe('ada@firma.de');
+    expect(document.querySelector('[name="telefon"]').value).toBe('+49111');
+    expect(document.querySelector('[name="typ"]').value).toBe('UGC Paid');
+    expect(document.getElementById('ig-db-hinweis').hidden).toBe(true);
+    expect(drawer.selectedCreatorFromDb.id).toBe('c1');
+
+    document.getElementById('add-creator-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(creatorAuswahlService.createItem).toHaveBeenCalledTimes(1));
+    const saved = creatorAuswahlService.createItem.mock.calls[0][0];
+    expect(saved.creator_id).toBe('c1');
+    expect(saved.typ).toBe('UGC Paid');
+    expect(saved.name).toBe('Ada Lovelace');
+    expect(saved.email).toBe('ada@firma.de');
+  });
+
+  it('speichert ohne Uebernehmen ohne Stammdaten-Verknuepfung', async () => {
+    oeffnen();
+    mitStammdaten([ADA]);
+    await linkVerlassen('https://instagram.com/ada');
+    await hinweisAbwarten(/ist schon in der Datenbank/);
+    document.querySelector('[name="typ"]').value = 'Influencer';
+    document.getElementById('add-creator-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(creatorAuswahlService.createItem).toHaveBeenCalledTimes(1));
+    const saved = creatorAuswahlService.createItem.mock.calls[0][0];
+    expect(saved.creator_id).toBeNull();
+    expect(saved.name).toBe('Ada IG');
+  });
+
+  it('nennt einen schon verknuepften Creator ohne Uebernehmen-Aktion', async () => {
+    oeffnen();
+    drawer.detail.items = [{ creator_id: 'c1' }];
+    mitStammdaten([ADA, BOB]);
+    await linkVerlassen('https://instagram.com/ada');
+    await hinweisAbwarten(/steht schon auf diesem Casting/);
+    expect(document.querySelector('.ig-db-hinweis__action')).toBeNull();
+  });
+
+  it('listet mehrere Treffer und laesst einen waehlen', async () => {
+    oeffnen();
+    mitStammdaten([ADA, { ...ADA, id: 'c9', vorname: 'Ada', nachname: 'Zweite', instagram: 'ADA' }]);
+    await linkVerlassen('https://instagram.com/ada');
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll('.ig-db-hinweis__action')).toHaveLength(2);
+    });
+    document.querySelectorAll('.ig-db-hinweis__action')[1].click();
+    expect(drawer.selectedCreatorFromDb.id).toBe('c9');
+    expect(document.getElementById('creator-name').value).toBe('Ada Zweite');
+  });
+
+  it('nimmt die Verknuepfung per X zurueck und laesst das Formular stehen', async () => {
+    oeffnen();
+    mitStammdaten([ADA]);
+    document.querySelector('[name="typ"]').value = 'UGC Paid';
+    await linkVerlassen('https://instagram.com/ada');
+    await hinweisAbwarten(/ist schon in der Datenbank/);
+    document.querySelector('.ig-db-hinweis__action').click();
+    await vi.waitFor(() => expect(drawer.selectedCreatorFromDb?.id).toBe('c1'));
+
+    document.getElementById('btn-remove-db-creator').click();
+    expect(drawer.selectedCreatorFromDb).toBeNull();
+    expect(document.querySelector('#add-creator-drawer .view-toggle .mdc-btn.active').dataset.mode).toBe('new');
+    expect(document.getElementById('creator-name').value).toBe('Ada Lovelace');
+    expect(document.querySelector('[name="typ"]').value).toBe('UGC Paid');
+    expect(document.querySelector('.ig-db-hinweis__action')).toBeTruthy();
+
+    document.getElementById('add-creator-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(creatorAuswahlService.createItem).toHaveBeenCalledTimes(1));
+    expect(creatorAuswahlService.createItem.mock.calls[0][0].creator_id).toBeNull();
+    expect(creatorAuswahlService.createItem.mock.calls[0][0].name).toBe('Ada Lovelace');
+  });
+
+  it('hebt die Auswahl auf, wenn der Link auf ein anderes Profil wechselt', async () => {
+    oeffnen();
+    mitStammdaten([ADA, BOB]);
+    await linkVerlassen('https://instagram.com/ada');
+    await hinweisAbwarten(/Ada Lovelace/);
+    document.querySelector('.ig-db-hinweis__action').click();
+    await vi.waitFor(() => expect(drawer.selectedCreatorFromDb?.id).toBe('c1'));
+
+    const input = document.querySelector('input[name="link_instagram"]');
+    input.value = 'https://instagram.com/bob';
+    input.dispatchEvent(new FocusEvent('blur'));
+    await hinweisAbwarten(/Bob Anders \(@bob\)/);
+    expect(drawer.selectedCreatorFromDb).toBeNull();
+    expect(document.querySelector('#add-creator-drawer .view-toggle .mdc-btn.active').dataset.mode).toBe('new');
+    expect(document.getElementById('creator-name').value).toBe('Ada Lovelace');
   });
 });

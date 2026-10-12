@@ -13,8 +13,10 @@ import {
   markUserEdit,
   normalizedInstagramUrl,
   schuetzeGefuellte,
+  stammdatenTreffer,
   statsForSave
 } from './instagramDrawerFill.js';
+import { normalizeHandle } from '../creator/creatorProfil.js';
 
 const IG_LADE_TEXT = 'Instagram-Daten werden geladen…';
 
@@ -34,6 +36,9 @@ export class CreatorAuswahlAddDrawer {
     this.igHandle = null;
     this.igPending = false;
     this.igApplying = false;
+    this.dbRequest = (this.dbRequest || 0) + 1;
+    this.dbTreffer = [];
+    this.dbTrefferHandle = null;
   }
 
   open() {
@@ -143,6 +148,12 @@ export class CreatorAuswahlAddDrawer {
       const resolvedTyp = typ || (this.selectedCreatorFromDb ? 'Influencer' : null);
       if (!isAllowedCreatorTyp(resolvedTyp)) {
         window.toastSystem?.show('Ungültige Creator Art. Bitte gültigen Typ auswählen.', 'error');
+        submitBtn.disabled = false;
+        return;
+      }
+
+      if (this.selectedCreatorFromDb && this.istAufCasting(this.selectedCreatorFromDb.id)) {
+        window.toastSystem?.show('Creator ist bereits auf diesem Casting', 'error');
         submitBtn.disabled = false;
         return;
       }
@@ -301,13 +312,29 @@ export class CreatorAuswahlAddDrawer {
       this.igPending = false;
       this.igPayload = null;
       this.igHandle = null;
+      this.dbRequest += 1;
+      this.dbTreffer = [];
+      this.dbTrefferHandle = null;
+      if (this.selectedCreatorFromDb) this.verwirfStammdatenAuswahl();
+      else this.zeigeDbHinweis([]);
       this.setIgStatus(null);
       this.setSubmitLocked(false);
       return;
     }
 
+    if (this.selectedCreatorFromDb && normalizeHandle(this.selectedCreatorFromDb.instagram) !== handle) {
+      this.selectedCreatorFromDb = null;
+      this.dbTreffer = [];
+      this.dbTrefferHandle = null;
+      if (this.mode === 'database') this.verwirfStammdatenAuswahl();
+    }
+
     if (handle === this.igHandle && (this.igPayload || this.igPending)) {
-      if (this.igPayload) this.setzeNormalisiertenLink(handle);
+      if (this.igPayload) {
+        this.setzeNormalisiertenLink(handle);
+        this.schreibeVorschauInFelder(this.igPayload);
+      }
+      this.pruefeStammdaten(handle);
       return;
     }
 
@@ -317,6 +344,8 @@ export class CreatorAuswahlAddDrawer {
     this.igHandle = handle;
     this.setIgStatus(IG_LADE_TEXT);
     this.setSubmitLocked(true);
+    this.zeigeDbHinweis([]);
+    this.pruefeStammdaten(handle);
 
     try {
       const result = await creatorAuswahlService.previewInstagramStats(raw);
@@ -382,6 +411,201 @@ export class CreatorAuswahlAddDrawer {
   setSubmitLocked(locked) {
     const btn = document.getElementById('submit-btn');
     if (btn) btn.disabled = locked;
+  }
+
+  istAufCasting(creatorId) {
+    return (this.detail?.items || []).some(item => item.creator_id === creatorId);
+  }
+
+  castingCreatorIds() {
+    return (this.detail?.items || []).map(item => item.creator_id).filter(Boolean);
+  }
+
+  async sucheCreatorNachHandle(handle) {
+    if (!window.supabase) return [];
+    const { data, error } = await window.supabase
+      .from('creator')
+      .select('id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, lieferadresse_stadt, mail, telefonnummer, notiz')
+      .ilike('instagram', `%${handle}%`)
+      .limit(50);
+    if (error) throw error;
+    return data || [];
+  }
+
+  pruefeStammdaten(handle) {
+    if (this.selectedCreatorFromDb && normalizeHandle(this.selectedCreatorFromDb.instagram) === handle) {
+      this.zeigeDbHinweis([]);
+      return;
+    }
+    if (this.dbTrefferHandle === handle && Array.isArray(this.dbTreffer)) {
+      this.zeigeDbHinweis(stammdatenTreffer(this.dbTreffer, handle, this.castingCreatorIds()));
+      return;
+    }
+    const request = ++this.dbRequest;
+    this.dbTrefferHandle = handle;
+    this.dbTreffer = null;
+    this.ladeStammdatenTreffer(handle, request);
+  }
+
+  async ladeStammdatenTreffer(handle, request) {
+    try {
+      const rows = await this.sucheCreatorNachHandle(handle);
+      if (request !== this.dbRequest) return;
+      this.dbTreffer = rows;
+      if (this.selectedCreatorFromDb && normalizeHandle(this.selectedCreatorFromDb.instagram) === handle) {
+        this.zeigeDbHinweis([]);
+        return;
+      }
+      this.zeigeDbHinweis(stammdatenTreffer(rows, handle, this.castingCreatorIds()));
+    } catch (error) {
+      if (request !== this.dbRequest) return;
+      console.error('Stammdaten-Abgleich fehlgeschlagen:', error);
+      this.dbTreffer = [];
+      this.zeigeDbHinweis([]);
+    }
+  }
+
+  zeigeDbHinweis(eintraege) {
+    const el = document.getElementById('ig-db-hinweis');
+    if (!el) return;
+    if (!eintraege?.length) {
+      el.hidden = true;
+      el.replaceChildren();
+      return;
+    }
+    el.hidden = false;
+    el.replaceChildren();
+    for (const eintrag of eintraege) {
+      const row = document.createElement('p');
+      row.className = 'form-hint ig-db-hinweis__row';
+      const text = document.createElement('span');
+      text.textContent = eintrag.bereitsAufCasting
+        ? `${eintrag.name} (@${eintrag.handle}) steht schon auf diesem Casting.`
+        : `${eintrag.name} (@${eintrag.handle}) ist schon in der Datenbank.`;
+      row.appendChild(text);
+      if (!eintrag.bereitsAufCasting) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'mdc-btn mdc-btn--secondary ig-db-hinweis__action';
+        button.textContent = 'Aus der Datenbank übernehmen';
+        button.addEventListener('click', () => this.uebernimmStammdaten(eintrag.creator));
+        row.appendChild(button);
+      }
+      el.appendChild(row);
+    }
+  }
+
+  markiereModus(mode) {
+    this.mode = mode;
+    document.querySelectorAll('#add-creator-drawer .view-toggle .mdc-btn').forEach(button => {
+      button.classList.toggle('active', button.dataset.mode === mode);
+    });
+  }
+
+  liesFormular() {
+    const form = document.getElementById('add-creator-form');
+    const werte = {};
+    form?.querySelectorAll('input, textarea, select').forEach(el => {
+      if (el.name) werte[el.name] = el.value;
+    });
+    return werte;
+  }
+
+  schreibeFormular(werte) {
+    const form = document.getElementById('add-creator-form');
+    if (!form) return;
+    this.igApplying = true;
+    for (const [name, value] of Object.entries(werte || {})) {
+      const el = form.querySelector(`[name="${name}"]`);
+      if (el) el.value = value ?? '';
+    }
+    this.igApplying = false;
+  }
+
+  igZustand() {
+    return {
+      request: this.igRequest,
+      owners: { ...this.igOwners },
+      payload: this.igPayload,
+      handle: this.igHandle,
+      pending: this.igPending,
+      applying: this.igApplying,
+      dbRequest: this.dbRequest,
+      dbTreffer: this.dbTreffer,
+      dbTrefferHandle: this.dbTrefferHandle
+    };
+  }
+
+  igZustandSetzen(zustand) {
+    if (!zustand) return;
+    this.igRequest = zustand.request;
+    this.igOwners = zustand.owners;
+    this.igPayload = zustand.payload;
+    this.igHandle = zustand.handle;
+    this.igPending = zustand.pending;
+    this.igApplying = zustand.applying;
+    this.dbRequest = zustand.dbRequest;
+    this.dbTreffer = zustand.dbTreffer;
+    this.dbTrefferHandle = zustand.dbTrefferHandle;
+    if (zustand.pending) this.setSubmitLocked(true);
+  }
+
+  uebernimmStammdaten(creator) {
+    if (!creator || this.istAufCasting(creator.id)) return;
+    const werte = this.liesFormular();
+    const zustand = this.igZustand();
+    this.selectedCreatorFromDb = creator;
+    this.markiereModus('database');
+    const body = document.getElementById('add-creator-drawer-body');
+    if (!body) return;
+    body.innerHTML = this.renderForm();
+    this.bindFormEvents();
+    this.igZustandSetzen(zustand);
+    this.schreibeFormular(werte);
+    this.zeigeGewaehltenCreator(creator);
+    this.fillFormFromDbCreator(creator);
+  }
+
+  zeigeGewaehltenCreator(creator) {
+    const infoDiv = document.getElementById('db-selected-info');
+    const formFields = document.getElementById('add-creator-form-fields');
+    const search = document.querySelector('#add-creator-form .sourcing-search-section');
+    const hidden = document.getElementById('db-selected-creator-id');
+    if (hidden) hidden.value = creator.id || '';
+    if (search) search.hidden = true;
+    if (formFields) formFields.style.display = 'block';
+    if (!infoDiv) return;
+    infoDiv.style.display = 'block';
+    infoDiv.replaceChildren();
+    const tag = document.createElement('div');
+    tag.className = 'tag tag-selected-creator';
+    const label = document.createElement('span');
+    label.textContent = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt';
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'tag-remove';
+    remove.id = 'btn-remove-db-creator';
+    remove.textContent = '✕';
+    remove.addEventListener('click', () => this.verwirfStammdatenAuswahl());
+    tag.append(label, remove);
+    infoDiv.appendChild(tag);
+  }
+
+  verwirfStammdatenAuswahl() {
+    const werte = this.liesFormular();
+    const zustand = this.igZustand();
+    this.selectedCreatorFromDb = null;
+    this.markiereModus('new');
+    const body = document.getElementById('add-creator-drawer-body');
+    if (body) {
+      body.innerHTML = this.renderForm();
+      this.bindFormEvents();
+    }
+    this.igZustandSetzen(zustand);
+    this.schreibeFormular(werte);
+    const handle = instagramProfilHandle(werte.link_instagram);
+    if (handle) this.pruefeStammdaten(handle);
+    else this.zeigeDbHinweis([]);
   }
 
   remove() {
