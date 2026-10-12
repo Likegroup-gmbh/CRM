@@ -87,6 +87,7 @@ export function renderItemsRows(list, items) {
     const datum = s.created_at ? new Date(s.created_at).toLocaleDateString('de-DE') : '-';
     return `
       <tr class="table-row-clickable" data-id="${s.id}">
+        <td class="col-nr">${s.skript_nr || '–'}</td>
         <td class="col-name">
           <a href="#" class="table-link" data-table="skripte" data-id="${s.id}">
             ${list.sanitize(titel)}
@@ -106,7 +107,7 @@ export function renderItemsRows(list, items) {
   }).join('');
 }
 
-function itemsEmptyRow(list, title, colspan = 10) {
+function itemsEmptyRow(list, title, colspan = 11) {
   const html = resolveEmptyState({
     hasActiveFilters: list.hasActiveFilters(),
     states: {
@@ -322,7 +323,8 @@ export function renderCampaignsView(list) {
           <table class="data-table">
             <thead>
               <tr>
-                <th class="col-name">Titel</th>
+                <th class="col-nr">Nr.</th>
+              <th class="col-name">Titel</th>
                 <th>Creator</th>
                 <th>Status</th>
                 <th>Erstellt am</th>
@@ -436,6 +438,7 @@ export function renderItemsView(list) {
         <table class="data-table">
           <thead>
             <tr>
+              <th class="col-nr">Nr.</th>
               <th class="col-name">Titel</th>
               <th>Creator</th>
               <th>Status</th>
@@ -449,7 +452,7 @@ export function renderItemsView(list) {
             </tr>
           </thead>
           <tbody id="skripte-table-body">
-            <tr><td colspan="10" class="loading">Lade Skripte...</td></tr>
+            <tr><td colspan="11" class="loading">Lade Skripte...</td></tr>
           </tbody>
         </table>
       </div>

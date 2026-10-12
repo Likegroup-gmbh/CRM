@@ -54,8 +54,13 @@ export function buildFreigegebeneVideoideePickerOptions(items) {
   return buildPickerOptions(usable, {
     groupFor: (item, strategie) => strategie?.name || 'Konzept',
     subtitleFor: (item) => {
-      const teile = [creatorLabel(item)];
-      if (item.hasSkript) teile.push('hat bereits Skript');
+      const teile = [];
+      if (item.skript_nr) teile.push(`Nr. ${item.skript_nr}`);
+      teile.push(creatorLabel(item));
+      if (item.hasSkript) {
+        const stati = (item.skripte || []).map((s) => s.status_label).filter(Boolean);
+        teile.push(stati.length ? `hat bereits Skript (${stati.join(', ')})` : 'hat bereits Skript');
+      }
       return teile.join(' · ');
     }
   });

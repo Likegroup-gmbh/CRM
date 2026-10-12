@@ -7,6 +7,7 @@ import {
   reloadWorkflowPane
 } from './KampagneDetailWorkflow.js';
 import { handleVertragListAction } from '../vertrag/VertraegeListHandlers.js';
+import { syncSkriptGeloeschtLocal } from './skriptFreigabeSync.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { closeLinienMenu, koopLinie, toggleLinienMenu } from './linienScope.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
@@ -404,6 +405,13 @@ export function setupEvents(detail) {
     if (e.detail.entity === 'ansprechpartner' && e.detail.action === 'added' && e.detail.kampagneId === detail.kampagneId) {
       detail.loadCriticalData().then(() => detail.render());
     }
+  }, { signal });
+
+  // Skript gelöscht: Skripte-Pane (Cache) und Skript-Spalte der Videotabelle
+  window.addEventListener('entityUpdated', (e) => {
+    if (e.detail?.entity !== 'skripte' || e.detail.action !== 'deleted' || !e.detail.id) return;
+    syncSkriptGeloeschtLocal(detail, e.detail.id);
+    if (detail._workflowData?.skripte) void reloadWorkflowPane(detail, 'skripte');
   }, { signal });
 
   window.addEventListener('vertrag-signed-action', (e) => {

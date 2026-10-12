@@ -508,6 +508,15 @@ describe('docHeadActionsHtml', () => {
     expect(ohne).not.toContain('id="ed-freigeben"');
   });
 
+  it('zeigt Löschen nur mit kannLoeschen', () => {
+    const html = docHeadActionsHtml({ kannLoeschen: true });
+    expect(html).toContain('id="ed-loeschen"');
+    expect(html).toContain('mdc-btn--delete');
+
+    const ohne = docHeadActionsHtml({ kannLoeschen: false });
+    expect(ohne).not.toContain('id="ed-loeschen"');
+  });
+
   it('zeigt bei Status freigegeben ein Badge und keinen Button', () => {
     const html = docHeadActionsHtml({ status: 'freigegeben', kannFreigeben: false });
     expect(html).toContain('Freigegeben');

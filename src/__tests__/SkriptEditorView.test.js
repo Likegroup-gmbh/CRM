@@ -192,8 +192,9 @@ describe('SkriptEditorView Layout', () => {
     mockService.getVersionen.mockResolvedValue([]);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     view._likyShell?.destroy();
+    await view.cleanup();
     container.remove();
     localStorage.clear();
     vi.clearAllMocks();
@@ -639,6 +640,41 @@ describe('SkriptEditorView Layout', () => {
     await view.render(container, 's1');
 
     expect(container.querySelector('.skripte-editor').classList.contains('skripte-editor--liste-collapsed')).toBe(true);
+  });
+
+  it('Loeschen-Button nur mit can_delete', async () => {
+    const vorher = window.canDelete;
+    window.canDelete = vi.fn(() => false);
+    await view.render(container, 's1');
+    expect(container.querySelector('#ed-loeschen')).toBeNull();
+    view._likyShell?.destroy();
+
+    window.canDelete = vi.fn(() => true);
+    await view.render(container, 's1');
+    expect(container.querySelector('#ed-loeschen')).not.toBeNull();
+    window.canDelete = vorher;
+  });
+
+  it('entityUpdated deleted: fremdes Skript nur aus der Sidebar, offenes zurueck zur Herkunft', async () => {
+    window.navigateTo = vi.fn();
+    mockService.loadSkripte.mockResolvedValue([{ ...skript }, { ...skript, id: 's2', titel: 'Zweites' }]);
+    await view.render(container, 's1');
+    expect(container.querySelectorAll('.skripte-editor-liste-item')).toHaveLength(2);
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'skripte', action: 'deleted', id: 's2' } }));
+    expect(container.querySelectorAll('.skripte-editor-liste-item')).toHaveLength(1);
+    expect(window.navigateTo).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'briefing', action: 'deleted', id: 's1' } }));
+    expect(window.navigateTo).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'skripte', action: 'deleted', id: 's1' } }));
+    expect(window.navigateTo).toHaveBeenCalledWith('/skripte');
+
+    await view.cleanup();
+    window.navigateTo.mockClear();
+    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'skripte', action: 'deleted', id: 's1' } }));
+    expect(window.navigateTo).not.toHaveBeenCalled();
   });
 
   it('Visual-Button oeffnet Modus-Menue statt Direktstart', async () => {

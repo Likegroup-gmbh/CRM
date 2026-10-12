@@ -7,3 +7,5 @@ Keine Zeitmarker. Keine Shotlist. Kein Storyboard. Kein Text-Overlay-Protokoll, 
 Was man sieht, in einem Satz. Kein gesprochener Text, außer ein kurzer On-Screen-Satz wenn er zum Beat gehört.
 
 Orte und Props aus den anderen Sektionen behalten.
+
+Die Person im Bild heißt immer neutral „Creator“. Keine Namen, keine Handles, auch nicht, wenn sie im Kontext stehen.

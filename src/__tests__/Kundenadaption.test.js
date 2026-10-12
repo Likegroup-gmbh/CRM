@@ -73,6 +73,29 @@ describe('buildKundenadaptionPrompt', () => {
     expect(task).not.toContain('Transkript nicht verfuegbar');
   });
 
+  it('nennt ein verlinktes Produkt als einziges Ziel der Adaption', () => {
+    const { task } = buildKundenadaptionPrompt({
+      briefing: {},
+      produkte: [{ name: 'Toastie' }],
+      personas: [],
+      item: { umsetzungsvorgabe: 'Nur die Hook', transkript: 'Schau mal' },
+      produktVerlinkt: true
+    });
+    expect(task).toContain('Verlinktes Produkt (nur dieses adaptieren):\n- Name: Toastie');
+    expect(task).not.toContain('Produkte:');
+  });
+
+  it('bleibt bei "Produkte", wenn nichts verlinkt ist', () => {
+    const { task } = buildKundenadaptionPrompt({
+      briefing: {},
+      produkte: [{ name: 'A' }, { name: 'B' }],
+      personas: [],
+      item: { umsetzungsvorgabe: 'Nur die Hook', transkript: 'Schau mal' }
+    });
+    expect(task).toContain('Produkte:\n- Name: A');
+    expect(task).not.toContain('Verlinktes Produkt');
+  });
+
   it('weist ohne Transkript auf Umsetzungsvorgabe und Caption hin', () => {
     const { task } = buildKundenadaptionPrompt({
       briefing: {},

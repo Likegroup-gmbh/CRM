@@ -8,6 +8,7 @@ import { buildFreigegebeneVideoideePickerOptions } from '../strategie/strategieI
 import { buildReferenzVideoPayload } from './strategieVorlage.js';
 import { resolveSkriptCreatePayload } from './skriptCreateKontext.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { truncateText } from '../strategie/strategieItemPicker.js';
 
 const DRAWER_ID = 'skript-create-drawer';
 const PREFIX = 'skcreate';
@@ -96,6 +97,10 @@ class SkriptCreateDrawer {
             <label for="${PREFIX}-videoidee">Videoidee *</label>
             <select id="${PREFIX}-videoidee" class="form-input" disabled><option value="">– Erst Konzept wählen –</option></select>
             <span class="skripte-hint" id="${PREFIX}-videoidee-hint">Wähle zuerst ein Konzept.</span>
+          </div>
+          <div class="form-field" id="${PREFIX}-uebersicht" hidden>
+            <label>Skripte in diesem Konzept</label>
+            <ul class="skripte-create-uebersicht" id="${PREFIX}-uebersicht-liste"></ul>
           </div>
           <div class="form-field" id="${PREFIX}-kontext" hidden>
             <label>Creator</label>
@@ -294,6 +299,7 @@ class SkriptCreateDrawer {
 
     if (!strategieId) {
       this.items = [];
+      this.renderUebersicht();
       select.disabled = true;
       this.refreshSearchableSelect('videoidee', [], {
         placeholder: 'Videoidee suchen…',
@@ -307,6 +313,7 @@ class SkriptCreateDrawer {
       unternehmenId,
       strategieId
     });
+    this.renderUebersicht();
     const options = buildFreigegebeneVideoideePickerOptions(this.items);
     select.disabled = options.length === 0;
     this.refreshSearchableSelect('videoidee', options, {
@@ -333,6 +340,59 @@ class SkriptCreateDrawer {
     const item = this.items.find((i) => i.id === id) || null;
     this.selectedItem = item;
     this.renderCreator(item);
+    this.renderHinweisVorhanden(item);
+  }
+
+  /** Warnung, wenn zur gewählten Idee schon Skripte existieren. */
+  renderHinweisVorhanden(item) {
+    const hint = this.el('videoidee-hint');
+    if (!hint || !this.items.length) return;
+    if (!item?.hasSkript) {
+      hint.textContent = 'Nur Ideen, die im Konzept ausdrücklich freigegeben wurden.';
+      return;
+    }
+    const nr = item.skript_nr ? `Nr. ${item.skript_nr}` : 'Diese Idee';
+    hint.textContent = `${nr} hat schon ${item.skripte.length === 1 ? 'ein Skript' : `${item.skripte.length} Skripte`}. Beim Erstellen entsteht ein weiteres.`;
+  }
+
+  /** Alle freigegebenen Ideen des Konzepts: Nr., Creator, Status, Link zum Skript. */
+  renderUebersicht() {
+    const box = this.el('uebersicht');
+    const liste = this.el('uebersicht-liste');
+    if (!box || !liste) return;
+    if (!this.items.length) {
+      box.hidden = true;
+      liste.innerHTML = '';
+      return;
+    }
+
+    const sortiert = [...this.items].sort((a, b) => (a.skript_nr ?? Infinity) - (b.skript_nr ?? Infinity));
+    liste.innerHTML = sortiert.map((item) => {
+      const nr = item.skript_nr ? `${item.skript_nr}.` : '–';
+      const skripte = item.skripte || [];
+      const status = skripte.length
+        ? skripte.map((s) => `<a href="/skripte/${escapeHtml(s.id)}" class="table-link" data-skript-id="${escapeHtml(s.id)}">${escapeHtml(s.status_label)}</a>`).join(', ')
+        : '<span class="skripte-hint">Noch kein Skript</span>';
+      return `
+        <li class="skripte-create-uebersicht-zeile${skripte.length ? ' ist-generiert' : ''}">
+          <span class="skripte-create-uebersicht-nr">${nr}</span>
+          <span class="skripte-create-uebersicht-text" title="${escapeHtml(truncateText(item.beschreibung, 200))}">
+            ${escapeHtml(creatorName(item))} · ${escapeHtml(truncateText(item.beschreibung, 60))}
+          </span>
+          <span class="skripte-create-uebersicht-status">${status}</span>
+        </li>`;
+    }).join('');
+    box.hidden = false;
+
+    liste.querySelectorAll('a[data-skript-id]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+        e.preventDefault();
+        const id = a.dataset.skriptId;
+        closeSkriptCreateDrawer();
+        window.navigateTo?.(`/skripte/${id}`);
+      });
+    });
   }
 
   clearVideoidee() {

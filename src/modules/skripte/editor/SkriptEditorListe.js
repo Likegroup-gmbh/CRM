@@ -105,7 +105,7 @@ SkriptEditorView.prototype.renderListe = function() {
           ${listeCreatorHtml(creators) || '<span class="skripte-editor-liste-creator"></span>'}
           <span class="skripte-editor-liste-datum">${escapeHtml(formatDate(s.created_at))}</span>
         </span>
-        <span class="skripte-editor-liste-titel">${escapeHtml(s.titel || s.hook?.slice(0, 50) || '(ohne Titel)')}</span>
+        <span class="skripte-editor-liste-titel">${s.skript_nr ? `<span class="skripte-editor-liste-nr">${s.skript_nr}</span> ` : ''}${escapeHtml(s.titel || s.hook?.slice(0, 50) || '(ohne Titel)')}</span>
         ${listeVideoHtml(verknuepfungen)}
       </a>
     `;

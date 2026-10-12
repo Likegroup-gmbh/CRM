@@ -35,6 +35,33 @@ export function patchVideoStoreFreigabe(store, skriptId, { freigegeben, status }
   }
 }
 
+/** Gelöschtes Skript aus den Videos im Store nehmen. Die DB setzt skript_id
+ * per ON DELETE SET NULL; virtuell (Konzept) zugeordnete Videos verlieren
+ * auch die abgeleitete Freigabe. Die echte Spalte skript_freigegeben bleibt. */
+export function entferneSkriptAusVideoStore(store, skriptId) {
+  if (!store?.videos) return false;
+  let geaendert = false;
+  for (const koopId of Object.keys(store.videos)) {
+    for (const video of store.videos[koopId]) {
+      if (!videoGehoertZuSkript(video, skriptId)) continue;
+      store.updateVideo(video.id, {
+        skript_id: null,
+        skript: null,
+        ...(video._skriptAusKonzept ? { skript_freigegeben: false, _skriptAusKonzept: false } : {})
+      });
+      geaendert = true;
+    }
+  }
+  return geaendert;
+}
+
+/** Lokale Synchronisation nach dem Löschen eines Skripts: Store bereinigen,
+ * Produktionstabelle neu zeichnen (updateVideo allein rendert keine Zeilen). */
+export function syncSkriptGeloeschtLocal(detail, skriptId) {
+  const table = detail?.kooperationenVideoTable;
+  if (entferneSkriptAusVideoStore(table?.store || null, skriptId)) table.refilter();
+}
+
 /** Checkboxen im gemounteten Produktions-Grid setzen. Die Tabelle bleibt beim
  * Tab-Wechsel im DOM (nur versteckt), deshalb reicht ein DOM-Patch. */
 export function patchVideoCheckboxDom(skriptId, freigegeben, store) {

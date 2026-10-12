@@ -40,14 +40,14 @@ describe('SkriptListRenderer Items', () => {
     window.currentUser = { permissions: { creator: { can_view: true } } };
   });
 
-  it('Header-Reihenfolge Titel Creator Status Erstellt am Aktionen', () => {
+  it('Header-Reihenfolge Nr. Titel Creator Status Erstellt am ... Aktionen', () => {
     const doc = parseTable(renderItemsView(listStub()));
     const headers = Array.from(doc.querySelectorAll('thead th')).map((th) => th.textContent.trim());
-    expect(headers).toEqual(['Titel', 'Creator', 'Status', 'Erstellt am', 'Aktionen']);
-    expect(doc.querySelector('.loading').getAttribute('colspan')).toBe('5');
+    expect(headers).toEqual(['Nr.', 'Titel', 'Creator', 'Status', 'Erstellt am', 'Leistungszeitraum', 'Briefing', 'Produkt', 'Persona', 'Konzept', 'Aktionen']);
+    expect(doc.querySelector('.loading').getAttribute('colspan')).toBe('11');
   });
 
-  it('Creator-Zelle steht an Position 2 mit Avatar und Link', () => {
+  it('Creator-Zelle steht an Position 3 mit Avatar und Link', () => {
     const html = renderItemsRows(listStub(), [skript({
       strategie_item: {
         casting_eintrag: {
@@ -63,21 +63,22 @@ describe('SkriptListRenderer Items', () => {
     })]);
     const doc = parseTable(`<table><tbody>${html}</tbody></table>`);
     const cells = doc.querySelectorAll('td');
-    expect(cells).toHaveLength(5);
-    expect(cells[0].textContent.trim()).toBe('Hook Test');
-    expect(cells[1].classList.contains('col-name-with-icon')).toBe(true);
-    const link = cells[1].querySelector('a.table-link');
+    expect(cells).toHaveLength(11);
+    expect(cells[1].textContent.trim()).toBe('Hook Test');
+    expect(cells[2].classList.contains('col-name-with-icon')).toBe(true);
+    const link = cells[2].querySelector('a.table-link');
     expect(link.dataset.table).toBe('creator');
     expect(link.dataset.id).toBe('c1');
     expect(link.textContent).toBe('Lea Hoff');
-    expect(cells[1].querySelector('img.table-avatar')).not.toBeNull();
+    expect(cells[2].querySelector('img.table-avatar')).not.toBeNull();
   });
 
-  it('ohne Creator Dash in Spalte 2', () => {
+  it('ohne Creator Dash in Spalte 3, Nr. in Spalte 1', () => {
     const html = renderItemsRows(listStub(), [skript()]);
     const doc = parseTable(`<table><tbody>${html}</tbody></table>`);
     const cells = doc.querySelectorAll('td');
-    expect(cells[1].textContent).toBe('-');
-    expect(cells[1].querySelector('a')).toBeNull();
+    expect(cells[0].textContent).toBe('–');
+    expect(cells[2].textContent).toBe('-');
+    expect(cells[2].querySelector('a')).toBeNull();
   });
 });

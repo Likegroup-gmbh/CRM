@@ -143,6 +143,19 @@ async function loadIdeeInput(supabase, strategieId) {
 }
 
 /**
+ * Das am Item verlinkte Produkt (strategie_items.produkt_id), unabhaengig vom Briefing.
+ * Null ohne ID oder wenn das Produkt nicht lesbar ist.
+ */
+async function ladeItemProdukt(supabase, produktId) {
+  if (!produktId) return null;
+  const { data } = await supabase.from('produkt')
+    .select(PRODUKT_FELDER)
+    .eq('id', produktId)
+    .maybeSingle();
+  return data || null;
+}
+
+/**
  * Quoten aus job.input.proProdukt: [{ produkt_id, anzahl }].
  * Nur Produkte, die am Briefing haengen. Unbekannte IDs und Zahlen unter 1
  * fliegen raus, doppelte IDs addieren sich, die Summe wird auf ANZAHL_MAX
@@ -498,6 +511,8 @@ module.exports = {
   fmtProdukt,
   fmtPersona,
   loadIdeeInput,
+  loadPersonas,
+  ladeItemProdukt,
   buildPrompt,
   normalizeIdeenJson,
   validateIdeen,

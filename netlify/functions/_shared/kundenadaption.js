@@ -7,7 +7,7 @@ const { starteKiRequest } = require('./ki-log');
 const { shouldApplyKiBeschreibung } = require('./ki-beschreibung');
 const { fmtCampaignBriefing } = require('./skript-context/briefing-felder');
 const { kuerzeTranskript, cap } = require('./skript-context/formatter');
-const { loadIdeeInput, fmtProdukt, fmtPersona } = require('./strategie-idee');
+const { loadIdeeInput, loadPersonas, ladeItemProdukt, fmtProdukt, fmtPersona } = require('./strategie-idee');
 
 const KUNDENADAPTION_TOOL = {
   name: 'kundenadaption_abgeben',
@@ -52,9 +52,10 @@ function kundenadaptionAusTool(json) {
   return [absatz, '', ...punkte.map((p) => `- ${p}`)].join('\n');
 }
 
-function buildKundenadaptionPrompt({ briefing, produkte, personas, item } = {}) {
+function buildKundenadaptionPrompt({ briefing, produkte, personas, item, produktVerlinkt = false } = {}) {
   const briefingText = fmtCampaignBriefing(briefing) || '(Briefing ohne auswertbare Felder)';
   const produktText = (produkte || []).map(fmtProdukt).filter(Boolean).join('\n') || '(keine Produkte am Briefing)';
+  const produktLabel = produktVerlinkt ? 'Verlinktes Produkt (nur dieses adaptieren)' : 'Produkte';
   const personaText = (personas || []).map(fmtPersona).filter(Boolean).join('\n') || '(keine akzeptierten Personas)';
   const vorgabe = cap(item?.umsetzungsvorgabe, 2000);
   const beschreibung = cap(item?.beschreibung, 2000) || '(keine Beschreibung)';
@@ -91,7 +92,7 @@ ${transkriptHinweis}${transkript}
 Briefing:
 ${briefingText}
 
-Produkte:
+${produktLabel}:
 ${produktText}
 
 Personas:
@@ -107,7 +108,13 @@ async function generiereKundenadaptionText(supabase, { userId, strategieId, item
   if (blocker) throw new Error(blocker);
 
   const input = await loadIdeeInput(supabase, strategieId);
-  const { stable, task } = buildKundenadaptionPrompt({ ...input, item });
+  const verlinkt = await ladeItemProdukt(supabase, item?.produkt_id);
+  if (verlinkt) {
+    // Das verlinkte Produkt gewinnt gegen alle Briefing-Produkte
+    input.produkte = [verlinkt];
+    input.personas = await loadPersonas(supabase, input.briefing, [verlinkt.id]);
+  }
+  const { stable, task } = buildKundenadaptionPrompt({ ...input, item, produktVerlinkt: !!verlinkt });
   const ki = await starteKiRequest(supabase, { userId, feature: 'kundenadaption' });
   let fertig = false;
   try {
@@ -135,7 +142,7 @@ async function schreibeKundenadaptionWennLeer(supabase, {
   userId, itemId, strategieId, transkript, caption, onStep
 }) {
   const { data: current, error } = await supabase.from('strategie_items')
-    .select('video_link, beschreibung, umsetzungsvorgabe, kundenadaption, transkript, caption')
+    .select('video_link, beschreibung, umsetzungsvorgabe, kundenadaption, transkript, caption, produkt_id')
     .eq('id', itemId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -166,7 +173,7 @@ async function schreibeKundenadaptionWennLeer(supabase, {
 
 async function ersetzeKundenadaption(supabase, { userId, itemId }) {
   const { data: item, error } = await supabase.from('strategie_items')
-    .select('id, strategie_id, video_link, beschreibung, umsetzungsvorgabe, transkript, caption, kundenadaption')
+    .select('id, strategie_id, video_link, beschreibung, umsetzungsvorgabe, transkript, caption, kundenadaption, produkt_id')
     .eq('id', itemId)
     .maybeSingle();
   if (error) throw new Error(error.message);

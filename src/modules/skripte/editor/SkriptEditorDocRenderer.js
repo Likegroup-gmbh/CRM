@@ -6,6 +6,7 @@
 import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE } from '../SkripteService.js';
 import { formatVideoLaengeSchluessel } from '../../briefing/videolaenge.js';
 import { escapeHtml } from '../SkripteUtils.js';
+import { skriptNrLabel } from '../skriptNummern.js';
 import { renderInlineMd } from '../../../core/utils/inlineFormat.js';
 import { istMasterSkript, renderMasterMarkdownHtml } from '../master/skriptMasterFormat.js';
 import {
@@ -22,6 +23,23 @@ import { tauschBannerHtml, tauschSkriptButtonHtml } from './skriptTauschBanner.j
 
 function titelZelleHtml(skript) {
   return `<div class="skripte-editor-titel skripte-editor-sektion-text" data-sektion="titel" data-feld="titel" data-placeholder="Skript-Titel">${escapeHtml(skript?.titel || '')}</div>`;
+}
+
+/** Video-URL der Videoidee: live aus dem Konzept, sonst Snapshot aus dem Generator. */
+export function videoIdeeUrl(skript) {
+  const url = skript?.strategie_item?.video_link
+    || skript?.prompt_kontext?.referenz_video?.url
+    || skript?.prompt_kontext?.generator_payload?.referenz_video?.url
+    || '';
+  return /^https?:\/\//i.test(String(url).trim()) ? String(url).trim() : '';
+}
+
+function videoIdeeZeileHtml(skript) {
+  if (window.isKunde?.() || window.isGast?.()) return '';
+  const url = videoIdeeUrl(skript);
+  if (!url) return '';
+  const u = escapeHtml(url);
+  return `<div class="skripte-editor-videoidee"><span class="skripte-editor-videoidee-label">Video-Idee</span> <a href="${u}" target="_blank" rel="noopener noreferrer" class="skripte-editor-videoidee-link">${u}</a></div>`;
 }
 
 function pruefungHtml(skript) {
@@ -46,7 +64,7 @@ function docHeadHtml(skript, extraHtml = '', fallbackName = 'Skript') {
   return `
     <div class="skripte-editor-doc-head">
       ${renderToolbarListenKopf({
-        name: skript?.titel || fallbackName,
+        name: [skriptNrLabel(skript), skript?.titel].filter(Boolean).join(' · ') || fallbackName,
         logoUrl: marke?.logo_url || unternehmen?.logo_url || '',
         logoAlt: marke?.markenname || unternehmen?.firmenname || 'Logo'
       })}
@@ -393,6 +411,7 @@ export function skriptDocHtml({
   return `
     ${docHeadHtml(skript, docHeadActionsHtml, 'Skript')}
     ${titelZelleHtml(skript)}
+    ${videoIdeeZeileHtml(skript)}
     ${vorgabenPanelHtml}
     ${showExtra ? docTabsHtml(activeTab) : ''}
     <div class="skripte-editor-doc-panel" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>
@@ -410,9 +429,9 @@ export function skriptDocHtml({
   `;
 }
 
-/** Doc-Kopf: Version, Kundenfreigabe, optional Teilen, dann Creator-Zuweisen. */
+/** Doc-Kopf: Version, Kundenfreigabe, optional Teilen, dann Creator-Zuweisen, Löschen. */
 export function docHeadActionsHtml({
-  kannTeilen = false, kannFreigeben = false, status = '', verknuepfungenHtml = ''
+  kannTeilen = false, kannFreigeben = false, kannLoeschen = false, status = '', verknuepfungenHtml = ''
 } = {}) {
   const freigabeBadge = status === 'freigegeben'
     ? `<span class="skripte-badge skripte-badge--success" title="Vom Kunden freigegeben">Freigegeben</span>`
@@ -439,7 +458,19 @@ export function docHeadActionsHtml({
       <span class="mdc-btn__label">Senden</span>
     </button>` : ''}
     ${verknuepfungenHtml}
+    ${kannLoeschen ? `
+    <button type="button" class="mdc-btn mdc-btn--delete skripte-editor-share-btn" id="ed-loeschen"
+      title="Skript löschen">
+      <span class="mdc-btn__icon">${icon('trash')}</span>
+      <span class="mdc-btn__label">Löschen</span>
+    </button>` : ''}
   `;
+}
+
+function linkHtml(url) {
+  if (!/^https?:\/\//i.test(String(url).trim())) return escapeHtml(String(url));
+  const u = escapeHtml(String(url).trim());
+  return `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`;
 }
 
 /** Read-only Info: mit welchen Vorgaben das Skript generiert wurde. */
@@ -458,8 +489,7 @@ export function vorgabenPanelHtml(skript) {
   const referenzInfo = referenz ? [
     referenz.platform === 'tiktok' ? 'TikTok' : referenz.platform === 'instagram' ? 'Instagram' : null,
     referenz.author_name ? `@${referenz.author_name}` : null,
-    referenz.duration_seconds ? `${Math.round(referenz.duration_seconds)}s` : null,
-    referenz.url
+    referenz.duration_seconds ? `${Math.round(referenz.duration_seconds)}s` : null
   ].filter(Boolean).join(' · ') : null;
   const transkriptAuszug = referenz?.transkript_verwendet
     ? (referenz.transkript_verwendet.length > 220
@@ -471,6 +501,7 @@ export function vorgabenPanelHtml(skript) {
     ['Unternehmen', s.unternehmen?.firmenname],
     ['Briefing', briefingName],
     ['Videovorlage', referenzInfo],
+    ['Video-URL', referenz?.url ? { link: referenz.url } : null],
     ['Vorlage-Transkript', transkriptAuszug],
     ['Marke', s.marke?.markenname],
     ['Kampagne', s.kampagne?.eigener_name || s.kampagne?.kampagnenname],
@@ -500,7 +531,7 @@ export function vorgabenPanelHtml(skript) {
           ${zeilen.map(([label, wert]) => `
             <div class="skripte-editor-vorgaben-zeile">
               <dt>${escapeHtml(label)}</dt>
-              <dd>${escapeHtml(String(wert))}</dd>
+              <dd>${wert?.link ? linkHtml(wert.link) : escapeHtml(String(wert))}</dd>
             </div>
           `).join('')}
         </dl>

@@ -33,6 +33,7 @@ export class SkriptEditorView {
     this.pollInterval = null;
     this.onMouseUp = null;
     this.onDocMouseDown = null;
+    this.onEntityUpdated = null;
     this.inlineEdit = new InlineEdit({
       // Grid-Zellen lesen Markdown-sicher (strong/em -> **/*), Master-Zellen
       // (--md) behalten das bisherige innerText-Verhalten (null = Default)
@@ -119,6 +120,11 @@ export class SkriptEditorView {
   /** Teilen-Button im Doc-Kopf: nur intern und nur fuer ein geladenes Skript. */
   get kannTeilen() {
     return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false) && Boolean(this.skript?.id) && !this.neuModus;
+  }
+
+  /** Löschen im Doc-Kopf: nur intern, mit can_delete und für ein geladenes Skript. */
+  get kannLoeschen() {
+    return Boolean(window.isInternal?.()) && (window.canDelete?.('skripte') ?? false) && Boolean(this.skript?.id);
   }
 
   /** Freigeben: nur Share-Gast mit Bearbeiten-Recht, und nur aus Status Final. */

@@ -476,4 +476,47 @@ describe('Briefing DataPersistence', () => {
 
     expect(instance.formData.videolaenge).toEqual({ von: 15, bis: 60 });
   });
+
+  it('loadFromDB füllt Texte aus Legacy-Spalten und altem dos_donts vor', async () => {
+    const row = {
+      id: 'briefing-1',
+      bereich: 'paid_creator_ads',
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Alt',
+      pa_umsetzung: 'Produkt zeigen',
+      pa_situationen: 'Küche',
+      pa_learnings_text: 'Hook früh',
+      dos_donts: 'Authentisch bleiben'
+    };
+    const { sb } = mockSupabase({ row });
+    window.supabase = sb;
+
+    const instance = new BriefingCreate();
+    await instance.loadFromDB('briefing-1');
+
+    expect(instance.formData.aufgabe).toBe('Produkt zeigen');
+    expect(instance.formData.setting).toBe('Küche');
+    expect(instance.formData.learnings_text).toBe('Hook früh');
+    expect(instance.formData.dos).toBe('Authentisch bleiben');
+  });
+
+  it('loadFromDB: Flow-Werte gewinnen gegen Legacy und dos_donts', async () => {
+    const row = {
+      id: 'briefing-1',
+      bereich: 'paid_creator_ads',
+      unternehmen_id: 'u1',
+      aufgabe: 'Neu',
+      pa_umsetzung: 'Alt',
+      dos: 'Neu-Do',
+      dos_donts: 'Alt-Do'
+    };
+    const { sb } = mockSupabase({ row });
+    window.supabase = sb;
+
+    const instance = new BriefingCreate();
+    await instance.loadFromDB('briefing-1');
+
+    expect(instance.formData.aufgabe).toBe('Neu');
+    expect(instance.formData.dos).toBe('Neu-Do');
+  });
 });

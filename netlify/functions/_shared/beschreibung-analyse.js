@@ -7,6 +7,7 @@ const { starteKiRequest } = require('./ki-log');
 const { cloudflareCredentials, runDescription } = require('./video-transcribe');
 const { normalisiereStruktur, strukturZuText } = require('./beschreibung-struktur');
 const { gesperrterHook } = require('./hook-sperre');
+const { ladeItemProdukt } = require('./strategie-idee');
 
 function beschreibungBlocker(item) {
   if (!item?.video_link) return 'Nur eine Videoreferenz';
@@ -16,7 +17,7 @@ function beschreibungBlocker(item) {
 
 async function ersetzeBeschreibung(supabase, { userId, itemId }) {
   const { data: item, error } = await supabase.from('strategie_items')
-    .select('id, video_link, transkript, caption, hook_gesperrt, beschreibung, beschreibung_struktur')
+    .select('id, video_link, transkript, caption, hook_gesperrt, beschreibung, beschreibung_struktur, produkt_id')
     .eq('id', itemId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -33,7 +34,8 @@ async function ersetzeBeschreibung(supabase, { userId, itemId }) {
 
   let beschreibung;
   try {
-    beschreibung = await runDescription(item.transkript, item.caption, accountId, aiToken);
+    const produkt = await ladeItemProdukt(supabase, item.produkt_id);
+    beschreibung = await runDescription(item.transkript, item.caption, accountId, aiToken, produkt);
   } catch (e) {
     await ki.fehlgeschlagen(e);
     throw e;

@@ -133,14 +133,24 @@ export class EntityMutator {
         throw new Error(`Unbekannte Entität: ${entityType}`);
       }
 
-      const { error } = await window.supabase
+      const { data, error } = await window.supabase
         .from(entityConfig.table)
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) {
         console.error(`❌ Supabase Fehler beim Löschen von ${entityType}:`, error);
         return { success: false, error: error.message };
+      }
+
+      // RLS blockiert ein Delete ohne Fehler: 0 Zeilen = nichts gelöscht.
+      if (!data?.length) {
+        console.error(`❌ ${entityType} nicht gelöscht (0 Zeilen):`, id);
+        return {
+          success: false,
+          error: 'Nicht gelöscht: keine Berechtigung oder der Eintrag existiert nicht mehr.'
+        };
       }
 
       console.log(`✅ ${entityType} erfolgreich gelöscht:`, id);

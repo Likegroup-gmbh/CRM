@@ -131,7 +131,8 @@ function mitVerlauf(stable, task, history) {
 }
 
 const VISUELL_STIL_FALLBACK = 'Ein schlichter Satz pro Beat, was zu sehen ist. '
-  + 'Keine Zeitmarker, keine Shotlist, kein Storyboard.';
+  + 'Keine Zeitmarker, keine Shotlist, kein Storyboard. '
+  + 'Die Person im Bild heisst immer neutral "Creator", nie Name oder Handle.';
 
 let visuellStilCache = null;
 

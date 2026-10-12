@@ -219,6 +219,15 @@
   overflow: hidden;
 }
 
+.skripte-editor-liste-nr {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.skripte-editor-liste-nr::after {
+  content: '.';
+}
+
 /* Video-Tag unter dem Titel ("Video 2/4") */
 .skripte-editor-liste-video {
   align-self: flex-start;
@@ -676,6 +685,26 @@
 }
 
 /* Vorgaben-Panel: read-only Info, mit welchen Eingaben generiert wurde */
+.skripte-editor-videoidee {
+  padding: 0 var(--space-md) var(--space-sm);
+  font-size: var(--text-sm);
+  display: flex;
+  gap: var(--space-xs);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.skripte-editor-videoidee-label {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.skripte-editor-videoidee-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .skripte-editor-vorgaben-wrap {
   padding: var(--space-md);
   border-bottom: var(--border-xs) solid var(--border-primary);

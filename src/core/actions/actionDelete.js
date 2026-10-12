@@ -200,9 +200,12 @@ export async function confirmDelete(entityId, entityType) {
   }
 
   const result = await window.dataService.deleteEntity(entityType, entityId);
-  if (result?.success) {
-    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: entityType, action: 'deleted', id: entityId } }));
+  if (!result?.success) {
+    window.toastSystem?.show(result?.error || 'Löschen fehlgeschlagen.', 'error');
+    return;
   }
+  window.toastSystem?.show('Erfolgreich gelöscht', 'success');
+  window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: entityType, action: 'deleted', id: entityId } }));
 }
 
 async function confirmDeleteUnternehmen(entityId) {

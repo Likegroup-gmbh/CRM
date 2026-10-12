@@ -1,4 +1,4 @@
-// Detail/PDF: FLOW-Felder, sonst v1-Prefix-Katalog. Nicht fuer Edit.
+// Detail/PDF/Edit: FLOW-Felder, sonst v1-Prefix-Katalog (Fallback in resolveBriefingFieldValue).
 
 import { anzeigeWert } from './videolaenge.js';
 

@@ -17,14 +17,26 @@ SkriptEditorView.prototype.bindDocHeadActions = function(el) {
   this.bindShareButton(el);
   this.bindAnschreibenButton(el);
   this.bindFreigebenButton(el);
+  this.bindLoeschenButton(el);
 };
 
 SkriptEditorView.prototype.docHeadActions = function() {
   return docHeadActionsHtml({
     kannTeilen: this.kannTeilen,
     kannFreigeben: this.kannFreigeben,
+    kannLoeschen: this.kannLoeschen,
     status: this.skript?.status || '',
     verknuepfungenHtml: this.renderVerknuepfungenHtml()
+  });
+};
+
+// Gleicher Pfad wie das Aktionsmenü (Dialog, Toasts, entityUpdated); die
+// Rückkehr zur Herkunft macht der entityUpdated-Listener in bindEvents.
+SkriptEditorView.prototype.bindLoeschenButton = function(el) {
+  el.querySelector('#ed-loeschen')?.addEventListener('click', async () => {
+    if (!this.kannLoeschen) return;
+    const { handleDelete } = await import('../../../core/actions/actionDelete.js');
+    await handleDelete(this.skript.id, 'skripte');
   });
 };
 

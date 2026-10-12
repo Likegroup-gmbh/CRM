@@ -2,6 +2,7 @@
 // Oeffnen, Wechseln, Abbauen und Shell-Events des Skript-Editors (Prototype-Mixin).
 
 import { icon } from '../../../core/icons/IconSystem.js';
+import { backTarget } from '../../../core/breadcrumbTrail.js';
 import { skripteService } from '../SkripteService.js';
 import { escapeHtml, replaceSkriptUrl } from '../SkripteUtils.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
@@ -267,6 +268,10 @@ SkriptEditorView.prototype.cleanup = async function() {
     document.removeEventListener('mousedown', this.onDocMouseDown);
     this.onDocMouseDown = null;
   }
+  if (this.onEntityUpdated) {
+    window.removeEventListener('entityUpdated', this.onEntityUpdated);
+    this.onEntityUpdated = null;
+  }
   this.closeVersionMenu();
   this._listeCollapse?.destroy();
   this._listeCollapse = null;
@@ -305,6 +310,20 @@ SkriptEditorView.prototype.bindEvents = function() {
     }
   };
   document.addEventListener('mousedown', this.onDocMouseDown);
+
+  // Skript geloescht (Menue, Button, anderer Tab im selben Fenster): das
+  // geoeffnete zurueck zur Herkunft, ein anderes nur aus der Sidebar nehmen.
+  this.onEntityUpdated = (e) => {
+    const { entity, action, id } = e.detail || {};
+    if (entity !== 'skripte' || action !== 'deleted' || !id) return;
+    if (id === this.skript?.id) {
+      window.navigateTo(backTarget('/skripte'));
+      return;
+    }
+    this.skripte = this.skripte.filter((s) => s.id !== id);
+    this.renderListe();
+  };
+  window.addEventListener('entityUpdated', this.onEntityUpdated);
 
   // Selektions-Menue: nach Mouseup pruefen, ob Auswahl in einer Sektion liegt.
   // Laeuft auch fuer Kunden - sie sehen im Menue nur "Kommentieren".

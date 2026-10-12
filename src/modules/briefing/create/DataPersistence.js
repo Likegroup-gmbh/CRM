@@ -7,6 +7,7 @@ import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
 import { intervallOderNull, videolaengeAusBriefing } from '../videolaenge.js';
 import { ideenListe } from '../ideenSplit.js';
+import { resolveBriefingFieldValue } from '../briefingLegacy.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
 import { backTarget, returnTo } from '../../../core/breadcrumbTrail.js';
 import { linieRueckkehr } from '../../kampagne/linienScope.js';
@@ -497,17 +498,27 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
 
     // Alle bekannten Felder uebernehmen (Spaltennamen == formData-Keys)
     this.formData = {};
+    // Mit Legacy-Fallback (im_/pa_/os_), damit alte Briefings dieselben Texte
+    // zeigen wie die Detailansicht und beim Speichern nichts ueberschrieben wird.
     for (const field of getAllFields()) {
-      if (briefing[field.name] !== undefined && briefing[field.name] !== null) {
+      if (field.type === 'sekundenSpanne') continue;
+      const value = resolveBriefingFieldValue(briefing, field.name);
+      if (value !== undefined && value !== null) {
         // Listenfeld, das frueher ein Freitext war: String/Klumpen in Eintraege teilen,
         // sonst bleibt das Widget (prueft Array.isArray) leer
         this.formData[field.name] = field.type === 'repeatableText'
-          ? ideenListe(briefing[field.name])
-          : briefing[field.name];
+          ? ideenListe(value)
+          : value;
       }
     }
     const laenge = videolaengeAusBriefing(briefing);
     if (laenge) this.formData.videolaenge = laenge;
+
+    // Altes gemeinsames Do/Don't-Feld, solange dos/donts leer sind
+    if (!String(briefing.dos || '').trim() && !String(briefing.donts || '').trim()) {
+      const alt = String(briefing.dos_donts || '').trim();
+      if (alt) this.formData.dos = alt;
+    }
 
     if (briefing.aktivierung_name) this.formData.aktivierung_name = briefing.aktivierung_name;
     this.formData.bereich = briefing.bereich;

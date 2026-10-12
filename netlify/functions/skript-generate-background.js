@@ -36,9 +36,9 @@ const SKRIPT_TOOL = {
       hook: { type: 'string', description: 'Gesprochener Hook der Hauptvariante A. Jeder Beat ein eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hook_visuell.' },
       hauptteil: { type: 'string', description: 'Gesprochener Hauptteil der Hauptvariante A. Jeder Beat ein eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hauptteil_visuell.' },
       cta: { type: 'string', description: 'Gesprochener CTA der Hauptvariante A. Jeder Beat ein eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie cta_visuell.' },
-      hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat.' },
-      hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat.' },
-      cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat.' },
+      hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat. Die Person im Bild immer neutral "Creator" nennen, nie mit Namen oder Handle.' },
+      hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat. Die Person im Bild immer neutral "Creator" nennen, nie mit Namen oder Handle.' },
+      cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat. Die Person im Bild immer neutral "Creator" nennen, nie mit Namen oder Handle.' },
       rezept: { type: 'string', description: 'Rezept-Block unter dem CTA (volle Breite, kein Visual). Zutaten und Zubereitung kompakt aus der Caption der Videovorlage. NUR befuellen, wenn der Auftrag einen Rezept-Block waehlt - sonst weglassen.' },
       text_hook: { type: 'string', description: 'Kurzer On-Screen-Text-Hook (Texteinblendung im Hook, max. ca. 5 Woerter). NUR befuellen, wenn der Auftrag einen Text-Hook waehlt - sonst weglassen.' },
       caption: { type: 'string', description: 'Posting-Caption (Text unter dem Post, volle Breite unter dem Rezept bzw. CTA). NUR befuellen, wenn der Auftrag eine Caption waehlt - sonst weglassen.' },
@@ -113,7 +113,8 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', { gesperrterHook = nul
     + 'Variante A: hook/hauptteil/cta (gesprochen) plus hook_visuell/hauptteil_visuell/cta_visuell '
     + '(was zu sehen ist) – direkt mitgenerieren.\n'
     + 'WAS ZU SEHEN IST: ein schlichter Satz pro Beat, gleiche Absatz-Anzahl wie der gesprochene Text derselben Sektion. '
-    + 'Keine Zeitmarker, keine Shotlist, kein Produktions-Storyboard. Sekunden setzt das System nach dem Schreiben.\n'
+    + 'Keine Zeitmarker, keine Shotlist, kein Produktions-Storyboard. Sekunden setzt das System nach dem Schreiben. '
+    + 'Die Person im Bild heisst dort immer neutral "Creator" - nie Name oder Handle aus dem Kontext.\n'
     + 'hook_varianten: genau zwei oder drei alternative GESPROCHENE Hooks, deutlich anders als Variante A. '
     + 'Nur Sprechertext, kein Visual, kein Hauptteil/CTA. NICHT in inhalt_md wiederholen.\n'
     + 'Tabellen nur in den Zusatzinfos und nur wenn noetig, dann als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'

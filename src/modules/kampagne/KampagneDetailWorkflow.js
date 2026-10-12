@@ -574,6 +574,7 @@ async function renderSkriptePane(detail) {
       : `<span class="tag tag--status ${statusVariant}">${esc(statusLabel)}</span>`;
     return `
       <tr>
+        <td>${s.skript_nr || '–'}</td>
         <td class="col-name">
           <a href="/skripte/${s.id}" class="table-link" data-table="skripte" data-id="${s.id}">
             ${esc(titel)}
@@ -592,6 +593,7 @@ async function renderSkriptePane(detail) {
       <table class="data-table">
         <thead>
           <tr>
+            <th>Nr.</th>
             <th>Titel</th>
             <th>Creator</th>
             <th>Status</th>

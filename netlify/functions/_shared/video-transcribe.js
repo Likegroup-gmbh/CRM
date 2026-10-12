@@ -144,10 +144,20 @@ Felder (alle Strings):
 - hauptteil: was im Mittelteil passiert, beschreibend in zwei bis vier Saetzen. Keine woertliche Wiedergabe.
 - cta: der Aufruf am Ende, woertlich aus dem Transkript oder der Caption. Leerer String, wenn keiner vorkommt.
 
+Ist ein verlinktes Produkt genannt, dient es nur zur Einordnung des Angles. Hook und CTA bleiben woertlich aus dem Transkript, Produktmerkmale werden nicht erfunden oder ins Video hineingedeutet.
+
 Erfinde nichts. Antworte NUR mit dem JSON-Objekt, ohne Einleitung und ohne Markdown.`;
 
-function describeContext(transcript, caption) {
+function produktKontext(produkt) {
+  if (!produkt?.name) return '';
+  const kurz = String(produkt.kurzbeschreibung || '').trim().slice(0, 400);
+  return `Verlinktes Produkt: ${produkt.name}${kurz ? ` (${kurz})` : ''}`;
+}
+
+function describeContext(transcript, caption, produkt = null) {
   const contextParts = [];
+  const produktText = produktKontext(produkt);
+  if (produktText) contextParts.push(produktText);
   if (caption) contextParts.push(`Video-Caption: "${caption}"`);
   contextParts.push(`Transkript:\n${transcript}`);
   return contextParts.join('\n\n');
@@ -172,11 +182,11 @@ async function runLlama(accountId, aiToken, body) {
   return json.result?.response ?? '';
 }
 
-async function runPlainDescription(transcript, caption, accountId, aiToken) {
+async function runPlainDescription(transcript, caption, accountId, aiToken, produkt = null) {
   const response = await runLlama(accountId, aiToken, {
     messages: [
       { role: 'system', content: BESCHREIBUNG_SYSTEM_PLAIN },
-      { role: 'user', content: describeContext(transcript, caption) }
+      { role: 'user', content: describeContext(transcript, caption, produkt) }
     ],
     max_tokens: 512
   });
@@ -188,13 +198,15 @@ async function runPlainDescription(transcript, caption, accountId, aiToken) {
  * Erst mit JSON-Schema, dann ohne (Modell/Plan ohne JSON-Modus). Ist die Antwort
  * nicht lesbar, faellt es auf den alten Fliesstext zurueck: struktur ist dann null.
  *
+ * produkt (optional): das am Item verlinkte Produkt, nur als Kontext.
+ *
  * @returns {Promise<{ struktur: Object|null, text: string }>}
  */
-async function runDescription(transcript, caption, accountId, aiToken) {
+async function runDescription(transcript, caption, accountId, aiToken, produkt = null) {
   const body = {
     messages: [
       { role: 'system', content: BESCHREIBUNG_SYSTEM_STRUKTUR },
-      { role: 'user', content: describeContext(transcript, caption) }
+      { role: 'user', content: describeContext(transcript, caption, produkt) }
     ],
     max_tokens: 700
   };
@@ -216,7 +228,7 @@ async function runDescription(transcript, caption, accountId, aiToken) {
   const struktur = parseStruktur(response);
   if (struktur) return { struktur, text: strukturZuText(struktur) };
 
-  const text = await runPlainDescription(transcript, caption, accountId, aiToken);
+  const text = await runPlainDescription(transcript, caption, accountId, aiToken, produkt);
   return { struktur: null, text };
 }
 

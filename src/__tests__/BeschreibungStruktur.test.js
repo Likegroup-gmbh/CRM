@@ -182,7 +182,7 @@ describe('ersetzeBeschreibung (Netlify)', () => {
   const { ersetzeBeschreibung, beschreibungBlocker } = require('../../netlify/functions/_shared/beschreibung-analyse.js');
 
   /** Chainbarer Supabase-Stub: ki_requests zaehlt 0, strategie_items liefert das Item und merkt Updates. */
-  function fakeSupabase(item) {
+  function fakeSupabase(item, produkt = null) {
     const updates = [];
     const chain = (table, state = {}) => new Proxy(function () {}, {
       get(_t, prop) {
@@ -190,7 +190,7 @@ describe('ersetzeBeschreibung (Netlify)', () => {
           const result = table === 'ki_requests' ? { count: 0, data: null, error: null } : { data: null, error: null };
           return (resolve) => resolve(result);
         }
-        if (prop === 'maybeSingle') return async () => ({ data: item, error: null });
+        if (prop === 'maybeSingle') return async () => ({ data: table === 'produkt' ? produkt : item, error: null });
         if (prop === 'single') return async () => ({ data: { id: 'ki-1' }, error: null });
         if (prop === 'update') {
           return (patch) => {
@@ -234,6 +234,38 @@ describe('ersetzeBeschreibung (Netlify)', () => {
     expect(result.beschreibung_quelle).toBe('ki');
     expect(result.beschreibung.split('\n')[0]).toBe(STRUKTUR.titel);
     expect(supabase.updates).toContainEqual(result);
+  });
+
+  it('gibt das verlinkte Produkt als Kontext an die KI', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, result: { response: JSON.stringify(STRUKTUR) } })
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const supabase = fakeSupabase(
+      { id: 'i1', video_link: 'https://tiktok.com/x', transkript: 'Text', caption: '', produkt_id: 'p1' },
+      { id: 'p1', name: 'Leggings X', kurzbeschreibung: 'Bequem und stabil' }
+    );
+
+    await ersetzeBeschreibung(supabase, { userId: 'u1', itemId: 'i1' });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const user = body.messages.find((m) => m.role === 'user').content;
+    expect(user).toContain('Verlinktes Produkt: Leggings X (Bequem und stabil)');
+  });
+
+  it('lässt den Produktblock ohne Link weg', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, result: { response: JSON.stringify(STRUKTUR) } })
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const supabase = fakeSupabase({ id: 'i1', video_link: 'https://tiktok.com/x', transkript: 'Text', caption: '' });
+
+    await ersetzeBeschreibung(supabase, { userId: 'u1', itemId: 'i1' });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.messages.find((m) => m.role === 'user').content).not.toContain('Verlinktes Produkt');
   });
 
   it('wirft ohne Transkript und schreibt nichts', async () => {

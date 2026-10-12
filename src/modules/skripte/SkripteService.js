@@ -6,6 +6,8 @@ import { dropAnschreibenWarm } from '../../core/anschreiben/openAnschreiben.js';
 import { FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
 import { briefingVorgaben } from './briefingVorgaben.js';
+import { berechneSkriptNummern, mitSkriptNummern } from './skriptNummern.js';
+import { STATUS_LABELS } from './SkripteUtils.js';
 
 export { FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
@@ -122,12 +124,40 @@ export class SkripteService {
     if (items.length === 0) return [];
 
     const { data: skripte, error: skriptErr } = await this.db.from('skripte')
-      .select('strategie_item_id')
-      .in('strategie_item_id', items.map((i) => i.id));
+      .select('id, titel, status, strategie_item_id, created_at')
+      .in('strategie_item_id', items.map((i) => i.id))
+      .order('created_at', { ascending: true });
     if (skriptErr) throw new Error(skriptErr.message);
 
-    const mitSkript = new Set((skripte || []).map((s) => s.strategie_item_id));
-    return items.map((item) => ({ ...item, hasSkript: mitSkript.has(item.id) }));
+    const proItem = new Map();
+    for (const sk of skripte || []) {
+      const liste = proItem.get(sk.strategie_item_id) || [];
+      liste.push({ id: sk.id, titel: sk.titel, status: sk.status, status_label: STATUS_LABELS[sk.status] || sk.status || '–' });
+      proItem.set(sk.strategie_item_id, liste);
+    }
+
+    // Gleiche Nummern wie in Liste/Editor: Rang unter allen Ideen des Konzepts
+    const nummern = await this.loadKonzeptNummern(strategieId, [...proItem.keys()]);
+
+    return items.map((item) => ({
+      ...item,
+      hasSkript: proItem.has(item.id),
+      skripte: proItem.get(item.id) || [],
+      skript_nr: nummern.get(item.id) ?? null
+    }));
+  }
+
+  /** Skript-Nummern (Map itemId -> Nr.) aller Ideen eines Konzepts. */
+  async loadKonzeptNummern(strategieId, itemIdsMitSkript = []) {
+    if (!strategieId) return new Map();
+    const { data, error } = await this.db.from('strategie_items')
+      .select('id, strategie_id, sortierung, skript_freigabe, nicht_umsetzen, ist_vorschlag')
+      .eq('strategie_id', strategieId);
+    if (error) {
+      console.warn('Skript-Nummern konnten nicht geladen werden:', error.message);
+      return new Map();
+    }
+    return berechneSkriptNummern(data || [], itemIdsMitSkript);
   }
 
   /** Einzelnes Strategie-Item voll (mit Transkript) - erst beim Select. */
@@ -209,7 +239,7 @@ export class SkripteService {
       .select(`id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name, start, deadline, auftrag:auftrag_id(start, ende)), branchen(name),
         briefing:briefing_id(id, aktivierung_name), produkt(id, name), personas(id, name),
         strategie_item:strategie_item_id(
-          id, creator_name, creator_auswahl_item_id,
+          id, strategie_id, creator_name, creator_auswahl_item_id,
           strategie:strategie_id(id, name),
           casting_eintrag:creator_auswahl_item_id(
             id, name, creator_id,
@@ -234,7 +264,35 @@ export class SkripteService {
     const { data, error } = await query;
 
     if (error) throw new Error(error.message);
-    return this.attachListeCreators(data || []);
+    const mitNr = await this.attachSkriptNummern(data || []);
+    return this.attachListeCreators(mitNr);
+  }
+
+  /**
+   * Laufende Skript-Nummer je Konzept (siehe skriptNummern.js). Die Ranglisten
+   * kommen aus allen Ideen der betroffenen Konzepte, nicht aus der gefilterten
+   * Liste. Fehler hier lassen die Anzeige nie kippen (dann ohne Nummer).
+   */
+  async attachSkriptNummern(skripte) {
+    const itemIds = [...new Set((skripte || []).map((s) => s.strategie_item?.id || s.strategie_item_id).filter(Boolean))];
+    const strategieIds = [...new Set((skripte || []).map((s) => s.strategie_item?.strategie_id).filter(Boolean))];
+    if (!itemIds.length) return mitSkriptNummern(skripte, new Map());
+
+    let strategieIdsAlle = strategieIds;
+    if (!strategieIdsAlle.length) {
+      const { data } = await this.db.from('strategie_items').select('id, strategie_id').in('id', itemIds);
+      strategieIdsAlle = [...new Set((data || []).map((i) => i.strategie_id).filter(Boolean))];
+    }
+    if (!strategieIdsAlle.length) return mitSkriptNummern(skripte, new Map());
+
+    const { data, error } = await this.db.from('strategie_items')
+      .select('id, strategie_id, sortierung, skript_freigabe, nicht_umsetzen, ist_vorschlag')
+      .in('strategie_id', strategieIdsAlle);
+    if (error) {
+      console.warn('Skript-Nummern konnten nicht geladen werden:', error.message);
+      return mitSkriptNummern(skripte, new Map());
+    }
+    return mitSkriptNummern(skripte, berechneSkriptNummern(data || [], itemIds));
   }
 
   /**
@@ -264,7 +322,7 @@ export class SkripteService {
     const { data, error } = await this.db.from('skripte')
       .select(`*, unternehmen(firmenname, logo_url), marke(markenname, logo_url), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich),
         strategie_item:strategie_item_id(
-          id, creator_name, creator_auswahl_item_id,
+          id, strategie_id, sortierung, video_link, plattform, creator_name, creator_auswahl_item_id,
           casting_eintrag:creator_auswahl_item_id(
             id, name, creator_id,
             creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
@@ -273,7 +331,9 @@ export class SkripteService {
       .eq('id', id).maybeSingle();
 
     if (error) throw new Error(error.message);
-    return data ? await this.attachHookSperre(data) : null;
+    if (!data) return null;
+    const [mitNr] = await this.attachSkriptNummern([data]);
+    return this.attachHookSperre(mitNr);
   }
 
   /**
@@ -412,11 +472,6 @@ export class SkripteService {
       .select().single();
     if (error) throw new Error(error.message);
     return data;
-  }
-
-  async deleteSkript(id) {
-    const { error } = await this.db.from('skripte').delete().eq('id', id);
-    if (error) throw new Error(error.message);
   }
 
   /**

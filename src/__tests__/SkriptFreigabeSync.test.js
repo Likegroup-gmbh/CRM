@@ -4,7 +4,9 @@ import {
   skriptFreigegebenFuerStatus,
   patchVideoStoreFreigabe,
   patchVideoCheckboxDom,
-  patchSkripteCache
+  patchSkripteCache,
+  entferneSkriptAusVideoStore,
+  syncSkriptGeloeschtLocal
 } from '../modules/kampagne/skriptFreigabeSync.js';
 
 describe('skriptStatusFuerCheckbox', () => {
@@ -78,6 +80,51 @@ describe('patchVideoStoreFreigabe', () => {
 
   it('toleriert fehlenden Store', () => {
     expect(() => patchVideoStoreFreigabe(null, 's1', { freigegeben: true, status: 'freigegeben' })).not.toThrow();
+  });
+});
+
+describe('entferneSkriptAusVideoStore / syncSkriptGeloeschtLocal', () => {
+  function storeMitVideos() {
+    return {
+      videos: {
+        k1: [
+          { id: 'v1', skript_id: 's1', skript_freigegeben: true, skript: { id: 's1', status: 'freigegeben' } },
+          { id: 'v2', skript_id: null, skript_freigegeben: true, _skriptAusKonzept: true, skript: { id: 's1', status: 'freigegeben' } },
+          { id: 'v3', skript_id: 's2', skript_freigegeben: false, skript: { id: 's2', status: 'final' } }
+        ]
+      },
+      updateVideo: vi.fn(function (id, patch) {
+        const list = this.videos.k1;
+        const idx = list.findIndex((v) => v.id === id);
+        list[idx] = { ...list[idx], ...patch };
+      })
+    };
+  }
+
+  it('leert nur Videos dieses Skripts; Spalte skript_freigegeben bleibt bei echter Verknüpfung', () => {
+    const store = storeMitVideos();
+    expect(entferneSkriptAusVideoStore(store, 's1')).toBe(true);
+
+    expect(store.videos.k1[0]).toMatchObject({ skript_id: null, skript: null, skript_freigegeben: true });
+    expect(store.videos.k1[1]).toMatchObject({ skript_id: null, skript: null, skript_freigegeben: false, _skriptAusKonzept: false });
+    expect(store.videos.k1[2].skript_id).toBe('s2');
+    expect(store.updateVideo).toHaveBeenCalledTimes(2);
+  });
+
+  it('meldet false ohne Treffer und toleriert fehlenden Store', () => {
+    expect(entferneSkriptAusVideoStore(storeMitVideos(), 'sX')).toBe(false);
+    expect(entferneSkriptAusVideoStore(null, 's1')).toBe(false);
+  });
+
+  it('zeichnet die Tabelle nur bei Treffer neu', () => {
+    const table = { store: storeMitVideos(), refilter: vi.fn() };
+    syncSkriptGeloeschtLocal({ kooperationenVideoTable: table }, 's1');
+    expect(table.refilter).toHaveBeenCalledTimes(1);
+
+    const leer = { store: storeMitVideos(), refilter: vi.fn() };
+    syncSkriptGeloeschtLocal({ kooperationenVideoTable: leer }, 'sX');
+    expect(leer.refilter).not.toHaveBeenCalled();
+    expect(() => syncSkriptGeloeschtLocal({}, 's1')).not.toThrow();
   });
 });
 
