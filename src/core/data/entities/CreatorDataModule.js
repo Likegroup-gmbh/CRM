@@ -7,13 +7,14 @@ export default {
       return '*';
     }
     if (context === 'pagination') {
-      return `id,vorname,nachname,mail,telefonnummer,geschlecht,alter_jahre,alter_min,alter_max,
+      return `id,vorname,nachname,mail,telefonnummer,telefon_nicht_vorhanden,geschlecht,alter_jahre,alter_min,alter_max,geburtsdatum,hauptplattform,stilbeschreibung,groesse,
 instagram,instagram_follower,tiktok,tiktok_follower,ig_connected_at,profilbild_url,profilbild_thumb_url,
 portfolio_link,ig_biography,ig_engagement_rate,ig_media_count,ig_recent_posts,ig_brand_mentions,
-lieferadresse_stadt,lieferadresse_land,
+lieferadresse_stadt,lieferadresse_land,rezension_schnitt,
 creator_creator_type(creator_type_id(id,name)),
 creator_branchen(branche_id(id,name)),
-creator_sprachen(sprachen!sprache_id(id,name))`;
+creator_sprachen(sprachen!sprache_id(id,name)),
+creator_management(ist_aktiv, management:management_id(id, firmenname))`;
     }
     return '*';
   },
@@ -107,6 +108,42 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
         }
         delete filters.firma_id;
       }
+      if (filters && filters.besitz_id) {
+        const raw = filters.besitz_id;
+        const ids = (Array.isArray(raw) ? raw : [getIdFromFilter(raw)]).filter(Boolean);
+        for (const selectedId of ids) {
+          const { data: links, error: lerr } = await supabase
+            .from('creator_besitz')
+            .select('creator_id')
+            .eq('besitz_id', selectedId);
+          if (!lerr) idSets.push(new Set((links || []).map(r => r.creator_id)));
+        }
+        delete filters.besitz_id;
+      }
+      if (filters && filters.favorit_von) {
+        const raw = filters.favorit_von;
+        delete filters.favorit_von;
+        const userIds = (Array.isArray(raw) ? raw : [getIdFromFilter(raw)]).filter(Boolean);
+        if (userIds.length) {
+          const { data: links, error: lerr } = await supabase
+            .from('creator_favoriten')
+            .select('creator_id')
+            .in('user_id', userIds);
+          if (!lerr) idSets.push(new Set((links || []).map(r => r.creator_id)));
+        }
+      }
+      if (filters && filters.creator_tag_id) {
+        const raw = filters.creator_tag_id;
+        delete filters.creator_tag_id;
+        const tagIds = (Array.isArray(raw) ? raw : [getIdFromFilter(raw)]).filter(Boolean);
+        for (const selectedId of tagIds) {
+          const { data: links, error: lerr } = await supabase
+            .from('creator_tags')
+            .select('creator_id')
+            .eq('tag_id', selectedId);
+          if (!lerr) idSets.push(new Set((links || []).map(r => r.creator_id)));
+        }
+      }
       // Schnittmenge bilden
       if (idSets.length > 0) {
         let intersection = idSets[0];
@@ -167,6 +204,15 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
       } else {
         c.creator_types = c.creator_types || [];
       }
+
+      if (Array.isArray(c.creator_management)) {
+        c.managements = c.creator_management
+          .filter(row => row?.ist_aktiv !== false && row?.management?.firmenname)
+          .map(row => row.management.firmenname);
+        delete c.creator_management;
+      } else {
+        c.managements = c.managements || [];
+      }
     });
     return data;
   },
@@ -185,6 +231,9 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
       return true;
     }
     if (field === 'firma_ids' || field === 'firma_ids[]') {
+      return true;
+    }
+    if (field === 'besitz_ids' || field === 'besitz_ids[]') {
       return true;
     }
     return false;

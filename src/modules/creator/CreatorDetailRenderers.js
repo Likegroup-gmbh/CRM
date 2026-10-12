@@ -9,6 +9,7 @@ import { VertragUtils } from '../vertrag/VertragUtils.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 import { HAUPTADRESSE_QUELLE, normalizeHauptadresseQuelle } from './hauptadresseQuelle.js';
+import { anzeigePosts } from './creatorReels.js';
 import {
   getSourcingStatus,
   getKundenFeedback,
@@ -52,32 +53,29 @@ CreatorDetail.prototype.renderInstagramSection = function() {
     const brands = Array.isArray(c.ig_brand_mentions) ? c.ig_brand_mentions : [];
     const brandsHtml = brands.length
       ? `<div class="tags">${brands.map(b => `<a class="tag tag--brand" href="https://instagram.com/${encodeURIComponent(b)}" target="_blank" rel="noopener noreferrer">@${safe(b)}</a>`).join('')}</div>`
-      : '<span class="ig-muted">Keine Werbe-Kooperationen in den letzten Posts erkannt</span>';
+      : '<span class="ig-muted">Keine Werbe-Kooperationen in den letzten Reels erkannt</span>';
 
-    // Bei aktivem Trial-Gate die gefilterte Ansicht zeigen; die rohe Liste
-    // (ig_recent_posts) bleibt in der DB erhalten und kommt sonst unveraendert
-    // zum Zug.
     const cleanPosts = Array.isArray(c.ig_recent_posts_clean) ? c.ig_recent_posts_clean : [];
     const zeigeClean = trialGate?.aktiv && cleanPosts.length > 0;
-    const posts = zeigeClean ? cleanPosts : (Array.isArray(c.ig_recent_posts) ? c.ig_recent_posts : []);
+    const posts = anzeigePosts(c);
     const ausgeblendet = Number(trialGate?.cluster_size) || 0;
     const postsHtml = posts.length
       ? `<div class="ig-posts-grid">${posts.map(p => {
           const link = safeUrl(p.permalink) || profileUrl;
           const thumb = safeUrl(p.thumbnail_path);
-          const isVideo = p.media_type === 'VIDEO';
           const captionTeaser = p.caption ? safe(String(p.caption).slice(0, 120)) : '';
           const date = p.timestamp ? new Date(p.timestamp).toLocaleDateString('de-DE') : '';
+          const views = p.view_count != null ? num(p.view_count) : '–';
           return `
             <a class="ig-post-card" href="${link}" target="_blank" rel="noopener noreferrer" title="${captionTeaser}">
               <div class="ig-post-thumb">
                 ${thumb
-                  ? `<img src="${thumb}" alt="Instagram Post" loading="lazy" />`
+                  ? `<img src="${thumb}" alt="Instagram Reel" loading="lazy" />`
                   : '<div class="ig-post-thumb-placeholder">Kein Bild</div>'}
-                ${isVideo ? '<span class="ig-post-type-badge">Reel</span>' : ''}
+                <span class="ig-post-type-badge">Reel</span>
               </div>
               <div class="ig-post-meta">
-                ${p.view_count != null ? `<span>&#9654; ${num(p.view_count)}</span>` : ''}
+                <span>&#9654; ${views}</span>
                 <span>&hearts; ${num(p.like_count)}</span>
                 <span>&#128172; ${num(p.comments_count)}</span>
                 ${date ? `<span class="ig-post-date">${date}</span>` : ''}
@@ -85,7 +83,7 @@ CreatorDetail.prototype.renderInstagramSection = function() {
             </a>
           `;
         }).join('')}</div>`
-      : '<span class="ig-muted">Keine Posts gespeichert</span>';
+      : '<span class="ig-muted">Keine Reels ohne Werbe-Kennzeichnung.</span>';
 
     return `
       <div class="detail-card ig-section">
@@ -126,7 +124,7 @@ CreatorDetail.prototype.renderInstagramSection = function() {
         </div>
 
         <div class="ig-posts-block">
-          <label>Letzte Posts:</label>
+          <label>Letzte Reels:</label>
           ${zeigeClean ? `<div class="ig-muted ig-trial-hint">${ausgeblendet} Trial-Reel${ausgeblendet === 1 ? '' : 's'} ausgeblendet (gefilterte Ansicht)</div>` : ''}
           ${postsHtml}
         </div>
@@ -138,7 +136,7 @@ CreatorDetail.prototype.renderFirmenContent = function() {
     const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str || '-') ?? (str || '-');
     const items = this.firmen || [];
 
-    const anlegenBtn = `
+    const anlegenBtn = this.readOnly ? '' : `
       <button class="mdc-btn mdc-btn--sm" id="btn-firma-anlegen">
         ${PLUS_ICON_SVG}
         Firma anlegen
@@ -162,11 +160,11 @@ CreatorDetail.prototype.renderFirmenContent = function() {
         <td>${safe(f.plz || '-')}</td>
         <td>${safe(f.stadt || '-')}</td>
         <td>${safe(f.land || '-')}</td>
-        <td>
+        ${this.readOnly ? '' : `<td>
           <button class="icon-btn" title="Zuordnung entfernen" data-remove-firma="${f.id}">
             ${icon('x-mark', { className: 'icon-16' })}
           </button>
-        </td>
+        </td>`}
       </tr>
     `).join('');
 
@@ -182,7 +180,7 @@ CreatorDetail.prototype.renderFirmenContent = function() {
               <th>PLZ</th>
               <th>Stadt</th>
               <th>Land</th>
-              <th></th>
+              ${this.readOnly ? '' : '<th></th>'}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -507,7 +505,7 @@ CreatorDetail.prototype.renderAdresseContent = function() {
               <th>PLZ</th>
               <th>Stadt</th>
               <th>Land</th>
-              <th>Aktionen</th>
+              ${this.readOnly ? '' : '<th>Aktionen</th>'}
             </tr>
           </thead>
           <tbody>
@@ -519,9 +517,9 @@ CreatorDetail.prototype.renderAdresseContent = function() {
               <td>${sanitizeVal(c.lieferadresse_plz)}</td>
               <td>${sanitizeVal(c.lieferadresse_stadt)}</td>
               <td>${sanitizeVal(c.lieferadresse_land)}</td>
-              <td>
+              ${this.readOnly ? '' : `<td>
                 ${actionBuilder.create('creator_hauptadresse', this.creatorId)}
-              </td>
+              </td>`}
             </tr>
             ${this.renderZusatzAdressenRows()}
           </tbody>
@@ -529,9 +527,9 @@ CreatorDetail.prototype.renderAdresseContent = function() {
       </div>
     `;
 
-    const neueAdresseBtn = `
-      <button 
-        class="mdc-btn mdc-btn--sm" 
+    const neueAdresseBtn = this.readOnly ? '' : `
+      <button
+        class="mdc-btn mdc-btn--sm"
         onclick="window.creatorAdressenManager?.open('${this.creatorId}')"
       >
         ${PLUS_ICON_SVG}
@@ -598,10 +596,10 @@ CreatorDetail.prototype.renderHauptadressePicker = function() {
     return `
       <div class="hauptadresse-picker" role="radiogroup" aria-label="Hauptadresse">
         ${rows.map(row => `
-          <label class="radio-option hauptadresse-picker__option ${row.enabled ? '' : 'is-disabled'}">
+          <label class="radio-option hauptadresse-picker__option ${row.enabled && !this.readOnly ? '' : 'is-disabled'}">
             <input type="radio" name="hauptadresse_quelle" value="${row.value}"
                    ${selected === row.value ? 'checked' : ''}
-                   ${row.enabled ? '' : 'disabled'}>
+                   ${row.enabled && !this.readOnly ? '' : 'disabled'}>
             <span>
               <strong>${window.validatorSystem.sanitizeHtml(row.title)}</strong>
               <small>${window.validatorSystem.sanitizeHtml(row.detail)}</small>
@@ -633,9 +631,9 @@ CreatorDetail.prototype.renderZusatzAdressenRows = function() {
         <td>${window.validatorSystem.sanitizeHtml(adresse.plz || '-')}</td>
         <td>${window.validatorSystem.sanitizeHtml(adresse.stadt || '-')}</td>
         <td>${window.validatorSystem.sanitizeHtml(adresse.land || 'Deutschland')}</td>
-        <td>
+        ${this.readOnly ? '' : `<td>
           ${actionBuilder.create('creator_adresse', adresse.id)}
-        </td>
+        </td>`}
       </tr>
     `).join('');
 };
@@ -663,7 +661,7 @@ CreatorDetail.prototype.formatAgeRange = function(min, max, legacy) {
 CreatorDetail.prototype.renderManagementContent = function() {
     const items = this.managements || [];
 
-    const actionButtons = `
+    const actionButtons = this.readOnly ? '' : `
       <button class="mdc-btn mdc-btn--sm" id="btn-management-zuordnen">
         ${PLUS_ICON_SVG}
         Management zuordnen
@@ -697,11 +695,11 @@ CreatorDetail.prototype.renderManagementContent = function() {
           <td>${window.validatorSystem.sanitizeHtml(m.land || '-')}</td>
           <td>${m.email ? `<a href="mailto:${window.validatorSystem.sanitizeHtml(m.email)}">${window.validatorSystem.sanitizeHtml(m.email)}</a>` : '-'}</td>
           <td>${window.validatorSystem.sanitizeHtml(m.telefonnummer || '-')}</td>
-          <td>
+          ${this.readOnly ? '' : `<td>
             <button class="icon-btn" title="Zuordnung entfernen" data-remove-management="${m.id}">
               ${icon('x-mark', { className: 'icon-16' })}
             </button>
-          </td>
+          </td>`}
         </tr>
       `;
     }).join('');
@@ -718,7 +716,7 @@ CreatorDetail.prototype.renderManagementContent = function() {
               <th>Land</th>
               <th>E-Mail</th>
               <th>Telefon</th>
-              <th></th>
+              ${this.readOnly ? '' : '<th></th>'}
             </tr>
           </thead>
           <tbody>${rows}</tbody>

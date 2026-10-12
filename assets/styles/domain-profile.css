@@ -270,6 +270,10 @@ span.profile-name {
   min-width: 0;
 }
 
+.management-tab-inset {
+  padding: var(--space-md);
+}
+
 /* Secondary Navigation Layout (Unternehmen Detail - Test) */
 
 .profile-detail-layout--secondary-nav {

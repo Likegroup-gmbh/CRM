@@ -57,6 +57,12 @@ export const EntityRegistry = {
       alter_jahre: 'number', // Legacy, wird durch alter_min/alter_max ersetzt
       alter_min: 'number',
       alter_max: 'number',
+      geburtsdatum: 'date',
+      generation_override: 'string',
+      hauptplattform: 'string',
+      stilbeschreibung: 'string',
+      telefon_nicht_vorhanden: 'boolean',
+      groesse: 'string',
       hat_haustier: 'boolean',
       umsatzsteuerpflichtig: 'boolean',
       ksk_selbstzahler: 'boolean',
@@ -87,11 +93,18 @@ export const EntityRegistry = {
         localKey: 'creator_id',
         foreignKey: 'creator_type_id',
         displayField: 'name'
+      },
+      besitze: {
+        table: 'besitz',
+        junctionTable: 'creator_besitz',
+        localKey: 'creator_id',
+        foreignKey: 'besitz_id',
+        displayField: 'name'
       }
     },
     filters: ['vorname', 'nachname'],
-    sortBy: 'created_at',
-    sortOrder: 'desc'
+    sortBy: 'nachname',
+    sortOrder: 'asc'
   },
   ansprechpartner: {
     table: 'ansprechpartner',

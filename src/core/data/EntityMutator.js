@@ -1,4 +1,5 @@
 import { EntityRegistry } from './entities/index.js';
+import { sanitizeCreatorWrite } from '../../modules/creator/creatorProfil.js';
 
 export class EntityMutator {
   constructor({ dataPreparer, relationManager }) {
@@ -9,6 +10,7 @@ export class EntityMutator {
 
   async createEntity(entityType, data) {
     try {
+      if (entityType === 'creator') data = sanitizeCreatorWrite(data);
       console.log(`✅ ${entityType} erstellt:`, data);
       
       if (!window.supabase || !window.supabase.auth) {
@@ -70,6 +72,7 @@ export class EntityMutator {
 
   async updateEntity(entityType, id, data) {
     try {
+      if (entityType === 'creator') data = sanitizeCreatorWrite(data);
       console.log(`✅ ${entityType} aktualisiert:`, id, data);
       
       if (!window.supabase) {

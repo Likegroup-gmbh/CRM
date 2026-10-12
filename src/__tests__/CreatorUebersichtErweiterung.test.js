@@ -1,0 +1,113 @@
+import { describe, it, expect } from 'vitest';
+import { istWerbePost } from '../../netlify/functions/_shared/instagram-cpm.js';
+import { anzeigePosts, durchschnittlicheViews, kennzeichnetWerbung, waehleAnzeigeReels, REEL_ANZEIGE_LIMIT } from '../modules/creator/creatorReels.js';
+import { sortiereNachVideos, vergleicheName, videoSeit } from '../modules/creator/creatorBuchung.js';
+import { renderTagZeile } from '../modules/creator/creatorTags.js';
+import { queryToSelection, selectionToQuery } from '../modules/creator/creatorFilterQuery.js';
+import { overviewColumnGroups } from '../modules/creator/creatorFilterColumn.js';
+import { CREATOR_FILTER_GROUPS } from '../modules/creator/filters/CreatorFilterConfig.js';
+
+describe('Anzeige-Reels', () => {
+  const reel = (id, extra = {}) => ({ id, media_type: 'VIDEO', caption: 'organisch', ...extra });
+
+  it('erkennt dieselbe Werbung wie der CPM-Rechner', () => {
+    const captions = [
+      'Neue Kollektion #werbung',
+      'In Kooperation mit dem Laden',
+      '#ad',
+      'paid partnership',
+      'ganz normaler Reel',
+      '',
+      null
+    ];
+    for (const caption of captions) {
+      expect(Boolean(kennzeichnetWerbung(caption))).toBe(Boolean(istWerbePost(caption)));
+    }
+  });
+
+  it('lässt Posts und Werbe-Reels weg und nimmt höchstens 15', () => {
+    const posts = [
+      { id: 'bild', media_type: 'IMAGE', caption: 'foto' },
+      reel('werbung', { caption: 'Neue Kollektion #werbung' }),
+      reel('koop', { caption: 'In Kooperation mit dem Laden' }),
+      ...Array.from({ length: 16 }, (_, i) => reel(`r${i}`))
+    ];
+    const reels = waehleAnzeigeReels(posts);
+    expect(reels).toHaveLength(REEL_ANZEIGE_LIMIT);
+    expect(reels.map((entry) => entry.id)).toEqual(Array.from({ length: 15 }, (_, i) => `r${i}`));
+  });
+
+  it('mittelt die Views der angezeigten Reels', () => {
+    const creator = {
+      ig_recent_posts: [
+        { media_type: 'IMAGE', view_count: 9 },
+        { media_type: 'VIDEO', caption: '#werbung', view_count: 1000 },
+        { media_type: 'VIDEO', caption: 'organisch', view_count: 100 },
+        { media_type: 'VIDEO', caption: 'organisch', view_count: 300 },
+        { media_type: 'VIDEO', caption: 'ohne zahl', view_count: null }
+      ]
+    };
+    expect(anzeigePosts(creator)).toHaveLength(3);
+    expect(durchschnittlicheViews(creator)).toBe(200);
+    expect(durchschnittlicheViews({})).toBeNull();
+  });
+});
+
+describe('Videozahl', () => {
+  it('zählt 30 und 90 Tage ab jetzt', () => {
+    const jetzt = Date.parse('2026-10-09T12:00:00.000Z');
+    expect(videoSeit(30, jetzt)).toBe('2026-09-09T12:00:00.000Z');
+    expect(videoSeit(90, jetzt)).toBe('2026-07-11T12:00:00.000Z');
+  });
+
+  it('sortiert nach Anzahl, Gleichstand nach Name, Null bleibt unten', () => {
+    const counts = new Map([['a', 2], ['b', 5], ['c', 0]]);
+    const ordered = sortiereNachVideos([
+      { id: 'c', nachname: 'Adler', vorname: 'Ann' },
+      { id: 'a', nachname: 'Zimmer', vorname: 'Bea' },
+      { id: 'd', nachname: 'Adler', vorname: 'Ben' },
+      { id: 'b', nachname: 'Müller', vorname: 'Cem' }
+    ], counts);
+    expect(ordered.map((row) => row.id)).toEqual(['b', 'a', 'c', 'd']);
+    expect(ordered.map((row) => row.anzahl)).toEqual([5, 2, 0, 0]);
+  });
+
+  it('sortiert den Namen wie auf der Kachel, leere Namen nach hinten', () => {
+    const ordered = [
+      { id: 'leer', vorname: '', nachname: '' },
+      { id: 'luis', vorname: 'Luis Lindemann & Valentin Bölsing', nachname: '' },
+      { id: 'aaron', vorname: '', nachname: 'Aaron' },
+      { id: 'anna', vorname: 'Anna', nachname: 'Zimmer' },
+      { id: 'millane', vorname: 'Millane', nachname: 'Al-Masoud' }
+    ].sort(vergleicheName);
+    expect(ordered.map((row) => row.id)).toEqual(['aaron', 'anna', 'luis', 'millane', 'leer']);
+  });
+
+  it('steht in der Adresse', () => {
+    const params = selectionToQuery({ sort: 'video30', search: 'Anna' });
+    expect(params.get('sort')).toBe('video30');
+    expect(params.has('video')).toBe(false);
+    expect(queryToSelection(params).sort).toBe('video30');
+    expect(queryToSelection('?video=30').sort).toBe('video30');
+    expect(queryToSelection('?video=12').sort).toBe('name');
+    expect(queryToSelection('?sort=follower').sort).toBe('follower');
+    expect(selectionToQuery({ sort: 'name' }).has('sort')).toBe(false);
+  });
+});
+
+describe('Creator-Tags in der Zeile', () => {
+  it('setzt alle Tags in eine Zeile', () => {
+    const html = renderTagZeile([{ name: 'Allrounder' }, { name: 'UGC' }]);
+    expect(html).toContain('Allrounder');
+    expect(html).toContain('UGC');
+    expect(html).toContain('data-creator-tag-more');
+  });
+});
+
+describe('Filterspalte Grundlagen', () => {
+  it('stellt Größe und Generation an den Anfang', () => {
+    const groups = overviewColumnGroups(CREATOR_FILTER_GROUPS);
+    const basic = groups.find((group) => group.id === 'basic');
+    expect(basic.filters.slice(0, 4)).toEqual(['groesse', 'generation', 'favorit_von', 'creator_tag_id']);
+  });
+});

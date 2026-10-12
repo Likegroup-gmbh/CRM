@@ -2,6 +2,8 @@
 // Management-Erstellungsseite mit FormSystem + Creator-Zuordnung via Tag-Multi-Select
 
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
+import { normalizeFirmenname } from '../creator/creatorProfil.js';
+import { bindManagementPersonRows, renderManagementPersonRows, saveManagementPersons } from '../ansprechpartner/betreuung.js';
 import { navigateBack } from '../../core/breadcrumbTrail.js';
 import { bindDuplicateCheck } from '../../core/validation/DuplicateCheckBinding.js';
 
@@ -46,6 +48,9 @@ export class ManagementCreate {
 
     const form = document.getElementById('management-form');
     if (form) {
+      const submit = form.querySelector('button[type="submit"]');
+      submit?.insertAdjacentHTML('beforebegin', renderManagementPersonRows());
+      bindManagementPersonRows(form);
       form.onsubmit = async (e) => {
         e.preventDefault();
         await this.handleFormSubmit();
@@ -85,6 +90,11 @@ export class ManagementCreate {
 
       console.log('📋 MANAGEMENTCREATE: Daten:', { ...data, creatorIds });
 
+      const duplicate = await this.findExactManagement(data.firmenname);
+      if (duplicate) {
+        throw new Error(`Dieses Management gibt es schon: ${duplicate.firmenname}`);
+      }
+
       const result = await window.dataService.createEntity('management', data);
 
       if (!result.success) {
@@ -92,6 +102,7 @@ export class ManagementCreate {
       }
 
       const managementId = result.id;
+      await saveManagementPersons(managementId, form);
       window.duplicateChecker?.clearCache('management');
 
       // Creator-Zuordnungen in creator_management einfuegen
@@ -134,6 +145,23 @@ export class ManagementCreate {
         submitBtn.disabled = false;
       }
     }
+  }
+
+  async findExactManagement(firmenname) {
+    const wanted = normalizeFirmenname(firmenname);
+    if (!wanted || !window.supabase) return null;
+    const { data } = await window.supabase.from('management').select('id, firmenname');
+    const rows = data || [];
+    const exact = rows.find((row) => normalizeFirmenname(row.firmenname) === wanted);
+    if (exact) return exact;
+    const similar = rows.find((row) => {
+      const name = normalizeFirmenname(row.firmenname);
+      return name && name !== wanted && (name.includes(wanted) || wanted.includes(name));
+    });
+    if (similar && !window.confirm(`Ähnliches Management: ${similar.firmenname}. Trotzdem neu anlegen?`)) {
+      throw new Error('Anlegen abgebrochen');
+    }
+    return null;
   }
 
   collectFormData(form) {

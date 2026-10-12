@@ -234,6 +234,16 @@ Die historisch gebuchten bzw. bewerteten Creator zu Marke und Kampagnenart.
 Dient als Wiederholungs- und Ablehnungsfilter (Gates) und liefert die Historie für Track.
 _Avoid_: Qualitätsurteil, Proven-Slot
 
+**Videozahl**:
+Die Anzahl der Kooperationsvideos eines Creators in den letzten 30 Tagen oder den letzten 90 Tagen, ab heute.
+Gezählt wird jedes Video an dem Tag, an dem es angelegt wurde.
+_Avoid_: Buchungshäufigkeit, Buchungsbild, Track, Instagram-Reel
+
+**Creator-Tag**:
+Ein frei benanntes Merkmal am Creator, aus einer eigenen Liste. Mehrfach.
+Vom Creator wieder lösbar. Nicht der Besitz und nicht der Tag einer Kooperation.
+_Avoid_: Besitz, Kooperation-Tag, Nische, Branche
+
 **Casting-Vorschlag**:
 Ein für ein Casting vorgeschlagener Creator.
 Wird durch Aktivieren zum Casting-Eintrag unter „Ohne Kategorie“.
@@ -249,7 +259,29 @@ _Avoid_: Fit Score als eigenständige Kennzahl (ist Bestandteil von Matching), 0
 **Track**:
 Erfolgs-Historie eines Creators im eigenen System (0-100): Prio-Platzierungen,
 Buchungsquote aus Anfragen, Videos, Engagement-Rate, Erreichbarkeit; Absagen ziehen ab.
-_Avoid_: Qualitätsurteil, Erfahrung allgemein
+Nicht die Rezension.
+_Avoid_: Qualitätsurteil, Erfahrung allgemein, Rezension
+
+**Rezension**:
+Das Urteil des Teams zu genau einer Kooperation. Zwei Achsen mit ganzen Sternen von 1 bis 5:
+Produktionsqualität, sowie Kommunikation und Verlässlichkeit.
+Der Wert der Rezension ist der Mittelwert der beiden Achsen.
+Der Creator-Wert ist der Mittelwert seiner Rezensionen, gezeigt mit einer Nachkommastelle.
+Ohne Rezension gibt es keinen Wert, nicht die Note 0.
+Der Kommentar ist optional. Eine Kooperation hat höchstens eine Rezension.
+Jede interne Person mit Bearbeitungsrecht darf sie anlegen und anpassen, Sterne wie Kommentar.
+Sichtbar bleiben, wer sie angelegt und wer sie zuletzt geändert hat.
+Sie wird nicht gelöscht. Kunden sehen sie nicht.
+Sie kann ab Bestehen der Kooperation geschrieben werden.
+Track und Matching bleiben davon unberührt.
+_Avoid_: Track, Feedback, Feedbackschleife, Kommentar
+
+**Favorit**:
+Die Markierung eines Creators durch genau eine interne Person.
+Mehrere Personen können denselben Creator markieren. Die Markierung bleibt dieser Person zugeordnet.
+Die Person kann ihre eigene Markierung zurücknehmen.
+Nicht der Favorit an einer Kampagne.
+_Avoid_: Kampagnen-Favorit, Team-Stern
 
 **Fresh**:
 Nicht-Abnutzung eines Creators (0-100): startet bei 100, Abzüge für

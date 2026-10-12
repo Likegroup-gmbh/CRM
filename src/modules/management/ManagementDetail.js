@@ -10,6 +10,7 @@ import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
+import { createAnsprechpartner, renderManagementBetreuung, toggleBetreuung } from '../ansprechpartner/betreuung.js';
 
 export class ManagementDetail extends PersonDetailBase {
   constructor() {
@@ -17,6 +18,8 @@ export class ManagementDetail extends PersonDetailBase {
     this.managementId = null;
     this.management = null;
     this.creators = [];
+    this.ansprechpartner = [];
+    this.betreuungLinks = [];
     this.rechnungen = [];
     this.activeMainTab = null;
     this.eventsBound = false;
@@ -110,6 +113,24 @@ export class ManagementDetail extends PersonDetailBase {
             branchen: (c.branchen || []).map(b => b.branche?.name).filter(Boolean)
           };
         });
+
+      const { data: apRows, error: apError } = await window.supabase
+        .from('ansprechpartner')
+        .select('id, vorname, nachname, email')
+        .eq('management_id', this.managementId)
+        .order('nachname', { ascending: true });
+      if (apError) console.error('❌ MANAGEMENTDETAIL: Ansprechpartner', apError);
+      this.ansprechpartner = apRows || [];
+      const apIds = this.ansprechpartner.map((person) => person.id);
+      this.betreuungLinks = [];
+      if (apIds.length) {
+        const { data: links, error: linkError } = await window.supabase
+          .from('creator_ansprechpartner')
+          .select('ansprechpartner_id, creator_id')
+          .in('ansprechpartner_id', apIds);
+        if (linkError) console.error('❌ MANAGEMENTDETAIL: Betreuung', linkError);
+        this.betreuungLinks = links || [];
+      }
 
       console.log(`✅ MANAGEMENTDETAIL: Batch 1 geladen in ${Date.now() - startTime}ms – ${this.creators.length} Creator`);
 
@@ -213,6 +234,7 @@ export class ManagementDetail extends PersonDetailBase {
   renderTabNavigation() {
     const tabs = [
       { tab: 'creators', label: 'Creator', count: this.creators.length, isActive: this.activeMainTab === 'creators' },
+      { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
     ];
     return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })));
@@ -220,15 +242,26 @@ export class ManagementDetail extends PersonDetailBase {
 
   renderMainContent() {
     return `
-      <div class="tab-content secondary-tab-content">
+      <div class="tab-content secondary-tab-content management-tab-inset">
         <div class="tab-pane ${this.activeMainTab === 'creators' ? 'active' : ''}" id="tab-creators">
           ${this.renderCreators()}
+        </div>
+        <div class="tab-pane ${this.activeMainTab === 'ansprechpartner' ? 'active' : ''}" id="tab-ansprechpartner">
+          ${this.renderAnsprechpartner()}
         </div>
         <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
           ${this.renderRechnungen()}
         </div>
       </div>
     `;
+  }
+
+  renderAnsprechpartner() {
+    return renderManagementBetreuung({
+      people: this.ansprechpartner,
+      creators: this.creators,
+      links: this.betreuungLinks
+    });
   }
 
   renderCreators() {
@@ -368,6 +401,37 @@ export class ManagementDetail extends PersonDetailBase {
       }
     };
     document.addEventListener('click', this._tableLinkClickHandler, { signal });
+
+    document.addEventListener('change', async (e) => {
+      const box = e.target.closest('[data-action="toggle-betreuung"]');
+      if (!box || !document.getElementById('tab-ansprechpartner')?.contains(box)) return;
+      try {
+        await toggleBetreuung(box.dataset.creator, box.dataset.ap, box.checked);
+      } catch (error) {
+        box.checked = !box.checked;
+        window.toastSystem?.show(error.message || 'Verknüpfung fehlgeschlagen', 'error');
+      }
+    }, { signal });
+
+    document.addEventListener('click', async (e) => {
+      if (e.target.id !== 'mgmt-ap-add') return;
+      const hint = document.getElementById('mgmt-ap-hint');
+      const result = await createAnsprechpartner({
+        managementId: this.managementId,
+        vorname: document.getElementById('mgmt-ap-vorname')?.value,
+        nachname: document.getElementById('mgmt-ap-nachname')?.value,
+        email: document.getElementById('mgmt-ap-email')?.value
+      });
+      if (!result.ok) {
+        if (hint) hint.textContent = result.message;
+        return;
+      }
+      if (result.similar?.length) {
+        window.toastSystem?.show('Ähnlicher Name vorhanden, die Person wurde trotzdem angelegt.', 'warning');
+      }
+      await this.loadManagementData();
+      this.render(true);
+    }, { signal });
 
     // Bearbeiten-Button im Breadcrumb
     this._editClickHandler = (e) => {

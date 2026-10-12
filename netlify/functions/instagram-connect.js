@@ -5,7 +5,8 @@
 // POST { creator_id: '<uuid>' }
 //   -> laedt Profil + letzte 25 Posts (Engagement-Berechnung),
 //      speichert Bio, Follower (exakt), Post-Anzahl, Engagement-Rate,
-//      Brand-Mentions (#werbung/#ad-Heuristik) und die letzten 5 Posts.
+//      Brand-Mentions (dieselbe Kennzeichnung wie der CPM-Rechner) und die
+//      letzten 15 Reels ohne Werbe-Kennzeichnung.
 //      Profilbild + Post-Thumbnails werden in zwei AVIF-Groessen (640px als
 //      Hauptbild, 128px als Thumbnail fuer Avatare und Listen) nach Supabase
 //      Storage (instagram-media/{creator_id}/) kopiert, da Metas CDN-URLs nach
@@ -24,15 +25,15 @@ const {
 } = require('./_shared/instagram-graph');
 const {
   classifyVideos,
-  serialisiereTrialGate
+  serialisiereTrialGate,
+  istWerbePost
 } = require('./_shared/instagram-cpm');
+const { waehleAnzeigeReels } = require('./_shared/instagram-reels');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 const { erkenneGeschlecht } = require('./_shared/geschlecht-erkennen');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const SAVED_POSTS = 5;
 
 // Zeitbudget fuer die Geschlechts-Ableitung. Bewusst knapp: sie laeuft zwar
 // parallel zu den Bild-Uploads, darf das 26s-Limit der Function aber selbst
@@ -141,13 +142,10 @@ function computeEngagementRate(mediaData, followers) {
 
 /** Brand-Mentions aus Captions: @handles in Posts mit Werbe-Kennzeichnung */
 function extractBrandMentions(mediaData) {
-  const AD_MARKERS = /#(werbung|anzeige|ad|sponsored|paidpartnership|bezahltepartnerschaft)\b/i;
   const brands = new Map(); // handle -> count
   for (const m of mediaData || []) {
-    const caption = m.caption || '';
-    const isAd = AD_MARKERS.test(caption) || /paid partnership/i.test(caption);
-    if (!isAd) continue;
-    const mentions = caption.match(/@([a-z0-9._]{2,30})/gi) || [];
+    if (!istWerbePost(m.caption)) continue;
+    const mentions = (m.caption || '').match(/@([a-z0-9._]{2,30})/gi) || [];
     for (const raw of mentions) {
       const handle = raw.slice(1).toLowerCase();
       brands.set(handle, (brands.get(handle) || 0) + 1);
@@ -380,8 +378,8 @@ exports.handler = async (event) => {
     ? brandHandles // reine Handles (Alt-Format), UI normalisiert beides
     : await resolveBrands(supabase, brandHandles);
 
-  const rawPosts = media.slice(0, SAVED_POSTS);
-  const cleanPosts = cleanMedia.slice(0, SAVED_POSTS);
+  const rawPosts = waehleAnzeigeReels(media);
+  const cleanPosts = waehleAnzeigeReels(cleanMedia);
   // Bild-Budget (5 Uploads) geht an die Liste, die die UI auch zeigt: bei
   // aktivem Gate die gefilterte Ansicht, sonst die rohe.
   const anzeigePosts = trialGate.aktiv ? cleanPosts : rawPosts;

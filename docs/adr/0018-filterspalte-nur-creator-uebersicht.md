@@ -1,0 +1,3 @@
+# Filterspalte nur auf der Creator-Übersicht
+
+Die Creator-Übersicht filtert über eine linke Spalte, die beim Setzen offen bleibt und die Karten nach einer kurzen Pause neu lädt. Die übrigen Listen behalten das Menü „Filter hinzufügen“. Die Spalte zuerst überall einzubauen hätte jede Liste angefasst, obwohl die Datenbank der Ort ist, an dem viele Filter hintereinander gesetzt werden. Die Auswahl (Spalte, Suche, Größe, Generation) steht in der URL, damit ein Reload und ein geteilter Link dieselben Karten zeigen. Über den Karten steht eine genaue Summe dieser Auswahl, keine Zahl an jedem einzelnen Punkt.

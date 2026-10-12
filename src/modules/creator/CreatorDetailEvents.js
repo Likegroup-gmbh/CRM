@@ -6,6 +6,9 @@ import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { firmaCreateDrawer, injectFirmaCreateButton } from './FirmaCreateDrawer.js';
 import { HAUPTADRESSE_QUELLE, normalizeHauptadresseQuelle } from './hauptadresseQuelle.js';
 import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
+import { bindGenerationControls, normalizeHandle } from './creatorProfil.js';
+import { mountCreatorBetreuung, syncCreatorBetreuung } from '../ansprechpartner/betreuung.js';
+import { connectInstagramSilent } from '../../core/ActionsDropdownHandlers.js';
 
 CreatorDetail.prototype.bindEvents = function() {
     if (this._abortController) {
@@ -208,6 +211,8 @@ CreatorDetail.prototype.showEditForm = async function() {
     
     const form = document.getElementById('creator-form');
     if (form) {
+      bindGenerationControls(form);
+      mountCreatorBetreuung(form, { creatorId: this.creatorId });
       form.onsubmit = async (e) => {
         e.preventDefault();
         await this.handleEditFormSubmit();
@@ -313,9 +318,18 @@ CreatorDetail.prototype.handleEditFormSubmit = async function() {
         return;
       }
 
+      const previousInstagram = this.creator?.instagram;
       const result = await window.dataService.updateEntity('creator', this.creatorId, submitData);
 
       if (result.success) {
+        await syncCreatorBetreuung(this.creatorId, form);
+        const nextHandle = normalizeHandle(submitData.instagram);
+        if (nextHandle && nextHandle !== normalizeHandle(previousInstagram)) {
+          window.toastSystem?.show('Instagram-Daten werden geladen', 'info');
+          connectInstagramSilent(this.creatorId).then((connectResult) => {
+            if (!connectResult?.ok) window.toastSystem?.show('Instagram konnte nicht ausgelesen werden', 'error');
+          });
+        }
         this.showSuccessMessage('Creator erfolgreich aktualisiert!');
         
         setTimeout(async () => {

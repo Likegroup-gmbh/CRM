@@ -193,6 +193,12 @@ export async function showFilterSubmenu(ctx, filterOption) {
 
   document.body.appendChild(submenu);
   positionSubmenu(submenu, filterOption);
+  submenu.querySelector('[data-filter-search]')?.addEventListener('input', (event) => {
+    const query = event.target.value.trim().toLowerCase();
+    submenu.querySelectorAll('.filter-checkbox-option').forEach((label) => {
+      label.hidden = Boolean(query) && !label.textContent.toLowerCase().includes(query);
+    });
+  });
 
   const firstInput = submenu.querySelector('input, select');
   if (firstInput) setTimeout(() => firstInput.focus(), 50);

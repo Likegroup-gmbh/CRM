@@ -1503,26 +1503,10 @@ width: 100%;
 
 .creator-card__actions,
 .creator-card__links,
-.creator-card__posts,
-.creator-card__coops,
-.creator-card__bio-toggle,
-.creator-card__connect {
+.creator-favorit,
+.creator-tagzeile {
   position: relative;
   z-index: 2;
-}
-
-.creator-card__bio-toggle {
-  background: none;
-  border: none;
-  padding: 0;
-  margin-top: var(--space-xxs);
-  color: var(--color-primary);
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.creator-card__bio-toggle:hover {
-  text-decoration: underline;
 }
 
 /* Form Grid */

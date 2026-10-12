@@ -4,6 +4,8 @@
 
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { renderSecondaryNav, getTabQueryParam } from '../../core/TabUtils.js';
+import { darfRezensionSehen, formatRezension } from './rezension.js';
+import { merkmaleHtml, bindCreatorMerkmale } from './creatorMerkmale.js';
 
 export class CreatorDetail extends PersonDetailBase {
   constructor() {
@@ -26,6 +28,8 @@ export class CreatorDetail extends PersonDetailBase {
     };
     this.eventsBound = false;
     this._cacheInvalidationBound = false;
+    // Nur lesen, ohne Anlege-/Entfernen-Knoepfe (z. B. in der Creator-Schublade)
+    this.readOnly = false;
     this.activeMainTab = 'informationen';
     this._abortController = null;
     this._destroyed = false;
@@ -130,6 +134,7 @@ export class CreatorDetail extends PersonDetailBase {
     });
 
     window.setContentSafely(window.content, html);
+    bindCreatorMerkmale(window.content);
   }
 
   renderSidebarInfo() {
@@ -150,9 +155,12 @@ export class CreatorDetail extends PersonDetailBase {
     const videosCount = this.profileCounts?.videos || 0;
 
     kpiItems.push(
-      { icon: 'kooperation', label: 'Kooperationen', value: kooperationenCount.toLocaleString('de-DE') },
+      { icon: 'users', label: 'Kooperationen', value: kooperationenCount.toLocaleString('de-DE') },
       { icon: 'video', label: 'Videos', value: videosCount.toLocaleString('de-DE') }
     );
+    if (darfRezensionSehen()) {
+      kpiItems.push({ icon: 'star', label: 'Rezension', value: formatRezension(this.creator?.rezension_schnitt) });
+    }
 
     if (instagramUrl) {
       detailItems.push({ icon: 'instagram', label: 'Instagram', rawHtml: `<a href="${instagramUrl}" target="_blank" rel="noopener noreferrer">@${this.sanitize(instagramHandle.replace('@', ''))}</a>` });
@@ -221,6 +229,7 @@ export class CreatorDetail extends PersonDetailBase {
     detailItems.push({ icon: 'clock', label: 'Erstellt', value: this.formatDate(this.creator.created_at) });
 
     return `
+      ${merkmaleHtml(this.creator.id)}
       <div class="detail-card">
         <h3 class="section-title">Kennzahlen</h3>
         ${this.renderInfoItems(kpiItems)}

@@ -19,11 +19,18 @@ export class EntityLoader {
 
     const mod = EntityModules[entityType];
 
-    // Count-Modus: Entity-Module können 'estimated' setzen, Default ist 'exact'
-    const countMode = mod?.countMode || 'exact';
+    const idOnly = Boolean(filters?._idOnly);
+    if (filters?._idOnly) delete filters._idOnly;
+
+    // Count-Modus: Entity-Module können 'estimated' setzen, Default ist 'exact'.
+    // Die Creator-Übersicht verlangt für die Summe eine genaue Zahl (_countExact).
+    const countMode = filters?._countExact ? 'exact' : (mod?.countMode || 'exact');
+    if (filters?._countExact) delete filters._countExact;
 
     // Query aufbauen
-    const selectClause = mod?.buildSelectClause?.(context) || '*';
+    const selectClause = idOnly
+      ? 'id,nachname,vorname'
+      : (mod?.buildSelectClause?.(context) || '*');
     let query = isPaginated
       ? window.supabase.from(entityConfig.table).select(selectClause, { count: countMode })
       : window.supabase.from(entityConfig.table).select(selectClause);
@@ -61,6 +68,7 @@ export class EntityLoader {
       delete filtersToApply.branche;
       delete filtersToApply.sprache_id;
       delete filtersToApply.creator_type_id;
+      delete filtersToApply.besitz_id;
       delete filtersToApply._sortBy;
       delete filtersToApply._sortOrder;
       delete filtersToApply._allowedIds;
@@ -84,7 +92,10 @@ export class EntityLoader {
       const sortBy = filters._sortBy || entityConfig.sortBy;
       const sortOrder = filters._sortOrder !== undefined ? filters._sortOrder : entityConfig.sortOrder;
       if (sortBy) {
-        query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+        const ascending = sortOrder === 'asc';
+        query = query.order(sortBy, { ascending, nullsFirst: false });
+        if (sortBy === 'nachname') query = query.order('vorname', { ascending: true, nullsFirst: false });
+        if (sortBy === 'vorname') query = query.order('nachname', { ascending: true, nullsFirst: false });
       }
       query = query.range(pagination.from, pagination.to);
     }
@@ -131,7 +142,7 @@ export class EntityLoader {
     if (!isPaginated && data && mod?.finalizeResult) {
       mod.finalizeResult(data);
     }
-    if (isPaginated && data && mod?.transformPaginationResult) {
+    if (isPaginated && data && !idOnly && mod?.transformPaginationResult) {
       mod.transformPaginationResult(data);
     }
 

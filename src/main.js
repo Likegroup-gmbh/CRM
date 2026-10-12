@@ -6,6 +6,7 @@ import { initListenerMonitor } from './core/dev/ListenerMonitor.js';
 initListenerMonitor();
 
 import { initVersionCheck } from './core/VersionCheck.js';
+import { bindCpmRechner } from './modules/creator/CpmRechner.js';
 initVersionCheck();
 import { initChannelBadge } from './core/ChannelBadge.js';
 initChannelBadge();
@@ -255,7 +256,7 @@ window.navigateBack = navigateBack;
 
 // Browser-Zurück/-Vor: URL ist bereits geändert, nur Inhalt synchronisieren
 window.addEventListener('popstate', (event) => {
-  const route = (event.state && event.state.route) || window.location.pathname || '/';
+  const route = (event.state && event.state.route) || (window.location.pathname + window.location.search) || '/';
   moduleRegistry.navigateTo(route, true);
 });
 
@@ -373,6 +374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.loginRoot = document.getElementById('login-root');
   window.content = document.getElementById('dashboard-content');
   window.nav = document.getElementById('main-nav');
+  bindCpmRechner();
 
   // App Bridge: DOM-Refs registrieren
   App.set('content', window.content);

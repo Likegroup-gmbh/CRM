@@ -15,6 +15,10 @@ export class SearchInput {
     const placeholder = options.placeholder || `${this.capitalizeFirst(entityType)} suchen...`;
     const currentValue = options.currentValue || '';
     const displayClear = currentValue ? 'flex' : 'none';
+    const safeValue = String(currentValue)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
 
     return `
       <div class="search-input-container input-with-clear">
@@ -22,7 +26,7 @@ export class SearchInput {
                id="${entityType}-search-input" 
                class="form-input search-input-field" 
                placeholder="${placeholder}"
-               value="${currentValue}">
+               value="${safeValue}">
         <button type="button" 
                 id="${entityType}-search-clear" 
                 class="clear-input-btn" 

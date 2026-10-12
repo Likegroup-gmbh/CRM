@@ -169,6 +169,9 @@
   width: 35%;
   max-width: 95vw;
   background: var(--bg-primary);
+  /* Kante zur abgedunkelten Seite dahinter sichtbar machen */
+  border: 1px solid var(--border-primary);
+  box-shadow: -16px 0 48px rgba(15, 18, 25, 0.18), var(--shadow-xl);
   
   border-radius: var(--radius-xl);
   transform: translateX(calc(100% + var(--space-md)));
@@ -212,6 +215,20 @@
   min-width: 0;
 }
 
+/* Drawer-Kopf mit kleinem Avatar neben dem Titel */
+.drawer-header-left--with-avatar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.drawer-header-left--with-avatar > .table-avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: var(--radius-full);
+}
+
 .drawer-header-right {
   flex-shrink: 0;
 }
@@ -221,6 +238,51 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--space-md);
+}
+
+/* Tabellen im Drawer: horizontal scrollen statt Spalten abzuschneiden
+   (data-table-container ist sonst overflow: visible) */
+.drawer-body .data-table-container {
+  overflow-x: auto;
+}
+
+/* Breiten-Griff am linken Rand: Ziehen aendert die Drawer-Breite */
+.drawer-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 5;
+  touch-action: none;
+}
+
+.drawer-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 3px;
+  height: 48px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-full);
+  background: var(--border-primary);
+  /* Leicht sichtbar, damit klar ist, wo der Griff sitzt - volle Deckkraft bei Hover */
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.drawer-resize-handle:hover::after,
+.drawer-resize-handle:focus-visible::after,
+.drawer-panel--resizing .drawer-resize-handle::after {
+  opacity: 1;
+}
+
+/* Waehrend des Ziehens: Griff-Cursor ueberall, kein Text markieren */
+body.drawer-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .drawer-close {

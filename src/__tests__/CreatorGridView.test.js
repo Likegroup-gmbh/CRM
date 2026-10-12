@@ -7,6 +7,12 @@ vi.mock('../../core/actions/ActionBuilder.js', () => ({
   }
 }));
 
+// Media-Viewer mocken: der echte Player wuerde Stream-URLs aufloesen (Netz)
+const playerSpies = vi.hoisted(() => ({ openVideo: vi.fn(), openStory: vi.fn() }));
+vi.mock('../core/media/player/VideoPlayerLightbox.js', () => ({
+  VideoPlayerLightbox: vi.fn(() => playerSpies)
+}));
+
 import { CreatorGridView } from '../modules/creator/CreatorGridView.js';
 
 // ── IntersectionObserver Mock ───────────────────────────────────────────────
@@ -76,11 +82,13 @@ describe('CreatorGridView', () => {
       sanitizeHtml: (s) => String(s ?? ''),
       sanitizeUrl: (u) => u || ''
     };
+    window.isInternal = () => true;
   });
 
   afterEach(() => {
     global.IntersectionObserver = originalIO;
     Element.prototype.getBoundingClientRect = originalRect;
+    delete window.isInternal;
     vi.clearAllMocks();
   });
 
@@ -97,14 +105,15 @@ describe('CreatorGridView', () => {
       expect(card.querySelector('.creator-card__cover')).toBe(placeholder);
     });
 
-    it('rendert stretched Profil-Link mit table-link + data-id', () => {
+    it('oeffnet die Kachel ueber einen Button, nicht ueber die Profilseite', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({ id: 'c99', vorname: 'Max', nachname: 'Muster' }));
       const link = card.querySelector('.creator-card__link');
 
-      expect(link.classList.contains('table-link')).toBe(true);
-      expect(link.dataset.table).toBe('creator');
+      expect(link.tagName).toBe('BUTTON');
+      expect(link.classList.contains('table-link')).toBe(false);
       expect(link.dataset.id).toBe('c99');
+      expect(card.querySelector('.creator-card__kontakt')).toBeNull();
     });
 
     it('zeigt Profilbild wenn vorhanden', () => {
@@ -128,137 +137,40 @@ describe('CreatorGridView', () => {
     });
   });
 
-  // ── Links / Priorität ──────────────────────────────────────────────────────
-  describe('Links', () => {
-    it('rendert Social-Icons und Portfolio im Content', () => {
+  describe('kompakte Kachel', () => {
+    it('zeigt den Rezensions-Schnitt mit einer Nachkommastelle', () => {
+      const grid = new CreatorGridView(makeList());
+      const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'Lea', rezension_schnitt: 4.5 }));
+      const stat = [...card.querySelectorAll('.creator-card__stat')]
+        .find((el) => el.textContent.includes('Rezension'));
+      expect(stat.querySelector('.creator-card__stat-value').textContent).toBe('4,5');
+    });
+
+    it('zeigt Stadt, Alter, Größe, Follower und Aktionen', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({
-        id: 'c1', vorname: 'A',
-        instagram: 'maxmuster', tiktok: 'maxtok', portfolio_link: 'https://portfolio.test'
+        id: 'c1',
+        vorname: 'Tanja',
+        nachname: 'Angst',
+        lieferadresse_stadt: 'Berlin',
+        geschlecht: 'weiblich',
+        geburtsdatum: '1999-05-01',
+        instagram_follower: 12400,
+        tiktok_follower: 8000,
+        creator_types: [{ name: 'UGC' }],
+        branchen: [{ name: 'Beauty' }, { name: 'Food' }, { name: 'Travel' }]
       }));
-      const links = card.querySelector('.creator-card__links');
-      expect(links).toBeTruthy();
-      expect(card.querySelector('.creator-card__header .creator-card__social')).toBeNull();
-      const ig = links.querySelector('.creator-card__social[aria-label="Instagram"]');
-      const tt = links.querySelector('.creator-card__social[aria-label="TikTok"]');
-      expect(ig).toBeTruthy();
-      expect(tt).toBeTruthy();
-      expect(ig.querySelector('.creator-card__social-icon')).toBeTruthy();
-      expect(tt.querySelector('.creator-card__social-icon')).toBeTruthy();
-      expect(links.querySelector('.creator-card__link-chip').textContent.trim()).toBe('Portfolio');
-      expect(card.querySelector('.ig-connected-badge')).toBeNull();
-    });
-
-    it('baut Instagram-URL aus Handle', () => {
-      const grid = new CreatorGridView(makeList());
-      const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A', instagram: 'maxmuster' }));
-      const ig = card.querySelector('.creator-card__links .creator-card__social[aria-label="Instagram"]');
-      expect(ig.getAttribute('href')).toBe('https://instagram.com/maxmuster');
-    });
-
-    it('zeigt keine Links ohne Daten', () => {
-      const grid = new CreatorGridView(makeList());
-      const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A' }));
-      expect(card.querySelector('.creator-card__links')).toBeNull();
-    });
-  });
-
-  // ── Instagram-Bio / Connect ────────────────────────────────────────────────
-  describe('Instagram-Block', () => {
-    it('zeigt Bio-Toggle bei langer Bio (verbunden)', () => {
-      const grid = new CreatorGridView(makeList());
-      const longBio = 'x'.repeat(200);
-      const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A', ig_connected_at: '2026-01-01', ig_biography: longBio }));
-      expect(card.querySelector('.creator-card__bio')).toBeTruthy();
-      expect(card.querySelector('.creator-card__bio-toggle')).toBeTruthy();
-    });
-
-    it('zeigt keinen Bio-Toggle bei kurzer Bio', () => {
-      const grid = new CreatorGridView(makeList());
-      const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A', ig_connected_at: '2026-01-01', ig_biography: 'Kurz' }));
-      expect(card.querySelector('.creator-card__bio')).toBeTruthy();
-      expect(card.querySelector('.creator-card__bio-toggle')).toBeNull();
-    });
-
-    it('zeigt Connect-CTA nur fuer Admins mit Instagram-Link', () => {
-      const gridAdmin = new CreatorGridView(makeList({ isAdmin: true }));
-      const cardAdmin = parseCard(gridAdmin.renderCard({ id: 'c1', vorname: 'A', instagram: 'maxmuster' }));
-      expect(cardAdmin.querySelector('.creator-card__connect')).toBeTruthy();
-      expect(cardAdmin.querySelector('.creator-card__ig-empty')).toBeTruthy();
-
-      const gridUser = new CreatorGridView(makeList({ isAdmin: false }));
-      const cardUser = parseCard(gridUser.renderCard({ id: 'c1', vorname: 'A', instagram: 'maxmuster' }));
-      expect(cardUser.querySelector('.creator-card__connect')).toBeNull();
-      expect(cardUser.querySelector('.creator-card__ig-empty')).toBeTruthy();
-    });
-
-    it('zeigt keinen Connect-CTA fuer Admins ohne Instagram-Link', () => {
-      const gridAdmin = new CreatorGridView(makeList({ isAdmin: true }));
-      const card = parseCard(gridAdmin.renderCard({ id: 'c1', vorname: 'A' }));
-      expect(card.querySelector('.creator-card__connect')).toBeNull();
-    });
-  });
-
-  // ── Medien-Filterung ────────────────────────────────────────────────────────
-  describe('Post-/Reel-Medien', () => {
-    const connectedWithPosts = {
-      id: 'c1', vorname: 'A', ig_connected_at: '2026-01-01',
-      ig_recent_posts: [
-        { thumbnail_path: 'http://x/1.webp', permalink: 'http://p/1', media_type: 'VIDEO', like_count: 10, comments_count: 2 },
-        { thumbnail_path: null, permalink: 'http://p/2', media_type: 'IMAGE' },
-        { thumbnail_path: 'http://x/3.webp', permalink: 'http://p/3', media_type: 'IMAGE', like_count: 5, comments_count: 1 },
-        { thumbnail_path: 'http://x/4.webp', permalink: 'http://p/4', media_type: 'IMAGE' },
-        { thumbnail_path: 'http://x/5.webp', permalink: 'http://p/5', media_type: 'IMAGE' }
-      ]
-    };
-
-    it('filtert Posts ohne Thumbnail und zeigt maximal drei', () => {
-      const grid = new CreatorGridView(makeList());
-      const card = parseCard(grid.renderCard(connectedWithPosts));
-      const posts = card.querySelectorAll('.creator-card__post');
-      expect(posts.length).toBe(3);
-      // Reel-Badge beim VIDEO-Post
-      expect(card.querySelector('.creator-card__post-badge').textContent).toBe('Reel');
-    });
-
-    it('zeigt keine Medien ohne Instagram-Connect', () => {
-      const grid = new CreatorGridView(makeList());
-      const card = parseCard(grid.renderCard({ ...connectedWithPosts, ig_connected_at: null }));
+      expect(card.querySelector('.creator-card__meta').textContent).toContain('Berlin');
+      expect(card.querySelector('.creator-card__meta').textContent).toContain('Micro');
+      expect(card.querySelector('.creator-card__stats').textContent).toContain('12,4K');
+      expect(card.querySelector('.creator-card__stats').textContent).toContain('Rezension');
+      expect(card.querySelector('.creator-card__stats').textContent).toContain('–');
+      expect(card.querySelectorAll('.creator-card__tags .tag').length).toBe(3);
+      expect(card.querySelector('.creator-card__tags').textContent).toContain('UGC');
+      expect(card.querySelector('.creator-card__link')).toBeTruthy();
+      expect(card.querySelector('.creator-card__casting')).toBeTruthy();
+      expect(card.querySelector('.creator-card__bio')).toBeNull();
       expect(card.querySelector('.creator-card__posts')).toBeNull();
-    });
-
-    it('nimmt fuer die kleinen Kacheln das Thumbnail, sonst das Hauptbild', () => {
-      const grid = new CreatorGridView(makeList());
-      const card = parseCard(grid.renderCard({
-        id: 'c1', vorname: 'A', ig_connected_at: '2026-01-01',
-        ig_recent_posts: [
-          {
-            thumbnail_path: 'http://x/1.avif',
-            thumbnail_thumb_path: 'http://x/1_thumb.avif',
-            permalink: 'http://p/1',
-            media_type: 'IMAGE'
-          },
-          { thumbnail_path: 'http://x/2.avif', permalink: 'http://p/2', media_type: 'IMAGE' }
-        ]
-      }));
-      const quellen = Array.from(card.querySelectorAll('.creator-card__post-thumb img'))
-        .map((img) => img.getAttribute('src'));
-
-      expect(quellen).toEqual(['http://x/1_thumb.avif', 'http://x/2.avif']);
-    });
-  });
-
-  // ── Kennzahlen ──────────────────────────────────────────────────────────────
-  describe('Kennzahlen', () => {
-    it('zeigt Instagram-Engagement nur bei Connect', () => {
-      const grid = new CreatorGridView(makeList());
-      const connected = parseCard(grid.renderCard({ id: 'c1', vorname: 'A', ig_connected_at: '2026', ig_engagement_rate: 3.5 }));
-      const labels = Array.from(connected.querySelectorAll('.creator-card__stat-label')).map((n) => n.textContent);
-      expect(labels).toContain('Instagram Engagement');
-
-      const notConnected = parseCard(grid.renderCard({ id: 'c2', vorname: 'B', ig_engagement_rate: 3.5 }));
-      const labels2 = Array.from(notConnected.querySelectorAll('.creator-card__stat-label')).map((n) => n.textContent);
-      expect(labels2).not.toContain('Instagram Engagement');
     });
   });
 
@@ -336,6 +248,34 @@ describe('CreatorGridView', () => {
       expect(grid.getContainer().textContent).not.toContain('Alt');
     });
 
+    it('behaelt Karten und blendet sie ab, bis die neue Auswahl da ist', async () => {
+      let resolveNext;
+      const next = new Promise((res) => { resolveNext = res; });
+      const list = makeList();
+      list.loadPageData = vi.fn()
+        .mockResolvedValueOnce({ data: [{ id: 'old', vorname: 'Alt' }], total: 1 })
+        .mockImplementationOnce(() => next);
+      list.onResultTotal = vi.fn();
+      const grid = new CreatorGridView(list);
+      mountShell(grid);
+
+      await grid.reload();
+      expect(list.onResultTotal).toHaveBeenCalledWith(1);
+      expect(grid.getContainer().textContent).toContain('Alt');
+
+      const pending = grid.reload({ scrollTop: true });
+      expect(grid.getContainer().classList.contains('is-pending')).toBe(true);
+      expect(grid.getContainer().textContent).toContain('Alt');
+
+      resolveNext({ data: [{ id: 'new', vorname: 'Neu' }], total: 4 });
+      await pending;
+
+      expect(grid.getContainer().classList.contains('is-pending')).toBe(false);
+      expect(grid.getContainer().textContent).toContain('Neu');
+      expect(grid.getContainer().textContent).not.toContain('Alt');
+      expect(list.onResultTotal).toHaveBeenLastCalledWith(4);
+    });
+
     it('zeigt Fehler-Status bei Ladefehler', async () => {
       const list = makeList({ loadPageData: vi.fn(async () => { throw new Error('boom'); }) });
       const grid = new CreatorGridView(list);
@@ -344,6 +284,7 @@ describe('CreatorGridView', () => {
       await grid.reload();
 
       expect(grid.getStatus().innerHTML).toContain('Fehler');
+      expect(grid._reachedEnd).toBe(true);
     });
 
     it('erkennt veraltete Kriterien via isStale', async () => {
@@ -377,46 +318,185 @@ describe('CreatorGridView', () => {
 
   // ── Events ──────────────────────────────────────────────────────────────────
   describe('Events', () => {
-    it('klappt Bio nur der angeklickten Karte auf', () => {
+    it('oeffnet die Kontakt-Schublade der Kachel', async () => {
       const grid = new CreatorGridView(makeList());
       mountShell(grid);
       const container = grid.getContainer();
-      const longBio = 'x'.repeat(200);
-      container.innerHTML = grid.renderCard({ id: 'c1', vorname: 'A', ig_connected_at: '2026', ig_biography: longBio });
+      const creator = {
+        id: 'c1',
+        vorname: 'Tanja',
+        nachname: 'Angst',
+        mail: 't@example.com',
+        profilbild_url: 'https://img.test/tanja.jpg'
+      };
+      container.innerHTML = grid.renderCard(creator);
+      grid._remember([creator]);
+
+      // Thenable Query-Builder: deckt die Loader der Creator-Detailseite ab
+      const qb = {
+        select: () => qb,
+        eq: () => qb,
+        in: () => qb,
+        not: () => qb,
+        order: () => qb,
+        limit: () => qb,
+        range: () => qb,
+        single: async () => ({ data: creator, error: null }),
+        maybeSingle: async () => ({ data: null, error: null }),
+        then: (resolve) => resolve({ data: [], error: null })
+      };
+      window.supabase = { from: () => qb };
 
       const controller = new AbortController();
       grid.bindEvents(controller.signal);
+      container.querySelector('.creator-card__link').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flush();
+      await flush();
 
-      const toggle = container.querySelector('.creator-card__bio-toggle');
-      const bio = container.querySelector('.creator-card__bio');
-      expect(bio.classList.contains('creator-card__bio--expanded')).toBe(false);
+      const panel = document.querySelector('#creator-kontakt-drawer.drawer-panel');
+      expect(panel).toBeTruthy();
+      expect(panel.textContent).toContain('t@example.com');
 
-      toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      expect(bio.classList.contains('creator-card__bio--expanded')).toBe(true);
-      expect(toggle.textContent).toBe('Weniger anzeigen');
+      // Kleines Bild im Kopf, damit klar ist, um welchen Creator es geht
+      const avatar = panel.querySelector('.drawer-header img.table-avatar-img');
+      expect(avatar).toBeTruthy();
+      expect(avatar.getAttribute('src')).toBe('https://img.test/tanja.jpg');
 
-      toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      expect(bio.classList.contains('creator-card__bio--expanded')).toBe(false);
+      const headers = [...panel.querySelectorAll('.settings-accordion-header')].map((h) => h.textContent.trim());
+      expect(headers.some((h) => h.includes('Informationen'))).toBe(false);
+      expect(panel.textContent).toContain('Follower');
+      expect(panel.textContent).toContain('Favorit');
+      expect(panel.textContent).toContain('Rezension');
+      expect(headers.some((h) => h.includes('Adresse'))).toBe(true);
+      // readOnly: keine Anlege-/Entfernen-Knoepfe aus der Detailseite
+      expect(panel.querySelector('#btn-firma-anlegen')).toBeNull();
+      expect(panel.querySelector('#btn-management-zuordnen')).toBeNull();
 
       controller.abort();
+      document.querySelector('#creator-kontakt-drawer')?.remove();
+      document.querySelector('#creator-kontakt-drawer-overlay')?.remove();
     });
 
-    it('loest Instagram-Connect ueber ActionsDropdown aus', () => {
-      const handleAction = vi.fn();
-      window.ActionsDropdown = { handleAction };
-
-      const grid = new CreatorGridView(makeList({ isAdmin: true }));
+    it('laesst die Schublade per Griff in der Breite ziehen und merkt sich die Breite', async () => {
+      localStorage.removeItem('drawer-width:creator-kontakt-drawer');
+      const grid = new CreatorGridView(makeList());
       mountShell(grid);
       const container = grid.getContainer();
-      container.innerHTML = grid.renderCard({ id: 'c1', vorname: 'A', instagram: 'maxmuster' });
+      const creator = { id: 'c1', vorname: 'Tanja', nachname: 'Angst' };
+      container.innerHTML = grid.renderCard(creator);
+      grid._remember([creator]);
+
+      const qb = {
+        select: () => qb,
+        eq: () => qb,
+        in: () => qb,
+        not: () => qb,
+        order: () => qb,
+        limit: () => qb,
+        range: () => qb,
+        single: async () => ({ data: creator, error: null }),
+        maybeSingle: async () => ({ data: null, error: null }),
+        then: (resolve) => resolve({ data: [], error: null })
+      };
+      window.supabase = { from: () => qb };
 
       const controller = new AbortController();
       grid.bindEvents(controller.signal);
+      container.querySelector('.creator-card__link').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flush();
 
-      container.querySelector('.creator-card__connect').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      expect(handleAction).toHaveBeenCalledWith('connect', 'c1', 'creator');
+      const panel = document.querySelector('#creator-kontakt-drawer.drawer-panel');
+      const handle = panel.querySelector('.drawer-resize-handle');
+      expect(handle).toBeTruthy();
+
+      // getBoundingClientRect ist im Test gemockt (right = 0) -> Ziehen nach
+      // "links" (clientX negativ) verbreitert den Drawer auf 500px
+      handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 0 }));
+      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: -500 }));
+      expect(panel.style.width).toBe('500px');
+      expect(document.body.classList.contains('drawer-resizing')).toBe(true);
+
+      document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+      expect(document.body.classList.contains('drawer-resizing')).toBe(false);
+      expect(localStorage.getItem('drawer-width:creator-kontakt-drawer')).toBe('500');
 
       controller.abort();
+      document.querySelector('#creator-kontakt-drawer')?.remove();
+      document.querySelector('#creator-kontakt-drawer-overlay')?.remove();
+      localStorage.removeItem('drawer-width:creator-kontakt-drawer');
+    });
+
+    it('zeigt Videos mit Play-Button und oeffnet den Media-Viewer', async () => {
+      const grid = new CreatorGridView(makeList());
+      mountShell(grid);
+      const container = grid.getContainer();
+      const creator = { id: 'c1', vorname: 'Tanja', nachname: 'Angst' };
+      container.innerHTML = grid.renderCard(creator);
+      grid._remember([creator]);
+
+      const koop = { id: 'k1', name: 'Koop A', created_at: '2026-01-01' };
+      const video = {
+        id: 'v1',
+        kooperation_id: 'k1',
+        video_name: 'Reel 1',
+        position: 1,
+        asset_url: 'https://dropbox.test/v.mp4',
+        stats_views: 1200
+      };
+      const tableData = {
+        creator: { single: creator },
+        kooperationen: [koop],
+        kooperation_videos: [video],
+        kooperation_video_asset: []
+      };
+      // Thenable Query-Builder mit Daten pro Tabelle
+      const makeQb = (table) => {
+        const entry = tableData[table];
+        const qb = {
+          select: () => qb,
+          eq: () => qb,
+          in: () => qb,
+          not: () => qb,
+          order: () => qb,
+          limit: () => qb,
+          range: () => qb,
+          single: async () => ({ data: entry?.single ?? null, error: null }),
+          maybeSingle: async () => ({ data: null, error: null }),
+          then: (resolve) => resolve({ data: Array.isArray(entry) ? entry : [], error: null })
+        };
+        return qb;
+      };
+      window.supabase = { from: (table) => makeQb(table) };
+
+      const controller = new AbortController();
+      grid.bindEvents(controller.signal);
+      container.querySelector('.creator-card__link').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flush();
+      await flush();
+
+      const panel = document.querySelector('#creator-kontakt-drawer.drawer-panel');
+      expect(panel).toBeTruthy();
+
+      // Videos-Abschnitt mit Zaehler direkt hinter den Kooperationen
+      const headers = [...panel.querySelectorAll('.settings-accordion-header')].map((h) => h.textContent.trim());
+      const videosHeader = headers.find((h) => h.includes('Videos'));
+      expect(videosHeader).toBeTruthy();
+      expect(videosHeader).toContain('1');
+
+      // Gleicher Play-Button wie in der Kampagnenliste
+      const playBtn = panel.querySelector('[data-action="play-video"]');
+      expect(playBtn).toBeTruthy();
+      expect(playBtn.dataset.videoId).toBe('v1');
+      expect(playBtn.dataset.kooperationId).toBe('k1');
+      expect(panel.textContent).toContain('Reel 1');
+
+      playBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flush();
+      expect(playerSpies.openVideo).toHaveBeenCalledWith('v1', 'k1');
+
+      controller.abort();
+      document.querySelector('#creator-kontakt-drawer')?.remove();
+      document.querySelector('#creator-kontakt-drawer-overlay')?.remove();
     });
   });
 
@@ -453,8 +533,7 @@ describe('CreatorGridView', () => {
       expect(ok).toBe(true);
       expect(container.querySelectorAll('.creator-card')).toHaveLength(2);
       expect(container.querySelector('[data-id="c1"] .creator-card__name').textContent).toContain('Neu Connected');
-      expect(container.querySelector('[data-id="c1"] .ig-connected-badge')).toBeNull();
-      expect(container.querySelector('[data-id="c1"] .creator-card__posts')).toBeTruthy();
+      expect(container.querySelector('[data-id="c1"] .creator-card__link')).toBeTruthy();
       expect(container.querySelector('[data-id="c2"] .creator-card__name').textContent).toContain('Nachbar');
       expect(window.dataService.loadEntitiesWithPagination).toHaveBeenCalledWith(
         'creator',
@@ -479,142 +558,42 @@ describe('CreatorGridView', () => {
     });
   });
 
-  // ── Kooperationen (Plattform-Marken + Instagram-Werbepartner) ──────────────
+  // ── Kooperationsvideos auf der Kachel ──────────────────────────────────────
   describe('Kooperationen', () => {
-    function makeSupabase(rows, { error = null } = {}) {
-      const q = {
-        select: vi.fn(() => q),
-        in: vi.fn(() => q),
-        order: vi.fn(() => Promise.resolve({ data: rows, error }))
+    it('zählt Kooperationsvideos auf der Kachel', async () => {
+      const grid = new CreatorGridView(makeList());
+      mountShell(grid);
+      const container = grid.getContainer();
+      container.innerHTML = grid.renderCard({ id: 'c1', vorname: 'A' });
+      let call = 0;
+      window.supabase = {
+        from: () => ({
+          select: () => ({
+            in: async () => {
+              call += 1;
+              if (call === 1) return { data: [{ id: 'k1', creator_id: 'c1' }, { id: 'k2', creator_id: 'c1' }], error: null };
+              return { data: [{ kooperation_id: 'k1' }, { kooperation_id: 'k2' }, { kooperation_id: 'k2' }], error: null };
+            }
+          })
+        })
       };
-      return { from: vi.fn(() => q), _q: q };
-    }
 
-    it('normalisiert ig_brand_mentions (String und Objekt)', () => {
-      const grid = new CreatorGridView(makeList());
-      const res = grid._normalizeBrandMentions({
-        ig_brand_mentions: [
-          'nike',
-          { handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.avif', profile_pic_thumb: 'http://x/a_thumb.avif' },
-          null,
-          { name: 'ohneHandle' }
-        ]
-      });
-      expect(res).toEqual([
-        { handle: 'nike', name: null, profile_pic: null, profile_pic_thumb: null },
-        { handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.avif', profile_pic_thumb: 'http://x/a_thumb.avif' }
-      ]);
+      await grid._hydrateVideoCounts([{ id: 'c1' }], grid._requestId);
+      expect(container.querySelector('[data-video-count="c1"]').textContent).toBe('3');
+      expect(container.querySelector('.creator-card__coops')).toBeNull();
     });
 
-    it('rendert gemischte Reihe: Plattform zuerst, dedupe nach Name', () => {
-      const grid = new CreatorGridView(makeList());
-      const html = grid._renderCoopsRow(
-        [{ id: 'm1', markenname: 'Nike', logo_url: 'http://x/n.png' }],
-        [
-          { handle: 'nike', name: 'Nike', profile_pic: null },       // dedupe vs. Plattform
-          { handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.webp' }
-        ]
-      );
-      const el = parseCard(html);
-      const bubbles = el.querySelectorAll('.avatar-bubble-item');
-      expect(bubbles.length).toBe(2);
-      // Erste Bubble = Plattform-Marke (intern klickbar)
-      expect(el.querySelector('.avatar-bubble[data-entity="marke"]')).toBeTruthy();
-      expect(html).toContain('Letzte Kooperationen');
-    });
-
-    it('IG-Brand ohne Logo -> Initialen + externer Link', () => {
-      const grid = new CreatorGridView(makeList());
-      const html = grid._renderCoopsRow([], [{ handle: 'adidas', name: 'Adidas', profile_pic: null }]);
-      const el = parseCard(html);
-      const link = el.querySelector('a.avatar-bubble');
-      expect(link).toBeTruthy();
-      expect(link.getAttribute('href')).toBe('https://instagram.com/adidas');
-      expect(link.getAttribute('target')).toBe('_blank');
-      expect(el.querySelector('a.avatar-bubble img')).toBeNull(); // kein Logo -> Initialen
-    });
-
-    it('IG-Brand mit Logo -> Bild-Bubble mit externem Link', () => {
-      const grid = new CreatorGridView(makeList());
-      const html = grid._renderCoopsRow([], [{ handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.avif' }]);
-      const el = parseCard(html);
-      const img = el.querySelector('a.avatar-bubble img.avatar-bubble-logo');
-      expect(img).toBeTruthy();
-      expect(img.getAttribute('src')).toBe('http://x/a.avif');
-    });
-
-    it('nimmt fuer die Brand-Bubble das Logo-Thumbnail wenn vorhanden', () => {
-      const grid = new CreatorGridView(makeList());
-      const html = grid._renderCoopsRow([], [{
-        handle: 'adidas',
-        name: 'Adidas',
-        profile_pic: 'http://x/a.avif',
-        profile_pic_thumb: 'http://x/a_thumb.avif'
-      }]);
-      const img = parseCard(html).querySelector('a.avatar-bubble img.avatar-bubble-logo');
-
-      expect(img.getAttribute('src')).toBe('http://x/a_thumb.avif');
-    });
-
-    it('gibt leere Reihe zurueck ohne Marken/Brands', () => {
-      const grid = new CreatorGridView(makeList());
-      expect(grid._renderCoopsRow([], [])).toBe('');
-    });
-
-    it('hydriert Karten: gruppiert pro Creator, dedupe nach marke.id', async () => {
+    it('lässt die Zahl bei veraltetem Request stehen', async () => {
       const grid = new CreatorGridView(makeList());
       mountShell(grid);
       const container = grid.getContainer();
-      const items = [
-        { id: 'c1', ig_brand_mentions: [] },
-        { id: 'c2', ig_brand_mentions: [{ handle: 'x', name: 'XBrand', profile_pic: null }] }
-      ];
-      container.innerHTML = items.map((c) => grid.renderCard(c)).join('');
+      container.innerHTML = grid.renderCard({ id: 'c1', vorname: 'A' });
+      window.supabase = {
+        from: () => ({ select: () => ({ in: async () => ({ data: [{ id: 'k1', creator_id: 'c1' }], error: null }) }) })
+      };
 
-      window.supabase = makeSupabase([
-        { creator_id: 'c1', created_at: '2026-01-02', kampagne: { marke: { id: 'm1', markenname: 'Nike', logo_url: 'u' } } },
-        { creator_id: 'c1', created_at: '2026-01-01', kampagne: { marke: { id: 'm1', markenname: 'Nike', logo_url: 'u' } } },
-        { creator_id: 'c1', created_at: '2026-01-01', kampagne: { marke: { id: 'm2', markenname: 'Puma', logo_url: 'u2' } } }
-      ]);
-
-      await grid._hydrateKooperationen(items, grid._requestId);
-
-      const c1 = container.querySelector('.creator-card__coops[data-creator-id="c1"]');
-      const c2 = container.querySelector('.creator-card__coops[data-creator-id="c2"]');
-      expect(c1.querySelectorAll('.avatar-bubble-item').length).toBe(2); // Nike + Puma (dedupe)
-      expect(c2.querySelectorAll('.avatar-bubble-item').length).toBe(1); // XBrand aus IG
-    });
-
-    it('verwirft veraltete Hydration (reqId mismatch)', async () => {
-      const grid = new CreatorGridView(makeList());
-      mountShell(grid);
-      const container = grid.getContainer();
-      const items = [{ id: 'c1', ig_brand_mentions: [] }];
-      container.innerHTML = items.map((c) => grid.renderCard(c)).join('');
-
-      window.supabase = makeSupabase([
-        { creator_id: 'c1', created_at: '2026-01-02', kampagne: { marke: { id: 'm1', markenname: 'Nike', logo_url: 'u' } } }
-      ]);
-
-      await grid._hydrateKooperationen(items, grid._requestId + 5); // veraltet
-
-      const c1 = container.querySelector('.creator-card__coops[data-creator-id="c1"]');
-      expect(c1.innerHTML).toBe('');
-    });
-
-    it('ignoriert Batch-Fehler still (Karte ohne Coop-Reihe)', async () => {
-      const grid = new CreatorGridView(makeList());
-      mountShell(grid);
-      const container = grid.getContainer();
-      const items = [{ id: 'c1', ig_brand_mentions: [] }];
-      container.innerHTML = items.map((c) => grid.renderCard(c)).join('');
-
-      window.supabase = makeSupabase(null, { error: new Error('boom') });
-
-      await grid._hydrateKooperationen(items, grid._requestId);
-
-      const c1 = container.querySelector('.creator-card__coops[data-creator-id="c1"]');
-      expect(c1.innerHTML).toBe('');
+      await grid._hydrateVideoCounts([{ id: 'c1' }], grid._requestId + 5);
+      expect(container.querySelector('[data-video-count="c1"]').textContent).toBe('0');
     });
   });
 });

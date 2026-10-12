@@ -174,8 +174,9 @@ export class AuthService {
           // Header-Buttons basierend auf Rolle anpassen (Education, Notifications für Kunden ausblenden)
           this.updateHeaderForRole(data.rolle);
           
-          // Aktuelle Route neu navigieren, damit Berechtigungen greifen
-          const currentRoute = location.pathname;
+          // Aktuelle Route neu navigieren, damit Berechtigungen greifen.
+          // Query mitnehmen, sonst verschwindet eine geteilte Filter-Auswahl beim Laden.
+          const currentRoute = location.pathname + location.search;
           if (!boot && currentRoute) {
             window.moduleRegistry?.navigateTo?.(currentRoute);
           }

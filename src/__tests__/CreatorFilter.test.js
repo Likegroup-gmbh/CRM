@@ -126,6 +126,19 @@ describe('CREATOR_FILTERS', () => {
     dateFilters.forEach(f => expect(f.type).toBe('dateRange'));
   });
 
+  it('bietet die Rezension als Mindestwert und als Ohne-Bewertung', () => {
+    const rezension = CREATOR_FILTERS.find((f) => f.id === 'rezension_min');
+    expect(rezension.options.map((o) => o.value)).toEqual(['1', '2', '3', '4', '5']);
+    expect(rezension.options.map((o) => o.label)).toEqual([
+      'Mindestens 1 Stern',
+      'Mindestens 2 Sterne',
+      'Mindestens 3 Sterne',
+      'Mindestens 4 Sterne',
+      'Mindestens 5 Sterne'
+    ]);
+    expect(CREATOR_FILTERS.find((f) => f.id === 'rezension_ohne').type).toBe('boolean');
+  });
+
   it('ordnet jeden Filter genau einer Gruppe zu', () => {
     const grouped = CREATOR_FILTER_GROUPS.flatMap(g => g.filters);
 

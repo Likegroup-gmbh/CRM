@@ -40,6 +40,7 @@ export const ENTITY_ICONS = {
   shares: 'shared-list',
   tabellen: 'table-cells',
   feedback: 'chat-bubble',
+  rezension: 'star',
   produkt: 'cube',
   produkte: 'cube',
   persona: 'user',
