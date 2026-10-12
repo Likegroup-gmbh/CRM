@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { istWerbePost } from '../../netlify/functions/_shared/instagram-cpm.js';
 import { anzeigePosts, durchschnittlicheViews, kennzeichnetWerbung, waehleAnzeigeReels, REEL_ANZEIGE_LIMIT } from '../modules/creator/creatorReels.js';
-import { sortiereNachVideos, vergleicheName, videoSeit } from '../modules/creator/creatorBuchung.js';
+import { CREATOR_SORTS, sortiereNachAnzahl, vergleicheName, videoSeit } from '../modules/creator/creatorBuchung.js';
+import { ladeFavoritenAnzahl } from '../modules/creator/creatorFavorit.js';
+import { CreatorList } from '../modules/creator/CreatorListCore.js';
 import { renderTagZeile } from '../modules/creator/creatorTags.js';
 import { queryToSelection, selectionToQuery } from '../modules/creator/creatorFilterQuery.js';
 import { overviewColumnGroups } from '../modules/creator/creatorFilterColumn.js';
@@ -62,7 +64,7 @@ describe('Videozahl', () => {
 
   it('sortiert nach Anzahl, Gleichstand nach Name, Null bleibt unten', () => {
     const counts = new Map([['a', 2], ['b', 5], ['c', 0]]);
-    const ordered = sortiereNachVideos([
+    const ordered = sortiereNachAnzahl([
       { id: 'c', nachname: 'Adler', vorname: 'Ann' },
       { id: 'a', nachname: 'Zimmer', vorname: 'Bea' },
       { id: 'd', nachname: 'Adler', vorname: 'Ben' },
@@ -109,5 +111,83 @@ describe('Filterspalte Grundlagen', () => {
     const groups = overviewColumnGroups(CREATOR_FILTER_GROUPS);
     const basic = groups.find((group) => group.id === 'basic');
     expect(basic.filters.slice(0, 4)).toEqual(['groesse', 'generation', 'favorit_von', 'creator_tag_id']);
+  });
+});
+
+function favoritenSupabase(seiten, fehler = null) {
+  const ranges = [];
+  return {
+    ranges,
+    from: () => {
+      const query = {
+        select: () => query,
+        order: () => query,
+        range: async (from, to) => {
+          ranges.push([from, to]);
+          if (fehler) return { data: null, error: fehler };
+          return { data: seiten[ranges.length - 1] || [], error: null };
+        }
+      };
+      return query;
+    }
+  };
+}
+
+describe('Sortierung nach Favoriten', () => {
+  afterEach(() => {
+    delete window.supabase;
+    delete window.toastSystem;
+  });
+
+  it('steht direkt nach Name und in der Adresse', () => {
+    expect(CREATOR_SORTS.slice(0, 2).map((entry) => entry.id)).toEqual(['name', 'favoriten']);
+    expect(CREATOR_SORTS[1].label).toBe('Favoriten');
+    const params = selectionToQuery({ sort: 'favoriten' });
+    expect(params.get('sort')).toBe('favoriten');
+    expect(queryToSelection(params).sort).toBe('favoriten');
+  });
+
+  it('zählt alle Markierungen über mehrere Seiten', async () => {
+    const voll = Array.from({ length: 1000 }, (_, i) => ({ creator_id: i < 600 ? 'a' : 'b' }));
+    const supabase = favoritenSupabase([voll, [{ creator_id: 'c' }, { creator_id: 'a' }]]);
+    const counts = await ladeFavoritenAnzahl(supabase);
+    expect(supabase.ranges).toEqual([[0, 999], [1000, 1999]]);
+    expect(counts.get('a')).toBe(601);
+    expect(counts.get('b')).toBe(400);
+    expect(counts.get('c')).toBe(1);
+  });
+
+  it('meiste Favoriten oben, Gleichstand A–Z, ohne Favorit danach, ohne Kennzahl auf der Karte', async () => {
+    window.supabase = favoritenSupabase([[{ creator_id: 'z' }, { creator_id: 'z' }, { creator_id: 'b' }, { creator_id: 'a' }]]);
+    const list = new CreatorList({ mode: 'all' });
+    list.loadAllMatchingIds = async () => [
+      { id: 'n', vorname: 'Nina', nachname: 'Ohne' },
+      { id: 'b', vorname: 'Berta', nachname: 'Eins' },
+      { id: 'z', vorname: 'Zoe', nachname: 'Zwei' },
+      { id: 'a', vorname: 'Anna', nachname: 'Eins' }
+    ];
+    list.loadCreatorPage = async (_page, _limit, { _allowedIds }) => ({
+      data: _allowedIds.map((id) => ({ id })),
+      total: _allowedIds.length
+    });
+    const result = await list.loadPageData(1, 10, { _sort: 'favoriten' });
+    expect(result.data.map((creator) => creator.id)).toEqual(['z', 'a', 'b', 'n']);
+    expect(result.total).toBe(4);
+    expect(result.data.some((creator) => 'videos' in creator)).toBe(false);
+  });
+
+  it('fällt bei einem Fehler auf A–Z zurück und meldet es', async () => {
+    window.supabase = favoritenSupabase([], new Error('weg'));
+    const show = vi.fn();
+    window.toastSystem = { show };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const list = new CreatorList({ mode: 'all' });
+    list.sort = 'favoriten';
+    list.loadAllMatchingIds = async () => [];
+    list.loadNamePage = vi.fn(async () => ({ data: [], total: 0 }));
+    await list.loadPageData(1, 10, { _sort: 'favoriten' });
+    expect(show).toHaveBeenCalledWith('Favoriten konnten nicht geladen werden', 'error');
+    expect(list.sort).toBe('name');
+    expect(list.loadNamePage).toHaveBeenCalled();
   });
 });

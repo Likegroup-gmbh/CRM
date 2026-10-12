@@ -194,8 +194,8 @@ export class CreatorGridView {
     const creator = await this._loadCreatorById(id);
     if (!creator || this.list._destroyed) return false;
     try { await haengeMerkmaleAn([creator]); } catch { /* Karte bleibt ohne Merkmale */ }
-    if (this.list.videoTage && this.list._videoOrder) {
-      const row = this.list._videoOrder.find((entry) => entry.id === creator.id);
+    if (this.list.videoTage && this.list._countOrder) {
+      const row = this.list._countOrder.find((entry) => entry.id === creator.id);
       if (row) creator.videos = row.anzahl;
     }
 

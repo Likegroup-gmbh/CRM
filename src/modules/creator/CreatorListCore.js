@@ -7,7 +7,7 @@ import { CreatorGridView } from './CreatorGridView.js';
 import { GENERATIONEN, GROESSEN } from './creatorProfil.js';
 import { settleRezensionFilters } from './rezension.js';
 import { formatCreatorSumme, queryToSelection, selectionToQuery } from './creatorFilterQuery.js';
-import { ladeVideoAnzahl, normalizeSort, sortiereNachName, sortiereNachVideos } from './creatorBuchung.js';
+import { ANZAHL_SORTS, normalizeSort, sortiereNachAnzahl, sortiereNachName } from './creatorBuchung.js';
 import { paintFilterValues } from './creatorFilterColumn.js';
 
 export const ANSICHT_KEY = 'creator-ansicht';
@@ -54,8 +54,8 @@ export class CreatorList extends BasePaginatedList {
     this.ansicht = readAnsicht();
     this.sort = 'name';
     this.videoTage = 0;
-    this._videoKey = '';
-    this._videoOrder = [];
+    this._countKey = '';
+    this._countOrder = [];
     this.gridView = new CreatorGridView(this);
     this._gridLoadedOnce = false;
 
@@ -74,16 +74,12 @@ export class CreatorList extends BasePaginatedList {
   async loadPageData(page, limit, filters) {
     const sort = normalizeSort(filters?._sort);
     if (sort === 'name') return this.loadNamePage(page, limit, filters);
-    if (sort === 'video30' || sort === 'video90' || sort === 'kooperation') {
-      const tage = sort === 'video30' ? 30 : sort === 'video90' ? 90 : 'alle';
-      return this.loadVideoPage(page, limit, filters, tage);
-    }
+    if (ANZAHL_SORTS[sort]) return this.loadAnzahlPage(page, limit, filters, sort);
     return this.loadCreatorPage(page, limit, filters);
   }
 
   async loadCreatorPage(page, limit, filters) {
     const queryFilters = { ...filters };
-    delete queryFilters._videoTage;
     delete queryFilters._sort;
     // Summe über den Karten ist die genaue Trefferzahl, nicht die Schätzung fürs Weiterladen.
     if (this.usesFilterColumn() && page === 1 && !queryFilters._idOnly) queryFilters._countExact = true;
@@ -112,7 +108,6 @@ export class CreatorList extends BasePaginatedList {
 
   orderBase(filters) {
     const base = { ...filters };
-    delete base._videoTage;
     delete base._sort;
     delete base._sortBy;
     delete base._sortOrder;
@@ -146,26 +141,27 @@ export class CreatorList extends BasePaginatedList {
     return this.pageFromOrder(page, limit, this._nameOrder);
   }
 
-  async loadVideoPage(page, limit, filters, tage) {
+  async loadAnzahlPage(page, limit, filters, sort) {
+    const art = ANZAHL_SORTS[sort];
     const base = this.orderBase(filters);
-    const key = JSON.stringify(base);
-    if (this._videoKey !== key || this._videoTageCache !== tage) {
+    const key = `${sort}|${JSON.stringify(base)}`;
+    if (this._countKey !== key) {
       try {
-        const creators = await this.loadAllMatchingIds(base);
-        const counts = await ladeVideoAnzahl(window.supabase, tage);
-        this._videoOrder = sortiereNachVideos(creators, counts);
-        this._videoKey = key;
-        this._videoTageCache = tage;
+        const [creators, counts] = await Promise.all([
+          this.loadAllMatchingIds(base),
+          art.laden(window.supabase)
+        ]);
+        this._countOrder = sortiereNachAnzahl(creators, counts);
+        this._countKey = key;
       } catch (error) {
-        console.error('Videozahl konnte nicht geladen werden', error);
-        window.toastSystem?.show('Videozahl konnte nicht geladen werden', 'error');
+        console.error(art.fehler, error);
+        window.toastSystem?.show(art.fehler, 'error');
         this.setSort('name', { reload: false });
         return this.loadNamePage(page, limit, base);
       }
     }
-    return this.pageFromOrder(page, limit, this._videoOrder, (creator, row) => {
-      if (tage !== 'alle') creator.videos = row.anzahl;
-    });
+    const stamp = art.stempel ? (creator, row) => { creator.videos = row.anzahl; } : null;
+    return this.pageFromOrder(page, limit, this._countOrder, stamp);
   }
 
   async loadAllMatchingIds(filters) {
@@ -217,7 +213,7 @@ export class CreatorList extends BasePaginatedList {
     const scrollTop = this._gridLoadedOnce;
     this._gridLoadedOnce = true;
     this._nameKey = '';
-    this._videoKey = '';
+    this._countKey = '';
     this.writeSelectionToUrl();
     await this.gridView.reload({ scrollTop });
   }

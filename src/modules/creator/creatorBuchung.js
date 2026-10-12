@@ -1,5 +1,8 @@
-// Videozahl: Kooperationsvideos in den letzten 30 oder 90 Tagen, oder insgesamt.
-// Gezählt wird der Tag, an dem das Video angelegt wurde.
+// Sortierungen der Creator-Übersicht. Videozahl: Kooperationsvideos in den
+// letzten 30 oder 90 Tagen, oder insgesamt. Gezählt wird der Tag, an dem das
+// Video angelegt wurde.
+
+import { ladeFavoritenAnzahl } from './creatorFavorit.js';
 
 export const VIDEO_TAGE = [30, 90];
 const TAG_MS = 24 * 60 * 60 * 1000;
@@ -7,6 +10,7 @@ const ALLE_SEIT = '1970-01-01T00:00:00.000Z';
 
 export const CREATOR_SORTS = [
   { id: 'name', label: 'Name, A–Z' },
+  { id: 'favoriten', label: 'Favoriten' },
   { id: 'follower', label: 'Instagram-Follower' },
   { id: 'video30', label: 'Videos, 30 Tage' },
   { id: 'video90', label: 'Videos, 90 Tage' },
@@ -37,7 +41,16 @@ export function sortiereNachName(creators) {
   return [...(creators || [])].sort(vergleicheName);
 }
 
-export function sortiereNachVideos(creators, anzahl) {
+// Sortierungen nach einer Zahl je Creator. stempel: die Zahl erscheint auf der Karte.
+const VIDEO_FEHLER = 'Videozahl konnte nicht geladen werden';
+export const ANZAHL_SORTS = {
+  favoriten: { laden: (supabase) => ladeFavoritenAnzahl(supabase), fehler: 'Favoriten konnten nicht geladen werden' },
+  video30: { laden: (supabase) => ladeVideoAnzahl(supabase, 30), fehler: VIDEO_FEHLER, stempel: true },
+  video90: { laden: (supabase) => ladeVideoAnzahl(supabase, 90), fehler: VIDEO_FEHLER, stempel: true },
+  kooperation: { laden: (supabase) => ladeVideoAnzahl(supabase, 'alle'), fehler: VIDEO_FEHLER }
+};
+
+export function sortiereNachAnzahl(creators, anzahl) {
   const counts = anzahl instanceof Map ? anzahl : new Map();
   return [...(creators || [])]
     .map((creator) => ({

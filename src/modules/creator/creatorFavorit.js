@@ -83,6 +83,24 @@ export async function ladeFavoriten(supabase, creatorIds) {
   return map;
 }
 
+const FAVORIT_SEITE = 1000;
+
+export async function ladeFavoritenAnzahl(supabase) {
+  const counts = new Map();
+  for (let from = 0; ; from += FAVORIT_SEITE) {
+    const { data, error } = await supabase
+      .from('creator_favoriten')
+      .select('creator_id')
+      .order('creator_id')
+      .order('user_id')
+      .range(from, from + FAVORIT_SEITE - 1);
+    if (error) throw error;
+    for (const row of data || []) counts.set(row.creator_id, (counts.get(row.creator_id) || 0) + 1);
+    if (!data || data.length < FAVORIT_SEITE) break;
+  }
+  return counts;
+}
+
 export async function toggleFavorit(supabase, creatorId, favoriten) {
   const me = currentUserId();
   if (!me) throw new Error('Nicht angemeldet');
