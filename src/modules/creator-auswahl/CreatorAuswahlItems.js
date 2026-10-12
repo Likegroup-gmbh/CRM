@@ -389,6 +389,33 @@ export async function fetchInstagramStats(itemId, { force = false } = {}) {
   };
 }
 
+/**
+ * Dieselben Instagram-Daten wie das Haekchen, ohne eine Zeile zu schreiben.
+ * Der Drawer fuellt seine Felder daraus und legt die Reichweite erst beim
+ * Speichern auf den neuen Eintrag.
+ */
+export async function previewInstagramStats(link) {
+  const response = await authorizedFetch('/.netlify/functions/sourcing-instagram-stats', {
+    method: 'POST',
+    body: JSON.stringify({ preview: true, link })
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok || !result.ok) {
+    const error = new Error(result.error || 'Instagram-Abruf fehlgeschlagen');
+    error.retryable = response.status === 429;
+    error.hint = result.hint || null;
+    throw error;
+  }
+
+  return {
+    username: result.username,
+    source: result.source || 'meta',
+    fields: result.fields || {}
+  };
+}
+
 export const creatorAuswahlItemsMethods = {
   getItems,
   getListeIdsForCreator,
@@ -402,7 +429,8 @@ export const creatorAuswahlItemsMethods = {
   updateItemsSortierungWithKategorie,
   updateItemsGroup,
   scrapeCreator,
-  fetchInstagramStats
+  fetchInstagramStats,
+  previewInstagramStats
 };
 
 function parseFollowerCount(value) {

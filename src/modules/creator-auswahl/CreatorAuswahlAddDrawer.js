@@ -5,16 +5,41 @@
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
 import { creatorAuswahlAddFormMethods } from './creatorAuswahlAddForm.js';
+import {
+  IG_TEXT_FIELDS,
+  applyPreviewToForm,
+  instagramProfilHandle,
+  leereIgOwners,
+  markUserEdit,
+  normalizedInstagramUrl,
+  schuetzeGefuellte,
+  statsForSave
+} from './instagramDrawerFill.js';
+
+const IG_LADE_TEXT = 'Instagram-Daten werden geladen…';
 
 export class CreatorAuswahlAddDrawer {
   constructor(detail) {
     this.detail = detail;
     this.mode = 'new'; // 'new' oder 'database'
     this.selectedCreatorFromDb = null;
+    this.igRequest = 0;
+    this.resetIgFill();
+  }
+
+  resetIgFill() {
+    this.igRequest += 1;
+    this.igOwners = leereIgOwners();
+    this.igPayload = null;
+    this.igHandle = null;
+    this.igPending = false;
+    this.igApplying = false;
   }
 
   open() {
+    clearTimeout(this.closeTimer);
     this.remove();
+    this.resetIgFill();
     this.mode = 'new';
     this.selectedCreatorFromDb = null;
 
@@ -83,6 +108,7 @@ export class CreatorAuswahlAddDrawer {
   switchMode(mode) {
     this.mode = mode;
     this.selectedCreatorFromDb = null;
+    this.resetIgFill();
 
     const body = document.getElementById('add-creator-drawer-body');
     if (body) {
@@ -92,6 +118,8 @@ export class CreatorAuswahlAddDrawer {
   }
 
   async handleSubmit(formData) {
+    if (this.igPending) return;
+
     const typ = normalizeCreatorTyp(formData.get('typ'));
     const name = formData.get('name')?.trim();
 
@@ -119,11 +147,15 @@ export class CreatorAuswahlAddDrawer {
         return;
       }
 
+      const link = formData.get('link_instagram')?.trim() || null;
+      const stats = statsForSave(this.igPayload, link);
+
       const itemData = {
         creator_auswahl_id: this.detail.listeId,
         typ: resolvedTyp,
         name: name || (this.selectedCreatorFromDb ? `${this.selectedCreatorFromDb.vorname || ''} ${this.selectedCreatorFromDb.nachname || ''}`.trim() : null),
-        link_instagram: formData.get('link_instagram')?.trim() || null,
+        link_instagram: link,
+        ...(stats || {}),
         follower_instagram: formData.get('follower_instagram') ? parseInt(formData.get('follower_instagram'), 10) : null,
         link_tiktok: formData.get('link_tiktok')?.trim() || null,
         follower_tiktok: formData.get('follower_tiktok') ? parseInt(formData.get('follower_tiktok'), 10) : null,
@@ -232,16 +264,139 @@ export class CreatorAuswahlAddDrawer {
     }
   }
 
+  verbindeInstagramAbruf(form) {
+    if (!form) return;
+    const linkInput = form.querySelector('input[name="link_instagram"]');
+    const starten = () => this.ladeInstagramVorschau(linkInput?.value);
+    linkInput?.addEventListener('paste', () => setTimeout(starten, 0));
+    linkInput?.addEventListener('blur', starten);
+
+    for (const field of IG_TEXT_FIELDS) {
+      form.querySelector(`[name="${field}"]`)?.addEventListener('input', () => {
+        if (this.igApplying) return;
+        this.igOwners = markUserEdit(this.igOwners, field);
+      });
+    }
+  }
+
+  formularWerte() {
+    const form = document.getElementById('add-creator-form');
+    const values = {};
+    for (const field of IG_TEXT_FIELDS) {
+      values[field] = form?.querySelector(`[name="${field}"]`)?.value ?? '';
+    }
+    return values;
+  }
+
+  nachStammdaten() {
+    this.igOwners = schuetzeGefuellte(this.igOwners, this.formularWerte());
+    const link = document.querySelector('#add-creator-form input[name="link_instagram"]')?.value;
+    if (link) this.ladeInstagramVorschau(link);
+  }
+
+  async ladeInstagramVorschau(raw) {
+    const handle = instagramProfilHandle(raw);
+    if (!handle) {
+      this.igRequest += 1;
+      this.igPending = false;
+      this.igPayload = null;
+      this.igHandle = null;
+      this.setIgStatus(null);
+      this.setSubmitLocked(false);
+      return;
+    }
+
+    if (handle === this.igHandle && (this.igPayload || this.igPending)) {
+      if (this.igPayload) this.setzeNormalisiertenLink(handle);
+      return;
+    }
+
+    const request = ++this.igRequest;
+    this.igPending = true;
+    this.igPayload = null;
+    this.igHandle = handle;
+    this.setIgStatus(IG_LADE_TEXT);
+    this.setSubmitLocked(true);
+
+    try {
+      const result = await creatorAuswahlService.previewInstagramStats(raw);
+      if (request !== this.igRequest) return;
+      const username = String(result.username || '').toLowerCase();
+      if (username !== handle) {
+        this.setIgStatus(null);
+        return;
+      }
+      this.igPayload = { username, ...result.fields };
+      this.schreibeVorschauInFelder(result.fields);
+      this.setzeNormalisiertenLink(handle);
+      this.setIgStatus(null);
+    } catch (error) {
+      if (request !== this.igRequest) return;
+      this.igPayload = null;
+      const text = [error.message, error.hint].filter(Boolean).join(' ');
+      this.setIgStatus(text || 'Instagram-Abruf fehlgeschlagen');
+    } finally {
+      if (request === this.igRequest) {
+        this.igPending = false;
+        this.setSubmitLocked(false);
+      }
+    }
+  }
+
+  schreibeVorschauInFelder(fields) {
+    const form = document.getElementById('add-creator-form');
+    if (!form) return;
+    const applied = applyPreviewToForm(this.formularWerte(), this.igOwners, fields);
+    this.igApplying = true;
+    for (const field of IG_TEXT_FIELDS) {
+      const el = form.querySelector(`[name="${field}"]`);
+      if (el) el.value = applied.values[field];
+    }
+    const follower = form.querySelector('[name="follower_instagram"]');
+    if (follower) follower.value = applied.values.follower_instagram;
+    this.igApplying = false;
+    this.igOwners = applied.owners;
+  }
+
+  setzeNormalisiertenLink(handle) {
+    const input = document.querySelector('#add-creator-form input[name="link_instagram"]');
+    if (!input) return;
+    const next = normalizedInstagramUrl(handle);
+    if (input.value !== next) input.value = next;
+  }
+
+  setIgStatus(message) {
+    const el = document.getElementById('ig-link-status');
+    if (!el) return;
+    if (!message) {
+      el.hidden = true;
+      el.textContent = '';
+      el.classList.remove('form-hint--error');
+      return;
+    }
+    el.hidden = false;
+    el.textContent = message;
+    el.classList.toggle('form-hint--error', message !== IG_LADE_TEXT);
+  }
+
+  setSubmitLocked(locked) {
+    const btn = document.getElementById('submit-btn');
+    if (btn) btn.disabled = locked;
+  }
+
   remove() {
+    clearTimeout(this.closeTimer);
     ['add-creator-overlay', 'add-creator-drawer'].forEach(id => {
       document.getElementById(id)?.remove();
     });
   }
 
   close() {
+    this.resetIgFill();
     document.getElementById('add-creator-overlay')?.classList.remove('active');
     document.getElementById('add-creator-drawer')?.classList.remove('show');
-    setTimeout(() => this.remove(), 300);
+    clearTimeout(this.closeTimer);
+    this.closeTimer = setTimeout(() => this.remove(), 300);
   }
 }
 

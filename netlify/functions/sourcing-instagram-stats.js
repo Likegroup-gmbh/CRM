@@ -7,6 +7,9 @@
 // Liste (creator_auswahl.tkp). cpm_ig_* bleiben als Referenzwert bei 25 EUR.
 //
 // POST { item_id: '<uuid>', force?: boolean }
+// POST { preview: true, link: '<instagram-url>' }
+//   -> preview schreibt keine Casting-Zeile. Der Drawer zeigt die Felder, bevor
+//      der Eintrag existiert. Pool und Meta laufen wie beim Haekchen.
 //   -> Vor dem Meta-Abruf wird public.sourcing_creator gefragt: derselbe
 //      Creator steckt oft in mehreren Listen. Ist der Handle dort bekannt,
 //      werden die Werte aus dem Pool in die Zeile kopiert und Meta bleibt
@@ -241,6 +244,17 @@ function buildItemUpdate(pool, item) {
   return update;
 }
 
+function vorschauAntwort(pool, item, { username, source }) {
+  return jsonResponse(200, {
+    ok: true,
+    preview: true,
+    username,
+    source,
+    pool_fetched_at: pool.ig_fetched_at || null,
+    fields: buildItemUpdate(pool, item)
+  });
+}
+
 /** benutzer.id zum eingeloggten Auth-User (created_by ist ein FK auf benutzer) */
 async function resolveBenutzerId(supabase, authUserId) {
   if (!authUserId) return null;
@@ -272,22 +286,39 @@ exports.handler = async (event) => {
     return jsonResponse(400, { error: 'Ungültiger JSON-Body' });
   }
 
+  const preview = body.preview === true;
   const itemId = body.item_id;
-  if (!itemId) {
+  if (!preview && !itemId) {
     return jsonResponse(400, { error: 'item_id fehlt' });
+  }
+  if (preview && !String(body.link || '').trim()) {
+    return jsonResponse(400, { error: 'link fehlt' });
   }
 
   const force = body.force === true;
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  const { data: item, error: loadError } = await supabase
-    .from('creator_auswahl_items')
-    .select('id, name, link_instagram, email, telefon, wohnort, sourcing_creator_id')
-    .eq('id', itemId)
-    .single();
-  if (loadError || !item) {
-    return jsonResponse(404, { error: 'Sourcing-Eintrag nicht gefunden' });
+  let item;
+  if (preview) {
+    item = {
+      name: null,
+      link_instagram: String(body.link).trim(),
+      email: null,
+      telefon: null,
+      wohnort: null,
+      notiz: null
+    };
+  } else {
+    const { data, error: loadError } = await supabase
+      .from('creator_auswahl_items')
+      .select('id, name, link_instagram, email, telefon, wohnort, sourcing_creator_id')
+      .eq('id', itemId)
+      .single();
+    if (loadError || !data) {
+      return jsonResponse(404, { error: 'Sourcing-Eintrag nicht gefunden' });
+    }
+    item = data;
   }
 
   const username = normalizeUsername(item.link_instagram);
@@ -316,6 +347,8 @@ exports.handler = async (event) => {
   // Creator schon im Pool: Werte uebernehmen statt Meta zu fragen. Erst ein
   // ausdruecklicher Refresh (force) holt neue Zahlen.
   if (pool?.ig_fetched_at && !force && !bildNachholen && !logikVeraltet) {
+    if (preview) return vorschauAntwort(pool, item, { username, source: 'pool' });
+
     const { data: updated, error: copyError } = await supabase
       .from('creator_auswahl_items')
       .update(buildItemUpdate(pool, item))
@@ -360,6 +393,7 @@ exports.handler = async (event) => {
     // brauchbar, also lieber ohne Bild ausliefern als den Klick scheitern lassen
     if (bildNachholen && pool?.ig_fetched_at && !force) {
       console.warn(`⚠️ sourcing-instagram-stats: Bild-Nachzug @${username} fehlgeschlagen:`, res.error);
+      if (preview) return vorschauAntwort(pool, item, { username, source: 'pool' });
       const { data: updated } = await supabase
         .from('creator_auswahl_items')
         .update(buildItemUpdate(pool, item))
@@ -389,10 +423,12 @@ exports.handler = async (event) => {
       });
     }
 
-    await supabase
-      .from('creator_auswahl_items')
-      .update({ ig_fetch_error: res.error, ig_fetched_at: new Date().toISOString() })
-      .eq('id', itemId);
+    if (!preview) {
+      await supabase
+        .from('creator_auswahl_items')
+        .update({ ig_fetch_error: res.error, ig_fetched_at: new Date().toISOString() })
+        .eq('id', itemId);
+    }
 
     // Fehler auch am Pool vermerken, damit ein abgelaufenes Profil nicht in
     // jeder Liste erneut probiert werden muss
@@ -509,6 +545,8 @@ exports.handler = async (event) => {
   if (poolError) {
     return jsonResponse(500, { error: `Creator-Pool konnte nicht geschrieben werden: ${poolError.message}` });
   }
+
+  if (preview) return vorschauAntwort(poolRow, item, { username, source: 'meta' });
 
   const { data: updated, error: updateError } = await supabase
     .from('creator_auswahl_items')

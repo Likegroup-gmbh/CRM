@@ -86,6 +86,7 @@ export function renderForm() {
           <div class="form-field">
             <label class="form-label">Link Instagram</label>
             <input type="url" name="link_instagram" class="form-input" placeholder="https://instagram.com/...">
+            <p id="ig-link-status" class="form-hint" hidden></p>
           </div>
           <div class="form-field">
             <label class="form-label">Follower IG</label>
@@ -194,6 +195,8 @@ export function bindFormEvents() {
     e.preventDefault();
     await this.handleSubmit(new FormData(form));
   });
+
+  this.verbindeInstagramAbruf(form);
 
   if (this.mode === 'database') {
     this.setupDbCreatorAutoSuggestion();
@@ -329,11 +332,13 @@ export function fillFormFromDbCreator(creator) {
     locationInput.value = creator.lieferadresse_stadt;
   }
 
-  const notizInput = document.querySelector('textarea[name="notiz"]');
-  if (notizInput && creator.notiz) {
-    notizInput.value = creator.notiz;
+    const notizInput = document.querySelector('textarea[name="notiz"]');
+    if (notizInput && creator.notiz) {
+      notizInput.value = creator.notiz;
+    }
+
+    this.nachStammdaten();
   }
-}
 
 export function parseFollowerRange(rangeStr) {
   if (!rangeStr) return null;
