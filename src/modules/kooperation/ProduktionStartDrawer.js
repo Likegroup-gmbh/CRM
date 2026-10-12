@@ -2,6 +2,7 @@
 // Sichtbar sind Content und Preise. Zuordnung kommt versteckt mit.
 
 import { restoreKontextFelder } from './produktionStart.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'produktion-start-drawer';
 
@@ -22,7 +23,7 @@ export function closeProduktionStartDrawer() {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     overlay?.remove();
   }

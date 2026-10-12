@@ -306,6 +306,18 @@ describe('BriefingDocView', () => {
     expect(renderBriefingDoc({ detail, canEdit: true, showEdit: true, print: true })).not.toContain('btn-edit-briefing');
   });
 
+  it('Duplizieren erscheint nur mit canDuplicate und nicht im Druck', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    const html = renderBriefingDoc({ detail, canEdit: true, showEdit: true, canAnschreiben: true, canDuplicate: true });
+    expect(html).toContain('btn-duplicate-briefing');
+    expect(html).toContain('#crm-icon-document-duplicate');
+    expect(html.indexOf('btn-edit-briefing')).toBeLessThan(html.indexOf('btn-duplicate-briefing'));
+    expect(html.indexOf('btn-duplicate-briefing')).toBeLessThan(html.indexOf('btn-anschreiben-briefing'));
+
+    expect(renderBriefingDoc({ detail, canEdit: true })).not.toContain('btn-duplicate-briefing');
+    expect(renderBriefingDoc({ detail, canDuplicate: true, print: true })).not.toContain('btn-duplicate-briefing');
+  });
+
   it('embedded setzt den Modifier für den Produktions-Tab', async () => {
     const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
     expect(renderBriefingDoc({ detail, embedded: true })).toContain('briefing-detail--embedded');

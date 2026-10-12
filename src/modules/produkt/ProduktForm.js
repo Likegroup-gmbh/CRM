@@ -29,6 +29,17 @@ import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { backTarget, returnTo } from '../../core/breadcrumbTrail.js';
 import { setPrefillValues } from '../../core/form/data/PrefillSelected.js';
+import { markiereProduktAngelegt, verwirfEinreichung } from '../einladung/einreichungService.js';
+import {
+  bilderAlsDateien,
+  einreichungFormData,
+  einreichungIdAusUrl,
+  einsatzsituationenAusEinreichung,
+  findeNamensDubletten,
+  fragNachDublette,
+  ladeProduktEinreichung,
+  variantenAusEinreichung
+} from './produktEinreichung.js';
 
 export class ProduktForm {
   constructor() {
@@ -46,6 +57,8 @@ export class ProduktForm {
     this._abort = null;
     this.createScope = null;
     this.kontextBriefingId = null;
+    this.einreichung = null;
+    this._dublettenName = null;
   }
 
   get isEdit() {
@@ -90,6 +103,19 @@ export class ProduktForm {
     this.briefingIds = [];
     this.varianten = [];
     this.bilder = [];
+    this.einreichung = null;
+    this._dublettenName = null;
+
+    // Review einer Kunden-Einreichung (ADR 0055): nur beim Anlegen aus /produkt/new
+    const einreichungId = !this.produktId && standalone ? einreichungIdAusUrl() : null;
+    if (einreichungId) {
+      this.einreichung = await ladeProduktEinreichung(einreichungId);
+      if (!this.einreichung) {
+        window.navigateTo('/produkt');
+        return;
+      }
+      this.varianten = variantenAusEinreichung(this.einreichung);
+    }
 
     try {
       this.ctx = standalone || !ownerId
@@ -124,6 +150,10 @@ export class ProduktForm {
     }
     if (this.isStandalone) {
       this.syncMarkenFeldSichtbarkeit();
+    }
+    if (this.einreichung) {
+      window.toastSystem?.info?.(`Einreichung von ${this.einreichung.absender_name} geladen. Prüfen, anpassen und anlegen.`);
+      await this.pruefeDublette();
     }
   }
 
@@ -200,6 +230,75 @@ export class ProduktForm {
       getBriefingIds: () => this.currentBriefingIds(),
       legacyEinsatzsituation: this.produkt?.einsatzsituation || null
     });
+    this.uebernehmeEinsatzsituationen();
+  }
+
+  /** Einsatzsituationen der Einreichung als neue Use Cases ins Persona-Band legen. */
+  uebernehmeEinsatzsituationen() {
+    if (!this.einreichung || !this.personaPanel) return;
+    const namen = einsatzsituationenAusEinreichung(this.einreichung);
+    if (!namen.length) return;
+    namen.forEach((name, i) => {
+      this.personaPanel.useCases.push({
+        key: `uc-einreichung-${i}`,
+        id: null,
+        name,
+        beschreibung: '',
+        deleted: false
+      });
+    });
+    this.personaPanel.render();
+  }
+
+  /** Bilder der Einreichung in den Uploader legen (als neue Dateien, der Save läuft wie sonst). */
+  async fuelleBilderAusEinreichung() {
+    const uploader = this.getBilderUploader();
+    if (!this.einreichung || !uploader) return;
+    const dateien = await bilderAlsDateien(this.einreichung);
+    if (dateien.length) uploader.handleFiles(dateien);
+  }
+
+  /**
+   * Namensvergleich in der Marke (sonst im Unternehmen).
+   * Rückgabe false: nicht anlegen (abgebrochen oder Einreichung verworfen).
+   */
+  async pruefeDublette() {
+    const einladung = this.einreichung?.einladung;
+    if (!einladung) return true;
+    const form = document.getElementById('produkt-form');
+    const name = form?.querySelector('[name="name"]')?.value || '';
+    if (this._dublettenName !== null && this._dublettenName === name.trim().toLowerCase()) return true;
+
+    let dubletten = [];
+    try {
+      dubletten = await findeNamensDubletten({
+        unternehmenId: einladung.unternehmen_id,
+        markeId: einladung.marke_id || null,
+        name
+      });
+    } catch (err) {
+      console.warn('Namensvergleich fehlgeschlagen:', err);
+      return true;
+    }
+    if (!dubletten.length) return true;
+
+    const wahl = await fragNachDublette(dubletten);
+    if (wahl === 'neu') {
+      this._dublettenName = name.trim().toLowerCase();
+      return true;
+    }
+    if (wahl === 'vorhanden') {
+      try {
+        await verwirfEinreichung(this.einreichung);
+        window.toastSystem?.success?.('Einreichung verworfen. Das vorhandene Produkt bleibt unverändert.');
+      } catch (err) {
+        console.error('Verwerfen fehlgeschlagen:', err);
+        window.toastSystem?.error?.('Verwerfen fehlgeschlagen.');
+        return false;
+      }
+      returnTo(this.returnRoute);
+    }
+    return false;
   }
 
   findUnternehmenSelect() {
@@ -294,6 +393,7 @@ export class ProduktForm {
     this.uploader.mount(root);
 
     this.fillBilderUploader();
+    if (this.einreichung) void this.fuelleBilderAusEinreichung();
   }
 
   /** Bereits gespeicherte Kollektionsbilder in den Uploader spiegeln. */
@@ -479,6 +579,10 @@ export class ProduktForm {
       if (this.isEdit) {
         await ProduktService.update(this.produktId, data);
       } else {
+        if (this.einreichung && !(await this.pruefeDublette())) {
+          this.releaseSubmitBtn(submitBtn);
+          return;
+        }
         const unternehmenId = this.ctx.unternehmenId || data.unternehmen_id || this.createScope?.unternehmenId;
         if (!unternehmenId) {
           this.showFieldErrors(form, { unternehmen_id: 'Bitte ein Unternehmen wählen' });
@@ -499,6 +603,14 @@ export class ProduktForm {
       await this.saveBilder(produktId);
       await this.saveVariantenBilder(produktId);
       await this.flushPersonaPanel(produktId, data);
+      if (this.einreichung) {
+        try {
+          await markiereProduktAngelegt(this.einreichung.id, produktId);
+        } catch (err) {
+          console.error('Einreichung nicht als angelegt markiert:', err);
+          window.toastSystem?.warning?.('Produkt angelegt, aber die Einreichung blieb offen. Bitte im Eingang verwerfen.');
+        }
+      }
 
       window.toastSystem?.success?.(this.isEdit ? 'Produkt gespeichert' : 'Produkt angelegt');
       returnTo(this.returnRoute);
@@ -538,6 +650,7 @@ export class ProduktForm {
   }
 
   createFormData() {
+    if (this.einreichung) return einreichungFormData(this.einreichung);
     const scope = this.createScope;
     if (!scope?.unternehmenId && !scope?.markeId && !scope?.briefingId) return null;
     return {

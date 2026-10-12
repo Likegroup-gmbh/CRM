@@ -84,8 +84,18 @@ describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
     join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261008_produktion_linien.sql'),
     'utf8'
   );
+  const vorgabenSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261027_briefing_wichtige_vorgaben.sql'),
+    'utf8'
+  );
+  const laengeFunnelSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261028_briefing_videolaenge_funnel.sql'),
+    'utf8'
+  );
   const columns = new Set([
     ...extractColumns(sql),
+    ...extractAlterColumns(laengeFunnelSql),
+    ...extractAlterColumns(vorgabenSql),
     ...extractAlterColumns(flowSql),
     ...extractAlterColumns(sonstigesSql),
     ...extractAlterColumns(hooksSql),

@@ -176,9 +176,9 @@ exports.handler = async (event) => {
     const luecke0 = castingLuecke((pendingRows || []).length);
 
     // --- Gates + Scores je Persona ---
-    schreibeStep('lesen', bedarf.donts ? 'Don’ts werden gelesen' : 'Keine Don’ts');
+    schreibeStep('lesen', bedarf.vorgaben ? 'Wichtige Vorgaben werden gelesen' : 'Keine Wichtigen Vorgaben');
     let lesung = leerLesung();
-    if (bedarf.donts) {
+    if (bedarf.vorgaben) {
       let leseKi = null;
       try {
         leseKi = await starteKiRequest(supabase, { userId: user.id, feature: 'casting_donts' });
@@ -196,7 +196,7 @@ exports.handler = async (event) => {
       } catch (err) {
         await leseKi?.fehlgeschlagen(err);
         lesung = leerLesung();
-        schreibeStep('lesen', 'Don’ts nicht gelesen, Checkbox-Gates gelten');
+        schreibeStep('lesen', 'Wichtige Vorgaben nicht gelesen, Checkbox-Gates gelten');
       }
     }
 

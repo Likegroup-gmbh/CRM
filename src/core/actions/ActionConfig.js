@@ -257,6 +257,8 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      // Neue Linie in derselben Produktion, Inhalt und Produkt-Verknüpfungen kommen mit
+      { id: 'briefing-duplizieren', icon: 'document-duplicate', label: 'Duplizieren', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],

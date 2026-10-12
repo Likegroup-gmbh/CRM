@@ -4,6 +4,7 @@
 
 import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
 import { bindDuplicateCheck } from '../../core/validation/DuplicateCheckBinding.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const FOLLOWER_BUCKETS = [
   [2500, '0-2500'],
@@ -241,7 +242,7 @@ export class CreatorFormDrawer {
     document.getElementById(OVERLAY_ID)?.classList.remove('active');
     if (panel) {
       panel.classList.remove('show');
-      setTimeout(() => this.remove(), 250);
+      setTimeout(() => this.remove(), DRAWER_EXIT_MS);
     } else {
       this.remove();
     }

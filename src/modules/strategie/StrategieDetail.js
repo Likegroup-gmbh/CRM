@@ -11,6 +11,7 @@ import { handleDeleteItem as _handleDeleteItem } from './StrategieDetailItemActi
 import { StrategieCreatorDrawer, removeStrategieCreatorDrawer } from './StrategieCreatorDrawer.js';
 import { StrategieProduktDrawer, removeStrategieProduktDrawer } from './StrategieProduktDrawer.js';
 import { StrategieDetailColumnVisibilityDrawer } from './StrategieDetailColumnVisibilityDrawer.js';
+import { buildColumnContext } from './strategieColumns.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
 import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
@@ -18,6 +19,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { VideoideeVorschlagPanel } from './VideoideeVorschlagPanel.js';
 import { KonzeptLikyPanel } from './KonzeptLikyPanel.js';
 import { isVideoideeVorschlag } from './videoideeVorschlag.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const REALTIME_JOINS = ['produkt', 'casting_eintrag', 'creator'];
 
@@ -282,9 +284,15 @@ export class StrategieDetail {
         await this.saveColumnVisibilitySettings();
         this.rerenderItemsTable();
       },
-      customColumns
+      customColumns,
+      this.columnContext()
     );
     drawer.open();
+  }
+
+  /** Default-Sichtbarkeit von Spalten, die vom Konzept abhaengen (Funnel-Stufe). */
+  columnContext() {
+    return buildColumnContext(this.strategie, this.items);
   }
 
   getTeilbereicheFromStrategie() {
@@ -425,7 +433,7 @@ export class StrategieDetail {
     const close = () => {
       panel.classList.remove('show');
       overlay.classList.remove('active');
-      setTimeout(() => { overlay.remove(); panel.remove(); }, 250);
+      setTimeout(() => { overlay.remove(); panel.remove(); }, DRAWER_EXIT_MS);
     };
 
     overlay.addEventListener('click', close);

@@ -9,6 +9,7 @@ import {
 } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { promoteAssetToFinal, unmarkFinalSlot, markedSlotsForSource } from '../../core/PromoteFinalAsset.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DELETE_ICON = `${icon('trash-alt')}`;
 
@@ -885,7 +886,7 @@ export class VideoSettingsDrawer {
   close() {
     const panel = document.getElementById(this.drawerId);
     panel?.classList.remove('show');
-    setTimeout(() => this.removeDrawer(), 300);
+    setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
   }
 
   removeDrawer() {

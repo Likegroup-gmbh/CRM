@@ -20,6 +20,7 @@ import { ExtractReviewLayer } from '../../../core/form/ai/ExtractReviewLayer.js'
 import { intervallOderNull, videolaengeAusAlt } from '../videolaenge.js';
 import { resolveProduktHints } from './produktHint.js';
 import { ideenListe } from '../ideenSplit.js';
+import { merkmaleAufNeuesFormat } from './fieldConfig.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -170,9 +171,13 @@ function asChannelGroup(field, value) {
 
 function asGroup(field, value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  // Alte Jobs liefern noch `alter` als Freitext
+  const src = field.name === 'creator_merkmale' ? merkmaleAufNeuesFormat(value) : value;
   const out = {};
   for (const sub of field.fields || []) {
-    out[sub.name] = asText(value[sub.name]);
+    const text = asText(src[sub.name]);
+    // Dropdown-Subfelder: Treffer auf den Options-Wert, sonst bleibt der Text
+    out[sub.name] = sub.options ? (matchOption(sub.options, text) ?? text) : text;
   }
   return Object.values(out).some((v) => v.trim()) ? out : null;
 }

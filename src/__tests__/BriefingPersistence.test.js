@@ -136,8 +136,8 @@ describe('Briefing DataPersistence', () => {
         <input type="text" name="aktivierung_name" value="Fremdwert">
         <input type="checkbox" name="nischen" value="beauty" checked>
         <input type="checkbox" name="nischen" value="fashion">
-        <input type="text" name="creator_merkmale__alter" value="25-34">
-        <input type="text" name="creator_merkmale__geschlecht" value="">
+        <input type="hidden" name="creator_merkmale__alter" value="25-34">
+        <input type="hidden" name="creator_merkmale__geschlecht" value="">
         <input type="text" name="creator_merkmale__standort" value="">
         <input type="checkbox" name="publish_channels__instagram" value="reel" checked>
         <input type="checkbox" name="nutzung_markenkanal" value="true">
@@ -320,6 +320,72 @@ describe('Briefing DataPersistence', () => {
     expect(data).not.toHaveProperty('pa_videolaengen');
   });
 
+  it('prepareDataForDB schreibt die Videolänge je Funnel-Stufe nur für angehakte Stufen', () => {
+    const instance = createInstance();
+    instance.selectedBereich = 'paid_creator_ads';
+    instance.formData = {
+      bereich: 'paid_creator_ads',
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Ads',
+      funnel_stufen: ['upper', 'lower'],
+      videolaenge: { von: 15, bis: 20 },
+      videolaenge_funnel_upper: { von: 6, bis: 10 },
+      videolaenge_funnel_mid: { von: 12, bis: 14 },
+      videolaenge_funnel_lower: { von: 30, bis: 45 }
+    };
+
+    const data = instance.prepareDataForDB();
+
+    expect(data.videolaenge_funnel).toEqual({ upper: { von: 6, bis: 10 }, lower: { von: 30, bis: 45 } });
+    expect(data.videolaenge_von).toBe(15);
+    expect(data).not.toHaveProperty('videolaenge_funnel_upper');
+  });
+
+  it('prepareDataForDB: abgehakte Stufen fliegen raus, ohne Stufe oder ohne Paid ist es null', () => {
+    const instance = createInstance();
+    instance.selectedBereich = 'paid_creator_ads';
+    instance.formData = {
+      bereich: 'paid_creator_ads',
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Ads',
+      funnel_stufen: ['mid'],
+      videolaenge_funnel_upper: { von: 6, bis: 10 }
+    };
+    expect(instance.prepareDataForDB().videolaenge_funnel).toBeNull();
+
+    instance.formData = {
+      bereich: 'owned_social',
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Organic',
+      funnel_stufen: ['upper'],
+      videolaenge_funnel_upper: { von: 6, bis: 10 }
+    };
+    instance.selectedBereich = 'owned_social';
+    expect(instance.prepareDataForDB().videolaenge_funnel).toBeNull();
+  });
+
+  it('loadFromDB spiegelt videolaenge_funnel zurück in die Formularfelder', async () => {
+    const row = {
+      id: 'briefing-1',
+      bereich: 'paid_creator_ads',
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Paid Push',
+      funnel_stufen: ['upper', 'mid'],
+      videolaenge_von: 15,
+      videolaenge_bis: 20,
+      videolaenge_funnel: { upper: { von: 6, bis: 10 } }
+    };
+    const { sb } = mockSupabase({ row });
+    window.supabase = sb;
+
+    const instance = new BriefingCreate();
+    await instance.loadFromDB('briefing-1');
+
+    expect(instance.formData.videolaenge).toEqual({ von: 15, bis: 20 });
+    expect(instance.formData.videolaenge_funnel_upper).toEqual({ von: 6, bis: 10 });
+    expect(instance.formData.videolaenge_funnel_mid).toBeUndefined();
+  });
+
   it('saveDraftToDB legt Entwurf an und setzt editId', async () => {
     vi.useFakeTimers();
     const { sb, calls } = mockSupabase();
@@ -477,7 +543,7 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.videolaenge).toEqual({ von: 15, bis: 60 });
   });
 
-  it('loadFromDB füllt Texte aus Legacy-Spalten und altem dos_donts vor', async () => {
+  it('loadFromDB füllt Texte aus Legacy-Spalten vor, alte Do/Don\'t-Spalten gelten nicht mehr', async () => {
     const row = {
       id: 'briefing-1',
       bereich: 'paid_creator_ads',
@@ -497,17 +563,19 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.aufgabe).toBe('Produkt zeigen');
     expect(instance.formData.setting).toBe('Küche');
     expect(instance.formData.learnings_text).toBe('Hook früh');
-    expect(instance.formData.dos).toBe('Authentisch bleiben');
+    expect(instance.formData.wichtige_vorgaben).toBeUndefined();
+    expect(instance.formData.dos).toBeUndefined();
   });
 
-  it('loadFromDB: Flow-Werte gewinnen gegen Legacy und dos_donts', async () => {
+  it('loadFromDB: wichtige_vorgaben kommt aus der Spalte, Flow gewinnt gegen Legacy', async () => {
     const row = {
       id: 'briefing-1',
       bereich: 'paid_creator_ads',
       unternehmen_id: 'u1',
       aufgabe: 'Neu',
       pa_umsetzung: 'Alt',
-      dos: 'Neu-Do',
+      wichtige_vorgaben: 'Pflichtinhalte:\nProduktname nennen',
+      dos: 'Alt-Do',
       dos_donts: 'Alt-Do'
     };
     const { sb } = mockSupabase({ row });
@@ -517,6 +585,7 @@ describe('Briefing DataPersistence', () => {
     await instance.loadFromDB('briefing-1');
 
     expect(instance.formData.aufgabe).toBe('Neu');
-    expect(instance.formData.dos).toBe('Neu-Do');
+    expect(instance.formData.wichtige_vorgaben).toBe('Pflichtinhalte:\nProduktname nennen');
+    expect(instance.formData.dos).toBeUndefined();
   });
 });

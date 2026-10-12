@@ -129,6 +129,100 @@ describe('TableSelect', () => {
   });
 });
 
+describe('TableSelect im Formular-Modus (input)', () => {
+  const FORM_OPTIONS = [
+    { value: '', label: 'Keine Vorgabe' },
+    { value: 'a', label: 'Alpha' },
+    { value: 'b', label: 'Beta' }
+  ];
+  let select;
+
+  beforeEach(() => {
+    select = new TableSelect();
+    select.init();
+    document.body.innerHTML = `<form>${renderTableSelect({
+      field: 'm__alter', itemId: 'g', value: '', options: FORM_OPTIONS, input: 'm__alter'
+    })}</form>`;
+  });
+
+  afterEach(() => {
+    select.destroy();
+    document.body.innerHTML = '';
+  });
+
+  const input = () => document.querySelector('input[name="m__alter"]');
+  const label = () => document.querySelector('.table-select__label').textContent.trim();
+  const trigger = () => document.querySelector('.table-select__trigger');
+
+  it('rendert ein hidden input und behandelt den leeren Wert als Platzhalter', () => {
+    expect(input().type).toBe('hidden');
+    expect(input().value).toBe('');
+    expect(trigger().classList.contains('table-select__trigger--empty')).toBe(true);
+  });
+
+  it('zieht Input, Label, Platzhalter-Optik und Haken beim Wechsel nach', () => {
+    const spy = vi.fn();
+    document.addEventListener('table-select-change', spy);
+
+    trigger().click();
+    document.querySelector('.table-select__portal [data-value="b"]').click();
+
+    expect(input().value).toBe('b');
+    expect(label()).toBe('Beta');
+    expect(trigger().classList.contains('table-select__trigger--empty')).toBe(false);
+    expect(document.querySelector('.table-select[data-table-select]').dataset.value).toBe('b');
+    expect(spy.mock.calls[0][0].detail).toMatchObject({ field: 'm__alter', value: 'b' });
+
+    const aktiv = [...document.querySelectorAll('.table-select__panel .table-select__item.is-active')];
+    expect(aktiv.map(el => el.dataset.value)).toEqual(['b']);
+    expect(document.querySelectorAll('.table-select__panel .table-select__item svg')).toHaveLength(1);
+
+    trigger().click();
+    document.querySelector('.table-select__portal [data-value=""]').click();
+    expect(input().value).toBe('');
+    expect(label()).toBe('Keine Vorgabe');
+    expect(trigger().classList.contains('table-select__trigger--empty')).toBe(true);
+
+    document.removeEventListener('table-select-change', spy);
+  });
+
+  it('matchWidth: Optionsliste bekommt die Breite des Triggers, ohne Option bleibt sie unberuehrt', () => {
+    const breite = { width: 321, left: 10, right: 331, top: 10, bottom: 40, height: 30 };
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(breite);
+
+    document.body.innerHTML = renderTableSelect({
+      field: 'm__alter', itemId: 'g', value: '', options: FORM_OPTIONS, input: 'm__alter', matchWidth: true
+    });
+    document.querySelector('.table-select__trigger').click();
+    const mitBreite = document.querySelector('.table-select__portal');
+    expect(mitBreite.style.width).toBe('321px');
+    expect(mitBreite.style.minWidth).toBe('321px');
+    expect(mitBreite.classList.contains('table-select__portal--match')).toBe(true);
+    select.closeAll();
+
+    document.body.innerHTML = renderTableSelect({
+      field: 'status', itemId: 'x', value: 'a', options: FORM_OPTIONS
+    });
+    document.querySelector('.table-select__trigger').click();
+    const ohne = document.querySelector('.table-select__portal');
+    expect(ohne.style.width).toBe('');
+    expect(ohne.classList.contains('table-select__portal--match')).toBe(false);
+
+    spy.mockRestore();
+  });
+
+  it('Tabellen-Modus ohne input aendert den Wrapper nicht selbst', () => {
+    document.body.innerHTML = renderTableSelect({
+      field: 'status', itemId: 'x', value: 'a', options: FORM_OPTIONS
+    });
+    document.querySelector('.table-select__trigger').click();
+    document.querySelector('.table-select__portal [data-value="b"]').click();
+
+    expect(document.querySelector('[data-table-select]').dataset.value).toBe('a');
+    expect(document.querySelector('.table-select__label').textContent.trim()).toBe('Alpha');
+  });
+});
+
 describe('tableSelectDisabled', () => {
   it('sperrt immer fuer Gaeste im Readonly-Modus', () => {
     expect(tableSelectDisabled({ gastReadonly: true })).toBe(true);

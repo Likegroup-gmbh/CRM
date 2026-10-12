@@ -6,6 +6,7 @@ import { CustomColumnDataLoader } from './CustomColumnDataLoader.js';
 import { buildColumnOrderWithNewCustom, removeFromColumnOrder } from './ColumnRegistry.js';
 import { renderEmptyState } from '../../../core/components/EmptyState.js';
 import { icon } from '../../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../../core/animation/drawer.js';
 
 const FIELD_TYPES = [
   { value: 'text', label: 'Text' },
@@ -555,7 +556,7 @@ export class CustomColumnsDrawer {
     const panel = document.getElementById(this.drawerId);
     if (panel) panel.classList.remove('show');
     clearTimeout(this._closeTimer);
-    this._closeTimer = setTimeout(() => this.removeDrawer(), 300);
+    this._closeTimer = setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
   }
 
   destroy() {

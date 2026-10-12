@@ -1,6 +1,7 @@
 // Stern und Tags in der Schublade und auf der Creator-Seite.
 
-import { renderFavorit, renderFavoritNamen, ladeFavoriten, toggleFavorit } from './creatorFavorit.js';
+import { renderFavorit, renderFavoritNamen, ladeFavoriten, toggleFavorit, istMeinFavorit, patchFavorit } from './creatorFavorit.js';
+import { playBurst } from '../../core/animation/burst.js';
 import { ladeCreatorTags, mountCreatorTagEditor } from './creatorTags.js';
 
 export async function haengeMerkmaleAn(creators) {
@@ -64,13 +65,20 @@ export async function bindCreatorMerkmale(root) {
     const filter = event.target.closest('[data-action="filter-favorit"]');
     if (toggle) {
       event.preventDefault();
+      if (toggle.dataset.busy === '1') return;
+      const wasMine = istMeinFavorit(favoriten);
+      toggle.dataset.busy = '1';
+      playBurst(toggle, !wasMine);
       try {
         favoriten = await toggleFavorit(window.supabase, creatorId, favoriten);
-        paint();
+        patchFavorit(starHost, favoriten, creatorId);
         publish({ id: creatorId, favoriten });
       } catch (error) {
+        if (toggle.isConnected) playBurst(toggle, wasMine);
         console.error('Favorit konnte nicht gesetzt werden', error);
         window.toastSystem?.show('Favorit konnte nicht gesetzt werden', 'error');
+      } finally {
+        delete toggle.dataset.busy;
       }
       return;
     }

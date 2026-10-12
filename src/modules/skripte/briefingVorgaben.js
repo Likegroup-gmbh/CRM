@@ -1,37 +1,25 @@
 // briefingVorgaben.js
-// Briefing-Felder -> Generator (Videolänge, Funnel-Stufe).
+// Briefing-Felder -> Generator (Videolänge).
 // Die Videolänge ist das exakte Sekundenintervall, kein 15er-Eimer.
+// Die Funnel-Stufe kommt nicht mehr aus dem Briefing: sie sitzt an der Videoidee
+// im Konzept und schlägt das Briefing (siehe strategieFunnelOptions.js).
+// Bei Paid hängt die Videolänge an dieser Stufe (videolaenge_funnel), sonst
+// gilt die allgemeine Videolänge des Briefings.
 
-import { skriptSchluessel, videolaengeAusBriefing } from '../briefing/videolaenge.js';
+import { skriptSchluessel, videolaengeFuerStufe } from '../briefing/videolaenge.js';
 
-const FUNNEL_MAP = { upper: 'top', mid: 'mid', lower: 'bottom' };
-
-function erstesItem(val) {
-  if (Array.isArray(val)) return val[0] ?? null;
-  if (typeof val === 'string' && val.trim()) return val.trim();
-  return null;
-}
-
-export function briefingFunnelStufe(briefing) {
-  if (!briefing) return null;
-  const raw = briefing.bereich === 'influencer_marketing'
-    ? briefing.im_funnel_stufen
-    : briefing.bereich === 'paid_creator_ads'
-      ? briefing.pa_funnel_stufen
-      : null;
-  const first = erstesItem(raw);
-  return FUNNEL_MAP[first] || null;
-}
-
-export function briefingVideoLaenge(briefing) {
-  const iv = videolaengeAusBriefing(briefing);
+/**
+ * @param {object} briefing
+ * @param {string|null} stufe Stufe im Briefing-Vokabular (upper/mid/lower), nicht top/mid/bottom
+ */
+export function briefingVideoLaenge(briefing, stufe = null) {
+  const iv = videolaengeFuerStufe(briefing, stufe);
   if (!iv) return null;
   return skriptSchluessel(iv.von, iv.bis);
 }
 
-export function briefingVorgaben(briefing) {
+export function briefingVorgaben(briefing, stufe = null) {
   return {
-    video_laenge: briefingVideoLaenge(briefing),
-    funnel_stufe: briefingFunnelStufe(briefing)
+    video_laenge: briefingVideoLaenge(briefing, stufe)
   };
 }

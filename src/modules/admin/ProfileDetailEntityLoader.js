@@ -147,7 +147,7 @@ async function fetchAuftraege(markenIds, unternehmenIds) {
 
 async function fetchKooperationenFromTasks(userId) {
   const { data: assignedTasks } = await window.supabase
-    .from('kooperation_task')
+    .from('kooperation_tasks')
     .select('entity_id')
     .eq('entity_type', 'kooperation')
     .eq('assigned_to_user_id', userId);

@@ -299,12 +299,21 @@
   min-width: 260px;
   z-index: 99999;
   padding: var(--space-xs) 0;
+}
+
+/* Drei-Punkte-Menue: Auf-/Zuklappen spielt GSAP (src/core/animation/menu.js).
+   Hier nur der Startzustand, bewusst ohne transition. */
+.actions-dropdown-portal {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.split-btn__menu-portal {
   opacity: 0;
   transform: scale(0.95);
   transition: opacity 150ms ease, transform 150ms ease;
 }
 
-.actions-dropdown-portal.show,
 .split-btn__menu-portal.show {
   opacity: 1;
   transform: scale(1);

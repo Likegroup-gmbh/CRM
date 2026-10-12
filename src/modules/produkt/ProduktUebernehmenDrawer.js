@@ -3,6 +3,7 @@
 
 import { icon } from '../../core/icons/IconSystem.js';
 import { loadUebernehmbareProdukte, uebernehmeProdukte } from '../briefing/BriefingProdukte.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'produkt-uebernehmen-drawer';
 
@@ -150,7 +151,7 @@ export class ProduktUebernehmenDrawer {
     const panel = document.getElementById(this.drawerId);
     if (panel) {
       panel.classList.remove('show');
-      setTimeout(() => this.removeDrawer(), 250);
+      setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
     } else {
       this.removeDrawer();
     }

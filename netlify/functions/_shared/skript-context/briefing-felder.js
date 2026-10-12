@@ -13,10 +13,10 @@ const BEREICH_PREFIX = {
   owned_social: 'os_'
 };
 
-// Stehen in eigenen Bloecken (DONTS, CREATOR-VORGABEN, SETTING) vor dem
+// Stehen in eigenen Bloecken (WICHTIGE VORGABEN, CREATOR-VORGABEN, SETTING) vor dem
 // kuerzbaren Body. Die Prefix-Spalten sind Spiegel aus mirrorLegacyColumns.
 const EIGENER_BLOCK_FELDER = new Set([
-  'creator_merkmale', 'beteiligte_personen', 'vorgaben_ausschluesse', 'setting',
+  'creator_merkmale', 'beteiligte_personen', 'wichtige_vorgaben', 'setting',
   'im_creator_merkmale', 'pa_creator_merkmale', 'os_creator_merkmale',
   'im_situationen', 'pa_situationen', 'os_situationen'
 ]);
@@ -311,9 +311,7 @@ const BRIEFING_FLOW_FIELDS = [
   { name: 'beschreibung', label: 'Schwerpunkt', prio: 1 },
   { name: 'nischen', label: 'Nische', prio: 1 },
   { name: 'aufgabe', label: 'Creator-Aufgabe', prio: 1 },
-  { name: 'pflichtinhalte', label: 'Pflichtinhalte', prio: 1 },
   { name: 'setting', label: 'Setting', prio: 1 },
-  { name: 'vorgaben_ausschluesse', label: 'Vorgaben und Ausschluesse', prio: 1 },
   { name: 'cta', label: 'CTA', prio: 1 },
   { name: 'hook_vorgaben', label: 'Hook-/Conversion-Vorgaben', prio: 1 },
   { name: 'umsetzungsideen', label: 'Vorhandene Umsetzungsideen', prio: 1, list: true },
@@ -387,8 +385,12 @@ function fmtBriefingValue(value) {
   return text ? (VALUE_LABELS[text] || text) : null;
 }
 
-function collectBriefingLines(briefing) {
-  const flow = briefing?.aufgabe || briefing?.nischen || briefing?.pflichtinhalte;
+// Funnel-Stufe im Briefing: grobe Mehrfachauswahl. Fuers Skript gilt allein die
+// Stufe der Videoidee im Konzept (Konzept schlaegt Briefing), siehe ohneFunnel.
+const FUNNEL_FELDER = new Set(['funnel_stufen', 'im_funnel_stufen', 'pa_funnel_stufen']);
+
+function collectBriefingLines(briefing, { ohneFunnel = false } = {}) {
+  const flow = briefing?.aufgabe || briefing?.nischen || briefing?.pflichtinhalte || briefing?.wichtige_vorgaben;
   const fields = flow
     ? [...BRIEFING_FLOW_FIELDS, ...BRIEFING_MASTER_FIELDS.filter(f => ['bereich', 'aktivierung_name'].includes(f.name))]
     : [...BRIEFING_MASTER_FIELDS];
@@ -399,6 +401,7 @@ function collectBriefingLines(briefing) {
   const lines = [];
   for (const field of fields) {
     if (EIGENER_BLOCK_FELDER.has(field.name)) continue;
+    if (ohneFunnel && FUNNEL_FELDER.has(field.name)) continue;
     let raw = briefing[field.name];
     if (field.name === 'bereich') raw = BEREICH_LABELS[briefing.bereich] || briefing.bereich;
     if (field.list && Array.isArray(raw)) {
@@ -416,29 +419,21 @@ function collectBriefingLines(briefing) {
   return lines;
 }
 
-function leitplankenAusBriefing(briefing) {
-  const dos = String(briefing?.dos || '').trim();
-  const donts = String(briefing?.donts || '').trim();
-  if (dos || donts) return { dos, donts };
-  const alt = String(briefing?.dos_donts || '').trim();
-  return alt ? { dos: '', donts: alt } : { dos: '', donts: '' };
+/** Wichtige Vorgaben des Briefings: ein Text aus Pflichten, Do's, Don'ts und Ausschluessen. */
+function wichtigeVorgabenAusBriefing(briefing) {
+  return String(briefing?.wichtige_vorgaben || '').trim();
 }
 
+const WICHTIGE_VORGABEN_KOPF = '# WICHTIGE VORGABEN (Briefing, vor dem restlichen Briefing, nicht kuerzen)';
+
 function fmtLeitplanken(briefing) {
-  const { dos, donts } = leitplankenAusBriefing(briefing);
-  const ausschluesse = String(briefing?.vorgaben_ausschluesse || '').trim();
-  if (!dos && !donts && !ausschluesse) return '';
-  let out = '\n# LEITPLANKEN (vor dem restlichen Briefing, nicht kuerzen)\n';
-  if (donts || ausschluesse) {
-    out += '# DONTS (Verbote. Nicht uebertreten. Was nicht im Briefing, am Produkt oder am Creator steht, wird nicht behauptet.)\n';
-    if (donts) out += `${donts}\n`;
-    if (ausschluesse) out += `Ausschluesse aus dem Briefing:\n${ausschluesse}\n`;
-  }
-  if (dos) {
-    out += '# DOS (Mitnehmen, wo die Daten es hergeben. Kein Ausschluss. Ein fehlender Fakt wird weggelassen.)\n';
-    out += `${dos}\n`;
-  }
-  return out;
+  const text = wichtigeVorgabenAusBriefing(briefing);
+  if (!text) return '';
+  return `\n${WICHTIGE_VORGABEN_KOPF}\n`
+    + 'Verbote (kein, nicht, nie, ohne) sind hart und werden nicht uebertreten. '
+    + 'Pflichtinhalte und Do\'s werden umgesetzt, wo der Fakt im Briefing, am Produkt oder am Creator steht; '
+    + 'ein fehlender Fakt wird weggelassen, nie erfunden.\n'
+    + `${text}\n`;
 }
 
 function merkmaleGefuellt(obj) {
@@ -453,6 +448,30 @@ function creatorMerkmale(briefing) {
   const prefix = BEREICH_PREFIX[briefing?.bereich];
   const spiegel = prefix ? briefing[`${prefix}creator_merkmale`] : null;
   return merkmaleGefuellt(spiegel) ? spiegel : null;
+}
+
+// Dropdown-Werte des Briefings (CJS-Kopie von CREATOR_ALTER_OPTIONS) mit Halbgeviertstrich.
+// Alter Freitext ("25-35") bleibt im Wortlaut.
+const ALTER_LABELS = {
+  '18-24': '18–24',
+  '25-34': '25–34',
+  '35-44': '35–44',
+  '45-54': '45–54',
+  '55+': '55+'
+};
+
+/** `alter` (Dropdown oder Freitext), sonst alter_von/alter_bis (Zwischenstand) als "18–24 bis 35–44". */
+function fmtAlter(merkmale) {
+  const klar = (v) => {
+    const text = String(v ?? '').trim();
+    return ALTER_LABELS[text] || text;
+  };
+  const alter = klar(merkmale.alter);
+  if (alter) return alter;
+  const von = klar(merkmale.alter_von);
+  const bis = klar(merkmale.alter_bis);
+  if (von && bis) return von === bis ? von : `${von} bis ${bis}`;
+  return von || bis;
 }
 
 function istHartesGeschlecht(wert) {
@@ -470,8 +489,11 @@ function fmtCreatorVorgaben(briefing) {
       const zeile = `Creator-Geschlecht (nur die Person vor der Kamera, nicht die Zielgruppe): ${geschlecht}`;
       zeilen.push(istHartesGeschlecht(geschlecht) ? `- HART: ${zeile}` : `- ${zeile}`);
     }
+    const alter = fmtAlter(merkmale);
+    if (alter) zeilen.push(`- Alter: ${alter}`);
     for (const [key, value] of Object.entries(merkmale)) {
-      if (key === 'geschlecht' || value == null || String(value).trim() === '') continue;
+      if (key === 'geschlecht' || key === 'alter' || key === 'alter_von' || key === 'alter_bis') continue;
+      if (value == null || String(value).trim() === '') continue;
       zeilen.push(`- ${MERKMAL_LABELS[key] || key}: ${labelValue(String(value).trim())}`);
     }
   } else if (merkmale) {
@@ -497,13 +519,14 @@ function fmtSetting(briefing) {
 /**
  * Campaign-Briefing als Prompt-Sektion. Master + nur das aktive Modul.
  * Leere Felder fallen raus. Bei Budget-Ueberschreitung bleiben Prio-1-Felder
- * (Umsetzung, CTA, Sprache) zuerst erhalten. Donts und Dos stehen davor
- * und werden nicht gekuerzt.
+ * (Umsetzung, CTA, Sprache) zuerst erhalten. Die Wichtigen Vorgaben stehen davor
+ * und werden nicht gekuerzt. ohneFunnel laesst die Funnel-Stufe des Briefings
+ * weg (Skript-Prompt: die Stufe kommt aus dem Konzept).
  */
-function fmtCampaignBriefing(briefing, { max = BRIEFING_MAX } = {}) {
+function fmtCampaignBriefing(briefing, { max = BRIEFING_MAX, ohneFunnel = false } = {}) {
   if (!briefing) return '';
   const leit = fmtLeitplanken(briefing) + fmtCreatorVorgaben(briefing) + fmtSetting(briefing);
-  const lines = collectBriefingLines(briefing);
+  const lines = collectBriefingLines(briefing, { ohneFunnel });
   if (!lines.length && !leit) return '';
 
   lines.sort((a, b) => a.prio - b.prio || 0);
@@ -536,6 +559,6 @@ function briefingSkriptSprache(briefing) {
 }
 
 module.exports = {
-  fmtCampaignBriefing, fmtLeitplanken, fmtCreatorVorgaben, fmtSetting, leitplankenAusBriefing,
+  fmtCampaignBriefing, fmtLeitplanken, fmtCreatorVorgaben, fmtSetting, wichtigeVorgabenAusBriefing,
   briefingSkriptSprache, BRIEFING_MAX, SETTING_MAX, CAMPAIGN_BRIEFING_FIELD_NAMES
 };

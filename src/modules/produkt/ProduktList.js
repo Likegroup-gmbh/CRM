@@ -38,6 +38,7 @@ import {
   renderItemsView, updateItemsTable as _updateItemsTable
 } from './ProduktFolderRenderer.js';
 import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
+import { mountProduktEinladung } from '../einladung/produktEinreichungen.js';
 
 const PRODUKT_LIST_SELECT = `
   *,
@@ -278,6 +279,7 @@ export class ProduktList extends BasePaginatedList {
       this.bindEvents();
       this.updateBreadcrumbDisplay();
       this.syncListUrl();
+      void mountProduktEinladung(this);
       await this.loadData();
       return;
     }
@@ -467,6 +469,7 @@ export class ProduktList extends BasePaginatedList {
     else html = renderItemsView(this);
 
     this.writeContent(html);
+    void mountProduktEinladung(this);
 
     if (this.viewMode === 'companies') updateCompaniesGrid(this);
     else if (this.viewMode === 'brands') updateBrandsGrid(this);

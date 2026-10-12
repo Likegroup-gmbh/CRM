@@ -1,6 +1,9 @@
 // Payload fuer den Add-Item-Drawer.
 // Videoreferenz: URL und Umsetzungsvorgabe Pflicht, Beschreibung optional.
 // Idee: Beschreibung Pflicht, kein Link, keine Vorgabe.
+// Die Funnel-Stufe ist optional und kommt aus dem Drawer (Vorbelegung aus dem Briefing).
+
+import { FUNNEL_WERTE } from './strategieFunnelOptions.js';
 
 /**
  * Nur TikTok und Instagram: aus beiden laesst sich Tonspur bzw. Untertitel
@@ -21,7 +24,12 @@ export function detectPlatform(url) {
   return 'other';
 }
 
-export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe, kategorie }) {
+/** Nur bekannte Stufen (upper, mid, lower), sonst null = keine Vorgabe. */
+function cleanFunnel(value) {
+  return FUNNEL_WERTE.includes(value) ? value : null;
+}
+
+export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe, kategorie, funnelStufe }) {
   const isReferenz = art !== 'idee';
   const cleanUrl = isReferenz ? (url?.trim() || null) : null;
   const cleanBeschreibung = beschreibung?.trim() || null;
@@ -43,15 +51,17 @@ export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe
     url: cleanUrl,
     beschreibung: cleanBeschreibung,
     umsetzungsvorgabe: cleanVorgabe,
-    kategorie: kategorie || null
+    kategorie: kategorie || null,
+    funnelStufe: cleanFunnel(funnelStufe)
   };
 }
 
-export function buildAddItemQueueEntry({ url, kategorie, beschreibung, umsetzungsvorgabe, id, platform }) {
+export function buildAddItemQueueEntry({ url, kategorie, beschreibung, umsetzungsvorgabe, id, platform, funnelStufe }) {
   return {
     id,
     url: url?.trim() || null,
     kategorie: kategorie || null,
+    funnelStufe: cleanFunnel(funnelStufe),
     beschreibung: beschreibung?.trim() || null,
     umsetzungsvorgabe: umsetzungsvorgabe?.trim() || null,
     platform,
@@ -73,6 +83,7 @@ export function buildStrategieItemInsert({ strategieId, nextItem, sortierung }) 
     beschreibung,
     beschreibung_quelle: beschreibung ? 'user' : null,
     umsetzungsvorgabe: vorgabe,
+    ...(cleanFunnel(nextItem.funnelStufe) ? { funnel_stufe: cleanFunnel(nextItem.funnelStufe) } : {}),
     verarbeitung_status: hatLink ? 'pending' : null
   };
 }

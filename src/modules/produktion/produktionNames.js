@@ -42,6 +42,43 @@ export function briefingTitel(basis, zusatz = '') {
   return extra ? `${base}${TRENNER}${extra}` : base;
 }
 
+const KOPIE = 'Kopie';
+const KOPIE_ENDUNG = new RegExp(`${TRENNER}${KOPIE}(?: \\d+)?\\s*$`);
+
+const normTitel = (t) => String(t || '').trim().toLocaleLowerCase('de');
+
+/**
+ * Titel einer Briefing-Kopie: `Titel – Kopie`, bei Belegung `Titel – Kopie 2`, `… 3`.
+ * Eine Kopie der Kopie zählt weiter, statt `– Kopie – Kopie` zu stapeln.
+ * @param {string} titel - Titel des Quell-Briefings
+ * @param {string[]} vorhandene - Titel der Briefings, gegen die der neue frei sein muss
+ */
+export function kopieTitel(titel, vorhandene = []) {
+  const base = String(titel || '').replace(KOPIE_ENDUNG, '').trim();
+  const belegt = new Set((vorhandene || []).map(normTitel));
+  let n = 1;
+  let kandidat = briefingTitel(base, KOPIE);
+  while (belegt.has(normTitel(kandidat))) {
+    n += 1;
+    kandidat = briefingTitel(base, `${KOPIE} ${n}`);
+  }
+  return kandidat;
+}
+
+/**
+ * Gewünschter Titel, notfalls mit Zähler (`Titel 2`, `Titel 3`), wenn er schon vergeben ist.
+ * @param {string} titel
+ * @param {string[]} vorhandene
+ */
+export function freierTitel(titel, vorhandene = []) {
+  const base = String(titel || '').trim();
+  const belegt = new Set((vorhandene || []).map(normTitel));
+  if (!belegt.has(normTitel(base))) return base;
+  let n = 2;
+  while (belegt.has(normTitel(`${base} ${n}`))) n += 1;
+  return `${base} ${n}`;
+}
+
 /** Produktion ohne Briefing: `Basis – Produktion N`. */
 export function geistProduktionName(basis, n = 1) {
   const base = String(basis || '').trim();

@@ -52,7 +52,7 @@ describe('Briefing FieldRenderer Hierarchie', () => {
 
   it('bf-channels enthält Meta-Block und TikTok-Block als Geschwister', () => {
     const html = renderStep(
-      FLOW_STEPS.find(s => s.id === 'konzepte'),
+      FLOW_STEPS.find(s => s.id === 'vertrag'),
       { bereich: 'paid_creator_ads' },
       {}
     );
@@ -113,7 +113,70 @@ describe('Briefing FieldRenderer Hierarchie', () => {
   });
 });
 
+describe('Briefing Creator-Merkmale als TableSelect', () => {
+  const casting = () => FLOW_STEPS.find(s => s.id === 'casting');
+
+  it('Alter und Geschlecht sind TableSelects mit hidden input, kein natives select', () => {
+    const root = parse(renderStep(casting(), {}, {}));
+    const group = root.querySelector('.bf-group');
+
+    for (const name of ['alter', 'geschlecht']) {
+      const wrapper = group.querySelector(`[data-table-select][data-field="creator_merkmale__${name}"]`);
+      expect(wrapper).toBeTruthy();
+      expect(wrapper.querySelector(`input[type="hidden"][name="creator_merkmale__${name}"]`)).toBeTruthy();
+    }
+    expect(group.querySelector('select')).toBeNull();
+    // Optionsliste in voller Breite des Felds
+    expect(group.querySelectorAll('[data-table-select][data-match-width]')).toHaveLength(2);
+    expect(group.querySelector('input[name="creator_merkmale__standort"][type="text"]')).toBeTruthy();
+
+    expect(group.querySelector('[data-field="creator_merkmale__alter_von"]')).toBeNull();
+    expect(group.querySelector('[data-field="creator_merkmale__alter_bis"]')).toBeNull();
+
+    const alter = group.querySelector('[data-field="creator_merkmale__alter"]');
+    const werte = [...alter.querySelectorAll('.table-select__panel .table-select__item')].map(el => el.dataset.value);
+    expect(werte).toEqual(['', '18-24', '25-34', '35-44', '45-54', '55+']);
+
+    const geschlecht = group.querySelector('[data-field="creator_merkmale__geschlecht"]');
+    expect([...geschlecht.querySelectorAll('.table-select__item')].map(el => el.dataset.value))
+      .toEqual(['', 'männlich', 'weiblich', 'divers', 'paar', 'familie', 'tier']);
+  });
+
+  it('zeigt gespeicherte Werte im Trigger', () => {
+    const root = parse(renderStep(casting(), {
+      creator_merkmale: { alter: '18-24', geschlecht: 'weiblich' }
+    }, {}));
+    const label = (name) => root
+      .querySelector(`[data-field="creator_merkmale__${name}"] .table-select__label`).textContent.trim();
+    expect(label('alter')).toBe('18–24');
+    expect(label('geschlecht')).toBe('Weiblich');
+  });
+
+  it('alter Freitext bleibt als Extra-Option, Zwischenstand Von/Bis wird eine Spanne', () => {
+    const frei = parse(renderStep(casting(), {
+      creator_merkmale: { alter: '22–38 Jahre', geschlecht: 'Vorrangig weiblich' }
+    }, {}));
+    expect(frei.querySelector('input[name="creator_merkmale__alter"]').value).toBe('22–38 Jahre');
+    expect(frei.querySelector('[data-field="creator_merkmale__alter"] .table-select__label').textContent.trim())
+      .toBe('22–38 Jahre');
+
+    const zwischenstand = parse(renderStep(casting(), {
+      creator_merkmale: { alter_von: '25-34', alter_bis: '25-34' }
+    }, {}));
+    expect(zwischenstand.querySelector('input[name="creator_merkmale__alter"]').value).toBe('25-34');
+    expect(zwischenstand.querySelector('input[name="creator_merkmale__alter_von"]')).toBeNull();
+    expect(frei.querySelector('input[name="creator_merkmale__geschlecht"]').value).toBe('Vorrangig weiblich');
+  });
+});
+
 describe('Briefing Liky-Spec nach fieldGroup', () => {
+  it('Merkmale-Subfelder liefern ihre Optionen mit', () => {
+    const merkmale = buildSpec('paid_creator_ads').find(f => f.name === 'creator_merkmale');
+    const alter = merkmale.fields.find(f => f.name === 'alter');
+    expect(alter.options.map(o => o.value)).toEqual(['18-24', '25-34', '35-44', '45-54', '55+']);
+    expect(merkmale.fields.find(f => f.name === 'standort').options).toBeUndefined();
+  });
+
   it('enthält persistierte Felder aus den Groups, keine fieldGroups', () => {
     const spec = buildSpec('paid_creator_ads');
     const names = spec.map(f => f.name);

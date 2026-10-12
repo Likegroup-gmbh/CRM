@@ -15,8 +15,9 @@ function createQueryMock(result = { data: [], error: null }) {
   return mock;
 }
 
-function setupSupabaseMock(mitarbeiterByRoleData = []) {
+function setupSupabaseMock(mitarbeiterByRoleData = [], artDerKampagne = []) {
   const fromCalls = {};
+  const filters = [];
 
   const kampagneData = {
     id: 'k1',
@@ -24,7 +25,7 @@ function setupSupabaseMock(mitarbeiterByRoleData = []) {
     unternehmen_id: 'u1',
     marke_id: 'm1',
     auftrag_id: 'a1',
-    art_der_kampagne: [],
+    art_der_kampagne: artDerKampagne,
     unternehmen: { firmenname: 'TestGmbH', webseite: null, branche_id: null },
     marke: { markenname: 'TestMarke', webseite: null },
     auftrag: { auftragsname: 'Auftrag1', status: 'aktiv', creator_budget: 500, bruttobetrag: 1190, nettobetrag: 1000 },
@@ -48,9 +49,16 @@ function setupSupabaseMock(mitarbeiterByRoleData = []) {
         return createQueryMock({ data: null, error: null, count: 0 });
       }
 
-      return createQueryMock({ data: [], error: null });
+      const q = createQueryMock({ data: [], error: null });
+      q.in = vi.fn((col, vals) => {
+        filters.push({ table, col, vals });
+        return q;
+      });
+      return q;
     }),
   };
+
+  fromCalls.filters = filters;
 
   window.currentUser = { rolle: 'admin' };
 
@@ -101,6 +109,18 @@ describe('KampagneDetail – Mitarbeiter-Rollen Query-Konsolidierung', () => {
     expect(detail.kampagneData.strategie_ids).toEqual(['s1']);
     expect(detail.kampagneData.creator_sourcing).toEqual([{ id: 'cs1', name: 'Dan Sourcing' }]);
     expect(detail.kampagneData.creator_sourcing_ids).toEqual(['cs1']);
+  });
+
+  it('lädt Kampagnenarten über den Namen, nicht über die UUID', async () => {
+    const fromCalls = setupSupabaseMock([], ['UGC Paid']);
+
+    await detail.loadCriticalData();
+
+    expect(fromCalls.filters).toContainEqual({
+      table: 'kampagne_art_typen',
+      col: 'name',
+      vals: ['UGC Paid']
+    });
   });
 
   it('lädt Kooperationen nicht in loadCriticalData (die kommen über loadFullTableData)', async () => {

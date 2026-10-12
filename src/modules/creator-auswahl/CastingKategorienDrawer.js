@@ -11,6 +11,7 @@ import {
   pruefeKategorieName,
   reorderCastingItemsByKategorien
 } from './castingKategorien.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'casting-kategorien-drawer';
 
@@ -99,7 +100,7 @@ export function closeKategorienDrawer() {
     return;
   }
   panel.classList.remove('show');
-  setTimeout(() => removeKategorienDrawer(), 300);
+  setTimeout(() => removeKategorienDrawer(), DRAWER_EXIT_MS);
 }
 
 function rerenderDrawerBody(detail) {

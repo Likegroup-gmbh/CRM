@@ -4,6 +4,8 @@
 // anpassen und wird pro Drawer in localStorage gemerkt. Zu breite Tabellen
 // scrollen dann horizontal innerhalb des Drawer-Koerpers.
 
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+
 const MIN_WIDTH = 360;
 const widthKey = (id) => `drawer-width:${id}`;
 
@@ -130,5 +132,5 @@ export function closeDrawer(id, animated = false) {
   setTimeout(() => {
     overlay?.remove();
     panel?.remove();
-  }, 300);
+  }, DRAWER_EXIT_MS);
 }

@@ -6,7 +6,7 @@
 
 const config = require('./casting-match-config');
 const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
-const { leitplankenAusBriefing } = require('./skript-context/briefing-felder');
+const { wichtigeVorgabenAusBriefing } = require('./skript-context/briefing-felder');
 
 const {
   MATCHING_WEIGHTS,
@@ -41,14 +41,32 @@ function tokens(text) {
   return norm(text).split(/[^a-zäöüß0-9]+/i).filter(t => t.length > 2);
 }
 
-/** "25-34" / "25 bis 34" / 25 -> [von, bis] oder null */
+/** "25-34" / "25–34" / "25 bis 34" / "55+" (= 55-99) / 25 -> [von, bis] oder null */
 function parseAlterSpanne(value) {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number' && Number.isFinite(value)) return [value, value];
-  const m = String(value).match(/(\d{1,3})\s*(?:-|bis)\s*(\d{1,3})/);
+  const m = String(value).match(/(\d{1,3})\s*(?:[-–—]|bis)\s*(\d{1,3})/);
   if (m) return [Number(m[1]), Number(m[2])];
+  const offen = String(value).match(/(\d{1,3})\s*\+/);
+  if (offen) return [Number(offen[1]), 99];
   const einzeln = String(value).match(/(\d{1,3})/);
   return einzeln ? [Number(einzeln[1]), Number(einzeln[1])] : null;
+}
+
+/**
+ * Alter aus creator_merkmale: `alter` (Dropdown-Spanne oder alter Freitext).
+ * Fehlt es, spannen alter_von/alter_bis (Zwischenstand mit zwei Dropdowns,
+ * Reihenfolge egal) von der kleinsten Untergrenze bis zur groessten Obergrenze.
+ */
+function alterAusMerkmalen(merkmale = {}) {
+  const direkt = parseAlterSpanne(merkmale.alter);
+  if (direkt) return direkt;
+  const spannen = [merkmale.alter_von, merkmale.alter_bis].map(parseAlterSpanne).filter(Boolean);
+  if (!spannen.length) return null;
+  return [
+    Math.min(...spannen.map(s => s[0])),
+    Math.max(...spannen.map(s => s[1]))
+  ];
 }
 
 function spannenSchneiden(a, b) {
@@ -73,7 +91,7 @@ function bedarfFingerprint(bedarf) {
     alter,
     [...(bedarf.maerkte || [])].sort().join('+') || 'offen',
     personaKey,
-    norm(bedarf.donts).slice(0, 80) || 'offen'
+    norm(bedarf.vorgaben).slice(0, 80) || 'offen'
   ].join('|');
 }
 
@@ -91,7 +109,7 @@ function buildBedarf(briefing = {}, { produktIds = [], personas = [] } = {}) {
   const voraussetzungen = normListe(g('voraussetzungen'));
   const merkmale = g('creator_merkmale') && typeof g('creator_merkmale') === 'object' ? g('creator_merkmale') : {};
 
-  const alter = parseAlterSpanne(merkmale.alter);
+  const alter = alterAusMerkmalen(merkmale);
   const geschlechter = normListe(merkmale.geschlecht);
   const standort = String(merkmale.standort || '').trim() || null;
   const expertise = String(merkmale.expertise || '').trim() || null;
@@ -123,8 +141,7 @@ function buildBedarf(briefing = {}, { produktIds = [], personas = [] } = {}) {
     kampagnentypen: normListe(briefing.kampagnentypen),
     produktIds: [...new Set((produktIds || []).filter(Boolean))],
     personas: (personas || []).map(mapPersona),
-    dos: leitplankenAusBriefing(briefing).dos || null,
-    donts: leitplankenAusBriefing(briefing).donts || null,
+    vorgaben: wichtigeVorgabenAusBriefing(briefing) || null,
     hauttyp: String(briefing.hauttyp || '').trim() || null,
     haartyp: String(briefing.haartyp || '').trim() || null
   };
@@ -888,7 +905,7 @@ function validateVorschlaege(json, { shortlistIds = [] } = {}) {
 
 const DONT_LESUNG_TOOL = {
   name: 'donts_lesen',
-  description: 'Zerlegt Donts in Personen-Ausschluesse, Profiltext-Begriffe und Satzverbote.',
+  description: 'Zerlegt die Verbote der Wichtigen Vorgaben in Personen-Ausschluesse, Profiltext-Begriffe und Satzverbote.',
   input_schema: {
     type: 'object',
     properties: {
@@ -919,14 +936,21 @@ const DONT_LESUNG_TOOL = {
 };
 
 function buildDontLesungPrompt(bedarf = {}) {
-  const stable = 'Du liest Donts eines Kampagnen-Briefings. Du suchst keine Creator und erfindest keine Regeln. '
+  const stable = 'Du liest die Wichtigen Vorgaben eines Kampagnen-Briefings. Darin stehen Pflichtinhalte, Do\'s, Don\'ts und Ausschluesse gemischt, '
+    + 'oft unter Ueberschriften wie "Pflichtinhalte:" oder "Don\'ts:". Du suchst keine Creator und erfindest keine Regeln. '
+    + 'Lies nur Zeilen, die ein Verbot sind (kein, nicht, nie, ohne, Verbot). '
+    + 'Pflichtinhalte, Do\'s und Wuensche ("Produktname nennen", "authentisch", "Haustier zeigen") sind nie ausschluss und nie suchbegriffe. '
+    + 'Anforderungen an den Creator ("Creator muss ...") gehoeren zu den Voraussetzungen und werden hier nicht gelesen. '
     + 'suchbegriffe nur fuer das, was im Profiltext einen Verstoss belegt (Tattoo, Konkurrenzmarke). '
     + 'Hauttyp und Haartyp sind Wuensche und keine suchbegriffe, ausser sie sind als Verbot formuliert. '
-    + 'satz sind Verbote der Formulierung, zum Beispiel ein Claim, der nicht gesagt werden darf. '
-    + 'ausschluss nur fuer Profilfelder: geschlecht, groesse, nische, haustier, kinder, instrument. '
-    + 'haustier "ja" heisst: Creator mit Haustier raus. Ist eine Checkbox schon gesetzt, widersprich ihr nicht.';
+    + 'satz sind Verbote der Formulierung oder des Videoinhalts: ein Claim, der nicht gesagt werden darf, '
+    + 'oder was im Bild, Video oder Content nicht vorkommen soll ("keine Kinder oder Tiere im Bild", "keine Konkurrenzprodukte"). '
+    + 'ausschluss nur fuer Profilfelder und nur, wenn das Verbot den Creator als Person meint '
+    + '("Creator ohne Kinder", "keine Haustierbesitzer", "keine Maenner"): geschlecht, groesse, nische, haustier, kinder, instrument. '
+    + 'haustier "ja" heisst: Creator mit Haustier raus. '
+    + 'Im Zweifel gehoert eine Zeile in satz, nie in ausschluss. Ist eine Checkbox schon gesetzt, widersprich ihr nicht.';
   let task = '';
-  if (bedarf.donts) task += `# DONTS\n${bedarf.donts}\n`;
+  if (bedarf.vorgaben) task += `# WICHTIGE VORGABEN\n${bedarf.vorgaben}\n`;
   if (bedarf.hauttyp) task += `Hauttyp (Wunsch): ${bedarf.hauttyp}\n`;
   if (bedarf.haartyp) task += `Haartyp (Wunsch): ${bedarf.haartyp}\n`;
   if (bedarf.groessen?.length) task += `Groesse ist gesetzt: ${bedarf.groessen.join(', ')}\n`;
@@ -1034,7 +1058,7 @@ function buildPrompt(bedarf, { shortlist = [] } = {}) {
     + '4. Weniger ist mehr: uebernimm nur Kandidaten mit tragfaehigem Fit, keine Quote um jeden Preis.\n'
     + '5. KEINE SCORE-ZAHLEN im fit_grund: weder Matching noch Fit/Track/Fresh nennen - der Text erklaert die Passung in Worten.\n'
     + '6. Die Persona am Eintrag ist nur ein Hinweis auf die beste Passung; das Casting ist eine einzige Liste ohne Persona-Gruppen.\n'
-    + '7. DONTS und DOS sind kein Streichgrund. Personen, die sie nicht erfuellen, sind schon raus.\n';
+    + '7. WICHTIGE VORGABEN sind kein Streichgrund. Personen, die ein Verbot ueber die Person nicht erfuellen, sind schon raus.\n';
 
   let task = '# BEDARF\n';
   task += `Bereich: ${bedarf.bereich || 'offen'} | Typ: ${bedarf.typ || 'offen'}\n`;
@@ -1045,8 +1069,7 @@ function buildPrompt(bedarf, { shortlist = [] } = {}) {
   if (bedarf.voraussetzungen?.length) task += `Voraussetzungen: ${bedarf.voraussetzungen.join(', ')}\n`;
   if (bedarf.umsetzung) task += `Umsetzung: ${cap(bedarf.umsetzung, 500)}\n`;
   if (bedarf.learningsText) task += `Learnings: ${cap(bedarf.learningsText, 400)}\n`;
-  if (bedarf.donts) task += `\n# DONTS (Kontext, kein Streichgrund)\n${cap(bedarf.donts, 1500)}\n`;
-  if (bedarf.dos) task += `\n# DOS (Kontext, kein Streichgrund)\n${cap(bedarf.dos, 800)}\n`;
+  if (bedarf.vorgaben) task += `\n# WICHTIGE VORGABEN (Kontext, kein Streichgrund)\n${cap(bedarf.vorgaben, 2300)}\n`;
   if (bedarf.personas?.length) {
     task += '\n# PERSONAS (Briefing)\n';
     bedarf.personas.forEach(p => { task += `${fmtPersonaKarte(p)}\n`; });

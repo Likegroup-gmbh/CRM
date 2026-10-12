@@ -5,6 +5,7 @@ import { OHNE_KATEGORIE, parseTeilbereiche } from './castingKategorien.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'add-creator-to-casting-drawer';
 
@@ -250,7 +251,7 @@ export class AddCreatorToCastingDrawer {
     const panel = document.getElementById(this.drawerId);
     if (panel) {
       panel.classList.remove('show');
-      setTimeout(() => this.removeDrawer(), 250);
+      setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
     } else {
       this.removeDrawer();
     }

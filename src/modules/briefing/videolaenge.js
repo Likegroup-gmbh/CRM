@@ -5,6 +5,17 @@
 export const VIDEOLAENGE_MIN = 1;
 export const VIDEOLAENGE_MAX = 180;
 
+// Videolänge je Funnel-Stufe (Paid): Spalte campaign_briefings.videolaenge_funnel,
+// Keys im Briefing-Vokabular upper/mid/lower (nicht top/mid/bottom des Skripts).
+// Formularfeld je Stufe, Wert { von, bis }.
+export const VIDEOLAENGE_FUNNEL_FELD = Object.freeze({
+  upper: 'videolaenge_funnel_upper',
+  mid: 'videolaenge_funnel_mid',
+  lower: 'videolaenge_funnel_lower'
+});
+
+const FUNNEL_KEYS = Object.keys(VIDEOLAENGE_FUNNEL_FELD);
+
 const TOKEN_SECONDS = {
   '6s': 6,
   '10s': 10,
@@ -133,6 +144,55 @@ export function videolaengeAusBriefing(briefing) {
     videolaenge_text: briefing.videolaenge_text,
     formatText: formatTextAusBriefing(briefing)
   });
+}
+
+/** Intervall einer Stufe aus videolaenge_funnel. Fehlt es oder ist es ungültig: null. */
+export function funnelIntervall(map, stufe) {
+  if (!FUNNEL_KEYS.includes(stufe)) return null;
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return null;
+  const iv = map[stufe];
+  if (!iv || typeof iv !== 'object') return null;
+  return intervallOderNull(iv.von, iv.bis);
+}
+
+/**
+ * Formularwerte -> videolaenge_funnel. Nur die angehakten Stufen kommen mit
+ * (versteckte Slider behalten sonst ihren Wert). Kein Intervall: null.
+ */
+export function funnelMapAusFormData(formData, stufen) {
+  const aktiv = Array.isArray(stufen) ? stufen : [];
+  const out = {};
+  for (const stufe of FUNNEL_KEYS) {
+    if (!aktiv.includes(stufe)) continue;
+    const raw = formData?.[VIDEOLAENGE_FUNNEL_FELD[stufe]];
+    const iv = intervallOderNull(raw?.von, raw?.bis);
+    if (iv) out[stufe] = iv;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** videolaenge_funnel -> Formularwerte (nur gültige Intervalle). */
+export function funnelFormDataAusMap(map) {
+  const out = {};
+  for (const stufe of FUNNEL_KEYS) {
+    const iv = funnelIntervall(map, stufe);
+    if (iv) out[VIDEOLAENGE_FUNNEL_FELD[stufe]] = iv;
+  }
+  return out;
+}
+
+/**
+ * Videolänge für ein Skript: bei Paid das Intervall der Stufe der Videoidee
+ * (upper/mid/lower), sonst - ohne Stufe, ohne Intervall der Stufe, Organic,
+ * Influencer - die allgemeine Videolänge des Briefings.
+ */
+export function videolaengeFuerStufe(briefing, stufe) {
+  if (!briefing) return null;
+  if (briefing.bereich === 'paid_creator_ads') {
+    const iv = funnelIntervall(briefing.videolaenge_funnel, stufe);
+    if (iv) return iv;
+  }
+  return videolaengeAusBriefing(briefing);
 }
 
 function ersterText(value) {

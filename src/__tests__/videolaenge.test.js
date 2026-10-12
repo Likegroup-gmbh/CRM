@@ -10,6 +10,10 @@ import {
   spreize,
   videolaengeAusAlt,
   videolaengeAusBriefing,
+  videolaengeFuerStufe,
+  funnelIntervall,
+  funnelMapAusFormData,
+  funnelFormDataAusMap,
   zieheGriff
 } from '../modules/briefing/videolaenge.js';
 
@@ -108,6 +112,59 @@ describe('videolaengeAusBriefing / anzeigeWert', () => {
       bereich: 'influencer_marketing',
       im_formatvorgaben: { videolaenge: 'ca. 20' }
     })).toEqual({ art: 'text', text: 'ca. 20' });
+  });
+});
+
+describe('Videolänge je Funnel-Stufe', () => {
+  const paid = {
+    bereich: 'paid_creator_ads',
+    videolaenge_von: 15,
+    videolaenge_bis: 20,
+    videolaenge_funnel: { upper: { von: 6, bis: 10 }, lower: { von: 30, bis: 45 } }
+  };
+
+  it('nimmt bei Paid das Intervall der Stufe', () => {
+    expect(videolaengeFuerStufe(paid, 'upper')).toEqual({ von: 6, bis: 10 });
+    expect(videolaengeFuerStufe(paid, 'lower')).toEqual({ von: 30, bis: 45 });
+  });
+
+  it('fällt ohne Stufe, ohne Intervall der Stufe und ohne Spalte auf das allgemeine zurück', () => {
+    expect(videolaengeFuerStufe(paid, null)).toEqual({ von: 15, bis: 20 });
+    expect(videolaengeFuerStufe(paid, 'mid')).toEqual({ von: 15, bis: 20 });
+    expect(videolaengeFuerStufe({ ...paid, videolaenge_funnel: null }, 'upper')).toEqual({ von: 15, bis: 20 });
+  });
+
+  it('kennt nur upper/mid/lower: der Skript-Schlüssel trifft nichts', () => {
+    expect(videolaengeFuerStufe(paid, 'top')).toEqual({ von: 15, bis: 20 });
+    expect(videolaengeFuerStufe(paid, 'bottom')).toEqual({ von: 15, bis: 20 });
+    expect(funnelIntervall(paid.videolaenge_funnel, 'top')).toBe(null);
+  });
+
+  it('Organic und Influencer ignorieren die Map', () => {
+    expect(videolaengeFuerStufe({ ...paid, bereich: 'owned_social' }, 'upper')).toEqual({ von: 15, bis: 20 });
+    expect(videolaengeFuerStufe({ ...paid, bereich: 'influencer_marketing' }, 'lower')).toEqual({ von: 15, bis: 20 });
+  });
+
+  it('ohne beides ist keine Videolänge vorgegeben', () => {
+    expect(videolaengeFuerStufe({ bereich: 'paid_creator_ads', videolaenge_funnel: { mid: { von: 9, bis: 3 } } }, 'upper')).toBe(null);
+    expect(videolaengeFuerStufe(null, 'upper')).toBe(null);
+  });
+
+  it('funnelMapAusFormData nimmt nur angehakte Stufen mit Intervall', () => {
+    const formData = {
+      videolaenge_funnel_upper: { von: 6, bis: 10 },
+      videolaenge_funnel_mid: { von: 12, bis: 14 },
+      videolaenge_funnel_lower: null
+    };
+    expect(funnelMapAusFormData(formData, ['upper', 'lower'])).toEqual({ upper: { von: 6, bis: 10 } });
+    expect(funnelMapAusFormData(formData, [])).toBe(null);
+    expect(funnelMapAusFormData(formData, null)).toBe(null);
+  });
+
+  it('funnelFormDataAusMap übersetzt zurück in die Formularfelder', () => {
+    expect(funnelFormDataAusMap({ mid: { von: 12, bis: 14 }, quatsch: { von: 1, bis: 2 } }))
+      .toEqual({ videolaenge_funnel_mid: { von: 12, bis: 14 } });
+    expect(funnelFormDataAusMap(null)).toEqual({});
   });
 });
 

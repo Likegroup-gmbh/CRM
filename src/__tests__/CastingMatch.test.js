@@ -31,7 +31,9 @@ const {
   validateVorschlaege,
   PROFILES,
   sanitizeLesung,
-  personaProfilPasst
+  personaProfilPasst,
+  buildDontLesungPrompt,
+  buildPrompt: buildCastingPrompt
 } = castingMatch;
 
 // ---------------------------------------------------------------------------
@@ -107,6 +109,65 @@ describe('buildBedarf', () => {
     expect(b.groessen).toEqual(['micro']);
     expect(b.alter).toEqual([25, 34]);
     expect(b.voraussetzungen).toEqual(['haustier']);
+  });
+
+  it('Alter aus dem Dropdown: Spanne, 55+ ist offen nach oben', () => {
+    const merkmale = (m) => buildBedarf({ bereich: 'paid_creator_ads', pa_creator_merkmale: m });
+    expect(merkmale({ alter: '18-24' }).alter).toEqual([18, 24]);
+    expect(merkmale({ alter: '55+' }).alter).toEqual([55, 99]);
+    expect(merkmale({ alter: '25–34' }).alter).toEqual([25, 34]);
+    expect(merkmale({ geschlecht: 'weiblich' }).alter).toBeNull();
+  });
+
+  it('Zwischenstand alter_von/alter_bis: kleinste Untergrenze bis groesste Obergrenze, alter hat Vorrang', () => {
+    const merkmale = (m) => buildBedarf({ bereich: 'paid_creator_ads', pa_creator_merkmale: m });
+    expect(merkmale({ alter_von: '18-24', alter_bis: '35-44' }).alter).toEqual([18, 44]);
+    expect(merkmale({ alter_von: '35-44', alter_bis: '18-24' }).alter).toEqual([18, 44]);
+    expect(merkmale({ alter_von: '45-54', alter_bis: '55+' }).alter).toEqual([45, 99]);
+    expect(merkmale({ alter: '60', alter_von: '18-24', alter_bis: '18-24' }).alter).toEqual([60, 60]);
+  });
+
+  it('Wichtige Vorgaben kommen als ein Text, Alt-Spalten zaehlen nicht', () => {
+    const b = buildBedarf({
+      bereich: 'paid_creator_ads',
+      wichtige_vorgaben: 'Pflichtinhalte:\nProduktname nennen\n\nDon’ts:\nIm Bild keine Kinder',
+      donts: 'ALT-DONT',
+      dos: 'ALT-DO',
+      dos_donts: 'ALT-MISCH'
+    });
+    expect(b.vorgaben).toContain('Im Bild keine Kinder');
+    expect(b.vorgaben).not.toContain('ALT-');
+    expect(b.donts).toBeUndefined();
+    expect(b.dos).toBeUndefined();
+    expect(buildBedarf({ bereich: 'paid_creator_ads', donts: 'ALT-DONT' }).vorgaben).toBeNull();
+  });
+
+  it('Lese-Prompt trennt Verbote von Pflichten und Bild- von Personenverboten', () => {
+    const b = buildBedarf({
+      bereich: 'paid_creator_ads',
+      wichtige_vorgaben: 'Haustier zeigen\nIm Bild keine Kinder oder Tiere\nCreator ohne Tattoos'
+    });
+    const { stable, task } = buildDontLesungPrompt(b);
+    expect(task).toContain('# WICHTIGE VORGABEN');
+    expect(task).toContain('Haustier zeigen');
+    expect(task).toContain('Im Bild keine Kinder oder Tiere');
+    expect(stable).toContain('nie ausschluss und nie suchbegriffe');
+    expect(stable).toContain('"keine Kinder oder Tiere im Bild"');
+    expect(stable).toContain('nur, wenn das Verbot den Creator als Person meint');
+    expect(stable).toContain('Im Zweifel gehoert eine Zeile in satz');
+  });
+
+  it('Casting-Prompt: Wichtige Vorgaben sind Kontext, kein Streichgrund', () => {
+    const b = buildBedarf({ bereich: 'paid_creator_ads', wichtige_vorgaben: 'Produktname nennen' });
+    const { stable, task } = buildCastingPrompt(b, { shortlist: [] });
+    expect(task).toContain('# WICHTIGE VORGABEN (Kontext, kein Streichgrund)');
+    expect(stable).toContain('WICHTIGE VORGABEN sind kein Streichgrund');
+  });
+
+  it('Fingerprint folgt den Wichtigen Vorgaben', () => {
+    const a = buildBedarf({ bereich: 'paid_creator_ads', wichtige_vorgaben: 'Kein Sales-Pitch' });
+    const b = buildBedarf({ bereich: 'paid_creator_ads', wichtige_vorgaben: 'Kein Heilversprechen' });
+    expect(a.fingerprint).not.toBe(b.fingerprint);
   });
 
   it('mappt bereich auf Typ (im -> Influencer)', () => {

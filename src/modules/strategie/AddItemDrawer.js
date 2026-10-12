@@ -8,12 +8,19 @@ import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import {
+  FUNNEL_WERTE,
+  FUNNEL_LABELS,
+  briefingFunnelStufen,
+  briefingEinzigeFunnelStufe
+} from './strategieFunnelOptions.js';
+import {
   buildAddItemQueueEntry,
   buildStrategieItemInsert,
   detectPlatform,
   isTranscribableUrl,
   resolveVideoideeForm
 } from './addItemPayload.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class AddItemDrawer {
   constructor() {
@@ -161,6 +168,7 @@ export class AddItemDrawer {
               ${this.teilbereiche.map(tb => `<option value="${escapeAttr(tb)}">${escapeAttr(tb)}</option>`).join('')}
             </select>
           </div>
+          ${this.renderFunnelField()}
         </div>
 
         <div class="add-item-drawer-form-row add-item-drawer-form-row--full" id="drawer-beschreibung-row">
@@ -211,6 +219,26 @@ export class AddItemDrawer {
         </button>
       </div>
     `;
+  }
+
+  /** Funnel-Stufe nur bei Paid oder wenn das Briefing Stufen nennt. */
+  funnelFeldSichtbar() {
+    const briefing = this.strategie?.briefing;
+    return briefing?.bereich === 'paid_creator_ads' || briefingFunnelStufen(briefing).length > 0;
+  }
+
+  /** Vorbelegt, wenn das Briefing genau eine Stufe nennt, sonst leer. */
+  renderFunnelField() {
+    if (!this.funnelFeldSichtbar()) return '';
+    const vorbelegt = briefingEinzigeFunnelStufe(this.strategie?.briefing);
+    return `
+          <div class="form-field">
+            <label for="drawer-funnel">Funnel-Stufe</label>
+            <select id="drawer-funnel" class="form-input">
+              <option value="">Keine Stufe</option>
+              ${FUNNEL_WERTE.map(w => `<option value="${w}"${w === vorbelegt ? ' selected' : ''}>${FUNNEL_LABELS[w]}</option>`).join('')}
+            </select>
+          </div>`;
   }
 
   /**
@@ -265,7 +293,8 @@ export class AddItemDrawer {
       url: urlInput?.value,
       beschreibung: beschreibungInput?.value,
       umsetzungsvorgabe: vorgabeInput?.value,
-      kategorie: kategorieSelect?.value || null
+      kategorie: kategorieSelect?.value || null,
+      funnelStufe: document.getElementById('drawer-funnel')?.value || null
     });
     if (!resolved.ok) {
       window.toastSystem?.show(resolved.error, 'warning');
@@ -276,7 +305,7 @@ export class AddItemDrawer {
       return;
     }
 
-    const { url, kategorie, beschreibung, umsetzungsvorgabe } = resolved;
+    const { url, kategorie, beschreibung, umsetzungsvorgabe, funnelStufe } = resolved;
 
     if (url && !this.isAllowedUrl(url)) {
       window.toastSystem?.show('Nur TikTok- und Instagram-Links sind erlaubt', 'warning');
@@ -301,6 +330,7 @@ export class AddItemDrawer {
       kategorie,
       beschreibung,
       umsetzungsvorgabe,
+      funnelStufe,
       platform: this.detectPlatform(url)
     }));
 
@@ -619,7 +649,7 @@ export class AddItemDrawer {
     const panel = document.getElementById(this.drawerId);
     if (panel) {
       panel.classList.remove('show');
-      setTimeout(() => this.removeDrawer(), 250);
+      setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
     } else {
       this.removeDrawer();
     }

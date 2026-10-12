@@ -6,6 +6,7 @@ import { resolveCreateAction, renderCreateButton } from '../../core/actions/Crea
 import { openSkriptCreateDrawer } from '../skripte/SkriptCreateDrawer.js';
 import { lineNames } from '../produktion/produktionNames.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
+import { openEinladungDialog } from '../einladung/EinladungDialog.js';
 const EXISTS_REASON = {};
 
 const ACTION_SPECS = {
@@ -24,6 +25,13 @@ const ACTION_SPECS = {
       if (detail.produktionId) params.set('produktion', detail.produktionId);
       return `/briefing/new?${params.toString()}`;
     }
+  },
+  // Kunde füllt das Briefing selbst aus (Einladung, ADR 0055). Gehört zur Produktion.
+  kundeEinladen: {
+    permission: 'briefing',
+    label: 'Kunde einladen',
+    variant: 'secondary',
+    mode: 'dialog'
   },
   skripte: {
     permission: 'skripte',
@@ -76,7 +84,15 @@ function resolveAction(action, detail) {
 
 export function renderWorkflowCreateChrome(action, detail) {
   const { spec, state } = resolveAction(action, detail);
-  const button = spec ? renderCreateButton({ action, label: spec.label, state }) : '';
+  const button = spec ? renderCreateButton({ action, label: spec.label, state, variant: spec.variant }) : '';
+  if (action === 'briefing') {
+    const kunde = resolveAction('kundeEinladen', detail);
+    const intern = window.isInternal?.() !== false;
+    const kundeButton = intern
+      ? renderCreateButton({ action: 'kundeEinladen', label: kunde.spec.label, state: kunde.state, variant: 'secondary' })
+      : '';
+    return `${button}${kundeButton}`;
+  }
   if (action === 'casting') return `${button}<div id="kampagne-casting-tools"></div>`;
   if (action === 'konzepte') return `${button}<div id="kampagne-konzept-tools"></div>`;
   if (!spec) return '';
@@ -106,6 +122,19 @@ export function handleWorkflowCreate(detail, action) {
 
   if (action === 'briefing') {
     openProduktionBriefingDrawer(detail, { produktionId: detail.produktionId || null });
+    return;
+  }
+
+  if (action === 'kundeEinladen') {
+    if (!detail.produktionId) {
+      window.toastSystem?.warning('Eine Einladung gehört zu einer Produktion.');
+      return;
+    }
+    openEinladungDialog({
+      art: 'briefing',
+      produktionId: detail.produktionId,
+      kontextName: detail.produktion?.name || detail.lineTitle || ''
+    });
     return;
   }
 

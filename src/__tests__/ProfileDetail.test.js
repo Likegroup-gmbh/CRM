@@ -84,10 +84,12 @@ describe('ProfileDetailEntityLoader', () => {
   });
 
   it('loadMitarbeiterEntities setzt leere Listen ohne Zuordnungen', async () => {
-    window.supabase = createSupabaseFake({});
+    const fake = createSupabaseFake({});
+    window.supabase = fake;
     const detail = { userId: 'u1' };
     await loadMitarbeiterEntities(detail);
     expect(detail).toMatchObject({ unternehmen: [], marken: [], auftraege: [], kampagnen: [], kooperationen: [], videos: [] });
+    expect(fake.calls.map(c => c.table)).toContain('kooperation_tasks');
   });
 });
 

@@ -16,6 +16,7 @@ import {
   geldDeckung,
   deckungGrundText
 } from './vertragDeckung.js';
+import { DRAWER_EXIT_MS } from '../../../core/animation/drawer.js';
 
 const KOOP_COLS = 'id, name, creator_id, kampagne_id, videoanzahl, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag, created_at';
 const VERTRAG_COLS = 'id, name, typ, status, creator_id, kampagne_id, anzahl_videos, verguetung_netto, kooperation_id';
@@ -253,7 +254,7 @@ export class VertragDeckungDrawer {
       return;
     }
     panel?.classList.remove('show');
-    setTimeout(entfernen, 300);
+    setTimeout(entfernen, DRAWER_EXIT_MS);
   }
 }
 

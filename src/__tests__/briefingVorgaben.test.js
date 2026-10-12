@@ -1,31 +1,58 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import {
-  briefingFunnelStufe, briefingVideoLaenge
+  briefingVideoLaenge, briefingVorgaben
 } from '../modules/skripte/briefingVorgaben.js';
 
-describe('briefingFunnelStufe', () => {
-  it('nimmt den ersten Wert und mappt upper/mid/lower', () => {
-    expect(briefingFunnelStufe({
+describe('briefingVorgaben', () => {
+  it('liefert keine Funnel-Stufe mehr: die kommt aus dem Konzept', () => {
+    const vorgaben = briefingVorgaben({
       bereich: 'paid_creator_ads',
-      pa_funnel_stufen: ['upper', 'mid']
-    })).toBe('top');
-    expect(briefingFunnelStufe({
-      bereich: 'influencer_marketing',
-      im_funnel_stufen: ['mid']
-    })).toBe('mid');
-    expect(briefingFunnelStufe({
-      bereich: 'influencer_marketing',
-      im_funnel_stufen: ['lower']
-    })).toBe('bottom');
+      pa_funnel_stufen: ['upper'],
+      videolaenge_von: 8,
+      videolaenge_bis: 17
+    });
+    expect(vorgaben).toEqual({ video_laenge: '8-17' });
+    expect('funnel_stufe' in vorgaben).toBe(false);
+  });
+});
+
+describe('SkripteService Briefing-Selects', () => {
+  // Fehlt videolaenge_funnel in einem Select, greift still der allgemeine Wert.
+  it('laden beide videolaenge_funnel mit', () => {
+    const quelle = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../modules/skripte/SkripteService.js'),
+      'utf8'
+    );
+    const selects = quelle.split('\n').filter(zeile => zeile.includes('videolaenge_von, videolaenge_bis'));
+    expect(selects.length).toBe(2);
+    for (const zeile of selects) expect(zeile).toContain('videolaenge_funnel');
+  });
+});
+
+describe('briefingVideoLaenge je Funnel-Stufe', () => {
+  const paid = {
+    bereich: 'paid_creator_ads',
+    videolaenge_von: 15,
+    videolaenge_bis: 20,
+    videolaenge_funnel: { upper: { von: 6, bis: 10 }, lower: { von: 30, bis: 45 } }
+  };
+
+  it('liefert den Schlüssel der Stufe', () => {
+    expect(briefingVideoLaenge(paid, 'upper')).toBe('6-10');
+    expect(briefingVideoLaenge(paid, 'lower')).toBe('30-45');
+    expect(briefingVorgaben(paid, 'upper')).toEqual({ video_laenge: '6-10' });
   });
 
-  it('liefert null bei Owned Social oder leerem Feld', () => {
-    expect(briefingFunnelStufe({ bereich: 'owned_social' })).toBe(null);
-    expect(briefingFunnelStufe({
-      bereich: 'paid_creator_ads',
-      pa_funnel_stufen: []
-    })).toBe(null);
-    expect(briefingFunnelStufe(null)).toBe(null);
+  it('fällt ohne Stufe oder ohne Intervall der Stufe auf das allgemeine zurück', () => {
+    expect(briefingVideoLaenge(paid)).toBe('15-20');
+    expect(briefingVideoLaenge(paid, 'mid')).toBe('15-20');
+  });
+
+  it('Organic ignoriert die Map', () => {
+    expect(briefingVideoLaenge({ ...paid, bereich: 'owned_social' }, 'upper')).toBe('15-20');
   });
 });
 

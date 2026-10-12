@@ -132,6 +132,10 @@ _Avoid_: Anhang, Briefing
 Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Ablage bleibt dort, die Firmenliste zeigt alle. Operativ genau einer Produktion zugeordnet (Pflicht, schon beim Anlegen) und nicht wiederverwendet; eine Produktion kann mehrere Briefings haben, jedes ist eine eigene Linie. Beim Anlegen wird kein Produkt gewählt; das Produkt entsteht danach. Titel ist der Projektname, optional mit Zusatz (`Projektname – Zusatz`); hat die Produktion einen eigenen Namen, ersetzt er den Projektnamen als Basis; im Formular weiter änderbar. Verbindliche Grundlage für Casting und Konzept seiner Linie.
 _Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
 
+**Briefing duplizieren**:
+Legt aus einem Briefing eine neue Linie an. Quelle kann jedes Briefing derselben Kampagne sein, das Duplikat landet in der gewählten Produktion (am geöffneten Briefing: in dessen eigener). Inhalt und Produkt-Verknüpfungen kommen mit, die Produkte selbst bleiben dieselben. Casting, Konzept, Skripte, Kooperationen und Liky-Daten der Herkunft bleiben dort; ein finalisiertes Duplikat bekommt ein eigenes leeres Casting und Konzept, ein Entwurf bleibt Entwurf. Titel `Titel – Kopie`, bei Belegung `Titel – Kopie 2`.
+_Avoid_: Produkt übernehmen, Linie kopieren, Briefing wiederverwenden
+
 **Entwurf**:
 Briefing, Vertrag oder Auftrag, der noch nicht verbindlich ist. Andere Entities
 verknüpfen ihn nicht über Picker; der eigene Editor bleibt beschreibbar.
@@ -148,7 +152,7 @@ spätere Nutzung und nicht die Kampagnenart.
 _Avoid_: Bereich, Kampagnenart, Paid Creator Ads, Owned Social
 
 **Videolänge**:
-Geschlossenes Intervall in ganzen Sekunden am Briefing, von und bis inklusive. Von darf gleich bis sein. Leer heißt, es ist keine Videolänge vorgegeben. Beim Anlegen eines Skripts wird das Intervall kopiert; das Skript zeigt es an. Eine spätere Änderung am Briefing gilt für neue Skripte.
+Geschlossenes Intervall in ganzen Sekunden am Briefing, von und bis inklusive. Von darf gleich bis sein. Leer heißt, es ist keine Videolänge vorgegeben. Bei Paid gibt es zusätzlich je genannter **Funnel-Stufe** ein eigenes Intervall; das allgemeine gilt für Videoideen ohne Stufe und für Stufen ohne eigenes Intervall. Organic und Influencer haben nur das allgemeine. Beim Anlegen eines Skripts wird das passende Intervall kopiert (bei Paid das der Stufe der Videoidee); das Skript zeigt es an. Eine spätere Änderung am Briefing gilt für neue Skripte.
 _Avoid_: Videolängen, Nutzungsdauer, Video-Mindestlänge
 
 **Verhandlungshinweis**:
@@ -156,25 +160,21 @@ Interner Hinweis am Briefing für die Vertragsverhandlung, etwa die Nutzungsdaue
 ein Full Buyout nicht möglich ist. Steht nicht auf dem Creator-PDF.
 _Avoid_: Verhandlungsspielraum (das sitzt an den Auftragsdetails)
 
-**Don't**:
-Kommunikative Vorgabe am Briefing, was nicht getan werden darf. Wird vor dem Matching gelesen. Trifft er ein Profilfeld, schließt fehlende oder widersprechende Angabe den Creator aus. Trifft er nur den Profiltext, schließt er nur bei einem Beleg aus. Betrifft er die Formulierung, bindet er Konzept und Skript und ist kein Personenfilter.
-_Avoid_: Do, Vorgaben und Ausschlüsse, Voraussetzung, Do’s und Don’ts (das alte Sammelfeld), EHG-Unterlage Do’s & Don’ts
-
-**Do**:
-Kommunikative Vorgabe am Briefing, was der Inhalt tun soll. Wird nach den Don’ts mitbedacht und ist kein Ausschluss.
-_Avoid_: Don’t, Pflichtinhalt, Do’s und Don’ts (das alte Sammelfeld)
+**Do’s und Don’ts**:
+Ein Text am Briefing mit Pflichtinhalten, Do’s, Don’ts und Ausschlüssen. Im Formular „Do’s und Don’ts (Wichtige Vorgaben)“. Verbote (kein, nicht, nie, ohne) sind hart und werden vor dem Matching gelesen. Meint ein Verbot die Person und trifft ein Profilfeld, schließt fehlende oder widersprechende Angabe den Creator aus. Trifft es nur den Profiltext, schließt es nur bei einem Beleg aus. Betrifft es Bild, Inhalt oder Formulierung, bindet es Konzept und Skript und ist kein Personenfilter. Pflichtinhalte und Do’s sind nie ein Ausschluss.
+_Avoid_: Wichtige Vorgaben, Pflichtinhalte, Vorgaben und Ausschlüsse, Voraussetzung, EHG-Unterlage Do’s & Don’ts
 
 **Profilfeld**:
 Vordefiniertes Feld am Creator, das eine Suche abfragen kann: Alter, Geschlecht, Branche, Creator-Typ, Sprache, Follower-Größe, Standort, Plattform, Hat Kinder, Hat Haustier, Spielt Instrument. Leer oder daneben schließt aus.
 _Avoid_: Profiltext
 
 **Profiltext**:
-Freitext am Creator, den er selbst schreibt oder der von Instagram kommt: Bio, Notiz, Captions, Mentions. Ein Treffer belegt einen Personen-Don’t, ein fehlender Treffer ist kein K.-o.
+Freitext am Creator, den er selbst schreibt oder der von Instagram kommt: Bio, Notiz, Captions, Mentions. Ein Treffer belegt ein Personen-Verbot aus den **Do’s und Don’ts**, ein fehlender Treffer ist kein K.-o.
 _Avoid_: Profilfeld
 
 **Voraussetzungen**:
 Checkbox-Liste der gesuchten Casting-Bedingungen am Briefing.
-_Avoid_: Sonstige Voraussetzungen, Produktspezifische Erfahrung, Don’t
+_Avoid_: Sonstige Voraussetzungen, Produktspezifische Erfahrung, Do’s und Don’ts
 
 **Sonstige Voraussetzungen**:
 Freitext für Casting-Bedingungen, die in keine Checkbox passen.
@@ -334,6 +334,10 @@ _Avoid_: Konzeptidee, Kernidee
 Videoidee mit Videolink. Trägt eine Umsetzungsvorgabe.
 _Avoid_: Referenzvideo, verlinkte Videoidee
 
+**Funnel-Stufe**:
+Upper, Mid oder Lower Funnel an einer Videoidee, genau eine. Leer heißt, es ist keine Stufe vorgegeben. Das Briefing nennt die Stufen der Kampagne; die Stufe der Videoidee schlägt sie für das Skript, das Briefing wird dafür nicht gelesen. Das Team setzt sie, der Kunde sieht sie als Tag. Liky wählt sie bei Vorschlägen nur aus den Briefing-Stufen.
+_Avoid_: Funnel-Level, Awareness-Level, Tag (als Name der Eigenschaft)
+
 **Idee**:
 Videoidee ohne Videolink. Tab beim Hinzufügen, nicht das Konzept und nicht der Videoidee-Vorschlag.
 _Avoid_: Konzeptidee, Konzept
@@ -366,7 +370,7 @@ bis die neuen in der Tabelle liegen.
 _Avoid_: Umschreiben (dieselbe Zeile bleibt), Neu entwerfen (addiert, verwirft nichts)
 
 **Skript**:
-Text für genau ein Video und genau einen Creator: den der verknüpften Kooperation, sonst den Creator der Videoidee. Organic und Influencer sind eine Empfehlung von Person zu Person, außer ein Don't oder das Briefing verlangt etwas anderes. Paid bleibt ein Performance-Creative.
+Text für genau ein Video und genau einen Creator: den der verknüpften Kooperation, sonst den Creator der Videoidee. Organic und Influencer sind eine Empfehlung von Person zu Person, außer die **Do’s und Don’ts** oder das Briefing verlangen etwas anderes. Paid bleibt ein Performance-Creative. Beim Anlegen wird die **Funnel-Stufe** der Videoidee kopiert, dazu die **Videolänge**; bei Paid ist es die Länge dieser Stufe. Eine spätere Änderung im Konzept gilt für neue Skripte, der Editor weist auf die Abweichung hin.
 _Avoid_: Drehbuch, Copy
 
 **Skript-Freigabe**:
@@ -391,7 +395,7 @@ Auftrag im Editor, dieselbe Geschichte neu zu formulieren. Funktion, Figuren, Se
 _Avoid_: Neu schreiben, Neue Geschichte, Hook-Variante
 
 **Neue Geschichte**:
-Auftrag im Editor, Situation und Einstieg zu wechseln. Claims, Don'ts und Besetzung bleiben.
+Auftrag im Editor, Situation und Einstieg zu wechseln. Claims, Verbote aus den **Do’s und Don’ts** und Besetzung bleiben.
 _Avoid_: Neuformulierung, Hook-Variante, Videoidee
 
 **Festgezogen**:
@@ -408,7 +412,7 @@ _Avoid_: Sektion, Spalte, Kontext
 
 **Festlegung**:
 Fakt am Skript, der ab dann in jedem weiteren Auftrag gilt, ohne ihn neu zu nennen. Entsteht aus einer ausdrücklichen Anweisung oder einer Ablehnung, nicht aus dem angenommenen Wortlaut. Zum Beispiel die Besetzung, ein abgelehnter Ansatz oder ein Tarifverbot.
-_Avoid_: Feedback, Kundenfeedback, Feedbackschleife, Don't
+_Avoid_: Feedback, Kundenfeedback, Feedbackschleife
 
 **Skript-Aufbau**:
 Gesprochene Reihenfolge bei Organic und Influencer: Alltag, Problem, Produkt, CTA. Das Produkt kommt erst danach und sagt, was es ist, wie es funktioniert und warum es hilft. Der CTA ist eine Empfehlung. Tarife nur, wenn das Briefing sie zum Thema macht. Paid folgt dem Funnel-Aufbau des Masters.
@@ -490,6 +494,14 @@ _Avoid_: Template (Kollision mit Vertragstemplate), E-Mail-Template
 **Zugang**:
 Gast-Link plus Code auf eine geteilte Liste (`list_shares`). Bei einem Skript wahlweise dieses Skript oder alle Skripte derselben Kampagne, auch später entstandene. Live-Sicht im CRM, kein Anhang.
 _Avoid_: Anschreiben, Teilen
+
+**Einladung**:
+Link plus Code ohne Konto, mit dem ein Kunde ein Formular ausfüllt und abschickt. Eine Produkt-Einladung hängt an einer Marke, ohne Marke am Unternehmen. Eine Briefing-Einladung hängt an einer Produktion und trägt den Briefing-Typ. Widerruf beendet sie.
+_Avoid_: Zugang (der liest nur), Magic Link, Kunden-Login
+
+**Einreichung**:
+Das, was über eine Einladung abgeschickt wurde. Noch kein Produkt und kein Briefing. Bleibt offen, bis ein Mitarbeiter sie anlegt oder verwirft.
+_Avoid_: Entwurf, Kundenbriefing, Produkt extern
 
 **Rechnung**:
 Eingangsrechnung eines Creators. Der Monat sitzt am Rechnungsdatum.

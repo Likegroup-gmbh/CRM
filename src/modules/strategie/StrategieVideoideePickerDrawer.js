@@ -3,6 +3,7 @@
 // Spiegel von StrategieCreatorDrawer, Quelle ist das gepaarte Konzept.
 
 import { strategieService } from './StrategieService.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'strategie-videoidee-picker-drawer';
 const OVERLAY_ID = 'strategie-videoidee-picker-overlay';
@@ -222,7 +223,7 @@ export class StrategieVideoideePickerDrawer {
     if (panel) {
       panel.classList.remove('show');
       document.getElementById(OVERLAY_ID)?.classList.remove('active');
-      setTimeout(() => removeVideoideePickerDrawer(), 250);
+      setTimeout(() => removeVideoideePickerDrawer(), DRAWER_EXIT_MS);
     } else {
       removeVideoideePickerDrawer();
     }

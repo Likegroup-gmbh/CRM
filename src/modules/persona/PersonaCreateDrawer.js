@@ -6,6 +6,7 @@
 import { applyFinalisiertFilter } from '../../core/finalisiert.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { personaCreateRoute } from './personaCreateScope.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'persona-create-drawer';
 const PREFIX = 'pccreate';
@@ -100,7 +101,7 @@ export function closePersonaCreateDrawer() {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     overlay?.remove();
   }

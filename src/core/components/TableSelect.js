@@ -73,6 +73,13 @@ export function tableSelectDisabled({ gastReadonly = false, isKunde = false, kun
  * @param {boolean}  [config.disabled]   Rendert einen nicht klickbaren Trigger
  * @param {string}   [config.placeholder] Anzeige, wenn kein Wert passt
  * @param {string}   [config.meta]       Zusatzzeile unter dem Trigger (z.B. Datum)
+ * @param {string}   [config.input]      Formular-Modus: rendert ein hidden input mit diesem
+ *                                       name. TableSelect haelt Input, Label und Haken beim
+ *                                       Wechsel selbst aktuell, ein leerer Wert gilt als
+ *                                       Platzhalter.
+ * @param {boolean}  [config.matchWidth] Optionsliste so breit wie der Trigger (statt
+ *                                       Mindestbreite 180px). Default aus, damit
+ *                                       bestehende Tabellen unveraendert bleiben.
  */
 export function renderTableSelect({
   field,
@@ -81,15 +88,18 @@ export function renderTableSelect({
   options = [],
   disabled = false,
   placeholder = '–',
-  meta = ''
+  meta = '',
+  input = '',
+  matchWidth = false
 } = {}) {
   const active = options.find(o => String(o.value) === String(value));
   const label = active?.label || placeholder;
+  const isEmpty = !active || (Boolean(input) && (value ?? '') === '');
 
   const triggerClasses = [
     'table-select__trigger',
     disabled ? 'table-select__trigger--disabled' : '',
-    active ? '' : 'table-select__trigger--empty'
+    isEmpty ? 'table-select__trigger--empty' : ''
   ].filter(Boolean).join(' ');
 
   const trigger = disabled
@@ -108,7 +118,9 @@ export function renderTableSelect({
          data-table-select
          data-field="${escapeHtml(field)}"
          data-item-id="${escapeHtml(itemId)}"
-         data-value="${escapeHtml(value ?? '')}">
+         data-value="${escapeHtml(value ?? '')}"
+         ${matchWidth ? 'data-match-width' : ''}>
+      ${input ? `<input type="hidden" name="${escapeHtml(input)}" value="${escapeHtml(value ?? '')}" data-table-select-input>` : ''}
       ${trigger}
       ${meta ? `<div class="table-select__meta">${escapeHtml(meta)}</div>` : ''}
       ${disabled ? '' : `
@@ -198,6 +210,11 @@ export class TableSelect {
 
   position(trigger, portal) {
     const rect = trigger.getBoundingClientRect();
+    if (portal._sourceWrapper?.hasAttribute('data-match-width')) {
+      portal.classList.add('table-select__portal--match');
+      portal.style.width = rect.width + 'px';
+      portal.style.minWidth = rect.width + 'px';
+    }
     const portalHeight = portal.offsetHeight || portal.scrollHeight || 240;
     const portalWidth = portal.offsetWidth || 180;
     const spaceBelow = window.innerHeight - rect.bottom;
@@ -224,6 +241,8 @@ export class TableSelect {
     if (!wrapper) return;
     if (String(wrapper.dataset.value ?? '') === String(value)) return;
 
+    this.syncForm(wrapper, item, value);
+
     document.dispatchEvent(new CustomEvent('table-select-change', {
       bubbles: true,
       detail: {
@@ -233,6 +252,34 @@ export class TableSelect {
         element: wrapper
       }
     }));
+  }
+
+  /**
+   * Formular-Modus (hidden input vorhanden): Wert, Label und Haken direkt am
+   * Wrapper nachziehen, damit Formulare nichts neu rendern muessen. Tabellen
+   * ohne Input bleiben bei ihrem Re-Render.
+   */
+  syncForm(wrapper, item, value) {
+    const input = wrapper.querySelector('input[data-table-select-input]');
+    if (!input) return;
+
+    input.value = value;
+    wrapper.dataset.value = value;
+
+    const label = item.querySelector('.table-select__item-label')?.textContent ?? '';
+    const trigger = wrapper.querySelector('.table-select__trigger');
+    const labelEl = trigger?.querySelector('.table-select__label');
+    if (labelEl) labelEl.textContent = label;
+    trigger?.classList.toggle('table-select__trigger--empty', value === '');
+
+    wrapper.querySelectorAll('.table-select__panel .table-select__item').forEach(el => {
+      const aktiv = (el.dataset.value ?? '') === value;
+      el.classList.toggle('is-active', aktiv);
+      el.setAttribute('aria-selected', String(aktiv));
+      el.querySelectorAll(':scope > :not(.table-select__dot):not(.table-select__item-label)')
+        .forEach(extra => extra.remove());
+      if (aktiv) el.insertAdjacentHTML('beforeend', CHECK_ICON);
+    });
   }
 
   destroy() {

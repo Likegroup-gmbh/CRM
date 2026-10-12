@@ -6,6 +6,7 @@ import { dropAnschreibenWarm } from '../../core/anschreiben/openAnschreiben.js';
 import { FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
 import { briefingVorgaben } from './briefingVorgaben.js';
+import { funnelAusSkript } from '../strategie/strategieFunnelOptions.js';
 import { berechneSkriptNummern, mitSkriptNummern } from './skriptNummern.js';
 import { STATUS_LABELS } from './SkripteUtils.js';
 
@@ -100,14 +101,14 @@ export class SkripteService {
     const q = this.db.from('strategie_items')
       .select(`
         id, strategie_id, video_link, plattform, beschreibung, transkript_quelle,
-        creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, nicht_umsetzen, skript_freigabe,
+        creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, nicht_umsetzen, skript_freigabe, funnel_stufe,
         casting_eintrag:creator_auswahl_item_id(id, name, persona_id, creator_id, creator:creator_id(vorname, nachname)),
         strategie:strategie_id!inner(
           id, name, unternehmen_id, marke_id, kampagne_id, briefing_id,
           unternehmen:unternehmen_id(id, firmenname, branche_id),
           marke:marke_id(id, markenname, branche_id),
           kampagne:kampagne_id(id, kampagnenname, eigener_name),
-          briefing:briefing_id(id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, im_formatvorgaben, os_formatvorgaben)
+          briefing:briefing_id(id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, videolaenge_funnel, im_formatvorgaben, os_formatvorgaben)
         )
       `)
       .eq('skript_freigabe', true)
@@ -164,7 +165,7 @@ export class SkripteService {
   async loadStrategieItem(id) {
     if (!id) return null;
     const { data, error } = await this.db.from('strategie_items')
-      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url')
+      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, funnel_stufe')
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -322,7 +323,7 @@ export class SkripteService {
     const { data, error } = await this.db.from('skripte')
       .select(`*, unternehmen(firmenname, logo_url), marke(markenname, logo_url), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich),
         strategie_item:strategie_item_id(
-          id, strategie_id, sortierung, video_link, plattform, creator_name, creator_auswahl_item_id,
+          id, strategie_id, sortierung, video_link, plattform, creator_name, creator_auswahl_item_id, funnel_stufe,
           casting_eintrag:creator_auswahl_item_id(
             id, name, creator_id,
             creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
@@ -511,8 +512,9 @@ export class SkripteService {
   }
 
   /**
-   * Laenge/Funnel/Bereich aus dem Briefing ziehen, wenn der Caller sie
-   * nicht schon gesetzt hat (Create-Drawer uebergibt nur die Idee).
+   * Laenge/Bereich aus dem Briefing ziehen, wenn der Caller sie nicht schon
+   * gesetzt hat (Create-Drawer uebergibt nur die Idee). Die Funnel-Stufe kommt
+   * aus der Videoidee im Konzept (resolveSkriptCreatePayload), nie aus dem Briefing.
    */
   async _enrichPayloadFromBriefing(payload) {
     const next = { ...payload };
@@ -520,17 +522,18 @@ export class SkripteService {
       || (payload.briefing_id ? await this._loadBriefingVorgaben(payload.briefing_id) : null);
     if (!briefing) return next;
 
-    const vorgaben = briefingVorgaben(briefing);
+    // payload.funnel_stufe ist der Skript-Schlüssel (top/mid/bottom), das Briefing
+    // kennt upper/mid/lower.
+    const vorgaben = briefingVorgaben(briefing, funnelAusSkript(next.funnel_stufe));
     if (!next.bereich) next.bereich = briefing.bereich || null;
     if (!next.video_laenge) next.video_laenge = vorgaben.video_laenge;
-    if (!next.funnel_stufe) next.funnel_stufe = vorgaben.funnel_stufe;
     delete next.briefing;
     return next;
   }
 
   async _loadBriefingVorgaben(briefingId) {
     const { data, error } = await this.db.from('campaign_briefings')
-      .select('id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, im_formatvorgaben, os_formatvorgaben')
+      .select('id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, videolaenge_funnel, im_formatvorgaben, os_formatvorgaben')
       .eq('id', briefingId)
       .maybeSingle();
     if (error) throw new Error(error.message);

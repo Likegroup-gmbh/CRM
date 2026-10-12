@@ -3,6 +3,7 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN } from './sourcingSpaltenPreset.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export async function confirmDeleteListe(id) {
   if (!window.canDelete?.('sourcing')) {
@@ -118,7 +119,7 @@ export function closeRenameDrawer() {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     overlay?.remove();
   }
@@ -209,7 +210,7 @@ export function closeCreateDrawer() {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     overlay?.remove();
   }

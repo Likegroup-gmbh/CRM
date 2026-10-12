@@ -7,8 +7,12 @@ import { icon } from '../../../core/icons/IconSystem.js';
 import {
   VERARBEITUNG_LABELS,
   getPlatformIcon,
-  renderSkriptFreigabeStatus
+  renderSkriptFreigabeStatus,
+  renderFunnelControl,
+  funnelEditable
 } from '../StrategieDetailRenderer.js';
+import { isFixedColumnVisible } from '../strategieColumns.js';
+import { isFunnelWert, funnelSpalteStandardSichtbar } from '../strategieFunnelOptions.js';
 import { isVideoideeVorschlag, beschreibungMitAbsaetzen } from '../videoideeVorschlag.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from '../strategiePrioOptions.js';
 import { renderTableSelect, tableSelectDisabled } from '../../../core/components/TableSelect.js';
@@ -138,6 +142,7 @@ function renderKopf(detail, item) {
     renderKategorieField(detail, item, editable),
     renderEditCreatorField(item, editable),
     renderEditProduktField(item, editable),
+    renderFunnelProp(detail, item),
     ...renderDecisionProps(detail, item),
     ...renderCustomProps(detail, item)
   ].filter(Boolean);
@@ -420,6 +425,22 @@ function renderCaption(detail, item) {
 function renderStatusProp(detail, item) {
   if (detail.isKunde || isVideoideeVorschlag(item)) return '';
   return propRow('status', 'Status', `<span data-videoidee-status>${renderSkriptFreigabeStatus(item)}</span>`, '', 'status');
+}
+
+/**
+ * Funnel-Stufe im Drawer: folgt der Spaltensichtbarkeit der Tabelle. Wer sie
+ * nicht setzen darf, sieht sie nur mit Wert.
+ */
+function renderFunnelProp(detail, item) {
+  const context = detail.columnContext
+    ? detail.columnContext()
+    : { funnelStandardSichtbar: funnelSpalteStandardSichtbar(detail.strategie, detail.items) };
+  const sichtbar = isFixedColumnVisible(detail.hiddenColumns, 'funnel', context);
+  const hatWert = isFunnelWert(item.funnel_stufe);
+  if (!hatWert && !(sichtbar && funnelEditable(detail))) return '';
+  return propRow('funnel', 'Funnel-Stufe', `
+    <div data-videoidee-funnel>${renderFunnelControl(detail, item)}</div>
+  `, '', 'chart-bar');
 }
 
 function renderDecisionProps(detail, item) {

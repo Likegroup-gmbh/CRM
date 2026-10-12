@@ -5,6 +5,7 @@ import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { reorderStrategieItemsByKategorien } from './StrategieDetailRenderer.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'kategorien-drawer';
 let _reorderUnbind = [];
@@ -138,7 +139,7 @@ export function closeKategorienModal() {
     panel.classList.remove('show');
     setTimeout(() => {
       removeKategorienDrawer();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     removeKategorienDrawer();
   }

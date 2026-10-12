@@ -750,6 +750,16 @@ input.input-error {
   transform: scale(1);
 }
 
+/* matchWidth: Breite setzt TableSelect per JS auf die des Triggers, lange Labels kuerzen */
+.table-select__portal--match {
+  box-sizing: border-box;
+}
+
+.table-select__portal--match .table-select__item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .table-select__item {
   display: flex;
   align-items: center;
@@ -4115,6 +4125,22 @@ input.readonly-field {
   padding: var(--space-sm) var(--space-md);
   background: var(--bg-secondary);
   border-radius: var(--radius-md, 8px);
+}
+
+/* TableSelect im Formular: Optik an die Inputs der Gruppe angleichen */
+.bf-group .table-select__trigger {
+  padding: var(--space-sm);
+  border-color: #ced4da;
+  box-shadow: none;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.bf-group .table-select__trigger:hover,
+.bf-group .table-select.show .table-select__trigger {
+  background: var(--bg-primary);
+  border-color: var(--gray-400);
+  box-shadow: none;
 }
 
 .bf-channels {

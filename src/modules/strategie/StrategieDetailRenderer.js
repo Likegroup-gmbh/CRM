@@ -5,6 +5,12 @@ import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions.js';
 import { isFixedColumnVisible } from './strategieColumns.js';
+import {
+  STRATEGIE_FUNNEL_OPTIONS,
+  getStrategieFunnel,
+  renderFunnelBadge,
+  funnelSpalteStandardSichtbar
+} from './strategieFunnelOptions.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { isVideoideeVorschlag, splitVideoideeVorschlaege } from './videoideeVorschlag.js';
@@ -36,10 +42,14 @@ function escapeHtml(value) {
 
 /** Welche festen Spalten diese Ansicht zeigt. */
 function visibleFixedColumns(detail) {
-  const visible = (key) => isFixedColumnVisible(detail.hiddenColumns, key);
+  const context = detail.columnContext
+    ? detail.columnContext()
+    : { funnelStandardSichtbar: funnelSpalteStandardSichtbar(detail.strategie, detail.items) };
+  const visible = (key) => isFixedColumnVisible(detail.hiddenColumns, key, context);
   return {
     creator: visible('creator'),
     produkt: visible('produkt'),
+    funnel: visible('funnel'),
     beschreibung: visible('beschreibung'),
     umsetzungsvorgabe: !detail.isKunde && visible('umsetzungsvorgabe'),
     kundenadaption: visible('kundenadaption'),
@@ -91,6 +101,7 @@ export function renderItemsTable(detail) {
             <th class="col-platform">Plattform</th>
             ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
             ${cols.produkt ? '<th class="col-produkt">Produkt</th>' : ''}
+            ${cols.funnel ? '<th class="col-funnel">Funnel-Stufe</th>' : ''}
             ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
             ${cols.umsetzungsvorgabe ? '<th class="col-umsetzungsvorgabe">Umsetzungsvorgabe</th>' : ''}
             ${cols.kundenadaption ? '<th class="col-kundenadaption">Kundenadaption</th>' : ''}
@@ -404,6 +415,31 @@ function renderProduktCell(detail, item, readonly) {
 }
 
 /**
+ * Funnel-Stufe: intern mit Edit-Recht ein Select, sonst (Kunde, Gast, Investor)
+ * der Wert als Badge im Tag-Stil. Ein Videoidee-Vorschlag bleibt fuers Team
+ * editierbar, das Team passt die Stufe vor dem Uebernehmen an.
+ */
+export function funnelEditable(detail) {
+  if (detail.isKunde) return false;
+  if (window.isGastReadonly?.()) return false;
+  if (!detail.canEdit) return false;
+  return typeof window.permissionSystem?.canEditField === 'function'
+    ? window.permissionSystem.canEditField('strategie', 'strategie_funnel')
+    : true;
+}
+
+export function renderFunnelControl(detail, item) {
+  const value = getStrategieFunnel(item);
+  if (!funnelEditable(detail)) return renderFunnelBadge(value);
+  return renderTableSelect({
+    field: 'strategie_funnel',
+    itemId: item.id,
+    value,
+    options: STRATEGIE_FUNNEL_OPTIONS
+  });
+}
+
+/**
  * Umgesetzt-Zelle: Klickbar nur mit Feld-Edit-Recht (Kunde darf, Investor
  * nicht). Ohne Recht steht da nur der Zustand, kein disabled-Toggle.
  */
@@ -477,6 +513,7 @@ export function renderItemRow(detail, item, index) {
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
       ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
       ${cols.produkt ? renderProduktCell(detail, item, vorschlagReadonly) : ''}
+      ${cols.funnel ? `<td class="col-funnel">${renderFunnelControl(detail, item)}</td>` : ''}
       ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
       ${cols.umsetzungsvorgabe ? renderClippedTextCell(detail, item, 'umsetzungsvorgabe', 'col-umsetzungsvorgabe', 'Was sollen wir umsetzen?', vorschlagReadonly || !item.video_link) : ''}
       ${cols.kundenadaption ? renderClippedTextCell(detail, item, 'kundenadaption', 'col-kundenadaption', 'Kundenadaption...', vorschlagReadonly) : ''}

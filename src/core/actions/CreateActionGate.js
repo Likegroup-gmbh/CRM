@@ -32,13 +32,14 @@ export function resolveCreateAction({ permission, exists = false, existsReason =
 }
 
 /**
- * @param {{ action: string, label: string, state: { renderable: boolean, enabled: boolean, reason?: string } }} opts
+ * @param {{ action: string, label: string, variant?: 'secondary', state: { renderable: boolean, enabled: boolean, reason?: string } }} opts
  * @returns {string}
  */
-export function renderCreateButton({ action, label, state }) {
+export function renderCreateButton({ action, label, state, variant = null }) {
   if (!state?.renderable) return '';
   const disabled = !state.enabled
     ? ` disabled aria-disabled="true"${state.reason ? ` title="${escapeAttr(state.reason)}"` : ''}`
     : '';
-  return `<button type="button" class="mdc-btn" data-create-action="${escapeAttr(action)}"${disabled}>${sanitizeLabel(label)}</button>`;
+  const klasse = variant === 'secondary' ? 'mdc-btn mdc-btn--secondary' : 'mdc-btn';
+  return `<button type="button" class="${klasse}" data-create-action="${escapeAttr(action)}"${disabled}>${sanitizeLabel(label)}</button>`;
 }

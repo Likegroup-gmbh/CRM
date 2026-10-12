@@ -1,4 +1,5 @@
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 // CreatorAdressenManager.js
 // Verwaltet zusätzliche Adressen für Creator
 
@@ -427,7 +428,7 @@ export class CreatorAdressenManager {
     const drawer = document.getElementById(this.drawerId);
     if (drawer) {
       drawer.classList.remove('active');
-      setTimeout(() => drawer.remove(), 300);
+      setTimeout(() => drawer.remove(), DRAWER_EXIT_MS);
     }
   }
 

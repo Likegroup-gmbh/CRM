@@ -12,6 +12,19 @@ import {
 import { applyFinalisiertFilter } from '../../finalisiert.js';
 import { applyPrefillSelected } from './PrefillSelected.js';
 
+const ORDER_BY_NAME = new Set([
+  'branchen',
+  'sprachen',
+  'plattform_typen',
+  'format_typen',
+  'drehort_typen',
+  'creator_type'
+]);
+
+function staticOrderColumn(table) {
+  return ORDER_BY_NAME.has(table) ? 'name' : 'sort_order';
+}
+
 function applyPickerFinalFilter(query, field) {
   if (field.includeDrafts) return query;
   return applyFinalisiertFilter(query, field.table);
@@ -47,7 +60,7 @@ export async function loadDirectQueryOptions(field, form) {
       if (data === null) return [];
     }
     else if (staticTables.includes(field.table) && !field.filter) {
-      data = await this.cache.get(field.table, '*', 'sort_order');
+      data = await this.cache.get(field.table, '*', staticOrderColumn(field.table));
     }
     else if (field.table === 'marke') {
       data = await loadMarkenWithAccessFilter(field);

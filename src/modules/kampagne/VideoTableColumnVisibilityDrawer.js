@@ -3,6 +3,7 @@
 
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { getConfigurableColumns, isColumnPreferredVisible, setColumnPreferredVisible } from './columns/ColumnRegistry.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class VideoTableColumnVisibilityDrawer {
   constructor(kampagneId, store) {
@@ -166,7 +167,7 @@ export class VideoTableColumnVisibilityDrawer {
     this._closeTimer = setTimeout(() => {
       if (overlay) overlay.remove();
       if (panel) panel.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   }
 
   destroy() {

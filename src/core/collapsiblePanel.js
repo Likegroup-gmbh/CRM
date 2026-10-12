@@ -4,6 +4,9 @@
 
 import { icon } from './icons/IconSystem.js';
 
+// Muss zum Overlay-Breakpoint in assets/styles/cards.css passen.
+export const SIDEBAR_NARROW_QUERY = '(max-width: 768px)';
+
 export const COLLAPSE_TITLES = {
   collapsed: 'Navigation einblenden',
   expanded: 'Navigation verkleinern'

@@ -8,6 +8,7 @@ import { personaConfig } from '../../core/form/config/PersonaFormConfig.js';
 import { renderPersonaProfil } from '../persona/PersonaProfil.js';
 import { PersonaAudienceSituationPanel } from '../persona/PersonaAudienceSituationPanel.js';
 import { ProduktPersonaService } from './ProduktPersonaService.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const FORM_ID = 'persona-form';
 
@@ -330,6 +331,6 @@ export class ProduktPersonaDrawer {
   close() {
     document.getElementById(`${this.drawerId}-overlay`)?.classList.remove('active');
     document.getElementById(this.drawerId)?.classList.remove('show');
-    setTimeout(() => this.remove(), 300);
+    setTimeout(() => this.remove(), DRAWER_EXIT_MS);
   }
 }

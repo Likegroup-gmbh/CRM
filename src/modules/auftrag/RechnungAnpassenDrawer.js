@@ -1,4 +1,5 @@
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 // RechnungAnpassenDrawer.js
 // Drawer zur Verwaltung von Rechnungs-Status und Datums-Feldern
 
@@ -412,7 +413,7 @@ export class RechnungAnpassenDrawer {
     
     setTimeout(() => {
       this.removeDrawer();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   }
 
   // Entferne Drawer

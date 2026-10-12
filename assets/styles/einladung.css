@@ -1,0 +1,368 @@
+/* ===================================================================
+   Kunden-Einladung (/einladung/:token): Formulare ohne Konto (ADR 0055)
+   =================================================================== */
+
+.einladung-page {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.einladung-kopf {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-lg) var(--space-md);
+}
+
+.einladung-kopf__logo {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+}
+
+.einladung-kopf__text h1 {
+  margin: 0;
+  font-size: var(--text-xxl);
+  line-height: 1.2;
+}
+
+.einladung-kopf__eyebrow {
+  margin: 0 0 var(--space-xxs);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.einladung-haupt {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 0 var(--space-lg) var(--space-xxxl);
+}
+
+.einladung-karte {
+  background: var(--bg-primary);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+}
+
+/* --- Fortschritt (Briefing) --- */
+
+.einladung-fortschritt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xl);
+}
+
+.einladung-fortschritt__punkt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-xxl);
+  background: var(--bg-primary);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.einladung-fortschritt__nr {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  font-size: var(--text-xs);
+}
+
+.einladung-fortschritt__punkt.is-erledigt {
+  color: var(--text-primary);
+}
+
+.einladung-fortschritt__punkt.is-aktuell {
+  border-color: var(--color-primary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.einladung-fortschritt__punkt.is-aktuell .einladung-fortschritt__nr {
+  background: var(--color-primary);
+  color: var(--bg-primary);
+}
+
+/* --- Schritte und Abschnitte --- */
+
+.einladung-schritt[hidden] {
+  display: none;
+}
+
+.einladung-schritt__kopf,
+.einladung-abschnitt__kopf {
+  margin-bottom: var(--space-lg);
+}
+
+.einladung-schritt__kopf h2,
+.einladung-abschnitt__kopf h2 {
+  margin: 0 0 var(--space-xxs);
+  font-size: var(--text-xl);
+}
+
+.einladung-schritt__kopf p,
+.einladung-abschnitt__kopf p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.einladung-abschnitt {
+  padding-bottom: var(--space-xl);
+  margin-bottom: var(--space-xl);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.einladung-abschnitt:last-of-type {
+  border-bottom: 0;
+  margin-bottom: 0;
+}
+
+.einladung-abschnitt__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* --- Produkt: Varianten und Bilder --- */
+
+.einladung-variante {
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.einladung-variante__kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.einladung-variante__felder {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-md);
+}
+
+.einladung-variante__felder .form-field {
+  margin-bottom: 0;
+}
+
+.einladung-bilder {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.einladung-bilder:empty {
+  display: none;
+}
+
+.einladung-bild {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.einladung-bild img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  border: var(--border-xs) solid var(--border-primary);
+}
+
+.einladung-bild figcaption {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.einladung-bilder__status {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.einladung-bilder__status:empty {
+  display: none;
+}
+
+/* --- Aktionen, Fehler, Bestätigung --- */
+
+.einladung-aktionen {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+}
+
+.einladung-aktionen [hidden] {
+  display: none;
+}
+
+.einladung-fehler {
+  margin: var(--space-md) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-error-light, #fef2f2);
+  color: var(--color-error, #b91c1c);
+  font-size: var(--text-sm);
+}
+
+.einladung-fehler[hidden] {
+  display: none;
+}
+
+.einladung-fertig {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-lg) 0;
+}
+
+.einladung-fertig h2 {
+  margin: 0;
+  font-size: var(--text-xxl);
+}
+
+.einladung-fertig p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+/* --- Code-Abfrage über dem Formular (Sitzung abgelaufen) --- */
+
+#einladung-overlay:empty {
+  display: none;
+}
+
+#einladung-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  padding: var(--space-lg);
+}
+
+.einladung-overlay {
+  width: 100%;
+  max-width: 28rem;
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .einladung-karte {
+    padding: var(--space-md);
+  }
+
+  .einladung-fortschritt__label {
+    display: none;
+  }
+
+  .einladung-fortschritt__punkt.is-aktuell .einladung-fortschritt__label {
+    display: inline;
+  }
+}
+
+/* ===================================================================
+   Eingang der Einreichungen (Briefing-Tab der Produktion, Produktliste)
+   =================================================================== */
+
+/* Das eingebettete Briefing-Dokument füllt den Rest des Tabs wie zuvor. */
+.briefing-pane-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.einreichung-inbox {
+  flex-shrink: 0;
+  margin: var(--space-md) var(--space-md) 0;
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+}
+
+.einreichung-inbox[hidden] {
+  display: none;
+}
+
+.einreichung-inbox__kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  font-size: var(--text-sm);
+}
+
+.einreichung-inbox__anzahl {
+  color: var(--text-tertiary);
+}
+
+.einreichung-inbox__zeile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.einreichung-inbox__zeile + .einreichung-inbox__zeile {
+  border-top: var(--border-xs) solid var(--border-primary);
+}
+
+.einreichung-inbox__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.einreichung-inbox__titel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.einreichung-inbox__meta {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.einreichung-inbox__aktionen {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}

@@ -162,13 +162,15 @@ describe('validateIdeen', () => {
 
   it('haelt die Faktengrenze hart und stellt Personas vor das Briefing', () => {
     const { stable, task } = buildPrompt({
-      briefing: { bereich: 'influencer_marketing', donts: 'Keine Heilversprechen' },
+      briefing: { bereich: 'influencer_marketing', wichtige_vorgaben: 'Keine Heilversprechen' },
       produkte: [{ name: 'Protein' }],
       personas: [{ name: 'Mara', audience_situations: [] }],
       ausschluss: []
     });
     expect(stable).toContain('Keine erfundenen Produktfeatures');
-    expect(stable).toContain('Donts im Briefing sind Verbote');
+    expect(stable).toContain('Verbote unter WICHTIGE VORGABEN');
+    expect(task).toContain('# WICHTIGE VORGABEN');
+    expect(task).toContain('Keine Heilversprechen');
     expect(stable).toContain('Audience Situations');
     expect(stable).toContain('nicht umformulieren');
     expect(stable).toContain('Anderer Drehort');

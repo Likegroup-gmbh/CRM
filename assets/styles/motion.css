@@ -1,0 +1,52 @@
+/* motion.css */
+/* Layout der GSAP-Effekte aus src/core/animation. Gilt fuer jeden Host mit [data-burst], */
+/* unabhaengig vom Icon. Farbe und Groesse legt der jeweilige Host fest. */
+
+[data-burst] {
+  position: relative;
+  overflow: visible;
+}
+
+[data-burst] [data-burst-glyph] {
+  display: inline-flex;
+  line-height: 0;
+}
+
+/* Gefuellte Kopie des Icons ueber dem Glyph: aus = unsichtbar, an = sichtbar */
+[data-burst] [data-burst-fill] {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+[data-burst] [data-burst-fill] .crm-icon {
+  fill: currentColor;
+}
+
+[data-burst].is-on [data-burst-fill] {
+  opacity: 1;
+}
+
+[data-burst] [data-burst-sparks] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+[data-burst] [data-burst-spark] {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+}

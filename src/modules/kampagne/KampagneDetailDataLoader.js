@@ -176,7 +176,8 @@ export async function loadCriticalData(kampagneId, scope = {}) {
     const { data: kampagneArten } = await window.supabase
       .from('kampagne_art_typen')
       .select('id, name, beschreibung')
-      .in('id', kampagneData.art_der_kampagne);
+      // art_der_kampagne ist text[] mit den Namen, nicht den UUIDs.
+      .in('name', kampagneData.art_der_kampagne);
     kampagneData.kampagne_art_typen = kampagneArten || [];
   }
 

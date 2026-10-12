@@ -73,7 +73,7 @@ Regeln:
 - Deutsch, mit Umlauten.
 - Die Umsetzungsvorgabe ist der Fokus. Steht dort nur die Hook, adaptiere die Hook. Steht dort eine bestimmte Umsetzung, nimm die, nicht das ganze Video.
 - Keine erfundenen Produktfeatures, Preise, Claims. Nur was im Briefing, Produkt oder in der Videoreferenz steht.
-- Donts im Briefing sind Verbote.
+- Verbote in den Wichtigen Vorgaben des Briefings (kein, nicht, nie, ohne) gelten hart.
 - Erst ein kurzer Absatz (zwei bis vier Saetze), dann drei bis fuenf Bullet Points als Ablauf.
 - Konkrete Schritte, was im Video passiert, keine Agenturlyrik.`;
 

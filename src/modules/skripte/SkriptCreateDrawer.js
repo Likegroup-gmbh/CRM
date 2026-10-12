@@ -6,9 +6,10 @@ import { skripteService } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
 import { buildFreigegebeneVideoideePickerOptions } from '../strategie/strategieItemPicker.js';
 import { buildReferenzVideoPayload } from './strategieVorlage.js';
-import { resolveSkriptCreatePayload } from './skriptCreateKontext.js';
+import { resolveSkriptCreatePayload, funnelWarnung } from './skriptCreateKontext.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { truncateText } from '../strategie/strategieItemPicker.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'skript-create-drawer';
 const PREFIX = 'skcreate';
@@ -36,7 +37,7 @@ export function closeSkriptCreateDrawer() {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     overlay?.remove();
   }
@@ -97,6 +98,7 @@ class SkriptCreateDrawer {
             <label for="${PREFIX}-videoidee">Videoidee *</label>
             <select id="${PREFIX}-videoidee" class="form-input" disabled><option value="">– Erst Konzept wählen –</option></select>
             <span class="skripte-hint" id="${PREFIX}-videoidee-hint">Wähle zuerst ein Konzept.</span>
+            <span class="skripte-hint skripte-hint--warnung" id="${PREFIX}-funnel-hint" hidden></span>
           </div>
           <div class="form-field" id="${PREFIX}-uebersicht" hidden>
             <label>Skripte in diesem Konzept</label>
@@ -341,6 +343,16 @@ class SkriptCreateDrawer {
     this.selectedItem = item;
     this.renderCreator(item);
     this.renderHinweisVorhanden(item);
+    this.renderFunnelWarnung(item);
+  }
+
+  /** Paid ohne Funnel-Stufe im Konzept: Warnung, kein Gate. */
+  renderFunnelWarnung(item) {
+    const el = this.el('funnel-hint');
+    if (!el) return;
+    const text = funnelWarnung(item);
+    el.textContent = text;
+    el.hidden = !text;
   }
 
   /** Warnung, wenn zur gewählten Idee schon Skripte existieren. */
@@ -399,6 +411,7 @@ class SkriptCreateDrawer {
     this.selectedItem = null;
     this.setSearchableValue('videoidee', '');
     this.renderCreator(null);
+    this.renderFunnelWarnung(null);
   }
 
   renderCreator(item) {

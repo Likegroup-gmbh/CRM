@@ -17,6 +17,7 @@ import {
   statsForSave
 } from './instagramDrawerFill.js';
 import { normalizeHandle } from '../creator/creatorProfil.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const IG_LADE_TEXT = 'Instagram-Daten werden geladen…';
 
@@ -620,7 +621,7 @@ export class CreatorAuswahlAddDrawer {
     document.getElementById('add-creator-overlay')?.classList.remove('active');
     document.getElementById('add-creator-drawer')?.classList.remove('show');
     clearTimeout(this.closeTimer);
-    this.closeTimer = setTimeout(() => this.remove(), 300);
+    this.closeTimer = setTimeout(() => this.remove(), DRAWER_EXIT_MS);
   }
 }
 

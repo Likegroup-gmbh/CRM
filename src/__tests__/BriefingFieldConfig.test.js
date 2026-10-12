@@ -105,7 +105,7 @@ describe('Briefing evaluateCondition', () => {
     }, { bereich: 'paid_creator_ads' })).toBe(false);
   });
 
-  it('Typ-Felder sitzen in A, C, D und Vertrag, nicht als Extra-Schritt', () => {
+  it('Typ-Felder sitzen in Grundlage, Aufgabe und Vertrag, nicht als Extra-Schritt', () => {
     const namesIn = (stepId) => FLOW_STEPS
       .find(s => s.id === stepId)
       .sections
@@ -116,11 +116,20 @@ describe('Briefing evaluateCondition', () => {
       'plattformmechanik', 'freigabeprozess', 'content_deadline', 'go_live'
     ]));
     expect(namesIn('aufgabe')).toContain('art_der_integration');
-    expect(namesIn('konzepte')).toEqual(expect.arrayContaining([
-      'ad_channels', 'publish_channels', 'cta', 'ziel_url', 'hook_vorgaben',
-      'unterschiedliche_hooks', 'hooks_anzahl',
-      'trendkontext', 'posting_anforderungen'
-    ]));
+    expect(namesIn('aufgabe')).not.toContain('beteiligte_personen');
+    expect(namesIn('casting')).toContain('beteiligte_personen');
+    for (const name of ['ad_channels', 'publish_channels', 'cta', 'videolaenge', 'hook_vorgaben', 'trendkontext', 'posting_anforderungen']) {
+      expect(namesIn('konzepte')).not.toContain(name);
+    }
+    expect(namesIn('konzepte')).toContain('wichtige_vorgaben');
+    const vorgabenFeld = FLOW_STEPS.find(s => s.id === 'konzepte').sections
+      .flatMap(s => flattenFields(s.fields))
+      .find(f => f.name === 'wichtige_vorgaben');
+    expect(vorgabenFeld.label).toBe('Do’s und Don’ts (Wichtige Vorgaben)');
+    for (const alt of ['pflichtinhalte', 'dos', 'donts', 'vorgaben_ausschluesse']) {
+      expect(namesIn('konzepte')).not.toContain(alt);
+      expect(namesIn('aufgabe')).not.toContain(alt);
+    }
     expect(namesIn('konzepte')).not.toContain('plattformmechanik');
     expect(namesIn('konzepte')).not.toContain('freigabeprozess');
     expect(namesIn('casting')).toEqual(expect.arrayContaining([
@@ -128,8 +137,14 @@ describe('Briefing evaluateCondition', () => {
     ]));
     expect(namesIn('casting')).not.toContain('voraussetzungen_weiter');
     const castingFields = flattenFields(FLOW_STEPS.find(s => s.id === 'casting').sections[0].fields).map(f => f.name);
+    expect(castingFields.indexOf('creator_merkmale')).toBeLessThan(castingFields.indexOf('beteiligte_personen'));
+    expect(castingFields.indexOf('beteiligte_personen')).toBeLessThan(castingFields.indexOf('creator_groessen'));
+    expect(castingFields.indexOf('creator_groessen')).toBeLessThan(castingFields.indexOf('voraussetzungen'));
     expect(castingFields.indexOf('produkt_erfahrung')).toBeLessThan(castingFields.indexOf('hauttyp'));
     expect(namesIn('vertrag')).toEqual(expect.arrayContaining([
+      'ad_channels', 'publish_channels', 'cta', 'ziel_url', 'hook_vorgaben',
+      'unterschiedliche_hooks', 'hooks_anzahl', 'videolaenge',
+      'trendkontext', 'posting_anforderungen',
       'nutzung_markenkanal', 'nutzung_paid_media', 'verhandlungshinweis'
     ]));
     expect(FLOW_STEPS.map(s => s.id)).not.toContain('extras');
@@ -193,8 +208,8 @@ describe('Briefing evaluateCondition', () => {
       'zuordnung', 'paid-zweck', 'organic-zweck', 'zeitraum',
       'casting-suche',
       'aufgabe-umsetzung',
-      'kreative-umsetzung', 'kanaele',
-      'nutzung', 'weitere-plattformen-paid', 'weitere-plattformen-organic', 'verhandlung'
+      'kreative-umsetzung',
+      'kanaele', 'nutzung', 'weitere-plattformen-paid', 'weitere-plattformen-organic', 'verhandlung'
     ]);
   });
 

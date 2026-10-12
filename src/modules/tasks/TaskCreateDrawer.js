@@ -3,6 +3,7 @@
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class TaskCreateDrawer {
   constructor() {
@@ -811,7 +812,7 @@ export class TaskCreateDrawer {
       panel.classList.remove('show');
       setTimeout(() => {
         this.removeDrawer();
-      }, 250); // Match CSS transition time
+      }, DRAWER_EXIT_MS); // Match CSS transition time
     } else {
       this.removeDrawer();
     }

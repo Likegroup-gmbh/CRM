@@ -5,6 +5,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { buildVideoDisplayName, buildVideoPickerOptions } from '../strategie/VideoPickerOptions.js';
 import { skripteService } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 function creatorDisplayName(creator) {
   return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || 'Unbekannt';
@@ -249,7 +250,7 @@ export class SkriptKooperationDrawer {
     const panel = document.getElementById(this.drawerId);
     if (panel) {
       panel.classList.remove('show');
-      setTimeout(() => this.removeDrawer(), 250);
+      setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
     } else {
       this.removeDrawer();
     }

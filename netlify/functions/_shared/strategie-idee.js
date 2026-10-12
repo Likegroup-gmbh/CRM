@@ -21,8 +21,57 @@ function normalisiereAnzahl(input) {
   return Math.min(ANZAHL_MAX, Math.max(ANZAHL_MIN, n));
 }
 
-function konzeptTool(anzahl = ANZAHL) {
+// Funnel-Stufe an der Videoidee (strategie_items.funnel_stufe). Das Briefing nennt
+// die Stufen grob; Liky waehlt je Vorschlag eine davon, nie eine andere.
+const FUNNEL_WERTE = ['upper', 'mid', 'lower'];
+const FUNNEL_LABELS = {
+  upper: 'Upper Funnel – Awareness',
+  mid: 'Mid Funnel – Consideration',
+  lower: 'Lower Funnel – Conversion'
+};
+const BRIEFING_FUNNEL_FELD = {
+  paid_creator_ads: 'pa_funnel_stufen',
+  influencer_marketing: 'im_funnel_stufen'
+};
+
+function funnelListe(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim()) return [raw.trim()];
+  return [];
+}
+
+/** Die im Briefing genannten Stufen (nur bekannte Werte, ohne Doppelte). */
+function briefingFunnelStufen(briefing) {
+  const feld = BRIEFING_FUNNEL_FELD[briefing?.bereich];
+  if (!feld) return [];
+  let raw = funnelListe(briefing[feld]);
+  if (!raw.length && briefing.bereich === 'paid_creator_ads') raw = funnelListe(briefing.funnel_stufen);
+  return [...new Set(raw.filter((w) => FUNNEL_WERTE.includes(w)))];
+}
+
+function konzeptTool(anzahl = ANZAHL, stufen = []) {
   const n = normalisiereAnzahl({ anzahl });
+  const erlaubt = (stufen || []).filter((w) => FUNNEL_WERTE.includes(w));
+  const ideeProperties = {
+    titel: {
+      type: 'string',
+      description: 'Kurzer merkbare Titel, gleichzeitig der Hook in einem Satz. Keine Anfuehrungszeichen.'
+    },
+    pain_point: { type: 'string', description: 'Welchen Pain die Idee angreift, ein bis zwei Saetze.' },
+    hook: { type: 'string', description: 'Gesprochener oder sichtbarer Aufmacher der ersten Sekunden.' },
+    kernbotschaft: { type: 'string', description: 'Was haengen bleiben soll, ein Satz.' },
+    ablauf: { type: 'string', description: 'Grober Ablauf in zwei bis vier Schritten, keine Shotliste.' }
+  };
+  const ideeRequired = ['titel', 'pain_point', 'hook', 'kernbotschaft', 'ablauf'];
+  if (erlaubt.length) {
+    ideeProperties.funnel_stufe = {
+      type: 'string',
+      enum: erlaubt,
+      description: 'Funnel-Stufe, fuer die die Idee gedacht ist. Nur eine der Briefing-Stufen. '
+        + 'Bei mehreren Stufen die passendste waehlen und jede Stufe mindestens einmal vergeben, soweit die Anzahl reicht.'
+    };
+    ideeRequired.push('funnel_stufe');
+  }
   return {
     name: 'videoideen_abgeben',
     description: 'Gibt Videoideen fuer ein Konzept ab. Jede Idee ist ein eigener Creative Angle.',
@@ -34,17 +83,8 @@ function konzeptTool(anzahl = ANZAHL) {
           description: `Genau ${n} distinkte Videoideen: verschiedene Situationen, nicht dieselbe Szene anders formuliert.`,
           items: {
             type: 'object',
-            properties: {
-              titel: {
-                type: 'string',
-                description: 'Kurzer merkbare Titel, gleichzeitig der Hook in einem Satz. Keine Anfuehrungszeichen.'
-              },
-              pain_point: { type: 'string', description: 'Welchen Pain die Idee angreift, ein bis zwei Saetze.' },
-              hook: { type: 'string', description: 'Gesprochener oder sichtbarer Aufmacher der ersten Sekunden.' },
-              kernbotschaft: { type: 'string', description: 'Was haengen bleiben soll, ein Satz.' },
-              ablauf: { type: 'string', description: 'Grober Ablauf in zwei bis vier Schritten, keine Shotliste.' }
-            },
-            required: ['titel', 'pain_point', 'hook', 'kernbotschaft', 'ablauf']
+            properties: ideeProperties,
+            required: ideeRequired
           }
         }
       },
@@ -220,8 +260,23 @@ function summiereUsage(a, b) {
   return summe;
 }
 
+/** Prompt-Block zu den Briefing-Stufen. Leer ohne Stufen: dann gibt es keine Vorgabe. */
+function fmtFunnelStufen(stufen, n) {
+  const liste = (stufen || []).filter((w) => FUNNEL_WERTE.includes(w));
+  if (!liste.length) return '';
+  const namen = liste.map((w) => `${w} (${FUNNEL_LABELS[w]})`).join(', ');
+  if (liste.length === 1) {
+    return `\nFunnel-Stufe: Das Briefing nennt nur ${namen}. Setze funnel_stufe bei jeder Idee auf ${liste[0]}.\n`;
+  }
+  return `\nFunnel-Stufen im Briefing: ${namen}.\n`
+    + 'Setze funnel_stufe je Idee auf die Stufe, zu der Hook und Ablauf am besten passen (Awareness: Problem und Neugier; '
+    + 'Consideration: Vergleich, Nutzen, Beweis; Conversion: Einwand, Angebot, Handlung). '
+    + `Verteile die ${n} Ideen ueber diese Stufen: jede Stufe kommt vor, soweit die Anzahl reicht. Keine andere Stufe.\n`;
+}
+
 function buildPrompt({ briefing, produkte, personas, ausschluss, anzahl, hinweis, produktFix = false } = {}) {
   const n = normalisiereAnzahl({ anzahl });
+  const funnelText = fmtFunnelStufen(briefingFunnelStufen(briefing), n);
   const briefingText = fmtCampaignBriefing(briefing) || '(Briefing ohne auswertbare Felder)';
   const produktText = (produkte || []).map(fmtProdukt).filter(Boolean).join('\n') || '(keine Produkte am Briefing)';
   const personaText = (personas || []).map(fmtPersona).filter(Boolean).join('\n') || '(keine akzeptierten Personas)';
@@ -234,9 +289,9 @@ Eine Idee ist eine neue Situation, kein Nacherzaehlen des Briefings. Das Briefin
 
 Grenze (hart):
 - Keine erfundenen Produktfeatures, Preise, Claims. Nur was im Briefing oder Produkt steht.
-- Donts im Briefing sind Verbote. Eine Idee, die ein Dont bricht, wird nicht abgegeben.
-- Pflichtinhalte, Hook-Vorgaben, CTA und Creator-Vorgaben muessen in der Idee gehen. Sie sind die Grenze, nicht der Ablauf.
-- Dos sind Soll, kein Lock.
+- Verbote unter WICHTIGE VORGABEN im Briefing (kein, nicht, nie, ohne) sind hart. Eine Idee, die ein Verbot bricht, wird nicht abgegeben.
+- Pflichtinhalte unter WICHTIGE VORGABEN, Hook-Vorgaben, CTA und Creator-Vorgaben muessen in der Idee gehen. Sie sind die Grenze, nicht der Ablauf.
+- Do's unter WICHTIGE VORGABEN sind Soll, kein Lock.
 
 Geschichte:
 - Starte in einem konkreten Moment aus dem Leben der Persona. Hat sie Audience Situations, nimm eine davon.
@@ -262,7 +317,7 @@ ${produktText}
 
 Briefing (Grenze und Kontext, nicht die Geschichte):
 ${briefingText}
-
+${funnelText}
 Bereits vorhandene Ideen (nicht wiederholen):
 ${ausschlussText}
 ${hinweis ? `\nHinweis aus dem Team (beruecksichtigen):\n${cap(hinweis, 600)}\n` : ''}
@@ -363,7 +418,19 @@ async function loadPersonas(supabase, briefing, produktIds) {
   return personas;
 }
 
-function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL } = {}) {
+/**
+ * Stufe einer Idee: nur eine der Briefing-Stufen. Gibt es genau eine, gilt sie;
+ * ohne gueltige Angabe bleibt die Stufe leer (keine Vorgabe).
+ */
+function waehleFunnelStufe(rawStufe, stufen) {
+  const erlaubt = (stufen || []).filter((w) => FUNNEL_WERTE.includes(w));
+  if (!erlaubt.length) return null;
+  const wert = String(rawStufe || '').trim().toLowerCase();
+  if (erlaubt.includes(wert)) return wert;
+  return erlaubt.length === 1 ? erlaubt[0] : null;
+}
+
+function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL, stufen = [] } = {}) {
   const raw = normalizeIdeenJson(json);
   const belegt = new Set((ausschluss || []).map((t) => erstzeile(t).toLowerCase()).filter(Boolean));
   const ideen = [];
@@ -395,6 +462,7 @@ function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL } = {}) {
       hook,
       kernbotschaft,
       ablauf,
+      funnel_stufe: waehleFunnelStufe(rawIdee?.funnel_stufe, stufen),
       beschreibung: formatBeschreibung({ titel, pain_point, hook, kernbotschaft, ablauf })
     });
     if (ideen.length >= anzahl) break;
@@ -417,6 +485,7 @@ function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL } = {}) {
  */
 async function entwerfeLaeufe({ input, laeufe, hinweis, rufe, zustand = {}, onStep, onDiagnose } = {}) {
   const ausschluss = [...(input?.ausschluss || [])];
+  const stufen = briefingFunnelStufen(input?.briefing);
   const ergebnisse = [];
   const verworfen = [];
   let letzteGeprueft = null;
@@ -437,10 +506,10 @@ async function entwerfeLaeufe({ input, laeufe, hinweis, rufe, zustand = {}, onSt
       anzahl: lauf.anzahl,
       hinweis
     });
-    const tool = konzeptTool(lauf.anzahl);
+    const tool = konzeptTool(lauf.anzahl, stufen);
     const ruf = () => rufe({ stable, task, tool, lauf });
     const pruefe = (result) => (result?.json
-      ? validateIdeen(result.json, { ausschluss, anzahl: lauf.anzahl })
+      ? validateIdeen(result.json, { ausschluss, anzahl: lauf.anzahl, stufen })
       : { ideen: [], verworfen: [] });
 
     onStep?.('generieren', lauf);
@@ -490,6 +559,7 @@ function buildVorschlagInsert({ strategieId, idee, sortierung, createdBy, produk
     teilbereich: null,
     beschreibung: idee.beschreibung,
     beschreibung_quelle: 'ki',
+    ...(FUNNEL_WERTE.includes(idee.funnel_stufe) ? { funnel_stufe: idee.funnel_stufe } : {}),
     ist_vorschlag: true,
     created_by: createdBy
   };
@@ -506,6 +576,7 @@ module.exports = {
   entwerfeLaeufe,
   leereLaeufeFehler,
   konzeptTool,
+  briefingFunnelStufen,
   erstzeile,
   formatBeschreibung,
   fmtProdukt,

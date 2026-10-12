@@ -5,6 +5,7 @@ import {
   FEEDBACK_AREAS
 } from './FeedbackConstants.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class FeedbackCreateDrawer {
   constructor() {
@@ -277,7 +278,7 @@ export class FeedbackCreateDrawer {
         this.removeDrawer();
         this.feedbackToEdit = null;
         this.preselectedCategory = null;
-      }, 300);
+      }, DRAWER_EXIT_MS);
     } else {
       this.removeDrawer();
       this.feedbackToEdit = null;

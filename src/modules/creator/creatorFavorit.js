@@ -1,6 +1,6 @@
 // Favorit: die Markierung eines Creators durch genau eine interne Person.
 
-import { icon } from '../../core/icons/IconSystem.js';
+import { burstLayers } from '../../core/animation/burst.js';
 
 function esc(value) {
   return String(value ?? '')
@@ -25,12 +25,49 @@ export function renderFavorit(creator) {
     : '';
   return `
     <div class="creator-favorit">
-      <button type="button" class="creator-favorit__star${mine ? ' is-on' : ''}" data-action="toggle-favorit" data-id="${id}" aria-pressed="${mine ? 'true' : 'false'}" aria-label="${starLabel}">
-        ${icon('star-rounded')}
+      <button type="button" data-burst class="creator-favorit__star${mine ? ' is-on' : ''}" data-action="toggle-favorit" data-id="${id}" aria-pressed="${mine ? 'true' : 'false'}" aria-label="${starLabel}">
+        ${burstLayers('star-rounded')}
       </button>
       ${countHtml}
     </div>
   `;
+}
+
+export function istMeinFavorit(favoriten) {
+  const me = currentUserId();
+  return (Array.isArray(favoriten) ? favoriten : []).some((entry) => entry.user_id === me);
+}
+
+/**
+ * Setzt Beschriftung und Zaehler im vorhandenen Knoten nach. Der Stern bleibt
+ * stehen, damit die Burst-Animation nicht durch ein Neurendern abbricht.
+ */
+export function patchFavorit(host, favoriten, creatorId) {
+  const root = host?.classList?.contains('creator-favorit') ? host : host?.querySelector?.('.creator-favorit');
+  const star = root?.querySelector('.creator-favorit__star');
+  if (!root || !star) return;
+  const list = Array.isArray(favoriten) ? favoriten : [];
+  const mine = istMeinFavorit(list);
+  star.setAttribute('aria-pressed', mine ? 'true' : 'false');
+  star.setAttribute('aria-label', mine ? 'Favorit entfernen' : 'Als Favorit markieren');
+
+  root.querySelector('.creator-favorit__namen')?.remove();
+  const count = list.length;
+  const countButton = root.querySelector('.creator-favorit__count');
+  if (!count) {
+    countButton?.remove();
+    return;
+  }
+  if (countButton) {
+    countButton.textContent = String(count);
+    countButton.setAttribute('aria-label', `${count} Favoriten`);
+    return;
+  }
+  const id = esc(creatorId ?? star.dataset.id);
+  root.insertAdjacentHTML(
+    'beforeend',
+    `<button type="button" class="creator-favorit__count" data-action="show-favoriten" data-id="${id}" aria-label="${count} Favoriten">${count}</button>`
+  );
 }
 
 export function renderFavoritNamen(favoriten) {

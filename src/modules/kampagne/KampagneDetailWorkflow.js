@@ -32,6 +32,7 @@ import {
   unmountKatalogPanes
 } from './KampagneDetailKatalog.js';
 import { mountBriefingPane, unmountBriefingPane } from './KampagneDetailBriefing.js';
+import { syncEinreichungsZaehler } from '../einladung/briefingEinreichungen.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
 
@@ -395,6 +396,8 @@ export function refreshWorkflowAfterRender(detail) {
   if (tab && tab !== 'produktion') {
     void loadWorkflowPane(detail, tab);
   }
+  // Der Briefing-Tab zeigt offene Kundeneinreichungen, auch wenn ein anderer Tab offen ist.
+  if (tab !== 'briefing') void syncEinreichungsZaehler(detail);
 }
 
 /* ------------------------------------------------------------------ */

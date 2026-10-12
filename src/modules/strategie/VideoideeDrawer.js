@@ -25,9 +25,11 @@ import {
   bindProdukt,
   patchFields,
   patchPrio,
+  patchFunnel,
   patchStatus,
   refreshBlock
 } from './videoidee/videoideeSync.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 /** Was der Autosave vom Drawer braucht, ohne ihn zu importieren. */
 const COMMIT_HOOKS = { renderOpenItem, updateNav };
@@ -338,6 +340,7 @@ function onTableRendered(detail) {
     refreshBlock(detail, item.id, 'produkt');
   }
   patchPrio(detail, panel, item);
+  patchFunnel(detail, panel, item);
   patchStatus(panel, item);
 }
 
@@ -425,5 +428,5 @@ export function closeEditItemDrawer() {
   closeTimer = setTimeout(() => {
     closeTimer = null;
     removeEditItemDrawer();
-  }, 300);
+  }, DRAWER_EXIT_MS);
 }

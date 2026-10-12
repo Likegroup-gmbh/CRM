@@ -3,9 +3,22 @@
 // Produkt: die ID an der Videoidee. Ohne die bleibt der Persona-Fit
 // (genau ein accepted Fit, sonst null) fuer Altbestand vor der Spalte.
 
+import { funnelFuerSkript } from '../strategie/strategieFunnelOptions.js';
+
 export function pickProduktId(produktIds) {
   const ids = [...new Set((produktIds || []).filter(Boolean))];
   return ids.length === 1 ? ids[0] : null;
+}
+
+/**
+ * Warnhinweis im Create-Drawer: Paid-Videoidee ohne Funnel-Stufe. Kein Gate,
+ * Anlegen bleibt möglich; Liky fragt dann in den Rückfragen nach.
+ */
+export function funnelWarnung(item) {
+  if (!item) return '';
+  if (item.strategie?.briefing?.bereich !== 'paid_creator_ads') return '';
+  if (funnelFuerSkript(item.funnel_stufe)) return '';
+  return 'Im Konzept ist keine Funnel-Stufe gesetzt. Liky fragt in den Rückfragen danach.';
 }
 
 export function resolveSkriptCreatePayload(item, { produktIds = [] } = {}) {
@@ -27,6 +40,8 @@ export function resolveSkriptCreatePayload(item, { produktIds = [] } = {}) {
     persona_id: eintrag?.persona_id || null,
     produkt_id: item?.produkt_id || pickProduktId(produktIds),
     strategie_item_id: item?.id || null,
-    video_idee: (item?.beschreibung || '').trim() || null
+    video_idee: (item?.beschreibung || '').trim() || null,
+    // Konzept schlägt Briefing: leer heißt keine Vorgabe, nie ein Briefing-Fallback.
+    funnel_stufe: funnelFuerSkript(item?.funnel_stufe)
   };
 }

@@ -5,7 +5,9 @@
 
 import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
-import { intervallOderNull, videolaengeAusBriefing } from '../videolaenge.js';
+import {
+  intervallOderNull, videolaengeAusBriefing, funnelMapAusFormData, funnelFormDataAusMap
+} from '../videolaenge.js';
 import { ideenListe } from '../ideenSplit.js';
 import { resolveBriefingFieldValue } from '../briefingLegacy.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
@@ -255,6 +257,11 @@ BriefingCreate.prototype.prepareDataForDB = function() {
   const laenge = intervallOderNull(this.formData.videolaenge?.von, this.formData.videolaenge?.bis);
   data.videolaenge_von = laenge?.von ?? null;
   data.videolaenge_bis = laenge?.bis ?? null;
+  // Pro Funnel-Stufe nur bei Paid und nur für angehakte Stufen. Abgehakte Stufen
+  // behalten sonst ihren Wert, weil versteckte Slider trotzdem im formData liegen.
+  data.videolaenge_funnel = bereich === 'paid_creator_ads'
+    ? funnelMapAusFormData(this.formData, this.formData.funnel_stufen)
+    : null;
 
   mirrorLegacyColumns(data, bereich);
   return data;
@@ -363,6 +370,11 @@ BriefingCreate.prototype.saveDraftToDB = async function() {
 BriefingCreate.prototype.persistDraft = async function() {
   const data = this.prepareDataForDB();
   data.is_draft = true;
+  // Eine Kunden-Einreichung wird als Entwurf-Linie der Produktion angelegt (ADR 0055).
+  // ensureBriefingLine läuft erst beim Finalisieren, damit nicht sofort Casting und Konzept entstehen.
+  if (this._einreichungId) {
+    data.produktion_id = this.formData.produktion_id || this._produktionKontext?.produktionId || null;
+  }
 
   if (this.editId) {
     const { error } = await window.supabase
@@ -370,6 +382,7 @@ BriefingCreate.prototype.persistDraft = async function() {
       .update(data)
       .eq('id', this.editId);
     if (error) throw error;
+    await this.einreichungAbschliessen?.(this.editId);
     return this.editId;
   }
 
@@ -380,6 +393,7 @@ BriefingCreate.prototype.persistDraft = async function() {
     .single();
   if (error) throw error;
   this.editId = created.id;
+  await this.einreichungAbschliessen?.(created.id);
   return created.id;
 };
 
@@ -433,6 +447,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
       if (error) throw error;
       this.editId = created.id;
     }
+    await this.einreichungAbschliessen?.(this.editId);
 
     let auswertungOk = false;
     try {
@@ -513,12 +528,7 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     }
     const laenge = videolaengeAusBriefing(briefing);
     if (laenge) this.formData.videolaenge = laenge;
-
-    // Altes gemeinsames Do/Don't-Feld, solange dos/donts leer sind
-    if (!String(briefing.dos || '').trim() && !String(briefing.donts || '').trim()) {
-      const alt = String(briefing.dos_donts || '').trim();
-      if (alt) this.formData.dos = alt;
-    }
+    Object.assign(this.formData, funnelFormDataAusMap(briefing.videolaenge_funnel));
 
     if (briefing.aktivierung_name) this.formData.aktivierung_name = briefing.aktivierung_name;
     this.formData.bereich = briefing.bereich;

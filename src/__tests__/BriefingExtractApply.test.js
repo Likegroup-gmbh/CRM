@@ -135,8 +135,28 @@ describe('normalizeValue', () => {
 
   it('group: nur bekannte Subkeys, als Strings', () => {
     const field = byName('creator_merkmale');
-    expect(normalizeValue(field, { alter: '22–38', quatsch: 'x' }))
-      .toEqual({ alter: '22–38', geschlecht: '', standort: '' });
+    expect(normalizeValue(field, { alter: '25-34', quatsch: 'x' }))
+      .toEqual({ alter: '25-34', geschlecht: '', standort: '' });
+  });
+
+  it('group: Dropdown-Subfelder mappen Label/Schreibweise auf den Options-Wert', () => {
+    const field = byName('creator_merkmale');
+    expect(normalizeValue(field, { alter: '18–24', geschlecht: 'Weiblich' }))
+      .toEqual({ alter: '18-24', geschlecht: 'weiblich', standort: '' });
+  });
+
+  it('group: Freitext ausserhalb der Optionen bleibt als Extra-Text', () => {
+    const field = byName('creator_merkmale');
+    expect(normalizeValue(field, { alter: '22–38 Jahre', geschlecht: 'Vorrangig weiblich' }))
+      .toEqual({ alter: '22–38 Jahre', geschlecht: 'Vorrangig weiblich', standort: '' });
+  });
+
+  it('group: Zwischenstand alter_von/alter_bis wird zu einer Spanne', () => {
+    const field = byName('creator_merkmale');
+    expect(normalizeValue(field, { alter_von: '25-34', alter_bis: '25-34' }).alter).toBe('25-34');
+    expect(normalizeValue(field, { alter_von: '18-24', alter_bis: '35-44' }).alter).toBe('18-44');
+    expect(normalizeValue(field, { alter_von: '45-54', alter_bis: '55+' }).alter).toBe('45+');
+    expect(normalizeValue(field, { alter_von: '25-34' }).alter).toBe('25-34');
   });
 
   it('Videolänge wird ein Intervall', () => {
@@ -169,6 +189,7 @@ describe('BriefingExtractApply.apply (Extract)', () => {
     expect(data.funnel_stufen).toEqual(['upper', 'mid']);
     expect(data.publish_channels).toEqual({ instagram: ['reel', 'story'], tiktok: ['video'] });
     expect(data.creator_merkmale.alter).toBe('22–38 Jahre');
+    expect(data.creator_merkmale.standort).toBe('DACH');
     expect(data.aufgabe).toBe('Creator testen die Leggings im Training.');
     expect(applied.length).toBeGreaterThan(4);
   });

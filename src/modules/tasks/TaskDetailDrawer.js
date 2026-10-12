@@ -1,4 +1,5 @@
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 // TaskDetailDrawer.js - Drawer für Task-Details mit Tabs
 // Basiert auf VersandManager.js Pattern
 export class TaskDetailDrawer {
@@ -846,7 +847,7 @@ export class TaskDetailDrawer {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 250);
+    }, DRAWER_EXIT_MS);
   }
 
   removeDrawer() {

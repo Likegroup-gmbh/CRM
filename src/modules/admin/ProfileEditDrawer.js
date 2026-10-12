@@ -5,6 +5,7 @@ import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { dateInputValue } from './ProfileDetailFormat.js';
 import { handleProfileSave } from './ProfileSave.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const OVERLAY_ID = 'profile-edit-overlay';
 const PANEL_ID = 'profile-edit-drawer';
@@ -158,7 +159,7 @@ export function openProfileEditDrawer(detail) {
     setTimeout(() => {
       overlay.remove();
       panel.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   };
 
   const save = async (e) => {

@@ -200,6 +200,14 @@
 
 .drawer-panel.show { transform: translateX(0); }
 
+/* GSAP steuert den Slide (src/core/animation/drawer.js): CSS-Transform und -Transition
+   weg, sonst uebernimmt GSAP den Ruhe-Versatz als x und die Transition faehrt gegen die Ticks.
+   Ohne data-drawer-state (z.B. reduzierte Bewegung) bleibt der CSS-Slide oben aktiv. */
+.drawer-panel[data-drawer-state] {
+  transform: none;
+  transition: none;
+}
+
 .drawer-header {
   display: flex;
   align-items: center;
@@ -1709,3 +1717,12 @@ span.videoidee-struktur__lock {
 .produkt-uebernehmen-liste { display: flex; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-md); }
 .produkt-uebernehmen-item { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border: 1px solid var(--border-primary); border-radius: var(--radius-md); cursor: pointer; }
 .produkt-uebernehmen-item:hover { background: var(--gray-50); }
+
+/* Briefing anlegen: Quelle für die Kopie */
+.briefing-quelle-chip { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-top: var(--space-xs); padding: var(--space-xs) var(--space-sm); border: 1px solid var(--border-primary); border-radius: var(--radius-md); background: var(--gray-50); }
+.briefing-quelle-chip[hidden] { display: none; }
+.briefing-quelle-chip__text { display: flex; flex-direction: column; min-width: 0; }
+.briefing-quelle-chip__label { font-size: var(--text-sm); color: var(--gray-900); }
+.briefing-quelle-chip__sub { font-size: var(--text-xs); color: var(--gray-500); }
+.briefing-quelle-chip__remove { flex: 0 0 auto; border: none; background: transparent; color: var(--gray-500); font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.briefing-quelle-chip__remove:hover { color: var(--gray-900); }

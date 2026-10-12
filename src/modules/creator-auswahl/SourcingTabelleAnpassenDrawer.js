@@ -8,6 +8,7 @@ import {
   SOURCING_SPALTEN,
   SOURCING_SPALTEN_LABELS
 } from './sourcingSpaltenKatalog.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 /** Spaltenreihenfolge im Drawer, abgeleitet aus SOURCING_SPALTEN */
 const SPALTEN_LABELS = SOURCING_SPALTEN
@@ -125,7 +126,7 @@ export class SourcingTabelleAnpassenDrawer {
     setTimeout(() => {
       if (overlay) overlay.remove();
       if (panel) panel.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   }
 
   renderContent() {

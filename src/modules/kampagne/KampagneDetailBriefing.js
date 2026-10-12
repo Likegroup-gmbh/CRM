@@ -2,9 +2,11 @@
 // Briefing-Tab der Produktion: die Dokumentansicht der aktiven Linie, dieselbe
 // wie auf /briefing/:id (BriefingDetail im Embed-Modus). Anlegen, Bearbeiten,
 // Anschreiben und Löschen laufen über die vorhandenen Pfade des Briefings.
+// Über dem Dokument steht der Eingang der Kundeneinreichungen (ADR 0055).
 
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { BriefingDetail } from '../briefing/BriefingDetail.js';
+import { mountEinreichungInbox } from '../einladung/briefingEinreichungen.js';
 import { effectiveLinie } from './linienScope.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
@@ -30,8 +32,14 @@ export async function mountBriefingPane(detail) {
   const gen = paneGeneration(detail, TAB_ID);
   const briefingId = effectiveLinie(detail, TAB_ID);
 
+  pane.innerHTML = `
+    <div class="einreichung-inbox" data-einreichung-inbox hidden></div>
+    <div class="briefing-pane-host" data-briefing-host></div>`;
+  const host = pane.querySelector('[data-briefing-host]');
+  void mountEinreichungInbox(detail, pane.querySelector('[data-einreichung-inbox]'));
+
   if (!briefingId) {
-    pane.innerHTML = renderEmptyState({
+    host.innerHTML = renderEmptyState({
       icon: 'document',
       title: 'Keine Briefings vorhanden',
       text: 'Für diese Produktion wurde noch kein Briefing zugeordnet.'
@@ -39,15 +47,17 @@ export async function mountBriefingPane(detail) {
     return;
   }
 
-  pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
+  host.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
 
   const doc = new BriefingDetail();
   detail._briefingDoc = doc;
 
   try {
-    await doc.mountEmbedded(pane, briefingId, {
+    await doc.mountEmbedded(host, briefingId, {
       // Löschen feuert entityUpdated; die Produktion lädt ihre Linien neu.
-      onDeleted: () => { void detail.reloadLinien?.(); }
+      onDeleted: () => { void detail.reloadLinien?.(); },
+      // Die Kopie ist eine neue Linie der Produktion: Linien laden, Kopie aktiv schalten.
+      onDuplicated: (kopie) => { void detail.reloadLinien?.({ linieId: kopie.id }); }
     });
     if (!isPaneGenCurrent(detail, TAB_ID, gen) || !pane.isConnected) {
       doc.destroy();
@@ -57,8 +67,8 @@ export async function mountBriefingPane(detail) {
     console.error('❌ KAMPAGNEDETAIL: Briefing-Pane fehlgeschlagen:', error);
     doc.destroy();
     if (detail._briefingDoc === doc) detail._briefingDoc = null;
-    if (pane.isConnected) {
-      pane.innerHTML = renderEmptyState({
+    if (host.isConnected) {
+      host.innerHTML = renderEmptyState({
         icon: 'info',
         title: 'Fehler beim Laden',
         text: 'Das Briefing konnte nicht geladen werden.'

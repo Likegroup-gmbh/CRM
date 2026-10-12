@@ -85,14 +85,20 @@ export class KampagneDetail {
   /**
    * Linien neu laden (z. B. nach dem Löschen eines Briefings). Fällt die aktive
    * Linie weg, greift resolveLinie; Tabelle und Tabs laden mit der Linie neu.
+   * Mit `linieId` (z. B. die Kopie eines Briefings) wird diese Linie aktiv.
+   * @param {{ linieId?: string }} [opts]
    */
-  async reloadLinien() {
+  async reloadLinien({ linieId = null } = {}) {
     if (this.mode !== 'workflow' || !this.produktionId) return;
     const { loadProduktion } = await import('../produktion/ProduktionService.js');
     const produktion = await loadProduktion(this.produktionId);
     if (!this._isMounted || !produktion) return;
 
     this._applyProduktion(produktion);
+    if (linieId && this.linien.some(l => l.id === linieId)) {
+      this.linieId = linieId;
+      this.linieAlle = false;
+    }
     await this._commitLinie();
   }
 

@@ -1,6 +1,11 @@
 // Detail/PDF/Edit: FLOW-Felder, sonst v1-Prefix-Katalog (Fallback in resolveBriefingFieldValue).
 
-import { anzeigeWert } from './videolaenge.js';
+import { anzeigeWert, funnelIntervall, VIDEOLAENGE_FUNNEL_FELD } from './videolaenge.js';
+
+// Formularfeld einer Stufe -> Stufen-Key (videolaenge_funnel_upper -> upper)
+const FUNNEL_STUFE_VON_FELD = Object.fromEntries(
+  Object.entries(VIDEOLAENGE_FUNNEL_FELD).map(([stufe, feld]) => [feld, stufe])
+);
 
 const PREFIX = {
   influencer_marketing: 'im_',
@@ -8,7 +13,7 @@ const PREFIX = {
   owned_social: 'os_'
 };
 
-const FLOW_MARKERS = ['aufgabe', 'nischen', 'pflichtinhalte', 'setting', 'beschreibung'];
+const FLOW_MARKERS = ['aufgabe', 'nischen', 'pflichtinhalte', 'wichtige_vorgaben', 'setting', 'beschreibung'];
 
 const FLOW_TO_SUFFIX = {
   aufgabe: 'umsetzung',
@@ -356,6 +361,13 @@ export function isLegacyBriefing(briefing) {
 
 export function resolveBriefingFieldValue(briefing, fieldName) {
   if (fieldName === 'videolaenge') return anzeigeWert(briefing);
+  const funnelStufe = FUNNEL_STUFE_VON_FELD[fieldName];
+  if (funnelStufe) {
+    const iv = briefing?.bereich === 'paid_creator_ads'
+      ? funnelIntervall(briefing.videolaenge_funnel, funnelStufe)
+      : null;
+    return iv ? { art: 'intervall', ...iv } : null;
+  }
   const current = briefing?.[fieldName];
   if (!isEmpty(current)) return current;
 

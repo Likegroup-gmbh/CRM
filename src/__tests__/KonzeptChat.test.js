@@ -145,12 +145,12 @@ describe('fuehrePlanAus', () => {
 });
 
 describe('buildRewritePrompt', () => {
-  it('haelt die Situation fest und sieht Donts plus Produktfakten', () => {
+  it('haelt die Situation fest und sieht Wichtige Vorgaben plus Produktfakten', () => {
     const { stable, task } = buildRewritePrompt({
       vorschlag: { beschreibung: 'Mara vor dem Meeting\n\nPain Point: x' },
       anweisung: 'Kuerzer.',
       input: {
-        briefing: { donts: 'Keine Heilversprechen', vorgaben_ausschluesse: 'Keine Kinder' },
+        briefing: { wichtige_vorgaben: 'Keine Heilversprechen\nPflicht: Produktname nennen', donts: 'ALT-DONT' },
         produkte: [{ name: 'Protein', usp: '30g', loesung: 'Shake' }]
       }
     });
@@ -159,7 +159,9 @@ describe('buildRewritePrompt', () => {
     expect(stable).not.toContain('neue Situation');
     expect(stable).not.toContain('nicht die Geschichte');
     expect(task).toContain('Keine Heilversprechen');
-    expect(task).toContain('Keine Kinder');
+    expect(task).toContain('Pflicht: Produktname nennen');
+    expect(task).toContain('Wichtige Vorgaben:');
+    expect(task).not.toContain('ALT-DONT');
     expect(task).toContain('Protein');
     expect(task).not.toContain('CAMPAIGN-BRIEFING');
   });

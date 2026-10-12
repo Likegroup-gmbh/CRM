@@ -3,6 +3,7 @@ import { StorysTabHandler } from './StorysTabHandler.js';
 import { BilderTabHandler } from './BilderTabHandler.js';
 import { CustomUploadTabHandler } from './CustomUploadTabHandler.js';
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class VideoUploadDrawer {
   constructor() {
@@ -320,7 +321,7 @@ export class VideoUploadDrawer {
       this._onJobsChangedBound = null;
     }
 
-    setTimeout(() => this.removeDrawer(), 300);
+    setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
   }
 
   removeDrawer() {

@@ -4,6 +4,7 @@
 import { strategieService } from './StrategieService.js';
 import { prefillAndLockField } from '../../core/form/data/PrefillHandler.js';
 import { applyFinalisiertFilter } from '../../core/finalisiert.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export function showHowToModal() {
   if (window.modalSystem) {
@@ -151,7 +152,7 @@ export function closeCreateDrawer() {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     overlay?.remove();
   }
@@ -320,7 +321,7 @@ export function closeEditDrawer() {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     overlay?.remove();
   }

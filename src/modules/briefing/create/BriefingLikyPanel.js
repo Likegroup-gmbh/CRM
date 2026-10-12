@@ -45,7 +45,7 @@ function valueShape(field) {
     case 'repeatableKpi': return 'array von { kpi: kpiOptions.value, zielwert: string }';
     case 'repeatableText': return 'array von strings, genau ein eigenstaendiger Punkt pro Eintrag';
     case 'channelGroup': return 'object: channel.key -> array von format-values (strings), z.B. { instagram: ["reel","story"] }';
-    case 'group': return 'object mit den Sub-Feldern aus fields, jeder Wert ein string';
+    case 'group': return 'object mit den Sub-Feldern aus fields, jeder Wert ein string; bei Sub-Feldern mit options ein options.value oder ein leerer String';
     case 'select': return 'ein options.value als string, sonst ein kurzer eigener Text';
     default: return 'string';
   }
@@ -69,7 +69,12 @@ export function buildSpec(bereich) {
           options: field.options?.map((o) => ({ value: o.value, label: o.label })),
           kpiOptions: field.kpiOptions?.map((o) => ({ value: o.value, label: o.label })),
           channels: field.channels?.map((c) => ({ key: c.key, label: c.label, formats: c.formats || null })),
-          fields: field.fields?.map((f) => ({ name: f.name, label: f.label, type: f.type })),
+          fields: field.fields?.map((f) => ({
+            name: f.name,
+            label: f.label,
+            type: f.type,
+            options: f.options?.map((o) => ({ value: o.value, label: o.label }))
+          })),
           condition: field.condition || null,
           hint: field.helper || null
         });

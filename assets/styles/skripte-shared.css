@@ -32,6 +32,15 @@
   line-height: 1.4;
 }
 
+.skripte-hint--warnung {
+  display: block;
+  color: var(--color-warning-dark);
+}
+
+.skripte-hint--warnung[hidden] {
+  display: none;
+}
+
 .skripte-create-uebersicht {
   list-style: none;
   margin: 0;

@@ -24,7 +24,7 @@ const {
   erstzeile,
   buildVorschlagInsert
 } = require('./_shared/strategie-idee');
-const { leitplankenAusBriefing } = require('./_shared/skript-context/briefing-felder');
+const { wichtigeVorgabenAusBriefing } = require('./_shared/skript-context/briefing-felder');
 
 const PLAN_TOOL = {
   name: 'feedback_planen',
@@ -139,8 +139,7 @@ Plane die Aktionen ueber das Tool.`;
 }
 
 function buildRewritePrompt({ vorschlag, anweisung, input }) {
-  const { donts } = leitplankenAusBriefing(input?.briefing);
-  const ausschluesse = String(input?.briefing?.vorgaben_ausschluesse || '').trim();
+  const vorgaben = wichtigeVorgabenAusBriefing(input?.briefing);
   const produktText = (input?.produkte || [])
     .map((p) => [p?.name, p?.usp, p?.loesung].filter(Boolean).join(' | '))
     .filter(Boolean)
@@ -148,11 +147,10 @@ function buildRewritePrompt({ vorschlag, anweisung, input }) {
 
   const stable = `Du schreibst die Beschreibung eines Videoidee-Vorschlags einer Creator-Agentur neu.
 Situation, Pain und Aussage der Idee bleiben. Der Wortlaut darf sich aendern.
-Keine erfundenen Produktfeatures, Preise, Claims. Donts sind Verbote.`;
+Keine erfundenen Produktfeatures, Preise, Claims. Verbote in den Wichtigen Vorgaben (kein, nicht, nie, ohne) gelten hart, Pflichtinhalte und Do's bleiben erhalten.`;
 
   const grenzen = [
-    donts ? `Donts:\n${donts}` : '',
-    ausschluesse ? `Ausschluesse:\n${ausschluesse}` : '',
+    vorgaben ? `Wichtige Vorgaben:\n${vorgaben}` : '',
     produktText ? `Produktfakten:\n${produktText}` : ''
   ].filter(Boolean).join('\n\n');
 

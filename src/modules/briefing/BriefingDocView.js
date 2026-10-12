@@ -13,7 +13,8 @@ import {
   evaluateCondition,
   flattenFields,
   getAllFields,
-  getStepsForBereich
+  getStepsForBereich,
+  groupAnzeigeZeilen
 } from './create/fieldConfig.js';
 import { collectLegacyPresentation, isLegacyBriefing, resolveBriefingFieldValue } from './briefingLegacy.js';
 
@@ -48,6 +49,9 @@ const SPEC_LABELS = {
   formatvorgaben: 'Formatvorgaben',
   videolaenge: 'Videolänge',
   videolaengen: 'Videolänge',
+  videolaenge_funnel_upper: 'Videolänge Upper Funnel',
+  videolaenge_funnel_mid: 'Videolänge Mid Funnel',
+  videolaenge_funnel_lower: 'Videolänge Lower Funnel',
   ratios: 'Format / Ratio',
   technische_anforderungen: 'Technische Anforderungen',
   zusaetzliche_versionen: 'Zusätzliche Versionen',
@@ -117,13 +121,10 @@ function pushGrouped(groups, title, item) {
 }
 
 function flattenGroupRows(field, value, detail) {
-  if (!value || typeof value !== 'object') return [];
-  return (field.fields || [])
-    .filter(sub => value[sub.name])
-    .map(sub => ({
-      label: specLabel(sub),
-      html: detail.escape(value[sub.name])
-    }));
+  return groupAnzeigeZeilen(field, value).map(row => ({
+    label: specLabel(row.sub),
+    html: detail.escape(row.text)
+  }));
 }
 
 export function collectPresentation(detail, { includeEmptyTextareas = false, forPdf = false } = {}) {
@@ -182,16 +183,6 @@ export function collectPresentation(detail, { includeEmptyTextareas = false, for
     }
   }
 
-  const dosLeer = !String(briefing.dos || '').trim() && !String(briefing.donts || '').trim();
-  const alt = String(briefing.dos_donts || '').trim();
-  if (dosLeer && alt) {
-    pushGrouped(prose, 'Was ist bei der kreativen Umsetzung zu beachten?', {
-      field: { name: 'dos_donts', label: 'Kommunikative Do’s und Don’ts', type: 'textarea' },
-      formatted: detail.escape(alt),
-      value: alt
-    });
-  }
-
   return { callout, prose, specs, creator, secondary };
 }
 
@@ -239,7 +230,7 @@ function renderActionButton({ id, label, title, variant = 'secondary', iconName 
     </button>`;
 }
 
-function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben = false, showEdit = false, compact = true } = {}) {
+function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben = false, canDuplicate = false, showEdit = false, compact = true } = {}) {
   const toggleLabel = compact ? 'Alle Felder' : 'Komprimiert';
   return `
     <div class="briefing-doc__actions">
@@ -255,6 +246,12 @@ function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben =
         label: 'Bearbeiten',
         title: 'Briefing im Formular bearbeiten',
         iconName: 'pencil-square'
+      }) : ''}
+      ${canDuplicate ? renderActionButton({
+        id: 'btn-duplicate-briefing',
+        label: 'Duplizieren',
+        title: 'Briefing als neue Linie in dieser Produktion duplizieren',
+        iconName: 'document-duplicate'
       }) : ''}
       ${canAnschreiben ? renderActionButton({
         id: 'btn-anschreiben-briefing',
@@ -555,6 +552,7 @@ export function renderBriefingDoc({
   canDelete = false,
   canEdit = false,
   canAnschreiben = false,
+  canDuplicate = false,
   showEdit = false,
   embedded = false,
   print = false
@@ -564,6 +562,7 @@ export function renderBriefingDoc({
     canDelete = false;
     canEdit = false;
     canAnschreiben = false;
+    canDuplicate = false;
     showEdit = false;
   }
   const legacy = isLegacyBriefing(detail.briefing);
@@ -605,7 +604,7 @@ export function renderBriefingDoc({
   return `
     <div class="briefing-detail${embedded ? ' briefing-detail--embedded' : ''}">
       <header class="briefing-doc-head">
-        ${renderDocActions({ canEdit, canDelete, canAnschreiben, showEdit, compact })}
+        ${renderDocActions({ canEdit, canDelete, canAnschreiben, canDuplicate, showEdit, compact })}
       </header>
       <div class="briefing-detail__scroll">
         ${article}

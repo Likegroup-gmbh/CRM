@@ -4,6 +4,7 @@
 // Alles pure Funktionen: State rein, HTML-String raus.
 
 import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE } from '../SkripteService.js';
+import { funnelAbweichungsHinweis } from '../../strategie/strategieFunnelOptions.js';
 import { formatVideoLaengeSchluessel } from '../../briefing/videolaenge.js';
 import { escapeHtml } from '../SkripteUtils.js';
 import { skriptNrLabel } from '../skriptNummern.js';
@@ -521,10 +522,12 @@ export function vorgabenPanelHtml(skript) {
     ['Caption', genPayload.mit_caption ? 'Ja' : null]
   ].filter(([, wert]) => wert);
 
-  if (!zeilen.length) return '';
+  const funnelHinweis = funnelAbweichungsHinweis(s);
+  if (!zeilen.length && !funnelHinweis) return '';
 
   return `
     <div class="skripte-editor-vorgaben-wrap">
+      ${funnelHinweis ? `<p class="skripte-hint skripte-hint--warnung" data-funnel-abweichung>${escapeHtml(funnelHinweis)}</p>` : ''}
       <details class="skripte-editor-vorgaben">
         <summary>Vorgaben aus dem Generator</summary>
         <dl class="skripte-editor-vorgaben-grid">

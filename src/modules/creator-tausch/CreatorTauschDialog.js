@@ -5,6 +5,7 @@
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { tauschGrundText } from './creatorTauschSperren.js';
 import { ladeTauschKontext, tauscheCreator, itemCreatorName } from './CreatorTauschService.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'creator-tausch-drawer';
 
@@ -92,7 +93,7 @@ function mount(kontext, onDone) {
     fertig = true;
     panel.classList.remove('show');
     overlay.classList.remove('active');
-    setTimeout(() => { overlay.remove(); panel.remove(); }, 250);
+    setTimeout(() => { overlay.remove(); panel.remove(); }, DRAWER_EXIT_MS);
     onDone(erfolg);
   };
   overlay.addEventListener('click', () => finish(false));

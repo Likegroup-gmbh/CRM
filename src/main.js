@@ -41,6 +41,7 @@ import '../assets/styles/toast.css';
 import '../assets/styles/version-check.css';
 import '../assets/styles/channel-badge.css';
 import '../assets/styles/share.css';
+import '../assets/styles/einladung.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/admin.css';
 import '../assets/styles/skripte.css';
@@ -55,11 +56,13 @@ import '../assets/styles/briefing-doc.css';
 import '../assets/styles/anschreiben.css';
 import '../assets/styles/utilities.css';
 import '../assets/styles/icons.css';
+import '../assets/styles/motion.css';
 import '../assets/styles/floating-menu.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
 import { toastSystem } from './core/ToastSystem.js';
+import { initDrawerMotion } from './core/animation/drawer.js';
 import { installDocumentLinkInterceptor } from './core/DocumentUrlHelper.js';
 import { creatorList, managementCreatorList } from './modules/creator/CreatorList.js';
 import { creatorListPage } from './modules/creator/CreatorListPage.js';
@@ -372,6 +375,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }, { passive: true });
 
+  // Slide-Effekt fuer alle Drawer (.drawer-panel), einmal zentral
+  initDrawerMotion();
+
   // Globale DOM-Variablen setzen
   window.appRoot = document.getElementById('app-root');
   window.loginRoot = document.getElementById('login-root');
@@ -432,6 +438,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('🔗 Share-Link erkannt - starte Gast-Modus');
     const { initGuestShare } = await import('./modules/share/GuestShareApp.js');
     await initGuestShare(shareMatch[1]);
+    return; // Kein normaler Auth-Flow
+  }
+
+  // Kunden-Einladung (/einladung/:token): Formular ohne Konto - VOR dem Auth-Gate
+  const einladungMatch = window.location.pathname.match(/^\/einladung\/([0-9a-f]{32,})$/i);
+  if (einladungMatch) {
+    const { initEinladung } = await import('./modules/einladung/EinladungApp.js');
+    await initEinladung(einladungMatch[1]);
     return; // Kein normaler Auth-Flow
   }
 

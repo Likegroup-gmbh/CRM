@@ -43,7 +43,7 @@ const FLOW = {
   aufgabe: 'Serum in der Morgenroutine zeigen',
   creator_merkmale: { alter: '25-35', geschlecht: 'weiblich', standort: 'DACH' },
   beteiligte_personen: 'Creatorin alleine, optional Kind im Hintergrund',
-  vorgaben_ausschluesse: 'Keine Konkurrenzprodukte',
+  wichtige_vorgaben: 'Keine Konkurrenzprodukte',
   setting: 'Zuhause, Kueche, Tageslicht'
 };
 
@@ -64,6 +64,23 @@ describe('fmtCampaignBriefing: Creator-Vorgaben, Setting, Ausschluesse', () => {
     expect(text).toContain('Creator-Aufgabe: Serum in der Morgenroutine zeigen');
   });
 
+  it('Alter aus dem Dropdown steht mit Halbgeviertstrich, alter Freitext im Wortlaut', () => {
+    const merkmale = (m) => fmtCampaignBriefing({ ...FLOW, creator_merkmale: m });
+    expect(merkmale({ alter: '18-24' })).toContain('- Alter: 18–24\n');
+    expect(merkmale({ alter: '55+' })).toContain('- Alter: 55+');
+    expect(merkmale({ alter: '22-38 Jahre' })).toContain('- Alter: 22-38 Jahre');
+  });
+
+  it('Zwischenstand alter_von/alter_bis steht als eine Zeile, nie als Rohschluessel', () => {
+    const merkmale = (m) => fmtCampaignBriefing({ ...FLOW, creator_merkmale: m });
+    expect(merkmale({ alter_von: '18-24', alter_bis: '35-44' })).toContain('- Alter: 18–24 bis 35–44');
+    expect(merkmale({ alter_von: '25-34', alter_bis: '25-34' })).toContain('- Alter: 25–34\n');
+    expect(merkmale({ alter_von: '55+' })).toContain('- Alter: 55+');
+    const text = merkmale({ alter_von: '18-24', alter_bis: '35-44', geschlecht: 'weiblich' });
+    expect(text).not.toContain('alter_von');
+    expect(text).not.toContain('alter_bis');
+  });
+
   it('"nur weiblich" und Grossschreibung sind HART', () => {
     for (const g of ['nur weiblich', 'Weiblich', 'MÄNNLICH', 'divers', ' nur  männlich ']) {
       const text = fmtCampaignBriefing({ ...FLOW, creator_merkmale: { geschlecht: g } });
@@ -81,7 +98,7 @@ describe('fmtCampaignBriefing: Creator-Vorgaben, Setting, Ausschluesse', () => {
 
   it('Flow ueber 6.000 Zeichen: Geschlecht und Ausschluesse bleiben', () => {
     const lang = 'x'.repeat(BRIEFING_MAX);
-    const text = fmtCampaignBriefing({ ...FLOW, pflichtinhalte: lang, learnings_text: lang, cta: lang });
+    const text = fmtCampaignBriefing({ ...FLOW, beschreibung: lang, learnings_text: lang, cta: lang });
     expect(text).toContain('HART: Creator-Geschlecht');
     expect(text).toContain('Keine Konkurrenzprodukte');
     expect(text).toContain('Beteiligte Personen');
@@ -109,23 +126,34 @@ describe('fmtCampaignBriefing: Creator-Vorgaben, Setting, Ausschluesse', () => {
     expect(beide).not.toContain('Zielgruppe): weiblich');
   });
 
-  it('Ausschluesse unter # DONTS, auch ohne Dos und Donts', () => {
-    const text = fmtCampaignBriefing({ bereich: 'influencer_marketing', vorgaben_ausschluesse: 'Keine Kinder im Bild' });
-    expect(text).toContain('# DONTS');
-    expect(text).toContain('Ausschluesse aus dem Briefing:\nKeine Kinder im Bild');
-    expect(text).not.toContain('# DOS');
-  });
-
-  it('Ausschluesse nach den Donts, # DOS danach', () => {
+  it('Wichtige Vorgaben als ein Block, ohne Alt-Spalten', () => {
     const text = fmtCampaignBriefing({
       bereich: 'influencer_marketing',
-      donts: 'Kein Sales-Pitch',
-      dos: 'Produktname nennen',
-      vorgaben_ausschluesse: 'Keine Konkurrenz'
+      wichtige_vorgaben: 'Keine Kinder im Bild\nProduktname nennen',
+      donts: 'ALT-DONT',
+      dos: 'ALT-DO',
+      dos_donts: 'ALT-MISCH',
+      pflichtinhalte: 'ALT-PFLICHT',
+      vorgaben_ausschluesse: 'ALT-AUSSCHLUSS'
     });
-    expect(text.indexOf('Kein Sales-Pitch')).toBeLessThan(text.indexOf('Keine Konkurrenz'));
-    expect(text.indexOf('Keine Konkurrenz')).toBeLessThan(text.indexOf('# DOS'));
-    expect(text).not.toContain('Vorgaben und Ausschluesse:');
+    expect(text).toContain('# WICHTIGE VORGABEN');
+    expect(text).toContain('Keine Kinder im Bild\nProduktname nennen');
+    expect(text.split('Keine Kinder im Bild').length).toBe(2);
+    expect(text).not.toContain('# DONTS');
+    expect(text).not.toContain('# DOS');
+    expect(text).not.toMatch(/ALT-/);
+  });
+
+  it('leere Wichtige Vorgaben: kein Block, Alt-Spalten zaehlen nicht', () => {
+    const text = fmtCampaignBriefing({
+      bereich: 'influencer_marketing',
+      aktivierung_name: 'Leer',
+      wichtige_vorgaben: '  ',
+      donts: 'ALT-DONT',
+      pflichtinhalte: 'ALT-PFLICHT'
+    });
+    expect(text).not.toContain('# WICHTIGE VORGABEN');
+    expect(text).not.toContain('ALT-');
   });
 
   it('Setting nur in im_situationen: eigener Block, nicht doppelt im Body', () => {
@@ -180,7 +208,7 @@ describe('buildEditPrompt: gleicher Kontext wie die Generierung', () => {
 
   it('volles Briefing statt 4.000er-Limit', () => {
     const lang = 'b'.repeat(4500);
-    const { task } = buildEditPrompt(ctx({ briefing: { ...FLOW, pflichtinhalte: lang } }), CHAT_GRID);
+    const { task } = buildEditPrompt(ctx({ briefing: { ...FLOW, beschreibung: lang } }), CHAT_GRID);
     expect(task).toContain(lang);
   });
 
@@ -404,7 +432,7 @@ describe('loadEditContext', () => {
 
   const supabase = fakeSupabase({
     skripte: [{ ...SKRIPT, briefing_id: 'b1', mit_dna: false }],
-    campaign_briefings: [{ id: 'b1', ...FLOW, donts: 'Keine Mama zeigen', dos: 'Produktname nennen' }],
+    campaign_briefings: [{ id: 'b1', ...FLOW, wichtige_vorgaben: 'Keine Mama zeigen\nProduktname nennen' }],
     skript_chat_messages: messages,
     skript_master: []
   });
@@ -422,13 +450,13 @@ describe('loadEditContext', () => {
     expect(task).not.toContain('rueckfragen_dialog');
   });
 
-  it('Briefing voll geladen: Donts und Dos im Edit-Prompt', async () => {
+  it('Briefing voll geladen: Wichtige Vorgaben im Edit-Prompt', async () => {
     const c = await loadEditContext(supabase, { ...message, skript_id: 's1' });
-    expect(c.kontext.briefing.donts).toBe('Keine Mama zeigen');
+    expect(c.kontext.briefing.wichtige_vorgaben).toBe('Keine Mama zeigen\nProduktname nennen');
     const { task } = buildEditPrompt(c, message);
-    expect(task).toContain('# DONTS');
+    expect(task).toContain('# WICHTIGE VORGABEN');
     expect(task).toContain('Keine Mama zeigen');
-    expect(task).toContain('# DOS');
+    expect(task).toContain('Produktname nennen');
     expect(task).toContain('HART: Creator-Geschlecht');
   });
 });

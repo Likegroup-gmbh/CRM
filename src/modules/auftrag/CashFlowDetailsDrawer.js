@@ -5,6 +5,7 @@
 
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class CashFlowDetailsDrawer {
   constructor() {
@@ -197,7 +198,7 @@ export class CashFlowDetailsDrawer {
       document.removeEventListener('keydown', this.escapeHandler);
       this.drawer.remove();
       this.drawer = null;
-    }, 300);
+    }, DRAWER_EXIT_MS);
   }
 
   /**

@@ -12,6 +12,7 @@ import {
   CASTING_CREATOR_PFLICHT_ERROR
 } from './sourcingStatusOptions.js';
 import { ensureCastingEintragHatCreator } from './ensureCastingEintragHatCreator.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 /**
  * Stammdaten anlegen oder per Instagram-Treffer verknuepfen.
@@ -181,7 +182,7 @@ export async function showKonzeptPicker() {
       settled = true;
       panel.classList.remove('show');
       overlay.classList.remove('active');
-      setTimeout(() => { overlay.remove(); panel.remove(); }, 250);
+      setTimeout(() => { overlay.remove(); panel.remove(); }, DRAWER_EXIT_MS);
       resolve(!!linked);
     };
 

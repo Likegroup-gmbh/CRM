@@ -165,6 +165,8 @@ const KLASSE_FEATURES = {
 const KUNDE_READONLY_FIELDS = {
   kooperation: ['vertrag_unterschrieben', 'typ', 'nutzungsrechte', 'status_id'],
   versand: ['versendet', 'tracking_nummer', 'produkt_name', 'produkt_link'],
+  // Funnel-Stufe ist interne Strategie: der Kunde sieht den Wert, setzt ihn nicht
+  strategie: ['strategie_funnel'],
   video: [
     'thema', 'link_produkte', 'link_skript',
     'caption', 'posting_datum', 'drehort', 'content_art', 'video_name',

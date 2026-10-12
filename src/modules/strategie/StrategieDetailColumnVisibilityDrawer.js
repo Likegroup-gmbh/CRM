@@ -9,17 +9,20 @@ import {
   setFixedColumnVisibility
 } from './strategieColumns.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class StrategieDetailColumnVisibilityDrawer {
   /**
    * @param {Array} hiddenColumns  Eintraege "custom:{uuid}", "fixed:{key}" und "show:fixed:{key}"
    * @param {(hidden:Array)=>void} onSave
    * @param {Array<{className:string,label:string}>} customColumns
+   * @param {{funnelStandardSichtbar:boolean}|null} columnContext  Default-Sichtbarkeit abhaengiger Spalten
    */
-  constructor(hiddenColumns, onSave, customColumns = []) {
+  constructor(hiddenColumns, onSave, customColumns = [], columnContext = null) {
     this.hiddenColumns = hiddenColumns || [];
     this.onSave = onSave;
     this.columns = customColumns || [];
+    this.columnContext = columnContext;
     this.drawerId = 'strategie-detail-column-visibility-drawer';
   }
 
@@ -92,7 +95,7 @@ export class StrategieDetailColumnVisibilityDrawer {
     const fixedRows = STRATEGIE_FIXED_COLUMNS.map(col => this.renderToggleRow(
       col.label,
       `data-fixed-column="${col.key}"`,
-      isFixedColumnVisible(this.hiddenColumns, col.key)
+      isFixedColumnVisible(this.hiddenColumns, col.key, this.columnContext)
     )).join('');
 
     const customRows = this.columns.map(col => this.renderToggleRow(
@@ -134,7 +137,7 @@ export class StrategieDetailColumnVisibilityDrawer {
     const fixedKey = event.target.dataset.fixedColumn;
 
     if (fixedKey) {
-      this.hiddenColumns = setFixedColumnVisibility(this.hiddenColumns, fixedKey, isVisible);
+      this.hiddenColumns = setFixedColumnVisibility(this.hiddenColumns, fixedKey, isVisible, this.columnContext);
     } else {
       const columnClass = event.target.dataset.column;
       if (isVisible) {
@@ -157,6 +160,6 @@ export class StrategieDetailColumnVisibilityDrawer {
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
     if (overlay) overlay.classList.remove('active');
     if (panel) panel.classList.remove('show');
-    setTimeout(() => this.removeDrawer(), 300);
+    setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
   }
 }

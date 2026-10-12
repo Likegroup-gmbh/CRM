@@ -5,6 +5,7 @@
 
 import { iconRegistry } from './actions/IconRegistry.js';
 import { actionBuilder } from './actions/ActionBuilder.js';
+import { playMenu, closeMenu, discardMenu } from './animation/menu.js';
 
 import { handleAction, setField, GLOBAL_ACTIONS } from './ActionsDropdownHandlers.js';
 import { addToFavorites } from './ActionsDropdownEffects.js';
@@ -160,9 +161,10 @@ export class ActionsDropdown {
   }
 
   toggleDropdown(toggleButton) {
-    const existingPortal = document.querySelector('.actions-dropdown-portal');
+    const existingPortal = document.querySelector('.actions-dropdown-portal:not([data-menu-state="closing"])');
     const wasOpenForThisButton = existingPortal && existingPortal._sourceToggle === toggleButton;
-    this.closeAllDropdowns();
+    // Selber Button: animiert zu. Anderer Button (oder Menue im Ausblenden): sofort weg, dann neu auf.
+    this.closeAllDropdowns({ immediate: !wasOpenForThisButton });
     if (wasOpenForThisButton) return;
 
     const sourceDropdown = toggleButton.nextElementSibling;
@@ -197,7 +199,8 @@ export class ActionsDropdown {
       portal.style.transformOrigin = 'top right';
     }
 
-    requestAnimationFrame(() => portal.classList.add('show'));
+    portal.dataset.menuState = 'open';
+    playMenu(portal, true);
     toggleButton.setAttribute('aria-expanded', 'true');
   }
 
@@ -209,8 +212,13 @@ export class ActionsDropdown {
     submenu.style.top = overflow > 0 ? -overflow + 'px' : '0px';
   }
 
-  closeAllDropdowns() {
-    document.querySelectorAll('.actions-dropdown-portal').forEach(portal => portal.remove());
+  // Standard: animiert zu (Portal verschwindet am Ende der Timeline).
+  // { immediate: true }: sofort weg (Wechsel auf anderen Button, Scroll, destroy).
+  closeAllDropdowns({ immediate = false } = {}) {
+    document.querySelectorAll('.actions-dropdown-portal').forEach(portal => {
+      if (immediate) discardMenu(portal);
+      else closeMenu(portal);
+    });
     document.querySelectorAll('.actions-toggle').forEach(toggle => {
       toggle.setAttribute('aria-expanded', 'false');
     });
@@ -333,7 +341,7 @@ export class ActionsDropdown {
     }, { signal });
 
     window.addEventListener('scroll', () => {
-      if (document.querySelector('.actions-dropdown-portal')) this.closeAllDropdowns();
+      if (document.querySelector('.actions-dropdown-portal')) this.closeAllDropdowns({ immediate: true });
     }, { capture: true, signal });
 
     document.addEventListener('mouseover', (e) => {
@@ -347,7 +355,7 @@ export class ActionsDropdown {
   }
 
   destroy() {
-    this.closeAllDropdowns();
+    this.closeAllDropdowns({ immediate: true });
     this._abortController?.abort();
     this._abortController = null;
     if (this._iconObserver) {

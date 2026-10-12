@@ -1,4 +1,5 @@
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 // FirmaCreateDrawer.js - Slide-in Drawer zum Inline-Anlegen einer Firma
 // Zwei Modi:
 //  - Formular-Modus (Creator anlegen/bearbeiten): neue Firma wird als Tag im firma_ids-Multiselect gesetzt
@@ -321,7 +322,7 @@ export class FirmaCreateDrawer {
       panel.classList.remove('show');
       setTimeout(() => {
         this.removeDrawer();
-      }, 250);
+      }, DRAWER_EXIT_MS);
     } else {
       this.removeDrawer();
     }

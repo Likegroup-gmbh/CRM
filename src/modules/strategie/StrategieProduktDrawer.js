@@ -4,6 +4,7 @@
 
 import { strategieService } from './StrategieService.js';
 import { refreshItemActions } from './StrategieDetailRenderer.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 function writeLiveItem(detail, item, patch) {
   const live = detail?.items?.find(i => i.id === item?.id) || item;
@@ -261,7 +262,7 @@ export class StrategieProduktDrawer {
     if (panel) {
       panel.classList.remove('show');
       document.getElementById(OVERLAY_ID)?.classList.remove('active');
-      setTimeout(() => removeStrategieProduktDrawer(), 250);
+      setTimeout(() => removeStrategieProduktDrawer(), DRAWER_EXIT_MS);
     } else {
       removeStrategieProduktDrawer();
     }

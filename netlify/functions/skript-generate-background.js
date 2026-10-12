@@ -52,7 +52,7 @@ const SKRIPT_TOOL = {
   }
 };
 
-const HARTE_GRENZEN_GENERIERUNG = 'Harte Grenzen: alles unter # DONTS und jede Zeile mit HART: in # CREATOR-VORGABEN. '
+const HARTE_GRENZEN_GENERIERUNG = 'Harte Grenzen: die Verbote (kein, nicht, nie, ohne) unter # WICHTIGE VORGABEN und jede Zeile mit HART: in # CREATOR-VORGABEN. '
   + 'Die harten Grenzen schlagen auch die Video-Idee und jede Rueckfrage. '
   + 'Widerspricht die Video-Idee einer harten Grenze: Grenze einhalten und den Konflikt in inhalt_md unter ## Abweichungen benennen.';
 
@@ -68,8 +68,8 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', { gesperrterHook = nul
     + 'Du schreibst drehfertige Konzepte nach dem verbindlichen Master-Regelwerk. '
     + 'Die drei Systeme Owned, Paid und Influencer duerfen nicht vermischt werden. '
     + 'Fehlende Produktfakten, Claims, Preise, Offers, Bewertungen oder Ergebnisse darfst du niemals erfinden. '
-    + 'Donts im Leitplanken-Block sind Verbote und duerfen im Skript nicht vorkommen. '
-    + 'Dos nur, wo der Fakt belegt ist.\n';
+    + 'Verbote im Block WICHTIGE VORGABEN duerfen im Skript nicht vorkommen. '
+    + 'Pflichtinhalte und Do\'s nur, wo der Fakt belegt ist; fehlt der Fakt, wird die Pflicht weggelassen und unter ## Abweichungen benannt.\n';
 
   stable += fmtMasterBlock(master);
 

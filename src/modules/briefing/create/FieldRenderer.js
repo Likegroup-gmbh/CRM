@@ -7,8 +7,9 @@
 // das Ein-/Ausblenden uebernimmt FormEvents.js (Live) bzw. wird
 // beim Rendern ueber evaluateCondition vorberechnet.
 
-import { evaluateCondition } from './fieldConfig.js';
+import { evaluateCondition, merkmaleAufNeuesFormat } from './fieldConfig.js';
 import { icon } from '../../../core/icons/IconSystem.js';
+import { renderTableSelect } from '../../../core/components/TableSelect.js';
 
 export function escapeHtml(value) {
   if (value === null || value === undefined) return '';
@@ -188,6 +189,7 @@ function renderSekundenSpanne(field, formData) {
           <button type="button" class="sek-spanne__leeren" data-leeren>Leeren</button>
         </div>
       </div>
+      ${renderHelper(field)}
     </div>
   `;
 }
@@ -249,11 +251,38 @@ function renderCustomMulti(field, formData) {
 }
 
 // Flache Sub-Felder -> jsonb-Spalte (name="feld__sub")
+function renderGroupTableSelect(field, sub, subName, subValue) {
+  const value = String(subValue ?? '');
+  const known = (sub.options || []).some(opt => opt.value === value);
+  const options = [
+    { value: '', label: sub.emptyLabel || 'Keine Vorgabe' },
+    ...(sub.options || []),
+    // Gespeicherter Freitext aus der Zeit vor dem Dropdown bleibt sichtbar
+    ...(value && !known ? [{ value, label: value }] : [])
+  ];
+  return `
+    <div class="form-field">
+      <label>${escapeHtml(sub.label)}</label>
+      ${renderTableSelect({
+        field: subName,
+        itemId: field.name,
+        value,
+        options,
+        placeholder: sub.emptyLabel || 'Keine Vorgabe',
+        input: subName,
+        matchWidth: true
+      })}
+    </div>
+  `;
+}
+
 function renderGroup(field, formData) {
-  const groupValue = (formData[field.name] && typeof formData[field.name] === 'object') ? formData[field.name] : {};
+  const raw = (formData[field.name] && typeof formData[field.name] === 'object') ? formData[field.name] : {};
+  const groupValue = field.name === 'creator_merkmale' ? merkmaleAufNeuesFormat(raw) : raw;
   const subFields = field.fields.map(sub => {
     const subName = `${field.name}__${sub.name}`;
     const subValue = groupValue[sub.name] ?? '';
+    if (sub.type === 'tableSelect') return renderGroupTableSelect(field, sub, subName, subValue);
     if (sub.type === 'textarea') {
       return `
         <div class="form-field">

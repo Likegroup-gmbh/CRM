@@ -6,6 +6,7 @@
 import { makeCustomColumnId, escapeHtml, parseOrderEntry } from './entityColumnUtils.js';
 import { renderEmptyState } from '../components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../animation/drawer.js';
 
 const FIELD_TYPES = [
   { value: 'text', label: 'Text' },
@@ -492,6 +493,6 @@ export class EntityCustomColumnsDrawer {
     if (panel) panel.classList.remove('show');
     if (overlay) overlay.classList.remove('active');
     clearTimeout(this._closeTimer);
-    this._closeTimer = setTimeout(() => this.removeDrawer(), 300);
+    this._closeTimer = setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
   }
 }

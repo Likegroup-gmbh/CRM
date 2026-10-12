@@ -28,7 +28,7 @@ export const GLOBAL_ACTIONS = new Set([
   'vertrag-verknuepfen',
   'anschreiben',
   'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
-  'add_produkt', 'add_persona', 'produkt-von-linie-loesen',
+  'add_produkt', 'add_persona', 'produkt-von-linie-loesen', 'briefing-duplizieren',
   'remove_ansprechpartner_unternehmen', 'remove_ansprechpartner_link',
   'edit_creator_adresse', 'set_standard_adresse', 'set_hauptadresse_standard',
   'delete_creator_adresse', 'unassign-kampagne',
@@ -235,6 +235,13 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       // Die Produkte-Liste der Linie kennt Linie und Rückfrage (ADR 0052)
       window.dispatchEvent(new CustomEvent('produkt-von-linie-loesen', { detail: { produktId: entityId } }));
       break;
+
+    case 'briefing-duplizieren': {
+      const { duplicateBriefingMitHinweis } = await import('../modules/briefing/duplicateBriefing.js');
+      const kopie = await duplicateBriefingMitHinweis(entityId);
+      if (kopie) window.navigateTo(`/briefing/${kopie.id}`);
+      break;
+    }
 
     case 'add_persona': {
       if (entityType === 'marke') {

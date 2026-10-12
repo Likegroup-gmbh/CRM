@@ -113,29 +113,26 @@ describe('fmtCampaignBriefing', () => {
     expect(text).toContain('https://cta.example');
   });
 
-  it('Donts stehen vor dem Budget und werden nicht gekuerzt', () => {
-    const donts = 'VERBOT '.repeat(40).trim();
+  it('Wichtige Vorgaben stehen vor dem Budget und werden nicht gekuerzt', () => {
+    const vorgaben = 'VERBOT '.repeat(40).trim();
     const text = fmtCampaignBriefing({
       bereich: 'influencer_marketing',
       aktivierung_name: 'Kurz',
       im_learnings_text: 'y'.repeat(5000),
-      donts,
-      dos: 'Produktname in den ersten drei Sekunden'
+      wichtige_vorgaben: vorgaben
     }, { max: 400 });
-    expect(text).toContain(donts);
-    expect(text).toContain('# DOS');
-    expect(text.indexOf('# DONTS')).toBeLessThan(text.indexOf('# CAMPAIGN-BRIEFING'));
-    expect(text.indexOf('# DOS')).toBeGreaterThan(text.indexOf('# DONTS'));
+    expect(text).toContain(vorgaben);
+    expect(text.indexOf('# WICHTIGE VORGABEN')).toBeLessThan(text.indexOf('# CAMPAIGN-BRIEFING'));
   });
 
-  it('alter Mischtext gilt, solange die neuen Felder leer sind', () => {
+  it('Alt-Spalten dos, donts und dos_donts werden nicht mehr gelesen', () => {
     const text = fmtCampaignBriefing({
       bereich: 'influencer_marketing',
       aktivierung_name: 'Alt',
       dos_donts: 'Do: authentisch. Dont: kein Sales-Pitch'
     });
-    expect(text).toContain('Do: authentisch. Dont: kein Sales-Pitch');
-    expect(text).not.toContain('# DOS');
+    expect(text).not.toContain('Sales-Pitch');
+    expect(text).not.toContain('# WICHTIGE VORGABEN');
   });
 
   it('Default-Budget ist BRIEFING_MAX', () => {

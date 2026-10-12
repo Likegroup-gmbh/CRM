@@ -5,6 +5,7 @@ import { strategieService } from './StrategieService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
+import { buildStrategieFunnelUpdates, isStrategieFunnel } from './strategieFunnelOptions.js';
 import { bindTextClipEvents } from './strategieTextClip.js';
 import { startProduktionFromItem } from '../kooperation/produktionStart.js';
 import { refreshItemActions, updateItemRow } from './StrategieDetailRenderer.js';
@@ -81,6 +82,7 @@ export function bindTableEvents(detail) {
 
   bindCustomColumnEvents(detail);
   bindPrioSelect(detail);
+  bindFunnelSelect(detail);
 
   const refreshOnOpen = (e) => {
     const toggle = e.target.closest?.('.actions-toggle');
@@ -411,6 +413,49 @@ export async function handlePrioChange(detail, itemId, value) {
     detail.rerenderItemsTable();
   } catch (error) {
     console.error('Fehler beim Speichern der Prio:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    detail.rerenderItemsTable();
+  }
+}
+
+/**
+ * Funnel-Stufe-Select: gleiche Anbindung wie Prio (Portal an body, Listener am
+ * document), aber nur fuers Team. Gespeichert wird strategie_items.funnel_stufe.
+ */
+export function bindFunnelSelect(detail) {
+  tableSelect.init();
+
+  const handler = (e) => {
+    const { field, itemId, value, element } = e.detail || {};
+    if (field !== 'strategie_funnel') return;
+    const inTable = element?.closest('.strategie-items-table');
+    const inDrawer = element?.closest('#edit-item-drawer');
+    if (!inTable && !inDrawer) return;
+    if (inTable && tableRoot(detail) && !tableRoot(detail).contains(inTable)) return;
+    if (!isStrategieFunnel(value)) return;
+
+    handleFunnelChange(detail, itemId, value);
+  };
+
+  document.addEventListener('table-select-change', handler);
+  detail._tableEventListeners.add(() => document.removeEventListener('table-select-change', handler));
+}
+
+export async function handleFunnelChange(detail, itemId, value) {
+  // Nur intern mit Edit-Recht: Kunden sehen die Stufe, setzen sie nicht.
+  if (detail.isKunde || !detail.canEdit) return;
+  if (typeof window.permissionSystem?.canEditField === 'function'
+    && !window.permissionSystem.canEditField('strategie', 'strategie_funnel')) return;
+  const item = detail.items.find(i => String(i.id) === String(itemId));
+  if (!item) return;
+
+  const updates = buildStrategieFunnelUpdates(value);
+  try {
+    await strategieService.updateStrategieItem(itemId, updates);
+    Object.assign(item, updates);
+    detail.rerenderItemsTable();
+  } catch (error) {
+    console.error('Fehler beim Speichern der Funnel-Stufe:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
     detail.rerenderItemsTable();
   }

@@ -1409,6 +1409,17 @@ thead {
   padding: var(--space-xs) var(--space-sm);
 }
 
+/* Funnel-Stufe: Select fuers Team, Badge fuer den Kunden */
+
+.strategie-items-table .col-funnel {
+  width: 11em;
+  vertical-align: top;
+}
+
+.strategie-items-table td.col-funnel {
+  padding: var(--space-xs) var(--space-sm);
+}
+
 /* Beschreibung, Transkript, Caption: gleiche Breite, Clip in der Zelle */
 
 .strategie-items-table .col-beschreibung,

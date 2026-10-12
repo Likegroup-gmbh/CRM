@@ -151,10 +151,6 @@
   color: var(--warning-600, #b8860b);
 }
 
-.creator-favorit__star.is-on svg {
-  fill: currentColor;
-}
-
 .creator-blick-ig {
   display: inline-flex;
   align-items: center;

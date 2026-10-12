@@ -10,6 +10,7 @@ import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderBriefingDoc, bindBriefingDoc } from './BriefingDocView.js';
 import { loadBriefingProdukte } from './BriefingProdukte.js';
 import { backTarget } from '../../core/breadcrumbTrail.js';
+import { groupAnzeigeZeilen } from './create/fieldConfig.js';
 export class BriefingDetail {
   constructor() {
     this.briefingId = null;
@@ -20,6 +21,8 @@ export class BriefingDetail {
     // Eingebettet (Produktion, Tab Briefing): Host-Element statt Seite.
     this.host = null;
     this._onDeleted = null;
+    this._onDuplicated = null;
+    this._duplicating = false;
     this._destroyed = false;
   }
 
@@ -31,18 +34,24 @@ export class BriefingDetail {
     return Boolean(window.isAdmin?.() || window.currentUser?.permissions?.briefing?.can_edit);
   }
 
+  /** Duplizieren legt eine neue Linie an: Anlegerecht (canCreate) und eine Produktion am Briefing. */
+  canDuplicate() {
+    return Boolean(this.briefing?.produktion_id && window.canCreate?.('briefing'));
+  }
+
   /**
    * Dokumentansicht in ein Host-Element legen (Produktion, Tab Briefing).
    * Kein Headline, kein Breadcrumb, kein Modul-Check: die Seite gehört dem Host.
    * @param {HTMLElement} host
    * @param {string} briefingId
-   * @param {{ onDeleted?: Function }} [opts]
+   * @param {{ onDeleted?: Function, onDuplicated?: Function }} [opts]
    */
-  async mountEmbedded(host, briefingId, { onDeleted } = {}) {
+  async mountEmbedded(host, briefingId, { onDeleted, onDuplicated } = {}) {
     this._destroyed = false;
     this.host = host;
     this.briefingId = briefingId;
     this._onDeleted = onDeleted || null;
+    this._onDuplicated = onDuplicated || null;
 
     await this.loadData();
     if (this._destroyed || !this.host?.isConnected) return;
@@ -163,6 +172,7 @@ export class BriefingDetail {
       canDelete,
       canEdit: this.canEdit(),
       canAnschreiben,
+      canDuplicate: this.canDuplicate(),
       showEdit: this.embedded,
       embedded: this.embedded
     });
@@ -231,9 +241,8 @@ export class BriefingDetail {
       }
       case 'group': {
         if (typeof value !== 'object') return null;
-        const parts = field.fields
-          .filter(sub => value[sub.name])
-          .map(sub => `<strong>${this.escape(sub.label)}:</strong> ${this.escape(value[sub.name])}`);
+        const parts = groupAnzeigeZeilen(field, value)
+          .map(row => `<strong>${this.escape(row.label)}:</strong> ${this.escape(row.text)}`);
         return parts.length ? parts.join('<br>') : null;
       }
       case 'channelGroup': {
@@ -344,7 +353,28 @@ export class BriefingDetail {
         e.preventDefault();
         this._confirmDelete();
       }
+      const duplicateBtn = e.target.closest('#btn-duplicate-briefing');
+      if (duplicateBtn) {
+        e.preventDefault();
+        this._duplicate(duplicateBtn);
+      }
     }, { signal });
+  }
+
+  async _duplicate(button) {
+    if (this._duplicating || !this.canDuplicate()) return;
+    this._duplicating = true;
+    if (button) button.disabled = true;
+    try {
+      const { duplicateBriefingMitHinweis } = await import('./duplicateBriefing.js');
+      const kopie = await duplicateBriefingMitHinweis(this.briefingId);
+      if (!kopie || this._destroyed) return;
+      if (this._onDuplicated) this._onDuplicated(kopie);
+      else window.navigateTo(`/briefing/${kopie.id}`);
+    } finally {
+      this._duplicating = false;
+      if (button?.isConnected) button.disabled = false;
+    }
   }
 
   async _confirmDelete() {

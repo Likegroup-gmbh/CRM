@@ -217,7 +217,7 @@ export async function loadUnternehmenData(detail) {
       ...detail.kooperationen.map(k => k.creator_id).filter(Boolean),
       ...(detail.vertraege || []).map(v => v.creator_id || v.creator?.id).filter(Boolean)
     ]));
-    const allArtIds = Array.from(new Set(
+    const allArtNames = Array.from(new Set(
       detail.kampagnen.flatMap(k => Array.isArray(k.art_der_kampagne) ? k.art_der_kampagne : []).filter(Boolean)
     ));
 
@@ -227,8 +227,8 @@ export async function loadUnternehmenData(detail) {
             .select('id, vorname, nachname, instagram, instagram_follower, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land')
             .in('id', creatorIds)
         : Promise.resolve({ data: [] }),
-      allArtIds.length > 0
-        ? window.supabase.from('kampagne_art_typen').select('id, name').in('id', allArtIds)
+      allArtNames.length > 0
+        ? window.supabase.from('kampagne_art_typen').select('id, name').in('name', allArtNames)
         : Promise.resolve({ data: [] })
     ]);
 
@@ -236,7 +236,7 @@ export async function loadUnternehmenData(detail) {
     detail._creatorMap = detail.creators.reduce((acc, c) => { acc[c.id] = c; return acc; }, {});
 
     detail._kampagneArtMap = new Map();
-    (artTypenResult.data || []).forEach(t => detail._kampagneArtMap.set(t.id, t.name));
+    (artTypenResult.data || []).forEach(t => detail._kampagneArtMap.set(t.name, t.name));
 
     detail.kampagnen = detail.kampagnen.map(k => {
       const arr = Array.isArray(k.art_der_kampagne) ? k.art_der_kampagne : [];

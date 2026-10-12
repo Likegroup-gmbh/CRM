@@ -3,6 +3,9 @@
 // D Konzepte, Vertrag. Typ-Extras sitzen in A–D. Eine gemeinsame Strecke,
 // keine dreifache Kopie. DB-Werte fuer bereich bleiben (v1-kompatibel).
 
+import { GESCHLECHT_OPTIONS } from '../../../core/form/config/CreatorFormConfig.js';
+import { VIDEOLAENGE_FUNNEL_FELD } from '../videolaenge.js';
+
 export const BEREICH_OPTIONS = [
   { value: 'paid_creator_ads', label: 'Paid', desc: 'Primär für Werbeanzeigen produziert.' },
   { value: 'owned_social', label: 'Organic', desc: 'Primär für die organischen Kanäle der Marke.' },
@@ -104,6 +107,93 @@ export const CREATOR_GROESSEN_UGC = [
   ...CREATOR_GROESSEN_IM
 ];
 
+// Creator-Merkmale (Casting): Alter (Spanne) und Geschlecht als TableSelect.
+// Leerer Wert = "Keine Vorgabe". Geschlecht teilt sich die Werte mit dem Creator.
+export const CREATOR_ALTER_OPTIONS = [
+  { value: '18-24', label: '18–24' },
+  { value: '25-34', label: '25–34' },
+  { value: '35-44', label: '35–44' },
+  { value: '45-54', label: '45–54' },
+  { value: '55+', label: '55+' }
+];
+
+export const CREATOR_GESCHLECHT_OPTIONS = GESCHLECHT_OPTIONS;
+
+function optionKey(value) {
+  return String(value ?? '').trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s+/g, ' ');
+}
+
+/** Option-Wert zu Wert oder Label (ohne Beachtung von Gross-/Kleinschreibung und Strichart), sonst null. */
+export function optionWert(options, raw) {
+  const key = optionKey(raw);
+  if (!key) return null;
+  const hit = (options || []).find(o => optionKey(o.value) === key || optionKey(o.label) === key);
+  return hit ? hit.value : null;
+}
+
+/**
+ * Anzeigezeilen einer Gruppe: Option-Label statt Rohwert.
+ * @returns {{ sub: object, label: string, text: string }[]}
+ */
+export function groupAnzeigeZeilen(field, value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const src = field.name === 'creator_merkmale' ? merkmaleAufNeuesFormat(value) : value;
+  const rows = [];
+  for (const sub of field.fields || []) {
+    const raw = String(src[sub.name] ?? '').trim();
+    if (!raw) continue;
+    const treffer = sub.options ? optionWert(sub.options, raw) : null;
+    const text = treffer != null ? sub.options.find(o => o.value === treffer).label : raw;
+    rows.push({ sub, label: sub.label, text });
+  }
+  return rows;
+}
+
+function ersteZahl(text) {
+  const m = String(text ?? '').match(/\d{1,3}/);
+  return m ? Number(m[0]) : null;
+}
+
+function letzteZahl(text) {
+  const m = String(text ?? '').match(/\d{1,3}/g);
+  return m ? Number(m[m.length - 1]) : null;
+}
+
+/**
+ * Zwischenstand mit zwei Dropdowns (alter_von/alter_bis) zu einer Spanne:
+ * gleiche Werte bleiben der Options-Wert, sonst "18-44" bzw. "45+".
+ */
+function alterAusVonBis(von, bis) {
+  const v = String(von ?? '').trim();
+  const b = String(bis ?? '').trim();
+  if (!v || !b || optionKey(v) === optionKey(b)) return v || b;
+  const start = Math.min(...[ersteZahl(v), ersteZahl(b)].filter(n => n != null));
+  if (!Number.isFinite(start)) return v;
+  if (/\+\s*$/.test(v) || /\+\s*$/.test(b)) return `${start}+`;
+  const ende = Math.max(...[letzteZahl(v), letzteZahl(b)].filter(n => n != null));
+  return Number.isFinite(ende) && ende !== start ? `${start}-${ende}` : v;
+}
+
+/**
+ * creator_merkmale auf die aktuellen Subfelder bringen: alter_von/alter_bis
+ * (Zwischenstand) werden zu einer Spanne in `alter`, `alter` und Geschlecht
+ * werden auf den Options-Wert gelegt, wenn sie treffen. Alles andere (alter
+ * Freitext, "Vorrangig weiblich") bleibt unveraendert und erscheint im
+ * Dropdown als Extra-Option.
+ */
+export function merkmaleAufNeuesFormat(value) {
+  const src = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const out = { ...src };
+  delete out.alter_von;
+  delete out.alter_bis;
+  let alter = String(src.alter ?? '').trim();
+  if (!alter) alter = alterAusVonBis(src.alter_von, src.alter_bis);
+  if (alter) out.alter = optionWert(CREATOR_ALTER_OPTIONS, alter) || alter;
+  const geschlecht = optionWert(CREATOR_GESCHLECHT_OPTIONS, src.geschlecht);
+  if (geschlecht) out.geschlecht = geschlecht;
+  return out;
+}
+
 export const PAID_OBJECTIVES_OPTIONS = [
   { value: 'awareness', label: 'Awareness / Reach' },
   { value: 'traffic', label: 'Traffic' },
@@ -201,6 +291,19 @@ function fieldGroup(id, layout, fields) {
   return { type: 'fieldGroup', id, layout, persist: false, fields };
 }
 
+// Videolänge je Funnel-Stufe (nur Paid, nur für angehakte Stufen). Gespeichert wird
+// alles zusammen in campaign_briefings.videolaenge_funnel (Keys upper/mid/lower).
+const VIDEOLAENGE_FUNNEL_FELDER = FUNNEL_STUFEN_OPTIONS.map(opt => ({
+  name: VIDEOLAENGE_FUNNEL_FELD[opt.value],
+  label: `Videolänge ${opt.label.split(' – ')[0]} in Sekunden`,
+  type: 'sekundenSpanne',
+  min: 1,
+  max: 180,
+  columns: ['videolaenge_funnel'],
+  helper: 'Gilt für Videoideen dieser Funnel-Stufe. Leer: es gilt die allgemeine Videolänge oben.',
+  condition: { all: [PAID, { field: 'funnel_stufen', includes: opt.value }] }
+}));
+
 export const FLOW_STEPS = [
   {
     id: 'grundlage',
@@ -288,11 +391,12 @@ export const FLOW_STEPS = [
             {
               name: 'creator_merkmale', label: 'Merkmale', type: 'group',
               fields: [
-                { name: 'alter', label: 'Alter / Altersspanne', type: 'text', placeholder: 'z.B. 25-34' },
-                { name: 'geschlecht', label: 'Geschlecht', type: 'text', placeholder: 'z.B. weiblich, divers, keine Vorgabe' },
+                { name: 'alter', label: 'Alter', type: 'tableSelect', options: CREATOR_ALTER_OPTIONS },
+                { name: 'geschlecht', label: 'Geschlecht', type: 'tableSelect', options: CREATOR_GESCHLECHT_OPTIONS },
                 { name: 'standort', label: 'Standort', type: 'text', placeholder: 'z.B. DACH, Berlin, keine Vorgabe' }
               ]
             },
+            { name: 'beteiligte_personen', label: 'Beteiligte Personen', type: 'textarea', rows: 2, placeholder: 'z.B. allein, mit Partner oder Kind' },
             { name: 'creator_groessen', label: 'Creator-Größe (falls relevant)', type: 'checkboxes', options: CREATOR_GROESSEN_UGC }
           ]),
           fieldGroup('casting-voraussetzungen', 'stack', [
@@ -329,12 +433,10 @@ export const FLOW_STEPS = [
               condition: INFLUENCER,
               placeholder: 'z.B. Dedicated Video, Integration in bestehende Formate, Mention'
             },
-            { name: 'beteiligte_personen', label: 'Beteiligte Personen', type: 'textarea', rows: 2, placeholder: 'z.B. allein, mit Partner oder Kind' },
             { name: 'setting', label: 'Gewünschtes Setting', type: 'textarea', rows: 2, placeholder: 'z.B. Zuhause in der Küche, Tageslicht' }
           ]),
           fieldGroup('aufgabe-grenzen', 'stack', [
-            { name: 'produktionsvoraussetzungen', label: 'Besondere Produktionsvoraussetzungen', type: 'textarea', rows: 2, placeholder: 'z.B. nur Indoor, kein Filialdreh ohne Absprache' },
-            { name: 'vorgaben_ausschluesse', label: 'Wichtige Vorgaben und Ausschlüsse', type: 'textarea', rows: 3, placeholder: 'z.B. keine Konkurrenzprodukte, keine Kinder oder Tiere im Bild' }
+            { name: 'produktionsvoraussetzungen', label: 'Besondere Produktionsvoraussetzungen', type: 'textarea', rows: 2, placeholder: 'z.B. nur Indoor, kein Filialdreh ohne Absprache' }
           ])
         ]
       }
@@ -360,12 +462,20 @@ export const FLOW_STEPS = [
             { name: 'learnings_text', label: 'Learnings aus vergangenen Produktionen', type: 'textarea', rows: 3, placeholder: 'z.B. Hook in den ersten zwei Sekunden, nicht zu werblich' }
           ]),
           fieldGroup('konzept-pflicht', 'stack', [
-            { name: 'pflichtinhalte', label: 'Pflichtinhalte', type: 'textarea', rows: 3, placeholder: 'z.B. Produktname nennen, Benefit X zeigen, Disclaimer' },
-            { name: 'dos', label: 'Do’s', type: 'textarea', rows: 3, placeholder: 'z.B. authentisch, Produktname in den ersten 3 Sekunden' },
-            { name: 'donts', label: 'Don’ts', type: 'textarea', rows: 3, placeholder: 'z.B. kein Scripted Sales Pitch, nicht „klinisch getestet“ sagen' }
+            {
+              name: 'wichtige_vorgaben', label: 'Do’s und Don’ts (Wichtige Vorgaben)', type: 'textarea', rows: 6,
+              helper: 'Ein Punkt pro Zeile: Pflichtinhalte, Do’s, Don’ts, Ausschlüsse. Verbote mit „kein“, „nicht“ oder „ohne“ schreiben. Gilt ein Verbot der Person, so formulieren: „Creator ohne Haustier“. Gilt es dem Video: „Im Bild keine Kinder“.',
+              placeholder: 'z.B.\nProduktname in den ersten 3 Sekunden nennen\nauthentisch bleiben\nkein Scripted Sales Pitch\nnicht „klinisch getestet“ sagen\nCreator ohne Tattoos\nIm Bild keine Konkurrenzprodukte'
+            }
           ])
         ]
-      },
+      }
+    ]
+  },
+  {
+    id: 'vertrag',
+    label: 'Vertrag',
+    sections: [
       {
         id: 'kanaele',
         title: 'Kanäle',
@@ -392,7 +502,8 @@ export const FLOW_STEPS = [
               name: 'videolaenge', label: 'Videolänge in Sekunden', type: 'sekundenSpanne',
               min: 1, max: 180,
               columns: ['videolaenge_von', 'videolaenge_bis']
-            }
+            },
+            ...VIDEOLAENGE_FUNNEL_FELDER
           ]),
           fieldGroup('kanaele-paid-cta', 'stack', [
             { name: 'cta', label: 'CTA', type: 'text', condition: PAID, placeholder: 'z.B. Jetzt entdecken, Shop-Link in Bio' },
@@ -406,13 +517,7 @@ export const FLOW_STEPS = [
             { name: 'posting_anforderungen', label: 'Posting-Anforderungen', type: 'textarea', rows: 2, condition: INFLUENCER, placeholder: 'z.B. Reel + 3 Stories, Hashtag X, Markierung der Marke' }
           ])
         ]
-      }
-    ]
-  },
-  {
-    id: 'vertrag',
-    label: 'Vertrag',
-    sections: [
+      },
       {
         id: 'nutzung',
         title: 'Zusätzliche Nutzung',

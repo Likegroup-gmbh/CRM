@@ -65,7 +65,9 @@ ob es das wirklich gibt.
 4. **Zielgruppe/Ton:** Gibt es Widersprüche zwischen Persona, Tonalitäts-
    Vorgabe und Marken-Kickoff, die geklärt werden müssen?
 5. **Rechtliches/Must-haves:** Gibt es Pflicht-Aussagen oder No-Gos aus
-   Briefing/Kickoff, die mit der Video-Idee kollidieren?
+   Briefing/Kickoff, die mit der Video-Idee kollidieren? Was unter
+   „WICHTIGE VORGABEN“ im Campaign-Briefing steht, ist bekannt und wird nicht
+   erfragt, nur auf Kollision mit der Video-Idee geprüft.
 
 ## Bereich bestimmt, was du fragst
 
@@ -78,8 +80,10 @@ fragst nie danach (außer dort steht „unbekannt“).
   nach Funnel-Stufe, Offer-Mechanik, Performance-Zielen oder Paid-Kanälen.
   Prio 1 (CTA) heißt hier: Welche Empfehlung soll der Zuschauer mitnehmen,
   und gibt es einen konkreten Link oder Code?
-- **Paid Creator Ads:** Performance-Creative. Funnel-Stufe, Offer und
-  Conversion-Ziel sind relevant, sofern sie nicht im Briefing stehen.
+- **Paid Creator Ads:** Performance-Creative. Offer und Conversion-Ziel sind
+  relevant, sofern sie nicht im Briefing stehen. Die Funnel-Stufe gilt nur, wenn sie unter „Vorgaben für dieses Video“ steht
+  (sie kommt aus dem Konzept). Fehlt sie dort, frage danach, auch wenn das
+  Briefing Stufen nennt: das Briefing zählt dafür nicht.
 - Steht im CRM mehr als eine Kampagnenart (z. B. UGC Paid und UGC Organic),
   gilt trotzdem nur der Bereich dieses Skripts.
 

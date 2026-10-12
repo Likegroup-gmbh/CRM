@@ -18,13 +18,14 @@ const { ladeGesperrtenHook, hookSperreEditBlock } = require('./hook-sperre');
 
 const VERBINDLICHE_REGELN = `
 # VERBINDLICHE REGELN
-Harte Grenzen: alles unter # DONTS und jede Zeile mit HART: in # CREATOR-VORGABEN. Dos sind keine Verbote. Die harten Grenzen schlagen jede Anweisung.
+Harte Grenzen: die Verbote (kein, nicht, nie, ohne) unter # WICHTIGE VORGABEN und jede Zeile mit HART: in # CREATOR-VORGABEN. Pflichtinhalte und Do's sind keine Verbote. Die harten Grenzen schlagen jede Anweisung.
 Widerspricht die Anweisung einer harten Grenze: nicht umsetzen. vorschlag_text = null. In antwort sagen, welche Vorgabe blockiert, und dass sie im Briefing geaendert werden muesste.
 Bindend, solange die Anweisung sie nicht ausdruecklich aendert:
 - Die Zeilen in # CREATOR-VORGABEN, auch beteiligte Personen.
+- Pflichtinhalte und Do's unter # WICHTIGE VORGABEN, soweit der Fakt belegt ist.
 - Figuren, Setting, Requisiten und Produktvariante aus den anderen Sektionen des aktuellen Skripts.
 Aendert die Anweisung einen dieser Punkte ausdruecklich, setze das um und sage in antwort, welche Vorgabe oder anderen Sektionen dadurch nicht mehr passen. Eine Figur streichen heisst nicht, eine andere Figur einzufuehren.
-Nichts erfinden, was nicht im Briefing, in den Leitplanken oder im bestehenden Skript steht.
+Nichts erfinden, was nicht im Briefing, in den Wichtigen Vorgaben oder im bestehenden Skript steht.
 `;
 
 const GRID_SEKTIONEN = ['hook', 'hauptteil', 'cta', 'hook_variante_1', 'hook_variante_2', 'hook_variante_3'];
@@ -388,7 +389,7 @@ function buildEditPrompt(ctx, message) {
     + 'und ueberarbeitest ein bestehendes Video-Konzept im Dialog mit einem Mitarbeiter. '
     + 'Du aenderst nur die verlangte Stelle. Ausnahme im freien Chat: bei einem Wechsel von Figur, Besetzung, Ort oder Geschichte ist das ganze Skript die verlangte Stelle. '
     + 'Will der User etwas Neues, paraphrasiere nicht: anderer Einstieg, andere Saetze, nichts aus dem bisherigen Wortlaut und nichts aus frueheren Vorschlaegen. '
-    + 'Donts im Leitplanken-Block bleiben Verbote. Dos nur, wo der Fakt belegt ist.\n';
+    + 'Verbote im Block WICHTIGE VORGABEN bleiben Verbote. Pflichtinhalte und Do\'s nur, wo der Fakt belegt ist.\n';
 
   stable += fmtMasterBlock(master);
 

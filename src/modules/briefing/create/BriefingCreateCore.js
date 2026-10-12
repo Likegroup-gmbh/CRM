@@ -23,6 +23,8 @@ export class BriefingCreate {
     this._isRendering = false;
     this._isInitializing = false;
     this.likyPanel = null;
+    this._einreichungId = null;
+    this._einreichungErledigt = false;
   }
 }
 
@@ -38,6 +40,8 @@ BriefingCreate.prototype.getBriefingPermissions = function() {
 
 BriefingCreate.prototype.init = async function(editId = null) {
   this.editId = editId;
+  this._einreichungId = null;
+  this._einreichungErledigt = false;
 
   window.setHeadline(editId ? 'Briefing bearbeiten' : 'Neues Briefing');
 
@@ -62,6 +66,7 @@ BriefingCreate.prototype.init = async function(editId = null) {
     this.applyQueryPrefill();
     await this.resolveProduktionKontext();
     this.formData.videolaenge = { von: 15, bis: 20 };
+    await this.applyEinreichung?.();
     await this.refreshProdukte();
   }
 
@@ -187,6 +192,8 @@ BriefingCreate.prototype.resetForm = function() {
   this._isRendering = false;
   this._isInitializing = false;
   this.likyPanel = null;
+  this._einreichungId = null;
+  this._einreichungErledigt = false;
 };
 
 BriefingCreate.prototype.destroy = function() {

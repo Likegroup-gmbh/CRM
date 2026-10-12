@@ -1,17 +1,30 @@
 // Events der Creator-Kacheln: Favorit, Favoriten-Namen, Akte, Casting, Retry.
 
+import { playBurst } from '../../core/animation/burst.js';
 import { openCastingPicker } from './creatorCasting.js';
-import { renderFavoritNamen, toggleFavorit } from './creatorFavorit.js';
+import { istMeinFavorit, patchFavorit, renderFavoritNamen, toggleFavorit } from './creatorFavorit.js';
 
-async function toggleFavoritAufKarte(view, id) {
+async function toggleFavoritAufKarte(view, id, button) {
   const creator = view._byId?.get(id);
   if (!creator || !window.supabase) return;
+  if (button?.dataset.busy === '1') return;
+  const before = creator.favoriten || [];
+  const wasMine = istMeinFavorit(before);
+  const host = button?.closest('.creator-favorit');
+  if (button) {
+    button.dataset.busy = '1';
+    playBurst(button, !wasMine);
+  }
   try {
-    creator.favoriten = await toggleFavorit(window.supabase, id, creator.favoriten || []);
-    view._replaceCard(creator);
+    creator.favoriten = await toggleFavorit(window.supabase, id, before);
+    if (host?.isConnected) patchFavorit(host, creator.favoriten, id);
+    else view._replaceCard(creator);
   } catch (error) {
+    if (button?.isConnected) playBurst(button, wasMine);
     console.error('Favorit konnte nicht gesetzt werden', error);
     window.toastSystem?.show('Favorit konnte nicht gesetzt werden', 'error');
+  } finally {
+    if (button) delete button.dataset.busy;
   }
 }
 
@@ -31,7 +44,7 @@ export function bindGridEvents(view, signal) {
     if (favorit && view._ownsNode(favorit)) {
       e.preventDefault();
       e.stopPropagation();
-      await toggleFavoritAufKarte(view, favorit.dataset.id);
+      await toggleFavoritAufKarte(view, favorit.dataset.id, favorit);
       return;
     }
     const show = e.target.closest('[data-action="show-favoriten"]');

@@ -7,6 +7,19 @@ const { fmtReferenzKarte } = require('../skript-referenz-karte');
 const { fmtCampaignBriefing } = require('./briefing-felder');
 const { fmtAudienceSituations } = require('../audience-situation');
 
+// skripte.funnel_stufe (top/mid/bottom) als lesbare Vorgabe. Die Stufe kommt
+// aus der Videoidee im Konzept; ohne Wert steht hier keine Zeile.
+const FUNNEL_HINWEIS = {
+  top: 'Upper Funnel – Awareness',
+  mid: 'Mid Funnel – Consideration',
+  bottom: 'Lower Funnel – Conversion'
+};
+
+function funnelHinweis(wert) {
+  if (!wert) return wert;
+  return FUNNEL_HINWEIS[wert] ? `${FUNNEL_HINWEIS[wert]} (${wert})` : wert;
+}
+
 /**
  * Referenzvideo-Sektion fuer den Prompt. Die Vorlage liefert die kreative
  * Bauweise (Hook-Typ, Dramaturgie, Pace, CTA-Mechanik), aber NIE Wortlaut
@@ -126,15 +139,22 @@ function buildKontextText(ctx, params) {
   if (params.referenz_karte) text += fmtReferenzKarte(params.referenz_karte);
   else if (!params.nur_karte) text += buildReferenzText(params.referenz_video);
   // Campaign-Briefing VOR den Video-Vorgaben: Kampagnen-/Umsetzungsquelle.
-  // Per-Video-Vorgaben (Laenge, Funnel, Ton) schlagen Briefing-Defaults.
-  text += fmtCampaignBriefing(ctx.briefing);
+  // Per-Video-Vorgaben (Laenge, Funnel, Ton) schlagen Briefing-Defaults. Die
+  // Funnel-Stufe des Briefings bleibt ganz draussen: sie steht nur noch unter
+  // den Vorgaben, aus der Videoidee im Konzept (leer heisst keine Vorgabe).
+  text += fmtCampaignBriefing(ctx.briefing, { ohneFunnel: true });
   // Regieanweisung bewusst NICHT im Prompt - reine Zusatzinfo fuer die Umsetzung
   text += fmtSection('Vorgaben fuer dieses Video', {
     location: params.location,
     video_laenge: videoLaengeHinweis(params.video_laenge),
-    funnel_stufe: params.funnel_stufe,
+    funnel_stufe: funnelHinweis(params.funnel_stufe),
     tonalitaet: params.tonalitaet
   });
+  // Stufe und Laenge gehoeren zusammen: bei Paid kommt die Laenge aus der Stufe
+  // der Videoidee. Das Wortbudget bleibt an video_laenge.
+  if (params.video_laenge && params.funnel_stufe) {
+    text += 'Die Videolaenge gilt fuer diese Funnel-Stufe: Aufbau und Tempo der Stufe muessen in genau diese Sekunden passen.\n';
+  }
   // video_idee ist Freitext des Auftraggebers: delimitiert + begrenzt,
   // damit daraus keine Prompt-Anweisung wird
   if (params.video_idee) {
