@@ -1,0 +1,117 @@
+/* ==========================================================================
+   Filter-Select: Dropdown der Filter, Einzel- und Mehrfachauswahl mit Suche.
+   Auslöser und Panel teilen sich die Regeln mit .table-select (forms.css).
+   ========================================================================== */
+
+.filter-select {
+  position: relative;
+}
+
+.filter-select__trigger {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+.filter-select.is-open .filter-select__panel {
+  opacity: 1;
+  transform: none;
+}
+
+.filter-select__panel {
+  display: flex;
+  flex-direction: column;
+  max-height: min(360px, 60vh);
+  padding: 0;
+  overflow: hidden;
+}
+
+.filter-select__panel[hidden] {
+  display: none;
+}
+
+.filter-select__search {
+  padding: var(--space-xs);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.filter-select__search .filter-submenu-input {
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.filter-select__options {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-xxs) 0;
+}
+
+.filter-select__item {
+  white-space: normal;
+}
+
+.filter-select__item[hidden] {
+  display: none;
+}
+
+.filter-select__item[aria-selected="true"] {
+  font-weight: 600;
+}
+
+.filter-select__item input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.filter-select__item:focus-visible,
+.filter-select__item:focus-within {
+  outline: none;
+  background: var(--gray-50);
+}
+
+.filter-select__check {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  margin-left: auto;
+  color: var(--success);
+}
+
+.filter-select__check svg {
+  width: 100%;
+  height: 100%;
+}
+
+.filter-select__item[aria-selected="false"] .filter-select__check {
+  visibility: hidden;
+}
+
+.filter-select__empty {
+  margin: 0;
+  padding: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.filter-select__empty[hidden] {
+  display: none;
+}
+
+.filter-select__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  border-top: 1px solid var(--border-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-select__panel {
+    transition: none;
+  }
+}

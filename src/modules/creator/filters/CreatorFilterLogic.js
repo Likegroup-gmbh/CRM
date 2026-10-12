@@ -168,6 +168,10 @@ export class CreatorFilterLogic {
         case 'equals':
           query = query.eq(field, filter.value);
           break;
+
+        case 'in':
+          if (filter.value.length) query = query.in(field, filter.value);
+          break;
       }
     }
 
@@ -204,7 +208,7 @@ export class CreatorFilterLogic {
         return filter.value.includes(item.groesse || groesseOf(item));
 
       case 'generation':
-        return generationOf(item) === filter.value;
+        return [].concat(filter.value).includes(generationOf(item));
 
       case 'rezension_min':
       case 'rezension_ohne':
@@ -233,6 +237,9 @@ export class CreatorFilterLogic {
 
       case 'equals':
         return value === filter.value;
+
+      case 'in':
+        return !filter.value.length || filter.value.includes(value);
 
       default:
         return true;
@@ -292,13 +299,17 @@ function applyNameTokens(query, raw) {
   return query;
 }
 
-function applyGeneration(query, label) {
-  const band = GENERATIONEN.find((entry) => entry.label === label);
-  if (!band) return query;
-  const quoted = /[^a-zA-Z0-9_]/.test(label) ? `"${label.replace(/"/g, '')}"` : label;
-  const until = band.to == null ? '2999-12-31' : `${band.to}-12-31`;
-  const derived = `and(generation_override.is.null,geburtsdatum.gte.${band.from}-01-01,geburtsdatum.lte.${until},or(geschlecht.is.null,geschlecht.not.in.(paar,familie,tier)))`;
-  return query.or(`generation_override.eq.${quoted},${derived}`);
+// Mehrere Generationen: der Creator gehört zu einer davon.
+function applyGeneration(query, labels) {
+  const clauses = [].concat(labels || []).flatMap((label) => {
+    const band = GENERATIONEN.find((entry) => entry.label === label);
+    if (!band) return [];
+    const quoted = /[^a-zA-Z0-9_]/.test(label) ? `"${label.replace(/"/g, '')}"` : label;
+    const until = band.to == null ? '2999-12-31' : `${band.to}-12-31`;
+    const derived = `and(generation_override.is.null,geburtsdatum.gte.${band.from}-01-01,geburtsdatum.lte.${until},or(geschlecht.is.null,geschlecht.not.in.(paar,familie,tier)))`;
+    return [`generation_override.eq.${quoted}`, derived];
+  });
+  return clauses.length ? query.or(clauses.join(',')) : query;
 }
 
 export default CreatorFilterLogic;

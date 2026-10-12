@@ -161,11 +161,10 @@ export function processCreatorFilters(filters) {
         break;
 
       default:
-        // Standard-Filter (Select, etc.)
-        processedFilters[key] = {
-          type: 'equals',
-          value: value
-        };
+        // Standard-Filter (Select, etc.); mehrere Werte aus der Filterspalte: einer davon
+        processedFilters[key] = Array.isArray(value)
+          ? { type: 'in', value }
+          : { type: 'equals', value };
         break;
     }
   }

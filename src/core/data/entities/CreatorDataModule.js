@@ -1,3 +1,5 @@
+const LINK_PAGE = 1000;
+
 export default {
   skipM2MForPagination: true,
   countMode: 'estimated',
@@ -30,88 +32,38 @@ creator_management(ist_aktiv, management:management_id(id, firmenname))`;
         }
         return String(val);
       };
-      // Sprache
-      if (filters && filters.sprache_id) {
-        const selectedId = getIdFromFilter(filters.sprache_id);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_sprachen')
-          .select('creator_id')
-          .eq('sprache_id', selectedId);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
+      const idList = (raw) => (Array.isArray(raw) ? raw : [getIdFromFilter(raw)]).filter(Boolean);
+      // Mehrere Werte eines Filters: der Creator hat einen davon
+      const linkFilter = async (key, table, column, active = false) => {
+        const ids = idList(filters?.[key]);
+        delete filters[key];
+        if (!ids.length) return;
+        const found = new Set();
+        for (let from = 0; ; from += LINK_PAGE) {
+          let linkQuery = supabase.from(table).select('creator_id').in(column, ids);
+          if (active) linkQuery = linkQuery.eq('ist_aktiv', true);
+          const { data: links, error: lerr } = await linkQuery.order('creator_id').range(from, from + LINK_PAGE - 1);
+          if (lerr) return;
+          (links || []).forEach(r => found.add(r.creator_id));
+          if (!links || links.length < LINK_PAGE) break;
         }
-        delete filters.sprache_id;
-      }
-      // Branche
-      if (filters && (filters.branche_id || filters.branche)) {
-        const selectedId = getIdFromFilter(filters.branche_id || filters.branche);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_branchen')
-          .select('creator_id')
-          .eq('branche_id', selectedId);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
-        }
-        delete filters.branche_id;
+        idSets.push(found);
+      };
+      if (filters) {
+        if (filters.branche && !filters.branche_id) filters.branche_id = filters.branche;
         delete filters.branche;
-      }
-      // Creator-Typ
-      if (filters && filters.creator_type_id) {
-        const selectedId = getIdFromFilter(filters.creator_type_id);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_creator_type')
-          .select('creator_id')
-          .eq('creator_type_id', selectedId);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
-        }
-        delete filters.creator_type_id;
-      }
-      // Kunde: Creator, die mind. eine Kooperation fuer dieses Unternehmen
-      // haben. kooperationen.unternehmen_id ist zu 100% befuellt, deshalb
-      // reicht der direkte Join, kein Fallback ueber kampagne.unternehmen_id
-      if (filters && filters.kunde_id) {
-        const selectedId = getIdFromFilter(filters.kunde_id);
-        const { data: links, error: lerr } = await supabase
-          .from('kooperationen')
-          .select('creator_id')
-          .eq('unternehmen_id', selectedId);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
-        }
-        delete filters.kunde_id;
-      }
-      // Management: nur aktive Verknuepfungen zaehlen, damit beendete
-      // Vertretungen den Creator nicht mehr im Filter auftauchen lassen
-      if (filters && filters.management_id) {
-        const selectedId = getIdFromFilter(filters.management_id);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_management')
-          .select('creator_id')
-          .eq('management_id', selectedId)
-          .eq('ist_aktiv', true);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
-        }
-        delete filters.management_id;
-      }
-      // Firma: analog zu Management ueber creator_firma
-      if (filters && filters.firma_id) {
-        const selectedId = getIdFromFilter(filters.firma_id);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_firma')
-          .select('creator_id')
-          .eq('firma_id', selectedId)
-          .eq('ist_aktiv', true);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
-        }
-        delete filters.firma_id;
+        await linkFilter('sprache_id', 'creator_sprachen', 'sprache_id');
+        await linkFilter('branche_id', 'creator_branchen', 'branche_id');
+        await linkFilter('creator_type_id', 'creator_creator_type', 'creator_type_id');
+        // Kunde: Creator mit mind. einer Kooperation fuer das Unternehmen
+        // (kooperationen.unternehmen_id ist zu 100% befuellt)
+        await linkFilter('kunde_id', 'kooperationen', 'unternehmen_id');
+        // Management/Firma: nur aktive Verknuepfungen zaehlen
+        await linkFilter('management_id', 'creator_management', 'management_id', true);
+        await linkFilter('firma_id', 'creator_firma', 'firma_id', true);
       }
       if (filters && filters.besitz_id) {
-        const raw = filters.besitz_id;
-        const ids = (Array.isArray(raw) ? raw : [getIdFromFilter(raw)]).filter(Boolean);
-        for (const selectedId of ids) {
+        for (const selectedId of idList(filters.besitz_id)) {
           const { data: links, error: lerr } = await supabase
             .from('creator_besitz')
             .select('creator_id')
@@ -121,9 +73,8 @@ creator_management(ist_aktiv, management:management_id(id, firmenname))`;
         delete filters.besitz_id;
       }
       if (filters && filters.favorit_von) {
-        const raw = filters.favorit_von;
+        const userIds = idList(filters.favorit_von);
         delete filters.favorit_von;
-        const userIds = (Array.isArray(raw) ? raw : [getIdFromFilter(raw)]).filter(Boolean);
         if (userIds.length) {
           const { data: links, error: lerr } = await supabase
             .from('creator_favoriten')
@@ -133,9 +84,8 @@ creator_management(ist_aktiv, management:management_id(id, firmenname))`;
         }
       }
       if (filters && filters.creator_tag_id) {
-        const raw = filters.creator_tag_id;
+        const tagIds = idList(filters.creator_tag_id);
         delete filters.creator_tag_id;
-        const tagIds = (Array.isArray(raw) ? raw : [getIdFromFilter(raw)]).filter(Boolean);
         for (const selectedId of tagIds) {
           const { data: links, error: lerr } = await supabase
             .from('creator_tags')

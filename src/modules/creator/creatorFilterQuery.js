@@ -60,6 +60,10 @@ export function decodeFilterValue(filter, raw) {
   }
 }
 
+function splitList(raw) {
+  return String(raw || '').split(',').map((entry) => entry.trim()).filter(Boolean);
+}
+
 function asParams(search) {
   if (search instanceof URLSearchParams) return search;
   const raw = String(search || '');
@@ -75,14 +79,11 @@ export function queryToSelection(search, { filters = [], groessen = [], generati
   const params = asParams(search);
   const byId = new Map(filters.map((filter) => [filter.id, filter]));
 
-  let groesse = (params.get('groesse') || '')
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  let groesse = splitList(params.get('groesse'));
   if (groessen.length) groesse = groesse.filter((label) => groessen.includes(label));
 
-  let generation = params.get('generation') || '';
-  if (generationen.length && generation && !generationen.includes(generation)) generation = '';
+  let generation = splitList(params.get('generation'));
+  if (generationen.length) generation = generation.filter((label) => generationen.includes(label));
 
   const videoRaw = params.get('video');
   const legacySort = videoRaw === '30' ? 'video30' : videoRaw === '90' ? 'video90' : '';
@@ -107,15 +108,16 @@ export function queryToSelection(search, { filters = [], groessen = [], generati
 }
 
 /**
- * @param {{ search?: string, groesse?: string[], generation?: string, filters?: object, filterIds?: Set<string> }} selection
+ * @param {{ search?: string, groesse?: string[], generation?: string|string[], filters?: object, filterIds?: Set<string> }} selection
  * @returns {URLSearchParams}
  */
-export function selectionToQuery({ search = '', groesse = [], generation = '', sort = 'name', filters = {}, filterIds = null } = {}) {
+export function selectionToQuery({ search = '', groesse = [], generation = [], sort = 'name', filters = {}, filterIds = null } = {}) {
   const params = new URLSearchParams();
   const term = String(search || '').trim();
   if (term) params.set('q', term);
   if (groesse?.length) params.set('groesse', groesse.join(','));
-  if (generation) params.set('generation', generation);
+  const generationen = [].concat(generation || []);
+  if (generationen.length) params.set('generation', generationen.join(','));
   const sortId = normalizeSort(sort);
   if (sortId !== 'name') params.set('sort', sortId);
 

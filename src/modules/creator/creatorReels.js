@@ -41,6 +41,51 @@ export function anzeigePosts(creator) {
   return waehleAnzeigeReels(zeigeClean ? clean : raw);
 }
 
+const safe = (val) => window.validatorSystem?.sanitizeHtml?.(String(val ?? '')) ?? String(val ?? '');
+const safeUrl = (url) => window.validatorSystem?.sanitizeUrl?.(url) || '';
+const num = (val) => (val != null && !isNaN(val) ? Number(val).toLocaleString('de-DE') : '–');
+
+function renderReelCard(post, profileUrl) {
+  const link = safeUrl(post.permalink) || profileUrl;
+  const thumb = safeUrl(post.thumbnail_path);
+  const date = post.timestamp ? new Date(post.timestamp).toLocaleDateString('de-DE') : '';
+  return `
+    <a class="ig-post-card" href="${link}" target="_blank" rel="noopener noreferrer" title="${post.caption ? safe(String(post.caption).slice(0, 120)) : ''}">
+      <div class="ig-post-thumb">
+        ${thumb
+          ? `<img src="${thumb}" alt="Instagram Reel" loading="lazy" />`
+          : '<div class="ig-post-thumb-placeholder">Kein Bild</div>'}
+        <span class="ig-post-type-badge">Reel</span>
+      </div>
+      <div class="ig-post-meta">
+        <span>&#9654; ${num(post.view_count)}</span>
+        <span>&hearts; ${num(post.like_count)}</span>
+        <span>&#128172; ${num(post.comments_count)}</span>
+        ${date ? `<span class="ig-post-date">${date}</span>` : ''}
+      </div>
+    </a>
+  `;
+}
+
+// Block „Letzte Reels“ für Detailseite und Schublade. Jede Kachel öffnet das Reel auf Instagram.
+export function renderReelsBlock(creator, { className = '' } = {}) {
+  const posts = anzeigePosts(creator);
+  const gate = creator?.ig_trial_gate;
+  const gefiltert = gate?.aktiv && Array.isArray(creator?.ig_recent_posts_clean) && creator.ig_recent_posts_clean.length > 0;
+  const ausgeblendet = Number(gate?.cluster_size) || 0;
+  const username = creator?.ig_username || '';
+  const profileUrl = username ? `https://instagram.com/${encodeURIComponent(username)}` : '';
+  return `
+    <div class="ig-posts-block${className ? ` ${className}` : ''}">
+      <label>Letzte Reels${posts.length ? ` (${posts.length})` : ''}</label>
+      ${gefiltert ? `<div class="ig-muted ig-trial-hint">${ausgeblendet} Trial-Reel${ausgeblendet === 1 ? '' : 's'} ausgeblendet (gefilterte Ansicht)</div>` : ''}
+      ${posts.length
+        ? `<div class="ig-posts-grid">${posts.map((post) => renderReelCard(post, profileUrl)).join('')}</div>`
+        : '<span class="ig-muted">Keine Reels ohne Werbe-Kennzeichnung.</span>'}
+    </div>
+  `;
+}
+
 export function durchschnittlicheViews(creator) {
   const values = anzeigePosts(creator)
     .filter((post) => post?.view_count != null)

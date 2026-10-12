@@ -9,6 +9,7 @@ import { settleRezensionFilters } from './rezension.js';
 import { formatCreatorSumme, queryToSelection, selectionToQuery } from './creatorFilterQuery.js';
 import { ANZAHL_SORTS, normalizeSort, sortiereNachAnzahl, sortiereNachName } from './creatorBuchung.js';
 import { paintFilterValues } from './creatorFilterColumn.js';
+import { syncFilterSelect } from '../../core/filters/FilterSelect.js';
 
 export const ANSICHT_KEY = 'creator-ansicht';
 
@@ -230,7 +231,7 @@ export class CreatorList extends BasePaginatedList {
     });
     this.searchQuery = selection.search;
     this.groesseFilter = selection.groesse;
-    this.generationFilter = selection.generation;
+    this.generationFilter = selection.generation[0] || '';
     this.sort = selection.sort || 'name';
     this.videoTage = this.sort === 'video30' ? 30 : this.sort === 'video90' ? 90 : 0;
   }
@@ -244,7 +245,7 @@ export class CreatorList extends BasePaginatedList {
     const params = selectionToQuery({
       search: this.searchQuery,
       groesse: this.usesFilterColumn() ? (Array.isArray(values.groesse) ? values.groesse : []) : this.groesseFilter,
-      generation: this.usesFilterColumn() ? (values.generation || '') : this.generationFilter,
+      generation: this.usesFilterColumn() ? values.generation : this.generationFilter,
       sort: this.sort,
       filters: values,
       filterIds
@@ -326,8 +327,10 @@ export class CreatorList extends BasePaginatedList {
     const next = normalizeSort(sort);
     this.sort = next;
     this.videoTage = next === 'video30' ? 30 : next === 'video90' ? 90 : 0;
-    document.querySelectorAll('select[name="creator-sort"]').forEach((select) => {
-      select.value = next;
+    document.querySelectorAll('[name="creator-sort"]').forEach((input) => {
+      input.value = next;
+      const wrapper = input.closest('[data-filter-select]');
+      if (wrapper) syncFilterSelect(wrapper);
     });
     if (reload) this.loadData();
   }

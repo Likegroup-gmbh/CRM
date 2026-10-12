@@ -16,10 +16,14 @@ import { isActive, paintFilterValues, readFiltersFromColumn } from './creatorFil
 export { paintFilterValues, readFiltersFromColumn };
 import { queryToSelection } from './creatorFilterQuery.js';
 import { ladeFavoritPersonen } from './creatorFavorit.js';
+import { bindFilterSelects, renderFilterSelect, syncFilterSelects } from '../../core/filters/FilterSelect.js';
 
-const STORAGE_KEY = 'creator-filter-column-collapsed';
 const SIDEBAR_NARROW_QUERY = '(max-width: 768px)';
+const STORAGE_KEY = 'creator-filter-column-collapsed';
 const APPLY_DELAY_MS = 250;
+// Auswahl-Filter mit genau einem Wert. Alle übrigen erlauben in der Spalte mehrere.
+const SINGLE_SELECT = new Set(['rezension_min']);
+const SELECT_TYPES = new Set(['select', 'multiSelect', 'boolean']);
 
 function esc(value) {
   return String(value ?? '')
@@ -49,13 +53,15 @@ export function overviewColumnFilters(filters) {
     {
       id: 'generation',
       label: 'Generation',
-      type: 'select',
-      emptyLabel: 'Alle Generationen',
+      type: 'multiSelect',
       options: GENERATIONEN.map((entry) => ({ value: entry.label, label: entry.label }))
     }
   ];
   const ids = new Set((filters || []).map((filter) => filter.id));
-  return [...extra.filter((filter) => !ids.has(filter.id)), ...(filters || [])];
+  const multi = (filters || []).map((filter) => (
+    filter.type === 'select' && !SINGLE_SELECT.has(filter.id) ? { ...filter, type: 'multiSelect' } : filter
+  ));
+  return [...extra.filter((filter) => !ids.has(filter.id)), ...multi];
 }
 
 export function overviewColumnGroups(groups) {
@@ -89,14 +95,15 @@ export function renderSortBlock(sort = 'name') {
   const current = normalizeSort(sort);
   return `
     <div class="creator-filter-sort">
-      <label class="creator-filter-field">
+      <div class="creator-filter-field">
         <span class="creator-filter-field__label">Sortieren nach</span>
-        <select class="filter-submenu-select" name="creator-sort">
-          ${CREATOR_SORTS.map((entry) => `
-            <option value="${esc(entry.id)}"${entry.id === current ? ' selected' : ''}>${esc(entry.label)}</option>
-          `).join('')}
-        </select>
-      </label>
+        ${renderFilterSelect(
+          { label: 'Sortieren nach', type: 'select', noEmpty: true },
+          current,
+          CREATOR_SORTS.map((entry) => ({ value: entry.id, label: entry.label })),
+          { name: 'creator-sort' }
+        )}
+      </div>
     </div>
   `;
 }
@@ -127,6 +134,24 @@ function paintCounts(sections, values) {
   }
 }
 
+function renderField(values) {
+  return (filter) => {
+    const label = `<span class="creator-filter-field__label">${esc(filter.label)}</span>`;
+    if (SELECT_TYPES.has(filter.type)) {
+      return `
+        <div class="creator-filter-field" data-field="${esc(filter.id)}">
+          ${label}
+          ${renderFilterSelect(filter, values[filter.id], filter.options || [])}
+        </div>`;
+    }
+    return `
+      <label class="creator-filter-field" data-field="${esc(filter.id)}">
+        ${label}
+        ${renderFilterControl(filter, values[filter.id], filter.options || [])}
+      </label>`;
+  };
+}
+
 export function renderColumnBody(filters, groups, values = {}, sort = 'name') {
   const sections = groupColumnFilters(filters, groups);
   const counts = countActiveByGroup(sections, values);
@@ -138,12 +163,7 @@ export function renderColumnBody(filters, groups, values = {}, sort = 'name') {
         <span class="creator-filter-group__chevron" aria-hidden="true">${icon('chevron-down')}</span>
       </summary>
       <div class="creator-filter-group__body">
-        ${section.items.map((filter) => `
-          <label class="creator-filter-field" data-field="${esc(filter.id)}">
-            <span class="creator-filter-field__label">${esc(filter.label)}</span>
-            ${renderFilterControl(filter, values[filter.id], filter.options || [])}
-          </label>
-        `).join('')}
+        ${section.items.map(renderField(values)).join('')}
       </div>
     </details>
   `).join('');
@@ -155,16 +175,6 @@ export function renderColumnBody(filters, groups, values = {}, sort = 'name') {
       <button type="button" class="mdc-btn mdc-btn--secondary creator-filter-reset">Zurücksetzen</button>
     </div>
   `;
-}
-
-function filterCheckboxList(searchInput) {
-  const term = searchInput.value.trim().toLowerCase();
-  const list = searchInput.parentElement?.querySelector('.filter-submenu-checkboxes')
-    || searchInput.nextElementSibling;
-  list?.querySelectorAll('.filter-checkbox-option').forEach((row) => {
-    const label = row.textContent.toLowerCase();
-    row.hidden = Boolean(term) && !label.includes(term);
-  });
 }
 
 async function chipHtml(filters, values) {
@@ -220,7 +230,7 @@ export async function mountCreatorFilterColumn(list, { debounceMs = APPLY_DELAY_
   });
   const values = { ...selection.filters };
   if (selection.groesse?.length) values.groesse = selection.groesse;
-  if (selection.generation) values.generation = selection.generation;
+  if (selection.generation?.length) values.generation = selection.generation;
 
   await filterSystem.applyFilters('creator', values);
 
@@ -258,8 +268,11 @@ export async function mountCreatorFilterColumn(list, { debounceMs = APPLY_DELAY_
 
       const applyNow = () => {
         const read = readFiltersFromColumn(column, filters);
-        const ohne = column.querySelector('select[data-filter-id="rezension_ohne"]');
-        if (ohne && !read.rezension_ohne && ohne.value === 'true') ohne.value = '';
+        const ohne = column.querySelector('[data-filter-id="rezension_ohne"]');
+        if (ohne && !read.rezension_ohne && ohne.value === 'true') {
+          ohne.value = '';
+          syncFilterSelects(column);
+        }
         filterSystem.applyFilters('creator', read);
         list.onFiltersApplied(read);
         api.renderChips();
@@ -273,13 +286,10 @@ export async function mountCreatorFilterColumn(list, { debounceMs = APPLY_DELAY_
         }, debounceMs);
       };
 
+      bindFilterSelects(column, { signal });
+
       column.addEventListener('input', (event) => {
-        if (event.target.name === 'creator-sort') return;
-        const search = event.target.closest('[data-filter-search]');
-        if (search) {
-          filterCheckboxList(search);
-          return;
-        }
+        if (event.target.closest('[data-select-search]')) return;
         schedule();
       }, { signal });
 
@@ -288,7 +298,7 @@ export async function mountCreatorFilterColumn(list, { debounceMs = APPLY_DELAY_
           list.setSort?.(event.target.value);
           return;
         }
-        if (event.target.closest('[data-filter-search]')) return;
+        if (event.target.closest('[data-select-search]')) return;
         schedule();
       }, { signal });
 

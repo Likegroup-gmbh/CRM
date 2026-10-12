@@ -23,6 +23,7 @@ import '../assets/styles/tables.css';
 import '../assets/styles/cards.css';
 import '../assets/styles/creator-card.css';
 import '../assets/styles/creator-filter-column.css';
+import '../assets/styles/filter-select.css';
 import '../assets/styles/modals-drawers.css';
 import '../assets/styles/domain-video.css';
 import '../assets/styles/domain-feedback.css';

@@ -26,7 +26,7 @@ export function renderFavorit(creator) {
   return `
     <div class="creator-favorit">
       <button type="button" class="creator-favorit__star${mine ? ' is-on' : ''}" data-action="toggle-favorit" data-id="${id}" aria-pressed="${mine ? 'true' : 'false'}" aria-label="${starLabel}">
-        ${icon('star')}
+        ${icon('star-rounded')}
       </button>
       ${countHtml}
     </div>

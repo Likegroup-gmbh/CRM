@@ -1,6 +1,7 @@
 // Liest Filterwerte aus den Steuerungen der Filterspalte und schreibt sie zurück.
 
 import { settleRezensionFilters } from './rezension.js';
+import { syncFilterSelects } from '../../core/filters/FilterSelect.js';
 
 function cssId(value) {
   return String(value).replace(/["\\]/g, '\\$&');
@@ -32,7 +33,7 @@ function readOne(root, filter) {
       return root.querySelector(`[data-filter-id="${cssId(id)}"]`)?.value?.trim() || '';
     case 'select':
     case 'boolean': {
-      const raw = root.querySelector(`select[data-filter-id="${cssId(id)}"]`)?.value;
+      const raw = root.querySelector(`[data-filter-id="${cssId(id)}"]`)?.value;
       if (filter.type === 'boolean') {
         if (raw === 'true') return true;
         if (raw === 'false') return false;
@@ -73,7 +74,7 @@ export function paintFilterValues(root, filters, values) {
         box.checked = selected.has(box.value);
       });
     } else if (filter.type === 'boolean') {
-      const select = root.querySelector(`select[data-filter-id="${id}"]`);
+      const select = root.querySelector(`[data-filter-id="${id}"]`);
       if (select) select.value = value === true ? 'true' : value === false ? 'false' : '';
     } else if (filter.type === 'select' || filter.type === 'text' || filter.type === 'date' || filter.type === 'number') {
       const input = root.querySelector(`[data-filter-id="${id}"]`);
@@ -90,4 +91,5 @@ export function paintFilterValues(root, filters, values) {
       if (to) to.value = value?.to ?? '';
     }
   }
+  syncFilterSelects(root);
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { istWerbePost } from '../../netlify/functions/_shared/instagram-cpm.js';
-import { anzeigePosts, durchschnittlicheViews, kennzeichnetWerbung, waehleAnzeigeReels, REEL_ANZEIGE_LIMIT } from '../modules/creator/creatorReels.js';
+import { anzeigePosts, durchschnittlicheViews, kennzeichnetWerbung, renderReelsBlock, waehleAnzeigeReels, REEL_ANZEIGE_LIMIT } from '../modules/creator/creatorReels.js';
 import { CREATOR_SORTS, sortiereNachAnzahl, vergleicheName, videoSeit } from '../modules/creator/creatorBuchung.js';
 import { ladeFavoritenAnzahl } from '../modules/creator/creatorFavorit.js';
 import { CreatorList } from '../modules/creator/CreatorListCore.js';
@@ -189,5 +189,31 @@ describe('Sortierung nach Favoriten', () => {
     expect(show).toHaveBeenCalledWith('Favoriten konnten nicht geladen werden', 'error');
     expect(list.sort).toBe('name');
     expect(list.loadNamePage).toHaveBeenCalled();
+  });
+});
+
+describe('Reels-Block', () => {
+  afterEach(() => { delete window.validatorSystem; });
+
+  it('zeigt bis zu 15 Reels ohne Werbung, jedes verlinkt auf Instagram', () => {
+    const posts = Array.from({ length: 20 }, (_, i) => ({
+      media_type: 'VIDEO',
+      caption: i === 0 ? 'Neu #werbung' : `Reel ${i}`,
+      permalink: `https://www.instagram.com/reel/${i}/`
+    }));
+    window.validatorSystem = { sanitizeUrl: (url) => url, sanitizeHtml: (text) => text };
+    const root = document.createElement('div');
+    root.innerHTML = renderReelsBlock({ ig_username: 'anna', ig_recent_posts: posts });
+    const links = [...root.querySelectorAll('a.ig-post-card')].map((a) => a.getAttribute('href'));
+    expect(links).toHaveLength(15);
+    expect(links[0]).toBe('https://www.instagram.com/reel/1/');
+    expect(root.querySelector('label').textContent).toBe('Letzte Reels (15)');
+  });
+
+  it('erklärt, wenn kein Reel übrig bleibt', () => {
+    const root = document.createElement('div');
+    root.innerHTML = renderReelsBlock({ ig_recent_posts: [{ media_type: 'IMAGE' }] });
+    expect(root.querySelector('.ig-post-card')).toBeNull();
+    expect(root.textContent).toContain('Keine Reels ohne Werbe-Kennzeichnung.');
   });
 });

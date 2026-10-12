@@ -4,7 +4,7 @@
 import { CreatorDetail } from './CreatorDetailCore.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import { anzeigePosts } from './creatorReels.js';
+import { renderReelsBlock } from './creatorReels.js';
 
 // Instagram-Sektion: Daten aus dem Connect (nur wenn erfolgreich verbunden)
 CreatorDetail.prototype.renderInstagramSection = function() {
@@ -41,36 +41,6 @@ CreatorDetail.prototype.renderInstagramSection = function() {
     const brandsHtml = brands.length
       ? `<div class="tags">${brands.map(b => `<a class="tag tag--brand" href="https://instagram.com/${encodeURIComponent(b)}" target="_blank" rel="noopener noreferrer">@${safe(b)}</a>`).join('')}</div>`
       : '<span class="ig-muted">Keine Werbe-Kooperationen in den letzten Reels erkannt</span>';
-
-    const cleanPosts = Array.isArray(c.ig_recent_posts_clean) ? c.ig_recent_posts_clean : [];
-    const zeigeClean = trialGate?.aktiv && cleanPosts.length > 0;
-    const posts = anzeigePosts(c);
-    const ausgeblendet = Number(trialGate?.cluster_size) || 0;
-    const postsHtml = posts.length
-      ? `<div class="ig-posts-grid">${posts.map(p => {
-          const link = safeUrl(p.permalink) || profileUrl;
-          const thumb = safeUrl(p.thumbnail_path);
-          const captionTeaser = p.caption ? safe(String(p.caption).slice(0, 120)) : '';
-          const date = p.timestamp ? new Date(p.timestamp).toLocaleDateString('de-DE') : '';
-          const views = p.view_count != null ? num(p.view_count) : '–';
-          return `
-            <a class="ig-post-card" href="${link}" target="_blank" rel="noopener noreferrer" title="${captionTeaser}">
-              <div class="ig-post-thumb">
-                ${thumb
-                  ? `<img src="${thumb}" alt="Instagram Reel" loading="lazy" />`
-                  : '<div class="ig-post-thumb-placeholder">Kein Bild</div>'}
-                <span class="ig-post-type-badge">Reel</span>
-              </div>
-              <div class="ig-post-meta">
-                <span>&#9654; ${views}</span>
-                <span>&hearts; ${num(p.like_count)}</span>
-                <span>&#128172; ${num(p.comments_count)}</span>
-                ${date ? `<span class="ig-post-date">${date}</span>` : ''}
-              </div>
-            </a>
-          `;
-        }).join('')}</div>`
-      : '<span class="ig-muted">Keine Reels ohne Werbe-Kennzeichnung.</span>';
 
     return `
       <div class="detail-card ig-section">
@@ -110,11 +80,7 @@ CreatorDetail.prototype.renderInstagramSection = function() {
           <span>${brandsHtml}</span>
         </div>
 
-        <div class="ig-posts-block">
-          <label>Letzte Reels:</label>
-          ${zeigeClean ? `<div class="ig-muted ig-trial-hint">${ausgeblendet} Trial-Reel${ausgeblendet === 1 ? '' : 's'} ausgeblendet (gefilterte Ansicht)</div>` : ''}
-          ${postsHtml}
-        </div>
+        ${renderReelsBlock(c)}
       </div>
     `;
 };

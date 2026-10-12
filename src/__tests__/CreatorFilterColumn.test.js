@@ -29,7 +29,7 @@ describe('Creator-Filter als Query', () => {
     const params = selectionToQuery({
       search: 'Anna',
       groesse: ['Micro', 'Mid-Tier'],
-      generation: 'Generation Z',
+      generation: ['Generation Z', 'Millennials'],
       filters: {
         lieferadresse_stadt: 'Berlin',
         alter: { min: '18', max: '30' },
@@ -41,7 +41,7 @@ describe('Creator-Filter als Query', () => {
     const back = selection(params);
     expect(back.search).toBe('Anna');
     expect(back.groesse).toEqual(['Micro', 'Mid-Tier']);
-    expect(back.generation).toBe('Generation Z');
+    expect(back.generation).toEqual(['Generation Z', 'Millennials']);
     expect(back.filters.lieferadresse_stadt).toBe('Berlin');
     expect(back.filters.alter).toEqual({ min: '18', max: '30' });
     expect(back.filters.hat_haustier).toBe(true);
@@ -51,7 +51,8 @@ describe('Creator-Filter als Query', () => {
   it('lässt unbekannte Größe und Generation fallen', () => {
     const back = selection('?groesse=Micro,Riese&generation=Zukunft');
     expect(back.groesse).toEqual(['Micro']);
-    expect(back.generation).toBe('');
+    expect(back.generation).toEqual([]);
+    expect(selection('?generation=Generation Z').generation).toEqual(['Generation Z']);
   });
 
   it('Mindestwert gewinnt gegen Ohne Bewertung', () => {
@@ -91,10 +92,12 @@ describe('Filterspalte', () => {
     expect(root.textContent).not.toContain('Mehr anzeigen');
     expect(root.querySelector('.creator-filter-reset').textContent).toBe('Zurücksetzen');
     expect(root.querySelector('.creator-filter-sort .creator-filter-field__label').textContent).toBe('Sortieren nach');
-    expect(root.querySelector('select[name="creator-sort"]').value).toBe('name');
+    expect(root.querySelector('input[name="creator-sort"]').value).toBe('name');
+    expect(root.querySelector('.creator-filter-sort .table-select__label').textContent).toBe('Name, A–Z');
+    expect(root.querySelector('select')).toBeNull();
     const sorted = document.createElement('div');
     sorted.innerHTML = renderColumnBody(CREATOR_FILTERS, CREATOR_FILTER_GROUPS, {}, 'rezension');
-    expect(sorted.querySelector('select[name="creator-sort"]').value).toBe('rezension');
+    expect(sorted.querySelector('input[name="creator-sort"]').value).toBe('rezension');
     expect(sorted.querySelector('.creator-filter-sort').nextElementSibling.classList.contains('creator-filter-group')).toBe(true);
   });
 
