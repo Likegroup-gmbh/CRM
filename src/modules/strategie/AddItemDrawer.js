@@ -13,6 +13,7 @@ import {
   briefingFunnelStufen,
   briefingEinzigeFunnelStufe
 } from './strategieFunnelOptions.js';
+import { briefingEinzigePersonaId, STRATEGIE_PERSONA_OFFEN } from './strategiePersonaOptions.js';
 import {
   buildAddItemQueueEntry,
   buildStrategieItemInsert,
@@ -28,6 +29,7 @@ export class AddItemDrawer {
     this.strategie = null;
     this.strategieId = null;
     this.teilbereiche = [];
+    this.personaOptionen = [];
     this.art = 'videoreferenz';
 
     // Queue System: { id, url, kategorie, beschreibung, platform,
@@ -39,10 +41,12 @@ export class AddItemDrawer {
   /**
    * Drawer öffnen
    */
-  async open(strategie, teilbereiche = []) {
+  async open(strategie, teilbereiche = [], personaOptionen = []) {
     this.strategie = strategie;
     this.strategieId = strategie.id;
     this.teilbereiche = teilbereiche;
+    // Select-Optionen der Briefing-Personas ("Keine Persona" inklusive).
+    this.personaOptionen = (personaOptionen || []).filter(o => o.value !== STRATEGIE_PERSONA_OFFEN);
     this.art = 'videoreferenz';
     this.queue = [];
     this.isProcessing = false;
@@ -169,6 +173,7 @@ export class AddItemDrawer {
             </select>
           </div>
           ${this.renderFunnelField()}
+          ${this.renderPersonaField()}
         </div>
 
         <div class="add-item-drawer-form-row add-item-drawer-form-row--full" id="drawer-beschreibung-row">
@@ -241,6 +246,20 @@ export class AddItemDrawer {
           </div>`;
   }
 
+  /** Persona nur, wenn das Briefing Personas nennt. Vorbelegt bei genau einer. */
+  renderPersonaField() {
+    if (!this.personaOptionen.length) return '';
+    const vorbelegt = briefingEinzigePersonaId(this.strategie?.briefing);
+    return `
+          <div class="form-field">
+            <label for="drawer-persona">Persona</label>
+            <select id="drawer-persona" class="form-input">
+              <option value="">Keine Persona</option>
+              ${this.personaOptionen.map(o => `<option value="${escapeAttr(o.value)}"${o.value === vorbelegt ? ' selected' : ''}>${escapeAttr(o.label)}</option>`).join('')}
+            </select>
+          </div>`;
+  }
+
   /**
    * Events binden
    */
@@ -294,7 +313,8 @@ export class AddItemDrawer {
       beschreibung: beschreibungInput?.value,
       umsetzungsvorgabe: vorgabeInput?.value,
       kategorie: kategorieSelect?.value || null,
-      funnelStufe: document.getElementById('drawer-funnel')?.value || null
+      funnelStufe: document.getElementById('drawer-funnel')?.value || null,
+      personaId: document.getElementById('drawer-persona')?.value || null
     });
     if (!resolved.ok) {
       window.toastSystem?.show(resolved.error, 'warning');
@@ -305,7 +325,7 @@ export class AddItemDrawer {
       return;
     }
 
-    const { url, kategorie, beschreibung, umsetzungsvorgabe, funnelStufe } = resolved;
+    const { url, kategorie, beschreibung, umsetzungsvorgabe, funnelStufe, personaId } = resolved;
 
     if (url && !this.isAllowedUrl(url)) {
       window.toastSystem?.show('Nur TikTok- und Instagram-Links sind erlaubt', 'warning');
@@ -331,6 +351,7 @@ export class AddItemDrawer {
       beschreibung,
       umsetzungsvorgabe,
       funnelStufe,
+      personaId,
       platform: this.detectPlatform(url)
     }));
 

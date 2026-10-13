@@ -5,8 +5,9 @@
 import { StrategieCreatorDrawer } from '../StrategieCreatorDrawer.js';
 import { StrategieProduktDrawer } from '../StrategieProduktDrawer.js';
 import { handleCreatorUnlink, handleProduktUnlink } from '../StrategieDetailTableEvents.js';
-import { renderSkriptFreigabeStatus, renderFunnelControl } from '../StrategieDetailRenderer.js';
+import { renderSkriptFreigabeStatus, renderFunnelControl, renderPersonaControl } from '../StrategieDetailRenderer.js';
 import { getStrategieFunnel } from '../strategieFunnelOptions.js';
+import { getStrategiePersona } from '../strategiePersonaOptions.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from '../strategiePrioOptions.js';
 import { renderTableSelect } from '../../../core/components/TableSelect.js';
 import { fieldSignature } from '../videoideeFieldSync.js';
@@ -80,7 +81,7 @@ export function patchFields(panel, item) {
       el.dataset.videoideeSaved = fieldSignature(el);
       return;
     }
-    if (!field || field === 'strategie_prio' || field === 'strategie_funnel' || !(field in item)) return;
+    if (!field || field === 'strategie_prio' || field === 'strategie_funnel' || field === 'strategie_persona' || !(field in item)) return;
     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return;
     const value = field === 'teilbereich' ? (item.teilbereich || '') : fieldText(item, field);
     if (el.type === 'checkbox') el.checked = !!value;
@@ -103,6 +104,16 @@ export function patchFunnel(detail, panel, item) {
   const next = getStrategieFunnel(item);
   if (current !== undefined && current === next) return;
   slot.innerHTML = renderFunnelControl(detail, item);
+}
+
+/** Persona im offenen Drawer nachziehen, wenn die Tabelle sie aendert. */
+export function patchPersona(detail, panel, item) {
+  const slot = panel.querySelector('[data-videoidee-persona]');
+  if (!slot || slot.contains(document.activeElement) || slot.querySelector('.table-select.show')) return;
+  const current = slot.querySelector('[data-table-select]')?.dataset.value;
+  const next = getStrategiePersona(item);
+  if (current !== undefined && current === next) return;
+  slot.innerHTML = renderPersonaControl(detail, item);
 }
 
 export function patchPrio(detail, panel, item) {

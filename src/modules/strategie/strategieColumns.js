@@ -8,13 +8,14 @@
 //                          standardmaessig aus sind)
 // Ohne Eintrag gilt der Default: alle festen Spalten sind sichtbar, ausser die
 // Funnel-Stufe (nur in Paid-Linien oder mit gesetzten Werten, siehe
-// funnelSpalteStandardSichtbar).
+// funnelSpalteStandardSichtbar). Die Persona-Spalte ist immer sichtbar (nur fuers Team).
 
 import { funnelSpalteStandardSichtbar } from './strategieFunnelOptions.js';
 
 export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
   { key: 'creator', label: 'Creator' },
   { key: 'produkt', label: 'Produkt' },
+  { key: 'persona', label: 'Persona' },
   { key: 'funnel', label: 'Funnel-Stufe' },
   { key: 'beschreibung', label: 'Beschreibung' },
   { key: 'umsetzungsvorgabe', label: 'Umsetzungsvorgabe' },

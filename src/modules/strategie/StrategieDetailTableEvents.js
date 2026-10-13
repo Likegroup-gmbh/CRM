@@ -6,6 +6,7 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
 import { buildStrategieFunnelUpdates, isStrategieFunnel } from './strategieFunnelOptions.js';
+import { buildStrategiePersonaUpdates, isStrategiePersona } from './strategiePersonaOptions.js';
 import { bindTextClipEvents } from './strategieTextClip.js';
 import { startProduktionFromItem } from '../kooperation/produktionStart.js';
 import { refreshItemActions, updateItemRow } from './StrategieDetailRenderer.js';
@@ -83,6 +84,7 @@ export function bindTableEvents(detail) {
   bindCustomColumnEvents(detail);
   bindPrioSelect(detail);
   bindFunnelSelect(detail);
+  bindPersonaSelect(detail);
 
   const refreshOnOpen = (e) => {
     const toggle = e.target.closest?.('.actions-toggle');
@@ -456,6 +458,50 @@ export async function handleFunnelChange(detail, itemId, value) {
     detail.rerenderItemsTable();
   } catch (error) {
     console.error('Fehler beim Speichern der Funnel-Stufe:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    detail.rerenderItemsTable();
+  }
+}
+
+/**
+ * Persona-Select: gleiche Anbindung wie Funnel-Stufe, nur fuers Team.
+ * Gespeichert wird strategie_items.persona_id.
+ */
+export function bindPersonaSelect(detail) {
+  tableSelect.init();
+
+  const handler = (e) => {
+    const { field, itemId, value, element } = e.detail || {};
+    if (field !== 'strategie_persona') return;
+    const inTable = element?.closest('.strategie-items-table');
+    const inDrawer = element?.closest('#edit-item-drawer');
+    if (!inTable && !inDrawer) return;
+    if (inTable && tableRoot(detail) && !tableRoot(detail).contains(inTable)) return;
+    const item = detail.items.find(i => String(i.id) === String(itemId));
+    if (!isStrategiePersona(value, detail.personaOptions?.(item))) return;
+
+    handlePersonaChange(detail, itemId, value);
+  };
+
+  document.addEventListener('table-select-change', handler);
+  detail._tableEventListeners.add(() => document.removeEventListener('table-select-change', handler));
+}
+
+export async function handlePersonaChange(detail, itemId, value) {
+  // Nur intern mit Edit-Recht: Kunden sehen die Persona nicht.
+  if (detail.isKunde || !detail.canEdit) return;
+  if (typeof window.permissionSystem?.canEditField === 'function'
+    && !window.permissionSystem.canEditField('strategie', 'strategie_persona')) return;
+  const item = detail.items.find(i => String(i.id) === String(itemId));
+  if (!item) return;
+
+  const updates = buildStrategiePersonaUpdates(value);
+  try {
+    await strategieService.updateStrategieItem(itemId, updates);
+    Object.assign(item, updates);
+    detail.rerenderItemsTable();
+  } catch (error) {
+    console.error('Fehler beim Speichern der Persona:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
     detail.rerenderItemsTable();
   }

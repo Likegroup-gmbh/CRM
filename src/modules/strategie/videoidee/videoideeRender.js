@@ -9,9 +9,11 @@ import {
   getPlatformIcon,
   renderSkriptFreigabeStatus,
   renderFunnelControl,
-  funnelEditable
+  funnelEditable,
+  renderPersonaControl,
+  personaEditable
 } from '../StrategieDetailRenderer.js';
-import { isFixedColumnVisible } from '../strategieColumns.js';
+import { isFixedColumnVisible, buildColumnContext } from '../strategieColumns.js';
 import { isFunnelWert, funnelSpalteStandardSichtbar } from '../strategieFunnelOptions.js';
 import { isVideoideeVorschlag, beschreibungMitAbsaetzen } from '../videoideeVorschlag.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from '../strategiePrioOptions.js';
@@ -142,6 +144,7 @@ function renderKopf(detail, item) {
     renderKategorieField(detail, item, editable),
     renderEditCreatorField(item, editable),
     renderEditProduktField(item, editable),
+    renderPersonaProp(detail, item),
     renderFunnelProp(detail, item),
     ...renderDecisionProps(detail, item),
     ...renderCustomProps(detail, item)
@@ -441,6 +444,21 @@ function renderFunnelProp(detail, item) {
   return propRow('funnel', 'Funnel-Stufe', `
     <div data-videoidee-funnel>${renderFunnelControl(detail, item)}</div>
   `, '', 'chart-bar');
+}
+
+/**
+ * Persona im Drawer: nur fuers Team, folgt der Spaltensichtbarkeit der Tabelle.
+ * Wer sie nicht setzen darf, sieht sie nur mit Wert.
+ */
+function renderPersonaProp(detail, item) {
+  if (detail.isKunde) return '';
+  const context = detail.columnContext ? detail.columnContext() : buildColumnContext(detail.strategie, detail.items);
+  const sichtbar = isFixedColumnVisible(detail.hiddenColumns, 'persona', context);
+  const hatWert = !!item.persona_id;
+  if (!hatWert && !(sichtbar && personaEditable(detail))) return '';
+  return propRow('persona', 'Persona', `
+    <div data-videoidee-persona>${renderPersonaControl(detail, item)}</div>
+  `, '', 'user');
 }
 
 function renderDecisionProps(detail, item) {

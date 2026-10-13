@@ -11,6 +11,10 @@ import {
   renderFunnelBadge,
   funnelSpalteStandardSichtbar
 } from './strategieFunnelOptions.js';
+import {
+  getStrategiePersona,
+  renderPersonaName
+} from './strategiePersonaOptions.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { isVideoideeVorschlag, splitVideoideeVorschlaege } from './videoideeVorschlag.js';
@@ -49,6 +53,8 @@ function visibleFixedColumns(detail) {
   return {
     creator: visible('creator'),
     produkt: visible('produkt'),
+    // Persona ist interne Strategie: Kunden dürfen personas nicht lesen.
+    persona: !detail.isKunde && visible('persona'),
     funnel: visible('funnel'),
     beschreibung: visible('beschreibung'),
     umsetzungsvorgabe: !detail.isKunde && visible('umsetzungsvorgabe'),
@@ -101,6 +107,7 @@ export function renderItemsTable(detail) {
             <th class="col-platform">Plattform</th>
             ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
             ${cols.produkt ? '<th class="col-produkt">Produkt</th>' : ''}
+            ${cols.persona ? '<th class="col-persona">Persona</th>' : ''}
             ${cols.funnel ? '<th class="col-funnel">Funnel-Stufe</th>' : ''}
             ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
             ${cols.umsetzungsvorgabe ? '<th class="col-umsetzungsvorgabe">Umsetzungsvorgabe</th>' : ''}
@@ -440,6 +447,32 @@ export function renderFunnelControl(detail, item) {
 }
 
 /**
+ * Persona: intern mit Edit-Recht ein Select aus den Briefing-Personas, sonst
+ * (Gast, Investor) der Name. Ein Videoidee-Vorschlag bleibt fuers Team editierbar.
+ */
+export function personaEditable(detail) {
+  if (detail.isKunde) return false;
+  if (window.isGastReadonly?.()) return false;
+  if (!detail.canEdit) return false;
+  return typeof window.permissionSystem?.canEditField === 'function'
+    ? window.permissionSystem.canEditField('strategie', 'strategie_persona')
+    : true;
+}
+
+export function renderPersonaControl(detail, item) {
+  const value = getStrategiePersona(item);
+  if (!personaEditable(detail)) {
+    return renderPersonaName(value ? detail.personaById?.get(value) : null);
+  }
+  return renderTableSelect({
+    field: 'strategie_persona',
+    itemId: item.id,
+    value,
+    options: detail.personaOptions ? detail.personaOptions(item) : []
+  });
+}
+
+/**
  * Umgesetzt-Zelle: Klickbar nur mit Feld-Edit-Recht (Kunde darf, Investor
  * nicht). Ohne Recht steht da nur der Zustand, kein disabled-Toggle.
  */
@@ -513,6 +546,7 @@ export function renderItemRow(detail, item, index) {
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
       ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
       ${cols.produkt ? renderProduktCell(detail, item, vorschlagReadonly) : ''}
+      ${cols.persona ? `<td class="col-persona">${renderPersonaControl(detail, item)}</td>` : ''}
       ${cols.funnel ? `<td class="col-funnel">${renderFunnelControl(detail, item)}</td>` : ''}
       ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
       ${cols.umsetzungsvorgabe ? renderClippedTextCell(detail, item, 'umsetzungsvorgabe', 'col-umsetzungsvorgabe', 'Was sollen wir umsetzen?', vorschlagReadonly || !item.video_link) : ''}

@@ -101,7 +101,7 @@ export class SkripteService {
     const q = this.db.from('strategie_items')
       .select(`
         id, strategie_id, video_link, plattform, beschreibung, transkript_quelle,
-        creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, nicht_umsetzen, skript_freigabe, funnel_stufe,
+        creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, nicht_umsetzen, skript_freigabe, funnel_stufe, persona_id,
         casting_eintrag:creator_auswahl_item_id(id, name, persona_id, creator_id, creator:creator_id(vorname, nachname)),
         strategie:strategie_id!inner(
           id, name, unternehmen_id, marke_id, kampagne_id, briefing_id,
@@ -165,7 +165,7 @@ export class SkripteService {
   async loadStrategieItem(id) {
     if (!id) return null;
     const { data, error } = await this.db.from('strategie_items')
-      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, funnel_stufe')
+      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, funnel_stufe, persona_id')
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);

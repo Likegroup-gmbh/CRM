@@ -1,7 +1,7 @@
 // Payload fuer den Add-Item-Drawer.
 // Videoreferenz: URL und Umsetzungsvorgabe Pflicht, Beschreibung optional.
 // Idee: Beschreibung Pflicht, kein Link, keine Vorgabe.
-// Die Funnel-Stufe ist optional und kommt aus dem Drawer (Vorbelegung aus dem Briefing).
+// Funnel-Stufe und Persona sind optional und kommen aus dem Drawer (Vorbelegung aus dem Briefing).
 
 import { FUNNEL_WERTE } from './strategieFunnelOptions.js';
 
@@ -29,7 +29,12 @@ function cleanFunnel(value) {
   return FUNNEL_WERTE.includes(value) ? value : null;
 }
 
-export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe, kategorie, funnelStufe }) {
+/** Persona-ID aus dem Drawer: nur ein gesetzter Wert, sonst null = keine Vorgabe. */
+function cleanPersona(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe, kategorie, funnelStufe, personaId }) {
   const isReferenz = art !== 'idee';
   const cleanUrl = isReferenz ? (url?.trim() || null) : null;
   const cleanBeschreibung = beschreibung?.trim() || null;
@@ -52,16 +57,18 @@ export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe
     beschreibung: cleanBeschreibung,
     umsetzungsvorgabe: cleanVorgabe,
     kategorie: kategorie || null,
-    funnelStufe: cleanFunnel(funnelStufe)
+    funnelStufe: cleanFunnel(funnelStufe),
+    personaId: cleanPersona(personaId)
   };
 }
 
-export function buildAddItemQueueEntry({ url, kategorie, beschreibung, umsetzungsvorgabe, id, platform, funnelStufe }) {
+export function buildAddItemQueueEntry({ url, kategorie, beschreibung, umsetzungsvorgabe, id, platform, funnelStufe, personaId }) {
   return {
     id,
     url: url?.trim() || null,
     kategorie: kategorie || null,
     funnelStufe: cleanFunnel(funnelStufe),
+    personaId: cleanPersona(personaId),
     beschreibung: beschreibung?.trim() || null,
     umsetzungsvorgabe: umsetzungsvorgabe?.trim() || null,
     platform,
@@ -84,6 +91,7 @@ export function buildStrategieItemInsert({ strategieId, nextItem, sortierung }) 
     beschreibung_quelle: beschreibung ? 'user' : null,
     umsetzungsvorgabe: vorgabe,
     ...(cleanFunnel(nextItem.funnelStufe) ? { funnel_stufe: cleanFunnel(nextItem.funnelStufe) } : {}),
+    ...(cleanPersona(nextItem.personaId) ? { persona_id: cleanPersona(nextItem.personaId) } : {}),
     verarbeitung_status: hatLink ? 'pending' : null
   };
 }

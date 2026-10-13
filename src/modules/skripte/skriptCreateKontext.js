@@ -1,9 +1,15 @@
 // skriptCreateKontext.js
 // Ableitung des Generator-Payloads aus Videoidee → Konzept → Casting-Eintrag.
+// Persona: die der Videoidee, sonst die des Casting-Eintrags.
 // Produkt: die ID an der Videoidee. Ohne die bleibt der Persona-Fit
 // (genau ein accepted Fit, sonst null) fuer Altbestand vor der Spalte.
 
 import { funnelFuerSkript } from '../strategie/strategieFunnelOptions.js';
+
+/** Persona fürs Skript: Videoidee, sonst Casting-Eintrag, sonst keine. */
+export function personaIdFuerSkript(item) {
+  return item?.persona_id || item?.casting_eintrag?.persona_id || null;
+}
 
 export function pickProduktId(produktIds) {
   const ids = [...new Set((produktIds || []).filter(Boolean))];
@@ -37,7 +43,8 @@ export function resolveSkriptCreatePayload(item, { produktIds = [] } = {}) {
     briefing,
     bereich: briefing?.bereich || null,
     branche_id: marke.branche_id || unternehmen.branche_id || null,
-    persona_id: eintrag?.persona_id || null,
+    // Konzept schlägt Casting: die Persona der Videoidee gilt, leer fällt auf den Casting-Eintrag zurück.
+    persona_id: personaIdFuerSkript(item),
     produkt_id: item?.produkt_id || pickProduktId(produktIds),
     strategie_item_id: item?.id || null,
     video_idee: (item?.beschreibung || '').trim() || null,

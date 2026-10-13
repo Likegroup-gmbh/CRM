@@ -6,7 +6,7 @@ import { skripteService } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
 import { buildFreigegebeneVideoideePickerOptions } from '../strategie/strategieItemPicker.js';
 import { buildReferenzVideoPayload } from './strategieVorlage.js';
-import { resolveSkriptCreatePayload, funnelWarnung } from './skriptCreateKontext.js';
+import { resolveSkriptCreatePayload, funnelWarnung, personaIdFuerSkript } from './skriptCreateKontext.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { truncateText } from '../strategie/strategieItemPicker.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
@@ -463,7 +463,7 @@ class SkriptCreateDrawer {
       const videoIdee = (item.beschreibung || '').trim();
       if (!videoIdee) throw new Error('Die Videoidee hat keine Beschreibung');
 
-      const personaId = item.casting_eintrag?.persona_id || null;
+      const personaId = personaIdFuerSkript(item);
       const produktIds = await skripteService.loadAcceptedProduktIds(personaId);
       const payload = {
         ...resolveSkriptCreatePayload(item, { produktIds }),

@@ -12,6 +12,7 @@ import { StrategieCreatorDrawer, removeStrategieCreatorDrawer } from './Strategi
 import { StrategieProduktDrawer, removeStrategieProduktDrawer } from './StrategieProduktDrawer.js';
 import { StrategieDetailColumnVisibilityDrawer } from './StrategieDetailColumnVisibilityDrawer.js';
 import { buildColumnContext } from './strategieColumns.js';
+import { loadStrategiePersonas, strategiePersonaOptions } from './strategiePersonaOptions.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
 import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
@@ -49,6 +50,7 @@ export class StrategieDetail {
     this._itemChannel = null;
     this.strategie = null;
     this.items = [];
+    this.personaById = new Map();
     this.draggedItem = null;
     this.isKunde = false;
     this.canEdit = false;
@@ -107,6 +109,7 @@ export class StrategieDetail {
     this.items = items;
     this.hiddenColumns = Array.isArray(strategie?.hidden_columns) ? strategie.hidden_columns : [];
     await this.customColumns.loadValues(this.items.map(i => i.id));
+    await this.loadPersonas();
     this._prepared = true;
   }
 
@@ -290,9 +293,21 @@ export class StrategieDetail {
     drawer.open();
   }
 
-  /** Default-Sichtbarkeit von Spalten, die vom Konzept abhaengen (Funnel-Stufe). */
+  /** Default-Sichtbarkeit von Spalten, die vom Konzept abhaengen (Funnel-Stufe, Persona). */
   columnContext() {
     return buildColumnContext(this.strategie, this.items);
+  }
+
+  /** Personas des Briefings und der gesetzten Videoideen. Kunden lesen sie nicht. */
+  async loadPersonas() {
+    this.personaById = this.isKunde
+      ? new Map()
+      : await loadStrategiePersonas(window.supabase, this.strategie, this.items);
+  }
+
+  /** Select-Optionen der Persona-Spalte fuer eine Videoidee. */
+  personaOptions(item = null) {
+    return strategiePersonaOptions(this.strategie?.briefing, this.personaById, item);
   }
 
   getTeilbereicheFromStrategie() {
@@ -473,7 +488,7 @@ export class StrategieDetail {
   openAddItemDrawer() {
     const teilbereiche = this.getTeilbereicheFromStrategie();
     const drawer = new AddItemDrawer();
-    drawer.open(this.strategie, teilbereiche);
+    drawer.open(this.strategie, teilbereiche, this.personaOptions());
   }
 
   bindEvents() {

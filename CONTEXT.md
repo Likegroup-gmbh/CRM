@@ -338,6 +338,10 @@ _Avoid_: Referenzvideo, verlinkte Videoidee
 Upper, Mid oder Lower Funnel an einer Videoidee, genau eine. Leer heißt, es ist keine Stufe vorgegeben. Das Briefing nennt die Stufen der Kampagne; die Stufe der Videoidee schlägt sie für das Skript, das Briefing wird dafür nicht gelesen. Das Team setzt sie, der Kunde sieht sie als Tag. Liky wählt sie bei Vorschlägen nur aus den Briefing-Stufen.
 _Avoid_: Funnel-Level, Awareness-Level, Tag (als Name der Eigenschaft)
 
+**Persona (am Konzept)**:
+Genau eine **Persona** an einer Videoidee, gewählt aus den Personas des Briefings der Linie. Leer heißt, die Videoidee nennt keine. Für das Skript ist sie die Quelle der Wahrheit: sie schlägt die Persona des Casting-Eintrags, bei leerer Persona gilt der Casting-Eintrag (Altbestand). Beim Anlegen wird sie ins Skript kopiert, eine spätere Änderung im Konzept gilt für neue Skripte. Nur das Team sieht und setzt sie, der Kunde nicht.
+_Avoid_: Zielgruppe (die Persona ist ein Typ Mensch, keine Zielgruppe)
+
 **Idee**:
 Videoidee ohne Videolink. Tab beim Hinzufügen, nicht das Konzept und nicht der Videoidee-Vorschlag.
 _Avoid_: Konzeptidee, Konzept

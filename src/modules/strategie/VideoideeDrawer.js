@@ -26,6 +26,7 @@ import {
   patchFields,
   patchPrio,
   patchFunnel,
+  patchPersona,
   patchStatus,
   refreshBlock
 } from './videoidee/videoideeSync.js';
@@ -341,6 +342,7 @@ function onTableRendered(detail) {
   }
   patchPrio(detail, panel, item);
   patchFunnel(detail, panel, item);
+  patchPersona(detail, panel, item);
   patchStatus(panel, item);
 }
 
