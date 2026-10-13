@@ -114,7 +114,8 @@ export class SkriptEditorChatActions {
         modus: modus || null,
         status: 'fertig'
       });
-      v.messages.push(userMsg);
+      // upsert statt push: das Realtime-INSERT kann vor dieser Antwort da sein
+      v.upsertMessage(userMsg);
 
       // inhalt der pending Message = User-Anweisung (wird von der Function
       // als Auftrag gelesen und mit der Modell-Antwort ueberschrieben)
@@ -130,7 +131,7 @@ export class SkriptEditorChatActions {
         status: 'pending',
         progress_steps: pendingThinking()
       });
-      v.messages.push(assistantMsg);
+      assistantMsg = v.upsertMessage(assistantMsg);
       v.renderChat({ forceScroll: true });
 
       v.ensurePolling();
@@ -177,7 +178,7 @@ export class SkriptEditorChatActions {
         await skripteService.updateChatMessage(msg.id, { status: 'abgelehnt' });
         msg.status = 'abgelehnt';
       }
-      const assistantMsg = await skripteService.createChatMessage({
+      const angelegt = await skripteService.createChatMessage({
         skript_id: v.skript.id,
         rolle: 'assistant',
         aktion: msg.aktion,
@@ -189,7 +190,7 @@ export class SkriptEditorChatActions {
         status: 'pending',
         progress_steps: pendingThinking()
       });
-      v.messages.push(assistantMsg);
+      const assistantMsg = v.upsertMessage(angelegt);
       v.renderChat({ forceScroll: true });
       v.ensurePolling();
       await this.triggerNachricht(msg.aktion, assistantMsg.id);
@@ -218,7 +219,11 @@ export class SkriptEditorChatActions {
       return;
     }
     const msg = v.messages.find((m) => m.id === messageId);
-    if (!msg) return;
+    if (!msg) {
+      // Button ohne Message im Verlauf: lokaler Stand ist veraltet
+      if (action === 'cancel') v.resync?.();
+      return;
+    }
 
     if (action === 'retry') {
       await this.retryMessage(msg);
@@ -227,14 +232,25 @@ export class SkriptEditorChatActions {
 
     // Abbruch einer pending/running Assistant-Message (der Auftrag)
     if (action === 'cancel') {
-      if (msg.status !== 'pending' && msg.status !== 'running') return;
+      if (msg.status !== 'pending' && msg.status !== 'running') {
+        // Nichts mehr zu stoppen: echten Stand aus der DB holen statt still nichts zu tun
+        v.resync?.();
+        return;
+      }
+      let abgebrochen = true;
       try {
-        await skriptAuftrag.brichNachrichtAb(msg.id);
+        abgebrochen = await skriptAuftrag.brichNachrichtAb(msg.id);
+      } catch (err) {
+        // DB-Update gescheitert: UI trotzdem loesen, Resync holt den echten Stand
+        window.toastSystem?.error(err.message);
+        v.resync?.();
+      }
+      if (abgebrochen) {
         msg.status = 'cancelled';
         v.renderChat();
-      } catch (err) {
-        window.toastSystem?.error(err.message);
       }
+      // false: Message war schon fertig, Resync zeigt das Ergebnis
+      if (!abgebrochen) v.resync?.();
       return;
     }
 

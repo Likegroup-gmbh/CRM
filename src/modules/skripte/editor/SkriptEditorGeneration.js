@@ -27,7 +27,7 @@ export class SkriptEditorGeneration {
   /** Neue Rueckfragen-Runde: pending Assistant-Message anlegen und Function triggern. */
   async startFragenRunde() {
     const v = this.view;
-    const assistantMsg = await skripteService.createChatMessage({
+    const angelegt = await skripteService.createChatMessage({
       skript_id: v.skript.id,
       rolle: 'assistant',
       aktion: 'rueckfrage',
@@ -35,7 +35,7 @@ export class SkriptEditorGeneration {
       status: 'pending',
       progress_steps: pendingThinking()
     });
-    v.messages.push(assistantMsg);
+    const assistantMsg = v.upsertMessage(angelegt);
     v.renderChat({ forceScroll: true });
     v.ensurePolling();
     try {

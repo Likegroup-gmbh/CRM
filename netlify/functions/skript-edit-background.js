@@ -8,7 +8,10 @@
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
-const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
+const {
+  beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen,
+  schreibeNachricht, markiereNachrichtFehler, sichereNachrichtAbgeschlossen
+} = require('./_shared/skript-auftrag');
 const { setThinking } = require('./_shared/thinking');
 const { istMasterDokument } = require('./_shared/skript-creator-facing');
 const { logPrompt } = require('./_shared/prompt-log');
@@ -81,13 +84,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   const { messageId } = payload;
   if (!messageId) return { statusCode: 400, body: 'messageId fehlt' };
 
-  const fail = async (msg) => {
-    await supabase.from('skript_chat_messages')
-      .update({ status: 'error', error_message: msg })
-      .eq('id', messageId);
-  };
+  // Fehler-Update mit Pruefung/Retry; ueberschreibt weder Abbruch noch fertiges Ergebnis
+  const fail = (msg) => markiereNachrichtFehler(supabase, messageId, msg);
 
   let ki = null;
+  let geclaimt = false;
 
   try {
     const { data: message } = await supabase.from('skript_chat_messages')
@@ -106,6 +107,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     // null und no-opt, statt Claude zweimal auf dieselbe Message zu rufen
     const claimed = await beansprucheNachricht(supabase, messageId);
     if (!claimed) return { statusCode: 409, body: 'Message bereits claimed oder beendet' };
+    geclaimt = true;
+    console.log(`[skript-edit ${messageId}] geclaimt (${message.aktion}/${message.sektion})`);
 
     // Frequenz-Limit pruefen + Protokoll-Zeile anlegen (Fehlermeldung
     // landet ueber den catch als error_message in der Chat-Message)
@@ -313,7 +316,10 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     // Hook-Sperre: der Mitarbeiter erfaehrt immer, dass der gesprochene Hook geblieben ist
     const antwortMitHinweis = mitHookHinweis(antwort, hookBetroffen);
 
-    await supabase.from('skript_chat_messages').update({
+    // Nur schreiben, solange die Message noch running ist: ein Abbruch waehrend
+    // der Nachbearbeitung gewinnt. Fehler werfen (-> catch -> error), statt still zu verpuffen.
+    console.log(`[skript-edit ${messageId}] schreibe Ergebnis`);
+    const geschrieben = await schreibeNachricht(supabase, messageId, {
       status: (aenderungen && aenderungen.length) || (vorschlag && sektion && sektion !== 'gesamt') ? 'vorschlag' : 'fertig',
       inhalt: ausgelassen
         ? [antwortMitHinweis, `${ausgelassen} festgezogene ${ausgelassen === 1 ? 'Zelle' : 'Zellen'} ausgelassen (nicht im Umfang).`].filter(Boolean).join(' ')
@@ -325,14 +331,20 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       selektion_text: sektion === 'titel' ? null : spalte.selektion_text,
       model: result.model,
       usage: result.usage
-    }).eq('id', messageId);
+    }, { nurWennStatus: 'running' });
+    console.log(`[skript-edit ${messageId}] Ergebnis ${geschrieben ? 'geschrieben' : 'verworfen (Message nicht mehr running)'}`);
 
     return { statusCode: 200 };
   } catch (error) {
     console.error(`[skript-edit ${messageId}] Fehler:`, error.message);
     if (ki) await ki.fehlgeschlagen(error);
-    try { await fail(error.message); } catch (_) { /* noop */ }
+    try { await fail(error.message); } catch (err) {
+      console.error(`[skript-edit ${messageId}] Fehlerstatus nicht gesetzt:`, err.message);
+    }
     return { statusCode: 500 };
+  } finally {
+    // Sicherheitsnetz: keine geclaimte Message bleibt auf running haengen
+    if (geclaimt) await sichereNachrichtAbgeschlossen(supabase, messageId);
   }
 });
 

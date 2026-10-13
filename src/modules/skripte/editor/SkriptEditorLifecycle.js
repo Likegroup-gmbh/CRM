@@ -256,6 +256,7 @@ SkriptEditorView.prototype.cleanup = async function() {
     clearInterval(this.pollInterval);
     this.pollInterval = null;
   }
+  this._realtime.destroy();
   this._feedback.destroy();
   this._koopDrawer?.destroy?.();
   this._koopDrawer = null;

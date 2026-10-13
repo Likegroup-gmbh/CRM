@@ -102,6 +102,7 @@ export class SkripteService {
       .select(`
         id, strategie_id, video_link, plattform, beschreibung, transkript_quelle,
         creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, nicht_umsetzen, skript_freigabe, funnel_stufe, persona_id,
+        videolaenge_von, videolaenge_bis,
         casting_eintrag:creator_auswahl_item_id(id, name, persona_id, creator_id, creator:creator_id(vorname, nachname)),
         strategie:strategie_id!inner(
           id, name, unternehmen_id, marke_id, kampagne_id, briefing_id,
@@ -165,7 +166,7 @@ export class SkripteService {
   async loadStrategieItem(id) {
     if (!id) return null;
     const { data, error } = await this.db.from('strategie_items')
-      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, funnel_stufe, persona_id')
+      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, funnel_stufe, persona_id, videolaenge_von, videolaenge_bis')
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -611,7 +612,8 @@ export class SkripteService {
    */
   async updateChatMessage(id, patch, { nurWennStatus } = {}) {
     let q = this.db.from('skript_chat_messages').update(patch).eq('id', id);
-    if (nurWennStatus) q = q.eq('status', nurWennStatus);
+    if (Array.isArray(nurWennStatus)) q = q.in('status', nurWennStatus);
+    else if (nurWennStatus) q = q.eq('status', nurWennStatus);
     const { data, error } = await q.select('id');
     if (error) throw new Error(error.message);
     return (data || []).length > 0;
@@ -623,7 +625,8 @@ export class SkripteService {
     return data;
   }
 
-  subscribeToChat(skriptId, onChange) {
+  /** onStatus: Channel-Status (SUBSCRIBED, CHANNEL_ERROR, TIMED_OUT, CLOSED) fuer Resync nach Luecken. */
+  subscribeToChat(skriptId, onChange, onStatus) {
     return this.db
       .channel(`skript-chat-${skriptId}`)
       .on('postgres_changes', {
@@ -632,7 +635,7 @@ export class SkripteService {
         table: 'skript_chat_messages',
         filter: `skript_id=eq.${skriptId}`
       }, (payload) => onChange(payload.new, payload.eventType))
-      .subscribe();
+      .subscribe(onStatus ? (status) => onStatus(status) : undefined);
   }
 
   // ------------------------------------------------------------------

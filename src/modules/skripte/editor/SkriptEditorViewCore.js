@@ -15,6 +15,7 @@ import { SkriptEditorVersionen } from './SkriptEditorVersionen.js';
 import { SkriptEditorVisuell } from './SkriptEditorVisuell.js';
 import { SkriptEditorRealtime } from './SkriptEditorRealtime.js';
 import { SkriptFeedbackPanel } from './SkriptFeedbackPanel.js';
+import { upsertById } from './skriptEditorMessages.js';
 
 export class SkriptEditorView {
   constructor(page) {
@@ -186,6 +187,11 @@ export class SkriptEditorView {
   openVisuellModusMenu(btn) { return this._visuell.openModusMenu(btn); }
   applyVisuellVorschlag(msg) { return this._visuell.applyVisuellVorschlag(msg); }
   applyOffeneVisuellvorschlaege() { return this._visuell.applyOffene(); }
+
+  /** Message in die Liste legen; doppelte ids (Realtime vs. Insert-Antwort) entstehen nie. */
+  upsertMessage(row) { return upsertById(this.messages, row); }
+  /** Lokalen Chat-Stand aus der DB abgleichen (heilt Geister und verpasste Events). */
+  resync() { return this._realtime.resync(); }
 
   subscribe() { this._realtime.subscribe(); }
   ensurePolling() { this._realtime.ensurePolling(); }

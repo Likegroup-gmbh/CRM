@@ -15,7 +15,10 @@ const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-mast
 const { vertragBlock } = require('./_shared/skript-vertrag');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
-const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
+const {
+  beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen,
+  schreibeNachricht, markiereNachrichtFehler, sichereNachrichtAbgeschlossen
+} = require('./_shared/skript-auftrag');
 const { setThinking } = require('./_shared/thinking');
 const { verlaufZuMessages } = require('./_shared/chat-verlauf');
 const { logPrompt } = require('./_shared/prompt-log');
@@ -141,13 +144,11 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
   const { messageId } = payload;
   if (!messageId) return { statusCode: 400, body: 'messageId fehlt' };
 
-  const fail = async (msg) => {
-    await supabase.from('skript_chat_messages')
-      .update({ status: 'error', error_message: msg })
-      .eq('id', messageId);
-  };
+  // Fehler-Update mit Pruefung/Retry; ueberschreibt weder Abbruch noch fertiges Ergebnis
+  const fail = (msg) => markiereNachrichtFehler(supabase, messageId, msg);
 
   let ki = null;
+  let geclaimt = false;
 
   try {
     const { data: message } = await supabase.from('skript_chat_messages')
@@ -166,6 +167,8 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
     // null und no-opt, statt Claude zweimal auf dieselbe Message zu rufen
     const claimed = await beansprucheNachricht(supabase, messageId);
     if (!claimed) return { statusCode: 409, body: 'Message bereits claimed oder beendet' };
+    geclaimt = true;
+    console.log(`[skript-fragen ${messageId}] geclaimt`);
 
     // Frequenz-Limit pruefen + Protokoll-Zeile anlegen (Fehlermeldung
     // landet ueber den catch als error_message in der Chat-Message)
@@ -235,20 +238,27 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
 
     const parsed = result.json || extractJson(result.text, { keys: ['nachricht', 'fertig'] });
 
-    await supabase.from('skript_chat_messages').update({
+    // Nur solange running: ein Abbruch gewinnt. Fehler werfen (-> catch -> error).
+    const geschrieben = await schreibeNachricht(supabase, messageId, {
       // 'vorschlag' = alles geklaert, UI zeigt "Skript jetzt generieren"
       status: parsed.fertig === true ? 'vorschlag' : 'fertig',
       inhalt: (parsed.nachricht || '').trim() || null,
       model: result.model,
       usage: result.usage
-    }).eq('id', messageId);
+    }, { nurWennStatus: 'running' });
+    console.log(`[skript-fragen ${messageId}] Ergebnis ${geschrieben ? 'geschrieben' : 'verworfen (Message nicht mehr running)'}`);
 
     return { statusCode: 200 };
   } catch (error) {
     console.error(`[skript-fragen ${messageId}] Fehler:`, error.message);
     if (ki) await ki.fehlgeschlagen(error);
-    try { await fail(error.message); } catch (_) { /* noop */ }
+    try { await fail(error.message); } catch (err) {
+      console.error(`[skript-fragen ${messageId}] Fehlerstatus nicht gesetzt:`, err.message);
+    }
     return { statusCode: 500 };
+  } finally {
+    // Sicherheitsnetz: keine geclaimte Message bleibt auf running haengen
+    if (geclaimt) await sichereNachrichtAbgeschlossen(supabase, messageId);
   }
 }
 

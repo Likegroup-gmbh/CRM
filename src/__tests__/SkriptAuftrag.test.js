@@ -150,7 +150,7 @@ describe('SkriptAuftrag.starteVonNachricht', () => {
     expect(service.updateChatMessage).toHaveBeenCalledWith('m1', {
       status: 'cancelled',
       error_message: 'Vom Nutzer abgebrochen'
-    });
+    }, { nurWennStatus: ['pending', 'running'] });
   });
 });
 
@@ -172,6 +172,18 @@ describe('SkriptAuftrag Abbruch', () => {
     expect(service.updateChatMessage).toHaveBeenCalledWith('m1', {
       status: 'cancelled',
       error_message: 'Vom Nutzer abgebrochen'
-    });
+    }, { nurWennStatus: ['pending', 'running'] });
+  });
+
+  it('brichNachrichtAb: schon fertige Message wird nicht ueberschrieben (false)', async () => {
+    const service = makeService({ updateChatMessage: vi.fn(async () => false) });
+    const auftrag = new SkriptAuftrag(service);
+    await expect(auftrag.brichNachrichtAb('m1')).resolves.toBe(false);
+  });
+
+  it('brichNachrichtAb: erfolgreicher Abbruch liefert true', async () => {
+    const service = makeService({ updateChatMessage: vi.fn(async () => true) });
+    const auftrag = new SkriptAuftrag(service);
+    await expect(auftrag.brichNachrichtAb('m1')).resolves.toBe(true);
   });
 });

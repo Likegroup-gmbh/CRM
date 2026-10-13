@@ -10,6 +10,7 @@ import {
   chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
 } from './SkriptEditorChatRenderer.js';
 import { istVeraltet } from './skriptEditorVeraltet.js';
+import { laufendeMessages } from './skriptEditorMessages.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
 
 const MSG_TEXT_SEL = '.skripte-editor-msg-text, .skripte-editor-vorschlag-text';
@@ -138,9 +139,8 @@ SkriptEditorView.prototype.setLikyOffen = function(offen, { persist = true } = {
 /** Punkt am Header-Icon, solange Liky arbeitet oder ein Vorschlag offen ist. */
 SkriptEditorView.prototype.updateLikyDot = function() {
   if (!this._likyShell) return;
-  const aktiv = this.messages.some(
-    (m) => m.status === 'pending' || m.status === 'running' || m.status === 'vorschlag'
-  );
+  const aktiv = laufendeMessages(this.messages).length > 0
+    || this.messages.some((m) => m.status === 'vorschlag');
   this._likyShell.setDot(aktiv);
 };
 
@@ -291,9 +291,9 @@ SkriptEditorView.prototype.setChatInputAktiv = function(aktiv) {
 
 /** Laeuft gerade ein Auftrag (Chat/Fragen/Visuell-Message oder Generierung)? */
 SkriptEditorView.prototype.likyLaeuft = function() {
-  return Boolean(this.genStatus?.laeuft)
-    || this.messages.some((m) => m.rolle === 'assistant'
-      && (m.status === 'pending' || m.status === 'running'));
+  // Nur eindeutige, nicht abgelaufene Auftraege: Geister-Kopien und tote
+  // Messages sperren die Eingabe nie
+  return Boolean(this.genStatus?.laeuft) || laufendeMessages(this.messages).length > 0;
 };
 
 /** Send-Button: idle = Pfeil, busy = Stopp-Icon (klickbar, Klick bricht ab). */
@@ -313,7 +313,7 @@ SkriptEditorView.prototype.stopLikyLauf = async function() {
     await this.brichGenerationAb();
     return;
   }
-  const offen = [...this.messages].reverse().find((m) => m.rolle === 'assistant'
-    && (m.status === 'pending' || m.status === 'running'));
+  const offen = [...laufendeMessages(this.messages)].reverse()[0];
   if (offen) await this.handleMessageAction('cancel', offen.id);
+  else await this.resync();
 };

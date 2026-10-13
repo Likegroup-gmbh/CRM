@@ -7,6 +7,7 @@ import { escapeHtml, badge } from '../SkripteUtils.js';
 import { AKTION_LABELS, AKTION_ICONS } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
 import { thinkingHtml } from '../../../core/chat/thinking.js';
+import { istAbgelaufen, istLangsam, ablaufFehlertext } from './skriptEditorMessages.js';
 
 const LIKY_HEAD = `
   <div class="skripte-editor-msg-head">
@@ -84,12 +85,31 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false, vera
   // Assistant ("Liky")
   const tag = aktionTagHtml(m);
 
+  // Abgelaufen (Invoke verloren / Function tot): sofort als Fehler mit Retry
+  // zeigen, ohne auf Watchdog und DB-Event zu warten
+  if (istAbgelaufen(m)) {
+    return `
+      <div class="skripte-editor-msg skripte-editor-msg--assistant" data-msg-row="${m.id}">
+        ${LIKY_HEAD}
+        ${tag}
+        <div class="skripte-editor-msg-error">Fehler: ${escapeHtml(ablaufFehlertext(m))}</div>
+        <div class="skripte-editor-msg-actions">
+          <button class="skripte-editor-pill-btn" data-msg-action="retry" data-msg-id="${m.id}">Nochmal versuchen</button>
+        </div>
+      </div>
+    `;
+  }
+
   if (m.status === 'pending' || m.status === 'running') {
+    const langsam = istLangsam(m)
+      ? '<p class="skripte-hint">Das dauert länger als üblich – du kannst abbrechen oder noch kurz warten.</p>'
+      : '';
     return `
       <div class="skripte-editor-msg skripte-editor-msg--assistant" data-msg-row="${m.id}">
         ${LIKY_HEAD}
         ${tag}
         ${thinkingHtml(m.progress_steps)}
+        ${langsam}
         <div class="skripte-editor-msg-actions">
           <button class="skripte-editor-pill-btn" data-msg-action="cancel" data-msg-id="${m.id}">Abbrechen</button>
         </div>
