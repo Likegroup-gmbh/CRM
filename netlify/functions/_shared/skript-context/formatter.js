@@ -170,7 +170,71 @@ function claimListe(raw) {
   return String(raw || '').split(/[\n,;]+/).map((s) => s.trim()).filter((s) => s.length >= 4);
 }
 
-function pruefeSkript(felder, { video_laenge, verbotene_claims } = {}) {
+/**
+ * Obergrenze des Hooks in Sekunden aus dem Briefing-Feld hook_vorgaben:
+ * "Hook (0–3 Sek.)", "innerhalb der ersten 3 Sekunden", "in Sekunde 1-3".
+ */
+function hookSekundenMax(hookVorgaben) {
+  const t = String(hookVorgaben || '');
+  const muster = [
+    /hook\s*\(\s*\d+\s*[–-]\s*(\d+)\s*sek/i,
+    /ersten\s+(?:\d+\s*[–-]\s*)?(\d+)\s+sekunden/i,
+    /sekunden?\s+\d+\s*[–-]\s*(\d+)/i
+  ];
+  for (const re of muster) {
+    const m = t.match(re);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return null;
+}
+
+// Toleranz: ein Hook darf eine Sekunde ueber der Vorgabe liegen, bevor er markiert wird
+const HOOK_TOLERANZ_SEK = 1;
+
+function pruefeHookZeit(hook, hookVorgaben) {
+  const max = hookSekundenMax(hookVorgaben);
+  if (!max || !String(hook || '').trim()) return null;
+  const sekunden = Math.round(zaehleWoerter(hook) / WOERTER_PRO_SEKUNDE);
+  return { sekunden, max, status: sekunden > max + HOOK_TOLERANZ_SEK ? 'ueber' : 'ok' };
+}
+
+const DOPPEL_WORTE = 5;
+const ZELLEN = ['hook', 'hauptteil', 'cta'];
+
+function normWorte(text) {
+  return String(text || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+}
+
+function saetze(text) {
+  return String(text || '').split(/(?<=[.!?…])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
+}
+
+function schindeln(worte) {
+  const set = new Set();
+  for (let i = 0; i + DOPPEL_WORTE <= worte.length; i++) set.add(worte.slice(i, i + DOPPEL_WORTE).join(' '));
+  return set;
+}
+
+/** Saetze, die (ab fuenf Woertern am Stueck) in zwei Zellen stehen. */
+function findeDoppelungen(felder) {
+  const sets = ZELLEN.map((z) => schindeln(normWorte(felder?.[z])));
+  const treffer = [];
+  for (let a = 0; a < ZELLEN.length; a++) {
+    for (let b = a + 1; b < ZELLEN.length; b++) {
+      for (const satz of saetze(felder?.[ZELLEN[a]])) {
+        const eigene = schindeln(normWorte(satz));
+        if ([...eigene].some((s) => sets[b].has(s))) treffer.push({ satz, zellen: [ZELLEN[a], ZELLEN[b]] });
+      }
+    }
+  }
+  return treffer;
+}
+
+/** Nur markieren (ADR 0035): Laenge, verbotene Claims, Hook-Zeit, Satz-Doppelung. Schreibt nichts um. */
+function pruefeSkript(felder, { video_laenge, verbotene_claims, hook_vorgaben } = {}) {
   const budget = wortBudget(video_laenge);
   const worte = zaehleWoerter(felder?.hook) + zaehleWoerter(felder?.hauptteil) + zaehleWoerter(felder?.cta);
   let laenge = null;
@@ -182,7 +246,56 @@ function pruefeSkript(felder, { video_laenge, verbotene_claims } = {}) {
   }
   const hay = [felder?.hook, felder?.hauptteil, felder?.cta].filter(Boolean).join('\n').toLowerCase();
   const claims = claimListe(verbotene_claims).filter((c) => hay.includes(c.toLowerCase()));
-  return { laenge, claims };
+  return {
+    laenge,
+    claims,
+    hook_zeit: pruefeHookZeit(felder?.hook, hook_vorgaben),
+    doppelungen: findeDoppelungen(felder)
+  };
+}
+
+function laengeAbstand(l) {
+  if (!l || l.status === 'ok') return 0;
+  return l.status === 'ueber' ? l.worte - l.max : l.min - l.worte;
+}
+
+/** Nur was ein Vorschlag neu einfuehrt oder verschlimmert; bestehende Befunde nicht wiederholen. */
+function neueBefunde(vorher, nachher) {
+  if (!nachher) return null;
+  const v = vorher || {};
+  const doppelKey = (d) => `${d.zellen.join('/')}:${d.satz}`;
+  const alteDoppel = new Set((v.doppelungen || []).map(doppelKey));
+  return {
+    laenge: laengeAbstand(nachher.laenge) > laengeAbstand(v.laenge) ? nachher.laenge : null,
+    hook_zeit: nachher.hook_zeit?.status === 'ueber'
+      && (v.hook_zeit?.status !== 'ueber' || nachher.hook_zeit.sekunden > v.hook_zeit.sekunden)
+      ? nachher.hook_zeit : null,
+    claims: (nachher.claims || []).filter((c) => !(v.claims || []).includes(c)),
+    doppelungen: (nachher.doppelungen || []).filter((d) => !alteDoppel.has(doppelKey(d)))
+  };
+}
+
+const ZELLE_LABEL = { hook: 'Hook', hauptteil: 'Hauptteil', cta: 'CTA' };
+
+/** Kurzer Hinweistext aus einem Pruefergebnis; leer, wenn alles passt. */
+function pruefHinweis(p) {
+  if (!p) return '';
+  const teile = [];
+  if (p.laenge && p.laenge.status && p.laenge.status !== 'ok') {
+    const richtung = p.laenge.status === 'ueber' ? 'darüber' : 'darunter';
+    teile.push(`${p.laenge.worte} Wörter, ${richtung} von ${p.laenge.min}–${p.laenge.max}.`);
+  }
+  if (p.hook_zeit?.status === 'ueber') {
+    teile.push(`Hook ca. ${p.hook_zeit.sekunden} Sek., Vorgabe bis ${p.hook_zeit.max} Sek.`);
+  }
+  if (Array.isArray(p.claims) && p.claims.length) {
+    teile.push(`Verbotene Claims: ${p.claims.join(', ')}.`);
+  }
+  for (const d of (p.doppelungen || []).slice(0, 2)) {
+    const [a, b] = d.zellen.map((z) => ZELLE_LABEL[z] || z);
+    teile.push(`Steht doppelt in ${a} und ${b}: „${d.satz}“`);
+  }
+  return teile.join(' ');
 }
 
 // ---------------------------------------------------------------------------
@@ -204,6 +317,7 @@ function kuerzeTranskript(text, max = REFERENZ_TRANSKRIPT_MAX) {
 module.exports = {
   fmtSection, fmtSkript, fmtVarianten, produktPreis,
   videoLaengeHinweis, wortBudget, zaehleWoerter, stempelSekunden, pruefeSkript, WOERTER_PRO_SEKUNDE,
+  hookSekundenMax, findeDoppelungen, pruefHinweis, neueBefunde,
   kuerzeTranskript, REFERENZ_TRANSKRIPT_MAX,
   cap, KONTEXT_MAX
 };

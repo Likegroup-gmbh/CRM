@@ -28,6 +28,12 @@ export function matchesKampagne(item, kampagneId) {
   return item.kampagne_id === kampagneId;
 }
 
+/** Linie = Briefing. null trifft Skripte ohne Briefing (Altbestand). */
+export function matchesLinie(item, briefingId) {
+  if (briefingId == null) return !item.briefing_id;
+  return item.briefing_id === briefingId;
+}
+
 export function scopedByUnternehmen(items, unternehmenId) {
   return items.filter((item) => item.unternehmen_id === unternehmenId);
 }

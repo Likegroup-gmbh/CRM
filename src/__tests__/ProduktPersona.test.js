@@ -10,7 +10,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import produktPersona from '../../netlify/functions/_shared/produkt-persona.js';
-import { UNISEX_VORNMEN } from '../../netlify/functions/_shared/unisex-vornamen.js';
+import {
+  UNISEX_VORNMEN, passtNameZu, jahrgangFuerAlter, passendeNamen
+} from '../../netlify/functions/_shared/unisex-vornamen.js';
 import { ProduktPersonaService } from '../modules/produkt/ProduktPersonaService.js';
 import { PersonaService } from '../modules/persona/PersonaService.js';
 import { ProduktPersonaPanel } from '../modules/produkt/ProduktPersonaPanel.js';
@@ -200,6 +202,81 @@ describe('validateVorschlaege (Quality-Mix)', () => {
     expect(treffer.vorschlaege[0].persona.geschlecht).toBe('Gemischt');
   });
 
+  it('Unisex-Name muss zu Register und Alter passen', () => {
+    const roh = (persona) => validateVorschlaege({
+      vorschlaege: [{ typ: 'neu', persona, fit_grund: 'x', use_case_indices: [0] }]
+    }, { useCaseCount: 1, unisexNamen: true });
+
+    // Kim: klassisch-bodenstaendig, mittel
+    expect(roh({ name: 'Kim', namensregister: 'klassisch-bodenständig', alter_von: 35, alter_bis: 45 }).vorschlaege)
+      .toHaveLength(1);
+
+    const falschesRegister = roh({ name: 'Kim', namensregister: 'modern-urban', alter_von: 35, alter_bis: 45 });
+    expect(falschesRegister.vorschlaege).toHaveLength(0);
+    expect(falschesRegister.verworfen[0]).toMatchObject({
+      grund: 'Name passt nicht zum Register', vorschlag: 'Kim', register: 'modern-urban', alter_von: 35, alter_bis: 45
+    });
+
+    // Luka ist nur jung: bei 58 bis 64 verworfen
+    const zuAlt = roh({ name: 'Luka', namensregister: 'modern-urban', alter_von: 58, alter_bis: 64 });
+    expect(zuAlt.verworfen[0].grund).toBe('Name passt nicht zum Alter');
+
+    // Spanne ueber zwei Jahrgaenge: ein passender reicht (Luca: jung, mittel)
+    expect(roh({ name: 'Luca', namensregister: 'modern-urban', alter_von: 26, alter_bis: 36 }).vorschlaege)
+      .toHaveLength(1);
+
+    // ohne Alter und Register keine Pruefung
+    expect(roh({ name: 'Luka' }).vorschlaege).toHaveLength(1);
+  });
+
+  it('namensregister wird nicht in die Persona gespeichert', () => {
+    const out = validateVorschlaege({
+      vorschlaege: [{
+        typ: 'neu',
+        persona: { name: 'Kim', namensregister: 'klassisch-bodenständig', alter_von: 40, alter_bis: 45 },
+        fit_grund: 'x',
+        use_case_indices: [0]
+      }]
+    }, { useCaseCount: 1, unisexNamen: true });
+    expect(out.vorschlaege[0].persona.namensregister).toBeUndefined();
+  });
+
+  it('Alter und Register stehen im Schema vor dem Namen', () => {
+    const tool = personaTool({ unisexNamen: true, namen: ['Lou'] });
+    const persona = tool.input_schema.properties.vorschlaege.items.properties.persona;
+    const keys = Object.keys(persona.properties);
+    expect(keys.indexOf('alter_von')).toBeLessThan(keys.indexOf('name'));
+    expect(keys.indexOf('alter_bis')).toBeLessThan(keys.indexOf('name'));
+    expect(keys.indexOf('namensregister')).toBeLessThan(keys.indexOf('name'));
+    expect(persona.required).toEqual(['namensregister', 'name']);
+  });
+
+  it('Namensliste: alle Namen getaggt, eindeutig, die bisherigen 19 sind drin', () => {
+    expect(UNISEX_VORNMEN.length).toBeGreaterThanOrEqual(55);
+    expect(new Set(UNISEX_VORNMEN.map((n) => n.toLowerCase())).size).toBe(UNISEX_VORNMEN.length);
+    for (const alt of ['Luca', 'Luka', 'Alex', 'Kim', 'Lou', 'Robin', 'Toni', 'Mika', 'Sascha', 'Eike',
+      'Dominique', 'Elia', 'Sam', 'Jamie', 'Kris', 'Charly', 'Micha', 'Noa', 'Lio']) {
+      expect(UNISEX_VORNMEN).toContain(alt);
+    }
+    expect(passtNameZu('Alex', { register: 'modern-urban', alterVon: 60, alterBis: 70 }).ok).toBe(true);
+    expect(passtNameZu('Lena').ok).toBe(false);
+    expect(jahrgangFuerAlter(30)).toBe('jung');
+    expect(jahrgangFuerAlter(31)).toBe('mittel');
+    expect(jahrgangFuerAlter(51)).toBe('aelter');
+    expect(jahrgangFuerAlter(null)).toBeNull();
+  });
+
+  it('Korrektur-Liste: passend zu Register und Alter, sonst nur Alter, sonst alle', () => {
+    const frei = ['Luka', 'Kim', 'Sam', 'Chris'];
+    expect(passendeNamen(frei, { register: 'klassisch-bodenständig', alterVon: 40, alterBis: 45 }))
+      .toEqual(['Kim', 'Chris']);
+    // Register ohne Treffer: nur Alter zaehlt
+    expect(passendeNamen(frei, { register: 'nordisch/international', alterVon: 55, alterBis: 60 }))
+      .toEqual(['Chris']);
+    // nichts passt: alle freien
+    expect(passendeNamen(['Luka'], { alterVon: 60, alterBis: 65 })).toEqual(['Luka']);
+  });
+
   it('ohne Unisex-Flag bleibt ein geschlechtlicher Name gueltig', () => {
     const out = validateVorschlaege({
       vorschlaege: [
@@ -314,13 +391,17 @@ describe('buildPrompt', () => {
 
     const weitere = buildPrompt({ ...input, modus: 'weitere' }, { pool: [], poolQuelle: 'leer' });
     expect(weitere.task).toContain('GENAU EINE weitere neue Persona');
-    expect(weitere.task).not.toContain(UNISEX_VORNMEN.join(', '));
+    expect(weitere.task).toContain('nur Orientierung');
+    expect(weitere.task).toContain('auch geschlechtlich');
     expect(weitere.task).not.toContain('geschlecht ist "Gemischt"');
   });
 
   it('Startrun und Karten-Ersatz verlangen Unisex-Namen und Gemischt', () => {
     const { task } = buildPrompt(input, { pool: [], poolQuelle: 'leer' });
-    expect(task).toContain(UNISEX_VORNMEN.join(', '));
+    // Namen nach Register gruppiert, mit Jahrgaengen
+    expect(task).toContain('- modern-urban: Alex (jung/mittel/aelter)');
+    for (const name of UNISEX_VORNMEN) expect(task).toContain(name);
+    expect(task).toContain('erst alter_von und alter_bis, dann namensregister');
     expect(task).toContain('geschlecht ist "Gemischt"');
     expect(task).toContain('House-Style gilt fuer den Vornamen nicht');
 
@@ -328,7 +409,7 @@ describe('buildPrompt', () => {
       { ...input, modus: 'karte', ersetzteKarte: { typ: 'neu', name: 'Lena' } },
       { pool: [], poolQuelle: 'leer' }
     );
-    expect(karte.task).toContain(UNISEX_VORNMEN.join(', '));
+    for (const name of UNISEX_VORNMEN) expect(karte.task).toContain(name);
     expect(karte.task).toContain('geschlecht ist "Gemischt"');
     expect(karte.task).toContain('nicht enger');
     expect(karte.task).toContain('Diesen Vornamen nicht wiederverwenden: Lena');
@@ -345,9 +426,40 @@ describe('buildPrompt', () => {
       { ...input, modus: 'karte', ersetzteKarte: { typ: 'neu', name: 'Sam' } },
       { pool: [{ id: 'p1', name: 'Luca' }], poolQuelle: 'marke' }
     );
-    expect(task).not.toContain('Luca,');
+    expect(task).not.toMatch(/\bLuca \((jung|mittel|aelter)/);
     expect(task).toContain('Diesen Vornamen nicht wiederverwenden: Sam');
-    expect(task).not.toMatch(/Schreibweise:.*\bSam\b/);
+    expect(task).not.toMatch(/\bSam \((jung|mittel|aelter)/);
+  });
+
+  it('Namen aktiver Karten fehlen in der Liste, sind sie alle belegt, fallen Pool-Namen zurueck', () => {
+    const ohneKarte = gefilterteUnisexNamen({ belegteNamen: ['Alex', 'sam'] });
+    expect(ohneKarte).not.toContain('Alex');
+    expect(ohneKarte).not.toContain('Sam');
+
+    const { task } = buildPrompt(
+      { ...input, behalten: [{ typ: 'neu', name: 'Alex' }] },
+      { pool: [], poolQuelle: 'leer' }
+    );
+    expect(task).not.toMatch(/\bAlex \((jung|mittel|aelter)/);
+
+    const alleBelegt = gefilterteUnisexNamen({ poolNamen: UNISEX_VORNMEN, verworfenerName: 'Kim' });
+    expect(alleBelegt).toContain('Alex');
+    expect(alleBelegt).not.toContain('Kim');
+  });
+
+  it('Briefing geht nur als Namensquelle in den Prompt, nicht in andere Felder', () => {
+    const mit = buildPrompt(
+      { ...input, briefingText: '\n# CAMPAIGN-BRIEFING\n- Creator-Aufgabe: Skater-Look, rau, laut\n' },
+      { pool: [], poolQuelle: 'leer' }
+    );
+    expect(mit.task).toContain('BRIEFING DER LINIE (nur fuer die Namenswahl)');
+    expect(mit.task).toContain('Skater-Look');
+    expect(mit.task).toContain('AUSSCHLIESSLICH den Vornamen');
+    expect(mit.task).toContain('aus dem Briefing der Linie');
+
+    const ohne = buildPrompt(input, { pool: [], poolQuelle: 'leer' });
+    expect(ohne.task).not.toContain('BRIEFING DER LINIE');
+    expect(ohne.task).toContain('aus Produkt und Marke');
   });
 
   it('Karten-Modus ersetzt durch eine neue Persona, ohne Pool-Match', () => {
@@ -914,6 +1026,20 @@ describe('ProduktPersonaPanel', () => {
     const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
     expect(input.modus).toBe('initial');
     expect(input.anzahlZiel).toBe(1);
+  });
+
+  it('Kontext-Briefing geht als briefing_id in den Job, ohne Briefing null', async () => {
+    form = mountPanel();
+    panel = await startePanel(form, { briefingId: 'b-linie' });
+    panel.regenAlle();
+    await tick();
+    expect(ProduktPersonaService.starteJob.mock.calls[0][0].input.briefing_id).toBe('b-linie');
+
+    vi.clearAllMocks();
+    panel = await startePanel(mountPanel());
+    panel.regenAlle();
+    await tick();
+    expect(ProduktPersonaService.starteJob.mock.calls[0][0].input.briefing_id).toBeNull();
   });
 
   it('Weitere legt eine Karte dazu, ohne pending Matches zu loeschen', async () => {

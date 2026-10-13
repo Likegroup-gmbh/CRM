@@ -9,6 +9,7 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { cssEscape, fieldSignature, syncCustomPeer } from './videoideeFieldSync.js';
 import {
   DRAWER_ID,
+  contentEditable,
   itemTitle,
   renderBody,
   renderVorschlagActions,
@@ -17,6 +18,7 @@ import {
 import {
   analysiereBeschreibungAktion,
   commitControl,
+  commitKategorie,
   commitFocused,
   toggleHookSperreAktion
 } from './videoidee/videoideeCommit.js';
@@ -26,10 +28,15 @@ import {
   patchFields,
   patchPrio,
   patchFunnel,
+  patchKategorie,
+  patchVideolaenge,
   patchPersona,
   patchStatus,
   refreshBlock
 } from './videoidee/videoideeSync.js';
+import { handleVideolaengeChange } from './StrategieDetailTableEvents.js';
+import { getStrategieVideolaenge } from './strategieVideolaenge.js';
+import { bindSekundenSpanne, setSekundenSpanne } from '../../core/components/SekundenSpanne.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 /** Was der Autosave vom Drawer braucht, ohne ihn zu importieren. */
@@ -174,6 +181,18 @@ function bindKeys() {
   document.addEventListener('videoidee-table-rendered', () => {
     if (openDetail) onTableRendered(openDetail);
   }, { signal: keyAbort.signal });
+  // Das Optionspanel rendert als Portal an body, deshalb haengt der Listener an document.
+  document.addEventListener('table-select-change', (e) => {
+    const { field, itemId, value, element } = e.detail || {};
+    if (field !== 'strategie_kategorie' || !element?.closest(`#${DRAWER_ID}`)) return;
+    const detail = openDetail;
+    const item = detail?.items?.find((entry) => String(entry.id) === String(itemId));
+    if (!item || !contentEditable(detail, item)) return;
+    void commitKategorie(detail, itemId, value, COMMIT_HOOKS).then(() => {
+      const panel = document.getElementById(DRAWER_ID);
+      if (panel && openDetail === detail) patchKategorie(detail, panel, item);
+    });
+  }, { signal: keyAbort.signal });
   document.addEventListener('keydown', (e) => {
     if (!document.getElementById(DRAWER_ID)) return;
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -237,6 +256,8 @@ function bindDrawer(detail, panel) {
     }
   });
 
+  bindDauer(detail, panel);
+
   const urlInput = panel.querySelector('[data-field="video_link"]');
   urlInput?.addEventListener('input', () => {
     const block = panel.querySelector('[data-videoidee-section="umsetzungsvorgabe"]');
@@ -254,6 +275,22 @@ function bindDrawer(detail, panel) {
     panel.dataset.dateBound = '1';
     panel._dateCleanup = CustomDatePicker.bind(panel) || null;
   }
+}
+
+/** Dauer-Slider: wie im Briefing, gespeichert wird nach jedem abgeschlossenen Zug. */
+function bindDauer(detail, panel) {
+  panel.querySelectorAll('[data-sekunden-spanne]').forEach((root) => {
+    const itemId = root.dataset.itemId || panel.dataset.itemId;
+    bindSekundenSpanne(root, {
+      onCommit: async (iv) => {
+        const ok = await handleVideolaengeChange(detail, itemId, iv);
+        if (ok) return;
+        // Nicht gespeichert (Fehler, kein Recht): Slider auf den gespeicherten Stand zurueck.
+        const item = detail.items?.find((entry) => String(entry.id) === String(itemId));
+        setSekundenSpanne(root, getStrategieVideolaenge(item), { forceInputs: true });
+      }
+    });
+  });
 }
 
 function bindCustom(detail, panel) {
@@ -341,7 +378,10 @@ function onTableRendered(detail) {
     refreshBlock(detail, item.id, 'produkt');
   }
   patchPrio(detail, panel, item);
+  patchKategorie(detail, panel, item);
   patchFunnel(detail, panel, item);
+  patchVideolaenge(detail, panel, item);
+  bindDauer(detail, panel);
   patchPersona(detail, panel, item);
   patchStatus(panel, item);
 }

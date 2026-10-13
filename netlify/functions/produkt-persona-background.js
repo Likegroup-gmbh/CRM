@@ -24,6 +24,27 @@ const {
   loadPoolPersonas,
   validateVorschlaege
 } = require('./_shared/produkt-persona');
+const { passendeNamen } = require('./_shared/unisex-vornamen');
+const { fmtCampaignBriefing } = require('./_shared/skript-context/briefing-felder');
+
+/**
+ * Briefing der Linie als Prompt-Text (gespeicherter Stand, auch Entwurf).
+ * Nur fuer die Namenswahl. Fehlt es, gehoert es einem anderen Unternehmen oder
+ * schlaegt das Laden fehl, bleibt der Text leer: Produkt und Marke tragen dann allein.
+ */
+async function ladeBriefingText(supabase, briefingId, unternehmenId) {
+  if (!briefingId) return '';
+  try {
+    const { data, error } = await supabase.from('campaign_briefings')
+      .select('*').eq('id', briefingId).maybeSingle();
+    if (error || !data) return '';
+    if (unternehmenId && data.unternehmen_id && data.unternehmen_id !== unternehmenId) return '';
+    return fmtCampaignBriefing(data).trim();
+  } catch (e) {
+    console.warn(`⚠️ produkt-persona-background: Briefing ${briefingId} nicht lesbar: ${e.message}`);
+    return '';
+  }
+}
 
 function usageZusammen(a, b) {
   if (!b) return a || null;
@@ -141,9 +162,11 @@ exports.handler = async (event) => {
     const verworfenerName = input.ersetzteKarte?.name || null;
     const erlaubteNamen = gefilterteUnisexNamen({
       poolNamen: matchPool.map((p) => p.name),
+      belegteNamen: (input.behalten || []).map((b) => b?.name),
       verworfenerName
     });
-    const { stable, task } = buildPrompt(input, { pool: matchPool, poolQuelle: quelle });
+    const briefingText = await ladeBriefingText(supabase, input.briefing_id, job.unternehmen_id);
+    const { stable, task } = buildPrompt({ ...input, briefingText }, { pool: matchPool, poolQuelle: quelle });
     const tool = personaTool({ unisexNamen, namen: erlaubteNamen });
     const bestehendeCount = Array.isArray(input.bestehende_use_cases) ? input.bestehende_use_cases.length : 0;
 
@@ -171,15 +194,25 @@ exports.handler = async (event) => {
 
     let { antwort: result, geprueft } = await entwerfen(task);
 
-    const unisexDaneben = unisexNamen
+    const namensGruende = new Set(['kein Unisex-Vorname', 'Name passt nicht zum Register', 'Name passt nicht zum Alter']);
+    const namenAbgelehnt = unisexNamen
       && !geprueft.vorschlaege.length
-      && geprueft.verworfen.some((v) => v.grund === 'kein Unisex-Vorname');
-    if (unisexDaneben) {
-      const abgelehnt = geprueft.verworfen
-        .filter((v) => v.grund === 'kein Unisex-Vorname' && v.vorschlag)
-        .map((v) => v.vorschlag);
-      const korrektur = `${task}\n\n# KORREKTUR\nDer Vorname ${abgelehnt.join(', ') || 'des letzten Entwurfs'} ist nicht erlaubt. `
-        + `Nimm genau einen aus dieser Liste: ${erlaubteNamen.join(', ')}. Kein anderer Name.`;
+      && geprueft.verworfen.some((v) => namensGruende.has(v.grund));
+    if (namenAbgelehnt) {
+      const abgelehnte = geprueft.verworfen.filter((v) => namensGruende.has(v.grund) && v.vorschlag);
+      const letzter = abgelehnte[0] || null;
+      const grund = letzter?.grund === 'Name passt nicht zum Register'
+        ? 'passt nicht zum gewaehlten Register'
+        : letzter?.grund === 'Name passt nicht zum Alter'
+          ? 'passt nicht zum Alter der Persona'
+          : 'ist nicht erlaubt';
+      const passende = passendeNamen(erlaubteNamen, {
+        register: letzter?.register || null,
+        alterVon: letzter?.alter_von ?? null,
+        alterBis: letzter?.alter_bis ?? null
+      });
+      const korrektur = `${task}\n\n# KORREKTUR\nDer Vorname ${abgelehnte.map((v) => v.vorschlag).join(', ') || 'des letzten Entwurfs'} ${grund}. `
+        + `Nimm genau einen aus dieser Liste: ${passende.join(', ')}. Kein anderer Name.`;
       const zweiter = await entwerfen(korrektur);
       result = { ...zweiter.antwort, usage: usageZusammen(result.usage, zweiter.antwort.usage) };
       geprueft = zweiter.geprueft;

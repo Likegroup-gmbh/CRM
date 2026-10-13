@@ -110,11 +110,12 @@ SkriptEditorView.prototype.renderDoc = function() {
       skript: this.skript,
       genStatus: this.genStatus,
       docHeadActionsHtml: this.docHeadActions(),
-      vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
+      vorgabenPanelHtml: vorgabenPanelHtml(this.skript, { kannPersonaSetzen: !this.isReadonly })
     });
     el.querySelectorAll('[data-aufbau-flag]').forEach((toggle) => {
       toggle.addEventListener('change', () => this.saveGeneratorFlag(toggle.dataset.aufbauFlag, toggle.checked));
     });
+    this.bindPersonaWahl(el);
     this.bindDocHeadActions(el);
     this.bindVerknuepfungen(el);
     const input = document.getElementById('ed-input');
@@ -131,7 +132,7 @@ SkriptEditorView.prototype.renderDoc = function() {
     messages: this.messages,
     isReadonly: this.isReadonly,
     docHeadActionsHtml: this.docHeadActions(),
-    vorgabenPanelHtml: vorgabenPanelHtml(this.skript),
+    vorgabenPanelHtml: vorgabenPanelHtml(this.skript, { kannPersonaSetzen: !this.isReadonly }),
     docTab: this.docTab || 'skript',
     zeigeHookVarianten: this.kannAiAktionen
   });
@@ -142,6 +143,7 @@ SkriptEditorView.prototype.renderDoc = function() {
     });
   });
   this.bindDocHeadActions(el);
+  this.bindPersonaWahl(el);
   el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
     btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
   });
@@ -168,6 +170,29 @@ SkriptEditorView.prototype.saveGeneratorFlag = async function(flag, wert) {
   } catch (err) {
     window.toastSystem?.error(err.message);
   }
+};
+
+SkriptEditorView.prototype.bindPersonaWahl = function(el) {
+  const select = el.querySelector('[data-persona-setzen]');
+  if (!select || this.isReadonly) return;
+  select.addEventListener('change', async () => {
+    const personaId = select.value;
+    if (!personaId || !this.skript?.id) return;
+    select.disabled = true;
+    try {
+      await skripteService.setzeSkriptPersona(this.skript, personaId);
+      const fresh = await skripteService.loadSkript(this.skript.id);
+      if (fresh) {
+        this.skript = fresh;
+        this.upsertSkriptInListe?.(fresh);
+      }
+      this.renderDoc();
+      window.toastSystem?.success('Persona gesetzt');
+    } catch (err) {
+      select.disabled = false;
+      window.toastSystem?.error(err.message);
+    }
+  });
 };
 
 SkriptEditorView.prototype.renderVerknuepfungenHtml = function() {

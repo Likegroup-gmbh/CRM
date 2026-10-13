@@ -1420,6 +1420,67 @@ thead {
   padding: var(--space-xs) var(--space-sm);
 }
 
+/* Dauer: Wert als Button, der den Slider (wie im Briefing) als Popover oeffnet */
+
+.strategie-items-table .col-dauer {
+  width: 9em;
+  vertical-align: top;
+}
+
+.strategie-items-table td.col-dauer {
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.strategie-videolaenge-trigger {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+}
+
+.strategie-videolaenge-trigger:hover,
+.strategie-videolaenge-trigger:focus-visible {
+  background: var(--blue-50);
+  outline: none;
+}
+
+.strategie-videolaenge-trigger.is-empty {
+  color: var(--text-muted);
+}
+
+.strategie-videolaenge-popover {
+  position: fixed;
+  z-index: 1100;
+  width: min(22rem, calc(100vw - 16px));
+  padding: var(--space-md);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.strategie-videolaenge-popover__title {
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.strategie-items-table td.col-dauer .strategie-videolaenge-text {
+  display: inline-block;
+  padding: var(--space-xs) 0;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
 /* Beschreibung, Transkript, Caption: gleiche Breite, Clip in der Zelle */
 
 .strategie-items-table .col-beschreibung,

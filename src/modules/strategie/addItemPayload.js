@@ -1,9 +1,11 @@
 // Payload fuer den Add-Item-Drawer.
 // Videoreferenz: URL und Umsetzungsvorgabe Pflicht, Beschreibung optional.
 // Idee: Beschreibung Pflicht, kein Link, keine Vorgabe.
-// Funnel-Stufe und Persona sind optional und kommen aus dem Drawer (Vorbelegung aus dem Briefing).
+// Funnel-Stufe, Persona und Dauer sind optional und kommen aus dem Drawer (Vorbelegung aus dem Briefing).
 
 import { FUNNEL_WERTE } from './strategieFunnelOptions.js';
+import { buildStrategieVideolaengeUpdates } from './strategieVideolaenge.js';
+import { intervallOderNull } from '../briefing/videolaenge.js';
 
 /**
  * Nur TikTok und Instagram: aus beiden laesst sich Tonspur bzw. Untertitel
@@ -34,7 +36,17 @@ function cleanPersona(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe, kategorie, funnelStufe, personaId }) {
+/** Produkt-ID aus dem Drawer (Briefing-Produkt): nur ein gesetzter Wert, sonst null. */
+function cleanProdukt(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/** Intervall { von, bis } aus der Queue, sonst null = keine Vorgabe. */
+function cleanVideolaenge(value) {
+  return value ? intervallOderNull(value.von, value.bis) : null;
+}
+
+export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe, kategorie, funnelStufe, personaId, produktId, videolaenge }) {
   const isReferenz = art !== 'idee';
   const cleanUrl = isReferenz ? (url?.trim() || null) : null;
   const cleanBeschreibung = beschreibung?.trim() || null;
@@ -58,17 +70,22 @@ export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe
     umsetzungsvorgabe: cleanVorgabe,
     kategorie: kategorie || null,
     funnelStufe: cleanFunnel(funnelStufe),
-    personaId: cleanPersona(personaId)
+    personaId: cleanPersona(personaId),
+    produktId: cleanProdukt(produktId),
+    videolaenge: cleanVideolaenge(videolaenge)
   };
 }
 
-export function buildAddItemQueueEntry({ url, kategorie, beschreibung, umsetzungsvorgabe, id, platform, funnelStufe, personaId }) {
+export function buildAddItemQueueEntry({ url, kategorie, beschreibung, umsetzungsvorgabe, id, platform, funnelStufe, personaId, produktId, produktName, videolaenge }) {
   return {
     id,
     url: url?.trim() || null,
     kategorie: kategorie || null,
     funnelStufe: cleanFunnel(funnelStufe),
     personaId: cleanPersona(personaId),
+    produktId: cleanProdukt(produktId),
+    produktName: produktName || null,
+    videolaenge: cleanVideolaenge(videolaenge),
     beschreibung: beschreibung?.trim() || null,
     umsetzungsvorgabe: umsetzungsvorgabe?.trim() || null,
     platform,
@@ -81,6 +98,7 @@ export function buildStrategieItemInsert({ strategieId, nextItem, sortierung }) 
   const beschreibung = nextItem.beschreibung || null;
   const hatLink = !!nextItem.url;
   const vorgabe = hatLink ? (String(nextItem.umsetzungsvorgabe || '').trim() || null) : null;
+  const dauer = cleanVideolaenge(nextItem.videolaenge);
   return {
     strategie_id: strategieId,
     video_link: nextItem.url,
@@ -92,6 +110,8 @@ export function buildStrategieItemInsert({ strategieId, nextItem, sortierung }) 
     umsetzungsvorgabe: vorgabe,
     ...(cleanFunnel(nextItem.funnelStufe) ? { funnel_stufe: cleanFunnel(nextItem.funnelStufe) } : {}),
     ...(cleanPersona(nextItem.personaId) ? { persona_id: cleanPersona(nextItem.personaId) } : {}),
+    ...(cleanProdukt(nextItem.produktId) ? { produkt_id: cleanProdukt(nextItem.produktId) } : {}),
+    ...(dauer ? buildStrategieVideolaengeUpdates(dauer) : {}),
     verarbeitung_status: hatLink ? 'pending' : null
   };
 }

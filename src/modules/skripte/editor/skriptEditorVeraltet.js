@@ -41,11 +41,27 @@ function zeit(wert) {
   return Number.isFinite(t) ? t : null;
 }
 
+/** Verschiedene markierte Stellen derselben Zelle ersetzen sich nicht gegenseitig. */
+function andereStelle(a, b, za, zb) {
+  return za.length === 1 && zb.length === 1 && a.selektion_text && b.selektion_text
+    && a.selektion_text !== b.selektion_text;
+}
+
 export function istVeraltet(msg, messages, skript) {
   if (msg?.status !== 'vorschlag' || msg.aktion === 'rueckfrage' || msg.aktion === 'visuell') return false;
   const zellen = zielZellen(msg);
   const erstellt = zeit(msg.created_at);
   if (!zellen.length || erstellt == null) return false;
+
+  // Pro Zelle ist hoechstens ein Vorschlag offen: der neueste. Ein abgelehnter
+  // neuerer ersetzt nichts. Spiegel von offeneVorschlaege im Edit-Prompt.
+  const spaeterVorgeschlagen = (messages || []).some((o) => {
+    if (o.id === msg.id || o.status !== 'vorschlag' || o.aktion === 'rueckfrage' || o.aktion === 'visuell') return false;
+    if ((zeit(o.created_at) ?? 0) <= erstellt) return false;
+    const andere = zielZellen(o);
+    return andere.some((z) => zellen.includes(z)) && !andereStelle(msg, o, zellen, andere);
+  });
+  if (spaeterVorgeschlagen) return true;
 
   // Mehrere Zellen: ein spaeterer Accept auf irgendeiner davon macht das
   // ganze Bundle veraltet. Eine halbe Uebernahme wuerde die Anweisung

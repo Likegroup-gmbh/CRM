@@ -29,19 +29,19 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  padding-top: var(--space-lg);
+  border-top: var(--border-xs) solid var(--border-primary);
 }
 
 .queue-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-md);
+  margin-bottom: var(--space-sm);
 }
 
-.queue-title {
-  font-weight: 600;
-  font-size: var(--text-md);
-  color: var(--text-primary);
+.queue-header .drawer-section-title {
+  margin: 0;
 }
 
 .queue-counter {

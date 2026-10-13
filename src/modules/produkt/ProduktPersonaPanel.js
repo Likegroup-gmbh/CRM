@@ -214,6 +214,8 @@ export class ProduktPersonaPanel {
       modus,
       felder: this.buildJobFelder(),
       marke_ids: this.kontext?.getMarkeIds?.() || [],
+      // Briefing der Linie: steuert nur den Vornamen (Namensregister)
+      briefing_id: this.kontext?.briefingId || null,
       bestehende_use_cases: gesendeteUseCases.map(uc => ({ name: uc.name, beschreibung: uc.beschreibung || null })),
       ausschluss_persona_ids: [...ausschluss],
       behalten,

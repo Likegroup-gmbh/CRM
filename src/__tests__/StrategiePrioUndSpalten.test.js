@@ -15,11 +15,15 @@ import { strategieService } from '../modules/strategie/StrategieService.js';
 
 const FLAGS = ['prio_1', 'prio_2', 'nicht_umsetzen'];
 
+// Diese Spalten sind standardmaessig aus; die Zellen-Tests blenden sie explizit ein.
+const TEXTSPALTEN = ['beschreibung', 'umsetzungsvorgabe', 'kundenadaption', 'transkript', 'caption', 'anmerkung'];
+const TEXTSPALTEN_EIN = TEXTSPALTEN.map(key => `show:fixed:${key}`);
+
 function detailStub(overrides = {}) {
   return {
     isKunde: false,
     canEdit: true,
-    hiddenColumns: [],
+    hiddenColumns: TEXTSPALTEN_EIN,
     customColumns: null,
     items: [],
     getTeilbereicheFromStrategie: () => ['A'],
@@ -81,26 +85,29 @@ describe('buildStrategiePrioUpdates', () => {
 
 describe('Sichtbarkeit der festen Spalten', () => {
   it('zeigt normale Spalten ohne Eintrag und versteckt sie mit "fixed:"', () => {
-    expect(isFixedColumnVisible([], 'beschreibung')).toBe(true);
-    expect(isFixedColumnVisible(['fixed:beschreibung'], 'beschreibung')).toBe(false);
+    expect(isFixedColumnVisible([], 'prio')).toBe(true);
+    expect(isFixedColumnVisible([], 'dauer')).toBe(true);
+    expect(isFixedColumnVisible(['fixed:prio'], 'prio')).toBe(false);
+    expect(isFixedColumnVisible(['fixed:dauer'], 'dauer')).toBe(false);
   });
 
-  it('zeigt Transkript und Caption ohne Eintrag standardmaessig', () => {
-    expect(isFixedColumnVisible([], 'transkript')).toBe(true);
-    expect(isFixedColumnVisible([], 'caption')).toBe(true);
-    expect(isFixedColumnVisible(['fixed:transkript'], 'transkript')).toBe(false);
+  it('blendet die langen Textspalten standardmaessig aus (Inhalt liegt im Drawer)', () => {
+    for (const key of TEXTSPALTEN) {
+      expect(isFixedColumnVisible([], key)).toBe(false);
+      expect(isFixedColumnVisible([`show:fixed:${key}`], key)).toBe(true);
+    }
   });
 
   it('laesst nach dem Umschalten nie widerspruechliche Eintraege zurueck', () => {
     let hidden = ['custom:abc'];
 
-    hidden = setFixedColumnVisibility(hidden, 'transkript', false);
-    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(false);
+    hidden = setFixedColumnVisibility(hidden, 'transkript', true);
+    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(true);
     // Pro Spalte hoechstens ein Eintrag - nie "fixed:" und "show:fixed:" zugleich
     expect(hidden.filter(e => e.includes('transkript'))).toHaveLength(1);
 
-    hidden = setFixedColumnVisibility(hidden, 'transkript', true);
-    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(true);
+    hidden = setFixedColumnVisibility(hidden, 'transkript', false);
+    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(false);
     expect(hidden.filter(e => e.includes('transkript'))).toHaveLength(0);
 
     hidden = setFixedColumnVisibility(hidden, 'prio', false);

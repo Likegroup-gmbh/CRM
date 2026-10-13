@@ -6,7 +6,7 @@ import { skripteService } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
 import { buildFreigegebeneVideoideePickerOptions } from '../strategie/strategieItemPicker.js';
 import { buildReferenzVideoPayload } from './strategieVorlage.js';
-import { resolveSkriptCreatePayload, funnelWarnung, personaIdFuerSkript } from './skriptCreateKontext.js';
+import { resolveSkriptCreatePayload, funnelWarnung, personaWarnung, personaIdFuerSkript } from './skriptCreateKontext.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { truncateText } from '../strategie/strategieItemPicker.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
@@ -99,6 +99,7 @@ class SkriptCreateDrawer {
             <select id="${PREFIX}-videoidee" class="form-input" disabled><option value="">– Erst Konzept wählen –</option></select>
             <span class="skripte-hint" id="${PREFIX}-videoidee-hint">Wähle zuerst ein Konzept.</span>
             <span class="skripte-hint skripte-hint--warnung" id="${PREFIX}-funnel-hint" hidden></span>
+            <span class="skripte-hint skripte-hint--warnung" id="${PREFIX}-persona-hint" hidden></span>
           </div>
           <div class="form-field" id="${PREFIX}-uebersicht" hidden>
             <label>Skripte in diesem Konzept</label>
@@ -344,6 +345,7 @@ class SkriptCreateDrawer {
     this.renderCreator(item);
     this.renderHinweisVorhanden(item);
     this.renderFunnelWarnung(item);
+    this.renderPersonaWarnung(item);
   }
 
   /** Paid ohne Funnel-Stufe im Konzept: Warnung, kein Gate. */
@@ -351,6 +353,15 @@ class SkriptCreateDrawer {
     const el = this.el('funnel-hint');
     if (!el) return;
     const text = funnelWarnung(item);
+    el.textContent = text;
+    el.hidden = !text;
+  }
+
+  /** Videoidee ohne Persona bei Briefing mit Personas: Warnung, kein Gate. */
+  renderPersonaWarnung(item) {
+    const el = this.el('persona-hint');
+    if (!el) return;
+    const text = personaWarnung(item);
     el.textContent = text;
     el.hidden = !text;
   }
@@ -412,6 +423,7 @@ class SkriptCreateDrawer {
     this.setSearchableValue('videoidee', '');
     this.renderCreator(null);
     this.renderFunnelWarnung(null);
+    this.renderPersonaWarnung(null);
   }
 
   renderCreator(item) {

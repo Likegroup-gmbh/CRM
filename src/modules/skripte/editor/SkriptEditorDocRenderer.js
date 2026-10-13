@@ -51,8 +51,15 @@ function pruefungHtml(skript) {
     const richtung = p.laenge.status === 'ueber' ? 'darüber' : 'darunter';
     teile.push(`${p.laenge.worte} Wörter, ${richtung} von ${p.laenge.min}–${p.laenge.max}.`);
   }
+  if (p.hook_zeit?.status === 'ueber') {
+    teile.push(`Hook ca. ${p.hook_zeit.sekunden} Sek., Vorgabe bis ${p.hook_zeit.max} Sek.`);
+  }
   if (Array.isArray(p.claims) && p.claims.length) {
     teile.push(`Verbotene Claims: ${p.claims.join(', ')}.`);
+  }
+  for (const d of (Array.isArray(p.doppelungen) ? p.doppelungen : []).slice(0, 2)) {
+    const [a, b] = (d.zellen || []).map((z) => SEKTION_LABELS_KURZ[z] || z);
+    teile.push(`Steht doppelt in ${a} und ${b}: „${d.satz}“`);
   }
   if (!teile.length) return '';
   return `<p class="skripte-editor-pruefung">${escapeHtml(teile.join(' '))}</p>`;
@@ -474,8 +481,26 @@ function linkHtml(url) {
   return `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`;
 }
 
-/** Read-only Info: mit welchen Vorgaben das Skript generiert wurde. */
-export function vorgabenPanelHtml(skript) {
+/**
+ * Skript ohne Persona, Briefing mit Personas: Auswahl statt stiller Lücke.
+ * Ohne Persona fehlen Pain und Produkt im Kontext jedes Edits.
+ */
+export function personaWahlHtml(skript) {
+  const optionen = skript?.persona_optionen;
+  if (skript?.persona_id || !optionen?.length) return '';
+  return `
+    <p class="skripte-hint skripte-hint--warnung" data-persona-fehlt>
+      Keine Persona verknüpft. Liky kennt Pain und Produkt erst, wenn sie gesetzt ist.
+      <select class="form-input skripte-editor-persona-wahl" data-persona-setzen aria-label="Persona wählen">
+        <option value="">Persona wählen…</option>
+        ${optionen.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(skripteService.personaLabel(p))}</option>`).join('')}
+      </select>
+    </p>
+  `;
+}
+
+/** Info: mit welchen Vorgaben das Skript generiert wurde (plus Persona-Wahl, wenn sie fehlt). */
+export function vorgabenPanelHtml(skript, { kannPersonaSetzen = false } = {}) {
   const s = skript;
   if (!s) return '';
   const briefingName = s.briefing?.aktivierung_name
@@ -523,11 +548,13 @@ export function vorgabenPanelHtml(skript) {
   ].filter(([, wert]) => wert);
 
   const funnelHinweis = funnelAbweichungsHinweis(s);
-  if (!zeilen.length && !funnelHinweis) return '';
+  const personaWahl = kannPersonaSetzen ? personaWahlHtml(s) : '';
+  if (!zeilen.length && !funnelHinweis && !personaWahl) return '';
 
   return `
     <div class="skripte-editor-vorgaben-wrap">
       ${funnelHinweis ? `<p class="skripte-hint skripte-hint--warnung" data-funnel-abweichung>${escapeHtml(funnelHinweis)}</p>` : ''}
+      ${personaWahl}
       <details class="skripte-editor-vorgaben">
         <summary>Vorgaben aus dem Generator</summary>
         <dl class="skripte-editor-vorgaben-grid">

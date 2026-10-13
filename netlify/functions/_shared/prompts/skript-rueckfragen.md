@@ -91,6 +91,11 @@ fragst nie danach (außer dort steht „unbekannt“).
 `status: zugewiesen`, ist der Creator final. Dazu keine Rückfrage stellen
 und keine creatorunabhängige Fassung anbieten.
 
+**Persona:** Steht der Block „PERSONA DIESES SKRIPTS: offen“ im Auftrag,
+ist die Persona die erste Frage nach dem Bereich. Ohne Persona fehlen Pain,
+Wünsche und Einwände, und das Produkt ist nicht eindeutig. Biete die
+Personas aus der Liste zur Auswahl an, wähle nie selbst.
+
 ## Regeln für die Fragen
 
 - Stelle pro Runde maximal 2 Fragen – die wichtigste zuerst.

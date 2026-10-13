@@ -1,7 +1,8 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createRequire } from 'module';
 import { buildAddItemQueueEntry, buildStrategieItemInsert, resolveVideoideeForm } from '../modules/strategie/addItemPayload.js';
 import { AddItemDrawer } from '../modules/strategie/AddItemDrawer.js';
+import { strategieService } from '../modules/strategie/StrategieService.js';
 
 const require = createRequire(import.meta.url);
 const { shouldApplyKiBeschreibung } = require('../../netlify/functions/_shared/ki-beschreibung.js');
@@ -164,13 +165,15 @@ describe('resolveVideoideeForm', () => {
 
 describe('AddItemDrawer Tabs', () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     document.getElementById('add-item-drawer')?.remove();
     document.getElementById('add-item-drawer-overlay')?.remove();
   });
 
-  it('startet auf Videoreferenz und blendet den Link im Idee-Tab aus', () => {
+  it('startet auf Videoreferenz und blendet den Link im Idee-Tab aus', async () => {
+    vi.spyOn(strategieService, 'getBriefingProdukte').mockResolvedValue([]);
     const drawer = new AddItemDrawer();
-    drawer.open({ id: 's1' }, []);
+    await drawer.open({ id: 's1' }, []);
 
     expect(document.querySelector('[data-add-art="videoreferenz"]').classList.contains('active')).toBe(true);
     expect(document.getElementById('drawer-umsetzungsvorgabe')).toBeTruthy();

@@ -22,6 +22,9 @@ const {
 const { setThinking } = require('./_shared/thinking');
 const { verlaufZuMessages } = require('./_shared/chat-verlauf');
 const { logPrompt } = require('./_shared/prompt-log');
+const {
+  ladePersonaOptionen, personaOffenBlock, gueltigePersonaId, setzePersonaAmSkript
+} = require('./_shared/skript-persona');
 
 // Erzwungener Tool-Call: strukturell garantiertes JSON statt Text-Parsing
 const FRAGEN_TOOL = {
@@ -31,7 +34,11 @@ const FRAGEN_TOOL = {
     type: 'object',
     properties: {
       nachricht: { type: 'string', description: 'Nachricht an den User (Deutsch, locker, kurz)' },
-      fertig: { type: 'boolean', description: 'true, wenn alle kritischen Punkte geklaert sind' }
+      fertig: { type: 'boolean', description: 'true, wenn alle kritischen Punkte geklaert sind' },
+      persona_id: {
+        type: ['string', 'null'],
+        description: 'Nur wenn der Block PERSONA DIESES SKRIPTS offen ist und der User eindeutig gewaehlt hat: die ID aus der Liste. Sonst null.'
+      }
     },
     required: ['nachricht', 'fertig']
   }
@@ -87,7 +94,7 @@ function bereichBlock(ctx) {
   return `${text}\n`;
 }
 
-function buildFragenPrompt(ctx, params, history) {
+function buildFragenPrompt(ctx, params, history, { personaOptionen = [] } = {}) {
   // Block 1 (stabil, cachebar): Rolle + Leitfaden
   const bereichLabel = MASTER_BEREICH_LABELS[ctx.bereich] || ctx.bereich || 'unbekannt';
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
@@ -100,6 +107,7 @@ function buildFragenPrompt(ctx, params, history) {
 
   // Block 2 (variabel): Kontext (inkl. Campaign-Briefing) + bisheriger Dialog
   let task = bereichBlock(ctx);
+  task += personaOffenBlock(personaOptionen);
   task += '# VORLIEGENDE CRM-DATEN ZU DIESEM AUFTRAG\n';
   task += buildKontextText(ctx, params) || '(keine Daten vorhanden)\n';
 
@@ -109,7 +117,7 @@ function buildFragenPrompt(ctx, params, history) {
     : 'Das ist die erste Runde. Pruefe den Auftrag anhand des Leitfadens auf kritische Luecken.\n';
 
   task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "rueckfrage_abgeben" '
-    + '(Felder: nachricht, fertig).\n'
+    + `(Felder: nachricht, fertig${personaOptionen.length ? ', persona_id' : ''}).\n`
     + 'Regeln:\n'
     + '- Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + '- fertig=false: nachricht enthaelt deine naechste(n) Rueckfrage(n) (max. 2, die wichtigste zuerst).\n'
@@ -194,8 +202,14 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
       funnel_stufe: skript.funnel_stufe,
       tonalitaet: skript.tonalitaet
     };
+    // Persona kann nach dem Anlegen gesetzt worden sein (Rueckfrage, Editor)
+    if (!params.persona_id && skript.persona_id) params.persona_id = skript.persona_id;
+    if (!params.produkt_id && skript.produkt_id) params.produkt_id = skript.produkt_id;
 
     const ctx = await loadContext(supabase, params);
+    const personaOptionen = await ladePersonaOptionen(supabase, {
+      personaId: params.persona_id, briefing: ctx.briefing
+    });
 
     // Bisheriger Rueckfragen-Dialog (ohne die pending Assistant-Message)
     const { data: historyRaw } = await supabase.from('skript_chat_messages')
@@ -205,7 +219,7 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
       .order('created_at');
     const history = (historyRaw || []).filter((h) => (h.inhalt || '').trim());
 
-    const { stable, task, messages } = buildFragenPrompt(ctx, params, history);
+    const { stable, task, messages } = buildFragenPrompt(ctx, params, history, { personaOptionen });
     logPrompt({ job: 'skript_rueckfragen', id: message.skript_id, aktion: 'rueckfrage', stable, task, messages });
 
     // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
@@ -237,6 +251,12 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
     }
 
     const parsed = result.json || extractJson(result.text, { keys: ['nachricht', 'fertig'] });
+
+    const gewaehlt = gueltigePersonaId(personaOptionen, parsed.persona_id);
+    if (gewaehlt) {
+      const { produktId } = await setzePersonaAmSkript(supabase, skript, gewaehlt);
+      console.log(`[skript-fragen ${messageId}] Persona ${gewaehlt} gesetzt${produktId ? `, Produkt ${produktId}` : ''}`);
+    }
 
     // Nur solange running: ein Abbruch gewinnt. Fehler werfen (-> catch -> error).
     const geschrieben = await schreibeNachricht(supabase, messageId, {

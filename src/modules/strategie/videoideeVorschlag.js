@@ -4,7 +4,7 @@
 
 export const VIDEOIDEE_VORSCHLAG_ERROR = 'Erst übernehmen, dann als Videoidee nutzen.';
 
-export const VORSCHLAG_EDIT_FIELDS = Object.freeze(['beschreibung', 'beschreibung_quelle', 'funnel_stufe', 'persona_id']);
+export const VORSCHLAG_EDIT_FIELDS = Object.freeze(['beschreibung', 'beschreibung_quelle', 'funnel_stufe', 'persona_id', 'videolaenge_von', 'videolaenge_bis']);
 
 export function isVideoideeVorschlag(item) {
   return !!item?.ist_vorschlag;

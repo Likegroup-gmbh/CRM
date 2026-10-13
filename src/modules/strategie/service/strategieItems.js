@@ -17,6 +17,7 @@ const KUNDE_ITEM_COLUMNS = [
   'transcription_job_id', 'verarbeitung_status', 'verarbeitung_step', 'verarbeitung_fehler',
   'ist_vorschlag', 'kunde_anmerkung', 'kunde_anmerkung_author_name', 'kunde_anmerkung_updated_at',
   'prio_1', 'prio_2', 'nicht_umsetzen', 'video_umgesetzt', 'funnel_stufe',
+  'videolaenge_von', 'videolaenge_bis',
   'skript_freigabe', 'skript_freigabe_am', 'skript_freigabe_von',
   'kundenadaption', 'kundenadaption_quelle', 'created_at', 'updated_at', 'created_by'
 ].join(', ');

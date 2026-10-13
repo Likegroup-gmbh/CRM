@@ -5,8 +5,9 @@
 
 import { skripteService } from '../SkripteService.js';
 import { SEKTION_LABELS_KURZ, VISUELL_FIELD } from './skriptEditorKonstanten.js';
-import { visuellGuardGrund, visuellVorgaengerTitle, visuellHatFolgeSektionen, skriptStand } from './skriptEditorVisuellHelfer.js';
+import { visuellGuardGrund, visuellVorgaengerTitle, skriptStand } from './skriptEditorVisuellHelfer.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
+import { zeitmarkerPatch } from '../skriptSekunden.js';
 
 export class SkriptEditorVisuell {
   constructor(view) {
@@ -107,9 +108,14 @@ export class SkriptEditorVisuell {
       await v.inlineEdit.flush();
       const vorherigerStand = skriptStand(v.skript);
 
+      const focused = v.inlineEdit.focusedFeld();
       const festgezogen = v._chatActions.mitFestgezogen(feld);
-      await skripteService.updateSkript(v.skript.id, { [feld]: msg.vorschlag_text, festgezogen });
-      v.skript[feld] = msg.vorschlag_text;
+      const patch = {
+        [feld]: msg.vorschlag_text,
+        ...zeitmarkerPatch({ ...v.skript, [feld]: msg.vorschlag_text }, { ausser: focused ? [focused] : [] })
+      };
+      await skripteService.updateSkript(v.skript.id, { ...patch, festgezogen });
+      Object.assign(v.skript, patch);
 
       const beschreibung = `Visual · ${SEKTION_LABELS_KURZ[sektion]}`;
       const neueVersion = await skripteService.createVersion(v.skript, beschreibung, vorherigerStand, v.aktiveVersion);
@@ -122,20 +128,15 @@ export class SkriptEditorVisuell {
       msg.status = 'angenommen';
       msg.updated_at = new Date().toISOString();
 
-      const focused = v.inlineEdit.focusedFeld();
-      if (focused && focused !== feld) {
-        const zelle = v.container?.querySelector(`[data-feld="${feld}"]`);
-        if (zelle) zelle.textContent = msg.vorschlag_text;
-        v.inlineEdit.syncSaved(feld, msg.vorschlag_text);
+      const fokusJetzt = v.inlineEdit.focusedFeld();
+      if (fokusJetzt && fokusJetzt !== feld) {
+        v._chatActions.zeigeZellen(patch);
       } else {
         v.renderDoc();
       }
       v.renderChat();
       v.renderVersionSelect();
       window.toastSystem?.success(`Visual übernommen – jetzt ${skripteService.versionLabel(neueVersion)}`);
-      if (visuellHatFolgeSektionen(v.skript, sektion)) {
-        window.toastSystem?.warning('Zeitstempel der Folge-Sektionen passen evtl. nicht mehr – bei Bedarf neu generieren.');
-      }
     } catch (err) {
       window.toastSystem?.error(err.message);
     } finally {

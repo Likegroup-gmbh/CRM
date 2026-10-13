@@ -2,7 +2,7 @@
 // Linke Spalte: Kampagnen-Sidebar zum Umschalten (Prototype-Mixin).
 
 import { bindCollapsible } from '../../../core/collapsiblePanel.js';
-import { matchesKampagne } from '../SkriptList.js';
+import { matchesKampagne, matchesLinie } from '../SkriptList.js';
 import { openSkriptCreateDrawer } from '../SkriptCreateDrawer.js';
 import { skripteService } from '../SkripteService.js';
 import { escapeHtml, formatDate, skriptEditorPath } from '../SkripteUtils.js';
@@ -22,6 +22,9 @@ SkriptEditorView.prototype.upsertSkriptInListe = function(skript) {
   // Fremde Kampagnen wuerden sonst in der gefilterten Liste landen.
   if (this._listeKampagneId !== undefined
       && !matchesKampagne(skript, this._listeKampagneId)) return;
+  // Gleiches fuer die Linie: Skripte anderer Briefings bleiben draussen.
+  if (this._listeBriefingId !== undefined
+      && !matchesLinie(skript, this._listeBriefingId)) return;
   const angereichert = { ...skript };
   const idx = this.skripte.findIndex((s) => s.id === skript.id);
   if (idx >= 0) this.skripte[idx] = { ...this.skripte[idx], ...angereichert };
@@ -86,12 +89,15 @@ SkriptEditorView.prototype.renderListe = function() {
   if (!el) return;
   // Safety-Net: nur Skripte derselben Kampagne wie das geoeffnete.
   // Das geoeffnete Skript bleibt immer sichtbar, auch wenn kampagne_id null ist.
+  // Zusaetzlich nur die Linie (Briefing) des geoeffneten Skripts.
   const kampagneId = this.skript?.kampagne_id ?? null;
+  const briefingId = this.skript?.briefing_id ?? null;
   const verknuepfungenFuer = (s) => (s.id === this.skript?.id
     ? (this.verknuepfungen || [])
     : (s.kooperation_videos || []));
   const items = sortListeSkripte(
-    this.skripte.filter((s) => s.id === this.skript?.id || matchesKampagne(s, kampagneId)),
+    this.skripte.filter((s) => s.id === this.skript?.id
+      || (matchesKampagne(s, kampagneId) && matchesLinie(s, briefingId))),
     verknuepfungenFuer
   );
   el.innerHTML = items.map((s) => {

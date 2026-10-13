@@ -23,6 +23,7 @@ export class SkriptEditorView {
     this.skript = null;
     this.skripte = [];
     this._listeKampagneId = undefined; // Scope der Sidebar; undefined = noch nicht gesetzt
+    this._listeBriefingId = undefined; // Linie der Sidebar (Briefing); undefined = noch nicht gesetzt
     this.messages = [];
     this.kommentare = [];
     this.versionen = [];

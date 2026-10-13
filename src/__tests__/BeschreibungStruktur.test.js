@@ -445,9 +445,12 @@ describe('Beschreibungs-Tabelle im Drawer', () => {
 });
 
 describe('Strategie-Tabelle', () => {
+  // Die Beschreibungsspalte ist standardmaessig aus; hier wird sie eingeblendet.
+  const MIT_BESCHREIBUNG = ['show:fixed:beschreibung'];
+
   function zelle(item, detail = { items: [item], canEdit: true, isKunde: false }) {
     const tbody = document.createElement('tbody');
-    tbody.innerHTML = renderItemRow(detail, item, 0);
+    tbody.innerHTML = renderItemRow({ hiddenColumns: MIT_BESCHREIBUNG, ...detail }, item, 0);
     return tbody.querySelector('.col-beschreibung');
   }
 

@@ -5,6 +5,8 @@ import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions.js';
 import { isFixedColumnVisible } from './strategieColumns.js';
+import { formatStrategieVideolaenge, getStrategieVideolaenge } from './strategieVideolaenge.js';
+import { renderSekundenSpanne, sekundenSpanneAttrs } from '../../core/components/SekundenSpanne.js';
 import {
   STRATEGIE_FUNNEL_OPTIONS,
   getStrategieFunnel,
@@ -56,6 +58,7 @@ function visibleFixedColumns(detail) {
     // Persona ist interne Strategie: Kunden dürfen personas nicht lesen.
     persona: !detail.isKunde && visible('persona'),
     funnel: visible('funnel'),
+    dauer: visible('dauer'),
     beschreibung: visible('beschreibung'),
     umsetzungsvorgabe: !detail.isKunde && visible('umsetzungsvorgabe'),
     kundenadaption: visible('kundenadaption'),
@@ -109,6 +112,7 @@ export function renderItemsTable(detail) {
             ${cols.produkt ? '<th class="col-produkt">Produkt</th>' : ''}
             ${cols.persona ? '<th class="col-persona">Persona</th>' : ''}
             ${cols.funnel ? '<th class="col-funnel">Funnel-Stufe</th>' : ''}
+            ${cols.dauer ? '<th class="col-dauer">Dauer</th>' : ''}
             ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
             ${cols.umsetzungsvorgabe ? '<th class="col-umsetzungsvorgabe">Umsetzungsvorgabe</th>' : ''}
             ${cols.kundenadaption ? '<th class="col-kundenadaption">Kundenadaption</th>' : ''}
@@ -447,6 +451,42 @@ export function renderFunnelControl(detail, item) {
 }
 
 /**
+ * Dauer: intern mit Edit-Recht der Slider aus dem Briefing (von/bis in Sekunden),
+ * sonst (Kunde, Gast, Investor) der Wert als Text. Ein Videoidee-Vorschlag bleibt
+ * fuers Team editierbar, wie Funnel-Stufe.
+ *   zelle:  in der Tabelle ein Button mit dem Wert, der den Slider als Popover oeffnet
+ *   drawer: im Videoidee-Drawer der Slider direkt
+ */
+export function videolaengeEditable(detail) {
+  if (detail.isKunde) return false;
+  if (window.isGastReadonly?.()) return false;
+  if (!detail.canEdit) return false;
+  return typeof window.permissionSystem?.canEditField === 'function'
+    ? window.permissionSystem.canEditField('strategie', 'strategie_videolaenge')
+    : true;
+}
+
+export function renderVideolaengeControl(detail, item, { variant = 'zelle' } = {}) {
+  const iv = getStrategieVideolaenge(item);
+  const text = formatStrategieVideolaenge(item);
+
+  if (!videolaengeEditable(detail)) {
+    return text ? `<span class="strategie-videolaenge-text">${escapeHtml(text)}</span>` : '–';
+  }
+
+  if (variant === 'drawer') {
+    const spanne = { von: iv?.von, bis: iv?.bis };
+    return `<div class="videoidee-dauer" ${sekundenSpanneAttrs({ name: 'videolaenge', ...spanne })} data-item-id="${escapeAttr(item.id)}">${renderSekundenSpanne(spanne)}</div>`;
+  }
+
+  return `<button type="button" class="strategie-videolaenge-trigger${text ? '' : ' is-empty'}"
+      data-videolaenge-trigger
+      data-item-id="${escapeAttr(item.id)}"
+      aria-haspopup="dialog"
+      aria-label="Dauer wählen">${text ? escapeHtml(text) : 'Dauer wählen'}</button>`;
+}
+
+/**
  * Persona: intern mit Edit-Recht ein Select aus den Briefing-Personas, sonst
  * (Gast, Investor) der Name. Ein Videoidee-Vorschlag bleibt fuers Team editierbar.
  */
@@ -548,6 +588,7 @@ export function renderItemRow(detail, item, index) {
       ${cols.produkt ? renderProduktCell(detail, item, vorschlagReadonly) : ''}
       ${cols.persona ? `<td class="col-persona">${renderPersonaControl(detail, item)}</td>` : ''}
       ${cols.funnel ? `<td class="col-funnel">${renderFunnelControl(detail, item)}</td>` : ''}
+      ${cols.dauer ? `<td class="col-dauer">${renderVideolaengeControl(detail, item)}</td>` : ''}
       ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
       ${cols.umsetzungsvorgabe ? renderClippedTextCell(detail, item, 'umsetzungsvorgabe', 'col-umsetzungsvorgabe', 'Was sollen wir umsetzen?', vorschlagReadonly || !item.video_link) : ''}
       ${cols.kundenadaption ? renderClippedTextCell(detail, item, 'kundenadaption', 'col-kundenadaption', 'Kundenadaption...', vorschlagReadonly) : ''}

@@ -26,7 +26,10 @@ describe('SkripteService Briefing-Selects', () => {
       join(dirname(fileURLToPath(import.meta.url)), '../modules/skripte/SkripteService.js'),
       'utf8'
     );
-    const selects = quelle.split('\n').filter(zeile => zeile.includes('videolaenge_von, videolaenge_bis'));
+    // Nur die Briefing-Selects: die Item-Selects tragen die Dauer der Videoidee (videolaenge_von/bis).
+    const selects = quelle.split('\n').filter(
+      zeile => zeile.includes('videolaenge_von, videolaenge_bis') && zeile.includes('aktivierung_name')
+    );
     expect(selects.length).toBe(2);
     for (const zeile of selects) expect(zeile).toContain('videolaenge_funnel');
   });

@@ -84,3 +84,54 @@ describe('istVeraltet', () => {
     expect(istVeraltet(bundle, [bundle], skript)).toBe(false);
   });
 });
+
+describe('istVeraltet: neuerer Vorschlag fuer dieselbe Zelle', () => {
+  const neuer = (extra = {}) => offen({ id: 'c', vorschlag_text: 'C', created_at: T2, ...extra });
+
+  it('neuerer offener Vorschlag macht den aelteren veraltet, nicht umgekehrt', () => {
+    expect(istVeraltet(offen(), [offen(), neuer()], skript)).toBe(true);
+    expect(istVeraltet(neuer(), [offen(), neuer()], skript)).toBe(false);
+  });
+
+  it('abgelehnter neuerer Vorschlag ersetzt nichts', () => {
+    expect(istVeraltet(offen(), [offen(), neuer({ status: 'abgelehnt' })], skript)).toBe(false);
+  });
+
+  it('andere Zelle oder andere Spalte: bleibt offen', () => {
+    expect(istVeraltet(offen(), [offen(), neuer({ sektion: 'cta' })], skript)).toBe(false);
+    expect(istVeraltet(offen(), [offen(), neuer({ ist_visuell: true })], skript)).toBe(false);
+  });
+
+  it('verschiedene markierte Stellen derselben Zelle: beide offen, gleiche Stelle: veraltet', () => {
+    const a = offen({ selektion_text: 'Neuer Hook' });
+    expect(istVeraltet(a, [a, neuer({ selektion_text: 'nach dem Annehmen' })], skript)).toBe(false);
+    expect(istVeraltet(a, [a, neuer({ selektion_text: 'Neuer Hook' })], skript)).toBe(true);
+    expect(istVeraltet(a, [a, neuer()], skript)).toBe(true);
+  });
+
+  it('neuerer Einzelvorschlag auf einer Bundle-Zelle macht das Bundle veraltet', () => {
+    const bundle = offen({
+      sektion: 'gesamt', vorschlag_text: null,
+      aenderungen: [
+        { sektion: 'hook', spalte: 'gesprochen', vorschlag_text: 'Neuer Hook' },
+        { sektion: 'cta', spalte: 'gesprochen', vorschlag_text: 'Neuer CTA' }
+      ]
+    });
+    expect(istVeraltet(bundle, [bundle, neuer({ sektion: 'cta' })], skript)).toBe(true);
+  });
+
+  it('Spiegel: Server und Client sehen denselben offenen Vorschlag', async () => {
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const { offeneVorschlaege } = require('../../netlify/functions/_shared/skript-edit-prompt.js');
+    const verlauf = [
+      offen({ rolle: 'assistant' }),
+      neuer({ rolle: 'assistant' }),
+      neuer({ rolle: 'assistant', id: 'd', status: 'abgelehnt', created_at: '2026-09-25T10:03:00Z' })
+    ];
+    const client = verlauf.filter((m) => m.status === 'vorschlag' && !istVeraltet(m, verlauf, skript)).map((m) => m.id);
+    const server = offeneVorschlaege(verlauf, skript).map((m) => m.id);
+    expect(server).toEqual(client);
+    expect(client).toEqual(['c']);
+  });
+});

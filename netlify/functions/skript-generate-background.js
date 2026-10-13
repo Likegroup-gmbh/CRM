@@ -19,6 +19,7 @@ const { logPrompt } = require('./_shared/prompt-log');
 const { loadRueckfragenDialog, fmtRueckfragenBlock } = require('./_shared/skript-rueckfragen');
 const { beansprucheJob, autorisiereSkript, hatLaufendenJob, istJobAbgebrochen } = require('./_shared/skript-auftrag');
 const { ladeGesperrtenHook, hookSperreGenerierungBlock, varianteOhneGesperrtenHook } = require('./_shared/hook-sperre');
+const { personaVomStub } = require('./_shared/skript-persona');
 
 // Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
 // Anfuehrungszeichen im Skript-Text koennen das Parsen nicht mehr brechen
@@ -219,6 +220,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       ? `Videovorlage: ${referenzVideo.quelle === 'strategie_item' ? `Strategie-Item (${referenzVideo.platform || 'unbekannt'})` : referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`
       : 'Keine Videovorlage - Aufbau kommt aus dem Master');
 
+    Object.assign(payload, await personaVomStub(supabase, payload));
     const ctx = await loadContext(supabase, payload);
     if (!ctx.bereich) {
       throw new Error('Bereich fehlt – bitte Owned Social, Paid Creator Ads oder Influencer Marketing wählen');
@@ -360,7 +362,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       model: result.model,
       pruefung: pruefeSkript(felder, {
         video_laenge: payload.video_laenge,
-        verbotene_claims: ctx.produkt?.verbotene_claims
+        verbotene_claims: ctx.produkt?.verbotene_claims,
+        hook_vorgaben: ctx.briefing?.hook_vorgaben
       }),
       // Merge statt Replace: generator_payload (Retry/Anzeige) und der
       // Referenz-Snapshot muessen die Generierung ueberleben

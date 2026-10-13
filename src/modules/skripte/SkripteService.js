@@ -109,7 +109,7 @@ export class SkripteService {
           unternehmen:unternehmen_id(id, firmenname, branche_id),
           marke:marke_id(id, markenname, branche_id),
           kampagne:kampagne_id(id, kampagnenname, eigener_name),
-          briefing:briefing_id(id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, videolaenge_funnel, im_formatvorgaben, os_formatvorgaben)
+          briefing:briefing_id(id, aktivierung_name, bereich, persona_ids, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, videolaenge_funnel, im_formatvorgaben, os_formatvorgaben)
         )
       `)
       .eq('skript_freigabe', true)
@@ -199,6 +199,45 @@ export class SkripteService {
     return [...new Set((data || []).map((r) => r.produkt_id).filter(Boolean))];
   }
 
+  /**
+   * Persona nachträglich am Skript setzen (Skript ohne Persona an Videoidee und
+   * Casting). Spalte und generator_payload, damit Rückfragen und Generierung sie
+   * lesen. Produkt nur, wenn keins gesetzt ist und genau ein Fit existiert.
+   */
+  async setzeSkriptPersona(skript, personaId) {
+    if (!skript?.id || !personaId) return null;
+    const pk = skript.prompt_kontext || {};
+    let produktId = skript.produkt_id || pk.generator_payload?.produkt_id || null;
+    if (!produktId) {
+      const fits = await this.loadAcceptedProduktIds(personaId);
+      if (fits.length === 1) produktId = fits[0];
+    }
+    const patch = {
+      persona_id: personaId,
+      prompt_kontext: {
+        ...pk,
+        generator_payload: {
+          ...(pk.generator_payload || {}),
+          persona_id: personaId,
+          ...(produktId ? { produkt_id: produktId } : {})
+        }
+      }
+    };
+    if (produktId && !skript.produkt_id) patch.produkt_id = produktId;
+    await this.updateSkript(skript.id, patch);
+    return { personaId, produktId };
+  }
+
+  /** Personas des Briefings als Auswahl, solange das Skript keine Persona hat. */
+  async attachPersonaOptionen(skript) {
+    const ids = skript?.briefing?.persona_ids;
+    if (!skript || skript.persona_id || !Array.isArray(ids) || !ids.length) return skript;
+    const { data, error } = await this.db.from('personas')
+      .select('id, name, oberbegriff').in('id', ids);
+    if (error || !data?.length) return skript;
+    return { ...skript, persona_optionen: data };
+  }
+
   /** Anzeige-Label einer Persona: "Oberbegriff (Name)", Fallback nur Name. */
   personaLabel(p) {
     if (!p) return '';
@@ -238,7 +277,7 @@ export class SkripteService {
     // hauptteil/cta bleiben draussen (nie angezeigt),
     // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
     let query = this.db.from('skripte')
-      .select(`id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name, start, deadline, auftrag:auftrag_id(start, ende)), branchen(name),
+      .select(`id, titel, unternehmen_id, marke_id, kampagne_id, briefing_id, produktion_id, branche_id, hook, herkunft, status, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name, start, deadline, auftrag:auftrag_id(start, ende)), branchen(name),
         briefing:briefing_id(id, aktivierung_name), produkt(id, name), personas(id, name),
         strategie_item:strategie_item_id(
           id, strategie_id, creator_name, creator_auswahl_item_id,
@@ -322,7 +361,7 @@ export class SkripteService {
 
   async loadSkript(id) {
     const { data, error } = await this.db.from('skripte')
-      .select(`*, unternehmen(firmenname, logo_url), marke(markenname, logo_url), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich),
+      .select(`*, unternehmen(firmenname, logo_url), marke(markenname, logo_url), kampagne(kampagnenname, eigener_name), produkt(name, verbotene_claims), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich, persona_ids, hook_vorgaben),
         strategie_item:strategie_item_id(
           id, strategie_id, sortierung, video_link, plattform, creator_name, creator_auswahl_item_id, funnel_stufe,
           casting_eintrag:creator_auswahl_item_id(
@@ -335,7 +374,7 @@ export class SkripteService {
     if (error) throw new Error(error.message);
     if (!data) return null;
     const [mitNr] = await this.attachSkriptNummern([data]);
-    return this.attachHookSperre(mitNr);
+    return this.attachPersonaOptionen(await this.attachHookSperre(mitNr));
   }
 
   /**

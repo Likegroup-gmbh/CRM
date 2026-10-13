@@ -28,6 +28,30 @@ Aendert die Anweisung einen dieser Punkte ausdruecklich, setze das um und sage i
 Nichts erfinden, was nicht im Briefing, in den Wichtigen Vorgaben oder im bestehenden Skript steht.
 `;
 
+// ADR 0056: Die Anweisung ist ein Delta auf den Kontext, kein Ersatz dafuer.
+const AUFTRAG_IM_KONTEXT = `
+# AUFTRAG IM KONTEXT
+Die Anweisung sagt, was sich aendert. Alles, was sie nicht nennt, gilt weiter und muss die neue Fassung bedienen:
+- die Rolle der Zelle im Skript, wie Master und ZUSAETZLICHE INFOS (Produktionskopf) sie festlegen: was diese Sektion leisten muss, Hook-Typ, Nennung von Kategorie oder Marke je Funnel-Stufe, Zeitbudget,
+- die Kernidee der Videoidee,
+- Persona, Produkt und die Vorgaben des Briefings,
+- der Anschluss an die Zellen davor und danach.
+Gehen Anweisung und Kontext nicht zusammen, setze die Anweisung um und sage in antwort, was dabei verloren geht. Nie still streichen.
+Neu formulieren heisst neuer Wortlaut, nicht neuer Inhalt: Funktion, Kernbegriffe (Produkt, Kategorie, Claims) und Aussage bleiben.
+`;
+
+const ANSCHLUSS_REGEL = `
+# ANSCHLUSS
+Die geaenderte Zelle steht zwischen Zellen, die sich nicht aendern. Sie knuepft an die vorige an und fuehrt in die naechste hinein, so wie sie im AKTUELLEN SKRIPT stehen. Nicht anfassen heisst nicht ignorieren.
+Saetze, Aufzaehlungen und Pointen aus Nachbarzellen nicht in die geaenderte Zelle holen, dort stehen sie schon. Jede Hook-Variante fuehrt in denselben Hauptteil.
+Was zu sehen ist bleibt am Ort der Nachbarzellen. Braucht die neue Fassung einen anderen Ort, ist das ein Ortswechsel fuer das ganze Skript (ADR 0051): im freien Chat Umfang alles mit allen betroffenen Zellen, sonst nicht umsetzen und in antwort fragen.
+`;
+
+// Analog „## Abweichungen“ der Generierung: was aufgegeben wurde, steht in antwort, nicht nur was eingehalten wurde
+const ANTWORT_REGEL = '- antwort (1-3 Saetze, Deutsch): zuerst die Basis in einem Halbsatz („auf Basis des Dokuments“ oder „auf Basis deines letzten Vorschlags“), dann was sich aendert. '
+  + 'Bedient die neue Fassung etwas aus dem Kontext nicht mehr (Kategorie oder Produkt nicht genannt, anderer Hook-Typ, anderer Ort, Zeitbudget der Zelle ueberschritten, Briefing-Vorgabe oder Kernidee nicht erfuellt), '
+  + 'nenne jede Abweichung mit „Abweichung: …“. Ohne Abweichung nichts dazu schreiben. Bei reinen Fragen entfaellt die Basis.\n';
+
 const GRID_SEKTIONEN = ['hook', 'hauptteil', 'cta', 'hook_variante_1', 'hook_variante_2', 'hook_variante_3'];
 
 /** Zellen-Feldname einer Aenderung: titel, <sektion> oder <sektion>_visuell. */
@@ -75,13 +99,17 @@ const AKTION_ANWEISUNGEN = {
   laenger: 'Baue die markierte Stelle aus: mehr Detail, mehr Emotion oder ein konkretes Beispiel – ohne zu labern.',
   anderer_ton: 'Schreibe die markierte Stelle in einem anderen Ton um. Beachte die Ton-Vorgabe des Users, falls vorhanden.',
   feedback: 'Der User hat die markierte Stelle bewertet und strukturiertes Feedback gegeben (Score, Begründung, ggf. eine Vorgabe "So sollte es sein"). Überarbeite die markierte Stelle so, dass das Feedback vollständig umgesetzt wird. Eine Vorgabe "So sollte es sein" ist verbindlich: übernimm ihre Richtung, aber formuliere sie sauber im Ton des restlichen Skripts aus.',
-  chat: 'Setze das Feedback um. „Neu“, „andere Formulierung“, „nicht so“ heisst anderer Text, keine Variante des letzten Vorschlags. Fehlt ein Fakt, der weder im Skript noch in der Anweisung steht: einmal nachfragen. Nennt die Anweisung den Umfang (alles oder eine Sektion), nicht fragen. '
+  chat: 'Setze das Feedback um. „Neu formulieren“, „andere Formulierung“ oder „nicht so“ ohne weitere Angabe heisst dasselbe wie die Aktion Neu formulieren: '
+    + 'gleiche Funktion im Video, Figuren, Setting, Produktaussagen und Aussage bleiben, der Wortlaut ist neu. '
+    + 'Andere Situation oder andere Geschichte nur, wenn die Anweisung das ausdruecklich verlangt. Fehlt ein Fakt, der weder im Skript noch in der Anweisung steht: einmal nachfragen. Nennt die Anweisung den Umfang (alles oder eine Sektion), nicht fragen. '
     + 'Nennt die Anweisung mehrere Kritikpunkte, setze alle um, nicht nur den ersten, und beginne antwort mit „So verstehe ich dein Feedback:“ und einer kurzen Aufzaehlung. '
     + 'Betrifft sie Figur, Besetzung, Ort, Setting oder die Geschichte, lies das ganze Skript als eine Geschichte und pruefe vor der Abgabe jede Zelle (Hook, Hauptteil, CTA, je gesprochen und visuell, Hook-Varianten, Titel) auf Reste des alten Stands.',
   visuell: 'Der gesamte gesprochene Text der Sektion steht unter "Markierte Stelle". Schreibe dazu einen schlichten Satz pro Beat fuer "Was zu sehen ist". Gleiche Absatz-Anzahl wie der gesprochene Text. Keine Zeitmarker, keine Shotlist, kein Storyboard. KEINEN zweiten Sprechertext, keine gesprochenen Worte. Der gesprochene Text bleibt unveraendert. Leitplanken und Briefing-Fakten gelten auch fuer On-Screen-Texte. Orte und Props aus den anderen Sektionen behalten.'
 };
 
 const VERLAUF_SKIP = new Set(['error', 'cancelled', 'pending', 'running']);
+// Ohne Stand weiss das Modell nur beim letzten Vorschlag, ob er abgelehnt wurde
+const VERLAUF_STAND = { abgelehnt: 'abgelehnt', angenommen: 'angenommen' };
 
 /** Mehr-Zellen-Vorschlag als Klartext, damit der naechste Turn ihn als Basis sieht. */
 function bundleText(aenderungen) {
@@ -105,9 +133,10 @@ function skriptVerlaufFormat(row) {
   const antwort = cap(row.inhalt, KONTEXT_MAX.userText).trim();
   const vorschlag = cap(row.vorschlag_text, KONTEXT_MAX.userText).trim();
   if (antwort) teile.push(antwort);
-  if (vorschlag) teile.push(`Vorschlag:\n${vorschlag}`);
+  const stand = VERLAUF_STAND[row.status] ? ` (${VERLAUF_STAND[row.status]})` : '';
+  if (vorschlag) teile.push(`Vorschlag${stand}:\n${vorschlag}`);
   const bundle = bundleText(row.aenderungen);
-  if (bundle) teile.push(bundle);
+  if (bundle) teile.push(stand ? bundle.replace(/^Vorschlag/, `Vorschlag${stand}`) : bundle);
   if (!teile.length) return null;
   return { role: 'assistant', content: teile.join('\n\n') };
 }
@@ -295,6 +324,90 @@ function zielZelle(message) {
   return message.sektion;
 }
 
+/** Zellen eines Vorschlags im Verlauf: [{ feld, text, selektion }]. */
+function vorschlagZellen(row) {
+  const liste = Array.isArray(row?.aenderungen) ? row.aenderungen : [];
+  if (liste.length) {
+    return liste
+      .filter((a) => a && a.sektion && a.vorschlag_text)
+      .map((a) => ({ feld: aenderungFeld(a), text: a.vorschlag_text, selektion: null }));
+  }
+  const feld = zielZelle(row);
+  return feld && row?.vorschlag_text ? [{ feld, text: row.vorschlag_text, selektion: row.selektion_text || null }] : [];
+}
+
+function zeitwert(wert) {
+  const t = Date.parse(wert || '');
+  return Number.isFinite(t) ? t : null;
+}
+
+/**
+ * Macht o den offenen Vorschlag row veraltet? Spiegel von istVeraltet
+ * (src/modules/skripte/editor/skriptEditorVeraltet.js). history ist
+ * chronologisch, ohne Zeitstempel entscheidet die Reihenfolge.
+ */
+function ersetzt(row, o, { iRow, iO, skript }) {
+  const zr = vorschlagZellen(row);
+  const zo = vorschlagZellen(o);
+  if (!zr.some((x) => zo.some((y) => x.feld === y.feld))) return false;
+  if (o.status === 'vorschlag') {
+    const andereStelle = zr.length === 1 && zo.length === 1 && zr[0].selektion && zo[0].selektion
+      && zr[0].selektion !== zo[0].selektion;
+    return iO > iRow && !andereStelle;
+  }
+  if (o.status !== 'angenommen') return false;
+  const erstellt = zeitwert(row.created_at);
+  const angenommen = zeitwert(o.updated_at);
+  const spaeter = erstellt != null && angenommen != null ? angenommen > erstellt : iO > iRow;
+  if (!spaeter) return false;
+  if (zr.length > 1 || !zr[0].selektion) return true;
+  return !String(skript?.[zr[0].feld] || '').includes(zr[0].selektion);
+}
+
+/**
+ * Offene Vorschlaege, pro Zelle hoechstens einer: ein neuerer Vorschlag oder
+ * ein spaeterer Accept auf derselben Zelle macht einen offenen Vorschlag
+ * veraltet. Ein abgelehnter neuerer Vorschlag ersetzt nichts.
+ */
+function offeneVorschlaege(history, skript = null) {
+  const rows = (history || []).filter((r) => r?.rolle === 'assistant'
+    && r.aktion !== 'visuell' && r.aktion !== 'rueckfrage' && vorschlagZellen(r).length);
+  return rows.filter((row, iRow) => row.status === 'vorschlag'
+    && !rows.some((o, iO) => o !== row && ersetzt(row, o, { iRow, iO, skript })));
+}
+
+const ZELLE_LABEL = {
+  titel: 'TITEL', hook: 'HOOK', hauptteil: 'HAUPTTEIL', cta: 'CTA',
+  hook_visuell: 'HOOK (was zu sehen ist)', hauptteil_visuell: 'HAUPTTEIL (was zu sehen ist)', cta_visuell: 'CTA (was zu sehen ist)',
+  hook_variante_1: 'Hook 1', hook_variante_2: 'Hook 2', hook_variante_3: 'Hook 3'
+};
+
+/**
+ * Was gerade auf dem Tisch liegt (Fall „Erster Satz ist gut …“): der offene
+ * Vorschlag der Zielzelle, ohne Zielzelle alle offenen. Der Server weiss das,
+ * das Modell muss es nicht aus dem Verlauf erraten.
+ */
+function offenerVorschlagBlock(history, message, skript = null) {
+  if (message?.aktion === 'visuell') return '';
+  const ziel = zielZelle(message);
+  const zeilen = [];
+  for (const row of offeneVorschlaege(history, skript)) {
+    for (const z of vorschlagZellen(row)) {
+      if (ziel && z.feld !== ziel) continue;
+      const label = ZELLE_LABEL[z.feld] || z.feld.toUpperCase();
+      zeilen.push(z.selektion
+        ? `${label}, Ersatz fuer die markierte Stelle „${cap(z.selektion, 300)}“:\n${cap(z.text, KONTEXT_MAX.userText)}`
+        : `${label}:\n${cap(z.text, KONTEXT_MAX.userText)}`);
+    }
+  }
+  if (!zeilen.length) return '';
+  return '\n# OFFENER VORSCHLAG (noch nicht angenommen, steht nicht im Dokument)\n'
+    + `${zeilen.join('\n\n')}\n`
+    + 'Feedback ohne ausdruecklichen Bezug aufs Dokument und ohne Markierung im Dokument gilt diesem Vorschlag: er ist die Basis. '
+    + 'Was der User daran gutheisst („ist gut“, „passt“, „bleibt“), bleibt woertlich stehen. Nur was er aendern will, aendert sich. '
+    + 'Saetze aus diesem Vorschlag sind kein Wiederholungsverbot.\n';
+}
+
 function festgezogenBlock(skript, message, { freierChat = false } = {}) {
   const alle = Array.isArray(skript?.festgezogen) ? skript.festgezogen : [];
   const ziel = zielZelle(message);
@@ -325,7 +438,7 @@ async function loadEditContext(supabase, message) {
   // Chat-Verlauf (letzte 12 lebende Messages VOR der pending Assistant-Message).
   // Rueckfragen kommen separat und ohne Limit.
   const historyPromise = supabase.from('skript_chat_messages')
-    .select('rolle, inhalt, aktion, sektion, selektion_text, vorschlag_text, aenderungen, status')
+    .select('rolle, inhalt, aktion, sektion, ist_visuell, selektion_text, vorschlag_text, aenderungen, status, created_at, updated_at')
     .eq('skript_id', message.skript_id)
     .neq('id', message.id)
     .or('aktion.is.null,aktion.neq.rueckfrage')
@@ -388,8 +501,10 @@ function buildEditPrompt(ctx, message) {
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
     + 'und ueberarbeitest ein bestehendes Video-Konzept im Dialog mit einem Mitarbeiter. '
     + 'Du aenderst nur die verlangte Stelle. Ausnahme im freien Chat: bei einem Wechsel von Figur, Besetzung, Ort oder Geschichte ist das ganze Skript die verlangte Stelle. '
-    + 'Will der User etwas Neues, paraphrasiere nicht: anderer Einstieg, andere Saetze, nichts aus dem bisherigen Wortlaut und nichts aus frueheren Vorschlaegen. '
+    + 'Will der User eine neue Fassung, paraphrasiere nicht: anderer Einstieg, andere Saetze. Das gilt fuer den Wortlaut, nicht fuer Funktion und Kernbegriffe. '
+    + 'Saetze aus frueheren Vorschlaegen nur dann nicht wiederverwenden, wenn der Vorschlag abgelehnt wurde oder der User ausdruecklich etwas ganz Neues will. Was der User gutheisst, bleibt woertlich. '
     + 'Verbote im Block WICHTIGE VORGABEN bleiben Verbote. Pflichtinhalte und Do\'s nur, wo der Fakt belegt ist.\n';
+  stable += AUFTRAG_IM_KONTEXT;
 
   stable += fmtMasterBlock(master);
 
@@ -400,8 +515,8 @@ function buildEditPrompt(ctx, message) {
 
   // Block 2 (variabel): Skript + Verlauf + Auftrag
   let task = 'Text, der im Dokument steht. Aendert sich erst, wenn ein Vorschlag angenommen wurde. '
-    + 'Markierte Stelle, die weder hier noch im letzten Assistant-Vorschlag vorkommt: veraltet, ignorieren. '
-    + 'Bezieht sich die Anweisung auf den letzten Assistant-Vorschlag, ist der Vorschlag die Basis. Sonst dieses Dokument.\n'
+    + 'Markierte Stelle, die weder hier noch im OFFENEN VORSCHLAG vorkommt: veraltet, ignorieren. '
+    + 'Steht unten ein OFFENER VORSCHLAG, ist er die Basis, ausser die Anweisung bezieht sich ausdruecklich aufs Dokument. Sonst dieses Dokument.\n'
     + '# AKTUELLES SKRIPT\n';
   if (skript.titel) task += `Titel: ${skript.titel}\n`;
   if (hatGrid) {
@@ -431,6 +546,7 @@ function buildEditPrompt(ctx, message) {
     task += `CTA:\n${skript.cta || '-'}\n`;
     task += `CTA (was zu sehen ist):\n${skript.cta_visuell || '-'}\n`;
   }
+  task += offenerVorschlagBlock(history, message, skript);
 
   // Derselbe Kontext wie bei Generierung und Rueckfragen (inkl. Videovorlage
   // aus dem Snapshot und vollem Campaign-Briefing)
@@ -484,9 +600,10 @@ function buildEditPrompt(ctx, message) {
   }
 
   if (letzterEnthaltenerAssistant(history)?.status === 'abgelehnt') {
-    task += '\nDer letzte Vorschlag wurde abgelehnt. Formulierungen daraus nicht wiederverwenden.\n';
+    task += '\nDer letzte Vorschlag wurde abgelehnt. Formulierungen daraus nicht wiederverwenden, ausser die Anweisung heisst sie ausdruecklich gut.\n';
   }
 
+  if (hatGrid && !istMaster && message.aktion !== 'neue_geschichte') task += ANSCHLUSS_REGEL;
   task += festgezogenBlock(skript, message, { freierChat: chatWaehltSpalte });
   if (!istMaster) task += hookSperreEditBlock(ctx.gesperrterHook);
   task += festlegungBlock(skript);
@@ -526,7 +643,7 @@ function buildEditPrompt(ctx, message) {
       + '- vorschlag_text = ein schlichter Satz pro Beat fuer "Was zu sehen ist". Keine Zeitmarker, keine Shotlist.\n'
       + '- KEIN gesprochener Text, keine Sprecher-Anweisungen, keine woertliche Rede.\n'
       + '- sektion = die Sektion aus dem Auftrag.\n'
-      + '- antwort = kurze Bestaetigung (1 Satz, Deutsch).\n'
+      + '- antwort = kurze Bestaetigung (1 Satz, Deutsch). Weicht die Regie von Ort oder Requisiten der anderen Sektionen ab: „Abweichung: …“.\n'
       + '- Innerhalb der Texte typografische Anfuehrungszeichen („…“) statt gerader (") verwenden.\n'
       + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
       + '- Verletzt die Anweisung eine harte Grenze: vorschlag_text = null, antwort nennt die blockierende Vorgabe.\n'
@@ -540,6 +657,7 @@ function buildEditPrompt(ctx, message) {
       ? '(Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion, aenderungen, umfang, umfang_sektion).\n'
       : '(Felder: antwort, sektion, vorschlag_text).\n')
     + 'Regeln:\n'
+    + ANTWORT_REGEL
     + '- Innerhalb der Texte typografische Anfuehrungszeichen („…“) statt gerader (") verwenden.\n'
     + '- vorschlag_text muss zur Zielgruppe passen (siehe Zielgruppen-Persona) und den Ton des restlichen Skripts erhalten.\n'
     + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
@@ -614,6 +732,10 @@ module.exports = {
   editParams,
   filtereFestgezogen,
   VERBINDLICHE_REGELN,
+  AUFTRAG_IM_KONTEXT,
+  ANSCHLUSS_REGEL,
+  offeneVorschlaege,
+  offenerVorschlagBlock,
   EDIT_VERLAUF_LIMIT,
   GRID_SEKTIONEN
 };

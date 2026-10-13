@@ -257,6 +257,30 @@ describe('Videoidee-Drawer', () => {
     expect(document.querySelector('.videoidee-drawer__footer').textContent).not.toContain('Anmerkung');
   });
 
+  it('waehlt die Kategorie ueber das zentrale TableSelect und speichert sie', async () => {
+    const items = [{ id: 'i1', video_link: null, beschreibung: '', teilbereich: null }];
+    open(items);
+
+    expect(document.querySelector('#edit-item-drawer select')).toBeNull();
+    const wrapper = document.querySelector('[data-videoidee-kategorie] [data-table-select]');
+    expect(wrapper.dataset.field).toBe('strategie_kategorie');
+
+    wrapper.querySelector('.table-select__trigger').click();
+    document.querySelector('.table-select__portal [data-value="Reels"]').click();
+    await vi.waitFor(() => expect(items[0].teilbereich).toBe('Reels'));
+
+    expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', { teilbereich: 'Reels' });
+    expect(document.querySelector('[data-videoidee-kategorie] [data-table-select]').dataset.value).toBe('Reels');
+  });
+
+  it('zeigt einen Altwert der Kategorie, der nicht mehr in der Strategie steht', () => {
+    open([{ id: 'i1', video_link: null, beschreibung: '', teilbereich: 'Alt' }]);
+
+    const labels = [...document.querySelectorAll('[data-videoidee-kategorie] .table-select__panel .table-select__item-label')]
+      .map((el) => el.textContent);
+    expect(labels).toEqual(['Ohne Kategorie', 'Reels', 'Alt']);
+  });
+
   it('zeigt Feld-Icons an den Property-Labels', () => {
     open([{ id: 'i1', video_link: null, beschreibung: '' }]);
 

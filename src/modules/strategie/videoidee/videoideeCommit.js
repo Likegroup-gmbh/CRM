@@ -28,7 +28,6 @@ export async function commitControl(detail, el, hooks) {
   let ok = true;
 
   if (field === 'video_link') ok = await commitLink(detail, el, item, hooks);
-  else if (field === 'teilbereich') ok = await commitKategorie(detail, el, item, hooks);
   else if (field === 'video_umgesetzt') ok = await commitUmsetzen(detail, el, item);
   else if (field.startsWith(STRUKTUR_FIELD_PREFIX)) ok = await commitStruktur(detail, el, item, hooks);
   else if (field === 'umsetzungsvorgabe' && linkDirty(el, item)) ok = await commitLink(detail, linkInput(el), item, hooks);
@@ -199,10 +198,19 @@ async function commitUmsetzen(detail, el, item) {
   return true;
 }
 
-async function commitKategorie(detail, el, item, hooks) {
-  const teilbereich = el.value || null;
+/** Kategorie aus dem TableSelect speichern. Gibt false zurueck, wenn nichts gespeichert wurde. */
+export async function commitKategorie(detail, itemId, value, hooks) {
+  const item = detail.items.find((entry) => String(entry.id) === String(itemId));
+  if (!item) return false;
+  const teilbereich = value || null;
   if ((item.teilbereich || null) === teilbereich) return true;
-  await strategieService.updateStrategieItem(item.id, { teilbereich });
+  try {
+    await strategieService.updateStrategieItem(item.id, { teilbereich });
+  } catch (error) {
+    console.error('Fehler beim Speichern der Kategorie:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    return false;
+  }
   item.teilbereich = teilbereich;
   detail.rerenderItemsTable?.();
   hooks.updateNav(detail, item.id);
@@ -215,7 +223,6 @@ async function commitLink(detail, el, item, hooks) {
   const url = el.value || '';
   const vorgabeEl = panel?.querySelector('[data-field="umsetzungsvorgabe"]');
   const beschreibungEl = panel?.querySelector('[data-field="beschreibung"]');
-  const kategorieEl = panel?.querySelector('[data-field="teilbereich"]');
   const wasReferenz = !!item.video_link;
 
   if (url.trim() === (item.video_link || '') && (vorgabeEl?.value ?? '') === (item.umsetzungsvorgabe || '')) {
@@ -227,7 +234,7 @@ async function commitLink(detail, el, item, hooks) {
     video_link: url,
     umsetzungsvorgabe: vorgabeEl?.value ?? item.umsetzungsvorgabe ?? '',
     beschreibung: beschreibungEl?.value ?? item.beschreibung ?? '',
-    teilbereich: kategorieEl?.value ?? item.teilbereich ?? ''
+    teilbereich: item.teilbereich ?? ''
   });
   if (!result.ok) {
     window.toastSystem?.show(result.error, 'warning');

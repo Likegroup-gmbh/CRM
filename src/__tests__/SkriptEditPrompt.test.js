@@ -312,7 +312,7 @@ describe('buildEditPrompt Visual-Stil', () => {
     }, MESSAGE);
     expect(task).toContain('Der letzte Vorschlag wurde abgelehnt');
     expect(task).not.toContain(text);
-    expect(messages[1].content).toContain(`Vorschlag:\n${text}`);
+    expect(messages[1].content).toContain(`Vorschlag (abgelehnt):\n${text}`);
   });
 
   it('offener Vorschlag ist Assistant-Turn und steht nicht nochmal im Auftrag', () => {

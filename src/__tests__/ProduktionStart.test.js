@@ -185,6 +185,7 @@ describe('Konzept-Aktionsmenü Produktion starten', () => {
     };
     const detail = detailStub({
       items: [item],
+      hiddenColumns: ['show:fixed:beschreibung'],
       _bindTableEvents: () => {}
     });
     document.body.innerHTML = `<table class="strategie-items-table"><tbody>${renderItemRow(detail, item, 0)}</tbody></table>`;

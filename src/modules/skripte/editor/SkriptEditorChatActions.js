@@ -11,6 +11,25 @@ import { pendingThinking } from '../../../core/chat/thinking.js';
 import { sektionAnzeige, sektionAnzeigeKurz, skriptStand, manuellBeschreibung } from './skriptEditorVisuellHelfer.js';
 import { istMasterSkript, replaceMasterSektion, masterSektionBody } from '../master/skriptMasterFormat.js';
 import { istVeraltet } from './skriptEditorVeraltet.js';
+import { zeitmarkerPatch, VISUELL_PAARE } from '../skriptSekunden.js';
+import { pruefeDokument } from '../skriptPruefung.js';
+
+const ZEIT_FELDER = new Set(VISUELL_PAARE.flat());
+const GESPROCHEN = new Set(VISUELL_PAARE.map(([gesprochen]) => gesprochen));
+
+/** Festlegung nach Ablehnen: „Abgelehnt für Hook: „…““. Ohne Vorschlagstext keine. */
+export function festlegungAusAblehnungText(msg) {
+  const liste = (Array.isArray(msg?.aenderungen) ? msg.aenderungen : [])
+    .filter((a) => a?.sektion && String(a.vorschlag_text || '').trim());
+  const einzel = String(msg?.vorschlag_text || '').trim();
+  if (einzel && msg?.sektion && msg.sektion !== 'gesamt') {
+    return `Abgelehnt für ${sektionAnzeigeKurz(msg.sektion, msg.ist_visuell)}: „${einzel.slice(0, 180)}“`;
+  }
+  if (!liste.length) return einzel ? `Abgelehnt: „${einzel.slice(0, 180)}“` : '';
+  const zellen = [...new Set(liste.map((a) => sektionAnzeigeKurz(a.sektion, a.spalte === 'visuell')))].join(', ');
+  const stueck = liste.map((a) => String(a.vorschlag_text).trim()).join(' / ').slice(0, 180);
+  return `Abgelehnt für ${zellen}: „${stueck}“`;
+}
 
 /** Zellen eines Mehr-Zellen-Auftrags: [{ feld, text }]. */
 function aenderungZellen(msg) {
@@ -340,8 +359,10 @@ export class SkriptEditorChatActions {
 
     try {
       const festgezogen = this.mitFestgezogen(feld);
-      await skripteService.updateSkript(v.skript.id, { [feld]: neu, festgezogen });
+      const extra = this.abgeleitet({ ...v.skript, [feld]: neu }, [feld]);
+      await skripteService.updateSkript(v.skript.id, { [feld]: neu, ...extra, festgezogen });
       v.skript[feld] = neu;
+      Object.assign(v.skript, extra);
 
       const beschreibung = `${AKTION_LABELS[msg.aktion] || 'Änderung'} · ${sektionAnzeigeKurz(sektion, msg.ist_visuell)}`;
       const neueVersion = await skripteService.createVersion(v.skript, beschreibung, vorherigerStand, v.aktiveVersion);
@@ -378,6 +399,7 @@ export class SkriptEditorChatActions {
     try {
       const patch = {};
       for (const z of zellen) patch[z.feld] = z.text;
+      Object.assign(patch, this.abgeleitet({ ...v.skript, ...patch }, zellen.map((z) => z.feld)));
       const festgezogen = zellen.reduce((liste, z) => this.mitFestgezogen(z.feld, liste), null);
       await skripteService.updateSkript(v.skript.id, { ...patch, festgezogen });
       v.skript.festgezogen = festgezogen;
@@ -481,10 +503,13 @@ export class SkriptEditorChatActions {
 
     const haupt = v.skript.hook || '';
     v.acceptLaeuft = true;
+    const stempel = this.abgeleitet({ ...v.skript, hook: variante }, ['hook']);
+    const visuellVorher = Object.fromEntries(Object.keys(stempel).map((k) => [k, v.skript[k]]));
     try {
       v.skript.hook = variante;
       v.skript[feld] = haupt;
-      await skripteService.updateSkript(v.skript.id, { hook: variante, [feld]: haupt || null });
+      Object.assign(v.skript, stempel);
+      await skripteService.updateSkript(v.skript.id, { hook: variante, [feld]: haupt || null, ...stempel });
       const neueVersion = await skripteService.createVersion(
         v.skript,
         `${AKTION_LABELS.hook_uebertragen} · ${SEKTION_LABELS_KURZ[feld]}`,
@@ -502,8 +527,32 @@ export class SkriptEditorChatActions {
       window.toastSystem?.error(err.message);
       v.skript.hook = haupt;
       v.skript[feld] = variante;
+      Object.assign(v.skript, visuellVorher);
     } finally {
       v.acceptLaeuft = false;
+    }
+  }
+
+  /**
+   * Abgeleitete Felder nach einer Textaenderung (ADR 0035): Zeitmarker aller
+   * Visual-Zellen aus dem Gesamtstand und die Pruefung des Dokuments.
+   */
+  abgeleitet(stand, felder, { ausser = [] } = {}) {
+    const patch = {};
+    if (felder.some((f) => ZEIT_FELDER.has(f))) Object.assign(patch, zeitmarkerPatch(stand, { ausser }));
+    if (felder.some((f) => GESPROCHEN.has(f))) patch.pruefung = pruefeDokument({ ...stand, ...patch });
+    return patch;
+  }
+
+  /** Extern geaenderte Zellen ohne vollen Re-Render ins DOM schreiben; die Zelle mit Fokus bleibt. */
+  zeigeZellen(patch) {
+    const v = this.view;
+    const fokus = v.inlineEdit?.focusedFeld?.();
+    for (const [feld, text] of Object.entries(patch || {})) {
+      if (feld === fokus || !ZEIT_FELDER.has(feld)) continue;
+      const zelle = v.container?.querySelector(`[data-feld="${feld}"]`);
+      if (zelle) zelle.textContent = text || '';
+      v.inlineEdit?.syncSaved?.(feld, text || '');
     }
   }
 
@@ -525,26 +574,11 @@ export class SkriptEditorChatActions {
     v.skript.festlegungen = liste;
   }
 
+  // Nur das abgelehnte Stueck: die Anweisung davor galt diesem Turn, sie als
+  // Dauer-Fakt zu speichern hat spaetere Edits auf den alten Wunsch festgenagelt
   async festlegungAusAblehnung(msg) {
-    const v = this.view;
-    const idx = v.messages.findIndex((m) => m.id === msg.id);
-    let anweisung = '';
-    for (let i = idx - 1; i >= 0; i--) {
-      if (v.messages[i].rolle === 'user') {
-        anweisung = v.messages[i].inhalt || '';
-        break;
-      }
-    }
-    const bundle = (Array.isArray(msg.aenderungen) ? msg.aenderungen : [])
-      .map((a) => String(a?.vorschlag_text || '').trim())
-      .filter(Boolean)
-      .join(' / ');
-    const stueck = (String(msg.vorschlag_text || '').trim() || bundle).slice(0, 180);
-    const text = [
-      anweisung.trim(),
-      stueck ? `Diesen Vorschlag nicht wiederholen: ${stueck}` : 'Diesen Vorschlag nicht wiederholen.'
-    ].filter(Boolean).join(' — ');
-    await this.haengeFestlegung(text, 'ablehnung');
+    const text = festlegungAusAblehnungText(msg);
+    if (text) await this.haengeFestlegung(text, 'ablehnung');
   }
 
   async saveManuell(feld, text, vorherText) {
@@ -580,8 +614,16 @@ export class SkriptEditorChatActions {
     const vorherigerStand = skriptStand(v.skript);
     vorherigerStand[feld] = vorherText || null;
     v.skript[feld] = wert;
+    // Gesprochener Text bestimmt Sekunden und Pruefung; eine Visual-Zelle mit Fokus bleibt, wie sie ist.
+    // Eine manuell bearbeitete Visual-Zelle wird nicht neu gestempelt.
+    const fokus = v.inlineEdit?.focusedFeld?.();
+    const stempel = GESPROCHEN.has(feld)
+      ? this.abgeleitet(v.skript, [feld], { ausser: fokus ? [fokus] : [] })
+      : {};
+    Object.assign(v.skript, stempel);
     try {
-      await skripteService.updateSkript(v.skript.id, { [feld]: wert });
+      await skripteService.updateSkript(v.skript.id, { [feld]: wert, ...stempel });
+      this.zeigeZellen(stempel);
       const neueVersion = await skripteService.createVersion(
         v.skript, manuellBeschreibung(feld), vorherigerStand, v.aktiveVersion
       );

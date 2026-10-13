@@ -710,6 +710,12 @@
   border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
+.skripte-editor-persona-wahl {
+  display: block;
+  max-width: 28rem;
+  margin-top: var(--space-xs);
+}
+
 .skripte-editor-vorgaben {
   border: var(--border-xs) solid var(--border-primary);
 

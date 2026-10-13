@@ -43,6 +43,10 @@ vi.mock('../modules/skripte/SkriptList.js', () => ({
   matchesKampagne: (item, kampagneId) => {
     if (kampagneId == null) return !item.kampagne_id;
     return item.kampagne_id === kampagneId;
+  },
+  matchesLinie: (item, briefingId) => {
+    if (briefingId == null) return !item.briefing_id;
+    return item.briefing_id === briefingId;
   }
 }));
 

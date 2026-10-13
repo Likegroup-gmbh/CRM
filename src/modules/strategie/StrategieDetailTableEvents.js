@@ -7,6 +7,8 @@ import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
 import { buildStrategieFunnelUpdates, isStrategieFunnel } from './strategieFunnelOptions.js';
 import { buildStrategiePersonaUpdates, isStrategiePersona } from './strategiePersonaOptions.js';
+import { buildStrategieVideolaengeUpdates, getStrategieVideolaenge } from './strategieVideolaenge.js';
+import { openVideolaengePopover, closeVideolaengePopover } from './StrategieVideolaengePopover.js';
 import { bindTextClipEvents } from './strategieTextClip.js';
 import { startProduktionFromItem } from '../kooperation/produktionStart.js';
 import { refreshItemActions, updateItemRow } from './StrategieDetailRenderer.js';
@@ -85,6 +87,7 @@ export function bindTableEvents(detail) {
   bindPrioSelect(detail);
   bindFunnelSelect(detail);
   bindPersonaSelect(detail);
+  bindVideolaengeInputs(detail);
 
   const refreshOnOpen = (e) => {
     const toggle = e.target.closest?.('.actions-toggle');
@@ -460,6 +463,63 @@ export async function handleFunnelChange(detail, itemId, value) {
     console.error('Fehler beim Speichern der Funnel-Stufe:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
     detail.rerenderItemsTable();
+  }
+}
+
+/**
+ * Dauer in der Tabelle: ein Klick auf den Wert oeffnet den Slider (wie im
+ * Briefing) als Popover. Jeder abgeschlossene Zug speichert
+ * strategie_items.videolaenge_von/bis.
+ */
+export function bindVideolaengeInputs(detail) {
+  const handler = (e) => {
+    const trigger = e.target.closest?.('[data-videolaenge-trigger]');
+    if (!trigger || !isFromThisWorksheet(detail, trigger)) return;
+    e.preventDefault();
+    const itemId = trigger.dataset.itemId;
+    const aktuell = () => getStrategieVideolaenge(detail.items.find(i => String(i.id) === String(itemId)));
+    openVideolaengePopover({
+      trigger,
+      iv: aktuell(),
+      aktuell,
+      onCommit: (iv) => handleVideolaengeChange(detail, itemId, iv)
+    });
+  };
+  document.addEventListener('click', handler);
+  detail._tableEventListeners.add(() => {
+    document.removeEventListener('click', handler);
+    closeVideolaengePopover();
+  });
+}
+
+/**
+ * Speichert die Dauer einer Videoidee. Unveraenderter Wert schreibt nichts.
+ * @param {{von:number,bis:number}|null} iv  null leert die Dauer
+ * @returns {Promise<boolean>} true, wenn gespeichert wurde
+ */
+export async function handleVideolaengeChange(detail, itemId, iv) {
+  // Nur intern mit Edit-Recht: Kunden sehen die Dauer, setzen sie nicht.
+  if (detail.isKunde || !detail.canEdit) return false;
+  if (typeof window.permissionSystem?.canEditField === 'function'
+    && !window.permissionSystem.canEditField('strategie', 'strategie_videolaenge')) return false;
+  const item = detail.items.find(i => String(i.id) === String(itemId));
+  if (!item) return false;
+
+  const updates = buildStrategieVideolaengeUpdates(iv);
+  const alt = getStrategieVideolaenge(item);
+  if ((alt?.von ?? null) === updates.videolaenge_von && (alt?.bis ?? null) === updates.videolaenge_bis) {
+    return false;
+  }
+
+  try {
+    await strategieService.updateStrategieItem(itemId, updates);
+    Object.assign(item, updates);
+    detail.rerenderItemsTable();
+    return true;
+  } catch (error) {
+    console.error('Fehler beim Speichern der Dauer:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    return false;
   }
 }
 

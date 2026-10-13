@@ -7,6 +7,15 @@ import { skripteService } from '../SkripteService.js';
 import { escapeHtml, replaceSkriptUrl } from '../SkripteUtils.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
 
+/**
+ * Sidebar-Scope eines Skripts: die Linie (Briefing), sonst die Kampagne
+ * (Altbestand ohne Briefing, dort filtert renderListe auf "ohne Briefing").
+ */
+function listeScope(skript) {
+  if (skript.briefing_id) return { briefingId: skript.briefing_id };
+  return { kampagneId: skript.kampagne_id ?? null };
+}
+
 SkriptEditorView.prototype.render = async function(container, skriptId) {
   await this.cleanup();
   this.container = container;
@@ -24,7 +33,7 @@ SkriptEditorView.prototype.render = async function(container, skriptId) {
     }
 
     const [skripte, messages, versionen, modi, kommentare, verknuepfungen] = await Promise.all([
-      skripteService.loadSkripte({ kampagneId: skript.kampagne_id ?? null }),
+      skripteService.loadSkripte(listeScope(skript)),
       readonly ? Promise.resolve([]) : skripteService.getChatMessages(skriptId),
       skripteService.getVersionen(skriptId),
       readonly ? Promise.resolve([]) : this.loadModiCached(),
@@ -35,6 +44,7 @@ SkriptEditorView.prototype.render = async function(container, skriptId) {
     this.skript = skript;
     this.skripte = skripte;
     this._listeKampagneId = skript.kampagne_id ?? null;
+    this._listeBriefingId = skript.briefing_id ?? null;
     this.messages = messages;
     this.kommentare = kommentare;
     this.verknuepfungen = verknuepfungen || [];
@@ -200,12 +210,14 @@ SkriptEditorView.prototype.switchSkript = async function(skriptId) {
     this.verknuepfungen = verknuepfungen || [];
     this.setVersionsState(versionen);
 
-    // Liste nachladen, wenn das neue Skript in einer anderen Kampagne
-    // liegt als der bisherige Sidebar-Scope (z.B. Neu-Modus -> Kampagne B)
+    // Liste nachladen, wenn das neue Skript in einer anderen Kampagne oder
+    // Linie liegt als der bisherige Sidebar-Scope (z.B. Neu-Modus -> Kampagne B)
     const neueKampagneId = skript.kampagne_id ?? null;
-    if (neueKampagneId !== this._listeKampagneId) {
+    const neueBriefingId = skript.briefing_id ?? null;
+    if (neueKampagneId !== this._listeKampagneId || neueBriefingId !== this._listeBriefingId) {
       this._listeKampagneId = neueKampagneId;
-      this.skripte = await skripteService.loadSkripte({ kampagneId: neueKampagneId });
+      this._listeBriefingId = neueBriefingId;
+      this.skripte = await skripteService.loadSkripte(listeScope(skript));
     }
 
     replaceSkriptUrl(skriptId);
@@ -248,6 +260,7 @@ SkriptEditorView.prototype.cleanup = async function() {
   this.cleanupGenJob();
   this.genStatus = null;
   this._listeKampagneId = undefined;
+  this._listeBriefingId = undefined;
   if (this.channel) {
     window.supabase.removeChannel(this.channel);
     this.channel = null;

@@ -218,6 +218,22 @@ describe('Anlegen einer Videoidee', () => {
     expect(buildStrategieItemInsert({ strategieId: 's1', nextItem: { beschreibung: 'T' }, sortierung: 0 }).persona_id).toBeUndefined();
   });
 
+  it('gibt das Produkt aus dem Drawer als produkt_id in den Insert', () => {
+    const resolved = resolveVideoideeForm({ art: 'idee', beschreibung: 'Text', produktId: 'pr1' });
+    expect(resolved.produktId).toBe('pr1');
+    const insert = buildStrategieItemInsert({
+      strategieId: 's1',
+      nextItem: { url: null, beschreibung: 'Text', kategorie: null, produktId: resolved.produktId },
+      sortierung: 0
+    });
+    expect(insert.produkt_id).toBe('pr1');
+  });
+
+  it('lässt fehlendes Produkt leer', () => {
+    expect(resolveVideoideeForm({ art: 'idee', beschreibung: 'Text', produktId: '' }).produktId).toBeNull();
+    expect(buildStrategieItemInsert({ strategieId: 's1', nextItem: { beschreibung: 'T' }, sortierung: 0 }).produkt_id).toBeUndefined();
+  });
+
   it('erlaubt die Persona an einem Videoidee-Vorschlag', () => {
     expect(VORSCHLAG_EDIT_FIELDS).toContain('persona_id');
   });

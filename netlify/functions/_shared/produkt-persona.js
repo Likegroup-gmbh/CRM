@@ -16,9 +16,12 @@
 const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
 const {
   UNISEX_VORNMEN,
+  REGISTER_LABELS,
   nameIstUnisex,
   kanonischerUnisexName,
-  gefilterteUnisexNamen
+  passtNameZu,
+  gefilterteUnisexNamen,
+  fmtNamenListe
 } = require('./unisex-vornamen');
 
 const POOL_FELDER = 'id, name, oberbegriff, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, beschreibung';
@@ -110,10 +113,13 @@ const PERSONA_TOOL = {
               type: ['object', 'null'],
               description: 'Nur bei neu: das volle Persona-Profil. Bei match: null.',
               properties: {
-                name: { type: 'string', description: 'Deutscher Vorname, passend zum Naming der bestehenden Personas' },
-                oberbegriff: { type: 'string', description: 'Kategorie im Stil der bestehenden Personas, z.B. "Die effiziente Berufseinsteigerin"' },
+                // Reihenfolge ist Absicht: Alter und Namensregister stehen vor dem Namen,
+                // damit der Vorname zu beiden passt.
                 alter_von: { type: ['integer', 'null'] },
                 alter_bis: { type: ['integer', 'null'] },
+                namensregister: { type: 'string', enum: REGISTER_LABELS, description: 'Stilrichtung des Vornamens, abgeleitet aus Briefing, sonst Produkt und Marke. Wird nicht gespeichert.' },
+                name: { type: 'string', description: 'Deutscher Vorname, passend zu Namensregister und Alter' },
+                oberbegriff: { type: 'string', description: 'Kategorie im Stil der bestehenden Personas, z.B. "Die effiziente Berufseinsteigerin"' },
                 geschlecht: { type: ['string', 'null'], description: 'Weiblich, Maennlich, Divers oder Gemischt' },
                 wohnort_region: { type: ['string', 'null'] },
                 beruf: { type: ['string', 'null'] },
@@ -168,7 +174,9 @@ function personaTool({ unisexNamen = false, namen = [] } = {}) {
   const props = tool.input_schema.properties.vorschlaege.items.properties.persona.properties;
   const liste = namen.length ? namen : [...UNISEX_VORNMEN];
   props.name.enum = liste;
-  props.name.description = 'Genau einer dieser Vornamen. Kein anderer Name.';
+  props.name.description = 'Genau einer dieser Vornamen, passend zu namensregister und Alter. Kein anderer Name.';
+  const persona = tool.input_schema.properties.vorschlaege.items.properties.persona;
+  persona.required = ['namensregister', 'name'];
   props.geschlecht.enum = ['Gemischt'];
   props.geschlecht.description = 'Immer Gemischt.';
   props.oberbegriff.description = 'Geschlechtsneutrale Kategorie, z.B. "Berufstaetige mit wenig Zeit am Morgen".';
@@ -299,12 +307,21 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
   }
 
   const unisex = modusBrauchtUnisexName(input.modus);
-  const unisexListe = unisex
-    ? gefilterteUnisexNamen({
-      poolNamen: (pool || []).map((p) => p?.name),
-      verworfenerName: input.ersetzteKarte?.name
-    })
-    : [];
+  const namenListe = gefilterteUnisexNamen({
+    poolNamen: (pool || []).map((p) => p?.name),
+    belegteNamen: behalten.map((b) => b?.name),
+    verworfenerName: input.ersetzteKarte?.name
+  });
+
+  const briefingText = String(input.briefingText || '').trim();
+  if (briefingText) {
+    task += '\n# BRIEFING DER LINIE (nur fuer die Namenswahl)\n'
+      + 'Das Briefing bestimmt das Namensregister des Vornamens: Ton, Zielwelt, Plattform, Sprache, Setting. '
+      + 'Es steuert AUSSCHLIESSLICH den Vornamen. Alle anderen Persona-Felder (Alter, Beruf, Pain Points, Kaufmotive, '
+      + 'Oberbegriff, Beschreibung usw.) leitest du nur aus Produkt, Marke und bestehenden Personas ab, '
+      + 'nie aus dem Briefing. Die Persona bleibt ein wiederverwendbarer Typ Mensch auf Unternehmensebene.\n'
+      + `${briefingText}\n`;
+  }
 
   task += '\n# AUFTRAG\n';
   if (input.modus === 'karte') {
@@ -321,12 +338,22 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
     + 'fit_grund nennt konkret, welche Pain Points/Beduerfnisse auf welche Produktfakten treffen. '
     + 'Gib genau EINEN Eintrag in "vorschlaege" ab.\n';
 
+  const quelleRegister = briefingText ? 'dem Briefing der Linie' : 'Produkt und Marke';
+  const namenKopf = `Namensregister: ${REGISTER_LABELS.join(' | ')}. Namen mit den Jahrgaengen, zu denen sie passen (jung bis 30, mittel 31-50, aelter ab 51):\n`
+    + `${fmtNamenListe(namenListe)}\n`;
   if (unisex) {
-    task += 'Vorname nur aus dieser Liste, exakt eine Schreibweise: '
-      + unisexListe.join(', ') + '. '
+    task += 'Reihenfolge: erst alter_von und alter_bis, dann namensregister aus '
+      + `${quelleRegister}, dann der Vorname. `
+      + 'Der Vorname kommt aus dieser Liste, exakt eine Schreibweise, und passt zum gewaehlten Register UND zum Alter. '
       + 'House-Style gilt fuer den Vornamen nicht. '
       + 'geschlecht ist "Gemischt". '
-      + 'oberbegriff, beruf und beschreibung ohne -in/-er und ohne sie/er.\n';
+      + 'oberbegriff, beruf und beschreibung ohne -in/-er und ohne sie/er.\n'
+      + namenKopf;
+  } else {
+    task += 'Vorname: waehle namensregister aus '
+      + `${quelleRegister}, der Jahrgang des Namens passt zum Alter. `
+      + 'Die Liste ist nur Orientierung fuer Register und Jahrgang. Der Name darf frei gewaehlt werden, auch geschlechtlich.\n'
+      + namenKopf;
   }
 
   task += '\n# AUSGABEFORMAT\nGib das Ergebnis AUSSCHLIESSLICH ueber das Tool "persona_vorschlaege_abgeben" ab. '
@@ -374,6 +401,25 @@ function validateVorschlaege(json, { useCaseCount = 0, maxVorschlaege = 1, unise
     if (unisexNamen && !nameIstUnisex(persona.name)) {
       verworfen.push({ grund: 'kein Unisex-Vorname', vorschlag: String(persona.name).trim() });
       continue;
+    }
+
+    if (unisexNamen) {
+      const register = String(persona.namensregister || '').trim() || null;
+      const passt = passtNameZu(persona.name, {
+        register,
+        alterVon: persona.alter_von,
+        alterBis: persona.alter_bis
+      });
+      if (!passt.ok) {
+        verworfen.push({
+          grund: passt.grund,
+          vorschlag: String(persona.name).trim(),
+          register,
+          alter_von: persona.alter_von ?? null,
+          alter_bis: persona.alter_bis ?? null
+        });
+        continue;
+      }
     }
 
     const payload = sanitizePersonaPayload(persona);

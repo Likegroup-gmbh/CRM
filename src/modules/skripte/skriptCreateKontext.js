@@ -5,6 +5,14 @@
 // (genau ein accepted Fit, sonst null) fuer Altbestand vor der Spalte.
 
 import { funnelFuerSkript } from '../strategie/strategieFunnelOptions.js';
+import { getStrategieVideolaenge } from '../strategie/strategieVideolaenge.js';
+import { skriptSchluessel } from '../briefing/videolaenge.js';
+
+/** Dauer der Videoidee als Skript-Schlüssel ("15-20"), leer: null. */
+export function videolaengeSchluesselVonItem(item) {
+  const iv = getStrategieVideolaenge(item);
+  return iv ? skriptSchluessel(iv.von, iv.bis) : null;
+}
 
 /** Persona fürs Skript: Videoidee, sonst Casting-Eintrag, sonst keine. */
 export function personaIdFuerSkript(item) {
@@ -25,6 +33,17 @@ export function funnelWarnung(item) {
   if (item.strategie?.briefing?.bereich !== 'paid_creator_ads') return '';
   if (funnelFuerSkript(item.funnel_stufe)) return '';
   return 'Im Konzept ist keine Funnel-Stufe gesetzt. Liky fragt in den Rückfragen danach.';
+}
+
+/**
+ * Warnhinweis im Create-Drawer: weder Videoidee noch Casting-Eintrag nennen eine
+ * Persona, das Briefing hat aber welche. Kein Gate; Liky fragt in den Rückfragen.
+ */
+export function personaWarnung(item) {
+  if (!item || personaIdFuerSkript(item)) return '';
+  const personaIds = item.strategie?.briefing?.persona_ids;
+  if (!Array.isArray(personaIds) || !personaIds.length) return '';
+  return 'Die Videoidee hat keine Persona. Liky fragt in den Rückfragen, welche Persona aus dem Briefing gilt.';
 }
 
 export function resolveSkriptCreatePayload(item, { produktIds = [] } = {}) {
@@ -49,6 +68,9 @@ export function resolveSkriptCreatePayload(item, { produktIds = [] } = {}) {
     strategie_item_id: item?.id || null,
     video_idee: (item?.beschreibung || '').trim() || null,
     // Konzept schlägt Briefing: leer heißt keine Vorgabe, nie ein Briefing-Fallback.
-    funnel_stufe: funnelFuerSkript(item?.funnel_stufe)
+    funnel_stufe: funnelFuerSkript(item?.funnel_stufe),
+    // Konzept schlägt Briefing: die Dauer der Videoidee gilt. Leer bleibt null, dann
+    // füllt SkripteService sie beim Anlegen aus dem Briefing (Fallback).
+    video_laenge: videolaengeSchluesselVonItem(item)
   };
 }

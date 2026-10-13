@@ -11,8 +11,11 @@ import {
   renderFunnelControl,
   funnelEditable,
   renderPersonaControl,
-  personaEditable
+  personaEditable,
+  renderVideolaengeControl,
+  videolaengeEditable
 } from '../StrategieDetailRenderer.js';
+import { getStrategieVideolaenge } from '../strategieVideolaenge.js';
 import { isFixedColumnVisible, buildColumnContext } from '../strategieColumns.js';
 import { isFunnelWert, funnelSpalteStandardSichtbar } from '../strategieFunnelOptions.js';
 import { isVideoideeVorschlag, beschreibungMitAbsaetzen } from '../videoideeVorschlag.js';
@@ -146,6 +149,7 @@ function renderKopf(detail, item) {
     renderEditProduktField(item, editable),
     renderPersonaProp(detail, item),
     renderFunnelProp(detail, item),
+    renderDauerProp(detail, item),
     ...renderDecisionProps(detail, item),
     ...renderCustomProps(detail, item)
   ].filter(Boolean);
@@ -230,17 +234,30 @@ function renderLinkField(detail, item, editable) {
   `, '', 'video');
 }
 
+/** Kategorie-Auswahl: "Ohne Kategorie" plus die Kategorien der Strategie, Altwerte bleiben sichtbar. */
+export function renderKategorieControl(detail, item) {
+  const teilbereiche = detail.getTeilbereicheFromStrategie?.() || [];
+  const aktuell = item.teilbereich || '';
+  const namen = aktuell && !teilbereiche.includes(aktuell) ? [...teilbereiche, aktuell] : teilbereiche;
+  return renderTableSelect({
+    field: 'strategie_kategorie',
+    itemId: item.id,
+    value: aktuell,
+    options: [
+      { value: '', label: 'Ohne Kategorie' },
+      ...namen.map((name) => ({ value: name, label: name }))
+    ],
+    placeholder: 'Ohne Kategorie'
+  });
+}
+
 function renderKategorieField(detail, item, editable) {
   if (!editable) {
     if (!item.teilbereich) return '';
     return propRow('teilbereich', 'Kategorie', escapeHtml(item.teilbereich), '', 'tag');
   }
-  const teilbereiche = detail.getTeilbereicheFromStrategie?.() || [];
   return propRow('teilbereich', 'Kategorie', `
-    <select id="videoidee-teilbereich" class="videoidee-props__input" data-field="teilbereich" data-item-id="${item.id}">
-      <option value="">Ohne Kategorie</option>
-      ${teilbereiche.map((tb) => `<option value="${escapeAttr(tb)}" ${item.teilbereich === tb ? 'selected' : ''}>${escapeHtml(tb)}</option>`).join('')}
-    </select>
+    <div data-videoidee-kategorie>${renderKategorieControl(detail, item)}</div>
   `, '', 'tag');
 }
 
@@ -444,6 +461,20 @@ function renderFunnelProp(detail, item) {
   return propRow('funnel', 'Funnel-Stufe', `
     <div data-videoidee-funnel>${renderFunnelControl(detail, item)}</div>
   `, '', 'chart-bar');
+}
+
+/**
+ * Dauer im Drawer: folgt der Spaltensichtbarkeit der Tabelle. Wer sie nicht
+ * setzen darf, sieht sie nur mit Wert.
+ */
+function renderDauerProp(detail, item) {
+  const context = detail.columnContext ? detail.columnContext() : buildColumnContext(detail.strategie, detail.items);
+  const sichtbar = isFixedColumnVisible(detail.hiddenColumns, 'dauer', context);
+  const hatWert = !!getStrategieVideolaenge(item);
+  if (!hatWert && !(sichtbar && videolaengeEditable(detail))) return '';
+  return propRow('dauer', 'Dauer', `
+    <div data-videoidee-dauer>${renderVideolaengeControl(detail, item, { variant: 'drawer' })}</div>
+  `, '', 'clock');
 }
 
 /**

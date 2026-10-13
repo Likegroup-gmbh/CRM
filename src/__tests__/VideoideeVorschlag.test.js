@@ -250,7 +250,7 @@ describe('KI-Vorschlag als Tabellenzeile', () => {
     const doc = renderRow({
       ist_vorschlag: true,
       beschreibung: 'Titel\n\nPain Point: x'
-    });
+    }, { hiddenColumns: ['show:fixed:beschreibung', 'show:fixed:transkript'] });
     const tr = doc.querySelector('tr.item-row');
 
     expect(tr.classList.contains('item-row--vorschlag')).toBe(true);

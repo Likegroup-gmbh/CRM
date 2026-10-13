@@ -15,7 +15,7 @@ export async function getStrategieById(id, { skipAccessCheck = false } = {}) {
       marke:marke_id(id, markenname, logo_url, unternehmen:unternehmen_id(internes_kuerzel)),
       kampagne:kampagne_id(id, kampagnenname, eigener_name),
       auftrag:auftrag_id(id, auftragsname),
-      briefing:briefing_id(id, bereich, funnel_stufen, pa_funnel_stufen, im_funnel_stufen, persona_ids),
+      briefing:briefing_id(id, bereich, funnel_stufen, pa_funnel_stufen, im_funnel_stufen, persona_ids, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, videolaenge_funnel, im_formatvorgaben, os_formatvorgaben),
       created_by_user:created_by(id, name, profile_image_url)
     `)
     .eq('id', id)

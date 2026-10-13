@@ -1031,64 +1031,95 @@ span.videoidee-struktur__lock {
   }
 }
 
-/* Drawer Form Wrapper */
+/* Add-Item-Drawer: Sektionen (Inhalt, Einordnung, Queue) mit Spacing-Tokens.
+   Abstaende kommen nur aus gap/padding, nie aus margin-bottom der Felder. */
+
+#add-item-drawer .drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
 
 .add-item-drawer-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--border-primary);
-  margin-bottom: var(--space-lg);
+  gap: var(--space-lg);
 }
 
-/* Drawer Form (eine Zeile) */
-
-.add-item-drawer-form-row {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-md);
-}
-
-.add-item-drawer-form-row .form-field {
+.add-item-drawer-form .drawer-tab-nav {
   margin-bottom: 0;
 }
 
-.add-item-drawer-form-row .form-field--grow {
-  flex: 1;
-  min-width: 200px;
+.add-item-section .drawer-section-title {
+  margin-bottom: var(--space-sm);
 }
 
-/* URL nimmt den Platz, Kategorie nur so breit wie nötig */
-
-.add-item-drawer-form-row .form-field:not(.form-field--grow):not(.form-field--full) {
-  flex: 0 0 auto;
-  width: auto;
-  max-width: none;
+.add-item-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
 }
 
-.add-item-drawer-form-row .form-field--full {
-  flex: 1;
-  width: 100%;
+.add-item-section__body[hidden] {
+  display: none;
 }
 
-.add-item-drawer-form-row .form-field--full textarea.form-input {
+.add-item-section__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+  gap: var(--space-md);
+}
+
+.add-item-section__grid > .add-item-section__full {
+  grid-column: 1 / -1;
+}
+
+.add-item-section .form-field {
+  margin-bottom: 0;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.add-item-section .form-field textarea.form-input {
   width: 100%;
   min-height: 60px;
   resize: vertical;
   font-family: inherit;
 }
 
-.add-item-drawer-form-row--actions {
-  justify-content: flex-start;
-  align-items: center;
+/* TableSelect im Drawer-Formular: Optik an die Inputs angleichen */
+
+.add-item-drawer-form .table-select__trigger {
+  padding: var(--space-sm);
+  border-color: var(--gray-300);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 400;
 }
 
-/* Drawer Body für Add-Item - flex column für volle Höhe */
+.add-item-drawer-form .table-select__trigger:hover,
+.add-item-drawer-form .table-select.show .table-select__trigger {
+  background: var(--bg-primary);
+  border-color: var(--gray-400);
+  box-shadow: none;
+}
 
-#add-item-drawer .drawer-body {
+.add-item-actions {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.add-item-actions .mdc-btn {
+  width: auto;
+  min-width: var(--min-width-md);
+}
+
+#add-item-drawer .drawer-footer {
+  flex-shrink: 0;
+  padding: var(--space-md);
+  border-top: var(--border-xs) solid var(--border-primary);
+  background: var(--bg-primary);
 }
 
 .drawer-error {

@@ -1,13 +1,34 @@
 import { shouldActivateDevMode } from './DevModeAccess.js';
 
+const COLLAPSED_KEY = 'listenerMonitorCollapsed';
+
 const state = {
   counts: { document: 0, window: 0, element: 0 },
   log: [],
   overlay: null,
+  body: null,
+  collapseBtn: null,
   active: false,
+  collapsed: false,
   showElements: false,
   maxLogEntries: 200,
 };
+
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeCollapsed(collapsed) {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch {
+    // privater Modus o.ä.
+  }
+}
 
 // doc/win: eine Registry, Key = type|capture|fn. Der Browser ignoriert ein
 // zweites add derselben Kombination und entfernt sie genau einmal — der Zähler
@@ -181,30 +202,66 @@ function dumpActive() {
   }
 }
 
+function setCollapsed(collapsed) {
+  state.collapsed = collapsed;
+  writeCollapsed(collapsed);
+  updateUI();
+}
+
 function createOverlay() {
+  state.collapsed = readCollapsed();
+
   const el = document.createElement('div');
   el.id = 'listener-monitor';
   Object.assign(el.style, {
     position: 'fixed',
-    bottom: '8px',
-    right: '8px',
     background: 'rgba(0,0,0,0.85)',
     color: '#0f0',
     fontFamily: 'monospace',
     fontSize: '11px',
-    padding: '6px 10px',
-    borderRadius: '6px',
     zIndex: '999999',
     pointerEvents: 'auto',
     cursor: 'pointer',
     userSelect: 'none',
-    minWidth: '160px',
     lineHeight: '1.4',
     backdropFilter: 'blur(4px)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '8px',
   });
-  el.title = 'Click = Toggle Log • Shift+Click = Dump • Alt+Click = Toggle Element-Count';
+
+  const body = document.createElement('div');
+  body.className = 'lm-body';
+
+  const collapseBtn = document.createElement('button');
+  collapseBtn.type = 'button';
+  collapseBtn.dataset.action = 'collapse';
+  collapseBtn.textContent = 'aus';
+  collapseBtn.title = 'Ausblenden';
+  Object.assign(collapseBtn.style, {
+    margin: '0',
+    padding: '0 4px',
+    border: '1px solid currentColor',
+    borderRadius: '3px',
+    background: 'transparent',
+    color: 'inherit',
+    font: 'inherit',
+    lineHeight: '1.4',
+    cursor: 'pointer',
+    flexShrink: '0',
+  });
+  collapseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setCollapsed(true);
+  });
+
+  el.append(body, collapseBtn);
 
   el.addEventListener('click', (e) => {
+    if (state.collapsed) {
+      setCollapsed(false);
+      return;
+    }
     if (e.shiftKey) {
       dumpActive();
       return;
@@ -220,6 +277,40 @@ function createOverlay() {
 
   document.body.appendChild(el);
   state.overlay = el;
+  state.body = body;
+  state.collapseBtn = collapseBtn;
+  updateUI();
+}
+
+function applyChrome() {
+  const el = state.overlay;
+  if (!el) return;
+  const btn = state.collapseBtn;
+  if (state.collapsed) {
+    el.classList.add('is-collapsed');
+    Object.assign(el.style, {
+      top: 'auto',
+      bottom: '96px',
+      right: '0px',
+      minWidth: '0',
+      padding: '6px 5px',
+      borderRadius: '6px 0 0 6px',
+    });
+    if (btn) btn.hidden = true;
+    el.title = 'Listener einblenden';
+    return;
+  }
+  el.classList.remove('is-collapsed');
+  Object.assign(el.style, {
+    top: 'auto',
+    bottom: '8px',
+    right: '8px',
+    minWidth: '180px',
+    padding: '6px 10px',
+    borderRadius: '6px',
+  });
+  if (btn) btn.hidden = false;
+  el.title = 'Click = Toggle Log • Shift+Click = Dump • Alt+Click = Element-Count • aus = einklappen';
 }
 
 function updateUI() {
@@ -227,13 +318,21 @@ function updateUI() {
   const { document: d, window: w, element: elCount } = state.counts;
   const globalTotal = d + w;
   const warn = globalTotal > 80 ? ' ⚠️' : '';
-  const logStatus = state.active ? ' [LOG]' : '';
-  const elLine = state.showElements ? `<br>el: <b>${elCount}</b>` : '';
-  state.overlay.innerHTML =
-    `<b>Listeners${warn}</b>${logStatus}<br>` +
-    `doc: <b>${d}</b> &nbsp; win: <b>${w}</b> &nbsp; Σ <b>${globalTotal}</b>` +
-    elLine;
+  const body = state.body;
+  if (body) {
+    if (state.collapsed) {
+      body.innerHTML = `L <b>${globalTotal}</b>${warn}`;
+    } else {
+      const logStatus = state.active ? ' [LOG]' : '';
+      const elLine = state.showElements ? `<br>el: <b>${elCount}</b>` : '';
+      body.innerHTML =
+        `<b>Listeners${warn}</b>${logStatus}<br>` +
+        `doc: <b>${d}</b> &nbsp; win: <b>${w}</b> &nbsp; Σ <b>${globalTotal}</b>` +
+        elLine;
+    }
+  }
   state.overlay.style.color = globalTotal > 120 ? '#f44' : globalTotal > 80 ? '#fa0' : '#0f0';
+  applyChrome();
 }
 
 function mountOverlay() {
@@ -265,7 +364,7 @@ export function ensureListenerMonitor() {
     updateUI();
   }
 
-  console.log('🔬 ListenerMonitor aktiv – Click = Toggle Log, Shift+Click = Dump, Alt+Click = Toggle Element-Count');
+  console.log('🔬 ListenerMonitor aktiv – Click = Toggle Log, Shift+Click = Dump, Alt+Click = Element-Count, aus = einklappen');
 }
 
 export function initListenerMonitor() {
@@ -280,6 +379,8 @@ export function hideListenerMonitor() {
   if (!state.overlay) return;
   state.overlay.remove();
   state.overlay = null;
+  state.body = null;
+  state.collapseBtn = null;
   state.active = false;
 }
 

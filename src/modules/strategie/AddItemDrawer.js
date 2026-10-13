@@ -7,6 +7,7 @@
 import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableSelect, tableSelect } from '../../core/components/TableSelect.js';
 import {
   FUNNEL_WERTE,
   FUNNEL_LABELS,
@@ -21,6 +22,14 @@ import {
   isTranscribableUrl,
   resolveVideoideeForm
 } from './addItemPayload.js';
+import { videolaengeFuerStufe } from '../briefing/videolaenge.js';
+import {
+  bindSekundenSpanne,
+  renderSekundenSpanne,
+  sekundenSpanneAttrs,
+  sekundenSpanneWert,
+  setSekundenSpanne
+} from '../../core/components/SekundenSpanne.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class AddItemDrawer {
@@ -30,12 +39,14 @@ export class AddItemDrawer {
     this.strategieId = null;
     this.teilbereiche = [];
     this.personaOptionen = [];
+    this.produktOptionen = [];
     this.art = 'videoreferenz';
 
     // Queue System: { id, url, kategorie, beschreibung, platform,
     //                 status: 'pending'|'processing'|'done'|'error', error }
     this.queue = [];
     this.isProcessing = false;
+    this.abort = null;
   }
 
   /**
@@ -50,7 +61,16 @@ export class AddItemDrawer {
     this.art = 'videoreferenz';
     this.queue = [];
     this.isProcessing = false;
-    
+
+    // Produkte des Briefings dieser Linie. Fehler: Feld entfaellt, Drawer geht trotzdem auf.
+    try {
+      this.produktOptionen = await strategieService.getBriefingProdukte(strategie.id);
+    } catch (error) {
+      console.error('Fehler beim Laden der Briefing-Produkte:', error);
+      this.produktOptionen = [];
+    }
+
+    tableSelect.init();
     this.createDrawer();
     this.renderBody();
     this.bindEvents();
@@ -106,8 +126,14 @@ export class AddItemDrawer {
     body.className = 'drawer-body';
     body.id = `${this.drawerId}-body`;
 
+    // Footer als Geschwister des Bodys: bleibt unten stehen, der Body scrollt
+    const footer = document.createElement('div');
+    footer.className = 'drawer-footer';
+    footer.innerHTML = '<button type="button" class="mdc-btn" id="btn-close-drawer">Fertig</button>';
+
     panel.appendChild(header);
     panel.appendChild(body);
+    panel.appendChild(footer);
 
     // Events
     overlay.addEventListener('click', () => this.handleClose());
@@ -138,57 +164,54 @@ export class AddItemDrawer {
           <button type="button" class="drawer-tab-btn ${referenz ? '' : 'active'}" data-add-art="idee" role="tab" aria-selected="${referenz ? 'false' : 'true'}">Idee</button>
         </div>
 
-        <div data-art-panel="videoreferenz" ${referenz ? '' : 'hidden'}>
-          <div class="add-item-drawer-form-row">
-            <div class="form-field form-field--grow">
-              <label for="drawer-video-url">Video-URL</label>
-              <input
-                type="url"
-                id="drawer-video-url"
-                class="form-input"
-                placeholder="https://tiktok.com/... oder https://instagram.com/reel/..."
-                autocomplete="off"
-              >
+        <section class="add-item-section" data-add-section="inhalt">
+          <h3 class="drawer-section-title">Inhalt</h3>
+          <div class="add-item-section__body">
+            <div class="add-item-section__body" data-art-panel="videoreferenz" ${referenz ? '' : 'hidden'}>
+              <div class="form-field">
+                <label for="drawer-video-url">Video-URL</label>
+                <input
+                  type="url"
+                  id="drawer-video-url"
+                  class="form-input"
+                  placeholder="https://tiktok.com/... oder https://instagram.com/reel/..."
+                  autocomplete="off"
+                >
+              </div>
+              <div class="form-field">
+                <label for="drawer-umsetzungsvorgabe">Was sollen wir von diesem Video umsetzen?</label>
+                <textarea
+                  id="drawer-umsetzungsvorgabe"
+                  class="form-input"
+                  rows="3"
+                  placeholder="Zum Beispiel nur die Hook, der Schnitt oder die Situation."
+                ></textarea>
+              </div>
             </div>
-          </div>
-          <div class="add-item-drawer-form-row add-item-drawer-form-row--full">
-            <div class="form-field form-field--full">
-              <label for="drawer-umsetzungsvorgabe">Was sollen wir von diesem Video umsetzen?</label>
+            <div class="form-field" id="drawer-beschreibung-row">
+              <label for="drawer-beschreibung">Beschreibung</label>
               <textarea
-                id="drawer-umsetzungsvorgabe"
+                id="drawer-beschreibung"
                 class="form-input"
                 rows="3"
-                placeholder="Zum Beispiel nur die Hook, der Schnitt oder die Situation."
+                placeholder="${referenz ? 'Eigene Worte bleiben. Leer lassen – dann füllt die KI.' : 'Worum geht es in der Idee?'}"
               ></textarea>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div class="add-item-drawer-form-row">
-          <div class="form-field">
-            <label for="drawer-kategorie">Kategorie</label>
-            <select id="drawer-kategorie" class="form-input">
-              <option value="">Ohne Kategorie</option>
-              ${this.teilbereiche.map(tb => `<option value="${escapeAttr(tb)}">${escapeAttr(tb)}</option>`).join('')}
-            </select>
+        <section class="add-item-section" data-add-section="einordnung">
+          <h3 class="drawer-section-title">Einordnung</h3>
+          <div class="add-item-section__grid">
+            ${this.renderKategorieField()}
+            ${this.renderFunnelField()}
+            ${this.renderPersonaField()}
+            ${this.renderProduktField()}
+            ${this.renderDauerField()}
           </div>
-          ${this.renderFunnelField()}
-          ${this.renderPersonaField()}
-        </div>
+        </section>
 
-        <div class="add-item-drawer-form-row add-item-drawer-form-row--full" id="drawer-beschreibung-row">
-          <div class="form-field form-field--full">
-            <label for="drawer-beschreibung">Beschreibung</label>
-            <textarea
-              id="drawer-beschreibung"
-              class="form-input"
-              rows="2"
-              placeholder="${referenz ? 'Eigene Worte bleiben. Leer lassen – dann füllt die KI.' : 'Worum geht es in der Idee?'}"
-            ></textarea>
-          </div>
-        </div>
-
-        <div class="add-item-drawer-form-row add-item-drawer-form-row--actions">
+        <div class="add-item-actions">
           <button type="submit" class="mdc-btn mdc-btn--create" id="btn-add-to-queue">
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
               ${icon('plus-lg')}
@@ -203,10 +226,9 @@ export class AddItemDrawer {
         </div>
       </form>
 
-      <!-- Queue-Liste -->
-      <div class="add-item-queue" id="add-item-queue">
+      <section class="add-item-queue" id="add-item-queue" data-add-section="queue">
         <div class="queue-header">
-          <span class="queue-title">Queue</span>
+          <h3 class="drawer-section-title">Queue</h3>
           <span class="queue-counter" id="queue-counter">0 Einträge</span>
         </div>
         <div class="queue-list" id="queue-list">
@@ -215,15 +237,43 @@ export class AddItemDrawer {
             <p>Noch keine Einträge in der Queue</p>
           </div>
         </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="drawer-footer">
-        <button type="button" class="mdc-btn" id="btn-close-drawer">
-          Fertig
-        </button>
-      </div>
+      </section>
     `;
+  }
+
+  /**
+   * Ein Select-Feld mit dem zentralen TableSelect. Der Wert steht im hidden input
+   * mit dem Namen `name`; `field` ist der Name im table-select-change-Event.
+   */
+  renderSelectField({ label, field, name, value = '', options, placeholder }) {
+    return `
+          <div class="form-field">
+            <label>${escapeAttr(label)}</label>
+            ${renderTableSelect({
+              field,
+              itemId: 'add-item',
+              value,
+              options: [{ value: '', label: placeholder }, ...options],
+              placeholder,
+              input: name,
+              matchWidth: true
+            })}
+          </div>`;
+  }
+
+  /** Wert eines Select-Felds aus dem hidden input. */
+  selectValue(name) {
+    return document.querySelector(`#add-item-form [name="${name}"]`)?.value || null;
+  }
+
+  renderKategorieField() {
+    return this.renderSelectField({
+      label: 'Kategorie',
+      field: 'add_kategorie',
+      name: 'kategorie',
+      options: this.teilbereiche.map(tb => ({ value: tb, label: tb })),
+      placeholder: 'Ohne Kategorie'
+    });
   }
 
   /** Funnel-Stufe nur bei Paid oder wenn das Briefing Stufen nennt. */
@@ -236,13 +286,30 @@ export class AddItemDrawer {
   renderFunnelField() {
     if (!this.funnelFeldSichtbar()) return '';
     const vorbelegt = briefingEinzigeFunnelStufe(this.strategie?.briefing);
+    return this.renderSelectField({
+      label: 'Funnel-Stufe',
+      field: 'add_funnel',
+      name: 'funnel_stufe',
+      value: vorbelegt || '',
+      options: FUNNEL_WERTE.map(w => ({ value: w, label: FUNNEL_LABELS[w] })),
+      placeholder: 'Keine Stufe'
+    });
+  }
+
+  /** Vorbelegung der Dauer aus dem Briefing (bei Paid je nach gewaehlter Stufe). */
+  dauerVorbelegung(funnelStufe) {
+    return videolaengeFuerStufe(this.strategie?.briefing, funnelStufe || null);
+  }
+
+  /** Dauer als Slider (wie im Briefing), vorbelegt aus dem Briefing. Leer = keine Vorgabe. */
+  renderDauerField() {
+    this.dauerDirty = false;
+    const iv = this.dauerVorbelegung(briefingEinzigeFunnelStufe(this.strategie?.briefing));
+    const spanne = { von: iv?.von, bis: iv?.bis };
     return `
-          <div class="form-field">
-            <label for="drawer-funnel">Funnel-Stufe</label>
-            <select id="drawer-funnel" class="form-input">
-              <option value="">Keine Stufe</option>
-              ${FUNNEL_WERTE.map(w => `<option value="${w}"${w === vorbelegt ? ' selected' : ''}>${FUNNEL_LABELS[w]}</option>`).join('')}
-            </select>
+          <div class="form-field add-item-section__full">
+            <label>Dauer</label>
+            <div id="drawer-dauer" class="videoidee-dauer" ${sekundenSpanneAttrs({ name: 'videolaenge', ...spanne })}>${renderSekundenSpanne(spanne)}</div>
           </div>`;
   }
 
@@ -250,14 +317,28 @@ export class AddItemDrawer {
   renderPersonaField() {
     if (!this.personaOptionen.length) return '';
     const vorbelegt = briefingEinzigePersonaId(this.strategie?.briefing);
-    return `
-          <div class="form-field">
-            <label for="drawer-persona">Persona</label>
-            <select id="drawer-persona" class="form-input">
-              <option value="">Keine Persona</option>
-              ${this.personaOptionen.map(o => `<option value="${escapeAttr(o.value)}"${o.value === vorbelegt ? ' selected' : ''}>${escapeAttr(o.label)}</option>`).join('')}
-            </select>
-          </div>`;
+    return this.renderSelectField({
+      label: 'Persona',
+      field: 'add_persona',
+      name: 'persona_id',
+      value: vorbelegt || '',
+      options: this.personaOptionen.map(o => ({ value: o.value, label: o.label })),
+      placeholder: 'Keine Persona'
+    });
+  }
+
+  /** Produkt nur, wenn am Briefing eines hängt. Vorbelegt bei genau einem. */
+  renderProduktField() {
+    if (!this.produktOptionen.length) return '';
+    const vorbelegt = this.produktOptionen.length === 1 ? this.produktOptionen[0].id : null;
+    return this.renderSelectField({
+      label: 'Produkt',
+      field: 'add_produkt',
+      name: 'produkt_id',
+      value: vorbelegt || '',
+      options: this.produktOptionen.map(p => ({ value: p.id, label: p.name || 'Unbenannt' })),
+      placeholder: 'Kein Produkt'
+    });
   }
 
   /**
@@ -277,6 +358,19 @@ export class AddItemDrawer {
     });
 
     closeBtn?.addEventListener('click', () => this.handleClose());
+
+    // Dauer folgt der Funnel-Stufe (Paid), solange sie nicht von Hand geaendert wurde.
+    const dauerRoot = document.getElementById('drawer-dauer');
+    bindSekundenSpanne(dauerRoot, { onCommit: () => { this.dauerDirty = true; } });
+    // Das Optionspanel rendert als Portal an body, deshalb haengt der Listener an document.
+    this.abort?.abort();
+    this.abort = new AbortController();
+    document.addEventListener('table-select-change', (e) => {
+      const { field, value, element } = e.detail || {};
+      if (field !== 'add_funnel' || !element?.closest(`#${this.drawerId}`)) return;
+      if (this.dauerDirty || !dauerRoot) return;
+      setSekundenSpanne(dauerRoot, this.dauerVorbelegung(value), { forceInputs: true });
+    }, { signal: this.abort.signal });
   }
 
   setArt(art) {
@@ -303,7 +397,6 @@ export class AddItemDrawer {
    */
   handleAddToQueue() {
     const urlInput = document.getElementById('drawer-video-url');
-    const kategorieSelect = document.getElementById('drawer-kategorie');
     const beschreibungInput = document.getElementById('drawer-beschreibung');
     const vorgabeInput = document.getElementById('drawer-umsetzungsvorgabe');
 
@@ -312,9 +405,11 @@ export class AddItemDrawer {
       url: urlInput?.value,
       beschreibung: beschreibungInput?.value,
       umsetzungsvorgabe: vorgabeInput?.value,
-      kategorie: kategorieSelect?.value || null,
-      funnelStufe: document.getElementById('drawer-funnel')?.value || null,
-      personaId: document.getElementById('drawer-persona')?.value || null
+      kategorie: this.selectValue('kategorie'),
+      funnelStufe: this.selectValue('funnel_stufe'),
+      personaId: this.selectValue('persona_id'),
+      produktId: this.selectValue('produkt_id'),
+      videolaenge: sekundenSpanneWert(document.getElementById('drawer-dauer'))
     });
     if (!resolved.ok) {
       window.toastSystem?.show(resolved.error, 'warning');
@@ -325,7 +420,8 @@ export class AddItemDrawer {
       return;
     }
 
-    const { url, kategorie, beschreibung, umsetzungsvorgabe, funnelStufe, personaId } = resolved;
+    const { url, kategorie, beschreibung, umsetzungsvorgabe, funnelStufe, personaId, produktId, videolaenge } = resolved;
+    const produktName = this.produktOptionen.find(p => p.id === produktId)?.name || null;
 
     if (url && !this.isAllowedUrl(url)) {
       window.toastSystem?.show('Nur TikTok- und Instagram-Links sind erlaubt', 'warning');
@@ -352,6 +448,9 @@ export class AddItemDrawer {
       umsetzungsvorgabe,
       funnelStufe,
       personaId,
+      produktId,
+      produktName,
+      videolaenge,
       platform: this.detectPlatform(url)
     }));
 
@@ -545,6 +644,7 @@ export class AddItemDrawer {
           <div class="queue-item-center">
             <span class="queue-item-url">${this.escapeHtml(displayUrl)}</span>
             ${item.kategorie ? `<span class="queue-item-kategorie">${this.escapeHtml(item.kategorie)}</span>` : ''}
+            ${item.produktName ? `<span class="queue-item-kategorie">${this.escapeHtml(item.produktName)}</span>` : ''}
             ${item.beschreibung ? `<span class="queue-item-beschreibung">${this.escapeHtml(item.beschreibung)}</span>` : ''}
             ${item.umsetzungsvorgabe ? `<span class="queue-item-beschreibung">${this.escapeHtml(item.umsetzungsvorgabe)}</span>` : ''}
             ${progressHtml}
@@ -680,6 +780,8 @@ export class AddItemDrawer {
    * Drawer entfernen
    */
   removeDrawer() {
+    this.abort?.abort();
+    this.abort = null;
     document.getElementById(`${this.drawerId}-overlay`)?.remove();
     document.getElementById(this.drawerId)?.remove();
   }

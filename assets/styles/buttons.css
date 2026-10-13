@@ -386,11 +386,6 @@ button.is-submit-locked,
   transform: translateY(-1px);
 }
 
-.add-item-drawer-form-row--actions .mdc-btn {
-  width: auto;
-  min-width: var(--min-width-md);
-}
-
 .creator-pool-table td.cell-icon-only .link-icon-btn {
   display: inline-flex;
 }

@@ -62,6 +62,10 @@ Bestandteil einer Persona. Konkreter Moment, in dem diese Persona empfänglich s
 Wiederverwendet über die Persona, nicht pro Produkt.
 _Avoid_: Situation, Einsatzsituation, Use Case, Lebenssituation, Setting, Kontext
 
+**Namensregister**:
+Stilrichtung (klassisch-bodenständig, modern-urban, kurz-verspielt, nordisch/international), an der sich der Vorname einer neuen Persona ausrichtet; zusammen mit dem Jahrgang des Alters. Die KI leitet es aus dem Briefing der Linie ab, ohne Briefing aus Produkt und Marke. Betrifft nur den Vornamen, nie andere Persona-Felder. Der Vorname funktioniert weiterhin für Frauen und Männer.
+_Avoid_: Tonalität (das ist das Persona-Feld für die Ansprache), Namensstil, Namenston
+
 **Produkt**:
 Angebot eines Unternehmens, optional mehreren Marken zugeordnet.
 Personas hängen über die Zuordnung, nicht als Eigentum des Produkts. Der Inhalt (Beschreibung, USP, Bilder, Varianten, Preis, Use Cases) liegt einmal am Produkt und gilt auf jeder Linie, die es hat; was je Linie anders ist, steht am Briefing und seinen Personas.
@@ -154,6 +158,10 @@ _Avoid_: Bereich, Kampagnenart, Paid Creator Ads, Owned Social
 **Videolänge**:
 Geschlossenes Intervall in ganzen Sekunden am Briefing, von und bis inklusive. Von darf gleich bis sein. Leer heißt, es ist keine Videolänge vorgegeben. Bei Paid gibt es zusätzlich je genannter **Funnel-Stufe** ein eigenes Intervall; das allgemeine gilt für Videoideen ohne Stufe und für Stufen ohne eigenes Intervall. Organic und Influencer haben nur das allgemeine. Beim Anlegen eines Skripts wird das passende Intervall kopiert (bei Paid das der Stufe der Videoidee); das Skript zeigt es an. Eine spätere Änderung am Briefing gilt für neue Skripte.
 _Avoid_: Videolängen, Nutzungsdauer, Video-Mindestlänge
+
+**Dauer (Konzept)**:
+Videolänge an einer Videoidee, Intervall in ganzen Sekunden wie am Briefing (`strategie_items.videolaenge_von/bis`). Das Briefing nennt die Videolänge global, die Dauer der Videoidee ist die heruntergebrochene, finale Angabe und schlägt das Briefing für das Skript. Beim Anlegen einer Videoidee wird sie aus dem Briefing vorbelegt (bei Paid nach Funnel-Stufe). Leer heißt, es ist keine Dauer an der Videoidee gesetzt; das Skript nimmt dann die **Videolänge** des Briefings. Das Team setzt sie in der Spalte „Dauer“ oder im Videoidee-Drawer, der Kunde sieht sie. Die Konzept-Tabelle blendet Beschreibung, Umsetzungsvorgabe, Kundenadaption, Transkript, Caption und Anmerkung Kunde standardmäßig aus; sie stehen im Videoidee-Drawer.
+_Avoid_: Videolänge (als Name der Spalte im Konzept), Laufzeit
 
 **Verhandlungshinweis**:
 Interner Hinweis am Briefing für die Vertragsverhandlung, etwa die Nutzungsdauer wenn
@@ -328,6 +336,8 @@ _Avoid_: Feldkonflikt, Abweichung
 Eintrag in einem Konzept: Videoreferenz oder Idee. Genau eine Umsetzung, nicht
 eine Kernidee mit mehreren Creatorn. Höchstens ein Casting-Eintrag aus dem verknüpften Casting;
 zuordenbar einem Kooperationsvideo. Kann als Videoidee-Vorschlag entstehen.
+Das Produkt (aus den Produkten des Briefings der Linie) lässt sich schon beim Anlegen wählen, im
+Drawer „Hinzufügen“ für Videoreferenz und Idee; bei genau einem Briefing-Produkt ist es vorbelegt.
 _Avoid_: Konzeptidee, Kernidee
 
 **Videoreferenz**:
@@ -340,6 +350,7 @@ _Avoid_: Funnel-Level, Awareness-Level, Tag (als Name der Eigenschaft)
 
 **Persona (am Konzept)**:
 Genau eine **Persona** an einer Videoidee, gewählt aus den Personas des Briefings der Linie. Leer heißt, die Videoidee nennt keine. Für das Skript ist sie die Quelle der Wahrheit: sie schlägt die Persona des Casting-Eintrags, bei leerer Persona gilt der Casting-Eintrag (Altbestand). Beim Anlegen wird sie ins Skript kopiert, eine spätere Änderung im Konzept gilt für neue Skripte. Nur das Team sieht und setzt sie, der Kunde nicht.
+Nennen weder Videoidee noch Casting-Eintrag eine Persona, das Briefing aber welche, warnt der Create-Drawer (kein Gate) und Liky fragt in den Rückfragen, welche Persona aus dem Briefing gilt. Liky wählt nie selbst. Bestehende Skripte ohne Persona bekommen sie im Editor über die Vorgaben. Mit der Persona kommt das Produkt, wenn sie genau einen akzeptierten Fit hat.
 _Avoid_: Zielgruppe (die Persona ist ein Typ Mensch, keine Zielgruppe)
 
 **Idee**:
@@ -415,8 +426,16 @@ Reichweite eines Auftrags im Editor. Steht im Text: Alles, ein benannter Teil (H
 _Avoid_: Sektion, Spalte, Kontext
 
 **Festlegung**:
-Fakt am Skript, der ab dann in jedem weiteren Auftrag gilt, ohne ihn neu zu nennen. Entsteht aus einer ausdrücklichen Anweisung oder einer Ablehnung, nicht aus dem angenommenen Wortlaut. Zum Beispiel die Besetzung, ein abgelehnter Ansatz oder ein Tarifverbot.
+Fakt am Skript, der ab dann in jedem weiteren Auftrag gilt, ohne ihn neu zu nennen. Entsteht aus einer ausdrücklichen Anweisung oder einer Ablehnung, nicht aus dem angenommenen Wortlaut. Zum Beispiel die Besetzung, ein abgelehnter Ansatz oder ein Tarifverbot. Aus einer Ablehnung entsteht nur „Abgelehnt für <Zelle>“ mit dem abgelehnten Stück, nie die Anweisung dieses Auftrags.
 _Avoid_: Feedback, Kundenfeedback, Feedbackschleife
+
+**Auftrag im Kontext**:
+Ein Auftrag im Editor sagt, was sich ändert, nicht alles, was gilt. Was er nicht nennt, bleibt verbindlich: die Rolle der Zelle im Skript, die Kernidee der Videoidee, Persona, Produkt, Briefing und der Anschluss an die Nachbarzellen. Geht beides nicht zusammen, gilt der Auftrag, und Liky nennt jede Abweichung in der Antwort.
+_Avoid_: Prompt, Feedback, Neu schreiben
+
+**Offener Vorschlag**:
+Vorschlag von Liky, der weder angenommen noch abgelehnt ist. Pro Zelle höchstens einer, der neueste; ältere sind veraltet. Ein Auftrag ohne Bezug aufs Dokument und ohne Markierung baut auf dem offenen Vorschlag auf, nicht auf dem Dokument. Was der Mitarbeiter daran gutheißt, bleibt wörtlich.
+_Avoid_: Entwurf, Version, letzter Vorschlag
 
 **Skript-Aufbau**:
 Gesprochene Reihenfolge bei Organic und Influencer: Alltag, Problem, Produkt, CTA. Das Produkt kommt erst danach und sagt, was es ist, wie es funktioniert und warum es hilft. Der CTA ist eine Empfehlung. Tarife nur, wenn das Briefing sie zum Thema macht. Paid folgt dem Funnel-Aufbau des Masters.

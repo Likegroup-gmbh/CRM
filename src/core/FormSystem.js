@@ -1,3 +1,4 @@
+import { dataService } from './DataService.js';
 import { FormConfig } from './form/FormConfig.js';
 import { FormRenderer } from './form/FormRenderer.js';
 import { FormValidator } from './form/FormValidator.js';
@@ -57,8 +58,8 @@ export class FormSystem {
     // DynamicDataLoader für abhängige Felder injizieren
     this.dependentFields.dynamicDataLoader = this.dataLoader;
 
-    // DataService injizieren (wird später aufgerufen)
-    this.injectDataService();
+    // Modul-Singleton, nicht window.dataService: der wird in main.js erst nach dem Import gesetzt.
+    this.dataLoader.setDataService(dataService);
 
     this.currentForm = null;
     this.currentFormState = null; // Neue State-Referenz
@@ -209,19 +210,6 @@ export class FormSystem {
     const smartInitEntities = ['kampagne', 'ansprechpartner', 'creator'];
     return smartInitEntities.includes(entity);
   }
-
-  // DataService injizieren
-  injectDataService() {
-    if (window.dataService) {
-      this.dataLoader.setDataService(window.dataService);
-      console.log('✅ DataService erfolgreich injiziert');
-    } else {
-      console.warn('⚠️ DataService noch nicht verfügbar, wird später injiziert');
-      // Retry nach kurzer Verzögerung
-      setTimeout(() => this.injectDataService(), 100);
-    }
-  }
-
 
   // Formular-Submit verarbeiten
   async handleFormSubmit(entity, data, formOverride) {

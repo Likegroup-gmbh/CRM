@@ -7,6 +7,7 @@ import {
   SkriptList,
   matchesMarke,
   matchesKampagne,
+  matchesLinie,
   scopedByUnternehmen
 } from '../modules/skripte/SkriptList.js';
 import { createButtonHtml } from '../modules/skripte/SkriptListRenderer.js';
@@ -61,6 +62,14 @@ describe('SkriptList Ordner', () => {
     expect(matchesMarke({ marke_id: 'm1' }, null)).toBe(false);
     expect(matchesKampagne({ kampagne_id: null }, null)).toBe(true);
     expect(matchesKampagne({ kampagne_id: 'k1' }, 'k1')).toBe(true);
+  });
+
+  it('matchesLinie trennt Briefings und behandelt null als ohne', () => {
+    expect(matchesLinie({ briefing_id: null }, null)).toBe(true);
+    expect(matchesLinie({ briefing_id: 'b1' }, null)).toBe(false);
+    expect(matchesLinie({ briefing_id: 'b1' }, 'b1')).toBe(true);
+    expect(matchesLinie({ briefing_id: 'b2' }, 'b1')).toBe(false);
+    expect(matchesLinie({}, 'b1')).toBe(false);
   });
 
   it('buildCompanyFolders gruppiert und skippt ohne Unternehmen', () => {

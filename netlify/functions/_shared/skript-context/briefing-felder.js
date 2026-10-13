@@ -389,7 +389,13 @@ function fmtBriefingValue(value) {
 // Stufe der Videoidee im Konzept (Konzept schlaegt Briefing), siehe ohneFunnel.
 const FUNNEL_FELDER = new Set(['funnel_stufen', 'im_funnel_stufen', 'pa_funnel_stufen']);
 
-function collectBriefingLines(briefing, { ohneFunnel = false } = {}) {
+// Im Skript sind die Umsetzungsideen andere Videos desselben Konzepts: Abgrenzung
+// fuer Concept Diversity, kein Material fuer dieses Video.
+const SKRIPT_LABELS = {
+  umsetzungsideen: 'Andere Videos des Konzepts (Abgrenzung: nicht uebernehmen, dieses Video erzaehlt seine eigene Kernidee)'
+};
+
+function collectBriefingLines(briefing, { ohneFunnel = false, fuerSkript = false } = {}) {
   const flow = briefing?.aufgabe || briefing?.nischen || briefing?.pflichtinhalte || briefing?.wichtige_vorgaben;
   const fields = flow
     ? [...BRIEFING_FLOW_FIELDS, ...BRIEFING_MASTER_FIELDS.filter(f => ['bereich', 'aktivierung_name'].includes(f.name))]
@@ -404,17 +410,18 @@ function collectBriefingLines(briefing, { ohneFunnel = false } = {}) {
     if (ohneFunnel && FUNNEL_FELDER.has(field.name)) continue;
     let raw = briefing[field.name];
     if (field.name === 'bereich') raw = BEREICH_LABELS[briefing.bereich] || briefing.bereich;
+    const label = (fuerSkript && SKRIPT_LABELS[field.name]) || field.label;
     if (field.list && Array.isArray(raw)) {
       // Listenfeld: eine Zeile pro Eintrag, nicht mit "; " zu einem Klumpen verkleben
       const items = raw.map((item) => String(item ?? '').trim()).filter(Boolean);
       if (!items.length) continue;
       const einzeln = items.map((item) => `  - ${item}`).join('\n');
-      lines.push({ prio: field.prio, text: `- ${field.label}:\n${einzeln}` });
+      lines.push({ prio: field.prio, text: `- ${label}:\n${einzeln}` });
       continue;
     }
     const formatted = fmtBriefingValue(raw);
     if (!formatted) continue;
-    lines.push({ prio: field.prio, text: `- ${field.label}: ${formatted}` });
+    lines.push({ prio: field.prio, text: `- ${label}: ${formatted}` });
   }
   return lines;
 }
@@ -521,12 +528,13 @@ function fmtSetting(briefing) {
  * Leere Felder fallen raus. Bei Budget-Ueberschreitung bleiben Prio-1-Felder
  * (Umsetzung, CTA, Sprache) zuerst erhalten. Die Wichtigen Vorgaben stehen davor
  * und werden nicht gekuerzt. ohneFunnel laesst die Funnel-Stufe des Briefings
- * weg (Skript-Prompt: die Stufe kommt aus dem Konzept).
+ * weg (Skript-Prompt: die Stufe kommt aus dem Konzept). fuerSkript kennzeichnet
+ * die Umsetzungsideen als andere Videos des Konzepts.
  */
-function fmtCampaignBriefing(briefing, { max = BRIEFING_MAX, ohneFunnel = false } = {}) {
+function fmtCampaignBriefing(briefing, { max = BRIEFING_MAX, ohneFunnel = false, fuerSkript = false } = {}) {
   if (!briefing) return '';
   const leit = fmtLeitplanken(briefing) + fmtCreatorVorgaben(briefing) + fmtSetting(briefing);
-  const lines = collectBriefingLines(briefing, { ohneFunnel });
+  const lines = collectBriefingLines(briefing, { ohneFunnel, fuerSkript });
   if (!lines.length && !leit) return '';
 
   lines.sort((a, b) => a.prio - b.prio || 0);

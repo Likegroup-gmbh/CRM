@@ -17,6 +17,7 @@ export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
   { key: 'produkt', label: 'Produkt' },
   { key: 'persona', label: 'Persona' },
   { key: 'funnel', label: 'Funnel-Stufe' },
+  { key: 'dauer', label: 'Dauer' },
   { key: 'beschreibung', label: 'Beschreibung' },
   { key: 'umsetzungsvorgabe', label: 'Umsetzungsvorgabe' },
   { key: 'kundenadaption', label: 'Kundenadaption' },
@@ -29,7 +30,15 @@ export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
 ]);
 
 // Keys hier eintragen, wenn eine feste Spalte standardmaessig aus sein soll.
-const DEFAULT_HIDDEN = new Set();
+// Die langen Textfelder liegen im Videoidee-Drawer; die Tabelle bleibt schlank.
+const DEFAULT_HIDDEN = new Set([
+  'beschreibung',
+  'umsetzungsvorgabe',
+  'kundenadaption',
+  'transkript',
+  'caption',
+  'anmerkung'
+]);
 
 /**
  * Kontext fuer Spalten, deren Default vom Konzept abhaengt.

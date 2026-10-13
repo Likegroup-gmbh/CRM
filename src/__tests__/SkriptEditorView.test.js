@@ -44,6 +44,10 @@ vi.mock('../modules/skripte/SkriptList.js', () => ({
   matchesKampagne: (item, kampagneId) => {
     if (kampagneId == null) return !item.kampagne_id;
     return item.kampagne_id === kampagneId;
+  },
+  matchesLinie: (item, briefingId) => {
+    if (briefingId == null) return !item.briefing_id;
+    return item.briefing_id === briefingId;
   }
 }));
 
@@ -63,6 +67,7 @@ vi.mock('../core/icons/IconSystem.js', () => ({
 }));
 
 import { SkriptEditorView } from '../modules/skripte/SkriptEditorView.js';
+import { festlegungAusAblehnungText } from '../modules/skripte/editor/SkriptEditorChatActions.js';
 
 function ensureLocalStorage() {
   if (typeof globalThis.localStorage?.clear === 'function') return;
@@ -243,7 +248,12 @@ describe('SkriptEditorView Layout', () => {
     mockService.loadSkript.mockResolvedValue({
       ...skript,
       festlegungen: [{ text: 'nur ein Creator', quelle: 'anweisung' }],
-      pruefung: { laenge: { status: 'ueber', worte: 90, min: 35, max: 70 }, claims: ['heilt alles'] }
+      pruefung: {
+        laenge: { status: 'ueber', worte: 90, min: 35, max: 70 },
+        claims: ['heilt alles'],
+        hook_zeit: { sekunden: 6, max: 3, status: 'ueber' },
+        doppelungen: [{ satz: 'Vier Veränderungen erleben die meisten Frauen.', zellen: ['hook', 'hauptteil'] }]
+      }
     });
     mockService.updateSkript.mockResolvedValue({});
     await view.render(container, 's1');
@@ -251,8 +261,11 @@ describe('SkriptEditorView Layout', () => {
     expect(document.querySelector('.skripte-editor-festlegungen').textContent).toContain('nur ein Creator');
     const zusatzPanel = container.querySelector('[data-editor-tab-panel="zusatz"]');
     expect(zusatzPanel).not.toBeNull();
-    expect(zusatzPanel.querySelector('.skripte-editor-pruefung').textContent).toContain('90 Wörter');
-    expect(zusatzPanel.querySelector('.skripte-editor-pruefung').textContent).toContain('heilt alles');
+    const pruefung = zusatzPanel.querySelector('.skripte-editor-pruefung').textContent;
+    expect(pruefung).toContain('90 Wörter');
+    expect(pruefung).toContain('heilt alles');
+    expect(pruefung).toContain('Hook ca. 6 Sek., Vorgabe bis 3 Sek.');
+    expect(pruefung).toContain('Steht doppelt in Hook und Hauptteil: „Vier Veränderungen erleben die meisten Frauen.“');
     expect(container.querySelector('[data-editor-tab-panel="skript"] .skripte-editor-pruefung')).toBeNull();
 
     document.querySelector('[data-msg-action="festlegung-loeschen"]').click();
@@ -296,6 +309,29 @@ describe('SkriptEditorView Layout', () => {
   it('loadSkripte wird mit der Kampagne des geoeffneten Skripts aufgerufen', async () => {
     await view.render(container, 's1');
     expect(mockService.loadSkripte).toHaveBeenCalledWith({ kampagneId: 'k1' });
+  });
+
+  it('loadSkripte wird mit der Linie (Briefing) des geoeffneten Skripts aufgerufen', async () => {
+    mockService.loadSkript.mockResolvedValue({ ...skript, briefing_id: 'b1' });
+    await view.render(container, 's1');
+    expect(mockService.loadSkripte).toHaveBeenCalledWith({ briefingId: 'b1' });
+  });
+
+  it('Sidebar zeigt nur Skripte derselben Linie, auch in derselben Kampagne', async () => {
+    mockService.loadSkript.mockResolvedValue({ ...skript, briefing_id: 'b1' });
+    mockService.loadSkripte.mockResolvedValue([
+      { ...skript, id: 's1', titel: 'Aktiv', briefing_id: 'b1' },
+      { ...skript, id: 's2', titel: 'Gleiche Linie', briefing_id: 'b1' },
+      { ...skript, id: 's3', titel: 'Andere Linie', briefing_id: 'b2' },
+      { ...skript, id: 's4', titel: 'Ohne Linie', briefing_id: null }
+    ]);
+    await view.render(container, 's1');
+
+    const items = container.querySelectorAll('#ed-liste-items .skripte-editor-liste-item');
+    expect(items.length).toBe(2);
+    expect(container.textContent).toContain('Gleiche Linie');
+    expect(container.textContent).not.toContain('Andere Linie');
+    expect(container.textContent).not.toContain('Ohne Linie');
   });
 
   it('Master mit Creator-facing rendert Grid, Visual-Buttons und Zusatz-Tab', async () => {
@@ -1018,6 +1054,62 @@ describe('SkriptEditorView Inline-Edit', () => {
     expect(view.skript.hook_visuell).not.toContain('Alter Shot');
   });
 
+  it('acceptVorschlag auf den Hook stempelt die Zeitmarker aller Visual-Zellen neu', async () => {
+    window.toastSystem = { success: vi.fn(), error: vi.fn() };
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      hook: 'eins zwei drei vier fuenf',
+      hook_visuell: 'Sek. 0–2: Gesicht',
+      hauptteil: 'sechs sieben acht neun zehn',
+      hauptteil_visuell: 'Sek. 2–4: Dose'
+    });
+    await view.render(container, 's1');
+    mockService.updateSkript.mockClear();
+
+    await view.acceptVorschlag({
+      id: 'm-hook', sektion: 'hook', ist_visuell: false, aktion: 'chat', status: 'vorschlag',
+      selektion_text: null,
+      vorschlag_text: 'eins zwei drei vier fuenf sechs sieben acht neun zehn elf zwoelf'
+    });
+
+    const patch = mockService.updateSkript.mock.calls[0][1];
+    expect(patch.hook).toContain('zwoelf');
+    expect(patch.hook_visuell).toBe('Sek. 0–5: Gesicht');
+    expect(patch.hauptteil_visuell).toBe('Sek. 5–7: Dose');
+    expect(patch.pruefung).toBeDefined();
+    expect(view.skript.hauptteil_visuell).toBe('Sek. 5–7: Dose');
+  });
+
+  it('Ablehnen speichert nur das abgelehnte Stueck als Festlegung, nicht die Anweisung', async () => {
+    await view.render(container, 's1');
+    mockService.updateSkript.mockClear();
+    mockService.updateChatMessage.mockResolvedValue({});
+    view.messages = [
+      { id: 'u1', rolle: 'user', inhalt: 'Erster Satz ist gut, die Frage am Ende sollte lauten: Erkennst du dich wieder?' },
+      { id: 'a1', rolle: 'assistant', status: 'vorschlag', aktion: 'chat', sektion: 'hook', ist_visuell: false,
+        vorschlag_text: 'Kennst du diese vier Veränderungen? Erkennst du dich wieder?' }
+    ];
+
+    await view._chatActions.handleMessageAction('reject', 'a1');
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      festlegungen: [{ text: 'Abgelehnt für Hook: „Kennst du diese vier Veränderungen? Erkennst du dich wieder?“', quelle: 'ablehnung' }]
+    });
+  });
+
+  it('festlegungAusAblehnungText: Visual, Bundle, ohne Text', () => {
+    expect(festlegungAusAblehnungText({ sektion: 'cta', ist_visuell: true, vorschlag_text: 'Zeigt nach unten' }))
+      .toBe('Abgelehnt für CTA Visual: „Zeigt nach unten“');
+    expect(festlegungAusAblehnungText({
+      sektion: 'gesamt',
+      aenderungen: [
+        { sektion: 'hook', spalte: 'gesprochen', vorschlag_text: 'H' },
+        { sektion: 'hook', spalte: 'visuell', vorschlag_text: 'V' }
+      ]
+    })).toBe('Abgelehnt für Hook, Hook Visual: „H / V“');
+    expect(festlegungAusAblehnungText({ sektion: 'hook', vorschlag_text: '' })).toBe('');
+  });
+
   it('acceptVorschlag mit aenderungen schreibt alle Zellen und eine Version', async () => {
     window.toastSystem = { success: vi.fn(), error: vi.fn() };
     await view.render(container, 's1');
@@ -1041,6 +1133,7 @@ describe('SkriptEditorView Inline-Edit', () => {
     expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
       hook: 'Neuer Hook',
       hauptteil_visuell: 'Neue Regie',
+      pruefung: expect.objectContaining({ doppelungen: [] }),
       festgezogen: ['hook', 'hauptteil_visuell']
     });
     expect(view.skript.hook).toBe('Neuer Hook');
@@ -1072,7 +1165,10 @@ describe('SkriptEditorView Inline-Edit', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook: 'Neuer Hook' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook: 'Neuer Hook',
+      pruefung: expect.objectContaining({ doppelungen: [] })
+    });
     expect(mockService.createVersion).toHaveBeenCalled();
     expect(mockService.createVersion.mock.calls[0][1]).toBe('Manuell · Hook');
   });
@@ -1100,7 +1196,8 @@ describe('SkriptEditorView Inline-Edit', () => {
 
     expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
       hook: 'Alt-Hook',
-      hook_variante_1: 'Haupt-Hook'
+      hook_variante_1: 'Haupt-Hook',
+      pruefung: expect.objectContaining({ doppelungen: [] })
     });
     expect(view.skript.hook).toBe('Alt-Hook');
     expect(view.skript.hook_variante_1).toBe('Haupt-Hook');

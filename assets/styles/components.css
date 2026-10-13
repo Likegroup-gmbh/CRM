@@ -3271,8 +3271,7 @@ h3.section-title,
 .add-item-section {
   
   gap: var(--space-xs);
-  padding-left: var(--space-md);
-  padding-right: var(--space-md);
+ 
 }
 
 /* Strategie Add Item Felder */

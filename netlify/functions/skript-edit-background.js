@@ -16,7 +16,7 @@ const { setThinking } = require('./_shared/thinking');
 const { istMasterDokument } = require('./_shared/skript-creator-facing');
 const { logPrompt } = require('./_shared/prompt-log');
 const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
-const { stempelSekunden, pruefeSkript } = require('./_shared/skript-context/formatter');
+const { stempelSekunden, pruefeSkript, pruefHinweis, neueBefunde } = require('./_shared/skript-context/formatter');
 const { filtereHookSperre, trifftGesprochenenHook, hookLagImAuftrag, mitHookHinweis } = require('./_shared/hook-sperre');
 const {
   loadEditContext, buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel, formatZeitstempel,
@@ -32,7 +32,7 @@ const EDIT_TOOL = {
   input_schema: {
     type: 'object',
     properties: {
-      antwort: { type: 'string', description: 'Kurze Erklaerung fuer den User (1-3 Saetze, Deutsch)' },
+      antwort: { type: 'string', description: 'Kurze Erklaerung fuer den User (1-3 Saetze, Deutsch): Basis, Aenderung, jede Abweichung vom Kontext mit „Abweichung: …“' },
       sektion: { type: ['string', 'null'], description: 'Betroffene Sektion (hook/hauptteil/cta/titel oder ##-Slug) oder null' },
       vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null. Bei sektion=titel der neue Skript-Titel.' },
       titel: { type: ['string', 'null'], description: 'Neuer Skript-Titel, nur wenn der Titel sich aendern soll. Sonst null.' },
@@ -76,6 +76,31 @@ const EDIT_TOOL = {
     required: ['antwort', 'sektion', 'vorschlag_text']
   }
 };
+
+const GESPROCHEN = ['hook', 'hauptteil', 'cta'];
+
+/**
+ * Gesprochener Stand nach dem Vorschlag (wie beim Annehmen): markierte Stelle
+ * ersetzt, sonst die ganze Zelle. null, wenn der Vorschlag keinen gesprochenen
+ * Text aendert.
+ */
+function gesprochenerEntwurf(skript, { sektion, vorschlag, ist_visuell, selektion_text, aenderungen }) {
+  const felder = { hook: skript.hook, hauptteil: skript.hauptteil, cta: skript.cta };
+  let geaendert = false;
+  for (const a of aenderungen || []) {
+    if (a.spalte !== 'gesprochen' || !GESPROCHEN.includes(a.sektion)) continue;
+    felder[a.sektion] = a.vorschlag_text;
+    geaendert = true;
+  }
+  if (vorschlag && !ist_visuell && GESPROCHEN.includes(sektion)) {
+    const alt = felder[sektion] || '';
+    felder[sektion] = selektion_text && alt.includes(selektion_text)
+      ? alt.replace(selektion_text, vorschlag)
+      : vorschlag;
+    geaendert = true;
+  }
+  return geaendert ? felder : null;
+}
 
 // ---------------------------------------------------------------------------
 // Handler
@@ -293,19 +318,20 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       }
       if (neu) await supabase.from('skripte').update({ festlegungen: liste }).eq('id', ctx.skript.id);
     }
-    if (message.aktion === 'neue_geschichte' && vorschlag && ['hook', 'hauptteil', 'cta'].includes(sektion) && !spalte.ist_visuell) {
-      const felder = {
-        hook: ctx.skript.hook,
-        hauptteil: ctx.skript.hauptteil,
-        cta: ctx.skript.cta,
-        [sektion]: vorschlag
-      };
-      await supabase.from('skripte').update({
-        pruefung: pruefeSkript(felder, {
-          video_laenge: ctx.skript.video_laenge,
-          verbotene_claims: ctx.kontext?.produkt?.verbotene_claims
-        })
-      }).eq('id', ctx.skript.id);
+    // Pruefung nach jedem Edit (ADR 0035/0056): nur markieren, nichts umschreiben
+    const pruefOpts = {
+      video_laenge: ctx.skript.video_laenge,
+      verbotene_claims: ctx.kontext?.produkt?.verbotene_claims,
+      hook_vorgaben: ctx.kontext?.briefing?.hook_vorgaben
+    };
+    const entwurf = gesprochenerEntwurf(ctx.skript, {
+      sektion, vorschlag, ist_visuell: spalte.ist_visuell, selektion_text: spalte.selektion_text, aenderungen
+    });
+    const pruefHinweisText = entwurf
+      ? pruefHinweis(neueBefunde(pruefeSkript(ctx.skript, pruefOpts), pruefeSkript(entwurf, pruefOpts)))
+      : '';
+    if (message.aktion === 'neue_geschichte' && entwurf) {
+      await supabase.from('skripte').update({ pruefung: pruefeSkript(entwurf, pruefOpts) }).eq('id', ctx.skript.id);
     }
 
     await setThinking(supabase, 'skript_chat_messages', messageId, {
@@ -314,7 +340,10 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     });
 
     // Hook-Sperre: der Mitarbeiter erfaehrt immer, dass der gesprochene Hook geblieben ist
-    const antwortMitHinweis = mitHookHinweis(antwort, hookBetroffen);
+    const antwortMitHinweis = [
+      mitHookHinweis(antwort, hookBetroffen),
+      pruefHinweisText ? `Prüfung: ${pruefHinweisText}` : null
+    ].filter(Boolean).join('\n\n') || null;
 
     // Nur schreiben, solange die Message noch running ist: ein Abbruch waehrend
     // der Nachbearbeitung gewinnt. Fehler werfen (-> catch -> error), statt still zu verpuffen.
@@ -325,7 +354,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         ? [antwortMitHinweis, `${ausgelassen} festgezogene ${ausgelassen === 1 ? 'Zelle' : 'Zellen'} ausgelassen (nicht im Umfang).`].filter(Boolean).join(' ')
         : antwortMitHinweis,
       vorschlag_text: vorschlag,
-      aenderungen: aenderungen && aenderungen.length ? aenderungen : null,
+      // Nur mitschicken, wenn es Zellen gibt: Einzel-Edits haengen so nicht an der Spalte (Deploy vor Migration)
+      ...(aenderungen && aenderungen.length ? { aenderungen } : {}),
       sektion: (aenderungen && aenderungen.length) ? 'gesamt' : (sektion || message.sektion),
       ist_visuell: sektion === 'titel' ? false : spalte.ist_visuell,
       selektion_text: sektion === 'titel' ? null : spalte.selektion_text,
@@ -358,3 +388,4 @@ exports.ladeVisuellStil = ladeVisuellStil;
 exports.brauchtVisualStil = brauchtVisualStil;
 exports.resolveModusSlug = resolveModusSlug;
 exports.editParams = editParams;
+exports.gesprochenerEntwurf = gesprochenerEntwurf;

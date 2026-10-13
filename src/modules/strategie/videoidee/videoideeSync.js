@@ -5,7 +5,14 @@
 import { StrategieCreatorDrawer } from '../StrategieCreatorDrawer.js';
 import { StrategieProduktDrawer } from '../StrategieProduktDrawer.js';
 import { handleCreatorUnlink, handleProduktUnlink } from '../StrategieDetailTableEvents.js';
-import { renderSkriptFreigabeStatus, renderFunnelControl, renderPersonaControl } from '../StrategieDetailRenderer.js';
+import {
+  renderSkriptFreigabeStatus,
+  renderFunnelControl,
+  renderPersonaControl,
+  renderVideolaengeControl
+} from '../StrategieDetailRenderer.js';
+import { getStrategieVideolaenge } from '../strategieVideolaenge.js';
+import { setSekundenSpanne } from '../../../core/components/SekundenSpanne.js';
 import { getStrategieFunnel } from '../strategieFunnelOptions.js';
 import { getStrategiePersona } from '../strategiePersonaOptions.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from '../strategiePrioOptions.js';
@@ -19,7 +26,8 @@ import {
   fieldText,
   prioDisabled,
   renderEditCreatorField,
-  renderEditProduktField
+  renderEditProduktField,
+  renderKategorieControl
 } from './videoideeRender.js';
 
 export function bindCreator(detail, itemId) {
@@ -81,9 +89,9 @@ export function patchFields(panel, item) {
       el.dataset.videoideeSaved = fieldSignature(el);
       return;
     }
-    if (!field || field === 'strategie_prio' || field === 'strategie_funnel' || field === 'strategie_persona' || !(field in item)) return;
+    if (!field || field === 'strategie_prio' || field === 'strategie_kategorie' || field === 'strategie_funnel' || field === 'strategie_persona' || !(field in item)) return;
     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return;
-    const value = field === 'teilbereich' ? (item.teilbereich || '') : fieldText(item, field);
+    const value = fieldText(item, field);
     if (el.type === 'checkbox') el.checked = !!value;
     else el.value = value ?? '';
     el.dataset.videoideeSaved = fieldSignature(el);
@@ -104,6 +112,28 @@ export function patchFunnel(detail, panel, item) {
   const next = getStrategieFunnel(item);
   if (current !== undefined && current === next) return;
   slot.innerHTML = renderFunnelControl(detail, item);
+}
+
+/** Kategorie im offenen Drawer nachziehen, wenn Tabelle oder Drag sie aendern. */
+export function patchKategorie(detail, panel, item) {
+  const slot = panel.querySelector('[data-videoidee-kategorie]');
+  if (!slot || slot.contains(document.activeElement) || slot.querySelector('.table-select.show')) return;
+  const current = slot.querySelector('[data-table-select]')?.dataset.value;
+  const next = item.teilbereich || '';
+  if (current !== undefined && current === next) return;
+  slot.innerHTML = renderKategorieControl(detail, item);
+}
+
+/** Dauer im offenen Drawer nachziehen, wenn die Tabelle sie aendert. */
+export function patchVideolaenge(detail, panel, item) {
+  const slot = panel.querySelector('[data-videoidee-dauer]');
+  if (!slot || slot.contains(document.activeElement)) return;
+  const root = slot.querySelector('[data-sekunden-spanne]');
+  if (root) {
+    setSekundenSpanne(root, getStrategieVideolaenge(item));
+    return;
+  }
+  slot.innerHTML = renderVideolaengeControl(detail, item, { variant: 'drawer' });
 }
 
 /** Persona im offenen Drawer nachziehen, wenn die Tabelle sie aendert. */
