@@ -515,7 +515,7 @@ export class StrategieDetail {
 
       const shareBtn = this._q('#btn-share-strategie');
       if (shareBtn) {
-        const handler = () => window.shareListDialog?.open({
+        const handler = () => window.shareListDrawer?.open({
           entityType: 'strategie',
           entityId: this.strategieId,
           entityName: this.strategie?.name || ''

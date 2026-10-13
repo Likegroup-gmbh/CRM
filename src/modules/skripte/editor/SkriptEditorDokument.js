@@ -62,7 +62,7 @@ SkriptEditorView.prototype.freigeben = async function() {
 SkriptEditorView.prototype.bindShareButton = function(el) {
   el.querySelector('#ed-share')?.addEventListener('click', () => {
     if (!this.kannTeilen) return;
-    window.shareListDialog?.open({
+    window.shareListDrawer?.open({
       entityType: 'skript',
       entityId: this.skript.id,
       entityName: this.skript.titel || 'Skript',

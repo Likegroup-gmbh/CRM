@@ -369,7 +369,7 @@ export function setupEvents(detail) {
   if (btnShareKampagne) {
     btnShareKampagne.addEventListener('click', (e) => {
       e.preventDefault();
-      window.shareListDialog?.open({
+      window.shareListDrawer?.open({
         entityType: 'kampagne',
         entityId: detail.kampagneId,
         entityName: KampagneUtils.getDisplayName(detail.kampagneData) || detail.kampagneData?.kampagnenname || ''

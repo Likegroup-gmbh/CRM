@@ -76,7 +76,7 @@ export function bindEvents() {
 
     const shareBtn = this._q('#btn-share-sourcing');
     if (shareBtn) {
-      const handler = () => window.shareListDialog?.open({
+      const handler = () => window.shareListDrawer?.open({
         entityType: 'sourcing',
         entityId: this.listeId,
         entityName: this.liste?.name || ''

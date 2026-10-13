@@ -1,10 +1,16 @@
-// ShareListDialog.js
-// Zugänge für eine Liste anlegen (Link + 6-stelliger Code).
+// ShareListDrawer.js
+// Zugänge für eine Liste anlegen (Link + 6-stelliger Code), als Side-Drawer.
 // Create/Rotate/Resend über Edge Function 'share-list'; Liste via RLS.
 
-export class ShareListDialog {
+import { DRAWER_EXIT_MS } from '../animation/drawer.js';
+
+const DRAWER_ID = 'share-list-drawer';
+
+export class ShareListDrawer {
   constructor() {
     this.overlay = null;
+    this.panel = null;
+    this._abort = null;
     this.entityType = null;
     this.entityId = null;
     this.entityName = '';
@@ -29,10 +35,22 @@ export class ShareListDialog {
 
   close() {
     clearTimeout(this._emailSearchTimer);
-    if (this.overlay) {
-      this.overlay.remove();
-      this.overlay = null;
-    }
+    this._abort?.abort();
+    this._abort = null;
+    const { panel, overlay } = this;
+    this.panel = null;
+    this.overlay = null;
+    if (!panel && !overlay) return;
+    panel?.classList.remove('show');
+    setTimeout(() => {
+      overlay?.remove();
+      panel?.remove();
+    }, DRAWER_EXIT_MS);
+  }
+
+  entferneAlt() {
+    document.getElementById(`${DRAWER_ID}-overlay`)?.remove();
+    document.getElementById(DRAWER_ID)?.remove();
   }
 
   rechteOptions() {
@@ -47,7 +65,7 @@ export class ShareListDialog {
 
   skriptScope() {
     if (!this.kannKampagneTeilen()) return 'einzeln';
-    const checked = this.overlay?.querySelector('input[name="share-skript-scope"]:checked');
+    const checked = this.panel?.querySelector('input[name="share-skript-scope"]:checked');
     return checked?.value === 'einzeln' ? 'einzeln' : 'kampagne';
   }
 
@@ -71,69 +89,90 @@ export class ShareListDialog {
   }
 
   render() {
-    this.close();
-    const overlay = document.createElement('div');
-    overlay.className = 'modal overlay-modal share-list-modal';
-    overlay.innerHTML = `
-      <div class="modal-dialog">
-        <div class="modal-header">
-          <h3>${this.entityType === 'skript' ? 'Skript teilen' : 'Liste teilen'}</h3>
-          <button type="button" class="modal-close" data-action="close" aria-label="Schließen">&times;</button>
-        </div>
-        <div class="modal-body">
-          ${this.entityName ? `<p class="modal-description">Erstelle einen Zugang für: <strong>${this.escape(this.entityName)}</strong></p>` : ''}
-          <div class="share-dialog-form">
-            <div class="form-group">
-              <label class="form-label required" for="share-label-input">Name des Zugangs</label>
-              <input type="text" id="share-label-input" class="input" placeholder="z. B. Marketing-Team" maxlength="80">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="share-rechte-select">Rechte</label>
-              <select id="share-rechte-select" class="input">
-                ${this.rechteOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
-              </select>
-            </div>
-            ${this.skriptScopeField()}
-            <div class="form-group">
-              <label class="form-label" for="share-email-tag-input">Per E-Mail versenden (optional)</label>
-              <div class="tag-input-container" id="share-email-tag-container">
-                <div class="tag-input-wrapper">
-                  <div class="selected-tags" id="share-email-tags"></div>
-                  <input type="text" class="tag-input" id="share-email-tag-input"
-                         placeholder="E-Mail eingeben …" autocomplete="off">
-                </div>
-                <div class="tag-suggestions" id="share-email-suggestions" style="display:none;"></div>
-              </div>
-            </div>
-          </div>
-          <div id="share-created-banner" class="share-code-banner" hidden></div>
-          <div class="share-dialog-list">
-            <h4 class="nutzungsrechte-section-title">Zugänge</h4>
-            <div id="share-recipients" class="share-dialog-empty">Wird geladen …</div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="mdc-btn mdc-btn--secondary" data-action="cancel">Abbrechen</button>
-          <button type="button" id="share-submit-btn" class="mdc-btn mdc-btn--create">Zugang erstellen</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-    this.overlay = overlay;
+    clearTimeout(this._emailSearchTimer);
+    this.entferneAlt();
+    this._abort?.abort();
+    this._abort = new AbortController();
+    const { signal } = this._abort;
 
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) this.close();
-    });
-    overlay.querySelector('[data-action="close"]').addEventListener('click', () => this.close());
-    overlay.querySelector('[data-action="cancel"]').addEventListener('click', () => this.close());
-    overlay.querySelector('#share-submit-btn').addEventListener('click', () => this.submit());
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = `${DRAWER_ID}-overlay`;
+
+    const panel = document.createElement('div');
+    panel.className = 'drawer-panel share-list-drawer';
+    panel.id = DRAWER_ID;
+    panel.setAttribute('role', 'dialog');
+    panel.innerHTML = `
+      <div class="drawer-header">
+        <div>
+          <span class="drawer-title">${this.entityType === 'skript' ? 'Skript teilen' : 'Liste teilen'}</span>
+          ${this.entityName ? `<p class="drawer-subtitle">${this.escape(this.entityName)}</p>` : ''}
+        </div>
+        <button type="button" class="drawer-close-btn" data-action="close" aria-label="Schließen">&times;</button>
+      </div>
+      <div class="drawer-body">
+        <section class="share-drawer-abschnitt">
+          <div class="form-group">
+            <label class="form-label required" for="share-label-input">Name des Zugangs</label>
+            <input type="text" id="share-label-input" class="input" placeholder="z. B. Marketing-Team" maxlength="80">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="share-rechte-select">Rechte</label>
+            <select id="share-rechte-select" class="input">
+              ${this.rechteOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
+            </select>
+          </div>
+          ${this.skriptScopeField()}
+        </section>
+
+        <section class="share-drawer-abschnitt">
+          <h4 class="drawer-section-title">Per E-Mail senden (optional)</h4>
+          <div class="form-group">
+            <label class="form-label" for="share-email-tag-input">E-Mail-Adressen</label>
+            <div class="tag-input-container" id="share-email-tag-container">
+              <div class="tag-input-wrapper">
+                <div class="selected-tags" id="share-email-tags"></div>
+                <input type="text" class="tag-input" id="share-email-tag-input"
+                       placeholder="E-Mail eingeben …" autocomplete="off">
+              </div>
+              <div class="tag-suggestions" id="share-email-suggestions" style="display:none;"></div>
+            </div>
+          </div>
+        </section>
+
+        <div id="share-created-banner" class="share-code-banner" hidden></div>
+
+        <section class="share-drawer-abschnitt">
+          <h4 class="drawer-section-title">Zugänge</h4>
+          <div id="share-recipients" class="share-dialog-empty">Wird geladen …</div>
+        </section>
+      </div>
+      <div class="drawer-footer">
+        <button type="button" class="mdc-btn mdc-btn--secondary" data-action="close">Schließen</button>
+        <button type="button" id="share-submit-btn" class="mdc-btn mdc-btn--create">Zugang erstellen</button>
+      </div>`;
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    this.overlay = overlay;
+    this.panel = panel;
+    requestAnimationFrame(() => panel.classList.add('show'));
+
+    overlay.addEventListener('click', () => this.close(), { signal });
+    panel.querySelectorAll('[data-action="close"]').forEach((btn) =>
+      btn.addEventListener('click', () => this.close(), { signal }));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.close();
+    }, { signal });
+    panel.querySelector('#share-submit-btn').addEventListener('click', () => this.submit(), { signal });
     this.bindEmailTags();
   }
 
   bindEmailTags() {
-    const input = this.overlay.querySelector('#share-email-tag-input');
-    const suggestions = this.overlay.querySelector('#share-email-suggestions');
-    const tagsEl = this.overlay.querySelector('#share-email-tags');
+    const input = this.panel.querySelector('#share-email-tag-input');
+    const suggestions = this.panel.querySelector('#share-email-suggestions');
+    const tagsEl = this.panel.querySelector('#share-email-tags');
     if (!input || !suggestions || !tagsEl) return;
 
     input.addEventListener('keydown', (e) => {
@@ -143,7 +182,9 @@ export class ShareListDialog {
       } else if (e.key === 'Backspace' && !input.value && this.emails.length) {
         this.emails.pop();
         this.renderEmailTags();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' && suggestions.style.display !== 'none') {
+        // Erst die Vorschläge schließen, der Drawer bleibt offen
+        e.stopPropagation();
         this.hideEmailSuggestions();
       }
     });
@@ -209,7 +250,7 @@ export class ShareListDialog {
   }
 
   renderEmailTags() {
-    const el = this.overlay?.querySelector('#share-email-tags');
+    const el = this.panel?.querySelector('#share-email-tags');
     if (!el) return;
     el.innerHTML = this.emails.map((email) => `
       <span class="tag-item" data-email="${this.escape(email)}">
@@ -221,7 +262,7 @@ export class ShareListDialog {
 
   hideEmailSuggestions() {
     this._emailSearchGen += 1;
-    const suggestions = this.overlay?.querySelector('#share-email-suggestions');
+    const suggestions = this.panel?.querySelector('#share-email-suggestions');
     if (!suggestions) return;
     suggestions.style.display = 'none';
     suggestions.innerHTML = '';
@@ -237,7 +278,7 @@ export class ShareListDialog {
   }
 
   async searchPartners(term) {
-    const suggestions = this.overlay?.querySelector('#share-email-suggestions');
+    const suggestions = this.panel?.querySelector('#share-email-suggestions');
     if (!suggestions || !window.supabase) return;
     const safe = term.replace(/[,()%]/g, '').slice(0, 80);
     if (!safe) {
@@ -251,7 +292,7 @@ export class ShareListDialog {
       .select('id, vorname, nachname, email, unternehmen:unternehmen_id(firmenname)')
       .or(`vorname.ilike.%${safe}%,nachname.ilike.%${safe}%,email.ilike.%${safe}%`)
       .order('nachname');
-    if (gen !== this._emailSearchGen || !this.overlay) return;
+    if (gen !== this._emailSearchGen || !this.panel) return;
     const rows = (data || []).filter((ap) => {
       const email = String(ap.email || '').trim().toLowerCase();
       return email && this.isValidEmail(email) && !tagged.has(email);
@@ -275,10 +316,10 @@ export class ShareListDialog {
   }
 
   async submit() {
-    const labelInput = this.overlay?.querySelector('#share-label-input');
-    const rechteSelect = this.overlay?.querySelector('#share-rechte-select');
-    const emailInput = this.overlay?.querySelector('#share-email-tag-input');
-    const btn = this.overlay?.querySelector('#share-submit-btn');
+    const labelInput = this.panel?.querySelector('#share-label-input');
+    const rechteSelect = this.panel?.querySelector('#share-rechte-select');
+    const emailInput = this.panel?.querySelector('#share-email-tag-input');
+    const btn = this.panel?.querySelector('#share-submit-btn');
     this.commitEmailInput(emailInput, { warn: false });
 
     const label = (labelInput?.value || '').trim();
@@ -332,7 +373,7 @@ export class ShareListDialog {
   }
 
   showCreatedBanner(link, code) {
-    const banner = this.overlay?.querySelector('#share-created-banner');
+    const banner = this.panel?.querySelector('#share-created-banner');
     if (!banner || !code) return;
     banner.hidden = false;
     banner.innerHTML = `
@@ -349,6 +390,7 @@ export class ShareListDialog {
     banner.querySelectorAll('[data-copy]').forEach((btn) => {
       btn.addEventListener('click', () => this.copy(btn.dataset.copy, btn));
     });
+    banner.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
   }
 
   async siblingSkriptIds() {
@@ -364,7 +406,7 @@ export class ShareListDialog {
   }
 
   async loadShares() {
-    const container = this.overlay?.querySelector('#share-recipients');
+    const container = this.panel?.querySelector('#share-recipients');
     if (!container) return;
 
     const siblingIds = await this.siblingSkriptIds();
@@ -540,8 +582,8 @@ export class ShareListDialog {
   }
 }
 
-export const shareListDialog = new ShareListDialog();
+export const shareListDrawer = new ShareListDrawer();
 
 if (typeof window !== 'undefined') {
-  window.shareListDialog = shareListDialog;
+  window.shareListDrawer = shareListDrawer;
 }

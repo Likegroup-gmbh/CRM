@@ -85,77 +85,31 @@
   white-space: nowrap;
 }
 
-/* --- Share-Modal: nur unter .share-list-modal (globale .modal-* unangetastet) --- */
+/* --- Share-Drawer (Staff): Zugang anlegen und verwalten --- */
 
-.share-list-modal .modal-dialog {
-  max-width: 560px;
-}
-
-.share-list-modal .modal-header,
-.share-list-modal .modal-footer {
-  flex-shrink: 0;
-}
-
-.share-list-modal .modal-header h3 {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.share-list-modal .modal-body {
+.share-list-drawer .drawer-body {
   overflow-y: auto;
-  min-height: 0;
-  flex: 1 1 auto;
 }
 
-.share-list-modal .modal-footer {
+.share-list-drawer .drawer-footer {
+  flex-shrink: 0;
   padding: var(--space-md);
-  gap: var(--space-xs);
+  border-top: var(--border-xs) solid var(--border-primary);
+  background: var(--bg-primary);
 }
 
-.share-list-modal .modal-description {
-  margin: 0 0 var(--space-md);
-  font-size: var(--text-sm);
-  color: var(--text-tertiary);
+.share-drawer-abschnitt {
+  margin-bottom: var(--space-lg);
 }
 
-.share-list-modal .modal-body .form-group {
-  margin-bottom: var(--space-md);
-  gap: var(--space-xs);
-}
-
-.share-list-modal .modal-body .form-group:last-child {
-  margin-bottom: 0;
-}
-
-.share-list-modal .modal-body .form-label {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 0;
-}
-
-.share-list-modal .input {
-  box-sizing: border-box;
-}
-
-.share-list-modal .tag-input-container {
+.share-list-drawer .tag-input-container {
   z-index: 5;
 }
 
-.share-list-modal .suggestion-item-meta {
+.share-list-drawer .suggestion-item-meta {
   display: block;
   font-size: var(--text-xs);
   color: var(--text-tertiary);
-}
-
-.share-list-modal .tag-item .tag-remove {
-  color: inherit;
-}
-
-.share-dialog-list {
-  margin-top: var(--space-lg);
 }
 
 .share-dialog-empty {

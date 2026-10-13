@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ShareListDialog } from '../core/components/ShareListDialog.js';
+import { ShareListDrawer } from '../core/components/ShareListDrawer.js';
+import { DRAWER_EXIT_MS } from '../core/animation/drawer.js';
 
 function createListChain(result) {
   const chain = {
@@ -46,7 +47,7 @@ function pressEnter(el) {
   el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
 }
 
-describe('ShareListDialog Zugänge', () => {
+describe('ShareListDrawer Zugänge', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
     window.isInternal = () => true;
@@ -62,34 +63,90 @@ describe('ShareListDialog Zugänge', () => {
     window.prompt?.mockRestore?.();
   });
 
-  it('zeigt Standard-Header, Subtitle mit Listenname und Footer', () => {
+  it('zeigt Drawer-Header, Subtitle mit Listenname und Footer', () => {
     mockFrom();
-    const dialog = new ShareListDialog();
-    dialog.open({ entityType: 'kampagne', entityId: 'e1', entityName: 'Kampagne 2026' });
+    const drawer = new ShareListDrawer();
+    drawer.open({ entityType: 'kampagne', entityId: 'e1', entityName: 'Kampagne 2026' });
 
-    expect(document.querySelector('.modal-header h3')?.textContent).toBe('Liste teilen');
-    expect(document.querySelector('.share-list-modal-header')).toBeNull();
-    expect(document.querySelector('.modal-description')?.textContent).toBe('Erstelle einen Zugang für: Kampagne 2026');
+    expect(document.querySelector('.drawer-panel.share-list-drawer .drawer-title')?.textContent).toBe('Liste teilen');
+    expect(document.querySelector('.drawer-subtitle')?.textContent).toBe('Kampagne 2026');
+    expect(document.querySelector('.modal')).toBeNull();
     expect(document.querySelector('.form-label.required')?.textContent).toContain('Name des Zugangs');
-    expect(document.querySelector('.modal-footer .mdc-btn--secondary')?.textContent).toContain('Abbrechen');
+    expect(document.querySelector('.drawer-footer .mdc-btn--secondary')?.textContent).toContain('Schließen');
     expect(document.querySelector('#share-submit-btn')?.classList.contains('mdc-btn--create')).toBe(true);
     expect(document.querySelector('#share-submit-btn')?.textContent).toContain('Zugang erstellen');
-    expect(document.querySelector('#share-submit-btn')?.closest('.modal-footer')).not.toBeNull();
+    expect(document.querySelector('#share-submit-btn')?.closest('.drawer-footer')).not.toBeNull();
   });
 
-  it('schließt das Modal über Abbrechen', () => {
+  it('nennt den Skript-Drawer "Skript teilen"', () => {
     mockFrom();
-    const dialog = new ShareListDialog();
-    dialog.open({ entityType: 'sourcing', entityId: 'e1' });
-    expect(document.querySelector('.share-list-modal')).not.toBeNull();
+    new ShareListDrawer().open({ entityType: 'skript', entityId: 's1' });
+    expect(document.querySelector('.drawer-title')?.textContent).toBe('Skript teilen');
+  });
 
-    document.querySelector('.modal-footer [data-action="cancel"]').click();
-    expect(document.querySelector('.share-list-modal')).toBeNull();
+  describe('Schließen', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    function offen() {
+      mockFrom();
+      const drawer = new ShareListDrawer();
+      drawer.open({ entityType: 'sourcing', entityId: 'e1' });
+      expect(document.querySelector('.share-list-drawer')).not.toBeNull();
+      return drawer;
+    }
+
+    function istWeg() {
+      vi.advanceTimersByTime(DRAWER_EXIT_MS + 10);
+      return document.querySelector('.share-list-drawer') === null
+        && document.querySelector('.drawer-overlay') === null;
+    }
+
+    it('über den Schließen-Button im Footer', () => {
+      offen();
+      document.querySelector('.drawer-footer [data-action="close"]').click();
+      expect(istWeg()).toBe(true);
+    });
+
+    it('über das X im Header', () => {
+      offen();
+      document.querySelector('.drawer-header [data-action="close"]').click();
+      expect(istWeg()).toBe(true);
+    });
+
+    it('über Klick auf den Backdrop', () => {
+      offen();
+      document.querySelector('.drawer-overlay').click();
+      expect(istWeg()).toBe(true);
+    });
+
+    it('über Escape', () => {
+      offen();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(istWeg()).toBe(true);
+    });
+
+    it('Escape im E-Mail-Feld schließt nur die Vorschläge, nicht den Drawer', () => {
+      offen();
+      const input = document.getElementById('share-email-tag-input');
+      document.getElementById('share-email-suggestions').style.display = 'block';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      vi.advanceTimersByTime(DRAWER_EXIT_MS + 10);
+      expect(document.querySelector('.share-list-drawer')).not.toBeNull();
+      expect(document.getElementById('share-email-suggestions').style.display).toBe('none');
+    });
+
+    it('erneutes open räumt das alte Panel ab', () => {
+      const drawer = offen();
+      drawer.open({ entityType: 'strategie', entityId: 'e2' });
+      expect(document.querySelectorAll('.share-list-drawer')).toHaveLength(1);
+      expect(document.querySelectorAll('.drawer-overlay')).toHaveLength(1);
+    });
   });
 
   it('legt ohne Namen keinen Zugang an', async () => {
     mockFrom();
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'sourcing', entityId: 'e1' });
     await dialog.submit();
 
@@ -104,7 +161,7 @@ describe('ShareListDialog Zugänge', () => {
       error: null,
     });
 
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'sourcing', entityId: 'e1', entityName: 'Liste A' });
 
     expect(document.getElementById('share-label-input')).not.toBeNull();
@@ -143,7 +200,7 @@ describe('ShareListDialog Zugänge', () => {
       error: null,
     });
 
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'sourcing', entityId: 'e1' });
     document.getElementById('share-label-input').value = 'Marketing';
 
@@ -163,7 +220,7 @@ describe('ShareListDialog Zugänge', () => {
 
   it('legt bei ungültiger E-Mail keinen Tag an', () => {
     mockFrom();
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'sourcing', entityId: 'e1' });
 
     pressEnter(typeEmail('keine-mail'));
@@ -182,7 +239,7 @@ describe('ShareListDialog Zugänge', () => {
       }],
     });
 
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'sourcing', entityId: 'e1' });
 
     typeEmail('lisa');
@@ -213,7 +270,7 @@ describe('ShareListDialog Zugänge', () => {
       },
     });
 
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'strategie', entityId: 'e2' });
     await vi.waitFor(() => {
       expect(document.querySelector('.share-recipient-email')?.textContent).toContain('Agentur');
@@ -243,7 +300,7 @@ describe('ShareListDialog Zugänge', () => {
       return { data: { success: true, mailed: 1 }, error: null };
     });
 
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'sourcing', entityId: 'e1' });
     document.getElementById('share-label-input').value = 'Marketing';
     await dialog.submit();
@@ -273,7 +330,7 @@ describe('ShareListDialog Zugänge', () => {
 
   it('zeigt die Umfang-Auswahl nur beim Skript mit Kampagne', () => {
     mockFrom();
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'skript', entityId: 'skript-1', kampagneId: 'k1' });
     const checked = document.querySelector('input[name="share-skript-scope"]:checked');
     expect(checked?.value).toBe('kampagne');
@@ -294,7 +351,7 @@ describe('ShareListDialog Zugänge', () => {
       error: null,
     });
 
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'skript', entityId: 'skript-1', kampagneId: 'k1', entityName: 'Hook A' });
     document.getElementById('share-label-input').value = 'Kunde';
     await dialog.submit();
@@ -350,7 +407,7 @@ describe('ShareListDialog Zugänge', () => {
       },
     });
 
-    const dialog = new ShareListDialog();
+    const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'skript', entityId: 'skript-1', kampagneId: 'k1' });
 
     await vi.waitFor(() => {

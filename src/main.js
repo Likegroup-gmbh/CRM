@@ -151,7 +151,7 @@ import { adminPage } from './modules/admin/AdminPage.js';
 import { skriptePage } from './modules/skripte/SkriptePage.js';
 import { sharesAdminPage } from './modules/shares/SharesAdminPage.js';
 import { kiUsagePage } from './modules/ki-usage/KiUsagePage.js';
-import './core/components/ShareListDialog.js';
+import './core/components/ShareListDrawer.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
 import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
 import { backgroundUploadService } from './core/BackgroundUploadService.js';
