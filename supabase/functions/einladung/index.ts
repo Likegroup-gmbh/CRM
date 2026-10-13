@@ -31,8 +31,8 @@ import {
   parseEmpfaenger,
   pruefeEinreichung,
 } from './felder.ts';
+import { escapeHtml, sendResendMail } from '../_shared/mail.ts';
 
-const RESEND_API_URL = 'https://api.resend.com/emails';
 const BUCKET = 'einreichung';
 const VERIFY_WINDOW_MIN = 15;
 const VERIFY_MAX_ATTEMPTS = 5;
@@ -77,14 +77,6 @@ function generateCode(): string {
   crypto.getRandomValues(bytes);
   const n = new DataView(bytes.buffer).getUint32(0) % 1_000_000;
   return String(n).padStart(6, '0');
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function b64url(input: string | ArrayBuffer): string {
@@ -241,33 +233,6 @@ async function merkeVersuch(admin: Admin, einladungId: string, aktion: 'verify' 
     .lt('attempted_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 }
 
-function normalizeFromEmail(raw: string | undefined): string {
-  const fallback = 'LikeGroup <onboarding@resend.dev>';
-  const value = (raw ?? '').trim().replace(/^["']+|["']+$/g, '').trim();
-  if (!value) return fallback;
-  if (/^.*<[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+>$/.test(value)) return value.replace(/<noreply@/i, '<hello@');
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return `LikeGroup <${value.replace(/^noreply@/i, 'hello@')}>`;
-  return fallback;
-}
-
-async function sendeMail(to: string, subject: string, html: string, replyTo?: string | null): Promise<boolean> {
-  const key = Deno.env.get('RESEND_API_KEY');
-  if (!key) return false;
-  try {
-    const from = normalizeFromEmail(Deno.env.get('SHARE_FROM_EMAIL'));
-    const res = await fetch(RESEND_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ from, reply_to: replyTo || from, to: [to], subject, html }),
-    });
-    if (!res.ok) console.error('Resend error', res.status, await res.text());
-    return res.ok;
-  } catch (err) {
-    console.error('Resend fetch error:', err);
-    return false;
-  }
-}
-
 function mailHtml(p: { titel: string; zeilen: string[]; link: string; knopf: string }): string {
   const zeilen = p.zeilen.map((z) => `<p style="margin:0 0 12px 0;">${z}</p>`).join('');
   return `<!DOCTYPE html>
@@ -316,9 +281,10 @@ async function versendeEinladung(
     nachricht: string;
     staff: { name?: string | null; email?: string | null };
   },
-): Promise<{ gesendet: string[]; fehlgeschlagen: string[] }> {
+): Promise<{ gesendet: string[]; fehlgeschlagen: string[]; fehler?: string }> {
   const gesendet: string[] = [];
   const fehlgeschlagen: string[] = [];
+  let fehler: string | undefined;
   if (p.emails.length === 0) return { gesendet, fehlgeschlagen };
 
   const kopf = await kopfdaten(admin, e);
@@ -341,10 +307,11 @@ async function versendeEinladung(
   const betreff = fuer ? `${titel} – ${fuer}` : titel;
 
   for (const to of p.emails) {
-    const ok = await sendeMail(to, betreff, html, p.staff.email);
-    (ok ? gesendet : fehlgeschlagen).push(to);
+    const result = await sendResendMail({ to, subject: betreff, html, replyTo: p.staff.email });
+    if (!result.ok) fehler = result.error;
+    (result.ok ? gesendet : fehlgeschlagen).push(to);
   }
-  return { gesendet, fehlgeschlagen };
+  return { gesendet, fehlgeschlagen, fehler };
 }
 
 serve(async (req: Request) => {
@@ -462,6 +429,7 @@ serve(async (req: Request) => {
         code,
         gesendet: versand.gesendet,
         fehlgeschlagen: versand.fehlgeschlagen,
+        fehler: versand.fehler,
       }, 200, headers);
     }
 
@@ -520,6 +488,7 @@ serve(async (req: Request) => {
         code,
         gesendet: versand.gesendet,
         fehlgeschlagen: versand.fehlgeschlagen,
+        fehler: versand.fehler,
       }, 200, headers);
     }
 
@@ -680,10 +649,10 @@ serve(async (req: Request) => {
         const wasText = einladung.art === 'briefing' ? 'ein Briefing' : 'ein Produkt';
         const firma = [kopf.firmenname, kopf.markenname].filter(Boolean).join(' · ');
         const titel = einladung.art === 'briefing' ? 'Neues Briefing eingereicht' : 'Neues Produkt eingereicht';
-        await sendeMail(
-          ersteller.email,
-          `${titel}: ${einladung.label}`,
-          mailHtml({
+        await sendResendMail({
+          to: ersteller.email,
+          subject: `${titel}: ${einladung.label}`,
+          html: mailHtml({
             titel,
             zeilen: [
               `${escapeHtml(sitzung.name)} hat über die Einladung „${escapeHtml(einladung.label)}“ ${wasText} eingereicht.`,
@@ -693,7 +662,7 @@ serve(async (req: Request) => {
             link: ziel,
             knopf: 'Einreichung prüfen',
           }),
-        );
+        });
       }
     }
 

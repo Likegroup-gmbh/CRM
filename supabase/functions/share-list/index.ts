@@ -16,9 +16,8 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { EMAIL_REGEX, escapeHtml, normalizeFromEmail, sendResendMail } from '../_shared/mail.ts';
 
-const RESEND_API_URL = 'https://api.resend.com/emails';
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VERIFY_WINDOW_MIN = 15;
 const VERIFY_MAX_ATTEMPTS = 5;
 const JWT_TTL_SEC = 60 * 60 * 24 * 30;
@@ -29,29 +28,6 @@ const ENTITY_CONFIG: Record<string, { table: string; nameColumns: string[]; labe
   strategie: { table: 'strategie', nameColumns: ['name'], label: 'Strategie-Liste', article: 'die' },
   skript: { table: 'skripte', nameColumns: ['titel'], label: 'Skript', article: 'das' },
 };
-
-const FROM_DISPLAY = 'LikeGroup';
-const FROM_LOCAL = 'hello';
-
-function rewriteFromAddress(addr: string): string {
-  return addr.replace(/^noreply@/i, `${FROM_LOCAL}@`);
-}
-
-function normalizeFromEmail(raw: string | undefined): string {
-  const fallback = `${FROM_DISPLAY} <onboarding@resend.dev>`;
-  let value = (raw ?? '').trim().replace(/^["']+|["']+$/g, '').trim();
-  if (!value) return fallback;
-  const nameAddr = value.match(/^(.*)<\s*([^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)\s*>$/);
-  if (nameAddr) {
-    let name = nameAddr[1].trim().replace(/^["']+|["']+$/g, '').trim();
-    if (!name || /^CreatorJobs24$/i.test(name)) name = FROM_DISPLAY;
-    return `${name} <${rewriteFromAddress(nameAddr[2])}>`;
-  }
-  if (EMAIL_REGEX.test(value)) return `${FROM_DISPLAY} <${rewriteFromAddress(value)}>`;
-  if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)) return `${FROM_DISPLAY} <${FROM_LOCAL}@${value}>`;
-  console.error(`SHARE_FROM_EMAIL hat ungültiges Format: "${raw}" — Fallback auf ${fallback}`);
-  return fallback;
-}
 
 function corsHeaders(req: Request): Record<string, string> {
   return {
@@ -79,14 +55,6 @@ function generateCode(): string {
   crypto.getRandomValues(bytes);
   const n = new DataView(bytes.buffer).getUint32(0) % 1_000_000;
   return String(n).padStart(6, '0');
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function jwtSecret(): string | null {
@@ -291,50 +259,17 @@ function inviteSubject(label: string, name: string, allScripts: boolean): string
 
 async function sendInviteMails(params: {
   emails: string[];
-  fromEmail: string;
   subject: string;
   html: string;
 }): Promise<{ sent: number; error?: string }> {
-  if (params.emails.length === 0) return { sent: 0 };
-  const resendKey = Deno.env.get('RESEND_API_KEY');
-  if (!resendKey) {
-    return { sent: 0, error: 'E-Mail-Versand nicht konfiguriert: RESEND_API_KEY fehlt.' };
-  }
   let sent = 0;
   let lastError = '';
   for (const to of params.emails) {
-    try {
-      const mailRes = await fetch(RESEND_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${resendKey}`,
-        },
-        body: JSON.stringify({
-          from: params.fromEmail,
-          reply_to: params.fromEmail,
-          to: [to],
-          subject: params.subject,
-          html: params.html,
-        }),
-      });
-      if (!mailRes.ok) {
-        lastError = await mailRes.text();
-        console.error(`Resend error ${mailRes.status}: ${lastError}`);
-      } else {
-        sent += 1;
-      }
-    } catch (err) {
-      lastError = String(err);
-      console.error('Resend fetch error:', err);
-    }
+    const result = await sendResendMail({ to, subject: params.subject, html: params.html });
+    if (result.ok) sent += 1;
+    else lastError = result.error || '';
   }
-  if (sent === 0 && lastError) {
-    let detail = '';
-    try { detail = JSON.parse(lastError)?.message || ''; } catch { /* raw */ }
-    return { sent, error: `E-Mail-Versand fehlgeschlagen${detail ? `: ${detail}` : '.'}` };
-  }
-  return { sent };
+  return sent === 0 && lastError ? { sent, error: lastError } : { sent };
 }
 
 serve(async (req: Request) => {
@@ -612,7 +547,6 @@ serve(async (req: Request) => {
 
     const mailResult = await sendInviteMails({
       emails,
-      fromEmail: normalizeFromEmail(Deno.env.get('SHARE_FROM_EMAIL')),
       subject: inviteSubject(entityConfig.label, mailName, allScripts),
       html: buildInviteEmail({
         entityLabel: entityConfig.label,
@@ -720,7 +654,6 @@ serve(async (req: Request) => {
       : (info?.name || share.label || 'Unbenannt');
     const mailResult = await sendInviteMails({
       emails,
-      fromEmail: normalizeFromEmail(Deno.env.get('SHARE_FROM_EMAIL')),
       subject: inviteSubject(entityConfig?.label || 'Liste', mailName, allScripts),
       html: buildInviteEmail({
         entityLabel: entityConfig?.label || 'Liste',

@@ -359,7 +359,8 @@ export class EinladungDrawer {
       return;
     }
     if (fehl.length && !gesendet.length) {
-      window.toastSystem?.warning('Einladung angelegt, aber die Mail ging nicht raus. Link und Code unten kopieren.');
+      const grund = daten.fehler ? ` (${daten.fehler})` : '';
+      window.toastSystem?.warning(`Einladung angelegt, aber die Mail ging nicht raus${grund}. Link und Code unten kopieren.`);
     } else if (fehl.length) {
       window.toastSystem?.warning(`Gesendet an ${gesendet.length}, nicht zugestellt an: ${fehl.join(', ')}`);
     } else {
@@ -378,7 +379,7 @@ export class EinladungDrawer {
     banner.hidden = false;
     banner.innerHTML = `
       <div class="share-code-banner-title">${esc(titel)}</div>
-      ${fehl.length ? `<div class="einladung-banner-fehler">Nicht zugestellt: ${esc(fehl.join(', '))}</div>` : ''}
+      ${fehl.length ? `<div class="einladung-banner-fehler">Nicht zugestellt: ${esc(fehl.join(', '))}${daten.fehler ? ` – ${esc(daten.fehler)}` : ''}</div>` : ''}
       <div class="share-code-banner-row">
         <span class="share-code-value">${esc(code)}</span>
         <button type="button" class="share-inline-btn" data-copy="${esc(code)}">Code kopieren</button>
