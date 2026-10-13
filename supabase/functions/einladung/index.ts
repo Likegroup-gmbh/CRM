@@ -3,7 +3,9 @@
  *
  * Actions (POST JSON):
  *  - create:       Staff-JWT. Legt eine Einladung an (token + 6-stelliger Code).
+ *                  Optional emails (max. 10) und nachricht: Link + Code gehen direkt per Mail raus.
  *  - rotate_code:  Staff-JWT. Neuen Code erzeugen.
+ *  - resend:       Staff-JWT. Neuen Code erzeugen und mit dem Link an emails mailen.
  *  - revoke:       Staff-JWT. Einladung widerrufen.
  *  - resolve:      öffentlich. Token → Kopfdaten für die Eingangsmaske.
  *  - verify:       öffentlich, rate-limitiert. token + code + name → Sitzungs-Token (6 h).
@@ -26,6 +28,7 @@ import {
   UPLOAD_MIME,
   bereinigeBriefing,
   bereinigeProdukt,
+  parseEmpfaenger,
   pruefeEinreichung,
 } from './felder.ts';
 
@@ -37,6 +40,7 @@ const SITZUNG_TTL_SEC = 60 * 60 * 6;
 const UPLOAD_MAX_PRO_STUNDE = 40;
 const SUBMIT_MAX_PRO_STUNDE = 10;
 const OFFEN_MAX = 50;
+const NACHRICHT_MAX = 500;
 
 type Admin = ReturnType<typeof createClient>;
 
@@ -246,7 +250,7 @@ function normalizeFromEmail(raw: string | undefined): string {
   return fallback;
 }
 
-async function sendeMail(to: string, subject: string, html: string): Promise<boolean> {
+async function sendeMail(to: string, subject: string, html: string, replyTo?: string | null): Promise<boolean> {
   const key = Deno.env.get('RESEND_API_KEY');
   if (!key) return false;
   try {
@@ -254,7 +258,7 @@ async function sendeMail(to: string, subject: string, html: string): Promise<boo
     const res = await fetch(RESEND_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ from, reply_to: from, to: [to], subject, html }),
+      body: JSON.stringify({ from, reply_to: replyTo || from, to: [to], subject, html }),
     });
     if (!res.ok) console.error('Resend error', res.status, await res.text());
     return res.ok;
@@ -301,6 +305,48 @@ async function kopfdaten(admin: Admin, e: EinladungRow) {
   return { firmenname: firma?.firmenname ?? null, markenname };
 }
 
+/** Eine Mail pro Empfänger mit Link und Code. Antworten gehen an den Einladenden. */
+async function versendeEinladung(
+  admin: Admin,
+  e: EinladungRow,
+  p: {
+    link: string;
+    code: string;
+    emails: string[];
+    nachricht: string;
+    staff: { name?: string | null; email?: string | null };
+  },
+): Promise<{ gesendet: string[]; fehlgeschlagen: string[] }> {
+  const gesendet: string[] = [];
+  const fehlgeschlagen: string[] = [];
+  if (p.emails.length === 0) return { gesendet, fehlgeschlagen };
+
+  const kopf = await kopfdaten(admin, e);
+  const fuer = [kopf.firmenname, kopf.markenname].filter(Boolean).join(' · ');
+  const absender = (p.staff.name || '').trim() || 'Ihr Ansprechpartner bei LikeGroup';
+  const was = e.art === 'briefing' ? 'ein Briefing auszufüllen' : 'Ihre Produkte einzutragen';
+  const titel = e.art === 'briefing' ? 'Bitte füllen Sie Ihr Briefing aus' : 'Bitte tragen Sie Ihr Produkt ein';
+
+  const zeilen = [
+    `${escapeHtml(absender)} bittet Sie${fuer ? ` für <strong>${escapeHtml(fuer)}</strong>` : ''}, ${was}.`,
+  ];
+  if (p.nachricht) {
+    zeilen.push(`<em style="color:#555;">${escapeHtml(p.nachricht).replace(/\n/g, '<br>')}</em>`);
+  }
+  zeilen.push(
+    `Ihr Code: <strong style="font-size:20px;letter-spacing:3px;">${escapeHtml(p.code)}</strong>`,
+    '<span style="color:#555;font-size:13px;">Beim Öffnen geben Sie den Code und Ihren Namen ein. Ein Account ist nicht nötig.</span>',
+  );
+  const html = mailHtml({ titel, zeilen, link: p.link, knopf: 'Formular öffnen' });
+  const betreff = fuer ? `${titel} – ${fuer}` : titel;
+
+  for (const to of p.emails) {
+    const ok = await sendeMail(to, betreff, html, p.staff.email);
+    (ok ? gesendet : fehlgeschlagen).push(to);
+  }
+  return { gesendet, fehlgeschlagen };
+}
+
 serve(async (req: Request) => {
   const headers = corsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers });
@@ -323,7 +369,7 @@ serve(async (req: Request) => {
   // -------------------------------------------------------------------
   // Staff: create / rotate_code / revoke
   // -------------------------------------------------------------------
-  if (['create', 'rotate_code', 'revoke'].includes(action)) {
+  if (['create', 'rotate_code', 'revoke', 'resend'].includes(action)) {
     if (!secret) return jsonRes({ error: 'JWT_SECRET fehlt als Secret.' }, 500, headers);
     const auth = await requireStaff(admin, req);
     if ('error' in auth) return jsonRes({ error: auth.error }, auth.status, headers);
@@ -375,6 +421,10 @@ serve(async (req: Request) => {
         expiresAt = d.toISOString();
       }
 
+      const empfaenger = parseEmpfaenger(body.emails);
+      if (empfaenger.fehler) return jsonRes({ error: empfaenger.fehler }, 400, headers);
+      const nachricht = String(body.nachricht ?? '').trim().slice(0, NACHRICHT_MAX);
+
       const token = generateToken();
       const code = generateCode();
       const { data: inserted, error } = await admin
@@ -391,17 +441,27 @@ serve(async (req: Request) => {
           created_by: staff.id,
           expires_at: expiresAt,
         })
-        .select('id')
+        .select(EINLADUNG_SPALTEN)
         .single();
       if (error || !inserted) {
         console.error('einladung insert error:', error);
         return jsonRes({ error: 'Einladung konnte nicht angelegt werden.' }, 500, headers);
       }
+      const link = `${origin}/einladung/${token}`;
+      const versand = await versendeEinladung(admin, inserted as EinladungRow, {
+        link,
+        code,
+        emails: empfaenger.emails,
+        nachricht,
+        staff,
+      });
       return jsonRes({
         success: true,
-        einladungId: inserted.id,
-        link: `${origin}/einladung/${token}`,
+        einladungId: (inserted as EinladungRow).id,
+        link,
         code,
+        gesendet: versand.gesendet,
+        fehlgeschlagen: versand.fehlgeschlagen,
       }, 200, headers);
     }
 
@@ -417,6 +477,50 @@ serve(async (req: Request) => {
         .is('revoked_at', null);
       if (error) return jsonRes({ error: 'Code konnte nicht erneuert werden.' }, 500, headers);
       return jsonRes({ success: true, code }, 200, headers);
+    }
+
+    if (action === 'resend') {
+      const empfaenger = parseEmpfaenger(body.emails);
+      if (empfaenger.fehler) return jsonRes({ error: empfaenger.fehler }, 400, headers);
+      if (empfaenger.emails.length === 0) {
+        return jsonRes({ error: 'Bitte mindestens eine E-Mail angeben.' }, 400, headers);
+      }
+      const nachricht = String(body.nachricht ?? '').trim().slice(0, NACHRICHT_MAX);
+
+      const { data: zeile } = await admin
+        .from('einladung')
+        .select(EINLADUNG_SPALTEN)
+        .eq('id', einladungId)
+        .maybeSingle();
+      const einladungRow = zeile as EinladungRow | null;
+      if (!einladungRow) return jsonRes({ error: 'Einladung nicht gefunden.' }, 404, headers);
+      const gesperrt = nutzbar(einladungRow);
+      if (gesperrt) return jsonRes({ error: gesperrt }, 400, headers);
+
+      // Der Code liegt nur als Hash vor: für den Versand wird ein neuer erzeugt.
+      const code = generateCode();
+      const { error: rotError } = await admin
+        .from('einladung')
+        .update({ code_hash: await hashCode(code, secret) })
+        .eq('id', einladungId)
+        .is('revoked_at', null);
+      if (rotError) return jsonRes({ error: 'Code konnte nicht erneuert werden.' }, 500, headers);
+
+      const link = `${origin}/einladung/${einladungRow.token}`;
+      const versand = await versendeEinladung(admin, einladungRow, {
+        link,
+        code,
+        emails: empfaenger.emails,
+        nachricht,
+        staff,
+      });
+      return jsonRes({
+        success: true,
+        link,
+        code,
+        gesendet: versand.gesendet,
+        fehlgeschlagen: versand.fehlgeschlagen,
+      }, 200, headers);
     }
 
     const { error } = await admin

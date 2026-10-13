@@ -3,7 +3,7 @@
 // Der Button gilt für den Kontext der Liste: Marke, sonst Unternehmen. Der Eingang zeigt die
 // offenen Einreichungen dieses Kontexts; ohne Kontext (Unternehmensübersicht) alle.
 
-import { openEinladungDialog } from './EinladungDialog.js';
+import { openEinladungDialog } from './EinladungDrawer.js';
 import {
   einreichungDatum,
   listOffeneEinreichungen,

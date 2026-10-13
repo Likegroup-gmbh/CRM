@@ -6,7 +6,7 @@ import { resolveCreateAction, renderCreateButton } from '../../core/actions/Crea
 import { openSkriptCreateDrawer } from '../skripte/SkriptCreateDrawer.js';
 import { lineNames } from '../produktion/produktionNames.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
-import { openEinladungDialog } from '../einladung/EinladungDialog.js';
+import { openEinladungDialog } from '../einladung/EinladungDrawer.js';
 const EXISTS_REASON = {};
 
 const ACTION_SPECS = {
@@ -133,6 +133,9 @@ export function handleWorkflowCreate(detail, action) {
     openEinladungDialog({
       art: 'briefing',
       produktionId: detail.produktionId,
+      kampagneId: detail.kampagneId || null,
+      unternehmenId: detail.kampagneData?.unternehmen_id || null,
+      markeId: detail.kampagneData?.marke_id || null,
       kontextName: detail.produktion?.name || detail.lineTitle || ''
     });
     return;

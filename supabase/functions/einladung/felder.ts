@@ -42,6 +42,7 @@ export const MAX_JSON_BYTES = 150_000;
 export const MAX_TEXT = 10_000;
 export const MAX_LISTE = 100;
 export const MAX_BILDER = 5;
+export const MAIL_MAX_EMPFAENGER = 10;
 export const MAX_REFERENZEN = 3;
 export const MAX_VARIANTEN = 30;
 
@@ -235,4 +236,23 @@ export function pruefeEinreichung(art: Art, formData: Record<string, unknown>): 
   const inhalt = Object.keys(formData).filter((k) => k !== 'bereich');
   if (inhalt.length === 0) return 'Bitte mindestens eine Angabe machen.';
   return null;
+}
+
+/** Empfängerliste: getrimmt, klein geschrieben, ohne Duplikate. Ungültiges oder zu viel ist ein Fehler. */
+export function parseEmpfaenger(raw: unknown): { emails: string[]; fehler?: string } {
+  if (raw === undefined || raw === null || raw === '') return { emails: [] };
+  if (!Array.isArray(raw)) return { emails: [], fehler: 'Ungültige Empfängerliste.' };
+  const emails: string[] = [];
+  for (const eintrag of raw) {
+    const email = String(eintrag ?? '').trim().toLowerCase();
+    if (!email) continue;
+    if (email.length > 320 || !/^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(email)) {
+      return { emails: [], fehler: `Ungültige E-Mail-Adresse: ${email.slice(0, 80)}` };
+    }
+    if (!emails.includes(email)) emails.push(email);
+  }
+  if (emails.length > MAIL_MAX_EMPFAENGER) {
+    return { emails: [], fehler: `Höchstens ${MAIL_MAX_EMPFAENGER} Empfänger pro Versand.` };
+  }
+  return { emails };
 }
