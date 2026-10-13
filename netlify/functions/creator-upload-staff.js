@@ -90,6 +90,7 @@ async function sendMailForToken(supabase, event, tokenRow, rawToken, koop) {
     kampagneName: kamp.kampagnenname || kamp.eigener_name || '',
     link,
     expiresAt: tokenRow.expires_at,
+    basisUrl: new URL(buildPageBaseUrl(event)).origin,
   });
   if (!result.ok) return { ok: false, status: 502, error: `E-Mail-Versand fehlgeschlagen: ${result.error}` };
   return { ok: true, expiresAt: tokenRow.expires_at };

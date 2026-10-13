@@ -31,7 +31,8 @@ import {
   parseEmpfaenger,
   pruefeEinreichung,
 } from './felder.ts';
-import { escapeHtml, sendResendMail } from '../_shared/mail.ts';
+import { sendResendMail } from '../_shared/mail.ts';
+import { einladungMail, einreichungMail } from '../_shared/mail/index.ts';
 
 const BUCKET = 'einreichung';
 const VERIFY_WINDOW_MIN = 15;
@@ -233,29 +234,6 @@ async function merkeVersuch(admin: Admin, einladungId: string, aktion: 'verify' 
     .lt('attempted_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 }
 
-function mailHtml(p: { titel: string; zeilen: string[]; link: string; knopf: string }): string {
-  const zeilen = p.zeilen.map((z) => `<p style="margin:0 0 12px 0;">${z}</p>`).join('');
-  return `<!DOCTYPE html>
-<html lang="de"><head><meta charset="utf-8"><title>${escapeHtml(p.titel)}</title></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;">
-    <tr><td align="center" style="padding:40px 20px;">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;max-width:600px;width:100%;">
-        <tr><td style="padding:32px 40px;color:#1a1a1a;font-size:15px;line-height:1.6;">
-          <h2 style="margin:0 0 16px 0;font-size:20px;">${escapeHtml(p.titel)}</h2>
-          ${zeilen}
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 0 0;">
-            <tr><td style="border-radius:6px;background:#4f46e5;">
-              <a href="${escapeHtml(p.link)}" style="display:inline-block;padding:12px 28px;color:#fff;text-decoration:none;font-weight:600;">${escapeHtml(p.knopf)}</a>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
-}
-
 async function kopfdaten(admin: Admin, e: EinladungRow) {
   const { data: firma } = await admin
     .from('unternehmen')
@@ -277,6 +255,7 @@ async function versendeEinladung(
   p: {
     link: string;
     code: string;
+    basisUrl: string;
     emails: string[];
     nachricht: string;
     staff: { name?: string | null; email?: string | null };
@@ -288,23 +267,17 @@ async function versendeEinladung(
   if (p.emails.length === 0) return { gesendet, fehlgeschlagen };
 
   const kopf = await kopfdaten(admin, e);
-  const fuer = [kopf.firmenname, kopf.markenname].filter(Boolean).join(' · ');
-  const absender = (p.staff.name || '').trim() || 'Ihr Ansprechpartner bei LikeGroup';
-  const was = e.art === 'briefing' ? 'ein Briefing auszufüllen' : 'Ihre Produkte einzutragen';
-  const titel = e.art === 'briefing' ? 'Bitte füllen Sie Ihr Briefing aus' : 'Bitte tragen Sie Ihr Produkt ein';
-
-  const zeilen = [
-    `${escapeHtml(absender)} bittet Sie${fuer ? ` für <strong>${escapeHtml(fuer)}</strong>` : ''}, ${was}.`,
-  ];
-  if (p.nachricht) {
-    zeilen.push(`<em style="color:#555;">${escapeHtml(p.nachricht).replace(/\n/g, '<br>')}</em>`);
-  }
-  zeilen.push(
-    `Ihr Code: <strong style="font-size:20px;letter-spacing:3px;">${escapeHtml(p.code)}</strong>`,
-    '<span style="color:#555;font-size:13px;">Beim Öffnen geben Sie den Code und Ihren Namen ein. Ein Account ist nicht nötig.</span>',
-  );
-  const html = mailHtml({ titel, zeilen, link: p.link, knopf: 'Formular öffnen' });
-  const betreff = fuer ? `${titel} – ${fuer}` : titel;
+  const kunde = [kopf.firmenname, kopf.markenname].filter(Boolean).join(' · ');
+  const { betreff, html } = einladungMail({
+    art: e.art,
+    briefingTyp: e.briefing_typ,
+    absenderName: (p.staff.name || '').trim(),
+    kunde: kunde || undefined,
+    nachricht: p.nachricht || undefined,
+    code: p.code,
+    link: p.link,
+    basisUrl: p.basisUrl,
+  });
 
   for (const to of p.emails) {
     const result = await sendResendMail({ to, subject: betreff, html, replyTo: p.staff.email });
@@ -418,6 +391,7 @@ serve(async (req: Request) => {
       const versand = await versendeEinladung(admin, inserted as EinladungRow, {
         link,
         code,
+        basisUrl: origin,
         emails: empfaenger.emails,
         nachricht,
         staff,
@@ -478,6 +452,7 @@ serve(async (req: Request) => {
       const versand = await versendeEinladung(admin, einladungRow, {
         link,
         code,
+        basisUrl: origin,
         emails: empfaenger.emails,
         nachricht,
         staff,
@@ -646,23 +621,16 @@ serve(async (req: Request) => {
         const ziel = einladung.art === 'briefing' && einladung.produktion_id
           ? `${origin}/produktion/${einladung.produktion_id}?tab=briefing`
           : `${origin}/produkt`;
-        const wasText = einladung.art === 'briefing' ? 'ein Briefing' : 'ein Produkt';
         const firma = [kopf.firmenname, kopf.markenname].filter(Boolean).join(' · ');
-        const titel = einladung.art === 'briefing' ? 'Neues Briefing eingereicht' : 'Neues Produkt eingereicht';
-        await sendResendMail({
-          to: ersteller.email,
-          subject: `${titel}: ${einladung.label}`,
-          html: mailHtml({
-            titel,
-            zeilen: [
-              `${escapeHtml(sitzung.name)} hat über die Einladung „${escapeHtml(einladung.label)}“ ${wasText} eingereicht.`,
-              firma ? `Kunde: ${escapeHtml(firma)}` : '',
-              'Die Einreichung wartet auf deine Prüfung. Erst „Anlegen“ erstellt das Produkt bzw. Briefing.',
-            ].filter(Boolean),
-            link: ziel,
-            knopf: 'Einreichung prüfen',
-          }),
+        const mail = einreichungMail({
+          art: einladung.art,
+          einreicherName: sitzung.name,
+          einladungLabel: einladung.label,
+          kunde: firma || undefined,
+          link: ziel,
+          basisUrl: origin,
         });
+        await sendResendMail({ to: ersteller.email, subject: mail.betreff, html: mail.html });
       }
     }
 

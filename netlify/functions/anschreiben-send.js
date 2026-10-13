@@ -18,6 +18,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { randomUUID } = require('crypto');
 const { verifyAuth, requireInternal, authErrorBody } = require('./_shared/verify-auth');
 const { sendResendMail } = require('./_shared/resend');
+const { anschreibenMail } = require('./_shared/mail-system');
 const { loadDokumentContext, getDokumentAdapter } = require('./_shared/anschreiben-dokumente');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -237,7 +238,12 @@ async function sendAnschreiben({ supabase, sendMail, benutzerId }, payload) {
 
     const mergedCtx = { ...ctx, vorname: resolved.vorname, name: resolved.name };
     const subject = mergeTemplate(betreff, mergedCtx);
-    const html = textToHtml(mergeTemplate(mailBody, mergedCtx));
+    // Layout kommt aus dem zentralen Mail-System; der Text ist schon escaped (textToHtml).
+    const { html } = anschreibenMail({
+      betreff: subject,
+      textHtml: textToHtml(mergeTemplate(mailBody, mergedCtx)),
+      basisUrl: process.env.APP_BASE_URL || process.env.URL || '',
+    });
 
     const attachment = attachmentByKey.get(`${e.typ}:${e.id}`) || sharedAttachment;
     if (!attachment?.length) {
