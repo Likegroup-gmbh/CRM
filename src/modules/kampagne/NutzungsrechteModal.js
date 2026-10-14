@@ -40,9 +40,11 @@ export class NutzungsrechteModal {
     modal._onKey = onKey;
 
     try {
+      // vertrag_kooperation ist ein zweiter Weg vom Vertrag zur Kooperation.
+      // Ohne Hinweis auf die direkte Fremdschluessel-Spalte antwortet PostgREST mit 300.
       const { data, error } = await window.supabase
         .from('vertraege')
-        .select(`${NUTZUNGSRECHTE_SELECT}, kooperationen(nutzungsrechte)`)
+        .select(`${NUTZUNGSRECHTE_SELECT}, kooperationen!vertraege_kooperation_id_fkey(nutzungsrechte)`)
         .eq('id', vertragId)
         .single();
 
