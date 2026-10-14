@@ -10,13 +10,13 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { resolveEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
-import { getShowCompleted } from './kampagneListPrefs.js';
+import { getHideCompleted } from './kampagneListPrefs.js';
 import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 
 const FILTER_ICON = `${icon('filter-alt')}`;
-const EYE_ICON = `${icon('eye-outline')}`;
+const EYE_ICON = `${icon('eye-closed')}`;
 
-export function renderKampagneListToolbarMenu({ isKunde = false, showCompleted = false } = {}) {
+export function renderKampagneListToolbarMenu({ isKunde = false, hideCompleted = false } = {}) {
   return renderToolbarMenu({
     toggleId: 'btn-kampagne-list-toolbar-menu',
     badgeHtml: '<span class="filter-count-badge" id="kampagne-list-plus-badge" hidden></span>',
@@ -24,10 +24,10 @@ export function renderKampagneListToolbarMenu({ isKunde = false, showCompleted =
       <div class="action-submenu toolbar-completed-toggle">
         <span class="toolbar-completed-toggle-label">
           ${EYE_ICON}
-          <span>Abgeschlossene anzeigen</span>
+          <span>Abgeschlossene verbergen</span>
         </span>
         <label class="toggle-switch toggle-switch-small">
-          <input type="checkbox" id="kampagne-show-completed"${showCompleted ? ' checked' : ''}>
+          <input type="checkbox" id="kampagne-hide-completed"${hideCompleted ? ' checked' : ''}>
           <span class="toggle-slider"></span>
         </label>
       </div>
@@ -49,7 +49,7 @@ export function renderPageHtml({ currentView, searchQuery }) {
   const isKunde = window.isKunde();
   const isMitarbeiter = window.isMitarbeiter();
   const canBulkDelete = window.canBulkDelete();
-  const showCompleted = getShowCompleted();
+  const hideCompleted = getHideCompleted();
 
   return `
     <div class="table-filter-wrapper kampagne-list-page">
@@ -82,7 +82,7 @@ export function renderPageHtml({ currentView, searchQuery }) {
         ${!isKunde && currentView === 'list' && canBulkDelete ? '<span id="selected-count" style="display:none;">0 ausgewählt</span>' : ''}
         ${!isKunde && currentView === 'list' && canBulkDelete ? '<button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>' : ''}
         ${!isKunde && canEdit && !isMitarbeiter ? '<button id="btn-kampagne-new" class="mdc-btn">Neue Kampagne anlegen</button>' : ''}
-        ${renderKampagneListToolbarMenu({ isKunde, showCompleted })}
+        ${renderKampagneListToolbarMenu({ isKunde, hideCompleted })}
       </div>
     </div>
 
@@ -171,8 +171,10 @@ export async function updateTable(kampagnen, { bindDragToScroll, hasActiveFilter
       return;
     }
 
-    tbody.innerHTML = kampagnen.map(kampagne => `
-      <tr data-id="${kampagne.id}">
+    tbody.innerHTML = kampagnen.map(kampagne => {
+      const completed = kampagne.is_completed === true;
+      return `
+      <tr data-id="${kampagne.id}"${completed ? ' class="kampagne-row--completed"' : ''}>
         ${!isKunde && canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
         <td class="col-name">
           <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
@@ -192,7 +194,8 @@ export async function updateTable(kampagnen, { bindDragToScroll, hasActiveFilter
           ${actionBuilder.create('kampagne', kampagne.id, window.currentUser, kampagneAbschlussOptions(kampagne))}
         </td>` : ''}
       </tr>
-    `).join('');
+    `;
+    }).join('');
   });
 
   bindDragToScroll();

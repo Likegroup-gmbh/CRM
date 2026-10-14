@@ -47,7 +47,7 @@ export function setKampagneAnsicht(ansicht, { search = window.location.search, p
   replaceRoute(url);
 }
 
-export function buildGridRpcParams(folder = {}, hideCompleted = true) {
+export function buildGridRpcParams(folder = {}, hideCompleted = false) {
   return {
     p_unternehmen_id: folder.unternehmenId || null,
     p_marke_id: folder.ohneMarke ? null : (folder.markeId || null),
@@ -99,7 +99,11 @@ export function groupKampagnenGrid(rows = [], folder = {}, hideCompleted = true)
   if (folder.ohneMarke || folder.markeId) {
     const kampagnen = scoped
       .filter((k) => (folder.ohneMarke ? !k.marke_id : k.marke_id === folder.markeId))
-      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      .sort((a, b) => {
+        const done = Number(!!a.is_completed) - Number(!!b.is_completed);
+        if (done) return done;
+        return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+      });
     return { ebene: 'items', kampagnen };
   }
 

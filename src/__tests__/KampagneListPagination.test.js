@@ -14,12 +14,12 @@ vi.mock('../modules/kampagne/filters/KampagneFilterLogic.js', () => ({
 }));
 
 import { loadKampagnenWithRelations } from '../modules/kampagne/KampagneListDataLoader.js';
-import { setShowCompleted } from '../modules/kampagne/kampagneListPrefs.js';
+import { setHideCompleted } from '../modules/kampagne/kampagneListPrefs.js';
 
 describe('KampagneList – Server-Pagination via RPC', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setShowCompleted(false);
+    setHideCompleted(false);
     window.supabase = {
       rpc: vi.fn(async () => ({
         data: { rows: [{ id: 'k1', kampagnenname: 'Test', art_der_kampagne: [] }], total_count: 42 },

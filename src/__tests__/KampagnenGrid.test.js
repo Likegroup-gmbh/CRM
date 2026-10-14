@@ -34,7 +34,7 @@ vi.mock('../modules/kampagne/KampagneCalendarView.js', () => ({
   }
 }));
 
-import { setShowCompleted } from '../modules/kampagne/kampagneListPrefs.js';
+import { setHideCompleted } from '../modules/kampagne/kampagneListPrefs.js';
 import { renderPageHtml } from '../modules/kampagne/KampagneListRenderers.js';
 import { KampagneList } from '../modules/kampagne/KampagneList.js';
 import {
@@ -195,6 +195,31 @@ describe('groupKampagnenGrid', () => {
     const data = groupKampagnenGrid(rows, { unternehmenId: 'u1', ohneMarke: true }, true);
     expect(data.kampagnen.map((k) => k.id)).toEqual(['k2']);
   });
+
+  it('Items: abgeschlossene stehen unter offenen', () => {
+    const mixed = [
+      {
+        id: 'neu-fertig',
+        unternehmen_id: 'u1',
+        marke_id: 'm1',
+        is_completed: true,
+        created_at: '2026-02-01',
+        unternehmen: { id: 'u1', firmenname: 'Acme' },
+        marke: { id: 'm1', markenname: 'BrandX' }
+      },
+      {
+        id: 'alt-offen',
+        unternehmen_id: 'u1',
+        marke_id: 'm1',
+        is_completed: false,
+        created_at: '2026-01-01',
+        unternehmen: { id: 'u1', firmenname: 'Acme' },
+        marke: { id: 'm1', markenname: 'BrandX' }
+      }
+    ];
+    const data = groupKampagnenGrid(mixed, { unternehmenId: 'u1', markeId: 'm1' }, false);
+    expect(data.kampagnen.map((k) => k.id)).toEqual(['alt-offen', 'neu-fertig']);
+  });
 });
 
 describe('loadKampagnenGrid', () => {
@@ -250,7 +275,7 @@ describe('loadKampagnenGrid', () => {
 
 describe('KampagneGridView Folder-Transitions', () => {
   beforeEach(() => {
-    setShowCompleted(false);
+    setHideCompleted(false);
     resetGridRpcAvailability();
     mockLocation('');
     window.validatorSystem = { sanitizeHtml: (s) => s, sanitizeUrl: (s) => s };
@@ -429,14 +454,14 @@ describe('KampagneGridView Folder-Transitions', () => {
     await view.mount();
     expect(window.supabase.rpc).toHaveBeenLastCalledWith(
       'get_kampagnen_grid',
-      expect.objectContaining({ p_hide_completed: true })
+      expect.objectContaining({ p_hide_completed: false })
     );
 
-    setShowCompleted(true);
+    setHideCompleted(true);
     await view.reload();
     expect(window.supabase.rpc).toHaveBeenLastCalledWith(
       'get_kampagnen_grid',
-      expect.objectContaining({ p_hide_completed: false })
+      expect.objectContaining({ p_hide_completed: true })
     );
     view.destroy();
   });
@@ -444,7 +469,7 @@ describe('KampagneGridView Folder-Transitions', () => {
 
 describe('KampagneList view-switch + Grid-Button', () => {
   beforeEach(() => {
-    setShowCompleted(false);
+    setHideCompleted(false);
     mockLocation('');
     window.isKunde = () => false;
     window.isMitarbeiter = () => false;
@@ -500,7 +525,7 @@ describe('KampagneList view-switch + Grid-Button', () => {
 
 describe('KampagneList Ordner-Zeilen', () => {
   beforeEach(() => {
-    setShowCompleted(false);
+    setHideCompleted(false);
     mockLocation('');
     window.isKunde = () => false;
     window.isMitarbeiter = () => false;

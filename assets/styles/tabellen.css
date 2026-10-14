@@ -2178,6 +2178,11 @@
 .data-table.data-table--kampagne th.col-actions,
 .data-table.data-table--kampagne td.col-actions { min-width: 5em; }
 
+.kampagne-table-container .data-table tbody tr.kampagne-row--completed > td,
+.kampagne-table-container .data-table tbody tr.kampagne-row--completed:hover > td {
+  background-color: var(--color-success-light);
+}
+
 /* Sticky-Spalten brauchen exakt fixierte Breiten (width + min + max) */
 .kampagne-table-container .data-table.data-table--kampagne th.col-name,
 .kampagne-table-container .data-table.data-table--kampagne td.col-name {
