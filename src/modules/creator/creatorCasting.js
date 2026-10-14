@@ -3,6 +3,25 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { openDrawer } from './creatorDrawer.js';
 
 const DRAWER_ID = 'creator-casting-drawer';
+const LETZTE_KEY = 'creator-casting-letzte-kampagne';
+
+// Zuletzt gewählte Kampagne gilt für die laufende Browser-Sitzung.
+export function letzteKampagne() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(LETZTE_KEY) || 'null');
+    return value?.id ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function merkeKampagne(id, name) {
+  try {
+    sessionStorage.setItem(LETZTE_KEY, JSON.stringify({ id, name: name || '' }));
+  } catch {
+    // Speicher nicht verfügbar
+  }
+}
 
 export function openCastingListeId() {
   return window.__openCastingListeId || null;
@@ -76,14 +95,22 @@ export async function openCastingPicker(creator) {
 
   const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim();
   const esc = (value) => window.validatorSystem?.sanitizeHtml?.(String(value ?? '')) ?? String(value ?? '');
+  const letzte = letzteKampagne();
+  const letzteName = esc(String(letzte?.name || '').trim() || 'Kampagne');
 
   const { body, close } = openDrawer({
     id: DRAWER_ID,
     title: 'Ins Casting',
     subtitle: name ? `${esc(name)} einer Kampagne zuordnen` : 'Kampagne wählen',
     body: `
+      ${letzte ? `
+        <div class="form-field">
+          <label>Zuletzt gewählt</label>
+          <button type="button" class="mdc-btn" data-action="casting-letzte">Zu „${letzteName}“ hinzufügen</button>
+          <p class="form-hint">Oder unten eine andere Kampagne suchen.</p>
+        </div>` : ''}
       <div class="form-field">
-        <label for="casting-kampagne-search-input">Kampagne</label>
+        <label for="casting-kampagne-search-input">${letzte ? 'Andere Kampagne' : 'Kampagne'}</label>
         <div class="searchable-select-container">
           ${SearchInput.render('casting-kampagne', { placeholder: 'Kampagne suchen...' })}
           <div id="creator-casting-treffer" class="searchable-select-dropdown show"></div>
@@ -131,7 +158,7 @@ export async function openCastingPicker(creator) {
     treffer.querySelector('.searchable-select-empty')?.remove();
     if (rows.length) {
       treffer.insertAdjacentHTML('beforeend', rows.map((row) => `
-        <div class="searchable-select-item" data-kampagne="${esc(row.id)}">
+        <div class="searchable-select-item${row.id === letzte?.id ? ' selected' : ''}" data-kampagne="${esc(row.id)}" data-name="${esc(row.kampagnenname || '')}">
           <span class="searchable-select-item-label">${esc(row.kampagnenname || 'Kampagne')}</span>
         </div>`).join(''));
     }
@@ -158,19 +185,29 @@ export async function openCastingPicker(creator) {
     }
   });
 
-  treffer.addEventListener('click', async (event) => {
-    const option = event.target.closest('[data-kampagne]');
-    if (!option) return;
-    option.classList.add('is-disabled');
+  const hinzufuegen = async (element, kampagneId, kampagneName) => {
+    element.classList.add('is-disabled');
+    element.disabled = true;
     try {
-      const listeId = await ensureListeForKampagne(option.dataset.kampagne);
+      const listeId = await ensureListeForKampagne(kampagneId);
       await addCreatorToListe(listeId, creator);
+      merkeKampagne(kampagneId, kampagneName);
       window.toastSystem?.show('Ins Casting gelegt', 'success');
       close();
     } catch (error) {
-      option.classList.remove('is-disabled');
+      element.classList.remove('is-disabled');
+      element.disabled = false;
       window.toastSystem?.show(error.message || 'Casting fehlgeschlagen', 'error');
     }
+  };
+
+  body.querySelector('[data-action="casting-letzte"]')?.addEventListener('click', (event) => {
+    hinzufuegen(event.currentTarget, letzte.id, letzte.name);
+  });
+
+  treffer.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-kampagne]');
+    if (option) hinzufuegen(option, option.dataset.kampagne, option.dataset.name);
   });
 
   SearchInput.bind('casting-kampagne', (value) => suchen(value));
