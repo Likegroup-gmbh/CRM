@@ -79,6 +79,7 @@ export function renderCreatorCard(c, list) {
         <div class="creator-card__header">
           <h3 class="creator-card__name">${esc(name)}</h3>
           <div class="creator-card__actions">
+            <button type="button" class="mdc-btn mdc-btn--sm creator-card__casting" data-id="${id}">Ins Casting</button>
             ${renderFavorit(c)}
             ${renderActions(c)}
           </div>
@@ -87,9 +88,6 @@ export function renderCreatorCard(c, list) {
         ${renderTagRow(c, list)}
         ${renderTagZeile(c.tags)}
         ${renderStats(c)}
-        <div class="creator-card__links">
-          <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm creator-card__casting" data-id="${id}">Ins Casting</button>
-        </div>
       </div>
     </article>
   `;

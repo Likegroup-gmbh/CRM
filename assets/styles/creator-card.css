@@ -221,7 +221,14 @@
 }
 
 .creator-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   flex-shrink: 0;
+}
+
+.creator-card__casting {
+  white-space: nowrap;
 }
 
 .creator-card__meta {
@@ -269,14 +276,6 @@
   font-size: var(--text-xs);
   color: var(--text-tertiary);
   text-transform: uppercase;
-}
-
-/* Links */
-
-.creator-card__links {
-  display: flex;
-  gap: var(--space-xs);
-  flex-wrap: wrap;
 }
 
 @media (prefers-reduced-motion: reduce) {
