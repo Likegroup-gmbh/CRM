@@ -26,6 +26,7 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'complete-kampagne', icon: 'check', label: 'Kampagne abschließen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],

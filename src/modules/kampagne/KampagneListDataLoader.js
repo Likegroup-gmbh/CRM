@@ -8,7 +8,7 @@ import { debugLog } from './KampagneListUtils.js';
 
 /**
  * Konvertiert UI-Filter in das JSONB-Format der get_kampagnen_list RPC.
- * hide_completed hängt am Session-Switch + Suche, nicht am FilterSystem.
+ * hide_completed hängt am Nutzer-Schalter + Suche, nicht am FilterSystem.
  */
 export function buildRpcFilters(activeFilters, { searchQuery = '' } = {}) {
   const rpcFilters = {};
@@ -102,7 +102,7 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
       throw error;
     }
 
-    const rows = result?.rows || [];
+    const rows = await attachCompletedFlags(result?.rows || []);
     const totalCount = result?.total_count || 0;
 
     // art_der_kampagne Typ-Map: zuerst aus RPC-Result, dann aus FilterSystem-Cache,
@@ -166,6 +166,24 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
     console.error('❌ Fehler beim Laden der Kampagnen:', error);
     const data = await window.dataService.loadEntities('kampagne');
     return { data, count: data.length, kampagneArtMap: new Map() };
+  }
+}
+
+async function attachCompletedFlags(rows) {
+  if (!rows.length || rows.every((row) => typeof row.is_completed === 'boolean')) return rows;
+  const ids = rows.map((row) => row.id).filter(Boolean);
+  if (!ids.length || !window.supabase?.from) return rows;
+  try {
+    const query = window.supabase.from('kampagne').select('id, is_completed');
+    if (typeof query?.in !== 'function') return rows;
+    const { data, error } = await query.in('id', ids);
+    if (error || !Array.isArray(data)) return rows;
+    const flags = new Map(data.map((row) => [row.id, row.is_completed === true]));
+    return rows.map((row) => (
+      flags.has(row.id) ? { ...row, is_completed: flags.get(row.id) } : row
+    ));
+  } catch {
+    return rows;
   }
 }
 

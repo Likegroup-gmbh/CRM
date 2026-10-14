@@ -1,17 +1,47 @@
-// Session-Flag: abgeschlossene Kampagnen auf der Liste anzeigen.
-// Lebt so lange wie das Modul (SPA-Navigation), stirbt beim Reload.
+// Abgeschlossene Kampagnen in der Übersicht verbergen.
+// Letzte Wahl pro Nutzer in diesem Browser. Ohne gespeicherte Wahl: alle sichtbar.
 
-let showCompleted = false;
+const STORAGE_PREFIX = 'kampagne-hide-completed:';
 
-export function getShowCompleted() {
-  return showCompleted;
+let hideCompleted = false;
+let loadedFor;
+
+function userId() {
+  return window.currentUser?.id || null;
 }
 
-export function setShowCompleted(value) {
-  showCompleted = !!value;
-  return showCompleted;
+function storageKey(id) {
+  return `${STORAGE_PREFIX}${id}`;
+}
+
+function readStored(id) {
+  try {
+    return localStorage.getItem(storageKey(id)) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function getHideCompleted() {
+  const id = userId();
+  if (loadedFor !== id) {
+    loadedFor = id;
+    hideCompleted = id ? readStored(id) : false;
+  }
+  return hideCompleted;
+}
+
+export function setHideCompleted(value) {
+  hideCompleted = !!value;
+  const id = userId();
+  loadedFor = id;
+  if (!id) return hideCompleted;
+  try {
+    localStorage.setItem(storageKey(id), hideCompleted ? 'true' : 'false');
+  } catch { /* privat oder voll */ }
+  return hideCompleted;
 }
 
 export function shouldHideCompleted(searchQuery = '') {
-  return !showCompleted && !String(searchQuery || '').trim();
+  return getHideCompleted() && !String(searchQuery || '').trim();
 }

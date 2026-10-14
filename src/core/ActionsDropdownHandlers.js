@@ -8,6 +8,7 @@ import { getSignedDocumentUrl, resolveDocumentUrl } from './DocumentUrlHelper.js
 import { authorizedFetch } from './auth/getAccessToken.js';
 import { ProduktService, produktFormRoute, produktListDetailRoute } from '../modules/produkt/ProduktService.js';
 import { PersonaService, personaFormRoute } from '../modules/persona/PersonaService.js';
+import { completeKampagne } from '../modules/kampagne/completeKampagne.js';
 
 // Entity-Types, die keine eigene DB-Tabelle haben und auf eine andere Entity gemappt werden
 const ENTITY_ALIASES = { mitarbeiter: 'benutzer' };
@@ -104,6 +105,15 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
 
     case 'continue':
       window.navigateTo(`/vertraege/${entityId}/edit`);
+      break;
+
+    case 'complete-kampagne':
+      try {
+        await completeKampagne(entityId);
+      } catch (error) {
+        console.error('Kampagne abschließen fehlgeschlagen', error);
+        window.toastSystem?.show('Kampagne konnte nicht abgeschlossen werden.', 'error');
+      }
       break;
 
     case 'delete':

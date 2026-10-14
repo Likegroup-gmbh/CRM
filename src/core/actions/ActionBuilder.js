@@ -104,6 +104,13 @@ export class ActionBuilder {
       );
     }
 
+    if (options && Array.isArray(options.excludeActions) && options.excludeActions.length) {
+      const excluded = new Set(options.excludeActions);
+      filteredActions = collapseSeparators(
+        filteredActions.filter(action => action.id === 'separator' || !excluded.has(action.id))
+      );
+    }
+
     return filteredActions.map(action => {
       if (action.id === 'separator') {
         return this.buildSeparator();

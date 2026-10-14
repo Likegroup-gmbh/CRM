@@ -14,36 +14,54 @@ vi.mock('../modules/kampagne/filters/KampagneFilterLogic.js', () => ({
 }));
 
 import { modularFilterSystem } from '../core/filters/ModularFilterSystem.js';
-import { getShowCompleted, setShowCompleted, shouldHideCompleted } from '../modules/kampagne/kampagneListPrefs.js';
+import { getHideCompleted, setHideCompleted, shouldHideCompleted } from '../modules/kampagne/kampagneListPrefs.js';
 import { buildRpcFilters, loadKampagnenWithRelations } from '../modules/kampagne/KampagneListDataLoader.js';
 import { KAMPAGNE_FILTERS, KAMPAGNE_FILTER_PRESETS } from '../modules/kampagne/filters/KampagneFilterConfig.js';
-import { renderPageHtml, renderKampagneListToolbarMenu } from '../modules/kampagne/KampagneListRenderers.js';
+import { renderPageHtml, renderKampagneListToolbarMenu, updateTable } from '../modules/kampagne/KampagneListRenderers.js';
 
 describe('kampagneListPrefs', () => {
   beforeEach(() => {
-    setShowCompleted(false);
+    window.currentUser = { id: 'prefs-user' };
+    localStorage.removeItem('kampagne-hide-completed:prefs-user');
+    localStorage.removeItem('kampagne-hide-completed:other-user');
+    setHideCompleted(false);
   });
 
-  it('blendet default aus, außer Switch an oder Suche gesetzt', () => {
-    expect(shouldHideCompleted('')).toBe(true);
-    expect(shouldHideCompleted('  ')).toBe(true);
-    expect(shouldHideCompleted('Telekom')).toBe(false);
-    setShowCompleted(true);
+  it('zeigt default alle, verbergen gilt nur ohne Suche', () => {
     expect(shouldHideCompleted('')).toBe(false);
-    expect(getShowCompleted()).toBe(true);
+    expect(shouldHideCompleted('  ')).toBe(false);
+    setHideCompleted(true);
+    expect(getHideCompleted()).toBe(true);
+    expect(shouldHideCompleted('')).toBe(true);
+    expect(shouldHideCompleted('Telekom')).toBe(false);
+  });
+
+  it('merkt die Wahl pro Nutzer in diesem Browser', () => {
+    setHideCompleted(true);
+    window.currentUser = { id: 'other-user' };
+    expect(getHideCompleted()).toBe(false);
+    window.currentUser = { id: 'prefs-user' };
+    expect(getHideCompleted()).toBe(true);
   });
 });
 
 describe('buildRpcFilters – hide_completed', () => {
   beforeEach(() => {
-    setShowCompleted(false);
+    window.currentUser = { id: 'prefs-user' };
+    setHideCompleted(false);
   });
 
-  it('setzt hide_completed wenn Switch aus und Suche leer', () => {
+  it('lässt hide_completed weg, solange der Schalter aus ist', () => {
+    expect(buildRpcFilters({})).toEqual({});
+  });
+
+  it('setzt hide_completed wenn der Schalter an ist und die Suche leer', () => {
+    setHideCompleted(true);
     expect(buildRpcFilters({})).toEqual({ hide_completed: true });
   });
 
   it('lässt hide_completed weg bei Suche, andere Filter bleiben', () => {
+    setHideCompleted(true);
     const filters = buildRpcFilters(
       { unternehmen_id: 'u1', art_der_kampagne: ['UGC Paid'] },
       { searchQuery: 'Telekom' }
@@ -52,16 +70,12 @@ describe('buildRpcFilters – hide_completed', () => {
     expect(filters.unternehmen_id).toBe('u1');
     expect(filters.art_der_kampagne).toEqual(['UGC Paid']);
   });
-
-  it('lässt hide_completed weg wenn Switch an ist', () => {
-    setShowCompleted(true);
-    expect(buildRpcFilters({})).toEqual({});
-  });
 });
 
 describe('loadKampagnenWithRelations – RPC payload', () => {
   beforeEach(() => {
-    setShowCompleted(false);
+    window.currentUser = { id: 'prefs-user' };
+    setHideCompleted(true);
     modularFilterSystem.getFilters.mockReturnValue({});
     window.supabase = {
       rpc: vi.fn(async () => ({ data: { rows: [], total_count: 0 }, error: null })),
@@ -98,27 +112,42 @@ describe('KampagneFilterConfig – alter Completed-Filter weg', () => {
 
 describe('KampagneList toolbar', () => {
   beforeEach(() => {
-    setShowCompleted(false);
+    window.currentUser = { id: 'prefs-user', rolle: 'admin', permissions: { kampagne: { can_edit: true } } };
+    setHideCompleted(false);
     window.isKunde = () => false;
     window.isMitarbeiter = () => false;
     window.isAdmin = () => true;
     window.canBulkDelete = () => false;
-    window.currentUser = { permissions: { kampagne: { can_edit: true } } };
     window.validatorSystem = { sanitizeHtml: (s) => s, sanitizeUrl: (s) => s };
   });
 
-  it('rendert Plus-Menü mit Toggle und Filter für Interne', () => {
+  it('rendert Plus-Menü mit Verbergen-Schalter und Filter für Interne', () => {
     const html = renderPageHtml({ currentView: 'list', searchQuery: '' });
     expect(html).toContain('btn-kampagne-list-toolbar-menu');
-    expect(html).toContain('kampagne-show-completed');
+    expect(html).toContain('kampagne-hide-completed');
+    expect(html).not.toContain('kampagne-hide-completed" checked');
     expect(html).toContain('btn-kampagne-list-filter');
-    expect(html).toContain('Abgeschlossene anzeigen');
+    expect(html).toContain('Abgeschlossene verbergen');
   });
 
   it('lässt den Filter-Eintrag für Kunden weg', () => {
     window.isKunde = () => true;
-    const html = renderKampagneListToolbarMenu({ isKunde: true, showCompleted: false });
-    expect(html).toContain('kampagne-show-completed');
+    const html = renderKampagneListToolbarMenu({ isKunde: true, hideCompleted: false });
+    expect(html).toContain('kampagne-hide-completed');
     expect(html).not.toContain('btn-kampagne-list-filter');
+  });
+
+  it('markiert abgeschlossene Zeilen und lässt den Abschluss-Eintrag weg', async () => {
+    document.body.innerHTML = '<table><tbody id="kampagnen-table-body"><tr><td class="loading"></td></tr></tbody></table>';
+    await updateTable([
+      { id: 'open', kampagnenname: 'Offen', is_completed: false, creatoranzahl: 1, videoanzahl: 1 },
+      { id: 'done', kampagnenname: 'Fertig', is_completed: true, creatoranzahl: 1, videoanzahl: 1 }
+    ], { bindDragToScroll() {} });
+    const done = document.querySelector('tr[data-id="done"]');
+    const open = document.querySelector('tr[data-id="open"]');
+    expect(done.classList.contains('kampagne-row--completed')).toBe(true);
+    expect(open.classList.contains('kampagne-row--completed')).toBe(false);
+    expect(open.innerHTML).toContain('Kampagne abschließen');
+    expect(done.innerHTML).not.toContain('Kampagne abschließen');
   });
 });

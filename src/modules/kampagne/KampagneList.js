@@ -13,7 +13,7 @@ import { loadKampagnenWithRelations, loadUserPermissions } from './KampagneListD
 import { renderPageHtml, updateTable } from './KampagneListRenderers.js';
 import { KampagneCreateHandler } from './KampagneCreateHandler.js';
 import { bindEmptyStateActions } from '../../core/components/EmptyState.js';
-import { getShowCompleted, setShowCompleted, shouldHideCompleted } from './kampagneListPrefs.js';
+import { getHideCompleted, setHideCompleted, shouldHideCompleted } from './kampagneListPrefs.js';
 
 const createHandler = new KampagneCreateHandler();
 
@@ -260,7 +260,7 @@ export class KampagneList {
           hasActiveFilters: this.hasActiveFilters(),
           hideCompletedActive: shouldHideCompleted(this.searchQuery)
         });
-        this.syncShowCompletedToggle();
+        this.syncHideCompletedToggle();
         this.updateToolbarFilterBadge();
         this.pagination.render();
       }
@@ -439,7 +439,7 @@ export class KampagneList {
     // Empty-State-Actions (z.B. "Filter zurücksetzen")
     bindEmptyStateActions(document, {
       'reset-filters': () => this.onFiltersReset(),
-      'show-completed': () => this.applyShowCompleted(true)
+      'show-completed': () => this.applyHideCompleted(false)
     }, { signal: this._abortController.signal });
   }
 
@@ -449,10 +449,10 @@ export class KampagneList {
     const cleanup = bindToolbarMenu(menu);
     this._abortController.signal.addEventListener('abort', cleanup, { once: true });
 
-    const toggle = document.getElementById('kampagne-show-completed');
+    const toggle = document.getElementById('kampagne-hide-completed');
     if (toggle) {
       toggle.addEventListener('change', (e) => {
-        this.applyShowCompleted(e.target.checked);
+        this.applyHideCompleted(e.target.checked);
       }, { signal: this._abortController.signal });
     }
 
@@ -471,9 +471,9 @@ export class KampagneList {
     this.updateToolbarFilterBadge();
   }
 
-  applyShowCompleted(value) {
-    setShowCompleted(value);
-    this.syncShowCompletedToggle();
+  applyHideCompleted(value) {
+    setHideCompleted(value);
+    this.syncHideCompletedToggle();
     this.pagination.currentPage = 1;
     if (this.currentView === 'calendar' && this.calendarView) {
       this.calendarView.reload();
@@ -482,9 +482,9 @@ export class KampagneList {
     this.loadData();
   }
 
-  syncShowCompletedToggle() {
-    const toggle = document.getElementById('kampagne-show-completed');
-    if (toggle) toggle.checked = getShowCompleted();
+  syncHideCompletedToggle() {
+    const toggle = document.getElementById('kampagne-hide-completed');
+    if (toggle) toggle.checked = getHideCompleted();
   }
 
   updateToolbarFilterBadge() {

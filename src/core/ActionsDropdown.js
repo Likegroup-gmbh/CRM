@@ -35,7 +35,8 @@ const KNOWN_GLOBAL_ACTIONS = new Set([
   'remove_ansprechpartner_unternehmen', 'remove_ansprechpartner_link',
   'edit_creator_adresse', 'set_standard_adresse', 'set_hauptadresse_standard',
   'delete_creator_adresse', 'unassign-kampagne',
-  'freischalten', 'details', 'auftrag-details'
+  'freischalten', 'details', 'auftrag-details',
+  'complete-kampagne'
 ]);
 
 export class ActionsDropdown {
