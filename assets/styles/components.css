@@ -2671,6 +2671,9 @@ h3.section-title,
 }
 
 .btn-inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.8125rem;
   padding: var(--space-xs) var(--space-md);
   border: 1px solid var(--gray-300);
@@ -2680,6 +2683,10 @@ h3.section-title,
   cursor: pointer;
   font-weight: 500;
   transition: all 0.15s ease;
+}
+
+.btn-inline-action svg {
+  flex-shrink: 0;
 }
 
 .btn-inline-action:hover:not(:disabled) {
