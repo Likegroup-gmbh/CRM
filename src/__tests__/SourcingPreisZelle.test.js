@@ -268,12 +268,14 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
 
     expect(kinder[0].querySelector('#sourcing-item-search-input')).not.toBeNull();
     expect(kinder[1].id).toBe('btn-open-add-drawer');
-    expect(kinder[2].id).toBe('casting-vorschlag-block');
-    expect(kinder[2].closest('.add-item-actions-right')).not.toBeNull();
-    expect(kinder[3].classList.contains('toolbar-menu')).toBe(true);
+    expect(kinder[2].id).toBe('btn-management-anfrage');
+    expect(kinder[3].id).toBe('casting-vorschlag-block');
+    expect(kinder[3].closest('.add-item-actions-right')).not.toBeNull();
+    expect(kinder[4].classList.contains('toolbar-menu')).toBe(true);
 
     const kundenDoc = kopf({ isKunde: true, canCreate: false });
     expect(kundenDoc.querySelector('#sourcing-item-search-input')).not.toBeNull();
+    expect(kundenDoc.querySelector('#btn-management-anfrage')).toBeNull();
     expect(kundenDoc.querySelector('.toolbar-menu')).toBeNull();
     expect(kundenDoc.querySelector('.sourcing-status-filter-submenu')).toBeNull();
   });

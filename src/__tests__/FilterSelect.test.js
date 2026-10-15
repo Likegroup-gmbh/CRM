@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   bindFilterSelects,
   matchesOptionSearch,
+  readFilterSelectValues,
   renderFilterSelect,
   summarizeSelection
 } from '../core/filters/FilterSelect.js';
@@ -185,5 +186,50 @@ describe('Mehrfachauswahl in der Creator-Filterspalte', () => {
     expect(outer.in).toHaveBeenCalledWith('id', ['c1', 'c2']);
     expect(filters.sprache_id).toBeUndefined();
     expect(result.shortCircuit).toBe(false);
+  });
+});
+
+describe('Dropdown im Drawer', () => {
+  let root;
+  let controller;
+
+  beforeEach(() => {
+    root = document.createElement('div');
+    document.body.appendChild(root);
+    controller = new AbortController();
+  });
+
+  afterEach(() => {
+    controller.abort();
+    document.querySelectorAll('.filter-select__panel').forEach((panel) => panel.remove());
+    root.remove();
+  });
+
+  it('legt das Panel an den Body, damit der Drawer es nicht abschneidet', () => {
+    root.innerHTML = renderFilterSelect({
+      id: 'management',
+      type: 'multiSelect',
+      portal: true,
+      searchable: true,
+      emptyLabel: 'Management wählen',
+      placeholder: 'Management suchen...',
+    }, [], PERSONEN);
+    bindFilterSelects(root, { signal: controller.signal });
+    const wrapper = root.querySelector('[data-filter-select]');
+    wrapper.querySelector('.filter-select__trigger').click();
+    const panel = document.body.querySelector(':scope > .filter-select__panel');
+
+    expect(wrapper.contains(panel)).toBe(false);
+    expect(panel.hidden).toBe(false);
+    expect(panel.classList.contains('is-open')).toBe(true);
+    const search = panel.querySelector('[data-select-search]');
+    search.value = 'oli';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    const sichtbar = [...panel.querySelectorAll('.filter-select__item')].filter((item) => !item.hidden);
+    expect(sichtbar).toHaveLength(1);
+
+    sichtbar[0].querySelector('input').click();
+    expect(wrapper.querySelector('.filter-select__trigger').textContent.trim()).toBe('Oliver Brandt');
+    expect(readFilterSelectValues(wrapper)).toEqual(['u3']);
   });
 });

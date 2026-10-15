@@ -32,6 +32,11 @@ export function renderTabNavigation(ctx) {
           ${tab.label} <span class="tab-count" data-sourcing-tab-count="${tab.key}">${counts[tab.key] ?? 0}</span>
         </button>
       `).join('')}
+      ${ctx.isKunde ? '' : `
+        <button type="button" class="tab-button${activeTab === 'bewerbung' ? ' active' : ''}" data-sourcing-tab="bewerbung">
+          Bewerbung <span class="tab-count" data-sourcing-tab-count="bewerbung">${counts.bewerbung ?? 0}</span>
+        </button>
+      `}
     </div>
   `;
 }

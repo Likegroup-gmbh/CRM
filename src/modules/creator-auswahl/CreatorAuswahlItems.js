@@ -8,16 +8,34 @@ import { teileNachDuplikat } from './bestandZuCasting.js';
 /**
  * Items einer Liste abrufen
  */
-export async function getItems(listeId) {
-  const { data, error } = await window.supabase
-    .from('creator_auswahl_items')
-    .select(`
+const ITEM_SELECT = `
       *,
       creator:creator_id(id, vorname, nachname, instagram, tiktok),
       persona:persona_id(id, name, oberbegriff)
+`;
+
+export async function getItems(listeId) {
+  const query = () => window.supabase
+    .from('creator_auswahl_items')
+    .select(ITEM_SELECT)
+    .eq('creator_auswahl_id', listeId)
+    .order('sortierung', { ascending: true });
+
+  let { data, error } = await window.supabase
+    .from('creator_auswahl_items')
+    .select(`
+      ${ITEM_SELECT},
+      management:management_id(firmenname),
+      ansprechpartner:ansprechpartner_id(vorname, nachname)
     `)
     .eq('creator_auswahl_id', listeId)
     .order('sortierung', { ascending: true });
+
+  if (error && /management_id|ansprechpartner_id|schema cache/i.test(error.message || '')) {
+    const fallback = await query();
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     console.error('Fehler beim Abrufen der Items:', error);

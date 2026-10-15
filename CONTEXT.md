@@ -217,6 +217,14 @@ Nicht der CRM-Creator; die Stammdaten-Identität kann später entstehen.
 Darf an mehreren Videoideen des verknüpften Konzepts hängen.
 _Avoid_: Casting-Item, Kandidat, Sourcing-Creator
 
+**Management-Anfrage**:
+Ein Casting schickt einem Ansprechpartner eines Managements eine eigene Mail mit eigenem Link, ohne Anhang. Über den Link schlägt diese Person Creator vor. Zwei Personen desselben Managements bekommen zwei Links und sehen die Vorschläge der anderen nicht.
+_Avoid_: Briefing-Anschreiben, Selbst-Bewerbung
+
+**Bewerbung**:
+Ein Creator-Vorschlag über eine Management-Anfrage: Vorname, Nachname und mindestens ein Profil-Link. Liegt im Reiter Bewerbung und ist für den Kunden unsichtbar, auch unter Alle. Aufnehmen macht daraus einen Casting-Eintrag mit Status Offen, ohne Creator-Datensatz. Verwerfen entfernt sie. Dieselbe Person von zwei Managements bleibt zweimal liegen, bis das Team eine aufnimmt.
+_Avoid_: Casting-Vorschlag, Casting-Eintrag, Selbst-Bewerbung
+
 **Kundenfeedback**:
 Die Kundenbewertung eines Casting-Eintrags: Prio 1, Prio 2 oder Abgelehnt.
 Unabhängig vom internen Prozessstatus (Angefragt … Gebucht).

@@ -11,7 +11,7 @@ import {
   SOURCING_SPALTEN_LABELS,
   DEAKTIVIERTE_SPALTEN
 } from './sourcingSpaltenKatalog.js';
-import { renderAddSection, renderItemsTable } from './castingTableRender.js';
+import { renderAddSection, renderItemsTable, updateStickyHeights } from './castingTableRender.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
@@ -29,6 +29,7 @@ import { castingDetailZeilenStatusMethods } from './CastingDetailZeilenStatus.js
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
 import { parseTeilbereiche } from './castingKategorien.js';
+import { loadBewerbungen } from './bewerbungTab.js';
 import { showCastingKategorienDrawer } from './CastingKategorienDrawer.js';
 
 export class CreatorAuswahlDetail {
@@ -134,6 +135,7 @@ export class CreatorAuswahlDetail {
       const { liste, items } = prefetched || await this._fetchDataStages(listeId);
       this.liste = liste;
       this.items = items;
+      this.bewerbungen = this.isKunde ? [] : await loadBewerbungen(listeId);
       await this._verknuepfeBekannteCreator();
 
       this.loadColumnVisibilitySettings();
@@ -309,6 +311,7 @@ export class CreatorAuswahlDetail {
       searchQuery: this.searchQuery,
       statusFilter: this.statusFilter,
       tabCounts: this.getTabCounts(),
+      bewerbungen: this.bewerbungen || [],
       liste: this.liste,
       isKunde: this.isKunde,
       canCreate,
@@ -343,26 +346,10 @@ export class CreatorAuswahlDetail {
     }
     // Eigene Vorschlag-Zeilen ueber der Liste (nie fuer Kunden/Gaeste)
     this.vorschlagPanel?.mount?.();
-    this._updateStickyHeights();
+    updateStickyHeights(this._getRoot());
 
     if (!this.isKunde && this._canSourcing('edit')) {
       this.renderBulkBar();
-    }
-  }
-
-  _updateStickyHeights() {
-    const rootEl = this._getRoot();
-    if (!rootEl) return;
-    const addSection = rootEl.querySelector('.add-item-section--compact');
-    const addH = addSection ? addSection.offsetHeight : 0;
-    const tabNav = rootEl.querySelector('.sourcing-tab-navigation');
-    const tabH = tabNav ? tabNav.offsetHeight : 0;
-    rootEl.style.setProperty('--sticky-addbar-height', addH + 'px');
-    rootEl.style.setProperty('--sticky-add-section-height', (addH + tabH) + 'px');
-
-    const thead = rootEl.querySelector('.creator-pool-table thead');
-    if (thead) {
-      rootEl.style.setProperty('--sticky-thead-height', thead.offsetHeight + 'px');
     }
   }
 
@@ -371,7 +358,7 @@ export class CreatorAuswahlDetail {
     if (tableContainer) {
       tableContainer.outerHTML = renderItemsTable(this.getRenderContext());
       this.bindEvents();
-      this._updateStickyHeights();
+      updateStickyHeights(this._getRoot());
       this.updateTabCounts();
 
       movedItemIds.forEach(id => {

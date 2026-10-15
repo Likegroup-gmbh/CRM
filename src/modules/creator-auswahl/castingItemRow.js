@@ -207,6 +207,15 @@ function renderBildCell(ctx, item, sticky, hide) {
   </td>`;
 }
 
+function herkunftZeile(item) {
+  if (item.isVorschlag) return '';
+  const person = [item.ansprechpartner?.vorname, item.ansprechpartner?.nachname].filter(Boolean).join(' ');
+  const management = item.management?.firmenname || '';
+  const text = [person, management].filter(Boolean).join(' · ');
+  if (!text) return '';
+  return `<div class="cell-text-readonly">${escapeHtml(text)}</div>`;
+}
+
 export function renderItemRow(ctx, item, index) {
   const isLinkedToCRM = !!item.creator_id;
   const isVorschlag = !!item.isVorschlag;
@@ -248,8 +257,9 @@ export function renderItemRow(ctx, item, index) {
         ${canWrite ? `
           <div class="cp-name-cell-inner">
             <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
+            ${ctx.isKunde ? '' : herkunftZeile(item)}
           </div>
-        ` : `<div class="cell-text-readonly">${escapeHtml(item.name || '-')}</div>`}
+        ` : `<div class="cell-text-readonly">${escapeHtml(item.name || '-')}${ctx.isKunde ? '' : herkunftZeile(item)}</div>`}
       </td>
       <td class="cell-textarea cp-col-notiz" style="${hide('cp-col-notiz')}">
         ${canWrite ? `

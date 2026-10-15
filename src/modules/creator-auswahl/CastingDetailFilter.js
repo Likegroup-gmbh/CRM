@@ -48,6 +48,7 @@ export function getTabCounts() {
   const baseItems = this.getBaseFilteredItems();
   const counts = Object.fromEntries(SOURCING_TABS.map(t => [t.key, 0]));
   counts.alle = baseItems.length;
+  counts.bewerbung = this.isKunde ? 0 : (this.bewerbungen || []).length;
   baseItems.forEach(item => {
     counts[getSourcingTabForItem(item)]++;
   });
@@ -74,7 +75,9 @@ export function clearSearch() {
 }
 
 export function switchTab(tabName) {
-  if (!SOURCING_TABS.some(t => t.key === tabName) || tabName === this.activeTab) return;
+  const known = tabName === 'bewerbung' || SOURCING_TABS.some(t => t.key === tabName);
+  if (!known || tabName === this.activeTab) return;
+  if (tabName === 'bewerbung' && this.isKunde) return;
   this.activeTab = tabName;
 
   this._qq('.sourcing-tab-navigation .tab-button').forEach(btn => {

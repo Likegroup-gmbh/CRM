@@ -7,6 +7,8 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { TAUSCH_ACTION, tauscheImCasting } from '../creator-tausch/creatorTauschUi.js';
+import { openManagementAnfrage } from './managementAnfrageDrawer.js';
+import { aufnehmenBewerbung, verwerfenBewerbung } from './bewerbungAktionen.js';
 import {
   OHNE_KATEGORIE,
   OHNE_KATEGORIE_KEY,
@@ -60,6 +62,25 @@ export function bindEvents() {
     };
     document.addEventListener('click', actionClickHandler);
     this._boundEventListeners.add(() => document.removeEventListener('click', actionClickHandler));
+
+    const bewerbungClick = async (e) => {
+      const aufnehmen = e.target.closest('[data-action="aufnehmen-bewerbung"]');
+      const verwerfen = e.target.closest('[data-action="verwerfen-bewerbung"]');
+      const button = aufnehmen || verwerfen;
+      if (!button) return;
+      e.preventDefault();
+      if (aufnehmen) await aufnehmenBewerbung(this, button.dataset.id);
+      else await verwerfenBewerbung(this, button.dataset.id);
+    };
+    document.addEventListener('click', bewerbungClick);
+    this._boundEventListeners.add(() => document.removeEventListener('click', bewerbungClick));
+
+    const anfrageBtn = this._q('#btn-management-anfrage');
+    if (anfrageBtn && this._canSourcing('create')) {
+      const openAnfrage = () => openManagementAnfrage({ liste: this.liste });
+      anfrageBtn.addEventListener('click', openAnfrage);
+      this._boundEventListeners.add(() => anfrageBtn.removeEventListener('click', openAnfrage));
+    }
 
     const igFetchHandler = (e) => {
       const btn = e.target.closest('[data-ig-fetch]');

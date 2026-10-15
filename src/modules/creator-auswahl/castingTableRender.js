@@ -18,6 +18,7 @@ import { SOURCING_TABS } from './sourcingTabs.js';
 import { INSTAGRAM_ICON, TIKTOK_ICON, NICHT_UMSETZEN_ICON } from './sourcingIcons.js';
 import { getListenTkp, reelsPreisTooltip } from './castingPreisZellen.js';
 import { renderItemRow } from './castingItemRow.js';
+import { renderBewerbungTable } from './bewerbungTab.js';
 
 // --- Render-Funktionen ---
 // ctx = { items, liste, isKunde, hiddenColumns }
@@ -96,6 +97,9 @@ function renderAddSectionActions(ctx = {}) {
           ${icon('plus-lg')}
           Creator hinzufügen
         </button>
+        <button type="button" class="mdc-btn mdc-btn--secondary" id="btn-management-anfrage">
+          Managements anfragen
+        </button>
         ` : ''}
         <div id="casting-vorschlag-block"></div>
         ${ctx.canCreate ? `
@@ -132,6 +136,7 @@ export function renderAddSection(ctx = {}) {
 }
 
 export function renderItemsTable(ctx) {
+  if (ctx.activeTab === 'bewerbung' && !ctx.isKunde) return renderBewerbungTable(ctx.bewerbungen || []);
   const searchQuery = (ctx.searchQuery || '').trim();
   // Suche aktiv und gar kein Name matcht (unabhaengig vom Reiter)
   if (ctx.items.length === 0 && ctx.hasAnyItems && searchQuery && (ctx.tabCounts?.alle ?? 0) === 0) {
@@ -331,5 +336,20 @@ export function renderGroupedItems(ctx) {
   }
 
   return html;
+}
+
+export function updateStickyHeights(rootEl) {
+  if (!rootEl) return;
+  const addSection = rootEl.querySelector('.add-item-section--compact');
+  const addH = addSection ? addSection.offsetHeight : 0;
+  const tabNav = rootEl.querySelector('.sourcing-tab-navigation');
+  const tabH = tabNav ? tabNav.offsetHeight : 0;
+  rootEl.style.setProperty('--sticky-addbar-height', addH + 'px');
+  rootEl.style.setProperty('--sticky-add-section-height', (addH + tabH) + 'px');
+
+  const thead = rootEl.querySelector('.creator-pool-table thead');
+  if (thead) {
+    rootEl.style.setProperty('--sticky-thead-height', thead.offsetHeight + 'px');
+  }
 }
 
