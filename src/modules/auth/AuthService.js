@@ -77,7 +77,7 @@ export class AuthService {
       if (data) {
         // Prüfen ob Benutzer freigeschaltet ist
         // Admin ist immer freigeschaltet, andere Rollen benötigen explizite Freischaltung
-        const isFreigeschaltet = data.rolle === 'admin' || data.rolle === 'investor' || data.freigeschaltet === true;
+        const isFreigeschaltet = data.rolle === 'admin' || data.rolle === 'investor' || data.rolle === 'agent' || data.freigeschaltet === true;
         
         if (!isFreigeschaltet) {
           console.log('⚠️ Benutzer nicht freigeschaltet:', data.name);
