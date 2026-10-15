@@ -93,6 +93,9 @@ const BASE_PERMISSIONS = {
   },
 };
 
+// agent: Konto fuer automatische Screenshots. Liest wie investor, schreibt nichts.
+BASE_PERMISSIONS.agent = { ...BASE_PERMISSIONS.investor };
+
 // kunde_editor ist aktuell identisch mit kunde; spaeter koennen hier Abweichungen definiert werden
 BASE_PERMISSIONS.kunde_editor = { ...BASE_PERMISSIONS.kunde };
 
@@ -151,6 +154,7 @@ const FEATURE_MATRIX = {
   kunde_editor:  { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true  },
   gast:          { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true  },
   investor:      { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false },
+  agent:         { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false },
   pending:       { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false },
 };
 
@@ -216,9 +220,9 @@ export class PermissionSystem {
   get isMitarbeiter() { return this._normalizedRole === 'mitarbeiter'; }
   get isPending()     { return this._normalizedRole === 'pending'; }
   get isInternal()    { return this.isAdmin || this.isMitarbeiter; }
-  // Investor = eigene Rolle (rolle='investor', RLS-Wahrheit) ODER die
-  // Finanzen-Klasse auf rolle=mitarbeiter. Beide Wege fuehren view-only.
-  get isInvestor()    { return this._normalizedRole === 'investor' || this._klasseKey === 'finanzen'; }
+  // Investor = eigene Rolle (rolle='investor' oder 'agent', RLS-Wahrheit) ODER
+  // die Finanzen-Klasse auf rolle=mitarbeiter. Alle Wege fuehren view-only.
+  get isInvestor()    { return this._normalizedRole === 'investor' || this._normalizedRole === 'agent' || this._klasseKey === 'finanzen'; }
   get isUnscoped()    { return this.isAdmin || this.isKunde || this.isInvestor || !!this._klasseKey; }
 
   // Feature-basierte Checks (Capabilities)
