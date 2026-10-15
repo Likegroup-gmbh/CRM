@@ -287,8 +287,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 5;
       doc.text('zu Marketingzwecken. Es handelt sich um einen einmaligen Produktionsauftrag.', 14, y);
 
-      // §2 Leistungsumfang
-      y += 14;
+      // §2 Leistungsumfang - Block (~28mm) muss komplett passen
+      y = ensureSpace(y + 14, 28, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§2 Leistungsumfang', 14, y);
@@ -308,8 +308,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       doc.text(`${contentErstellungLabels[vertrag.content_erstellung_art] || '-'}`, 14, y);
       y = renderZusatzBestimmung(doc, zusaetze.p2, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
-      // §3 Output & Lieferumfang
-      y += 14;
+      // §3 Output & Lieferumfang - Block (~43mm) muss komplett passen
+      y = ensureSpace(y + 14, 43, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§3 Output & Lieferumfang', 14, y);
@@ -335,8 +335,9 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       drawYesNoCheckboxes(14, y, vertrag.untertitel);
       y = renderZusatzBestimmung(doc, zusaetze.p3, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
-      // §4 Nutzungsrechte
-      y += 14;
+      // §4 Nutzungsrechte - Block muss komplett passen (56mm, +5mm bei Exklusivität)
+      const section4Height = vertrag.exklusivitaet ? 62 : 57;
+      y = ensureSpace(y + 14, section4Height, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§4 Nutzungsrechte', 14, y);
@@ -377,8 +378,12 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       }
       y = renderZusatzBestimmung(doc, zusaetze.p4, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
-      // §5 Vergütung
-      y += 14;
+      // §5 Vergütung + 5.1 - Block muss komplett passen, sonst auf die nächste Seite
+      const hasZusatzBetrag = vertrag.zusatzkosten === true
+        && vertrag.zusatzkosten_betrag !== null
+        && vertrag.zusatzkosten_betrag !== undefined;
+      const section51Height = hasZusatzBetrag ? 39 : 33;
+      y = ensureSpace(y + 14, section51Height, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§5 Vergütung', 14, y);
