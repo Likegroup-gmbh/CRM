@@ -28,6 +28,8 @@ import '../assets/styles/modals-drawers.css';
 import '../assets/styles/domain-video.css';
 import '../assets/styles/domain-feedback.css';
 import '../assets/styles/domain-profile.css';
+import '../assets/styles/betreuung.css';
+import '../assets/styles/profile-secondary-nav.css';
 import '../assets/styles/domain-calendar.css';
 import '../assets/styles/domain-queue.css';
 import '../assets/styles/domain-projekt.css';
