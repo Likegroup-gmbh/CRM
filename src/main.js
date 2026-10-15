@@ -31,6 +31,7 @@ import '../assets/styles/global-search.css';
 import '../assets/styles/dashboard.css';
 import '../assets/styles/addresses.css';
 import '../assets/styles/tabellen.css';
+import '../assets/styles/kampagne-detail.css';
 import '../assets/styles/toast.css';
 import '../assets/styles/version-check.css';
 import '../assets/styles/share.css';

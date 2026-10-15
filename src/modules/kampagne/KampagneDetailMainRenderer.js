@@ -181,6 +181,7 @@ export function renderMainPage(state) {
   return `
     ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht, { kooperationen, videos, isKunde })}
 
+    <div class="kampagne-dock">
     <div class="page-header">
       <div class="page-header-title-group">
         ${safeLogoUrl ? `<img src="${escapeAttr(safeLogoUrl)}" alt="${escapeAttr(orgLogoAlt)}" title="${escapeAttr(orgLogoAlt)}" class="toolbar-entity-logo" loading="lazy" />` : ''}
@@ -207,20 +208,20 @@ export function renderMainPage(state) {
         </div>
       </div>
     </div>
+    <div class="tab-navigation">
+      <button class="tab-button active" data-tab="offen">
+        Offen <span class="tab-count" id="tab-count-offen"></span>
+      </button>
+      <button class="tab-button" data-tab="abgeschlossen">
+        Abgeschlossen <span class="tab-count" id="tab-count-abgeschlossen"></span>
+      </button>
+      <button class="tab-button" data-tab="alle">
+        Alle <span class="tab-count" id="tab-count-alle"></span>
+      </button>
+    </div>
+    </div>
 
     <div class="content-section">
-      <div class="tab-navigation">
-        <button class="tab-button active" data-tab="offen">
-          Offen <span class="tab-count" id="tab-count-offen"></span>
-        </button>
-        <button class="tab-button" data-tab="abgeschlossen">
-          Abgeschlossen <span class="tab-count" id="tab-count-abgeschlossen"></span>
-        </button>
-        <button class="tab-button" data-tab="alle">
-          Alle <span class="tab-count" id="tab-count-alle"></span>
-        </button>
-      </div>
-
       <div class="tab-content">
         <div class="detail-section">
           <div id="kooperationen-videos-container"></div>

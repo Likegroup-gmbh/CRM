@@ -1,0 +1,85 @@
+/* Kampagnen-Detail: Titel und Tabs scrollen ueber die Budget-Karten und
+   docken oben an. Danach scrollt die Tabelle in der restlichen Hoehe. */
+
+.kampagne-dock {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: var(--bg-primary);
+}
+
+/* Geschlossene Untermenues sind nur unsichtbar, bleiben aber im Layout
+   und verlaengern den Seitenscroll. Dann rutscht die Tabelle unter den
+   angedockten Kopf und unten bleibt Leerraum. */
+.kampagne-dock .toolbar-menu-dropdown .submenu {
+  display: none;
+}
+
+.kampagne-dock .toolbar-menu-dropdown .action-submenu:hover > .submenu,
+.kampagne-dock .toolbar-menu-dropdown .action-submenu:focus-within > .submenu {
+  display: block;
+}
+
+.kampagne-detail-grid-active .content-section,
+.kampagne-detail-grid-active .detail-section {
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+.kampagne-detail-grid-active #kooperationen-videos-container {
+  padding-top: 0;
+  min-height: 0;
+}
+
+/* Die Tabelle fuellt den Bereich unter dem angedockten Kopf bis zum
+   unteren Rand. Sie scrollt selbst, der Spaltenkopf bleibt oben. */
+.kampagne-detail-grid-active .grid-wrapper {
+  height: var(--kampagne-table-h, auto);
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-400) transparent;
+}
+
+.kampagne-detail-grid-active .grid-wrapper::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+  height: 0;
+}
+
+.kampagne-detail-grid-active .grid-wrapper::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+  border-radius: var(--radius-lg);
+}
+
+.kampagne-detail-grid-active .grid-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.grid-table.kooperation-video-grid thead th {
+  position: sticky;
+  top: 0;
+  background: var(--gray-50);
+}
+
+/* Kampagnen-Summary: gleiche Logik wie die Kacheln der Investorenuebersicht.
+   auto-fit stapelt, sobald eine Spalte schmaler als 172px wuerde. Das reicht
+   fuer einen siebenstelligen Euro-Betrag in --text-xl und haelt sieben Karten
+   auf einem MacBook in einer Zeile. min(100%, …) verhindert Overflow,
+   wenn das Fenster schmaler als eine Karte ist. */
+.auftragsdetails-summary--flush .summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 172px), 1fr));
+  gap: var(--space-sm);
+}
+
+.auftragsdetails-summary--flush .summary-card {
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+}
+
+.auftragsdetails-summary--flush .summary-card,
+.auftragsdetails-summary--flush .summary-card--performance {
+  min-width: 0;
+  flex: initial;
+}

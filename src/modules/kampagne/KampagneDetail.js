@@ -3,7 +3,6 @@
 // Delegiert an: DataLoader, MainRenderer, TabRenderers, SummaryCards, Events, EditHandler
 
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
-import { KooperationenKanbanBoard } from './KooperationenKanbanBoard.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { loadCriticalData as _loadCriticalData, loadFullTableData } from './KampagneDetailDataLoader.js';
 import { renderPageLoading, renderNotFound, renderMainPage } from './KampagneDetailMainRenderer.js';
@@ -11,6 +10,16 @@ import { updateSummaryCardsDOM, updateVideoStatsCardDOM } from './KampagneDetail
 import { setupEvents, teardownEvents } from './KampagneDetailEvents.js';
 import { showEditForm as _showEditForm } from './KampagneDetailEditHandler.js';
 import { KampagneDetailStore } from './KampagneDetailStore.js';
+import { bindKampagneDockScroll } from './kampagneDockScroll.js';
+import {
+  mountVideoTable,
+  switchTab,
+  switchView,
+  unmountVideoTable,
+  unmountKanban,
+  mountKanban,
+  remountVideoTable
+} from './kampagneDetailViews.js';
 
 export class KampagneDetail {
   constructor() {
@@ -182,6 +191,8 @@ export class KampagneDetail {
     });
 
     window.setContentSafely(window.content, html);
+    this._unbindDockScroll?.();
+    this._unbindDockScroll = bindKampagneDockScroll();
   }
 
   _prepareVideoTable(tableData, isKunde) {
@@ -261,139 +272,6 @@ export class KampagneDetail {
     updateVideoStatsCardDOM(summary.videoStats, { animate });
   }
 
-  async _mountVideoTable() {
-    if (!this.kooperationenVideoTable) return;
-
-    const mainContent = document.querySelector('.main-content');
-    mainContent?.classList.add('kampagne-detail-grid-active');
-
-    this.kooperationenVideoTable.containerId = 'kooperationen-videos-container';
-    const vtContainer = document.getElementById('kooperationen-videos-container');
-    if (vtContainer) {
-      vtContainer.innerHTML = this.kooperationenVideoTable.render();
-      this.kooperationenVideoTable.bindEvents();
-      this.kooperationenVideoTable.initFloatingScrollbar();
-      this.kooperationenVideoTable.initRealtimeSubscription();
-      this.kooperationenVideoTable.loadColumnWidths();
-
-      if (this._visibilityHandler) {
-        window.removeEventListener('video-column-visibility-changed', this._visibilityHandler);
-      }
-      this._visibilityHandler = (e) => {
-        if (e.detail.kampagneId === this.kampagneId) {
-          this.kooperationenVideoTable.hiddenColumns = e.detail.hiddenColumns;
-          this.kooperationenVideoTable.refilter();
-        }
-      };
-      window.addEventListener('video-column-visibility-changed', this._visibilityHandler);
-
-      if (!this.kooperationenVideoTable._entityUpdatedHandler) {
-        this.kooperationenVideoTable._entityUpdatedHandler = async (e) => {
-          const evtDetail = e.detail || {};
-          if (evtDetail.entity === 'kooperation' && evtDetail.action === 'deleted' && evtDetail.id) {
-            await this.kooperationenVideoTable.handleKooperationDeletedById(evtDetail.id, 'entityUpdated');
-          }
-        };
-        window.addEventListener('entityUpdated', this.kooperationenVideoTable._entityUpdatedHandler);
-      }
-
-      this.kooperationenVideoTable.updateTabCounts();
-    }
-
-    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht);
-    updateVideoStatsCardDOM(this.videoStats);
-
-    this._pendingTableData = null;
-    await this.kooperationenVideoTable.loadAssetsAndCommentsForVisible();
-  }
-
-  switchTab(tabName) {
-    if (!['offen', 'abgeschlossen', 'alle'].includes(tabName)) return;
-
-    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-    const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
-    if (activeButton) activeButton.classList.add('active');
-
-    if (this.currentView === 'table' && this.kooperationenVideoTable) {
-      this.kooperationenVideoTable.setFilterTab(tabName);
-      this.kooperationenVideoTable.updateTabCounts();
-    } else if (this.currentView === 'kanban' && this.kanbanBoard) {
-      this.kanbanBoard.setFilterTab(tabName);
-      this.kanbanBoard.updateTabCounts();
-    }
-  }
-
-  switchView(view) {
-    if (view === this.currentView) return;
-    this.currentView = view;
-
-    const btnTable = document.getElementById('btn-view-table');
-    const btnKanban = document.getElementById('btn-view-kanban');
-    const btnVisibility = document.getElementById('btn-column-visibility');
-
-    if (btnTable) btnTable.classList.toggle('active', view === 'table');
-    if (btnKanban) btnKanban.classList.toggle('active', view === 'kanban');
-    if (btnVisibility) btnVisibility.style.display = view === 'table' ? '' : 'none';
-
-    if (view === 'kanban') {
-      this._unmountVideoTable();
-      this._mountKanban();
-    } else {
-      this._unmountKanban();
-      void this._remountVideoTable();
-    }
-  }
-
-  _unmountVideoTable() {
-    if (this.kooperationenVideoTable && typeof this.kooperationenVideoTable.destroy === 'function') {
-      this.kooperationenVideoTable.destroy();
-      this.kooperationenVideoTable = null;
-    }
-    const container = document.getElementById('kooperationen-videos-container');
-    if (container) container.innerHTML = '';
-  }
-
-  _unmountKanban() {
-    if (this.kanbanBoard) {
-      this.kanbanBoard.destroy();
-      this.kanbanBoard = null;
-    }
-    const container = document.getElementById('kooperationen-videos-container');
-    if (container) container.innerHTML = '';
-  }
-
-  _mountKanban() {
-    const container = document.getElementById('kooperationen-videos-container');
-    if (!container) return;
-
-    this.kanbanBoard = new KooperationenKanbanBoard({
-      isKunde: this.isKunde,
-      store: this.store,
-      kampagneId: this.kampagneId
-    });
-
-    const activeTab = document.querySelector('.tab-button.active');
-    const tabName = activeTab?.dataset?.tab || 'offen';
-    this.kanbanBoard.activeFilterTab = tabName;
-
-    this.kanbanBoard.init(container);
-    this.kanbanBoard.updateTabCounts();
-  }
-
-  async _remountVideoTable() {
-    if (!this.store) return;
-    this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
-    this.kooperationenVideoTable.statusOptions = this.store.statusOptions || [];
-
-    const hiddenCols = this.kampagneData?.video_table_hidden_columns;
-    if (hiddenCols) {
-      this.kooperationenVideoTable.hiddenColumns = hiddenCols;
-    }
-    this.kooperationenVideoTable._dataLoaded = true;
-
-    await this._mountVideoTable();
-  }
-
   showEditForm() {
     _showEditForm(this);
   }
@@ -435,10 +313,11 @@ export class KampagneDetail {
       this.store = null;
     }
 
+    this._unbindDockScroll?.();
+    this._unbindDockScroll = null;
+
     const mainContent = document.querySelector('.main-content');
-    if (mainContent) {
-      mainContent.classList.remove('kampagne-detail-grid-active');
-    }
+    if (mainContent) mainContent.classList.remove('kampagne-detail-grid-active');
 
     document.querySelectorAll('.floating-scrollbar-kampagne').forEach(scrollbar => {
       if (scrollbar.parentNode) scrollbar.parentNode.removeChild(scrollbar);
@@ -448,5 +327,15 @@ export class KampagneDetail {
     console.log('✅ KAMPAGNEDETAIL: Destroy abgeschlossen');
   }
 }
+
+Object.assign(KampagneDetail.prototype, {
+  _mountVideoTable: mountVideoTable,
+  switchTab,
+  switchView,
+  _unmountVideoTable: unmountVideoTable,
+  _unmountKanban: unmountKanban,
+  _mountKanban: mountKanban,
+  _remountVideoTable: remountVideoTable
+});
 
 export const kampagneDetail = new KampagneDetail();
