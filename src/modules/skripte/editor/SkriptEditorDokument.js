@@ -5,7 +5,7 @@ import { skripteService } from '../SkripteService.js';
 import { PLACEHOLDER_DEFAULT, PLACEHOLDER_FRAGEN } from './skriptEditorKonstanten.js';
 import {
   fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml,
-  verknuepfungenHtml, konzeptCreatorFromSkript
+  verknuepfungenHtml, konzeptCreatorFromSkript, creatorsFuerKopf
 } from './SkriptEditorDocRenderer.js';
 import { SkriptKooperationDrawer } from '../SkriptKooperationDrawer.js';
 import { openCreatorTausch } from '../../creator-tausch/creatorTauschUi.js';
@@ -69,7 +69,7 @@ SkriptEditorView.prototype.freigeben = async function() {
 SkriptEditorView.prototype.bindShareButton = function(el) {
   el.querySelector('#ed-share')?.addEventListener('click', () => {
     if (!this.kannTeilen) return;
-    const creator = konzeptCreatorFromSkript(this.skript);
+    const creator = creatorsFuerKopf(this.verknuepfungen, konzeptCreatorFromSkript(this.skript))[0] || null;
     window.skriptPaketDrawer?.open({
       kampagneId: this.skript.kampagne_id,
       kampagneName: this.skript.kampagne?.kampagnenname || this.skript.kampagne?.eigener_name || '',

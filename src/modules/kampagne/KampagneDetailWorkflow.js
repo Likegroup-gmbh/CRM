@@ -20,7 +20,7 @@ import { skripteService } from '../skripte/SkripteService.js';
 import { scopeByProduktion } from '../produktion/ProduktionService.js';
 import { effectiveLinie, renderLinienSwitch, syncLinienSwitch } from './linienScope.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
-import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
+import { creatorAusZeile } from '../skripte/skriptPaketModel.js';
 import { renderCreatorNameCell } from '../creator/CreatorTable.js';
 import { VideoDataLoader } from '../video/VideoDataLoader.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
@@ -583,7 +583,7 @@ async function renderSkriptePane(detail) {
             ${esc(titel)}
           </a>
         </td>
-        ${renderCreatorNameCell(konzeptCreatorFromSkript(s))}
+        ${renderCreatorNameCell(creatorAusZeile(s))}
         <td>${statusTd}</td>
         <td>${formatDate(s.created_at)}</td>
         <td class="col-actions">${actionBuilder.create('skripte', s.id)}</td>
