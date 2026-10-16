@@ -78,9 +78,9 @@ export function renderPaketForm(drawer) {
     ${drawer.share ? `
       <section class="share-drawer-abschnitt">
         <div class="share-code-banner">
-          <p class="share-code-line">Link</p>
-          <p class="share-code-value">${escapeHtml(link)}</p>
-          ${code ? `<p class="share-code-line">Code ${escapeHtml(code)}</p>` : ''}
+          <p class="share-code-banner-title">Link</p>
+          <p class="share-link-value">${escapeHtml(link)}</p>
+          ${code ? `<p class="share-code-line">Code <span class="share-fresh-code">${escapeHtml(code)}</span></p>` : ''}
           <div class="skript-paket-aktionen">
             <button type="button" class="mdc-btn mdc-btn--secondary" data-copy-link>Link kopieren</button>
             <button type="button" class="mdc-btn mdc-btn--secondary" data-rotate>Code rotieren</button>

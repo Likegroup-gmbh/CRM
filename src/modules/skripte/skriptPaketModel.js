@@ -8,10 +8,20 @@ export function creatorAnzeigeName(creator) {
   return name || creator?.name || 'Creator';
 }
 
-/** Creator wie in der Skripte-Tabelle: CRM am Casting, sonst die Kooperation. */
+/** Anzeige folgt dem Casting-Namen, die Id bleibt der Stammdatensatz. */
+function mitCastingNamen(creator, castingName) {
+  const name = String(castingName || '').trim();
+  if (!name) return creator;
+  const crmName = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
+  if (name === crmName) return creator;
+  return { ...creator, vorname: '', nachname: '', name };
+}
+
+/** Creator wie in der Skripte-Tabelle: Casting, sonst die Kooperation. */
 export function creatorAusZeile(row) {
-  const crm = row?.strategie_item?.casting_eintrag?.creator;
-  if (crm?.id) return crm;
+  const eintrag = row?.strategie_item?.casting_eintrag;
+  const crm = eintrag?.creator;
+  if (crm?.id) return mitCastingNamen(crm, eintrag?.name);
   const videos = row?.kooperation_videos || [];
   for (const video of videos) {
     const creator = video?.kooperation?.creator;

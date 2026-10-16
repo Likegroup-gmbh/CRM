@@ -88,6 +88,15 @@ export async function loadGastPaketSkripte() {
     .eq('status', SKRIPT_FREIGEGEBEN)
     .order('created_at', { ascending: true });
   if (error) throw new Error(error.message);
-  const mitNr = await skripteService.attachSkriptNummern(data || []);
-  return mitNr.sort((a, b) => (a.skript_nr ?? 9999) - (b.skript_nr ?? 9999));
+  const rows = data || [];
+  const ids = rows.map((row) => row.id).filter(Boolean);
+  const nummern = new Map();
+  if (ids.length) {
+    const { data: nrRows, error: nrError } = await db().rpc('skript_nr_fuer_zugang', { p_ids: ids });
+    if (nrError) console.warn('Skript-Nummern für den Gast fehlen:', nrError.message);
+    else for (const row of nrRows || []) nummern.set(row.skript_id, row.nr);
+  }
+  return rows
+    .map((row) => ({ ...row, skript_nr: nummern.get(row.id) ?? null }))
+    .sort((a, b) => (a.skript_nr ?? 9999) - (b.skript_nr ?? 9999) || String(a.titel || '').localeCompare(String(b.titel || ''), 'de'));
 }

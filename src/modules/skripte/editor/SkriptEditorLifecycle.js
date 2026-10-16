@@ -16,6 +16,10 @@ function listeScope(skript) {
   return { kampagneId: skript.kampagne_id ?? null };
 }
 
+function istGastAnsicht() {
+  return Boolean(window.isGast?.());
+}
+
 SkriptEditorView.prototype.render = async function(container, skriptId) {
   await this.cleanup();
   this.container = container;
@@ -41,7 +45,7 @@ SkriptEditorView.prototype.render = async function(container, skriptId) {
       readonly ? Promise.resolve([]) : skripteService.getChatMessages(skriptId),
       skripteService.getVersionen(skriptId),
       readonly ? Promise.resolve([]) : this.loadModiCached(),
-      this._feedback.load(skriptId),
+      istGastAnsicht() ? Promise.resolve([]) : this._feedback.load(skriptId),
       skripteService.loadSkriptVerknuepfungen(skriptId).catch(() => [])
     ]);
 
@@ -58,7 +62,7 @@ SkriptEditorView.prototype.render = async function(container, skriptId) {
     this.renderLayout();
     this.warmSkriptAnschreiben();
     this.bindEvents();
-    this._feedback.subscribe();
+    if (!istGastAnsicht()) this._feedback.subscribe();
     if (!readonly) {
       this.subscribe();
       if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
@@ -91,9 +95,10 @@ SkriptEditorView.prototype.render = async function(container, skriptId) {
 
 SkriptEditorView.prototype.renderLayout = function() {
   const readonly = this.isReadonly;
+  const gast = istGastAnsicht();
   const listeCollapsed = this.sollListeStartCollapsed();
   this.container.innerHTML = `
-    <div class="skripte-editor${readonly ? ' skripte-editor--readonly' : ''}${listeCollapsed ? ' skripte-editor--liste-collapsed' : ''}">
+    <div class="skripte-editor${readonly ? ' skripte-editor--readonly' : ''}${gast ? ' skripte-editor--gast' : ''}${listeCollapsed ? ' skripte-editor--liste-collapsed' : ''}">
       <div class="skripte-editor-shell">
         <nav class="skripte-editor-liste" id="ed-liste" aria-label="Skripte">
           <div class="skripte-editor-liste-head">
@@ -113,6 +118,7 @@ SkriptEditorView.prototype.renderLayout = function() {
         <main class="skripte-editor-main">
           <div class="skripte-editor-doc" id="ed-doc"></div>
         </main>
+        ${gast ? '' : `
         <aside class="skripte-editor-fb" id="ed-fb" aria-label="Feedback">
           <div class="skripte-editor-fb-head tab-navigation" role="tablist">
             <button type="button" class="tab-button active" data-fb-tab="kommentare"
@@ -121,10 +127,10 @@ SkriptEditorView.prototype.renderLayout = function() {
               role="tab" aria-selected="false">Änderungen <span class="tab-count" hidden></span></button>
           </div>
           <div class="skripte-editor-fb-log" id="ed-fb-log"></div>
-        </aside>
+        </aside>`}
       </div>
       <div class="crm-fmenu crm-fmenu--sm crm-fmenu--scroll skripte-editor-selmenu" id="ed-vermenu" hidden></div>
-      ${this.kannKommentieren ? `
+      ${this.kannKommentieren && !gast ? `
       <div class="crm-fmenu skripte-editor-selmenu" id="ed-selmenu" hidden></div>
       ` : ''}
       ${this.kannAiAktionen ? `
@@ -135,11 +141,11 @@ SkriptEditorView.prototype.renderLayout = function() {
 
   this.bindListeHead();
   this.bindListeCollapse();
-  this.bindFeedbackTabs();
+  if (!gast) this.bindFeedbackTabs();
   this.mountLikyChat();
   this.renderListe();
   this.renderDoc();
-  this._feedback.render();
+  if (!gast) this._feedback.render();
   if (!readonly) {
     this.renderChat();
     this.renderCost();
@@ -210,7 +216,7 @@ SkriptEditorView.prototype.switchSkript = async function(skriptId) {
       skripteService.getChatMessages(skriptId),
       skripteService.getVersionen(skriptId),
       this.loadModiCached(),
-      this._feedback.load(skriptId),
+      istGastAnsicht() ? Promise.resolve([]) : this._feedback.load(skriptId),
       skripteService.loadSkriptVerknuepfungen(skriptId).catch(() => [])
     ]);
 
@@ -245,10 +251,12 @@ SkriptEditorView.prototype.switchSkript = async function(skriptId) {
     this.warmSkriptAnschreiben();
     this.renderChat({ forceScroll: true });
     this.renderCost();
-    this._feedback.render();
+    if (!istGastAnsicht()) {
+      this._feedback.render();
+      this._feedback.subscribe();
+    }
 
     this.subscribe();
-    this._feedback.subscribe();
     if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
       this.ensurePolling();
     } else if (this.sollFragenRundeStarten()) {

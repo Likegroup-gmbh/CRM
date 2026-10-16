@@ -442,7 +442,7 @@ describe('sortListeSkripte', () => {
 });
 
 describe('konzeptCreatorFromSkript', () => {
-  it('nimmt CRM-Namen vor Casting-Namen', () => {
+  it('nimmt den Casting-Namen vor den Stammdaten', () => {
     const creator = konzeptCreatorFromSkript({
       strategie_item: {
         creator_name: 'Fallback',
@@ -458,9 +458,9 @@ describe('konzeptCreatorFromSkript', () => {
     });
     expect(creator).toMatchObject({
       id: 'c1',
-      vorname: 'Lea',
-      nachname: 'Hoff',
-      name: 'Lea Hoff',
+      vorname: '',
+      nachname: '',
+      name: 'Casting Name',
       profilbild_thumb_url: 'https://img/thumb.jpg'
     });
   });

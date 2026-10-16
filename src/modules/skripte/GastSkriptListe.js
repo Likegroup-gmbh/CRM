@@ -13,10 +13,15 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function gastListeTitel(name) {
+  const text = String(name || '').trim();
+  return text || 'Skripte';
+}
+
 export async function renderGastSkriptListe(container) {
-  const kampagneName = window.guestShare?.entityName || 'Kampagne';
-  window.setHeadline?.(kampagneName);
-  window.breadcrumbSystem?.updateBreadcrumb([{ label: kampagneName, clickable: false }]);
+  const titel = gastListeTitel(window.guestShare?.entityName);
+  window.setHeadline?.(titel);
+  window.breadcrumbSystem?.updateBreadcrumb([{ label: titel, clickable: false }]);
   container.innerHTML = '<div class="empty-state"><p>Skripte werden geladen …</p></div>';
 
   let skripte = [];
@@ -30,29 +35,29 @@ export async function renderGastSkriptListe(container) {
   if (!skripte.length) {
     container.innerHTML = renderEmptyState({
       icon: 'document',
-      title: kampagneName,
+      title: titel,
       text: 'In diesem Link liegen gerade keine Skripte.'
     });
     return;
   }
 
   container.innerHTML = `
-    <div class="list-container">
+    <div class="list-container gast-skript-liste">
       <div class="table-filter-wrapper">
-        <div class="filter-bar"><div class="filter-left"><h2 class="table-section-title">${escapeHtml(kampagneName)}</h2></div></div>
+        <div class="filter-bar"><div class="filter-left"><h2 class="table-section-title">${escapeHtml(titel)}</h2></div></div>
         <div class="table-actions">
           ${skripte.length >= 2 ? '<button type="button" id="gast-pdf-alle" class="mdc-btn mdc-btn--secondary">Alle als PDF</button>' : ''}
         </div>
       </div>
       <div class="table-container">
-        <table class="data-table">
-          <thead><tr><th>Nr.</th><th class="col-name">Titel</th><th class="col-actions">PDF</th></tr></thead>
+        <table class="data-table gast-skript-tabelle">
+          <thead><tr><th class="gast-col-nr">Nr.</th><th class="gast-col-titel">Titel</th><th class="gast-col-pdf">PDF</th></tr></thead>
           <tbody>
             ${skripte.map((s) => `
               <tr class="table-row-clickable" data-id="${s.id}">
-                <td>${s.skript_nr ?? ''}</td>
-                <td class="col-name"><a href="#" class="table-link" data-id="${s.id}">${escapeHtml(s.titel || 'Ohne Titel')}</a></td>
-                <td class="col-actions"><button type="button" class="mdc-btn mdc-btn--secondary" data-pdf="${s.id}">PDF</button></td>
+                <td class="gast-col-nr">${s.skript_nr ?? '–'}</td>
+                <td class="gast-col-titel"><a href="#" class="table-link" data-id="${s.id}">${escapeHtml(s.titel || 'Ohne Titel')}</a></td>
+                <td class="gast-col-pdf"><button type="button" class="mdc-btn mdc-btn--secondary" data-pdf="${s.id}">PDF</button></td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -82,7 +87,7 @@ export async function renderGastSkriptListe(container) {
   });
   container.querySelector('#gast-pdf-alle')?.addEventListener('click', async () => {
     try {
-      await downloadSkriptePdf(skripte, { dateiname: sanitizeSkriptFilename(`Skripte ${kampagneName}`) });
+      await downloadSkriptePdf(skripte, { dateiname: sanitizeSkriptFilename(titel) });
     } catch (err) {
       window.toastSystem?.error(err.message || 'PDF konnte nicht erstellt werden.');
     }

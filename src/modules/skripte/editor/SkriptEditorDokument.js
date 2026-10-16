@@ -122,6 +122,12 @@ SkriptEditorView.prototype.warmSkriptAnschreiben = function() {
   });
 };
 
+/** Generator-Vorgaben bleiben intern. In der geteilten Ansicht sieht der Gast sie nicht. */
+SkriptEditorView.prototype.vorgabenFuerAnsicht = function() {
+  if (window.isGast?.()) return '';
+  return vorgabenPanelHtml(this.skript, { kannPersonaSetzen: !this.isReadonly });
+};
+
 SkriptEditorView.prototype.renderDoc = function() {
   const el = document.getElementById('ed-doc');
   if (!el) return;
@@ -134,7 +140,7 @@ SkriptEditorView.prototype.renderDoc = function() {
       skript: this.skript,
       genStatus: this.genStatus,
       docHeadActionsHtml: this.docHeadActions(),
-      vorgabenPanelHtml: vorgabenPanelHtml(this.skript, { kannPersonaSetzen: !this.isReadonly })
+      vorgabenPanelHtml: this.vorgabenFuerAnsicht()
     });
     el.querySelectorAll('[data-aufbau-flag]').forEach((toggle) => {
       toggle.addEventListener('change', () => this.saveGeneratorFlag(toggle.dataset.aufbauFlag, toggle.checked));
@@ -156,7 +162,7 @@ SkriptEditorView.prototype.renderDoc = function() {
     messages: this.messages,
     isReadonly: this.isReadonly,
     docHeadActionsHtml: this.docHeadActions(),
-    vorgabenPanelHtml: vorgabenPanelHtml(this.skript, { kannPersonaSetzen: !this.isReadonly }),
+    vorgabenPanelHtml: this.vorgabenFuerAnsicht(),
     docTab: this.docTab || 'skript',
     zeigeHookVarianten: this.kannAiAktionen
   });

@@ -85,19 +85,23 @@ function creatorDisplayName(creator) {
   return crm || creator?.name || 'Creator';
 }
 
-/** Creator am Konzept: CRM-Name, sonst Casting-Name, sonst creator_name. */
+/** Creator am Skript: Name aus dem Casting, sonst Stammdaten, sonst Altbestand.
+ *  Vorname und Nachname bleiben leer, sobald der Casting-Name gilt, damit
+ *  Listen und Chips nicht weiter den alten Stammdaten-Namen zeigen. */
 export function konzeptCreatorFromSkript(skript) {
   const item = skript?.strategie_item;
   if (!item) return null;
   const eintrag = item.casting_eintrag;
   const crm = eintrag?.creator;
+  const castingName = String(eintrag?.name || '').trim();
   const crmName = `${crm?.vorname || ''} ${crm?.nachname || ''}`.trim();
-  const name = crmName || eintrag?.name || item.creator_name || '';
+  const name = castingName || crmName || String(item.creator_name || '').trim();
   if (!name) return null;
+  const stammdatenZeigen = !castingName;
   return {
     id: crm?.id || null,
-    vorname: crm?.vorname || '',
-    nachname: crm?.nachname || '',
+    vorname: stammdatenZeigen ? (crm?.vorname || '') : '',
+    nachname: stammdatenZeigen ? (crm?.nachname || '') : '',
     name,
     profilbild_url: crm?.profilbild_url || null,
     profilbild_thumb_url: crm?.profilbild_thumb_url || null

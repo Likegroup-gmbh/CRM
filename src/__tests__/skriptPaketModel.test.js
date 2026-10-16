@@ -60,7 +60,7 @@ describe('creatorOptionen', () => {
 });
 
 describe('creatorAusZeile', () => {
-  it('nimmt den CRM-Creator am Casting, sonst die Kooperation', () => {
+  it('nimmt den Creator am Casting, sonst die Kooperation', () => {
     expect(creatorAusZeile({
       strategie_item: { casting_eintrag: { creator: linda } },
       kooperation_videos: [{ kooperation: { creator: max } }]
@@ -69,5 +69,13 @@ describe('creatorAusZeile', () => {
       kooperation_videos: [{ kooperation: { creator: max } }]
     })?.id).toBe('max');
     expect(creatorAusZeile({})).toBeNull();
+  });
+
+  it('zeigt den geänderten Casting-Namen statt der Stammdaten', () => {
+    const creator = creatorAusZeile({
+      strategie_item: { casting_eintrag: { name: 'Linda neu', creator: linda } }
+    });
+    expect(creator.id).toBe('linda');
+    expect(`${creator.vorname} ${creator.nachname}`.trim() || creator.name).toBe('Linda neu');
   });
 });

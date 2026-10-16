@@ -156,16 +156,23 @@ function scriptTitleList(raw: unknown): string[] {
   return raw.map((t) => String(t || '').trim()).filter(Boolean).slice(0, 40);
 }
 
+function creatorAnzeigeName(creator: { vorname?: string | null; nachname?: string | null } | null): string {
+  return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
+}
+
 async function entityName(admin: ReturnType<typeof createClient>, entityType: string, entityId: string): Promise<{ name: string; kampagneId: string | null } | null> {
   if (entityType === 'skript_paket') {
     const { data, error } = await admin
       .from('skript_pakete')
-      .select('kampagne_id')
+      .select('kampagne_id, creator:creator_id(vorname, nachname)')
       .eq('id', entityId)
       .maybeSingle();
     if (error || !data) return null;
-    const name = await kampagneDisplayName(admin, data.kampagne_id);
-    return { name: name || 'Kampagne', kampagneId: data.kampagne_id };
+    const creatorName = creatorAnzeigeName(data.creator as { vorname?: string | null; nachname?: string | null } | null);
+    return {
+      name: creatorName ? `Skripte für ${creatorName}` : 'Skripte',
+      kampagneId: data.kampagne_id,
+    };
   }
   const entityConfig = ENTITY_CONFIG[entityType];
   if (!entityConfig) return null;

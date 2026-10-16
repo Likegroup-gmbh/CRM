@@ -80,9 +80,14 @@ export async function initGuestShare(token) {
   renderOnboarding(loginRoot, token, share);
 }
 
+function onboardingSubtitle(share) {
+  if (share.entityType === 'skript_paket' && share.entityName) return share.entityName;
+  const label = ENTITY_LABELS[share.entityType] || 'Liste';
+  return share.entityName ? `${label} „${share.entityName}“` : label;
+}
+
 function renderOnboarding(root, token, share) {
   const label = ENTITY_LABELS[share.entityType] || 'Liste';
-  const listName = share.entityName ? ` „${share.entityName}“` : '';
   const storedName = localStorage.getItem('cj24.guestName') || '';
 
   root.innerHTML = `
@@ -93,7 +98,7 @@ function renderOnboarding(root, token, share) {
             <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
           </div>
           <h1 class="auth-title">Geteilte ${label}</h1>
-          <p class="auth-subtitle">${escapeHtml(listName ? label + listName : label)}</p>
+          <p class="auth-subtitle">${escapeHtml(onboardingSubtitle(share))}</p>
 
           <div class="form-box guest-form">
             <label class="label" for="guest-name-input">Ihr Name</label>
