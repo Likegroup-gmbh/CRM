@@ -65,7 +65,7 @@ function bindResize(panel, id) {
   });
 }
 
-export function openDrawer({ id, title, subtitle = '', body = '', avatar = null, panelClass = '', resizable = true, onClose = null }) {
+export function openDrawer({ id, title, subtitle = '', titleExtra = '', body = '', avatar = null, panelClass = '', resizable = true, onClose = null }) {
   closeDrawer(id);
 
   const overlay = document.createElement('div');
@@ -86,7 +86,10 @@ export function openDrawer({ id, title, subtitle = '', body = '', avatar = null,
       <div class="drawer-header-left${avatarHtml ? ' drawer-header-left--with-avatar' : ''}">
         ${avatarHtml}
         <div>
-          <span class="drawer-title">${title}</span>
+          <div class="drawer-title-line">
+            <span class="drawer-title">${title}</span>
+            ${titleExtra}
+          </div>
           ${subtitle ? `<p class="drawer-subtitle">${subtitle}</p>` : ''}
         </div>
       </div>

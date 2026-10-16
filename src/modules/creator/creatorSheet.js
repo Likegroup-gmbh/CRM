@@ -15,6 +15,7 @@ import { openDrawer } from './creatorDrawer.js';
 import { darfRezensionSehen, formatRezension, loadCreatorRezensionen, renderRezensionListe } from './rezension.js';
 import { bindCreatorMerkmale } from './creatorMerkmale.js';
 import { durchschnittlicheViews } from './creatorReels.js';
+import { renderInstagramProfilLink } from './creatorCardRender.js';
 
 const DRAWER_ID = 'creator-kontakt-drawer';
 const CHEVRON_ICON = `${icon('chevron-down')}`;
@@ -127,6 +128,7 @@ export async function openCreatorSheet(creator) {
   const { body, close } = openDrawer({
     id: DRAWER_ID,
     title: esc(name),
+    titleExtra: renderInstagramProfilLink(creator.instagram),
     subtitle: 'Kontaktdaten und Profil',
     avatar: avatarUrl
       ? { url: avatarUrl }

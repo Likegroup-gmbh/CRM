@@ -192,6 +192,16 @@ export function normalizeHandle(value) {
   return withoutUrl.replace(/^@/, '').trim().toLowerCase();
 }
 
+/** Profil-URL aus Handle oder bereits gespeicherter Instagram-URL. */
+export function instagramProfilUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const href = /^https?:\/\//i.test(raw)
+    ? raw
+    : `https://instagram.com/${encodeURIComponent(raw.replace(/^@/, ''))}`;
+  return window.validatorSystem?.sanitizeUrl?.(href) || '';
+}
+
 /** Paar, Familie und Tier-Account behalten kein Geburtsdatum. */
 export function sanitizeCreatorWrite(data) {
   if (!data || typeof data !== 'object') return data;

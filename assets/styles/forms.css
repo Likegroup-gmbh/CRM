@@ -1524,7 +1524,8 @@ width: 100%;
 
 .creator-card__actions,
 .creator-favorit,
-.creator-tagzeile {
+.creator-tagzeile,
+.creator-ig-link {
   position: relative;
   z-index: 2;
 }

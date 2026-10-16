@@ -348,6 +348,18 @@ body.drawer-resizing {
   color: var(--gray-700);
 }
 
+.drawer-title-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.drawer-title-line .drawer-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .drawer-title {
   font-size: var(--text-lg);
   font-weight: 600;

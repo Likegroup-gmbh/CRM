@@ -8,7 +8,8 @@ import {
   searchTokens,
   rankByName,
   normalizeFirmenname,
-  sanitizeCreatorWrite
+  sanitizeCreatorWrite,
+  instagramProfilUrl
 } from '../modules/creator/creatorProfil.js';
 
 describe('Größe', () => {
@@ -99,5 +100,17 @@ describe('Schreiben', () => {
       generation_override: 'Millennials'
     }).generation_override).toBe('Millennials');
     expect(sanitizeCreatorWrite({ geschlecht: 'weiblich', rezension_schnitt: 4.5 }).rezension_schnitt).toBeUndefined();
+  });
+});
+
+describe('Instagram-Profil', () => {
+  it('baut aus Handle, @-Handle und voller URL einen https-Link', () => {
+    window.validatorSystem = { sanitizeUrl: (url) => url };
+    expect(instagramProfilUrl('alexdrives')).toBe('https://instagram.com/alexdrives');
+    expect(instagramProfilUrl('@Alex.Drives')).toBe('https://instagram.com/Alex.Drives');
+    expect(instagramProfilUrl('https://www.instagram.com/alexdrives/')).toBe('https://www.instagram.com/alexdrives/');
+    expect(instagramProfilUrl('')).toBe('');
+    expect(instagramProfilUrl(null)).toBe('');
+    delete window.validatorSystem;
   });
 });
