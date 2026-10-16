@@ -28,6 +28,10 @@ SkriptEditorView.prototype.render = async function(container, skriptId) {
     const skript = await skripteService.loadSkript(skriptId);
 
     if (!skript) {
+      if (window.guestShare?.entityType === 'skript_paket') {
+        window.moduleRegistry?.navigateTo('/skripte');
+        return;
+      }
       container.innerHTML = '<div class="empty-state"><p>Kein Zugriff auf dieses Skript.</p></div>';
       return;
     }
@@ -68,6 +72,10 @@ SkriptEditorView.prototype.render = async function(container, skriptId) {
       this.applyOffeneVisuellvorschlaege();
     }
   } catch (err) {
+    if (window.guestShare?.entityType === 'skript_paket') {
+      window.moduleRegistry?.navigateTo('/skripte');
+      return;
+    }
     container.innerHTML = `
       <div class="empty-state">
         <p>Skript konnte nicht geladen werden.</p>
@@ -144,6 +152,14 @@ SkriptEditorView.prototype.updateBreadcrumb = async function() {
   window.setHeadline('Skripte');
   // Gaeste duerfen nur die geteilte Route - kein Link auf die Gesamtliste
   if (window.permissionSystem?.isGast) {
+    if (window.guestShare?.entityType === 'skript_paket') {
+      const kampagne = window.guestShare.entityName || 'Skripte';
+      window.breadcrumbSystem?.updateBreadcrumb([
+        { label: kampagne, url: '/skripte', clickable: true },
+        { label, clickable: false }
+      ]);
+      return;
+    }
     window.breadcrumbSystem?.updateBreadcrumb([{ label, clickable: false }]);
     return;
   }

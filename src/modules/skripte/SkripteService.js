@@ -284,14 +284,14 @@ export class SkripteService {
           strategie:strategie_id(id, name),
           casting_eintrag:creator_auswahl_item_id(
             id, name, creator_id,
-            creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
+            creator:creator_id(id, vorname, nachname, mail, profilbild_url, profilbild_thumb_url)
           )
         ),
         kooperation_videos(
           id, position,
           kooperation:kooperation_id(
             videoanzahl,
-            creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
+            creator:creator_id(id, vorname, nachname, mail, profilbild_url, profilbild_thumb_url)
           )
         )`)
       .order('created_at', { ascending: false })
@@ -366,7 +366,7 @@ export class SkripteService {
           id, strategie_id, sortierung, video_link, plattform, creator_name, creator_auswahl_item_id, funnel_stufe,
           casting_eintrag:creator_auswahl_item_id(
             id, name, creator_id,
-            creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
+            creator:creator_id(id, vorname, nachname, mail, profilbild_url, profilbild_thumb_url)
           )
         )`)
       .eq('id', id).maybeSingle();
@@ -403,7 +403,7 @@ export class SkripteService {
     if (!skriptId) return [];
     const { data, error } = await this.db
       .from('kooperation_videos')
-      .select('id, position, video_name, thema, kooperation_id, kooperation:kooperation_id(id, name, kampagne_id, videoanzahl, creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url))')
+      .select('id, position, video_name, thema, kooperation_id, kooperation:kooperation_id(id, name, kampagne_id, videoanzahl, creator:creator_id(id, vorname, nachname, mail, profilbild_url, profilbild_thumb_url))')
       .eq('skript_id', skriptId)
       .order('position', { ascending: true });
     if (error) throw new Error(error.message);
@@ -737,8 +737,18 @@ export class SkripteService {
    * Versionswechsel im Editor: Snapshot in die Arbeitskopie (skripte-Row)
    * zurueckschreiben und als aktive Version merken. Es geht nichts verloren,
    * da jede angenommene Aenderung als Snapshot vorliegt.
+   * Gaeste schreiben ueber den RPC, weil sie skripte nicht direkt aktualisieren duerfen.
    */
   async wechsleVersion(skriptId, version) {
+    if (window.permissionSystem?.isGast) {
+      const { error } = await this.db.rpc('wechsle_skript_version_gast', {
+        p_skript_id: skriptId,
+        p_version_nr: version.version_nr,
+        p_sub_nr: version.sub_nr || 0
+      });
+      if (error) throw new Error(error.message);
+      return;
+    }
     await this.updateSkript(skriptId, {
       titel: version.titel,
       hook: version.hook,

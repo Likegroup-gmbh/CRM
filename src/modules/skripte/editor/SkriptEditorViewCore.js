@@ -119,8 +119,17 @@ export class SkriptEditorView {
     return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false);
   }
 
-  /** Teilen-Button im Doc-Kopf: nur intern und nur fuer ein geladenes Skript. */
+  /** Teilen-Button im Doc-Kopf: nur intern, nur mit Kampagne. */
   get kannTeilen() {
+    return Boolean(window.isInternal?.())
+      && (window.canEdit?.('skripte') ?? false)
+      && Boolean(this.skript?.id)
+      && Boolean(this.skript?.kampagne_id)
+      && !this.neuModus;
+  }
+
+  /** Senden bleibt auch ohne Kampagne. */
+  get kannAnschreiben() {
     return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false) && Boolean(this.skript?.id) && !this.neuModus;
   }
 

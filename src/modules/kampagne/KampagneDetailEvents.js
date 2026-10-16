@@ -260,6 +260,17 @@ export function setupEvents(detail) {
       return;
     }
 
+    const teilenBtn = e.target.closest('.kampagne-tab-chrome [data-skripte-teilen]');
+    if (teilenBtn) {
+      e.preventDefault();
+      const k = detail.kampagneData || {};
+      window.skriptPaketDrawer?.open({
+        kampagneId: detail.kampagneId,
+        kampagneName: k.kampagnenname || k.eigener_name || ''
+      });
+      return;
+    }
+
     const createBtn = e.target.closest('.kampagne-tab-chrome [data-create-action]');
     if (createBtn) {
       e.preventDefault();

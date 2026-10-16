@@ -24,6 +24,7 @@ const ENTITY_ROUTES = {
   sourcing: (id) => `/castings/${id}`,
   strategie: (id) => `/konzepte/${id}`,
   skript: (id) => `/skripte/${id}`,
+  skript_paket: () => '/skripte',
 };
 
 const ENTITY_LABELS = {
@@ -31,6 +32,7 @@ const ENTITY_LABELS = {
   sourcing: 'Casting-Liste',
   strategie: 'Konzept',
   skript: 'Skript',
+  skript_paket: 'Skripte',
 };
 
 export async function initGuestShare(token) {
@@ -276,6 +278,7 @@ async function enterGuestApp(token, share) {
     token,
     entityType: share.entityType,
     entityId: share.entityId,
+    entityName: share.entityName || '',
     rechte: share.rechte,
     allowedRoute: route,
     name: share.name,

@@ -3,6 +3,7 @@
  */
 
 import { MAIL_MARKE } from '../tokens.ts';
+import { esc } from '../html.ts';
 import { renderShell } from '../shell.ts';
 import {
   absender, button, codeFeld, fallbackLink, nachricht, text, trenner, ueberschrift,
@@ -22,6 +23,8 @@ export interface TeilenMail {
   message?: string;
   /** Skript-Zugang für alle Skripte einer Kampagne. */
   allScripts?: boolean;
+  /** Titel, die im Link liegen. Stehen in der Mail unter dem Einleitungssatz. */
+  titles?: string[];
   basisUrl?: string;
 }
 
@@ -60,6 +63,11 @@ export function teilenMail(p: TeilenMail): MailErgebnis {
     absender({ name: von, firma: MAIL_MARKE.firma, text: satz }),
     text(`${rechteText(p)} Leiten Sie diese Mail gerne an Kolleginnen und Kollegen weiter.`),
     p.message ? nachricht({ titel: `Nachricht von ${von}`, text: p.message }) : '',
+    (p.titles || []).length
+      ? `<tr><td style="padding-top:16px;"><ul style="margin:0;padding-left:18px;">${
+        (p.titles || []).map((titel) => `<li style="margin:0 0 6px 0;">${esc(titel)}</li>`).join('')
+      }</ul></td></tr>`
+      : '',
     trenner({ oben: 24, unten: 0 }),
     ueberschrift({
       titel: 'Ihr Zugang',
@@ -81,8 +89,10 @@ export function teilenMail(p: TeilenMail): MailErgebnis {
     basisUrl: p.basisUrl,
   });
 
-  const betreff = p.allScripts
-    ? `Skripte der Kampagne „${p.entityName}" wurden mit Ihnen geteilt`
-    : `${p.entityLabel} „${p.entityName}" wurde mit Ihnen geteilt`;
+  const betreff = p.titles?.length
+    ? `Skripte der Kampagne ${p.entityName}`
+    : p.allScripts
+      ? `Skripte der Kampagne „${p.entityName}" wurden mit Ihnen geteilt`
+      : `${p.entityLabel} „${p.entityName}" wurde mit Ihnen geteilt`;
   return { betreff, html };
 }
