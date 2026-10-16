@@ -28,6 +28,7 @@ const ENTITY_CONFIG: Record<string, { table: string; nameColumns: string[]; labe
   sourcing: { table: 'creator_auswahl', nameColumns: ['name'], label: 'Sourcing-Liste', article: 'die' },
   strategie: { table: 'strategie', nameColumns: ['name'], label: 'Strategie-Liste', article: 'die' },
   skript: { table: 'skripte', nameColumns: ['titel'], label: 'Skript', article: 'das' },
+  skript_paket: { table: 'skript_pakete', nameColumns: ['id'], label: 'Skripte', article: 'die' },
 };
 
 const FROM_DISPLAY = 'LikeGroup';
@@ -235,7 +236,61 @@ function shareIsUsable(share: {
   return null;
 }
 
+function scriptTitleList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((t) => String(t || '').trim()).filter(Boolean).slice(0, 40);
+}
+
+function buildPaketInviteEmail(params: {
+  kampagneName: string;
+  titles: string[];
+  link: string;
+  code: string;
+}): string {
+  const items = params.titles.length
+    ? `<ul style="margin:0 0 24px 0;padding-left:20px;color:#1a1a1a;font-size:15px;">${
+      params.titles.map((t) => `<li style="margin:0 0 6px 0;">${escapeHtml(t)}</li>`).join('')
+    }</ul>`
+    : '';
+  return `<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Skripte geteilt</title></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;">
+    <tr><td align="center" style="padding:40px 20px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+        <tr><td style="padding:32px 40px;color:#1a1a1a;font-size:15px;line-height:1.6;">
+          <h2 style="margin:0 0 16px 0;font-size:20px;">Skripte der Kampagne ${escapeHtml(params.kampagneName)}</h2>
+          <p style="margin:0 0 16px 0;">Diese Skripte liegen in dem Link:</p>
+          ${items}
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+            <tr><td style="border-radius:6px;background:#111111;">
+              <a href="${params.link}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">Skripte öffnen</a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 8px 0;color:#1a1a1a;font-size:15px;">Ihr Zugangscode:</p>
+          <p style="margin:0 0 16px 0;font-size:28px;letter-spacing:6px;font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">${escapeHtml(params.code)}</p>
+          <p style="margin:0;color:#999;font-size:12px;">Falls der Button nicht funktioniert, kopieren Sie diesen Link:<br><a href="${params.link}" style="color:#111111;word-break:break-all;">${params.link}</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 async function entityName(admin: ReturnType<typeof createClient>, entityType: string, entityId: string): Promise<{ name: string; kampagneId: string | null } | null> {
+  if (entityType === 'skript_paket') {
+    const { data, error } = await admin
+      .from('skript_pakete')
+      .select('kampagne_id, kampagne:kampagne_id(kampagnenname, eigener_name)')
+      .eq('id', entityId)
+      .maybeSingle();
+    if (error || !data) return null;
+    const kampagne = (data as { kampagne?: { kampagnenname?: string | null; eigener_name?: string | null } | null }).kampagne;
+    const name = kampagne?.eigener_name || kampagne?.kampagnenname || 'Kampagne';
+    return { name, kampagneId: (data as { kampagne_id: string }).kampagne_id };
+  }
   const entityConfig = ENTITY_CONFIG[entityType];
   if (!entityConfig) return null;
   const extra = entityType === 'kampagne' ? '' : ', kampagne_id';
@@ -546,6 +601,7 @@ serve(async (req: Request) => {
         expires_at: expiresAt,
         ends_with_kampagne: endsWithKampagne && Boolean(info.kampagneId),
         created_by: staff.id,
+        empfaenger_emails: emails,
       })
       .select('id')
       .single();
@@ -558,20 +614,26 @@ serve(async (req: Request) => {
     const origin = req.headers.get('origin') || Deno.env.get('APP_BASE_URL') || '';
     const link = `${origin}/share/${token}`;
 
+    const titles = scriptTitleList(body.scriptTitles);
+    const paketMail = entityType === 'skript_paket';
     const mailResult = await sendInviteMails({
       emails,
       fromEmail: normalizeFromEmail(Deno.env.get('SHARE_FROM_EMAIL')),
-      subject: `${entityConfig.label} „${info.name}" wurde mit Ihnen geteilt`,
-      html: buildInviteEmail({
-        entityLabel: entityConfig.label,
-        entityArticle: entityConfig.article,
-        entityName: info.name,
-        sharedByName: staff.name || 'Ihr Ansprechpartner',
-        rechte,
-        link,
-        code,
-        message: message || undefined,
-      }),
+      subject: paketMail
+        ? `Skripte der Kampagne ${info.name}`
+        : `${entityConfig.label} „${info.name}" wurde mit Ihnen geteilt`,
+      html: paketMail
+        ? buildPaketInviteEmail({ kampagneName: info.name, titles, link, code })
+        : buildInviteEmail({
+          entityLabel: entityConfig.label,
+          entityArticle: entityConfig.article,
+          entityName: info.name,
+          sharedByName: staff.name || 'Ihr Ansprechpartner',
+          rechte,
+          link,
+          code,
+          message: message || undefined,
+        }),
     });
 
     if (emails.length > 0 && mailResult.error && mailResult.sent === 0) {
@@ -626,6 +688,15 @@ serve(async (req: Request) => {
       }
     }
     if (body.endsWithKampagne !== undefined) patch.ends_with_kampagne = Boolean(body.endsWithKampagne);
+    if (body.emails !== undefined) {
+      const emails = parseEmails(body.emails);
+      for (const email of emails) {
+        if (!EMAIL_REGEX.test(email) || email.length > 320) {
+          return jsonRes({ error: `Ungültige E-Mail-Adresse: ${email}` }, 400, headers);
+        }
+      }
+      patch.empfaenger_emails = emails;
+    }
     if (Object.keys(patch).length === 0) return jsonRes({ error: 'Keine Änderungen.' }, 400, headers);
     const { error } = await admin.from('list_shares').update(patch).eq('id', shareId);
     if (error) return jsonRes({ error: 'Aktualisierung fehlgeschlagen.' }, 500, headers);
@@ -661,20 +732,31 @@ serve(async (req: Request) => {
     if (!/^\d{6}$/.test(code)) {
       return jsonRes({ error: 'Zum erneuten Versand bitte zuerst den Code rotieren und den neuen Code mitsenden.' }, 400, headers);
     }
+    const titles = scriptTitleList(body.scriptTitles);
+    const paketMail = share.entity_type === 'skript_paket';
     const mailResult = await sendInviteMails({
       emails,
       fromEmail: normalizeFromEmail(Deno.env.get('SHARE_FROM_EMAIL')),
-      subject: `${entityConfig?.label || 'Liste'} „${info?.name || share.label}" wurde mit Ihnen geteilt`,
-      html: buildInviteEmail({
-        entityLabel: entityConfig?.label || 'Liste',
-        entityArticle: entityConfig?.article || 'die',
-        entityName: info?.name || share.label || 'Unbenannt',
-        sharedByName: staff.name || 'Ihr Ansprechpartner',
-        rechte: share.rechte,
-        link,
-        code,
-        message: String(body.message ?? '').trim().slice(0, 500) || undefined,
-      }),
+      subject: paketMail
+        ? `Skripte der Kampagne ${info?.name || share.label}`
+        : `${entityConfig?.label || 'Liste'} „${info?.name || share.label}" wurde mit Ihnen geteilt`,
+      html: paketMail
+        ? buildPaketInviteEmail({
+          kampagneName: info?.name || share.label || 'Kampagne',
+          titles,
+          link,
+          code,
+        })
+        : buildInviteEmail({
+          entityLabel: entityConfig?.label || 'Liste',
+          entityArticle: entityConfig?.article || 'die',
+          entityName: info?.name || share.label || 'Unbenannt',
+          sharedByName: staff.name || 'Ihr Ansprechpartner',
+          rechte: share.rechte,
+          link,
+          code,
+          message: String(body.message ?? '').trim().slice(0, 500) || undefined,
+        }),
     });
     if (mailResult.error && mailResult.sent === 0) return jsonRes({ error: mailResult.error }, 502, headers);
     return jsonRes({ success: true, mailed: mailResult.sent }, 200, headers);

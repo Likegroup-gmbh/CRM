@@ -245,13 +245,26 @@ export function skriptDocHtml({
   `;
 }
 
-/** Doc-Kopf: Version, optional Teilen, dann Creator-Zuweisen. */
-export function docHeadActionsHtml({ kannTeilen = false, verknuepfungenHtml = '' } = {}) {
+/** Doc-Kopf: Version, Status, PDF, optional Teilen, dann Creator-Zuweisen. */
+export function docHeadActionsHtml({
+  kannTeilen = false, kannPdf = false, kannZurueck = false, statusHtml = '', verknuepfungenHtml = ''
+} = {}) {
   return `
     <div class="skripte-editor-version" id="ed-version-wrap"></div>
+    ${kannZurueck ? `
+    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-zurueck">
+      <span class="mdc-btn__label">Zurück</span>
+    </button>` : ''}
+    ${statusHtml}
+    ${kannPdf ? `
+    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-pdf"
+      title="Skript als PDF">
+      <span class="mdc-btn__icon">${icon('pdf')}</span>
+      <span class="mdc-btn__label">PDF</span>
+    </button>` : ''}
     ${kannTeilen ? `
     <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-share"
-      title="Skript per Link teilen">
+      title="Freigegebene Skripte dieses Creators teilen">
       <span class="mdc-btn__icon">${icon('share-alt')}</span>
       <span class="mdc-btn__label">Teilen</span>
     </button>` : ''}

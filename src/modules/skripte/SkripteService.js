@@ -6,6 +6,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
 import { briefingVorgaben } from './briefingVorgaben.js';
+import { resolveSkriptCreator } from './skriptPaketModel.js';
 
 export { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
@@ -257,6 +258,112 @@ export class SkripteService {
       .order('position', { ascending: true });
     if (error) throw new Error(error.message);
     return data || [];
+  }
+
+  /**
+   * Skripte einer Kampagne mit aufgelöstem Creator (Kooperation vor Casting)
+   * und laufender Nr. nach Erstelldatum.
+   */
+  async loadKampagneSkripteMitCreator(kampagneId) {
+    const { data, error } = await this.db.from('skripte')
+      .select(`id, titel, status, created_at, hook,
+        strategie_item:strategie_item_id(
+          casting:creator_auswahl_item_id(
+            creator:creator_id(id, vorname, nachname, mail)
+          )
+        )`)
+      .eq('kampagne_id', kampagneId)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    const rows = data || [];
+    const ids = rows.map((s) => s.id);
+    const koopBySkript = new Map();
+    if (ids.length) {
+      const { data: videos, error: videoError } = await this.db
+        .from('kooperation_videos')
+        .select('skript_id, kooperation:kooperation_id(creator:creator_id(id, vorname, nachname, mail))')
+        .in('skript_id', ids);
+      if (videoError) throw new Error(videoError.message);
+      for (const video of videos || []) {
+        const creator = video.kooperation?.creator;
+        if (video.skript_id && creator?.id && !koopBySkript.has(video.skript_id)) {
+          koopBySkript.set(video.skript_id, creator);
+        }
+      }
+    }
+    return rows.map((row, index) => {
+      const casting = row.strategie_item?.casting?.creator || null;
+      const creator = resolveSkriptCreator(casting, koopBySkript.get(row.id) || null);
+      return {
+        id: row.id,
+        titel: row.titel || row.hook || 'Ohne Titel',
+        status: row.status,
+        createdAt: row.created_at,
+        nr: index + 1,
+        creator,
+        creatorId: creator?.id || null
+      };
+    });
+  }
+
+  /** Aktives Paket samt Mitgliedschaft und offenem Zugang. */
+  async loadSkriptPaket(kampagneId, creatorId) {
+    const { data: paket, error } = await this.db.from('skript_pakete')
+      .select('id')
+      .eq('kampagne_id', kampagneId)
+      .eq('creator_id', creatorId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!paket) return { paket: null, share: null, skriptIds: [] };
+
+    const [eintraegeRes, shareRes] = await Promise.all([
+      this.db.from('skript_paket_eintraege').select('skript_id').eq('paket_id', paket.id),
+      this.db.from('list_shares')
+        .select('id, token, label, rechte, empfaenger_emails')
+        .eq('entity_type', 'skript_paket')
+        .eq('entity_id', paket.id)
+        .is('revoked_at', null)
+        .maybeSingle()
+    ]);
+    if (eintraegeRes.error) throw new Error(eintraegeRes.error.message);
+    if (shareRes.error) throw new Error(shareRes.error.message);
+    return {
+      paket,
+      share: shareRes.data || null,
+      skriptIds: (eintraegeRes.data || []).map((row) => row.skript_id)
+    };
+  }
+
+  async ensureSkriptPaket(kampagneId, creatorId) {
+    const vorhanden = await this.loadSkriptPaket(kampagneId, creatorId);
+    if (vorhanden.paket) return vorhanden.paket;
+    const { data, error } = await this.db.from('skript_pakete')
+      .insert({ kampagne_id: kampagneId, creator_id: creatorId })
+      .select('id')
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async setPaketSkripte(paketId, skriptIds) {
+    const { error: deleteError } = await this.db.from('skript_paket_eintraege')
+      .delete()
+      .eq('paket_id', paketId);
+    if (deleteError) throw new Error(deleteError.message);
+    if (!skriptIds.length) return;
+    const { error } = await this.db.from('skript_paket_eintraege')
+      .insert(skriptIds.map((skriptId) => ({ paket_id: paketId, skript_id: skriptId })));
+    if (error) throw new Error(error.message);
+  }
+
+  /** Freigegebene Skripte, die der Gast-JWT sehen darf. */
+  async loadGastPaketSkripte() {
+    const { data, error } = await this.db.from('skripte')
+      .select('id, titel, created_at, status, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, rezept, caption, inhalt_md')
+      .eq('status', 'freigegeben')
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []).map((row, index) => ({ ...row, nr: index + 1 }));
   }
 
   /** Kooperationen + Videos einer Kampagne fuer den Zuweisungs-Picker. */
@@ -564,6 +671,15 @@ export class SkripteService {
    * da jede angenommene Aenderung als Snapshot vorliegt.
    */
   async wechsleVersion(skriptId, version) {
+    if (window.permissionSystem?.isGast) {
+      const { error } = await this.db.rpc('wechsle_skript_version_gast', {
+        p_skript_id: skriptId,
+        p_version_nr: version.version_nr,
+        p_sub_nr: version.sub_nr || 0
+      });
+      if (error) throw new Error(error.message);
+      return;
+    }
     await this.updateSkript(skriptId, {
       titel: version.titel,
       hook: version.hook,

@@ -54,6 +54,14 @@ vi.mock('../modules/skripte/SkripteUtils.js', () => ({
   formatUsageCost: () => null,
   replaceSkriptUrl: () => {},
   skriptEditorPath: (id) => (!id || id === 'neu' || id === 'new') ? '/skripte' : `/skripte/${id}`,
+  STATUS_LABELS: {
+    fragen: 'Rückfragen offen',
+    entwurf: 'Entwurf',
+    feedback_gegeben: 'Feedback gegeben',
+    final: 'Final',
+    freigegeben: 'Freigegeben',
+    archiviert: 'Archiviert'
+  },
   relativeZeit: () => 'Vor 4 Stunden',
   initialen: (name) => String(name || '?')[0].toUpperCase()
 }));

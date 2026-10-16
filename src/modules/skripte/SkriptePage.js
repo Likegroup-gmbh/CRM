@@ -66,6 +66,14 @@ export class SkriptePage {
       }
     }
 
+    if (!id && window.guestShare?.entityType === 'skript_paket') {
+      const { renderGastSkriptListe } = await import('./GastSkriptListe.js');
+      window.setContentSafely(window.content, '<div class="skripte-page" id="skripte-gast-liste"></div>');
+      const container = document.getElementById('skripte-gast-liste');
+      if (container) await renderGastSkriptListe(container);
+      return;
+    }
+
     if (id) {
       await this.openEditor(id);
       return;

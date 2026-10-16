@@ -23,7 +23,9 @@ import { skripteService } from './SkripteService.js';
 import { matchesKampagne } from './SkriptList.js';
 import { openSkriptCreateDrawer } from './SkriptCreateDrawer.js';
 import { InlineEdit } from '../../core/components/InlineEdit.js';
-import { escapeHtml, formatDate, formatUsageCost, replaceSkriptUrl, skriptEditorPath } from './SkripteUtils.js';
+import { escapeHtml, formatDate, formatUsageCost, replaceSkriptUrl, skriptEditorPath, STATUS_LABELS } from './SkripteUtils.js';
+import { renderTableSelect } from '../../core/components/TableSelect.js';
+import { resolveSkriptCreator } from './skriptPaketModel.js';
 import {
   SEND_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU, PLACEHOLDER_FRAGEN
 } from './editor/skriptEditorKonstanten.js';
@@ -231,9 +233,13 @@ export class SkriptEditorView {
     return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false);
   }
 
-  /** Teilen-Button im Doc-Kopf: nur intern und nur fuer ein geladenes Skript. */
+  /** Teilen-Button im Doc-Kopf: nur intern und nur mit Kampagne. */
   get kannTeilen() {
-    return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false) && Boolean(this.skript?.id) && !this.neuModus;
+    return Boolean(window.isInternal?.())
+      && (window.canEdit?.('skripte') ?? false)
+      && Boolean(this.skript?.id)
+      && Boolean(this.skript?.kampagne_id)
+      && !this.neuModus;
   }
 
   /** Creator/Kooperation zuweisen: nur intern. */
@@ -256,6 +262,10 @@ export class SkriptEditorView {
       const skript = await skripteService.loadSkript(skriptId);
 
       if (!skript) {
+        if (window.guestShare?.entityType === 'skript_paket') {
+          window.moduleRegistry?.navigateTo('/skripte');
+          return;
+        }
         container.innerHTML = '<div class="empty-state"><p>Kein Zugriff auf dieses Skript.</p></div>';
         return;
       }
@@ -294,6 +304,10 @@ export class SkriptEditorView {
         this.applyOffeneVisuellvorschlaege();
       }
     } catch (err) {
+      if (window.guestShare?.entityType === 'skript_paket') {
+        window.moduleRegistry?.navigateTo('/skripte');
+        return;
+      }
       container.innerHTML = `
         <div class="empty-state">
           <p>Skript konnte nicht geladen werden.</p>
@@ -370,6 +384,14 @@ export class SkriptEditorView {
     window.setHeadline('Skripte');
     // Gaeste duerfen nur die geteilte Route - kein Link auf die Gesamtliste
     if (window.permissionSystem?.isGast) {
+      if (window.guestShare?.entityType === 'skript_paket') {
+        const kampagne = window.guestShare.entityName || 'Skripte';
+        window.breadcrumbSystem?.updateBreadcrumb([
+          { label: kampagne, url: '/skripte', clickable: true },
+          { label, clickable: false }
+        ]);
+        return;
+      }
       window.breadcrumbSystem?.updateBreadcrumb([{ label, clickable: false }]);
       return;
     }
@@ -379,13 +401,73 @@ export class SkriptEditorView {
     ]);
   }
 
+  kopfAktionen() {
+    return {
+      kannTeilen: this.kannTeilen,
+      kannPdf: Boolean(this.skript?.id),
+      kannZurueck: window.guestShare?.entityType === 'skript_paket',
+      statusHtml: this.statusSelectHtml(),
+      verknuepfungenHtml: this.renderVerknuepfungenHtml()
+    };
+  }
+
+  statusSelectHtml() {
+    if (!window.isInternal?.() || !(window.canEdit?.('skripte') ?? false) || !this.skript?.id) return '';
+    return renderTableSelect({
+      field: 'skript-status',
+      itemId: this.skript.id,
+      value: this.skript.status || 'entwurf',
+      options: Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+      matchWidth: true
+    });
+  }
+
+  bindStatusSelect() {
+    if (this._onStatus) document.removeEventListener('table-select-change', this._onStatus);
+    this._onStatus = async (e) => {
+      if (e.detail?.field !== 'skript-status' || e.detail.itemId !== this.skript?.id) return;
+      const status = e.detail.value;
+      if (!status || status === this.skript.status) return;
+      try {
+        await skripteService.updateSkript(this.skript.id, { status });
+        this.skript.status = status;
+        window.toastSystem?.success('Status gespeichert');
+      } catch (err) {
+        window.toastSystem?.error(err.message || 'Status konnte nicht gespeichert werden.');
+      }
+    };
+    document.addEventListener('table-select-change', this._onStatus);
+  }
+
+  bindKopfAktionen(el) {
+    el.querySelector('#ed-zurueck')?.addEventListener('click', () => {
+      window.moduleRegistry?.navigateTo('/skripte');
+    });
+    el.querySelector('#ed-pdf')?.addEventListener('click', () => this.downloadPdf());
+    this.bindShareButton(el);
+  }
+
+  async downloadPdf() {
+    if (!this.skript) return;
+    const { downloadSkriptPdf } = await import('./skriptPdf.js');
+    try {
+      await downloadSkriptPdf(this.skript, { nr: this.skript.skript_nr });
+    } catch (err) {
+      window.toastSystem?.error(err.message || 'PDF konnte nicht erstellt werden.');
+    }
+  }
+
   bindShareButton(el) {
     el.querySelector('#ed-share')?.addEventListener('click', () => {
       if (!this.kannTeilen) return;
-      window.shareListDialog?.open({
-        entityType: 'skript',
-        entityId: this.skript.id,
-        entityName: this.skript.titel || 'Skript'
+      const creator = resolveSkriptCreator(
+        this.skript?.strategie_item?.casting_eintrag?.creator,
+        this.verknuepfungen?.find((row) => row.kooperation?.creator)?.kooperation?.creator
+      );
+      window.skriptPaketDialog?.open({
+        kampagneId: this.skript.kampagne_id,
+        kampagneName: this.skript.kampagne?.kampagnenname || this.skript.kampagne?.eigener_name || '',
+        creatorId: creator?.id || null
       });
     });
   }
@@ -499,6 +581,10 @@ export class SkriptEditorView {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
+    }
+    if (this._onStatus) {
+      document.removeEventListener('table-select-change', this._onStatus);
+      this._onStatus = null;
     }
     this._feedback.destroy();
     this._koopDrawer?.destroy?.();
@@ -701,17 +787,15 @@ export class SkriptEditorView {
       el.innerHTML = fragenModusHtml({
         skript: this.skript,
         genStatus: this.genStatus,
-        docHeadActionsHtml: docHeadActionsHtml({
-          kannTeilen: this.kannTeilen,
-          verknuepfungenHtml: this.renderVerknuepfungenHtml()
-        }),
+        docHeadActionsHtml: docHeadActionsHtml(this.kopfAktionen()),
         vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
       });
       el.querySelector('#ed-fragen-gen')?.addEventListener('click', () => this.startGenerationAusFragen());
       el.querySelectorAll('[data-aufbau-flag]').forEach((toggle) => {
         toggle.addEventListener('change', () => this.saveGeneratorFlag(toggle.dataset.aufbauFlag, toggle.checked));
       });
-      this.bindShareButton(el);
+      this.bindKopfAktionen(el);
+      this.bindStatusSelect();
       this.bindVerknuepfungen(el);
       const input = document.getElementById('ed-input');
       if (input && !input.disabled) input.placeholder = PLACEHOLDER_FRAGEN;
@@ -726,10 +810,7 @@ export class SkriptEditorView {
       skript: this.skript,
       messages: this.messages,
       isReadonly: this.isReadonly,
-      docHeadActionsHtml: docHeadActionsHtml({
-        kannTeilen: this.kannTeilen,
-        verknuepfungenHtml: this.renderVerknuepfungenHtml()
-      }),
+      docHeadActionsHtml: docHeadActionsHtml(this.kopfAktionen()),
       vorgabenPanelHtml: vorgabenPanelHtml(this.skript),
       docTab: this.docTab || 'skript'
     });
@@ -739,7 +820,8 @@ export class SkriptEditorView {
         this.renderDoc();
       });
     });
-    this.bindShareButton(el);
+    this.bindKopfAktionen(el);
+    this.bindStatusSelect();
     el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
       btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
     });

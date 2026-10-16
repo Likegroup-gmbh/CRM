@@ -138,6 +138,7 @@ import { skriptePage } from './modules/skripte/SkriptePage.js';
 import { sharesAdminPage } from './modules/shares/SharesAdminPage.js';
 import { kiUsagePage } from './modules/ki-usage/KiUsagePage.js';
 import './core/components/ShareListDialog.js';
+import './modules/skripte/SkriptPaketDialog.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
 import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
 import { backgroundUploadService } from './core/BackgroundUploadService.js';

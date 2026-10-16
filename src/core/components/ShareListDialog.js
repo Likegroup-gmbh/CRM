@@ -2,6 +2,8 @@
 // Zugänge für eine Liste anlegen (Link + 6-stelliger Code).
 // Create/Rotate/Resend über Edge Function 'share-list'; Liste via RLS.
 
+import { renderTableSelect } from './TableSelect.js';
+
 export class ShareListDialog {
   constructor() {
     this.overlay = null;
@@ -12,6 +14,7 @@ export class ShareListDialog {
     this.emails = [];
     this._emailSearchTimer = null;
     this._emailSearchGen = 0;
+    this._onRechte = null;
   }
 
   open({ entityType, entityId, entityName = '' }) {
@@ -27,6 +30,10 @@ export class ShareListDialog {
 
   close() {
     clearTimeout(this._emailSearchTimer);
+    if (this._onRechte) {
+      document.removeEventListener('table-select-change', this._onRechte);
+      this._onRechte = null;
+    }
     if (this.overlay) {
       this.overlay.remove();
       this.overlay = null;
@@ -57,10 +64,14 @@ export class ShareListDialog {
               <input type="text" id="share-label-input" class="input" placeholder="z. B. Marketing-Team" maxlength="80">
             </div>
             <div class="form-group">
-              <label class="form-label" for="share-rechte-select">Rechte</label>
-              <select id="share-rechte-select" class="input">
-                ${this.rechteOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
-              </select>
+              <label class="form-label">Rechte</label>
+              <input type="hidden" id="share-rechte-select" value="ansehen">
+              ${renderTableSelect({
+                field: 'share-rechte',
+                itemId: 'neu',
+                value: 'ansehen',
+                options: this.rechteOptions().map(([value, label]) => ({ value, label }))
+              })}
             </div>
             <div class="form-group">
               <label class="form-label" for="share-email-tag-input">Per E-Mail versenden (optional)</label>
@@ -95,7 +106,23 @@ export class ShareListDialog {
     overlay.querySelector('[data-action="close"]').addEventListener('click', () => this.close());
     overlay.querySelector('[data-action="cancel"]').addEventListener('click', () => this.close());
     overlay.querySelector('#share-submit-btn').addEventListener('click', () => this.submit());
+    this._onRechte = (e) => this.onRechtePick(e);
+    document.addEventListener('table-select-change', this._onRechte);
     this.bindEmailTags();
+  }
+
+  onRechtePick(e) {
+    const { field, value, element, itemId } = e.detail || {};
+    if (!this.overlay?.contains(element)) return;
+    element.dataset.value = value;
+    const label = this.rechteOptions().find(([v]) => v === value)?.[1];
+    const labelEl = element.querySelector('.table-select__label');
+    if (labelEl && label) labelEl.textContent = label;
+    if (field === 'share-rechte') {
+      const hidden = this.overlay.querySelector('#share-rechte-select');
+      if (hidden) hidden.value = value;
+    }
+    if (field === 'share-row-rechte') this.updateRechte(itemId, value);
   }
 
   bindEmailTags() {
@@ -363,9 +390,12 @@ export class ShareListDialog {
             ${freshCode ? `<span class="share-fresh-code">Code: ${this.escape(freshCode)}</span>` : ''}
           </div>
           <div class="share-recipient-actions">
-            <select class="share-recipient-rechte" data-share-id="${share.id}" title="Rechte ändern">
-              ${this.rechteOptions().map(([value, label]) => `<option value="${value}" ${share.rechte === value ? 'selected' : ''}>${label}</option>`).join('')}
-            </select>
+            ${renderTableSelect({
+              field: 'share-row-rechte',
+              itemId: share.id,
+              value: share.rechte || 'ansehen',
+              options: this.rechteOptions().map(([value, label]) => ({ value, label }))
+            })}
             <button type="button" class="share-recipient-revoke" data-copy="${this.escape(link)}">Link</button>
             <button type="button" class="share-recipient-revoke" data-rotate="${share.id}">Code erneuern</button>
             <button type="button" class="share-recipient-revoke" data-mail="${share.id}">Mail</button>
@@ -377,9 +407,6 @@ export class ShareListDialog {
 
     container.querySelectorAll('[data-revoke]').forEach((btn) => {
       btn.addEventListener('click', () => this.revoke(btn.dataset.shareId));
-    });
-    container.querySelectorAll('.share-recipient-rechte').forEach((select) => {
-      select.addEventListener('change', () => this.updateRechte(select.dataset.shareId, select.value));
     });
     container.querySelectorAll('[data-copy]').forEach((btn) => {
       btn.addEventListener('click', () => this.copy(btn.dataset.copy, btn));

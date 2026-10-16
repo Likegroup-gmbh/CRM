@@ -68,6 +68,7 @@ export const STATUS_LABELS = {
   entwurf: 'Entwurf',
   feedback_gegeben: 'Feedback gegeben',
   final: 'Final',
+  freigegeben: 'Freigegeben',
   archiviert: 'Archiviert'
 };
 
@@ -76,6 +77,7 @@ export const STATUS_TAG_VARIANT = {
   entwurf: 'tag--warning',
   feedback_gegeben: 'tag--type',
   final: 'tag--success',
+  freigegeben: 'tag--success',
   archiviert: 'tag--type'
 };
 
