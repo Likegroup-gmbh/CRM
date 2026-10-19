@@ -60,11 +60,11 @@ describe('creatorOptionen', () => {
 });
 
 describe('creatorAusZeile', () => {
-  it('nimmt die Kooperation vor dem Casting', () => {
+  it('nimmt den Creator am Casting, sonst die Kooperation', () => {
     expect(creatorAusZeile({
       strategie_item: { casting_eintrag: { creator: linda } },
-      kooperation_videos: [{ position: 1, kooperation: { creator: max } }]
-    })?.id).toBe('max');
+      kooperation_videos: [{ kooperation: { creator: max } }]
+    })?.id).toBe('linda');
     expect(creatorAusZeile({
       kooperation_videos: [{ kooperation: { creator: max } }]
     })?.id).toBe('max');

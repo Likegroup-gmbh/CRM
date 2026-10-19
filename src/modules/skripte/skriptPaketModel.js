@@ -17,21 +17,17 @@ function mitCastingNamen(creator, castingName) {
   return { ...creator, vorname: '', nachname: '', name };
 }
 
-/** Wie im Editor: die Kooperation gewinnt, sonst der Casting-Eintrag. */
+/** Creator wie in der Skripte-Tabelle: Casting, sonst die Kooperation. */
 export function creatorAusZeile(row) {
-  const videos = [...(row?.kooperation_videos || [])].sort(
-    (a, b) => (Number(a?.position) || 0) - (Number(b?.position) || 0)
-  );
+  const eintrag = row?.strategie_item?.casting_eintrag;
+  const crm = eintrag?.creator;
+  if (crm?.id) return mitCastingNamen(crm, eintrag?.name);
+  const videos = row?.kooperation_videos || [];
   for (const video of videos) {
     const creator = video?.kooperation?.creator;
     if (creator?.id) return creator;
   }
-  const eintrag = row?.strategie_item?.casting_eintrag;
-  const crm = eintrag?.creator;
-  if (crm?.id) return mitCastingNamen(crm, eintrag?.name);
-  const name = String(eintrag?.name || row?.strategie_item?.creator_name || '').trim();
-  if (!name) return null;
-  return { id: null, vorname: '', nachname: '', name };
+  return null;
 }
 
 /**
