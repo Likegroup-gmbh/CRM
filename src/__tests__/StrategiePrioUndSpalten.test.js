@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderItemRow, renderItemsTable, reorderStrategieItemsByKategorien } from '../modules/strategie/StrategieDetailRenderer.js';
-import { syncRowTextClips, toggleTextClip } from '../modules/strategie/strategieTextClip.js';
+import { bindTextClipEvents, syncRowTextClips, toggleTextClip } from '../modules/strategie/strategieTextClip.js';
 import {
   getStrategiePrio,
   buildStrategiePrioUpdates,
@@ -323,6 +323,49 @@ describe('strategieTextClip', () => {
     expect(btn.getAttribute('aria-label')).toBe('Mehr anzeigen');
     expect(btn.querySelector('.crm-icon')).toBeTruthy();
     expect(clip.classList.contains('is-truncated')).toBe(true);
+  });
+
+  it('zieht die Textarea auf die Inhaltshoehe, sonst zeigt das Auge beim Aufklappen nichts', () => {
+    const doc = renderRow({ transkript: 'Lang' });
+    const clip = doc.querySelector('td.col-transkript .strategie-text-clip');
+    const body = clip.querySelector('.strategie-text-clip__body');
+    const textarea = clip.querySelector('textarea');
+
+    // Browser ohne field-sizing (Safari vor 26.2, Firefox vor 152): die Textarea
+    // bleibt auf der Mindesthoehe und clippt den Text selbst. scrollHeight kennt
+    // den vollen Inhalt, der Clip-Body ist auf die Bildhoehe begrenzt.
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, get: () => 420 });
+    Object.defineProperty(body, 'clientHeight', { configurable: true, value: 178 });
+
+    syncRowTextClips(clip.closest('tr'));
+    toggleTextClip(clip);
+
+    expect(clip.classList.contains('is-expanded')).toBe(true);
+    expect(textarea.style.height).toBe('420px');
+  });
+
+  it('zieht die Hoehe beim Tippen nach', () => {
+    const html = renderItemRow(detailStub(), { id: 'i1', transkript: 'Lang' }, 0);
+    document.body.innerHTML = `<table class="strategie-items-table"><tbody>${html}</tbody></table>`;
+    const detail = { _tableEventListeners: new Set() };
+    bindTextClipEvents(detail);
+
+    const textarea = document.querySelector('td.col-transkript textarea');
+    let contentHeight = 40;
+    Object.defineProperty(textarea, 'scrollHeight', {
+      configurable: true,
+      get: () => contentHeight,
+    });
+
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(textarea.style.height).toBe('40px');
+
+    contentHeight = 360;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(textarea.style.height).toBe('360px');
+
+    detail._tableEventListeners.forEach((fn) => fn());
+    document.body.innerHTML = '';
   });
 });
 

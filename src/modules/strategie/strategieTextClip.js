@@ -37,6 +37,45 @@ function setClipButtonState(btn, { expanded, overflowing }) {
   btn.title = showMore ? 'Mehr anzeigen' : 'Weniger anzeigen';
 }
 
+/**
+ * Textarea auf die volle Inhaltshoehe ziehen.
+ * field-sizing:content fehlt in Safari vor 26.2 und Firefox vor 152, und auch
+ * wo es existiert rechnet es oft nicht neu, wenn der Clip die max-height
+ * verliert. Ohne feste Hoehe bleibt der Text in der Textarea selbst
+ * abgeschnitten — das Auge schaltet um, sichtbar passiert nichts.
+ * Messen bei geloestem Clamp, damit scrollHeight nicht die Bildhoehe liefert.
+ */
+function sizeClipTextarea(clip) {
+  const textarea = clip.querySelector('textarea');
+  if (!textarea) return;
+
+  const body = clip.querySelector('.strategie-text-clip__body');
+  const nodes = body ? [clip, body] : [clip];
+  const saved = nodes.map(el => ({
+    el,
+    maxHeight: el.style.maxHeight,
+    height: el.style.height,
+    overflow: el.style.overflow,
+  }));
+
+  try {
+    for (const { el } of saved) {
+      el.style.maxHeight = 'none';
+      el.style.height = 'auto';
+      el.style.overflow = 'visible';
+    }
+    textarea.style.height = 'auto';
+    const full = textarea.scrollHeight;
+    if (full > 0) textarea.style.height = `${full}px`;
+  } finally {
+    for (const { el, maxHeight, height, overflow } of saved) {
+      el.style.maxHeight = maxHeight;
+      el.style.height = height;
+      el.style.overflow = overflow;
+    }
+  }
+}
+
 function syncClipButton(clip) {
   const btn = clip.querySelector('.strategie-text-more');
   if (!btn) return;
@@ -53,7 +92,7 @@ function syncClipButton(clip) {
   setClipButtonState(btn, { expanded: false, overflowing });
 }
 
-export function syncRowTextClips(row) {
+function updateRowClipState(row) {
   if (!row) return;
   const clips = [...row.querySelectorAll(CLIP_SELECTOR)];
   row.classList.toggle(
@@ -61,6 +100,12 @@ export function syncRowTextClips(row) {
     clips.some(clip => clip.classList.contains(EXPANDED_CLASS))
   );
   clips.forEach(syncClipButton);
+}
+
+export function syncRowTextClips(row) {
+  if (!row) return;
+  row.querySelectorAll(CLIP_SELECTOR).forEach(sizeClipTextarea);
+  updateRowClipState(row);
 }
 
 function clearInlineHeight(clip) {
@@ -96,17 +141,25 @@ function runSlide(clip, opts) {
   return done.then(() => clearInlineHeight(clip));
 }
 
+function openClip(clip) {
+  if (!clip || clip.classList.contains(EXPANDED_CLASS)) return Promise.resolve();
+  const row = clip.closest('tr');
+  // Hoehe ziehen, solange der Clip noch zu ist. Sonst ist offsetHeight schon
+  // die volle Hoehe und der Slide hat keinen Weg mehr.
+  sizeClipTextarea(clip);
+  const done = runSlide(clip, { open: true });
+  clip.classList.remove(TRUNCATED_CLASS);
+  clip.classList.add(EXPANDED_CLASS);
+  updateRowClipState(row);
+  return done;
+}
+
 export function toggleTextClip(clip) {
   if (!clip) return Promise.resolve();
   const row = clip.closest('tr');
   const opening = !clip.classList.contains(EXPANDED_CLASS);
 
-  if (opening) {
-    clip.classList.remove(TRUNCATED_CLASS);
-    clip.classList.add(EXPANDED_CLASS);
-    syncRowTextClips(row);
-    return runSlide(clip, { open: true });
-  }
+  if (opening) return openClip(clip);
 
   clip.classList.add(TRUNCATED_CLASS);
   const collapsedPx = collapseTargetPx(clip, row);
@@ -124,12 +177,7 @@ export function toggleTextClip(clip) {
 }
 
 export function expandTextClip(clip) {
-  if (!clip || clip.classList.contains(EXPANDED_CLASS)) return Promise.resolve();
-  const row = clip.closest('tr');
-  clip.classList.remove(TRUNCATED_CLASS);
-  clip.classList.add(EXPANDED_CLASS);
-  syncRowTextClips(row);
-  return runSlide(clip, { open: true });
+  return openClip(clip);
 }
 
 export function syncAllTextClips(root = document) {
@@ -154,11 +202,19 @@ export function bindTextClipEvents(detail) {
     expandTextClip(textarea.closest(CLIP_SELECTOR));
   };
 
+  const onInput = (e) => {
+    const textarea = e.target.closest?.(`${CLIP_SELECTOR} textarea`);
+    if (!textarea || !table.contains(textarea)) return;
+    syncRowTextClips(textarea.closest('tr'));
+  };
+
   table.addEventListener('click', onClick);
   table.addEventListener('focusin', onFocusIn);
+  table.addEventListener('input', onInput);
   detail._tableEventListeners.add(() => {
     table.removeEventListener('click', onClick);
     table.removeEventListener('focusin', onFocusIn);
+    table.removeEventListener('input', onInput);
   });
 
   requestAnimationFrame(() => syncAllTextClips(table));
