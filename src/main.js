@@ -43,6 +43,7 @@ import '../assets/styles/chat-panel.css';
 import '../assets/styles/doc.css';
 import '../assets/styles/produkt-doc.css';
 import '../assets/styles/notiz-dokument.css';
+import '../assets/styles/auftrag-notiz.css';
 import '../assets/styles/regelwerk-dokument.css';
 import '../assets/styles/briefing-doc.css';
 import '../assets/styles/anschreiben.css';

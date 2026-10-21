@@ -124,3 +124,52 @@ describe('Accounting-Zugang', () => {
     expect(dashboard.init).not.toHaveBeenCalled();
   });
 });
+
+describe('Seitenwechsel mit beforeLeave', () => {
+  let registry;
+  let nextPage;
+
+  beforeEach(() => {
+    registry = new ModuleRegistry();
+    nextPage = { init: vi.fn(() => Promise.resolve()), destroy: vi.fn() };
+    registry.register('kampagne-detail', nextPage);
+    window.currentUser = { rolle: 'admin' };
+    window.history.pushState = vi.fn();
+  });
+
+  it('bleibt auf der Seite, wenn beforeLeave ablehnt', async () => {
+    const page = {
+      init: vi.fn(() => Promise.resolve()),
+      destroy: vi.fn(),
+      beforeLeave: vi.fn(async () => false),
+      stayRoute: '/auftragsdetails/d1'
+    };
+    registry.currentModule = page;
+
+    await registry.navigateTo('/kampagne/abc', true);
+
+    expect(page.beforeLeave).toHaveBeenCalled();
+    expect(page.destroy).not.toHaveBeenCalled();
+    expect(nextPage.init).not.toHaveBeenCalled();
+    expect(window.history.pushState).toHaveBeenCalledWith(
+      { route: '/auftragsdetails/d1' },
+      '',
+      '/auftragsdetails/d1'
+    );
+  });
+
+  it('wechselt erst, wenn beforeLeave erlaubt', async () => {
+    const page = {
+      init: vi.fn(() => Promise.resolve()),
+      destroy: vi.fn(),
+      beforeLeave: vi.fn(async () => true)
+    };
+    registry.currentModule = page;
+
+    await registry.navigateTo('/kampagne/abc');
+
+    expect(page.beforeLeave).toHaveBeenCalled();
+    expect(page.destroy).toHaveBeenCalled();
+    expect(nextPage.init).toHaveBeenCalledWith('abc');
+  });
+});

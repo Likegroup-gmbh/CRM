@@ -10,7 +10,8 @@ import {
   currentHistoryRoute
 } from './NavigationScroll.js';
 import { unregisterHeaderChatToggle } from './chat/HeaderChatSlot.js';
-import { invalidateFinanzbestand } from './budget/finanzbestand.js';
+import { prepareRoute } from './navigation/prepareRoute.js';
+import { activateModule } from './navigation/activateModule.js';
 export { OptionsManager };
 
 export class ModuleRegistry {
@@ -38,6 +39,9 @@ export class ModuleRegistry {
     this._didInitModule = false;
 
     try {
+      const allowed = await this._confirmLeave(skipPushState);
+      if (!allowed) return;
+
       // Vor pushState merken: nach popstate ist die URL schon das Ziel.
       if (!skipPushState) {
         rememberScrollForRoute();
@@ -69,593 +73,57 @@ export class ModuleRegistry {
   }
 
   async _doNavigate(route, skipPushState = false) {
-    // Gast-Modus (Share-Link): strikt nur die geteilte Entität, keine anderen Routen
-    if (window.guestShare) {
-      const normalizedRoute = String(route || '').split(/[?#]/)[0];
-      const allowed = window.guestShare.allowedRoute;
-      if (normalizedRoute !== allowed && !normalizedRoute.startsWith(`${allowed}/`)) {
-        console.log('🚫 Navigation blockiert: Gast-Zugang ist auf die geteilte Liste beschränkt');
-        window.toastSystem?.show('Ihr Zugang ist auf die geteilte Liste beschränkt.', 'warning');
-        return;
-      }
-      // URL bleibt beim Share-Link (Reload-fähig)
-      skipPushState = true;
-    }
+    const prepared = await prepareRoute(this, route, skipPushState);
+    if (!prepared.proceed) return prepared.value;
+    return activateModule(this, prepared);
+  }
 
-    if (window.currentUser?.isBlocked === true) {
-      const allowedRoutes = ['/', '/dashboard', ''];
-      const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
-      if (!allowedRoutes.includes(normalizedRoute)) {
-        console.log('🚫 Navigation blockiert: Benutzer nicht freigeschaltet');
-        window.toastSystem?.show('Ihr Account wartet auf Freischaltung', 'warning');
-        return;
-      }
-    }
-
-    // Alias: /kampagnen(/...) → /kampagne(/...) (Safety-Net für alte Links/Tippfehler)
-    // Alias: /strategie → /konzepte, /sourcing → /castings (Umbenennung, Alt-Links bleiben gültig)
-    route = String(route || '')
-      .replace(/^(\/?)kampagnen(?=[/?#]|$)/, '$1kampagne')
-      .replace(/^(\/?)strategie(?=[/?#]|$)/, '$1konzepte')
-      .replace(/^(\/?)sourcing(?=[/?#]|$)/, '$1castings');
-
-    if (!skipPushState) {
-      try {
-        if (window.history && window.history.pushState) {
-          const url = route.startsWith('/') ? route : `/${route}`;
-          window.history.pushState({ route: url }, '', url);
-        }
-      } catch (err) {
-        console.warn('⚠️ History pushState fehlgeschlagen:', err?.message);
-      }
-    }
-
-    // Pfad vor den Alias-Rewrites merken: die Navigations-Bereichswahl
-    // (Haupt- vs. Accounting-Bereich) haengt am sichtbaren Pfad, nicht am
-    // internen Modul-Namen (z. B. /admin/auftrag -> /auftrag).
-    const navPath = String(route || '').split(/[?#]/)[0];
-
-    // Accounting-Bereich nur Admins und Investoren — nicht Mitarbeiter/Lead
-    // per Direkt-URL in die /admin-Huelle.
-    const canAccounting = (typeof window.canViewAccounting === 'function' && window.canViewAccounting())
-      || (typeof window.isAdmin === 'function' && window.isAdmin());
-    if ((navPath === '/admin' || navPath.startsWith('/admin/')) && !canAccounting) {
-      console.log('🚫 Navigation blockiert: kein Accounting-Zugang');
-      return this._redirect('/dashboard');
-    }
-
+  // Modul kann das Verlassen ablehnen (ungesicherte Notiz, fremder Stand).
+  // skipPushState: die URL ist schon das Ziel, dann zurück auf stayRoute.
+  async _confirmLeave(skipPushState = false) {
+    const guard = this.currentModule?.beforeLeave;
+    if (typeof guard !== 'function') return true;
+    let allowed = true;
     try {
-      // Weggezogene Admin-Seiten: URL auf den Hauptpfad ziehen, sonst
-      // bleibt die Sidebar im Accounting-Bereich.
-      const ADMIN_MOVED = {
-        kunden: '/kunden-admin',
-        mitarbeiter: '/mitarbeiter',
-        shares: '/shares',
-        'ki-usage': '/ki-usage',
-        unternehmen: '/unternehmen',
-      };
-      // Accounting-Nav-Punkte unter /admin/..., Module unter ihrem
-      // bisherigen Pfad. /admin und /admin/datenqualitaet: Dashboard
-      // wird unten auf Stakeholder umgeschrieben, Datenqualitaet bleibt
-      // bei der Admin-Huelle. navPath bleibt der sichtbare /admin-Pfad.
-      const ADMIN_ALIASES = {
-        dashboard: '/stakeholder',
-        stakeholder: '/stakeholder',
-        'projekt-erstellen': '/projekt-erstellen',
-        auftrag: '/auftrag',
-        ausgangsrechnungen: '/ausgangsrechnungen',
-        rechnung: '/rechnung',
-      };
-      const adminAlias = String(route || '').match(/^\/admin\/([^/?#]+)(.*)$/);
-      if (adminAlias && ADMIN_MOVED[adminAlias[1]]) {
-        const dest = ADMIN_MOVED[adminAlias[1]] + adminAlias[2];
-        try {
-          if (window.history?.replaceState) {
-            window.history.replaceState({ route: dest }, '', dest);
-          }
-        } catch (err) {
-          console.warn('⚠️ History replaceState fehlgeschlagen:', err?.message);
-        }
-        return this._doNavigate(dest, true);
-      }
-      if (navPath === '/admin' || navPath === '/admin/') {
-        route = '/stakeholder';
-      } else if (adminAlias && ADMIN_ALIASES[adminAlias[1]]) {
-        route = ADMIN_ALIASES[adminAlias[1]] + adminAlias[2];
-      } else if (route === '/kunde' || route.startsWith('/kunde/')) {
-        // Aktionsmenü baut /kunde/:id(/edit) — das Modul heißt kunden-admin / kunden-detail.
-        route = `/kunden-admin${route.slice('/kunde'.length)}`;
-      }
-    } catch (err) {
-      console.warn('⚠️ Route-Mapping fehlgeschlagen:', err?.message);
+      allowed = await guard();
+    } catch (error) {
+      console.warn('⚠️ Verlassen der Seite abgebrochen:', error?.message || error);
+      allowed = false;
     }
+    if (allowed === false) {
+      this._restoreStayRoute(skipPushState);
+      return false;
+    }
+    return true;
+  }
 
-    const pathOnly = String(route || '').split(/[?#]/)[0];
-    const path = pathOnly.replace(/^\//, '');
-
-    // Finanzbestand (Admin-Finanzseiten) halten, solange man im Adminbereich,
-    // auf der Stakeholder-Uebersicht oder auf dem Dashboard bleibt. Sobald die
-    // Route auf eine Detailseite zeigt (Video/Kampagne/Auftrag/Rechnung/…),
-    // wird verworfen — die naechste Datenqualitaet liest frisch.
-    const FINANZBESTAND_KEEP = /^\/?(admin|stakeholder|dashboard)(\/|$)/;
-    if (!FINANZBESTAND_KEEP.test(pathOnly)) {
-      invalidateFinanzbestand();
-    }
-
-    const pathParts = path.split('/');
-    const [segment, idRaw, actionRaw] = pathParts;
-    const idFromPath = idRaw ? idRaw.split('?')[0] : idRaw;
-    // Alias fuer Alt-Links: /unternehmen/neu war der einzige Pfad mit deutschem
-    // "neu", alle anderen Entitaeten nutzen "new". Normalisiert, damit die
-    // ID-basierten Weichen unten nicht "neu" fuer eine Entity-ID halten.
-    const id = idFromPath === 'neu' ? 'new' : idFromPath;
-    const action = actionRaw ? actionRaw.split('?')[0] : actionRaw;
-
-    // Route-Guard fuer Anlage- und Bearbeiten-Routen: kein Create/Edit-Recht,
-    // keine Seite — sonst landet z.B. ein Investor per Direkt-URL auf einer
-    // leeren Form, die die RLS dann erst beim Submit ablehnt. Segment → Entitaet.
-    if (id === 'new' || action === 'edit') {
-      const segmentEntity = {
-        unternehmen: 'unternehmen', marke: 'marke', produkt: 'produkt',
-        persona: 'persona', ansprechpartner: 'ansprechpartner', creator: 'creator',
-        kampagne: 'kampagne', kooperation: 'kooperation', briefing: 'briefing',
-        auftrag: 'auftrag', auftragsdetails: 'auftragsdetails', rechnung: 'rechnung',
-        strategie: 'strategie', sourcing: 'sourcing', skripte: 'skripte',
-        // Aliase nach dem Rewrite (/strategie → /konzepte, /sourcing → /castings)
-        konzepte: 'strategie', castings: 'sourcing',
-        vertraege: 'vertraege', management: 'management'
-      }[segment];
-      if (segmentEntity) {
-        const verb = id === 'new' ? 'create' : 'edit';
-        const allowed = id === 'new'
-          ? window.canCreate?.(segmentEntity)
-          : window.canEdit?.(segmentEntity);
-        if (allowed === false) {
-          console.log(`🚫 Navigation blockiert: kein ${verb}-Recht fuer ${segmentEntity}`);
-          window.toastSystem?.show('Sie haben keine Berechtigung für diese Aktion.', 'warning');
-          return;
-        }
-      }
-    }
-
-    if (segment === 'creator' && id && id !== 'new') {
-      const canViewViaPage = window.canViewPage?.('creator');
-      const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
-      const canViewCreator = canViewViaPage !== false && canViewViaPerm !== false;
-
-      if (!canViewCreator) {
-        console.log('🚫 Navigation blockiert: Keine Berechtigung für Creator-Profile');
-        window.toastSystem?.show('Sie haben keine Berechtigung, Creator-Profile anzuzeigen.', 'warning');
-        return;
-      }
-    }
-
-    if (segment === 'marke' && id && id !== 'new') {
-      const canViewViaPage = window.canViewPage?.('marke');
-      const canViewViaPerm = window.currentUser?.permissions?.marke?.can_view;
-      if (canViewViaPage === false || canViewViaPerm === false) {
-        console.log('🚫 Navigation blockiert: Keine Berechtigung für Marken-Seiten');
-        window.toastSystem?.show('Sie haben keine Berechtigung, Marken-Seiten anzuzeigen.', 'warning');
-        return;
-      }
-    }
-
-    if (segment === 'auftrag' && id && id !== 'new') {
-      const isKunde = window.isKunde();
-      if (isKunde) {
-        console.log('🚫 Navigation blockiert: Kunden dürfen nicht auf Auftrags-Detailseite');
-        window.toastSystem?.show('Sie können Aufträge nur in der Übersicht einsehen.', 'warning');
-        return;
-      }
-    }
-
-    if (segment === 'auftragsdetails' && id && id !== 'new') {
-      const canViewViaPage = window.canViewPage?.('auftragsdetails');
-      const canViewViaPerm = window.currentUser?.permissions?.auftragsdetails?.can_view;
-      if (canViewViaPage === false || canViewViaPerm === false) {
-        console.log('🚫 Navigation blockiert: Keine Berechtigung für Auftragsdetails');
-        window.toastSystem?.show('Sie haben keine Berechtigung, Auftragsdetails anzuzeigen.', 'warning');
-        return;
-      }
-    }
-
-    if (import.meta.env.DEV) {
-      console.log(`🧭 Navigation zu: ${segment}${id ? ` (ID: ${id})` : ''}${action ? ` (Action: ${action})` : ''}`);
-      console.log(`🔍 Verfügbare Module:`, Array.from(this.modules.keys()));
-      console.log(`🎯 Gesuchtes Modul: ${segment}`);
-    }
-
-    if (this.currentModule && this.currentModule.destroy) {
-      console.log(`🗑️ Zerstöre aktuelles Modul:`, this.currentModule.constructor.name);
-      this.currentModule.destroy();
-      this.currentModule = null;
-    }
-
-    this._globalCleanup();
-
-    if (window.breadcrumbSystem?.setFromRoute) {
-      window.breadcrumbSystem.setFromRoute(segment, id || null, { action: action || null });
-    }
-
-    // Navigationsbereich (Haupt-Navigation vs. Accounting-Bereich) mit der Route
-    // synchronisieren — auch bei Header-Buttons und Browser-Zurueck, die
-    // nicht durch das NavigationSystem selbst laufen.
-    window.navigationSystem?.syncWithRoute?.(navPath);
-
-    let moduleKey = segment;
-    let module = this.modules.get(moduleKey);
-    let isEditMode = action === 'edit';
-
-    // Leeres Segment (Root-Pfad "/"): kein Navigate. main.js ruft separat loadDashboard() auf.
-    if (!moduleKey) {
-      return;
-    }
-
-    // Legacy-Redirects: /auftrag/new, /auftragsdetails/new, /kampagne/new → Wizard
-    if (id === 'new' && (segment === 'auftrag' || segment === 'auftragsdetails' || segment === 'kampagne')) {
-      return this._redirect('/projekt-erstellen');
-    }
-    
-    if (id && segment === 'creator' && id !== 'new') {
-      moduleKey = 'creator-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Creator-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    if (segment === 'creator-lists' && id) {
-      moduleKey = 'creator-list-detail';
-      module = this.modules.get(moduleKey);
-      console.log('🎯 Creator-Listen-Detail erkannt');
-    }
-
-    if (id && segment === 'mitarbeiter' && id !== 'new') {
-      moduleKey = 'mitarbeiter-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Mitarbeiter-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    if (id && (segment === 'kunden-admin') && id !== 'new') {
-      moduleKey = 'kunden-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Kunden-Admin-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    if (id && segment === 'kunden-kooperation' && id !== 'new') {
-      moduleKey = 'kunden-kooperation-detail';
-      module = this.modules.get(moduleKey);
-      console.log('🎯 Kunden Kooperation-Detail erkannt');
-    }
-    
-    if (id && segment === 'marke' && id !== 'new') {
-      moduleKey = 'marke-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Marken-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    if (id && segment === 'unternehmen' && id !== 'new') {
-      moduleKey = 'unternehmen-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Unternehmen-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    // Personas und Produkte gehoeren dem Unternehmen, lassen sich aber auch aus
-    // einer Marke heraus anlegen. Beide Routen fuehren auf dasselbe Formular,
-    // das seinen Besitzer-Kontext aus dem Pfad ableitet (OwnerContext.js).
-    // Top-Level: /persona (Liste), /persona/new und /persona/:id (Standalone-Formular).
-    if (segment === 'persona' && id) {
-      moduleKey = 'persona-form';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Persona-Formular erkannt (standalone), verwende Modul: ${moduleKey}`);
-      if (module) {
-        this.currentModule = module;
-        this._didInitModule = true;
-        return module.init(id);
-      }
-    }
-
-    // /:segment/:ownerId/persona bzw. ?persona=:id zum Bearbeiten
-    if (id && id !== 'new' && (segment === 'marke' || segment === 'unternehmen') && action === 'persona') {
-      moduleKey = 'persona-form';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Persona-Formular erkannt (${segment}), verwende Modul: ${moduleKey}`);
-    }
-
-    // Top-Level: /produkt (Liste), /produkt/new und /produkt/:id (Standalone-Formular).
-    if (segment === 'produkt' && id) {
-      moduleKey = 'produkt-form';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Produkt-Formular erkannt (standalone), verwende Modul: ${moduleKey}`);
-      if (module) {
-        this.currentModule = module;
-        this._didInitModule = true;
-        return module.init(id);
-      }
-    }
-
-    // /:segment/:ownerId/produkt bzw. ?produkt=:id zum Bearbeiten
-    if (id && id !== 'new' && (segment === 'marke' || segment === 'unternehmen') && action === 'produkt') {
-      moduleKey = 'produkt-form';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Produkt-Formular erkannt (${segment}), verwende Modul: ${moduleKey}`);
-    }
-
-    if (segment === 'produkt' && id) {
-      moduleKey = 'produkt-form';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Produkt-Formular erkannt (Liste${id === 'new' ? '' : '-Detail'}), verwende Modul: produkt-form`);
-    }
-    
-    if (id === 'new' && segment === 'auftragsdetails') {
-      return this._redirect('/projekt-erstellen');
-    }
-    else if (id && segment === 'auftragsdetails' && id !== 'new' && action === 'edit') {
-      // Wizard-Redirect: auftrag_id aus den Details laden, dann Wizard-Edit öffnen
-      moduleKey = 'auftragsdetails-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Auftragsdetails-Edit → Wizard-Redirect für ID: ${id}`);
-      if (module) {
-        this.currentModule = module;
-        try {
-          const { data } = await window.supabase
-            .from('auftrag_details')
-            .select('auftrag_id')
-            .eq('id', id)
-            .single();
-          if (data?.auftrag_id) {
-            return this._redirect(`/projekt-erstellen/edit/${data.auftrag_id}`);
-          }
-        } catch (e) {
-          console.warn('⚠️ Auftragsdetails-Edit Wizard-Redirect fehlgeschlagen:', e);
-        }
-        return module.init?.(id);
-      }
-    }
-    else if (id && segment === 'auftragsdetails' && id !== 'new') {
-      moduleKey = 'auftragsdetails-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Auftragsdetails-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
-    // Auftrag/Contract-Edit laeuft ueber den Wizard. Das alte FormSystem-Formular
-    // schreibt nur die auftrag-Zeile und laesst auftrag_teilrechnung unberuehrt,
-    // wodurch Kundenrechnungen weiter die alten Teilrechnungsbetraege zeigen.
-    else if (id && id !== 'new' && action === 'edit' && (segment === 'auftrag' || segment === 'contracts')) {
-      return this._redirect(`/projekt-erstellen/edit/${id.split('?')[0]}`);
-    }
-
-    else if (id && segment === 'auftrag' && id !== 'new') {
-      moduleKey = 'auftrag-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Auftrags-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
-    if (id === 'new' && segment === 'kooperation') {
-      moduleKey = 'kooperation';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Kooperations-Erstellung erkannt, verwende Modul: ${moduleKey}`);
-    }
-    else if (id && segment === 'kooperation' && id !== 'new') {
-      moduleKey = 'kooperation-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Kooperations-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    const idCleanForVideo = id ? id.split('?')[0] : id;
-    if (idCleanForVideo && segment === 'video' && idCleanForVideo !== 'new') {
-      moduleKey = 'kooperation-video-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Video-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
-    if (id && segment === 'kampagne' && id !== 'new' && action === 'edit') {
-      // Kampagne bearbeiten → Wizard via auftrag_id
-      console.log(`🎯 Kampagne-Edit → Wizard-Redirect für Kampagne-ID: ${id}`);
-      try {
-        const { data } = await window.supabase
-          .from('kampagne')
-          .select('auftrag_id')
-          .eq('id', id)
-          .single();
-        if (data?.auftrag_id) {
-          return this._redirect(`/projekt-erstellen/edit/${data.auftrag_id}?step=kampagnen`);
-        }
-      } catch (e) {
-        console.warn('⚠️ Kampagne-Edit Wizard-Redirect fehlgeschlagen:', e);
-      }
-      moduleKey = 'kampagne-detail';
-      module = this.modules.get(moduleKey);
-    }
-    else if (id && segment === 'kampagne' && id !== 'new') {
-      moduleKey = 'kampagne-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Kampagnen-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    if (id && segment === 'contracts' && id !== 'new') {
-      moduleKey = 'contracts-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Contract-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    if (segment === 'contracts' && !id) {
-      console.log(`🔄 /contracts → /auftrag (Contracts-Tab)`);
-      moduleKey = 'auftrag';
-      module = this.modules.get(moduleKey);
-      if (module) module._pendingTab = 'contracts';
-    }
-    
-    if (segment === 'briefing' && id === 'new') {
-      moduleKey = 'briefing-create';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Briefing-Generator erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    if (segment === 'briefing' && id && id !== 'new' && action === 'edit') {
-      moduleKey = 'briefing-create';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Briefing-Bearbeitung erkannt, verwende Modul: ${moduleKey} mit ID: ${id}`);
-    }
-
-    if (id && segment === 'briefing' && id !== 'new' && action !== 'edit') {
-      moduleKey = 'briefing-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Briefing-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
-    if (id && segment === 'rechnung' && id !== 'new') {
-      moduleKey = 'rechnung-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Rechnung-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
-    if (id && segment === 'konzepte' && id !== 'new') {
-      moduleKey = 'konzepte-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Konzepte-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
-    if (id && segment === 'castings' && id !== 'new') {
-      moduleKey = 'castings-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Castings-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
-    if (id && segment === 'education') {
-      moduleKey = 'education-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Education-Artikel erkannt, verwende Modul: ${moduleKey}, slug: ${id}`);
-    }
-
-    if (id && segment === 'ansprechpartner') {
-      moduleKey = 'ansprechpartner-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Ansprechpartner-Details/Erstellung erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    // /management-ansprechpartner: gefilterte Ansprechpartner-Liste (mode='management')
-    if (segment === 'management-ansprechpartner' && id === 'new') {
-      moduleKey = 'management-ansprechpartner-create';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Management-Ansprechpartner-Erstellung erkannt, verwende Modul: ${moduleKey}`);
-    } else if (segment === 'management-ansprechpartner' && id) {
-      // Detail-Ansicht nutzt das gleiche AnsprechpartnerDetail
-      moduleKey = 'ansprechpartner-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Management-Ansprechpartner-Details, verwende Modul: ${moduleKey}`);
-    }
-
-    // /management-creator: gefilterte Creator-Liste (mode='management')
-    if (segment === 'management-creator' && id) {
-      // Detail-Ansicht nutzt das gleiche CreatorDetail
-      moduleKey = 'creator-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Management-Creator-Details, verwende Modul: ${moduleKey}`);
-    }
-
-    if (segment === 'management' && id === 'new') {
-      moduleKey = 'management-create';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Management-Erstellung erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    if (id && segment === 'management' && id !== 'new') {
-      moduleKey = 'management-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Management-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
-    if (segment === 'vertraege' && id === 'new') {
-      moduleKey = 'vertraege-create';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Vertraege-Erstellung erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    if (segment === 'vertraege' && id && action === 'edit') {
-      moduleKey = 'vertraege-create';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Vertraege-Bearbeitung erkannt, verwende Modul: ${moduleKey} mit ID: ${id}`);
-    }
-
-    if (segment === 'projekt-erstellen') {
-      moduleKey = 'projekt-erstellen';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Projekt-Erstellen, verwende Modul: ${moduleKey}`);
-      if (module) {
-        this.currentModule = module;
-        // Edit-Routen: /projekt-erstellen/edit/:id ODER /projekt-erstellen/:id/edit
-        const editId = (id === 'edit' && action)
-          ? action
-          : (id && id !== 'new' && action === 'edit' ? id : null);
-        if (editId && module.initForEdit) {
-          return module.initForEdit(editId);
-        }
-        if (module.init) {
-          return module.init();
-        }
-      }
-    }
-
-    if (module) {
-      console.log(`✅ Modul gefunden: ${moduleKey}`, module);
-      this.currentModule = module;
-      this._didInitModule = true;
-
-      const effectiveId = id ? id.split('?')[0] : id;
-      if (effectiveId === 'new') {
-        if (segment === 'skripte') {
-          return module.init?.('new');
-        }
-        if (segment === 'vertraege' || segment === 'briefing' || segment === 'produkt') {
-          return module.init?.();
-        }
-        if (segment === 'rechnung') {
-          moduleKey = 'rechnung-detail';
-          module = this.modules.get(moduleKey);
-          return module.init?.('new');
-        }
-        console.log(`📝 Zeige Erstellungsformular für: ${segment}`);
-        if (moduleKey.includes('-detail')) {
-          return module.init?.('new');
-        } else {
-          return module.showCreateForm?.();
-        }
-      } else if (effectiveId) {
-        if (isEditMode) {
-          console.log(`✏️ Zeige Edit-Formular für: ${segment}/${id}`);
-          if ((segment === 'vertraege' || segment === 'briefing') && module && module.init) {
-            return module.init(effectiveId);
-          }
-          // Fast-Path: Wenn das Modul initForEdit implementiert, diesen direkt nutzen
-          // (kein Detail-Render-Flash vor der Edit-Form).
-          if (module && typeof module.initForEdit === 'function') {
-            return module.initForEdit(effectiveId);
-          }
-          if (module && module.init) {
-            module.init(effectiveId).then(() => {
-              if (module.showEditForm) {
-                module.showEditForm();
-              }
-            });
-            return;
-          }
-        } else {
-          console.log(`👁️ Zeige Details für: ${segment}/${id}`);
-          if (segment === 'skripte') {
-            return module.init?.(effectiveId, action || null);
-          }
-          return module.init?.(effectiveId);
-        }
-      } else {
-        console.log(`🚀 Initialisiere Modul: ${segment}`);
-        return module.init();
-      }
-    } else {
-      console.warn(`❌ Modul nicht gefunden: ${moduleKey} - bleibe auf aktueller Seite`);
-      return;
+  _restoreStayRoute(skipPushState) {
+    if (!skipPushState) return;
+    const stay = this.currentModule?.stayRoute;
+    if (!stay || !window.history?.pushState) return;
+    try {
+      window.history.pushState({ route: stay }, '', stay);
+    } catch (error) {
+      console.warn('⚠️ Rückkehr zur Seite fehlgeschlagen:', error?.message || error);
     }
   }
 
-  loadDashboard() {
+  async loadDashboard() {
+    if (this._isNavigating) return;
+    const needsGuard = typeof this.currentModule?.beforeLeave === 'function';
+    if (needsGuard) this._isNavigating = true;
+    try {
+      if (needsGuard) {
+        const allowed = await this._confirmLeave(false);
+        if (!allowed) return;
+      }
+      this._showDashboard();
+    } finally {
+      if (needsGuard) this._isNavigating = false;
+    }
+  }
+
+  _showDashboard() {
     if (this.currentModule && this.currentModule.destroy) {
       this.currentModule.destroy();
       this.currentModule = null;
