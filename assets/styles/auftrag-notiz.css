@@ -1,0 +1,123 @@
+/* Arbeitsnotiz auf den Auftragsdetails. Abschnitt wie Kampagnen, Feld wie die bestehenden Textfelder. */
+
+.auftrag-notiz__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.auftrag-notiz__status {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.auftrag-notiz__body {
+  padding: var(--space-md);
+}
+
+.auftrag-notiz__read,
+.auftrag-notiz__input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--gray-900);
+  background: white;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-height: calc(1.5em + (2 * var(--space-sm)));
+  max-height: calc((10 * 1.5em) + (2 * var(--space-sm)));
+}
+
+.auftrag-notiz__read {
+  overflow-y: auto;
+  cursor: text;
+}
+
+.auftrag-notiz__read.is-empty {
+  color: var(--text-secondary);
+}
+
+.auftrag-notiz__read a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.auftrag-notiz__tools {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+
+.auftrag-notiz__tool {
+  width: 28px;
+  height: 28px;
+  font-size: var(--text-sm);
+}
+
+.auftrag-notiz__input {
+  display: block;
+  overflow-y: auto;
+}
+
+.auftrag-notiz__input.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-secondary);
+}
+
+.auftrag-notiz__read strong,
+.auftrag-notiz__input strong {
+  font-weight: 600;
+}
+
+.auftrag-notiz__read em,
+.auftrag-notiz__input em {
+  font-style: italic;
+}
+
+.auftrag-notiz__input:focus {
+  outline: none;
+  border-color: var(--gray-900);
+}
+
+.auftrag-notiz.is-loading .auftrag-notiz__read {
+  cursor: default;
+}
+
+.auftrag-notiz__conflict {
+  margin-top: var(--space-sm);
+}
+
+.auftrag-notiz__conflict .mdc-btn {
+  margin-top: var(--space-sm);
+}
+
+.auftrag-notiz__error,
+.auftrag-notiz__limit,
+.auftrag-notiz__meta {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.auftrag-notiz__error {
+  color: var(--color-danger-dark);
+}
+
+.auftrag-notiz__input[hidden],
+.auftrag-notiz__tools[hidden],
+.auftrag-notiz__read[hidden],
+.auftrag-notiz__status[hidden],
+.auftrag-notiz__conflict[hidden],
+.auftrag-notiz__error[hidden],
+.auftrag-notiz__meta[hidden],
+.auftrag-notiz__limit[hidden] {
+  display: none !important;
+}
