@@ -90,7 +90,8 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       };
       const getNutzungsdauerText = (v) => {
         if (v.nutzungsdauer === 'individuell' && v.nutzungsdauer_custom_wert != null) {
-          const einheit = v.nutzungsdauer_custom_einheit === 'jahre' ? 'Jahre' : 'Monate';
+          const einheitLabels = { jahre: 'Jahre', monate: 'Monate', wochen: 'Wochen', tage: 'Tage' };
+          const einheit = einheitLabels[v.nutzungsdauer_custom_einheit] || 'Monate';
           return `${v.nutzungsdauer_custom_wert} ${einheit}`;
         }
         return nutzungsdauerLabels[v.nutzungsdauer] || '-';

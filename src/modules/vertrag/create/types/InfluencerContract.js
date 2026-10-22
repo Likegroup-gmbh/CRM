@@ -371,6 +371,8 @@ VertraegeCreate.prototype.renderInfluencerStep4 = function() {
             <select id="nutzungsdauer_custom_einheit" name="nutzungsdauer_custom_einheit">
               <option value="jahre" ${this.formData.nutzungsdauer_custom_einheit === 'jahre' ? 'selected' : ''}>Jahre</option>
               <option value="monate" ${!this.formData.nutzungsdauer_custom_einheit || this.formData.nutzungsdauer_custom_einheit === 'monate' ? 'selected' : ''}>Monate</option>
+              <option value="wochen" ${this.formData.nutzungsdauer_custom_einheit === 'wochen' ? 'selected' : ''}>Wochen</option>
+              <option value="tage" ${this.formData.nutzungsdauer_custom_einheit === 'tage' ? 'selected' : ''}>Tage</option>
             </select>
           </div>
         </div>
