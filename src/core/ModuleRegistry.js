@@ -81,11 +81,12 @@ export class ModuleRegistry {
   // Modul kann das Verlassen ablehnen (ungesicherte Notiz, fremder Stand).
   // skipPushState: die URL ist schon das Ziel, dann zurück auf stayRoute.
   async _confirmLeave(skipPushState = false) {
-    const guard = this.currentModule?.beforeLeave;
+    const page = this.currentModule;
+    const guard = page?.beforeLeave;
     if (typeof guard !== 'function') return true;
     let allowed = true;
     try {
-      allowed = await guard();
+      allowed = await guard.call(page);
     } catch (error) {
       console.warn('⚠️ Verlassen der Seite abgebrochen:', error?.message || error);
       allowed = false;
