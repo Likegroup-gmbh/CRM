@@ -212,4 +212,23 @@ describe('Seitenwechsel mit beforeLeave', () => {
     expect(page.destroy).toHaveBeenCalled();
     expect(nextPage.init).toHaveBeenCalledWith('abc');
   });
+
+  it('lässt eine Klassenmethode auf ihre Seite zugreifen', async () => {
+    class Page {
+      constructor() {
+        this._notiz = { beforeLeave: vi.fn(async () => true) };
+      }
+      destroy() {}
+      beforeLeave() {
+        return this._notiz.beforeLeave();
+      }
+    }
+    const page = new Page();
+    registry.currentModule = page;
+
+    await registry.navigateTo('/kampagne/abc', true);
+
+    expect(page._notiz.beforeLeave).toHaveBeenCalled();
+    expect(nextPage.init).toHaveBeenCalledWith('abc');
+  });
 });
