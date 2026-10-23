@@ -7,6 +7,7 @@ import { formatCompactNumber, formatExactNumber } from '../../core/format/compac
 import { renderChipCell, renderPlatformChip, renderStaticChip } from '../../core/components/chipCell.js';
 import { liveLinkDotState, LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { CONTENT_ART_OPTIONS } from '../kooperation/contentArtOptions.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 
@@ -156,18 +157,25 @@ export function renderThemaInner(ctx, video) {
       `;
 }
 
+export function contentArtOptionsHtml(selectedValue) {
+  const options = [...CONTENT_ART_OPTIONS];
+  if (selectedValue && !options.includes(selectedValue)) {
+    options.unshift(selectedValue);
+  }
+  const items = options.map(option => {
+    const value = escapeHtml(option);
+    const selected = selectedValue === option ? ' selected' : '';
+    return `<option value="${value}"${selected}>${value}</option>`;
+  });
+  return ['<option value="">– bitte wählen –</option>', ...items].join('');
+}
+
 export function renderOrganicPaidInner(ctx, video) {
   return `
         <select class="grid-select stacked-video-select" 
           data-entity="video" data-id="${video.id}" data-field="content_art"
           ${!ctx.t.isFieldEditableForUser('video', 'content_art') ? 'disabled' : ''}>
-          <option value="">– bitte wählen –</option>
-          <option value="Paid" ${video.content_art === 'Paid' ? 'selected' : ''}>Paid</option>
-          <option value="Organisch" ${video.content_art === 'Organisch' ? 'selected' : ''}>Organisch</option>
-          <option value="Influencer" ${video.content_art === 'Influencer' ? 'selected' : ''}>Influencer</option>
-          <option value="Videograph" ${video.content_art === 'Videograph' ? 'selected' : ''}>Videograph</option>
-          <option value="Whitelisting" ${video.content_art === 'Whitelisting' ? 'selected' : ''}>Whitelisting</option>
-          <option value="Spark-Ad" ${video.content_art === 'Spark-Ad' ? 'selected' : ''}>Spark-Ad</option>
+          ${contentArtOptionsHtml(video.content_art)}
         </select>
       `;
 }
