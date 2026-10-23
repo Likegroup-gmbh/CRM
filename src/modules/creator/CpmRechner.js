@@ -1,16 +1,17 @@
 import { berechnePreisAusViews, DEFAULT_TKP } from '../creator-auswahl/castingPreisZellen.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { bindMoneyInput, setMoneyInputValue } from '../../core/form/moneyInput.js';
+import { parseCurrencyInput } from '../../core/utils/parseCurrency.js';
 import { openDrawer } from './creatorDrawer.js';
 import { formatFollowerShort, searchTokens } from './creatorProfil.js';
 
 const DRAWER_ID = 'cpm-rechner-drawer';
 const FELDER = ['views', 'tkp', 'preis'];
 
-/** Leer und 0 rechnen nicht mit. */
+/** Leer und 0 rechnen nicht mit. Versteht 2.000,00 ebenso wie 2000.00. */
 function positiv(value) {
-  if (value == null || value === '') return null;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return null;
+  const n = parseCurrencyInput(value);
+  if (n == null || n <= 0) return null;
   return n;
 }
 
@@ -75,7 +76,7 @@ export function openCpmRechner() {
       </div>
       <div class="form-field">
         <label for="cpm-preis">Preis in Euro</label>
-        <input id="cpm-preis" type="number" min="0" step="0.01" class="form-input" />
+        <input id="cpm-preis" type="text" inputmode="decimal" class="form-input" placeholder="0,00" autocomplete="off" />
       </div>
       <div class="form-field">
         <label for="cpm-creator-search-input">Creator als Quelle</label>
@@ -110,6 +111,11 @@ export function openCpmRechner() {
 
   const schreibe = (feld, wert) => {
     const input = felder[feld];
+    if (feld === 'preis') {
+      if (wert == null) input.value = '';
+      else setMoneyInputValue(input, wert);
+      return;
+    }
     if (wert == null) {
       input.value = '';
       return;
@@ -145,6 +151,7 @@ export function openCpmRechner() {
     zeigeHinweis('');
   };
 
+  bindMoneyInput(preis);
   views.addEventListener('input', () => wendeAn('views'));
   tkp.addEventListener('input', () => wendeAn('tkp'));
   preis.addEventListener('input', () => wendeAn('preis'));
