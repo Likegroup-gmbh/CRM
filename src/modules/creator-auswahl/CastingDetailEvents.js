@@ -14,10 +14,21 @@ import {
   OHNE_KATEGORIE_KEY,
   kategorieGroupKey
 } from './castingKategorien.js';
+import { openCastingDetailDrawer } from './castingDetailDrawer.js';
 
 export function bindEvents() {
   this._boundEventListeners.forEach(cleanup => cleanup());
   this._boundEventListeners.clear();
+
+  const openDetail = (e) => {
+    const btn = e.target.closest('[data-open-casting-detail]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openCastingDetailDrawer(this, btn.dataset.openCastingDetail);
+  };
+  document.addEventListener('click', openDetail);
+  this._boundEventListeners.add(() => document.removeEventListener('click', openDetail));
 
   if (!this.isKunde && (this._canSourcing('edit') || this._canSourcing('create') || this._canSourcing('delete'))) {
     const actionClickHandler = (e) => {
@@ -203,7 +214,8 @@ export function bindEvents() {
   const selectHandler = (e) => {
     const { field, itemId, value, element } = e.detail || {};
     const table = element?.closest('.creator-pool-table');
-    if (!table || !this._getRoot()?.contains(table)) return;
+    const imDrawer = element?.closest('#casting-detail-drawer');
+    if (!imDrawer && (!table || !this._getRoot()?.contains(table))) return;
 
     if (field === 'sourcing_status') this.handleStatusChange(itemId, value);
     else if (field === 'kunden_feedback') this.handleKundenFeedbackChange(itemId, value);

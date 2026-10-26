@@ -14,7 +14,7 @@ const POLL_TIMEOUT_MS = 4 * 60 * 1000;
 /** Function hat den Job nicht angefasst (Auth-504, Worker-Crash, Env). */
 export const JOB_START_WATCHDOG_MS = 25 * 1000;
 
-const VORSCHLAG_SELECT = '*, creator:creator_id(id, vorname, nachname, instagram, tiktok, instagram_follower, tiktok_follower, profilbild_thumb_url, profilbild_url, lieferadresse_stadt, mail, telefonnummer, creator_creator_type(creator_type_id(id,name)))';
+const VORSCHLAG_SELECT = '*, creator:creator_id(id, vorname, nachname, instagram, tiktok, instagram_follower, tiktok_follower, profilbild_thumb_url, profilbild_url, lieferadresse_stadt, mail, telefonnummer, ig_username, ig_biography, ig_media_count, ig_engagement_rate, ig_engagement_rate_clean, ig_trial_gate, ig_recent_posts, ig_recent_posts_clean, creator_creator_type(creator_type_id(id,name)))';
 
 const ERLAUBTE_TYPEN = ['UGC Paid', 'UGC Organic', 'Influencer', 'Vor-Ort-Produktion', 'Videograf', 'Model'];
 
@@ -68,7 +68,8 @@ export function vorschlagToItem(vorschlag, { listeTyp } = {}) {
     profile_image_thumb_url: creator.profilbild_thumb_url || null,
     profile_image_url: creator.profilbild_url || null,
     matching_score: vorschlag.matching_score ?? matchingScore(scores),
-    matching_scores: scores
+    matching_scores: scores,
+    creator: vorschlag.creator || null
   };
 }
 

@@ -3,6 +3,7 @@
 // (Prototype-Mixin von CreatorAuswahlDetail)
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
+import { refreshCastingDrawer } from './castingDetailDrawer.js';
 import { renderItemRow } from './castingItemRow.js';
 import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
 import { setChipCellLoading } from '../../core/components/chipCell.js';
@@ -66,6 +67,7 @@ export async function handleInstagramFetch(itemId, button) {
       .fetchInstagramStats(itemId, { force });
     Object.assign(item, updated);
     this.refreshItemRow(itemId);
+    refreshCastingDrawer(this, itemId);
     // Die Zeile ist per outerHTML ersetzt, die Zelle unter der Leiste also
     // eine andere. rebind() verankert sie neu und zeigt jetzt "Frisch abrufen".
     hoverToolbar.rebind();

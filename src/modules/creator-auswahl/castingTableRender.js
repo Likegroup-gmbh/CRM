@@ -221,6 +221,8 @@ export function renderItemsTable(ctx) {
             ${customAt('cp-col-link-ig')}
             <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
             ${customAt('cp-col-follower-ig')}
+            <th class="cp-col-engagement-ig" ${hide('cp-col-engagement-ig')} title="Durchschnitt aus Likes und Kommentaren, geteilt durch Follower. Zweite Zeile ohne Trial-Reels, wenn das Gate greift.">Engagement ${INSTAGRAM_ICON}</th>
+            ${customAt('cp-col-engagement-ig')}
             <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 8))}">Preis 8 Reels ${INSTAGRAM_ICON}</th>
             ${customAt('cp-col-cpm-ig-8')}
             <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 30))}">Preis 30 Reels ${INSTAGRAM_ICON}</th>

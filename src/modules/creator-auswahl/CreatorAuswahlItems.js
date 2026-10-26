@@ -10,7 +10,7 @@ import { teileNachDuplikat } from './bestandZuCasting.js';
  */
 const ITEM_SELECT = `
       *,
-      creator:creator_id(id, vorname, nachname, instagram, tiktok),
+      creator:creator_id(id, vorname, nachname, instagram, tiktok, ig_username, ig_biography, ig_media_count, ig_engagement_rate, ig_engagement_rate_clean, ig_trial_gate, ig_recent_posts, ig_recent_posts_clean),
       persona:persona_id(id, name, oberbegriff)
 `;
 
