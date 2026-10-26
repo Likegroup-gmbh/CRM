@@ -23,6 +23,7 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
           name: draft.name,
           kunde_unternehmen_id: draft.kunde_unternehmen_id,
           kampagne_id: draft.kampagne_id,
+          produktion_id: draft.produktion_id || null,
           creator_id: draft.creator_id,
           kooperation_id: draft.kooperation_id,
           // UGC-spezifische Felder

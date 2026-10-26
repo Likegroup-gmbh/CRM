@@ -15,7 +15,6 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
       name: this.formData.name || null,
       kunde_unternehmen_id: this.formData.kunde_unternehmen_id || null,
       kampagne_id: typ === 'Contracting' ? null : (this.formData.kampagne_id || null),
-      produktion_id: typ === 'Contracting' ? null : (this.formData.produktion_id || null),
       creator_id: this.formData.creator_id || null,
       kooperation_id: typ === 'Contracting' ? null : (this.formData.kooperation_id || null),
       contracting_auftrag_id: typ === 'Contracting' ? (this.formData.contracting_auftrag_id || null) : null,
@@ -45,6 +44,15 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
       nur_management_adresse: !!this.formData.nur_management_adresse,
       vertreten_durch: vertretungGiltFuer(typ) ? vertretenDurchPayload(this.formData) : null
     };
+
+    // Produktion nur schreiben, wenn das Formular sie kennt. Ein Bearbeiten
+    // aus der Vertragsliste ohne diesen Wert darf den Workflow nicht abhängen.
+    // Contracting hängt nie an einer Produktion.
+    if (typ === 'Contracting') {
+      data.produktion_id = null;
+    } else if (this.formData.produktion_id) {
+      data.produktion_id = this.formData.produktion_id;
+    }
 
     if (typ === 'Influencer Kooperation') {
       // Influencer-spezifische Felder
