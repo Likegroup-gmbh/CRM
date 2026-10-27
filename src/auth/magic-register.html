@@ -183,48 +183,31 @@ import { icon } from '../core/icons/IconSystem.js';
     }
 
     try {
-      // Magic Link mit Ansprechpartner-Daten laden
-      const { data: magicLink, error: linkError } = await supabase
-        .from('magic_links')
-        .select(`
-          *,
-          ansprechpartner:ansprechpartner_id (
-            id,
-            vorname,
-            nachname,
-            email,
-            ansprechpartner_unternehmen (
-              unternehmen:unternehmen_id (id, firmenname)
-            ),
-            ansprechpartner_marke (
-              marke:marke_id (id, markenname)
-            )
-          )
-        `)
-        .eq('token', token)
-        .single();
+      // Token wird serverseitig geprüft (magic_link_vorschau); die Tabelle magic_links
+      // ist für nicht angemeldete Besucher nicht mehr lesbar.
+      const { data: vorschau, error: linkError } = await supabase
+        .rpc('magic_link_vorschau', { p_token: token });
 
-      if (linkError || !magicLink) {
+      if (linkError || !vorschau) {
         showError('Dieser Link ist ungültig oder wurde nicht gefunden.');
         return;
       }
 
-      // Prüfen ob bereits verwendet
-      if (magicLink.used_at) {
-        showError('Dieser Link wurde bereits verwendet. Bitte fordern Sie einen neuen Link an.');
-        return;
-      }
-
-      // Prüfen ob abgelaufen
-      if (new Date(magicLink.expires_at) < new Date()) {
-        showError('Dieser Link ist abgelaufen. Bitte fordern Sie einen neuen Link an.');
+      if (!vorschau.valid) {
+        if (vorschau.error === 'used') {
+          showError('Dieser Link wurde bereits verwendet. Bitte fordern Sie einen neuen Link an.');
+        } else if (vorschau.error === 'expired') {
+          showError('Dieser Link ist abgelaufen. Bitte fordern Sie einen neuen Link an.');
+        } else {
+          showError('Dieser Link ist ungültig oder wurde nicht gefunden.');
+        }
         return;
       }
 
       // Erfolg - Formular anzeigen
       validationData = {
-        ansprechpartner: magicLink.ansprechpartner,
-        magicLinkId: magicLink.id
+        ansprechpartner: vorschau.ansprechpartner || {},
+        magicLinkId: vorschau.magic_link_id
       };
       showRegisterForm(validationData);
 
@@ -256,115 +239,37 @@ import { icon } from '../core/icons/IconSystem.js';
     }
 
     try {
-      const ansprechpartner = validationData.ansprechpartner;
-
-      // 1. Supabase Auth User erstellen
+      // Rolle und Verknüpfungen entstehen serverseitig (Trigger handle_new_auth_user):
+      // Der Token wird dort geprüft und beansprucht. Der Browser schickt keine Rolle mehr
+      // und schreibt nichts mehr auf benutzer.
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/src/auth/verify-email.html?redirect_to=/kunden&magic_token=${encodeURIComponent(token)}`,
-          data: { 
-            role: 'kunde', 
-            subrole: 'can_view', 
+          emailRedirectTo: `${window.location.origin}/src/auth/verify-email.html?redirect_to=/kunden`,
+          data: {
+            magic_token: token,
             name,
             vorname,
             nachname,
-            source: 'magic_link',
-            ansprechpartner_id: ansprechpartner.id
+            geburtsdatum,
+            source: 'magic_link'
           }
         }
       });
 
       if (authError) throw authError;
 
-      const authUserId = authData.user?.id;
-      if (!authUserId) throw new Error('Registrierung fehlgeschlagen');
+      if (!authData.user?.id) throw new Error('Registrierung fehlgeschlagen');
 
-      // 2. Bestehenden Kunden per E-Mail wiederverwenden (kein Dubletten-Kunde)
-      const { data: existingByEmail, error: existingLookupError } = await supabase
-        .from('benutzer')
-        .select('id, auth_user_id')
-        .ilike('email', email)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (existingLookupError) throw existingLookupError;
-
-      const existingKunde = existingByEmail?.[0] || null;
-
-      if (existingKunde?.auth_user_id && existingKunde.auth_user_id !== authUserId) {
+      // Bereits registrierte E-Mail: Supabase liefert dann einen Schein-User ohne Identities.
+      // Der Token wurde in diesem Fall nicht beansprucht.
+      if (Array.isArray(authData.user.identities) && authData.user.identities.length === 0) {
         throw new Error('E-Mail ist bereits mit einem anderen Login verknüpft.');
       }
 
-      let benutzerData = null;
-      let benutzerError = null;
-
-      if (existingKunde) {
-        const updatePayload = {
-          auth_user_id: authUserId,
-          name,
-          vorname,
-          nachname,
-          geburtsdatum,
-          rolle: 'kunde',
-          freigeschaltet: true
-        };
-
-        const { data, error } = await supabase
-          .from('benutzer')
-          .update(updatePayload)
-          .eq('id', existingKunde.id)
-          .select()
-          .single();
-
-        benutzerData = data;
-        benutzerError = error;
-      } else {
-        const { data, error } = await supabase
-          .from('benutzer')
-          .upsert({
-            auth_user_id: authUserId,
-            name,
-            vorname,
-            nachname,
-            email,
-            geburtsdatum,
-            rolle: 'kunde',
-            freigeschaltet: true
-          }, {
-            onConflict: 'auth_user_id'
-          })
-          .select()
-          .single();
-
-        benutzerData = data;
-        benutzerError = error;
-      }
-
-      if (benutzerError) throw benutzerError;
-
-      // Alle Verknüpfungen atomar über SECURITY DEFINER Funktion erstellen
-      // (umgeht RLS, da nach signUp() ohne Email-Confirm kein auth.uid() vorhanden ist)
-      const kundeId = benutzerData?.id;
-      if (kundeId && ansprechpartner?.id) {
-        const { data: linkResult, error: linkError } = await supabase
-          .rpc('link_kunde_from_magic_link', {
-            p_kunde_id: kundeId,
-            p_ansprechpartner_id: ansprechpartner.id,
-            p_magic_link_id: validationData.magicLinkId
-          });
-
-        if (linkError) {
-          console.error('❌ Verknüpfung fehlgeschlagen:', linkError);
-          throw new Error('Konto erstellt, aber Verknüpfung fehlgeschlagen. Bitte kontaktieren Sie den Support.');
-        }
-
-        console.log('✅ Verknüpfungen erstellt:', linkResult);
-      }
-
       // Weiterleitung zur E-Mail-Verifizierung
-      window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden&magic_token=${encodeURIComponent(token)}`;
+      window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden`;
 
     } catch (error) {
       console.error('Registration error:', error);

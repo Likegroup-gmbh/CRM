@@ -76,7 +76,9 @@ export class MagicLinkService {
   }
 
   /**
-   * Validiert einen Token und lädt Ansprechpartner-Daten
+   * Validiert einen Token und lädt Ansprechpartner-Daten.
+   * Die Prüfung läuft serverseitig (RPC magic_link_vorschau); die Tabelle magic_links ist für
+   * nicht angemeldete Besucher nicht lesbar.
    * @param {string} token - Der zu validierende Token
    * @returns {Promise<{valid: boolean, ansprechpartner?: object, magicLink?: object, error?: string}>}
    */
@@ -86,52 +88,30 @@ export class MagicLinkService {
         throw new Error('Supabase nicht verfügbar');
       }
 
-      // Magic Link mit Ansprechpartner-Daten laden
-      const { data: magicLink, error: linkError } = await window.supabase
-        .from('magic_links')
-        .select(`
-          *,
-          ansprechpartner:ansprechpartner_id (
-            id,
-            vorname,
-            nachname,
-            email,
-            ansprechpartner_unternehmen (
-              unternehmen:unternehmen_id (id, firmenname)
-            ),
-            ansprechpartner_marke (
-              marke:marke_id (id, markenname)
-            )
-          )
-        `)
-        .eq('token', token)
-        .single();
+      const { data: vorschau, error: linkError } = await window.supabase
+        .rpc('magic_link_vorschau', { p_token: token });
 
-      if (linkError || !magicLink) {
+      if (linkError || !vorschau) {
         console.log('❌ Token nicht gefunden');
         return { valid: false, error: 'Ungültiger oder abgelaufener Link' };
       }
 
-      // Prüfen ob bereits verwendet
-      if (magicLink.used_at) {
-        console.log('❌ Token bereits verwendet');
-        return { valid: false, error: 'Dieser Link wurde bereits verwendet' };
+      if (!vorschau.valid) {
+        const fehler = {
+          used: 'Dieser Link wurde bereits verwendet',
+          expired: 'Dieser Link ist abgelaufen'
+        };
+        const message = fehler[vorschau.error] || 'Ungültiger oder abgelaufener Link';
+        console.log('❌ Token nicht verwendbar:', vorschau.error);
+        return { valid: false, error: message };
       }
-
-      // Prüfen ob abgelaufen
-      if (new Date(magicLink.expires_at) < new Date()) {
-        console.log('❌ Token abgelaufen');
-        return { valid: false, error: 'Dieser Link ist abgelaufen' };
-      }
-
-      console.log('✅ Token gültig:', { ansprechpartner: magicLink.ansprechpartner });
 
       return {
         valid: true,
-        ansprechpartner: magicLink.ansprechpartner,
+        ansprechpartner: vorschau.ansprechpartner,
         magicLink: {
-          id: magicLink.id,
-          expiresAt: magicLink.expires_at
+          id: vorschau.magic_link_id,
+          expiresAt: vorschau.expires_at
         }
       };
     } catch (error) {
@@ -143,73 +123,15 @@ export class MagicLinkService {
     }
   }
 
-  async syncCustomerLinksFromAnsprechpartner(kundeId, ansprechpartner) {
-    if (!kundeId || !ansprechpartner) return;
-
-    // Unternehmen-Zuordnungen idempotent ergänzen
-    const unternehmenLinks = (ansprechpartner.ansprechpartner_unternehmen || [])
-      .map(au => au?.unternehmen?.id)
-      .filter(Boolean)
-      .map(unternehmenId => ({
-        kunde_id: kundeId,
-        unternehmen_id: unternehmenId
-      }));
-
-    if (unternehmenLinks.length > 0) {
-      const { error: unternehmenError } = await window.supabase
-        .from('kunde_unternehmen')
-        .upsert(unternehmenLinks, { onConflict: 'kunde_id,unternehmen_id', ignoreDuplicates: true });
-
-      if (unternehmenError) {
-        console.warn('⚠️ Unternehmen-Verknüpfung fehlgeschlagen:', unternehmenError);
-      } else {
-        console.log('✅ Unternehmen verknüpft:', unternehmenLinks.length);
-      }
-    }
-
-    // Marken-Zuordnungen idempotent ergänzen
-    const markenLinks = (ansprechpartner.ansprechpartner_marke || [])
-      .map(am => am?.marke?.id)
-      .filter(Boolean)
-      .map(markeId => ({
-        kunde_id: kundeId,
-        marke_id: markeId
-      }));
-
-    if (markenLinks.length > 0) {
-      const { error: markenError } = await window.supabase
-        .from('kunde_marke')
-        .upsert(markenLinks, { onConflict: 'kunde_id,marke_id', ignoreDuplicates: true });
-
-      if (markenError) {
-        console.warn('⚠️ Marken-Verknüpfung fehlgeschlagen:', markenError);
-      } else {
-        console.log('✅ Marken verknüpft:', markenLinks.length);
-      }
-    }
-
-    // Kunde ↔ Ansprechpartner idempotent ergänzen
-    const { error: linkError } = await window.supabase
-      .from('kunde_ansprechpartner')
-      .upsert({
-        kunde_id: kundeId,
-        ansprechpartner_id: ansprechpartner.id
-      }, { onConflict: 'kunde_id,ansprechpartner_id', ignoreDuplicates: true });
-
-    if (linkError) {
-      console.warn('⚠️ Kunde-Ansprechpartner Verknüpfung fehlgeschlagen:', linkError);
-    } else {
-      console.log('✅ Kunde mit Ansprechpartner verknüpft');
-    }
-  }
-
   /**
-   * Registriert einen neuen Kunden über Magic Link
+   * Registriert einen neuen Kunden über Magic Link.
+   * Rolle, Freischaltung und Verknüpfungen setzt ausschließlich der Datenbank-Trigger
+   * handle_new_auth_user anhand des Tokens. Der Browser schickt nur den Token mit.
    * @param {string} token - Magic Link Token
    * @param {string} email - E-Mail des Kunden
    * @param {string} password - Passwort
    * @param {string} name - Name des Kunden
-   * @returns {Promise<{success: boolean, userId?: string, error?: string}>}
+   * @returns {Promise<{success: boolean, authUserId?: string, email?: string, error?: string}>}
    */
   async registerWithMagicLink(token, email, password, name) {
     try {
@@ -217,26 +139,20 @@ export class MagicLinkService {
         throw new Error('Supabase nicht verfügbar');
       }
 
-      // 1. Token validieren
       const validation = await this.validateToken(token);
       if (!validation.valid) {
         return { success: false, error: validation.error };
       }
 
-      const { ansprechpartner, magicLink } = validation;
-
-      // 2. Supabase Auth User erstellen
       const { data: authData, error: authError } = await window.supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${this.baseUrl}/src/auth/verify-email.html?redirect_to=/kunden`,
-          data: { 
-            role: 'kunde', 
-            subrole: 'can_view', 
+          data: {
+            magic_token: token,
             name,
-            source: 'magic_link',
-            ansprechpartner_id: ansprechpartner.id
+            source: 'magic_link'
           }
         }
       });
@@ -251,84 +167,16 @@ export class MagicLinkService {
         throw new Error('Auth User ID nicht erhalten');
       }
 
-      // 3. Bestehenden Kunden via E-Mail wiederverwenden, sonst neu anlegen
-      const { data: existingByEmail, error: existingLookupError } = await window.supabase
-        .from('benutzer')
-        .select('id, auth_user_id')
-        .ilike('email', email)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (existingLookupError) {
-        throw existingLookupError;
-      }
-
-      const existingKunde = existingByEmail?.[0] || null;
-      if (existingKunde?.auth_user_id && existingKunde.auth_user_id !== authUserId) {
+      // Bereits registrierte E-Mail: Supabase liefert einen Schein-User ohne Identities,
+      // der Token wurde dann nicht beansprucht.
+      if (Array.isArray(authData.user.identities) && authData.user.identities.length === 0) {
         throw new Error('E-Mail ist bereits mit einem anderen Login verknüpft.');
       }
 
-      let benutzerData = null;
-
-      if (existingKunde) {
-        const { data, error: updateError } = await window.supabase
-          .from('benutzer')
-          .update({
-            auth_user_id: authUserId,
-            name,
-            rolle: 'kunde',
-            freigeschaltet: true,
-            zugriffsrechte: null
-          })
-          .eq('id', existingKunde.id)
-          .select()
-          .single();
-
-        if (updateError) throw updateError;
-        benutzerData = data;
-      } else {
-        const { data, error: benutzerError } = await window.supabase
-          .from('benutzer')
-          .upsert({
-            auth_user_id: authUserId,
-            name,
-            email,
-            rolle: 'kunde',
-            freigeschaltet: true, // Direkt freigeschaltet da über Magic Link
-            zugriffsrechte: null
-          }, {
-            onConflict: 'auth_user_id'
-          })
-          .select()
-          .single();
-
-        if (benutzerError) throw benutzerError;
-        benutzerData = data;
-      }
-
-      const kundeId = benutzerData?.id;
-
-      // 4. Alle Verknüpfungen + Magic Link consume atomar über SECURITY DEFINER Funktion
-      if (kundeId) {
-        const { data: linkResult, error: linkError } = await window.supabase
-          .rpc('link_kunde_from_magic_link', {
-            p_kunde_id: kundeId,
-            p_ansprechpartner_id: ansprechpartner.id,
-            p_magic_link_id: magicLink.id
-          });
-
-        if (linkError) {
-          console.error('❌ Verknüpfung fehlgeschlagen:', linkError);
-        } else {
-          console.log('✅ Verknüpfungen erstellt:', linkResult);
-        }
-      }
-
-      console.log('✅ Registrierung über Magic Link erfolgreich:', { kundeId, email });
+      console.log('✅ Registrierung über Magic Link erfolgreich:', { authUserId, email });
 
       return {
         success: true,
-        userId: kundeId,
         authUserId,
         email
       };

@@ -109,27 +109,18 @@ import { icon } from '../core/icons/IconSystem.js';
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/src/auth/verify-email.html?redirect_to=/kunden`,
-          data: { role: 'kunde', subrole: 'can_view', name }
+          // Keine Rolle aus dem Browser: Der Trigger legt das Konto als pending an,
+          // ein Admin setzt Rolle und Freischaltung. Das Geburtsdatum übernimmt der Trigger.
+          data: { name, geburtsdatum }
         }
       });
 
       if (error) throw error;
-
-      if (data?.user?.id) {
-        const { error: updateError } = await supabase
-          .from('benutzer')
-          .update({ email: email, geburtsdatum: geburtsdatum })
-          .eq('auth_user_id', data.user.id);
-        
-        if (updateError) {
-          console.warn('⚠️ Benutzer-Update fehlgeschlagen (wird später vom Admin korrigiert):', updateError);
-        }
-      }
 
       // Weiterleitung zur bestehenden OTP-Bestätigungsseite
       window.location.href = `/src/auth/verify-email.html?email=${encodeURIComponent(email)}&redirect_to=/kunden`;
