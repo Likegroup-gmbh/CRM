@@ -1,6 +1,7 @@
 .env
 *.sql
 !supabase/migrations/*.sql
+!supabase/tests/*.sql
 node_modules/
 dist/
 .DS_Store
