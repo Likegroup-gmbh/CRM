@@ -352,6 +352,7 @@ export const cascadeStrategies = {
         .from('campaign_briefings')
         .select('id, aktivierung_name')
         .eq('unternehmen_id', kampagne.unternehmen_id)
+        .eq('ist_altbestand', false)
         .order('created_at', { ascending: false });
       if (error) {
         console.error('❌ Fehler beim Laden der Briefings für Kampagne:', error);
@@ -384,6 +385,7 @@ export const cascadeStrategies = {
         .select('id, aktivierung_name')
         .eq('unternehmen_id', parentValue)
         .eq('is_draft', false)
+        .eq('ist_altbestand', false)
         .order('created_at', { ascending: false });
 
       if (markeId) {

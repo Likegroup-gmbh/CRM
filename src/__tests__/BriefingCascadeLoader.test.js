@@ -50,7 +50,8 @@ describe('briefing_id:unternehmen_id cascade', () => {
     expect(window.supabase.from).toHaveBeenCalledWith('campaign_briefings');
     expect(eqs).toEqual([
       ['unternehmen_id', 'u-liebherr'],
-      ['is_draft', false]
+      ['is_draft', false],
+      ['ist_altbestand', false]
     ]);
     expect(field.disabled).toBe(false);
     expect(ctx.updateDependentFieldOptions).toHaveBeenCalledWith(
@@ -83,6 +84,7 @@ describe('briefing_id:unternehmen_id cascade', () => {
     expect(eqs).toEqual([
       ['unternehmen_id', 'u-1'],
       ['is_draft', false],
+      ['ist_altbestand', false],
       ['marke_id', 'm-1']
     ]);
     expect(field.disabled).toBe(false);

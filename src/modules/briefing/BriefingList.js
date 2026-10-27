@@ -296,6 +296,7 @@ export class BriefingList {
         unternehmen:unternehmen_id(id, firmenname, logo_url),
         marke:marke_id(id, markenname, logo_url)
       `)
+      .eq('ist_altbestand', false)
       .order('created_at', { ascending: false });
 
     const apply = (field, val, type = 'string') => {

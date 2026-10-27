@@ -171,7 +171,8 @@ export class SkripteService {
     let q = this.db.from('campaign_briefings')
       .select('id, aktivierung_name, bereich, is_draft, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben')
       .eq('unternehmen_id', unternehmenId)
-      .eq('is_draft', false);
+      .eq('is_draft', false)
+      .eq('ist_altbestand', false);
 
     if (markeId) q = q.or(`marke_id.eq.${markeId},marke_id.is.null`);
 

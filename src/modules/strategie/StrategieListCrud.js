@@ -356,6 +356,7 @@ async function renderEditBriefingField(list, strategie) {
     .select('id, aktivierung_name')
     .eq('unternehmen_id', strategie.unternehmen_id)
     .eq('is_draft', false)
+    .eq('ist_altbestand', false)
     .order('created_at', { ascending: false });
   if (strategie.marke_id) {
     query = query.eq('marke_id', strategie.marke_id);
