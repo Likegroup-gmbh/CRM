@@ -2,7 +2,7 @@
 // Dasselbe Soll wie die Fakturierung: Video-EK schlaegt den Kooperations-EK,
 // Selbstzahler-KSK kommt dazu. Kooperationen ohne Rechnung zaehlen mit.
 
-import { fetchAllRows } from '../../core/fetchAllRows.js';
+import { fetchAllRows, fetchAllRowsWave } from '../../core/fetchAllRows.js';
 import { isFinalAuftrag } from '../../core/finalisiert.js';
 
 function betrag(value) {
@@ -37,8 +37,9 @@ export async function loadKooperationCreatorKosten({ allowed, unternehmenIds } =
   const [auftraege, kampagnen, koops, videos] = await Promise.all([
     fetchAllRows(supabase, 'auftrag', 'id, unternehmen_id, is_draft'),
     fetchAllRows(supabase, 'kampagne', 'id, auftrag_id'),
-    fetchAllRows(supabase, 'kooperationen', 'id, kampagne_id, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag'),
-    fetchAllRows(supabase, 'kooperation_videos', 'id, kooperation_id, einkaufspreis_netto')
+    // Grosse Tabellen ohne COUNT(*) und mit paralleler Welle (wie finanzbestand.js).
+    fetchAllRowsWave(supabase, 'kooperationen', 'id, kampagne_id, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag'),
+    fetchAllRowsWave(supabase, 'kooperation_videos', 'id, kooperation_id, einkaufspreis_netto')
   ]);
 
   const unternehmenFilter = Array.isArray(unternehmenIds) && unternehmenIds.length > 0

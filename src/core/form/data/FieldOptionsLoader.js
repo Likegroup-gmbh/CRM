@@ -5,7 +5,7 @@
 
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 import { isFinalisiert } from '../../finalisiert.js';
-import { fetchAllRows } from '../../fetchAllRows.js';
+import { fetchAllRows, fetchAllRowsWave } from '../../fetchAllRows.js';
 
 const formatEuro = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v ?? 0);
 
@@ -348,41 +348,46 @@ export async function loadKooperationenOhneRechnung() {
       return [];
     }
 
-    // Seitenweise laden (fetchAllRows), damit das PostgREST-Limit aeltere
-    // Zeilen nicht still abschneidet.
-    let rechnungen;
-    try {
-      rechnungen = await fetchAllRows(
+    // Seitenweise laden (fetchAllRows / fetchAllRowsWave), damit das PostgREST-Limit
+    // aeltere Zeilen nicht still abschneidet. Die drei Ladungen sind voneinander
+    // unabhaengig und laufen parallel statt als Wasserfall. Grosse Tabellen
+    // (kooperationen, kooperation_videos) ohne COUNT(*) per Welle.
+    const [rechnungenRes, koopsRes, videosRes] = await Promise.allSettled([
+      fetchAllRows(
         window.supabase,
         'rechnung',
         'kooperation_id, nettobetrag, nettobetrag_steuerfrei, ksk_betrag, ist_schlussrechnung'
-      );
-    } catch (rErr) {
-      console.error('❌ Fehler beim Laden vorhandener Rechnungen:', rErr);
-      return [];
-    }
-    const mitRechnung = new Set((rechnungen || []).map(r => r.kooperation_id).filter(Boolean));
-
-    let alleKoops;
-    try {
-      alleKoops = await fetchAllRows(
+      ),
+      fetchAllRowsWave(
         window.supabase,
         'kooperationen',
         'id, name, kampagne_id, creator_id, created_at, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag'
-      );
-    } catch (kErr) {
-      console.error('❌ Fehler beim Laden der Kooperationen:', kErr);
+      ),
+      fetchAllRowsWave(window.supabase, 'kooperation_videos', 'kooperation_id, einkaufspreis_netto')
+    ]);
+
+    if (rechnungenRes.status === 'rejected') {
+      console.error('❌ Fehler beim Laden vorhandener Rechnungen:', rechnungenRes.reason);
       return [];
     }
+    const rechnungen = rechnungenRes.value;
+    const mitRechnung = new Set((rechnungen || []).map(r => r.kooperation_id).filter(Boolean));
+
+    if (koopsRes.status === 'rejected') {
+      console.error('❌ Fehler beim Laden der Kooperationen:', koopsRes.reason);
+      return [];
+    }
+    const alleKoops = koopsRes.value;
     alleKoops.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     // Video-EK schlaegt den Kooperations-EK (Konvention aus koopFakturierung).
+    // Ohne Rechnungen spielen die Videos keine Rolle (alles abrechenbar).
     let videos = [];
     if (mitRechnung.size > 0) {
-      try {
-        videos = await fetchAllRows(window.supabase, 'kooperation_videos', 'kooperation_id, einkaufspreis_netto');
-      } catch (vErr) {
-        console.warn('⚠️ Kooperations-Videos konnten nicht geladen werden:', vErr);
+      if (videosRes.status === 'fulfilled') {
+        videos = videosRes.value;
+      } else {
+        console.warn('⚠️ Kooperations-Videos konnten nicht geladen werden:', videosRes.reason);
       }
     }
 
