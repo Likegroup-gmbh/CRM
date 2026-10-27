@@ -1,0 +1,47 @@
+# Smoke-Test: Magic-Link-Registrierung (Kunden-Einladung) auf der Live-Domain.
+#
+# Laeuft nach jedem Push auf main (mit Wiederholungen, bis Netlify ausgeliefert hat),
+# alle 30 Minuten und auf Knopfdruck. Faengt ab, wenn Datenbank und ausgeliefertes
+# Frontend auseinanderlaufen (z. B. Migration sperrt magic_links, Live-Seite liest sie noch).
+# Braucht keine Secrets: URL und Anon-Key stehen oeffentlich im Bundle der Seite.
+#
+# Fehlschlag: GitHub schickt eine Mail an den, der den Workflow zuletzt geaendert hat.
+
+name: Smoke Magic-Link
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Basis-URL (leer = https://base.likegroup.de)'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-magic-link
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Magic-Link-Smoke-Test
+        env:
+          SMOKE_BASE_URL: ${{ github.event.inputs.base_url }}
+          # Nach einem Push braucht Netlify bis zu ca. 5 Minuten bis zur Auslieferung.
+          SMOKE_RETRIES: ${{ github.event_name == 'push' && '10' || '1' }}
+          SMOKE_RETRY_WAIT_S: '45'
+        run: node scripts/smoke-magic-link.cjs

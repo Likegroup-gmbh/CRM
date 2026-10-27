@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
+    "smoke:magic-link": "node scripts/smoke-magic-link.cjs",
     "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
