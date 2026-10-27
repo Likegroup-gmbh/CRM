@@ -17,6 +17,7 @@ const { detectPlatform, isMobilePlatform, VIEWPORTS } = require('./screenshot-ut
 const { launchBrowser, setupPage } = require('./screenshot-utils/browser-setup');
 const { handleInstagramPopups, takeInstagramScreenshot } = require('./screenshot-utils/platform-instagram');
 const { handleTikTokPopups, takeTikTokScreenshot } = require('./screenshot-utils/platform-tiktok');
+const { captureTikTokV2, isTikTokV2Enabled } = require('./screenshot-utils/platform-tiktok-v2');
 const { handleYouTubeInteraction, takeYouTubeScreenshot } = require('./screenshot-utils/platform-youtube');
 const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl, cloudflareCredentials, fingerprint, PIPELINE_BUILD } = require('./_shared/video-transcribe');
 const { withSkriptHandler } = require('./_shared/skript-handler');
@@ -103,6 +104,21 @@ function createItemUpdater(supabase, itemId) {
 
 /** Screenshot auf einer eigenen Page mit dem plattformgerechten Viewport. */
 async function captureScreenshot(browser, platform, navigateUrl) {
+  // TikTok V2: Desktop-Profil, klickt die neue Login-Wand durch. Bei Fehler
+  // greift unten das unveraenderte V1. Abschalten: TIKTOK_SCREENSHOT_V2=off.
+  if (platform === 'tiktok' && isTikTokV2Enabled()) {
+    const v2Page = await setupPage(browser, 'tiktok-v2');
+    try {
+      const result = await captureTikTokV2(v2Page, navigateUrl);
+      console.log(`TikTok V2 Strategie: ${result.strategy}`);
+      return result.screenshotBuffer;
+    } catch (e) {
+      console.warn(`TikTok V2 fehlgeschlagen, falle auf V1 zurueck: ${e.message}`);
+    } finally {
+      await v2Page.close().catch(() => {});
+    }
+  }
+
   const page = await setupPage(browser, platform);
   if (isMobilePlatform(platform)) {
     await page.setViewport(VIEWPORTS.mobile);
