@@ -92,7 +92,6 @@
 
         // State
         let userEmail = ''
-        let magicToken = ''
         let resendCount = 0
         let isVerifying = false
 
@@ -103,7 +102,6 @@
             // Get email from URL params or localStorage
             const urlParams = new URLSearchParams(window.location.search)
             userEmail = urlParams.get('email') || localStorage.getItem('pendingVerificationEmail') || 'test@example.com'
-            magicToken = urlParams.get('magic_token') || ''
             
             console.log('User email:', userEmail)
             
@@ -218,25 +216,6 @@
             })
         }
 
-        // Magic Link als verwendet markieren.
-        // Kunden-Verknüpfung (kunde_ansprechpartner) passiert in magic-register.html.
-        // DB-Trigger trg_consume_magic_link_and_link_customer dient als Backup-Pfad.
-        async function consumeMagicLinkToken() {
-            if (!magicToken) return;
-
-            const { error } = await supabase
-                .from('magic_links')
-                .update({ used_at: new Date().toISOString() })
-                .eq('token', magicToken)
-                .is('used_at', null);
-
-            if (error) {
-                throw error;
-            }
-
-            console.log('✅ Magic Link konsumiert:', magicToken);
-        }
-
         // Handle OTP verification
         async function handleVerifyOTP() {
             if (isVerifying) return
@@ -274,19 +253,8 @@
                 // Success
                 console.log('OTP verification successful!')
                 
-                // Keine automatische Freischaltung - Admin muss final freischalten
-                
-                // Magic Link konsumieren (falls Token vorhanden)
-                if (magicToken) {
-                    console.log('🔗 Konsumiere Magic Link...')
-                    console.log('ℹ️ Token-Status wird gesetzt; DB-Trigger verknüpft ggf. Kunde als Backup.')
-                    try {
-                        await consumeMagicLinkToken()
-                    } catch (linkError) {
-                        console.error('⚠️ Fehler beim Konsumieren des Magic Links:', linkError)
-                        // Nicht abbrechen - User ist trotzdem registriert
-                    }
-                }
+                // Keine automatische Freischaltung im Browser. Magic-Link-Kunden werden schon
+                // beim Signup serverseitig freigeschaltet und verknüpft (handle_new_auth_user).
                 
                 showSuccess('E-Mail erfolgreich bestätigt! Sie werden weitergeleitet...')
                 

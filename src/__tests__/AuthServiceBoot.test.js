@@ -123,4 +123,29 @@ describe('AuthService.checkAuth Boot-Kette', () => {
     expect(window.moduleRegistry.navigateTo).toHaveBeenCalledTimes(1);
     expect(window.navigationSystem.init).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['admin', 'investor', 'mitarbeiter', 'kunde'])(
+    'sperrt Rolle %s ohne freigeschaltet (keine Sonderregel fuer admin/investor)',
+    async (rolle) => {
+      setup({
+        benutzer: { id: 'b1', rolle, name: 'Ada', email: 'a@b.de', freigeschaltet: false },
+      });
+
+      await auth.loadCurrentUser('auth-1');
+
+      expect(window.currentUser.isBlocked).toBe(true);
+      expect(window.currentUser.blockReason).toMatch(/Freischaltung/);
+    }
+  );
+
+  it('laesst freigeschaltete Nutzer durch', async () => {
+    setup({
+      benutzer: { id: 'b1', rolle: 'admin', name: 'Ada', email: 'a@b.de', freigeschaltet: true },
+    });
+
+    await auth.loadCurrentUser('auth-1');
+
+    expect(window.currentUser.isBlocked).toBeUndefined();
+    expect(window.currentUser.rolle).toBe('admin');
+  });
 });
