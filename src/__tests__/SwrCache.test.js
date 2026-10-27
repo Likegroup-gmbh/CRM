@@ -15,7 +15,7 @@ vi.mock('../modules/kampagne/filters/KampagneFilterLogic.js', () => ({
 
 import { swrKey, swrGet, swrSet, swrEqual, swrClear } from '../core/list/swrCache.js';
 import { loadKampagnenWithRelations } from '../modules/kampagne/KampagneListDataLoader.js';
-import { setShowCompleted } from '../modules/kampagne/kampagneListPrefs.js';
+import { setHideCompleted } from '../modules/kampagne/kampagneListPrefs.js';
 
 describe('swrCache', () => {
   beforeEach(() => {
@@ -76,7 +76,7 @@ describe('swrCache', () => {
 describe('loadKampagnenWithRelations – Stale-while-revalidate', () => {
   beforeEach(() => {
     swrClear();
-    setShowCompleted(false);
+    setHideCompleted(false);
     window.currentUser = { id: 'u1' };
     window.supabase = {
       rpc: vi.fn(async () => ({
