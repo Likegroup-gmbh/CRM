@@ -93,6 +93,12 @@ export function renderWorkflowCreateChrome(action, detail) {
     const kundeButton = renderKundeEinladenButton({ permission: ACTION_SPECS.kundeEinladen.permission });
     return `${button}${kundeButton}`;
   }
+  if (action === 'skripte') {
+    const teilen = window.isInternal?.() && window.canEdit?.('skripte')
+      ? '<button type="button" class="mdc-btn mdc-btn--secondary" data-skripte-teilen>Teilen</button>'
+      : '';
+    return `${button}${teilen}`;
+  }
   if (action === 'casting') return `${button}<div id="kampagne-casting-tools"></div>`;
   if (action === 'konzepte') return `${button}<div id="kampagne-konzept-tools"></div>`;
   if (!spec) return '';

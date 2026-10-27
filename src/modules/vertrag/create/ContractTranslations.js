@@ -461,7 +461,11 @@ VertraegeCreate.prototype.localizeContractText = function(text, lang) {
       .replace(' Werktage ', ' business days ')
       .replace(' Korrekturschleife(n)', ' revision round(s)')
       .replace(' zzgl. USt.', ' excl. VAT.')
-      .replace(' € netto', ' EUR net');
+      .replace(' € netto', ' EUR net')
+      .replace(/(\d+)\s+Jahre\b/g, '$1 years')
+      .replace(/(\d+)\s+Monate\b/g, '$1 months')
+      .replace(/(\d+)\s+Wochen\b/g, '$1 weeks')
+      .replace(/(\d+)\s+Tage\b/g, '$1 days');
 
     return `${leadingWhitespace}${localizedText}`;
 };

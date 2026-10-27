@@ -123,6 +123,12 @@
   to = "/src/upload/:splat"
   status = 200
 
+# Oeffentliche Bewerbungsseite direkt ausliefern (kein SPA-Fallback)
+[[redirects]]
+  from = "/src/bewerbung/*"
+  to = "/src/bewerbung/:splat"
+  status = 200
+
 # SPA-Fallback für alle anderen Routen
 [[redirects]]
   from = "/*"

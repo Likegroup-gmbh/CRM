@@ -2,15 +2,14 @@
 // Management-Detailseite mit Tabs für Creator und Rechnungen
 // Nutzt einheitliches zwei-Spalten-Layout (PersonDetailBase)
 
-import { renderCreatorTable } from '../creator/CreatorTable.js';
-import { actionBuilder } from '../../core/actions/ActionBuilder.js';
-import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
-import { renderSecondaryNav, activateSecondaryNavTab, getSecondaryNavTabFromEvent, getTabQueryParam } from '../../core/TabUtils.js';
+import { activateSecondaryNavTab, getSecondaryNavTabFromEvent, getTabQueryParam } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
-import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
-import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
-import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
-import { createAnsprechpartner, renderManagementBetreuung, toggleBetreuung } from '../ansprechpartner/betreuung.js';
+import { bindFilterSelects, readFilterSelectValues } from '../../core/filters/FilterSelect.js';
+import { closeDrawer } from '../creator/creatorDrawer.js';
+import { createAnsprechpartner, diffIds, toggleBetreuung } from '../ansprechpartner/betreuung.js';
+import { openAddAnsprechpartnerDrawer } from '../ansprechpartner/managementBetreuung.js';
+import { renderManagementPage } from './ManagementDetailView.js';
+import { removeCreatorFromManagement, showAddCreatorDialog, showManagementEditForm } from './ManagementDetailEdit.js';
 
 export class ManagementDetail extends PersonDetailBase {
   constructor() {
@@ -116,7 +115,7 @@ export class ManagementDetail extends PersonDetailBase {
 
       const { data: apRows, error: apError } = await window.supabase
         .from('ansprechpartner')
-        .select('id, vorname, nachname, email')
+        .select('id, vorname, nachname, email, profile_image_url, telefonnummer, telefonnummer_land:eu_laender!telefonnummer_land_id(iso_code, vorwahl)')
         .eq('management_id', this.managementId)
         .order('nachname', { ascending: true });
       if (apError) console.error('❌ MANAGEMENTDETAIL: Ansprechpartner', apError);
@@ -175,205 +174,7 @@ export class ManagementDetail extends PersonDetailBase {
     const now = Date.now();
     if (!force && (now - this._lastRenderTime) < this._renderDebounceMs) return;
     this._lastRenderTime = now;
-
-    if (!this.activeMainTab) {
-      this.activeMainTab = 'creators';
-    }
-
-    window.setHeadline(`${this.management?.firmenname || 'Management'} - Details`);
-
-    const personConfig = {
-      name: this.management?.firmenname || 'Unbekannt',
-      email: '',
-      subtitle: 'Management',
-      avatarUrl: this.management?.logo_url,
-      avatarOnly: false
-    };
-
-    const webseiteLinkHtml = this.management?.webseite
-      ? `<a href="${this.sanitizeUrl(this.management.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${this.sanitize(this.management.webseite)}">${icon('external-link')}</a>`
-      : null;
-
-    const sidebarInfo = this.renderInfoItems([
-      { icon: 'home', label: 'Adresse', rawHtml: this.renderAdresseBlock() },
-      { icon: 'mail', label: 'E-Mail', value: this.management?.email, mailto: true },
-      { icon: 'phone', label: 'Telefon', value: this.management?.telefonnummer },
-      ...(webseiteLinkHtml ? [{ icon: 'link', label: 'Webseite', rawHtml: webseiteLinkHtml }] : []),
-      ...(this.management?.instagram ? [{ icon: 'instagram', label: 'Instagram', rawHtml: `<a href="${this.management.instagram.startsWith('http') ? this.sanitize(this.management.instagram) : `https://instagram.com/${this.sanitize(this.management.instagram.replace('@', ''))}`}" target="_blank" rel="noopener">@${this.sanitize(this.management.instagram)}</a>` }] : []),
-      ...(this.management?.linkedin ? [{ icon: 'linkedin', label: 'LinkedIn', rawHtml: `<a href="${this.sanitizeUrl(this.management.linkedin)}" target="_blank" rel="noopener">${this.sanitize(this.management.linkedin)}</a>` }] : []),
-      ...(this.management?.status ? [{ icon: 'check', label: 'Status', value: this.management.status, badge: true, badgeType: this.management.status === 'aktiv' ? 'success' : 'secondary' }] : []),
-      { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.management?.created_at) },
-      { icon: 'clock', label: 'Aktualisiert', value: this.formatDate(this.management?.updated_at) }
-    ]);
-
-    const tabNavigation = this.renderTabNavigation();
-    const mainContent = this.renderMainContent();
-
-    const html = this.renderTwoColumnLayout({
-      person: personConfig,
-      stats: [],
-      quickActions: [],
-      sidebarInfo,
-      tabNavigation,
-      mainContent
-    });
-
-    window.setContentSafely(window.content, html);
-  }
-
-  renderAdresseBlock() {
-    const m = this.management;
-    const line1 = [m?.strasse, m?.hausnummer].filter(Boolean).join(' ');
-    const line2 = [m?.plz, m?.stadt].filter(Boolean).join(' ');
-    const line3 = m?.land || '';
-    const lines = [line1, line2, line3].filter(Boolean);
-    if (lines.length === 0) return '-';
-    return `<span class="info-address">${lines.map(l => this.sanitize(l)).join('<br>')}</span>`;
-  }
-
-  renderTabNavigation() {
-    const tabs = [
-      { tab: 'creators', label: 'Creator', count: this.creators.length, isActive: this.activeMainTab === 'creators' },
-      { tab: 'ansprechpartner', label: 'Ansprechpartner', count: this.ansprechpartner.length, isActive: this.activeMainTab === 'ansprechpartner' },
-      { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
-    ];
-    return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })));
-  }
-
-  renderMainContent() {
-    return `
-      <div class="tab-content secondary-tab-content management-tab-inset">
-        <div class="tab-pane ${this.activeMainTab === 'creators' ? 'active' : ''}" id="tab-creators">
-          ${this.renderCreators()}
-        </div>
-        <div class="tab-pane ${this.activeMainTab === 'ansprechpartner' ? 'active' : ''}" id="tab-ansprechpartner">
-          ${this.renderAnsprechpartner()}
-        </div>
-        <div class="tab-pane ${this.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
-          ${this.renderRechnungen()}
-        </div>
-      </div>
-    `;
-  }
-
-  renderAnsprechpartner() {
-    return renderManagementBetreuung({
-      people: this.ansprechpartner,
-      creators: this.creators,
-      links: this.betreuungLinks
-    });
-  }
-
-  renderCreators() {
-    const addBtn = `
-      <button class="mdc-btn mdc-btn--sm" id="btn-add-creator-to-management">
-        ${icon('plus-lg', { className: 'icon-16' })}
-        Creator hinzufügen
-      </button>
-    `;
-
-    if (!this.creators || this.creators.length === 0) {
-      return renderEmptyState({
-        icon: 'creator',
-        title: 'Keine Creator vorhanden',
-        text: 'Diesem Management sind noch keine aktiven Creator zugeordnet.',
-        actionsHtml: addBtn
-      });
-    }
-    return `
-      ${renderSectionHeader({ title: 'Creator', actionsHtml: addBtn })}
-      ${renderCreatorTable(this.creators, { showRemoveAction: true, managementId: this.managementId })}
-    `;
-  }
-
-  renderRechnungen() {
-    if (!this.rechnungen || this.rechnungen.length === 0) {
-      return renderEmptyState({
-        icon: 'invoice',
-        title: 'Keine Rechnungen vorhanden',
-        text: 'Für die Creator dieses Managements wurden noch keine Rechnungen erfasst.'
-      });
-    }
-
-    const isKunde = window.isKunde();
-
-    const rows = this.rechnungen.map(r => {
-      const kampagneName = r.kampagne ? (r.kampagne.eigener_name || r.kampagne.kampagnenname || '-') : '-';
-      const preisProVideo = r.videoanzahl && r.nettobetrag ? this.formatCurrency(r.nettobetrag / r.videoanzahl) : '-';
-      const creatorBubble = r.creator ? avatarBubbles.renderBubbles([{
-        name: [r.creator.vorname, r.creator.nachname].filter(Boolean).join(' '),
-        type: 'person', id: r.creator.id, entityType: 'creator'
-      }]) : '-';
-      return `
-      <tr>
-        <td><a href="/rechnung/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${this.sanitize(r.rechnung_nr || '—')}</a></td>
-        <td><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
-        <td>${r.auftrag ? `<a href="#" class="table-link" data-table="auftrag" data-id="${r.auftrag.id}">${this.sanitize(r.auftrag.auftragsname || '-')}</a>` : '-'}</td>
-        <td>${this.sanitize(r.po_nummer) || '-'}</td>
-        <td>${this.formatDate(r.created_at)}</td>
-        <td>${r.kampagne ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne.id}">${this.sanitize(kampagneName)}</a>` : '-'}</td>
-        <td>${this.sanitize(r.land) || '-'}</td>
-        <td>${creatorBubble}</td>
-        <td>${this.formatDate(r.gestellt_am)}</td>
-        <td>${this.formatDate(r.zahlungsziel)}</td>
-        <td>${this.formatCurrency(r.nettobetrag)}</td>
-        <td>${r.videoanzahl || '-'}</td>
-        <td>${preisProVideo}</td>
-        <td>${this.formatCurrency(r.bruttobetrag)}</td>
-        <td>${renderPdfLinks(r.rechnung_pdfs, r.pdf_url)}</td>
-        <td>${r.status || '-'}</td>
-        ${!isKunde ? `<td>${this.renderPersonBubble(r.created_by)}</td>` : ''}
-        ${!isKunde ? `<td>${actionBuilder.create('rechnung', r.id)}</td>` : ''}
-      </tr>
-    `}).join('');
-
-    return `
-      ${renderSectionHeader({ title: 'Rechnungen' })}
-      <div class="data-table-container">
-        <table class="data-table data-table--nowrap">
-          <thead>
-            <tr>
-              <th>Rechnungsname</th>
-              <th>Typ</th>
-              <th>Auftrag</th>
-              <th>PO-Nummer</th>
-              <th>Erstellt am</th>
-              <th>Kampagne / Contract</th>
-              <th>Land</th>
-              <th>Creator</th>
-              <th>Gestellt am</th>
-              <th>Zahlungsziel</th>
-              <th>Nettobetrag</th>
-              <th>Videos</th>
-              <th>Preis/Video</th>
-              <th>Bruttobetrag</th>
-              <th>Beleg</th>
-              <th>Status</th>
-              ${!isKunde ? '<th>Erstellt von</th>' : ''}
-              ${!isKunde ? '<th>Aktionen</th>' : ''}
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  renderPersonBubble(person, entityType = 'mitarbeiter') {
-    if (!person) return '-';
-    const name = person.name || [person.vorname, person.nachname].filter(Boolean).join(' ');
-    if (!name) return '-';
-    return avatarBubbles.renderBubbles([{
-      name, type: 'person', id: person.id,
-      entityType, profile_image_url: person.profile_image_url || null
-    }]);
-  }
-
-  sanitizeUrl(url) {
-    if (!url) return '#';
-    const trimmed = url.trim();
-    if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    return `https://${trimmed}`;
+    renderManagementPage(this);
   }
 
   bindEvents() {
@@ -402,42 +203,28 @@ export class ManagementDetail extends PersonDetailBase {
     };
     document.addEventListener('click', this._tableLinkClickHandler, { signal });
 
-    document.addEventListener('change', async (e) => {
-      const box = e.target.closest('[data-action="toggle-betreuung"]');
-      if (!box || !document.getElementById('tab-ansprechpartner')?.contains(box)) return;
-      try {
-        await toggleBetreuung(box.dataset.creator, box.dataset.ap, box.checked);
-      } catch (error) {
-        box.checked = !box.checked;
-        window.toastSystem?.show(error.message || 'Verknüpfung fehlgeschlagen', 'error');
-      }
+    if (window.content) bindFilterSelects(window.content, { signal });
+
+    document.addEventListener('change', (e) => {
+      const cell = e.target.closest?.('[data-betreuung-ap]');
+      if (!cell || !document.getElementById('tab-ansprechpartner')?.contains(cell)) return;
+      if (e.target !== cell && e.target.type !== 'checkbox' && !e.target.matches?.('[data-filter-select]')) return;
+      const select = cell.querySelector('[data-filter-select]');
+      if (!select) return;
+      this._queueBetreuungSync(cell.dataset.betreuungAp, readFilterSelectValues(select));
     }, { signal });
 
-    document.addEventListener('click', async (e) => {
-      if (e.target.id !== 'mgmt-ap-add') return;
-      const hint = document.getElementById('mgmt-ap-hint');
-      const result = await createAnsprechpartner({
-        managementId: this.managementId,
-        vorname: document.getElementById('mgmt-ap-vorname')?.value,
-        nachname: document.getElementById('mgmt-ap-nachname')?.value,
-        email: document.getElementById('mgmt-ap-email')?.value
-      });
-      if (!result.ok) {
-        if (hint) hint.textContent = result.message;
-        return;
-      }
-      if (result.similar?.length) {
-        window.toastSystem?.show('Ähnlicher Name vorhanden, die Person wurde trotzdem angelegt.', 'warning');
-      }
-      await this.loadManagementData();
-      this.render(true);
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#mgmt-ap-add')) return;
+      e.preventDefault();
+      this._openAddAnsprechpartner();
     }, { signal });
 
     // Bearbeiten-Button im Breadcrumb
     this._editClickHandler = (e) => {
       if (e.target.closest('#btn-edit-management')) {
         e.preventDefault();
-        this.showEditForm();
+        showManagementEditForm(this);
       }
     };
     document.addEventListener('click', this._editClickHandler, { signal });
@@ -445,13 +232,13 @@ export class ManagementDetail extends PersonDetailBase {
     document.addEventListener('click', async (e) => {
       if (e.target.id === 'btn-add-creator-to-management' || e.target.closest('#btn-add-creator-to-management')) {
         e.preventDefault();
-        await this._showAddCreatorDialog();
+        await showAddCreatorDialog(this);
       }
       const removeBtn = e.target.closest('[data-action="remove-creator-from-management"]');
       if (removeBtn) {
         e.preventDefault();
         const creatorId = removeBtn.dataset.creatorId;
-        if (creatorId) await this._removeCreatorFromManagement(creatorId);
+        if (creatorId) await removeCreatorFromManagement(this, creatorId);
       }
     }, { signal });
 
@@ -488,217 +275,93 @@ export class ManagementDetail extends PersonDetailBase {
     this.eventsBound = false;
   }
 
-  async _showAddCreatorDialog() {
-    const existingIds = this.creators.map(c => c.id);
-    const { data: allCreators } = await window.supabase
-      .from('creator')
-      .select('id, vorname, nachname')
-      .order('nachname');
-
-    const available = (allCreators || []).filter(c => !existingIds.includes(c.id));
-    if (available.length === 0) {
-      window.toastSystem?.show('Keine weiteren Creator verfügbar.', 'info');
-      return;
-    }
-
-    const options = available.map(c => `<option value="${c.id}">${c.vorname || ''} ${c.nachname || ''}</option>`).join('');
-    const dialog = document.createElement('div');
-    dialog.className = 'modal show';
-    dialog.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4)';
-    dialog.innerHTML = `
-      <div class="mgmt-add-creator-dialog">
-        <h3 class="mgmt-add-creator-title">Creator hinzufügen</h3>
-        <select id="mgmt-add-creator-select" class="mgmt-add-creator-select">
-          <option value="">Bitte wählen...</option>
-          ${options}
-        </select>
-        <div class="mgmt-add-creator-actions">
-          <button class="mdc-btn mdc-btn--secondary mdc-btn--sm" id="mgmt-add-cancel">Abbrechen</button>
-          <button class="mdc-btn mdc-btn--sm" id="mgmt-add-confirm">Hinzufügen</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(dialog);
-
-    dialog.querySelector('#mgmt-add-cancel').onclick = () => dialog.remove();
-    dialog.querySelector('#mgmt-add-confirm').onclick = async () => {
-      const creatorId = dialog.querySelector('#mgmt-add-creator-select').value;
-      if (!creatorId) return;
-      dialog.remove();
-
-      // Reaktiviert bestehende (inaktive) Zuordnung oder legt neue an (Unique-Constraint-konform)
-      const { data: existing } = await window.supabase
-        .from('creator_management')
-        .select('id')
-        .eq('management_id', this.managementId)
-        .eq('creator_id', creatorId)
-        .maybeSingle();
-
-      let error;
-      if (existing) {
-        ({ error } = await window.supabase
-          .from('creator_management')
-          .update({ ist_aktiv: true, updated_at: new Date().toISOString() })
-          .eq('id', existing.id));
-      } else {
-        ({ error } = await window.supabase
-          .from('creator_management')
-          .insert([{ management_id: this.managementId, creator_id: creatorId, ist_aktiv: true }]));
-      }
-
-      if (error) {
-        window.toastSystem?.show('Fehler: ' + error.message, 'error');
-      } else {
-        window.toastSystem?.success('Creator zugeordnet!');
+  _openAddAnsprechpartner() {
+    openAddAnsprechpartnerDrawer({
+      creators: this.creators,
+      subtitle: this.management?.firmenname || '',
+      onSubmit: async (fields) => {
+        const result = await createAnsprechpartner({
+          managementId: this.managementId,
+          vorname: fields.vorname,
+          nachname: fields.nachname,
+          email: fields.email,
+          telefonnummer: fields.telefonnummer,
+          telefonnummer_land_id: fields.telefonnummer_land_id
+        });
+        if (!result.ok) return result;
+        let linked = true;
+        try {
+          for (const creatorId of fields.creatorIds || []) {
+            await toggleBetreuung(creatorId, result.person.id, true);
+          }
+        } catch (error) {
+          linked = false;
+          window.toastSystem?.show(`Person angelegt, Creator-Zuordnung fehlgeschlagen: ${error.message}`, 'error');
+        }
+        if (linked && result.similar?.length) {
+          window.toastSystem?.show('Ähnlicher Name vorhanden, die Person wurde trotzdem angelegt.', 'warning');
+        } else if (linked) {
+          window.toastSystem?.success('Ansprechpartner angelegt.');
+        }
+        this.activeMainTab = 'ansprechpartner';
         await this.loadManagementData();
-        this.render();
+        this.render(true);
+        return result;
       }
-    };
+    });
   }
 
-  async _removeCreatorFromManagement(creatorId) {
-    if (!confirm('Creator-Zuordnung wirklich entfernen?')) return;
-    const { error } = await window.supabase
-      .from('creator_management')
-      .update({ ist_aktiv: false })
-      .eq('management_id', this.managementId)
-      .eq('creator_id', creatorId)
-      .eq('ist_aktiv', true);
+  _queueBetreuungSync(personId, selectedIds) {
+    if (!personId) return;
+    if (!this._betreuungQueue) this._betreuungQueue = new Map();
+    if (!this._betreuungActive) this._betreuungActive = new Set();
+    this._betreuungQueue.set(personId, [...selectedIds]);
+    if (this._betreuungActive.has(personId)) return;
+    this._betreuungActive.add(personId);
+    this._drainBetreuung(personId);
+  }
 
-    if (error) {
-      window.toastSystem?.show('Fehler: ' + error.message, 'error');
-    } else {
-      window.toastSystem?.success('Creator-Zuordnung entfernt.');
+  async _drainBetreuung(personId) {
+    const managed = new Set(this.creators.map((creator) => creator.id));
+    try {
+      while (this._betreuungQueue.has(personId)) {
+        const desired = this._betreuungQueue.get(personId).filter((id) => managed.has(id));
+        this._betreuungQueue.delete(personId);
+        const previous = this.betreuungLinks
+          .filter((link) => link.ansprechpartner_id === personId && managed.has(link.creator_id))
+          .map((link) => link.creator_id);
+        const { add, remove } = diffIds(previous, desired);
+        for (const creatorId of add) await toggleBetreuung(creatorId, personId, true);
+        for (const creatorId of remove) await toggleBetreuung(creatorId, personId, false);
+        const kept = this.betreuungLinks.filter((link) => (
+          link.ansprechpartner_id !== personId || !managed.has(link.creator_id)
+        ));
+        this.betreuungLinks = [
+          ...kept,
+          ...desired.map((creatorId) => ({ ansprechpartner_id: personId, creator_id: creatorId }))
+        ];
+      }
+    } catch (error) {
+      this._betreuungQueue.delete(personId);
+      window.toastSystem?.show(error.message || 'Verknüpfung fehlgeschlagen', 'error');
       await this.loadManagementData();
-      this.render();
-    }
-  }
-
-  // ── Bearbeiten ──────────────────────────────────────────────────────────
-
-  async showEditForm() {
-    if (!this.management || this._isEditing) return;
-
-    try {
-      this._isEditing = true;
-      window.breadcrumbSystem?.showEditLeaf();
-
-      const formData = {
-        ...this.management,
-        creator_ids: this.creators.map(c => c.id).filter(Boolean),
-        _isEditMode: true,
-        _entityId: this.managementId
-      };
-
-      const formHtml = window.formSystem.renderFormOnly('management', formData);
-
-      window.setHeadline(`${this.management.firmenname || 'Management'} bearbeiten`);
-      window.content.innerHTML = `
-        <div class="form-page form-page--half">
-          ${formHtml}
-        </div>
-      `;
-
-      await window.formSystem.bindFormEvents('management', formData);
-
-      const form = document.getElementById('management-form');
-      if (form) {
-        form.onsubmit = async (e) => {
-          e.preventDefault();
-          await this._handleEditSubmit(form);
-        };
-      }
-    } catch (error) {
-      this._isEditing = false;
-      console.error('❌ MANAGEMENTDETAIL: Fehler beim Öffnen des Bearbeiten-Formulars:', error);
-      window.toastSystem?.show('Formular konnte nicht geladen werden: ' + error.message, 'error');
-    }
-  }
-
-  async _handleEditSubmit(form) {
-    const submitBtn = form.querySelector('button[type="submit"]');
-    const originalText = submitBtn?.innerHTML;
-
-    try {
-      if (submitBtn) {
-        submitBtn.innerHTML = '<div class="loading-spinner"></div> Wird gespeichert...';
-        submitBtn.disabled = true;
-      }
-
-      const data = FormSubmitHelper.formDataToObject(
-        new FormData(form),
-        FormSubmitHelper.collectTagBasedSelects(form)
-      );
-
-      if (typeof data.firmenname === 'string') data.firmenname = data.firmenname.trim();
-      if (!data.firmenname || data.firmenname.length < 2) {
-        throw new Error('Bitte einen Firmennamen mit mindestens 2 Zeichen angeben.');
-      }
-
-      const creatorIds = Array.isArray(data.creator_ids) ? data.creator_ids : [];
-      delete data.creator_ids;
-
-      const result = await window.dataService.updateEntity('management', this.managementId, data);
-      if (!result.success) throw new Error(result.error || 'Fehler beim Speichern');
-
-      await this._syncCreatorZuordnung(creatorIds);
-
-      window.toastSystem?.success('Management erfolgreich aktualisiert!');
-      document.dispatchEvent(new CustomEvent('entityUpdated', {
-        detail: { entity: 'management', id: this.managementId }
-      }));
-
-      if (/\/edit\/?$/.test(location.pathname)) {
-        window.navigateTo(`/management/${this.managementId}`);
-      } else {
-        await this.init(this.managementId);
-      }
-    } catch (error) {
-      console.error('❌ MANAGEMENTDETAIL: Fehler beim Speichern:', error);
-      window.toastSystem?.show('Fehler beim Speichern: ' + error.message, 'error');
-      if (submitBtn) {
-        submitBtn.innerHTML = originalText || 'Speichern';
-        submitBtn.disabled = false;
+      this.render(true);
+    } finally {
+      this._betreuungActive.delete(personId);
+      if (this._betreuungQueue.has(personId)) {
+        this._betreuungActive.add(personId);
+        this._drainBetreuung(personId);
       }
     }
   }
 
-  // Gleicht creator_management mit der Auswahl ab: reaktivieren, deaktivieren, neu anlegen
-  async _syncCreatorZuordnung(creatorIds) {
-    const desired = new Set(creatorIds);
-
-    const { data: rows, error } = await window.supabase
-      .from('creator_management')
-      .select('id, creator_id, ist_aktiv')
-      .eq('management_id', this.managementId);
-    if (error) throw error;
-
-    const now = new Date().toISOString();
-    const existing = new Set();
-
-    for (const row of rows || []) {
-      existing.add(row.creator_id);
-      const shouldBeActive = desired.has(row.creator_id);
-      if (shouldBeActive === !!row.ist_aktiv) continue;
-      const { error: updError } = await window.supabase
-        .from('creator_management')
-        .update({ ist_aktiv: shouldBeActive, updated_at: now })
-        .eq('id', row.id);
-      if (updError) throw updError;
-    }
-
-    const toInsert = [...desired]
-      .filter(id => !existing.has(id))
-      .map(creator_id => ({ management_id: this.managementId, creator_id, ist_aktiv: true }));
-
-    if (toInsert.length > 0) {
-      const { error: insError } = await window.supabase.from('creator_management').insert(toInsert);
-      if (insError) throw insError;
-    }
+  showEditForm() {
+    return showManagementEditForm(this);
   }
 
   destroy() {
     console.log('ManagementDetail: Cleaning up...');
+    closeDrawer('mgmt-ap-drawer');
     this._removeAllEventListeners();
     this._isLoading = false;
     this._isEditing = false;

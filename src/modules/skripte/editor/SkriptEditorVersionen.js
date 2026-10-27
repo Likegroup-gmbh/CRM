@@ -37,7 +37,7 @@ export class SkriptEditorVersionen {
     const v = this.view;
     const wrap = document.getElementById('ed-version-wrap');
     if (!wrap) return;
-    if (!v.skript || !v.versionen.length) {
+    if (!v.skript || !v.versionen.length || window.permissionSystem?.isGastReadonly) {
       wrap.innerHTML = '';
       this.closeMenu();
       return;

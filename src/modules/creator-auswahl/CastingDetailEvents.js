@@ -7,15 +7,28 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { TAUSCH_ACTION, tauscheImCasting } from '../creator-tausch/creatorTauschUi.js';
+import { openManagementAnfrage } from './managementAnfrageDrawer.js';
+import { aufnehmenBewerbung, verwerfenBewerbung } from './bewerbungAktionen.js';
 import {
   OHNE_KATEGORIE,
   OHNE_KATEGORIE_KEY,
   kategorieGroupKey
 } from './castingKategorien.js';
+import { openCastingDetailDrawer } from './castingDetailDrawer.js';
 
 export function bindEvents() {
   this._boundEventListeners.forEach(cleanup => cleanup());
   this._boundEventListeners.clear();
+
+  const openDetail = (e) => {
+    const btn = e.target.closest('[data-open-casting-detail]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openCastingDetailDrawer(this, btn.dataset.openCastingDetail);
+  };
+  document.addEventListener('click', openDetail);
+  this._boundEventListeners.add(() => document.removeEventListener('click', openDetail));
 
   if (!this.isKunde && (this._canSourcing('edit') || this._canSourcing('create') || this._canSourcing('delete'))) {
     const actionClickHandler = (e) => {
@@ -60,6 +73,25 @@ export function bindEvents() {
     };
     document.addEventListener('click', actionClickHandler);
     this._boundEventListeners.add(() => document.removeEventListener('click', actionClickHandler));
+
+    const bewerbungClick = async (e) => {
+      const aufnehmen = e.target.closest('[data-action="aufnehmen-bewerbung"]');
+      const verwerfen = e.target.closest('[data-action="verwerfen-bewerbung"]');
+      const button = aufnehmen || verwerfen;
+      if (!button) return;
+      e.preventDefault();
+      if (aufnehmen) await aufnehmenBewerbung(this, button.dataset.id);
+      else await verwerfenBewerbung(this, button.dataset.id);
+    };
+    document.addEventListener('click', bewerbungClick);
+    this._boundEventListeners.add(() => document.removeEventListener('click', bewerbungClick));
+
+    const anfrageBtn = this._q('#btn-management-anfrage');
+    if (anfrageBtn && this._canSourcing('create')) {
+      const openAnfrage = () => openManagementAnfrage({ liste: this.liste });
+      anfrageBtn.addEventListener('click', openAnfrage);
+      this._boundEventListeners.add(() => anfrageBtn.removeEventListener('click', openAnfrage));
+    }
 
     const igFetchHandler = (e) => {
       const btn = e.target.closest('[data-ig-fetch]');
@@ -182,7 +214,8 @@ export function bindEvents() {
   const selectHandler = (e) => {
     const { field, itemId, value, element } = e.detail || {};
     const table = element?.closest('.creator-pool-table');
-    if (!table || !this._getRoot()?.contains(table)) return;
+    const imDrawer = element?.closest('#casting-detail-drawer');
+    if (!imDrawer && (!table || !this._getRoot()?.contains(table))) return;
 
     if (field === 'sourcing_status') this.handleStatusChange(itemId, value);
     else if (field === 'kunden_feedback') this.handleKundenFeedbackChange(itemId, value);

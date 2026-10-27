@@ -146,6 +146,28 @@ describe('CreatorGridView', () => {
       expect(stat.querySelector('.creator-card__stat-value').textContent).toBe('4,5');
     });
 
+    it('verlinkt das Instagram-Icon neben dem Namen auf das Profil', () => {
+      const grid = new CreatorGridView(makeList());
+      const card = parseCard(grid.renderCard({
+        id: 'c1',
+        vorname: 'Alexander',
+        nachname: 'Twil',
+        instagram: 'alexdrives'
+      }));
+      const link = card.querySelector('.creator-card__identity .creator-ig-link');
+      expect(link).toBeTruthy();
+      expect(link.getAttribute('href')).toBe('https://instagram.com/alexdrives');
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toContain('noopener');
+      expect(link.querySelector('use')?.getAttribute('href')).toBe('#crm-icon-instagram');
+    });
+
+    it('lässt das Instagram-Icon weg, wenn kein Account hinterlegt ist', () => {
+      const grid = new CreatorGridView(makeList());
+      const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'Lea' }));
+      expect(card.querySelector('.creator-ig-link')).toBeNull();
+    });
+
     it('zeigt Stadt, Alter, Größe, Follower und Aktionen', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({
@@ -327,6 +349,7 @@ describe('CreatorGridView', () => {
         vorname: 'Tanja',
         nachname: 'Angst',
         mail: 't@example.com',
+        instagram: 'tanja.angst',
         profilbild_url: 'https://img.test/tanja.jpg'
       };
       container.innerHTML = grid.renderCard(creator);
@@ -361,6 +384,11 @@ describe('CreatorGridView', () => {
       const avatar = panel.querySelector('.drawer-header img.table-avatar-img');
       expect(avatar).toBeTruthy();
       expect(avatar.getAttribute('src')).toBe('https://img.test/tanja.jpg');
+
+      const ig = panel.querySelector('.drawer-title-line .creator-ig-link');
+      expect(ig).toBeTruthy();
+      expect(ig.getAttribute('href')).toBe('https://instagram.com/tanja.angst');
+      expect(ig.getAttribute('target')).toBe('_blank');
 
       const headers = [...panel.querySelectorAll('.settings-accordion-header')].map((h) => h.textContent.trim());
       expect(headers.some((h) => h.includes('Informationen'))).toBe(false);

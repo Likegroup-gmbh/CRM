@@ -85,19 +85,23 @@ function creatorDisplayName(creator) {
   return crm || creator?.name || 'Creator';
 }
 
-/** Creator am Konzept: CRM-Name, sonst Casting-Name, sonst creator_name. */
+/** Creator am Skript: Name aus dem Casting, sonst Stammdaten, sonst Altbestand.
+ *  Vorname und Nachname bleiben leer, sobald der Casting-Name gilt, damit
+ *  Listen und Chips nicht weiter den alten Stammdaten-Namen zeigen. */
 export function konzeptCreatorFromSkript(skript) {
   const item = skript?.strategie_item;
   if (!item) return null;
   const eintrag = item.casting_eintrag;
   const crm = eintrag?.creator;
+  const castingName = String(eintrag?.name || '').trim();
   const crmName = `${crm?.vorname || ''} ${crm?.nachname || ''}`.trim();
-  const name = crmName || eintrag?.name || item.creator_name || '';
+  const name = castingName || crmName || String(item.creator_name || '').trim();
   if (!name) return null;
+  const stammdatenZeigen = !castingName;
   return {
     id: crm?.id || null,
-    vorname: crm?.vorname || '',
-    nachname: crm?.nachname || '',
+    vorname: stammdatenZeigen ? (crm?.vorname || '') : '',
+    nachname: stammdatenZeigen ? (crm?.nachname || '') : '',
     name,
     profilbild_url: crm?.profilbild_url || null,
     profilbild_thumb_url: crm?.profilbild_thumb_url || null
@@ -439,8 +443,9 @@ export function skriptDocHtml({
 
 /** Doc-Kopf: Version, Kundenfreigabe, optional Teilen, dann Creator-Zuweisen, Löschen. */
 export function docHeadActionsHtml({
-  kannTeilen = false, kannFreigeben = false, kannLoeschen = false, status = '', verknuepfungenHtml = ''
+  kannTeilen = false, kannAnschreiben = null, kannPdf = false, kannZurueck = false, kannFreigeben = false, kannLoeschen = false, status = '', verknuepfungenHtml = ''
 } = {}) {
+  const senden = kannAnschreiben == null ? kannTeilen : kannAnschreiben;
   const freigabeBadge = status === 'freigegeben'
     ? `<span class="skripte-badge skripte-badge--success" title="Vom Kunden freigegeben">Freigegeben</span>`
     : '';
@@ -452,14 +457,25 @@ export function docHeadActionsHtml({
     </button>` : '';
   return `
     <div class="skripte-editor-version" id="ed-version-wrap"></div>
+    ${kannZurueck ? `
+    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-zurueck">
+      <span class="mdc-btn__label">Zurück</span>
+    </button>` : ''}
     ${freigabeBadge}
     ${freigebenBtn}
+    ${kannPdf ? `
+    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-pdf"
+      title="Skript als PDF">
+      <span class="mdc-btn__icon">${icon('pdf')}</span>
+      <span class="mdc-btn__label">PDF</span>
+    </button>` : ''}
     ${kannTeilen ? `
     <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-share"
-      title="Skript per Link teilen">
+      title="Freigegebene Skripte dieses Creators teilen">
       <span class="mdc-btn__icon">${icon('share-alt')}</span>
       <span class="mdc-btn__label">Teilen</span>
-    </button>
+    </button>` : ''}
+    ${senden ? `
     <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-anschreiben"
       title="Skript per E-Mail senden">
       <span class="mdc-btn__icon">${icon('anschreiben')}</span>

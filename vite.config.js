@@ -51,7 +51,8 @@ export default defineConfig({
         verifyEmail: 'src/auth/verify-email.html',
         confirmEmail: 'src/auth/confirm-email.html',
         resetPassword: 'src/auth/reset-password.html',
-        creatorUpload: 'src/upload/creator-upload.html'
+        creatorUpload: 'src/upload/creator-upload.html',
+        bewerbung: 'src/bewerbung/bewerbung.html'
       },
       output: {
         manualChunks: {

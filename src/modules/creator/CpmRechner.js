@@ -1,29 +1,54 @@
 import { berechnePreisAusViews, DEFAULT_TKP } from '../creator-auswahl/castingPreisZellen.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { bindMoneyInput, setMoneyInputValue } from '../../core/form/moneyInput.js';
+import { parseCurrencyInput } from '../../core/utils/parseCurrency.js';
 import { openDrawer } from './creatorDrawer.js';
 import { formatFollowerShort, searchTokens } from './creatorProfil.js';
 
 const DRAWER_ID = 'cpm-rechner-drawer';
+const FELDER = ['views', 'tkp', 'preis'];
 
-function money(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '';
-  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Leer und 0 rechnen nicht mit. Versteht 2.000,00 ebenso wie 2000.00. */
+function positiv(value) {
+  const n = parseCurrencyInput(value);
+  if (n == null || n <= 0) return null;
+  return n;
 }
 
-/** Reichweite -> Preis, gleiche Rechnung wie in der Sourcing-Liste */
-export function priceFromViews(views, tkp = DEFAULT_TKP) {
-  const n = Number(views);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return berechnePreisAusViews(n, tkp);
+/**
+ * Die beiden zuletzt angefassten Felder bleiben stehen, das dritte wird
+ * neu gerechnet. Dasselbe Feld noch einmal zu aendern laesst das
+ * Ergebnis-Feld gleich. `zuletzt` ist aeltestes zuerst.
+ */
+export function naechstesErgebnis(zuletzt, feld) {
+  const liste = zuletzt.filter((eintrag) => eintrag !== feld);
+  liste.push(feld);
+  if (liste.length < 2) return { zuletzt: liste, ergebnis: null };
+  const zwei = liste.slice(-2);
+  return {
+    zuletzt: zwei,
+    ergebnis: FELDER.find((name) => !zwei.includes(name))
+  };
 }
 
-/** Preis -> TKP, die Gegenrichtung */
-export function cpmFromPrice(price, views) {
-  const reach = Number(views);
-  const amount = Number(price);
-  if (!Number.isFinite(reach) || reach <= 0 || !Number.isFinite(amount)) return null;
-  return amount / (reach / 1000);
+/** Das Ergebnis-Feld aus den beiden Eingaben. null leert das Ergebnis. */
+export function rechneCpmFeld(ergebnis, werte) {
+  const views = positiv(werte.views);
+  const tkp = positiv(werte.tkp);
+  const preis = positiv(werte.preis);
+  if (ergebnis === 'preis') {
+    if (views == null || tkp == null) return null;
+    return berechnePreisAusViews(views, tkp);
+  }
+  if (ergebnis === 'tkp') {
+    if (views == null || preis == null) return null;
+    return Math.round((preis / (views / 1000)) * 100) / 100;
+  }
+  if (ergebnis === 'views') {
+    if (preis == null || tkp == null) return null;
+    return Math.round((preis / tkp) * 1000);
+  }
+  return null;
 }
 
 export function openCpmRechner() {
@@ -32,7 +57,7 @@ export function openCpmRechner() {
   const { body, close } = openDrawer({
     id: DRAWER_ID,
     title: 'CPM-Rechner',
-    subtitle: `Reichweite, Preis und TKP – Standard ${DEFAULT_TKP} € TKP`,
+    subtitle: 'Reichweite, Preis und TKP',
     body: `
       <div class="form-field">
         <label for="cpm-fenster">Fenster</label>
@@ -46,9 +71,12 @@ export function openCpmRechner() {
         <input id="cpm-views" type="number" min="0" step="1" class="form-input" placeholder="Views" />
       </div>
       <div class="form-field">
+        <label for="cpm-tkp">TKP in Euro</label>
+        <input id="cpm-tkp" type="number" min="0" step="0.01" class="form-input" value="${DEFAULT_TKP}" />
+      </div>
+      <div class="form-field">
         <label for="cpm-preis">Preis in Euro</label>
-        <input id="cpm-preis" type="number" min="0" step="0.01" class="form-input" />
-        <span class="form-hint" id="cpm-ergebnis"></span>
+        <input id="cpm-preis" type="text" inputmode="decimal" class="form-input" placeholder="0,00" autocomplete="off" />
       </div>
       <div class="form-field">
         <label for="cpm-creator-search-input">Creator als Quelle</label>
@@ -56,6 +84,7 @@ export function openCpmRechner() {
           ${SearchInput.render('cpm-creator', { placeholder: 'Name oder Handle...' })}
           <div id="cpm-treffer" class="searchable-select-dropdown"></div>
         </div>
+        <span class="form-hint" id="cpm-quelle-hinweis" hidden></span>
       </div>
       <div class="drawer-footer">
         <button type="button" class="mdc-btn mdc-btn--secondary" id="cpm-schliessen">Schließen</button>
@@ -65,39 +94,69 @@ export function openCpmRechner() {
 
   const fenster = body.querySelector('#cpm-fenster');
   const views = body.querySelector('#cpm-views');
+  const tkp = body.querySelector('#cpm-tkp');
   const preis = body.querySelector('#cpm-preis');
-  const out = body.querySelector('#cpm-ergebnis');
+  const hinweis = body.querySelector('#cpm-quelle-hinweis');
   const treffer = body.querySelector('#cpm-treffer');
+  const felder = { views, tkp, preis };
+  // Der Startwert 25 € gilt als schon gesetzt.
+  let zuletzt = ['tkp'];
   let quelle = null;
 
-  const zeichne = (quellfeld) => {
-    const reach = Number(views.value);
-    if (quellfeld === 'views') {
-      const price = priceFromViews(reach);
-      if (price != null) preis.value = price.toFixed(2);
+  const werte = () => ({
+    views: views.value,
+    tkp: tkp.value,
+    preis: preis.value
+  });
+
+  const schreibe = (feld, wert) => {
+    const input = felder[feld];
+    if (feld === 'preis') {
+      if (wert == null) input.value = '';
+      else setMoneyInputValue(input, wert);
+      return;
     }
-    const cpm = cpmFromPrice(preis.value, reach);
-    out.textContent = cpm == null
-      ? ''
-      : `${money(preis.value)} € bei ${Number(reach).toLocaleString('de-DE')} Views = ${money(cpm)} € TKP`;
+    if (wert == null) {
+      input.value = '';
+      return;
+    }
+    input.value = feld === 'views' ? String(wert) : wert.toFixed(2);
   };
 
-  views.addEventListener('input', () => zeichne('views'));
-  preis.addEventListener('input', () => zeichne('preis'));
-  body.querySelector('#cpm-schliessen').addEventListener('click', close);
+  const zeigeHinweis = (text) => {
+    hinweis.hidden = !text;
+    hinweis.textContent = text || '';
+  };
 
-  // Reichweite aus den gespeicherten Reels-Schnitten des Creators
+  const wendeAn = (feld) => {
+    const next = naechstesErgebnis(zuletzt, feld);
+    zuletzt = next.zuletzt;
+    if (!next.ergebnis) return;
+    schreibe(next.ergebnis, rechneCpmFeld(next.ergebnis, werte()));
+    zeigeHinweis('');
+  };
+
+  // Ein Mitarbeiter waehlt einen Creator als Reichweiten-Quelle.
+  // Gesetzt wird nur die Reichweite, der Preis rechnet neu, der TKP bleibt.
   const uebernehmeQuelle = () => {
     if (!quelle) return;
     const wert = fenster.value === '30' ? quelle.ig_views_30 : quelle.ig_views_8;
     if (wert == null) {
-      out.textContent = `Für ${quelle.name} liegt kein ${fenster.value}er-Schnitt vor`;
+      zeigeHinweis(`Für ${quelle.name} liegt kein ${fenster.value}er-Schnitt vor`);
       return;
     }
-    views.value = Math.round(wert);
-    zeichne('views');
+    views.value = String(Math.round(Number(wert)));
+    zuletzt = ['tkp', 'views'];
+    schreibe('preis', rechneCpmFeld('preis', werte()));
+    zeigeHinweis('');
   };
+
+  bindMoneyInput(preis);
+  views.addEventListener('input', () => wendeAn('views'));
+  tkp.addEventListener('input', () => wendeAn('tkp'));
+  preis.addEventListener('input', () => wendeAn('preis'));
   fenster.addEventListener('change', uebernehmeQuelle);
+  body.querySelector('#cpm-schliessen').addEventListener('click', close);
 
   const suchen = async (term) => {
     const tokens = searchTokens(term);

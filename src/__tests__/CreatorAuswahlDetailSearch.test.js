@@ -70,7 +70,8 @@ describe('CreatorAuswahlDetail – Namenssuche', () => {
     const counts = detail.getTabCounts();
     expect(counts).toEqual({
       alle: 2, offen: 1, angefragt: 0, on_hold: 1,
-      in_verhandlung: 0, absage: 0, zusage: 0, gebucht: 0
+      in_verhandlung: 0, absage: 0, zusage: 0, gebucht: 0,
+      bewerbung: 0
     });
   });
 

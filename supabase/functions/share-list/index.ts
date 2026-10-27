@@ -29,6 +29,7 @@ const ENTITY_CONFIG: Record<string, { table: string; nameColumns: string[]; labe
   sourcing: { table: 'creator_auswahl', nameColumns: ['name'], label: 'Sourcing-Liste', article: 'die' },
   strategie: { table: 'strategie', nameColumns: ['name'], label: 'Strategie-Liste', article: 'die' },
   skript: { table: 'skripte', nameColumns: ['titel'], label: 'Skript', article: 'das' },
+  skript_paket: { table: 'skript_pakete', nameColumns: ['id'], label: 'Skripte', article: 'die' },
 };
 
 function corsHeaders(req: Request): Record<string, string> {
@@ -150,7 +151,29 @@ function shareIsUsable(share: {
   return null;
 }
 
+function scriptTitleList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((t) => String(t || '').trim()).filter(Boolean).slice(0, 40);
+}
+
+function creatorAnzeigeName(creator: { vorname?: string | null; nachname?: string | null } | null): string {
+  return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
+}
+
 async function entityName(admin: ReturnType<typeof createClient>, entityType: string, entityId: string): Promise<{ name: string; kampagneId: string | null } | null> {
+  if (entityType === 'skript_paket') {
+    const { data, error } = await admin
+      .from('skript_pakete')
+      .select('kampagne_id, creator:creator_id(vorname, nachname)')
+      .eq('id', entityId)
+      .maybeSingle();
+    if (error || !data) return null;
+    const creatorName = creatorAnzeigeName(data.creator as { vorname?: string | null; nachname?: string | null } | null);
+    return {
+      name: creatorName ? `Skripte für ${creatorName}` : 'Skripte',
+      kampagneId: data.kampagne_id,
+    };
+  }
   const entityConfig = ENTITY_CONFIG[entityType];
   if (!entityConfig) return null;
   const extra = entityType === 'kampagne' ? '' : ', kampagne_id';
@@ -457,6 +480,7 @@ serve(async (req: Request) => {
         ends_with_kampagne: endsWithKampagne && Boolean(info.kampagneId),
         skript_scope: skriptScope,
         created_by: staff.id,
+        empfaenger_emails: emails,
       })
       .select('id')
       .single();
@@ -468,7 +492,9 @@ serve(async (req: Request) => {
 
     const origin = req.headers.get('origin') || Deno.env.get('APP_BASE_URL') || '';
     const link = `${origin}/share/${token}`;
-    const mailName = allScripts
+    const paket = entityType === 'skript_paket';
+    const titles = scriptTitleList(body.scriptTitles);
+    const mailName = (allScripts || paket)
       ? (await kampagneDisplayName(admin, info.kampagneId)) || info.name
       : info.name;
 
@@ -483,7 +509,8 @@ serve(async (req: Request) => {
         link,
         code,
         message: message || undefined,
-        allScripts,
+        allScripts: allScripts || paket,
+        titles: paket ? titles : undefined,
         basisUrl: origin,
       }),
     });
@@ -540,6 +567,15 @@ serve(async (req: Request) => {
       }
     }
     if (body.endsWithKampagne !== undefined) patch.ends_with_kampagne = Boolean(body.endsWithKampagne);
+    if (body.emails !== undefined) {
+      const emails = parseEmails(body.emails);
+      for (const email of emails) {
+        if (!EMAIL_REGEX.test(email) || email.length > 320) {
+          return jsonRes({ error: `Ungültige E-Mail-Adresse: ${email}` }, 400, headers);
+        }
+      }
+      patch.empfaenger_emails = emails;
+    }
     if (Object.keys(patch).length === 0) return jsonRes({ error: 'Keine Änderungen.' }, 400, headers);
     const { error } = await admin.from('list_shares').update(patch).eq('id', shareId);
     if (error) return jsonRes({ error: 'Aktualisierung fehlgeschlagen.' }, 500, headers);
@@ -576,7 +612,8 @@ serve(async (req: Request) => {
       return jsonRes({ error: 'Zum erneuten Versand bitte zuerst den Code rotieren und den neuen Code mitsenden.' }, 400, headers);
     }
     const allScripts = share.entity_type === 'skript' && share.skript_scope === 'kampagne';
-    const mailName = allScripts
+    const paket = share.entity_type === 'skript_paket';
+    const mailName = (allScripts || paket)
       ? (await kampagneDisplayName(admin, info?.kampagneId ?? null)) || info?.name || share.label
       : (info?.name || share.label || 'Unbenannt');
     const mailResult = await sendInviteMails({
@@ -587,10 +624,11 @@ serve(async (req: Request) => {
         entityName: mailName,
         sharedByName: staff.name || 'Ihr Ansprechpartner',
         rechte: share.rechte,
+        allScripts: allScripts || paket,
+        titles: paket ? scriptTitleList(body.scriptTitles) : undefined,
         link,
         code,
         message: String(body.message ?? '').trim().slice(0, 500) || undefined,
-        allScripts,
         basisUrl: origin,
       }),
     });

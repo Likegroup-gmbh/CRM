@@ -42,8 +42,7 @@
   border-radius: var(--radius-xl);
 }
 
-/* Shell: drei Kästen mit Gap (Liste | Dokument | Feedback).
-   Die dritte Spalte steht allen Rollen offen - Kunden kommentieren dort. */
+/* Shell: Liste | Dokument | Feedback. Gäste haben keine Feedback-Spalte. */
 .skripte-editor-shell {
   display: grid;
   grid-template-columns: calc(var(--panel-md) * 1.15) minmax(0, 1fr) var(--panel-lg);
@@ -59,10 +58,23 @@
   grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr) var(--panel-lg);
 }
 
+/* Geteilte Ansicht: keine Kommentare, keine Änderungen. */
+.skripte-editor--gast .skripte-editor-shell {
+  grid-template-columns: calc(var(--panel-md) * 1.15) minmax(0, 1fr);
+}
+
+.skripte-editor--gast.skripte-editor--liste-collapsed .skripte-editor-shell {
+  grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr);
+}
+
 @media (max-width: 1200px) {
   .skripte-editor-shell,
   .skripte-editor--liste-collapsed .skripte-editor-shell {
     grid-template-columns: minmax(0, 1fr) var(--panel-lg);
+  }
+  .skripte-editor--gast .skripte-editor-shell,
+  .skripte-editor--gast.skripte-editor--liste-collapsed .skripte-editor-shell {
+    grid-template-columns: minmax(0, 1fr);
   }
   .skripte-editor-liste {
     display: none;

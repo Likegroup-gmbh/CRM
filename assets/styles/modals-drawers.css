@@ -1,3 +1,5 @@
+@import './casting-detail.css';
+
 /* ==========================================================================
    MODALS-DRAWERS (aus components.css extrahiert, Phase 7)
    ========================================================================== */
@@ -346,6 +348,18 @@ body.drawer-resizing {
 .drawer-close-btn:hover {
   background: var(--gray-100);
   color: var(--gray-700);
+}
+
+.drawer-title-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.drawer-title-line .drawer-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .drawer-title {

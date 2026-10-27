@@ -5,7 +5,9 @@ import { CreatorList } from './CreatorListCore.js';
 import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
 import { bindDuplicateCheck } from '../../core/validation/DuplicateCheckBinding.js';
 import { bindGenerationControls, normalizeHandle } from './creatorProfil.js';
+import { formularAusInstagramVorschau, followerZumSpeichern } from './creatorInstagramPrefill.js';
 import { mountCreatorBetreuung, syncCreatorBetreuung } from '../ansprechpartner/betreuung.js';
+import { instagramProfilHandle } from '../creator-auswahl/instagramDrawerFill.js';
 import { creatorAuswahlService } from '../creator-auswahl/CreatorAuswahlService.js';
 import { connectInstagramSilent } from '../../core/ActionsDropdownEffects.js';
 
@@ -21,7 +23,7 @@ CreatorList.prototype.showCreateForm = function() {
           <label for="creator-instagram-link">Instagram-Link</label>
           <input id="creator-instagram-link" name="instagram" type="url" class="form-input"
                  placeholder="https://instagram.com/…" required />
-          <span class="form-hint">Gleicher Handle öffnet den vorhandenen Creator.</span>
+          <span class="form-hint">Der Link füllt das Formular. Gleicher Handle öffnet den vorhandenen Creator.</span>
         </div>
         <div class="form-actions">
           <button type="submit" class="mdc-btn mdc-btn--create">
@@ -36,14 +38,34 @@ CreatorList.prototype.showCreateForm = function() {
   `;
   document.getElementById('creator-instagram-start')?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    await this.continueFromInstagram(event.target.instagram.value);
+    const button = event.target.querySelector('button[type="submit"]');
+    const label = button?.querySelector('.mdc-btn__label');
+    const skip = document.getElementById('creator-skip-instagram');
+    if (button) {
+      button.disabled = true;
+      button.classList.add('is-loading');
+    }
+    if (skip) skip.disabled = true;
+    if (label) label.textContent = 'Wird geladen…';
+    try {
+      await this.continueFromInstagram(event.target.instagram.value);
+    } finally {
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+        if (label) label.textContent = 'Weiter';
+      }
+      if (skip?.isConnected) skip.disabled = false;
+    }
   });
   document.getElementById('creator-skip-instagram')?.addEventListener('click', () => {
+    this._instagramFollowerZahl = null;
     this.renderCreatorForm('');
   });
 };
 
 CreatorList.prototype.continueFromInstagram = async function(raw) {
+  this._instagramFollowerZahl = null;
   const handle = normalizeHandle(raw);
   if (handle && window.supabase) {
     const { data } = await window.supabase
@@ -58,7 +80,32 @@ CreatorList.prototype.continueFromInstagram = async function(raw) {
       return;
     }
   }
-  this.renderCreatorForm(raw);
+  const values = await this.instagramFelderFuerNeuesFormular(raw);
+  if (!document.getElementById('creator-instagram-start')) return;
+  this.renderCreatorForm(values);
+};
+
+CreatorList.prototype.instagramFelderFuerNeuesFormular = async function(raw) {
+  const link = String(raw || '').trim();
+  if (!instagramProfilHandle(raw)) {
+    window.toastSystem?.show('Nur ein Instagram-Profil wird ausgelesen', 'info');
+    return { instagram: link };
+  }
+  try {
+    const result = await creatorAuswahlService.previewInstagramStats(raw);
+    const values = formularAusInstagramVorschau(raw, result);
+    if (!values.geladen) {
+      window.toastSystem?.show('Instagram konnte nicht geladen werden', 'error');
+      return values;
+    }
+    const zahl = Number(result?.fields?.follower_instagram);
+    if (Number.isFinite(zahl)) this._instagramFollowerZahl = zahl;
+    return values;
+  } catch (error) {
+    console.warn('Instagram-Vorschau fehlgeschlagen', error);
+    window.toastSystem?.show('Instagram konnte nicht geladen werden', 'error');
+    return { instagram: link };
+  }
 };
 
 CreatorList.prototype.fillEmptyFromScrape = async function(existing, rawUrl) {
@@ -84,7 +131,11 @@ CreatorList.prototype.fillEmptyFromScrape = async function(existing, rawUrl) {
 };
 
 CreatorList.prototype.renderCreatorForm = function(instagramPrefill = '') {
-  const formHtml = window.formSystem.renderFormOnly('creator');
+  const values = typeof instagramPrefill === 'string'
+    ? { instagram: instagramPrefill }
+    : { ...(instagramPrefill || {}) };
+  delete values.geladen;
+  const formHtml = window.formSystem.renderFormOnly('creator', values);
   window.content.innerHTML = `
     <div class="form-split-container">
       <div class="form-split-left">
@@ -103,8 +154,11 @@ CreatorList.prototype.renderCreatorForm = function(instagramPrefill = '') {
 
   const form = document.getElementById('creator-form');
   if (!form) return;
-  const instagramField = form.querySelector('[name="instagram"]');
-  if (instagramField && instagramPrefill) instagramField.value = instagramPrefill;
+  for (const [name, value] of Object.entries(values)) {
+    if (value == null || value === '') continue;
+    const field = form.querySelector(`[name="${name}"]`);
+    if (field) field.value = value;
+  }
   bindGenerationControls(form);
   mountCreatorBetreuung(form);
   form.onsubmit = async (e) => {
@@ -202,6 +256,11 @@ CreatorList.prototype.handleFormSubmit = async function() {
       validation.errors = { ...(validation.errors || {}), telefonnummer: 'Telefon ist Pflicht, oder „nicht vorhanden“' };
     }
     if (!mail || (!phone && !phoneMissing)) validation.isValid = false;
+
+    submitData.instagram_follower = followerZumSpeichern(
+      submitData.instagram_follower,
+      this._instagramFollowerZahl
+    );
 
     if (!validation.isValid) {
       if (btn) {

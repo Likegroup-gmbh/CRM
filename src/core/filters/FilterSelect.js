@@ -71,8 +71,9 @@ export function renderFilterSelect(filter, value, options, { name = '' } = {}) {
           <span class="filter-select__check">${icon('check-filled')}</span>
         </button>`).join('');
 
+  const domId = filter.id ? `filter-select-${filter.id}` : '';
   return `
-    <div class="filter-select" data-filter-select data-mode="${multi ? 'multi' : 'single'}" data-empty-label="${esc(emptyLabel)}">
+    <div class="filter-select" data-filter-select data-mode="${multi ? 'multi' : 'single'}" data-empty-label="${esc(emptyLabel)}"${domId ? ` id="${esc(domId)}"` : ''}${filter.portal ? ' data-portal="true"' : ''}>
       <button type="button" class="filter-select__trigger${labels.length ? '' : ' is-empty'}" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(filter.label || '')}">
         <span class="table-select__label">${esc(summarizeSelection(labels, emptyLabel))}</span>
         <span class="table-select__chevron">${icon('chevron-down')}</span>
@@ -96,18 +97,39 @@ export function renderFilterSelect(filter, value, options, { name = '' } = {}) {
 }
 
 // Trigger-Text und Markierungen aus den Formularfeldern neu setzen.
+function panelOf(wrapper) {
+  const inside = wrapper.querySelector(':scope > .filter-select__panel');
+  if (inside) return inside;
+  if (!wrapper.id) return null;
+  return document.querySelector(`.filter-select__panel[data-filter-owner="${wrapper.id}"]`);
+}
+
+export function readFilterSelectValues(wrapper) {
+  if (!wrapper) return [];
+  const panel = panelOf(wrapper);
+  if (wrapper.dataset.mode === 'multi') {
+    return [...(panel?.querySelectorAll('input[type="checkbox"]:checked') || [])].map((box) => box.value);
+  }
+  return wrapper.querySelector('input[type="hidden"]')?.value ?? '';
+}
+
+export function closeFilterSelects(root) {
+  root?.querySelectorAll('[data-filter-select].is-open').forEach((wrapper) => close(wrapper));
+}
+
 export function syncFilterSelect(wrapper) {
   const multi = wrapper.dataset.mode === 'multi';
+  const panel = panelOf(wrapper);
   const labels = [];
   if (multi) {
-    wrapper.querySelectorAll('.filter-select__item').forEach((item) => {
+    panel?.querySelectorAll('.filter-select__item').forEach((item) => {
       const on = item.querySelector('input[type="checkbox"]').checked;
       item.setAttribute('aria-selected', String(on));
       if (on) labels.push(item.textContent.trim());
     });
   } else {
     const value = wrapper.querySelector('input[type="hidden"]')?.value ?? '';
-    wrapper.querySelectorAll('.filter-select__item').forEach((item) => {
+    panel?.querySelectorAll('.filter-select__item').forEach((item) => {
       const on = item.dataset.value === value;
       item.setAttribute('aria-selected', String(on));
       if (on && value !== '') labels.push(item.textContent.trim());
@@ -124,19 +146,20 @@ export function syncFilterSelects(root) {
 
 function filterOptions(wrapper, term) {
   let visible = 0;
-  wrapper.querySelectorAll('.filter-select__item').forEach((item) => {
+  const panel = panelOf(wrapper);
+  panel?.querySelectorAll('.filter-select__item').forEach((item) => {
     const hit = !item.dataset.value && wrapper.dataset.mode === 'single'
       ? !term
       : matchesOptionSearch(item.textContent.trim(), term);
     item.hidden = !hit;
     if (hit) visible += 1;
   });
-  wrapper.querySelector('.filter-select__empty').hidden = visible > 0;
+  panel?.querySelector('.filter-select__empty') && (panel.querySelector('.filter-select__empty').hidden = visible > 0);
 }
 
 function position(wrapper) {
   const trigger = wrapper.querySelector('.filter-select__trigger');
-  const panel = wrapper.querySelector('.filter-select__panel');
+  const panel = panelOf(wrapper);
   const rect = trigger.getBoundingClientRect();
   panel.style.width = `${Math.max(rect.width, 220)}px`;
   panel.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - panel.offsetWidth - 8))}px`;
@@ -149,13 +172,17 @@ function position(wrapper) {
 
 function close(wrapper, { focus = false } = {}) {
   if (!wrapper?.classList.contains('is-open')) return;
+  const panel = panelOf(wrapper);
   wrapper.classList.remove('is-open');
-  const panel = wrapper.querySelector('.filter-select__panel');
-  panel.hidden = true;
-  const search = wrapper.querySelector('[data-select-search]');
-  if (search?.value) {
-    search.value = '';
-    filterOptions(wrapper, '');
+  if (panel) {
+    const search = panel.querySelector('[data-select-search]');
+    if (search?.value) {
+      search.value = '';
+      filterOptions(wrapper, '');
+    }
+    panel.hidden = true;
+    panel.classList.remove('is-open');
+    if (panel.parentElement !== wrapper) wrapper.appendChild(panel);
   }
   const trigger = wrapper.querySelector('.filter-select__trigger');
   trigger.setAttribute('aria-expanded', 'false');
@@ -163,12 +190,24 @@ function close(wrapper, { focus = false } = {}) {
 }
 
 function open(wrapper) {
+  const panel = panelOf(wrapper);
   wrapper.classList.add('is-open');
-  wrapper.querySelector('.filter-select__panel').hidden = false;
+  panel.hidden = false;
   wrapper.querySelector('.filter-select__trigger').setAttribute('aria-expanded', 'true');
+  if (wrapper.dataset.portal === 'true') {
+    panel.dataset.filterOwner = wrapper.id;
+    panel.classList.add('is-open');
+    document.body.appendChild(panel);
+  }
   position(wrapper);
-  const search = wrapper.querySelector('[data-select-search]');
-  (search || wrapper.querySelector('.filter-select__item:not([hidden])'))?.focus();
+  const search = panel.querySelector('[data-select-search]');
+  (search || panel.querySelector('.filter-select__item:not([hidden])'))?.focus();
+}
+
+function ownerOfPortaledPanel(node) {
+  const panel = node.closest?.('.filter-select__panel');
+  if (!panel?.dataset.filterOwner || panel.parentElement?.closest?.('[data-filter-select]')) return null;
+  return document.getElementById(panel.dataset.filterOwner);
 }
 
 function emitChange(input) {
@@ -232,8 +271,51 @@ export function bindFilterSelects(root, { signal } = {}) {
     position(wrapper);
   }, { signal });
 
+  document.addEventListener('click', (event) => {
+    const wrapper = ownerOfPortaledPanel(event.target);
+    if (!wrapper || !root.contains(wrapper)) return;
+    if (event.target.closest('[data-select-done]')) {
+      closeCurrent({ focus: true });
+      return;
+    }
+    if (event.target.closest('[data-select-clear]')) {
+      const boxes = [...panelOf(wrapper).querySelectorAll('input[type="checkbox"]:checked')];
+      boxes.forEach((box) => { box.checked = false; });
+      syncFilterSelect(wrapper);
+      wrapper.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+    const item = event.target.closest('button.filter-select__item');
+    if (!item) return;
+    const input = wrapper.querySelector('input[type="hidden"]');
+    const changed = input.value !== item.dataset.value;
+    input.value = item.dataset.value;
+    syncFilterSelect(wrapper);
+    closeCurrent({ focus: true });
+    if (changed) emitChange(input);
+  }, { signal });
+
+  document.addEventListener('change', (event) => {
+    const wrapper = ownerOfPortaledPanel(event.target);
+    if (!wrapper || !root.contains(wrapper) || event.target.type !== 'checkbox') return;
+    syncFilterSelect(wrapper);
+    wrapper.dispatchEvent(new Event('change', { bubbles: true }));
+  }, { signal });
+
+  document.addEventListener('input', (event) => {
+    const search = event.target.closest?.('[data-select-search]');
+    if (!search) return;
+    const wrapper = ownerOfPortaledPanel(search);
+    if (!wrapper || !root.contains(wrapper)) return;
+    filterOptions(wrapper, search.value);
+    position(wrapper);
+  }, { signal });
+
   document.addEventListener('pointerdown', (event) => {
-    if (current && !current.contains(event.target)) closeCurrent();
+    if (!current) return;
+    const panel = panelOf(current);
+    if (current.contains(event.target) || panel?.contains(event.target)) return;
+    closeCurrent();
   }, { signal });
 
   document.addEventListener('keydown', (event) => {
@@ -245,7 +327,7 @@ export function bindFilterSelects(root, { signal } = {}) {
 
   window.addEventListener('scroll', (event) => {
     if (!current) return;
-    if (current.querySelector('.filter-select__panel').contains(event.target)) return;
+    if (panelOf(current)?.contains(event.target)) return;
     position(current);
   }, { signal, capture: true });
 

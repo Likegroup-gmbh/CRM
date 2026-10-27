@@ -2,7 +2,8 @@
 // Reine Funktionen: Zustand und Events bleiben in CreatorGridView.
 
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
-import { ageLabel, cardChips, formatFollowerShort, groesseOf } from './creatorProfil.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { ageLabel, cardChips, formatFollowerShort, groesseOf, instagramProfilUrl } from './creatorProfil.js';
 import { darfRezensionSehen, formatRezension } from './rezension.js';
 import { renderFavorit } from './creatorFavorit.js';
 import { renderTagZeile } from './creatorTags.js';
@@ -11,6 +12,26 @@ const esc = (v) => window.validatorSystem?.sanitizeHtml?.(String(v ?? '')) ?? St
 
 function displayName(c) {
   return `${c.vorname || ''} ${c.nachname || ''}`.trim() || 'Unbekannt';
+}
+
+function escAttr(value) {
+  return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+/** Instagram-Icon, das das Profil in einem neuen Tab öffnet. Leer ohne Handle. */
+export function renderInstagramProfilLink(instagram) {
+  const url = instagramProfilUrl(instagram);
+  if (!url) return '';
+  return `<a class="creator-ig-link" href="${escAttr(url)}" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram-Profil öffnen">${icon('instagram', { className: 'creator-ig-link__icon' })}</a>`;
+}
+
+function renderIdentity(c) {
+  return `
+    <div class="creator-card__identity">
+      <h3 class="creator-card__name">${esc(displayName(c))}</h3>
+      ${renderInstagramProfilLink(c.instagram)}
+    </div>
+  `;
 }
 
 function renderActions(c) {
@@ -77,8 +98,9 @@ export function renderCreatorCard(c, list) {
       ${renderMedia(c)}
       <div class="creator-card__body">
         <div class="creator-card__header">
-          <h3 class="creator-card__name">${esc(name)}</h3>
+          ${renderIdentity(c)}
           <div class="creator-card__actions">
+            <button type="button" class="mdc-btn mdc-btn--sm creator-card__casting" data-id="${id}">Ins Casting</button>
             ${renderFavorit(c)}
             ${renderActions(c)}
           </div>
@@ -87,9 +109,6 @@ export function renderCreatorCard(c, list) {
         ${renderTagRow(c, list)}
         ${renderTagZeile(c.tags)}
         ${renderStats(c)}
-        <div class="creator-card__links">
-          <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm creator-card__casting" data-id="${id}">Ins Casting</button>
-        </div>
       </div>
     </article>
   `;
@@ -118,7 +137,7 @@ export function renderCreatorZeile(c) {
       ${renderMedia(c)}
       <div class="creator-card__body">
         <div class="creator-card__header">
-          <h3 class="creator-card__name">${esc(name)}</h3>
+          ${renderIdentity(c)}
           ${renderFavorit(c)}
         </div>
         <div class="creator-card__meta">${bits.map((bit) => `<span>${bit}</span>`).join('')}</div>

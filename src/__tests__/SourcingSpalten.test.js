@@ -82,8 +82,8 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const ab = spalten.indexOf('cp-col-link-ig');
 
-    expect(spalten.slice(ab, ab + 9)).toEqual([
-      'cp-col-link-ig', 'cp-col-follower-ig',
+    expect(spalten.slice(ab, ab + 10)).toEqual([
+      'cp-col-link-ig', 'cp-col-follower-ig', 'cp-col-engagement-ig',
       'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-reels',
       'cp-col-reichweite-story', 'cp-col-preis-story',
       'cp-col-link-tt', 'cp-col-follower-tt'

@@ -69,7 +69,7 @@ describe('SkriptListRenderer Items', () => {
     const link = cells[2].querySelector('a.table-link');
     expect(link.dataset.table).toBe('creator');
     expect(link.dataset.id).toBe('c1');
-    expect(link.textContent).toBe('Lea Hoff');
+    expect(link.textContent).toBe('Casting');
     expect(cells[2].querySelector('img.table-avatar')).not.toBeNull();
   });
 

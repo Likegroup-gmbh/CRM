@@ -14,7 +14,11 @@ import { quittiereTausch } from './skriptTauschBanner.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
 
 SkriptEditorView.prototype.bindDocHeadActions = function(el) {
+  el.querySelector('#ed-zurueck')?.addEventListener('click', () => {
+    window.moduleRegistry?.navigateTo('/skripte');
+  });
   this.bindShareButton(el);
+  this.bindPdfButton(el);
   this.bindAnschreibenButton(el);
   this.bindFreigebenButton(el);
   this.bindLoeschenButton(el);
@@ -23,6 +27,9 @@ SkriptEditorView.prototype.bindDocHeadActions = function(el) {
 SkriptEditorView.prototype.docHeadActions = function() {
   return docHeadActionsHtml({
     kannTeilen: this.kannTeilen,
+    kannAnschreiben: this.kannAnschreiben,
+    kannPdf: Boolean(this.skript?.id),
+    kannZurueck: window.guestShare?.entityType === 'skript_paket',
     kannFreigeben: this.kannFreigeben,
     kannLoeschen: this.kannLoeschen,
     status: this.skript?.status || '',
@@ -62,13 +69,30 @@ SkriptEditorView.prototype.freigeben = async function() {
 SkriptEditorView.prototype.bindShareButton = function(el) {
   el.querySelector('#ed-share')?.addEventListener('click', () => {
     if (!this.kannTeilen) return;
-    window.shareListDrawer?.open({
-      entityType: 'skript',
-      entityId: this.skript.id,
-      entityName: this.skript.titel || 'Skript',
-      kampagneId: this.skript.kampagne_id || null
+    const creator = konzeptCreatorFromSkript(this.skript);
+    window.skriptPaketDrawer?.open({
+      kampagneId: this.skript.kampagne_id,
+      kampagneName: this.skript.kampagne?.kampagnenname || this.skript.kampagne?.eigener_name || '',
+      creatorId: creator?.id || null
     });
   });
+};
+
+SkriptEditorView.prototype.bindPdfButton = function(el) {
+  el.querySelector('#ed-pdf')?.addEventListener('click', () => this.downloadPdf());
+};
+
+SkriptEditorView.prototype.downloadPdf = async function() {
+  if (!this.skript?.id) return;
+  const { downloadSkriptePdf, sanitizeSkriptFilename } = await import('../skriptPdfDownload.js');
+  try {
+    await downloadSkriptePdf([this.skript], {
+      dateiname: sanitizeSkriptFilename(this.skript.titel),
+      verknuepfungenNachId: new Map([[this.skript.id, this.verknuepfungen || []]])
+    });
+  } catch (err) {
+    window.toastSystem?.error(err.message || 'PDF konnte nicht erstellt werden.');
+  }
 };
 
 SkriptEditorView.prototype.bindAnschreibenButton = function(el) {
@@ -98,6 +122,12 @@ SkriptEditorView.prototype.warmSkriptAnschreiben = function() {
   });
 };
 
+/** Generator-Vorgaben bleiben intern. In der geteilten Ansicht sieht der Gast sie nicht. */
+SkriptEditorView.prototype.vorgabenFuerAnsicht = function() {
+  if (window.isGast?.()) return '';
+  return vorgabenPanelHtml(this.skript, { kannPersonaSetzen: !this.isReadonly });
+};
+
 SkriptEditorView.prototype.renderDoc = function() {
   const el = document.getElementById('ed-doc');
   if (!el) return;
@@ -110,7 +140,7 @@ SkriptEditorView.prototype.renderDoc = function() {
       skript: this.skript,
       genStatus: this.genStatus,
       docHeadActionsHtml: this.docHeadActions(),
-      vorgabenPanelHtml: vorgabenPanelHtml(this.skript, { kannPersonaSetzen: !this.isReadonly })
+      vorgabenPanelHtml: this.vorgabenFuerAnsicht()
     });
     el.querySelectorAll('[data-aufbau-flag]').forEach((toggle) => {
       toggle.addEventListener('change', () => this.saveGeneratorFlag(toggle.dataset.aufbauFlag, toggle.checked));
@@ -132,7 +162,7 @@ SkriptEditorView.prototype.renderDoc = function() {
     messages: this.messages,
     isReadonly: this.isReadonly,
     docHeadActionsHtml: this.docHeadActions(),
-    vorgabenPanelHtml: vorgabenPanelHtml(this.skript, { kannPersonaSetzen: !this.isReadonly }),
+    vorgabenPanelHtml: this.vorgabenFuerAnsicht(),
     docTab: this.docTab || 'skript',
     zeigeHookVarianten: this.kannAiAktionen
   });

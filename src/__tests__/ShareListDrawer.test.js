@@ -328,23 +328,17 @@ describe('ShareListDrawer Zugänge', () => {
     });
   });
 
-  it('zeigt die Umfang-Auswahl nur beim Skript mit Kampagne', () => {
+  it('zeigt keine Radio-Auswahl für den Skript-Umfang', () => {
     mockFrom();
     const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'skript', entityId: 'skript-1', kampagneId: 'k1' });
-    const checked = document.querySelector('input[name="share-skript-scope"]:checked');
-    expect(checked?.value).toBe('kampagne');
-    expect(document.body.textContent).toContain('Alle Skripte dieser Kampagne');
-    expect(document.body.textContent).toContain('Nur dieses Skript');
-
-    dialog.open({ entityType: 'skript', entityId: 'skript-1' });
     expect(document.querySelector('input[name="share-skript-scope"]')).toBeNull();
-
-    dialog.open({ entityType: 'kampagne', entityId: 'k1', kampagneId: 'k1' });
-    expect(document.querySelector('input[name="share-skript-scope"]')).toBeNull();
+    expect(document.querySelector('[data-field="share-rechte"]')).not.toBeNull();
+    expect(document.querySelector('select#share-rechte-select')).toBeNull();
+    expect(document.getElementById('share-rechte-select')?.value).toBe('ansehen');
   });
 
-  it('schickt skriptScope kampagne, einzeln nur wenn gewählt', async () => {
+  it('schickt beim Skript nur den einzelnen Umfang', async () => {
     mockFrom();
     window.supabase.functions.invoke.mockResolvedValue({
       data: { success: true, link: 'https://app/share/tok', code: '654321', shareId: 's1', mailed: 0 },
@@ -361,14 +355,9 @@ describe('ShareListDrawer Zugänge', () => {
         action: 'create',
         entityType: 'skript',
         entityId: 'skript-1',
-        skriptScope: 'kampagne',
+        skriptScope: 'einzeln',
       }),
     });
-
-    document.getElementById('share-label-input').value = 'Kunde';
-    document.querySelector('input[name="share-skript-scope"][value="einzeln"]').checked = true;
-    await dialog.submit();
-    expect(window.supabase.functions.invoke.mock.calls[1][1].body.skriptScope).toBe('einzeln');
   });
 
   it('listet Kampagnen-Zugänge der Geschwister, nicht deren Einzel-Zugänge', async () => {

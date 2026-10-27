@@ -3,6 +3,7 @@
 // Create/Rotate/Resend über Edge Function 'share-list'; Liste via RLS.
 
 import { DRAWER_EXIT_MS } from '../animation/drawer.js';
+import { renderTableSelect } from './TableSelect.js';
 
 const DRAWER_ID = 'share-list-drawer';
 
@@ -59,33 +60,19 @@ export class ShareListDrawer {
       : [['ansehen', 'Nur ansehen'], ['feedback', 'Ansehen + Feedback']];
   }
 
-  kannKampagneTeilen() {
-    return this.entityType === 'skript' && Boolean(this.kampagneId);
-  }
-
   skriptScope() {
-    if (!this.kannKampagneTeilen()) return 'einzeln';
-    const checked = this.panel?.querySelector('input[name="share-skript-scope"]:checked');
-    return checked?.value === 'einzeln' ? 'einzeln' : 'kampagne';
+    return 'einzeln';
   }
 
-  skriptScopeField() {
-    if (!this.kannKampagneTeilen()) return '';
-    return `
-      <div class="form-group">
-        <span class="form-label">Umfang</span>
-        <div class="share-scope-options">
-          <label class="share-scope-option">
-            <input type="radio" name="share-skript-scope" value="kampagne" checked>
-            Alle Skripte dieser Kampagne
-          </label>
-          <label class="share-scope-option">
-            <input type="radio" name="share-skript-scope" value="einzeln">
-            Nur dieses Skript
-          </label>
-        </div>
-      </div>
-    `;
+  rechteFeld() {
+    return renderTableSelect({
+      field: 'share-rechte',
+      itemId: 'share',
+      value: 'ansehen',
+      options: this.rechteOptions().map(([value, label]) => ({ value, label })),
+      input: 'rechte',
+      matchWidth: true
+    });
   }
 
   render() {
@@ -118,12 +105,9 @@ export class ShareListDrawer {
             <input type="text" id="share-label-input" class="input" placeholder="z. B. Marketing-Team" maxlength="80">
           </div>
           <div class="form-group">
-            <label class="form-label" for="share-rechte-select">Rechte</label>
-            <select id="share-rechte-select" class="input">
-              ${this.rechteOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
-            </select>
+            <label class="form-label">Rechte</label>
+            ${this.rechteFeld()}
           </div>
-          ${this.skriptScopeField()}
         </section>
 
         <section class="share-drawer-abschnitt">
@@ -152,6 +136,9 @@ export class ShareListDrawer {
         <button type="button" class="mdc-btn mdc-btn--secondary" data-action="close">Schließen</button>
         <button type="button" id="share-submit-btn" class="mdc-btn mdc-btn--create">Zugang erstellen</button>
       </div>`;
+
+    const rechteInput = panel.querySelector('[data-field="share-rechte"] [data-table-select-input]');
+    if (rechteInput) rechteInput.id = 'share-rechte-select';
 
     document.body.appendChild(overlay);
     document.body.appendChild(panel);
@@ -394,7 +381,7 @@ export class ShareListDrawer {
   }
 
   async siblingSkriptIds() {
-    if (!this.kannKampagneTeilen()) return null;
+    if (this.entityType !== 'skript' || !this.kampagneId) return null;
     const { data, error } = await window.supabase
       .from('skripte')
       .select('id')

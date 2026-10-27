@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderItemRow, renderItemsTable, reorderStrategieItemsByKategorien } from '../modules/strategie/StrategieDetailRenderer.js';
-import { syncRowTextClips } from '../modules/strategie/strategieTextClip.js';
+import { bindTextClipEvents, syncRowTextClips } from '../modules/strategie/strategieTextClip.js';
 import {
   getStrategiePrio,
   buildStrategiePrioUpdates,
@@ -410,6 +410,43 @@ describe('strategieTextClip', () => {
     const row = doc.querySelector('tr.item-row');
     syncRowTextClips(row);
     expect(row.querySelector('.is-truncated')).toBeNull();
+  });
+
+  it('zieht die Textarea auf die Inhaltshoehe, damit der Clip bis zur Bildhoehe fuellt', () => {
+    const doc = renderRow({ transkript: 'Lang' });
+    const clip = doc.querySelector('td.col-transkript .strategie-text-clip');
+    const textarea = clip.querySelector('textarea');
+
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, get: () => 420 });
+
+    syncRowTextClips(clip.closest('tr'));
+
+    expect(textarea.style.height).toBe('420px');
+    expect(clip.classList.contains('is-truncated')).toBe(true);
+  });
+
+  it('zieht die Hoehe beim Tippen nach', () => {
+    const html = renderItemRow(detailStub(), { id: 'i1', transkript: 'Lang' }, 0);
+    document.body.innerHTML = `<table class="strategie-items-table"><tbody>${html}</tbody></table>`;
+    const detail = { _tableEventListeners: new Set() };
+    bindTextClipEvents(detail);
+
+    const textarea = document.querySelector('td.col-transkript textarea');
+    let contentHeight = 40;
+    Object.defineProperty(textarea, 'scrollHeight', {
+      configurable: true,
+      get: () => contentHeight,
+    });
+
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(textarea.style.height).toBe('40px');
+
+    contentHeight = 360;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(textarea.style.height).toBe('360px');
+
+    detail._tableEventListeners.forEach((fn) => fn());
+    document.body.innerHTML = '';
   });
 });
 

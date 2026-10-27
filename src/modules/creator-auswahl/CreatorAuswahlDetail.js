@@ -1,17 +1,17 @@
 // CreatorAuswahlDetail.js
-// Orchestrierung der Casting-Detailansicht. Events, Tabellen-UX, Zeilenaenderungen,
-// Verknuepfungen und Bulk liegen als Prototype-Mixins daneben.
+// Orchestrierung der Casting-Detailansicht. Filter, Events, Tabellen-UX,
+// Zeilenaenderungen, Status und Bulk liegen als Prototype-Mixins daneben.
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { SourcingTabelleAnpassenDrawer } from './SourcingTabelleAnpassenDrawer.js';
-import { renderTabNavigation, getSourcingTabForItem, SOURCING_TABS } from './sourcingTabs.js';
+import { renderTabNavigation } from './sourcingTabs.js';
 import { migrateHiddenColumns } from './sourcingSpaltenSichtbarkeit.js';
 import {
   SOURCING_ANKER_SPALTEN,
   SOURCING_SPALTEN_LABELS,
   DEAKTIVIERTE_SPALTEN
 } from './sourcingSpaltenKatalog.js';
-import { renderAddSection, renderItemsTable } from './castingTableRender.js';
+import { renderAddSection, renderItemsTable, updateStickyHeights } from './castingTableRender.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
@@ -19,15 +19,17 @@ import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
 import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
 import { createSourcingIgToolbarConfig } from './sourcingIgToolbarConfig.js';
 import { SOURCING_IG_TOOLBAR } from './sourcingIgCell.js';
-import { matchesStatusFilter } from './sourcingStatusOptions.js';
+import { verknuepfeOffeneEintraege, verknuepfungsText } from './castingCreatorVerknuepfung.js';
 import { CastingVorschlagPanel } from './CastingVorschlagPanel.js';
-import { vorschlagToItem } from './CastingVorschlagService.js';
 import { castingDetailEventsMethods } from './CastingDetailEvents.js';
+import { castingDetailFilterMethods } from './CastingDetailFilter.js';
 import { castingDetailTableUxMethods } from './CastingDetailTableUx.js';
 import { castingDetailRowActionsMethods } from './CastingDetailRowActions.js';
+import { castingDetailZeilenStatusMethods } from './CastingDetailZeilenStatus.js';
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
 import { parseTeilbereiche } from './castingKategorien.js';
+import { loadBewerbungen } from './bewerbungTab.js';
 import { showCastingKategorienDrawer } from './CastingKategorienDrawer.js';
 
 export class CreatorAuswahlDetail {
@@ -133,6 +135,8 @@ export class CreatorAuswahlDetail {
       const { liste, items } = prefetched || await this._fetchDataStages(listeId);
       this.liste = liste;
       this.items = items;
+      this.bewerbungen = this.isKunde ? [] : await loadBewerbungen(listeId);
+      await this._verknuepfeBekannteCreator();
 
       this.loadColumnVisibilitySettings();
 
@@ -273,104 +277,23 @@ export class CreatorAuswahlDetail {
     });
   }
 
-  // --- Namenssuche & Status-Reiter (Tabs) ---
+  // --- Rendering ---
 
-  kannVorschlaegeSehen() {
-    if (this.isKunde) return false;
-    if (window.isGastReadonly?.()) return false;
-    return true;
-  }
-
-  getVorschlagItems() {
-    if (!this.kannVorschlaegeSehen()) return [];
-    const listeTyp = this.liste?.liste_typ;
-    // Streng nach Matching absteigend (ADR 0014); die DB liefert das schon,
-    // die Sortierung hier faengt Alt-Daten ohne matching_score ab.
-    return (this.vorschlagPanel?.vorschlaege || [])
-      .map(v => vorschlagToItem(v, { listeTyp }))
-      .sort((a, b) => (b.matching_score ?? -1) - (a.matching_score ?? -1));
-  }
-
-  getDisplayItems() {
-    return [...this.getVorschlagItems(), ...this.items];
-  }
-
-  getSearchFilteredItems() {
-    const query = (this.searchQuery || '').trim().toLowerCase();
-    const items = this.getDisplayItems();
-    if (!query) return items;
-    return items.filter(item => (item.name || '').toLowerCase().includes(query));
-  }
-
-  // Namenssuche und Statusfilter greifen reiteruebergreifend – die Reiter-Zahlen
-  // beziehen sich deshalb auf diese Menge, nicht auf alle Items.
-  getBaseFilteredItems() {
-    return this.getSearchFilteredItems().filter(item => matchesStatusFilter(item, this.statusFilter));
-  }
-
-  getFilteredItems() {
-    const items = this.getBaseFilteredItems();
-    if (this.activeTab === 'alle') return items;
-    return items.filter(item => getSourcingTabForItem(item) === this.activeTab);
-  }
-
-  getTabCounts() {
-    const baseItems = this.getBaseFilteredItems();
-    const counts = Object.fromEntries(SOURCING_TABS.map(t => [t.key, 0]));
-    counts.alle = baseItems.length;
-    baseItems.forEach(item => {
-      counts[getSourcingTabForItem(item)]++;
-    });
-    return counts;
-  }
-
-  handleSearch(value) {
-    const newQuery = value || '';
-    if (newQuery === this.searchQuery) return;
-    this.searchQuery = newQuery;
-    this.rerenderTable();
-  }
-
-  // Aktive Suche zuruecksetzen (z.B. bevor eine neue leere Zeile angelegt wird,
-  // die sonst vom Namensfilter ausgeblendet wuerde)
-  clearSearch() {
-    if (!this.searchQuery) return;
-    this.searchQuery = '';
-    const input = this._q('#sourcing-item-search-input');
-    if (input) input.value = '';
-    const clearBtn = this._q('#sourcing-item-search-clear');
-    if (clearBtn) clearBtn.style.display = 'none';
-    this.rerenderTable();
-  }
-
-  switchTab(tabName) {
-    if (!SOURCING_TABS.some(t => t.key === tabName) || tabName === this.activeTab) return;
-    this.activeTab = tabName;
-
-    this._qq('.sourcing-tab-navigation .tab-button').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.sourcingTab === tabName);
-    });
-
-    this.rerenderTable();
-  }
-
-  updateTabCounts() {
-    const counts = this.getTabCounts();
-    this._qq('[data-sourcing-tab-count]').forEach(el => {
-      el.textContent = counts[el.dataset.sourcingTabCount] ?? 0;
-    });
-  }
-
-  // Nach dem Anlegen eines neuen Items zum "Offen"-Reiter wechseln,
-  // damit die neue Zeile sichtbar ist
-  ensureNewItemVisible() {
-    this.clearSearch();
-    if (this.activeTab !== 'offen' && this.activeTab !== 'alle') {
-      this.switchTab('offen');
+  // Bestehende Zeilen ohne creator_id: gleicher Handle wie ein Creator
+  // setzt die Verknuepfung, damit der Punkt am Bild gruen wird.
+  async _verknuepfeBekannteCreator() {
+    if (this.isKunde || !this._canSourcing('edit')) return;
+    try {
+      const links = await verknuepfeOffeneEintraege(
+        this.items,
+        (id, updates) => creatorAuswahlService.updateItem(id, updates)
+      );
+      const text = verknuepfungsText(links);
+      if (text) window.toastSystem?.show(text, 'success');
+    } catch (error) {
+      console.error('Creator-Verknüpfung fehlgeschlagen:', error);
     }
   }
-
-  // --- Rendering ---
 
   // Zentrale Capability-Abfrage fuer diese View: Investor (Klasse Finanzen) ist
   // intern (isKunde=false), aber sourcing.create/edit/delete sind false.
@@ -388,6 +311,7 @@ export class CreatorAuswahlDetail {
       searchQuery: this.searchQuery,
       statusFilter: this.statusFilter,
       tabCounts: this.getTabCounts(),
+      bewerbungen: this.bewerbungen || [],
       liste: this.liste,
       isKunde: this.isKunde,
       canCreate,
@@ -422,26 +346,10 @@ export class CreatorAuswahlDetail {
     }
     // Eigene Vorschlag-Zeilen ueber der Liste (nie fuer Kunden/Gaeste)
     this.vorschlagPanel?.mount?.();
-    this._updateStickyHeights();
+    updateStickyHeights(this._getRoot());
 
     if (!this.isKunde && this._canSourcing('edit')) {
       this.renderBulkBar();
-    }
-  }
-
-  _updateStickyHeights() {
-    const rootEl = this._getRoot();
-    if (!rootEl) return;
-    const addSection = rootEl.querySelector('.add-item-section--compact');
-    const addH = addSection ? addSection.offsetHeight : 0;
-    const tabNav = rootEl.querySelector('.sourcing-tab-navigation');
-    const tabH = tabNav ? tabNav.offsetHeight : 0;
-    rootEl.style.setProperty('--sticky-addbar-height', addH + 'px');
-    rootEl.style.setProperty('--sticky-add-section-height', (addH + tabH) + 'px');
-
-    const thead = rootEl.querySelector('.creator-pool-table thead');
-    if (thead) {
-      rootEl.style.setProperty('--sticky-thead-height', thead.offsetHeight + 'px');
     }
   }
 
@@ -450,7 +358,7 @@ export class CreatorAuswahlDetail {
     if (tableContainer) {
       tableContainer.outerHTML = renderItemsTable(this.getRenderContext());
       this.bindEvents();
-      this._updateStickyHeights();
+      updateStickyHeights(this._getRoot());
       this.updateTabCounts();
 
       movedItemIds.forEach(id => {
@@ -466,9 +374,11 @@ export class CreatorAuswahlDetail {
 
 Object.assign(
   CreatorAuswahlDetail.prototype,
+  castingDetailFilterMethods,
   castingDetailEventsMethods,
   castingDetailTableUxMethods,
   castingDetailRowActionsMethods,
+  castingDetailZeilenStatusMethods,
   castingDetailLinksMethods,
   castingDetailBulkMethods
 );

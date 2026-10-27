@@ -24,6 +24,7 @@ const ENTITY_ROUTES = {
   sourcing: (id) => `/castings/${id}`,
   strategie: (id) => `/konzepte/${id}`,
   skript: (id) => `/skripte/${id}`,
+  skript_paket: () => '/skripte',
 };
 
 const ENTITY_LABELS = {
@@ -31,6 +32,7 @@ const ENTITY_LABELS = {
   sourcing: 'Casting-Liste',
   strategie: 'Konzept',
   skript: 'Skript',
+  skript_paket: 'Skripte',
 };
 
 export async function initGuestShare(token) {
@@ -78,9 +80,14 @@ export async function initGuestShare(token) {
   renderOnboarding(loginRoot, token, share);
 }
 
+function onboardingSubtitle(share) {
+  if (share.entityType === 'skript_paket' && share.entityName) return share.entityName;
+  const label = ENTITY_LABELS[share.entityType] || 'Liste';
+  return share.entityName ? `${label} „${share.entityName}“` : label;
+}
+
 function renderOnboarding(root, token, share) {
   const label = ENTITY_LABELS[share.entityType] || 'Liste';
-  const listName = share.entityName ? ` „${share.entityName}“` : '';
   const storedName = localStorage.getItem('cj24.guestName') || '';
 
   root.innerHTML = `
@@ -91,7 +98,7 @@ function renderOnboarding(root, token, share) {
             <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
           </div>
           <h1 class="auth-title">Geteilte ${label}</h1>
-          <p class="auth-subtitle">${escapeHtml(listName ? label + listName : label)}</p>
+          <p class="auth-subtitle">${escapeHtml(onboardingSubtitle(share))}</p>
 
           <div class="form-box guest-form">
             <label class="label" for="guest-name-input">Ihr Name</label>
@@ -279,6 +286,7 @@ async function enterGuestApp(token, share) {
     token,
     entityType: share.entityType,
     entityId: share.entityId,
+    entityName: share.entityName || '',
     rechte: share.rechte,
     allowedRoute: route,
     name: share.name,

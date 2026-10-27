@@ -4,6 +4,15 @@
 
 const esc = (value) => window.validatorSystem?.sanitizeHtml?.(String(value ?? '')) ?? String(value ?? '');
 
+export function diffIds(previous, next) {
+  const prev = new Set(previous || []);
+  const nxt = new Set(next || []);
+  return {
+    add: [...nxt].filter((id) => !prev.has(id)),
+    remove: [...prev].filter((id) => !nxt.has(id))
+  };
+}
+
 function norm(value) {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
@@ -58,12 +67,30 @@ export async function findAnsprechpartnerDuplicate(managementId, vorname, nachna
   return { exact, similar };
 }
 
-export async function createAnsprechpartner({ managementId, vorname, nachname, email }) {
+const PHONE_PATTERN = /^[0-9\s\-()]+$/;
+
+/** Leere Rufnummer bleibt leer. Eine gesetzte Nummer braucht ein Land und ein klares Format. */
+export function normalizePhone(number, landId) {
+  let value = String(number || '').trim();
+  if (!value) return { ok: true, telefonnummer: null, telefonnummer_land_id: null };
+  if (!PHONE_PATTERN.test(value)) {
+    return { ok: false, message: 'Rufnummer: Nur Zahlen, Leerzeichen und - ( ) erlaubt.' };
+  }
+  if (value.startsWith('0')) value = value.slice(1).trim();
+  if (!value) return { ok: true, telefonnummer: null, telefonnummer_land_id: null };
+  const country = String(landId || '').trim();
+  if (!country) return { ok: false, message: 'Bitte wähle ein Land zur Rufnummer.' };
+  return { ok: true, telefonnummer: value, telefonnummer_land_id: country };
+}
+
+export async function createAnsprechpartner({ managementId, vorname, nachname, email, telefonnummer, telefonnummer_land_id }) {
   const first = String(vorname || '').trim();
   const last = String(nachname || '').trim();
   if (!first || !last) {
     return { ok: false, message: 'Vorname und Nachname sind Pflicht.' };
   }
+  const phone = normalizePhone(telefonnummer, telefonnummer_land_id);
+  if (!phone.ok) return phone;
   const duplicate = await findAnsprechpartnerDuplicate(managementId, first, last);
   if (duplicate.exact) {
     return { ok: false, exact: duplicate.exact, message: `${first} ${last} gibt es bei diesem Management schon.` };
@@ -71,10 +98,14 @@ export async function createAnsprechpartner({ managementId, vorname, nachname, e
   const row = { vorname: first, nachname: last, management_id: managementId };
   const mail = String(email || '').trim();
   if (mail) row.email = mail;
+  if (phone.telefonnummer) {
+    row.telefonnummer = phone.telefonnummer;
+    row.telefonnummer_land_id = phone.telefonnummer_land_id;
+  }
   const { data, error } = await window.supabase
     .from('ansprechpartner')
     .insert(row)
-    .select('id, vorname, nachname, email, management_id')
+    .select('id, vorname, nachname, email, telefonnummer, telefonnummer_land_id, management_id')
     .single();
   if (error) return { ok: false, message: error.message };
   return { ok: true, person: data, similar: duplicate.similar };
@@ -264,44 +295,6 @@ export async function saveManagementPersons(managementId, root) {
       window.toastSystem?.show('Ähnlicher Name vorhanden, die Person wurde trotzdem angelegt.', 'warning');
     }
   }
-}
-
-export function renderManagementBetreuung({ people, creators, links }) {
-  const linkSet = new Set(links.map((link) => `${link.ansprechpartner_id}:${link.creator_id}`));
-  const rows = people.map((person) => {
-    const checks = creators.length
-      ? creators.map((creator) => {
-          const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim();
-          const on = linkSet.has(`${person.id}:${creator.id}`);
-          return `
-            <label class="form-field--inline">
-              <input type="checkbox" data-action="toggle-betreuung" data-ap="${esc(person.id)}" data-creator="${esc(creator.id)}" ${on ? 'checked' : ''} />
-              <span>${esc(name)}</span>
-            </label>
-          `;
-        }).join('')
-      : '<p class="form-hint">Noch kein Creator diesem Management zugeordnet.</p>';
-    return `
-      <div class="betreuung-group">
-        <p class="form-label">${esc(`${person.vorname || ''} ${person.nachname || ''}`.trim())}${person.email ? ` · ${esc(person.email)}` : ''}</p>
-        ${checks}
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <section class="form-section">
-      <h3>Ansprechpartner</h3>
-      <div class="form-row-group" id="management-detail-ap-new">
-        <div class="form-field form-field--grow"><label>Vorname</label><input type="text" class="form-input" id="mgmt-ap-vorname" /></div>
-        <div class="form-field form-field--grow"><label>Nachname</label><input type="text" class="form-input" id="mgmt-ap-nachname" /></div>
-        <div class="form-field form-field--grow"><label>Mail</label><input type="email" class="form-input" id="mgmt-ap-email" /></div>
-      </div>
-      <p class="form-hint" id="mgmt-ap-hint"></p>
-      <button type="button" class="mdc-btn mdc-btn--sm" id="mgmt-ap-add">Ansprechpartner hinzufügen</button>
-      ${rows || '<p class="form-hint">Noch kein Ansprechpartner.</p>'}
-    </section>
-  `;
 }
 
 export async function toggleBetreuung(creatorId, ansprechpartnerId, on) {

@@ -2,7 +2,7 @@
 // Bindet den Video-Stepper (+/- Buttons) und synchronisiert Video-Rows
 // mit der gewählten videoanzahl. Ohne setTimeout-Kaskaden.
 
-import { addVideoRow } from '../../core/form/logic/events/VideosFields.js';
+import { appendCarriedVideoRows } from '../../core/form/logic/events/VideosFields.js';
 
 export function makeRecalcAllPrices(form, videosList) {
   return () => {
@@ -69,9 +69,7 @@ export function attachVideoStepper(form, { videoInput, videosList, contentArtOpt
     const desired = parseInt(videoInput.value || '0', 10) || 0;
     const current = videosList.querySelectorAll('.video-item').length;
     if (desired > current) {
-      for (let i = 0; i < (desired - current); i++) {
-        addVideoRow(videosList, contentArtOptions, {}, kampagnenartenOptions, recalcAllPrices);
-      }
+      appendCarriedVideoRows(videosList, desired - current, contentArtOptions, kampagnenartenOptions, recalcAllPrices);
     } else if (desired < current) {
       for (let i = 0; i < (current - desired); i++) {
         const last = videosList.querySelector('.video-item:last-of-type');

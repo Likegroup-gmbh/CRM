@@ -265,6 +265,16 @@
   word-break: break-all;
 }
 
+.share-code-banner .share-link-value {
+  display: block;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.share-code-banner .share-code-line {
+  margin: var(--space-xs) 0 0;
+}
+
 .share-inline-btn {
   background: none;
   border: none;
@@ -346,4 +356,65 @@
 /* GuestShareApp: Meldungen ohne Bottom-Abstand */
 .guest-flush {
   margin-bottom: 0;
+}
+
+.skript-paket-liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.skript-paket-liste .checkbox-label {
+  width: auto;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.skript-paket-zeile-meta {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.skript-paket-aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
+.share-list-drawer .table-select,
+.skript-paket-drawer .table-select {
+  display: block;
+}
+
+.share-list-drawer .table-select__trigger,
+.skript-paket-drawer .table-select__trigger {
+  width: 100%;
+}
+
+/* Gastliste: Nr. nur so breit wie die Zahl, Titel nimmt den Rest. */
+.gast-skript-tabelle {
+  width: 100%;
+  table-layout: auto;
+}
+
+.gast-skript-tabelle th.gast-col-nr,
+.gast-skript-tabelle td.gast-col-nr,
+.gast-skript-tabelle th.gast-col-pdf,
+.gast-skript-tabelle td.gast-col-pdf {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.gast-skript-tabelle th.gast-col-titel,
+.gast-skript-tabelle td.gast-col-titel {
+  width: auto;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: manual;
+}
+
+.gast-skript-tabelle td.gast-col-pdf {
+  text-align: right;
 }

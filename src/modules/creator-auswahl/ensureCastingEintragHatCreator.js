@@ -5,6 +5,9 @@
 
 import { creatorAuswahlService, handleAusLink } from './CreatorAuswahlService.js';
 import { CreatorFormDrawer } from '../creator/CreatorFormDrawer.js';
+import { findCreatorByInstagram } from './castingCreatorVerknuepfung.js';
+
+export { findCreatorByInstagram };
 
 export class EnsureCreatorCancelled extends Error {
   constructor() {
@@ -98,18 +101,6 @@ async function loadEintrag(eintragOrId) {
     .single();
   if (error || !data) throw new Error('Casting-Eintrag nicht gefunden');
   return data;
-}
-
-export async function findCreatorByInstagram(handle) {
-  if (!handle) return null;
-  const { data, error } = await window.supabase
-    .from('creator')
-    .select('id, vorname, nachname, instagram')
-    .ilike('instagram', handle)
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data || null;
 }
 
 async function linkCreator(item, creatorId) {
