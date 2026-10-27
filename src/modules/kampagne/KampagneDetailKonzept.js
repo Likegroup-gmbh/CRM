@@ -1,12 +1,12 @@
 // KampagneDetailKonzept.js
 // Mountet das volle Konzept-Worksheet in den Kampagnen-Workflow-Pane.
 
-import { effectiveLinie, leerHinweis } from './linienScope.js';
+import { effectiveLinie, leerHinweis, renderListenSwitch, bindListenSwitch, placeListenSwitch, clearListenSwitch } from './linienScope.js';
 import { StrategieDetail } from '../strategie/StrategieDetail.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
-const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || '';
+const LISTE_ATTR = 'data-konzept-liste';
 const SPINNER = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
 
 function getKonzeptTools() {
@@ -21,6 +21,7 @@ export function unmountKonzeptWorksheet(detail) {
   }
   const tools = getKonzeptTools();
   if (tools) tools.innerHTML = '';
+  clearListenSwitch();
 }
 
 function prefetchStillCurrent(detail, gen) {
@@ -97,6 +98,7 @@ export async function mountKonzeptPane(detail) {
 
     if (!listen.length) {
       dropWorksheet(prefetched?.worksheet, detail);
+      clearListenSwitch();
       pane.innerHTML = renderEmptyKonzept(detail);
       return;
     }
@@ -111,12 +113,14 @@ export async function mountKonzeptPane(detail) {
       : null;
     if (prefetched?.worksheet && !warmWorksheet) prefetched.worksheet.destroy();
 
-    pane.innerHTML = renderKonzeptShell(listen, selectedId);
-    bindSwitcher(detail, pane);
+    const shell = renderKonzeptShell(listen, selectedId);
+    pane.innerHTML = shell.html;
+    bindSwitcher(detail, pane, shell.slot);
     await mountWorksheet(detail, pane.querySelector('.kampagne-konzept-worksheet'), selectedId, warmWorksheet);
   } catch (error) {
     console.error('❌ KAMPAGNEDETAIL: Konzept-Pane fehlgeschlagen:', error);
     if (pane.isConnected) {
+      clearListenSwitch();
       pane.innerHTML = renderEmptyState({
         icon: 'info',
         title: 'Fehler beim Laden',
@@ -148,36 +152,32 @@ function renderEmptyKonzept(detail) {
   });
 }
 
+/** Dropdown in die Tab-Zeile (ganz rechts); ohne Slot als Zeile im Pane. */
 function renderKonzeptShell(listen, selectedId) {
-  const switcher = listen.length > 1
-    ? `<div class="kampagne-konzept-listen-switcher">
-        <label class="kampagne-konzept-listen-switcher__label" for="kampagne-konzept-liste">Konzept</label>
-        <select id="kampagne-konzept-liste" class="form-input">
-          ${listen.map(l => `
-            <option value="${esc(l.id)}"${l.id === selectedId ? ' selected' : ''}>${esc(l.name || 'Unbenannt')}</option>
-          `).join('')}
-        </select>
-      </div>`
+  const html = listen.length > 1
+    ? renderListenSwitch({ items: listen, activeId: selectedId, itemAttr: LISTE_ATTR, title: 'Konzept wechseln' })
     : '';
+  const { slot, inline } = placeListenSwitch(html, 'kampagne-konzept-listen-switcher');
 
-  return `
-    ${switcher}
+  return {
+    slot,
+    html: `
+    ${inline}
     <div class="kampagne-konzept-worksheet"></div>
-  `;
+  `
+  };
 }
 
-function bindSwitcher(detail, pane) {
-  const select = pane.querySelector('#kampagne-konzept-liste');
-  if (!select) return;
-  select.addEventListener('change', async () => {
-    detail._konzeptSelectedId = select.value;
+function bindSwitcher(detail, pane, slot) {
+  bindListenSwitch(slot || pane, LISTE_ATTR, async (strategieId) => {
+    detail._konzeptSelectedId = strategieId;
     const root = pane.querySelector('.kampagne-konzept-worksheet');
     if (!root) return;
     if (detail.konzeptWorksheet) {
       detail.konzeptWorksheet.destroy();
       detail.konzeptWorksheet = null;
     }
-    await mountWorksheet(detail, root, select.value);
+    await mountWorksheet(detail, root, strategieId);
   });
 }
 

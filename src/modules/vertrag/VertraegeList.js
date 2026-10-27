@@ -27,6 +27,7 @@ import {
   downloadVertrag as _downloadVertrag,
   deleteVertrag as _deleteVertrag
 } from './VertraegeListHandlers.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 export class VertraegeList {
   constructor() {
@@ -555,7 +556,7 @@ export class VertraegeList {
       }
       for (const path of dropboxPaths) {
         try {
-          await fetch('/.netlify/functions/dropbox-delete-vertrag', {
+          await authorizedFetch('/.netlify/functions/dropbox-delete-vertrag', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filePath: path })

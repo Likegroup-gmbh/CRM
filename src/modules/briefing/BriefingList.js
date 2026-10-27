@@ -338,6 +338,7 @@ export class BriefingList {
         strategie(id, name),
         skripte(id, titel)
       `)
+      .eq('ist_altbestand', false)
       .order('created_at', { ascending: false });
 
     const apply = (field, val, type = 'string') => {

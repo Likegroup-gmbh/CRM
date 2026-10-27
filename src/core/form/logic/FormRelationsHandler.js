@@ -1,6 +1,7 @@
 import { compressImage } from '../../ImageCompressor.js';
 import { uploadRechnungPdf, uploadRechnungBeleg } from '../../DropboxDocumentUploader.js';
 import { resolveRechnungPathMetadata } from '../../RechnungPathMetadata.js';
+import { authorizedFetch } from '../../auth/getAccessToken.js';
 
 // Pfade die mit "/" anfangen sind Dropbox-Pfade. Beim Löschen wird über die
 // dropbox-delete Netlify Function gelöscht, sonst aus Supabase Storage.
@@ -12,7 +13,7 @@ async function deleteFileEverywhere(filePath, supabaseBucket) {
   if (!filePath) return;
   if (isDropboxPath(filePath)) {
     try {
-      await fetch('/.netlify/functions/dropbox-delete', {
+      await authorizedFetch('/.netlify/functions/dropbox-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filePath }),

@@ -7,6 +7,7 @@ import {
 } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { STILL_FINAL_VARIANT, updateStillCurrentFlags } from '../../core/stills/stillAssets.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 export class BilderTabHandler {
   constructor(drawer) {
@@ -376,7 +377,7 @@ export class BilderTabHandler {
       if (progressText) progressText.textContent = 'Verbinde mit Dropbox...';
       const firstItem = this._selectedImages[0];
       const firstFile = firstItem.file;
-      const prepareResp = await fetch('/.netlify/functions/dropbox-upload-bilder', {
+      const prepareResp = await authorizedFetch('/.netlify/functions/dropbox-upload-bilder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -441,7 +442,7 @@ export class BilderTabHandler {
             );
         const fileName = withStillIndex(baseFileName, nextStillIndex(baseFileName));
 
-        const itemPrepare = await fetch('/.netlify/functions/dropbox-upload-bilder', {
+        const itemPrepare = await authorizedFetch('/.netlify/functions/dropbox-upload-bilder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -492,7 +493,7 @@ export class BilderTabHandler {
       for (const uf of uploadedFiles) {
         let fileUrl = null;
         try {
-          const linkResp = await fetch('/.netlify/functions/dropbox-proxy', {
+          const linkResp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'shared-link', path: uf.path, token }),
@@ -771,7 +772,7 @@ export class BilderTabHandler {
       if (img.file_path) {
         const targetVideo = targetVideoId ? this._getKoopVideos().find(v => v.id === targetVideoId) : null;
 
-        const folderResp = await fetch('/.netlify/functions/dropbox-upload-bilder', {
+        const folderResp = await authorizedFetch('/.netlify/functions/dropbox-upload-bilder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -789,7 +790,7 @@ export class BilderTabHandler {
         const fileName = img.file_path.split('/').pop();
         const toPath = `${folderData.folderPath}/${fileName}`;
         if (toPath !== img.file_path) {
-          const moveResp = await fetch('/.netlify/functions/dropbox-proxy', {
+          const moveResp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'move', fromPath: img.file_path, toPath, token: folderData.token }),
@@ -829,7 +830,7 @@ export class BilderTabHandler {
 
     try {
       if (filePath) {
-        await fetch('/.netlify/functions/dropbox-delete', {
+        await authorizedFetch('/.netlify/functions/dropbox-delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filePath }),
@@ -856,7 +857,7 @@ export class BilderTabHandler {
           const folderPath = idx >= 0
             ? filePath.substring(0, idx + marker.length - 1)
             : filePath.substring(0, filePath.lastIndexOf('/'));
-          fetch('/.netlify/functions/dropbox-delete', {
+          authorizedFetch('/.netlify/functions/dropbox-delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filePath: folderPath }),

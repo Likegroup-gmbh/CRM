@@ -6,8 +6,9 @@
 
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { BriefingDetail } from '../briefing/BriefingDetail.js';
-import { mountEinreichungInbox } from '../einladung/briefingEinreichungen.js';
+import { mountBriefingEinreichungen } from '../einladung/briefingEinreichungen.js';
 import { effectiveLinie } from './linienScope.js';
+import { istAltbestand, mountAltbestandHinweis } from './altbestandLinie.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
 const TAB_ID = 'briefing';
@@ -36,13 +37,22 @@ export async function mountBriefingPane(detail) {
     <div class="einreichung-inbox" data-einreichung-inbox hidden></div>
     <div class="briefing-pane-host" data-briefing-host></div>`;
   const host = pane.querySelector('[data-briefing-host]');
-  void mountEinreichungInbox(detail, pane.querySelector('[data-einreichung-inbox]'));
+  void mountBriefingEinreichungen(detail, pane.querySelector('[data-einreichung-inbox]'));
 
   if (!briefingId) {
     host.innerHTML = renderEmptyState({
       icon: 'document',
       title: 'Keine Briefings vorhanden',
       text: 'Für diese Produktion wurde noch kein Briefing zugeordnet.'
+    });
+    return;
+  }
+
+  // Altbestand-Linie: kein leeres Briefing-Dokument zeigen (ADR 0058)
+  const linie = (detail.linien || []).find(l => l.id === briefingId);
+  if (istAltbestand(linie)) {
+    mountAltbestandHinweis(host, briefingId, {
+      onFreigeschaltet: () => detail.reloadLinien?.({ linieId: briefingId })
     });
     return;
   }

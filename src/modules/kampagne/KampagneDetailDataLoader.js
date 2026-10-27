@@ -6,7 +6,7 @@ import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
 import { vertraegeProKooperation, VERTRAG_ZELLE_COLS } from '../vertrag/deckung/vertragDeckung.js';
 import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
 import { filterBlocksForKampagne } from '../projekt-erstellen/logic/kampagnenSplit.js';
-import { listProduktionen, scopeByLinie, scopeByProduktion } from '../produktion/ProduktionService.js';
+import { listProduktionen, scopeKoopsByLinie, scopeByProduktion } from '../produktion/ProduktionService.js';
 
 /**
  * Lädt Kampagne-Metadaten (ohne Kooperationen/Videos — die kommen via loadFullTableData).
@@ -234,7 +234,7 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
     ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, briefing_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`
     : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, briefing_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`;
 
-  const kooperationenResult = await scopeByLinie(scopeByProduktion(
+  const kooperationenResult = await scopeKoopsByLinie(scopeByProduktion(
     window.supabase
       .from('kooperationen')
       .select(koopSelect)

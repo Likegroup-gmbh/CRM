@@ -6,6 +6,13 @@ vi.mock('../core/DropboxDirectUploader.js', () => ({
   uploadFileDirect: vi.fn(({ dropboxPath }) => Promise.resolve({ path_display: dropboxPath })),
 }));
 
+// authorizedFetch holt sonst einen echten Supabase-Token; hier reicht der globale fetch-Mock.
+vi.mock('../core/auth/getAccessToken.js', () => ({
+  authorizedFetch: (...args) => globalThis.fetch(...args),
+  getAccessToken: vi.fn(async () => 'tok'),
+  setGuestJwt: vi.fn(),
+}));
+
 import {
   buildRohmaterialFolderPath,
   buildRohmaterialFilePath,

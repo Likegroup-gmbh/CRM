@@ -4,9 +4,10 @@
 // Spiegel von runVideoReplaceJob, aber mit dropbox-upload-custom-Pfaden.
 
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
+import { authorizedFetch } from '../auth/getAccessToken.js';
 
 async function fetchTokenAndPath({ metadaten, folderName, fileName }) {
-  const resp = await fetch('/.netlify/functions/dropbox-upload-custom', {
+  const resp = await authorizedFetch('/.netlify/functions/dropbox-upload-custom', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -27,7 +28,7 @@ async function fetchTokenAndPath({ metadaten, folderName, fileName }) {
 
 async function createSharedLink(token, path) {
   try {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'shared-link', path, token }),
@@ -61,7 +62,7 @@ export async function runCustomReplaceJob(ctx) {
   // Alte Datei aus Dropbox löschen (best effort)
   if (oldFilePath) {
     try {
-      await fetch('/.netlify/functions/dropbox-delete', {
+      await authorizedFetch('/.netlify/functions/dropbox-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filePath: oldFilePath }),

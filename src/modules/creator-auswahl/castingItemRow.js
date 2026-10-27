@@ -5,6 +5,7 @@ import { CREATOR_TYP_SELECT_OPTIONS } from './creatorTypeOptions.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 import { escapeHtml } from '../../core/format.js';
+import { socialHref } from '../../core/format/socialLink.js';
 import { renderSourcingIgCell } from './sourcingIgCell.js';
 import { renderMatchingCell } from './sourcingMatching.js';
 import {
@@ -292,7 +293,7 @@ export function renderItemRow(ctx, item, index) {
       <td class="cp-col-link-ig" style="${hide('cp-col-link-ig')}">
         ${canWrite ? renderSourcingIgCell(item) : `
           <div class="links-compact-cell links-compact-cell--readonly">
-            ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="Instagram">${INSTAGRAM_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
+            ${socialHref(item.link_instagram, 'instagram') ? `<a href="${escapeHtml(socialHref(item.link_instagram, 'instagram'))}" target="_blank" rel="noopener noreferrer" class="link-icon-btn" title="Instagram">${INSTAGRAM_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
           </div>
         `}
       </td>
@@ -317,11 +318,11 @@ export function renderItemRow(ctx, item, index) {
         ${canWrite ? `
           <div class="links-compact-row">
             <input type="text" class="links-compact-input" data-field="link_tiktok" data-item-id="${item.id}" placeholder="TT Link..." value="${item.link_tiktok || ''}">
-            ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${EXTERNAL_LINK_ICON}</a>` : ''}
+            ${socialHref(item.link_tiktok, 'tiktok') ? `<a href="${escapeHtml(socialHref(item.link_tiktok, 'tiktok'))}" target="_blank" rel="noopener noreferrer" class="link-icon-btn" title="${escapeHtml(item.link_tiktok)}">${EXTERNAL_LINK_ICON}</a>` : ''}
           </div>
         ` : `
           <div class="links-compact-cell links-compact-cell--readonly">
-            ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="TikTok">${TIKTOK_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
+            ${socialHref(item.link_tiktok, 'tiktok') ? `<a href="${escapeHtml(socialHref(item.link_tiktok, 'tiktok'))}" target="_blank" rel="noopener noreferrer" class="link-icon-btn" title="TikTok">${TIKTOK_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
           </div>
         `}
       </td>

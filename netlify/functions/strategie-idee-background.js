@@ -110,6 +110,8 @@ exports.handler = async (event) => {
   const zustand = { model: null, usage: null, letzterResult: null };
   try {
     const input = await loadIdeeInput(supabase, job.strategie_id);
+    // Vorschlaege lesen das Briefing; eine Altbestand-Linie hat keins (ADR 0058).
+    if (input.briefing?.ist_altbestand) throw new Error('Altbestand-Linie ohne Briefing: bitte zuerst das Briefing ausfüllen');
     // Ein Lauf pro Produkt-Quote (oder ein Lauf fuer das eine/kein Produkt).
     // Mehrere Produkte ohne Quote werfen hier, es wird nicht gemischt.
     const laeufe = planeLaeufe({ input: job.input, produkte: input.produkte });

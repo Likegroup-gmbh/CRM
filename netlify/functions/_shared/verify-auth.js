@@ -142,9 +142,108 @@ function authErrorBody(result) {
   };
 }
 
+// ─── requireStaff ────────────────────────────────────────────
+// verifyAuth + requireInternal in einem Schritt, mit kurzem Token-Cache.
+// Chunk-Uploads ueber dropbox-proxy rufen die Function im Sekundentakt auf;
+// ohne Cache gingen dabei pro Chunk ein GoTrue-Call und eine benutzer-Query raus.
+// Der Cache haelt nur erfolgreiche Pruefungen und gilt pro Function-Instanz.
+
+const STAFF_CACHE_TTL_MS = 60 * 1000;
+const STAFF_CACHE_MAX = 200;
+const staffCache = new Map();
+
+let serviceClient = null;
+
+function getServiceClient() {
+  if (!SUPABASE_URL || !SERVICE_KEY) return null;
+  if (!serviceClient) {
+    serviceClient = createClient(SUPABASE_URL, SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+  }
+  return serviceClient;
+}
+
+function bearerToken(event) {
+  const headers = (event && event.headers) || {};
+  const raw = headers.authorization || headers.Authorization || '';
+  return raw.replace(/^Bearer\s+/i, '').trim();
+}
+
+function jsonResponse(statusCode, body, extraHeaders) {
+  return {
+    statusCode,
+    headers: { ...(extraHeaders || {}), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  };
+}
+
+function cacheStaff(token, benutzer) {
+  if (staffCache.size >= STAFF_CACHE_MAX) {
+    const now = Date.now();
+    for (const [key, entry] of staffCache) {
+      if (entry.expires <= now) staffCache.delete(key);
+    }
+    if (staffCache.size >= STAFF_CACHE_MAX) staffCache.clear();
+  }
+  staffCache.set(token, { benutzer, expires: Date.now() + STAFF_CACHE_TTL_MS });
+}
+
+/** Nur fuer Tests */
+function _clearStaffCache() {
+  staffCache.clear();
+}
+
+/**
+ * Admin/Mitarbeiter-Pruefung fuer Netlify Functions.
+ * @param {object} event Netlify-Function-Event
+ * @param {object} [supabase] Service-Client; sonst wird einer aus der Env gebaut
+ * @param {object} [extraHeaders] Header (z.B. CORS), die in die Fehlerantwort gemischt werden
+ * @returns {Promise<{ ok: true, benutzer: object, user: object|null } | { ok: false, response: object }>}
+ */
+async function requireStaff(event, supabase, extraHeaders) {
+  const token = bearerToken(event);
+
+  if (token) {
+    const hit = staffCache.get(token);
+    if (hit && hit.expires > Date.now()) {
+      return { ok: true, benutzer: hit.benutzer, user: null };
+    }
+    if (hit) staffCache.delete(token);
+  }
+
+  const client = supabase || getServiceClient();
+  if (!client) {
+    console.error('[requireStaff] Supabase-Env fehlt (SUPABASE_URL / SUPABASE_SERVICE_KEY)');
+    return {
+      ok: false,
+      response: jsonResponse(500, authErrorBody({ code: 'config_missing' }), extraHeaders)
+    };
+  }
+
+  const auth = await verifyAuth(event, client);
+  if (!auth.user) {
+    const status = auth.code === 'auth_unavailable' ? 503 : auth.code === 'config_missing' ? 500 : 401;
+    return { ok: false, response: jsonResponse(status, authErrorBody(auth), extraHeaders) };
+  }
+
+  const internal = await requireInternal(client, auth.user);
+  if (!internal.ok) {
+    return {
+      ok: false,
+      response: jsonResponse(403, { error: 'Nur interne Mitarbeiter' }, extraHeaders)
+    };
+  }
+
+  cacheStaff(token, internal.benutzer);
+  return { ok: true, benutzer: internal.benutzer, user: auth.user };
+}
+
 module.exports = {
   verifyAuth,
   requireInternal,
+  requireStaff,
+  _clearStaffCache,
   authErrorBody,
   AUTH_MESSAGES,
   SESSION_DEAD_CODES,

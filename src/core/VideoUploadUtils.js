@@ -1,4 +1,5 @@
 import { icon } from './icons/IconSystem.js';
+import { authorizedFetch } from './auth/getAccessToken.js';
 export const MAX_VERSIONS = 3;
 
 // Varianten-Presets fuer Finale-Version-Uploads (Videos + Storys)
@@ -184,7 +185,7 @@ export function readFileAsBase64(file) {
 }
 
 export async function proxyPost(body) {
-  const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+  const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -224,7 +225,7 @@ export async function uploadLargeFile(file, dropboxPath, token, opts = {}) {
 
 export async function createFolderSharedLink(token, folderPath) {
   try {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'shared-link', path: folderPath, token }),
@@ -315,7 +316,7 @@ export function _resetProxyAvailability() {
 export async function getTemporaryLink(filePath, token) {
   if (!filePath || _proxyDisabled) return null;
   try {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'temporary-link', path: filePath, token }),

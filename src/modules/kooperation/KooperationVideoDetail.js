@@ -15,6 +15,7 @@ import { VideoFeedbackBinding } from '../kampagne/VideoFeedbackBinding.js';
 import { MAX_VIDEO_SIZE } from '../../core/VideoUploadUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 const DEBUG_UPLOAD = true;
 
@@ -586,7 +587,7 @@ export const kooperationVideoDetail = {
       const videoTitel = this.video?.titel || `Video_${this.videoId}`;
 
       if (progressLabel) progressLabel.textContent = 'Verbinde mit Dropbox...';
-      const tokenResp = await fetch('/.netlify/functions/dropbox-upload', {
+      const tokenResp = await authorizedFetch('/.netlify/functions/dropbox-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -640,7 +641,7 @@ export const kooperationVideoDetail = {
       const tokenPrefix = body.token ? body.token.substring(0, 20) : 'N/A';
       if (DEBUG_UPLOAD) console.log(`[KoopVideoUpload] proxyPost action=${body.action} payloadSize=${payloadSize} hasToken=${hasToken} tokenPrefix=${tokenPrefix}...`);
 
-      const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+      const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -707,7 +708,7 @@ export const kooperationVideoDetail = {
   },
 
   async _createSharedLink(token, dropboxPath) {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token: this._proxyToken || undefined }),
@@ -719,7 +720,7 @@ export const kooperationVideoDetail = {
 
   async _createFolderSharedLink(token, folderPath) {
     try {
-      const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+      const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'shared-link', path: folderPath, token: this._proxyToken || undefined }),

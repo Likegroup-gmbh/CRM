@@ -11,6 +11,8 @@ import {
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
 import { applyLiveLinkCellState, findLiveLinkCell } from './liveLinkCell.js';
+import { acquireKampagneChannel } from './kampagneRealtimeChannel.js';
+import { koopGehoertZurLinie } from '../produktion/ProduktionService.js';
 
 export class VideoTableRealtimeHandler {
   constructor(table) {
@@ -19,74 +21,76 @@ export class VideoTableRealtimeHandler {
 
   initRealtimeSubscription() {
     if (this._destroyed) return;
-    if (this.table._realtimeChannel) return;
+    if (this._releaseChannel) return;
     if (!window.supabase?.channel) return;
 
-    this.table._realtimeChannel = window.supabase
-      .channel(`kampagne-koops-videos-${this.table.kampagneId}`, {
-        config: { broadcast: { self: false } }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'kooperation_videos'
-      }, (payload) => {
-        if (this.table.kooperationen.some(k => k.id === payload.new.kooperation_id)) {
-          this.handleVideoUpdate(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'kooperation_videos'
-      }, (payload) => {
-        if (this.table.kooperationen.some(k => k.id === payload.new.kooperation_id)) {
-          this.handleNewVideo(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'kooperationen'
-      }, (payload) => {
-        if (payload.new.kampagne_id === this.table.kampagneId) {
-          this.handleNewKooperation(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'kooperationen'
-      }, (payload) => {
-        if (payload.new.kampagne_id === this.table.kampagneId) {
-          this.handleKooperationUpdate(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'DELETE', schema: 'public', table: 'kooperationen'
-      }, (payload) => {
+    // Der Channel gehoert dem gemeinsamen Modul und ueberlebt Kanban/Tabelle-
+    // Wechsel und kurze Navigationen (Gnadenfrist). Hier nur Listener anmelden.
+    this._releaseChannel = acquireKampagneChannel(this.table.kampagneId, {
+      onChange: (tableName, payload) => this._onRealtimeChange(tableName, payload),
+      onResync: () => this._resync()
+    });
+  }
+
+  _onRealtimeChange(tableName, payload) {
+    if (this._destroyed) return;
+    const type = payload?.eventType;
+    const koops = this.table.kooperationen || [];
+
+    if (tableName === 'kooperation_videos') {
+      if (!payload?.new || !koops.some(k => k.id === payload.new.kooperation_id)) return;
+      if (type === 'UPDATE') this.handleVideoUpdate(payload);
+      else if (type === 'INSERT') this.handleNewVideo(payload);
+      return;
+    }
+
+    if (tableName === 'kooperationen') {
+      if (type === 'DELETE') {
         const deletedId = payload?.old?.id;
         const belongsByKampagne = payload?.old?.kampagne_id === this.table.kampagneId;
-        const belongsByLocal = deletedId
-          ? this.table.kooperationen.some(k => k.id === deletedId)
-          : false;
-        if (belongsByKampagne || belongsByLocal) {
-          this.handleKooperationDelete(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'kooperation_video_comment'
-      }, (payload) => this.handleCommentChange(payload))
-      .on('postgres_changes', {
-        event: 'DELETE', schema: 'public', table: 'kooperation_video_comment'
-      }, (payload) => this.handleCommentChange(payload))
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'kooperation_video_comment'
-      }, (payload) => this.handleCommentChange(payload))
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.error('REALTIME: Channel Error:', err);
-          clearTimeout(this._reconnectTimer);
-          this._reconnectTimer = setTimeout(() => {
-            this._reconnectTimer = null;
-            if (this._destroyed) return;
-            this.cleanup();
-            this.initRealtimeSubscription();
-          }, 5000);
-        }
-      });
+        const belongsByLocal = deletedId ? koops.some(k => k.id === deletedId) : false;
+        if (belongsByKampagne || belongsByLocal) this.handleKooperationDelete(payload);
+        return;
+      }
+      if (payload?.new?.kampagne_id !== this.table.kampagneId) return;
+      if (type === 'INSERT') this.handleNewKooperation(payload);
+      else if (type === 'UPDATE') this.handleKooperationUpdate(payload);
+      return;
+    }
+
+    if (tableName === 'kooperation_video_comment') {
+      this.handleCommentChange(payload);
+    }
+  }
+
+  // Nach Reconnect oder laengerem Hintergrund-Tab: verpasste Events nachholen.
+  // Wer gerade in ein Feld der Tabelle tippt, wird nicht durch ein Neuzeichnen
+  // gestoert; dann zieht das naechste Event oder der naechste Resync nach.
+  async _resync() {
+    if (this._destroyed || this._resyncRunning) return;
+    if (typeof this.table.reloadKooperationen !== 'function') return;
+    const active = document.activeElement;
+    if (active?.matches?.('input, textarea, select, [contenteditable="true"]')
+      && active.closest?.('.kooperation-video-grid')) {
+      return;
+    }
+    this._resyncRunning = true;
+    try {
+      await this.table.reloadKooperationen();
+    } catch (err) {
+      console.warn('REALTIME: Resync fehlgeschlagen:', err);
+    } finally {
+      this._resyncRunning = false;
+    }
+  }
+
+  _knowsVideo(videoId) {
+    const videos = this.table.videos;
+    if (!videos || !videoId) return false;
+    for (const koopId in videos) {
+      if (videos[koopId]?.some(v => v.id === videoId)) return true;
+    }
+    return false;
   }
 
   _isOwnUpdate(koopId) {
@@ -152,7 +156,7 @@ export class VideoTableRealtimeHandler {
     const row = payload?.new || {};
     if (row.kampagne_id !== this.table.kampagneId) return;
     if (this.table.produktionId && row.produktion_id !== this.table.produktionId) return;
-    if (this.table.briefingId && row.briefing_id !== this.table.briefingId) return;
+    if (!koopGehoertZurLinie(row, this.table.briefingId)) return;
     if (typeof this.table.reloadKooperationen === 'function') {
       await this.table.reloadKooperationen();
       return;
@@ -252,6 +256,9 @@ export class VideoTableRealtimeHandler {
   async handleCommentChange(payload) {
     const comment = payload.new || payload.old;
     if (!comment?.video_id) return;
+    // Kommentare lassen sich serverseitig nicht nach Kampagne filtern: Fremde
+    // Kampagnen hier verwerfen, statt pro Event eine Query abzusetzen.
+    if (!this._knowsVideo(comment.video_id)) return;
     if (this._isOwnUpdate(comment.video_id)) return;
 
     const videoId = comment.video_id;
@@ -394,11 +401,9 @@ export class VideoTableRealtimeHandler {
   }
 
   cleanup() {
-    clearTimeout(this._reconnectTimer);
-    this._reconnectTimer = null;
-    if (this.table._realtimeChannel) {
-      window.supabase.removeChannel(this.table._realtimeChannel);
-      this.table._realtimeChannel = null;
+    if (this._releaseChannel) {
+      this._releaseChannel();
+      this._releaseChannel = null;
     }
   }
 }

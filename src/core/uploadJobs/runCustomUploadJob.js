@@ -3,9 +3,10 @@
 
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
 import { createFolderSharedLink } from '../VideoUploadUtils.js';
+import { authorizedFetch } from '../auth/getAccessToken.js';
 
 async function fetchTokenAndPath({ metadaten, folderName, fileName }) {
-  const resp = await fetch('/.netlify/functions/dropbox-upload-custom', {
+  const resp = await authorizedFetch('/.netlify/functions/dropbox-upload-custom', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -26,7 +27,7 @@ async function fetchTokenAndPath({ metadaten, folderName, fileName }) {
 
 async function createSharedLink(token, path) {
   try {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'shared-link', path, token }),

@@ -44,7 +44,7 @@ export class KooperationEditLoader {
       this._loadUnternehmen(unternehmenId),
       this._loadMarke(markeId),
       this._loadKampagne(kampagneId),
-      this._loadBriefings(unternehmenId),
+      this._loadBriefings(unternehmenId, kampagneId),
       this._loadCreators(),
       this._loadCurrentCreator(creatorId),
       this._loadAuftragKampagneArt(kampagneId),
@@ -198,14 +198,15 @@ export class KooperationEditLoader {
     return data;
   }
 
-  async _loadBriefings(unternehmenId) {
+  async _loadBriefings(unternehmenId, kampagneId = null) {
     if (!unternehmenId || !window.supabase) return [];
     const { data } = await applyFinalisiertFilter(
       window.supabase
         .from('campaign_briefings')
         .select('id, aktivierung_name')
         .eq('unternehmen_id', unternehmenId),
-      'campaign_briefings'
+      'campaign_briefings',
+      { kampagneId }
     ).order('aktivierung_name');
     return data || [];
   }

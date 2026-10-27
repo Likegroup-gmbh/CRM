@@ -28,6 +28,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { getAccessToken, sanitizePath, buildUnifiedBasePath, ensureFolder } = require('./_shared/dropbox');
+const { requireStaff } = require('./_shared/verify-auth');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
@@ -315,8 +316,7 @@ async function migrateVertraege(sb, token, limit, dryRun) {
 
 exports.handler = async (event) => {
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
@@ -332,6 +332,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({ error: 'SUPABASE_URL und SUPABASE_SERVICE_ROLE_KEY müssen gesetzt sein' }),
     };
   }
+
+  // Nur Admin/Mitarbeiter: liefert u.a. das Dropbox-Token bzw. schreibt mit Service-Rechten
+  const staff = await requireStaff(event, undefined, headers);
+  if (!staff.ok) return staff.response;
 
   try {
     const body = JSON.parse(event.body || '{}');

@@ -10,6 +10,8 @@ import {
   listAllProduktionen,
   nextProduktionNummer,
   scopeByLinie,
+  scopeKoopsByLinie,
+  koopGehoertZurLinie,
   sumBudgetByProduktion,
   withLinien
 } from '../modules/produktion/ProduktionService.js';
@@ -51,6 +53,20 @@ describe('Linien aus Briefings', () => {
     expect(scopeByLinie(query, null)).toBe(query);
     expect(scopeByLinie(query, 'b1')).toBe('scoped');
     expect(query.eq).toHaveBeenCalledWith('briefing_id', 'b1');
+  });
+
+  it('scopeKoopsByLinie nimmt Legacy-Kooperationen ohne Briefing mit', () => {
+    const query = { or: vi.fn(() => 'scoped') };
+    expect(scopeKoopsByLinie(query, null)).toBe(query);
+    expect(scopeKoopsByLinie(query, 'b1')).toBe('scoped');
+    expect(query.or).toHaveBeenCalledWith('briefing_id.eq.b1,briefing_id.is.null');
+  });
+
+  it('koopGehoertZurLinie: eigene Linie und Legacy ja, fremde Linie nein', () => {
+    expect(koopGehoertZurLinie({ briefing_id: 'b1' }, 'b1')).toBe(true);
+    expect(koopGehoertZurLinie({ briefing_id: null }, 'b1')).toBe(true);
+    expect(koopGehoertZurLinie({ briefing_id: 'b2' }, 'b1')).toBe(false);
+    expect(koopGehoertZurLinie({ briefing_id: 'b2' }, null)).toBe(true);
   });
 });
 

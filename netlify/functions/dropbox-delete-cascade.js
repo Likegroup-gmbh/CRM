@@ -1,5 +1,7 @@
 const { getAccessToken } = require('./_shared/dropbox');
 const { createClient } = require('@supabase/supabase-js');
+const { requireStaff } = require('./_shared/verify-auth');
+const { isUuid } = require('./_shared/dropbox-path');
 
 const DROPBOX_DELETE_URL = 'https://api.dropboxapi.com/2/files/delete_v2';
 
@@ -37,7 +39,9 @@ async function collectAssetPaths(supabase, videoIds) {
 }
 
 async function collectVertragPaths(supabase, entityType, entityId) {
-  let query = supabase.from('vertraege').select('vertragsdatei_pfad, signierter_vertrag_pfad');
+  // datei_path / dropbox_file_path: Dropbox-Pfade haben ein fuehrendes "/",
+  // Alt-Bucket-Pfade (Supabase Storage) nicht und werden hier uebersprungen.
+  let query = supabase.from('vertraege').select('datei_path, dropbox_file_path');
   if (entityType === 'kampagne') {
     query = query.eq('kampagne_id', entityId);
   } else if (entityType === 'kooperation') {
@@ -46,12 +50,13 @@ async function collectVertragPaths(supabase, entityType, entityId) {
     return [];
   }
   const { data } = await query;
-  const paths = [];
+  const paths = new Set();
   (data || []).forEach(v => {
-    if (v.vertragsdatei_pfad) paths.push(v.vertragsdatei_pfad);
-    if (v.signierter_vertrag_pfad) paths.push(v.signierter_vertrag_pfad);
+    for (const p of [v.datei_path, v.dropbox_file_path]) {
+      if (typeof p === 'string' && p.startsWith('/')) paths.add(p);
+    }
   });
-  return paths;
+  return [...paths];
 }
 
 async function getVideoIdsForKampagne(supabase, kampagneId) {
@@ -77,9 +82,9 @@ async function getVideoIdsForKooperation(supabase, kooperationId) {
 }
 
 exports.handler = async (event) => {
+  // Same-Origin: Aufrufe laufen ueber relative /.netlify/functions/-URLs
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
@@ -89,6 +94,9 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
+
+  const staff = await requireStaff(event, undefined, headers);
+  if (!staff.ok) return staff.response;
 
   try {
     const { entityType, entityId } = JSON.parse(event.body || '{}');
@@ -106,6 +114,14 @@ exports.handler = async (event) => {
         statusCode: 400,
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: `Unsupported entityType: ${entityType}` }),
+      };
+    }
+
+    if (!isUuid(entityId)) {
+      return {
+        statusCode: 400,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'entityId must be a UUID' }),
       };
     }
 

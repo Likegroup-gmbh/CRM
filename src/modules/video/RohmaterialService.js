@@ -10,6 +10,7 @@
 
 import { uploadLargeFile } from '../../core/VideoUploadUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 const PREPARE_ENDPOINT = '/.netlify/functions/dropbox-upload-rohmaterial';
 
@@ -174,7 +175,7 @@ export class RohmaterialService {
         // nicht beide auf denselben Pfad zeigen.
         taken.add(fileName);
 
-        const prepare = await fetch(PREPARE_ENDPOINT, {
+        const prepare = await authorizedFetch(PREPARE_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -241,7 +242,7 @@ export class RohmaterialService {
 
     if (asset.file_path) {
       try {
-        await fetch('/.netlify/functions/dropbox-delete', {
+        await authorizedFetch('/.netlify/functions/dropbox-delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filePath: asset.file_path }),
@@ -260,7 +261,7 @@ export class RohmaterialService {
 
   static async _sharedLink(token, path) {
     try {
-      const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+      const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'shared-link', path, token }),

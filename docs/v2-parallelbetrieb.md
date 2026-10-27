@@ -75,3 +75,18 @@ Nicht auf der Production-Site. Nicht „all branches“.
 Optional später: Branch-Subdomain `v2.<domain>` über Netlify DNS. Kein Plan-Upgrade, aber Nameserver müssen bei Netlify liegen.
 
 `[context.v2.environment]` in `netlify.toml` setzt `VITE_APP_CHANNEL=v2` nur, wenn der Branch-Deploy in der UI aktiv ist. Sonst fehlt das Badge auf Netlify.
+
+## Altbestand-Linien: Migration (ADR 0058)
+
+Voraussetzung: V1-Hotfix (`ist_altbestand = false` in den Briefing-Listen) ist auf Production live. Env: `SUPABASE_URL` und `SUPABASE_SERVICE_ROLE_KEY`.
+
+1. Dry-run, schreibt nur CSV nach `reports/legacy-linien/<zeit>/` (`kampagnen.csv`, `linien.csv`, `koops.csv`):
+   `node scripts/legacy-linien-migration.js`
+2. Pilot, je Kampagne erst Dry-run, dann anwenden:
+   `node scripts/legacy-linien-migration.js --kampagne 1d7f46ba-6629-4022-9dba-fb15ac103de9` (EDEKA SW Jahreskooperation)
+   `node scripts/legacy-linien-migration.js --kampagne ac4910de-ed81-4b0f-a31e-ae350d65ba60` (Ninja Q4 Total Budget)
+   jeweils nochmal mit `--apply`. Danach im CRM prüfen: Koops, Videos, Items, Rechnungen, Verträge je Kampagne unverändert; Rest der Produktionen nicht negativ.
+3. Wellen: `--apply --limit 20` (nur Kampagnen mit Status `auto`). Review-Kampagnen: `freigabe=ja` in `kampagnen.csv` setzen, dann `--apply --reapply kampagnen.csv`.
+4. Korrektur einzelner Zuordnungen: CSV `kooperation_id;ziel_briefing_id`, `--verschieben datei.csv [--apply]`.
+5. Rückgängig: `--rollback <lauf_id> [--kampagne <id>]` (stellt aus `legacy_linien_backup` wieder her).
+6. Bis zum Cutover wöchentlich wiederholen (idempotent), final direkt davor.

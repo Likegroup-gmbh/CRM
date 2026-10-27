@@ -168,10 +168,10 @@ async function requireStaff(admin: Admin, req: Request) {
   if (error || !user) return { error: 'Nicht autorisiert.', status: 401 };
   const { data: staff } = await admin
     .from('benutzer')
-    .select('id, name, email, rolle')
+    .select('id, name, email, rolle, freigeschaltet')
     .eq('auth_user_id', user.id)
     .maybeSingle();
-  if (!staff || !['admin', 'mitarbeiter'].includes(staff.rolle)) {
+  if (!staff || staff.freigeschaltet !== true || !['admin', 'mitarbeiter'].includes(staff.rolle)) {
     return { error: 'Nur Mitarbeiter können Einladungen verwalten.', status: 403 };
   }
   return { staff };
@@ -187,13 +187,14 @@ interface EinladungRow {
   marke_id: string | null;
   produktion_id: string | null;
   briefing_typ: string | null;
+  briefing_id: string | null;
   created_by: string | null;
   expires_at: string | null;
   revoked_at: string | null;
 }
 
 const EINLADUNG_SPALTEN =
-  'id, token, code_hash, art, label, unternehmen_id, marke_id, produktion_id, briefing_typ, created_by, expires_at, revoked_at';
+  'id, token, code_hash, art, label, unternehmen_id, marke_id, produktion_id, briefing_typ, briefing_id, created_by, expires_at, revoked_at';
 
 function nutzbar(e: Pick<EinladungRow, 'revoked_at' | 'expires_at'>): string | null {
   if (e.revoked_at) return 'Diese Einladung wurde widerrufen.';
@@ -322,6 +323,7 @@ serve(async (req: Request) => {
       let markeId: string | null = body.markeId ? String(body.markeId) : null;
       let produktionId: string | null = null;
       let briefingTyp: string | null = null;
+      let briefingId: string | null = null;
 
       if (art === 'briefing') {
         produktionId = String(body.produktionId ?? '');
@@ -349,6 +351,21 @@ serve(async (req: Request) => {
           if (!marke || marke.unternehmen_id !== unternehmenId) {
             return jsonRes({ error: 'Die Marke gehört nicht zu diesem Unternehmen.' }, 400, headers);
           }
+        }
+        // Optional: Einladung vom Produkte-Tab einer Linie (ADR 0057).
+        if (body.briefingId) {
+          const linie = String(body.briefingId);
+          if (!istUuid(linie)) return jsonRes({ error: 'Ungültige Linie.' }, 400, headers);
+          const { data: briefing } = await admin
+            .from('campaign_briefings')
+            .select('id, unternehmen_id')
+            .eq('id', linie)
+            .maybeSingle();
+          if (!briefing) return jsonRes({ error: 'Linie nicht gefunden.' }, 404, headers);
+          if (briefing.unternehmen_id !== unternehmenId) {
+            return jsonRes({ error: 'Die Linie gehört nicht zu diesem Unternehmen.' }, 400, headers);
+          }
+          briefingId = linie;
         }
       } else {
         return jsonRes({ error: 'Ungültige Art.' }, 400, headers);
@@ -378,6 +395,7 @@ serve(async (req: Request) => {
           marke_id: markeId,
           produktion_id: produktionId,
           briefing_typ: briefingTyp,
+          briefing_id: briefingId,
           created_by: staff.id,
           expires_at: expiresAt,
         })
@@ -618,9 +636,18 @@ serve(async (req: Request) => {
         .maybeSingle();
       if (ersteller?.email) {
         const kopf = await kopfdaten(admin, einladung);
-        const ziel = einladung.art === 'briefing' && einladung.produktion_id
-          ? `${origin}/produktion/${einladung.produktion_id}?tab=briefing`
-          : `${origin}/produkt`;
+        let ziel = `${origin}/produkt`;
+        if (einladung.art === 'briefing' && einladung.produktion_id) {
+          ziel = `${origin}/produktion/${einladung.produktion_id}?tab=briefing`;
+        } else if (einladung.art === 'produkt' && einladung.briefing_id) {
+          // Einladung von einer Linie: Link auf deren Produkte-Tab (ADR 0057).
+          const { data: linie } = await admin
+            .from('campaign_briefings')
+            .select('produktion_id')
+            .eq('id', einladung.briefing_id)
+            .maybeSingle();
+          if (linie?.produktion_id) ziel = `${origin}/produktion/${linie.produktion_id}?tab=produkte`;
+        }
         const firma = [kopf.firmenname, kopf.markenname].filter(Boolean).join(' · ');
         const mail = einreichungMail({
           art: einladung.art,

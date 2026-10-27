@@ -7,6 +7,7 @@ import {
 } from '../../core/VideoUploadUtils.js';
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 export class StorysTabHandler {
   constructor(drawer) {
@@ -652,7 +653,7 @@ export class StorysTabHandler {
       // Delete all assets from Dropbox
       for (const asset of (slot?.assets || [])) {
         if (asset.file_path) {
-          await fetch('/.netlify/functions/dropbox-delete', {
+          await authorizedFetch('/.netlify/functions/dropbox-delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filePath: asset.file_path }),

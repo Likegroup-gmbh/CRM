@@ -12,3 +12,6 @@ supabase/.temp/
 
 # Teaching workspace (local; not part of the CRM app)
 lehrgang/
+
+# Berichte der Altbestand-Linien-Migration (enthalten Kundendaten)
+reports/legacy-linien/

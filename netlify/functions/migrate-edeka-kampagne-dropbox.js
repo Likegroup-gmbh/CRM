@@ -10,6 +10,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { getAccessToken, ensureFolder } = require('./_shared/dropbox');
+const { requireStaff } = require('./_shared/verify-auth');
 
 const TARGET_KAMPAGNE_ID = 'c3c29584-f63e-4db7-907e-214cdd077201';
 
@@ -176,8 +177,7 @@ async function runMigration(dryRun) {
 
 exports.handler = async (event) => {
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
@@ -187,6 +187,10 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
+
+  // Nur Admin/Mitarbeiter: liefert u.a. das Dropbox-Token bzw. schreibt mit Service-Rechten
+  const staff = await requireStaff(event, undefined, headers);
+  if (!staff.ok) return staff.response;
 
   try {
     const { dryRun = false } = JSON.parse(event.body || '{}');

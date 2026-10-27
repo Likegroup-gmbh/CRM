@@ -527,6 +527,113 @@ describe('ProjektErstellenPersistence', () => {
     expect(trDeletes).toHaveLength(0);
   });
 
+  it('übernimmt beim Edit eines bezahlten Altauftrags ohne Teilrechnung den Zahlungsstand in die neue Teilrechnung', async () => {
+    const trUpdates = [];
+    const trInserts = [];
+
+    const chainEq = () => ({
+      eq: vi.fn(async () => ({ error: null }))
+    });
+
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'kampagne_art_typen') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(async () => ({ data: [], error: null }))
+            }))
+          };
+        }
+        if (table === 'auftrag') {
+          return { update: vi.fn(() => chainEq()) };
+        }
+        if (table === 'auftrag_details') {
+          return { upsert: vi.fn(async () => ({ error: null })) };
+        }
+        if (table === 'kampagne') {
+          return { update: vi.fn(() => chainEq()) };
+        }
+        if (table === 'auftrag_kampagnenart_blocks') {
+          return {
+            delete: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null }))
+          };
+        }
+        if (table === 'ansprechpartner_kampagne') {
+          return {
+            delete: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null }))
+          };
+        }
+        if (table === 'auftrag_teilrechnung') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(async () => ({ data: [], error: null }))
+            })),
+            update: vi.fn((payload) => {
+              trUpdates.push(payload);
+              return chainEq();
+            }),
+            insert: vi.fn((payload) => {
+              trInserts.push(payload);
+              return Promise.resolve({ error: null });
+            }),
+            delete: vi.fn(() => ({
+              in: vi.fn(async () => ({ error: null }))
+            }))
+          };
+        }
+        return { insert: vi.fn(async () => ({ error: null })) };
+      })
+    };
+
+    const result = await persistence.submitEdit({
+      auftragId: 'auftrag-1',
+      kampagneId: 'kampagne-1',
+      existingRaw: {
+        auftrag: { status: 'active', is_draft: false },
+        details: { campaign_type: [] }
+      },
+      formData: {
+        auftrag: {
+          unternehmen_id: 'unternehmen-1',
+          marke_id: 'marke-1',
+          ansprechpartner_id: 'ansprechpartner-1',
+          titel: 'Test',
+          start: '2026-03-01',
+          ende: '2026-06-30',
+          anzahl_teilrechnungen: 1,
+          teilrechnungen: [
+            {
+              position: 1,
+              nettobetrag: 1000,
+              ust_prozent: 19,
+              ust_betrag: 190,
+              bruttobetrag: 1190,
+              rechnung_gestellt: true,
+              rechnung_gestellt_am: '2026-04-27',
+              re_faelligkeit: '2026-05-27',
+              ueberwiesen: true,
+              ueberwiesen_am: '2026-06-19'
+            }
+          ]
+        },
+        details: { campaign_type: [] },
+        kampagne: { kampagnenname: 'Test' }
+      }
+    });
+
+    expect(result.success).toBe(true);
+    expect(trUpdates).toHaveLength(0);
+    expect(trInserts).toHaveLength(1);
+    expect(trInserts[0]).toMatchObject({
+      auftrag_id: 'auftrag-1',
+      position: 1,
+      ueberwiesen: true,
+      ueberwiesen_am: '2026-06-19'
+    });
+  });
+
   it('löscht beim Edit nur die entfernten Positionen', async () => {
     const trDeletes = [];
 

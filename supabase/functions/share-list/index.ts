@@ -129,11 +129,11 @@ async function requireStaff(admin: ReturnType<typeof createClient>, req: Request
 
   const { data: staff } = await admin
     .from('benutzer')
-    .select('id, name, rolle')
+    .select('id, name, rolle, freigeschaltet')
     .eq('auth_user_id', authUser.id)
     .maybeSingle();
 
-  if (!staff || !['admin', 'mitarbeiter'].includes(staff.rolle)) {
+  if (!staff || staff.freigeschaltet !== true || !['admin', 'mitarbeiter'].includes(staff.rolle)) {
     return { error: jsonRes({ error: 'Nur Mitarbeiter können Listen teilen.' }, 403, corsHeaders(req)) };
   }
   return { staff };

@@ -115,7 +115,7 @@ function esc(value) {
  * Warnung bei gleichem Namen.
  * @returns {Promise<'vorhanden'|'neu'|'abbrechen'>}
  */
-export function fragNachDublette(dubletten) {
+export function fragNachDublette(dubletten, { mitLinie = false } = {}) {
   return new Promise((resolve) => {
     const modal = document.createElement('div');
     modal.className = 'modal overlay-modal einreichung-dublette';
@@ -128,7 +128,9 @@ export function fragNachDublette(dubletten) {
         <div class="modal-body">
           <p>In dieser Marke gibt es schon ein Produkt mit diesem Namen:</p>
           <ul>${dubletten.map(d => `<li><strong>${esc(d.name)}</strong></li>`).join('')}</ul>
-          <p>„Vorhandenes nehmen“ verwirft die Einreichung, am vorhandenen Produkt ändert sich nichts.
+          <p>${mitLinie
+    ? '„Vorhandenes nehmen“ übernimmt das vorhandene Produkt an die Linie dieser Einladung und verwirft die Einreichung, am Produkt selbst ändert sich nichts.'
+    : '„Vorhandenes nehmen“ verwirft die Einreichung, am vorhandenen Produkt ändert sich nichts.'}
              „Trotzdem neu“ legt ein zweites Produkt an.</p>
         </div>
         <div class="modal-footer">

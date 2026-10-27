@@ -30,6 +30,7 @@ import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { backTarget, returnTo } from '../../core/breadcrumbTrail.js';
 import { setPrefillValues } from '../../core/form/data/PrefillSelected.js';
 import { markiereProduktAngelegt, verwirfEinreichung } from '../einladung/einreichungService.js';
+import { addBriefingProdukte } from '../briefing/BriefingProdukte.js';
 import {
   bilderAlsDateien,
   einreichungFormData,
@@ -115,6 +116,19 @@ export class ProduktForm {
         return;
       }
       this.varianten = variantenAusEinreichung(this.einreichung);
+      // Einladung von einer Linie (ADR 0057): Anlegen übernimmt das Produkt dort, auch wenn
+      // die URL die Linie nicht trägt.
+      const einladung = this.einreichung.einladung || {};
+      if (einladung.briefing_id && !this.createScope?.briefingId) {
+        this.createScope = {
+          unternehmenId: einladung.unternehmen_id || null,
+          markeId: einladung.marke_id || null,
+          produktionId: einladung.briefing?.produktion_id || null,
+          ...(this.createScope || {}),
+          briefingId: einladung.briefing_id
+        };
+        this.kontextBriefingId = einladung.briefing_id;
+      }
     }
 
     try {
@@ -282,15 +296,20 @@ export class ProduktForm {
     }
     if (!dubletten.length) return true;
 
-    const wahl = await fragNachDublette(dubletten);
+    const linieId = einladung.briefing_id || null;
+    const wahl = await fragNachDublette(dubletten, { mitLinie: !!linieId });
     if (wahl === 'neu') {
       this._dublettenName = name.trim().toLowerCase();
       return true;
     }
     if (wahl === 'vorhanden') {
       try {
+        // Einladung von einer Linie: das vorhandene Produkt kommt an die Linie (ADR 0057).
+        if (linieId) await addBriefingProdukte(linieId, [dubletten[0].id]);
         await verwirfEinreichung(this.einreichung);
-        window.toastSystem?.success?.('Einreichung verworfen. Das vorhandene Produkt bleibt unverändert.');
+        window.toastSystem?.success?.(linieId
+          ? 'Vorhandenes Produkt an die Linie übernommen. Einreichung verworfen.'
+          : 'Einreichung verworfen. Das vorhandene Produkt bleibt unverändert.');
       } catch (err) {
         console.error('Verwerfen fehlgeschlagen:', err);
         window.toastSystem?.error?.('Verwerfen fehlgeschlagen.');

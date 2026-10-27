@@ -10,6 +10,7 @@ import {
 import { icon } from '../../core/icons/IconSystem.js';
 import { promoteAssetToFinal, unmarkFinalSlot, markedSlotsForSource } from '../../core/PromoteFinalAsset.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 const DELETE_ICON = `${icon('trash-alt')}`;
 
@@ -833,7 +834,7 @@ export class VideoSettingsDrawer {
         btn.disabled = true;
         try {
           if (fp) {
-            await fetch('/.netlify/functions/dropbox-delete', {
+            await authorizedFetch('/.netlify/functions/dropbox-delete', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ filePath: fp }),
@@ -862,7 +863,7 @@ export class VideoSettingsDrawer {
         btn.disabled = true;
         try {
           if (fp) {
-            await fetch('/.netlify/functions/dropbox-delete', {
+            await authorizedFetch('/.netlify/functions/dropbox-delete', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ filePath: fp }),

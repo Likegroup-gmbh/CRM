@@ -17,7 +17,7 @@ import {
   openVertragUploadDrawer
 } from '../vertrag/VertraegeListHandlers.js';
 import { skripteService } from '../skripte/SkripteService.js';
-import { scopeByProduktion } from '../produktion/ProduktionService.js';
+import { scopeByProduktion, scopeKoopsByLinie } from '../produktion/ProduktionService.js';
 import { effectiveLinie, renderLinienSwitch, syncLinienSwitch } from './linienScope.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
@@ -32,7 +32,8 @@ import {
   unmountKatalogPanes
 } from './KampagneDetailKatalog.js';
 import { mountBriefingPane, unmountBriefingPane } from './KampagneDetailBriefing.js';
-import { syncEinreichungsZaehler } from '../einladung/briefingEinreichungen.js';
+import { syncBriefingZaehler } from '../einladung/briefingEinreichungen.js';
+import { syncEinreichungsZaehler } from '../einladung/EinreichungInbox.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
 
@@ -102,7 +103,9 @@ export function renderWorkflowTabBar(activeTab, detail = null) {
     </button>
   `).join('');
   const linien = detail ? renderLinienSwitch(detail, activeTab) : '';
-  return `<div class="tab-navigation kampagne-workflow-tabs">${linien}${buttons}</div>`;
+  // Slot ganz rechts: Casting und Konzepte setzen hier ihr Listen-Dropdown ein.
+  const listeSlot = '<div class="kampagne-workflow-tabs__liste" data-workflow-liste-slot></div>';
+  return `<div class="tab-navigation kampagne-workflow-tabs">${linien}${buttons}${listeSlot}</div>`;
 }
 
 /**
@@ -396,8 +399,12 @@ export function refreshWorkflowAfterRender(detail) {
   if (tab && tab !== 'produktion') {
     void loadWorkflowPane(detail, tab);
   }
-  // Der Briefing-Tab zeigt offene Kundeneinreichungen, auch wenn ein anderer Tab offen ist.
-  if (tab !== 'briefing') void syncEinreichungsZaehler(detail);
+  // Briefing- und Produkte-Tab zeigen offene Kundeneinreichungen, auch wenn ein anderer Tab offen ist.
+  if (tab !== 'briefing') void syncBriefingZaehler(detail);
+  if (tab !== 'produkte') {
+    const linieId = effectiveLinie(detail, 'produkte');
+    void syncEinreichungsZaehler('produkt', detail.mode === 'workflow' && linieId ? { briefingId: linieId } : null);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -460,7 +467,7 @@ async function loadVertraege(detail) {
   const briefingId = effectiveLinie(detail, 'vertraege');
   let koopIds = null;
   if (briefingId) {
-    let koopQuery = window.supabase.from('kooperationen').select('id').eq('briefing_id', briefingId);
+    let koopQuery = scopeKoopsByLinie(window.supabase.from('kooperationen').select('id'), briefingId);
     if (detail.produktionId) koopQuery = koopQuery.eq('produktion_id', detail.produktionId);
     const { data: koops, error: koopError } = await koopQuery;
     if (koopError) throw new Error(koopError.message);

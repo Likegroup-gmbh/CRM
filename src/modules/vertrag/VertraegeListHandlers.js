@@ -3,6 +3,7 @@ import { ladeGedeckteKooperationen, syncVertragFlags } from './deckung/vertragDe
 import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
 import { VertragUtils } from './VertragUtils.js';
 import { fallbackStatusAfterUnsigned } from './vertragStatus.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 export function bindTableDelegation(list) {
   const tbody = document.getElementById('vertraege-table-body');
@@ -114,7 +115,7 @@ export async function deleteVertrag(list, id) {
     if (vertrag?.datei_path) {
       if (vertrag.datei_path.startsWith('/')) {
         try {
-          await fetch('/.netlify/functions/dropbox-delete-vertrag', {
+          await authorizedFetch('/.netlify/functions/dropbox-delete-vertrag', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filePath: vertrag.datei_path })
@@ -131,7 +132,7 @@ export async function deleteVertrag(list, id) {
     }
     if (vertrag?.dropbox_file_path) {
       try {
-        await fetch('/.netlify/functions/dropbox-delete-vertrag', {
+        await authorizedFetch('/.netlify/functions/dropbox-delete-vertrag', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filePath: vertrag.dropbox_file_path })
@@ -265,7 +266,7 @@ export async function removeSignedContract(list, vertragId) {
 
     if (data?.dropbox_file_path) {
       try {
-        await fetch('/.netlify/functions/dropbox-delete-vertrag', {
+        await authorizedFetch('/.netlify/functions/dropbox-delete-vertrag', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filePath: data.dropbox_file_path })

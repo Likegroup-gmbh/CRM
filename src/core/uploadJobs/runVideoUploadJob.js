@@ -4,6 +4,7 @@
 
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
 import { createFolderSharedLink, buildVersionedFileName, buildFinalFileName, nextFreeIndexedFileName } from '../VideoUploadUtils.js';
+import { authorizedFetch } from '../auth/getAccessToken.js';
 
 function buildVersionedFileName_(file, versionNumber, metadaten) {
   const ext = (file.name.split('.').pop() || 'mp4');
@@ -30,7 +31,7 @@ function buildFinalFileName_(file, variantName, metadaten) {
 }
 
 async function fetchTokenAndPath({ metadaten, versionNumber, variantName, fileName, isFinal }) {
-  const resp = await fetch('/.netlify/functions/dropbox-upload', {
+  const resp = await authorizedFetch('/.netlify/functions/dropbox-upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -56,7 +57,7 @@ async function fetchTokenAndPath({ metadaten, versionNumber, variantName, fileNa
 
 async function createSharedLink(token, dropboxPath) {
   try {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token }),
@@ -73,7 +74,7 @@ async function createSharedLink(token, dropboxPath) {
 // nach erfolgreichem Upload fehlschlaegt (best effort).
 async function deleteDropboxFile(filePath) {
   try {
-    await fetch('/.netlify/functions/dropbox-delete', {
+    await authorizedFetch('/.netlify/functions/dropbox-delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filePath }),

@@ -3638,6 +3638,21 @@ th[draggable="true"]:active {
   border-right: 1px solid var(--border-primary);
 }
 
+/* Slot ganz rechts in der Workflow-Tab-Zeile (Casting-Listen, Konzepte) */
+.kampagne-workflow-tabs__liste {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Listen-Dropdown (Casting-Listen, Konzepte): ohne Trennstrich der Tab-Zeile */
+.linien-switch--liste {
+  margin-right: 0;
+  padding-right: 0;
+  border-right: none;
+}
+
 .linien-switch__trigger {
   display: inline-flex;
   align-items: center;

@@ -1,4 +1,5 @@
 const { getAccessToken, sanitizePath, buildUnifiedBasePath, ensureFolder } = require('./_shared/dropbox');
+const { requireStaff } = require('./_shared/verify-auth');
 
 // Rohmaterial liegt auf Kooperations-Ebene, Geschwister von Videos/Storys/Bilder.
 // Kein Video-Unterordner: der Creator liefert einen Stapel Clips, bevor die
@@ -21,8 +22,7 @@ exports.buildRohmaterialFilePath = buildRohmaterialFilePath;
 
 exports.handler = async (event) => {
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
@@ -33,6 +33,10 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
+
+  // Nur Admin/Mitarbeiter: liefert u.a. das Dropbox-Token bzw. schreibt mit Service-Rechten
+  const staff = await requireStaff(event, undefined, headers);
+  if (!staff.ok) return staff.response;
 
   try {
     const fields = JSON.parse(event.body || '{}');

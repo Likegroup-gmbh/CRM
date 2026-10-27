@@ -1,3 +1,5 @@
+import { authorizedFetch } from '../../../core/auth/getAccessToken.js';
+
 const DELETE_ORDER = [
   { table: 'vertraege', fk: 'kunde_unternehmen_id' },
   { table: 'campaign_briefings', fk: 'unternehmen_id' },
@@ -79,7 +81,7 @@ export async function cleanupStorage(unternehmenId, { supabase } = {}) {
 }
 
 export async function cleanupDropbox(kampagneIds, kooperationIds, { fetch: fetchFn } = {}) {
-  const _fetch = fetchFn || globalThis.fetch;
+  const _fetch = fetchFn || authorizedFetch;
   const errors = [];
 
   for (const id of kampagneIds) {

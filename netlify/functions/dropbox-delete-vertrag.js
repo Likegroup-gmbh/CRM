@@ -1,11 +1,13 @@
 const { getAccessToken } = require('./_shared/dropbox');
+const { requireStaff } = require('./_shared/verify-auth');
+const { isSafeDropboxPath } = require('./_shared/dropbox-path');
 
 const DROPBOX_DELETE_URL = 'https://api.dropboxapi.com/2/files/delete_v2';
 
 exports.handler = async (event) => {
+  // Same-Origin: Aufrufe laufen ueber relative /.netlify/functions/-URLs
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
@@ -17,6 +19,9 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
+  const staff = await requireStaff(event, undefined, headers);
+  if (!staff.ok) return staff.response;
+
   try {
     const { filePath } = JSON.parse(event.body || '{}');
 
@@ -25,6 +30,14 @@ exports.handler = async (event) => {
         statusCode: 400,
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'filePath is required' }),
+      };
+    }
+
+    if (!isSafeDropboxPath(filePath)) {
+      return {
+        statusCode: 400,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'filePath is invalid' }),
       };
     }
 

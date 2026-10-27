@@ -3,6 +3,7 @@
 // kooperation_video_asset ist die Single Source of Truth für Datei-URLs.
 
 import { pickLatestAsset } from './stills/stillAssets.js';
+import { authorizedFetch } from './auth/getAccessToken.js';
 
 async function dropboxDelete(filePath, fetchFn) {
   const resp = await fetchFn('/.netlify/functions/dropbox-delete', {
@@ -79,7 +80,7 @@ export async function syncVideoAssetsAfterDelete(videoId, deletedAsset, { supaba
  */
 export async function deleteVideoFull(videoId, { supabase: sb, fetch: fetchFn } = {}) {
   const supabase = sb || window.supabase;
-  const _fetch = fetchFn || globalThis.fetch;
+  const _fetch = fetchFn || authorizedFetch;
 
   try {
     const assets = await loadAssets(supabase, videoId);
@@ -117,7 +118,7 @@ export async function deleteVideoFull(videoId, { supabase: sb, fetch: fetchFn } 
  * Gibt ein Summary-Objekt zurück.
  */
 export async function deleteDropboxCascade(entityType, entityId, { fetch: fetchFn } = {}) {
-  const _fetch = fetchFn || globalThis.fetch;
+  const _fetch = fetchFn || authorizedFetch;
 
   try {
     const resp = await _fetch('/.netlify/functions/dropbox-delete-cascade', {
@@ -146,6 +147,6 @@ export async function deleteDropboxCascade(entityType, entityId, { fetch: fetchF
  * Exportiert für Nutzung in VideoUploadDrawer beim Versions-Overwrite.
  */
 export async function deleteSingleDropboxFile(filePath, { fetch: fetchFn } = {}) {
-  const _fetch = fetchFn || globalThis.fetch;
+  const _fetch = fetchFn || authorizedFetch;
   await dropboxDelete(filePath, _fetch);
 }

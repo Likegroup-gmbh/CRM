@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ALLE, effectiveLinie, koopLinie, linieRueckkehr, renderLinienSwitch, resolveLinie, tabHatAlleLinien
+  ALLE, effectiveLinie, koopLinie, linieRueckkehr, renderLinienSwitch, renderListenSwitch, placeListenSwitch, clearListenSwitch, resolveLinie, tabHatAlleLinien
 } from '../modules/kampagne/linienScope.js';
 import { findKooperationForCreator } from '../modules/kooperation/produktionStart.js';
 import { getSwitcherConfig, loadSwitcherItems } from '../core/breadcrumbSwitcher.js';
@@ -152,5 +152,48 @@ describe('renderLinienSwitch', () => {
     window.canCreate = () => false;
     expect(renderLinienSwitch(detail, 'casting')).not.toContain('data-linie-neu');
     expect(renderLinienSwitch({ linien: [] }, 'casting')).toBe('');
+  });
+});
+
+describe('renderListenSwitch', () => {
+  const items = [{ id: 'l1', name: 'Sourcing Newlypal' }, { id: 'l2', name: null }];
+
+  it('zeigt die aktive Liste im Trigger und nutzt eigenes Item-Attribut statt data-linie', () => {
+    const html = renderListenSwitch({ items, activeId: 'l1', itemAttr: 'data-casting-liste' });
+    expect(html).toContain('data-linien-toggle');
+    expect(html).toContain('data-liste-switch');
+    expect(html).toMatch(/linien-switch__label">Sourcing Newlypal</);
+    expect(html).toContain('data-casting-liste="l1"');
+    expect(html).toContain('data-casting-liste="l2"');
+    expect(html).toContain('Unbenannt');
+    expect(html).not.toContain('data-linie=');
+  });
+
+  it('fällt auf die erste Liste zurück, leer ohne Einträge', () => {
+    expect(renderListenSwitch({ items, activeId: 'x', itemAttr: 'data-casting-liste' }))
+      .toMatch(/linien-switch__label">Sourcing Newlypal</);
+    expect(renderListenSwitch({ items: [], activeId: null, itemAttr: 'data-casting-liste' })).toBe('');
+  });
+});
+
+describe('placeListenSwitch', () => {
+  it('setzt das Dropdown in den Slot der Tab-Zeile und leert ihn wieder', () => {
+    document.body.innerHTML = '<div data-workflow-liste-slot></div>';
+    const html = renderListenSwitch({ items: [{ id: 'l1', name: 'A' }], activeId: 'l1', itemAttr: 'data-casting-liste' });
+    const { slot, inline } = placeListenSwitch(html, 'fallback');
+    expect(slot).toBe(document.querySelector('[data-workflow-liste-slot]'));
+    expect(inline).toBe('');
+    expect(slot.querySelector('[data-liste-switch]')).not.toBeNull();
+    clearListenSwitch();
+    expect(slot.innerHTML).toBe('');
+    document.body.innerHTML = '';
+  });
+
+  it('fällt ohne Slot auf eine Zeile im Pane zurück', () => {
+    document.body.innerHTML = '';
+    const { slot, inline } = placeListenSwitch('<b>x</b>', 'fallback');
+    expect(slot).toBeNull();
+    expect(inline).toBe('<div class="fallback"><b>x</b></div>');
+    expect(placeListenSwitch('', 'fallback').inline).toBe('');
   });
 });

@@ -1,10 +1,16 @@
 const { getAccessToken } = require('./_shared/dropbox');
+const { requireStaff } = require('./_shared/verify-auth');
+const { canReadAssetPath } = require('./_shared/dropbox-read-access');
 
-const DEBUG = true;
+// Keine Token-Praefixe oder Dropbox-Tokens ins Log schreiben
+const DEBUG = false;
 
+// Lesende Actions, die auch Kunden/Gaeste (per RLS-Asset-Check) nutzen duerfen
+const READ_ACTIONS = new Set(['shared-link', 'temporary-link']);
+
+// Same-Origin: Aufrufe laufen ueber relative /.netlify/functions/-URLs
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -90,7 +96,7 @@ async function handleSessionAppend(token, sessionId, offset, chunkBuffer) {
 }
 
 async function handleSessionFinish(token, sessionId, offset, dropboxPath, chunkBuffer) {
-  if (DEBUG) console.log(`[dropbox-proxy] session-finish SENDING: tokenLen=${token.length} tokenPrefix=${token.substring(0, 20)}... sessionId=${sessionId} offset=${offset} path=${dropboxPath} chunkLen=${chunkBuffer.length}`);
+  if (DEBUG) console.log(`[dropbox-proxy] session-finish SENDING: sessionId=${sessionId} offset=${offset} path=${dropboxPath} chunkLen=${chunkBuffer.length}`);
 
   const resp = await fetch('https://content.dropboxapi.com/2/files/upload_session/finish', {
     method: 'POST',
@@ -107,7 +113,7 @@ async function handleSessionFinish(token, sessionId, offset, dropboxPath, chunkB
   if (!resp.ok) {
     const text = await resp.text();
     logHeaders(resp, 'session-finish-FAIL');
-    console.error(`[dropbox-proxy] session-finish FAILED: status=${resp.status} body="${text}" tokenLen=${token.length} tokenPrefix=${token.substring(0, 20)}...`);
+    console.error(`[dropbox-proxy] session-finish FAILED: status=${resp.status} body="${text}"`);
     throw new Error(`Session finish failed (${resp.status}): ${text}`);
   }
   return resp.json();
@@ -186,8 +192,6 @@ async function handleDiagnose() {
     const token = await getAccessToken();
     result.tokenOk = true;
     result.tokenLen = token.length;
-    result.tokenPrefix = token.substring(0, 20) + '...';
-
     const checkResp = await fetch('https://api.dropboxapi.com/2/check/user', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -211,6 +215,14 @@ exports.handler = async (event) => {
     return jsonResponse(405, { error: 'Method not allowed' });
   }
 
+  // Erst Staff pruefen (Cache, bei fehlendem Token ohne Netzwerk). Nur wenn das
+  // scheitert, kommen Kunden/Gaeste ueber den Lese-Zweig weiter.
+  const staff = await requireStaff(event, undefined, CORS_HEADERS);
+  const isStaff = staff.ok;
+  if (!isStaff && ![401, 403].includes(staff.response.statusCode)) {
+    return staff.response;
+  }
+
   try {
     const rawBody = event.isBase64Encoded
       ? Buffer.from(event.body, 'base64').toString('utf-8')
@@ -219,17 +231,21 @@ exports.handler = async (event) => {
     const body = JSON.parse(rawBody || '{}');
     const { action } = body;
 
-    if (DEBUG) {
-      const tokenType = body.token ? typeof body.token : 'none';
-      const tokenLen = body.token ? body.token.length : 0;
-      const tokenPre = body.token ? body.token.substring(0, 20) : 'N/A';
-      console.log(`[dropbox-proxy] action=${action} isBase64Encoded=${event.isBase64Encoded} bodyLen=${(rawBody || '').length} body.token: type=${tokenType} len=${tokenLen} prefix=${tokenPre}...`);
+    if (!isStaff) {
+      // Kunden/Gaeste: nur Links fuer Dateien, die sie per RLS sehen duerfen
+      if (!READ_ACTIONS.has(action)) return staff.response;
+      const access = await canReadAssetPath(event, body.path);
+      if (!access.ok) {
+        return jsonResponse(access.status || 403, { error: access.error || 'Kein Zugriff' });
+      }
     }
 
-    const tokenSource = body.token ? 'client' : 'refresh';
-    const token = body.token || await getAccessToken();
+    if (DEBUG) {
+      console.log(`[dropbox-proxy] action=${action} isBase64Encoded=${event.isBase64Encoded} bodyLen=${(rawBody || '').length} staff=${isStaff}`);
+    }
 
-    if (DEBUG) console.log(`[dropbox-proxy] tokenSource=${tokenSource} finalTokenLen=${token.length} finalTokenPrefix=${token.substring(0, 20)}...`);
+    // Nicht-Staff nutzt nie ein vom Client mitgeschicktes Dropbox-Token
+    const token = (isStaff && body.token) || await getAccessToken();
 
     switch (action) {
       case 'diagnose': {
@@ -247,7 +263,7 @@ exports.handler = async (event) => {
       case 'session-start': {
         const freshToken = await getAccessToken();
         const buf = Buffer.from(body.chunk, 'base64');
-        if (DEBUG) console.log(`[dropbox-proxy] session-start chunkSize=${buf.length} tokenLen=${freshToken.length} tokenPrefix=${freshToken.substring(0, 20)}...`);
+        if (DEBUG) console.log(`[dropbox-proxy] session-start chunkSize=${buf.length}`);
         const { session_id } = await handleSessionStart(freshToken, buf);
         if (DEBUG) console.log(`[dropbox-proxy] session-start OK: sessionId=${session_id}`);
         return jsonResponse(200, { session_id, token: freshToken });

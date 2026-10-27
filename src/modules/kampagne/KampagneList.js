@@ -279,12 +279,31 @@ export class KampagneList {
           container.innerHTML = renderTableWrapper();
         }
 
+        const tableOptions = () => ({
+          bindDragToScroll: () => this.bindDragToScroll(),
+          hasActiveFilters: this.hasActiveFilters(),
+          hideCompletedActive: shouldHideCompleted(this.searchQuery)
+        });
+
+        // Stale-while-revalidate: gecachte Seite sofort zeigen, waehrend frisch geladen wird.
+        // Nur Tabelle + Pagination; Toolbar-Sync laeuft erst nach dem frischen Ergebnis.
+        let staleRender = null;
+        let staleData = null;
+        const renderCached = (cached) => {
+          if (!checkMounted()) return null;
+          staleData = cached.data;
+          if (cached.kampagneArtMap) this.kampagneArtMap = cached.kampagneArtMap;
+          this.pagination.updateTotal(cached.count ?? cached.data.length);
+          staleRender = updateTable(cached.data, tableOptions());
+          return staleRender;
+        };
+
         const [, result] = await Promise.all([
           this._shellRendered ? Promise.resolve() : this.initializeFilterBar(),
           loadKampagnenWithRelations(
             this.pagination.currentPage,
             this.pagination.itemsPerPage,
-            { searchQuery: this.searchQuery, folder: scope }
+            { searchQuery: this.searchQuery, folder: scope, onCached: renderCached }
           )
         ]);
 
@@ -296,11 +315,13 @@ export class KampagneList {
         const totalCount = result?.count ?? filteredKampagnen.length;
 
         this.pagination.updateTotal(totalCount);
-        await updateTable(filteredKampagnen, {
-          bindDragToScroll: () => this.bindDragToScroll(),
-          hasActiveFilters: this.hasActiveFilters(),
-          hideCompletedActive: shouldHideCompleted(this.searchQuery)
-        });
+        // Cache-Render zu Ende laufen lassen, damit sich Animationen nicht ueberlappen.
+        if (staleRender) await staleRender.catch(() => {});
+        if (!checkMounted()) return;
+        const unchanged = staleData && JSON.stringify(staleData) === JSON.stringify(filteredKampagnen);
+        if (!unchanged) {
+          await updateTable(filteredKampagnen, tableOptions());
+        }
         this.syncShowCompletedToggle();
         this.updateToolbarFilterBadge();
         this.pagination.render();

@@ -13,6 +13,8 @@
 // /reel/, /reels/, /p/ oder /tv/, und bei Profil-Permalinks steckt noch ein
 // Segment davor (/username/reel/CODE).
 
+import { normalizeUrl } from '../UrlHelper.js';
+
 const INSTAGRAM_PATTERN = /instagram\.com\/(?:[^/?#]+\/)?(reels?|p|tv)\/([A-Za-z0-9_-]+)/i;
 const TIKTOK_PATTERN = /tiktok\.com\/(?:@[^/?#]+\/)?(video|photo)\/(\d+)/i;
 
@@ -123,6 +125,32 @@ export function parseSocialLink(url) {
   }
 
   return { ...empty, host };
+}
+
+const BARE_HANDLE = /^@?[A-Za-z0-9._]{1,30}$/;
+const PROFILE_BASE = {
+  instagram: 'https://www.instagram.com/',
+  tiktok: 'https://www.tiktok.com/@'
+};
+
+/**
+ * Absolute, klickbare URL fuer einen gespeicherten Social-Wert.
+ * In der DB steht mal eine URL, mal nur ein Handle ("elnimabella", "@name").
+ * Ein Handle als href waere ein relativer Link: ein Klick oeffnet dann
+ * /castings/elnimabella in der App statt das Profil. Nicht-http(s)-Schemas
+ * (javascript:, data:) werden verworfen.
+ * @param {string} value URL oder Handle
+ * @param {'instagram'|'tiktok'} platform Plattform fuer reine Handles
+ * @returns {string} absolute URL oder '' wenn unbrauchbar
+ */
+export function socialHref(value, platform) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const looksLikeUrl = /^https?:\/\//i.test(raw) || /instagram\.com|tiktok\.com|^www\.|\//i.test(raw);
+  if (!looksLikeUrl && BARE_HANDLE.test(raw) && PROFILE_BASE[platform]) {
+    return `${PROFILE_BASE[platform]}${raw.replace(/^@/, '')}`;
+  }
+  return normalizeUrl(raw);
 }
 
 /**

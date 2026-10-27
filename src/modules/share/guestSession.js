@@ -1,4 +1,5 @@
 import App from '../../core/App.js';
+import { setGuestJwt } from '../../core/auth/getAccessToken.js';
 
 const STORAGE_KEY = 'cj24.guestShares';
 
@@ -59,6 +60,7 @@ export function clearGuestSession(token) {
 
 export function clearAllGuestSessions() {
   localStorage.removeItem(STORAGE_KEY);
+  setGuestJwt(null);
 }
 
 export function listStoredGuestSessions() {
@@ -90,6 +92,8 @@ export function applyGuestJwt(jwt) {
     },
   });
   App.set('supabase', window.supabase);
+  // Netlify Functions (z.B. dropbox-proxy) bekommen das Gast-JWT als Bearer
+  setGuestJwt(jwt);
 }
 
 export function syntheticGuestUser(name, participantId = null) {

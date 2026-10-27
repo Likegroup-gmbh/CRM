@@ -8,7 +8,8 @@ import '../briefing/create/FormEvents.js';
 import '../briefing/create/DataPersistence.js';
 import { renderStep, escapeHtml } from '../briefing/create/FieldRenderer.js';
 import { kundenSteps } from './einladungFelder.js';
-import { einladungSubmit, ladeDateiHoch } from './einladungApi.js';
+import { ladeDateiHoch } from './einladungApi.js';
+import { sendeEinreichung, zeigeFormFehler } from './einladungFormBasis.js';
 
 const MAX_DATEI_BYTES = 25 * 1024 * 1024;
 
@@ -100,36 +101,13 @@ export class EinladungBriefingForm extends BriefingCreate {
   }
 
   zeigeFehler(text) {
-    const el = this.root.querySelector('[data-fehler]');
-    if (!el) return;
-    el.textContent = text;
-    el.hidden = !text;
+    zeigeFormFehler(this.root, text);
   }
 
   async senden() {
     if (this.sendet) return;
     this.saveCurrentStepData();
-    this.sendet = true;
-    const knopf = this.root.querySelector('[data-aktion="senden"]');
-    knopf.disabled = true;
-    knopf.textContent = 'Wird gesendet …';
-    this.zeigeFehler('');
-
-    const antwort = await einladungSubmit(this.token, this.sitzung, this.formData);
-
-    this.sendet = false;
-    knopf.disabled = false;
-    knopf.textContent = 'Absenden';
-
-    if (antwort.ok) {
-      this.onFertig();
-      return;
-    }
-    if (antwort.sitzungAbgelaufen) {
-      this.onSitzungAbgelaufen();
-      return;
-    }
-    this.zeigeFehler(antwort.fehler);
+    await sendeEinreichung(this, this.formData);
   }
 
   // Referenz-Dateien: signierte Upload-URL statt documents-Bucket (der Kunde hat kein Konto).

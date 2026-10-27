@@ -419,10 +419,17 @@ export class ProjektErstellenPersistence {
   }
 
   // Edit: pro Position updaten, neue Positionen einfuegen, entfernte loeschen.
-  // Der Zahlungsstand bleibt unangetastet, damit ein in der Liste gesetztes
-  // ueberwiesen_am nicht durch den Formularstand beim Oeffnen ueberschrieben wird.
+  // Bestehende Positionen behalten ihren Zahlungsstand, damit ein in der Liste
+  // gesetztes ueberwiesen_am nicht durch den Formularstand beim Oeffnen
+  // ueberschrieben wird. Neue Positionen bekommen den Zahlungsstand aus dem
+  // Formular: bei alten Auftraegen ohne Teilrechnung stammt er aus dem Auftrag
+  // (EditLoader.mapTeilrechnungen). Ohne ihn wuerde die neue Teilrechnung
+  // unbezahlt starten und den bezahlten Auftrag in den Kundenrechnungen rot faerben.
   async _syncTeilrechnungen(supabase, formData, auftragId) {
     const payloads = this.buildTeilrechnungPayloads(formData, auftragId, { includePaymentStatus: false });
+    const vollePayloads = new Map(
+      this.buildTeilrechnungPayloads(formData, auftragId).map(p => [p.position, p])
+    );
     const keepPositions = new Set(payloads.map(p => p.position));
 
     const { data: existing, error: loadErr } = await supabase
@@ -444,7 +451,7 @@ export class ProjektErstellenPersistence {
       } else {
         const { error: insErr } = await supabase
           .from('auftrag_teilrechnung')
-          .insert(payload);
+          .insert(vollePayloads.get(payload.position) || payload);
         if (insErr) throw insErr;
       }
     }

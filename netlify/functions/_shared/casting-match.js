@@ -1200,6 +1200,7 @@ async function loadBedarfData(supabase, casting) {
   const { data: briefing } = await supabase.from('campaign_briefings')
     .select('*').eq('id', casting.briefing_id).maybeSingle();
   if (!briefing) throw new Error('Casting ohne Briefing: ohne Bedarf kein Lauf');
+  if (briefing.ist_altbestand) throw new Error('Altbestand-Linie ohne Briefing: bitte zuerst das Briefing ausfüllen');
 
   const { data: links } = await supabase.from('campaign_briefing_produkt')
     .select('produkt_id').eq('briefing_id', briefing.id);

@@ -1,13 +1,13 @@
 // KampagneDetailCasting.js
 // Mountet das volle Casting-Worksheet in den Kampagnen-Workflow-Pane.
 
-import { effectiveLinie, leerHinweis } from './linienScope.js';
+import { effectiveLinie, leerHinweis, renderListenSwitch, bindListenSwitch, placeListenSwitch, clearListenSwitch } from './linienScope.js';
 import { CreatorAuswahlDetail } from '../creator-auswahl/CreatorAuswahlDetail.js';
 import { creatorAuswahlService } from '../creator-auswahl/CreatorAuswahlService.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
-const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || '';
+const LISTE_ATTR = 'data-casting-liste';
 
 function getCastingTools() {
   return document.getElementById('kampagne-casting-tools');
@@ -21,6 +21,7 @@ export function unmountCastingWorksheet(detail) {
   }
   const tools = getCastingTools();
   if (tools) tools.innerHTML = '';
+  clearListenSwitch();
 }
 
 const SPINNER = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
@@ -108,6 +109,7 @@ export async function mountCastingPane(detail) {
 
     if (!listen.length) {
       dropWorksheet(prefetched?.worksheet, detail);
+      clearListenSwitch();
       pane.innerHTML = renderEmptyCasting(detail);
       return;
     }
@@ -122,12 +124,14 @@ export async function mountCastingPane(detail) {
       : null;
     if (prefetched?.worksheet && !warmWorksheet) prefetched.worksheet.destroy();
 
-    pane.innerHTML = renderCastingShell(listen, selectedId);
-    bindSwitcher(detail, pane);
+    const shell = renderCastingShell(listen, selectedId);
+    pane.innerHTML = shell.html;
+    bindSwitcher(detail, pane, shell.slot);
     await mountWorksheet(detail, pane.querySelector('.kampagne-casting-worksheet'), selectedId, warmWorksheet);
   } catch (error) {
     console.error('❌ KAMPAGNEDETAIL: Casting-Pane fehlgeschlagen:', error);
     if (pane.isConnected) {
+      clearListenSwitch();
       pane.innerHTML = renderEmptyState({
         icon: 'info',
         title: 'Fehler beim Laden',
@@ -145,36 +149,32 @@ function renderEmptyCasting(detail) {
   });
 }
 
+/** Dropdown in die Tab-Zeile (ganz rechts); ohne Slot als Zeile im Pane. */
 function renderCastingShell(listen, selectedId) {
-  const switcher = listen.length > 1
-    ? `<div class="kampagne-casting-listen-switcher">
-        <label class="kampagne-casting-listen-switcher__label" for="kampagne-casting-liste">Liste</label>
-        <select id="kampagne-casting-liste" class="form-input">
-          ${listen.map(l => `
-            <option value="${esc(l.id)}"${l.id === selectedId ? ' selected' : ''}>${esc(l.name || 'Unbenannt')}</option>
-          `).join('')}
-        </select>
-      </div>`
+  const html = listen.length > 1
+    ? renderListenSwitch({ items: listen, activeId: selectedId, itemAttr: LISTE_ATTR, title: 'Casting-Liste wechseln' })
     : '';
+  const { slot, inline } = placeListenSwitch(html, 'kampagne-casting-listen-switcher');
 
-  return `
-    ${switcher}
+  return {
+    slot,
+    html: `
+    ${inline}
     <div class="kampagne-casting-worksheet"></div>
-  `;
+  `
+  };
 }
 
-function bindSwitcher(detail, pane) {
-  const select = pane.querySelector('#kampagne-casting-liste');
-  if (!select) return;
-  select.addEventListener('change', async () => {
-    detail._castingSelectedListeId = select.value;
+function bindSwitcher(detail, pane, slot) {
+  bindListenSwitch(slot || pane, LISTE_ATTR, async (listeId) => {
+    detail._castingSelectedListeId = listeId;
     const root = pane.querySelector('.kampagne-casting-worksheet');
     if (!root) return;
     if (detail.castingWorksheet) {
       detail.castingWorksheet.destroy();
       detail.castingWorksheet = null;
     }
-    await mountWorksheet(detail, root, select.value);
+    await mountWorksheet(detail, root, listeId);
   });
 }
 

@@ -3,6 +3,7 @@
 
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
 import { createFolderSharedLink, nextFreeIndexedFileName, sanitizeDropboxFileName, fileBasename } from '../VideoUploadUtils.js';
+import { authorizedFetch } from '../auth/getAccessToken.js';
 
 async function prepareStorysUpload({ metadaten, slotIndex, versionNumber, variantName, fileName, isFinal }) {
   const payload = {
@@ -19,7 +20,7 @@ async function prepareStorysUpload({ metadaten, slotIndex, versionNumber, varian
     isFinal: !!isFinal,
     action: 'prepare',
   };
-  const resp = await fetch('/.netlify/functions/dropbox-upload-storys', {
+  const resp = await authorizedFetch('/.netlify/functions/dropbox-upload-storys', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -33,7 +34,7 @@ async function prepareStorysUpload({ metadaten, slotIndex, versionNumber, varian
 
 async function createSharedLink(token, dropboxPath) {
   try {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token }),
@@ -215,7 +216,7 @@ export async function runStorysUploadJob(ctx) {
   let storysFolderUrl = null;
   if (videoFolderUrl) {
     try {
-      const tokenResp = await fetch('/.netlify/functions/dropbox-upload-storys', {
+      const tokenResp = await authorizedFetch('/.netlify/functions/dropbox-upload-storys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

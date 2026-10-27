@@ -4,6 +4,7 @@ import { ensureListenerMonitor, hideListenerMonitor } from '../../core/dev/Liste
 import { navMark } from '../../core/dev/navTrace.js';
 import { invalidateDashboard } from '../stakeholder/daten/dashboardLoad.js';
 import { INVESTOR_HINT_KEY } from '../../core/budget/finanzbestandBoot.js';
+import { swrClear } from '../../core/list/swrCache.js';
 import {
   isAllowedEmployeeEmail,
   isEmployeeDomainError,
@@ -184,143 +185,12 @@ export class AuthService {
           console.warn('⚠️ UI-Refresh nach loadCurrentUser fehlgeschlagen', uiErr);
         }
         
-        // 4) Realtime-Subscription für Benutzer-Updates (inkl. Rechte-Änderungen)
-        if (!this._userSubscription) {
-          this._userSubscription = window.supabase
-            .channel(`user-updates-${data.id}`)
-            .on('postgres_changes', {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'benutzer',
-              filter: `id=eq.${data.id}`
-            }, async (payload) => {
-              console.log('🔄 REALTIME: Benutzer-Daten wurden aktualisiert', payload.new);
-              
-              // Aktualisiere window.currentUser mit neuen Daten
-              const prev = window.currentUser || {};
-              const updatedUser = payload.new;
-              window.currentUser = {
-                ...prev,
-                ...updatedUser
-              };
-              if (
-                updatedUser.mitarbeiter_klasse_id === prev.mitarbeiter_klasse_id
-                && prev.mitarbeiter_klasse
-              ) {
-                window.currentUser.mitarbeiter_klasse = prev.mitarbeiter_klasse;
-              }
-
-              permissionSystem.setUserPermissions(window.currentUser);
-              
-              // Cache-Flag zurücksetzen für Scoped Permissions
-              window.currentUser._permissionsCached = false;
-              
-              // Scoped Permissions neu laden
-              try {
-                const { data: scoped } = await window.supabase
-                  .from('user_permissions')
-                  .select('page_id, table_id, can_view, can_edit, can_delete, data_filters')
-                  .eq('user_id', updatedUser.id);
-                permissionSystem.setScopedPermissions(scoped || []);
-                window.currentUser._permissionsCached = true;
-              } catch (e) {
-                console.warn('⚠️ Scoped Permissions reload failed', e);
-              }
-              
-              // UI aktualisieren
-              try {
-                window.setupHeaderUI?.();
-                window.navigationSystem?.init?.();
-                window.actionsDropdown?.init?.();
-                
-                // Header-Buttons basierend auf Rolle anpassen
-                this.updateHeaderForRole(updatedUser.rolle);
-                
-                // Soft-Refresh Event dispatchen statt Full Page Reload
-                // Module können selbst entscheiden ob sie updaten (z.B. wenn kein Formular aktiv)
-                window.dispatchEvent(new CustomEvent('softRefresh', {
-                  detail: { 
-                    reason: 'user-data-updated', 
-                    route: location.pathname,
-                    timestamp: Date.now()
-                  }
-                }));
-                console.log('🔄 REALTIME: softRefresh Event gesendet (kein Full Reload)');
-              } catch (uiErr) {
-                console.warn('⚠️ UI-Refresh nach Realtime-Update fehlgeschlagen', uiErr);
-              }
-            })
-            .subscribe();
-            
-          console.log('✅ Realtime-Subscription für Benutzer-Updates aktiv');
-        }
-        
-        // 5) Realtime-Subscription für Unternehmen-Zuordnungen (mitarbeiter_unternehmen)
-        if (!this._unternehmenSubscription) {
-          this._unternehmenSubscription = window.supabase
-            .channel(`unternehmen-zuordnung-${data.id}`)
-            .on('postgres_changes', {
-              event: '*', // INSERT, UPDATE, DELETE
-              schema: 'public',
-              table: 'mitarbeiter_unternehmen',
-              filter: `mitarbeiter_id=eq.${data.id}`
-            }, (payload) => {
-              console.log('🔄 REALTIME: Unternehmen-Zuordnung geändert', payload);
-              this._handlePermissionChange('unternehmen', payload);
-            })
-            .subscribe();
-            
-          console.log('✅ Realtime-Subscription für Unternehmen-Zuordnungen aktiv');
-        }
-        
-        // 6) Realtime-Subscription für Marken-Zuordnungen (marke_mitarbeiter)
-        if (!this._markenSubscription) {
-          this._markenSubscription = window.supabase
-            .channel(`marken-zuordnung-${data.id}`)
-            .on('postgres_changes', {
-              event: '*', // INSERT, UPDATE, DELETE
-              schema: 'public',
-              table: 'marke_mitarbeiter',
-              filter: `mitarbeiter_id=eq.${data.id}`
-            }, (payload) => {
-              console.log('🔄 REALTIME: Marken-Zuordnung geändert', payload);
-              this._handlePermissionChange('marke', payload);
-            })
-            .subscribe();
-            
-          console.log('✅ Realtime-Subscription für Marken-Zuordnungen aktiv');
-        }
-        
-        // 7) Realtime-Subscription für User-Permissions (user_permissions)
-        if (!this._permissionsSubscription) {
-          this._permissionsSubscription = window.supabase
-            .channel(`user-permissions-${data.id}`)
-            .on('postgres_changes', {
-              event: '*', // INSERT, UPDATE, DELETE
-              schema: 'public',
-              table: 'user_permissions',
-              filter: `user_id=eq.${data.id}`
-            }, async (payload) => {
-              console.log('🔄 REALTIME: User-Permissions geändert', payload);
-              
-              // Scoped Permissions neu laden
-              try {
-                const { data: scoped } = await window.supabase
-                  .from('user_permissions')
-                  .select('page_id, table_id, can_view, can_edit, can_delete, data_filters')
-                  .eq('user_id', data.id);
-                permissionSystem.setScopedPermissions(scoped || []);
-                console.log('✅ Scoped Permissions aktualisiert');
-              } catch (e) {
-                console.warn('⚠️ Scoped Permissions reload failed', e);
-              }
-              
-              this._handlePermissionChange('permissions', payload);
-            })
-            .subscribe();
-            
-          console.log('✅ Realtime-Subscription für User-Permissions aktiv');
-        }
+        // Hinweis: Live-Updates fuer benutzer, mitarbeiter_unternehmen, marke_mitarbeiter
+        // und user_permissions waren als Realtime-Subscriptions angelegt, die Tabellen
+        // stehen aber nicht in der Publication supabase_realtime. Die Channels haben nie
+        // ein Event geliefert, aber pro Login 4 Subscription-Zeilen erzeugt. Entfernt.
+        // Rechteaenderungen greifen beim naechsten Laden (permissionsChanged-Event bleibt
+        // als Hook erhalten, siehe _handlePermissionChange).
       }
     } catch (error) {
       console.error('❌ Fehler beim Laden des Benutzers:', error);
@@ -596,25 +466,6 @@ export class AuthService {
   // Abmeldung
   async signOut() {
     try {
-      // Cleanup alle Realtime-Subscriptions
-      const subscriptions = [
-        { name: 'user', ref: this._userSubscription },
-        { name: 'unternehmen', ref: this._unternehmenSubscription },
-        { name: 'marken', ref: this._markenSubscription },
-        { name: 'permissions', ref: this._permissionsSubscription }
-      ];
-      
-      for (const sub of subscriptions) {
-        if (sub.ref) {
-          await window.supabase?.removeChannel(sub.ref);
-          console.log(`✅ ${sub.name}-Subscription entfernt`);
-        }
-      }
-      
-      this._userSubscription = null;
-      this._unternehmenSubscription = null;
-      this._markenSubscription = null;
-      this._permissionsSubscription = null;
       
       if (window.supabase) {
         // scope 'local': ohne das loescht GoTrue ALLE Sessions des Users, auch
@@ -625,6 +476,8 @@ export class AuthService {
       }
       
       window.currentUser = null;
+      // Keine gecachten Listen ueber den Logout hinaus.
+      swrClear();
       // Keine Finanzzahlen und kein Rollen-Hint ueber den Logout hinaus.
       invalidateDashboard();
       try { localStorage.removeItem(INVESTOR_HINT_KEY); } catch { /* ignorieren */ }

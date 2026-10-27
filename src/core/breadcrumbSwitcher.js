@@ -221,6 +221,8 @@ export const SWITCHER_CONFIG = {
     routePrefix: '/briefing',
     labelField: 'aktivierung_name',
     searchFields: ['aktivierung_name'],
+    // Altbestand-Linien haben kein Briefing-Dokument (ADR 0058)
+    extra: (query) => query.eq('ist_altbestand', false),
     resolveScope: scopeBriefing
   },
   ansprechpartner: {

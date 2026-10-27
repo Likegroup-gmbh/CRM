@@ -572,19 +572,7 @@ h3.section-title,
 .kampagne-konzept-listen-switcher {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
   margin-bottom: var(--space-sm);
-}
-
-.kampagne-casting-listen-switcher__label,
-.kampagne-konzept-listen-switcher__label {
-  font-size: var(--font-sm);
-  color: var(--text-secondary);
-}
-
-.kampagne-casting-listen-switcher .form-input,
-.kampagne-konzept-listen-switcher .form-input {
-  max-width: 20rem;
 }
 
 .kampagne-casting-worksheet .add-item-section--compact,

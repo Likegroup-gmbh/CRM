@@ -30,14 +30,26 @@ describe('finalisiert', () => {
     expect(isFinalAuftrag({ is_draft: true })).toBe(false);
   });
 
-  it('Briefing und Vertrag: eq is_draft false', () => {
-    for (const table of ['campaign_briefings', 'vertraege']) {
-      const { query, calls } = mockQuery();
-      const result = applyFinalisiertFilter(query, table);
-      expect(result).toBe(query);
-      expect(calls.eq).toEqual([['is_draft', false]]);
-      expect(calls.or).toEqual([]);
-    }
+  it('Vertrag: eq is_draft false', () => {
+    const { query, calls } = mockQuery();
+    const result = applyFinalisiertFilter(query, 'vertraege');
+    expect(result).toBe(query);
+    expect(calls.eq).toEqual([['is_draft', false]]);
+    expect(calls.or).toEqual([]);
+  });
+
+  it('Briefing: final und ohne Altbestand-Linien', () => {
+    const { query, calls } = mockQuery();
+    applyFinalisiertFilter(query, 'campaign_briefings');
+    expect(calls.eq).toEqual([['is_draft', false], ['ist_altbestand', false]]);
+    expect(calls.or).toEqual([]);
+  });
+
+  it('Briefing mit kampagneId: Altbestand-Linien dieser Kampagne bleiben waehlbar', () => {
+    const { query, calls } = mockQuery();
+    applyFinalisiertFilter(query, 'campaign_briefings', { kampagneId: 'k-1' });
+    expect(calls.eq).toEqual([['is_draft', false]]);
+    expect(calls.or).toEqual(['ist_altbestand.eq.false,kampagne_id.eq.k-1']);
   });
 
   it('Auftrag: null oder false (Altbestand)', () => {

@@ -14,11 +14,12 @@
 // nicht hier.
 
 import { proxyPost, uploadLargeFile, readFileAsBase64 } from './VideoUploadUtils.js';
+import { authorizedFetch } from './auth/getAccessToken.js';
 
 const SMALL_UPLOAD_LIMIT = 2 * 1024 * 1024; // 2 MB
 
 async function prepare(endpoint, body) {
-  const resp = await fetch(endpoint, {
+  const resp = await authorizedFetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -41,7 +42,7 @@ async function uploadToDropbox(token, dropboxPath, file) {
 
 async function createSharedLink(token, dropboxPath) {
   try {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token }),

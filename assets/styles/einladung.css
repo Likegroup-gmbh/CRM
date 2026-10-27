@@ -340,6 +340,18 @@
   padding: var(--space-sm) var(--space-md);
 }
 
+/* Produkt-Eingang als Tabelle: kein Kasten, die Tabelle sieht aus wie die Produktliste darunter. */
+.einreichung-inbox--tabelle {
+  margin: 0 0 var(--space-xl);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.einreichung-inbox--tabelle .einreichung-inbox__aktionen {
+  justify-content: flex-end;
+}
+
 .einreichung-inbox__zeile + .einreichung-inbox__zeile {
   border-top: var(--border-xs) solid var(--border-primary);
 }

@@ -4,6 +4,7 @@
 // und legt anschliessend einen Eintrag in der Tabelle auftrag_dokumente an.
 
 import { proxyPost, uploadLargeFile, readFileAsBase64 } from './VideoUploadUtils.js';
+import { authorizedFetch } from './auth/getAccessToken.js';
 
 const SMALL_FILE_THRESHOLD = 2 * 1024 * 1024; // 2 MB
 
@@ -42,7 +43,7 @@ export async function uploadAuftragsbestaetigung({
   };
 
   notify('preparing', 0);
-  const tokenResp = await fetch('/.netlify/functions/dropbox-upload-auftragsbestaetigung', {
+  const tokenResp = await authorizedFetch('/.netlify/functions/dropbox-upload-auftragsbestaetigung', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -76,7 +77,7 @@ export async function uploadAuftragsbestaetigung({
   }
 
   notify('linking', 80);
-  const sharedLinkResp = await fetch('/.netlify/functions/dropbox-proxy', {
+  const sharedLinkResp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'shared-link', path: actualPath, token: sessionToken }),
@@ -152,7 +153,7 @@ export async function uploadAuftragsbestaetigungen(files, opts) {
 export async function deleteAuftragsbestaetigung(dokumentId, dropboxFilePath) {
   if (dropboxFilePath) {
     try {
-      await fetch('/.netlify/functions/dropbox-delete', {
+      await authorizedFetch('/.netlify/functions/dropbox-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filePath: dropboxFilePath }),

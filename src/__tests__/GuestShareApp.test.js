@@ -25,7 +25,7 @@ describe('GuestShareApp', () => {
     clearAllGuestSessions();
     document.body.innerHTML = `
       <div id="login-root"></div>
-      <div id="app-root" style="display:none"></div>
+      <div id="app-root" style="display:none"><main class="main-content"></main></div>
     `;
     window.guestShare = null;
     window.CONFIG = { SUPABASE: { URL: 'https://example.supabase.co', KEY: 'anon-key' } };
@@ -56,6 +56,61 @@ describe('GuestShareApp', () => {
     expect(window.guestShare.allowedRoute).toBe(`/castings/${SHARE.entityId}`);
     expect(window.moduleRegistry.navigateTo).toHaveBeenCalledWith(`/castings/${SHARE.entityId}`, true);
     expect(document.getElementById('app-root').classList.contains('guest-mode')).toBe(true);
+  });
+
+  describe('Zurück zum Dashboard', () => {
+    function storeShareSession() {
+      const jwt = makeJwt({ exp: Math.floor(Date.now() / 1000) + 3600, share_id: SHARE.shareId });
+      saveGuestSession(TOKEN, { jwt, name: 'Pat', ...SHARE });
+      window.supabase.functions.invoke.mockResolvedValue({ data: SHARE, error: null });
+    }
+
+    it('zeigt den Button, wenn auf dem Gerät ein Login besteht', async () => {
+      storeShareSession();
+      window.supabase.auth = { getSession: vi.fn().mockResolvedValue({ data: { session: { user: { id: 'u1' } } } }) };
+
+      await initGuestShare(TOKEN);
+
+      const link = document.querySelector('.main-content > .guest-back-bar .guest-back-link');
+      expect(link).not.toBeNull();
+      expect(link.textContent).toContain('Zum Dashboard');
+      expect(link.getAttribute('href')).toBe('/');
+    });
+
+    it('Klick läuft nicht über den Router, sondern als normale Seitennavigation', async () => {
+      storeShareSession();
+      window.supabase.auth = { getSession: vi.fn().mockResolvedValue({ data: { session: { user: { id: 'u1' } } } }) };
+      await initGuestShare(TOKEN);
+      window.moduleRegistry.navigateTo.mockClear();
+
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+      document.querySelector('.guest-back-link').dispatchEvent(click);
+      consoleError.mockRestore();
+
+      expect(click.defaultPrevented).toBe(true);
+      expect(window.moduleRegistry.navigateTo).not.toHaveBeenCalled();
+    });
+
+    it('zeigt keinen Button, wenn nur ein Zugang besteht (keine Session)', async () => {
+      storeShareSession();
+      window.supabase.auth = { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) };
+
+      await initGuestShare(TOKEN);
+
+      expect(document.querySelector('.guest-back-bar')).toBeNull();
+      expect(document.getElementById('app-root').classList.contains('guest-mode')).toBe(true);
+    });
+
+    it('zeigt keinen Button, wenn getSession fehlt oder fehlschlägt', async () => {
+      storeShareSession();
+      window.supabase.auth = { getSession: vi.fn().mockRejectedValue(new Error('boom')) };
+
+      await initGuestShare(TOKEN);
+
+      expect(document.querySelector('.guest-back-bar')).toBeNull();
+      expect(window.guestShare.allowedRoute).toBe(`/castings/${SHARE.entityId}`);
+    });
   });
 
   it('verify mit Code+Name speichert JWT und öffnet die Liste', async () => {

@@ -7,13 +7,23 @@ const BUCKET = 'einreichung';
 const SELECT = `
   id, status, absender_name, payload, dateien, created_at, produkt_id, briefing_id,
   einladung:einladung_id!inner(
-    id, art, label, briefing_typ, produktion_id, marke_id, unternehmen_id,
-    unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)
+    id, art, label, briefing_typ, produktion_id, briefing_id, marke_id, unternehmen_id,
+    unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url), marke:marke_id(markenname),
+    briefing:briefing_id(aktivierung_name, produktion_id)
   )
 `;
 
-/** Offene Einreichungen, gefiltert über die Einladung (Produktion oder Marke/Unternehmen). */
-export async function listOffeneEinreichungen({ art, produktionId = null, markeId = null, unternehmenId = null } = {}) {
+/**
+ * Offene Einreichungen, gefiltert über die Einladung: Produktion (Briefing-Einladung),
+ * Linie (Produkt-Einladung vom Produkte-Tab, ADR 0057) oder Marke/Unternehmen.
+ */
+export async function listOffeneEinreichungen({
+  art,
+  produktionId = null,
+  briefingId = null,
+  markeId = null,
+  unternehmenId = null
+} = {}) {
   if (!window.supabase) return [];
   let query = window.supabase
     .from('einreichung')
@@ -22,6 +32,7 @@ export async function listOffeneEinreichungen({ art, produktionId = null, markeI
     .order('created_at', { ascending: true });
   if (art) query = query.eq('einladung.art', art);
   if (produktionId) query = query.eq('einladung.produktion_id', produktionId);
+  if (briefingId) query = query.eq('einladung.briefing_id', briefingId);
   if (markeId) query = query.eq('einladung.marke_id', markeId);
   else if (unternehmenId) query = query.eq('einladung.unternehmen_id', unternehmenId);
   const { data, error } = await query;
@@ -87,6 +98,12 @@ export function reviewUrl(einreichung, kontext = {}) {
     const params = new URLSearchParams({ einreichung: einreichung.id });
     if (einladung.unternehmen_id) params.set('unternehmen', einladung.unternehmen_id);
     if (einladung.marke_id) params.set('marke', einladung.marke_id);
+    // Einladung von einer Linie: das Formular legt das Produkt dort an (ADR 0057).
+    if (einladung.briefing_id) {
+      params.set('briefing', einladung.briefing_id);
+      const produktionId = einladung.briefing?.produktion_id;
+      if (produktionId) params.set('produktion', produktionId);
+    }
     return `/produkt/new?${params.toString()}`;
   }
   const params = new URLSearchParams({

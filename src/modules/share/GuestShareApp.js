@@ -258,6 +258,9 @@ async function enterGuestApp(token, share) {
     return;
   }
 
+  // Muss vor applyGuestJwt laufen: danach ist window.supabase der Gast-Client.
+  const hasAccountSession = await detectAccountSession();
+
   try {
     applyGuestJwt(share.jwt);
   } catch (err) {
@@ -292,7 +295,40 @@ async function enterGuestApp(token, share) {
   appRoot.style.display = '';
   loginRoot.style.display = 'none';
 
+  if (hasAccountSession) mountBackToDashboard(appRoot);
+
   await window.moduleRegistry.navigateTo(route, true);
+}
+
+// Echter Login auf diesem Gerät? getSession liest nur den lokalen Speicher
+// (bzw. refresht eine ablaufende Session). Ohne Login: kein Button.
+async function detectAccountSession() {
+  try {
+    const result = await window.supabase?.auth?.getSession?.();
+    return Boolean(result?.data?.session);
+  } catch {
+    return false;
+  }
+}
+
+// Der Gast-Client ersetzt window.supabase und der Router ist auf die geteilte
+// Liste gesperrt. Zurück ins Dashboard geht deshalb nur per vollem Reload.
+function mountBackToDashboard(appRoot) {
+  const main = appRoot?.querySelector('.main-content');
+  if (!main || main.querySelector('.guest-back-bar')) return;
+
+  const bar = document.createElement('div');
+  bar.className = 'guest-back-bar';
+  bar.innerHTML = `
+    <a class="guest-back-link" href="/">
+      ${icon('arrow-left')}
+      <span>Zum Dashboard</span>
+    </a>`;
+  bar.querySelector('.guest-back-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    window.location.href = '/';
+  });
+  main.prepend(bar);
 }
 
 export async function renderGuestNoAccess() {

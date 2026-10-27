@@ -6,6 +6,7 @@
 // eine Linie. Produktion, Verträge und Videos können zusätzlich alle Linien zeigen.
 
 import { icon } from '../../core/icons/IconSystem.js';
+import { ALTBESTAND_BADGE, zeigeAltbestandBadge } from './altbestandLinie.js';
 
 export const ALLE = 'alle';
 const ALLE_TABS = new Set(['produktion', 'vertraege', 'videos']);
@@ -130,14 +131,15 @@ export function renderLinienSwitch(detail, tabId) {
   const current = linien.find(l => l.id === active);
   const label = active === ALLE ? 'Alle Linien' : (current?.name || linien[0].name);
 
-  const item = (value, text, { isActive, draft } = {}) => `
+  const item = (value, text, { isActive, draft, altbestand } = {}) => `
     <button type="button" class="linien-switch__item${isActive ? ' active' : ''}" role="option" aria-selected="${isActive ? 'true' : 'false'}" data-linie="${esc(value)}" title="${esc(text)}">
       <span class="linien-switch__name">${esc(text)}</span>
       ${draft ? '<span class="linien-switch__badge">Entwurf</span>' : ''}
+      ${altbestand ? `<span class="linien-switch__badge">${ALTBESTAND_BADGE}</span>` : ''}
     </button>`;
 
   const alle = showAlle ? item(ALLE, 'Alle Linien', { isActive: active === ALLE }) : '';
-  const items = linien.map(l => item(l.id, l.name, { isActive: active === l.id, draft: l.is_draft })).join('');
+  const items = linien.map(l => item(l.id, l.name, { isActive: active === l.id, draft: l.is_draft, altbestand: zeigeAltbestandBadge(l) })).join('');
   const neu = canCreate
     ? '<button type="button" class="linien-switch__item linien-switch__item--neu" data-linie-neu title="Weiteres Briefing in dieser Produktion">+ Briefing</button>'
     : '';
@@ -152,9 +154,84 @@ export function renderLinienSwitch(detail, tabId) {
     </div>`;
 }
 
+/**
+ * Gleiches Dropdown für Listen innerhalb einer Linie (Casting-Listen, Konzepte).
+ * Öffnen/Schließen läuft über denselben globalen Handler wie das Linien-Dropdown,
+ * die Auswahl über bindListenSwitch (eigenes Attribut statt data-linie).
+ * @param {{ items: Array<{id: string, name?: string}>, activeId: string, itemAttr: string, title?: string }} opts
+ */
+export function renderListenSwitch({ items, activeId, itemAttr, title = 'Liste wechseln' }) {
+  const list = items || [];
+  if (!list.length) return '';
+  const current = list.find(i => i.id === activeId) || list[0];
+  const label = (i) => i.name || 'Unbenannt';
+
+  const rows = list.map(i => `
+    <button type="button" class="linien-switch__item${i.id === current.id ? ' active' : ''}" role="option" aria-selected="${i.id === current.id ? 'true' : 'false'}" ${itemAttr}="${esc(i.id)}" title="${esc(label(i))}">
+      <span class="linien-switch__name">${esc(label(i))}</span>
+    </button>`).join('');
+
+  return `
+    <div class="linien-switch linien-switch--liste" data-linien-switch data-liste-switch>
+      <button type="button" class="linien-switch__trigger" data-linien-toggle aria-haspopup="listbox" aria-expanded="false" title="${esc(title)}">
+        <span class="linien-switch__label">${esc(label(current))}</span>
+        ${CHEVRON}
+      </button>
+      <div class="linien-switch__menu" role="listbox" data-linien-menu>${rows}</div>
+    </div>`;
+}
+
+const LISTE_SLOT = '[data-workflow-liste-slot]';
+
+/** Dropdown aus der Tab-Zeile entfernen (Tab verlassen, leerer Tab). */
+export function clearListenSwitch() {
+  const slot = document.querySelector(LISTE_SLOT);
+  if (slot) slot.innerHTML = '';
+}
+
+/**
+ * Listen-Dropdown ganz rechts in die Tab-Zeile setzen. Gibt es keinen Slot,
+ * kommt es als Zeile oben ins Pane (inline). html '' leert den Slot.
+ * @returns {{ slot: Element|null, inline: string }}
+ */
+export function placeListenSwitch(html, fallbackClass) {
+  const slot = document.querySelector(LISTE_SLOT);
+  if (slot) {
+    slot.innerHTML = html;
+    return { slot, inline: '' };
+  }
+  return { slot: null, inline: html ? `<div class="${fallbackClass}">${html}</div>` : '' };
+}
+
+/**
+ * Klick auf einen Eintrag eines renderListenSwitch-Dropdowns: Menü schließen,
+ * Label und aktiven Eintrag nachziehen, dann onSelect(id) aufrufen.
+ * Der Listener hängt am Dropdown selbst und verschwindet mit jedem Neurendern.
+ */
+export function bindListenSwitch(root, itemAttr, onSelect) {
+  const switchEl = root?.querySelector('[data-liste-switch]');
+  if (!switchEl) return;
+  switchEl.addEventListener('click', (e) => {
+    const item = e.target.closest(`[${itemAttr}]`);
+    if (!item) return;
+    e.preventDefault();
+    closeLinienMenu();
+    const id = item.getAttribute(itemAttr);
+    const already = item.classList.contains('active');
+    switchEl.querySelectorAll(`[${itemAttr}]`).forEach(el => {
+      const on = el === item;
+      el.classList.toggle('active', on);
+      el.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    const labelEl = switchEl.querySelector('.linien-switch__label');
+    if (labelEl) labelEl.textContent = item.querySelector('.linien-switch__name')?.textContent || '';
+    if (!already) onSelect(id);
+  });
+}
+
 /** Dropdown im DOM nachziehen (aktive Linie, "Alle Linien" je Tab). */
 export function syncLinienSwitch(detail, tabId) {
-  const current = document.querySelector('[data-linien-switch]');
+  const current = document.querySelector('[data-linien-switch]:not([data-liste-switch])');
   if (!current) return;
   const holder = document.createElement('div');
   holder.innerHTML = renderLinienSwitch(detail, tabId);
@@ -179,8 +256,10 @@ export function toggleLinienMenu(switchEl) {
   const trigger = switchEl.querySelector('[data-linien-toggle]');
   const menu = switchEl.querySelector('[data-linien-menu]');
   const rect = trigger.getBoundingClientRect();
+  // Am rechten Rand (Listen-Dropdown) nicht über den Viewport hinausragen
+  const maxLeft = window.innerWidth - menu.offsetWidth - 8;
   menu.style.top = `${rect.bottom + 4}px`;
-  menu.style.left = `${Math.max(8, rect.left)}px`;
+  menu.style.left = `${Math.max(8, Math.min(rect.left, maxLeft))}px`;
   switchEl.classList.add('open');
   trigger.setAttribute('aria-expanded', 'true');
 }

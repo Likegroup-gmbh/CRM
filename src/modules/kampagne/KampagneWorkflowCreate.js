@@ -6,7 +6,11 @@ import { resolveCreateAction, renderCreateButton } from '../../core/actions/Crea
 import { openSkriptCreateDrawer } from '../skripte/SkriptCreateDrawer.js';
 import { lineNames } from '../produktion/produktionNames.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
-import { openEinladungDialog } from '../einladung/EinladungDrawer.js';
+import {
+  briefingEinladungKontext,
+  oeffneKundeEinladen,
+  renderKundeEinladenButton
+} from '../einladung/kundeEinladen.js';
 const EXISTS_REASON = {};
 
 const ACTION_SPECS = {
@@ -86,11 +90,7 @@ export function renderWorkflowCreateChrome(action, detail) {
   const { spec, state } = resolveAction(action, detail);
   const button = spec ? renderCreateButton({ action, label: spec.label, state, variant: spec.variant }) : '';
   if (action === 'briefing') {
-    const kunde = resolveAction('kundeEinladen', detail);
-    const intern = window.isInternal?.() !== false;
-    const kundeButton = intern
-      ? renderCreateButton({ action: 'kundeEinladen', label: kunde.spec.label, state: kunde.state, variant: 'secondary' })
-      : '';
+    const kundeButton = renderKundeEinladenButton({ permission: ACTION_SPECS.kundeEinladen.permission });
     return `${button}${kundeButton}`;
   }
   if (action === 'casting') return `${button}<div id="kampagne-casting-tools"></div>`;
@@ -126,17 +126,8 @@ export function handleWorkflowCreate(detail, action) {
   }
 
   if (action === 'kundeEinladen') {
-    if (!detail.produktionId) {
-      window.toastSystem?.warning('Eine Einladung gehört zu einer Produktion.');
-      return;
-    }
-    openEinladungDialog({
-      art: 'briefing',
-      produktionId: detail.produktionId,
-      kampagneId: detail.kampagneId || null,
-      unternehmenId: detail.kampagneData?.unternehmen_id || null,
-      markeId: detail.kampagneData?.marke_id || null,
-      kontextName: detail.produktion?.name || detail.lineTitle || ''
+    oeffneKundeEinladen(briefingEinladungKontext(detail), {
+      warnung: 'Eine Einladung gehört zu einer Produktion.'
     });
     return;
   }

@@ -5,6 +5,7 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 import { shouldHideCompleted } from './kampagneListPrefs.js';
 import { debugLog } from './KampagneListUtils.js';
+import { swrKey, swrGet, swrSet } from '../../core/list/swrCache.js';
 
 /**
  * Konvertiert UI-Filter in das JSONB-Format der get_kampagnen_list RPC.
@@ -72,8 +73,12 @@ export function buildRpcFilters(activeFilters, { searchQuery = '' } = {}) {
 /**
  * Lädt Kampagnen mit allen Relationen über eine einzige RPC.
  * Gibt { data, count, kampagneArtMap } zurück.
+ *
+ * Stale-while-revalidate: Liegt fuer dieselbe Abfrage (User, Seite, Filter, Suche,
+ * Ordner) ein Ergebnis im Cache, wird `onCached(result)` sofort aufgerufen, noch vor
+ * dem Netzwerk-Request. Zurueckgegeben wird immer das frische Ergebnis.
  */
-export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQuery = '', folder = null } = {}) {
+export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQuery = '', folder = null, onCached = null } = {}) {
   const startTime = performance.now();
 
   try {
@@ -99,6 +104,25 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
     }
 
     debugLog('🔍 KAMPAGNELIST: RPC-Call mit filters:', rpcFilters, 'search:', searchParam);
+
+    // Stale-while-revalidate: gecachte Seite sofort melden, danach frisch laden.
+    const cacheKey = swrKey(['kampagne-list', page, limit, searchParam, rpcFilters, activeFilters]);
+    if (typeof onCached === 'function') {
+      const cached = swrGet(cacheKey);
+      if (cached) {
+        const warnCacheFail = (cacheErr) => console.warn('⚠️ KAMPAGNELIST: Cache-Render fehlgeschlagen', cacheErr);
+        try {
+          // Nicht abwarten: der Netzwerk-Request laeuft parallel zum Cache-Render.
+          Promise.resolve(onCached({
+            data: cached.data,
+            count: cached.count,
+            kampagneArtMap: new Map(cached.art || [])
+          })).catch(warnCacheFail);
+        } catch (cacheErr) {
+          warnCacheFail(cacheErr);
+        }
+      }
+    }
 
     const { data: result, error } = await window.supabase.rpc('get_kampagnen_list', {
       p_page: page,
@@ -168,6 +192,8 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
 
     const loadTime = (performance.now() - startTime).toFixed(0);
     debugLog(`✅ KAMPAGNELIST: ${filtered.length} Kampagnen geladen in ${loadTime}ms (RPC single-roundtrip)`);
+
+    swrSet(cacheKey, { data: filtered, count: totalCount, art: Array.from(kampagneArtMap.entries()) });
 
     return { data: filtered, count: totalCount, kampagneArtMap };
 

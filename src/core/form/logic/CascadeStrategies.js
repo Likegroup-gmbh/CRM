@@ -357,7 +357,8 @@ export const cascadeStrategies = {
           .from('campaign_briefings')
           .select('id, aktivierung_name')
           .eq('unternehmen_id', kampagne.unternehmen_id),
-        'campaign_briefings'
+        'campaign_briefings',
+        { kampagneId: parentValue }
       ).order('created_at', { ascending: false });
       if (error) {
         console.error('❌ Fehler beim Laden der Briefings für Kampagne:', error);

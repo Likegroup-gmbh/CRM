@@ -13,6 +13,14 @@ const EXPIRY_BUFFER_SECONDS = 60;
 
 let deadSessionHandled = false;
 
+/** Gast-JWT der aktuellen Seite (nur im Gast-Modus gesetzt) */
+let guestJwt = null;
+
+/** Wird von applyGuestJwt gesetzt; null beendet den Gast-Modus */
+export function setGuestJwt(jwt) {
+  guestJwt = jwt || null;
+}
+
 export class SessionExpiredError extends Error {
   constructor(message = 'Sitzung abgelaufen – bitte neu anmelden.') {
     super(message);
@@ -80,6 +88,20 @@ export async function getAccessToken({ autoLogout = true } = {}) {
  * @returns {Promise<Response>}
  */
 export async function authorizedFetch(path, options = {}) {
+  // Gast-Modus: Gaeste haben keine Supabase-Session. Sie senden ihr Gast-JWT,
+  // damit z.B. dropbox-proxy Lese-Links per RLS pruefen kann. Kein Refresh und
+  // kein Auto-Logout - ein 401/403 geht unveraendert an den Aufrufer.
+  if (guestJwt) {
+    return fetch(path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+        Authorization: `Bearer ${guestJwt}`
+      }
+    });
+  }
+
   const token = await getAccessToken();
 
   const send = (bearer) => fetch(path, {

@@ -1,113 +1,43 @@
 // produktEinreichungen.js
-// Produktliste: Button „Kunde einladen“ und Eingang der offenen Produkt-Einreichungen (ADR 0055).
-// Der Button gilt für den Kontext der Liste: Marke, sonst Unternehmen. Der Eingang zeigt die
-// offenen Einreichungen dieses Kontexts; ohne Kontext (Unternehmensübersicht) alle.
+// Produkt-Seite des zentralen Eingangs (EinreichungInbox, ADR 0055, 0057): „Kunde einladen“ und
+// Eingang der offenen Produkt-Einreichungen in der Produktliste.
+//  - Globale Liste: Kontext ist Marke, sonst Unternehmen; der Eingang zeigt alle offenen dieses
+//    Kontexts (Linien-Einreichungen mit Hinweis „für Linie X“), ohne Kontext alle.
+//  - Produkte-Tab einer Linie (embedScope): die Einladung hängt zusätzlich an der Linie, der
+//    Eingang zeigt nur deren Einreichungen und der Tab bekommt den Zähler.
 
-import { openEinladungDialog } from './EinladungDrawer.js';
+import { mountEinreichungInbox, istStaff } from './EinreichungInbox.js';
 import {
-  einreichungDatum,
-  listOffeneEinreichungen,
-  reviewUrl,
-  verwirfEinreichung
-} from './einreichungService.js';
+  KUNDE_EINLADEN_ACTION,
+  ohneLinieHinweis,
+  oeffneKundeEinladen,
+  produktEinladungKontext,
+  renderKundeEinladenButton
+} from './kundeEinladen.js';
 
-function esc(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function istStaff() {
-  return window.isInternal?.() !== false;
-}
-
-/** Kontext der Liste: Marke vor Unternehmen. */
+/** Kontext der Liste: Linie (Produkte-Tab), sonst Marke vor Unternehmen. */
 export function einladungsKontext(list) {
-  const unternehmenId = list.embedScope?.unternehmenId || list.currentUnternehmenId || null;
-  const markeId = list.embedScope?.markeId || (list._ohneMarke ? null : list.currentMarkeId) || null;
+  const scope = list.embedScope;
+  if (scope) {
+    return {
+      unternehmenId: scope.unternehmenId || null,
+      markeId: scope.markeId || null,
+      briefingId: scope.briefingId || null,
+      name: scope.briefingName || ''
+    };
+  }
+  const unternehmenId = list.currentUnternehmenId || null;
+  const markeId = (list._ohneMarke ? null : list.currentMarkeId) || null;
   const name = markeId
     ? [list.currentUnternehmenName, list.currentMarkeName].filter(Boolean).join(' · ')
     : (list.currentUnternehmenName || '');
-  return { unternehmenId, markeId, name };
+  return { unternehmenId, markeId, briefingId: null, name };
 }
 
-function renderZeile(einreichung) {
-  const einladung = einreichung.einladung || {};
-  const produktName = einreichung.payload?.formData?.name || 'Produkt';
-  const wo = [einladung.unternehmen?.firmenname, einladung.marke?.markenname].filter(Boolean).join(' · ');
-  const meta = [einreichungDatum(einreichung), `von ${einreichung.absender_name}`, wo].filter(Boolean).join(' · ');
-  return `
-    <div class="einreichung-inbox__zeile" data-einreichung-id="${esc(einreichung.id)}">
-      <div class="einreichung-inbox__info">
-        <span class="einreichung-inbox__titel">${esc(produktName)}</span>
-        <span class="einreichung-inbox__meta">${esc(meta)}</span>
-      </div>
-      <div class="einreichung-inbox__aktionen">
-        <button type="button" class="mdc-btn" data-einreichung-pruefen>Prüfen</button>
-        <button type="button" class="mdc-btn mdc-btn--secondary" data-einreichung-verwerfen>Verwerfen</button>
-      </div>
-    </div>`;
-}
-
-async function renderInbox(list, host, kontext) {
-  let offen = [];
-  try {
-    offen = await listOffeneEinreichungen({
-      art: 'produkt',
-      markeId: kontext.markeId,
-      unternehmenId: kontext.unternehmenId
-    });
-  } catch (error) {
-    console.warn('Produkt-Einreichungen konnten nicht geladen werden:', error);
-  }
-  if (!host.isConnected) return;
-
-  if (!offen.length) {
-    host.hidden = true;
-    host.innerHTML = '';
-    return;
-  }
-
-  host.hidden = false;
-  host.innerHTML = `
-    <div class="einreichung-inbox__kopf">
-      <strong>Kundeneinreichungen</strong>
-      <span class="einreichung-inbox__anzahl">${offen.length} offen</span>
-    </div>
-    ${offen.map(renderZeile).join('')}`;
-
-  host.onclick = async (e) => {
-    const zeile = e.target.closest('[data-einreichung-id]');
-    const einreichung = zeile && offen.find((x) => x.id === zeile.dataset.einreichungId);
-    if (!einreichung) return;
-
-    if (e.target.closest('[data-einreichung-pruefen]')) {
-      window.navigateTo(reviewUrl(einreichung));
-      return;
-    }
-    if (e.target.closest('[data-einreichung-verwerfen]')) {
-      const { confirmed } = (await window.confirmationModal?.open({
-        title: 'Einreichung verwerfen',
-        message: `Die Einreichung von ${einreichung.absender_name} wird verworfen. Hochgeladene Bilder werden gelöscht.`,
-        confirmText: 'Verwerfen',
-        cancelText: 'Abbrechen',
-        danger: true
-      })) || { confirmed: false };
-      if (!confirmed) return;
-      try {
-        const ok = await verwirfEinreichung(einreichung);
-        window.toastSystem?.[ok ? 'success' : 'warning'](
-          ok ? 'Einreichung verworfen.' : 'Die Einreichung ist schon erledigt.'
-        );
-      } catch (error) {
-        console.error('Verwerfen fehlgeschlagen:', error);
-        window.toastSystem?.error('Verwerfen fehlgeschlagen.');
-      }
-      await renderInbox(list, host, kontext);
-    }
-  };
+/** Filter des Eingangs: Linie auf dem Produkte-Tab (ohne Linie nichts), sonst Marke/Unternehmen. */
+export function produktEinreichungFilter(list, kontext = einladungsKontext(list)) {
+  if (list.embedScope) return kontext.briefingId ? { briefingId: kontext.briefingId } : null;
+  return { markeId: kontext.markeId, unternehmenId: kontext.unternehmenId };
 }
 
 /**
@@ -115,23 +45,22 @@ async function renderInbox(list, host, kontext) {
  * Setzt den Button in `.table-actions` und den Eingang unter die Filterleiste. Idempotent.
  */
 export async function mountProduktEinladung(list, root = list.mountRoot || document) {
-  // Die eingebettete Liste einer Produktion (Produkte-Tab) hat keinen Eingang.
-  if (!istStaff() || !list.canEdit || list.embedScope) return;
+  if (!istStaff() || !list.canEdit) return;
   const kontext = einladungsKontext(list);
+  const embed = !!list.embedScope;
 
   const actions = root.querySelector('.table-actions');
-  if (actions && kontext.unternehmenId && !actions.querySelector('#btn-produkt-einladen')) {
-    actions.insertAdjacentHTML(
-      'afterbegin',
-      '<button type="button" id="btn-produkt-einladen" class="mdc-btn mdc-btn--secondary">Kunde einladen</button>'
-    );
-    actions.querySelector('#btn-produkt-einladen').addEventListener('click', () => {
-      openEinladungDialog({
-        art: 'produkt',
+  if (actions && kontext.unternehmenId && !actions.querySelector(`[data-create-action="${KUNDE_EINLADEN_ACTION}"]`)) {
+    // Auf dem Produkte-Tab braucht die Einladung eine Linie, an die das Produkt kommt.
+    const reason = embed && !kontext.briefingId ? ohneLinieHinweis() : '';
+    actions.insertAdjacentHTML('afterbegin', renderKundeEinladenButton({ reason }));
+    actions.querySelector(`[data-create-action="${KUNDE_EINLADEN_ACTION}"]`)?.addEventListener('click', () => {
+      oeffneKundeEinladen(produktEinladungKontext({
         unternehmenId: kontext.unternehmenId,
         markeId: kontext.markeId,
+        briefingId: kontext.briefingId,
         kontextName: kontext.name
-      });
+      }));
     });
   }
 
@@ -145,5 +74,10 @@ export async function mountProduktEinladung(list, root = list.mountRoot || docum
     host.hidden = true;
     anker.insertAdjacentElement('afterend', host);
   }
-  await renderInbox(list, host, kontext);
+  await mountEinreichungInbox({
+    art: 'produkt',
+    host,
+    filter: produktEinreichungFilter(list, kontext),
+    tabBadge: embed
+  });
 }

@@ -29,7 +29,7 @@ _Avoid_: Eigener Name der Kampagne als Basis
 _Avoid_: Überkampagne, Auftrag
 
 **Produktion**:
-Container unter genau einer Kampagne, immer sichtbar, auch ohne Briefing. Entsteht mit dem Auftrag (so viele, wie dort geplant) oder jederzeit von Hand. Heißt `Projektname – Produktion N` (frei änderbar); der Titel des ersten finalisierten Briefings wird einmalig übernommen, danach ist der Name eigenständig. Hat ein optionales Produktionsbudget, das alle Linien teilen. Kein eigenes Soll. Enthält null bis beliebig viele Linien; darunter hängen Verträge, Kooperationen, Videos und Auswertung über die Linien.
+Container unter genau einer Kampagne, immer sichtbar, auch ohne Briefing. Entsteht mit dem Auftrag (so viele, wie dort geplant) oder jederzeit von Hand. Heißt `Projektname – Produktion N` (frei änderbar); der Titel des ersten finalisierten Briefings wird einmalig übernommen, danach ist der Name eigenständig. Hat ein optionales Produktionsbudget, das alle Linien teilen. Kein eigenes Soll. Enthält null bis beliebig viele Linien; darunter hängen Verträge, Kooperationen, Videos und Auswertung über die Linien. Bei übernommenen V1-Kampagnen wurde jede inhaltliche Tag-Gruppe zu einer Produktion (`Projektname – Tagname`), Restbestand ohne Tag liegt in `Projektname – Altbestand`.
 _Avoid_: Kooperation, Vor-Ort-Produktion, Geist
 
 **Produktionsbudget**:
@@ -39,6 +39,10 @@ _Avoid_: Creator-Budget, Kooperation, Geist, Anteil
 **Linie**:
 Ein Strang innerhalb einer Produktion: ein Briefing plus sein Casting, sein Konzept, seine Skripte und seine Kooperationen. Entsteht mit dem Finalisieren des Briefings; ein Entwurf erscheint schon als Linie mit Badge. Casting und Konzept lesen nur das Briefing ihrer Linie, nie das einer anderen. Eine Produktion kann mehrere Linien haben, etwa Nano-Influencer und UGC-Creator mit 20.000 Followern. Das Produkt sitzt an der Linie; dasselbe Produkt kann an mehreren Linien hängen, auch in verschiedenen Produktionen. Eine Linie mit Kooperationen lässt sich nicht löschen.
 _Avoid_: Strang, Briefing-Line, Geist, Zweig
+
+**Altbestand-Linie**:
+Linie ohne eigenes Briefing-Dokument, aus V1 übernommen. Technisch ein Briefing mit `ist_altbestand = true`, nie ein Entwurf, Titel ist der alte Casting- oder Konzept-Name ohne Präfix. Jede hat ein Casting und ein Konzept (fehlt eines, wird es leer angelegt) sowie die Kooperationen, Skripte und Verträge der alten Tag-Gruppe. Briefing-Tab, Briefing-Listen und Picker zeigen sie nicht als Briefing; Casting-Vorschläge und Liky-Vorschläge sind gesperrt, bis jemand „Briefing ausfüllen“ wählt. Danach ist sie eine normale Linie. Im Linien-Wechsler trägt sie das Badge „Altbestand“ (Kunden sehen es nicht).
+_Avoid_: Legacy-Linie, Platzhalter-Briefing
 
 **Kooperation**:
 Creator-Buchung innerhalb einer Linie. Dieselbe Person in einer zweiten Linie, auch derselben Produktion, ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Produktion. Ein bestehender Vertrag desselben Creators in derselben Kampagne kann sie mitdecken, statt einen neuen Vertrag zu verlangen.
@@ -519,11 +523,11 @@ Gast-Link plus Code auf eine geteilte Liste (`list_shares`). Bei einem Skript wa
 _Avoid_: Anschreiben, Teilen
 
 **Einladung**:
-Link plus Code ohne Konto, mit dem ein Kunde ein Formular ausfüllt und abschickt. Eine Produkt-Einladung hängt an einer Marke, ohne Marke am Unternehmen. Eine Briefing-Einladung hängt an einer Produktion und trägt den Briefing-Typ. Widerruf beendet sie.
+Link plus Code ohne Konto, mit dem ein Kunde ein Formular ausfüllt und abschickt. Eine Produkt-Einladung hängt an einer Marke, ohne Marke am Unternehmen. Geht sie vom Produkte-Tab einer Linie aus, hängt sie zusätzlich an dieser Linie; ihre Einreichungen sieht man auf dem Produkte-Tab der Linie und in der Produktliste der Marke (dort mit Hinweis auf die Linie). Fällt die Linie weg, bleibt es eine Marken-Einladung. Eine Briefing-Einladung hängt an einer Produktion und trägt den Briefing-Typ. Widerruf beendet sie.
 _Avoid_: Zugang (der liest nur), Magic Link, Kunden-Login
 
 **Einreichung**:
-Das, was über eine Einladung abgeschickt wurde. Noch kein Produkt und kein Briefing. Bleibt offen, bis ein Mitarbeiter sie anlegt oder verwirft.
+Das, was über eine Einladung abgeschickt wurde. Noch kein Produkt und kein Briefing. Bleibt offen, bis ein Mitarbeiter sie anlegt oder verwirft. Hängt die Einladung an einer Linie, wird das angelegte Produkt an diese Linie übernommen (**Produkt übernehmen**); bei „Vorhandenes nehmen“ gilt das für das vorhandene Produkt.
 _Avoid_: Entwurf, Kundenbriefing, Produkt extern
 
 **Rechnung**:

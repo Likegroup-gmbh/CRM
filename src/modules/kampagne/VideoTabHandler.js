@@ -12,6 +12,7 @@ import {
 import { deleteSingleDropboxFile } from '../../core/VideoDeleteHelper.js';
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 const DEBUG_UPLOAD = false;
 
@@ -836,7 +837,7 @@ export class VideoTabHandler {
 
     try {
       if (filePath) {
-        await fetch('/.netlify/functions/dropbox-delete', {
+        await authorizedFetch('/.netlify/functions/dropbox-delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filePath }),

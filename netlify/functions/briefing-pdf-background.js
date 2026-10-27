@@ -282,10 +282,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
 
     const { data: briefing, error: briefingError } = await supabase
       .from('campaign_briefings')
-      .select('id, unternehmen_id, marke_id, bereich')
+      .select('id, unternehmen_id, marke_id, bereich, ist_altbestand')
       .eq('id', briefingId)
       .single();
     if (briefingError || !briefing) throw new Error('Briefing nicht gefunden');
+    if (briefing.ist_altbestand) throw new Error('Altbestand-Linie ohne Briefing: bitte zuerst das Briefing ausfüllen');
 
     let unternehmenName = null;
     let markeName = null;

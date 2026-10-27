@@ -20,12 +20,28 @@ export function scopeByLinie(query, briefingId) {
   return query.eq('briefing_id', briefingId);
 }
 
+/**
+ * Kooperationen einer Linie. Kooperationen ohne briefing_id stammen aus V1 (Legacy)
+ * und gehören zur ganzen Produktion; sie erscheinen daher in jeder Linie.
+ * Neue Kooperationen tragen immer ihre Linie und bleiben darin.
+ */
+export function scopeKoopsByLinie(query, briefingId) {
+  if (!briefingId) return query;
+  return query.or(`briefing_id.eq.${briefingId},briefing_id.is.null`);
+}
+
+/** Gegenstück zu scopeKoopsByLinie für einzelne Zeilen (Realtime). */
+export function koopGehoertZurLinie(row, briefingId) {
+  if (!briefingId) return true;
+  return !row?.briefing_id || row.briefing_id === briefingId;
+}
+
 export function uniqueIds(values) {
   return [...new Set((values || []).filter(Boolean))];
 }
 
 const BRIEFINGS_EMBED = `briefings:campaign_briefings!produktion_id(
-    id, aktivierung_name, bereich, is_draft, content_deadline, persona_ids, created_at,
+    id, aktivierung_name, bereich, is_draft, ist_altbestand, content_deadline, persona_ids, created_at,
     produkte:campaign_briefing_produkt(produkt:produkt_id(id, name))
   )`;
 
@@ -40,6 +56,7 @@ export function linienFromBriefings(briefings) {
       briefing_id: b.id,
       name: b.aktivierung_name || 'Briefing',
       is_draft: !!b.is_draft,
+      ist_altbestand: !!b.ist_altbestand,
       bereich: b.bereich || null,
       briefing: b
     }));
@@ -107,7 +124,7 @@ const PRODUKTION_LIST_SELECT = `
   id, name, budget, kampagne_id, produkt_id, created_at,
   produkt:produkt_id(id, name),
   briefings:campaign_briefings!produktion_id(
-    id, aktivierung_name, persona_ids, is_draft, created_at,
+    id, aktivierung_name, persona_ids, is_draft, ist_altbestand, created_at,
     produkte:campaign_briefing_produkt(produkt:produkt_id(id, name))
   ),
   kampagne:kampagne_id(
@@ -250,7 +267,7 @@ export async function listLinien(produktionId) {
   if (!produktionId || !window.supabase) return [];
   const { data, error } = await window.supabase
     .from('campaign_briefings')
-    .select('id, aktivierung_name, bereich, is_draft, created_at')
+    .select('id, aktivierung_name, bereich, is_draft, ist_altbestand, created_at')
     .eq('produktion_id', produktionId);
   if (error) throw error;
   return linienFromBriefings(data || []);
@@ -403,6 +420,8 @@ async function zeileFuerLinie(table, briefingId, produktionId, columns) {
 export async function ensureBriefingLine({ briefing, kampagneId, produktId, produktionId = null }) {
   if (!briefing?.id) throw new Error('Briefing fehlt');
   if (briefing.is_draft) return null;
+  // Altbestand-Linien (V1) behalten Namen, liste_typ und TKP ihrer Alt-Castings (ADR 0058).
+  if (briefing.ist_altbestand) return null;
   if (!kampagneId) throw new Error('Kampagne ist Pflicht.');
 
   const zielId = produktionId || briefing.produktion_id || null;

@@ -19,6 +19,34 @@
   display: none;
 }
 
+/* Zurück zum Dashboard: nur für Gäste, die auf diesem Gerät eingeloggt sind */
+.guest-back-bar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 54px;
+  padding: var(--space-xs) var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.guest-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.guest-back-link:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
 /* --- Gast-Onboarding (Login-Shell + OTP-Styles aus layout.css) --- */
 
 /* Name-Feld linksbündig innerhalb der zentrierten auth-card */

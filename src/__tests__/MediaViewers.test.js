@@ -1,4 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// authorizedFetch holt sonst einen echten Supabase-Token; hier reicht der globale fetch-Mock.
+vi.mock('../core/auth/getAccessToken.js', () => ({
+  authorizedFetch: (...args) => globalThis.fetch(...args),
+  getAccessToken: vi.fn(async () => 'tok'),
+  setGuestJwt: vi.fn(),
+}));
+
 import { resolveVideoFeedbackTarget, getVideoFeedbackSlot } from '../core/VideoFeedbackBuckets.js';
 import { getTemporaryLink, toRawDropboxUrl, _resetProxyAvailability } from '../core/VideoUploadUtils.js';
 import { VideoPlayerLightbox } from '../core/media/player/VideoPlayerLightbox.js';

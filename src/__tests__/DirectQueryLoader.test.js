@@ -50,7 +50,8 @@ describe('DirectQueryLoader Final-Filter', () => {
     expect(window.supabase.from).toHaveBeenCalledWith('campaign_briefings');
     expect(eqs).toEqual([
       ['unternehmen_id', 'u1'],
-      ['is_draft', false]
+      ['is_draft', false],
+      ['ist_altbestand', false]
     ]);
     expect(options).toEqual([{ value: 'b1', label: 'Final', description: undefined }]);
   });

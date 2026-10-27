@@ -1,7 +1,7 @@
 // EinladungDrawer.js
 // Mitarbeiter laden einen Kunden zu einem Formular ein (ADR 0055):
 //  - Briefing: aus der Produktion, mit Briefing-Typ
-//  - Produkt: an der Marke (sonst am Unternehmen)
+//  - Produkt: an der Marke (sonst am Unternehmen), vom Produkte-Tab einer Linie zusätzlich an der Linie (ADR 0057)
 // Link und Code gehen auf Wunsch sofort per Mail an Ansprechpartner oder freie Adressen.
 // Zum Kopieren stehen sie direkt nach dem Anlegen bzw. Erneuern im Klartext da.
 // Anlegen, Versenden, Rotieren und Widerrufen laufen über die Edge Function `einladung`.
@@ -36,6 +36,7 @@ const TEXTE = {
   produkt: {
     titel: 'Kunde zum Produkt einladen',
     hinweis: 'Der Kunde trägt das Produkt über Link und Code ein. Es landet als Einreichung bei den Produkten, bis Sie es anlegen.',
+    hinweisLinie: 'Der Kunde trägt das Produkt über Link und Code ein. Es landet als Einreichung auf dem Produkte-Tab dieser Linie. Beim Anlegen wird das Produkt an die Linie übernommen.',
     platzhalter: 'z.B. Frau Müller, Produktmanagement'
   }
 };
@@ -53,7 +54,8 @@ export class EinladungDrawer {
 
   /**
    * @param {{ art: 'briefing'|'produkt', produktionId?: string, kampagneId?: string|null,
-   *           unternehmenId?: string, markeId?: string|null, kontextName?: string }} ctx
+   *           unternehmenId?: string, markeId?: string|null, briefingId?: string|null,
+   *           kontextName?: string }} ctx
    */
   open(ctx) {
     if (!window.isInternal?.()) return;
@@ -92,8 +94,9 @@ export class EinladungDrawer {
     this._abort = new AbortController();
     const { signal } = this._abort;
 
-    const { art, kontextName } = this.ctx;
+    const { art, kontextName, briefingId } = this.ctx;
     const text = TEXTE[art];
+    const hinweis = art === 'produkt' && briefingId ? text.hinweisLinie : text.hinweis;
 
     const overlay = document.createElement('div');
     overlay.className = 'drawer-overlay';
@@ -112,7 +115,7 @@ export class EinladungDrawer {
         <button type="button" class="drawer-close-btn" data-action="close" aria-label="Schließen">&times;</button>
       </div>
       <div class="drawer-body">
-        <p class="einladung-hinweis">${esc(text.hinweis)}</p>
+        <p class="einladung-hinweis">${esc(hinweis)}</p>
 
         <section class="einladung-abschnitt">
           <div class="form-group">
@@ -295,7 +298,7 @@ export class EinladungDrawer {
   // ─── Anlegen ──────────────────────────────────────────────
 
   async erstellen() {
-    const { art, produktionId, unternehmenId, markeId } = this.ctx;
+    const { art, produktionId, unternehmenId, markeId, briefingId } = this.ctx;
     const label = this.panel.querySelector('#einladung-label').value.trim();
     const typ = this.panel.querySelector('#einladung-typ')?.value || '';
     if (art === 'briefing' && !typ) {
@@ -316,6 +319,7 @@ export class EinladungDrawer {
         briefingTyp: art === 'briefing' ? typ : undefined,
         unternehmenId: art === 'produkt' ? unternehmenId : undefined,
         markeId: art === 'produkt' ? (markeId || undefined) : undefined,
+        briefingId: art === 'produkt' ? (briefingId || undefined) : undefined,
         emails: emails.length ? emails : undefined,
         nachricht: emails.length ? this.nachricht() : undefined
       });
@@ -399,16 +403,19 @@ export class EinladungDrawer {
   async ladeListe() {
     const container = this.panel?.querySelector('#einladung-liste');
     if (!container) return;
-    const { art, produktionId, unternehmenId, markeId } = this.ctx;
+    const { art, produktionId, unternehmenId, markeId, briefingId } = this.ctx;
 
     let query = window.supabase
       .from('einladung')
-      .select('id, token, art, label, briefing_typ, created_at, last_access_at, expires_at')
+      .select('id, token, art, label, briefing_typ, briefing_id, created_at, last_access_at, expires_at, briefing:briefing_id(aktivierung_name)')
       .eq('art', art)
       .is('revoked_at', null)
       .order('created_at', { ascending: false });
     if (art === 'briefing') {
       query = query.eq('produktion_id', produktionId);
+    } else if (briefingId) {
+      // Vom Produkte-Tab einer Linie: nur deren Einladungen (ADR 0057).
+      query = query.eq('briefing_id', briefingId);
     } else {
       query = query.eq('unternehmen_id', unternehmenId);
       query = markeId ? query.eq('marke_id', markeId) : query.is('marke_id', null);
@@ -433,7 +440,12 @@ export class EinladungDrawer {
       const zuletzt = e.last_access_at
         ? `zuletzt geöffnet ${new Date(e.last_access_at).toLocaleDateString('de-DE')}`
         : 'noch nicht geöffnet';
-      const typ = e.briefing_typ ? `${typLabel[e.briefing_typ] || e.briefing_typ} · ` : '';
+      let typ = e.briefing_typ ? `${typLabel[e.briefing_typ] || e.briefing_typ} · ` : '';
+      // In der globalen Liste: Einladungen, die von einer Linie ausgingen, benennen sie.
+      if (e.briefing_id && !briefingId) {
+        const linie = e.briefing?.aktivierung_name;
+        typ = `für Linie${linie ? ` ${linie}` : ''} · `;
+      }
       const frisch = this.codes[e.id];
       return `
         <div class="share-recipient-row share-access-row" data-einladung-id="${e.id}">

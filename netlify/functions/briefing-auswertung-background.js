@@ -104,6 +104,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     if (briefingError || !briefing) {
       throw new Error(`Briefing nicht gefunden: ${briefingError?.message || briefingId}`);
     }
+    if (briefing.ist_altbestand) throw new Error('Altbestand-Linie ohne Briefing: bitte zuerst das Briefing ausfüllen');
 
     const ziel = resolveZielEntity(briefing);
     if (!ziel) throw new Error('Briefing hat weder Marke noch Unternehmen');

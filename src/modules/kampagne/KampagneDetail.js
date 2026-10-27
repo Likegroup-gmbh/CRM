@@ -567,17 +567,29 @@ export class KampagneDetail {
         filter: `kampagne_id=eq.${this.kampagneId}`
       }, (payload) => this._handleSkriptRealtimeUpdate(payload))
       .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
+        if (status === 'SUBSCRIBED') {
+          this._skripteRetryAttempt = 0;
+          return;
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error('REALTIME: Skripte-Channel Error:', err);
           this._teardownSkripteRealtime();
-          setTimeout(() => {
+          // Backoff statt fester 5 s: ein dauerhaft fehlschlagender Channel
+          // sonst baut sich endlos neu auf (je Aufbau Subscription-Pruefung).
+          const attempt = this._skripteRetryAttempt || 0;
+          this._skripteRetryAttempt = attempt + 1;
+          const delay = Math.min(5000 * 2 ** attempt, 60000);
+          this._skripteRetryTimer = setTimeout(() => {
+            this._skripteRetryTimer = null;
             if (this._isMounted) this._initSkripteRealtime();
-          }, 5000);
+          }, delay);
         }
       });
   }
 
   _teardownSkripteRealtime() {
+    clearTimeout(this._skripteRetryTimer);
+    this._skripteRetryTimer = null;
     if (this._skripteChannel) {
       window.supabase?.removeChannel(this._skripteChannel);
       this._skripteChannel = null;

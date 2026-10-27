@@ -4,7 +4,8 @@
 
 import { escapeHtml } from '../briefing/create/FieldRenderer.js';
 import { PRODUKT_ABSCHNITTE, PRODUKT_FELD, VARIANTEN_SPALTEN } from './einladungFelder.js';
-import { einladungSubmit, ladeDateiHoch } from './einladungApi.js';
+import { ladeDateiHoch } from './einladungApi.js';
+import { sendeEinreichung, zeigeFormFehler } from './einladungFormBasis.js';
 
 const MAX_BILDER = 5;
 const MAX_VARIANTEN = 30;
@@ -261,9 +262,7 @@ export class EinladungProduktForm {
   }
 
   zeigeFehler(text) {
-    const el = this.root.querySelector('[data-fehler]');
-    el.textContent = text;
-    el.hidden = !text;
+    zeigeFormFehler(this.root, text);
   }
 
   async senden() {
@@ -285,26 +284,8 @@ export class EinladungProduktForm {
       return;
     }
 
-    this.sendet = true;
-    const knopf = this.root.querySelector('[data-aktion="senden"]');
-    knopf.disabled = true;
-    knopf.textContent = 'Wird gesendet …';
-
-    const antwort = await einladungSubmit(this.token, this.sitzung, daten);
-
-    this.sendet = false;
-    knopf.disabled = false;
-    knopf.textContent = 'Absenden';
-
-    if (antwort.ok) {
-      this.bilder.forEach((b) => b.vorschau && URL.revokeObjectURL(b.vorschau));
-      this.onFertig();
-      return;
-    }
-    if (antwort.sitzungAbgelaufen) {
-      this.onSitzungAbgelaufen();
-      return;
-    }
-    this.zeigeFehler(antwort.fehler);
+    await sendeEinreichung(this, daten, {
+      nachErfolg: () => this.bilder.forEach((b) => b.vorschau && URL.revokeObjectURL(b.vorschau))
+    });
   }
 }

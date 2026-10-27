@@ -22,6 +22,9 @@ async function ladeQuelle(sourceId) {
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('Briefing nicht gefunden');
+  if (data.ist_altbestand) {
+    throw new Error('Diese Altbestand-Linie hat kein Briefing. Bitte zuerst das Briefing ausfüllen.');
+  }
   if (!data.produktion_id) {
     throw new Error('Dieses Briefing gehört zu keiner Produktion und lässt sich nicht duplizieren.');
   }
