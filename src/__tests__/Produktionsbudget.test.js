@@ -117,14 +117,14 @@ describe('Produktionsbudget', () => {
     expect(zeile).toEqual({ eigenesBudget: 15000, used: 1000, total: 15000 });
   });
 
-  it('Verbrauchszeilen: budget-lose Produktionen rechnen den Verbrauch der anderen gegen', () => {
+  it('Verbrauchszeilen: budget-lose Produktionen zeigen ihren eigenen Verbrauch gegen den Topf', () => {
     const zeilen = verbrauchZeilen([
       { id: 'p1', budget: null, budgetUsed: 12500 },
       { id: 'p2', budgetUsed: 7500 },
       { id: 'p3', budget: 20000, budgetUsed: 2000 }
     ], 40000);
-    expect(zeilen[0]).toEqual({ eigenesBudget: null, used: 20000, total: 40000 });
-    expect(zeilen[1]).toEqual({ eigenesBudget: null, used: 20000, total: 40000 });
+    expect(zeilen[0]).toEqual({ eigenesBudget: null, used: 12500, total: 40000 });
+    expect(zeilen[1]).toEqual({ eigenesBudget: null, used: 7500, total: 40000 });
     expect(zeilen[2]).toEqual({ eigenesBudget: 20000, used: 2000, total: 20000 });
   });
 
@@ -137,14 +137,23 @@ describe('Produktionsbudget', () => {
     expect(eigen.used).toBeNull();
   });
 
+  it('Verbrauchszeilen: eine Produktion ohne geladenen Verbrauch blockiert die anderen nicht', () => {
+    const [fehlt, da] = verbrauchZeilen([
+      { id: 'p1', budget: null },
+      { id: 'p2', budget: null, budgetUsed: 500 }
+    ], 40000);
+    expect(fehlt.used).toBeNull();
+    expect(da.used).toBe(500);
+  });
+
   it('Verbrauchszeilen pro Kampagne: jede Kampagne rechnet mit ihrem eigenen Topf', () => {
     const zeilen = verbrauchZeilenProKampagne([
       { id: 'p1', kampagne_id: 'k1', budgetUsed: 10000, kampagne: { id: 'k1', volumen: 50000 } },
       { id: 'p2', kampagne_id: 'k1', budgetUsed: 5000, kampagne: { id: 'k1', volumen: 50000 } },
       { id: 'p3', kampagne_id: 'k2', budgetUsed: 3000, kampagne: { id: 'k2', auftrag: { nettobetrag: 20000 } } }
     ]);
-    expect(zeilen.get('p1')).toEqual({ eigenesBudget: null, used: 15000, total: 50000 });
-    expect(zeilen.get('p2')).toEqual({ eigenesBudget: null, used: 15000, total: 50000 });
+    expect(zeilen.get('p1')).toEqual({ eigenesBudget: null, used: 10000, total: 50000 });
+    expect(zeilen.get('p2')).toEqual({ eigenesBudget: null, used: 5000, total: 50000 });
     expect(zeilen.get('p3')).toEqual({ eigenesBudget: null, used: 3000, total: 20000 });
   });
 

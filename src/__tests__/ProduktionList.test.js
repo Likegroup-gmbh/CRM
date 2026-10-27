@@ -127,16 +127,18 @@ describe('globale Produktionsliste', () => {
     expect(html).toContain('style="width: 7%"');
   });
 
-  it('rechnet den Verbrauch budget-loser Produktionen derselben Kampagne gegen', () => {
+  it('zeigt bei budget-losen Produktionen derselben Kampagne den eigenen Verbrauch je Zeile', () => {
     const kampagne = { id: 'k1', eigener_name: 'Burger', auftrag: { creator_budget: 40000 } };
     const html = renderProduktionListHtml([
       { id: 'p1', name: 'Senf', budgetUsed: 1000, kampagne },
-      { id: 'p2', name: 'Ketchup', budgetUsed: 1000, kampagne }
+      { id: 'p2', name: 'Ketchup', budgetUsed: 4000, kampagne }
     ]);
 
-    // 1.000 + 1.000 = 2.000 von 40.000 -> beide Balken zeigen 5%
-    expect(html.match(/style="width: 5%"/g)).toHaveLength(2);
-    expect(html.match(/2\.000,00/g)).toHaveLength(2);
+    // 1.000 / 40.000 = 3% (2,5 gerundet), 4.000 / 40.000 = 10%
+    expect(html).toContain('1.000,00');
+    expect(html).toContain('4.000,00');
+    expect(html).not.toContain('5.000,00');
+    expect(html).toContain('style="width: 10%"');
   });
 
   it('trennt den geteilten Topf zwischen Kampagnen und nutzt das Kampagnen-Budget', () => {

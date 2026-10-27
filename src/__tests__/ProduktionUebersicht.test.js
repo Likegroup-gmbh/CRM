@@ -102,7 +102,7 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
     expect(html).toContain('50%');
   });
 
-  it('rechnet den Verbrauch der anderen Produktionen im geteilten Topf gegen', () => {
+  it('zeigt im geteilten Topf den eigenen Verbrauch je Produktion', () => {
     const html = renderMainPage({
       mode: 'overview',
       kampagneData,
@@ -112,9 +112,12 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
       ]
     });
 
-    // 12.500 + 7.500 = 20.000 von 40.000 -> beide Balken zeigen 50%
-    expect(html.match(/style="width: 50%"/g)).toHaveLength(2);
-    expect(html.match(/20\.000,00/g)).toHaveLength(2);
+    // 12.500 / 40.000 = 31%, 7.500 / 40.000 = 19%
+    expect(html).toContain('style="width: 31%"');
+    expect(html).toContain('style="width: 19%"');
+    expect(html).toContain('12.500,00');
+    expect(html).toContain('7.500,00');
+    expect(html).not.toContain('20.000,00');
   });
 
   it('zeigt die Budget-Spalte mit eigenem Budget oder Platzhalter', () => {

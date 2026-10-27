@@ -41,28 +41,19 @@ export function kampagneBudgetPot(kampagne) {
 }
 
 /**
- * Verbrauchs-Anzeige je Produktion. Eigenes Budget trägt nur den eigenen
- * Verbrauch; budget-lose Produktionen teilen sich den Topf und rechnen den
- * Verbrauch der anderen gegen (Summe statt Einzelwert).
+ * Verbrauchs-Anzeige je Produktion: immer der eigene Verbrauch der Produktion.
+ * Mit eigenem Budget gegen dieses, ohne gegen den Topf der Kampagne.
  * used ist null, solange der Verbrauch noch nicht geladen ist.
  * Rückgabe: Array parallel zu produktionen mit { eigenesBudget, used, total }.
  */
 export function verbrauchZeilen(produktionen, pot) {
   const rows = Array.isArray(produktionen) ? produktionen : [];
   const topf = roundMoney(pot);
-  const budgetLos = rows.filter(row => budgetOrNull(row?.budget) == null);
-  const geteiltPending = budgetLos.some(row => row?.budgetUsed == null);
-  const geteilterVerbrauch = geteiltPending
-    ? null
-    : roundMoney(budgetLos.reduce((sum, row) => sum + (parseFloat(row?.budgetUsed) || 0), 0));
 
   return rows.map(row => {
     const eigenesBudget = budgetOrNull(row?.budget);
-    if (eigenesBudget != null) {
-      const used = row?.budgetUsed == null ? null : roundMoney(row.budgetUsed);
-      return { eigenesBudget, used, total: eigenesBudget };
-    }
-    return { eigenesBudget: null, used: geteilterVerbrauch, total: topf };
+    const used = row?.budgetUsed == null ? null : roundMoney(row.budgetUsed);
+    return { eigenesBudget, used, total: eigenesBudget ?? topf };
   });
 }
 
