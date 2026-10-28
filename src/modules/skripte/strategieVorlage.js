@@ -22,7 +22,8 @@ export function applyStrategieItem(item, { idee = '', previousIdeeFromItem = '' 
     };
   }
 
-  const beschreibung = (item.beschreibung || '').trim();
+  // Ideen ohne strukturierte Beschreibung liefern die Kurzbeschreibung.
+  const beschreibung = (item.beschreibung || item.kurzbeschreibung || '').trim();
   const transkript = (item.transkript || '').trim();
 
   return {

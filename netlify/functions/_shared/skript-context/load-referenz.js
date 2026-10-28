@@ -14,7 +14,7 @@ async function loadStrategieItemReferenz(supabase, payload, ref) {
   }
 
   const { data: item, error } = await supabase.from('strategie_items')
-    .select('id, video_link, plattform, beschreibung, caption, transkript, strategie:strategie_id!inner(id, kampagne_id)')
+    .select('id, video_link, plattform, beschreibung, kurzbeschreibung, caption, transkript, strategie:strategie_id!inner(id, kampagne_id)')
     .eq('id', itemId)
     .maybeSingle();
 
@@ -41,7 +41,7 @@ async function loadStrategieItemReferenz(supabase, payload, ref) {
     strategie_item_id: item.id,
     url: item.video_link || String(ref.url || '').trim() || null,
     transkript_verwendet: transkript,
-    beschreibung: String(ref.beschreibung || '').trim() || item.beschreibung || null,
+    beschreibung: String(ref.beschreibung || '').trim() || item.beschreibung || item.kurzbeschreibung || null,
     caption: String(ref.caption || '').trim() || item.caption || null,
     platform: item.plattform || ref.platform || null,
     duration_seconds: null,

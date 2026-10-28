@@ -780,6 +780,8 @@ export async function handleFieldUpdate(detail, element) {
   if (!detail.isKunde && !detail.canEdit) return;
   if (field === 'video_umgesetzt' && typeof window.permissionSystem?.canEditField === 'function'
     && !window.permissionSystem.canEditField('strategie', 'video_umgesetzt')) return;
+  // Schreibgeschuetzte Zellen (z. B. strukturierte Beschreibung) spiegeln nur; ein Blur darf sie nie zurueckschreiben.
+  if (element.readOnly) return;
   const itemId = element.dataset.itemId;
   let value = element.type === 'checkbox' ? element.checked : element.value;
 

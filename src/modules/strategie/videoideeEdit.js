@@ -1,5 +1,6 @@
 // videoideeEdit.js
-// Speichert Link, Beschreibung, Umsetzungsvorgabe und Kategorie einer Videoidee.
+// Speichert Link, Umsetzungsvorgabe und Kategorie einer Videoidee, auf Wunsch auch die
+// Kurzbeschreibung. Die strukturierte Beschreibung (Drawer-Tabelle) bleibt unberuehrt.
 // Kennt den Drawer nicht; der Aufrufer reicht ein flaches Objekt herein.
 
 import { strategieService } from './StrategieService.js';
@@ -8,15 +9,18 @@ import { detectPlatform, isTranscribableUrl, resolveVideoideeForm } from './addI
 /**
  * @param {object} detail StrategieDetail (items, strategieId)
  * @param {string} itemId
- * @param {{ art?: string, video_link?: string, beschreibung?: string, umsetzungsvorgabe?: string, teilbereich?: string }} data
+ * @param {{ art?: string, video_link?: string, kurzbeschreibung?: string, umsetzungsvorgabe?: string, teilbereich?: string }} data
+ *   kurzbeschreibung: nur gesetzt, wenn sie mitgespeichert werden soll. Fuer die Idee-Pflicht gilt
+ *   sonst die vorhandene Kurzbeschreibung oder Beschreibung des Items.
  * @returns {Promise<{ ok: true } | { ok: false, error: string }>}
  */
 export async function persistVideoideeEdit(detail, itemId, data) {
   const item = detail.items.find((entry) => String(entry.id) === String(itemId));
+  const schreibtKurz = data.kurzbeschreibung !== undefined;
   const resolved = resolveVideoideeForm({
     art: data.art || (data.video_link?.trim() ? 'videoreferenz' : 'idee'),
     url: data.video_link,
-    beschreibung: data.beschreibung,
+    beschreibung: schreibtKurz ? data.kurzbeschreibung : (item?.kurzbeschreibung || item?.beschreibung),
     umsetzungsvorgabe: data.umsetzungsvorgabe,
     kategorie: data.teilbereich || null
   });
@@ -32,18 +36,10 @@ export async function persistVideoideeEdit(detail, itemId, data) {
   const updates = {
     video_link: videoUrl,
     teilbereich: resolved.kategorie,
-    beschreibung: resolved.beschreibung,
     umsetzungsvorgabe: resolved.umsetzungsvorgabe,
     plattform: detectPlatform(videoUrl)
   };
-
-  if (resolved.beschreibung !== (item?.beschreibung || null)) {
-    updates.beschreibung_quelle = resolved.beschreibung ? 'user' : null;
-    // Freitext ersetzt die Analyse: die Tabelle wuerde sonst veralteten Inhalt zeigen.
-    if (item?.beschreibung_struktur) updates.beschreibung_struktur = null;
-    // Ohne Struktur gibt es keinen Hook mehr (ADR 0054)
-    if (item?.hook_gesperrt) updates.hook_gesperrt = false;
-  }
+  if (schreibtKurz) updates.kurzbeschreibung = resolved.beschreibung;
 
   if (urlGeaendert) {
     if (item?.beschreibung_struktur) updates.beschreibung_struktur = null;

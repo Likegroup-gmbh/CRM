@@ -399,8 +399,8 @@ class SkriptCreateDrawer {
       return `
         <li class="skripte-create-uebersicht-zeile${skripte.length ? ' ist-generiert' : ''}">
           <span class="skripte-create-uebersicht-nr">${nr}</span>
-          <span class="skripte-create-uebersicht-text" title="${escapeHtml(truncateText(item.beschreibung, 200))}">
-            ${escapeHtml(creatorName(item))} · ${escapeHtml(truncateText(item.beschreibung, 60))}
+          <span class="skripte-create-uebersicht-text" title="${escapeHtml(truncateText(item.beschreibung || item.kurzbeschreibung, 200))}">
+            ${escapeHtml(creatorName(item))} · ${escapeHtml(truncateText(item.beschreibung || item.kurzbeschreibung, 60))}
           </span>
           <span class="skripte-create-uebersicht-status">${status}</span>
         </li>`;
@@ -472,7 +472,7 @@ class SkriptCreateDrawer {
     try {
       const voll = await skripteService.loadStrategieItem(itemId);
       const item = { ...basis, ...(voll || {}) };
-      const videoIdee = (item.beschreibung || '').trim();
+      const videoIdee = (item.beschreibung || item.kurzbeschreibung || '').trim();
       if (!videoIdee) throw new Error('Die Videoidee hat keine Beschreibung');
 
       const personaId = personaIdFuerSkript(item);
@@ -484,7 +484,7 @@ class SkriptCreateDrawer {
           strategieItemId: item.id,
           url: item.video_link,
           transkript: item.transkript,
-          beschreibung: item.beschreibung,
+          beschreibung: item.beschreibung || item.kurzbeschreibung,
           caption: item.caption,
           platform: item.plattform
         })

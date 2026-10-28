@@ -20,7 +20,6 @@ import {
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { isVideoideeVorschlag, splitVideoideeVorschlaege } from './videoideeVorschlag.js';
-import { beschreibungStrukturVon } from './videoidee/beschreibungStruktur.js';
 import { actionState } from '../../core/actions/actionState.js';
 import { produktionStartChecks } from '../kooperation/produktionStart.js';
 
@@ -108,12 +107,12 @@ export function renderItemsTable(detail) {
             ${showWriteCols ? '<th class="col-drag"></th>' : ''}
             <th class="col-image">Bild</th>
             <th class="col-platform">Plattform</th>
+            ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
             ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
             ${cols.produkt ? '<th class="col-produkt">Produkt</th>' : ''}
             ${cols.persona ? '<th class="col-persona">Persona</th>' : ''}
             ${cols.funnel ? '<th class="col-funnel">Funnel-Stufe</th>' : ''}
             ${cols.dauer ? '<th class="col-dauer">Dauer</th>' : ''}
-            ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
             ${cols.umsetzungsvorgabe ? '<th class="col-umsetzungsvorgabe">Umsetzungsvorgabe</th>' : ''}
             ${cols.kundenadaption ? '<th class="col-kundenadaption">Kundenadaption</th>' : ''}
             ${cols.transkript ? '<th class="col-transkript">Transkript</th>' : ''}
@@ -287,10 +286,8 @@ function openVideoideeId() {
  * Der volle Text liegt zusätzlich im Videoidee-Drawer.
  */
 function renderClippedTextCell(detail, item, field, cssClass, placeholder, readonly) {
-  // Strukturierte Beschreibung: die Tabelle zeigt nur den Titel, der Rest liegt im Drawer.
-  const struktur = field === 'beschreibung' ? beschreibungStrukturVon(item) : null;
-  const value = struktur ? struktur.titel : (item[field] || '');
-  const locked = readonly || !!struktur;
+  const value = item[field] || '';
+  const locked = readonly;
 
   const inner = !detail.isKunde
     ? `<textarea
@@ -584,12 +581,12 @@ export function renderItemRow(detail, item, index) {
       ` : ''}
       ${renderBildCell(item, isIdea, ideaIcon)}
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
+      ${cols.beschreibung ? renderClippedTextCell(detail, item, isVorschlag ? 'beschreibung' : 'kurzbeschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
       ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
       ${cols.produkt ? renderProduktCell(detail, item, vorschlagReadonly) : ''}
       ${cols.persona ? `<td class="col-persona">${renderPersonaControl(detail, item)}</td>` : ''}
       ${cols.funnel ? `<td class="col-funnel">${renderFunnelControl(detail, item)}</td>` : ''}
       ${cols.dauer ? `<td class="col-dauer">${renderVideolaengeControl(detail, item)}</td>` : ''}
-      ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
       ${cols.umsetzungsvorgabe ? renderClippedTextCell(detail, item, 'umsetzungsvorgabe', 'col-umsetzungsvorgabe', 'Was sollen wir umsetzen?', vorschlagReadonly || !item.video_link) : ''}
       ${cols.kundenadaption ? renderClippedTextCell(detail, item, 'kundenadaption', 'col-kundenadaption', 'Kundenadaption...', vorschlagReadonly) : ''}
       ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', vorschlagReadonly) : ''}

@@ -8,6 +8,7 @@ import { persistVideoideeEdit } from '../modules/strategie/videoideeEdit.js';
 import { detectPlatform, isTranscribableUrl } from '../modules/strategie/addItemPayload.js';
 import { syncVideoideeField } from '../modules/strategie/videoideeFieldSync.js';
 import { strategieService } from '../modules/strategie/StrategieService.js';
+import { skriptKommentarService } from '../modules/skripte/SkriptKommentarService.js';
 
 const SCREENSHOT_URL = 'https://xxx.supabase.co/storage/v1/object/public/strategie-screenshots/screenshots/shot.jpg';
 
@@ -24,6 +25,7 @@ beforeEach(() => {
   vi.spyOn(strategieService, 'updateStrategieItem').mockResolvedValue({});
   vi.spyOn(strategieService, 'deleteScreenshot').mockResolvedValue();
   vi.spyOn(strategieService, 'enqueueItemProcessing').mockResolvedValue(true);
+  vi.spyOn(skriptKommentarService, 'loadTeamKommentareFuerItem').mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -153,14 +155,14 @@ describe('persistVideoideeEdit – Screenshot beim Link-Entfernen', () => {
     const result = await persistVideoideeEdit(detailStub(item), 'i1', {
       art: 'videoreferenz',
       video_link: 'https://youtube.com/watch?v=1',
-      beschreibung: 'Neu',
+      kurzbeschreibung: 'Neu',
       umsetzungsvorgabe: 'Die Hook'
     });
 
     expect(result).toEqual({ ok: true });
     expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.objectContaining({
       plattform: 'youtube',
-      beschreibung: 'Neu'
+      kurzbeschreibung: 'Neu'
     }));
     expect(strategieService.enqueueItemProcessing).not.toHaveBeenCalled();
   });
@@ -252,9 +254,63 @@ describe('Videoidee-Drawer', () => {
     expect(document.querySelector('.videoidee-doc__shot')?.tagName).toBe('DIV');
     expect(document.querySelector('.videoidee-props .strategie-umgesetzt-state, .videoidee-props [data-field="video_umgesetzt"]')).toBeTruthy();
     expect(document.querySelector('.videoidee-drawer__header [data-videoidee-prio]')).toBeNull();
-    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeNull();
-    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeTruthy();
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeTruthy();
     expect(document.querySelector('.videoidee-drawer__footer').textContent).not.toContain('Anmerkung');
+  });
+
+  it('baut Idee und Videoreferenz gleich auf: dieselbe Beschreibungs-Tabelle', () => {
+    const zeilen = () => [...document.querySelectorAll('.videoidee-struktur [data-videoidee-struktur]')]
+      .map((row) => row.dataset.videoideeStruktur);
+
+    open([{ id: 'i1', video_link: null, beschreibung: '' }]);
+    const idee = zeilen();
+    expect(idee).toEqual(['titel', 'angle', 'hook', 'visual_hook', 'hauptteil', 'cta']);
+    expect(document.querySelector('textarea[data-field="beschreibung"]')).toBeNull();
+    const abschnitteIdee = [...document.querySelectorAll('[data-videoidee-section]')].map((el) => el.dataset.videoideeSection);
+
+    removeEditItemDrawer();
+    open([{ id: 'i1', video_link: 'https://tiktok.com/x', beschreibung: '' }]);
+    expect(zeilen()).toEqual(idee);
+    const abschnitteRef = [...document.querySelectorAll('[data-videoidee-section]')].map((el) => el.dataset.videoideeSection);
+    for (const name of abschnitteIdee) expect(abschnitteRef).toContain(name);
+  });
+
+  it('zeigt bei einer Idee die Kurzbeschreibung und zerlegt Labels im Fliesstext in Felder', () => {
+    open([{ id: 'i1', video_link: null, kurzbeschreibung: 'Knoblauch Chili-Öl', beschreibung: 'Einfach Kaffee trinken' }]);
+    expect(document.querySelector('[data-field="kurzbeschreibung"]').value).toBe('Knoblauch Chili-Öl');
+    expect(document.querySelector('[data-field="beschreibung_struktur.hauptteil"]').value).toBe('');
+
+    removeEditItemDrawer();
+    open([{ id: 'i1', video_link: null, beschreibung: 'Titel: Morgen\n\nHook: Wach?\n\nHauptteil: Kaffee' }]);
+    expect(document.querySelector('[data-field="beschreibung_struktur.hook"]').value).toBe('Wach?');
+  });
+
+  it('laedt Team-Kommentare nach und zeigt sie nur lesend', async () => {
+    skriptKommentarService.loadTeamKommentareFuerItem.mockResolvedValue([{
+      id: 'k1', typ: 'kommentar', skript_nr: null, sektion: 'hook', ist_antwort: true,
+      zitat: 'Der alte Hook', inhalt: 'Haben wir angepasst', autor: 'Anna Team', created_at: '2026-10-20T10:00:00Z'
+    }]);
+    open([{ id: 'i1', video_link: null, beschreibung: '' }]);
+
+    await vi.waitFor(() => expect(document.querySelector('[data-videoidee-section="kommentare"]')).toBeTruthy());
+    const eintrag = document.querySelector('[data-videoidee-section="kommentare"]');
+    expect(skriptKommentarService.loadTeamKommentareFuerItem).toHaveBeenCalledWith('i1');
+    expect(eintrag.textContent).toContain('Haben wir angepasst');
+    expect(eintrag.textContent).toContain('Anna Team');
+    expect(eintrag.textContent).toContain('Der alte Hook');
+    expect(eintrag.querySelector('textarea, input')).toBeNull();
+  });
+
+  it('zeigt keinen Kommentar-Abschnitt ohne Team-Kommentare und laedt fuer Vorschlaege nicht', async () => {
+    open([{ id: 'i1', video_link: null, beschreibung: '' }]);
+    await vi.waitFor(() => expect(skriptKommentarService.loadTeamKommentareFuerItem).toHaveBeenCalled());
+    expect(document.querySelector('[data-videoidee-section="kommentare"]')).toBeNull();
+
+    removeEditItemDrawer();
+    skriptKommentarService.loadTeamKommentareFuerItem.mockClear();
+    open([{ id: 'v1', ist_vorschlag: true, video_link: null, beschreibung: 'X' }]);
+    expect(skriptKommentarService.loadTeamKommentareFuerItem).not.toHaveBeenCalled();
   });
 
   it('waehlt die Kategorie ueber das zentrale TableSelect und speichert sie', async () => {
@@ -380,6 +436,7 @@ describe('Videoidee-Drawer', () => {
     expect(caption.querySelector('.videoidee-doc__section-body').hidden).toBe(true);
     expect([...document.querySelectorAll('[data-videoidee-section]')].map((el) => el.dataset.videoideeSection)).toEqual([
       'kopf',
+      'kurzbeschreibung',
       'beschreibung',
       'kundenadaption',
       'transkript',
@@ -457,9 +514,14 @@ describe('Videoidee-Drawer', () => {
     ].join('\n\n'));
   });
 
-  it('zeigt Kundenadaption und Anmerkung nur mit Video-Link oder vorhandenem Text', () => {
+  it('zeigt Kundenadaption und Anmerkung bei Idee und Videoreferenz, beim Vorschlag nur mit Text', () => {
     open([{ id: 'i1', video_link: null, beschreibung: 'Idee', kunde_anmerkung: 'Passt' }]);
     expect(document.querySelector('[data-videoidee-section="anmerkung"]').textContent).toContain('Passt');
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeTruthy();
+
+    removeEditItemDrawer();
+    open([{ id: 'v1', ist_vorschlag: true, video_link: null, beschreibung: 'Vorschlag' }]);
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeNull();
     expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeNull();
 
     removeEditItemDrawer();
@@ -477,13 +539,14 @@ describe('Videoidee-Drawer', () => {
     expect(document.querySelector('[data-videoidee-section="beschreibung"]')).toBeNull();
     expect(document.querySelector('[data-videoidee-section="umsetzungsvorgabe"]')).toBeNull();
     expect(document.querySelector('[data-videoidee-section="kundenadaption"]').textContent).toContain('So laeuft es');
-    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeNull();
+    // Der Kunde darf an jeder Videoidee Feedback geben, auch an der Idee
+    expect(document.querySelector('[data-videoidee-section="anmerkung"] textarea')).toBeTruthy();
   });
 
   it('schaltet mit Weiter zur naechsten Videoidee', async () => {
     open([
-      { id: 'i1', video_link: null, beschreibung: 'Eins' },
-      { id: 'i2', video_link: null, beschreibung: 'Zwei' }
+      { id: 'i1', video_link: null, kurzbeschreibung: 'Eins' },
+      { id: 'i2', video_link: null, kurzbeschreibung: 'Zwei' }
     ]);
 
     expect(document.getElementById('videoidee-pos').textContent).toBe('1 von 2');
@@ -492,14 +555,14 @@ describe('Videoidee-Drawer', () => {
     await Promise.resolve();
 
     expect(document.getElementById('videoidee-pos').textContent).toBe('2 von 2');
-    expect(document.querySelector('[data-field="beschreibung"]').value).toBe('Zwei');
+    expect(document.querySelector('[data-field="kurzbeschreibung"]').value).toBe('Zwei');
     expect(document.querySelector('[data-action="videoidee-next"]').disabled).toBe(true);
   });
 
   it('schaltet mit Pfeil rechts, solange kein Feld fokussiert ist', async () => {
     open([
-      { id: 'i1', video_link: null, beschreibung: 'Eins' },
-      { id: 'i2', video_link: null, beschreibung: 'Zwei' }
+      { id: 'i1', video_link: null, kurzbeschreibung: 'Eins' },
+      { id: 'i2', video_link: null, kurzbeschreibung: 'Zwei' }
     ]);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -507,7 +570,7 @@ describe('Videoidee-Drawer', () => {
     await Promise.resolve();
     expect(document.getElementById('videoidee-pos').textContent).toBe('2 von 2');
 
-    const field = document.querySelector('[data-field="beschreibung"]');
+    const field = document.querySelector('[data-field="beschreibung_struktur.hauptteil"]');
     field.focus();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     await Promise.resolve();

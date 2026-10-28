@@ -13,12 +13,12 @@
 import { funnelSpalteStandardSichtbar } from './strategieFunnelOptions.js';
 
 export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
+  { key: 'beschreibung', label: 'Beschreibung' },
   { key: 'creator', label: 'Creator' },
   { key: 'produkt', label: 'Produkt' },
   { key: 'persona', label: 'Persona' },
   { key: 'funnel', label: 'Funnel-Stufe' },
   { key: 'dauer', label: 'Dauer' },
-  { key: 'beschreibung', label: 'Beschreibung' },
   { key: 'umsetzungsvorgabe', label: 'Umsetzungsvorgabe' },
   { key: 'kundenadaption', label: 'Kundenadaption' },
   { key: 'transkript', label: 'Transkript' },
@@ -32,7 +32,6 @@ export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
 // Keys hier eintragen, wenn eine feste Spalte standardmaessig aus sein soll.
 // Die langen Textfelder liegen im Videoidee-Drawer; die Tabelle bleibt schlank.
 const DEFAULT_HIDDEN = new Set([
-  'beschreibung',
   'umsetzungsvorgabe',
   'kundenadaption',
   'transkript',

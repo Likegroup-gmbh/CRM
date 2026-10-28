@@ -49,7 +49,7 @@ describe('buildAddItemQueueEntry', () => {
 });
 
 describe('buildStrategieItemInsert', () => {
-  it('markiert mitgebrachten Text als user', () => {
+  it('legt mitgebrachten Text als Kurzbeschreibung ab, die KI-Beschreibung bleibt frei', () => {
     const insert = buildStrategieItemInsert({
       strategieId: 's1',
       sortierung: 3,
@@ -67,14 +67,13 @@ describe('buildStrategieItemInsert', () => {
       plattform: 'tiktok',
       sortierung: 3,
       teilbereich: 'Rezepte',
-      beschreibung: 'Herbstliches Sandwich',
-      beschreibung_quelle: 'user',
+      kurzbeschreibung: 'Herbstliches Sandwich',
       umsetzungsvorgabe: null,
       verarbeitung_status: 'pending'
     });
   });
 
-  it('laesst quelle leer, damit die KI fuellen darf', () => {
+  it('laesst beschreibung leer, damit die KI fuellen darf', () => {
     const insert = buildStrategieItemInsert({
       strategieId: 's1',
       sortierung: 0,
@@ -86,8 +85,9 @@ describe('buildStrategieItemInsert', () => {
       }
     });
 
-    expect(insert.beschreibung).toBeNull();
-    expect(insert.beschreibung_quelle).toBeNull();
+    expect(insert.kurzbeschreibung).toBeNull();
+    expect(insert).not.toHaveProperty('beschreibung');
+    expect(insert).not.toHaveProperty('beschreibung_quelle');
     expect(insert.umsetzungsvorgabe).toBeNull();
     expect(insert.verarbeitung_status).toBe('pending');
   });
@@ -106,7 +106,8 @@ describe('buildStrategieItemInsert', () => {
 
     expect(insert.video_link).toBeNull();
     expect(insert.plattform).toBeNull();
-    expect(insert.beschreibung_quelle).toBe('user');
+    expect(insert.kurzbeschreibung).toBe('Nur die Idee');
+    expect(insert).not.toHaveProperty('beschreibung');
     expect(insert.umsetzungsvorgabe).toBeNull();
     expect(insert.verarbeitung_status).toBeNull();
   });
@@ -146,7 +147,7 @@ describe('resolveVideoideeForm', () => {
     });
   });
 
-  it('verlangt bei einer Idee die Beschreibung und wirft Link und Vorgabe weg', () => {
+  it('verlangt bei einer Idee die Kurzbeschreibung und wirft Link und Vorgabe weg', () => {
     expect(resolveVideoideeForm({ art: 'idee', beschreibung: '  ' }).ok).toBe(false);
     const ok = resolveVideoideeForm({
       art: 'idee',

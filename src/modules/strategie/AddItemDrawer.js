@@ -189,12 +189,12 @@ export class AddItemDrawer {
               </div>
             </div>
             <div class="form-field" id="drawer-beschreibung-row">
-              <label for="drawer-beschreibung">Beschreibung</label>
+              <label for="drawer-beschreibung">Kurzbeschreibung</label>
               <textarea
                 id="drawer-beschreibung"
                 class="form-input"
                 rows="3"
-                placeholder="${referenz ? 'Eigene Worte bleiben. Leer lassen – dann füllt die KI.' : 'Worum geht es in der Idee?'}"
+                placeholder="${referenz ? 'Kurz in eigenen Worten für die Tabelle (optional).' : 'Worum geht es in der Idee?'}"
               ></textarea>
             </div>
           </div>
@@ -387,7 +387,7 @@ export class AddItemDrawer {
     const beschreibung = document.getElementById('drawer-beschreibung');
     if (beschreibung) {
       beschreibung.placeholder = referenz
-        ? 'Eigene Worte bleiben. Leer lassen – dann füllt die KI.'
+        ? 'Kurz in eigenen Worten für die Tabelle (optional).'
         : 'Worum geht es in der Idee?';
     }
   }

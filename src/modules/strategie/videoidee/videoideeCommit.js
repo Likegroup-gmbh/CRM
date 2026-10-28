@@ -222,7 +222,6 @@ async function commitLink(detail, el, item, hooks) {
   const panel = el.closest(`#${DRAWER_ID}`);
   const url = el.value || '';
   const vorgabeEl = panel?.querySelector('[data-field="umsetzungsvorgabe"]');
-  const beschreibungEl = panel?.querySelector('[data-field="beschreibung"]');
   const wasReferenz = !!item.video_link;
 
   if (url.trim() === (item.video_link || '') && (vorgabeEl?.value ?? '') === (item.umsetzungsvorgabe || '')) {
@@ -233,7 +232,6 @@ async function commitLink(detail, el, item, hooks) {
     art: url.trim() ? 'videoreferenz' : 'idee',
     video_link: url,
     umsetzungsvorgabe: vorgabeEl?.value ?? item.umsetzungsvorgabe ?? '',
-    beschreibung: beschreibungEl?.value ?? item.beschreibung ?? '',
     teilbereich: item.teilbereich ?? ''
   });
   if (!result.ok) {

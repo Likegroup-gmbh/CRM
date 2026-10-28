@@ -131,7 +131,7 @@ describe('Persona-Spalte: Sichtbarkeit und Reihenfolge', () => {
 
   it('steht zwischen Produkt und Funnel-Stufe', () => {
     const keys = STRATEGIE_FIXED_COLUMNS.map(c => c.key);
-    expect(keys.slice(0, 4)).toEqual(['creator', 'produkt', 'persona', 'funnel']);
+    expect(keys.slice(1, 5)).toEqual(['creator', 'produkt', 'persona', 'funnel']);
   });
 });
 

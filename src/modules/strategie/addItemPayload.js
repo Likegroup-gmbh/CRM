@@ -1,6 +1,7 @@
 // Payload fuer den Add-Item-Drawer.
-// Videoreferenz: URL und Umsetzungsvorgabe Pflicht, Beschreibung optional.
-// Idee: Beschreibung Pflicht, kein Link, keine Vorgabe.
+// Videoreferenz: URL und Umsetzungsvorgabe Pflicht, Kurzbeschreibung optional.
+// Idee: Kurzbeschreibung Pflicht, kein Link, keine Vorgabe.
+// Der Parameter heisst weiter `beschreibung`, gespeichert wird er als `kurzbeschreibung`.
 // Funnel-Stufe, Persona und Dauer sind optional und kommen aus dem Drawer (Vorbelegung aus dem Briefing).
 
 import { FUNNEL_WERTE } from './strategieFunnelOptions.js';
@@ -59,7 +60,7 @@ export function resolveVideoideeForm({ art, url, beschreibung, umsetzungsvorgabe
     return { ok: false, error: 'Was sollen wir von diesem Video umsetzen?' };
   }
   if (!isReferenz && !cleanBeschreibung) {
-    return { ok: false, error: 'Bitte eine Beschreibung angeben' };
+    return { ok: false, error: 'Bitte eine Kurzbeschreibung angeben' };
   }
 
   return {
@@ -95,7 +96,9 @@ export function buildAddItemQueueEntry({ url, kategorie, beschreibung, umsetzung
 }
 
 export function buildStrategieItemInsert({ strategieId, nextItem, sortierung }) {
-  const beschreibung = nextItem.beschreibung || null;
+  // Der Text aus dem Drawer ist die Kurzbeschreibung (Tabellenspalte). Die strukturierte
+  // Beschreibung (beschreibung / beschreibung_struktur) fuellt bei Videoreferenzen die KI, sonst das Team.
+  const kurzbeschreibung = nextItem.beschreibung || null;
   const hatLink = !!nextItem.url;
   const vorgabe = hatLink ? (String(nextItem.umsetzungsvorgabe || '').trim() || null) : null;
   const dauer = cleanVideolaenge(nextItem.videolaenge);
@@ -105,8 +108,7 @@ export function buildStrategieItemInsert({ strategieId, nextItem, sortierung }) 
     plattform: hatLink ? nextItem.platform : null,
     sortierung,
     teilbereich: nextItem.kategorie,
-    beschreibung,
-    beschreibung_quelle: beschreibung ? 'user' : null,
+    kurzbeschreibung,
     umsetzungsvorgabe: vorgabe,
     ...(cleanFunnel(nextItem.funnelStufe) ? { funnel_stufe: cleanFunnel(nextItem.funnelStufe) } : {}),
     ...(cleanPersona(nextItem.personaId) ? { persona_id: cleanPersona(nextItem.personaId) } : {}),

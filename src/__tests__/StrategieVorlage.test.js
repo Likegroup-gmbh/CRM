@@ -20,6 +20,15 @@ const IDEE_ITEM = {
 };
 
 describe('applyStrategieItem', () => {
+  it('nimmt bei einer Idee ohne strukturierte Beschreibung die Kurzbeschreibung', () => {
+    const next = applyStrategieItem({ id: 'i3', video_link: null, kurzbeschreibung: 'Knoblauch Chili-Öl' }, { idee: '' });
+    expect(next.idee).toBe('Knoblauch Chili-Öl');
+    expect(next.beschreibung).toBe('Knoblauch Chili-Öl');
+
+    const mit = applyStrategieItem({ id: 'i4', video_link: null, beschreibung: 'Struktur', kurzbeschreibung: 'Kurz' }, { idee: '' });
+    expect(mit.idee).toBe('Struktur');
+  });
+
   it('fuellt leere Video-Idee aus der Beschreibung, Transkript bleibt in der Vorlage', () => {
     const next = applyStrategieItem(ITEM, { idee: '', previousIdeeFromItem: '' });
     expect(next.idee).toBe('Morgenroutine mit Produkt X');

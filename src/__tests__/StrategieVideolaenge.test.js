@@ -67,10 +67,9 @@ describe('buildStrategieVideolaengeUpdates', () => {
 });
 
 describe('Spalte "Dauer"', () => {
-  it('steht nach der Funnel-Stufe und vor der Beschreibung und ist standardmaessig sichtbar', () => {
+  it('steht direkt nach der Funnel-Stufe und ist standardmaessig sichtbar', () => {
     const keys = STRATEGIE_FIXED_COLUMNS.map(c => c.key);
     expect(keys.indexOf('dauer')).toBe(keys.indexOf('funnel') + 1);
-    expect(keys.indexOf('dauer')).toBeLessThan(keys.indexOf('beschreibung'));
     expect(isFixedColumnVisible([], 'dauer')).toBe(true);
   });
 
@@ -157,10 +156,11 @@ describe('Spalte "Dauer"', () => {
     expect(aus.querySelector('td.col-dauer')).toBeNull();
   });
 
-  it('laesst die sechs Textspalten standardmaessig weg, Colspan stimmt', () => {
+  it('laesst die Textspalten ausser Beschreibung standardmaessig weg, Colspan stimmt', () => {
     const items = [{ id: 'i1', video_link: 'https://tiktok.com/x', beschreibung: 'x' }];
     const doc = new DOMParser().parseFromString(renderItemsTable(detailStub({ items })), 'text/html');
-    for (const key of ['beschreibung', 'umsetzungsvorgabe', 'kundenadaption', 'transkript', 'caption', 'anmerkung']) {
+    expect(doc.querySelector('th.col-beschreibung')).toBeTruthy();
+    for (const key of ['umsetzungsvorgabe', 'kundenadaption', 'transkript', 'caption', 'anmerkung']) {
       expect(doc.querySelector(`th.col-${key}`)).toBeNull();
     }
     const spalten = doc.querySelectorAll('thead th').length;

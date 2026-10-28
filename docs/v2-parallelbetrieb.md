@@ -64,6 +64,35 @@ Eine Supabase für beide. Solange v1 live ist:
 - nichts droppen oder umbenennen, das v1 noch liest
 - Breaking Function-Contracts: neuer Name (`…-v2-background`), nicht denselben Endpoint knacken
 
+### Breaking Migrations: erst v1-Frontend, dann Migration
+
+Eine Migration ist breaking, sobald sie etwas wegnimmt oder verengt, das der Code auf `main` noch benutzt: `REVOKE`, `DROP POLICY`/engere Policy, `DROP`/Umbenennung, geänderte Trigger- oder RPC-Logik, neue Pflichtfelder.
+
+Weil v1 und v2 dieselbe Datenbank haben, wirkt die Migration sofort auch auf die Live-Seite. Ein Fix, der nur auf `v2` liegt, hilft v1 nicht.
+
+Reihenfolge, ohne Ausnahme:
+
+1. Frontend-Änderung so bauen, dass sie **mit alter und neuer DB** läuft (oder zuerst das neue Verhalten additiv anbieten, z. B. neuer RPC neben der alten Tabelle).
+2. Dieses Frontend auf `staging` → `main` bringen und warten, bis es live ist (`version.json` auf der Live-Domain zeigt den neuen Build).
+3. Erst dann `apply_migration` für den Teil, der das Alte wegnimmt.
+4. Danach Smoke-Test: `npm run smoke:magic-link` (siehe unten) und Logs auf 4xx prüfen.
+
+Vor jedem `apply_migration` fragen:
+
+- Liest oder schreibt `main` die betroffene Tabelle, Policy oder Funktion noch? (`git grep` in `origin/main`)
+- Gilt das auch für Flows ohne Login (Einladungslink, Gast-Share, Creator-Upload, Bewerbung)? Die fallen nicht bei der QA auf, sondern erst beim Kunden.
+- Gibt es ein ROLLBACK im Kopf der Migrationsdatei, das ich in einer Minute ausführen kann?
+
+Fall aus der Praxis (27.10.2026): `signup_rollen_nicht_vom_client` sperrte `magic_links` für `anon`, das passende Frontend lag nur auf `v2`. Auf der Live-Seite zeigte jeder Einladungslink „Link ungültig“, bis der Fix auf `main` war.
+
+### Smoke-Test Magic-Link
+
+`npm run smoke:magic-link` prüft die Registrierungsseite auf der Live-Domain ohne Secrets und ohne Schreibzugriff: Seite lädt, ruft `magic_link_vorschau` auf (liest `magic_links` nicht direkt), RPC antwortet als `anon`, Tabelle ist für `anon` zu.
+
+- GitHub Action `Smoke Magic-Link` läuft nach jedem Push auf `main` (mit Wiederholungen, bis Netlify ausgeliefert hat), alle 30 Minuten und per Hand. Schlägt sie fehl, kommt eine Mail.
+- Gegen die v2-Preview: `SMOKE_BASE_URL=https://v2--<site>.netlify.app npm run smoke:magic-link`
+- Den Signup-Trigger (Token → Rolle `kunde`, freigeschaltet, Rolle aus den Metadaten wird ignoriert) prüft [supabase/tests/magic_link_signup_rollback.sql](../supabase/tests/magic_link_signup_rollback.sql). Es rollt per Exception zurück und hinterlässt keine Daten. Nach jeder Änderung an `handle_new_auth_user`, `magic_links` oder den Policies auf `benutzer` ausführen.
+
 ## Netlify (manuell, Staging-Site)
 
 Nicht auf der Production-Site. Nicht „all branches“.

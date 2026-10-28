@@ -12,7 +12,7 @@ const ITEM_RELATIONS = `
 // Kunde: keine Umsetzungsvorgabe. select * wuerde sie mitliefern.
 const KUNDE_ITEM_COLUMNS = [
   'id', 'strategie_id', 'video_link', 'plattform', 'sortierung', 'teilbereich',
-  'beschreibung', 'beschreibung_quelle', 'beschreibung_struktur', 'screenshot_url', 'creator_id', 'creator_name',
+  'beschreibung', 'beschreibung_quelle', 'beschreibung_struktur', 'kurzbeschreibung', 'screenshot_url', 'creator_id', 'creator_name',
   'creator_auswahl_item_id', 'produkt_id', 'transkript', 'transkript_quelle', 'caption',
   'transcription_job_id', 'verarbeitung_status', 'verarbeitung_step', 'verarbeitung_fehler',
   'ist_vorschlag', 'kunde_anmerkung', 'kunde_anmerkung_author_name', 'kunde_anmerkung_updated_at',

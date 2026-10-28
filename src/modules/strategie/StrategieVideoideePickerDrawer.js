@@ -18,7 +18,7 @@ function escapeHtml(value) {
 }
 
 function itemLabel(item) {
-  const text = (item?.beschreibung || '').trim();
+  const text = (item?.beschreibung || item?.kurzbeschreibung || '').trim();
   if (text) return text.length > 80 ? `${text.slice(0, 80)}…` : text;
   return item?.video_link ? 'Video' : 'Idee';
 }

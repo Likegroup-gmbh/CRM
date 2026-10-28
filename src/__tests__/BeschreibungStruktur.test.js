@@ -12,8 +12,10 @@ import {
   removeEditItemDrawer
 } from '../modules/strategie/VideoideeDrawer.js';
 import { persistVideoideeEdit } from '../modules/strategie/videoideeEdit.js';
-import { renderItemRow } from '../modules/strategie/StrategieDetailRenderer.js';
+import { renderItemRow, renderItemsTable, rerenderItemsTable } from '../modules/strategie/StrategieDetailRenderer.js';
+import { handleFieldUpdate } from '../modules/strategie/StrategieDetailTableEvents.js';
 import { strategieService } from '../modules/strategie/StrategieService.js';
+import { skriptKommentarService } from '../modules/skripte/SkriptKommentarService.js';
 
 const require = createRequire(import.meta.url);
 const { runDescription } = require('../../netlify/functions/_shared/video-transcribe.js');
@@ -279,6 +281,7 @@ describe('Beschreibungs-Tabelle im Drawer', () => {
   beforeEach(() => {
     window.toastSystem = { show: vi.fn() };
     vi.spyOn(strategieService, 'updateStrategieItem').mockResolvedValue({});
+    vi.spyOn(skriptKommentarService, 'loadTeamKommentareFuerItem').mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -333,17 +336,19 @@ describe('Beschreibungs-Tabelle im Drawer', () => {
     expect(section.textContent).toContain(STRUKTUR.angle);
   });
 
-  it('bleibt bei Altbestand beim Fließtext', () => {
-    open(referenz({ beschreibung_struktur: null, beschreibung: 'Nur Fließtext' }));
-
+  it('zeigt Videoreferenz-Altbestand ohne Labels nicht doppelt, wenn er schon Kurzbeschreibung ist', () => {
+    open(referenz({ beschreibung_struktur: null, beschreibung: 'Nur Fließtext', kurzbeschreibung: 'Nur Fließtext' }));
+    expect(document.querySelector('[data-field="kurzbeschreibung"]').value).toBe('Nur Fließtext');
     const section = document.querySelector('[data-videoidee-section="beschreibung"]');
-    expect(section.querySelector('[data-videoidee-struktur]')).toBeNull();
-    expect(section.querySelector('textarea[data-field="beschreibung"]').value).toBe('Nur Fließtext');
+    expect(section.querySelectorAll('[data-videoidee-struktur]')).toHaveLength(6);
+    expect(section.querySelector('[data-videoidee-struktur="hauptteil"] textarea').value).toBe('');
+    expect(strategieService.updateStrategieItem).not.toHaveBeenCalled();
   });
 
-  it('nutzt die Tabelle weder bei Idee noch bei Vorschlag', () => {
+  it('nutzt die Tabelle auch bei der Idee, nicht beim Vorschlag', () => {
     open({ id: 'i1', video_link: null, beschreibung: 'Idee', beschreibung_struktur: STRUKTUR });
-    expect(document.querySelector('[data-videoidee-struktur]')).toBeNull();
+    expect(document.querySelectorAll('[data-videoidee-struktur]')).toHaveLength(6);
+    expect(document.querySelector('textarea[data-field="beschreibung_struktur.hook"]').value).toBe(STRUKTUR.hook);
 
     removeEditItemDrawer();
     open({ id: 'i1', ist_vorschlag: true, video_link: 'https://tiktok.com/x', beschreibung: 'V', beschreibung_struktur: STRUKTUR });
@@ -444,13 +449,10 @@ describe('Beschreibungs-Tabelle im Drawer', () => {
   });
 });
 
-describe('Strategie-Tabelle', () => {
-  // Die Beschreibungsspalte ist standardmaessig aus; hier wird sie eingeblendet.
-  const MIT_BESCHREIBUNG = ['show:fixed:beschreibung'];
-
-  function zelle(item, detail = { items: [item], canEdit: true, isKunde: false }) {
+describe('Strategie-Tabelle: Spalte Beschreibung = Kurzbeschreibung', () => {
+  function zelle(item, detail = {}) {
     const tbody = document.createElement('tbody');
-    tbody.innerHTML = renderItemRow({ hiddenColumns: MIT_BESCHREIBUNG, ...detail }, item, 0);
+    tbody.innerHTML = renderItemRow({ hiddenColumns: [], items: [item], canEdit: true, isKunde: false, ...detail }, item, 0);
     return tbody.querySelector('.col-beschreibung');
   }
 
@@ -458,75 +460,189 @@ describe('Strategie-Tabelle', () => {
     document.body.innerHTML = '';
   });
 
-  it('zeigt bei strukturierter Beschreibung nur den Titel, gesperrt', () => {
+  it('zeigt die Kurzbeschreibung editierbar und ignoriert die strukturierte Beschreibung', () => {
+    const cell = zelle({
+      id: 'i1', video_link: null, kurzbeschreibung: 'Knoblauch Chili-Öl',
+      beschreibung: strukturZuText(STRUKTUR), beschreibung_struktur: STRUKTUR
+    });
+    const area = cell.querySelector('textarea');
+    expect(area.dataset.field).toBe('kurzbeschreibung');
+    expect(area.value).toBe('Knoblauch Chili-Öl');
+    expect(area.hasAttribute('readonly')).toBe(false);
+  });
+
+  it('bleibt bei Videoreferenz ohne Kurzbeschreibung leer, auch mit strukturierter Beschreibung', () => {
     const cell = zelle({
       id: 'i1', video_link: 'https://tiktok.com/x', beschreibung: strukturZuText(STRUKTUR), beschreibung_struktur: STRUKTUR
     });
-    const area = cell.querySelector('textarea');
-    expect(area.value).toBe(STRUKTUR.titel);
-    expect(area.hasAttribute('readonly')).toBe(true);
-    expect(cell.textContent).not.toContain('Angle');
+    expect(cell.querySelector('textarea').value).toBe('');
   });
 
-  it('zeigt dem Kunden nur den Titel', () => {
-    const item = { id: 'i1', video_link: 'https://tiktok.com/x', beschreibung: strukturZuText(STRUKTUR), beschreibung_struktur: STRUKTUR };
-    const cell = zelle(item, { items: [item], canEdit: false, isKunde: true });
-    expect(cell.textContent.trim()).toBe(STRUKTUR.titel);
+  it('nutzt beim Vorschlag weiter beschreibung', () => {
+    const cell = zelle({ id: 'i1', ist_vorschlag: true, video_link: null, beschreibung: 'Vorschlagstext' });
+    const area = cell.querySelector('textarea');
+    expect(area.dataset.field).toBe('beschreibung');
+    expect(area.value).toBe('Vorschlagstext');
   });
 
-  it('zeigt bei Altbestand den Fließtext editierbar', () => {
-    const cell = zelle({ id: 'i1', video_link: 'https://tiktok.com/x', beschreibung: 'Fließtext' });
-    const area = cell.querySelector('textarea');
-    expect(area.value).toBe('Fließtext');
-    expect(area.hasAttribute('readonly')).toBe(false);
+  it('zeigt dem Kunden die Kurzbeschreibung, nicht editierbar', () => {
+    const item = { id: 'i1', video_link: null, kurzbeschreibung: 'Kurz', beschreibung: strukturZuText(STRUKTUR) };
+    const cell = zelle(item, { canEdit: false, isKunde: true });
+    expect(cell.textContent.trim()).toBe('Kurz');
+    expect(cell.querySelector('textarea')).toBeNull();
+  });
+
+  it('setzt die Beschreibung nach Plattform und vor Creator', () => {
+    const html = renderItemRow(
+      { hiddenColumns: [], items: [], canEdit: true, isKunde: false },
+      { id: 'i1', video_link: null, kurzbeschreibung: 'X' },
+      0
+    );
+    const tr = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html').querySelector('tr');
+    const klassen = [...tr.children].map((td) => [...td.classList].find((c) => /^col-(platform|beschreibung|creator)$/.test(c)));
+    expect(klassen.filter(Boolean)).toEqual(['col-platform', 'col-beschreibung', 'col-creator']);
+  });
+
+  it('schreibt schreibgeschuetzte Zellen beim Blur nicht zurueck', async () => {
+    vi.spyOn(strategieService, 'updateStrategieItem').mockResolvedValue({});
+    const item = { id: 'i1', video_link: null, ist_vorschlag: true, beschreibung: 'X' };
+    const area = document.createElement('textarea');
+    area.readOnly = true;
+    area.dataset.field = 'beschreibung';
+    area.dataset.itemId = 'i1';
+    await handleFieldUpdate({ items: [item], canEdit: true, isKunde: false }, area);
+    expect(strategieService.updateStrategieItem).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  describe('Abgleich mit dem Drawer', () => {
+    let item;
+    let detail;
+
+    beforeEach(() => {
+      vi.spyOn(strategieService, 'updateStrategieItem').mockResolvedValue({});
+      vi.spyOn(skriptKommentarService, 'loadTeamKommentareFuerItem').mockResolvedValue([]);
+      window.toastSystem = { show: vi.fn() };
+      item = {
+        id: 'i1', video_link: null, kurzbeschreibung: 'Knoblauch Chili-Öl',
+        beschreibung: strukturZuText(STRUKTUR), beschreibung_struktur: { ...STRUKTUR }
+      };
+      detail = {
+        items: [item], canEdit: true, isKunde: false, hiddenColumns: [], customColumns: null,
+        getTeilbereicheFromStrategie: () => [], _q: (s) => document.querySelector(s), _bindTableEvents: () => {}
+      };
+      detail.rerenderItemsTable = () => rerenderItemsTable(detail);
+      document.body.innerHTML = renderItemsTable(detail);
+      showEditItemDrawer(detail, 'i1');
+    });
+
+    afterEach(() => {
+      removeEditItemDrawer();
+      delete window.toastSystem;
+      vi.restoreAllMocks();
+    });
+
+    const zellenArea = () => document.querySelector('.strategie-items-table td.col-beschreibung textarea');
+    const drawerKurz = () => document.querySelector('#edit-item-drawer textarea[data-field="kurzbeschreibung"]');
+
+    it('zeigt Kurzbeschreibung und strukturierte Beschreibung als getrennte Bereiche', () => {
+      expect(drawerKurz().value).toBe('Knoblauch Chili-Öl');
+      const sektionen = [...document.querySelectorAll('#edit-item-drawer [data-videoidee-section]')].map((s) => s.dataset.videoideeSection);
+      expect(sektionen.indexOf('kurzbeschreibung')).toBeGreaterThan(-1);
+      expect(sektionen.indexOf('kurzbeschreibung')).toBeLessThan(sektionen.indexOf('beschreibung'));
+      expect(document.querySelector('textarea[data-field="beschreibung_struktur.hook"]').value).toBe(STRUKTUR.hook);
+    });
+
+    it('übernimmt eine Kurzbeschreibung aus dem Drawer in die Tabelle, ohne die Struktur anzufassen', async () => {
+      drawerKurz().value = 'Neuer Kurztext';
+      drawerKurz().dispatchEvent(new Event('blur'));
+      await vi.waitFor(() => expect(zellenArea().value).toBe('Neuer Kurztext'));
+
+      const updates = strategieService.updateStrategieItem.mock.calls[0][1];
+      expect(updates).toEqual({ kurzbeschreibung: 'Neuer Kurztext' });
+      expect(item.beschreibung_struktur).toEqual(STRUKTUR);
+    });
+
+    it('leert die Tabellenzelle, wenn die Kurzbeschreibung im Drawer gelöscht wird', async () => {
+      drawerKurz().value = '';
+      drawerKurz().dispatchEvent(new Event('blur'));
+      await vi.waitFor(() => expect(zellenArea().value).toBe(''));
+    });
+
+    it('übernimmt eine Zellenänderung in den Drawer', async () => {
+      const area = zellenArea();
+      area.value = 'Aus der Tabelle';
+      await handleFieldUpdate(detail, area);
+      expect(strategieService.updateStrategieItem.mock.calls[0][1]).toEqual({ kurzbeschreibung: 'Aus der Tabelle' });
+      expect(drawerKurz().value).toBe('Aus der Tabelle');
+    });
+
+    it('lässt die Tabellenzelle unberührt, wenn nur die Struktur im Drawer geändert wird', async () => {
+      const hook = document.querySelector('#edit-item-drawer textarea[data-field="beschreibung_struktur.hook"]');
+      hook.value = 'Anderer Hook';
+      hook.dispatchEvent(new Event('blur'));
+      await vi.waitFor(() => expect(strategieService.updateStrategieItem).toHaveBeenCalled());
+      expect(zellenArea().value).toBe('Knoblauch Chili-Öl');
+      expect(strategieService.updateStrategieItem.mock.calls[0][1]).not.toHaveProperty('kurzbeschreibung');
+    });
   });
 });
 
-describe('Beschreibung außerhalb des Drawers', () => {
-  it('persistVideoideeEdit verwirft die Struktur bei Freitext-Änderung und Link-Wechsel', async () => {
-    vi.spyOn(strategieService, 'updateStrategieItem').mockResolvedValue({});
-    vi.spyOn(strategieService, 'deleteScreenshot').mockResolvedValue();
-    vi.spyOn(strategieService, 'enqueueItemProcessing').mockResolvedValue(true);
-
-    const item = {
-      id: 'i1',
-      video_link: 'https://tiktok.com/a',
-      beschreibung: 'alt',
-      beschreibung_struktur: STRUKTUR
-    };
-    const detail = { strategieId: 's1', items: [item] };
-
-    await persistVideoideeEdit(detail, 'i1', {
-      art: 'videoreferenz',
-      video_link: 'https://tiktok.com/a',
-      beschreibung: 'neu',
-      umsetzungsvorgabe: 'U'
-    });
-    expect(strategieService.updateStrategieItem.mock.calls[0][1].beschreibung_struktur).toBeNull();
-
-    item.beschreibung_struktur = STRUKTUR;
-    item.beschreibung = 'neu';
-    await persistVideoideeEdit(detail, 'i1', {
-      art: 'videoreferenz',
-      video_link: 'https://tiktok.com/b',
-      beschreibung: 'neu',
-      umsetzungsvorgabe: 'U'
-    });
-    expect(strategieService.updateStrategieItem.mock.calls[1][1].beschreibung_struktur).toBeNull();
-
+describe('Kurzbeschreibung beim Speichern', () => {
+  afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('persistVideoideeEdit rührt beschreibung_struktur ohne vorhandene Struktur nicht an', async () => {
+  function stubs() {
     vi.spyOn(strategieService, 'updateStrategieItem').mockResolvedValue({});
-    const item = { id: 'i1', video_link: null, beschreibung: 'alt' };
+    vi.spyOn(strategieService, 'deleteScreenshot').mockResolvedValue();
+    vi.spyOn(strategieService, 'enqueueItemProcessing').mockResolvedValue(true);
+  }
 
-    await persistVideoideeEdit({ strategieId: 's1', items: [item] }, 'i1', {
-      art: 'idee',
-      beschreibung: 'neu'
+  it('persistVideoideeEdit verwirft die Struktur nur beim Link-Wechsel', async () => {
+    stubs();
+    const item = { id: 'i1', video_link: 'https://tiktok.com/a', beschreibung: 'alt', beschreibung_struktur: STRUKTUR };
+    const detail = { strategieId: 's1', items: [item] };
+
+    await persistVideoideeEdit(detail, 'i1', {
+      art: 'videoreferenz', video_link: 'https://tiktok.com/a', umsetzungsvorgabe: 'U2'
     });
-
     expect(strategieService.updateStrategieItem.mock.calls[0][1]).not.toHaveProperty('beschreibung_struktur');
-    vi.restoreAllMocks();
+
+    await persistVideoideeEdit(detail, 'i1', {
+      art: 'videoreferenz', video_link: 'https://tiktok.com/b', umsetzungsvorgabe: 'U2'
+    });
+    expect(strategieService.updateStrategieItem.mock.calls[1][1].beschreibung_struktur).toBeNull();
+  });
+
+  it('persistVideoideeEdit fasst beschreibung nie an und schreibt kurzbeschreibung nur auf Wunsch', async () => {
+    stubs();
+    const item = { id: 'i1', video_link: null, beschreibung: 'alt', kurzbeschreibung: 'kurz' };
+    const detail = { strategieId: 's1', items: [item] };
+
+    await persistVideoideeEdit(detail, 'i1', { art: 'idee' });
+    const ohne = strategieService.updateStrategieItem.mock.calls[0][1];
+    expect(ohne).not.toHaveProperty('beschreibung');
+    expect(ohne).not.toHaveProperty('kurzbeschreibung');
+
+    await persistVideoideeEdit(detail, 'i1', { art: 'idee', kurzbeschreibung: 'neu' });
+    const mit = strategieService.updateStrategieItem.mock.calls[1][1];
+    expect(mit.kurzbeschreibung).toBe('neu');
+    expect(mit).not.toHaveProperty('beschreibung');
+    expect(mit).not.toHaveProperty('beschreibung_struktur');
+  });
+
+  it('persistVideoideeEdit lässt das Entfernen des Links zu, wenn irgendein Beschreibungstext existiert', async () => {
+    stubs();
+    const item = { id: 'i1', video_link: 'https://tiktok.com/a', beschreibung: strukturZuText(STRUKTUR), beschreibung_struktur: STRUKTUR };
+    const result = await persistVideoideeEdit({ strategieId: 's1', items: [item] }, 'i1', { art: 'idee', video_link: '' });
+    expect(result.ok).toBe(true);
+  });
+
+  it('persistVideoideeEdit verlangt für eine Idee ohne jeden Text eine Kurzbeschreibung', async () => {
+    stubs();
+    const item = { id: 'i1', video_link: null };
+    const result = await persistVideoideeEdit({ strategieId: 's1', items: [item] }, 'i1', { art: 'idee' });
+    expect(result).toEqual({ ok: false, error: 'Bitte eine Kurzbeschreibung angeben' });
   });
 });

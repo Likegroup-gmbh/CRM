@@ -14,6 +14,10 @@
  *   node scripts/legacy-linien-migration.js --apply --reapply <kampagnen.csv>   Kampagnen mit freigabe=ja
  *   node scripts/legacy-linien-migration.js --verschieben <csv> [--apply]  Kooperation in andere Linie (kooperation_id;ziel_briefing_id)
  *   node scripts/legacy-linien-migration.js --rollback <lauf_id> [--kampagne <id>]
+ *   node scripts/legacy-linien-migration.js --snapshot <json> --sql-out <ordner> [--kampagne <id[,id]>] [--reapply <csv>] [--limit n] [--lauf-id <uuid>]
+ *       Ohne Service-Key: schreibt je Kampagne ein SQL-Paket (eine Transaktion mit Backup und Validierung),
+ *       Auswahl wie bei --apply (auto, --kampagne, --reapply). Einspielen per Supabase-MCP/psql.
+ *       Rollback eines Laufs ohne Key: scripts/legacy-linien/rollback.sql (lauf_id einsetzen).
  *
  * Weitere Optionen: --snapshot <json> (offline planen), --export-snapshot <json>,
  *                   --ignore-aktiv (Kampagnen mit Aktivitaet in der letzten Stunde nicht ueberspringen),
@@ -54,6 +58,8 @@ function parseArgs(argv) {
     else if (a === '--snapshot') opt.snapshot = next();
     else if (a === '--export-snapshot') opt.exportSnapshot = next();
     else if (a === '--out') opt.out = next();
+    else if (a === '--sql-out') opt.sqlOut = next();
+    else if (a === '--lauf-id') opt.laufId = next();
     else if (a === '--help' || a === '-h') opt.help = true;
     else throw new Error(`Unbekannte Option: ${a}`);
   }
@@ -633,12 +639,7 @@ async function main() {
   if (warn.length) console.log(`Warnliste (Rest wird negativ): ${warn.map(p => `${p.name} ${p.negativerRest}`).join('; ')}`);
   console.log(`Report: ${ausgabe}`);
 
-  if (!opt.apply) {
-    console.log('Dry-run: nichts geschrieben. Mit --apply anwenden.');
-    return;
-  }
-
-  // ---- Auswahl fuer --apply
+  // ---- Auswahl fuer --apply und --sql-out
   const freigegeben = new Set();
   if (opt.reapply) {
     for (const z of parseCsv(fs.readFileSync(opt.reapply, 'utf8'))) {
@@ -649,6 +650,31 @@ async function main() {
   let kandidaten = plaene.filter(p => p.status === 'auto' || explizit.has(p.kampagneId) || freigegeben.has(p.kampagneId));
   if (opt.reapply && !opt.kampagnen) kandidaten = plaene.filter(p => freigegeben.has(p.kampagneId));
   if (opt.limit) kandidaten = kandidaten.slice(0, opt.limit);
+
+  if (opt.sqlOut) {
+    // Ohne Service-Key: je Kampagne ein SQL-Paket (Transaktion mit Backup und Validierung).
+    if (!opt.snapshot && !db) throw new Error('--sql-out braucht --snapshot oder einen DB-Zugang');
+    if (!kandidaten.length) { console.log('Keine Kampagne fuer SQL-Pakete.'); return; }
+    const { baueKampagnePlan, baueBatches, batchSql } = require('./legacy-linien/sql.cjs');
+    const laufId = opt.laufId || crypto.randomUUID();
+    fs.mkdirSync(opt.sqlOut, { recursive: true });
+    const jsonPlaene = kandidaten.map(plan => baueKampagnePlan(plan, kontexte.get(plan.kampagneId), laufId));
+    const index = [];
+    baueBatches(jsonPlaene).forEach((batch, i) => {
+      const sql = batchSql(batch);
+      const datei = `paket_${String(i + 1).padStart(3, '0')}.sql`;
+      fs.writeFileSync(path.join(opt.sqlOut, datei), sql);
+      index.push({ datei, groesse: sql.length, kampagnen: batch.map(p => ({ id: p.k, name: p.name })) });
+    });
+    fs.writeFileSync(path.join(opt.sqlOut, 'index.json'), JSON.stringify({ laufId, pakete: index }, null, 2));
+    console.log(`\nLauf ${laufId}: ${jsonPlaene.length} Kampagnen in ${index.length} SQL-Paketen (${opt.sqlOut})`);
+    return;
+  }
+
+  if (!opt.apply) {
+    console.log('Dry-run: nichts geschrieben. Mit --apply anwenden.');
+    return;
+  }
   if (!kandidaten.length) { console.log('Keine Kampagne zum Anwenden.'); return; }
 
   const laufId = crypto.randomUUID();

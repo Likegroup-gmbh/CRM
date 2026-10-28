@@ -10,12 +10,12 @@ export const parseFliesstext = struktur.parseFliesstext;
 export const strukturZuText = struktur.strukturZuText;
 
 /**
- * Struktur einer Videoreferenz-Analyse, nie an Idee oder Vorschlag.
+ * Struktur einer Videoidee (Videoreferenz und Idee), nie am Vorschlag.
  * Ohne gespeicherte Struktur wird der Fliesstext des Altbestands gelesen (nur Anzeige;
  * gespeichert wird erst, wenn jemand eine Zeile aendert oder neu analysiert).
  */
 export function beschreibungStrukturVon(item) {
-  if (isVideoideeVorschlag(item) || !item?.video_link) return null;
+  if (!item || isVideoideeVorschlag(item)) return null;
   return struktur.normalisiereStruktur(item.beschreibung_struktur)
     || struktur.parseFliesstext(item.beschreibung);
 }

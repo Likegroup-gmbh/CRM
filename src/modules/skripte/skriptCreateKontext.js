@@ -66,7 +66,7 @@ export function resolveSkriptCreatePayload(item, { produktIds = [] } = {}) {
     persona_id: personaIdFuerSkript(item),
     produkt_id: item?.produkt_id || pickProduktId(produktIds),
     strategie_item_id: item?.id || null,
-    video_idee: (item?.beschreibung || '').trim() || null,
+    video_idee: (item?.beschreibung || item?.kurzbeschreibung || '').trim() || null,
     // Konzept schlägt Briefing: leer heißt keine Vorgabe, nie ein Briefing-Fallback.
     funnel_stufe: funnelFuerSkript(item?.funnel_stufe),
     // Konzept schlägt Briefing: die Dauer der Videoidee gilt. Leer bleibt null, dann

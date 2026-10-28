@@ -1,5 +1,5 @@
 // hook-sperre.js
-// Hook-Sperre (ADR 0054): der gesprochene Hook einer Videoreferenz ist vom Kunden
+// Hook-Sperre (ADR 0054): der gesprochene Hook einer Videoidee ist vom Kunden
 // freigegeben. Generierung uebernimmt ihn woertlich, Edit-Auftraege aendern ihn nie.
 // Der Hook-Text steht in strategie_items.beschreibung_struktur.hook (Altbestand:
 // im Fliesstext der Beschreibung), das Flag in strategie_items.hook_gesperrt.

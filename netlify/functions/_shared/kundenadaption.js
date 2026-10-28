@@ -30,7 +30,7 @@ const KUNDENADAPTION_TOOL = {
 };
 
 function hatAdaptionsmaterial(item) {
-  return [item?.transkript, item?.caption, item?.beschreibung]
+  return [item?.transkript, item?.caption, item?.beschreibung, item?.kurzbeschreibung]
     .some((wert) => String(wert || '').trim());
 }
 
@@ -58,7 +58,7 @@ function buildKundenadaptionPrompt({ briefing, produkte, personas, item, produkt
   const produktLabel = produktVerlinkt ? 'Verlinktes Produkt (nur dieses adaptieren)' : 'Produkte';
   const personaText = (personas || []).map(fmtPersona).filter(Boolean).join('\n') || '(keine akzeptierten Personas)';
   const vorgabe = cap(item?.umsetzungsvorgabe, 2000);
-  const beschreibung = cap(item?.beschreibung, 2000) || '(keine Beschreibung)';
+  const beschreibung = cap(item?.beschreibung || item?.kurzbeschreibung, 2000) || '(keine Beschreibung)';
   const caption = cap(item?.caption, 2000) || '(keine Caption)';
   const transkriptRoh = String(item?.transkript || '').trim();
   const transkript = kuerzeTranskript(item?.transkript) || '(kein Transkript)';
@@ -142,7 +142,7 @@ async function schreibeKundenadaptionWennLeer(supabase, {
   userId, itemId, strategieId, transkript, caption, onStep
 }) {
   const { data: current, error } = await supabase.from('strategie_items')
-    .select('video_link, beschreibung, umsetzungsvorgabe, kundenadaption, transkript, caption, produkt_id')
+    .select('video_link, beschreibung, kurzbeschreibung, umsetzungsvorgabe, kundenadaption, transkript, caption, produkt_id')
     .eq('id', itemId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -173,7 +173,7 @@ async function schreibeKundenadaptionWennLeer(supabase, {
 
 async function ersetzeKundenadaption(supabase, { userId, itemId }) {
   const { data: item, error } = await supabase.from('strategie_items')
-    .select('id, strategie_id, video_link, beschreibung, umsetzungsvorgabe, transkript, caption, kundenadaption, produkt_id')
+    .select('id, strategie_id, video_link, beschreibung, kurzbeschreibung, umsetzungsvorgabe, transkript, caption, kundenadaption, produkt_id')
     .eq('id', itemId)
     .maybeSingle();
   if (error) throw new Error(error.message);

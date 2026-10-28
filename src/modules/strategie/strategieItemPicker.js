@@ -31,7 +31,7 @@ export function buildPickerOptions(items, { strategieMap = null, subtitleFor, gr
     const subtitle = subtitleFor ? subtitleFor(item) : null;
     options.push({
       value: item.id,
-      label: truncateText(item.beschreibung),
+      label: truncateText(item.beschreibung || item.kurzbeschreibung),
       group: groupFor ? groupFor(item, strategie) : (strategie?.name || 'Konzept'),
       ...(subtitle ? { subtitle } : {})
     });

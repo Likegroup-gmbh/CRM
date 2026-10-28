@@ -69,7 +69,7 @@ export class StrategieCreatorDrawer {
     panel.className = 'drawer-panel';
     panel.id = DRAWER_ID;
 
-    const kontext = (item.beschreibung || '').trim();
+    const kontext = (item.beschreibung || item.kurzbeschreibung || '').trim();
 
     panel.innerHTML = `
       <div class="drawer-header">

@@ -83,7 +83,7 @@ export class SkripteService {
     if (!kampagneId) return [];
 
     const { data, error } = await this.db.from('strategie_items')
-      .select('id, strategie_id, video_link, plattform, beschreibung, transkript_quelle, creator_name, creator_auswahl_item_id, screenshot_url, nicht_umsetzen, strategie:strategie_id!inner(id, name, kampagne_id)')
+      .select('id, strategie_id, video_link, plattform, beschreibung, kurzbeschreibung, transkript_quelle, creator_name, creator_auswahl_item_id, screenshot_url, nicht_umsetzen, strategie:strategie_id!inner(id, name, kampagne_id)')
       .eq('strategie.kampagne_id', kampagneId)
       .order('sortierung');
 
@@ -100,7 +100,7 @@ export class SkripteService {
 
     const q = this.db.from('strategie_items')
       .select(`
-        id, strategie_id, video_link, plattform, beschreibung, transkript_quelle,
+        id, strategie_id, video_link, plattform, beschreibung, kurzbeschreibung, transkript_quelle,
         creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, nicht_umsetzen, skript_freigabe, funnel_stufe, persona_id,
         videolaenge_von, videolaenge_bis,
         casting_eintrag:creator_auswahl_item_id(id, name, persona_id, creator_id, creator:creator_id(vorname, nachname)),
@@ -166,7 +166,7 @@ export class SkripteService {
   async loadStrategieItem(id) {
     if (!id) return null;
     const { data, error } = await this.db.from('strategie_items')
-      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, funnel_stufe, persona_id, videolaenge_von, videolaenge_bis')
+      .select('id, strategie_id, video_link, plattform, beschreibung, kurzbeschreibung, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, funnel_stufe, persona_id, videolaenge_von, videolaenge_bis')
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);

@@ -92,10 +92,15 @@ describe('Sichtbarkeit der festen Spalten', () => {
   });
 
   it('blendet die langen Textspalten standardmaessig aus (Inhalt liegt im Drawer)', () => {
-    for (const key of TEXTSPALTEN) {
+    for (const key of TEXTSPALTEN.filter(k => k !== 'beschreibung')) {
       expect(isFixedColumnVisible([], key)).toBe(false);
       expect(isFixedColumnVisible([`show:fixed:${key}`], key)).toBe(true);
     }
+  });
+
+  it('zeigt die Beschreibung standardmaessig und versteckt sie mit "fixed:"', () => {
+    expect(isFixedColumnVisible([], 'beschreibung')).toBe(true);
+    expect(isFixedColumnVisible(['fixed:beschreibung'], 'beschreibung')).toBe(false);
   });
 
   it('laesst nach dem Umschalten nie widerspruechliche Eintraege zurueck', () => {

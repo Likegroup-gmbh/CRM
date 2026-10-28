@@ -1,6 +1,6 @@
 # Hook-Sperre ist kein Festgezogen
 
-Freigegebene Hooks aus dem Konzept wurden von Liky beim Überarbeiten umgeschrieben und waren danach unbrauchbar. Der gesprochene Hook einer Videoreferenz trägt deshalb eine Sperre am Konzept (`strategie_items.hook_gesperrt`). Die Generierung übernimmt den Wortlaut serverseitig 1:1 ins Skript, der Edit-Server verwirft jede Änderung an der gesprochenen Hook-Zelle und die Chat-Antwort sagt, dass der Hook vom Kunden freigegeben ist und unangetastet blieb.
+Freigegebene Hooks aus dem Konzept wurden von Liky beim Überarbeiten umgeschrieben und waren danach unbrauchbar. Der gesprochene Hook einer Videoidee (Videoreferenz oder Idee, beide teilen die strukturierte Beschreibung) trägt deshalb eine Sperre am Konzept (`strategie_items.hook_gesperrt`). Die Generierung übernimmt den Wortlaut serverseitig 1:1 ins Skript, der Edit-Server verwirft jede Änderung an der gesprochenen Hook-Zelle und die Chat-Antwort sagt, dass der Hook vom Kunden freigegeben ist und unangetastet blieb.
 
 ## Considered Options
 

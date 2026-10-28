@@ -7,6 +7,7 @@ import { showEditItemDrawer, removeEditItemDrawer } from '../modules/strategie/V
 import { strukturZuText } from '../modules/strategie/videoidee/beschreibungStruktur.js';
 import { persistVideoideeEdit } from '../modules/strategie/videoideeEdit.js';
 import { strategieService } from '../modules/strategie/StrategieService.js';
+import { skriptKommentarService } from '../modules/skripte/SkriptKommentarService.js';
 
 const require = createRequire(import.meta.url);
 const {
@@ -207,6 +208,7 @@ describe('Schloss im Drawer', () => {
   beforeEach(() => {
     window.toastSystem = { show: vi.fn() };
     vi.spyOn(strategieService, 'updateStrategieItem').mockResolvedValue({});
+    vi.spyOn(skriptKommentarService, 'loadTeamKommentareFuerItem').mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -322,14 +324,13 @@ describe('Schloss im Drawer', () => {
     expect(updates).not.toHaveProperty('hook_gesperrt');
   });
 
-  it('nimmt die Sperre mit, wenn Freitext die Struktur ersetzt', async () => {
+  it('nimmt die Sperre mit, wenn der Link wechselt und die Struktur verworfen wird', async () => {
     const item = referenz({ hook_gesperrt: true });
     const detail = { items: [item], strategieId: 's1' };
     await persistVideoideeEdit(detail, 'i1', {
       art: 'videoreferenz',
-      video_link: item.video_link,
-      umsetzungsvorgabe: 'U',
-      beschreibung: 'Neuer Freitext'
+      video_link: 'https://tiktok.com/neu',
+      umsetzungsvorgabe: 'U'
     });
     const updates = strategieService.updateStrategieItem.mock.calls[0][1];
     expect(updates.beschreibung_struktur).toBeNull();
