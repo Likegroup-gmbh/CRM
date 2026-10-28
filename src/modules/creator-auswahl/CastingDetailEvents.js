@@ -8,6 +8,7 @@ import { tableSelect } from '../../core/components/TableSelect.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { TAUSCH_ACTION, tauscheImCasting } from '../creator-tausch/creatorTauschUi.js';
 import { openManagementAnfrage } from './managementAnfrageDrawer.js';
+import { KONZEPT_EINHOLEN_ACTION } from '../einladung/kundeEinladen.js';
 import { aufnehmenBewerbung, verwerfenBewerbung } from './bewerbungAktionen.js';
 import {
   OHNE_KATEGORIE,
@@ -64,6 +65,10 @@ export function bindEvents() {
         case 'connect-videoidee':
           e.preventDefault();
           this.handleConnectVideoidee(id);
+          break;
+        case KONZEPT_EINHOLEN_ACTION:
+          e.preventDefault();
+          this.handleKonzeptEinholen([id]);
           break;
         case TAUSCH_ACTION:
           e.preventDefault();

@@ -7,7 +7,7 @@ import { button, infoZeilen, text } from '../sections.ts';
 import type { MailErgebnis } from './typen.ts';
 
 export interface EinreichungMail {
-  art: 'briefing' | 'produkt';
+  art: 'briefing' | 'produkt' | 'konzept';
   /** Name aus der Sitzung des Kunden. */
   einreicherName: string;
   einladungLabel: string;
@@ -19,24 +19,31 @@ export interface EinreichungMail {
 
 export function einreichungMail(p: EinreichungMail): MailErgebnis {
   const briefing = p.art === 'briefing';
-  const titel = briefing ? 'Neues Briefing eingereicht' : 'Neues Produkt eingereicht';
+  const konzept = p.art === 'konzept';
+  const was = konzept ? 'eine Videoidee' : briefing ? 'ein Briefing' : 'ein Produkt';
+  const titel = konzept ? 'Neue Videoidee eingereicht' : briefing ? 'Neues Briefing eingereicht' : 'Neues Produkt eingereicht';
 
   const inhalt = [
     text([
       { fett: p.einreicherName || 'Jemand' },
-      ` hat über die Einladung „${p.einladungLabel}“ ${briefing ? 'ein Briefing' : 'ein Produkt'} eingereicht.`,
+      ` hat über die Einladung „${p.einladungLabel}“ ${was} eingereicht.`,
     ]),
     infoZeilen([
-      { label: 'Kunde', wert: p.kunde ?? '' },
+      { label: konzept ? 'Marke' : 'Kunde', wert: p.kunde ?? '' },
       { label: 'Einladung', wert: p.einladungLabel },
     ]),
-    text('Die Einreichung wartet auf deine Prüfung. Erst „Anlegen“ erstellt das Produkt bzw. Briefing.', { leise: true }),
+    text(
+      konzept
+        ? 'Die Einreichung wartet auf deine Prüfung. Erst „Anlegen“ erstellt die Videoidee im Konzept.'
+        : 'Die Einreichung wartet auf deine Prüfung. Erst „Anlegen“ erstellt das Produkt bzw. Briefing.',
+      { leise: true },
+    ),
     button({ label: 'Einreichung prüfen', url: p.link }),
   ].filter(Boolean).join('\n');
 
   const html = renderShell({
     betreff: titel,
-    preheader: `${p.einreicherName || 'Jemand'} hat ${briefing ? 'ein Briefing' : 'ein Produkt'} eingereicht. Wartet auf deine Prüfung.`,
+    preheader: `${p.einreicherName || 'Jemand'} hat ${was} eingereicht. Wartet auf deine Prüfung.`,
     kontext: p.kunde,
     titel,
     inhalt,

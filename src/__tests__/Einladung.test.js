@@ -30,6 +30,17 @@ import {
 } from '../modules/einladung/kundeEinladen.js';
 import { fragNachDublette } from '../modules/produkt/produktEinreichung.js';
 import {
+  KONZEPT_PFLICHT,
+  KONZEPT_TEXTFELDER,
+  KONZEPT_URLFELDER,
+  bereinigeKonzept
+} from '../../supabase/functions/einladung/felder.ts';
+import { KONZEPT_PFLICHT as SHEET_PFLICHT, konzeptFeldNamen, konzeptSheetBloecke } from '../modules/einladung/konzeptSheet.js';
+import { konzeptEinladbar, konzeptEinladungKontext } from '../modules/einladung/kundeEinladen.js';
+import { konzeptMailziel } from '../modules/einladung/KonzeptEinladungDrawer.js';
+import { konzeptEinreichungFilter } from '../modules/einladung/konzeptEinreichungen.js';
+import { buildKonzeptItemInsert } from '../modules/strategie/KonzeptEinreichungDrawer.js';
+import {
   ladeAnsprechpartnerGruppen,
   mergeEmpfaenger
 } from '../modules/einladung/einladungEmpfaenger.js';
@@ -597,5 +608,216 @@ describe('Kunde einladen: ein Einstieg für beide Arten', () => {
     window.canCreate = () => true;
     window.isInternal = () => false;
     expect(renderKundeEinladenButton({})).toBe('');
+  });
+});
+
+describe('Konzept-Einladung (ADR 0059)', () => {
+  const sheet = {
+    arbeitstitel: 'Morgenroutine',
+    idee: 'Ich zeige meine Morgenroutine mit dem Serum.',
+    hook: 'Drei Dinge, die ich morgens nie weglasse.',
+    ablauf: '1. Aufstehen\n2. Serum\n3. Fazit mit CTA',
+    marke_integration: 'Serum im Bad',
+    eigenes_video_url: 'https://tiktok.com/@a/video/1',
+    referenz_video_url: 'javascript:alert(1)',
+    alternative_idee: 'Abendroutine'
+  };
+
+  const konzeptEinreichung = (extra = {}) => ({
+    id: ID,
+    absender_name: 'Mia',
+    created_at: '2026-10-01T10:00:00Z',
+    payload: { formData: sheet },
+    einladung: {
+      art: 'konzept',
+      briefing_id: 'b1',
+      creator_auswahl_item_id: 'ci1',
+      briefing: { aktivierung_name: 'Linie A', produktion_id: 'p1' },
+      ...extra
+    }
+  });
+
+  describe('Allowlist', () => {
+    it('Formular und Edge Function kennen dieselben Felder', () => {
+      const edge = [...KONZEPT_TEXTFELDER, ...KONZEPT_URLFELDER].sort();
+      expect(konzeptFeldNamen().sort()).toEqual(edge);
+      expect([...SHEET_PFLICHT].sort()).toEqual([...KONZEPT_PFLICHT].sort());
+    });
+
+    it('verwirft fremde Felder und Nicht-Links', () => {
+      const { formData } = bereinigeKonzept({ ...sheet, tkp: 5, creator_auswahl_item_id: 'x', foo: 1 });
+      expect(Object.keys(formData).sort()).not.toContain('tkp');
+      expect(formData.creator_auswahl_item_id).toBeUndefined();
+      expect(formData.foo).toBeUndefined();
+      expect(formData.eigenes_video_url).toBe('https://tiktok.com/@a/video/1');
+      expect(formData.referenz_video_url).toBeUndefined();
+    });
+
+    it('prüft die Pflichtfelder Idee, Hook und Ablauf', () => {
+      expect(pruefeEinreichung('konzept', { idee: 'Eine Idee', hook: 'Ein Hook' })).toBeTruthy();
+      expect(pruefeEinreichung('konzept', { idee: 'Eine Idee', hook: 'Ein Hook', ablauf: 'Ablauf' })).toBeNull();
+    });
+  });
+
+  describe('Auslöser', () => {
+    it('Casting-Eintrag ist nur einladbar, wenn er nicht abgesagt oder abgelehnt ist', () => {
+      expect(konzeptEinladbar({ id: 'a' })).toBe(true);
+      expect(konzeptEinladbar({ id: 'a', abgelehnt: true })).toBe(false);
+      expect(konzeptEinladbar({ id: 'a', absage: true })).toBe(false);
+      expect(konzeptEinladbar({ id: 'a', nicht_umsetzen: true })).toBe(false);
+      expect(konzeptEinladbar({ id: 'a', kategorie: 'Nicht umsetzen' })).toBe(false);
+      expect(konzeptEinladbar({ id: 'a', isVorschlag: true })).toBe(false);
+    });
+
+    it('Kontext zählt übersprungene Einträge, ohne einladbare gibt es keinen', () => {
+      expect(konzeptEinladungKontext({ items: [{ id: 'a', absage: true }] })).toBeNull();
+      expect(konzeptEinladungKontext({ items: [{ id: 'a' }, { id: 'b', abgelehnt: true }], kontextName: 'Casting 1' }))
+        .toMatchObject({ art: 'konzept', itemIds: ['a'], uebersprungen: 1, kontextName: 'Casting 1' });
+    });
+
+    it('Mailziel: Creator-Mail, sonst aktives Management, sonst keins', () => {
+      expect(konzeptMailziel({ mail: ' Mia@Test.de ' })).toBe('mia@test.de');
+      expect(konzeptMailziel({
+        mail: '',
+        creator_management: [
+          { ist_aktiv: false, management: { email: 'alt@agentur.de' } },
+          { ist_aktiv: true, management: { email: 'Neu@Agentur.de' } }
+        ]
+      })).toBe('neu@agentur.de');
+      expect(konzeptMailziel({ mail: null, creator_management: [] })).toBeNull();
+      expect(konzeptMailziel(null)).toBeNull();
+    });
+  });
+
+  describe('Eingang', () => {
+    beforeEach(() => {
+      document.body.innerHTML = '';
+      window.isInternal = () => true;
+    });
+
+    function fakeEinreichungen(zeilen) {
+      const filter = [];
+      window.supabase = {
+        from: () => {
+          const kette = {
+            select: () => kette,
+            eq: (s, w) => { filter.push(['eq', s, w]); return kette; },
+            in: (s, w) => { filter.push(['in', s, w]); return kette; },
+            order: () => kette,
+            then: (resolve) => resolve({ data: zeilen, error: null })
+          };
+          return kette;
+        }
+      };
+      return filter;
+    }
+
+    it('Filter: gewählte Linie, ohne Workflow oder Linien nichts', () => {
+      const detail = { mode: 'workflow', linien: [{ id: 'b1' }, { id: 'b2' }], linieId: 'b1', linieAlle: false };
+      expect(konzeptEinreichungFilter(detail)).toEqual({ briefingId: 'b1' });
+      expect(konzeptEinreichungFilter({ ...detail, mode: 'entwurf' })).toBeNull();
+      expect(konzeptEinreichungFilter({ mode: 'workflow', linien: [] })).toBeNull();
+    });
+
+    it('zeigt Idee und Zähler am Tab Konzepte und ruft onPruefen statt der Vollseite', async () => {
+      const filter = fakeEinreichungen([konzeptEinreichung()]);
+      document.body.innerHTML = '<button data-workflow-tab="konzepte">Konzepte</button><div id="host"></div>';
+      const host = document.getElementById('host');
+      const onPruefen = vi.fn();
+      window.navigateTo = vi.fn();
+
+      await mountEinreichungInbox({ art: 'konzept', host, filter: { briefingId: 'b1' }, tabBadge: true, onPruefen });
+
+      expect(filter).toContainEqual(['eq', 'einladung.art', 'konzept']);
+      expect(filter).toContainEqual(['eq', 'einladung.briefing_id', 'b1']);
+      expect(host.textContent).toContain('Idee von Mia');
+      expect(host.textContent).toContain('Morgenroutine');
+      expect(document.querySelector('[data-workflow-tab="konzepte"] [data-einreichung-count]').textContent).toBe('1');
+
+      host.querySelector('[data-einreichung-pruefen]').click();
+      expect(onPruefen).toHaveBeenCalledTimes(1);
+      expect(onPruefen.mock.calls[0][0].id).toBe(ID);
+      expect(window.navigateTo).not.toHaveBeenCalled();
+    });
+
+    it('bei „Alle Linien“ filtert die Liste nach allen Linien, ohne Linien bleibt sie leer', async () => {
+      const filter = fakeEinreichungen([konzeptEinreichung()]);
+      document.body.innerHTML = '<div id="host"></div>';
+      const host = document.getElementById('host');
+      await mountEinreichungInbox({ art: 'konzept', host, filter: { briefingIds: ['b1', 'b2'] } });
+      expect(filter).toContainEqual(['in', 'einladung.briefing_id', ['b1', 'b2']]);
+
+      await mountEinreichungInbox({ art: 'konzept', host, filter: { briefingIds: [] } });
+      expect(host.hidden).toBe(true);
+    });
+
+    it('weist auf einen entfallenen Casting-Eintrag hin', async () => {
+      fakeEinreichungen([konzeptEinreichung({ creator_auswahl_item_id: null })]);
+      document.body.innerHTML = '<div id="host"></div>';
+      const host = document.getElementById('host');
+      await mountEinreichungInbox({ art: 'konzept', host, filter: { briefingId: 'b1' }, onPruefen: vi.fn() });
+      expect(host.textContent).toContain('Eintrag nicht mehr im Casting');
+    });
+
+    it('Review-Link führt auf den Konzepte-Tab der Produktion', () => {
+      expect(reviewUrl(konzeptEinreichung())).toBe('/produktion/p1?tab=konzepte');
+    });
+  });
+
+  describe('Anlegen', () => {
+    const eingabe = {
+      titel: 'Morgenroutine',
+      kurzbeschreibung: 'Ich zeige meine Morgenroutine.',
+      hook: 'Drei Dinge morgens',
+      ablauf: '1. Aufstehen\n2. Serum',
+      eintragId: 'ci1',
+      kategorie: 'Routine',
+      funnelStufe: null,
+      personaId: null,
+      produktId: null,
+      videolaenge: null
+    };
+
+    it('mappt Idee, Titel, Hook und Ablauf und hängt Casting-Eintrag und Einreichung an', () => {
+      const insert = buildKonzeptItemInsert({ strategieId: 's1', sortierung: 4, eingabe, einreichungId: ID });
+      expect(insert).toMatchObject({
+        strategie_id: 's1',
+        sortierung: 4,
+        kurzbeschreibung: 'Ich zeige meine Morgenroutine.',
+        teilbereich: 'Routine',
+        video_link: null,
+        plattform: null,
+        verarbeitung_status: null,
+        creator_auswahl_item_id: 'ci1',
+        einreichung_id: ID,
+        beschreibung_quelle: 'user'
+      });
+      expect(insert.beschreibung_struktur).toMatchObject({
+        titel: 'Morgenroutine',
+        hook: 'Drei Dinge morgens',
+        hauptteil: '1. Aufstehen\n2. Serum'
+      });
+      expect(insert.beschreibung).toContain('Drei Dinge morgens');
+    });
+
+    it('ohne Casting-Eintrag bleibt die Zuordnung leer', () => {
+      const insert = buildKonzeptItemInsert({ strategieId: 's1', sortierung: 0, eingabe: { ...eingabe, eintragId: null }, einreichungId: ID });
+      expect(insert.creator_auswahl_item_id).toBeNull();
+    });
+  });
+
+  describe('Creator-Sheet-Block', () => {
+    it('zeigt nur gefüllte Felder in PDF-Reihenfolge, Links als Links', () => {
+      const bloecke = konzeptSheetBloecke(sheet);
+      expect(bloecke.map((b) => b.nr)).toEqual(['01', '02', '03', '04', '']);
+      expect(bloecke[0].eintraege.map((e) => e.label)).toEqual(['Arbeitstitel', 'Deine Idee']);
+      const beispiele = bloecke.at(-1).eintraege;
+      expect(beispiele.find((e) => e.link)?.wert).toBe('https://tiktok.com/@a/video/1');
+    });
+
+    it('leeres Sheet ergibt keine Blöcke', () => {
+      expect(konzeptSheetBloecke({})).toEqual([]);
+      expect(konzeptSheetBloecke(null)).toEqual([]);
+    });
   });
 });

@@ -37,6 +37,26 @@
   color: var(--text-tertiary);
 }
 
+.einladung-kopf__person {
+  margin: var(--space-xxs) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.einladung-abschnitt__nr {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.einladung-gruppe {
+  margin-bottom: var(--space-lg);
+}
+
+.einladung-gruppe h3 {
+  margin: 0 0 var(--space-xxs);
+  font-size: var(--text-md);
+}
+
 .einladung-haupt {
   max-width: 52rem;
   margin: 0 auto;

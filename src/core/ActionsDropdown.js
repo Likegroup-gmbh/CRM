@@ -299,7 +299,7 @@ export class ActionsDropdown {
         'edit-item', 'delete-item',
         'activate-vorschlag', 'discard-vorschlag',
         'toggle-skript-freigabe', 'reprocess-item', 'connect-creator',
-        'create-creator', 'create-videoidee', 'connect-videoidee', 'tausch-creator'
+        'create-creator', 'create-videoidee', 'connect-videoidee', 'tausch-creator', 'konzept-einholen'
       ];
       if (customActions.includes(action) || !this.isKnownGlobalAction(action)) {
         e.preventDefault();

@@ -18,6 +18,7 @@ import {
   beschreibeAusreisser
 } from './castingPreisZellen.js';
 import { tauschMenuItemHtml } from '../creator-tausch/creatorTauschUi.js';
+import { konzeptEinholenMenuItemHtml } from '../einladung/kundeEinladen.js';
 import {
   renderSourcingStatusCell,
   renderKundenFeedbackCell,
@@ -246,6 +247,7 @@ export function renderItemRow(ctx, item, index) {
                   Mit Videoidee verbinden
                 </a>
               ` : ''}
+              ${konzeptEinholenMenuItemHtml(item, ctx, icon('light-bulb'))}
               ${tauschMenuItemHtml(item, ctx)}
               ${ctx.canDelete ? `
               <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">

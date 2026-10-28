@@ -5,9 +5,49 @@
 
 import { renderCreateButton } from '../../core/actions/CreateActionGate.js';
 import { openEinladungDialog } from './EinladungDrawer.js';
+import { openKonzeptEinladung } from './KonzeptEinladungDrawer.js';
 
 export const KUNDE_EINLADEN_LABEL = 'Kunde einladen';
 export const KUNDE_EINLADEN_ACTION = 'kundeEinladen';
+
+export const KONZEPT_EINHOLEN_LABEL = 'Konzept einholen';
+export const KONZEPT_EINHOLEN_ACTION = 'konzept-einholen';
+
+/**
+ * Gate der Konzept-Einladung (ADR 0059): Casting-Einträge, die weder vom Kunden abgelehnt noch
+ * abgesagt noch unter „Nicht umsetzen“ stehen. Gleiche Regel wie in der Edge Function.
+ */
+export function konzeptEinladbar(item) {
+  if (!item || item.isVorschlag) return false;
+  if (item.abgelehnt || item.absage || item.nicht_umsetzen) return false;
+  return item.kategorie !== 'Nicht umsetzen';
+}
+
+/**
+ * Drawer-Kontext der Konzept-Einladung für markierte Casting-Einträge. Nicht einladbare Einträge
+ * werden gezählt und übersprungen. null, wenn keiner einladbar ist.
+ */
+export function konzeptEinladungKontext({ items = [], kontextName = '', onFertig } = {}) {
+  const einladbar = items.filter(konzeptEinladbar);
+  if (!einladbar.length) return null;
+  return {
+    art: 'konzept',
+    itemIds: einladbar.map((i) => i.id),
+    uebersprungen: items.length - einladbar.length,
+    kontextName,
+    onFertig
+  };
+}
+
+/** Eintrag im Zeilenmenü des Castings. Nur für Interne mit Recht und einladbare Einträge. */
+export function konzeptEinholenMenuItemHtml(item, ctx = {}, iconHtml = '') {
+  if (ctx.isKunde || window.isInternal?.() === false || !ctx.canCreate || !konzeptEinladbar(item)) return '';
+  return `
+    <a href="#" class="action-item" data-action="${KONZEPT_EINHOLEN_ACTION}" data-id="${item.id}">
+      ${iconHtml}
+      ${KONZEPT_EINHOLEN_LABEL}
+    </a>`;
+}
 
 const OHNE_LINIE_HINWEIS = 'Erst ein Briefing (Linie) anlegen, dann kann der Kunde Produkte dafür einreichen.';
 
@@ -63,6 +103,10 @@ export function ohneLinieHinweis() {
 export function oeffneKundeEinladen(kontext, { warnung = '' } = {}) {
   if (!kontext) {
     if (warnung) window.toastSystem?.warning(warnung);
+    return;
+  }
+  if (kontext.art === 'konzept') {
+    void openKonzeptEinladung(kontext);
     return;
   }
   openEinladungDialog(kontext);

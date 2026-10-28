@@ -4,6 +4,7 @@
 import { effectiveLinie, leerHinweis, renderListenSwitch, bindListenSwitch, placeListenSwitch, clearListenSwitch } from './linienScope.js';
 import { StrategieDetail } from '../strategie/StrategieDetail.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { mountKonzeptEinreichungen } from '../einladung/konzeptEinreichungen.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
 const LISTE_ATTR = 'data-konzept-liste';
@@ -116,6 +117,7 @@ export async function mountKonzeptPane(detail) {
     const shell = renderKonzeptShell(listen, selectedId);
     pane.innerHTML = shell.html;
     bindSwitcher(detail, pane, shell.slot);
+    void mountKonzeptEinreichungen(detail, pane.querySelector('[data-konzept-einreichungen]'));
     await mountWorksheet(detail, pane.querySelector('.kampagne-konzept-worksheet'), selectedId, warmWorksheet);
   } catch (error) {
     console.error('❌ KAMPAGNEDETAIL: Konzept-Pane fehlgeschlagen:', error);
@@ -163,6 +165,7 @@ function renderKonzeptShell(listen, selectedId) {
     slot,
     html: `
     ${inline}
+    <div class="einreichung-inbox" data-konzept-einreichungen hidden></div>
     <div class="kampagne-konzept-worksheet"></div>
   `
   };

@@ -19,6 +19,7 @@ import {
 } from './einladungApi.js';
 import { EinladungBriefingForm } from './EinladungBriefingForm.js';
 import { EinladungProduktForm } from './EinladungProduktForm.js';
+import { EinladungKonzeptForm } from './EinladungKonzeptForm.js';
 
 const LOGO = '/assets/background/Logo-Icon-gray.svg';
 
@@ -66,11 +67,27 @@ function setzeNoindex() {
 }
 
 function kopfZeile(einladung) {
+  // Konzept-Einladung (Creator): Marke und Projektname, sonst nichts vom Kunden.
+  if (einladung.art === 'konzept') {
+    return [einladung.markenname || einladung.firmenname, einladung.projektname].filter(Boolean).join(' · ');
+  }
   const teile = [einladung.firmenname, einladung.markenname].filter(Boolean);
   return teile.join(' · ');
 }
 
+/** @handle aus dem Instagram-Link des Casting-Eintrags, sonst leer. */
+function handleVon(link) {
+  const m = String(link || '').match(/instagram\.com\/([^/?#\s]+)/i);
+  return m ? `@${m[1].replace(/^@/, '')}` : '';
+}
+
+/** Name / @Handle der Person der Konzept-Einladung (nicht änderbar). */
+export function personZeile(einladung) {
+  return [einladung.eintragName, handleVon(einladung.eintragHandle)].filter(Boolean).join(' / ');
+}
+
 function titel(einladung) {
+  if (einladung.art === 'konzept') return 'Creator Concept Sheet';
   if (einladung.art === 'produkt') return 'Produkt einreichen';
   const typ = BEREICH_LABELS[einladung.briefingTyp];
   return typ ? `Briefing ausfüllen (${typ})` : 'Briefing ausfüllen';
@@ -89,6 +106,8 @@ function zeigeFormular(root, token, einladung, sitzungsdaten) {
         <div class="einladung-kopf__text">
           ${kopfZeile(einladung) ? `<p class="einladung-kopf__eyebrow">${escapeHtml(kopfZeile(einladung))}</p>` : ''}
           <h1>${escapeHtml(titel(einladung))}</h1>
+          ${einladung.art === 'konzept' && personZeile(einladung)
+            ? `<p class="einladung-kopf__person">${escapeHtml(personZeile(einladung))}</p>` : ''}
         </div>
       </header>
       <main class="einladung-haupt">
@@ -126,7 +145,9 @@ function zeigeFormular(root, token, einladung, sitzungsdaten) {
       onFertig: () => zeigeBestaetigung(),
       onSitzungAbgelaufen: neueSitzung
     };
-    if (einladung.art === 'produkt') {
+    if (einladung.art === 'konzept') {
+      aktuellesFormular = new EinladungKonzeptForm(optionen);
+    } else if (einladung.art === 'produkt') {
       aktuellesFormular = new EinladungProduktForm(optionen);
     } else {
       aktuellesFormular = new EinladungBriefingForm({ ...optionen, typ: einladung.briefingTyp });
@@ -137,11 +158,16 @@ function zeigeFormular(root, token, einladung, sitzungsdaten) {
 
   const zeigeBestaetigung = () => {
     aktuellesFormular = null;
-    const nochEins = einladung.art === 'produkt' ? 'Weiteres Produkt einreichen' : 'Weiteres Briefing ausfüllen';
+    const konzept = einladung.art === 'konzept';
+    const nochEins = konzept
+      ? 'Weitere Idee einreichen'
+      : einladung.art === 'produkt' ? 'Weiteres Produkt einreichen' : 'Weiteres Briefing ausfüllen';
     inhalt.innerHTML = `
       <div class="einladung-fertig">
         <h2>Vielen Dank${zustand.name ? `, ${escapeHtml(zustand.name)}` : ''}</h2>
-        <p>Ihre Angaben sind bei uns angekommen. Wir prüfen sie und melden uns, falls etwas offen ist.</p>
+        <p>${konzept
+          ? 'Deine Idee ist bei uns angekommen. Wir schauen sie uns an und melden uns bei dir.'
+          : 'Ihre Angaben sind bei uns angekommen. Wir prüfen sie und melden uns, falls etwas offen ist.'}</p>
         <button type="button" class="mdc-btn" id="einladung-noch-eins">${nochEins}</button>
       </div>`;
     inhalt.querySelector('#einladung-noch-eins').addEventListener('click', starteFormular);
@@ -169,7 +195,11 @@ function renderCodeSeite(root, token, einladung, onErfolg) {
 }
 
 function renderCodeKarte(karte, token, einladung, { onErfolg, hinweis = '', mitLogo = false }) {
-  const gespeicherterName = localStorage.getItem('cj24.guestName') || '';
+  // Konzept-Einladung: die Person steht fest, der Name ist vorbelegt und nicht änderbar.
+  const konzept = einladung.art === 'konzept';
+  const gespeicherterName = konzept
+    ? (einladung.eintragName || '')
+    : (localStorage.getItem('cj24.guestName') || '');
   const kopf = kopfZeile(einladung);
 
   karte.innerHTML = `
@@ -182,9 +212,9 @@ function renderCodeKarte(karte, token, einladung, { onErfolg, hinweis = '', mitL
     ${hinweis ? `<p class="guest-onboarding-note">${escapeHtml(hinweis)}</p>` : ''}
 
     <div class="form-box guest-form">
-      <label class="label" for="einladung-name">Ihr Name</label>
+      <label class="label" for="einladung-name">${konzept ? 'Dein Name' : 'Ihr Name'}</label>
       <input type="text" id="einladung-name" class="input" placeholder="Vor- und Nachname"
-             value="${escapeHtml(gespeicherterName)}" autocomplete="name" maxlength="80">
+             value="${escapeHtml(gespeicherterName)}" autocomplete="name" maxlength="80"${konzept ? ' readonly' : ''}>
     </div>
 
     <p class="auth-subtitle guest-code-label">6-stelliger Code</p>
@@ -197,7 +227,9 @@ function renderCodeKarte(karte, token, einladung, { onErfolg, hinweis = '', mitL
       <button type="button" class="verify-button" data-verify>Weiter</button>
     </div>
     <p class="guest-onboarding-note">
-      Den Code hat Ihnen Ihr Ansprechpartner mitgeteilt. Ein Konto ist nicht nötig.
+      ${konzept
+        ? 'Den Code hast du von deinem Ansprechpartner bekommen. Ein Konto ist nicht nötig.'
+        : 'Den Code hat Ihnen Ihr Ansprechpartner mitgeteilt. Ein Konto ist nicht nötig.'}
     </p>
     <div class="auth-alert auth-alert--error" data-fehler style="display:none;"></div>`;
 
@@ -247,7 +279,7 @@ function renderCodeKarte(karte, token, einladung, { onErfolg, hinweis = '', mitL
         setTimeout(leeren, 1500);
         return;
       }
-      localStorage.setItem('cj24.guestName', name);
+      if (!konzept) localStorage.setItem('cj24.guestName', name);
       const daten = { sitzung: antwort.data.sitzung, name };
       speichereSitzung(token, daten);
       onErfolg(daten);

@@ -27,6 +27,7 @@ import {
   MAX_DATEI_BYTES,
   UPLOAD_MIME,
   bereinigeBriefing,
+  bereinigeKonzept,
   bereinigeProdukt,
   parseEmpfaenger,
   pruefeEinreichung,
@@ -181,24 +182,88 @@ interface EinladungRow {
   id: string;
   token: string;
   code_hash: string;
-  art: 'produkt' | 'briefing';
+  art: 'produkt' | 'briefing' | 'konzept';
   label: string;
   unternehmen_id: string;
   marke_id: string | null;
   produktion_id: string | null;
   briefing_typ: string | null;
   briefing_id: string | null;
+  creator_auswahl_item_id: string | null;
   created_by: string | null;
   expires_at: string | null;
   revoked_at: string | null;
 }
 
 const EINLADUNG_SPALTEN =
-  'id, token, code_hash, art, label, unternehmen_id, marke_id, produktion_id, briefing_typ, briefing_id, created_by, expires_at, revoked_at';
+  'id, token, code_hash, art, label, unternehmen_id, marke_id, produktion_id, briefing_typ, briefing_id, creator_auswahl_item_id, created_by, expires_at, revoked_at';
 
 function nutzbar(e: Pick<EinladungRow, 'revoked_at' | 'expires_at'>): string | null {
   if (e.revoked_at) return 'Diese Einladung wurde widerrufen.';
   if (e.expires_at && new Date(e.expires_at).getTime() <= Date.now()) return 'Diese Einladung ist abgelaufen.';
+  return null;
+}
+
+interface EintragRow {
+  id: string;
+  name: string | null;
+  kategorie: string | null;
+  abgelehnt: boolean | null;
+  absage: boolean | null;
+  nicht_umsetzen: boolean | null;
+  creator_id: string | null;
+  link_instagram: string | null;
+  creator_auswahl: { briefing_id: string | null; kampagne_id: string | null } | null;
+}
+
+const EINTRAG_SPALTEN =
+  'id, name, kategorie, abgelehnt, absage, nicht_umsetzen, creator_id, link_instagram, creator_auswahl:creator_auswahl_id(briefing_id, kampagne_id)';
+
+/** Gate der Konzept-Einladung: weder vom Kunden abgelehnt, noch abgesagt, noch „Nicht umsetzen“. */
+function eintragGesperrt(e: Pick<EintragRow, 'abgelehnt' | 'absage' | 'nicht_umsetzen' | 'kategorie'>): string | null {
+  if (e.abgelehnt) return 'Der Kunde hat diesen Eintrag abgelehnt.';
+  if (e.absage) return 'Dieser Eintrag ist abgesagt.';
+  if (e.nicht_umsetzen || e.kategorie === 'Nicht umsetzen') return 'Dieser Eintrag steht unter „Nicht umsetzen“.';
+  return null;
+}
+
+async function ladeEintrag(admin: Admin, id: string): Promise<EintragRow | null> {
+  const { data } = await admin.from('creator_auswahl_items').select(EINTRAG_SPALTEN).eq('id', id).maybeSingle();
+  return (data as unknown as EintragRow | null) ?? null;
+}
+
+/**
+ * Konzept-Einladung gilt nur, solange der Eintrag im Casting steht und das Gate erfüllt.
+ * Das deckt Creator-Tausch (Eintrag abgesagt) und Löschen (FK SET NULL) ohne Trigger ab.
+ */
+async function konzeptGesperrt(admin: Admin, e: EinladungRow): Promise<string | null> {
+  if (e.art !== 'konzept') return null;
+  if (!e.creator_auswahl_item_id) return 'Der Eintrag ist nicht mehr im Casting. Die Einladung ist nicht mehr gültig.';
+  const eintrag = await ladeEintrag(admin, e.creator_auswahl_item_id);
+  if (!eintrag) return 'Der Eintrag ist nicht mehr im Casting. Die Einladung ist nicht mehr gültig.';
+  const grund = eintragGesperrt(eintrag);
+  return grund ? `Die Einladung ist nicht mehr gültig. ${grund}` : null;
+}
+
+/** Mailziel eines Eintrags: Creator-Mail, sonst Management-Mail der aktiven Zuordnung, sonst keins. */
+async function konzeptMailziel(admin: Admin, creatorId: string | null): Promise<string | null> {
+  if (!creatorId) return null;
+  const { data } = await admin
+    .from('creator')
+    .select('mail, creator_management(ist_aktiv, management:management_id(email))')
+    .eq('id', creatorId)
+    .maybeSingle();
+  const creator = data as {
+    mail?: string | null;
+    creator_management?: { ist_aktiv: boolean | null; management: { email: string | null } | null }[];
+  } | null;
+  if (!creator) return null;
+  const direkt = String(creator.mail ?? '').trim().toLowerCase();
+  if (direkt) return direkt;
+  for (const z of creator.creator_management ?? []) {
+    const m = String(z.management?.email ?? '').trim().toLowerCase();
+    if (z.ist_aktiv && m) return m;
+  }
   return null;
 }
 
@@ -246,7 +311,30 @@ async function kopfdaten(admin: Admin, e: EinladungRow) {
     const { data: marke } = await admin.from('marke').select('markenname').eq('id', e.marke_id).maybeSingle();
     markenname = marke?.markenname ?? null;
   }
-  return { firmenname: firma?.firmenname ?? null, markenname };
+  const kopf: {
+    firmenname: string | null;
+    markenname: string | null;
+    eintragName?: string | null;
+    eintragHandle?: string | null;
+    projektname?: string | null;
+  } = { firmenname: firma?.firmenname ?? null, markenname };
+
+  // Konzept-Einladung: Person, Marke und Projektname, sonst nichts (kein Briefing, keine Budgets).
+  if (e.art === 'konzept' && e.creator_auswahl_item_id) {
+    const eintrag = await ladeEintrag(admin, e.creator_auswahl_item_id);
+    kopf.eintragName = eintrag?.name ?? null;
+    kopf.eintragHandle = eintrag?.link_instagram ?? null;
+    const linieId = e.briefing_id || eintrag?.creator_auswahl?.briefing_id || null;
+    if (linieId) {
+      const { data: linie } = await admin
+        .from('campaign_briefings')
+        .select('aktivierung_name')
+        .eq('id', linieId)
+        .maybeSingle();
+      kopf.projektname = linie?.aktivierung_name ?? null;
+    }
+  }
+  return kopf;
 }
 
 /** Eine Mail pro Empfänger mit Link und Code. Antworten gehen an den Einladenden. */
@@ -288,6 +376,136 @@ async function versendeEinladung(
   return { gesendet, fehlgeschlagen, fehler };
 }
 
+const KONZEPT_MAX_EINTRAEGE = 50;
+
+interface KonzeptErgebnis {
+  creatorAuswahlItemId: string;
+  name: string | null;
+  einladungId?: string;
+  link?: string;
+  code?: string;
+  mailAn?: string | null;
+  gesendet?: boolean;
+  fehler?: string;
+}
+
+/**
+ * Konzept-Einladung (ADR 0059): je Casting-Eintrag eine eigene Einladung. Eine bestehende aktive
+ * Einladung desselben Eintrags wird abgelöst. Mail an Creator, sonst Management, sonst nur Link+Code.
+ */
+async function legeKonzeptEinladungenAn(
+  admin: Admin,
+  p: {
+    body: Record<string, unknown>;
+    secret: string;
+    origin: string;
+    staff: { id: string; name?: string | null; email?: string | null };
+  },
+): Promise<{ status: number; data: Record<string, unknown> }> {
+  const roh = Array.isArray(p.body.creatorAuswahlItemIds)
+    ? p.body.creatorAuswahlItemIds
+    : (p.body.creatorAuswahlItemId ? [p.body.creatorAuswahlItemId] : []);
+  const ids = [...new Set(roh.map((x) => String(x)))];
+  if (ids.length === 0) return { status: 400, data: { error: 'Bitte mindestens einen Casting-Eintrag wählen.' } };
+  if (ids.length > KONZEPT_MAX_EINTRAEGE) {
+    return { status: 400, data: { error: `Höchstens ${KONZEPT_MAX_EINTRAEGE} Einträge pro Versand.` } };
+  }
+  if (!ids.every(istUuid)) return { status: 400, data: { error: 'Ungültiger Casting-Eintrag.' } };
+
+  let expiresAt: string | null = null;
+  if (p.body.expiresAt) {
+    const d = new Date(String(p.body.expiresAt));
+    if (Number.isNaN(d.getTime())) return { status: 400, data: { error: 'Ungültiges Ablaufdatum.' } };
+    expiresAt = d.toISOString();
+  }
+  const nachricht = String(p.body.nachricht ?? '').trim().slice(0, NACHRICHT_MAX);
+  const versenden = p.body.versenden !== false;
+
+  const ergebnisse: KonzeptErgebnis[] = [];
+  for (const itemId of ids) {
+    const eintrag = await ladeEintrag(admin, itemId);
+    if (!eintrag) {
+      ergebnisse.push({ creatorAuswahlItemId: itemId, name: null, fehler: 'Eintrag nicht gefunden.' });
+      continue;
+    }
+    const ergebnis: KonzeptErgebnis = { creatorAuswahlItemId: itemId, name: eintrag.name };
+    ergebnisse.push(ergebnis);
+
+    const gesperrt = eintragGesperrt(eintrag);
+    if (gesperrt) {
+      ergebnis.fehler = gesperrt;
+      continue;
+    }
+    const linieId = eintrag.creator_auswahl?.briefing_id ?? null;
+    const kampagneId = eintrag.creator_auswahl?.kampagne_id ?? null;
+    if (!kampagneId) {
+      ergebnis.fehler = 'Das Casting gehört zu keiner Kampagne.';
+      continue;
+    }
+    const { data: kampagne } = await admin
+      .from('kampagne')
+      .select('unternehmen_id, marke_id')
+      .eq('id', kampagneId)
+      .maybeSingle();
+    if (!kampagne?.unternehmen_id) {
+      ergebnis.fehler = 'Kampagne nicht gefunden.';
+      continue;
+    }
+
+    // Höchstens eine aktive Einladung je Eintrag: die alte wird abgelöst.
+    await admin
+      .from('einladung')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('art', 'konzept')
+      .eq('creator_auswahl_item_id', itemId)
+      .is('revoked_at', null);
+
+    const token = generateToken();
+    const code = generateCode();
+    const { data: inserted, error } = await admin
+      .from('einladung')
+      .insert({
+        token,
+        code_hash: await hashCode(code, p.secret),
+        art: 'konzept',
+        label: `Konzept: ${eintrag.name || 'Creator'}`.slice(0, 80),
+        unternehmen_id: kampagne.unternehmen_id,
+        marke_id: kampagne.marke_id ?? null,
+        briefing_id: linieId,
+        creator_auswahl_item_id: itemId,
+        created_by: p.staff.id,
+        expires_at: expiresAt,
+      })
+      .select(EINLADUNG_SPALTEN)
+      .single();
+    if (error || !inserted) {
+      console.error('einladung insert error (konzept):', error);
+      ergebnis.fehler = 'Einladung konnte nicht angelegt werden.';
+      continue;
+    }
+    const link = `${p.origin}/einladung/${token}`;
+    ergebnis.einladungId = (inserted as EinladungRow).id;
+    ergebnis.link = link;
+    ergebnis.code = code;
+
+    const ziel = versenden ? await konzeptMailziel(admin, eintrag.creator_id) : null;
+    ergebnis.mailAn = ziel;
+    if (ziel) {
+      const versand = await versendeEinladung(admin, inserted as EinladungRow, {
+        link,
+        code,
+        basisUrl: p.origin,
+        emails: [ziel],
+        nachricht,
+        staff: p.staff,
+      });
+      ergebnis.gesendet = versand.gesendet.length > 0;
+      if (versand.fehler) ergebnis.fehler = versand.fehler;
+    }
+  }
+  return { status: 200, data: { success: true, einladungen: ergebnisse } };
+}
+
 serve(async (req: Request) => {
   const headers = corsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { status: 200, headers });
@@ -315,6 +533,11 @@ serve(async (req: Request) => {
     const auth = await requireStaff(admin, req);
     if ('error' in auth) return jsonRes({ error: auth.error }, auth.status, headers);
     const staff = auth.staff!;
+
+    if (action === 'create' && String(body.art ?? '') === 'konzept') {
+      const { status, data } = await legeKonzeptEinladungenAn(admin, { body, secret, origin, staff });
+      return jsonRes(data, status, headers);
+    }
 
     if (action === 'create') {
       const art = String(body.art ?? '');
@@ -454,7 +677,7 @@ serve(async (req: Request) => {
         .maybeSingle();
       const einladungRow = zeile as EinladungRow | null;
       if (!einladungRow) return jsonRes({ error: 'Einladung nicht gefunden.' }, 404, headers);
-      const gesperrt = nutzbar(einladungRow);
+      const gesperrt = nutzbar(einladungRow) || await konzeptGesperrt(admin, einladungRow);
       if (gesperrt) return jsonRes({ error: gesperrt }, 400, headers);
 
       // Der Code liegt nur als Hash vor: für den Versand wird ein neuer erzeugt.
@@ -499,7 +722,7 @@ serve(async (req: Request) => {
   const token = String(body.token ?? '').trim();
   const einladung = await ladeEinladung(admin, token);
   if (!einladung) return jsonRes({ valid: false, error: 'Link ungültig.' }, 404, headers);
-  const gesperrt = nutzbar(einladung);
+  const gesperrt = nutzbar(einladung) || await konzeptGesperrt(admin, einladung);
   if (gesperrt) return jsonRes({ valid: false, error: gesperrt }, 403, headers);
 
   if (action === 'resolve') {
@@ -517,7 +740,12 @@ serve(async (req: Request) => {
 
   if (action === 'verify') {
     const code = String(body.code ?? '').replace(/\D/g, '');
-    const name = String(body.name ?? '').trim();
+    let name = String(body.name ?? '').trim();
+    // Konzept-Einladung: die Person steht fest, der Name kommt vom Casting-Eintrag, nicht vom Besucher.
+    if (einladung.art === 'konzept') {
+      const kopf = await kopfdaten(admin, einladung);
+      name = String(kopf.eintragName ?? '').trim().slice(0, 80) || name;
+    }
     if (!/^\d{6}$/.test(code)) return jsonRes({ error: 'Bitte den 6-stelligen Code eingeben.' }, 400, headers);
     if (name.length < 2 || name.length > 80) {
       return jsonRes({ error: 'Bitte Ihren Namen eingeben (2–80 Zeichen).' }, 400, headers);
@@ -549,6 +777,7 @@ serve(async (req: Request) => {
   }
 
   if (action === 'upload_url') {
+    if (einladung.art === 'konzept') return jsonRes({ error: 'Hier sind keine Uploads vorgesehen.' }, 400, headers);
     const slot = String(body.slot ?? '');
     const mime = String(body.mime ?? '');
     const groesse = Number(body.groesse ?? 0);
@@ -591,7 +820,9 @@ serve(async (req: Request) => {
 
     const bereinigt = einladung.art === 'produkt'
       ? bereinigeProdukt(body.formData, { einladungId: einladung.id })
-      : bereinigeBriefing(body.formData, { einladungId: einladung.id, bereich: String(einladung.briefing_typ) });
+      : einladung.art === 'konzept'
+        ? bereinigeKonzept(body.formData)
+        : bereinigeBriefing(body.formData, { einladungId: einladung.id, bereich: String(einladung.briefing_typ) });
 
     const fehler = pruefeEinreichung(einladung.art, bereinigt.formData);
     if (fehler) return jsonRes({ error: fehler }, 400, headers);
@@ -647,6 +878,21 @@ serve(async (req: Request) => {
             .eq('id', einladung.briefing_id)
             .maybeSingle();
           if (linie?.produktion_id) ziel = `${origin}/produktion/${linie.produktion_id}?tab=produkte`;
+        } else if (einladung.art === 'konzept') {
+          // Konzept-Einladung: Link auf den Konzepte-Tab der Linie (ADR 0059).
+          let linieId = einladung.briefing_id;
+          if (!linieId && einladung.creator_auswahl_item_id) {
+            linieId = (await ladeEintrag(admin, einladung.creator_auswahl_item_id))?.creator_auswahl?.briefing_id ?? null;
+          }
+          ziel = `${origin}/kampagne`;
+          if (linieId) {
+            const { data: linie } = await admin
+              .from('campaign_briefings')
+              .select('produktion_id')
+              .eq('id', linieId)
+              .maybeSingle();
+            if (linie?.produktion_id) ziel = `${origin}/produktion/${linie.produktion_id}?tab=konzepte`;
+          }
         }
         const firma = [kopf.firmenname, kopf.markenname].filter(Boolean).join(' · ');
         const mail = einreichungMail({

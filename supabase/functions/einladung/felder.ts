@@ -8,7 +8,7 @@
  * produktion_id), TKP, Verhandlungshinweis, Personas, Briefing-Verknüpfung.
  */
 
-export type Art = 'produkt' | 'briefing';
+export type Art = 'produkt' | 'briefing' | 'konzept';
 
 export const BRIEFING_TYPEN = ['paid_creator_ads', 'owned_social', 'influencer_marketing'] as const;
 
@@ -35,6 +35,14 @@ export const PRODUKT_FELDER = [
   'inhaltsstoffe', 'erlaubte_claims', 'verbotene_claims', 'rechtliche_hinweise',
   'einsatzsituationen', 'varianten', 'bilder',
 ] as const;
+
+/** Creator-Sheet (Konzept-Einladung): Textfelder und Links, keine Uploads. */
+export const KONZEPT_TEXTFELDER = [
+  'arbeitstitel', 'idee', 'hook', 'ablauf', 'marke_integration',
+  'eigenes_video_relevanz', 'referenz_aufgreifen', 'alternative_idee',
+] as const;
+export const KONZEPT_URLFELDER = ['eigenes_video_url', 'referenz_video_url'] as const;
+export const KONZEPT_PFLICHT = ['idee', 'hook', 'ablauf'] as const;
 
 export const VARIANTEN_FELDER = ['name', 'farbe', 'modell_kompatibilitaet', 'preis', 'merkmal'] as const;
 
@@ -221,10 +229,33 @@ export function bereinigeProdukt(
   return { formData, dateien };
 }
 
-/** Fehlertext oder null. Briefing braucht mindestens eine Angabe, Produkt Name und Shop-URL. */
+/** Creator-Sheet: nur erlaubte Felder, bereinigte Texte, Links nur http/https. Keine Dateien. */
+export function bereinigeKonzept(eingabe: unknown): Bereinigt {
+  const src = (eingabe && typeof eingabe === 'object' ? eingabe : {}) as Record<string, unknown>;
+  const formData: Record<string, unknown> = {};
+
+  for (const name of KONZEPT_TEXTFELDER) {
+    const v = text(src[name], name === 'arbeitstitel' ? 200 : MAX_TEXT);
+    if (v) formData[name] = v;
+  }
+  for (const name of KONZEPT_URLFELDER) {
+    const url = text(src[name], 2000);
+    if (url && istUrl(url)) formData[name] = url;
+  }
+  return { formData, dateien: [] };
+}
+
+/** Fehlertext oder null. Briefing braucht mindestens eine Angabe, Produkt Name und Shop-URL, Konzept Idee, Hook und Ablauf. */
 export function pruefeEinreichung(art: Art, formData: Record<string, unknown>): string | null {
   const bytes = new TextEncoder().encode(JSON.stringify(formData)).length;
   if (bytes > MAX_JSON_BYTES) return 'Die Angaben sind zu umfangreich.';
+
+  if (art === 'konzept') {
+    if (String(formData.idee ?? '').length < 3) return 'Bitte deine Idee beschreiben (01).';
+    if (String(formData.hook ?? '').length < 3) return 'Bitte den Einstieg / Hook beschreiben (02).';
+    if (String(formData.ablauf ?? '').length < 3) return 'Bitte den groben Ablauf beschreiben (03).';
+    return null;
+  }
 
   if (art === 'produkt') {
     if (String(formData.name ?? '').length < 2) return 'Bitte den Produktnamen eintragen.';

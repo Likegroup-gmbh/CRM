@@ -402,10 +402,22 @@ function renderAnalyseAktion(detail, item) {
   `;
 }
 
+const LEERE_STRUKTUR = Object.freeze(Object.fromEntries(BESCHREIBUNG_FELDER.map(({ key }) => [key, ''])));
+
+/** Text der Tabellenspalte Beschreibung, unabhaengig von der strukturierten Beschreibung darunter. */
+function renderKurzbeschreibung(detail, item) {
+  if (isVideoideeVorschlag(item)) return '';
+  return renderTextSection(detail, item, 'kurzbeschreibung', 'Kurzbeschreibung', 'kurzbeschreibung', 'Kurzbeschreibung...');
+}
+
 function renderBeschreibung(detail, item) {
   const actions = renderAnalyseAktion(detail, item);
-  const struktur = beschreibungStrukturVon(item);
+  // Videoreferenz und Idee teilen dieselbe Tabelle; leer ist sie fuers Team ausfuellbar.
+  const struktur = beschreibungStrukturVon(item)
+    || (!isVideoideeVorschlag(item) && contentEditable(detail, item) ? LEERE_STRUKTUR : null);
   if (!struktur) {
+    // Altbestand-Freitext, der schon als Kurzbeschreibung dasteht, nicht doppelt zeigen.
+    if (hasText(item.beschreibung) && String(item.beschreibung).trim() === String(item.kurzbeschreibung || '').trim()) return '';
     if (!showFilledOrEditable(detail, item, item.beschreibung)) return '';
     return section(
       'beschreibung',
@@ -536,19 +548,80 @@ function visibleCustomColumns(detail) {
 }
 
 function renderKundenadaption(detail, item) {
-  if (!item.video_link && !hasText(item.kundenadaption)) return '';
   return renderTextSection(detail, item, 'kundenadaption', 'Kundenadaption', 'kundenadaption', 'Kundenadaption...');
+}
+
+const SEKTION_KOMMENTAR_LABELS = {
+  hook: 'Hook', hauptteil: 'Hauptteil', cta: 'CTA', gesamt: 'Gesamt', rezept: 'Rezept',
+  text_hook: 'Text-Hook', caption: 'Caption'
+};
+
+function kommentarDatum(value) {
+  const d = value ? new Date(value) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('de-DE') : '';
+}
+
+function renderKommentarEintrag(k) {
+  const bezug = [
+    k.skript_nr ? `Skript ${k.skript_nr}` : '',
+    SEKTION_KOMMENTAR_LABELS[k.sektion] || '',
+    k.ist_antwort ? 'Antwort' : (k.typ === 'aenderung' ? 'Änderung' : '')
+  ].filter(Boolean).join(' · ');
+  const meta = [k.autor, kommentarDatum(k.created_at)].filter(Boolean).join(' · ');
+  const aenderung = k.typ === 'aenderung' && (k.vorher_text || k.nachher_text)
+    ? `<div class="videoidee-kommentar__diff">${k.vorher_text ? `<span class="videoidee-kommentar__vorher">${escapeHtml(k.vorher_text)}</span>` : ''}${k.nachher_text ? `<span class="videoidee-kommentar__nachher">${escapeHtml(k.nachher_text)}</span>` : ''}</div>`
+    : '';
+  return `
+    <li class="videoidee-kommentar" data-kommentar-id="${escapeAttr(k.id)}">
+      <div class="videoidee-kommentar__meta">${escapeHtml(meta)}${bezug ? `<span class="videoidee-kommentar__bezug">${escapeHtml(bezug)}</span>` : ''}</div>
+      ${k.zitat ? `<blockquote class="videoidee-kommentar__zitat">${escapeHtml(k.zitat)}</blockquote>` : ''}
+      ${k.inhalt ? `<div class="videoidee-doc__prose">${escapeHtml(k.inhalt)}</div>` : ''}
+      ${aenderung}
+    </li>
+  `;
+}
+
+/** Team-Kommentare aus dem Skript, nur lesen. Leer, solange nichts geladen ist oder es keine gibt. */
+export function renderKommentareInhalt(kommentare) {
+  if (!kommentare?.length) return '';
+  return section(
+    'kommentare',
+    'Kommentare des Teams',
+    `<ul class="videoidee-kommentare">${kommentare.map(renderKommentarEintrag).join('')}</ul>`
+  );
+}
+
+/**
+ * Creator-Sheet der Konzept-Einladung (ADR 0059), nur lesen und nur für das Team: der Block liegt in
+ * `einreichung.payload` (staff-only RLS) und hängt über `strategie_items.einreichung_id` an der Idee.
+ * @param {Array<{ nr: string, titel: string, eintraege: Array<{ label: string, wert: string, link: boolean }> }>} bloecke
+ */
+export function renderCreatorSheetInhalt(bloecke) {
+  if (!bloecke?.length) return '';
+  const html = bloecke.map((b) => `
+    <div class="videoidee-doc__prose">
+      <strong>${b.nr ? `${escapeHtml(b.nr)} ` : ''}${escapeHtml(b.titel)}</strong>
+      ${b.eintraege.map((e) => `<div>${b.eintraege.length > 1 ? `<em>${escapeHtml(e.label)}</em><br>` : ''}${e.link
+        ? `<a href="${escapeAttr(e.wert)}" target="_blank" rel="noopener noreferrer">${escapeHtml(e.wert)}</a>`
+        : escapeHtml(e.wert).replace(/\n/g, '<br>')}</div>`).join('')}
+    </div>`).join('');
+  return section('creator-sheet', 'Creator-Sheet', html);
 }
 
 export function renderBody(detail, item) {
   return [
     renderKopf(detail, item),
+    renderKurzbeschreibung(detail, item),
     renderBeschreibung(detail, item),
     renderKundenadaption(detail, item),
     renderTranskript(detail, item),
     renderUmsetzungsvorgabe(detail, item),
     renderAnmerkung(detail, item),
-    renderCaption(detail, item)
+    renderCaption(detail, item),
+    item.einreichung_id && !detail.isKunde
+      ? `<div data-videoidee-creator-sheet>${renderCreatorSheetInhalt(detail.creatorSheets?.get(String(item.einreichung_id)))}</div>`
+      : '',
+    `<div data-videoidee-kommentare>${isVideoideeVorschlag(item) ? '' : renderKommentareInhalt(detail.teamKommentare?.get(String(item.id)))}</div>`
   ].join('');
 }
 
@@ -571,7 +644,7 @@ function renderUmsetzen(detail, item) {
 }
 
 function renderAnmerkung(detail, item) {
-  if (!item.video_link && !hasText(item.kunde_anmerkung)) return '';
+  if (isVideoideeVorschlag(item) && !hasText(item.kunde_anmerkung)) return '';
   const editable = anmerkungEditable(detail, item);
   const meta = item.kunde_anmerkung && item.kunde_anmerkung_author_name
     ? `<div class="feedback-author-meta">${escapeHtml(item.kunde_anmerkung_author_name)}${item.kunde_anmerkung_updated_at ? ` · ${new Date(item.kunde_anmerkung_updated_at).toLocaleDateString('de-DE')}` : ''}</div>`

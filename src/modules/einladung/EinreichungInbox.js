@@ -43,6 +43,21 @@ export const ARTEN = {
     tabId: 'produkte',
     // Zeilen kommen als Tabelle aus produktEinreichungTabelle.js, nicht aus titel/meta.
     verwerfenHinweis: 'Hochgeladene Bilder werden gelöscht.'
+  },
+  // Konzept-Einladung (ADR 0059): Creator-Sheet, Prüfen öffnet den Videoidee-Drawer (`onPruefen`).
+  konzept: {
+    tabId: 'konzepte',
+    titel: (e) => `Idee von ${e.absender_name}`,
+    meta: (e) => {
+      const daten = e.payload?.formData || {};
+      const kurz = String(daten.arbeitstitel || daten.idee || '').replace(/\s+/g, ' ').trim();
+      return [
+        einreichungDatum(e),
+        kurz.length > 70 ? `${kurz.slice(0, 70)}…` : kurz,
+        e.einladung?.creator_auswahl_item_id ? '' : 'Eintrag nicht mehr im Casting'
+      ];
+    },
+    verwerfenHinweis: 'Die Idee wird nicht ins Konzept übernommen.'
   }
 };
 
@@ -59,7 +74,7 @@ export function setzeEinreichungsZaehler(art, anzahl) {
     badge = document.createElement('span');
     badge.className = 'tab-count';
     badge.dataset.einreichungCount = '';
-    badge.title = 'Offene Kundeneinreichungen';
+    badge.title = art === 'konzept' ? 'Offene Ideen von Creatorn' : 'Offene Kundeneinreichungen';
     tab.appendChild(badge);
   }
   badge.textContent = String(anzahl);
@@ -105,14 +120,15 @@ function renderZeile(art, einreichung, optionen) {
 /**
  * Eingang in `host` rendern. Ohne offene Einreichungen bleibt der Host verborgen.
  * @param {{
- *   art: 'briefing'|'produkt',
+ *   art: 'briefing'|'produkt'|'konzept',
  *   host: HTMLElement|null,
- *   filter: object|null,          // an listOffeneEinreichungen (produktionId, briefingId, markeId, unternehmenId)
+ *   filter: object|null,          // an listOffeneEinreichungen (produktionId, briefingId, briefingIds, markeId, unternehmenId)
  *   reviewKontext?: object,       // an reviewUrl (kampagneId)
- *   tabBadge?: boolean            // Zähler am Tab der Art mitführen
+ *   tabBadge?: boolean,           // Zähler am Tab der Art mitführen
+ *   onPruefen?: (einreichung, neuLaden: () => Promise<void>) => void  // statt Vollseite (Konzept: Drawer)
  * }} opts
  */
-export async function mountEinreichungInbox({ art, host, filter, reviewKontext = {}, tabBadge = false }) {
+export async function mountEinreichungInbox({ art, host, filter, reviewKontext = {}, tabBadge = false, onPruefen = null }) {
   if (!host) return;
   const offen = await ladeOffene(art, filter);
   if (!host.isConnected) return;
@@ -133,7 +149,7 @@ export async function mountEinreichungInbox({ art, host, filter, reviewKontext =
   host.classList.toggle('einreichung-inbox--tabelle', alsTabelle);
   host.innerHTML = `
     ${alsTabelle ? '' : `<div class="einreichung-inbox__kopf">
-      <strong>Kundeneinreichungen</strong>
+      <strong>${art === 'konzept' ? 'Ideen von Creatorn' : 'Kundeneinreichungen'}</strong>
       <span class="einreichung-inbox__anzahl">${offen.length} offen</span>
     </div>`}
     ${alsTabelle
@@ -147,6 +163,10 @@ export async function mountEinreichungInbox({ art, host, filter, reviewKontext =
 
     if (e.target.closest('[data-einreichung-pruefen]')) {
       e.preventDefault();
+      if (onPruefen) {
+        onPruefen(einreichung, () => mountEinreichungInbox({ art, host, filter, reviewKontext, tabBadge, onPruefen }));
+        return;
+      }
       window.navigateTo(reviewUrl(einreichung, reviewKontext));
       return;
     }
@@ -169,7 +189,7 @@ export async function mountEinreichungInbox({ art, host, filter, reviewKontext =
         console.error('Verwerfen fehlgeschlagen:', error);
         window.toastSystem?.error('Verwerfen fehlgeschlagen.');
       }
-      await mountEinreichungInbox({ art, host, filter, reviewKontext, tabBadge });
+      await mountEinreichungInbox({ art, host, filter, reviewKontext, tabBadge, onPruefen });
     }
   };
 }

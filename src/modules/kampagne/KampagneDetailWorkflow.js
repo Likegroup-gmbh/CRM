@@ -34,6 +34,7 @@ import {
 import { mountBriefingPane, unmountBriefingPane } from './KampagneDetailBriefing.js';
 import { syncBriefingZaehler } from '../einladung/briefingEinreichungen.js';
 import { syncEinreichungsZaehler } from '../einladung/EinreichungInbox.js';
+import { syncKonzeptZaehler } from '../einladung/konzeptEinreichungen.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
 
@@ -401,6 +402,7 @@ export function refreshWorkflowAfterRender(detail) {
   }
   // Briefing- und Produkte-Tab zeigen offene Kundeneinreichungen, auch wenn ein anderer Tab offen ist.
   if (tab !== 'briefing') void syncBriefingZaehler(detail);
+  if (tab !== 'konzepte') void syncKonzeptZaehler(detail);
   if (tab !== 'produkte') {
     const linieId = effectiveLinie(detail, 'produkte');
     void syncEinreichungsZaehler('produkt', detail.mode === 'workflow' && linieId ? { briefingId: linieId } : null);

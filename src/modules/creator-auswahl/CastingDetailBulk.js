@@ -8,12 +8,30 @@ import { bindToolbarMenu as attachToolbarMenu } from '../../core/components/Tool
 import { icon } from '../../core/icons/IconSystem.js';
 import { SelectionBar, bindCheckboxSelection } from '../../core/list/SelectionBar.js';
 import {
+  KONZEPT_EINHOLEN_LABEL,
+  konzeptEinladungKontext,
+  oeffneKundeEinladen
+} from '../einladung/kundeEinladen.js';
+import {
   NICHT_UMSETZEN_KATEGORIE,
   NICHT_UMSETZEN_KEY,
   OHNE_KATEGORIE,
   OHNE_KATEGORIE_KEY,
   updatesForGroupKey
 } from './castingKategorien.js';
+
+/**
+ * „Konzept einholen“ (ADR 0059) für einen oder mehrere Einträge: je Eintrag eine eigene
+ * Einladung. Nicht einladbare Einträge werden im Drawer als übersprungen gezählt.
+ */
+export function handleKonzeptEinholen(itemIds) {
+  if (this.isKunde || !this._canSourcing('create')) return;
+  const items = (itemIds || []).map((id) => this.items.find((i) => i.id === id)).filter(Boolean);
+  const kontext = konzeptEinladungKontext({ items, kontextName: this.liste?.name || '' });
+  oeffneKundeEinladen(kontext, {
+    warnung: 'Diese Einträge sind abgelehnt, abgesagt oder unter „Nicht umsetzen“ und können nicht eingeladen werden.'
+  });
+}
 
 export function renderBulkBar() {
   if (!this.selectionBar) {
@@ -22,6 +40,7 @@ export function renderBulkBar() {
       countLabel: 'Creator ausgewählt',
       onAction: (name) => {
         if (name === 'assign') this.handleBulkKategorieAssign();
+        else if (name === 'konzept') this.handleKonzeptEinholen(Array.from(this.selectedItems));
         else if (name === 'delete') this.handleBulkDelete();
       },
       onDeselect: () => this.clearSelection()
@@ -40,6 +59,9 @@ export function renderBulkBar() {
       ${kategorieOptions}
     </select>
     <button type="button" class="mdc-btn mdc-btn--sm" data-selection-action="assign">Zuweisen</button>
+    ${!this.isKunde && window.isInternal?.() !== false && this._canSourcing('create')
+      ? `<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm" data-selection-action="konzept">${KONZEPT_EINHOLEN_LABEL}</button>`
+      : ''}
     ${this._canSourcing('delete')
       ? '<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm selection-bar-delete" data-selection-action="delete">Löschen</button>'
       : ''}
@@ -324,6 +346,7 @@ export async function handleBulkDelete() {
 }
 
 export const castingDetailBulkMethods = {
+  handleKonzeptEinholen,
   renderBulkBar,
   bindSelectionEvents,
   updateSelectAllState,

@@ -7,11 +7,16 @@ import { splitVideoideeVorschlaege } from './videoideeVorschlag.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { cssEscape, fieldSignature, syncCustomPeer } from './videoideeFieldSync.js';
+import { skriptKommentarService } from '../skripte/SkriptKommentarService.js';
+import { isVideoideeVorschlag } from './videoideeVorschlag.js';
+import { konzeptSheetBloecke } from '../einladung/konzeptSheet.js';
 import {
   DRAWER_ID,
   contentEditable,
   itemTitle,
   renderBody,
+  renderCreatorSheetInhalt,
+  renderKommentareInhalt,
   renderVorschlagActions,
   shellHtml
 } from './videoidee/videoideeRender.js';
@@ -120,6 +125,8 @@ export function showEditItemDrawer(detail, itemId) {
   bindDrawer(detail, panel);
   markOpenRow(detail, item.id);
   bindKeys();
+  void ladeTeamKommentare(detail, item);
+  void ladeCreatorSheet(detail, item);
 }
 
 function renderOpenItem(detail, itemId, { scroll = false } = {}) {
@@ -143,6 +150,63 @@ function renderOpenItem(detail, itemId, { scroll = false } = {}) {
 
   bindDrawer(detail, panel);
   markOpenRow(detail, item.id);
+  void ladeTeamKommentare(detail, item);
+  void ladeCreatorSheet(detail, item);
+}
+
+/**
+ * Team-Kommentare aus dem Skript nachladen (einmal je Videoidee und geoeffnetem Drawer)
+ * und in den Slot setzen, ohne den Rest des Drawers neu zu rendern.
+ */
+async function ladeTeamKommentare(detail, item) {
+  if (isVideoideeVorschlag(item)) return;
+  const key = String(item.id);
+  if (!detail.teamKommentare) detail.teamKommentare = new Map();
+  const cache = detail.teamKommentare;
+  if (cache.has(key)) return;
+  cache.set(key, []);
+  try {
+    const liste = await skriptKommentarService.loadTeamKommentareFuerItem(item.id);
+    cache.set(key, liste);
+    const panel = document.getElementById(DRAWER_ID);
+    if (!panel || panel.dataset.itemId !== key || !liste.length) return;
+    const slot = panel.querySelector('[data-videoidee-kommentare]');
+    if (slot) slot.innerHTML = renderKommentareInhalt(liste);
+  } catch (error) {
+    // Beim naechsten Oeffnen erneut versuchen; der Drawer funktioniert auch ohne.
+    cache.delete(key);
+    console.warn('Team-Kommentare konnten nicht geladen werden:', error);
+  }
+}
+
+/**
+ * Creator-Sheet einer Idee aus einer Konzept-Einreichung nachladen (nur Team, ADR 0059) und in den
+ * Slot setzen. Kunden bekommen weder die Spalte noch Leserecht auf `einreichung`.
+ */
+async function ladeCreatorSheet(detail, item) {
+  if (!item.einreichung_id || detail.isKunde) return;
+  const key = String(item.einreichung_id);
+  if (!detail.creatorSheets) detail.creatorSheets = new Map();
+  if (detail.creatorSheets.has(key)) return;
+  detail.creatorSheets.set(key, []);
+  try {
+    const { data, error } = await window.supabase
+      .from('einreichung')
+      .select('payload')
+      .eq('id', key)
+      .maybeSingle();
+    if (error) throw error;
+    const bloecke = konzeptSheetBloecke(data?.payload?.formData);
+    detail.creatorSheets.set(key, bloecke);
+    const panel = document.getElementById(DRAWER_ID);
+    const slot = panel?.dataset.itemId === String(item.id)
+      ? panel.querySelector('[data-videoidee-creator-sheet]')
+      : null;
+    if (slot) slot.innerHTML = renderCreatorSheetInhalt(bloecke);
+  } catch (error) {
+    detail.creatorSheets.delete(key);
+    console.warn('Creator-Sheet konnte nicht geladen werden:', error);
+  }
 }
 
 function updateNav(detail, itemId) {
@@ -456,6 +520,7 @@ export function removeEditItemDrawer() {
   document.querySelectorAll('tr.item-row.is-videoidee-open').forEach((row) => {
     row.classList.remove('is-videoidee-open');
   });
+  if (openDetail) openDetail.teamKommentare = null;
   openDetail = null;
 }
 

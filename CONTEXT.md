@@ -164,7 +164,7 @@ Geschlossenes Intervall in ganzen Sekunden am Briefing, von und bis inklusive. V
 _Avoid_: Videolängen, Nutzungsdauer, Video-Mindestlänge
 
 **Dauer (Konzept)**:
-Videolänge an einer Videoidee, Intervall in ganzen Sekunden wie am Briefing (`strategie_items.videolaenge_von/bis`). Das Briefing nennt die Videolänge global, die Dauer der Videoidee ist die heruntergebrochene, finale Angabe und schlägt das Briefing für das Skript. Beim Anlegen einer Videoidee wird sie aus dem Briefing vorbelegt (bei Paid nach Funnel-Stufe). Leer heißt, es ist keine Dauer an der Videoidee gesetzt; das Skript nimmt dann die **Videolänge** des Briefings. Das Team setzt sie in der Spalte „Dauer“ oder im Videoidee-Drawer, der Kunde sieht sie. Die Konzept-Tabelle blendet Beschreibung, Umsetzungsvorgabe, Kundenadaption, Transkript, Caption und Anmerkung Kunde standardmäßig aus; sie stehen im Videoidee-Drawer.
+Videolänge an einer Videoidee, Intervall in ganzen Sekunden wie am Briefing (`strategie_items.videolaenge_von/bis`). Das Briefing nennt die Videolänge global, die Dauer der Videoidee ist die heruntergebrochene, finale Angabe und schlägt das Briefing für das Skript. Beim Anlegen einer Videoidee wird sie aus dem Briefing vorbelegt (bei Paid nach Funnel-Stufe). Leer heißt, es ist keine Dauer an der Videoidee gesetzt; das Skript nimmt dann die **Videolänge** des Briefings. Das Team setzt sie in der Spalte „Dauer“ oder im Videoidee-Drawer, der Kunde sieht sie. Die Konzept-Tabelle zeigt die Beschreibung standardmäßig und blendet Umsetzungsvorgabe, Kundenadaption, Transkript, Caption und Anmerkung Kunde standardmäßig aus; sie stehen im Videoidee-Drawer.
 _Avoid_: Videolänge (als Name der Spalte im Konzept), Laufzeit
 
 **Verhandlungshinweis**:
@@ -352,8 +352,12 @@ Das Produkt (aus den Produkten des Briefings der Linie) lässt sich schon beim A
 Drawer „Hinzufügen“ für Videoreferenz und Idee; bei genau einem Briefing-Produkt ist es vorbelegt.
 _Avoid_: Konzeptidee, Kernidee
 
+**Kurzbeschreibung**:
+Freier Kurztext an einer Videoidee (`strategie_items.kurzbeschreibung`). Steht in der Konzept-Tabelle in der Spalte „Beschreibung“ und im Drawer als eigener Bereich über der Beschreibung. Unabhängig von der strukturierten **Beschreibung** (Titel, Angle, Hook, Visual Hook, Hauptteil, CTA), die Skript und Liky lesen; bei Idee ohne strukturierte Beschreibung greift das Skript auf die Kurzbeschreibung zurück. Beim Hinzufügen einer Idee Pflicht, bei Videoreferenz optional. Bei Videoidee-Vorschlägen zeigt die Spalte weiter deren Beschreibung; beim Übernehmen einer Idee wird sie in die Kurzbeschreibung kopiert.
+_Avoid_: Beschreibung (das ist die strukturierte im Drawer)
+
 **Videoreferenz**:
-Videoidee mit Videolink. Trägt eine Umsetzungsvorgabe.
+Videoidee mit Videolink. Trägt eine Umsetzungsvorgabe. Der Videoidee-Drawer baut Videoreferenz und Idee gleich auf (Kurzbeschreibung, strukturierte Beschreibung, Kundenadaption, Anmerkung, Team-Kommentare); Video-URL, Transkript, Caption und Umsetzungsvorgabe gibt es nur mit Link.
 _Avoid_: Referenzvideo, verlinkte Videoidee
 
 **Funnel-Stufe**:
@@ -430,7 +434,7 @@ Zelle eines Skripts, die ein späterer Auftrag nicht ersetzen darf, solange der 
 _Avoid_: Freigabe, Skript-Freigabe, Kundenfreigabe
 
 **Hook-Sperre**:
-Schloss am gesprochenen Hook einer Videoreferenz im Konzept. Der Hook ist vom Kunden freigegeben; Liky übernimmt ihn wörtlich ins Skript und ändert ihn in keinem Auftrag, auch nicht bei Umfang Alles oder Hook, sondern sagt im Chat, dass er bleibt. Das Team ändert den Text von Hand weiter und öffnet das Schloss am Konzept. Visual Hook, Text-Hook und Hook-Varianten bleiben für Liky offen.
+Schloss am gesprochenen Hook einer Videoidee im Konzept. Der Hook ist vom Kunden freigegeben; Liky übernimmt ihn wörtlich ins Skript und ändert ihn in keinem Auftrag, auch nicht bei Umfang Alles oder Hook, sondern sagt im Chat, dass er bleibt. Das Team ändert den Text von Hand weiter und öffnet das Schloss am Konzept. Visual Hook, Text-Hook und Hook-Varianten bleiben für Liky offen.
 _Avoid_: Festgezogen (öffnet sich bei Umfang), Skript-Freigabe, Kundenfreigabe, Hook-Lock
 
 **Umfang**:
@@ -531,12 +535,20 @@ Gast-Link plus Code auf eine geteilte Liste (`list_shares`). Bei einem Skript wa
 _Avoid_: Anschreiben, Teilen
 
 **Einladung**:
-Link plus Code ohne Konto, mit dem ein Kunde ein Formular ausfüllt und abschickt. Eine Produkt-Einladung hängt an einer Marke, ohne Marke am Unternehmen. Geht sie vom Produkte-Tab einer Linie aus, hängt sie zusätzlich an dieser Linie; ihre Einreichungen sieht man auf dem Produkte-Tab der Linie und in der Produktliste der Marke (dort mit Hinweis auf die Linie). Fällt die Linie weg, bleibt es eine Marken-Einladung. Eine Briefing-Einladung hängt an einer Produktion und trägt den Briefing-Typ. Widerruf beendet sie.
+Link plus Code ohne Konto, mit dem ein Kunde oder Creator ein Formular ausfüllt und abschickt. Eine Produkt-Einladung hängt an einer Marke, ohne Marke am Unternehmen. Geht sie vom Produkte-Tab einer Linie aus, hängt sie zusätzlich an dieser Linie; ihre Einreichungen sieht man auf dem Produkte-Tab der Linie und in der Produktliste der Marke (dort mit Hinweis auf die Linie). Fällt die Linie weg, bleibt es eine Marken-Einladung. Eine Briefing-Einladung hängt an einer Produktion und trägt den Briefing-Typ. Eine **Konzept-Einladung** hängt an einem Casting-Eintrag. Widerruf beendet sie.
 _Avoid_: Zugang (der liest nur), Magic Link, Kunden-Login
 
+**Konzept-Einladung**:
+Einladung an genau einen Casting-Eintrag, über die dieser Creator eine Videoidee im Konzept der Linie einreicht. Ein Link pro Person, nie ein allgemeiner Link pro Linie. Der Eintrag steht fest, der Creator tippt seinen Namen nicht. Ein Eintrag hat höchstens eine aktive Konzept-Einladung; erneutes Einladen löst die alte ab. Möglich für Einträge, die weder vom Kunden abgelehnt noch „Nicht umsetzen“ sind, einzeln oder für mehrere markierte Einträge. Die Mail geht an die Creator-Mail, sonst an die Management-Mail der aktiven Zuordnung; ohne beides bleibt Link und Code zum Kopieren. Der Creator darf nach dem Absenden weitere Ideen schicken, jede ist eine eigene Einreichung. Verschwindet der Casting-Eintrag (Creator-Tausch, Löschen), wird die Einladung widerrufen, offene Einreichungen bleiben.
+_Avoid_: Creator-Einladung, Konzept-Anfrage (die **Management-Anfrage** ist etwas anderes), Briefing-Anschreiben
+
 **Einreichung**:
-Das, was über eine Einladung abgeschickt wurde. Noch kein Produkt und kein Briefing. Bleibt offen, bis ein Mitarbeiter sie anlegt oder verwirft. Hängt die Einladung an einer Linie, wird das angelegte Produkt an diese Linie übernommen (**Produkt übernehmen**); bei „Vorhandenes nehmen“ gilt das für das vorhandene Produkt.
-_Avoid_: Entwurf, Kundenbriefing, Produkt extern
+Das, was über eine Einladung abgeschickt wurde. Noch kein Produkt, kein Briefing und keine Videoidee. Bleibt offen, bis ein Mitarbeiter sie anlegt oder verwirft. Hängt die Einladung an einer Linie, wird das angelegte Produkt an diese Linie übernommen (**Produkt übernehmen**); bei „Vorhandenes nehmen“ gilt das für das vorhandene Produkt. Eine Einreichung über eine Konzept-Einladung wird beim Anlegen zu genau einer Videoidee im Konzept der Linie, mit dem Casting-Eintrag der Einladung; der Kunde sieht sie nie, auch unter Alle. Ist der Eintrag nicht mehr im Casting, legt das Team ohne Zuordnung an und wählt den Eintrag im Drawer.
+_Avoid_: Entwurf, Kundenbriefing, Produkt extern, Bewerbung (das ist der Vorschlag über eine Management-Anfrage)
+
+**Creator-Sheet**:
+Das Formular der Konzept-Einladung, das PDF „Creator Concept Sheet“ als Webformular: 01 Idee mit Arbeitstitel, 02 Einstieg / Hook, 03 Ablauf mit CTA, 04 So kommt die Marke rein (optional), dazu optional ein eigenes Video, ein Referenzvideo und eine alternative Idee. Pflicht sind 01 bis 03. Beim Anlegen wird die Idee zur Kurzbeschreibung, der Arbeitstitel zum Titel, der Hook zum Hook und der Ablauf (mit CTA) zum Hauptteil der strukturierten Beschreibung der Videoidee; das Sheet selbst bleibt als Block an der Videoidee stehen, wie der Creator es geschrieben hat, und ist nur für das Team sichtbar. Die alternative Idee bleibt Text darin und wird nicht automatisch zur zweiten Videoidee.
+_Avoid_: Konzept (das ist das Dokument der Linie), Konzeptidee, Creator-Briefing
 
 **Rechnung**:
 Eingangsrechnung eines Creators. Der Monat sitzt am Rechnungsdatum.

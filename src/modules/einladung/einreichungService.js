@@ -5,9 +5,10 @@
 const BUCKET = 'einreichung';
 
 const SELECT = `
-  id, status, absender_name, payload, dateien, created_at, produkt_id, briefing_id,
+  id, status, absender_name, payload, dateien, created_at, produkt_id, briefing_id, strategie_item_id,
   einladung:einladung_id!inner(
-    id, art, label, briefing_typ, produktion_id, briefing_id, marke_id, unternehmen_id,
+    id, art, label, briefing_typ, produktion_id, briefing_id, marke_id, unternehmen_id, creator_auswahl_item_id,
+    eintrag:creator_auswahl_item_id(id, name, creator_id),
     unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url), marke:marke_id(markenname),
     briefing:briefing_id(aktivierung_name, produktion_id)
   )
@@ -21,6 +22,7 @@ export async function listOffeneEinreichungen({
   art,
   produktionId = null,
   briefingId = null,
+  briefingIds = null,
   markeId = null,
   unternehmenId = null
 } = {}) {
@@ -33,6 +35,10 @@ export async function listOffeneEinreichungen({
   if (art) query = query.eq('einladung.art', art);
   if (produktionId) query = query.eq('einladung.produktion_id', produktionId);
   if (briefingId) query = query.eq('einladung.briefing_id', briefingId);
+  else if (briefingIds) {
+    if (!briefingIds.length) return [];
+    query = query.in('einladung.briefing_id', briefingIds);
+  }
   if (markeId) query = query.eq('einladung.marke_id', markeId);
   else if (unternehmenId) query = query.eq('einladung.unternehmen_id', unternehmenId);
   const { data, error } = await query;
@@ -85,6 +91,11 @@ export function markiereProduktAngelegt(id, produktId) {
   return setzeStatus(id, { status: 'angelegt', produkt_id: produktId });
 }
 
+/** Konzept-Einreichung: Videoidee ist angelegt, die Einreichung gilt als erledigt. */
+export function markiereKonzeptAngelegt(id, strategieItemId) {
+  return setzeStatus(id, { status: 'angelegt', strategie_item_id: strategieItemId });
+}
+
 export async function ladeDatei(pfad) {
   const { data, error } = await window.supabase.storage.from(BUCKET).download(pfad);
   if (error) throw error;
@@ -94,6 +105,11 @@ export async function ladeDatei(pfad) {
 /** Link zum Review: Briefing öffnet das Briefing-Formular, Produkt das Produkt-Formular. */
 export function reviewUrl(einreichung, kontext = {}) {
   const einladung = einreichung.einladung || {};
+  if (einladung.art === 'konzept') {
+    // Kein eigenes Formular: geprüft wird im Videoidee-Drawer auf dem Konzepte-Tab der Linie.
+    const produktionId = einladung.briefing?.produktion_id;
+    return produktionId ? `/produktion/${produktionId}?tab=konzepte` : '/kampagne';
+  }
   if (einladung.art === 'produkt') {
     const params = new URLSearchParams({ einreichung: einreichung.id });
     if (einladung.unternehmen_id) params.set('unternehmen', einladung.unternehmen_id);
