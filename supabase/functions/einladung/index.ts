@@ -213,11 +213,12 @@ interface EintragRow {
   nicht_umsetzen: boolean | null;
   creator_id: string | null;
   link_instagram: string | null;
+  email: string | null;
   creator_auswahl: { briefing_id: string | null; kampagne_id: string | null } | null;
 }
 
 const EINTRAG_SPALTEN =
-  'id, name, kategorie, abgelehnt, absage, nicht_umsetzen, creator_id, link_instagram, creator_auswahl:creator_auswahl_id(briefing_id, kampagne_id)';
+  'id, name, kategorie, abgelehnt, absage, nicht_umsetzen, creator_id, link_instagram, email, creator_auswahl:creator_auswahl_id(briefing_id, kampagne_id)';
 
 /** Gate der Konzept-Einladung: weder vom Kunden abgelehnt, noch abgesagt, noch „Nicht umsetzen“. */
 function eintragGesperrt(e: Pick<EintragRow, 'abgelehnt' | 'absage' | 'nicht_umsetzen' | 'kategorie'>): string | null {
@@ -245,8 +246,17 @@ async function konzeptGesperrt(admin: Admin, e: EinladungRow): Promise<string | 
   return grund ? `Die Einladung ist nicht mehr gültig. ${grund}` : null;
 }
 
-/** Mailziel eines Eintrags: Creator-Mail, sonst Management-Mail der aktiven Zuordnung, sonst keins. */
-async function konzeptMailziel(admin: Admin, creatorId: string | null): Promise<string | null> {
+/**
+ * Mailziel eines Eintrags: Mail im Casting-Eintrag (Spalte „E-Mail“, wie im Casting gepflegt),
+ * sonst Creator-Mail, sonst Management-Mail der aktiven Zuordnung, sonst keins.
+ */
+async function konzeptMailziel(
+  admin: Admin,
+  creatorId: string | null,
+  eintragMail: string | null = null,
+): Promise<string | null> {
+  const imEintrag = parseEmpfaenger([eintragMail]);
+  if (!imEintrag.fehler && imEintrag.emails.length === 1) return imEintrag.emails[0];
   if (!creatorId) return null;
   const { data } = await admin
     .from('creator')
@@ -421,6 +431,22 @@ async function legeKonzeptEinladungenAn(
   const nachricht = String(p.body.nachricht ?? '').trim().slice(0, NACHRICHT_MAX);
   const versenden = p.body.versenden !== false;
 
+  // Adresse für Einträge ohne hinterlegte Mail (Creator nicht in der DB): gilt nur für diese Einladung
+  // und wird nirgends gespeichert. Sie hat Vorrang vor Creator- und Management-Mail.
+  const adressen = new Map<string, string>();
+  const rohAdressen = p.body.mailAdressen && typeof p.body.mailAdressen === 'object'
+    ? p.body.mailAdressen as Record<string, unknown>
+    : {};
+  for (const [id, wert] of Object.entries(rohAdressen)) {
+    const mail = String(wert ?? '').trim();
+    if (!mail || !ids.includes(id)) continue;
+    const geprueft = parseEmpfaenger([mail]);
+    if (geprueft.fehler || geprueft.emails.length !== 1) {
+      return { status: 400, data: { error: `Ungültige E-Mail-Adresse: ${mail.slice(0, 80)}` } };
+    }
+    adressen.set(id, geprueft.emails[0]);
+  }
+
   const ergebnisse: KonzeptErgebnis[] = [];
   for (const itemId of ids) {
     const eintrag = await ladeEintrag(admin, itemId);
@@ -488,7 +514,9 @@ async function legeKonzeptEinladungenAn(
     ergebnis.link = link;
     ergebnis.code = code;
 
-    const ziel = versenden ? await konzeptMailziel(admin, eintrag.creator_id) : null;
+    const ziel = versenden
+      ? (adressen.get(itemId) ?? await konzeptMailziel(admin, eintrag.creator_id, eintrag.email))
+      : null;
     ergebnis.mailAn = ziel;
     if (ziel) {
       const versand = await versendeEinladung(admin, inserted as EinladungRow, {

@@ -19,8 +19,13 @@ function esc(value) {
     .replace(/"/g, '&quot;');
 }
 
-/** Mailziel wie in der Edge Function: Creator-Mail, sonst aktive Management-Mail, sonst null. */
-export function konzeptMailziel(creator) {
+/**
+ * Mailziel wie in der Edge Function: Mail im Casting-Eintrag, sonst Creator-Mail, sonst aktive
+ * Management-Mail, sonst null.
+ */
+export function konzeptMailziel(creator, eintragMail = null) {
+  const imEintrag = String(eintragMail ?? '').trim().toLowerCase();
+  if (imEintrag && istKonzeptMail(imEintrag)) return imEintrag;
   const direkt = String(creator?.mail ?? '').trim().toLowerCase();
   if (direkt) return direkt;
   for (const z of creator?.creator_management || []) {
@@ -30,12 +35,36 @@ export function konzeptMailziel(creator) {
   return null;
 }
 
+const MAIL_MUSTER = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
+
+/** Gleiche Prüfung wie die Edge Function (parseEmpfaenger). Leer ist gültig (keine Adresse). */
+export function istKonzeptMail(wert) {
+  const mail = String(wert ?? '').trim();
+  return !mail || (mail.length <= 320 && MAIL_MUSTER.test(mail));
+}
+
+/**
+ * Fertiger Text zum Einfügen in eine DM (Instagram o. ä.), wenn keine Mail möglich ist.
+ * Du-Form wie in der Mail; Vorname aus dem Namen des Eintrags.
+ */
+export function konzeptNachricht({ name, link, code }) {
+  const vorname = String(name ?? '').trim().split(/\s+/)[0];
+  return [
+    `Hi${vorname ? ` ${vorname}` : ''}!`,
+    '',
+    'Wir würden gern eine Idee von dir für unsere Kooperation hören. Über diesen Link kannst du sie im Creator Concept Sheet eintragen:',
+    link,
+    '',
+    `Dein Code: ${code}`
+  ].join('\n');
+}
+
 /** Eintrag mit Mailziel und aktiver Einladung für die Anzeige im Drawer. */
 export async function ladeKonzeptEintraege(itemIds) {
   if (!window.supabase || !itemIds.length) return [];
   const { data: items, error } = await window.supabase
     .from('creator_auswahl_items')
-    .select('id, name, creator_id, creator:creator_id(mail, creator_management(ist_aktiv, management:management_id(email)))')
+    .select('id, name, email, creator_id, creator:creator_id(mail, creator_management(ist_aktiv, management:management_id(email)))')
     .in('id', itemIds);
   if (error) throw error;
 
@@ -51,7 +80,7 @@ export async function ladeKonzeptEintraege(itemIds) {
   return itemIds.map((id) => nachId.get(id)).filter(Boolean).map((i) => ({
     id: i.id,
     name: i.name || 'Ohne Namen',
-    mailAn: konzeptMailziel(i.creator),
+    mailAn: konzeptMailziel(i.creator, i.email),
     hatAktive: aktivIds.has(i.id)
   }));
 }
@@ -137,7 +166,7 @@ export class KonzeptEinladungDrawer {
         <section class="einladung-abschnitt">
           <label class="einladung-ap-zeile">
             <input type="checkbox" id="konzept-einladung-senden" checked>
-            <span class="einladung-ap-name">Per E-Mail senden, wo eine Adresse hinterlegt ist</span>
+            <span class="einladung-ap-name">Per E-Mail senden, wo eine Adresse vorliegt</span>
           </label>
           <div class="form-group">
             <label class="form-label" for="konzept-einladung-nachricht">Persönliche Notiz (optional)</label>
@@ -180,9 +209,28 @@ export class KonzeptEinladungDrawer {
     host.innerHTML = this.eintraege.map((e) => `
       <div class="einladung-ap-zeile" data-eintrag-id="${esc(e.id)}">
         <span class="einladung-ap-name">${esc(e.name)}</span>
-        <span class="einladung-ap-mail">${e.mailAn ? esc(e.mailAn) : 'nur Link und Code'}${e.hatAktive ? ' · löst aktive Einladung ab' : ''}</span>
+        ${e.mailAn
+          ? `<span class="einladung-ap-mail">${esc(e.mailAn)}${e.hatAktive ? ' · löst aktive Einladung ab' : ''}</span>`
+          : `<input type="email" class="input" data-mail-override placeholder="E-Mail (optional, sonst nur Link und Code)" autocomplete="off" maxlength="320">
+             ${e.hatAktive ? '<span class="einladung-ap-mail">löst aktive Einladung ab</span>' : ''}`}
       </div>`).join('') || '<p class="einladung-hinweis">Keine Einträge.</p>';
+    host.querySelectorAll('[data-mail-override]').forEach((feld) => {
+      feld.addEventListener('input', () => {
+        feld.classList.toggle('input-error', !istKonzeptMail(feld.value));
+        this.aktualisiereKnopf();
+      }, { signal: this._abort?.signal });
+    });
     this.aktualisiereKnopf();
+  }
+
+  /** Eingetragene Adressen je Eintrag (nur Zeilen ohne hinterlegte Mail). */
+  adressen() {
+    const ergebnis = {};
+    this.panel?.querySelectorAll('[data-eintrag-id]').forEach((zeile) => {
+      const wert = zeile.querySelector('[data-mail-override]')?.value.trim();
+      if (wert) ergebnis[zeile.dataset.eintragId] = wert;
+    });
+    return ergebnis;
   }
 
   senden() {
@@ -193,12 +241,17 @@ export class KonzeptEinladungDrawer {
     const knopf = this.panel?.querySelector('#konzept-einladung-submit');
     if (!knopf) return;
     knopf.disabled = this.eintraege.length === 0;
-    const mails = this.eintraege.filter((e) => e.mailAn).length;
+    const mails = this.eintraege.filter((e) => e.mailAn).length + Object.keys(this.adressen()).length;
     knopf.textContent = this.senden() && mails ? 'Einladungen erstellen und senden' : 'Einladungen erstellen';
   }
 
   async erstellen() {
     const knopf = this.panel.querySelector('#konzept-einladung-submit');
+    const adressen = this.adressen();
+    if (Object.values(adressen).some((mail) => !istKonzeptMail(mail))) {
+      window.toastSystem?.warning('Bitte eine gültige E-Mail-Adresse eintragen oder das Feld leeren.');
+      return;
+    }
     knopf.disabled = true;
     knopf.textContent = 'Wird erstellt …';
     try {
@@ -206,6 +259,7 @@ export class KonzeptEinladungDrawer {
         art: 'konzept',
         creatorAuswahlItemIds: this.eintraege.map((e) => e.id),
         versenden: this.senden(),
+        mailAdressen: Object.keys(adressen).length ? adressen : undefined,
         nachricht: this.panel.querySelector('#konzept-einladung-nachricht').value.trim() || undefined
       });
       if (!antwort.ok) {
@@ -243,6 +297,7 @@ export class KonzeptEinladungDrawer {
             <span class="share-fresh-code">Code: ${esc(r.code)}</span>
           </div>
           <div class="share-recipient-actions">
+            <button type="button" class="share-recipient-revoke" data-copy="${esc(konzeptNachricht(r))}">Nachricht kopieren</button>
             <button type="button" class="share-recipient-revoke" data-copy="${esc(r.code)}">Code kopieren</button>
             <button type="button" class="share-recipient-revoke" data-copy="${esc(r.link)}">Link kopieren</button>
           </div>
