@@ -25,6 +25,7 @@ import { renderCustomField } from '../../../core/customColumns/EntityCustomColum
 import { makeCustomColumnId } from '../../../core/customColumns/entityColumnUtils.js';
 
 import { BESCHREIBUNG_FELDER, beschreibungStrukturVon } from './beschreibungStruktur.js';
+import { renderCreatorSheetTabelle } from './creatorSheetTabelle.js';
 
 export const DRAWER_ID = 'edit-item-drawer';
 export const STRUKTUR_FIELD_PREFIX = 'beschreibung_struktur.';
@@ -598,14 +599,7 @@ export function renderKommentareInhalt(kommentare) {
  */
 export function renderCreatorSheetInhalt(bloecke) {
   if (!bloecke?.length) return '';
-  const html = bloecke.map((b) => `
-    <div class="videoidee-doc__prose">
-      <strong>${b.nr ? `${escapeHtml(b.nr)} ` : ''}${escapeHtml(b.titel)}</strong>
-      ${b.eintraege.map((e) => `<div>${b.eintraege.length > 1 ? `<em>${escapeHtml(e.label)}</em><br>` : ''}${e.link
-        ? `<a href="${escapeAttr(e.wert)}" target="_blank" rel="noopener noreferrer">${escapeHtml(e.wert)}</a>`
-        : escapeHtml(e.wert).replace(/\n/g, '<br>')}</div>`).join('')}
-    </div>`).join('');
-  return section('creator-sheet', 'Creator-Sheet', html);
+  return section('creator-sheet', 'Creator-Sheet', renderCreatorSheetTabelle(bloecke));
 }
 
 export function renderBody(detail, item) {

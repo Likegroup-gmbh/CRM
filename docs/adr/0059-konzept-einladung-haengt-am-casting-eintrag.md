@@ -17,4 +17,4 @@ Das Creator-Sheet bleibt als Block an der Idee erhalten: Es liegt unverändert i
 - Anlegen schreibt direkt per Insert und umgeht damit das Zuordnungs-Gate der Tabelle (Kunden-Prio plus Zusage): Wer eine Idee eingereicht hat, ist gesetzt. Die Skript-Freigabe prüft weiter selbst.
 - Die Mail geht an `creator.mail`, sonst an das aktive Management; ohne beides zeigt der Drawer Link und Code zum Weitergeben.
 - Ist der Eintrag nicht mehr im Casting, wählt das Team im Review einen anderen Eintrag oder legt ohne Zuordnung an.
-- Der Eingang erscheint auf dem Konzepte-Tab der Produktion (Zähler am Tab), Prüfen öffnet den Videoidee-Drawer statt eines eigenen Screens.
+- Der Eingang erscheint auf dem Konzepte-Tab der Produktion (Zähler am Tab) in der eigenen Ansicht „Creator-Ideen“, als Tabelle wie die übrigen Listen. Ein Switch (Konzept | Creator-Ideen) in der Tab-Zeile trennt sie von den Videoideen und Mitarbeiter-Vorschlägen des Konzepts. Prüfen öffnet den Videoidee-Drawer statt eines eigenen Screens.

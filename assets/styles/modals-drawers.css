@@ -833,10 +833,21 @@ body.drawer-resizing {
 }
 
 td.videoidee-struktur__value {
-  padding: var(--space-xs) var(--space-md) var(--space-xs) 0;
+  padding: var(--space-xs) var(--space-md) var(--space-xs) var(--space-sm);
   vertical-align: top;
   min-width: 0;
   border-right: none;
+}
+
+/* Creator-Sheet (ADR 0059): mehrere Felder in einer Zeile, Feldname klein über dem Wert */
+.creator-sheet-eintrag + .creator-sheet-eintrag {
+  margin-top: var(--space-xs);
+}
+
+.creator-sheet-eintrag__label {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--gray-400);
 }
 
 /* Hook-Sperre (ADR 0054): Schloss neben dem Label der Hook-Zeile */

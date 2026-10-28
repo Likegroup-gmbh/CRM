@@ -3,6 +3,7 @@
 // Produkte-Tab der Linie und die Produktliste rendern alle über diesen einen Pfad:
 // Zeilen, Prüfen, Verwerfen und der Zähler am Tab. Was je Art anders ist, steht in ARTEN.
 // Aktionen: Prüfen (Vollseite des jeweiligen Formulars), Verwerfen.
+// Produkt und Konzept (Creator-Ideen) rendern als Tabelle (`tabelle` in ARTEN), Briefing als Zeilenliste.
 
 import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 import {
@@ -12,6 +13,7 @@ import {
   verwirfEinreichung
 } from './einreichungService.js';
 import { ladeThumbs, renderProduktEinreichungTabelle } from './produktEinreichungTabelle.js';
+import { renderKonzeptIdeenTabelle } from './konzeptIdeenTabelle.js';
 
 export function esc(value) {
   return String(value ?? '')
@@ -42,27 +44,30 @@ export const ARTEN = {
   produkt: {
     tabId: 'produkte',
     // Zeilen kommen als Tabelle aus produktEinreichungTabelle.js, nicht aus titel/meta.
+    tabelle: async (offen, optionen) => renderProduktEinreichungTabelle(offen, {
+      thumbs: await ladeThumbs(offen),
+      ...optionen
+    }),
     verwerfenHinweis: 'Hochgeladene Bilder werden gelöscht.'
   },
   // Konzept-Einladung (ADR 0059): Creator-Sheet, Prüfen öffnet den Videoidee-Drawer (`onPruefen`).
+  // Tabelle der Creator-Ideen: konzeptIdeenTabelle.js.
   konzept: {
     tabId: 'konzepte',
-    titel: (e) => `Idee von ${e.absender_name}`,
-    meta: (e) => {
-      const daten = e.payload?.formData || {};
-      const kurz = String(daten.arbeitstitel || daten.idee || '').replace(/\s+/g, ' ').trim();
-      return [
-        einreichungDatum(e),
-        kurz.length > 70 ? `${kurz.slice(0, 70)}…` : kurz,
-        e.einladung?.creator_auswahl_item_id ? '' : 'Eintrag nicht mehr im Casting'
-      ];
-    },
+    tabelle: async (offen, optionen) => renderKonzeptIdeenTabelle(offen, optionen),
     verwerfenHinweis: 'Die Idee wird nicht ins Konzept übernommen.'
   }
 };
 
 /** Zähler am Tab der Art: Badge setzen oder entfernen. Ohne Tab im DOM passiert nichts. */
 export function setzeEinreichungsZaehler(art, anzahl) {
+  // Zähler im Ansichts-Switch des Konzepte-Tabs („Creator-Ideen“) mitführen.
+  if (art === 'konzept') {
+    document.querySelectorAll('[data-ideen-zaehler]').forEach((el) => {
+      el.textContent = anzahl ? String(anzahl) : '';
+      el.style.display = anzahl ? '' : 'none';
+    });
+  }
   const tab = document.querySelector(`[data-workflow-tab="${ARTEN[art].tabId}"]`);
   if (!tab) return;
   let badge = tab.querySelector('[data-einreichung-count]');
@@ -125,36 +130,45 @@ function renderZeile(art, einreichung, optionen) {
  *   filter: object|null,          // an listOffeneEinreichungen (produktionId, briefingId, briefingIds, markeId, unternehmenId)
  *   reviewKontext?: object,       // an reviewUrl (kampagneId)
  *   tabBadge?: boolean,           // Zähler am Tab der Art mitführen
- *   onPruefen?: (einreichung, neuLaden: () => Promise<void>) => void  // statt Vollseite (Konzept: Drawer)
+ *   onPruefen?: (einreichung, neuLaden: () => Promise<void>) => void,  // statt Vollseite (Konzept: Drawer)
+ *   leerHtml?: string             // ohne Einreichungen dies zeigen statt den Host zu verbergen (Konzept: Ideen-Ansicht)
  * }} opts
  */
-export async function mountEinreichungInbox({ art, host, filter, reviewKontext = {}, tabBadge = false, onPruefen = null }) {
+export async function mountEinreichungInbox(opts) {
+  const { art, host, filter, reviewKontext = {}, tabBadge = false, onPruefen = null, leerHtml = '' } = opts;
   if (!host) return;
+  const neuLaden = () => mountEinreichungInbox(opts);
   const offen = await ladeOffene(art, filter);
   if (!host.isConnected) return;
   if (tabBadge) setzeEinreichungsZaehler(art, offen.length);
 
   if (!offen.length) {
-    host.hidden = true;
-    host.innerHTML = '';
     host.onclick = null;
+    if (leerHtml) {
+      host.hidden = false;
+      host.classList.add('einreichung-inbox--tabelle');
+      host.innerHTML = leerHtml;
+    } else {
+      host.hidden = true;
+      host.classList.remove('einreichung-inbox--tabelle');
+      host.innerHTML = '';
+    }
     return;
   }
 
   const optionen = { zeigeLinie: !filter?.briefingId };
-  const alsTabelle = art === 'produkt';
-  const thumbs = alsTabelle ? await ladeThumbs(offen) : null;
+  const tabelle = ARTEN[art].tabelle;
+  const tabellenHtml = tabelle ? await tabelle(offen, optionen) : null;
   if (!host.isConnected) return;
   host.hidden = false;
-  host.classList.toggle('einreichung-inbox--tabelle', alsTabelle);
-  host.innerHTML = `
-    ${alsTabelle ? '' : `<div class="einreichung-inbox__kopf">
-      <strong>${art === 'konzept' ? 'Ideen von Creatorn' : 'Kundeneinreichungen'}</strong>
-      <span class="einreichung-inbox__anzahl">${offen.length} offen</span>
-    </div>`}
-    ${alsTabelle
-      ? renderProduktEinreichungTabelle(offen, { thumbs, ...optionen })
-      : offen.map((e) => renderZeile(art, e, optionen)).join('')}`;
+  host.classList.toggle('einreichung-inbox--tabelle', !!tabelle);
+  host.innerHTML = tabelle
+    ? tabellenHtml
+    : `<div class="einreichung-inbox__kopf">
+        <strong>Kundeneinreichungen</strong>
+        <span class="einreichung-inbox__anzahl">${offen.length} offen</span>
+      </div>
+      ${offen.map((e) => renderZeile(art, e, optionen)).join('')}`;
 
   host.onclick = async (e) => {
     const zeile = e.target.closest('[data-einreichung-id]');
@@ -164,7 +178,7 @@ export async function mountEinreichungInbox({ art, host, filter, reviewKontext =
     if (e.target.closest('[data-einreichung-pruefen]')) {
       e.preventDefault();
       if (onPruefen) {
-        onPruefen(einreichung, () => mountEinreichungInbox({ art, host, filter, reviewKontext, tabBadge, onPruefen }));
+        onPruefen(einreichung, neuLaden);
         return;
       }
       window.navigateTo(reviewUrl(einreichung, reviewKontext));
@@ -189,7 +203,7 @@ export async function mountEinreichungInbox({ art, host, filter, reviewKontext =
         console.error('Verwerfen fehlgeschlagen:', error);
         window.toastSystem?.error('Verwerfen fehlgeschlagen.');
       }
-      await mountEinreichungInbox({ art, host, filter, reviewKontext, tabBadge, onPruefen });
+      await neuLaden();
     }
   };
 }

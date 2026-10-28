@@ -5,9 +5,13 @@ import { effectiveLinie, leerHinweis, renderListenSwitch, bindListenSwitch, plac
 import { StrategieDetail } from '../strategie/StrategieDetail.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { mountKonzeptEinreichungen } from '../einladung/konzeptEinreichungen.js';
+import { istStaff } from '../einladung/EinreichungInbox.js';
+import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
 const LISTE_ATTR = 'data-konzept-liste';
+const ANSICHT_KONZEPT = 'konzept';
+const ANSICHT_IDEEN = 'ideen';
 const SPINNER = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
 
 function getKonzeptTools() {
@@ -21,8 +25,61 @@ export function unmountKonzeptWorksheet(detail) {
     detail.konzeptWorksheet = null;
   }
   const tools = getKonzeptTools();
-  if (tools) tools.innerHTML = '';
+  if (tools) {
+    tools.innerHTML = '';
+    tools.style.display = '';
+  }
   clearListenSwitch();
+}
+
+/** Aktive Ansicht: „Creator-Ideen“ gibt es nur für Staff, sonst immer das Konzept. */
+function aktuelleAnsicht(detail) {
+  return detail._konzeptAnsicht === ANSICHT_IDEEN && istStaff() ? ANSICHT_IDEEN : ANSICHT_KONZEPT;
+}
+
+/** Switch „Konzept | Creator-Ideen“ (gleiche Optik wie Liste/Grid-Switch). */
+function renderAnsichtSwitch(detail) {
+  if (!istStaff()) return '';
+  const ideen = aktuelleAnsicht(detail) === ANSICHT_IDEEN;
+  return ViewModeToggle.render([
+    { buttonId: 'btn-konzept-ansicht-konzept', label: 'Konzept', title: 'Videoideen des Konzepts', active: !ideen },
+    {
+      buttonId: 'btn-konzept-ansicht-ideen',
+      label: 'Creator-Ideen <span class="tab-count" data-ideen-zaehler style="display:none"></span>',
+      title: 'Von Creatorn eingereichte Ideen',
+      active: ideen
+    }
+  ]);
+}
+
+/** Zeigt je nach Ansicht Worksheet (samt Add-Buttons) oder die Ideen-Tabelle. */
+function applyAnsicht(detail, pane) {
+  const ideen = aktuelleAnsicht(detail) === ANSICHT_IDEEN;
+  const show = (el, on) => { if (el) el.style.display = on ? '' : 'none'; };
+  show(pane.querySelector('.kampagne-konzept-worksheet'), !ideen);
+  show(pane.querySelector('[data-konzept-ideen]'), ideen);
+  show(getKonzeptTools(), !ideen);
+  document.querySelectorAll('#btn-konzept-ansicht-konzept, #btn-konzept-ansicht-ideen').forEach((btn) => {
+    btn.classList.toggle('active', (btn.id === 'btn-konzept-ansicht-ideen') === ideen);
+  });
+}
+
+function ladeIdeen(detail, pane) {
+  return mountKonzeptEinreichungen(detail, pane.querySelector('[data-konzept-einreichungen]'));
+}
+
+function bindAnsichtSwitch(detail, pane, slot) {
+  const root = slot || pane;
+  root.querySelector('.view-toggle')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const ziel = btn.id === 'btn-konzept-ansicht-ideen' ? ANSICHT_IDEEN : ANSICHT_KONZEPT;
+    if (ziel === aktuelleAnsicht(detail)) return;
+    detail._konzeptAnsicht = ziel;
+    applyAnsicht(detail, pane);
+    // Ideen frisch laden: es kann seit dem Öffnen des Tabs etwas eingegangen sein.
+    if (ziel === ANSICHT_IDEEN) void ladeIdeen(detail, pane);
+  });
 }
 
 function prefetchStillCurrent(detail, gen) {
@@ -99,8 +156,12 @@ export async function mountKonzeptPane(detail) {
 
     if (!listen.length) {
       dropWorksheet(prefetched?.worksheet, detail);
-      clearListenSwitch();
-      pane.innerHTML = renderEmptyKonzept(detail);
+      // Ohne Konzept bleiben die Creator-Ideen trotzdem sichtbar (Prüfen weist auf das fehlende Konzept hin).
+      const shell = renderKonzeptShell(detail, [], null, renderEmptyKonzept(detail));
+      pane.innerHTML = shell.html;
+      bindAnsichtSwitch(detail, pane, shell.slot);
+      applyAnsicht(detail, pane);
+      void ladeIdeen(detail, pane);
       return;
     }
 
@@ -114,10 +175,12 @@ export async function mountKonzeptPane(detail) {
       : null;
     if (prefetched?.worksheet && !warmWorksheet) prefetched.worksheet.destroy();
 
-    const shell = renderKonzeptShell(listen, selectedId);
+    const shell = renderKonzeptShell(detail, listen, selectedId);
     pane.innerHTML = shell.html;
     bindSwitcher(detail, pane, shell.slot);
-    void mountKonzeptEinreichungen(detail, pane.querySelector('[data-konzept-einreichungen]'));
+    bindAnsichtSwitch(detail, pane, shell.slot);
+    applyAnsicht(detail, pane);
+    void ladeIdeen(detail, pane);
     await mountWorksheet(detail, pane.querySelector('.kampagne-konzept-worksheet'), selectedId, warmWorksheet);
   } catch (error) {
     console.error('❌ KAMPAGNEDETAIL: Konzept-Pane fehlgeschlagen:', error);
@@ -154,19 +217,24 @@ function renderEmptyKonzept(detail) {
   });
 }
 
-/** Dropdown in die Tab-Zeile (ganz rechts); ohne Slot als Zeile im Pane. */
-function renderKonzeptShell(listen, selectedId) {
-  const html = listen.length > 1
+/**
+ * Ansichts-Switch und Konzept-Dropdown in die Tab-Zeile (ganz rechts); ohne Slot als Zeile im Pane.
+ * Darunter das Worksheet und die Tabelle der Creator-Ideen (nur eins davon ist sichtbar).
+ */
+function renderKonzeptShell(detail, listen, selectedId, worksheetHtml = '') {
+  const dropdown = listen.length > 1
     ? renderListenSwitch({ items: listen, activeId: selectedId, itemAttr: LISTE_ATTR, title: 'Konzept wechseln' })
     : '';
-  const { slot, inline } = placeListenSwitch(html, 'kampagne-konzept-listen-switcher');
+  const { slot, inline } = placeListenSwitch(`${renderAnsichtSwitch(detail)}${dropdown}`, 'kampagne-konzept-listen-switcher');
 
   return {
     slot,
     html: `
     ${inline}
-    <div class="einreichung-inbox" data-konzept-einreichungen hidden></div>
-    <div class="kampagne-konzept-worksheet"></div>
+    <div class="kampagne-konzept-worksheet">${worksheetHtml}</div>
+    <div class="konzept-ideen" data-konzept-ideen>
+      <div class="einreichung-inbox einreichung-inbox--tabelle" data-konzept-einreichungen></div>
+    </div>
   `
   };
 }

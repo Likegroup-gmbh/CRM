@@ -13,6 +13,7 @@ import { buildStrategieItemInsert } from './addItemPayload.js';
 import { loadStrategiePersonas, strategiePersonaOptions } from './strategiePersonaOptions.js';
 import { normalisiereStruktur, strukturZuText } from './videoidee/beschreibungStruktur.js';
 import { konzeptSheetBloecke } from '../einladung/konzeptSheet.js';
+import { renderCreatorSheetTabelle } from './videoidee/creatorSheetTabelle.js';
 import { ladeEinreichung, markiereKonzeptAngelegt } from '../einladung/einreichungService.js';
 import {
   bindSekundenSpanne,
@@ -169,16 +170,7 @@ export class KonzeptEinreichungDrawer extends AddItemDrawer {
         <section class="add-item-section" data-add-section="creator-sheet">
           <h3 class="drawer-section-title">Creator-Sheet</h3>
           <p class="einladung-hinweis">So hat der Creator es geschrieben. Dieser Block ändert sich nicht und ist nur für das Team sichtbar.</p>
-          <div class="add-item-section__body" data-creator-sheet>
-            ${bloecke.map((b) => `
-              <div class="form-field">
-                <label>${b.nr ? `${esc(b.nr)} ` : ''}${esc(b.titel)}</label>
-                ${b.eintraege.map((e) => `
-                  <p class="field-helper">${b.eintraege.length > 1 ? `<strong>${esc(e.label)}</strong><br>` : ''}${e.link
-                    ? `<a href="${esc(e.wert)}" target="_blank" rel="noopener noreferrer">${esc(e.wert)}</a>`
-                    : esc(e.wert).replace(/\n/g, '<br>')}</p>`).join('')}
-              </div>`).join('')}
-          </div>
+          ${renderCreatorSheetTabelle(bloecke)}
         </section>
 
         <div class="add-item-actions">

@@ -831,8 +831,12 @@ describe('Konzept-Einladung (ADR 0059)', () => {
 
       expect(filter).toContainEqual(['eq', 'einladung.art', 'konzept']);
       expect(filter).toContainEqual(['eq', 'einladung.briefing_id', 'b1']);
-      expect(host.textContent).toContain('Idee von Mia');
-      expect(host.textContent).toContain('Morgenroutine');
+      expect(host.querySelector('table.data-table')).not.toBeNull();
+      expect([...host.querySelectorAll('th')].map((th) => th.textContent)).toEqual(
+        ['Titel', 'Idee', 'Hook', 'Creator', 'Eingereicht', 'Aktionen']
+      );
+      expect(host.querySelector('.table-link').textContent).toBe('Morgenroutine');
+      expect(host.textContent).toContain('Mia');
       expect(document.querySelector('[data-workflow-tab="konzepte"] [data-einreichung-count]').textContent).toBe('1');
 
       host.querySelector('[data-einreichung-pruefen]').click();
@@ -848,8 +852,33 @@ describe('Konzept-Einladung (ADR 0059)', () => {
       await mountEinreichungInbox({ art: 'konzept', host, filter: { briefingIds: ['b1', 'b2'] } });
       expect(filter).toContainEqual(['in', 'einladung.briefing_id', ['b1', 'b2']]);
 
+      // Bei „Alle Linien“ nennt die Tabelle die Linie der Idee.
+      expect([...host.querySelectorAll('th')].map((th) => th.textContent)).toContain('Linie');
+      expect(host.textContent).toContain('Linie A');
+
       await mountEinreichungInbox({ art: 'konzept', host, filter: { briefingIds: [] } });
       expect(host.hidden).toBe(true);
+    });
+
+    it('ohne Ideen zeigt leerHtml statt den Host zu verbergen und der Zähler im Switch verschwindet', async () => {
+      fakeEinreichungen([]);
+      document.body.innerHTML = '<span data-ideen-zaehler>3</span><div id="host"></div>';
+      const host = document.getElementById('host');
+      await mountEinreichungInbox({
+        art: 'konzept', host, filter: { briefingId: 'b1' }, tabBadge: true, leerHtml: '<p>Keine offenen Ideen</p>'
+      });
+      expect(host.hidden).toBe(false);
+      expect(host.textContent).toContain('Keine offenen Ideen');
+      expect(document.querySelector('[data-ideen-zaehler]').style.display).toBe('none');
+    });
+
+    it('Zähler im Switch zeigt die Anzahl offener Ideen', async () => {
+      fakeEinreichungen([konzeptEinreichung()]);
+      document.body.innerHTML = '<span data-ideen-zaehler style="display:none"></span><div id="host"></div>';
+      await mountEinreichungInbox({ art: 'konzept', host: document.getElementById('host'), filter: { briefingId: 'b1' }, tabBadge: true });
+      const zaehler = document.querySelector('[data-ideen-zaehler]');
+      expect(zaehler.textContent).toBe('1');
+      expect(zaehler.style.display).toBe('');
     });
 
     it('weist auf einen entfallenen Casting-Eintrag hin', async () => {
@@ -858,6 +887,17 @@ describe('Konzept-Einladung (ADR 0059)', () => {
       const host = document.getElementById('host');
       await mountEinreichungInbox({ art: 'konzept', host, filter: { briefingId: 'b1' }, onPruefen: vi.fn() });
       expect(host.textContent).toContain('Eintrag nicht mehr im Casting');
+    });
+
+    it('Prüfen und Verwerfen hängen an der Tabellenzeile', async () => {
+      fakeEinreichungen([konzeptEinreichung()]);
+      document.body.innerHTML = '<div id="host"></div>';
+      const host = document.getElementById('host');
+      await mountEinreichungInbox({ art: 'konzept', host, filter: { briefingId: 'b1' }, onPruefen: vi.fn() });
+      const zeile = host.querySelector('tbody tr[data-einreichung-id]');
+      expect(zeile.dataset.einreichungId).toBe(ID);
+      expect(zeile.querySelector('[data-einreichung-pruefen]')).not.toBeNull();
+      expect(zeile.querySelector('[data-einreichung-verwerfen]')).not.toBeNull();
     });
 
     it('Review-Link führt auf den Konzepte-Tab der Produktion', () => {

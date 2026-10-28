@@ -372,6 +372,31 @@
   justify-content: flex-end;
 }
 
+/* Creator-Ideen (Konzepte-Tab, Ansicht „Creator-Ideen“): Tabelle direkt im Pane, Texte auf drei Zeilen gekürzt. */
+.konzept-ideen .einreichung-inbox--tabelle {
+  margin: 0;
+}
+
+.ideen-tabelle td {
+  vertical-align: top;
+}
+
+.ideen-tabelle .ideen-tabelle__text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  min-width: 220px;
+  max-width: 360px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ideen-tabelle__hinweis {
+  margin-top: var(--space-xxs);
+  font-size: var(--text-xs);
+}
+
 .einreichung-inbox__zeile + .einreichung-inbox__zeile {
   border-top: var(--border-xs) solid var(--border-primary);
 }

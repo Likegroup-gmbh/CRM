@@ -1,10 +1,12 @@
 // konzeptEinreichungen.js
 // Konzept-Seite des zentralen Eingangs (EinreichungInbox, ADR 0059): offene Creator-Ideen stehen auf
-// dem Konzepte-Tab der Produktion, über der Videoidee-Tabelle. „Prüfen“ öffnet den Videoidee-Drawer
-// (kein eigener Screen); der Zähler hängt am Tab „Konzepte“.
+// dem Konzepte-Tab der Produktion in der Ansicht „Creator-Ideen“ (Switch neben dem Konzept-Dropdown),
+// als Tabelle. „Prüfen“ öffnet den Videoidee-Drawer (kein eigener Screen); der Zähler hängt am Tab
+// „Konzepte“ und am Switch.
 
 import { mountEinreichungInbox, syncEinreichungsZaehler, istStaff } from './EinreichungInbox.js';
 import { effectiveLinie } from '../kampagne/linienScope.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 /**
  * Filter des Konzept-Eingangs: die gewählte Linie, bei „Alle Linien“ alle Linien der Produktion.
@@ -51,7 +53,13 @@ async function pruefen(detail, einreichung, neuLaden) {
   }
 }
 
-/** Eingang in den Host des Konzepte-Panes mounten. */
+const leerHtml = () => renderEmptyState({
+  icon: 'info',
+  title: 'Keine offenen Ideen',
+  text: 'Sobald ein Creator eine Idee über die Einladung einreicht, steht sie hier.'
+});
+
+/** Creator-Ideen als Tabelle in den Host der Ideen-Ansicht mounten. */
 export function mountKonzeptEinreichungen(detail, host) {
   if (!istStaff()) return Promise.resolve();
   return mountEinreichungInbox({
@@ -59,6 +67,7 @@ export function mountKonzeptEinreichungen(detail, host) {
     host,
     filter: konzeptEinreichungFilter(detail),
     tabBadge: true,
+    leerHtml: leerHtml(),
     onPruefen: (einreichung, neuLaden) => pruefen(detail, einreichung, neuLaden)
   });
 }
