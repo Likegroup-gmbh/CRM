@@ -182,11 +182,14 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
 };
 
 // ---------------------------------------------------------------
-// Briefing-Name: kein Formularfeld, Basis ist der Projektname (ADR 0041)
+// Briefing-Name: Feld Titel. Leer und noch nie gesetzt fällt auf den
+// Kampagnennamen zurück (ADR 0041). Ein geleertes Feld bleibt leer.
 // ---------------------------------------------------------------
 BriefingCreate.prototype.resolveBriefingName = function() {
-  const gesetzt = String(this.formData.aktivierung_name || '').trim();
+  const roh = this.formData.aktivierung_name;
+  const gesetzt = String(roh || '').trim();
   if (gesetzt) return gesetzt;
+  if (roh !== undefined && roh !== null) return null;
   const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
   const kampagne = (this.kampagnen || []).find(k => k.id === kampagneId);
   return String(kampagne?.kampagnenname || '').trim() || null;
@@ -202,8 +205,7 @@ BriefingCreate.prototype.prepareDataForDB = function() {
     bereich,
     unternehmen_id: this.formData.unternehmen_id || null,
     marke_id: this.formData.marke_id || null,
-    assignee_id: this.formData.assignee_id || null,
-    aktivierung_name: this.resolveBriefingName()
+    assignee_id: this.formData.assignee_id || null
   };
 
   for (const field of getAllFields()) {
@@ -263,6 +265,7 @@ BriefingCreate.prototype.prepareDataForDB = function() {
     ? funnelMapAusFormData(this.formData, this.formData.funnel_stufen)
     : null;
 
+  data.aktivierung_name = this.resolveBriefingName();
   mirrorLegacyColumns(data, bereich);
   return data;
 };
@@ -413,7 +416,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
     return;
   }
   if (!this.resolveBriefingName()) {
-    window.toastSystem?.show('Die Kampagne hat keinen Projektnamen. Bitte im Auftrag ergänzen.', 'warning');
+    window.toastSystem?.show('Bitte einen Titel vergeben (Schritt Grundlage).', 'warning');
     return;
   }
   if (!produktionId) {

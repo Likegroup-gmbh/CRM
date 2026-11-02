@@ -119,8 +119,7 @@ describe('collectPresentation Legacy', () => {
     expect(html).toContain('Serum in der Abendroutine zeigen');
     expect(html).toContain('Paid-Kanäle');
     expect(html).not.toContain('Hier schreiben');
-    expect(html).not.toContain('data-placeholder="Hier schreiben');
-    expect(html).toContain('data-feld="aktivierung_name"');
+    expect(html).not.toContain('data-placeholder');
     expect(html).not.toContain('briefing-doc--editable');
   });
 });

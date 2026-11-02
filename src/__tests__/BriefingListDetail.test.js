@@ -262,45 +262,6 @@ describe('BriefingDocView', () => {
     expect(html).not.toContain('briefing-doc__products');
   });
 
-  it('Titel ist nur mit Bearbeiten-Recht ein Feld, nicht im Druck', async () => {
-    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
-    const editable = renderBriefingDoc({ detail, canEdit: true });
-    expect(editable).toContain('data-feld="aktivierung_name"');
-    expect(editable).toContain('Sommer-Launch TEWH');
-
-    const readonly = renderBriefingDoc({ detail });
-    expect(readonly).not.toContain('data-feld="aktivierung_name"');
-    expect(readonly).toContain('Sommer-Launch TEWH');
-
-    const print = renderBriefingDoc({ detail, canEdit: true, print: true });
-    expect(print).not.toContain('data-feld="aktivierung_name"');
-    expect(print).toContain('Sommer-Launch TEWH');
-  });
-
-  it('leerer Titel bleibt der letzte Name und wird nicht geschrieben', async () => {
-    const { renderBriefingDoc, bindBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
-    document.body.innerHTML = renderBriefingDoc({ detail, canEdit: true });
-    const root = document.querySelector('.briefing-doc');
-    const updates = [];
-    window.toastSystem = { show: () => {} };
-    window.supabase = {
-      from: () => ({
-        update: (payload) => {
-          updates.push(payload);
-          return { eq: () => Promise.resolve({ error: null }) };
-        }
-      })
-    };
-    const handle = bindBriefingDoc(root, { briefingId: 'b1', canEdit: true });
-    const title = root.querySelector('[data-feld="aktivierung_name"]');
-    title.textContent = '   ';
-    title.dispatchEvent(new Event('input', { bubbles: true }));
-    await handle.inlineEdit.flush();
-    expect(updates).toEqual([]);
-    expect(title.textContent).toBe('Sommer-Launch TEWH');
-    await handle.destroy();
-  });
-
   it('Anschreiben sitzt zwischen Alle Felder und Loeschen, nicht im Print', async () => {
     const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
     const withBtn = renderBriefingDoc({ detail, canAnschreiben: true, canDelete: true });

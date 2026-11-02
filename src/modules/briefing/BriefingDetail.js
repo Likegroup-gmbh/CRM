@@ -189,14 +189,6 @@ export class BriefingDetail {
       canEdit: this.canEdit(),
       onSaved: (feld, text) => {
         if (this.briefing) this.briefing[feld] = text;
-        if (feld !== 'aktivierung_name' || this.embedded) return;
-        const title = text || 'Briefing';
-        window.breadcrumbSystem?.updateDetailLabel(title, {
-          id: 'btn-edit-briefing',
-          canEdit: this.canEdit()
-        });
-        const safe = window.validatorSystem?.sanitizeHtml?.(title) || title;
-        window.setHeadline?.(`Briefing: ${safe}`);
       }
     });
   }

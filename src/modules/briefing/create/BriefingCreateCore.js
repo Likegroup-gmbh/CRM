@@ -68,6 +68,10 @@ BriefingCreate.prototype.init = async function(editId = null) {
     this.formData.videolaenge = { von: 15, bis: 20 };
     await this.applyEinreichung?.();
     await this.refreshProdukte();
+    if (!String(this.formData.aktivierung_name || '').trim()) {
+      const name = this.resolveBriefingName();
+      if (name) this.formData.aktivierung_name = name;
+    }
   }
 
   this.render();

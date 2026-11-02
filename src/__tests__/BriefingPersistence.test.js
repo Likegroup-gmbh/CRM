@@ -148,7 +148,7 @@ describe('Briefing DataPersistence', () => {
     const instance = createInstance();
     instance.saveCurrentStepData();
 
-    expect(instance.formData).not.toHaveProperty('aktivierung_name');
+    expect(instance.formData.aktivierung_name).toBe('Fremdwert');
     expect(instance.formData.nischen).toEqual(['beauty']);
     expect(instance.formData.creator_merkmale).toEqual({
       alter: '25-34', geschlecht: '', standort: ''
@@ -299,7 +299,7 @@ describe('Briefing DataPersistence', () => {
     await instance.handleSubmit();
 
     expect(calls.insert.length).toBe(0);
-    expect(window.toastSystem.show).toHaveBeenCalledWith(expect.stringContaining('Projektnamen'), 'warning');
+    expect(window.toastSystem.show).toHaveBeenCalledWith(expect.stringContaining('Titel'), 'warning');
   });
 
   it('prepareDataForDB schreibt das Sekundenintervall und lässt Altspalten weg', () => {
