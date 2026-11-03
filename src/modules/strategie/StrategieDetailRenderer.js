@@ -733,16 +733,14 @@ function renderProduktionStartAction(item) {
 }
 
 function renderSkriptFreigabeAction(item) {
-  const kannFreigeben = !!item.creator_auswahl_item_id && !item.nicht_umsetzen;
+  const kannFreigeben = !item.nicht_umsetzen;
   const aktiv = !!item.skript_freigabe;
   const disabled = !aktiv && !kannFreigeben;
   const title = aktiv
     ? 'Skript-Freigabe zurücknehmen'
     : (item.nicht_umsetzen
       ? 'Zuerst „Nicht umsetzen“ deaktivieren'
-      : (item.creator_auswahl_item_id
-        ? 'Für Skript freigeben'
-        : 'Zuerst einen Casting-Eintrag zuordnen'));
+      : 'Für Skript freigeben');
 
   return `
               <a href="#" class="action-item${disabled ? ' action-disabled' : ''}"

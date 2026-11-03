@@ -121,4 +121,44 @@ describe('setSkriptFreigabe Produkt', () => {
     expect(updates[0]).not.toHaveProperty('produkt_id');
     expect(window.supabase.from).not.toHaveBeenCalledWith('campaign_briefing_produkt');
   });
+
+  it('gibt frei, auch wenn kein Casting-Eintrag zugeordnet ist', async () => {
+    const updates = [];
+    client({
+      strategie_items: [
+        itemRow({ creator_auswahl_item_id: null }),
+        keinVorschlag(),
+        { data: { id: 'i1' }, error: null }
+      ],
+      strategie: { data: { id: 's1', briefing_id: 'b1' }, error: null },
+      campaign_briefing_produkt: produkte([])
+    }, updates);
+
+    const produkt = await strategieService.setSkriptFreigabe('i1', true);
+
+    expect(produkt).toBeNull();
+    expect(updates[0].skript_freigabe).toBe(true);
+  });
+});
+
+describe('unassignCastingItem', () => {
+  afterEach(() => {
+    delete window.supabase;
+  });
+
+  it('löst die Zuordnung, ohne die Skript-Freigabe zurückzunehmen', async () => {
+    const updates = [];
+    client({
+      strategie_items: [
+        { data: { ist_vorschlag: false }, error: null },
+        { data: { ist_vorschlag: false }, error: null },
+        { data: { id: 'i1' }, error: null }
+      ],
+      skripte: { count: 0, error: null }
+    }, updates);
+
+    await strategieService.unassignCastingItem('i1');
+
+    expect(updates).toEqual([{ creator_auswahl_item_id: null }]);
+  });
 });

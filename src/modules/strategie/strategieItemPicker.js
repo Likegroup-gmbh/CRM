@@ -44,8 +44,9 @@ function creatorLabel(item) {
   const eintrag = item.casting_eintrag;
   if (eintrag?.name) return eintrag.name;
   const c = eintrag?.creator;
-  if (c) return `${c.vorname || ''} ${c.nachname || ''}`.trim();
-  return item.creator_name || 'Creator';
+  const crmName = c ? `${c.vorname || ''} ${c.nachname || ''}`.trim() : '';
+  if (crmName) return crmName;
+  return item.creator_name || 'Kein Creator';
 }
 
 /** Create-Drawer: freigegebene Ideen eines Konzepts. */

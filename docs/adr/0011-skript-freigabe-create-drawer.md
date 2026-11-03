@@ -1,6 +1,6 @@
 # Skripte entstehen nur aus freigegebenen Videoideen; Create sitzt im Drawer
 
-Der alte Generator unter `/skripte/new` hat Unternehmen, Marke, Kampagne, Briefing, Bereich und Video-Idee nochmal abgefragt, obwohl das alles schon an Konzept, Casting und Briefing hängt. Freitext ohne Vorlage bleibt tot: ein Skript braucht eine Videoidee mit Skript-Freigabe (Casting-Eintrag + nicht „Nicht umsetzen“). „Neues Skript“ öffnet denselben rechten Create-Drawer wie Konzept und Casting; Submit legt den Stub an und startet Likys Rückfragen im Editor.
+Der alte Generator unter `/skripte/new` hat Unternehmen, Marke, Kampagne, Briefing, Bereich und Video-Idee nochmal abgefragt, obwohl das alles schon an Konzept, Casting und Briefing hängt. Freitext ohne Vorlage bleibt tot: ein Skript braucht eine Videoidee mit Skript-Freigabe (nicht „Nicht umsetzen“). Ein Casting-Eintrag ist keine Voraussetzung, weil Skripte oft geschrieben werden, bevor der Creator feststeht. „Neues Skript“ öffnet denselben rechten Create-Drawer wie Konzept und Casting; Submit legt den Stub an und startet Likys Rückfragen im Editor.
 
 `strategie_items.skript_freigabe` ist das Gate für Neuanlage, nicht `kooperation_videos.skript_freigegeben` (das ist die Freigabe des fertigen Skripts am Video). Altbestand ist bewusst nicht freigegeben.
 

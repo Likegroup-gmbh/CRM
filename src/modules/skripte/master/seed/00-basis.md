@@ -119,8 +119,10 @@ Konzept
 └── Videoidee 3 → Casting-Eintrag A
 ```
 
-Vor der Übernahme in den Skriptbereich muss der finale Creator feststehen:
-eine Videovorlage ohne Casting-Eintrag blockt den Generator.
+Die Übernahme in den Skriptbereich braucht keinen Casting-Eintrag. Eine
+Videoidee ohne Zuordnung wird als offener Creator geschrieben: kanal- und
+markengerecht, ohne erfundene persönliche Biografie. Die Zuordnung kann
+später folgen; dann greift die Adaption.
 
 ## Adaption nach späterer Creator-Zuweisung
 
@@ -163,8 +165,8 @@ Community-Fit, persönliche Story und typische Formate konkret ausgearbeitet wer
 - Ist bei zugewiesenem Status der Creator-Fit konkret erkennbar?
 - Bleibt die strategische Idee bei der Adaption erhalten?
 - Werden persönliche Erfahrungen nur verwendet, wenn sie bestätigt sind?
-- Hat die Videovorlage einen Casting-Eintrag, bevor sie in den Skriptbereich
-  übernommen wird?
+- Bleibt eine Videoidee ohne Casting-Eintrag skriptfähig, ohne dass eine
+  Creator-DNA erfunden wird?
 - Bleibt bei Paid die Funnel- und Testlogik stabil?
 - Bleibt bei Influencer genügend Creator-Freiheit erhalten?
 

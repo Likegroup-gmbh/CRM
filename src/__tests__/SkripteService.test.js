@@ -332,6 +332,7 @@ describe('SkripteService.loadFreigegebeneVideoideen', () => {
     expect(captured.eq.strategie_id).toBe('st-1');
     expect(captured.eq['strategie.unternehmen_id']).toBe('u1');
     expect(captured.select).toContain('persona_id');
+    expect(captured.not).toBeUndefined();
   });
 });
 

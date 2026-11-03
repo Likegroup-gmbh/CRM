@@ -94,6 +94,7 @@ export class SkripteService {
   /**
    * Videoideen, die im Konzept fuer die Skripterstellung freigegeben sind.
    * Ohne Konzept keine Treffer – der Drawer filtert immer auf ein Konzept.
+   * Ein Casting-Eintrag ist keine Voraussetzung.
    */
   async loadFreigegebeneVideoideen({ unternehmenId, strategieId = null } = {}) {
     if (!unternehmenId || !strategieId) return [];
@@ -115,7 +116,6 @@ export class SkripteService {
       .eq('skript_freigabe', true)
       .eq('nicht_umsetzen', false)
       .eq('ist_vorschlag', false)
-      .not('creator_auswahl_item_id', 'is', null)
       .eq('strategie.unternehmen_id', unternehmenId)
       .eq('strategie_id', strategieId);
 

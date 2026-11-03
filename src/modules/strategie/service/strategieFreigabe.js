@@ -67,7 +67,8 @@ export async function unassignProdukt(itemId) {
 
 /**
  * Skript-Freigabe setzen oder zuruecknehmen. Gate nur fuer Neuanlage.
- * Freigeben nur mit Casting-Eintrag und ohne „Nicht umsetzen“.
+ * Freigeben geht ohne Casting-Eintrag: Skripte entstehen oft, bevor der
+ * Creator feststeht. „Nicht umsetzen“ bleibt gesperrt.
  * Ohne Produkt und mit genau einem Briefing-Produkt wird das gesetzt.
  * Bei mehreren Produkten ohne Zuordnung bleibt die Freigabe zu.
  * Gibt das automatisch gesetzte Produkt zurueck, sonst null.
@@ -75,16 +76,13 @@ export async function unassignProdukt(itemId) {
 export async function setSkriptFreigabe(itemId, flag) {
   const { data: item, error } = await window.supabase
     .from('strategie_items')
-    .select('id, strategie_id, creator_auswahl_item_id, nicht_umsetzen, ist_vorschlag, produkt_id')
+    .select('id, strategie_id, nicht_umsetzen, ist_vorschlag, produkt_id')
     .eq('id', itemId)
     .single();
   if (error || !item) throw new Error('Videoidee nicht gefunden');
   if (item.ist_vorschlag) throw new Error(VIDEOIDEE_VORSCHLAG_ERROR);
 
   if (flag) {
-    if (!item.creator_auswahl_item_id) {
-      throw new Error('Zuerst einen Casting-Eintrag zuordnen.');
-    }
     if (item.nicht_umsetzen) {
       throw new Error('Ideen mit „Nicht umsetzen“ können nicht freigegeben werden.');
     }

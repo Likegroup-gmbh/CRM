@@ -316,6 +316,27 @@ describe('renderItemsTable – Kopfzeile und colspan', () => {
   });
 });
 
+describe('renderItemRow – Skript-Freigabe ohne Creator', () => {
+  function freigabeAction(item) {
+    const doc = renderRow(item);
+    return doc.querySelector('[data-action="toggle-skript-freigabe"]');
+  }
+
+  it('gibt die Aktion ohne Casting-Eintrag frei', () => {
+    const action = freigabeAction({ skript_freigabe: false });
+    expect(action).toBeTruthy();
+    expect(action.classList.contains('action-disabled')).toBe(false);
+    expect(action.textContent).toContain('Für Skript freigeben');
+    expect(action.getAttribute('title')).toBe('Für Skript freigeben');
+  });
+
+  it('sperrt die Aktion bei „Nicht umsetzen“', () => {
+    const action = freigabeAction({ nicht_umsetzen: true, skript_freigabe: false });
+    expect(action.classList.contains('action-disabled')).toBe(true);
+    expect(action.getAttribute('title')).toBe('Zuerst „Nicht umsetzen“ deaktivieren');
+  });
+});
+
 describe('renderItemRow – Skript-Freigabe als Status', () => {
   it('zeigt den Badge, wenn die Videoidee für ein Skript freigegeben ist', () => {
     const doc = renderRow({ skript_freigabe: true });

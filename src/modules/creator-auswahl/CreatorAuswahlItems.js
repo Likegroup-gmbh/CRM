@@ -254,6 +254,7 @@ export async function deleteItem(id) {
 /**
  * Loesung der Zuordnung an allen Videoideen, die diesen Casting-Eintrag
  * tragen. Wirft, wenn eine davon eingefroren ist (Skript existiert).
+ * Die Skript-Freigabe bleibt stehen.
  * @param {string} auswahlItemId
  * @param {string} aktion - 'gelöscht' | 'abgesagt' (nur fuer Fehlertext)
  */
@@ -281,12 +282,7 @@ export async function _loeseVideoideeZuordnungen(auswahlItemId, aktion) {
 
   const { error: upErr } = await window.supabase
     .from('strategie_items')
-    .update({
-      creator_auswahl_item_id: null,
-      skript_freigabe: false,
-      skript_freigabe_am: null,
-      skript_freigabe_von: null
-    })
+    .update({ creator_auswahl_item_id: null })
     .in('id', ids);
   if (upErr) throw upErr;
 }

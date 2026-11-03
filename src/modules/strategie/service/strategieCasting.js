@@ -6,8 +6,7 @@ import {
 import { VIDEOIDEE_VORSCHLAG_ERROR } from '../videoideeVorschlag.js';
 import {
   assertKeinVorschlag,
-  hasSkriptForItem,
-  skriptFreigabeClearPatch
+  hasSkriptForItem
 } from './strategieItemGuards.js';
 import { updateStrategieItem } from './strategieItems.js';
 
@@ -151,16 +150,14 @@ export async function assignCastingItem(itemId, auswahlItemId) {
 
 /**
  * Loesung der Zuordnung. Blockt, sobald ein Skript aus der Idee existiert.
+ * Die Skript-Freigabe bleibt: sie haengt nicht am Casting-Eintrag.
  */
 export async function unassignCastingItem(itemId) {
   await assertKeinVorschlag(itemId);
   if (await hasSkriptForItem(itemId)) {
     throw new Error('Die Zuordnung ist eingefroren, weil bereits ein Skript aus dieser Idee existiert.');
   }
-  await updateStrategieItem(itemId, {
-    creator_auswahl_item_id: null,
-    ...skriptFreigabeClearPatch()
-  });
+  await updateStrategieItem(itemId, { creator_auswahl_item_id: null });
 }
 
 /**

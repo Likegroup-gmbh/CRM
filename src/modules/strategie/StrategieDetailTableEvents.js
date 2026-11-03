@@ -589,9 +589,6 @@ export async function handleCreatorUnlink(detail, itemId) {
     await strategieService.unassignCastingItem(itemId);
     item.creator_auswahl_item_id = null;
     item.casting_eintrag = null;
-    item.skript_freigabe = false;
-    item.skript_freigabe_am = null;
-    item.skript_freigabe_von = null;
     refreshItemActions(detail, itemId);
     detail.rerenderItemsTable();
     window.toastSystem?.show('Zuordnung gelöst', 'success');
