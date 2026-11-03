@@ -847,14 +847,14 @@ export async function handleSortUpdate(detail) {
   
   allRows.forEach(row => {
     if (row.classList.contains('category-header-row')) {
-      if (row.dataset.vorschlagGroup === 'true') {
-        currentKategorie = '__vorschlag__';
-        return;
-      }
+      // Die Vorschlagsgruppe ist keine Kategorie. Sie darf die folgende
+      // Zeile nicht verschlucken: ohne definierte Kategorien steht unter
+      // den Vorschlägen kein weiterer Header, der den Zustand zurücksetzt.
+      if (row.dataset.vorschlagGroup === 'true') return;
       const kategorieFromData = row.dataset.kategorie;
       currentKategorie = kategorieFromData === 'Ohne Kategorie' ? null : kategorieFromData;
     } else if (row.classList.contains('item-row')) {
-      if (row.dataset.vorschlagId || currentKategorie === '__vorschlag__') return;
+      if (row.dataset.vorschlagId) return;
       const itemId = row.dataset.itemId;
       const item = detail.items.find(i => i.id === itemId);
       if (item) {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRequire } from 'module';
 import { renderItemRow, renderItemsTable, reorderStrategieItemsByKategorien } from '../modules/strategie/StrategieDetailRenderer.js';
+import { handleSortUpdate } from '../modules/strategie/StrategieDetailTableEvents.js';
 import {
   isVideoideeVorschlag,
   beschreibungErstzeile,
@@ -355,6 +356,71 @@ describe('renderItemsTable – KI-Vorschläge oben', () => {
     expect(gruppen).toContain('Hooks');
     expect(doc.querySelector('[data-vorschlag-group="true"]')).not.toBeNull();
     expect(doc.querySelector('tr.item-row--vorschlag')).not.toBeNull();
+  });
+});
+
+describe('Sortierung bei offenen Videoidee-Vorschlaegen', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    delete window.toastSystem;
+    vi.restoreAllMocks();
+  });
+
+  it('behaelt eigene Konzepte, wenn ihre Reihenfolge unter offenen Vorschlaegen geaendert wird', async () => {
+    window.toastSystem = { show: vi.fn() };
+    const items = [
+      { id: 'v1', ist_vorschlag: true, beschreibung: 'KI', teilbereich: null },
+      { id: 'e1', ist_vorschlag: false, beschreibung: 'Eigen 1', teilbereich: null },
+      { id: 'e2', ist_vorschlag: false, beschreibung: 'Eigen 2', teilbereich: null }
+    ];
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const detail = detailStub({
+      items: items.map((item) => ({ ...item })),
+      _getRoot: () => root,
+      rerenderItemsTable: vi.fn()
+    });
+    root.innerHTML = renderItemsTable(detail);
+
+    const tbody = root.querySelector('#items-table-body');
+    const eigene = tbody.querySelector('[data-item-id="e1"]');
+    const spaeter = tbody.querySelector('[data-item-id="e2"]');
+    tbody.insertBefore(spaeter, eigene);
+
+    vi.spyOn(strategieService, 'updateItemsSortierungWithTeilbereich').mockResolvedValue();
+
+    await handleSortUpdate(detail);
+
+    expect(detail.items.map((item) => item.id)).toEqual(['v1', 'e2', 'e1']);
+    expect(detail.items.filter((item) => !item.ist_vorschlag).map((item) => item.teilbereich)).toEqual([null, null]);
+    expect(strategieService.updateItemsSortierungWithTeilbereich).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'e2', teilbereich: null }),
+      expect.objectContaining({ id: 'e1', teilbereich: null })
+    ]);
+  });
+
+  it('laesst die Kategorie eigener Konzepte stehen, wenn Vorschlaege darueber stehen', async () => {
+    window.toastSystem = { show: vi.fn() };
+    const items = [
+      { id: 'v1', ist_vorschlag: true, beschreibung: 'KI', teilbereich: null },
+      { id: 'e1', ist_vorschlag: false, beschreibung: 'Eigen', teilbereich: 'Hooks' }
+    ];
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const detail = detailStub({
+      items: items.map((item) => ({ ...item })),
+      getTeilbereicheFromStrategie: () => ['Hooks'],
+      _getRoot: () => root,
+      rerenderItemsTable: vi.fn()
+    });
+    root.innerHTML = renderItemsTable(detail);
+
+    vi.spyOn(strategieService, 'updateItemsSortierungWithTeilbereich').mockResolvedValue();
+
+    await handleSortUpdate(detail);
+
+    expect(detail.items.map((item) => item.id)).toEqual(['v1', 'e1']);
+    expect(detail.items.find((item) => item.id === 'e1').teilbereich).toBe('Hooks');
   });
 });
 
