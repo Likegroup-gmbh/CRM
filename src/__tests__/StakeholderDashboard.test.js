@@ -84,6 +84,9 @@ describe('berechneDashboard', () => {
     expect(inf.agentur_marge).toBe(1000);
     expect(inf.ekvk_vk).toBe(3000);
     expect(inf.ekvk_realisiert).toBe(1000);
+    expect(inf.creator_budget).toBe(80000);
+    expect(inf.vk_voll).toBe(3000);
+    expect(inf.bereich).toBe('influencer_marketing');
     expect(inf.marke).toEqual({ id: 'm1', markenname: 'Marke 1' });
 
     const ugc = zeile(erg, 'ugc');
@@ -91,6 +94,9 @@ describe('berechneDashboard', () => {
     expect(ugc.fee_roh).toBe(0);
     expect(ugc.zusatz).toBe(100);
     expect(ugc.creator).toBe(500);
+    expect(ugc.creator_budget).toBe(15000);
+    expect(ugc.vk_voll).toBe(800);
+    expect(ugc.bereich).toBe('ugc_paid');
 
     expect(zeile(erg, 'con').hat_bloecke).toBe(false);
   });

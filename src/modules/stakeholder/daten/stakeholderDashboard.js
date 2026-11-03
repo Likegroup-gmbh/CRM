@@ -12,7 +12,9 @@
 // muss. Alle Zahlungs-Summen sind additiv.
 
 import { getChipFromKampagnenartName, sumBlockUmsatz } from '../../auftrag/logic/kampagnenartChip.js';
+import { verkaufsstand } from '../../../core/budget/agenturPrognose.js';
 import { calculateBudgetOverview } from '../../../core/budget/calculateBudgetOverview.js';
+import { leistungsbereichForAuftrag } from '../../../core/budget/leistungsbereich.js';
 import { calculateCreatorPaymentSummary } from '../../../core/budget/EkVkAgencyFeeHelper.js';
 import { calculateMonatsauswertung } from '../../../core/budget/monatsauswertung.js';
 import { kundenrechnungZeilen } from '../../../core/budget/kundenrechnungZeilen.js';
@@ -33,7 +35,7 @@ import {
   videosByKoop,
 } from '../kern/stakeholderOverviewLogic.js';
 
-export const DASHBOARD_VERSION = 1;
+export const DASHBOARD_VERSION = 2;
 
 function zahl(v) {
   return parseFloat(v) || 0;
@@ -150,6 +152,7 @@ export function berechneDashboard(bestand = {}) {
       videos,
       kampagnen,
     });
+    const stand = verkaufsstand(koops, videos);
 
     const creator = summary.creatorAnteil || 0;
     const koopIds = new Set(koops.map(k => k.id));
@@ -185,6 +188,11 @@ export function berechneDashboard(bestand = {}) {
       zusatz: summary.extraKostenVkSum || 0,
       ekvk_vk: summary.vkSum || 0,
       ekvk_realisiert: summary.ekVkMarginSum || 0,
+      // Prognose im Browser: offenes Creator-Budget und Spanne je Gruppe,
+      // nachdem Jahr und Leistungsbereich gefiltert haben.
+      creator_budget: zahl(a.creator_budget),
+      vk_voll: stand.vkVoll,
+      bereich: leistungsbereichForAuftrag(a, blocks),
       creator_bezahlt: creatorPayment.paid,
       creator_offen: creatorPayment.open,
       influencer: tab === TAB_INFLUENCER ? influencerBudget(a, rohDetails, koops, videoMap) : null,

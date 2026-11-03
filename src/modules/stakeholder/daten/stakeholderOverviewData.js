@@ -3,6 +3,11 @@
 // bekommt je Auftrag eine fertige Zeile und filtert, gruppiert und addiert
 // sie nur noch. Jahr und Leistungsbereich bleiben damit reine Browser-Filter.
 
+import {
+  agenturPrognose,
+  offenesCreatorBudget,
+  spanGruppeForBereich,
+} from '../../../core/budget/agenturPrognose.js';
 import { loadDashboard } from './dashboardLoad.js';
 import {
   emptyKundenSummary,
@@ -63,6 +68,7 @@ export function aggregate(page) {
     ekvkVk: 0,
     ekvkRealisiert: 0,
   };
+  const prognoseBeitraege = [];
 
   zeilen.forEach(z => {
     const volumen = zeilenVolumen(z, page.activeTab);
@@ -108,6 +114,12 @@ export function aggregate(page) {
     }
     totals.ekvkVk += z.ekvk_vk;
     totals.ekvkRealisiert += z.ekvk_realisiert;
+    prognoseBeitraege.push({
+      gruppe: spanGruppeForBereich(z.bereich),
+      offen: offenesCreatorBudget(z.creator_budget, z.ekvk_vk),
+      vkVoll: z.vk_voll || 0,
+      marge: z.ekvk_realisiert || 0,
+    });
 
     rows.push({
       auftrag: z,
@@ -125,6 +137,12 @@ export function aggregate(page) {
       zusatz,
       db,
     });
+  });
+
+  totals.prognose = agenturPrognose({
+    erkannt: totals.agentur,
+    feeBisEnde: totals.agenturVoll - totals.agentur,
+    beitraege: prognoseBeitraege,
   });
 
   return { rows, totals };

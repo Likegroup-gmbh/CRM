@@ -30,13 +30,9 @@ const CARD_HINTS = {
     formula: 'Σ Einkaufspreise (EK) der gebuchten Videos',
     hint: 'Kopfwert ist die Kalkulation. Netto, Bezahlt und Unbezahlt kommen aus den Rechnungen. Überfällig steckt in Unbezahlt. Noch nicht gestellt = Creatoranteil − Rechnungs-Netto.'
   },
-  festAgentur: {
-    formula: 'Hinterlegte Agentur-Fee',
-    hint: 'Entspricht vereinfacht Auftragsvolumen − Creator-Kosten. KSK und Zusatzkosten bleiben außen. Angezeigt wird die hinterlegte Fee, nicht eine neu gerechnete Differenz.'
-  },
-  ekvkAgentur: {
-    formula: 'Gebuchter VK − zugehöriger EK',
-    hint: 'Gilt für alle Aufträge, auch wenn zusätzlich eine Fee hinterlegt ist. Nur Zeilen mit beiden Preisen. Unvollständig bepreiste Zeilen bleiben im gebuchten VK, zählen aber nicht als realisiert.'
+  prognose: {
+    formula: 'Bisher erkannt + Fee bis Kampagnenende + Aus offenem Creator-Budget',
+    hint: 'Offenes Creator-Budget mal Spanne der bereits bepreisten Kooperationen in diesem Filter'
   },
   ksk: {
     formula: 'UGC: 4,9 % auf EK · Influencer: KSK-Topf',
@@ -215,6 +211,21 @@ export function renderCards(page, totals, isInfluencerTab) {
   const progressClass = (pct) => pct >= 90 ? 'stakeholder-progress-fill--danger' : pct >= 75 ? 'stakeholder-progress-fill--warning' : '';
   const openProgressClass = (pct) => pct <= 10 ? 'stakeholder-progress-fill--danger' : pct <= 25 ? 'stakeholder-progress-fill--warning' : 'stakeholder-progress-fill--success';
 
+  const prognose = totals.prognose || { erkannt: 0, feeBisEnde: 0, ausOffenemBudget: 0, summe: 0 };
+
+  const prognoseCard = breakdownCard(
+    'Prognostizierter Agenturanteil',
+    prognose.summe,
+    null,
+    [
+      ['Bisher erkannt', page.fmtEuro(prognose.erkannt)],
+      ['Fee bis Kampagnenende', page.fmtEuro(prognose.feeBisEnde)],
+      ['Aus offenem Creator-Budget', page.fmtEuro(prognose.ausOffenemBudget)],
+    ],
+    'Offenes Creator-Budget mal Spanne der bereits bepreisten Kooperationen in diesem Filter.',
+    { hint: CARD_HINTS.prognose }
+  );
+
   return `
     <div class="stakeholder-cards stakeholder-cards--kalkulation">
       ${breakdownCard('Auftragsvolumen = Budget', volumen, `${page.fmtEuro(kGestellt)} von ${page.fmtEuro(volumen)} gestellt`, volumenLines, `${page.fmtPct(gestelltPct)} gestellt`, { progress: gestelltPct, hint: CARD_HINTS.volumen })}
@@ -225,13 +236,7 @@ export function renderCards(page, totals, isInfluencerTab) {
     </div>
     <div class="stakeholder-cards stakeholder-cards--breakdown">
       ${breakdownCard('Creatoranteil', creator, `${page.fmtEuro(creatorBezahlt)} von ${page.fmtEuro(creatorNetto)} Rechnungs-Netto bezahlt`, creatorOffenLines, `${page.fmtPct(verbraucht > 0 ? (creator / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (creator / verbraucht) * 100 : 0, hint: CARD_HINTS.creator })}
-      ${breakdownCard('Fest vereinbarter Agenturanteil', totals.festAgentur, null, [
-        ['Gesamtauftragsvolumen', page.fmtEuro(totals.festVolumen)]
-      ], null, { hint: CARD_HINTS.festAgentur })}
-      ${breakdownCard('Agenturanteil aus EK-/VK-Differenz', totals.ekvkRealisiert, null, [
-        ['Gesamtauftragsvolumen', page.fmtEuro(totals.ekvkVolumen)],
-        ['Bereits gebuchtes VK-Volumen', page.fmtEuro(totals.ekvkVk)]
-      ], null, { hint: CARD_HINTS.ekvkAgentur })}
+      ${prognoseCard}
       <div class="stakeholder-card stakeholder-card--stack">
         ${metricBlock('KSK-Abgabe', ksk, 'Künstlersozialabgabe auf Honorare', `${page.fmtPct(verbraucht > 0 ? (ksk / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (ksk / verbraucht) * 100 : 0, hint: CARD_HINTS.ksk })}
         ${metricBlock('Zusatzkosten', zusatz, 'Reise, Lizenzen, Tools, Versand, Payroll', `${page.fmtPct(verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0, hint: CARD_HINTS.zusatz })}

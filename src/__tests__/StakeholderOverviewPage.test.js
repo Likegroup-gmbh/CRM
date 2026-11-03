@@ -218,17 +218,14 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('Bezahlt');
     expect(html).toContain('Unbezahlt');
     expect(html).toContain('bezahlt');
-    expect(html).toContain('Fest vereinbarter Agenturanteil');
-    expect(html).toContain('Agenturanteil aus EK-/VK-Differenz');
+    expect(html).toContain('Prognostizierter Agenturanteil');
     expect(html).toContain('KSK-Abgabe');
     expect(html).toContain('Zusatzkosten');
 
     // Formel-Tooltips auf den Karten
     expect(html).toContain('stakeholder-card-info');
     expect(html).toContain('Creatoranteil + Agenturanteil + KSK + Zusatzkosten');
-    expect(html).toContain('Hinterlegte Agentur-Fee');
-    expect(html).toContain('Gebuchter VK − zugehöriger EK');
-    expect(html).toContain('Unvollständig bepreiste Zeilen bleiben im gebuchten VK');
+    expect(html).toContain('Bisher erkannt + Fee bis Kampagnenende + Aus offenem Creator-Budget');
     expect(html).not.toContain('eingelöst');
     expect(html).toContain('von');
     expect(html).toContain('UGC: 4,9 % auf EK · Influencer: KSK-Topf');
@@ -241,7 +238,6 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('Muster GmbH');
     expect(html).toContain('Beispiel AG');
     expect(html).toContain('FESTE FEE');
-    expect(html).toContain('Agenturanteil aus EK-/VK-Differenz');
 
     // Tabellen-Spalten der Kundenliste in CFO-Reihenfolge
     const kundenCard = html.split('Kunden nach Umsatz')[1] || '';
@@ -620,9 +616,74 @@ describe('StakeholderOverviewPage', () => {
     expect(totals.ekvkRealisiert).toBe(1300);
 
     const html = window.setContentSafely.mock.calls[1][1];
-    expect(html).toContain('Fest vereinbarter Agenturanteil');
+    expect(html).not.toContain('Fest vereinbarter Agenturanteil');
     expect(html).not.toContain('eingelöst');
     expect(html).toContain('stakeholder-agentur');
+
+    vi.useRealTimers();
+  });
+
+  it('zeigt den prognostizierten Agenturanteil in der unteren Reihe', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-02T12:00:00Z'));
+
+    const auftraege = [{
+      id: 'inf',
+      auftragsname: 'Influencer',
+      nettobetrag: 200000,
+      creator_budget: 1000,
+      start: '2026-01-01',
+      ende: '2026-12-31',
+      is_draft: false,
+      unternehmen_id: 'u1'
+    }];
+    const blocks = [
+      { auftrag_id: 'inf', campaign_type: 'influencer', umsatz_netto: 200000 }
+    ];
+    const kampagnen = [{ id: 'k-inf', auftrag_id: 'inf', videoanzahl: 1, creatoranzahl: 1 }];
+    const kooperationen = [
+      { id: 'koop-inf', kampagne_id: 'k-inf', creator_id: 'c1', videoanzahl: 1, einkaufspreis_netto: 40, verkaufspreis_netto: 100, verkaufspreis_zusatzkosten: 0 }
+    ];
+    const videos = [
+      { id: 'v-inf', kooperation_id: 'koop-inf', einkaufspreis_netto: 40, verkaufspreis_netto: 100, kampagnenart: 'Influencer Kampagne' }
+    ];
+    const details = [{
+      auftrag_id: 'inf',
+      campaign_type: ['influencer'],
+      agency_services_enabled: true,
+      percentage_fee_enabled: true,
+      percentage_fee_value: '100'
+    }];
+    const unternehmen = [{ id: 'u1', firmenname: 'Inf GmbH' }];
+
+    window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
+
+    const page = createPage();
+    await page.init();
+    await page.ready;
+    const { totals } = page.aggregate();
+    const ratio = elapsedRatio('2026-01-01', '2026-12-31', new Date('2026-07-02T12:00:00Z'));
+
+    // Fee 100 zeitanteilig, EK/VK 60, offen 900 × Spanne 60/100.
+    expect(totals.agentur).toBeCloseTo(100 * ratio + 60, 5);
+    expect(totals.prognose.erkannt).toBeCloseTo(totals.agentur, 5);
+    expect(totals.prognose.feeBisEnde).toBeCloseTo(100 * (1 - ratio), 5);
+    expect(totals.prognose.ausOffenemBudget).toBeCloseTo(900 * 0.6, 5);
+    expect(totals.prognose.summe).toBeCloseTo(160 + 540, 5);
+
+    const html = window.setContentSafely.mock.calls.at(-1)[1];
+    const karten = html.split('Kunden nach Umsatz')[0];
+    const [oben, unten] = karten.split('stakeholder-cards--breakdown');
+    expect(oben).not.toContain('Prognostizierter Agenturanteil');
+    expect(unten.indexOf('Prognostizierter Agenturanteil')).toBeGreaterThan(-1);
+    expect(unten.indexOf('Creatoranteil')).toBeLessThan(unten.indexOf('Prognostizierter Agenturanteil'));
+    expect(unten.indexOf('Prognostizierter Agenturanteil')).toBeLessThan(unten.indexOf('KSK-Abgabe'));
+    expect(karten).toContain('Bisher erkannt');
+    expect(karten).toContain('Fee bis Kampagnenende');
+    expect(karten).toContain('Aus offenem Creator-Budget');
+    expect(karten).toContain('Offenes Creator-Budget mal Spanne der bereits bepreisten Kooperationen in diesem Filter.');
+    const thead = (html.split('Kunden nach Umsatz')[1] || '').match(/<thead>[\s\S]*?<\/thead>/)?.[0] || '';
+    expect(thead).not.toContain('Prognostizierter Agenturanteil');
 
     vi.useRealTimers();
   });
@@ -911,10 +972,8 @@ describe('StakeholderOverviewPage', () => {
     expect(totals.festVolumen + totals.ekvkVolumen).toBe(totals.volumen);
 
     const html = window.setContentSafely.mock.calls[1][1];
-    expect(html).toContain('Fest vereinbarter Agenturanteil');
-    expect(html).toContain('Agenturanteil aus EK-/VK-Differenz');
-    expect(html).toContain('Gesamtauftragsvolumen');
-    expect(html).toContain('Bereits gebuchtes VK-Volumen');
+    expect(html).not.toContain('Fest vereinbarter Agenturanteil');
+    expect(html).not.toContain('Agenturanteil aus EK-/VK-Differenz');
   });
 
   it('summiert agentur und agenturVoll pro Kunde+Marke', () => {
@@ -1303,8 +1362,8 @@ describe('StakeholderOverviewPage', () => {
     const html = window.setContentSafely.mock.calls.at(-1)[1];
     const breakdown = html.split('stakeholder-cards--breakdown')[1] || '';
 
-    // Vier Kacheln statt fuenf: Creatoranteil, Fest vereinbart, EK/VK, KSK+Zusatz gestapelt
-    expect(breakdown.split('class="stakeholder-card"').length - 1).toBe(3);
+    // Creatoranteil, Prognose, KSK+Zusatz gestapelt
+    expect(breakdown.split('class="stakeholder-card"').length - 1).toBe(2);
     expect(breakdown.split('class="stakeholder-card stakeholder-card--stack"').length - 1).toBe(1);
 
     // Die Stapel-Kachel enthaelt beide Kennzahlen untereinander
