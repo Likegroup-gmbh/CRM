@@ -8,14 +8,18 @@
 // fuer die Rechnung. Keine window-/document-Abhaengigkeit.
 //
 // Jahr und Leistungsbereich bleiben Filter im Browser: darum steht hier je
-// Auftrag alles, was der Browser nur noch filtern, gruppieren und addieren
-// muss. Alle Zahlungs-Summen sind additiv.
+// Auftrag und Jahr eine Zeile mit allem, was der Browser nur noch filtern,
+// gruppieren und addieren muss. Alle Zahlungs-Summen sind additiv.
+// Mehrjaehrige Auftraege verteilen sich anteilig ueber die Jahre ihrer
+// Teilrechnungen (teilrechnungJahr.js); die Zeilen eines Auftrags summieren
+// sich zum Auftrag.
 
 import { getChipFromKampagnenartName, sumBlockUmsatz } from '../../auftrag/logic/kampagnenartChip.js';
 import { calculateBudgetOverview } from '../../../core/budget/calculateBudgetOverview.js';
 import { calculateCreatorPaymentSummary } from '../../../core/budget/EkVkAgencyFeeHelper.js';
 import { calculateMonatsauswertung } from '../../../core/budget/monatsauswertung.js';
 import { kundenrechnungZeilen } from '../../../core/budget/kundenrechnungZeilen.js';
+import { jahresanteile } from '../../../core/budget/teilrechnungJahr.js';
 import {
   emptyRechnungSummary,
   summarizeKundenrechnungRows,
@@ -33,7 +37,7 @@ import {
   videosByKoop,
 } from '../kern/stakeholderOverviewLogic.js';
 
-export const DASHBOARD_VERSION = 1;
+export const DASHBOARD_VERSION = 2;
 
 function zahl(v) {
   return parseFloat(v) || 0;
@@ -44,6 +48,11 @@ function zahl(v) {
 // (stakeholderOverviewData.addiere), das spart je Zeile Dutzende Schluessel.
 function ohneNullen(summe) {
   return Object.fromEntries(Object.entries(summe).filter(([, wert]) => wert !== 0));
+}
+
+function skaliert(summe, anteil) {
+  if (anteil === 1) return summe;
+  return Object.fromEntries(Object.entries(summe).map(([key, wert]) => [key, wert * anteil]));
 }
 
 // Auftrag der Rechnung: direkte Id, sonst Kampagne, sonst Kooperation.
@@ -134,7 +143,7 @@ export function berechneDashboard(bestand = {}) {
     teilrechnungenByAuftrag.get(t.auftrag_id).push(t);
   });
 
-  const zeilen = b.auftraege.map(a => {
+  const zeilen = b.auftraege.flatMap(a => {
     const blocks = blockMap.get(a.id) || [];
     const tab = tabForAuftrag(a, blocks);
     const rohDetails = detailsByAuftrag.get(a.id);
@@ -160,40 +169,59 @@ export function berechneDashboard(bestand = {}) {
     const creatorPayment = calculateCreatorPaymentSummary(creator, auftragRechnungen);
     const blockSumme = sumBlockUmsatz(blocks);
 
-    const kundenZeilen = kundenrechnungZeilen([a], teilrechnungenByAuftrag.get(a.id) || []);
+    const teilrechnungen = teilrechnungenByAuftrag.get(a.id) || [];
+    const kundenZeilen = kundenrechnungZeilen([a], teilrechnungen);
+    const influencer = tab === TAB_INFLUENCER ? influencerBudget(a, rohDetails, koops, videoMap) : null;
+    const creatorKarte = ohneNullen(summarizeRechnungRows(rechnungen.creator.get(a.id)));
+    const contractingKarte = ohneNullen(summarizeRechnungRows(rechnungen.contracting.get(a.id)));
+    const anteile = jahresanteile(a, teilrechnungen);
 
-    return {
-      // Auftrag-Anteil: genug fuer Jahresfilter, Gruppierung und Anzeige.
-      id: a.id,
-      unternehmen_id: a.unternehmen_id || null,
-      marke_id: a.marke_id || null,
-      marke: a.marke ? { id: a.marke.id, markenname: a.marke.markenname } : null,
-      start: a.start || null,
-      ende: a.ende || null,
-      created_at: a.created_at || null,
-      tab,
-      fee_aktiv: !!details.percentage_fee_enabled,
-      // resolveVolumen: GESAMT zeigt den Nettobetrag, ein Kategorie-Tab die
-      // Block-Summe (falls gepflegt).
-      volumen_netto: zahl(a.nettobetrag),
-      volumen_bloecke: blockSumme.sum,
-      hat_bloecke: blockSumme.hasAny,
-      creator,
-      fee_roh: resolvePercentageFee(details),
-      agentur_marge: summary.agencyFeeSummary?.ekVkMargin || 0,
-      ksk: summary.agencyFeeSummary?.kskValue || 0,
-      zusatz: summary.extraKostenVkSum || 0,
-      ekvk_vk: summary.vkSum || 0,
-      ekvk_realisiert: summary.ekVkMarginSum || 0,
-      creator_bezahlt: creatorPayment.paid,
-      creator_offen: creatorPayment.open,
-      influencer: tab === TAB_INFLUENCER ? influencerBudget(a, rohDetails, koops, videoMap) : null,
-      karten: {
-        kunden: ohneNullen(summarizeKundenrechnungRows(kundenZeilen)),
-        creator: ohneNullen(summarizeRechnungRows(rechnungen.creator.get(a.id))),
-        contracting: ohneNullen(summarizeRechnungRows(rechnungen.contracting.get(a.id))),
-      },
-    };
+    return anteile.map(({ jahr, anteil, teilrechnungIds }) => {
+      const mal = v => v * anteil;
+      // Kundenrechnungen gehoeren ganz zu ihrem Jahr; alles andere ist eine
+      // Auftragsgroesse und folgt dem Anteil (wie die Margensicht, ADR 0006).
+      const ids = new Set(teilrechnungIds);
+      const kundenImJahr = anteile.length === 1
+        ? kundenZeilen
+        : kundenZeilen.filter(z => ids.has(z.teilrechnung_id));
+
+      return {
+        // Auftrag-Anteil: genug fuer Jahresfilter, Gruppierung und Anzeige.
+        id: a.id,
+        jahr,
+        anteil,
+        unternehmen_id: a.unternehmen_id || null,
+        marke_id: a.marke_id || null,
+        marke: a.marke ? { id: a.marke.id, markenname: a.marke.markenname } : null,
+        start: a.start || null,
+        ende: a.ende || null,
+        created_at: a.created_at || null,
+        tab,
+        fee_aktiv: !!details.percentage_fee_enabled,
+        // resolveVolumen: GESAMT zeigt den Nettobetrag, ein Kategorie-Tab die
+        // Block-Summe (falls gepflegt).
+        volumen_netto: mal(zahl(a.nettobetrag)),
+        volumen_bloecke: mal(blockSumme.sum),
+        hat_bloecke: blockSumme.hasAny,
+        creator: mal(creator),
+        fee_roh: mal(resolvePercentageFee(details)),
+        agentur_marge: mal(summary.agencyFeeSummary?.ekVkMargin || 0),
+        ksk: mal(summary.agencyFeeSummary?.kskValue || 0),
+        zusatz: mal(summary.extraKostenVkSum || 0),
+        ekvk_vk: mal(summary.vkSum || 0),
+        ekvk_realisiert: mal(summary.ekVkMarginSum || 0),
+        creator_bezahlt: mal(creatorPayment.paid),
+        creator_offen: mal(creatorPayment.open),
+        influencer: influencer
+          ? { budget: mal(influencer.budget), verbraucht: mal(influencer.verbraucht) }
+          : null,
+        karten: {
+          kunden: ohneNullen(summarizeKundenrechnungRows(kundenImJahr)),
+          creator: skaliert(creatorKarte, anteil),
+          contracting: skaliert(contractingKarte, anteil),
+        },
+      };
+    });
   });
 
   const unternehmenIds = new Set(zeilen.map(z => z.unternehmen_id).filter(Boolean));

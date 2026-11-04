@@ -83,6 +83,8 @@ function fmtMonatJahr(d) {
 
 export function groupRowsByKundeMarke(rows) {
   const groups = new Map();
+  // count zaehlt Auftraege: Jahreszeilen desselben Auftrags nur einmal.
+  const gezaehlt = new Map();
 
   (rows || []).forEach(r => {
     const auftrag = r.auftrag || {};
@@ -112,7 +114,10 @@ export function groupRowsByKundeMarke(rows) {
     }
 
     const g = groups.get(key);
-    g.count += 1;
+    if (!gezaehlt.has(key)) gezaehlt.set(key, new Set());
+    const ids = gezaehlt.get(key);
+    if (auftrag.id == null || !ids.has(auftrag.id)) g.count += 1;
+    if (auftrag.id != null) ids.add(auftrag.id);
     g.volumen += r.volumen || 0;
     g.verbraucht += r.verbraucht || 0;
     g.verfuegbar += r.verfuegbar || 0;
@@ -169,10 +174,16 @@ export function auftragYear(a) {
   return Number.isFinite(y) ? y : null;
 }
 
+// Dashboard-Zeilen tragen ihr Jahr (ein mehrjaehriger Auftrag hat eine
+// Zeile je Jahr, teilrechnungJahr.js); ohne Feld gilt das Startjahr.
+export function zeilenJahr(a) {
+  return a.jahr ?? auftragYear(a);
+}
+
 export function availableYears(page) {
   const years = new Set([new Date().getFullYear()]);
   page.auftraege.forEach(a => {
-    const y = auftragYear(a);
+    const y = zeilenJahr(a);
     if (y) years.add(y);
   });
   return Array.from(years).sort((a, b) => b - a);
@@ -181,7 +192,7 @@ export function availableYears(page) {
 export function filteredAuftraege(page) {
   if (page.selectedYear === 'all') return page.auftraege;
   const year = parseInt(page.selectedYear, 10);
-  return page.auftraege.filter(a => auftragYear(a) === year);
+  return page.auftraege.filter(a => zeilenJahr(a) === year);
 }
 
 // Jahre der Monatsauswertung aus den Rechnungsmonaten (nicht Auftragsjahre).
@@ -271,17 +282,21 @@ export function auftraegeImFilter(page) {
   });
 }
 
+// Zaehlt Auftraege, nicht Zeilen: unter "Alle Jahre" steht ein
+// mehrjaehriger Auftrag mehrfach in der Liste.
 export function tabCounts(page) {
-  const counts = new Map(TABS.map(t => [t.key, 0]));
+  const ids = new Map(TABS.map(t => [t.key, new Set()]));
+  const add = (key, id) => {
+    if (!ids.has(key)) ids.set(key, new Set());
+    ids.get(key).add(id);
+  };
   filteredAuftraege(page).forEach(a => {
     const tab = a.tab;
-    counts.set(tab, (counts.get(tab) || 0) + 1);
-    counts.set(TAB_GESAMT_MIT, (counts.get(TAB_GESAMT_MIT) || 0) + 1);
-    if (tab !== TAB_CONTRACTING) {
-      counts.set(TAB_GESAMT_OHNE, (counts.get(TAB_GESAMT_OHNE) || 0) + 1);
-    }
+    add(tab, a.id);
+    add(TAB_GESAMT_MIT, a.id);
+    if (tab !== TAB_CONTRACTING) add(TAB_GESAMT_OHNE, a.id);
   });
-  return counts;
+  return new Map([...ids].map(([key, set]) => [key, set.size]));
 }
 
 export function visibleTabs(page) {

@@ -111,6 +111,18 @@
 [functions."vertrag-status-verzoegert"]
   schedule = "@daily"
 
+# Vorschaudatei (ADR 0061): Sicherheitsnetz der Outbox. Arbeitet faellige
+# Auftraege ab und gleicht haengende Vorschaudateien mit Cloudflare ab.
+[functions."vorschau-sweeper"]
+  schedule = "*/2 * * * *"
+  timeout = 26
+
+[functions."vorschau-verarbeiten"]
+  timeout = 26
+
+[functions."vorschau-webhook"]
+  timeout = 26
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"

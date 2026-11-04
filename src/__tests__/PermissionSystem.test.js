@@ -155,6 +155,17 @@ describe('PermissionSystem', () => {
     it('ohne User ist jedes Feature aus', () => {
       expect(ps.canFeature('contactMail')).toBe(false);
     });
+
+    it('videoTeamSicht: nur Team, nicht Kunde, Gast, Investor oder Finanzen', () => {
+      ps.setUserPermissions(makeUser('mitarbeiter'));
+      expect(ps.canFeature('videoTeamSicht')).toBe(true);
+      for (const rolle of ['kunde', 'kunde_editor', 'investor']) {
+        ps.setUserPermissions(makeUser(rolle));
+        expect(ps.canFeature('videoTeamSicht')).toBe(false);
+      }
+      ps.setUserPermissions(makeUser('mitarbeiter', { mitarbeiter_klasse_name: 'Finanzen' }));
+      expect(ps.canFeature('videoTeamSicht')).toBe(false);
+    });
   });
 
   // ===========================================

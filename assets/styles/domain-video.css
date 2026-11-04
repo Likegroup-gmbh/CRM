@@ -457,10 +457,10 @@
   border-radius: 999px;
   background: linear-gradient(
     to right,
-    #fff 0%,
-    #fff var(--p),
-    rgba(255, 255, 255, 0.25) var(--p),
-    rgba(255, 255, 255, 0.25) 100%
+    var(--seek-fill, #fff) 0%,
+    var(--seek-fill, #fff) var(--p),
+    var(--seek-rail, rgba(255, 255, 255, 0.25)) var(--p),
+    var(--seek-rail, rgba(255, 255, 255, 0.25)) 100%
   );
   cursor: pointer;
 }
@@ -471,7 +471,7 @@
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: var(--bg-primary);
+  background: var(--seek-thumb, var(--bg-primary));
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
@@ -480,7 +480,7 @@
   height: 13px;
   border: none;
   border-radius: 50%;
-  background: var(--bg-primary);
+  background: var(--seek-thumb, var(--bg-primary));
 }
 
 /* Panel rechts, hell (Design-System) */
