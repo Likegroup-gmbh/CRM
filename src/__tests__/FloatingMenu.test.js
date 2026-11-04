@@ -161,4 +161,136 @@ describe('openFloatingMenu', () => {
     expect(onSelect).toHaveBeenCalledWith('fett');
     expect(el.hidden).toBe(true);
   });
+
+  it('öffnet unter dem Anker, wenn darunter Platz ist', () => {
+    const { wrap, restore } = mockViewport({ height: 800, width: 1200 });
+    mockSize(el, { height: 180, width: 220 });
+
+    openFloatingMenu({
+      el,
+      anchor: { top: 200, bottom: 220, left: 40, right: 180 },
+      wrap,
+      items: [{ id: 'a', label: 'Kommentieren' }]
+    });
+
+    // 220 - wrap.top(100) + 6
+    expect(el.style.top).toBe('126px');
+    expect(el.style.maxHeight).toBe('');
+    restore();
+  });
+
+  it('öffnet über dem Anker, wenn das Menü unten aus dem Viewport ragen würde', () => {
+    const { wrap, restore } = mockViewport({ height: 800, width: 1200 });
+    mockSize(el, { height: 320, width: 220 });
+
+    openFloatingMenu({
+      el,
+      anchor: { top: 720, bottom: 740, left: 40, right: 180 },
+      wrap,
+      items: [{ id: 'a', label: 'Formatierung' }]
+    });
+
+    // 720 - wrap.top(100) - 6 - 320
+    expect(el.style.top).toBe('294px');
+    expect(el.style.maxHeight).toBe('');
+    restore();
+  });
+
+  it('begrenzt die Höhe, wenn auch über dem Anker nicht genug Platz ist', () => {
+    const { wrap, restore } = mockViewport({ height: 400, width: 1200 });
+    mockSize(el, { height: 360, width: 220 });
+
+    openFloatingMenu({
+      el,
+      anchor: { top: 250, bottom: 270, left: 40, right: 180 },
+      wrap,
+      items: [{ id: 'a', label: 'Formatierung' }]
+    });
+
+    // Editor beginnt bei y=100: darueber ist das Menue geclippt.
+    // spaceAbove 144 > spaceBelow 116 → oben, Deckel = 144
+    expect(el.style.maxHeight).toBe('144px');
+    expect(el.style.overflowY).toBe('auto');
+    expect(el.style.top).toBe('0px');
+    restore();
+  });
+
+  it('klappt das Flyout nach oben, wenn es unten aus dem Viewport ragt', () => {
+    const { wrap, restore } = mockViewport({ height: 400, width: 1200 });
+    openFloatingMenu({
+      el,
+      anchor: { top: 40, bottom: 60, left: 40, right: 180 },
+      wrap,
+      items: [{
+        id: 'formatierung',
+        label: 'Formatierung',
+        children: [{ id: 'fett', label: 'Fett' }]
+      }]
+    });
+
+    const flyout = el.querySelector('.crm-fmenu-flyout');
+    const group = el.querySelector('.crm-fmenu-group');
+    group.getBoundingClientRect = () => ({ top: 300, bottom: 340, left: 40, right: 200, width: 160, height: 40 });
+    flyout.getBoundingClientRect = () => (
+      flyout.classList.contains('crm-fmenu-flyout--up')
+        ? { top: 200, bottom: 332, left: 208, right: 360, width: 152, height: 132 }
+        : { top: 300, bottom: 460, left: 208, right: 360, width: 152, height: 160 }
+    );
+
+    el.querySelector('.crm-fmenu-item--parent').dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(flyout.classList.contains('crm-fmenu-flyout--up')).toBe(true);
+    restore();
+  });
+
+  it('lässt das Flyout unten, wenn darüber weniger Platz ist', () => {
+    const { wrap, restore } = mockViewport({ height: 800, width: 1200 });
+    openFloatingMenu({
+      el,
+      anchor: { top: 40, bottom: 60, left: 40, right: 180 },
+      wrap,
+      items: [{
+        id: 'formatierung',
+        label: 'Formatierung',
+        children: [{ id: 'fett', label: 'Fett' }]
+      }]
+    });
+
+    const flyout = el.querySelector('.crm-fmenu-flyout');
+    const group = el.querySelector('.crm-fmenu-group');
+    group.getBoundingClientRect = () => ({ top: 80, bottom: 120, left: 40, right: 200, width: 160, height: 40 });
+    flyout.getBoundingClientRect = () => ({ top: 80, bottom: 200, left: 208, right: 360, width: 152, height: 120 });
+
+    el.querySelector('.crm-fmenu-item--parent').dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(flyout.classList.contains('crm-fmenu-flyout--up')).toBe(false);
+    expect(flyout.classList.contains('crm-fmenu-flyout--left')).toBe(false);
+    restore();
+  });
 });
+
+function mockSize(el, { height, width }) {
+  Object.defineProperty(el, 'offsetHeight', { configurable: true, get: () => height });
+  Object.defineProperty(el, 'offsetWidth', { configurable: true, get: () => width });
+}
+
+function mockViewport({ height, width }) {
+  const prevHeight = window.innerHeight;
+  const prevWidth = window.innerWidth;
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+
+  const wrap = document.createElement('div');
+  wrap.getBoundingClientRect = () => ({
+    top: 100, left: 0, bottom: height, right: 900, width: 900, height: height - 100
+  });
+  Object.defineProperty(wrap, 'clientWidth', { configurable: true, value: 900 });
+  document.body.appendChild(wrap);
+
+  return {
+    wrap,
+    restore() {
+      wrap.remove();
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: prevHeight });
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: prevWidth });
+    }
+  };
+}

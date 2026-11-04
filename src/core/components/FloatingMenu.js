@@ -111,7 +111,10 @@ export function openFloatingMenu({ el, anchor, wrap, items, layout = 'icon-label
     btn.addEventListener('click', () => {
       // Parent mit children: nur Flyout togglen, keine Aktion ausloesen
       if (btn.dataset.hasChildren) {
-        btn.closest('.crm-fmenu-group')?.classList.toggle('is-open');
+        const group = btn.closest('.crm-fmenu-group');
+        group?.classList.toggle('is-open');
+        const flyout = group?.querySelector('.crm-fmenu-flyout');
+        if (group?.classList.contains('is-open') && flyout) placeFlyout(flyout);
         return;
       }
       el.hidden = true;
@@ -119,25 +122,114 @@ export function openFloatingMenu({ el, anchor, wrap, items, layout = 'icon-label
     });
   });
 
-  // Flyout-Richtung: rechts auf, ausser es laeuft aus dem Viewport
+  // Flyout-Richtung: rechts und nach unten, ausser es laeuft aus dem Viewport
   el.querySelectorAll('.crm-fmenu-group').forEach((group) => {
     const trigger = group.querySelector('.crm-fmenu-item--parent');
     const flyout = group.querySelector('.crm-fmenu-flyout');
     trigger?.addEventListener('mouseenter', () => {
-      flyout.classList.remove('crm-fmenu-flyout--left');
-      const rect = flyout.getBoundingClientRect();
-      if (rect.right > window.innerWidth - 8) flyout.classList.add('crm-fmenu-flyout--left');
+      if (flyout) placeFlyout(flyout);
     });
   });
 
+  // Erst einblenden, sonst ist offsetHeight 0 und die Kante laesst sich nicht messen.
+  el.hidden = false;
+  const wide = layout === 'icon-label-sub'
+    || list.some((item) => resolveLayout(item, layout) === 'icon-label-sub');
+  placeFloatingMenu(el, anchor, wrap, wide ? 260 : 220);
+  el.querySelectorAll('.crm-fmenu-flyout').forEach((flyout) => placeFlyout(flyout));
+}
+
+const MENU_GAP = 6;
+const MENU_MARGIN = 8;
+
+/**
+ * Menue unter den Anker setzen. Liegt die Auswahl am unteren Rand, waechst
+ * das Menue sonst aus dem Viewport — dann nach oben oeffnen und bei Bedarf
+ * auf die freie Hoehe begrenzen.
+ */
+function placeFloatingMenu(el, anchor, wrap, minW) {
   const rect = getRect(anchor);
   const wrapRect = wrap?.getBoundingClientRect?.();
-  if (rect && wrapRect && wrap) {
-    const wide = layout === 'icon-label-sub'
-      || list.some((item) => resolveLayout(item, layout) === 'icon-label-sub');
-    const minW = wide ? 260 : 220;
-    el.style.top = `${rect.bottom - wrapRect.top + 6}px`;
-    el.style.left = `${Math.max(8, Math.min(rect.left - wrapRect.left, wrap.clientWidth - minW))}px`;
+  if (!rect || !wrapRect || !wrap) return;
+
+  el.style.maxHeight = '';
+  el.style.overflowY = '';
+
+  const naturalHeight = el.offsetHeight;
+  const naturalWidth = el.offsetWidth;
+  // Sichtbar ist die Schnittmenge aus Editor und Viewport. Ueber den Editor
+  // hinaus clippt der Seitenrahmen (overflow: hidden) das Menue wieder.
+  const visibleTop = Math.max(wrapRect.top, MENU_MARGIN);
+  const visibleBottom = Math.min(wrapRect.bottom, window.innerHeight - MENU_MARGIN);
+  const spaceBelow = visibleBottom - rect.bottom - MENU_GAP;
+  const spaceAbove = rect.top - MENU_GAP - visibleTop;
+  const openUp = naturalHeight > 0 && naturalHeight > spaceBelow && spaceAbove > spaceBelow;
+  const room = Math.max(0, openUp ? spaceAbove : spaceBelow);
+  const viewportRoom = Math.max(0, window.innerHeight - MENU_MARGIN * 2);
+  const cap = room > 0 ? Math.min(room, viewportRoom) : viewportRoom;
+  const height = naturalHeight > 0 && cap > 0 && naturalHeight > cap ? cap : naturalHeight;
+
+  if (height > 0 && height < naturalHeight) {
+    el.style.maxHeight = `${height}px`;
+    el.style.overflowY = 'auto';
   }
-  el.hidden = false;
+
+  let top = openUp
+    ? rect.top - wrapRect.top - MENU_GAP - height
+    : rect.bottom - wrapRect.top + MENU_GAP;
+
+  if (height > 0) {
+    const minTop = visibleTop - wrapRect.top;
+    const maxTop = visibleBottom - height - wrapRect.top;
+    if (maxTop >= minTop) top = Math.max(minTop, Math.min(top, maxTop));
+  }
+
+  let left = Math.max(
+    MENU_MARGIN,
+    Math.min(rect.left - wrapRect.left, wrap.clientWidth - minW)
+  );
+  if (naturalWidth > 0) {
+    const overflowRight = wrapRect.left + left + naturalWidth - (window.innerWidth - MENU_MARGIN);
+    if (overflowRight > 0) left -= overflowRight;
+    const minLeft = MENU_MARGIN - wrapRect.left;
+    if (left < minLeft) left = minLeft;
+  }
+
+  el.style.top = `${Math.round(top)}px`;
+  el.style.left = `${Math.round(left)}px`;
+}
+
+/** Flyout neben den Trigger legen, ohne unten oder rechts aus dem Viewport zu ragen. */
+function placeFlyout(flyout) {
+  const margin = MENU_MARGIN;
+  flyout.classList.remove('crm-fmenu-flyout--left', 'crm-fmenu-flyout--up');
+  flyout.style.maxHeight = '';
+  flyout.style.overflowY = '';
+
+  let rect = flyout.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return;
+
+  if (rect.right > window.innerWidth - margin) {
+    flyout.classList.add('crm-fmenu-flyout--left');
+    rect = flyout.getBoundingClientRect();
+  }
+
+  const groupRect = flyout.parentElement?.getBoundingClientRect?.();
+  const spaceAbove = groupRect ? groupRect.bottom - margin : rect.top;
+  const spaceBelow = groupRect
+    ? window.innerHeight - margin - groupRect.top
+    : window.innerHeight - margin - rect.top;
+
+  if (rect.bottom > window.innerHeight - margin && spaceAbove > spaceBelow) {
+    flyout.classList.add('crm-fmenu-flyout--up');
+    rect = flyout.getBoundingClientRect();
+  }
+
+  const room = flyout.classList.contains('crm-fmenu-flyout--up')
+    ? Math.max(0, spaceAbove)
+    : Math.max(0, spaceBelow);
+  if (room > 0 && rect.height > room) {
+    flyout.style.maxHeight = `${room}px`;
+    flyout.style.overflowY = 'auto';
+  }
 }
