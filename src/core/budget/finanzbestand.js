@@ -55,7 +55,7 @@ const FINANZBESTAND_SELECTS = [
   ['unternehmen',
     'id, firmenname, ist_test'],
   ['auftrag_teilrechnung',
-    'id, auftrag_id, nettobetrag, ust_betrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'],
+    'id, auftrag_id, position, nettobetrag, ust_betrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'],
 ];
 
 // Nur die Tabellen, die im Load paginieren. Eine Welle auf allen zehn

@@ -479,18 +479,22 @@ Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
 _Avoid_: Version (alleinstehend), Revision
 
 **Story**:
-Ein Story-File in einer Kooperation, mit eigenen Feedbackschleifen und finalen Versionen.
+Ein Story-File zu einem Kooperationsvideo. Liegt im Videos-Tab in derselben Feedbackschleife und derselben Finalen Version wie das Video (gleiche `version_number`), gruppiert unter "Stories".
 Nicht die Kampagnenart Influencer Story.
 _Avoid_: Influencer Story, Slot
 
 **Still**:
-Das finale Standbild eines Kooperationsvideos. Trägt kein Seitenverhältnis.
-_Avoid_: Bild, Thumbnail, Cover
+Ein Standbild zu einem Kooperationsvideo (Feedbackschleife oder final). Liegt im Videos-Tab in derselben Runde wie das Video, gruppiert unter "Bilder". Trägt kein Seitenverhältnis. Altbilder ohne Video hängen am ersten Video der Kooperation.
+_Avoid_: Thumbnail, Cover
 
 **Finale Version**:
 Das ausgelieferte File eines Kooperationsvideos oder einer Story, in genau einem Seitenverhältnis.
 Liegt neben der Feedbackschleife, nicht in ihr.
 _Avoid_: Final, Master, Export
+
+**Vorschaudatei**:
+Abgeleitete, streamingfreundliche MP4-Kopie eines Kooperationsvideos (Feedbackschleife oder Finale Version), nur zum Abspielen im Videos-Tab. Entsteht automatisch bei neuen Uploads, Stories bekommen keine. Bis sie fertig ist oder wenn sie fehlt, spielt der Player das Original. Download liefert immer das Original. Eine Finale Version, die aus einer Feedbackschleife übernommen wurde, teilt sich deren Vorschaudatei; wird das Original ersetzt, gilt die alte Vorschaudatei nicht mehr. Zählt nie als Datei (ADR 0061).
+_Avoid_: Proxy, Transcode, Rendition, Thumbnail, Vorschau (alleinstehend)
 
 **Seitenverhältnis**:
 9:16, 4:5 oder 1:1 an einer finalen Version von Kooperationsvideo oder Story. Mehrere finale Versionen desselben Verhältnisses können nebeneinander liegen.
@@ -660,11 +664,19 @@ wird nie korrigiert, sondern durch einen neuen Stand ersetzt.
 _Avoid_: Snapshot, Report, Export
 
 **Dashboard-Ergebnis**:
-Das fertig gerechnete Ergebnis fuer das Investor-Dashboard: je Auftrag eine Zeile plus die
+Das fertig gerechnete Ergebnis fuer das Investor-Dashboard: je Auftrag und Jahr eine Zeile plus die
 Monatsauswertung. Es entsteht in `berechneDashboard` (eine Implementation), normalerweise in der
 Netlify-Function `stakeholder-dashboard`, sonst im Browser. Jahr und Leistungsbereich filtert der
 Browser nur noch auf den Zeilen. Wird nie gecacht (ADR 0040).
 _Avoid_: Finanzbestand (das sind die Rohzeilen, die Datenqualitaet braucht), Aggregat, Snapshot
+
+**Jahreszuordnung**:
+In welchem Jahr das Investor-Dashboard Volumen und Kosten eines Auftrags zeigt. Ein Auftrag mit
+Teilrechnungen verteilt sich anteilig (Netto der Kundenrechnung) auf deren Jahre; massgeblich ist
+das Rechnungsdatum der Teilrechnung, auch das geplante einer noch nicht gestellten, geklemmt auf die
+Laufzeit des Auftrags. Ohne Teilrechnungen gilt das Startjahr. Die Monatsauswertung periodisiert
+davon unabhaengig nach Rechnungsdatum (ADR 0006, ADR 0060).
+_Avoid_: Leistungsjahr, Abgrenzung, Periodisierung (das ist die Monatsauswertung)
 
 **Investor**:
 View-only Lesezugang auf Finanzuebersicht und operative Plattform. Zwei Wege, dieselbe
@@ -740,3 +752,15 @@ _Avoid_: Herkunft, `von`, Return-To, Brotkrumen-Historie
 Die feste Breadcrumb-Kette einer Seite aus ihrer Stammdaten-Hierarchie (z. B. Kampagnen > Kampagne > Produktion),
 unabhängig davon, woher man kam.
 _Avoid_: Standard-Breadcrumb, statische Kette
+
+**Bearbeitungsart**:
+Wer das Video schneidet, abgeleitet aus den Daten der Kooperation: liegt Rohmaterial vor, ist sie intern (der Cutter schneidet), sonst extern (der Creator liefert ein fertiges Video, wir sichten und machen den Feinschliff). Wird nicht gespeichert und nicht von Hand gesetzt.
+_Avoid_: Schnittart, Workflow-Typ, Modus
+
+**Ablaufschritt**:
+Wo ein Kooperationsvideo oder eine Story im Ablauf steht, abgeleitet aus den Dateien: Finale Version vorhanden = Freigegeben, mindestens eine Feedbackschleife = Beim Kunden, nur Rohmaterial = Rohmaterial liegt vor, sonst noch kein Upload. Steuert Hinweise und Zähler im Videos-Tab, es gibt dafür keine eigene Leiste. Nicht zu verwechseln mit dem Status am Video und nicht von Hand gesetzt. Eine Vorschaudatei ist keine Datei in diesem Sinn und ändert den Ablaufschritt nicht.
+_Avoid_: Stage, Status, Phase
+
+**Status (Videos-Tab)**:
+Sagt, wer am Zug ist bzw. wie eine Feedbackschleife ausging. Immer aus den Dateien abgeleitet, nie gespeichert: *Wartet auf Kunde* (Kundenansicht: *Zu prüfen*) für die aktuelle Feedbackschleife, *Änderungen angefordert* für eine Schleife mit Nachfolger, *Freigegeben* sobald eine Finale Version vorliegt (an der Schleife: die letzte davor). Der Zähler an der Kooperation zählt Dateien, die beim Kunden liegen; Ordner und Dateien tragen keinen eigenen Zähler. Ein Button „Freigeben“ für den Kunden gibt es bewusst noch nicht: die Freigabe setzt heute das Team über die Finale Version. Ob eine Vorschaudatei fertig ist, ändert den Status nicht.
+_Avoid_: Offen, Abgeschlossen (als Status einer Schleife)

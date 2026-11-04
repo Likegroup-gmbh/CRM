@@ -76,7 +76,7 @@ describe('stakeholder-dashboard Function', () => {
     expect(res.headers['Cache-Control']).toBe('no-store');
     expect(res.headers['Content-Type']).toBe('application/json');
     expect(res.headers['Server-Timing']).toMatch(/rpc;dur=\d+, rechnen;dur=\d+/);
-    expect(body.version).toBe(1);
+    expect(body.version).toBe(2);
     expect(body.geladenAm).toBe(1000);
     expect(body.zeilen.map(z => z.id)).toEqual(['a1']);
     expect(body.zeilen[0].volumen_netto).toBe(1000);

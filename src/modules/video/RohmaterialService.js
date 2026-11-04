@@ -149,9 +149,11 @@ export class RohmaterialService {
    * @param {{id: string, pathContext: object}} group
    * @param {File[]} files
    * @param {(done: number, total: number, name: string) => void} [onProgress]
+   * @param {(index: number, bytes: {loaded: number, total: number}) => void} [onBytes]
+   *        optionaler Byte-Fortschritt je Datei (echter Upload-Stand)
    * @returns {Promise<{uploaded: number, errors: string[]}>}
    */
-  static async uploadFiles(group, files, onProgress) {
+  static async uploadFiles(group, files, onProgress, onBytes) {
     const errors = [];
     let uploaded = 0;
 
@@ -190,7 +192,11 @@ export class RohmaterialService {
         }
         const { token, dropboxPath, folderPath } = await prepare.json();
 
-        await uploadLargeFile(file, dropboxPath, token);
+        await uploadLargeFile(file, dropboxPath, token, {
+          onProgress: onBytes
+            ? ({ loaded, total }) => onBytes(i, { loaded: loaded ?? 0, total: total || file.size })
+            : undefined,
+        });
 
         const [fileUrl, folderUrl] = await Promise.all([
           this._sharedLink(token, dropboxPath),

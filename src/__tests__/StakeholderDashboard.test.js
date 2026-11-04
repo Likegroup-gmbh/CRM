@@ -164,6 +164,58 @@ describe('berechneDashboard', () => {
     expect(leer.monatsauswertung.months).toEqual([]);
   });
 
+  it('teilt einen mehrjaehrigen Auftrag anteilig auf die Jahre seiner Teilrechnungen', () => {
+    const b = bestand();
+    b.auftraege[0].start = '2025-10-01';
+    b.auftraege[0].ende = '2026-09-30';
+    b.teilrechnungen = [
+      { id: 't1', auftrag_id: 'inf', position: 1, nettobetrag: 25000, rechnung_gestellt: true, rechnung_gestellt_am: '2025-11-15', ueberwiesen: true, ueberwiesen_am: '2025-12-01' },
+      { id: 't2', auftrag_id: 'inf', position: 2, nettobetrag: 50000, rechnung_gestellt: false, rechnung_gestellt_am: '2026-03-15' },
+      // Ohne Datum: start + 11 Monate = September 2026.
+      { id: 't3', auftrag_id: 'inf', position: 12, nettobetrag: 25000, rechnung_gestellt: false, rechnung_gestellt_am: null },
+    ];
+    const erg = berechneDashboard(b);
+    const inf = erg.zeilen.filter(z => z.id === 'inf');
+
+    expect(inf.map(z => [z.jahr, z.anteil])).toEqual([[2025, 0.25], [2026, 0.75]]);
+    const [z2025, z2026] = inf;
+    expect(z2025.volumen_netto).toBe(25000);
+    expect(z2026.volumen_netto).toBe(75000);
+    expect(z2025.volumen_bloecke + z2026.volumen_bloecke).toBe(90000);
+    expect(z2025.fee_roh).toBe(11000);
+    expect(z2025.creator + z2026.creator).toBe(2000);
+    expect(z2025.influencer.budget + z2026.influencer.budget).toBe(80000);
+
+    // Kundenrechnungen stehen ganz in ihrem Jahr, Creator-Belege folgen dem Anteil.
+    expect(z2025.karten.kunden.nettobetrag).toBe(25000);
+    expect(z2025.karten.kunden.bezahlt_netto).toBe(25000);
+    expect(z2026.karten.kunden.nettobetrag).toBe(75000);
+    expect(z2025.karten.creator.nettobetrag).toBe(500);
+    expect(z2026.karten.creator.nettobetrag).toBe(1500);
+
+    // Einjaehrige Auftraege bleiben eine Zeile mit Anteil 1.
+    expect(erg.zeilen.filter(z => z.id === 'ugc')).toHaveLength(1);
+    expect(zeile(erg, 'ugc')).toMatchObject({ jahr: 2026, anteil: 1, volumen_netto: 20000 });
+  });
+
+  it('summiert die Jahreszeilen eines Auftrags zum Auftrag', () => {
+    const einjaehrig = berechneDashboard(bestand());
+    const b = bestand();
+    b.auftraege[0].start = '2026-07-01';
+    b.auftraege[0].ende = '2027-06-30';
+    b.teilrechnungen = [
+      { id: 't1', auftrag_id: 'inf', position: 1, nettobetrag: 33333.33, rechnung_gestellt_am: '2026-09-20' },
+      { id: 't2', auftrag_id: 'inf', position: 2, nettobetrag: 33333.33, rechnung_gestellt_am: '2026-12-20' },
+      { id: 't3', auftrag_id: 'inf', position: 3, nettobetrag: 33333.34, rechnung_gestellt_am: '2027-03-20' },
+    ];
+    const mehrjaehrig = berechneDashboard(b);
+    const summe = (zeilen, feld) => zeilen.filter(z => z.id === 'inf').reduce((s, z) => s + z[feld], 0);
+
+    for (const feld of ['volumen_netto', 'volumen_bloecke', 'creator', 'fee_roh', 'agentur_marge', 'ksk', 'zusatz', 'ekvk_vk', 'ekvk_realisiert', 'creator_budget', 'vk_voll', 'creator_bezahlt', 'creator_offen']) {
+      expect(summe(mehrjaehrig.zeilen, feld)).toBeCloseTo(summe(einjaehrig.zeilen, feld), 6);
+    }
+  });
+
   it('klemmt Ueberschreitungen nicht (ADR 0007)', () => {
     const b = bestand();
     b.auftraege[1].nettobetrag = 100;

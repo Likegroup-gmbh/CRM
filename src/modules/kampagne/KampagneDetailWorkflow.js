@@ -8,7 +8,6 @@ import { canViewTab, syncTabQueryParam, getTabQueryParam } from '../../core/TabU
 import { refreshDocumentTitle } from '../../core/documentTitle.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
-import { icon } from '../../core/icons/IconSystem.js';
 import { renderVertraegeTableBody } from '../vertrag/VertraegeListRenderers.js';
 import {
   bindTableDelegation,
@@ -22,7 +21,7 @@ import { effectiveLinie, renderLinienSwitch, syncLinienSwitch } from './linienSc
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
 import { renderCreatorNameCell } from '../creator/CreatorTable.js';
-import { VideoDataLoader } from '../video/VideoDataLoader.js';
+import { mountVideoBrowserPane, unmountVideoBrowser, clearVideoBrowserUrl } from '../video-browser/VideoBrowser.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { mountCastingPane, unmountCastingWorksheet, loadCastingPrefetch } from './KampagneDetailCasting.js';
 import { mountKonzeptPane, unmountKonzeptWorksheet, loadKonzeptPrefetch } from './KampagneDetailKonzept.js';
@@ -262,6 +261,9 @@ export function suspendWorkflowTab(detail, tabId) {
     unmountKonzeptWorksheet(detail);
   } else if (tabId === 'vertraege') {
     unmountVertraegePane(detail);
+  } else if (tabId === 'videos') {
+    unmountVideoBrowser(detail);
+    clearVideoBrowserUrl();
   }
 
   const pane = document.getElementById(`workflow-pane-${tabId}`);
@@ -345,6 +347,29 @@ export async function loadWorkflowPane(detail, tabId) {
     return;
   }
 
+  if (tabId === 'videos') {
+    detail._workflowLoaded = detail._workflowLoaded || {};
+    if (detail._workflowLoaded.videos) return;
+    const gen = paneGeneration(detail, 'videos');
+    detail._workflowLoaded.videos = true;
+    pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
+    try {
+      await mountVideoBrowserPane(detail, pane, () => isPaneGenCurrent(detail, 'videos', gen));
+      if (!isPaneGenCurrent(detail, 'videos', gen)) detail._workflowLoaded.videos = false;
+    } catch (error) {
+      console.error('❌ KAMPAGNEDETAIL: Videos-Tab fehlgeschlagen:', error);
+      detail._workflowLoaded.videos = false;
+      if (pane.isConnected) {
+        pane.innerHTML = renderEmptyState({
+          icon: 'info',
+          title: 'Fehler beim Laden',
+          text: 'Die Videos konnten nicht geladen werden.'
+        });
+      }
+    }
+    return;
+  }
+
   const renderer = PANE_RENDERERS[tabId];
   if (!renderer) return;
 
@@ -394,6 +419,7 @@ export function refreshWorkflowAfterRender(detail) {
   unmountVertraegePane(detail);
   unmountKatalogPanes(detail);
   unmountBriefingPane(detail);
+  unmountVideoBrowser(detail);
   detail._workflowLoaded = {};
   detail._workflowData = {};
   const tab = detail.activeWorkflowTab;
@@ -660,102 +686,6 @@ export async function renderVertraegePane(detail) {
   `;
 }
 
-// Live/posted-Assets dieser Kampagne — schlanke Tabelle analog /videos,
-// ohne Kampagne-Spalte und ohne Ordner-Nav.
-async function renderVideosPane(detail) {
-  const { videos } = await getWorkflowData(detail, 'videos', () =>
-    VideoDataLoader.loadVideos({
-      kampagneId: detail.kampagneId,
-      produktionId: detail.produktionId || null,
-      briefingId: effectiveLinie(detail, 'videos'),
-      from: 0,
-      to: 199
-    })
-  );
-
-  if (!videos.length) {
-    return renderEmptyState({
-      icon: 'video',
-      title: 'Keine Videos vorhanden',
-      text: 'Für diese Kampagne wurden noch keine Videos erstellt.'
-    });
-  }
-
-  const isKunde = detail.isKunde;
-  const rows = videos.map(v => renderVideoRow(v, isKunde)).join('');
-
-  return `
-    <div class="data-table-container">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th class="col-name">Thema</th>
-            <th>Content</th>
-            ${isKunde ? '' : '<th>Kooperation</th>'}
-            <th>Creator</th>
-            <th>Content Art</th>
-            <th>Status</th>
-            <th>Posting Datum</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-const VIDEO_FOLDER_ICON = `${icon('folder-open')}`;
-
-function renderVideoRow(video, isKunde) {
-  const kooperation = video.kooperation || {};
-  const creator = kooperation.creator || {};
-  const strategieItem = video.strategie_item || {};
-
-  let themaHtml = '-';
-  if (strategieItem.screenshot_url) {
-    themaHtml = `<img src="${esc(strategieItem.screenshot_url)}" alt="Thema" class="video-list-thumbnail" loading="lazy" />`;
-  } else if (video.thema) {
-    themaHtml = esc(video.thema);
-  } else if (video.titel) {
-    themaHtml = esc(video.titel);
-  }
-
-  const creatorName = creator.vorname
-    ? `${esc(creator.vorname)} ${esc(creator.nachname || '')}`.trim()
-    : '-';
-
-  const statusClass = video.status === 'abgeschlossen' ? 'status-abgeschlossen' : 'status-produktion';
-
-  const contentArtHtml = video.content_art
-    ? `<div class="tags tags-compact"><span class="tag tag--type">${esc(video.content_art)}</span></div>`
-    : '-';
-
-  const folderUrl = video.folder_url || '';
-  const contentLinkHtml = folderUrl
-    ? `<a href="${esc(folderUrl)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Ordner öffnen">${VIDEO_FOLDER_ICON}</a>`
-    : '–';
-
-  const kooperationTd = isKunde
-    ? ''
-    : `<td>${kooperation.id ? `<a href="/kooperation/${kooperation.id}" class="table-link" data-table="kooperation" data-id="${kooperation.id}">${esc(kooperation.name || '—')}</a>` : '-'}</td>`;
-
-  const creatorTd = isKunde
-    ? `<td>${creatorName}</td>`
-    : `<td>${creator.id ? `<a href="/creator/${creator.id}" class="table-link" data-table="creator" data-id="${creator.id}">${creatorName}</a>` : '-'}</td>`;
-
-  return `
-    <tr data-id="${video.id}">
-      <td class="col-name video-thema-cell">${themaHtml}</td>
-      <td>${contentLinkHtml}</td>
-      ${kooperationTd}
-      ${creatorTd}
-      <td>${contentArtHtml}</td>
-      <td><span class="status-badge ${statusClass}">${esc(video.status) || 'produktion'}</span></td>
-      <td>${formatDate(video.posting_datum)}</td>
-    </tr>
-  `;
-}
-
 // Auswertung: bewusst nur Platzhalter (kein CTA, keine KI-Briefing-Auswertung).
 function renderAuswertungPane() {
   return renderEmptyState({
@@ -768,6 +698,5 @@ function renderAuswertungPane() {
 const PANE_RENDERERS = {
   skripte: renderSkriptePane,
   vertraege: renderVertraegePane,
-  videos: renderVideosPane,
   auswertung: renderAuswertungPane
 };

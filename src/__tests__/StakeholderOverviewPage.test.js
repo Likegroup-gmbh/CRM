@@ -530,6 +530,39 @@ describe('StakeholderOverviewPage', () => {
     vi.useRealTimers();
   });
 
+  it('verteilt einen mehrjährigen Auftrag über seine Teilrechnungen auf die Jahre', async () => {
+    const auftraege = [
+      { id: 'rab', auftragsname: 'Rabona', nettobetrag: 120000, start: '2025-10-01', ende: '2026-09-30', is_draft: false, unternehmen_id: 'u1' },
+      { id: 'neu', auftragsname: 'Neu', nettobetrag: 5000, start: '2026-02-01', is_draft: false, unternehmen_id: 'u1' }
+    ];
+    const teilrechnungen = [
+      { id: 't1', auftrag_id: 'rab', position: 1, nettobetrag: 30000, rechnung_gestellt: true, rechnung_gestellt_am: '2025-12-18' },
+      { id: 't2', auftrag_id: 'rab', position: 2, nettobetrag: 90000, rechnung_gestellt: false, rechnung_gestellt_am: '2026-06-13' }
+    ];
+    const unternehmen = [{ id: 'u1', firmenname: 'Rabona GmbH' }];
+    window.supabase = createMockSupabase({ auftraege, teilrechnungen, unternehmen });
+
+    const page = createPage();
+    await page.init();
+    await page.ready;
+
+    page.selectedYear = '2025';
+    expect(page.aggregate().totals.volumen).toBe(30000);
+    expect(page.kartenSummen().kunden.nettobetrag).toBe(30000);
+
+    page.selectedYear = '2026';
+    expect(page.aggregate().totals.volumen).toBe(95000);
+    expect(page.kartenSummen().kunden.nettobetrag).toBe(90000 + 5000);
+
+    // Alle Jahre: Volumen vollständig, der Auftrag zählt trotzdem nur einmal.
+    page.selectedYear = 'all';
+    page.render();
+    const html = window.setContentSafely.mock.calls.at(-1)[1];
+    expect(page.aggregate().totals.volumen).toBe(125000);
+    expect(html).toContain('GESAMT ohne Contracts (2)');
+    expect(html).toContain('2 Aufträge');
+  });
+
   it('rechnet nur die Influencer-Agentur-Fee zeitanteilig, EK/VK und Volumen bleiben Ist', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-31T12:00:00Z'));
