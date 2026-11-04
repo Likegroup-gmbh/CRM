@@ -96,7 +96,7 @@ export class VideoTableDrawerActions {
     t.refilter();
   }
 
-  updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl) {
+  updateContentCellAfterUpload(videoId, kooperationId, fileUrl, _videoName, folderUrl) {
     const t = this.table;
     // fileUrl kann null sein (z. B. reiner Finale-Upload) -> bestehenden
     // Content-Link nicht ueberschreiben.
@@ -106,7 +106,8 @@ export class VideoTableDrawerActions {
       patch.link_content = fileUrl;
     }
     if (folderUrl) patch.folder_url = folderUrl;
-    if (videoName) patch.video_name = videoName;
+    // _videoName ist der Stand vom Oeffnen des Drawers und wird nicht
+    // zurueckgeschrieben. Der Name lebt in der Kooperationsliste.
 
     if (t.store) {
       t.store.updateVideo(videoId, patch);

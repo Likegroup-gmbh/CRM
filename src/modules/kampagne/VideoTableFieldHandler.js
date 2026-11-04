@@ -70,6 +70,38 @@ export class VideoTableFieldHandler {
     );
   }
 
+  rememberVideoName(videoId, value) {
+    const t = this.table;
+    if (!t._videoNameEdits) t._videoNameEdits = new Map();
+    t._videoNameEdits.set(videoId, { value: value ?? '', at: Date.now() });
+  }
+
+  _storedVideoName(videoId) {
+    for (const list of Object.values(this.table.videos || {})) {
+      const video = list?.find(v => v.id === videoId);
+      if (video) return video.video_name ?? '';
+    }
+    return undefined;
+  }
+
+  // Namen, die noch im Input stehen und nicht im Store, vor einem Re-Render
+  // speichern. Sonst zeigt die Liste nach dem Upload wieder ein leeres Feld.
+  async flushVideoNameEdits() {
+    const root = this.table.containerId
+      ? document.getElementById(this.table.containerId)
+      : document;
+    if (!root) return;
+
+    const fields = root.querySelectorAll('input[data-entity="video"][data-field="video_name"]');
+    for (const field of fields) {
+      const id = field.getAttribute('data-id');
+      const current = this._storedVideoName(id);
+      if (current === undefined) continue;
+      if (current === field.value) continue;
+      await this.handleFieldUpdate(field);
+    }
+  }
+
   async handleFieldUpdate(field) {
     // Custom Column Felder an den spezialisierten Handler delegieren
     if (CustomColumnFieldHandler.isCustomColumnField(field)) {
@@ -256,6 +288,10 @@ export class VideoTableFieldHandler {
             } else if (entity === 'kooperation') {
               store.updateKooperation(id, { [fieldName]: value });
             }
+          }
+
+          if (entity === 'video' && fieldName === 'video_name') {
+            this.rememberVideoName(id, value);
           }
 
           console.log(`✅ ${entity} aktualisiert`);

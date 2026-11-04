@@ -341,6 +341,10 @@ export class KampagneKooperationenVideoTable {
       if (this.feedbackSaveController?.hasPending()) {
         await this.feedbackSaveController.flushAll();
       }
+      // Video-Name wird oft waehrend des Uploads getippt und ist dann noch
+      // nicht per Blur gespeichert. Vor dem Neuzeichnen uebernehmen, sonst
+      // ersetzt der Abschluss-Render das Feld mit dem alten Store-Wert.
+      await this.fieldHandler.flushVideoNameEdits();
 
       const container = this.containerId ? document.getElementById(this.containerId) : null;
       if (!container) return;

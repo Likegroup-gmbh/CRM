@@ -107,10 +107,21 @@ export class VideoTableRealtimeHandler {
       Date.now() - this.table._lastUpdateTime < 2000;
   }
 
+  // Ein Upload-Abschluss aktualisiert die Zeile, bevor das Namensfeld
+  // geblurrt ist. Der Payload traegt dann noch den alten oder leeren
+  // video_name und wuerde den gerade gesetzten Namen loeschen.
+  _keepRecentVideoName(incoming) {
+    if (!incoming?.id) return incoming;
+    const kept = this.table._videoNameEdits?.get(incoming.id);
+    if (!kept || Date.now() - kept.at >= 15000) return incoming;
+    if ((incoming.video_name ?? '') === kept.value) return incoming;
+    return { ...incoming, video_name: kept.value };
+  }
+
   async handleVideoUpdate(payload) {
     if (this._isOwnUpdate(payload.new?.id)) return;
 
-    const updatedVideo = payload.new;
+    const updatedVideo = this._keepRecentVideoName(payload.new);
 
     // Virtuell über das Konzept zugeordnete Videos haben keine skript_id in
     // der DB — ihre Freigabe-Checkbox folgt dem Skript-Status, nicht der
@@ -353,6 +364,9 @@ export class VideoTableRealtimeHandler {
           break;
         }
         default: {
+          // Feld, in dem gerade getippt wird, nicht leeren. Der Upload-Abschluss
+          // schickt ein Zeilen-Update, dessen video_name noch leer oder alt ist.
+          if (field === document.activeElement) break;
           const newVal = video[fieldName] || '';
           if (field.value !== undefined && field.value !== newVal) {
             field.value = newVal;

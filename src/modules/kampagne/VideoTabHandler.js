@@ -530,10 +530,11 @@ export class VideoTabHandler {
       await this._updateCurrentFlags();
 
       const videoName = this.drawer.metadaten?.videoName || null;
-      // link_content nur aus Feedbackschleifen-Links aktualisieren
+      // link_content nur aus Feedbackschleifen-Links aktualisieren.
+      // video_name nicht mitschreiben: der steht in der Kooperationsliste
+      // und kann sich waehrend des Speicherns schon geaendert haben.
       const updateData = {};
       if (lastFileUrl) updateData.link_content = lastFileUrl;
-      if (videoName) updateData.video_name = videoName;
 
       if (Object.keys(updateData).length > 0) {
         await window.supabase
@@ -701,11 +702,11 @@ export class VideoTabHandler {
     }
   }
 
-  async saveAssetVersion(fileUrl, filePath, videoName, folderUrl, versionNumber = 1) {
+  async saveAssetVersion(fileUrl, filePath, _videoName, folderUrl, versionNumber = 1) {
     await this._saveAssetVersion(fileUrl, filePath, null, versionNumber);
     await this._updateCurrentFlags();
 
-    const updateData = { link_content: fileUrl, video_name: videoName || null };
+    const updateData = { link_content: fileUrl };
     if (folderUrl) updateData.folder_url = folderUrl;
 
     await window.supabase
