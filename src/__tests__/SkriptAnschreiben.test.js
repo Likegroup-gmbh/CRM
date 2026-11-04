@@ -5,6 +5,8 @@ import {
   loadSkriptPdfItems,
   loadSkriptEmpfaengerScope,
   renderSkriptSchalter,
+  itemsForAnhang,
+  effektiverUmfang,
   creatorProfileFuerSkript,
   skripteFuerEmpfaenger,
 } from '../core/anschreiben/typen/skript.js';
@@ -51,8 +53,25 @@ describe('skriptAdapter', () => {
     expect(prepared.extraTabs).toEqual(['ansprechpartner']);
     expect(typeof prepared.loadEmpfaengerScope).toBe('function');
     expect(prepared.rewriteMail('Skript: {{skript}}')).toBe('Skript: {{skript}}');
-    prepared.anhang.alle = true;
+    prepared.anhang.umfang = 'kampagne';
     expect(prepared.rewriteMail('Skript: {{skript}}')).toBe('Skript: Sommer');
+  });
+
+  it('ersetzt {{skript}} bei Produktion durch den Produktionsnamen', async () => {
+    const prepared = await skriptAdapter.prepare({
+      dokumentId: 's1',
+      skript: {
+        id: 's1',
+        titel: 'Hook',
+        unternehmen_id: 'u1',
+        kampagne_id: 'k1',
+        kampagne: { kampagnenname: 'Sommer' },
+        produktion_id: 'p1',
+        produktion: { name: 'Shampoo' },
+      },
+    });
+    prepared.anhang.umfang = 'produktion';
+    expect(prepared.rewriteMail('Skript: {{skript}}')).toBe('Skript: Shampoo');
   });
 
   it('ohne Kampagne kein Umfang-Schalter', async () => {
@@ -65,19 +84,39 @@ describe('skriptAdapter', () => {
     expect(host.innerHTML).toBe('');
   });
 
-  it('Anhang-Schalter erscheint erst bei allen Skripten', async () => {
-    const anhang = { alle: false, proSkript: false, kampagneId: 'k1', kampagneName: 'Sommer' };
+  it('Produktion-Option erscheint nur mit produktionId', () => {
+    const host = document.createElement('div');
+    renderSkriptSchalter(host, { umfang: 'einzeln', kampagneId: 'k1' }, vi.fn());
+    const werte = [...host.querySelectorAll('[data-skript-umfang] option')].map((o) => o.value);
+    expect(werte).toEqual(['einzeln', 'kampagne']);
+
+    const host2 = document.createElement('div');
+    renderSkriptSchalter(host2, { umfang: 'einzeln', kampagneId: 'k1', produktionId: 'p1' }, vi.fn());
+    const werte2 = [...host2.querySelectorAll('[data-skript-umfang] option')].map((o) => o.value);
+    expect(werte2).toEqual(['einzeln', 'produktion', 'kampagne']);
+  });
+
+  it('Anhang-Schalter erscheint erst bei Produktion oder Kampagne', async () => {
+    const anhang = {
+      umfang: 'einzeln', proSkript: false, kampagneId: 'k1', kampagneName: 'Sommer', produktionId: 'p1',
+    };
     const host = document.createElement('div');
     const onChange = vi.fn();
     renderSkriptSchalter(host, anhang, onChange);
     const umfang = host.querySelector('[data-skript-umfang]');
     const wrap = host.querySelector('[data-skript-anhang-wrap]');
     expect(wrap.hidden).toBe(true);
-    umfang.checked = true;
+    umfang.value = 'produktion';
     umfang.dispatchEvent(new Event('change'));
-    expect(anhang.alle).toBe(true);
+    expect(anhang.umfang).toBe('produktion');
     expect(wrap.hidden).toBe(false);
     expect(onChange).toHaveBeenCalledTimes(1);
+    umfang.value = 'einzeln';
+    umfang.dispatchEvent(new Event('change'));
+    expect(wrap.hidden).toBe(true);
+    umfang.value = 'kampagne';
+    umfang.dispatchEvent(new Event('change'));
+    expect(wrap.hidden).toBe(false);
     const pro = host.querySelector('[data-skript-anhang]');
     pro.checked = true;
     pro.dispatchEvent(new Event('change'));
@@ -140,7 +179,7 @@ describe('loadSkriptPdfItems', () => {
     };
     const items = await loadSkriptPdfItems(db, {
       dokumentId: 's1',
-      anhang: { alle: true, kampagneId: 'k1' },
+      anhang: { umfang: 'kampagne', kampagneId: 'k1' },
     });
     expect(items).toHaveLength(2);
     expect(items[0].creator).toEqual({ name: 'Anna A', bildUrl: 'http://anna', instagram: '@anna' });
@@ -239,7 +278,7 @@ describe('Skript-Creator-Zuordnung', () => {
     };
     const scope = await loadSkriptEmpfaengerScope(db, {
       dokumentId: 's1',
-      anhang: { alle: false, kampagneId: 'k1', kampagneName: 'Sommer' },
+      anhang: { umfang: 'einzeln', kampagneId: 'k1', kampagneName: 'Sommer' },
     });
     expect(scope.creators.map((c) => c.id)).toEqual(['c-anna']);
     expect(scope.managements.map((m) => m.id)).toEqual(['m1']);
@@ -276,7 +315,7 @@ describe('Skript-Pool', () => {
       prepared.loadEmpfaengerScope(db),
       skriptAdapter.createPdf(prepared, db, {}),
     ]);
-    prepared.anhang.alle = true;
+    prepared.anhang.umfang = 'kampagne';
     await Promise.all([
       prepared.loadEmpfaengerScope(db),
       skriptAdapter.createPdf(prepared, db, {}),
@@ -287,6 +326,52 @@ describe('Skript-Pool', () => {
 
     const skriptLoads = db.from.mock.calls.filter((call) => call[0] === 'skripte');
     expect(skriptLoads).toHaveLength(1);
+  });
+
+  it('Produktion filtert den Pool clientseitig und Kampagne zeigt alle', () => {
+    const items = [
+      { id: 's1', produktionId: 'p1' },
+      { id: 's2', produktionId: 'p1' },
+      { id: 's3', produktionId: 'p2' },
+      { id: 's4', produktionId: null },
+    ];
+    const prepared = (umfang) => ({
+      dokumentId: 's1',
+      anhang: { umfang, kampagneId: 'k1', produktionId: 'p1' },
+    });
+    expect(itemsForAnhang(items, prepared('einzeln')).map((i) => i.id)).toEqual(['s1']);
+    expect(itemsForAnhang(items, prepared('produktion')).map((i) => i.id)).toEqual(['s1', 's2']);
+    expect(itemsForAnhang(items, prepared('kampagne')).map((i) => i.id)).toEqual(['s1', 's2', 's3', 's4']);
+  });
+
+  it('Produktion ohne produktionId faellt auf einzeln zurueck', () => {
+    expect(effektiverUmfang({ umfang: 'produktion', kampagneId: 'k1' })).toBe('einzeln');
+  });
+
+  it('Dateiname fuer Produktion nutzt den Produktionsnamen', async () => {
+    const { createSkriptAnhang } = await import('../modules/skripte/SkriptPdf.js');
+    const prepared = await skriptAdapter.prepare({
+      dokumentId: 's1',
+      skript: {
+        id: 's1', titel: 'Hook', unternehmen_id: 'u1',
+        kampagne_id: 'k1', kampagne: { kampagnenname: 'Sommer' },
+        produktion_id: 'p1', produktion: { name: 'Shampoo' },
+      },
+    });
+    prepared.anhang.umfang = 'produktion';
+    const db = {
+      from: vi.fn(() => chain({
+        data: [
+          { id: 's1', titel: 'Eins', produktion_id: 'p1', strategie_item: null },
+          { id: 's2', titel: 'Zwei', produktion_id: 'p2', strategie_item: null },
+        ],
+        error: null,
+      })),
+    };
+    await skriptAdapter.createPdf(prepared, db, {});
+    const [subset, opts] = createSkriptAnhang.mock.calls.at(-1);
+    expect(subset.map((i) => i.id)).toEqual(['s1']);
+    expect(opts.dateiname).toContain('Shampoo');
   });
 
   it('dropAnschreibenWarm laedt den Skript-Pool neu', async () => {

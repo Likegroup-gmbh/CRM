@@ -153,23 +153,38 @@ export class SelectionBar {
     this.countLabel = countLabel;
     this.onAction = onAction;
     this.onDeselect = onDeselect;
+    this.hasIdle = false;
     this.el = null;
   }
 
-  /** Leiste (neu) aufbauen, versteckt. Ersetzt eine vorhandene Leiste gleicher ID. */
-  mount(actionsHtml = '') {
+  /**
+   * Leiste (neu) aufbauen. Ersetzt eine vorhandene Leiste gleicher ID.
+   * Ohne idleHtml startet sie versteckt und erscheint ab einer Auswahl.
+   * Mit idleHtml bleibt sie immer sichtbar: bei 0 Auswahl steht dieser Ruhe-Inhalt
+   * in der Leiste (z. B. ein Eingabefeld), ab einer Auswahl Zähler und Aktionen.
+   * Ein <form data-selection-form="name"> im Inhalt meldet submit (Enter) als onAction(name).
+   */
+  mount(actionsHtml = '', { idleHtml = '' } = {}) {
     document.getElementById(this.id)?.remove();
 
     const bar = document.createElement('div');
     bar.id = this.id;
     bar.className = 'selection-bar';
+    this.hasIdle = !!idleHtml;
     bar.innerHTML = `
+      ${idleHtml ? `<div class="selection-bar__idle">${idleHtml}</div>` : ''}
       <span class="bulk-count">0 ${this.countLabel}</span>
       <div class="bulk-bar-actions">
         ${actionsHtml}
         <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm" data-selection-deselect>Auswahl aufheben</button>
       </div>
     `;
+    bar.addEventListener('submit', (e) => {
+      const form = e.target.closest?.('[data-selection-form]');
+      if (!form) return;
+      e.preventDefault();
+      this.onAction(form.dataset.selectionForm, e);
+    });
     bar.addEventListener('click', (e) => {
       const action = e.target.closest('[data-selection-action]');
       if (action && !action.disabled) {
@@ -178,17 +193,19 @@ export class SelectionBar {
       }
       if (e.target.closest('[data-selection-deselect]')) this.onDeselect();
     });
-    bar.style.display = 'none';
+    bar.style.display = this.hasIdle ? 'flex' : 'none';
+    bar.classList.toggle('is-idle', this.hasIdle);
 
     document.body.appendChild(bar);
     this.el = bar;
     return bar;
   }
 
-  /** Zähler setzen, Leiste ab einer Auswahl zeigen. */
+  /** Zähler setzen, Leiste ab einer Auswahl zeigen (mit Ruhe-Inhalt: zwischen beiden Zuständen wechseln). */
   update(count) {
     if (!this.el) return;
-    this.el.style.display = count > 0 ? 'flex' : 'none';
+    this.el.style.display = count > 0 || this.hasIdle ? 'flex' : 'none';
+    this.el.classList.toggle('is-idle', this.hasIdle && count === 0);
     const countEl = this.el.querySelector('.bulk-count');
     if (countEl) countEl.textContent = `${count} ${this.countLabel}`;
   }

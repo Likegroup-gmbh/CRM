@@ -5652,6 +5652,30 @@ h3.section-title,
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
+/* Ruhe-Zustand (SelectionBar mit idleHtml): Eingabe statt Zähler und Aktionen */
+.selection-bar__idle {
+  display: none;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.selection-bar__idle form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+}
+
+.selection-bar__idle .form-input {
+  width: 360px;
+  padding: 6px 10px;
+  font-size: var(--text-sm);
+}
+
+.selection-bar.is-idle .selection-bar__idle { display: flex; }
+.selection-bar.is-idle .bulk-count,
+.selection-bar.is-idle .bulk-bar-actions { display: none; }
+
 @keyframes bulkBarSlideIn {
   from { opacity: 0; transform: translateX(-50%) translateY(12px); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }

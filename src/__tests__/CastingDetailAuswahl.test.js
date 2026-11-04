@@ -153,7 +153,8 @@ describe('Casting-Detail Auswahl und Leiste', () => {
       expect(del.mock.calls.map(c => c[0])).toEqual(['i1', 'i2']);
       expect(detail.items).toEqual([]);
       expect(detail.selectedItems.size).toBe(0);
-      expect(bar().style.display).toBe('none');
+      // mit create-Recht fällt die Leiste auf den Ruhezustand (Link-Feld) zurück
+      expect(bar().classList.contains('is-idle')).toBe(true);
       expect(window.toastSystem.show).toHaveBeenCalledWith('2 Creator entfernt', 'success');
     });
 

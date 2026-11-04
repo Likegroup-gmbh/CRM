@@ -7,7 +7,7 @@ import { creatorFuerAnschreiben, createSkriptAnhang, sanitizeSkriptFilename } fr
 const CREATOR_FELDER = 'id, vorname, nachname, mail, instagram, tiktok, profilbild_url, profilbild_thumb_url';
 
 const SKRIPT_SELECT = `
-  id, titel, created_at, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell,
+  id, titel, created_at, produktion_id, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell,
   rezept, text_hook, caption,
   unternehmen:unternehmen_id(firmenname, logo_url),
   marke:marke_id(markenname, logo_url),
@@ -156,16 +156,41 @@ export async function loadManagementScope(db, creatorIds) {
   return [...byId.values()];
 }
 
-function poolQuery(prepared) {
-  const anhang = prepared.anhang || {};
-  if (anhang.kampagneId) {
-    return { dokumentId: prepared.dokumentId, anhang: { ...anhang, alle: true } };
-  }
-  return { dokumentId: prepared.dokumentId, anhang };
+/** Umfang, der mit den vorhandenen IDs auch möglich ist. Sonst fällt er auf 'einzeln' zurück. */
+export function effektiverUmfang(anhang) {
+  if (anhang?.umfang === 'kampagne' && anhang.kampagneId) return 'kampagne';
+  if (anhang?.umfang === 'produktion' && anhang.produktionId) return 'produktion';
+  return 'einzeln';
 }
 
-function itemsForAnhang(items, prepared) {
-  if (prepared.anhang?.alle || !prepared.anhang?.kampagneId) return items;
+export function istPool(anhang) {
+  return effektiverUmfang(anhang) !== 'einzeln';
+}
+
+/** Name für {{skript}} und Dateiname: Produktion oder Kampagne, bei einzeln leer. */
+function umfangName(anhang) {
+  const umfang = effektiverUmfang(anhang);
+  if (umfang === 'produktion') return anhang.produktionName || 'Produktion';
+  if (umfang === 'kampagne') return anhang.kampagneName || '';
+  return '';
+}
+
+/** Der Pool wird einmal am weitesten Umfang geladen, gefiltert wird clientseitig. */
+function poolQuery(prepared) {
+  const anhang = prepared.anhang || {};
+  let umfang = 'einzeln';
+  if (anhang.kampagneId) umfang = 'kampagne';
+  else if (anhang.produktionId) umfang = 'produktion';
+  return { dokumentId: prepared.dokumentId, anhang: { ...anhang, umfang } };
+}
+
+export function itemsForAnhang(items, prepared) {
+  const anhang = prepared.anhang;
+  const umfang = effektiverUmfang(anhang);
+  if (umfang === 'kampagne') return items;
+  if (umfang === 'produktion') {
+    return items.filter((item) => item.produktionId === anhang.produktionId);
+  }
   return items.filter((item) => item.id === prepared.dokumentId);
 }
 
@@ -214,7 +239,10 @@ function scopeFromPool(pool, prepared, ansprechpartner) {
     managements,
     managementCreators: Object.fromEntries(managements.map((m) => [m.id, m.creatorIds])),
     kampagne: prepared.anhang?.kampagneId
-      ? { id: prepared.anhang.kampagneId, label: prepared.anhang.kampagneName || 'Kampagne' }
+      ? {
+        id: prepared.anhang.kampagneId,
+        label: umfangName(prepared.anhang) || prepared.anhang.kampagneName || 'Kampagne',
+      }
       : null,
     skippedCreator: skipped,
     ansprechpartner: ansprechpartner?.rows || [],
@@ -240,29 +268,33 @@ async function pdfFromPool(db, prepared, empfaenger) {
     subset = skripteFuerEmpfaenger(subset, empfaenger, pool.managementCreators);
   }
   if (!subset.length) return { empty: true };
-  const proSkript = Boolean(prepared.anhang?.alle && prepared.anhang?.proSkript);
+  const proSkript = Boolean(istPool(prepared.anhang) && prepared.anhang?.proSkript);
   return createSkriptAnhang(subset, { dateiname: anhangDateiname(prepared, proSkript), proSkript });
 }
 
 function anhangDateiname(prepared, proSkript) {
-  if (prepared.anhang?.alle && !proSkript) {
-    return sanitizeSkriptFilename(`Skripte ${prepared.anhang.kampagneName || prepared.dokumentName}`);
+  if (istPool(prepared.anhang) && !proSkript) {
+    return sanitizeSkriptFilename(`Skripte ${umfangName(prepared.anhang) || prepared.dokumentName}`);
   }
   return sanitizeSkriptFilename(prepared.dokumentName);
 }
 
 export function renderSkriptSchalter(container, anhang, onChange) {
-  if (!anhang?.kampagneId) {
+  if (!anhang?.kampagneId && !anhang?.produktionId) {
     container.innerHTML = '';
     return;
   }
+  const optionen = [`<option value="einzeln">Nur dieses Skript</option>`];
+  if (anhang.produktionId) {
+    optionen.push('<option value="produktion">Alle Skripte dieser Produktion</option>');
+  }
+  if (anhang.kampagneId) {
+    optionen.push('<option value="kampagne">Alle Skripte dieser Kampagne</option>');
+  }
   container.innerHTML = `
     <div class="anschreiben-schalter">
-      <span class="toggle-text">Alle Skripte dieser Kampagne</span>
-      <label class="toggle-switch">
-        <input type="checkbox" data-skript-umfang>
-        <span class="toggle-slider"></span>
-      </label>
+      <span class="toggle-text">Umfang</span>
+      <select class="form-select" data-skript-umfang>${optionen.join('')}</select>
     </div>
     <div class="anschreiben-schalter" data-skript-anhang-wrap hidden>
       <span class="toggle-text">Eine PDF pro Skript</span>
@@ -275,9 +307,11 @@ export function renderSkriptSchalter(container, anhang, onChange) {
   const umfang = container.querySelector('[data-skript-umfang]');
   const anhangWrap = container.querySelector('[data-skript-anhang-wrap]');
   const anhangInput = container.querySelector('[data-skript-anhang]');
+  umfang.value = effektiverUmfang(anhang);
+  anhangWrap.hidden = !istPool(anhang);
   umfang.addEventListener('change', () => {
-    anhang.alle = umfang.checked;
-    anhangWrap.hidden = !umfang.checked;
+    anhang.umfang = umfang.value;
+    anhangWrap.hidden = !istPool(anhang);
     onChange?.();
   });
   anhangInput.addEventListener('change', () => {
@@ -287,11 +321,15 @@ export function renderSkriptSchalter(container, anhang, onChange) {
 }
 
 export async function loadSkriptPdfItems(db, { dokumentId, anhang }) {
-  const alle = Boolean(anhang?.alle && anhang?.kampagneId);
+  const umfang = effektiverUmfang(anhang);
   let query = db.from('skripte').select(SKRIPT_SELECT);
-  query = alle
-    ? query.eq('kampagne_id', anhang.kampagneId).order('created_at', { ascending: true })
-    : query.eq('id', dokumentId);
+  if (umfang === 'kampagne') {
+    query = query.eq('kampagne_id', anhang.kampagneId).order('created_at', { ascending: true });
+  } else if (umfang === 'produktion') {
+    query = query.eq('produktion_id', anhang.produktionId).order('created_at', { ascending: true });
+  } else {
+    query = query.eq('id', dokumentId);
+  }
   const { data, error } = await query;
   if (error) throw new Error(error.message || 'Skripte konnten nicht geladen werden');
   const skripte = Array.isArray(data) ? data : (data ? [data] : []);
@@ -318,6 +356,7 @@ export async function loadSkriptPdfItems(db, { dokumentId, anhang }) {
     const creator = creatorFuerAnschreiben(skript, links);
     return {
       id: skript.id,
+      produktionId: skript.produktion_id || null,
       titel: skript.titel || 'Skript',
       hook: skript.hook || '',
       hauptteil: skript.hauptteil || '',
@@ -369,10 +408,12 @@ export const skriptAdapter = {
     if (!window.isInternal?.()) return null;
 
     const anhang = {
-      alle: false,
+      umfang: 'einzeln',
       proSkript: false,
       kampagneId: skript.kampagne_id || null,
       kampagneName: kampagneName(skript),
+      produktionId: skript.produktion_id || null,
+      produktionName: skript.produktion?.name || '',
     };
 
     const prepared = {
@@ -388,8 +429,9 @@ export const skriptAdapter = {
       renderSkriptSchalter(container, anhang, onChange);
     };
     prepared.rewriteMail = (text) => {
-      if (!anhang.alle || !anhang.kampagneName) return text;
-      return String(text ?? '').replace(/\{\{skript\}\}/g, anhang.kampagneName);
+      const name = umfangName(anhang);
+      if (!name) return text;
+      return String(text ?? '').replace(/\{\{skript\}\}/g, name);
     };
     return prepared;
   },
@@ -403,7 +445,7 @@ export const skriptAdapter = {
     const client = db || window.supabase;
     const pool = await ensureSkriptPool(client, prepared);
     const items = itemsForAnhang(pool.items, prepared);
-    const proSkript = Boolean(prepared.anhang?.alle && prepared.anhang?.proSkript);
+    const proSkript = Boolean(istPool(prepared.anhang) && prepared.anhang?.proSkript);
     const dateiname = anhangDateiname(prepared, proSkript);
     const out = [];
     for (const person of empfaenger || []) {

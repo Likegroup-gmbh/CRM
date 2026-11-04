@@ -5,6 +5,7 @@
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
 import { creatorAuswahlAddFormMethods } from './creatorAuswahlAddForm.js';
+import { leererCastingEintrag } from './leererCastingEintrag.js';
 import {
   IG_TEXT_FIELDS,
   applyPreviewToForm,
@@ -206,30 +207,7 @@ export class CreatorAuswahlAddDrawer {
 
   async createInitialEmptyRow() {
     try {
-      const itemData = {
-        creator_auswahl_id: this.detail.listeId,
-        typ: null,
-        name: null,
-        link_instagram: null,
-        follower_instagram: null,
-        link_tiktok: null,
-        follower_tiktok: null,
-        absage: false,
-        kategorie: null,
-        wohnort: null,
-        notiz: null,
-        pricing: null,
-        preis_ek: null,
-        preis_vk: null,
-        reichweite_story: null,
-        preis_story: null,
-        preis_reels: null,
-        reichweite_garantie: null,
-        sortierung: 0,
-        creator_id: null
-      };
-
-      const newItem = await creatorAuswahlService.createItem(itemData);
+      const newItem = await creatorAuswahlService.createItem(leererCastingEintrag(this.detail.listeId, 0));
       this.detail.items.push(newItem);
     } catch (error) {
       console.error('Fehler beim Erstellen der initialen Zeile:', error);
@@ -238,30 +216,9 @@ export class CreatorAuswahlAddDrawer {
 
   async addEmptyRow() {
     try {
-      const itemData = {
-        creator_auswahl_id: this.detail.listeId,
-        typ: null,
-        name: null,
-        link_instagram: null,
-        follower_instagram: null,
-        link_tiktok: null,
-        follower_tiktok: null,
-        absage: false,
-        kategorie: null,
-        wohnort: null,
-        notiz: null,
-        pricing: null,
-        preis_ek: null,
-        preis_vk: null,
-        reichweite_story: null,
-        preis_story: null,
-        preis_reels: null,
-        reichweite_garantie: null,
-        sortierung: this.detail.items.length,
-        creator_id: null
-      };
-
-      const newItem = await creatorAuswahlService.createItem(itemData);
+      const newItem = await creatorAuswahlService.createItem(
+        leererCastingEintrag(this.detail.listeId, this.detail.items.length)
+      );
       this.detail.items.push(newItem);
       this.detail.rerenderTable();
 

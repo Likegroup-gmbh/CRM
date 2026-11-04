@@ -367,17 +367,36 @@ describe('buildPrompt', () => {
     expect(task).toContain('_audience_situations');
   });
 
-  it('nutzt bestehende Personas nur als House-Style, nicht als Match-Pool', () => {
-    const pool = [{ id: 'p1', name: 'Sandra', oberbegriff: 'Effiziente Mutter', pain_points: 'Zeitdruck' }];
-    const { stable, task } = buildPrompt(input, { pool, poolQuelle: 'marke' });
+  it('weitere/karte: Pool nur als Abgrenzungsliste aus Name und Oberbegriff, ohne Profil', () => {
+    const pool = [{
+      id: 'p1', name: 'Sandra', oberbegriff: 'Effiziente Mutter',
+      pain_points: 'Zeitdruck', beruf: 'Angestellte', kaufmotive: 'Statusgewinn'
+    }];
+    const { stable, task } = buildPrompt({ ...input, modus: 'weitere' }, { pool, poolQuelle: 'marke' });
 
-    expect(stable).toContain('HOUSE-STYLE');
-    expect(stable).toContain('Nur Naming und Oberbegriff');
-    expect(stable).toContain('Keine langen Bios');
-    expect(task).toContain('Sandra');
+    expect(stable).toContain('ABGRENZUNG ZU BESTEHENDEN PERSONAS');
+    expect(stable).not.toContain('HOUSE-STYLE');
+    expect(task).toContain('- Sandra (Effiziente Mutter)');
     expect(task).toContain('BESTEHENDE PERSONAS der Produkt-Marken');
-    expect(task).toContain('nur Stil-Referenz, kein Match');
+    expect(task).toContain('nicht klonen, keine Muster uebernehmen');
+    expect(task).not.toContain('Zeitdruck');
+    expect(task).not.toContain('Angestellte');
+    expect(task).not.toContain('Statusgewinn');
     expect(task).not.toContain('Match-Pool');
+  });
+
+  it('Startrun: kein Pool-Abschnitt und keine Pool-Profile im Prompt, Namen bleiben aus der Liste', () => {
+    const pool = [{ id: 'p1', name: 'Luca', oberbegriff: 'Mobil arbeitende Person', pain_points: 'Zeitdruck', beruf: 'Berater' }];
+    const { stable, task } = buildPrompt(input, { pool, poolQuelle: 'unternehmen' });
+
+    expect(stable).not.toContain('ABGRENZUNG');
+    expect(stable).not.toContain('HOUSE-STYLE');
+    expect(task).not.toContain('BESTEHENDE PERSONAS');
+    expect(task).not.toContain('Mobil arbeitende Person');
+    expect(task).not.toContain('Zeitdruck');
+    expect(task).not.toContain('Berater');
+    // Dubletten-Schutz: der Pool-Name ist nicht mehr in der Namensliste
+    expect(task).not.toMatch(/\bLuca \((jung|mittel|aelter)/);
   });
 
   it('Startrun und Weitere verlangen genau eine neue, breite Persona', () => {
@@ -403,7 +422,7 @@ describe('buildPrompt', () => {
     for (const name of UNISEX_VORNMEN) expect(task).toContain(name);
     expect(task).toContain('erst alter_von und alter_bis, dann namensregister');
     expect(task).toContain('geschlecht ist "Gemischt"');
-    expect(task).toContain('House-Style gilt fuer den Vornamen nicht');
+    expect(task).toContain('Bestehende Personas sind fuer den Vornamen keine Vorlage');
 
     const karte = buildPrompt(
       { ...input, modus: 'karte', ersetzteKarte: { typ: 'neu', name: 'Lena' } },
@@ -476,6 +495,180 @@ describe('buildPrompt', () => {
   it('ohne bestehende Use Cases: erst Einsatzsituationen generieren, dann mappen', () => {
     const { task } = buildPrompt({ ...input, bestehendeUseCases: [] }, { pool: [], poolQuelle: 'leer' });
     expect(task).toContain('Generiere ZUERST 3 bis 6 benannte Einsatzsituationen');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Breiter Lauf: Kaeufergruppen statt Einzelkontext
+// ---------------------------------------------------------------------------
+
+describe('Breiter Lauf (Kaeufergruppen-Analyse)', () => {
+  const { istBreiterLauf, sanitizeAnalyse } = produktPersona;
+
+  const felder = {
+    name: { value: 'iPhone Duo', kind: 'fact' },
+    usp: { value: 'Faltbares Display\nA20 Pro Chip\n2 TB Speicher', kind: 'guess' }
+  };
+
+  const antwort = (extra = {}, persona = {}) => ({
+    produkt_kern: 'Faltbares Smartphone',
+    kaeufergruppen: [
+      { name: 'Early Adopter', kaufmotiv: 'Das Neueste besitzen' },
+      { name: 'Medien-Vielnutzer', kaufmotiv: 'Grosser Bildschirm' }
+    ],
+    gemeinsamer_nenner: 'Technikinteressierte mit Anspruch an den Bildschirm',
+    berufsgebunden: false,
+    use_cases: [{ name: 'Abends auf dem Sofa' }],
+    vorschlaege: [{
+      typ: 'neu',
+      fit_grund: 'Gruppen',
+      use_case_indices: [0],
+      persona: {
+        name: 'Mika',
+        oberbegriff: 'Technikinteressierte',
+        beruf: 'Berufstaetig in Vollzeit',
+        ...persona
+      }
+    }],
+    ...extra
+  });
+
+  it('breit nur bei initial und beim Ersatz der einzigen Karte', () => {
+    expect(istBreiterLauf({})).toBe(true);
+    expect(istBreiterLauf({ modus: 'initial' })).toBe(true);
+    expect(istBreiterLauf({ modus: 'karte', behalten: [] })).toBe(true);
+    expect(istBreiterLauf({ modus: 'karte' })).toBe(true);
+    expect(istBreiterLauf({ modus: 'karte', behalten: [{ typ: 'neu', name: 'Sam' }] })).toBe(false);
+    expect(istBreiterLauf({ modus: 'weitere', behalten: [] })).toBe(false);
+  });
+
+  it('Schema: Analyse vor use_cases vor vorschlaege, im breiten Lauf Pflicht', () => {
+    const tool = personaTool({ breit: true });
+    const keys = Object.keys(tool.input_schema.properties);
+    for (const feld of ['produkt_kern', 'kaeufergruppen', 'gemeinsamer_nenner', 'berufsgebunden']) {
+      expect(keys.indexOf(feld)).toBeGreaterThanOrEqual(0);
+      expect(keys.indexOf(feld)).toBeLessThan(keys.indexOf('use_cases'));
+      expect(tool.input_schema.required).toContain(feld);
+    }
+    expect(keys.indexOf('use_cases')).toBeLessThan(keys.indexOf('vorschlaege'));
+    expect(tool.input_schema.required).toContain('vorschlaege');
+
+    const eng = personaTool({ breit: false });
+    expect(Object.keys(eng.input_schema.properties)).toEqual(['use_cases', 'vorschlaege']);
+    expect(eng.input_schema.required).toEqual(['vorschlaege']);
+  });
+
+  it('Schema: keine Berufs-Anker in den Beispielen', () => {
+    for (const unisexNamen of [false, true]) {
+      const tool = personaTool({ unisexNamen, namen: ['Lou'] });
+      const text = JSON.stringify(tool);
+      expect(text).not.toContain('Berufstaetige mit wenig Zeit');
+      expect(text).not.toContain('effiziente Berufseinsteigerin');
+      expect(text).not.toContain('Morgens vor der Arbeit');
+    }
+  });
+
+  it('Startrun: Prompt verlangt Kaeufergruppen, Nenner und beruf nur bei berufsgebunden', () => {
+    const { task } = buildPrompt({ felder, modus: 'initial' }, { pool: [], poolQuelle: 'leer' });
+    expect(task).toContain('ANALYSE ZUERST');
+    expect(task).toContain('kaeufergruppen');
+    expect(task).toContain('gemeinsamer_nenner');
+    expect(task).toContain('Weder ein Nutzungskontext');
+    expect(task).toContain('bleibt beruf leer');
+    expect(task).toContain('nicht die Pain Points der Persona');
+    expect(task).toContain('fit_grund nennt die Kaeufergruppen');
+    // Karte als einzige: ebenfalls breit
+    expect(buildPrompt({ felder, modus: 'karte', behalten: [], ersetzteKarte: { name: 'Lena' } }, { pool: [] }).task)
+      .toContain('ANALYSE ZUERST');
+  });
+
+  it('weitere und Ersatz neben anderen Karten bleiben unveraendert (keine Analyse)', () => {
+    const weitere = buildPrompt({ felder, modus: 'weitere', behalten: [{ typ: 'neu', name: 'Mika' }] }, { pool: [] });
+    expect(weitere.task).not.toContain('ANALYSE ZUERST');
+    expect(weitere.task).toContain('fit_grund nennt konkret');
+
+    const karte = buildPrompt(
+      { felder, modus: 'karte', behalten: [{ typ: 'neu', name: 'Mika' }], ersetzteKarte: { name: 'Lena' } },
+      { pool: [] }
+    );
+    expect(karte.task).not.toContain('ANALYSE ZUERST');
+  });
+
+  it('Client-Input (snake_case) bringt bestehende Use Cases in den Prompt', () => {
+    const { task } = buildPrompt(
+      { felder, modus: 'weitere', bestehende_use_cases: [{ name: 'Abends auf dem Sofa', beschreibung: null }] },
+      { pool: [] }
+    );
+    expect(task).toContain('BESTEHENDE EINSATZSITUATIONEN');
+    expect(task).toContain('0. Abends auf dem Sofa');
+    expect(task).not.toContain('Generiere ZUERST');
+  });
+
+  it('breit: beruf wird geleert, wenn nicht berufsgebunden', () => {
+    const out = validateVorschlaege(antwort(), { useCaseCount: 1, unisexNamen: true, breit: true });
+    expect(out.vorschlaege).toHaveLength(1);
+    expect(out.vorschlaege[0].persona.beruf).toBeNull();
+    expect(out.breiteOk).toBe(true);
+    expect(out.analyse.kaeufergruppen).toHaveLength(2);
+    expect(out.analyse.gemeinsamer_nenner).toContain('Technikinteressierte');
+  });
+
+  it('breit: berufsgebundene Produkte behalten den Beruf (B2B-Gegenprobe)', () => {
+    const out = validateVorschlaege(
+      antwort({ berufsgebunden: true }, { beruf: 'Marketing Manager' }),
+      { useCaseCount: 1, breit: true }
+    );
+    expect(out.vorschlaege[0].persona.beruf).toBe('Marketing Manager');
+    expect(validateVorschlaege(antwort({ berufsgebunden: 'true' }), { useCaseCount: 1, breit: true })
+      .vorschlaege[0].persona.beruf).toBe('Berufstaetig in Vollzeit');
+  });
+
+  it('breit: weniger als zwei Kaeufergruppen verwirft die Karte (Retry-Signal)', () => {
+    const eine = antwort({ kaeufergruppen: [{ name: 'Early Adopter', kaufmotiv: 'neu' }, { name: ' early adopter ' }] });
+    const out = validateVorschlaege(eine, { useCaseCount: 1, breit: true });
+    expect(out.vorschlaege).toHaveLength(0);
+    expect(out.breiteOk).toBe(false);
+    expect(out.verworfen).toEqual([{ grund: produktPersona.GRUND_ZU_WENIG_GRUPPEN, vorschlag: 'Mika' }]);
+
+    const ohne = validateVorschlaege(antwort({ kaeufergruppen: undefined }), { useCaseCount: 1, breit: true });
+    expect(ohne.breiteOk).toBe(false);
+  });
+
+  it('ohne breit greift weder Beruf-Regel noch Gruppen-Pruefung', () => {
+    const out = validateVorschlaege(
+      antwort({ kaeufergruppen: [], berufsgebunden: false }),
+      { useCaseCount: 1 }
+    );
+    expect(out.vorschlaege).toHaveLength(1);
+    expect(out.vorschlaege[0].persona.beruf).toBe('Berufstaetig in Vollzeit');
+    expect(out.breiteOk).toBe(true);
+  });
+
+  it('Analysefelder landen nicht an der Persona', () => {
+    const out = validateVorschlaege(antwort(), { useCaseCount: 1, breit: true });
+    const persona = out.vorschlaege[0].persona;
+    for (const feld of ['produkt_kern', 'kaeufergruppen', 'gemeinsamer_nenner', 'berufsgebunden']) {
+      expect(persona[feld]).toBeUndefined();
+    }
+  });
+
+  it('sanitizeAnalyse kappt auf vier Gruppen und dedupliziert', () => {
+    const a = sanitizeAnalyse({
+      kaeufergruppen: ['A', 'B', 'a', 'C', 'D', 'E'].map((name) => ({ name, kaufmotiv: 'x' }))
+    });
+    expect(a.kaeufergruppen.map((g) => g.name)).toEqual(['A', 'B', 'C', 'D']);
+    expect(a.berufsgebunden).toBe(false);
+  });
+
+  it('Pool laedt nur Name und Oberbegriff, keine Profile', async () => {
+    const supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'persona_marke') return { data: [], error: null };
+      return { data: [{ id: 'p9', name: 'Luca', oberbegriff: 'X' }], error: null };
+    });
+    await loadPoolPersonas(supabase, { markeIds: ['m1'], unternehmenId: 'u1' });
+    const personaQuery = supabase.chains.find(c => c.table === 'personas');
+    expect(opArgs(personaQuery, 'select')).toEqual([['id, name, oberbegriff']]);
+    expect(supabase.chains.some(c => c.table === 'audience_situations')).toBe(false);
   });
 });
 

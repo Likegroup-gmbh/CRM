@@ -10,10 +10,50 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 import { resolveEmptyState } from '../../core/components/EmptyState.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
+import {
+  parseFolderQuery,
+  folderListUrl,
+  folderCrumbs,
+  withFolderQuery,
+  markenEbeneEntfaelltAusOrdnern,
+  NUR_UNTERNEHMEN_LABEL
+} from '../../core/folderListNav.js';
+import {
+  buildCompanyFolders,
+  buildBrandFolders,
+  buildCurrentItems
+} from './AuftragsdetailsFolders.js';
+import {
+  viewToggleHtml,
+  tableActionsHtml,
+  tableHtml,
+  renderCompaniesView,
+  updateCompaniesGrid,
+  renderBrandsView,
+  updateBrandsGrid,
+  renderItemsView
+} from './AuftragsdetailsFolderRenderer.js';
+
+const BASE_PATH = '/auftragsdetails';
+const GRID_BATCH_SIZE = 1000;
 
 export class AuftragsdetailsList {
   constructor() {
     this.selectedDetails = new Set();
+
+    // Ansicht: 'grid' (Ordner Unternehmen → Marke → Tabelle) oder 'list' (flache Tabelle)
+    this.listViewMode = 'grid';
+    this.viewMode = 'companies';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this._allDetails = null;
+    this.companyFolders = [];
+    this.brandFolders = [];
+    this.currentItems = [];
     this._boundEventListeners = new Set();
     this.boundFilterResetHandler = null;
     this.pagination = new PaginationSystem();
@@ -45,6 +85,8 @@ export class AuftragsdetailsList {
   async init() {
     console.log('📋 AUFTRAGSDETAILSLIST: Initialisiere Auftragsdetails-Liste');
     this._shellRendered = false;
+    this._allDetails = null;
+    this.applyQueryParams(new URLSearchParams(window.location.search));
     
     // Pagination initialisieren mit dynamicResize für animiertes Entfernen
     this.pagination.init('pagination-auftragsdetails', {
@@ -73,10 +115,18 @@ export class AuftragsdetailsList {
     console.log('🔄 AUFTRAGSDETAILSLIST: Lade und rendere Auftragsdetails');
     
     try {
+      if (this.listViewMode === 'grid') {
+        await this.loadAndRenderGrid(requestId);
+        return;
+      }
+
       if (!this._shellRendered) {
         await this.render();
         await this.initializeFilterBar();
         this.bindEvents();
+        this.bindSearch();
+        this.updateBreadcrumbDisplay();
+        this.syncListUrl();
         console.log('✅ AUFTRAGSDETAILSLIST: Shell gerendert');
       }
       
@@ -113,12 +163,216 @@ export class AuftragsdetailsList {
   // Handler für Seiten-Wechsel
   handlePageChange(page) {
     console.log(`📄 AUFTRAGSDETAILSLIST: Wechsle zu Seite ${page}`);
+    if (this.isItemsPageLocal()) {
+      this.updateItemsPage();
+      return;
+    }
     this.loadAndRender();
   }
 
   // Handler für Items-Per-Page-Wechsel
   handleItemsPerPageChange(limit, page) {
     console.log(`📄 AUFTRAGSDETAILSLIST: Items pro Seite geändert auf ${limit}, Seite ${page}`);
+    if (this.isItemsPageLocal()) {
+      this.updateItemsPage();
+      return;
+    }
+    this.loadAndRender();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GRID: Unternehmen → Marke → Items
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Im Grid liegen alle Zeilen im Speicher, Seitenwechsel schneiden clientseitig
+  isItemsPageLocal() {
+    return this.listViewMode === 'grid' && this.viewMode === 'items' && Array.isArray(this._allDetails);
+  }
+
+  sanitize(value) {
+    return window.validatorSystem?.sanitizeHtml(value) || value || '';
+  }
+
+  applyQueryParams(params) {
+    const folder = parseFolderQuery(params);
+    this.currentUnternehmenId = folder.unternehmenId;
+    this.currentUnternehmenName = folder.unternehmenName;
+    this.currentMarkeId = folder.markeId;
+    this.currentMarkeName = folder.markeName;
+    this._ohneMarke = folder.ohneMarke;
+    this.viewMode = folder.viewMode;
+  }
+
+  currentFolder() {
+    return {
+      unternehmenId: this.currentUnternehmenId,
+      unternehmenName: this.currentUnternehmenName,
+      markeId: this.currentMarkeId,
+      markeName: this.currentMarkeName,
+      ohneMarke: this._ohneMarke
+    };
+  }
+
+  listUrl(viewMode = this.viewMode) {
+    return folderListUrl(BASE_PATH, this.currentFolder(), viewMode);
+  }
+
+  syncListUrl() {
+    const url = this.listViewMode === 'list' ? BASE_PATH : this.listUrl();
+    replaceRoute(url);
+  }
+
+  updateBreadcrumbDisplay() {
+    if (!window.breadcrumbSystem) return;
+
+    if (this.listViewMode === 'list' || this.viewMode === 'companies') {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Auftragsdetails', url: BASE_PATH, clickable: false }
+      ]);
+      return;
+    }
+
+    window.breadcrumbSystem.updateBreadcrumb(folderCrumbs({
+      listLabel: 'Auftragsdetails',
+      basePath: BASE_PATH,
+      folder: this.currentFolder(),
+      markenEbeneWeg: this.markenEbeneWeg()
+    }));
+  }
+
+  async ensureAllDetails() {
+    if (this._allDetails) return this._allDetails;
+    const filters = filterSystem.getFilters('auftragsdetails');
+    const { data } = await this.loadDetailsWithPagination(filters, 1, GRID_BATCH_SIZE, { all: true });
+    this._allDetails = data || [];
+    return this._allDetails;
+  }
+
+  buildCurrentFolders() {
+    const details = this._allDetails || [];
+    if (this.viewMode === 'companies') {
+      this.companyFolders = buildCompanyFolders(details);
+      return;
+    }
+    if (this.viewMode === 'brands') {
+      this.brandFolders = buildBrandFolders(details, this.currentUnternehmenId);
+      return;
+    }
+    this.currentItems = buildCurrentItems(details, {
+      unternehmenId: this.currentUnternehmenId,
+      markeId: this.currentMarkeId,
+      ohneMarke: this._ohneMarke
+    });
+  }
+
+  // Keine echte Marke im Unternehmen: „Nur Unternehmen“ ist keine eigene Ebene
+  markenEbeneWeg() {
+    if (!this._ohneMarke || !this.currentUnternehmenId) return false;
+    return markenEbeneEntfaelltAusOrdnern(
+      buildBrandFolders(this._allDetails || [], this.currentUnternehmenId)
+    );
+  }
+
+  applyMarkenEbeneSprung() {
+    if (this.viewMode !== 'brands' || !this.currentUnternehmenId) return;
+    const folders = buildBrandFolders(this._allDetails || [], this.currentUnternehmenId);
+    if (!markenEbeneEntfaelltAusOrdnern(folders)) return;
+    this.viewMode = 'items';
+    this._ohneMarke = true;
+    this.currentMarkeId = null;
+    this.currentMarkeName = NUR_UNTERNEHMEN_LABEL;
+    this.pagination.currentPage = 1;
+    this.buildCurrentFolders();
+  }
+
+  async loadAndRenderGrid(requestId) {
+    this._shellRendered = false;
+    this.bindEvents();
+    await this.ensureAllDetails();
+    if (requestId !== this._loadRequestId) return;
+
+    this.buildCurrentFolders();
+    this.applyMarkenEbeneSprung();
+    this.renderFolderView();
+
+    if (this.viewMode === 'items') {
+      await this.updateItemsPage();
+    }
+  }
+
+  renderFolderView() {
+    this._shellRendered = false;
+    this.updateBreadcrumbDisplay();
+    this.syncListUrl();
+
+    let html = '';
+    if (this.viewMode === 'companies') html = renderCompaniesView(this);
+    else if (this.viewMode === 'brands') html = renderBrandsView(this);
+    else html = renderItemsView(this);
+
+    window.setContentSafely(window.content, html);
+
+    if (this.viewMode === 'companies') updateCompaniesGrid(this);
+    else if (this.viewMode === 'brands') updateBrandsGrid(this);
+  }
+
+  async updateItemsPage() {
+    const { currentPage, itemsPerPage } = this.pagination.getState();
+    const start = (currentPage - 1) * itemsPerPage;
+    const pageItems = this.currentItems.slice(start, start + itemsPerPage);
+
+    this.pagination.updateTotal(this.currentItems.length);
+    await this.updateTable(pageItems);
+    this.pagination.render();
+  }
+
+  switchToCompaniesView() {
+    this.viewMode = 'companies';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this.loadAndRender();
+  }
+
+  switchToBrandsView(unternehmenId, unternehmenName) {
+    this.viewMode = 'brands';
+    this.currentUnternehmenId = unternehmenId;
+    this.currentUnternehmenName = unternehmenName;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this.loadAndRender();
+  }
+
+  switchToItemsView(markeId, markeName, { ohneMarke = false } = {}) {
+    this.viewMode = 'items';
+    this.currentMarkeId = ohneMarke ? null : markeId;
+    this.currentMarkeName = markeName;
+    this._ohneMarke = ohneMarke;
+    this.pagination.currentPage = 1;
+    this.loadAndRender();
+  }
+
+  backFromItems() {
+    if (this.markenEbeneWeg()) this.switchToCompaniesView();
+    else this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+  }
+
+  setListViewMode(mode) {
+    if (this.listViewMode === mode && (mode === 'list' || this.viewMode === 'companies')) return;
+    this.listViewMode = mode;
+    this.viewMode = 'companies';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this._allDetails = null;
+    this._shellRendered = false;
+    this.selectedDetails.clear();
+    this.pagination.currentPage = 1;
     this.loadAndRender();
   }
 
@@ -126,13 +380,11 @@ export class AuftragsdetailsList {
   async render() {
     window.setHeadline('Auftragsdetails');
     
-    const isAdmin = window.isAdmin();
-    const canBulkDelete = window.canBulkDelete();
-
     const html = `
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
+            ${viewToggleHtml(this.listViewMode)}
             ${SearchInput.render('auftragsdetails', { 
               placeholder: 'Auftragsdetails suchen...', 
               currentValue: this.searchQuery 
@@ -140,46 +392,11 @@ export class AuftragsdetailsList {
             ${!this.isKunde ? '<div id="filter-dropdown-container"></div>' : ''}
           </div>
         </div>
-        <div class="table-actions">
-          ${canBulkDelete ? '<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>' : ''}
-          ${canBulkDelete ? '<button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>' : ''}
-          <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          ${canBulkDelete ? '<button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>' : ''}
-          ${!this.isKunde && !this.isMitarbeiter ? '<button id="btn-auftragsdetails-new" class="mdc-btn">Neue Auftragsdetails anlegen</button>' : ''}
-        </div>
+        ${tableActionsHtml(this)}
       </div>
 
       <!-- Daten-Tabelle -->
-      <div class="table-container auftragsdetails-table-container">
-          <table class="data-table data-table--nowrap data-table--auftragsdetails">
-            <thead>
-              <tr>
-                ${canBulkDelete ? `<th class="col-checkbox">
-                  <input type="checkbox" id="select-all-auftragsdetails">
-                </th>` : ''}
-                <th class="col-ad-auftrag">Auftrag</th>
-                <th class="col-ad-unternehmen">Unternehmen</th>
-                <th class="col-ad-marke">Marke</th>
-                <th>${this.isKunde ? 'PO extern' : 'PO intern'}</th>
-                <th>Status</th>
-                <th>Start</th>
-                <th>Ende</th>
-                <th>Erstellt am</th>
-                ${!this.isKunde ? '<th class="col-erstellt-von">Erstellt von</th>' : ''}
-                ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
-              </tr>
-            </thead>
-            <tbody id="auftragsdetails-table-body">
-              <tr>
-                <td colspan="${this.isKunde ? '8' : canBulkDelete ? '11' : '10'}" class="loading">Lade Auftragsdetails...</td>
-              </tr>
-            </tbody>
-          </table>
-          
-          <!-- Pagination -->
-          <div class="pagination-container" id="pagination-auftragsdetails"></div>
-        </div>
-      </div>
+      ${tableHtml(this)}
     `;
 
     window.setContentSafely(window.content, html);
@@ -187,7 +404,9 @@ export class AuftragsdetailsList {
   }
 
   // Lade Auftragsdetails mit Beziehungen und Pagination
-  async loadDetailsWithPagination(filters = {}, page = 1, limit = 25) {
+  // options.all: Grid-Modus, lädt alle sichtbaren Zeilen in Batches, ohne Suche/Pagination
+  async loadDetailsWithPagination(filters = {}, page = 1, limit = 25, options = {}) {
+    const loadAll = options.all === true;
     try {
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar - verwende Mock-Daten');
@@ -314,7 +533,7 @@ export class AuftragsdetailsList {
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      const buildAndRunQuery = async () => {
+      const buildAndRunQuery = async (rangeFrom = from, rangeTo = to, forceRange = false) => {
         const auftragFields = [
           'id',
           'auftragsname',
@@ -354,12 +573,31 @@ export class AuftragsdetailsList {
         query = query.order('created_at', { ascending: false });
 
         // Nur ohne Suchbegriff serverseitig paginieren
-        if (!this.searchQuery) {
-          query = query.range(from, to);
+        if (forceRange || !this.searchQuery) {
+          query = query.range(rangeFrom, rangeTo);
         }
 
         return query;
       };
+
+      // Grid: alle sichtbaren Zeilen in Batches laden (Supabase kappt bei 1000)
+      if (loadAll) {
+        const rows = [];
+        for (let offset = 0; ; offset += GRID_BATCH_SIZE) {
+          const { data: batch, error: batchError } = await buildAndRunQuery(
+            offset,
+            offset + GRID_BATCH_SIZE - 1,
+            true
+          );
+          if (batchError) {
+            console.error('❌ Fehler beim Laden der Auftragsdetails (Grid):', batchError);
+            throw batchError;
+          }
+          rows.push(...(batch || []));
+          if (!batch || batch.length < GRID_BATCH_SIZE) break;
+        }
+        return { data: rows, count: rows.length };
+      }
 
       const { data, error, count } = await buildAndRunQuery();
 
@@ -442,13 +680,54 @@ export class AuftragsdetailsList {
     }, 300);
   }
 
+  // Suchfeld sitzt in der Listen-Shell und wird bei jedem Shell-Render neu gebunden
+  bindSearch() {
+    SearchInput.bind('auftragsdetails', (value) => this.handleSearch(value));
+  }
+
   // Binde Events
   bindEvents() {
     if (this._eventsBound) return;
     this._eventsBound = true;
 
-    // Suchfeld Events
-    SearchInput.bind('auftragsdetails', (value) => this.handleSearch(value));
+    // Ansicht-Toggle, Ordnerkarten und Zurück-Buttons
+    this.addManagedListener(document, 'click', (e) => {
+      if (e.target.closest('#btn-view-list')) {
+        e.preventDefault();
+        this.setListViewMode('list');
+        return;
+      }
+      if (e.target.closest('#btn-view-grid')) {
+        e.preventDefault();
+        this.setListViewMode('grid');
+        return;
+      }
+      if (e.target.closest('#btn-back-to-companies')) {
+        e.preventDefault();
+        this.switchToCompaniesView();
+        return;
+      }
+      if (e.target.closest('#btn-back-to-brands')) {
+        e.preventDefault();
+        this.backFromItems();
+        return;
+      }
+
+      const companyCard = e.target.closest('#companies-grid .folder-card');
+      if (companyCard) {
+        this.switchToBrandsView(companyCard.dataset.unternehmenId, companyCard.dataset.unternehmenName);
+        return;
+      }
+
+      const brandCard = e.target.closest('#brands-grid .folder-card');
+      if (brandCard) {
+        if (brandCard.dataset.ohneMarke === '1') {
+          this.switchToItemsView(null, brandCard.dataset.markeName, { ohneMarke: true });
+        } else {
+          this.switchToItemsView(brandCard.dataset.markeId, brandCard.dataset.markeName);
+        }
+      }
+    });
 
     // Neuen Auftragsdetails anlegen Button
     this.addManagedListener(document, 'click', (e) => {
@@ -503,13 +782,14 @@ export class AuftragsdetailsList {
         e.preventDefault();
         const detailsId = e.target.dataset.id;
         console.log('🎯 AUFTRAGSDETAILSLIST: Navigiere zu Auftragsdetails Details:', detailsId);
-        window.navigateTo(`/auftragsdetails/${detailsId}`);
+        window.navigateTo(withFolderQuery(`${BASE_PATH}/${detailsId}`));
       }
     });
 
     // Entity Updated Event
     this.addManagedListener(window, 'entityUpdated', (e) => {
       if (e.detail.entity === 'auftragsdetails' || e.detail.entity === 'auftrag_details') {
+        this._allDetails = null;
         this.scheduleReload();
       }
     });
@@ -639,6 +919,7 @@ export class AuftragsdetailsList {
         // Nur neu laden wenn Liste leer ist
         const tbody = document.querySelector('.data-table tbody');
         if (tbody && tbody.children.length === 0) {
+          this._allDetails = null;
           await this.loadAndRender();
         }
         
@@ -659,6 +940,7 @@ export class AuftragsdetailsList {
       window.toastSystem?.error(`Fehler beim Löschen: ${error.message}`);
       
       // Liste neu laden um konsistenten Zustand herzustellen
+      this._allDetails = null;
       await this.loadAndRender();
     }
   }
@@ -759,6 +1041,7 @@ export class AuftragsdetailsList {
   destroy() {
     console.log('AuftragsdetailsList: Cleaning up...');
     this._shellRendered = false;
+    this._allDetails = null;
     
     // Pagination cleanup
     if (this.pagination) {

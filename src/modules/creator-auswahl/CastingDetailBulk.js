@@ -7,6 +7,8 @@ import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { bindToolbarMenu as attachToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { SelectionBar, bindCheckboxSelection } from '../../core/list/SelectionBar.js';
+import { QUICK_ADD_FORM, QUICK_ADD_INPUT } from './CastingDetailQuickAdd.js';
+import { listeHatTiktok } from './castingDetailDrawerView.js';
 import {
   KONZEPT_EINHOLEN_LABEL,
   konzeptEinladungKontext,
@@ -38,8 +40,10 @@ export function renderBulkBar() {
     this.selectionBar = new SelectionBar({
       id: 'sourcing-bulk-bar',
       countLabel: 'Creator ausgewählt',
-      onAction: (name) => {
-        if (name === 'assign') this.handleBulkKategorieAssign();
+      onAction: (name, event) => {
+        if (name === QUICK_ADD_FORM) this.handleQuickAdd(event.target.elements?.link?.value);
+        else if (name === 'quick-add-db') this.openAddDrawerFromDatabase();
+        else if (name === 'assign') this.handleBulkKategorieAssign();
         else if (name === 'konzept') this.handleKonzeptEinholen(Array.from(this.selectedItems));
         else if (name === 'delete') this.handleBulkDelete();
       },
@@ -54,6 +58,7 @@ export function renderBulkBar() {
     `<option value="${NICHT_UMSETZEN_KEY}">${NICHT_UMSETZEN_KATEGORIE}</option>`
   ].join('');
 
+  const kannAnlegen = !this.isKunde && this._canSourcing('create');
   this.selectionBar.mount(`
     <select class="bulk-kategorie-select" id="sourcing-bulk-kategorie">
       ${kategorieOptions}
@@ -65,8 +70,26 @@ export function renderBulkBar() {
     ${this._canSourcing('delete')
       ? '<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm selection-bar-delete" data-selection-action="delete">Löschen</button>'
       : ''}
-  `);
+  `, { idleHtml: kannAnlegen ? renderQuickAddIdle(listeHatTiktok(this.liste)) : '' });
   this.updateBulkBar();
+}
+
+function renderQuickAddIdle(tiktok) {
+  const placeholder = tiktok ? 'Instagram- oder TikTok-Link einfügen' : 'Instagram-Link einfügen';
+  return `
+    <form data-selection-form="${QUICK_ADD_FORM}" autocomplete="off">
+      <input id="${QUICK_ADD_INPUT}" name="link" type="url" class="form-input"
+             placeholder="${placeholder}" aria-label="${placeholder}">
+      <button type="submit" class="mdc-btn mdc-btn--sm">Hinzufügen</button>
+      <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm" data-selection-action="quick-add-db">Aus Datenbank</button>
+    </form>
+  `;
+}
+
+/** Drawer "Creator hinzufügen" direkt im Reiter "Aus Datenbank" öffnen. */
+export function openAddDrawerFromDatabase() {
+  this.addDrawer.open();
+  document.querySelector('#add-creator-drawer [data-mode="database"]')?.click();
 }
 
 export function bindSelectionEvents() {
@@ -348,6 +371,7 @@ export async function handleBulkDelete() {
 export const castingDetailBulkMethods = {
   handleKonzeptEinholen,
   renderBulkBar,
+  openAddDrawerFromDatabase,
   bindSelectionEvents,
   updateSelectAllState,
   updateGroupSelectState,

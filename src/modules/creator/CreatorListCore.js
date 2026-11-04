@@ -43,10 +43,6 @@ export class CreatorList extends BasePaginatedList {
     this.mode = mode;
     this._managementCreatorIds = null;
 
-    // Bulk-Connect-Status
-    this._bulkConnectRunning = false;
-    this._bulkConnectAbort = false;
-
     // Zusätzliche Creator-spezifische Properties
     this.selectedCreator = this.selectedItems; // Alias für Kompatibilität
 
