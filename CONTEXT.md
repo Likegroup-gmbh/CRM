@@ -45,7 +45,7 @@ Linie ohne eigenes Briefing-Dokument, aus V1 übernommen. Technisch ein Briefing
 _Avoid_: Legacy-Linie, Platzhalter-Briefing
 
 **Kooperation**:
-Creator-Buchung innerhalb einer Linie. Dieselbe Person in einer zweiten Linie, auch derselben Produktion, ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Produktion. Ein bestehender Vertrag desselben Creators in derselben Kampagne kann sie mitdecken, statt einen neuen Vertrag zu verlangen.
+Creator-Buchung innerhalb einer Linie. Dieselbe Person in einer zweiten Linie, auch derselben Produktion, ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Kooperationen. Ein bestehender Vertrag desselben Creators in derselben Kampagne kann sie mitdecken, statt einen neuen Vertrag zu verlangen.
 _Avoid_: Produktion als Name der Buchung
 
 **Neuigkeit**:
@@ -505,7 +505,7 @@ Eine markierte finale Version zurücknehmen. Trifft nur diese eine Datei; die Fe
 _Avoid_: Löschen, Ersetzen
 
 **Kooperationstabelle**:
-Tabelle auf der Produktion mit Kooperationen und Video-Stacks. Tab-Label innerhalb der Produktion ist Produktion.
+Tabelle auf der Produktion mit Kooperationen und Video-Stacks. Tab-Label innerhalb der Produktion ist Kooperationen.
 _Avoid_: Kampagnen-Tabelle
 
 **Eigene Spalte**:

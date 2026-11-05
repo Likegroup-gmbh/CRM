@@ -1,8 +1,8 @@
 // Workflow-Tabs auf der Produktions-Detailseite:
 // Briefing, Produkte, Personas, Casting, Konzepte, Skripte, Verträge,
-// Produktion, Videos, Auswertung. Default beim Öffnen ist Briefing.
+// Kooperationen, Videos, Auswertung. Default beim Öffnen ist Briefing.
 //
-// Der Tab „Produktion“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
+// Der Tab „Kooperationen“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
 
 import { canViewTab, syncTabQueryParam, getTabQueryParam } from '../../core/TabUtils.js';
 import { refreshDocumentTitle } from '../../core/documentTitle.js';
@@ -45,12 +45,29 @@ export const WORKFLOW_TABS = [
   { id: 'konzepte', label: 'Konzepte' },
   { id: 'skripte', label: 'Skripte' },
   { id: 'vertraege', label: 'Verträge' },
-  { id: 'produktion', label: 'Produktion' },
+  { id: 'kooperationen', label: 'Kooperationen' },
   { id: 'videos', label: 'Videos' },
   { id: 'auswertung', label: 'Auswertung' }
 ];
 
 export const DEFAULT_WORKFLOW_TAB = 'briefing';
+
+export const KOOPERATIONEN_TAB = 'kooperationen';
+
+// Alte Deeplinks, bevor der Tab Kooperationen hieß.
+const WORKFLOW_TAB_ALIASES = {
+  kooperation: KOOPERATIONEN_TAB,
+  produktion: KOOPERATIONEN_TAB
+};
+
+// Schreibt ?tab=produktion und ?tab=kooperation auf den aktuellen Link um.
+// Nur wenn der Tab auch wirklich offen ist — sonst bleibt der alte Query stehen.
+export function rewriteWorkflowTabAlias(resolvedTab) {
+  const fromUrl = getTabQueryParam();
+  if (!fromUrl || WORKFLOW_TAB_ALIASES[fromUrl] !== KOOPERATIONEN_TAB) return;
+  if (resolvedTab !== KOOPERATIONEN_TAB) return;
+  syncTabQueryParam(KOOPERATIONEN_TAB);
+}
 
 // table-link[data-table] → Route innerhalb der Workflow-Panes.
 // Deckt sich mit den Detailrouten der Nav-Seiten (/castings, /konzepte, ...).
@@ -84,7 +101,7 @@ export function getVisibleWorkflowTabs() {
  */
 export function resolveInitialWorkflowTab() {
   const fromUrl = getTabQueryParam();
-  const normalized = fromUrl === 'kooperation' ? 'produktion' : fromUrl;
+  const normalized = WORKFLOW_TAB_ALIASES[fromUrl] || fromUrl;
   const visible = getVisibleWorkflowTabs().map(t => t.id);
   if (visible.includes(normalized)) return normalized;
   if (visible.includes(DEFAULT_WORKFLOW_TAB)) return DEFAULT_WORKFLOW_TAB;
@@ -109,12 +126,12 @@ export function renderWorkflowTabBar(activeTab, detail = null) {
 }
 
 /**
- * Leere Panes für alle Nicht-Produktions-Tabs. Produktion wird im
+ * Leere Panes für alle Tabs außer Kooperationen. Der Kooperationen-Tab wird im
  * MainRenderer mit dem bestehenden Inhalt gerendert.
  */
 export function renderWorkflowPanes(activeTab) {
   return getVisibleWorkflowTabs()
-    .filter(t => t.id !== 'produktion')
+    .filter(t => t.id !== KOOPERATIONEN_TAB)
     .map(t => `<div class="workflow-pane" data-pane="${t.id}" id="workflow-pane-${t.id}"${t.id === activeTab ? '' : ' hidden'}></div>`)
     .join('');
 }
@@ -174,12 +191,12 @@ function discardPrefetchWorksheet(detail, tracked, mountedKey) {
 
 /**
  * Konzept- und Casting-Daten holen, sobald die Produktion steht und der
- * aktive Tab Produktion ist. Ein zweiter Aufruf hängt sich nicht daneben.
+ * aktive Tab Kooperationen ist. Ein zweiter Aufruf hängt sich nicht daneben.
  */
 export function startWorkflowPrefetch(detail) {
   if (!window.supabase) return;
   if (detail.mode !== 'workflow') return;
-  if (detail.activeWorkflowTab !== 'produktion') return;
+  if (detail.activeWorkflowTab !== KOOPERATIONEN_TAB) return;
   if (detail._konzeptPrefetch || detail._castingPrefetch) return;
   const gen = detail._prefetchGen || 0;
   detail._konzeptPrefetch = trackPrefetch(() => loadKonzeptPrefetch(detail, gen));
@@ -201,8 +218,8 @@ export function cancelWorkflowPrefetch(detail) {
 
 /**
  * Workflow-Tab aktivieren: den verlassenen Tab schließen (Listener weg),
- * Wrapper-Attribut (steuert Produktion-Chrome via CSS), Button-States, Panes, URL.
- * Die Kooperationstabelle auf „Produktion“ bleibt gemountet.
+ * Wrapper-Attribut (steuert den Kooperationen-Chrome via CSS), Button-States, Panes, URL.
+ * Die Kooperationstabelle auf „Kooperationen“ bleibt gemountet.
  */
 export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
   const visible = getVisibleWorkflowTabs().map(t => t.id);
@@ -228,7 +245,7 @@ export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
   refreshDocumentTitle(tabId);
   syncLinienSwitch(detail, tabId);
 
-  if (tabId === 'produktion') {
+  if (tabId === KOOPERATIONEN_TAB) {
     // Tabelle/Board wurden nur versteckt, nicht zerstört — Counts auffrischen.
     if (detail.currentView === 'kanban') detail.kanbanBoard?.updateTabCounts();
     else detail.kooperationenVideoTable?.updateTabCounts();
@@ -240,10 +257,10 @@ export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
 
 /**
  * Verlassenen Workflow-Tab abbauen: eingebundene Seite destroyen, Pane leeren,
- * Loaded-Flag zurück. Produktion wird nicht angefasst.
+ * Loaded-Flag zurück. Kooperationen wird nicht angefasst.
  */
 export function suspendWorkflowTab(detail, tabId) {
-  if (!tabId || tabId === 'produktion') return;
+  if (!tabId || tabId === KOOPERATIONEN_TAB) return;
 
   // Konzept/Casting/Katalog zählen in ihrem eigenen unmount mit. Die übrigen
   // Panes haben keinen Worksheet-unmount, hier reicht der Zähler.
@@ -423,7 +440,7 @@ export function refreshWorkflowAfterRender(detail) {
   detail._workflowLoaded = {};
   detail._workflowData = {};
   const tab = detail.activeWorkflowTab;
-  if (tab && tab !== 'produktion') {
+  if (tab && tab !== KOOPERATIONEN_TAB) {
     void loadWorkflowPane(detail, tab);
   }
   // Briefing- und Produkte-Tab zeigen offene Kundeneinreichungen, auch wenn ein anderer Tab offen ist.

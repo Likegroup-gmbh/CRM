@@ -521,7 +521,7 @@ h3.section-title,
   
 }
 
-/* Kampagnen-Detail: Workflow-Tabs (Briefing … Produktion … Auswertung) */
+/* Kampagnen-Detail: Workflow-Tabs (Briefing … Kooperationen … Auswertung) */
 
 .workflow-pane[hidden] {
   display: none;
@@ -534,7 +534,7 @@ h3.section-title,
   gap: var(--space-sm);
 }
 
-.kampagne-detail-body[data-workflow="produktion"] .kampagne-tab-chrome[data-chrome="produktion"],
+.kampagne-detail-body[data-workflow="kooperationen"] .kampagne-tab-chrome[data-chrome="kooperationen"],
 .kampagne-detail-body[data-workflow="briefing"] .kampagne-tab-chrome[data-chrome="briefing"],
 .kampagne-detail-body[data-workflow="casting"] .kampagne-tab-chrome[data-chrome="casting"],
 .kampagne-detail-body[data-workflow="konzepte"] .kampagne-tab-chrome[data-chrome="konzepte"],

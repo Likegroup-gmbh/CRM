@@ -7,7 +7,7 @@ function shell() {
     <div class="kampagne-detail-body" data-workflow="casting">
       <div class="kampagne-workflow-tabs">
         <button class="tab-button active" data-workflow-tab="casting">Casting</button>
-        <button class="tab-button" data-workflow-tab="produktion">Produktion</button>
+        <button class="tab-button" data-workflow-tab="kooperationen">Kooperationen</button>
         <button class="tab-button" data-workflow-tab="skripte">Skripte</button>
       </div>
       <div class="workflow-pane" id="workflow-pane-casting" data-pane="casting">worksheet</div>
@@ -46,7 +46,7 @@ describe('Workflow-Tab schließen (Casting)', () => {
     const detail = detailStub();
     const { destroy } = detail.castingWorksheet;
 
-    await activateWorkflowTab(detail, 'produktion');
+    await activateWorkflowTab(detail, 'kooperationen');
 
     expect(destroy).toHaveBeenCalled();
     expect(detail.castingWorksheet).toBeNull();
@@ -60,7 +60,7 @@ describe('Workflow-Tab schließen (Casting)', () => {
     shell();
     const detail = detailStub();
     detail.castingWorksheet = null;
-    detail.activeWorkflowTab = 'produktion';
+    detail.activeWorkflowTab = 'kooperationen';
     detail._workflowLoaded = {};
     vi.spyOn(creatorAuswahlService, 'getListenByKampagneId').mockResolvedValue([]);
 
@@ -75,7 +75,7 @@ describe('Workflow-Tab schließen (Casting)', () => {
     shell();
     const detail = detailStub();
     detail.castingWorksheet = null;
-    detail.activeWorkflowTab = 'produktion';
+    detail.activeWorkflowTab = 'kooperationen';
     detail._workflowLoaded = {};
     detail._castingPrefetch = {
       settled: true,
@@ -99,7 +99,7 @@ describe('Workflow-Tab schließen (Casting)', () => {
     shell();
     const detail = detailStub();
     detail.castingWorksheet = null;
-    detail.activeWorkflowTab = 'produktion';
+    detail.activeWorkflowTab = 'kooperationen';
     detail._workflowLoaded = {};
 
     let resolveListen;
@@ -107,7 +107,7 @@ describe('Workflow-Tab schließen (Casting)', () => {
       .mockImplementation(() => new Promise((resolve) => { resolveListen = resolve; }));
 
     const first = activateWorkflowTab(detail, 'casting');
-    await activateWorkflowTab(detail, 'produktion');
+    await activateWorkflowTab(detail, 'kooperationen');
     resolveListen([]);
     await first;
 
@@ -129,7 +129,7 @@ describe('Workflow-Tab schließen (nicht migrierte Panes)', () => {
     detail.activeWorkflowTab = 'skripte';
     detail._workflowLoaded = { skripte: true };
 
-    await activateWorkflowTab(detail, 'produktion');
+    await activateWorkflowTab(detail, 'kooperationen');
 
     expect(detail._workflowLoaded.skripte).toBe(false);
     expect(document.getElementById('workflow-pane-skripte').innerHTML).toBe('');

@@ -279,7 +279,7 @@ export function setupEvents(detail) {
       return;
     }
 
-    if (e.target.closest('.workflow-pane:not([data-pane="produktion"])')) {
+    if (e.target.closest('.workflow-pane:not([data-pane="kooperationen"])')) {
       const vertragEdit = e.target.closest('[data-vertrag-open="edit"]');
       if (vertragEdit?.dataset.id) {
         e.preventDefault();

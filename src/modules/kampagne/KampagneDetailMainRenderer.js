@@ -190,7 +190,7 @@ export function renderMainPage(state) {
           ${renderProduktionsbudget(state.produktion, state.kampagneData)}
         </div>
         <div class="page-header-right">
-          <div class="kampagne-tab-chrome" data-chrome="produktion">
+          <div class="kampagne-tab-chrome" data-chrome="kooperationen">
             ${SearchInput.render('kampagne-koop', {
               placeholder: 'Suchen...',
               currentValue: searchQuery || ''
@@ -231,7 +231,7 @@ export function renderMainPage(state) {
       ${renderWorkflowTabBar(activeWorkflow, state.linienDetail)}
 
       <div class="content-section">
-        <div class="workflow-pane" data-pane="produktion" id="workflow-pane-produktion"${activeWorkflow === 'produktion' ? '' : ' hidden'}>
+        <div class="workflow-pane" data-pane="kooperationen" id="workflow-pane-kooperationen"${activeWorkflow === 'kooperationen' ? '' : ' hidden'}>
           <div class="tab-navigation kampagne-filter-tabs">
             <button class="tab-button active" data-tab="offen">
               Offen <span class="tab-count" id="tab-count-offen"></span>

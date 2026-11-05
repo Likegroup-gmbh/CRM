@@ -31,13 +31,24 @@ describe('buildDocumentTitle', () => {
     })).toBe('Produktion · Telekom · Briefing');
   });
 
-  it('Default-Tab Produktion wird nicht gedoppelt', () => {
+  it('Tab Kooperationen steht neben dem Seitentyp Produktion', () => {
     expect(buildDocumentTitle({
       crumbs: produktionCrumbs,
       segment: 'produktion',
-      tab: 'produktion',
+      tab: 'kooperationen',
       hasId: true
-    })).toBe('Produktion · Telekom');
+    })).toBe('Produktion · Telekom · Kooperationen');
+  });
+
+  it('alte Tab-Links heißen im Titel ebenfalls Kooperationen', () => {
+    for (const tab of ['produktion', 'kooperation']) {
+      expect(buildDocumentTitle({
+        crumbs: produktionCrumbs,
+        segment: 'produktion',
+        tab,
+        hasId: true
+      })).toBe('Produktion · Telekom · Kooperationen');
+    }
   });
 
   it('Kooperation mit Tab Videos', () => {

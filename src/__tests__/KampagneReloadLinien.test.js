@@ -21,7 +21,7 @@ function detailStub() {
   detail.kampagneId = 'k1';
   detail.mode = 'workflow';
   detail.produktionId = 'p1';
-  detail.activeWorkflowTab = 'produktion';
+  detail.activeWorkflowTab = 'kooperationen';
   detail.linien = [linie('b1'), linie('b2')];
   detail.linieId = 'b2';
   detail.kooperationenVideoTable = { briefingId: 'b2' };

@@ -15,6 +15,7 @@ import {
   activateWorkflowTab,
   refreshWorkflowAfterRender,
   resolveInitialWorkflowTab,
+  rewriteWorkflowTabAlias,
   DEFAULT_WORKFLOW_TAB,
   unmountVertraegePane,
   startWorkflowPrefetch,
@@ -113,7 +114,7 @@ export class KampagneDetail {
     await this.reloadKooperationTable();
     if (!this._isMounted) return;
     refreshWorkflowAfterRender(this);
-    if (this.activeWorkflowTab === 'produktion') startWorkflowPrefetch(this);
+    if (this.activeWorkflowTab === 'kooperationen') startWorkflowPrefetch(this);
   }
 
   async init(kampagneId) {
@@ -198,8 +199,10 @@ export class KampagneDetail {
       this.store = null;
     }
 
-    // Workflow-Tab aus ?tab= (unbekannt/nicht erlaubt → Briefing)
+    // Workflow-Tab aus ?tab= (unbekannt/nicht erlaubt → Briefing).
+    // Alte Links ?tab=produktion und ?tab=kooperation werden auf Kooperationen gezogen.
     this.activeWorkflowTab = resolveInitialWorkflowTab();
+    rewriteWorkflowTabAlias(this.activeWorkflowTab);
 
     if (window.moduleRegistry?.currentModule !== this) {
       this._isMounted = false;

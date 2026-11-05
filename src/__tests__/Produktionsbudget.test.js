@@ -202,7 +202,7 @@ describe('Produktionsbudget in der Oberfläche', () => {
       lineTitle: 'Serum',
       produktion: { id: 'p1', name: 'Produktion 1', budget: 15000, budgetUsed: 1000 },
       kampagneData: { kampagnenname: 'Burger', volumen: 50000, auftrag: { nettobetrag: 50000 } },
-      activeWorkflow: 'produktion'
+      activeWorkflow: 'kooperationen'
     });
     expect(workflow).toContain('Produktionsbudget');
     expect(workflow).toContain('15.000,00');

@@ -38,17 +38,17 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
     expect(html).not.toContain('data-tab="casting"');
   });
 
-  it('zeigt auf der Produktion den Briefing-Titel und den Tab Produktion', () => {
+  it('zeigt auf der Produktion den Briefing-Titel und den Tab Kooperationen', () => {
     const html = renderMainPage({
       mode: 'workflow',
       lineTitle: 'Neuer Süßer Senf 2.0',
       kampagneData,
-      activeWorkflow: 'produktion'
+      activeWorkflow: 'kooperationen'
     });
 
     expect(html).toContain('Neuer Süßer Senf 2.0');
-    expect(html).toContain('data-workflow-tab="produktion"');
-    expect(html).toMatch(/data-workflow-tab="produktion">\s*Produktion\s*</);
+    expect(html).toContain('data-workflow-tab="kooperationen"');
+    expect(html).toMatch(/data-workflow-tab="kooperationen">\s*Kooperationen\s*</);
     expect(html).toContain('data-workflow-tab="casting"');
     const briefing = html.indexOf('data-workflow-tab="briefing"');
     const produkte = html.indexOf('data-workflow-tab="produkte"');

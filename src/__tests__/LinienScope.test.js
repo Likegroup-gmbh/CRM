@@ -47,10 +47,10 @@ describe('linieRueckkehr', () => {
 describe('effectiveLinie / koopLinie', () => {
   const detail = { linien, linieId: 'b2', linieAlle: true };
 
-  it('Alle Linien gilt nur in Produktion, Verträgen und Videos', () => {
-    expect(tabHatAlleLinien('produktion')).toBe(true);
+  it('Alle Linien gilt nur in Kooperationen, Verträgen und Videos', () => {
+    expect(tabHatAlleLinien('kooperationen')).toBe(true);
     expect(tabHatAlleLinien('casting')).toBe(false);
-    expect(effectiveLinie(detail, 'produktion')).toBeNull();
+    expect(effectiveLinie(detail, 'kooperationen')).toBeNull();
     expect(effectiveLinie(detail, 'vertraege')).toBeNull();
     expect(effectiveLinie(detail, 'casting')).toBe('b2');
     expect(effectiveLinie(detail, 'konzepte')).toBe('b2');
@@ -137,11 +137,11 @@ describe('renderLinienSwitch', () => {
     expect(html).toContain('Entwurf');
   });
 
-  it('"Alle Linien" nur in Produktion, Verträgen und Videos', () => {
+  it('"Alle Linien" nur in Kooperationen, Verträgen und Videos', () => {
     window.canCreate = () => false;
     const alle = { ...detail, linieAlle: true };
     expect(renderLinienSwitch(alle, 'casting')).not.toContain(`data-linie="${ALLE}"`);
-    const html = renderLinienSwitch(alle, 'produktion');
+    const html = renderLinienSwitch(alle, 'kooperationen');
     expect(html).toContain(`data-linie="${ALLE}"`);
     expect(html).toMatch(/linien-switch__label">Alle Linien</);
   });
