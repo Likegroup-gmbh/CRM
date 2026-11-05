@@ -513,8 +513,9 @@ body.drawer-resizing {
   }
 
   .summary-cards .summary-card {
-    min-width: calc(50% - 0.75rem);
+    padding: var(--space-md);
   }
+
 }
 
 /* Modal-Variante: fließt im Dokument statt absolut zu überlagern */

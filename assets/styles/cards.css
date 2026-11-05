@@ -160,6 +160,7 @@
 
 .summary-cards {
   display: flex;
+  flex-wrap: wrap; /* fluid: Kacheln brechen bei Platzmangel um, keine festen Breakpoints */
   
   gap: var(--space-sm);
   
@@ -169,8 +170,9 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  flex: 1 1 0%;
+  flex: 1 1 11.5rem; /* Basis = Mindestbreite, ab der umgebrochen wird */
   min-width: 0;
+  container-type: inline-size;
   border: 1px solid var(--border-primary);
   position: relative;
   padding: var(--space-lg);
@@ -207,7 +209,7 @@
    als Split darunter. Overline schafft Kontext ohne Icon-Beiwerk. */
 
 .summary-card--performance {
-  flex: 2.2 1 0%;
+  flex: 2.2 1 20rem;
   gap: var(--space-md);
   justify-content: flex-start;
 }
