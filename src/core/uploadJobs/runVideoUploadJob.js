@@ -84,7 +84,13 @@ async function deleteDropboxFile(filePath) {
   }
 }
 
-async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal }) {
+/** Anzeigetitel aus dem Namen der hochgeladenen Datei (ohne Endung). */
+export function titelAusDateiname(name) {
+  const titel = String(name || '').replace(/\.[a-z0-9]{2,5}$/i, '').trim();
+  return titel ? titel.slice(0, 120) : null;
+}
+
+async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal, titel }) {
   const version = parseInt(versionNumber, 10) || 1;
   const { error } = await window.supabase
     .from('kooperation_video_asset')
@@ -94,6 +100,7 @@ async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versi
       file_path: filePath,
       version_number: version,
       variant_name: variantName || null,
+      titel: titel || null,
       // Finale Versionen laufen ausserhalb der Feedbackschleifen-Logik
       is_current: !isFinal,
       is_final: !!isFinal,
@@ -236,7 +243,7 @@ export async function runVideoUploadJob(ctx) {
     }
 
     try {
-      await saveAssetVersion({ videoId, fileUrl, filePath: actualPath, variantName, versionNumber, isFinal });
+      await saveAssetVersion({ videoId, fileUrl, filePath: actualPath, variantName, versionNumber, isFinal, titel: titelAusDateiname(file.name) });
     } catch (err) {
       // Rollback: Dropbox-Datei wieder entfernen, damit keine verwaiste Datei
       // ohne DB-Zeile zurueckbleibt.

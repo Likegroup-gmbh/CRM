@@ -92,8 +92,8 @@ function metaHtml(meta, status) {
   return `<span class="vb-row__meta"><span class="vb-dot vb-dot--${esc(status.key)}" aria-hidden="true"></span>${esc(status.label)}${meta ? ` · ${esc(meta)}` : ''}</span>`;
 }
 
-function rowButton({ depth, id, selected, active, lead, title, titleExtra = '', meta = '', status = null, badge = '', chevron = false, current = false, label = '', extraClass = '' }) {
-  const cls = ['vb-row', extraClass, selected ? (active ? 'is-selected is-active' : 'is-selected') : '', current ? 'is-current' : '']
+function rowButton({ depth, id, selected, active, lead, title, titleExtra = '', meta = '', status = null, badge = '', chevron = false, label = '', extraClass = '' }) {
+  const cls = ['vb-row', extraClass, selected ? (active ? 'is-selected is-active' : 'is-selected') : '']
     .filter(Boolean).join(' ');
   return `
     <li>
@@ -136,6 +136,35 @@ function downloadButton(ctx, scope, label, { primary = false } = {}) {
   if (!count) return '';
   const text = count > 1 ? `${label} (${count})` : label;
   return `<button type="button" class="mdc-btn${primary ? '' : ' mdc-btn--secondary'} vb-download" data-vb-download="${scope}">${icon('download')}<span>${esc(text)}</span></button>`;
+}
+
+function iconButton(name, label, attrs, extraClass = '') {
+  return `<button type="button" class="vb-icon-btn${extraClass}" ${attrs} aria-label="${esc(label)}" title="${esc(label)}">${icon(name)}</button>`;
+}
+
+/** Herunterladen für alle mit Download-Recht, Titel bearbeiten und Löschen nur fürs Team. */
+function assetActions(ctx) {
+  const buttons = [];
+  if (ctx.canDownload && collectDownloadItems('item', ctx.resolved).length) {
+    buttons.push(iconButton('download', 'Herunterladen', 'data-vb-download="item"'));
+  }
+  if (ctx.canUpload) {
+    buttons.push(iconButton('pencil-square', 'Titel bearbeiten', 'data-vb-edit'));
+    buttons.push(iconButton('trash', 'Löschen', 'data-vb-delete', ' vb-icon-btn--danger'));
+  }
+  return buttons.length ? `<div class="vb-asset-head__actions">${buttons.join('')}</div>` : '';
+}
+
+/** Titel oben, darunter Feedbackschleife und Status, daneben die Aktionen. */
+function assetHead(ctx, item, infoHtml) {
+  return `
+    <section class="vb-block vb-asset-head">
+      <h4 class="vb-detail__title vb-asset-head__title" data-vb-asset-title>${esc(item.name)}</h4>
+      <div class="vb-asset-head__row">
+        <div class="vb-asset-head__info">${infoHtml}</div>
+        ${assetActions(ctx)}
+      </div>
+    </section>`;
 }
 
 function colKooperationen(ctx, activeDepth) {
@@ -211,12 +240,11 @@ function colOrdner(ctx, activeDepth) {
       id: f.id,
       selected: sel.folderId === f.id,
       active: activeDepth === 2,
-      lead: `<span class="vb-icon-slot${f.current && f.kind !== 'raw' ? ' is-current' : ''}">${icon(FOLDER_ICON[f.kind] || 'folder')}</span>`,
+      lead: `<span class="vb-icon-slot">${icon(FOLDER_ICON[f.kind] || 'folder')}</span>`,
       title: f.name,
       meta: f.meta,
       status: f.status,
-      chevron: true,
-      current: f.current && f.kind !== 'raw'
+      chevron: true
     });
   }).join('');
 
@@ -242,7 +270,7 @@ export function uploadRowHtml(up) {
   const pct = Math.round((up.progress || 0) * 100);
   return `
     <li class="vb-row vb-row--upload${up.error ? ' has-error' : ''}" data-upload-id="${esc(up.id)}">
-      <span class="vb-row__lead"><span class="vb-thumb" style="--vb-ratio: 9 / 16">${icon('upload')}</span></span>
+      <span class="vb-row__lead"><span class="vb-icon-slot">${icon('upload')}</span></span>
       <span class="vb-row__text">
         <span class="vb-row__title"><span class="vb-row__name">${esc(up.name)}</span></span>
         ${up.error
@@ -284,7 +312,7 @@ function colInhalte(ctx, activeDepth) {
     id: item.id,
     selected: sel.itemId === item.id,
     active: activeDepth === 3,
-    lead: `<span class="vb-thumb" style="--vb-ratio: ${ratioCss(item.ratio)}">${icon(ITEM_ICON[item.type] || 'document')}</span>`,
+    lead: `<span class="vb-icon-slot">${icon(ITEM_ICON[item.type] || 'document')}</span>`,
     title: item.name,
     // Der Status gilt für die ganze Schleife und steht im Spaltenkopf, nicht an jeder Datei.
     meta: item.meta,
@@ -292,11 +320,8 @@ function colInhalte(ctx, activeDepth) {
   });
 
   const uploadRows = (uploads || []).map(uploadRowHtml).join('');
-  const groupHtml = GROUP_ORDER.filter(g => groups.has(g)).map((g) => `
-    <div class="vb-group">
-      <h4 class="vb-group__head"><span>${esc(g)}</span><span class="vb-group__count">${groups.get(g).length}</span></h4>
-      ${rowList(groups.get(g).map(itemRow).join(''))}
-    </div>`).join('');
+  const orderedItems = GROUP_ORDER.flatMap(g => groups.get(g) || []);
+  const groupHtml = orderedItems.length ? rowList(orderedItems.map(itemRow).join('')) : '';
 
   const leerText = folder.kind === 'raw'
     ? (team ? 'Der Creator hat noch kein Rohmaterial hochgeladen.' : 'Noch nichts vorhanden.')
@@ -430,7 +455,7 @@ function folderRowDetail(row, f) {
   return `
     <li>
       <button type="button" class="vb-row vb-row--detail" data-goto-folder="${esc(f.id)}">
-        <span class="vb-row__lead"><span class="vb-icon-slot${f.current && f.kind !== 'raw' ? ' is-current' : ''}">${icon(FOLDER_ICON[f.kind] || 'folder')}</span></span>
+        <span class="vb-row__lead"><span class="vb-icon-slot">${icon(FOLDER_ICON[f.kind] || 'folder')}</span></span>
         <span class="vb-row__text">
           <span class="vb-row__title"><span class="vb-row__name">${esc(f.name)}</span></span>
           <span class="vb-row__meta">${esc(f.meta)}</span>
@@ -563,11 +588,7 @@ function detailItem(ctx) {
 
   if (item.type === 'roh') {
     return `
-      <section class="vb-block">
-        <h4 class="vb-detail__title">${esc(item.name)}</h4>
-        <p class="vb-detail__sub">${esc(item.meta)}</p>
-        ${downloadButton(ctx, 'item', 'Herunterladen')}
-      </section>
+      ${assetHead(ctx, item, item.meta ? `<span class="vb-version">${esc(item.meta)}</span>` : '')}
       <div class="vb-player-host" data-vb-player-host data-asset-id="${esc(item.id)}"></div>`;
   }
 
@@ -614,16 +635,13 @@ function detailItem(ctx) {
 
   // Kein Kontext-Pfad über dem Titel: den tragen Spaltenköpfe und Pfadleiste.
   // "Version" heißt hier wie überall Feedbackschleife (Glossar).
-  const schleife = item.isFinal ? '' : `<span class="vb-version" data-vb-asset-version>${esc(schleifeName(item.version || 1))}</span>`;
+  const info = item.isFinal
+    ? ''
+    : `<span class="vb-version" data-vb-asset-version>${esc(schleifeName(item.version || 1))}</span>${statusBadge(item.status)}`;
 
   // Video, Hinweis und Verlauf oben, Kommentare darunter.
   return `
-    <section class="vb-block vb-asset-head">
-      <h4 class="vb-detail__title" data-vb-asset-title>${esc(item.name)}</h4>
-      ${schleife}
-      ${item.isFinal ? '' : statusBadge(item.status)}
-      <span class="vb-asset-head__action">${downloadButton(ctx, 'item', 'Herunterladen')}</span>
-    </section>
+    ${assetHead(ctx, item, info)}
     ${item.isFinal && item.type !== 'still' ? formatSwitch(item, row) : ''}
     <div class="vb-item${commentSection ? ' has-side' : ''}">
       <div class="vb-item__media">

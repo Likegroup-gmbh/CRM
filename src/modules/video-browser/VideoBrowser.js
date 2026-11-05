@@ -7,7 +7,17 @@
 // Rechte nur über canFeature/Features (videoTeamSicht, mediaUpload, skriptKommentieren).
 
 import { renderEmptyState } from '../../core/components/EmptyState.js';
-import { loadVideoBrowserData, saveWiedergabeMessung, saveZeitkommentar } from './VideoBrowserAdapter.js';
+import { confirmationModal } from '../../core/ConfirmationModal.js';
+import { escapeHtml } from '../../core/format.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import {
+  TITEL_MAX,
+  deleteAsset,
+  loadVideoBrowserData,
+  renameAsset,
+  saveWiedergabeMessung,
+  saveZeitkommentar
+} from './VideoBrowserAdapter.js';
 import { createMotion } from './videoBrowserMotion.js';
 import { mountPlayer } from './VideoBrowserPlayer.js';
 import { prefetchLinks, stopWarming, warmNeighbors } from './videoBrowserMedia.js';
@@ -22,6 +32,7 @@ import {
   commentsForAsset,
   cssEscape,
   ersterOffenerInhalt,
+  plural,
   renditionFor,
   resolveSelection,
   selectLevel,
@@ -69,6 +80,7 @@ class VideoBrowser {
     this.uploads = new Map();
     this.viewRatio = null;
     this.player = null;
+    this.renaming = null;
     this.focusPending = null;
     this.destroyed = false;
     this.cleanups = [];
@@ -275,6 +287,7 @@ class VideoBrowser {
 
   _renderDetail(ctx, { animate = false } = {}) {
     this._destroyPlayer();
+    this.renaming = null;
     this.detailInner.innerHTML = renderDetail(ctx);
 
     const host = this.detailInner.querySelector('[data-vb-player-host]');
@@ -410,10 +423,30 @@ class VideoBrowser {
       }
     });
     on(this.root, 'keydown', (e) => {
+      if (e.target.closest('[data-vb-title-input]')) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          void this._commitRename();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          this._endRename();
+        }
+        return;
+      }
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && e.target.closest('[data-vb-comment-text]')) {
         e.preventDefault();
         void this._submitComment(e.target.closest('[data-vb-comment-form]'));
       }
+    });
+    // Der Haken speichert per Klick: das Feld darf vorher nicht durch Blur speichern.
+    on(this.root, 'mousedown', (e) => {
+      if (this.renaming && e.target.closest('[data-vb-edit]')) e.preventDefault();
+    });
+    on(this.root, 'focusout', (e) => {
+      if (e.target.closest('[data-vb-title-input]')) void this._commitRename();
+    });
+    on(this.root, 'dblclick', (e) => {
+      if (e.target.closest('[data-vb-asset-title]') && !this.renaming) this._startRename();
     });
 
     // Drag & Drop: Drop außerhalb der Zone darf die Datei nicht im Browser öffnen.
@@ -461,6 +494,18 @@ class VideoBrowser {
     const download = e.target.closest('[data-vb-download]');
     if (download) {
       void this._download(download);
+      return;
+    }
+
+    if (e.target.closest('[data-vb-edit]')) {
+      if (this.renaming) void this._commitRename();
+      else this._startRename();
+      return;
+    }
+
+    const remove = e.target.closest('[data-vb-delete]');
+    if (remove) {
+      void this._deleteItem(remove);
       return;
     }
 
@@ -531,6 +576,7 @@ class VideoBrowser {
     const ratio = radio.value;
     const { row, item, folder } = resolveSelection(this.tree, this.sel);
     if (!row || !item || !folder) return;
+    this._endRename();
     const group = radio.closest('[data-vb-formats]');
     this.motion.segmentThumb(group, { animate: true });
 
@@ -579,6 +625,114 @@ class VideoBrowser {
     } finally {
       button.disabled = false;
       button.removeAttribute('aria-busy');
+    }
+  }
+
+  /* ---- Titel bearbeiten (inline im Detailkopf) ---- */
+
+  _startRename() {
+    if (!this.canUpload || this.renaming) return;
+    const { item } = resolveSelection(this.tree, this.sel);
+    const title = this.detailInner.querySelector('[data-vb-asset-title]');
+    if (!item || !title) return;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-input vb-asset-head__input';
+    input.value = item.name;
+    input.maxLength = TITEL_MAX;
+    input.setAttribute('aria-label', 'Titel');
+    input.setAttribute('data-vb-title-input', '');
+    title.replaceChildren(input);
+    const button = this.detailInner.querySelector('[data-vb-edit]');
+    this._setEditButton(button, true);
+    this.renaming = { itemId: item.id, name: item.name, input, title, button, busy: false };
+    input.focus();
+    input.select();
+  }
+
+  _setEditButton(button, editing) {
+    if (!button) return;
+    const label = editing ? 'Titel speichern' : 'Titel bearbeiten';
+    button.innerHTML = icon(editing ? 'check' : 'pencil-square');
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    button.classList.toggle('is-active', editing);
+  }
+
+  _endRename(name) {
+    const state = this.renaming;
+    if (!state) return;
+    this.renaming = null;
+    state.title.textContent = name ?? state.name;
+    this._setEditButton(state.button, false);
+  }
+
+  async _commitRename() {
+    const state = this.renaming;
+    if (!state || state.busy) return;
+    const value = state.input.value.trim();
+    const { item } = resolveSelection(this.tree, this.sel);
+    if (!value || value === state.name || item?.id !== state.itemId) {
+      this._endRename();
+      return;
+    }
+    state.busy = true;
+    state.input.disabled = true;
+    try {
+      const saved = await renameAsset(item, value);
+      item.asset.titel = saved;
+      this.tree = buildTree(this.raw, { team: this.team });
+      this._endRename(saved);
+      // Detail und Player bleiben stehen, nur Spalten und Pfad tragen den neuen Namen.
+      const ctx = this._ctx();
+      this.pathEl.innerHTML = renderPath(ctx);
+      this._renderColumns(ctx);
+    } catch (err) {
+      console.error('VideoBrowser: Titel speichern fehlgeschlagen', err);
+      toast('error', 'Titel konnte nicht gespeichert werden.');
+      if (this.renaming !== state) return;
+      state.busy = false;
+      state.input.disabled = false;
+      state.input.focus();
+    }
+  }
+
+  /* ---- Löschen ---- */
+
+  async _deleteItem(button) {
+    if (!this.canUpload || button.disabled) return;
+    const { row, item } = resolveSelection(this.tree, this.sel);
+    if (!row || !item) return;
+    const kommentare = item.type === 'video' && !item.isFinal
+      ? commentsForAsset(row.comments, item.runde, item.id).filter(c => c.assetId === item.id).length
+      : 0;
+    const hinweis = kommentare ? ` ${plural(kommentare, 'Kommentar', 'Kommentare')} zu dieser Datei werden ebenfalls entfernt.` : '';
+    const { confirmed } = await confirmationModal.open({
+      title: 'Datei löschen',
+      message: `„${escapeHtml(item.name)}“ wird endgültig gelöscht, auch die Datei in Dropbox.${hinweis}`,
+      confirmText: 'Löschen'
+    });
+    if (!confirmed || this.destroyed) return;
+
+    button.disabled = true;
+    try {
+      await deleteAsset(item);
+    } catch (err) {
+      console.error('VideoBrowser: Löschen fehlgeschlagen', err);
+      toast('error', 'Datei konnte nicht gelöscht werden.');
+      button.disabled = false;
+      return;
+    }
+    toast('success', 'Datei gelöscht.');
+    if (this.destroyed) return;
+    if (this.sel.itemId === item.id) {
+      this.sel = clearFrom(this.sel, 3);
+      syncUrl(this.sel);
+    }
+    try {
+      await this.reload();
+    } catch (err) {
+      console.error('VideoBrowser: Aktualisieren nach Löschen fehlgeschlagen', err);
     }
   }
 

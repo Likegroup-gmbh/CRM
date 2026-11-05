@@ -1,11 +1,13 @@
 // VideoBrowserAdapter.js
 // Liest die vorhandenen Tabellen für den Videos-Tab (Read-Adapter, keine neuen
-// Entitäten) und schreibt Kommentare mit Timecode. Der Baum entsteht in
+// Entitäten), schreibt Kommentare mit Timecode, Dateititel und löscht Dateien. Der Baum entsteht in
 // videoBrowserLogic.buildTree. RLS filtert serverseitig, Kunden bekommen dadurch
 // kein Rohmaterial.
 
 import { scopeKoopsByLinie } from '../produktion/ProduktionService.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { deleteSingleDropboxFile, syncVideoAssetsAfterDelete } from '../../core/VideoDeleteHelper.js';
+import { updateStillCurrentFlags } from '../../core/stills/stillAssets.js';
 import { markVorschau } from './videoBrowserLogic.js';
 
 const CHUNK = 100;
@@ -16,10 +18,10 @@ const KOOP_SELECT = `
 `;
 const VIDEO_SELECT = 'id, kooperation_id, position, titel, thema, video_name, status, created_at';
 const STORY_SELECT = 'id, video_id, slot_index, slot_name, created_at';
-const VIDEO_ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, description, is_current, is_final, source_asset_id, created_at';
-const STORY_ASSET_SELECT = 'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, created_at';
-const STILL_SELECT = 'id, kooperation_id, video_id, file_url, file_path, file_name, version_number, is_final, variant_name, created_at';
-const ROH_SELECT = 'id, kooperation_id, file_name, file_path, file_url, file_size, folder_url, created_at';
+const VIDEO_ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, titel, description, is_current, is_final, source_asset_id, created_at';
+const STORY_ASSET_SELECT = 'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, titel, created_at';
+const STILL_SELECT = 'id, kooperation_id, video_id, file_url, file_path, file_name, version_number, is_final, variant_name, titel, created_at';
+const ROH_SELECT = 'id, kooperation_id, file_name, file_path, file_url, file_size, folder_url, titel, created_at';
 const NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at';
 const STILL_NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at';
 const ZEIT_SELECT = 'id, video_id, runde, feedback_typ, text, timecode_sec, asset_id, author_name, created_at, deleted_at';
@@ -154,6 +156,78 @@ export async function saveZeitkommentar({ videoId, runde, assetId = null, text, 
     .single();
   if (error) throw error;
   return data;
+}
+
+const ASSET_TABLE = {
+  video: 'kooperation_video_asset',
+  story: 'kooperation_story_asset',
+  still: 'kooperation_bilder_asset',
+  roh: 'kooperation_rohmaterial_asset'
+};
+
+export const TITEL_MAX = 120;
+
+function tableOf(item) {
+  const table = ASSET_TABLE[item?.type];
+  if (!table || !item?.id) throw new Error('Unbekannte Datei');
+  return table;
+}
+
+/**
+ * Anzeigetitel einer Datei setzen. Dropbox-Pfad und file_name bleiben unverändert.
+ * RLS lässt nur Admin/Mitarbeiter schreiben: null Zeilen heißt keine Berechtigung.
+ */
+export async function renameAsset(item, titel) {
+  const value = String(titel || '').trim().slice(0, TITEL_MAX);
+  if (!value) throw new Error('Titel ist leer');
+  const { data, error } = await window.supabase
+    .from(tableOf(item))
+    .update({ titel: value })
+    .eq('id', item.id)
+    .select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('Titel konnte nicht gespeichert werden');
+  return value;
+}
+
+/**
+ * Datei endgültig löschen: erst die Zeile, dann die Datei in Dropbox. Die Datei bleibt,
+ * solange eine andere Zeile denselben Pfad nutzt (Finale Versionen teilen sich die
+ * Datei ihrer Quelle). Die Vorschaudatei räumt der Trigger auf der Asset-Zeile ab.
+ */
+export async function deleteAsset(item) {
+  const table = tableOf(item);
+  const asset = item.asset || {};
+  const sb = window.supabase;
+
+  if (item.type === 'video') {
+    // asset_id fällt sonst auf null: die Kommentare stünden dann bei allen Varianten der Runde
+    const { error } = await sb
+      .from('kooperation_video_zeitkommentar')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('asset_id', item.id)
+      .is('deleted_at', null);
+    if (error) console.warn('VideoBrowserAdapter: Kommentare der Datei nicht entfernt', error.message || error);
+  }
+
+  const { data, error } = await sb.from(table).delete().eq('id', item.id).select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('Datei konnte nicht gelöscht werden');
+
+  if (asset.file_path) {
+    const { data: rest, error: restError } = await sb
+      .from(table)
+      .select('id')
+      .eq('file_path', asset.file_path)
+      .limit(1);
+    if (!restError && !rest?.length) {
+      await deleteSingleDropboxFile(asset.file_path)
+        .catch(err => console.warn('VideoBrowserAdapter: Dropbox-Löschung fehlgeschlagen', err));
+    }
+  }
+
+  if (item.type === 'video' && asset.video_id) await syncVideoAssetsAfterDelete(asset.video_id, asset);
+  if (item.type === 'still' && asset.video_id) await updateStillCurrentFlags(asset.video_id);
 }
 
 /**

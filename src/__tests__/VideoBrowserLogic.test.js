@@ -161,6 +161,24 @@ describe('Baum', () => {
     expect(t.kooperationen[0].rows[1].folders.some(f => f.items.some(i => i.asset.id === 'alt'))).toBe(false);
   });
 
+  it('Dateititel schlägt die abgeleiteten Namen, ohne Titel bleibt alles wie bisher', () => {
+    const data = raw();
+    data.videoAssets[0].titel = 'Interview Kudamm';
+    data.storyAssets[0].titel = 'Story Teaser';
+    data.rohmaterial[0].titel = 'Rohschnitt';
+    data.videoAssets.find(a => a.id === 'f1').titel = 'Final Hochkant';
+    data.stillAssets.push({ id: 'b1', video_id: 'v1', version_number: 1, is_final: false, file_name: 'x_v1_01.jpg', titel: 'Cover', created_at: '2026-02-03' });
+    const t = buildTree(data, { team: true });
+    const [v1, v2] = t.kooperationen[0].rows;
+    const s1 = v1.folders.find(f => f.id === 's1');
+    expect(s1.items.map(i => i.name)).toEqual(['Interview Kudamm', 'Cover', 'Story Teaser']);
+    expect(v1.folders.find(f => f.kind === 'raw').items[0].name).toBe('Rohschnitt');
+    expect(v1.folders.find(f => f.id === 's2').items[0].name).toBe('Video A');
+    const final = v2.folders.find(f => f.kind === 'final').items;
+    expect(final.find(i => i.id === 'f1').name).toBe('Final Hochkant');
+    expect(final.find(i => i.id === 'f2').name).toBe('Finale Version 1:1');
+  });
+
   it('Runde, die nur Story oder Bild enthält, existiert trotzdem', () => {
     const data = raw();
     data.storyAssets.push({ id: 'sa2', story_id: 's1', version_number: 3, is_final: false, created_at: '2026-02-20' });

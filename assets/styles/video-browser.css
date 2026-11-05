@@ -227,7 +227,7 @@
 .vb-col__title {
   margin: 0;
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -264,7 +264,7 @@
 .vb-col__foot {
   padding: var(--space-xs);
   border-top: 1px solid var(--border-primary);
-  background: var(--gray-50);
+  
 }
 
 /* --- Zeilen ----------------------------------------------------------- */
@@ -308,16 +308,12 @@
 
 /* Nur Graustufen: Auswahl in der aktiven Spalte etwas dunkler als in den übrigen. */
 .vb-row.is-selected.is-active {
-  background: var(--gray-100);
+  
 }
 
 /* Fokus innen, sonst schneidet overflow der Spalte den Ring ab. */
 .vb-row:focus-visible {
   box-shadow: inset 0 0 0 2px var(--gray-300);
-}
-
-.vb-row.is-current .vb-row__name {
-  font-weight: 600;
 }
 
 .vb-chip:focus-visible,
@@ -427,13 +423,6 @@
   color: var(--gray-600);
 }
 
-/* Aktuelle Schleife: neutral hervorgehoben (dunkles Icon + fetter Name). Blau bleibt der
-   Auswahl in der aktiven Spalte vorbehalten, sonst bedeutet es zwei Dinge. */
-.vb-icon-slot.is-current {
-  background: var(--gray-200);
-  color: var(--gray-900);
-}
-
 .vb-icon-slot svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
@@ -522,14 +511,6 @@
   margin: 0;
   font-size: var(--text-xs);
   color: var(--gray-600);
-}
-
-.vb-asset-head__action {
-  margin-left: auto;
-}
-
-.vb-asset-head__action:empty {
-  display: none;
 }
 
 .vb-slot {
@@ -754,9 +735,81 @@
 
 .vb-asset-head {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+}
+
+.vb-asset-head__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vb-asset-head__input {
+  width: 100%;
+  font: inherit;
+}
+
+.vb-asset-head__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--space-xl);
+}
+
+.vb-asset-head__info {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-xs);
+  min-width: 0;
+}
+
+.vb-asset-head__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxxs);
+  margin-left: auto;
+}
+
+.vb-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-xl);
+  height: var(--space-xl);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.vb-icon-btn svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.vb-icon-btn:hover,
+.vb-icon-btn.is-active {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.vb-icon-btn--danger:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.vb-icon-btn:focus-visible {
+  outline: 2px solid var(--gray-900);
+  outline-offset: 1px;
+}
+
+.vb-icon-btn[disabled] {
+  opacity: .5;
+  cursor: not-allowed;
 }
 
 .vb-version {

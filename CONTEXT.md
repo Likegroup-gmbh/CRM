@@ -508,6 +508,10 @@ _Avoid_: Final, Master, Export
 Abgeleitete, streamingfreundliche MP4-Kopie eines Kooperationsvideos (Feedbackschleife oder Finale Version), nur zum Abspielen im Videos-Tab. Entsteht automatisch bei neuen Uploads, Stories bekommen keine. Bis sie fertig ist oder wenn sie fehlt, spielt der Player das Original. Download liefert immer das Original. Eine Finale Version, die aus einer Feedbackschleife übernommen wurde, teilt sich deren Vorschaudatei; wird das Original ersetzt, gilt die alte Vorschaudatei nicht mehr. Zählt nie als Datei (ADR 0061).
 _Avoid_: Proxy, Transcode, Rendition, Thumbnail, Vorschau (alleinstehend)
 
+**Dateititel**:
+Anzeigename einer Datei im Videos-Tab (Spalte `titel`). Beim Upload eines Videos der Name der hochgeladenen Datei ohne Endung, danach vom Team im Detailkopf inline änderbar. Ohne Titel gilt der abgeleitete Name (Video A, Bild 1, Story 1, Finale Version 9:16, Dateiname beim Rohmaterial). Ändert weder Dropbox-Pfad noch Download-Namen noch die Variante.
+_Avoid_: Dateiname (das ist `file_name`), Variante, Video-Name (das ist `video_name` am Kooperationsvideo)
+
 **Seitenverhältnis**:
 9:16, 4:5 oder 1:1 an einer finalen Version von Kooperationsvideo oder Story. Mehrere finale Versionen desselben Verhältnisses können nebeneinander liegen.
 _Avoid_: Format (Kollision mit Kampagnenart), Ratio, 16:9, 4:3

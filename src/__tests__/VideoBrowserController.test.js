@@ -28,7 +28,10 @@ vi.mock('../modules/video-browser/VideoBrowserAdapter.js', () => ({
     text: input.text, timecode_sec: input.timecodeSec, asset_id: input.assetId, author_name: 'Tester', created_at: '2026-03-01'
   })),
   saveWiedergabeMessung: vi.fn(),
-  loadUploadContext: vi.fn()
+  loadUploadContext: vi.fn(),
+  renameAsset: vi.fn(async (item, titel) => titel.trim()),
+  deleteAsset: vi.fn(async () => {}),
+  TITEL_MAX: 120
 }));
 
 vi.mock('../modules/video-browser/videoBrowserMedia.js', () => ({
@@ -42,11 +45,12 @@ vi.mock('../modules/video-browser/VideoBrowserUpload.js', () => ({
 }));
 
 // Der Player meldet die Position über onTime. Tests stoßen sie von Hand an (bewegter Playhead).
-const player = { opts: null, ready: null };
+const player = { opts: null, ready: null, mounts: 0 };
 vi.mock('../modules/video-browser/VideoBrowserPlayer.js', () => ({
   mountPlayer: (host, opts) => {
     host.innerHTML = '<div data-vb-frame></div>';
     player.opts = opts;
+    player.mounts += 1;
     return {
       seek: vi.fn(), getTime: () => 12.5, setMarkers: vi.fn(), markerEl: () => null, setRatio: vi.fn(), destroy: vi.fn(),
       whenReady: () => player.ready || Promise.resolve()
@@ -55,12 +59,12 @@ vi.mock('../modules/video-browser/VideoBrowserPlayer.js', () => ({
 }));
 
 const { mountVideoBrowserPane, unmountVideoBrowser } = await import('../modules/video-browser/VideoBrowser.js');
-const { loadVideoBrowserData, saveWiedergabeMessung, saveZeitkommentar } = await import('../modules/video-browser/VideoBrowserAdapter.js');
+const { loadVideoBrowserData, saveWiedergabeMessung, saveZeitkommentar, renameAsset, deleteAsset } = await import('../modules/video-browser/VideoBrowserAdapter.js');
 const { prefetchLinks, warmNeighbors, stopWarming } = await import('../modules/video-browser/videoBrowserMedia.js');
 
-function setup({ team }) {
+function setup({ team, download = false }) {
   window.canFeature = (name) => ({
-    videoTeamSicht: team, mediaUpload: team, skriptKommentieren: true
+    videoTeamSicht: team, mediaUpload: team, skriptKommentieren: true, mediaDownload: download
   }[name] ?? false);
   window.matchMedia = () => ({ matches: true, addListener() {}, removeListener() {} });
   window.history.replaceState(null, '', '/produktion/p1?tab=videos');
@@ -285,6 +289,101 @@ describe('VideoBrowser Controller', () => {
     await mountVideoBrowserPane(ctx.detail, ctx.pane);
     unmountVideoBrowser(ctx.detail);
     expect(ctx.pane.innerHTML).toBe('');
+  });
+
+  describe('Dateikopf: Titel, Herunterladen, Bearbeiten, Löschen', () => {
+    const mitDatei = () => ({
+      ...structuredClone(RAW),
+      videoAssets: [{ ...RAW.videoAssets[0], file_path: '/K/a1.mp4' }]
+    });
+    const openA1 = async (opts) => {
+      ctx = setup(opts);
+      window.history.replaceState(null, '', '/produktion/p1?tab=videos&k=k1&v=v1&f=s1&i=a1');
+      await mountVideoBrowserPane(ctx.detail, ctx.pane);
+    };
+    const title = () => ctx.pane.querySelector('[data-vb-asset-title]');
+    const input = () => ctx.pane.querySelector('[data-vb-title-input]');
+    const key = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+
+    beforeEach(() => {
+      renameAsset.mockClear();
+      deleteAsset.mockClear();
+      loadVideoBrowserData.mockClear();
+    });
+
+    it('Titel oben, darunter Feedbackschleife mit Status und daneben die Aktionen', async () => {
+      loadVideoBrowserData.mockResolvedValueOnce(mitDatei());
+      await openA1({ team: true, download: true });
+      const head = ctx.pane.querySelector('.vb-asset-head');
+      expect(head.firstElementChild).toBe(title());
+      const zeile = head.querySelector('.vb-asset-head__row');
+      expect(zeile.querySelector('[data-vb-asset-version]').textContent).toBe('Feedbackschleife 1');
+      expect(zeile.querySelector('.vb-status')).not.toBeNull();
+      const aktionen = [...zeile.querySelectorAll('.vb-asset-head__actions button')].map(b => b.getAttribute('aria-label'));
+      expect(aktionen).toEqual(['Herunterladen', 'Titel bearbeiten', 'Löschen']);
+    });
+
+    it('Kunde sieht nur Herunterladen', async () => {
+      loadVideoBrowserData.mockResolvedValueOnce(mitDatei());
+      await openA1({ team: false, download: true });
+      expect(ctx.pane.querySelector('[data-vb-download="item"]')).not.toBeNull();
+      expect(ctx.pane.querySelector('[data-vb-edit]')).toBeNull();
+      expect(ctx.pane.querySelector('[data-vb-delete]')).toBeNull();
+    });
+
+    it('Bearbeiten macht den Titel an Ort und Stelle editierbar, Enter speichert ohne neuen Player', async () => {
+      await openA1({ team: true });
+      const mounts = player.mounts;
+      click(ctx.pane.querySelector('[data-vb-edit]'));
+      expect(input().value).toBe('Video A');
+      expect(ctx.pane.querySelector('[data-vb-edit]').getAttribute('aria-label')).toBe('Titel speichern');
+
+      input().value = '  Interview Kudamm ';
+      key(input(), 'Enter');
+      await vi.waitFor(() => expect(input()).toBeNull());
+      expect(renameAsset).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1' }), 'Interview Kudamm');
+      expect(title().textContent).toBe('Interview Kudamm');
+      expect(ctx.pane.querySelector('.vb-col--3 .vb-row[data-id="a1"] .vb-row__name').textContent).toBe('Interview Kudamm');
+      expect(player.mounts).toBe(mounts);
+      expect(ctx.pane.querySelector('[data-vb-edit]').getAttribute('aria-label')).toBe('Titel bearbeiten');
+    });
+
+    it('Escape bricht ab, unveränderter oder leerer Titel speichert nichts', async () => {
+      await openA1({ team: true });
+      click(ctx.pane.querySelector('[data-vb-edit]'));
+      input().value = 'Verworfen';
+      key(input(), 'Escape');
+      expect(input()).toBeNull();
+      expect(title().textContent).toBe('Video A');
+
+      click(ctx.pane.querySelector('[data-vb-edit]'));
+      input().value = '   ';
+      click(ctx.pane.querySelector('[data-vb-edit]'));
+      expect(input()).toBeNull();
+      expect(title().textContent).toBe('Video A');
+      expect(renameAsset).not.toHaveBeenCalled();
+    });
+
+    it('Löschen fragt per Dialog nach und springt danach auf den Ordner', async () => {
+      await openA1({ team: true });
+      click(ctx.pane.querySelector('[data-vb-delete]'));
+      const modal = document.body.querySelector('.modal');
+      expect(modal.textContent).toContain('„Video A“ wird endgültig gelöscht');
+      click(modal.querySelector('[data-action="confirm"]'));
+      await vi.waitFor(() => expect(loadVideoBrowserData).toHaveBeenCalledTimes(2));
+      expect(deleteAsset).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1' }));
+      expect(window.location.search).toContain('f=s1');
+      expect(window.location.search).not.toContain('i=a1');
+    });
+
+    it('abgebrochener Dialog löscht nichts', async () => {
+      await openA1({ team: true });
+      click(ctx.pane.querySelector('[data-vb-delete]'));
+      click(document.body.querySelector('.modal [data-action="cancel"]'));
+      await Promise.resolve();
+      expect(deleteAsset).not.toHaveBeenCalled();
+      expect(window.location.search).toContain('i=a1');
+    });
   });
 
   describe('Medien vorbereiten', () => {
