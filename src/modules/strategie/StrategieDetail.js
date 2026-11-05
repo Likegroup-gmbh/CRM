@@ -21,6 +21,7 @@ import { VideoideeVorschlagPanel } from './VideoideeVorschlagPanel.js';
 import { KonzeptLikyPanel } from './KonzeptLikyPanel.js';
 import { isVideoideeVorschlag } from './videoideeVorschlag.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+import { mergeRealtimeRow as mergeProtectedText } from '../../core/table/textFieldBaseline.js';
 
 const REALTIME_JOINS = ['produkt', 'casting_eintrag', 'creator'];
 
@@ -29,7 +30,7 @@ function mergeRealtimeRow(item, row) {
   for (const key of REALTIME_JOINS) {
     if (row?.[key] == null && item?.[key] != null) kept[key] = item[key];
   }
-  Object.assign(item, row);
+  mergeProtectedText(item, row);
   Object.assign(item, kept);
 }
 

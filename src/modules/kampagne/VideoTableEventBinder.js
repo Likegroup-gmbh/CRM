@@ -11,6 +11,7 @@ import { getVideoFeedbackSlotByField } from '../../core/VideoFeedbackBuckets.js'
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
 import { applyLiveLinkCellState, findVideoInTable } from './liveLinkCell.js';
+import { bindTextBaseline, isGuardedTextField, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 export class VideoTableEventBinder {
   constructor(table) {
     this.table = table;
@@ -27,6 +28,7 @@ export class VideoTableEventBinder {
 
     CustomDatePicker.destroy(container);
     CustomDatePicker.bind(container, signal);
+    bindTextBaseline(container, { signal });
 
     // Zeilen-Hoehen ueber Spalten angleichen (Feedback bestimmt die Reihenhoehe).
     // Tabelle wird bei jedem Render neu erzeugt -> alte Sync trennen, neu binden.
@@ -58,6 +60,8 @@ export class VideoTableEventBinder {
       // Kommentar-Spalten (Typ "comment") nutzen denselben Controller.
       if (VideoFeedbackBinding.isCustomCommentField(e.target)) return;
       if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea') || e.target.classList.contains('custom-col-input')) {
+        if (isGuardedTextField(e.target) && !shouldPersistTextField(e.target)) return;
+        if (isGuardedTextField(e.target)) rememberTextBaseline(e.target);
         await t.handleFieldUpdate(e.target);
 
         // Chip der Live-Link-Zelle nachziehen: die Tabelle rendert einzelne

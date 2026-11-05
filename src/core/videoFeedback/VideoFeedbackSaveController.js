@@ -43,6 +43,13 @@ export class VideoFeedbackSaveController {
   // (dann darf der vorhandene Status-Text nicht ueberschrieben werden).
   onFocus(field) {
     const key = this._key(field);
+    // Ausgangswert merken, bevor jemand tippt. Die Tabelle zeichnet Feedback
+    // erst leer und laedt die Kommentare danach. Ein Klick ins noch leere Feld
+    // darf beim Verlassen nicht als "geleert" gespeichert werden — das wuerde
+    // Kunden- und eigenes Feedback soft-deleten.
+    if (!this._dirty.has(key) && !this._lastSaved.has(key)) {
+      this._lastSaved.set(key, field.value);
+    }
     if (this._dirty.has(key) || this._pending.get(key)?.saving) return;
     this.status.setEditing(field);
   }
@@ -51,6 +58,9 @@ export class VideoFeedbackSaveController {
   // verschwindet das "Bearbeiten"-Tag wieder.
   onBlur(field) {
     const key = this._key(field);
+    if (!this._dirty.has(key) && !this._lastSaved.has(key)) {
+      this._lastSaved.set(key, field.value);
+    }
     const p = this.flushField(field);
     if (!this._dirty.has(key) && !this._pending.has(key)) {
       this.status.clear(field);

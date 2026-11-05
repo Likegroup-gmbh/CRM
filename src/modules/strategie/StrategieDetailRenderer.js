@@ -22,6 +22,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { isVideoideeVorschlag, splitVideoideeVorschlaege } from './videoideeVorschlag.js';
 import { actionState } from '../../core/actions/actionState.js';
 import { produktionStartChecks } from '../kooperation/produktionStart.js';
+import { absorbStrategieEdits } from './StrategieDetailTableEvents.js';
 
 /** Klartext zu verarbeitung_step fuer die Fortschrittsanzeige in der Zeile. */
 export const VERARBEITUNG_LABELS = {
@@ -818,6 +819,7 @@ export function updateItemRow(detail, itemId) {
   const angezeigteNummer = parseInt(row.querySelector('.col-number')?.textContent ?? '', 10);
   const index = Number.isFinite(angezeigteNummer) ? angezeigteNummer - 1 : detail.items.indexOf(item);
 
+  absorbStrategieEdits(detail, row);
   row.outerHTML = renderItemRow(detail, item, index);
   detail._bindTableEvents();
   document.dispatchEvent(new CustomEvent('videoidee-table-rendered'));
@@ -829,6 +831,7 @@ export function rerenderItemsTable(detail) {
     || document.querySelector('.table-container');
   if (!tableContainer) return;
 
+  absorbStrategieEdits(detail, tableContainer);
   tableContainer.outerHTML = renderItemsTable(detail);
 
   detail._bindTableEvents();

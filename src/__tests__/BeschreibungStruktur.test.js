@@ -571,6 +571,7 @@ describe('Strategie-Tabelle: Spalte Beschreibung = Kurzbeschreibung', () => {
 
     it('übernimmt eine Zellenänderung in den Drawer', async () => {
       const area = zellenArea();
+      area.dataset.fieldBaseline = area.value;
       area.value = 'Aus der Tabelle';
       await handleFieldUpdate(detail, area);
       expect(strategieService.updateStrategieItem.mock.calls[0][1]).toEqual({ kurzbeschreibung: 'Aus der Tabelle' });

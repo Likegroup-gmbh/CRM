@@ -10,6 +10,7 @@ import { setChipCellLoading } from '../../core/components/chipCell.js';
 import { applySourcingIgCellState, findSourcingIgCell } from './sourcingIgCell.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { verknuepfeEintrag, verknuepfungsText } from './castingCreatorVerknuepfung.js';
+import { absorbEditedTextFields, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 
 const IG_FETCH_FLASH_MS = 2000;
 
@@ -191,11 +192,23 @@ export async function _meldeBekanntenCreator(item) {
   return links;
 }
 
+export function absorbCastingEdits(detail, root) {
+  absorbEditedTextFields(root, (el) => {
+    if (el.hasAttribute('data-custom-column-id') || el.getAttribute('data-entity') === 'custom') {
+      rememberTextBaseline(el);
+      detail.customColumns?.handleFieldUpdate(el);
+      return;
+    }
+    detail.handleFieldUpdate(el);
+  });
+}
+
 export function refreshItemRow(itemId) {
   const row = this._q(`.item-row[data-item-id="${itemId}"]`);
   const item = this.items.find(i => i.id === itemId);
   if (!row || !item) return;
 
+  absorbCastingEdits(this, row);
   row.outerHTML = renderItemRow(this.getRenderContext(), item, 0);
   this.bindEvents();
 }
@@ -209,6 +222,8 @@ export async function handleFieldUpdate(element) {
   if (element.hasAttribute('data-custom-column-id') || element.getAttribute('data-entity') === 'custom') {
     return;
   }
+  if (!shouldPersistTextField(element)) return;
+  rememberTextBaseline(element);
   const itemId = element.dataset.itemId;
   const field = element.dataset.field;
   let value;
@@ -224,6 +239,8 @@ export async function handleFieldUpdate(element) {
     value = element.value?.trim() || null;
   }
 
+  const item = this.items.find(i => i.id === itemId);
+  const previous = {};
   try {
     const updates = { [field]: value };
 
@@ -234,10 +251,12 @@ export async function handleFieldUpdate(element) {
       updates.feedback_kunde_updated_at = new Date().toISOString();
     }
 
-    await creatorAuswahlService.updateItem(itemId, updates);
+    if (item) {
+      for (const key of Object.keys(updates)) previous[key] = item[key];
+      Object.assign(item, updates);
+    }
 
-    const item = this.items.find(i => i.id === itemId);
-    if (item) Object.assign(item, updates);
+    await creatorAuswahlService.updateItem(itemId, updates);
 
     if (field === 'follower_instagram' || field === 'follower_tiktok') {
       this.refreshNumberCell(element, value);
@@ -255,6 +274,7 @@ export async function handleFieldUpdate(element) {
       }
     }
   } catch (error) {
+    if (item) Object.assign(item, previous);
     console.error('Fehler beim Aktualisieren:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
   }

@@ -13,6 +13,7 @@ import {
 import { applyLiveLinkCellState, findLiveLinkCell } from './liveLinkCell.js';
 import { acquireKampagneChannel } from './kampagneRealtimeChannel.js';
 import { koopGehoertZurLinie } from '../produktion/ProduktionService.js';
+import { mergeKeepingFilled, shouldKeepDisplayedText } from '../../core/table/textFieldBaseline.js';
 
 export class VideoTableRealtimeHandler {
   constructor(table) {
@@ -107,30 +108,43 @@ export class VideoTableRealtimeHandler {
       Date.now() - this.table._lastUpdateTime < 2000;
   }
 
-  // Ein Upload-Abschluss aktualisiert die Zeile, bevor das Namensfeld
-  // geblurrt ist. Der Payload traegt dann noch den alten oder leeren
-  // video_name und wuerde den gerade gesetzten Namen loeschen.
-  _keepRecentVideoName(incoming) {
+  // Ein Upload-Abschluss aktualisiert die Zeile, bevor das Feld geblurrt
+  // ist. Der Payload traegt dann noch den alten oder leeren Text und wuerde
+  // den gerade gesetzten Namen oder die Caption loeschen.
+  _keepRecentText(incoming, fieldName, edits) {
     if (!incoming?.id) return incoming;
-    const kept = this.table._videoNameEdits?.get(incoming.id);
+    const kept = edits?.get(incoming.id);
     if (!kept || Date.now() - kept.at >= 15000) return incoming;
-    if ((incoming.video_name ?? '') === kept.value) return incoming;
-    return { ...incoming, video_name: kept.value };
+    if ((incoming[fieldName] ?? '') === kept.value) return incoming;
+    return { ...incoming, [fieldName]: kept.value };
+  }
+
+  _keepRecentVideoName(incoming) {
+    return this._keepRecentText(incoming, 'video_name', this.table._videoNameEdits);
+  }
+
+  _keepRecentCaption(incoming) {
+    return this._keepRecentText(incoming, 'caption', this.table._captionEdits);
+  }
+
+  _findVideo(videoId) {
+    for (const list of Object.values(this.table.videos || {})) {
+      const video = list?.find(v => v.id === videoId);
+      if (video) return video;
+    }
+    return null;
   }
 
   async handleVideoUpdate(payload) {
     if (this._isOwnUpdate(payload.new?.id)) return;
 
-    const updatedVideo = this._keepRecentVideoName(payload.new);
+    const incoming = this._keepRecentCaption(this._keepRecentVideoName(payload.new));
+    const updatedVideo = mergeKeepingFilled(this._findVideo(incoming?.id), incoming);
 
     // Virtuell über das Konzept zugeordnete Videos haben keine skript_id in
     // der DB — ihre Freigabe-Checkbox folgt dem Skript-Status, nicht der
     // Spalte. Das Payload traegt den rohen Spaltenwert, also ableiten.
-    let existing = null;
-    for (const koopId in this.table.videos) {
-      existing = this.table.videos[koopId].find(v => v.id === updatedVideo.id);
-      if (existing) break;
-    }
+    const existing = this._findVideo(updatedVideo.id);
     if (existing?._skriptAusKonzept && existing.skript) {
       updatedVideo.skript_freigegeben = existing.skript.status === 'freigegeben';
     }
@@ -316,6 +330,9 @@ export class VideoTableRealtimeHandler {
       document.querySelectorAll(`[data-entity="video"][data-id="${videoId}"][data-field="${slot.field}"]`).forEach(field => {
         // Niemals das Feld ueberschreiben, in dem der Nutzer gerade tippt.
         if (field === document.activeElement) return;
+        // Kommentare dieser Zeile sind noch nicht da. Sonst leert das Update
+        // ein Feld, dessen Text erst im naechsten Ladezyklus ankommt.
+        if (!Object.prototype.hasOwnProperty.call(this.table.videoComments || {}, videoId)) return;
         field.value = formatVideoFeedbackValue(this.table.videoComments[videoId], slot.bucket);
         field.classList.add('field-updated');
         setTimeout(() => field.classList.remove('field-updated'), 2000);
@@ -346,6 +363,7 @@ export class VideoTableRealtimeHandler {
         // Fokussiertes oder noch nicht gespeichertes Feld nicht ueberschreiben.
         if (field === document.activeElement) return;
         if (this.table.feedbackSaveController?.isDirty(videoId, fieldName)) return;
+        if (!Object.prototype.hasOwnProperty.call(this.table.videoComments || {}, videoId)) return;
         const val = formatVideoFeedbackValue(this.table.videoComments[videoId], feedbackSlot.bucket);
         if (field.value !== val) { field.value = val; shouldUpdate = true; }
       } else switch (fieldName) {
@@ -364,10 +382,12 @@ export class VideoTableRealtimeHandler {
           break;
         }
         default: {
-          // Feld, in dem gerade getippt wird, nicht leeren. Der Upload-Abschluss
-          // schickt ein Zeilen-Update, dessen video_name noch leer oder alt ist.
-          if (field === document.activeElement) break;
-          const newVal = video[fieldName] || '';
+          // Feld, in dem gerade getippt wird, nicht leeren. Ein veraltetes
+          // Payload mit null oder "" darf gefuellten Text ebenfalls nicht
+          // ersetzen. 0 bleibt 0 (|| '' wuerde daraus einen leeren String).
+          if (field === document.activeElement || shouldKeepDisplayedText(field, video[fieldName])) break;
+          const raw = video[fieldName];
+          const newVal = raw == null ? '' : String(raw);
           if (field.value !== undefined && field.value !== newVal) {
             field.value = newVal;
             shouldUpdate = true;

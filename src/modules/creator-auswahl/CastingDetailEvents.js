@@ -16,10 +16,14 @@ import {
   kategorieGroupKey
 } from './castingKategorien.js';
 import { openCastingDetailDrawer } from './castingDetailDrawer.js';
+import { bindTextBaseline, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 
 export function bindEvents() {
   this._boundEventListeners.forEach(cleanup => cleanup());
   this._boundEventListeners.clear();
+  bindTextBaseline(this._getRoot() || document, {
+    onCleanup: (fn) => this._boundEventListeners.add(fn)
+  });
 
   const openDetail = (e) => {
     const btn = e.target.closest('[data-open-casting-detail]');
@@ -205,10 +209,14 @@ export function bindEvents() {
       el.addEventListener('change', handler);
       this._boundEventListeners.add(() => el.removeEventListener('change', handler));
     } else {
-      el.addEventListener('blur', handler);
+      const onBlur = () => {
+        if (!shouldPersistTextField(el)) return;
+        handler();
+      };
+      el.addEventListener('blur', onBlur);
       el.addEventListener('change', handler);
       this._boundEventListeners.add(() => {
-        el.removeEventListener('blur', handler);
+        el.removeEventListener('blur', onBlur);
         el.removeEventListener('change', handler);
       });
     }
@@ -251,10 +259,15 @@ export function _bindCustomColumnEvents() {
       el.addEventListener('change', handler);
       this._boundEventListeners.add(() => el.removeEventListener('change', handler));
     } else {
-      el.addEventListener('blur', handler);
+      const onBlur = () => {
+        if (!shouldPersistTextField(el)) return;
+        rememberTextBaseline(el);
+        handler();
+      };
+      el.addEventListener('blur', onBlur);
       el.addEventListener('change', handler);
       this._boundEventListeners.add(() => {
-        el.removeEventListener('blur', handler);
+        el.removeEventListener('blur', onBlur);
         el.removeEventListener('change', handler);
       });
     }

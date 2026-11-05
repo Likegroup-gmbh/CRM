@@ -13,6 +13,7 @@ import { bindTextClipEvents } from './strategieTextClip.js';
 import { startProduktionFromItem } from '../kooperation/produktionStart.js';
 import { refreshItemActions, updateItemRow } from './StrategieDetailRenderer.js';
 import { syncCustomPeer, syncVideoideeField } from './videoideeFieldSync.js';
+import { absorbEditedTextFields, bindTextBaseline, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 
 function tableRoot(detail) {
   return detail._getRoot?.() || window.content;
@@ -45,6 +46,9 @@ export function cleanupTableEvents(detail) {
 
 export function bindTableEvents(detail) {
   cleanupTableEvents(detail);
+  bindTextBaseline(tableRoot(detail), {
+    onCleanup: (fn) => detail._tableEventListeners.add(fn)
+  });
 
   // Write-Interaktionen (Drag, Aktionsmenü) nur intern UND mit edit-Recht.
   const canWrite = !detail.isKunde && !!detail.canEdit;
@@ -737,10 +741,15 @@ export function bindCustomColumnEvents(detail) {
       el.addEventListener('change', handler);
       detail._tableEventListeners.add(() => el.removeEventListener('change', handler));
     } else {
-      el.addEventListener('blur', handler);
+      const onBlur = () => {
+        if (!shouldPersistTextField(el)) return;
+        rememberTextBaseline(el);
+        handler();
+      };
+      el.addEventListener('blur', onBlur);
       el.addEventListener('change', handler);
       detail._tableEventListeners.add(() => {
-        el.removeEventListener('blur', handler);
+        el.removeEventListener('blur', onBlur);
         el.removeEventListener('change', handler);
       });
     }
@@ -779,6 +788,8 @@ export async function handleFieldUpdate(detail, element) {
     && !window.permissionSystem.canEditField('strategie', 'video_umgesetzt')) return;
   // Schreibgeschuetzte Zellen (z. B. strukturierte Beschreibung) spiegeln nur; ein Blur darf sie nie zurueckschreiben.
   if (element.readOnly) return;
+  if (!shouldPersistTextField(element)) return;
+  rememberTextBaseline(element);
   const itemId = element.dataset.itemId;
   let value = element.type === 'checkbox' ? element.checked : element.value;
 
@@ -798,7 +809,20 @@ export async function handleFieldUpdate(detail, element) {
   }
 }
 
+export function absorbStrategieEdits(detail, root) {
+  absorbEditedTextFields(root, (el) => {
+    if (el.hasAttribute('data-custom-column-id') || el.getAttribute('data-entity') === 'custom') {
+      rememberTextBaseline(el);
+      detail.customColumns?.handleFieldUpdate(el);
+      return;
+    }
+    handleFieldUpdate(detail, el);
+  });
+}
+
 export async function updateItemField(detail, itemId, field, value, sourceEl) {
+  const item = detail.items.find(i => i.id === itemId);
+  const previous = {};
   try {
     const updates = { [field]: value };
 
@@ -822,13 +846,17 @@ export async function updateItemField(detail, itemId, field, value, sourceEl) {
       updates.kundenadaption_quelle = value ? 'user' : null;
     }
 
+    if (item) {
+      for (const key of Object.keys(updates)) previous[key] = item[key];
+      Object.assign(item, updates);
+    }
+
     await strategieService.updateStrategieItem(itemId, updates);
 
-    const item = detail.items.find(i => i.id === itemId);
-    if (item) Object.assign(item, updates);
     syncVideoideeField(itemId, field, value, sourceEl);
     if (field === 'video_umgesetzt') refreshItemActions(detail, itemId);
   } catch (error) {
+    if (item) Object.assign(item, previous);
     console.error('Fehler beim Aktualisieren des Items:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
   }

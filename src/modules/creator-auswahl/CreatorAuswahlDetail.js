@@ -24,7 +24,7 @@ import { CastingVorschlagPanel } from './CastingVorschlagPanel.js';
 import { castingDetailEventsMethods } from './CastingDetailEvents.js';
 import { castingDetailFilterMethods } from './CastingDetailFilter.js';
 import { castingDetailTableUxMethods } from './CastingDetailTableUx.js';
-import { castingDetailRowActionsMethods } from './CastingDetailRowActions.js';
+import { absorbCastingEdits, castingDetailRowActionsMethods } from './CastingDetailRowActions.js';
 import { castingDetailZeilenStatusMethods } from './CastingDetailZeilenStatus.js';
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
@@ -356,6 +356,7 @@ export class CreatorAuswahlDetail {
   rerenderTable(movedItemIds = []) {
     const tableContainer = this._q('.table-container');
     if (tableContainer) {
+      absorbCastingEdits(this, tableContainer);
       tableContainer.outerHTML = renderItemsTable(this.getRenderContext());
       this.bindEvents();
       updateStickyHeights(this._getRoot());

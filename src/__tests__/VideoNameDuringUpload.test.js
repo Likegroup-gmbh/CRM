@@ -163,6 +163,7 @@ describe('Video-Name während des Uploads', () => {
     `;
     const input = document.querySelector('input');
     input.value = 'Hook während Upload';
+    input.dataset.fieldBaseline = '';
 
     const video = { id: 'v1', video_name: '' };
     const updates = supabaseRecording();

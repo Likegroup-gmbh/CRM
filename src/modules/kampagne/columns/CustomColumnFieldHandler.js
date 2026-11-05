@@ -46,10 +46,13 @@ export class CustomColumnFieldHandler {
 
     console.log(`💾 Custom Column Update:`, { columnId, entityId, value });
 
-    await CustomColumnDataLoader.upsertValue(columnId, entityId, value);
-
-    if (store) {
-      store.updateCustomColumnValue(entityId, columnId, value);
+    const previous = store?.getCustomColumnValue(entityId, columnId);
+    store?.updateCustomColumnValue(entityId, columnId, value);
+    try {
+      await CustomColumnDataLoader.upsertValue(columnId, entityId, value);
+    } catch (error) {
+      store?.updateCustomColumnValue(entityId, columnId, previous);
+      throw error;
     }
 
     // Dropdown: Neuen Wert dynamisch als Option hinzufuegen

@@ -288,10 +288,12 @@ export class GridController {
     if (!this.editingCell) return;
 
     const { row, col, input, content } = this.editingCell;
-    const newValue = save ? input.value : this.renderer.getCellValue(row, col);
+    const previous = this.renderer.getCellValue(row, col);
+    const newValue = save ? input.value : previous;
 
-    // Update Renderer und Auto-Save
-    if (save) {
+    // Nur eine echte Änderung schreiben. Ein Neuzeichnen, das die Zelle
+    // schliesst, darf den gespeicherten Text nicht leeren.
+    if (save && newValue !== previous) {
       this.renderer.setCellValue(row, col, newValue);
       this.autoSaveManager.queueCellSave(row, col, newValue);
     }
