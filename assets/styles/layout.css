@@ -995,12 +995,15 @@
   width: 80px;
   height: 80px;
   margin: 0 auto;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--gray-900);
 }
 
-.login-box h2.success,
+.login-box h2.success {
+  color: var(--gray-900);
+}
+
 .login-box h2.error {
-  color: var(--text-inverse);
+  color: var(--color-error);
 }
 
 .login-box-message {
@@ -1011,7 +1014,9 @@
 }
 
 .login-box-message strong {
-  color: var(--text-inverse);
+  color: var(--gray-900);
+  font-weight: 600;
+  word-break: break-all;
 }
 
 .login-box-hint {
