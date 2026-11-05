@@ -3,6 +3,7 @@
 
 import { CreatorList } from './CreatorListCore.js';
 import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
+import { injectManagementCreateButton } from './ManagementCreateDrawer.js';
 import { bindDuplicateCheck } from '../../core/validation/DuplicateCheckBinding.js';
 import { bindGenerationControls, normalizeHandle } from './creatorProfil.js';
 import { formularAusInstagramVorschau, followerZumSpeichern } from './creatorInstagramPrefill.js';
@@ -151,6 +152,7 @@ CreatorList.prototype.renderCreatorForm = function(instagramPrefill = '') {
 
   window.formSystem.bindFormEvents('creator', null);
   injectFirmaCreateButton();
+  injectManagementCreateButton();
 
   const form = document.getElementById('creator-form');
   if (!form) return;

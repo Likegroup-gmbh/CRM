@@ -259,6 +259,7 @@ export async function mountCreatorBetreuung(form, { creatorId = null } = {}) {
     await paint({ keepDrafts: false });
   });
 
+  form._refreshBetreuung = paint;
   form.addEventListener('change', (event) => {
     if (event.target.closest('#creator-betreuung')) return;
     const key = selectedManagementIds(form).join(',');
@@ -326,6 +327,7 @@ export function bindManagementPersonRows(root) {
 }
 
 export async function saveManagementPersons(managementId, root) {
+  const created = [];
   const rows = [...root.querySelectorAll('.management-ap-row')];
   for (const row of rows) {
     const vorname = row.querySelector('.management-ap-vorname')?.value;
@@ -341,10 +343,12 @@ export async function saveManagementPersons(managementId, root) {
       window.toastSystem?.show(result.message, 'error');
       continue;
     }
+    if (result.person?.id) created.push(result.person.id);
     if (result.similar?.length) {
       window.toastSystem?.show('Ähnlicher Name vorhanden, die Person wurde trotzdem angelegt.', 'warning');
     }
   }
+  return created;
 }
 
 export async function toggleBetreuung(creatorId, ansprechpartnerId, on) {

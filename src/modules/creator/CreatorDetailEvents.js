@@ -4,6 +4,7 @@
 import { CreatorDetail } from './CreatorDetailCore.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { firmaCreateDrawer, injectFirmaCreateButton } from './FirmaCreateDrawer.js';
+import { injectManagementCreateButton, managementCreateDrawer } from './ManagementCreateDrawer.js';
 import { HAUPTADRESSE_QUELLE, normalizeHauptadresseQuelle } from './hauptadresseQuelle.js';
 import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
 import { bindGenerationControls } from './creatorProfil.js';
@@ -60,6 +61,18 @@ CreatorDetail.prototype.bindEvents = function() {
       if (addBtn) {
         e.preventDefault();
         this._showAddManagementDialog();
+        return;
+      }
+      const createBtn = e.target.closest && e.target.closest('#btn-management-anlegen');
+      if (createBtn) {
+        e.preventDefault();
+        managementCreateDrawer.open({
+          creatorId: this.creatorId,
+          onCreated: async () => {
+            await this.loadManagements();
+            this.updateManagementTab();
+          }
+        });
         return;
       }
       const removeBtn = e.target.closest && e.target.closest('[data-remove-management]');
@@ -207,6 +220,7 @@ CreatorDetail.prototype.showEditForm = async function() {
 
     window.formSystem.bindFormEvents('creator', editData);
     injectFirmaCreateButton();
+    injectManagementCreateButton();
     
     const form = document.getElementById('creator-form');
     if (form) {

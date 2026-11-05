@@ -3,6 +3,8 @@
 // Prefill kommt vom Casting-Eintrag; Submit legt den Stammdatensatz an.
 
 import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
+import { injectManagementCreateButton } from './ManagementCreateDrawer.js';
+import { mountCreatorBetreuung, syncCreatorBetreuung } from '../ansprechpartner/betreuung.js';
 import { bindDuplicateCheck } from '../../core/validation/DuplicateCheckBinding.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
@@ -140,6 +142,8 @@ export class CreatorFormDrawer {
     void window.formSystem.bindFormEvents('creator', null).then(() => {
       if (!form.isConnected) return;
       injectFirmaCreateButton();
+      injectManagementCreateButton();
+      mountCreatorBetreuung(form);
       form.onsubmit = async (e) => {
         e.preventDefault();
         await this.handleSubmit(form);
@@ -202,6 +206,7 @@ export class CreatorFormDrawer {
       if (!result.success) throw new Error(result.error || 'Creator konnte nicht angelegt werden');
 
       window.toastSystem?.show('Creator angelegt', 'success');
+      await syncCreatorBetreuung(result.id, form);
       if (this.onCreated) await this.onCreated({ id: result.id, ...submitData });
       this.close({ cancelled: false });
     } catch (error) {

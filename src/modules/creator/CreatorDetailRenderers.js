@@ -310,7 +310,7 @@ CreatorDetail.prototype.renderManagementContent = function() {
         ${PLUS_ICON_SVG}
         Management zuordnen
       </button>
-      <button class="mdc-btn mdc-btn--secondary mdc-btn--sm" id="btn-management-anlegen" onclick="event.preventDefault(); window.navigateTo('/management/new')">
+      <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm" id="btn-management-anlegen">
         Neues Management anlegen
       </button>
     `;
