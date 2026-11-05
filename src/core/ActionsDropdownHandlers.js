@@ -26,6 +26,7 @@ export const GLOBAL_ACTIONS = new Set([
   'generate-pdf',
   'vertrag-kooperationen',
   'vertrag-verknuepfen',
+  'rezension',
   'anschreiben',
   'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
   'add_produkt', 'add_persona', 'produkt-von-linie-loesen', 'briefing-duplizieren',
@@ -206,6 +207,12 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       await openVertragVerknuepfen(entityId, () => {
         window.dispatchEvent(new Event('softRefresh'));
       });
+      break;
+    }
+
+    case 'rezension': {
+      const { openRezensionDrawer } = await import('../modules/creator/RezensionDrawer.js');
+      await openRezensionDrawer(entityId, actionItem?.dataset?.creatorId);
       break;
     }
 

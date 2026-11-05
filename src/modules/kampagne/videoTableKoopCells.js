@@ -4,6 +4,7 @@
 import { getCachedCreatorUploadStatus } from './CreatorUploadActions.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml } from './videoTableFieldCells.js';
+import { darfRezensionSchreiben } from '../creator/rezension.js';
 const INSTAGRAM_ICON = `${icon('instagram')}`;
 const TIKTOK_ICON = `${icon('tiktok')}`;
 
@@ -101,6 +102,12 @@ export function renderActionsInner(ctx) {
           <a href="#" class="action-item" data-action="vertrag-verknuepfen" data-id="${koop.id}">
             ${icon('link', { className: 'w-4 h-4' })}
             Bestehenden Vertrag verknüpfen
+          </a>
+          ` : ''}
+          ${darfRezensionSchreiben() && koop.creator_id ? `
+          <a href="#" class="action-item" data-action="rezension" data-id="${koop.id}" data-creator-id="${koop.creator_id}">
+            ${icon('star', { className: 'w-4 h-4' })}
+            Rezension abgeben
           </a>
           ` : ''}
           ${canEdit ? renderCreatorUploadItems(ctx.t, koop) : ''}

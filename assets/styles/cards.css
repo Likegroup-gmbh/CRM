@@ -706,6 +706,13 @@
   margin-bottom: 0;
 }
 
+#rezension-drawer .drawer-footer {
+  flex-shrink: 0;
+  padding: var(--space-md);
+  border-top: var(--border-xs) solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
 #koop-rezension .form-field textarea.form-input {
   width: 100%;
   text-align: left;

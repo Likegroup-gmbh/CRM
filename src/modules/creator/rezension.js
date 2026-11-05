@@ -86,7 +86,8 @@ function infoRow(iconKey, label, valueHtml) {
   `;
 }
 
-export function renderKooperationRezension(rezension, { canEdit = false } = {}) {
+/** mitSpeichern: false, wenn der Aufrufer den Speichern-Button selbst stellt (Drawer-Footer). */
+export function renderKooperationRezension(rezension, { canEdit = false, mitSpeichern = true } = {}) {
   if (!darfRezensionSehen()) return '';
   const wert = rezension
     ? formatRezension(wertDerRezension(rezension.produktionsqualitaet, rezension.kommunikation_verlaesslichkeit))
@@ -109,7 +110,7 @@ export function renderKooperationRezension(rezension, { canEdit = false } = {}) 
         <label for="koop-rezension-kommentar">Kommentar</label>
         <textarea id="koop-rezension-kommentar" class="form-input" name="kommentar" rows="3" ${canEdit ? '' : 'readonly'}>${esc(rezension?.kommentar || '')}</textarea>
       </div>
-      ${canEdit ? '<div class="detail-actions"><button type="button" class="mdc-btn mdc-btn--secondary" data-action="save-rezension">Rezension speichern</button></div>' : ''}
+      ${canEdit && mitSpeichern ? '<div class="detail-actions"><button type="button" class="mdc-btn mdc-btn--secondary" data-action="save-rezension">Rezension speichern</button></div>' : ''}
     </div>
   `;
 }
