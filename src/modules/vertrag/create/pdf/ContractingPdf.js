@@ -71,6 +71,12 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
       return renderPaginatedText(doc, localizedText, { x, y: yStart, maxWidth, maxContentY: MAX_CONTENT_Y, onPageBreak });
     };
 
+    // Satz mit {platzhaltern}. Zusammengesetzte Strings treffen die Tabelle nicht.
+    const writeClause = (template, vars, yStart, x = 14, maxWidth = 180) => {
+      const text = this.localizeContractTemplate(template, vars, lang);
+      return renderPaginatedText(doc, text, { x, y: yStart, maxWidth, maxContentY: MAX_CONTENT_Y, onPageBreak });
+    };
+
     const checkPageBreak = (neededSpace) => {
       if (y + neededSpace > MAX_CONTENT_Y) {
         addFooter();
@@ -221,11 +227,24 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     y += 8;
-    y = addWrappedText(`(1) Der Influencer verpflichtet sich zur Erstellung und Veröffentlichung werblicher Inhalte (nachfolgend "Content") zugunsten des Unternehmens ${kunde?.firmenname || '-'}, ${uStrasse}, ${uPlzStadt}, ${kunde?.rechnungsadresse_land || 'Deutschland'}.`, 14, y, 180);
+    const partei = {
+      firma: kunde?.firmenname || '-',
+      strasse: uStrasse || '-',
+      plzStadt: uPlzStadt || '-',
+      land: this.localizeContractText(kunde?.rechnungsadresse_land || 'Deutschland', lang)
+    };
+    y = writeClause('(1) Der Influencer verpflichtet sich zur Erstellung und Veröffentlichung werblicher Inhalte (nachfolgend "Content") zugunsten des Unternehmens {firma}, {strasse}, {plzStadt}, {land}.', partei, y);
     y += 4;
-    y = addWrappedText(`(2) Vertragspartner dieses Vertrages sind ausschließlich der Auftraggeber LikeGroup GmbH und der Auftragnehmer ${creatorName || 'XXX'}${vertrag.influencer_agentur_vertreten ? `, vertreten durch die ${vertrag.influencer_agentur_name || 'XXX'}` : ''}. Das Unternehmen ${kunde?.firmenname || '-'} ist nicht Vertragspartei.`, 14, y, 180);
+    const parteiSatz = vertrag.influencer_agentur_vertreten
+      ? '(2) Vertragspartner dieses Vertrages sind ausschließlich der Auftraggeber LikeGroup GmbH und der Auftragnehmer {creator}, vertreten durch die {agentur}. Das Unternehmen {firma} ist nicht Vertragspartei.'
+      : '(2) Vertragspartner dieses Vertrages sind ausschließlich der Auftraggeber LikeGroup GmbH und der Auftragnehmer {creator}. Das Unternehmen {firma} ist nicht Vertragspartei.';
+    y = writeClause(parteiSatz, {
+      creator: creatorName || 'XXX',
+      agentur: vertrag.influencer_agentur_name || 'XXX',
+      firma: partei.firma
+    }, y);
     y += 4;
-    y = addWrappedText(`(3) Das Unternehmen ${kunde?.firmenname || '-'} erhält jedoch als begünstigter Dritter im Sinne des § 328 BGB die in diesem Vertrag geregelten Nutzungsrechte.`, 14, y, 180);
+    y = writeClause('(3) Das Unternehmen {firma} erhält jedoch als begünstigter Dritter im Sinne des § 328 BGB die in diesem Vertrag geregelten Nutzungsrechte.', { firma: partei.firma }, y);
     y += 4;
     y = addWrappedText('(4) Die gesamte Abwicklung der Kooperation, insbesondere Vergütung, erfolgt über den Auftraggeber LikeGroup GmbH.', 14, y, 180);
 
@@ -380,7 +399,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     y += 8;
-    y = addWrappedText(`(1) Wird dem § 3 des Vertrages zur Nutzung für Werbung zugestimmt, überträgt der Influencer dem Unternehmen ${kunde?.firmenname || '-'}, als begünstigtem Dritten, für die gewählte Nutzungsdauer ein einfaches Nutzungsrecht am erstellten Content.`, 14, y, 180);
+    y = writeClause('(1) Wird dem § 3 des Vertrages zur Nutzung für Werbung zugestimmt, überträgt der Influencer dem Unternehmen {firma}, als begünstigtem Dritten, für die gewählte Nutzungsdauer ein einfaches Nutzungsrecht am erstellten Content.', { firma: kunde?.firmenname || '-' }, y);
     y += 4;
     y = addWrappedText('(2) Die Nutzungsdauer und Verwendung des einfachen Nutzungsrechts am erstellten Content richten sich dabei nach den Angaben und Markierungen im § 3 des Vertrages.', 14, y, 180);
     y += 4;
@@ -399,18 +418,21 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     y += 8;
-    y = addWrappedText(`(1) Der Influencer erstellt den Content eigenständig unter Beachtung der Briefings und Skripts, die mit den Ansprechpartner ${kunde?.firmenname || '-'} oder LikeGroup GmbH abgestimmt wurden oder werden.`, 14, y, 180);
+    y = writeClause('(1) Der Influencer erstellt den Content eigenständig unter Beachtung der Briefings und Skripts, die mit den Ansprechpartner {firma} oder LikeGroup GmbH abgestimmt wurden oder werden.', { firma: kunde?.firmenname || '-' }, y);
     y += 4;
     y = addWrappedText('(2) Der Content ist vor Veröffentlichung zur Freigabe vorzulegen.', 14, y, 180);
     y += 4;
-    y = addWrappedText(`(3) Deadlines und Inhalte richten sich nach dem Unternehmen ${kunde?.firmenname || '-'} oder dem Auftraggeber LikeGroup GmbH und sind einzuhalten.`, 14, y, 180);
+    y = writeClause('(3) Deadlines und Inhalte richten sich nach dem Unternehmen {firma} oder dem Auftraggeber LikeGroup GmbH und sind einzuhalten.', { firma: kunde?.firmenname || '-' }, y);
     y += 4;
     doc.text(`Voraussichtliche Veröffentlichung des Inhaltes: ${vertrag.contracting_veroeffentlichungsdatum || 'XXX'}`, 14, y);
     y += 6;
-    const korrekturText = vertrag.korrekturschleifen
-      ? `(4) Es werden maximal ${vertrag.korrekturschleifen} Korrekturschleife${vertrag.korrekturschleifen > 1 ? 'n' : ''} vereinbart.`
-      : '(4) Es werden maximal zwei Korrekturschleifen vereinbart.';
-    y = addWrappedText(korrekturText, 14, y, 180);
+    const korrekturAnzahl = Number(vertrag.korrekturschleifen);
+    const korrekturTemplate = !korrekturAnzahl
+      ? '(4) Es werden maximal zwei Korrekturschleifen vereinbart.'
+      : korrekturAnzahl > 1
+        ? '(4) Es werden maximal {anzahl} Korrekturschleifen vereinbart.'
+        : '(4) Es werden maximal {anzahl} Korrekturschleife vereinbart.';
+    y = writeClause(korrekturTemplate, { anzahl: korrekturAnzahl || '' }, y);
     y = renderZusatzBestimmung(doc, zusaetze.p5, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
     // §6 Verguetung
@@ -422,12 +444,12 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     y += 8;
-    y = addWrappedText(`(1) Der Influencer erhält für die vertragsgemäße Leistungserbringung eine Geldvergütung in Höhe von ${formatMoney(vertrag.verguetung_netto)} EUR netto.`, 14, y, 180);
+    y = writeClause('(1) Der Influencer erhält für die vertragsgemäße Leistungserbringung eine Geldvergütung in Höhe von {betrag} EUR netto.', { betrag: formatMoney(vertrag.verguetung_netto) }, y);
     y += 4;
     y = addWrappedText('(2) Ein Anspruch auf darüberhinausgehende Vergütung, insbesondere in Form von Sachleistungen, besteht nicht.', 14, y, 180);
     y += 4;
-    const zahlungszielText = zahlungszielLabels[vertrag.zahlungsziel] || '45 Tage';
-    y = addWrappedText(`(3) Die Zahlung erfolgt innerhalb von ${zahlungszielText} nach Leistungserbringung und Rechnungsstellung.`, 14, y, 180);
+    const zahlungszielText = this.localizeContractText(zahlungszielLabels[vertrag.zahlungsziel] || '45 Tage', lang);
+    y = writeClause('(3) Die Zahlung erfolgt innerhalb von {ziel} nach Leistungserbringung und Rechnungsstellung.', { ziel: zahlungszielText }, y);
     y += 4;
     y = addWrappedText('(4) Der Auftraggeber führt die gesetzlich vorgeschriebene Künstlersozialabgabe gemäß § 24 KSVG ab, soweit erforderlich.', 14, y, 180);
     y = renderZusatzBestimmung(doc, zusaetze.p6, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
@@ -443,13 +465,13 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     y += 8;
     y = addWrappedText('(1) Zur Durchführung der vertraglich geschuldeten Leistungen können dem Influencer Produkte zur Verfügung gestellt werden.', 14, y, 180);
     y += 4;
-    y = addWrappedText(`(2) Die Bereitstellung erfolgt im Rahmen der Zusammenarbeit regelmäßig durch das Unternehmen ${kunde?.firmenname || '-'}. Der Auftraggeber LikeGroup GmbH übernimmt insoweit keine Verpflichtung zur Bereitstellung bestimmter Produkte.`, 14, y, 180);
+    y = writeClause('(2) Die Bereitstellung erfolgt im Rahmen der Zusammenarbeit regelmäßig durch das Unternehmen {firma}. Der Auftraggeber LikeGroup GmbH übernimmt insoweit keine Verpflichtung zur Bereitstellung bestimmter Produkte.', { firma: kunde?.firmenname || '-' }, y);
     y += 4;
     y = addWrappedText('(3) Der Versand der Produkte und die dazugehörige Abwicklung erfolgt durch den Auftraggeber LikeGroup GmbH.', 14, y, 180);
     y += 4;
     y = addWrappedText('(4) Die zur Verfügung gestellten Produkte dienen ausschließlich der Unterstützung der Leistungserbringung und stellen keine Vergütung dar.', 14, y, 180);
     y += 4;
-    y = addWrappedText(`(5) Ein Anspruch des Influencers auf Bereitstellung bestimmter Produkte besteht nicht. Ebenso wird durch die Bereitstellung kein eigenständiges Vertragsverhältnis zwischen Influencer und dem Unternehmen ${kunde?.firmenname || '-'} begründet.`, 14, y, 180);
+    y = writeClause('(5) Ein Anspruch des Influencers auf Bereitstellung bestimmter Produkte besteht nicht. Ebenso wird durch die Bereitstellung kein eigenständiges Vertragsverhältnis zwischen Influencer und dem Unternehmen {firma} begründet.', { firma: kunde?.firmenname || '-' }, y);
     y += 4;
     y = addWrappedText('(6) Sofern nicht ausdrücklich etwas anderes vereinbart wird, ist der Influencer berechtigt, die überlassenen Produkte nach Durchführung der Zusammenarbeit zu behalten. Ein Anspruch hierauf besteht jedoch nicht.', 14, y, 180);
 
@@ -512,17 +534,20 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     const exklBereich = vertrag.contracting_exklusivitaet_bereich || 'XXX';
     const exklVon = vertrag.contracting_exklusivitaet_von ? formatDate(vertrag.contracting_exklusivitaet_von) : null;
     const exklBis = vertrag.contracting_exklusivitaet_bis ? formatDate(vertrag.contracting_exklusivitaet_bis) : null;
-    let exklSatz;
+    let exklTemplate = 'Der Influencer verpflichtet sich für die Dauer von zwei Wochen nach Veröffentlichung des Contents, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "{bereich}" einzugehen.';
+    const exklVars = { bereich: exklBereich };
     if (exklVon && exklBis) {
-      exklSatz = `Der Influencer verpflichtet sich für den Zeitraum vom ${exklVon} bis ${exklBis}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`;
+      exklTemplate = 'Der Influencer verpflichtet sich für den Zeitraum vom {von} bis {bis}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "{bereich}" einzugehen.';
+      exklVars.von = exklVon;
+      exklVars.bis = exklBis;
     } else if (exklVon) {
-      exklSatz = `Der Influencer verpflichtet sich ab dem ${exklVon}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`;
+      exklTemplate = 'Der Influencer verpflichtet sich ab dem {von}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "{bereich}" einzugehen.';
+      exklVars.von = exklVon;
     } else if (exklBis) {
-      exklSatz = `Der Influencer verpflichtet sich bis zum ${exklBis}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`;
-    } else {
-      exklSatz = `Der Influencer verpflichtet sich für die Dauer von zwei Wochen nach Veröffentlichung des Contents, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`;
+      exklTemplate = 'Der Influencer verpflichtet sich bis zum {bis}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "{bereich}" einzugehen.';
+      exklVars.bis = exklBis;
     }
-    y = addWrappedText(exklSatz, 14, y, 180);
+    y = writeClause(exklTemplate, exklVars, y);
     y = renderZusatzBestimmung(doc, zusaetze.p10, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
     // §11 Leistungsstoerungen
@@ -534,7 +559,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     y += 8;
-    y = addWrappedText(`(1) Der Auftraggeber LikeGroup GmbH und das Unternehmen ${kunde?.firmenname || '-'} sind berechtigt, im Rahmen der Abstimmung der Inhalte Nachbesserungen und Anpassungen zu verlangen.`, 14, y, 180);
+    y = writeClause('(1) Der Auftraggeber LikeGroup GmbH und das Unternehmen {firma} sind berechtigt, im Rahmen der Abstimmung der Inhalte Nachbesserungen und Anpassungen zu verlangen.', { firma: kunde?.firmenname || '-' }, y);
     y += 4;
     y = addWrappedText('(2) Die Geltendmachung weitergehender Rechte, insbesondere Vergütungskürzung, Rücktritt oder Schadensersatz, erfolgt ausschließlich durch den Auftraggeber LikeGroup GmbH.', 14, y, 180);
     y += 4;
@@ -551,7 +576,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     y += 8;
     y = addWrappedText('(1) Der Influencer haftet für Schäden aus der Verletzung wesentlicher Vertragspflichten.', 14, y, 180);
     y += 4;
-    y = addWrappedText(`(2) Der Influencer stellt den Auftraggeber und das Unternehmen ${kunde?.firmenname || '-'} von sämtlichen Ansprüchen Dritter frei, die aus einer Verletzung der Urheber-, Marken- und Persönlichkeitsrechten resultieren, sofern der Influencer die Rechtsverletzung zu vertreten hat.`, 14, y, 180);
+    y = writeClause('(2) Der Influencer stellt den Auftraggeber und das Unternehmen {firma} von sämtlichen Ansprüchen Dritter frei, die aus einer Verletzung der Urheber-, Marken- und Persönlichkeitsrechten resultieren, sofern der Influencer die Rechtsverletzung zu vertreten hat.', { firma: kunde?.firmenname || '-' }, y);
     y += 4;
     y = addWrappedText('(3) Die Haftung ist auf Vorsatz und grobe Fahrlässigkeit beschränkt, soweit gesetzlich zulässig.', 14, y, 180);
 

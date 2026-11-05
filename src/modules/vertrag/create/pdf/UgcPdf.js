@@ -615,14 +615,12 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
         doc.text('Creators ist ausschließlich die Agentur.', 14, y);
         y += 8;
         doc.text('Der Creator räumt der Agentur die zur Durchführung der Beauftragung erforderlichen', 14, y);
-        y += 5;
-        doc.text('Nutzungsrechte ein.', 14, y);
+        if (this.drawContractLine(doc, 'Nutzungsrechte ein.', 14, y + 5, lang)) y += 5;
         y += 8;
         doc.text('Die Agentur ist berechtigt, diese Rechte im Umfang der ihr eingeräumten Rechte ganz oder', 14, y);
         y += 5;
         doc.text('teilweise auf den in diesem Vertrag genannten Kunden zu übertragen oder diesem entsprechende', 14, y);
-        y += 5;
-        doc.text('Nutzungsrechte einzuräumen.', 14, y);
+        if (this.drawContractLine(doc, 'Nutzungsrechte einzuräumen.', 14, y + 5, lang)) y += 5;
         return y;
       }, { gap: 14 });
 
