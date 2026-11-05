@@ -245,20 +245,30 @@ export function renderVideoNameInner(ctx, video) {
       `;
 }
 
+// Gemeinsame Auto-Resize-Textarea (Caption, Feedback, Kommentar-Spalten):
+// Hoehe folgt dem Inhalt, Umbruch, voller Text sichtbar.
+export function renderStackedTextarea({ attrs, value, placeholder, readonly }) {
+  return `<textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
+          ${attrs}
+          ${readonly ? 'readonly' : ''}
+          placeholder="${escapeHtml(placeholder)}" rows="1">${escapeHtml(value || '')}</textarea>`;
+}
+
 export function renderCaptionInner(ctx, video) {
-  return `
-        <textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
-          data-entity="video" data-id="${video.id}" data-field="caption"
-          ${!ctx.t.isFieldEditableForUser('video', 'caption') ? 'readonly' : ''}
-          placeholder="Caption" rows="1">${escapeHtml(video.caption || '')}</textarea>
-      `;
+  return renderStackedTextarea({
+    attrs: `data-entity="video" data-id="${video.id}" data-field="caption"`,
+    value: video.caption,
+    placeholder: 'Caption',
+    readonly: !ctx.t.isFieldEditableForUser('video', 'caption')
+  });
 }
 
 export function renderFeedbackInner(ctx, video, slot) {
   const comments = ctx.t.videoComments[video.id];
-  const value = formatVideoFeedbackValue(comments, slot.bucket);
-  return `<textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
-          data-entity="video" data-id="${video.id}" data-field="${slot.field}"
-          ${!ctx.t.isFieldEditableForUser('video', slot.field) ? 'readonly' : ''}
-          placeholder="${slot.label}" rows="1">${escapeHtml(value)}</textarea>`;
+  return renderStackedTextarea({
+    attrs: `data-entity="video" data-id="${video.id}" data-field="${slot.field}"`,
+    value: formatVideoFeedbackValue(comments, slot.bucket),
+    placeholder: slot.label,
+    readonly: !ctx.t.isFieldEditableForUser('video', slot.field)
+  });
 }

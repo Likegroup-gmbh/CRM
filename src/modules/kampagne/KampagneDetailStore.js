@@ -13,6 +13,8 @@ import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
 
 
 const DEFAULT_KOOPERATION_SORT = 'created_desc';
+// Custom-Column-Typen, die in die Freitextsuche einfliessen.
+const SEARCHABLE_CUSTOM_TYPES = new Set(['text', 'comment', 'dropdown']);
 
 export class KampagneDetailStore {
   constructor(kampagneId) {
@@ -151,7 +153,7 @@ export class KampagneDetailStore {
       ...(koop._tags || []),
     ];
     for (const col of this.customColumns) {
-      if (col.field_type !== 'text' && col.field_type !== 'dropdown') continue;
+      if (!SEARCHABLE_CUSTOM_TYPES.has(col.field_type)) continue;
       if (col.entity_type === 'video') continue;
       parts.push(this.getCustomColumnValue(koop.id, col.id));
     }
@@ -165,7 +167,7 @@ export class KampagneDetailStore {
       video.strategie_item?.beschreibung,
     ];
     for (const col of this.customColumns) {
-      if (col.field_type !== 'text' && col.field_type !== 'dropdown') continue;
+      if (!SEARCHABLE_CUSTOM_TYPES.has(col.field_type)) continue;
       if (col.entity_type !== 'video') continue;
       parts.push(this.getCustomColumnValue(video.id, col.id));
     }

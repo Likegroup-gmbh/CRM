@@ -6,6 +6,7 @@
 
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { VideoRowHeightSync } from './VideoRowHeightSync.js';
+import { VideoFeedbackBinding } from './VideoFeedbackBinding.js';
 import { getVideoFeedbackSlotByField } from '../../core/VideoFeedbackBuckets.js';
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
@@ -54,6 +55,8 @@ export class VideoTableEventBinder {
       // Feedback-Felder laufen ueber den VideoFeedbackSaveController (Autosave +
       // Flush), nicht ueber diesen generischen Handler -> Doppel-Save vermeiden.
       if (e.target.dataset?.entity === 'video' && getVideoFeedbackSlotByField(e.target.dataset.field)) return;
+      // Kommentar-Spalten (Typ "comment") nutzen denselben Controller.
+      if (VideoFeedbackBinding.isCustomCommentField(e.target)) return;
       if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea') || e.target.classList.contains('custom-col-input')) {
         await t.handleFieldUpdate(e.target);
 

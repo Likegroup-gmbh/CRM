@@ -23,8 +23,19 @@ export class VideoFeedbackSaveController {
     this._dirty = new Set();     // keys mit ungespeicherten Aenderungen
   }
 
+  // Identitaet eines Feldes. Feedback-Felder: data-entity/-id/-field.
+  // Kommentarfelder eigener Spalten: data-custom-column-id + data-entity-id
+  // (gleiche Autosave-/Flush-Logik, eigener Key-Raum "custom").
+  _identity(field) {
+    if (field.dataset.customColumnId) {
+      return { entity: 'custom', id: field.dataset.entityId, field: field.dataset.customColumnId, attrs: 'data-custom-column-id' };
+    }
+    return { entity: field.dataset.entity || 'video', id: field.dataset.id, field: field.dataset.field, attrs: null };
+  }
+
   _key(field) {
-    return `${field.dataset.entity || 'video'}|${field.dataset.id}|${field.dataset.field}`;
+    const { entity, id, field: name } = this._identity(field);
+    return `${entity}|${id}|${name}`;
   }
 
   // Feld fokussiert: Status-Tag sofort anzeigen ("Bearbeiten"), ausser es laeuft
@@ -136,12 +147,13 @@ export class VideoFeedbackSaveController {
 
   // Haelt doppelte Textareas desselben Feldes (Tabelle <-> Player) in Sync.
   _syncSiblings(field) {
-    const id = field.dataset.id;
-    const fieldName = field.dataset.field;
+    const { entity, id, field: fieldName } = this._identity(field);
     if (!id || !fieldName) return;
-    const entity = field.dataset.entity || 'video';
+    const selector = entity === 'custom'
+      ? `textarea[data-custom-column-id="${fieldName}"][data-entity-id="${id}"]`
+      : `textarea[data-entity="${entity}"][data-id="${id}"][data-field="${fieldName}"]`;
     document
-      .querySelectorAll(`textarea[data-entity="${entity}"][data-id="${id}"][data-field="${fieldName}"]`)
+      .querySelectorAll(selector)
       .forEach(el => {
         if (el !== field && el.value !== field.value) el.value = field.value;
       });

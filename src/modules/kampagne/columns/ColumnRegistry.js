@@ -202,6 +202,7 @@ function toColumnEntry(customCol) {
     fieldType: customCol.field_type,
     entityType: customCol.entity_type,
     visibleForKunden: customCol.visible_for_kunden,
+    editableByKunden: Boolean(customCol.visible_for_kunden && customCol.editable_by_kunden),
     dropdownOptions: customCol._dropdownOptions || []
   };
 }

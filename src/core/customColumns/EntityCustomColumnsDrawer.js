@@ -93,7 +93,7 @@ export class EntityCustomColumnsDrawer {
       <div class="custom-columns-list">
         ${(this.columns || []).length > 0
           ? `<table class="custom-columns-table">
-              <thead><tr><th>Name</th><th>Typ</th><th>Kunde</th><th></th></tr></thead>
+              <thead><tr><th>Name</th><th>Typ</th><th>Kunde</th><th>Aktionen</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>`
           : renderEmptyState({ title: 'Noch keine eigenen Spalten angelegt', size: 'small' })}
@@ -133,7 +133,7 @@ export class EntityCustomColumnsDrawer {
     return `
       <tr data-column-id="${col.id}">
         <td><input type="text" class="custom-col-name-input" value="${escapeHtml(col.name)}" data-column-id="${col.id}" placeholder="Spaltenname"/></td>
-        <td><span class="badge badge-muted">${typeLabel}</span></td>
+        <td><span class="tag tag--type">${typeLabel}</span></td>
         <td>
           <label class="toggle-switch toggle-switch-small">
             <input type="checkbox" class="custom-col-kunde-toggle" data-column-id="${col.id}" ${col.visible_for_kunden ? 'checked' : ''}/>

@@ -10,6 +10,7 @@ import { DRAWER_EXIT_MS } from '../../../core/animation/drawer.js';
 
 const FIELD_TYPES = [
   { value: 'text', label: 'Text' },
+  { value: 'comment', label: 'Kommentarfeld' },
   { value: 'link', label: 'Link' },
   { value: 'date', label: 'Datum' },
   { value: 'boolean', label: 'Ja/Nein (Checkbox)' },
@@ -17,6 +18,11 @@ const FIELD_TYPES = [
   { value: 'number', label: 'Zahl' },
   { value: 'upload', label: 'Datei-Upload' }
 ];
+
+// Beim Bearbeiten darf der Typ nur innerhalb dieser Gruppe wechseln: die Werte
+// liegen als reiner Text vor, alle anderen Typen haetten inkompatible Daten
+// (Checkbox, Datum, Zahl, Dropdown-Optionen, Upload-Assets).
+const TEXT_LIKE_TYPES = ['text', 'comment', 'link'];
 
 const ENTITY_TYPES = [
   { value: 'kooperation', label: 'Pro Kooperation (1 Wert pro Zeile)' },
@@ -32,6 +38,7 @@ export class CustomColumnsDrawer {
     this._openRequestId = 0;
     this._expandedDropdownColId = null;
     this._newColumnDropdownOptions = [];
+    this._editingColumnId = null;
   }
 
   async open() {
@@ -99,7 +106,7 @@ export class CustomColumnsDrawer {
         ${columns.length > 0
           ? `<table class="custom-columns-table">
               <thead><tr>
-                <th>Name</th><th>Typ</th><th>Ebene</th><th>Kunde</th><th></th>
+                <th>Name</th><th>Typ</th><th>Ebene</th><th>Kunde</th><th>Kunde bearbeitet</th><th>Aktionen</th>
               </tr></thead>
               <tbody>${rows}</tbody>
             </table>`
@@ -131,7 +138,7 @@ export class CustomColumnsDrawer {
       const cnt = (col._dropdownOptions || []).length;
       dropdownRow = `
         <tr class="cc-dropdown-toggle-row">
-          <td colspan="5">
+          <td colspan="6">
             <button type="button" class="cc-dropdown-toggle" data-column-id="${col.id}">
               ${icon} Optionen (${cnt})
             </button>
@@ -146,8 +153,8 @@ export class CustomColumnsDrawer {
           <input type="text" class="custom-col-name-input" value="${this._esc(col.name)}"
             data-column-id="${col.id}" placeholder="Spaltenname"/>
         </td>
-        <td><span class="badge badge-muted">${typeLabel}</span></td>
-        <td><span class="badge badge-muted">${entityLabel}</span></td>
+        <td><span class="tag tag--type">${typeLabel}</span></td>
+        <td><span class="tag tag--type">${entityLabel}</span></td>
         <td>
           <label class="toggle-switch toggle-switch-small">
             <input type="checkbox" class="custom-col-kunde-toggle"
@@ -156,10 +163,25 @@ export class CustomColumnsDrawer {
           </label>
         </td>
         <td>
-          <button type="button" class="btn-icon btn-danger-icon custom-col-delete-btn"
-            data-column-id="${col.id}" data-column-name="${this._esc(col.name)}" title="Spalte löschen">
-            ${icon('trash-alt')}
-          </button>
+          ${col.field_type === 'upload' ? '<span class="text-muted">–</span>' : `
+          <label class="toggle-switch toggle-switch-small">
+            <input type="checkbox" class="custom-col-kunde-edit-toggle"
+              data-column-id="${col.id}" ${col.editable_by_kunden && col.visible_for_kunden ? 'checked' : ''}
+              ${col.visible_for_kunden ? '' : 'disabled'}/>
+            <span class="toggle-slider"></span>
+          </label>`}
+        </td>
+        <td>
+          <div class="cc-row-actions">
+            <button type="button" class="btn-icon custom-col-edit-btn"
+              data-column-id="${col.id}" title="Spalte bearbeiten">
+              ${icon('pencil-square')}
+            </button>
+            <button type="button" class="btn-icon btn-danger-icon custom-col-delete-btn"
+              data-column-id="${col.id}" data-column-name="${this._esc(col.name)}" title="Spalte löschen">
+              ${icon('trash-alt')}
+            </button>
+          </div>
         </td>
       </tr>
       ${dropdownRow}`;
@@ -190,8 +212,16 @@ export class CustomColumnsDrawer {
       </div>`;
   }
 
+  _typeOptionsHtml(allowedValues = null) {
+    return FIELD_TYPES
+      .filter(t => !allowedValues || allowedValues.includes(t.value))
+      .map(t => `<option value="${t.value}">${t.label}</option>`)
+      .join('');
+  }
+
+  // Formular dient zum Anlegen UND Bearbeiten (siehe _showForm).
   _renderAddForm() {
-    const typeOpts = FIELD_TYPES.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
+    const typeOpts = this._typeOptionsHtml();
     const entityOpts = ENTITY_TYPES.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
 
     const newOptsHtml = this._newColumnDropdownOptions.map((label, idx) => `
@@ -202,13 +232,14 @@ export class CustomColumnsDrawer {
 
     return `
       <div class="cc-add-form">
-        <div class="cc-add-form-title">Neue Spalte</div>
+        <div class="cc-add-form-title" id="cc-form-title">Neue Spalte</div>
 
         <label class="cc-field-label">Name</label>
         <input type="text" id="cc-new-name" placeholder="z.B. Notiz, Bewertung …" class="cc-field-input"/>
 
         <label class="cc-field-label">Typ</label>
         <select id="cc-new-type" class="cc-field-select">${typeOpts}</select>
+        <p class="cc-field-hint" id="cc-type-hint" style="display:none;">Der Typ lässt sich nur zwischen Text, Kommentarfeld und Link wechseln.</p>
 
         <div class="cc-new-dd-area" style="display:none;">
           <label class="cc-field-label">Dropdown-Optionen</label>
@@ -221,11 +252,20 @@ export class CustomColumnsDrawer {
 
         <label class="cc-field-label">Ebene</label>
         <select id="cc-new-entity" class="cc-field-select">${entityOpts}</select>
+        <p class="cc-field-hint" id="cc-entity-hint" style="display:none;">Die Ebene lässt sich nachträglich nicht ändern.</p>
 
         <label class="cc-field-label cc-field-label-row">
           <span>Für Kunden sichtbar</span>
           <label class="toggle-switch">
             <input type="checkbox" id="cc-new-kunde-visible"/>
+            <span class="toggle-slider"></span>
+          </label>
+        </label>
+
+        <label class="cc-field-label cc-field-label-row" id="cc-new-kunde-edit-row">
+          <span>Kunde darf ausfüllen</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="cc-new-kunde-editable" disabled/>
             <span class="toggle-slider"></span>
           </label>
         </label>
@@ -243,9 +283,10 @@ export class CustomColumnsDrawer {
 
   _bindEvents(body) {
     body.querySelector('#btn-close-custom-columns')?.addEventListener('click', () => this.close());
-    body.querySelector('#btn-add-custom-column')?.addEventListener('click', () => this._showAddForm());
+    body.querySelector('#btn-add-custom-column')?.addEventListener('click', () => this._showForm());
     body.querySelector('#btn-cancel-add-column')?.addEventListener('click', () => this._hideAddForm());
-    body.querySelector('#btn-confirm-add-column')?.addEventListener('click', () => this._handleAddColumn());
+    body.querySelector('#btn-confirm-add-column')?.addEventListener('click', () =>
+      (this._editingColumnId ? this._handleUpdateColumn() : this._handleAddColumn()));
 
     const typeSelect = body.querySelector('#cc-new-type');
     if (typeSelect) {
@@ -253,12 +294,21 @@ export class CustomColumnsDrawer {
       this._onNewTypeChange(typeSelect.value);
     }
 
+    body.querySelector('#cc-new-kunde-visible')?.addEventListener('change', () => this._syncNewKundeEditRow());
+
     body.querySelector('#btn-cc-new-opt-add')?.addEventListener('click', () => this._handleAddNewColumnOption());
     body.querySelector('#cc-new-opt-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); this._handleAddNewColumnOption(); }
     });
 
     body.addEventListener('click', (e) => {
+      const edit = e.target.closest('.custom-col-edit-btn');
+      if (edit) {
+        const col = this.store.customColumns.find(c => c.id === edit.dataset.columnId);
+        if (col) this._showForm(col);
+        return;
+      }
+
       const del = e.target.closest('.custom-col-delete-btn');
       if (del) return this._handleDeleteColumn(del.dataset.columnId, del.dataset.columnName);
 
@@ -294,6 +344,8 @@ export class CustomColumnsDrawer {
     body.addEventListener('change', (e) => {
       if (e.target.classList.contains('custom-col-kunde-toggle'))
         this._handleKundeToggle(e.target.dataset.columnId, e.target.checked);
+      if (e.target.classList.contains('custom-col-kunde-edit-toggle'))
+        this._handleKundeEditToggle(e.target.dataset.columnId, e.target.checked);
     });
 
     body.addEventListener('keydown', (e) => {
@@ -310,7 +362,21 @@ export class CustomColumnsDrawer {
 
   _onNewTypeChange(val) {
     const area = document.querySelector('.cc-new-dd-area');
-    if (area) area.style.display = val === 'dropdown' ? '' : 'none';
+    // Optionen bestehender Dropdown-Spalten werden in der Tabellenzeile gepflegt.
+    if (area) area.style.display = (val === 'dropdown' && !this._editingColumnId) ? '' : 'none';
+    this._syncNewKundeEditRow();
+  }
+
+  // "Kunde darf ausfüllen" ist immer sichtbar, aber nur aktiv wenn die Spalte
+  // fuer Kunden sichtbar ist und der Typ nicht Upload ist.
+  _syncNewKundeEditRow() {
+    const cb = document.getElementById('cc-new-kunde-editable');
+    if (!cb) return;
+    const visible = document.getElementById('cc-new-kunde-visible')?.checked;
+    const type = document.getElementById('cc-new-type')?.value;
+    const enabled = Boolean(visible) && type !== 'upload';
+    cb.disabled = !enabled;
+    if (!enabled) cb.checked = false;
   }
 
   _handleAddNewColumnOption() {
@@ -337,20 +403,90 @@ export class CustomColumnsDrawer {
       </div>`).join('');
   }
 
-  _showAddForm() {
+  // Formular oeffnen: ohne Argument = neue Spalte, mit Spalte = Bearbeiten.
+  _showForm(col = null) {
+    this._editingColumnId = col?.id || null;
     this._newColumnDropdownOptions = [];
     const area = document.getElementById('custom-column-form-area');
     if (area) area.style.display = '';
     this._refreshNewOptsList();
+    this._applyFormMode(col);
     document.getElementById('cc-new-name')?.focus();
+    area?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  // Befuellt/setzt das gemeinsame Formular fuer Anlegen bzw. Bearbeiten.
+  _applyFormMode(col) {
+    const editing = Boolean(col);
+    const $ = (id) => document.getElementById(id);
+
+    $('cc-form-title').textContent = editing ? 'Spalte bearbeiten' : 'Neue Spalte';
+    $('btn-confirm-add-column').textContent = editing ? 'Speichern' : 'Anlegen';
+    $('cc-new-name').value = col?.name || '';
+
+    const typeSelect = $('cc-new-type');
+    const typeLocked = editing && !TEXT_LIKE_TYPES.includes(col.field_type);
+    typeSelect.innerHTML = this._typeOptionsHtml(
+      editing ? (typeLocked ? [col.field_type] : TEXT_LIKE_TYPES) : null
+    );
+    typeSelect.value = col?.field_type || FIELD_TYPES[0].value;
+    typeSelect.disabled = typeLocked;
+    $('cc-type-hint').style.display = editing ? '' : 'none';
+
+    // Ebene bleibt fix: Werte haengen an Kooperation- bzw. Video-IDs.
+    const entitySelect = $('cc-new-entity');
+    entitySelect.value = col?.entity_type || ENTITY_TYPES[0].value;
+    entitySelect.disabled = editing;
+    $('cc-entity-hint').style.display = editing ? '' : 'none';
+
+    $('cc-new-kunde-visible').checked = Boolean(col?.visible_for_kunden);
+    $('cc-new-kunde-editable').checked = Boolean(col?.editable_by_kunden && col?.visible_for_kunden);
+
+    this._onNewTypeChange(typeSelect.value);
+    // _syncNewKundeEditRow setzt "editierbar" bei deaktiviertem Zustand zurueck;
+    // beim Bearbeiten den gespeicherten Wert wiederherstellen, falls erlaubt.
+    const editCb = $('cc-new-kunde-editable');
+    if (editing && !editCb.disabled) editCb.checked = Boolean(col.editable_by_kunden);
   }
 
   _hideAddForm() {
+    this._editingColumnId = null;
     const area = document.getElementById('custom-column-form-area');
     if (area) area.style.display = 'none';
-    const n = document.getElementById('cc-new-name');
-    if (n) n.value = '';
+    this._applyFormMode(null);
     this._newColumnDropdownOptions = [];
+  }
+
+  async _handleUpdateColumn() {
+    const col = this.store.customColumns.find(c => c.id === this._editingColumnId);
+    if (!col) { this._hideAddForm(); return; }
+
+    const name = document.getElementById('cc-new-name')?.value.trim();
+    const fieldType = document.getElementById('cc-new-type')?.value;
+    const visible = document.getElementById('cc-new-kunde-visible')?.checked || false;
+    const editable = visible && fieldType !== 'upload'
+      && (document.getElementById('cc-new-kunde-editable')?.checked || false);
+
+    if (!name) { window.toastSystem?.show('Bitte einen Namen eingeben', 'warning'); return; }
+
+    const patch = {
+      name,
+      field_type: fieldType,
+      visible_for_kunden: visible,
+      editable_by_kunden: editable
+    };
+
+    try {
+      await CustomColumnDataLoader.updateColumn(col.id, patch);
+      this.store.updateCustomColumn(col.id, patch);
+      this._hideAddForm();
+      this._refreshContent();
+      this.onRefilter?.();
+      window.toastSystem?.show(`Spalte „${name}" gespeichert`, 'success');
+    } catch (error) {
+      console.error('❌ Spalte speichern fehlgeschlagen:', error);
+      window.toastSystem?.show('Fehler beim Speichern der Spalte', 'error');
+    }
   }
 
   // ========================================
@@ -362,12 +498,15 @@ export class CustomColumnsDrawer {
     const fieldType = document.getElementById('cc-new-type')?.value;
     const entityType = document.getElementById('cc-new-entity')?.value;
     const visibleForKunden = document.getElementById('cc-new-kunde-visible')?.checked || false;
+    const editableByKunden = visibleForKunden && fieldType !== 'upload'
+      && (document.getElementById('cc-new-kunde-editable')?.checked || false);
 
     if (!name) { window.toastSystem?.show('Bitte einen Namen eingeben', 'warning'); return; }
 
     try {
       const col = await CustomColumnDataLoader.createColumn(this.kampagneId, {
-        name, field_type: fieldType, entity_type: entityType, visible_for_kunden: visibleForKunden
+        name, field_type: fieldType, entity_type: entityType,
+        visible_for_kunden: visibleForKunden, editable_by_kunden: editableByKunden
       });
 
       if (fieldType === 'dropdown' && this._newColumnDropdownOptions.length > 0) {
@@ -436,11 +575,25 @@ export class CustomColumnsDrawer {
 
   async _handleKundeToggle(columnId, visible) {
     try {
-      await CustomColumnDataLoader.updateColumn(columnId, { visible_for_kunden: visible });
-      this.store.updateCustomColumn(columnId, { visible_for_kunden: visible });
+      // Unsichtbar => auch nicht editierbar
+      const patch = visible ? { visible_for_kunden: true } : { visible_for_kunden: false, editable_by_kunden: false };
+      await CustomColumnDataLoader.updateColumn(columnId, patch);
+      this.store.updateCustomColumn(columnId, patch);
+      this._refreshContent();
       this.onRefilter?.();
     } catch (error) {
       console.error('❌ Kunden-Sichtbarkeit fehlgeschlagen:', error);
+      window.toastSystem?.show('Fehler beim Ändern', 'error');
+    }
+  }
+
+  async _handleKundeEditToggle(columnId, editable) {
+    try {
+      await CustomColumnDataLoader.updateColumn(columnId, { editable_by_kunden: editable });
+      this.store.updateCustomColumn(columnId, { editable_by_kunden: editable });
+      this.onRefilter?.();
+    } catch (error) {
+      console.error('❌ Kunden-Bearbeitbarkeit fehlgeschlagen:', error);
       window.toastSystem?.show('Fehler beim Ändern', 'error');
     }
   }
@@ -541,6 +694,8 @@ export class CustomColumnsDrawer {
   _refreshContent() {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
+    // Das Formular wird neu gerendert (versteckt) -> Bearbeiten-Modus verwerfen.
+    this._editingColumnId = null;
     body.innerHTML = this._renderContent();
     this._bindEvents(body);
   }
@@ -565,6 +720,7 @@ export class CustomColumnsDrawer {
     this.removeDrawer();
     this._expandedDropdownColId = null;
     this._newColumnDropdownOptions = [];
+    this._editingColumnId = null;
   }
 
   _esc(text) {

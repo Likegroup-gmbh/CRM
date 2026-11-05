@@ -113,7 +113,8 @@
 .kooperation-video-grid .col-feedback-cj-2,
 .kooperation-video-grid .col-feedback-kunde-2,
 .kooperation-video-grid .col-feedback-cj-3,
-.kooperation-video-grid .col-feedback-kunde-3 {
+.kooperation-video-grid .col-feedback-kunde-3,
+.kooperation-video-grid .col-custom-comment {
   width: 16rem;
   min-width: 16rem;
 }
@@ -3139,7 +3140,60 @@ th[draggable="true"]:active {
   cursor: grabbing;
 }
 
-/* Custom Columns Drawer */
+/* Custom Columns Drawer
+   Body ohne Padding, damit die Tabelle randlos bis an die Drawer-Kanten reicht
+   (wie die Header-Linie). Abstand liefern die ersten/letzten Zellen sowie die
+   Bereiche darunter. Nur diese beiden Drawer betroffen, .drawer-body bleibt global. */
+#custom-columns-drawer .drawer-body,
+#entity-custom-columns-drawer .drawer-body {
+  padding: 0;
+}
+
+#custom-columns-drawer .cc-add-section,
+#entity-custom-columns-drawer .cc-add-section {
+  padding: var(--space-md);
+}
+
+#custom-columns-drawer #custom-column-form-area,
+#entity-custom-columns-drawer #entity-custom-column-form-area {
+  padding: 0 var(--space-md) var(--space-md);
+}
+
+#custom-columns-drawer .drawer-footer,
+#entity-custom-columns-drawer .drawer-footer {
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-primary);
+}
+
+.custom-columns-table th:first-child,
+.custom-columns-table td:first-child {
+  padding-left: var(--space-md);
+}
+
+.custom-columns-table th:last-child,
+.custom-columns-table td:last-child {
+  padding-right: var(--space-md);
+}
+
+/* Icon-Buttons (Bearbeiten/Loeschen) in der Tabelle: kein Hover-Effekt */
+.custom-columns-table .btn-icon:hover {
+  background: transparent;
+  color: var(--gray-400);
+  transform: none;
+}
+
+.cc-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+.cc-field-hint {
+  margin: var(--space-xxs) 0 0;
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
 .custom-columns-table {
   width: 100%;
   border-collapse: collapse;
@@ -3154,11 +3208,11 @@ th[draggable="true"]:active {
 }
 
 .custom-columns-table th {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--gray-500);
   font-size: var(--text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  
 }
 
 .custom-col-name-input {
@@ -3202,15 +3256,6 @@ th[draggable="true"]:active {
 
 .toggle-switch-small {
   transform: scale(0.85);
-}
-
-.badge-muted {
-  display: inline-block;
-  padding: var(--space-xxs) 6px;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  background: var(--gray-100);
-  color: var(--gray-600);
 }
 
 /* ========================================

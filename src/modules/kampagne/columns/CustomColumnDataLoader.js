@@ -121,7 +121,7 @@ export class CustomColumnDataLoader {
   /**
    * Erstellt eine neue Custom Column Definition.
    */
-  static async createColumn(kampagneId, { name, field_type, entity_type, visible_for_kunden = false }) {
+  static async createColumn(kampagneId, { name, field_type, entity_type, visible_for_kunden = false, editable_by_kunden = false }) {
     const maxPosResult = await window.supabase
       .from('custom_columns')
       .select('position')
@@ -140,6 +140,7 @@ export class CustomColumnDataLoader {
         entity_type,
         position: nextPos,
         visible_for_kunden,
+        editable_by_kunden: visible_for_kunden && editable_by_kunden,
         created_by: window.currentUser?.auth_user_id || null
       })
       .select('*')

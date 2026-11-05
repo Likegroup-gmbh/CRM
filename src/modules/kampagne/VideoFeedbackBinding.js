@@ -11,7 +11,16 @@ export class VideoFeedbackBinding {
     this.controller = controller;
   }
 
+  // Kommentarfeld einer eigenen Spalte (Typ "comment"): nutzt dieselbe
+  // Autosave-Pipeline wie die Feedback-Felder.
+  static isCustomCommentField(el) {
+    return !!el
+      && el.tagName === 'TEXTAREA'
+      && !!el.dataset?.customColumnId;
+  }
+
   static isEditableFeedbackField(el) {
+    if (VideoFeedbackBinding.isCustomCommentField(el)) return !el.readOnly;
     const entity = el?.dataset?.entity;
     return !!el
       && el.tagName === 'TEXTAREA'
