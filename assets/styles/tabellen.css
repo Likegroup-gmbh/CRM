@@ -17,6 +17,7 @@
   text-decoration-color: var(--gray-300);
   text-underline-offset: 2px;
   transition: text-decoration-color 0.15s ease;
+  cursor: pointer;
 }
 
 .table-link:hover {

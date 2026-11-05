@@ -40,6 +40,7 @@ export function bindDragToScroll(state) {
       e.target.tagName === 'BUTTON' ||
       e.target.classList.contains('status-badge') ||
       e.target.closest('a') ||
+      e.target.closest('td.col-name') ||
       e.target.closest('.actions-dropdown-container')
     ) {
       return;
