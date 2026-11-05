@@ -12,6 +12,17 @@
     <link rel="stylesheet" href="../../assets/styles/layout.css">
     <link rel="stylesheet" href="../../assets/styles/components.css">
     <!-- Auth-/OTP-Styles kommen zentral aus layout.css (AUTH / OTP Sektion) -->
+    <script>
+        // Passwort-Reset-Links, die hier landen (z. B. Redirect-Fallback auf die Site URL),
+        // gehoeren auf die Reset-Seite, nicht zur Code-Eingabe.
+        (function () {
+            var q = new URLSearchParams(window.location.search);
+            var h = new URLSearchParams(window.location.hash.substring(1));
+            if (q.get('type') === 'recovery' || h.get('type') === 'recovery') {
+                window.location.replace('/src/auth/reset-password.html' + window.location.search + window.location.hash);
+            }
+        })();
+    </script>
 </head>
 <body style="margin: 0; padding: 0;">
     <div class="login-split-container">
@@ -101,7 +112,13 @@
             
             // Get email from URL params or localStorage
             const urlParams = new URLSearchParams(window.location.search)
-            userEmail = urlParams.get('email') || localStorage.getItem('pendingVerificationEmail') || 'test@example.com'
+            userEmail = urlParams.get('email') || localStorage.getItem('pendingVerificationEmail') || ''
+
+            // Ohne bekannte Adresse keine Fantasie-Mail anzeigen
+            if (!userEmail) {
+                window.location.replace('/')
+                return
+            }
             
             console.log('User email:', userEmail)
             
