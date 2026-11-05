@@ -374,6 +374,16 @@ const ACTION_VERB = {
   'task-create': 'create',
 };
 
+// Diese Aktionen legen eine andere Entitaet an als die, auf deren Menue sie
+// sitzen. Sonst prueft "Produkt anlegen" am Unternehmen unternehmen.can_create.
+// Mitarbeiter duerfen keine Firma anlegen, Produkte aber schon.
+const ACTION_ENTITY = {
+  add_produkt: 'produkt',
+  add_persona: 'persona',
+  add_ansprechpartner: 'ansprechpartner',
+  add_ansprechpartner_unternehmen: 'ansprechpartner',
+};
+
 function verbFor(action) {
   if (VIEW_ACTION_IDS.has(action.id)) return null;
   if (ACTION_VERB[action.id]) return ACTION_VERB[action.id];
@@ -416,7 +426,7 @@ function filterByCapability(entityType, userRole, actions, capEntity = entityTyp
 
     const verb = verbFor(action);
     if (verb === null) return true;
-    return ps.can(capEntity, verb);
+    return ps.can(ACTION_ENTITY[action.id] || capEntity, verb);
   }));
 }
 
