@@ -3,12 +3,14 @@
 
 import { loadAnsprechpartnerRows } from '../snapshot.js';
 import { creatorFuerAnschreiben, createSkriptAnhang, sanitizeSkriptFilename } from '../../../modules/skripte/SkriptPdf.js';
+import { pdfBloecke } from '../../../modules/skripte/editor/dokument/blockModell.js';
+import { skriptBildPublicUrl } from '../../../modules/skripte/editor/dokument/skriptBild.js';
 
 const CREATOR_FELDER = 'id, vorname, nachname, mail, instagram, tiktok, profilbild_url, profilbild_thumb_url';
 
 const SKRIPT_SELECT = `
   id, titel, created_at, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell,
-  rezept, text_hook, caption,
+  rezept, text_hook, caption, dokument_bloecke,
   unternehmen:unternehmen_id(firmenname, logo_url),
   marke:marke_id(markenname, logo_url),
   produkt:produkt_id(name),
@@ -341,6 +343,7 @@ export async function loadSkriptPdfItems(db, { dokumentId, anhang }) {
       videoUrl: skript?.strategie_item?.video_link || '',
       ...customerOf(skript),
       kampagneName: kampagneName(skript),
+      dokument_bloecke: pdfBloecke(skript.dokument_bloecke, (pfad) => skriptBildPublicUrl(db, pfad)),
     };
   });
 }

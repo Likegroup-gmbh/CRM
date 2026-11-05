@@ -81,7 +81,7 @@ export async function setPaketSkripte(paketId, skriptIds) {
 /** Freigegebene Skripte, die der Gast-JWT sehen darf, in Nr.-Reihenfolge. */
 export async function loadGastPaketSkripte() {
   const { data, error } = await db().from('skripte')
-    .select(`id, titel, status, created_at, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, rezept, caption, text_hook,
+    .select(`id, titel, status, created_at, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, rezept, caption, text_hook, dokument_bloecke,
       marke:marke_id(markenname, logo_url), unternehmen:unternehmen_id(firmenname, logo_url),
       produkt:produkt_id(name), kampagne:kampagne_id(kampagnenname, eigener_name),
       strategie_item:strategie_item_id(id, strategie_id, creator_name, video_link, casting_eintrag:creator_auswahl_item_id(id, name, link_instagram, creator:creator_id(id, vorname, nachname, profilbild_url, instagram)))`)

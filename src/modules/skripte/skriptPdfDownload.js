@@ -1,8 +1,15 @@
 // Download eines oder mehrerer Skripte als das bestehende Anschreiben-PDF.
 
 import { createSkriptAnhang, creatorFuerAnschreiben, sanitizeSkriptFilename } from './SkriptPdf.js';
+import { pdfBloecke } from './editor/dokument/blockModell.js';
+import { skriptBildPublicUrl } from './editor/dokument/skriptBild.js';
 
 export { sanitizeSkriptFilename };
+
+/** Sichtbare Freie Bloecke (ohne intern) mit Bild-URLs; null = nur die Skript-Tabelle. */
+export function pdfBloeckeAusSkript(skript, db = globalThis.window?.supabase) {
+  return pdfBloecke(skript?.dokument_bloecke, (pfad) => skriptBildPublicUrl(db, pfad));
+}
 
 /** Eine Zeile aus dem Skript-Loader in das Anschreiben-PDF-Format. */
 export function pdfItemAusSkript(skript, verknuepfungen = []) {
@@ -28,7 +35,8 @@ export function pdfItemAusSkript(skript, verknuepfungen = []) {
     produktName: skript?.produkt?.name || '',
     videoUrl: skript?.strategie_item?.video_link || '',
     customerLogoUrl: skript?.marke?.logo_url || skript?.unternehmen?.logo_url || '',
-    customerName
+    customerName,
+    dokument_bloecke: pdfBloeckeAusSkript(skript)
   };
 }
 

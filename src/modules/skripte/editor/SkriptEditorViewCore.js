@@ -15,6 +15,8 @@ import { SkriptEditorVersionen } from './SkriptEditorVersionen.js';
 import { SkriptEditorVisuell } from './SkriptEditorVisuell.js';
 import { SkriptEditorRealtime } from './SkriptEditorRealtime.js';
 import { SkriptFeedbackPanel } from './SkriptFeedbackPanel.js';
+import { SkriptEditorBlocks } from './SkriptEditorBlocks.js';
+import { SkriptEditorToolbar } from './SkriptEditorToolbar.js';
 import { upsertById } from './skriptEditorMessages.js';
 
 export class SkriptEditorView {
@@ -30,6 +32,7 @@ export class SkriptEditorView {
     this.aktiveVersion = { version_nr: 1, sub_nr: 0 };
     this.docTab = 'skript';
     this.selektion = null; // { sektion, text, istVisuell }
+    this.blockSelektion = null; // { ort, start, end } in einem Freien Block
     this.pendingAktion = null; // 'neu_schreiben' | 'kuerzen' | 'laenger' | 'anderer_ton' | null
     this.channel = null;
     this.pollInterval = null;
@@ -70,6 +73,8 @@ export class SkriptEditorView {
     this._visuell = new SkriptEditorVisuell(this);
     this._realtime = new SkriptEditorRealtime(this);
     this._feedback = new SkriptFeedbackPanel(this);
+    this._blocks = new SkriptEditorBlocks(this);
+    this._toolbar = new SkriptEditorToolbar(this, this._blocks);
     this.verknuepfungen = [];
     this._koopDrawer = null;
   }
@@ -112,6 +117,19 @@ export class SkriptEditorView {
   get kannKommentieren() {
     if (window.permissionSystem?.isGast) return window.guestShare?.rechte === 'feedback';
     return window.canFeature?.('skriptKommentieren') ?? false;
+  }
+
+  /** Freie Bloecke im Skript-Dokument (ADR 0062): nur das Team bearbeitet sie. */
+  get kannBloeckeEditieren() {
+    return Boolean(window.isInternal?.())
+      && !window.permissionSystem?.isGast
+      && (window.canEdit?.('skripte') ?? false)
+      && Boolean(this.skript?.id);
+  }
+
+  /** Als intern markierte Bloecke sieht nur das Team (auch view-only intern). */
+  get siehtInterneBloecke() {
+    return Boolean(window.isInternal?.()) && !window.permissionSystem?.isGast;
   }
 
   /** Threads abhaken bleibt intern (serverseitig zusaetzlich per RPC erzwungen). */

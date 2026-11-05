@@ -130,8 +130,12 @@ SkriptEditorView.prototype.renderLayout = function() {
         </aside>`}
       </div>
       <div class="crm-fmenu crm-fmenu--sm crm-fmenu--scroll skripte-editor-selmenu" id="ed-vermenu" hidden></div>
-      ${this.kannKommentieren && !gast ? `
+      ${(this.kannKommentieren && !gast) || this.kannBloeckeEditieren ? `
       <div class="crm-fmenu skripte-editor-selmenu" id="ed-selmenu" hidden></div>
+      ` : ''}
+      ${this.kannBloeckeEditieren ? `
+      <div class="crm-fmenu skripte-editor-selmenu" id="ed-blockmenu" hidden></div>
+      <div class="crm-fmenu skripte-editor-selmenu skripte-editor-toolbar-pop" id="ed-toolbar-pop" hidden></div>
       ` : ''}
       ${this.kannAiAktionen ? `
       <div class="crm-fmenu skripte-editor-selmenu" id="ed-modmenu" hidden></div>
@@ -183,6 +187,10 @@ SkriptEditorView.prototype.switchSkript = async function(skriptId) {
   if (this.skript && skriptId === this.skript.id) return;
 
   try { await this.inlineEdit.flush(); } catch (_) { /* Wechsel trotzdem */ }
+  try { await this._blocks.flush(); } catch (_) { /* Wechsel trotzdem */ }
+  this._toolbar.schliessen();
+  const blockmenu = document.getElementById('ed-blockmenu');
+  if (blockmenu) blockmenu.hidden = true;
 
   // Verbindungen des alten Skripts beenden (DOM und Maus-Listener bleiben)
   if (this.channel) {
@@ -281,6 +289,8 @@ SkriptEditorView.prototype.cleanup = async function() {
   this._likyShell = null;
   try { await this.inlineEdit.flush(); } catch (_) { /* Abbau trotzdem */ }
   this.inlineEdit.detach();
+  try { await this._blocks.flush(); } catch (_) { /* Abbau trotzdem */ }
+  this._toolbar.destroy();
   this.cleanupGenJob();
   this.genStatus = null;
   this._listeKampagneId = undefined;
@@ -339,11 +349,14 @@ SkriptEditorView.prototype.loadModiCached = async function() {
 // Events: Selektion, Menue, Chat-Input. Einmal beim Oeffnen verdrahtet.
 SkriptEditorView.prototype.bindEvents = function() {
   this.onDocMouseDown = (e) => {
-    for (const id of ['ed-selmenu', 'ed-modmenu', 'ed-vermenu']) {
+    for (const id of ['ed-selmenu', 'ed-modmenu', 'ed-vermenu', 'ed-blockmenu', 'ed-toolbar-pop']) {
       const menu = document.getElementById(id);
       if (!menu || menu.hidden || menu.contains(e.target)) continue;
       if (id === 'ed-vermenu' && e.target.closest('#ed-version')) continue;
+      if (id === 'ed-blockmenu' && e.target.closest('[data-block-griff]')) continue;
+      if (id === 'ed-toolbar-pop' && e.target.closest('[data-tb-pop]')) continue;
       if (id === 'ed-vermenu') this.closeVersionMenu();
+      else if (id === 'ed-toolbar-pop') this._toolbar.schliessen();
       else menu.hidden = true;
     }
   };
@@ -365,10 +378,12 @@ SkriptEditorView.prototype.bindEvents = function() {
 
   // Selektions-Menue: nach Mouseup pruefen, ob Auswahl in einer Sektion liegt.
   // Laeuft auch fuer Kunden - sie sehen im Menue nur "Kommentieren".
-  if (this.kannKommentieren) {
+  // In Freien Bloecken (nur Team) zeigt es nur die Formatierung.
+  if (this.kannKommentieren || this.kannBloeckeEditieren) {
     this.onMouseUp = (e) => {
       const menu = document.getElementById('ed-selmenu');
       if (!menu || menu.contains(e.target)) return;
+      if (e.target.closest?.('#ed-toolbar, #ed-toolbar-pop, #ed-blockmenu')) return;
       // Timeout: Selection ist erst nach dem Event final
       setTimeout(() => this.checkSelection(), 10);
     };
@@ -405,6 +420,7 @@ SkriptEditorView.prototype.bindEvents = function() {
       this.sendChat();
     }
     if (e.key === 'Escape') {
+      this._toolbar.schliessen();
       const mod = document.getElementById('ed-modmenu');
       if (mod) mod.hidden = true;
       const sel = document.getElementById('ed-selmenu');

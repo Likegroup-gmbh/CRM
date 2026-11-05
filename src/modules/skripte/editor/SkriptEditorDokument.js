@@ -157,6 +157,8 @@ SkriptEditorView.prototype.renderDoc = function() {
   const inputEl = document.getElementById('ed-input');
   if (inputEl && inputEl.placeholder === PLACEHOLDER_FRAGEN) inputEl.placeholder = PLACEHOLDER_DEFAULT;
 
+  this._blocks.sync(this.skript);
+  const bloeckeEditierbar = this.kannBloeckeEditieren;
   el.innerHTML = skriptDocHtml({
     skript: this.skript,
     messages: this.messages,
@@ -164,7 +166,10 @@ SkriptEditorView.prototype.renderDoc = function() {
     docHeadActionsHtml: this.docHeadActions(),
     vorgabenPanelHtml: this.vorgabenFuerAnsicht(),
     docTab: this.docTab || 'skript',
-    zeigeHookVarianten: this.kannAiAktionen
+    zeigeHookVarianten: this.kannAiAktionen,
+    bloeckeEditierbar,
+    mitIntern: this.siehtInterneBloecke,
+    toolbarHtml: bloeckeEditierbar ? this._toolbar.html() : ''
   });
   el.querySelectorAll('[data-editor-tab]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -179,6 +184,8 @@ SkriptEditorView.prototype.renderDoc = function() {
   });
   this.bindVerknuepfungen(el);
   this.inlineEdit.attach(el, { readonly: !this.kannDokumentEditieren });
+  this._blocks.attach(el);
+  if (bloeckeEditierbar) this._toolbar.attach(el);
   this.renderVersionSelect();
 };
 

@@ -168,6 +168,8 @@ describe('Selektionsmenue je Rolle', () => {
       selektion: null,
       pendingAktion: null,
       kannAiAktionen: true,
+      kannKommentieren: true,
+      kannBloeckeEditieren: false,
       closeVersionMenu: vi.fn(),
       setLikyOffen: vi.fn(),
       startNeuerKommentar: vi.fn()
@@ -230,6 +232,56 @@ describe('Selektionsmenue je Rolle', () => {
     new SkriptEditorSelection(view).checkSelection();
     const labels = [...document.querySelectorAll('#ed-selmenu button')].map((b) => b.dataset.id);
     expect(labels).not.toContain('hook_uebertragen');
+  });
+
+  it('ohne Kommentar-Recht bleibt das Menue im Grid zu (Menue existiert nur fuer Bloecke)', () => {
+    view.kannKommentieren = false;
+    view.kannBloeckeEditieren = true;
+    new SkriptEditorSelection(view).checkSelection();
+    expect(document.getElementById('ed-selmenu').hidden).toBe(true);
+    expect(document.querySelectorAll('#ed-selmenu button')).toHaveLength(0);
+  });
+
+  describe('in Freien Bloecken (ADR 0062)', () => {
+    function blockAuswahl() {
+      container.querySelector('#ed-doc').innerHTML = '<div class="skripte-editor-block" data-block-id="b1">'
+        + '<p class="skripte-editor-block-text" data-block-id="b1" data-block-feld="md">Ein markierter Satz</p></div>';
+      const textNode = container.querySelector('.skripte-editor-block-text').firstChild;
+      window.getSelection = vi.fn(() => ({
+        isCollapsed: false,
+        rangeCount: 1,
+        toString: () => 'markierter',
+        anchorNode: textNode,
+        focusNode: textNode,
+        anchorOffset: 4,
+        focusOffset: 14,
+        getRangeAt: () => {
+          const r = document.createRange();
+          r.setStart(textNode, 4);
+          r.setEnd(textNode, 14);
+          r.getBoundingClientRect = () => ({ top: 0, left: 0, bottom: 10, right: 10, width: 10, height: 10 });
+          return r;
+        },
+        removeAllRanges: vi.fn()
+      }));
+    }
+
+    it('nur Formatierung, kein Kommentar, keine Liky-Aktion', () => {
+      blockAuswahl();
+      view.kannBloeckeEditieren = true;
+      view._blocks = { ortVon: (z) => ({ blockId: z.dataset.blockId, feld: z.dataset.blockFeld }) };
+      new SkriptEditorSelection(view).checkSelection();
+      const labels = [...document.querySelectorAll('#ed-selmenu button')].map((b) => b.dataset.id);
+      expect(labels).toEqual(['fett', 'kursiv', 'highlight']);
+      expect(view.blockSelektion).toEqual({ ort: { blockId: 'b1', feld: 'md' }, start: 4, end: 14 });
+    });
+
+    it('ohne Block-Recht kein Menue, auch wenn Kommentieren erlaubt ist', () => {
+      blockAuswahl();
+      new SkriptEditorSelection(view).checkSelection();
+      expect(document.getElementById('ed-selmenu').hidden).toBe(true);
+      expect(view.blockSelektion).toBeNull();
+    });
   });
 });
 

@@ -411,3 +411,71 @@ describe('createSkriptAnhang', () => {
     expect(result.pdfs[0].blob).toBeInstanceOf(Blob);
   });
 });
+
+describe('createSkriptAnhang mit Skript-Dokument (ADR 0062)', () => {
+  it('zeichnet Freie Bloecke in Reihenfolge, die Skript-Tabelle an ihrem Platz', async () => {
+    const raster = installRaster({ width: 1600, height: 800 });
+    try {
+      await createSkriptAnhang([{
+        ...ANNA,
+        creator: null,
+        dokument_bloecke: [
+          { id: 'h', typ: 'h1', md: 'Übersicht' },
+          { id: 'p', typ: 'absatz', md: 'Bitte **genau** so ==drehen== und [hier](https://a.de) lesen' },
+          { id: 'skript-tabelle', typ: 'skript_tabelle' },
+          { id: 'l', typ: 'nummerierung', punkte: ['Licht an', '', 'Ton an'] },
+          { id: 'b', typ: 'bild', url: 'https://cdn/b.webp', breite: 'voll', unterschrift: 'Setup' },
+          { id: 't', typ: 'tabelle', zeilen: [['Produkt', 'Preis'], ['Box', '9 €']], kopfzeile: true },
+          { id: 'r', typ: 'trennlinie' }
+        ]
+      }]);
+      const doc = MockJsPDF.last;
+      const t = doc.textCalls;
+      const idx = (s) => t.indexOf(s);
+      expect(idx('Übersicht')).toBeGreaterThan(-1);
+      expect(idx('Übersicht')).toBeLessThan(idx('WAS GESAGT WIRD'));
+      expect(idx('WAS GESAGT WIRD')).toBeLessThan(idx('1.'));
+      expect(t).toEqual(expect.arrayContaining(['genau', 'drehen', 'hier', '1.', '2.', 'Licht an', 'Ton an', 'Setup', 'Produkt', 'Box']));
+      expect(t).not.toContain('3.');
+      expect(t.join(' ')).not.toMatch(/\*\*|==|\]\(/);
+      expect(doc.links.map((l) => l.url)).toContain('https://a.de');
+      const bild = doc.images.find((img) => img.w > 100);
+      expect(bild).toMatchObject({ type: 'JPEG' });
+      expect(bild.w).toBeCloseTo(182);
+      expect(bild.h).toBeCloseTo(91);
+    } finally {
+      raster.restore();
+    }
+  });
+
+  it('ohne dokument_bloecke bleibt das PDF wie bisher', async () => {
+    await createSkriptAnhang([{ ...ANNA, creator: null, dokument_bloecke: null }]);
+    expect(MockJsPDF.last.textCalls).toEqual(expect.arrayContaining(['WAS GESAGT WIRD', 'Erster Satz']));
+  });
+
+  it('Titel mit erweitertem Markdown wird im Kopf ohne Marker gedruckt', async () => {
+    await createSkriptAnhang([{ ...ANNA, creator: null, titel: '==Sommer== [Reel](https://a.de)' }]);
+    expect(MockJsPDF.last.textCalls).toContain('„Sommer Reel“');
+  });
+});
+
+describe('pdfItemAusSkript', () => {
+  it('nimmt nur sichtbare Bloecke mit aufgeloester Bild-URL', async () => {
+    const { pdfItemAusSkript } = await import('../modules/skripte/skriptPdfDownload.js');
+    window.supabase = {
+      storage: { from: () => ({ getPublicUrl: (pfad) => ({ data: { publicUrl: `https://cdn/${pfad}` } }) }) }
+    };
+    const item = pdfItemAusSkript({
+      titel: 'X',
+      dokument_bloecke: [
+        { id: 'skript-tabelle', typ: 'skript_tabelle' },
+        { id: 'a', typ: 'absatz', md: 'Team-Notiz', intern: true },
+        { id: 'b', typ: 'bild', pfad: 's1/x.webp' }
+      ]
+    });
+    expect(item.dokument_bloecke.map((b) => b.id)).toEqual(['skript-tabelle', 'b']);
+    expect(item.dokument_bloecke[1].url).toBe('https://cdn/s1/x.webp');
+    expect(pdfItemAusSkript({ titel: 'Y', dokument_bloecke: null }).dokument_bloecke).toBeNull();
+    delete window.supabase;
+  });
+});

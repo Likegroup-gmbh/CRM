@@ -1463,3 +1463,604 @@
   margin-left: var(--space-2);
   font-size: var(--text-xs);
 }
+
+/* ==========================================================================
+   Skript-Dokument (ADR 0062): Seite im Papier-Look, Freie Bloecke, Toolbar
+   ========================================================================== */
+
+/* Panel waechst mit der Seite, gescrollt wird in .skripte-editor-doc
+   (sonst klebt die Toolbar nicht oben) */
+.skripte-editor-doc-panel.skripte-editor-doc-panel--seite {
+  flex: 1 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
+.skripte-editor-seite-scroll {
+  flex: 1 0 auto;
+  padding: var(--space-lg) var(--space-md) var(--space-xl);
+  /* Dot-Grid fuer Tiefe/Kontrast zur weissen Seite (reines CSS, kein Asset) */
+  --dot-color: var(--gray-200);
+  --dot-gap: 24px;
+  background-color: var(--gray-50);
+  background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1.5px);
+  background-size: var(--dot-gap) var(--dot-gap);
+}
+
+.skripte-editor-seite {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 816px;
+  min-height: 480px;
+  margin: 0 auto;
+  padding: clamp(var(--space-md), 7%, 64px);
+  background: var(--bg-primary);
+  border: var(--border-xs) solid var(--border-subtle, var(--gray-200));
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.skripte-editor-seite .skripte-editor-titel {
+  height: auto;
+  min-height: 1.3em;
+  margin: 0 0 var(--space-sm);
+  padding: 0;
+  font-size: var(--text-2xl);
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+/* Titel auf der Seite: kein Fokus-Rahmen (Caret reicht) */
+.skripte-editor-seite .skripte-editor-titel[contenteditable]:focus {
+  outline: none;
+}
+
+.skripte-editor-seite .skripte-editor-videoidee {
+  padding: 0 0 var(--space-md);
+}
+
+/* Skript-Tabelle auf der Seite: waechst mit dem Inhalt statt die Hoehe zu fuellen */
+.skripte-editor-seite .skripte-editor-doc-box {
+  flex: none;
+  min-height: 0;
+}
+
+.skripte-editor-seite .skripte-editor-tabelle {
+  height: auto;
+  flex: none;
+  border: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-seite .skripte-editor-tabelle tbody tr {
+  height: auto;
+}
+
+/* Linker/rechter Aussenrand explizit an den Zellen: die Basisregeln nehmen
+   ihn weg (border-left/right: none) und der Tabellenrand allein ist unzuverlaessig */
+.skripte-editor-seite .skripte-editor-tabelle thead th:first-child,
+.skripte-editor-seite .skripte-editor-tabelle tbody th:first-child,
+.skripte-editor-seite .skripte-editor-tabelle td:first-child {
+  border-left: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-seite .skripte-editor-tabelle thead th:last-child,
+.skripte-editor-seite .skripte-editor-tabelle tbody th:last-child,
+.skripte-editor-seite .skripte-editor-tabelle td:last-child {
+  border-right: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-seite .skripte-editor-tabelle tbody th {
+  padding: var(--space-md) var(--space-sm);
+}
+
+.skripte-editor-seite .skripte-editor-tabelle .skripte-editor-sektion-text,
+.skripte-editor-seite .skripte-editor-tabelle .skripte-editor-sektion-visual {
+  min-height: 6.5em;
+  padding: var(--space-md) var(--space-sm);
+}
+
+.skripte-editor-seite .skripte-editor-hook-varianten {
+  padding: 0;
+}
+
+/* ---------- Bloecke ---------- */
+
+.skripte-editor-dokument {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.skripte-editor-block {
+  position: relative;
+  border-radius: var(--radius-sm);
+}
+
+.skripte-editor-block:focus {
+  outline: none;
+}
+
+.skripte-editor-block--skript-tabelle {
+  margin: var(--space-md) 0;
+}
+
+.skripte-editor-block-inhalt {
+  min-width: 0;
+}
+
+.skripte-editor-block-text {
+  margin: 0;
+  padding: 2px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.skripte-editor-block-text[contenteditable] {
+  cursor: text;
+}
+
+.skripte-editor-block-text--h1 {
+  margin-top: var(--space-md);
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold, 600);
+  line-height: 1.3;
+}
+
+.skripte-editor-block-text--h2 {
+  margin-top: var(--space-sm);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold, 600);
+  line-height: 1.35;
+}
+
+/* Platzhalter: Ueberschriften immer, Absatz/Listenpunkt nur unter dem Caret */
+.skripte-editor-block-text--h1[contenteditable]:empty::before,
+.skripte-editor-block-text--h2[contenteditable]:empty::before,
+.skripte-editor-block-text[contenteditable]:focus:empty::before,
+.skripte-editor-block.is-aktiv figcaption[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.skripte-editor-block-text strong {
+  font-weight: 700;
+}
+
+.skripte-editor-block-text em {
+  font-style: italic;
+}
+
+.skripte-editor-block-text code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.92em;
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-xxs);
+}
+
+/* Standardton = Vanille; Farbe aus der Palette kommt als Inline-Style (data-farbe) */
+.skripte-editor-block-text mark,
+.skripte-editor-sektion-text mark,
+.skripte-editor-sektion-visual mark {
+  background-color: #f7eec9;
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.skripte-editor-block-text a {
+  color: var(--primary-600, var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.skripte-editor-block-text::selection,
+.skripte-editor-block-text *::selection {
+  background: var(--badge-blue-bg);
+}
+
+.skripte-editor-block-liste {
+  margin: 0;
+  padding-left: 1.6em;
+}
+
+.skripte-editor-block-liste li {
+  padding-left: 2px;
+}
+
+.skripte-editor-block-bild {
+  box-sizing: border-box;
+  margin: var(--space-sm) auto;
+}
+
+.skripte-editor-block-bild--klein { width: 33%; }
+.skripte-editor-block-bild--mittel { width: 60%; }
+.skripte-editor-block-bild--voll { width: 100%; }
+
+.skripte-editor-block-bild img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  user-select: none;
+}
+
+.skripte-editor-block-bild figcaption {
+  margin-top: var(--space-xxs);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.skripte-editor-block-tabelle-wrap {
+  margin: var(--space-sm) 0;
+  overflow-x: auto;
+}
+
+/* separate statt collapse: Bei collapse liegt der halbe Aussenrand ausserhalb
+   der Tabelle und wird vom overflow-x der Huelle links/rechts abgeschnitten */
+.skripte-editor-block-tabelle {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  border-top: var(--border-xs) solid var(--border-primary);
+  border-left: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-block-tabelle th,
+.skripte-editor-block-tabelle td {
+  padding: 0;
+  border: none;
+  border-right: var(--border-xs) solid var(--border-primary);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  vertical-align: top;
+  text-align: left;
+  font-weight: inherit;
+}
+
+.skripte-editor-block-tabelle th {
+  background: var(--gray-50);
+  font-weight: var(--font-semibold, 600);
+}
+
+.skripte-editor-block-tabelle .skripte-editor-block-text {
+  min-height: 1.6em;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.skripte-editor-block-tabelle .skripte-editor-block-text:focus {
+  box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+
+.skripte-editor-block--trennlinie {
+  padding: var(--space-sm) 0;
+}
+
+.skripte-editor-block-trennlinie {
+  margin: 0;
+  border: none;
+  border-top: var(--border-xs) solid var(--border-primary);
+}
+
+/* Aktiver Bild-/Trennlinien-Block (kein Caret sichtbar) */
+.skripte-editor-dokument.is-editierbar .skripte-editor-block--bild.is-aktiv img,
+.skripte-editor-dokument.is-editierbar .skripte-editor-block--trennlinie.is-aktiv {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Intern: nur fuers Team, nie im PDF oder bei Kunde/Gast/Creator */
+.skripte-editor-block.is-intern {
+  padding: var(--space-xs) var(--space-sm);
+  margin: var(--space-xxs) 0;
+  background: color-mix(in srgb, var(--yellow-100, #fef3c7) 45%, transparent);
+  outline: var(--border-xs) dashed var(--yellow-600, #ca8a04);
+  outline-offset: -1px;
+}
+
+.skripte-editor-block-intern {
+  position: absolute;
+  top: 0;
+  right: var(--space-xs);
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-full, 999px);
+  background: var(--bg-primary);
+  border: var(--border-xs) solid var(--yellow-600, #ca8a04);
+  color: var(--yellow-600, #ca8a04);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.skripte-editor-block-intern svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Griff links neben dem Block */
+.skripte-editor-block-griff {
+  position: absolute;
+  top: 2px;
+  left: -30px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.skripte-editor-block:hover > .skripte-editor-block-griff,
+.skripte-editor-block.is-aktiv > .skripte-editor-block-griff,
+.skripte-editor-block-griff:focus-within {
+  opacity: 1;
+}
+
+.skripte-editor-block-griff-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: grab;
+}
+
+.skripte-editor-block-griff-btn:hover {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.skripte-editor-block-griff-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.skripte-editor-block.is-dragging {
+  opacity: 0.4;
+}
+
+.skripte-editor-block.is-drop-vor::before,
+.skripte-editor-block.is-drop-nach::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary-500, var(--primary));
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.skripte-editor-block.is-drop-vor::before { top: -3px; }
+.skripte-editor-block.is-drop-nach::after { bottom: -3px; }
+
+.skripte-editor-dokument-ende {
+  min-height: 96px;
+  cursor: text;
+}
+
+.skripte-editor-dokument-anfang {
+  height: var(--space-md);
+  margin-top: calc(-1 * var(--space-sm));
+  cursor: text;
+  border-radius: var(--radius-sm);
+}
+
+.skripte-editor-dokument-anfang:hover {
+  background: var(--gray-50);
+}
+
+/* ---------- Toolbar ---------- */
+
+.skripte-editor-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xxs) 0;
+  padding: var(--space-xxs) var(--space-sm);
+  background: var(--bg-primary);
+  border-top: var(--border-xs) solid var(--border-primary);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-toolbar-gruppe {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 var(--space-xs);
+}
+
+.skripte-editor-toolbar-gruppe[hidden] {
+  display: none;
+}
+
+.skripte-editor-toolbar-gruppe + .skripte-editor-toolbar-gruppe:not(.skripte-editor-toolbar-gruppe--rechts) {
+  border-left: var(--border-xs) solid var(--border-subtle, var(--gray-200));
+}
+
+.skripte-editor-toolbar-gruppe--rechts {
+  margin-left: auto;
+}
+
+.skripte-editor-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xxs);
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.skripte-editor-toolbar-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.skripte-editor-toolbar-btn:hover:not(:disabled) {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.skripte-editor-toolbar-btn.is-aktiv {
+  background: var(--primary-50, var(--gray-100));
+  color: var(--primary-700, var(--text-primary));
+}
+
+.skripte-editor-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.skripte-editor-toolbar-btn--text {
+  min-width: 26px;
+  font-weight: var(--font-semibold, 600);
+}
+
+.skripte-editor-toolbar-select {
+  height: 28px;
+  padding: 0 var(--space-xs);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.skripte-editor-toolbar-select:hover {
+  background: var(--gray-100);
+}
+
+.skripte-editor-toolbar-status {
+  margin-right: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* Popover unter der Toolbar (Link, Tabelle, Farbe) */
+.skripte-editor-toolbar-pop {
+  min-width: 260px;
+  max-width: 340px;
+  padding: var(--space-sm);
+  gap: var(--space-sm);
+}
+
+.skripte-editor-toolbar-pop[data-art='tabelle'],
+.skripte-editor-toolbar-pop[data-art='farben'] {
+  min-width: 0;
+}
+
+/* Farbpalette (20 Pastelltoene, 5 x 4) */
+.skripte-editor-farben {
+  display: grid;
+  grid-template-columns: repeat(5, 28px);
+  gap: var(--space-xs);
+}
+
+.skripte-editor-farbe {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: var(--border-xs) solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-full, 999px);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.skripte-editor-farbe:hover {
+  transform: scale(1.1);
+}
+
+.skripte-editor-farbe:focus-visible,
+.skripte-editor-farbe.is-aktiv {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--gray-700);
+}
+
+.skripte-editor-farben-weg {
+  width: 100%;
+}
+
+.skripte-editor-toolbar-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.skripte-editor-toolbar-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--space-sm);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.skripte-editor-toolbar-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.skripte-editor-toolbar-form-aktionen {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.skripte-editor-raster {
+  display: grid;
+  grid-template-columns: repeat(var(--raster, 6), 20px);
+  gap: 3px;
+}
+
+.skripte-editor-raster-zelle {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: 2px;
+  background: var(--bg-primary);
+  cursor: pointer;
+}
+
+.skripte-editor-raster-zelle.is-aktiv {
+  background: var(--primary-100, var(--gray-200));
+  border-color: var(--primary-400, var(--gray-500));
+}
+
+.skripte-editor-raster-label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-align: center;
+}

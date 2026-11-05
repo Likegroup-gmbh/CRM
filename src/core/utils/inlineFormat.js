@@ -3,8 +3,24 @@
 // WYSIWYG-Bruecke: Rendert nach HTML inkl. Offset-Maps (sichtbarer Text <->
 // Raw-String) und serialisiert contenteditable-HTML zurueck nach Markdown.
 // Fachlich ungebunden - Skript-Editor und spaetere Stellen teilen sich das.
+// Mit { erweitert: true } kommen ==Highlight== und [Link](https://…) dazu;
+// ohne Option bleiben beide Literal (Skript-Tabelle, Liky-Zellen).
+// Mit { hervorheben: true } kommt nur die Hervorhebung dazu (Links bleiben
+// Literal) - so rendert die Skript-Tabelle.
+// Farbige Hervorhebung: =={id}Text== mit id aus HIGHLIGHT_FARBEN; ohne id
+// (==Text==) gilt der Standardton. Unbekannte ids bleiben Literal im Text.
+
+import { istHighlightFarbe, highlightHex } from './highlightFarben.js';
 
 const MARKER = { bold: '**', italic: '*' };
+
+const LINK_PROTOKOLL = /^(https?:\/\/|mailto:)/i;
+
+/** Nur http(s) und mailto, ohne Leerzeichen und Klammern. */
+export function istSichereLinkUrl(url) {
+  const value = String(url ?? '').trim();
+  return LINK_PROTOKOLL.test(value) && !/[\s()<>"]/.test(value);
+}
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -17,13 +33,64 @@ function escapeHtml(str) {
 
 // ---------- Parser (Raw-String -> Token-Baum, absolute Offsets) ----------
 
-const OPEN_TAGS = { bold: '<strong>', italic: '<em>', bolditalic: '<strong><em>', code: '<code>' };
-const CLOSE_TAGS = { bold: '</strong>', italic: '</em>', bolditalic: '</em></strong>', code: '</code>' };
+const OPEN_TAGS = { bold: '<strong>', italic: '<em>', bolditalic: '<strong><em>', code: '<code>', highlight: '<mark>' };
+const CLOSE_TAGS = { bold: '</strong>', italic: '</em>', bolditalic: '</em></strong>', code: '</code>', highlight: '</mark>', link: '</a>' };
 
-function parseInline(raw, start, end, tokens) {
+/** Optionales {farbe} direkt hinter dem oeffnenden ==. */
+function parseFarbe(raw, pos, end) {
+  const m = /^\{([a-z]{1,16})\}/.exec(raw.slice(pos, Math.min(end, pos + 20)));
+  return m && istHighlightFarbe(m[1]) ? { id: m[1], len: m[0].length } : { id: '', len: 0 };
+}
+
+/** [label](url) ab i, sonst null. */
+function parseLink(raw, i, end) {
+  const closeBracket = raw.indexOf('](', i + 1);
+  if (closeBracket === -1 || closeBracket <= i + 1 || closeBracket + 2 > end) return null;
+  if (raw.slice(i + 1, closeBracket).includes('\n')) return null;
+  const closeParen = raw.indexOf(')', closeBracket + 2);
+  if (closeParen === -1 || closeParen >= end) return null;
+  const href = raw.slice(closeBracket + 2, closeParen);
+  if (!istSichereLinkUrl(href)) return null;
+  return {
+    type: 'link',
+    start: i,
+    contentStart: i + 1,
+    contentEnd: closeBracket,
+    end: closeParen + 1,
+    href,
+    children: []
+  };
+}
+
+function parseInline(raw, start, end, tokens, opts = {}) {
   let i = start;
   let litStart = start;
   while (i < end) {
+    if (opts.erweitert || opts.hervorheben) {
+      const link = opts.erweitert && raw[i] === '[' ? parseLink(raw, i, end) : null;
+      const mark = !link && raw.startsWith('==', i);
+      if (link || mark) {
+        const token = link || (() => {
+          const farbe = parseFarbe(raw, i + 2, end);
+          const contentStart = i + 2 + farbe.len;
+          const closeIdx = raw.indexOf('==', contentStart);
+          if (closeIdx === -1 || closeIdx + 2 > end || closeIdx === contentStart) return null;
+          return {
+            type: 'highlight', start: i, contentStart, contentEnd: closeIdx, end: closeIdx + 2, farbe: farbe.id, children: []
+          };
+        })();
+        if (!token) {
+          i += mark ? 2 : 1;
+          continue;
+        }
+        if (litStart < i) tokens.push({ type: 'text', start: litStart, end: i });
+        parseInline(raw, token.contentStart, token.contentEnd, token.children, opts);
+        tokens.push(token);
+        i = token.end;
+        litStart = i;
+        continue;
+      }
+    }
     const three = raw.startsWith('***', i);
     const two = !three && raw.startsWith('**', i);
     const one = !three && !two && raw[i] === '*';
@@ -46,7 +113,7 @@ function parseInline(raw, start, end, tokens) {
       end: closeIdx + marker.length,
       children: []
     };
-    if (type !== 'code') parseInline(raw, token.contentStart, token.contentEnd, token.children);
+    if (type !== 'code') parseInline(raw, token.contentStart, token.contentEnd, token.children, opts);
     tokens.push(token);
     i = token.end;
     litStart = i;
@@ -54,18 +121,24 @@ function parseInline(raw, start, end, tokens) {
   if (litStart < end) tokens.push({ type: 'text', start: litStart, end });
 }
 
+function parseTokens(raw, opts) {
+  const text = String(raw ?? '');
+  const tokens = [];
+  parseInline(text, 0, text.length, tokens, opts || {});
+  return { text, tokens };
+}
+
 // ---------- Renderer: Raw -> HTML + Offset-Maps ----------
 
 /**
  * @param {string} raw Markdown-String
+ * @param {{ erweitert?: boolean }} [opts] erweitert: ==Highlight== und [Link](url)
  * @returns {{ html: string, toRaw: number[], toRendered: number[] }}
  *   toRaw[sichtbarerIdx] = rawIdx (inkl. Sentinel: toRaw[len] = raw.length),
  *   toRendered[rawIdx] = sichtbarerIdx (Marker zeigen auf die Inhaltsposition).
  */
-export function renderInlineMd(raw) {
-  const text = String(raw ?? '');
-  const tokens = [];
-  parseInline(text, 0, text.length, tokens);
+export function renderInlineMd(raw, opts) {
+  const { text, tokens } = parseTokens(raw, opts);
 
   const toRaw = [];
   const toRendered = new Array(text.length + 1).fill(0);
@@ -85,7 +158,13 @@ export function renderInlineMd(raw) {
     for (const t of list) {
       if (t.type === 'text') { emitText(t.start, t.end); continue; }
       for (let i = t.start; i < t.contentStart; i++) toRendered[i] = renderedLen;
-      html += OPEN_TAGS[t.type];
+      if (t.type === 'link') {
+        html += `<a href="${escapeHtml(t.href)}" target="_blank" rel="noopener noreferrer">`;
+      } else if (t.type === 'highlight' && t.farbe) {
+        html += `<mark data-farbe="${t.farbe}" style="background-color:${highlightHex(t.farbe)}">`;
+      } else {
+        html += OPEN_TAGS[t.type];
+      }
       if (t.type === 'code') emitText(t.contentStart, t.contentEnd);
       else emitTokens(t.children);
       html += CLOSE_TAGS[t.type];
@@ -125,6 +204,14 @@ function serializeNode(node) {
     return `*${inner}*`;
   }
   if (tag === 'CODE') return `\`${inner}\``;
+  if (tag === 'MARK') {
+    const farbe = node.getAttribute('data-farbe') || '';
+    return `==${istHighlightFarbe(farbe) ? `{${farbe}}` : ''}${inner}==`;
+  }
+  if (tag === 'A') {
+    const href = node.getAttribute('href') || '';
+    return istSichereLinkUrl(href) ? `[${inner}](${href})` : inner;
+  }
   // Block-Container (Browser-Enter in contenteditable): Umbruch davor
   if (tag === 'DIV' || tag === 'P') return `\n${inner}`;
   return inner;
@@ -179,6 +266,7 @@ export function detectInlineFormat(raw, start, end) {
  * die den (formatierten) Inhalt ohne Marker umfassen.
  */
 export function toggleInlineFormat(raw, start, end, format) {
+  if (format === 'highlight') return toggleHighlight(raw, start, end);
   const text = String(raw ?? '');
   const m = MARKER[format];
   if (!m) return { text, start, end };
@@ -203,6 +291,188 @@ export function toggleInlineFormat(raw, start, end, format) {
 
   const neu = text.slice(0, start) + m + text.slice(start, end) + m + text.slice(end);
   return { text: neu, start: start + m.length, end: end + m.length };
+}
+
+// ---------- Erweitert: Highlight und Link (Token-basiert) ----------
+
+/** Token des Typs, in dessen Inhalt die Auswahl liegt (oder das sie genau umfasst). */
+function findeToken(list, type, start, end) {
+  for (const t of list) {
+    if (t.type === 'text') continue;
+    if (t.type === type) {
+      const innen = t.contentStart <= start && end <= t.contentEnd;
+      const genau = start === t.start && end === t.end;
+      if (innen || genau) return t;
+    }
+    if (t.start <= start && end <= t.end && t.children?.length) {
+      const tiefer = findeToken(t.children, type, start, end);
+      if (tiefer) return tiefer;
+    }
+  }
+  return null;
+}
+
+/** Highlight und Link an der Auswahl (nur erweitertes Markdown). */
+export function detectErweitert(raw, start, end) {
+  if (start > end) [start, end] = [end, start];
+  const { tokens } = parseTokens(raw, { erweitert: true });
+  const link = findeToken(tokens, 'link', start, end);
+  return {
+    highlight: Boolean(findeToken(tokens, 'highlight', start, end)),
+    farbe: findeToken(tokens, 'highlight', start, end)?.farbe || '',
+    link: link?.href || ''
+  };
+}
+
+/** Highlight-Token samt Markern entfernen; Auswahl-Offsets wandern mit. */
+function entferneHighlight(text, t, start, end) {
+  const offen = t.contentStart - t.start;
+  const neu = text.slice(0, t.start) + text.slice(t.contentStart, t.contentEnd) + text.slice(t.end);
+  const shift = (s) => {
+    if (s <= t.start) return s;
+    if (s >= t.end) return s - offen - 2;
+    if (s >= t.contentEnd) return t.contentEnd - offen;
+    if (s >= t.contentStart) return s - offen;
+    return t.start;
+  };
+  return { text: neu, start: shift(start), end: shift(end) };
+}
+
+function toggleHighlight(raw, start, end) {
+  const { text, tokens } = parseTokens(raw, { erweitert: true });
+  if (start > end) [start, end] = [end, start];
+  if (start === end) return { text, start, end };
+  const t = findeToken(tokens, 'highlight', start, end);
+  if (t) return entferneHighlight(text, t, start, end);
+  const neu = `${text.slice(0, start)}==${text.slice(start, end)}==${text.slice(end)}`;
+  return { text: neu, start: start + 2, end: end + 2 };
+}
+
+/**
+ * Farbige Hervorhebung auf die Auswahl legen. Liegt die Auswahl in einem
+ * Highlight: andere Farbe -> umfaerben, gleiche Farbe oder leere farbe -> entfernen.
+ * Ohne Highlight und mit farbe: umschliessen. Rueckgabe wie toggleInlineFormat.
+ */
+export function setzeHighlightFarbe(raw, start, end, farbe) {
+  const { text, tokens } = parseTokens(raw, { erweitert: true });
+  if (start > end) [start, end] = [end, start];
+  if (start === end) return { text, start, end };
+  const id = istHighlightFarbe(farbe) ? farbe : '';
+  const t = findeToken(tokens, 'highlight', start, end);
+  if (t) {
+    if (!id || t.farbe === id) return entferneHighlight(text, t, start, end);
+    const offen = `=={${id}}`;
+    const delta = offen.length - (t.contentStart - t.start);
+    const neu = text.slice(0, t.start) + offen + text.slice(t.contentStart);
+    const min = t.start + offen.length;
+    const max = t.contentEnd + delta;
+    const shift = (s) => Math.min(Math.max(s + delta, min), max);
+    return { text: neu, start: shift(start), end: shift(end) };
+  }
+  if (!id) return { text, start, end };
+  const offen = `=={${id}}`;
+  const neu = `${text.slice(0, start)}${offen}${text.slice(start, end)}==${text.slice(end)}`;
+  return { text: neu, start: start + offen.length, end: end + offen.length };
+}
+
+/**
+ * Link auf die Auswahl setzen, aendern oder (url leer) entfernen.
+ * Rueckgabe wie toggleInlineFormat; die Offsets umfassen das Label.
+ */
+export function setzeLink(raw, start, end, url) {
+  const { text, tokens } = parseTokens(raw, { erweitert: true });
+  if (start > end) [start, end] = [end, start];
+  const href = String(url ?? '').trim();
+  const t = findeToken(tokens, 'link', start, end);
+  if (t) {
+    const label = text.slice(t.contentStart, t.contentEnd);
+    if (!href) {
+      const neu = text.slice(0, t.start) + label + text.slice(t.end);
+      return { text: neu, start: t.start, end: t.start + label.length };
+    }
+    if (!istSichereLinkUrl(href)) return { text, start, end };
+    const neu = `${text.slice(0, t.contentEnd)}](${href})${text.slice(t.end)}`;
+    return { text: neu, start: t.contentStart, end: t.contentEnd };
+  }
+  if (start === end || !href || !istSichereLinkUrl(href)) return { text, start, end };
+  const neu = `${text.slice(0, start)}[${text.slice(start, end)}](${href})${text.slice(end)}`;
+  return { text: neu, start: start + 1, end: end + 1 };
+}
+
+/**
+ * Text-Laeufe mit Format-Flags, z.B. fuer das PDF.
+ * @returns {Array<{ text: string, bold?: boolean, italic?: boolean, code?: boolean, highlight?: boolean, href?: string }>}
+ */
+export function inlineMdRuns(raw, opts = { erweitert: true }) {
+  const { text, tokens } = parseTokens(raw, opts);
+  const runs = [];
+  const push = (value, fmt) => {
+    if (!value) return;
+    const last = runs[runs.length - 1];
+    const gleich = last && ['bold', 'italic', 'code', 'highlight', 'href']
+      .every((k) => (last[k] || false) === (fmt[k] || false));
+    if (gleich) last.text += value;
+    else runs.push({ ...fmt, text: value });
+  };
+  const walk = (list, fmt) => {
+    for (const t of list) {
+      if (t.type === 'text') { push(text.slice(t.start, t.end), fmt); continue; }
+      if (t.type === 'code') { push(text.slice(t.contentStart, t.contentEnd), { ...fmt, code: true }); continue; }
+      const next = { ...fmt };
+      if (t.type === 'bold' || t.type === 'bolditalic') next.bold = true;
+      if (t.type === 'italic' || t.type === 'bolditalic') next.italic = true;
+      if (t.type === 'highlight') next.highlight = t.farbe || true;
+      if (t.type === 'link') next.href = t.href;
+      walk(t.children, next);
+    }
+  };
+  walk(tokens, {});
+  return runs;
+}
+
+/** Sichtbarer Text ohne Marker. */
+export function inlineMdText(raw, opts = { erweitert: true }) {
+  return inlineMdRuns(raw, opts).map((r) => r.text).join('');
+}
+
+/** Laeufe zurueck nach Markdown; jeder Lauf bekommt seine Marker selbst. */
+export function runsZuMd(runs) {
+  return (runs || []).map((r) => {
+    if (!r.text) return '';
+    let out = r.code ? `\`${r.text}\`` : r.text;
+    if (!r.code) {
+      if (r.bold && r.italic) out = `***${out}***`;
+      else if (r.bold) out = `**${out}**`;
+      else if (r.italic) out = `*${out}*`;
+    }
+    if (r.highlight) out = `==${typeof r.highlight === 'string' ? `{${r.highlight}}` : ''}${out}==`;
+    if (r.href) out = `[${out}](${r.href})`;
+    return out;
+  }).join('');
+}
+
+/**
+ * Teilt an einem sichtbaren Offset in zwei gueltige Markdown-Strings
+ * (Enter mitten in einem Absatz). Offene Formatierung wird links
+ * geschlossen und rechts neu geoeffnet.
+ */
+export function teileInlineMd(raw, sichtbarerOffset, opts = { erweitert: true }) {
+  const runs = inlineMdRuns(raw, opts);
+  const links = [];
+  const rechts = [];
+  let pos = 0;
+  for (const run of runs) {
+    const ende = pos + run.text.length;
+    if (ende <= sichtbarerOffset) links.push(run);
+    else if (pos >= sichtbarerOffset) rechts.push(run);
+    else {
+      const cut = sichtbarerOffset - pos;
+      links.push({ ...run, text: run.text.slice(0, cut) });
+      rechts.push({ ...run, text: run.text.slice(cut) });
+    }
+    pos = ende;
+  }
+  return [runsZuMd(links), runsZuMd(rechts)];
 }
 
 // ---------- DOM-Bruecke (contenteditable-Zellen) ----------
@@ -301,6 +571,35 @@ function locateRenderedPos(cell, pos) {
   const last = cell.lastChild;
   if (last?.nodeType === Node.TEXT_NODE) return { node: last, offset: last.nodeValue.length };
   return { node: cell, offset: cell.childNodes.length };
+}
+
+/** Aktuelle DOM-Selektion in der Zelle als sichtbare Offsets. */
+export function domSelectionToRendered(cell) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if (!cell.contains(range.startContainer) || !cell.contains(range.endContainer)) return null;
+  const start = renderedOffset(cell, range.startContainer, range.startOffset);
+  const end = renderedOffset(cell, range.endContainer, range.endOffset);
+  if (start == null || end == null) return null;
+  return { start, end };
+}
+
+/** Sichtbare Zeichen der Zelle (BR zaehlt als 1). */
+export function renderedLength(cell) {
+  return cell ? nodeTextLen(cell) : 0;
+}
+
+/** Setzt die DOM-Selektion auf sichtbare Offsets (Caret bei start === end). */
+export function selectRenderedRange(cell, start, end = start) {
+  const a = locateRenderedPos(cell, Math.max(0, start));
+  const b = locateRenderedPos(cell, Math.max(0, end));
+  const sel = window.getSelection();
+  const range = document.createRange();
+  range.setStart(a.node, a.offset);
+  range.setEnd(b.node, b.offset);
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 /** Setzt die DOM-Selektion auf einen Raw-Bereich (via toRendered-Map). */

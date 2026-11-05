@@ -20,7 +20,9 @@ export const AKTION_LABELS = {
   fett: 'Fett',
   fett_entfernen: 'Fett entfernen',
   kursiv: 'Kursiv',
-  kursiv_entfernen: 'Kursiv entfernen'
+  kursiv_entfernen: 'Kursiv entfernen',
+  highlight: 'Hervorheben',
+  highlight_entfernen: 'Hervorhebung entfernen'
 };
 
 export const AKTION_ICONS = {
@@ -38,19 +40,26 @@ export const AKTION_ICONS = {
   // TODO: eigenes Bold-off-Icon, sobald geliefert
   fett_entfernen: icon('bold'),
   kursiv: icon('italic'),
-  kursiv_entfernen: icon('italic-off')
+  kursiv_entfernen: icon('italic-off'),
+  highlight: icon('highlight'),
+  highlight_entfernen: icon('highlight')
 };
 
 /** AI-Aktionen des Selektionsmenues (nur intern). "kommentieren" sehen alle. */
 export const AI_SELEKTION_AKTIONEN = ['neu_schreiben', 'neue_geschichte', 'kuerzen', 'laenger', 'anderer_ton'];
 
-/** Format-Aktionen des Formatierung-Submenues -> Format ('bold'|'italic'). */
+/** Format-Aktionen des Formatierung-Submenues -> Format ('bold'|'italic'|'highlight'). */
 export const FORMAT_AKTIONEN = {
   fett: 'bold',
   fett_entfernen: 'bold',
   kursiv: 'italic',
-  kursiv_entfernen: 'italic'
+  kursiv_entfernen: 'italic',
+  highlight: 'highlight',
+  highlight_entfernen: 'highlight'
 };
+
+/** Markdown-Optionen der Skript-Tabelle: Hervorhebung ja, Links bleiben Literal. */
+export const GRID_MD = { hervorheben: true };
 
 export const SEND_ICON = icon('send');
 export const STOP_ICON = icon('stop');

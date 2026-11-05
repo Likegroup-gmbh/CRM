@@ -422,6 +422,18 @@ _Avoid_: Variante, Alternative Version, Hook-Option
 Arbeitstitel des Skripts. Eigene Zelle im Editor, nicht der On-Screen-Text.
 _Avoid_: Headline, On-Screen-Text
 
+**Skript-Dokument**:
+Die Seite eines Skripts im Editor, aufgebaut aus Blöcken: genau eine **Skript-Tabelle** und beliebig viele **Freie Blöcke** davor und danach. Die Position der Skript-Tabelle ist frei.
+_Avoid_: Doc, Worksheet (das ist das Layout von Persona und Produkt), Skript-Seite
+
+**Skript-Tabelle**:
+Der feste Block des Skript-Dokuments mit Hook, Hauptteil und CTA (Was gesagt wird, Was zu sehen ist) samt Text-Hook, Rezept und Caption. Nicht löschbar, nur einmal je Skript. Liky, Versionen, Festgezogen und Prüfung lesen und schreiben nur sie.
+_Avoid_: Strip-Tabelle, Grid, Skript-Grid
+
+**Freier Block**:
+Beliebiger Inhalt im Skript-Dokument außerhalb der Skript-Tabelle: Text, Überschrift, Liste, Bild, Tabelle. Nur das Team ändert ihn. Kunde, Gast und Creator sehen ihn wie die Skript-Tabelle, außer er ist als **intern** markiert; PDF und Skript-Paket enthalten die sichtbaren. Liky ignoriert ihn vollständig: kein Kontext, kein Auftragsziel, nie überschrieben. Der Tab „Zusätzliche Infos“ ist davon getrennt. Gehört nicht zu den Skript-Versionen: ein Versionswechsel lässt die Freien Blöcke stehen. In ihnen gibt es nur Formatierung, kein Kommentieren und keine Liky-Aktionen.
+_Avoid_: Zusatzblock, Anhang, Zusätzliche Infos
+
 **Neuformulierung**:
 Auftrag im Editor, dieselbe Geschichte neu zu formulieren. Funktion, Figuren, Setting und Aussage bleiben.
 _Avoid_: Neu schreiben, Neue Geschichte, Hook-Variante

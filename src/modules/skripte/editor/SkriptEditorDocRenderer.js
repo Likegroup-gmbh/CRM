@@ -17,10 +17,16 @@ import { icon } from '../../../core/icons/IconSystem.js';
 import { renderToolbarListenKopf } from '../../../core/components/ToolbarMenu.js';
 import { avatarBubbles } from '../../../core/components/AvatarBubbles.js';
 import {
-  SEKTION_LABELS_KURZ, VISUELL_FIELD, HOOK_VARIANTE_FELDER, hatHookVarianten
+  SEKTION_LABELS_KURZ, VISUELL_FIELD, HOOK_VARIANTE_FELDER, hatHookVarianten, GRID_MD
 } from './skriptEditorKonstanten.js';
 import { visuellGuardGrund, visuellVorgaengerTitle } from './skriptEditorVisuellHelfer.js';
 import { tauschBannerHtml, tauschSkriptButtonHtml } from './skriptTauschBanner.js';
+import { dokumentHtml } from './dokument/blockRenderer.js';
+
+/** Grid-Zelle: Fett/Kursiv/Code und Hervorhebung. */
+function gridMd(raw) {
+  return renderInlineMd(raw, GRID_MD);
+}
 
 function titelZelleHtml(skript) {
   return `<div class="skripte-editor-titel skripte-editor-sektion-text" data-sektion="titel" data-feld="titel" data-placeholder="Skript-Titel">${escapeHtml(skript?.titel || '')}</div>`;
@@ -312,14 +318,14 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
           const textHookBlock = sektion === 'hook' && zeigeTextHook ? `
               <div class="skripte-editor-text-hook">
                 <span class="skripte-editor-text-hook-label">Text-Hook</span>
-                <div class="skripte-editor-sektion-visual skripte-editor-text-hook-text" data-sektion="text_hook" data-feld="text_hook" data-placeholder="On-Screen-Text im Hook…">${renderInlineMd(skript.text_hook || '').html}</div>
+                <div class="skripte-editor-sektion-visual skripte-editor-text-hook-text" data-sektion="text_hook" data-feld="text_hook" data-placeholder="On-Screen-Text im Hook…">${gridMd(skript.text_hook || '').html}</div>
               </div>` : '';
           return `
           <tr data-sektion="${sektion}">
             <th scope="row">${SEKTION_LABELS_KURZ[sektion]}${sektion === 'hook' && zeigeHookSperre ? `
               <span class="skripte-editor-hook-sperre" title="Hook gesperrt: Der Kunde hat ihn freigegeben, Liky ändert ihn nicht. Das Schloss öffnest du am Konzept." aria-label="Hook gesperrt">${icon('lock-closed')}</span>` : ''}</th>
             <td>
-              <div class="skripte-editor-sektion-text" data-sektion="${sektion}" data-feld="${sektion}">${renderInlineMd(gesprochen).html}</div>
+              <div class="skripte-editor-sektion-text" data-sektion="${sektion}" data-feld="${sektion}">${gridMd(gesprochen).html}</div>
             </td>
             <td class="skripte-editor-tabelle-zelle--visual">
               ${textHookBlock}
@@ -330,7 +336,7 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
                 ${icon('ai-visual')}
               </button>
               `}
-              <div class="skripte-editor-sektion-visual" data-sektion="${sektion}" data-feld="${visuellFeld}">${renderInlineMd(visuellText).html}</div>
+              <div class="skripte-editor-sektion-visual" data-sektion="${sektion}" data-feld="${visuellFeld}">${gridMd(visuellText).html}</div>
             </td>
           </tr>
         `;
@@ -339,14 +345,14 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
           <tr data-sektion="rezept" class="skripte-editor-tabelle-zusatz">
             <th scope="row">Rezept</th>
             <td colspan="2">
-              <div class="skripte-editor-sektion-text" data-sektion="rezept" data-feld="rezept" data-placeholder="Rezept aus der Caption…">${renderInlineMd(skript.rezept || '').html}</div>
+              <div class="skripte-editor-sektion-text" data-sektion="rezept" data-feld="rezept" data-placeholder="Rezept aus der Caption…">${gridMd(skript.rezept || '').html}</div>
             </td>
           </tr>` : ''}
         ${zeigeCaption ? `
           <tr data-sektion="caption" class="skripte-editor-tabelle-zusatz">
             <th scope="row">Caption</th>
             <td colspan="2">
-              <div class="skripte-editor-sektion-text" data-sektion="caption" data-feld="caption" data-placeholder="Caption für den Post…">${renderInlineMd(skript.caption || '').html}</div>
+              <div class="skripte-editor-sektion-text" data-sektion="caption" data-feld="caption" data-placeholder="Caption für den Post…">${gridMd(skript.caption || '').html}</div>
             </td>
           </tr>` : ''}
         </tbody>
@@ -377,7 +383,7 @@ function hookVariantenTabelleHtml({ skript }) {
           <tr data-sektion="${feld}">
             <th scope="row">${SEKTION_LABELS_KURZ[feld] || `Hook ${i + 1}`}</th>
             <td>
-              <div class="skripte-editor-sektion-text" data-sektion="${feld}" data-feld="${feld}">${renderInlineMd(text).html}</div>
+              <div class="skripte-editor-sektion-text" data-sektion="${feld}" data-feld="${feld}">${gridMd(text).html}</div>
             </td>
           </tr>
         `;
@@ -399,10 +405,14 @@ function docTabsHtml(activeTab) {
   `;
 }
 
-/** Skript-Dokument: Kopf + Vorgaben + 2-Spalten-Tabelle (gesagt/visual). */
+/**
+ * Skript-Dokument (ADR 0062): Kopf + Vorgaben, darunter die Seite mit Titel
+ * und den Bloecken; die Skript-Tabelle (gesagt/visual) ist einer davon.
+ */
 export function skriptDocHtml({
   skript, messages, isReadonly, docHeadActionsHtml, vorgabenPanelHtml, docTab = 'skript',
-  zeigeHookVarianten = false
+  zeigeHookVarianten = false, bloeckeEditierbar = false, mitIntern = false,
+  bildUrl = (pfad) => skripteService.skriptBildUrl(pfad), toolbarHtml = ''
 }) {
   const extraMd = skript.inhalt_md ? zusatzInfosMarkdown(skript.inhalt_md) : '';
   const pruefung = pruefungHtml(skript);
@@ -419,16 +429,24 @@ export function skriptDocHtml({
     cta_visuell: skript.cta_visuell
   };
   const activeTab = showExtra && docTab === 'zusatz' ? 'zusatz' : 'skript';
+  const skriptTabelleHtml = gridTabelleHtml({ skript, grid, messages, isReadonly })
+    + (zeigeHookVarianten && hatHookVarianten(skript) ? hookVariantenTabelleHtml({ skript }) : '');
 
   return `
     ${docHeadHtml(skript, docHeadActionsHtml, 'Skript')}
-    ${titelZelleHtml(skript)}
-    ${videoIdeeZeileHtml(skript)}
     ${vorgabenPanelHtml}
     ${showExtra ? docTabsHtml(activeTab) : ''}
-    <div class="skripte-editor-doc-panel" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>
-      ${gridTabelleHtml({ skript, grid, messages, isReadonly })}
-      ${zeigeHookVarianten && hatHookVarianten(skript) ? hookVariantenTabelleHtml({ skript }) : ''}
+    <div class="skripte-editor-doc-panel skripte-editor-doc-panel--seite" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>
+      ${toolbarHtml}
+      <div class="skripte-editor-seite-scroll">
+        <article class="skripte-editor-seite">
+          ${titelZelleHtml(skript)}
+          ${videoIdeeZeileHtml(skript)}
+          ${dokumentHtml(skript.dokument_bloecke, {
+            editierbar: bloeckeEditierbar, mitIntern, bildUrl, skriptTabelleHtml
+          })}
+        </article>
+      </div>
     </div>
     ${showExtra ? `
     <div class="skripte-editor-doc-panel skripte-editor-doc-panel--zusatz" data-editor-tab-panel="zusatz"${activeTab === 'skript' ? ' hidden' : ''}>

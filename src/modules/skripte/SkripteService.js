@@ -9,8 +9,11 @@ import { briefingVorgaben } from './briefingVorgaben.js';
 import { funnelAusSkript } from '../strategie/strategieFunnelOptions.js';
 import { berechneSkriptNummern, mitSkriptNummern } from './skriptNummern.js';
 import { STATUS_LABELS } from './SkripteUtils.js';
+import { SKRIPT_BILDER_BUCKET, skriptBildPublicUrl } from './editor/dokument/skriptBild.js';
 
 export { FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE, MASTER_BEREICHE };
+
+export { SKRIPT_BILDER_BUCKET };
 
 // Gateway-/Last-Fehler beim Function-Invoke, bei denen ein Retry sinnvoll ist
 const TRANSIENT_TRIGGER_STATUS = new Set([408, 429, 500, 502, 503, 504]);
@@ -394,6 +397,49 @@ export class SkripteService {
     const { error } = await this.db.from('skripte').update(patch).eq('id', id);
     if (error) throw new Error(error.message);
     dropAnschreibenWarm('skript', id);
+  }
+
+  // ------------------------------------------------------------------
+  // Skript-Dokument: Freie Bloecke (ADR 0062), nicht Teil der Versionen
+  // ------------------------------------------------------------------
+
+  /**
+   * Speichert nur, wenn niemand seit `erwartetRev` gespeichert hat.
+   * @returns {Promise<{ konflikt: boolean, rev?: number }>}
+   */
+  async saveDokumentBloecke(id, bloecke, erwartetRev) {
+    const rev = Number(erwartetRev) || 0;
+    const { data, error } = await this.db.from('skripte')
+      .update({ dokument_bloecke: bloecke, dokument_bloecke_rev: rev + 1 })
+      .eq('id', id)
+      .eq('dokument_bloecke_rev', rev)
+      .select('dokument_bloecke_rev');
+    if (error) throw new Error(error.message);
+    if (!data?.length) return { konflikt: true };
+    dropAnschreibenWarm('skript', id);
+    return { konflikt: false, rev: data[0].dokument_bloecke_rev };
+  }
+
+  async loadDokumentBloecke(id) {
+    const { data, error } = await this.db.from('skripte')
+      .select('dokument_bloecke, dokument_bloecke_rev')
+      .eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return { bloecke: data?.dokument_bloecke ?? null, rev: data?.dokument_bloecke_rev ?? 0 };
+  }
+
+  skriptBildUrl(pfad) {
+    return skriptBildPublicUrl(this.db, pfad);
+  }
+
+  /** Bereits verkleinertes Bild hochladen; Pfad je Skript, Dateiname zufaellig. */
+  async uploadSkriptBild(skriptId, blob) {
+    const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/jpeg' ? 'jpg' : 'webp';
+    const pfad = `${skriptId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await this.db.storage.from(SKRIPT_BILDER_BUCKET)
+      .upload(pfad, blob, { contentType: blob.type || 'image/webp', upsert: false });
+    if (error) throw new Error(error.message || 'Bild konnte nicht hochgeladen werden');
+    return pfad;
   }
 
   /**

@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ICON_DEFS, ICON_ALIASES } from '../core/icons/iconDefs.js';
+import { EDITOR_ICON_DEFS } from '../core/icons/editorIcons.js';
 import { ENTITY_ICONS } from '../core/icons/entityIcons.js';
 import { icon, hasIcon, normalizeIconKey, defsHash } from '../core/icons/IconSystem.js';
 
@@ -153,5 +154,13 @@ describe('IconSystem Guard', () => {
     // Kein stroke-width im Def - Stroke kommt aus CSS
     expect(ICON_DEFS['ai-chat'].body).not.toContain('stroke-width');
     expect(ICON_DEFS['arrows-collapse'].body).not.toContain('stroke-width');
+  });
+
+  it('Editor-Icon-Set (editorIcons.js) ist in ICON_DEFS eingebunden, ohne stroke-width', () => {
+    for (const key of Object.keys(EDITOR_ICON_DEFS)) {
+      expect(hasIcon(key), key).toBe(true);
+      expect(ICON_DEFS[key].viewBox).toBe('0 0 24 24');
+      expect(ICON_DEFS[key].body).not.toContain('stroke-width');
+    }
   });
 });

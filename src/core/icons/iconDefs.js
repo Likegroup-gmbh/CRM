@@ -2,7 +2,12 @@
 // Zentrale Icon-Definitionen: nur viewBox + path-body, ohne stroke-width.
 // Stroke wird über CSS-Variable gesteuert.
 
+import { EDITOR_ICON_DEFS } from './editorIcons.js';
+
 export const ICON_DEFS = {
+  // Wiederverwendbares Editor-Set (eigene Datei, projektuebergreifend kopierbar)
+  ...EDITOR_ICON_DEFS,
+
   // --- Dashboard / Navigation ---
   search: {
     viewBox: '0 0 24 24',
@@ -504,6 +509,20 @@ export const ICON_DEFS = {
   'italic-off': {
     viewBox: '0 0 24 24',
     body: '<path stroke-linecap="round" stroke-linejoin="round" d="M11 20.001H5" /><path stroke-linecap="round" stroke-linejoin="round" d="M3 3L21 21" /><path stroke-linecap="round" d="M19 7C19 6.36778 19 5.95381 18.9194 5.6768C18.7518 5.10062 18.3066 4.60428 17.7541 4.37789C17.4886 4.26905 17.1885 4.23819 16.5884 4.17648C15.1695 4.03054 13.3874 4 12 4H8" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 4L11.2 7.20003M8 20.0008L10.4001 10.4001" />'
+  },
+
+  // Skript-Dokument-Toolbar (ADR 0062)
+  highlight: {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.5 4.5l5 5L11 18H6v-5l8.5-8.5Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 7l5 5" /><path stroke-linecap="round" d="M3 21h18" />'
+  },
+  undo: {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />'
+  },
+  redo: {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" stroke-linejoin="round" d="m15 15 6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" />'
   },
 };
 
