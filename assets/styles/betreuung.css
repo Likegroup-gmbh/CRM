@@ -70,3 +70,53 @@
 #mgmt-ap-drawer .drawer-body .filter-select {
   width: 100%;
 }
+
+.betreuung-people {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.betreuung-person {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.betreuung-person input {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.betreuung-person__name {
+  min-width: 0;
+}
+
+.betreuung-person__mail {
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.betreuung-new {
+  align-items: flex-end;
+  min-width: 0;
+  width: 100%;
+}
+
+.betreuung-new > .form-field {
+  flex: 1 1 0;
+  min-width: 7rem;
+  width: auto;
+}
+
+.betreuung-new input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}

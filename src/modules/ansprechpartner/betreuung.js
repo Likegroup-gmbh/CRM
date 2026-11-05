@@ -111,34 +111,72 @@ export async function createAnsprechpartner({ managementId, vorname, nachname, e
   return { ok: true, person: data, similar: duplicate.similar };
 }
 
+function personName(person) {
+  return `${person.vorname || ''} ${person.nachname || ''}`.replace(/\s+/g, ' ').trim() || 'Ohne Namen';
+}
+
+function tagLabel(tag) {
+  const text = tag.querySelector('span:not(.tag-remove)');
+  return (text?.textContent || tag.textContent || '').replace(/×/g, '').trim();
+}
+
+function readDrafts(host) {
+  return [...host.querySelectorAll('.betreuung-group')].map((group) => ({
+    id: group.dataset.managementId,
+    vorname: group.querySelector('.betreuung-vorname')?.value || '',
+    nachname: group.querySelector('.betreuung-nachname')?.value || '',
+    email: group.querySelector('.betreuung-email')?.value || ''
+  }));
+}
+
+function applyDrafts(host, drafts) {
+  for (const draft of drafts) {
+    if (!draft.id) continue;
+    const group = host.querySelector(`.betreuung-group[data-management-id="${CSS.escape(draft.id)}"]`);
+    if (!group) continue;
+    const vorname = group.querySelector('.betreuung-vorname');
+    const nachname = group.querySelector('.betreuung-nachname');
+    const email = group.querySelector('.betreuung-email');
+    if (vorname) vorname.value = draft.vorname;
+    if (nachname) nachname.value = draft.nachname;
+    if (email) email.value = draft.email;
+  }
+}
+
 export function renderBetreuungGroups({ managements, people, checkedIds }) {
   if (!managements.length) {
     return '<p class="form-hint">Erst Management hinterlegen.</p>';
   }
   return managements.map((management) => {
     const own = people.filter((person) => person.management_id === management.id);
-    const checks = own.map((person) => `
-      <label class="form-field--inline">
-        <input type="checkbox" class="creator-ap-check" value="${esc(person.id)}" data-management-id="${esc(management.id)}" ${checkedIds.has(person.id) ? 'checked' : ''} />
-        <span>${esc(`${person.vorname || ''} ${person.nachname || ''}`.trim())}</span>
-      </label>
-    `).join('');
+    const checks = own.map((person) => {
+      const mail = String(person.email || '').trim();
+      return `
+        <label class="betreuung-person">
+          <input type="checkbox" class="creator-ap-check" value="${esc(person.id)}" data-management-id="${esc(management.id)}" ${checkedIds.has(person.id) ? 'checked' : ''} />
+          <span class="betreuung-person__name">${esc(personName(person))}</span>
+          ${mail ? `<span class="betreuung-person__mail">${esc(mail)}</span>` : ''}
+        </label>
+      `;
+    }).join('');
     return `
       <div class="betreuung-group" data-management-id="${esc(management.id)}">
         <p class="form-label">${esc(management.name)}</p>
-        ${checks || '<p class="form-hint">Noch kein Ansprechpartner.</p>'}
+        <div class="betreuung-people">
+          ${checks || '<p class="form-hint">Noch kein Ansprechpartner.</p>'}
+        </div>
         <div class="form-row-group betreuung-new">
           <div class="form-field form-field--grow">
             <label>Vorname</label>
-            <input type="text" class="form-input betreuung-vorname" />
+            <input type="text" class="form-input betreuung-vorname" autocomplete="section-betreuung given-name" />
           </div>
           <div class="form-field form-field--grow">
             <label>Nachname</label>
-            <input type="text" class="form-input betreuung-nachname" />
+            <input type="text" class="form-input betreuung-nachname" autocomplete="section-betreuung family-name" />
           </div>
           <div class="form-field form-field--grow">
             <label>Mail</label>
-            <input type="email" class="form-input betreuung-email" />
+            <input type="email" class="form-input betreuung-email" autocomplete="section-betreuung email" />
           </div>
         </div>
         <p class="form-hint betreuung-hint"></p>
@@ -160,13 +198,12 @@ export async function mountCreatorBetreuung(form, { creatorId = null } = {}) {
   else form.appendChild(host);
 
   const checked = new Set(await loadBetreuungIds(creatorId));
+  let paintGen = 0;
 
-  const paint = async () => {
-    for (const box of host.querySelectorAll('.creator-ap-check')) {
-      if (box.checked) checked.add(box.value);
-      else checked.delete(box.value);
-    }
+  const paint = async ({ keepDrafts = true } = {}) => {
+    const gen = ++paintGen;
     const ids = selectedManagementIds(form);
+    host.dataset.managementKey = ids.join(',');
     if (!ids.length) {
       host.innerHTML = '<h3>Ansprechpartner</h3><p class="form-hint">Erst Management hinterlegen.</p>';
       return;
@@ -174,7 +211,7 @@ export async function mountCreatorBetreuung(form, { creatorId = null } = {}) {
     const names = new Map();
     const box = managementField?.closest('.form-field');
     for (const tag of box?.querySelectorAll('.tag-based-select .tag[data-value]') || []) {
-      names.set(tag.dataset.value, tag.textContent.trim());
+      names.set(tag.dataset.value, tagLabel(tag));
     }
     for (const option of managementField?.querySelectorAll('option') || []) {
       if (option.value && !names.has(option.value)) names.set(option.value, option.textContent.trim());
@@ -183,11 +220,19 @@ export async function mountCreatorBetreuung(form, { creatorId = null } = {}) {
     try {
       people = await loadAnsprechpartner(ids);
     } catch (error) {
+      if (gen !== paintGen) return;
       host.innerHTML = `<h3>Ansprechpartner</h3><p class="form-hint">${esc(error.message)}</p>`;
       return;
     }
+    if (gen !== paintGen) return;
+    for (const input of host.querySelectorAll('.creator-ap-check')) {
+      if (input.checked) checked.add(input.value);
+      else checked.delete(input.value);
+    }
+    const drafts = keepDrafts ? readDrafts(host) : [];
     const managements = ids.map((id) => ({ id, name: names.get(id) || 'Management' }));
     host.innerHTML = `<h3>Ansprechpartner</h3>${renderBetreuungGroups({ managements, people, checkedIds: checked })}`;
+    applyDrafts(host, drafts);
   };
 
   host.addEventListener('click', async (event) => {
@@ -204,17 +249,22 @@ export async function mountCreatorBetreuung(form, { creatorId = null } = {}) {
     if (!result.ok) {
       hint.textContent = result.message;
       if (result.exact) checked.add(result.exact.id);
-      if (result.exact) await paint();
+      if (result.exact) await paint({ keepDrafts: false });
       return;
     }
     checked.add(result.person.id);
     if (result.similar?.length) {
       window.toastSystem?.show('Ähnlicher Name vorhanden, die Person wurde trotzdem angelegt.', 'warning');
     }
-    await paint();
+    await paint({ keepDrafts: false });
   });
 
-  form.addEventListener('change', () => { paint(); });
+  form.addEventListener('change', (event) => {
+    if (event.target.closest('#creator-betreuung')) return;
+    const key = selectedManagementIds(form).join(',');
+    if (key === host.dataset.managementKey) return;
+    paint();
+  });
   await paint();
 }
 
