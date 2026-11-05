@@ -242,6 +242,21 @@
   margin-top: var(--space-sm);
 }
 
+/* Kartei: ein Abstand zwischen Stern und Tags, bündig mit Avatar und Kennzahlen.
+   Der Drawer hat kein detail-card und behält den Abstand über der Zeile. */
+.creator-merkmale.detail-card {
+  gap: var(--space-md);
+  padding: 0 var(--space-md);
+}
+
+.creator-merkmale.detail-card .creator-favorit-host {
+  line-height: 0;
+}
+
+.creator-merkmale.detail-card > .form-field {
+  margin-top: 0;
+}
+
 .creator-card__actions {
   display: flex;
   align-items: center;
