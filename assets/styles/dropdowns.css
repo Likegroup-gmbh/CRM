@@ -296,7 +296,8 @@
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  min-width: 260px;
+  min-width: min(260px, calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
   z-index: 99999;
   padding: var(--space-xs) 0;
 }
@@ -343,12 +344,21 @@
   transform: rotate(180deg);
 }
 
+.actions-dropdown-portal .action-item.has-submenu.submenu-opens-right::after {
+  transform: none;
+}
+
+.actions-dropdown-portal .action-item.has-submenu.submenu-opens-inline::after {
+  transform: rotate(90deg);
+}
+
 .actions-dropdown-portal .submenu {
   position: absolute;
   top: 0;
   right: 100%;
   margin-right: var(--space-sm);
-  min-width: var(--panel-md);
+  min-width: min(var(--panel-md), calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
   background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
   box-shadow: 0 10px 20px rgba(0,0,0,0.08);
@@ -359,6 +369,50 @@
   transform: translateY(4px);
   transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
   z-index: 100000;
+}
+
+.actions-dropdown-portal .submenu.submenu--flip-right {
+  right: auto;
+  left: 100%;
+  margin-right: 0;
+  margin-left: var(--space-sm);
+}
+
+.actions-dropdown-portal .submenu.submenu--inline {
+  right: auto;
+  left: 0;
+  top: calc(100% + 4px);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  max-height: min(280px, 50vh);
+  overflow-y: auto;
+}
+
+/* Zu lang fuer den Viewport: erst dichter setzen, damit Loeschen im Bild bleibt. */
+.actions-dropdown-portal.is-compact .action-item,
+.actions-dropdown-portal.is-compact .submenu-item {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.actions-dropdown-portal.is-compact .action-separator {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.actions-dropdown-portal.is-scrollable {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-400) transparent;
+}
+
+.actions-dropdown-portal.is-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.actions-dropdown-portal.is-scrollable::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+  border-radius: 8px;
 }
 
 .actions-dropdown-portal .action-submenu:hover > .submenu { opacity: 1; visibility: visible; transform: translateY(0); }
@@ -440,10 +494,11 @@
 /* Responsive Design für Actions */
 
 @media (max-width: 768px) {
-  .actions-dropdown-portal {
-    min-width: var(--panel-md);
+  .actions-dropdown-portal .action-item,
+  .actions-dropdown-portal .submenu-item {
+    white-space: normal;
   }
-  
+
   .action-item {
     padding: var(--space-md);
     font-size: var(--text-md);
