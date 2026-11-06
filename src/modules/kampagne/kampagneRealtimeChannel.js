@@ -7,7 +7,7 @@
 // ueber kurze Unterbrechungen bestehen:
 //  - Listener melden sich an/ab, der Channel lebt per Referenzzaehler.
 //  - Nach dem letzten Abmelden wartet er GRACE_MS, bevor er abgebaut wird.
-//  - Pro Tabelle ein Event '*' statt je INSERT/UPDATE/DELETE (4 statt 8 Zeilen).
+//  - Pro Tabelle ein Event '*' statt je INSERT/UPDATE/DELETE.
 //  - Reconnect mit Backoff. Nach Reconnect und nach laengerem Hintergrund-Tab
 //    bekommen die Listener onResync, damit verpasste Events nachgeladen werden
 //    (Realtime liefert hoechstens einmal, nichts wird nachgeliefert).
@@ -74,10 +74,13 @@ function buildChannel(entry) {
     .channel(`kampagne-koops-videos-${kampagneId}`, {
       config: { broadcast: { self: false } }
     })
-    // Videos und Kommentare lassen sich nicht nach Kampagne filtern. Die
-    // Listener pruefen die Zugehoerigkeit selbst.
+    // Videos, Kommentare und Werte eigener Spalten lassen sich nicht nach
+    // Kampagne filtern. Die Listener pruefen die Zugehoerigkeit selbst.
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kooperation_videos' }, route('kooperation_videos'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kooperation_video_comment' }, route('kooperation_video_comment'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kooperation_video_zeitkommentar' }, route('kooperation_video_zeitkommentar'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kooperation_still_comment' }, route('kooperation_still_comment'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'custom_column_values' }, route('custom_column_values'))
     // INSERT/UPDATE serverseitig auf die Kampagne filtern: Realtime prueft sonst
     // jede Aenderung aller Kampagnen per RLS pro Subscriber.
     .on('postgres_changes', {

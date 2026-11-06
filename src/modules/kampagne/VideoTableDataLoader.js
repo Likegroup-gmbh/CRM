@@ -11,6 +11,11 @@ import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
 import { vertraegeProKooperation, VERTRAG_ZELLE_COLS } from '../vertrag/deckung/vertragDeckung.js';
 import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
 import { BILDER_ASSET_SELECT, pickLatestAsset } from '../../core/stills/stillAssets.js';
+import {
+  groupZeitkommentare,
+  patchZeitkommentarLists,
+  ZEITKOMMENTAR_SELECT
+} from './videoTableZeitkommentare.js';
 
 export class VideoTableDataLoader {
   constructor(table) {
@@ -45,6 +50,22 @@ export class VideoTableDataLoader {
       videoIds,
       q => q.is('deleted_at', null).order('created_at', { ascending: true })
     );
+  }
+
+  // Optional: fehlt die Tabelle oder greift RLS, bleibt die Zelle beim Text.
+  async loadZeitkommentare(videoIds) {
+    const result = await VideoTableDataLoader.batchInQuery(
+      window.supabase.from('kooperation_video_zeitkommentar'),
+      ZEITKOMMENTAR_SELECT,
+      'video_id',
+      videoIds,
+      q => q.is('deleted_at', null).order('created_at', { ascending: true })
+    );
+    if (result?.error) {
+      console.warn('⚠️ Kommentare aus dem Videos-Tab konnten nicht geladen werden:', result.error);
+      return {};
+    }
+    return groupZeitkommentare(result?.data);
   }
 
   static batchInQuery(supabaseFrom, selectStr, column, ids, extraFilters) {
@@ -297,7 +318,7 @@ export class VideoTableDataLoader {
       const batchIn = VideoTableDataLoader.batchInQuery;
       const sb = window.supabase;
 
-      const [assetsResult, commentsResult, finalAssetsResult, stillCommentsResult] = await Promise.allSettled([
+      const [assetsResult, commentsResult, finalAssetsResult, stillCommentsResult, zeitResult] = await Promise.allSettled([
         batchIn(
           sb.from('kooperation_video_asset'),
           'id, video_id, file_url, file_path, version_number, is_current, created_at',
@@ -311,8 +332,10 @@ export class VideoTableDataLoader {
           'video_id', videoIds,
           q => q.eq('is_final', true).order('created_at', { ascending: true })
         ),
-        this.loadStillFeedbackComments(videoIds)
+        this.loadStillFeedbackComments(videoIds),
+        this.loadZeitkommentare(videoIds)
       ]);
+      const zeitByVideo = zeitResult.status === 'fulfilled' ? zeitResult.value : {};
 
       const settledOk = (result) => result.status === 'fulfilled' && !result.value?.error;
       const assets = settledOk(assetsResult) ? (assetsResult.value.data || []) : [];
@@ -364,6 +387,7 @@ export class VideoTableDataLoader {
         t.store.applyAssets(assetsByVideoId);
         t.store.applyComments(comments);
         t.store.applyStillComments(stillComments);
+        t.store.applyZeitkommentare(zeitByVideo);
         if (finalsOk) t.store.applyFinalAssets(finalsByVideoId);
       } else {
         for (const koopVideos of Object.values(t.videos)) {
@@ -389,6 +413,7 @@ export class VideoTableDataLoader {
           }
           t.stillComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
         });
+        if (t.zeitkommentare) Object.assign(t.zeitkommentare, zeitByVideo);
       }
 
       this.patchRenderedAssetsAndComments(assetsByVideoId);
@@ -548,6 +573,14 @@ export class VideoTableDataLoader {
         if (field && !field.value) field.value = formatVideoFeedbackValue(comments, slot.bucket);
       });
     }
+
+    for (const koopVideos of Object.values(t.videos || {})) {
+      for (const video of koopVideos) {
+        const list = t.zeitkommentare?.[video.id];
+        if (list?.length) patchZeitkommentarLists(container, video, list);
+      }
+    }
+    t._rowHeightSync?.schedule();
 
     this.patchRenderedBilderCells();
   }

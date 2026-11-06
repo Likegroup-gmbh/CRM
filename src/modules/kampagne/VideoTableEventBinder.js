@@ -12,6 +12,7 @@ import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
 import { applyLiveLinkCellState, findVideoInTable } from './liveLinkCell.js';
 import { bindTextBaseline, isGuardedTextField, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
+import { openZeitkommentar } from './videoTableZeitkommentare.js';
 export class VideoTableEventBinder {
   constructor(table) {
     this.table = table;
@@ -165,6 +166,12 @@ export class VideoTableEventBinder {
     }, { signal });
 
     container.addEventListener('click', (e) => {
+      const zeitBtn = e.target.closest('[data-action="open-zeitkommentar"]');
+      if (zeitBtn) {
+        e.preventDefault();
+        openZeitkommentar(t._detail, zeitBtn);
+        return;
+      }
       const playBtn = e.target.closest('[data-action="play-video"]');
       if (playBtn) {
         e.preventDefault();

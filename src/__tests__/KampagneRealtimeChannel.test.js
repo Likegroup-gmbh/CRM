@@ -48,7 +48,7 @@ describe('kampagneRealtimeChannel', () => {
     setVisibility('visible');
   });
 
-  it('meldet pro Tabelle ein Event * an (vier Subscriptions statt acht)', () => {
+  it('meldet pro Tabelle ein Event * an (statt je INSERT/UPDATE/DELETE)', () => {
     acquireKampagneChannel('k1', { onChange: vi.fn() });
 
     expect(channels).toHaveLength(1);
@@ -56,10 +56,13 @@ describe('kampagneRealtimeChannel', () => {
     expect(handlers.map(h => `${h.opts.table}:${h.opts.event}`)).toEqual([
       'kooperation_videos:*',
       'kooperation_video_comment:*',
+      'kooperation_video_zeitkommentar:*',
+      'kooperation_still_comment:*',
+      'custom_column_values:*',
       'kooperationen:*',
       'kooperationen:DELETE'
     ]);
-    expect(handlers[2].opts.filter).toBe('kampagne_id=eq.k1');
+    expect(handlers[5].opts.filter).toBe('kampagne_id=eq.k1');
   });
 
   it('teilt einen Channel zwischen Listenern und baut ihn nach der Gnadenfrist ab', () => {

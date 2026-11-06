@@ -155,6 +155,14 @@ export class VideoFeedbackSaveController {
     return this._dirty.has(`${entity}|${videoId}|${fieldName}`);
   }
 
+  // Realtime hat den Wert der anderen Seite ins Feld geschrieben: gilt als
+  // gespeichert, sonst schreibt ein spaeterer Blur ihn unnoetig zurueck.
+  acceptRemoteValue(field) {
+    const key = this._key(field);
+    if (this._dirty.has(key)) return;
+    this._lastSaved.set(key, field.value);
+  }
+
   // Haelt doppelte Textareas desselben Feldes (Tabelle <-> Player) in Sync.
   _syncSiblings(field) {
     const { entity, id, field: fieldName } = this._identity(field);

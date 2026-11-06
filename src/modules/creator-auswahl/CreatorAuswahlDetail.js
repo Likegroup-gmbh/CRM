@@ -28,6 +28,7 @@ import { absorbCastingEdits, castingDetailRowActionsMethods } from './CastingDet
 import { castingDetailZeilenStatusMethods } from './CastingDetailZeilenStatus.js';
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
+import { handleCastingRealtime, rerenderUnlessTyping } from './castingRealtime.js';
 import { parseTeilbereiche } from './castingKategorien.js';
 import { loadBewerbungen } from './bewerbungTab.js';
 import { showCastingKategorienDrawer } from './CastingKategorienDrawer.js';
@@ -151,6 +152,7 @@ export class CreatorAuswahlDetail {
       if (!this.embedded) window.setHeadline('');
       await this.render();
       this.bindEvents();
+      this._subscribeRealtime();
     } catch (error) {
       console.error('Fehler beim Laden:', error);
       const rootEl = this._getRoot();
@@ -164,9 +166,49 @@ export class CreatorAuswahlDetail {
     }
   }
 
+  // Einträge und eigene Spalten, die Kunde oder Team woanders speichern.
+  // Eigener Cleanup: bindEvents leert _boundEventListeners bei jedem Neuzeichnen.
+  _subscribeRealtime() {
+    this._unsubscribeRealtime();
+    if (!window.supabase?.channel || !this.listeId) return;
+    const listeId = this.listeId;
+    const onItem = (payload) => handleCastingRealtime(this, payload, {
+      loadItems: () => creatorAuswahlService.getItems(listeId)
+    }).catch(err => console.warn('Casting-Realtime fehlgeschlagen:', err));
+
+    const channel = window.supabase
+      .channel(`casting-items-${listeId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'creator_auswahl_items',
+        filter: `creator_auswahl_id=eq.${listeId}`
+      }, onItem)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'creator_auswahl_items',
+        filter: `creator_auswahl_id=eq.${listeId}`
+      }, onItem)
+      // DELETE laesst sich nicht nach Nicht-PK-Spalten filtern. Fremde IDs fallen
+      // in handleCastingRealtime raus.
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'creator_auswahl_items' }, onItem)
+      .subscribe();
+    const releaseValues = this.customColumns.subscribeValues({
+      root: () => this._getRoot(),
+      onRerender: () => rerenderUnlessTyping(this)
+    });
+    this._realtimeCleanup = () => {
+      window.supabase.removeChannel(channel);
+      releaseValues();
+    };
+  }
+
+  _unsubscribeRealtime() {
+    this._realtimeCleanup?.();
+    this._realtimeCleanup = null;
+  }
+
   destroy() {
     if (this._tornDown) return;
     this._tornDown = true;
+    this._unsubscribeRealtime();
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this.addDrawer.remove();

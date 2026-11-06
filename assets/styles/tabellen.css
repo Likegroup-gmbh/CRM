@@ -670,6 +670,57 @@
   field-sizing: content;
 }
 
+/* Kommentare aus dem Videos-Tab unter dem Feedback-Text, schreibgeschützt */
+.kooperation-video-grid .feedback-zeit-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  width: 100%;
+  padding: 0 var(--space-sm) var(--space-sm);
+  box-sizing: border-box;
+}
+
+.kooperation-video-grid .feedback-zeit-list:empty {
+  display: none;
+}
+
+.kooperation-video-grid .feedback-zeit-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xxs) var(--space-xs);
+  width: 100%;
+  padding: var(--space-xxs) var(--space-xs);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--gray-50);
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kooperation-video-grid .feedback-zeit-item:hover {
+  background: var(--gray-100);
+}
+
+.kooperation-video-grid .feedback-zeit-tc {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.kooperation-video-grid .feedback-zeit-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--gray-900);
+}
+
+.kooperation-video-grid .feedback-zeit-author {
+  color: var(--gray-500);
+}
+
 /* Anzeige-Inhalte in Stack-Zellen */
 .kooperation-video-grid .video-nr-text,
 .kooperation-video-grid .video-vk-text,

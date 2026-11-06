@@ -16,6 +16,14 @@ import { applyLiveLinkCellState, findLiveLinkCell } from './liveLinkCell.js';
 import { acquireKampagneChannel } from './kampagneRealtimeChannel.js';
 import { koopGehoertZurLinie } from '../produktion/ProduktionService.js';
 import { mergeKeepingFilled, shouldKeepDisplayedText } from '../../core/table/textFieldBaseline.js';
+import {
+  customValueFields,
+  isEditingCustomValue,
+  readCustomValueChange,
+  writeCustomValue
+} from '../../core/customColumns/remoteCustomValue.js';
+import { applyZeitkommentarChange, patchZeitkommentarLists } from './videoTableZeitkommentare.js';
+import { makeCustomColumnId } from './columns/ColumnRegistry.js';
 
 export class VideoTableRealtimeHandler {
   constructor(table) {
@@ -63,7 +71,97 @@ export class VideoTableRealtimeHandler {
 
     if (tableName === 'kooperation_video_comment') {
       this.handleCommentChange(payload);
+      return;
     }
+
+    if (tableName === 'kooperation_video_zeitkommentar') {
+      this.handleZeitkommentarChange(payload);
+      return;
+    }
+
+    if (tableName === 'kooperation_still_comment') {
+      this.handleStillCommentChange(payload);
+      return;
+    }
+
+    if (tableName === 'custom_column_values') {
+      this.handleCustomValueChange(payload);
+    }
+  }
+
+  // DELETE liefert payload.new = {}, die Spalten stehen dann nur in payload.old.
+  _changedRow(payload, key) {
+    return payload?.new?.[key] ? payload.new : payload?.old;
+  }
+
+  _typingInGrid() {
+    const active = document.activeElement;
+    return !!(active?.matches?.('input, textarea, select, [contenteditable="true"]')
+      && active.closest?.('.kooperation-video-grid'));
+  }
+
+  _flash(field) {
+    field.classList.add('field-updated');
+    setTimeout(() => field.classList.remove('field-updated'), 2000);
+  }
+
+  handleZeitkommentarChange(payload) {
+    const row = this._changedRow(payload, 'video_id');
+    if (!row?.video_id || !this._knowsVideo(row.video_id)) return;
+    const videoId = row.video_id;
+    const next = applyZeitkommentarChange(this.table.zeitkommentare[videoId], row, {
+      removed: payload.eventType === 'DELETE'
+    });
+    if (this.table.store) this.table.store.updateZeitkommentare(videoId, next);
+    else this.table.zeitkommentare[videoId] = next;
+    patchZeitkommentarLists(document, this._findVideo(videoId), next);
+    this.table._rowHeightSync?.schedule();
+  }
+
+  // Bild-Feedback steht nur im Player. Store und offener Player ziehen mit.
+  handleStillCommentChange(payload) {
+    const row = this._changedRow(payload, 'video_id');
+    if (!row?.video_id || !this._knowsVideo(row.video_id)) return;
+    const slot = getVideoFeedbackSlot(row.runde, row.feedback_typ);
+    if (!slot) return;
+    const videoId = row.video_id;
+    const live = payload.eventType !== 'DELETE' && !row.deleted_at && String(row.text || '').trim();
+    const next = replaceVideoFeedbackBucket(this.table.stillComments?.[videoId], slot.bucket, live ? [row] : []);
+    if (this.table.store) this.table.store.updateStillComments(videoId, next);
+    else this.table.stillComments[videoId] = next;
+
+    if (this.table.feedbackSaveController?.isDirty(videoId, slot.field, 'still')) return;
+    const text = formatVideoFeedbackValue(next, slot.bucket);
+    document.querySelectorAll(`[data-entity="still"][data-id="${videoId}"][data-field="${slot.field}"]`).forEach(field => {
+      if (field === document.activeElement || field.value === text) return;
+      field.value = text;
+      this._flash(field);
+    });
+  }
+
+  handleCustomValueChange(payload) {
+    const store = this.table.store;
+    const change = readCustomValueChange(payload);
+    if (!store || !change) return;
+    const { columnId, entityId, value } = change;
+    if (!store.customColumns.some(c => c.id === columnId)) return;
+    const known = this.table.kooperationen.some(k => k.id === entityId) || this._knowsVideo(entityId);
+    if (!known) return;
+
+    const controller = this.table.feedbackSaveController;
+    const fields = customValueFields(document, columnId, entityId);
+    // Ungespeicherter oder gerade getippter Text hat Vorrang. Sein Save schreibt danach ohnehin.
+    if (controller?.isDirty(entityId, columnId, 'custom') || isEditingCustomValue(fields)) return;
+
+    store.setCustomColumnValue(entityId, columnId, value);
+    const patched = writeCustomValue(fields, value, { onPatched: f => controller?.acceptRemoteValue?.(f) });
+    if (patched) {
+      this.table._rowHeightSync?.schedule();
+      return;
+    }
+    const visible = [...document.querySelectorAll(`td[data-col-id="${makeCustomColumnId(columnId)}"]`)]
+      .some(td => td.style.display !== 'none');
+    if (visible && !this._typingInGrid()) this.table.refilter?.();
   }
 
   // Nach Reconnect oder laengerem Hintergrund-Tab: verpasste Events nachholen.
@@ -281,7 +379,7 @@ export class VideoTableRealtimeHandler {
   }
 
   async handleCommentChange(payload) {
-    const comment = payload.new || payload.old;
+    const comment = this._changedRow(payload, 'video_id');
     if (!comment?.video_id) return;
     // Kommentare lassen sich serverseitig nicht nach Kampagne filtern: Fremde
     // Kampagnen hier verwerfen, statt pro Event eine Query abzusetzen.
@@ -292,7 +390,7 @@ export class VideoTableRealtimeHandler {
     // nach dem Autosave, ohne die Seite neu zu laden. Ein Zeilen-Update der
     // Video-Tabelle enthält diesen Text nicht und darf die Zelle nicht leeren.
     const slot = getVideoFeedbackSlot(comment.runde, comment.feedback_typ);
-    const liveText = !comment.deleted_at && String(comment.text || '').trim();
+    const liveText = payload.eventType !== 'DELETE' && !comment.deleted_at && String(comment.text || '').trim();
     if (slot) {
       const next = replaceVideoFeedbackBucket(
         this.table.videoComments?.[videoId],
@@ -351,9 +449,11 @@ export class VideoTableRealtimeHandler {
         // Kommentare dieser Zeile sind noch nicht da. Sonst leert das Update
         // ein Feld, dessen Text erst im naechsten Ladezyklus ankommt.
         if (!Object.prototype.hasOwnProperty.call(this.table.videoComments || {}, videoId)) return;
-        field.value = formatVideoFeedbackValue(this.table.videoComments[videoId], slot.bucket);
-        field.classList.add('field-updated');
-        setTimeout(() => field.classList.remove('field-updated'), 2000);
+        const text = formatVideoFeedbackValue(this.table.videoComments[videoId], slot.bucket);
+        if (field.value === text) return;
+        field.value = text;
+        controller?.acceptRemoteValue?.(field);
+        this._flash(field);
       });
     });
     this.table._rowHeightSync?.schedule();

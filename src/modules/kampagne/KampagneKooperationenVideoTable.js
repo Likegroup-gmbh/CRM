@@ -88,6 +88,8 @@ export class KampagneKooperationenVideoTable {
   get stillComments() { return this.store?.stillComments || this._stillComments || {}; }
   set stillComments(val) { if (this.store) this.store.setStillComments(val); else this._stillComments = val; }
 
+  get zeitkommentare() { return this.store?.zeitkommentare || (this._zeitkommentare ||= {}); }
+
   get versandInfos() { return this.store?.versandInfos || this._versandInfos || {}; }
   set versandInfos(val) { if (this.store) this.store.setVersandInfos(val); else this._versandInfos = val; }
 
