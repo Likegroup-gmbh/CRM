@@ -57,6 +57,7 @@ export const ActionConfigs = {
         roles: ['admin', 'mitarbeiter']
       },
       { id: 'quickview', icon: 'quickview', label: 'Schnellansicht öffnen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'linie-verschieben', icon: 'arrows-right-left', label: 'In andere Linie verschieben', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],

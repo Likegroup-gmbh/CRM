@@ -97,6 +97,10 @@ export function renderActionsInner(ctx) {
             ${icon('pencil-square', { className: 'w-4 h-4' })}
             Bearbeiten
           </a>
+          <a href="#" class="action-item" data-action="linie-verschieben" data-id="${koop.id}">
+            ${icon('arrows-right-left', { className: 'w-4 h-4' })}
+            In andere Linie verschieben
+          </a>
           ` : ''}
           ${canEdit && koop.creator_id ? `
           <a href="#" class="action-item" data-action="vertrag-verknuepfen" data-id="${koop.id}">

@@ -26,6 +26,7 @@ export const GLOBAL_ACTIONS = new Set([
   'generate-pdf',
   'vertrag-kooperationen',
   'vertrag-verknuepfen',
+  'linie-verschieben',
   'rezension',
   'anschreiben',
   'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
@@ -207,6 +208,16 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       await openVertragVerknuepfen(entityId, () => {
         window.dispatchEvent(new Event('softRefresh'));
       });
+      break;
+    }
+
+    case 'linie-verschieben': {
+      try {
+        const { oeffneLinieVerschieben } = await import('../modules/kampagne/linieVerschiebenDialog.js');
+        await oeffneLinieVerschieben(entityId);
+      } catch (err) {
+        alert(err?.message || 'Verschieben fehlgeschlagen.');
+      }
       break;
     }
 

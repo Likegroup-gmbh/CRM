@@ -92,6 +92,10 @@ _Avoid_: Bot, Chatbot, Copilot
 Rechtliches Dokument zwischen Parteien, wird als PDF generiert. Hat genau einen Vertragstyp. Deckt eine oder mehrere Kooperationen desselben Creators in derselben Kampagne, auch über Linien und Produktionen hinweg; das PDF ändert sich dadurch nicht. Eine Kooperation hat höchstens einen Vertrag, der nicht Abgelehnt ist. Die Summe der Videoanzahl der gedeckten Kooperationen darf `anzahl_videos` des Vertrags nicht übersteigen (gilt nur, wenn der Vertrag eine Videoanzahl nennt). Übersteigt die Summe der Einkaufspreise die Vergütung, wird das angezeigt, aber nicht gesperrt. Rechnungen laufen nur über gedeckte Kooperationen auf den Vertrag.
 _Avoid_: Agreement, Kontrakt, Rahmenvertrag, Nachtrag, Verträge kombinieren
 
+**Erzeuger-Kooperation**:
+Die Kooperation, an der ein Vertrag entstanden ist. Weitere Kooperationen, die derselbe Vertrag deckt, sind keine.
+_Avoid_: Hauptkooperation, Ursprungs-Kooperation
+
 **Vertrag-Status**:
 Lebenszyklus des Vertragsdokuments: Entwurf, Erstellt, Gesendet, Unterschrieben, Verzögert, Abgelehnt.
 Sitzt am Vertrag, nicht an der Kooperation. Wird nicht manuell gesetzt.
