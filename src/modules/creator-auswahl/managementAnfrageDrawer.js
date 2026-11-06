@@ -1,8 +1,9 @@
-// Drawer: Managements anfragen. Jede Mail bekommt einen eigenen Link.
+// Drawer: Managements anfragen. Jede Mail bekommt einen eigenen Link, kein PDF.
 // Hülle wie das Anschreiben, Empfänger über das Filter-Dropdown.
-// Lokal wird der Link nur angezeigt, nicht verschickt.
+// Der Versand läuft über management-anfrage-send.
 
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 import {
   bindFilterSelects,
   closeFilterSelects,
@@ -19,22 +20,6 @@ function esc(value) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-function randomToken() {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-async function sha256Hex(value) {
-  const data = new TextEncoder().encode(value);
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  return [...new Uint8Array(buf)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function linkUrl(token) {
-  return `${location.origin}/src/bewerbung/bewerbung.html?token=${encodeURIComponent(token)}`;
 }
 
 async function loadCastings(kampagneId, currentId) {
@@ -76,6 +61,7 @@ class ManagementAnfrageDrawer {
     this.managements = new Map();
     this.people = new Map();
     this._peopleLauf = 0;
+    this.sending = false;
   }
 
   async open() {
@@ -153,13 +139,13 @@ class ManagementAnfrageDrawer {
         <section class="anschreiben-section">
           <h4 class="drawer-section-title">Text</h4>
           <textarea class="input" data-body rows="8">Über den Link kannst du Creator für dieses Casting vorschlagen.</textarea>
+          <p class="anschreiben-hint">Die Mail enthält den Link. Das Briefing liegt auf der Seite, nicht als Anhang.</p>
         </section>
         <p class="anschreiben-feedback" data-feedback hidden></p>
-        <div data-links></div>
       </div>
       <div class="drawer-footer">
         <button type="button" class="mdc-btn mdc-btn--secondary" data-action="close">Abbrechen</button>
-        <button type="button" class="mdc-btn" data-action="create">Links erzeugen</button>
+        <button type="button" class="mdc-btn" data-action="send">Senden</button>
       </div>
     `;
 
@@ -175,7 +161,7 @@ class ManagementAnfrageDrawer {
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') this.close();
     }, { signal });
-    panel.querySelector('[data-action="create"]').addEventListener('click', () => this._create(), { signal });
+    panel.querySelector('[data-action="send"]').addEventListener('click', () => this._send(), { signal });
   }
 
   _paintCasting(lists) {
@@ -258,10 +244,16 @@ class ManagementAnfrageDrawer {
     el.textContent = text || '';
   }
 
-  async _create() {
+  _setSending(on) {
+    const btn = this.panel?.querySelector('[data-action="send"]');
+    if (!btn) return;
+    btn.disabled = on;
+    btn.textContent = on ? 'Wird gesendet …' : 'Senden';
+  }
+
+  async _send() {
+    if (this.sending || !this.panel) return;
     this._feedback('');
-    const links = this.panel.querySelector('[data-links]');
-    links.innerHTML = '';
     const castingId = readFilterSelectValues(this.panel.querySelector('#filter-select-management-anfrage-casting'));
     const managementIds = readFilterSelectValues(this.panel.querySelector('#filter-select-management-anfrage-management'));
     const personIds = new Set(readFilterSelectValues(this.panel.querySelector('#filter-select-management-anfrage-personen')));
@@ -283,52 +275,51 @@ class ManagementAnfrageDrawer {
           this._feedback(`${management?.firmenname || 'Management'} hat keine E-Mail.`);
           return;
         }
-        recipients.push({ management, email: management.email, ansprechpartnerId: null, name: management.firmenname });
+        recipients.push({ managementId, ansprechpartnerId: null });
         continue;
       }
       for (const person of chosen) {
-        recipients.push({
-          management,
-          email: person.email,
-          ansprechpartnerId: person.id,
-          name: personName(person),
-        });
+        recipients.push({ managementId, ansprechpartnerId: person.id });
       }
     }
 
-    const betreff = this.panel.querySelector('[data-betreff]').value;
-    const body = this.panel.querySelector('[data-body]').value;
-    const created = [];
-    for (const recipient of recipients) {
-      const token = randomToken();
-      const tokenHash = await sha256Hex(token);
-      const { error } = await window.supabase.from('management_anfrage_link').insert({
-        creator_auswahl_id: castingId,
-        management_id: recipient.management.id,
-        ansprechpartner_id: recipient.ansprechpartnerId,
-        email: recipient.email,
-        token_hash: tokenHash,
-        betreff,
-        body,
-        created_by: window.currentUser?.id || null,
-      });
-      if (error) {
-        this._feedback(error.message.includes('management_anfrage_link')
-          ? 'Die Tabelle liegt lokal noch nicht in der Datenbank. Migration zuerst anwenden.'
-          : error.message);
-        return;
-      }
-      created.push({ name: recipient.name, email: recipient.email, url: linkUrl(token) });
+    const betreff = this.panel.querySelector('[data-betreff]').value.trim();
+    const body = this.panel.querySelector('[data-body]').value.trim();
+    if (!betreff || !body) {
+      this._feedback('Betreff und Text sind Pflicht.');
+      return;
     }
-    links.innerHTML = `
-      <section class="anschreiben-section">
-        <h4 class="drawer-section-title">Links</h4>
-        ${created.map((row) => `
-          <p class="anschreiben-hint"><strong>${esc(row.name)}</strong> · ${esc(row.email)}<br>
-          <a href="${esc(row.url)}" target="_blank" rel="noopener">${esc(row.url)}</a></p>
-        `).join('')}
-      </section>
-    `;
-    window.toastSystem?.show(`${created.length} Link${created.length === 1 ? '' : 's'} erzeugt. Versand bleibt lokal aus.`, 'success');
+
+    this.sending = true;
+    this._setSending(true);
+    let sentOk = false;
+    try {
+      const response = await authorizedFetch('/.netlify/functions/management-anfrage-send', {
+        method: 'POST',
+        body: JSON.stringify({ castingId, betreff, body, empfaenger: recipients }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `Senden fehlgeschlagen (HTTP ${response.status})`);
+      const parts = [`${result.sent} gesendet`];
+      if (result.failed) parts.push(`${result.failed} fehlgeschlagen`);
+      const detail = (result.errors || [])
+        .map((row) => [row.name || row.email, row.error].filter(Boolean).join(': '))
+        .filter(Boolean)
+        .join(' · ');
+      this._feedback(result.failed ? detail : '', Boolean(result.failed));
+      window.toastSystem?.show(`Anfrage: ${parts.join(', ')}`, result.failed ? 'warning' : 'success');
+      if (!result.failed) {
+        sentOk = true;
+        setTimeout(() => this.close(), 1200);
+      }
+    } catch (err) {
+      this._feedback(err.message || 'Senden fehlgeschlagen', true);
+      window.toastSystem?.show(err.message || 'Senden fehlgeschlagen', 'error');
+    } finally {
+      if (!sentOk) {
+        this.sending = false;
+        this._setSending(false);
+      }
+    }
   }
 }
