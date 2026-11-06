@@ -357,7 +357,7 @@ export class AddItemDrawer {
       btn.addEventListener('click', () => this.setArt(btn.dataset.addArt));
     });
 
-    closeBtn?.addEventListener('click', () => this.handleClose());
+    closeBtn?.addEventListener('click', () => this.handleFertig());
 
     // Dauer folgt der Funnel-Stufe (Paid), solange sie nicht von Hand geaendert wurde.
     const dauerRoot = document.getElementById('drawer-dauer');
@@ -746,6 +746,30 @@ export class AddItemDrawer {
 
     // Nächstes Item verarbeiten
     this.processQueue();
+  }
+
+  /**
+   * Text im Formular, der noch nicht in der Queue liegt.
+   * Vorbelegte Selects (ein Produkt, eine Funnel-Stufe) zaehlen nicht.
+   */
+  formularHatEntwurf() {
+    return ['drawer-video-url', 'drawer-umsetzungsvorgabe', 'drawer-beschreibung']
+      .some(id => (document.getElementById(id)?.value || '').trim());
+  }
+
+  /**
+   * Fertig: ein ausgefuelter Entwurf geht mit in die Queue, statt zu verfallen.
+   * Unvollstaendig bleibt der Drawer offen und zeigt denselben Hinweis wie der Queue-Button.
+   */
+  handleFertig() {
+    if (this.formularHatEntwurf()) {
+      const vorher = this.queue.length;
+      this.handleAddToQueue();
+      if (this.queue.length === vorher) return;
+      this.close();
+      return;
+    }
+    this.handleClose();
   }
 
   /**

@@ -59,6 +59,8 @@ describe('AddItemDrawer – Sektionen und TableSelect', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
+    delete window.toastSystem;
     document.querySelectorAll('.table-select__portal').forEach(p => p.remove());
     document.getElementById('add-item-drawer')?.remove();
     document.getElementById('add-item-drawer-overlay')?.remove();
@@ -97,6 +99,73 @@ describe('AddItemDrawer – Sektionen und TableSelect', () => {
     expect(document.querySelector('[name="funnel_stufe"]').value).toBe('mid');
     expect(document.querySelector('[name="produkt_id"]').value).toBe('p1');
     expect(document.querySelector('[name="kategorie"]').value).toBe('');
+  });
+
+  it('nimmt eine ausgefuellte Videoreferenz mit Fertig in die Queue und schliesst', async () => {
+    const drawer = await oeffnen();
+    vi.spyOn(drawer, 'processQueue').mockResolvedValue();
+    vi.useFakeTimers();
+    try {
+      document.getElementById('drawer-video-url').value = 'https://www.tiktok.com/@x/video/1';
+      document.getElementById('drawer-umsetzungsvorgabe').value = 'Nur die Hook';
+      document.getElementById('btn-close-drawer').click();
+
+      expect(drawer.queue).toHaveLength(1);
+      expect(drawer.queue[0]).toMatchObject({
+        url: 'https://www.tiktok.com/@x/video/1',
+        umsetzungsvorgabe: 'Nur die Hook',
+        status: 'pending'
+      });
+      await vi.advanceTimersByTimeAsync(400);
+      expect(document.getElementById('add-item-drawer')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('nimmt eine ausgefuellte Idee mit Fertig in die Queue', async () => {
+    const drawer = await oeffnen();
+    vi.spyOn(drawer, 'processQueue').mockResolvedValue();
+
+    document.querySelector('[data-add-art="idee"]').click();
+    document.getElementById('drawer-beschreibung').value = 'Morgenroutine ohne Link';
+    document.getElementById('btn-close-drawer').click();
+
+    expect(drawer.queue).toHaveLength(1);
+    expect(drawer.queue[0]).toMatchObject({
+      url: null,
+      beschreibung: 'Morgenroutine ohne Link',
+      status: 'pending'
+    });
+  });
+
+  it('laesst den Drawer offen, wenn Fertig einen unvollstaendigen Entwurf trifft', async () => {
+    const drawer = await oeffnen();
+    const toasts = [];
+    window.toastSystem = { show: (msg, type) => toasts.push({ msg, type }) };
+
+    document.getElementById('drawer-video-url').value = 'https://www.tiktok.com/@x/video/1';
+    document.getElementById('btn-close-drawer').click();
+
+    expect(drawer.queue).toHaveLength(0);
+    expect(document.getElementById('add-item-drawer')).toBeTruthy();
+    expect(document.getElementById('drawer-video-url').value).toBe('https://www.tiktok.com/@x/video/1');
+    expect(toasts).toEqual([{ msg: 'Was sollen wir von diesem Video umsetzen?', type: 'warning' }]);
+  });
+
+  it('schliesst mit Fertig, wenn kein Entwurf im Formular steht', async () => {
+    await oeffnen();
+    const toasts = [];
+    window.toastSystem = { show: (msg, type) => toasts.push({ msg, type }) };
+    vi.useFakeTimers();
+    try {
+      document.getElementById('btn-close-drawer').click();
+      await vi.advanceTimersByTimeAsync(400);
+      expect(document.getElementById('add-item-drawer')).toBeNull();
+      expect(toasts).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('uebernimmt die gewaehlten Werte in den Queue-Eintrag', async () => {
