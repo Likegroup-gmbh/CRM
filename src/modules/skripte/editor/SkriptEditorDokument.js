@@ -66,7 +66,19 @@ SkriptEditorView.prototype.freigeben = async function() {
   }
 };
 
+SkriptEditorView.prototype.copySkriptLink = async function() {
+  if (!this.skript?.id) return;
+  const url = `${window.location.origin}/skripte/${this.skript.id}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    window.toastSystem?.success('Link kopiert.');
+  } catch {
+    window.toastSystem?.error('Link konnte nicht kopiert werden.');
+  }
+};
+
 SkriptEditorView.prototype.bindShareButton = function(el) {
+  el.querySelector('#ed-copy-link')?.addEventListener('click', () => this.copySkriptLink());
   el.querySelector('#ed-share')?.addEventListener('click', () => {
     if (!this.kannTeilen) return;
     const creator = konzeptCreatorFromSkript(this.skript);

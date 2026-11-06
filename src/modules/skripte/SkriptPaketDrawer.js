@@ -7,6 +7,7 @@ import {
 } from './skriptPaketApi.js';
 import { paketAuswahl } from './skriptPaketModel.js';
 import { renderPaketForm, addEmail } from './skriptPaketDrawerView.js';
+import { classifyShareEmails, recipientPlanRows } from '../share/shareRecipientPlan.js';
 
 const DRAWER_ID = 'skript-paket-drawer';
 
@@ -218,7 +219,42 @@ export class SkriptPaketDrawer {
     }
   }
 
+  async refreshPaketPlan() {
+    const el = this.panel?.querySelector('#skript-paket-plan');
+    if (!el) return;
+    if (!this.emails.length) {
+      el.innerHTML = '';
+      return;
+    }
+    let plan = null;
+    try {
+      plan = await classifyShareEmails(window.supabase, {
+        emails: this.emails,
+        entityType: 'skript_paket',
+        entityId: this.paket?.id || 'paket'
+      });
+    } catch (err) {
+      console.error('Empfänger-Aufteilung fehlgeschlagen:', err);
+    }
+    this.paketPlan = plan;
+    el.innerHTML = recipientPlanRows(plan).map((row) => `
+      <div class="share-plan-row">
+        <span class="share-plan-email">${escapeHtml(row.email)}</span>
+        <span>${escapeHtml(row.text)}</span>
+      </div>`).join('');
+  }
+
   async createShare(paketId, name, rechte) {
+    const plan = await classifyShareEmails(window.supabase, {
+      emails: this.emails,
+      entityType: 'skript_paket',
+      entityId: paketId
+    });
+    if (!plan) throw new Error('Empfänger konnten nicht geprüft werden.');
+    if (this.emails.length && !plan.guest.length) {
+      window.toastSystem?.warning('Für diese Adressen gibt es keinen Gast-Zugang. Die Auswahl kann nur an Personen ohne Kundenkonto gehen.');
+      return;
+    }
     const { data, error } = await window.supabase.functions.invoke('share-list', {
       body: {
         action: 'create',
@@ -226,7 +262,7 @@ export class SkriptPaketDrawer {
         entityId: paketId,
         label: name,
         rechte,
-        emails: [...this.emails],
+        emails: plan.guest,
         endsWithKampagne: true,
         scriptTitles: this.titelDerAuswahl()
       }
@@ -238,25 +274,39 @@ export class SkriptPaketDrawer {
       token: String(data.link || '').split('/').pop(),
       label: name,
       rechte,
-      empfaenger_emails: [...this.emails]
+      empfaenger_emails: [...plan.guest]
     };
+    this.emails = [...plan.guest];
     this.codes[data.shareId] = data.code;
-    window.toastSystem?.success(this.emails.length ? 'Zugang angelegt und Mail verschickt.' : 'Zugang angelegt.');
+    window.toastSystem?.success(plan.guest.length ? 'Zugang angelegt und Mail verschickt.' : 'Zugang angelegt.');
+    if (plan.blocked.length) {
+      window.toastSystem?.warning('Adressen mit Kundenkonto wurden nicht angeschrieben. Die Auswahl gibt es nur als Gast-Zugang.');
+    }
   }
 
   async updateShare(name, rechte) {
+    const plan = await classifyShareEmails(window.supabase, {
+      emails: this.emails,
+      entityType: 'skript_paket',
+      entityId: this.paket?.id || this.share.entity_id
+    });
+    if (!plan) throw new Error('Empfänger konnten nicht geprüft werden.');
     const { data, error } = await window.supabase.functions.invoke('share-list', {
       body: {
         action: 'update',
         shareId: this.share.id,
         label: name,
         rechte,
-        emails: [...this.emails]
+        emails: plan.guest
       }
     });
     if (error || data?.error) throw new Error(data?.error || 'Speichern fehlgeschlagen.');
-    this.share = { ...this.share, label: name, rechte, empfaenger_emails: [...this.emails] };
+    this.emails = [...plan.guest];
+    this.share = { ...this.share, label: name, rechte, empfaenger_emails: [...plan.guest] };
     window.toastSystem?.success('Auswahl gespeichert.');
+    if (plan.blocked.length) {
+      window.toastSystem?.warning('Adressen mit Kundenkonto bleiben ohne Mail. Die Auswahl gibt es nur als Gast-Zugang.');
+    }
   }
 
   async rotate() {
@@ -282,11 +332,20 @@ export class SkriptPaketDrawer {
       window.toastSystem?.warning('Keine E-Mail-Adresse hinterlegt.');
       return;
     }
+    const plan = await classifyShareEmails(window.supabase, {
+      emails: this.emails,
+      entityType: 'skript_paket',
+      entityId: this.paket?.id || this.share.entity_id
+    });
+    if (!plan?.guest.length) {
+      window.toastSystem?.warning('Für diese Adressen gibt es keinen Gast-Zugang.');
+      return;
+    }
     const { data, error } = await window.supabase.functions.invoke('share-list', {
       body: {
         action: 'resend',
         shareId: this.share.id,
-        emails: [...this.emails],
+        emails: plan.guest,
         code,
         scriptTitles: this.titelDerAuswahl()
       }

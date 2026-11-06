@@ -2,6 +2,7 @@
 
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { paketAuswahl, creatorOptionen, creatorAnzeigeName } from './skriptPaketModel.js';
+import { BLOCKED_TEXT } from '../share/shareRecipientPlan.js';
 
 const RECHTE = [
   { value: 'ansehen', label: 'Nur ansehen' },
@@ -72,6 +73,8 @@ export function renderPaketForm(drawer) {
           </div>
           <div class="tag-suggestions" id="skript-paket-suggestions" style="display:none;"></div>
         </div>
+        <p class="share-plan-note">${escapeHtml(BLOCKED_TEXT.paket)}</p>
+        <div id="skript-paket-plan" class="share-recipient-plan"></div>
       </div>
     </section>
     <section class="share-drawer-abschnitt skript-paket-liste" id="skript-paket-liste"></section>
@@ -82,7 +85,7 @@ export function renderPaketForm(drawer) {
           <p class="share-link-value">${escapeHtml(link)}</p>
           ${code ? `<p class="share-code-line">Code <span class="share-fresh-code">${escapeHtml(code)}</span></p>` : ''}
           <div class="skript-paket-aktionen">
-            <button type="button" class="mdc-btn mdc-btn--secondary" data-copy-link>Link kopieren</button>
+            <button type="button" class="mdc-btn mdc-btn--secondary" data-copy-link>Gast-Link kopieren</button>
             <button type="button" class="mdc-btn mdc-btn--secondary" data-rotate>Code rotieren</button>
             <button type="button" class="mdc-btn mdc-btn--secondary" data-resend>Erneut senden</button>
             <button type="button" class="mdc-btn mdc-btn--secondary" data-revoke>Widerrufen</button>
@@ -203,6 +206,7 @@ function renderEmailTags(drawer) {
       renderEmailTags(drawer);
     });
   });
+  drawer.refreshPaketPlan?.();
 }
 
 function schedulePartnerSearch(drawer, term) {
