@@ -3,9 +3,11 @@
 
 import {
   formatVideoFeedbackValue,
+  getVideoFeedbackSlot,
   getVideoFeedbackSlotByField,
   groupVideoFeedbackComments,
   isMissingFeedbackTypeError,
+  replaceVideoFeedbackBucket,
   VIDEO_FEEDBACK_FIELDS,
   VIDEO_FEEDBACK_LEGACY_SELECT,
   VIDEO_FEEDBACK_SELECT
@@ -284,9 +286,22 @@ export class VideoTableRealtimeHandler {
     // Kommentare lassen sich serverseitig nicht nach Kampagne filtern: Fremde
     // Kampagnen hier verwerfen, statt pro Event eine Query abzusetzen.
     if (!this._knowsVideo(comment.video_id)) return;
-    if (this._isOwnUpdate(comment.video_id)) return;
 
     const videoId = comment.video_id;
+    // Das Event trägt den Text schon. Damit sieht die andere Seite das Feedback
+    // nach dem Autosave, ohne die Seite neu zu laden. Ein Zeilen-Update der
+    // Video-Tabelle enthält diesen Text nicht und darf die Zelle nicht leeren.
+    const slot = getVideoFeedbackSlot(comment.runde, comment.feedback_typ);
+    const liveText = !comment.deleted_at && String(comment.text || '').trim();
+    if (slot) {
+      const next = replaceVideoFeedbackBucket(
+        this.table.videoComments?.[videoId],
+        slot.bucket,
+        liveText ? [comment] : []
+      );
+      this._storeFeedback(videoId, next);
+      this.updateVideoFeedbackFields(videoId);
+    }
 
     let { data: comments, error } = await window.supabase
       .from('kooperation_video_comment')
@@ -312,14 +327,17 @@ export class VideoTableRealtimeHandler {
     }
 
     const groupedComments = groupVideoFeedbackComments(comments);
-
-    if (this.table.store) {
-      this.table.store.updateVideoComments(videoId, groupedComments);
-    } else {
-      this.table.videoComments[videoId] = groupedComments;
+    // Eine leere Nachlese darf einen gerade angekommenen Text nicht wieder löschen.
+    if (slot && liveText && !formatVideoFeedbackValue(groupedComments, slot.bucket).trim()) {
+      groupedComments[slot.bucket] = this.table.videoComments[videoId][slot.bucket];
     }
-
+    this._storeFeedback(videoId, groupedComments);
     this.updateVideoFeedbackFields(videoId);
+  }
+
+  _storeFeedback(videoId, grouped) {
+    if (this.table.store) this.table.store.updateVideoComments(videoId, grouped);
+    else this.table.videoComments[videoId] = grouped;
   }
 
   updateVideoFeedbackFields(videoId) {
@@ -338,6 +356,7 @@ export class VideoTableRealtimeHandler {
         setTimeout(() => field.classList.remove('field-updated'), 2000);
       });
     });
+    this.table._rowHeightSync?.schedule();
   }
 
   async updateVideoRow(videoId) {
@@ -360,12 +379,10 @@ export class VideoTableRealtimeHandler {
       let shouldUpdate = false;
 
       if (feedbackSlot) {
-        // Fokussiertes oder noch nicht gespeichertes Feld nicht ueberschreiben.
-        if (field === document.activeElement) return;
-        if (this.table.feedbackSaveController?.isDirty(videoId, fieldName)) return;
-        if (!Object.prototype.hasOwnProperty.call(this.table.videoComments || {}, videoId)) return;
-        const val = formatVideoFeedbackValue(this.table.videoComments[videoId], feedbackSlot.bucket);
-        if (field.value !== val) { field.value = val; shouldUpdate = true; }
+        // Feedback steht nicht in der Video-Zeile. Ein Zeilen-Update würde die
+        // Zelle leeren, bis jemand die Seite neu lädt. Der Kommentar-Kanal
+        // schreibt diese Felder.
+        return;
       } else switch (fieldName) {
         case 'freigabe': {
           const v = video.freigabe || false;
