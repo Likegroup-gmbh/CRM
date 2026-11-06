@@ -34,7 +34,7 @@ describe('Drawer "Tabelle anpassen" – Spalten', () => {
   it('meldet eine abgeschaltete Spalte an den Callback', () => {
     const { onHiddenColumnsChange } = oeffne({ liste_typ: 'mix' });
 
-    const toggle = document.querySelector('[data-column="cp-col-location"]');
+    const toggle = document.querySelector('.column-visibility-toggle[data-column="cp-col-location"]');
     toggle.checked = false;
     toggle.dispatchEvent(new Event('change'));
 
@@ -45,6 +45,72 @@ describe('Drawer "Tabelle anpassen" – Spalten', () => {
     oeffne({ liste_typ: 'mix' }, [], [{ className: 'custom:abc', label: 'Eigene Notiz' }]);
 
     expect(document.querySelector('[data-column="custom:abc"]')).not.toBeNull();
+  });
+
+  it('zeigt jede Spalte mit Griff, in der Standardreihenfolge', () => {
+    oeffne({ liste_typ: 'mix' });
+
+    const ids = Array.from(document.querySelectorAll('#sourcing-tabelle-anpassen-spalten .sourcing-spalten-item'))
+      .map(row => row.dataset.column);
+
+    expect(ids.slice(0, 4)).toEqual([
+      'cp-col-bild', 'cp-col-notiz', 'cp-col-matching', 'cp-col-typ'
+    ]);
+    expect(document.querySelectorAll('.sourcing-spalten-griff').length).toBe(ids.length);
+    expect(ids).not.toContain('cp-col-name');
+    expect(ids).not.toContain('cp-col-actions');
+  });
+
+  it('oeffnet mit einer gespeicherten Reihenfolge', () => {
+    oeffne({ column_order: ['cp-col-status', 'cp-col-bild', 'cp-col-notiz'] });
+
+    const ids = Array.from(document.querySelectorAll('#sourcing-tabelle-anpassen-spalten .sourcing-spalten-item'))
+      .map(row => row.dataset.column);
+
+    expect(ids.slice(0, 3)).toEqual(['cp-col-status', 'cp-col-bild', 'cp-col-notiz']);
+  });
+
+  it('meldet die neue Reihenfolge nach dem Ziehen', async () => {
+    const onColumnOrderChange = vi.fn();
+    const drawer = new SourcingTabelleAnpassenDrawer({
+      liste: { liste_typ: 'mix' },
+      hiddenColumns: [],
+      onHiddenColumnsChange: vi.fn(),
+      onListeChange: vi.fn(),
+      onColumnOrderChange
+    });
+    drawer.open();
+
+    const list = document.getElementById('sourcing-tabelle-anpassen-spalten');
+    const status = list.querySelector('.sourcing-spalten-item[data-column="cp-col-status"]');
+    const notiz = list.querySelector('.sourcing-spalten-item[data-column="cp-col-notiz"]');
+    const griff = status.querySelector('.sourcing-spalten-griff');
+
+    griff.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData() {},
+      setDragImage() {}
+    };
+    const ziehEvent = (type, target) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      event.dataTransfer = dataTransfer;
+      target.dispatchEvent(event);
+    };
+    // dragstart/end am Item selbst – so wie der Browser es nach mousedown am Griff feuert
+    ziehEvent('dragstart', status);
+    ziehEvent('dragover', notiz);
+    ziehEvent('dragend', status);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const ids = Array.from(list.querySelectorAll('.sourcing-spalten-item')).map(row => row.dataset.column);
+    expect(ids.indexOf('cp-col-status')).toBeLessThan(ids.indexOf('cp-col-notiz'));
+    expect(onColumnOrderChange).toHaveBeenCalledTimes(1);
+    const gemeldet = onColumnOrderChange.mock.calls[0][0];
+    expect(gemeldet.indexOf('cp-col-status')).toBeLessThan(gemeldet.indexOf('cp-col-notiz'));
+    expect(gemeldet[0]).toBe('cp-col-bild');
   });
 });
 

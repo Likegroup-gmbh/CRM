@@ -1032,6 +1032,90 @@ h3.section-title,
   gap: var(--space-sm);
 }
 
+/* Spaltenreihenfolge im Drawer "Tabelle anpassen"
+   Div-Liste wie Kategorien: Drag an <tr> startet im Browser oft nicht. */
+
+.sourcing-spalten-kopf {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: var(--space-xs);
+  align-items: center;
+  padding: 0 var(--space-md) var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.sourcing-spalten-kopf-sichtbar {
+  text-align: right;
+  min-width: 4.5rem;
+}
+
+.sourcing-spalten-liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+}
+
+.sourcing-spalten-item {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: var(--space-xs);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+}
+
+.sourcing-spalten-name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.sourcing-spalten-griff {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.sourcing-spalten-griff:hover {
+  background: var(--gray-100);
+  color: var(--color-primary);
+}
+
+.sourcing-spalten-griff:active,
+.sourcing-spalten-item.is-dragging .sourcing-spalten-griff {
+  cursor: grabbing;
+}
+
+.sourcing-spalten-item.is-dragging {
+  opacity: 0.5;
+}
+
+.sourcing-spalten-item.drag-over {
+  border-color: var(--border-focus, var(--gray-400));
+}
+
+.sourcing-spalten-item .toggle-switch {
+  margin-left: 0;
+}
+
 /* Quickview Table cell styling */
 
 .kvq-cell { display: flex; align-items: center; gap: var(--gap-8); }

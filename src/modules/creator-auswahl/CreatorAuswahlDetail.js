@@ -15,6 +15,7 @@ import { renderAddSection, renderItemsTable, updateStickyHeights } from './casti
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { ankerEintraegeAusFolge, ersetzeEigeneSpalten } from './sourcingSpaltenfolge.js';
 import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
 import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
 import { createSourcingIgToolbarConfig } from './sourcingIgToolbarConfig.js';
@@ -266,6 +267,37 @@ export class CreatorAuswahlDetail {
   }
 
   /**
+   * Reihenfolge aus dem Drawer. Die eigenen Spalten bekommen denselben Anker,
+   * damit der Griff im Tabellenkopf sie weiterhin an dieselbe Stelle zieht.
+   */
+  async saveColumnOrder(order) {
+    await creatorAuswahlService.updateListe(this.listeId, { column_order: order });
+    if (this.liste) this.liste.column_order = order;
+
+    if (this.customColumns?.hasColumns && this.customColumns.dataLoader) {
+      const entries = ankerEintraegeAusFolge(order);
+      this.customColumns.order = entries;
+      try {
+        await this.customColumns.dataLoader.saveColumnOrder(entries);
+      } catch (error) {
+        console.error('Anker der eigenen Spalten speichern fehlgeschlagen:', error);
+      }
+    }
+
+    this.rerenderTable();
+  }
+
+  /** Kopf-Griff einer eigenen Spalte: Standardreihenfolge behalten, Anker neu setzen. */
+  async uebernehmeKopfVerschiebung() {
+    const gespeichert = this.liste?.column_order;
+    if (!Array.isArray(gespeichert) || gespeichert.length === 0) return;
+    const neu = ersetzeEigeneSpalten(gespeichert, this.customColumns.getOrderedColumns());
+    if (neu.join('|') === gespeichert.join('|')) return;
+    await creatorAuswahlService.updateListe(this.listeId, { column_order: neu });
+    this.liste.column_order = neu;
+  }
+
+  /**
    * Listeneinstellungen aus dem Drawer speichern: TKP schlaegt direkt auf die
    * Reels-Preise durch, Typ/Plattform/Format kommen mit neu vorbelegten
    * hidden_columns. Deshalb in beiden Faellen die Tabelle neu rendern.
@@ -287,7 +319,8 @@ export class CreatorAuswahlDetail {
   showTabelleAnpassenDrawer() {
     const customColumns = this.customColumns.getOrderedColumns().map(c => ({
       className: makeCustomColumnId(c.id),
-      label: c.name
+      label: c.name,
+      anchor: c._anchor ?? null
     }));
     // Drawer bei jedem Oeffnen neu bauen, damit neue Custom-Spalten erscheinen
     this.tabelleAnpassenDrawer = new SourcingTabelleAnpassenDrawer({
@@ -299,7 +332,8 @@ export class CreatorAuswahlDetail {
         await this.saveColumnVisibilitySettings();
         this.rerenderTable();
       },
-      onListeChange: (updates) => this.saveListenEinstellungen(updates)
+      onListeChange: (updates) => this.saveListenEinstellungen(updates),
+      onColumnOrderChange: (order) => this.saveColumnOrder(order)
     });
     this.tabelleAnpassenDrawer.open();
   }
@@ -361,6 +395,7 @@ export class CreatorAuswahlDetail {
       canDelete: can('delete'),
       gastReadonly: window.isGastReadonly?.() || false,
       hiddenColumns: this.hiddenColumns,
+      columnOrder: Array.isArray(this.liste?.column_order) ? this.liste.column_order : null,
       kundenCallActive: this.kundenCallActive,
       teilbereiche: this.getTeilbereiche(),
       customManager: this.customColumns,

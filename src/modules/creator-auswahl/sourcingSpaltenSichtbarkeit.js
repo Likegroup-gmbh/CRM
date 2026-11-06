@@ -2,6 +2,7 @@
 // Migration gespeicherter hidden_columns, Kunden-Sichtbarkeit, Spaltenzahl und Sticky-Offsets
 
 import { DEAKTIVIERTE_SPALTEN, SOURCING_SPALTEN } from './sourcingSpaltenKatalog.js';
+import { baueBeweglicheSpalten, hatEigeneReihenfolge } from './sourcingSpaltenfolge.js';
 
 /** Spalten, die es in der Tabelle nicht mehr gibt, aber noch in hidden_columns stehen koennen */
 const ENTFERNTE_SPALTEN = [
@@ -81,13 +82,23 @@ export function getVisibleColumnCount(isKunde, hiddenColumns, { canEdit = true, 
  * intern) und ob die Bild-Spalte eingeblendet ist. Die passenden left-Offsets
  * leitet das CSS aus den Klassen ab, siehe .col-sticky-* in components.css.
  */
+function bildBleibtLinks(ctx) {
+  if (!isColumnVisibleForCustomer('cp-col-bild', ctx.isKunde, ctx.hiddenColumns)) return false;
+  if (!hatEigeneReihenfolge(ctx.columnOrder)) return true;
+  const beweglich = baueBeweglicheSpalten({
+    columnOrder: ctx.columnOrder,
+    customColumns: ctx.customManager?.getOrderedColumns?.() || []
+  });
+  return beweglich[0] === 'cp-col-bild';
+}
+
 export function getStickyClasses(ctx) {
-  const bildSichtbar = isColumnVisibleForCustomer('cp-col-bild', ctx.isKunde, ctx.hiddenColumns);
   // Die Drag-Spalte (Position 1) gibt es nur, wer auch editieren darf -
   // ein view-only Interner (Investor) hat sie nicht.
   const hasDrag = !ctx.isKunde && (ctx.canEdit ?? true);
   let position = hasDrag ? 2 : 1;
 
-  const bild = bildSichtbar ? `col-sticky-${position++}` : '';
+  // Bild nur fixieren, solange es die erste bewegliche Spalte ist.
+  const bild = bildBleibtLinks(ctx) ? `col-sticky-${position++}` : '';
   return { bild, name: `col-sticky-${position}` };
 }

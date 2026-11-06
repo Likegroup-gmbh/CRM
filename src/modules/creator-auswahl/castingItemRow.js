@@ -10,6 +10,7 @@ import { renderMatchingCell } from './sourcingMatching.js';
 import { castingUmsetzungGate } from './sourcingStatusOptions.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { isColumnVisibleForCustomer, getStickyClasses } from './sourcingSpaltenSichtbarkeit.js';
+import { hatEigeneReihenfolge, ordneSourcingZeileHtml, spaltenfolgeFuerKontext } from './sourcingSpaltenfolge.js';
 import { EXTERNAL_LINK_ICON, INSTAGRAM_ICON, TIKTOK_ICON } from './sourcingIcons.js';
 import {
   rowCanWrite,
@@ -54,7 +55,7 @@ export function renderItemRow(ctx, item, index) {
     isVorschlag ? 'item-row--vorschlag' : ''
   ].filter(Boolean).join(' ');
 
-  return `
+  const html = `
     <tr class="${rowClass}" data-item-id="${item.id}"${isVorschlag ? ` data-vorschlag-id="${item.vorschlagId || item.id}"` : ''} draggable="false">
       ${tableCanWrite ? `
         <td class="col-drag ${isVorschlag ? '' : 'drag-handle '}col-sticky-1 cp-col-drag">
@@ -262,5 +263,7 @@ export function renderItemRow(ctx, item, index) {
       ` : ''}
     </tr>
   `;
+  if (!hatEigeneReihenfolge(ctx.columnOrder)) return html;
+  return ordneSourcingZeileHtml(html, spaltenfolgeFuerKontext(ctx));
 }
 

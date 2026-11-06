@@ -13,6 +13,8 @@ import {
   groupCustomColumnsByAnchor,
   makeCustomColumnId
 } from '../core/customColumns/entityColumnUtils.js';
+import { standardBeweglicheSpalten } from '../modules/creator-auswahl/sourcingSpaltenfolge.js';
+import { standardBeweglicheSpalten } from '../modules/creator-auswahl/sourcingSpaltenfolge.js';
 
 function spalte(id, name, position = 0) {
   return { id, name, field_type: 'text', visible_for_kunden: true, position };
@@ -92,6 +94,29 @@ describe('Sourcing – eigene Spalten mit Anker', () => {
     const kopf = reihenfolge(tableDoc(mgr).querySelectorAll('thead th'));
 
     expect(kopf[kopf.indexOf('cp-col-feedback') + 1]).toBe('custom:a');
+  });
+
+  it('legt eine eigene Spalte an die gespeicherte Stelle statt an den Anker', () => {
+    const mgr = manager(
+      [spalte('a', 'Briefing')],
+      [{ id: 'custom:a', after: 'cp-col-location' }]
+    );
+    const columnOrder = [...standardBeweglicheSpalten()];
+    columnOrder.splice(columnOrder.indexOf('cp-col-status') + 1, 0, 'custom:a');
+    const html = renderItemsTable({
+      isKunde: false,
+      hiddenColumns: [],
+      items: [{ id: 'i1' }],
+      hasAnyItems: true,
+      customManager: mgr,
+      columnOrder
+    });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const kopf = reihenfolge(doc.querySelectorAll('thead th'));
+
+    expect(kopf[kopf.indexOf('cp-col-status') + 1]).toBe('custom:a');
+    expect(kopf[kopf.indexOf('cp-col-location') + 1]).not.toBe('custom:a');
+    expect(reihenfolge(doc.querySelectorAll('tbody tr.item-row > td'))).toEqual(kopf);
   });
 
   it('zaehlt verankerte Spalten fuer den colspan mit', () => {
