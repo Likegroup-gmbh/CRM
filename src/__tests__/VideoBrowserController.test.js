@@ -45,22 +45,35 @@ vi.mock('../modules/video-browser/VideoBrowserUpload.js', () => ({
 }));
 
 // Der Player meldet die Position über onTime. Tests stoßen sie von Hand an (bewegter Playhead).
-const player = { opts: null, ready: null, mounts: 0 };
+const player = { opts: null, ready: null, mounts: 0, dims: null };
 vi.mock('../modules/video-browser/VideoBrowserPlayer.js', () => ({
   mountPlayer: (host, opts) => {
     host.innerHTML = '<div data-vb-frame></div>';
     player.opts = opts;
     player.mounts += 1;
     return {
-      seek: vi.fn(), getTime: () => 12.5, setMarkers: vi.fn(), markerEl: () => null, setRatio: vi.fn(), destroy: vi.fn(),
+      seek: vi.fn(), getTime: () => 12.5, setMarkers: vi.fn(), markerEl: () => null, destroy: vi.fn(),
+      getDimensions: () => player.dims,
       whenReady: () => player.ready || Promise.resolve()
     };
   }
 }));
 
+vi.mock('../core/PromoteFinalAsset.js', () => ({
+  promoteAssetToFinal: vi.fn(async () => ({})),
+  unmarkFinalSlot: vi.fn(async () => {})
+}));
+
+vi.mock('../modules/video-browser/videoBrowserRatio.js', () => ({
+  ratioOfItem: vi.fn(async () => null),
+  ratioOfFile: vi.fn(async () => null)
+}));
+
 const { mountVideoBrowserPane, unmountVideoBrowser } = await import('../modules/video-browser/VideoBrowser.js');
 const { loadVideoBrowserData, saveWiedergabeMessung, saveZeitkommentar, renameAsset, deleteAsset } = await import('../modules/video-browser/VideoBrowserAdapter.js');
 const { prefetchLinks, warmNeighbors, stopWarming } = await import('../modules/video-browser/videoBrowserMedia.js');
+const { promoteAssetToFinal, unmarkFinalSlot } = await import('../core/PromoteFinalAsset.js');
+const { ratioOfItem } = await import('../modules/video-browser/videoBrowserRatio.js');
 
 function setup({ team, download = false }) {
   window.canFeature = (name) => ({
@@ -192,6 +205,27 @@ describe('VideoBrowser Controller', () => {
     expect(saveZeitkommentar).toHaveBeenCalledWith(expect.objectContaining({ timecodeSec: null }));
   });
 
+  it('Speicherfehler nennt den Grund im Toast und behält den Entwurf', async () => {
+    ctx = setup({ team: false });
+    window.toastSystem = { show: vi.fn() };
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    saveZeitkommentar.mockRejectedValueOnce({ code: '42501', message: 'new row violates row-level security policy' });
+    window.history.replaceState(null, '', '/produktion/p1?tab=videos&k=k1&v=v1&f=s1&i=a1');
+    await mountVideoBrowserPane(ctx.detail, ctx.pane);
+    const form = ctx.pane.querySelector('[data-vb-comment-form]');
+    const text = form.querySelector('[data-vb-comment-text]');
+    text.value = 'approved';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Keine Berechtigung, hier zu kommentieren.', 'error'));
+    expect(saveZeitkommentar).toHaveBeenLastCalledWith(expect.objectContaining({ isKunde: true }));
+    expect(text.value).toBe('approved');
+    expect(ctx.pane.querySelectorAll('.vb-comment')).toHaveLength(0);
+    expect(form.dataset.busy).toBeUndefined();
+    expect(form.querySelector('[data-vb-comment-send]').disabled).toBe(false);
+    spy.mockRestore();
+    delete window.toastSystem;
+  });
+
   it('Ordner mit einer Datei öffnet direkt die Datei', async () => {
     ctx = setup({ team: true });
     window.history.replaceState(null, '', '/produktion/p1?tab=videos&k=k1&v=v1');
@@ -319,7 +353,7 @@ describe('VideoBrowser Controller', () => {
       const zeile = head.querySelector('.vb-asset-head__row');
       expect(zeile.querySelector('[data-vb-asset-version]').textContent).toBe('Feedbackschleife 1');
       expect(zeile.querySelector('.vb-status')).not.toBeNull();
-      const aktionen = [...zeile.querySelectorAll('.vb-asset-head__actions button')].map(b => b.getAttribute('aria-label'));
+      const aktionen = [...zeile.querySelectorAll('.vb-asset-head__actions .vb-icon-btn')].map(b => b.getAttribute('aria-label'));
       expect(aktionen).toEqual(['Herunterladen', 'Titel bearbeiten', 'Löschen']);
     });
 
@@ -454,6 +488,119 @@ describe('VideoBrowser Controller', () => {
       await mountVideoBrowserPane(ctx.detail, ctx.pane);
       player.opts.onMessung({ quelle: 'original', ttff_ms: 800 });
       expect(saveWiedergabeMessung).toHaveBeenCalledWith({ quelle: 'original', ttff_ms: 800 }, { team: false });
+    });
+  });
+
+  describe('Finale Version', () => {
+    const FINAL_A = { id: 'f1', video_id: 'v1', version_number: 1, variant_name: '4:5', is_final: true, source_asset_id: 'a1', created_at: '2026-03-01' };
+    const mitFinal = () => ({ ...structuredClone(RAW), videoAssets: [...RAW.videoAssets, FINAL_A] });
+    const open = async (query, opts = { team: true }) => {
+      ctx = setup(opts);
+      window.history.replaceState(null, '', `/produktion/p1?tab=videos&k=k1&v=v1&${query}`);
+      await mountVideoBrowserPane(ctx.detail, ctx.pane);
+    };
+
+    beforeEach(() => {
+      promoteAssetToFinal.mockClear();
+      unmarkFinalSlot.mockClear();
+      ratioOfItem.mockReset();
+      ratioOfItem.mockResolvedValue(null);
+      loadVideoBrowserData.mockClear();
+      player.dims = null;
+      window.toastSystem = { show: vi.fn() };
+    });
+    afterEach(() => { delete window.toastSystem; });
+
+    it('Team sieht im Dateikopf einer Schleife den Freigabe-Button, Kunde nicht', async () => {
+      await open('f=s1&i=a1');
+      const btn = ctx.pane.querySelector('.vb-asset-head [data-vb-promote]');
+      expect(btn.textContent).toContain('Als finale Version freigeben');
+      expect(ctx.pane.querySelector('[data-vb-unmark]')).toBeNull();
+      unmountVideoBrowser(ctx.detail);
+
+      await open('f=s1&i=a1', { team: false });
+      expect(ctx.pane.querySelector('[data-vb-promote]')).toBeNull();
+    });
+
+    it('ein Klick: Format kommt aus der Datei, danach springt die Ansicht in die Finale Version', async () => {
+      player.dims = { width: 1080, height: 1350 };
+      await open('f=s1&i=a1');
+      loadVideoBrowserData.mockResolvedValueOnce(mitFinal());
+      click(ctx.pane.querySelector('[data-vb-promote]'));
+      await vi.waitFor(() => expect(window.location.search).toContain('i=f1'));
+      expect(promoteAssetToFinal).toHaveBeenCalledWith('video', expect.objectContaining({ id: 'a1' }), '4:5');
+      expect(window.location.search).toContain('f=final');
+      expect(window.toastSystem.show).toHaveBeenCalledWith('Als Finale Version freigegeben.', 'success');
+      expect(ctx.pane.querySelector('[data-vb-asset-version]').textContent).toBe('Finale Version · 4:5');
+      expect(ctx.pane.querySelector('[data-vb-unmark]')).not.toBeNull();
+      expect(ctx.pane.querySelector('[data-vb-promote]')).toBeNull();
+      // Kein Format-Umschalter mehr
+      expect(ctx.pane.querySelector('[data-vb-formats]')).toBeNull();
+    });
+
+    it('erkennt das System kein Format, fragt ein Menü danach und die Wahl gibt frei', async () => {
+      await open('f=s1&i=a1');
+      const menu = ctx.pane.querySelector('[data-vb-promote-menu]');
+      expect(menu.hidden).toBe(true);
+      click(ctx.pane.querySelector('[data-vb-promote]'));
+      await vi.waitFor(() => expect(menu.hidden).toBe(false));
+      expect(promoteAssetToFinal).not.toHaveBeenCalled();
+
+      loadVideoBrowserData.mockResolvedValueOnce(mitFinal());
+      click(menu.querySelector('[data-vb-promote-slot="1:1"]'));
+      await vi.waitFor(() => expect(promoteAssetToFinal).toHaveBeenCalledWith('video', expect.objectContaining({ id: 'a1' }), '1:1'));
+    });
+
+    it('Fehler bei der Freigabe nennt den Grund im Toast und lässt den Button frei', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      player.dims = { width: 1080, height: 1920 };
+      promoteAssetToFinal.mockRejectedValueOnce(new Error('kaputt'));
+      await open('f=s1&i=a1');
+      const btn = ctx.pane.querySelector('[data-vb-promote]');
+      click(btn);
+      await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Freigabe als Finale Version fehlgeschlagen.', 'error'));
+      expect(btn.disabled).toBe(false);
+      expect(window.location.search).toContain('f=s1');
+      spy.mockRestore();
+    });
+
+    it('freigegebene Datei zeigt Badge mit Format statt Freigabe-Button', async () => {
+      loadVideoBrowserData.mockResolvedValueOnce(mitFinal());
+      await open('f=s1&i=a1');
+      expect(ctx.pane.querySelector('[data-vb-promote]')).toBeNull();
+      expect(ctx.pane.querySelector('.vb-asset-head__actions .status-badge.success').textContent).toBe('Final · 4:5');
+      expect(ctx.pane.querySelector('[data-vb-unmark="f1"]')).not.toBeNull();
+    });
+
+    it('Final aufheben nimmt nur den Verweis zurück und springt zur Quelle', async () => {
+      loadVideoBrowserData.mockResolvedValueOnce(mitFinal());
+      await open('f=final&i=f1');
+      click(ctx.pane.querySelector('[data-vb-unmark="f1"]'));
+      await vi.waitFor(() => expect(window.location.search).toContain('i=a1'));
+      expect(unmarkFinalSlot).toHaveBeenCalledWith('video', 'v1', '4:5', 'a1');
+      expect(window.location.search).toContain('f=s1');
+    });
+
+    it('hochgeladene Finale (ohne Quelle) haben kein Final aufheben, nur Löschen', async () => {
+      const data = mitFinal();
+      data.videoAssets[data.videoAssets.length - 1] = { ...FINAL_A, source_asset_id: null };
+      loadVideoBrowserData.mockResolvedValueOnce(data);
+      await open('f=final&i=f1');
+      expect(ctx.pane.querySelector('[data-vb-unmark]')).toBeNull();
+      expect(ctx.pane.querySelector('[data-vb-delete]')).not.toBeNull();
+    });
+
+    it('Ordner Finale Version ist für das Team auch leer da und hat eine Dropzone', async () => {
+      await open('f=final');
+      const col = ctx.pane.querySelector('.vb-col--3');
+      expect(col.querySelector('[data-vb-dropzone]').textContent).toContain('Finale Dateien hierher ziehen');
+      expect(col.textContent).toContain('Noch keine Finale Version');
+      expect(ctx.pane.querySelector('.vb-col--2 .vb-row[data-id="final"]')).not.toBeNull();
+    });
+
+    it('Kunde sieht den leeren Ordner Finale Version nicht', async () => {
+      await open('', { team: false });
+      expect(ctx.pane.querySelector('.vb-col--2 .vb-row[data-id="final"]')).toBeNull();
     });
   });
 });

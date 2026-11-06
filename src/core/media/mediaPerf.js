@@ -54,7 +54,7 @@ export function formatOf(path) {
  * Puffern nach dem Sprung, kein Stall. `finish()` liefert die Zeile für die
  * Auswertung (p50/p95/p99) oder null, wenn nichts gemessen wurde.
  *
- * @param {{ quelle: 'original'|'blob'|'vorschau', format?: string|null,
+ * @param {{ quelle: 'original'|'blob', format?: string|null,
  *           assetId?: string|null, t0?: number, now?: () => number }} info
  *        t0: Beginn des Ladens (vor dem Auflösen des Links), sonst jetzt
  */

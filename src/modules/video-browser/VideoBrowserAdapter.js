@@ -6,9 +6,9 @@
 
 import { scopeKoopsByLinie } from '../produktion/ProduktionService.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { deleteSingleDropboxFile, syncVideoAssetsAfterDelete } from '../../core/VideoDeleteHelper.js';
-import { updateStillCurrentFlags } from '../../core/stills/stillAssets.js';
-import { markVorschau } from './videoBrowserLogic.js';
+import { assetTable } from '../../core/assetDelete.js';
+
+export { deleteAsset } from '../../core/assetDelete.js';
 
 const CHUNK = 100;
 
@@ -19,8 +19,8 @@ const KOOP_SELECT = `
 const VIDEO_SELECT = 'id, kooperation_id, position, titel, thema, video_name, status, created_at';
 const STORY_SELECT = 'id, video_id, slot_index, slot_name, created_at';
 const VIDEO_ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, titel, description, is_current, is_final, source_asset_id, created_at';
-const STORY_ASSET_SELECT = 'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, titel, created_at';
-const STILL_SELECT = 'id, kooperation_id, video_id, file_url, file_path, file_name, version_number, is_final, variant_name, titel, created_at';
+const STORY_ASSET_SELECT = 'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, titel, source_asset_id, created_at';
+const STILL_SELECT = 'id, kooperation_id, video_id, file_url, file_path, file_name, file_size, version_number, is_final, variant_name, titel, source_asset_id, created_at';
 const ROH_SELECT = 'id, kooperation_id, file_name, file_path, file_url, file_size, folder_url, titel, created_at';
 const NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at';
 const STILL_NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at';
@@ -72,11 +72,10 @@ export async function loadVideoBrowserData({ kampagneId, produktionId = null, br
   const koopIds = (kooperationen || []).map(k => k.id);
   if (!koopIds.length) return emptyRaw(linien);
 
-  const [videos, stillAssets, rohmaterial, vorschauAn] = await Promise.all([
+  const [videos, stillAssets, rohmaterial] = await Promise.all([
     readIn('kooperation_videos', VIDEO_SELECT, 'kooperation_id', koopIds, { optional: false }),
     readIn('kooperation_bilder_asset', STILL_SELECT, 'kooperation_id', koopIds),
-    team ? readIn('kooperation_rohmaterial_asset', ROH_SELECT, 'kooperation_id', koopIds) : Promise.resolve([]),
-    vorschauSchalter(team)
+    team ? readIn('kooperation_rohmaterial_asset', ROH_SELECT, 'kooperation_id', koopIds) : Promise.resolve([])
   ]);
 
   const videoIds = videos.map(v => v.id);
@@ -88,11 +87,7 @@ export async function loadVideoBrowserData({ kampagneId, produktionId = null, br
     readIn('kooperation_still_comment', STILL_NOTE_SELECT, 'video_id', videoIds)
   ]);
 
-  const [storyAssets, vorschau] = await Promise.all([
-    readIn('kooperation_story_asset', STORY_ASSET_SELECT, 'story_id', stories.map(s => s.id)),
-    vorschauAn ? readIn('kooperation_video_vorschau_je_asset', 'asset_id, status', 'asset_id', videoAssets.map(a => a.id)) : []
-  ]);
-  markVorschau(videoAssets, vorschau);
+  const storyAssets = await readIn('kooperation_story_asset', STORY_ASSET_SELECT, 'story_id', stories.map(s => s.id));
 
   return {
     kooperationen: kooperationen || [],
@@ -107,20 +102,6 @@ export async function loadVideoBrowserData({ kampagneId, produktionId = null, br
     zeitkommentare,
     stillNotes
   };
-}
-
-/**
- * Rollout-Schalter der Vorschaudatei (app_schalter.vorschau_wiedergabe): erst Team, dann
- * Kunden. Fehlt die Tabelle oder der Eintrag, bleibt es beim Original.
- */
-async function vorschauSchalter(team) {
-  const { data, error } = await window.supabase
-    .from('app_schalter')
-    .select('wert')
-    .eq('schluessel', 'vorschau_wiedergabe')
-    .maybeSingle();
-  if (error || !data?.wert) return false;
-  return !!(team ? data.wert.team : data.wert.kunde);
 }
 
 function emptyRaw(linien) {
@@ -158,20 +139,7 @@ export async function saveZeitkommentar({ videoId, runde, assetId = null, text, 
   return data;
 }
 
-const ASSET_TABLE = {
-  video: 'kooperation_video_asset',
-  story: 'kooperation_story_asset',
-  still: 'kooperation_bilder_asset',
-  roh: 'kooperation_rohmaterial_asset'
-};
-
 export const TITEL_MAX = 120;
-
-function tableOf(item) {
-  const table = ASSET_TABLE[item?.type];
-  if (!table || !item?.id) throw new Error('Unbekannte Datei');
-  return table;
-}
 
 /**
  * Anzeigetitel einer Datei setzen. Dropbox-Pfad und file_name bleiben unverändert.
@@ -181,53 +149,13 @@ export async function renameAsset(item, titel) {
   const value = String(titel || '').trim().slice(0, TITEL_MAX);
   if (!value) throw new Error('Titel ist leer');
   const { data, error } = await window.supabase
-    .from(tableOf(item))
+    .from(assetTable(item))
     .update({ titel: value })
     .eq('id', item.id)
     .select('id');
   if (error) throw error;
   if (!data?.length) throw new Error('Titel konnte nicht gespeichert werden');
   return value;
-}
-
-/**
- * Datei endgültig löschen: erst die Zeile, dann die Datei in Dropbox. Die Datei bleibt,
- * solange eine andere Zeile denselben Pfad nutzt (Finale Versionen teilen sich die
- * Datei ihrer Quelle). Die Vorschaudatei räumt der Trigger auf der Asset-Zeile ab.
- */
-export async function deleteAsset(item) {
-  const table = tableOf(item);
-  const asset = item.asset || {};
-  const sb = window.supabase;
-
-  if (item.type === 'video') {
-    // asset_id fällt sonst auf null: die Kommentare stünden dann bei allen Varianten der Runde
-    const { error } = await sb
-      .from('kooperation_video_zeitkommentar')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('asset_id', item.id)
-      .is('deleted_at', null);
-    if (error) console.warn('VideoBrowserAdapter: Kommentare der Datei nicht entfernt', error.message || error);
-  }
-
-  const { data, error } = await sb.from(table).delete().eq('id', item.id).select('id');
-  if (error) throw error;
-  if (!data?.length) throw new Error('Datei konnte nicht gelöscht werden');
-
-  if (asset.file_path) {
-    const { data: rest, error: restError } = await sb
-      .from(table)
-      .select('id')
-      .eq('file_path', asset.file_path)
-      .limit(1);
-    if (!restError && !rest?.length) {
-      await deleteSingleDropboxFile(asset.file_path)
-        .catch(err => console.warn('VideoBrowserAdapter: Dropbox-Löschung fehlgeschlagen', err));
-    }
-  }
-
-  if (item.type === 'video' && asset.video_id) await syncVideoAssetsAfterDelete(asset.video_id, asset);
-  if (item.type === 'still' && asset.video_id) await updateStillCurrentFlags(asset.video_id);
 }
 
 /**

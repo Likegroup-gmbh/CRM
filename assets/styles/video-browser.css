@@ -2,12 +2,12 @@
    Videos-Tab (Produktion → Videos): Spaltenbrowser
    Pfadleiste, vier Spalten, Detailbereich, Upload-Zone.
    Nur Design-Variablen und vorhandene Badge-Klassen (.status-badge, .tag).
-   Desktop ab 1100 px. Darunter scrollt der Browser horizontal.
+   Spalten und Detailbereich skalieren mit der Breite des Tabs (cqi).
+   Unter dem Spalten-Minimum scrollt nur die Spaltenbahn, der Detailbereich bleibt.
    ========================================================================== */
 
-/* Tab füllt den Rest des Fensters. Der Seiten-Wrapper scrollt nicht,
-   nur die Spalten und der Detailbereich. overflow-y explizit hidden:
-   overflow-x: auto allein würde die Y-Achse auf auto hochrechnen. */
+/* Tab füllt den Rest des Fensters. Der Seiten-Wrapper scrollt nicht.
+   Horizontal scrollt nur die Spaltenbahn, und erst unter der Mindestbreite. */
 .main-wrapper:has(> .kampagne-detail-body[data-workflow="videos"]) {
   display: flex;
   flex-direction: column;
@@ -35,18 +35,25 @@
 }
 
 .workflow-pane[data-pane="videos"] {
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
 }
 
 .vb {
-  --vb-col-w: 264px;
+  /* 18cqi × 4 Spalten + 28cqi Detail = 100cqi: alle vier Spalten bleiben
+     sichtbar, solange keine Untergrenze greift. Darunter scrollt die Bahn. */
+  --vb-col-min: 10.5rem;
+  --vb-col-max: 16.5rem;
+  --vb-col-w: clamp(var(--vb-col-min), 18cqi, var(--vb-col-max));
+  --vb-detail-w: clamp(16rem, 28cqi, 26.25rem);
   --vb-node: 28px;
   --vb-row-h: 56px;
+  container-type: inline-size;
+  container-name: vb;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   flex: 1;
-  min-width: 1100px;
+  min-width: 0;
   min-height: 0;
   padding: 0;
   color: var(--gray-900);
@@ -91,7 +98,7 @@
 
 .vb-empty {
   margin: 0;
-  padding: var(--space-md);
+  padding: var(--space-xs);
   color: var(--gray-600);
   font-size: var(--text-sm);
 }
@@ -155,11 +162,11 @@
 
 /* --- Layout: Spalten + Detail ----------------------------------------- */
 
-/* Detailbereich rechts mit fester Breite, die Spalten (zuletzt die Inhaltsspalte mit den
-   Dateien) füllen den Rest. Alle Spalten bleiben ausgeklappt. */
+/* Detailbereich rechts in fließender Breite, die Spalten teilen sich den Rest.
+   Alle Spalten bleiben ausgeklappt. */
 .vb-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+  grid-template-columns: minmax(0, 1fr) var(--vb-detail-w);
   grid-row: 2;
   min-height: 0;
 }
@@ -174,8 +181,10 @@
 
 .vb-col {
   display: flex;
-  flex: 0 0 var(--vb-col-w);
+  flex: 1 1 var(--vb-col-w);
   flex-direction: column;
+  min-width: var(--vb-col-min);
+  max-width: var(--vb-col-max);
   min-height: 0;
   background: var(--bg-primary);
   /* Pro Fuge genau eine Linie: jede Spalte trägt nur ihre rechte Kante,
@@ -190,11 +199,12 @@
   border-left: 1px solid var(--border-primary);
 }
 
-/* Nur die Inhaltsspalte (Tiefe 3) füllt den Rest bis zum Detailbereich. Alle anderen
-   Spalten behalten ihre feste Breite. Sie hat keine rechte Kante, dort sitzt die linke
+/* Inhaltsspalte (Tiefe 3) nimmt übrig gebliebenen Platz und darf über die
+   Zielbreite hinauswachsen. Sie hat keine rechte Kante, dort sitzt die linke
    Kante des Detailbereichs. */
 .vb-col--3 {
-  flex: 1 0 var(--vb-col-w);
+  flex: 1.4 1 var(--vb-col-w);
+  max-width: none;
   border-right: none;
 }
 
@@ -215,7 +225,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) clamp(var(--space-sm), 1.25cqi, var(--space-md));
   border-bottom: 1px solid var(--border-primary);
 }
 
@@ -278,7 +288,7 @@
   /* Feste Höhe: jede Zeile ist in jeder Spalte gleich hoch, egal ob
      Avatar, Icon, Thumbnail, Badge oder Zähler enthalten sind. */
   height: var(--vb-row-h);
-  padding: 0 var(--space-md);
+  padding: 0 clamp(var(--space-sm), 1.25cqi, var(--space-md));
   /* Kein Rahmen: Auswahl und Hover laufen randlos von Spaltenkante zu
      Spaltenkante, damit keine Zwischenabstände zur Spaltenlinie entstehen. */
   border: 0;
@@ -323,12 +333,6 @@
 .vb-timeline__play:focus-visible,
 .vb-marker:focus-visible,
 .vb-col__back:focus-visible {
-  outline: none;
-  border-color: var(--gray-400);
-  box-shadow: 0 0 0 3px var(--gray-100);
-}
-
-.vb-formats__btn:has(:focus-visible) {
   outline: none;
   border-color: var(--gray-400);
   box-shadow: 0 0 0 3px var(--gray-100);
@@ -585,7 +589,7 @@
 }
 
 .vb-detail__eyebrow {
-  margin: 0 0 var(--space-xxs);
+  
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--gray-600);
@@ -644,7 +648,7 @@
 
 .vb-todo__title {
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .vb-todo__meta {
@@ -692,6 +696,7 @@
 
 .vb-sheet > li {
   display: grid;
+  min-width: 0;
 }
 
 .vb-tile {
@@ -699,12 +704,15 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-xs);
+  width: 100%;
+  min-width: 0;
   padding: var(--space-xs);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   background: none;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .vb-tile:hover {
@@ -724,7 +732,11 @@
 }
 
 .vb-tile__name {
+  /* Flex-Item: min-width: auto würde die Zeile auf die volle Textbreite
+     aufziehen und die Ellipse nie auslösen. */
+  display: block;
   width: 100%;
+  min-width: 0;
   font-size: var(--text-xs);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -769,6 +781,13 @@
   align-items: center;
   gap: var(--space-xxxs);
   margin-left: auto;
+}
+
+/* Mit Freigabe-Button: Button und Icons haben mehr Luft, schmale Detailbereiche brechen um */
+.vb-asset-head__actions--main {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-xs);
 }
 
 .vb-icon-btn {
@@ -879,54 +898,58 @@
   margin-right: 0;
 }
 
-/* Format-Umschalter (Segment) */
+/* Finale Version freigeben (Item-Kopf) */
 
-.vb-formats-wrap {
+.vb-promote {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.vb-promote__menu {
+  position: absolute;
+  top: calc(100% + var(--space-xxs));
+  right: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   gap: var(--space-xxs);
-}
-
-/* Container kommt von .view-toggle (layout.css) */
-.vb-formats {
-  position: relative;
-  display: inline-flex;
-  align-self: flex-start;
-  min-width: 0;
-  border: 0;
-}
-
-.vb-formats__thumb {
-  position: absolute;
-  top: var(--space-xxs);
-  bottom: var(--space-xxs);
-  left: 0;
-  width: 0;
+  min-width: 14rem;
+  padding: var(--space-xs);
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
   background: var(--bg-primary);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
 
-.vb-formats__btn {
-  position: relative;
-  padding: var(--space-xxs) var(--space-sm);
+.vb-promote__menu[hidden] {
+  display: none;
+}
+
+.vb-promote__hint {
+  margin: 0;
+  padding: var(--space-xxs) var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+.vb-promote__slot {
+  padding: var(--space-xs) var(--space-sm);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: none;
-  font-size: var(--text-xs);
-  font-weight: 500;
-  color: var(--gray-600);
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--gray-900);
   cursor: pointer;
 }
 
-.vb-formats__btn:has(:checked) {
-  color: var(--gray-900);
-}
-
-.vb-formats__hint {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--gray-600);
+.vb-promote__slot:hover,
+.vb-promote__slot:focus-visible {
+  outline: none;
+  border-color: var(--gray-300);
+  background: var(--gray-50);
 }
 
 /* Player */
@@ -981,7 +1004,8 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* Der Rahmen folgt dem Seitenverhältnis der Datei: nichts wird abgeschnitten. */
+  object-fit: contain;
 }
 
 .vb-player__placeholder {
@@ -1227,6 +1251,16 @@
   margin: 0 0 var(--space-sm);
   padding: 0;
   list-style: none;
+}
+
+/* Leere Liste bleibt im DOM (erster Kommentar wird hier eingehängt),
+   darf aber keinen Abstand zwischen Überschrift und Hinweis erzeugen. */
+.vb-comment-list:empty {
+  display: none;
+}
+
+.vb-comments > .vb-empty {
+  padding-left: 0;
 }
 
 .vb-comment {

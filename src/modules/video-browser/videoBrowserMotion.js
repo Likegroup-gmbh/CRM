@@ -76,14 +76,6 @@ export function createMotion(root) {
       });
     },
 
-    /** Rendition nachgeladen: Medienfläche blendet sanft ein (Crossfade). */
-    crossfade(el) {
-      run(() => {
-        if (!el) return;
-        gsap.fromTo(el, { opacity: 0.2 }, { opacity: 1, duration: d(0.4), ease: 'power2.out', clearProps: 'opacity' });
-      });
-    },
-
     /** A7: Play-Button blendet beim Abspielen nach 0,6 s aus, beim Pausieren wieder ein. */
     playButton(btn, playing) {
       run(() => {
@@ -95,18 +87,6 @@ export function createMotion(root) {
           btn.style.pointerEvents = '';
           gsap.to(btn, { opacity: 1, duration: d(0.2) });
         }
-      });
-    },
-
-    /** A8: Indikator im Segment-Umschalter gleitet zur aktiven Taste. */
-    segmentThumb(group, { animate = true } = {}) {
-      run(() => {
-        const thumb = group?.querySelector('[data-vb-thumb]');
-        const active = group?.querySelector('input:checked')?.closest('.vb-formats__btn');
-        if (!thumb || !active) return;
-        const vars = { x: active.offsetLeft, width: active.offsetWidth };
-        if (!animate || prefersReducedMotion()) gsap.set(thumb, vars);
-        else gsap.to(thumb, { ...vars, duration: 0.35, ease: 'power3.out' });
       });
     },
 

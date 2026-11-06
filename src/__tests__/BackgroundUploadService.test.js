@@ -160,4 +160,47 @@ describe('BackgroundUploadService', () => {
     await flush(); await flush();
     expect(backgroundUploadService.getJob(id2).status).toBe('done');
   });
+
+  it('retry lädt nur die Dateien, die noch nicht fertig sind', async () => {
+    runVideoUploadJob.mockImplementationOnce(async ({ job, updateItem }) => {
+      updateItem(job.items[0].id, { status: 'done' });
+      throw new Error('Datei 2 kaputt');
+    });
+    const a = new File([new Uint8Array(1)], 'a.mp4');
+    const b = new File([new Uint8Array(1)], 'b.mp4');
+    const id = backgroundUploadService.enqueueVideoJob({
+      videoId: 'v-retry', metadaten: {},
+      queue: [{ file: a, variantName: 'A', versionNumber: 1 }, { file: b, variantName: 'B', versionNumber: 1 }],
+    });
+    await flush(); await flush();
+    expect(backgroundUploadService.getJob(id).status).toBe('error');
+
+    runVideoUploadJob.mockResolvedValueOnce({});
+    const retried = backgroundUploadService.getJob(backgroundUploadService.retry(id));
+    expect(retried.payload.queue.map(q => q.file)).toEqual([b]);
+    expect(retried.items.map(i => i.fileName)).toEqual(['b.mp4']);
+  });
+
+  it('Rohmaterial: eine kaputte Datei stoppt die übrigen nicht, Retry nimmt nur sie', async () => {
+    const { RohmaterialService } = await import('../modules/video/RohmaterialService.js');
+    vi.spyOn(RohmaterialService, 'takenFileNames').mockResolvedValue(new Set());
+    const upload = vi.spyOn(RohmaterialService, 'uploadOne')
+      .mockResolvedValue(undefined)
+      .mockRejectedValueOnce(new Error('Netz weg'));
+    const a = new File(['x'], 'a.mov');
+    const b = new File(['y'], 'b.mov');
+
+    const id = backgroundUploadService.enqueueRohmaterialJob({ kooperationId: 'k1', pathContext: {}, files: [a, b] });
+    await vi.waitFor(() => expect(backgroundUploadService.getJob(id).status).toBe('error'));
+    const job = backgroundUploadService.getJob(id);
+    expect(job.items.map(i => i.status)).toEqual(['error', 'done']);
+    expect(job.error).toContain('a.mov: Netz weg');
+    expect(upload).toHaveBeenCalledTimes(2);
+
+    const retryId = backgroundUploadService.retry(id);
+    expect(backgroundUploadService.getJob(retryId).payload.files).toEqual([a]);
+    await vi.waitFor(() => expect(backgroundUploadService.getJob(retryId).status).toBe('done'));
+    expect(upload).toHaveBeenCalledTimes(3);
+    vi.restoreAllMocks();
+  });
 });

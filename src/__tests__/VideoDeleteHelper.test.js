@@ -65,12 +65,17 @@ function createTrackingFetch(overrides = {}) {
 describe('VideoDeleteHelper', () => {
 
   describe('syncVideoAssetsAfterDelete', () => {
-    // Mock: select().eq() liefert die verbleibenden Assets, update(...).in/eq wird geloggt.
-    function createSyncSupabase(remaining) {
+    // Mock: select().eq() liefert die verbleibenden Assets bzw. die Videozeile (wie vom
+    // Trigger geschrieben), update(...).in/eq wird geloggt.
+    function createSyncSupabase(remaining, video = { link_content: null }) {
       const log = [];
       const sb = {
         from: vi.fn((table) => ({
-          select: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: remaining, error: null })) })),
+          select: vi.fn(() => ({
+            eq: vi.fn(() => table === 'kooperation_videos'
+              ? { maybeSingle: () => Promise.resolve({ data: video, error: null }) }
+              : Promise.resolve({ data: remaining, error: null })),
+          })),
           delete: vi.fn(() => { log.push({ op: 'delete', table }); return { eq: vi.fn(), in: vi.fn() }; }),
           update: vi.fn((data) => ({
             in: vi.fn((col, ids) => { log.push({ op: 'update.in', table, data, ids }); return Promise.resolve({ error: null }); }),
@@ -83,69 +88,61 @@ describe('VideoDeleteHelper', () => {
     }
     const videoUpdates = (sb) => sb._log.filter(e => e.op === 'update.eq' && e.table === 'kooperation_videos');
 
-    it('Geschwister derselben Schleife bleiben: kein Delete, andere Datei bleibt current, link_content zeigt auf sie', async () => {
+    // is_current und link_content schreibt der DB-Trigger; der Abgleich darf sie nicht anfassen
+    const flagWrites = (sb) => sb._log.filter(e => e.table === 'kooperation_video_asset' && e.op.startsWith('update'));
+
+    it('Geschwister derselben Schleife bleiben: andere Datei ist current, link_content zeigt auf sie', async () => {
       const sb = createSyncSupabase([
         { id: 'a2', version_number: 2, is_current: true, is_final: false, file_url: 'https://x/a2', created_at: '2026-02-01' },
-      ]);
+      ], { link_content: 'https://x/a2' });
 
-      const res = await syncVideoAssetsAfterDelete('v1', { id: 'a3', version_number: 2, is_final: false }, { supabase: sb });
+      const res = await syncVideoAssetsAfterDelete('v1', { supabase: sb });
 
       expect(sb._log.filter(e => e.op === 'delete')).toHaveLength(0);
       expect(res.currentAsset.id).toBe('a2');
-      expect(res.linkContentChanged).toBe(true);
       expect(res.linkContent).toBe('https://x/a2');
-      expect(videoUpdates(sb)[0].data).toEqual({ link_content: 'https://x/a2' });
-    });
-
-    it('letzte Datei der höchsten Schleife weg: tiefere Schleife wird current, link_content zeigt auf sie', async () => {
-      const sb = createSyncSupabase([
-        { id: 'a1', version_number: 1, is_current: false, is_final: false, file_url: 'https://x/a1', created_at: '2026-01-01' },
-      ]);
-
-      const res = await syncVideoAssetsAfterDelete('v1', { id: 'a2', version_number: 2, is_final: false }, { supabase: sb });
-
-      const flagOps = sb._log.filter(e => e.op === 'update.in' && e.table === 'kooperation_video_asset');
-      expect(flagOps).toEqual([expect.objectContaining({ data: { is_current: true }, ids: ['a1'] })]);
-      expect(res.currentAsset.id).toBe('a1');
-      expect(res.linkContent).toBe('https://x/a1');
-    });
-
-    it('Löschung aus älterer Runde: link_content wird nicht angefasst', async () => {
-      const sb = createSyncSupabase([
-        { id: 'a2', version_number: 2, is_current: true, is_final: false, file_url: null, created_at: '2026-02-01' },
-      ]);
-
-      const res = await syncVideoAssetsAfterDelete('v1', { id: 'a1', version_number: 1, is_final: false }, { supabase: sb });
-
-      expect(res.linkContentChanged).toBe(false);
       expect(videoUpdates(sb)).toHaveLength(0);
-      expect(sb._log.filter(e => e.op === 'update.in')).toHaveLength(0);
+      expect(flagWrites(sb)).toHaveLength(0);
     });
 
-    it('Final-Asset gelöscht: Loops unverändert, kein link_content-Update', async () => {
+    it('höchste Schleife weg: neueste Datei der tieferen Schleife ist currentAsset', async () => {
       const sb = createSyncSupabase([
         { id: 'a1', version_number: 1, is_current: true, is_final: false, file_url: 'https://x/a1', created_at: '2026-01-01' },
-      ]);
+        { id: 'a1b', version_number: 1, is_current: true, is_final: false, file_url: 'https://x/a1b', created_at: '2026-01-02' },
+      ], { link_content: 'https://x/a1b' });
 
-      const res = await syncVideoAssetsAfterDelete('v1', { id: 'f1', version_number: 1, is_final: true }, { supabase: sb });
+      const res = await syncVideoAssetsAfterDelete('v1', { supabase: sb });
 
-      expect(res.linkContentChanged).toBe(false);
-      expect(res.currentAsset.id).toBe('a1');
-      expect(videoUpdates(sb)).toHaveLength(0);
-      expect(sb._log.filter(e => e.op === 'update.in')).toHaveLength(0);
+      expect(res.currentAsset.id).toBe('a1b');
+      expect(res.linkContent).toBe('https://x/a1b');
+      expect(flagWrites(sb)).toHaveLength(0);
     });
 
-    it('letztes Asset weg: link_content und folder_url null, kein Dropbox-Call', async () => {
+    it('Finale weg bei Altbestand: link_content kommt aus der DB und bleibt erhalten', async () => {
+      const sb = createSyncSupabase([
+        { id: 'f2', version_number: 1, is_current: false, is_final: true, file_url: 'https://x/f2', created_at: '2026-01-01' },
+      ], { link_content: 'https://legacy/v.mp4' });
+
+      const res = await syncVideoAssetsAfterDelete('v1', { supabase: sb });
+
+      expect(res.currentAsset.id).toBe('f2');
+      expect(res.linkContent).toBe('https://legacy/v.mp4');
+      expect(res.hasRemainingAssets).toBe(true);
+      expect(videoUpdates(sb)).toHaveLength(0);
+    });
+
+    it('letztes Asset weg: nur folder_url wird geleert, kein Dropbox-Call', async () => {
       const sb = createSyncSupabase([]);
       const ft = createTrackingFetch();
       vi.stubGlobal('fetch', ft);
 
-      const res = await syncVideoAssetsAfterDelete('v1', { id: 'a1', version_number: 1, is_final: false }, { supabase: sb });
+      const res = await syncVideoAssetsAfterDelete('v1', { supabase: sb });
       vi.unstubAllGlobals();
 
       expect(res.hasRemainingAssets).toBe(false);
       expect(res.currentAsset).toBeNull();
-      expect(videoUpdates(sb)[0].data).toEqual({ link_content: null, folder_url: null });
+      expect(res.linkContent).toBeNull();
+      expect(videoUpdates(sb)[0].data).toEqual({ folder_url: null });
       expect(ft).not.toHaveBeenCalled();
     });
   });

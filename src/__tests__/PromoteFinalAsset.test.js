@@ -100,4 +100,44 @@ describe('PromoteFinalAsset', () => {
   it('unmarkFinalSlot ohne Quelle loescht nicht den ganzen Slot', async () => {
     await expect(unmarkFinalSlot('video', 'v1', '9:16')).rejects.toThrow(/sourceAssetId/);
   });
+
+  it('Story: legt ein Final mit gleichem File, Story-Slot und source_asset_id an', async () => {
+    const inserted = { id: 'sf1', story_id: 's1', variant_name: '4:5', is_final: true, source_asset_id: 'sa1' };
+    const del = makeThenable({ error: null });
+    const ins = makeThenable({ data: inserted, error: null });
+    ins.single = vi.fn(() => Promise.resolve({ data: inserted, error: null }));
+    const insert = vi.fn(() => ins);
+    window.supabase = {
+      from: vi.fn((table) => {
+        expect(table).toBe('kooperation_story_asset');
+        return { delete: () => del, insert };
+      }),
+    };
+    const result = await promoteAssetToFinal('story', {
+      id: 'sa1', story_id: 's1', video_id: 'v1', file_url: 'u', file_path: '/s.mp4', file_name: 's.mp4', file_size: 9,
+    }, '4:5');
+    expect(result.id).toBe('sf1');
+    expect(del.eq).toHaveBeenCalledWith('source_asset_id', 'sa1');
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      story_id: 's1', video_id: 'v1', file_path: '/s.mp4', variant_name: '4:5',
+      is_final: true, is_current: false, source_asset_id: 'sa1', version_number: 1,
+    }));
+  });
+
+  it('Story: lehnt unbekannte Slots und fehlende Slot-Zuordnung ab', async () => {
+    await expect(promoteAssetToFinal('story', { id: 'a', story_id: 's' }, '16:9'))
+      .rejects.toThrow(/Unbekannter Final-Slot/);
+    await expect(promoteAssetToFinal('story', { id: 'a' }, '9:16'))
+      .rejects.toThrow(/Slot-Zuordnung/);
+  });
+
+  it('Story: Aufheben loescht nur den Verweis dieser Quelle', async () => {
+    const del = makeThenable({ error: null });
+    window.supabase = { from: vi.fn(() => ({ delete: () => del })) };
+    await unmarkFinalSlot('story', 'v1', '9:16', 'sa1');
+    expect(window.supabase.from).toHaveBeenCalledWith('kooperation_story_asset');
+    expect(del.eq).toHaveBeenCalledWith('is_final', true);
+    expect(del.eq).toHaveBeenCalledWith('source_asset_id', 'sa1');
+    await expect(unmarkFinalSlot('story', 'v1', '9:16')).rejects.toThrow(/sourceAssetId/);
+  });
 });

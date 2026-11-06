@@ -38,6 +38,10 @@ function supabaseRecording() {
           const result = Promise.resolve({ data: [], error: null });
           const chain = {
             eq: () => chain,
+            maybeSingle: () => Promise.resolve({
+              data: table === 'kooperation_videos' ? { link_content: 'https://db.example/link' } : null,
+              error: null,
+            }),
             then: result.then.bind(result),
           };
           return chain;
@@ -105,7 +109,7 @@ describe('Video-Name während des Uploads', () => {
   it('schreibt den Snapshot-Namen beim Abschluss nicht in die Datenbank', async () => {
     const updates = supabaseRecording();
     const file = new File(['x'], 'clip.mp4', { type: 'video/mp4' });
-    await runVideoUploadJob({
+    const result = await runVideoUploadJob({
       job: {
         payload: {
           videoId: 'v1',
@@ -126,9 +130,30 @@ describe('Video-Name während des Uploads', () => {
     });
 
     const videoUpdate = updates.find(u => u.table === 'kooperation_videos');
-    expect(videoUpdate).toBeDefined();
-    expect(videoUpdate.data.link_content).toBeTruthy();
-    expect(videoUpdate.data).not.toHaveProperty('video_name');
+    // link_content und is_current setzt der DB-Trigger; der Job liest link_content nur zurück
+    expect(videoUpdate.data).toEqual({ folder_url: 'https://dropbox.example/folder' });
+    expect(updates.filter(u => u.table === 'kooperation_video_asset')).toEqual([]);
+    expect(result.linkContent).toBe('https://db.example/link');
+  });
+
+  it('lädt mit mode add hoch, damit gleiche Variante derselben Schleife nichts überschreibt', async () => {
+    supabaseRecording();
+    const { uploadFileDirect } = await import('../core/DropboxDirectUploader.js');
+    uploadFileDirect.mockClear();
+    const file = new File(['x'], 'clip.mp4', { type: 'video/mp4' });
+    await runVideoUploadJob({
+      job: {
+        payload: {
+          videoId: 'v1',
+          metadaten: { creatorName: 'Ada', unternehmen: 'Firma', kampagne: 'Herbst', videoPosition: 1, kooperationName: 'Koop' },
+          queue: [{ file, variantName: 'A', versionNumber: 1, isFinal: false }],
+        },
+        items: [{ id: 'i1', directOk: null }],
+      },
+      signal: new AbortController().signal,
+      updateItem: () => {},
+    });
+    expect(uploadFileDirect).toHaveBeenCalledWith(expect.objectContaining({ mode: 'add' }));
   });
 
   it('leert ein gerade bearbeitetes Namensfeld nicht, wenn der Upload die Zeile aktualisiert', () => {

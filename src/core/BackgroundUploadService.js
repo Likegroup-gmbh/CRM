@@ -10,6 +10,7 @@ import { runVideoReplaceJob } from './uploadJobs/runVideoReplaceJob.js';
 import { runStorysUploadJob } from './uploadJobs/runStorysUploadJob.js';
 import { runCustomUploadJob } from './uploadJobs/runCustomUploadJob.js';
 import { runCustomReplaceJob } from './uploadJobs/runCustomReplaceJob.js';
+import { runRohmaterialUploadJob } from './uploadJobs/runRohmaterialUploadJob.js';
 
 const EVT = {
   QUEUE_CHANGED: 'upload:queue-changed',
@@ -35,7 +36,19 @@ const RUNNERS = {
   storys: runStorysUploadJob,
   custom: runCustomUploadJob,
   'custom-replace': runCustomReplaceJob,
+  rohmaterial: runRohmaterialUploadJob,
 };
+
+// Payload-Liste mit einer Datei je Item (gleicher Index) für Jobs mit mehreren Dateien
+const ITEM_LIST = { video: 'queue', storys: 'queue', custom: 'files', rohmaterial: 'files' };
+
+/** Payload ohne die schon fertigen Dateien; null, wenn nichts mehr fehlt. */
+function remainingPayload(job) {
+  const key = ITEM_LIST[job.kind];
+  if (!key) return job.payload;
+  const rest = (job.payload[key] || []).filter((_, i) => job.items[i]?.status !== 'done');
+  return rest.length ? { ...job.payload, [key]: rest } : null;
+}
 
 class BackgroundUploadService {
   constructor() {
@@ -65,6 +78,9 @@ class BackgroundUploadService {
   }
   enqueueCustomReplaceJob(payload) {
     return this._enqueue('custom-replace', payload);
+  }
+  enqueueRohmaterialJob(payload) {
+    return this._enqueue('rohmaterial', payload);
   }
 
   getJob(jobId) {
@@ -101,13 +117,16 @@ class BackgroundUploadService {
   }
 
   /**
-   * Fehlgeschlagenen Job neu in die Queue legen (mit neuer ID, gleiche Payload).
+   * Fehlgeschlagenen Job neu in die Queue legen (mit neuer ID). Nur die Dateien, die
+   * noch nicht fertig sind: fertige hätten sonst eine zweite Zeile und Datei.
    */
   retry(jobId) {
     const old = this._jobs.get(jobId);
     if (!old) return null;
     if (old.status !== 'error' && old.status !== 'aborted') return null;
-    return this._enqueue(old.kind, old.payload);
+    const payload = remainingPayload(old);
+    if (!payload) return null;
+    return this._enqueue(old.kind, payload);
   }
 
   /**
@@ -177,6 +196,13 @@ class BackgroundUploadService {
         fileName: f.name || 'datei',
         fileSize: f.size || 0,
         meta: { columnId: payload.columnId, entityId: payload.entityId },
+      }));
+    }
+    if (kind === 'rohmaterial') {
+      return (payload.files || []).map(f => this._mkItem({
+        fileName: f.name || 'rohmaterial',
+        fileSize: f.size || 0,
+        meta: { kooperationId: payload.kooperationId },
       }));
     }
     if (kind === 'custom-replace') {

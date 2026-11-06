@@ -92,7 +92,7 @@ describe('VideoBrowserAdapter: Datei löschen', () => {
     expect(window.supabase.calls[0].payload.deleted_at).toBeTruthy();
     expect(window.supabase.calls[0].filters).toContainEqual(['asset_id', 'a1']);
     expect(deleteSingleDropboxFile).toHaveBeenCalledWith('/K/v1.mp4');
-    expect(syncVideoAssetsAfterDelete).toHaveBeenCalledWith('v1', item.asset);
+    expect(syncVideoAssetsAfterDelete).toHaveBeenCalledWith('v1');
   });
 
   it('Datei bleibt in Dropbox, solange eine andere Zeile denselben Pfad nutzt', async () => {

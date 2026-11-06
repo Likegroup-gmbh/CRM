@@ -28,49 +28,33 @@ async function loadAssets(supabase, videoId) {
 }
 
 /**
- * Gleicht ein Video nach dem Löschen EINER Asset-Zeile mit den verbleibenden
- * Assets ab (Datei + Zeile sind bereits weg). Kein Dropbox-Zugriff, kein Ordner-Delete.
- *
- * - is_current: Loop-Assets der höchsten verbleibenden Feedbackschleife = true, Rest false.
- * - link_content: nur neu gesetzt, wenn die gelöschte Datei ein Loop-Asset der
- *   (bisher) höchsten Schleife war. Löschen aus älterer Runde / Finale fasst ihn nicht an.
- * - folder_url: nur geleert, wenn gar kein Asset (Loop oder Final) übrig ist.
+ * Gleicht ein Video nach dem Löschen einer Asset-Zeile ab (Datei + Zeile sind bereits weg).
+ * is_current und link_content setzt der Trigger auf kooperation_video_asset; hier wird nur
+ * zurückgelesen, was die UI braucht, und folder_url geleert, wenn gar kein Asset
+ * (Loop oder Final) übrig ist.
  */
-export async function syncVideoAssetsAfterDelete(videoId, deletedAsset, { supabase: sb } = {}) {
+export async function syncVideoAssetsAfterDelete(videoId, { supabase: sb } = {}) {
   const supabase = sb || window.supabase;
 
-  const { data } = await supabase
-    .from('kooperation_video_asset')
-    .select('id, version_number, is_current, is_final, file_url, file_path, created_at')
-    .eq('video_id', videoId);
+  const [{ data }, { data: video }] = await Promise.all([
+    supabase
+      .from('kooperation_video_asset')
+      .select('id, version_number, is_current, is_final, file_url, file_path, created_at')
+      .eq('video_id', videoId),
+    supabase.from('kooperation_videos').select('link_content').eq('id', videoId).maybeSingle(),
+  ]);
   const remaining = data || [];
   const loops = remaining.filter(a => !a.is_final);
   const finals = remaining.filter(a => a.is_final);
 
-  const maxVersion = loops.length ? Math.max(...loops.map(a => a.version_number || 1)) : 0;
-  const isTop = a => (a.version_number || 1) === maxVersion;
-  const setFlag = async (ids, is_current) => {
-    if (ids.length) await supabase.from('kooperation_video_asset').update({ is_current }).in('id', ids);
-  };
-  await setFlag(loops.filter(a => !isTop(a) && a.is_current).map(a => a.id), false);
-  await setFlag(loops.filter(a => isTop(a) && !a.is_current).map(a => a.id), true);
-
   const hasRemainingAssets = remaining.length > 0;
-  const patch = {};
-  const wasTopLoop = !!deletedAsset && !deletedAsset.is_final
-    && (loops.length === 0 || (deletedAsset.version_number || 1) >= maxVersion);
-  if (wasTopLoop) {
-    patch.link_content = pickLatestAsset(loops.filter(a => a.file_url))?.file_url ?? null;
-  }
-  if (!hasRemainingAssets) patch.folder_url = null;
-  if (Object.keys(patch).length) {
-    await supabase.from('kooperation_videos').update(patch).eq('id', videoId);
+  if (!hasRemainingAssets) {
+    await supabase.from('kooperation_videos').update({ folder_url: null }).eq('id', videoId);
   }
 
   return {
     currentAsset: pickLatestAsset(loops) || pickLatestAsset(finals),
-    linkContentChanged: 'link_content' in patch,
-    linkContent: patch.link_content ?? null,
+    linkContent: video?.link_content ?? null,
     hasRemainingAssets,
   };
 }

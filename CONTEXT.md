@@ -501,7 +501,7 @@ _Avoid_: Thumbnail, Cover
 
 **Finale Version**:
 Das ausgelieferte File eines Kooperationsvideos oder einer Story, in genau einem Seitenverhältnis.
-Liegt neben der Feedbackschleife, nicht in ihr.
+Liegt neben der Feedbackschleife, nicht in ihr. Entsteht auf zwei Wegen, beide nur durchs Team: eine vorhandene Datei einer Feedbackschleife per Klick "Als finale Version freigeben" (die Finale Version verweist auf sie, die Datei bleibt in der Schleife), oder eine Datei direkt in den Ordner Finale Version hochladen (ohne Feedbackschleife davor, z. B. wenn schon die erste Schleife final ist). Der Ordner ist für das Team immer da, auch leer; Kunden sehen ihn erst mit Inhalt. Die Freigabe setzt keinen Status von Hand, der Status folgt aus den Dateien.
 _Avoid_: Final, Master, Export
 
 **Vorschaudatei**:
@@ -513,11 +513,11 @@ Anzeigename einer Datei im Videos-Tab (Spalte `titel`). Beim Upload eines Videos
 _Avoid_: Dateiname (das ist `file_name`), Variante, Video-Name (das ist `video_name` am Kooperationsvideo)
 
 **Seitenverhältnis**:
-9:16, 4:5 oder 1:1 an einer finalen Version von Kooperationsvideo oder Story. Mehrere finale Versionen desselben Verhältnisses können nebeneinander liegen.
+9:16, 4:5 oder 1:1 an einer finalen Version von Kooperationsvideo oder Story. Jedes Verhältnis ist eine eigene, eigens geschnittene Datei, kein Beschnitt der anderen: Der Player zeigt jede Datei in ihrem echten Verhältnis, es gibt keinen Umschalter und keinen automatischen Crop. Das Verhältnis erkennt das System aus den Pixelmaßen der Datei (beim Freigeben und beim Hochladen); eine Datei ohne Standardformat (z. B. 16:9) lässt sich nicht als Finale Version ablegen. Mehrere finale Versionen desselben Verhältnisses können nebeneinander liegen.
 _Avoid_: Format (Kollision mit Kampagnenart), Ratio, 16:9, 4:3
 
 **Abwählen**:
-Eine markierte finale Version zurücknehmen. Trifft nur diese eine Datei; die Feedbackschleife, aus der sie stammt, bleibt.
+Eine markierte finale Version zurücknehmen ("Final aufheben"). Trifft nur diese eine Datei; die Feedbackschleife, aus der sie stammt, bleibt. Gilt nur für freigegebene Dateien aus einer Feedbackschleife; direkt hochgeladene Finale haben keine Quelle und werden gelöscht.
 _Avoid_: Löschen, Ersetzen
 
 **Kooperationstabelle**:
