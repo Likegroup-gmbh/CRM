@@ -4,6 +4,7 @@
 // am Briefing (campaign_briefings.produktion_id).
 
 import { fetchAllRows } from '../../core/fetchAllRows.js';
+import { budgetOrNull } from './produktionsbudget.js';
 import { AUTOMATIK_PRODUKTION_NAME, geistProduktionName, lineNames } from './produktionNames.js';
 import { castingPresetFromBriefing } from './castingPresetFromBriefing.js';
 import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN, wendePresetAn } from '../creator-auswahl/sourcingSpaltenPreset.js';
@@ -370,6 +371,41 @@ export async function deleteProduktion(produktionId) {
   if (!gate.ok) throw new Error(gate.reason);
   const { error } = await window.supabase.from('produktion').delete().eq('id', produktionId);
   if (error) throw error;
+}
+
+/** Name einer Produktion. Der Titel bleibt danach eigenständig. */
+export async function updateProduktionName(produktionId, name) {
+  if (!window.supabase) throw new Error('Supabase nicht verfügbar');
+  const trimmed = String(name || '').trim();
+  if (!trimmed) throw new Error('Name darf nicht leer sein');
+  const { error } = await window.supabase
+    .from('produktion')
+    .update({ name: trimmed })
+    .eq('id', produktionId);
+  if (error) throw error;
+}
+
+/**
+ * Budgets mehrerer Produktionen einer Kampagne. Senkungen zuerst, damit eine
+ * spätere Prüfung der Summe nicht an einem noch alten höheren Wert hängt.
+ * Unveränderte Zeilen werden nicht geschrieben.
+ */
+export async function updateProduktionsbudgets(vorher, nachher) {
+  if (!window.supabase) throw new Error('Supabase nicht verfügbar');
+  const alt = new Map((vorher || []).map(row => [row.id, budgetOrNull(row.budget)]));
+  const changes = (nachher || []).filter(row => budgetOrNull(row.budget) !== (alt.has(row.id) ? alt.get(row.id) : undefined));
+  changes.sort((a, b) => {
+    const aDelta = (budgetOrNull(a.budget) || 0) - (alt.get(a.id) || 0);
+    const bDelta = (budgetOrNull(b.budget) || 0) - (alt.get(b.id) || 0);
+    return aDelta - bDelta;
+  });
+  for (const row of changes) {
+    const { error } = await window.supabase
+      .from('produktion')
+      .update({ budget: budgetOrNull(row.budget) })
+      .eq('id', row.id);
+    if (error) throw error;
+  }
 }
 
 function hiddenForNewList(preset) {

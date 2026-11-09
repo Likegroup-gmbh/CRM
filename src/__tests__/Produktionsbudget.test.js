@@ -6,6 +6,8 @@ import {
   kampagneCreatorDecke,
   ladeBudgetStand,
   preisBleibtImBudget,
+  budgetZeilen,
+  produktionsbudgetDecke,
   validateProduktionsbudgets,
   verbrauchZeilen,
   verbrauchZeilenProKampagne
@@ -59,6 +61,33 @@ describe('Produktionsbudget', () => {
     expect(preisBleibtImBudget({ verbrauch: 14000, delta: 2000, decke: 15000 })).toBe(false);
     expect(preisBleibtImBudget({ verbrauch: 14000, delta: 1000, decke: 15000 })).toBe(true);
     expect(preisBleibtImBudget({ verbrauch: 0, delta: 100, decke: null })).toBe(true);
+  });
+
+  it('nimmt das Kampagnen-Volumen als Decke, nicht das Creator-Budget', () => {
+    expect(produktionsbudgetDecke({
+      volumen: 25000,
+      creator_budget: 100000,
+      auftrag: { nettobetrag: 90000, creator_budget: 40000 }
+    })).toBe(25000);
+    expect(produktionsbudgetDecke({
+      volumen: null,
+      auftrag: { nettobetrag: 90000 }
+    })).toBe(90000);
+  });
+
+  it('prüft eine Budget-Änderung gegen die anderen Produktionen', () => {
+    const produktionen = [
+      { id: 'p1', name: 'A', budget: null, budgetUsed: 1000 },
+      { id: 'p2', name: 'B', budget: null, budgetUsed: 0 }
+    ];
+    const nurEine = budgetZeilen(produktionen, { p1: 15000 });
+    expect(nurEine[0].verbrauch).toBe(1000);
+    expect(validateProduktionsbudgets(nurEine, 50000).errors[0]).toContain('braucht B');
+
+    const beide = budgetZeilen(produktionen, { p1: 15000, p2: 10000 });
+    expect(validateProduktionsbudgets(beide, 50000).valid).toBe(true);
+    expect(validateProduktionsbudgets(budgetZeilen(produktionen, { p1: 45000, p2: 10000 }), 50000).errors[0])
+      .toContain('Volumen');
   });
 
   it('Decke ohne Produktionsbudget: Creator-Budget vor Volumen', () => {

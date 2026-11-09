@@ -265,6 +265,39 @@ function renderProduktionsbudget(produktion, kampagneData) {
   return `<p class="text-muted">${label} ${KampagneUtils.formatCurrency(decke)} · Verbrauch ${KampagneUtils.formatCurrency(verbrauch)}</p>`;
 }
 
+function darfProduktionPflegen() {
+  if (typeof window.isInvestor === 'function' && window.isInvestor()) return false;
+  if (typeof window.isKunde === 'function' && window.isKunde()) return false;
+  if (typeof window.isInternal === 'function' && window.isInternal()) return true;
+  if (typeof window.isAdmin === 'function' && window.isAdmin()) return true;
+  return false;
+}
+
+function renderProduktionAktionen(produktion, { kannLoeschen }) {
+  return `
+    <div class="actions-dropdown-container" data-entity-type="produktion">
+      <button type="button" class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+        ${icon('dots-vertical-filled')}
+      </button>
+      <div class="actions-dropdown">
+        <a href="#" class="action-item" data-action="produktion-name" data-id="${escapeAttr(produktion.id)}">
+          ${icon('pencil-square')}
+          Name bearbeiten
+        </a>
+        <a href="#" class="action-item" data-action="produktion-budget" data-id="${escapeAttr(produktion.id)}">
+          ${icon('currency-euro')}
+          Produktionsbudget anpassen
+        </a>
+        ${kannLoeschen ? `
+          <div class="action-separator"></div>
+          <a href="#" class="action-item action-danger" data-action="produktion-loeschen" data-id="${escapeAttr(produktion.id)}" data-produktion-loeschen="${escapeAttr(produktion.id)}">
+            ${icon('trash')}
+            Löschen
+          </a>` : ''}
+      </div>
+    </div>`;
+}
+
 function renderProduktionBudget(used, total) {
   if (total <= 0) return '<span class="text-muted">–</span>';
   const amount = parseFloat(used) || 0;
@@ -288,6 +321,7 @@ function renderKampagneOverview({
   kampagneName, safeLogoUrl, orgLogoAlt
 }) {
   const canCreateBriefing = window.canCreate?.('briefing') ?? false;
+  const pflegen = darfProduktionPflegen();
   const zeilen = verbrauchZeilen(produktionen || [], kampagneBudgetPot(kampagneData));
   const rows = (produktionen || []).map((p, index) => {
     const linien = p.linien || [];
@@ -309,7 +343,7 @@ function renderKampagneOverview({
         <td>${sanitize(briefing)}${linien.length > 1 ? ` <span class="text-muted">· ${linien.length} Linien</span>` : ''}</td>
         <td>${budgetZelle}</td>
         <td>${renderProduktionBudget(zeile.used, zeile.total)}</td>
-        <td>${canCreateBriefing && !linien.length ? `<button type="button" class="mdc-btn mdc-btn--text" data-produktion-loeschen="${p.id}">Löschen</button>` : ''}</td>
+        <td class="col-actions">${pflegen ? renderProduktionAktionen(p, { kannLoeschen: canCreateBriefing && !linien.length }) : ''}</td>
       </tr>`;
   }).join('');
 
@@ -329,7 +363,7 @@ function renderKampagneOverview({
         <div class="data-table-container">
           <table class="data-table">
             <thead>
-              <tr><th>Produktion</th><th>Produkt</th><th>Briefings</th><th>Budget</th><th>Verbrauch</th><th></th></tr>
+              <tr><th>Produktion</th><th>Produkt</th><th>Briefings</th><th>Budget</th><th>Verbrauch</th><th class="col-actions"></th></tr>
             </thead>
             <tbody>
               ${rows || `<tr><td colspan="6">Noch keine Produktion. Produktion anlegen oder im Auftrag eine planen.</td></tr>`}

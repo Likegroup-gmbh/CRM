@@ -132,6 +132,12 @@ function clearKooperationenSearch(detail) {
 
 let _abortController = null;
 
+async function aktualisiereProduktionen(detail) {
+  await detail.loadCriticalData();
+  if (!detail._isMounted) return;
+  await detail.render();
+}
+
 export function setupEvents(detail) {
   teardownEvents();
   _abortController = new AbortController();
@@ -157,6 +163,31 @@ export function setupEvents(detail) {
 
   // Linien-Dropdown in der Tab-Zeile: Eintrag wechselt die Linie, "+ Briefing" legt eine weitere an.
   document.addEventListener('click', async (e) => {
+    const nameAction = e.target.closest('[data-action="produktion-name"]');
+    if (nameAction) {
+      e.preventDefault();
+      const produktion = (detail.produktionen || []).find(row => row.id === nameAction.dataset.id);
+      if (!produktion) return;
+      const { openProduktionName } = await import('../produktion/produktionBearbeitenDrawer.js');
+      openProduktionName(produktion, () => aktualisiereProduktionen(detail));
+      return;
+    }
+
+    const budgetAction = e.target.closest('[data-action="produktion-budget"]');
+    if (budgetAction) {
+      e.preventDefault();
+      const produktion = (detail.produktionen || []).find(row => row.id === budgetAction.dataset.id);
+      if (!produktion) return;
+      const { openProduktionBudget } = await import('../produktion/produktionBearbeitenDrawer.js');
+      openProduktionBudget({
+        produktion,
+        produktionen: detail.produktionen || [],
+        kampagne: detail.kampagneData,
+        onSaved: () => aktualisiereProduktionen(detail)
+      });
+      return;
+    }
+
     const loeschen = e.target.closest('[data-produktion-loeschen]');
     if (loeschen) {
       e.preventDefault();
