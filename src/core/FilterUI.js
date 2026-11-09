@@ -1,6 +1,8 @@
 // FilterUI.js (ES6-Modul)
 // Zentrale UI-Logik für Filterbar
 
+import { creatorDisplayName, loadAllCreators } from './creatorRows.js';
+
 export async function renderFilterBar(config, currentFilters, onApply, onReset, mountNode) {
   if (!config || !mountNode) return;
 
@@ -123,6 +125,14 @@ async function loadFilterOptions(filter) {
           console.warn(`⚠️ Unbekannter Filter-Typ: ${filter.id}`);
           return [];
       }
+    }
+
+    if (tableName === 'creator') {
+      const creators = await loadAllCreators(window.supabase);
+      return creators.map(creator => ({
+        value: creator.id,
+        label: creatorDisplayName(creator) || 'Unbekannt'
+      }));
     }
 
     // Daten aus der Datenbank laden

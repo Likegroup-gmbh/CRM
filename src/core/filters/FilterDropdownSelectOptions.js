@@ -3,6 +3,7 @@
 
 import { getSelectOptionsLoader } from './FilterSelectOptionsRegistry.js';
 import { extractOptionsFromCurrentData } from './FilterDropdownHelper.js';
+import { creatorDisplayName, loadAllCreators } from '../creatorRows.js';
 
 /**
  * Lädt Optionen für einen Select-/MultiSelect-Filter.
@@ -36,7 +37,13 @@ export async function loadSelectOptions(ctx, entityType, filterConfig) {
       options = extractOptionsFromCurrentData(entityType, filterConfig);
     }
 
-    if (options.length === 0 && window.supabase && filterConfig.table) {
+    if (options.length === 0 && window.supabase && filterConfig.table === 'creator') {
+      const creators = await loadAllCreators(window.supabase);
+      options = creators.map(creator => ({
+        value: creator.id,
+        label: creatorDisplayName(creator) || 'Unbekannt'
+      }));
+    } else if (options.length === 0 && window.supabase && filterConfig.table) {
       const displayField = filterConfig.displayField || 'name';
       const valueField = filterConfig.valueField || 'id';
 
