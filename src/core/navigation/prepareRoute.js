@@ -150,6 +150,18 @@ export async function prepareRoute(registry, route, skipPushState = false, optio
     }
   }
 
+  // /projekt-erstellen/edit/:id (und /:id/edit) ist der Wizard für Kampagne und
+  // Projekt. id ist hier "edit", deshalb greift die Weiche oben nicht.
+  if (segment === 'projekt-erstellen' && (id === 'edit' || action === 'edit')) {
+    const auftragEdit = window.canEdit?.('auftrag');
+    const kampagneEdit = window.canEdit?.('kampagne');
+    if (auftragEdit === false && kampagneEdit === false) {
+      console.log('🚫 Navigation blockiert: kein edit-Recht fuer Projekt');
+      window.toastSystem?.show('Sie haben keine Berechtigung für diese Aktion.', 'warning');
+      return { proceed: false };
+    }
+  }
+
   if (segment === 'creator' && id && id !== 'new') {
     const canViewViaPage = window.canViewPage?.('creator');
     const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;

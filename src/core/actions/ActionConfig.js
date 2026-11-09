@@ -425,6 +425,12 @@ function filterByCapability(entityType, userRole, actions, capEntity = entityTyp
       return false;
     }
 
+    // Abschluss ist kein Bearbeiten des Projekts. Wer die Kampagne löschen darf,
+    // darf sie weiter abschließen, auch ohne can_edit.
+    if (action.id === 'abschliessen') {
+      return ps.can(capEntity, 'edit') || ps.can(capEntity, 'delete');
+    }
+
     const verb = verbFor(action);
     if (verb === null) return true;
     return ps.can(ACTION_ENTITY[action.id] || capEntity, verb);

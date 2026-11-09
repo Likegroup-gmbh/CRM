@@ -59,6 +59,9 @@ const BASE_PERMISSIONS = {
     unternehmen:    { can_view: true, can_create: false, can_edit: false, can_delete: true },
     marke:          { can_view: true, can_create: false, can_edit: false, can_delete: true },
     auftrag:        { ...F },
+    // Mitarbeitende arbeiten in der Kampagne, bearbeiten den Datensatz aber nicht.
+    // Der Projekt-Wizard hängt am selben Edit-Recht.
+    kampagne:       { can_view: true, can_create: true, can_edit: false, can_delete: true },
     auftragsdetails:{ can_view: true, can_create: false, can_edit: false, can_delete: true },
     rechnung:       { can_view: true, can_create: true,  can_edit: true,  can_delete: false },
     dashboard:      { ...V },

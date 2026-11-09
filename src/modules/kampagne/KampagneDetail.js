@@ -266,7 +266,7 @@ export class KampagneDetail {
       ], null, { switcher: { segment: 'produktion', id: this.produktionId, kampagneId: this.kampagneId } });
       return;
     }
-    const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
+    const canEdit = window.canEdit?.('kampagne') ?? false;
     window.breadcrumbSystem.updateDetailLabel(kampagneName, { id: 'btn-edit-kampagne', canEdit });
   }
 
