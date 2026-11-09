@@ -12,7 +12,7 @@ import {
   verbrauchZeilen,
   verbrauchZeilenProKampagne
 } from '../modules/produktion/produktionsbudget.js';
-import { renderMainPage } from '../modules/kampagne/KampagneDetailMainRenderer.js';
+import { renderMainPage, updateProduktionsbudgetVerbrauch } from '../modules/kampagne/KampagneDetailMainRenderer.js';
 import { StepProduktion } from '../modules/projekt-erstellen/steps/StepProduktion.js';
 import { FeedbackCard } from '../modules/projekt-erstellen/components/FeedbackCard.js';
 
@@ -236,6 +236,39 @@ describe('Produktionsbudget in der Oberfläche', () => {
     expect(workflow).toContain('Produktionsbudget');
     expect(workflow).toContain('15.000,00');
     expect(workflow).toContain('Verbrauch');
+  });
+
+  it('setzt den Verbrauch der Kopfzeile auf die gefilterte Summe und stellt ihn zurück', () => {
+    window.validatorSystem = {
+      sanitizeHtml: (value) => String(value ?? ''),
+      sanitizeUrl: (value) => String(value ?? '')
+    };
+    window.isAdmin = () => true;
+    window.isKunde = () => false;
+    window.isInternal = () => false;
+    window.canCreate = () => false;
+    window.canFeature = () => false;
+
+    document.body.innerHTML = renderMainPage({
+      mode: 'workflow',
+      lineTitle: 'Serum',
+      produktion: { id: 'p1', name: 'Produktion 1', budget: 15000, budgetUsed: 1000 },
+      kampagneData: { kampagnenname: 'Burger', volumen: 50000, auftrag: { nettobetrag: 50000 } },
+      activeWorkflow: 'kooperationen'
+    });
+
+    const verbrauch = document.querySelector('[data-produktionsbudget-verbrauch]');
+    expect(verbrauch.textContent).toContain('1.000,00');
+    expect(document.body.textContent).toContain('15.000,00');
+
+    updateProduktionsbudgetVerbrauch(250);
+    expect(verbrauch.textContent).toContain('250,00');
+    expect(verbrauch.textContent).not.toContain('1.000,00');
+    expect(document.body.textContent).toContain('15.000,00');
+
+    updateProduktionsbudgetVerbrauch(1000);
+    expect(verbrauch.textContent).toContain('1.000,00');
+    expect(document.body.textContent).toContain('15.000,00');
   });
 
   it('zeigt im Schritt Name, Budget und den Rest', () => {

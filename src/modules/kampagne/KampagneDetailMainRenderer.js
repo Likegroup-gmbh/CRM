@@ -4,6 +4,7 @@
 import { KampagneUtils } from './KampagneUtils.js';
 import { kampagneBudgetPot, verbrauchZeilen } from '../produktion/produktionsbudget.js';
 import { renderSummaryCards } from './KampagneDetailSummaryCards.js';
+import { animateNumber } from '../../core/animation/animateNumber.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -262,7 +263,16 @@ function renderProduktionsbudget(produktion, kampagneData) {
   const eigen = produktion.budget != null && produktion.budget !== '';
   const decke = eigen ? parseFloat(produktion.budget) || 0 : kampagneBudgetPot(kampagneData);
   const label = eigen ? 'Produktionsbudget' : 'Budget der Kampagne';
-  return `<p class="text-muted">${label} ${KampagneUtils.formatCurrency(decke)} · Verbrauch ${KampagneUtils.formatCurrency(verbrauch)}</p>`;
+  return `<p class="text-muted">${label} ${KampagneUtils.formatCurrency(decke)} · Verbrauch <span data-produktionsbudget-verbrauch>${KampagneUtils.formatCurrency(verbrauch)}</span></p>`;
+}
+
+/** Verbrauch in der Produktions-Kopfzeile. Ohne das Element (Kampagnen-Übersicht) passiert nichts. */
+export function updateProduktionsbudgetVerbrauch(value, { animate = false } = {}) {
+  const el = document.querySelector('[data-produktionsbudget-verbrauch]');
+  if (!el) return;
+  const amount = parseFloat(value) || 0;
+  if (animate) animateNumber(el, amount, { format: (v) => KampagneUtils.formatCurrency(v) });
+  else el.textContent = KampagneUtils.formatCurrency(amount);
 }
 
 function darfProduktionPflegen() {

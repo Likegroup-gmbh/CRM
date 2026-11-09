@@ -6,7 +6,7 @@ import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTab
 import { KooperationenKanbanBoard } from './KooperationenKanbanBoard.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { loadCriticalData as _loadCriticalData, loadFullTableData } from './KampagneDetailDataLoader.js';
-import { renderPageLoading, renderNotFound, renderMainPage } from './KampagneDetailMainRenderer.js';
+import { renderPageLoading, renderNotFound, renderMainPage, updateProduktionsbudgetVerbrauch } from './KampagneDetailMainRenderer.js';
 import { updateSummaryCardsDOM, updateVideoStatsCardDOM } from './KampagneDetailSummaryCards.js';
 import { setupEvents, teardownEvents } from './KampagneDetailEvents.js';
 import { showEditForm as _showEditForm } from './KampagneDetailEditHandler.js';
@@ -404,6 +404,8 @@ export class KampagneDetail {
    * Summary-Karten in-place aktualisieren. Bei aktivem Tag-Filter ueber die
    * gefilterten Kooperationen, sonst global. Schreibt bewusst keine
    * Instanzfelder (this.koopBudgetSum etc.) - die bleiben global fuer Mounts.
+   * Im Workflow folgt der Verbrauch in der Kopfzeile derselben Regel; die
+   * Decke (Produktionsbudget oder Kampagnen-Topf) bleibt stehen.
    */
   _refreshSummaryCards({ animate = false } = {}) {
     if (!this.store) return;
@@ -422,6 +424,12 @@ export class KampagneDetail {
       { animate }
     );
     updateVideoStatsCardDOM(summary.videoStats, { animate });
+    if (this.mode === 'workflow') {
+      const verbrauch = hasTagFilter
+        ? summary.koopBudgetSum
+        : (parseFloat(this.produktion?.budgetUsed) || 0);
+      updateProduktionsbudgetVerbrauch(verbrauch, { animate });
+    }
   }
 
   // Nach Anlegen nachziehen. Läufe hintereinander: ein Realtime-Insert
