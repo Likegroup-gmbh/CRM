@@ -7,6 +7,7 @@
 import { addVideoRow, buildVideoSelectOptions } from '../../core/form/logic/events/VideosFields.js';
 import { setup as setupKooperationTags } from '../../core/form/logic/events/KooperationTagsEvents.js';
 import { makeRecalcAllPrices, attachVideoStepper, refreshStepperUI } from './KooperationStepperBinder.js';
+import { loadAllCreators } from '../../core/creatorRows.js';
 
 export class KooperationEditLoader {
   // Einstiegspunkt: alle Daten parallel laden + Felder befüllen
@@ -212,11 +213,15 @@ export class KooperationEditLoader {
 
   async _loadCreators() {
     if (!window.supabase) return [];
-    const { data } = await window.supabase
-      .from('creator')
-      .select('id, vorname, nachname, umsatzsteuerpflichtig')
-      .order('nachname');
-    return data || [];
+    try {
+      return await loadAllCreators(window.supabase, {
+        select: 'id, vorname, nachname, umsatzsteuerpflichtig',
+        sortBy: 'nachname'
+      });
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Creator:', error);
+      return [];
+    }
   }
 
   async _loadCurrentCreator(creatorId) {

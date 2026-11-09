@@ -3,6 +3,7 @@
 // Kombiniert DB-basierte Exakt-Checks mit Frontend Fuzzy-Matching
 
 import Fuse from 'fuse.js';
+import { loadAllCreators as fetchCreators } from '../creatorRows.js';
 
 export class DuplicateChecker {
   constructor() {
@@ -407,20 +408,17 @@ export class DuplicateChecker {
     }
 
     try {
-      const { data, error } = await window.supabase
-        .from('creator')
-        .select('id, vorname, nachname, instagram, mail, profilbild_url, profilbild_thumb_url')
-        .order('vorname');
-
-      if (error) throw error;
+      const data = await fetchCreators(window.supabase, {
+        select: 'id, vorname, nachname, instagram, mail, profilbild_url, profilbild_thumb_url'
+      });
 
       // Cache speichern
       this.cache.set(cacheKey, {
-        data: data || [],
+        data,
         timestamp: Date.now()
       });
 
-      return data || [];
+      return data;
     } catch (error) {
       console.error('❌ DUPLICATECHECKER: Fehler beim Laden von Creators:', error);
       return [];

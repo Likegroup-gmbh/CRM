@@ -50,6 +50,37 @@ describe('fetchAllRows', () => {
     expect(await fetchAllRows(sb, 'auftrag', 'id')).toEqual([]);
   });
 
+  it('wendet refine auf jeder Seite an', async () => {
+    const pages = [
+      Array.from({ length: 1000 }, (_, i) => ({ id: `a${i}` })),
+      [{ id: 'b0' }]
+    ];
+    const total = 1001;
+    const notCalls = [];
+    const sb = {
+      from: vi.fn(() => {
+        const query = {
+          select: vi.fn(() => query),
+          order: vi.fn(() => query),
+          not(column, op, value) {
+            notCalls.push([column, op, value]);
+            return query;
+          },
+          range(from) {
+            const pageIdx = Math.floor(from / 1000);
+            return Promise.resolve({ data: pages[pageIdx] || [], error: null, count: total });
+          }
+        };
+        return query;
+      })
+    };
+
+    const rows = await fetchAllRows(sb, 'creator', 'id, mail', 1000, (query) => query.not('mail', 'is', null));
+
+    expect(rows).toHaveLength(1001);
+    expect(notCalls).toEqual([['mail', 'is', null], ['mail', 'is', null]]);
+  });
+
   it('wirft bei einem Supabase-Fehler statt Teildaten zu verwenden', async () => {
     const sb = {
       from: () => ({

@@ -10,6 +10,7 @@ function chain(result) {
     not: vi.fn(() => c),
     or: vi.fn(() => c),
     order: vi.fn(() => c),
+    range: vi.fn(() => c),
     limit: vi.fn(() => Promise.resolve(result)),
     then: (resolve) => Promise.resolve(result).then(resolve),
   };

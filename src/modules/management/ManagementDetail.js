@@ -9,6 +9,7 @@ import { renderSecondaryNav, activateSecondaryNavTab, getSecondaryNavTabFromEven
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
+import { loadAllCreators } from '../../core/creatorRows.js';
 
 export class ManagementDetail extends PersonDetailBase {
   constructor() {
@@ -412,12 +413,19 @@ export class ManagementDetail extends PersonDetailBase {
 
   async _showAddCreatorDialog() {
     const existingIds = this.creators.map(c => c.id);
-    const { data: allCreators } = await window.supabase
-      .from('creator')
-      .select('id, vorname, nachname')
-      .order('nachname');
+    let allCreators;
+    try {
+      allCreators = await loadAllCreators(window.supabase, {
+        select: 'id, vorname, nachname',
+        sortBy: 'nachname'
+      });
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Creator:', error);
+      window.toastSystem?.show('Creator konnten nicht geladen werden.', 'error');
+      return;
+    }
 
-    const available = (allCreators || []).filter(c => !existingIds.includes(c.id));
+    const available = allCreators.filter(c => !existingIds.includes(c.id));
     if (available.length === 0) {
       window.toastSystem?.show('Keine weiteren Creator verfügbar.', 'info');
       return;

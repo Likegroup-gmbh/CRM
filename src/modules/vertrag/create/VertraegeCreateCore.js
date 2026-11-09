@@ -15,6 +15,7 @@
 
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import CONFIG from '../../../core/ConfigSystem.js';
+import { loadAllCreators } from '../../../core/creatorRows.js';
 
 export class VertraegeCreate {
   constructor() {
@@ -236,11 +237,11 @@ VertraegeCreate.prototype.loadStammdaten = async function() {
       }
 
       // Lade Creator mit Adressen
-      const { data: creators } = await window.supabase
-        .from('creator')
-        .select('id, vorname, nachname, mail, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land, hauptadresse_quelle, instagram, tiktok')
-        .order('nachname');
-      
+      const creators = await loadAllCreators(window.supabase, {
+        select: 'id, vorname, nachname, mail, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land, hauptadresse_quelle, instagram, tiktok',
+        sortBy: 'nachname'
+      });
+
       this.creators = creators || [];
       console.log('📊 VERTRAG: Creator geladen:', this.creators.length);
 
