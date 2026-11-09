@@ -119,6 +119,24 @@ describe('PersonaForm', () => {
     expect(loadBriefingIdsForPersona).toHaveBeenCalledWith('p1', { nurFinalisiert: true });
   });
 
+  it('edit: haengt die bestehenden Briefings als Prefill an, sonst loest der Save sie', async () => {
+    setPath('/persona/p1');
+    const { PersonaService } = await import('../modules/persona/PersonaService.js');
+    const { loadBriefingIdsForPersona } = await import('../modules/briefing/BriefingPersonas.js');
+    PersonaService.loadOne.mockResolvedValue({ id: 'p1', name: 'Dana', unternehmen_id: 'u1' });
+    PersonaService.loadMarkenIds.mockResolvedValue([]);
+    loadBriefingIdsForPersona.mockResolvedValue(['b-rle', 'b-pilot']);
+
+    let prefillAtBind = null;
+    window.formSystem.bindFormEvents.mockImplementation(() => {
+      prefillAtBind = window.content.querySelector('[name="briefing_ids"]')?.dataset.prefillValues ?? null;
+    });
+
+    await form.init('p1');
+
+    expect(JSON.parse(prefillAtBind)).toEqual(['b-rle', 'b-pilot']);
+  });
+
   it('standalone new ohne Zuordnung geht zur Liste zurück', async () => {
     setPath('/persona/new');
 
