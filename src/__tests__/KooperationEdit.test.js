@@ -34,6 +34,7 @@ function createSupabase(tables) {
         eq(col, val) { filters.push({ op: 'eq', col, val }); return builder; },
         neq(col, val) { filters.push({ op: 'neq', col, val }); return builder; },
         order() { return builder; },
+        range() { return builder; },
         in() { return builder; },
         single() {
           const rows = applyFilters(tables[table] || [], filters);

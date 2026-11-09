@@ -6,6 +6,7 @@
 // Kein Casting, kein Konzept, keine freien Adressen — siehe ADR 0012.
 
 import { OptionsManager } from '../form/data/OptionsManager.js';
+import { loadAllCreators } from '../creatorRows.js';
 
 const TABS = ['creator', 'management', 'kampagne'];
 
@@ -113,12 +114,10 @@ export class EmpfaengerComposer {
   // ─── Optionen ─────────────────────────────────────────────
 
   async _loadCreatorOptions() {
-    const { data, error } = await this.db
-      .from('creator')
-      .select('id, vorname, nachname, mail')
-      .not('mail', 'is', null)
-      .order('vorname');
-    if (error) throw error;
+    const data = await loadAllCreators(this.db, {
+      select: 'id, vorname, nachname, mail',
+      refine: (query) => query.not('mail', 'is', null)
+    });
     const options = [];
     this.lookup.creator = {};
     for (const c of data || []) {

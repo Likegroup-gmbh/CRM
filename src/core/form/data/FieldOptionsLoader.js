@@ -5,6 +5,7 @@
 
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 import { fetchAllRows } from '../../fetchAllRows.js';
+import { creatorDisplayName, loadAllCreators } from '../../creatorRows.js';
 
 const formatEuro = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v ?? 0);
 
@@ -227,10 +228,10 @@ async function loadSwitchCaseOptions(entity, field, form) {
     }
 
     case 'creator_id': {
-      const creator = await this.dataService.loadEntities('creator');
-      options = creator.map(c => ({
+      const creators = await loadAllCreators(window.supabase);
+      options = creators.map(c => ({
         value: c.id,
-        label: `${c.vorname} ${c.nachname}` || 'Unbekannter Creator'
+        label: creatorDisplayName(c) || 'Unbekannter Creator'
       }));
       break;
     }

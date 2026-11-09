@@ -9,6 +9,7 @@ import {
   applyBrancheJunctionSelected,
   applyRelationTableSelected
 } from './EditModeSelectedHelper.js';
+import { loadAllCreators } from '../../creatorRows.js';
 
 export async function loadDirectQueryOptions(field, form) {
   try {
@@ -232,6 +233,18 @@ async function loadUnternehmenWithAccessFilter(field) {
 // Generische Tabelle laden (inkl. Benutzer-Filter, filterByKlasse, field.filter)
 // Gibt null zurück wenn Fehler (Caller soll [] zurückgeben)
 async function loadGenericTable(field) {
+  if (field.table === 'creator') {
+    try {
+      return await loadAllCreators(window.supabase, {
+        select: '*',
+        refine: field.filter ? (query) => query.or(field.filter) : undefined
+      });
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Daten aus creator:', error);
+      return null;
+    }
+  }
+
   let query = window.supabase
     .from(field.table)
     .select('*');
