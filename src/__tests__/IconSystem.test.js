@@ -93,6 +93,8 @@ describe('IconSystem Guard', () => {
     expect(normalizeIconKey('modus-klassisch')).toBe('clapperboard');
     expect(normalizeIconKey('modus-dynamisch')).toBe('spark-doc');
     expect(normalizeIconKey('ai-visual')).toBe('skripte');
+    expect(normalizeIconKey('dropdown')).toBe('chevron-down');
+    expect(ICON_DEFS['chevron-down'].body).toContain('M18 9.00005');
     expect(normalizeIconKey('anschreiben')).toBe('mail-send');
     expect(ICON_DEFS['mail-send'].body).not.toContain('stroke-width');
   });
