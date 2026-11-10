@@ -131,6 +131,32 @@ describe('VideoFeedbackSaveController', () => {
     expect(controller.isDirty('v1', 'feedback_kunde_r1')).toBe(false);
   });
 
+  it('Klick in ein noch leeres Feld loescht vorhandenes Feedback nicht', async () => {
+    const { controller, table } = makeController();
+    const kunde = makeField({ field: 'feedback_kunde_r1', value: '' });
+    const eigen = makeField({ field: 'feedback_cj_r1', value: '' });
+
+    controller.onFocus(kunde);
+    await controller.onBlur(kunde);
+    controller.onFocus(eigen);
+    await controller.onBlur(eigen);
+
+    expect(table.handleFieldUpdate).not.toHaveBeenCalled();
+  });
+
+  it('geleertes eigenes Feedback wird weiterhin gespeichert', async () => {
+    const { controller, table } = makeController();
+    const field = makeField({ field: 'feedback_cj_r1', value: 'Bitte kuerzer' });
+
+    controller.onFocus(field);
+    field.value = '';
+    controller.schedule(field);
+    await controller.onBlur(field);
+
+    expect(table.handleFieldUpdate).toHaveBeenCalledTimes(1);
+    expect(table.handleFieldUpdate.mock.calls[0][0].value).toBe('');
+  });
+
   it('isDirty: bleibt dirty nach fehlgeschlagenem Save (Realtime-Schutz)', async () => {
     window.toastSystem = { error: () => {} };
     const table = { handleFieldUpdate: vi.fn(async () => false) };
