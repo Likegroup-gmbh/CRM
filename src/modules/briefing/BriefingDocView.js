@@ -1,8 +1,8 @@
 // BriefingDocView.js
 // Dokumentansicht fuer campaign_briefings.
 // Klassifiziert fieldConfig-Felder (Hero / Callout / Prosa / Specs / Creator /
-// sekundaer). Textareas sind fuer Mitarbeiter inline editierbar (InlineEdit);
-// Specs, Tags und Uploads bleiben read-only. Der Titel wird im Editor geändert.
+// sekundaer). Textareas und der Titel sind fuer Mitarbeiter inline editierbar
+// (InlineEdit); Specs, Tags und Uploads bleiben read-only.
 
 import { icon } from '../../core/icons/IconSystem.js';
 import { InlineEdit } from '../../core/components/InlineEdit.js';
@@ -285,7 +285,15 @@ function renderBrandLockup(detail) {
   `;
 }
 
-function renderHero(detail) {
+function renderTitle(detail, titleEditable) {
+  const name = detail.briefing.aktivierung_name || '';
+  if (!titleEditable) {
+    return `<h1 class="briefing-doc__title">${detail.escape(name || 'Briefing')}</h1>`;
+  }
+  return `<h1 class="briefing-doc__title" data-feld="aktivierung_name" data-placeholder="Titel">${detail.escape(name)}</h1>`;
+}
+
+function renderHero(detail, { titleEditable = false } = {}) {
   const b = detail.briefing;
   const bereich = BEREICH_LABELS[b.bereich] || b.bereich;
   const statusClass = b.is_draft ? 'warning' : 'success';
@@ -311,7 +319,7 @@ function renderHero(detail) {
         </div>
       </div>
       ${renderProducts(detail)}
-      <h1 class="briefing-doc__title">${detail.escape(b.aktivierung_name || 'Briefing')}</h1>
+      ${renderTitle(detail, titleEditable)}
       ${subtitle ? `<p class="briefing-doc__subtitle">${subtitle}</p>` : ''}
       <div class="briefing-doc__meta">
         ${renderMetaChip('folder', folder ? detail.escape(folder) : '')}
@@ -584,7 +592,7 @@ export function renderBriefingDoc({
 
   const article = `
     <article class="briefing-doc${editClass}${printClass}" data-compact="${compact ? 'true' : 'false'}">
-      ${renderHero(detail)}
+      ${renderHero(detail, { titleEditable: canEdit })}
       ${compact ? `<p class="briefing-doc__hint">Komprimierte Ansicht — für die komplette Felderliste oben rechts „Alle Felder“ wählen</p>` : ''}
       ${renderCallout(presentation.callout, { canEdit: contentEditable })}
       ${renderGroupedSections(prose, detail, { canEdit: contentEditable })}
@@ -624,7 +632,7 @@ function focusFeldEnd(field) {
 }
 
 /**
- * Haengt InlineEdit an die Textarea-Zellen. Specs bleiben read-only.
+ * Haengt InlineEdit an Titel und Textarea-Zellen. Specs bleiben read-only.
  * @returns {{ destroy: Function, inlineEdit: InlineEdit } | null}
  */
 export function bindBriefingDoc(root, { briefingId, canEdit = false, onSaved } = {}) {
@@ -644,9 +652,26 @@ export function bindBriefingDoc(root, { briefingId, canEdit = false, onSaved } =
     }, 1600);
   };
 
+  const stopTitleKeys = new AbortController();
+
   const inlineEdit = new InlineEdit({
-    onSave: async (feld, text) => {
-      if (!TEXTAREA_FIELDS.has(feld)) throw new Error('Feld nicht editierbar');
+    onSave: async (feld, text, vorher) => {
+      const istTitel = feld === 'aktivierung_name';
+      if (!istTitel && !TEXTAREA_FIELDS.has(feld)) throw new Error('Feld nicht editierbar');
+      if (istTitel) {
+        const name = String(text ?? '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!name) {
+          const el = root.querySelector('[data-feld="aktivierung_name"]');
+          if (el) el.textContent = vorher || '';
+          window.toastSystem?.show('Bitte einen Titel vergeben.', 'warning');
+          // saved wird erst nach onSave auf den geleerten Text gesetzt
+          setTimeout(() => inlineEdit.syncSaved(feld, vorher ?? ''), 0);
+          return;
+        }
+        text = name;
+        const el = root.querySelector('[data-feld="aktivierung_name"]');
+        if (el && (el.textContent || '') !== name) el.textContent = name;
+      }
       if (!db) throw new Error('Supabase fehlt');
       const { error } = await db
         .from('campaign_briefings')
@@ -658,14 +683,25 @@ export function bindBriefingDoc(root, { briefingId, canEdit = false, onSaved } =
       }
       onSaved?.(feld, text);
       showSaved();
+      if (istTitel) setTimeout(() => inlineEdit.syncSaved(feld, text), 0);
     }
   });
   inlineEdit.attach(root, { readonly: !canEdit });
+
+  if (canEdit) {
+    const titleEl = root.querySelector('[data-feld="aktivierung_name"]');
+    titleEl?.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      titleEl.blur();
+    }, { signal: stopTitleKeys.signal });
+  }
 
   if (!canEdit) {
     return {
       inlineEdit,
       async destroy() {
+        stopTitleKeys.abort();
         if (statusTimer) clearTimeout(statusTimer);
         inlineEdit.detach();
       }
@@ -685,6 +721,7 @@ export function bindBriefingDoc(root, { briefingId, canEdit = false, onSaved } =
   return {
     inlineEdit,
     async destroy() {
+      stopTitleKeys.abort();
       if (statusTimer) clearTimeout(statusTimer);
       try { await inlineEdit.flush(); } catch (_) { /* Unmount trotzdem */ }
       inlineEdit.detach();
