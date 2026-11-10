@@ -41,7 +41,7 @@ export function appendCarriedVideoRows(list, count, contentArtOptions, kampagnen
 }
 
 export function addVideoRow(list, contentArtOptions = [], initial = {}, kampagnenartenOpts = [], onPriceChange = null) {
-  const itemId = `video-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const itemId = initial.id || `video-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const videoNum = list.querySelectorAll('.video-item').length + 1;
 
   const kampagnenartHtml = buildVideoSelectOptions(kampagnenartenOpts, initial.kampagnenart || '');

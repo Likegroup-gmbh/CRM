@@ -78,6 +78,9 @@ export class KooperationEditLoader {
     this._fillCreatorField(form, creators, creatorId, currentCreator);
     // Creator nur noch ueber den Creator-Tausch aenderbar (haelt Casting, Skript und Kooperation konsistent)
     this._setReadonlyField(form, 'creator_id', creatorId, readonlyLabels.creator, !creatorId);
+    // dependsOn rendert das Briefing-Select disabled. Das Suchfeld merkt sich das
+    // beim Aufbau, deshalb vor der Initialisierung wieder freigeben.
+    this._enableNativeSelect(form, 'briefing_id');
 
     const totalVideos = await this._getKampagneTotalVideosWithBlocks(kampagne);
     const usedVideos = (andereKooperationen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
@@ -115,6 +118,9 @@ export class KooperationEditLoader {
     this._syncSearchableContainerValue(form, 'briefing_id');
     this._syncSearchableContainerValue(form, 'assignee_id');
     this._applyReadonlyToSearchableContainer(form, 'creator_id', ctx.readonlyLabels?.creator, !data?.creator_id);
+    // dependsOn setzt das Briefing-Select initial auf disabled. Im Edit sind die
+    // Optionen schon geladen, deshalb wieder bedienbar machen.
+    this._enableEditableSearchable(form, 'briefing_id');
 
     const videoInput = form.querySelector('input[name="videoanzahl"]');
     const videosList = form.querySelector('.videos-list');
@@ -355,9 +361,21 @@ export class KooperationEditLoader {
     }
   }
 
+  _enableNativeSelect(form, fieldName) {
+    const select = form.querySelector(`select[name="${fieldName}"]`);
+    if (!select) return;
+    select.disabled = false;
+  }
+
+  _findFieldSelect(form, fieldName) {
+    return form.querySelector(`select[name="${fieldName}"]`)
+      || form.querySelector(`select[data-field-name="${fieldName}"]`)
+      || form.querySelector(`#field-${fieldName}`);
+  }
+
   // Nach initializeSearchableSelects: den searchable-Container readonly schalten.
   _applyReadonlyToSearchableContainer(form, fieldName, label, isEmpty = false) {
-    const select = form.querySelector(`select[name="${fieldName}"]`);
+    const select = this._findFieldSelect(form, fieldName);
     if (!select) return;
     const container = select.parentNode.querySelector('.searchable-select-container');
     if (!container) return;
@@ -534,11 +552,29 @@ export class KooperationEditLoader {
     });
   }
 
+  _enableEditableSearchable(form, fieldName) {
+    const select = this._findFieldSelect(form, fieldName);
+    if (!select) return;
+    select.disabled = false;
+    delete select.dataset.readonly;
+    const container = select.parentNode.querySelector('.searchable-select-container');
+    if (!container) return;
+    container.classList.remove('readonly-locked');
+    container.style.pointerEvents = '';
+    container.style.opacity = '';
+    const input = container.querySelector('.searchable-select-input');
+    if (!input) return;
+    input.disabled = false;
+    input.readOnly = false;
+    input.removeAttribute('disabled');
+    input.removeAttribute('readonly');
+    input.removeAttribute('data-is-readonly');
+    input.classList.remove('is-disabled');
+  }
+
   // Synct den searchable-Container (Input-Label + Hidden-Input) mit dem aktuellen Select-Value.
   _syncSearchableContainerValue(form, fieldName) {
-    // Das Searchable-Select entfernt name vom <select> und merkt ihn in data-field-name
-    const select = form.querySelector(`select[name="${fieldName}"]`)
-      || form.querySelector(`select[data-field-name="${fieldName}"]`);
+    const select = this._findFieldSelect(form, fieldName);
     if (!select) return;
     const container = select.parentNode.querySelector('.searchable-select-container');
     if (!container) return;
