@@ -1,5 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ShareListDialog } from '../core/components/ShareListDialog.js';
+import { classifyShareEmails } from '../modules/share/shareRecipientPlan.js';
+
+vi.mock('../modules/share/shareRecipientPlan.js', async () => {
+  const actual = await vi.importActual('../modules/share/shareRecipientPlan.js');
+  return {
+    ...actual,
+    classifyShareEmails: vi.fn(async (_supabase, { emails } = {}) => ({
+      listLink: [],
+      guest: [...(emails || [])],
+      blocked: [],
+    })),
+  };
+});
 
 function createListChain(result) {
   const chain = {
@@ -50,6 +63,11 @@ describe('ShareListDialog Zugänge', () => {
       functions: { invoke: vi.fn() },
       from: vi.fn(),
     };
+    classifyShareEmails.mockImplementation(async (_supabase, { emails } = {}) => ({
+      listLink: [],
+      guest: [...(emails || [])],
+      blocked: [],
+    }));
     vi.spyOn(window, 'prompt').mockReturnValue(null);
   });
 
@@ -143,6 +161,9 @@ describe('ShareListDialog Zugänge', () => {
 
     pressEnter(typeEmail('a@b.de'));
     expect(document.querySelector('.tag-item').textContent).toContain('a@b.de');
+    await vi.waitFor(() => {
+      expect(document.querySelector('.share-plan-row')?.textContent).toContain('Gast-Zugang');
+    });
 
     await dialog.submit();
 
@@ -263,5 +284,59 @@ describe('ShareListDialog Zugänge', () => {
         code: '654321',
       }),
     });
+  });
+
+  it('schickt ein Kundenkonto den Listen-Link und legt keinen Gast-Zugang an', async () => {
+    mockFrom();
+    classifyShareEmails.mockResolvedValue({
+      listLink: ['kunde@telekom.de'],
+      guest: [],
+      blocked: [],
+    });
+    window.supabase.functions.invoke.mockResolvedValue({
+      data: { success: true, mailed: 1, plan: { listLink: ['kunde@telekom.de'], guest: [], blocked: [] } },
+      error: null,
+    });
+
+    const dialog = new ShareListDialog();
+    dialog.open({ entityType: 'kampagne', entityId: 'e1', entityName: 'Telekom' });
+    pressEnter(typeEmail('kunde@telekom.de'));
+    await vi.waitFor(() => {
+      expect(document.querySelector('.share-plan-row')?.textContent).toContain('Listen-Link');
+    });
+
+    await dialog.submit();
+
+    const actions = window.supabase.functions.invoke.mock.calls.map((call) => call[1].body.action);
+    expect(actions).toEqual(['send_account_links']);
+    expect(window.supabase.functions.invoke).toHaveBeenCalledWith('share-list', {
+      body: expect.objectContaining({
+        action: 'send_account_links',
+        emails: ['kunde@telekom.de'],
+        entityType: 'kampagne',
+        entityId: 'e1',
+      }),
+    });
+    expect(document.getElementById('share-copy-list-link')).not.toBeNull();
+  });
+
+  it('versendet an ein Kundenkonto ohne Zuordnung keine Mail', async () => {
+    mockFrom();
+    classifyShareEmails.mockResolvedValue({
+      listLink: [],
+      guest: [],
+      blocked: [{ email: 'kunde@telekom.de', reason: 'scope' }],
+    });
+
+    const dialog = new ShareListDialog();
+    dialog.open({ entityType: 'kampagne', entityId: 'e1' });
+    document.getElementById('share-label-input').value = 'Marketing';
+    pressEnter(typeEmail('kunde@telekom.de'));
+    await vi.waitFor(() => {
+      expect(document.querySelector('.share-plan-row')?.textContent).toContain('Zuerst Unternehmen oder Marke');
+    });
+
+    await dialog.submit();
+    expect(window.supabase.functions.invoke).not.toHaveBeenCalled();
   });
 });

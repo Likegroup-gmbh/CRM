@@ -8,16 +8,16 @@
 //  4. Gast-Shell (keine Navigation), nur die geteilte Liste
 
 import { permissionSystem } from '../../core/PermissionSystem.js';
-import { icon, ensureSpriteMounted } from '../../core/icons/IconSystem.js';
+import { ensureSpriteMounted } from '../../core/icons/IconSystem.js';
 import {
   applyGuestJwt,
-  clearAllGuestSessions,
   clearGuestSession,
   getGuestSession,
-  listStoredGuestSessions,
   saveGuestSession,
   syntheticGuestUser,
 } from './guestSession.js';
+import { mountGuestAccountBar, ENTITY_LABELS } from './guestLockPage.js';
+export { renderGuestNoAccess } from './guestLockPage.js';
 
 const ENTITY_ROUTES = {
   kampagne: (id) => `/kampagne/${id}`,
@@ -27,13 +27,6 @@ const ENTITY_ROUTES = {
   skript_paket: () => '/skripte',
 };
 
-const ENTITY_LABELS = {
-  kampagne: 'Kampagne',
-  sourcing: 'Casting-Liste',
-  strategie: 'Konzept',
-  skript: 'Skript',
-  skript_paket: 'Skripte',
-};
 
 export async function initGuestShare(token) {
   const loginRoot = document.getElementById('login-root');
@@ -294,62 +287,11 @@ async function enterGuestApp(token, share) {
   appRoot.classList.add('guest-mode');
   appRoot.style.display = '';
   loginRoot.style.display = 'none';
+  mountGuestAccountBar(appRoot, { token, route, entityType: share.entityType });
 
   await window.moduleRegistry.navigateTo(route, true);
 }
 
-export async function renderGuestNoAccess() {
-  const loginRoot = document.getElementById('login-root');
-  const appRoot = document.getElementById('app-root');
-  if (appRoot) appRoot.style.display = 'none';
-  if (loginRoot) loginRoot.style.display = '';
-
-  const shares = listStoredGuestSessions();
-
-  const shareLinks = shares.map((s) => {
-    const label = ENTITY_LABELS[s.entityType] || 'Liste';
-    const name = s.entityName;
-    return `
-      <a class="guest-share-link" href="/share/${escapeHtml(s.token)}">
-        <span class="guest-share-link-text">
-          <span class="guest-share-link-title">${label} öffnen</span>
-          ${name ? `<span class="guest-share-link-subtitle">${escapeHtml(name)}</span>` : ''}
-        </span>
-        ${icon('arrow-right')}
-      </a>`;
-  }).join('');
-
-  loginRoot.innerHTML = `
-    <div class="login-split-container">
-      <div class="login-left">
-        <div class="login-box auth-card">
-          <div class="login-logo-wrapper">
-            <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
-          </div>
-          <h1 class="auth-title">Kein Zugriff auf diesen Bereich</h1>
-          <p class="auth-subtitle guest-onboarding-note">
-            Ihr Zugang gilt nur für die mit Ihnen geteilten Listen.
-          </p>
-          ${shares.length > 0 ? `
-            <div class="guest-share-links">${shareLinks}</div>
-          ` : `
-            <p class="guest-onboarding-note">
-              Es liegen auf diesem Gerät keine gespeicherten Zugänge vor.
-            </p>
-          `}
-          <button id="guest-logout-btn" class="resend-button">Abmelden</button>
-        </div>
-      </div>
-      <div class="login-right"></div>
-    </div>
-  `;
-
-  document.getElementById('guest-logout-btn')?.addEventListener('click', () => {
-    clearAllGuestSessions();
-    window.guestShare = null;
-    window.location.href = '/';
-  });
-}
 
 function renderMessage(root, text, isError = false) {
   if (!root) return;

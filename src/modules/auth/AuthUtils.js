@@ -4,6 +4,14 @@
 import { authService } from './AuthService.js';
 import { initPasswordHints } from '../../auth/password-hints.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import {
+  accountLoginBackUrl,
+  clearAccountReturn,
+  finishSuccessfulLogin,
+  readAccountReturn,
+  rememberAccountNotice,
+  takeAccountNotice,
+} from '../share/accountReturn.js';
 
 export class AuthUtils {
   constructor() {
@@ -58,6 +66,7 @@ export class AuthUtils {
                 </div>
               </div>
               <div id="loginError" class="text-error" style="display: none;"></div>
+              ${readAccountReturn()?.back ? '<button type="button" id="guest-account-back" class="resend-button">Zurück</button>' : ''}
             </form>
           </div>
         </div>
@@ -72,6 +81,11 @@ export class AuthUtils {
     if (loginForm) {
       loginForm.onsubmit = (e) => this.handleLoginSubmit(e);
     }
+    document.getElementById('guest-account-back')?.addEventListener('click', () => {
+      const back = accountLoginBackUrl(readAccountReturn());
+      clearAccountReturn();
+      window.location.href = back;
+    });
   }
 
   // Supabase-Auth-Fehler auf Deutsch übersetzen
@@ -120,6 +134,12 @@ export class AuthUtils {
 
       if (user) {
         console.log('✅ Login erfolgreich');
+        const next = finishSuccessfulLogin(window.location.pathname);
+        if (next.reload) {
+          window.location.assign(next.reload);
+          return;
+        }
+        if (next.notice) rememberAccountNotice(next.notice);
         this.showApp();
       }
     } catch (error) {
@@ -538,6 +558,8 @@ export class AuthUtils {
     
     // Header-UI initialisieren
     window.setupHeaderUI?.();
+    const notice = takeAccountNotice();
+    if (notice) window.toastSystem?.warning?.(notice) || window.toastSystem?.show?.(notice, 'warning');
   }
 
   // Logout behandeln

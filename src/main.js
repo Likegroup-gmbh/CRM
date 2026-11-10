@@ -35,6 +35,7 @@ import '../assets/styles/kampagne-detail.css';
 import '../assets/styles/toast.css';
 import '../assets/styles/version-check.css';
 import '../assets/styles/share.css';
+import '../assets/styles/share-recipient.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/admin.css';
 import '../assets/styles/skripte.css';
@@ -484,6 +485,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Query-String mitnehmen, damit Deep-Links wie /skripte?skript=<id>
     // einen Reload ueberleben (_doNavigate strippt Query fuers Matching selbst)
     let initialRoute = location.pathname + location.search;
+    const rolle = window.currentUser?.rolle;
+    const istKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    if (istKunde && (await import('./modules/share/accountReturn.js')).isConcreteListPath(initialRoute.split(/[?#]/)[0])) {
+      const { customerCanOpenList, rememberAccountNotice, SCOPE_NOTICE } = await import('./modules/share/accountReturn.js');
+      const sichtbar = await customerCanOpenList(window.supabase, initialRoute);
+      if (!sichtbar) {
+        rememberAccountNotice(SCOPE_NOTICE);
+        initialRoute = '/dashboard';
+      }
+    }
     
     // Hash-Support für Deep-Links (z.B. aus Duplicate-Check oder Bookmarks)
     // Wenn Pfad "/" ist, aber ein Hash existiert, nutze den Hash als Route
@@ -511,9 +522,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Header/UI-Setup (Initialen, Quick-Menu etc.)
     window.setupHeaderUI?.();
+    const { takeAccountNotice } = await import('./modules/share/accountReturn.js');
+    const hinweis = takeAccountNotice();
+    if (hinweis) window.toastSystem?.warning?.(hinweis) || window.toastSystem?.show?.(hinweis, 'warning');
   } else {
     const { hasStoredGuestSessions } = await import('./modules/share/guestSession.js');
-    if (hasStoredGuestSessions()) {
+    const { isConcreteListPath, readAccountReturn } = await import('./modules/share/accountReturn.js');
+    if (hasStoredGuestSessions() && !isConcreteListPath(location.pathname) && !readAccountReturn()) {
       console.log('🔒 Gast-JWT ohne Share-Link - zeige Sperrseite');
       const { renderGuestNoAccess } = await import('./modules/share/GuestShareApp.js');
       await renderGuestNoAccess();
