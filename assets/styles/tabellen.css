@@ -518,7 +518,14 @@
   background: white;
 }
 
-.kooperation-video-grid tbody tr:hover td {
+/* Trennlinie zwischen Kooperationen. Dicker als die Linien zwischen den
+   Videos derselben Zeile, damit die Bloecke auseinanderfallen. */
+.grid-table.kooperation-video-grid tbody tr.kooperation-row > td {
+  border-bottom: 2px solid var(--gray-300);
+}
+
+.kooperation-video-grid tbody tr:hover td,
+.kooperation-video-grid tbody tr:hover td.col-creator {
   background: var(--gray-50);
 }
 
