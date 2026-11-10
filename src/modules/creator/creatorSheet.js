@@ -36,7 +36,7 @@ const SECTIONS = [
   { key: 'unternehmen', icon: 'unternehmen', label: 'Unternehmen', count: (d) => d.unternehmen?.length, render: (d) => d.renderUnternehmenContent() },
   { key: 'rechnungen', icon: 'rechnungen', label: 'Rechnungen', count: (d) => d.rechnungen?.length, render: (d) => d.renderRechnungenContent() },
   { key: 'vertraege', icon: 'vertraege', label: 'Verträge', count: (d) => d.vertraege?.length, render: (d) => d.renderVertraegeContent() },
-  { key: 'listen', icon: 'listen', label: 'Listen', count: (d) => d.lists?.length, render: (d) => d.renderListenContent() },
+  { key: 'listen', icon: 'listen', label: 'Masterlisten', count: (d) => d.lists?.length, render: (d) => d.renderListenContent() },
   { key: 'adresse', icon: 'map-pin', label: 'Adresse', render: (d) => d.renderAdresseContent() }
 ];
 

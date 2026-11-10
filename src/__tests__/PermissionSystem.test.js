@@ -242,11 +242,13 @@ describe('PermissionSystem', () => {
       expect(ps.checkPermission('auftrag', 'edit')).toBe(false);
     });
 
-    it('Mitarbeiter kann Kampagne sehen und bearbeiten', () => {
+    it('Mitarbeiter kann Kampagne sehen, aber nicht bearbeiten', () => {
       ps.setUserPermissions(makeUser('mitarbeiter'));
       expect(ps.checkPermission('kampagne', 'view')).toBe(true);
-      expect(ps.checkPermission('kampagne', 'edit')).toBe(true);
+      expect(ps.checkPermission('kampagne', 'edit')).toBe(false);
+      expect(ps.canEdit('kampagne')).toBe(false);
       expect(ps.checkPermission('kampagne', 'delete')).toBe(true);
+      expect(ps.checkPermission('auftrag', 'edit')).toBe(false);
     });
 
     it('Kunde kann Kampagne nur sehen', () => {
@@ -358,8 +360,8 @@ describe('PermissionSystem', () => {
 
     it('akzeptiert sowohl "edit" als auch "can_edit"', () => {
       ps.setUserPermissions(makeUser('mitarbeiter'));
-      expect(ps.checkPermission('kampagne', 'edit')).toBe(true);
-      expect(ps.checkPermission('kampagne', 'can_edit')).toBe(true);
+      expect(ps.checkPermission('kooperation', 'edit')).toBe(true);
+      expect(ps.checkPermission('kooperation', 'can_edit')).toBe(true);
     });
   });
 

@@ -1,7 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { authorizedFetch } from '../core/auth/getAccessToken.js';
 import { openManagementAnfrage } from '../modules/creator-auswahl/managementAnfrageDrawer.js';
 
-function supabaseMock() {
+vi.mock('../core/auth/getAccessToken.js', () => ({
+  authorizedFetch: vi.fn(),
+}));
+
+function supabaseMock(bag = {}) {
+  bag.inserts = [];
   const tables = {
     creator_auswahl: [{ id: 'liste-1', name: 'Forgeworks Casting' }],
     management: [
@@ -22,7 +28,10 @@ function supabaseMock() {
         in() { return chain; },
         order() { return chain; },
         limit() { return chain; },
-        insert() { return Promise.resolve({ error: null }); },
+        insert(row) {
+          bag.inserts.push(row);
+          return Promise.resolve({ error: null });
+        },
         then(resolve, reject) { return Promise.resolve(result).then(resolve, reject); },
       };
       return chain;
@@ -36,6 +45,8 @@ describe('Management-Anfrage', () => {
     document.getElementById('management-anfrage-drawer-overlay')?.remove();
     document.querySelectorAll('.filter-select__panel').forEach((panel) => panel.remove());
     delete window.supabase;
+    delete window.toastSystem;
+    authorizedFetch.mockReset();
   });
 
   it('nutzt das Filter-Dropdown und die Anschreiben-Hülle statt einer Checkbox-Liste', async () => {
@@ -45,7 +56,8 @@ describe('Management-Anfrage', () => {
 
     expect(drawer.classList.contains('anschreiben-drawer')).toBe(true);
     expect(drawer.querySelector('.drawer-title').textContent).toBe('Managements anfragen');
-    expect(drawer.querySelector('.drawer-footer [data-action="create"]').textContent).toBe('Links erzeugen');
+    expect(drawer.querySelector('.drawer-footer [data-action="send"]').textContent).toBe('Senden');
+    expect(drawer.textContent).toContain('nicht als Anhang');
     expect(drawer.querySelector('[data-management] .filter-select')).not.toBeNull();
     expect(drawer.querySelector('[data-management] .filter-select__panel').hidden).toBe(true);
     expect(drawer.querySelector('[data-management] .filter-select__trigger').textContent).toContain('Management wählen');
@@ -65,5 +77,36 @@ describe('Management-Anfrage', () => {
     const peoplePanel = [...document.querySelectorAll('.filter-select__panel')].find((node) => node.querySelector('input[value="p1"]'));
     expect(peoplePanel.textContent).toContain('Lea Klein · Studio One');
     expect(peoplePanel.textContent).not.toContain('Tim Bohm');
+  });
+
+  it('schickt die gewählte Person und legt den Link nicht im Browser an', async () => {
+    const bag = {};
+    window.supabase = supabaseMock(bag);
+    window.toastSystem = { show: vi.fn() };
+    authorizedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ sent: 1, failed: 0, total: 1, errors: [] }),
+    });
+    await openManagementAnfrage({ liste: { id: 'liste-1', name: 'Forgeworks Casting', kampagne_id: 'k1' } });
+    const drawer = document.getElementById('management-anfrage-drawer');
+
+    drawer.querySelector('#filter-select-management-anfrage-management .filter-select__trigger').click();
+    const panel = [...document.querySelectorAll('.filter-select__panel')].find((node) => !node.hidden);
+    panel.querySelector('input[value="m1"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    drawer.querySelector('#filter-select-management-anfrage-personen .filter-select__trigger').click();
+    const peoplePanel = [...document.querySelectorAll('.filter-select__panel')].find((node) => node.querySelector('input[value="p1"]'));
+    peoplePanel.querySelector('input[value="p1"]').click();
+
+    drawer.querySelector('[data-action="send"]').click();
+    await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalled());
+
+    const [, init] = authorizedFetch.mock.calls[0];
+    expect(JSON.parse(init.body)).toMatchObject({
+      castingId: 'liste-1',
+      empfaenger: [{ managementId: 'm1', ansprechpartnerId: 'p1' }],
+    });
+    expect(bag.inserts).toEqual([]);
+    expect(window.toastSystem.show).toHaveBeenCalledWith('Anfrage: 1 gesendet', 'success');
   });
 });

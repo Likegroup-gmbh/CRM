@@ -136,4 +136,67 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
     // Eigenes Budget: nur eigener Verbrauch (1.000 / 15.000 = 7%)
     expect(html).toContain('style="width: 7%"');
   });
+
+  it('legt Mitarbeitern rechts ein Menü für Name und Produktionsbudget hin', () => {
+    window.isAdmin = () => false;
+    window.isInternal = () => true;
+    window.isKunde = () => false;
+    window.isInvestor = () => false;
+    window.canCreate = () => true;
+
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{
+        id: 'p1',
+        name: 'Next Magenta',
+        linien: [{ id: 'l1', name: 'Linie' }]
+      }]
+    });
+
+    const menu = html.slice(html.lastIndexOf('<td class="col-actions">'));
+    expect(menu).toContain('aria-label="Aktionen"');
+    expect(menu).toContain('data-action="produktion-name"');
+    expect(menu).toContain('Name bearbeiten');
+    expect(menu).toContain('data-action="produktion-budget"');
+    expect(menu).toContain('Produktionsbudget anpassen');
+    expect(menu).not.toContain('data-produktion-loeschen');
+  });
+
+  it('bietet Löschen nur bei einer leeren Produktion im Menü an', () => {
+    window.isAdmin = () => false;
+    window.isInternal = () => true;
+    window.canCreate = () => true;
+
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{ id: 'p1', name: 'Leer', linien: [] }]
+    });
+
+    expect(html).toContain('data-produktion-loeschen="p1"');
+    expect(html).toContain('Löschen');
+  });
+
+  it('versteckt das Menü vor Kunden und der Finanzen-Sicht', () => {
+    window.isAdmin = () => false;
+    window.isInternal = () => false;
+    window.isKunde = () => true;
+    const kunde = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{ id: 'p1', name: 'Next Magenta' }]
+    });
+    expect(kunde).not.toContain('data-action="produktion-name"');
+
+    window.isKunde = () => false;
+    window.isInternal = () => true;
+    window.isInvestor = () => true;
+    const finanzen = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{ id: 'p1', name: 'Next Magenta' }]
+    });
+    expect(finanzen).not.toContain('data-action="produktion-name"');
+  });
 });

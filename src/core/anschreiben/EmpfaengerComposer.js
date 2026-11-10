@@ -10,6 +10,7 @@
 
 import { OptionsManager } from '../form/data/OptionsManager.js';
 import { loadAnsprechpartnerRows } from './snapshot.js';
+import { loadAllCreators } from '../creatorRows.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -222,12 +223,10 @@ export class EmpfaengerComposer {
 
   async _loadCreatorOptions() {
     if (this.empfaengerScope) return this._optionsFromScope('creator', this.empfaengerScope.creators, 'skippedCreator');
-    const { data, error } = await this.db
-      .from('creator')
-      .select('id, vorname, nachname, mail')
-      .not('mail', 'is', null)
-      .order('vorname');
-    if (error) throw error;
+    const data = await loadAllCreators(this.db, {
+      select: 'id, vorname, nachname, mail',
+      refine: (query) => query.not('mail', 'is', null)
+    });
     const options = [];
     this.lookup.creator = {};
     for (const c of data || []) {

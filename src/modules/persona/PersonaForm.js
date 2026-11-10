@@ -25,6 +25,7 @@ import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { backTarget, returnTo } from '../../core/breadcrumbTrail.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { loadBriefingIdsForPersona, setPersonaBriefings } from '../briefing/BriefingPersonas.js';
+import { setPrefillValues } from '../../core/form/data/PrefillSelected.js';
 import { readCreateScope, resolveCreateScopeLabels } from './personaCreateScope.js';
 
 export class PersonaForm {
@@ -178,6 +179,12 @@ export class PersonaForm {
     // Searchable-Selects und Tag-Multiselect (Unternehmen, Branche, Marken).
     // Beim Anlegen sind Unternehmen, Marke und Briefing schon im Drawer
     // gesetzt und tauchen hier nicht mehr auf.
+    // Briefings haengen als Array an der Linie, nicht an einer Junction.
+    // Das Dokument laesst Multiselects leer; ohne diese Vormerkung bleiben
+    // die Tags leer und der Save loest die Persona von jeder Linie.
+    if (this.isEdit && this.briefingIds.length) {
+      setPrefillValues(form.querySelector('[name="briefing_ids"]'), this.briefingIds);
+    }
     await window.formSystem.bindFormEvents('persona', formData);
 
     const produktGewaehlt = scopeCreate && this.createScope.produktId;

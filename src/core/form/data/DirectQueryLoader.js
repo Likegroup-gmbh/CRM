@@ -10,6 +10,7 @@ import {
   applyRelationTableSelected
 } from './EditModeSelectedHelper.js';
 import { applyFinalisiertFilter } from '../../finalisiert.js';
+import { loadAllCreators } from '../../creatorRows.js';
 import { applyPrefillSelected } from './PrefillSelected.js';
 
 const ORDER_BY_NAME = new Set([
@@ -260,6 +261,21 @@ async function loadUnternehmenWithAccessFilter(field) {
 // Generische Tabelle laden (inkl. Benutzer-Filter, filterByKlasse, field.filter)
 // Gibt null zurück wenn Fehler (Caller soll [] zurückgeben)
 async function loadGenericTable(field) {
+  if (field.table === 'creator') {
+    try {
+      return await loadAllCreators(window.supabase, {
+        select: '*',
+        refine: (query) => {
+          const filtered = field.filter ? query.or(field.filter) : query;
+          return applyPickerFinalFilter(filtered, field);
+        }
+      });
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Daten aus creator:', error);
+      return null;
+    }
+  }
+
   let query = window.supabase
     .from(field.table)
     .select('*');

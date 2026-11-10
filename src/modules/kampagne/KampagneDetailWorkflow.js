@@ -610,7 +610,7 @@ async function renderSkriptePane(detail) {
     return renderEmptyState({
       icon: 'skripte',
       title: 'Keine Skripte vorhanden',
-      text: 'Für diese Kampagne wurden noch keine Skripte erstellt.'
+      text: `Für ${effectiveLinie(detail, 'skripte') ? 'diese Linie' : 'diese Produktion'} wurden noch keine Skripte erstellt.`
     });
   }
 
@@ -672,7 +672,7 @@ export async function renderVertraegePane(detail) {
     return renderEmptyState({
       icon: 'document',
       title: 'Keine Verträge vorhanden',
-      text: 'Für diese Kampagne wurden noch keine Verträge erfasst.'
+      text: `Für ${effectiveLinie(detail, 'vertraege') ? 'diese Linie' : 'diese Produktion'} wurden noch keine Verträge erfasst.`
     });
   }
 

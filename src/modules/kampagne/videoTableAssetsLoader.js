@@ -12,6 +12,7 @@ import {
 import { BILDER_ASSET_SELECT, pickLatestAsset } from '../../core/stills/stillAssets.js';
 import { mitAblage } from '../../core/ablage/ablageLink.js';
 import { batchInQuery } from './videoTableQueries.js';
+import { patchZeitkommentarLists } from './videoTableZeitkommentare.js';
 
 const settledOk = (result) => result.status === 'fulfilled' && !result.value?.error;
 
@@ -42,7 +43,7 @@ function warnFailures(assetsResult, commentsResult, finalAssetsResult, finalsOk)
 }
 
 /** Ohne Store: Assets und Kommentare direkt an die Videos bzw. Kommentar-Maps hängen. */
-function applyWithoutStore(t, { assetsByVideoId, finalsByVideoId, finalsOk, comments, stillComments }) {
+function applyWithoutStore(t, { assetsByVideoId, finalsByVideoId, finalsOk, comments, stillComments, zeitByVideo }) {
   for (const koopVideos of Object.values(t.videos)) {
     for (const video of koopVideos) {
       const asset = assetsByVideoId.get(video.id);
@@ -66,6 +67,7 @@ function applyWithoutStore(t, { assetsByVideoId, finalsByVideoId, finalsOk, comm
     }
     t.stillComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
   });
+  if (t.zeitkommentare) Object.assign(t.zeitkommentare, zeitByVideo);
 }
 
 export async function loadAssetsAndComments(dl, videoIds) {
@@ -75,7 +77,7 @@ export async function loadAssetsAndComments(dl, videoIds) {
   try {
     const sb = window.supabase;
 
-    const [assetsResult, commentsResult, finalAssetsResult, stillCommentsResult] = await Promise.allSettled([
+    const [assetsResult, commentsResult, finalAssetsResult, stillCommentsResult, zeitResult] = await Promise.allSettled([
       batchInQuery(
         sb.from('kooperation_video_asset'),
         mitAblage('id, video_id, file_url, file_path, version_number, is_current, created_at'),
@@ -89,8 +91,10 @@ export async function loadAssetsAndComments(dl, videoIds) {
         'video_id', videoIds,
         q => q.eq('is_final', true).order('created_at', { ascending: true })
       ),
-      dl.loadStillFeedbackComments(videoIds)
+      dl.loadStillFeedbackComments(videoIds),
+      dl.loadZeitkommentare(videoIds)
     ]);
+    const zeitByVideo = zeitResult.status === 'fulfilled' ? zeitResult.value : {};
 
     const assets = settledOk(assetsResult) ? (assetsResult.value.data || []) : [];
     const comments = settledOk(commentsResult) ? (commentsResult.value.data || []) : [];
@@ -118,9 +122,10 @@ export async function loadAssetsAndComments(dl, videoIds) {
       t.store.applyAssets(assetsByVideoId);
       t.store.applyComments(comments);
       t.store.applyStillComments(stillComments);
+      t.store.applyZeitkommentare(zeitByVideo);
       if (finalsOk) t.store.applyFinalAssets(finalsByVideoId);
     } else {
-      applyWithoutStore(t, { assetsByVideoId, finalsByVideoId, finalsOk, comments, stillComments });
+      applyWithoutStore(t, { assetsByVideoId, finalsByVideoId, finalsOk, comments, stillComments, zeitByVideo });
     }
 
     dl.patchRenderedAssetsAndComments(assetsByVideoId);
@@ -270,6 +275,14 @@ export function patchRenderedAssetsAndComments(dl, assetsByVideoId) {
       if (field && !field.value) field.value = formatVideoFeedbackValue(comments, slot.bucket);
     });
   }
+
+  for (const koopVideos of Object.values(t.videos || {})) {
+    for (const video of koopVideos) {
+      const list = t.zeitkommentare?.[video.id];
+      if (list?.length) patchZeitkommentarLists(container, video, list);
+    }
+  }
+  t._rowHeightSync?.schedule();
 
   dl.patchRenderedBilderCells();
 }

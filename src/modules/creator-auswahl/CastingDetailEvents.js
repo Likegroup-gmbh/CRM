@@ -285,7 +285,14 @@ export function _bindCustomColumnEvents() {
   const thead = this._q('.creator-pool-table thead');
   this._customHeaderDragCleanup = this.customColumns.bindHeaderDragAndDrop(
     thead,
-    () => this.rerenderTable()
+    () => {
+      this.uebernehmeKopfVerschiebung()
+        .catch(error => {
+          console.error('Spalten-Reihenfolge speichern fehlgeschlagen:', error);
+          window.toastSystem?.show('Reihenfolge konnte nicht gespeichert werden', 'error');
+        })
+        .finally(() => this.rerenderTable());
+    }
   );
   this._boundEventListeners.add(() => {
     if (this._customHeaderDragCleanup) { this._customHeaderDragCleanup(); this._customHeaderDragCleanup = null; }

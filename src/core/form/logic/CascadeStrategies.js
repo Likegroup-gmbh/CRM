@@ -1,5 +1,6 @@
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 import { applyFinalisiertFilter } from '../../finalisiert.js';
+import { creatorDisplayName, loadAllCreators } from '../../creatorRows.js';
 
 function getKampagneTotalVideosSimple(k) {
   const subfieldsSum =
@@ -279,18 +280,11 @@ export const cascadeStrategies = {
 
   'creator_id:kampagne_id': async (parentValue, form, field, fieldConfig, ctx) => {
     try {
-      const { data: allCreators, error } = await window.supabase
-        .from('creator')
-        .select('id, vorname, nachname, instagram')
-        .order('vorname');
-      if (error) {
-        console.error('❌ Fehler beim Laden aller Creator:', error);
-        return;
-      }
-      const options = (allCreators || [])
+      const allCreators = await loadAllCreators(window.supabase);
+      const options = allCreators
         .map(creator => {
-          const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim();
-          const label = name || (creator.instagram ? `@${creator.instagram}` : `Creator ${creator.id}`);
+          const label = creatorDisplayName(creator)
+            || (creator.instagram ? `@${creator.instagram}` : `Creator ${creator.id}`);
           return { value: creator.id, label };
         });
       field.disabled = false;

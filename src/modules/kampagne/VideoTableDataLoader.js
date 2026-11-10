@@ -8,7 +8,8 @@ import {
   CREATOR_SELECT,
   VERSAND_SELECT,
   loadVideoFeedbackComments,
-  loadStillFeedbackComments
+  loadStillFeedbackComments,
+  loadZeitkommentare
 } from './videoTableQueries.js';
 import {
   loadAssetsAndComments,
@@ -162,6 +163,7 @@ export class VideoTableDataLoader {
 
   async loadVideoFeedbackComments(videoIds) { return loadVideoFeedbackComments(videoIds); }
   async loadStillFeedbackComments(videoIds) { return loadStillFeedbackComments(videoIds); }
+  async loadZeitkommentare(videoIds) { return loadZeitkommentare(videoIds); }
 
   async loadData() {
     const t = this.table;

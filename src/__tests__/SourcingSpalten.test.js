@@ -12,6 +12,7 @@ import {
   SOURCING_SPALTEN
 } from '../modules/creator-auswahl/sourcingSpaltenKatalog.js';
 import { SourcingTabelleAnpassenDrawer } from '../modules/creator-auswahl/SourcingTabelleAnpassenDrawer.js';
+import { standardBeweglicheSpalten } from '../modules/creator-auswahl/sourcingSpaltenfolge.js';
 
 function baseCtx(overrides = {}) {
   return { isKunde: false, hiddenColumns: [], ...overrides };
@@ -115,6 +116,37 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     const zeile = reihenfolge(doc.querySelectorAll('tbody tr.item-row > td'));
 
     expect(zeile).toEqual(kopf);
+  });
+
+  it('folgt einer gespeicherten Reihenfolge und laesst den Namen fest', () => {
+    const columnOrder = standardBeweglicheSpalten().filter(id => id !== 'cp-col-status');
+    columnOrder.splice(columnOrder.indexOf('cp-col-notiz'), 0, 'cp-col-status');
+    const doc = tableDoc([{ id: 'i1' }], { columnOrder });
+    const kopf = reihenfolge(doc.querySelectorAll('thead th'));
+    const ab = kopf.indexOf('cp-col-name');
+
+    expect(kopf.slice(ab, ab + 3)).toEqual(['cp-col-name', 'cp-col-status', 'cp-col-notiz']);
+    expect(reihenfolge(doc.querySelectorAll('tbody tr.item-row > td'))).toEqual(kopf);
+    expect(getStickyClasses(baseCtx({ columnOrder }))).toEqual({
+      bild: 'col-sticky-2',
+      name: 'col-sticky-3'
+    });
+  });
+
+  it('loest das Bild aus der Sticky-Gruppe, wenn es nicht mehr vorn steht', () => {
+    const columnOrder = [
+      'cp-col-status',
+      ...standardBeweglicheSpalten().filter(id => id !== 'cp-col-status')
+    ];
+    const doc = tableDoc([{ id: 'i1' }], { columnOrder });
+    const kopf = reihenfolge(doc.querySelectorAll('thead th'));
+
+    expect(kopf.slice(0, 4)).toEqual([
+      'cp-col-drag', 'cp-col-name', 'cp-col-status', 'cp-col-bild'
+    ]);
+    expect(doc.querySelector('th.cp-col-bild').classList.contains('col-sticky-2')).toBe(false);
+    expect(doc.querySelector('th.cp-col-name').classList.contains('col-sticky-2')).toBe(true);
+    expect(doc.querySelector('td.cp-col-name').classList.contains('col-sticky-2')).toBe(true);
   });
 
   it('nennt die Pricing-Spalte Gesamtpreis und kennt keine zweite Gesamtpreis-Spalte', () => {

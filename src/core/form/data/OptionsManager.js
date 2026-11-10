@@ -350,12 +350,14 @@ export class OptionsManager {
         }
         
         // 6. Input wieder aktivieren falls deaktiviert (auch bei 0 Optionen!)
-        existingInput.disabled = options.length === 0;
+        // allowCreate bleibt tippbar, sonst laesst sich bei leerer Liste nichts anlegen.
+        const canCreateWhileEmpty = field?.allowCreate === true && !field.filterBy;
+        existingInput.disabled = options.length === 0 && !canCreateWhileEmpty;
         if (options.length === 0 && field.filterBy) {
           const filterByLabel = field.filterBy.replace('_id', '').replace(/_/g, ' ');
           const capitalizedLabel = filterByLabel.charAt(0).toUpperCase() + filterByLabel.slice(1);
           existingInput.placeholder = `Erst ${capitalizedLabel} auswählen...`;
-        } else if (options.length === 0) {
+        } else if (options.length === 0 && !canCreateWhileEmpty) {
           existingInput.placeholder = 'Keine Optionen verfügbar';
         } else {
           existingInput.placeholder = field.placeholder || 'Suchen und Tags hinzufügen...';
@@ -537,12 +539,93 @@ export class OptionsManager {
       } catch (_) { return options || []; }
     };
 
+    const cleanFilterText = (value) => String(value || '').replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
+
+    const findExactOption = (text) => {
+      const key = cleanFilterText(text).toLowerCase();
+      if (!key) return null;
+      return getOptions().find((option) => String(option.label || '').trim().toLowerCase() === key) || null;
+    };
+
+    const addSelectedTag = (option) => {
+      if (!option?.value || selectedValues.has(option.value)) return;
+      selectedValues.add(option.value);
+      tagsContainer.appendChild(createTag(option.value, option.label));
+      input.value = '';
+      dropdown.classList.remove('show');
+      updateHiddenSelect();
+    };
+
+    const rememberOption = (option) => {
+      const next = getOptions().filter((entry) => entry.value !== option.value);
+      next.push({ value: option.value, label: option.label });
+      try { container.dataset.options = JSON.stringify(next); } catch (_) {}
+    };
+
+    let createInFlight = false;
+    const createFromText = async (raw) => {
+      if (!field?.allowCreate || createInFlight) return;
+      const clean = cleanFilterText(raw);
+      if (!clean) return;
+      const existing = findExactOption(clean);
+      if (existing) {
+        addSelectedTag(existing);
+        return;
+      }
+      const creator = window.formSystem?.createLookupEntry;
+      if (typeof creator !== 'function') {
+        alert('Anlegen ist gerade nicht verfügbar.');
+        return;
+      }
+      createInFlight = true;
+      try {
+        const newEntry = await creator(field.table, field.displayField, clean);
+        const option = {
+          value: newEntry[field.valueField],
+          label: newEntry[field.displayField]
+        };
+        rememberOption(option);
+        addSelectedTag(option);
+        if (window.staticDataCache?.invalidate) {
+          window.staticDataCache.invalidate(field.table);
+        }
+      } catch (error) {
+        console.error('Fehler beim Erstellen der neuen Option:', error);
+        alert(`Fehler beim Erstellen: ${error.message || 'Unbekannter Fehler'}`);
+      } finally {
+        createInFlight = false;
+      }
+    };
+
+    const appendCreateOffer = () => {
+      if (!field?.allowCreate) return;
+      const clean = cleanFilterText(input.value);
+      if (!clean || findExactOption(clean)) return;
+      const createItem = document.createElement('div');
+      createItem.className = 'searchable-select-item create-new';
+      const icon = document.createElement('span');
+      icon.className = 'create-new-icon';
+      icon.textContent = '+';
+      const label = document.createElement('span');
+      label.append(' Neu erstellen: ');
+      const strong = document.createElement('strong');
+      strong.textContent = clean;
+      label.append(strong);
+      createItem.append(icon, label);
+      createItem.addEventListener('click', () => { void createFromText(clean); });
+      dropdown.appendChild(createItem);
+    };
+
     // Dropdown-Optionen erstellen
     const createDropdownItems = (list) => {
       dropdown.innerHTML = '';
       const base = Array.isArray(list) ? list : getOptions();
       
       if (base.length === 0) {
+        if (field?.allowCreate && cleanFilterText(input.value) && !findExactOption(input.value)) {
+          appendCreateOffer();
+          return;
+        }
         const noResults = document.createElement('div');
         noResults.textContent = 'Keine Ergebnisse';
         noResults.className = 'searchable-select-empty';
@@ -606,6 +689,7 @@ export class OptionsManager {
         
         dropdown.appendChild(item);
       });
+      appendCreateOffer();
     };
     
     // Input-Events
@@ -645,11 +729,14 @@ export class OptionsManager {
       }
     }, { signal: abortController.signal });
     
-    // Escape-Key Handler
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         dropdown.classList.remove('show');
+        return;
       }
+      if (e.key !== 'Enter' || !field?.allowCreate) return;
+      e.preventDefault();
+      void createFromText(input.value);
     });
     
     // Elemente zusammenbauen

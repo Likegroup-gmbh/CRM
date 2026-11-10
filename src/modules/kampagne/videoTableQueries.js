@@ -7,6 +7,7 @@ import {
   VIDEO_FEEDBACK_LEGACY_SELECT,
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
+import { groupZeitkommentare, ZEITKOMMENTAR_SELECT } from './videoTableZeitkommentare.js';
 
 const BATCH_SIZE = 200;
 
@@ -75,4 +76,20 @@ export async function loadStillFeedbackComments(videoIds) {
     videoIds,
     q => q.is('deleted_at', null).order('created_at', { ascending: true })
   );
+}
+
+// Optional: fehlt die Tabelle oder greift RLS, bleibt die Zelle beim Text.
+export async function loadZeitkommentare(videoIds) {
+  const result = await batchInQuery(
+    window.supabase.from('kooperation_video_zeitkommentar'),
+    ZEITKOMMENTAR_SELECT,
+    'video_id',
+    videoIds,
+    q => q.is('deleted_at', null).order('created_at', { ascending: true })
+  );
+  if (result?.error) {
+    console.warn('⚠️ Kommentare aus dem Videos-Tab konnten nicht geladen werden:', result.error);
+    return {};
+  }
+  return groupZeitkommentare(result?.data);
 }

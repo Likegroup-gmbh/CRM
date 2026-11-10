@@ -6,6 +6,7 @@ import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { normalizeHandle } from './creatorProfil.js';
 import { syncCreatorBetreuung } from '../ansprechpartner/betreuung.js';
 import { connectInstagramSilent } from '../../core/ActionsDropdownEffects.js';
+import { creatorReturnPath } from './masterliste.js';
 
 CreatorDetail.prototype.handleEditFormSubmit = async function() {
     try {
@@ -125,7 +126,7 @@ CreatorDetail.prototype.handleEditFormSubmit = async function() {
           await this.loadManagements();
           await this.loadFirmen();
           await this.render();
-          window.navigateTo(`/creator/${this.creatorId}`);
+          window.navigateTo(creatorReturnPath() || `/creator/${this.creatorId}`);
         }, 1500);
       } else {
         throw new Error(result.error || 'Unbekannter Fehler');

@@ -9,7 +9,7 @@ import {
   button, infoZeilen, nachricht, schritte, text, rohHtml,
 } from '../../supabase/functions/_shared/mail/sections.ts';
 import {
-  anschreibenMail, authMail, creatorUploadMail, einladungMail, einreichungMail, teilenMail,
+  anschreibenMail, authMail, creatorUploadMail, einladungMail, einreichungMail, managementAnfrageMail, teilenMail,
   BRIEFING_SCHRITTE,
 } from '../../supabase/functions/_shared/mail/index.ts';
 import { kundenSteps } from '../modules/einladung/einladungFelder.js';
@@ -241,6 +241,23 @@ describe('Template anschreiben', () => {
   });
 });
 
+describe('Template management-anfrage', () => {
+  it('setzt den Link und keinen PDF-Anhang', () => {
+    const { betreff, html } = managementAnfrageMail({
+      betreff: 'Creator für Forgeworks',
+      textHtml: '<p>Über den Link kannst du Creator vorschlagen.</p>',
+      link: `${LINK}?token=abc`,
+      basisUrl: BASIS,
+    });
+    expect(betreff).toBe('Creator für Forgeworks');
+    expect(html).toContain('<p>Über den Link kannst du Creator vorschlagen.</p>');
+    expect(html).toContain('Creator vorschlagen');
+    expect(html).toContain(`${LINK}?token=abc`);
+    expect(html).toContain('nicht als Anhang');
+    expect(html).not.toContain('hängen als PDF');
+  });
+});
+
 describe('Template auth', () => {
   it.each(['bestaetigen', 'passwort', 'einladung'])('%s trägt die Supabase-Platzhalter', (art) => {
     const { betreff, html } = authMail(art);
@@ -260,6 +277,7 @@ describe('Farben', () => {
       einreichungMail({ art: 'briefing', einreicherName: 'A', einladungLabel: 'L', kunde: 'K', link: LINK }).html,
       creatorUploadMail({ link: LINK, kampagneName: 'K', expiresAt: '2026-12-24T10:00:00Z' }).html,
       anschreibenMail({ betreff: 'B', textHtml: '<p>X</p>' }).html,
+      managementAnfrageMail({ betreff: 'B', textHtml: '<p>X</p>', link: LINK }).html,
       authMail('passwort').html,
     ];
     for (const html of mails) {
@@ -272,7 +290,7 @@ describe('Farben', () => {
 describe('Netlify-Brücke', () => {
   it('liefert dieselben Templates wie die Edge Functions', () => {
     const bruecke = require('../../netlify/functions/_shared/mail-system.js');
-    for (const name of ['einladungMail', 'einreichungMail', 'teilenMail', 'creatorUploadMail', 'anschreibenMail', 'authMail']) {
+    for (const name of ['einladungMail', 'einreichungMail', 'teilenMail', 'creatorUploadMail', 'anschreibenMail', 'managementAnfrageMail', 'authMail']) {
       expect(typeof bruecke[name]).toBe('function');
     }
     const eingabe = { betreff: 'B', textHtml: '<p>X</p>', basisUrl: BASIS };

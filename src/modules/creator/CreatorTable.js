@@ -99,7 +99,7 @@ export function renderCreatorTable(creators, options = {}) {
               <a href="#" class="action-item" data-action="view" data-id="${id}">Details anzeigen</a>
               <a href="#" class="action-item" data-action="add_to_list" data-id="${id}">
                 ${icon('view-list', { className: 'size-6' })}
-                Zur Liste hinzufügen
+                Zur Masterliste hinzufügen
               </a>
               <a href="#" class="action-item" data-action="favorite" data-creator-id="${id}" data-kampagne-id="${kampagneId}">
                 ${icon('bookmark', { className: 'size-6' })}

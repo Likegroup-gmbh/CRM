@@ -33,7 +33,7 @@ const ROUTE_CONFIG = {
   tabellen:           { label: 'Tabellen',          entity: 'tabellen' },
   feedback:           { label: 'Feedback',          entity: 'feedback' },
   education:          { label: 'Education',          entity: 'education' },
-  'creator-lists':    { label: 'Listen',            entity: 'creator-lists' },
+  'creator-lists':    { label: 'Masterlisten',      entity: 'creator-lists' },
   contracts:          { label: 'Contracts',          entity: 'vertraege' },
   ausgangsrechnungen: { label: 'Kundenrechnungen', entity: 'ausgangsrechnungen' },
   profile:            { label: 'Profil',            entity: 'profile' },

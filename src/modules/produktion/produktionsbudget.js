@@ -147,6 +147,26 @@ export function validateAllProduktionsbudgets(produktionen, kampagnen) {
   return { valid: errors.length === 0, errors };
 }
 
+/** Decke für die Summe der Produktionsbudgets: Volumen der Kampagne, sonst das Auftrags-Netto. */
+export function produktionsbudgetDecke(kampagne) {
+  const volumen = budgetOrNull(kampagne?.volumen);
+  if (kampagne?.volumen != null && kampagne?.volumen !== '') return volumen || 0;
+  return budgetOrNull(kampagne?.auftrag?.nettobetrag) || 0;
+}
+
+/**
+ * Zeilen für die Budget-Prüfung. `eingaben` überschreibt das Budget je Produktion
+ * (auch mit null). Verbrauch kommt aus budgetUsed, sonst verbrauch.
+ */
+export function budgetZeilen(produktionen, eingaben = {}) {
+  return (produktionen || []).map(row => ({
+    id: row.id,
+    name: String(row.name || '').trim() || 'Produktion',
+    budget: Object.prototype.hasOwnProperty.call(eingaben, row.id) ? eingaben[row.id] : row.budget,
+    verbrauch: row.budgetUsed ?? row.verbrauch ?? 0
+  }));
+}
+
 export function preisBleibtImBudget({ verbrauch, delta, decke }) {
   if (decke == null) return true;
   return roundMoney((verbrauch || 0) + (delta || 0)) <= roundMoney(decke);

@@ -18,6 +18,7 @@ import { SOURCING_TABS } from './sourcingTabs.js';
 import { INSTAGRAM_ICON, TIKTOK_ICON, NICHT_UMSETZEN_ICON } from './sourcingIcons.js';
 import { getListenTkp, reelsPreisTooltip } from './castingPreisZellen.js';
 import { renderItemRow } from './castingItemRow.js';
+import { hatEigeneReihenfolge, ordneSourcingTabellenHtml, spaltenfolgeFuerKontext } from './sourcingSpaltenfolge.js';
 import { renderBewerbungTable } from './bewerbungTab.js';
 
 // --- Render-Funktionen ---
@@ -111,7 +112,7 @@ function renderAddSectionActions(ctx = {}) {
             ${renderToolbarMenuItem({ id: 'btn-sourcing-kategorien', title: 'Kategorien verwalten', icon: KATEGORIEN_ICON, label: 'Kategorien' })}
             ${renderToolbarMenuItem({ id: 'btn-share-sourcing', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' })}
             ${renderToolbarMenuItem({ id: 'btn-kunden-call-toggle', title: 'EK und CPM für Kundenpräsentation ausblenden', icon: KUNDEN_CALL_ICON, label: 'Kunden Call', active: kundenCallActive })}
-            ${renderToolbarMenuItem({ id: 'btn-sourcing-tabelle-anpassen', title: 'TKP, Art der Liste und Spalten-Sichtbarkeit', icon: TABELLE_ANPASSEN_ICON, label: 'Tabelle anpassen' })}
+            ${renderToolbarMenuItem({ id: 'btn-sourcing-tabelle-anpassen', title: 'Spaltenreihenfolge und Sichtbarkeit', icon: TABELLE_ANPASSEN_ICON, label: 'Tabelle anpassen' })}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-custom-columns', title: 'Eigene Spalten verwalten', icon: CUSTOM_COLUMNS_ICON, label: 'Eigene Spalten' })}
           `
         })}
@@ -193,7 +194,7 @@ export function renderItemsTable(ctx) {
     ? ctx.customManager.renderHeadersAt(anchor, ctx.hiddenColumns, ctx.isKunde)
     : '';
 
-  return `
+  const html = `
     <div class="table-container creator-pool-table-container">
       <table class="data-table strategie-items-table creator-pool-table${canWrite ? ' has-bulk-select' : ''}">
         <thead>
@@ -269,8 +270,11 @@ export function renderItemsTable(ctx) {
           </tr>
         </tfoot>
         ` : ''}
+      </table>
     </div>
   `;
+  if (!hatEigeneReihenfolge(ctx.columnOrder)) return html;
+  return ordneSourcingTabellenHtml(html, spaltenfolgeFuerKontext(ctx));
 }
 
 function renderKategorieHeaderRow(group, colCount, ctx) {

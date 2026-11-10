@@ -400,6 +400,129 @@ body.drawer-resizing {
   color: var(--text-secondary);
 }
 
+/* Name und Produktionsbudget. Hebt die alte .form-group-input-Regel
+   (blauer Fokus, #ddd) auf das Drawer-Formular an. */
+.produktion-pflege-drawer .drawer-subtitle {
+  margin: 0;
+}
+
+.produktion-pflege-drawer .drawer-body {
+  overflow-y: auto;
+}
+
+.produktion-pflege-drawer .drawer-footer {
+  flex-shrink: 0;
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+.produktion-pflege-drawer .form-group {
+  gap: var(--space-xxs);
+  margin-bottom: var(--space-md);
+}
+
+.produktion-pflege-drawer .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.produktion-pflege-drawer .form-label {
+  margin-bottom: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.produktion-pflege-drawer .form-group .input,
+.produktion-pflege-drawer .form-group .input:focus {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xl);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  box-shadow: none;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.produktion-pflege-drawer .form-group .input:focus {
+  border-color: var(--gray-600);
+  box-shadow: 0 0 0 3px rgba(82, 82, 82, 0.1);
+}
+
+.produktion-pflege-drawer .money-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  padding-right: var(--space-sm);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.produktion-pflege-drawer .money-field:focus-within {
+  border-color: var(--gray-600);
+  box-shadow: 0 0 0 3px rgba(82, 82, 82, 0.1);
+}
+
+.produktion-pflege-drawer .money-field__input,
+.produktion-pflege-drawer .money-field__input:focus {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+  background: transparent;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  padding: var(--space-xs) var(--space-sm);
+  cursor: text;
+}
+
+.produktion-pflege-drawer .money-field__suffix {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  user-select: none;
+}
+
+.produktion-pflege-stand {
+  margin: 0 0 var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.produktion-pflege-hinweis {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.produktion-pflege-drawer .form-group .produktion-pflege-hinweis {
+  margin: 0;
+}
+
 .drawer-loading-state {
   padding: var(--space-xl);
   text-align: center;

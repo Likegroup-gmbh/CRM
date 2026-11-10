@@ -596,10 +596,21 @@ export class StrategieDetail {
       }, (payload) => this.handleItemRealtimeDelete(payload.old))
       .subscribe();
 
+    this._releaseCustomValues = this.customColumns?.subscribeValues({
+      root: () => this.root,
+      onRerender: () => {
+        const active = document.activeElement;
+        if (this.root?.contains(active) && active.matches?.('input, textarea, select')) return;
+        this.rerenderItemsTable();
+      }
+    });
+
     this._boundEventListeners.add(() => this.unsubscribeFromItemUpdates());
   }
 
   unsubscribeFromItemUpdates() {
+    this._releaseCustomValues?.();
+    this._releaseCustomValues = null;
     if (!this._itemChannel) return;
     window.supabase.removeChannel(this._itemChannel);
     this._itemChannel = null;

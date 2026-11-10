@@ -11,6 +11,12 @@ import {
   orderCustomColumns, makeCustomColumnId, groupCustomColumnsByAnchor, toOrderEntry,
   isCustomColumnId
 } from './entityColumnUtils.js';
+import {
+  customValueFields,
+  isEditingCustomValue,
+  readCustomValueChange,
+  writeCustomValue
+} from './remoteCustomValue.js';
 
 /** Randzone in px, in der beim Spalten-Ziehen auto-gescrollt wird */
 const DRAG_SCROLL_EDGE = 64;
@@ -133,6 +139,38 @@ export class EntityCustomColumnsManager {
 
   setValue(entityId, uuid, value) {
     (this.values[entityId] ||= {})[uuid] = value;
+  }
+
+  /**
+   * Werte, die jemand anderes speichert, live übernehmen.
+   * @param {{ root: () => HTMLElement|null, onRerender: () => void }} opts
+   * @returns {() => void} cleanup
+   */
+  subscribeValues({ root, onRerender }) {
+    if (!window.supabase?.channel || !this.dataLoader || !this.parentId) return () => {};
+    const channel = window.supabase
+      .channel(`entity-cc-values-${this.parentType}-${this.parentId}`)
+      // Die Werte-Tabelle kennt den Parent nicht. Zugehörigkeit über die Spalten-ID.
+      .on('postgres_changes', { event: '*', schema: 'public', table: this.dataLoader.valueTable },
+        (payload) => this.applyRemoteChange(payload, { root: root?.(), onRerender }))
+      .subscribe();
+    return () => window.supabase.removeChannel(channel);
+  }
+
+  /** @returns {boolean} true, wenn der Wert übernommen wurde */
+  applyRemoteChange(payload, { root, onRerender } = {}) {
+    const change = readCustomValueChange(payload);
+    if (!change || !this.columns.some(c => c.id === change.columnId)) return false;
+    const { columnId, entityId, value } = change;
+    const fields = customValueFields(root, columnId, entityId);
+    if (isEditingCustomValue(fields)) return false;
+
+    this.setValue(entityId, columnId, value);
+    if (writeCustomValue(fields, value)) return true;
+    const cellSelector = `td[data-custom-col-id="${makeCustomColumnId(columnId)}"]`;
+    const visible = [...(root?.querySelectorAll?.(cellSelector) || [])].some(td => !td.hidden && td.style.display !== 'none');
+    if (visible) onRerender?.();
+    return true;
   }
 
   openManagementDrawer(onChange) {

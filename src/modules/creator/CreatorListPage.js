@@ -1,248 +1,344 @@
-// CreatorListPage.js (ES6-Modul)
-// Listenübersicht für Creator-Listen mit konsistentem Look & Feel
+// Uebersicht der Masterlisten unter Creatordaten.
 
-import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
-import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
+import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import {
+  canManageMasterliste,
+  escapeHtml,
+  filterLists,
+  formatDate,
+  mapListRow
+} from './masterliste.js';
+
+const COLS = 5;
+const LIST_SELECT = 'id, name, beschreibung, created_at, created_by, autor:created_by(name), members:creator_list_member(count)';
 
 export class CreatorListPage {
   constructor() {
     this.lists = [];
-    // AbortController für sauberes Event-Listener Cleanup
+    this.searchQuery = '';
     this._abortController = null;
   }
 
   async init() {
-    window.setHeadline('Listen');
-    await this.render();
+    window.setHeadline?.('Masterlisten');
+    this.renderShell();
     await this.load();
-    await this.initFilters();
   }
 
-  async render() {
-    // Cleanup vorheriger Listener
-    if (this._abortController) {
-      this._abortController.abort();
-    }
+  renderShell() {
+    this._abortController?.abort();
     this._abortController = new AbortController();
     const signal = this._abortController.signal;
+    const canManage = canManageMasterliste();
 
-    const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <button id="btn-new-list" class="mdc-btn">Neue Liste</button>
+    window.setContentSafely(window.content, `
+      <div class="list-container">
+        <div class="table-filter-wrapper">
+          <div class="filter-bar">
+            <div class="filter-left">
+              ${SearchInput.render('masterliste', {
+                placeholder: 'Masterliste suchen...',
+                currentValue: this.searchQuery
+              })}
+            </div>
+          </div>
+          <div class="table-actions">
+            ${canManage ? '<button type="button" class="mdc-btn" data-action="create-masterliste">Neue Masterliste</button>' : ''}
+          </div>
+        </div>
+        <div class="table-container table-container--creator-auswahl-list">
+          <table class="data-table data-table--creator-auswahl-list">
+            <thead>
+              <tr>
+                <th class="col-name">Name</th>
+                <th>Creator</th>
+                <th>Erstellt von</th>
+                <th>Erstellt am</th>
+                <th class="col-actions">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody id="creator-lists-body">
+              <tr><td colspan="${COLS}" class="table-state-cell">Lade Masterlisten...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
+    `);
 
-      <div class="filter-bar">
-        <div class="filter-left"><div id="filter-container"></div></div>
-        <div class="filter-right">
-          <button id="btn-filter-reset" class="mdc-btn mdc-btn--secondary" style="display:${this.hasActiveFilters() ? 'inline-block' : 'none'};">Filter zurücksetzen</button>
-        </div>
-      </div>
-
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Creator</th>
-              <th>Erstellt am</th>
-              <th>Aktionen</th>
-            </tr>
-          </thead>
-          <tbody id="creator-lists-body">
-            <tr><td colspan="4" class="loading">Lade Listen...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    `;
-    window.setContentSafely(window.content, html);
-    
-    document.getElementById('btn-new-list')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      this.handleCreateNewList();
-    }, { signal });
+    SearchInput.bind('masterliste', (value) => {
+      this.searchQuery = value;
+      this.updateTable();
+    }, signal);
+    this.bindEvents(signal);
   }
 
-  // Neue Liste erstellen
-  async handleCreateNewList() {
-    try {
-      const { data, error } = await window.supabase
-        .from('creator_list')
-        .insert({ name: 'Neue Liste', created_by: window.currentUser?.id, created_at: new Date().toISOString() })
-        .select('id')
-        .single();
-      if (!error && data?.id) {
-        window.navigateTo(`/creator-lists/${data.id}`);
-      } else {
-        window.toastSystem?.show('error', 'Liste konnte nicht erstellt werden.');
+  bindEvents(signal) {
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action="create-masterliste"]')) {
+        e.preventDefault();
+        this.openFormDrawer();
+        return;
       }
-    } catch (err) {
-      console.error('Fehler beim Erstellen der Liste:', err);
-      window.toastSystem?.show('error', 'Liste konnte nicht erstellt werden.');
-    }
-  }
-
-  async initFilters() {
-    const container = document.getElementById('filter-container');
-    if (!container) return;
-    await filterSystem.renderFilterBar('creator_list', container, (f) => this.onFiltersApplied(f), () => this.onFiltersReset());
-  }
-
-  onFiltersApplied(filters) {
-    filterSystem.applyFilters('creator_list', filters);
-    this.load();
-  }
-
-  onFiltersReset() {
-    filterSystem.resetFilters('creator_list');
-    this.load();
-  }
-
-  hasActiveFilters() {
-    const filters = filterSystem.getFilters('creator_list');
-    return Object.keys(filters).length > 0;
+      const openBtn = e.target.closest('[data-action="view-masterliste"]');
+      if (openBtn) {
+        e.preventDefault();
+        window.navigateTo(`/creator-lists/${openBtn.dataset.id}`);
+        return;
+      }
+      const editBtn = e.target.closest('[data-action="rename-masterliste"]');
+      if (editBtn) {
+        e.preventDefault();
+        const list = this.lists.find(item => item.id === editBtn.dataset.id);
+        if (list) this.openFormDrawer(list);
+        return;
+      }
+      const deleteBtn = e.target.closest('[data-action="delete-masterliste"]');
+      if (deleteBtn) {
+        e.preventDefault();
+        this.handleDelete(deleteBtn.dataset.id);
+        return;
+      }
+      const link = e.target.closest('.table-link[data-table="creator-lists"]');
+      if (link) {
+        e.preventDefault();
+        window.navigateTo(`/creator-lists/${link.dataset.id}`);
+        return;
+      }
+      const row = e.target.closest('tr[data-list-id]');
+      if (row && !e.target.closest('.actions-dropdown-container') && !e.target.closest('a')) {
+        window.navigateTo(`/creator-lists/${row.dataset.listId}`);
+      }
+    }, { signal });
   }
 
   async load() {
-    // Anzahl Creator je Liste via Subselect zählen
     const { data, error } = await window.supabase
       .from('creator_list')
-      .select('id, name, created_at, members:creator_list_member(count)')
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.error('❌ Fehler beim Laden der Listen:', error);
-      return this.updateTable([]);
-    }
-    const lists = (data || []).map(r => ({ id: r.id, name: r.name, created_at: r.created_at, count: (r.members && r.members[0]?.count) || 0 }));
-    this.lists = lists;
-    this.updateTable(lists);
-  }
+      .select(LIST_SELECT)
+      .order('name', { ascending: true });
 
-  updateTable(lists) {
-    const tbody = document.getElementById('creator-lists-body');
-    if (!tbody) return;
-    if (!lists || lists.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="empty">Keine Listen vorhanden</td></tr>';
+    if (error) {
+      console.error('Masterlisten konnten nicht geladen werden:', error);
+      this.lists = [];
+      this.updateTable({ failed: true });
       return;
     }
-    const formatDate = (v) => v ? new Intl.DateTimeFormat('de-DE').format(new Date(v)) : '-';
-    const sanitize = (val) => window.validatorSystem?.sanitizeHtml(val) || val || '';
-    
-    tbody.innerHTML = lists.map(l => `
-      <tr data-list-id="${sanitize(l.id)}">
-        <td><a href="/creator-lists/${sanitize(l.id)}" class="table-link list-link" data-list-id="${sanitize(l.id)}">${sanitize(l.name || l.id)}</a></td>
-        <td>${l.count}</td>
-        <td>${formatDate(l.created_at)}</td>
-        <td>
-          <div class="actions-dropdown-container" data-entity-type="creator_list">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              ${icon('dots-vertical-filled')}
-            </button>
-            <div class="actions-dropdown">
-              <a href="#" class="action-item" data-action="view" data-list-id="${sanitize(l.id)}">Details anzeigen</a>
-              <a href="#" class="action-item action-danger" data-action="delete" data-list-id="${sanitize(l.id)}">Löschen</a>
-            </div>
-          </div>
+    this.lists = (data || []).map(mapListRow);
+    this.updateTable();
+    window.ActionsDropdown?.init?.();
+  }
+
+  updateTable({ failed = false } = {}) {
+    const tbody = document.getElementById('creator-lists-body');
+    if (!tbody) return;
+    if (failed) {
+      tbody.innerHTML = renderEmptyStateRow({
+        icon: 'list',
+        title: 'Masterlisten konnten nicht geladen werden',
+        text: 'Bitte die Seite neu laden.'
+      }, COLS);
+      return;
+    }
+    const lists = filterLists(this.lists, this.searchQuery);
+    if (!lists.length) {
+      const searching = this.searchQuery.trim().length > 0;
+      tbody.innerHTML = renderEmptyStateRow(searching ? {
+        icon: 'search',
+        title: 'Keine Treffer',
+        text: 'Keine Masterliste entspricht der Suche.'
+      } : {
+        icon: 'list',
+        title: 'Keine Masterlisten',
+        text: 'Legen Sie eine Liste an, aus der das Team Creator für Kooperationen auswählt.',
+        actionsHtml: canManageMasterliste()
+          ? '<button type="button" class="mdc-btn" data-action="create-masterliste">Neue Masterliste</button>'
+          : ''
+      }, COLS);
+      return;
+    }
+    tbody.innerHTML = lists.map(list => this.renderRow(list)).join('');
+    window.ActionsDropdown?.init?.();
+  }
+
+  renderRow(list) {
+    const beschreibung = list.beschreibung
+      ? `<div class="text-muted">${escapeHtml(list.beschreibung)}</div>`
+      : '';
+    const menu = canManageMasterliste() ? `
+      <div class="actions-dropdown-container" data-entity-type="creator_list">
+        <button type="button" class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+          ${icon('dots-grid', { className: 'w-5 h-5' })}
+        </button>
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="view-masterliste" data-id="${escapeHtml(list.id)}">Öffnen</a>
+          <a href="#" class="action-item" data-action="rename-masterliste" data-id="${escapeHtml(list.id)}">Bearbeiten</a>
+          <div class="action-separator"></div>
+          <a href="#" class="action-item action-danger" data-action="delete-masterliste" data-id="${escapeHtml(list.id)}">Löschen</a>
+        </div>
+      </div>
+    ` : `
+      <a href="#" class="table-link" data-table="creator-lists" data-id="${escapeHtml(list.id)}">Öffnen</a>
+    `;
+    return `
+      <tr class="table-row-clickable" data-list-id="${escapeHtml(list.id)}">
+        <td class="col-name">
+          <a href="#" class="table-link" data-table="creator-lists" data-id="${escapeHtml(list.id)}">${escapeHtml(list.name || 'Ohne Namen')}</a>
+          ${beschreibung}
         </td>
+        <td>${list.count}</td>
+        <td>${escapeHtml(list.autor || '-')}</td>
+        <td>${formatDate(list.createdAt)}</td>
+        <td class="col-actions">${menu}</td>
       </tr>
-    `).join('');
-    
-    actionsDropdown.normalizeIcons(document);
-    this.bindTableEvents();
+    `;
   }
 
-  // Binde Event-Listener für Tabelle (delegated events)
-  bindTableEvents() {
-    const signal = this._abortController?.signal;
-    
-    // Listen-Links
-    document.addEventListener('click', (e) => {
-      const listLink = e.target.closest('.list-link[data-list-id]');
-      if (listLink) {
-        e.preventDefault();
-        const listId = listLink.dataset.listId;
-        window.navigateTo(`/creator-lists/${listId}`);
+  openFormDrawer(list = null) {
+    if (!canManageMasterliste()) return;
+    this.closeFormDrawer(true);
+    const editing = Boolean(list?.id);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = 'masterliste-form-overlay';
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = 'masterliste-form-drawer';
+    panel.innerHTML = `
+      <div class="drawer-header">
+        <div>
+          <span class="drawer-title">${editing ? 'Masterliste bearbeiten' : 'Neue Masterliste'}</span>
+          <p class="drawer-subtitle">${editing ? 'Name und Beschreibung dieser Liste' : 'Eine Liste, aus der das Team später Creator auswählt'}</p>
+        </div>
+        <div><button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button></div>
+      </div>
+      <div class="drawer-body">
+        <form id="masterliste-form">
+          <div class="form-group">
+            <label class="form-label" for="masterliste-name">Name</label>
+            <input type="text" id="masterliste-name" class="form-input" value="${escapeHtml(list?.name || '')}" required maxlength="120" placeholder="z. B. Beauty DACH">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="masterliste-beschreibung">Beschreibung</label>
+            <textarea id="masterliste-beschreibung" class="form-input" rows="3" maxlength="500" placeholder="Wofür das Team diese Liste nutzt">${escapeHtml(list?.beschreibung || '')}</textarea>
+          </div>
+          <div class="drawer-footer u-mt-lg">
+            <button type="submit" class="mdc-btn">${editing ? 'Speichern' : 'Anlegen'}</button>
+            <button type="button" class="mdc-btn mdc-btn--secondary" data-action="close-masterliste-form">Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    const close = () => this.closeFormDrawer();
+    overlay.addEventListener('click', close);
+    panel.querySelector('.drawer-close-btn').addEventListener('click', close);
+    panel.querySelector('[data-action="close-masterliste-form"]').addEventListener('click', close);
+    panel.querySelector('#masterliste-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const name = panel.querySelector('#masterliste-name').value.trim();
+      const beschreibung = panel.querySelector('#masterliste-beschreibung').value.trim();
+      if (!name) {
+        window.toastSystem?.show('Name darf nicht leer sein.', 'warning');
+        return;
       }
-    }, { signal });
-    
-    // Action: View
-    document.addEventListener('click', (e) => {
-      const viewAction = e.target.closest('[data-action="view"][data-list-id]');
-      if (viewAction) {
-        e.preventDefault();
-        const listId = viewAction.dataset.listId;
-        window.navigateTo(`/creator-lists/${listId}`);
-      }
-    }, { signal });
-    
-    // Action: Delete
-    document.addEventListener('click', (e) => {
-      const deleteAction = e.target.closest('[data-action="delete"][data-list-id]');
-      if (deleteAction) {
-        e.preventDefault();
-        const listId = deleteAction.dataset.listId;
-        this.handleDeleteList(listId);
-      }
-    }, { signal });
+      if (editing) this.saveList(list.id, name, beschreibung);
+      else this.createList(name, beschreibung);
+    });
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    requestAnimationFrame(() => panel.classList.add('show'));
+    panel.querySelector('#masterliste-name')?.focus();
   }
 
-  // Liste löschen mit Bestätigung
-  async handleDeleteList(listId) {
+  closeFormDrawer(immediate = false) {
+    const overlay = document.getElementById('masterliste-form-overlay');
+    const panel = document.getElementById('masterliste-form-drawer');
+    if (!panel) {
+      overlay?.remove();
+      return;
+    }
+    if (immediate) {
+      overlay?.remove();
+      panel.remove();
+      return;
+    }
+    panel.classList.remove('show');
+    setTimeout(() => {
+      overlay?.remove();
+      panel.remove();
+    }, 300);
+  }
+
+  async createList(name, beschreibung) {
+    const { data, error } = await window.supabase
+      .from('creator_list')
+      .insert({
+        name,
+        beschreibung: beschreibung || null,
+        created_by: window.currentUser?.id || null,
+        created_at: new Date().toISOString()
+      })
+      .select('id')
+      .single();
+    if (error || !data?.id) {
+      window.toastSystem?.show('Masterliste konnte nicht erstellt werden.', 'error');
+      return;
+    }
+    window.toastSystem?.show('Masterliste erstellt.', 'success');
+    this.closeFormDrawer();
+    window.navigateTo(`/creator-lists/${data.id}`);
+  }
+
+  async saveList(id, name, beschreibung) {
+    const { error } = await window.supabase
+      .from('creator_list')
+      .update({ name, beschreibung: beschreibung || null })
+      .eq('id', id);
+    if (error) {
+      window.toastSystem?.show('Speichern fehlgeschlagen.', 'error');
+      return;
+    }
+    window.toastSystem?.show('Masterliste gespeichert.', 'success');
+    this.closeFormDrawer();
+    await this.load();
+  }
+
+  async handleDelete(listId) {
+    const list = this.lists.find(item => item.id === listId);
     let confirmed = false;
-    
     if (window.confirmationModal) {
       const result = await window.confirmationModal.open({
-        title: 'Liste löschen',
-        message: 'Möchten Sie diese Liste wirklich löschen? Die zugeordneten Creator werden nicht gelöscht.',
+        title: 'Masterliste löschen',
+        message: `„${escapeHtml(list?.name || 'Diese Liste')}“ wird gelöscht. Die Creator selbst bleiben erhalten.`,
         confirmText: 'Löschen',
         cancelText: 'Abbrechen',
         danger: true
       });
       confirmed = result?.confirmed;
     } else {
-      confirmed = confirm('Möchten Sie diese Liste wirklich löschen?');
+      confirmed = confirm('Diese Masterliste wirklich löschen? Die Creator bleiben erhalten.');
     }
-    
     if (!confirmed) return;
-    
-    try {
-      const { error } = await window.supabase
-        .from('creator_list')
-        .delete()
-        .eq('id', listId);
-      
-      if (error) throw error;
-      
-      window.toastSystem?.show('success', 'Liste erfolgreich gelöscht.');
-      
-      window.dispatchEvent(new CustomEvent('entityUpdated', {
-        detail: { entity: 'creator_list', action: 'deleted', id: listId }
-      }));
-      
-      // Tabelle neu laden
-      await this.load();
-    } catch (error) {
-      console.error('❌ Fehler beim Löschen der Liste:', error);
-      window.toastSystem?.show('error', 'Löschen fehlgeschlagen: ' + error.message);
+    const { error } = await window.supabase.from('creator_list').delete().eq('id', listId);
+    if (error) {
+      window.toastSystem?.show('Löschen fehlgeschlagen.', 'error');
+      return;
     }
+    window.toastSystem?.show('Masterliste gelöscht.', 'success');
+    await this.load();
   }
 
   destroy() {
-    console.log('🗑️ CREATORLISTPAGE: Destroy aufgerufen - räume auf');
-    
-    // AbortController: Entferne alle Event-Listener auf einmal
-    if (this._abortController) {
-      this._abortController.abort();
-      this._abortController = null;
-    }
-    
+    this._abortController?.abort();
+    this._abortController = null;
+    this.closeFormDrawer(true);
     this.lists = [];
-    console.log('✅ CREATORLISTPAGE: Destroy abgeschlossen');
   }
 }
 
 export const creatorListPage = new CreatorListPage();
-
-

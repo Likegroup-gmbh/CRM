@@ -23,6 +23,7 @@ export class KampagneDetailStore {
     this.videos = {};
     this.videoComments = {};
     this.stillComments = {};
+    this.zeitkommentare = {};      // { [videoId]: [kommentar, ...] } aus dem Videos-Tab
     this.versandInfos = {};
     this.creators = new Map();
     this.creatorAdressen = {};
@@ -383,6 +384,7 @@ export class KampagneDetailStore {
     deletedVideoIds.forEach(vid => {
       delete this.videoComments[vid];
       delete this.stillComments[vid];
+      delete this.zeitkommentare[vid];
       delete this.versandInfos[vid];
       this._loadedAssetVideoIds.delete(vid);
     });
@@ -398,6 +400,11 @@ export class KampagneDetailStore {
   updateStillComments(videoId, commentsByBucket) {
     this.stillComments[videoId] = normalizeVideoFeedbackComments(commentsByBucket);
     this.emit('still-comments-updated', { videoId });
+  }
+
+  updateZeitkommentare(videoId, list) {
+    this.zeitkommentare[videoId] = list || [];
+    this.emit('zeitkommentare-updated', { videoId });
   }
 
   // ========================================
@@ -449,6 +456,10 @@ export class KampagneDetailStore {
       }
       this.stillComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
     }
+  }
+
+  applyZeitkommentare(byVideo) {
+    Object.assign(this.zeitkommentare, byVideo || {});
   }
 
   getVersandForVideo(videoId) {
@@ -595,6 +606,7 @@ export class KampagneDetailStore {
     this.videos = {};
     this.videoComments = {};
     this.stillComments = {};
+    this.zeitkommentare = {};
     this.versandInfos = {};
     this.creatorAdressen = {};
     this.creators.clear();

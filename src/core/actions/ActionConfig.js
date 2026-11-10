@@ -57,6 +57,7 @@ export const ActionConfigs = {
         roles: ['admin', 'mitarbeiter']
       },
       { id: 'quickview', icon: 'quickview', label: 'Schnellansicht öffnen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'linie-verschieben', icon: 'arrows-right-left', label: 'In andere Linie verschieben', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
@@ -68,7 +69,7 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Profil ansehen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'add_to_list', icon: 'add-to-list', label: 'Zur Liste hinzufügen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'add_to_list', icon: 'add-to-list', label: 'Zur Masterliste hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'add_to_casting', icon: 'add-to-casting', label: 'Zu Casting hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'connect', icon: 'connect', label: 'Connect', roles: ['admin'] },
       { id: 'separator' },
@@ -422,6 +423,12 @@ function filterByCapability(entityType, userRole, actions, capEntity = entityTyp
     if (Array.isArray(action.roles) && action.roles.length && !action.roles.includes('all')
         && !action.roles.includes(userRole) && action.roles.every(r => r === 'admin')) {
       return false;
+    }
+
+    // Abschluss ist kein Bearbeiten des Projekts. Wer die Kampagne löschen darf,
+    // darf sie weiter abschließen, auch ohne can_edit.
+    if (action.id === 'abschliessen') {
+      return ps.can(capEntity, 'edit') || ps.can(capEntity, 'delete');
     }
 
     const verb = verbFor(action);

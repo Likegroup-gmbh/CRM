@@ -108,6 +108,17 @@ describe('Aktionsmenü der Kooperation', () => {
     window.permissionSystem = { canEdit: () => true, canEditField: () => false };
   });
 
+  it('bietet mit Bearbeitungsrecht das Verschieben in eine andere Linie an', () => {
+    const html = renderActionsInner(ctx({ id: 'k1', creator_id: null }));
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const item = doc.querySelector('[data-action="linie-verschieben"]');
+    expect(item.textContent).toContain('In andere Linie verschieben');
+    expect(item.dataset.id).toBe('k1');
+
+    window.permissionSystem = { canEdit: () => false, canEditField: () => false };
+    expect(renderActionsInner(ctx({ id: 'k1', creator_id: 'c1' }))).not.toContain('data-action="linie-verschieben"');
+  });
+
   it('bietet intern mit Bearbeitungsrecht und Creator die Rezension an', () => {
     const html = renderActionsInner(ctx({ id: 'k1', creator_id: 'c1' }));
     const doc = new DOMParser().parseFromString(html, 'text/html');

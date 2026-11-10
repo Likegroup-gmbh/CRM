@@ -8,6 +8,7 @@ import { renderChipCell, renderPlatformChip, renderStaticChip } from '../../core
 import { liveLinkDotState, LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { CONTENT_ART_OPTIONS } from '../kooperation/contentArtOptions.js';
+import { renderZeitkommentarList } from './videoTableZeitkommentare.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 
@@ -270,5 +271,5 @@ export function renderFeedbackInner(ctx, video, slot) {
     value: formatVideoFeedbackValue(comments, slot.bucket),
     placeholder: slot.label,
     readonly: !ctx.t.isFieldEditableForUser('video', slot.field)
-  });
+  }) + renderZeitkommentarList(ctx.t.zeitkommentare?.[video.id], video, slot);
 }
