@@ -15,7 +15,7 @@ function createQuery({ data = [], error = null, byTable = null } = {}) {
     select(...args) { calls.select = args; return chain; },
     or(...args) { calls.or = args; return chain; },
     in(...args) { calls.inCalls.push(args); return chain; },
-    eq() { return chain; },
+    eq(...args) { calls.eq = calls.eq || []; calls.eq.push(args); return chain; },
     neq(...args) { calls.neq.push(args); return chain; },
     not(...args) { calls.notCalls.push(args); return chain; },
     order(...args) { calls.order = args; return chain; },
@@ -170,6 +170,7 @@ describe('breadcrumbSwitcher', () => {
 
     const { items } = await loadSwitcherItems({ segment: 'briefing' });
     expect(calls.tables).toContain('campaign_briefings');
+    expect(calls.eq).toContainEqual(['ist_altbestand', false]);
     expect(items[0]).toEqual({ id: 'b1', label: 'Launch', route: '/briefing/b1' });
   });
 

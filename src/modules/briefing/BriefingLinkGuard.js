@@ -21,7 +21,7 @@ export async function assertBriefingForCreate(data, entityLabel) {
 
   const { data: briefing, error } = await window.supabase
     .from('campaign_briefings')
-    .select('id, unternehmen_id, marke_id, is_draft')
+    .select('id, unternehmen_id, marke_id, is_draft, ist_altbestand')
     .eq('id', briefingId)
     .single();
 
@@ -30,6 +30,9 @@ export async function assertBriefingForCreate(data, entityLabel) {
   }
   if (briefing.is_draft) {
     throw new Error('Das Briefing ist noch ein Entwurf — bitte zuerst finalisieren.');
+  }
+  if (briefing.ist_altbestand) {
+    throw new Error('Das Briefing ist eine Altbestand-Linie und kann hier nicht gewählt werden.');
   }
   if (data.unternehmen_id && briefing.unternehmen_id !== data.unternehmen_id) {
     throw new Error('Das Briefing gehört zu einem anderen Unternehmen.');

@@ -133,6 +133,9 @@ async function loadFilteredByParent(field, form) {
   if (field.table === 'vertraege') {
     filteredQuery = filteredQuery.eq('is_draft', false);
   }
+  if (field.table === 'campaign_briefings') {
+    filteredQuery = filteredQuery.eq('ist_altbestand', false);
+  }
 
   const { data: filteredData, error } = await filteredQuery
     .order(field.displayField || 'name', { ascending: true });
@@ -248,6 +251,10 @@ async function loadGenericTable(field) {
   let query = window.supabase
     .from(field.table)
     .select('*');
+
+  if (field.table === 'campaign_briefings') {
+    query = query.eq('ist_altbestand', false);
+  }
 
   if (field.table === 'eu_laender') {
     query = query.order('sort_order', { ascending: true });

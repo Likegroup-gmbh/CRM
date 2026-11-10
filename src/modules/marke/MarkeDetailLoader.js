@@ -125,6 +125,7 @@ export async function loadMarkeTabData(detail, tabName) {
             .from('campaign_briefings')
             .select('id, aktivierung_name, bereich, is_draft, content_deadline, marke_id, created_at')
             .eq('marke_id', detail.markeId)
+            .eq('ist_altbestand', false)
             .order('created_at', { ascending: false });
           if (!isStillActive()) return briefings;
           detail.briefings = briefings || [];

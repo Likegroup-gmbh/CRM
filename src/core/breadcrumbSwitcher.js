@@ -202,6 +202,7 @@ export const SWITCHER_CONFIG = {
     routePrefix: '/briefing',
     labelField: 'aktivierung_name',
     searchFields: ['aktivierung_name'],
+    extra: (query) => query.eq('ist_altbestand', false),
     resolveScope: scopeBriefing
   },
   ansprechpartner: {

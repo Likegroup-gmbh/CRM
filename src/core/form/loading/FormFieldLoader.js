@@ -141,6 +141,9 @@ export class FormFieldLoader {
       if (table === 'benutzer') {
         query = query.neq('rolle', 'kunde').neq('rolle', 'gast');
       }
+      if (table === 'campaign_briefings') {
+        query = query.eq('ist_altbestand', false);
+      }
 
       const { data, error } = await query;
 

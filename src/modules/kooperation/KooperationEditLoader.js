@@ -207,6 +207,7 @@ export class KooperationEditLoader {
       .from('campaign_briefings')
       .select('id, aktivierung_name')
       .eq('unternehmen_id', unternehmenId)
+      .eq('ist_altbestand', false)
       .order('aktivierung_name');
     return data || [];
   }

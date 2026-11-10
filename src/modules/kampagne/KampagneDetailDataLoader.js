@@ -183,6 +183,7 @@ export async function loadCriticalData(kampagneId) {
       .from('campaign_briefings')
       .select('id, aktivierung_name, bereich, is_draft, content_deadline, created_at')
       .eq('unternehmen_id', kampagneData.unternehmen_id)
+      .eq('ist_altbestand', false)
       .order('created_at', { ascending: false }),
     window.supabase
       .from('creator_auswahl')
