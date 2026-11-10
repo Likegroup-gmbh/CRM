@@ -89,28 +89,29 @@ CreatorDetail.prototype.renderTagList = function(items) {
 };
 
 CreatorDetail.prototype.renderListenContent = function() {
+    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str || '') ?? '';
     if (this.lists.length === 0) {
       return renderEmptyState({
         icon: 'list',
-        title: 'Keine Listen',
-        text: 'Dieser Creator ist noch keiner Liste zugeordnet.'
+        title: 'Keine Masterlisten',
+        text: 'Dieser Creator steht noch auf keiner Masterliste.'
       });
     }
 
     const listsHtml = this.lists.map(list => `
       <div class="list-card">
         <div class="list-header">
-          <h4>${list.list.name}</h4>
+          <h4><a href="#" class="table-link" data-table="creator-lists" data-id="${safe(list.list?.id)}">${safe(list.list?.name || 'Masterliste')}</a></h4>
           <span class="list-date">Hinzugefügt: ${this.formatDate(list.added_at)}</span>
         </div>
         <div class="list-details">
-          <small>Liste erstellt: ${this.formatDate(list.list.created_at)}</small>
+          <small>Liste erstellt: ${this.formatDate(list.list?.created_at)}</small>
         </div>
       </div>
     `).join('');
 
     return `
-      ${renderSectionHeader({ title: 'Listen' })}
+      ${renderSectionHeader({ title: 'Masterlisten' })}
       <div class="lists-container">${listsHtml}</div>
     `;
 };

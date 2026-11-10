@@ -39,7 +39,12 @@ export async function handleView(entityId, entityType) {
   window.navigateTo(route);
 }
 
-export async function handleEdit(entityId, entityType) {
+function safeReturnPath(url) {
+  if (!url || !url.startsWith('/') || url.startsWith('//')) return null;
+  return url;
+}
+
+export async function handleEdit(entityId, entityType, returnTo) {
   if (entityType === 'produkt') {
     await navigateToProduktForm(entityId);
     return;
@@ -65,7 +70,9 @@ export async function handleEdit(entityId, entityType) {
     return;
   }
 
-  window.navigateTo(`/${entityType}/${entityId}/edit`);
+  const back = safeReturnPath(returnTo);
+  const query = back ? `?returnTo=${encodeURIComponent(back)}` : '';
+  window.navigateTo(`/${entityType}/${entityId}/edit${query}`);
 }
 
 export function handleContinue(entityId) {

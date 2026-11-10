@@ -91,6 +91,14 @@ describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
     expect(kampagnen.innerHTML).toContain('Castings');
   });
 
+  it('zeigt Masterlisten unter Creatordaten nach Creator Casting', () => {
+    const nav = new NavigationSystem();
+    nav.renderNavigation();
+    const section = document.querySelector('[data-section="Creatordaten"]');
+    const hrefs = [...section.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(['/creator', '/creator-casting', '/creator-lists', '/management']);
+  });
+
   it('blendet Stakeholder fuer Nicht-Admins aus', () => {
     window.isAdmin = () => false;
     window.canViewPage = () => undefined;

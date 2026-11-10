@@ -64,11 +64,11 @@ export async function openAddToListModal(dropdown, creatorId) {
     idPrefix: 'add-to-list',
     searchId: 'list-search',
     dropdownId: 'list-dropdown',
-    title: 'Zu Liste hinzufügen',
-    fieldLabel: 'Liste wählen',
-    placeholder: 'Liste suchen...',
+    title: 'Zur Masterliste hinzufügen',
+    fieldLabel: 'Masterliste wählen',
+    placeholder: 'Masterliste suchen...',
     confirmLabel: 'Hinzufügen',
-    emptyText: 'Keine Liste gefunden',
+    emptyText: 'Keine Masterliste gefunden',
 
     prepare: async () => {
       try {
@@ -87,10 +87,11 @@ export async function openAddToListModal(dropdown, creatorId) {
     renderItem: (l) => esc(l.name),
 
     onConfirm: async (listId) => {
-      await window.supabase.from('creator_list_member').insert({ list_id: listId, creator_id: creatorId, added_at: new Date().toISOString() });
+      const { error } = await window.supabase.from('creator_list_member').insert({ list_id: listId, creator_id: creatorId, added_at: new Date().toISOString() });
+      if (error) throw error;
       window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'creator_list', action: 'member-added', id: listId } }));
     },
-    successAlert: 'Creator zur Liste hinzugefügt.',
-    errorAlert: 'Hinzufügen fehlgeschlagen.'
+    successAlert: 'Creator zur Masterliste hinzugefügt.',
+    errorAlert: (err) => (err?.code === '23505' ? 'Creator ist schon auf dieser Masterliste.' : 'Hinzufügen fehlgeschlagen.')
   });
 }

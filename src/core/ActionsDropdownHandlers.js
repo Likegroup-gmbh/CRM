@@ -45,7 +45,7 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'edit':
-      await handleEdit(entityId, entityType);
+      await handleEdit(entityId, entityType, actionItem?.dataset?.returnTo);
       break;
 
     case 'continue':

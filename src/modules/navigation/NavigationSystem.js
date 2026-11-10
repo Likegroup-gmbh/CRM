@@ -30,6 +30,7 @@ export class NavigationSystem {
         items: [
           { id: 'creator', label: 'Creator', icon: 'creator', url: '/creator' },
           { id: 'creator-casting', label: 'Creator Casting', icon: 'sourcing', url: '/creator-casting' },
+          { id: 'creator-lists', label: 'Masterlisten', icon: 'listen', url: '/creator-lists' },
           { id: 'management', label: 'Management', icon: 'management', url: '/management' }
         ]
       },
@@ -57,13 +58,6 @@ export class NavigationSystem {
           { id: 'videos', label: 'Videos', icon: 'videos', url: '/videos' }
         ]
       },
-      // Ausgeblendet, aber nicht entfernt:
-      // {
-      //   title: 'Listen',
-      //   items: [
-      //     { id: 'creator-lists', label: 'Listen', icon: 'listen', url: '/creator-lists' }
-      //   ]
-      // },
       {
         title: 'Verwaltung',
         items: [

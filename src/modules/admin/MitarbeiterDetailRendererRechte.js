@@ -149,7 +149,7 @@ export function generatePermissionsTable(detail) {
     ['rechnung','Rechnungen'],
     ['tasks','Aufgaben'],
     ['creator','Creator'],
-    ['creator-lists','Creator Listen'],
+    ['creator-lists','Masterlisten'],
     ['feedback','Feedback']
   ].map(([key,label]) => `
     <tr>

@@ -69,7 +69,7 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Profil ansehen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'add_to_list', icon: 'add-to-list', label: 'Zur Liste hinzufügen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'add_to_list', icon: 'add-to-list', label: 'Zur Masterliste hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'add_to_casting', icon: 'add-to-casting', label: 'Zu Casting hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'connect', icon: 'connect', label: 'Connect', roles: ['admin'] },
       { id: 'separator' },

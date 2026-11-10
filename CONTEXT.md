@@ -243,6 +243,12 @@ Stammdaten-Entity einer Person (Tabelle `creator`), mit Mail (`mail`) und Manage
 Nicht der Casting-Eintrag; der kann später zum Creator werden.
 _Avoid_: Casting-Eintrag, Influencer, Kandidat
 
+**Masterliste**:
+Wiederverwendbare Sammlung von CRM-Creatorn, die die Agentur gemeinsam pflegt.
+Profilfelder kommen live aus den Stammdaten. Was nur für diese Liste gilt, liegt in eigenen Spalten.
+Die Reihenfolge zieht das Team selbst. Eine Masterliste ist kein Casting.
+_Avoid_: Creator-Liste, Casting, Excel-Liste
+
 **Casting-Bestand**:
 Die Personen, die auf mindestens einem Casting standen, auch ohne Creator-Datensatz. Eine Zeile pro Person: mit Datensatz die des Creators, ohne Datensatz gruppiert über den Instagram-Handle, sonst über den Namen. Ein Eintrag ohne Datensatz, dessen Handle zu einem Creator gehört, zählt auf dessen Zeile. Ein Punkt am Bild zeigt, ob der Datensatz da ist (grün) oder fehlt (rot); nur grüne Zeilen öffnen den Creator. Zähler für Castings (je Casting einmal), Prio 1, Prio 2, Abgelehnt und Produktion zählen die ganze Historie. Produktion ist die Zahl der Kooperationsdatensätze des Creators, unabhängig von Rechnungen. Dazu zeigt die Zeile die Branchen des Creators. Sortierbar über die Spaltenköpfe; Filter-Chips gibt es vorerst nicht, nur die Namenssuche. Zeilen lassen sich markieren und auf ein Casting legen („Zu Casting hinzufügen“, Kategorie optional): jede markierte Person wird dort ein neuer Casting-Eintrag, mit Creator-Verknüpfung bei grünem Punkt, sonst ohne. Wer schon auf diesem Casting steht (Creator, sonst Instagram-Handle, sonst Name), wird übersprungen. Die Zeile im Bestand bleibt.
 _Avoid_: Casting, Creator-Liste, Creator Casting, Übernehmen, Verschieben

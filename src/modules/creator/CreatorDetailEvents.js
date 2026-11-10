@@ -9,6 +9,7 @@ import { HAUPTADRESSE_QUELLE, normalizeHauptadresseQuelle } from './hauptadresse
 import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
 import { bindGenerationControls } from './creatorProfil.js';
 import { mountCreatorBetreuung } from '../ansprechpartner/betreuung.js';
+import { creatorReturnPath } from './masterliste.js';
 
 CreatorDetail.prototype.bindEvents = function() {
     if (this._abortController) {
@@ -230,6 +231,14 @@ CreatorDetail.prototype.showEditForm = async function() {
         e.preventDefault();
         await this.handleEditFormSubmit();
       };
+      const back = creatorReturnPath();
+      const cancel = form.querySelector('.mdc-btn--cancel');
+      if (back && cancel) {
+        cancel.onclick = (event) => {
+          event.preventDefault();
+          window.navigateTo(back);
+        };
+      }
     }
 };
 

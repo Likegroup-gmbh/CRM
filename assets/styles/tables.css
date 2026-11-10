@@ -25,6 +25,18 @@
     
   }
 
+.masterliste-kopf {
+  flex-wrap: wrap;
+}
+
+.masterliste-beschreibung {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
 .table-actions {
     display: flex;
     align-items: center;

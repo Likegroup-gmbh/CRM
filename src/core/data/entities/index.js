@@ -896,10 +896,13 @@ export const EntityRegistry = {
       name: 'string',
       beschreibung: 'string',
       created_by: 'uuid',
-      created_at: 'date',
-      updated_at: 'date'
+      hidden_columns: 'json',
+      custom_column_order: 'json',
+      created_at: 'date'
     },
-    relations: {},
+    relations: {
+      created_by: { table: 'benutzer', foreignKey: 'created_by', displayField: 'name' }
+    },
     filters: ['name', 'created_at'],
     sortBy: 'created_at',
     sortOrder: 'desc'

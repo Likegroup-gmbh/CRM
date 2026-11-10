@@ -250,7 +250,7 @@ export class CreatorDetail extends PersonDetailBase {
       { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen?.length || 0, isActive: this.activeMainTab === 'kooperationen' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen?.length || 0, isActive: this.activeMainTab === 'rechnungen' },
       { tab: 'vertraege', label: 'Verträge', count: this.vertraege?.length || 0, isActive: this.activeMainTab === 'vertraege' },
-      { tab: 'listen', label: 'Listen', count: this.lists?.length || 0, isActive: this.activeMainTab === 'listen' },
+      { tab: 'listen', label: 'Masterlisten', count: this.lists?.length || 0, isActive: this.activeMainTab === 'listen' },
       { tab: 'management', label: 'Management', count: this.managements?.length || 0, isActive: this.activeMainTab === 'management' },
       { tab: 'firmen', label: 'Firmen', count: this.firmen?.length || 0, isActive: this.activeMainTab === 'firmen' },
       { tab: 'adresse', label: 'Adresse', isActive: this.activeMainTab === 'adresse' }
