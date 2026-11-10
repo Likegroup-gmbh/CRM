@@ -344,7 +344,18 @@ describe('Player.download', () => {
 
     player.download();
 
-    expect(downloadMediaAsset).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }), 'Intro_v1');
+    expect(downloadMediaAsset).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }), 'Intro_v1', { typ: 'story' });
+  });
+
+  it('Still: typ "still" fuer ablage-link', () => {
+    const table = makeTable([{ id: 'k1', _bilder: [{ id: 'img1', file_path: '/b/1.jpg', file_name: 'Bild.jpg', ablage: 'sharepoint' }] }], { k1: [] });
+    const player = makePlayer(table);
+    player.session.items = player.itemBuilder.build();
+    player.session.index = player.session.items.findIndex(i => i.type === 'bild');
+
+    player.download();
+
+    expect(downloadMediaAsset).toHaveBeenCalledWith(expect.objectContaining({ id: 'img1' }), 'Bild.jpg', { typ: 'still' });
   });
 });
 

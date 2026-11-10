@@ -237,5 +237,20 @@ describe('VideoDeleteHelper', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('DB connection lost');
     });
+
+    it('SharePoint-Datei lässt sich nicht löschen: Video-Zeile bleibt, Fehler kommt zurück', async () => {
+      const sb = createTrackingSupabase({
+        assets: [{ id: 'a1', video_id: 'v1', file_path: '/Ablage/v1.mp4', is_current: true, ablage: 'sharepoint' }],
+      });
+      const ft = createTrackingFetch({
+        '/.netlify/functions/ablage-datei': { ok: false, status: 502, json: async () => ({ error: 'Graph down' }) },
+      });
+
+      const result = await deleteVideoFull('v1', { supabase: sb, fetch: ft });
+
+      expect(result).toEqual({ success: false, error: 'Graph down' });
+      expect(ft._log.map(l => l.url)).toEqual(['/.netlify/functions/ablage-datei']);
+      expect(sb._log.filter(e => e.op.startsWith('delete'))).toEqual([]);
+    });
   });
 });

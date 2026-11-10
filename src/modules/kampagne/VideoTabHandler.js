@@ -1,20 +1,10 @@
-import {
-  buildVersionedFileName, MAX_VERSIONS, FINAL_VARIANTS,
-  escapeHtml,
-  MAX_VIDEO_SIZE,
-  normalizeExternalUrl,
-  isValidExternalUrl,
-  mdcBtnIcon,
-  ICON_PLUS_16,
-  ICON_CHECK_16,
-  ICON_UPLOAD_16
-} from '../../core/VideoUploadUtils.js';
-import { deleteSingleDropboxFile } from '../../core/VideoDeleteHelper.js';
+import { ICON_UPLOAD_16 } from '../../core/VideoUploadUtils.js';
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import { authorizedFetch } from '../../core/auth/getAccessToken.js';
-
-const DEBUG_UPLOAD = false;
+import { videoTabShell } from './videoTabRender.js';
+import { MAX_VIDEO_MB, addFiles, bindQueueEvents, renderQueue } from './videoTabQueue.js';
+import { bindLinkEvents, handleFolderSubmit, handleLinkSubmit, renderLinkPane } from './videoTabLinks.js';
+import { bindExistingEvents, loadExistingVideoAssets } from './videoTabExisting.js';
 
 export class VideoTabHandler {
   constructor(drawer) {
@@ -29,10 +19,6 @@ export class VideoTabHandler {
   }
 
   get isUploading() { return this._isUploading; }
-
-  async init() {
-    this._existingVersions = await this._loadExistingVersions();
-  }
 
   reset() {
     this._queue = [];
@@ -59,522 +45,84 @@ export class VideoTabHandler {
     }
   }
 
+  _loadExistingVideoAssets() {
+    return loadExistingVideoAssets(this);
+  }
+
+  _addFiles(files) {
+    addFiles(this, files);
+  }
+
   // ─── Render ────────────────────────────────────────────────
 
-  _buildVersionOptions(item) {
-    const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
-    let html = allVersions.map(v => {
-      const exists = this._existingVersions.includes(v);
-      const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
-      const selected = !item.isFinal && v === item.versionNumber ? ' selected' : '';
-      return `<option value="${v}"${selected}>${label}</option>`;
-    }).join('');
-    html += `<option value="final"${item.isFinal ? ' selected' : ''}>Finale Version</option>`;
-    return html;
-  }
-
-  // Freitext-Varianten-Name (Feedbackschleifen) bzw. Preset-Select 9:16/4:5/1:1 (Finale)
-  _buildVariantField(item, idx) {
-    if (item.isFinal) {
-      const options = FINAL_VARIANTS.map(v =>
-        `<option value="${v}"${v === item.variantName ? ' selected' : ''}>${v}</option>`
-      ).join('');
-      return `<select class="form-input video-final-variant-select" data-idx="${idx}">${options}</select>`;
-    }
-    return `<input type="text" class="form-input video-variant-name-input" data-idx="${idx}"
-      value="${escapeHtml(item.variantName)}"
-      placeholder="Varianten-Name (z.B. Voice-Over Berlin)" maxlength="120"/>`;
-  }
-
   renderTab(activeTab) {
-    if (this.drawer.useExternalLinks) {
-      return this._renderLinkTab(activeTab);
-    }
-    return `
-      <div id="upload-tab-video" style="${activeTab !== 'video' ? 'display:none' : ''}">
-        <div class="video-upload-drawer-content">
-          <div class="upload-dropzone" id="video-upload-dropzone">
-            <div class="dropzone-content">
-              ${icon('upload')}
-              <p class="dropzone-text">Videos hierher ziehen oder <button type="button" class="dropzone-browse-btn">Dateien auswählen</button></p>
-              <p class="dropzone-hint">MP4, MOV, AVI, MKV – max. 500 MB pro Datei</p>
-            </div>
-            <input type="file" id="video-upload-file-input" accept="video/*,.mp4,.mov,.avi,.mkv,.webm" multiple style="display:none"/>
-          </div>
-
-          <div class="upload-file-list" id="video-upload-queue"></div>
-
-          <div class="upload-progress-container" id="video-upload-progress" style="display:none;">
-            <div class="upload-progress-bar">
-              <div class="upload-progress-fill" id="video-upload-progress-fill" style="width:0%"></div>
-            </div>
-            <div class="upload-progress-text" id="video-upload-progress-text">Wird hochgeladen... 0%</div>
-          </div>
-
-          <div class="upload-error-msg" id="video-upload-error" style="display:none;"></div>
-
-          <div class="drawer-footer video-upload-drawer-footer">
-            <button type="button" class="mdc-btn mdc-btn--cancel" id="video-upload-cancel-btn">Abbrechen</button>
-            <button type="button" class="mdc-btn mdc-btn--create" id="video-upload-submit-btn" disabled>
-              ${mdcBtnIcon(ICON_UPLOAD_16)}
-              <span class="mdc-btn__label">Hochladen</span>
-            </button>
-          </div>
-
-          <div class="existing-images-section" id="existing-videos-section">
-            <div class="existing-images-header">
-              <span class="existing-images-title">Vorhandene Videos</span>
-              <span class="existing-images-count" id="existing-videos-count"></span>
-            </div>
-            <div class="existing-images-list" id="existing-videos-list">
-              <div class="existing-images-loading">Lade...</div>
-            </div>
-          </div>
+    if (this.drawer.useExternalLinks) return renderLinkPane(this, activeTab);
+    const maxSize = MAX_VIDEO_MB >= 1024 ? `${MAX_VIDEO_MB / 1024} GB` : `${MAX_VIDEO_MB} MB`;
+    return videoTabShell(activeTab, `
+      <div class="upload-dropzone" id="video-upload-dropzone">
+        <div class="dropzone-content">
+          ${icon('upload')}
+          <p class="dropzone-text">Videos hierher ziehen oder <button type="button" class="dropzone-browse-btn">Dateien auswählen</button></p>
+          <p class="dropzone-hint">MP4, MOV, AVI, MKV – max. ${maxSize} pro Datei</p>
         </div>
+        <input type="file" id="video-upload-file-input" accept="video/*,.mp4,.mov,.avi,.mkv,.webm" multiple style="display:none"/>
       </div>
-    `;
-  }
 
-  _renderLinkModeNav() {
-    const isFolder = this._linkMode === 'folder';
-    return `
-      <div class="drawer-tab-nav link-share-mode" role="tablist">
-        <button type="button" class="drawer-tab-btn ${isFolder ? '' : 'active'}" data-link-mode="video" role="tab" aria-selected="${isFolder ? 'false' : 'true'}">Video-Link</button>
-        <button type="button" class="drawer-tab-btn ${isFolder ? 'active' : ''}" data-link-mode="folder" role="tab" aria-selected="${isFolder ? 'true' : 'false'}">Ordner teilen</button>
-      </div>
-    `;
-  }
-
-  _renderFolderFields() {
-    return `
-      <div class="link-folder-section">
-        <label class="custom-upload-label" for="video-folder-url-input">OneDrive- / SharePoint-Ordner</label>
-        <input type="url" id="video-folder-url-input" class="form-input"
-          value="${escapeHtml(this._folderUrl || '')}"
-          placeholder="https://….sharepoint.com/…" />
-        <p class="dropzone-hint">Der Kunde öffnet den Ordner und schaut die Videos dort.</p>
-      </div>
-    `;
-  }
-
-  _renderVideoLinkFields() {
-    return `
-      <div class="link-add-section">
-        <button type="button" class="mdc-btn upload-drawer-btn--secondary" id="video-link-add-btn">
-          ${mdcBtnIcon(ICON_PLUS_16)}
-          <span class="mdc-btn__label">Link hinzufügen</span>
-        </button>
-      </div>
       <div class="upload-file-list" id="video-upload-queue"></div>
-    `;
-  }
 
-  _renderLinkTab(activeTab) {
-    const isFolder = this._linkMode === 'folder';
-    return `
-      <div id="upload-tab-video" style="${activeTab !== 'video' ? 'display:none' : ''}">
-        <div class="video-upload-drawer-content">
-          ${this._renderLinkModeNav()}
-          ${isFolder ? this._renderFolderFields() : this._renderVideoLinkFields()}
-
-          <div class="upload-error-msg" id="video-upload-error" style="display:none;"></div>
-
-          <div class="drawer-footer video-upload-drawer-footer">
-            <button type="button" class="mdc-btn mdc-btn--cancel" id="video-upload-cancel-btn">Abbrechen</button>
-            <button type="button" class="mdc-btn mdc-btn--create" id="video-upload-submit-btn" disabled>
-              ${mdcBtnIcon(ICON_CHECK_16)}
-              <span class="mdc-btn__label">Speichern</span>
-            </button>
-          </div>
-
-          <div class="existing-images-section" id="existing-videos-section">
-            <div class="existing-images-header">
-              <span class="existing-images-title">Vorhandene Videos</span>
-              <span class="existing-images-count" id="existing-videos-count"></span>
-            </div>
-            <div class="existing-images-list" id="existing-videos-list">
-              <div class="existing-images-loading">Lade...</div>
-            </div>
-          </div>
+      <div class="upload-progress-container" id="video-upload-progress" style="display:none;">
+        <div class="upload-progress-bar">
+          <div class="upload-progress-fill" id="video-upload-progress-fill" style="width:0%"></div>
         </div>
+        <div class="upload-progress-text" id="video-upload-progress-text">Wird hochgeladen... 0%</div>
       </div>
-    `;
+    `, { submitIcon: ICON_UPLOAD_16, submitLabel: 'Hochladen' });
   }
 
   // ─── Events ────────────────────────────────────────────────
 
   bindEvents(panel) {
-    const cancelBtn = document.getElementById('video-upload-cancel-btn');
-    const submitBtn = document.getElementById('video-upload-submit-btn');
+    document.getElementById('video-upload-cancel-btn')?.addEventListener('click', () => this.drawer.close());
+    document.getElementById('video-upload-submit-btn')?.addEventListener('click', () => this._submit());
 
-    cancelBtn?.addEventListener('click', () => this.drawer.close());
-    submitBtn?.addEventListener('click', () => {
-      if (this._isUploading) return;
-      if (this.drawer.useExternalLinks && this._linkMode === 'folder') {
-        this._handleFolderSubmit();
-        return;
-      }
-      if (this._queue.length > 0) {
-        if (this.drawer.useExternalLinks) {
-          this._handleLinkSubmit();
-        } else {
-          this.handleUpload();
-        }
-      }
-    });
+    if (this.drawer.useExternalLinks) bindLinkEvents(this, panel);
+    else this._bindDropzone(panel);
 
-    if (this.drawer.useExternalLinks) {
-      panel?.querySelectorAll('[data-link-mode]').forEach(btn => {
-        btn.addEventListener('click', () => this._setLinkMode(btn.dataset.linkMode));
-      });
-      if (this._linkMode === 'folder') {
-        const folderInput = document.getElementById('video-folder-url-input');
-        folderInput?.addEventListener('input', () => {
-          this._folderUrl = folderInput.value;
-          this._updateSubmitButtonState();
-        });
-      } else {
-        const addLinkBtn = document.getElementById('video-link-add-btn');
-        addLinkBtn?.addEventListener('click', () => this._addLinkEntry());
-      }
-    } else {
-      const dropzone = document.getElementById('video-upload-dropzone');
-      const fileInput = document.getElementById('video-upload-file-input');
-      const browseBtn = panel?.querySelector('#upload-tab-video .dropzone-browse-btn');
-
-      browseBtn?.addEventListener('click', () => fileInput?.click());
-      fileInput?.addEventListener('change', (e) => {
-        if (e.target.files?.length) this._addFiles(Array.from(e.target.files));
-        fileInput.value = '';
-      });
-
-      dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-      dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
-      dropzone?.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-        const files = e.dataTransfer.files;
-        if (files?.length) this._addFiles(Array.from(files));
-      });
-    }
-
-    const queueEl = document.getElementById('video-upload-queue');
-    queueEl?.addEventListener('click', (e) => {
-      const removeBtn = e.target.closest('.video-file-remove');
-      if (removeBtn) {
-        const idx = parseInt(removeBtn.dataset.idx, 10);
-        this._removeQueueItem(idx);
-      }
-    });
-    queueEl?.addEventListener('input', (e) => {
-      const variantInput = e.target.closest('.video-variant-name-input');
-      if (variantInput) {
-        const idx = parseInt(variantInput.dataset.idx, 10);
-        if (this._queue[idx]) {
-          this._queue[idx].variantName = variantInput.value;
-        }
-        this._updateSubmitButtonState();
-      }
-      const urlInput = e.target.closest('.video-link-url-input');
-      if (urlInput) {
-        const idx = parseInt(urlInput.dataset.idx, 10);
-        if (this._queue[idx]) {
-          this._queue[idx].url = urlInput.value;
-        }
-        this._updateSubmitButtonState();
-      }
-    });
-    queueEl?.addEventListener('change', (e) => {
-      const versionSelect = e.target.closest('.video-version-select');
-      if (versionSelect) {
-        const idx = parseInt(versionSelect.dataset.idx, 10);
-        const item = this._queue[idx];
-        if (item) {
-          if (versionSelect.value === 'final') {
-            item.isFinal = true;
-            item.versionNumber = 1;
-            item.variantName = FINAL_VARIANTS[0];
-          } else {
-            if (item.isFinal) item.variantName = '';
-            item.isFinal = false;
-            item.versionNumber = parseInt(versionSelect.value, 10);
-          }
-          this._renderQueue();
-          this._updateSubmitButtonState();
-        }
-      }
-      const finalVariantSelect = e.target.closest('.video-final-variant-select');
-      if (finalVariantSelect) {
-        const idx = parseInt(finalVariantSelect.dataset.idx, 10);
-        if (this._queue[idx]) {
-          this._queue[idx].variantName = finalVariantSelect.value;
-        }
-      }
-    });
-
-    const existingList = document.getElementById('existing-videos-list');
-    existingList?.addEventListener('click', (e) => {
-      const deleteBtn = e.target.closest('.existing-video-delete');
-      if (deleteBtn) {
-        const assetId = deleteBtn.dataset.id;
-        const filePath = deleteBtn.dataset.path;
-        const isFinal = deleteBtn.dataset.final === '1';
-        if (assetId) this._deleteExistingAsset(assetId, filePath, isFinal);
-        return;
-      }
-      const replaceBtn = e.target.closest('.existing-video-replace');
-      if (replaceBtn) {
-        const { id, path, version, variant } = replaceBtn.dataset;
-        if (id) this._replaceExistingAsset(id, path, parseInt(version, 10) || 1, variant || '');
-      }
-    });
-
+    bindQueueEvents(this);
+    bindExistingEvents(this);
     this._updateSubmitButtonState();
   }
 
-  // ─── File Selection / Queue ────────────────────────────────
-
-  _addFiles(files) {
-    this.hideError();
-    const maxSize = MAX_VIDEO_SIZE;
-    const maxMB = Math.round(maxSize / (1024 * 1024));
-    const allowed = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'];
-    const rejected = [];
-
-    for (const file of files) {
-      if (file.size > maxSize) {
-        rejected.push(`${file.name}: zu groß (${(file.size / 1024 / 1024).toFixed(1)} MB, max. ${maxMB} MB)`);
-        continue;
-      }
-      if (!allowed.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
-        rejected.push(`${file.name}: kein unterstütztes Videoformat`);
-        continue;
-      }
-      const alreadyQueued = this._queue.some(q => q.file.name === file.name && q.file.size === file.size);
-      if (!alreadyQueued) {
-        if (this.drawer.preselectFinal) {
-          this._queue.push({ file, variantName: FINAL_VARIANTS[0], versionNumber: 1, isFinal: true });
-        } else {
-          const defaultVersion = this._existingVersions.length > 0
-            ? Math.max(...this._existingVersions)
-            : 1;
-          this._queue.push({ file, variantName: '', versionNumber: defaultVersion });
-        }
-      }
-    }
-
-    if (rejected.length) this.showError(rejected.join('\n'));
-    this._renderQueue();
-    this._updateSubmitButtonState();
-  }
-
-  _removeQueueItem(idx) {
-    this._queue.splice(idx, 1);
-    this._renderQueue();
-    this._updateSubmitButtonState();
-  }
-
-  _renderQueue() {
-    const list = document.getElementById('video-upload-queue');
-    if (!list) return;
-
-    if (this._queue.length === 0) {
-      list.innerHTML = '';
-      return;
-    }
-
-    if (this.drawer.useExternalLinks) {
-      list.innerHTML = this._queue.map((item, i) => {
-        const versionOptions = this._buildVersionOptions(item);
-        return `
-          <div class="upload-file-item video-queue-item">
-            <div class="video-queue-variant flex-1">
-              <input type="url" class="form-input video-link-url-input" data-idx="${i}"
-                value="${escapeHtml(item.url || '')}"
-                placeholder="https://drive.google.com/..." />
-            </div>
-            <div class="video-queue-variant">
-              ${this._buildVariantField(item, i)}
-            </div>
-            <div class="video-queue-selects">
-              <select class="form-input video-version-select" data-idx="${i}">${versionOptions}</select>
-            </div>
-            <button type="button" class="file-remove-btn video-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
-          </div>
-        `;
-      }).join('');
-      return;
-    }
-
-    list.innerHTML = this._queue.map((item, i) => {
-      const versionOptions = this._buildVersionOptions(item);
-      return `
-        <div class="upload-file-item video-queue-item">
-          <div class="file-info">
-            <span class="file-name">${escapeHtml(item.file.name)}</span>
-            <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
-          </div>
-          <div class="video-queue-variant">
-            ${this._buildVariantField(item, i)}
-          </div>
-          <div class="video-queue-selects">
-            <select class="form-input video-version-select" data-idx="${i}">${versionOptions}</select>
-          </div>
-          <button type="button" class="file-remove-btn video-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
-        </div>
-      `;
-    }).join('');
-  }
-
-  // ─── External Link Mode ────────────────────────────────────
-
-  _setLinkMode(mode) {
-    if (mode !== 'video' && mode !== 'folder') return;
-    if (mode === this._linkMode) return;
-    if (this._linkMode === 'folder') {
-      const input = document.getElementById('video-folder-url-input');
-      if (input) this._folderUrl = input.value;
-    }
-    this._linkMode = mode;
-    const pane = document.getElementById('upload-tab-video');
-    const panel = document.getElementById(this.drawer.drawerId);
-    if (!pane || !panel) return;
-    pane.outerHTML = this._renderLinkTab(this.drawer._activeTab);
-    this.bindEvents(panel);
-    if (mode === 'video') this._renderQueue();
-    this._loadExistingVideoAssets();
-  }
-
-  async _handleFolderSubmit() {
+  _submit() {
     if (this._isUploading) return;
-    this.hideError();
-
-    const folderUrl = normalizeExternalUrl(this._folderUrl);
-    if (!isValidExternalUrl(folderUrl)) {
-      this.showError('Bitte eine gültige URL eingeben (https://...)');
+    if (this.drawer.useExternalLinks && this._linkMode === 'folder') {
+      handleFolderSubmit(this);
       return;
     }
-
-    this._isUploading = true;
-    this._updateSubmitButtonState();
-
-    try {
-      const { error } = await window.supabase
-        .from('kooperation_videos')
-        .update({ folder_url: folderUrl })
-        .eq('id', this.drawer.videoId);
-      if (error) throw error;
-
-      this._folderUrl = folderUrl;
-      if (this.drawer.metadaten) this.drawer.metadaten.folderUrl = folderUrl;
-      const input = document.getElementById('video-folder-url-input');
-      if (input) input.value = folderUrl;
-      this._isUploading = false;
-      this._updateSubmitButtonState();
-
-      const videoName = this.drawer.metadaten?.videoName || null;
-      if (typeof this.drawer.onSuccess === 'function') {
-        this.drawer.onSuccess(null, null, videoName, folderUrl);
-      }
-      window.toastSystem?.success?.('Ordner gespeichert');
-    } catch (err) {
-      console.error('[VideoTabHandler] Ordner-Submit fehlgeschlagen:', err);
-      this.showError(err.message || 'Speichern fehlgeschlagen');
-      this._isUploading = false;
-      this._updateSubmitButtonState();
-    }
+    if (this._queue.length === 0) return;
+    if (this.drawer.useExternalLinks) handleLinkSubmit(this);
+    else this.handleUpload();
   }
 
-  _addLinkEntry() {
-    if (this.drawer.preselectFinal) {
-      this._queue.push({ url: '', variantName: FINAL_VARIANTS[0], versionNumber: 1, isFinal: true });
-    } else {
-      const defaultVersion = this._existingVersions.length > 0
-        ? Math.max(...this._existingVersions)
-        : 1;
-      this._queue.push({ url: '', variantName: '', versionNumber: defaultVersion });
-    }
-    this._renderQueue();
-    this._updateSubmitButtonState();
-    const list = document.getElementById('video-upload-queue');
-    const lastInput = list?.querySelector(`.video-link-url-input[data-idx="${this._queue.length - 1}"]`);
-    lastInput?.focus();
-  }
+  _bindDropzone(panel) {
+    const dropzone = document.getElementById('video-upload-dropzone');
+    const fileInput = document.getElementById('video-upload-file-input');
+    const browseBtn = panel?.querySelector('#upload-tab-video .dropzone-browse-btn');
 
-  async _handleLinkSubmit() {
-    if (this._queue.length === 0 || this._isUploading) return;
-    this.hideError();
+    browseBtn?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', (e) => {
+      if (e.target.files?.length) addFiles(this, Array.from(e.target.files));
+      fileInput.value = '';
+    });
 
-    const invalid = this._queue.filter(q => !isValidExternalUrl(normalizeExternalUrl(q.url)));
-    if (invalid.length > 0) {
-      this.showError('Bitte gültige URLs eingeben (https://...)');
-      return;
-    }
-
-    this._isUploading = true;
-    this._updateSubmitButtonState();
-
-    try {
-      let lastFileUrl = null;
-      let hasFinal = false;
-      for (const item of this._queue) {
-        const fileUrl = normalizeExternalUrl(item.url);
-        await this._saveAssetVersion(fileUrl, null, item.variantName, item.versionNumber, item.isFinal);
-        if (item.isFinal) {
-          hasFinal = true;
-        } else {
-          lastFileUrl = fileUrl;
-        }
-      }
-
-      await this._updateCurrentFlags();
-
-      const videoName = this.drawer.metadaten?.videoName || null;
-      // link_content nur aus Feedbackschleifen-Links aktualisieren.
-      // video_name nicht mitschreiben: der steht in der Kooperationsliste
-      // und kann sich waehrend des Speicherns schon geaendert haben.
-      const updateData = {};
-      if (lastFileUrl) updateData.link_content = lastFileUrl;
-
-      if (Object.keys(updateData).length > 0) {
-        await window.supabase
-          .from('kooperation_videos')
-          .update(updateData)
-          .eq('id', this.drawer.videoId);
-      }
-
-      this._queue = [];
-      this._renderQueue();
-      this._isUploading = false;
-      this._updateSubmitButtonState();
-
-      if (lastFileUrl && typeof this.drawer.onSuccess === 'function') {
-        this.drawer.onSuccess(lastFileUrl, null, videoName, null);
-      }
-      if (hasFinal) {
-        this.drawer.onFinaleChanged?.(this.drawer.videoId);
-      }
-
-      this._loadExistingVideoAssets();
-      window.toastSystem?.success?.('Links gespeichert');
-    } catch (err) {
-      console.error('[VideoTabHandler] Link-Submit fehlgeschlagen:', err);
-      this.showError(err.message || 'Speichern fehlgeschlagen');
-      this._isUploading = false;
-      this._updateSubmitButtonState();
-    }
-  }
-
-  _getVersionedFileName(file, versionNumber) {
-    const ext = file.name.split('.').pop() || 'mp4';
-    return buildVersionedFileName(
-      this.drawer.metadaten?.creatorName || '',
-      this.drawer.metadaten?.unternehmen || '',
-      this.drawer.metadaten?.kampagne || '',
-      this.drawer.metadaten?.videoPosition || 1,
-      versionNumber,
-      ext
-    );
+    dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
+    dropzone?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files?.length) addFiles(this, Array.from(files));
+    });
   }
 
   _updateSubmitButtonState() {
@@ -596,6 +144,12 @@ export class VideoTabHandler {
 
   // ─── Upload (Enqueue Background) ───────────────────────────
 
+  /** Abschluss-Event abonnieren (nur Refresh, wenn der Drawer noch offen ist). */
+  _listenForVideoDone() {
+    window.removeEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._onVideoDoneBound);
+    window.addEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._onVideoDoneBound);
+  }
+
   async handleUpload() {
     if (this._queue.length === 0 || this._isUploading) return;
 
@@ -616,9 +170,7 @@ export class VideoTabHandler {
       isFinal: !!q.isFinal,
     }));
 
-    // Listener für Abschluss-Event (nur Refresh wenn Drawer noch offen)
-    window.removeEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._onVideoDoneBound);
-    window.addEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._onVideoDoneBound);
+    this._listenForVideoDone();
 
     const jobId = backgroundUploadService.enqueueVideoJob({
       videoId: this.drawer.videoId,
@@ -629,7 +181,7 @@ export class VideoTabHandler {
 
     // Queue lokal leeren — der Job ist jetzt der "Source of Truth"
     this._queue = [];
-    this._renderQueue();
+    renderQueue(this);
     this._updateSubmitButtonState();
 
     return jobId;
@@ -640,269 +192,15 @@ export class VideoTabHandler {
     if (videoId !== this.drawer.videoId) return;
     // Drawer noch offen? Asset-Liste refreshen
     if (document.getElementById('existing-videos-list')) {
-      this._loadExistingVideoAssets();
+      loadExistingVideoAssets(this);
     }
     if (typeof this.drawer.onSuccess === 'function') {
-      this.drawer.onSuccess(e.detail?.result?.lastFileUrl || null, null,
+      this.drawer.onSuccess(e.detail?.result?.linkContent || null, null,
         e.detail?.result?.videoName || null, e.detail?.result?.folderUrl || null);
     }
     if (e.detail?.result?.hasFinalUpload) {
       this.drawer.onFinaleChanged?.(videoId);
     }
-  }
-
-  // ─── DB ────────────────────────────────────────────────────
-
-  async _saveAssetVersion(fileUrl, filePath, variantName, versionNumber, isFinal = false) {
-    const version = parseInt(versionNumber, 10) || 1;
-
-    const { error } = await window.supabase
-      .from('kooperation_video_asset')
-      .insert({
-        video_id: this.drawer.videoId,
-        file_url: fileUrl,
-        file_path: filePath,
-        version_number: version,
-        variant_name: variantName || null,
-        is_current: !isFinal,
-        is_final: !!isFinal,
-        description: null,
-        uploaded_by: window.currentUser?.id || null,
-        created_at: new Date().toISOString()
-      });
-    if (error) throw error;
-  }
-
-  async _updateCurrentFlags() {
-    const { data } = await window.supabase
-      .from('kooperation_video_asset')
-      .select('id, version_number, is_final')
-      .eq('video_id', this.drawer.videoId);
-
-    // is_current nur innerhalb der Feedbackschleifen verwalten
-    const allAssets = (data || []).filter(a => !a.is_final);
-    if (allAssets.length === 0) return;
-
-    const maxVersion = Math.max(...allAssets.map(a => a.version_number));
-
-    const nonCurrentIds = allAssets.filter(a => a.version_number !== maxVersion).map(a => a.id);
-    const currentIds = allAssets.filter(a => a.version_number === maxVersion).map(a => a.id);
-
-    if (nonCurrentIds.length > 0) {
-      await window.supabase
-        .from('kooperation_video_asset')
-        .update({ is_current: false })
-        .in('id', nonCurrentIds);
-    }
-    if (currentIds.length > 0) {
-      await window.supabase
-        .from('kooperation_video_asset')
-        .update({ is_current: true })
-        .in('id', currentIds);
-    }
-  }
-
-  async saveAssetVersion(fileUrl, filePath, _videoName, folderUrl, versionNumber = 1) {
-    await this._saveAssetVersion(fileUrl, filePath, null, versionNumber);
-    await this._updateCurrentFlags();
-
-    const updateData = { link_content: fileUrl };
-    if (folderUrl) updateData.folder_url = folderUrl;
-
-    await window.supabase
-      .from('kooperation_videos')
-      .update(updateData)
-      .eq('id', this.drawer.videoId);
-  }
-
-  // ─── Existing Videos ──────────────────────────────────────
-
-  async _loadExistingVideoAssets() {
-    const listEl = document.getElementById('existing-videos-list');
-    const countEl = document.getElementById('existing-videos-count');
-    if (listEl) listEl.innerHTML = '<div class="existing-images-loading">Lade...</div>';
-
-    try {
-      if (!this.drawer.videoId) {
-        this._existingAssets = [];
-        if (countEl) countEl.textContent = '(0)';
-        if (listEl) listEl.innerHTML = '<div class="existing-images-empty">Keine Videos vorhanden</div>';
-        return;
-      }
-
-      const { data, error } = await window.supabase
-        .from('kooperation_video_asset')
-        .select('id, file_url, file_path, version_number, variant_name, is_current, is_final, created_at')
-        .eq('video_id', this.drawer.videoId)
-        .order('version_number', { ascending: true });
-
-      if (error) throw error;
-      this._existingAssets = data || [];
-      this._existingVersions = [...new Set(
-        this._existingAssets.filter(a => !a.is_final).map(a => a.version_number).filter(v => typeof v === 'number')
-      )];
-
-      if (countEl) countEl.textContent = `(${this._existingAssets.length})`;
-      this._renderExistingVideos();
-    } catch (err) {
-      console.error('[VideoTabHandler] _loadExistingVideoAssets:', err);
-      if (listEl) listEl.innerHTML = '<div class="existing-images-empty">Fehler beim Laden</div>';
-    }
-  }
-
-  _renderExistingVideos() {
-    const listEl = document.getElementById('existing-videos-list');
-    if (!listEl) return;
-
-    if (!this._existingAssets || this._existingAssets.length === 0) {
-      listEl.innerHTML = '<div class="existing-images-empty">Keine Videos vorhanden</div>';
-      return;
-    }
-
-    const loopAssets = this._existingAssets.filter(a => !a.is_final);
-    const finalAssets = this._existingAssets.filter(a => a.is_final);
-
-    const grouped = {};
-    for (const asset of loopAssets) {
-      const v = asset.version_number || 1;
-      if (!grouped[v]) grouped[v] = [];
-      grouped[v].push(asset);
-    }
-
-    const rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-    const maxRound = rounds.length > 0 ? Math.max(...rounds) : 0;
-    const TRASH_ICON = icon('trash-alt');
-    const REPLACE_ICON = icon('arrow-path');
-
-    let html = '';
-    for (const round of rounds) {
-      const assets = grouped[round];
-      const isCurrent = round === maxRound;
-      const badge = isCurrent ? ' <span class="version-badge version-badge--current">aktuell</span>' : '';
-
-      html += `
-        <div class="existing-storys-slot-item">
-          <div class="existing-storys-slot-header">
-            <span class="existing-storys-slot-title">Feedbackschleife ${round}${badge}</span>
-            <span class="existing-storys-slot-meta">${assets.length} Datei${assets.length !== 1 ? 'en' : ''}</span>
-          </div>
-        </div>`;
-
-      for (const asset of assets) {
-        const name = asset.variant_name || asset.file_path?.split('/').pop() || '?';
-        const date = asset.created_at ? new Date(asset.created_at).toLocaleDateString('de-DE') : '';
-        const currentBadge = asset.is_current ? ' <span class="version-badge version-badge--current">aktuell</span>' : '';
-        html += `
-          <div class="existing-image-item existing-storys-asset-item">
-            <div class="existing-image-info">
-              <span class="existing-image-name">${escapeHtml(name)}${date ? ` · ${date}` : ''} · FS${asset.version_number}${currentBadge}</span>
-            </div>
-            <div class="existing-asset-actions">
-              <button type="button" class="existing-video-replace" data-id="${asset.id}" data-path="${escapeHtml(asset.file_path || '')}" data-version="${asset.version_number}" data-variant="${escapeHtml(asset.variant_name || '')}" title="Ersetzen">${REPLACE_ICON}</button>
-              <button type="button" class="existing-image-delete existing-video-delete" data-id="${asset.id}" data-path="${escapeHtml(asset.file_path || '')}" title="Löschen">${TRASH_ICON}</button>
-            </div>
-          </div>`;
-      }
-    }
-
-    if (finalAssets.length > 0) {
-      html += `
-        <div class="existing-storys-slot-item">
-          <div class="existing-storys-slot-header">
-            <span class="existing-storys-slot-title">Finale Version</span>
-            <span class="existing-storys-slot-meta">${finalAssets.length} Datei${finalAssets.length !== 1 ? 'en' : ''}</span>
-          </div>
-        </div>`;
-
-      for (const asset of finalAssets) {
-        const name = asset.variant_name || asset.file_path?.split('/').pop() || 'Final';
-        const date = asset.created_at ? new Date(asset.created_at).toLocaleDateString('de-DE') : '';
-        html += `
-          <div class="existing-image-item existing-storys-asset-item">
-            <div class="existing-image-info">
-              <span class="existing-image-name">${escapeHtml(name)}${date ? ` · ${date}` : ''} · Finale</span>
-            </div>
-            <div class="existing-asset-actions">
-              <button type="button" class="existing-image-delete existing-video-delete" data-id="${asset.id}" data-path="${escapeHtml(asset.file_path || '')}" data-final="1" title="Löschen">${TRASH_ICON}</button>
-            </div>
-          </div>`;
-      }
-    }
-
-    listEl.innerHTML = html;
-  }
-
-  async _deleteExistingAsset(assetId, filePath, isFinal = false) {
-    const item = document.querySelector(`.existing-video-delete[data-id="${assetId}"]`)?.closest('.existing-image-item');
-    if (item) item.style.opacity = '0.5';
-
-    try {
-      if (filePath) {
-        await authorizedFetch('/.netlify/functions/dropbox-delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath }),
-        }).catch(err => console.warn('Dropbox-Löschung fehlgeschlagen:', err));
-      }
-
-      await window.supabase
-        .from('kooperation_video_asset')
-        .delete()
-        .eq('id', assetId);
-
-      await this._loadExistingVideoAssets();
-      if (isFinal) this.drawer.onFinaleChanged?.(this.drawer.videoId);
-    } catch (err) {
-      console.error('Video-Asset löschen fehlgeschlagen:', err);
-      this.showError(err.message || 'Löschen fehlgeschlagen');
-      if (item) item.style.opacity = '';
-    }
-  }
-
-  // ─── Replace Existing Asset ────────────────────────────────
-
-  async _replaceExistingAsset(assetId, oldFilePath, versionNumber, variantName) {
-    const fileInput = document.getElementById('video-upload-file-input');
-    if (!fileInput) return;
-
-    const onFileSelected = (e) => {
-      fileInput.removeEventListener('change', onFileSelected);
-      const file = e.target.files?.[0];
-      fileInput.value = '';
-      if (!file) return;
-
-      const maxSize = MAX_VIDEO_SIZE;
-      const maxMB = Math.round(maxSize / (1024 * 1024));
-      const allowed = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'];
-      if (file.size > maxSize) {
-        this.showError(`${file.name}: zu groß (${(file.size / 1024 / 1024).toFixed(1)} MB, max. ${maxMB} MB)`);
-        return;
-      }
-      if (!allowed.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
-        this.showError(`${file.name}: kein unterstütztes Videoformat`);
-        return;
-      }
-
-      const itemEl = document.querySelector(`.existing-video-replace[data-id="${assetId}"]`)?.closest('.existing-image-item');
-      if (itemEl) itemEl.style.opacity = '0.5';
-
-      // Listener für Abschluss (Refresh Asset-Liste)
-      window.removeEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._onVideoDoneBound);
-      window.addEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._onVideoDoneBound);
-
-      backgroundUploadService.enqueueVideoReplaceJob({
-        videoId: this.drawer.videoId,
-        metadaten: this.drawer.metadaten,
-        file,
-        assetId,
-        oldFilePath,
-        versionNumber,
-        variantName,
-      });
-    };
-
-    fileInput.addEventListener('change', onFileSelected);
-    fileInput.click();
   }
 
   // ─── Error Helpers ─────────────────────────────────────────

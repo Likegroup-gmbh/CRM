@@ -36,6 +36,14 @@ _Avoid_: Kooperation, Vor-Ort-Produktion, Geist
 Betrag, mit dem eine Produktion arbeitet, geschnitten aus dem Volumen ihrer Kampagne. Leer heißt, sie teilt sich das Volumen mit den anderen ohne Budget.
 _Avoid_: Creator-Budget, Kooperation, Geist, Anteil
 
+**Verbrauch**:
+Was eine Produktion vom Budget aufgebraucht hat: Verkaufspreise der Videos netto plus Zusatzkosten ihrer Kooperationen, über alle Linien. Zählt, was an der Kooperation hinterlegt ist, unabhängig von Vertrag-Status und Rechnungen. Gelesen gegen das Produktionsbudget, sonst gegen das Creator-Budget der Kampagne. Was davon übrig bleibt, heißt „Noch frei“ und wird bei Überschreitung negativ.
+_Avoid_: Bezahlt, Gebunden, Geplant (Vertrag und Rechnung spielen für den Verbrauch keine Rolle), Ausgaben
+
+**Budget-Tab**:
+Tab der Produktion, nur für interne Rollen (nicht Kunde), steht vor Briefing; geöffnet wird weiter Briefing. Zeigt Verbrauch und Noch frei der ganzen Produktion und die Aufteilung auf die Creator. Die gewählte Linie wird hervorgehoben, nichts wird auf sie gefiltert; bei „Alle Linien“ ist nichts hervorgehoben.
+_Avoid_: Budget der Kampagne (so hieß die Kopfzeile, die er ersetzt), Kategorien-Ansicht
+
 **Linie**:
 Ein Strang innerhalb einer Produktion: ein Briefing plus sein Casting, sein Konzept, seine Skripte und seine Kooperationen. Entsteht mit dem Finalisieren des Briefings; ein Entwurf erscheint schon als Linie mit Badge. Casting und Konzept lesen nur das Briefing ihrer Linie, nie das einer anderen. Eine Produktion kann mehrere Linien haben, etwa Nano-Influencer und UGC-Creator mit 20.000 Followern. Das Produkt sitzt an der Linie; dasselbe Produkt kann an mehreren Linien hängen, auch in verschiedenen Produktionen. Eine Linie mit Kooperationen lässt sich nicht löschen.
 _Avoid_: Strang, Briefing-Line, Geist, Zweig
@@ -263,6 +271,10 @@ _Avoid_: Buchungshäufigkeit, Buchungsbild, Track, Instagram-Reel
 Ein frei benanntes Merkmal am Creator, aus einer eigenen Liste. Mehrfach.
 Vom Creator wieder lösbar. Nicht der Besitz und nicht der Tag einer Kooperation.
 _Avoid_: Besitz, Kooperation-Tag, Nische, Branche
+
+**Video-Tag**:
+Ein frei benanntes Merkmal an einer Variante im Video-Tab (Hook, Plattform, Stil …), aus einem Katalog, optional auf eine Kampagne begrenzt. Mehrfach. Finale Versionen erben die Tags ihrer Variante. Nicht der Creator-Tag und nicht der Tag einer Kooperation.
+_Avoid_: Label, Kategorie, Creator-Tag
 
 **Casting-Vorschlag**:
 Ein für ein Casting vorgeschlagener Creator.
@@ -504,17 +516,30 @@ Das ausgelieferte File eines Kooperationsvideos oder einer Story, in genau einem
 Liegt neben der Feedbackschleife, nicht in ihr. Entsteht auf zwei Wegen, beide nur durchs Team: eine vorhandene Datei einer Feedbackschleife per Klick "Als finale Version freigeben" (die Finale Version verweist auf sie, die Datei bleibt in der Schleife), oder eine Datei direkt in den Ordner Finale Version hochladen (ohne Feedbackschleife davor, z. B. wenn schon die erste Schleife final ist). Der Ordner ist für das Team immer da, auch leer; Kunden sehen ihn erst mit Inhalt. Die Freigabe setzt keinen Status von Hand, der Status folgt aus den Dateien.
 _Avoid_: Final, Master, Export
 
-**Vorschaudatei**:
-Abgeleitete, streamingfreundliche MP4-Kopie eines Kooperationsvideos (Feedbackschleife oder Finale Version), nur zum Abspielen im Videos-Tab. Entsteht automatisch bei neuen Uploads, Stories bekommen keine. Bis sie fertig ist oder wenn sie fehlt, spielt der Player das Original. Download liefert immer das Original. Eine Finale Version, die aus einer Feedbackschleife übernommen wurde, teilt sich deren Vorschaudatei; wird das Original ersetzt, gilt die alte Vorschaudatei nicht mehr. Zählt nie als Datei (ADR 0061).
-_Avoid_: Proxy, Transcode, Rendition, Thumbnail, Vorschau (alleinstehend)
-
 **Dateititel**:
 Anzeigename einer Datei im Videos-Tab (Spalte `titel`). Beim Upload eines Videos der Name der hochgeladenen Datei ohne Endung, danach vom Team im Detailkopf inline änderbar. Ohne Titel gilt der abgeleitete Name (Video A, Bild 1, Story 1, Finale Version 9:16, Dateiname beim Rohmaterial). Ändert weder Dropbox-Pfad noch Download-Namen noch die Variante.
 _Avoid_: Dateiname (das ist `file_name`), Variante, Video-Name (das ist `video_name` am Kooperationsvideo)
 
 **Seitenverhältnis**:
-9:16, 4:5 oder 1:1 an einer finalen Version von Kooperationsvideo oder Story. Jedes Verhältnis ist eine eigene, eigens geschnittene Datei, kein Beschnitt der anderen: Der Player zeigt jede Datei in ihrem echten Verhältnis, es gibt keinen Umschalter und keinen automatischen Crop. Das Verhältnis erkennt das System aus den Pixelmaßen der Datei (beim Freigeben und beim Hochladen); eine Datei ohne Standardformat (z. B. 16:9) lässt sich nicht als Finale Version ablegen. Mehrere finale Versionen desselben Verhältnisses können nebeneinander liegen.
+9:16, 4:5 oder 1:1 an einer finalen Version von Kooperationsvideo oder Story. Jedes Verhältnis ist eine eigene, eigens geschnittene Datei, kein Beschnitt der anderen: Der Player zeigt jede Datei in ihrem echten Verhältnis, es gibt im Detailbereich keinen Umschalter und nirgends einen automatischen Crop (der Showcase wählt nur die passende Datei). Das Verhältnis erkennt das System aus den Pixelmaßen der Datei (beim Freigeben und beim Hochladen); eine Datei ohne Standardformat (z. B. 16:9) lässt sich nicht als Finale Version ablegen. Mehrere finale Versionen desselben Verhältnisses können nebeneinander liegen.
 _Avoid_: Format (Kollision mit Kampagnenart), Ratio, 16:9, 4:3
+
+**Showcase**:
+Zweite Darstellung im Videos-Tab (Umschalter "Ordner | Showcase" als ViewModeToggle rechts in der Workflow-Tab-Zeile, ebenso Gruppieren, Seitenverhältnis und Größe, mit gleitendem Indikator): alle Finalen Versionen der Produktion bzw. der gewählten Linie nebeneinander in einem Grid, für Überblick und Abschlusstermin. Kein eigener Tab, kein eigener Datenstand: der Baum des Spaltenbrowsers wird nur anders gezeigt, Tags und Filter-Chips sind dieselben. Das "Seitenverhältnis" im Showcase wählt je Variante die Datei im bevorzugten Verhältnis (hat die Variante es nicht, die vorhandene), es schneidet nichts zu. Der Umschalter "Inhalt" wählt die Datenmenge: "Nur final" (Standard, nur Finale Versionen) oder "Aktueller Stand" (je Variante die Finale Version, sonst die Datei der letzten Feedbackschleife, also alle Videos; Kacheln zeigen dort Stern bei Finalen und Status bei den übrigen). Gruppierung nach Creator, Persona (Tag-Gruppe "Persona") oder ohne. Einstellungen stehen in der URL (`ansicht=showcase`). Ohne ZIP-Download und ohne Link für Kunden.
+_Avoid_: Galerie, Übersicht, eigener Tab
+
+**Kooperationszeile**:
+Eintrag einer Kooperation in der ersten Spalte des Videos-Tabs. Ein Klick wählt die Kooperation und zeigt ihre Videos. Bei Alle Linien benennt der Titel die Linie, nicht den Creator, wenn der Creator mehrfach vorkommt.
+_Avoid_: Kooperationsgruppe, Creator-Zeile
+
+**Gruppenkopf**:
+Überschrift über den Kooperationszeilen eines Creators (bei Alle Linien) bzw. einer Linie, wenn nach Linie gruppiert wird. Fasst die Zähler seiner Zeilen zusammen und lässt sich ein- und ausklappen, wählt aber nie eine Kooperation. Ein Creator mit nur einer Kooperation hat keinen Gruppenkopf. Gruppiert wird immer über den Creator-Datensatz, nie über den Namen; eine Kooperation ohne Creator-Datensatz steht allein.
+_Avoid_: Creator-Ordner, Ebene, Spalte
+
+**Poster**:
+Standbild einer Datei im Videos-Tab (Video, Story, Still, Rohmaterial), das der Showcase als Kachel und der Player im Ordner vor dem ersten Frame zeigt. Abgeleitete Datei: entsteht auf dem Server aus dem Original, gehört zu Pfad und Revision der Datei und ist nach einem Replace neu. Fehlt es noch, zeigt der Tab das Original. Der Browser behält die Bytes, nicht den Link (ADR 0064).
+Nicht der Still: der ist eine hochgeladene Datei und hat selbst ein Poster.
+_Avoid_: Thumbnail, Cover, Vorschau, Vorschaudatei (ADR 0061, verworfen)
 
 **Abwählen**:
 Eine markierte finale Version zurücknehmen ("Final aufheben"). Trifft nur diese eine Datei; die Feedbackschleife, aus der sie stammt, bleibt. Gilt nur für freigegebene Dateien aus einer Feedbackschleife; direkt hochgeladene Finale haben keine Quelle und werden gelöscht.
@@ -774,9 +799,9 @@ Wer das Video schneidet, abgeleitet aus den Daten der Kooperation: liegt Rohmate
 _Avoid_: Schnittart, Workflow-Typ, Modus
 
 **Ablaufschritt**:
-Wo ein Kooperationsvideo oder eine Story im Ablauf steht, abgeleitet aus den Dateien: Finale Version vorhanden = Freigegeben, mindestens eine Feedbackschleife = Beim Kunden, nur Rohmaterial = Rohmaterial liegt vor, sonst noch kein Upload. Steuert Hinweise und Zähler im Videos-Tab, es gibt dafür keine eigene Leiste. Nicht zu verwechseln mit dem Status am Video und nicht von Hand gesetzt. Eine Vorschaudatei ist keine Datei in diesem Sinn und ändert den Ablaufschritt nicht.
+Wo ein Kooperationsvideo oder eine Story im Ablauf steht, abgeleitet aus den Dateien: Finale Version vorhanden = Freigegeben, mindestens eine Feedbackschleife = Beim Kunden, nur Rohmaterial = Rohmaterial liegt vor, sonst noch kein Upload. Steuert Hinweise und Zähler im Videos-Tab, es gibt dafür keine eigene Leiste. Nicht zu verwechseln mit dem Status am Video und nicht von Hand gesetzt.
 _Avoid_: Stage, Status, Phase
 
 **Status (Videos-Tab)**:
-Sagt, wer am Zug ist bzw. wie eine Feedbackschleife ausging. Immer aus den Dateien abgeleitet, nie gespeichert: *Wartet auf Kunde* (Kundenansicht: *Zu prüfen*) für die aktuelle Feedbackschleife, *Änderungen angefordert* für eine Schleife mit Nachfolger, *Freigegeben* sobald eine Finale Version vorliegt (an der Schleife: die letzte davor). Der Zähler an der Kooperation zählt Dateien, die beim Kunden liegen; Ordner und Dateien tragen keinen eigenen Zähler. Ein Button „Freigeben“ für den Kunden gibt es bewusst noch nicht: die Freigabe setzt heute das Team über die Finale Version. Ob eine Vorschaudatei fertig ist, ändert den Status nicht.
+Sagt, wer am Zug ist bzw. wie eine Feedbackschleife ausging. Immer aus den Dateien abgeleitet, nie gespeichert: *Wartet auf Kunde* (Kundenansicht: *Zu prüfen*) für die aktuelle Feedbackschleife, *Änderungen angefordert* für eine Schleife mit Nachfolger, *Freigegeben* sobald eine Finale Version vorliegt (an der Schleife: die letzte davor). Der Zähler an der Kooperation zählt Dateien, die beim Kunden liegen; Ordner und Dateien tragen keinen eigenen Zähler. Ein Button „Freigeben“ für den Kunden gibt es bewusst noch nicht: die Freigabe setzt heute das Team über die Finale Version.
 _Avoid_: Offen, Abgeschlossen (als Status einer Schleife)

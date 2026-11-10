@@ -15,13 +15,18 @@ const maxFrameHeight = () => Math.max(MIN_H, Math.min(MAX_H, Math.round(window.i
 const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
 export const isFullscreen = (p) => fsEl() === p.root;
 
-// Der Player schrumpft auf die Breite des Rahmens (kein dunkler Rand links und rechts).
-// Die verfügbare Breite kommt deshalb vom Host, nicht von der Bühne, die dem Rahmen folgt.
+// Die Bühne füllt die Spaltenbreite, der Rahmen wird mittig hineingepasst (abzüglich Bühnen-Padding).
 // Im Vollbild füllt die Bühne den Bildschirm, sonst gilt die Maximalhöhe.
+function innerWidth(p) {
+  const cs = getComputedStyle(p.stage);
+  const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  return p.host.clientWidth - pad;
+}
+
 function size(p) {
   const full = isFullscreen(p);
-  const maxW = Math.max(120, full ? p.stage.clientWidth : p.host.clientWidth);
-  const maxH = full ? Math.max(120, p.stage.clientHeight) : maxFrameHeight();
+  const maxW = Math.max(120, full ? p.stage.clientWidth : innerWidth(p));
+  const maxH = full ? Math.max(120, p.stage.clientHeight) : (p.maxHeight ? p.maxHeight() : maxFrameHeight());
   return fitFrame(p.currentRatio, maxW, maxH);
 }
 

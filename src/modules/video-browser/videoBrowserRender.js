@@ -6,4 +6,4 @@
 export { statusBadge, pfadSegmente, renderPath } from './videoBrowserRenderParts.js';
 export { renderColumns, uploadRowHtml } from './videoBrowserRenderColumns.js';
 export { naechsterSchritt, renderDetail } from './videoBrowserRenderDetail.js';
-export { commentHtml } from './videoBrowserRenderItem.js';
+export { commentHtml } from './videoBrowserRenderComments.js';

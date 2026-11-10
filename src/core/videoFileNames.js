@@ -2,11 +2,17 @@
 // Dateinamen für Uploads und Downloads: versionierte/finale Namen, Dropbox-taugliche Namen,
 // laufende Indizes gegen Kollisionen (Stills, zweiter Upload desselben Namens).
 
+/** Umlaute und ß ausgeschrieben (ä → ae, Ä → Ae, ß → ss). */
+function replaceUmlauts(str) {
+  return String(str)
+    .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue')
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
+}
+
 function sanitizeForFilename(str) {
   if (!str) return '';
-  return str
+  return replaceUmlauts(str)
     .toLowerCase()
-    .replace(/[äÄ]/g, 'ae').replace(/[öÖ]/g, 'oe').replace(/[üÜ]/g, 'ue').replace(/ß/g, 'ss')
     .replace(/[^a-z0-9]/g, '_')
     .replace(/_{2,}/g, '_')
     .replace(/^_|_$/g, '');
@@ -44,6 +50,8 @@ export function buildAssetDownloadName(meta, video, asset) {
   const path = asset?.file_path || asset?.file_url || '';
   const extMatch = /\.([a-zA-Z0-9]{2,5})(?:\?|#|$)/.exec(path);
   const ext = extMatch ? extMatch[1] : 'mp4';
+  // Vom Team vergebener Ad-Manager-Name gewinnt: die Datei heißt in Dropbox genauso
+  if (asset?.ad_manager_name) return `${asset.ad_manager_name}.${ext}`;
   const position = video?.position || 1;
   if (asset?.is_final) {
     const rebuilt = buildFinalFileName(meta?.creatorName, meta?.unternehmen, meta?.kampagne, position, asset?.variant_name, ext);
@@ -58,6 +66,55 @@ export function fileBasename(path) {
   const clean = String(path).split('?')[0].split('#')[0];
   const slash = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
   return slash >= 0 ? clean.slice(slash + 1) : clean;
+}
+
+/** Dateiname eines Pfads in Name ohne Endung und Endung (mit Punkt, leer wenn keine). */
+export function splitFileName(path) {
+  const base = fileBasename(path);
+  const dot = base.lastIndexOf('.');
+  return dot > 0 ? { stem: base.slice(0, dot), ext: base.slice(dot) } : { stem: base, ext: '' };
+}
+
+/**
+ * Pfad derselben Datei unter neuem Namen: gleicher Ordner, gleiche Endung. Eine mitgetippte
+ * Endung wird nicht doppelt angehängt. `null`, wenn vom Namen nichts übrig bleibt.
+ */
+export function renamedFilePath(path, name, { adManager = false } = {}) {
+  if (!path) return null;
+  const { ext } = splitFileName(path);
+  let stem = String(name || '').trim();
+  if (ext && stem.toLowerCase().endsWith(ext.toLowerCase())) stem = stem.slice(0, -ext.length);
+  stem = adManager
+    ? sanitizeAdManagerName(stem)
+    : sanitizeDropboxFileName(stem).replace(/^[\s.-]+|[\s.]+$/g, '');
+  if (!stem) return null;
+  const slash = path.lastIndexOf('/');
+  return `${slash >= 0 ? path.slice(0, slash + 1) : ''}${stem}${ext}`;
+}
+
+/**
+ * Name, mit dem der Ad Manager arbeiten kann: Umlaute ausgeschrieben, Leerzeichen zu `_`,
+ * alles außer A-Z a-z 0-9 _ - entfernt, mehrfache und äußere `_` weg. Leer, wenn nichts übrig bleibt.
+ */
+export function sanitizeAdManagerName(str) {
+  if (!str) return '';
+  return replaceUmlauts(str)
+    .replace(/\s/g, '_')
+    .replace(/[^A-Za-z0-9_-]/g, '')
+    .replace(/_{2,}/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+/**
+ * Was beim Speichern aus einer Eingabe wird (für die Live-Vorschau "Wird zu: …").
+ * Eine mitgetippte Endung zählt nicht zum Namen.
+ * @returns {{ typed: string, stem: string, changed: boolean }} stem ist leer, wenn nichts übrig bleibt
+ */
+export function previewAdManagerStem(input, ext = '') {
+  let typed = String(input || '').trim();
+  if (ext && typed.toLowerCase().endsWith(ext.toLowerCase())) typed = typed.slice(0, -ext.length);
+  const stem = sanitizeAdManagerName(typed);
+  return { typed, stem, changed: stem !== typed };
 }
 
 /**

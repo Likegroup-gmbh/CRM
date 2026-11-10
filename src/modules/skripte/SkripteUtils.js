@@ -1,6 +1,7 @@
 // SkripteUtils.js - kleine Helfer fuer das Skripte-Modul
 
 import { replaceRoute } from '../../core/breadcrumbTrail.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export function escapeHtml(value) {
   return String(value ?? '')
@@ -99,6 +100,66 @@ export function replaceSkriptUrl(skriptId) {
 export const OHNE_QUERY = 'ohne';
 export const OHNE_MARKE_LABEL = 'Ohne Marke';
 export const OHNE_KAMPAGNE_LABEL = 'Ohne Kampagne';
+
+/**
+ * Listen-URL eines Skripte-Ordners.
+ * ebene: 'companies' | 'brands' | 'campaigns' | 'items'.
+ * Ohne Marke/Kampagne steht "ohne" in der Query (eigener Ordner der Liste).
+ */
+export function skriptListUrl(scope = {}, ebene = 'items') {
+  if (ebene === 'companies' || !scope.unternehmenId) return '/skripte';
+
+  const params = new URLSearchParams();
+  params.set('unternehmen', scope.unternehmenId);
+  params.set('unternehmen_name', scope.unternehmenName || '');
+  if (ebene === 'brands') return `/skripte?${params}`;
+
+  if (scope.markeId) {
+    params.set('marke', scope.markeId);
+    params.set('marke_name', scope.markeName || '');
+  } else {
+    params.set('marke', OHNE_QUERY);
+    params.set('marke_name', OHNE_MARKE_LABEL);
+  }
+  if (ebene === 'campaigns') return `/skripte?${params}`;
+
+  if (scope.kampagneId) {
+    params.set('kampagne', scope.kampagneId);
+    params.set('kampagne_name', scope.kampagneName || '');
+  } else {
+    params.set('kampagne', OHNE_QUERY);
+    params.set('kampagne_name', OHNE_KAMPAGNE_LABEL);
+  }
+  return `/skripte?${params}`;
+}
+
+/** Offizieller Weg eines Skripts: Skripte > Firma > [Marke] > [Kampagne] > Titel. */
+export function skriptCrumbs(skript) {
+  const scope = {
+    unternehmenId: skript?.unternehmen_id || null,
+    unternehmenName: skript?.unternehmen?.firmenname || 'Unternehmen',
+    markeId: skript?.marke_id || null,
+    markeName: skript?.marke?.markenname || 'Marke',
+    kampagneId: skript?.kampagne_id || null,
+    kampagneName: skript?.kampagne ? KampagneUtils.getDisplayName(skript.kampagne) : 'Kampagne'
+  };
+  const crumbs = [{ label: 'Skripte', url: '/skripte', clickable: true }];
+  if (scope.unternehmenId) {
+    crumbs.push({ label: scope.unternehmenName, url: skriptListUrl(scope, 'brands'), clickable: true });
+    if (scope.markeId) {
+      crumbs.push({ label: scope.markeName, url: skriptListUrl(scope, 'campaigns'), clickable: true });
+    }
+    if (scope.kampagneId) {
+      crumbs.push({ label: scope.kampagneName, url: skriptListUrl(scope, 'items'), clickable: true });
+    }
+  }
+  crumbs.push({
+    label: skript?.titel || 'Skript',
+    url: skript?.id ? `/skripte/${skript.id}` : null,
+    clickable: false
+  });
+  return crumbs;
+}
 
 // ---------------------------------------------------------------------------
 // Kosten-Schaetzung aus prompt_kontext.usage (Anthropic Messages API)

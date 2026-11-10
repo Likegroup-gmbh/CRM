@@ -200,14 +200,65 @@ describe('Casting: Breadcrumb im Sprung', () => {
     delete window.breadcrumbSystem;
   });
 
-  it('setzt den Firmennamen statt Marke', () => {
-    const updateDetailLabel = vi.fn();
-    window.breadcrumbSystem = { updateDetailLabel };
+  it('zeigt Castings > Firma ohne Marken-Crumb', () => {
+    const updateBreadcrumb = vi.fn();
+    window.breadcrumbSystem = { updateBreadcrumb };
     const list = new CreatorAuswahlList();
     list.viewMode = 'items';
     list._ohneMarke = true;
+    list.currentUnternehmenId = FIRMA.id;
     list.currentUnternehmenName = FIRMA.firmenname;
     list.updateBreadcrumb();
-    expect(updateDetailLabel).toHaveBeenCalledWith('Acme');
+    expect(updateBreadcrumb).toHaveBeenCalledWith([
+      { label: 'Castings', url: '/castings', clickable: true },
+      { label: 'Acme', url: '#', clickable: false }
+    ]);
+  });
+});
+
+describe.each([
+  { titel: 'Konzept', erzeuge: () => new StrategieList(), basePath: '/konzepte', listLabel: 'Konzepte', render: 'updateBreadcrumbDisplay' },
+  { titel: 'Casting', erzeuge: () => new CreatorAuswahlList(), basePath: '/castings', listLabel: 'Castings', render: 'updateBreadcrumb' }
+])('Ordner-Ebene in URL und Breadcrumb: $titel', ({ erzeuge, basePath, listLabel, render }) => {
+  beforeEach(() => {
+    window.breadcrumbSystem = { updateBreadcrumb: vi.fn() };
+    window.history.replaceState({}, '', basePath);
+  });
+
+  afterEach(() => {
+    delete window.breadcrumbSystem;
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('Marke: Firma klickbar, Marke aktuell, URL hält beide Ebenen', () => {
+    const list = erzeuge();
+    list.viewMode = 'items';
+    list.currentUnternehmenId = FIRMA.id;
+    list.currentUnternehmenName = FIRMA.firmenname;
+    list.currentMarkeId = MARKE.id;
+    list.currentMarkeName = MARKE.markenname;
+    list[render]();
+    list.syncListUrl();
+
+    const crumbs = window.breadcrumbSystem.updateBreadcrumb.mock.calls.at(-1)[0];
+    expect(crumbs.map((c) => c.label)).toEqual([listLabel, 'Acme', 'Clear']);
+    expect(crumbs[1]).toMatchObject({ clickable: true });
+    expect(new URL(crumbs[1].url, 'http://x').searchParams.get('marke')).toBeNull();
+
+    const params = new URLSearchParams(window.location.search);
+    expect(window.location.pathname).toBe(basePath);
+    expect(params.get('unternehmen')).toBe('u1');
+    expect(params.get('marke')).toBe('m1');
+  });
+
+  it('Unternehmens-Ebene: nur der Listen-Crumb, URL ohne Query', () => {
+    const list = erzeuge();
+    list.viewMode = 'companies';
+    list.currentUnternehmenId = FIRMA.id;
+    list[render]();
+    list.syncListUrl();
+    expect(window.breadcrumbSystem.updateBreadcrumb.mock.calls.at(-1)[0])
+      .toEqual([{ label: listLabel, url: basePath, clickable: false }]);
+    expect(window.location.search).toBe('');
   });
 });

@@ -13,6 +13,7 @@
 import { resolveStreamUrl, prefetchStreamUrl } from '../../core/media/mediaSrc.js';
 import * as MediaCache from '../../core/media/MediaCache.js';
 import { cacheKeyFor, isRiskyFormat, lookupFor, lookupPath } from '../../core/media/player/mediaIdentity.js';
+import { istSharePoint } from '../../core/ablage/ablageLink.js';
 
 const CACHE_TYPE = { video: 'video', story: 'story', still: 'bild' };
 const MAX_PREFETCH = 8;
@@ -38,10 +39,20 @@ export function preconnectMedia() {
   DROPBOX_HOSTS.forEach(preconnect);
 }
 
+/** SharePoint-Host steht erst im Lese-Link (Tenant), daher erst nach dem ersten Link. */
+function preconnectHostOf(url) {
+  if (!url) return;
+  try {
+    preconnect(new URL(url).origin);
+  } catch {
+    // keine absolute URL
+  }
+}
+
 /** Datei-Infos eines Baum-Items (oder direkt eines Assets). */
 export function mediaOf(item) {
   const record = item?.asset || item || {};
-  const lookup = lookupFor(record);
+  const lookup = lookupFor(record, item?.type);
   const type = CACHE_TYPE[item?.type] || null;
   const key = type ? cacheKeyFor(type, record) : null;
   return {
@@ -80,9 +91,10 @@ export function prefetchLinks(items) {
   let n = 0;
   for (const item of items || []) {
     if (!CACHE_TYPE[item?.type]) continue;
-    const { record, hasSource } = mediaOf(item);
+    const { lookup, hasSource } = mediaOf(item);
     if (!hasSource || n >= MAX_PREFETCH) continue;
-    prefetchStreamUrl(record);
+    if (istSharePoint(lookup)) resolveStreamUrl(lookup).then(preconnectHostOf).catch(() => {});
+    else prefetchStreamUrl(lookup);
     n += 1;
   }
 }

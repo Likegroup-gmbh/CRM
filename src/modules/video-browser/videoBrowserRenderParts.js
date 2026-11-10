@@ -3,7 +3,8 @@
 
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
-import { collectDownloadItems, plural, schleifeName, wartetText } from './videoBrowserLogic.js';
+import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
+import { collectDownloadItems, kooperationTitel, plural, schleifeName, wartetText } from './videoBrowserLogic.js';
 
 export const FOLDER_ICON = { raw: 'folder', schleife: 'chat-bubble-left-ellipsis', final: 'check' };
 export const ITEM_ICON = { video: 'film', story: 'phone-mobile', still: 'photo', roh: 'document' };
@@ -62,7 +63,7 @@ export function schleifenText(ctx, folder) {
 export function pfadSegmente(ctx) {
   const { koop, row, folder, item } = ctx.resolved;
   const segments = [{ label: 'Alle Kooperationen', keep: 0 }];
-  if (koop) segments.push({ label: koop.name, keep: 1 });
+  if (koop) segments.push({ label: kooperationTitel(koop, { zeigeLinie: ctx.zeigeLinie, kooperationen: ctx.tree?.kooperationen }), keep: 1 });
   if (row) segments.push({ label: row.label, keep: 2 });
   if (folder) segments.push({ label: folder.name, keep: 3 });
   if (item) segments.push({ label: item.name, keep: 4 });
@@ -91,11 +92,15 @@ function metaHtml(meta, status) {
   return `<span class="vb-row__meta"><span class="vb-dot vb-dot--${esc(status.key)}" aria-hidden="true"></span>${esc(status.label)}${meta ? ` · ${esc(meta)}` : ''}</span>`;
 }
 
-export function rowButton({ depth, id, selected, active, lead, title, titleExtra = '', meta = '', status = null, badge = '', chevron = false, label = '', extraClass = '' }) {
-  const cls = ['vb-row', extraClass, selected ? (active ? 'is-selected is-active' : 'is-selected') : '']
+/**
+ * `liAttrs`: Attribute am Listeneintrag (z. B. data-folder-id als Flugziel), `after`: HTML hinter dem
+ * Button im selben Eintrag (Schnell-Stern, ein Button darf keinen Button enthalten).
+ */
+export function rowButton({ depth, id, selected, active, lead, title, titleExtra = '', meta = '', status = null, badge = '', chevron = false, label = '', extraClass = '', liAttrs = '', after = '' }) {
+  const cls = ['vb-row', extraClass, selected ? (active ? 'is-selected is-active' : 'is-selected') : '', after ? 'has-star' : '']
     .filter(Boolean).join(' ');
   return `
-    <li>
+    <li${after ? ' class="vb-rowwrap"' : ''}${liAttrs ? ` ${liAttrs}` : ''}>
       <button type="button" class="${cls}" data-depth="${depth}" data-id="${esc(id)}" title="${esc(title)}"${selected ? ' aria-current="true"' : ''}${label ? ` aria-label="${esc(label)}"` : ''}>
         <span class="vb-row__lead">${lead}</span>
         <span class="vb-row__text">
@@ -104,13 +109,61 @@ export function rowButton({ depth, id, selected, active, lead, title, titleExtra
         </span>
         ${badge}
         ${chevron ? `<span class="vb-row__chevron" aria-hidden="true">${icon('chevron-right')}</span>` : ''}
-      </button>
+      </button>${after}
     </li>`;
 }
 
 export const rowList = (html) => `<ul class="vb-rows">${html}</ul>`;
 
-export function colShell({ depth, title, sub, activeDepth, bodyHtml, footHtml = '', headExtra = '', zurueck = false }) {
+/**
+ * Filter-Chips (Inhalte-Spalte und Showcase). `active` ist eine Chip-Id oder eine Liste davon.
+ * Einträge mit `kind: 'sep'` werden zum Trenner. `attr` ist das data-Attribut, an dem der Klick erkannt wird.
+ * @param {Array<{ id?: string, label?: string, kind?: string }>} chips
+ */
+export function filterChipsHtml(chips, active, { attr = 'data-vb-filter', label = 'Filter' } = {}) {
+  if (!chips.length) return '';
+  const on = (id) => (Array.isArray(active) ? active.includes(id) : active === id);
+  const html = chips.map((c) => {
+    if (c.kind === 'sep') return '<span class="vb-filter__sep" aria-hidden="true"></span>';
+    return `<button type="button" class="vb-filter__chip${on(c.id) ? ' is-active' : ''}${c.kind === 'final' ? ' vb-filter__chip--final' : ''}" ${attr}="${esc(c.id)}" aria-pressed="${on(c.id)}">${c.kind === 'final' ? icon('star') : ''}<span>${esc(c.label)}</span></button>`;
+  }).join('');
+  return `
+      <div class="vb-filter" data-vb-filter-bar role="group" aria-label="${esc(label)}">
+        ${html}
+      </div>`;
+}
+
+/** Leerer Zustand eines Filters mit Link zum Aufheben (`clearAttr` erkennt den Klick). */
+export function filterEmptyHtml(clearAttr = 'data-vb-filter-clear') {
+  return `<div class="vb-empty vb-empty--filter"><p>Keine Inhalte mit diesem Filter.</p><button type="button" class="mdc-btn mdc-btn--secondary" ${clearAttr}>Filter aufheben</button></div>`;
+}
+
+/**
+ * Umschalter als Radiogruppe: das vorhandene ViewModeToggle (Liste/Grid/Kalender-Optik) mit gleitendem
+ * Indikator hinter dem aktiven Button. Der Indikator ist `[data-vb-tab-indicator]`, das gewählte Element
+ * `aria-checked`, siehe motion.tabIndicator.
+ * @param {{ id: string, label?: string, options: Array<{ value: string, label: string, icon?: string }>, value: string }} cfg
+ */
+export function segmentHtml({ id, label = '', options, value }) {
+  const labelId = `vb-seg-${id}`;
+  const group = ViewModeToggle.render(
+    options.map(o => ({
+      label: esc(o.label),
+      icon: o.icon,
+      active: o.value === value,
+      attrs: `type="button" role="radio" data-vb-seg-opt data-value="${esc(o.value)}" aria-checked="${o.value === value}" tabindex="${o.value === value ? 0 : -1}"`
+    })),
+    {
+      className: 'vb-glide view-toggle--sm',
+      groupAttrs: `role="radiogroup" data-vb-seg="${esc(id)}" ${label ? `aria-labelledby="${labelId}"` : `aria-label="${esc(id)}"`}`,
+      extraHtml: '<span class="vb-glide__thumb" data-vb-tab-indicator aria-hidden="true"></span>'
+    }
+  );
+  if (!label) return group;
+  return `<div class="vb-seg-field"><span class="vb-seg-field__label" id="${labelId}">${esc(label)}</span>${group}</div>`;
+}
+
+export function colShell({ depth, title, sub, activeDepth, bodyHtml, footHtml = '', headExtra = '', toolbarHtml = '', zurueck = false }) {
   return `
     <section class="vb-col vb-col--${depth}${depth === activeDepth ? ' is-active-col' : ''}" data-depth="${depth}" aria-labelledby="vb-col-title-${depth}">
       <header class="vb-col__head">
@@ -121,6 +174,7 @@ export function colShell({ depth, title, sub, activeDepth, bodyHtml, footHtml = 
         </hgroup>
         ${headExtra}
       </header>
+      ${toolbarHtml}
       <div class="vb-col__body" data-vb-body>${bodyHtml}</div>
       ${footHtml ? `<footer class="vb-col__foot">${footHtml}</footer>` : ''}
     </section>`;
@@ -141,4 +195,14 @@ export function downloadButton(ctx, scope, label, { primary = false } = {}) {
 
 export function iconButton(name, label, attrs, extraClass = '') {
   return `<button type="button" class="vb-icon-btn${extraClass}" ${attrs} aria-label="${esc(label)}" title="${esc(label)}">${icon(name)}</button>`;
+}
+
+/** Bearbeiten-Knopf zwischen Stift (bearbeiten) und Haken (speichern) umschalten, z. B. beim Umbenennen. */
+export function setEditButton(button, editing, { edit, save }) {
+  if (!button) return;
+  const label = editing ? save : edit;
+  button.innerHTML = icon(editing ? 'check' : 'pencil-square');
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  button.classList.toggle('is-active', editing);
 }

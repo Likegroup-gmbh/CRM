@@ -13,3 +13,6 @@ export * from './videoBrowserSelection.js';
 export * from './videoBrowserCommentData.js';
 export * from './videoBrowserRow.js';
 export * from './videoBrowserTree.js';
+export * from './videoBrowserGroups.js';
+export * from './videoBrowserTagLogic.js';
+export * from './videoBrowserShowcaseLogic.js';

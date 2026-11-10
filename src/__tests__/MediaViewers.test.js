@@ -12,7 +12,8 @@ import { getTemporaryLink, toRawDropboxUrl, _resetProxyAvailability } from '../c
 import { VideoPlayerLightbox } from '../core/media/player/VideoPlayerLightbox.js';
 import { MediaItemBuilder } from '../core/media/player/MediaItemBuilder.js';
 import { VideoAssetLoader } from '../core/media/player/VideoAssetLoader.js';
-import { resolveStreamUrl, _clearMediaSrcCache } from '../core/media/mediaSrc.js';
+import { resolveStreamUrl, prefetchStreamUrl, _clearMediaSrcCache } from '../core/media/mediaSrc.js';
+import { _clearAblageLinkCache } from '../core/ablage/ablageLink.js';
 import * as MediaCache from '../core/media/MediaCache.js';
 import { VideoElementPool } from '../core/media/player/VideoElementPool.js';
 import { feedbackTargetFor } from '../core/media/player/playerFeedbackTarget.js';
@@ -203,6 +204,76 @@ describe('resolveStreamUrl – Temp-Link-Cache & Fallback', () => {
     nowSpy.mockReturnValue(t0 + 4 * 60 * 60 * 1000);
     await resolveStreamUrl({ file_path: '/x/a.mp4', file_url: null });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('resolveStreamUrl – SharePoint ueber ablage-link', () => {
+  const sp = {
+    file_path: '/Kampagne/clip.mp4',
+    file_url: 'https://contoso.sharepoint.com/sites/x/Shared%20Documents/clip.mp4',
+    typ: 'video', id: 'a1', ablage: 'sharepoint', etag: 'e1',
+  };
+  const linkAntwort = (links, fehlend = []) => vi.fn(async () => ({
+    ok: true,
+    json: async () => ({ links, fehlend }),
+  }));
+  const inEinerStunde = () => new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    _clearMediaSrcCache();
+    _clearAblageLinkCache();
+    _resetProxyAvailability();
+  });
+
+  it('holt den Lese-Link ueber ablage-link (nie dropbox-proxy) und cacht ihn', async () => {
+    const fetchMock = linkAntwort({ a1: { url: 'https://contoso.sharepoint.com/dl/a1', laeuft_ab: inEinerStunde() } });
+    global.fetch = fetchMock;
+
+    expect(await resolveStreamUrl(sp)).toBe('https://contoso.sharepoint.com/dl/a1');
+    expect(await resolveStreamUrl(sp)).toBe('https://contoso.sharepoint.com/dl/a1');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toBe('/.netlify/functions/ablage-link');
+    expect(JSON.parse(opts.body)).toEqual({ items: [{ typ: 'video', id: 'a1' }] });
+  });
+
+  it('fehlender Link: null statt der webUrl, kein Dropbox-Fallback', async () => {
+    const fetchMock = linkAntwort({}, ['a1']);
+    global.fetch = fetchMock;
+
+    expect(await resolveStreamUrl(sp)).toBeNull();
+    expect(fetchMock.mock.calls.map(c => c[0])).toEqual(['/.netlify/functions/ablage-link']);
+  });
+
+  it('Netzfehler wirft nicht, sondern liefert null', async () => {
+    global.fetch = vi.fn(async () => { throw new Error('offline'); });
+    expect(await resolveStreamUrl(sp)).toBeNull();
+  });
+
+  it('ohne typ kein Aufruf (Lookup ohne Medientyp)', async () => {
+    global.fetch = vi.fn();
+    expect(await resolveStreamUrl({ ...sp, typ: null })).toBeNull();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('prefetchStreamUrl waermt den Lese-Link vor, gleichzeitige Aufrufe gehen in einen Call', async () => {
+    const fetchMock = linkAntwort({
+      a1: { url: 'https://contoso.sharepoint.com/dl/a1', laeuft_ab: inEinerStunde() },
+      s1: { url: 'https://contoso.sharepoint.com/dl/s1', laeuft_ab: inEinerStunde() },
+    });
+    global.fetch = fetchMock;
+
+    prefetchStreamUrl(sp);
+    prefetchStreamUrl({ ...sp, typ: 'story', id: 's1' });
+    const url = await resolveStreamUrl(sp);
+
+    expect(url).toBe('https://contoso.sharepoint.com/dl/a1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).items).toEqual([
+      { typ: 'video', id: 'a1' }, { typ: 'story', id: 's1' },
+    ]);
   });
 });
 

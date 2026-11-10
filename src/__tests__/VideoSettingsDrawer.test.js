@@ -16,9 +16,11 @@ function createSettingsSupabase({
   storyAssets = [],
   bilderAssets = [],
 } = {}) {
-  const update = vi.fn(() => ({
-    eq: vi.fn(() => Promise.resolve({ error: null })),
-  }));
+  const update = vi.fn(() => {
+    const result = Promise.resolve({ error: null });
+    const chain = { eq: vi.fn(() => chain), is: vi.fn(() => chain), then: result.then.bind(result) };
+    return chain;
+  });
   return {
     from: vi.fn((table) => ({
       select: vi.fn(() => {
@@ -285,7 +287,9 @@ describe('VideoSettingsDrawer', () => {
 
     async function openWith(videoAssets, callbacks) {
       const sb = createSettingsSupabase({ videoAssets });
-      const deleteEq = vi.fn(() => Promise.resolve({ error: null }));
+      const deleteEq = vi.fn((_col, id) => ({
+        select: vi.fn(() => Promise.resolve({ data: [{ id }], error: null })),
+      }));
       const origFrom = sb.from;
       sb.from = vi.fn((table) => {
         const api = origFrom(table);
@@ -320,6 +324,17 @@ describe('VideoSettingsDrawer', () => {
 
       expect(onFinaleChanged).toHaveBeenCalledTimes(1);
       expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'fin-1', is_final: true }));
+    });
+
+    it('nimmt die Kommentare der Datei mit', async () => {
+      const onDelete = vi.fn();
+      await openWith([asset('va-1')], { onDelete });
+
+      document.querySelector('.video-version-delete-btn[data-asset-id="va-1"]').click();
+      await vi.waitFor(() => expect(onDelete).toHaveBeenCalled());
+
+      expect(window.supabase.from).toHaveBeenCalledWith('kooperation_video_zeitkommentar');
+      expect(window.supabase._update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
     });
   });
 

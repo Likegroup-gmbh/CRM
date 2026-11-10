@@ -58,14 +58,14 @@ describe('resolveItemMedia', () => {
   it('Video mit Asset: Lookup/Key aus dem Asset', () => {
     const asset = { id: 'a', created_at: 't', file_path: '/a.mp4', file_url: 'U' };
     const m = resolveItemMedia({ type: 'video', video: { id: 'v' } }, { videoAsset: asset });
-    expect(m.lookup).toEqual({ file_path: '/a.mp4', file_url: 'U' });
+    expect(m.lookup).toEqual({ file_path: '/a.mp4', file_url: 'U', typ: 'video', id: 'a', ablage: null, etag: null });
     expect(m.key).toBe('video:a:t');
     expect(m.asset).toBe(asset);
   });
 
   it('Story ohne Asset: leerer Lookup, kein Key', () => {
     const m = resolveItemMedia({ type: 'story', slot: { slot_name: 'S' } }, { storyAsset: null });
-    expect(m.lookup).toEqual({ file_path: null, file_url: null });
+    expect(m.lookup).toMatchObject({ file_path: null, file_url: null, id: null });
     expect(m.key).toBeNull();
     expect(m.label).toBe('S');
   });
@@ -75,6 +75,21 @@ describe('resolveItemMedia', () => {
     const still = { id: 's', created_at: 'd', file_url: 'SU' };
     expect(resolveItemMedia({ type: 'bild', image }, { stillAsset: still }).key).toBe('bild:s:d');
     expect(resolveItemMedia({ type: 'bild', image }, {}).key).toBe('bild:i:c');
+  });
+
+  it('typ fuer ablage-link: Story -> story, Bild -> still', () => {
+    const asset = { id: 'x', file_path: '/x', ablage: 'sharepoint', etag: 'e' };
+    expect(resolveItemMedia({ type: 'story', slot: {} }, { storyAsset: asset }).lookup)
+      .toMatchObject({ typ: 'story', id: 'x', ablage: 'sharepoint', etag: 'e' });
+    expect(resolveItemMedia({ type: 'bild', image: asset }, {}).lookup).toMatchObject({ typ: 'still', id: 'x' });
+  });
+
+  it('Video ohne gewaehltes Asset, aber SharePoint-currentAsset: Lookup aus dem Asset statt webUrl', () => {
+    const currentAsset = { id: 'c', created_at: 't', file_path: '/K/c.mp4', file_url: 'https://contoso.sharepoint.com/web', ablage: 'sharepoint', etag: 'e1' };
+    const item = { type: 'video', video: { id: 'v', file_url: 'https://contoso.sharepoint.com/web', currentAsset } };
+    const m = resolveItemMedia(item, {});
+    expect(m.lookup).toMatchObject({ typ: 'video', id: 'c', ablage: 'sharepoint', etag: 'e1', file_path: '/K/c.mp4' });
+    expect(m.key).toBe('video:c:t');
   });
 });
 

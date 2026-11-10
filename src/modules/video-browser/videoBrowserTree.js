@@ -6,6 +6,7 @@ import { FINAL_ID, FINAL_NAME, toHandle, videoName } from './videoBrowserFormat.
 import { deriveBearbeitungsart } from './videoBrowserStatus.js';
 import { normalizeComments } from './videoBrowserCommentData.js';
 import { buildRow, sortBy } from './videoBrowserRow.js';
+import { attachTags } from './videoBrowserTagLogic.js';
 
 const byKey = (list, key) => {
   const map = new Map();
@@ -36,6 +37,11 @@ export function buildTree(raw, { team }) {
   const zeitByVideo = byKey(raw.zeitkommentare || [], 'video_id');
   const stillNotesByVideo = byKey(raw.stillNotes || [], 'video_id');
   const linien = new Map((raw.linien || []).map(l => [l.id, l]));
+  // Produkt hängt an der Videoidee (nur Team geladen): je Kooperation die Produkte ihrer Videos
+  const produktName = new Map((raw.produkte || []).map(p => [p.id, p.name]));
+  const produktByIdee = new Map((raw.ideen || []).map(i => [i.id, produktName.get(i.produkt_id) || null]));
+  // Reihenfolge der Linien wie im Linien-Wechsler (Gruppierung in Spalte 0)
+  const linienOrder = new Map((raw.linien || []).map((l, i) => [l.id, i]));
 
   const kooperationen = (raw.kooperationen || []).map((k) => {
     const rohmaterial = rohByKoop.get(k.id) || [];
@@ -75,13 +81,21 @@ export function buildTree(raw, { team }) {
       });
     });
 
+    const linie = k.briefing_id ? linien.get(k.briefing_id) || null : null;
     return {
       id: k.id,
       name: creatorName,
+      vorname: creator.vorname || creatorName.split(' ')[0],
       kooperationName: k.name || '',
+      creatorId: creator.id || null,
+      createdAt: k.created_at || null,
       handle: toHandle(creator.instagram),
       avatarUrl: creator.profilbild_thumb_url || creator.profilbild_url || null,
-      linie: k.briefing_id ? linien.get(k.briefing_id) || null : null,
+      linie,
+      linieId: linie ? linie.id : null,
+      linieName: linie?.name || '',
+      linieOrder: linie ? linienOrder.get(linie.id) : null,
+      produkte: [...new Set(videos.map(v => produktByIdee.get(v.strategie_item_id)).filter(Boolean))],
       mode: deriveBearbeitungsart(rohmaterial.length),
       rohmaterialCount: rohmaterial.length,
       videoCount: rows.length,
@@ -89,6 +103,8 @@ export function buildTree(raw, { team }) {
       rows
     };
   });
+
+  attachTags(kooperationen, { tagTypen: raw.tagTypen, varianteTags: raw.varianteTags });
 
   return { kooperationen };
 }
@@ -188,7 +204,7 @@ export function currentFolderOf(row) {
 }
 
 /**
- * @param {'item'|'folder'|'koop'} scope
+ * @param {'item'|'formats'|'folder'|'koop'} scope  formats = alle Formate der Finalen Version, sonst wie item
  * @param {{ koop?: object, row?: object, folder?: object, item?: object }} resolved
  * @returns {Array<{ item: object, row: object }>} nur Einträge mit herunterladbarer Datei
  */
@@ -196,6 +212,11 @@ export function collectDownloadItems(scope, { koop, row, folder, item } = {}) {
   let list = [];
   if (scope === 'item' && item && row) {
     list = [{ item, row }];
+  } else if (scope === 'formats' && item && row) {
+    // Im Ordner Finale Version alle Videos (jedes Format ist eine Datei), sonst die gewählte Datei
+    list = folder?.kind === 'final'
+      ? folder.items.filter(i => i.type === 'video').map(i => ({ item: i, row }))
+      : [{ item, row }];
   } else if (scope === 'folder' && folder && row) {
     list = folder.items.map(i => ({ item: i, row }));
   } else if (scope === 'koop' && koop) {

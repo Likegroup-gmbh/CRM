@@ -8,6 +8,8 @@ import {
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import { ablageDateiLoeschen } from '../../core/ablage/ablageApi.js';
+import { istSharePoint, mitAblage } from '../../core/ablage/ablageLink.js';
 
 export class StorysTabHandler {
   constructor(drawer) {
@@ -53,7 +55,7 @@ export class StorysTabHandler {
       if (slotIds.length > 0) {
         const { data: assetData } = await window.supabase
           .from('kooperation_story_asset')
-          .select('id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name')
+          .select(mitAblage('id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name', 'ablage'))
           .in('story_id', slotIds);
         assets = assetData || [];
       }
@@ -650,9 +652,17 @@ export class StorysTabHandler {
     try {
       const slot = this._storySlots.find(s => s.id === slotId);
 
+      // SharePoint: Zeile direkt nach ihrer Datei löschen. Quelle und Finale teilen die Datei,
+      // der Server löscht sie erst, wenn keine andere Zeile mehr auf sie zeigt.
+      for (const asset of (slot?.assets || []).filter(istSharePoint)) {
+        await ablageDateiLoeschen('story', asset.id);
+        const { error } = await window.supabase.from('kooperation_story_asset').delete().eq('id', asset.id);
+        if (error) throw error;
+      }
+
       // Delete all assets from Dropbox
       for (const asset of (slot?.assets || [])) {
-        if (asset.file_path) {
+        if (asset.file_path && !istSharePoint(asset)) {
           await authorizedFetch('/.netlify/functions/dropbox-delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

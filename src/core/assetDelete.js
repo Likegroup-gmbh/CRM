@@ -2,10 +2,13 @@
 // Eine Datei (Video, Story, Still, Rohmaterial) endgültig löschen: erst die Zeile, dann die
 // Datei in Dropbox. Die Datei bleibt, solange eine andere Zeile denselben Pfad nutzt
 // (Finale Versionen teilen sich die Datei ihrer Quelle). is_current und link_content
-// räumt der Video-Trigger ab.
+// räumt der Video-Trigger ab. Liegt die Datei in SharePoint, löscht der Server sie vor der
+// Zeile (er braucht die Zeile für die Rechteprüfung) und lässt sie bei geteilter Nutzung stehen.
 
 import { deleteSingleDropboxFile, syncVideoAssetsAfterDelete } from './VideoDeleteHelper.js';
 import { updateStillCurrentFlags } from './stills/stillAssets.js';
+import { ablageDateiLoeschen } from './ablage/ablageApi.js';
+import { istSharePoint } from './ablage/ablageLink.js';
 
 export const ASSET_TABLE = {
   video: 'kooperation_video_asset',
@@ -42,6 +45,9 @@ export async function deleteAssetWithFile(item) {
   const table = assetTable(item);
   const asset = item.asset || {};
   const sb = window.supabase;
+  const sharePoint = istSharePoint(asset);
+
+  if (sharePoint) await ablageDateiLoeschen(item.type, item.id);
 
   if (item.type === 'video') {
     // asset_id fällt sonst auf null: die Kommentare stünden dann bei allen Varianten der Runde
@@ -57,7 +63,7 @@ export async function deleteAssetWithFile(item) {
   if (error) throw error;
   if (!data?.length) throw new Error('Datei konnte nicht gelöscht werden');
 
-  await deleteFileIfUnreferenced(table, asset.file_path);
+  if (!sharePoint) await deleteFileIfUnreferenced(table, asset.file_path);
 }
 
 /** Wie deleteAssetWithFile, danach Video bzw. Stills der Runde abgleichen. */

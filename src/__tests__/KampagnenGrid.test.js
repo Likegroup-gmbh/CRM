@@ -48,9 +48,37 @@ import {
   setKampagneAnsicht
 } from '../modules/kampagne/KampagneGridView.js';
 
+import { kampagneDetailCrumbs } from '../modules/kampagne/kampagneFolderCrumbs.js';
+
 function mockLocation(search = '') {
   window.history.replaceState({}, '', `/kampagne${search}`);
 }
+
+describe('kampagneDetailCrumbs', () => {
+  const kampagne = {
+    unternehmen_id: 'u1',
+    unternehmen: { firmenname: 'Dirk Rossmann' },
+    marke_id: 'm1',
+    marke: { markenname: 'Isana' }
+  };
+
+  it('Kampagnen > Firma > Marke > Kampagne, Ordner führen ins Grid', () => {
+    const crumbs = kampagneDetailCrumbs(kampagne, 'k1', 'Jahreskooperation');
+    expect(crumbs.map((c) => c.label)).toEqual(['Kampagnen', 'Dirk Rossmann', 'Isana', 'Jahreskooperation']);
+    expect(crumbs[0].url).toBe('/kampagne');
+    const firma = new URL(crumbs[1].url, 'http://x').searchParams;
+    expect(firma.get('unternehmen')).toBe('u1');
+    expect(firma.get('ansicht')).toBe('grid');
+    expect(new URL(crumbs[2].url, 'http://x').searchParams.get('marke')).toBe('m1');
+    expect(crumbs[3]).toEqual({ label: 'Jahreskooperation', url: '/kampagne/k1', clickable: false });
+  });
+
+  it('ohne Marke nur die Firma, ohne Firma nur die Liste', () => {
+    const ohneMarke = kampagneDetailCrumbs({ ...kampagne, marke_id: null, marke: null }, 'k1', 'Sommer');
+    expect(ohneMarke.map((c) => c.label)).toEqual(['Kampagnen', 'Dirk Rossmann', 'Sommer']);
+    expect(kampagneDetailCrumbs({}, 'k1', 'Sommer').map((c) => c.label)).toEqual(['Kampagnen', 'Sommer']);
+  });
+});
 
 describe('initialKampagneView', () => {
   it('startet auf Liste ohne Folder-Query', () => {

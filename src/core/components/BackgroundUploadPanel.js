@@ -242,6 +242,7 @@ export class BackgroundUploadPanel {
     if (job.kind === 'video-replace') return 'Video ersetzen';
     if (job.kind === 'custom') return `Datei${job.items.length > 1 ? `en (${job.items.length})` : ''}`;
     if (job.kind === 'custom-replace') return 'Datei ersetzen';
+    if (job.kind === 'rohmaterial') return `Rohmaterial${job.items.length > 1 ? ` (${job.items.length})` : ''}`;
     return `Video${job.items.length > 1 ? `s (${job.items.length})` : ''}`;
   }
 

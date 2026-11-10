@@ -110,6 +110,26 @@
   background: transparent;
   box-shadow: none;
 }
+
+/* Kompakte Variante: weniger Padding, kleinere Schrift und Icons (--vt-pad = Innenabstand der Leiste) */
+.view-toggle.view-toggle--sm {
+  --vt-pad: var(--space-xxxs);
+  gap: var(--space-xxxs);
+  padding: var(--vt-pad);
+}
+
+.view-toggle.view-toggle--sm .mdc-btn,
+.view-toggle.view-toggle--sm .secondary-btn {
+  gap: var(--space-xxs);
+  padding: calc(var(--space-xxs) + var(--space-xxxs)) calc(var(--space-xs) + var(--space-xxxs));
+  font-size: var(--text-xsm);
+}
+
+.view-toggle.view-toggle--sm .mdc-btn svg,
+.view-toggle.view-toggle--sm .secondary-btn svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
 /* ===== SIDEBAR ===== */
 .sidebar {
   width: var(--sidebar-width);

@@ -1,12 +1,14 @@
 import { FINAL_VARIANTS } from './VideoUploadUtils.js';
 import { STILL_FINAL_VARIANT, updateStillCurrentFlags } from './stills/stillAssets.js';
+import { mitAblage } from './ablage/ablageLink.js';
+import { ablageVonQuelle } from './ablage/ablageUpload.js';
 
 export { STILL_FINAL_VARIANT };
 
-const VIDEO_FINAL_SELECT = 'id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at';
-const STILL_FINAL_SELECT = 'id, kooperation_id, video_id, file_url, file_path, file_name, file_size, variant_name, is_final, source_asset_id, created_at';
+const VIDEO_FINAL_SELECT = mitAblage('id, video_id, file_url, file_path, variant_name, titel, is_final, source_asset_id, created_at');
+const STILL_FINAL_SELECT = mitAblage('id, kooperation_id, video_id, file_url, file_path, file_name, file_size, variant_name, titel, is_final, source_asset_id, created_at');
 
-const STORY_FINAL_SELECT = 'id, video_id, story_id, file_url, file_path, file_name, file_size, variant_name, is_final, source_asset_id, created_at';
+const STORY_FINAL_SELECT = mitAblage('id, video_id, story_id, file_url, file_path, file_name, file_size, variant_name, titel, is_final, source_asset_id, created_at');
 
 function userId() {
   return window.currentUser?.id || null;
@@ -77,10 +79,12 @@ async function promoteVideo(source, slot) {
       file_path: source.file_path,
       version_number: 1,
       variant_name: slot,
+      titel: source.titel || null,
       is_current: false,
       is_final: true,
       source_asset_id: source.id,
       description: source.description || null,
+      ...ablageVonQuelle(source),
       uploaded_by: userId(),
       created_at: new Date().toISOString(),
     })
@@ -106,9 +110,11 @@ async function promoteStory(source, slot) {
       file_size: source.file_size || 0,
       version_number: 1,
       variant_name: slot,
+      titel: source.titel || null,
       is_current: false,
       is_final: true,
       source_asset_id: source.id,
+      ...ablageVonQuelle(source),
       uploaded_by: userId(),
       created_at: new Date().toISOString(),
     })
@@ -138,9 +144,11 @@ async function promoteStill(source) {
       file_size: source.file_size || 0,
       version_number: 1,
       variant_name: STILL_FINAL_VARIANT,
+      titel: source.titel || null,
       is_current: false,
       is_final: true,
       source_asset_id: source.id,
+      ...ablageVonQuelle(source),
       uploaded_by: userId(),
       created_at: new Date().toISOString(),
     })

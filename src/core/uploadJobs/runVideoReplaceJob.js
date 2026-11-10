@@ -4,13 +4,44 @@
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
 import { buildVersionedFileName } from '../VideoUploadUtils.js';
 import { deleteFileIfUnreferenced } from '../assetDelete.js';
+import { ablageZielHolen, hochladenNachSharePoint, sharePointAssetFelder, uploadVerwerfen } from '../ablage/ablageUpload.js';
 import { fetchTokenAndPath, createSharedLink, trackUploadProgress, sameDropboxPath } from './videoUploadSteps.js';
 
 const extOf = (path) => (String(path || '').split('/').pop().match(/\.([^.]+)$/)?.[1] || '').toLowerCase();
 
+// Die alte SharePoint-Datei räumt der Server ab (ersetzen im Ziel-Request).
+async function replaceInSharePoint({ ziel, file, assetId, oldFilePath, oldAblage, item, signal, updateItem }) {
+  const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: trackUploadProgress(item, updateItem) });
+  if (item.directOk === null) updateItem(item.id, { directOk: true });
+  updateItem(item.id, { status: 'saving' });
+
+  const felder = sharePointAssetFelder(commit);
+  const { error: updateErr } = await window.supabase
+    .from('kooperation_video_asset')
+    .update({ ...felder, created_at: new Date().toISOString() })
+    .eq('id', assetId);
+  if (updateErr) {
+    await uploadVerwerfen(ziel.upload_id);
+    throw updateErr;
+  }
+
+  const { error: finalsErr } = await window.supabase
+    .from('kooperation_video_asset')
+    .update(felder)
+    .eq('source_asset_id', assetId);
+  if (finalsErr) console.warn('[VideoReplace] Finale Versionen nicht nachgezogen:', finalsErr.message || finalsErr);
+
+  if (oldFilePath && oldAblage !== 'sharepoint') {
+    await deleteFileIfUnreferenced('kooperation_video_asset', oldFilePath);
+  }
+
+  updateItem(item.id, { status: 'done', loaded: file.size });
+  return { assetId, fileUrl: felder.file_url, filePath: felder.file_path };
+}
+
 export async function runVideoReplaceJob(ctx) {
   const { job, signal, updateItem } = ctx;
-  const { videoId, metadaten, file, assetId, oldFilePath, versionNumber, variantName } = job.payload;
+  const { videoId, metadaten, file, assetId, oldFilePath, oldAblage, versionNumber, variantName } = job.payload;
   const item = job.items[0];
 
   if (!videoId) throw new Error('videoId fehlt');
@@ -32,6 +63,23 @@ export async function runVideoReplaceJob(ctx) {
   );
 
   updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
+
+  const ziel = await ablageZielHolen({
+    typ: 'video',
+    kooperation_id: metadaten?.kooperationId ?? null,
+    kooperation_video_id: videoId,
+    version_number: parseInt(versionNumber, 10) || 1,
+    is_final: false,
+    variant_name: variantName || null,
+    file_name: fileName,
+    file_size: file.size,
+    ersetzen: { typ: 'video', id: assetId },
+  });
+  if (ziel.ziel === 'sharepoint') {
+    return replaceInSharePoint({ ziel, file, assetId, oldFilePath, oldAblage, item, signal, updateItem });
+  }
+  // Ein Dropbox-Upload auf einen SharePoint-Pfad ließe die Zeile auf ein fremdes Item zeigen
+  if (oldAblage === 'sharepoint') throw new Error('Datei liegt in SharePoint und kann gerade nicht ersetzt werden');
 
   const { token, dropboxPath: freshPath } = await fetchTokenAndPath({
     metadaten, versionNumber, variantName, fileName,

@@ -217,6 +217,10 @@ input:-webkit-autofill:focus {
   --sidebar-width-collapsed: 3.5rem;
   --header-height: 64px;
   --container-max-width: 1200px;
+  /* Zentrierte Dokument-Spalte (Briefing) */
+  --doc-max-width: 48rem;
+  /* Budget-Tab: eigene Spalte, 35 % breiter als das Briefing */
+  --budget-max-width: calc(var(--doc-max-width) * 1.35);
   --border-radius: var(--radius-md);
 
   /* ===== ICON GRÖSSEN ===== */

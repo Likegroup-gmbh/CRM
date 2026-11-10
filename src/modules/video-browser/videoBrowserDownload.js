@@ -20,6 +20,7 @@ export function downloadFileName({ item, row }, meta) {
   const asset = item.asset;
   if (item.type === 'video') {
     const name = buildAssetDownloadName(meta, { position: row.number }, asset);
+    if (asset.ad_manager_name) return name;
     const variant = !asset.is_final && asset.variant_name
       ? String(asset.variant_name).trim().replace(/[\\/:*?"<>|\s]+/g, '_')
       : '';
@@ -36,7 +37,8 @@ export function downloadFileName({ item, row }, meta) {
  * Lädt die Einträge nacheinander herunter. Einzelne Datei: eigene Toasts von
  * downloadMediaAsset. Mehrere: eine Sammelmeldung am Ende.
  * @param {Array<{ item: object, row: object }>} entries
- * @param {{ creatorName?: string, unternehmen?: string, kampagne?: string }} meta
+ * @param {{ creatorName?: string, unternehmen?: string, kampagne?: string }|((entry: object) => object)} meta
+ *        als Funktion je Eintrag, wenn die Dateien zu verschiedenen Creators gehören (Showcase)
  * @returns {Promise<{ done: number, failed: number }>}
  */
 export async function downloadItems(entries, meta, { toast } = {}) {
@@ -46,8 +48,11 @@ export async function downloadItems(entries, meta, { toast } = {}) {
     return { done: 0, failed: 0 };
   }
 
+  const metaFor = typeof meta === 'function' ? meta : () => meta;
+
   if (entries.length === 1) {
-    const ok = await downloadMediaAsset(entries[0].item.asset, downloadFileName(entries[0], meta));
+    const { item } = entries[0];
+    const ok = await downloadMediaAsset(item.asset, downloadFileName(entries[0], metaFor(entries[0])), { typ: item.type });
     return { done: ok ? 1 : 0, failed: ok ? 0 : 1 };
   }
 
@@ -56,7 +61,8 @@ export async function downloadItems(entries, meta, { toast } = {}) {
   let failed = 0;
   for (let i = 0; i < entries.length; i++) {
     try {
-      const ok = await downloadMediaAsset(entries[i].item.asset, downloadFileName(entries[i], meta), { silent: true });
+      const { item } = entries[i];
+      const ok = await downloadMediaAsset(item.asset, downloadFileName(entries[i], metaFor(entries[i])), { silent: true, typ: item.type });
       if (ok) done++; else failed++;
     } catch (err) {
       console.error('VideoBrowser: Download fehlgeschlagen', err);

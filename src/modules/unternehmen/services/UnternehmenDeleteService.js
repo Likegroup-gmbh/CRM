@@ -1,4 +1,5 @@
 import { authorizedFetch } from '../../../core/auth/getAccessToken.js';
+import { ablageEntityLoeschen } from '../../../core/ablage/ablageApi.js';
 
 const DELETE_ORDER = [
   { table: 'vertraege', fk: 'kunde_unternehmen_id' },
@@ -119,12 +120,26 @@ export async function cleanupDropbox(kampagneIds, kooperationIds, { fetch: fetch
   return { errors };
 }
 
+/** SharePoint-Ordner des Unternehmens; muss vor den DB-Deletes laufen, sonst findet der Server sie nicht mehr. */
+export async function cleanupAblage(unternehmenId, { fetch: fetchFn } = {}) {
+  try {
+    const res = await ablageEntityLoeschen('unternehmen', unternehmenId, { fetch: fetchFn });
+    return { errors: (res?.fehler || []).map(f => ({ step: 'ablage', error: `${f.pfad || f.item_id}: ${f.fehler}` })) };
+  } catch (err) {
+    return { errors: [{ step: 'ablage', error: err.message || String(err) }] };
+  }
+}
+
 export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProgress, userId, fetch: fetchFn } = {}) {
   const sb = supabase || window.supabase;
   const progress = onProgress || (() => {});
   const result = { success: true, deleted: {}, errors: [] };
 
   const deps = await collectDependentIds(unternehmenId, { supabase: sb });
+
+  progress({ step: 'ablage', count: 1 });
+  const ablageResult = await cleanupAblage(unternehmenId, { fetch: fetchFn });
+  result.errors.push(...ablageResult.errors);
 
   for (const { table } of DELETE_ORDER) {
     const ids = deps[table] || [];

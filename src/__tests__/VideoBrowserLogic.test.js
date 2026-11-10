@@ -161,6 +161,15 @@ describe('Baum', () => {
     expect(final.find(i => i.id === 'f2').name).toBe('Finale Version 1:1');
   });
 
+  it('Finale Version ohne eigenen Titel übernimmt den Titel der Quelldatei', () => {
+    const data = raw();
+    data.videoAssets.push({ id: 'q1', video_id: 'v1', version_number: 1, is_final: false, titel: 'Interview Kudamm', created_at: '2026-02-01' });
+    data.videoAssets.push({ id: 'qf', video_id: 'v1', version_number: 1, variant_name: '9:16', is_final: true, source_asset_id: 'q1', created_at: '2026-02-09' });
+    const t = buildTree(data, { team: true });
+    const v1 = t.kooperationen[0].rows.find(r => r.id === 'v1');
+    expect(v1.folders.find(f => f.kind === 'final').items.find(i => i.id === 'qf').name).toBe('Interview Kudamm');
+  });
+
   it('Runde, die nur Story oder Bild enthält, existiert trotzdem', () => {
     const data = raw();
     data.storyAssets.push({ id: 'sa2', story_id: 's1', version_number: 3, is_final: false, created_at: '2026-02-20' });

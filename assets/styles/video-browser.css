@@ -25,6 +25,22 @@
   flex-shrink: 0;
 }
 
+/* Linien-Dropdown füllt die erste Spalte: seine Trennlinie liegt auf der Spaltenkante darunter.
+   --vb-linie-w misst VideoBrowser.js (Breite der ersten Spalte), ohne Messung bleibt es bei auto. */
+.kampagne-detail-body[data-workflow="videos"] .linien-switch:not(.linien-switch--liste) {
+  width: var(--vb-linie-w, auto);
+  margin-left: calc(-1 * var(--space-xs));
+  padding-left: var(--space-xs);
+  padding-right: var(--space-xs);
+}
+
+.kampagne-detail-body[data-workflow="videos"] .linien-switch:not(.linien-switch--liste) .linien-switch__trigger {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  justify-content: space-between;
+}
+
 .kampagne-detail-body[data-workflow="videos"] > .content-section,
 .kampagne-detail-body[data-workflow="videos"] .workflow-pane[data-pane="videos"] {
   display: flex;
@@ -45,13 +61,13 @@
   --vb-col-min: 10.5rem;
   --vb-col-max: 16.5rem;
   --vb-col-w: clamp(var(--vb-col-min), 18cqi, var(--vb-col-max));
-  --vb-detail-w: clamp(16rem, 28cqi, 26.25rem);
+  --vb-detail-w: clamp(15rem, 24cqi, 23rem);
   --vb-node: 28px;
   --vb-row-h: 56px;
   container-type: inline-size;
   container-name: vb;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -109,7 +125,7 @@
    Die Pfadleiste zeigt dasselbe wie die Spaltenköpfe und erscheint nur, wenn die Spalten horizontal
    scrollen und der Anfang nicht mehr zu sehen ist (Klasse .vb--path, VideoBrowser.js). */
 .vb-path {
-  grid-row: 1;
+  grid-row: 2;
   padding-bottom: var(--space-sm);
   border-bottom: 1px solid var(--border-primary);
 }
@@ -167,7 +183,7 @@
 .vb-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--vb-detail-w);
-  grid-row: 2;
+  grid-row: 3;
   min-height: 0;
 }
 
@@ -322,13 +338,14 @@
 }
 
 /* Fokus innen, sonst schneidet overflow der Spalte den Ring ab. */
-.vb-row:focus-visible {
+.vb-row:focus-visible,
+.vb-todo:focus-visible {
+  outline: none;
   box-shadow: inset 0 0 0 2px var(--gray-300);
 }
 
 .vb-chip:focus-visible,
 .vb-tile:focus-visible,
-.vb-todo:focus-visible,
 .vb-path__link:focus-visible,
 .vb-timeline__play:focus-visible,
 .vb-marker:focus-visible,
@@ -369,7 +386,7 @@
 
 .vb-row__meta {
   font-size: var(--text-xs);
-  color: var(--gray-600);
+  color: var(--gray-500);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -386,18 +403,18 @@
   height: var(--icon-xs);
 }
 
-/* Karten im Detailbereich: eigener Rahmen, Höhe nach Inhalt. */
+/* Zeilen im Detailbereich: wie in den Spalten randlos, Höhe nach Inhalt. */
 .vb-row--detail {
   height: auto;
   min-height: var(--vb-row-h);
-  padding: var(--space-xs) var(--space-sm);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
+  padding: var(--space-xs) var(--space-md);
 }
 
-.vb-row--detail:focus-visible {
-  border-color: var(--gray-400);
-  box-shadow: 0 0 0 3px var(--gray-100);
+/* Trennlinie pro Listeneintrag (Spalten und Detailbereich einheitlich als Tabelle). */
+.vb-rows > li,
+.vb-list > li,
+.vb-todos > li {
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .vb-avatar {
@@ -484,6 +501,78 @@
   font-weight: 500;
 }
 
+/* --- Gruppenköpfe in Spalte 0 (Alle Linien) --------------------------- */
+
+/* Umschalter Creator | Linie und "Alle ein-/aufklappen" über der Liste, scrollt nicht mit. */
+.vb-koopbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  min-width: 0;
+  padding: var(--space-xs) clamp(var(--space-sm), 1.25cqi, var(--space-md));
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.vb-koopbar .vb-icon-btn {
+  margin-left: auto;
+}
+
+/* Kopf klebt oben im Scrollbereich, bis der nächste Kopf ihn verdrängt (Grenze ist sein <li>). */
+.vb-koopgroup__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.vb-koopgroup__head:hover {
+  background: var(--gray-50);
+}
+
+.vb-koopgroup__head .vb-row__name {
+  font-weight: 500;
+}
+
+.vb-koopgroup__chevron {
+  display: grid;
+  flex: none;
+  color: var(--gray-500);
+}
+
+.vb-koopgroup__chevron svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  transition: transform var(--motion-duration-fast, 160ms) ease;
+}
+
+.vb-koopgroup.is-collapsed .vb-koopgroup__chevron svg {
+  transform: rotate(-90deg);
+}
+
+.vb-koopgroup__body[hidden] {
+  display: none;
+}
+
+/* Die Trennlinie unter der Gruppe trägt ihr <li>, nicht die letzte Zeile. */
+.vb-koopgroup__body > li:last-child {
+  border-bottom: 0;
+}
+
+/* Text der Kooperationszeile fluchtet mit dem Namen im Kopf (Breite des Avatars). */
+.vb-row--nested {
+  padding-left: calc(clamp(var(--space-sm), 1.25cqi, var(--space-md)) + var(--height-avatar-sm));
+}
+
+.vb-row--nested .vb-row__lead:empty {
+  display: none;
+}
+
+.vb-row--nested .vb-row__lead:empty + .vb-row__text {
+  margin-left: var(--space-xs);
+}
+
 .vb-slot:empty {
   display: none;
 }
@@ -517,6 +606,32 @@
   color: var(--gray-600);
 }
 
+/* Weitere Ordner aus SharePoint (nur intern), eingeklappt unter den Videos */
+.vb-freie__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--gray-600);
+  cursor: pointer;
+}
+
+.vb-freie__summary svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.vb-freie__summary .vb-group__count {
+  margin-left: auto;
+}
+
+.vb-freie__liste {
+  margin: var(--space-xs) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 .vb-slot {
   font-size: var(--text-xs);
   color: var(--gray-600);
@@ -545,6 +660,8 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  /* Kein horizontales Scrollen: lange Inhalte brechen um oder werden gekürzt */
+  overflow-x: hidden;
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-top: 0;
@@ -555,21 +672,6 @@
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-md);
-}
-
-/* Datei im Detail: Video, Hinweis und Verlauf, darunter die Kommentare. */
-.vb-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.vb-item__media,
-.vb-item__side {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  min-width: 0;
 }
 
 .vb-block {
@@ -616,10 +718,20 @@
 .vb-todos {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xxs);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Im Detailbereich laufen Listen von Kante zu Kante (Padding des Containers aufheben). */
+.vb-detail__inner .vb-list,
+.vb-detail__inner .vb-todos {
+  margin-inline: calc(-1 * var(--space-md));
+  border-top: 1px solid var(--border-primary);
+}
+
+.vb-detail__inner .vb-todos {
+  margin-top: var(--space-xs);
 }
 
 .vb-howto {
@@ -634,9 +746,9 @@
   flex-direction: column;
   gap: var(--space-xxxs);
   width: 100%;
-  padding: var(--space-xs) var(--space-sm);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
+  padding: var(--space-xs) var(--space-md);
+  border: 0;
+  border-radius: 0;
   background: none;
   text-align: left;
   cursor: pointer;
@@ -761,33 +873,11 @@
   font: inherit;
 }
 
-.vb-asset-head__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  min-height: var(--space-xl);
-}
-
-.vb-asset-head__info {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-xs);
-  min-width: 0;
-}
-
 .vb-asset-head__actions {
   display: flex;
   align-items: center;
   gap: var(--space-xxxs);
   margin-left: auto;
-}
-
-/* Mit Freigabe-Button: Button und Icons haben mehr Luft, schmale Detailbereiche brechen um */
-.vb-asset-head__actions--main {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-xs);
 }
 
 .vb-icon-btn {
@@ -834,18 +924,6 @@
 .vb-version {
   font-size: var(--text-xs);
   color: var(--gray-600);
-}
-
-.vb-decision {
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-md);
-  background: var(--gray-50);
-  font-size: var(--text-sm);
-  color: var(--gray-600);
-}
-
-.vb-decision:empty {
-  display: none;
 }
 
 .vb-chips {
@@ -954,14 +1032,14 @@
 
 /* Player */
 
-/* Der Player ist so breit wie der Rahmen (Seitenverhältnis), nie breiter: 9:16, 4:5, 1:1
-   und 16:9 füllen ihre Fläche ohne dunklen Rand. Die Bühne folgt dem Rahmen, Zeitleiste
-   und Werkzeuge richten sich nach dieser Breite (mindestens so breit, wie sie brauchen). */
+/* Die Bühne nimmt die volle Spaltenbreite, das Bild (9:16, 4:5, 1:1, 16:9) sitzt mittig
+   darin und wird nach Seitenverhältnis in die Bühne eingepasst (playerLayout.js).
+   Zeitleiste und Werkzeuge laufen über die ganze Breite. */
 .vb-player {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
   margin: 0;
 }
@@ -969,7 +1047,8 @@
 .vb-player__stage {
   display: grid;
   place-items: center;
-  align-self: flex-start;
+  align-self: stretch;
+  padding: var(--space-sm);
   overflow: hidden;
   border-radius: var(--radius-md);
   background: var(--gray-900);
@@ -1359,12 +1438,1020 @@
   font: inherit;
 }
 
+/* --- Detailbereich: Kopf, Vorschau, Final-Leiste, Tabs --------------------- */
+
+.vb-detail__inner > * {
+  min-width: 0;
+}
+
+.vb-asset-head__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--space-xl);
+}
+
+.vb-asset-head__context {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-asset-head__title.is-editable {
+  margin-inline: calc(-1 * var(--space-xxs));
+  padding: var(--space-xxxs) var(--space-xxs);
+  border-radius: var(--radius-md);
+  cursor: text;
+  transition: background .15s ease;
+}
+
+.vb-asset-head__title.is-editable:hover {
+  background: var(--gray-50);
+}
+
+.vb-asset-head__title.is-editable:focus-visible {
+  outline: 2px solid var(--gray-900);
+  outline-offset: 1px;
+}
+
+.vb-asset-head__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+/* Vorschau: Höhe regelt der Player (playerLayout.js), Final-Leiste und Tabs folgen darunter */
+.vb-preview {
+  display: block;
+  min-width: 0;
+}
+
+.vb-preview .vb-player-host {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Final-Leiste: ein Button in voller Breite */
+.vb-final:empty {
+  display: none;
+}
+
+.vb-promote.vb-finalbar-wrap {
+  display: block;
+  width: 100%;
+}
+
+.vb-finalbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--gray-900);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.vb-finalbar:hover {
+  border-color: var(--gray-600);
+}
+
+.vb-finalbar:focus-visible {
+  outline: 2px solid var(--gray-900);
+  outline-offset: 2px;
+}
+
+.vb-finalbar.is-final {
+  border-style: solid;
+  border-color: var(--gray-900);
+  background: var(--gray-50);
+}
+
+.vb-finalbar[aria-busy="true"] {
+  cursor: progress;
+}
+
+.vb-finalbar__star {
+  display: inline-flex;
+  flex: none;
+  color: var(--gray-600);
+}
+
+.vb-finalbar__star svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.vb-finalbar.is-final .vb-finalbar__star {
+  color: var(--warning-500);
+}
+
+.vb-finalbar.is-final .vb-finalbar__star svg,
+.vb-row-star.is-on svg,
+.vb-chip__star svg,
+.vb-filter__chip--final svg {
+  fill: currentColor;
+}
+
+.vb-finalbar__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vb-finalbar__title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.vb-finalbar__sub {
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+.vb-finalbar__key {
+  flex: none;
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+.vb-promote.vb-finalbar-wrap .vb-promote__menu {
+  left: 0;
+  right: auto;
+}
+
+/* Tabs: sticky am oberen Rand des Detailbereichs, gleitender Indikator */
+.vb-tabs {
+  min-width: 0;
+}
+
+.vb-tabs__list {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  width: 100%;
+  margin-bottom: var(--space-sm);
+  padding: var(--space-xs) 0;
+  gap: var(--space-md);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.vb-tabs__list .tab-button.active::after {
+  display: none;
+}
+
+.vb-tabs__list .tab-count {
+  margin-left: var(--space-xxs);
+}
+
+.vb-tabs__indicator {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--gray-900);
+  pointer-events: none;
+}
+
+.vb-panel {
+  min-width: 0;
+}
+
+.vb-panel[hidden] {
+  display: none;
+}
+
+.vb-panel:focus-visible {
+  outline: none;
+}
+
+/* Tab Details: Eigenschaftsliste, links Beschriftung, rechts Wert */
+.vb-props {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.vb-prop {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-sm);
+  padding: var(--space-xxs) var(--space-xs);
+  margin-inline: calc(-1 * var(--space-xs));
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.vb-prop__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+  min-height: var(--space-xl);
+  color: var(--gray-600);
+}
+
+.vb-prop__label svg {
+  flex: none;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.vb-prop__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  min-height: var(--space-xl);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.vb-prop__text {
+  color: var(--gray-600);
+}
+
+.vb-prop__ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-prop--action {
+  cursor: pointer;
+  transition: background .15s ease;
+}
+
+.vb-prop--action:hover {
+  background: var(--gray-50);
+}
+
+.vb-prop--action:focus-visible {
+  outline: 2px solid var(--gray-900);
+  outline-offset: -2px;
+}
+
+.vb-chip__star {
+  display: inline-flex;
+  color: var(--warning-500);
+}
+
+.vb-chip__star svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* Tags */
+.vb-tagfield {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  width: 100%;
+  min-width: 0;
+}
+
+.vb-tagfield__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.vb-tagfield__row {
+  display: contents;
+}
+
+.vb-tagfield__slot {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.vb-tagfield__hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.vb-tag {
+  gap: var(--space-xxs);
+  white-space: nowrap;
+}
+
+.vb-tag-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding: var(--space-xxxs) var(--space-xs);
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-xl);
+  background: none;
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+
+.vb-tag-trigger svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.vb-tag-trigger:hover {
+  border-color: var(--gray-600);
+  color: var(--gray-900);
+}
+
+.vb-tag-trigger:focus-visible {
+  outline: 2px solid var(--gray-900);
+  outline-offset: 1px;
+}
+
+/* Tag-Combobox */
+.tag-combo {
+  position: relative;
+  min-width: 12rem;
+}
+
+.tag-combo__input {
+  width: 100%;
+  font-size: var(--text-sm);
+}
+
+.tag-combo__list {
+  position: absolute;
+  top: calc(100% + var(--space-xxs));
+  left: 0;
+  z-index: 20;
+  min-width: 100%;
+  width: max-content;
+  max-width: 20rem;
+  max-height: 14rem;
+  margin: 0;
+  padding: var(--space-xxs);
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.tag-combo__heading {
+  padding: var(--space-xs) var(--space-sm) var(--space-xxs);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
+.tag-combo__option {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.tag-combo__option.is-active {
+  background: var(--gray-100);
+}
+
+.tag-combo__option--create {
+  color: var(--gray-900);
+  font-weight: 500;
+}
+
+.tag-combo__empty {
+  padding: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+}
+
+/* Schnell-Stern in der Zeile */
+.vb-rowwrap {
+  position: relative;
+}
+
+.vb-row.has-star {
+  padding-right: calc(var(--space-xl) + var(--space-md));
+}
+
+.vb-row-star {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--space-md) + var(--icon-sm));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-lg);
+  height: var(--space-lg);
+  margin-block: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--gray-400);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s ease, color .15s ease, background .15s ease;
+}
+
+.vb-row-star svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.vb-rowwrap:hover .vb-row-star,
+.vb-row-star:focus-visible,
+.vb-row-star.is-on {
+  opacity: 1;
+}
+
+.vb-row-star:hover {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.vb-row-star.is-on {
+  color: var(--warning-500);
+}
+
+.vb-row-star:focus-visible {
+  outline: 2px solid var(--gray-900);
+  outline-offset: 1px;
+}
+
+@media (hover: none) {
+  .vb-row-star {
+    opacity: 1;
+  }
+}
+
+/* Flug-Ghost beim Markieren als final (hängt am body) */
+.vb-fly-ghost {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--gray-900);
+  color: var(--color-white);
+  box-shadow: var(--shadow-lg);
+}
+
+.vb-fly-ghost svg {
+  width: 50%;
+  height: 50%;
+  fill: currentColor;
+}
+
+/* Filter-Chips über der Inhalte-Liste */
+.vb-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  padding: var(--space-xs) clamp(var(--space-sm), 1.25cqi, var(--space-md));
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.vb-filter__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  max-width: 100%;
+  padding: var(--space-xxxs) var(--space-sm);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  background: none;
+  font-size: var(--text-xs);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.vb-filter__chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-filter__chip svg {
+  flex: none;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.vb-filter__chip:hover {
+  background: var(--gray-50);
+}
+
+.vb-filter__chip.is-active {
+  border-color: var(--gray-900);
+  background: var(--gray-900);
+  color: var(--color-white);
+}
+
+.vb-filter__chip:focus-visible {
+  outline: 2px solid var(--gray-900);
+  outline-offset: 1px;
+}
+
+.vb-empty--filter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.vb-empty--filter p {
+  margin: 0;
+}
+
+/* Tab Ad Manager: eine Zeile je Format */
+.vb-adm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.vb-adm__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.vb-admrow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  padding: var(--space-xs) var(--space-sm);
+  margin-inline: calc(-1 * var(--space-sm));
+  border-radius: var(--radius-md);
+}
+
+.vb-admrow__label {
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+.vb-admrow__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.vb-admrow__name {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  cursor: text;
+  transition: background .15s ease;
+}
+
+.vb-admrow__name:hover {
+  background: var(--gray-50);
+}
+
+.vb-admrow__name:focus-visible {
+  outline: 2px solid var(--gray-900);
+  outline-offset: 1px;
+}
+
+.vb-admrow__ext {
+  flex: none;
+  color: var(--gray-500);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-sm);
+}
+
+.vb-admrow__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-sm);
+}
+
+.vb-admrow__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-xxxs);
+}
+
+.vb-admrow__preview {
+  margin: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+  overflow-wrap: anywhere;
+}
+
+.vb-admrow__preview[hidden] {
+  display: none;
+}
+
+.vb-adm__download {
+  display: flex;
+}
+
 /* --- Reduzierte Bewegung ---------------------------------------------- */
+
+/* --- Showcase: zweite Darstellung (Grid der Finalen Versionen) -------- */
+
+/* Ohne Workflow-Tab-Zeile: Ansicht-Leiste "Ordner | Showcase" über dem Spaltenbrowser */
+.vb-toolbar {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+}
+
+/* Im Showcase sind Pfadleiste, Spalten und Detailbereich ausgeblendet (nicht unmountet) */
+.vb[data-vb-view="showcase"] .vb-main,
+.vb[data-vb-view="showcase"] .vb-path {
+  display: none;
+}
+
+.vb-showcase {
+  display: flex;
+  flex-direction: column;
+  grid-row: 3;
+  min-height: 0;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.vb-showcase[hidden] {
+  display: none;
+}
+
+.vb-showcase__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Umschalter: vorhandenes .view-toggle (layout.css), der aktive Hintergrund gleitet als Indikator */
+.vb-seg-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.vb-seg-field__label {
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+.view-toggle.vb-glide {
+  position: relative;
+}
+
+.view-toggle.vb-glide .mdc-btn {
+  position: relative;
+  z-index: 1;
+}
+
+.view-toggle.vb-glide .mdc-btn.active,
+.view-toggle.vb-glide .mdc-btn.active:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+.vb-glide__thumb {
+  position: absolute;
+  top: var(--vt-pad, var(--space-xxs));
+  bottom: var(--vt-pad, var(--space-xxs));
+  left: 0;
+  width: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+
+/* Leiste: sticky am oberen Rand des Showcase-Scrollbereichs */
+.vb-sc-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.vb-sc-bar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-md);
+}
+
+/* Rechts auf der Linie der Umschalter: Anzahl und "Alle herunterladen" */
+.vb-sc-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+
+.vb-sc-bar__sub {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+/* Filterzeile: dieselben Chips wie in der Inhalte-Spalte, hier horizontal scrollbar */
+.vb-sc-bar .vb-filter {
+  flex-wrap: nowrap;
+  padding: 0;
+  border-bottom: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.vb-sc-bar .vb-filter__chip {
+  flex: none;
+}
+
+.vb-filter__sep {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  background: var(--border-secondary);
+}
+
+.vb-sc-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-md);
+}
+
+.vb-sc-empty {
+  padding: var(--space-md);
+}
+
+.vb-sc-group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.vb-sc-group__name {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.vb-sc-group__count {
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+.vb-sc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--tile, 172px), 1fr));
+  gap: var(--space-md) var(--space-sm);
+  align-items: start;
+}
+
+/* Kachel: ein Button, Vorschau im Seitenverhältnis der Datei */
+.vb-sc-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vb-sc-tile:focus-visible {
+  outline: none;
+}
+
+.vb-sc-tile__frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-md);
+  background: var(--gray-100);
+  overflow: hidden;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color .15s ease;
+}
+
+.vb-sc-tile:hover .vb-sc-tile__frame,
+.vb-sc-tile:focus-visible .vb-sc-tile__frame {
+  outline-color: var(--gray-900);
+}
+
+.vb-sc-tile__media {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--gray-500);
+}
+
+.vb-sc-tile__ph svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.vb-sc-tile__img,
+.vb-sc-tile__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vb-sc-tile__mark {
+  position: absolute;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  z-index: 1;
+  display: inline-flex;
+  pointer-events: none;
+}
+
+.vb-sc-tile__mark--final {
+  left: auto;
+  right: var(--space-xs);
+  padding: var(--space-xxs);
+  border-radius: var(--radius-full);
+  background: rgba(8, 10, 14, 0.55);
+  color: var(--color-white);
+}
+
+.vb-sc-tile__mark--final svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  fill: currentColor;
+}
+
+.vb-sc-tile__tags {
+  position: absolute;
+  right: var(--space-xs);
+  bottom: var(--space-xs);
+  left: var(--space-xs);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s ease;
+}
+
+.vb-sc-tile:hover .vb-sc-tile__tags,
+.vb-sc-tile:focus-visible .vb-sc-tile__tags {
+  opacity: 1;
+}
+
+.vb-sc-tile__bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  background: var(--color-white);
+}
+
+.vb-sc-tile__title,
+.vb-sc-tile__sub {
+  display: block;
+  min-width: 0;
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-sc-tile__title {
+  font-weight: 500;
+}
+
+.vb-sc-tile__sub {
+  color: var(--gray-600);
+}
+
+@media (max-width: 760px) {
+  .vb-sc-bar {
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .vb-sc-body {
+    padding: var(--space-sm);
+  }
+}
+
+/* Vollansicht: Standard-Karte der MediaLightbox (wie Video- und Bild-Viewer), Inhalt im Player-Stil des Detailbereichs. */
+.vb-sc-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.vb-sc-box__count {
+  align-self: flex-start;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.vb-sc-box__host {
+  width: 100%;
+}
+
+.vb-sc-box__info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding-top: var(--space-xs);
+  text-align: center;
+}
+
+.vb-sc-box__title,
+.vb-sc-box__meta {
+  margin: 0;
+}
+
+.vb-sc-box__title {
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.vb-sc-box__meta {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.vb-sc-box__tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-xxs);
+}
+
+.vb-sc-box__open {
+  margin-top: var(--space-xs);
+}
+
+@media (max-width: 760px) {
+  .vb-sc-lightbox .media-lightbox-content {
+    padding: var(--space-md);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .vb *,
   .vb *::before,
-  .vb *::after {
+  .vb *::after,
+  .vb-sc-lightbox,
+  .vb-sc-lightbox * {
     transition-duration: 0s !important;
     animation-duration: 0s !important;
     scroll-behavior: auto !important;

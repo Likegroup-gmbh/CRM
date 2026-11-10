@@ -1,13 +1,29 @@
 const DROPBOX_TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
+// Puffer vor Ablauf: ein Token, das mitten in einem langen Upload abläuft, kostet einen 401-Refresh
+const TOKEN_MARGIN_MS = 5 * 60 * 1000;
+
+// Lebt pro warmer Function-Instanz; spart den OAuth-Roundtrip vor jedem Dropbox-Call.
+let cachedToken = null;
 
 async function getAccessToken() {
+  if (cachedToken && cachedToken.expiresAt > Date.now()) return cachedToken.token;
+  // Parallele Aufrufe während des Refreshs teilen sich denselben Request
+  const pending = refreshAccessToken().then(({ token, expiresIn }) => {
+    cachedToken = { token: Promise.resolve(token), expiresAt: Date.now() + expiresIn * 1000 - TOKEN_MARGIN_MS };
+    return token;
+  });
+  cachedToken = { token: pending, expiresAt: Infinity };
+  pending.catch(() => { if (cachedToken?.token === pending) cachedToken = null; });
+  return pending;
+}
+
+async function refreshAccessToken() {
   const refreshToken = process.env.DROPBOX_REFRESH_TOKEN;
   const appKey = process.env.DROPBOX_APP_KEY;
   const appSecret = process.env.DROPBOX_APP_SECRET;
 
-  console.log(`[dropbox-auth] refreshToken=${refreshToken ? `set(${refreshToken.length}chars)` : 'MISSING'} appKey=${appKey ? 'set' : 'MISSING'} appSecret=${appSecret ? 'set' : 'MISSING'}`);
-
   if (!refreshToken || !appKey || !appSecret) {
+    console.error(`[dropbox-auth] refreshToken=${refreshToken ? 'set' : 'MISSING'} appKey=${appKey ? 'set' : 'MISSING'} appSecret=${appSecret ? 'set' : 'MISSING'}`);
     throw new Error('Dropbox credentials not configured');
   }
 
@@ -22,23 +38,22 @@ async function getAccessToken() {
     }),
   });
 
-  console.log(`[dropbox-auth] token-refresh status=${resp.status}`);
-
   if (!resp.ok) {
     const text = await resp.text();
-    console.error(`[dropbox-auth] token-refresh FAILED: ${text}`);
+    console.error(`[dropbox-auth] token-refresh FAILED (${resp.status}): ${text}`);
     throw new Error(`Token refresh failed: ${resp.status} – ${text}`);
   }
 
   const data = await resp.json();
   const token = data.access_token;
-  console.log(`[dropbox-auth] token-refresh OK: tokenType=${typeof token} tokenLen=${token ? token.length : 0} prefix=${token ? token.substring(0, 20) : 'EMPTY'}... expiresIn=${data.expires_in}`);
 
   if (!token || typeof token !== 'string' || token.length < 10) {
     throw new Error(`Invalid access token from refresh: type=${typeof token} len=${token ? token.length : 0}`);
   }
 
-  return token;
+  // Dropbox liefert expires_in in Sekunden (heute 4 h); ohne Angabe kurz cachen
+  const expiresIn = Number(data.expires_in) > 0 ? Number(data.expires_in) : 600;
+  return { token, expiresIn };
 }
 
 function sanitizePath(str) {

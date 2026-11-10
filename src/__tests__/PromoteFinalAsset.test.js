@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { promoteAssetToFinal, unmarkFinalSlot, markedSlotsForSource } from '../core/PromoteFinalAsset.js';
 
+vi.mock('../core/stills/stillAssets.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  updateStillCurrentFlags: vi.fn(async () => {}),
+}));
+
 function makeThenable(result) {
   const chain = {
     eq: vi.fn(() => chain),
@@ -52,6 +57,46 @@ describe('PromoteFinalAsset', () => {
     expect(result.source_asset_id).toBe('src1');
     expect(result.variant_name).toBe('9:16');
     expect(result.file_url).toBe('https://x/a.mp4');
+  });
+
+  it('übernimmt den Titel der Quelldatei', async () => {
+    const inserted = { id: 'f1', is_final: true };
+    const del = makeThenable({ error: null });
+    const ins = makeThenable({ data: inserted, error: null });
+    ins.single = vi.fn(() => Promise.resolve({ data: inserted, error: null }));
+    const insert = vi.fn(() => ins);
+    window.supabase = { from: vi.fn(() => ({ delete: () => del, insert })) };
+
+    await promoteAssetToFinal('video', { id: 'src1', video_id: 'v1', file_url: 'u', file_path: '/a.mp4', titel: 'Interview Kudamm' }, '9:16');
+
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ titel: 'Interview Kudamm' }));
+  });
+
+  it('Finale zeigen auf dieselbe SharePoint-Datei wie die Quelle', async () => {
+    const ins = makeThenable({ data: { id: 'f1' }, error: null });
+    ins.single = vi.fn(() => Promise.resolve({ data: { id: 'f1' }, error: null }));
+    const insert = vi.fn(() => ins);
+    window.supabase = { from: vi.fn(() => ({ delete: () => makeThenable({ error: null }), insert })) };
+    const ablage = { ablage: 'sharepoint', drive_id: 'd1', item_id: 'it1', etag: 'e1', ctag: 'c1', breite: 1080, hoehe: 1920 };
+
+    await promoteAssetToFinal('video', { id: 'src1', video_id: 'v1', file_url: 'u', file_path: '/a.mp4', ...ablage }, '9:16');
+    await promoteAssetToFinal('story', { id: 's1', story_id: 'st1', video_id: 'v1', file_url: 'u', file_path: '/s.mp4', ...ablage }, '9:16');
+    await promoteAssetToFinal('still', { id: 'b1', video_id: 'v1', file_url: 'u', file_path: '/b.jpg', ...ablage });
+
+    expect(insert).toHaveBeenCalledTimes(3);
+    for (const [row] of insert.mock.calls) expect(row).toMatchObject(ablage);
+  });
+
+  it('Quelle ohne Ablage-Spalten: kein ablage-Feld, die DB setzt dropbox', async () => {
+    const ins = makeThenable({ data: { id: 'f1' }, error: null });
+    ins.single = vi.fn(() => Promise.resolve({ data: { id: 'f1' }, error: null }));
+    const insert = vi.fn(() => ins);
+    window.supabase = { from: vi.fn(() => ({ delete: () => makeThenable({ error: null }), insert })) };
+
+    await promoteAssetToFinal('video', { id: 'src1', video_id: 'v1', file_url: 'u', file_path: '/a.mp4' }, '9:16');
+
+    expect(insert.mock.calls[0][0]).not.toHaveProperty('ablage');
+    expect(insert.mock.calls[0][0]).not.toHaveProperty('item_id');
   });
 
   it('lehnt unbekannte Video-Slots ab', async () => {

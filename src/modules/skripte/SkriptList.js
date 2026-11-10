@@ -12,7 +12,7 @@ import {
   renderItemsView, updateItemsTable as _updateItemsTable, initializeItemsFilterBar
 } from './SkriptListRenderer.js';
 import { bindEvents as _bindEvents } from './SkriptListEvents.js';
-import { OHNE_QUERY, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL } from './SkripteUtils.js';
+import { OHNE_QUERY, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL, skriptListUrl } from './SkripteUtils.js';
 import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
 import { replaceRoute } from '../../core/breadcrumbTrail.js';
 
@@ -125,32 +125,14 @@ export class SkriptList {
   }
 
   listUrl(viewMode = this.viewMode) {
-    if (viewMode === 'companies' || !this.currentUnternehmenId) return '/skripte';
-
-    const params = new URLSearchParams();
-    params.set('unternehmen', this.currentUnternehmenId);
-    params.set('unternehmen_name', this.currentUnternehmenName || '');
-
-    if (viewMode === 'brands') return `/skripte?${params}`;
-
-    if (this.currentMarkeId) {
-      params.set('marke', this.currentMarkeId);
-      params.set('marke_name', this.currentMarkeName || '');
-    } else {
-      params.set('marke', OHNE_QUERY);
-      params.set('marke_name', OHNE_MARKE_LABEL);
-    }
-
-    if (viewMode === 'campaigns') return `/skripte?${params}`;
-
-    if (this.currentKampagneId) {
-      params.set('kampagne', this.currentKampagneId);
-      params.set('kampagne_name', this.currentKampagneName || '');
-    } else {
-      params.set('kampagne', OHNE_QUERY);
-      params.set('kampagne_name', OHNE_KAMPAGNE_LABEL);
-    }
-    return `/skripte?${params}`;
+    return skriptListUrl({
+      unternehmenId: this.currentUnternehmenId,
+      unternehmenName: this.currentUnternehmenName,
+      markeId: this.currentMarkeId,
+      markeName: this.currentMarkeName,
+      kampagneId: this.currentKampagneId,
+      kampagneName: this.currentKampagneName
+    }, viewMode);
   }
 
   syncListUrl() {
@@ -325,7 +307,10 @@ export class SkriptList {
 
   updateBreadcrumbDisplay() {
     if (!window.breadcrumbSystem) return;
-    if (this.viewMode === 'companies') return;
+    if (this.viewMode === 'companies') {
+      window.breadcrumbSystem.updateBreadcrumb([{ label: 'Skripte', url: '/skripte', clickable: false }]);
+      return;
+    }
 
     const crumbs = [
       { label: 'Skripte', url: '/skripte', clickable: true }

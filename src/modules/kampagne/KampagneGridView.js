@@ -9,10 +9,10 @@ import {
   NUR_UNTERNEHMEN_LABEL,
   parseFolderQuery,
   folderListUrl,
-  folderCrumbs,
   withFolderQuery,
   markenEbeneEntfaellt
 } from '../../core/folderListNav.js';
+import { kampagneFolderCrumbs } from './kampagneFolderCrumbs.js';
 import { shouldHideCompleted } from './kampagneListPrefs.js';
 import { loadKampagnenWithRelations } from './KampagneListDataLoader.js';
 import { renderTableWrapper, updateTable } from './KampagneListRenderers.js';
@@ -324,18 +324,9 @@ export class KampagneGridView {
       ]);
       return;
     }
-    const crumbs = folderCrumbs({
-      listLabel: 'Kampagnen',
-      basePath: BASE_PATH,
-      folder: this.folder,
+    window.breadcrumbSystem.updateBreadcrumb(kampagneFolderCrumbs(this.folder, {
       markenEbeneWeg: !!(this.folder.ohneMarke && this.markenEbeneWeg)
-    }).map((crumb) => {
-      if (!crumb.url || crumb.url === '#') return crumb;
-      const url = new URL(crumb.url, window.location.origin);
-      url.searchParams.set('ansicht', 'grid');
-      return { ...crumb, url: `${url.pathname}${url.search}` };
-    });
-    window.breadcrumbSystem.updateBreadcrumb(crumbs);
+    }));
   }
 
   async loadAndRender() {

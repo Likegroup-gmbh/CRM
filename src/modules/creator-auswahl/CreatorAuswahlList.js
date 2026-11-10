@@ -5,9 +5,12 @@
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
-import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
+import { markenEbeneEntfaellt, parseFolderQuery, folderListUrl, folderCrumbs } from '../../core/folderListNav.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
 import { creatorAuswahlListViewsMethods } from './CreatorAuswahlListViews.js';
 import { creatorAuswahlListDrawersMethods } from './CreatorAuswahlListDrawers.js';
+
+const BASE_PATH = '/castings';
 
 export class CreatorAuswahlList {
   constructor() {
@@ -41,12 +44,13 @@ export class CreatorAuswahlList {
     }
 
     this._forceReload = true;
-    this.viewMode = 'companies';
-    this.currentUnternehmenId = null;
-    this.currentUnternehmenName = null;
-    this.currentMarkeId = null;
-    this.currentMarkeName = null;
-    this._ohneMarke = false;
+    const folder = parseFolderQuery(window.location.search);
+    this.viewMode = folder.viewMode;
+    this.currentUnternehmenId = folder.unternehmenId;
+    this.currentUnternehmenName = folder.unternehmenName;
+    this.currentMarkeId = folder.markeId;
+    this.currentMarkeName = folder.ohneMarke ? null : folder.markeName;
+    this._ohneMarke = folder.ohneMarke;
 
     const canView = window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_view;
     if (!canView) {
@@ -94,20 +98,31 @@ export class CreatorAuswahlList {
     }
   }
 
+  folder() {
+    return {
+      unternehmenId: this.viewMode === 'companies' ? null : this.currentUnternehmenId,
+      unternehmenName: this.currentUnternehmenName,
+      markeId: this.currentMarkeId,
+      markeName: this.currentMarkeName,
+      ohneMarke: this._ohneMarke
+    };
+  }
+
   updateBreadcrumb() {
     if (!window.breadcrumbSystem) return;
-    if (this.viewMode === 'companies') {
-      return;
-    }
+    window.breadcrumbSystem.updateBreadcrumb(folderCrumbs({
+      listLabel: 'Castings',
+      basePath: BASE_PATH,
+      folder: this.folder(),
+      markenEbeneWeg: this.markenEbeneWeg()
+    }));
+  }
 
-    if (this.viewMode === 'brands') {
-      window.breadcrumbSystem.updateDetailLabel(this.currentUnternehmenName || 'Unternehmen');
-      return;
-    }
-
-    window.breadcrumbSystem.updateDetailLabel(
-      this._ohneMarke ? (this.currentUnternehmenName || 'Unternehmen') : (this.currentMarkeName || 'Marke')
-    );
+  // Ordner-Ebene in der URL: Zurück, Reload und der Klickpfad ins Detail finden sie wieder.
+  // Nach einem späten Laden nicht die URL einer inzwischen geöffneten Seite überschreiben.
+  syncListUrl() {
+    if (window.location.pathname !== BASE_PATH) return;
+    replaceRoute(folderListUrl(BASE_PATH, this.folder()));
   }
 
   // Firma ohne echte Marke: die Marken-Seite fällt weg, die Castings hängen direkt an der Firma.
@@ -137,6 +152,7 @@ export class CreatorAuswahlList {
 
   render() {
     this.updateBreadcrumb();
+    this.syncListUrl();
     let html = '';
     if (this.viewMode === 'companies') {
       html = this.renderCompaniesView();

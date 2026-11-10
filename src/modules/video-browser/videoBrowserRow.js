@@ -152,7 +152,15 @@ const ratioRank = (a) => {
 const sortFinals = (list) => [...list].sort((a, b) =>
   ratioRank(a) - ratioRank(b) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
 
-function finalFolder({ rowId, team, finalAssets, stillFinals, storyFinals, stories }) {
+/** Titel einer finalen Datei; ohne eigenen Titel (ältere Freigaben) der Titel der Quelldatei. */
+function titelMap(...lists) {
+  const map = new Map();
+  for (const list of lists) for (const a of list) if (a.titel) map.set(a.id, a.titel);
+  return map;
+}
+
+function finalFolder({ rowId, team, finalAssets, stillFinals, storyFinals, stories, quellTitel }) {
+  const titelOf = (a) => a.titel || quellTitel.get(a.source_asset_id) || null;
   const anzahl0 = finalAssets.length + stillFinals.length + storyFinals.length;
   // Für das Team immer da, auch leer: Dropzone für direkte Finale. Kunden sehen ihn erst mit Inhalt.
   const finalBase = { status: statusOf('freigegeben', team), rowId, isFinal: true, runde: null, locked: true };
@@ -161,7 +169,7 @@ function finalFolder({ rowId, team, finalAssets, stillFinals, storyFinals, stori
     id: a.id,
     type: 'video',
     group: 'Videos',
-    name: a.titel || `${FINAL_NAME} ${ratioOf(a)}`,
+    name: titelOf(a) || `${FINAL_NAME} ${ratioOf(a)}`,
     meta: ratioOf(a),
     ratio: ratioOf(a),
     version: a.version_number || 1,
@@ -172,7 +180,7 @@ function finalFolder({ rowId, team, finalAssets, stillFinals, storyFinals, stori
     id: a.id,
     type: 'still',
     group: 'Bilder',
-    name: a.titel || a.file_name || `Bild ${idx + 1}`,
+    name: titelOf(a) || a.file_name || `Bild ${idx + 1}`,
     meta: 'Bild',
     ratio: '4:5',
     version: a.version_number || 1,
@@ -183,7 +191,7 @@ function finalFolder({ rowId, team, finalAssets, stillFinals, storyFinals, stori
     id: a.id,
     type: 'story',
     group: 'Stories',
-    name: a.titel || `${storyName(stories.number(a))} · ${ratioOf(a)}`,
+    name: titelOf(a) || `${storyName(stories.number(a))} · ${ratioOf(a)}`,
     meta: ratioOf(a),
     ratio: ratioOf(a),
     version: a.version_number || 1,
@@ -255,7 +263,10 @@ export function buildRow({
     folders.push(nextLoopFolder(maxVersion + 1, versionen.length === 0));
   }
 
-  if (hatFinal || team) folders.push(finalFolder({ rowId: id, team, finalAssets, stillFinals, storyFinals, stories }));
+  if (hatFinal || team) folders.push(finalFolder({
+    rowId: id, team, finalAssets, stillFinals, storyFinals, stories,
+    quellTitel: titelMap(loopAssets, storyLoop, stillLoop)
+  }));
 
   const stage = deriveAblaufschritt({
     rohmaterialCount: rohmaterial.length,

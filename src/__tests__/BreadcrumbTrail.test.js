@@ -60,6 +60,34 @@ describe('nextTrail', () => {
     })).toEqual([]);
   });
 
+  it('Ordner-Liste → eigenes Detail behält den Ordnerpfad', () => {
+    const folderUrl = '/skripte?unternehmen=u1&unternehmen_name=Dirk&marke=ohne&marke_name=Ohne+Marke&kampagne=k1&kampagne_name=Jahreskooperation';
+    expect(nextTrail({
+      currentCrumbs: [
+        { label: 'Skripte', url: '/skripte', clickable: true },
+        { label: 'Dirk', url: '/skripte?unternehmen=u1&unternehmen_name=Dirk&marke=ohne', clickable: true },
+        { label: 'Jahreskooperation', url: '#', clickable: false }
+      ],
+      currentUrl: folderUrl,
+      targetRoute: '/skripte/s1'
+    })).toEqual([
+      { label: 'Skripte', url: '/skripte' },
+      { label: 'Dirk', url: '/skripte?unternehmen=u1&unternehmen_name=Dirk&marke=ohne' },
+      { label: 'Jahreskooperation', url: folderUrl }
+    ]);
+  });
+
+  it('Ordner-Liste → feste Unterseite (Master-Regelwerk) zeigt den offiziellen Weg', () => {
+    expect(nextTrail({
+      currentCrumbs: [
+        { label: 'Skripte', url: '/skripte', clickable: true },
+        { label: 'Dirk', url: '#', clickable: false }
+      ],
+      currentUrl: '/skripte?unternehmen=u1',
+      targetRoute: '/skripte/master'
+    })).toEqual([]);
+  });
+
   it('Zyklus kürzt bis vor das Ziel', () => {
     const crumbs = [
       { label: 'Kampagne', url: '/kampagne' },
@@ -176,6 +204,34 @@ describe('composeCrumbs', () => {
       { label: 'Gen Z', clickable: false }
     ]);
     expect(crumbs.map((c) => c.label)).toEqual(['Unternehmen', 'ACME', 'Personas', 'Gen Z']);
+  });
+
+  it('Ordnerpfad + Ordner-Kette: setzt hinter der tiefsten Ordner-Ebene an', () => {
+    const trail = [
+      { label: 'Konzepte', url: '/konzepte' },
+      { label: 'ACME', url: '/konzepte?unternehmen=u1' },
+      { label: 'Glow', url: '/konzepte?unternehmen=u1&marke=m1' }
+    ];
+    const crumbs = composeCrumbs(trail, [
+      { label: 'Konzepte', url: '/konzepte', clickable: true },
+      { label: 'ACME', url: '/konzepte?unternehmen=u1&unternehmen_name=ACME', clickable: true },
+      { label: 'Glow', url: '/konzepte?unternehmen=u1&marke=m1&marke_name=Glow', clickable: true },
+      { label: 'Hook-Idee', url: '/konzepte/s1', clickable: false }
+    ]);
+    expect(crumbs.map((c) => c.label)).toEqual(['Konzepte', 'ACME', 'Glow', 'Hook-Idee']);
+    expect(crumbs[2]).toMatchObject({ url: '/konzepte?unternehmen=u1&marke=m1', clickable: true });
+  });
+
+  it('Ordnerpfad + Kette ohne Ordner: nur das Blatt hängt dran', () => {
+    const trail = [
+      { label: 'Skripte', url: '/skripte' },
+      { label: 'Dirk', url: '/skripte?unternehmen=u1&kampagne=k1' }
+    ];
+    const crumbs = composeCrumbs(trail, [
+      { label: 'Skripte', url: '/skripte', clickable: true },
+      { label: 'Hook A', url: '/skripte/s1', clickable: false }
+    ]);
+    expect(crumbs.map((c) => c.label)).toEqual(['Skripte', 'Dirk', 'Hook A']);
   });
 });
 

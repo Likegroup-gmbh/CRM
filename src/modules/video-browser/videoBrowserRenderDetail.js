@@ -3,7 +3,7 @@
 
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
-import { FINAL_ID, plural } from './videoBrowserLogic.js';
+import { FINAL_ID, kooperationLabels, kooperationTitel, kooperationZusatz, plural, weitereKooperationen } from './videoBrowserLogic.js';
 import {
   FOLDER_ICON,
   ITEM_ICON,
@@ -16,6 +16,7 @@ import {
   statusBadge
 } from './videoBrowserRenderParts.js';
 import { detailItem } from './videoBrowserRenderItem.js';
+import { freieOrdnerSlot, ordnerLinkButton } from './videoBrowserAblage.js';
 
 export function naechsterSchritt(row, team) {
   const loop = row.folders.find(f => f.kind === 'schleife' && f.current && !f.leer);
@@ -62,7 +63,7 @@ function detailAnstehend(ctx) {
   const liste = eintraege.slice(0, 30).map(e => `
     <li>
       <button type="button" class="vb-todo" data-goto-koop="${esc(e.k.id)}" data-goto-video="${esc(e.r.id)}"${e.ordner ? ` data-goto-folder="${esc(e.ordner)}"` : ''}>
-        <span class="vb-todo__title">${esc(e.k.name)} · ${esc(e.r.label)}</span>
+        <span class="vb-todo__title">${esc([kooperationTitel(e.k, { zeigeLinie: ctx.zeigeLinie, kooperationen: ctx.tree.kooperationen }), e.r.label].join(' · '))}</span>
         <span class="vb-todo__meta">${esc(e.text)}</span>
       </button>
     </li>`).join('');
@@ -70,6 +71,30 @@ function detailAnstehend(ctx) {
     <section class="vb-block">
       <h4 class="vb-detail__title">Was gerade ansteht</h4>
       ${liste ? `<ul class="vb-todos">${liste}</ul>` : empty('Aktuell steht nichts an.')}
+    </section>`;
+}
+
+/** Team: dieselbe Person in ihren anderen Kooperationen der Produktion, ein Klick wechselt dorthin. */
+function weitereKooperationenHtml(ctx, koop) {
+  if (!ctx.team) return '';
+  const andere = weitereKooperationen(ctx.tree.kooperationen, koop);
+  if (!andere.length) return '';
+  const labels = kooperationLabels([koop, ...andere]);
+  const list = andere.map(k => `
+    <li>
+      <button type="button" class="vb-row vb-row--detail" data-goto-koop="${esc(k.id)}">
+        <span class="vb-row__lead">${avatar(k)}</span>
+        <span class="vb-row__text">
+          <span class="vb-row__title"><span class="vb-row__name">${esc(labels.get(k.id).title)}</span></span>
+          <span class="vb-row__meta">${esc(plural(k.videoCount, 'Video', 'Videos'))}</span>
+        </span>
+        <span class="vb-row__chevron" aria-hidden="true">${icon('chevron-right')}</span>
+      </button>
+    </li>`).join('');
+  return `
+    <section class="vb-block">
+      <h4 class="vb-detail__eyebrow">Weitere Kooperationen von ${esc(koop.vorname || koop.name)}</h4>
+      <ul class="vb-list" aria-label="Weitere Kooperationen">${list}</ul>
     </section>`;
 }
 
@@ -89,6 +114,11 @@ function detailKooperation(ctx) {
     </li>`;
   }).join('');
   const dlKoop = downloadButton(ctx, 'koop', 'Alle aktuellen Videos herunterladen');
+  const ordnerLink = ordnerLinkButton(koop);
+  const actions = [
+    dlKoop && `${dlKoop}<p class="vb-actions__hint">Pro Video die Finale Version, sonst die jüngste Feedbackschleife.</p>`,
+    ordnerLink && `${ordnerLink}<p class="vb-actions__hint">Lesezugriff auf den Videos-Ordner in SharePoint, ohne Anmeldung.</p>`
+  ].filter(Boolean).join('');
   // Die Bearbeitungsart wird aus dem Rohmaterial abgeleitet. Ohne Rohmaterial heißt das nicht,
   // dass extern geschnitten wird, nur dass noch keins da ist.
   const info = ctx.team
@@ -101,12 +131,14 @@ function detailKooperation(ctx) {
       ${avatar(koop)}
       <div>
         <h4 class="vb-detail__title">${esc(koop.name)}</h4>
-        <p class="vb-detail__sub">${esc([koop.handle, plural(koop.videoCount, 'Video', 'Videos')].filter(Boolean).join(' · '))}</p>
+        <p class="vb-detail__sub">${esc([kooperationZusatz(koop, { zeigeLinie: ctx.zeigeLinie, kooperationen: ctx.tree.kooperationen }), koop.handle, plural(koop.videoCount, 'Video', 'Videos')].filter(Boolean).join(' · '))}</p>
       </div>
     </section>
     ${info}
-    ${dlKoop ? `<div class="vb-block vb-actions">${dlKoop}<p class="vb-actions__hint">Pro Video die Finale Version, sonst die jüngste Feedbackschleife.</p></div>` : ''}
-    <div class="vb-block">${list ? `<ul class="vb-list" aria-label="Videos">${list}</ul>` : empty('Noch keine Videos.')}</div>`;
+    ${actions ? `<div class="vb-block vb-actions">${actions}</div>` : ''}
+    <div class="vb-block">${list ? `<ul class="vb-list" aria-label="Videos">${list}</ul>` : empty('Noch keine Videos.')}</div>
+    ${weitereKooperationenHtml(ctx, koop)}
+    ${freieOrdnerSlot(ctx, koop)}`;
 }
 
 function folderRowDetail(f) {

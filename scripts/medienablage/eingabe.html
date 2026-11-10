@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Medienablage · Eingaben</title>
+<style nonce="__NONCE__">
+  :root {
+    --bg: #f6f7f9; --karte: #fff; --text: #1d2330; --leise: #5f6b7a; --linie: #e3e7ec;
+    --akzent: #2457d6; --ok: #1f8a4c; --ok-bg: #e6f4ec; --fehlt: #b4401e; --fehlt-bg: #fbece6;
+    --opt: #6b7280; --opt-bg: #eef0f3; --code: #f0f2f5; --schatten: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --karte: #1b2029; --text: #e6e9ef; --leise: #9aa4b2; --linie: #2b323d;
+      --akzent: #6d95ff; --ok: #4cc38a; --ok-bg: #173326; --fehlt: #ff8a65; --fehlt-bg: #3a2119;
+      --opt: #9aa4b2; --opt-bg: #262c36; --code: #242a34; --schatten: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--akzent); text-decoration: none; white-space: nowrap; }
+  a:hover { text-decoration: underline; }
+  code { font: 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  .seite { max-width: 940px; margin: 0 auto; padding: 32px 20px 120px; }
+  .kopf h1 { margin: 0 0 6px; font-size: 24px; }
+  .kopf p { margin: 0 0 14px; color: var(--leise); max-width: 760px; }
+  .kopf-zeile { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .fortschritt { display: flex; gap: 8px; flex-wrap: wrap; }
+  .fortschritt span { background: var(--karte); border: 1px solid var(--linie); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 22px 0 8px; position: sticky; top: 0; background: var(--bg); padding: 10px 0; z-index: 2; }
+  nav a { font-size: 13px; border: 1px solid var(--linie); background: var(--karte); border-radius: 8px; padding: 4px 10px; color: var(--text); }
+  nav a.fertig { border-color: var(--ok); color: var(--ok); }
+  .gruppe { background: var(--karte); border: 1px solid var(--linie); border-radius: 12px; box-shadow: var(--schatten); padding: 6px 22px 18px; margin: 18px 0; scroll-margin-top: 60px; }
+  .gruppe > header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 14px 0 6px; border-bottom: 1px solid var(--linie); margin-bottom: 6px; }
+  .gruppe h2 { margin: 0; font-size: 18px; }
+  .meta { color: var(--leise); font-size: 13px; flex: 1; }
+  .zaehler { font-size: 13px; font-weight: 600; color: var(--fehlt); }
+  .zaehler.ok { color: var(--ok); }
+  .feld, .aktion, .haken, .info { padding: 14px 0; border-bottom: 1px dashed var(--linie); }
+  .gruppe > :last-child { border-bottom: 0; }
+  .feld-kopf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .feld-kopf label { font-weight: 600; }
+  .pill { font-size: 12px; border-radius: 999px; padding: 1px 9px; font-weight: 600; }
+  .pill.ok { color: var(--ok); background: var(--ok-bg); }
+  .pill.fehlt { color: var(--fehlt); background: var(--fehlt-bg); }
+  .pill.opt { color: var(--opt); background: var(--opt-bg); }
+  .wo { margin: 4px 0 8px; color: var(--leise); font-size: 14px; }
+  .zeile { display: flex; gap: 8px; align-items: center; }
+  input[type=text], input[type=password] { flex: 1; min-width: 0; font: 13.5px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 8px 10px; border: 1px solid var(--linie); border-radius: 8px; background: var(--bg); color: var(--text); }
+  input:focus { outline: 2px solid var(--akzent); outline-offset: -1px; }
+  .hat-fehler input { border-color: var(--fehlt); }
+  .fehler { margin: 6px 0 0; color: var(--fehlt); font-size: 13px; }
+  .fehler:empty { display: none; }
+  button { font: inherit; font-size: 14px; border-radius: 8px; padding: 7px 14px; border: 1px solid var(--akzent); background: var(--akzent); color: #fff; cursor: pointer; white-space: nowrap; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.leise { background: transparent; color: var(--akzent); border-color: var(--linie); padding: 6px 10px; font-size: 13px; }
+  .aktion { display: grid; gap: 8px; }
+  .aktion-text p { margin: 2px 0 0; color: var(--leise); font-size: 14px; }
+  .fehlt-text { color: var(--fehlt) !important; }
+  .log { margin: 0; padding: 10px 12px; border-radius: 8px; font: 12.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+  .log.ok { background: var(--ok-bg); }
+  .log.nok { background: var(--fehlt-bg); }
+  .haken { display: flex; gap: 10px; align-items: flex-start; }
+  .haken input { margin-top: 4px; width: 16px; height: 16px; accent-color: var(--ok); flex: none; }
+  .haken label { cursor: pointer; }
+  .haken .erledigt { color: var(--leise); text-decoration: line-through; }
+  .haken .code-zeile { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; }
+  .haken .code-zeile code { display: block; flex: 1; padding: 8px 10px; word-break: break-all; }
+  .klein { font-size: 12px; color: var(--leise); text-transform: uppercase; letter-spacing: .04em; margin-right: 6px; }
+  .info dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; font-size: 14px; }
+  .info dt { color: var(--leise); }
+  .info dd { margin: 0; word-break: break-all; }
+  .datei { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 6px 0; }
+  .leiste { position: fixed; left: 0; right: 0; bottom: 0; background: var(--karte); border-top: 1px solid var(--linie); padding: 12px 20px; display: flex; justify-content: center; gap: 12px; align-items: center; box-shadow: 0 -4px 16px rgba(0,0,0,.08); z-index: 10; }
+  .leiste[hidden] { display: none; }
+  .toast { position: fixed; top: 16px; right: 16px; padding: 10px 16px; border-radius: 8px; background: var(--ok); color: #fff; font-weight: 600; z-index: 11; max-width: 420px; }
+  .toast.nok { background: var(--fehlt); }
+  .toast[hidden] { display: none; }
+  .leer { color: var(--leise); }
+</style>
+</head>
+<body>
+<div class="seite">
+  <div class="kopf">
+    <h1>Medienablage · Eingaben</h1>
+    <p>Nur das, was für den SharePoint-Video-Upload neu dazukommt. Jede Zeile sagt, wo du den Wert findest.
+      Gespeichert wird auf deinem Rechner in <code id="pfad-live">.env</code>, gitignored, nur für dich lesbar.
+      URL und anon-Key des bestehenden Supabase bleiben, wie sie sind. Leere Felder ändern nichts.</p>
+    <div class="kopf-zeile">
+      <div class="fortschritt" id="fortschritt"></div>
+      <button type="button" class="leise" id="beenden">Server beenden</button>
+    </div>
+  </div>
+  <nav id="nav"></nav>
+  <main id="gruppen"><p class="leer">Lade …</p></main>
+</div>
+<div class="leiste" id="leiste" hidden>
+  <span id="aenderungen"></span>
+  <button type="button" class="leise" id="verwerfen">Verwerfen</button>
+  <button type="button" id="speichern">Speichern</button>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script nonce="__NONCE__">
+'use strict';
+const TOKEN = new URLSearchParams(location.hash.slice(1)).get('t') || '';
+let S = null;
+let FB = new Map();
+const neu = new Map();
+const fehlerFeld = new Map();
+const logs = new Map();
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const link = (href, text = 'öffnen ↗') => (href ? ` <a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>` : '');
+const passt = (f, v) => !v || !f.muster || new RegExp(f.muster).test(v);
+
+async function api(was, body = {}) {
+  const res = await fetch(`/api/${was}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-eingabe-token': TOKEN },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(typeof data.fehler === 'string' ? data.fehler : `Fehler ${res.status}`);
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+let toastTimer;
+function toast(text, art = 'ok') {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.className = `toast ${art}`;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+}
+
+// ─── Bausteine ──────────────────────────────────────────────
+
+function feldHtml(f) {
+  const status = f.gesetzt ? '<span class="pill ok">gesetzt</span>'
+    : f.optional ? '<span class="pill opt">optional</span>' : '<span class="pill fehlt">fehlt</span>';
+  const ph = f.geheim && f.gesetzt ? `gesetzt (endet auf …${f.ende}), leer lassen zum Behalten`
+    : f.standard ? `Vorschlag: ${f.standard}` : (f.format || '');
+  const wert = neu.has(f.id) ? neu.get(f.id) : f.wert;
+  const fehler = fehlerFeld.get(f.id) || '';
+  return `<div class="feld${fehler ? ' hat-fehler' : ''}">
+    <div class="feld-kopf"><label for="i-${esc(f.id)}">${esc(f.label)}</label><code>${esc(f.key)}</code>${status}</div>
+    <p class="wo">${esc(f.wo)}${link(f.link)}</p>
+    <div class="zeile">
+      <input id="i-${esc(f.id)}" data-eingabe="${esc(f.id)}" type="${f.geheim ? 'password' : 'text'}" value="${esc(wert)}"
+        placeholder="${esc(ph)}" autocomplete="off" autocapitalize="off" spellcheck="false">
+      ${f.geheim ? `<button type="button" class="leise" data-zeigen="i-${esc(f.id)}">zeigen</button>` : ''}
+      ${f.standard && !f.gesetzt ? `<button type="button" class="leise" data-vorschlag="${esc(f.id)}">übernehmen</button>` : ''}
+    </div>
+    <p class="fehler">${esc(fehler)}</p>
+  </div>`;
+}
+
+function hakenHtml(h) {
+  return `<div class="haken">
+    <input type="checkbox" id="h-${esc(h.id)}" data-haken="${esc(h.id)}"${h.an ? ' checked' : ''}>
+    <div>
+      <label for="h-${esc(h.id)}" class="${h.an ? 'erledigt' : ''}"><span class="klein">Schritt</span>${esc(h.text)}</label>${link(h.link)}
+      ${h.code ? `<div class="code-zeile"><code>${esc(h.code)}</code><button type="button" class="leise" data-kopieren="${esc(h.code)}">kopieren</button></div>` : ''}
+    </div>
+  </div>`;
+}
+
+function aktionHtml(a) {
+  const l = logs.get(a.id);
+  const gesperrt = a.fehlt.length && !neu.size;
+  return `<div class="aktion">
+    <div class="aktion-text">
+      <strong>${esc(a.label)}</strong>
+      <p>${esc(a.text)}${link(a.link, 'Link öffnen ↗')}</p>
+      ${a.fehlt.length ? `<p class="fehlt-text">Fehlt noch: ${esc(a.fehlt.join(', '))}</p>` : ''}
+    </div>
+    <div class="zeile">
+      ${a.eingabe ? `<input id="a-${esc(a.id)}" type="${a.eingabe.geheim ? 'password' : 'text'}" placeholder="${esc(a.eingabe.label)}" autocomplete="off" spellcheck="false">` : ''}
+      <button type="button" data-aktion="${esc(a.id)}" data-fehlt="${a.fehlt.length}"${gesperrt ? ' disabled' : ''}>${esc(a.label)}</button>
+    </div>
+    ${l ? `<pre class="log ${l.ok ? 'ok' : 'nok'}">${esc(l.log || (l.ok ? 'ok' : 'fehlgeschlagen'))}</pre>` : ''}
+  </div>`;
+}
+
+function zertHtml() {
+  const z = S.zertifikat;
+  if (!z) return '<div class="info leer">Noch kein Zertifikat in .secrets/.</div>';
+  if (z.fehler) return `<div class="info"><p class="fehlt-text">Zertifikat unlesbar: ${esc(z.fehler)}</p></div>`;
+  return `<div class="info"><dl>
+    <dt>Datei</dt><dd><code>${esc(z.pfad)}</code></dd>
+    <dt>Gültig bis</dt><dd>${esc(new Date(z.ablauf).toLocaleDateString('de-DE'))}</dd>
+    <dt>Fingerabdruck</dt><dd><code>${esc(z.fingerabdruck)}</code></dd>
+  </dl></div>`;
+}
+
+function netlifyHtml() {
+  const zeile = (welche, titel) => (S.netlify[welche]
+    ? `<div class="datei"><span>${titel}: <code>${esc(S.netlify[welche])}</code></span><button type="button" class="leise" data-netlify="${welche}">Inhalt kopieren</button></div>`
+    : `<div class="datei leer">${titel}: noch nicht erzeugt</div>`);
+  const erzeugt = (welche) => (S.erzeugt[welche].length ? S.erzeugt[welche].join(', ') : 'noch keine');
+  return `<div class="info">
+    ${zeile('live', 'Live')}
+    <dl>
+      <dt>Erzeugte Secrets</dt><dd>${esc(erzeugt('live'))}</dd>
+    </dl>
+  </div>`;
+}
+
+function teilHtml(eintrag) {
+  const [art, ...rest] = eintrag.split(':');
+  const id = rest.join(':');
+  if (art === 'f') return FB.has(id) ? feldHtml(FB.get(id)) : '';
+  if (art === 'h') { const h = S.haken.find((x) => x.id === id); return h ? hakenHtml(h) : ''; }
+  if (art === 'a') { const a = S.aktionen.find((x) => x.id === id); return a ? aktionHtml(a) : ''; }
+  if (art === 'x' && id === 'zertifikat') return zertHtml();
+  if (art === 'x' && id === 'netlify') return netlifyHtml();
+  return '';
+}
+
+function zaehlen(g) {
+  const felder = S.felder.filter((f) => f.gruppe === g.id && !f.optional);
+  const haken = S.haken.filter((h) => h.gruppe === g.id);
+  return { fertig: felder.filter((f) => f.gesetzt).length + haken.filter((h) => h.an).length, gesamt: felder.length + haken.length };
+}
+
+function render() {
+  FB = new Map(S.felder.map((f) => [f.id, f]));
+  document.getElementById('pfad-live').textContent = S.pfade.live;
+
+  const felder = S.felder.filter((x) => !x.optional);
+  document.getElementById('fortschritt').innerHTML = `
+    <span>${esc(S.pfade.live)}: ${felder.filter((x) => x.gesetzt).length}/${felder.length}</span>
+    <span>Schritte: ${S.haken.filter((h) => h.an).length}/${S.haken.length}</span>`;
+
+  document.getElementById('nav').innerHTML = S.gruppen.map((g) => {
+    const z = zaehlen(g);
+    return `<a href="#g-${esc(g.id)}" class="${z.fertig === z.gesamt ? 'fertig' : ''}">${esc(g.titel)} · ${z.fertig}/${z.gesamt}</a>`;
+  }).join('');
+
+  document.getElementById('gruppen').innerHTML = S.gruppen.map((g) => {
+    const z = zaehlen(g);
+    const ziel = g.datei ? `speichert nach <code>${esc(g.dateiPfad)}</code>` : `Dateien in <code>${esc(g.dateiPfad)}/</code>`;
+    return `<section class="gruppe" id="g-${esc(g.id)}">
+      <header><h2>${esc(g.titel)}</h2><span class="meta">${esc(g.wizard)} · ${ziel}</span><span class="zaehler${z.fertig === z.gesamt ? ' ok' : ''}">${z.fertig}/${z.gesamt}</span></header>
+      ${g.ablauf.map(teilHtml).join('')}
+    </section>`;
+  }).join('');
+  leiste();
+}
+
+function leiste() {
+  const n = neu.size;
+  document.getElementById('leiste').hidden = !n;
+  document.getElementById('aenderungen').textContent = `${n} ungespeicherte Änderung${n === 1 ? '' : 'en'}`;
+  for (const b of document.querySelectorAll('[data-aktion]')) b.disabled = Number(b.dataset.fehlt) > 0 && !n;
+}
+
+// ─── Aktionen ───────────────────────────────────────────────
+
+async function speichern() {
+  fehlerFeld.clear();
+  for (const [id, v] of neu) {
+    const f = FB.get(id);
+    if (!passt(f, v.trim())) fehlerFeld.set(id, `Format passt nicht. Erwartet: ${f.format || f.muster}`);
+  }
+  if (fehlerFeld.size) {
+    render();
+    toast('Rot markierte Felder prüfen', 'nok');
+    return false;
+  }
+  const knopf = document.getElementById('speichern');
+  knopf.disabled = true;
+  try {
+    const r = await api('speichern', { werte: Object.fromEntries(neu) });
+    neu.clear();
+    S = r.stand;
+    render();
+    toast(r.gespeichert ? `Gespeichert: ${r.gespeichert} Wert${r.gespeichert === 1 ? '' : 'e'}` : 'Nichts zu speichern');
+    return true;
+  } catch (err) {
+    const f = err.data?.fehler;
+    if (f && typeof f === 'object') for (const [id, text] of Object.entries(f)) fehlerFeld.set(id, text);
+    if (err.data?.stand) S = err.data.stand;
+    render();
+    toast(err.message, 'nok');
+    return false;
+  } finally {
+    knopf.disabled = false;
+  }
+}
+
+async function aktionAusfuehren(id) {
+  const eingabe = document.getElementById(`a-${id}`)?.value || '';
+  if (neu.size && !(await speichern())) return;
+  const knopf = document.querySelector(`[data-aktion="${CSS.escape(id)}"]`);
+  if (knopf) { knopf.disabled = true; knopf.textContent = 'läuft …'; }
+  try {
+    const r = await api('aktion', { id, eingabe });
+    logs.set(id, { ok: r.ok, log: r.log });
+    S = r.stand;
+  } catch (err) {
+    logs.set(id, { ok: false, log: err.message });
+  }
+  render();
+}
+
+document.addEventListener('input', (ev) => {
+  const id = ev.target.dataset?.eingabe;
+  if (!id) return;
+  const f = FB.get(id);
+  const v = ev.target.value;
+  if (v === (f.wert || '')) neu.delete(id); else neu.set(id, v);
+  const box = ev.target.closest('.feld');
+  const ok = passt(f, v.trim());
+  box.classList.toggle('hat-fehler', !ok);
+  box.querySelector('.fehler').textContent = ok ? '' : `Format passt nicht. Erwartet: ${f.format || f.muster}`;
+  if (ok) fehlerFeld.delete(id);
+  leiste();
+});
+
+document.addEventListener('change', async (ev) => {
+  const id = ev.target.dataset?.haken;
+  if (!id) return;
+  try {
+    const r = await api('haken', { id, an: ev.target.checked });
+    S = r.stand;
+    render();
+  } catch (err) {
+    toast(err.message, 'nok');
+  }
+});
+
+document.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button');
+  if (!b) return;
+  try {
+    if (b.dataset.zeigen) {
+      const i = document.getElementById(b.dataset.zeigen);
+      i.type = i.type === 'password' ? 'text' : 'password';
+      b.textContent = i.type === 'password' ? 'zeigen' : 'verbergen';
+    } else if (b.dataset.vorschlag) {
+      const f = FB.get(b.dataset.vorschlag);
+      const i = document.getElementById(`i-${f.id}`);
+      i.value = f.standard;
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+    } else if (b.dataset.aktion) {
+      await aktionAusfuehren(b.dataset.aktion);
+    } else if (b.dataset.kopieren) {
+      await navigator.clipboard.writeText(b.dataset.kopieren);
+      toast('Kopiert');
+    } else if (b.dataset.netlify) {
+      const r = await api('netlify_inhalt', { welche: b.dataset.netlify });
+      await navigator.clipboard.writeText(r.inhalt);
+      toast('Inhalt in der Zwischenablage. In Netlify bei „Import from a .env file“ einfügen.');
+    } else if (b.id === 'speichern') {
+      await speichern();
+    } else if (b.id === 'verwerfen') {
+      neu.clear();
+      fehlerFeld.clear();
+      render();
+    } else if (b.id === 'beenden') {
+      if (neu.size && !confirm('Ungespeicherte Änderungen verwerfen und beenden?')) return;
+      await api('beenden');
+      neu.clear();
+      document.querySelector('.seite').innerHTML = '<div class="kopf"><h1>Server beendet</h1><p>Das Fenster kann zu. Neu starten: node scripts/medienablage/eingabe.mjs</p></div>';
+      document.getElementById('leiste').hidden = true;
+    }
+  } catch (err) {
+    toast(err.message, 'nok');
+  }
+});
+
+window.addEventListener('beforeunload', (ev) => {
+  if (neu.size) { ev.preventDefault(); ev.returnValue = ''; }
+});
+
+(async () => {
+  if (!TOKEN) {
+    document.getElementById('gruppen').innerHTML = '<p class="fehlt-text">Kein Token in der Adresse. Seite über den Link aus dem Terminal öffnen (node scripts/medienablage/eingabe.mjs).</p>';
+    return;
+  }
+  try {
+    S = await api('stand');
+    render();
+  } catch (err) {
+    document.getElementById('gruppen').innerHTML = `<p class="fehlt-text">${esc(err.message)}</p>`;
+  }
+})();
+</script>
+</body>
+</html>

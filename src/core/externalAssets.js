@@ -8,9 +8,9 @@ export const MAX_IMAGE_SIZE = 50 * 1024 * 1024;
 
 export const VIDEO_EXTENSIONS = /\.(mp4|mov|avi|mkv|webm)$/i;
 export const VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm'];
-// Dropbox Upload-Sessions können bis 350 GB; 1 GB ist ein praktikabler Browser-Client-Cap.
-export const MAX_VIDEO_SIZE = 1024 * 1024 * 1024;
-export const MAX_STORY_SIZE = 1024 * 1024 * 1024;
+// Gleiche Grenze wie der Server (ablage-upload-ziel); auch Finale Versionen.
+export const MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024;
+export const MAX_STORY_SIZE = 2 * 1024 * 1024 * 1024;
 
 // ─── External Link Helpers ───────────────────────────────────
 

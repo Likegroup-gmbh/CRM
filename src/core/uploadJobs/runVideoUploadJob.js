@@ -5,6 +5,7 @@
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
 import { createFolderSharedLink, buildVersionedFileName, buildFinalFileName, nextFreeIndexedFileName } from '../VideoUploadUtils.js';
 import { deleteFileIfUnreferenced } from '../assetDelete.js';
+import { ablageZielHolen, hochladenNachSharePoint, sharePointAssetFelder, uploadVerwerfen } from '../ablage/ablageUpload.js';
 import { fetchTokenAndPath, createSharedLink, trackUploadProgress } from './videoUploadSteps.js';
 
 function buildVersionedFileName_(file, versionNumber, metadaten) {
@@ -38,7 +39,7 @@ export function titelAusDateiname(name) {
 }
 
 // is_current und link_content leitet der Trigger auf kooperation_video_asset ab.
-async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal, titel }) {
+async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal, titel, ablageFelder = {} }) {
   const version = parseInt(versionNumber, 10) || 1;
   const { error } = await window.supabase
     .from('kooperation_video_asset')
@@ -53,6 +54,7 @@ async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versi
       description: null,
       uploaded_by: window.currentUser?.id || null,
       created_at: new Date().toISOString(),
+      ...ablageFelder,
     });
   if (error) throw error;
 }
@@ -112,6 +114,36 @@ export async function runVideoUploadJob(ctx) {
     const item = job.items[i];
 
     updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
+
+    const ziel = await ablageZielHolen({
+      typ: 'video',
+      kooperation_id: metadaten?.kooperationId ?? null,
+      kooperation_video_id: videoId,
+      version_number: parseInt(versionNumber, 10) || 1,
+      is_final: isFinal,
+      variant_name: variantName || null,
+      file_name: fileName,
+      file_size: file.size,
+    });
+    if (ziel.ziel === 'sharepoint') {
+      const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: trackUploadProgress(item, updateItem) });
+      if (job.items[i].directOk === null) updateItem(item.id, { directOk: true });
+      updateItem(item.id, { status: 'saving' });
+      if (!folderUrl) folderUrl = commit.folder_url || null;
+      if (isFinal) hasFinalUpload = true;
+      else hasLoopUpload = true;
+      if (isFinal && commit.file_name) takenFinalNames.push(commit.file_name);
+
+      const { file_url: spUrl, file_path: spPath, ...ablageFelder } = sharePointAssetFelder(commit);
+      try {
+        await saveAssetVersion({ videoId, fileUrl: spUrl, filePath: spPath, variantName, versionNumber, isFinal, titel: titelAusDateiname(file.name), ablageFelder });
+      } catch (err) {
+        await uploadVerwerfen(ziel.upload_id);
+        throw err;
+      }
+      updateItem(item.id, { status: 'done', loaded: file.size });
+      continue;
+    }
 
     const { token, dropboxPath, kooperationFolderPath } = await fetchTokenAndPath({
       metadaten, versionNumber, variantName, fileName, isFinal,

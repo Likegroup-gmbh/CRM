@@ -11,13 +11,16 @@
 import { uploadLargeFile } from '../../core/VideoUploadUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import { ablageZielHolen, hochladenNachSharePoint, sharePointAssetFelder, uploadVerwerfen } from '../../core/ablage/ablageUpload.js';
+import { ablageDateiLoeschen } from '../../core/ablage/ablageApi.js';
+import { istSharePoint, mitAblage } from '../../core/ablage/ablageLink.js';
 
 const PREPARE_ENDPOINT = '/.netlify/functions/dropbox-upload-rohmaterial';
 
-// Muss mit EXT_BY_TYPE/SIZE_CAPS.rohmaterial in
-// netlify/functions/_shared/creator-upload.js laufen.
+// Endungen muessen mit EXT_BY_TYPE.rohmaterial in netlify/functions/_shared/creator-upload.js
+// laufen; die Grenze ist die von ablage-upload-ziel (Creator haben eine eigene).
 export const ROHMATERIAL_EXTENSIONS = /\.(mp4|mov|avi|mkv|webm|zip)$/i;
-export const MAX_ROHMATERIAL_SIZE = 10 * 1024 * 1024 * 1024;
+export const MAX_ROHMATERIAL_SIZE = 20 * 1024 * 1024 * 1024;
 
 /** Spiegelt sanitizePath aus netlify/functions/_shared/dropbox.js. */
 export function sanitizeRohmaterialFileName(name) {
@@ -89,7 +92,7 @@ export class RohmaterialService {
 
     const { data: assets, error: assetErr } = await window.supabase
       .from('kooperation_rohmaterial_asset')
-      .select('id, kooperation_id, file_name, file_path, file_url, file_size, folder_url, created_at')
+      .select(mitAblage('id, kooperation_id, file_name, file_path, file_url, file_size, folder_url, created_at', 'ablage'))
       .in('kooperation_id', koopList.map(k => k.id))
       .order('created_at', { ascending: false });
 
@@ -200,6 +203,12 @@ export class RohmaterialService {
     // nicht beide auf denselben Pfad zeigen.
     taken.add(fileName);
 
+    const ziel = await ablageZielHolen({ typ: 'roh', kooperation_id: group.id, file_name: fileName, file_size: file.size });
+    if (ziel.ziel === 'sharepoint') {
+      await this._uploadOneSharePoint(group, file, fileName, ziel, taken, { signal, onBytes });
+      return;
+    }
+
     const prepare = await authorizedFetch(PREPARE_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -238,6 +247,28 @@ export class RohmaterialService {
     if (insertErr) throw insertErr;
   }
 
+  static async _uploadOneSharePoint(group, file, fileName, ziel, taken, { signal, onBytes } = {}) {
+    const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: onBytes });
+    const felder = sharePointAssetFelder(commit);
+    if (felder.file_name) taken.add(felder.file_name);
+
+    const { error: insertErr } = await window.supabase
+      .from('kooperation_rohmaterial_asset')
+      .insert({
+        kooperation_id: group.id,
+        ...felder,
+        file_name: felder.file_name || fileName,
+        file_size: felder.file_size ?? file.size,
+        folder_url: commit.folder_url || null,
+        uploaded_by: window.currentUser?.id || null,
+        created_at: new Date().toISOString(),
+      });
+    if (insertErr) {
+      await uploadVerwerfen(ziel.upload_id);
+      throw insertErr;
+    }
+  }
+
   static async takenFileNames(kooperationId) {
     const { data } = await window.supabase
       .from('kooperation_rohmaterial_asset')
@@ -256,7 +287,9 @@ export class RohmaterialService {
   static async deleteAsset(asset) {
     if (!asset?.id) return;
 
-    if (asset.file_path) {
+    if (istSharePoint(asset)) {
+      await ablageDateiLoeschen('roh', asset.id);
+    } else if (asset.file_path) {
       try {
         await authorizedFetch('/.netlify/functions/dropbox-delete', {
           method: 'POST',

@@ -12,7 +12,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { ICON_PLAY, ICON_FS, ICON_VOLUME } from '../../core/media/mediaPlayerIcons.js';
 import { cssEscape } from './videoBrowserLogic.js';
 import { applySize, isFullscreen, onFullscreenChange, paintPlaying, paintTime, renderMarkers } from './player/playerLayout.js';
-import { DEFAULT_FRAME_SEC, paintControls, pause, seek } from './player/playerControls.js';
+import { DEFAULT_FRAME_SEC, paintControls, pause, play, seek } from './player/playerControls.js';
 import { finishMessung, loadSource } from './player/playerSource.js';
 import { bindPlayerEvents } from './player/playerEvents.js';
 
@@ -52,10 +52,12 @@ const withTimecode = (list) => list.filter(c => c.timecodeSec !== null && c.time
  * @param {HTMLElement} host
  * @param {{ item: object, ratio?: string, comments?: Array, motion?: object,
  *           onTime?: (sec: number) => void, onMarker?: (commentId: string) => void,
- *           onMessung?: (row: object) => void }} options
+ *           onMessung?: (row: object) => void, autoplay?: boolean, maxHeight?: () => number }} options
  *        onMessung: eine Zeile je Wiedergabe (erstes Bild, Start, Stalls), beim Quellwechsel und Schließen
+ *        autoplay: startet stumm, sobald die Datei bereit ist (Showcase-Vollansicht)
+ *        maxHeight: Obergrenze der Rahmenhöhe statt der Standardhöhe des Detailbereichs
  */
-export function mountPlayer(host, { item, ratio, comments = [], motion = null, onTime = null, onMarker = null, onMessung = null }) {
+export function mountPlayer(host, { item, ratio, comments = [], motion = null, onTime = null, onMarker = null, onMessung = null, autoplay = false, maxHeight = null }) {
   const isStill = item.type === 'still';
   host.innerHTML = shell(isStill);
 
@@ -81,7 +83,8 @@ export function mountPlayer(host, { item, ratio, comments = [], motion = null, o
     destroyed: false,
     rate: 1,
     volume: 1,
-    muted: false,
+    muted: !!autoplay,
+    maxHeight,
     frameSec: DEFAULT_FRAME_SEC,
     currentRatio: ratio || item.ratio || '9:16',
     dims: null,
@@ -112,17 +115,20 @@ export function mountPlayer(host, { item, ratio, comments = [], motion = null, o
 
   paintControls(p);
   paintPlaying(p);
-  loadSource(p, item);
+  loadSource(p, item, { resumePlay: !!autoplay && !isStill });
 
   return {
     seek: (sec) => seek(p, sec),
     getTime: () => p.time,
     isPlaying: () => p.playing,
     pause: () => pause(p),
+    play: () => play(p),
     /** Resolved, sobald die aktuelle Quelle durchspielbar ist oder nicht lädt. */
     whenReady: () => p.ready,
     /** Pixelmaße der geladenen Datei, `null` solange die Metadaten fehlen. */
     getDimensions: () => p.dims,
+    /** Dauer in Sekunden, 0 solange die Metadaten fehlen. */
+    getDuration: () => p.duration || 0,
     setMarkers(list) {
       p.markers = withTimecode(list);
       renderMarkers(p);

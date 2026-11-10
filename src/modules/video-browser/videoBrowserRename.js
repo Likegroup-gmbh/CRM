@@ -1,18 +1,12 @@
 // videoBrowserRename.js
 // Titel einer Datei inline im Detailkopf bearbeiten. Zustand liegt in `vb.renaming`.
 
-import { icon } from '../../core/icons/IconSystem.js';
 import { TITEL_MAX, renameAsset } from './VideoBrowserAdapter.js';
 import { buildTree, resolveSelection } from './videoBrowserLogic.js';
+import { setEditButton as toggleEditButton } from './videoBrowserRenderParts.js';
 
-function setEditButton(button, editing) {
-  if (!button) return;
-  const label = editing ? 'Titel speichern' : 'Titel bearbeiten';
-  button.innerHTML = icon(editing ? 'check' : 'pencil-square');
-  button.setAttribute('aria-label', label);
-  button.title = label;
-  button.classList.toggle('is-active', editing);
-}
+const LABELS = { edit: 'Titel bearbeiten', save: 'Titel speichern' };
+const setEditButton = (button, editing) => toggleEditButton(button, editing, LABELS);
 
 export function startRename(vb) {
   if (!vb.canUpload || vb.renaming) return;
@@ -60,6 +54,7 @@ export async function commitRename(vb) {
     endRename(vb, saved);
     // Detail und Player bleiben stehen, nur Spalten und Pfad tragen den neuen Namen.
     vb._renderNav();
+    vb.motion?.savedFlash(state.title);
   } catch (err) {
     console.error('VideoBrowser: Titel speichern fehlgeschlagen', err);
     vb.toast('error', 'Titel konnte nicht gespeichert werden.');

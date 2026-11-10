@@ -4,6 +4,7 @@
 import { icon } from '../../core/icons/IconSystem.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { pickLatestAsset } from '../../core/stills/stillAssets.js';
+import { mitAblage } from '../../core/ablage/ablageLink.js';
 import { VideoTableDataLoader } from '../kampagne/VideoTableDataLoader.js';
 
 const PLAY_ICON = `${icon('play-circle')}`;
@@ -105,12 +106,12 @@ export async function loadSheetVideos(kooperationen) {
     const [loopResult, finalResult] = await Promise.all([
       window.supabase
         .from('kooperation_video_asset')
-        .select('id, video_id, file_url, file_path, version_number, is_current, created_at')
+        .select(mitAblage('id, video_id, file_url, file_path, version_number, is_current, created_at'))
         .in('video_id', videoIds)
         .eq('is_final', false),
       window.supabase
         .from('kooperation_video_asset')
-        .select('id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at')
+        .select(mitAblage('id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at'))
         .in('video_id', videoIds)
         .eq('is_final', true)
         .order('created_at', { ascending: true })

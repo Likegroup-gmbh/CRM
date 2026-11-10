@@ -5,6 +5,7 @@
 
 import { createWiedergabeMessung, formatOf, perfNow } from '../../../core/media/mediaPerf.js';
 import { lookupPath } from '../../../core/media/player/mediaIdentity.js';
+import { getPoster, peekPoster } from '../../../core/media/PosterCache.js';
 import { cachedUrl, mediaOf, resolveSource } from '../videoBrowserMedia.js';
 import { applyMedia, play, probeFrameRate } from './playerControls.js';
 import { applySize, paintPlaying, paintTime, renderMarkers } from './playerLayout.js';
@@ -115,6 +116,14 @@ export async function loadSource(p, asset, { resumeAt = 0, resumePlay = false } 
   // Wie im Medien-Player: komplett vorladen und per #t auf das erste Bild springen, damit
   // die Vorschau ohne Play sichtbar ist. 0,001 s statt 0,1 s, sonst zählt das als bewegter Playhead.
   el.preload = 'auto';
+  // Poster steht sofort und bleibt, bis das erste Bild der Datei da ist
+  const poster = peekPoster(asset);
+  if (poster) el.poster = poster;
+  else {
+    getPoster(asset).then((posterUrl) => {
+      if (posterUrl && p.video === el && el.readyState < 2) el.poster = posterUrl;
+    }).catch(() => {});
+  }
   el.src = `${url}${url.includes('#') ? '' : '#t=0.001'}`;
   applyMedia(p);
   probeFrameRate(p, el);

@@ -35,6 +35,7 @@ export class MediaLightbox {
    * @param {() => boolean} [opts.hasPrev]
    * @param {() => boolean} [opts.hasNext]
    * @param {() => void} [opts.onClose]
+   * @param {(overlay: HTMLElement) => Promise<void>|void} [opts.onBeforeClose] - vor dem Entfernen (Ausblend-Animation)
    */
   open(opts) {
     this.close();
@@ -115,6 +116,14 @@ export class MediaLightbox {
   }
 
   async close() {
+    // Optional: Ausblend-Animation vor dem Entfernen. Ein zweites close() (z. B. zweites Escape)
+    // wartet nicht, sondern schließt sofort.
+    const before = this._opts?.onBeforeClose;
+    if (before && this.overlay && !this._closing) {
+      this._closing = true;
+      try { await before(this.overlay); } finally { this._closing = false; }
+      if (!this.overlay) return; // zwischenzeitlich geschlossen
+    }
     if (this._onKey) {
       document.removeEventListener('keydown', this._onKey);
       this._onKey = null;

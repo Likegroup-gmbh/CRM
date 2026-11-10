@@ -14,6 +14,9 @@ export default defineConfig({
     
     // Globale APIs (describe, it, expect, etc.) ohne Import
     globals: true,
+
+    // Medienablage-Tests prüfen den SharePoint-Weg, unabhängig von schalter.json
+    env: { VITE_DROPBOX_UPLOAD: 'off' },
     
     // Coverage-Konfiguration
     coverage: {

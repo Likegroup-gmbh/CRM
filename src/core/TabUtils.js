@@ -36,6 +36,7 @@ export const TAB_PERMISSION_MAP = {
   'skripte': 'skripte',
   'produktion': 'kooperation', // Alias: altes ?tab=produktion
   'auswertung': null,    // sichtbar für alle, die die Kampagne sehen
+  'budget': null,        // Gate ist die Preis-Sicht (canSeePricing), siehe WORKFLOW_TABS
   // Personas und Produkte gehoeren dem Unternehmen und stehen auch auf dessen
   // Detailseite - die Marke-Berechtigung waere dort der falsche Massstab.
   'personas': 'unternehmen',

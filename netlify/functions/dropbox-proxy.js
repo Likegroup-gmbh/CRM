@@ -37,14 +37,17 @@ function logHeaders(resp, label) {
   console.log(`[dropbox-proxy] ${label} response-headers:`, JSON.stringify(h));
 }
 
-async function handleUploadSmall(token, dropboxPath, fileBuffer) {
+// Nur 'add' oder 'overwrite' durchlassen; alles andere wie bisher überschreiben.
+const writeMode = (mode) => (mode === 'add' ? 'add' : 'overwrite');
+
+async function handleUploadSmall(token, dropboxPath, fileBuffer, mode) {
   const resp = await fetch('https://content.dropboxapi.com/2/files/upload', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/octet-stream',
       'Dropbox-API-Arg': httpHeaderSafeJson({
-        path: dropboxPath, mode: 'overwrite', autorename: true, mute: false,
+        path: dropboxPath, mode: writeMode(mode), autorename: true, mute: false,
       }),
     },
     body: fileBuffer,
@@ -95,7 +98,7 @@ async function handleSessionAppend(token, sessionId, offset, chunkBuffer) {
   }
 }
 
-async function handleSessionFinish(token, sessionId, offset, dropboxPath, chunkBuffer) {
+async function handleSessionFinish(token, sessionId, offset, dropboxPath, chunkBuffer, mode) {
   if (DEBUG) console.log(`[dropbox-proxy] session-finish SENDING: sessionId=${sessionId} offset=${offset} path=${dropboxPath} chunkLen=${chunkBuffer.length}`);
 
   const resp = await fetch('https://content.dropboxapi.com/2/files/upload_session/finish', {
@@ -105,7 +108,7 @@ async function handleSessionFinish(token, sessionId, offset, dropboxPath, chunkB
       'Content-Type': 'application/octet-stream',
       'Dropbox-API-Arg': httpHeaderSafeJson({
         cursor: { session_id: sessionId, offset },
-        commit: { path: dropboxPath, mode: 'overwrite', autorename: true, mute: false },
+        commit: { path: dropboxPath, mode: writeMode(mode), autorename: true, mute: false },
       }),
     },
     body: chunkBuffer,
@@ -256,7 +259,7 @@ exports.handler = async (event) => {
       case 'upload-small': {
         const buf = Buffer.from(body.chunk, 'base64');
         if (DEBUG) console.log(`[dropbox-proxy] upload-small chunkSize=${buf.length} path=${body.dropboxPath}`);
-        const result = await handleUploadSmall(token, body.dropboxPath, buf);
+        const result = await handleUploadSmall(token, body.dropboxPath, buf, body.mode);
         return jsonResponse(200, result);
       }
 
@@ -279,7 +282,7 @@ exports.handler = async (event) => {
       case 'session-finish': {
         const buf = body.chunk ? Buffer.from(body.chunk, 'base64') : Buffer.alloc(0);
         if (DEBUG) console.log(`[dropbox-proxy] session-finish chunkSize=${buf.length} offset=${body.offset} sessionId=${body.sessionId} path=${body.dropboxPath}`);
-        const result = await handleSessionFinish(token, body.sessionId, body.offset, body.dropboxPath, buf);
+        const result = await handleSessionFinish(token, body.sessionId, body.offset, body.dropboxPath, buf, body.mode);
         return jsonResponse(200, result);
       }
 

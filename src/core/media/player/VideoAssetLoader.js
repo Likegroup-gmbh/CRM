@@ -9,8 +9,9 @@
 
 import { normalizeVideoFeedbackComments, VIDEO_FEEDBACK_FIELDS } from '../../VideoFeedbackBuckets.js';
 import { pickLatestAsset } from '../../stills/stillAssets.js';
+import { mitAblage } from '../../ablage/ablageLink.js';
 
-const ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, description, is_current, is_final, source_asset_id, created_at';
+const ASSET_SELECT = mitAblage('id, video_id, file_url, file_path, version_number, variant_name, description, is_current, is_final, source_asset_id, created_at');
 
 export class VideoAssetLoader {
   constructor() {

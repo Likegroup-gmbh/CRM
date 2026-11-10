@@ -1,5 +1,7 @@
 # 0061 Die Vorschaudatei ist abgeleitete Datei, das Original bleibt System of Record
 
+> Verworfen (6.11.2026), nie produktiv: Cloudflare kommt als Anbieter nicht in Frage. Migration, Functions und Client-Pfad sind entfernt, der Videos-Tab spielt immer das Original aus Dropbox. Eine Abspielkopie wird, wenn überhaupt, mit dem künftigen Speicher (SharePoint/OneDrive) neu entschieden. Der Client-Fix (kein Doppel-Download, kein Quellwechsel während der Wiedergabe, Nachbarn erst nach `canplaythrough`) und die Wiedergabe-Messung bleiben.
+
 Der Videos-Tab spielte die Originale direkt aus Dropbox. 1.126 von 3.909 Videoassets sind `.mov` vom Handy (hohe Bitrate, oft HEVC). Dazu lief ein zweiter Voll-Download desselben Videos als Blob, und mitten in der Wiedergabe wurde auf diesen Blob umgeschaltet. Folge: lange Ladezeiten, Abbruch nach 1 bis 2 Sekunden, Ruckler. Ziel ist p95 erstes Bild unter 1,5 s und kein Stall in den ersten 60 s (Desktop, Team und Kunden). Gemessen wird in echten Sessions (`media_wiedergabe_messung`, Auswertung `media_wiedergabe_perzentile`, getrennt nach Quelle und Format).
 
 ## Entscheidung

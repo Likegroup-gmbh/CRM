@@ -111,17 +111,15 @@
 [functions."vertrag-status-verzoegert"]
   schedule = "@daily"
 
-# Vorschaudatei (ADR 0061): Sicherheitsnetz der Outbox. Arbeitet faellige
-# Auftraege ab und gleicht haengende Vorschaudateien mit Cloudflare ab.
-[functions."vorschau-sweeper"]
-  schedule = "*/2 * * * *"
-  timeout = 26
+# Poster der Showcase (ADR 0064): Abgleich alle 5 Minuten, räumt Verwaiste und stößt
+# poster-erzeugen-background an, solange Poster fehlen (Scheduled Functions haben nur 30 s)
+[functions."poster-abgleich"]
+  schedule = "*/5 * * * *"
 
-[functions."vorschau-verarbeiten"]
-  timeout = 26
-
-[functions."vorschau-webhook"]
-  timeout = 26
+# Medienablage (SharePoint): Sicherheitsnetz fuer den Webhook. Jede Minute Abo pruefen und
+# ablage-abgleich-background anstossen (Scheduled Functions haben nur 30 s)
+[functions."ablage-zeitplan"]
+  schedule = "* * * * *"
 
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
@@ -161,4 +159,8 @@
     X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet"
     Referrer-Policy = "no-referrer"
     Cache-Control = "no-store"
+
+# Medienablage-Admin: Stand zaehlt ueber alle Asset-Tabellen, "Bestand umziehen" reiht ein
+[functions."ablage-stand"]
+  timeout = 26
 

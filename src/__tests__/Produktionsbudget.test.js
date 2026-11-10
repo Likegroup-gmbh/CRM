@@ -172,7 +172,7 @@ describe('Produktionsbudget', () => {
 });
 
 describe('Produktionsbudget in der Oberfläche', () => {
-  it('rechnet den Balken gegen das eigene Budget und zeigt es auf der Produktion', () => {
+  it('rechnet den Balken gegen das eigene Budget; die Produktion zeigt es nur im Budget-Tab', () => {
     window.validatorSystem = {
       sanitizeHtml: (value) => String(value ?? ''),
       sanitizeUrl: (value) => String(value ?? '')
@@ -204,9 +204,9 @@ describe('Produktionsbudget in der Oberfläche', () => {
       kampagneData: { kampagnenname: 'Burger', volumen: 50000, auftrag: { nettobetrag: 50000 } },
       activeWorkflow: 'kooperationen'
     });
-    expect(workflow).toContain('Produktionsbudget');
-    expect(workflow).toContain('15.000,00');
-    expect(workflow).toContain('Verbrauch');
+    expect(workflow).not.toContain('Produktionsbudget');
+    expect(workflow).not.toContain('Verbrauch');
+    expect(workflow).not.toContain('15.000,00');
   });
 
   it('zeigt im Schritt Name, Budget und den Rest', () => {

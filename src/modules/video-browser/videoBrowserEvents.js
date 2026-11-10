@@ -3,11 +3,20 @@
 // Tastatur-Navigation in den Spalten. Alle Funktionen bekommen den Controller (`vb`).
 
 import { clearFrom, ersterOffenerInhalt, selectLevel } from './videoBrowserLogic.js';
-import { deleteItem, download, promoteItem, unmarkItem } from './videoBrowserActions.js';
+import { deleteItem, download, promoteWithSlot, toggleFinal } from './videoBrowserActions.js';
+import { freieDateiOeffnen, ordnerLinkErstellen } from './videoBrowserAblage.js';
 import { highlightComment, setDraftPin, setDraftText, submitComment } from './videoBrowserComments.js';
 import { bindDropzone } from './videoBrowserDropzone.js';
+import { commitFileRename, copyFileName, endFileRename, startFileRename } from './videoBrowserFileRename.js';
+import { clearFolderFilter, toggleFolderFilter } from './videoBrowserFilter.js';
+import { isActivationKey, onShortcut } from './videoBrowserKeys.js';
+import { onTabKeydown, setDetailTab } from './videoBrowserTabs.js';
+import { openTagField } from './videoBrowserTagField.js';
+import { removeTag } from './videoBrowserTags.js';
 import { commitRename, endRename, startRename } from './videoBrowserRename.js';
 import { startUpload } from './videoBrowserUploadState.js';
+import { onSegmentKeydown, onShowcaseClick } from './videoBrowserShowcase.js';
+import { onKoopGroupClick, toggleKoopGroup } from './videoBrowserKoopState.js';
 
 export function bindEvents(vb) {
   const on = (target, type, handler, opts) => {
@@ -40,7 +49,19 @@ export function bindEvents(vb) {
       input.value = '';
     }
   });
+  on(document, 'keydown', (e) => { onShortcut(vb, e); });
   on(vb.root, 'keydown', (e) => {
+    if (onTabKeydown(vb, e) || onSegmentKeydown(vb, e)) return;
+    if (e.target.closest('[data-vb-file-input]')) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void commitFileRename(vb);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        endFileRename(vb);
+      }
+      return;
+    }
     if (e.target.closest('[data-vb-title-input]')) {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -54,23 +75,34 @@ export function bindEvents(vb) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && e.target.closest('[data-vb-comment-text]')) {
       e.preventDefault();
       void submitComment(vb, e.target.closest('[data-vb-comment-form]'));
+      return;
+    }
+    // Enter und Leertaste auf klickbaren Zeilen (Titel, Eigenschaft, Dateiname) wie ein Klick
+    if (isActivationKey(e) && e.target.closest('[role="button"]:not(button)')) {
+      e.preventDefault();
+      e.target.closest('[role="button"]').click();
     }
   });
   // Der Haken speichert per Klick: das Feld darf vorher nicht durch Blur speichern.
   on(vb.root, 'mousedown', (e) => {
     if (vb.renaming && e.target.closest('[data-vb-edit]')) e.preventDefault();
+    if (vb.renamingFile && e.target.closest('[data-vb-edit-file]')) e.preventDefault();
   });
   on(vb.root, 'focusout', (e) => {
     if (e.target.closest('[data-vb-title-input]')) void commitRename(vb);
-  });
-  on(vb.root, 'dblclick', (e) => {
-    if (e.target.closest('[data-vb-asset-title]') && !vb.renaming) startRename(vb);
+    if (e.target.closest('[data-vb-file-input]')) void commitFileRename(vb);
   });
 
   bindDropzone(vb, on);
 }
 
 function onClick(vb, e) {
+  // Spalte 0: Gruppenkopf, Umschalter Creator | Linie, Alle ein-/aufklappen (vor dem Showcase,
+  // der sonst jeden Segment-Umschalter für sich beansprucht)
+  if (onKoopGroupClick(vb, e)) return;
+  // Umschalter Ordner|Showcase und alles im Showcase
+  if (onShowcaseClick(vb, e)) return;
+
   const rowBtn = e.target.closest('.vb-col .vb-row[data-depth]');
   if (rowBtn && !rowBtn.classList.contains('vb-row--upload')) {
     const depth = Number(rowBtn.dataset.depth);
@@ -78,28 +110,103 @@ function onClick(vb, e) {
     return;
   }
 
+  const star = e.target.closest('[data-vb-star]');
+  if (star) {
+    void toggleFinal(vb, { itemId: star.dataset.vbStar, source: 'row' });
+    return;
+  }
+
   const slotBtn = e.target.closest('[data-vb-promote-slot]');
   if (slotBtn) {
-    const mainBtn = slotBtn.closest('[data-vb-promote-wrap]')?.querySelector('[data-vb-promote]');
-    if (mainBtn) void promoteItem(vb, mainBtn, slotBtn.dataset.vbPromoteSlot);
+    void promoteWithSlot(vb, slotBtn.closest('[data-vb-promote-wrap]')?.querySelector('[data-vb-final-toggle]'), slotBtn.dataset.vbPromoteSlot);
     return;
   }
 
-  const promoteBtn = e.target.closest('[data-vb-promote]');
-  if (promoteBtn) {
-    void promoteItem(vb, promoteBtn);
+  const finalToggle = e.target.closest('[data-vb-final-toggle]');
+  if (finalToggle) {
+    void toggleFinal(vb, { button: finalToggle, source: 'bar' });
     return;
   }
 
-  const unmarkBtn = e.target.closest('[data-vb-unmark]');
-  if (unmarkBtn) {
-    void unmarkItem(vb, unmarkBtn);
+  const finalRemove = e.target.closest('[data-vb-final-remove]');
+  if (finalRemove) {
+    void toggleFinal(vb, { button: finalRemove, source: 'bar', collapse: true });
+    return;
+  }
+
+  const tab = e.target.closest('[data-vb-tab]');
+  if (tab) {
+    setDetailTab(vb, tab.dataset.vbTab);
+    return;
+  }
+
+  const filter = e.target.closest('[data-vb-filter]');
+  if (filter) {
+    toggleFolderFilter(vb, filter.dataset.vbFilter);
+    return;
+  }
+  if (e.target.closest('[data-vb-filter-clear]')) {
+    clearFolderFilter(vb);
+    return;
+  }
+
+  if (e.target.closest('[data-vb-tag-open]')) {
+    openTagField(vb);
+    return;
+  }
+  const tagRemove = e.target.closest('[data-vb-tag-remove]');
+  if (tagRemove) {
+    void removeTag(vb, tagRemove.dataset.vbTagRemove);
+    return;
+  }
+
+  // Eigenschaftszeile "Dateiname": springt in den Ad Manager und startet die Bearbeitung sofort
+  if (e.target.closest('[data-vb-prop-action="filename"]')) {
+    startFileRename(vb);
+    return;
+  }
+
+  const copy = e.target.closest('[data-vb-adm-copy]');
+  if (copy) {
+    void copyFileName(vb, copy.dataset.vbAdmCopy);
     return;
   }
 
   const downloadBtn = e.target.closest('[data-vb-download]');
   if (downloadBtn) {
     void download(vb, downloadBtn);
+    return;
+  }
+
+  const ordnerLink = e.target.closest('[data-vb-ordnerlink]');
+  if (ordnerLink) {
+    void ordnerLinkErstellen(vb, ordnerLink);
+    return;
+  }
+
+  const freieDatei = e.target.closest('[data-vb-freie-datei]');
+  if (freieDatei) {
+    void freieDateiOeffnen(vb, freieDatei);
+    return;
+  }
+
+  const editFile = e.target.closest('[data-vb-edit-file]');
+  if (editFile) {
+    if (vb.renamingFile) void commitFileRename(vb);
+    else startFileRename(vb, editFile.dataset.vbEditFile);
+    return;
+  }
+
+  // Klick auf den Namen selbst öffnet die Bearbeitung, im Eingabefeld passiert nichts
+  const nameEdit = e.target.closest('[data-vb-adm-edit]');
+  if (nameEdit) {
+    if (!vb.renamingFile && !e.target.closest('[data-vb-file-input]')) startFileRename(vb, nameEdit.dataset.vbAdmEdit);
+    return;
+  }
+
+  // Der Titel ist selbst klickbar (Team), wie das Stift-Icon
+  if (e.target.closest('[data-vb-asset-title]') && vb.canUpload && !vb.renaming) {
+    startRename(vb);
     return;
   }
 
@@ -161,14 +268,49 @@ function gotoFromAttrs(vb, el) {
   vb._select(next, { autoItem: !!gotoFolder && !gotoItem });
 }
 
+/** Zeilen und Gruppenköpfe einer Spalte in Anzeigereihenfolge, ohne die in zugeklappten Gruppen. */
+function navigableRows(col) {
+  return [...col.querySelectorAll('.vb-row[data-depth]:not(.vb-row--upload), .vb-koopgroup__head')]
+    .filter(el => !el.closest('.vb-koopgroup.is-collapsed .vb-koopgroup__body'));
+}
+
+/** Gruppenkopf: hoch/runter wie eine Zeile, rechts auf bzw. in die erste Zeile, links zu. Enter/Leertaste klickt. */
+function onKoopHeadKey(vb, head, e) {
+  const id = head.dataset.vbKoopgroup;
+  const open = head.getAttribute('aria-expanded') === 'true';
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const rows = navigableRows(head.closest('.vb-col'));
+    rows[rows.indexOf(head) + (e.key === 'ArrowDown' ? 1 : -1)]?.focus();
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    if (!open) toggleKoopGroup(vb, id, true);
+    else head.closest('[data-vb-koopgroup-wrap]')?.querySelector('.vb-koopgroup__body .vb-row[data-depth]')?.focus();
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    if (open) toggleKoopGroup(vb, id, false);
+  }
+}
+
 function onColsKey(vb, e) {
+  const head = e.target.closest('.vb-koopgroup__head');
+  if (head) {
+    onKoopHeadKey(vb, head, e);
+    return;
+  }
   const rowEl = e.target.closest('.vb-row[data-depth]');
   if (!rowEl || rowEl.classList.contains('vb-row--upload')) return;
   const col = rowEl.closest('.vb-col');
   const depth = Number(rowEl.dataset.depth);
-  const rows = [...col.querySelectorAll('.vb-row[data-depth]:not(.vb-row--upload)')];
+  const rows = navigableRows(col);
   const idx = rows.indexOf(rowEl);
 
+  if (e.key === 'ArrowLeft' && depth === 0) {
+    // Kooperationszeile unter einem Kopf: zurück auf den Kopf
+    e.preventDefault();
+    rowEl.closest('[data-vb-koopgroup-wrap]')?.querySelector('.vb-koopgroup__head')?.focus();
+    return;
+  }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
     rows[idx + (e.key === 'ArrowDown' ? 1 : -1)]?.focus();

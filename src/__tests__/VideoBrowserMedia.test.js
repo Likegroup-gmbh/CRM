@@ -6,7 +6,7 @@ vi.mock('../core/media/mediaSrc.js', () => ({
 }));
 
 const MediaCache = await import('../core/media/MediaCache.js');
-const { prefetchStreamUrl } = await import('../core/media/mediaSrc.js');
+const { prefetchStreamUrl, resolveStreamUrl } = await import('../core/media/mediaSrc.js');
 const {
   mediaOf, cachedUrl, prefetchLinks, warmNeighbors, stopWarming, resolveSource
 } = await import('../modules/video-browser/videoBrowserMedia.js');
@@ -87,5 +87,36 @@ describe('videoBrowserMedia', () => {
   it('löst Links nur für abspielbare Dateien mit Quelle vorab auf', () => {
     prefetchLinks([video(), { type: 'roh', asset: { id: 'r', file_path: '/a.zip' } }, video({ id: 'a2', file_path: null, file_url: null })]);
     expect(prefetchStreamUrl).toHaveBeenCalledTimes(1);
+    expect(resolveStreamUrl).not.toHaveBeenCalled();
+    expect([...document.head.querySelectorAll('link[rel="preconnect"]')].some((l) => /sharepoint/.test(l.href))).toBe(false);
+  });
+
+  describe('SharePoint', () => {
+    const sp = { ablage: 'sharepoint', etag: 'e1', file_url: 'https://contoso.sharepoint.com/sites/x/web' };
+    const preconnects = () => [...document.head.querySelectorAll('link[rel="preconnect"]')].map((l) => l.getAttribute('href'));
+
+    it('gibt Medientyp, id, ablage und etag an die Auflösung weiter', async () => {
+      await resolveSource(video(sp));
+      expect(resolveStreamUrl).toHaveBeenLastCalledWith(expect.objectContaining({ typ: 'video', id: 'a1', ablage: 'sharepoint', etag: 'e1' }));
+      await resolveSource(still(sp));
+      expect(resolveStreamUrl).toHaveBeenLastCalledWith(expect.objectContaining({ typ: 'still', id: 's1' }));
+      await resolveSource({ type: 'roh', asset: { id: 'r1', file_path: '/r.mov', ...sp } });
+      expect(resolveStreamUrl).toHaveBeenLastCalledWith(expect.objectContaining({ typ: 'roh', id: 'r1' }));
+    });
+
+    it('Cache-Key bleibt wie bei Dropbox', () => {
+      expect(mediaOf(video(sp)).key).toBe('video:a1:2026-01-01');
+      expect(mediaOf(video(sp)).hasSource).toBe(true);
+    });
+
+    it('löst den Lese-Link vorab auf und baut erst dann die Verbindung zum SharePoint-Host auf', async () => {
+      resolveStreamUrl.mockImplementationOnce(async () => 'https://contoso.sharepoint.com/_layouts/15/download.aspx?tempauth=x');
+      prefetchLinks([video(sp)]);
+      expect(prefetchStreamUrl).not.toHaveBeenCalled();
+      expect(resolveStreamUrl).toHaveBeenCalledWith(expect.objectContaining({ typ: 'video', ablage: 'sharepoint' }));
+      await flush();
+      expect(preconnects()).toContain('https://contoso.sharepoint.com');
+      expect(preconnects()).toContain('https://dl.dropboxusercontent.com');
+    });
   });
 });

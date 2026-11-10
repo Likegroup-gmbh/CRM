@@ -15,6 +15,8 @@ import {
   countStillNameUsage,
   createStillIndexCounter,
   nextFreeIndexedFileName,
+  renamedFilePath,
+  splitFileName,
 } from '../core/VideoUploadUtils.js';
 
 describe('buildVersionedFileName', () => {
@@ -386,5 +388,28 @@ describe('createStillIndexCounter', () => {
     expect(next(other)).toBe(1);
     expect(next(base)).toBe(2);
     expect(next(other)).toBe(2);
+  });
+});
+
+describe('Ad-Manager-Dateiname', () => {
+  it('splitFileName trennt Name und Endung', () => {
+    expect(splitFileName('/K/Videos/spot.v1.mp4')).toEqual({ stem: 'spot.v1', ext: '.mp4' });
+    expect(splitFileName('/K/ohne')).toEqual({ stem: 'ohne', ext: '' });
+  });
+
+  it('renamedFilePath behält Ordner und Endung, tippt man sie mit, wird sie nicht doppelt', () => {
+    expect(renamedFilePath('/K/V/a.mp4', 'Neuer Name')).toBe('/K/V/Neuer Name.mp4');
+    expect(renamedFilePath('/K/V/a.mp4', 'Neuer Name.MP4')).toBe('/K/V/Neuer Name.mp4');
+  });
+
+  it('renamedFilePath entfernt Zeichen, die Dropbox ablehnt, und meldet leere Namen', () => {
+    expect(renamedFilePath('/K/a.mp4', 'a/b:c')).toBe('/K/a-b-c.mp4');
+    expect(renamedFilePath('/K/a.mp4', '  .mp4')).toBeNull();
+  });
+
+  it('Download nutzt den Ad-Manager-Namen, auch bei Finale Versionen', () => {
+    const meta = { creatorName: 'Max', unternehmen: 'Acme', kampagne: 'K' };
+    expect(buildAssetDownloadName(meta, { position: 1 }, { file_path: '/K/x.mov', ad_manager_name: 'Acme_Spot_9x16' })).toBe('Acme_Spot_9x16.mov');
+    expect(buildAssetDownloadName(meta, { position: 1 }, { is_final: true, variant_name: '9:16', file_path: '/K/x.mp4', ad_manager_name: 'Fertig' })).toBe('Fertig.mp4');
   });
 });

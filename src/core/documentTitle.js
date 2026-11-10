@@ -23,6 +23,7 @@ const TAB_LABELS = {
   kooperation: 'Kooperationen',
   videos: 'Videos',
   auswertung: 'Auswertung',
+  budget: 'Budget',
   informationen: 'Informationen',
   info: 'Informationen',
   overview: 'Übersicht',
