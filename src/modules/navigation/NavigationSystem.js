@@ -1,7 +1,7 @@
 // NavigationSystem.js (ES6-Modul)
 // Zentrale Navigation für das CRM
 
-import { bindCollapsible } from '../../core/collapsiblePanel.js';
+import { bindCollapsible, SIDEBAR_NARROW_QUERY } from '../../core/collapsiblePanel.js';
 import { entityIcon } from '../../core/icons/entityIcons.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { startHoverPrefetch } from '../../core/budget/finanzbestandBoot.js';
@@ -463,17 +463,19 @@ export class NavigationSystem {
     this._bindSidebarAutoCollapse('sidebar-collapsed');
   }
 
-  // Schmaler Viewport (≤768px, passt zur Media Query in components.css):
-  // Die Sidebar klappt von alleine zur Icon-Leiste ein, damit sie nicht
-  // über dem Inhalt liegt. Die gespeicherte Nutzer-Präferenz wird dabei
-  // nicht angefasst; zurück auf breitem Viewport gilt wieder sie (Default:
-  // ausgeklappt). Manuelles Auf-/Zuklappen per Toggle bleibt jederzeit
-  // möglich.
+  // Schmaler Viewport (SIDEBAR_NARROW_QUERY): Die Sidebar klappt von alleine
+  // zur Icon-Leiste ein, damit sie nicht über dem Inhalt liegt. Die
+  // gespeicherte Nutzer-Präferenz wird dabei nicht angefasst; zurück auf
+  // breitem Viewport gilt wieder sie (Default: ausgeklappt). Manuelles
+  // Auf-/Zuklappen per Toggle bleibt jederzeit möglich. Die Klasse
+  // sidebar-narrow steuert Overlay-Hintergrund und Content-Margin in layout.css.
   _bindSidebarAutoCollapse(storageKey) {
     if (!this._sidebarCollapse || this._sidebarAutoCollapseMq) return;
     if (typeof window.matchMedia !== 'function') return; // z. B. jsdom
-    const mq = window.matchMedia('(max-width: 768px)');
+    const mq = window.matchMedia(SIDEBAR_NARROW_QUERY);
     const sync = () => {
+      const root = document.getElementById('app-root');
+      root?.classList.toggle('sidebar-narrow', mq.matches);
       if (mq.matches) {
         this._sidebarCollapse.setCollapsed(true, { persist: false });
       } else {

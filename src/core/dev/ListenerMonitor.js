@@ -40,6 +40,10 @@ const registries = {
 };
 
 let patched = false;
+let origAdd = EventTarget.prototype.addEventListener;
+let origRemove = EventTarget.prototype.removeEventListener;
+let hoverMoveHandler = null;
+let hoverRect = null;
 let nextFnId = 1;
 const fnIds = new WeakMap();
 
@@ -116,9 +120,45 @@ function trackRemove(name, type, fn, opts) {
   return forget(name, listenerKey(type, isCapture(opts), fn));
 }
 
+function unbindHoverHide() {
+  if (hoverMoveHandler) {
+    origRemove.call(document, 'mousemove', hoverMoveHandler);
+    hoverMoveHandler = null;
+  }
+  hoverRect = null;
+}
+
+function revealOverlay() {
+  if (!state.overlay) return;
+  state.overlay.style.opacity = '1';
+  state.overlay.style.pointerEvents = 'auto';
+  unbindHoverHide();
+}
+
+function concealOverlay() {
+  if (!state.overlay) return;
+  hoverRect = state.overlay.getBoundingClientRect();
+  state.overlay.style.opacity = '0';
+  state.overlay.style.pointerEvents = 'none';
+  if (hoverMoveHandler) return;
+  hoverMoveHandler = (e) => {
+    if (!hoverRect) return;
+    const { left, right, top, bottom } = hoverRect;
+    if (e.clientX < left || e.clientX > right || e.clientY < top || e.clientY > bottom) {
+      revealOverlay();
+    }
+  };
+  origAdd.call(document, 'mousemove', hoverMoveHandler);
+}
+
+function bindHoverHide(el) {
+  el.style.transition = 'opacity 0.15s ease';
+  origAdd.call(el, 'mouseenter', concealOverlay);
+}
+
 function patch() {
-  const origAdd = EventTarget.prototype.addEventListener;
-  const origRemove = EventTarget.prototype.removeEventListener;
+  origAdd = EventTarget.prototype.addEventListener;
+  origRemove = EventTarget.prototype.removeEventListener;
 
   EventTarget.prototype.addEventListener = function patchedAdd(type, fn, opts) {
     const name = getTargetName(this);
@@ -225,6 +265,7 @@ function createOverlay() {
     userSelect: 'none',
     lineHeight: '1.4',
     backdropFilter: 'blur(4px)',
+    transition: 'opacity 0.15s ease',
     display: 'flex',
     alignItems: 'flex-start',
     gap: '8px',
@@ -256,6 +297,7 @@ function createOverlay() {
   });
 
   el.append(body, collapseBtn);
+  bindHoverHide(el);
 
   el.addEventListener('click', (e) => {
     if (state.collapsed) {
@@ -297,7 +339,7 @@ function applyChrome() {
       borderRadius: '6px 0 0 6px',
     });
     if (btn) btn.hidden = true;
-    el.title = 'Listener einblenden';
+    el.title = 'Hover blendet aus • Listener einblenden';
     return;
   }
   el.classList.remove('is-collapsed');
@@ -310,7 +352,7 @@ function applyChrome() {
     borderRadius: '6px',
   });
   if (btn) btn.hidden = false;
-  el.title = 'Click = Toggle Log • Shift+Click = Dump • Alt+Click = Element-Count • aus = einklappen';
+  el.title = 'Hover blendet aus • Click = Toggle Log • Shift+Click = Dump • Alt+Click = Element-Count • aus = einklappen';
 }
 
 function updateUI() {
@@ -364,7 +406,7 @@ export function ensureListenerMonitor() {
     updateUI();
   }
 
-  console.log('🔬 ListenerMonitor aktiv – Click = Toggle Log, Shift+Click = Dump, Alt+Click = Element-Count, aus = einklappen');
+  console.log('🔬 ListenerMonitor aktiv – Hover blendet aus, Click = Toggle Log, Shift+Click = Dump, Alt+Click = Element-Count, aus = einklappen');
 }
 
 export function initListenerMonitor() {
@@ -377,6 +419,7 @@ export function initListenerMonitor() {
  */
 export function hideListenerMonitor() {
   if (!state.overlay) return;
+  unbindHoverHide();
   state.overlay.remove();
   state.overlay = null;
   state.body = null;
