@@ -21,7 +21,9 @@ const ENTITY_DISPLAY_NAMES = {
   kooperation: 'die Kooperation',
   briefing: 'das Briefing',
   kampagne: 'die Kampagne',
-  skripte: 'das Skript'
+  skripte: 'das Skript',
+  mitarbeiter: 'den Mitarbeiter',
+  kunde: 'den Kunden'
 };
 
 function getEntityDisplayName(entityType) {
@@ -199,13 +201,29 @@ export async function confirmDelete(entityId, entityType) {
     );
   }
 
-  const result = await window.dataService.deleteEntity(entityType, entityId);
+  const result = await deleteByType(entityId, entityType);
   if (!result?.success) {
     window.toastSystem?.show(result?.error || 'Löschen fehlgeschlagen.', 'error');
     return;
   }
   window.toastSystem?.show('Erfolgreich gelöscht', 'success');
   window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: entityType, action: 'deleted', id: entityId } }));
+}
+
+// Mitarbeiter und Kunden liegen in benutzer. Der Login dazu liegt in auth.users
+// und bleibt sonst liegen, die E-Mail ist dann weiter belegt.
+const LOGIN_ACCOUNT_TYPES = new Set(['mitarbeiter', 'kunde']);
+
+async function deleteByType(entityId, entityType) {
+  if (LOGIN_ACCOUNT_TYPES.has(entityType)) {
+    const { error } = await window.supabase.rpc('delete_benutzer_account', { p_id: entityId });
+    if (!error) return { success: true, id: entityId };
+    const missing = error.code === 'PGRST202' || /delete_benutzer_account/.test(error.message || '');
+    if (!missing) return { success: false, error: error.message };
+  }
+
+  const tableType = LOGIN_ACCOUNT_TYPES.has(entityType) ? 'benutzer' : entityType;
+  return window.dataService.deleteEntity(tableType, entityId);
 }
 
 async function confirmDeleteUnternehmen(entityId) {
