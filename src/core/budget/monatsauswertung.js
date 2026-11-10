@@ -10,12 +10,24 @@
 //     genau bei den Raten-Auftraegen.
 // Grundlage sind ausschliesslich gestellte Rechnungen, nicht die Kalkulation.
 //
+// Gemischte Auftraege bleiben ein Auftrag. Ihr Rechnungsbetrag wird nach
+// umsatz_netto der Kampagnenart-Bloecke auf die Leistungsbereiche verteilt.
+// Die Creatorrechnung folgt der Kampagnenart ihrer Videos. Fehlt der
+// Block-Umsatz oder eine Video-Art, bleibt dieser Betrag in Gemischt.
+// Auftraege mit genau einem Bereich bleiben ungeteilt. Kalkulation,
+// Zahlungsstand und Prognose nutzen weiter leistungsbereichForAuftrag.
+//
 // ADR 0007: Was keinen Monat oder keinen Bereich hat, wird in Sonderzeilen
 // ausgewiesen statt still zu verschwinden. Die Summe der Bereiche ergibt
 // deshalb immer das Gesamt.
 
 import { berechneKskBetrag } from './kskSelbstzahler.js';
-import { leistungsbereichForAuftrag } from './leistungsbereich.js';
+import {
+  LEISTUNGSBEREICHE,
+  bereichForCampaignType,
+  bereichForKampagnenart,
+  leistungsbereichForAuftrag,
+} from './leistungsbereich.js';
 import { calculateKoopFakturierung } from './koopFakturierung.js';
 
 // Rechnungen mit gestellt_am vor 2020 sind in dieser Datenbank falsch
@@ -45,6 +57,85 @@ function addKosten(row, month, kosten, anteil = 1) {
   addTo(row, 'honorar', month, kosten.honorar * anteil);
   if (kosten.ksk) addTo(row, 'ksk', month, kosten.ksk * anteil);
   if (kosten.zusatzkosten) addTo(row, 'zusatzkosten', month, kosten.zusatzkosten * anteil);
+}
+
+function roundCents(n) {
+  return Math.round((n || 0) * 100) / 100;
+}
+
+// Anteile summieren exakt auf den Betrag. Der letzte Bereich traegt den
+// Rundungsrest, die Reihenfolge ist die der Matrix.
+function anteile(betrag, gewichte) {
+  const total = gewichte.reduce((s, g) => s + g.weight, 0);
+  let rest = roundCents(betrag);
+  return gewichte.map((g, i) => {
+    const istLetzter = i === gewichte.length - 1;
+    const share = istLetzter ? rest : roundCents(betrag * (g.weight / total));
+    if (!istLetzter) rest = roundCents(rest - share);
+    return { bereich: g.bereich, betrag: share };
+  });
+}
+
+function gewichteInReihenfolge(byBereich, weightOf) {
+  return LEISTUNGSBEREICHE
+    .filter(bereich => byBereich.has(bereich))
+    .map(bereich => ({ bereich, weight: weightOf(byBereich.get(bereich)) }))
+    .filter(g => g.weight > 0);
+}
+
+function umsatzGewichte(blocks) {
+  const byBereich = new Map();
+  (blocks || []).forEach(b => {
+    const bereich = bereichForCampaignType(b?.campaign_type);
+    const umsatz = parseFloat(b?.umsatz_netto);
+    if (!bereich || !(umsatz > 0)) return;
+    byBereich.set(bereich, (byBereich.get(bereich) || 0) + umsatz);
+  });
+  return gewichteInReihenfolge(byBereich, umsatz => umsatz);
+}
+
+function umsatzSlices(auftragBereich, blocks, betrag) {
+  if (auftragBereich !== 'gemischt') return [{ bereich: auftragBereich, betrag }];
+  const gewichte = umsatzGewichte(blocks);
+  if (gewichte.length === 0) return [{ bereich: 'gemischt', betrag }];
+  return anteile(betrag, gewichte);
+}
+
+// null: die Kooperation ist nicht vollstaendig einer Art zuordenbar.
+function kostenGewichte(videosOfKoop) {
+  if (!videosOfKoop.length) return null;
+  const byBereich = new Map();
+  for (const video of videosOfKoop) {
+    const bereich = bereichForKampagnenart(video?.kampagnenart);
+    if (!bereich) return null;
+    const ek = parseFloat(video.einkaufspreis_netto);
+    const entry = byBereich.get(bereich) || { ek: 0, count: 0 };
+    entry.ek += Number.isFinite(ek) && ek > 0 ? ek : 0;
+    entry.count += 1;
+    byBereich.set(bereich, entry);
+  }
+  const ekSumme = [...byBereich.values()].reduce((s, entry) => s + entry.ek, 0);
+  return gewichteInReihenfolge(byBereich, entry => (ekSumme > 0 ? entry.ek : entry.count));
+}
+
+function kostenSlices(auftragBereich, koop, videosByKoop, kosten) {
+  if (auftragBereich !== 'gemischt') return [{ bereich: auftragBereich, kosten }];
+  const videosOfKoop = koop ? (videosByKoop.get(koop.id) || []) : [];
+  const gewichte = kostenGewichte(videosOfKoop);
+  if (!gewichte || gewichte.length === 0) return [{ bereich: 'gemischt', kosten }];
+  if (gewichte.length === 1) return [{ bereich: gewichte[0].bereich, kosten }];
+
+  const honorar = anteile(kosten.honorar, gewichte);
+  const ksk = anteile(kosten.ksk, gewichte);
+  const zusatzkosten = anteile(kosten.zusatzkosten, gewichte);
+  return gewichte.map((g, i) => ({
+    bereich: g.bereich,
+    kosten: {
+      honorar: honorar[i].betrag,
+      ksk: ksk[i].betrag,
+      zusatzkosten: zusatzkosten[i].betrag,
+    },
+  }));
 }
 
 function finalizeDifferenz(bereiche) {
@@ -96,6 +187,12 @@ export function calculateMonatsauswertung({
 
   const koopById = new Map(kooperationen.map(k => [k.id, k]));
   const kampagneToAuftrag = new Map(kampagnen.map(k => [k.id, k.auftrag_id]));
+  const videosByKoop = new Map();
+  videos.forEach(v => {
+    if (!v?.kooperation_id) return;
+    if (!videosByKoop.has(v.kooperation_id)) videosByKoop.set(v.kooperation_id, []);
+    videosByKoop.get(v.kooperation_id).push(v);
+  });
 
   const teilrechnungenByAuftrag = new Map();
   teilrechnungen.forEach(t => {
@@ -131,8 +228,16 @@ export function calculateMonatsauswertung({
     umsatzGesamt += betrag;
   };
 
+  const bucheUmsatz = (auftrag, month, betrag) => {
+    const bereich = bereichByAuftrag.get(auftrag.id) || 'nicht_zugeordnet';
+    const blocks = blocksByAuftrag.get(auftrag.id) || [];
+    umsatzSlices(bereich, blocks, betrag).forEach(slice => {
+      if (!slice.betrag) return;
+      addUmsatz(auftrag.id, slice.bereich, month, slice.betrag);
+    });
+  };
+
   auftraege.forEach(a => {
-    const bereich = bereichByAuftrag.get(a.id) || 'nicht_zugeordnet';
     const gestellteTeile = (teilrechnungenByAuftrag.get(a.id) || [])
       .filter(t => t.rechnung_gestellt && isPlausibleMonth(monthKey(t.rechnung_gestellt_am)));
 
@@ -141,7 +246,7 @@ export function calculateMonatsauswertung({
       gestellteTeile.forEach(t => {
         const betrag = parseFloat(t.nettobetrag) || 0;
         if (!betrag) return;
-        addUmsatz(a.id, bereich, monthKey(t.rechnung_gestellt_am), betrag);
+        bucheUmsatz(a, monthKey(t.rechnung_gestellt_am), betrag);
       });
       return;
     }
@@ -150,7 +255,7 @@ export function calculateMonatsauswertung({
     if (!isPlausibleMonth(month)) return;
     const betrag = parseFloat(a.nettobetrag) || 0;
     if (!betrag) return;
-    addUmsatz(a.id, bereich, month, betrag);
+    bucheUmsatz(a, month, betrag);
   });
 
   // --- Fremdkosten: je Sicht anders periodisiert ---
@@ -179,7 +284,8 @@ export function calculateMonatsauswertung({
     const kosten = { honorar, ksk, zusatzkosten };
     const kostenGesamt = honorar + ksk + zusatzkosten;
 
-    const bereich = (auftragId && bereichByAuftrag.get(auftragId)) || 'nicht_zugeordnet';
+    const auftragBereich = (auftragId && bereichByAuftrag.get(auftragId)) || 'nicht_zugeordnet';
+    const slices = kostenSlices(auftragBereich, koop, videosByKoop, kosten);
 
     const month = monthKey(r.gestellt_am);
     if (!isPlausibleMonth(month)) {
@@ -189,7 +295,7 @@ export function calculateMonatsauswertung({
       return;
     }
 
-    addKosten(rowFor('buchhaltung', bereich), month, kosten);
+    slices.forEach(slice => addKosten(rowFor('buchhaltung', slice.bereich), month, slice.kosten));
     honorarInMatrix.buchhaltung += honorar;
     months.add(month);
 
@@ -206,7 +312,7 @@ export function calculateMonatsauswertung({
     Object.entries(umsatzMonate).forEach(([margeMonth, anteilBetrag]) => {
       const anteil = umsatzAuftrag > 0 ? anteilBetrag / umsatzAuftrag : 0;
       if (anteil <= 0) return;
-      addKosten(rowFor('marge', bereich), margeMonth, kosten, anteil);
+      slices.forEach(slice => addKosten(rowFor('marge', slice.bereich), margeMonth, slice.kosten, anteil));
       honorarInMatrix.marge += honorar * anteil;
       months.add(margeMonth);
     });

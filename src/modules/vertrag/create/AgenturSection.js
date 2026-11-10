@@ -7,6 +7,7 @@ import { icon } from '../../../core/icons/IconSystem.js';
 import {
   addressComplete,
   legacyFreitextName,
+  personEmailLine,
   personLabel
 } from './managementVertretung.js';
 
@@ -17,6 +18,26 @@ function escapeAttr(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function renderPersonen(people, selectedId) {
+  if (!people.length) {
+    return '<p class="form-hint">Keine Ansprechperson hinterlegt.</p>';
+  }
+  const rows = people.map((person) => {
+    const selected = person.id === selectedId;
+    const name = personLabel(person) || 'Ohne Namen';
+    return `
+      <button type="button"
+        class="vertretung-person${selected ? ' is-selected' : ''}"
+        data-person-id="${escapeAttr(person.id)}"
+        aria-pressed="${selected ? 'true' : 'false'}">
+        <span class="vertretung-person__name">${escapeAttr(name)}</span>
+        <span class="vertretung-person__meta">${escapeAttr(personEmailLine(person))}</span>
+      </button>
+    `;
+  }).join('');
+  return `<div class="vertretung-personen">${rows}</div>`;
 }
 
 function addressFields(address) {
@@ -61,12 +82,6 @@ VertraegeCreate.prototype.renderAgenturSection = function() {
     ))
   ].join('');
   const people = this.vertretungPersonen || [];
-  const personOptions = [
-    `<option value="">Ansprechpartner wählen</option>`,
-    ...people.map((person) => (
-      `<option value="${escapeAttr(person.id)}" ${person.id === this.formData._ansprechpartner_id ? 'selected' : ''}>${escapeAttr(personLabel(person))}</option>`
-    ))
-  ].join('');
   const selectedPerson = people.find((person) => person.id === this.formData._ansprechpartner_id) || null;
   const needsEmail = !!(selectedPerson && !String(selectedPerson.email || '').trim());
   const needsAddress = !!(selected && !addressComplete(selected));
@@ -108,10 +123,8 @@ VertraegeCreate.prototype.renderAgenturSection = function() {
         ${addressComplete(selected) ? `<p class="form-hint">${escapeAttr(selected.firmenname || '')} · ${escapeAttr(`${selected.strasse || ''} ${selected.hausnummer || ''}, ${selected.plz || ''} ${selected.stadt || ''}`.replace(/\s+/g, ' ').trim())}</p>` : addressFields(address)}
 
         <div class="form-field">
-          <label for="vertretung_ansprechpartner">Vertreten durch</label>
-          <select id="vertretung_ansprechpartner" name="vertretung_ansprechpartner" data-searchable="true">
-            ${personOptions}
-          </select>
+          <span class="vertretung-person-label">Vertreten durch</span>
+          ${renderPersonen(people, this.formData._ansprechpartner_id)}
         </div>
         ${needsEmail ? `
           <div class="form-field">
@@ -121,24 +134,24 @@ VertraegeCreate.prototype.renderAgenturSection = function() {
         ` : ''}
 
         <p class="form-hint">Oder neu anlegen</p>
-        <div class="form-two-col">
+        <div class="form-two-col vertretung-person-names">
           <div class="form-field">
             <label for="vertretung_vorname">Vorname</label>
-            <input type="text" id="vertretung_vorname" name="_vertretung_vorname" value="${escapeAttr(this.formData._vertretung_vorname || '')}">
+            <input type="text" id="vertretung_vorname" name="_vertretung_vorname" autocomplete="section-vertretung given-name" value="${escapeAttr(this.formData._vertretung_vorname || '')}">
           </div>
           <div class="form-field">
             <label for="vertretung_nachname">Nachname</label>
-            <input type="text" id="vertretung_nachname" name="_vertretung_nachname" value="${escapeAttr(this.formData._vertretung_nachname || '')}">
+            <input type="text" id="vertretung_nachname" name="_vertretung_nachname" autocomplete="section-vertretung family-name" value="${escapeAttr(this.formData._vertretung_nachname || '')}">
           </div>
         </div>
         <div class="form-two-col">
           <div class="form-field">
             <label for="vertretung_email">E-Mail</label>
-            <input type="email" id="vertretung_email" name="_vertretung_email" value="${escapeAttr(this.formData._vertretung_email || '')}">
+            <input type="email" id="vertretung_email" name="_vertretung_email" autocomplete="section-vertretung email" value="${escapeAttr(this.formData._vertretung_email || '')}">
           </div>
           <div class="form-field">
             <label for="vertretung_telefon">Mobilnummer</label>
-            <input type="tel" id="vertretung_telefon" name="_vertretung_telefon" value="${escapeAttr(this.formData._vertretung_telefon || '')}">
+            <input type="tel" id="vertretung_telefon" name="_vertretung_telefon" autocomplete="section-vertretung tel" value="${escapeAttr(this.formData._vertretung_telefon || '')}">
           </div>
         </div>
       ` : ''}
@@ -185,26 +198,18 @@ VertraegeCreate.prototype._bindAgenturEvents = function() {
     });
   }
 
-  const personSelect = document.getElementById('vertretung_ansprechpartner');
-  if (personSelect) {
-    const people = this.vertretungPersonen || [];
-    const personOptions = [
-      { value: '', label: 'Ansprechpartner wählen' },
-      ...people.map((person) => ({ value: person.id, label: personLabel(person) }))
-    ];
-    this._bindSearchable(personSelect, personOptions, 'Ansprechpartner wählen');
-    if (this.formData._ansprechpartner_id && typeof this.setSearchableSelectValue === 'function') {
-      this.setSearchableSelectValue('vertretung_ansprechpartner', this.formData._ansprechpartner_id, personOptions);
-    }
-    personSelect.addEventListener('change', (event) => {
-      this.formData._ansprechpartner_id = event.target.value || null;
+  document.querySelectorAll('#agentur-section-container .vertretung-person').forEach((button) => {
+    button.addEventListener('click', () => {
+      const id = button.dataset.personId || null;
+      if (!id || id === this.formData._ansprechpartner_id) return;
+      this.formData._ansprechpartner_id = id;
       this.formData._vertretung_vorname = '';
       this.formData._vertretung_nachname = '';
       this.formData._vertretung_email = '';
       this.formData._vertretung_telefon = '';
       this.refreshAgenturSection();
     });
-  }
+  });
 
   document.getElementById('vertrag-management-anlegen')?.addEventListener('click', () => {
     this.openVertragManagementForm();
@@ -234,11 +239,12 @@ VertraegeCreate.prototype._bindAgenturEvents = function() {
   ['vertretung_vorname', 'vertretung_nachname', 'vertretung_email', 'vertretung_telefon'].forEach((id) => {
     document.getElementById(id)?.addEventListener('input', (event) => {
       this.formData[`_${id}`] = event.target.value;
-      if (String(event.target.value || '').trim()) {
-        this.formData._ansprechpartner_id = null;
-        const node = document.getElementById('vertretung_ansprechpartner');
-        if (node) node.value = '';
-      }
+      if (!String(event.target.value || '').trim()) return;
+      this.formData._ansprechpartner_id = null;
+      document.querySelectorAll('#agentur-section-container .vertretung-person.is-selected').forEach((row) => {
+        row.classList.remove('is-selected');
+        row.setAttribute('aria-pressed', 'false');
+      });
     });
   });
 

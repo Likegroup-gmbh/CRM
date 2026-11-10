@@ -20,6 +20,11 @@ export function personLabel(person) {
   return `${person?.vorname || ''} ${person?.nachname || ''}`.replace(/\s+/g, ' ').trim();
 }
 
+export function personEmailLine(person) {
+  const email = String(person?.email || '').trim();
+  return email || 'keine E-Mail';
+}
+
 export function matchManagement(query, managements) {
   const wanted = normName(query);
   if (wanted.length < 2) return { exact: null, similar: [] };

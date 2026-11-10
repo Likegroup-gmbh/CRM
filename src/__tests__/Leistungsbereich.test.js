@@ -3,6 +3,7 @@ import {
   LEISTUNGSBEREICHE,
   LEISTUNGSBEREICH_LABELS,
   bereichForCampaignType,
+  bereichForKampagnenart,
   leistungsbereichForAuftrag,
   primaerBereichForAuftrag,
 } from '../core/budget/leistungsbereich.js';
@@ -30,6 +31,33 @@ describe('bereichForCampaignType', () => {
     expect(bereichForCampaignType('sonstiges')).toBeNull();
     expect(bereichForCampaignType(null)).toBeNull();
     expect(bereichForCampaignType(undefined)).toBeNull();
+  });
+});
+
+describe('bereichForKampagnenart', () => {
+  it('liest die Bezeichnungen am Video und fuehrt sie auf denselben Bereich wie die Bloecke', () => {
+    expect(bereichForKampagnenart('Influencer Kampagne')).toBe('influencer_marketing');
+    expect(bereichForKampagnenart('Influencer Story')).toBe('influencer_marketing');
+    expect(bereichForKampagnenart('Influencer Events')).toBe('influencer_marketing');
+    expect(bereichForKampagnenart('UGC Paid')).toBe('ugc_paid');
+    expect(bereichForKampagnenart('UGC Organic')).toBe('ugc_organic');
+    expect(bereichForKampagnenart('Vor-Ort-Produktion')).toBe('vorort_produktion');
+    expect(bereichForKampagnenart('Whitelisting')).toBe('whitelisting');
+    expect(bereichForKampagnenart('Darkposting')).toBe('darkposting');
+  });
+
+  it('akzeptiert Block-Schluessel und die alten Bezeichnungen', () => {
+    expect(bereichForKampagnenart('ugc_paid')).toBe('ugc_paid');
+    expect(bereichForKampagnenart('UGC Pro Paid')).toBe('ugc_paid');
+    expect(bereichForKampagnenart('Story')).toBe('influencer_marketing');
+    expect(bereichForKampagnenart('Vorort-Produktion')).toBe('vorort_produktion');
+  });
+
+  it('liefert null fuer leere oder unbekannte Arten', () => {
+    expect(bereichForKampagnenart('')).toBeNull();
+    expect(bereichForKampagnenart('   ')).toBeNull();
+    expect(bereichForKampagnenart(null)).toBeNull();
+    expect(bereichForKampagnenart('Sonstiges')).toBeNull();
   });
 });
 

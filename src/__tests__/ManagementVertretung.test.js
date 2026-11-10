@@ -6,6 +6,7 @@ import {
   matchManagement,
   matchPerson,
   pendingPersonComplete,
+  personEmailLine,
   preselectManagementId,
   preselectPersonId,
   vertretungGiltFuer,
@@ -50,6 +51,12 @@ describe('Management-Vertretung', () => {
     expect(preselectPersonId(people, ['d', 'fremd'])).toBe('d');
     expect(preselectPersonId(people, ['b', 'd'])).toBe(null);
     expect(preselectPersonId(people, [])).toBe(null);
+  });
+
+  it('zeigt die E-Mail, sonst den Hinweis dass keine hinterlegt ist', () => {
+    expect(personEmailLine({ email: 'd@talent.de' })).toBe('d@talent.de');
+    expect(personEmailLine({ email: '  ' })).toBe('keine E-Mail');
+    expect(personEmailLine({})).toBe('keine E-Mail');
   });
 
   it('erkennt dieselbe Person am Namen', () => {

@@ -208,8 +208,6 @@ VertraegeCreate.prototype._syncVertretungFromDom = function() {
   });
   const name = document.getElementById('vertrag_mgmt_name');
   if (name) this.formData._neues_management_name = name.value;
-  const select = document.getElementById('vertretung_ansprechpartner');
-  if (select) this.formData._ansprechpartner_id = select.value || null;
 };
 
 VertraegeCreate.prototype.showVertretungLuecken = function(gaps) {

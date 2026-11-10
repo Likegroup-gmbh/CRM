@@ -49,6 +49,51 @@ export function bereichForCampaignType(campaignType) {
   return CAMPAIGN_TYPE_TO_BEREICH[campaignType] || null;
 }
 
+// Bezeichnungen am Video (kooperation_videos.kampagnenart). Dieselben
+// Alt-Namen wie in KampagnenartenMapping, hier dupliziert, damit die
+// Budget-Rechnung nicht vom Formular-Modul abhaengt.
+const KAMPAGNENART_LABEL_TO_TYPE = {
+  'Influencer Kampagne': 'influencer',
+  Influencer: 'influencer',
+  'Influencer Story': 'story',
+  'Influencer Events': 'event',
+  'UGC Paid': 'ugc_paid',
+  'UGC Organic': 'ugc_organic',
+  'Vor-Ort-Produktion': 'vorort_produktion',
+  Whitelisting: 'whitelisting',
+  Darkposting: 'darkposting',
+};
+
+const KAMPAGNENART_LEGACY_LABELS = {
+  'UGC Pro Paid': 'UGC Paid',
+  'UGC Video Paid': 'UGC Paid',
+  'UGC Pro Organic': 'UGC Organic',
+  'UGC Video Organic': 'UGC Organic',
+  'UGC-Kampagne': 'UGC Organic',
+  'UGC Kampagne': 'UGC Organic',
+  'IGC Kampagnen': 'UGC Organic',
+  'IGC Kampagne': 'UGC Organic',
+  Story: 'Influencer Story',
+  'Vorort-Produktion': 'Vor-Ort-Produktion',
+  'Vor Ort Produktionen': 'Vor-Ort-Produktion',
+};
+
+/**
+ * Leistungsbereich einer Video-Kampagnenart. Akzeptiert die Bezeichnung
+ * ("UGC Paid", "Influencer Kampagne") und den Block-Schluessel ("ugc_paid").
+ * Unbekannte oder leere Werte liefern null — die Monatsauswertung laesst
+ * die Creatorrechnung dann in Gemischt.
+ */
+export function bereichForKampagnenart(label) {
+  if (label == null) return null;
+  const text = String(label).trim();
+  if (!text) return null;
+  const fromType = bereichForCampaignType(text);
+  if (fromType) return fromType;
+  const canonical = KAMPAGNENART_LEGACY_LABELS[text] || text;
+  return bereichForCampaignType(KAMPAGNENART_LABEL_TO_TYPE[canonical]);
+}
+
 export function isContracting(auftrag) {
   return typeof auftrag?.auftragtype === 'string'
     && auftrag.auftragtype.toLowerCase().includes('contracting');
