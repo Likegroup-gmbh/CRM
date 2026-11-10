@@ -66,6 +66,7 @@ export function buildTree(raw, { team }) {
         id: v.id,
         number,
         title: v.titel || v.thema || v.video_name || '',
+        caption: v.caption || '',
         kooperationId: k.id,
         rohmaterial,
         team,

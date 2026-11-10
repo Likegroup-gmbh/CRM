@@ -13,6 +13,9 @@ import { isActivationKey, onShortcut } from './videoBrowserKeys.js';
 import { onTabKeydown, setDetailTab } from './videoBrowserTabs.js';
 import { openTagField } from './videoBrowserTagField.js';
 import { removeTag } from './videoBrowserTags.js';
+import {
+  cancelCaptionEdit, commitCaption, copyCaption, onCaptionInput, startCaptionEdit, toggleCaptionOpen
+} from './videoBrowserCaption.js';
 import { commitRename, endRename, startRename } from './videoBrowserRename.js';
 import { startUpload } from './videoBrowserUploadState.js';
 import { onSegmentKeydown, onShowcaseClick } from './videoBrowserShowcase.js';
@@ -33,6 +36,11 @@ export function bindEvents(vb) {
     void submitComment(vb, form);
   });
   on(vb.root, 'input', (e) => {
+    const caption = e.target.closest('[data-vb-caption]');
+    if (caption) {
+      onCaptionInput(vb, caption);
+      return;
+    }
     const text = e.target.closest('[data-vb-comment-text]');
     if (!text) return;
     setDraftText(vb, text.closest('[data-vb-comment-form]').dataset.assetId, text.value);
@@ -72,6 +80,17 @@ export function bindEvents(vb) {
       }
       return;
     }
+    const captionField = e.target.closest('[data-vb-caption]');
+    if (captionField) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cancelCaptionEdit(vb);
+      } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        captionField.blur();
+      }
+      return;
+    }
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && e.target.closest('[data-vb-comment-text]')) {
       e.preventDefault();
       void submitComment(vb, e.target.closest('[data-vb-comment-form]'));
@@ -91,12 +110,27 @@ export function bindEvents(vb) {
   on(vb.root, 'focusout', (e) => {
     if (e.target.closest('[data-vb-title-input]')) void commitRename(vb);
     if (e.target.closest('[data-vb-file-input]')) void commitFileRename(vb);
+    const caption = e.target.closest('[data-vb-caption]');
+    if (caption) void commitCaption(vb, caption);
   });
 
   bindDropzone(vb, on);
 }
 
 function onClick(vb, e) {
+  if (e.target.closest('[data-vb-caption-copy]')) {
+    void copyCaption(vb);
+    return;
+  }
+  if (e.target.closest('[data-vb-caption-more]')) {
+    toggleCaptionOpen(vb);
+    return;
+  }
+  if (e.target.closest('[data-vb-caption-view]')) {
+    startCaptionEdit(vb);
+    return;
+  }
+
   // Spalte 0: Gruppenkopf, Umschalter Creator | Linie, Alle ein-/aufklappen (vor dem Showcase,
   // der sonst jeden Segment-Umschalter für sich beansprucht)
   if (onKoopGroupClick(vb, e)) return;

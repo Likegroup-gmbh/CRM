@@ -38,6 +38,7 @@ vi.mock('../modules/video-browser/VideoBrowserAdapter.js', () => ({
   insertVarianteTag: vi.fn(),
   deleteVarianteTag: vi.fn(),
   createTagTyp: vi.fn(),
+  saveVideoCaption: vi.fn(async () => null),
   TITEL_MAX: 120
 }));
 

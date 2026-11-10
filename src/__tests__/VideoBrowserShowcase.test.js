@@ -37,7 +37,8 @@ const RAW = {
 
 vi.mock('../modules/video-browser/VideoBrowserAdapter.js', () => ({
   loadVideoBrowserData: vi.fn(async () => structuredClone(RAW)),
-  saveWiedergabeMessung: vi.fn()
+  saveWiedergabeMessung: vi.fn(),
+  saveVideoCaption: vi.fn(async () => null)
 }));
 
 vi.mock('../modules/video-browser/videoBrowserMedia.js', () => ({

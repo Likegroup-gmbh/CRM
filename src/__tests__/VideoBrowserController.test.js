@@ -35,6 +35,7 @@ vi.mock('../modules/video-browser/VideoBrowserAdapter.js', () => ({
   insertVarianteTag: vi.fn(async ({ videoId, variantKey, tagTypId }) => ({ video_id: videoId, variant_key: variantKey, tag_typ_id: tagTypId })),
   deleteVarianteTag: vi.fn(async () => {}),
   createTagTyp: vi.fn(async ({ label, gruppe, kampagneId }) => ({ id: `t-${label}`, label, gruppe, kampagne_id: kampagneId })),
+  saveVideoCaption: vi.fn(async (_id, caption) => String(caption || '').trim() || null),
   TITEL_MAX: 120
 }));
 
@@ -74,7 +75,7 @@ vi.mock('../modules/video-browser/videoBrowserRatio.js', () => ({
 }));
 
 const { mountVideoBrowserPane, unmountVideoBrowser } = await import('../modules/video-browser/VideoBrowser.js');
-const { loadVideoBrowserData, saveWiedergabeMessung, saveZeitkommentar, renameAsset, renameAdManagerFile, deleteAsset, insertVarianteTag, deleteVarianteTag, createTagTyp } = await import('../modules/video-browser/VideoBrowserAdapter.js');
+const { loadVideoBrowserData, saveWiedergabeMessung, saveZeitkommentar, renameAsset, renameAdManagerFile, deleteAsset, insertVarianteTag, deleteVarianteTag, createTagTyp, saveVideoCaption } = await import('../modules/video-browser/VideoBrowserAdapter.js');
 const { prefetchLinks, warmNeighbors, stopWarming } = await import('../modules/video-browser/videoBrowserMedia.js');
 const { promoteAssetToFinal, unmarkFinalSlot } = await import('../core/PromoteFinalAsset.js');
 const { ratioOfItem } = await import('../modules/video-browser/videoBrowserRatio.js');
@@ -800,6 +801,163 @@ describe('VideoBrowser Controller', () => {
         click(ctx.pane.querySelector('[data-vb-adm-copy="a1"]'));
         await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('a1.mp4'));
         expect(window.toastSystem.show).toHaveBeenCalledWith('Dateiname kopiert', 'success');
+      });
+    });
+
+    describe('Caption', () => {
+      const mitCaption = (caption) => {
+        const data = mitTags();
+        data.videos = data.videos.map(v => (v.id === 'v1' ? { ...v, caption } : v));
+        return data;
+      };
+      const blockEl = () => ctx.pane.querySelector('[data-vb-caption-block]');
+      const edit = () => click(ctx.pane.querySelector('[data-vb-caption-view]'));
+      const field = () => ctx.pane.querySelector('[data-vb-caption]');
+      const blur = (el) => el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+      const typeInto = (el, value) => {
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+
+      it('liest als Text ohne Feld, unter den Eigenschaften und mit Hinweis auf alle Versionen', async () => {
+        loadVideoBrowserData.mockImplementation(async () => mitCaption('Anzeige* Naturlocken #haare @mia.roth'));
+        await open('f=s1&i=a1');
+        expect(field()).toBeNull();
+        const details = panel('details');
+        expect(details.querySelector('.vb-props [data-vb-caption-block]')).toBeNull();
+        expect(blockEl().previousElementSibling.classList.contains('vb-props')).toBe(true);
+        expect(blockEl().querySelector('.vb-caption__label').textContent).toBe('Caption');
+        expect(blockEl().querySelector('.vb-caption__scope').textContent).toBe('gilt für alle Versionen');
+        const text = blockEl().querySelector('[data-vb-caption-text]');
+        expect(text.textContent).toBe('Anzeige* Naturlocken #haare @mia.roth');
+        expect([...text.querySelectorAll('.vb-caption__tag')].map(t => t.textContent)).toEqual(['#haare', '@mia.roth']);
+      });
+
+      it('Video ohne gewählte Datei zeigt den Block auch', async () => {
+        loadVideoBrowserData.mockImplementation(async () => mitCaption('Jetzt shoppen'));
+        await open('');
+        expect(blockEl().querySelector('[data-vb-caption-text]').textContent).toBe('Jetzt shoppen');
+        expect(blockEl().querySelector('.vb-caption__scope')).toBeNull();
+      });
+
+      it('Klick macht den Text editierbar mit Zähler, Blur speichert und zeigt "Gespeichert"', async () => {
+        loadVideoBrowserData.mockImplementation(async () => mitCaption('Jetzt shoppen'));
+        await open('f=s1&i=a1');
+        edit();
+        expect(field().value).toBe('Jetzt shoppen');
+        expect(document.activeElement).toBe(field());
+        expect(blockEl().querySelector('[data-vb-caption-count]').textContent).toBe('13 / 2.200');
+
+        typeInto(field(), 'Neue Caption');
+        expect(blockEl().querySelector('[data-vb-caption-count]').textContent).toBe('12 / 2.200');
+        blur(field());
+        await vi.waitFor(() => expect(saveVideoCaption).toHaveBeenCalledWith('v1', 'Neue Caption'));
+        await vi.waitFor(() => expect(field()).toBeNull());
+        expect(blockEl().querySelector('[data-vb-caption-text]').textContent).toBe('Neue Caption');
+        expect(blockEl().querySelector('[data-vb-caption-saved]').hidden).toBe(false);
+      });
+
+      it('Esc verwirft den Entwurf, unveränderter Text schreibt nichts', async () => {
+        loadVideoBrowserData.mockImplementation(async () => mitCaption('Jetzt shoppen'));
+        await open('f=s1&i=a1');
+        saveVideoCaption.mockClear();
+
+        edit();
+        typeInto(field(), 'Verworfen');
+        field().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(field()).toBeNull();
+        expect(blockEl().querySelector('[data-vb-caption-text]').textContent).toBe('Jetzt shoppen');
+
+        edit();
+        blur(field());
+        expect(field()).toBeNull();
+        expect(saveVideoCaption).not.toHaveBeenCalled();
+      });
+
+      it('Speicherfehler lässt den Text im Feld stehen und meldet es', async () => {
+        loadVideoBrowserData.mockImplementation(async () => mitCaption('Alt'));
+        await open('f=s1&i=a1');
+        saveVideoCaption.mockRejectedValueOnce(new Error('rls'));
+        edit();
+        typeInto(field(), 'Neu');
+        blur(field());
+        await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Caption konnte nicht gespeichert werden.', 'error'));
+        expect(field().value).toBe('Neu');
+        expect(field().classList.contains('has-error')).toBe(true);
+        expect(field().readOnly).toBe(false);
+      });
+
+      it('leer zeigt für das Team einen Platzhalter ohne Kopieren, für Kunden fehlt der Block', async () => {
+        loadVideoBrowserData.mockImplementation(async () => mitCaption(null));
+        await open('f=s1&i=a1');
+        expect(blockEl().querySelector('.vb-caption__text--empty').textContent).toBe('Caption hinzufügen…');
+        expect(blockEl().querySelector('[data-vb-caption-copy]').hidden).toBe(true);
+        edit();
+        typeInto(field(), 'Erste Caption');
+        expect(blockEl().querySelector('[data-vb-caption-copy]').hidden).toBe(false);
+        unmountVideoBrowser(ctx.detail);
+
+        await open('f=s1&i=a1', { team: false });
+        expect(blockEl()).toBeNull();
+      });
+
+      it('Kunden lesen nur: kein Klick-Bearbeiten, kein Feld', async () => {
+        loadVideoBrowserData.mockImplementation(async () => mitCaption('Jetzt shoppen'));
+        await open('f=s1&i=a1', { team: false });
+        expect(blockEl().querySelector('[data-vb-caption-text]').textContent).toBe('Jetzt shoppen');
+        expect(blockEl().querySelector('[data-vb-caption-view]')).toBeNull();
+        expect(field()).toBeNull();
+      });
+
+      it('Kopieren zeigt Haken und "Kopiert" statt eines Toasts', async () => {
+        const writeText = vi.fn(async () => {});
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        loadVideoBrowserData.mockImplementation(async () => mitCaption('Jetzt shoppen'));
+        await open('f=s1&i=a1');
+        const copy = ctx.pane.querySelector('[data-vb-caption-copy]');
+        click(copy);
+        await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('Jetzt shoppen'));
+        expect(copy.classList.contains('is-copied')).toBe(true);
+        expect(copy.querySelector('.vb-caption__copy-label').textContent).toBe('Kopiert');
+        expect(window.toastSystem.show).not.toHaveBeenCalled();
+      });
+
+      it('lange Captions: "Mehr anzeigen" erscheint nur bei Überlauf und klappt auf', async () => {
+        const scroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight');
+        const client = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+        Object.defineProperty(HTMLElement.prototype, 'scrollHeight', { configurable: true, get: () => 200 });
+        Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 100 });
+        try {
+          loadVideoBrowserData.mockImplementation(async () => mitCaption('Sehr lang\n'.repeat(12)));
+          await open('f=s1&i=a1');
+          const more = ctx.pane.querySelector('[data-vb-caption-more]');
+          expect(more.hidden).toBe(false);
+          expect(more.textContent).toBe('Mehr anzeigen');
+          expect(blockEl().classList.contains('is-overflow')).toBe(true);
+
+          click(more);
+          expect(blockEl().classList.contains('is-open')).toBe(true);
+          expect(more.textContent).toBe('Weniger anzeigen');
+          expect(more.getAttribute('aria-expanded')).toBe('true');
+          click(more);
+          expect(blockEl().classList.contains('is-open')).toBe(false);
+        } finally {
+          if (scroll) Object.defineProperty(HTMLElement.prototype, 'scrollHeight', scroll); else delete HTMLElement.prototype.scrollHeight;
+          if (client) Object.defineProperty(HTMLElement.prototype, 'clientHeight', client); else delete HTMLElement.prototype.clientHeight;
+        }
+      });
+
+      it('kurze Caption zeigt kein "Mehr anzeigen"', async () => {
+        loadVideoBrowserData.mockImplementation(async () => mitCaption('Kurz'));
+        await open('f=s1&i=a1');
+        expect(ctx.pane.querySelector('[data-vb-caption-more]').hidden).toBe(true);
+      });
+
+      it('Auszeichnung escaped HTML und verwechselt &#39; nicht mit einem Hashtag', async () => {
+        const { captionTextHtml, captionCount } = await import('../modules/video-browser/videoBrowserCaption.js');
+        expect(captionTextHtml(`Don't <b> #echt (#klammer) a#b`))
+          .toBe('Don&#39;t &lt;b&gt; <span class="vb-caption__tag">#echt</span> (<span class="vb-caption__tag">#klammer</span>) a#b');
+        expect(captionCount('Äpfel 🍎')).toBe('7 / 2.200');
       });
     });
 

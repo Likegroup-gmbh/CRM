@@ -10,6 +10,7 @@ import { formatDatum, schleifeName, verlaufFor } from './videoBrowserLogic.js';
 import { statusBadge } from './videoBrowserRenderParts.js';
 import { commentsOf, commentsPanelHtml } from './videoBrowserRenderComments.js';
 import { tagFieldHtml } from './videoBrowserRenderTags.js';
+import { captionFieldHtml } from './videoBrowserCaption.js';
 
 export const TAB_LABEL = { details: 'Details', admanager: 'Ad Manager', kommentare: 'Kommentare' };
 
@@ -116,7 +117,14 @@ export function detailsPanelHtml(ctx) {
       { action: 'filename', hint: 'Im Ad Manager bearbeiten' }));
   }
 
-  return `<dl class="vb-props">${rows.join('')}</dl>`;
+  // Die Caption hängt am Video, nicht an der Datei: eigener Block unter den Eigenschaften
+  const caption = captionFieldHtml(row, {
+    editable: ctx.canEditCaption,
+    open: ctx.captionOpen?.has(row.id),
+    scope: item.type === 'roh' ? '' : 'gilt für alle Versionen'
+  });
+
+  return `<dl class="vb-props">${rows.join('')}</dl>${caption}`;
 }
 
 /* ---- Ad Manager ---- */

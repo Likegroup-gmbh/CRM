@@ -223,7 +223,7 @@ function finalFolder({ rowId, team, finalAssets, stillFinals, storyFinals, stori
  * @param {{ number: number, name: string }} storyInfo je story_id (Nummer = Slot + 1)
  */
 export function buildRow({
-  id, number, title, kooperationId, rohmaterial, team,
+  id, number, title, caption = '', kooperationId, rohmaterial, team,
   loopAssets, finalAssets,
   storyLoop = [], storyFinals = [], storyInfo = new Map(),
   stillLoop = [], stillFinals = [],
@@ -289,6 +289,7 @@ export function buildRow({
     kooperationId,
     number,
     title,
+    caption: caption || '',
     label: slotLabel,
     stage,
     status,

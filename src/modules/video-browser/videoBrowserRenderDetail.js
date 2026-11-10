@@ -16,6 +16,7 @@ import {
   statusBadge
 } from './videoBrowserRenderParts.js';
 import { detailItem } from './videoBrowserRenderItem.js';
+import { captionFieldHtml } from './videoBrowserCaption.js';
 import { freieOrdnerSlot, ordnerLinkButton } from './videoBrowserAblage.js';
 
 export function naechsterSchritt(row, team) {
@@ -161,12 +162,14 @@ function detailVideo(ctx) {
   const hinweis = row.folders.length
     ? `<ul class="vb-list" aria-label="Ordner">${row.folders.map(folderRowDetail).join('')}</ul>`
     : empty(ctx.team ? 'Noch nichts abgelegt.' : next.text);
+  const caption = captionFieldHtml(row, { editable: ctx.canEditCaption, open: ctx.captionOpen?.has(row.id) });
   return `
     <section class="vb-block vb-next">
       <h4 class="vb-detail__eyebrow">Nächster Schritt</h4>
       <p>${esc(next.text)}</p>
       ${next.ziel ? `<button type="button" class="mdc-btn mdc-btn--secondary" data-goto-folder="${esc(next.ziel)}">${esc(next.label)}</button>` : ''}
     </section>
+    ${caption ? `<div class="vb-block">${caption}</div>` : ''}
     <div class="vb-block">${hinweis}</div>`;
 }
 

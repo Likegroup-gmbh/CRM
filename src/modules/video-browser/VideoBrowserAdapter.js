@@ -20,7 +20,7 @@ const KOOP_SELECT = `
   id, name, briefing_id, created_at,
   creator:creator_id (id, vorname, nachname, instagram, profilbild_thumb_url, profilbild_url)
 `;
-const VIDEO_SELECT = 'id, kooperation_id, position, titel, thema, video_name, status, created_at';
+const VIDEO_SELECT = 'id, kooperation_id, position, titel, thema, video_name, caption, status, created_at';
 // Videoidee nur fürs Team: Kunden (v. a. kunde_editor) dürfen strategie_items nicht durchgängig lesen
 const VIDEO_SELECT_TEAM = `${VIDEO_SELECT}, strategie_item_id`;
 const STORY_SELECT = 'id, video_id, slot_index, slot_name, created_at';
@@ -219,6 +219,23 @@ export async function saveZeitkommentar({ videoId, runde, assetId = null, text, 
     .single();
   if (error) throw error;
   return data;
+}
+
+/**
+ * Caption des Kooperationsvideos. Dieselbe Spalte wie im Kooperationstab
+ * (`kooperation_videos.caption`). Leer wird null.
+ * @returns {Promise<string|null>}
+ */
+export async function saveVideoCaption(videoId, caption) {
+  const value = String(caption ?? '').trim() || null;
+  const { data, error } = await window.supabase
+    .from('kooperation_videos')
+    .update({ caption: value })
+    .eq('id', videoId)
+    .select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('Caption konnte nicht gespeichert werden');
+  return value;
 }
 
 export const TITEL_MAX = 120;

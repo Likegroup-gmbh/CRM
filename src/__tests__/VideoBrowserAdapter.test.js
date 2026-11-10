@@ -13,7 +13,7 @@ vi.mock('../core/ablage/ablageApi.js', () => ({
   ablageDateiUmbenennen: vi.fn(async (_typ, _id, name) => ({ file_name: name, file_path: `/Ablage/K/${name}`, etag: 'e2' })),
 }));
 
-const { renameAsset, renameAdManagerFile, deleteAsset, loadVideoBrowserData } = await import('../modules/video-browser/VideoBrowserAdapter.js');
+const { renameAsset, renameAdManagerFile, deleteAsset, loadVideoBrowserData, saveVideoCaption } = await import('../modules/video-browser/VideoBrowserAdapter.js');
 const { ablageDateiLoeschen, ablageDateiUmbenennen } = await import('../core/ablage/ablageApi.js');
 const { titelAusDateiname } = await import('../core/uploadJobs/runVideoUploadJob.js');
 const { deleteSingleDropboxFile, syncVideoAssetsAfterDelete } = await import('../core/VideoDeleteHelper.js');
@@ -66,6 +66,7 @@ describe('VideoBrowserAdapter: Produkte der Videoideen', () => {
     const raw = await loadVideoBrowserData({ kampagneId: 'c1', team: true });
     const videos = window.supabase.calls.find(q => q.table === 'kooperation_videos');
     expect(videos.select).toContain('strategie_item_id');
+    expect(videos.select).toContain('caption');
     expect(window.supabase.calls.find(q => q.table === 'strategie_items').filters).toContainEqual(['id', ['i1']]);
     expect(window.supabase.calls.find(q => q.table === 'produkt').filters).toContainEqual(['id', ['p1']]);
     expect(raw.ideen).toEqual([{ id: 'i1', produkt_id: 'p1' }]);
@@ -109,6 +110,26 @@ describe('VideoBrowserAdapter: Dateititel', () => {
     expect(titelAusDateiname('Interview Kudamm.MOV')).toBe('Interview Kudamm');
     expect(titelAusDateiname('clip.final.mp4')).toBe('clip.final');
     expect(titelAusDateiname('')).toBeNull();
+  });
+});
+
+describe('VideoBrowserAdapter: Caption', () => {
+  afterEach(() => { delete window.supabase; });
+
+  it('schreibt die Caption ans Video, leer wird null', async () => {
+    window.supabase = mockSupabase();
+    await expect(saveVideoCaption('v1', '  Jetzt shoppen  ')).resolves.toBe('Jetzt shoppen');
+    const [q] = window.supabase.calls;
+    expect(q).toMatchObject({ table: 'kooperation_videos', op: 'update', payload: { caption: 'Jetzt shoppen' } });
+    expect(q.filters).toEqual([['id', 'v1']]);
+
+    await expect(saveVideoCaption('v1', '   ')).resolves.toBeNull();
+    expect(window.supabase.calls.at(-1).payload).toEqual({ caption: null });
+  });
+
+  it('meldet einen Fehler, wenn RLS keine Zeile schreiben lässt', async () => {
+    window.supabase = mockSupabase({ 'kooperation_videos:update': () => ({ data: [], error: null }) });
+    await expect(saveVideoCaption('v1', 'Text')).rejects.toThrow();
   });
 });
 

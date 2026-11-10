@@ -38,6 +38,7 @@ import { bindEvents } from './videoBrowserEvents.js';
 import { initKoopState, koopGroupParam, revealKoop, scrollSelectedKoop } from './videoBrowserKoopState.js';
 import { ladeFreieOrdner } from './videoBrowserAblage.js';
 import { highlightComment, syncPinTime } from './videoBrowserComments.js';
+import { syncCaptionClamp } from './videoBrowserCaption.js';
 import { defaultTab, setDetailTab, syncTabIndicator } from './videoBrowserTabs.js';
 import { closeTagField, refreshTagField } from './videoBrowserTagField.js';
 import { formatTime } from '../../core/media/mediaPlayerIcons.js';
@@ -75,6 +76,11 @@ class VideoBrowser {
     this.pane = pane;
     this.team = !!window.canFeature?.('videoTeamSicht');
     this.canUpload = !!window.canFeature?.('mediaUpload') && this.team;
+    // Caption schreibt nur die Team-Sicht. Kunden sehen sie, die Denylist
+    // im Kooperationstab sperrt dasselbe Feld für sie.
+    this.canEditCaption = this.team;
+    this.captionEdit = null;
+    this.captionOpen = new Set();
     this.canComment = !!window.canFeature?.('skriptKommentieren');
     this.canDownload = !!window.canFeature?.('mediaDownload');
     this.raw = null;
@@ -150,6 +156,9 @@ class VideoBrowser {
     this._warmGen = (this._warmGen || 0) + 1;
     stopWarming();
     this._destroyPlayer();
+    this._captionRO?.disconnect();
+    clearTimeout(this._captionSavedTimer);
+    clearTimeout(this._captionCopiedTimer);
     destroyShowcase(this);
     this.uploader?.destroy();
     this.motion?.destroy();
@@ -232,6 +241,8 @@ class VideoBrowser {
       resolved,
       team: this.team,
       canUpload: this.canUpload,
+      canEditCaption: this.canEditCaption,
+      captionOpen: this.captionOpen,
       canComment: this.canComment,
       canDownload: this.canDownload,
       drafts: this.drafts,
@@ -388,7 +399,9 @@ class VideoBrowser {
     this._closeTagField();
     this.renaming = null;
     this.renamingFile = null;
+    this.captionEdit = null;
     this.detailInner.innerHTML = renderDetail(ctx);
+    syncCaptionClamp(this);
     void ladeFreieOrdner(this);
 
     const host = this.detailInner.querySelector('[data-vb-player-host]');
@@ -455,6 +468,7 @@ class VideoBrowser {
     } else if (tabs) {
       this._closeTagField();
       tabs.innerHTML = tabsHtml(ctx);
+      syncCaptionClamp(this);
       syncTabIndicator(this);
       syncPinTime(this, this._lastTime, item.id);
       this._fillDuration();

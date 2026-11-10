@@ -31,7 +31,7 @@ const raw = () => ({
   ],
   linien: [{ id: 'b1', name: 'UGC' }],
   videos: [
-    { id: 'v1', kooperation_id: 'k1', position: 1, titel: 'Hook', created_at: '2026-01-01' },
+    { id: 'v1', kooperation_id: 'k1', position: 1, titel: 'Hook', caption: 'Jetzt shoppen', created_at: '2026-01-01' },
     { id: 'v2', kooperation_id: 'k1', position: 2, titel: 'Zweites', created_at: '2026-01-02' },
     { id: 'v3', kooperation_id: 'k2', position: 1, titel: 'Leer', created_at: '2026-01-03' }
   ],
@@ -117,6 +117,7 @@ describe('Baum', () => {
   it('Spalte 1: nur Videos, Stories und Bilder liegen in den Ordnern des Videos', () => {
     const rows = team.kooperationen[0].rows;
     expect(rows.map(r => r.label)).toEqual(['Video 1', 'Video 2']);
+    expect(rows.map(r => r.caption)).toEqual(['Jetzt shoppen', '']);
     expect(team.kooperationen[0].videoCount).toBe(2);
   });
 
