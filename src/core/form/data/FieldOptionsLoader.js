@@ -7,8 +7,9 @@ import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 import { isFinalisiert } from '../../finalisiert.js';
 import { fetchAllRows, fetchAllRowsWave } from '../../fetchAllRows.js';
 import { creatorDisplayName, loadAllCreators } from '../../creatorRows.js';
-
-const formatEuro = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v ?? 0);
+import { calculateKoopAbrechenbarkeit } from '../../budget/koopFakturierung.js';
+import { RECHNUNG_ABRECHEN_SELECT, VIDEO_EK_SELECT } from '../../budget/koopAbrechenbarkeitLaden.js';
+import { formatEuro } from '../../format.js';
 
 // Feldoptionen laden - grosser Dispatcher je nach Feld-Typ
 // `this` = DynamicDataLoader
@@ -354,17 +355,13 @@ export async function loadKooperationenOhneRechnung() {
     // unabhaengig und laufen parallel statt als Wasserfall. Grosse Tabellen
     // (kooperationen, kooperation_videos) ohne COUNT(*) per Welle.
     const [rechnungenRes, koopsRes, videosRes] = await Promise.allSettled([
-      fetchAllRows(
-        window.supabase,
-        'rechnung',
-        'kooperation_id, nettobetrag, nettobetrag_steuerfrei, ksk_betrag, ist_schlussrechnung'
-      ),
+      fetchAllRows(window.supabase, 'rechnung', RECHNUNG_ABRECHEN_SELECT),
       fetchAllRowsWave(
         window.supabase,
         'kooperationen',
         'id, name, kampagne_id, creator_id, created_at, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag'
       ),
-      fetchAllRowsWave(window.supabase, 'kooperation_videos', 'kooperation_id, einkaufspreis_netto')
+      fetchAllRowsWave(window.supabase, 'kooperation_videos', VIDEO_EK_SELECT)
     ]);
 
     if (rechnungenRes.status === 'rejected') {
@@ -392,13 +389,12 @@ export async function loadKooperationenOhneRechnung() {
       }
     }
 
-    const { calculateKoopAbrechenbarkeit } = await import('../../budget/koopFakturierung.js');
     const abrechenbarkeit = calculateKoopAbrechenbarkeit({
-      kooperationen: alleKoops || [],
+      kooperationen: alleKoops,
       videos,
-      rechnungen: rechnungen || []
+      rechnungen
     });
-    const koops = (alleKoops || []).filter(k => abrechenbarkeit.get(k.id)?.abrechenbar !== false);
+    const koops = alleKoops.filter(k => abrechenbarkeit.get(k.id)?.abrechenbar !== false);
 
     let kampagneMap = {};
     let kampagneUnternehmenMap = {};
@@ -480,6 +476,9 @@ export async function loadKooperationenOhneRechnung() {
           subtitleParts.push(`Bereits fakturiert: ${formatEuro(info.fakturiert)} · Noch abrechenbar: ${formatEuro(Math.max(info.rest, 0))}`);
         } else {
           subtitleParts.push('Bereits fakturiert – Soll nicht gepflegt');
+        }
+        if (info?.fakturiertKsk > 0) {
+          subtitleParts.push(`KSK (Creator führt selbst ab): ${formatEuro(info.fakturiertKsk)}`);
         }
       }
 

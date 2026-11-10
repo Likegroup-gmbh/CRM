@@ -18,6 +18,15 @@ describe('sumKooperationCreatorKosten', () => {
     ])).toBe(1049);
   });
 
+  it('Video-Zeilen ohne EK fallen auf den Kooperations-EK zurueck', () => {
+    expect(sumKooperationCreatorKosten([
+      { id: 'k1', einkaufspreis_netto: 800 }
+    ], [
+      { kooperation_id: 'k1', einkaufspreis_netto: null },
+      { kooperation_id: 'k1', einkaufspreis_netto: '' }
+    ])).toBe(800);
+  });
+
   it('leere Listen ergeben 0', () => {
     expect(sumKooperationCreatorKosten()).toBe(0);
     expect(sumKooperationCreatorKosten([], [])).toBe(0);

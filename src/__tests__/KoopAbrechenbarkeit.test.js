@@ -114,6 +114,17 @@ describe('calculateKoopAbrechenbarkeit', () => {
     expect(map.get('k1').abrechenbar).toBe(true);
   });
 
+  it('Video ohne gepflegten EK faellt auf den Kooperations-EK zurueck', () => {
+    const map = calculateKoopAbrechenbarkeit({
+      kooperationen: [koop({ einkaufspreis_netto: 1000 })],
+      videos: [{ kooperation_id: 'k1', einkaufspreis_netto: null }],
+      rechnungen: [rechnung({ nettobetrag: 1000 })],
+    });
+    const e = map.get('k1');
+    expect(e.soll).toBe(1000);
+    expect(e.abrechenbar).toBe(false);
+  });
+
   it('Video-EK schlaegt den Kooperations-EK', () => {
     const map = calculateKoopAbrechenbarkeit({
       kooperationen: [koop()],

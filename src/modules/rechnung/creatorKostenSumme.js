@@ -1,30 +1,21 @@
 // Summe der Creator-Kosten aus den Kooperationen (Auftragsdetails).
-// Dasselbe Soll wie die Fakturierung: Video-EK schlaegt den Kooperations-EK,
-// Selbstzahler-KSK kommt dazu. Kooperationen ohne Rechnung zaehlen mit.
+// Dasselbe Soll wie die Fakturierung: gepflegter Video-EK schlaegt den
+// Kooperations-EK, Selbstzahler-KSK kommt dazu. Kooperationen ohne Rechnung
+// zaehlen mit.
 
 import { fetchAllRows, fetchAllRowsWave } from '../../core/fetchAllRows.js';
 import { isFinalAuftrag } from '../../core/finalisiert.js';
+import { sollFuerKoop, videoSollNachKoop } from '../../core/budget/koopFakturierung.js';
 
 function betrag(value) {
   return parseFloat(value) || 0;
 }
 
 export function sumKooperationCreatorKosten(kooperationen, videos) {
-  const videoEkByKoop = new Map();
-  const koopMitVideos = new Set();
-  for (const video of videos || []) {
-    if (!video?.kooperation_id) continue;
-    koopMitVideos.add(video.kooperation_id);
-    videoEkByKoop.set(
-      video.kooperation_id,
-      (videoEkByKoop.get(video.kooperation_id) || 0) + betrag(video.einkaufspreis_netto)
-    );
-  }
+  const videoSoll = videoSollNachKoop(videos || []);
 
   return (kooperationen || []).reduce((sum, koop) => {
-    const ek = koopMitVideos.has(koop.id)
-      ? (videoEkByKoop.get(koop.id) || 0)
-      : betrag(koop.einkaufspreis_netto);
+    const ek = sollFuerKoop(koop, videoSoll);
     const ksk = koop.ksk_selbstzahler ? betrag(koop.ksk_betrag) : 0;
     return sum + ek + ksk;
   }, 0);

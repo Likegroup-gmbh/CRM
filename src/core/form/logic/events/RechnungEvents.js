@@ -1,6 +1,7 @@
 import { KampagneUtils } from '../../../../modules/kampagne/KampagneUtils.js';
 import { findSignedVertragForKooperation } from '../../../../modules/rechnung/RechnungVertragZuordnung.js';
-import { calculateKoopAbrechenbarkeit } from '../../../budget/koopFakturierung.js';
+import { ladeAbrechenbarkeit } from '../../../budget/koopAbrechenbarkeitLaden.js';
+import { formatEuro } from '../../../format.js';
 
 let _debounceTimer = null;
 
@@ -80,8 +81,26 @@ function hideVertragWarning(form) {
 // Zeigt bei teilfakturierten Kooperationen den noch abrechenbaren Betrag und
 // warnt weich, wenn die eingegebene Rechnung ihn uebersteigt. Blockiert nie.
 const RESTBETRAG_HINWEIS_ID = 'rechnung-restbetrag-hinweis';
+const KSK_HINWEIS_ID = 'rechnung-ksk-hinweis';
+const ABRECHNUNG_HINWEIS_ID = 'rechnung-abrechnung-hinweis';
 
-const _formatEuro = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v ?? 0);
+function placeNotice(form, { id, className, anchorEl, html, nodes }) {
+  form.querySelector(`#${id}`)?.remove();
+  const banner = document.createElement('div');
+  banner.id = id;
+  banner.className = className;
+  if (nodes) banner.append(...nodes);
+  else banner.innerHTML = html;
+  const group = anchorEl?.closest('.form-field') || anchorEl?.closest('.form-row-group');
+  if (group) group.insertAdjacentElement('afterend', banner);
+  else form.prepend(banner);
+}
+
+function abrechnungHinweisAus(kampagne) {
+  const details = kampagne?.auftrag?.auftrag_details;
+  const row = Array.isArray(details) ? details[0] : details;
+  return row?.abrechnung_hinweis;
+}
 
 function removeRestbetragHinweis(form) {
   form.querySelector(`#${RESTBETRAG_HINWEIS_ID}`)?.remove();
@@ -102,31 +121,30 @@ function updateRestbetragHinweis(form, abrechenbarkeit, { nettoInput, nettoSteue
   // Ohne vorherige Rechnung und ohne Ueberschreitung gibt es nichts zu sagen.
   if (!istUeberschreitung && anzahlRechnungen === 0) return;
 
-  const banner = document.createElement('div');
-  banner.id = RESTBETRAG_HINWEIS_ID;
-  if (istUeberschreitung) {
-    banner.className = 'notice-box notice-warning';
-    banner.innerHTML = `
-      <strong>Restbetrag überschritten</strong>
-      Diese Rechnung übersteigt den noch abrechenbaren Betrag um ${_formatEuro(ueber)}
-      (Soll: ${_formatEuro(soll)}, bereits fakturiert: ${_formatEuro(fakturiert)}).
-      Speichern ist trotzdem möglich — bitte Betrag und Kooperation prüfen.
-    `;
-  } else {
-    banner.className = 'notice-box notice-info';
-    banner.innerHTML = `
-      <strong>Teilrechnung</strong>
-      Bereits fakturiert: ${_formatEuro(fakturiert)} von ${_formatEuro(soll)} ·
-      Noch abrechenbar: ${_formatEuro(Math.max(rest, 0))}
-    `;
-  }
-
   const koopField = findSelect(form, 'kooperation_id');
-  const koopGroup = koopField?.closest('.form-field') || koopField?.closest('.form-row-group');
-  if (koopGroup) {
-    koopGroup.insertAdjacentElement('afterend', banner);
+  if (istUeberschreitung) {
+    placeNotice(form, {
+      id: RESTBETRAG_HINWEIS_ID,
+      className: 'notice-box notice-warning',
+      anchorEl: koopField,
+      html: `
+        <strong>Restbetrag überschritten</strong>
+        Diese Rechnung übersteigt den noch abrechenbaren Betrag um ${formatEuro(ueber)}
+        (Soll: ${formatEuro(soll)}, bereits fakturiert: ${formatEuro(fakturiert)}).
+        Speichern ist trotzdem möglich — bitte Betrag und Kooperation prüfen.
+      `
+    });
   } else {
-    form.prepend(banner);
+    placeNotice(form, {
+      id: RESTBETRAG_HINWEIS_ID,
+      className: 'notice-box notice-info',
+      anchorEl: koopField,
+      html: `
+        <strong>Teilrechnung</strong>
+        Bereits fakturiert: ${formatEuro(fakturiert)} von ${formatEuro(soll)} ·
+        Noch abrechenbar: ${formatEuro(Math.max(rest, 0))}
+      `
+    });
   }
 }
 
@@ -134,64 +152,51 @@ function updateRestbetragHinweis(form, abrechenbarkeit, { nettoInput, nettoSteue
 // Der KSK-Selbstzahler-Aufschlag ist ein separates Konto. Zwei weiche
 // Warnungen gegen Doppelzahlung: KSK auf einer Nicht-Selbstzahler-
 // Kooperation, und KSK, die auf einer frueheren Rechnung derselben
-// Kooperation schon abgerechnet wurde. Blockiert nie.
-const KSK_HINWEIS_ID = 'rechnung-ksk-hinweis';
-
+// Kooperation schon abgerechnet wurde. Blockiert nie. Das Feld bleibt
+// immer sichtbar, sonst koennte die erste Warnung nie feuern.
 // kskSelbstzahler: true/false sobald eine Kooperation gewaehlt ist, null
 // solange keine gewaehlt ist (dann ist nichts pruefbar).
 function updateKskHinweis(form, { kskSelbstzahler, fakturiertKsk }, kskInput) {
   form.querySelector(`#${KSK_HINWEIS_ID}`)?.remove();
   const eingegeben = parseFloat(kskInput?.value) || 0;
-  if (eingegeben <= 0) return;
+  if (eingegeben <= 0 || !kskInput) return;
 
   const warnungen = [];
   if (kskSelbstzahler === false) {
     warnungen.push('Diese Kooperation ist nicht als KSK-Selbstzahler markiert — die KSK zahlen wir normalerweise direkt an die Künstlersozialkasse, nicht an den Creator.');
   }
   if ((fakturiertKsk || 0) > 0) {
-    warnungen.push(`KSK wurde für diese Kooperation bereits abgerechnet (${_formatEuro(fakturiertKsk)}) — nicht doppelt berechnen.`);
+    warnungen.push(`KSK wurde für diese Kooperation bereits abgerechnet (${formatEuro(fakturiertKsk)}) — nicht doppelt berechnen.`);
   }
   if (!warnungen.length) return;
 
-  const banner = document.createElement('div');
-  banner.id = KSK_HINWEIS_ID;
-  banner.className = 'notice-box notice-warning';
-  banner.innerHTML = `<strong>KSK prüfen</strong>${warnungen.join('<br>')}`;
-  const kskGroup = kskInput.closest('.form-field') || kskInput.closest('.form-row-group');
-  if (kskGroup) {
-    kskGroup.insertAdjacentElement('afterend', banner);
-  } else {
-    form.prepend(banner);
-  }
+  placeNotice(form, {
+    id: KSK_HINWEIS_ID,
+    className: 'notice-box notice-warning',
+    anchorEl: kskInput,
+    html: `<strong>KSK prüfen</strong>${warnungen.join('<br>')}`
+  });
 }
 
 // === Abrechnungshinweis des Auftrags (ADR 0015) ===
-// Freitext auf dem Auftrag, z.B. die Juniper-Regelung "Programmteilnahmen
-// laufen ueber das Honorar, Reisekosten separat als Zusatzkosten". Wird beim
+// Freitext in den Auftragsdetails, z.B. die Juniper-Regelung. Wird beim
 // Anlegen der Rechnung eingeblendet, damit die Regelung nicht verstaubt.
-const ABRECHNUNG_HINWEIS_ID = 'rechnung-abrechnung-hinweis';
-
 function updateAbrechnungHinweis(form, hinweis) {
   form.querySelector(`#${ABRECHNUNG_HINWEIS_ID}`)?.remove();
   const text = (hinweis || '').trim();
   if (!text) return;
 
-  const banner = document.createElement('div');
-  banner.id = ABRECHNUNG_HINWEIS_ID;
-  banner.className = 'notice-box notice-info';
   const strong = document.createElement('strong');
   strong.textContent = 'Abrechnungshinweis zum Auftrag';
   const span = document.createElement('span');
   span.textContent = text;
-  banner.append(strong, span);
-
   const koopField = findSelect(form, 'kooperation_id');
-  const koopGroup = koopField?.closest('.form-field') || koopField?.closest('.form-row-group');
-  if (koopGroup) {
-    koopGroup.insertAdjacentElement('afterend', banner);
-  } else {
-    form.prepend(banner);
-  }
+  placeNotice(form, {
+    id: ABRECHNUNG_HINWEIS_ID,
+    className: 'notice-box notice-info',
+    anchorEl: koopField,
+    nodes: [strong, span]
+  });
 }
 
 // Wiederverwendbare Berechnungslogik fuer USt/Brutto — wird auch von RechnungContractingEvents importiert.
@@ -379,19 +384,6 @@ export async function setup(form, ctx) {
   // Tri-State: null = keine Kooperation gewaehlt (nichts pruefbar)
   let aktuelleKoopKskSelbstzahler = null;
 
-  // KSK-Feld nur zeigen, wenn es relevant ist: Aufschlag eingetragen oder
-  // Selbstzahler-Kooperation (dann kann er eingetragen werden). Sofort beim
-  // Setup aufrufen — sonst flackert das Feld kurz sichtbar auf.
-  const updateKskVisibility = () => {
-    if (!kskInput) return;
-    const wrapper = kskInput.closest('.form-field');
-    if (!wrapper) return;
-    const sichtbar = (parseFloat(kskInput.value) || 0) > 0
-      || aktuelleKoopKskSelbstzahler === true;
-    wrapper.style.display = sichtbar ? '' : 'none';
-  };
-  updateKskVisibility();
-
   // Im Edit-Modus: Kooperation + abhängige Selects komplett sperren
   if (isEditMode) {
     const lockField = (selectEl) => {
@@ -497,7 +489,6 @@ export async function setup(form, ctx) {
       if (nettoSteuerfreiInput) nettoSteuerfreiInput.value = '';
       if (zusatzInput) zusatzInput.value = '';
       if (kskInput) kskInput.value = '';
-      updateKskVisibility();
       if (bruttoInput) bruttoInput.value = '';
       if (ustAktivToggle) ustAktivToggle.checked = true;
       if (ustProzentInput) ustProzentInput.value = '19';
@@ -531,21 +522,8 @@ export async function setup(form, ctx) {
     // Abrechenbarkeit der Kooperation bestimmen (ADR 0004/0015): gestellte
     // Rechnungen + Video-EK laden, Restbetrag fuer Prefill und Warnung.
     try {
-      const [{ data: koopRechnungen }, { data: koopVideos }] = await Promise.all([
-        window.supabase
-          .from('rechnung')
-          .select('kooperation_id, nettobetrag, nettobetrag_steuerfrei, ksk_betrag, ist_schlussrechnung')
-          .eq('kooperation_id', koopId),
-        window.supabase
-          .from('kooperation_videos')
-          .select('kooperation_id, einkaufspreis_netto')
-          .eq('kooperation_id', koopId)
-      ]);
-      aktuelleAbrechenbarkeit = calculateKoopAbrechenbarkeit({
-        kooperationen: [koop],
-        videos: koopVideos || [],
-        rechnungen: koopRechnungen || []
-      }).get(koopId) || null;
+      const { abrechenbarkeit } = await ladeAbrechenbarkeit(window.supabase, [koop]);
+      aktuelleAbrechenbarkeit = abrechenbarkeit.get(koopId) || null;
     } catch (e) {
       console.warn('⚠️ Abrechenbarkeit konnte nicht bestimmt werden:', e);
       aktuelleAbrechenbarkeit = null;
@@ -592,7 +570,7 @@ export async function setup(form, ctx) {
     fillSelect(auftragField, auftragsId, auftragsName || (auftragsId ? 'Unbenannter Auftrag' : ''));
 
     // Abrechnungshinweis aus den Auftragsdetails einblenden (z.B. Juniper-Regelung)
-    updateAbrechnungHinweis(form, kampagneResult.data?.auftrag?.auftrag_details?.[0]?.abrechnung_hinweis);
+    updateAbrechnungHinweis(form, abrechnungHinweisAus(kampagneResult.data));
 
     if (!auftragsId && auftragField) {
       const container = auftragField.parentNode.querySelector('.searchable-select-container');
@@ -649,7 +627,6 @@ export async function setup(form, ctx) {
       if (kskInput) kskInput.value = ksk ? String(ksk) : '';
       if (bruttoInput) bruttoInput.value = isNaN(brutto) ? '' : String(brutto);
     }
-    updateKskVisibility();
     berechneRechnung();
 
     // Signal fuer die PDF-Auslesung (ADR 0016): nach deren Kooperations-
@@ -718,7 +695,6 @@ export async function setup(form, ctx) {
   
   // Initiale Berechnung aus gespeicherten Werten (auch im Edit-Mode)
   setTimeout(() => {
-    updateKskVisibility();
     berechneRechnung();
   }, 200);
 }
