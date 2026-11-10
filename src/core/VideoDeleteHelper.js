@@ -4,6 +4,8 @@
 
 import { pickLatestAsset } from './stills/stillAssets.js';
 import { authorizedFetch } from './auth/getAccessToken.js';
+import { ablageDateiLoeschen, ablageEntityLoeschen } from './ablage/ablageApi.js';
+import { istSharePoint, mitAblage } from './ablage/ablageLink.js';
 
 async function dropboxDelete(filePath, fetchFn) {
   const resp = await fetchFn('/.netlify/functions/dropbox-delete', {
@@ -22,55 +24,39 @@ async function dropboxDelete(filePath, fetchFn) {
 async function loadAssets(supabase, videoId) {
   const { data } = await supabase
     .from('kooperation_video_asset')
-    .select('id, video_id, file_url, file_path, is_current')
+    .select(mitAblage('id, video_id, file_url, file_path, is_current', 'ablage'))
     .eq('video_id', videoId);
   return data || [];
 }
 
 /**
- * Gleicht ein Video nach dem Löschen EINER Asset-Zeile mit den verbleibenden
- * Assets ab (Datei + Zeile sind bereits weg). Kein Dropbox-Zugriff, kein Ordner-Delete.
- *
- * - is_current: Loop-Assets der höchsten verbleibenden Feedbackschleife = true, Rest false.
- * - link_content: nur neu gesetzt, wenn die gelöschte Datei ein Loop-Asset der
- *   (bisher) höchsten Schleife war. Löschen aus älterer Runde / Finale fasst ihn nicht an.
- * - folder_url: nur geleert, wenn gar kein Asset (Loop oder Final) übrig ist.
+ * Gleicht ein Video nach dem Löschen einer Asset-Zeile ab (Datei + Zeile sind bereits weg).
+ * is_current und link_content setzt der Trigger auf kooperation_video_asset; hier wird nur
+ * zurückgelesen, was die UI braucht, und folder_url geleert, wenn gar kein Asset
+ * (Loop oder Final) übrig ist.
  */
-export async function syncVideoAssetsAfterDelete(videoId, deletedAsset, { supabase: sb } = {}) {
+export async function syncVideoAssetsAfterDelete(videoId, { supabase: sb } = {}) {
   const supabase = sb || window.supabase;
 
-  const { data } = await supabase
-    .from('kooperation_video_asset')
-    .select('id, version_number, is_current, is_final, file_url, file_path, created_at')
-    .eq('video_id', videoId);
+  const [{ data }, { data: video }] = await Promise.all([
+    supabase
+      .from('kooperation_video_asset')
+      .select('id, version_number, is_current, is_final, file_url, file_path, created_at')
+      .eq('video_id', videoId),
+    supabase.from('kooperation_videos').select('link_content').eq('id', videoId).maybeSingle(),
+  ]);
   const remaining = data || [];
   const loops = remaining.filter(a => !a.is_final);
   const finals = remaining.filter(a => a.is_final);
 
-  const maxVersion = loops.length ? Math.max(...loops.map(a => a.version_number || 1)) : 0;
-  const isTop = a => (a.version_number || 1) === maxVersion;
-  const setFlag = async (ids, is_current) => {
-    if (ids.length) await supabase.from('kooperation_video_asset').update({ is_current }).in('id', ids);
-  };
-  await setFlag(loops.filter(a => !isTop(a) && a.is_current).map(a => a.id), false);
-  await setFlag(loops.filter(a => isTop(a) && !a.is_current).map(a => a.id), true);
-
   const hasRemainingAssets = remaining.length > 0;
-  const patch = {};
-  const wasTopLoop = !!deletedAsset && !deletedAsset.is_final
-    && (loops.length === 0 || (deletedAsset.version_number || 1) >= maxVersion);
-  if (wasTopLoop) {
-    patch.link_content = pickLatestAsset(loops.filter(a => a.file_url))?.file_url ?? null;
-  }
-  if (!hasRemainingAssets) patch.folder_url = null;
-  if (Object.keys(patch).length) {
-    await supabase.from('kooperation_videos').update(patch).eq('id', videoId);
+  if (!hasRemainingAssets) {
+    await supabase.from('kooperation_videos').update({ folder_url: null }).eq('id', videoId);
   }
 
   return {
     currentAsset: pickLatestAsset(loops) || pickLatestAsset(finals),
-    linkContentChanged: 'link_content' in patch,
-    linkContent: patch.link_content ?? null,
+    linkContent: video?.link_content ?? null,
     hasRemainingAssets,
   };
 }
@@ -85,10 +71,18 @@ export async function deleteVideoFull(videoId, { supabase: sb, fetch: fetchFn } 
   try {
     const assets = await loadAssets(supabase, videoId);
 
-    const assetsWithPath = assets.filter(a => a.file_path);
+    const assetsWithPath = assets.filter(a => a.file_path && !istSharePoint(a));
     await Promise.allSettled(
       assetsWithPath.map(a => dropboxDelete(a.file_path, _fetch))
     );
+
+    // Nacheinander, Zeile direkt nach der Datei: Quelle und Finale teilen sich die Datei,
+    // und der Server löscht sie erst, wenn keine andere Zeile mehr auf sie zeigt.
+    for (const a of assets.filter(istSharePoint)) {
+      await ablageDateiLoeschen('video', a.id, { fetch: _fetch });
+      const { error } = await supabase.from('kooperation_video_asset').delete().eq('id', a.id);
+      if (error) throw error;
+    }
 
     if (assets.length > 0) {
       await supabase
@@ -114,12 +108,30 @@ export async function deleteVideoFull(videoId, { supabase: sb, fetch: fetchFn } 
 
 /**
  * Cascade-Delete: Ruft den serverseitigen Orchestrator auf, der alle Dropbox-Dateien
- * für eine Kampagne/Kooperation/Video löscht, BEVOR die DB-Zeile entfernt wird.
- * Gibt ein Summary-Objekt zurück.
+ * für eine Kampagne/Kooperation/Video löscht, BEVOR die DB-Zeile entfernt wird. Parallel
+ * räumt ablage-loeschen den SharePoint-Bestand ab.
+ * Gibt das Summary-Objekt der Dropbox-Cascade zurück.
  */
 export async function deleteDropboxCascade(entityType, entityId, { fetch: fetchFn } = {}) {
   const _fetch = fetchFn || authorizedFetch;
+  const [result] = await Promise.all([
+    dropboxCascade(entityType, entityId, _fetch),
+    ablageCascade(entityType, entityId, _fetch),
+  ]);
+  return result;
+}
 
+/** SharePoint-Bestand derselben Entität; ein Fehler bricht das Löschen nicht ab. */
+async function ablageCascade(entityType, entityId, fetchFn) {
+  try {
+    const result = await ablageEntityLoeschen(entityType, entityId, { fetch: fetchFn });
+    if (result?.fehler?.length) console.warn(`ablage-loeschen für ${entityType} ${entityId} mit Fehlern:`, result.fehler);
+  } catch (err) {
+    console.error('ablage-loeschen fehlgeschlagen:', err);
+  }
+}
+
+async function dropboxCascade(entityType, entityId, _fetch) {
   try {
     const resp = await _fetch('/.netlify/functions/dropbox-delete-cascade', {
       method: 'POST',

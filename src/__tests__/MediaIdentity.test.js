@@ -30,10 +30,27 @@ describe('mediaIdentity.videoFallbackUrl / lookupFor / lookupPath', () => {
   });
 
   it('lookupFor normalisiert auf null und nutzt Fallback nur ohne file_url', () => {
-    expect(lookupFor(null)).toEqual({ file_path: null, file_url: null });
-    expect(lookupFor({ file_path: '/p' })).toEqual({ file_path: '/p', file_url: null });
-    expect(lookupFor({ file_url: 'u' }, 'fb')).toEqual({ file_path: null, file_url: 'u' });
-    expect(lookupFor({ file_path: '/p' }, 'fb')).toEqual({ file_path: '/p', file_url: 'fb' });
+    const leer = { file_path: null, file_url: null, typ: null, id: null, ablage: null, etag: null };
+    expect(lookupFor(null)).toEqual(leer);
+    expect(lookupFor({ file_path: '/p' })).toEqual({ ...leer, file_path: '/p' });
+    expect(lookupFor({ file_url: 'u' }, null, 'fb')).toEqual({ ...leer, file_url: 'u' });
+    expect(lookupFor({ file_path: '/p' }, null, 'fb')).toEqual({ ...leer, file_path: '/p', file_url: 'fb' });
+  });
+
+  it('lookupFor reicht typ, id, ablage und etag fuer SharePoint weiter', () => {
+    const asset = { id: 'a1', file_path: '/Kampagne/clip.mp4', file_url: 'https://contoso.sharepoint.com/web', ablage: 'sharepoint', etag: 'e1' };
+    expect(lookupFor(asset, 'video')).toEqual({
+      file_path: '/Kampagne/clip.mp4', file_url: 'https://contoso.sharepoint.com/web',
+      typ: 'video', id: 'a1', ablage: 'sharepoint', etag: 'e1',
+    });
+  });
+
+  it('lookupFor bildet den Player-Typ "bild" auf die Tabelle "still" ab', () => {
+    expect(lookupFor({ id: 'i' }, 'bild').typ).toBe('still');
+    expect(lookupFor({ id: 'i' }, 'still').typ).toBe('still');
+    expect(lookupFor({ id: 's' }, 'story').typ).toBe('story');
+    expect(lookupFor({ id: 'r' }, 'roh').typ).toBe('roh');
+    expect(lookupFor({ id: 'x' }, 'ordner').typ).toBeNull();
   });
 
   it('lookupPath bevorzugt file_path, sonst file_url, sonst leer', () => {

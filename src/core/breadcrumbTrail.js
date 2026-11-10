@@ -3,6 +3,8 @@
 // Liegt in history.state.trail und übersteht so Reload, Zurück und Vor.
 // Neuer Tab oder geteilter Link: kein Pfad, die Seite zeigt den offiziellen Weg.
 
+import { getRouteConfig } from './breadcrumbRoutes.js';
+
 export const MAX_TRAIL = 12;
 export const MAX_VISIBLE = 6;
 const PLACEHOLDER = '...';
@@ -40,6 +42,12 @@ export function isFormRoute(url) {
   return parts.slice(1).some((part) => part === 'new' || part === 'edit');
 }
 
+// Ordner-Listen geben ihren Ordnerpfad ins eigene Detail mit,
+// feste Unterseiten (children, z. B. /skripte/master) nicht.
+function keepsFolderPath(crumbs, target) {
+  return crumbs.length > 1 && !getRouteConfig(target.segment).children?.[target.id];
+}
+
 // Pfad für das Ziel einer Navigation.
 // currentTrail/currentCrumbs/currentUrl beschreiben die Seite, die man verlässt.
 export function nextTrail({ currentTrail = [], currentCrumbs = [], currentUrl = '', targetRoute }) {
@@ -55,10 +63,24 @@ export function nextTrail({ currentTrail = [], currentCrumbs = [], currentUrl = 
   if (hit !== -1) return crumbs.slice(0, hit);
 
   if (!form && target.segment === prev.segment) {
-    if (!prev.id) return [];
+    if (!prev.id) return keepsFolderPath(crumbs, target) ? crumbs.slice(-MAX_TRAIL) : [];
     if (!target.action && !prev.action && target.id !== prev.id) return currentTrail;
   }
   return crumbs.slice(-MAX_TRAIL);
+}
+
+// Stelle, ab der die offizielle Kette an den Pfad anschließt.
+// Ordner-Crumbs teilen sich den Listen-Pfad: endet der Pfad auf einer Liste,
+// geht es hinter der tiefsten Ordner-Ebene weiter, sonst hinter der Entität.
+function joinIndex(trail, official) {
+  const last = parseRoute(trail[trail.length - 1].url);
+  if (!last.path) return -1;
+  const samePath = (crumb) => pathOf(crumb.url) === last.path;
+  if (last.id) return official.findIndex(samePath);
+  for (let i = official.length - 1; i >= 0; i--) {
+    if (samePath(official[i])) return i;
+  }
+  return -1;
 }
 
 // Pfad + offizielle Kette der Seite. Setzt die offizielle Kette dort fort, wo
@@ -70,8 +92,7 @@ export function composeCrumbs(trail, official) {
   const parents = trail.map((crumb) => ({ label: crumb.label, url: crumb.url, clickable: Boolean(crumb.url) }));
   if (!leaf) return parents;
 
-  const lastPath = pathOf(trail[trail.length - 1].url);
-  const joinAt = lastPath ? official.findIndex((crumb) => pathOf(crumb.url) === lastPath) : -1;
+  const joinAt = joinIndex(trail, official);
   if (joinAt !== -1 && joinAt < official.length - 1) {
     return [...parents, ...official.slice(joinAt + 1)];
   }

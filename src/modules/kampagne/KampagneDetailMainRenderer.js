@@ -187,7 +187,6 @@ export function renderMainPage(state) {
         <div class="page-header-title-group">
           ${safeLogoUrl ? `<img src="${escapeAttr(safeLogoUrl)}" alt="${escapeAttr(orgLogoAlt)}" title="${escapeAttr(orgLogoAlt)}" class="toolbar-entity-logo" loading="lazy" />` : ''}
           <h2 class="page-header-title">${sanitize(pageTitle)}</h2>
-          ${renderProduktionsbudget(state.produktion, state.kampagneData)}
         </div>
         <div class="page-header-right">
           <div class="kampagne-tab-chrome" data-chrome="kooperationen">
@@ -254,15 +253,6 @@ export function renderMainPage(state) {
       </div>
     </div>
   `;
-}
-
-function renderProduktionsbudget(produktion, kampagneData) {
-  if (!produktion) return '';
-  const verbrauch = parseFloat(produktion.budgetUsed) || 0;
-  const eigen = produktion.budget != null && produktion.budget !== '';
-  const decke = eigen ? parseFloat(produktion.budget) || 0 : kampagneBudgetPot(kampagneData);
-  const label = eigen ? 'Produktionsbudget' : 'Budget der Kampagne';
-  return `<p class="text-muted">${label} ${KampagneUtils.formatCurrency(decke)} · Verbrauch ${KampagneUtils.formatCurrency(verbrauch)}</p>`;
 }
 
 function renderProduktionBudget(used, total) {

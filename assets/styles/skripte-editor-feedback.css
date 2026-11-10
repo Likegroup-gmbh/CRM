@@ -1,0 +1,264 @@
+/* ---------------------------------------------------------------------------
+   Rechte Spalte: Feedback-Threads zu markierten Stellen.
+   Nutzt die Chat-Klassen (.skripte-editor-msg-*, .skripte-editor-input),
+   hier stehen nur die Ergaenzungen fuer Kopfzeile, Antworten und Erledigt.
+--------------------------------------------------------------------------- */
+.skripte-editor-fb {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-primary);
+  overflow: hidden;
+}
+
+.skripte-editor-fb-head.tab-navigation {
+  align-items: stretch;
+  padding: var(--space-xs) var(--space-md);
+  border: none;
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-fb-log {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.skripte-editor-fb-log .skripte-editor-chat-empty {
+  margin: auto;
+}
+
+.skripte-editor-fb-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+  font-size: var(--text-sm);
+}
+
+/* Kopf: Avatar + Name/Meta links, Erledigt-Haken rechts */
+.skripte-editor-fb-kopf {
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.skripte-editor-fb-ident {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxxs);
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.skripte-editor-fb-meta {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skripte-editor-fb-gast {
+  display: inline-block;
+  margin-left: var(--space-1, 4px);
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  vertical-align: 1px;
+  color: var(--text-secondary);
+  background: var(--surface-secondary, rgba(0, 0, 0, 0.06));
+}
+
+.skripte-editor-fb-check {
+  background: none;
+  border: none;
+  padding: var(--space-xxs);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.skripte-editor-fb-check svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.skripte-editor-fb-check:hover {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.skripte-editor-fb-check.is-erledigt {
+  color: var(--color-success);
+}
+
+/* Antworten haengen eingerueckt am Thread, wie das Zitat im Chat */
+.skripte-editor-fb-antwort {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-left: var(--space-sm);
+  padding-left: var(--space-sm);
+  border-left: var(--border-sm) solid var(--border-secondary);
+}
+
+.skripte-editor-fb-reply .skripte-editor-input {
+  margin-top: var(--space-xs);
+}
+
+/* Erledigt: Thread schrumpft auf eine Zeile, Klick klappt ihn wieder auf */
+.skripte-editor-fb-thread--erledigt {
+  opacity: 0.55;
+}
+
+.skripte-editor-fb-thread--erledigt:hover {
+  opacity: 0.8;
+}
+
+.skripte-editor-fb-thread.is-kollabiert {
+  flex-direction: row;
+  align-items: center;
+  padding: var(--space-sm) var(--space-lg);
+}
+
+.skripte-editor-fb-aufklappen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+}
+
+/* Neuer Kommentar: hebt sich vom Verlauf ab, bis er abgeschickt ist */
+.skripte-editor-fb-thread--neu {
+  background: var(--bg-secondary);
+}
+
+/* Info-Zeile (Kunden-Edit am Dokument): Vorher/Nachher in der gleichen
+   Quote-Anmutung wie Kommentar-Zitate - nur die farbige Kante und die
+   Wort-Markierung tragen die Information */
+.skripte-editor-fb-diff {
+  display: block;
+  width: 100%;
+  padding: 0 0 0 var(--space-xs);
+  background: none;
+  border: none;
+  border-left: var(--border-sm) solid var(--border-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  cursor: pointer;
+}
+
+.skripte-editor-fb-diff-label {
+  font-weight: 600;
+}
+
+.skripte-editor-fb-diff-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skripte-editor-fb-diff.is-offen .skripte-editor-fb-diff-text {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.skripte-editor-fb-diff--vorher {
+  border-left-color: var(--color-error);
+}
+
+.skripte-editor-fb-diff--nachher {
+  border-left-color: var(--color-success);
+}
+
+/* Wort-Diff: geaenderte Woerter im Snippet markieren */
+.skripte-editor-fb-diff mark {
+  background: none;
+  color: inherit;
+  font-weight: 600;
+}
+
+.skripte-editor-fb-diff .skripte-editor-fb-mark--del {
+  color: var(--color-error);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.skripte-editor-fb-diff .skripte-editor-fb-mark--ins {
+  color: var(--color-success);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Autor-Avatar: gleiche Groesse wie Liky, aber Bild oder Initialen */
+.skripte-editor-avatar--user {
+  background: var(--gray-200);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  overflow: hidden;
+}
+
+.skripte-editor-avatar--user img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.skripte-editor-titel {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  height: 1.4em;
+}
+
+.skripte-editor-titel:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-tertiary);
+}
+
+.skripte-editor-pruefung {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.skripte-editor-festlegungen {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle, var(--gray-200));
+  border-radius: var(--radius-md, 8px);
+  font-size: var(--text-sm);
+}
+
+.skripte-editor-festlegungen ul {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.1em;
+}
+
+.skripte-editor-festlegungen button {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+}

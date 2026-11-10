@@ -5,6 +5,8 @@
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
 import { KooperationenKanbanBoard } from './KooperationenKanbanBoard.js';
 import { KampagneUtils } from './KampagneUtils.js';
+import { kampagneDetailCrumbs } from './kampagneFolderCrumbs.js';
+import { getRouteConfig } from '../../core/breadcrumbRoutes.js';
 import { loadCriticalData as _loadCriticalData, loadFullTableData } from './KampagneDetailDataLoader.js';
 import { renderPageLoading, renderNotFound, renderMainPage } from './KampagneDetailMainRenderer.js';
 import { updateSummaryCardsDOM, updateVideoStatsCardDOM } from './KampagneDetailSummaryCards.js';
@@ -257,17 +259,26 @@ export class KampagneDetail {
 
   _updateBreadcrumb() {
     if (!window.breadcrumbSystem || !this.kampagneData) return;
-    const kampagneName = KampagneUtils.getDisplayName(this.kampagneData);
+    const kampagneName = KampagneUtils.getDisplayName(this.kampagneData) || 'Kampagne';
+    // Kunden sehen nur ihr eigenes Unternehmen: kein Firmen-Ordner im Weg.
+    const kampagneCrumbs = window.isKunde?.()
+      ? [
+          { label: getRouteConfig('kampagne', window.currentUser?.rolle?.toLowerCase()).label, url: '/kampagne', clickable: true },
+          { label: kampagneName, url: `/kampagne/${this.kampagneId}`, clickable: false }
+        ]
+      : kampagneDetailCrumbs(this.kampagneData, this.kampagneId, kampagneName);
+
     if (this.mode === 'workflow') {
+      const kampagneCrumb = kampagneCrumbs[kampagneCrumbs.length - 1];
       window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Kampagnen', url: '/kampagne', clickable: true },
-        { label: kampagneName || 'Kampagne', url: `/kampagne/${this.kampagneId}`, clickable: true },
+        ...kampagneCrumbs.slice(0, -1),
+        { ...kampagneCrumb, clickable: true },
         { label: this.lineTitle || this.produktion?.name || 'Produktion', url: `/produktion/${this.produktionId}`, clickable: false }
       ], null, { switcher: { segment: 'produktion', id: this.produktionId, kampagneId: this.kampagneId } });
       return;
     }
     const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
-    window.breadcrumbSystem.updateDetailLabel(kampagneName, { id: 'btn-edit-kampagne', canEdit });
+    window.breadcrumbSystem.updateBreadcrumb(kampagneCrumbs, { id: 'btn-edit-kampagne', canEdit });
   }
 
   _showLoading() {

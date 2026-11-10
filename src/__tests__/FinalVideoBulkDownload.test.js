@@ -69,12 +69,12 @@ describe('FinalVideoBulkDownload', () => {
     expect(downloadMediaAsset).toHaveBeenNthCalledWith(1,
       expect.objectContaining({ id: 'a1' }),
       'max_mueller_acme_gmbh_sommer_2025_2_final_9_16.mp4',
-      { silent: true }
+      { silent: true, typ: 'video' }
     );
     expect(downloadMediaAsset).toHaveBeenNthCalledWith(2,
       expect.objectContaining({ id: 'a2' }),
       'max_mueller_acme_gmbh_sommer_2025_2_final_4_5.mp4',
-      { silent: true }
+      { silent: true, typ: 'video' }
     );
     expect(toasts.at(-1).msg).toContain('2/2');
   });
@@ -115,7 +115,7 @@ describe('FinalVideoBulkDownload', () => {
     expect(downloadMediaAsset).toHaveBeenNthCalledWith(2,
       expect.objectContaining({ id: 'a2' }),
       'anna_schulz_acme_gmbh_sommer_2025_1_final_9_16.mp4',
-      { silent: true }
+      { silent: true, typ: 'video' }
     );
   });
 });

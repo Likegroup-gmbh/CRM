@@ -5,8 +5,9 @@
 
 import { downloadMediaAsset } from '../../core/media/downloadMediaAsset.js';
 import { buildAssetDownloadName } from '../../core/VideoUploadUtils.js';
+import { mitAblage } from '../../core/ablage/ablageLink.js';
 
-const FINAL_SELECT = 'id, video_id, file_url, file_path, variant_name, is_final';
+const FINAL_SELECT = mitAblage('id, video_id, file_url, file_path, variant_name, is_final');
 const DOWNLOAD_DELAY_MS = 500;
 
 export class FinalVideoBulkDownload {
@@ -128,7 +129,7 @@ export class FinalVideoBulkDownload {
           ? buildAssetDownloadName(this._metaFor(ctx.koop), ctx.video, asset)
           : undefined;
         try {
-          const ok = await downloadMediaAsset(asset, filename, { silent: true });
+          const ok = await downloadMediaAsset(asset, filename, { silent: true, typ: 'video' });
           if (ok) done++;
           else failed++;
         } catch (err) {

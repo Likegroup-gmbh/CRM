@@ -33,7 +33,7 @@ export class VideoUploadDrawer {
    * @param {function} [onBilderSuccess]
    * @param {function} [onStorysSuccess]
    */
-  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', preselectFinal = false, onBilderCleared, onStorysCleared, onBilderChanged, onFinaleChanged, customMeta } = {}) {
+  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', preselectFinal = false, onBilderCleared, onStorysCleared, onBilderChanged, onFinaleChanged, onVideoAssetDeleted, customMeta } = {}) {
     this.videoId = videoId;
     this.kooperationId = metadaten.kooperationId;
     this.metadaten = metadaten;
@@ -44,6 +44,8 @@ export class VideoUploadDrawer {
     this.onStorysCleared = onStorysCleared || null;
     this.onBilderChanged = onBilderChanged || null;
     this.onFinaleChanged = onFinaleChanged || null;
+    // Gleicht Video und Tabellenzeile ab, nachdem eine Datei gelöscht wurde
+    this.onVideoAssetDeleted = onVideoAssetDeleted || null;
     this.useExternalLinks = !!metadaten.keinDropbox;
     this.customMeta = customMeta || null;
     // Neue Queue-Items starten mit "Finale Version" vorausgewaehlt (Finale-Spalten-Button)
@@ -294,16 +296,6 @@ export class VideoUploadDrawer {
   isAnyUploadActive() {
     // Nur Bilder-Tab blockiert noch das Drawer-Close (inline, nicht im Background-Service).
     return this.bilderTab.isUploading;
-  }
-
-  // ─── Proxy methods for backwards compatibility (tests) ────
-
-  saveAssetVersion(...args) {
-    return this.videoTab.saveAssetVersion(...args);
-  }
-
-  _updateSubmitButtonState() {
-    return this.videoTab._updateSubmitButtonState();
   }
 
   // ─── Close / Cleanup ──────────────────────────────────────

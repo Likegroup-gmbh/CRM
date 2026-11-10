@@ -3468,7 +3468,7 @@ input.readonly-field {
 }
 
 .upload-dropzone {
-  border: var(--border-sm) dashed var(--border-secondary);
+  border:  0.5px dashed var(--border-secondary);
   border-radius: var(--radius-xl);
   padding: var(--space-xl) var(--space-md);
   text-align: center;

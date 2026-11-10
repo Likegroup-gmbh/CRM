@@ -20,15 +20,24 @@ export function videoFallbackUrl(video) {
   return video?.file_url || video?.link_content || video?.asset_url || null;
 }
 
+// Tabellen-Typ fuer ablage-link; der Medien-Player nennt Stills 'bild'.
+const ABLAGE_TYP = { video: 'video', story: 'story', still: 'still', bild: 'still', roh: 'roh' };
+
 /**
- * Lookup fuer resolveStreamUrl/prefetchStreamUrl.
+ * Lookup fuer resolveStreamUrl/prefetchStreamUrl. typ, id, ablage und etag braucht nur
+ * SharePoint (ablage-link); Dropbox loest weiter ueber file_path/file_url auf.
  * @param {object|null} asset
+ * @param {'video'|'story'|'still'|'bild'|'roh'|null} [type]
  * @param {string|null} [fallbackUrl] - greift nur, wenn das Asset keine file_url hat
  */
-export function lookupFor(asset, fallbackUrl = null) {
+export function lookupFor(asset, type = null, fallbackUrl = null) {
   return {
     file_path: asset?.file_path || null,
     file_url: asset?.file_url || fallbackUrl || null,
+    typ: ABLAGE_TYP[type] || null,
+    id: asset?.id || null,
+    ablage: asset?.ablage || null,
+    etag: asset?.etag || null,
   };
 }
 

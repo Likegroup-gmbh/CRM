@@ -375,7 +375,8 @@ describe('UnternehmenDeleteService', () => {
         })),
       };
 
-      await deleteUnternehmenCascade('u1', { supabase: sb, userId: 'admin-1' });
+      const okFetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ success: true, fehler: [] }) }));
+      await deleteUnternehmenCascade('u1', { supabase: sb, userId: 'admin-1', fetch: okFetch });
 
       const logInserts = log.filter(e => e.table === 'delete_logs');
       expect(logInserts).toHaveLength(1);
@@ -405,10 +406,42 @@ describe('UnternehmenDeleteService', () => {
         },
       };
 
-      await deleteUnternehmenCascade('u1', { supabase: sb });
+      const okFetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ nicht_konfiguriert: true, fehler: [] }) }));
+      await deleteUnternehmenCascade('u1', { supabase: sb, fetch: okFetch });
 
       const logInserts = log.filter(e => e.table === 'delete_logs');
       expect(logInserts).toHaveLength(0);
+    });
+
+    it('räumt die SharePoint-Ablage vor allen DB-Deletes ab und protokolliert ihre Fehler', async () => {
+      const sb = createTrackingSupabase({ entities: { kampagne: [{ id: 'k1' }] } });
+      const fetchFn = vi.fn(async (url, opts) => {
+        sb._log.push({ op: 'fetch', url, body: JSON.parse(opts.body) });
+        const json = url.endsWith('ablage-loeschen')
+          ? { ordner: 1, dateien: 3, fehler: [{ item_id: 'o1', pfad: '/Firma', fehler: 'Ordner gesperrt' }] }
+          : { success: true };
+        return { ok: true, status: 200, json: async () => json };
+      });
+
+      const result = await deleteUnternehmenCascade('u1', { supabase: sb, fetch: fetchFn });
+
+      const ablageIdx = sb._log.findIndex(e => e.op === 'fetch' && e.url === '/.netlify/functions/ablage-loeschen');
+      const firstDeleteIdx = sb._log.findIndex(e => e.op === 'delete' || e.op === 'delete.in');
+      expect(sb._log[ablageIdx].body).toEqual({ entity: 'unternehmen', id: 'u1' });
+      expect(ablageIdx).toBeLessThan(firstDeleteIdx);
+      expect(result.errors).toContainEqual({ step: 'ablage', error: '/Firma: Ordner gesperrt' });
+      expect(result.success).toBe(true);
+    });
+
+    it('ein Ausfall von ablage-loeschen stoppt das Löschen nicht', async () => {
+      const sb = createTrackingSupabase({ entities: {} });
+      const fetchFn = vi.fn(async () => ({ ok: false, status: 502, json: async () => ({ error: 'Graph down' }) }));
+
+      const result = await deleteUnternehmenCascade('u1', { supabase: sb, fetch: fetchFn });
+
+      expect(result.success).toBe(true);
+      expect(result.deleted.unternehmen).toBe(1);
+      expect(result.errors).toContainEqual({ step: 'ablage', error: 'Graph down' });
     });
   });
 

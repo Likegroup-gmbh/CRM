@@ -1,4 +1,6 @@
 import { resolveStreamUrl } from './mediaSrc.js';
+import { lookupFor } from './player/mediaIdentity.js';
+import { istSharePoint } from '../ablage/ablageLink.js';
 import { proxyPost } from '../VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -30,8 +32,10 @@ function toDownloadUrl(fileUrl) {
  * 1) wenn file_path vorhanden: frischen Shared-Link erzeugen und dl=1 erzwingen
  *    (zuverlaessigster Force-Download, umgeht /s/-Legacy-/rlkey-Links ohne dl=1)
  * 2) sonst vorhandenen Shared-Link (file_url) auf dl=1 umschreiben
+ * SharePoint: der Lese-Link aus ablage-link (Graph liefert ihn als Attachment aus).
  */
-async function resolveDownloadUrl(asset) {
+async function resolveDownloadUrl(asset, lookup) {
+  if (istSharePoint(asset)) return resolveStreamUrl(lookup);
   if (asset?.file_path) {
     try {
       const { url } = await proxyPost({ action: 'shared-link', path: asset.file_path });
@@ -76,11 +80,8 @@ function triggerHiddenDownload(url, filename) {
  * Genau eine Datei im RAM, ObjectURL wird danach revoked.
  * @returns {Promise<boolean>} true bei Erfolg
  */
-async function tryNamedBlobDownload(asset, filename) {
-  const streamUrl = await resolveStreamUrl({
-    file_path: asset.file_path || null,
-    file_url: asset.file_url || null,
-  });
+async function tryNamedBlobDownload(lookup, filename) {
+  const streamUrl = await resolveStreamUrl(lookup);
   if (!streamUrl) return false;
   try {
     const res = await fetch(streamUrl);
@@ -108,7 +109,8 @@ async function tryNamedBlobDownload(asset, filename) {
  *
  * @param {{ file_path?: string|null, file_url?: string|null }} asset
  * @param {string} [filename]
- * @param {{ silent?: boolean }} [opts] - silent: keine eigenen Toasts (Bulk-Downloads)
+ * @param {{ silent?: boolean, typ?: 'video'|'story'|'still'|'bild'|'roh' }} [opts]
+ *        silent: keine eigenen Toasts (Bulk-Downloads); typ: Pflicht fuer SharePoint-Dateien
  * @returns {Promise<boolean>} true, wenn ein Download angestossen wurde
  */
 export async function downloadMediaAsset(asset, filename, opts = {}) {
@@ -120,9 +122,10 @@ export async function downloadMediaAsset(asset, filename, opts = {}) {
   }
 
   toast('Download wird vorbereitet...', 'info');
+  const lookup = lookupFor(asset, opts.typ);
 
   if (filename) {
-    const ok = await tryNamedBlobDownload(asset, filename);
+    const ok = await tryNamedBlobDownload(lookup, filename);
     if (ok) {
       toast('Download gestartet', 'success');
       return true;
@@ -130,25 +133,27 @@ export async function downloadMediaAsset(asset, filename, opts = {}) {
     // Fallback: dl=1 mit Dropbox-Namen (besser als kein Download).
   }
 
-  const downloadUrl = await resolveDownloadUrl(asset);
+  const downloadUrl = await resolveDownloadUrl(asset, lookup);
   if (downloadUrl) {
     triggerHiddenDownload(downloadUrl, filename);
     toast('Download gestartet', 'success');
     return true;
   }
 
+  if (istSharePoint(asset)) {
+    toast('Datei kann nicht heruntergeladen werden.', 'error');
+    return false;
+  }
+
   // Fallback: Stream-Link aufloesen und dl=1 erzwingen.
-  const streamUrl = await resolveStreamUrl({
-    file_path: asset.file_path || null,
-    file_url: asset.file_url || null,
-  });
+  const streamUrl = await resolveStreamUrl(lookup);
   if (!streamUrl) {
     toast('Datei kann nicht heruntergeladen werden.', 'error');
     return false;
   }
 
   if (!filename && looksLikeImage(asset, filename)) {
-    const ok = await tryNamedBlobDownload(asset, 'download');
+    const ok = await tryNamedBlobDownload(lookup, 'download');
     if (ok) {
       toast('Download gestartet', 'success');
       return true;

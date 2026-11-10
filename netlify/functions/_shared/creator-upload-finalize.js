@@ -1,6 +1,6 @@
 // _shared/creator-upload-finalize.js
 // Finalisiert einen Creator-Upload, nachdem die Datei in Dropbox liegt:
-// Asset-Row + is_current-Flip + Shared-Links + folder_url + Staging-Delete.
+// Asset-Row + is_current-Flip (Storys; Videos per DB-Trigger) + Shared-Links + folder_url + Staging-Delete.
 // Spiegelt runVideoUploadJob/runStorysUploadJob/BilderTabHandler (Staff).
 
 const {
@@ -106,7 +106,6 @@ async function finalizeJob(supabase, job, targetCtx, dropboxToken, dropboxPath) 
         file_size: job.file_size,
         version_number: version,
         variant_name: null,
-        is_current: true,
         is_final: false,
         description: null,
         uploaded_by: null,
@@ -116,14 +115,10 @@ async function finalizeJob(supabase, job, targetCtx, dropboxToken, dropboxPath) 
       .single();
     if (error) throw error;
 
-    await flipCurrentFlags(supabase, 'kooperation_video_asset', 'video_id', job.target_id);
-
+    // is_current und link_content leitet der Trigger auf kooperation_video_asset ab
     const folderUrl = await dropboxEnsureSharedLink(dropboxToken, job._folderPath);
-    const updateData = {};
-    if (fileUrl) updateData.link_content = fileUrl;
-    if (folderUrl) updateData.folder_url = folderUrl;
-    if (Object.keys(updateData).length > 0) {
-      await supabase.from('kooperation_videos').update(updateData).eq('id', job.target_id);
+    if (folderUrl) {
+      await supabase.from('kooperation_videos').update({ folder_url: folderUrl }).eq('id', job.target_id);
     }
     return { assetId: asset.id, version };
   }

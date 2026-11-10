@@ -226,10 +226,14 @@ function chainable(result) {
 describe('RohmaterialService.uploadFiles', () => {
   let inserted;
   let preparedNames;
+  let ablageZiel;
+  let ablageCalls;
 
   beforeEach(() => {
     inserted = [];
     preparedNames = [];
+    ablageZiel = { ziel: 'dropbox' };
+    ablageCalls = [];
     window.currentUser = { id: 'u1', rolle: 'admin' };
 
     window.supabase = {
@@ -244,6 +248,22 @@ describe('RohmaterialService.uploadFiles', () => {
     };
 
     global.fetch = vi.fn((url, opts) => {
+      const fn = String(url).split('/').pop();
+      if (fn === 'ablage-upload-ziel') {
+        ablageCalls.push({ fn, body: JSON.parse(opts.body) });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(ablageZiel) });
+      }
+      if (fn === 'ablage-upload-commit') {
+        ablageCalls.push({ fn, body: JSON.parse(opts.body) });
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({
+          ablage: 'sharepoint', drive_id: 'd1', item_id: 'it1', etag: 'e1', ctag: 'c1',
+          file_path: '/U/K/C/Rohmaterial/clip_2.mov', file_name: 'clip_2.mov', file_size: 1024,
+          file_url: 'https://sp.example/clip_2.mov', folder_url: 'https://sp.example/Rohmaterial',
+        }) });
+      }
+      if (String(url).startsWith('https://graph.example')) {
+        return Promise.resolve({ status: 201, ok: true, json: () => Promise.resolve({ id: 'it1' }) });
+      }
       const body = JSON.parse(opts.body);
       if (String(url).includes('dropbox-upload-rohmaterial')) {
         preparedNames.push(body.fileName);
@@ -293,6 +313,30 @@ describe('RohmaterialService.uploadFiles', () => {
     expect(preparedNames).toEqual(['neu.mov', 'neu_2.mov']);
   });
 
+  it('Ziel sharepoint: Bytes in die Session, Zeile mit Ablage-Feldern, kein Dropbox-Aufruf', async () => {
+    ablageZiel = { ziel: 'sharepoint', upload_id: 'up1', upload_url: 'https://graph.example/s', chunk_bytes: 327680 };
+    const file = new File(['x'], 'clip.mov', { type: 'video/quicktime' });
+    Object.defineProperty(file, 'size', { value: 1024 });
+
+    const { uploaded, errors } = await RohmaterialService.uploadFiles(group, [file]);
+
+    expect(errors).toEqual([]);
+    expect(uploaded).toBe(1);
+    expect(preparedNames).toEqual([]);
+    expect(ablageCalls).toEqual([
+      { fn: 'ablage-upload-ziel', body: { typ: 'roh', kooperation_id: 'koop-1', file_name: 'clip_2.mov', file_size: 1024 } },
+      { fn: 'ablage-upload-commit', body: { upload_id: 'up1', item_id: 'it1' } },
+    ]);
+    expect(global.fetch).toHaveBeenCalledWith('https://graph.example/s', expect.objectContaining({
+      method: 'PUT', headers: { 'Content-Range': 'bytes 0-1023/1024' },
+    }));
+    expect(inserted[0]).toMatchObject({
+      kooperation_id: 'koop-1', ablage: 'sharepoint', drive_id: 'd1', item_id: 'it1',
+      file_path: '/U/K/C/Rohmaterial/clip_2.mov', file_url: 'https://sp.example/clip_2.mov',
+      folder_url: 'https://sp.example/Rohmaterial', uploaded_by: 'u1',
+    });
+  });
+
   it('meldet ungueltige Dateien statt sie hochzuladen', async () => {
     const bad = new File(['x'], 'foto.jpg', { type: 'image/jpeg' });
     Object.defineProperty(bad, 'size', { value: 1024 });
@@ -305,9 +349,12 @@ describe('RohmaterialService.uploadFiles', () => {
     expect(preparedNames).toEqual([]);
   });
 
-  it('validiert gegen denselben 10-GB-Cap wie der Creator-Upload', () => {
+  it('Team-Upload bis 20 GB (Server-Grenze), Creator-Upload bleibt bei 10 GB', () => {
+    const gross = new File(['x'], 'clip.mov');
+    Object.defineProperty(gross, 'size', { value: SIZE_CAPS.rohmaterial + 1 });
+    expect(RohmaterialService.validateFile(gross)).toMatchObject({ ok: true });
     const big = new File(['x'], 'clip.mov');
-    Object.defineProperty(big, 'size', { value: SIZE_CAPS.rohmaterial + 1 });
+    Object.defineProperty(big, 'size', { value: 20 * 1024 * 1024 * 1024 + 1 });
     expect(RohmaterialService.validateFile(big)).toMatchObject({ ok: false });
   });
 });
@@ -351,6 +398,36 @@ describe('RohmaterialService.deleteAsset', () => {
 
     await RohmaterialService.deleteAsset({ id: 'a1', file_path: '/x/clip.mov' });
     expect(dbId).toBe('a1');
+  });
+
+  it('SharePoint: löscht über ablage-datei vor der Zeile, nie über dropbox-delete', async () => {
+    const order = [];
+    global.fetch = vi.fn((url, opts) => {
+      order.push({ url: String(url).split('/').pop(), body: JSON.parse(opts.body) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ geloescht: true }) });
+    });
+    window.supabase = {
+      from: vi.fn(() => ({
+        delete: vi.fn(() => ({
+          eq: vi.fn((_col, id) => { order.push({ db: id }); return Promise.resolve({ error: null }); }),
+        })),
+      })),
+    };
+
+    await RohmaterialService.deleteAsset({ id: 'a1', ablage: 'sharepoint', file_path: '/U/K/C/Rohmaterial/clip.mov' });
+    expect(order).toEqual([
+      { url: 'ablage-datei', body: { aktion: 'loeschen', typ: 'roh', id: 'a1' } },
+      { db: 'a1' },
+    ]);
+  });
+
+  it('SharePoint: scheitert der Server, bleibt die Zeile', async () => {
+    global.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 502, json: () => Promise.resolve({ error: 'Graph down' }) }));
+    const del = vi.fn();
+    window.supabase = { from: vi.fn(() => ({ delete: del })) };
+
+    await expect(RohmaterialService.deleteAsset({ id: 'a1', ablage: 'sharepoint', file_path: '/x.mov' })).rejects.toThrow('Graph down');
+    expect(del).not.toHaveBeenCalled();
   });
 });
 

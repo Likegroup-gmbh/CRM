@@ -298,7 +298,7 @@
   box-shadow: var(--shadow-lg);
   min-width: 260px;
   z-index: 99999;
-  padding: var(--space-xs) 0;
+  padding: var(--space-xxs);
 }
 
 /* Drei-Punkte-Menue: Auf-/Zuklappen spielt GSAP (src/core/animation/menu.js).
@@ -384,13 +384,14 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) ;
   color: var(--gray-800);
   text-decoration: none;
   transition: background-color 0.2s ease;
   font-size: var(--text-sm);
   white-space: nowrap;
   font-weight: 500;
+  border-radius: var(--radius-md);
 }
 
 /* Einheitlicher Look für Heroicons in Actions */

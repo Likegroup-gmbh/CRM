@@ -3703,6 +3703,8 @@ th[draggable="true"]:active {
   align-items: center;
   flex-shrink: 0;
   margin-right: var(--space-sm);
+  /* Trennlinie läuft über die volle Höhe der Tab-Zeile: das Padding der Zeile (--space-xs) ausgleichen */
+  margin-block: calc(-1 * var(--space-xs));
   padding-right: var(--space-sm);
   border-right: 1px solid var(--border-primary);
 }
@@ -3718,6 +3720,7 @@ th[draggable="true"]:active {
 
 /* Listen-Dropdown (Casting-Listen, Konzepte): ohne Trennstrich der Tab-Zeile */
 .linien-switch--liste {
+  margin-block: 0;
   margin-right: 0;
   padding-right: 0;
   border-right: none;
@@ -3733,8 +3736,8 @@ th[draggable="true"]:active {
   border-radius: var(--radius-md);
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-size: var(--text-xs);
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -3804,7 +3807,7 @@ th[draggable="true"]:active {
 
 .linien-switch__item.active {
   background: var(--bg-secondary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .linien-switch__item--neu {

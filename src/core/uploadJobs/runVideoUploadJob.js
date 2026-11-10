@@ -4,7 +4,9 @@
 
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
 import { createFolderSharedLink, buildVersionedFileName, buildFinalFileName, nextFreeIndexedFileName } from '../VideoUploadUtils.js';
-import { authorizedFetch } from '../auth/getAccessToken.js';
+import { deleteFileIfUnreferenced } from '../assetDelete.js';
+import { ablageZielHolen, hochladenNachSharePoint, sharePointAssetFelder, uploadVerwerfen } from '../ablage/ablageUpload.js';
+import { fetchTokenAndPath, createSharedLink, trackUploadProgress } from './videoUploadSteps.js';
 
 function buildVersionedFileName_(file, versionNumber, metadaten) {
   const ext = (file.name.split('.').pop() || 'mp4');
@@ -30,67 +32,14 @@ function buildFinalFileName_(file, variantName, metadaten) {
   );
 }
 
-async function fetchTokenAndPath({ metadaten, versionNumber, variantName, fileName, isFinal }) {
-  const resp = await authorizedFetch('/.netlify/functions/dropbox-upload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      unternehmen: metadaten.unternehmen || '',
-      marke: metadaten.marke || '',
-      kampagne: metadaten.kampagne || '',
-      kooperation: metadaten.kooperationName || '',
-      videoPosition: metadaten.videoPosition || 1,
-      videoThema: metadaten.videoThema || '',
-      videoTitel: metadaten.videoTitel || 'Video',
-      versionNumber: String(versionNumber),
-      variantName,
-      fileName,
-      isFinal: !!isFinal,
-    }),
-  });
-  if (!resp.ok) {
-    const errData = await resp.json().catch(() => ({}));
-    throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${resp.status})`);
-  }
-  return resp.json();
-}
-
-async function createSharedLink(token, dropboxPath) {
-  try {
-    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token }),
-    });
-    if (!resp.ok) return null;
-    const { url } = await resp.json();
-    return url?.replace('?dl=0', '?raw=1') || null;
-  } catch {
-    return null;
-  }
-}
-
-// Rollback-Helfer: verwaiste Dropbox-Datei entfernen, wenn der DB-Insert
-// nach erfolgreichem Upload fehlschlaegt (best effort).
-async function deleteDropboxFile(filePath) {
-  try {
-    await authorizedFetch('/.netlify/functions/dropbox-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filePath }),
-    });
-  } catch (err) {
-    console.warn('[VideoUpload] Rollback-Löschung fehlgeschlagen:', err);
-  }
-}
-
 /** Anzeigetitel aus dem Namen der hochgeladenen Datei (ohne Endung). */
 export function titelAusDateiname(name) {
   const titel = String(name || '').replace(/\.[a-z0-9]{2,5}$/i, '').trim();
   return titel ? titel.slice(0, 120) : null;
 }
 
-async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal, titel }) {
+// is_current und link_content leitet der Trigger auf kooperation_video_asset ab.
+async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal, titel, ablageFelder = {} }) {
   const version = parseInt(versionNumber, 10) || 1;
   const { error } = await window.supabase
     .from('kooperation_video_asset')
@@ -101,12 +50,11 @@ async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versi
       version_number: version,
       variant_name: variantName || null,
       titel: titel || null,
-      // Finale Versionen laufen ausserhalb der Feedbackschleifen-Logik
-      is_current: !isFinal,
       is_final: !!isFinal,
       description: null,
       uploaded_by: window.currentUser?.id || null,
       created_at: new Date().toISOString(),
+      ...ablageFelder,
     });
   if (error) throw error;
 }
@@ -121,31 +69,13 @@ async function loadFinalFileNames(videoId) {
   return (data || []).map(a => a.file_path || a.file_url || '').filter(Boolean);
 }
 
-async function updateCurrentFlags(videoId) {
-  const { data: assets } = await window.supabase
-    .from('kooperation_video_asset')
-    .select('id, version_number, is_final')
-    .eq('video_id', videoId);
-
-  // is_current nur innerhalb der Feedbackschleifen verwalten
-  const allAssets = (assets || []).filter(a => !a.is_final);
-  if (allAssets.length === 0) return;
-  const maxVersion = Math.max(...allAssets.map(a => a.version_number));
-  const nonCurrentIds = allAssets.filter(a => a.version_number !== maxVersion).map(a => a.id);
-  const currentIds = allAssets.filter(a => a.version_number === maxVersion).map(a => a.id);
-
-  if (nonCurrentIds.length > 0) {
-    await window.supabase
-      .from('kooperation_video_asset')
-      .update({ is_current: false })
-      .in('id', nonCurrentIds);
-  }
-  if (currentIds.length > 0) {
-    await window.supabase
-      .from('kooperation_video_asset')
-      .update({ is_current: true })
-      .in('id', currentIds);
-  }
+async function readLinkContent(videoId) {
+  const { data } = await window.supabase
+    .from('kooperation_videos')
+    .select('link_content')
+    .eq('id', videoId)
+    .maybeSingle();
+  return data?.link_content ?? null;
 }
 
 /**
@@ -161,7 +91,7 @@ export async function runVideoUploadJob(ctx) {
   if (!videoId) throw new Error('videoId fehlt');
   if (!Array.isArray(queue) || queue.length === 0) throw new Error('queue leer');
 
-  let lastFileUrl = null;
+  let hasLoopUpload = false;
   let folderUrl = null;
   let hasFinalUpload = false;
   const takenFinalNames = await loadFinalFileNames(videoId);
@@ -185,6 +115,36 @@ export async function runVideoUploadJob(ctx) {
 
     updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
 
+    const ziel = await ablageZielHolen({
+      typ: 'video',
+      kooperation_id: metadaten?.kooperationId ?? null,
+      kooperation_video_id: videoId,
+      version_number: parseInt(versionNumber, 10) || 1,
+      is_final: isFinal,
+      variant_name: variantName || null,
+      file_name: fileName,
+      file_size: file.size,
+    });
+    if (ziel.ziel === 'sharepoint') {
+      const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: trackUploadProgress(item, updateItem) });
+      if (job.items[i].directOk === null) updateItem(item.id, { directOk: true });
+      updateItem(item.id, { status: 'saving' });
+      if (!folderUrl) folderUrl = commit.folder_url || null;
+      if (isFinal) hasFinalUpload = true;
+      else hasLoopUpload = true;
+      if (isFinal && commit.file_name) takenFinalNames.push(commit.file_name);
+
+      const { file_url: spUrl, file_path: spPath, ...ablageFelder } = sharePointAssetFelder(commit);
+      try {
+        await saveAssetVersion({ videoId, fileUrl: spUrl, filePath: spPath, variantName, versionNumber, isFinal, titel: titelAusDateiname(file.name), ablageFelder });
+      } catch (err) {
+        await uploadVerwerfen(ziel.upload_id);
+        throw err;
+      }
+      updateItem(item.id, { status: 'done', loaded: file.size });
+      continue;
+    }
+
     const { token, dropboxPath, kooperationFolderPath } = await fetchTokenAndPath({
       metadaten, versionNumber, variantName, fileName, isFinal,
     });
@@ -194,28 +154,16 @@ export async function runVideoUploadJob(ctx) {
       return fresh.token;
     };
 
+    // 'add': zwei Dateien derselben Schleife und Variante landen sonst auf demselben
+    // Pfad, und die zweite überschreibt die Datei der ersten Zeile
     const uploadResult = await uploadFileDirect({
       file,
       dropboxPath,
+      mode: 'add',
       token,
       getToken,
       signal,
-      onProgress: ({ loaded, total, phase, error }) => {
-        const patch = { loaded, total };
-        if (phase === 'direct-failed') {
-          patch.directOk = false;
-          patch.directError = error || 'Unbekannter Fehler';
-          patch.transport = 'proxy';
-          if (!item.directErrorNotified) {
-            item.directErrorNotified = true;
-            window.toastSystem?.warning?.(
-              `Direct-Upload fehlgeschlagen (${patch.directError}). Upload laeuft ueber Proxy weiter (langsamer).`
-            );
-          }
-        }
-        if (phase === 'proxy-fallback') patch.transport = 'proxy';
-        updateItem(item.id, patch);
-      },
+      onProgress: trackUploadProgress(item, updateItem),
     });
 
     const actualPath = uploadResult.path_display || dropboxPath;
@@ -234,39 +182,28 @@ export async function runVideoUploadJob(ctx) {
     // erzeugt einen toten Play-Button (Video wirkt "verschwunden"). Wiedergabe
     // laeuft dann ueber file_path + Temporary-Link.
     const fileUrl = sharedLink || null;
-    // link_content bleibt an den Feedbackschleifen haengen; finale Assets
-    // duerfen den aktuellen Content-Link nicht ueberschreiben.
-    if (isFinal) {
-      hasFinalUpload = true;
-    } else {
-      lastFileUrl = fileUrl;
-    }
+    if (isFinal) hasFinalUpload = true;
+    else hasLoopUpload = true;
 
     try {
       await saveAssetVersion({ videoId, fileUrl, filePath: actualPath, variantName, versionNumber, isFinal, titel: titelAusDateiname(file.name) });
     } catch (err) {
-      // Rollback: Dropbox-Datei wieder entfernen, damit keine verwaiste Datei
-      // ohne DB-Zeile zurueckbleibt.
-      await deleteDropboxFile(actualPath);
+      // Rollback ohne verwaiste Datei. Bei gleichem Inhalt liefert Dropbox den
+      // bestehenden Pfad zurück, der einer anderen Zeile gehören kann.
+      await deleteFileIfUnreferenced('kooperation_video_asset', actualPath);
       throw err;
     }
 
     updateItem(item.id, { status: 'done', loaded: file.size });
   }
 
-  await updateCurrentFlags(videoId);
-
   // video_name gehoert der Kooperationsliste. Der beim Start gemerkte Name
   // ist oft schon veraltet: wer waehrend des Uploads einen Namen setzt,
   // wuerde ihn hier sonst ueberschreiben oder leeren.
-  const updateData = {};
-  if (lastFileUrl) updateData.link_content = lastFileUrl;
-  if (folderUrl) updateData.folder_url = folderUrl;
-
-  if (Object.keys(updateData).length > 0) {
+  if (folderUrl) {
     const { error: videoUpdateErr } = await window.supabase
       .from('kooperation_videos')
-      .update(updateData)
+      .update({ folder_url: folderUrl })
       .eq('id', videoId);
     // Nicht still schlucken: Der Job muss als fehlgeschlagen sichtbar werden,
     // sonst liegt die Datei in Dropbox, aber das CRM zeigt wieder "Upload".
@@ -275,5 +212,6 @@ export async function runVideoUploadJob(ctx) {
     }
   }
 
-  return { lastFileUrl, folderUrl, videoName, hasFinalUpload };
+  const linkContent = hasLoopUpload ? await readLinkContent(videoId) : null;
+  return { linkContent, folderUrl, videoName, hasFinalUpload };
 }

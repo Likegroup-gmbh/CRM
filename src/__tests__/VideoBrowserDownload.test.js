@@ -73,5 +73,22 @@ describe('Video-Browser Downloads', () => {
     expect(result).toEqual({ done: 3, failed: 0 });
     expect(downloadMediaAsset).toHaveBeenCalledTimes(3);
     expect(toast).toHaveBeenLastCalledWith('success', '3/3 Dateien heruntergeladen');
+    // typ für ablage-link (SharePoint) kommt aus dem Baum-Item
+    downloadMediaAsset.mock.calls.forEach(([, , opts], i) => expect(opts).toEqual({ silent: true, typ: entries[i].item.type }));
+  });
+
+  it('meta als Funktion: Dateinamen je Eintrag mit dem eigenen Creator (Showcase)', async () => {
+    downloadMediaAsset.mockClear();
+    const entries = [
+      { item: rowMitFinal.folders[2].items[0], row: rowMitFinal, koop: { name: 'Mia Roth' } },
+      { item: rowMitFinal.folders[2].items[0], row: rowMitFinal, koop: { name: 'Jan Voss' } }
+    ];
+    vi.useFakeTimers();
+    const run = downloadItems(entries, (e) => ({ creatorName: e.koop.name, unternehmen: 'Acme', kampagne: 'Sommer' }), { toast: vi.fn() });
+    await vi.runAllTimersAsync();
+    await run;
+    vi.useRealTimers();
+    const names = downloadMediaAsset.mock.calls.map(c => c[1]);
+    expect(names[0]).not.toBe(names[1]);
   });
 });

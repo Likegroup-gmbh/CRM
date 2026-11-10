@@ -7,7 +7,7 @@
 -- und erscheinen im Detail als Kommentare ohne Timecode.
 --
 -- runde = Feedbackschleife (1..3), feedback_typ wie in kooperation_video_comment.
--- Rechte wie dort: Staff plus Kunde ueber Marke oder Unternehmen.
+-- Rechte wie dort: Staff plus Kunde ueber Marke oder Unternehmen plus Gast.
 
 BEGIN;
 
@@ -48,5 +48,34 @@ CREATE POLICY kooperation_video_zeitkommentar_update ON public.kooperation_video
   FOR UPDATE TO authenticated
   USING ((SELECT can_access_video_comment(video_id)))
   WITH CHECK ((SELECT can_access_video_comment(video_id)));
+
+-- Gaeste ueber Share-Link (Lesen immer, Schreiben nur mit Feedback-Recht)
+DROP POLICY IF EXISTS kooperation_video_zeitkommentar_gast_select ON public.kooperation_video_zeitkommentar;
+CREATE POLICY kooperation_video_zeitkommentar_gast_select ON public.kooperation_video_zeitkommentar
+  FOR SELECT USING (gast_can_access_video(video_id, false));
+
+DROP POLICY IF EXISTS kooperation_video_zeitkommentar_gast_insert ON public.kooperation_video_zeitkommentar;
+CREATE POLICY kooperation_video_zeitkommentar_gast_insert ON public.kooperation_video_zeitkommentar
+  FOR INSERT WITH CHECK (gast_can_access_video(video_id, true));
+
+DROP POLICY IF EXISTS kooperation_video_zeitkommentar_gast_update ON public.kooperation_video_zeitkommentar;
+CREATE POLICY kooperation_video_zeitkommentar_gast_update ON public.kooperation_video_zeitkommentar
+  FOR UPDATE USING (gast_can_access_video(video_id, true))
+  WITH CHECK (gast_can_access_video(video_id, true));
+
+-- Restriktiv wie auf allen Video-Tabellen (20261015_rolle_agent, 20261107_testunternehmen_hide_*)
+DROP POLICY IF EXISTS agent_nur_lesen_insert ON public.kooperation_video_zeitkommentar;
+CREATE POLICY agent_nur_lesen_insert ON public.kooperation_video_zeitkommentar
+  AS RESTRICTIVE FOR INSERT TO public WITH CHECK (NOT (SELECT public.is_agent()));
+
+DROP POLICY IF EXISTS agent_nur_lesen_update ON public.kooperation_video_zeitkommentar;
+CREATE POLICY agent_nur_lesen_update ON public.kooperation_video_zeitkommentar
+  AS RESTRICTIVE FOR UPDATE TO public USING (NOT (SELECT public.is_agent()));
+
+DROP POLICY IF EXISTS testunternehmen_hide ON public.kooperation_video_zeitkommentar;
+CREATE POLICY testunternehmen_hide ON public.kooperation_video_zeitkommentar
+  AS RESTRICTIVE FOR ALL TO public
+  USING ((SELECT public.is_admin()) OR NOT (video_id = ANY ((SELECT private.rls_test_video_ids())::uuid[])))
+  WITH CHECK ((SELECT public.testunternehmen_ok_video(video_id)));
 
 COMMIT;

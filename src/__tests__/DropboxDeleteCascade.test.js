@@ -26,10 +26,28 @@ describe('deleteDropboxCascade', () => {
 
     const result = await deleteDropboxCascade('kampagne', 'k-123', { fetch: ft });
 
-    expect(ft).toHaveBeenCalledTimes(1);
-    expect(ft._log[0].url).toBe('/.netlify/functions/dropbox-delete-cascade');
-    expect(ft._log[0].body).toEqual({ entityType: 'kampagne', entityId: 'k-123' });
+    const dropbox = ft._log.filter(l => l.url === '/.netlify/functions/dropbox-delete-cascade');
+    expect(dropbox).toEqual([{ url: '/.netlify/functions/dropbox-delete-cascade', body: { entityType: 'kampagne', entityId: 'k-123' } }]);
     expect(result.success).toBe(true);
+  });
+
+  it('räumt parallel die SharePoint-Ablage derselben Entität ab', async () => {
+    const ft = createTrackingFetch();
+
+    await deleteDropboxCascade('kooperation', 'koop-1', { fetch: ft });
+
+    expect(ft._log.filter(l => l.url === '/.netlify/functions/ablage-loeschen'))
+      .toEqual([{ url: '/.netlify/functions/ablage-loeschen', body: { entity: 'kooperation', id: 'koop-1' } }]);
+  });
+
+  it('ein Fehler der Ablage ändert das Dropbox-Ergebnis nicht', async () => {
+    const ft = createTrackingFetch({
+      '/.netlify/functions/ablage-loeschen': { ok: false, status: 502, json: async () => ({ error: 'Graph down' }) },
+    });
+
+    const result = await deleteDropboxCascade('kampagne', 'k-1', { fetch: ft });
+
+    expect(result).toMatchObject({ success: true, totalFiles: 0 });
   });
 
   it('funktioniert für kooperation', async () => {
@@ -143,5 +161,29 @@ describe('deleteVideoFull löscht alle Dropbox-Dateien inkl. Versionen', () => {
     expect(paths).toContain('/Videos/Firma/Marke/Kampagne/Koop/Video_1/Version_1/file.mp4');
     expect(paths).toContain('/Videos/Firma/Marke/Kampagne/Koop/Video_1/Version_2/file.mp4');
     expect(paths).toContain('/Videos/Firma/Marke/Kampagne/Koop/Video_1/Version_3/file.mp4');
+  });
+
+  it('SharePoint-Dateien: ablage-datei je Zeile, Zeile direkt danach, nie dropbox-delete', async () => {
+    const sb = createTrackingSupabase({
+      assets: [
+        { id: 'a1', video_id: 'v1', file_path: '/Videos/alt.mp4', is_current: false },
+        { id: 'a2', video_id: 'v1', file_path: '/Ablage/Koop/v2.mp4', is_current: true, ablage: 'sharepoint' },
+        { id: 'a3', video_id: 'v1', file_path: '/Ablage/Koop/v2.mp4', is_current: false, ablage: 'sharepoint' },
+      ],
+    });
+    // Ein gemeinsames Log, damit die Reihenfolge Datei → Zeile prüfbar ist
+    const ft = vi.fn(async (url, opts) => {
+      sb._log.push({ op: 'fetch', url, body: JSON.parse(opts.body) });
+      return { ok: true, status: 200, json: async () => ({ geloescht: true }) };
+    });
+
+    const result = await deleteVideoFull('v1', { supabase: sb, fetch: ft });
+
+    expect(result.success).toBe(true);
+    const calls = sb._log.filter(l => l.op === 'fetch' || l.op === 'delete.eq');
+    expect(calls.filter(l => l.url === '/.netlify/functions/dropbox-delete').map(l => l.body.filePath)).toEqual(['/Videos/alt.mp4']);
+    expect(calls.filter(l => l.url !== '/.netlify/functions/dropbox-delete').map(l => l.body?.id ?? `db:${l.val}`))
+      .toEqual(['a2', 'db:a2', 'a3', 'db:a3', 'db:v1']);
+    expect(calls.find(l => l.url === '/.netlify/functions/ablage-datei').body).toEqual({ aktion: 'loeschen', typ: 'video', id: 'a2' });
   });
 });

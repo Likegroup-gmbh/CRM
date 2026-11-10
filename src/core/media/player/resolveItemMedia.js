@@ -7,12 +7,20 @@ import { cacheKeyFor, lookupFor, videoFallbackUrl, itemLabel } from './mediaIden
 import { defaultVideoSelection, selectedVideoAsset } from './selection/video.js';
 import { storyAssetFor, defaultStorySelection, currentStoryAsset } from './selection/story.js';
 import { currentStillAsset } from './selection/still.js';
+import { istSharePoint } from '../../ablage/ablageLink.js';
+
+/** Video ohne gewaehltes Asset: Legacy-Felder am Video (currentAsset / file_url ...). */
+function legacyVideoLookup(video) {
+  // Die file_url am Video ist bei SharePoint die webUrl (nicht abspielbar)
+  if (istSharePoint(video.currentAsset)) return lookupFor(video.currentAsset, 'video');
+  return { file_path: video.currentAsset?.file_path || null, file_url: videoFallbackUrl(video) };
+}
 
 /**
  * @param {object} item - { type, video, slot, image }
  * @param {{ videoAsset?: object|null, storyAsset?: object|null, stillAsset?: object|null }} picks
  *        das fuer dieses Item gewaehlte Asset (nur der zum Typ passende Eintrag zaehlt)
- * @returns {{ type: string, asset: object|null, lookup: {file_path: string|null, file_url: string|null}, key: string|null, label: string }}
+ * @returns {{ type: string, asset: object|null, lookup: {file_path: string|null, file_url: string|null, typ?: string|null}, key: string|null, label: string }}
  */
 export function resolveItemMedia(item, picks = {}) {
   if (item.type === 'video') {
@@ -21,10 +29,7 @@ export function resolveItemMedia(item, picks = {}) {
     return {
       type: 'video',
       asset: selected,
-      // Ohne gewaehltes Asset: Legacy-Felder am Video (currentAsset / file_url ...)
-      lookup: selected
-        ? lookupFor(selected)
-        : { file_path: video.currentAsset?.file_path || null, file_url: videoFallbackUrl(video) },
+      lookup: selected ? lookupFor(selected, 'video') : legacyVideoLookup(video),
       key: cacheKeyFor('video', selected || video.currentAsset),
       label: itemLabel(item),
     };
@@ -34,7 +39,7 @@ export function resolveItemMedia(item, picks = {}) {
     return {
       type: 'story',
       asset,
-      lookup: lookupFor(asset),
+      lookup: lookupFor(asset, 'story'),
       key: cacheKeyFor('story', asset),
       label: itemLabel(item),
     };
@@ -43,7 +48,7 @@ export function resolveItemMedia(item, picks = {}) {
   return {
     type: 'bild',
     asset,
-    lookup: lookupFor(asset),
+    lookup: lookupFor(asset, 'bild'),
     key: cacheKeyFor('bild', asset),
     label: itemLabel(item, asset),
   };

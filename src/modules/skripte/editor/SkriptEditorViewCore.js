@@ -1,7 +1,7 @@
 // SkriptEditorViewCore.js
 // Fassade des Skript-Editors: State, Rechte und stabile API.
-// Lifecycle, Sidebar, Dokument und Liky haengen als Prototype-Mixins
-// (SkriptEditorLifecycle, SkriptEditorListe, SkriptEditorDokument, SkriptEditorLiky).
+// Lifecycle, Events, Sidebar, Dokument und Liky haengen als Prototype-Mixins
+// (SkriptEditorLifecycle, SkriptEditorEvents, SkriptEditorListe, SkriptEditorDokument, SkriptEditorLiky).
 // Fachlogik liegt in den Controllern (Generation, ChatActions, Selection,
 // Versionen, Visuell, Realtime, Feedback), das Markup in den puren Renderern.
 

@@ -13,6 +13,10 @@ import { VideoTableRenderer } from './VideoTableRenderer.js';
 import { VideoRohmaterialRenderer } from './VideoRohmaterialRenderer.js';
 import { VideoEventHandler } from './VideoEventHandler.js';
 import { RohmaterialService } from './RohmaterialService.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
+
+const BASE_PATH = '/videos';
+const KAMPAGNE_EBENEN = new Set(['kampagneRoot', 'videos', 'rohmaterial']);
 
 export class VideoList {
   constructor() {
@@ -62,12 +66,7 @@ export class VideoList {
       return;
     }
 
-    this.viewMode = this.isKunde ? 'kampagnen' : 'unternehmen';
-    this.currentUnternehmenId = null;
-    this.currentUnternehmenName = null;
-    this.currentKampagneId = null;
-    this.currentKampagneName = null;
-
+    this.applyQueryParams(new URLSearchParams(window.location.search));
     this._updateBreadcrumb();
 
     this.pagination.init('pagination-videos', {
@@ -325,18 +324,68 @@ export class VideoList {
     this.loadAndRender();
   }
 
-  _updateBreadcrumb() {
-    if (!window.breadcrumbSystem) return;
-    if (this.viewMode === 'unternehmen') return; // Router handled es
-    if (this.viewMode === 'kampagnen') {
-      window.breadcrumbSystem.updateDetailLabel(this.currentUnternehmenName || 'Unternehmen');
-    } else if (this.viewMode === 'rohmaterial') {
-      window.breadcrumbSystem.updateDetailLabel(
-        `${this.currentKampagneName || 'Kampagne'} · Rohmaterial`
-      );
+  // Ordner-Ebene aus der URL: unternehmen, kampagne, ebene=videos|rohmaterial.
+  // Kunden haben weder Firmen-Ebene noch Rohmaterial.
+  applyQueryParams(params) {
+    const unternehmenId = this.isKunde ? null : params.get('unternehmen');
+    const kampagneId = params.get('kampagne');
+    const ebene = params.get('ebene');
+
+    this.currentUnternehmenId = unternehmenId || null;
+    this.currentUnternehmenName = unternehmenId ? (params.get('unternehmen_name') || 'Unternehmen') : null;
+    const mitKampagne = Boolean(kampagneId && (this.isKunde || unternehmenId));
+    this.currentKampagneId = mitKampagne ? kampagneId : null;
+    this.currentKampagneName = mitKampagne ? (params.get('kampagne_name') || 'Kampagne') : null;
+
+    if (mitKampagne) {
+      if (this.isKunde) this.viewMode = 'videos';
+      else this.viewMode = ebene === 'videos' || ebene === 'rohmaterial' ? ebene : 'kampagneRoot';
+    } else if (unternehmenId) {
+      this.viewMode = 'kampagnen';
     } else {
-      window.breadcrumbSystem.updateDetailLabel(this.currentKampagneName || 'Kampagne');
+      this.viewMode = this.isKunde ? 'kampagnen' : 'unternehmen';
     }
+  }
+
+  listUrl(viewMode = this.viewMode) {
+    const params = new URLSearchParams();
+    if (!this.isKunde && this.currentUnternehmenId && viewMode !== 'unternehmen') {
+      params.set('unternehmen', this.currentUnternehmenId);
+      params.set('unternehmen_name', this.currentUnternehmenName || '');
+    }
+    if (KAMPAGNE_EBENEN.has(viewMode) && this.currentKampagneId) {
+      params.set('kampagne', this.currentKampagneId);
+      params.set('kampagne_name', this.currentKampagneName || '');
+      if (viewMode !== 'kampagneRoot' && !this.isKunde) params.set('ebene', viewMode);
+    }
+    const query = params.toString();
+    return query ? `${BASE_PATH}?${query}` : BASE_PATH;
+  }
+
+  // Videos > Firma > Kampagne > Videos|Rohmaterial; die aktuelle Ebene ist nicht klickbar.
+  breadcrumbCrumbs() {
+    const crumbs = [{ label: 'Videos', url: BASE_PATH }];
+    if (!this.isKunde && this.currentUnternehmenId && this.viewMode !== 'unternehmen') {
+      crumbs.push({ label: this.currentUnternehmenName || 'Unternehmen', url: this.listUrl('kampagnen') });
+    }
+    if (KAMPAGNE_EBENEN.has(this.viewMode) && this.currentKampagneId) {
+      crumbs.push({
+        label: this.currentKampagneName || 'Kampagne',
+        url: this.listUrl(this.isKunde ? 'videos' : 'kampagneRoot')
+      });
+    }
+    if (!this.isKunde && (this.viewMode === 'videos' || this.viewMode === 'rohmaterial')) {
+      crumbs.push({ label: this.viewMode === 'videos' ? 'Videos' : 'Rohmaterial', url: this.listUrl() });
+    }
+    return crumbs.map((crumb, index) => (index === crumbs.length - 1
+      ? { label: crumb.label, url: index === 0 ? crumb.url : '#', clickable: false }
+      : { ...crumb, clickable: true }));
+  }
+
+  _updateBreadcrumb() {
+    if (window.location.pathname !== BASE_PATH) return;
+    replaceRoute(this.listUrl());
+    window.breadcrumbSystem?.updateBreadcrumb(this.breadcrumbCrumbs());
   }
 
   // ============================================

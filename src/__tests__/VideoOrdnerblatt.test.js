@@ -93,7 +93,8 @@ describe('VideoList Ordnerblatt-Cache', () => {
     window.isAdmin = () => true;
     window.isKunde = () => false;
     window.canViewPage = () => true;
-    window.breadcrumbSystem = { updateDetailLabel: vi.fn(), setFromRoute: vi.fn() };
+    window.breadcrumbSystem = { updateBreadcrumb: vi.fn(), setFromRoute: vi.fn() };
+    window.history.replaceState({}, '', '/videos');
     window.validatorSystem = { sanitizeHtml: (t) => t || '' };
 
     loadSpy = vi.spyOn(VideoDataLoader, 'loadOrdnerblatt').mockResolvedValue({

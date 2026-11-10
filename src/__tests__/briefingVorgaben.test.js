@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -22,10 +22,10 @@ describe('briefingVorgaben', () => {
 describe('SkripteService Briefing-Selects', () => {
   // Fehlt videolaenge_funnel in einem Select, greift still der allgemeine Wert.
   it('laden beide videolaenge_funnel mit', () => {
-    const quelle = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../modules/skripte/SkripteService.js'),
-      'utf8'
-    );
+    const skripte = join(dirname(fileURLToPath(import.meta.url)), '../modules/skripte');
+    const quelle = ['SkripteService.js', ...readdirSync(join(skripte, 'service')).map(f => `service/${f}`)]
+      .map(f => readFileSync(join(skripte, f), 'utf8'))
+      .join('\n');
     // Nur die Briefing-Selects: die Item-Selects tragen die Dauer der Videoidee (videolaenge_von/bis).
     const selects = quelle.split('\n').filter(
       zeile => zeile.includes('videolaenge_von, videolaenge_bis') && zeile.includes('aktivierung_name')

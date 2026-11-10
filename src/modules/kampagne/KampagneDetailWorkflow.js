@@ -1,8 +1,9 @@
 // Workflow-Tabs auf der Produktions-Detailseite:
-// Briefing, Produkte, Personas, Casting, Konzepte, Skripte, Verträge,
+// Budget, Briefing, Produkte, Personas, Casting, Konzepte, Skripte, Verträge,
 // Kooperationen, Videos, Auswertung. Default beim Öffnen ist Briefing.
 //
 // Der Tab „Kooperationen“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
+// „Budget“ zeigt Preise und ist nur für Rollen mit Preis-Sicht da.
 
 import { canViewTab, syncTabQueryParam, getTabQueryParam } from '../../core/TabUtils.js';
 import { refreshDocumentTitle } from '../../core/documentTitle.js';
@@ -36,8 +37,10 @@ import { syncEinreichungsZaehler } from '../einladung/EinreichungInbox.js';
 import { syncKonzeptZaehler } from '../einladung/konzeptEinreichungen.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
+import { ladeBudgetDaten, renderBudgetTab } from '../produktion/budgetTab.js';
 
 export const WORKFLOW_TABS = [
+  { id: 'budget', label: 'Budget', preise: true },
   { id: 'briefing', label: 'Briefing' },
   { id: 'produkte', label: 'Produkte' },
   { id: 'personas', label: 'Personas' },
@@ -92,7 +95,7 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
 /* ------------------------------------------------------------------ */
 
 export function getVisibleWorkflowTabs() {
-  return WORKFLOW_TABS.filter(t => canViewTab(t.id));
+  return WORKFLOW_TABS.filter(t => (!t.preise || window.canSeePricing?.() === true) && canViewTab(t.id));
 }
 
 /**
@@ -703,6 +706,23 @@ export async function renderVertraegePane(detail) {
   `;
 }
 
+// Budget gilt für die ganze Produktion; die gewählte Linie wird nur hervorgehoben.
+// Mit nur einer Linie gibt es nichts zu unterscheiden.
+async function renderBudgetPane(detail) {
+  const daten = await getWorkflowData(detail, 'budget', () => ladeBudgetDaten(window.supabase, {
+    produktionId: detail.produktionId,
+    kampagneId: detail.kampagneId
+  }));
+  const linien = detail.linien || [];
+  const linieId = linien.length > 1 ? effectiveLinie(detail, 'budget') : null;
+  const linie = linien.find(l => l.id === linieId);
+  return renderBudgetTab(daten, {
+    linieId,
+    linieName: linie?.name || '',
+    eigenesBudget: detail.produktion?.budget
+  });
+}
+
 // Auswertung: bewusst nur Platzhalter (kein CTA, keine KI-Briefing-Auswertung).
 function renderAuswertungPane() {
   return renderEmptyState({
@@ -713,6 +733,7 @@ function renderAuswertungPane() {
 }
 
 const PANE_RENDERERS = {
+  budget: renderBudgetPane,
   skripte: renderSkriptePane,
   vertraege: renderVertraegePane,
   auswertung: renderAuswertungPane

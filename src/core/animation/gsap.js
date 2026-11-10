@@ -5,8 +5,11 @@
 // laufenden am selben Knoten ab (Doppelklick stapelt nichts).
 
 import gsap from 'gsap';
+import { Flip } from 'gsap/Flip';
 
-export { gsap };
+gsap.registerPlugin(Flip);
+
+export { gsap, Flip };
 
 const runningTimelines = new WeakMap();
 

@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { VideoUploadDrawer } from '../modules/kampagne/VideoUploadDrawer.js';
+import { deleteSingleDropboxFile } from '../core/VideoDeleteHelper.js';
+
+vi.mock('../core/VideoDeleteHelper.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  deleteSingleDropboxFile: vi.fn(() => Promise.resolve()),
+}));
 
 function createMockSupabase(assets = []) {
   const chainable = () => {
@@ -23,31 +29,26 @@ function createMockSupabase(assets = []) {
   };
 }
 
-function createTrackingSupabase(assets = [], opts = {}) {
+function createTrackingSupabase(assets = [], { video = {} } = {}) {
   const log = [];
 
-  function makeSelectChain(data) {
+  function chainOf(data) {
     const result = Promise.resolve({ data, error: null });
     const chain = {
-      eq: vi.fn(() => chain),
-      order: vi.fn(() => chain),
-      in: vi.fn(() => chain),
       maybeSingle: vi.fn(() => Promise.resolve({ data: data?.[0] || null, error: null })),
       single: vi.fn(() => Promise.resolve({ data: data?.[0] || null, error: null })),
       then: result.then.bind(result),
     };
+    for (const m of ['eq', 'in', 'is', 'order', 'limit', 'select']) chain[m] = vi.fn(() => chain);
     return chain;
   }
 
   return {
     from: vi.fn((table) => ({
-      select: vi.fn(() => makeSelectChain(assets)),
+      select: vi.fn(() => chainOf(table === 'kooperation_videos' ? [video] : assets)),
       update: vi.fn((data) => {
         log.push({ op: 'update', table, data });
-        return {
-          eq: vi.fn(() => Promise.resolve({ error: null })),
-          in: vi.fn(() => Promise.resolve({ error: null })),
-        };
+        return chainOf(null);
       }),
       insert: vi.fn((data) => {
         log.push({ op: 'insert', table, data });
@@ -55,11 +56,7 @@ function createTrackingSupabase(assets = [], opts = {}) {
       }),
       delete: vi.fn(() => {
         log.push({ op: 'delete', table });
-        return {
-          eq: vi.fn(() => ({
-            eq: vi.fn(() => Promise.resolve({ error: null })),
-          })),
-        };
+        return chainOf([{ id: 'deleted' }]);
       }),
     })),
     _log: log,
@@ -183,55 +180,56 @@ describe('VideoUploadDrawer', () => {
     });
   });
 
-  describe('saveAssetVersion', () => {
-    it('speichert korrekte version_number statt hardcoded 1', async () => {
-      const sb = createTrackingSupabase([]);
+  describe('Abgeleitete Felder kommen aus der DB', () => {
+    it('Link speichern: nur die Zeile, link_content wird aus der DB gelesen', async () => {
+      const sb = createTrackingSupabase([], { video: { link_content: 'https://db.link/fs2' } });
       window.supabase = sb;
+      const onSuccess = vi.fn();
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, onSuccess);
 
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-      await drawer.saveAssetVersion('https://file.url', '/path/to/file', 'videoname', 'https://folder.url', 2);
+      document.getElementById('video-link-add-btn').click();
+      const urlInput = document.querySelector('.video-link-url-input');
+      urlInput.value = 'https://drive.google.com/fs1';
+      urlInput.dispatchEvent(new Event('input', { bubbles: true }));
+      const nameInput = document.querySelector('.video-variant-name-input');
+      nameInput.value = 'A';
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('video-upload-submit-btn').click();
 
-      const assetInsert = sb._log.find(e => e.op === 'insert' && e.table === 'kooperation_video_asset');
-      expect(assetInsert).toBeDefined();
-      expect(assetInsert.data.version_number).toBe(2);
+      await vi.waitFor(() => expect(onSuccess).toHaveBeenCalled());
+
+      const insert = sb._log.find(e => e.op === 'insert' && e.table === 'kooperation_video_asset');
+      expect(insert.data).toMatchObject({
+        file_url: 'https://drive.google.com/fs1', version_number: 1, variant_name: 'A', is_final: false,
+      });
+      expect(insert.data).not.toHaveProperty('is_current');
+      expect(sb._log.filter(e => e.op === 'update')).toEqual([]);
+      expect(onSuccess).toHaveBeenCalledWith('https://db.link/fs2', null, 'Testvideo', null);
     });
 
-    it('aktualisiert folder_url immer (nicht nur wenn leer)', async () => {
-      const sb = createTrackingSupabase([]);
+    it('Löschen: Kommentare weg, geteilte Datei bleibt, Abgleich über onVideoAssetDeleted', async () => {
+      const finale = {
+        id: 'a-final', file_url: 'https://dl/x', file_path: '/x/v1.mp4', version_number: 1,
+        variant_name: '9:16', is_current: false, is_final: true, created_at: '2026-01-01T00:00:00Z',
+      };
+      const sb = createTrackingSupabase([finale]);
       window.supabase = sb;
+      const onVideoAssetDeleted = vi.fn();
+      const onFinaleChanged = vi.fn();
+      await drawer.open('video-1', defaultMetadaten, vi.fn(), null, null, { onVideoAssetDeleted, onFinaleChanged });
 
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-      await drawer.saveAssetVersion('https://file.url', '/path', 'name', 'https://new-folder.url', 1);
+      await vi.waitFor(() => expect(document.querySelector('.existing-video-delete[data-id="a-final"]')).not.toBeNull());
+      document.querySelector('.existing-video-delete[data-id="a-final"]').click();
+      await vi.waitFor(() => expect(onFinaleChanged).toHaveBeenCalledWith('video-1'));
 
-      const videoUpdate = sb._log.find(e => e.op === 'update' && e.table === 'kooperation_videos');
-      expect(videoUpdate).toBeDefined();
-      expect(videoUpdate.data.folder_url).toBe('https://new-folder.url');
-    });
-
-    it('fügt neuen Asset hinzu ohne alten zu löschen (Append-Modus)', async () => {
-      const sb = createTrackingSupabase([{ version_number: 1 }]);
-      window.supabase = sb;
-
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-      await drawer.saveAssetVersion('https://new.url', '/new/path', 'name', 'https://folder.url', 1);
-
-      const deleteOps = sb._log.filter(e => e.op === 'delete' && e.table === 'kooperation_video_asset');
-      expect(deleteOps.length).toBe(0);
-
-      const assetInsert = sb._log.find(e => e.op === 'insert' && e.table === 'kooperation_video_asset');
-      expect(assetInsert).toBeDefined();
-      expect(assetInsert.data.version_number).toBe(1);
-    });
-
-    it('ruft _updateCurrentFlags nach dem Speichern auf', async () => {
-      const sb = createTrackingSupabase([{ version_number: 1 }]);
-      window.supabase = sb;
-
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-      await drawer.saveAssetVersion('https://new.url', '/new/path', 'name', null, 1);
-
-      const updateOps = sb._log.filter(e => e.op === 'update');
-      expect(updateOps.length).toBeGreaterThanOrEqual(1);
+      expect(sb._log).toContainEqual({
+        op: 'update', table: 'kooperation_video_zeitkommentar', data: { deleted_at: expect.any(String) },
+      });
+      expect(sb._log).toContainEqual({ op: 'delete', table: 'kooperation_video_asset' });
+      // die Referenzprüfung findet noch eine Zeile mit demselben Pfad
+      expect(deleteSingleDropboxFile).not.toHaveBeenCalled();
+      expect(onVideoAssetDeleted).toHaveBeenCalledWith(finale);
+      expect(sb._log.filter(e => e.op === 'update' && e.table === 'kooperation_video_asset')).toEqual([]);
     });
   });
 

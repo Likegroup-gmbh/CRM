@@ -51,6 +51,7 @@ export const ENTITY_ICONS = {
   stakeholder: 'chart-trend',
   admin: 'shield',
   'admin-datenqualitaet': 'shield',
+  'admin-medienablage': 'archive-box',
   transcribe: 'video',
   kunden: 'home',
   adresse: 'map-pin',

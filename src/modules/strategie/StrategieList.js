@@ -9,8 +9,11 @@ import {
   renderBrandsView, updateBrandsTable, updateCompanyOnlyTable,
   renderItemsView, updateItemsTable as _updateItemsTable
 } from './StrategieListRenderer.js';
-import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
+import { markenEbeneEntfaellt, parseFolderQuery, folderListUrl } from '../../core/folderListNav.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
 import { bindEvents as _bindEvents } from './StrategieListEvents.js';
+
+const BASE_PATH = '/konzepte';
 import {
   showHowToModal as _showHowToModal,
   confirmDeleteStrategie as _confirmDeleteStrategie,
@@ -42,33 +45,14 @@ export class StrategieList {
 
   async init() {
     this._forceReload = true;
-    this._ohneMarke = false;
 
-    const params = new URLSearchParams(window.location.search);
-    const qUnternehmenId = params.get('unternehmen');
-    const qUnternehmenName = params.get('unternehmen_name');
-    const qMarkeId = params.get('marke');
-    const qMarkeName = params.get('marke_name');
-
-    if (qUnternehmenId) {
-      this.currentUnternehmenId = qUnternehmenId;
-      this.currentUnternehmenName = decodeURIComponent(qUnternehmenName || 'Unternehmen');
-      if (qMarkeId) {
-        this.viewMode = 'items';
-        this.currentMarkeId = qMarkeId;
-        this.currentMarkeName = decodeURIComponent(qMarkeName || 'Marke');
-      } else {
-        this.viewMode = 'brands';
-        this.currentMarkeId = null;
-        this.currentMarkeName = null;
-      }
-    } else {
-      this.viewMode = 'companies';
-      this.currentUnternehmenId = null;
-      this.currentUnternehmenName = null;
-      this.currentMarkeId = null;
-      this.currentMarkeName = null;
-    }
+    const folder = parseFolderQuery(window.location.search);
+    this.viewMode = folder.viewMode;
+    this.currentUnternehmenId = folder.unternehmenId;
+    this.currentUnternehmenName = folder.unternehmenName;
+    this.currentMarkeId = folder.markeId;
+    this.currentMarkeName = folder.ohneMarke ? null : folder.markeName;
+    this._ohneMarke = folder.ohneMarke;
 
     const canView = window.isAdmin() || window.currentUser?.permissions?.strategie?.can_view;
     if (!canView) {
@@ -119,7 +103,10 @@ export class StrategieList {
   updateBreadcrumbDisplay() {
     if (!window.breadcrumbSystem) return;
 
-    if (this.viewMode === 'companies') return;
+    if (this.viewMode === 'companies') {
+      window.breadcrumbSystem.updateBreadcrumb([{ label: 'Konzepte', url: '/konzepte', clickable: false }]);
+      return;
+    }
 
     if (this.viewMode === 'brands') {
       window.breadcrumbSystem.updateBreadcrumb([
@@ -137,13 +124,28 @@ export class StrategieList {
       return;
     }
 
-    const uName = encodeURIComponent(this.currentUnternehmenName || '');
-    const uId = this.currentUnternehmenId;
     window.breadcrumbSystem.updateBreadcrumb([
       { label: 'Konzepte', url: '/konzepte', clickable: true },
-      { label: this.currentUnternehmenName || 'Unternehmen', url: `/konzepte?unternehmen=${uId}&unternehmen_name=${uName}`, clickable: true },
+      { label: this.currentUnternehmenName || 'Unternehmen', url: folderListUrl(BASE_PATH, this.folder(), 'brands'), clickable: true },
       { label: this.currentMarkeName || 'Marke', url: '#', clickable: false }
     ]);
+  }
+
+  folder() {
+    return {
+      unternehmenId: this.viewMode === 'companies' ? null : this.currentUnternehmenId,
+      unternehmenName: this.currentUnternehmenName,
+      markeId: this.currentMarkeId,
+      markeName: this.currentMarkeName,
+      ohneMarke: this._ohneMarke
+    };
+  }
+
+  // Ordner-Ebene in der URL: Zurück, Reload und der Klickpfad ins Detail finden sie wieder.
+  // Nach einem späten Laden nicht die URL einer inzwischen geöffneten Seite überschreiben.
+  syncListUrl() {
+    if (window.location.pathname !== BASE_PATH) return;
+    replaceRoute(folderListUrl(BASE_PATH, this.folder()));
   }
 
   sanitize(value) {
@@ -225,6 +227,7 @@ export class StrategieList {
   // --- Delegations-Methoden (Renderer) ---
   render() {
     this.updateBreadcrumbDisplay();
+    this.syncListUrl();
     let html = '';
     if (this.viewMode === 'companies') {
       html = renderCompaniesView(this);

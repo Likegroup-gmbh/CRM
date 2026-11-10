@@ -1,0 +1,200 @@
+/* ---------- Toolbar ---------- */
+
+.skripte-editor-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xxs) 0;
+  padding: var(--space-xxs) var(--space-sm);
+  background: var(--bg-primary);
+  /* Kein border-top: das Element darueber (Vorgaben oder Doc-Kopf) hat schon border-bottom. */
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-toolbar-gruppe {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 var(--space-xs);
+}
+
+.skripte-editor-toolbar-gruppe[hidden] {
+  display: none;
+}
+
+.skripte-editor-toolbar-gruppe + .skripte-editor-toolbar-gruppe:not(.skripte-editor-toolbar-gruppe--rechts) {
+  border-left: var(--border-xs) solid var(--border-subtle, var(--gray-200));
+}
+
+.skripte-editor-toolbar-gruppe--rechts {
+  margin-left: auto;
+}
+
+.skripte-editor-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xxs);
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.skripte-editor-toolbar-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.skripte-editor-toolbar-btn:hover:not(:disabled) {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.skripte-editor-toolbar-btn.is-aktiv {
+  background: var(--primary-50, var(--gray-100));
+  color: var(--primary-700, var(--text-primary));
+}
+
+.skripte-editor-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.skripte-editor-toolbar-btn--text {
+  min-width: 26px;
+  font-weight: var(--font-semibold, 600);
+}
+
+.skripte-editor-toolbar-select {
+  height: 28px;
+  padding: 0 var(--space-xs);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.skripte-editor-toolbar-select:hover {
+  background: var(--gray-100);
+}
+
+.skripte-editor-toolbar-status {
+  margin-right: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* Popover unter der Toolbar (Link, Tabelle, Farbe) */
+.skripte-editor-toolbar-pop {
+  min-width: 260px;
+  max-width: 340px;
+  padding: var(--space-sm);
+  gap: var(--space-sm);
+}
+
+.skripte-editor-toolbar-pop[data-art='tabelle'],
+.skripte-editor-toolbar-pop[data-art='farben'] {
+  min-width: 0;
+}
+
+/* Farbpalette (20 Pastelltoene, 5 x 4) */
+.skripte-editor-farben {
+  display: grid;
+  grid-template-columns: repeat(5, 28px);
+  gap: var(--space-xs);
+}
+
+.skripte-editor-farbe {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: var(--border-xs) solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-full, 999px);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.skripte-editor-farbe:hover {
+  transform: scale(1.1);
+}
+
+.skripte-editor-farbe:focus-visible,
+.skripte-editor-farbe.is-aktiv {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--gray-700);
+}
+
+.skripte-editor-farben-weg {
+  width: 100%;
+}
+
+.skripte-editor-toolbar-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.skripte-editor-toolbar-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--space-sm);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.skripte-editor-toolbar-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.skripte-editor-toolbar-form-aktionen {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.skripte-editor-raster {
+  display: grid;
+  grid-template-columns: repeat(var(--raster, 6), 20px);
+  gap: 3px;
+}
+
+.skripte-editor-raster-zelle {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: 2px;
+  background: var(--bg-primary);
+  cursor: pointer;
+}
+
+.skripte-editor-raster-zelle.is-aktiv {
+  background: var(--gray-200);
+  border-color: var(--gray-900);
+}
+
+.skripte-editor-raster-label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-align: center;
+}

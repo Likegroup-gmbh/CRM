@@ -4,6 +4,8 @@
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
 import { createFolderSharedLink, nextFreeIndexedFileName, sanitizeDropboxFileName, fileBasename } from '../VideoUploadUtils.js';
 import { authorizedFetch } from '../auth/getAccessToken.js';
+import { ablageZielHolen, hochladenNachSharePoint, sharePointAssetFelder, uploadVerwerfen } from '../ablage/ablageUpload.js';
+import { trackUploadProgress } from './videoUploadSteps.js';
 
 async function prepareStorysUpload({ metadaten, slotIndex, versionNumber, variantName, fileName, isFinal }) {
   const payload = {
@@ -82,6 +84,7 @@ export async function runStorysUploadJob(ctx) {
 
   const storySlots = Array.isArray(initialSlots) ? [...initialSlots] : [];
   let videoFolderUrl = null;
+  let sharePointFolderUrl = null;
   const slotsTouched = new Set();
   let uploaded = 0;
 
@@ -140,6 +143,50 @@ export async function runStorysUploadJob(ctx) {
       }
       fileName = nextFreeIndexedFileName(base, slot._finalNamesByVariant[variantName]);
       slot._finalNamesByVariant[variantName].push(fileName);
+    }
+
+    const ziel = await ablageZielHolen({
+      typ: 'story',
+      kooperation_id: metadaten?.kooperationId ?? null,
+      kooperation_video_id: videoId,
+      story_id: slotId,
+      version_number: parseInt(versionNumber, 10) || 1,
+      is_final: isFinal,
+      variant_name: variantName || null,
+      file_name: fileName,
+      file_size: file.size,
+    });
+    if (ziel.ziel === 'sharepoint') {
+      const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: trackUploadProgress(item, updateItem) });
+      if (item.directOk === null) updateItem(item.id, { directOk: true });
+      updateItem(item.id, { status: 'saving' });
+      if (!sharePointFolderUrl) sharePointFolderUrl = commit.folder_url || null;
+      if (isFinal && slot && commit.file_name) slot._finalNamesByVariant[variantName].push(commit.file_name);
+
+      const felder = sharePointAssetFelder(commit);
+      const { error: spInsertErr } = await window.supabase
+        .from('kooperation_story_asset')
+        .insert({
+          story_id: slotId,
+          video_id: videoId,
+          ...felder,
+          file_name: felder.file_name || fileName,
+          file_size: felder.file_size ?? file.size,
+          version_number: versionNumber,
+          variant_name: variantName || null,
+          is_current: !isFinal,
+          is_final: isFinal,
+          uploaded_by: window.currentUser?.id || null,
+          created_at: new Date().toISOString(),
+        });
+      if (spInsertErr) {
+        await uploadVerwerfen(ziel.upload_id);
+        throw spInsertErr;
+      }
+
+      updateItem(item.id, { status: 'done', loaded: file.size });
+      uploaded++;
+      continue;
     }
 
     const prep = await prepareStorysUpload({
@@ -213,8 +260,8 @@ export async function runStorysUploadJob(ctx) {
   }
 
   // Storys-Folder-Link einmal anhängen
-  let storysFolderUrl = null;
-  if (videoFolderUrl) {
+  let storysFolderUrl = sharePointFolderUrl;
+  if (!storysFolderUrl && videoFolderUrl) {
     try {
       const tokenResp = await authorizedFetch('/.netlify/functions/dropbox-upload-storys', {
         method: 'POST',

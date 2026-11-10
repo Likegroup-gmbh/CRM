@@ -3,12 +3,28 @@ import { VideoTableDrawerActions } from '../modules/kampagne/VideoTableDrawerAct
 import { VideoTableRealtimeHandler } from '../modules/kampagne/VideoTableRealtimeHandler.js';
 import { VideoTableFieldHandler } from '../modules/kampagne/VideoTableFieldHandler.js';
 
+const ablage = vi.hoisted(() => ({ ziel: { ziel: 'dropbox' }, calls: [] }));
+
 vi.mock('../core/DropboxDirectUploader.js', () => ({
   uploadFileDirect: vi.fn(async () => ({ path_display: '/Kampagne/clip.mp4' })),
 }));
 
+vi.mock('../core/AblageUploader.js', () => ({
+  uploadToSession: vi.fn(async () => ({ id: 'item1' })),
+}));
+
 vi.mock('../core/auth/getAccessToken.js', () => ({
-  authorizedFetch: vi.fn(async (url) => {
+  authorizedFetch: vi.fn(async (url, opts) => {
+    const fn = String(url).split('/').pop();
+    if (fn === 'ablage-upload-ziel' || fn === 'ablage-upload-commit') {
+      ablage.calls.push({ fn, body: JSON.parse(opts.body) });
+      const data = fn === 'ablage-upload-ziel' ? ablage.ziel : {
+        ablage: 'sharepoint', drive_id: 'd1', item_id: 'item1', etag: 'e1', ctag: 'c1',
+        file_path: '/Herbst/Ada/clip_v1.mp4', file_name: 'clip_v1.mp4', file_size: 1,
+        file_url: 'https://sp.example/clip_v1.mp4', folder_url: 'https://sp.example/Ada',
+      };
+      return { ok: true, json: async () => data };
+    }
     if (String(url).includes('dropbox-upload')) {
       return {
         ok: true,
@@ -31,6 +47,7 @@ const { runVideoUploadJob } = await import('../core/uploadJobs/runVideoUploadJob
 
 function supabaseRecording() {
   const updates = [];
+  updates.inserts = [];
   window.supabase = {
     from(table) {
       return {
@@ -38,11 +55,18 @@ function supabaseRecording() {
           const result = Promise.resolve({ data: [], error: null });
           const chain = {
             eq: () => chain,
+            maybeSingle: () => Promise.resolve({
+              data: table === 'kooperation_videos' ? { link_content: 'https://db.example/link' } : null,
+              error: null,
+            }),
             then: result.then.bind(result),
           };
           return chain;
         },
-        insert: () => Promise.resolve({ error: null }),
+        insert(data) {
+          updates.inserts.push({ table, data });
+          return Promise.resolve({ error: null });
+        },
         update(data) {
           updates.push({ table, data });
           return {
@@ -60,6 +84,8 @@ describe('Video-Name während des Uploads', () => {
   afterEach(() => {
     document.body.innerHTML = '';
     vi.unstubAllGlobals();
+    ablage.ziel = { ziel: 'dropbox' };
+    ablage.calls = [];
   });
 
   it('überschreibt den in der Liste gesetzten Namen nicht, wenn der Upload fertig ist', () => {
@@ -105,7 +131,7 @@ describe('Video-Name während des Uploads', () => {
   it('schreibt den Snapshot-Namen beim Abschluss nicht in die Datenbank', async () => {
     const updates = supabaseRecording();
     const file = new File(['x'], 'clip.mp4', { type: 'video/mp4' });
-    await runVideoUploadJob({
+    const result = await runVideoUploadJob({
       job: {
         payload: {
           videoId: 'v1',
@@ -126,9 +152,63 @@ describe('Video-Name während des Uploads', () => {
     });
 
     const videoUpdate = updates.find(u => u.table === 'kooperation_videos');
-    expect(videoUpdate).toBeDefined();
-    expect(videoUpdate.data.link_content).toBeTruthy();
-    expect(videoUpdate.data).not.toHaveProperty('video_name');
+    // link_content und is_current setzt der DB-Trigger; der Job liest link_content nur zurück
+    expect(videoUpdate.data).toEqual({ folder_url: 'https://dropbox.example/folder' });
+    expect(updates.filter(u => u.table === 'kooperation_video_asset')).toEqual([]);
+    expect(result.linkContent).toBe('https://db.example/link');
+  });
+
+  it('lädt mit mode add hoch, damit gleiche Variante derselben Schleife nichts überschreibt', async () => {
+    supabaseRecording();
+    const { uploadFileDirect } = await import('../core/DropboxDirectUploader.js');
+    uploadFileDirect.mockClear();
+    const file = new File(['x'], 'clip.mp4', { type: 'video/mp4' });
+    await runVideoUploadJob({
+      job: {
+        payload: {
+          videoId: 'v1',
+          metadaten: { creatorName: 'Ada', unternehmen: 'Firma', kampagne: 'Herbst', videoPosition: 1, kooperationName: 'Koop' },
+          queue: [{ file, variantName: 'A', versionNumber: 1, isFinal: false }],
+        },
+        items: [{ id: 'i1', directOk: null }],
+      },
+      signal: new AbortController().signal,
+      updateItem: () => {},
+    });
+    expect(uploadFileDirect).toHaveBeenCalledWith(expect.objectContaining({ mode: 'add' }));
+  });
+
+  it('Ziel sharepoint: lädt in die Session und speichert die Ablage-Felder statt Dropbox', async () => {
+    ablage.ziel = { ziel: 'sharepoint', upload_id: 'up1', upload_url: 'https://graph.example/s', chunk_bytes: 327680 };
+    const updates = supabaseRecording();
+    const { uploadFileDirect } = await import('../core/DropboxDirectUploader.js');
+    uploadFileDirect.mockClear();
+    const file = new File(['x'], 'clip.mp4', { type: 'video/mp4' });
+    await runVideoUploadJob({
+      job: {
+        payload: {
+          videoId: 'v1',
+          metadaten: { creatorName: 'Ada', unternehmen: 'Firma', kampagne: 'Herbst', videoPosition: 1, kooperationId: 'k1' },
+          queue: [{ file, variantName: '9:16', versionNumber: 2, isFinal: false }],
+        },
+        items: [{ id: 'i1', directOk: null }],
+      },
+      signal: new AbortController().signal,
+      updateItem: () => {},
+    });
+
+    expect(uploadFileDirect).not.toHaveBeenCalled();
+    expect(ablage.calls[0].body).toMatchObject({
+      typ: 'video', kooperation_id: 'k1', kooperation_video_id: 'v1', version_number: 2,
+      is_final: false, variant_name: '9:16', file_size: 1,
+    });
+    expect(ablage.calls[1]).toEqual({ fn: 'ablage-upload-commit', body: { upload_id: 'up1', item_id: 'item1' } });
+    const row = updates.inserts.find(i => i.table === 'kooperation_video_asset').data;
+    expect(row).toMatchObject({
+      video_id: 'v1', file_url: 'https://sp.example/clip_v1.mp4', file_path: '/Herbst/Ada/clip_v1.mp4',
+      ablage: 'sharepoint', drive_id: 'd1', item_id: 'item1', etag: 'e1', version_number: 2,
+    });
+    expect(updates.find(u => u.table === 'kooperation_videos').data).toEqual({ folder_url: 'https://sp.example/Ada' });
   });
 
   it('leert ein gerade bearbeitetes Namensfeld nicht, wenn der Upload die Zeile aktualisiert', () => {

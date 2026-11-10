@@ -154,7 +154,7 @@ describe('BreadcrumbSystem Rework', () => {
     it('gibt korrektes Label und Icon für kampagne', async () => {
       const { getRouteConfig } = await import('../core/breadcrumbRoutes.js');
       const config = getRouteConfig('kampagne');
-      expect(config.label).toBe('Kampagne');
+      expect(config.label).toBe('Kampagnen');
       expect(config.entity).toBe('kampagne');
     });
 

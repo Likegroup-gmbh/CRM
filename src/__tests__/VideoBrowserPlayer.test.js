@@ -6,8 +6,7 @@ vi.mock('../modules/video-browser/videoBrowserMedia.js', () => ({
     const record = item?.asset || item;
     return { record, lookup: { file_path: record.file_path } };
   },
-  resolveSource: vi.fn(),
-  dropVorschauLink: vi.fn()
+  resolveSource: vi.fn()
 }));
 
 const { mountPlayer } = await import('../modules/video-browser/VideoBrowserPlayer.js');
@@ -52,34 +51,26 @@ describe('VideoBrowserPlayer', () => {
     expect(media.resolveSource).toHaveBeenCalledTimes(1);
   });
 
-  it('fällt bei nicht abspielbarer Vorschau einmal aufs Original zurück', async () => {
-    media.resolveSource
-      .mockResolvedValueOnce({ url: 'https://cf.test/a1.mp4', quelle: 'vorschau' })
-      .mockResolvedValueOnce({ url: 'https://dropbox.test/clip.mov', quelle: 'original' });
+  it('zeigt bei nicht abspielbarer Datei einen Hinweis statt neu zu laden', async () => {
+    media.resolveSource.mockResolvedValue({ url: 'https://dropbox.test/clip.mov', quelle: 'original' });
     current = mount();
     await flush();
     fire(current.video(), 'error');
     await flush();
-    expect(media.dropVorschauLink).toHaveBeenCalledWith(item);
-    expect(media.resolveSource).toHaveBeenLastCalledWith(item, { original: true });
-    expect(current.video().getAttribute('src')).toBe('https://dropbox.test/clip.mov#t=0.001');
-    // Fehler im Original: kein weiterer Versuch, Hinweis statt Endlosschleife
-    fire(current.video(), 'error');
-    await flush();
-    expect(media.resolveSource).toHaveBeenCalledTimes(2);
+    expect(media.resolveSource).toHaveBeenCalledTimes(1);
     expect(current.host.textContent).toContain('kann nicht abgespielt werden');
   });
 
   it('meldet je Wiedergabe eine Messung mit Quelle und Format', async () => {
     const onMessung = vi.fn();
-    media.resolveSource.mockResolvedValue({ url: 'https://cf.test/a1.mp4', quelle: 'vorschau' });
+    media.resolveSource.mockResolvedValue({ url: 'https://dropbox.test/clip.mov', quelle: 'original' });
     current = mount({ onMessung });
     await flush();
     fire(current.video(), 'loadeddata');
     current.player.destroy();
     current = null;
     expect(onMessung).toHaveBeenCalledTimes(1);
-    expect(onMessung.mock.calls[0][0]).toMatchObject({ asset_id: 'a1', quelle: 'vorschau', format: 'mov', stalls: 0, fehler: false });
+    expect(onMessung.mock.calls[0][0]).toMatchObject({ asset_id: 'a1', quelle: 'original', format: 'mov', stalls: 0, fehler: false });
     expect(onMessung.mock.calls[0][0].ttff_ms).toEqual(expect.any(Number));
   });
 
@@ -92,7 +83,7 @@ describe('VideoBrowserPlayer', () => {
   });
 
   it('whenReady wartet auf canplaythrough (Gate fürs Vorwärmen)', async () => {
-    media.resolveSource.mockResolvedValue({ url: 'https://cf.test/a1.mp4', quelle: 'vorschau' });
+    media.resolveSource.mockResolvedValue({ url: 'https://dropbox.test/clip.mov', quelle: 'original' });
     current = mount();
     let ready = false;
     await flush();

@@ -66,6 +66,29 @@
   line-height: 1.5;
 }
 
+/* Toast Aktion (z. B. Rückgängig) */
+.toast-action {
+  flex-shrink: 0;
+  padding: var(--space-xs) var(--space-sm);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--primary, var(--text-primary));
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.toast-action:hover {
+  background: var(--gray-100);
+}
+
+.toast-action:focus-visible {
+  outline: 2px solid var(--primary, currentColor);
+  outline-offset: 1px;
+}
+
 /* Toast Close Button */
 .toast-close {
   flex-shrink: 0;

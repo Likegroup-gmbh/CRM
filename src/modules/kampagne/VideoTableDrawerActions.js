@@ -4,6 +4,7 @@
 // der Orchestrator (KampagneKooperationenVideoTable) schlank bleibt.
 
 import { syncVideoAssetsAfterDelete } from '../../core/VideoDeleteHelper.js';
+import { mitAblage } from '../../core/ablage/ablageLink.js';
 
 export class VideoTableDrawerActions {
   constructor(table) {
@@ -61,6 +62,7 @@ export class VideoTableDrawerActions {
         t.refilter();
       },
       onFinaleChanged: () => this.refreshFinalAssetsForVideo(videoId, kooperationId),
+      onVideoAssetDeleted: () => this.syncAfterAssetDelete(videoId, kooperationId),
     });
   }
 
@@ -69,7 +71,7 @@ export class VideoTableDrawerActions {
     try {
       const { data } = await window.supabase
         .from('kooperation_video_asset')
-        .select('id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at')
+        .select(mitAblage('id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at'))
         .eq('video_id', videoId)
         .eq('is_final', true)
         .order('created_at', { ascending: true });
@@ -180,7 +182,7 @@ export class VideoTableDrawerActions {
       onReupload: () => this.openUploadDrawer(videoId, kooperationId),
       onStorysReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'storys' }),
       onBilderReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'bilder' }),
-      onDelete: (deletedAsset) => this.syncAfterAssetDelete(videoId, kooperationId, deletedAsset),
+      onDelete: () => this.syncAfterAssetDelete(videoId, kooperationId),
       onBilderChanged: () => this.refreshBilderForKoop(kooperationId),
       onFinaleChanged: () => this.refreshFinalAssetsForVideo(videoId, kooperationId),
       onFolderCleared: () => {
@@ -244,12 +246,10 @@ export class VideoTableDrawerActions {
     t.refilter();
   }
 
-  async syncAfterAssetDelete(videoId, kooperationId, deletedAsset) {
+  async syncAfterAssetDelete(videoId, kooperationId) {
     const t = this.table;
-    const { currentAsset, linkContentChanged, linkContent, hasRemainingAssets } =
-      await syncVideoAssetsAfterDelete(videoId, deletedAsset);
-    const patch = { currentAsset, file_url: currentAsset?.file_url || null };
-    if (linkContentChanged) patch.link_content = linkContent;
+    const { currentAsset, linkContent, hasRemainingAssets } = await syncVideoAssetsAfterDelete(videoId);
+    const patch = { currentAsset, file_url: currentAsset?.file_url || null, link_content: linkContent };
     if (!hasRemainingAssets) patch.folder_url = null;
     if (t.store) {
       t.store.updateVideo(videoId, patch);

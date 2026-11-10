@@ -6,13 +6,12 @@ import {
   commentsForAsset,
   deriveAblaufschritt,
   deriveBearbeitungsart,
+  detectRatio,
   ersterOffenerInhalt,
   fitFrame,
-  markVorschau,
   markerNah,
   markerProzent,
-  nextVariantLetter,
-  renditionFor,
+  nextVariantLetters,
   selectLevel,
   selectionDepth,
   selectionFromSearch,
@@ -51,23 +50,6 @@ const raw = () => ({
   zeitkommentare: [
     { id: 'z1', video_id: 'v1', runde: 2, feedback_typ: 'kunde', text: 'Logo früher', timecode_sec: '4.50', asset_id: 'a2', author_name: 'Kunde', created_at: '2026-02-06' }
   ]
-});
-
-describe('Vorschaudatei', () => {
-  it('markiert nur fertige Vorschaudateien', () => {
-    const assets = [{ id: 'a1' }, { id: 'a2' }, { id: 'a3' }];
-    markVorschau(assets, [{ asset_id: 'a1', status: 'ready' }, { asset_id: 'a2', status: 'pending' }]);
-    expect(assets.map(a => !!a.vorschau_bereit)).toEqual([true, false, false]);
-  });
-
-  it('ändert weder Status noch Ablaufschritt', () => {
-    const plain = buildTree(raw(), { team: true });
-    const r = raw();
-    markVorschau(r.videoAssets, r.videoAssets.map(a => ({ asset_id: a.id, status: 'ready' })));
-    expect(r.videoAssets.every(a => a.vorschau_bereit)).toBe(true);
-    const ohneFlag = (tree) => JSON.parse(JSON.stringify(tree, (k, v) => (k === 'vorschau_bereit' ? undefined : v)));
-    expect(ohneFlag(buildTree(r, { team: true }))).toEqual(ohneFlag(plain));
-  });
 });
 
 describe('Ablaufschritt', () => {
@@ -179,6 +161,15 @@ describe('Baum', () => {
     expect(final.find(i => i.id === 'f2').name).toBe('Finale Version 1:1');
   });
 
+  it('Finale Version ohne eigenen Titel übernimmt den Titel der Quelldatei', () => {
+    const data = raw();
+    data.videoAssets.push({ id: 'q1', video_id: 'v1', version_number: 1, is_final: false, titel: 'Interview Kudamm', created_at: '2026-02-01' });
+    data.videoAssets.push({ id: 'qf', video_id: 'v1', version_number: 1, variant_name: '9:16', is_final: true, source_asset_id: 'q1', created_at: '2026-02-09' });
+    const t = buildTree(data, { team: true });
+    const v1 = t.kooperationen[0].rows.find(r => r.id === 'v1');
+    expect(v1.folders.find(f => f.kind === 'final').items.find(i => i.id === 'qf').name).toBe('Interview Kudamm');
+  });
+
   it('Runde, die nur Story oder Bild enthält, existiert trotzdem', () => {
     const data = raw();
     data.storyAssets.push({ id: 'sa2', story_id: 's1', version_number: 3, is_final: false, created_at: '2026-02-20' });
@@ -201,11 +192,34 @@ describe('Baum', () => {
     expect(v1.status.key).toBe('freigegeben');
   });
 
-  it('Team sieht Rohmaterial, Feedbackschleifen und die nächste leere Schleife', () => {
+  it('Team sieht Rohmaterial, Feedbackschleifen, die nächste leere Schleife und den leeren Ordner Finale Version', () => {
     const v1 = team.kooperationen[0].rows[0];
-    expect(v1.folders.map(f => f.id)).toEqual(['raw', 's1', 's2', 's3']);
+    expect(v1.folders.map(f => f.id)).toEqual(['raw', 's1', 's2', 's3', 'final']);
     expect(v1.folders[3].leer).toBe(true);
+    const final = v1.folders[4];
+    expect(final).toMatchObject({ leer: true, upload: true, status: null, meta: 'Noch leer', items: [] });
+    // Der leere Ordner ändert weder Ablaufschritt noch Status noch die Schleifen
     expect(v1.stage).toBe(4);
+    expect(v1.status.key).toBe('wartet');
+    expect(v1.folders.find(f => f.id === 's2').current).toBe(true);
+  });
+
+  it('Kunde sieht den Ordner Finale Version erst mit Inhalt', () => {
+    expect(kunde.kooperationen[0].rows[0].folders.some(f => f.kind === 'final')).toBe(false);
+    const v2 = kunde.kooperationen[0].rows.find(r => r.id === 'v2');
+    expect(v2.folders.some(f => f.kind === 'final')).toBe(true);
+  });
+
+  it('Finale Dateien liegen nach Format sortiert: 9:16, 4:5, 1:1', () => {
+    const data = raw();
+    data.videoAssets.push(
+      { id: 'f3', video_id: 'v2', version_number: 1, variant_name: '1:1', is_final: true, created_at: '2026-03-01' },
+      { id: 'f4', video_id: 'v2', version_number: 1, variant_name: '4:5', is_final: true, created_at: '2026-03-04' },
+      { id: 'f5', video_id: 'v2', version_number: 1, variant_name: '9:16', is_final: true, created_at: '2026-03-05' }
+    );
+    const v2 = buildTree(data, { team: true }).kooperationen[0].rows.find(r => r.id === 'v2');
+    const videos = v2.folders.find(f => f.id === 'final').items.filter(i => i.type === 'video');
+    expect(videos.map(i => i.ratio)).toEqual(['9:16', '9:16', '4:5', '1:1', '1:1']);
   });
 
   it('Kunde sieht kein Rohmaterial und keine leeren Schleifen', () => {
@@ -326,8 +340,8 @@ describe('Varianten und Verlauf', () => {
   const v1 = tree.kooperationen[0].rows[0];
 
   it('vergibt den nächsten freien Buchstaben über alle Schleifen', () => {
-    expect(nextVariantLetter(v1)).toBe('B');
-    expect(nextVariantLetter({ folders: [] })).toBe('A');
+    expect(nextVariantLetters(v1, 1)).toEqual(['B']);
+    expect(nextVariantLetters({ folders: [] }, 2)).toEqual(['A', 'B']);
   });
 
   it('Verlauf: dieselbe Variante über die Schleifen, aktueller Eintrag markiert', () => {
@@ -384,10 +398,14 @@ describe('Vorschau', () => {
     expect(markerNah(5, 6)).toBe(false);
   });
 
-  it('Rendition: eigene finale Version je Seitenverhältnis', () => {
-    const items = [{ ratio: '9:16', id: 'a' }, { ratio: '1:1', id: 'b' }];
-    expect(renditionFor(items, '1:1').id).toBe('b');
-    expect(renditionFor(items, '4:5')).toBeNull();
+  it('Format aus den Pixelmaßen: Standardformate mit Toleranz, sonst null', () => {
+    expect(detectRatio(1080, 1920)).toBe('9:16');
+    expect(detectRatio(1080, 1918)).toBe('9:16');
+    expect(detectRatio(1080, 1350)).toBe('4:5');
+    expect(detectRatio(1080, 1080)).toBe('1:1');
+    expect(detectRatio(1920, 1080)).toBeNull();
+    expect(detectRatio(0, 0)).toBeNull();
+    expect(detectRatio(undefined, 1080)).toBeNull();
   });
 
   it('Handle aus URL oder Handle', () => {

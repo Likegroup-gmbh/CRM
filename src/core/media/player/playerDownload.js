@@ -41,5 +41,5 @@ export function downloadCurrentMedia(session, assetLoader) {
     window.toastSystem?.show('Kein Inhalt zum Herunterladen.', 'error');
     return;
   }
-  downloadMediaAsset(source, filename);
+  downloadMediaAsset(source, filename, { typ: media.lookup.typ });
 }

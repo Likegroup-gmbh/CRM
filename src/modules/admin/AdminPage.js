@@ -1,14 +1,20 @@
 // AdminPage.js
-// Huelle fuer die Datenqualitaetsanzeige im Accounting-Bereich
-// (/admin/datenqualitaet). Das Accounting-Dashboard (/admin) ist die
-// Stakeholder-Uebersicht und laeuft nicht mehr durch diese Huelle.
+// Huelle fuer die Admin-Unterseiten im Accounting-Bereich
+// (/admin/datenqualitaet, /admin/medienablage). Das Accounting-Dashboard
+// (/admin) ist die Stakeholder-Uebersicht und laeuft nicht mehr durch
+// diese Huelle.
 
 import { DatenqualitaetPage } from './DatenqualitaetPage.js';
+import { MedienablagePage } from './MedienablagePage.js';
 
 const SUB_PAGES = {
   datenqualitaet: {
     headline: 'Accounting – Datenqualität',
     create: () => new DatenqualitaetPage(),
+  },
+  medienablage: {
+    headline: 'Accounting – Medienablage',
+    create: () => new MedienablagePage(),
   },
 };
 

@@ -2,7 +2,9 @@
 // Smoke + Ordner-Aggregation + Deep-Link-Params.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { skriptEditorPath, STATUS_LABELS, OHNE_QUERY, OHNE_MARKE_LABEL } from '../modules/skripte/SkripteUtils.js';
+import {
+  skriptEditorPath, skriptCrumbs, STATUS_LABELS, OHNE_QUERY, OHNE_MARKE_LABEL
+} from '../modules/skripte/SkripteUtils.js';
 import {
   SkriptList,
   matchesMarke,
@@ -209,6 +211,45 @@ describe('SkriptList Deep-Links', () => {
     list.applyQueryParams(new URLSearchParams('unternehmen=u1&marke=m1&kampagne=k1&kampagne_name=Sommer'));
     expect(list.viewMode).toBe('items');
     expect(list.currentKampagneId).toBe('k1');
+  });
+});
+
+describe('Skript-Breadcrumb', () => {
+  afterEach(() => {
+    delete window.breadcrumbSystem;
+  });
+
+  it('offizieller Weg: Firma > Marke > Kampagne > Titel, Links öffnen die Ordner', () => {
+    const crumbs = skriptCrumbs(item());
+    expect(crumbs.map((c) => c.label)).toEqual(['Skripte', 'Acme', 'Acme Brand', 'Sommer', 'Hook']);
+
+    const list = new SkriptList();
+    list.applyQueryParams(new URL(crumbs[3].url, 'http://x').searchParams);
+    expect(list.viewMode).toBe('items');
+    expect(list.currentKampagneId).toBe('k1');
+    expect(crumbs[4]).toMatchObject({ url: '/skripte/s1', clickable: false });
+  });
+
+  it('ohne Marke und Kampagne: nur die Firma', () => {
+    const crumbs = skriptCrumbs(item({ marke_id: null, marke: null, kampagne_id: null, kampagne: null }));
+    expect(crumbs.map((c) => c.label)).toEqual(['Skripte', 'Acme', 'Hook']);
+  });
+
+  it('ohne Marke mit Kampagne: Kampagnen-Ordner unter "ohne Marke"', () => {
+    const crumbs = skriptCrumbs(item({ marke_id: null, marke: null }));
+    expect(crumbs.map((c) => c.label)).toEqual(['Skripte', 'Acme', 'Sommer', 'Hook']);
+    const params = new URL(crumbs[2].url, 'http://x').searchParams;
+    expect(params.get('marke')).toBe(OHNE_QUERY);
+    expect(params.get('kampagne')).toBe('k1');
+  });
+
+  it('Unternehmens-Ebene setzt den Root-Crumb (kein alter Firmen-Crumb)', () => {
+    const updateBreadcrumb = vi.fn();
+    window.breadcrumbSystem = { updateBreadcrumb };
+    const list = new SkriptList();
+    list.viewMode = 'companies';
+    list.updateBreadcrumbDisplay();
+    expect(updateBreadcrumb).toHaveBeenCalledWith([{ label: 'Skripte', url: '/skripte', clickable: false }]);
   });
 });
 

@@ -3,6 +3,12 @@
 
 @import './skripte-shared.css';
 @import './skripte-generator.css';
-@import './skripte-editor.css';
+@import './skripte-editor-shell.css';
+@import './skripte-editor-tabelle.css';
+@import './skripte-editor-eingabe.css';
+@import './skripte-editor-chat.css';
+@import './skripte-editor-feedback.css';
+@import './skripte-editor-bloecke.css';
+@import './skripte-editor-toolbar.css';
 @import './skripte-tausch.css';
 @import './skripte-dna.css';

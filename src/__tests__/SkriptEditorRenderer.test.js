@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   messageHtml, genStatusBubbleHtml, aktionTagHtml, chatLeerHtml, versionsHinweisHtml
 } from '../modules/skripte/editor/SkriptEditorChatRenderer.js';
-import { fragenModusHtml, skriptDocHtml, masterDocHtml, verknuepfungenHtml, konzeptCreatorFromSkript, docHeadActionsHtml, listeVideoHtml, sortListeSkripte } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
+import { fragenModusHtml, skriptDocHtml, masterDocHtml, verknuepfungenHtml, konzeptCreatorFromSkript, docHeadActionsHtml, listeVideoHtml, sortListeSkripte, vorgabenPanelHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
 
 describe('SkriptEditorChatRenderer', () => {
   it('User-Message rendert Inhalt und Selektion, escaped HTML', () => {
@@ -119,6 +119,25 @@ describe('SkriptEditorChatRenderer', () => {
 });
 
 describe('SkriptEditorDocRenderer', () => {
+  it('vorgabenPanelHtml zeigt Textwerte und nur die Video-URL als Link', () => {
+    const html = vorgabenPanelHtml({
+      unternehmen: { firmenname: 'John Deere' },
+      video_idee: 'Hook in 5 Sekunden',
+      prompt_kontext: {
+        referenz_video: {
+          platform: 'tiktok',
+          url: 'https://www.tiktok.com/video/1',
+          transkript_verwendet: 'Transkript hier'
+        }
+      }
+    });
+    expect(html).toContain('John Deere');
+    expect(html).toContain('Hook in 5 Sekunden');
+    expect(html).toContain('Transkript hier');
+    expect(html).toContain('href="https://www.tiktok.com/video/1"');
+    expect(html).not.toContain('function link');
+  });
+
   it('fragenModusHtml zeigt Titel, Rueckfragen-Badge und Aufbau-Toggles statt Generieren-Button', () => {
     const html = fragenModusHtml({
       skript: { titel: 'Mein <Skript>' },

@@ -5,6 +5,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { finalStills, stillsForVideoCell } from '../../core/stills/stillAssets.js';
 import { STILL_FINAL_VARIANT } from '../../core/PromoteFinalAsset.js';
 import { toRawDropboxUrl, canPreviewImageAsset } from '../../core/VideoUploadUtils.js';
+import { istSharePoint } from '../../core/ablage/ablageLink.js';
 import { escapeHtml } from './videoTableFieldCells.js';
 const PLAY_ICON = `${icon('play-circle')}`;
 const FOLDER_ICON = `${icon('folder-open')}`;
@@ -170,8 +171,9 @@ export function renderFinaleVersionCell(koop, video) {
   stillFinals.forEach(asset => {
     const label = asset.variant_name || STILL_FINAL_VARIANT;
     // Icon liegt unter dem Bild: laedt das Thumb nicht, entfernt sich das
-    // <img> und das Icon bleibt stehen.
-    const thumb = canPreviewImageAsset(asset)
+    // <img> und das Icon bleibt stehen. SharePoint: file_url ist die webUrl
+    // (Microsoft-Login), daher nur das Icon.
+    const thumb = canPreviewImageAsset(asset) && !istSharePoint(asset)
       ? `<span class="finale-still-media">${BILDER_ICON}<img class="finale-still-thumb" src="${escapeHtml(toRawDropboxUrl(asset.file_url) || '')}" alt="" loading="lazy" onerror="this.remove()"></span>`
       : BILDER_ICON;
     buttons.push(`<button type="button" class="external-link-btn media-action-btn finale-play-btn finale-still-btn" data-action="play-final-still" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finales Still ansehen">${thumb}<span class="finale-variant-label">${escapeHtml(label)}</span></button>`);

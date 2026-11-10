@@ -18,7 +18,7 @@ const CONTENT_BASE = 'https://content.dropboxapi.com/2/files';
 // Concurrent-Pfad bitte hochzaehlen oder Datum updaten.
 export const DROPBOX_DIRECT_UPLOAD_VERSION = 'v3-close-true-2026-05-20';
 
-const DEBUG = true; // Temporaer fuer Test-Phase, nach stabilem Betrieb zurueck auf false.
+const DEBUG = false;
 function dbg(...args) { if (DEBUG) console.log(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}]`, ...args); }
 
 // Dropbox verlangt \uXXXX-Escaping für Non-ASCII im API-Arg Header
@@ -187,7 +187,7 @@ async function sessionAppend({ token, sessionId, offset, chunk, close = false, s
   });
 }
 
-async function sessionFinish({ token, sessionId, offset, dropboxPath, signal }) {
+async function sessionFinish({ token, sessionId, offset, dropboxPath, mode, signal }) {
   // Concurrent-Session: finish ohne Body, Offset = totalSize.
   return xhrRequest({
     url: `${CONTENT_BASE}/upload_session/finish`,
@@ -196,7 +196,7 @@ async function sessionFinish({ token, sessionId, offset, dropboxPath, signal }) 
       'Content-Type': 'application/octet-stream',
       'Dropbox-API-Arg': httpHeaderSafeJson({
         cursor: { session_id: sessionId, offset },
-        commit: { path: dropboxPath, mode: 'overwrite', autorename: true, mute: false },
+        commit: { path: dropboxPath, mode, autorename: true, mute: false },
       }),
     },
     body: new Blob(),
@@ -204,7 +204,7 @@ async function sessionFinish({ token, sessionId, offset, dropboxPath, signal }) 
   });
 }
 
-async function uploadSmallDirect({ token, dropboxPath, file, signal, onProgress, getToken }) {
+async function uploadSmallDirect({ token, dropboxPath, mode, file, signal, onProgress, getToken }) {
   return withRetry(async (t) => {
     return xhrRequest({
       url: `${CONTENT_BASE}/upload`,
@@ -212,7 +212,7 @@ async function uploadSmallDirect({ token, dropboxPath, file, signal, onProgress,
         'Authorization': `Bearer ${t}`,
         'Content-Type': 'application/octet-stream',
         'Dropbox-API-Arg': httpHeaderSafeJson({
-          path: dropboxPath, mode: 'overwrite', autorename: true, mute: false,
+          path: dropboxPath, mode, autorename: true, mute: false,
         }),
       },
       body: file,
@@ -228,6 +228,8 @@ async function uploadSmallDirect({ token, dropboxPath, file, signal, onProgress,
  * @param {object} opts
  * @param {File|Blob} opts.file
  * @param {string} opts.dropboxPath
+ * @param {'overwrite'|'add'} [opts.mode='overwrite'] - 'add' legt bei belegtem Pfad
+ *   "name (1).ext" an; der echte Pfad steht dann in path_display der Antwort
  * @param {string} opts.token - initialer Access Token
  * @param {function} [opts.getToken] - async ({ forceRefresh }) => string; für 401-Refresh
  * @param {number} [opts.chunkSize]
@@ -240,6 +242,7 @@ async function uploadSmallDirect({ token, dropboxPath, file, signal, onProgress,
 export async function uploadFileDirect({
   file,
   dropboxPath,
+  mode = 'overwrite',
   token,
   getToken,
   chunkSize = DEFAULT_CHUNK_SIZE,
@@ -256,13 +259,13 @@ export async function uploadFileDirect({
 
   try {
     if (totalSize <= chunkSize) {
-      const result = await uploadSmallDirect({ token, dropboxPath, file, signal, onProgress, getToken });
+      const result = await uploadSmallDirect({ token, dropboxPath, mode, file, signal, onProgress, getToken });
       onProgress?.({ loaded: totalSize, total: totalSize, phase: 'upload' });
       return result;
     }
 
     return await uploadSessionParallel({
-      file, dropboxPath, token, getToken, chunkSize, concurrency, signal, onProgress, totalSize,
+      file, dropboxPath, mode, token, getToken, chunkSize, concurrency, signal, onProgress, totalSize,
     });
   } catch (err) {
     if (err?.name === 'AbortError') throw err;
@@ -272,7 +275,7 @@ export async function uploadFileDirect({
     console.warn(`[DirectUpload ${DROPBOX_DIRECT_UPLOAD_VERSION}] Direct fehlgeschlagen, Proxy-Fallback:`, reason);
     onProgress?.({ loaded: 0, total: totalSize, phase: 'direct-failed', error: reason });
     onProgress?.({ loaded: 0, total: totalSize, phase: 'proxy-fallback' });
-    return uploadViaProxyFallback({ file, dropboxPath, token, signal, onProgress });
+    return uploadViaProxyFallback({ file, dropboxPath, mode, token, signal, onProgress });
   }
 }
 
@@ -281,7 +284,7 @@ export async function uploadFileDirect({
  * Dropbox erlaubt im concurrent-Mode beliebig viele parallele Appends auf dieselbe Session.
  */
 async function uploadSessionParallel({
-  file, dropboxPath, token, getToken, chunkSize, concurrency, signal, onProgress, totalSize,
+  file, dropboxPath, mode, token, getToken, chunkSize, concurrency, signal, onProgress, totalSize,
 }) {
   let currentToken = token;
   const refreshToken = async ({ forceRefresh } = {}) => {
@@ -405,7 +408,7 @@ async function uploadSessionParallel({
 
   dbg('all appends OK, calling finish', { totalSize });
   const finishResult = await withRetry(
-    (t) => sessionFinish({ token: t, sessionId, offset: totalSize, dropboxPath, signal }),
+    (t) => sessionFinish({ token: t, sessionId, offset: totalSize, dropboxPath, mode, signal }),
     { signal, getToken: refreshToken, currentToken }
   );
 
@@ -414,7 +417,7 @@ async function uploadSessionParallel({
 
 // ─── Proxy-Fallback (unverändert wie bisheriger Pfad) ───────────────────────
 
-async function uploadViaProxyFallback({ file, dropboxPath, token, signal, onProgress }) {
+async function uploadViaProxyFallback({ file, dropboxPath, mode, token, signal, onProgress }) {
   const SMALL = 2 * 1024 * 1024;
   const CHUNK = 2 * 1024 * 1024;
   const totalSize = file.size;
@@ -422,7 +425,7 @@ async function uploadViaProxyFallback({ file, dropboxPath, token, signal, onProg
   if (totalSize <= SMALL) {
     const chunk = await readFileAsBase64(file);
     onProgress?.({ loaded: totalSize * 0.5, total: totalSize, phase: 'upload' });
-    const result = await proxyPost({ action: 'upload-small', dropboxPath, chunk, token });
+    const result = await proxyPost({ action: 'upload-small', dropboxPath, mode, chunk, token });
     onProgress?.({ loaded: totalSize, total: totalSize, phase: 'upload' });
     return result;
   }
@@ -451,7 +454,7 @@ async function uploadViaProxyFallback({ file, dropboxPath, token, signal, onProg
 
   const lastB64 = await readChunk(offset, totalSize);
   const finishResult = await proxyPost({
-    action: 'session-finish', sessionId, offset, dropboxPath, chunk: lastB64, token: sessionToken,
+    action: 'session-finish', sessionId, offset, dropboxPath, mode, chunk: lastB64, token: sessionToken,
   });
   onProgress?.({ loaded: totalSize, total: totalSize, phase: 'upload' });
   return finishResult;

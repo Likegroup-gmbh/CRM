@@ -8,10 +8,22 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <!-- Auth-/OTP-Styles kommen zentral aus layout.css (AUTH / OTP Sektion) -->
-  <script type="module" crossorigin src="/assets/verifyEmail-CBXRmu_k.js"></script>
+    <script>
+        // Passwort-Reset-Links, die hier landen (z. B. Redirect-Fallback auf die Site URL),
+        // gehoeren auf die Reset-Seite, nicht zur Code-Eingabe.
+        (function () {
+            var q = new URLSearchParams(window.location.search);
+            var h = new URLSearchParams(window.location.hash.substring(1));
+            if (q.get('type') === 'recovery' || h.get('type') === 'recovery') {
+                window.location.replace('/src/auth/reset-password.html' + window.location.search + window.location.hash);
+            }
+        })();
+    </script>
+  <script type="module" crossorigin src="/assets/verifyEmail-Ct0_qLeq.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
   <link rel="modulepreload" crossorigin href="/assets/config-DuKnp__J.js">
-  <link rel="stylesheet" crossorigin href="/assets/components-CqwGcR60.css">
+  <link rel="stylesheet" crossorigin href="/assets/layout-DxKDNaZl.css">
+  <link rel="stylesheet" crossorigin href="/assets/components-373_aQqY.css">
 </head>
 <body style="margin: 0; padding: 0;">
     <div class="login-split-container">

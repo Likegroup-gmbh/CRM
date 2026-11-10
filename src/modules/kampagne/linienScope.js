@@ -4,12 +4,13 @@
 //
 // Briefing, Produkte, Personas, Casting, Konzepte und Skripte zeigen immer genau
 // eine Linie. Kooperationen, Verträge und Videos können zusätzlich alle Linien zeigen.
+// Budget zeigt immer alle Linien; "Alle Linien" heißt dort nur: nichts hervorheben.
 
 import { icon } from '../../core/icons/IconSystem.js';
 import { ALTBESTAND_BADGE, zeigeAltbestandBadge } from './altbestandLinie.js';
 
 export const ALLE = 'alle';
-const ALLE_TABS = new Set(['kooperationen', 'vertraege', 'videos']);
+const ALLE_TABS = new Set(['budget', 'kooperationen', 'vertraege', 'videos']);
 const STORAGE_PREFIX = 'crm.linie.';
 
 const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || String(t ?? '');

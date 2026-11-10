@@ -14,8 +14,11 @@ describe('VideoList: Videos|Rohmaterial-Split', () => {
     rendered = [];
     list = new VideoList();
     list.loadAndRender = vi.fn(() => { rendered.push(list.viewMode); });
-    window.breadcrumbSystem = { updateDetailLabel: vi.fn() };
+    window.breadcrumbSystem = { updateBreadcrumb: vi.fn() };
+    window.history.replaceState({}, '', '/videos');
   });
+
+  const lastCrumbs = () => window.breadcrumbSystem.updateBreadcrumb.mock.calls.at(-1)[0];
 
   function selectKampagne() {
     // Spiegelt die Verdrahtung in VideoList._bindAllEvents
@@ -85,8 +88,46 @@ describe('VideoList: Videos|Rohmaterial-Split', () => {
   it('markiert Rohmaterial im Breadcrumb', () => {
     list._switchToKampagneRoot('k1', 'Kampagne 1');
     list._switchToRohmaterial();
-    expect(window.breadcrumbSystem.updateDetailLabel)
-      .toHaveBeenLastCalledWith('Kampagne 1 · Rohmaterial');
+    expect(lastCrumbs().map((c) => c.label)).toEqual(['Videos', 'Kampagne 1', 'Rohmaterial']);
+  });
+
+  it('Breadcrumb zeigt Firma und Kampagne, URL hält die Ebene', () => {
+    list.isKunde = false;
+    list._switchToKampagnen('u1', 'Acme');
+    expect(lastCrumbs()).toEqual([
+      { label: 'Videos', url: '/videos', clickable: true },
+      { label: 'Acme', url: '#', clickable: false }
+    ]);
+
+    list._switchToKampagneRoot('k1', 'Kampagne 1');
+    list._switchToVideos('k1', 'Kampagne 1');
+    const crumbs = lastCrumbs();
+    expect(crumbs.map((c) => c.label)).toEqual(['Videos', 'Acme', 'Kampagne 1', 'Videos']);
+    expect(crumbs[2]).toMatchObject({ clickable: true });
+    expect(new URL(crumbs[2].url, 'http://x').searchParams.get('ebene')).toBeNull();
+
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get('unternehmen')).toBe('u1');
+    expect(params.get('kampagne')).toBe('k1');
+    expect(params.get('ebene')).toBe('videos');
+  });
+
+  it('Deep-Link stellt die Ebene wieder her (intern und Kunde)', () => {
+    list.isKunde = false;
+    list.applyQueryParams(new URLSearchParams('unternehmen=u1&unternehmen_name=Acme&kampagne=k1&kampagne_name=K&ebene=rohmaterial'));
+    expect(list.viewMode).toBe('rohmaterial');
+    expect(list.currentUnternehmenName).toBe('Acme');
+
+    list.applyQueryParams(new URLSearchParams('unternehmen=u1&unternehmen_name=Acme'));
+    expect(list.viewMode).toBe('kampagnen');
+
+    list.isKunde = true;
+    list.applyQueryParams(new URLSearchParams('kampagne=k1&kampagne_name=K&ebene=rohmaterial'));
+    expect(list.viewMode).toBe('videos');
+    expect(list.currentUnternehmenId).toBeNull();
+
+    list.applyQueryParams(new URLSearchParams(''));
+    expect(list.viewMode).toBe('kampagnen');
   });
 });
 
