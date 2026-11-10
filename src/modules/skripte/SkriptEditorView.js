@@ -444,6 +444,7 @@ export class SkriptEditorView {
       window.moduleRegistry?.navigateTo('/skripte');
     });
     el.querySelector('#ed-pdf')?.addEventListener('click', () => this.downloadPdf());
+    el.querySelector('#ed-copy-link')?.addEventListener('click', () => this.copySkriptLink());
     this.bindShareButton(el);
   }
 
@@ -454,6 +455,17 @@ export class SkriptEditorView {
       await downloadSkriptPdf(this.skript, { nr: this.skript.skript_nr });
     } catch (err) {
       window.toastSystem?.error(err.message || 'PDF konnte nicht erstellt werden.');
+    }
+  }
+
+  async copySkriptLink() {
+    if (!this.skript?.id) return;
+    const url = `${window.location.origin}/skripte/${this.skript.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      window.toastSystem?.success('Link kopiert.');
+    } catch {
+      window.toastSystem?.error('Link konnte nicht kopiert werden.');
     }
   }
 

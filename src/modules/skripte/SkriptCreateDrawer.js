@@ -18,8 +18,9 @@ function creatorName(item) {
   const eintrag = item?.casting_eintrag;
   if (eintrag?.name) return eintrag.name;
   const c = eintrag?.creator;
-  if (c) return `${c.vorname || ''} ${c.nachname || ''}`.trim();
-  return item?.creator_name || '–';
+  const crmName = c ? `${c.vorname || ''} ${c.nachname || ''}`.trim() : '';
+  if (crmName) return crmName;
+  return item?.creator_name || 'Kein Creator';
 }
 
 export function openSkriptCreateDrawer() {
@@ -466,10 +467,6 @@ class SkriptCreateDrawer {
     const basis = this.items.find((i) => i.id === itemId);
     if (!basis) {
       window.toastSystem?.show('Die gewählte Videoidee ist nicht mehr verfügbar', 'error');
-      return;
-    }
-    if (!basis.creator_auswahl_item_id) {
-      window.toastSystem?.show('Die gewählte Vorlage hat keinen Creator aus dem Casting.', 'error');
       return;
     }
 

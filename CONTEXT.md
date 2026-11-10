@@ -206,8 +206,9 @@ Videoidee, visuell abgetrennt. Übernehmen macht sie zur normalen Videoidee; Ver
 _Avoid_: Creative Angle, Grobkonzept, Casting-Vorschlag
 
 **Skript-Freigabe**:
-Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: zugeordneter
-Casting-Eintrag und nicht „Nicht umsetzen“. Gate nur für Neuanlage, nicht für bestehende Skripte.
+Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: nicht
+„Nicht umsetzen“. Ein Casting-Eintrag ist keine Voraussetzung; der Creator kann später
+zugeordnet werden. Gate nur für Neuanlage, nicht für bestehende Skripte.
 _Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperationsvideo), Freigabeprozess
 
 **Kooperationsvideo**:

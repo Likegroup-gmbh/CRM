@@ -226,6 +226,7 @@ describe('SkripteService.loadBriefings', () => {
     expect(window.supabase.from).toHaveBeenCalledWith('campaign_briefings');
     expect(captured.eq.unternehmen_id).toBe('u1');
     expect(captured.eq.is_draft).toBe(false);
+    expect(captured.eq.ist_altbestand).toBe(false);
     expect(captured.or).toBeNull();
     expect(result).toEqual(rows);
   });

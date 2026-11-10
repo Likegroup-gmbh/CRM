@@ -109,6 +109,7 @@ export class SkripteService {
   /**
    * Videoideen, die im Konzept fuer die Skripterstellung freigegeben sind.
    * Ohne Kampagne keine Treffer – der Drawer filtert immer auf eine Kampagne.
+   * Ein Casting-Eintrag ist keine Voraussetzung.
    */
   async loadFreigegebeneVideoideen({ unternehmenId, markeId = null, kampagneId = null } = {}) {
     if (!unternehmenId || !kampagneId) return [];
@@ -128,7 +129,6 @@ export class SkripteService {
       `)
       .eq('skript_freigabe', true)
       .eq('nicht_umsetzen', false)
-      .not('creator_auswahl_item_id', 'is', null)
       .eq('strategie.unternehmen_id', unternehmenId)
       .eq('strategie.kampagne_id', kampagneId);
 
@@ -171,7 +171,8 @@ export class SkripteService {
     let q = this.db.from('campaign_briefings')
       .select('id, aktivierung_name, bereich, is_draft, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben')
       .eq('unternehmen_id', unternehmenId)
-      .eq('is_draft', false);
+      .eq('is_draft', false)
+      .eq('ist_altbestand', false);
 
     if (markeId) q = q.or(`marke_id.eq.${markeId},marke_id.is.null`);
 
@@ -359,7 +360,7 @@ export class SkripteService {
   /** Freigegebene Skripte, die der Gast-JWT sehen darf. */
   async loadGastPaketSkripte() {
     const { data, error } = await this.db.from('skripte')
-      .select('id, titel, created_at, status, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, rezept, caption, inhalt_md')
+      .select('id, titel, created_at, status, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, rezept, text_hook, caption, inhalt_md')
       .eq('status', 'freigegeben')
       .order('created_at', { ascending: true });
     if (error) throw new Error(error.message);

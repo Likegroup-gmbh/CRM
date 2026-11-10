@@ -263,6 +263,10 @@ export function docHeadActionsHtml({
       <span class="mdc-btn__label">PDF</span>
     </button>` : ''}
     ${kannTeilen ? `
+    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-copy-link"
+      title="Adresse für ein Kundenkonto kopieren">
+      <span class="mdc-btn__label">Link kopieren</span>
+    </button>
     <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-share"
       title="Freigegebene Skripte dieses Creators teilen">
       <span class="mdc-btn__icon">${icon('share-alt')}</span>
