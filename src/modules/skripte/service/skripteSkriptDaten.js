@@ -103,7 +103,7 @@ export const skripteSkriptDatenMethoden = {
 
   async loadSkript(id) {
     const { data, error } = await this.db.from('skripte')
-      .select(`*, unternehmen(firmenname, logo_url), marke(markenname, logo_url), kampagne(kampagnenname, eigener_name), produkt(name, verbotene_claims), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich, persona_ids, hook_vorgaben),
+      .select(`*, unternehmen(firmenname, logo_url), marke(markenname, logo_url), kampagne(kampagnenname, eigener_name), produktion:produktion_id(name), produkt(name, verbotene_claims), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich, persona_ids, hook_vorgaben),
         strategie_item:strategie_item_id(
           id, strategie_id, sortierung, video_link, plattform, creator_name, creator_auswahl_item_id, funnel_stufe,
           casting_eintrag:creator_auswahl_item_id(

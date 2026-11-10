@@ -102,6 +102,22 @@ CreatorList.prototype.renderShellContent = function() {
       </button>`
     : '<div id="filter-dropdown-container"></div>';
 
+  const filterColumn = this.usesFilterColumn();
+  const newButton = canEdit
+    ? '<button id="btn-creator-new" class="mdc-btn"><span class="mdc-btn__label">Creator anlegen</span></button>'
+    : '';
+  const selectionButtons = canBulkDelete
+    ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
+        <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>`
+    : '';
+  const selectionStatus = canBulkDelete
+    ? `<span id="selected-count" style="display:none;">0 ausgewählt</span>
+        <button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>`
+    : '';
+  // Filterspalten-Modus: Auswahl und Anlegen sitzen rechts in der Filterleiste
+  const resultCount = '<p class="creator-result-count" id="creator-result-count" aria-live="polite"></p>';
+  const rightActions = filterColumn ? `${resultCount}${selectionStatus}${selectionButtons}${newButton}` : newButton;
+
   const toolbar = `
     <div class="table-filter-wrapper creator-filter-sticky">
       <div class="filter-bar">
@@ -117,12 +133,11 @@ CreatorList.prototype.renderShellContent = function() {
           ${this.usesFilterColumn() ? '' : filterSlot}
         </div>
         <div class="filter-right">
-          ${canEdit ? '<button id="btn-creator-new" class="mdc-btn"><span class="mdc-btn__label">Creator anlegen</span></button>' : ''}
+          ${rightActions}
         </div>
       </div>
-      ${this.usesFilterColumn() ? `
+      ${filterColumn ? `
         <div class="creator-toolbar-meta">
-          <p class="creator-result-count" id="creator-result-count" aria-live="polite"></p>
           <div class="creator-column-chips" id="creator-column-chips"></div>
         </div>
       ` : ''}
@@ -132,11 +147,8 @@ CreatorList.prototype.renderShellContent = function() {
   const actions = `
     <div class="table-filter-wrapper">
       <div class="table-actions">
-        ${this.isAdmin ? '<button id="btn-connect-all" class="mdc-btn mdc-btn--secondary">Connect</button>' : ''}
-        ${canBulkDelete ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
-        <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
-        <span id="selected-count" style="display:none;">0 ausgewählt</span>
-        <button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>` : ''}
+        ${selectionButtons}
+        ${selectionStatus}
       </div>
     </div>
   `;
@@ -147,7 +159,7 @@ CreatorList.prototype.renderShellContent = function() {
     </div>
   `;
 
-  if (!this.usesFilterColumn()) return `${toolbar}${actions}${grid}`;
+  if (!filterColumn) return `${toolbar}${actions}${grid}`;
 
   return `
     <div class="creator-browser${collapsed ? ' is-column-collapsed' : ''}">
@@ -161,7 +173,6 @@ CreatorList.prototype.renderShellContent = function() {
       </aside>
       <div class="creator-browser__main">
         ${toolbar}
-        ${actions}
         ${grid}
       </div>
     </div>
@@ -254,15 +265,6 @@ CreatorList.prototype.bindAdditionalEvents = function(signal) {
     }
   }, { signal });
 
-  // Bulk Instagram Connect
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('#btn-connect-all')) {
-      e.preventDefault();
-      this.runBulkConnect();
-    }
-  }, { signal });
-
-  this._updateConnectAllCount();
 };
 
 // Generische Tag-Render-Methode

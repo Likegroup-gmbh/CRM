@@ -31,7 +31,7 @@ function esc(value) {
     .replace(/"/g, '&quot;');
 }
 
-function listeHatTiktok(liste) {
+export function listeHatTiktok(liste) {
   const raw = liste?.plattformen;
   const list = (Array.isArray(raw) ? raw : String(raw || '').split(','))
     .map(s => String(s).trim().toLowerCase())

@@ -30,6 +30,7 @@ import { castingDetailZeilenStatusMethods } from './CastingDetailZeilenStatus.js
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
 import { handleCastingRealtime, rerenderUnlessTyping } from './castingRealtime.js';
+import { castingDetailQuickAddMethods } from './CastingDetailQuickAdd.js';
 import { parseTeilbereiche } from './castingKategorien.js';
 import { loadBewerbungen } from './bewerbungTab.js';
 import { showCastingKategorienDrawer } from './CastingKategorienDrawer.js';
@@ -458,7 +459,8 @@ Object.assign(
   castingDetailRowActionsMethods,
   castingDetailZeilenStatusMethods,
   castingDetailLinksMethods,
-  castingDetailBulkMethods
+  castingDetailBulkMethods,
+  castingDetailQuickAddMethods
 );
 
 export const creatorAuswahlDetail = new CreatorAuswahlDetail();

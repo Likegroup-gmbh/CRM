@@ -3,17 +3,21 @@
 // dem Produkt (produkt-persona-background).
 //
 // Qualitaetsanalogon zum Skriptsystem: CRM-Fakten statt Halluzination,
-// erzwungenes Tool-Schema statt Freitext, Review-Gate im Client. Zwei
-// zusaetzliche Mechanismen gegen generische Personas:
-//   - House-Style: bestehende Personas der Marke gehen als Stil-Referenz
-//     in den Prompt (Tiefe, Naming, Pain-Formulierung)
+// Tool-Schema statt Freitext, Review-Gate im Client. Mechanismen gegen
+// generische oder zu spitze Personas:
+//   - Kaeufergruppen-Analyse (breiter Lauf: initial und Ersatz der einzigen
+//     Karte): erst 2-4 Kaeufergruppen des Gesamtprodukts, die Persona ist
+//     ihr gemeinsamer Nenner. Identitaet ist nie Nutzungskontext oder Beruf.
+//   - Kein House-Style im breiten Lauf: Profile bestehender Personas
+//     kopierten Enge von Produkt zu Produkt. Dort zaehlen nur ihre Namen
+//     (Dubletten-Schutz). In weitere/karte steht der Pool als
+//     "nicht klonen"-Liste (Name + Oberbegriff).
 //   - Covered-Set: bereits liegende/akzeptierte Personas werden als
 //     "nicht klonen"-Liste mitgegeben
 //
 // Feldmarkierungen im Input: fact (belegbar von der Produktseite),
 // guess (KI-Extrakt, unsicher), manual (vom Team eingetragen).
 
-const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
 const {
   UNISEX_VORNMEN,
   REGISTER_LABELS,
@@ -24,7 +28,9 @@ const {
   fmtNamenListe
 } = require('./unisex-vornamen');
 
-const POOL_FELDER = 'id, name, oberbegriff, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, beschreibung';
+// Der Pool liefert nur Namen (Dubletten-Schutz) und Oberbegriffe (nicht klonen).
+// Keine Profile: sie wuerden als Vorlage dienen und Enge weitervererben.
+const POOL_FELDER = 'id, name, oberbegriff';
 
 const MAX_POOL_IM_PROMPT = 12;
 const MAX_VORSCHLAEGE = 6;
@@ -36,9 +42,10 @@ function cap(value, max = 400) {
 }
 
 /**
- * House-Style-Pool: erst die Personas der Produkt-Marken, leer -> Fallback
- * auf das Unternehmen. Globale DNA-Personas (unternehmen_id IS NULL) sind
- * bewusst nie Teil des Pools. Der Pool ist nur Stil-Referenz, kein Match.
+ * Pool: erst die Personas der Produkt-Marken, leer -> Fallback auf das
+ * Unternehmen. Globale DNA-Personas (unternehmen_id IS NULL) sind bewusst nie
+ * Teil des Pools. Der Pool ist kein Match und keine Stil-Vorlage, nur
+ * Namens- und Abgrenzungsliste.
  */
 async function loadPoolPersonas(supabase, { markeIds = [], unternehmenId = null } = {}) {
   const ids = [...new Set((markeIds || []).filter(Boolean))];
@@ -57,9 +64,7 @@ async function loadPoolPersonas(supabase, { markeIds = [], unternehmenId = null 
         .select(POOL_FELDER)
         .in('id', personaIds);
       if (error) throw error;
-      const pool = data || [];
-      await attachAudienceSituations(supabase, pool);
-      return { pool, quelle: 'marke' };
+      return { pool: data || [], quelle: 'marke' };
     }
   }
 
@@ -69,9 +74,7 @@ async function loadPoolPersonas(supabase, { markeIds = [], unternehmenId = null 
       .select(POOL_FELDER)
       .eq('unternehmen_id', unternehmenId);
     if (error) throw error;
-    const pool = data || [];
-    await attachAudienceSituations(supabase, pool);
-    return { pool, quelle: 'unternehmen' };
+    return { pool: data || [], quelle: 'unternehmen' };
   }
 
   return { pool: [], quelle: 'leer' };
@@ -86,13 +89,41 @@ const PERSONA_TOOL = {
   input_schema: {
     type: 'object',
     properties: {
+      // Analyse zuerst (breiter Lauf): die Reihenfolge der Properties ist die
+      // Denkreihenfolge. Diese Felder werden nicht gespeichert, sie steuern nur
+      // die Identitaet der Persona. In weitere/karte-mit-Karten entfernt
+      // personaTool({ breit: false }) sie.
+      produkt_kern: {
+        type: 'string',
+        description: 'Ein Satz: was das Produkt als Ganzes ist und wofuer es gekauft wird. Nicht ein einzelner USP.'
+      },
+      kaeufergruppen: {
+        type: 'array',
+        description: '2 bis 4 realistische Kaeufergruppen des GESAMTEN Produkts. Sie unterscheiden sich im Kaufmotiv, nicht im Nutzungskontext oder Beruf.',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Kurzer Name der Gruppe' },
+            kaufmotiv: { type: 'string', description: 'Warum diese Gruppe kauft, ein Satz' }
+          },
+          required: ['name', 'kaufmotiv']
+        }
+      },
+      gemeinsamer_nenner: {
+        type: 'string',
+        description: 'Ein Satz: was die Kaeufergruppen verbindet. Die Persona ist genau dieser Nenner, kein Nutzungskontext und kein Beruf.'
+      },
+      berufsgebunden: {
+        type: 'boolean',
+        description: 'true nur, wenn das Produkt ausschliesslich im Beruf Sinn ergibt (z.B. B2B-Software, Fachwerkzeug, Dienstleistung fuer Marketingteams). Sonst false.'
+      },
       use_cases: {
         type: 'array',
         description: 'Neu generierte Einsatzsituationen. Leer, wenn bestehende im Auftrag standen - dann nur mappen.',
         items: {
           type: 'object',
           properties: {
-            name: { type: 'string', description: 'Kurzer benannter Titel, z.B. "Morgens vor der Arbeit"' },
+            name: { type: 'string', description: 'Kurzer benannter Titel, z.B. "Abends auf dem Sofa"' },
             beschreibung: { type: 'string', description: 'Ein bis zwei Saetze: wer nutzt das Produkt hier wann und warum' }
           },
           required: ['name']
@@ -119,10 +150,10 @@ const PERSONA_TOOL = {
                 alter_bis: { type: ['integer', 'null'] },
                 namensregister: { type: 'string', enum: REGISTER_LABELS, description: 'Stilrichtung des Vornamens, abgeleitet aus Briefing, sonst Produkt und Marke. Wird nicht gespeichert.' },
                 name: { type: 'string', description: 'Deutscher Vorname, passend zu Namensregister und Alter' },
-                oberbegriff: { type: 'string', description: 'Kategorie im Stil der bestehenden Personas, z.B. "Die effiziente Berufseinsteigerin"' },
+                oberbegriff: { type: 'string', description: 'Kategorie des Typs Mensch, z.B. "Die preisbewusste Qualitaetskaeuferin". Weder Beruf noch Nutzungskontext (Arbeit, Sport, Reisen, Pendeln) als Identitaet, ausser das Produkt ist berufsgebunden.' },
                 geschlecht: { type: ['string', 'null'], description: 'Weiblich, Maennlich, Divers oder Gemischt' },
                 wohnort_region: { type: ['string', 'null'] },
-                beruf: { type: ['string', 'null'] },
+                beruf: { type: ['string', 'null'], description: 'Nur wenn das Produkt berufsgebunden ist, sonst null. Kein "Berufstaetig in Vollzeit".' },
                 budgetrahmen: { type: ['string', 'null'], enum: ['niedrig', 'mittel', 'hoch'], description: 'niedrig, mittel oder hoch – genau einer der drei Werte, keine Ranges' },
                 bildungsstand: { type: ['string', 'null'] },
                 lebenssituation: { type: ['string', 'null'], description: 'Single, Familie, Paar ohne Kinder, Alleinerziehend, Student/in, Rentner/in, Mensch mit Behinderung, WG / Wohngemeinschaft' },
@@ -167,9 +198,30 @@ function modusBrauchtUnisexName(modus) {
   return wert === 'initial' || wert === 'karte';
 }
 
-/** Kopie des Tool-Schemas. Bei Unisex ist der Vorname eine feste Liste. */
-function personaTool({ unisexNamen = false, namen = [] } = {}) {
+/**
+ * Breiter Lauf: Startrun (initial) und Ersatz der einzigen Karte. Nur dort
+ * gilt die Kaeufergruppen-Analyse. weitere und Ersatz neben anderen Karten
+ * suchen bewusst einen anderen, ggf. engeren Typ.
+ */
+function istBreiterLauf(input) {
+  const modus = input?.modus || 'initial';
+  if (modus === 'initial') return true;
+  return modus === 'karte' && !(Array.isArray(input?.behalten) && input.behalten.length);
+}
+
+const ANALYSE_FELDER = ['produkt_kern', 'kaeufergruppen', 'gemeinsamer_nenner', 'berufsgebunden'];
+
+/**
+ * Kopie des Tool-Schemas. Bei Unisex ist der Vorname eine feste Liste.
+ * Ohne breit (weitere, Ersatz neben anderen Karten) entfallen die Analysefelder.
+ */
+function personaTool({ unisexNamen = false, namen = [], breit = true } = {}) {
   const tool = JSON.parse(JSON.stringify(PERSONA_TOOL));
+  if (breit) {
+    tool.input_schema.required = [...ANALYSE_FELDER, 'vorschlaege'];
+  } else {
+    for (const feld of ANALYSE_FELDER) delete tool.input_schema.properties[feld];
+  }
   if (!unisexNamen) return tool;
   const props = tool.input_schema.properties.vorschlaege.items.properties.persona.properties;
   const liste = namen.length ? namen : [...UNISEX_VORNMEN];
@@ -179,7 +231,7 @@ function personaTool({ unisexNamen = false, namen = [] } = {}) {
   persona.required = ['namensregister', 'name'];
   props.geschlecht.enum = ['Gemischt'];
   props.geschlecht.description = 'Immer Gemischt.';
-  props.oberbegriff.description = 'Geschlechtsneutrale Kategorie, z.B. "Berufstaetige mit wenig Zeit am Morgen".';
+  props.oberbegriff.description = 'Geschlechtsneutrale Kategorie des Typs Mensch, z.B. "Alltagsnutzende mit Wunsch nach Verlaesslichkeit". Weder Beruf noch Nutzungskontext (Arbeit, Sport, Reisen, Pendeln) als Identitaet, ausser das Produkt ist berufsgebunden.';
   return tool;
 }
 
@@ -196,28 +248,29 @@ function fmtProduktFeld(name, eintrag) {
   return `- ${name} [${KIND_LABELS[kind] || KIND_LABELS.manual}]: ${cap(wert, 600)}`;
 }
 
+/** Pool-Eintrag: nur Name und Oberbegriff. Keine Profil-Felder, kein Beruf, keine Pain Points. */
 function fmtPoolPersona(p) {
-  const alter = [p.alter_von, p.alter_bis].filter(v => v != null).join('-');
-  const situations = fmtAudienceSituations(p.audience_situations, 200);
-  const teile = [
-    `ID: ${p.id}`,
-    `Name: ${p.name}${p.oberbegriff ? ` (${p.oberbegriff})` : ''}`,
-    alter ? `Alter: ${alter}` : null,
-    p.geschlecht ? `Geschlecht: ${p.geschlecht}` : null,
-    p.beruf ? `Beruf: ${p.beruf}` : null,
-    p.wohnort_region ? `Region: ${p.wohnort_region}` : null,
-    p.pain_points ? `Pain Points: ${cap(p.pain_points, 300)}` : null,
-    p.beduerfnisse ? `Beduerfnisse: ${cap(p.beduerfnisse, 250)}` : null,
-    p.kaufmotive ? `Kaufmotive: ${cap(p.kaufmotive, 250)}` : null,
-    p.einwaende ? `Einwaende: ${cap(p.einwaende, 250)}` : null,
-    p.interessen ? `Interessen: ${cap(p.interessen, 200)}` : null,
-    p.tonalitaet ? `Tonalitaet: ${p.tonalitaet}` : null,
-    p.plattformen ? `Plattformen: ${cap(p.plattformen, 150)}` : null,
-    situations ? `Audience Situations: ${situations}` : null,
-    p.beschreibung ? `Beschreibung: ${cap(p.beschreibung, 300)}` : null
-  ].filter(Boolean);
-  return teile.join('\n  ');
+  return `- ${p.name}${p.oberbegriff ? ` (${p.oberbegriff})` : ''}`;
 }
+
+// Verfahren statt Adjektiv: "breit" heisst, die Identitaet der Persona kommt
+// aus dem gemeinsamen Nenner mehrerer Kaeufergruppen. Der Nutzungskontext
+// (Arbeit, Sport, Reisen) und der Beruf gehoeren in Audience Situations und
+// Use Cases, nicht in die Identitaet.
+const BREIT_AUFTRAG = '\n# ANALYSE ZUERST (Breite der Persona)\n'
+  + 'Fuelle zuerst produkt_kern, kaeufergruppen, gemeinsamer_nenner und berufsgebunden, dann Use Cases, dann die Persona.\n'
+  + '- kaeufergruppen: 2 bis 4 realistische Kaeufergruppen des GESAMTEN Produkts, je mit dem Kaufmotiv, das sie antreibt. '
+  + 'Die Gruppen unterscheiden sich im Kaufmotiv, nicht in Ort oder Anlass der Nutzung. '
+  + 'Beispiel Kopfhoerer: "Pendler, die abschalten wollen", "Sportliche mit Fokus auf Halt", "Preisbewusste mit Markenwunsch" - nicht drei Orte, an denen man sie traegt.\n'
+  + '- gemeinsamer_nenner: ein Satz, was diese Gruppen verbindet. Die Persona ist genau dieser Nenner.\n'
+  + '- berufsgebunden: true nur, wenn das Produkt ausschliesslich im Beruf Sinn ergibt (B2B-Software, Fachwerkzeug, Dienstleistung fuer Marketingteams). Sonst false.\n'
+  + '# IDENTITAET DER PERSONA\n'
+  + 'oberbegriff und beschreibung leiten sich aus dem gemeinsamen Nenner ab. '
+  + 'Weder ein Nutzungskontext (Arbeit, Sport, Reisen, Pendeln) noch ein Beruf ist die Identitaet, ausser berufsgebunden ist true. '
+  + 'Ist berufsgebunden false, bleibt beruf leer. '
+  + 'Pain Points, Loesung und Einsatzsituation des Produkts zeigen, wofuer das Produkt gebaut ist: sie sind Hinweise auf Kaeufergruppen, '
+  + 'nicht die Pain Points der Persona. Die Pain Points der Persona gelten fuer den ganzen Typ, nicht fuer ein einzelnes Feature. '
+  + 'Die Audience Situations decken mindestens zwei Kaeufergruppen ab.\n';
 
 /**
  * Baut den Prompt. Rueckgabe { stable, task } - der stable Block ist
@@ -255,10 +308,14 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
     + '7. fit_grund und Use Cases duerfen den Produkt-Fit nennen. Diese Ideen nicht in beschreibung, pain_points, '
     + 'kaufmotive oder Audience Situations kopieren.\n';
 
-  if (pool.length) {
-    stable += '\n# HOUSE-STYLE (verbindlich fuer neue Personas)\n'
-      + 'Nur Naming und Oberbegriff am Stil der bestehenden Personas ausrichten. '
-      + 'Keine langen Bios nachbauen.\n';
+  // Breiter Lauf (initial, Ersatz der einzigen Karte): Profile bestehender
+  // Personas kopierten Enge von Produkt zu Produkt. Dort nur Namen (unten).
+  const breit = istBreiterLauf(input);
+
+  if (!breit && pool.length) {
+    stable += '\n# ABGRENZUNG ZU BESTEHENDEN PERSONAS (verbindlich)\n'
+      + 'Bestehende Personas des Unternehmens sind keine Vorlage fuer Inhalt, Enge oder Berufsbild. '
+      + 'Die neue Persona ist ein anderer Typ, nicht eine Variante davon.\n';
   }
 
   // --- Task ---
@@ -274,7 +331,10 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
     if (input.unternehmenName) task += `Unternehmen: ${input.unternehmenName}\n`;
   }
 
-  const bestehende = Array.isArray(input.bestehendeUseCases) ? input.bestehendeUseCases : [];
+  // Der Client (Job-Input) sendet snake_case; die Indizes in der Antwort und
+  // validateVorschlaege zaehlen diese Liste mit (bestehende zuerst).
+  const bestehendeRoh = input.bestehendeUseCases || input.bestehende_use_cases;
+  const bestehende = Array.isArray(bestehendeRoh) ? bestehendeRoh : [];
   if (bestehende.length) {
     task += '\n# BESTEHENDE EINSATZSITUATIONEN (fix, nicht neu erfinden - nur mappen)\n';
     bestehende.forEach((uc, i) => {
@@ -283,18 +343,21 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
   } else {
     task += '\n# EINSATZSITUATIONEN\nEs gibt noch keine. Generiere ZUERST 3 bis 6 benannte Einsatzsituationen '
       + '(Use Cases) aus den Produktfakten: konkrete Situationen, in denen das Produkt genutzt wird '
-      + '(z.B. "Morgens vor der Arbeit", "Unterwegs im Zug"). Keine Zielgruppen-Demografie als Use Case. '
+      + '(z.B. "Abends auf dem Sofa", "Am Wochenende unterwegs"). Keine Zielgruppen-Demografie als Use Case. '
+      + (breit ? 'Sie decken das Gesamtprodukt und mehrere Kaeufergruppen ab, nicht nur den auffaelligsten USP. ' : '')
       + 'Jede Persona-Karte mappt danach auf mindestens eine davon.\n';
   }
 
-  if (pool.length) {
+  if (breit) {
+    // bewusst kein Pool-Abschnitt: nur die Namen fliessen unten in die Namensliste
+  } else if (pool.length) {
     const quelleLabel = poolQuelle === 'marke' ? 'der Produkt-Marken' : 'des Unternehmens (Fallback, Marke hat keine eigenen)';
-    task += `\n# BESTEHENDE PERSONAS ${quelleLabel} (nur Stil-Referenz, kein Match)\n`;
+    task += `\n# BESTEHENDE PERSONAS ${quelleLabel} (nicht klonen, keine Muster uebernehmen)\n`;
     pool.slice(0, MAX_POOL_IM_PROMPT).forEach((p) => {
-      task += `\n---\n${fmtPoolPersona(p)}\n`;
+      task += `${fmtPoolPersona(p)}\n`;
     });
     if (pool.length > MAX_POOL_IM_PROMPT) {
-      task += `\n(weitere ${pool.length - MAX_POOL_IM_PROMPT} Pool-Personas nicht gezeigt)\n`;
+      task += `(weitere ${pool.length - MAX_POOL_IM_PROMPT} Pool-Personas nicht gezeigt)\n`;
     }
   } else {
     task += '\n# BESTEHENDE PERSONAS\nKeine vorhanden - entwirf eine neue Persona.\n';
@@ -318,7 +381,7 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
     task += '\n# BRIEFING DER LINIE (nur fuer die Namenswahl)\n'
       + 'Das Briefing bestimmt das Namensregister des Vornamens: Ton, Zielwelt, Plattform, Sprache, Setting. '
       + 'Es steuert AUSSCHLIESSLICH den Vornamen. Alle anderen Persona-Felder (Alter, Beruf, Pain Points, Kaufmotive, '
-      + 'Oberbegriff, Beschreibung usw.) leitest du nur aus Produkt, Marke und bestehenden Personas ab, '
+      + `Oberbegriff, Beschreibung usw.) leitest du nur aus Produkt und Marke${breit ? '' : ' und bestehenden Personas'} ab, `
       + 'nie aus dem Briefing. Die Persona bleibt ein wiederverwendbarer Typ Mensch auf Unternehmensebene.\n'
       + `${briefingText}\n`;
   }
@@ -335,8 +398,12 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
     task += 'Erstelle GENAU EINE neue Persona. Der breiteste tragfaehige Typ Mensch, der zum Produkt passt. ';
   }
   task += 'typ immer "neu". Kein Szenen-Schnitt, keine Nische, keine Quote, kein Match auf bestehende Personas – Wiederverwenden macht der Mensch manuell. '
-    + 'fit_grund nennt konkret, welche Pain Points/Beduerfnisse auf welche Produktfakten treffen. '
+    + (breit
+      ? 'fit_grund nennt die Kaeufergruppen und welche Produktfakten sie ansprechen, nicht einen einzelnen USP. '
+      : 'fit_grund nennt konkret, welche Pain Points/Beduerfnisse auf welche Produktfakten treffen. ')
     + 'Gib genau EINEN Eintrag in "vorschlaege" ab.\n';
+
+  if (breit) task += BREIT_AUFTRAG;
 
   const quelleRegister = briefingText ? 'dem Briefing der Linie' : 'Produkt und Marke';
   const namenKopf = `Namensregister: ${REGISTER_LABELS.join(' | ')}. Namen mit den Jahrgaengen, zu denen sie passen (jung bis 30, mittel 31-50, aelter ab 51):\n`
@@ -345,7 +412,7 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
     task += 'Reihenfolge: erst alter_von und alter_bis, dann namensregister aus '
       + `${quelleRegister}, dann der Vorname. `
       + 'Der Vorname kommt aus dieser Liste, exakt eine Schreibweise, und passt zum gewaehlten Register UND zum Alter. '
-      + 'House-Style gilt fuer den Vornamen nicht. '
+      + 'Bestehende Personas sind fuer den Vornamen keine Vorlage. '
       + 'geschlecht ist "Gemischt". '
       + 'oberbegriff, beruf und beschreibung ohne -in/-er und ohne sie/er.\n'
       + namenKopf;
@@ -373,10 +440,11 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
  *   Bezug fliegt raus
  * - unisexNamen: Vorname muss aus der Unisex-Liste kommen, geschlecht wird Gemischt
  */
-function validateVorschlaege(json, { useCaseCount = 0, maxVorschlaege = 1, unisexNamen = false } = {}) {
+function validateVorschlaege(json, { useCaseCount = 0, maxVorschlaege = 1, unisexNamen = false, breit = false } = {}) {
   const roh = Array.isArray(json?.vorschlaege) ? json.vorschlaege : [];
   const sauber = [];
   const verworfen = [];
+  const analyse = sanitizeAnalyse(json);
 
   for (const v of roh) {
     const indices = [...new Set((Array.isArray(v.use_case_indices) ? v.use_case_indices : [])
@@ -427,6 +495,10 @@ function validateVorschlaege(json, { useCaseCount = 0, maxVorschlaege = 1, unise
       payload.name = kanonischerUnisexName(persona.name);
       payload.geschlecht = 'Gemischt';
     }
+    // Breiter Lauf: ein Beruf gehoert nur zu berufsgebundenen Produkten.
+    // Deterministisch, weil das Modell "Berufstaetig in Vollzeit" sonst
+    // fast immer einsetzt und die Persona daran aufhaengt.
+    if (breit && !analyse.berufsgebunden) payload.beruf = null;
 
     sauber.push({
       typ: 'neu',
@@ -438,12 +510,50 @@ function validateVorschlaege(json, { useCaseCount = 0, maxVorschlaege = 1, unise
     });
   }
 
+  // Breiter Lauf: ohne mindestens zwei Kaeufergruppen steht die Persona auf
+  // einem Einzelkontext. Der Aufrufer faehrt dann einen Korrektur-Retry.
+  const breiteOk = !breit || analyse.kaeufergruppen.length >= MIN_KAEUFERGRUPPEN;
+  if (!breiteOk) {
+    for (const v of sauber) {
+      verworfen.push({ grund: GRUND_ZU_WENIG_GRUPPEN, vorschlag: v.persona?.name || null });
+    }
+    sauber.length = 0;
+  }
+
   return {
     use_cases: (Array.isArray(json?.use_cases) ? json.use_cases : [])
       .map(uc => ({ name: String(uc?.name || '').trim(), beschreibung: uc?.beschreibung ? String(uc.beschreibung).trim() : null }))
       .filter(uc => uc.name),
     vorschlaege: sauber.slice(0, maxVorschlaege),
-    verworfen
+    verworfen,
+    analyse,
+    breiteOk
+  };
+}
+
+const MIN_KAEUFERGRUPPEN = 2;
+const MAX_KAEUFERGRUPPEN = 4;
+const GRUND_ZU_WENIG_GRUPPEN = 'zu wenige Kaeufergruppen';
+
+/**
+ * Analysefelder des breiten Laufs bereinigen. Sie werden nicht an der Persona
+ * gespeichert, nur fuer die Breiten-Pruefung und die Diagnose im Job-Result.
+ */
+function sanitizeAnalyse(json) {
+  const gesehen = new Set();
+  const kaeufergruppen = [];
+  for (const g of Array.isArray(json?.kaeufergruppen) ? json.kaeufergruppen : []) {
+    const name = String(g?.name || '').trim();
+    if (!name || gesehen.has(name.toLowerCase())) continue;
+    gesehen.add(name.toLowerCase());
+    kaeufergruppen.push({ name, kaufmotiv: String(g?.kaufmotiv || '').trim() || null });
+    if (kaeufergruppen.length >= MAX_KAEUFERGRUPPEN) break;
+  }
+  return {
+    produkt_kern: String(json?.produkt_kern || '').trim() || null,
+    kaeufergruppen,
+    gemeinsamer_nenner: String(json?.gemeinsamer_nenner || '').trim() || null,
+    berufsgebunden: json?.berufsgebunden === true || json?.berufsgebunden === 'true'
   };
 }
 
@@ -519,5 +629,8 @@ module.exports = {
   loadPoolPersonas,
   validateVorschlaege,
   sanitizePersonaPayload,
+  sanitizeAnalyse,
+  istBreiterLauf,
+  GRUND_ZU_WENIG_GRUPPEN,
   MAX_VORSCHLAEGE
 };

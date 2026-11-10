@@ -165,6 +165,45 @@ describe('SelectionBar', () => {
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
+  it('zeigt mit idleHtml den Ruhe-Inhalt bei 0 und wechselt ab einer Auswahl auf Zähler', () => {
+    const bar = new SelectionBar({ id: 'bar-test', countLabel: 'Creator ausgewählt' });
+    const el = bar.mount('<button data-selection-action="go">Los</button>', {
+      idleHtml: '<form data-selection-form="neu"><input name="link"></form>'
+    });
+    expect(el.style.display).toBe('flex');
+    expect(el.classList.contains('is-idle')).toBe(true);
+    expect(el.querySelector('.selection-bar__idle input')).not.toBeNull();
+
+    bar.update(2);
+    expect(el.style.display).toBe('flex');
+    expect(el.classList.contains('is-idle')).toBe(false);
+    expect(el.querySelector('.bulk-count').textContent).toBe('2 Creator ausgewählt');
+
+    bar.update(0);
+    expect(el.style.display).toBe('flex');
+    expect(el.classList.contains('is-idle')).toBe(true);
+  });
+
+  it('meldet submit eines data-selection-form als Aktion', () => {
+    const onAction = vi.fn();
+    const bar = new SelectionBar({ id: 'bar-test', onAction });
+    const el = bar.mount('', { idleHtml: '<form data-selection-form="neu"><input name="link"></form>' });
+
+    const submit = new Event('submit', { bubbles: true, cancelable: true });
+    el.querySelector('form').dispatchEvent(submit);
+
+    expect(onAction).toHaveBeenCalledWith('neu', submit);
+    expect(submit.defaultPrevented).toBe(true);
+  });
+
+  it('bleibt ohne idleHtml bei 0 versteckt', () => {
+    const bar = new SelectionBar({ id: 'bar-test' });
+    const el = bar.mount('');
+    bar.update(0);
+    expect(el.style.display).toBe('none');
+    expect(el.querySelector('.selection-bar__idle')).toBeNull();
+  });
+
   it('ignoriert Klicks auf deaktivierte Aktionen und räumt mit destroy auf', () => {
     const onAction = vi.fn();
     const bar = new SelectionBar({ id: 'bar-test', onAction });

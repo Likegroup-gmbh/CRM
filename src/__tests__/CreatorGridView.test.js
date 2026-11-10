@@ -146,16 +146,20 @@ describe('CreatorGridView', () => {
       expect(stat.querySelector('.creator-card__stat-value').textContent).toBe('4,5');
     });
 
-    it('verlinkt das Instagram-Icon neben dem Namen auf das Profil', () => {
+    it('buendelt Instagram-Link und Follower in einem Button in den Kennzahlen', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({
         id: 'c1',
         vorname: 'Alexander',
         nachname: 'Twil',
-        instagram: 'alexdrives'
+        instagram: 'alexdrives',
+        instagram_follower: 12400
       }));
-      const link = card.querySelector('.creator-card__identity .creator-ig-link');
+      const link = card.querySelector('.creator-card__sektion--kennzahlen .creator-ig-pill');
       expect(link).toBeTruthy();
+      expect(link.textContent).toContain('12,4K');
+      expect(card.querySelector('.creator-card__identity .creator-ig-link')).toBeNull();
+      expect(card.querySelector('.creator-card__stats').textContent).not.toContain('Instagram');
       expect(link.getAttribute('href')).toBe('https://instagram.com/alexdrives');
       expect(link.getAttribute('target')).toBe('_blank');
       expect(link.getAttribute('rel')).toContain('noopener');
@@ -165,7 +169,23 @@ describe('CreatorGridView', () => {
     it('lässt das Instagram-Icon weg, wenn kein Account hinterlegt ist', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'Lea' }));
-      expect(card.querySelector('.creator-ig-link')).toBeNull();
+      expect(card.querySelector('.creator-ig-pill')).toBeNull();
+    });
+
+    it('gliedert den Inhalt in Kopf, Tags, Kennzahlen und Casting', () => {
+      const grid = new CreatorGridView(makeList());
+      const card = parseCard(grid.renderCard({
+        id: 'c1',
+        vorname: 'Lea',
+        lieferadresse_stadt: 'Berlin',
+        creator_types: [{ name: 'UGC' }]
+      }));
+      const sektionen = [...card.querySelectorAll('.creator-card__body > .creator-card__sektion')]
+        .map((el) => el.className.match(/sektion--(\w+)/)[1]);
+      expect(sektionen).toEqual(['kopf', 'tags', 'kennzahlen', 'cta']);
+      expect(card.querySelector('.creator-card__sektion--kopf .creator-card__name')).toBeTruthy();
+      expect(card.querySelector('.creator-card__sektion--kopf .creator-card__meta')).toBeTruthy();
+      expect(card.querySelector('.creator-card__sektion--cta .creator-card__casting')).toBeTruthy();
     });
 
     it('zeigt Stadt, Alter, Größe, Follower und Aktionen', () => {
@@ -183,7 +203,10 @@ describe('CreatorGridView', () => {
         branchen: [{ name: 'Beauty' }, { name: 'Food' }, { name: 'Travel' }]
       }));
       expect(card.querySelector('.creator-card__meta').textContent).toContain('Berlin');
-      expect(card.querySelector('.creator-card__meta').textContent).toContain('Micro');
+      expect(card.querySelector('.creator-card__meta .creator-card__ort')).toBeTruthy();
+      expect(card.querySelector('.creator-card__meta .tag--stadt')).toBeNull();
+      expect(card.querySelector('.creator-card__groesse').textContent).toBe('Micro');
+      expect(card.querySelector('.creator-card__sektion--cta .creator-card__casting')).toBeTruthy();
       expect(card.querySelector('.creator-card__stats').textContent).toContain('12,4K');
       expect(card.querySelector('.creator-card__stats').textContent).toContain('Rezension');
       expect(card.querySelector('.creator-card__stats').textContent).toContain('–');

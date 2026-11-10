@@ -64,10 +64,14 @@ _Avoid_: Report, News, Update-Post, Release-Notes
 
 **Persona**:
 Typ Mensch auf Unternehmensebene, optional mehreren Marken, Produkten und Briefings zugeordnet.
-Liky am Produkt legt zuerst den breitesten tragfähigen Typ vor; engere Typen sind eigene Personas.
+Liky am Produkt legt zuerst den breitesten tragfähigen Typ vor: der gemeinsame Nenner mehrerer **Käufergruppen** des Gesamtprodukts, nie ein Nutzungskontext (Arbeit, Sport, Reisen) und nie ein Beruf, außer das Produkt ist berufsgebunden (B2B). Engere Typen sind eigene Personas.
 Hat Audience Situations als Bestandteil, keine eigene Prozessstufe.
 Der produkt-spezifische Fit (warum, welche Use Cases) sitzt nicht an der Persona, sondern an der Zuordnung.
 _Avoid_: Zielgruppe, Buyer-Persona, Kunde
+
+**Käufergruppe**:
+Gruppe, die ein Produkt aus einem gemeinsamen Kaufmotiv kauft (z. B. Early Adopter, Medien-Vielnutzer). Unterscheidet sich von der anderen im Kaufmotiv, nicht in Ort oder Anlass der Nutzung. Hilfsmittel der Persona-Generierung am Produkt: 2 bis 4 Käufergruppen, die Persona ist ihr gemeinsamer Nenner. Wird nicht gespeichert.
+_Avoid_: Zielgruppe, Segment, Persona (die Persona ist der Nenner, nicht die Gruppe)
 
 **Audience Situation**:
 Bestandteil einer Persona. Konkreter Moment, in dem diese Persona empfänglich sein kann.

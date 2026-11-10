@@ -172,7 +172,7 @@ export function renderItemsTable(ctx) {
         ${renderEmptyState({
           icon: 'creator',
           title: 'Noch keine Creator hinzugefügt',
-          text: !ctx.isKunde ? 'Fügen Sie oben einen Creator hinzu' : ''
+          text: !ctx.isKunde ? 'Fügen Sie unten einen Profil-Link ein' : ''
         })}
       </div>
     `;
