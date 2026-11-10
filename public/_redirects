@@ -1,5 +1,9 @@
 # Netlify Redirects für SPA (Single Page Application)
 
+# v2 ist abgelöst: alles auf die Live-Domain. Muss die erste Regel bleiben, _redirects
+# greift vor netlify.toml. 302, bis die alten Links ausgelaufen sind.
+/*  https://base.likegroup.de/:splat  302!
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 /src/auth/*  /src/auth/:splat  200
 
