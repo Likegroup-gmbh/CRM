@@ -11,6 +11,7 @@ import { applySourcingIgCellState, findSourcingIgCell } from './sourcingIgCell.j
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { verknuepfeEintrag, verknuepfungsText } from './castingCreatorVerknuepfung.js';
 import { absorbEditedTextFields, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
+import { enqueueIgFetch } from './igFetchBudget.js';
 
 const IG_FETCH_FLASH_MS = 2000;
 
@@ -64,8 +65,9 @@ export async function handleInstagramFetch(itemId, button) {
   setChipCellLoading(findSourcingIgCell(itemId), true);
 
   try {
-    const { item: updated, source, poolFetchedAt, debug } = await creatorAuswahlService
-      .fetchInstagramStats(itemId, { force });
+    const { item: updated, source, poolFetchedAt, debug, rateLimited } = await enqueueIgFetch((usage) => (
+      creatorAuswahlService.fetchInstagramStats(itemId, { force, usage })
+    ));
     Object.assign(item, updated);
     this.refreshItemRow(itemId);
     refreshCastingDrawer(this, itemId);
@@ -96,7 +98,12 @@ export async function handleInstagramFetch(itemId, button) {
       console.groupEnd();
     }
 
-    if (source === 'pool') {
+    if (rateLimited) {
+      window.toastSystem?.show(
+        'Meta-Rate-Limit erreicht – vorhandene Zahlen aus dem Pool übernommen.',
+        'info'
+      );
+    } else if (source === 'pool') {
       const stand = poolFetchedAt ? new Date(poolFetchedAt).toLocaleDateString('de-DE') : null;
       window.toastSystem?.show(
         stand

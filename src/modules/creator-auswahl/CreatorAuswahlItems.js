@@ -380,10 +380,14 @@ export async function scrapeCreator(url) {
  * den Handle schon, kommen die Werte von dort und Meta bleibt verschont.
  * @returns {Promise<{ item: object, source: 'pool'|'meta', poolFetchedAt: string|null, debug: object|null }>}
  */
-export async function fetchInstagramStats(itemId, { force = false } = {}) {
+export async function fetchInstagramStats(itemId, { force = false, usage = null } = {}) {
   const response = await authorizedFetch('/.netlify/functions/sourcing-instagram-stats', {
     method: 'POST',
-    body: JSON.stringify({ item_id: itemId, force })
+    body: JSON.stringify({
+      item_id: itemId,
+      force,
+      ...(usage ? { usage } : {})
+    })
   });
 
   const result = await response.json().catch(() => ({}));
@@ -392,6 +396,7 @@ export async function fetchInstagramStats(itemId, { force = false } = {}) {
     const error = new Error(result.error || 'Instagram-Abruf fehlgeschlagen');
     error.retryable = response.status === 429;
     error.hint = result.hint || null;
+    error.metaUsage = result.meta_usage || null;
     throw error;
   }
 
@@ -399,7 +404,9 @@ export async function fetchInstagramStats(itemId, { force = false } = {}) {
     item: result.item,
     source: result.source || 'meta',
     poolFetchedAt: result.pool_fetched_at || null,
-    debug: result.debug || null
+    debug: result.debug || null,
+    metaUsage: result.meta_usage || null,
+    rateLimited: result.rate_limited === true
   };
 }
 

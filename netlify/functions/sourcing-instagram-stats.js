@@ -6,7 +6,7 @@
 // Die Tabelle zeigt nicht cpm_ig_*, sondern rechnet ig_views_* mit dem TKP der
 // Liste (creator_auswahl.tkp). cpm_ig_* bleiben als Referenzwert bei 25 EUR.
 //
-// POST { item_id: '<uuid>', force?: boolean }
+// POST { item_id: '<uuid>', force?: boolean, usage?: { call_count, total_time, total_cputime } }
 // POST { preview: true, link: '<instagram-url>' }
 //   -> preview schreibt keine Casting-Zeile. Der Drawer zeigt die Felder, bevor
 //      der Eintrag existiert. Pool und Meta laufen wie beim Haekchen.
@@ -17,11 +17,13 @@
 //   -> force: true erzwingt den Meta-Abruf und aktualisiert den Pool. Das
 //      Frontend schickt das beim zweiten Klick (Refresh-Zustand des Buttons).
 //      Ebenso erzwingt eine veraltete ig_stats.calc_version einen neuen Abruf.
-//   -> Meta-Abruf: Profil + bis zu 150 Medien (drei Seiten a 50), filtert Reels
-//      mit Werbe-Kennzeichnung und alles juenger als 4 Tage weg und berechnet
-//      daraus den Views-Schnitt aus genau 8 bzw. 30 sauberen Reels plus den
-//      zugehoerigen CPM-Preis. Ausreisser werden nicht abgezogen, sondern durch
-//      den naechst-aelteren organischen Reel ersetzt.
+//   -> Meta-Abruf: ein Call, Profil plus die letzten 30 Beitraege. Reels mit
+//      Werbe- oder Co-Post-Kennzeichnung, Trial-Duplikate und alles juenger
+//      als 4 Tage fallen aus der Rechnung. Der Views-Schnitt kommt aus genau
+//      8 bzw. 30 sauberen Reels dieser 30 Beitraege. Reicht der Rest nicht,
+//      bleibt der betroffene Schnitt leer. Ausreisser werden nicht abgezogen,
+//      sondern durch den naechst-aelteren organischen Reel in dieser Menge
+//      ersetzt.
 //      Das Profilbild wird in zwei AVIF-Groessen (640px + 128px Thumbnail)
 //      nach Supabase Storage kopiert, da Metas CDN-URLs nach wenigen Tagen
 //      ablaufen.
@@ -33,7 +35,8 @@
 // Auth: Supabase Bearer-Token. Meta-Token bleibt serverseitig.
 
 const { createClient } = require('@supabase/supabase-js');
-const { normalizeUsername, isValidUsername, storeImagePair } = require('./_shared/instagram-graph');
+const { getLastUsage, normalizeUsername, isValidUsername, storeImagePair } = require('./_shared/instagram-graph');
+const { sanitizeUsage, budgetDecision } = require('./_shared/instagram-budget');
 const { engagementFuerProfil, kartenPosts } = require('./_shared/instagram-engagement');
 const { computeInstagramCpm, CALC_VERSION } = require('./_shared/instagram-cpm');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
@@ -51,6 +54,12 @@ const {
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+/** meta_usage an die Response, damit der naechste Creator das Kontingent kennt. */
+function withUsage(statusCode, body, echoedUsage) {
+  const usage = getLastUsage() || echoedUsage || null;
+  return jsonResponse(statusCode, usage ? { ...body, meta_usage: usage } : body);
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -82,6 +91,7 @@ exports.handler = async (event) => {
   }
 
   const force = body.force === true;
+  const echoedUsage = sanitizeUsage(body.usage);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -157,7 +167,7 @@ exports.handler = async (event) => {
         : 'kein Bild im Pool, letzter Versuch erfolglos (force erzwingt neuen Versuch)'
     });
 
-    return jsonResponse(200, {
+    return withUsage(200, {
       ok: true,
       item_id: itemId,
       username,
@@ -169,7 +179,56 @@ exports.handler = async (event) => {
         views_30: pool.ig_views_30
       },
       ...(debug ? { debug } : {})
+    }, echoedUsage);
+  }
+
+  // Kontingent fast voll: veraltete Pool-Staende nicht mehr nachziehen und
+  // unbekannte Creator nicht anfragen. Der Fehlversuch wuerde das Fenster
+  // nur verlaengern, die Zeile bekaeme trotzdem keine Zahlen.
+  const decision = budgetDecision({
+    usage: echoedUsage,
+    hasPool: !!pool?.ig_fetched_at,
+    force
+  });
+  if (decision === 'pool') {
+    if (preview) return vorschauAntwort(pool, item, { username, source: 'pool' });
+    const { data: updated, error: copyError } = await supabase
+      .from('creator_auswahl_items')
+      .update(buildItemUpdate(pool, item))
+      .eq('id', itemId)
+      .select()
+      .single();
+    if (copyError) {
+      return jsonResponse(500, { error: `Speichern fehlgeschlagen: ${copyError.message}` });
+    }
+    const debug = emitCpmDebug(username, statsFromPool(pool), {
+      source: 'pool',
+      pool_fetched_at: pool.ig_fetched_at,
+      follower: pool.follower_instagram,
+      image_error: 'Meta-Kontingent voll – Pool-Stand statt neuem Abruf'
     });
+    return withUsage(200, {
+      ok: true,
+      item_id: itemId,
+      username,
+      source: 'pool',
+      rate_limited: true,
+      pool_fetched_at: pool.ig_fetched_at,
+      item: updated,
+      stats: {
+        views_8: pool.ig_views_8,
+        views_30: pool.ig_views_30
+      },
+      ...(debug ? { debug } : {})
+    }, echoedUsage);
+  }
+  if (decision === 'defer') {
+    return withUsage(429, {
+      error: 'Meta-Kontingent voll',
+      error_code: null,
+      retryable: true,
+      hint: 'Meta-Rate-Limit erreicht – später erneut versuchen.'
+    }, echoedUsage);
   }
 
   if (!process.env.META_ACCESS_TOKEN || !process.env.META_IG_USER_ID) {
@@ -197,11 +256,12 @@ exports.handler = async (event) => {
         image_error: `Bild-Nachzug fehlgeschlagen: ${res.error}`
       });
 
-      return jsonResponse(200, {
+      return withUsage(200, {
         ok: true,
         item_id: itemId,
         username,
         source: 'pool',
+        rate_limited: res.rate_limited === true,
         pool_fetched_at: pool.ig_fetched_at,
         item: updated,
         stats: {
@@ -209,7 +269,41 @@ exports.handler = async (event) => {
           views_30: pool.ig_views_30
         },
         ...(debug ? { debug } : {})
-      });
+      }, echoedUsage);
+    }
+
+    // Veraltete Rechnung sollte frisch geholt werden. Liegt Meta am Limit,
+    // sind die vorhandenen Zahlen brauchbarer als eine leere Zeile.
+    if (res.rate_limited && pool?.ig_fetched_at && !force) {
+      if (preview) return vorschauAntwort(pool, item, { username, source: 'pool' });
+      const { data: updated } = await supabase
+        .from('creator_auswahl_items')
+        .update(buildItemUpdate(pool, item))
+        .eq('id', itemId)
+        .select()
+        .single();
+      if (updated) {
+        const debug = emitCpmDebug(username, statsFromPool(pool), {
+          source: 'pool',
+          pool_fetched_at: pool.ig_fetched_at,
+          follower: pool.follower_instagram,
+          image_error: `Meta-Limit, Pool-Stand behalten: ${res.error}`
+        });
+        return withUsage(200, {
+          ok: true,
+          item_id: itemId,
+          username,
+          source: 'pool',
+          rate_limited: true,
+          pool_fetched_at: pool.ig_fetched_at,
+          item: updated,
+          stats: {
+            views_8: pool.ig_views_8,
+            views_30: pool.ig_views_30
+          },
+          ...(debug ? { debug } : {})
+        }, echoedUsage);
+      }
     }
 
     if (!preview) {
@@ -229,12 +323,12 @@ exports.handler = async (event) => {
     }
 
     if (res.rate_limited) {
-      return jsonResponse(429, {
+      return withUsage(429, {
         error: res.error,
         error_code: res.error_code,
         retryable: true,
         hint: 'Meta-Rate-Limit erreicht – später erneut versuchen.'
-      });
+      }, echoedUsage);
     }
 
     return jsonResponse(502, {
@@ -299,7 +393,7 @@ exports.handler = async (event) => {
     image_error: bildFehler
   });
 
-  return jsonResponse(200, {
+  return withUsage(200, {
     ok: true,
     item_id: itemId,
     username,
@@ -315,5 +409,5 @@ exports.handler = async (event) => {
       skipped_trials: stats.skipped_trials
     },
     ...(debug ? { debug } : {})
-  });
+  }, echoedUsage);
 };

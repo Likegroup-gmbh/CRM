@@ -9,24 +9,16 @@ const {
 const { notizNachAbruf } = require('./instagram-engagement');
 const {
   formatCpmDebug,
-  formatCpmReport,
-  classifyVideos,
-  WINDOW_LONG
+  formatCpmReport
 } = require('./instagram-cpm');
 const { extractEmail, extractPhone, extractCity } = require('./bio-extract');
 
 // Kill-Switch: nach dem Testen auf false – kein Server-Log, kein debug in Response
 const IG_CPM_DEBUG = true;
 
-const PAGE_SIZE = 50;
-const MAX_PAGES = 3;   // 26s Function-Timeout, mehr ist nicht drin
-
-// Reserve ueber das 30er-Fenster hinaus. Faellt ein Reel als Ausreisser oder
-// Trial-Duplikat durch, rueckt der naechste nach - ohne Reserve bliebe das
-// Fenster unterbesetzt. Fuenfzehn deckt auch Creator mit mehreren Ausreissern
-// und Trial-Paaren ab und kostet meist keinen zusaetzlichen Request, weil
-// PAGE_SIZE bei 50 liegt.
-const PUFFER_NACHRUECKER = 15;
+// Genau die letzten 30 Beitraege, eine Seite, ein Graph-Call. Weiterblaettern
+// wuerde das Stundenkontingent pro Creator vervielfachen.
+const MEDIA_LIMIT = 30;
 
 const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_picture_url,biography,website';
 // Bewusst ohne media_product_type und is_shared_to_feed: fuer Business
@@ -47,72 +39,33 @@ function jsonResponse(statusCode, body) {
 }
 
 /**
- * Reels, die es wirklich in die Rechnung schaffen koennen.
- *
- * Werbe-Reels, Trial-Duplikate und zu frische Reels zaehlen nicht mit: sonst
- * bricht das Paging zu frueh ab und dem Fenster fehlen Nachruecker fuer die
- * Ausreisser-Ersetzung, obwohl weiter hinten genug organische Reels liegen.
- * Laueft ueber classifyVideos, damit Paging und Rechnung dieselbe Logik
- * teilen - ein Trial-Paar, das die Rechnung nicht sieht, darf das Paging
- * auch nicht stoppen.
- */
-function zaehleVerwertbar(media, now = Date.now()) {
-  return classifyVideos(media, now).included.length;
-}
-
-/**
- * Profil + Medien laden. Da zwischen den Reels auch Bilder und Karussells
- * liegen, reicht eine Seite oft nicht fuer 30 auswertbare Videos - dann wird
- * ueber den after-Cursor nachgeladen.
- *
- * Geladen wird bis WINDOW_LONG + PUFFER_NACHRUECKER verwertbare Reels
- * zusammenkommen, damit pickWindow genug Ersatz fuer Ausreisser hat.
+ * Profil plus die letzten 30 Beitraege. Ein Graph-Call.
+ * Werbe- und Co-Posts filtert erst die Rechnung (computeInstagramCpm),
+ * nicht dieser Abruf.
  */
 async function fetchProfileWithMedia(username) {
   const igUserId = process.env.META_IG_USER_ID;
-  let profile = null;
-  let media = [];
-  let after = null;
+  const fields = `${PROFILE_FIELDS},media.limit(${MEDIA_LIMIT}){${MEDIA_FIELDS}}`;
 
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const edge = after
-      ? `media.limit(${PAGE_SIZE}).after(${after}){${MEDIA_FIELDS}}`
-      : `media.limit(${PAGE_SIZE}){${MEDIA_FIELDS}}`;
-
-    // Profilfelder nur auf der ersten Seite - danach zaehlt nur noch media
-    const fields = page === 0 ? `${PROFILE_FIELDS},${edge}` : edge;
-
-    let data;
-    try {
-      data = await graphGet(igUserId, {
-        fields: `business_discovery.username(${username}){${fields}}`
-      });
-    } catch (err) {
-      // Fehler auf Folgeseiten sind nicht fatal: mit dem was da ist rechnen
-      if (page > 0) {
-        console.warn(`⚠️ sourcing-instagram-stats: Seite ${page} fehlgeschlagen:`, err.message);
-        break;
-      }
-      return {
-        ok: false,
-        error: err.meta?.message || err.message,
-        error_code: err.meta?.code ?? null,
-        rate_limited: isRateLimitError(err.meta)
-      };
-    }
-
-    const bd = data.business_discovery || {};
-    if (page === 0) profile = bd;
-    media = media.concat(bd.media?.data || []);
-
-    after = bd.media?.paging?.cursors?.after || null;
-    if (!after || zaehleVerwertbar(media) >= WINDOW_LONG + PUFFER_NACHRUECKER) break;
+  let data;
+  try {
+    data = await graphGet(igUserId, {
+      fields: `business_discovery.username(${username}){${fields}}`
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      error: err.meta?.message || err.message,
+      error_code: err.meta?.code ?? null,
+      rate_limited: isRateLimitError(err.meta)
+    };
   }
 
+  const profile = data.business_discovery || null;
   if (!profile) {
     return { ok: false, error: 'Profil konnte nicht geladen werden', error_code: null, rate_limited: false };
   }
-  return { ok: true, profile, media };
+  return { ok: true, profile, media: profile.media?.data || [] };
 }
 
 /** 12437 -> "12.4K" (Anzeigeformat fuer die Reichweite-Spalte) */
