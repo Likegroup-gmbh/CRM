@@ -21,14 +21,23 @@ export async function getAllStrategien() {
     return filtered;
   }
 
-  // Für Mitarbeiter: erlaubte Kampagnen ermitteln
-  const allowedKampagneIds = await getAllowedKampagneIds(user);
+  // TEMPORAER bis der v2-Flow eine Kampagne erzwingt:
+  // tasks/issues/005-temporaerer-unternehmens-scope-zurueckbauen.md
+  // Mitarbeiter: Kampagnen-Zuordnung ODER freigeschaltetes Unternehmen.
+  // Konzepte ohne kampagne_id (nur unternehmen_id) erscheinen sonst nur
+  // auf der Unternehmensseite, nicht unter /konzepte.
+  const [allowedKampagneIds, allowedUnternehmenIds, allStrategien] = await Promise.all([
+    getAllowedKampagneIds(user),
+    window.dataScopeService?.getAllowedUnternehmenIds?.(),
+    fetchAllStrategien()
+  ]);
   console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
 
-  const allStrategien = await fetchAllStrategien();
-  const filtered = allStrategien.filter(
-    (s) => s.kampagne_id && allowedKampagneIds.includes(s.kampagne_id)
-  );
+  const filtered = allStrategien.filter((s) => {
+    if (s.kampagne_id && allowedKampagneIds.includes(s.kampagne_id)) return true;
+    if (allowedUnternehmenIds === null) return true;
+    return !!(s.unternehmen_id && allowedUnternehmenIds?.includes(s.unternehmen_id));
+  });
 
   console.log(`🔐 Strategien gefiltert: ${filtered.length} von ${allStrategien.length}`);
   return filtered;

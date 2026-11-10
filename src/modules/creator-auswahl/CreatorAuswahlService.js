@@ -59,15 +59,22 @@ export class CreatorAuswahlService {
       return filtered;
     }
 
-    const [allowedKampagneIds, allListen] = await Promise.all([
+    // TEMPORAER bis der v2-Flow eine Kampagne erzwingt:
+    // tasks/issues/005-temporaerer-unternehmens-scope-zurueckbauen.md
+    // Kampagnen-Zuordnung ODER freigeschaltetes Unternehmen: Listen ohne
+    // kampagne_id erscheinen sonst nur auf der Unternehmensseite.
+    const [allowedKampagneIds, allowedUnternehmenIds, allListen] = await Promise.all([
       this._getAllowedKampagneIds(user),
+      window.dataScopeService?.getAllowedUnternehmenIds?.(),
       fetchListen()
     ]);
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
 
-    const filtered = allListen.filter(
-      (l) => l.kampagne_id && allowedKampagneIds.includes(l.kampagne_id)
-    );
+    const filtered = allListen.filter((l) => {
+      if (l.kampagne_id && allowedKampagneIds.includes(l.kampagne_id)) return true;
+      if (allowedUnternehmenIds === null) return true;
+      return !!(l.unternehmen_id && allowedUnternehmenIds?.includes(l.unternehmen_id));
+    });
 
     console.log(`🔐 Listen gefiltert: ${filtered.length} von ${allListen.length}`);
     return filtered;
