@@ -289,7 +289,8 @@ export const ICON_DEFS = {
   'arrows-expand': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />' },
   plus: { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />' },
   'arrow-down-tray': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15M9 12l3 3m0 0 3-3m-3 3V2.25" />' },
-  'arrow-path': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />' },
+  // Zentrales Refresh-Icon. Aenderungen hier wirken auf alle Aliase (arrow-path, reload, sync, ...)
+  refresh: { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M20.9451 13C20.9814 12.6717 21 12.338 21 12C21 7.02944 16.9706 3 12 3C9.17273 3 6.64996 4.30367 5 6.34267M3.05493 11C3.01863 11.3283 3 11.662 3 12C3 16.9706 7.02944 21 12 21C14.8273 21 17.35 19.6963 19 17.6573" /><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H7C5.58579 7 4.87868 7 4.43934 6.56066C4 6.12132 4 5.41421 4 4V3" /><path stroke-linecap="round" stroke-linejoin="round" d="M16 17H17C18.4142 17 19.1213 17 19.5607 17.4393C20 17.8787 20 18.5858 20 20V21" />' },
   flag: { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5" />' },
   'question-mark-circle': {
     viewBox: '0 0 24 24',
@@ -431,7 +432,6 @@ export const ICON_DEFS = {
   'paper-clip': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />' },
   bookmark: { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />' },
   'bookmark-slash': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m3 3 1.664 1.664M21 21l-1.5-1.5m-5.485-1.242L12 17.25 4.5 21V8.742m.164-4.078a2.15 2.15 0 0 1 1.743-1.342 48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185V16.5" />' },
-  'arrow-path-filled': { viewBox: '0 0 256 256', body: '<path d="M88,104H40a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V76.69L62.63,62.06A95.43,95.43,0,0,1,130,33.94h.53a95.36,95.36,0,0,1,67.07,27.33,8,8,0,0,1-11.18,11.44,79.52,79.52,0,0,0-55.89-22.77h-.45A79.56,79.56,0,0,0,73.94,73.37L59.31,88H88a8,8,0,0,1,0,16Zm128,48H168a8,8,0,0,0,0,16h28.69l-14.63,14.63a79.56,79.56,0,0,1-56.13,23.43h-.45a79.52,79.52,0,0,1-55.89-22.77,8,8,0,1,0-11.18,11.44,95.36,95.36,0,0,0,67.07,27.33H126a95.43,95.43,0,0,0,67.36-28.12L208,179.31V208a8,8,0,0,0,16,0V160A8,8,0,0,0,216,152Z" />' },
 
   // --- Brand ---
   instagram: {
@@ -596,6 +596,12 @@ export const ICON_ALIASES = {
   kuerzen: 'shorten',
   laenger: 'lengthen',
   'hook-transfer': 'arrows-right-left',
+  // Refresh: alle Varianten laufen auf das zentrale 'refresh'-Icon
+  'arrow-path': 'refresh',
+  'arrow-path-filled': 'refresh',
+  reload: 'refresh',
+  sync: 'refresh',
+  retry: 'refresh',
   'feedback-geben': 'chat-dots',
   'chat-bot': 'ai-chat',
   liky: 'ai-chat',

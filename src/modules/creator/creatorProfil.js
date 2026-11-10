@@ -202,6 +202,16 @@ export function instagramProfilUrl(value) {
   return window.validatorSystem?.sanitizeUrl?.(href) || '';
 }
 
+/** Profil-URL aus TikTok-Handle (mit/ohne @) oder bereits gespeicherter URL. */
+export function tiktokProfilUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const href = /^https?:\/\//i.test(raw)
+    ? raw
+    : `https://www.tiktok.com/@${encodeURIComponent(raw.replace(/^@/, ''))}`;
+  return window.validatorSystem?.sanitizeUrl?.(href) || '';
+}
+
 /** Paar, Familie und Tier-Account behalten kein Geburtsdatum. */
 export function sanitizeCreatorWrite(data) {
   if (!data || typeof data !== 'object') return data;

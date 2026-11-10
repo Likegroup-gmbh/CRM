@@ -18,7 +18,7 @@ const KEY_MAP = {
   'add-to-list': 'list-plus',
   'add-to-casting': 'sourcing',
   unlink: 'minus-circle',
-  refresh: 'arrow-path',
+  refresh: 'refresh',
   'add-ansprechpartner': 'user-plus',
   'add-produkt': 'cube',
   'add-persona': 'users',
@@ -33,7 +33,7 @@ const KEY_MAP = {
   'add-details': 'plus',
   rechnungen: 'bolt',
   'rechnung-create': 'rechnung',
-  'status-change': 'arrow-path',
+  'status-change': 'refresh',
   'status-offen': 'flag',
   'status-default': 'check-circle',
   'status-rueckfrage': 'question-mark-circle',
@@ -52,7 +52,7 @@ const KEY_MAP = {
   'creator briefing': 'clipboard',
   filter: 'adjustments-horizontal',
   connect: 'link-slash',
-  'ig-refresh': 'arrow-path-filled',
+  'ig-refresh': 'refresh',
   chart: 'chart-bar-sm',
   warn: 'exclamation-triangle',
   external: 'arrow-top-right-on-square',
@@ -60,7 +60,7 @@ const KEY_MAP = {
 };
 
 // Keys, die mit gefuellter Optik gerendert werden muessen
-const FILLED_KEYS = new Set(['connect', 'ig-refresh']);
+const FILLED_KEYS = new Set(['connect']);
 
 export class IconRegistry {
   constructor() {

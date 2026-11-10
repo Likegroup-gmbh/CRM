@@ -166,6 +166,25 @@ describe('CreatorGridView', () => {
       expect(link.querySelector('use')?.getAttribute('href')).toBe('#crm-icon-instagram');
     });
 
+    it('zeigt TikTok rechts neben Instagram im gleichen Button-Look', () => {
+      const grid = new CreatorGridView(makeList());
+      const card = parseCard(grid.renderCard({
+        id: 'c1',
+        vorname: 'Mia',
+        instagram: 'mia',
+        instagram_follower: 12400,
+        tiktok: '@mia.tt',
+        tiktok_follower: 8000
+      }));
+      const pills = [...card.querySelectorAll('.creator-card__social .creator-ig-pill')];
+      expect(pills).toHaveLength(2);
+      expect(pills[0].querySelector('use').getAttribute('href')).toBe('#crm-icon-instagram');
+      expect(pills[1].querySelector('use').getAttribute('href')).toBe('#crm-icon-tiktok');
+      expect(pills[1].getAttribute('href')).toBe('https://www.tiktok.com/@mia.tt');
+      expect(pills[1].textContent).toContain('8K');
+      expect(card.querySelector('.creator-card__stats').textContent).not.toContain('TikTok');
+    });
+
     it('lässt das Instagram-Icon weg, wenn kein Account hinterlegt ist', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'Lea' }));
@@ -631,7 +650,40 @@ describe('CreatorGridView', () => {
 
       await grid._hydrateVideoCounts([{ id: 'c1' }], grid._requestId);
       expect(container.querySelector('[data-video-count="c1"]').textContent).toBe('3');
-      expect(container.querySelector('.creator-card__coops')).toBeNull();
+    });
+
+    it('füllt die Kooperations-Bubbles mit Plattform-Marken und Instagram-Partnern', async () => {
+      const grid = new CreatorGridView(makeList());
+      mountShell(grid);
+      const container = grid.getContainer();
+      const creator = { id: 'c1', vorname: 'A', ig_brand_mentions: [{ handle: 'adidas', name: 'Adidas' }] };
+      container.innerHTML = grid.renderCard(creator);
+      const q = {
+        select: () => q,
+        in: () => q,
+        order: async () => ({
+          data: [{ creator_id: 'c1', kampagne: { marke: { id: 'm1', markenname: 'Nike', logo_url: null } } }],
+          error: null
+        })
+      };
+      window.supabase = { from: () => q };
+
+      await grid._hydrateKooperationen([creator], grid._requestId);
+      const body = container.querySelector('.creator-card__coops [data-coops-body]');
+      expect(body.querySelectorAll('.avatar-bubble').length).toBe(2);
+      expect(body.querySelector('.avatar-bubble[data-entity="marke"]')).toBeTruthy();
+    });
+
+    it('zeigt "Keine Angabe", wenn ein Creator noch keine Kooperation hat', async () => {
+      const grid = new CreatorGridView(makeList());
+      mountShell(grid);
+      const container = grid.getContainer();
+      container.innerHTML = grid.renderCard({ id: 'c1', vorname: 'A' });
+      const q = { select: () => q, in: () => q, order: async () => ({ data: [], error: null }) };
+      window.supabase = { from: () => q };
+
+      await grid._hydrateKooperationen([{ id: 'c1' }], grid._requestId);
+      expect(container.querySelector('.creator-card__coops-leer').textContent).toBe('Keine Angabe');
     });
 
     it('lässt die Zahl bei veraltetem Request stehen', async () => {

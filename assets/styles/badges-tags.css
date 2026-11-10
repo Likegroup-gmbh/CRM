@@ -379,6 +379,13 @@
   gap: var(--space-xxs);
 }
 
+/* Platzhalter, wenn ein Eintrag keine Tags hat */
+.tag--leer {
+  color: var(--text-muted);
+  background: transparent;
+  border-style: dashed;
+}
+
 .tag--type,
 .tag--lang,
 .tag--branche,

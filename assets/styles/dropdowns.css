@@ -468,7 +468,8 @@
 
 /* Fill-basierte Icons (z.B. Instagram Connect/Refresh) nicht zusätzlich stroken */
 
-.action-item svg.icon-fill {
+.action-item svg.icon-fill,
+.action-item svg.crm-icon--filled {
   stroke: none;
   stroke-width: 0;
 }

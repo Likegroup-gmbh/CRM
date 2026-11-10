@@ -13,6 +13,7 @@ import { renderCreatorCard, renderCreatorZeile } from './creatorCardRender.js';
 import { openCreatorSheet } from './creatorSheet.js';
 import { bindGridEvents } from './creatorGridEvents.js';
 import { ladeKooperationsVideos } from './creatorBuchung.js';
+import { ladeKooperationMarken, normalizeBrandMentions, renderKoopBubbles } from './creatorKoopBubbles.js';
 import { passeTagZeilen } from './creatorTags.js';
 import { haengeMerkmaleAn } from './creatorMerkmale.js';
 import { getScrollContainer } from '../../core/NavigationScroll.js';
@@ -137,6 +138,7 @@ export class CreatorGridView {
       this._remember(items);
       this._appendCards(items);
       this._hydrateVideoCounts(items, reqId);
+      this._hydrateKooperationen(items, reqId);
 
       if (searching || items.length < GRID_CHUNK_SIZE || (this._total > 0 && this._loadedCount >= this._total)) {
         this._reachedEnd = true;
@@ -211,6 +213,7 @@ export class CreatorGridView {
     stillThere.replaceWith(next);
     this._remember([creator]);
     this._hydrateVideoCounts([creator], this._requestId);
+    this._hydrateKooperationen([creator], this._requestId);
     requestAnimationFrame(() => passeTagZeilen(this.getContainer()));
     return true;
   }
@@ -316,6 +319,7 @@ export class CreatorGridView {
       const creator = this._byId?.get(id);
       return creator ? this.renderCard(creator) : '';
     }).join('');
+    this._fillKooperationen();
     requestAnimationFrame(() => passeTagZeilen(container));
   }
 
@@ -343,6 +347,38 @@ export class CreatorGridView {
     }
   }
 
+  /** Marken-Bubbles (Plattform + Instagram-Werbepartner) fuer den geladenen Chunk. */
+  async _hydrateKooperationen(items, reqId) {
+    if (!Array.isArray(items) || !items.length || !window.supabase) return;
+    const ids = items.map((c) => c.id).filter(Boolean);
+    if (!ids.length) return;
+    let marken;
+    try {
+      marken = await ladeKooperationMarken(window.supabase, ids);
+    } catch (err) {
+      // Bei Fehler keinen "Keine Angabe"-Platzhalter zeigen, die Zeile bleibt leer
+      console.warn('⚠️ CREATORGRID: Kooperations-Marken fehlgeschlagen', err?.message || err);
+      return;
+    }
+    if (reqId !== this._requestId || this.list._destroyed) return;
+    if (!this._koopHtml) this._koopHtml = new Map();
+    for (const c of items) {
+      this._koopHtml.set(c.id, renderKoopBubbles(marken.get(c.id), normalizeBrandMentions(c)));
+    }
+    this._fillKooperationen();
+  }
+
+  /** Setzt gecachte Bubbles in alle Karten (auch nach Ansichtswechsel/Soft-Update). */
+  _fillKooperationen() {
+    const root = this.getContainer();
+    if (!root || !this._koopHtml) return;
+    root.querySelectorAll('.creator-card__coops').forEach((el) => {
+      const html = this._koopHtml.get(el.dataset.creatorId);
+      const body = el.querySelector('[data-coops-body]');
+      if (html && body && !body.hasChildNodes()) body.innerHTML = html;
+    });
+  }
+
   async openKontakt(id) {
     const creator = this._byId?.get(id);
     if (!creator) return;
@@ -366,6 +402,7 @@ export class CreatorGridView {
     const next = wrap.firstElementChild;
     if (!next) return;
     existing.replaceWith(next);
+    this._fillKooperationen();
     requestAnimationFrame(() => passeTagZeilen(container));
   }
 

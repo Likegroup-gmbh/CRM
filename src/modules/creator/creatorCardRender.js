@@ -3,7 +3,7 @@
 
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import { ageLabel, cardChips, formatFollowerShort, groesseOf, instagramProfilUrl } from './creatorProfil.js';
+import { ageLabel, cardChips, formatFollowerShort, groesseOf, instagramProfilUrl, tiktokProfilUrl } from './creatorProfil.js';
 import { darfRezensionSehen, formatRezension } from './rezension.js';
 import { renderFavorit } from './creatorFavorit.js';
 import { renderTagZeile } from './creatorTags.js';
@@ -68,11 +68,10 @@ function renderMedia(c, { overlays = false } = {}) {
 function renderMeta(c, list) {
   const stadt = c.lieferadresse_stadt
     ? `<span class="creator-card__ort">${icon('map-pin', { className: 'creator-card__ort-icon' })}${list.sanitize(c.lieferadresse_stadt)}</span>`
-    : '';
+    : `<span class="creator-card__ort creator-card__ort--leer">${icon('map-pin', { className: 'creator-card__ort-icon' })}Keine Angabe</span>`;
   const age = ageLabel(c);
   const ageHtml = age ? `<span class="creator-card__age">${list.sanitize(age)}</span>` : '';
 
-  if (!stadt && !ageHtml) return '';
   return `<div class="creator-card__meta">${stadt}${ageHtml}</div>`;
 }
 
@@ -84,19 +83,42 @@ function renderTagRow(c, list) {
   return `<div class="creator-card__tags tags tags-compact">${chips}</div>`;
 }
 
+/** Chips + Creator-Tags; ohne beides ein Platzhalter-Tag, damit die Kachel nicht springt. */
+function renderTagInhalt(c, list) {
+  const inhalt = [renderTagRow(c, list), renderTagZeile(c.tags)].filter(Boolean);
+  if (inhalt.length) return inhalt;
+  return [`<div class="creator-card__tags tags tags-compact"><span class="tag tag--leer">Keine Angabe</span></div>`];
+}
+
 function stat(value, label, attrs = '') {
   return `<div class="creator-card__stat"><span class="creator-card__stat-value"${attrs}>${value}</span><span class="creator-card__stat-label">${label}</span></div>`;
 }
 
-/** Instagram als Button: Icon, Followerzahl und Pfeil in einem Link. Leer ohne Handle. */
-function renderInstagramPill(c) {
-  const url = instagramProfilUrl(c.instagram);
+/** Plattform als Button: Icon, Followerzahl und Pfeil in einem Link. Leer ohne Handle. */
+function renderSocialPill({ key, titel, url, follower }) {
   if (!url) return '';
-  const follower = formatFollowerShort(c.instagram_follower);
-  const label = follower != null ? `<span class="mdc-btn__label">${follower}</span>` : '';
-  return `<a class="mdc-btn mdc-btn--secondary mdc-btn--sm creator-ig-pill" href="${escAttr(url)}" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram-Profil öffnen">
-    <span class="mdc-btn__icon">${icon('instagram')}</span>${label}<span class="mdc-btn__icon">${icon('external-link')}</span>
+  const zahl = formatFollowerShort(follower);
+  const label = zahl != null ? `<span class="mdc-btn__label">${zahl}</span>` : '';
+  return `<a class="mdc-btn mdc-btn--secondary mdc-btn--sm creator-ig-pill creator-ig-pill--${key}" href="${escAttr(url)}" target="_blank" rel="noopener noreferrer" title="${titel}" aria-label="${titel}-Profil öffnen">
+    <span class="mdc-btn__icon">${icon(key)}</span>${label}<span class="mdc-btn__icon">${icon('external-link')}</span>
   </a>`;
+}
+
+/** Instagram und TikTok nebeneinander im gleichen Look. */
+function renderSocialRow(c) {
+  const pills = [
+    renderSocialPill({ key: 'instagram', titel: 'Instagram', url: instagramProfilUrl(c.instagram), follower: c.instagram_follower }),
+    renderSocialPill({ key: 'tiktok', titel: 'TikTok', url: tiktokProfilUrl(c.tiktok), follower: c.tiktok_follower })
+  ].filter(Boolean);
+  return pills.length ? `<div class="creator-card__social">${pills.join('')}</div>` : '';
+}
+
+/** Kooperations-Bubbles: wird nach dem Laden der Marken gefuellt (CreatorGridView). */
+function renderKoopZeile(c) {
+  return `<div class="creator-card__coops" data-creator-id="${escAttr(c.id)}">
+    <span class="creator-card__stat-label">Letzte Kooperationen</span>
+    <div class="creator-card__coops-bubbles" data-coops-body></div>
+  </div>`;
 }
 
 function renderStats(c) {
@@ -105,9 +127,9 @@ function renderStats(c) {
   if (typeof c.videos === 'number') stats.push(stat(c.videos, 'Videos'));
   const ig = formatFollowerShort(c.instagram_follower);
   const tt = formatFollowerShort(c.tiktok_follower);
-  // Mit Handle steckt die Followerzahl schon im Instagram-Button
+  // Mit Handle steckt die Followerzahl schon im Plattform-Button
   if (ig != null && !instagramProfilUrl(c.instagram)) stats.push(stat(ig, 'Instagram'));
-  if (tt != null) stats.push(stat(tt, 'TikTok'));
+  if (tt != null && !tiktokProfilUrl(c.tiktok)) stats.push(stat(tt, 'TikTok'));
   stats.push(stat('0', 'Kooperationsvideos', ` data-video-count="${c.id}"`));
   return `<div class="creator-card__stats">${stats.join('')}</div>`;
 }
@@ -133,8 +155,8 @@ export function renderCreatorCard(c, list) {
           </div>`,
           renderMeta(c, list)
         ])}
-        ${sektion('tags', [renderTagRow(c, list), renderTagZeile(c.tags)])}
-        ${sektion('kennzahlen', [renderInstagramPill(c), renderStats(c)])}
+        ${sektion('tags', renderTagInhalt(c, list))}
+        ${sektion('kennzahlen', [renderSocialRow(c), renderStats(c), renderKoopZeile(c)])}
         ${sektion('cta', [`<button type="button" class="mdc-btn mdc-btn--secondary creator-card__casting creator-card__cta" data-id="${id}">
           <span class="mdc-btn__icon">${icon('plus')}</span>
           <span class="mdc-btn__label">Ins Casting</span>
