@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildStrategieItemPickerOptions,
-  buildSkriptVorlagePickerOptions
+  buildSkriptVorlagePickerOptions,
+  buildFreigegebeneVideoideePickerOptions
 } from '../modules/strategie/strategieItemPicker.js';
 
 const STRATEGIEN = [
@@ -66,8 +67,38 @@ describe('buildSkriptVorlagePickerOptions', () => {
 
     const opts = buildSkriptVorlagePickerOptions(items);
     expect(opts.map((o) => o.value)).toEqual(['a', 'c']);
-    expect(opts[0].subtitle).toBe('Mit Referenz-Video · Mit Transkript');
-    expect(opts[1].subtitle).toBe('Idee ohne Link');
+    expect(opts[0].subtitle).toBe('Mit Referenz-Video · Mit Transkript · Kein Creator');
+    expect(opts[1].subtitle).toBe('Idee ohne Link · Ohne Transkript · Kein Creator');
     expect(opts[0].group).toBe('S1');
+  });
+});
+
+describe('buildFreigegebeneVideoideePickerOptions', () => {
+  it('nimmt freigegebene Ideen ohne Creator auf', () => {
+    const opts = buildFreigegebeneVideoideePickerOptions([
+      {
+        id: 'ohne',
+        beschreibung: 'Ohne Person',
+        skript_freigabe: true,
+        strategie: { name: 'S' }
+      },
+      {
+        id: 'mit',
+        beschreibung: 'Mit Person',
+        skript_freigabe: true,
+        casting_eintrag: { name: 'Mia Sommer' },
+        strategie: { name: 'S' }
+      },
+      {
+        id: 'zu',
+        beschreibung: 'Nicht frei',
+        skript_freigabe: false,
+        strategie: { name: 'S' }
+      }
+    ]);
+
+    expect(opts.map((o) => o.value)).toEqual(['mit', 'ohne']);
+    expect(opts.find((o) => o.value === 'ohne').subtitle).toBe('Kein Creator');
+    expect(opts.find((o) => o.value === 'mit').subtitle).toBe('Mia Sommer');
   });
 });

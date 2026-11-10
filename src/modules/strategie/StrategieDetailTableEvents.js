@@ -6,6 +6,12 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
 import { bindTextClipEvents } from './strategieTextClip.js';
+import {
+  absorbEditedTextFields,
+  bindTextBaseline,
+  rememberTextBaseline,
+  shouldPersistTextField
+} from '../../core/table/textFieldBaseline.js';
 
 export function cleanupTableEvents(detail) {
   detail._tableEventListeners.forEach(cleanup => cleanup());
@@ -21,6 +27,10 @@ export function bindTableEvents(detail) {
   if (canWrite) {
     bindDragAndDropEvents(detail);
   }
+
+  bindTextBaseline(document, {
+    onCleanup: (fn) => detail._tableEventListeners.add(fn)
+  });
 
   document.querySelectorAll('input[data-field], textarea[data-field]').forEach(input => {
     const handler = () => handleFieldUpdate(detail, input);
@@ -342,9 +352,6 @@ export async function handleCreatorUnlink(detail, itemId) {
     await strategieService.unassignCastingItem(itemId);
     item.creator_auswahl_item_id = null;
     item.casting_eintrag = null;
-    item.skript_freigabe = false;
-    item.skript_freigabe_am = null;
-    item.skript_freigabe_von = null;
     detail.rerenderItemsTable();
     window.toastSystem?.show('Zuordnung gelöst', 'success');
     return true;
@@ -436,11 +443,16 @@ export function bindCustomColumnEvents(detail) {
       el.addEventListener('change', handler);
       detail._tableEventListeners.add(() => el.removeEventListener('change', handler));
     } else {
-      el.addEventListener('blur', handler);
-      el.addEventListener('change', handler);
+      const textHandler = () => {
+        if (!shouldPersistTextField(el)) return;
+        rememberTextBaseline(el);
+        handler();
+      };
+      el.addEventListener('blur', textHandler);
+      el.addEventListener('change', textHandler);
       detail._tableEventListeners.add(() => {
-        el.removeEventListener('blur', handler);
-        el.removeEventListener('change', handler);
+        el.removeEventListener('blur', textHandler);
+        el.removeEventListener('change', textHandler);
       });
     }
   });
@@ -470,10 +482,14 @@ export async function handleFieldUpdate(detail, element) {
   if (element.hasAttribute('data-custom-column-id') || element.getAttribute('data-entity') === 'custom') {
     return;
   }
+  if (!detail.isKunde && !detail.canEdit) return;
+  // Nur schreiben, wenn der Nutzer den Text seit dem Fokus geändert hat.
+  // Ein Blur auf eine noch leere Zelle darf Caption und Anmerkung nicht löschen.
+  if (!shouldPersistTextField(element)) return;
+  rememberTextBaseline(element);
   const field = element.dataset.field;
   // Feld-Capability: Kunde darf seine Feedback-Felder (Prio, Anmerkung,
   // Umgesetzt), Investor nichts. Deckt Umgesetzt, Prio und Textfelder ab.
-  if (!detail.isKunde && !detail.canEdit) return;
   if (field === 'video_umgesetzt' && typeof window.permissionSystem?.canEditField === 'function'
     && !window.permissionSystem.canEditField('strategie', 'video_umgesetzt')) return;
   const itemId = element.dataset.itemId;
@@ -494,27 +510,44 @@ export async function handleFieldUpdate(detail, element) {
   }
 }
 
+export function absorbStrategieEdits(detail, root) {
+  absorbEditedTextFields(root, (el) => {
+    if (el.hasAttribute('data-custom-column-id') || el.getAttribute('data-entity') === 'custom') {
+      rememberTextBaseline(el);
+      detail.customColumns?.handleFieldUpdate(el);
+      return;
+    }
+    handleFieldUpdate(detail, el);
+  });
+}
+
 export async function updateItemField(detail, itemId, field, value) {
+  const updates = { [field]: value };
+
+  // Kunden-Anmerkung: Autor + Zeitstempel mitschreiben (Kunde und Gast)
+  if (field === 'kunde_anmerkung' && window.isKunde?.()) {
+    const authorName = window.currentUser?.name || 'Unbekannt';
+    updates.kunde_anmerkung_author_name = window.isGast?.() ? `${authorName} (Gast)` : authorName;
+    updates.kunde_anmerkung_updated_at = new Date().toISOString();
+  }
+
+  // Von Hand geschriebene Beschreibungen werden als solche markiert
+  if (field === 'beschreibung') {
+    updates.beschreibung_quelle = value ? 'user' : null;
+  }
+
+  // Vor dem Request in den Speicher, damit ein Neuzeichnen während des
+  // Speicherns den gerade getippten Text schon zeigt.
+  const item = detail.items.find(i => i.id === itemId);
+  const previous = item
+    ? Object.fromEntries(Object.keys(updates).map(key => [key, item[key]]))
+    : null;
+  if (item) Object.assign(item, updates);
+
   try {
-    const updates = { [field]: value };
-
-    // Kunden-Anmerkung: Autor + Zeitstempel mitschreiben (Kunde und Gast)
-    if (field === 'kunde_anmerkung' && window.isKunde?.()) {
-      const authorName = window.currentUser?.name || 'Unbekannt';
-      updates.kunde_anmerkung_author_name = window.isGast?.() ? `${authorName} (Gast)` : authorName;
-      updates.kunde_anmerkung_updated_at = new Date().toISOString();
-    }
-
-    // Von Hand geschriebene Beschreibungen werden als solche markiert
-    if (field === 'beschreibung') {
-      updates.beschreibung_quelle = value ? 'user' : null;
-    }
-
     await strategieService.updateStrategieItem(itemId, updates);
-
-    const item = detail.items.find(i => i.id === itemId);
-    if (item) Object.assign(item, updates);
   } catch (error) {
+    if (item && previous) Object.assign(item, previous);
     console.error('Fehler beim Aktualisieren des Items:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
   }

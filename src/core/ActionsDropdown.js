@@ -197,33 +197,101 @@ export class ActionsDropdown {
     }
 
     document.body.appendChild(portal);
-
-    const buttonRect = toggleButton.getBoundingClientRect();
-    const portalHeight = portal.offsetHeight || 300;
-    const viewportHeight = window.innerHeight;
-    const spaceBelow = viewportHeight - buttonRect.bottom;
-    const needsFlip = spaceBelow < portalHeight && buttonRect.top > portalHeight;
-
-    portal.style.right = (window.innerWidth - buttonRect.right) + 'px';
-
-    if (needsFlip) {
-      portal.style.bottom = (viewportHeight - buttonRect.top + 4) + 'px';
-      portal.style.transformOrigin = 'bottom right';
-    } else {
-      portal.style.top = (buttonRect.bottom + 4) + 'px';
-      portal.style.transformOrigin = 'top right';
-    }
+    this.positionPortal(portal, toggleButton.getBoundingClientRect());
 
     requestAnimationFrame(() => portal.classList.add('show'));
     toggleButton.setAttribute('aria-expanded', 'true');
   }
 
+  // Rechts am Button ausrichten, aber im Viewport halten. Die Aktions-Spalte
+  // im Kooperationen-Tab klebt am rechten Rand; auf schmalen Fenstern waere
+  // das Menue sonst links oder unten ausserhalb des Bildschirms.
+  positionPortal(portal, anchorRect) {
+    const margin = 8;
+    const gap = 4;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const maxWidth = Math.max(160, viewportWidth - margin * 2);
+
+    portal.style.maxWidth = `${maxWidth}px`;
+    portal.style.right = 'auto';
+    portal.style.bottom = 'auto';
+    portal.style.maxHeight = '';
+    portal.style.overflowY = '';
+
+    const portalWidth = Math.min(portal.offsetWidth || portal.scrollWidth || 260, maxWidth);
+    const portalHeight = portal.offsetHeight || portal.scrollHeight || 300;
+
+    let left = anchorRect.right - portalWidth;
+    left = Math.min(left, viewportWidth - portalWidth - margin);
+    left = Math.max(margin, left);
+    portal.style.left = `${left}px`;
+
+    const spaceBelow = viewportHeight - anchorRect.bottom - gap;
+    const spaceAbove = anchorRect.top - gap;
+    const openUp = spaceBelow < portalHeight && spaceAbove > spaceBelow;
+
+    if (openUp) {
+      const available = Math.max(0, anchorRect.top - gap - margin);
+      const top = Math.max(margin, anchorRect.top - gap - Math.min(portalHeight, available));
+      portal.style.top = `${top}px`;
+      portal.style.transformOrigin = 'bottom right';
+      if (portalHeight > available) {
+        portal.style.maxHeight = `${available}px`;
+        portal.style.overflowY = 'auto';
+      }
+    } else {
+      const top = Math.max(margin, Math.min(anchorRect.bottom + gap, viewportHeight - margin));
+      portal.style.top = `${top}px`;
+      portal.style.transformOrigin = 'top right';
+      const available = Math.max(0, viewportHeight - top - margin);
+      if (portalHeight > available) {
+        portal.style.maxHeight = `${available}px`;
+        portal.style.overflowY = 'auto';
+      }
+    }
+  }
+
   positionSubmenu(submenu, trigger) {
+    const margin = 8;
     const triggerRect = trigger.getBoundingClientRect();
     const submenuHeight = submenu.offsetHeight || submenu.scrollHeight || 300;
+    const submenuWidth = submenu.offsetWidth || submenu.scrollWidth || 240;
     const viewportHeight = window.innerHeight;
-    const overflow = (triggerRect.top + submenuHeight) - (viewportHeight - 20);
-    submenu.style.top = overflow > 0 ? -overflow + 'px' : '0px';
+    const viewportWidth = window.innerWidth;
+
+    submenu.style.maxHeight = '';
+    submenu.style.overflowY = '';
+    submenu.style.top = '';
+    submenu.classList.remove('submenu--flip-right', 'submenu--inline');
+    trigger.classList.remove('submenu-opens-right', 'submenu-opens-inline');
+
+    const spaceLeft = triggerRect.left - margin;
+    const spaceRight = viewportWidth - triggerRect.right - margin;
+    const fitsLeft = spaceLeft >= submenuWidth;
+    const fitsRight = spaceRight >= submenuWidth;
+
+    if (!fitsLeft && fitsRight) {
+      submenu.classList.add('submenu--flip-right');
+      trigger.classList.add('submenu-opens-right');
+    } else if (!fitsLeft && !fitsRight) {
+      submenu.classList.add('submenu--inline');
+      trigger.classList.add('submenu-opens-inline');
+      return;
+    }
+
+    const availableHeight = viewportHeight - margin * 2;
+    if (submenuHeight > availableHeight) {
+      submenu.style.maxHeight = `${availableHeight}px`;
+      submenu.style.overflowY = 'auto';
+      submenu.style.top = `${margin - triggerRect.top}px`;
+      return;
+    }
+
+    const overflowBottom = (triggerRect.top + submenuHeight) - (viewportHeight - margin);
+    let top = overflowBottom > 0 ? -overflowBottom : 0;
+    if (triggerRect.top + top < margin) top = margin - triggerRect.top;
+    submenu.style.top = `${top}px`;
   }
 
   closeAllDropdowns() {
@@ -350,6 +418,13 @@ export class ActionsDropdown {
     window.addEventListener('scroll', () => {
       if (document.querySelector('.actions-dropdown-portal')) this.closeAllDropdowns();
     }, { capture: true, signal });
+
+    window.addEventListener('resize', () => {
+      const portal = document.querySelector('.actions-dropdown-portal');
+      const toggle = portal?._sourceToggle;
+      if (!portal || !toggle?.isConnected) return;
+      this.positionPortal(portal, toggle.getBoundingClientRect());
+    }, { signal });
 
     document.addEventListener('mouseover', (e) => {
       const trigger = e.target.closest('.actions-dropdown-portal .action-item.has-submenu');

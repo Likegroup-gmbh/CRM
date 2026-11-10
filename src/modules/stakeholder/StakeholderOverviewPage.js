@@ -17,6 +17,12 @@ import {
   isContracting,
   primaerBereichForAuftrag,
 } from '../../core/budget/leistungsbereich.js';
+import {
+  agenturPrognose,
+  istBeendet,
+  offenesCreatorBudget,
+  verkaufsstand,
+} from '../../core/budget/agenturPrognose.js';
 import { calculateMonatsauswertung, zuordnungsquote } from '../../core/budget/monatsauswertung.js';
 import { calculateRechnungsstatus, listZahlungsstandBelege, leereRechnungsseite } from '../../core/budget/rechnungsstatus.js';
 import {
@@ -138,6 +144,10 @@ const CARD_HINTS = {
   agentur: {
     formula: 'Feste Fee + EK/VK-Differenz',
     hint: 'Influencer-Fee wird zeitanteilig über die Laufzeit erkannt'
+  },
+  prognose: {
+    formula: 'Bisher erkannt + Fee bis Kampagnenende + Aus offenem Creator-Budget',
+    hint: 'Offenes Creator-Budget laufender Aufträge mal ihre eigene Spanne. Aufträge ohne gepflegte Preise zählen noch nicht'
   },
   ksk: {
     formula: 'UGC: 4,9 % auf EK · Influencer: KSK-Topf',
@@ -525,6 +535,7 @@ export class StakeholderOverviewPage {
     let sumCreatorPaid = 0;
     let sumCreatorOpen = 0;
     let sumPaidNetto = 0;
+    const prognoseBeitraege = [];
 
     auftraege.forEach(a => {
       const blocks = blockMap.get(a.id) || [];
@@ -561,6 +572,13 @@ export class StakeholderOverviewPage {
       const agenturMargin = summary.agencyFeeSummary?.ekVkMargin || 0;
       const agentur = agenturFest + agenturMargin;
       const agenturVoll = feeRaw + agenturMargin;
+      const stand = verkaufsstand(koops, videos);
+      prognoseBeitraege.push({
+        beendet: istBeendet(a.ende),
+        offen: offenesCreatorBudget(a.creator_budget, stand.vkAlle),
+        vkVoll: stand.vkVoll,
+        marge: stand.marge,
+      });
 
       const verbraucht = creator + agentur + ksk + zusatz;
       // Negativ = Ueberschreitung, wird bewusst durchgereicht (ADR 0007).
@@ -627,7 +645,12 @@ export class StakeholderOverviewPage {
         ksk: sumKsk,
         zusatz: sumZusatz,
         db: sumDb,
-        paidNetto: sumPaidNetto
+        paidNetto: sumPaidNetto,
+        prognose: agenturPrognose({
+          erkannt: sumAgentur,
+          feeBisEnde: sumAgenturVoll - sumAgentur,
+          beitraege: prognoseBeitraege,
+        })
       }
     };
   }
@@ -1198,6 +1221,7 @@ export class StakeholderOverviewPage {
     const verfuegbar = totals.verfuegbar;
     const creator = totals.creator;
     const agentur = totals.agentur;
+    const prognose = totals.prognose || { erkannt: agentur, feeBisEnde: 0, ausOffenemBudget: 0, summe: agentur };
     const ksk = totals.ksk;
     const zusatz = totals.zusatz;
     const db = totals.db;
@@ -1262,6 +1286,18 @@ export class StakeholderOverviewPage {
 
     return `
       <div class="stakeholder-cards stakeholder-cards--kalkulation">
+        ${breakdownCard(
+          'Prognostizierter Agenturanteil',
+          prognose.summe,
+          '',
+          [
+            ['Bisher erkannt', this.fmtEuro(prognose.erkannt)],
+            ['Fee bis Kampagnenende', this.fmtEuro(prognose.feeBisEnde)],
+            ['Aus offenem Creator-Budget', this.fmtEuro(prognose.ausOffenemBudget)],
+          ],
+          'Offenes Creator-Budget laufender Aufträge mal ihre eigene Spanne. Aufträge ohne gepflegte Preise zählen noch nicht.',
+          { hint: CARD_HINTS.prognose }
+        )}
         ${card('Auftragsvolumen = Budget', volumen, 'was der Kunde beauftragt hat', 'jede Buchung verbraucht Budget', { hint: CARD_HINTS.volumen })}
         ${card('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${this.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), hint: CARD_HINTS.verbraucht })}
         ${card(offenLabel, offenValue, offenSub, `${this.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}

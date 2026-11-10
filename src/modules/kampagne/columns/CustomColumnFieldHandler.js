@@ -21,7 +21,7 @@ export class CustomColumnFieldHandler {
    * Behandelt ein Custom Column Field-Update.
    * Gibt true zurueck wenn erfolgreich, wirft bei Fehler.
    */
-  static async handleUpdate(field, store) {
+  static readUpdate(field) {
     let columnId = field.getAttribute('data-custom-column-id');
     let entityId = field.getAttribute('data-entity-id');
 
@@ -30,10 +30,7 @@ export class CustomColumnFieldHandler {
       entityId = field.getAttribute('data-id');
     }
 
-    if (!columnId || !entityId) {
-      console.warn('⚠️ Custom Column Update: columnId oder entityId fehlt');
-      return false;
-    }
+    if (!columnId || !entityId) return null;
 
     let value;
     if (field.type === 'checkbox') {
@@ -44,12 +41,27 @@ export class CustomColumnFieldHandler {
       value = field.value;
     }
 
+    return { columnId, entityId, value };
+  }
+
+  static async handleUpdate(field, store) {
+    const read = this.readUpdate(field);
+    if (!read) {
+      console.warn('⚠️ Custom Column Update: columnId oder entityId fehlt');
+      return false;
+    }
+    const { columnId, entityId, value } = read;
+
     console.log(`💾 Custom Column Update:`, { columnId, entityId, value });
 
-    await CustomColumnDataLoader.upsertValue(columnId, entityId, value);
+    const previous = store?.getCustomColumnValue(entityId, columnId);
+    store?.updateCustomColumnValue(entityId, columnId, value);
 
-    if (store) {
-      store.updateCustomColumnValue(entityId, columnId, value);
+    try {
+      await CustomColumnDataLoader.upsertValue(columnId, entityId, value);
+    } catch (error) {
+      store?.updateCustomColumnValue(entityId, columnId, previous);
+      throw error;
     }
 
     // Dropdown: Neuen Wert dynamisch als Option hinzufuegen

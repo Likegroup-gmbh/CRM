@@ -685,6 +685,83 @@ describe('StakeholderOverviewPage', () => {
     vi.useRealTimers();
   });
 
+  it('zeigt den prognostizierten Agenturanteil als erste Kachel', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-02T12:00:00Z'));
+
+    const auftraege = [{
+      id: 'inf',
+      auftragsname: 'Influencer',
+      nettobetrag: 200000,
+      creator_budget: 1000,
+      start: '2026-01-01',
+      ende: '2026-12-31',
+      is_draft: false,
+      unternehmen_id: 'u1'
+    }, {
+      id: 'alt',
+      auftragsname: 'Beendet',
+      nettobetrag: 5000,
+      creator_budget: 1000,
+      start: '2026-01-01',
+      ende: '2026-06-30',
+      is_draft: false,
+      unternehmen_id: 'u1'
+    }];
+    const blocks = [
+      { auftrag_id: 'inf', campaign_type: 'influencer', umsatz_netto: 200000 },
+      { auftrag_id: 'alt', campaign_type: 'ugc_paid', umsatz_netto: 5000 }
+    ];
+    const kampagnen = [
+      { id: 'k-inf', auftrag_id: 'inf', videoanzahl: 1, creatoranzahl: 1 },
+      { id: 'k-alt', auftrag_id: 'alt', videoanzahl: 1, creatoranzahl: 1 }
+    ];
+    const kooperationen = [
+      { id: 'koop-inf', kampagne_id: 'k-inf', creator_id: 'c1', videoanzahl: 1, einkaufspreis_netto: 40, verkaufspreis_netto: 100, verkaufspreis_zusatzkosten: 0 },
+      { id: 'koop-alt', kampagne_id: 'k-alt', creator_id: 'c2', videoanzahl: 1, einkaufspreis_netto: 50, verkaufspreis_netto: 100, verkaufspreis_zusatzkosten: 0 }
+    ];
+    const videos = [
+      { id: 'v-inf', kooperation_id: 'koop-inf', einkaufspreis_netto: 40, verkaufspreis_netto: 100, kampagnenart: 'Influencer Kampagne' },
+      { id: 'v-alt', kooperation_id: 'koop-alt', einkaufspreis_netto: 50, verkaufspreis_netto: 100, kampagnenart: 'UGC Paid' }
+    ];
+    const details = [{
+      auftrag_id: 'inf',
+      campaign_type: ['influencer'],
+      agency_services_enabled: true,
+      percentage_fee_enabled: true,
+      percentage_fee_value: '100'
+    }];
+    const unternehmen = [{ id: 'u1', firmenname: 'Inf GmbH' }];
+
+    window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
+
+    const page = createPage();
+    await page.init();
+    const { totals } = page.aggregate();
+    const ratio = elapsedRatio('2026-01-01', '2026-12-31', new Date('2026-07-02T12:00:00Z'));
+
+    // Fee 100 zeitanteilig, EK/VK 60 + 50, offen 900 × eigene Spanne 60/100.
+    // Der beendete Auftrag hat 900 offen mit Spanne 50 %, trägt aber nichts bei.
+    expect(totals.agentur).toBeCloseTo(100 * ratio + 60 + 50, 5);
+    expect(totals.prognose.erkannt).toBeCloseTo(totals.agentur, 5);
+    expect(totals.prognose.feeBisEnde).toBeCloseTo(100 * (1 - ratio), 5);
+    expect(totals.prognose.ausOffenemBudget).toBeCloseTo(900 * 0.6, 5);
+    expect(totals.prognose.summe).toBeCloseTo(160 + 50 + 540, 5);
+
+    const html = window.setContentSafely.mock.calls.at(-1)[1];
+    const karten = html.split('Kunden nach Umsatz')[0];
+    expect(karten.indexOf('Prognostizierter Agenturanteil')).toBeGreaterThan(-1);
+    expect(karten.indexOf('Prognostizierter Agenturanteil')).toBeLessThan(karten.indexOf('Auftragsvolumen = Budget'));
+    expect(karten).toContain('Bisher erkannt');
+    expect(karten).toContain('Fee bis Kampagnenende');
+    expect(karten).toContain('Aus offenem Creator-Budget');
+    expect(karten).toContain('Offenes Creator-Budget laufender Aufträge mal ihre eigene Spanne. Aufträge ohne gepflegte Preise zählen noch nicht.');
+    const thead = (html.split('Kunden nach Umsatz')[1] || '').match(/<thead>[\s\S]*?<\/thead>/)?.[0] || '';
+    expect(thead).not.toContain('Prognostizierter Agenturanteil');
+
+    vi.useRealTimers();
+  });
+
   it('zeigt im Influencer-Tab "Offenes Creator Budget" statt "Verfügbares Budget"', async () => {
     const auftraege = [
       {

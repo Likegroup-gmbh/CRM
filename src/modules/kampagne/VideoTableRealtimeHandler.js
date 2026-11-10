@@ -12,6 +12,7 @@ import {
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
 import { applyLiveLinkCellState, findLiveLinkCell } from './liveLinkCell.js';
+import { mergeKeepingFilled, shouldKeepDisplayedText } from '../../core/table/textFieldBaseline.js';
 
 export class VideoTableRealtimeHandler {
   constructor(table) {
@@ -118,10 +119,45 @@ export class VideoTableRealtimeHandler {
       Date.now() - this.table._lastUpdateTime < 2000;
   }
 
+  // Ein Upload-Abschluss aktualisiert die Zeile, bevor Name oder Caption
+  // geblurrt sind. Der Payload traegt dann noch den alten oder leeren Wert
+  // und wuerde den gerade gesetzten Text loeschen.
+  _keepRecentText(incoming, fieldName, edits) {
+    if (!incoming?.id || !edits) return incoming;
+    const kept = edits.get(incoming.id);
+    if (!kept || Date.now() - kept.at >= 15000) return incoming;
+    if ((incoming[fieldName] ?? '') === kept.value) return incoming;
+    return { ...incoming, [fieldName]: kept.value };
+  }
+
+  _keepRecentVideoName(incoming) {
+    return this._keepRecentText(incoming, 'video_name', this.table._videoNameEdits);
+  }
+
+  _keepRecentCaption(incoming) {
+    return this._keepRecentText(incoming, 'caption', this.table._captionEdits);
+  }
+
+  _findVideo(videoId) {
+    if (!videoId) return null;
+    const maps = [this.table.videos, this.table.store?.videos];
+    for (const map of maps) {
+      if (!map) continue;
+      for (const list of Object.values(map)) {
+        const video = list?.find?.(entry => entry.id === videoId);
+        if (video) return video;
+      }
+    }
+    return null;
+  }
+
   async handleVideoUpdate(payload) {
     if (this._isOwnUpdate(payload.new?.id)) return;
 
-    const updatedVideo = payload.new;
+    const incoming = this._keepRecentCaption(this._keepRecentVideoName(payload.new));
+    // Leere Werte aus einem Zeilen-Update (Upload, Stats) dürfen Thema, Link,
+    // Preis und die übrigen Zellen nicht löschen.
+    const updatedVideo = mergeKeepingFilled(this._findVideo(incoming?.id), incoming);
     if (this.table.store) {
       this.table.store.updateVideo(updatedVideo.id, updatedVideo);
     } else {
@@ -327,7 +363,12 @@ export class VideoTableRealtimeHandler {
         // Fokussiertes oder noch nicht gespeichertes Feld nicht ueberschreiben.
         if (field === document.activeElement) return;
         if (this.table.feedbackSaveController?.isDirty(videoId, fieldName)) return;
-        const val = formatVideoFeedbackValue(this.table.videoComments[videoId], feedbackSlot.bucket);
+        // Kommentare kommen erst nach dem ersten Render. Solange dieser Slot
+        // nicht geladen ist, darf ein Zeilen-Update (Upload, Stats) Kunden-
+        // und eigenes Feedback nicht auf leer setzen.
+        const comments = this.table.videoComments;
+        if (!comments || !Object.prototype.hasOwnProperty.call(comments, videoId)) return;
+        const val = formatVideoFeedbackValue(comments[videoId], feedbackSlot.bucket);
         if (field.value !== val) { field.value = val; shouldUpdate = true; }
       } else switch (fieldName) {
         case 'freigabe': {
@@ -345,7 +386,12 @@ export class VideoTableRealtimeHandler {
           break;
         }
         default: {
-          const newVal = video[fieldName] || '';
+          // Feld, in dem gerade getippt wird, nicht leeren. Ein leeres
+          // Payload darf auch Thema, Ort, Link oder eine Zahl nicht löschen.
+          // 0 bleibt 0 (`|| ''` hätte die Zelle geleert).
+          if (field === document.activeElement || shouldKeepDisplayedText(field, video[fieldName])) break;
+          const raw = video[fieldName];
+          const newVal = raw == null ? '' : String(raw);
           if (field.value !== undefined && field.value !== newVal) {
             field.value = newVal;
             shouldUpdate = true;

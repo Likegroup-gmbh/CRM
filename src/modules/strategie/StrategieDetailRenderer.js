@@ -2,6 +2,7 @@
 // Tabellen-Rendering für die Strategie-Detail-Ansicht
 
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import { absorbStrategieEdits } from './StrategieDetailTableEvents.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions.js';
 import { isFixedColumnVisible } from './strategieColumns.js';
@@ -468,16 +469,14 @@ export function renderItemRow(detail, item, index) {
 }
 
 function renderSkriptFreigabeAction(item) {
-  const kannFreigeben = !!item.creator_auswahl_item_id && !item.nicht_umsetzen;
+  const kannFreigeben = !item.nicht_umsetzen;
   const aktiv = !!item.skript_freigabe;
   const disabled = !aktiv && !kannFreigeben;
   const title = aktiv
     ? 'Skript-Freigabe zurücknehmen'
     : (item.nicht_umsetzen
       ? 'Zuerst „Nicht umsetzen“ deaktivieren'
-      : (item.creator_auswahl_item_id
-        ? 'Für Skript freigeben'
-        : 'Zuerst einen Casting-Eintrag zuordnen'));
+      : 'Für Skript freigeben');
 
   return `
               <a href="#" class="action-item${disabled ? ' action-disabled' : ''}"
@@ -510,6 +509,8 @@ export function updateItemRow(detail, itemId) {
   const row = document.querySelector(`.strategie-items-table tr.item-row[data-item-id="${itemId}"]`);
   if (!row || row.contains(document.activeElement)) return false;
 
+  absorbStrategieEdits(detail, row);
+
   const item = detail.items.find(i => i.id === itemId);
   if (!item) return false;
 
@@ -526,6 +527,7 @@ export function rerenderItemsTable(detail) {
   const tableContainer = document.querySelector('.table-container');
   if (!tableContainer) return;
 
+  absorbStrategieEdits(detail, tableContainer);
   tableContainer.outerHTML = renderItemsTable(detail);
   
   detail._bindTableEvents();

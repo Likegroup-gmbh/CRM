@@ -398,6 +398,10 @@ export class KampagneKooperationenVideoTable {
       if (this.feedbackSaveController?.hasPending()) {
         await this.feedbackSaveController.flushAll();
       }
+      // Video-Name wird oft waehrend des Uploads getippt und ist dann noch
+      // nicht per Blur gespeichert. Vor dem Neuzeichnen uebernehmen, sonst
+      // ersetzt der Abschluss-Render das Feld mit dem alten Store-Wert.
+      await this.fieldHandler.flushEditedTextFields();
 
       const container = this.containerId ? document.getElementById(this.containerId) : null;
       if (!container) return;
@@ -434,6 +438,8 @@ export class KampagneKooperationenVideoTable {
     const container = this.containerId ? document.getElementById(this.containerId) : null;
     if (!container) return;
 
+    await this.fieldHandler?.flushEditedTextFields();
+
     if (this.store) {
       this.refilter();
       return;
@@ -450,7 +456,8 @@ export class KampagneKooperationenVideoTable {
   }
 
   destroy() {
-    // Offene Feedback-Saves noch ausloesen, bevor State/Listener abgebaut werden.
+    // Offene Text- und Feedback-Saves noch ausloesen, bevor die Tabelle abgebaut wird.
+    this.fieldHandler?.flushEditedTextFields();
     this.feedbackSaveController?.flushAll();
 
     this._closeStatusPortal();

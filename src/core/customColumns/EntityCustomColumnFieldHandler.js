@@ -20,7 +20,7 @@ export class EntityCustomColumnFieldHandler {
    * @param {(entityId:string, columnId:string, value:string)=>void} [ctx.onValueChange]
    * @returns {Promise<boolean>}
    */
-  static async handleUpdate(field, { dataLoader, columns, onValueChange }) {
+  static readUpdate(field) {
     let columnId = field.getAttribute('data-custom-column-id');
     let entityId = field.getAttribute('data-entity-id');
 
@@ -30,7 +30,7 @@ export class EntityCustomColumnFieldHandler {
       entityId = field.getAttribute('data-id');
     }
 
-    if (!columnId || !entityId) return false;
+    if (!columnId || !entityId) return null;
 
     let value;
     if (field.type === 'checkbox') {
@@ -41,8 +41,17 @@ export class EntityCustomColumnFieldHandler {
       value = field.value;
     }
 
-    await dataLoader.upsertValue(columnId, entityId, value);
+    return { columnId, entityId, value };
+  }
+
+  static async handleUpdate(field, { dataLoader, columns, onValueChange }) {
+    const read = this.readUpdate(field);
+    if (!read) return false;
+    const { columnId, entityId, value } = read;
+
+    // Vor dem Request, damit ein Neuzeichnen den gerade getippten Text schon zeigt.
     onValueChange?.(entityId, columnId, value);
+    await dataLoader.upsertValue(columnId, entityId, value);
 
     if (field.classList.contains('custom-col-select') && value) {
       await this._ensureDropdownOption(columnId, value, columns, dataLoader);

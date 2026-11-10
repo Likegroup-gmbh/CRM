@@ -248,8 +248,10 @@ export async function runVideoUploadJob(ctx) {
 
   await updateCurrentFlags(videoId);
 
+  // video_name gehoert der Kooperationsliste. Der beim Start gemerkte Name
+  // ist oft schon veraltet: wer waehrend des Uploads einen Namen setzt,
+  // wuerde ihn hier sonst ueberschreiben oder leeren.
   const updateData = {};
-  if (videoName) updateData.video_name = videoName;
   if (lastFileUrl) updateData.link_content = lastFileUrl;
   if (folderUrl) updateData.folder_url = folderUrl;
 

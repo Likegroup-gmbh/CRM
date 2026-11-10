@@ -7,6 +7,7 @@ import { saveVideoFeedbackSlot } from '../../core/videoFeedback/VideoFeedbackRep
 import { saveStillFeedbackSlot } from '../../core/videoFeedback/StillFeedbackRepository.js';
 import { CustomColumnFieldHandler } from './columns/CustomColumnFieldHandler.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
+import { hasUnsavedTextEdit, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 
 /**
  * Overlay einer kompakt formatierten Zahlenzelle nachziehen. Der Input haelt
@@ -41,6 +42,83 @@ export class VideoTableFieldHandler {
       }
     } catch (e) {
       console.warn('⚠️ Budget-Check Trigger fehlgeschlagen:', e);
+    }
+  }
+
+  rememberVideoName(videoId, value) {
+    const t = this.table;
+    if (!t._videoNameEdits) t._videoNameEdits = new Map();
+    t._videoNameEdits.set(videoId, { value: value ?? '', at: Date.now() });
+  }
+
+  rememberCaption(videoId, value) {
+    const t = this.table;
+    if (!t._captionEdits) t._captionEdits = new Map();
+    t._captionEdits.set(videoId, { value: value ?? '', at: Date.now() });
+  }
+
+  _storedVideoField(videoId, fieldName) {
+    for (const list of Object.values(this.table.videos || {})) {
+      const video = list?.find(v => v.id === videoId);
+      if (video) return video[fieldName] ?? '';
+    }
+    return undefined;
+  }
+
+  // Namen, die noch im Input stehen und nicht im Store, vor einem Re-Render
+  // speichern. Sonst zeigt die Liste nach dem Upload wieder ein leeres Feld.
+  async flushVideoNameEdits() {
+    await this._flushDomFields(
+      'input[data-entity="video"][data-field="video_name"]',
+      'video_name'
+    );
+  }
+
+  // Caption speichert nur beim Verlassen des Feldes. Ein Neuzeichnen (Upload,
+  // Filter, Spalten) ersetzt die Textarea vorher mit dem Store-Wert und der
+  // getippte Text ist weg. Deshalb vor dem Render sichern.
+  async flushCaptionEdits() {
+    await this._flushDomFields(
+      'textarea[data-entity="video"][data-field="caption"]',
+      'caption'
+    );
+  }
+
+  // Jede angefangene Textzelle, nicht nur Name und Caption. Sonst zeigt ein
+  // Neuzeichnen (Upload, Filter, Spalten) wieder den alten Store-Wert.
+  async flushEditedTextFields() {
+    const root = this.table.containerId
+      ? document.getElementById(this.table.containerId)
+      : document;
+    if (!root) return;
+
+    const fields = root.querySelectorAll(
+      'textarea[data-field], input[data-field], textarea[data-custom-column-id], input[data-custom-column-id]'
+    );
+    for (const field of fields) {
+      if (getVideoFeedbackSlotByField(field.getAttribute('data-field'))) continue;
+      if (!hasUnsavedTextEdit(field)) continue;
+      await this.handleFieldUpdate(field);
+      rememberTextBaseline(field);
+    }
+  }
+
+  async _flushDomFields(selector, fieldName) {
+    const root = this.table.containerId
+      ? document.getElementById(this.table.containerId)
+      : document;
+    if (!root) return;
+
+    const fields = root.querySelectorAll(selector);
+    for (const field of fields) {
+      const id = field.getAttribute('data-id');
+      const current = this._storedVideoField(id, fieldName);
+      if (current === undefined) continue;
+      if (current === field.value) continue;
+      // Nur eine echte Änderung seit dem Fokus sichern. Eine leer gezeichnete
+      // Zelle ohne Fokus darf die gespeicherte Caption oder den Namen nicht löschen.
+      if (!shouldPersistTextField(field)) continue;
+      await this.handleFieldUpdate(field);
     }
   }
 
@@ -198,7 +276,13 @@ export class VideoTableFieldHandler {
           console.log(`✅ Kooperation Status aktualisiert: ${statusName}`);
         } else {
           const tableName = entity === 'kooperation' ? 'kooperationen' : 'kooperation_videos';
-          
+
+          // Vor dem Request merken: ein aelteres Zeilen-Update (Upload, Stats)
+          // kann waehrend des Await eintreffen und traegt die Caption noch leer.
+          if (entity === 'video' && fieldName === 'caption') {
+            this.rememberCaption(id, value);
+          }
+
           const { error } = await window.supabase
             .from(tableName)
             .update({ [fieldName]: value })
@@ -212,6 +296,10 @@ export class VideoTableFieldHandler {
             } else if (entity === 'kooperation') {
               store.updateKooperation(id, { [fieldName]: value });
             }
+          }
+
+          if (entity === 'video' && fieldName === 'video_name') {
+            this.rememberVideoName(id, value);
           }
 
           console.log(`✅ ${entity} aktualisiert`);

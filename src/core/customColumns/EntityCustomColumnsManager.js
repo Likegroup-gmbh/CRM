@@ -146,13 +146,21 @@ export class EntityCustomColumnsManager {
   }
 
   async handleFieldUpdate(el, onChange) {
-    const ok = await EntityCustomColumnFieldHandler.handleUpdate(el, {
-      dataLoader: this.dataLoader,
-      columns: this.columns,
-      onValueChange: (entityId, columnId, value) => this.setValue(entityId, columnId, value)
-    });
-    if (ok) onChange?.();
-    return ok;
+    const read = EntityCustomColumnFieldHandler.readUpdate(el);
+    const previous = read ? this.getValue(read.entityId, read.columnId) : undefined;
+    try {
+      const ok = await EntityCustomColumnFieldHandler.handleUpdate(el, {
+        dataLoader: this.dataLoader,
+        columns: this.columns,
+        onValueChange: (entityId, columnId, value) => this.setValue(entityId, columnId, value)
+      });
+      if (!ok && read) this.setValue(read.entityId, read.columnId, previous);
+      if (ok) onChange?.();
+      return ok;
+    } catch (error) {
+      if (read) this.setValue(read.entityId, read.columnId, previous);
+      throw error;
+    }
   }
 
   /**

@@ -14,6 +14,7 @@ import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCusto
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
 import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { mergeRealtimeRow } from '../../core/table/textFieldBaseline.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -482,8 +483,10 @@ export class StrategieDetail {
     const item = this.items.find(i => i.id === row.id);
     if (!item) return;
 
-    // linked_video und andere angereicherte Felder haengen nicht an der Zeile
-    Object.assign(item, row);
+    // linked_video und andere angereicherte Felder haengen nicht an der Zeile.
+    // Leere Caption, Transkript oder Anmerkung aus einem veralteten Payload
+    // ersetzen vorhandenen Text nicht.
+    mergeRealtimeRow(item, row);
     updateItemRow(this, row.id);
   }
 

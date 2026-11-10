@@ -1551,6 +1551,18 @@ thead {
     inset 0 -1px 0 0 var(--gray-100);
 }
 
+/* Drag-to-Scroll setzt auf dem Container cursor: grab. Die Namenszelle soll
+   trotzdem die Hand zeigen, und der Link die ganze Zelle treffen. */
+.kampagne-table-container .data-table tbody td.col-name {
+  cursor: pointer;
+}
+
+.kampagne-table-container .data-table tbody td.col-name .table-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
 .kampagne-table-container .data-table thead th.col-name {
   z-index: 26;
   background: white;

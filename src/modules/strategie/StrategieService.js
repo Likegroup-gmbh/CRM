@@ -947,33 +947,29 @@ export class StrategieService {
 
   /**
    * Loesung der Zuordnung. Blockt, sobald ein Skript aus der Idee existiert.
+   * Die Skript-Freigabe bleibt: sie haengt nicht am Casting-Eintrag.
    */
   async unassignCastingItem(itemId) {
     if (await this.hasSkriptForItem(itemId)) {
       throw new Error('Die Zuordnung ist eingefroren, weil bereits ein Skript aus dieser Idee existiert.');
     }
-    await this.updateStrategieItem(itemId, {
-      creator_auswahl_item_id: null,
-      ...skriptFreigabeClearPatch()
-    });
+    await this.updateStrategieItem(itemId, { creator_auswahl_item_id: null });
   }
 
   /**
    * Skript-Freigabe setzen oder zuruecknehmen. Gate nur fuer Neuanlage.
-   * Freigeben nur mit Casting-Eintrag und ohne „Nicht umsetzen“.
+   * Freigeben geht ohne Casting-Eintrag: Skripte entstehen oft, bevor der
+   * Creator feststeht. „Nicht umsetzen“ bleibt gesperrt.
    */
   async setSkriptFreigabe(itemId, flag) {
     const { data: item, error } = await window.supabase
       .from('strategie_items')
-      .select('id, creator_auswahl_item_id, nicht_umsetzen')
+      .select('id, nicht_umsetzen')
       .eq('id', itemId)
       .single();
     if (error || !item) throw new Error('Videoidee nicht gefunden');
 
     if (flag) {
-      if (!item.creator_auswahl_item_id) {
-        throw new Error('Zuerst einen Casting-Eintrag zuordnen.');
-      }
       if (item.nicht_umsetzen) {
         throw new Error('Ideen mit „Nicht umsetzen“ können nicht freigegeben werden.');
       }
