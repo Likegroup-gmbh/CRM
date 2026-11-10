@@ -48,7 +48,7 @@ function renderCreatedBy(user) {
 
 // ────────────────────────── Page shell ──────────────────────────
 
-export function renderPageShell({ isAdmin, canEdit, searchQuery, statusTabs, typeTabs, activeStatusTab, activeTypeTab, monthSheetHtml }) {
+export function renderPageShell({ isAdmin, canEdit, showSummary, searchQuery, statusTabs, typeTabs, activeStatusTab, activeTypeTab, monthSheetHtml }) {
   const statusTabsHtml = statusTabs.map(t => renderTabButton({
     tab: t.id,
     label: `${t.label}<span class="tab-count" data-status-count="${t.id}">0</span>`,
@@ -93,7 +93,7 @@ export function renderPageShell({ isAdmin, canEdit, searchQuery, statusTabs, typ
     </div>
 
     <div class="kr-scroll-body">
-    ${renderInvoiceSummaryCards()}
+    ${showSummary ? renderInvoiceSummaryCards() : ''}
     <div class="data-table-container rechnung-table-container">
       <table class="data-table data-table--nowrap data-table--rechnung">
         <thead>
@@ -124,7 +124,7 @@ export function renderPageShell({ isAdmin, canEdit, searchQuery, statusTabs, typ
         <tbody id="rechnungen-table-body">
           <tr><td colspan="${getRechnungColumnCount(isAdmin)}" class="loading">Lade Rechnungen...</td></tr>
         </tbody>
-        ${renderInvoiceSummaryFoot(isAdmin)}
+        ${showSummary ? renderInvoiceSummaryFoot(isAdmin) : ''}
       </table>
     </div>
     </div>
