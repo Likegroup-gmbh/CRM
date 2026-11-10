@@ -70,11 +70,13 @@ export function getObjectUrl(key) {
  *
  * @param {string} key - stabiler Content-Key
  * @param {string} sourceUrl - aufgeloeste Stream-/Raw-URL
- * @param {{ maxBytes?: number }} [options]
+ * @param {{ maxBytes?: number, signal?: AbortSignal }} [options]
  * @returns {Promise<string|null>} object-URL oder null
  */
 export function ensure(key, sourceUrl, options = {}) {
   if (!key || !sourceUrl) return Promise.resolve(null);
+  const signal = options.signal || null;
+  if (signal?.aborted) return Promise.resolve(null);
 
   const existing = _cache.get(key);
   if (existing) {
@@ -88,7 +90,9 @@ export function ensure(key, sourceUrl, options = {}) {
   const promise = (async () => {
     const t0 = perfNow();
     try {
-      const res = await fetch(sourceUrl);
+      if (signal?.aborted) return null;
+      const res = await fetch(sourceUrl, signal ? { signal } : undefined);
+      if (signal?.aborted) return null;
       if (!res.ok) return null;
 
       // Frueh abbrechen, wenn die Datei zu gross ist (kein Voll-Download).
@@ -96,6 +100,7 @@ export function ensure(key, sourceUrl, options = {}) {
       if (lenHeader && Number(lenHeader) > maxFileBytes) return null;
 
       const blob = await res.blob();
+      if (signal?.aborted) return null;
       if (blob.size > maxFileBytes) return null;
 
       // Race: waehrend des Downloads koennte derselbe Key bereits gefuellt sein.

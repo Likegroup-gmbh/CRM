@@ -12,6 +12,7 @@ import { perfLog, mediaLog } from '../../mediaPerf.js';
 import { isRiskyFormat, lookupPath } from '../mediaIdentity.js';
 import { cachedSource, networkSource, fillBlobCache } from './sourceResolver.js';
 import { swapVideoSrc } from './swapVideoSrc.js';
+import { whenHeadroom } from './playbackHeadroom.js';
 
 export class StageController {
   constructor(host) {
@@ -20,6 +21,9 @@ export class StageController {
     this.token = 0;
     /** Key des aktuell sichtbaren, poolbaren Videos (fuers Offscreen-Parken). */
     this.activeVideoKey = null;
+    this._watchAbort = null;
+    this._neighborAbort = null;
+    this._stalled = false;
   }
 
   /** Das .media-viewer-stage-Element des offenen Players (oder null). */
@@ -29,6 +33,7 @@ export class StageController {
 
   /** Beim Schliessen: Stage-State verwerfen. */
   reset() {
+    this._cancelWatch();
     this.activeVideoKey = null;
   }
 
@@ -43,6 +48,7 @@ export class StageController {
   async show() {
     const { session } = this.host;
     const token = ++this.token;
+    this._cancelWatch();
     const media = this.host.currentMedia();
     if (!media) return;
 
@@ -69,13 +75,60 @@ export class StageController {
     this.apply();
     perfLog('resolve', { hit: 'miss', key: media.key });
 
-    // Sobald der Blob fertig ist, wird das laufende <video> darauf umgestellt ->
-    // das (spaeter geparkte) Element haengt am Blob statt an der Dropbox-URL.
-    fillBlobCache(media, resolved)?.then(blobUrl => {
-      if (blobUrl && token === this.token) this._upgradeActiveToBlob(media.key, blobUrl);
-    });
+    const activeVideo = this.activeVideoKey === media.key
+      ? this.el()?.querySelector('.vpl-video')
+      : null;
+    if (activeVideo) {
+      this._fillWhenReady(activeVideo, media, resolved, token);
+      return;
+    }
 
+    fillBlobCache(media, resolved);
     this._prefetchNeighbors();
+  }
+
+  /**
+   * Aktives Kooperationsvideo: Voll-Download und Video-Nachbar erst nach
+   * Headroom, damit der Stream beim Start die Leitung nicht teilt. Sobald der
+   * Blob fertig ist, wird das laufende <video> darauf umgestellt -> das (spaeter
+   * geparkte) Element haengt am Blob statt an der Dropbox-URL. `waiting` bricht
+   * nur den Nachbar-Download ab, nicht den laufenden Stream.
+   */
+  _fillWhenReady(video, media, streamUrl, token) {
+    const { prefetcher } = this.host;
+    const watch = new AbortController();
+    this._watchAbort = watch;
+    this._bindStall(video, watch.signal);
+    prefetcher.prefetchNeighborAssets();
+
+    whenHeadroom(video, { signal: watch.signal, isStalled: () => this._stalled }).then(async () => {
+      if (watch.signal.aborted || token !== this.token) return;
+      const blobUrl = await fillBlobCache(media, streamUrl);
+      if (watch.signal.aborted || token !== this.token) return;
+      if (blobUrl) this._upgradeActiveToBlob(media.key, blobUrl);
+      if (this._stalled) return;
+      this._neighborAbort = new AbortController();
+      prefetcher.prefetchNeighbors({ signal: this._neighborAbort.signal });
+    });
+  }
+
+  _bindStall(video, signal) {
+    const clear = () => { this._stalled = false; };
+    video.addEventListener('waiting', () => {
+      this._stalled = true;
+      this._neighborAbort?.abort();
+    }, { signal });
+    video.addEventListener('playing', clear, { signal });
+    video.addEventListener('canplay', clear, { signal });
+    video.addEventListener('canplaythrough', clear, { signal });
+  }
+
+  _cancelWatch() {
+    this._watchAbort?.abort();
+    this._watchAbort = null;
+    this._neighborAbort?.abort();
+    this._neighborAbort = null;
+    this._stalled = false;
   }
 
   /** Rendert/holt das Stage-Innere fuer die aktuelle Session-Quelle. */
@@ -138,6 +191,7 @@ export class StageController {
    * aktuelle Medium kein cachebares Video war (activeVideoKey === null).
    */
   park() {
+    this._cancelWatch();
     const key = this.activeVideoKey;
     if (!key) return;
     this.activeVideoKey = null;

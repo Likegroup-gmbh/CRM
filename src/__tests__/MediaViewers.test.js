@@ -16,6 +16,7 @@ import { resolveStreamUrl, prefetchStreamUrl, _clearMediaSrcCache } from '../cor
 import { _clearAblageLinkCache } from '../core/ablage/ablageLink.js';
 import * as MediaCache from '../core/media/MediaCache.js';
 import { VideoElementPool } from '../core/media/player/VideoElementPool.js';
+import { bufferedAhead, hasHeadroom, whenHeadroom } from '../core/media/player/stage/playbackHeadroom.js';
 import { feedbackTargetFor } from '../core/media/player/playerFeedbackTarget.js';
 import { applyVideoDefault } from '../core/media/player/selection/video.js';
 import { applyStillDefault } from '../core/media/player/selection/still.js';
@@ -1166,7 +1167,7 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
     host.innerHTML = '<div class="media-viewer-stage"></div>';
     player.lightbox = { isOpen: () => true, contentEl: host, update: () => {} };
     // Prefetch hier irrelevant -> No-op.
-    player.prefetcher = { prefetchNeighborAssets() {}, scheduleNeighborPrefetch() {} };
+    player.prefetcher = { prefetchNeighborAssets() {}, scheduleNeighborPrefetch() {}, prefetchNeighbors() {} };
     return player;
   }
 
@@ -1222,17 +1223,168 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
 
     await player.stage.show();
 
-    // Zunaechst Dropbox-Stream-URL (Cache-Miss).
+    // Zunaechst Dropbox-Stream-URL (Cache-Miss). Ohne Headroom kein Blob-Download.
     const v = player.lightbox.contentEl.querySelector('.vpl-video');
     expect(v.getAttribute('src')).toContain('https://dl/v1.mp4');
     expect(player.stage.activeVideoKey).toBe('video:a1:t1');
+    expect(global.fetch.mock.calls.some(call => call[0] === 'https://dl/v1.mp4')).toBe(false);
 
-    // Sobald der Blob fertig ist, upgradet das aktive Element.
+    // Headroom: Puffer liegt voraus, erst dann ensure + Src-Tausch.
+    Object.defineProperty(v, 'buffered', {
+      configurable: true,
+      get: () => ({ length: 1, start: () => 0, end: () => 30 }),
+    });
+    v.dispatchEvent(new Event('progress'));
+
     await vi.waitFor(() => {
       const cur = player.lightbox.contentEl.querySelector('.vpl-video');
       expect(cur.getAttribute('src')).toContain('blob:obj-1');
     });
     expect(player.session.src).toBe('blob:obj-1');
+  });
+
+  it('Nachbar-Video erst nach dem Blob, waiting bricht den Nachbar-Download ab', async () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const player = makePlayer(koops, videos);
+    let neighborSignal = null;
+    player.prefetcher.prefetchNeighbors = vi.fn(({ signal } = {}) => { neighborSignal = signal; });
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+
+    global.fetch = vi.fn(async (url) => {
+      if (typeof url === 'string' && url.includes('dropbox-proxy')) {
+        return { ok: true, json: async () => ({ link: 'https://dl/v1.mp4' }) };
+      }
+      return { ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) };
+    });
+
+    await player.stage.show();
+    const v = player.lightbox.contentEl.querySelector('.vpl-video');
+    expect(player.prefetcher.prefetchNeighbors).not.toHaveBeenCalled();
+
+    Object.defineProperty(v, 'buffered', {
+      configurable: true,
+      get: () => ({ length: 1, start: () => 0, end: () => 30 }),
+    });
+    v.dispatchEvent(new Event('progress'));
+
+    await vi.waitFor(() => expect(player.prefetcher.prefetchNeighbors).toHaveBeenCalledTimes(1));
+    expect(neighborSignal.aborted).toBe(false);
+
+    v.dispatchEvent(new Event('waiting'));
+    expect(neighborSignal.aborted).toBe(true);
+  });
+
+  it('park() vor Headroom: kein Blob-Download mehr fuer das verlassene Video', async () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const player = makePlayer(koops, videos);
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+
+    global.fetch = vi.fn(async (url) => {
+      if (typeof url === 'string' && url.includes('dropbox-proxy')) {
+        return { ok: true, json: async () => ({ link: 'https://dl/v1.mp4' }) };
+      }
+      return { ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) };
+    });
+
+    await player.stage.show();
+    const v = player.lightbox.contentEl.querySelector('.vpl-video');
+    player.stage.park();
+
+    Object.defineProperty(v, 'buffered', {
+      configurable: true,
+      get: () => ({ length: 1, start: () => 0, end: () => 30 }),
+    });
+    v.dispatchEvent(new Event('progress'));
+    await new Promise(r => setTimeout(r, 0));
+
+    expect(global.fetch.mock.calls.some(call => call[0] === 'https://dl/v1.mp4')).toBe(false);
+  });
+});
+
+describe('playbackHeadroom', () => {
+  function fakeVideo({ currentTime = 0, duration = 60, readyState = 2, end = 0 } = {}) {
+    const el = document.createElement('video');
+    Object.defineProperty(el, 'currentTime', { configurable: true, value: currentTime, writable: true });
+    Object.defineProperty(el, 'duration', { configurable: true, value: duration, writable: true });
+    Object.defineProperty(el, 'readyState', { configurable: true, value: readyState, writable: true });
+    Object.defineProperty(el, 'buffered', {
+      configurable: true,
+      get: () => (end > 0 ? { length: 1, start: () => 0, end: () => end } : { length: 0, start: () => 0, end: () => 0 }),
+    });
+    return el;
+  }
+
+  it('bufferedAhead misst den Puffer ab dem Playhead', () => {
+    expect(bufferedAhead(fakeVideo({ currentTime: 5, end: 20 }))).toBe(15);
+    expect(bufferedAhead(fakeVideo({ currentTime: 5 }))).toBe(0);
+  });
+
+  it('Headroom ab 8s Vorsprung oder bei kurzem, durchspielbarem Rest', () => {
+    expect(hasHeadroom(fakeVideo({ end: 4 }))).toBe(false);
+    expect(hasHeadroom(fakeVideo({ end: 10 }))).toBe(true);
+    expect(hasHeadroom(fakeVideo({ end: 10 }), { stalled: true })).toBe(false);
+    expect(hasHeadroom(fakeVideo({ duration: 5, readyState: 4, end: 2 }))).toBe(true);
+    expect(hasHeadroom(fakeVideo({ duration: 5, readyState: 3, end: 2 }))).toBe(false);
+  });
+
+  it('whenHeadroom resolved bei progress mit Puffer und nach Timeout', async () => {
+    let end = 0;
+    const el = fakeVideo();
+    Object.defineProperty(el, 'buffered', {
+      configurable: true,
+      get: () => (end > 0 ? { length: 1, start: () => 0, end: () => end } : { length: 0, start: () => 0, end: () => 0 }),
+    });
+    let done = false;
+    whenHeadroom(el).then(() => { done = true; });
+    await Promise.resolve();
+    expect(done).toBe(false);
+    end = 12;
+    el.dispatchEvent(new Event('progress'));
+    await vi.waitFor(() => expect(done).toBe(true));
+
+    let timedOut = false;
+    whenHeadroom(fakeVideo(), { timeoutMs: 5 }).then(() => { timedOut = true; });
+    await vi.waitFor(() => expect(timedOut).toBe(true));
+  });
+});
+
+describe('MediaCache.ensure – Abbruch per signal', () => {
+  beforeEach(() => {
+    MediaCache._clearMediaCache();
+    URL.createObjectURL = vi.fn(() => 'blob:ready');
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it('abgebrochener Download landet nicht im Cache, ein neuer Versuch klappt', async () => {
+    let fetchSignal = null;
+    global.fetch = vi.fn((_url, init) => new Promise((_resolve, reject) => {
+      fetchSignal = init?.signal;
+      init?.signal?.addEventListener('abort', () => {
+        const err = new Error('Aborted');
+        err.name = 'AbortError';
+        reject(err);
+      });
+    }));
+    const ac = new AbortController();
+    const pending = MediaCache.ensure('video:n:t', 'https://dl/n.mp4', { signal: ac.signal });
+    ac.abort();
+    expect(await pending).toBeNull();
+    expect(fetchSignal.aborted).toBe(true);
+    expect(MediaCache.getObjectUrl('video:n:t')).toBeNull();
+
+    global.fetch = vi.fn(async () => ({ ok: true, headers: { get: () => null }, blob: async () => ({ size: 4 }) }));
+    expect(await MediaCache.ensure('video:n:t', 'https://dl/n.mp4')).toBe('blob:ready');
+    expect(global.fetch).toHaveBeenCalledWith('https://dl/n.mp4', undefined);
+  });
+
+  it('bereits abgebrochenes signal startet gar keinen fetch', async () => {
+    global.fetch = vi.fn();
+    const ac = new AbortController();
+    ac.abort();
+    expect(await MediaCache.ensure('video:x:t', 'https://dl/x.mp4', { signal: ac.signal })).toBeNull();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 

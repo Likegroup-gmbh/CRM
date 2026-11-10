@@ -395,10 +395,13 @@ describe('swapVideoSrc', () => {
     expect(video.play).not.toHaveBeenCalled();
   });
 
-  it('readyState >= 1: sofort wiederherstellen (kein Warten auf loadedmetadata)', () => {
-    const video = fakeVideo({ readyState: 1 });
+  it('wartet auf loadedmetadata, auch wenn readyState noch vom alten Medium stammt', () => {
+    const video = fakeVideo({ readyState: 2 });
     swapVideoSrc(video, 'blob:neu', { resume: true });
+    expect(video.play).not.toHaveBeenCalled();
+    video.currentTime = 0;
+    video.fire('loadedmetadata');
     expect(video.currentTime).toBe(12);
-    expect(video.play).toHaveBeenCalled();
+    expect(video.play).toHaveBeenCalledTimes(1);
   });
 });
