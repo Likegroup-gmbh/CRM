@@ -298,8 +298,14 @@ export function _bindCustomColumnEvents() {
     if (this._customHeaderDragCleanup) { this._customHeaderDragCleanup(); this._customHeaderDragCleanup = null; }
   });
 
-  // Datepicker-Popover fuer Datums-Custom-Felder aktivieren
   const table = this._q('.creator-pool-table');
+  if (this._customHeaderResizeCleanup) this._customHeaderResizeCleanup();
+  this._customHeaderResizeCleanup = this.customColumns.bindColumnResize(table);
+  this._boundEventListeners.add(() => {
+    if (this._customHeaderResizeCleanup) { this._customHeaderResizeCleanup(); this._customHeaderResizeCleanup = null; }
+  });
+
+  // Datepicker-Popover fuer Datums-Custom-Felder aktivieren
   if (table) {
     const cleanup = CustomDatePicker.bind(table);
     if (cleanup) this._boundEventListeners.add(cleanup);

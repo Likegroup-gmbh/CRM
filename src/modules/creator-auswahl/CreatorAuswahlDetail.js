@@ -65,6 +65,7 @@ export class CreatorAuswahlDetail {
       disabledAnchors: DEAKTIVIERTE_SPALTEN
     });
     this._customHeaderDragCleanup = null;
+    this._customHeaderResizeCleanup = null;
   }
 
   _getRoot() {

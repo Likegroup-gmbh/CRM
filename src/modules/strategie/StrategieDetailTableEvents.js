@@ -769,6 +769,12 @@ export function bindCustomColumnEvents(detail) {
   });
 
   const table = q(detail, '.strategie-items-table');
+  if (detail._customHeaderResizeCleanup) detail._customHeaderResizeCleanup();
+  detail._customHeaderResizeCleanup = detail.customColumns.bindColumnResize(table);
+  detail._tableEventListeners.add(() => {
+    if (detail._customHeaderResizeCleanup) { detail._customHeaderResizeCleanup(); detail._customHeaderResizeCleanup = null; }
+  });
+
   if (table) {
     const cleanup = CustomDatePicker.bind(table);
     if (cleanup) detail._tableEventListeners.add(cleanup);

@@ -33,7 +33,9 @@ export function renderCustomHeaders(orderedCols, hiddenColumns, isKunde) {
     return `<th class="entity-custom-col-header" data-custom-col-id="${colId}"${hide}>` +
       `<div class="entity-custom-col-header-inner">` +
       `${grip}<span class="entity-custom-col-title">${escapeHtml(col.name)}</span>` +
-      `</div></th>`;
+      `</div>` +
+      `<div class="resize-handle resize-handle-col" data-col="${colId}"></div>` +
+      `</th>`;
   }).join('');
 }
 

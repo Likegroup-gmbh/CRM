@@ -7,6 +7,7 @@ import { EntityCustomColumnDataLoader } from './EntityCustomColumnDataLoader.js'
 import { EntityCustomColumnsDrawer } from './EntityCustomColumnsDrawer.js';
 import { EntityCustomColumnFieldHandler } from './EntityCustomColumnFieldHandler.js';
 import { renderCustomHeaders, renderCustomCells } from './EntityCustomColumnRenderer.js';
+import { bindColumnResize as bindEntityColumnResize, applySavedWidths } from './EntityCustomColumnResize.js';
 import {
   orderCustomColumns, makeCustomColumnId, groupCustomColumnsByAnchor, toOrderEntry,
   isCustomColumnId
@@ -317,6 +318,32 @@ export class EntityCustomColumnsManager {
       document.removeEventListener('drop', onDrop);
       root.removeEventListener('dragend', onDragEnd);
     };
+  }
+
+  /** table, die th+td enthaelt — thead allein reicht nicht fuer die Zellen. */
+  _resizeRoot(root) {
+    if (!root) return null;
+    return root.matches?.('table') ? root : (root.closest?.('table') || root);
+  }
+
+  /**
+   * Bindet Resize an eigene Spalten und spielt gespeicherte Breiten ein.
+   * @param {HTMLElement} root  table oder thead
+   * @returns {() => void} cleanup
+   */
+  bindColumnResize(root) {
+    const table = this._resizeRoot(root);
+    if (!table) return () => {};
+    return bindEntityColumnResize(table, {
+      parentType: this.parentType,
+      parentId: this.parentId
+    });
+  }
+
+  applyColumnWidths(root) {
+    const table = this._resizeRoot(root);
+    if (!table) return;
+    applySavedWidths(table, this.parentType, this.parentId);
   }
 
   _istDropZiel(th) {

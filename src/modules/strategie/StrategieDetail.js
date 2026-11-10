@@ -59,6 +59,7 @@ export class StrategieDetail {
     this.hiddenColumns = [];
     this.customColumns = new EntityCustomColumnsManager({ parentType: 'strategie', parentTable: 'strategie' });
     this._customHeaderDragCleanup = null;
+    this._customHeaderResizeCleanup = null;
     this.vorschlagPanel = new VideoideeVorschlagPanel(this);
     this.konzeptLiky = new KonzeptLikyPanel(this);
     this.root = null;
