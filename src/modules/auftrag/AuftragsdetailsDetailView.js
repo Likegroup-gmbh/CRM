@@ -1,6 +1,7 @@
 // Kopf, Budgetkacheln und Notizen der Auftragsdetails.
 
 import { renderAgencyFeeCardHtml, renderKskCardHtml, calculateCreatorPaymentSummary, renderCreatorAnteilCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { CARD_HINTS, renderSummaryLabelHtml } from '../../core/budget/cardHints.js';
 import { renderAuftragNotizSection } from './AuftragDetailsNotiz.js';
 
 // Rendere Auftragsdetails-Detailseite
@@ -32,8 +33,11 @@ export function renderInformationen(detail) {
   const verbrauchtesBudget = detail.budgetSummary.verbrauchtesBudget || 0;
   const verfuegbaresBudget = detail.budgetSummary.verfuegbaresBudget || 0;
   const creatorAnteil = detail.budgetSummary.creatorAnteil || 0;
-  const budgetPct = auftragsvolumen > 0 ? Math.min(100, Math.round((verbrauchtesBudget / auftragsvolumen) * 100)) : 0;
-  const openPct = auftragsvolumen > 0 ? Math.max(0, 100 - budgetPct) : 0;
+  // UGC: Balken laeuft gegen den freien Topf (Netto abzgl. reservierter
+  // Zusatzleistungen), nicht gegen das volle Auftragsvolumen.
+  const spendableBudget = detail.budgetSummary.spendableBudget ?? auftragsvolumen;
+  const budgetPct = spendableBudget > 0 ? Math.min(100, Math.round((verbrauchtesBudget / spendableBudget) * 100)) : 0;
+  const openPct = spendableBudget > 0 ? Math.max(0, 100 - budgetPct) : 0;
 
   const getBudgetColorClass = (pct) => {
     if (pct >= 90) return 'summary-progress-fill--danger';
@@ -59,7 +63,7 @@ export function renderInformationen(detail) {
     ? validExtraServices.map(s => `
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(parseFloat(s.amount) || 0)}</div>
-            <div class="summary-label">${sanitize(s.name)}</div>
+            ${renderSummaryLabelHtml(sanitize(s.name), CARD_HINTS.extras)}
           </div>
         `).join('')
     : '';
@@ -78,15 +82,15 @@ export function renderInformationen(detail) {
   const budgetCardsHtml = budgetCardVariant === 'influencer' ? `
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(auftragsvolumen)}</div>
-            <div class="summary-label">Gesamt Nettobetrag</div>
+            ${renderSummaryLabelHtml('Gesamt Nettobetrag', CARD_HINTS.volumen)}
           </div>
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(creatorBudget)}</div>
-            <div class="summary-label">Creatorbudget</div>
+            ${renderSummaryLabelHtml('Creatorbudget', CARD_HINTS.creatorbudget)}
           </div>
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(verbrauchtesCreatorBudget)}</div>
-            <div class="summary-label">Verbrauchtes Creatorbudget</div>
+            ${renderSummaryLabelHtml('Verbrauchtes Creatorbudget', CARD_HINTS.verbrauchtCreator)}
             <div class="summary-progress">
               <div class="summary-progress-fill ${getBudgetColorClass(creatorBudgetPct)}"
                    style="width: ${creatorBudgetPct}%">
@@ -95,7 +99,7 @@ export function renderInformationen(detail) {
           </div>
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(offenesBudget)}</div>
-            <div class="summary-label">Offenes Creator Budget</div>
+            ${renderSummaryLabelHtml('Offenes Creator Budget', CARD_HINTS.offenCreator)}
             <div class="summary-progress">
               <div class="summary-progress-fill ${getOpenBudgetColorClass(offenesBudgetPct)}"
                    style="width: ${offenesBudgetPct}%">
@@ -106,16 +110,16 @@ export function renderInformationen(detail) {
           ${renderAgencyFeeCardHtml(agencyFeeSummary, formatCurrency, { canSeePricing: true })}
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(detail.budgetSummary.extraKostenVkSum || 0)}</div>
-            <div class="summary-label">Zusatzkosten</div>
+            ${renderSummaryLabelHtml('Zusatzkosten', CARD_HINTS.zusatz)}
           </div>
           ${zusatzleistungenCardsHtml}` : `
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(auftragsvolumen)}</div>
-            <div class="summary-label">Auftragsvolumen</div>
+            ${renderSummaryLabelHtml('Auftragsvolumen', CARD_HINTS.volumen)}
           </div>
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(verfuegbaresBudget)}</div>
-            <div class="summary-label">Verfügbares Budget</div>
+            ${renderSummaryLabelHtml('Verfügbares Budget', CARD_HINTS.verfuegbar)}
             <div class="summary-progress">
               <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
                    style="width: ${openPct}%">
@@ -124,7 +128,7 @@ export function renderInformationen(detail) {
           </div>
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(verbrauchtesBudget)}</div>
-            <div class="summary-label">Verbrauchtes Budget</div>
+            ${renderSummaryLabelHtml('Verbrauchtes Budget', CARD_HINTS.verbraucht)}
             <div class="summary-progress">
               <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}"
                    style="width: ${budgetPct}%">
@@ -136,7 +140,7 @@ export function renderInformationen(detail) {
           ${renderKskCardHtml(agencyFeeSummary, formatCurrency)}
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(detail.budgetSummary.extraKostenVkSum || 0)}</div>
-            <div class="summary-label">Zusatzkosten</div>
+            ${renderSummaryLabelHtml('Zusatzkosten', CARD_HINTS.zusatz)}
           </div>
           ${zusatzleistungenCardsHtml}`;
 
@@ -222,8 +226,9 @@ export function getBudgetProgressPercentage(detail) {
     return Math.min(100, Math.round(((detail.budgetSummary.usedVkBudget || 0) / creatorBudget) * 100));
   }
   const auftragsvolumen = parseFloat(detail.auftrag?.nettobetrag) || 0;
-  if (auftragsvolumen <= 0) return 0;
-  return Math.min(100, Math.round(((detail.budgetSummary.verbrauchtesBudget || 0) / auftragsvolumen) * 100));
+  const spendableBudget = detail.budgetSummary.spendableBudget ?? auftragsvolumen;
+  if (spendableBudget <= 0) return 0;
+  return Math.min(100, Math.round(((detail.budgetSummary.verbrauchtesBudget || 0) / spendableBudget) * 100));
 }
 
 // Bestimme Farbe für Budget Progress-Bar

@@ -51,7 +51,7 @@ const FINANZBESTAND_SELECTS = [
   ['creator',
     'id, vorname, nachname'],
   ['auftrag_details',
-    'auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value'],
+    'auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services'],
   ['unternehmen',
     'id, firmenname, ist_test'],
   ['auftrag_teilrechnung',

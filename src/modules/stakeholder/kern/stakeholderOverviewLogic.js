@@ -106,6 +106,7 @@ export function groupRowsByKundeMarke(rows) {
         agenturVoll: 0,
         ksk: 0,
         zusatz: 0,
+        extras: 0,
         starts: [],
         endes: [],
         feeCount: 0,
@@ -126,6 +127,7 @@ export function groupRowsByKundeMarke(rows) {
     g.agenturVoll += r.agenturVoll || 0;
     g.ksk += r.ksk || 0;
     g.zusatz += r.zusatz || 0;
+    g.extras += r.extras || 0;
     if (auftrag.start) g.starts.push(auftrag.start);
     if (auftrag.ende) g.endes.push(auftrag.ende);
     if (r.details?.percentage_fee_enabled) g.feeCount += 1;

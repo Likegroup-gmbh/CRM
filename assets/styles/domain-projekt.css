@@ -13,6 +13,7 @@
   min-height: inherit;
   width: 100%;
   gap: 0;
+  min-width: 0;
 }
 
 .projekt-erstellen-step-host {
@@ -20,6 +21,8 @@
   flex: 1;
   flex-direction: column;
   min-height: 320px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 #projekt-progress-container .progress-steps {
@@ -230,6 +233,7 @@
   display: flex;
   gap: var(--space-sm);
   align-items: end;
+  min-width: 0;
 }
 
 .projekt-erstellen-empty-note {
@@ -243,6 +247,60 @@
   flex-direction: column;
   gap: var(--space-sm);
   margin-top: var(--space-md);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.projekt-erstellen-section-stack,
+.projekt-erstellen-subsection {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Fieldset + Number-Inputs haben UA-min-content und laufen sonst unter die Preview. */
+.projekt-erstellen-campaign-block {
+  min-width: 0;
+  min-inline-size: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.projekt-erstellen-container .form-two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  width: 100%;
+}
+
+.projekt-erstellen-container .form-field,
+.projekt-erstellen-container .form-field--half,
+.projekt-erstellen-container .form-field--full {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.projekt-erstellen-container .form-field input,
+.projekt-erstellen-container .form-field textarea,
+.projekt-erstellen-container .form-field select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.projekt-erstellen-container .price-range-inputs {
+  min-width: 0;
+  width: 100%;
+}
+
+.projekt-erstellen-container .budget-textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+@container pe-form (max-width: 28rem) {
+  .projekt-erstellen-container .form-two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .projekt-erstellen-budget-host:empty {

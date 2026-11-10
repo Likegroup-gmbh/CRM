@@ -337,6 +337,7 @@ export class KampagneDetail {
       selectedStatuses: this.store?.selectedStatuses || [],
       selectedTags: this.store?.selectedTags || [],
       kooperationSort: this.store?.kooperationSort || 'created_desc',
+      ...this._summaryRows(),
       activeWorkflow: this.activeWorkflowTab,
       strategien: this.strategien,
       sourcingListenCount: this.sourcingListenCount,
@@ -430,9 +431,17 @@ export class KampagneDetail {
       summary.extraKostenVkSum,
       summary.ekVkMarginSum,
       summary.kskUmgebucht,
-      { animate }
+      { animate, ...this._summaryRows() }
     );
     updateVideoStatsCardDOM(summary.videoStats, { animate });
+  }
+
+  /** Ungefilterte Kooperationen + Videos: der UGC-Rest ist der Auftragstopf, nicht der Tag-Filter. */
+  _summaryRows() {
+    return {
+      kooperationen: this.store?.kooperationen || [],
+      videos: Object.values(this.store?.videos || {}).flat()
+    };
   }
 
   // Nach Anlegen nachziehen. Läufe hintereinander: ein Realtime-Insert
@@ -496,7 +505,7 @@ export class KampagneDetail {
       this.kooperationenVideoTable.updateTabCounts();
     }
 
-    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht);
+    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht, this._summaryRows());
     updateVideoStatsCardDOM(this.videoStats);
 
     await this.kooperationenVideoTable.loadAssetsAndCommentsForVisible();

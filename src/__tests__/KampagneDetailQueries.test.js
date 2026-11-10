@@ -133,6 +133,29 @@ describe('KampagneDetail – Mitarbeiter-Rollen Query-Konsolidierung', () => {
     expect(fromCalls['rechnung']).toBeUndefined();
   });
 
+  it('fragt auftrag_details ohne extra_services_enabled (Spalte existiert nicht)', async () => {
+    let detailsSelect = null;
+    setupSupabaseMock([]);
+    const originalFrom = window.supabase.from;
+    window.supabase.from = vi.fn((table) => {
+      const q = originalFrom(table);
+      if (table === 'auftrag_details') {
+        const innerSelect = q.select;
+        q.select = vi.fn((cols) => {
+          detailsSelect = cols;
+          return innerSelect.call(q, cols);
+        });
+      }
+      return q;
+    });
+
+    await detail.loadCriticalData();
+
+    expect(detailsSelect).toEqual(expect.stringContaining('campaign_type'));
+    expect(detailsSelect).toEqual(expect.stringContaining('extra_services'));
+    expect(detailsSelect).not.toEqual(expect.stringContaining('extra_services_enabled'));
+  });
+
   it('referenziert kein nicht-existierendes loadKampagneData in Event-Handlern', async () => {
     setupSupabaseMock([]);
     await detail.loadCriticalData();

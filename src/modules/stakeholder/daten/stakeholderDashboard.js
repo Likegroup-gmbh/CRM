@@ -211,6 +211,8 @@ export function berechneDashboard(bestand = {}) {
         agentur_marge: mal(summary.agencyFeeSummary?.ekVkMargin || 0),
         ksk: mal(summary.agencyFeeSummary?.kskValue || 0),
         zusatz: mal(summary.extraKostenVkSum || 0),
+        // Zusatzleistungen: reserviert, kein Verbrauch, mindern den Rest.
+        extras: mal(summary.extraServicesSum || 0),
         ekvk_vk: mal(summary.vkSum || 0),
         ekvk_realisiert: mal(summary.ekVkMarginSum || 0),
         // Prognose im Browser: offenes Creator-Budget und Spanne je Gruppe,

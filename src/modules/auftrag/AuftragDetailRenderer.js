@@ -6,6 +6,7 @@ import { AuftragDetail } from './AuftragDetailCore.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 import { renderSecondaryNav } from '../../core/TabUtils.js';
 import { berechneVerfuegbaresBudget } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { calculateBudgetOverview, getBudgetCardVariant } from '../../core/budget/calculateBudgetOverview.js';
 
 export const fmtNum = (v) => v || v === 0 ? new Intl.NumberFormat('de-DE').format(v) : '-';
 
@@ -110,17 +111,8 @@ Object.assign(AuftragDetail.prototype, {
   },
 
   renderAuftragSummaryCards() {
-    // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
-    const totalBudget = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen).verfuegbar;
-    const usedBudget = this.usedBudget || 0;
-    // Negativ = Ueberschreitung, wird ausgewiesen statt geklemmt (ADR 0007).
-    const openBudget = totalBudget - usedBudget;
-
     const fmt = (v) => this.formatCurrency(v);
     const num = fmtNum;
-
-    const budgetPct = totalBudget > 0 ? Math.round((usedBudget / totalBudget) * 100) : 0;
-    const openPct = totalBudget > 0 ? 100 - budgetPct : 0;
     // Nur die Balkengeometrie wird begrenzt, nicht der angezeigte Wert.
     const barWidth = (pct) => Math.min(100, Math.max(0, pct));
 
@@ -140,29 +132,7 @@ Object.assign(AuftragDetail.prototype, {
     return `
       <div class="auftragsdetails-summary u-mb-xl">
         <div class="summary-cards">
-          ${canViewInternalBudget ? `
-          <div class="summary-card" data-summary-card="total-budget">
-            <div class="summary-value">${fmt(totalBudget)}</div>
-            <div class="summary-label">Gesamtbudget (netto)</div>
-          </div>
-          <div class="summary-card" data-summary-card="spent-budget">
-            <div class="summary-value">${fmt(usedBudget)}</div>
-            <div class="summary-label">Verbrauchtes Budget</div>
-            <div class="summary-progress">
-              <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}"
-                   style="width: ${barWidth(budgetPct)}%">
-              </div>
-            </div>
-          </div>
-          <div class="summary-card" data-summary-card="open-budget">
-            <div class="summary-value">${fmt(openBudget)}</div>
-            <div class="summary-label">Offenes Creator Budget</div>
-            <div class="summary-progress">
-              <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
-                   style="width: ${barWidth(openPct)}%">
-              </div>
-            </div>
-          </div>` : ''}
+          ${canViewInternalBudget ? this.renderBudgetCards({ fmt, barWidth, getBudgetColorClass, getOpenBudgetColorClass }) : ''}
           <div class="summary-card" data-summary-card="creators">
             <div class="summary-value">${num(this.realCreatorCount)} von ${num(this.targetCreatorCount)}</div>
             <div class="summary-label">Gebuchte Creator</div>
@@ -174,6 +144,65 @@ Object.assign(AuftragDetail.prototype, {
         </div>
       </div>
     `;
+  },
+
+  // UGC: dieselbe Restzahl wie in den Auftragsdetails (netto − Zusatzleistungen
+  // − EK − Fee − KSK − Zusatzkosten). Influencer: creator_budget − Σ EK.
+  renderBudgetCards({ fmt, barWidth, getBudgetColorClass, getOpenBudgetColorClass }) {
+    const isUgc = getBudgetCardVariant(this.auftragsDetails) === 'ugc';
+    let total, totalLabel, used, open, openLabel, budgetPct, openPct;
+
+    if (isUgc) {
+      const overview = calculateBudgetOverview({
+        auftrag: this.auftrag,
+        details: this.auftragsDetails,
+        kooperationen: this.kooperationen,
+        videos: this.videos,
+        kampagnen: this.kampagnen
+      });
+      const spendable = overview.spendableBudget ?? overview.auftragsvolumen;
+      total = overview.auftragsvolumen;
+      totalLabel = 'Auftragsvolumen';
+      used = overview.verbrauchtesBudget || 0;
+      open = overview.verfuegbaresBudget || 0;
+      openLabel = 'Verfügbares Budget';
+      budgetPct = spendable > 0 ? Math.round((used / spendable) * 100) : 0;
+      openPct = spendable > 0 ? 100 - budgetPct : 0;
+    } else {
+      // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
+      total = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen).verfuegbar;
+      totalLabel = 'Gesamtbudget (netto)';
+      used = this.usedBudget || 0;
+      // Negativ = Ueberschreitung, wird ausgewiesen statt geklemmt (ADR 0007).
+      open = total - used;
+      openLabel = 'Offenes Creator Budget';
+      budgetPct = total > 0 ? Math.round((used / total) * 100) : 0;
+      openPct = total > 0 ? 100 - budgetPct : 0;
+    }
+
+    return `
+          <div class="summary-card" data-summary-card="total-budget">
+            <div class="summary-value">${fmt(total)}</div>
+            <div class="summary-label">${totalLabel}</div>
+          </div>
+          <div class="summary-card" data-summary-card="spent-budget">
+            <div class="summary-value">${fmt(used)}</div>
+            <div class="summary-label">Verbrauchtes Budget</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}"
+                   style="width: ${barWidth(budgetPct)}%">
+              </div>
+            </div>
+          </div>
+          <div class="summary-card" data-summary-card="open-budget">
+            <div class="summary-value">${fmt(open)}</div>
+            <div class="summary-label">${openLabel}</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
+                   style="width: ${barWidth(openPct)}%">
+              </div>
+            </div>
+          </div>`;
   },
 
   // Rendere Übersicht-Tab mit allen wichtigen Auftragsinformationen

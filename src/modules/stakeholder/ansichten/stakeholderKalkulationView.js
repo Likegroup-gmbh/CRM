@@ -19,8 +19,12 @@ const CARD_HINTS = {
     hint: 'alles, was bereits gebucht ist'
   },
   verfuegbar: {
-    formula: 'Auftragsvolumen − Verbrauchtes Budget',
+    formula: 'Auftragsvolumen − Zusatzleistungen − Verbrauchtes Budget',
     hint: 'noch nicht gebucht'
+  },
+  extras: {
+    formula: 'Σ Zusatzleistungen (extra_services)',
+    hint: 'reserviertes Volumen — kein Verbrauch, mindert aber den verfügbaren Rest'
   },
   offenCreator: {
     formula: 'Creator-Budget − gebuchte VK',
@@ -71,11 +75,15 @@ export function renderCards(page, totals, isInfluencerTab) {
   const creator = totals.creator;
   const ksk = totals.ksk;
   const zusatz = totals.zusatz;
+  const extras = totals.extras || 0;
 
+  // Nenner ist der freie Topf (Volumen minus reservierte Zusatzleistungen),
+  // wie auf Auftragsdetails/Kampagne: 100 % heisst, der freie Topf ist voll.
   // Ungeklemmt: ueber 100 % bedeutet Ueberschreitung, unter 0 % Ueberzahlung.
   // Die Balkenbreite wird erst beim Rendern begrenzt.
-  const verbrauchtPct = volumen > 0 ? (verbraucht / volumen) * 100 : 0;
-  const offenPct = volumen > 0 ? 100 - verbrauchtPct : 0;
+  const spendable = volumen - extras;
+  const verbrauchtPct = spendable > 0 ? (verbraucht / spendable) * 100 : 0;
+  const offenPct = spendable > 0 ? 100 - verbrauchtPct : 0;
 
   const offenLabel = isInfluencerTab ? 'Offenes Creator Budget' : 'Verfügbares Budget';
   const offenSub = isInfluencerTab ? 'noch nicht gebucht' : 'noch nicht gebucht';
@@ -231,6 +239,7 @@ export function renderCards(page, totals, isInfluencerTab) {
       ${breakdownCard('Auftragsvolumen = Budget', volumen, `${page.fmtEuro(kGestellt)} von ${page.fmtEuro(volumen)} gestellt`, volumenLines, `${page.fmtPct(gestelltPct)} gestellt`, { progress: gestelltPct, hint: CARD_HINTS.volumen })}
       <div class="stakeholder-card stakeholder-card--stack">
         ${metricBlock('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${page.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), hint: CARD_HINTS.verbraucht })}
+        ${extras > 0.005 ? metricBlock('Zusatzleistungen', extras, 'reserviert, kein Verbrauch', 'mindert den verfügbaren Rest', { hint: CARD_HINTS.extras }) : ''}
         ${metricBlock(offenLabel, offenValue, offenSub, `${page.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}
       </div>
     </div>
@@ -255,6 +264,7 @@ export function renderKundenListe(page, rows, totals, isInfluencerTab) {
   }
 
   const grouped = groupRowsByKundeMarke(rows);
+  const hasExtras = (totals.extras || 0) > 0.005;
 
   const rowsHtml = grouped.map((g, i) => {
     const unternehmen = page.unternehmenById.get(g.unternehmenId);
@@ -266,7 +276,8 @@ export function renderKundenListe(page, rows, totals, isInfluencerTab) {
       `<span class="stakeholder-badge${b.fee ? ' stakeholder-badge--fee' : ''}">${b.label}</span>`
     ).join('');
 
-    const verbrauchtPct = g.volumen > 0 ? Math.min(100, (g.verbraucht / g.volumen) * 100) : 0;
+    const spendable = g.volumen - (g.extras || 0);
+    const verbrauchtPct = spendable > 0 ? Math.min(100, (g.verbraucht / spendable) * 100) : 0;
     const offenValue = g.verfuegbar;
 
     return `
@@ -293,6 +304,7 @@ export function renderKundenListe(page, rows, totals, isInfluencerTab) {
           </div>
         </td>
         <td class="stakeholder-num">${page.fmtEuro(offenValue)}</td>
+        ${hasExtras ? `<td class="stakeholder-num">${page.fmtEuro(g.extras)}</td>` : ''}
         <td class="stakeholder-num">${page.fmtEuro(g.creator)}</td>
         <td>${renderAgenturZelle(page, g.agentur, g.agenturVoll)}</td>
         <td class="stakeholder-num">${page.fmtEuro(g.ksk)}</td>
@@ -320,6 +332,7 @@ export function renderKundenListe(page, rows, totals, isInfluencerTab) {
             <th class="stakeholder-num">Auftragsvolumen</th>
             <th>Verbrauchtes Budget</th>
             <th class="stakeholder-num">${isInfluencerTab ? 'Offenes Creator Budget' : 'Verfügbares Budget'}</th>
+            ${hasExtras ? '<th class="stakeholder-num">Zusatzleistungen</th>' : ''}
             <th class="stakeholder-num">Creatoranteil</th>
             <th class="stakeholder-num">Agenturanteil</th>
             <th class="stakeholder-num">KSK</th>
@@ -338,6 +351,7 @@ export function renderKundenListe(page, rows, totals, isInfluencerTab) {
             <td class="stakeholder-num">${page.fmtEuro(totals.volumen)}</td>
             <td class="stakeholder-num">${page.fmtEuro(totals.verbraucht)}</td>
             <td class="stakeholder-num">${page.fmtEuro(isInfluencerTab ? influencerOffenesCreatorBudget(page) : totals.verfuegbar)}</td>
+            ${hasExtras ? `<td class="stakeholder-num">${page.fmtEuro(totals.extras)}</td>` : ''}
             <td class="stakeholder-num">${page.fmtEuro(totals.creator)}</td>
             <td>${renderAgenturZelle(page, totals.agentur, totals.agenturVoll)}</td>
             <td class="stakeholder-num">${page.fmtEuro(totals.ksk)}</td>

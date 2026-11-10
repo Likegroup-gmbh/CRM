@@ -210,6 +210,7 @@ Object.assign(AuftragDetail.prototype, {
           videoanzahl,
           einkaufspreis_netto,
           verkaufspreis_netto,
+          verkaufspreis_zusatzkosten,
           einkaufspreis_gesamt,
           ksk_selbstzahler,
           ksk_betrag,

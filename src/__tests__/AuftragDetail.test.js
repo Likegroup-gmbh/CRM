@@ -84,6 +84,33 @@ describe('AuftragDetail (Split in Core + Mixins)', () => {
     expect(html).toContain('2 von 6');
   });
 
+  it('UGC: Summary-Cards zeigen dieselbe Restzahl wie die Auftragsdetails', () => {
+    const d = createDetail();
+    d.auftragsDetails = {
+      campaign_type: ['ugc_paid'],
+      extra_services_enabled: true,
+      extra_services: [{ name: 'Konzept', amount: 2000 }]
+    };
+    d.kooperationen = [{ id: 'k1', videoanzahl: 1, verkaufspreis_zusatzkosten: 100, creator: { id: 'c1' } }];
+    d.videos = [{ id: 'v1', kooperation_id: 'k1', einkaufspreis_netto: 1000, verkaufspreis_netto: 1000 }];
+    const html = d.renderAuftragSummaryCards();
+
+    expect(html).toContain('Auftragsvolumen');
+    expect(html).toContain('Verfügbares Budget');
+    expect(html).not.toContain('Offenes Creator Budget');
+    // 10.000 − 2.000 Extras − (1.000 EK + 49 KSK + 100 Zusatzkosten)
+    expect(html).toContain('6.851,00');
+  });
+
+  it('Influencer: Summary-Cards bleiben bei creator_budget − Σ EK', () => {
+    const d = createDetail();
+    d.auftragsDetails = { campaign_type: ['influencer'] };
+    const html = d.renderAuftragSummaryCards();
+    expect(html).toContain('Gesamtbudget (netto)');
+    expect(html).toContain('Offenes Creator Budget');
+    expect(html).toContain('3.500,00');
+  });
+
   it('rendert den Uebersicht-Tab', () => {
     const html = createDetail().renderUebersicht();
     expect(html).toContain('Auftrags-Eckdaten');

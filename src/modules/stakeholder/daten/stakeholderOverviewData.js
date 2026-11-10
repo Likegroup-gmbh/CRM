@@ -61,6 +61,7 @@ export function aggregate(page) {
     agenturVoll: 0,
     ksk: 0,
     zusatz: 0,
+    extras: 0,
     db: 0,
     festVolumen: 0,
     festAgentur: 0,
@@ -85,8 +86,11 @@ export function aggregate(page) {
     const agenturVoll = feeRaw + agenturMargin;
 
     const verbraucht = creator + agentur + ksk + zusatz;
+    // Zusatzleistungen sind reserviertes Volumen, kein Verbrauch. Sie mindern
+    // den Rest wie auf Auftragsdetails und Kampagne.
+    const extras = z.extras || 0;
     // Negativ = Ueberschreitung, wird bewusst durchgereicht (ADR 0007).
-    const verfuegbar = volumen - verbraucht;
+    const verfuegbar = volumen - extras - verbraucht;
     const db = agentur;
 
     totals.volumen += volumen;
@@ -99,6 +103,7 @@ export function aggregate(page) {
     totals.agenturVoll += agenturVoll;
     totals.ksk += ksk;
     totals.zusatz += zusatz;
+    totals.extras += extras;
     totals.db += db;
     totals.creatorPaid += z.creator_bezahlt;
     totals.creatorOpen += z.creator_offen;
@@ -135,6 +140,7 @@ export function aggregate(page) {
       agenturMargin,
       ksk,
       zusatz,
+      extras,
       db,
     });
   });

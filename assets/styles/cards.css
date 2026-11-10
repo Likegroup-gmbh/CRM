@@ -205,6 +205,83 @@
   font-weight: 600;
 }
 
+/* Info-Tooltip auf Karten (Formel + Kurztext), CSS-only Hover/Focus.
+   Markup via renderCardHintHtml/renderSummaryLabelHtml aus cardHints.js.
+   .card-hint sitzt absolut oben rechts in .summary-card (position: relative). */
+.card-head {
+  display: block;
+}
+
+.card-hint {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: help;
+  line-height: 0;
+}
+
+.card-hint:hover,
+.card-hint:focus-visible {
+  color: var(--text-secondary);
+}
+
+.card-hint-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 3;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  line-height: 1.45;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease, visibility 0.12s ease;
+}
+
+.card-hint-tooltip strong {
+  display: block;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.card-hint-tooltip span {
+  display: block;
+  margin-top: 4px;
+}
+
+.card-hint:hover .card-hint-tooltip,
+.card-hint:focus-visible .card-hint-tooltip,
+.card-hint:focus-within .card-hint-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Tooltip darf ueber Nachbarkarten liegen */
+.summary-card:hover,
+.summary-card:focus-within {
+  z-index: 2;
+}
+
 /* Live-Performance: klare Hierarchie mit Views als Hero, Likes und Kommentare
    als Split darunter. Overline schafft Kontext ohne Icon-Beiwerk. */
 
