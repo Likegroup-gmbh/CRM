@@ -14,11 +14,13 @@
 //   -> force: true erzwingt den Meta-Abruf und aktualisiert den Pool. Das
 //      Frontend schickt das beim zweiten Klick (Refresh-Zustand des Buttons).
 //      Ebenso erzwingt eine veraltete ig_stats.calc_version einen neuen Abruf.
-//   -> Meta-Abruf: Profil + bis zu 150 Medien (drei Seiten a 50), filtert Reels
-//      mit Werbe-Kennzeichnung und alles juenger als 4 Tage weg und berechnet
-//      daraus den Views-Schnitt aus genau 8 bzw. 30 sauberen Reels plus den
-//      zugehoerigen CPM-Preis. Ausreisser werden nicht abgezogen, sondern durch
-//      den naechst-aelteren organischen Reel ersetzt.
+//   -> Meta-Abruf: ein Call, Profil plus die letzten 30 Beitraege. Reels mit
+//      Werbe- oder Co-Post-Kennzeichnung, Trial-Duplikate und alles juenger
+//      als 4 Tage fallen aus der Rechnung. Der Views-Schnitt kommt aus genau
+//      8 bzw. 30 sauberen Reels dieser 30 Beitraege. Reicht der Rest nicht,
+//      bleibt der betroffene Schnitt leer. Ausreisser werden nicht abgezogen,
+//      sondern durch den naechst-aelteren organischen Reel in dieser Menge
+//      ersetzt.
 //      Das Profilbild wird in zwei AVIF-Groessen (640px + 128px Thumbnail)
 //      nach Supabase Storage kopiert, da Metas CDN-URLs nach wenigen Tagen
 //      ablaufen.
@@ -32,17 +34,20 @@
 const { createClient } = require('@supabase/supabase-js');
 const {
   graphGet,
+  getLastUsage,
   normalizeUsername,
   isValidUsername,
   isRateLimitError,
   storeImagePair
 } = require('./_shared/instagram-graph');
 const {
+  sanitizeUsage,
+  budgetDecision
+} = require('./_shared/instagram-budget');
+const {
   computeInstagramCpm,
   formatCpmDebug,
   formatCpmReport,
-  classifyVideos,
-  WINDOW_LONG,
   CALC_VERSION
 } = require('./_shared/instagram-cpm');
 const { extractEmail, extractPhone, extractCity } = require('./_shared/bio-extract');
@@ -54,15 +59,9 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SER
 // Kill-Switch: nach dem Testen auf false – kein Server-Log, kein debug in Response
 const IG_CPM_DEBUG = true;
 
-const PAGE_SIZE = 50;
-const MAX_PAGES = 3;   // 26s Function-Timeout, mehr ist nicht drin
-
-// Reserve ueber das 30er-Fenster hinaus. Faellt ein Reel als Ausreisser oder
-// Trial-Duplikat durch, rueckt der naechste nach - ohne Reserve bliebe das
-// Fenster unterbesetzt. Fuenfzehn deckt auch Creator mit mehreren Ausreissern
-// und Trial-Paaren ab und kostet meist keinen zusaetzlichen Request, weil
-// PAGE_SIZE bei 50 liegt.
-const PUFFER_NACHRUECKER = 15;
+// Genau die letzten 30 Beitraege, eine Seite, ein Graph-Call. Weiterblaettern
+// wuerde das Stundenkontingent pro Creator vervielfachen.
+const MEDIA_LIMIT = 30;
 
 const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_picture_url,biography,website';
 // Bewusst ohne media_product_type und is_shared_to_feed: fuer Business
@@ -82,73 +81,40 @@ function jsonResponse(statusCode, body) {
   };
 }
 
-/**
- * Reels, die es wirklich in die Rechnung schaffen koennen.
- *
- * Werbe-Reels, Trial-Duplikate und zu frische Reels zaehlen nicht mit: sonst
- * bricht das Paging zu frueh ab und dem Fenster fehlen Nachruecker fuer die
- * Ausreisser-Ersetzung, obwohl weiter hinten genug organische Reels liegen.
- * Laueft ueber classifyVideos, damit Paging und Rechnung dieselbe Logik
- * teilen - ein Trial-Paar, das die Rechnung nicht sieht, darf das Paging
- * auch nicht stoppen.
- */
-function zaehleVerwertbar(media, now = Date.now()) {
-  return classifyVideos(media, now).included.length;
+/** meta_usage an die Response, damit der naechste Creator das Kontingent kennt. */
+function withUsage(statusCode, body, echoedUsage) {
+  const usage = getLastUsage() || echoedUsage || null;
+  return jsonResponse(statusCode, usage ? { ...body, meta_usage: usage } : body);
 }
 
 /**
- * Profil + Medien laden. Da zwischen den Reels auch Bilder und Karussells
- * liegen, reicht eine Seite oft nicht fuer 30 auswertbare Videos - dann wird
- * ueber den after-Cursor nachgeladen.
- *
- * Geladen wird bis WINDOW_LONG + PUFFER_NACHRUECKER verwertbare Reels
- * zusammenkommen, damit pickWindow genug Ersatz fuer Ausreisser hat.
+ * Profil plus die letzten 30 Beitraege. Ein Graph-Call.
+ * Werbe- und Co-Posts filtert erst die Rechnung (computeInstagramCpm),
+ * nicht dieser Abruf.
  */
 async function fetchProfileWithMedia(username) {
   const igUserId = process.env.META_IG_USER_ID;
-  let profile = null;
-  let media = [];
-  let after = null;
+  const fields = `${PROFILE_FIELDS},media.limit(${MEDIA_LIMIT}){${MEDIA_FIELDS}}`;
 
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const edge = after
-      ? `media.limit(${PAGE_SIZE}).after(${after}){${MEDIA_FIELDS}}`
-      : `media.limit(${PAGE_SIZE}){${MEDIA_FIELDS}}`;
-
-    // Profilfelder nur auf der ersten Seite - danach zaehlt nur noch media
-    const fields = page === 0 ? `${PROFILE_FIELDS},${edge}` : edge;
-
-    let data;
-    try {
-      data = await graphGet(igUserId, {
-        fields: `business_discovery.username(${username}){${fields}}`
-      });
-    } catch (err) {
-      // Fehler auf Folgeseiten sind nicht fatal: mit dem was da ist rechnen
-      if (page > 0) {
-        console.warn(`⚠️ sourcing-instagram-stats: Seite ${page} fehlgeschlagen:`, err.message);
-        break;
-      }
-      return {
-        ok: false,
-        error: err.meta?.message || err.message,
-        error_code: err.meta?.code ?? null,
-        rate_limited: isRateLimitError(err.meta)
-      };
-    }
-
-    const bd = data.business_discovery || {};
-    if (page === 0) profile = bd;
-    media = media.concat(bd.media?.data || []);
-
-    after = bd.media?.paging?.cursors?.after || null;
-    if (!after || zaehleVerwertbar(media) >= WINDOW_LONG + PUFFER_NACHRUECKER) break;
+  let data;
+  try {
+    data = await graphGet(igUserId, {
+      fields: `business_discovery.username(${username}){${fields}}`
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      error: err.meta?.message || err.message,
+      error_code: err.meta?.code ?? null,
+      rate_limited: isRateLimitError(err.meta)
+    };
   }
 
+  const profile = data.business_discovery || null;
   if (!profile) {
     return { ok: false, error: 'Profil konnte nicht geladen werden', error_code: null, rate_limited: false };
   }
-  return { ok: true, profile, media };
+  return { ok: true, profile, media: profile.media?.data || [] };
 }
 
 /** 12437 -> "12.4K" (Anzeigeformat fuer die Reichweite-Spalte) */
@@ -278,6 +244,7 @@ exports.handler = async (event) => {
   }
 
   const force = body.force === true;
+  const echoedUsage = sanitizeUsage(body.usage);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -335,7 +302,7 @@ exports.handler = async (event) => {
         : 'kein Bild im Pool, letzter Versuch erfolglos (force erzwingt neuen Versuch)'
     });
 
-    return jsonResponse(200, {
+    return withUsage(200, {
       ok: true,
       item_id: itemId,
       username,
@@ -347,7 +314,55 @@ exports.handler = async (event) => {
         views_30: pool.ig_views_30
       },
       ...(debug ? { debug } : {})
+    }, echoedUsage);
+  }
+
+  // Kontingent fast voll: veraltete Pool-Staende nicht mehr nachziehen und
+  // unbekannte Creator nicht anfragen. Der Fehlversuch wuerde das Fenster
+  // nur verlaengern, die Zeile bekaeme trotzdem keine Zahlen.
+  const decision = budgetDecision({
+    usage: echoedUsage,
+    hasPool: !!pool?.ig_fetched_at,
+    force
+  });
+  if (decision === 'pool') {
+    const { data: updated, error: copyError } = await supabase
+      .from('creator_auswahl_items')
+      .update(buildItemUpdate(pool, item))
+      .eq('id', itemId)
+      .select()
+      .single();
+    if (copyError) {
+      return jsonResponse(500, { error: `Speichern fehlgeschlagen: ${copyError.message}` });
+    }
+    const debug = emitCpmDebug(username, statsFromPool(pool), {
+      source: 'pool',
+      pool_fetched_at: pool.ig_fetched_at,
+      follower: pool.follower_instagram,
+      image_error: 'Meta-Kontingent voll – Pool-Stand statt neuem Abruf'
     });
+    return withUsage(200, {
+      ok: true,
+      item_id: itemId,
+      username,
+      source: 'pool',
+      rate_limited: true,
+      pool_fetched_at: pool.ig_fetched_at,
+      item: updated,
+      stats: {
+        views_8: pool.ig_views_8,
+        views_30: pool.ig_views_30
+      },
+      ...(debug ? { debug } : {})
+    }, echoedUsage);
+  }
+  if (decision === 'defer') {
+    return withUsage(429, {
+      error: 'Meta-Kontingent voll',
+      error_code: null,
+      retryable: true,
+      hint: 'Meta-Rate-Limit erreicht – später erneut versuchen.'
+    }, echoedUsage);
   }
 
   if (!process.env.META_ACCESS_TOKEN || !process.env.META_IG_USER_ID) {
@@ -374,11 +389,12 @@ exports.handler = async (event) => {
         image_error: `Bild-Nachzug fehlgeschlagen: ${res.error}`
       });
 
-      return jsonResponse(200, {
+      return withUsage(200, {
         ok: true,
         item_id: itemId,
         username,
         source: 'pool',
+        rate_limited: res.rate_limited === true,
         pool_fetched_at: pool.ig_fetched_at,
         item: updated,
         stats: {
@@ -386,7 +402,40 @@ exports.handler = async (event) => {
           views_30: pool.ig_views_30
         },
         ...(debug ? { debug } : {})
-      });
+      }, echoedUsage);
+    }
+
+    // Veraltete Rechnung sollte frisch geholt werden. Liegt Meta am Limit,
+    // sind die vorhandenen Zahlen brauchbarer als eine leere Zeile.
+    if (res.rate_limited && pool?.ig_fetched_at && !force) {
+      const { data: updated } = await supabase
+        .from('creator_auswahl_items')
+        .update(buildItemUpdate(pool, item))
+        .eq('id', itemId)
+        .select()
+        .single();
+      if (updated) {
+        const debug = emitCpmDebug(username, statsFromPool(pool), {
+          source: 'pool',
+          pool_fetched_at: pool.ig_fetched_at,
+          follower: pool.follower_instagram,
+          image_error: `Meta-Limit, Pool-Stand behalten: ${res.error}`
+        });
+        return withUsage(200, {
+          ok: true,
+          item_id: itemId,
+          username,
+          source: 'pool',
+          rate_limited: true,
+          pool_fetched_at: pool.ig_fetched_at,
+          item: updated,
+          stats: {
+            views_8: pool.ig_views_8,
+            views_30: pool.ig_views_30
+          },
+          ...(debug ? { debug } : {})
+        }, echoedUsage);
+      }
     }
 
     await supabase
@@ -404,12 +453,12 @@ exports.handler = async (event) => {
     }
 
     if (res.rate_limited) {
-      return jsonResponse(429, {
+      return withUsage(429, {
         error: res.error,
         error_code: res.error_code,
         retryable: true,
         hint: 'Meta-Rate-Limit erreicht – später erneut versuchen.'
-      });
+      }, echoedUsage);
     }
 
     return jsonResponse(502, {
@@ -528,7 +577,7 @@ exports.handler = async (event) => {
     image_error: bildFehler
   });
 
-  return jsonResponse(200, {
+  return withUsage(200, {
     ok: true,
     item_id: itemId,
     username,
@@ -544,5 +593,5 @@ exports.handler = async (event) => {
       skipped_trials: stats.skipped_trials
     },
     ...(debug ? { debug } : {})
-  });
+  }, echoedUsage);
 };

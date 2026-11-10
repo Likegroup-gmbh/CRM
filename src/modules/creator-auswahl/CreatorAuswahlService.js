@@ -445,6 +445,7 @@ export class CreatorAuswahlService {
   /**
    * Loesung der Zuordnung an allen Videoideen, die diesen Casting-Eintrag
    * tragen. Wirft, wenn eine davon eingefroren ist (Skript existiert).
+   * Die Skript-Freigabe bleibt stehen.
    * @param {string} auswahlItemId
    * @param {string} aktion - 'gelöscht' | 'abgesagt' (nur fuer Fehlertext)
    */
@@ -472,12 +473,7 @@ export class CreatorAuswahlService {
 
     const { error: upErr } = await window.supabase
       .from('strategie_items')
-      .update({
-        creator_auswahl_item_id: null,
-        skript_freigabe: false,
-        skript_freigabe_am: null,
-        skript_freigabe_von: null
-      })
+      .update({ creator_auswahl_item_id: null })
       .in('id', ids);
     if (upErr) throw upErr;
   }
@@ -574,10 +570,14 @@ export class CreatorAuswahlService {
    * den Handle schon, kommen die Werte von dort und Meta bleibt verschont.
    * @returns {Promise<{ item: object, source: 'pool'|'meta', poolFetchedAt: string|null, debug: object|null }>}
    */
-  async fetchInstagramStats(itemId, { force = false } = {}) {
+  async fetchInstagramStats(itemId, { force = false, usage = null } = {}) {
     const response = await authorizedFetch('/.netlify/functions/sourcing-instagram-stats', {
       method: 'POST',
-      body: JSON.stringify({ item_id: itemId, force })
+      body: JSON.stringify({
+        item_id: itemId,
+        force,
+        ...(usage ? { usage } : {})
+      })
     });
 
     const result = await response.json().catch(() => ({}));
@@ -586,6 +586,7 @@ export class CreatorAuswahlService {
       const error = new Error(result.error || 'Instagram-Abruf fehlgeschlagen');
       error.retryable = response.status === 429;
       error.hint = result.hint || null;
+      error.metaUsage = result.meta_usage || null;
       throw error;
     }
 
@@ -593,7 +594,9 @@ export class CreatorAuswahlService {
       item: result.item,
       source: result.source || 'meta',
       poolFetchedAt: result.pool_fetched_at || null,
-      debug: result.debug || null
+      debug: result.debug || null,
+      metaUsage: result.meta_usage || null,
+      rateLimited: result.rate_limited === true
     };
   }
 

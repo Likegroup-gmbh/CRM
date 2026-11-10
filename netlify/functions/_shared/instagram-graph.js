@@ -3,9 +3,24 @@
 // sourcing-instagram-stats). Der Meta-Token bleibt serverseitig.
 
 const sharp = require('sharp');
+const { parseAppUsage } = require('./instagram-budget');
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+
+// Letzter X-App-Usage-Stand dieser Function-Invocation. Netlify teilt sich
+// keinen Speicher zwischen Aufrufen; der Client schickt den Stand beim
+// naechsten Creator wieder mit.
+let lastUsage = null;
+
+function getLastUsage() {
+  return lastUsage;
+}
+
+function noteUsageFromResponse(res) {
+  const parsed = parseAppUsage(res.headers.get('x-app-usage'));
+  if (parsed) lastUsage = parsed;
+}
 
 const STORAGE_BUCKET = 'instagram-media';
 const IMAGE_WIDTH = 640;   // Hauptbild
@@ -27,10 +42,12 @@ async function graphGet(path, params = {}) {
   url.searchParams.set('access_token', process.env.META_ACCESS_TOKEN);
 
   const res = await fetch(url.toString());
+  noteUsageFromResponse(res);
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.error) {
     const err = new Error(data.error?.message || `Graph API HTTP ${res.status}`);
     err.meta = data.error || null;
+    err.usage = lastUsage;
     throw err;
   }
   return data;
@@ -144,6 +161,7 @@ module.exports = {
   IMAGE_WIDTH,
   THUMB_WIDTH,
   graphGet,
+  getLastUsage,
   normalizeUsername,
   isValidUsername,
   isRateLimitError,

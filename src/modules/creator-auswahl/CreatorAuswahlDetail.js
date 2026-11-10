@@ -36,10 +36,17 @@ import {
 } from './sourcingStatusOptions.js';
 import { SourcingBuchungDrawer } from './SourcingBuchungDrawer.js';
 import { CastingVorschlagPanel } from './CastingVorschlagPanel.js';
+import { enqueueIgFetch } from './igFetchBudget.js';
 import { vorschlagToItem } from './CastingVorschlagService.js';
 import { preserveScroll } from '../../core/dom/preserveScroll.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import {
+  absorbEditedTextFields,
+  bindTextBaseline,
+  rememberTextBaseline,
+  shouldPersistTextField
+} from '../../core/table/textFieldBaseline.js';
 
 const IG_FETCH_FLASH_MS = 2000;
 
@@ -418,6 +425,7 @@ export class CreatorAuswahlDetail {
   rerenderTable(movedItemIds = []) {
     const tableContainer = document.querySelector('.table-container');
     if (tableContainer) {
+      this._absorbOpenTextEdits(tableContainer);
       tableContainer.outerHTML = renderItemsTable(this.getRenderContext());
       this.bindEvents();
       this._updateStickyHeights();
@@ -580,6 +588,10 @@ export class CreatorAuswahlDetail {
     this.initFloatingScrollbar();
     this.bindDragToScroll();
 
+    bindTextBaseline(document, {
+      onCleanup: (fn) => this._boundEventListeners.add(fn)
+    });
+
     // Feld-Updates (Input/Textarea/Select)
     document.querySelectorAll('input[data-field], textarea[data-field], select[data-field]').forEach(el => {
       const handler = () => this.handleFieldUpdate(el);
@@ -637,11 +649,16 @@ export class CreatorAuswahlDetail {
         el.addEventListener('change', handler);
         this._boundEventListeners.add(() => el.removeEventListener('change', handler));
       } else {
-        el.addEventListener('blur', handler);
-        el.addEventListener('change', handler);
+        const textHandler = () => {
+          if (!shouldPersistTextField(el)) return;
+          rememberTextBaseline(el);
+          handler();
+        };
+        el.addEventListener('blur', textHandler);
+        el.addEventListener('change', textHandler);
         this._boundEventListeners.add(() => {
-          el.removeEventListener('blur', handler);
-          el.removeEventListener('change', handler);
+          el.removeEventListener('blur', textHandler);
+          el.removeEventListener('change', textHandler);
         });
       }
     });
@@ -871,8 +888,9 @@ export class CreatorAuswahlDetail {
     setChipCellLoading(findSourcingIgCell(itemId), true);
 
     try {
-      const { item: updated, source, poolFetchedAt, debug } = await creatorAuswahlService
-        .fetchInstagramStats(itemId, { force });
+      const { item: updated, source, poolFetchedAt, debug, rateLimited } = await enqueueIgFetch((usage) => (
+        creatorAuswahlService.fetchInstagramStats(itemId, { force, usage })
+      ));
       Object.assign(item, updated);
       this.refreshItemRow(itemId);
       // Die Zeile ist per outerHTML ersetzt, die Zelle unter der Leiste also
@@ -902,7 +920,12 @@ export class CreatorAuswahlDetail {
         console.groupEnd();
       }
 
-      if (source === 'pool') {
+      if (rateLimited) {
+        window.toastSystem?.show(
+          'Meta-Rate-Limit erreicht – vorhandene Zahlen aus dem Pool übernommen.',
+          'info'
+        );
+      } else if (source === 'pool') {
         const stand = poolFetchedAt ? new Date(poolFetchedAt).toLocaleDateString('de-DE') : null;
         window.toastSystem?.show(
           stand
@@ -991,8 +1014,20 @@ export class CreatorAuswahlDetail {
     const item = this.items.find(i => i.id === itemId);
     if (!row || !item) return;
 
+    this._absorbOpenTextEdits(row);
     row.outerHTML = renderItemRow(this.getRenderContext(), item, 0);
     this.bindEvents();
+  }
+
+  _absorbOpenTextEdits(root) {
+    absorbEditedTextFields(root, (el) => {
+      if (el.hasAttribute('data-custom-column-id') || el.getAttribute('data-entity') === 'custom') {
+        rememberTextBaseline(el);
+        this.customColumns?.handleFieldUpdate(el);
+        return;
+      }
+      this.handleFieldUpdate(el);
+    });
   }
 
   async handleFieldUpdate(element) {
@@ -1004,6 +1039,9 @@ export class CreatorAuswahlDetail {
     if (element.hasAttribute('data-custom-column-id') || element.getAttribute('data-entity') === 'custom') {
       return;
     }
+    // Ein Blur ohne Änderung darf Kundenfeedback und die anderen Textfelder nicht leeren.
+    if (!shouldPersistTextField(element)) return;
+    rememberTextBaseline(element);
     const itemId = element.dataset.itemId;
     const field = element.dataset.field;
     let value;
@@ -1019,20 +1057,23 @@ export class CreatorAuswahlDetail {
       value = element.value?.trim() || null;
     }
 
+    const updates = { [field]: value };
+
+    // Kunden-Feedback: Autor + Zeitstempel mitschreiben (Kunde und Gast)
+    if (field === 'feedback_kunde' && this.isKunde) {
+      const authorName = window.currentUser?.name || 'Unbekannt';
+      updates.feedback_kunde_author_name = window.isGast?.() ? `${authorName} (Gast)` : authorName;
+      updates.feedback_kunde_updated_at = new Date().toISOString();
+    }
+
+    const item = this.items.find(i => i.id === itemId);
+    const previous = item
+      ? Object.fromEntries(Object.keys(updates).map(key => [key, item[key]]))
+      : null;
+    if (item) Object.assign(item, updates);
+
     try {
-      const updates = { [field]: value };
-
-      // Kunden-Feedback: Autor + Zeitstempel mitschreiben (Kunde und Gast)
-      if (field === 'feedback_kunde' && this.isKunde) {
-        const authorName = window.currentUser?.name || 'Unbekannt';
-        updates.feedback_kunde_author_name = window.isGast?.() ? `${authorName} (Gast)` : authorName;
-        updates.feedback_kunde_updated_at = new Date().toISOString();
-      }
-
       await creatorAuswahlService.updateItem(itemId, updates);
-
-      const item = this.items.find(i => i.id === itemId);
-      if (item) Object.assign(item, updates);
 
       if (field === 'follower_instagram' || field === 'follower_tiktok') {
         this.refreshNumberCell(element, value);
@@ -1045,6 +1086,7 @@ export class CreatorAuswahlDetail {
         applySourcingIgCellState(element.closest('.chip-cell'), item || { link_instagram: value });
       }
     } catch (error) {
+      if (item && previous) Object.assign(item, previous);
       console.error('Fehler beim Aktualisieren:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
     }

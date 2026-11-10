@@ -16,12 +16,14 @@
 const { createClient } = require('@supabase/supabase-js');
 const {
   graphGet,
+  getLastUsage,
   normalizeUsername,
   isValidUsername,
   isRateLimitError,
   fetchProfile: fetchDiscoveryProfile,
   storeImagePair
 } = require('./_shared/instagram-graph');
+const { hottest, PAGE_TIGHT } = require('./_shared/instagram-budget');
 const {
   classifyVideos,
   serialisiereTrialGate
@@ -117,6 +119,9 @@ async function fetchProfileWithMedia(username) {
 
     after = bd.media?.paging?.cursors?.after || null;
     if (!after || zaehleVerwertbar(media) >= ZIEL_VERWERTBAR) break;
+    // Dieselbe Token-Kasse wie die Casting-Liste. Weitere Seiten sparen,
+    // sobald das Stundenkontingent eng wird.
+    if (hottest(getLastUsage()) >= PAGE_TIGHT) break;
   }
 
   if (!profile) {
