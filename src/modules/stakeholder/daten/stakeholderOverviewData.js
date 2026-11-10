@@ -5,8 +5,8 @@
 
 import {
   agenturPrognose,
+  istBeendet,
   offenesCreatorBudget,
-  spanGruppeForBereich,
 } from '../../../core/budget/agenturPrognose.js';
 import { loadDashboard } from './dashboardLoad.js';
 import {
@@ -115,7 +115,7 @@ export function aggregate(page) {
     totals.ekvkVk += z.ekvk_vk;
     totals.ekvkRealisiert += z.ekvk_realisiert;
     prognoseBeitraege.push({
-      gruppe: spanGruppeForBereich(z.bereich),
+      beendet: istBeendet(z.ende),
       offen: offenesCreatorBudget(z.creator_budget, z.ekvk_vk),
       vkVoll: z.vk_voll || 0,
       marge: z.ekvk_realisiert || 0,

@@ -1,34 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { leistungsbereichForAuftrag } from '../core/budget/leistungsbereich.js';
 import {
-  spanGruppeForBereich,
+  istBeendet,
   verkaufsstand,
   offenesCreatorBudget,
   agenturPrognose,
 } from '../core/budget/agenturPrognose.js';
 
-function gruppe(blocks, auftrag = {}) {
-  return spanGruppeForBereich(leistungsbereichForAuftrag(auftrag, blocks));
-}
+describe('istBeendet', () => {
+  const heute = new Date(2026, 10, 4, 12);
 
-describe('spanGruppeForBereich', () => {
-  it('folgt dem exklusiven Leistungsbereich der Seite', () => {
-    expect(gruppe([{ campaign_type: 'influencer' }])).toBe('influencer');
-    expect(gruppe([{ campaign_type: 'story' }])).toBe('influencer');
-    expect(gruppe([{ campaign_type: 'ugc_paid' }])).toBe('ugc');
-    expect(gruppe([{ campaign_type: 'ugc_organic' }])).toBe('ugc');
-    expect(gruppe([
-      { campaign_type: 'ugc_paid' },
-      { campaign_type: 'ugc_organic' },
-    ])).toBe('gemischt');
-    expect(gruppe([
-      { campaign_type: 'influencer' },
-      { campaign_type: 'vorort_produktion' },
-    ])).toBe('gemischt');
-    expect(gruppe([{ campaign_type: 'vorort_produktion' }])).toBe('sonst');
-    expect(gruppe([{ campaign_type: 'whitelisting' }])).toBe('sonst');
-    expect(gruppe([])).toBe('sonst');
-    expect(gruppe([], { auftragtype: 'Contracting' })).toBe('sonst');
+  it('ist beendet erst nach dem Endtag', () => {
+    expect(istBeendet('2026-11-03', heute)).toBe(true);
+    expect(istBeendet('2026-11-04', heute)).toBe(false);
+    expect(istBeendet('2026-12-31', heute)).toBe(false);
+  });
+
+  it('läuft ohne Ende weiter', () => {
+    expect(istBeendet(null, heute)).toBe(false);
+    expect(istBeendet('', heute)).toBe(false);
   });
 });
 
@@ -56,42 +45,37 @@ describe('offenesCreatorBudget', () => {
 });
 
 describe('agenturPrognose', () => {
-  it('rechnet jede Gruppe mit ihrer eigenen Spanne und summiert die drei Teile', () => {
+  it('rechnet jeden Auftrag mit seiner eigenen Spanne und summiert die drei Teile', () => {
     const prognose = agenturPrognose({
       erkannt: 70,
       feeBisEnde: 30,
       beitraege: [
-        { gruppe: 'influencer', offen: 1000, vkVoll: 100, marge: 4 },
-        { gruppe: 'ugc', offen: 1000, vkVoll: 100, marge: 59 },
-        { gruppe: 'gemischt', offen: 1000, vkVoll: 100, marge: 32 },
+        { offen: 1000, vkVoll: 100, marge: 58, beendet: false },
+        { offen: 1000, vkVoll: 100, marge: 0, beendet: false },
       ],
     });
-    expect(prognose.ausOffenemBudget).toBeCloseTo(40 + 590 + 320, 5);
-    expect(prognose.summe).toBeCloseTo(70 + 30 + 950, 5);
+    expect(prognose.ausOffenemBudget).toBeCloseTo(580, 5);
+    expect(prognose.summe).toBeCloseTo(70 + 30 + 580, 5);
   });
 
-  it('nimmt bei einer Gruppe ohne Preise die Spanne des ganzen Filters', () => {
-    const prognose = agenturPrognose({
-      erkannt: 0,
-      feeBisEnde: 0,
-      beitraege: [
-        { gruppe: 'influencer', offen: 200, vkVoll: 0, marge: 0 },
-        { gruppe: 'ugc', offen: 0, vkVoll: 100, marge: 50 },
-      ],
-    });
-    expect(prognose.ausOffenemBudget).toBeCloseTo(100, 5);
-  });
-
-  it('lässt die dritte Zeile auf 0, wenn nirgends beide Preise stehen', () => {
+  it('trägt für einen Auftrag ohne bepreiste Zeilen nichts bei', () => {
     const prognose = agenturPrognose({
       erkannt: 10,
       feeBisEnde: 5,
       beitraege: [
-        { gruppe: 'influencer', offen: 200, vkVoll: 0, marge: 0 },
+        { offen: 120000, vkVoll: 0, marge: 0, beendet: false },
+        { offen: 100, vkVoll: 100, marge: 50, beendet: false },
       ],
     });
+    expect(prognose.ausOffenemBudget).toBeCloseTo(50, 5);
+    expect(prognose.summe).toBeCloseTo(65, 5);
+  });
+
+  it('trägt für eine beendete Kampagne nichts bei, auch mit Spanne', () => {
+    const prognose = agenturPrognose({
+      beitraege: [{ offen: 1000, vkVoll: 100, marge: 40, beendet: true }],
+    });
     expect(prognose.ausOffenemBudget).toBe(0);
-    expect(prognose.summe).toBe(15);
   });
 
   it('übernimmt eine negative Spanne', () => {
@@ -99,7 +83,7 @@ describe('agenturPrognose', () => {
       erkannt: 100,
       feeBisEnde: 0,
       beitraege: [
-        { gruppe: 'sonst', offen: 100, vkVoll: 100, marge: -10 },
+        { offen: 100, vkVoll: 100, marge: -10, beendet: false },
       ],
     });
     expect(prognose.ausOffenemBudget).toBeCloseTo(-10, 5);

@@ -1,23 +1,22 @@
 // agenturPrognose.js
 // Prognostizierter Agenturanteil der Kalkulation:
 // bisher erkannt + Fee bis Kampagnenende + Spanne auf das offene Creator-Budget.
-// Die Spanne kommt live aus den bepreisten Zeilen desselben Filters, je Gruppe.
-// Gruppe folgt dem exklusiven Leistungsbereich der Seite.
+// Die Spanne gilt je Auftrag und kommt aus dessen eigenen bepreisten Zeilen.
+// Beendete Kampagnen und Aufträge ohne gepflegte Preise tragen nichts bei:
+// eine fremde Spanne wäre geraten (ADR 0007).
 
 import { collectEkVkPriceRows, isFilledPrice } from './EkVkAgencyFeeHelper.js';
 
-const SPAN_GRUPPE = {
-  influencer_marketing: 'influencer',
-  ugc_paid: 'ugc',
-  ugc_organic: 'ugc',
-  gemischt: 'gemischt',
-};
+function isoDatum(d) {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const t = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${t}`;
+}
 
-// Nur-Influencer, nur-UGC (Paid oder Organic) und Gemischt haben eigene
-// Spannen. Vor-Ort, Whitelisting, Darkposting, Contracting und nicht
-// zugeordnet teilen sich „sonst“.
-export function spanGruppeForBereich(bereich) {
-  return SPAN_GRUPPE[bereich] || 'sonst';
+// Der Endtag selbst zählt noch als laufend. Ohne Ende läuft der Auftrag.
+export function istBeendet(ende, today = new Date()) {
+  if (!ende) return false;
+  return String(ende).slice(0, 10) < isoDatum(today);
 }
 
 // Verkaufspreise aller Preiszeilen, plus VK und Marge nur dort, wo EK und VK
@@ -46,38 +45,13 @@ export function offenesCreatorBudget(creatorBudget, vkAlle) {
   return Math.max(0, (parseFloat(creatorBudget) || 0) - (vkAlle || 0));
 }
 
-function spanOrNull(marge, vkVoll) {
-  if (!(vkVoll > 0)) return null;
-  return marge / vkVoll;
-}
-
-// Offenes Budget je Gruppe mal deren Spanne. Eine Gruppe ohne bepreiste
-// Zeilen nimmt die Spanne aller bepreisten Zeilen im Filter. Fehlt auch die,
-// trägt die Gruppe nichts bei. Eine negative Spanne bleibt negativ.
+// Offenes Budget je laufendem Auftrag mal dessen eigene Spanne. Eine
+// negative Spanne bleibt negativ.
 export function erwarteteSpanne(beitraege) {
-  const groups = new Map();
-  let vkAlle = 0;
-  let margeAlle = 0;
-
-  (beitraege || []).forEach(b => {
-    const g = groups.get(b.gruppe) || { vkVoll: 0, marge: 0, offen: 0 };
-    g.vkVoll += b.vkVoll || 0;
-    g.marge += b.marge || 0;
-    g.offen += b.offen || 0;
-    groups.set(b.gruppe, g);
-    vkAlle += b.vkVoll || 0;
-    margeAlle += b.marge || 0;
-  });
-
-  const gesamt = spanOrNull(margeAlle, vkAlle);
-  let summe = 0;
-  groups.forEach(g => {
-    const eigene = spanOrNull(g.marge, g.vkVoll);
-    const rate = eigene == null ? gesamt : eigene;
-    if (rate == null) return;
-    summe += g.offen * rate;
-  });
-  return summe;
+  return (beitraege || []).reduce((summe, b) => {
+    if (b.beendet || !(b.vkVoll > 0)) return summe;
+    return summe + (b.offen || 0) * ((b.marge || 0) / b.vkVoll);
+  }, 0);
 }
 
 export function agenturPrognose({ erkannt = 0, feeBisEnde = 0, beitraege = [] } = {}) {

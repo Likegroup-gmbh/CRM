@@ -308,6 +308,175 @@ describe('Zuordnung und Kontrollsummen', () => {
     }
   });
 
+  it('teilt den Umsatz eines gemischten Auftrags nach Block-Umsatz, der Rest traegt die Rundung', () => {
+    const r = calculateMonatsauswertung(base({
+      auftraege: [{ ...AUFTRAG_MAERZ, nettobetrag: 40000 }],
+      blocks: [
+        { id: 'b1', auftrag_id: 'a1', campaign_type: 'influencer', umsatz_netto: 16000 },
+        { id: 'b2', auftrag_id: 'a1', campaign_type: 'ugc_paid', umsatz_netto: 6500 },
+        { id: 'b3', auftrag_id: 'a1', campaign_type: 'vorort_produktion', umsatz_netto: 12000 },
+      ],
+    }));
+    expect(cell(r, 'buchhaltung', 'influencer_marketing', '2026-03', 'umsatz')).toBe(18550.72);
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-03', 'umsatz')).toBe(7536.23);
+    expect(cell(r, 'buchhaltung', 'vorort_produktion', '2026-03', 'umsatz')).toBe(13913.05);
+    expect(cell(r, 'buchhaltung', 'gemischt', '2026-03', 'umsatz')).toBe(0);
+    expect(r.kontrolle.umsatzGesamt).toBe(40000);
+  });
+
+  it('laesst den Umsatz in Gemischt, wenn kein Block-Umsatz gepflegt ist', () => {
+    const r = calculateMonatsauswertung(base({
+      blocks: [
+        { id: 'b1', auftrag_id: 'a1', campaign_type: 'influencer', umsatz_netto: null },
+        { id: 'b2', auftrag_id: 'a1', campaign_type: 'ugc_paid', umsatz_netto: 0 },
+      ],
+    }));
+    expect(cell(r, 'buchhaltung', 'gemischt', '2026-03', 'umsatz')).toBe(10000);
+    expect(cell(r, 'buchhaltung', 'influencer_marketing', '2026-03', 'umsatz')).toBe(0);
+  });
+
+  it('legt eine Creatorrechnung mit einer Video-Art in diesen Bereich', () => {
+    const r = calculateMonatsauswertung(base({
+      blocks: [
+        { id: 'b1', auftrag_id: 'a1', campaign_type: 'influencer', umsatz_netto: 6000 },
+        { id: 'b2', auftrag_id: 'a1', campaign_type: 'ugc_paid', umsatz_netto: 4000 },
+      ],
+      videos: [{ id: 'v1', kooperation_id: 'ko1', kampagnenart: 'UGC Paid', einkaufspreis_netto: 500 }],
+      rechnungen: [{
+        id: 'r1', auftrag_id: 'a1', kooperation_id: 'ko1', status: 'Bezahlt',
+        nettobetrag: 5000, nettobetrag_steuerfrei: 0, zusatzkosten: 0, gestellt_am: '2026-06-15',
+      }],
+    }));
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-06', 'honorar')).toBe(5000);
+    expect(cell(r, 'marge', 'ugc_paid', '2026-03', 'honorar')).toBe(5000);
+    expect(cell(r, 'buchhaltung', 'gemischt', '2026-06', 'honorar')).toBe(0);
+    expect(cell(r, 'marge', 'ugc_paid', '2026-06', 'honorar')).toBe(0);
+  });
+
+  it('teilt Creatorrechnungen mit mehreren Video-Arten nach dem Einkaufspreis', () => {
+    const r = calculateMonatsauswertung(base({
+      blocks: [
+        { id: 'b1', auftrag_id: 'a1', campaign_type: 'ugc_organic', umsatz_netto: 2000 },
+        { id: 'b2', auftrag_id: 'a1', campaign_type: 'ugc_paid', umsatz_netto: 1000 },
+      ],
+      videos: [
+        { id: 'v1', kooperation_id: 'ko1', kampagnenart: 'UGC Organic', einkaufspreis_netto: 1200 },
+        { id: 'v2', kooperation_id: 'ko1', kampagnenart: 'UGC Paid', einkaufspreis_netto: 600 },
+      ],
+      rechnungen: [{
+        id: 'r1', auftrag_id: 'a1', kooperation_id: 'ko1', status: 'Bezahlt',
+        nettobetrag: 1800, nettobetrag_steuerfrei: 0, zusatzkosten: 90, gestellt_am: '2026-06-15',
+      }],
+    }));
+    expect(cell(r, 'buchhaltung', 'ugc_organic', '2026-06', 'honorar')).toBe(1200);
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-06', 'honorar')).toBe(600);
+    expect(cell(r, 'buchhaltung', 'ugc_organic', '2026-06', 'zusatzkosten')).toBe(60);
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-06', 'zusatzkosten')).toBe(30);
+  });
+
+  it('laesst die Creatorrechnung in Gemischt, sobald einem Video die Art fehlt', () => {
+    const r = calculateMonatsauswertung(base({
+      blocks: [
+        { id: 'b1', auftrag_id: 'a1', campaign_type: 'influencer', umsatz_netto: 6000 },
+        { id: 'b2', auftrag_id: 'a1', campaign_type: 'ugc_paid', umsatz_netto: 4000 },
+      ],
+      videos: [
+        { id: 'v1', kooperation_id: 'ko1', kampagnenart: 'UGC Paid', einkaufspreis_netto: 400 },
+        { id: 'v2', kooperation_id: 'ko1', kampagnenart: '', einkaufspreis_netto: 100 },
+      ],
+      rechnungen: [{
+        id: 'r1', auftrag_id: 'a1', kooperation_id: 'ko1', status: 'Bezahlt',
+        nettobetrag: 500, nettobetrag_steuerfrei: 0, zusatzkosten: 0, gestellt_am: '2026-06-15',
+      }],
+    }));
+    expect(cell(r, 'buchhaltung', 'gemischt', '2026-06', 'honorar')).toBe(500);
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-06', 'honorar')).toBe(0);
+  });
+
+  it('zaehlt Videos, wenn der Einkaufspreis ueberall fehlt', () => {
+    const r = calculateMonatsauswertung(base({
+      blocks: [
+        { id: 'b1', auftrag_id: 'a1', campaign_type: 'influencer', umsatz_netto: 1000 },
+        { id: 'b2', auftrag_id: 'a1', campaign_type: 'ugc_paid', umsatz_netto: 1000 },
+      ],
+      videos: [
+        { id: 'v1', kooperation_id: 'ko1', kampagnenart: 'Influencer Kampagne', einkaufspreis_netto: 0 },
+        { id: 'v2', kooperation_id: 'ko1', kampagnenart: 'UGC Paid', einkaufspreis_netto: null },
+        { id: 'v3', kooperation_id: 'ko1', kampagnenart: 'UGC Paid', einkaufspreis_netto: null },
+        { id: 'v4', kooperation_id: 'ko1', kampagnenart: 'UGC Paid', einkaufspreis_netto: null },
+      ],
+      rechnungen: [{
+        id: 'r1', auftrag_id: 'a1', kooperation_id: 'ko1', status: 'Bezahlt',
+        nettobetrag: 400, nettobetrag_steuerfrei: 0, zusatzkosten: 0, gestellt_am: '2026-06-15',
+      }],
+    }));
+    expect(cell(r, 'buchhaltung', 'influencer_marketing', '2026-06', 'honorar')).toBe(100);
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-06', 'honorar')).toBe(300);
+  });
+
+  it('ignoriert abweichende Video-Arten, wenn der Auftrag nur einen Bereich hat', () => {
+    const r = calculateMonatsauswertung(base({
+      videos: [{ id: 'v1', kooperation_id: 'ko1', kampagnenart: 'Influencer Kampagne', einkaufspreis_netto: 500 }],
+      rechnungen: [{
+        id: 'r1', auftrag_id: 'a1', kooperation_id: 'ko1', status: 'Bezahlt',
+        nettobetrag: 5000, nettobetrag_steuerfrei: 0, zusatzkosten: 0, gestellt_am: '2026-06-15',
+      }],
+    }));
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-06', 'honorar')).toBe(5000);
+    expect(cell(r, 'buchhaltung', 'influencer_marketing', '2026-06', 'honorar')).toBe(0);
+  });
+
+  it('fasst Influencer, Story und Events beim Block-Umsatz zu einem Bereich zusammen', () => {
+    const r = calculateMonatsauswertung(base({
+      blocks: [
+        { id: 'b1', auftrag_id: 'a1', campaign_type: 'influencer', umsatz_netto: 3000 },
+        { id: 'b2', auftrag_id: 'a1', campaign_type: 'story', umsatz_netto: 3000 },
+        { id: 'b3', auftrag_id: 'a1', campaign_type: 'ugc_paid', umsatz_netto: 4000 },
+      ],
+    }));
+    expect(cell(r, 'buchhaltung', 'influencer_marketing', '2026-03', 'umsatz')).toBe(6000);
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-03', 'umsatz')).toBe(4000);
+    expect(cell(r, 'buchhaltung', 'gemischt', '2026-03', 'umsatz')).toBe(0);
+  });
+
+  it('verteilt Teilrechnungen mit denselben Gewichten und haelt die Summe', () => {
+    const r = calculateMonatsauswertung(base({
+      blocks: [
+        { id: 'b1', auftrag_id: 'a1', campaign_type: 'influencer', umsatz_netto: 6000 },
+        { id: 'b2', auftrag_id: 'a1', campaign_type: 'ugc_paid', umsatz_netto: 4000 },
+      ],
+      videos: [
+        { id: 'v1', kooperation_id: 'ko1', kampagnenart: 'Influencer Kampagne', einkaufspreis_netto: 600 },
+        { id: 'v2', kooperation_id: 'ko1', kampagnenart: 'UGC Paid', einkaufspreis_netto: 400 },
+      ],
+      teilrechnungen: [
+        { id: 't1', auftrag_id: 'a1', nettobetrag: 4000, rechnung_gestellt: true, rechnung_gestellt_am: '2026-03-01' },
+        { id: 't2', auftrag_id: 'a1', nettobetrag: 6000, rechnung_gestellt: true, rechnung_gestellt_am: '2026-05-01' },
+      ],
+      rechnungen: [{
+        id: 'r1', auftrag_id: 'a1', kooperation_id: 'ko1', status: 'Bezahlt',
+        nettobetrag: 1000, nettobetrag_steuerfrei: 0, zusatzkosten: 0, gestellt_am: '2026-06-15',
+      }],
+    }));
+    expect(cell(r, 'buchhaltung', 'influencer_marketing', '2026-03', 'umsatz')).toBe(2400);
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-05', 'umsatz')).toBe(2400);
+    expect(r.kontrolle.umsatzGesamt).toBe(10000);
+    expect(cell(r, 'marge', 'influencer_marketing', '2026-03', 'honorar')).toBe(240);
+    expect(cell(r, 'marge', 'ugc_paid', '2026-05', 'honorar')).toBe(240);
+    expect(cell(r, 'buchhaltung', 'influencer_marketing', '2026-06', 'honorar')).toBe(600);
+    expect(cell(r, 'buchhaltung', 'ugc_paid', '2026-06', 'honorar')).toBe(400);
+
+    for (const sicht of ['buchhaltung', 'marge']) {
+      const view = r.views[sicht];
+      const umsatz = Object.values(view.bereiche).reduce((s, row) =>
+        s + Object.values(row.umsatz).reduce((x, y) => x + y, 0), 0);
+      const honorar = Object.values(view.bereiche).reduce((s, row) =>
+        s + Object.values(row.honorar).reduce((x, y) => x + y, 0), 0);
+      expect(umsatz).toBeCloseTo(r.kontrolle.umsatzGesamt, 2);
+      expect(honorar).toBeCloseTo(r.kontrolle.honorarInMatrix[sicht], 2);
+    }
+  });
+
   it('Monate sind sortiert und beide Sichten teilen die Achse', () => {
     const r = calculateMonatsauswertung(base({
       rechnungen: [{
