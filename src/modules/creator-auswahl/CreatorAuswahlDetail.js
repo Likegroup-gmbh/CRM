@@ -664,8 +664,14 @@ export class CreatorAuswahlDetail {
       if (this._customHeaderDragCleanup) { this._customHeaderDragCleanup(); this._customHeaderDragCleanup = null; }
     });
 
-    // Datepicker-Popover fuer Datums-Custom-Felder aktivieren
+    if (this._customHeaderResizeCleanup) this._customHeaderResizeCleanup();
     const table = document.querySelector('.creator-pool-table');
+    this._customHeaderResizeCleanup = this.customColumns.bindColumnResize(table);
+    this._boundEventListeners.add(() => {
+      if (this._customHeaderResizeCleanup) { this._customHeaderResizeCleanup(); this._customHeaderResizeCleanup = null; }
+    });
+
+    // Datepicker-Popover fuer Datums-Custom-Felder aktivieren
     if (table) {
       const cleanup = CustomDatePicker.bind(table);
       if (cleanup) this._boundEventListeners.add(cleanup);

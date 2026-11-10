@@ -561,4 +561,4 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
   }
 }
 
-module.exports = { runExtraction };
+module.exports = { runExtraction, normalizeFields, normalizeVarianten };

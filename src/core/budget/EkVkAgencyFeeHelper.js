@@ -2,6 +2,7 @@
 // Shared helper for Agency Fee calculation incl. EK/VK margin aggregation.
 
 import { summeKskSelbstzahler, berechneKskBetrag, KSK_SATZ_PROZENT } from './kskSelbstzahler.js';
+import { CARD_HINTS, renderSummaryLabelHtml } from './cardHints.js';
 
 export function isFilledPrice(value) {
   const n = parseFloat(value);
@@ -170,7 +171,7 @@ export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = f
   return `
     <div class="summary-card"${cardAttr}>
       <div class="summary-value"${totalAttr}>${formatCurrency(resolved.total)}</div>
-      <div class="summary-label">Agenturanteil</div>
+      ${renderSummaryLabelHtml('Agenturanteil', canSeePricing ? CARD_HINTS.agentur : null)}
       ${canSeePricing ? renderAgencyFeeBreakdownHtml(resolved, formatCurrency, { dataAttrs }) : ''}
     </div>`;
 }
@@ -218,7 +219,7 @@ export function renderCreatorAnteilCardHtml(creatorAnteil, payment, formatCurren
   return `
     <div class="summary-card"${cardAttr}>
       <div class="summary-value"${totalAttr}>${formatCurrency(total)}</div>
-      <div class="summary-label">${label}</div>
+      ${renderSummaryLabelHtml(label, CARD_HINTS.creator)}
       <div class="summary-card-breakdown">
         <div class="summary-card-breakdown-line">
           <span>Bezahlt</span>
@@ -264,7 +265,7 @@ export function renderKskCardHtml(summary, formatCurrency) {
     return `
     <div class="summary-card">
       <div class="summary-value">${formatCurrency(summary.kskValue)}</div>
-      <div class="summary-label">KSK</div>
+      ${renderSummaryLabelHtml('KSK', CARD_HINTS.ksk)}
       <div class="summary-card-breakdown">
         <div class="summary-card-breakdown-line">
           <span>${satzAnzeige} % vom Creator-Anteil</span>
@@ -294,7 +295,7 @@ export function renderKskCardHtml(summary, formatCurrency) {
   return `
     <div class="summary-card">
       <div class="summary-value">${formatCurrency(summary.kskValue)}</div>
-      <div class="summary-label">KSK</div>
+      ${renderSummaryLabelHtml('KSK', CARD_HINTS.ksk)}
       ${breakdown}
     </div>`;
 }

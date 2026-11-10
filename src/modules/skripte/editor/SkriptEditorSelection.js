@@ -7,7 +7,7 @@
 import { escapeHtml } from '../SkripteUtils.js';
 import {
   AKTION_LABELS, AKTION_ICONS, AI_SELEKTION_AKTIONEN, FORMAT_AKTIONEN,
-    PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
+    PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT, HOOK_VARIANTE_FELDER
 } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
@@ -84,8 +84,10 @@ export class SkriptEditorSelection {
     if (modmenu) modmenu.hidden = true;
     v.closeVersionMenu();
 
+    // "Hook übertragen" (Swap mit dem Haupthook) nur in Varianten-Zellen
+    const istHookVariante = HOOK_VARIANTE_FELDER.includes(feld);
     const aktionen = v.kannAiAktionen
-      ? ['kommentieren', ...AI_SELEKTION_AKTIONEN]
+      ? ['kommentieren', ...AI_SELEKTION_AKTIONEN, ...(istHookVariante ? ['hook_uebertragen'] : [])]
       : ['kommentieren'];
 
     const items = aktionen.map((aktion) => ({
@@ -108,12 +110,18 @@ export class SkriptEditorSelection {
   }
 
   /** "Kommentieren" geht ins Feedback-Panel, Formatierung direkt an die
-   *  Zelle, alles andere in den Liky-Chat. */
+   *  Zelle, "Hook übertragen" tauscht sofort, alles andere in den Liky-Chat. */
   onAktion(aktion) {
     if (aktion === 'kommentieren') {
       const selektion = this.view.selektion;
       this.clearPending();
       this.view.startNeuerKommentar(selektion);
+      return;
+    }
+    if (aktion === 'hook_uebertragen') {
+      const feld = this.view.selektion?.feld;
+      this.clearPending();
+      if (feld) this.view.hookUebertragen(feld);
       return;
     }
     if (FORMAT_AKTIONEN[aktion]) {

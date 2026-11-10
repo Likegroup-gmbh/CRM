@@ -56,7 +56,7 @@
           </div>
           <div class="register-links-row">
             <a href="/" class="register-link-btn">
-              ${icon('arrow-left-on-rectangle')}
+              <span data-icon="arrow-left-on-rectangle"></span>
               Zurück zum Login
             </a>
           </div>
@@ -70,9 +70,14 @@
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm'
   import { getSupabaseConfig } from './config.js'
   import { initPasswordHints } from './password-hints.js'
+  import { icon } from '../core/icons/IconSystem.js'
+
+  // Icons hydratisieren
+  document.querySelectorAll('[data-icon]').forEach((el) => {
+    el.innerHTML = icon(el.dataset.icon)
+  })
 
   const cfg = getSupabaseConfig();
-import { icon } from '../core/icons/IconSystem.js';
   if (!cfg) {
     const msg = document.getElementById('msg');
     msg.style.display = 'block';

@@ -178,7 +178,9 @@ export class KampagneDetail {
       availableTags: this.store?.getAvailableTags() || [],
       selectedStatuses: this.store?.selectedStatuses || [],
       selectedTags: this.store?.selectedTags || [],
-      kooperationSort: this.store?.kooperationSort || 'created_desc'
+      kooperationSort: this.store?.kooperationSort || 'created_desc',
+      kooperationen: this.store?.kooperationen || [],
+      videos: Object.values(this.store?.videos || {}).flat()
     });
 
     window.setContentSafely(window.content, html);
@@ -256,7 +258,7 @@ export class KampagneDetail {
       summary.extraKostenVkSum,
       summary.ekVkMarginSum,
       summary.kskUmgebucht,
-      { animate }
+      { animate, kooperationen: this.store?.kooperationen || [], videos: Object.values(this.store?.videos || {}).flat() }
     );
     updateVideoStatsCardDOM(summary.videoStats, { animate });
   }
@@ -300,7 +302,7 @@ export class KampagneDetail {
       this.kooperationenVideoTable.updateTabCounts();
     }
 
-    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht);
+    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht, { kooperationen: this.store?.kooperationen || [], videos: Object.values(this.store?.videos || {}).flat() });
     updateVideoStatsCardDOM(this.videoStats);
 
     this._pendingTableData = null;

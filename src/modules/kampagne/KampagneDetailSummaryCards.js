@@ -5,6 +5,9 @@ import { KampagneUtils } from './KampagneUtils.js';
 import { getCampaignTargetTotals } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 import { animateNumber } from '../../core/animation/animateNumber.js';
+import { calculateBudgetOverview, getBudgetCardVariant } from '../../core/budget/calculateBudgetOverview.js';
+import { renderAgencyFeeCardHtml, renderKskCardHtml, renderCreatorAnteilCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { CARD_HINTS, renderSummaryLabelHtml } from '../../core/budget/cardHints.js';
 
 const VIDEO_STATS_METRIKEN = [
   { key: 'views', slug: 'stats-views', label: 'Views' },
@@ -59,8 +62,116 @@ function resolveTargets(kampagneData) {
   return getCampaignTargetTotals({
     blocks: kampagneData?.campaignBlocks,
     auftragDetails: kampagneData?.auftragDetails,
-    kampagne: kampagneData
+    kampagne: kampagneData,
+    preferKampagne: true
   });
+}
+
+function resolveKampagneBudget(kampagneData) {
+  const auftrag = kampagneData?.auftrag || {};
+  const auftragNetto = parseFloat(auftrag.nettobetrag) || 0;
+  const volumenRaw = parseFloat(kampagneData?.volumen);
+  const creatorRaw = parseFloat(kampagneData?.creator_budget);
+  const hasVolumen = Number.isFinite(volumenRaw);
+  const hasCreator = Number.isFinite(creatorRaw);
+  const volumen = hasVolumen ? volumenRaw : auftragNetto;
+  const creatorBudget = hasCreator
+    ? creatorRaw
+    : (parseFloat(auftrag.creator_budget || auftrag.gesamt_budget || auftrag.nettobetrag) || 0);
+  const isSlice = hasVolumen && Math.abs(volumenRaw - auftragNetto) > 0.01;
+  return { volumen, creatorBudget, isSlice };
+}
+
+// UGC-Auftraege haben keinen festen Creator-Topf: die Restzahl muss dieselbe
+// sein wie in den Auftragsdetails (netto − Extras − EK − Fee − KSK −
+// Zusatzkosten), sonst rechnet der MA mit dem zu hohen creator_budget − VK.
+function resolveUgcOverview(kampagneData, kooperationen, videos) {
+  const { volumen, creatorBudget, isSlice } = resolveKampagneBudget(kampagneData);
+  const auftrag = {
+    ...(kampagneData?.auftrag || {}),
+    nettobetrag: volumen,
+    creator_budget: creatorBudget
+  };
+  const details = isSlice
+    ? { ...(kampagneData?.auftragDetails || {}), extra_services: [], extra_services_enabled: false }
+    : kampagneData?.auftragDetails;
+  return calculateBudgetOverview({
+    auftrag,
+    details,
+    kooperationen,
+    videos
+  });
+}
+
+function renderUgcBudgetCardsHtml(overview, { canSeePricing, formatCurrency }) {
+  const fmt = formatCurrency;
+  // Formel-Tooltips nur intern: die Zusammensetzung (Creatoranteil, Agenturanteil,
+  // KSK, Zusatzleistungen) ist Kalkulationswissen, das Kunden nicht sehen.
+  const hint = (h) => (canSeePricing ? h : null);
+  const auftragsvolumen = overview.auftragsvolumen || 0;
+  const verbrauchtesBudget = overview.verbrauchtesBudget || 0;
+  const verfuegbaresBudget = overview.verfuegbaresBudget || 0;
+  const spendableBudget = overview.spendableBudget ?? auftragsvolumen;
+  const budgetPct = spendableBudget > 0 ? Math.min(100, Math.round((verbrauchtesBudget / spendableBudget) * 100)) : 0;
+  const openPct = spendableBudget > 0 ? Math.max(0, 100 - budgetPct) : 0;
+
+  const getBudgetColorClass = (pct) => {
+    if (pct >= 90) return 'summary-progress-fill--danger';
+    if (pct >= 75) return 'summary-progress-fill--warning';
+    return '';
+  };
+  const getOpenBudgetColorClass = (pct) => {
+    if (pct <= 10) return 'summary-progress-fill--danger';
+    if (pct <= 25) return 'summary-progress-fill--warning';
+    return 'summary-progress-fill--success';
+  };
+
+  const d = overview.details || {};
+  const extraServices = Array.isArray(d.extra_services) ? d.extra_services : [];
+  const validExtraServices = (d.extra_services_enabled !== false)
+    ? extraServices.filter(s => s && typeof s.name === 'string' && s.name.trim())
+    : [];
+  const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
+  const zusatzleistungenCardsHtml = canSeePricing
+    ? validExtraServices.map(s => `
+        <div class="summary-card">
+          <div class="summary-value">${fmt(parseFloat(s.amount) || 0)}</div>
+          ${renderSummaryLabelHtml(sanitize(s.name), hint(CARD_HINTS.extras))}
+        </div>
+      `).join('')
+    : '';
+
+  return `
+        <div class="summary-card" data-summary-card="gesamt-netto">
+          <div class="summary-value">${fmt(auftragsvolumen)}</div>
+          ${renderSummaryLabelHtml('Auftragsvolumen', hint(CARD_HINTS.volumen))}
+        </div>
+        <div class="summary-card" data-summary-card="spent-budget">
+          <div class="summary-value" data-summary-value="spent-budget">${fmt(verbrauchtesBudget)}</div>
+          ${renderSummaryLabelHtml('Verbrauchtes Budget', hint(CARD_HINTS.verbraucht))}
+          <div class="summary-progress">
+            <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}" data-summary-progress="spent-budget"
+                 style="width: ${budgetPct}%">
+            </div>
+          </div>
+        </div>
+        <div class="summary-card" data-summary-card="open-budget">
+          <div class="summary-value" data-summary-value="open-budget">${fmt(verfuegbaresBudget)}</div>
+          ${renderSummaryLabelHtml('Verfügbares Budget', hint(CARD_HINTS.verfuegbar))}
+          <div class="summary-progress">
+            <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}" data-summary-progress="open-budget"
+                 style="width: ${openPct}%">
+            </div>
+          </div>
+        </div>
+        ${canSeePricing ? renderCreatorAnteilCardHtml(overview.creatorAnteil, { paid: 0, open: overview.creatorAnteil }, fmt) : ''}
+        ${canSeePricing ? renderAgencyFeeCardHtml(overview.agencyFeeSummary, fmt, { canSeePricing: true }) : ''}
+        ${canSeePricing ? renderKskCardHtml(overview.agencyFeeSummary, fmt) : ''}
+        ${zusatzleistungenCardsHtml}
+        <div class="summary-card" data-summary-card="extra-kosten-vk">
+          <div class="summary-value" data-summary-value="extra-kosten-vk">${fmt(overview.extraKostenVkSum || 0)}</div>
+          ${renderSummaryLabelHtml('Zusatzkosten', hint(CARD_HINTS.zusatz))}
+        </div>`;
 }
 
 export function calculateSummaryCards(kooperationen, videos) {
@@ -73,17 +184,18 @@ export function calculateSummaryCards(kooperationen, videos) {
   return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum };
 }
 
-export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, kskUmgebucht = 0, { animate = false } = {}) {
-  // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
-  const totalBudget = (parseFloat(
-    kampagneData?.auftrag?.creator_budget ||
-    kampagneData?.auftrag?.gesamt_budget ||
-    kampagneData?.auftrag?.nettobetrag || 0
-  ) || 0) + (parseFloat(kskUmgebucht) || 0);
+export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, kskUmgebucht = 0, { animate = false, kooperationen, videos } = {}) {
+  const isUgc = getBudgetCardVariant(kampagneData?.auftragDetails) === 'ugc';
+
+  const { creatorBudget } = resolveKampagneBudget(kampagneData);
+  // Influencer-Pfad unveraendert: creator_budget − Σ VK.
+  const totalBudget = creatorBudget + (parseFloat(kskUmgebucht) || 0);
   const usedBudget = koopBudgetSum || 0;
-  // Negativ = Ueberschreitung (ADR 0007). budgetPct/openPct bleiben geklemmt,
-  // sie steuern nur Balkenbreite und Farbe.
   const openBudget = totalBudget - usedBudget;
+
+  // UGC: Rest aus der Overview (gleiche Quelle wie Auftragsdetails), nicht
+  // ueber den Tag-Filter neu rechnen — der Rest ist der Auftragstopf.
+  const ugcOverview = isUgc ? resolveUgcOverview(kampagneData, kooperationen, videos) : null;
   const targets = resolveTargets(kampagneData);
   const totalVideos = targets.videos;
   const totalCreators = targets.creators;
@@ -105,23 +217,48 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
     else el.textContent = format(value);
   };
 
-  // Gesamtbudget (nur Netto-Gesamtwert)
-  setValue('[data-summary-value="total-budget"]', totalBudget, KampagneUtils.formatCurrency);
+  if (isUgc && ugcOverview) {
+    const spendableBudget = ugcOverview.spendableBudget ?? ugcOverview.auftragsvolumen;
+    const ugcVerbraucht = ugcOverview.verbrauchtesBudget || 0;
+    const ugcBudgetPct = spendableBudget > 0 ? Math.min(100, Math.round((ugcVerbraucht / spendableBudget) * 100)) : 0;
+    const ugcOpenPct = spendableBudget > 0 ? Math.max(0, 100 - ugcBudgetPct) : 0;
 
-  // Verbrauchtes Budget
-  setValue('[data-summary-value="spent-budget"]', usedBudget, KampagneUtils.formatCurrency);
-  const spentProg = document.querySelector('[data-summary-progress="spent-budget"]');
-  if (spentProg) { spentProg.style.width = `${budgetPct}%`; setBudgetColor(spentProg, budgetPct); }
+    setValue('[data-summary-value="spent-budget"]', ugcVerbraucht, KampagneUtils.formatCurrency);
+    const spentProg = document.querySelector('[data-summary-progress="spent-budget"]');
+    if (spentProg) { spentProg.style.width = `${ugcBudgetPct}%`; setBudgetColor(spentProg, ugcBudgetPct); }
 
-  // Offenes Budget
-  setValue('[data-summary-value="open-budget"]', openBudget, KampagneUtils.formatCurrency);
-  const openProg = document.querySelector('[data-summary-progress="open-budget"]');
-  if (openProg) {
-    openProg.style.width = `${openPct}%`;
-    openProg.className = 'summary-progress-fill';
-    if (openPct <= 10) openProg.classList.add('summary-progress-fill--danger');
-    else if (openPct <= 25) openProg.classList.add('summary-progress-fill--warning');
-    else openProg.classList.add('summary-progress-fill--success');
+    setValue('[data-summary-value="open-budget"]', ugcOverview.verfuegbaresBudget || 0, KampagneUtils.formatCurrency);
+    const openProg = document.querySelector('[data-summary-progress="open-budget"]');
+    if (openProg) {
+      openProg.style.width = `${ugcOpenPct}%`;
+      openProg.className = 'summary-progress-fill';
+      if (ugcOpenPct <= 10) openProg.classList.add('summary-progress-fill--danger');
+      else if (ugcOpenPct <= 25) openProg.classList.add('summary-progress-fill--warning');
+      else openProg.classList.add('summary-progress-fill--success');
+    }
+
+    setValue('[data-summary-value="extra-kosten-vk"]', ugcOverview.extraKostenVkSum || 0, KampagneUtils.formatCurrency);
+  } else {
+    // Gesamtbudget (nur Netto-Gesamtwert)
+    setValue('[data-summary-value="total-budget"]', totalBudget, KampagneUtils.formatCurrency);
+
+    // Verbrauchtes Budget
+    setValue('[data-summary-value="spent-budget"]', usedBudget, KampagneUtils.formatCurrency);
+    const spentProg = document.querySelector('[data-summary-progress="spent-budget"]');
+    if (spentProg) { spentProg.style.width = `${budgetPct}%`; setBudgetColor(spentProg, budgetPct); }
+
+    // Offenes Budget
+    setValue('[data-summary-value="open-budget"]', openBudget, KampagneUtils.formatCurrency);
+    const openProg = document.querySelector('[data-summary-progress="open-budget"]');
+    if (openProg) {
+      openProg.style.width = `${openPct}%`;
+      openProg.className = 'summary-progress-fill';
+      if (openPct <= 10) openProg.classList.add('summary-progress-fill--danger');
+      else if (openPct <= 25) openProg.classList.add('summary-progress-fill--warning');
+      else openProg.classList.add('summary-progress-fill--success');
+    }
+
+    setValue('[data-summary-value="extra-kosten-vk"]', extraKostenVkSum || 0, KampagneUtils.formatCurrency);
   }
 
   // Creator & Videos (nur Werte, keine Progress-Bars); nur der Ist-Wert wird animiert
@@ -130,8 +267,6 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
 
   setValue('[data-summary-value="videos"]', koopVideosUsed || 0,
     (v) => `${KampagneUtils.num(Math.round(v))} von ${KampagneUtils.num(totalVideos)}`);
-
-  setValue('[data-summary-value="extra-kosten-vk"]', extraKostenVkSum || 0, KampagneUtils.formatCurrency);
 }
 
 /**
@@ -179,14 +314,13 @@ export function updateVideoStatsCardDOM(videoStats, { animate = false } = {}) {
   }
 }
 
-export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht = 0) {
-  const gesamtNettoBetrag = parseFloat(kampagneData?.auftrag?.nettobetrag) || 0;
+export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht = 0, { kooperationen, videos, isKunde = false } = {}) {
+  const isUgc = getBudgetCardVariant(kampagneData?.auftragDetails) === 'ugc';
+  const canSeePricing = !isKunde && (window.canSeePricing?.() ?? true);
+
+  const { volumen: gesamtNettoBetrag, creatorBudget } = resolveKampagneBudget(kampagneData);
   // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
-  const totalBudget = (parseFloat(
-    kampagneData?.auftrag?.creator_budget ||
-    kampagneData?.auftrag?.gesamt_budget ||
-    kampagneData?.auftrag?.nettobetrag || 0
-  ) || 0) + (parseFloat(kskUmgebucht) || 0);
+  const totalBudget = creatorBudget + (parseFloat(kskUmgebucht) || 0);
   const usedBudget = koopBudgetSum || 0;
   // Negativ = Ueberschreitung (ADR 0007). budgetPct/openPct bleiben geklemmt,
   // sie steuern nur Balkenbreite und Farbe.
@@ -221,12 +355,37 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
 
   const fmt = KampagneUtils.formatCurrency;
 
-  const zusatzleistungenCardsHtml = validExtraServices.map(s => `
+  // Zusatzleistungen sind interne Reservierung — Betraege nur fuer interne
+  // Rollen, Kunden sehen die Kacheln nicht.
+  const zusatzleistungenCardsHtml = canSeePricing
+    ? validExtraServices.map(s => `
         <div class="summary-card">
           <div class="summary-value">${fmt(parseFloat(s.amount) || 0)}</div>
           <div class="summary-label">${sanitize(s.name)}</div>
         </div>
-      `).join('');
+      `).join('')
+    : '';
+
+  if (isUgc) {
+    const overview = resolveUgcOverview(kampagneData, kooperationen, videos);
+    overview.details = kampagneData?.auftragDetails || {};
+    return `
+    <div class="auftragsdetails-summary auftragsdetails-summary--flush">
+      <div class="summary-cards">
+        ${renderUgcBudgetCardsHtml(overview, { canSeePricing, formatCurrency: fmt })}
+        <div class="summary-card" data-summary-card="creators">
+          <div class="summary-value" data-summary-value="creators">${KampagneUtils.num(usedCreators)} von ${KampagneUtils.num(totalCreators)}</div>
+          <div class="summary-label">Gebuchte Creator</div>
+        </div>
+        <div class="summary-card" data-summary-card="videos">
+          <div class="summary-value" data-summary-value="videos">${KampagneUtils.num(usedVideos)} von ${KampagneUtils.num(totalVideos)}</div>
+          <div class="summary-label">Gebuchte Videos</div>
+        </div>
+        ${hasVideoStats(videoStats) ? renderVideoStatsCardHtml(videoStats) : ''}
+      </div>
+    </div>
+  `;
+  }
 
   return `
     <div class="auftragsdetails-summary auftragsdetails-summary--flush">

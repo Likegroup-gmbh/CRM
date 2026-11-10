@@ -23,7 +23,7 @@ describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
     expect(html).not.toMatch(/href="\/marke"/);
   });
 
-  it('zeigt Personas und Produkte in Kundendaten nach Unternehmen und Ansprechpartner', () => {
+  it('zeigt Produkte vor Personas in Kundendaten nach Unternehmen und Ansprechpartner', () => {
     window.currentUser.permissions = {
       ...window.currentUser.permissions,
       produkt: { can_view: true },
@@ -41,8 +41,8 @@ describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
     const produkt = html.indexOf('href="/produkt"');
     expect(unternehmen).toBeGreaterThan(-1);
     expect(ansprechpartner).toBeGreaterThan(unternehmen);
-    expect(persona).toBeGreaterThan(ansprechpartner);
-    expect(produkt).toBeGreaterThan(persona);
+    expect(produkt).toBeGreaterThan(ansprechpartner);
+    expect(persona).toBeGreaterThan(produkt);
   });
 
   it('zeigt das Accounting-Dashboard nur im Accounting-Bereich, nicht als Stakeholder in der Hauptnavigation', () => {

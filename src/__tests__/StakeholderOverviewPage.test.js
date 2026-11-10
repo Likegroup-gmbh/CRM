@@ -214,7 +214,7 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('Zusatzkosten');
 
     // Formel-Tooltips auf den Karten
-    expect(html).toContain('stakeholder-card-info');
+    expect(html).toContain('card-hint');
     expect(html).toContain('Creatoranteil + Agenturanteil + KSK + Zusatzkosten');
     expect(html).toContain('Feste Fee + EK/VK-Differenz');
     expect(html).toContain('eingelöst');
@@ -223,7 +223,7 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('Σ Nettobetrag aller Aufträge');
     expect(html).toContain('nicht die gestellten Kundenrechnungen im Zahlungsstand');
     expect(html).toContain('Kalkulation — nicht die gestellten Creatorrechnungen im Zahlungsstand');
-    expect(html).toContain('Auftragsvolumen − Verbrauchtes Budget');
+    expect(html).toContain('Auftragsvolumen − Zusatzleistungen − Verbrauchtes Budget');
 
     // Kundenliste vorhanden
     expect(html).toContain('Kunden nach Umsatz');
@@ -776,6 +776,128 @@ describe('StakeholderOverviewPage', () => {
     expect(totals.db).toBe(900);
     expect(totals.creatorPaid).toBe(0);
     expect(totals.creatorOpen).toBe(400);
+  });
+
+  it('zieht Zusatzleistungen vom verfügbaren Rest ab, nicht vom Verbrauch', async () => {
+    const auftraege = [
+      {
+        id: 'a1',
+        auftragsname: 'UGC Auftrag',
+        nettobetrag: 10000,
+        creator_budget: 8000,
+        auftragtype: 'UGC/Influencer',
+        start: '2026-01-01',
+        is_draft: false,
+        unternehmen_id: 'u1'
+      }
+    ];
+    const blocks = [{ auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }];
+    const kampagnen = [{ id: 'k1', auftrag_id: 'a1', videoanzahl: 5, creatoranzahl: 2 }];
+    const kooperationen = [
+      { id: 'koop1', kampagne_id: 'k1', creator_id: 'c1', videoanzahl: 2, einkaufspreis_netto: 1000, verkaufspreis_netto: 2000, verkaufspreis_zusatzkosten: 100 }
+    ];
+    const videos = [
+      { id: 'v1', kooperation_id: 'koop1', einkaufspreis_netto: 400, verkaufspreis_netto: 800, kampagnenart: 'UGC Paid' }
+    ];
+    const details = [
+      { auftrag_id: 'a1', campaign_type: ['ugc_paid'], agency_services_enabled: true, percentage_fee_enabled: true, percentage_fee_value: '500', ksk_enabled: true, ksk_value: '250', extra_services: [{ name: 'Konzept', amount: 2000 }] }
+    ];
+    const unternehmen = [{ id: 'u1', firmenname: 'Muster GmbH' }];
+
+    window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+
+    const { rows, totals } = page.aggregate();
+    // Verbraucht wie ohne Extras: 400 + 900 + 19,60 + 100 = 1419,60
+    expect(totals.verbraucht).toBeCloseTo(1419.6, 2);
+    expect(totals.extras).toBe(2000);
+    // Verfügbar = Volumen − Zusatzleistungen − Verbrauch — dieselbe Restformel
+    // wie Auftragsdetails/Kampagne (calculateBudgetOverview.verfuegbaresBudget).
+    expect(totals.verfuegbar).toBeCloseTo(10000 - 2000 - 1419.6, 2);
+    expect(rows[0].extras).toBe(2000);
+    expect(rows[0].summary.verfuegbaresBudget).toBeCloseTo(totals.verfuegbar, 2);
+
+    const html = window.content.innerHTML;
+    expect(html).toContain('Zusatzleistungen');
+    expect(html).toContain('2.000,00');
+  });
+
+  it('ignoriert Zusatzleistungen ohne Namen oder leeres Array', async () => {
+    const auftraege = [
+      {
+        id: 'a1',
+        auftragsname: 'UGC Auftrag',
+        nettobetrag: 10000,
+        creator_budget: 8000,
+        auftragtype: 'UGC/Influencer',
+        start: '2026-01-01',
+        is_draft: false,
+        unternehmen_id: 'u1'
+      }
+    ];
+    const blocks = [{ auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }];
+    const kampagnen = [{ id: 'k1', auftrag_id: 'a1', videoanzahl: 5, creatoranzahl: 2 }];
+    const kooperationen = [
+      { id: 'koop1', kampagne_id: 'k1', creator_id: 'c1', videoanzahl: 2, einkaufspreis_netto: 1000, verkaufspreis_netto: 2000, verkaufspreis_zusatzkosten: 100 }
+    ];
+    const videos = [
+      { id: 'v1', kooperation_id: 'koop1', einkaufspreis_netto: 400, verkaufspreis_netto: 800, kampagnenart: 'UGC Paid' }
+    ];
+    const details = [
+      { auftrag_id: 'a1', campaign_type: ['ugc_paid'], agency_services_enabled: true, percentage_fee_enabled: true, percentage_fee_value: '500', ksk_enabled: true, ksk_value: '250', extra_services: [{ name: '', amount: 2000 }, { amount: 500 }] }
+    ];
+    const unternehmen = [{ id: 'u1', firmenname: 'Muster GmbH' }];
+
+    window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
+
+    const page = createPage();
+    await page.init();
+
+    const { totals } = page.aggregate();
+    expect(totals.extras).toBe(0);
+    expect(totals.verfuegbar).toBeCloseTo(10000 - 1419.6, 2);
+  });
+
+  it('lässt das Offene Creator Budget im Influencer-Tab trotz extra_services unverändert', async () => {
+    const auftraege = [
+      {
+        id: 'a1',
+        auftragsname: 'Influencer Auftrag',
+        nettobetrag: 50000,
+        creator_budget: 44000,
+        auftragtype: 'UGC/Influencer',
+        start: '2026-01-01',
+        is_draft: false,
+        unternehmen_id: 'u1'
+      }
+    ];
+    const blocks = [
+      { auftrag_id: 'a1', campaign_type: 'influencer', campaign_type_label: 'Influencer Kampagne', umsatz_netto: 50000 }
+    ];
+    const kampagnen = [{ id: 'k1', auftrag_id: 'a1', videoanzahl: 10, creatoranzahl: 5 }];
+    const kooperationen = [
+      { id: 'koop1', kampagne_id: 'k1', creator_id: 'c1', videoanzahl: 3, einkaufspreis_netto: 5000, verkaufspreis_netto: 8000, verkaufspreis_zusatzkosten: 0 }
+    ];
+    const videos = [
+      { id: 'v1', kooperation_id: 'koop1', einkaufspreis_netto: 2000, verkaufspreis_netto: 3000, kampagnenart: 'Influencer Kampagne' }
+    ];
+    const details = [
+      { auftrag_id: 'a1', campaign_type: ['influencer'], percentage_fee_enabled: true, percentage_fee_value: '2000', ksk_enabled: true, ksk_value: '500', extra_services: [{ name: 'Konzept', amount: 5000 }] }
+    ];
+    const unternehmen = [{ id: 'u1', firmenname: 'Beispiel AG' }];
+
+    window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
+
+    const page = createPage();
+    await page.init();
+
+    // Zusatzleistungen stecken im Wizard-creator_budget bereits drin —
+    // der VK-basierte Rest darf sie nicht nochmal abziehen.
+    expect(page.influencerOffenesCreatorBudget()).toBe(41000);
   });
 
   it('teilt Creatoranteil in Bezahlt/Offen aus Rechnungen', async () => {

@@ -171,11 +171,14 @@ export function renderItemsView(list) {
               <th>Preis</th>
               <th>Varianten</th>
               <th>Erstellt</th>
+              <th>Personas</th>
+              <th>Briefings</th>
+              <th>Skripte</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="produkte-items-body">
-            <tr><td colspan="8" class="no-data">Lade Produkte...</td></tr>
+            <tr><td colspan="11" class="no-data">Lade Produkte...</td></tr>
           </tbody>
         </table>
       </div>
@@ -200,7 +203,7 @@ export function updateItemsTable(list) {
         }
       }
     }, 'default');
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-state-cell">${html}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty-state-cell">${html}</td></tr>`;
     list.pagination.updateTotal(0);
     list.pagination.render();
     return;

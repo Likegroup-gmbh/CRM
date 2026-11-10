@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { KampagneDetail } from '../modules/kampagne/KampagneDetail.js';
+import { loadFullTableData } from '../modules/kampagne/KampagneDetailDataLoader.js';
 
 function createQueryMock(result = { data: [], error: null }) {
   const mock = {
@@ -103,12 +104,48 @@ describe('KampagneDetail – Mitarbeiter-Rollen Query-Konsolidierung', () => {
     expect(detail.kampagneData.creator_sourcing_ids).toEqual(['cs1']);
   });
 
-  it('lädt Kooperationen-Summary in loadCriticalData (für Summary Cards)', async () => {
+  it('fragt auftrag_details ohne extra_services_enabled (Spalte existiert nicht)', async () => {
+    let detailsSelect = null;
     const fromCalls = setupSupabaseMock([]);
+    const originalFrom = window.supabase.from;
+
+    window.supabase.from = vi.fn((table) => {
+      const q = originalFrom(table);
+      if (table === 'auftrag_details') {
+        const innerSelect = q.select;
+        q.select = vi.fn((cols) => {
+          detailsSelect = cols;
+          return innerSelect.call(q, cols);
+        });
+      }
+      return q;
+    });
 
     await detail.loadCriticalData();
 
+    expect(fromCalls['auftrag_details']).toBe(1);
+    expect(detailsSelect).toEqual(expect.stringContaining('campaign_type'));
+    expect(detailsSelect).toEqual(expect.stringContaining('extra_services'));
+    expect(detailsSelect).not.toEqual(expect.stringContaining('extra_services_enabled'));
+  });
+
+  it('lädt Kooperationen für die Summary Cards über loadFullTableData in den Store', async () => {
+    // Summary Cards lesen store.kooperationen; init() awaited loadCriticalData
+    // UND loadFullTableData vor dem ersten Render — der Store-Pfad ist der
+    // verbindliche Vertrag, nicht eine eigene Query in loadCriticalData.
+    const fromCalls = setupSupabaseMock([]);
+    const store = {
+      setKooperationen: vi.fn(),
+      setVideos: vi.fn(),
+      setVideoComments: vi.fn(),
+      setVersandInfos: vi.fn(),
+      setKampagneInfo: vi.fn(),
+    };
+
+    await loadFullTableData('k1', store, false);
+
     expect(fromCalls['kooperationen']).toBe(1);
+    expect(store.setKooperationen).toHaveBeenCalledWith([]);
   });
 
   it('referenziert kein nicht-existierendes loadKampagneData in Event-Handlern', async () => {

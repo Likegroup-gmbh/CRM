@@ -155,7 +155,7 @@ exports.handler = async (event) => {
       })
     ]);
 
-    // Management-Links fuer das Kontakt-Gate (Mail oder Management)
+    // Management-Links fuer den Track-Kontakt-Bonus (kein Gate)
     try {
       const { data: links } = await supabase.from('creator_management').select('creator_id').limit(10000);
       (links || []).forEach(l => { if (l.creator_id) bild.managementIds.add(l.creator_id); });
@@ -167,7 +167,7 @@ exports.handler = async (event) => {
     // --- Gates + Scores + Ranking ---
     schreibeStep('werten', `${kandidaten.length} Creator werden geprüft`);
     const { pass, raus } = applyGates(kandidaten, bedarf, bild);
-    if (!pass.length) throw new Error('Kein Creator besteht die Grundanforderungen (Sprache, Land, Typ, Kontakt)');
+    if (!pass.length) throw new Error('Kein Creator besteht die Grundanforderungen (Sprache, Land, Typ)');
 
     const listeTyp = String(casting.liste_typ || 'mix').toLowerCase();
     const fortfuehren = bedarf.ansatz === 'always_on' && bedarf.alwaysOnBestehend === 'fortfuehren';

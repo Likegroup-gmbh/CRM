@@ -8,6 +8,7 @@ import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderSecondaryNav, activateSecondaryNavTab, getSecondaryNavTabFromEvent, getTabQueryParam } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { berechneVerfuegbaresBudget } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { calculateBudgetOverview, getBudgetCardVariant } from '../../core/budget/calculateBudgetOverview.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
@@ -647,21 +648,10 @@ export class AuftragDetail extends PersonDetailBase {
   }
 
   renderAuftragSummaryCards() {
-    // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
-    const totalBudget = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen).verfuegbar;
-    const usedBudget = this.usedBudget || 0;
-    // Negativ = Ueberschreitung, wird ausgewiesen statt geklemmt (ADR 0007).
-    const openBudget = totalBudget - usedBudget;
-
     const fmt = (v) => v || v === 0
       ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
     const num = (v) => v || v === 0
       ? new Intl.NumberFormat('de-DE').format(v) : '-';
-
-    const budgetPct = totalBudget > 0 ? Math.round((usedBudget / totalBudget) * 100) : 0;
-    const openPct = totalBudget > 0 ? 100 - budgetPct : 0;
-    // Nur die Balkengeometrie wird begrenzt, nicht der angezeigte Wert.
-    const barWidth = (pct) => Math.min(100, Math.max(0, pct));
 
     const getBudgetColorClass = (pct) => {
       if (pct >= 90) return 'summary-progress-fill--danger';
@@ -675,11 +665,59 @@ export class AuftragDetail extends PersonDetailBase {
     };
 
     const canViewInternalBudget = window.canSeePricing();
+    const isUgc = getBudgetCardVariant(this.auftragsDetails) === 'ugc';
 
-    return `
-      <div class="auftragsdetails-summary u-mb-xl">
-        <div class="summary-cards">
-          ${canViewInternalBudget ? `
+    let budgetCardsHtml = '';
+    if (canViewInternalBudget) {
+      if (isUgc) {
+        // UGC: dieselbe Restzahl wie in den Auftragsdetails (netto − Extras −
+        // EK − Fee − KSK − Zusatzkosten), nicht creator_budget − EK.
+        const overview = calculateBudgetOverview({
+          auftrag: this.auftrag,
+          details: this.auftragsDetails,
+          kooperationen: this.kooperationen,
+          videos: this.videos,
+          kampagnen: this.kampagnen
+        });
+        const verbrauchtesBudget = overview.verbrauchtesBudget || 0;
+        const verfuegbaresBudget = overview.verfuegbaresBudget || 0;
+        const spendableBudget = overview.spendableBudget ?? overview.auftragsvolumen;
+        const budgetPct = spendableBudget > 0 ? Math.min(100, Math.round((verbrauchtesBudget / spendableBudget) * 100)) : 0;
+        const openPct = spendableBudget > 0 ? Math.max(0, 100 - budgetPct) : 0;
+
+        budgetCardsHtml = `
+          <div class="summary-card" data-summary-card="total-budget">
+            <div class="summary-value">${fmt(overview.auftragsvolumen)}</div>
+            <div class="summary-label">Auftragsvolumen</div>
+          </div>
+          <div class="summary-card" data-summary-card="spent-budget">
+            <div class="summary-value">${fmt(verbrauchtesBudget)}</div>
+            <div class="summary-label">Verbrauchtes Budget</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}"
+                   style="width: ${Math.min(100, Math.max(0, budgetPct))}%">
+              </div>
+            </div>
+          </div>
+          <div class="summary-card" data-summary-card="open-budget">
+            <div class="summary-value">${fmt(verfuegbaresBudget)}</div>
+            <div class="summary-label">Verfügbares Budget</div>
+            <div class="summary-progress">
+              <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
+                   style="width: ${Math.min(100, Math.max(0, openPct))}%">
+              </div>
+            </div>
+          </div>`;
+      } else {
+        // Influencer: creator_budget − Σ EK (unveraendert).
+        const totalBudget = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen).verfuegbar;
+        const usedBudget = this.usedBudget || 0;
+        // Negativ = Ueberschreitung, wird ausgewiesen statt geklemmt (ADR 0007).
+        const openBudget = totalBudget - usedBudget;
+        const budgetPct = totalBudget > 0 ? Math.round((usedBudget / totalBudget) * 100) : 0;
+        const openPct = totalBudget > 0 ? 100 - budgetPct : 0;
+
+        budgetCardsHtml = `
           <div class="summary-card" data-summary-card="total-budget">
             <div class="summary-value">${fmt(totalBudget)}</div>
             <div class="summary-label">Gesamtbudget (netto)</div>
@@ -689,7 +727,7 @@ export class AuftragDetail extends PersonDetailBase {
             <div class="summary-label">Verbrauchtes Budget</div>
             <div class="summary-progress">
               <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}"
-                   style="width: ${barWidth(budgetPct)}%">
+                   style="width: ${Math.min(100, Math.max(0, budgetPct))}%">
               </div>
             </div>
           </div>
@@ -698,10 +736,17 @@ export class AuftragDetail extends PersonDetailBase {
             <div class="summary-label">Offenes Creator Budget</div>
             <div class="summary-progress">
               <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
-                   style="width: ${barWidth(openPct)}%">
+                   style="width: ${Math.min(100, Math.max(0, openPct))}%">
               </div>
             </div>
-          </div>` : ''}
+          </div>`;
+      }
+    }
+
+    return `
+      <div class="auftragsdetails-summary u-mb-xl">
+        <div class="summary-cards">
+          ${budgetCardsHtml}
           <div class="summary-card" data-summary-card="creators">
             <div class="summary-value">${num(this.realCreatorCount)} von ${num(this.targetCreatorCount)}</div>
             <div class="summary-label">Gebuchte Creator</div>

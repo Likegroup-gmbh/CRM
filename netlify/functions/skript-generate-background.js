@@ -33,6 +33,11 @@ const SKRIPT_TOOL = {
       hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Jeder Zeitmarker (Sek. 0–3:) beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
       hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
       cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
+      hook_varianten: {
+        type: 'array',
+        description: 'Genau drei alternative gesprochene Hooks (Hook 1-3). Deutlich verschieden von Hauptvariante A und untereinander (anderer Hook-Typ/Einstieg). Gleiche Absatz-Formatregeln wie hook, nur gesprochener Text.',
+        items: { type: 'string' }
+      },
       varianten: {
         type: 'array',
         description: 'Genau zwei alternative Skript-Varianten (B und C). Nicht in inhalt_md wiederholen.',
@@ -103,7 +108,7 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
   }
 
   task += '\n# AUSGABEFORMAT\nGib das Dokument AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
-    + '(Felder: titel, inhalt_md, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, varianten).\n'
+    + '(Felder: titel, inhalt_md, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, hook_varianten, varianten).\n'
     + `Bereich: ${bereichLabel}. Folge dem drehfertigen Aufbau im MASTER-BEREICH-Dokument. `
     + 'inhalt_md = NUR Zusatzinfos: Produktionskopf, Timing, Brand-Hinweise, Shotlist, Pflicht-Shots, '
     + 'On-Screen-Liste, Schnitt/Sound. Mit ##-Ueberschriften nach den Hauptbloecken '
@@ -112,6 +117,10 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     + 'Zweispalter "gesprochen / zu sehen". Diese Inhalte gehoeren AUSSCHLIESSLICH in die Skript-Felder.\n'
     + 'Variante A: hook/hauptteil/cta (gesprochen) plus hook_visuell/hauptteil_visuell/cta_visuell '
     + '(was zu sehen ist) – direkt mitgenerieren.\n'
+    + 'HOOK-VARIANTEN: Array "hook_varianten" mit GENAU 3 alternativen gesprochenen Hooks - '
+    + 'deutlich verschieden von Variante A und untereinander (z.B. anderer Hook-Typ, anderer Einstieg), '
+    + 'gleiche Absatz-Regeln wie hook. Der Hook hat den groessten Einfluss auf die Performance, '
+    + 'darum zaehlen diese Alternativen mehr als ein alternativer CTA. NICHT in inhalt_md wiederholen.\n'
     + 'ZEITMARKER: Jeder Beat beginnt einen neuen Absatz (Leerzeile dazwischen), '
     + 'Format „Sek. 0–3: …“. Links (gesagt) und rechts (sehen) dieselbe Absatz-Anzahl. '
     + 'On-Screen-Text gehoert zum Beat, nicht als Liste ans Ende. '
@@ -250,13 +259,17 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     job.step('speichern', 'Fast fertig – ich speichere…');
     const parsed = result.json || extractJson(result.text, {
       keys: ['titel', 'inhalt_md', 'hook', 'hauptteil', 'cta',
-        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'varianten'],
+        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'hook_varianten', 'varianten'],
       onWarn: (msg) => job.log(msg)
     });
     if (!(parsed.inhalt_md || '').trim()) {
       throw new Error('Antwort unvollstaendig (inhalt_md fehlt)');
     }
     const { felder, varianten, inhalt_md: extraMd } = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    // Hook-Varianten 1-3: Index stabil halten, leere Eintraege als null
+    const hookVarianten = (Array.isArray(parsed.hook_varianten) ? parsed.hook_varianten : [])
+      .slice(0, 3)
+      .map((h) => (typeof h === 'string' && h.trim() ? h.trim() : null));
     const inhaltMd = extraMd || '';
     if (varianten.length) {
       job.log(`${varianten.length} Alternative(n) als eigene Versionen`);
@@ -291,6 +304,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       hook_visuell: felder.hook_visuell,
       hauptteil_visuell: felder.hauptteil_visuell,
       cta_visuell: felder.cta_visuell,
+      hook_variante_1: hookVarianten[0] || null,
+      hook_variante_2: hookVarianten[1] || null,
+      hook_variante_3: hookVarianten[2] || null,
       aktive_version_nr: 1,
       aktive_sub_nr: 0,
       video_idee: payload.video_idee || null,
@@ -349,6 +365,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         hook_visuell: felder.hook_visuell,
         hauptteil_visuell: felder.hauptteil_visuell,
         cta_visuell: felder.cta_visuell,
+        hook_variante_1: hookVarianten[0] || null,
+        hook_variante_2: hookVarianten[1] || null,
+        hook_variante_3: hookVarianten[2] || null,
         aenderung_beschreibung: 'Erstgenerierung',
         created_by: user.id
       },

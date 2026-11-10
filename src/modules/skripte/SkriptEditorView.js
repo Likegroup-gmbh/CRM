@@ -728,7 +728,8 @@ export class SkriptEditorView {
         verknuepfungenHtml: this.renderVerknuepfungenHtml()
       }),
       vorgabenPanelHtml: vorgabenPanelHtml(this.skript),
-      docTab: this.docTab || 'skript'
+      docTab: this.docTab || 'skript',
+      zeigeHookVarianten: this.kannAiAktionen
     });
     el.querySelectorAll('[data-editor-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -1003,6 +1004,7 @@ export class SkriptEditorView {
   handleMessageAction(action, messageId) { return this._chatActions.handleMessageAction(action, messageId); }
   acceptVorschlag(msg) { return this._chatActions.acceptVorschlag(msg); }
   saveManuell(feld, text, vorher) { return this._chatActions.saveManuell(feld, text, vorher); }
+  hookUebertragen(feld) { return this._chatActions.hookUebertragen(feld); }
 
   checkSelection() { this._selection.checkSelection(); }
   setPendingAktion(aktion) { this._selection.setPendingAktion(aktion); }

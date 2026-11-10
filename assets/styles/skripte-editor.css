@@ -352,6 +352,33 @@
   padding: var(--space-md) var(--space-lg);
 }
 
+/* Hook-Varianten: zweite Tabelle unter dem Haupt-Grid, klar getrennt,
+   gleiche Tabellen-Optik, aber nur "Was gesagt wird" (keine Visual-Spalte) */
+.skripte-editor-doc-box--varianten {
+  flex: 0 0 auto;
+  margin-top: var(--space-xl);
+  border-top: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-varianten-titel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.skripte-editor-tabelle--varianten {
+  height: auto;
+  flex: none;
+}
+
+.skripte-editor-tabelle--varianten tbody tr {
+  height: auto;
+}
+
 .skripte-editor-md-sektion + .skripte-editor-md-sektion {
   margin-top: var(--space-xl);
   border-top: var(--border-xs) solid var(--border-subtle);

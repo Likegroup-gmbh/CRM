@@ -27,7 +27,7 @@ import {
   fetchBerichtsstand,
 } from './berichtsstandStore.js';
 import { sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
-import { icon } from '../../core/icons/IconSystem.js';
+import { renderCardHintHtml } from '../../core/budget/cardHints.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { fetchAllRows } from '../../core/fetchAllRows.js';
 import { escapeHtml, formatEuro } from '../../core/format.js';
@@ -124,8 +124,12 @@ const CARD_HINTS = {
     hint: 'alles, was bereits gebucht ist'
   },
   verfuegbar: {
-    formula: 'Auftragsvolumen − Verbrauchtes Budget',
+    formula: 'Auftragsvolumen − Zusatzleistungen − Verbrauchtes Budget',
     hint: 'noch nicht gebucht'
+  },
+  extras: {
+    formula: 'Σ Zusatzleistungen (extra_services)',
+    hint: 'reserviertes Volumen — kein Verbrauch, mindert aber den verfügbaren Rest'
   },
   offenCreator: {
     formula: 'Creator-Budget − gebuchte VK',
@@ -189,6 +193,7 @@ export function groupRowsByKundeMarke(rows) {
         agenturVoll: 0,
         ksk: 0,
         zusatz: 0,
+        extras: 0,
         starts: [],
         endes: [],
         feeCount: 0,
@@ -206,6 +211,7 @@ export function groupRowsByKundeMarke(rows) {
     g.agenturVoll += r.agenturVoll || 0;
     g.ksk += r.ksk || 0;
     g.zusatz += r.zusatz || 0;
+    g.extras += r.extras || 0;
     if (auftrag.start) g.starts.push(auftrag.start);
     if (auftrag.ende) g.endes.push(auftrag.ende);
     if (r.details?.percentage_fee_enabled) g.feeCount += 1;
@@ -321,8 +327,11 @@ export class StakeholderOverviewPage {
         'id, name, kampagne_id, creator_id, videoanzahl, einkaufspreis_netto, verkaufspreis_netto, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag'),
       fetchAllRows(supabase, 'kooperation_videos',
         'id, kooperation_id, einkaufspreis_netto, verkaufspreis_netto, kampagnenart'),
+      // extra_services: Zusatzleistungen mindern den verfuegbaren Rest wie auf
+      // Auftragsdetails/Kampagne. extra_services_enabled existiert nicht als
+      // Spalte — der Toggle steckt im Array (leer vs. gefuellt).
       fetchAllRows(supabase, 'auftrag_details',
-        'auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value'),
+        'auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services'),
       fetchAllRows(supabase, 'unternehmen',
         'id, firmenname'),
       // Fremdkosten brauchen Rechnungsdatum und die drei Posten-Quellen
@@ -521,6 +530,7 @@ export class StakeholderOverviewPage {
     let sumAgenturVoll = 0;
     let sumKsk = 0;
     let sumZusatz = 0;
+    let sumExtras = 0;
     let sumDb = 0;
     let sumCreatorPaid = 0;
     let sumCreatorOpen = 0;
@@ -563,8 +573,12 @@ export class StakeholderOverviewPage {
       const agenturVoll = feeRaw + agenturMargin;
 
       const verbraucht = creator + agentur + ksk + zusatz;
+      // Zusatzleistungen sind reserviertes Volumen, kein Verbrauch — sie
+      // mindern den Rest wie auf Auftragsdetails/Kampagne (gleiche Formel,
+      // gleiche Quelle: calculateBudgetOverview.extraServicesSum).
+      const extras = summary.extraServicesSum || 0;
       // Negativ = Ueberschreitung, wird bewusst durchgereicht (ADR 0007).
-      const verfuegbar = volumen - verbraucht;
+      const verfuegbar = volumen - extras - verbraucht;
       const db = agentur;
 
       sumVolumen += volumen;
@@ -577,6 +591,7 @@ export class StakeholderOverviewPage {
       sumAgenturVoll += agenturVoll;
       sumKsk += ksk;
       sumZusatz += zusatz;
+      sumExtras += extras;
       sumDb += db;
       sumCreatorPaid += creatorPayment.paid;
       sumCreatorOpen += creatorPayment.open;
@@ -607,6 +622,7 @@ export class StakeholderOverviewPage {
         agenturVoll,
         ksk,
         zusatz,
+        extras,
         db
       });
     });
@@ -626,6 +642,7 @@ export class StakeholderOverviewPage {
         agenturVoll: sumAgenturVoll,
         ksk: sumKsk,
         zusatz: sumZusatz,
+        extras: sumExtras,
         db: sumDb,
         paidNetto: sumPaidNetto
       }
@@ -1159,12 +1176,17 @@ export class StakeholderOverviewPage {
     const agentur = totals.agentur;
     const ksk = totals.ksk;
     const zusatz = totals.zusatz;
+    const extras = totals.extras || 0;
     const db = totals.db;
 
+    // Balken-Nenner ist der spendable Topf (Volumen minus reservierte
+    // Zusatzleistungen), wie auf Auftragsdetails/Kampagne: 100 % heisst,
+    // der freie Topf ist voll gebucht.
     // Ungeklemmt: ueber 100 % bedeutet Ueberschreitung, unter 0 % Ueberzahlung.
     // Die Balkenbreite wird erst beim Rendern begrenzt.
-    const verbrauchtPct = volumen > 0 ? (verbraucht / volumen) * 100 : 0;
-    const offenPct = volumen > 0 ? 100 - verbrauchtPct : 0;
+    const spendable = volumen - extras;
+    const verbrauchtPct = spendable > 0 ? (verbraucht / spendable) * 100 : 0;
+    const offenPct = spendable > 0 ? 100 - verbrauchtPct : 0;
     const quote = verbraucht > 0 ? (agentur / verbraucht) * 100 : 0;
 
     const offenLabel = isInfluencerTab ? 'Offenes Creator Budget' : 'Verfügbares Budget';
@@ -1175,16 +1197,9 @@ export class StakeholderOverviewPage {
     const offenHint = isInfluencerTab ? CARD_HINTS.offenCreator : CARD_HINTS.verfuegbar;
 
     const cardHead = (label, hint) => `
-      <div class="stakeholder-card-head">
+      <div class="card-head">
         <div class="stakeholder-card-label">${label}</div>
-        ${hint ? `
-          <button type="button" class="stakeholder-card-info" aria-label="Berechnung">
-            ${icon('question-mark-circle', { stroke: 1, size: 16 })}
-            <span class="stakeholder-card-tooltip" role="tooltip">
-              <strong>${this.escape(hint.formula)}</strong>
-              <span>${this.escape(hint.hint)}</span>
-            </span>
-          </button>` : ''}
+        ${renderCardHintHtml(hint)}
       </div>`;
 
     const card = (label, value, sub, foot, opts = {}) => `
@@ -1222,6 +1237,7 @@ export class StakeholderOverviewPage {
       <div class="stakeholder-cards stakeholder-cards--kalkulation">
         ${card('Auftragsvolumen = Budget', volumen, 'was der Kunde beauftragt hat', 'jede Buchung verbraucht Budget', { hint: CARD_HINTS.volumen })}
         ${card('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${this.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), hint: CARD_HINTS.verbraucht })}
+        ${card('Zusatzleistungen', extras, 'reserviert, kein Verbrauch', 'mindert den verfügbaren Rest', { hint: CARD_HINTS.extras })}
         ${card(offenLabel, offenValue, offenSub, `${this.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}
         <div class="stakeholder-card">
           ${cardHead('Bereits bezahlte Rechnungen', CARD_HINTS.bezahlt)}
@@ -1305,7 +1321,8 @@ export class StakeholderOverviewPage {
         `<span class="stakeholder-badge${b.fee ? ' stakeholder-badge--fee' : ''}">${b.label}</span>`
       ).join('');
 
-      const verbrauchtPct = g.volumen > 0 ? Math.min(100, (g.verbraucht / g.volumen) * 100) : 0;
+      const spendable = g.volumen - (g.extras || 0);
+      const verbrauchtPct = spendable > 0 ? Math.min(100, (g.verbraucht / spendable) * 100) : 0;
       const offenValue = g.verfuegbar;
 
       return `
@@ -1332,6 +1349,7 @@ export class StakeholderOverviewPage {
             </div>
           </td>
           <td class="stakeholder-num">${this.fmtEuro(offenValue)}</td>
+          <td class="stakeholder-num">${this.fmtEuro(g.extras)}</td>
           <td class="stakeholder-num">${this.fmtEuro(g.creator)}</td>
           <td>${this.renderAgenturZelle(g.agentur, g.agenturVoll)}</td>
           <td class="stakeholder-num">${this.fmtEuro(g.ksk)}</td>
@@ -1359,6 +1377,7 @@ export class StakeholderOverviewPage {
               <th class="stakeholder-num">Auftragsvolumen</th>
               <th>Verbrauchtes Budget</th>
               <th class="stakeholder-num">${isInfluencerTab ? 'Offenes Creator Budget' : 'Verfügbares Budget'}</th>
+              <th class="stakeholder-num">Zusatzleistungen</th>
               <th class="stakeholder-num">Creatoranteil</th>
               <th class="stakeholder-num">Agenturanteil</th>
               <th class="stakeholder-num">KSK</th>
@@ -1377,6 +1396,7 @@ export class StakeholderOverviewPage {
               <td class="stakeholder-num">${this.fmtEuro(totals.volumen)}</td>
               <td class="stakeholder-num">${this.fmtEuro(totals.verbraucht)}</td>
               <td class="stakeholder-num">${this.fmtEuro(isInfluencerTab ? this.influencerOffenesCreatorBudget() : totals.verfuegbar)}</td>
+              <td class="stakeholder-num">${this.fmtEuro(totals.extras)}</td>
               <td class="stakeholder-num">${this.fmtEuro(totals.creator)}</td>
               <td>${this.renderAgenturZelle(totals.agentur, totals.agenturVoll)}</td>
               <td class="stakeholder-num">${this.fmtEuro(totals.ksk)}</td>

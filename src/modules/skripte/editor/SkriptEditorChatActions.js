@@ -6,7 +6,7 @@
 import { skripteService } from '../SkripteService.js';
 import { skriptKommentarService } from '../SkriptKommentarService.js';
 import { skriptAuftrag } from '../SkriptAuftrag.js';
-import { AKTION_LABELS, VISUELL_FIELD } from './skriptEditorKonstanten.js';
+import { AKTION_LABELS, VISUELL_FIELD, HOOK_VARIANTE_FELDER, SEKTION_LABELS_KURZ } from './skriptEditorKonstanten.js';
 import { pendingThinking } from '../../../core/chat/thinking.js';
 import { sektionAnzeige, sektionAnzeigeKurz, skriptStand, manuellBeschreibung } from './skriptEditorVisuellHelfer.js';
 import { istMasterSkript, replaceMasterSektion, masterSektionBody } from '../master/skriptMasterFormat.js';
@@ -229,13 +229,14 @@ export class SkriptEditorChatActions {
     if (v.acceptLaeuft) return;
 
     const sektion = msg.sektion;
-    if (!['hook', 'hauptteil', 'cta'].includes(sektion)) {
+    const GRID_SEKTIONEN = ['hook', 'hauptteil', 'cta', ...HOOK_VARIANTE_FELDER];
+    if (!GRID_SEKTIONEN.includes(sektion)) {
       if (istMasterSkript(v.skript)) {
         await this.acceptMasterVorschlag(msg);
         return;
       }
     }
-    if (!['hook', 'hauptteil', 'cta'].includes(sektion) || !msg.vorschlag_text) {
+    if (!GRID_SEKTIONEN.includes(sektion) || !msg.vorschlag_text) {
       window.toastSystem?.error('Vorschlag kann nicht zugeordnet werden');
       return;
     }
@@ -355,6 +356,41 @@ export class SkriptEditorChatActions {
       btns.forEach((b) => { b.disabled = false; });
     } finally {
       v.acceptLaeuft = false;
+    }
+  }
+
+  /**
+   * "Hook übertragen": tauscht eine Hook-Variante mit dem Haupthook
+   * (Variante wird Haupthook, alter Haupthook rutscht in die Variante).
+   * Wie jede Inline-Änderung als Versions-Snapshot festgehalten.
+   */
+  async hookUebertragen(feld) {
+    const v = this.view;
+    if (!v.skript || v.isReadonly || !HOOK_VARIANTE_FELDER.includes(feld)) return;
+    const variante = (v.skript[feld] || '').trim();
+    if (!variante) return;
+
+    await v.inlineEdit.flush();
+
+    const vorherigerStand = skriptStand(v.skript);
+    const alterHook = v.skript.hook || null;
+    v.skript.hook = variante;
+    v.skript[feld] = alterHook;
+    try {
+      await skripteService.updateSkript(v.skript.id, { hook: variante, [feld]: alterHook });
+      const beschreibung = `Hook übertragen · ${SEKTION_LABELS_KURZ[feld] || feld}`;
+      const neueVersion = await skripteService.createVersion(v.skript, beschreibung, vorherigerStand, v.aktiveVersion);
+      v.aktiveVersion = neueVersion;
+      v.skript.aktive_version_nr = neueVersion.version_nr;
+      v.skript.aktive_sub_nr = neueVersion.sub_nr;
+      v.versionen = await skripteService.getVersionen(v.skript.id);
+      v.renderDoc();
+      v.renderVersionSelect();
+      window.toastSystem?.success(`${SEKTION_LABELS_KURZ[feld] || 'Variante'} ist jetzt der Haupthook`);
+    } catch (err) {
+      v.skript.hook = vorherigerStand.hook;
+      v.skript[feld] = vorherigerStand[feld];
+      window.toastSystem?.error(err.message);
     }
   }
 

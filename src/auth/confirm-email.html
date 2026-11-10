@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-import { icon } from '../core/icons/IconSystem.js';
 <html lang="de">
 <head>
     <meta charset="UTF-8">
@@ -149,7 +148,7 @@ import { icon } from '../core/icons/IconSystem.js';
             <!-- Success State -->
             <div id="success-state" style="display: none;">
                 <div class="confirmation-icon">
-                    ${icon('check')}
+                    <span data-icon="check"></span>
                 </div>
                 <h1 class="confirmation-title">E-Mail erfolgreich bestätigt!</h1>
                 <p class="confirmation-message">
@@ -162,7 +161,7 @@ import { icon } from '../core/icons/IconSystem.js';
             <!-- Error State -->
             <div id="error-state" style="display: none;">
                 <div class="confirmation-icon error">
-                    ${icon('x-mark')}
+                    <span data-icon="x-mark"></span>
                 </div>
                 <h1 class="confirmation-title">Bestätigung fehlgeschlagen</h1>
                 <p class="confirmation-message">
@@ -181,7 +180,7 @@ import { icon } from '../core/icons/IconSystem.js';
             <!-- Already Confirmed State -->
             <div id="already-confirmed-state" style="display: none;">
                 <div class="confirmation-icon">
-                    ${icon('information-circle')}
+                    <span data-icon="information-circle"></span>
                 </div>
                 <h1 class="confirmation-title">Bereits bestätigt</h1>
                 <p class="confirmation-message">
@@ -197,6 +196,12 @@ import { icon } from '../core/icons/IconSystem.js';
         // Supabase Client Setup
         import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm'
         import { getSupabaseConfig } from './config.js'
+        import { icon } from '../core/icons/IconSystem.js'
+
+        // Icons hydratisieren
+        document.querySelectorAll('[data-icon]').forEach((el) => {
+            el.innerHTML = icon(el.dataset.icon)
+        })
         
         // Supabase-Konfiguration laden
         const config = getSupabaseConfig()

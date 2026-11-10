@@ -9,8 +9,8 @@ import { renderThinking, pushStep } from '../../core/chat/thinking.js';
 // siteExtractFinished. Das Panel rendert nur - es startet nichts selbst.
 // Labels kommen im Event ({ step, label } oder steps[]) - kein eigener Katalog.
 
-const GRUSS = 'Schick mir die Produktseite, dann fülle ich Beschreibung, USPs, '
-  + 'Preis und Bilder aus. Was du selbst geschrieben hast, bleibt stehen.';
+const GRUSS = 'Schick mir die Produktseite oder zieh ein Produkt-PDF hier rein. '
+  + 'Ich fülle Beschreibung, USPs, Preis und Bilder. Was du selbst geschrieben hast, bleibt stehen.';
 
 export class ProduktExtractPanel {
   constructor() {

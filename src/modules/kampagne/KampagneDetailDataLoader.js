@@ -55,7 +55,8 @@ export async function loadCriticalData(kampagneId) {
         const [detailsRes, blocksRes] = await Promise.all([
           window.supabase
             .from('auftrag_details')
-            .select('agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services_enabled, extra_services, gesamt_videos, gesamt_creator, campaign_type')
+            // extra_services_enabled existiert nicht — Toggle steckt in extra_services.
+            .select('agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services, gesamt_videos, gesamt_creator, campaign_type')
             .eq('auftrag_id', auftragId)
             .maybeSingle(),
           window.supabase
@@ -183,6 +184,7 @@ export async function loadCriticalData(kampagneId) {
       .from('campaign_briefings')
       .select('id, aktivierung_name, bereich, is_draft, content_deadline, created_at')
       .eq('unternehmen_id', kampagneData.unternehmen_id)
+      .eq('ist_altbestand', false)
       .order('created_at', { ascending: false }),
     window.supabase
       .from('creator_auswahl')

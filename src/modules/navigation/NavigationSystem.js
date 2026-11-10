@@ -22,8 +22,8 @@ export class NavigationSystem {
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
           { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
-          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
-          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' }
+          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
+          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' }
         ]
       },
       {

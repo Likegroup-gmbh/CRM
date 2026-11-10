@@ -23,6 +23,22 @@
   text-decoration-color: var(--gray-500);
 }
 
+.table-link-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xxxs);
+  min-width: 8rem;
+}
+
+.table-link-stack .table-link {
+  display: block;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .table-link.email-link {
   color: #557ce9;
   text-decoration-color: rgba(129, 157, 239, 0.4);
@@ -3309,13 +3325,35 @@ th[draggable="true"]:active {
 
 /* ── Generische Custom Columns (Sourcing/Strategie) ───────────────── */
 .entity-custom-col-header {
+  position: relative;
   white-space: nowrap;
+  box-sizing: border-box;
+  min-width: 10rem;
 }
 .entity-custom-col-header-inner {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
   min-width: 0;
+  padding-right: 6px;
+  overflow: hidden;
+}
+.entity-custom-cell {
+  overflow: hidden;
+  box-sizing: border-box;
+  min-width: 10rem;
+  white-space: normal;
+}
+/* Casting-Tabelle setzt nowrap auf alle th/td — eigene Spalten müssen
+   schmaler als ihr Inhalt werden können. */
+.creator-pool-table th.entity-custom-col-header,
+.strategie-items-table th.entity-custom-col-header {
+  white-space: nowrap;
+}
+.creator-pool-table td.entity-custom-cell,
+.strategie-items-table td.entity-custom-cell {
+  white-space: normal;
+  overflow: hidden;
 }
 .entity-custom-col-header.dragging,
 .entity-custom-col-header.column-dragging {

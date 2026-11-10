@@ -8,6 +8,7 @@ import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL } from './SkripteUtils.js';
+import { renderVerknuepfungen, namedLinks } from '../../core/ui/tableVerknuepfungen.js';
 
 export function createButtonHtml() {
   if (!window.canCreate?.('skripte')) return '';
@@ -91,13 +92,17 @@ export function renderItemsRows(list, items) {
         </td>
         <td>${renderStatus(s.status)}</td>
         <td>${datum}</td>
+        <td>${renderVerknuepfungen(namedLinks(s.briefing, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(s.produkt, { labelKey: 'name', kind: 'produkt' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(s.personas, { labelKey: 'name', kind: 'persona' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(s.strategie_item?.strategie, { labelKey: 'name', kind: 'konzept' }))}</td>
         <td class="col-actions">${actionBuilder.create('skripte', s.id)}</td>
       </tr>
     `;
   }).join('');
 }
 
-function itemsEmptyRow(list, title, colspan = 4) {
+function itemsEmptyRow(list, title, colspan = 8) {
   const html = resolveEmptyState({
     hasActiveFilters: list.hasActiveFilters(),
     states: {
@@ -316,6 +321,10 @@ export function renderCampaignsView(list) {
                 <th class="col-name">Titel</th>
                 <th>Status</th>
                 <th>Datum</th>
+                <th>Briefing</th>
+                <th>Produkt</th>
+                <th>Persona</th>
+                <th>Konzept</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
@@ -424,11 +433,15 @@ export function renderItemsView(list) {
               <th class="col-name">Titel</th>
               <th>Status</th>
               <th>Datum</th>
+              <th>Briefing</th>
+              <th>Produkt</th>
+              <th>Persona</th>
+              <th>Konzept</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="skripte-table-body">
-            <tr><td colspan="4" class="loading">Lade Skripte...</td></tr>
+            <tr><td colspan="8" class="loading">Lade Skripte...</td></tr>
           </tbody>
         </table>
       </div>

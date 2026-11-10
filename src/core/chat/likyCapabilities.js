@@ -7,6 +7,7 @@
 // extract:  'url'  -> Composer nimmt eine Webseiten-Adresse (Produkt-Pattern)
 //           'pdf'  -> Composer nimmt ein PDF per Drag & Drop (Briefing)
 //           null   -> kein Extract auf dieser Seite
+// pdf:      true   -> zusaetzlich PDF-Drop, ohne die URL-Extraktion abzuschalten
 // chat:     true   -> freier Chat nach dem Extract (Rueckfragen, Nachsteuern)
 // specFrom: woher die Feld-Spec kommt ('fieldConfig' = clientseitig aus dem
 //           Formular-Schema ableiten, 'server' = extract-specs.js)
@@ -14,7 +15,7 @@
 export const LIKY_CAPABILITIES = {
   unternehmen: { extract: 'url', chat: false, specFrom: 'server' },
   marke: { extract: 'url', chat: false, specFrom: 'server' },
-  produkt: { extract: 'url', chat: false, specFrom: 'server' },
+  produkt: { extract: 'url', pdf: true, chat: false, specFrom: 'server' },
   briefing: { extract: 'pdf', chat: true, specFrom: 'fieldConfig' }
 };
 
@@ -23,7 +24,8 @@ export function likyCapability(entity) {
 }
 
 export function likyCanExtractPdf(entity) {
-  return likyCapability(entity)?.extract === 'pdf';
+  const cap = likyCapability(entity);
+  return cap?.pdf === true || cap?.extract === 'pdf';
 }
 
 export function likyHasChat(entity) {

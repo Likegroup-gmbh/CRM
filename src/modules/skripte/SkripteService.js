@@ -171,7 +171,8 @@ export class SkripteService {
     let q = this.db.from('campaign_briefings')
       .select('id, aktivierung_name, bereich, is_draft, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben')
       .eq('unternehmen_id', unternehmenId)
-      .eq('is_draft', false);
+      .eq('is_draft', false)
+      .eq('ist_altbestand', false);
 
     if (markeId) q = q.or(`marke_id.eq.${markeId},marke_id.is.null`);
 
@@ -219,7 +220,7 @@ export class SkripteService {
     // hauptteil/cta bleiben draussen (nie angezeigt),
     // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
     let query = this.db.from('skripte')
-      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name)')
+      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name), briefing:briefing_id(id, aktivierung_name), produkt(id, name), personas(id, name), strategie_item:strategie_item_id(strategie:strategie_id(id, name))')
       .order('created_at', { ascending: false })
       .limit(200);
 
@@ -494,7 +495,7 @@ export class SkripteService {
   // ------------------------------------------------------------------
   async getVersionen(skriptId) {
     const { data, error } = await this.db.from('skript_versionen')
-      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, inhalt_md, aenderung_beschreibung, created_at')
+      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, hook_variante_1, hook_variante_2, hook_variante_3, inhalt_md, aenderung_beschreibung, created_at')
       .eq('skript_id', skriptId).order('version_nr').order('sub_nr');
     if (error) throw new Error(error.message);
     return data || [];
@@ -559,6 +560,9 @@ export class SkripteService {
       hook_visuell: version.hook_visuell ?? null,
       hauptteil_visuell: version.hauptteil_visuell ?? null,
       cta_visuell: version.cta_visuell ?? null,
+      hook_variante_1: version.hook_variante_1 ?? null,
+      hook_variante_2: version.hook_variante_2 ?? null,
+      hook_variante_3: version.hook_variante_3 ?? null,
       inhalt_md: version.inhalt_md ?? null,
       aktive_version_nr: version.version_nr,
       aktive_sub_nr: version.sub_nr || 0

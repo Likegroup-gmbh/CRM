@@ -16,6 +16,12 @@ import {
   produktListDetailRoute
 } from './ProduktService.js';
 import {
+  renderVerknuepfungen,
+  skriptLinks,
+  acceptedPersonaLinks,
+  briefingLinksFromJunction
+} from '../../core/ui/tableVerknuepfungen.js';
+import {
   buildCompanyFolders,
   buildBrandFolders,
   buildCurrentItems,
@@ -33,7 +39,10 @@ const PRODUKT_LIST_SELECT = `
   unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
   marken:produkt_marke(marke_id, marke:marke_id(id, markenname, logo_url)),
   varianten:produkt_variante(id),
-  bilder:produkt_bilder(id, storage_pfad, position, ist_hauptbild, variante_id)
+  bilder:produkt_bilder(id, storage_pfad, position, ist_hauptbild, variante_id),
+  persona_vorschlaege:produkt_persona_vorschlag(status, persona:persona_id(id, name)),
+  briefing_links:campaign_briefing_produkt(briefing:briefing_id(id, aktivierung_name)),
+  skripte(id, titel)
 `;
 
 export class ProduktList extends BasePaginatedList {
@@ -46,7 +55,7 @@ export class ProduktList extends BasePaginatedList {
       sortAscending: true,
       paginationContainerId: 'pagination-produkt',
       tbodySelector: '.data-table tbody',
-      tableColspan: 9,
+      tableColspan: 12,
       checkboxClass: 'produkt-check',
       selectAllId: 'select-all-produkte'
     });
@@ -446,6 +455,9 @@ export class ProduktList extends BasePaginatedList {
         <td>${sanitize(ProduktService.preisLabel(produkt))}</td>
         <td>${variantenAnzahl > 0 ? variantenAnzahl : '-'}</td>
         <td>${this._formatDate(produkt.created_at)}</td>
+        <td>${renderVerknuepfungen(acceptedPersonaLinks(produkt.persona_vorschlaege))}</td>
+        <td>${renderVerknuepfungen(briefingLinksFromJunction(produkt.briefing_links))}</td>
+        <td>${renderVerknuepfungen(skriptLinks(produkt.skripte))}</td>
         <td class="col-actions">
           ${actionBuilder.create('produkt', produkt.id)}
         </td>
@@ -527,12 +539,15 @@ export class ProduktList extends BasePaginatedList {
               <th>Preis</th>
               <th>Varianten</th>
               <th>Erstellt</th>
+              <th>Personas</th>
+              <th>Briefings</th>
+              <th>Skripte</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="${canBulkDelete ? '9' : '8'}" class="no-data">Lade Produkte...</td>
+              <td colspan="${canBulkDelete ? '12' : '11'}" class="no-data">Lade Produkte...</td>
             </tr>
           </tbody>
         </table>

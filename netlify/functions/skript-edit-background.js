@@ -26,7 +26,7 @@ const EDIT_TOOL = {
     type: 'object',
     properties: {
       antwort: { type: 'string', description: 'Kurze Erklaerung fuer den User (1-3 Saetze, Deutsch)' },
-      sektion: { type: ['string', 'null'], description: 'Betroffene Sektion (hook/hauptteil/cta oder ##-Slug) oder null' },
+      sektion: { type: ['string', 'null'], description: 'Betroffene Sektion (hook/hauptteil/cta, hook_variante_1/2/3 oder ##-Slug) oder null' },
       vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null' }
     },
     required: ['antwort', 'sektion', 'vorschlag_text']
@@ -123,9 +123,10 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const antwort = stripToolXml(parsed.antwort);
     const istMaster = Boolean(ctx.skript?.inhalt_md);
     const parsedSektion = (parsed.sektion || '').trim() || null;
+    const GRID_SEKTIONEN = ['hook', 'hauptteil', 'cta', 'hook_variante_1', 'hook_variante_2', 'hook_variante_3'];
     const sektion = istMaster
       ? (parsedSektion || message.sektion)
-      : (['hook', 'hauptteil', 'cta'].includes(parsedSektion) ? parsedSektion : message.sektion);
+      : (GRID_SEKTIONEN.includes(parsedSektion) ? parsedSektion : message.sektion);
 
     await setThinking(supabase, 'skript_chat_messages', messageId, {
       step: 'speichern',

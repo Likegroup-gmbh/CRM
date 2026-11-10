@@ -149,6 +149,7 @@ import { DuplicateChecker } from './core/validation/DuplicateChecker.js';
 // SubmitGuard für globalen Doppelklick-Schutz + Navigation
 import { submitGuard } from './core/SubmitGuard.js';
 import { enableManualScrollRestoration } from './core/NavigationScroll.js';
+import { parseAuthCallbackParams, isPasswordRecoveryCallback, buildPasswordResetUrl } from './auth/authCallbackParams.js';
 import './modules/kooperation/kooperationFromKampagne.js';
 // App Service Locator
 import App from './core/App.js';
@@ -393,16 +394,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Password Recovery Flow abfangen - BEVOR Auth-Check
   // Wenn ein Recovery-Token in der URL ist, zur Reset-Seite weiterleiten
-  const hashParams = new URLSearchParams(window.location.hash.substring(1));
-  const urlParams = new URLSearchParams(window.location.search);
-  const isRecoveryFlow = hashParams.get('type') === 'recovery' || 
-                         urlParams.get('type') === 'recovery' ||
-                         window.location.hash.includes('type=recovery');
-  
+  const authParams = parseAuthCallbackParams(window.location.search, window.location.hash);
+  const isRecoveryFlow = isPasswordRecoveryCallback(authParams);
+
   if (isRecoveryFlow) {
     console.log('🔑 Password Recovery Flow erkannt - leite zur Reset-Seite weiter');
-    // Token im Hash beibehalten für die Reset-Seite
-    window.location.href = '/src/auth/reset-password.html' + window.location.hash;
+    // Query UND Hash behalten, damit keine Token verloren gehen
+    window.location.href = buildPasswordResetUrl(window.location.search, window.location.hash);
     return; // Stoppe weitere Ausführung
   }
 

@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-import { icon } from '../core/icons/IconSystem.js';
 <html lang="de">
 <head>
     <meta charset="UTF-8">
@@ -136,9 +135,10 @@ import { icon } from '../core/icons/IconSystem.js';
             font-size: 0.875rem;
         }
     </style>
-  <script type="module" crossorigin src="/assets/confirmEmail-dmAF83e3.js"></script>
+  <script type="module" crossorigin src="/assets/confirmEmail-DFLZcd57.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
   <link rel="modulepreload" crossorigin href="/assets/config-DuKnp__J.js">
+  <link rel="modulepreload" crossorigin href="/assets/auth-R18KlCoV.js">
 </head>
 <body>
     <div class="confirmation-container">
@@ -152,7 +152,7 @@ import { icon } from '../core/icons/IconSystem.js';
             <!-- Success State -->
             <div id="success-state" style="display: none;">
                 <div class="confirmation-icon">
-                    ${icon('check')}
+                    <span data-icon="check"></span>
                 </div>
                 <h1 class="confirmation-title">E-Mail erfolgreich bestätigt!</h1>
                 <p class="confirmation-message">
@@ -165,7 +165,7 @@ import { icon } from '../core/icons/IconSystem.js';
             <!-- Error State -->
             <div id="error-state" style="display: none;">
                 <div class="confirmation-icon error">
-                    ${icon('x-mark')}
+                    <span data-icon="x-mark"></span>
                 </div>
                 <h1 class="confirmation-title">Bestätigung fehlgeschlagen</h1>
                 <p class="confirmation-message">
@@ -184,7 +184,7 @@ import { icon } from '../core/icons/IconSystem.js';
             <!-- Already Confirmed State -->
             <div id="already-confirmed-state" style="display: none;">
                 <div class="confirmation-icon">
-                    ${icon('information-circle')}
+                    <span data-icon="information-circle"></span>
                 </div>
                 <h1 class="confirmation-title">Bereits bestätigt</h1>
                 <p class="confirmation-message">

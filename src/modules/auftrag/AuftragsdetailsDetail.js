@@ -2,6 +2,7 @@
 // Auftragsdetails-Detailseite ohne Tabs - direkte Anzeige der Informationen
 
 import { renderAgencyFeeCardHtml, renderKskCardHtml, calculateCreatorPaymentSummary, renderCreatorAnteilCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { CARD_HINTS, renderSummaryLabelHtml } from '../../core/budget/cardHints.js';
 import { calculateBudgetOverview, getBudgetCardVariant } from '../../core/budget/calculateBudgetOverview.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
@@ -282,8 +283,11 @@ export class AuftragsdetailsDetail {
     const verbrauchtesBudget = this.budgetSummary.verbrauchtesBudget || 0;
     const verfuegbaresBudget = this.budgetSummary.verfuegbaresBudget || 0;
     const creatorAnteil = this.budgetSummary.creatorAnteil || 0;
-    const budgetPct = auftragsvolumen > 0 ? Math.min(100, Math.round((verbrauchtesBudget / auftragsvolumen) * 100)) : 0;
-    const openPct = auftragsvolumen > 0 ? Math.max(0, 100 - budgetPct) : 0;
+    // UGC: Balken laeuft gegen den spendable Topf (Netto abzgl. reservierter
+    // Zusatzleistungen), nicht gegen das volle Auftragsvolumen.
+    const spendableBudget = this.budgetSummary.spendableBudget ?? auftragsvolumen;
+    const budgetPct = spendableBudget > 0 ? Math.min(100, Math.round((verbrauchtesBudget / spendableBudget) * 100)) : 0;
+    const openPct = spendableBudget > 0 ? Math.max(0, 100 - budgetPct) : 0;
 
     const getBudgetColorClass = (pct) => {
       if (pct >= 90) return 'summary-progress-fill--danger';
@@ -309,7 +313,7 @@ export class AuftragsdetailsDetail {
       ? validExtraServices.map(s => `
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(parseFloat(s.amount) || 0)}</div>
-              <div class="summary-label">${sanitize(s.name)}</div>
+              ${renderSummaryLabelHtml(sanitize(s.name), CARD_HINTS.extras)}
             </div>
           `).join('')
       : '';
@@ -328,15 +332,15 @@ export class AuftragsdetailsDetail {
     const budgetCardsHtml = budgetCardVariant === 'influencer' ? `
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(auftragsvolumen)}</div>
-              <div class="summary-label">Gesamt Nettobetrag</div>
+              ${renderSummaryLabelHtml('Gesamt Nettobetrag', CARD_HINTS.volumen)}
             </div>
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(creatorBudget)}</div>
-              <div class="summary-label">Creatorbudget</div>
+              ${renderSummaryLabelHtml('Creatorbudget', CARD_HINTS.creatorbudget)}
             </div>
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(verbrauchtesCreatorBudget)}</div>
-              <div class="summary-label">Verbrauchtes Creatorbudget</div>
+              ${renderSummaryLabelHtml('Verbrauchtes Creatorbudget', CARD_HINTS.verbrauchtCreator)}
               <div class="summary-progress">
                 <div class="summary-progress-fill ${getBudgetColorClass(creatorBudgetPct)}"
                      style="width: ${creatorBudgetPct}%">
@@ -345,7 +349,7 @@ export class AuftragsdetailsDetail {
             </div>
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(offenesBudget)}</div>
-              <div class="summary-label">Offenes Creator Budget</div>
+              ${renderSummaryLabelHtml('Offenes Creator Budget', CARD_HINTS.offenCreator)}
               <div class="summary-progress">
                 <div class="summary-progress-fill ${getOpenBudgetColorClass(offenesBudgetPct)}"
                      style="width: ${offenesBudgetPct}%">
@@ -356,16 +360,16 @@ export class AuftragsdetailsDetail {
             ${renderAgencyFeeCardHtml(agencyFeeSummary, formatCurrency, { canSeePricing: true })}
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(this.budgetSummary.extraKostenVkSum || 0)}</div>
-              <div class="summary-label">Zusatzkosten</div>
+              ${renderSummaryLabelHtml('Zusatzkosten', CARD_HINTS.zusatz)}
             </div>
             ${zusatzleistungenCardsHtml}` : `
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(auftragsvolumen)}</div>
-              <div class="summary-label">Auftragsvolumen</div>
+              ${renderSummaryLabelHtml('Auftragsvolumen', CARD_HINTS.volumen)}
             </div>
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(verfuegbaresBudget)}</div>
-              <div class="summary-label">Verfügbares Budget</div>
+              ${renderSummaryLabelHtml('Verfügbares Budget', CARD_HINTS.verfuegbar)}
               <div class="summary-progress">
                 <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
                      style="width: ${openPct}%">
@@ -374,7 +378,7 @@ export class AuftragsdetailsDetail {
             </div>
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(verbrauchtesBudget)}</div>
-              <div class="summary-label">Verbrauchtes Budget</div>
+              ${renderSummaryLabelHtml('Verbrauchtes Budget', CARD_HINTS.verbraucht)}
               <div class="summary-progress">
                 <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}"
                      style="width: ${budgetPct}%">
@@ -386,7 +390,7 @@ export class AuftragsdetailsDetail {
             ${renderKskCardHtml(agencyFeeSummary, formatCurrency)}
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(this.budgetSummary.extraKostenVkSum || 0)}</div>
-              <div class="summary-label">Zusatzkosten</div>
+              ${renderSummaryLabelHtml('Zusatzkosten', CARD_HINTS.zusatz)}
             </div>
             ${zusatzleistungenCardsHtml}`;
 
@@ -948,8 +952,9 @@ export class AuftragsdetailsDetail {
       return Math.min(100, Math.round(((this.budgetSummary.usedVkBudget || 0) / creatorBudget) * 100));
     }
     const auftragsvolumen = parseFloat(this.auftrag?.nettobetrag) || 0;
-    if (auftragsvolumen <= 0) return 0;
-    return Math.min(100, Math.round(((this.budgetSummary.verbrauchtesBudget || 0) / auftragsvolumen) * 100));
+    const spendableBudget = this.budgetSummary.spendableBudget ?? auftragsvolumen;
+    if (spendableBudget <= 0) return 0;
+    return Math.min(100, Math.round(((this.budgetSummary.verbrauchtesBudget || 0) / spendableBudget) * 100));
   }
 
   // Bestimme Farbe für Budget Progress-Bar

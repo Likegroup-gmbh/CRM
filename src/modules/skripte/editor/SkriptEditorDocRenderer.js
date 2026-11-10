@@ -14,7 +14,7 @@ import { icon } from '../../../core/icons/IconSystem.js';
 import { renderToolbarListenKopf } from '../../../core/components/ToolbarMenu.js';
 import { avatarBubbles } from '../../../core/components/AvatarBubbles.js';
 import {
-  SEKTION_LABELS_KURZ, VISUELL_FIELD
+  SEKTION_LABELS_KURZ, VISUELL_FIELD, HOOK_VARIANTE_FELDER
 } from './skriptEditorKonstanten.js';
 import { visuellGuardGrund, visuellVorgaengerTitle } from './skriptEditorVisuellHelfer.js';
 
@@ -156,6 +156,45 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
   `;
 }
 
+/**
+ * Hook-Varianten (Hook 1-3): eigene Tabelle unter dem Haupt-Grid, gleiche
+ * Optik, aber nur gesprochener Text. Nur befuellte Zeilen; intern-only
+ * steuert der Aufrufer ueber zeigeHookVarianten.
+ */
+function hookVariantenTabelleHtml({ skript }) {
+  const zeilen = HOOK_VARIANTE_FELDER
+    .map((feld) => ({ feld, text: skript?.[feld] || '' }))
+    .filter(({ text }) => text.trim());
+  if (!zeilen.length) return '';
+  return `
+    <div class="skripte-editor-doc-box skripte-editor-doc-box--varianten">
+      <div class="skripte-editor-varianten-titel">${icon('hook-transfer')}<span>Hook-Varianten</span></div>
+      <table class="skripte-editor-tabelle skripte-editor-tabelle--varianten">
+        <colgroup>
+          <col class="skripte-editor-tabelle-col--label">
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col"></th>
+            <th scope="col">Was gesagt wird</th>
+          </tr>
+        </thead>
+        <tbody>
+        ${zeilen.map(({ feld, text }) => `
+          <tr data-sektion="${feld}">
+            <th scope="row">${SEKTION_LABELS_KURZ[feld] || feld}</th>
+            <td>
+              <div class="skripte-editor-sektion-text" data-sektion="${feld}" data-feld="${feld}">${renderInlineMd(text).html}</div>
+            </td>
+          </tr>
+        `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function docTabsHtml(activeTab) {
   return `
     <div class="tab-navigation skripte-editor-doc-tabs" role="tablist">
@@ -169,7 +208,8 @@ function docTabsHtml(activeTab) {
 
 /** Skript-Dokument: Kopf + Vorgaben + 2-Spalten-Tabelle (gesagt/visual). */
 export function skriptDocHtml({
-  skript, messages, isReadonly, docHeadActionsHtml, vorgabenPanelHtml, docTab = 'skript'
+  skript, messages, isReadonly, docHeadActionsHtml, vorgabenPanelHtml, docTab = 'skript',
+  zeigeHookVarianten = false
 }) {
   const extraMd = skript.inhalt_md ? zusatzInfosMarkdown(skript.inhalt_md) : '';
   const showExtra = hatZusatzInfos(skript.inhalt_md);
@@ -192,6 +232,7 @@ export function skriptDocHtml({
     ${showExtra ? docTabsHtml(activeTab) : ''}
     <div class="skripte-editor-doc-panel" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>
       ${gridTabelleHtml({ skript, grid, messages, isReadonly })}
+      ${zeigeHookVarianten ? hookVariantenTabelleHtml({ skript }) : ''}
     </div>
     ${showExtra ? `
     <div class="skripte-editor-doc-panel skripte-editor-doc-panel--zusatz" data-editor-tab-panel="zusatz"${activeTab === 'skript' ? ' hidden' : ''}>
