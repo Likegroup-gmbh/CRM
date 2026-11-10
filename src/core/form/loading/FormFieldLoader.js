@@ -3,6 +3,8 @@
  * 
  * Löst Race Conditions durch geordnete, sequentielle Feldladung
  */
+import { applyFinalisiertFilter } from '../../finalisiert.js';
+
 export class FormFieldLoader {
   constructor(stateManager) {
     this.state = stateManager;
@@ -140,6 +142,9 @@ export class FormFieldLoader {
       // Benutzer-Tabelle: Kunden und Share-Gäste ausschließen
       if (table === 'benutzer') {
         query = query.neq('rolle', 'kunde').neq('rolle', 'gast');
+      }
+      if (table === 'campaign_briefings') {
+        query = applyFinalisiertFilter(query, table);
       }
 
       const { data, error } = await query;
