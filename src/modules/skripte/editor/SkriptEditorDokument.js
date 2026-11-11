@@ -98,7 +98,8 @@ SkriptEditorView.prototype.downloadPdf = async function() {
   try {
     await downloadSkriptePdf([this.skript], {
       dateiname: sanitizeSkriptFilename(this.skript.titel),
-      verknuepfungenNachId: new Map([[this.skript.id, this.verknuepfungen || []]])
+      verknuepfungenNachId: new Map([[this.skript.id, this.verknuepfungen || []]]),
+      mitHookVarianten: this.kannAiAktionen
     });
   } catch (err) {
     window.toastSystem?.error(err.message || 'PDF konnte nicht erstellt werden.');

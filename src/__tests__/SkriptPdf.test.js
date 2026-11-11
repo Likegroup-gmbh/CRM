@@ -57,7 +57,6 @@ const ANNA = {
   hook_visuell: 'Close-up',
   hauptteil_visuell: '',
   cta_visuell: '',
-  hook_variante_1: 'GEHEIM',
   creator: { name: 'Anna A', bildUrl: 'http://anna', instagram: '@anna' },
   produktName: 'FORCE-FIT',
   customerName: 'VHV',
@@ -247,7 +246,7 @@ describe('createSkriptAnhang', () => {
         'Instagram', 'Beispiel-Video', 'WAS GESAGT WIRD', 'WAS ZU SEHEN IST',
         'HOOK', 'HAUPTTEIL', 'CTA', 'Erster Satz', 'Close-up',
       ]));
-      expect(doc.textCalls).not.toContain('GEHEIM');
+      expect(doc.textCalls).not.toContain('Hook-Varianten');
       const creatorImages = doc.images.filter((img) => img.w === 12 && img.h === 12);
       expect(creatorImages).toEqual([
         expect.objectContaining({
@@ -375,6 +374,22 @@ describe('createSkriptAnhang', () => {
     expect(doc.images.filter((img) => img.w === 12)).toHaveLength(0);
   });
 
+  it('zeichnet gesetzte Hook-Varianten unter der Tabelle, leere Slots fallen weg', async () => {
+    await createSkriptAnhang([{
+      ...ANNA,
+      hook_variante_1: 'Zweiter Einstieg',
+      hook_variante_2: '   ',
+      hook_variante_3: 'Dritter ==Einstieg==',
+    }], { dateiname: 'Eins.pdf' });
+    const calls = MockJsPDF.last.textCalls;
+    const idx = (s) => calls.indexOf(s);
+    expect(idx('Hook-Varianten')).toBeGreaterThan(idx('CTA'));
+    expect(idx('HOOK 1')).toBeGreaterThan(idx('Hook-Varianten'));
+    expect(calls).toEqual(expect.arrayContaining(['HOOK 1', 'HOOK 3', 'Zweiter Einstieg', 'Dritter Einstieg']));
+    expect(calls).not.toContain('HOOK 2');
+    expect(calls.join('\n')).not.toContain('==');
+  });
+
   it('zeichnet Rezept, Caption und Text-Hook, wenn sie gesetzt sind', async () => {
     await createSkriptAnhang([{
       ...ANNA,
@@ -477,5 +492,22 @@ describe('pdfItemAusSkript', () => {
     expect(item.dokument_bloecke[1].url).toBe('https://cdn/s1/x.webp');
     expect(pdfItemAusSkript({ titel: 'Y', dokument_bloecke: null }).dokument_bloecke).toBeNull();
     delete window.supabase;
+  });
+
+  it('nimmt Hook-Varianten nur mit, wenn der Export sie zeigen soll', async () => {
+    const { pdfItemAusSkript } = await import('../modules/skripte/skriptPdfDownload.js');
+    const skript = {
+      titel: 'X',
+      hook_variante_1: 'Zweiter',
+      hook_variante_2: '',
+      hook_variante_3: 'Dritter',
+      dokument_bloecke: null,
+    };
+    expect(pdfItemAusSkript(skript).hook_variante_1).toBeUndefined();
+    expect(pdfItemAusSkript(skript, [], { mitHookVarianten: true })).toMatchObject({
+      hook_variante_1: 'Zweiter',
+      hook_variante_2: '',
+      hook_variante_3: 'Dritter',
+    });
   });
 });

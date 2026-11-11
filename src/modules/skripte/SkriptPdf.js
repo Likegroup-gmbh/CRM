@@ -1,6 +1,7 @@
 // SkriptPdf.js
 // Anschreiben-PDF nach der LikeBase-Vorlage, schwarz/weiss:
 // Lockup, Marke × Creator, Titel, Creator-Karte, dann Hook / Hauptteil / CTA.
+// Hook-Varianten folgen der Tabelle, wenn das Item sie mitbringt.
 // Mit Skript-Dokument (ADR 0062) stehen die sichtbaren Freien Bloecke davor
 // und danach; item.dokument_bloecke kommt bereits ohne interne Bloecke.
 // Teile in ./pdf: Layout (Masse, Farben), Social (Creator, Links), Bloecke.
@@ -49,6 +50,11 @@ const ROWS = [
 const ZUSATZ_ROWS = [
   ['REZEPT', 'rezept'],
   ['CAPTION', 'caption'],
+];
+const HOOK_VARIANTEN = [
+  ['HOOK 1', 'hook_variante_1'],
+  ['HOOK 2', 'hook_variante_2'],
+  ['HOOK 3', 'hook_variante_3'],
 ];
 
 export function sanitizeSkriptFilename(name) {
@@ -175,6 +181,45 @@ function drawZusatzRow(doc, y, label, text, newPage) {
   return cursor;
 }
 
+/** Zweite Tabelle, nur gesprochen. Leere Slots fallen weg. */
+function drawHookVarianten(doc, item, y, newPage) {
+  const rows = HOOK_VARIANTEN.filter(([, key]) => plain(item[key]));
+  if (!rows.length) return y;
+  const titlePt = 11;
+  const titleH = ascentMm(titlePt) + descentMm(titlePt);
+  y += 5;
+  if (y + titleH + rowHeight(2) > MAX_CONTENT_Y) y = newPage();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(titlePt);
+  doc.setTextColor(0);
+  doc.text('Hook-Varianten', MARGIN_X, y + ascentMm(titlePt));
+  y += titleH + 2;
+
+  const pt = 8;
+  const headerH = CELL_PAD + ascentMm(pt) + descentMm(pt) + CELL_PAD;
+  if (y + headerH > MAX_CONTENT_Y) y = newPage();
+  const widths = [COLS[0].w, COLS[1].w + COLS[2].w];
+  doc.setFillColor(...HEADER_FILL);
+  doc.setDrawColor(...RULE);
+  if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
+  let x = MARGIN_X;
+  widths.forEach((w) => {
+    doc.rect(x, y, w, headerH, 'FD');
+    x += w;
+  });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(pt);
+  doc.setTextColor(...HEADER_TEXT);
+  doc.text('WAS GESAGT WIRD', MARGIN_X + widths[0] + CELL_PAD, y + CELL_PAD + ascentMm(pt));
+  doc.setTextColor(0);
+  y += headerH;
+
+  for (const [label, key] of rows) {
+    y = drawZusatzRow(doc, y, label, item[key], newPage);
+  }
+  return y;
+}
+
 function drawTable(doc, item, startY, newPage) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -199,7 +244,7 @@ function drawTable(doc, item, startY, newPage) {
     if (!plain(item[key])) continue;
     y = drawZusatzRow(doc, y, label, item[key], newPage);
   }
-  return y;
+  return drawHookVarianten(doc, item, y, newPage);
 }
 
 function placeImage(doc, dataUrl, x, y, w, h) {
