@@ -219,7 +219,14 @@ function createSharePoint({
     },
 
     async downloadUrl(itemId) {
-      const it = await this.item(itemId, 'id,name,size,eTag,@microsoft.graph.downloadUrl');
+      // Ohne $select: Graph liefert @microsoft.graph.downloadUrl nur im vollen Item, nicht mehr per $select
+      let it;
+      try {
+        it = await graph.get(`${d}/items/${itemId}`);
+      } catch (err) {
+        if (istNichtGefunden(err)) return null;
+        throw err;
+      }
       if (!it) return null;
       return { url: it['@microsoft.graph.downloadUrl'] || null, name: it.name, groesse: it.size, etag: it.eTag };
     },
@@ -227,7 +234,8 @@ function createSharePoint({
     /** Mehrere downloadUrls per $batch. Ergebnis: Map item_id -> url|null */
     async downloadUrls(itemIds) {
       const res = await batch(graph, itemIds.map((id) => ({
-        url: `${d}/items/${id}?$select=id,@microsoft.graph.downloadUrl`,
+        // Kein $select: die downloadUrl-Annotation kommt nur im vollen Item zurueck
+        url: `${d}/items/${id}`,
       })));
       const out = new Map();
       itemIds.forEach((id, i) => {
