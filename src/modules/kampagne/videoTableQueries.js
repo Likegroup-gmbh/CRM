@@ -11,6 +11,21 @@ import { groupZeitkommentare, ZEITKOMMENTAR_SELECT } from './videoTableZeitkomme
 
 const BATCH_SIZE = 200;
 
+// select() reicht das URL-Objekt des Query-Builders weiter. Ohne Kopie hängt
+// jeder Block seinen in-Filter an dieselbe URL, und alle Requests fragen die
+// Schnittmenge aller Blöcke ab (leer).
+function freshBuilder(supabaseFrom) {
+  if (!(supabaseFrom?.url instanceof URL) || typeof supabaseFrom.constructor !== 'function') return supabaseFrom;
+  const headers = supabaseFrom.headers instanceof Headers
+    ? new Headers(supabaseFrom.headers)
+    : { ...supabaseFrom.headers };
+  return new supabaseFrom.constructor(new URL(supabaseFrom.url.href), {
+    headers,
+    schema: supabaseFrom.schema,
+    fetch: supabaseFrom.fetch
+  });
+}
+
 /** `.in(column, ids)` in Blöcken zu 200 IDs, Ergebnisse zusammengeführt (erster Fehler gewinnt). */
 export function batchInQuery(supabaseFrom, selectStr, column, ids, extraFilters) {
   if (ids.length <= BATCH_SIZE) {
@@ -20,7 +35,7 @@ export function batchInQuery(supabaseFrom, selectStr, column, ids, extraFilters)
   }
   const batches = [];
   for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    let q = supabaseFrom.select(selectStr).in(column, ids.slice(i, i + BATCH_SIZE));
+    let q = freshBuilder(supabaseFrom).select(selectStr).in(column, ids.slice(i, i + BATCH_SIZE));
     if (extraFilters) q = extraFilters(q);
     batches.push(q);
   }
