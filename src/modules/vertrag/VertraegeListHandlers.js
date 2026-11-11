@@ -172,6 +172,13 @@ export async function handleVertragListAction(list, action, id) {
       }
       window.navigateTo(`/vertraege/${id}/edit`);
       break;
+    case 'vertrag-als-vorlage':
+      if (!list.getVertragPermissions().canEdit) {
+        window.toastSystem?.show('Sie haben keine Berechtigung, Verträge zu erstellen.', 'warning');
+        break;
+      }
+      window.navigateTo(`/vertraege/new?vorlage=${encodeURIComponent(id)}`);
+      break;
     case 'download':
       downloadVertrag(list, id);
       break;
