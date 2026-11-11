@@ -171,7 +171,7 @@ export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = f
   return `
     <div class="summary-card"${cardAttr}>
       <div class="summary-value"${totalAttr}>${formatCurrency(resolved.total)}</div>
-      ${renderSummaryLabelHtml('Agenturanteil', canSeePricing ? CARD_HINTS.agentur : null)}
+      ${renderSummaryLabelHtml('Agenturanteil', canSeePricing && !hideEkVk ? CARD_HINTS.agentur : null)}
       ${canSeePricing ? renderAgencyFeeBreakdownHtml(resolved, formatCurrency, { dataAttrs, hideEkVk }) : ''}
     </div>`;
 }
