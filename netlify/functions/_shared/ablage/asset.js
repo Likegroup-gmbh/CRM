@@ -11,6 +11,14 @@ const TABELLE = {
 
 const TYPEN = Object.keys(TABELLE);
 
+// Spalten, die beim Entfernen gebraucht werden (nur was die jeweilige Tabelle wirklich hat)
+const ENTFERNEN_SPALTEN = {
+  video: 'id, video_id',
+  story: 'id, video_id, story_id',
+  still: 'id, video_id',
+  roh: 'id',
+};
+
 // Promote-Zeilen (Finale per source_asset_id) teilen die Datei; nur Rohmaterial hat keine
 const MIT_SOURCE = new Set(['video', 'story', 'still']);
 
@@ -154,7 +162,10 @@ async function flagsFuer(supabase, tabelle, fk, id) {
 /** Alle Zeilen zu einem Item entfernen (Original + Promote-Finals). -> Anzahl */
 async function entfernenNachItem(supabase, typ, driveId, itemId) {
   const tabelle = TABELLE[typ];
-  const { data: rows } = await supabase.from(tabelle).select('id, story_id, video_id').eq('drive_id', driveId).eq('item_id', itemId);
+  // Spalten je Tabelle: Video hat nur video_id, Still video_id, Rohmaterial keine von beiden, nur Story beide.
+  // Eine unbekannte Spalte liesse die Abfrage still scheitern (zeilen: 0) und der Datensatz bliebe stehen.
+  const { data: rows, error: leseFehler } = await supabase.from(tabelle).select(ENTFERNEN_SPALTEN[typ]).eq('drive_id', driveId).eq('item_id', itemId);
+  if (leseFehler) throw leseFehler;
   if (!rows?.length) return 0;
   if (typ === 'video') {
     // asset_id faellt sonst auf null: die Kommentare stuenden dann bei allen Varianten der Runde
