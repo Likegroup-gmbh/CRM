@@ -138,7 +138,7 @@ export function resolveAgencyFeeForViewer(summary, canSeePricing) {
 /**
  * Renders the Agency Fee breakdown lines (always both rows).
  */
-export function renderAgencyFeeBreakdownHtml(summary, formatCurrency, { dataAttrs = false } = {}) {
+export function renderAgencyFeeBreakdownHtml(summary, formatCurrency, { dataAttrs = false, hideEkVk = false } = {}) {
   const baseAttr = dataAttrs ? ' data-summary-value="agentur-fee-base"' : '';
   const marginAttr = dataAttrs ? ' data-summary-value="agentur-fee-margin"' : '';
 
@@ -147,11 +147,11 @@ export function renderAgencyFeeBreakdownHtml(summary, formatCurrency, { dataAttr
         <div class="summary-card-breakdown-line">
           <span>Festgelegt</span>
           <span${baseAttr}>${formatCurrency(summary.baseFee)}</span>
-        </div>
+        </div>${hideEkVk ? '' : `
         <div class="summary-card-breakdown-line">
           <span>EK/VK-Differenz</span>
           <span${marginAttr}>${formatCurrency(summary.ekVkMargin)}</span>
-        </div>
+        </div>`}
       </div>`;
 }
 
@@ -161,7 +161,7 @@ export function renderAgencyFeeBreakdownHtml(summary, formatCurrency, { dataAttr
  * @param {function} formatCurrency
  * @param {{ dataAttrs?: boolean, canSeePricing?: boolean }} options
  */
-export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = false, canSeePricing = true } = {}) {
+export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = false, canSeePricing = true, hideEkVk = false } = {}) {
   const resolved = resolveAgencyFeeForViewer(summary, canSeePricing);
   if (!resolved.showAgencyFeeCard) return '';
 
@@ -172,7 +172,7 @@ export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = f
     <div class="summary-card"${cardAttr}>
       <div class="summary-value"${totalAttr}>${formatCurrency(resolved.total)}</div>
       ${renderSummaryLabelHtml('Agenturanteil', canSeePricing ? CARD_HINTS.agentur : null)}
-      ${canSeePricing ? renderAgencyFeeBreakdownHtml(resolved, formatCurrency, { dataAttrs }) : ''}
+      ${canSeePricing ? renderAgencyFeeBreakdownHtml(resolved, formatCurrency, { dataAttrs, hideEkVk }) : ''}
     </div>`;
 }
 

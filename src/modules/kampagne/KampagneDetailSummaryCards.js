@@ -165,7 +165,7 @@ function renderUgcBudgetCardsHtml(overview, { canSeePricing, formatCurrency }) {
           </div>
         </div>
         ${canSeePricing ? renderCreatorAnteilCardHtml(overview.creatorAnteil, { paid: 0, open: overview.creatorAnteil }, fmt) : ''}
-        ${canSeePricing ? renderAgencyFeeCardHtml(overview.agencyFeeSummary, fmt, { canSeePricing: true }) : ''}
+        ${canSeePricing ? renderAgencyFeeCardHtml(overview.agencyFeeSummary, fmt, { canSeePricing: true, hideEkVk: true }) : ''}
         ${canSeePricing ? renderKskCardHtml(overview.agencyFeeSummary, fmt) : ''}
         ${zusatzleistungenCardsHtml}
         <div class="summary-card" data-summary-card="extra-kosten-vk">

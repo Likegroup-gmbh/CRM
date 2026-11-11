@@ -243,6 +243,14 @@ describe('renderAgencyFeeCardHtml', () => {
     expect(html).toContain('0 €');
   });
 
+  it('hideEkVk blendet die EK/VK-Zeile aus, Summe und Festgelegt bleiben', () => {
+    const summary = { showAgencyFeeCard: true, baseFee: 500, ekVkMargin: 200, total: 700 };
+    const html = renderAgencyFeeCardHtml(summary, fmt, { hideEkVk: true });
+    expect(html).toContain('700 €');
+    expect(html).toContain('Festgelegt');
+    expect(html).not.toContain('EK/VK-Differenz');
+  });
+
   it('renders breakdown even when only EK/VK margin', () => {
     const summary = { showAgencyFeeCard: true, baseFee: 0, ekVkMargin: 200, total: 200 };
     const html = renderAgencyFeeCardHtml(summary, fmt);
