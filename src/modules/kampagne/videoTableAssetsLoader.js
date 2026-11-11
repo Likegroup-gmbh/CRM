@@ -16,7 +16,7 @@ import { patchZeitkommentarLists } from './videoTableZeitkommentare.js';
 
 const settledOk = (result) => result.status === 'fulfilled' && !result.value?.error;
 
-function groupBy(list, key) {
+export function groupBy(list, key) {
   const out = {};
   for (const item of list) {
     if (!out[item[key]]) out[item[key]] = [];

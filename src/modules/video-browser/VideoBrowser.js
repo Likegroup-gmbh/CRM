@@ -43,6 +43,7 @@ import { defaultTab, setDetailTab, syncTabIndicator } from './videoBrowserTabs.j
 import { closeTagField, refreshTagField } from './videoBrowserTagField.js';
 import { formatTime } from '../../core/media/mediaPlayerIcons.js';
 import { currentUploads, uploadChanged, uploadSettled, uploadsAdded } from './videoBrowserUploadState.js';
+import { bindLiveUpdates } from './videoBrowserLive.js';
 import {
   destroyShowcase,
   initShowcaseState,
@@ -144,6 +145,7 @@ class VideoBrowser {
       toast: (type, text) => this.toast(type, text)
     });
     bindEvents(this);
+    bindLiveUpdates(this);
     this._render({ fromDepth: 0, detailAnimate: true });
     this._fit();
     this._syncUrl();

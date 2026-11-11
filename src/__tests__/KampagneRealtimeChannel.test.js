@@ -60,9 +60,21 @@ describe('kampagneRealtimeChannel', () => {
       'kooperation_still_comment:*',
       'custom_column_values:*',
       'kooperationen:*',
-      'kooperationen:DELETE'
+      'kooperationen:DELETE',
+      'kooperation_medien_stand:*'
     ]);
     expect(handlers[5].opts.filter).toBe('kampagne_id=eq.k1');
+    expect(handlers[7].opts.filter).toBe('kampagne_id=eq.k1');
+  });
+
+  it('stellt den Medien-Stand mit Tabellenname zu', () => {
+    const onChange = vi.fn();
+    acquireKampagneChannel('k1', { onChange });
+    const payload = { eventType: 'UPDATE', new: { kooperation_id: 'koop1', kampagne_id: 'k1' } };
+
+    channels[0].handlers[7].cb(payload);
+
+    expect(onChange).toHaveBeenCalledWith('kooperation_medien_stand', payload);
   });
 
   it('teilt einen Channel zwischen Listenern und baut ihn nach der Gnadenfrist ab', () => {

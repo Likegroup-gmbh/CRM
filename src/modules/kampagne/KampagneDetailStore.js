@@ -77,6 +77,8 @@ export class KampagneDetailStore {
 
   setVideos(videosByKoopId) {
     this.videos = videosByKoopId || {};
+    // Neue Video-Objekte tragen keine Assets: sonst ueberspringt das Nachladen sie (leere Finale-Spalte)
+    this._loadedAssetVideoIds.clear();
     this.emit('videos-changed', this.videos);
   }
 

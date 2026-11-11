@@ -1,5 +1,5 @@
 // kampagneRealtimeChannel.js
-// Ein gemeinsamer Realtime-Channel pro Kampagne fuer Videotabelle und Kanban.
+// Ein gemeinsamer Realtime-Channel pro Kampagne fuer Videotabelle und Video-Browser.
 //
 // Warum: Jeder Wechsel Tabelle/Kanban und jede Navigation hat den Channel samt
 // 8 Subscriptions ab- und neu aufgebaut (realtime.subscription: tausende
@@ -91,7 +91,13 @@ function buildChannel(entry) {
     // Doppelte Zustellung ist harmlos, das Entfernen ist idempotent.
     .on('postgres_changes', {
       event: 'DELETE', schema: 'public', table: 'kooperationen'
-    }, route('kooperationen'));
+    }, route('kooperationen'))
+    // Eine Zeile pro Kooperation, ein Trigger auf den Asset-Tabellen setzt sie:
+    // neue, geaenderte oder geloeschte Medien (auch aus SharePoint).
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'kooperation_medien_stand',
+      filter: `kampagne_id=eq.${kampagneId}`
+    }, route('kooperation_medien_stand'));
 }
 
 function connect(entry) {

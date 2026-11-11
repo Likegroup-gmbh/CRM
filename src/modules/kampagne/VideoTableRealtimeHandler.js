@@ -24,10 +24,17 @@ import {
 } from '../../core/customColumns/remoteCustomValue.js';
 import { applyZeitkommentarChange, patchZeitkommentarLists } from './videoTableZeitkommentare.js';
 import { makeCustomColumnId } from './columns/ColumnRegistry.js';
+import { refreshKoopMedia } from './videoTableMediaRefresh.js';
+
+// Eine Datei erzeugt mehrere Writes (Insert, Flags, Echo nach dem Verschieben)
+export const MEDIEN_DEBOUNCE_MS = 700;
 
 export class VideoTableRealtimeHandler {
   constructor(table) {
     this.table = table;
+    this._medienTimers = new Map();
+    // koopId -> true, wenn waehrend des Laufs ein weiteres Event kam
+    this._medienLaeufe = new Map();
   }
 
   initRealtimeSubscription() {
@@ -86,6 +93,38 @@ export class VideoTableRealtimeHandler {
 
     if (tableName === 'custom_column_values') {
       this.handleCustomValueChange(payload);
+      return;
+    }
+
+    if (tableName === 'kooperation_medien_stand') {
+      const koopId = payload?.new?.kooperation_id;
+      if (koopId && koops.some(k => k.id === koopId)) this.scheduleMedienRefresh(koopId);
+    }
+  }
+
+  scheduleMedienRefresh(koopId) {
+    clearTimeout(this._medienTimers.get(koopId));
+    this._medienTimers.set(koopId, setTimeout(() => {
+      this._medienTimers.delete(koopId);
+      this._runMedienRefresh(koopId);
+    }, MEDIEN_DEBOUNCE_MS));
+  }
+
+  async _runMedienRefresh(koopId) {
+    if (this._destroyed) return;
+    if (this._medienLaeufe.has(koopId)) {
+      this._medienLaeufe.set(koopId, true);
+      return;
+    }
+    this._medienLaeufe.set(koopId, false);
+    try {
+      await refreshKoopMedia(this.table, koopId);
+    } catch (err) {
+      console.warn('REALTIME: Medien-Refresh fehlgeschlagen:', err);
+    } finally {
+      const nochmal = this._medienLaeufe.get(koopId);
+      this._medienLaeufe.delete(koopId);
+      if (nochmal && !this._destroyed) this._runMedienRefresh(koopId);
     }
   }
 
@@ -548,6 +587,8 @@ export class VideoTableRealtimeHandler {
 
   destroy() {
     this._destroyed = true;
+    for (const timer of this._medienTimers.values()) clearTimeout(timer);
+    this._medienTimers.clear();
     this.cleanup();
   }
 
