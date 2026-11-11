@@ -517,7 +517,9 @@ async function getWorkflowData(detail, key, loader) {
 
 async function loadVertraege(detail) {
   // Verträge tragen keine Linie; sie hängen über ihre Kooperation daran.
-  const briefingId = effectiveLinie(detail, 'vertraege');
+  // Mit nur einer Linie gehört jeder Vertrag der Produktion dazu, auch ohne Kooperation.
+  const einzigeLinie = (detail.linien || []).length <= 1;
+  const briefingId = einzigeLinie ? null : effectiveLinie(detail, 'vertraege');
   let koopIds = null;
   if (briefingId) {
     let koopQuery = scopeKoopsByLinie(window.supabase.from('kooperationen').select('id'), briefingId);
