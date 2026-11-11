@@ -25,6 +25,7 @@ export const GLOBAL_ACTIONS = new Set([
   'add-signed', 'edit-signed', 'replace-signed', 'remove-signed',
   'generate-pdf',
   'vertrag-kooperationen',
+  'vertrag-als-vorlage',
   'vertrag-verknuepfen',
   'linie-verschieben',
   'rezension',
@@ -200,6 +201,12 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
     case 'vertrag-kooperationen':
       if (entityType === 'vertraege') {
         dispatchVertragListAction('vertrag-kooperationen', entityId);
+      }
+      break;
+
+    case 'vertrag-als-vorlage':
+      if (entityType === 'vertraege') {
+        dispatchVertragListAction('vertrag-als-vorlage', entityId);
       }
       break;
 
