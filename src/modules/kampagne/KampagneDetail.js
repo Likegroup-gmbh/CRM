@@ -30,6 +30,7 @@ import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
 import { unmountKatalogPanes } from './KampagneDetailKatalog.js';
 import { unmountBriefingPane } from './KampagneDetailBriefing.js';
+import { unmountBudgetFilter } from '../produktion/budgetTabFilter.js';
 import {
   ALLE,
   koopLinie,
@@ -746,6 +747,7 @@ export class KampagneDetail {
     unmountKatalogPanes(this);
     unmountBriefingPane(this);
     unmountVertraegePane(this);
+    unmountBudgetFilter(this);
     nutzungsrechteModal._close();
 
     if (this.store) {

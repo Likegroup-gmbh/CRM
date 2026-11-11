@@ -38,6 +38,7 @@ import { syncKonzeptZaehler } from '../einladung/konzeptEinreichungen.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
 import { ladeBudgetDaten, renderBudgetTab } from '../produktion/budgetTab.js';
+import { aktuelleBudgetTags, mountBudgetFilter, unmountBudgetFilter } from '../produktion/budgetTabFilter.js';
 
 export const WORKFLOW_TABS = [
   { id: 'budget', label: 'Budget', preise: true },
@@ -281,6 +282,8 @@ export function suspendWorkflowTab(detail, tabId) {
     unmountKonzeptWorksheet(detail);
   } else if (tabId === 'vertraege') {
     unmountVertraegePane(detail);
+  } else if (tabId === 'budget') {
+    unmountBudgetFilter(detail);
   } else if (tabId === 'videos') {
     unmountVideoBrowser(detail);
     clearVideoBrowserUrl();
@@ -410,6 +413,7 @@ export async function loadWorkflowPane(detail, tabId) {
     }
     pane.innerHTML = html;
     if (tabId === 'vertraege') mountVertraegePane(detail);
+    if (tabId === 'budget') mountBudgetPane(detail);
   } catch (error) {
     console.error(`❌ KAMPAGNEDETAIL: Workflow-Pane "${tabId}" fehlgeschlagen:`, error);
     detail._workflowLoaded[tabId] = false;
@@ -437,6 +441,7 @@ export function refreshWorkflowAfterRender(detail) {
   unmountCastingWorksheet(detail);
   unmountKonzeptWorksheet(detail);
   unmountVertraegePane(detail);
+  unmountBudgetFilter(detail);
   unmountKatalogPanes(detail);
   unmountBriefingPane(detail);
   unmountVideoBrowser(detail);
@@ -708,18 +713,30 @@ export async function renderVertraegePane(detail) {
 
 // Budget gilt für die ganze Produktion; die gewählte Linie wird nur hervorgehoben.
 // Mit nur einer Linie gibt es nichts zu unterscheiden.
+function budgetTabOptionen(detail) {
+  const linien = detail.linien || [];
+  const linieId = linien.length > 1 ? effectiveLinie(detail, 'budget') : null;
+  const linie = linien.find(l => l.id === linieId);
+  return {
+    linieId,
+    linieName: linie?.name || '',
+    eigenesBudget: detail.produktion?.budget,
+    tagIds: aktuelleBudgetTags(detail)
+  };
+}
+
 async function renderBudgetPane(detail) {
   const daten = await getWorkflowData(detail, 'budget', () => ladeBudgetDaten(window.supabase, {
     produktionId: detail.produktionId,
     kampagneId: detail.kampagneId
   }));
-  const linien = detail.linien || [];
-  const linieId = linien.length > 1 ? effectiveLinie(detail, 'budget') : null;
-  const linie = linien.find(l => l.id === linieId);
-  return renderBudgetTab(daten, {
-    linieId,
-    linieName: linie?.name || '',
-    eigenesBudget: detail.produktion?.budget
+  return renderBudgetTab(daten, budgetTabOptionen(detail));
+}
+
+function mountBudgetPane(detail) {
+  mountBudgetFilter(detail, {
+    daten: detail._workflowData?.budget,
+    optionen: () => budgetTabOptionen(detail)
   });
 }
 

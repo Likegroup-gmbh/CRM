@@ -3055,6 +3055,12 @@ h3.section-title,
   padding: var(--space-lg);
 }
 
+/* Bei Scrollleisten mit Platzbedarf (Maus) ändert der Tag-Filter die Höhe,
+   die Leiste käme und ginge und die Spalte spränge seitlich. */
+.main-wrapper:has(.kampagne-detail-body[data-workflow="budget"]) {
+  scrollbar-gutter: stable;
+}
+
 .budget-tab {
   --budget-bar-height: 4rem;
   display: flex;
@@ -3079,6 +3085,36 @@ h3.section-title,
   margin: 0;
   font-size: var(--text-sm);
   color: var(--gray-600);
+}
+
+.budget-tab__head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xs);
+}
+
+.budget-tab__head-row .budget-tab__title {
+  margin: 0;
+}
+
+.budget-tab__filter {
+  flex: 0 0 14rem;
+  min-width: 0;
+}
+
+.budget-tab__filter:empty {
+  display: none;
+}
+
+.budget-tab__tags {
+  margin-bottom: var(--space-sm);
+}
+
+/* Gleich breite Ziffern, sonst wackelt die Zeile beim Zählen */
+.budget-tab [data-count] {
+  font-variant-numeric: tabular-nums;
 }
 
 .budget-tab__lead strong {

@@ -7,11 +7,13 @@ import { budgetOrNull, ladeBudgetStand, roundMoney } from './produktionsbudget.j
 import { koopGehoertZurLinie } from './ProduktionService.js';
 import { instagramProfilUrl, normalizeHandle } from '../creator/creatorProfil.js';
 import { formatCompactNumber } from '../../core/format/compactNumber.js';
+import { cancelCountTo, countTo, liveCountValue } from '../../core/animation/countTo.js';
 
 export const BUDGET_KOOP_SELECT = `
   id, name, briefing_id, produktion_id, verkaufspreis_zusatzkosten,
   creator:creator_id(id, vorname, nachname, instagram, tiktok),
-  kooperation_videos(verkaufspreis_netto)
+  kooperation_videos(verkaufspreis_netto),
+  kooperation_tags(tag_id, kooperation_tag_typen(id, name))
 `;
 
 // Unter dieser Breite (Prozent des Balkens) bekommt ein Segment kein Label.
@@ -52,6 +54,38 @@ export function koopBetrag(koop) {
   const honorar = roundMoney(videos.reduce((sum, v) => sum + zahl(v?.verkaufspreis_netto), 0));
   const zusatz = roundMoney(zahl(koop?.verkaufspreis_zusatzkosten));
   return { honorar, zusatz, betrag: roundMoney(honorar + zusatz), videos: videos.length };
+}
+
+/** Tags einer Kooperation als [{ id, name }], ohne Doppelte. */
+export function koopTags(koop) {
+  const rows = Array.isArray(koop?.kooperation_tags) ? koop.kooperation_tags : [];
+  const tags = [];
+  for (const row of rows) {
+    const id = String(row?.tag_id ?? row?.kooperation_tag_typen?.id ?? '');
+    const name = row?.kooperation_tag_typen?.name;
+    if (id && name && !tags.some(t => t.id === id)) tags.push({ id, name });
+  }
+  return tags;
+}
+
+/** Alle Tags der Kooperationen als Dropdown-Optionen, nach Name sortiert. */
+export function verfuegbareTags(koops) {
+  const byId = new Map();
+  for (const koop of koops || []) {
+    for (const tag of koopTags(koop)) {
+      if (!byId.has(tag.id)) byId.set(tag.id, tag.name);
+    }
+  }
+  return [...byId]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+}
+
+/** Kooperationen mit mindestens einem der Tags. Leere Auswahl filtert nicht. */
+export function filterKoopsNachTags(koops, tagIds) {
+  const ids = new Set((tagIds || []).map(String));
+  if (!ids.size) return koops || [];
+  return (koops || []).filter(koop => koopTags(koop).some(tag => ids.has(tag.id)));
 }
 
 function creatorName(creator) {
@@ -278,11 +312,17 @@ function plural(n, eins, mehr) {
   return `${n} ${n === 1 ? eins : mehr}`;
 }
 
-function renderStat({ art, label, wert, sub, negativ = false }) {
+// Zahl, die updateBudgetTab beim Filtern vom alten zum neuen Wert zählt.
+// data-count ist der stabile Schlüssel, data-count-value der exakte Wert.
+function zaehlAttrs(key, wert, format = 'euro') {
+  return `data-count="${key}" data-count-value="${roundMoney(wert)}" data-count-format="${format}"`;
+}
+
+function renderStat({ key, art, label, wert, sub, negativ = false }) {
   return `
     <div class="budget-tab__stat">
       <div class="budget-tab__stat-label"><span class="budget-tab__swatch budget-tab__swatch--${art}"></span>${esc(label)}</div>
-      <div class="budget-tab__stat-value${negativ ? ' budget-tab__stat-value--negativ' : ''}">${esc(wert)}</div>
+      <div class="budget-tab__stat-value${negativ ? ' budget-tab__stat-value--negativ' : ''}" ${zaehlAttrs(key, wert)}>${esc(formatEuro(wert))}</div>
       <div class="budget-tab__stat-sub" title="${esc(sub)}">${esc(sub)}</div>
     </div>`;
 }
@@ -291,39 +331,45 @@ function renderStats(model, { linieName }) {
   const stats = [];
   if (model.dieseLinie != null) {
     stats.push(renderStat({
+      key: 'linie',
       art: 'linie',
       label: 'Diese Linie',
-      wert: formatEuro(model.dieseLinie),
+      wert: model.dieseLinie,
       sub: [plural(model.anzahl.dieseLinie, 'Kooperation', 'Kooperationen'), linieName].filter(Boolean).join(' · ')
     }));
     stats.push(renderStat({
+      key: 'andere',
       art: 'andere',
       label: 'Andere Linien',
-      wert: formatEuro(model.andereLinien),
+      wert: model.andereLinien,
       sub: plural(model.anzahl.andereLinien, 'Kooperation', 'Kooperationen')
     }));
   } else {
     stats.push(renderStat({
+      key: 'verbraucht',
       art: 'gesamt',
       label: 'Verbraucht',
-      wert: formatEuro(model.verbrauch),
+      wert: model.verbrauch,
       sub: `${plural(model.anzahl.kooperationen, 'Kooperation', 'Kooperationen')} · ${plural(model.anzahl.videos, 'Video', 'Videos')}`
     }));
   }
   if (model.andereProduktionen > 0) {
     stats.push(renderStat({
+      key: 'produktionen',
       art: 'produktionen',
       label: 'Andere Produktionen',
-      wert: formatEuro(model.andereProduktionen),
+      wert: model.andereProduktionen,
       sub: 'teilen das Budget'
     }));
   }
   if (model.budget != null) {
     const ueber = model.frei < 0;
+    // Ein Schlüssel für frei und überschritten: der Wert zählt weiter, nur Label und Farbe springen.
     stats.push(renderStat({
+      key: 'status',
       art: ueber ? 'ueber' : 'frei',
       label: ueber ? 'Überschritten' : 'Noch frei',
-      wert: formatEuro(ueber ? -model.frei : model.frei),
+      wert: ueber ? -model.frei : model.frei,
       sub: model.budget > 0
         ? (ueber ? `${model.prozent - 100} % über dem Budget` : `${Math.max(0, 100 - model.prozent)} % des Budgets`)
         : 'kein Budget für diese Produktion',
@@ -414,26 +460,42 @@ function renderCreatorZeile(z, hervorheben) {
     </div>`;
 }
 
+function renderTagChips(tags) {
+  if (!tags.length) return '';
+  const chips = tags.map(t => `
+    <span class="filter-chip" data-tag-id="${esc(t.value)}">
+      <span class="filter-chip-label">${esc(t.label)}</span>
+      <button type="button" class="filter-chip-remove" data-budget-tag-remove="${esc(t.value)}" aria-label="${esc(`Tag ${t.label} entfernen`)}">×</button>
+    </span>`).join('');
+  return `<div class="active-filters budget-tab__tags">${chips}</div>`;
+}
+
 /**
  * @param {object} daten - Ergebnis von ladeBudgetDaten
  * @param {object} opts
  * @param {string|null} opts.linieId - hervorgehobene Linie
  * @param {string} [opts.linieName]
  * @param {*} [opts.eigenesBudget] - produktion.budget
+ * @param {string[]} [opts.tagIds] - nur Kooperationen mit einem dieser Tags zählen
  */
-export function renderBudgetTab(daten, { linieId = null, linieName = '', eigenesBudget = null } = {}) {
+export function renderBudgetTab(daten, { linieId = null, linieName = '', eigenesBudget = null, tagIds = [] } = {}) {
   const { stand, koops = [], andereProduktionen = 0 } = daten || {};
+  const aktiveTags = verfuegbareTags(koops).filter(t => (tagIds || []).includes(t.value));
   const model = berechneBudgetTab({
-    koops,
+    koops: filterKoopsNachTags(koops, aktiveTags.map(t => t.value)),
     andereProduktionen,
     decke: stand?.decke ?? null,
     linieId
   });
   const quelle = budgetQuelle(stand, eigenesBudget);
 
+  const belegt = `<strong ${zaehlAttrs('belegt', model.belegt)}>${esc(formatEuro(model.belegt))}</strong>`;
+  const prozent = model.prozent != null
+    ? ` (<span ${zaehlAttrs('prozent', model.prozent, 'prozent')}>${model.prozent}</span> %)`
+    : '';
   const lead = model.budget != null
-    ? `<strong>${esc(formatEuro(model.belegt))}</strong> von <strong>${esc(formatEuro(model.budget))}</strong> verbraucht${model.prozent != null ? ` (${model.prozent} %)` : ''}.`
-    : `<strong>${esc(formatEuro(model.belegt))}</strong> verbraucht.`;
+    ? `${belegt} von <strong>${esc(formatEuro(model.budget))}</strong> verbraucht${prozent}.`
+    : `${belegt} verbraucht.`;
   const notizen = [
     model.zusatzkosten > 0 ? `Davon ${formatEuro(model.zusatzkosten)} Zusatzkosten.` : '',
     quelle.hinweis
@@ -446,7 +508,11 @@ export function renderBudgetTab(daten, { linieId = null, linieName = '', eigenes
   return `
     <div class="budget-tab">
       <header class="budget-tab__head">
-        <h3 class="budget-tab__title">Budget</h3>
+        <div class="budget-tab__head-row">
+          <h3 class="budget-tab__title">Budget</h3>
+          <div class="budget-tab__filter" data-budget-filter></div>
+        </div>
+        ${renderTagChips(aktiveTags)}
         <p class="budget-tab__lead">${lead}</p>
         ${notizen.map(n => `<p class="budget-tab__note">${esc(n)}</p>`).join('')}
       </header>
@@ -460,4 +526,58 @@ export function renderBudgetTab(daten, { linieId = null, linieName = '', eigenes
         <div class="budget-tab__creators">${creators}</div>
       </section>
     </div>`;
+}
+
+// Im Lauf feste Nachkommastellen, sonst springt die Breite zwischen „1.000 €“ und „1.000,50 €“.
+function euroImLauf(from, to) {
+  const ganz = Number.isInteger(roundMoney(from)) && Number.isInteger(roundMoney(to));
+  const fmt = new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: ganz ? 0 : 2,
+    maximumFractionDigits: ganz ? 0 : 2
+  });
+  return (v) => (v === to ? formatEuro(to) : fmt.format(ganz ? Math.round(v) : v));
+}
+
+function zaehlFormat(art, from, to) {
+  if (art === 'prozent') return (v) => String(Math.round(v));
+  return euroImLauf(from, to);
+}
+
+/**
+ * Tab mit neuer Auswahl neu schreiben, ohne den Pane neu zu laden. Zahlen
+ * mit data-count zählen vom angezeigten (oder gerade laufenden) Wert los.
+ * @param {HTMLElement} root - Container, der .budget-tab enthält
+ * @param {object} daten - Ergebnis von ladeBudgetDaten
+ * @param {object} opts - wie renderBudgetTab
+ */
+export function updateBudgetTab(root, daten, opts = {}, { animate = true } = {}) {
+  const alt = root?.querySelector('.budget-tab');
+  if (!alt) return;
+
+  const vorher = new Map();
+  alt.querySelectorAll('[data-count]').forEach(el => {
+    const live = liveCountValue(el);
+    vorher.set(el.dataset.count, Number.isFinite(live) ? live : parseFloat(el.dataset.countValue));
+    cancelCountTo(el);
+  });
+
+  const vorlage = document.createElement('template');
+  vorlage.innerHTML = renderBudgetTab(daten, opts).trim();
+  const neu = vorlage.content.firstElementChild;
+  if (!neu) return;
+  // Das Dropdown zieht mit um, sonst wären Auswahl, offenes Panel und Listener weg.
+  const filter = alt.querySelector('[data-budget-filter]');
+  const platz = neu.querySelector('[data-budget-filter]');
+  if (filter && platz) platz.replaceWith(filter);
+  alt.replaceWith(neu);
+  if (!animate) return;
+
+  neu.querySelectorAll('[data-count]').forEach(el => {
+    const from = vorher.get(el.dataset.count);
+    const to = parseFloat(el.dataset.countValue);
+    if (!Number.isFinite(from) || !Number.isFinite(to) || from === to) return;
+    countTo(el, to, { from, format: zaehlFormat(el.dataset.countFormat, from, to) });
+  });
 }

@@ -12,6 +12,7 @@ import { KampagneUtils } from './KampagneUtils.js';
 import { closeLinienMenu, koopLinie, toggleLinienMenu } from './linienScope.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
 import { handleWorkflowCreate } from './KampagneWorkflowCreate.js';
+import { setBudgetTags } from '../produktion/budgetTabFilter.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
@@ -311,6 +312,13 @@ export function setupEvents(detail) {
     }
 
     if (e.target.closest('.workflow-pane:not([data-pane="kooperationen"])')) {
+      const tagRemove = e.target.closest('[data-budget-tag-remove]');
+      if (tagRemove) {
+        e.preventDefault();
+        const id = tagRemove.dataset.budgetTagRemove;
+        setBudgetTags(detail, (detail.budgetTagIds || []).filter(t => t !== id));
+        return;
+      }
       const vertragEdit = e.target.closest('[data-vertrag-open="edit"]');
       if (vertragEdit?.dataset.id) {
         e.preventDefault();

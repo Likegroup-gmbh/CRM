@@ -1,19 +1,27 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   berechneBudgetTab,
   budgetQuelle,
+  filterKoopsNachTags,
   koopBetrag,
+  koopTags,
   ladeBudgetDaten,
   renderBudgetTab,
-  skalaTicks
+  skalaTicks,
+  updateBudgetTab,
+  verfuegbareTags
 } from '../modules/produktion/budgetTab.js';
+import { mountBudgetFilter, setBudgetTags, unmountBudgetFilter } from '../modules/produktion/budgetTabFilter.js';
 import { getVisibleWorkflowTabs, resolveInitialWorkflowTab } from '../modules/kampagne/KampagneDetailWorkflow.js';
 import { tabHatAlleLinien } from '../modules/kampagne/linienScope.js';
 
 const lena = { id: 'c1', vorname: 'Lena', nachname: 'Hartmann', instagram: 'https://instagram.com/lena.lifts/' };
 const mia = { id: 'c2', vorname: 'Mia', nachname: 'Okafor', tiktok: '@miaokafor' };
 
-function koop(id, { briefing_id = 'l1', creator = null, videos = [], zusatz = null, produktion_id = 'p1', name } = {}) {
+const JANUAR = ['t-jan', 'Januar'];
+const JAHR = ['t-2026', '2026'];
+
+function koop(id, { briefing_id = 'l1', creator = null, videos = [], zusatz = null, produktion_id = 'p1', name, tags = [] } = {}) {
   return {
     id,
     name: name || `Koop ${id}`,
@@ -21,14 +29,15 @@ function koop(id, { briefing_id = 'l1', creator = null, videos = [], zusatz = nu
     produktion_id,
     creator,
     verkaufspreis_zusatzkosten: zusatz,
-    kooperation_videos: videos.map(v => ({ verkaufspreis_netto: v }))
+    kooperation_videos: videos.map(v => ({ verkaufspreis_netto: v })),
+    kooperation_tags: tags.map(([tagId, tagName]) => ({ tag_id: tagId, kooperation_tag_typen: { id: tagId, name: tagName } }))
   };
 }
 
 const koops = [
-  koop('k1', { creator: lena, videos: [2000, 1800], zusatz: 500 }),
-  koop('k2', { creator: lena, briefing_id: 'l2', videos: [2000] }),
-  koop('k3', { creator: mia, briefing_id: 'l2', videos: [3000, '400.5'] }),
+  koop('k1', { creator: lena, videos: [2000, 1800], zusatz: 500, tags: [JANUAR] }),
+  koop('k2', { creator: lena, briefing_id: 'l2', videos: [2000], tags: [JANUAR, JAHR] }),
+  koop('k3', { creator: mia, briefing_id: 'l2', videos: [3000, '400.5'], tags: [JAHR] }),
   koop('k4', { name: 'Altbestand Max', briefing_id: null, videos: [1000] })
 ];
 
@@ -187,6 +196,153 @@ describe('renderBudgetTab', () => {
     expect(html).toContain('Noch kein Verbrauch');
     expect(html).toContain('Noch keine Kooperationen');
     expect(html).not.toContain('Noch frei');
+  });
+
+  it('rechnet mit Tag-Filter nur die passenden Kooperationen und zeigt die Chips', () => {
+    const html = render({ stand, koops }, { tagIds: ['t-2026'], eigenesBudget: 40000 });
+    expect(html).toContain('data-budget-tag-remove="t-2026"');
+    expect(html).toContain('<span class="filter-chip-label">2026</span>');
+    expect(html).not.toContain('<span class="filter-chip-label">Januar</span>');
+    expect(html).toContain('data-count="verbraucht" data-count-value="5400.5"');
+    expect(html).toContain('34.599,50 €');
+    expect(html).toContain('2 Kooperationen · 3 Videos');
+    expect(html).not.toContain('Altbestand Max');
+  });
+
+  it('macht aus einer Überschreitung mit Filter wieder Noch frei', () => {
+    const html = render({ stand: { decke: 8000, eigen: true }, koops }, { tagIds: ['t-jan'], eigenesBudget: 8000 });
+    expect(html).toContain('Noch frei');
+    expect(html).toContain('data-count="status" data-count-value="1700"');
+    expect(html).not.toContain('budget-tab__decke');
+  });
+
+  it('ignoriert unbekannte Tag-IDs', () => {
+    const html = render({ stand, koops }, { tagIds: ['weg'] });
+    expect(html).not.toContain('filter-chip');
+    expect(html).toContain('data-count="verbraucht" data-count-value="10700.5"');
+  });
+});
+
+describe('Tags der Kooperationen', () => {
+  it('liest Tags ohne Doppelte und ohne Namen-lose Einträge', () => {
+    const k = { kooperation_tags: [
+      { tag_id: 'a', kooperation_tag_typen: { id: 'a', name: 'A' } },
+      { tag_id: 'a', kooperation_tag_typen: { id: 'a', name: 'A' } },
+      { tag_id: 'b', kooperation_tag_typen: null }
+    ] };
+    expect(koopTags(k)).toEqual([{ id: 'a', name: 'A' }]);
+    expect(koopTags({})).toEqual([]);
+  });
+
+  it('sammelt die Tags aller Kooperationen nach Name sortiert', () => {
+    expect(verfuegbareTags(koops)).toEqual([
+      { value: 't-2026', label: '2026' },
+      { value: 't-jan', label: 'Januar' }
+    ]);
+  });
+
+  it('filtert mit ODER, leere Auswahl lässt alles durch', () => {
+    expect(filterKoopsNachTags(koops, ['t-jan']).map(k => k.id)).toEqual(['k1', 'k2']);
+    expect(filterKoopsNachTags(koops, ['t-jan', 't-2026']).map(k => k.id)).toEqual(['k1', 'k2', 'k3']);
+    expect(filterKoopsNachTags(koops, [])).toBe(koops);
+  });
+});
+
+describe('updateBudgetTab', () => {
+  const stand = { decke: 40000, eigen: true };
+  let root;
+  const text = (key) => root.querySelector(`[data-count="${key}"]`).textContent.replace(/\u00a0/g, ' ');
+
+  beforeEach(() => {
+    root = document.createElement('div');
+    root.innerHTML = renderBudgetTab({ stand, koops });
+    document.body.append(root);
+  });
+
+  afterEach(() => {
+    root.remove();
+    delete window.matchMedia;
+  });
+
+  it('schreibt Werte und Chips der neuen Auswahl, ohne Bewegung sofort', () => {
+    window.matchMedia = () => ({ matches: true });
+    updateBudgetTab(root, { stand, koops }, { tagIds: ['t-2026'] });
+    expect(text('verbraucht')).toBe('5.400,50 €');
+    expect(text('status')).toBe('34.599,50 €');
+    expect(text('prozent')).toBe('14');
+    expect(root.querySelector('[data-budget-tag-remove="t-2026"]')).not.toBeNull();
+  });
+
+  it('zählt vom bisher angezeigten Wert los', () => {
+    window.matchMedia = () => ({ matches: false });
+    updateBudgetTab(root, { stand, koops }, { tagIds: ['t-jan'] });
+    const el = root.querySelector('[data-count="verbraucht"]');
+    expect(el.dataset.countValue).toBe('6300');
+    expect(text('verbraucht')).toBe('10.700,50 €');
+  });
+});
+
+describe('Tag-Filter neben der Überschrift', () => {
+  const stand = { decke: 40000, eigen: true };
+  let detail;
+  const pane = () => document.getElementById('workflow-pane-budget');
+  const verbraucht = () => pane().querySelector('[data-count="verbraucht"]').textContent.replace(/\u00a0/g, ' ');
+  const triggerText = () => document.querySelector('[data-budget-filter] .table-select__label').textContent;
+  const mount = (daten = { stand, koops }) => mountBudgetFilter(detail, {
+    daten,
+    optionen: () => ({ tagIds: detail.budgetTagIds })
+  });
+
+  beforeEach(() => {
+    window.matchMedia = () => ({ matches: true });
+    document.body.innerHTML = `<div id="workflow-pane-budget">${renderBudgetTab({ stand, koops })}</div>`;
+    detail = { produktionId: 'p1' };
+    mount();
+  });
+
+  afterEach(() => {
+    unmountBudgetFilter(detail);
+    document.body.innerHTML = '';
+    delete window.matchMedia;
+  });
+
+  it('sitzt in der Kopfzeile neben „Budget“ und bietet die Tags als Mehrfachauswahl an', () => {
+    const zeile = pane().querySelector('.budget-tab__head-row');
+    expect(zeile.querySelector('.budget-tab__title').textContent).toBe('Budget');
+    expect(zeile.querySelector('[data-budget-filter] [data-filter-select]')).not.toBeNull();
+    const boxes = [...document.querySelectorAll('[data-budget-filter] input[type="checkbox"]')];
+    expect(boxes.map(b => b.value)).toEqual(['t-2026', 't-jan']);
+    expect(triggerText()).toBe('Alle Tags');
+  });
+
+  it('filtert bei Auswahl und nimmt den Tag über den Chip wieder raus', () => {
+    const select = document.querySelector('[data-budget-filter] [data-filter-select]');
+    const box = document.querySelector('[data-budget-filter] input[value="t-jan"]');
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(detail.budgetTagIds).toEqual(['t-jan']);
+    expect(verbraucht()).toBe('6.300 €');
+    expect(document.querySelector('[data-budget-filter] [data-filter-select]')).toBe(select);
+    expect(triggerText()).toBe('Januar');
+    expect(pane().querySelector('[data-budget-tag-remove="t-jan"]')).not.toBeNull();
+
+    setBudgetTags(detail, []);
+    expect(box.checked).toBe(false);
+    expect(triggerText()).toBe('Alle Tags');
+    expect(pane().querySelector('[data-budget-tag-remove]')).toBeNull();
+    expect(verbraucht()).toBe('10.700,50 €');
+  });
+
+  it('verwirft die Auswahl beim Wechsel der Produktion', () => {
+    detail.budgetTagIds = ['t-jan'];
+    detail.produktionId = 'p2';
+    mount();
+    expect(detail.budgetTagIds).toEqual([]);
+  });
+
+  it('lässt den Platz ohne Tags leer', () => {
+    mount({ stand, koops: [koop('x', { videos: [100] })] });
+    expect(document.querySelector('[data-budget-filter]').innerHTML).toBe('');
   });
 });
 
