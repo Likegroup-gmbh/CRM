@@ -1,11 +1,12 @@
-// Zugang für die freigegebenen Skripte eines Creators in einer Kampagne.
+// Zugang für freigegebene Skripte einer Kampagne. Ohne Creator ist es das
+// Kampagnen-Paket (z. B. Kunden-Feedback), mit Creator nur dessen Skripte.
 // Ein Link, ein Code. Formular und Mail-Tags liegen in skriptPaketDrawerView.
 
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 import {
-  loadKampagneSkripteFuerPaket, loadSkriptPaket, ensureSkriptPaket, setPaketSkripte
+  loadKampagneSkripteFuerPaket, loadKampagneAnsprechpartner, loadSkriptPaket, ensureSkriptPaket, setPaketSkripte
 } from './skriptPaketApi.js';
-import { paketAuswahl } from './skriptPaketModel.js';
+import { paketAuswahl, creatorAnzeigeName } from './skriptPaketModel.js';
 import { renderPaketForm, addEmail } from './skriptPaketDrawerView.js';
 import { classifyShareEmails, recipientPlanRows } from '../share/shareRecipientPlan.js';
 
@@ -33,8 +34,11 @@ export class SkriptPaketDrawer {
     this.share = null;
     this.emails = [];
     this.codes = {};
+    this.ansprechpartner = [];
+    this.optionenOffen = false;
     this.nameTouched = false;
     this.emailsTouched = false;
+    this._sending = false;
     this._onPick = null;
     this._emailSearchTimer = null;
     this._emailSearchGen = 0;
@@ -55,11 +59,18 @@ export class SkriptPaketDrawer {
     this.paket = null;
     this.share = null;
     this.emails = [];
+    this.ansprechpartner = [];
+    this.optionenOffen = false;
     this.nameTouched = false;
     this.emailsTouched = false;
     this.renderShell();
     try {
-      this.skripte = await loadKampagneSkripteFuerPaket(kampagneId);
+      const [skripte, ansprechpartner] = await Promise.all([
+        loadKampagneSkripteFuerPaket(kampagneId),
+        this.loadVorschlaege(kampagneId)
+      ]);
+      this.skripte = skripte;
+      this.ansprechpartner = ansprechpartner;
       await this.applyCreator(this.creatorId, { initial: true });
     } catch (err) {
       window.toastSystem?.error(err.message || 'Skripte konnten nicht geladen werden.');
@@ -127,44 +138,63 @@ export class SkriptPaketDrawer {
     });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.close();
+      else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        this.submit();
+      }
     }, { signal });
     panel.querySelector('#skript-paket-submit').addEventListener('click', () => this.submit(), { signal });
     this._onPick = (e) => this.onPick(e);
     document.addEventListener('table-select-change', this._onPick);
   }
 
+  /** Ansprechpartner der Kampagne als Vorschläge, ohne Kundenkonten (die blockt das Paket). */
+  async loadVorschlaege(kampagneId) {
+    try {
+      const rows = await loadKampagneAnsprechpartner(kampagneId);
+      if (!rows.length) return [];
+      const plan = await classifyShareEmails(window.supabase, {
+        emails: rows.map((ap) => ap.email),
+        entityType: 'skript_paket',
+        entityId: 'paket'
+      });
+      const gast = new Set(plan?.guest || []);
+      return rows
+        .map((ap) => ({ ...ap, email: String(ap.email).trim().toLowerCase() }))
+        .filter((ap) => gast.has(ap.email));
+    } catch (err) {
+      console.error('Ansprechpartner-Vorschläge laden fehlgeschlagen:', err);
+      return [];
+    }
+  }
+
   async applyCreator(creatorId, { initial = false } = {}) {
     this.creatorId = creatorId || null;
-    if (this.creatorId) {
-      const stand = await loadSkriptPaket(this.kampagneId, this.creatorId);
-      this.paket = stand.paket;
-      this.share = stand.share;
-      const auswahl = paketAuswahl({
-        skripte: this.skripte,
-        creatorId: this.creatorId,
-        gespeichertIds: stand.skriptIds,
-        hatZugang: Boolean(stand.share)
-      });
-      this.checked = new Set(auswahl.checkedIds);
-      if (initial || !this.emailsTouched) {
-        const gespeichert = stand.share?.empfaenger_emails || [];
-        if (gespeichert.length) this.emails = [...gespeichert];
-        else {
-          const mail = this.currentCreator()?.mail;
-          this.emails = mail ? [String(mail).trim().toLowerCase()] : [];
-        }
-      }
-    } else {
-      this.paket = null;
-      this.share = null;
-      this.checked = new Set();
-      if (!this.emailsTouched) this.emails = [];
+    const stand = await loadSkriptPaket(this.kampagneId, this.creatorId);
+    this.paket = stand.paket;
+    this.share = stand.share;
+    const auswahl = paketAuswahl({
+      skripte: this.skripte,
+      creatorId: this.creatorId,
+      gespeichertIds: stand.skriptIds,
+      hatZugang: Boolean(stand.share)
+    });
+    this.checked = new Set(auswahl.checkedIds);
+    if (initial || !this.emailsTouched) {
+      this.emails = [...(stand.share?.empfaenger_emails || [])];
     }
     renderPaketForm(this);
   }
 
   currentCreator() {
+    if (!this.creatorId) return null;
     return this.skripte.find((s) => s.creatorId === this.creatorId)?.creator || null;
+  }
+
+  standardName() {
+    const creator = this.currentCreator();
+    if (creator) return creatorAnzeigeName(creator);
+    return this.kampagneName || 'Alle Skripte';
   }
 
   onPick(e) {
@@ -172,7 +202,6 @@ export class SkriptPaketDrawer {
     if (!this.panel?.contains(element)) return;
     if (field === 'paket-creator') {
       this.nameTouched = false;
-      this.emailsTouched = false;
       this.applyCreator(value);
     }
   }
@@ -183,20 +212,14 @@ export class SkriptPaketDrawer {
   }
 
   async submit() {
-    const name = (this.panel?.querySelector('#skript-paket-name')?.value || '').trim();
-    const rechte = this.panel?.querySelector('[data-field="paket-rechte"]')?.dataset.value || 'ansehen';
-    const emailInput = this.panel?.querySelector('#skript-paket-email');
-    if (emailInput?.value) addEmail(this, emailInput.value, { warn: false });
-    if (!this.creatorId) {
-      window.toastSystem?.warning('Bitte einen Creator wählen.');
-      return;
-    }
-    if (!name) {
-      window.toastSystem?.warning('Bitte einen Namen für den Zugang vergeben.');
-      return;
-    }
+    if (this._sending || !this.panel) return;
+    const name = (this.panel.querySelector('#skript-paket-name')?.value || '').trim() || this.standardName();
+    const rechte = this.panel.querySelector('[data-field="paket-rechte"]')?.dataset.value || 'feedback';
+    const emailInput = this.panel.querySelector('#skript-paket-email');
+    if (emailInput?.value && addEmail(this, emailInput.value, { warn: false })) emailInput.value = '';
     const ids = [...this.checked];
     const btn = this.panel.querySelector('#skript-paket-submit');
+    this._sending = true;
     btn.disabled = true;
     try {
       if (!ids.length) {
@@ -215,6 +238,7 @@ export class SkriptPaketDrawer {
     } catch (err) {
       window.toastSystem?.error(err.message || 'Speichern fehlgeschlagen.');
     } finally {
+      this._sending = false;
       if (btn?.isConnected) btn.disabled = false;
     }
   }
@@ -285,6 +309,7 @@ export class SkriptPaketDrawer {
   }
 
   async updateShare(name, rechte) {
+    const vorher = new Set(this.share.empfaenger_emails || []);
     const plan = await classifyShareEmails(window.supabase, {
       emails: this.emails,
       entityType: 'skript_paket',
@@ -303,23 +328,68 @@ export class SkriptPaketDrawer {
     if (error || data?.error) throw new Error(data?.error || 'Speichern fehlgeschlagen.');
     this.emails = [...plan.guest];
     this.share = { ...this.share, label: name, rechte, empfaenger_emails: [...plan.guest] };
-    window.toastSystem?.success('Auswahl gespeichert.');
+    const neu = plan.guest.filter((email) => !vorher.has(email));
+    if (neu.length) await this.ladeNeueEin(neu, plan.guest);
+    else window.toastSystem?.success('Auswahl gespeichert.');
     if (plan.blocked.length) {
       window.toastSystem?.warning('Adressen mit Kundenkonto bleiben ohne Mail. Die Auswahl gibt es nur als Gast-Zugang.');
     }
   }
 
-  async rotate() {
+  /** Neue Adressen am bestehenden Zugang. Der Code liegt nur gehasht vor, ohne ihn geht keine Einladung raus. */
+  async ladeNeueEin(neu, alle) {
+    let code = this.codes[this.share.id];
+    let an = neu;
+    if (!code) {
+      const wer = neu.length === 1 ? 'Eine neue Adresse' : `${neu.length} neue Adressen`;
+      const ok = window.confirm(`${wer} einladen?\nDafür wird der Code erneuert. Alle ${alle.length} Empfänger bekommen eine Mail mit dem neuen Code.`);
+      if (!ok) {
+        window.toastSystem?.success('Auswahl gespeichert. Neue Adressen haben noch keine Mail.');
+        return;
+      }
+      code = await this.rotateCode();
+      if (!code) return;
+      an = alle;
+    }
+    if (await this.sendInvite(an, code)) {
+      window.toastSystem?.success(an.length === 1 ? 'Gespeichert und Einladung versendet.' : `Gespeichert und ${an.length} Einladungen versendet.`);
+    }
+  }
+
+  async rotateCode() {
     const { data, error } = await window.supabase.functions.invoke('share-list', {
       body: { action: 'rotate_code', shareId: this.share.id }
     });
     if (error || data?.error || !data?.code) {
       window.toastSystem?.error(data?.error || 'Code konnte nicht erneuert werden.');
-      return;
+      return null;
     }
     this.codes[this.share.id] = data.code;
-    window.toastSystem?.success(`Neuer Code: ${data.code}`);
+    return data.code;
+  }
+
+  async rotate() {
+    const code = await this.rotateCode();
+    if (!code) return;
+    window.toastSystem?.success(`Neuer Code: ${code}`);
     renderPaketForm(this);
+  }
+
+  async sendInvite(emails, code) {
+    const { data, error } = await window.supabase.functions.invoke('share-list', {
+      body: {
+        action: 'resend',
+        shareId: this.share.id,
+        emails,
+        code,
+        scriptTitles: this.titelDerAuswahl()
+      }
+    });
+    if (error || data?.error) {
+      window.toastSystem?.error(data?.error || 'Mail fehlgeschlagen.');
+      return false;
+    }
+    return true;
   }
 
   async resend() {
@@ -341,20 +411,7 @@ export class SkriptPaketDrawer {
       window.toastSystem?.warning('Für diese Adressen gibt es keinen Gast-Zugang.');
       return;
     }
-    const { data, error } = await window.supabase.functions.invoke('share-list', {
-      body: {
-        action: 'resend',
-        shareId: this.share.id,
-        emails: plan.guest,
-        code,
-        scriptTitles: this.titelDerAuswahl()
-      }
-    });
-    if (error || data?.error) {
-      window.toastSystem?.error(data?.error || 'Mail fehlgeschlagen.');
-      return;
-    }
-    window.toastSystem?.success('Einladung versendet.');
+    if (await this.sendInvite(plan.guest, code)) window.toastSystem?.success('Einladung versendet.');
   }
 
   async revoke({ still = false } = {}) {

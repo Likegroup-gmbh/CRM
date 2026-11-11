@@ -81,11 +81,9 @@ SkriptEditorView.prototype.bindShareButton = function(el) {
   el.querySelector('#ed-copy-link')?.addEventListener('click', () => this.copySkriptLink());
   el.querySelector('#ed-share')?.addEventListener('click', () => {
     if (!this.kannTeilen) return;
-    const creator = konzeptCreatorFromSkript(this.skript);
     window.skriptPaketDrawer?.open({
       kampagneId: this.skript.kampagne_id,
-      kampagneName: this.skript.kampagne?.kampagnenname || this.skript.kampagne?.eigener_name || '',
-      creatorId: creator?.id || null
+      kampagneName: this.skript.kampagne?.kampagnenname || this.skript.kampagne?.eigener_name || ''
     });
   });
 };

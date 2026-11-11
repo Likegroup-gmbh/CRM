@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  paketAuswahl, creatorOptionen, creatorAusZeile, SKRIPT_FREIGEGEBEN
+  paketAuswahl, creatorOptionen, creatorAusZeile, emailsAusText, SKRIPT_FREIGEGEBEN
 } from '../modules/skripte/skriptPaketModel.js';
 
 const linda = { id: 'linda', vorname: 'Linda', nachname: 'L' };
@@ -44,6 +44,30 @@ describe('paketAuswahl', () => {
     });
     expect(auswahl.checkedIds.sort()).toEqual(['a', 'c']);
     expect(auswahl.weitere.map((s) => s.id)).toEqual(['c']);
+  });
+
+  it('hakt ohne Creator alle freigegebenen Skripte der Kampagne an', () => {
+    const auswahl = paketAuswahl({ skripte, creatorId: null, hatZugang: false });
+    expect(auswahl.eigene.map((s) => s.id)).toEqual(['a', 'c']);
+    expect(auswahl.weitere).toEqual([]);
+    expect(auswahl.checkedIds).toEqual(['a', 'c']);
+  });
+
+  it('hält sich ohne Creator beim erneuten Öffnen an die gespeicherte Auswahl', () => {
+    const auswahl = paketAuswahl({ skripte, creatorId: null, hatZugang: true, gespeichertIds: ['c'] });
+    expect(auswahl.checkedIds).toEqual(['c']);
+  });
+});
+
+describe('emailsAusText', () => {
+  it('trennt an Komma, Semikolon, Leerzeichen und Zeilenumbruch', () => {
+    expect(emailsAusText('a@x.de, b@x.de;c@x.de\nd@x.de e@x.de'))
+      .toEqual(['a@x.de', 'b@x.de', 'c@x.de', 'd@x.de', 'e@x.de']);
+  });
+
+  it('nimmt die Adresse aus "Name <mail>", ohne Doppelte, klein geschrieben', () => {
+    expect(emailsAusText('Max Muster <Max@Kunde.de>; max@kunde.de, kein-text'))
+      .toEqual(['max@kunde.de']);
   });
 });
 

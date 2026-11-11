@@ -3,9 +3,25 @@
 
 import { skripteService } from './SkripteService.js';
 import { creatorAusZeile, SKRIPT_FREIGEGEBEN } from './skriptPaketModel.js';
+import { loadAnsprechpartnerRows } from '../../core/anschreiben/snapshot.js';
 
 function db() {
   return skripteService.db;
+}
+
+/** Ansprechpartner von Unternehmen und Marke der Kampagne, nur mit Mail. */
+export async function loadKampagneAnsprechpartner(kampagneId) {
+  const { data: kampagne, error } = await db().from('kampagne')
+    .select('unternehmen_id, marke_id')
+    .eq('id', kampagneId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!kampagne) return [];
+  const { rows } = await loadAnsprechpartnerRows(db(), {
+    unternehmenId: kampagne.unternehmen_id,
+    markeId: kampagne.marke_id,
+  });
+  return rows;
 }
 
 /** Skripte der Kampagne, Creator wie in der Skripte-Tabelle, sortiert nach Nr. */
@@ -24,12 +40,13 @@ export async function loadKampagneSkripteFuerPaket(kampagneId) {
   }).sort((a, b) => (a.nr ?? 9999) - (b.nr ?? 9999) || String(a.titel).localeCompare(String(b.titel), 'de'));
 }
 
-export async function loadSkriptPaket(kampagneId, creatorId) {
-  const { data: paket, error } = await db().from('skript_pakete')
+/** Ohne creatorId ist es das Kampagnen-Paket (creator_id IS NULL). */
+export async function loadSkriptPaket(kampagneId, creatorId = null) {
+  let query = db().from('skript_pakete')
     .select('id')
-    .eq('kampagne_id', kampagneId)
-    .eq('creator_id', creatorId)
-    .maybeSingle();
+    .eq('kampagne_id', kampagneId);
+  query = creatorId ? query.eq('creator_id', creatorId) : query.is('creator_id', null);
+  const { data: paket, error } = await query.maybeSingle();
   if (error) throw new Error(error.message);
   if (!paket) return { paket: null, share: null, skriptIds: [] };
   const [eintraegeRes, shareRes] = await Promise.all([
@@ -50,11 +67,11 @@ export async function loadSkriptPaket(kampagneId, creatorId) {
   };
 }
 
-export async function ensureSkriptPaket(kampagneId, creatorId) {
+export async function ensureSkriptPaket(kampagneId, creatorId = null) {
   const vorhanden = await loadSkriptPaket(kampagneId, creatorId);
   if (vorhanden.paket) return vorhanden.paket;
   const { data, error } = await db().from('skript_pakete')
-    .insert({ kampagne_id: kampagneId, creator_id: creatorId })
+    .insert({ kampagne_id: kampagneId, creator_id: creatorId || null })
     .select('id')
     .single();
   if (error) throw new Error(error.message);

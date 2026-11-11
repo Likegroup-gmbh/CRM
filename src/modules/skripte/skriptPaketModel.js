@@ -1,4 +1,4 @@
-// Auswahlregeln für den Skript-Zugang eines Creators.
+// Auswahlregeln für den Skript-Zugang einer Kampagne oder eines Creators.
 // Freigegeben ist die einzige Stufe, die im Dialog und im Link liegt.
 
 export const SKRIPT_FREIGEGEBEN = 'freigegeben';
@@ -31,6 +31,7 @@ export function creatorAusZeile(row) {
 }
 
 /**
+ * Ohne creatorId ist es das Kampagnen-Paket: alle freigegebenen Skripte sind eigene.
  * @param {Array} skripte  Zeilen mit id, status, creatorId
  * @param {string|null} creatorId
  * @param {string[]} gespeichertIds
@@ -38,8 +39,8 @@ export function creatorAusZeile(row) {
  */
 export function paketAuswahl({ skripte = [], creatorId = null, gespeichertIds = [], hatZugang = false } = {}) {
   const frei = skripte.filter((s) => s.status === SKRIPT_FREIGEGEBEN);
-  const eigene = frei.filter((s) => creatorId && s.creatorId === creatorId);
-  const weitere = frei.filter((s) => !creatorId || s.creatorId !== creatorId);
+  const eigene = creatorId ? frei.filter((s) => s.creatorId === creatorId) : frei;
+  const weitere = creatorId ? frei.filter((s) => s.creatorId !== creatorId) : [];
   const saved = new Set(gespeichertIds);
   const checked = new Set();
 
@@ -52,6 +53,20 @@ export function paketAuswahl({ skripte = [], creatorId = null, gespeichertIds = 
   }
 
   return { eigene, weitere, checkedIds: [...checked] };
+}
+
+export function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 320;
+}
+
+/** Eingefügter Text mit Komma, Semikolon, Leerzeichen oder Zeilenumbruch, auch "Name <mail>". */
+export function emailsAusText(text) {
+  const out = [];
+  for (const teil of String(text || '').split(/[\s,;]+/)) {
+    const email = teil.replace(/^[<("']+|[>)"']+$/g, '').trim().toLowerCase();
+    if (isValidEmail(email) && !out.includes(email)) out.push(email);
+  }
+  return out;
 }
 
 /** Creator, die in der Kampagne mindestens ein Skript haben. */
