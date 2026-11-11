@@ -58,6 +58,7 @@ export function renderPaketForm(drawer) {
           itemId: 'paket',
           value: rechte,
           options: RECHTE,
+          input: 'paket-rechte',
           matchWidth: true
         })}
       </div>
