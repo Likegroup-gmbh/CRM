@@ -11,6 +11,9 @@
 //  - Reconnect mit Backoff. Nach Reconnect und nach laengerem Hintergrund-Tab
 //    bekommen die Listener onResync, damit verpasste Events nachgeladen werden
 //    (Realtime liefert hoechstens einmal, nichts wird nachgeliefert).
+//  - Zwei Channels (Teile) mit eigenem Reconnect: Ein abgelehntes Abo (z. B.
+//    Tabelle fehlt in der Publikation) laesst den ganzen Channel scheitern.
+//    Der Medien-Stand ist neu und darf Videos und Kommentare nicht mitreissen.
 
 export const GRACE_MS = 30000;
 export const RECONNECT_BASE_MS = 2000;
@@ -66,14 +69,8 @@ function dispatch(entry, table, payload) {
   }
 }
 
-function buildChannel(entry) {
-  const { kampagneId } = entry;
-  const route = (table) => (payload) => dispatch(entry, table, payload);
-
-  return window.supabase
-    .channel(`kampagne-koops-videos-${kampagneId}`, {
-      config: { broadcast: { self: false } }
-    })
+function bindKern(channel, kampagneId, route) {
+  return channel
     // Videos, Kommentare und Werte eigener Spalten lassen sich nicht nach
     // Kampagne filtern. Die Listener pruefen die Zugehoerigkeit selbst.
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kooperation_videos' }, route('kooperation_videos'))
@@ -91,59 +88,96 @@ function buildChannel(entry) {
     // Doppelte Zustellung ist harmlos, das Entfernen ist idempotent.
     .on('postgres_changes', {
       event: 'DELETE', schema: 'public', table: 'kooperationen'
-    }, route('kooperationen'))
-    // Eine Zeile pro Kooperation, ein Trigger auf den Asset-Tabellen setzt sie:
-    // neue, geaenderte oder geloeschte Medien (auch aus SharePoint).
-    .on('postgres_changes', {
-      event: '*', schema: 'public', table: 'kooperation_medien_stand',
-      filter: `kampagne_id=eq.${kampagneId}`
-    }, route('kooperation_medien_stand'));
+    }, route('kooperationen'));
+}
+
+// Eine Zeile pro Kooperation, ein Trigger auf den Asset-Tabellen setzt sie:
+// neue, geaenderte oder geloeschte Medien (auch aus SharePoint).
+function bindMedien(channel, kampagneId, route) {
+  return channel.on('postgres_changes', {
+    event: '*', schema: 'public', table: 'kooperation_medien_stand',
+    filter: `kampagne_id=eq.${kampagneId}`
+  }, route('kooperation_medien_stand'));
+}
+
+const TEILE = [
+  { key: 'kern', name: (id) => `kampagne-koops-videos-${id}`, bind: bindKern },
+  { key: 'medien', name: (id) => `kampagne-medien-${id}`, bind: bindMedien }
+];
+
+function buildChannel(entry, teil) {
+  const { kampagneId } = entry;
+  const route = (table) => (payload) => dispatch(entry, table, payload);
+  const channel = window.supabase.channel(teil.def.name(kampagneId), {
+    config: { broadcast: { self: false } }
+  });
+  return teil.def.bind(channel, kampagneId, route);
 }
 
 function connect(entry) {
-  if (entry.channel || !window.supabase?.channel) return;
+  for (const teil of entry.teile) connectTeil(entry, teil);
+}
 
-  const channel = buildChannel(entry);
-  entry.channel = channel;
+function connectTeil(entry, teil) {
+  if (teil.channel || !window.supabase?.channel) return;
+
+  const channel = buildChannel(entry, teil);
+  teil.channel = channel;
 
   channel.subscribe((status, err) => {
     // Status eines bereits ersetzten oder abgebauten Channels ignorieren.
-    if (entry.channel !== channel) return;
+    if (teil.channel !== channel) return;
 
     if (status === 'SUBSCRIBED') {
-      entry.attempt = 0;
-      if (entry.needsResync) {
-        entry.needsResync = false;
+      teil.attempt = 0;
+      teil.fehlerGemeldet = false;
+      if (teil.needsResync) {
+        teil.needsResync = false;
         notifyResync(entry);
       }
       return;
     }
 
     if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-      if (status === 'CHANNEL_ERROR') console.error('REALTIME: Channel Error:', err);
-      entry.needsResync = true;
-      scheduleReconnect(entry);
+      // Ein abgelehntes Abo scheitert bei jedem Versuch: nur einmal bis zum naechsten Erfolg melden
+      if (status === 'CHANNEL_ERROR' && !teil.fehlerGemeldet) {
+        teil.fehlerGemeldet = true;
+        console.error(`REALTIME: Channel Error (${teil.def.key}):`, err);
+      }
+      teil.needsResync = true;
+      scheduleReconnect(entry, teil);
     }
   });
 }
 
 function disconnect(entry) {
-  clearTimeout(entry.reconnectTimer);
-  entry.reconnectTimer = null;
-  const channel = entry.channel;
-  entry.channel = null;
+  for (const teil of entry.teile) disconnectTeil(teil);
+}
+
+function disconnectTeil(teil) {
+  clearTimeout(teil.reconnectTimer);
+  teil.reconnectTimer = null;
+  const channel = teil.channel;
+  teil.channel = null;
   if (channel) window.supabase?.removeChannel?.(channel);
 }
 
-function scheduleReconnect(entry) {
-  if (entry.reconnectTimer || entry.listeners.size === 0) return;
-  const delay = Math.min(RECONNECT_BASE_MS * 2 ** entry.attempt, RECONNECT_MAX_MS);
-  entry.attempt += 1;
-  entry.reconnectTimer = setTimeout(() => {
-    entry.reconnectTimer = null;
+function clearReconnects(entry) {
+  for (const teil of entry.teile) {
+    clearTimeout(teil.reconnectTimer);
+    teil.reconnectTimer = null;
+  }
+}
+
+function scheduleReconnect(entry, teil) {
+  if (teil.reconnectTimer || entry.listeners.size === 0) return;
+  const delay = Math.min(RECONNECT_BASE_MS * 2 ** teil.attempt, RECONNECT_MAX_MS);
+  teil.attempt += 1;
+  teil.reconnectTimer = setTimeout(() => {
+    teil.reconnectTimer = null;
     if (entry.listeners.size === 0) return;
-    disconnect(entry);
-    connect(entry);
+    disconnectTeil(teil);
+    connectTeil(entry, teil);
   }, delay);
 }
 
@@ -168,11 +202,15 @@ export function acquireKampagneChannel(kampagneId, listener) {
     entry = {
       kampagneId,
       listeners: new Set(),
-      channel: null,
-      graceTimer: null,
-      reconnectTimer: null,
-      attempt: 0,
-      needsResync: false
+      teile: TEILE.map((def) => ({
+        def,
+        channel: null,
+        reconnectTimer: null,
+        attempt: 0,
+        needsResync: false,
+        fehlerGemeldet: false
+      })),
+      graceTimer: null
     };
     registry.set(kampagneId, entry);
   }
@@ -189,8 +227,7 @@ export function acquireKampagneChannel(kampagneId, listener) {
     released = true;
     entry.listeners.delete(listener);
     if (entry.listeners.size > 0) return;
-    clearTimeout(entry.reconnectTimer);
-    entry.reconnectTimer = null;
+    clearReconnects(entry);
     clearTimeout(entry.graceTimer);
     entry.graceTimer = setTimeout(() => teardown(entry), GRACE_MS);
   };

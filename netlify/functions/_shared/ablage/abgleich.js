@@ -17,7 +17,8 @@ const { createPflege, ABO_RESTTAGE } = require('./abgleich-pflege');
 const LEASE_SEK = 840;
 const BUDGET_MS = 13 * 60 * 1000;
 const RUNDE_MS = 3 * 60 * 1000;
-const RUHE_SEK = 120;
+const RUHE_SEK = Number(process.env.ABLAGE_RUHE_SEK) || 20;
+const NACHLAUF_POLL_MS = 5000;
 const HOLEN = 25;
 const ITEM_LEASE_SEK = 300;
 const MAX_VERSUCHE = 8;
@@ -27,8 +28,17 @@ const PFLEGE_MS = 10 * 60 * 1000;
  * @param {object} deps
  * @param {object} deps.supabase Service-Client
  * @param {object} deps.ablage ablageAusEnv()
+ * @param {number} [deps.ruheSek] Datei gilt als fertig, wenn sie so lange unveraendert ist
+ * @param {number} [deps.nachlaufSek] Lauf bleibt nach neuen/wartenden Eintraegen so lange wach
  */
-function createAbgleich({ supabase, ablage, jetzt = () => Date.now() }) {
+function createAbgleich({
+  supabase,
+  ablage,
+  jetzt = () => Date.now(),
+  ruheSek = RUHE_SEK,
+  nachlaufSek = ruheSek + 5,
+  schlafen = (ms) => new Promise((r) => setTimeout(r, ms)),
+}) {
   const { sp, ordner } = ablage;
   const driveId = sp.driveId;
   const iso = (ms = jetzt()) => new Date(ms).toISOString();
@@ -132,7 +142,7 @@ function createAbgleich({ supabase, ablage, jetzt = () => Date.now() }) {
     const z = { erledigt: 0, warten: 0, unzugeordnet: 0, ignoriert: 0, fehler: 0, ueberholt: 0, leer: false };
     while (jetzt() < bis) {
       const rows = (await rpc('ablage_eingang_holen', {
-        p_drive_id: driveId, p_limit: HOLEN, p_ruhe_sek: RUHE_SEK, p_lease_sec: ITEM_LEASE_SEK,
+        p_drive_id: driveId, p_limit: HOLEN, p_ruhe_sek: ruheSek, p_lease_sec: ITEM_LEASE_SEK,
       })) || [];
       if (!rows.length) {
         z.leer = true;
@@ -190,6 +200,8 @@ function createAbgleich({ supabase, ablage, jetzt = () => Date.now() }) {
 
   /**
    * Ein Hintergrundlauf: abwechselnd Delta lesen und Eingang einordnen, bis beides leer ist.
+   * Nach neuen oder wartenden Eintraegen bleibt er nachlaufSek wach, bis die Dateien reif sind:
+   * Webhooks waehrend des Laufs scheitern an der Lease, der Zeitplan kaeme erst zur naechsten Minute.
    * @param {{ budgetMs?:number, pflege?:boolean|'auto' }} [opts]
    */
   async function lauf({ budgetMs = BUDGET_MS, pflege = 'auto' } = {}) {
@@ -201,6 +213,7 @@ function createAbgleich({ supabase, ablage, jetzt = () => Date.now() }) {
 
     const r = { lease: true, seiten: 0, neu: 0, eingang: { erledigt: 0, warten: 0, unzugeordnet: 0, ignoriert: 0, fehler: 0, ueberholt: 0 } };
     let ruhig = false;
+    let wachBis = 0;
     try {
       while (jetzt() < bis) {
         const delta = await deltaLesen(token, { bis: Math.min(bis, jetzt() + RUNDE_MS) });
@@ -213,7 +226,12 @@ function createAbgleich({ supabase, ablage, jetzt = () => Date.now() }) {
         }
         const v = await verarbeiten({ bis: Math.min(bis, jetzt() + RUNDE_MS) });
         for (const k of Object.keys(r.eingang)) r.eingang[k] += v[k] || 0;
+        if (delta.neu || v.warten) wachBis = Math.min(bis, jetzt() + nachlaufSek * 1000);
         if (delta.fertig && v.leer) {
+          if (jetzt() + NACHLAUF_POLL_MS < wachBis) {
+            await schlafen(NACHLAUF_POLL_MS);
+            continue;
+          }
           ruhig = true;
           break;
         }

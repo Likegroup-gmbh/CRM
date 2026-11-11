@@ -37,7 +37,7 @@ describe('Video-Browser: Live-Aktualisierung', () => {
   let channels;
   let vb;
   const emit = (table, payload) => {
-    for (const h of channels[0].handlers) if (h.opts.table === table) h.cb(payload);
+    for (const c of channels) for (const h of c.handlers) if (h.opts.table === table) h.cb(payload);
   };
   const stand = (koopId) => ({ eventType: 'UPDATE', new: { kooperation_id: koopId } });
 
@@ -113,7 +113,7 @@ describe('Video-Browser: Live-Aktualisierung', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     channels[0].subscribe.mock.calls[0][0]('CHANNEL_ERROR');
     await vi.advanceTimersByTimeAsync(5000);
-    channels[1].subscribe.mock.calls[0][0]('SUBSCRIBED');
+    channels[2].subscribe.mock.calls[0][0]('SUBSCRIBED');
     await vi.advanceTimersByTimeAsync(LIVE_RELOAD_MS);
     expect(vb.reload).toHaveBeenCalledTimes(1);
   });

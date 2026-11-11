@@ -16,9 +16,10 @@
 const { MUSTER, FINALE_ORDNER, NAMEN, nummer, formatOrdner, formatAusOrdner, formatAusMass, systemdatei } = require('./pfad');
 
 const UPLOAD_WARTEN_MS = 10 * 60 * 1000;
-const MASS_VERSUCHE = 5;
+// Maße liefert Graph oft erst nach der Medienanalyse: kurz takten, Fenster bleibt 10 min
+const MASS_VERSUCHE = 30;
 const ELTERN_VERSUCHE = 5;
-const WARTEN_SEK = { upload: 120, eltern: 30, mass: 120 };
+const WARTEN_SEK = { upload: 120, eltern: 30, mass: 20 };
 
 const ASSET_TYP = { videos: 'video', storys: 'story', bilder: 'still', rohmaterial: 'roh' };
 const GUELTIGE_TYPEN = new Set(Object.values(ASSET_TYP));

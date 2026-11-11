@@ -103,8 +103,8 @@ function rpcs(uhr) {
   };
 }
 
-function setup({ assets = {} } = {}) {
-  const uhr = { t: START };
+function setup({ assets = {}, abgleich = {} } = {}) {
+  const uhr = { t: START, schlaefe: 0, beimSchlafen: null };
   const supabase = createFakeSupabase({
     tabellen: {
       ablage_stand: [{ drive_id: 'd1', root_item_id: 'root', lease_token: 0, delta_link: null, voll_abgleich_noetig: false }],
@@ -144,7 +144,16 @@ function setup({ assets = {} } = {}) {
   };
   const ordner = createOrdner({ supabase, sp, schlafen: async () => {} });
   const ablage = { sp, ordner };
-  const a = createAbgleich({ supabase, ablage, jetzt: () => uhr.t });
+  // Ohne Nachlauf und mit 2 min Ruhe: die Szenarien steuern die Zeit selbst
+  const a = createAbgleich({
+    supabase, ablage, jetzt: () => uhr.t, ruheSek: 120, nachlaufSek: 0,
+    schlafen: async (ms) => {
+      uhr.schlaefe++;
+      uhr.t += ms;
+      await uhr.beimSchlafen?.();
+    },
+    ...abgleich,
+  });
 
   /** driveItem wie im Delta-Feed (ohne parentReference.path). */
   const meldung = async (itemId, extra = {}) => ({
@@ -532,5 +541,62 @@ describe('ablage-abgleich: Geruest, Namen, Aufraeumen, Abo', () => {
     Object.assign(t.supabase.db.ablage_stand[0], { abo_id: 'abo-weg', abo_ablauf: iso(t.uhr.t + 86400000) });
     expect((await t.a.aboSicherstellen(opts)).abo).toBe('angelegt');
     expect(t.supabase.db.ablage_stand[0].abo_id).toBe('abo2');
+  });
+});
+
+describe('ablage-abgleich: Nachlauf bis die Datei reif ist', () => {
+  const schnell = { abgleich: { ruheSek: 20, nachlaufSek: 25 } };
+
+  it('frische Datei (vor 5 s geaendert) wird im selben Lauf eingeordnet', async () => {
+    const t = setup(schnell);
+    const { ordner: variante } = await t.ordner.zielOrdner(videoZiel());
+    const f = t.sp.datei(variante.item_id, 'frisch.mov', 500);
+    t.seite([await t.meldung(f.id, { lastModifiedDateTime: iso(t.uhr.t - 5000) })]);
+
+    const r = await t.a.lauf();
+
+    expect(r).toMatchObject({ lease: true, neu: 1, eingang: { erledigt: 1 } });
+    expect(r.mehr).toBeUndefined();
+    expect(t.supabase.db.kooperation_video_asset).toEqual([expect.objectContaining({ item_id: f.id })]);
+    expect(t.uhr.t - START).toBeGreaterThanOrEqual(15000);
+    expect(t.uhr.t - START).toBeLessThanOrEqual(25000);
+    expect(t.supabase.db.ablage_stand[0].lease_bis).toBeNull();
+  });
+
+  it('ohne neue Eintraege endet der Lauf sofort', async () => {
+    const t = setup(schnell);
+    const r = await t.a.lauf();
+    expect(r).toMatchObject({ lease: true, neu: 0 });
+    expect(t.uhr.schlaefe).toBe(0);
+  });
+
+  it('der Nachlauf bleibt im Budget', async () => {
+    const t = setup(schnell);
+    const { ordner: variante } = await t.ordner.zielOrdner(videoZiel());
+    const f = t.sp.datei(variante.item_id, 'frisch.mov', 500);
+    t.seite([await t.meldung(f.id, { lastModifiedDateTime: iso(t.uhr.t - 5000) })]);
+
+    await t.a.lauf({ budgetMs: 8000 });
+
+    expect(t.uhr.t - START).toBeLessThanOrEqual(8000);
+    expect(t.supabase.db.kooperation_video_asset).toHaveLength(0);
+    expect(t.eingang(f.id)).toMatchObject({ status: 'offen' });
+  });
+
+  it('greift waehrend des Nachlaufs neu gemeldete Dateien auf (Webhook scheitert an der Lease)', async () => {
+    const t = setup(schnell);
+    const { ordner: variante } = await t.ordner.zielOrdner(videoZiel());
+    const a = t.sp.datei(variante.item_id, 'a.mov', 500);
+    const b = t.sp.datei(variante.item_id, 'b.mov', 600);
+    t.seite([await t.meldung(a.id)]);
+    t.uhr.beimSchlafen = async () => {
+      t.uhr.beimSchlafen = null;
+      t.seite([await t.meldung(b.id)], 'dl-2');
+    };
+
+    const r = await t.a.lauf();
+
+    expect(r).toMatchObject({ neu: 2, eingang: { erledigt: 2 } });
+    expect(t.supabase.db.kooperation_video_asset.map((x) => x.item_id).sort()).toEqual([a.id, b.id].sort());
   });
 });

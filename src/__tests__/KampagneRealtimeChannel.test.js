@@ -51,7 +51,7 @@ describe('kampagneRealtimeChannel', () => {
   it('meldet pro Tabelle ein Event * an (statt je INSERT/UPDATE/DELETE)', () => {
     acquireKampagneChannel('k1', { onChange: vi.fn() });
 
-    expect(channels).toHaveLength(1);
+    expect(channels.map(c => c.name)).toEqual(['kampagne-koops-videos-k1', 'kampagne-medien-k1']);
     const { handlers } = channels[0];
     expect(handlers.map(h => `${h.opts.table}:${h.opts.event}`)).toEqual([
       'kooperation_videos:*',
@@ -60,11 +60,17 @@ describe('kampagneRealtimeChannel', () => {
       'kooperation_still_comment:*',
       'custom_column_values:*',
       'kooperationen:*',
-      'kooperationen:DELETE',
-      'kooperation_medien_stand:*'
+      'kooperationen:DELETE'
     ]);
     expect(handlers[5].opts.filter).toBe('kampagne_id=eq.k1');
-    expect(handlers[7].opts.filter).toBe('kampagne_id=eq.k1');
+  });
+
+  it('abonniert den Medien-Stand in einem eigenen Channel, gefiltert nach Kampagne', () => {
+    acquireKampagneChannel('k1', { onChange: vi.fn() });
+
+    const { handlers } = channels[1];
+    expect(handlers.map(h => `${h.opts.table}:${h.opts.event}`)).toEqual(['kooperation_medien_stand:*']);
+    expect(handlers[0].opts.filter).toBe('kampagne_id=eq.k1');
   });
 
   it('stellt den Medien-Stand mit Tabellenname zu', () => {
@@ -72,18 +78,18 @@ describe('kampagneRealtimeChannel', () => {
     acquireKampagneChannel('k1', { onChange });
     const payload = { eventType: 'UPDATE', new: { kooperation_id: 'koop1', kampagne_id: 'k1' } };
 
-    channels[0].handlers[7].cb(payload);
+    channels[1].handlers[0].cb(payload);
 
     expect(onChange).toHaveBeenCalledWith('kooperation_medien_stand', payload);
   });
 
-  it('teilt einen Channel zwischen Listenern und baut ihn nach der Gnadenfrist ab', () => {
+  it('teilt die Channels zwischen Listenern und baut sie nach der Gnadenfrist ab', () => {
     const releaseA = acquireKampagneChannel('k1', { onChange: vi.fn() });
     releaseA();
     // Kanban/Tabelle-Wechsel: neuer Listener innerhalb der Gnadenfrist
     const releaseB = acquireKampagneChannel('k1', { onChange: vi.fn() });
 
-    expect(window.supabase.channel).toHaveBeenCalledTimes(1);
+    expect(window.supabase.channel).toHaveBeenCalledTimes(2);
     vi.advanceTimersByTime(GRACE_MS + 1000);
     expect(window.supabase.removeChannel).not.toHaveBeenCalled();
 
@@ -91,7 +97,7 @@ describe('kampagneRealtimeChannel', () => {
     vi.advanceTimersByTime(GRACE_MS - 1);
     expect(window.supabase.removeChannel).not.toHaveBeenCalled();
     vi.advanceTimersByTime(2);
-    expect(window.supabase.removeChannel).toHaveBeenCalledTimes(1);
+    expect(window.supabase.removeChannel).toHaveBeenCalledTimes(2);
   });
 
   it('stellt Events dem Listener mit Tabellenname zu', () => {
@@ -115,26 +121,55 @@ describe('kampagneRealtimeChannel', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     first.statusCb('CHANNEL_ERROR', new Error('x'));
     vi.advanceTimersByTime(RECONNECT_BASE_MS - 1);
-    expect(channels).toHaveLength(1);
-    vi.advanceTimersByTime(2);
     expect(channels).toHaveLength(2);
+    vi.advanceTimersByTime(2);
+    expect(channels).toHaveLength(3);
+    expect(channels[2].name).toBe('kampagne-koops-videos-k1');
     expect(window.supabase.removeChannel).toHaveBeenCalledWith(first);
 
-    channels[1].statusCb('SUBSCRIBED');
+    channels[2].statusCb('SUBSCRIBED');
     expect(onResync).toHaveBeenCalledTimes(1);
+  });
+
+  it('ein abgelehnter Medien-Channel laesst den Kern-Channel unberuehrt', () => {
+    const onResync = vi.fn();
+    const onChange = vi.fn();
+    acquireKampagneChannel('k1', { onChange, onResync });
+    const [kern, medien] = channels;
+    kern.statusCb('SUBSCRIBED');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    medien.statusCb('CHANNEL_ERROR', new Error('relation does not exist'));
+    vi.advanceTimersByTime(RECONNECT_BASE_MS + 1);
+    channels[2].statusCb('CHANNEL_ERROR', new Error('relation does not exist'));
+    vi.advanceTimersByTime(RECONNECT_BASE_MS * 2 + 1);
+
+    expect(channels.map(c => c.name)).toEqual([
+      'kampagne-koops-videos-k1',
+      'kampagne-medien-k1',
+      'kampagne-medien-k1',
+      'kampagne-medien-k1'
+    ]);
+    expect(window.supabase.removeChannel).not.toHaveBeenCalledWith(kern);
+    expect(onResync).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledTimes(1);
+
+    kern.handlers[0].cb({ eventType: 'UPDATE', new: { id: 'v1' } });
+    expect(onChange).toHaveBeenCalledWith('kooperation_videos', expect.anything());
   });
 
   it('ignoriert Status eines bereits abgebauten Channels', () => {
     const onResync = vi.fn();
     const release = acquireKampagneChannel('k1', { onChange: vi.fn(), onResync });
-    const first = channels[0];
+    const [first, medien] = channels;
     release();
     vi.advanceTimersByTime(GRACE_MS + 1);
 
     first.statusCb('CLOSED');
+    medien.statusCb('CHANNEL_ERROR', new Error('x'));
     vi.advanceTimersByTime(RECONNECT_BASE_MS * 4);
 
-    expect(channels).toHaveLength(1);
+    expect(channels).toHaveLength(2);
     expect(onResync).not.toHaveBeenCalled();
   });
 
