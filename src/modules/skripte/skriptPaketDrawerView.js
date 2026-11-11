@@ -1,10 +1,11 @@
 // Formular des Skript-Paket-Drawers: Empfänger zuerst, dann Skripte, Name/Rechte/Creator
-// eingeklappt. Ohne Creator gilt das Kampagnen-Paket mit allen freigegebenen Skripten.
+// eingeklappt. Ohne Creator gilt das Kampagnen-Paket mit allen Skripten der Kampagne.
 
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import {
   paketAuswahl, creatorOptionen, creatorAnzeigeName, isValidEmail, emailsAusText
 } from './skriptPaketModel.js';
+import { STATUS_LABELS } from './SkripteUtils.js';
 import { BLOCKED_TEXT } from '../share/shareRecipientPlan.js';
 
 const RECHTE = [
@@ -128,16 +129,19 @@ export function renderPaketListe(drawer) {
     gespeichertIds: [...drawer.checked],
     hatZugang: true
   });
-  const zeile = (skript, extra) => `
+  const zeile = (skript, creatorText) => {
+    const meta = [creatorText, STATUS_LABELS[skript.status] || skript.status].filter(Boolean).join(' · ');
+    return `
     <label class="checkbox-label skript-paket-zeile">
       <input type="checkbox" data-skript-id="${skript.id}" ${drawer.checked.has(skript.id) ? 'checked' : ''}>
       <span>${skript.nr != null ? `${skript.nr}. ` : ''}${escapeHtml(skript.titel)}</span>
-      ${extra ? `<span class="skript-paket-zeile-meta">${escapeHtml(extra)}</span>` : ''}
+      ${meta ? `<span class="skript-paket-zeile-meta">${escapeHtml(meta)}</span>` : ''}
     </label>`;
+  };
   const alleAn = () => auswahl.eigene.length > 0 && auswahl.eigene.every((s) => drawer.checked.has(s.id));
   const leer = drawer.creatorId
-    ? 'Keine freigegebenen Skripte für diesen Creator.'
-    : 'Noch kein Skript freigegeben. Teilen lässt sich nur, was freigegeben ist.';
+    ? 'Keine Skripte für diesen Creator.'
+    : 'Diese Kampagne hat noch keine Skripte.';
   const weitereOffen = auswahl.weitere.some((s) => drawer.checked.has(s.id));
   el.innerHTML = `
     <div class="skript-paket-liste-kopf">

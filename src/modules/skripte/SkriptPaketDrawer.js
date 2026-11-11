@@ -1,4 +1,4 @@
-// Zugang für freigegebene Skripte einer Kampagne. Ohne Creator ist es das
+// Zugang für Skripte einer Kampagne, in jedem Status. Ohne Creator ist es das
 // Kampagnen-Paket (z. B. Kunden-Feedback), mit Creator nur dessen Skripte.
 // Ein Link, ein Code. Formular und Mail-Tags liegen in skriptPaketDrawerView.
 

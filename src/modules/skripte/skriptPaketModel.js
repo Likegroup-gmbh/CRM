@@ -1,7 +1,7 @@
 // Auswahlregeln für den Skript-Zugang einer Kampagne oder eines Creators.
-// Freigegeben ist die einzige Stufe, die im Dialog und im Link liegt.
+// Jeder Status lässt sich teilen. Archivierte sind wählbar, aber nicht vorgewählt.
 
-export const SKRIPT_FREIGEGEBEN = 'freigegeben';
+const NICHT_VORGEWAEHLT = new Set(['archiviert']);
 
 export function creatorAnzeigeName(creator) {
   const name = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
@@ -31,23 +31,24 @@ export function creatorAusZeile(row) {
 }
 
 /**
- * Ohne creatorId ist es das Kampagnen-Paket: alle freigegebenen Skripte sind eigene.
+ * Ohne creatorId ist es das Kampagnen-Paket: alle Skripte der Kampagne sind eigene.
  * @param {Array} skripte  Zeilen mit id, status, creatorId
  * @param {string|null} creatorId
  * @param {string[]} gespeichertIds
  * @param {boolean} hatZugang
  */
 export function paketAuswahl({ skripte = [], creatorId = null, gespeichertIds = [], hatZugang = false } = {}) {
-  const frei = skripte.filter((s) => s.status === SKRIPT_FREIGEGEBEN);
-  const eigene = creatorId ? frei.filter((s) => s.creatorId === creatorId) : frei;
-  const weitere = creatorId ? frei.filter((s) => s.creatorId !== creatorId) : [];
+  const eigene = creatorId ? skripte.filter((s) => s.creatorId === creatorId) : skripte;
+  const weitere = creatorId ? skripte.filter((s) => s.creatorId !== creatorId) : [];
   const saved = new Set(gespeichertIds);
   const checked = new Set();
 
   if (!hatZugang) {
-    eigene.forEach((s) => checked.add(s.id));
+    eigene.forEach((s) => {
+      if (!NICHT_VORGEWAEHLT.has(s.status)) checked.add(s.id);
+    });
   } else {
-    frei.forEach((s) => {
+    skripte.forEach((s) => {
       if (saved.has(s.id)) checked.add(s.id);
     });
   }

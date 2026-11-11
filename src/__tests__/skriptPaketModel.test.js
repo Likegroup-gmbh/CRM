@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  paketAuswahl, creatorOptionen, creatorAusZeile, emailsAusText, SKRIPT_FREIGEGEBEN
+  paketAuswahl, creatorOptionen, creatorAusZeile, emailsAusText
 } from '../modules/skripte/skriptPaketModel.js';
 
 const linda = { id: 'linda', vorname: 'Linda', nachname: 'L' };
@@ -12,17 +12,23 @@ function zeile(id, status, creatorId) {
 
 describe('paketAuswahl', () => {
   const skripte = [
-    zeile('a', SKRIPT_FREIGEGEBEN, 'linda'),
+    zeile('a', 'freigegeben', 'linda'),
     zeile('b', 'entwurf', 'linda'),
-    zeile('c', SKRIPT_FREIGEGEBEN, 'max'),
-    zeile('d', 'final', 'linda')
+    zeile('c', 'freigegeben', 'max'),
+    zeile('d', 'final', 'linda'),
+    zeile('e', 'archiviert', 'linda')
   ];
 
-  it('hakt beim ersten Teilen nur die freigegebenen Skripte des Creators an', () => {
+  it('hakt beim ersten Teilen alle Skripte des Creators in jedem Status an, außer archivierte', () => {
     const auswahl = paketAuswahl({ skripte, creatorId: 'linda', hatZugang: false });
-    expect(auswahl.eigene.map((s) => s.id)).toEqual(['a']);
+    expect(auswahl.eigene.map((s) => s.id)).toEqual(['a', 'b', 'd', 'e']);
     expect(auswahl.weitere.map((s) => s.id)).toEqual(['c']);
-    expect(auswahl.checkedIds).toEqual(['a']);
+    expect(auswahl.checkedIds).toEqual(['a', 'b', 'd']);
+  });
+
+  it('lässt ein gespeichertes archiviertes Skript angehakt', () => {
+    const auswahl = paketAuswahl({ skripte, creatorId: 'linda', hatZugang: true, gespeichertIds: ['e'] });
+    expect(auswahl.checkedIds).toEqual(['e']);
   });
 
   it('hakt beim erneuten Öffnen nur die gespeicherte Mitgliedschaft an', () => {
@@ -46,11 +52,11 @@ describe('paketAuswahl', () => {
     expect(auswahl.weitere.map((s) => s.id)).toEqual(['c']);
   });
 
-  it('hakt ohne Creator alle freigegebenen Skripte der Kampagne an', () => {
+  it('hakt ohne Creator alle Skripte der Kampagne an, außer archivierte', () => {
     const auswahl = paketAuswahl({ skripte, creatorId: null, hatZugang: false });
-    expect(auswahl.eigene.map((s) => s.id)).toEqual(['a', 'c']);
+    expect(auswahl.eigene.map((s) => s.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
     expect(auswahl.weitere).toEqual([]);
-    expect(auswahl.checkedIds).toEqual(['a', 'c']);
+    expect(auswahl.checkedIds).toEqual(['a', 'b', 'c', 'd']);
   });
 
   it('hält sich ohne Creator beim erneuten Öffnen an die gespeicherte Auswahl', () => {

@@ -2,7 +2,7 @@
 // lesen hier, nicht über die übrigen Skript-Queries.
 
 import { skripteService } from './SkripteService.js';
-import { creatorAusZeile, SKRIPT_FREIGEGEBEN } from './skriptPaketModel.js';
+import { creatorAusZeile } from './skriptPaketModel.js';
 import { loadAnsprechpartnerRows } from '../../core/anschreiben/snapshot.js';
 
 function db() {
@@ -84,25 +84,18 @@ export async function setPaketSkripte(paketId, skriptIds) {
     .eq('paket_id', paketId);
   if (deleteError) throw new Error(deleteError.message);
   if (!skriptIds.length) return;
-  const { data: erlaubt, error: leseFehler } = await db().from('skripte')
-    .select('id')
-    .in('id', skriptIds)
-    .eq('status', SKRIPT_FREIGEGEBEN);
-  if (leseFehler) throw new Error(leseFehler.message);
-  const zeilen = (erlaubt || []).map((row) => ({ paket_id: paketId, skript_id: row.id }));
-  if (!zeilen.length) return;
+  const zeilen = [...new Set(skriptIds)].map((skriptId) => ({ paket_id: paketId, skript_id: skriptId }));
   const { error } = await db().from('skript_paket_eintraege').insert(zeilen);
   if (error) throw new Error(error.message);
 }
 
-/** Freigegebene Skripte, die der Gast-JWT sehen darf, in Nr.-Reihenfolge. */
+/** Skripte, die der Gast-JWT sehen darf (RLS über can_gast_access_skript), in Nr.-Reihenfolge. */
 export async function loadGastPaketSkripte() {
   const { data, error } = await db().from('skripte')
     .select(`id, titel, status, created_at, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, rezept, caption, text_hook, dokument_bloecke,
       marke:marke_id(markenname, logo_url), unternehmen:unternehmen_id(firmenname, logo_url),
       produkt:produkt_id(name), kampagne:kampagne_id(kampagnenname, eigener_name),
       strategie_item:strategie_item_id(id, strategie_id, creator_name, video_link, casting_eintrag:creator_auswahl_item_id(id, name, link_instagram, creator:creator_id(id, vorname, nachname, profilbild_url, instagram)))`)
-    .eq('status', SKRIPT_FREIGEGEBEN)
     .order('created_at', { ascending: true });
   if (error) throw new Error(error.message);
   const rows = data || [];

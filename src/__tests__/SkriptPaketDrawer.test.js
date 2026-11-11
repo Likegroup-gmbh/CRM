@@ -74,7 +74,7 @@ describe('SkriptPaketDrawer ohne Creator', () => {
     document.body.innerHTML = '';
   });
 
-  it('startet ohne Creator-Mail mit allen freigegebenen Skripten', async () => {
+  it('startet ohne Creator-Mail mit allen Skripten in jedem Status', async () => {
     const drawer = new SkriptPaketDrawer();
     await drawer.open({ kampagneId: 'k1', kampagneName: 'Sommer', creatorId: 'linda' });
 
@@ -83,7 +83,8 @@ describe('SkriptPaketDrawer ohne Creator', () => {
 
     await drawer.applyCreator(null);
     expect(loadSkriptPaket).toHaveBeenLastCalledWith('k1', null);
-    expect([...drawer.checked].sort()).toEqual(['s1', 's3']);
+    expect([...drawer.checked].sort()).toEqual(['s1', 's2', 's3']);
+    expect(document.querySelector('[data-skript-id="s2"]').closest('label').textContent).toContain('Entwurf');
     expect(drawer.emails).toEqual([]);
     expect(submitLabel()).toBe('Zugang anlegen');
     drawer.close();
@@ -115,7 +116,7 @@ describe('SkriptPaketDrawer ohne Creator', () => {
     await drawer.submit();
 
     expect(ensureSkriptPaket).toHaveBeenCalledWith('k1', null);
-    expect(setPaketSkripte).toHaveBeenCalledWith('paket-1', ['s1', 's3']);
+    expect(setPaketSkripte).toHaveBeenCalledWith('paket-1', ['s1', 's2', 's3']);
     const create = invoke.mock.calls.find(([, { body }]) => body.action === 'create')[1].body;
     expect(create).toMatchObject({
       entityType: 'skript_paket',
