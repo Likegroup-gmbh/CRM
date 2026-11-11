@@ -321,10 +321,6 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
       <a href="#" class="action-item" data-action="edit" data-id="${vertrag.id}">
         ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
         Bearbeiten
-      </a>
-      <a href="#" class="action-item" data-action="vertrag-als-vorlage" data-id="${vertrag.id}">
-        ${window.ActionsDropdown?.getHeroIcon('document-duplicate') || icon('document-duplicate')}
-        Als Vorlage verwenden
       </a>` : ''}
       ${vertrag.datei_url ? `
         <a href="#" class="action-item" data-action="download" data-id="${vertrag.id}">

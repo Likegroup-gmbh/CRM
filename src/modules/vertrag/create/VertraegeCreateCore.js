@@ -170,17 +170,6 @@ VertraegeCreate.prototype.init = async function(draftId = null) {
 
 VertraegeCreate.prototype.applyQueryPrefill = async function() {
     const params = new URLSearchParams(window.location.search);
-
-    const vorlageId = params.get('vorlage');
-    if (vorlageId) {
-      // editId bleibt null: Speichern legt einen neuen Vertrag an, die Vorlage bleibt unverändert.
-      await this.loadDraftFromDB(vorlageId);
-      if (this.formData.typ) {
-        window.toastSystem?.show('Neuer Vertrag mit Werten aus der Vorlage gestartet', 'info');
-      }
-      return;
-    }
-
     const typ = params.get('typ');
     const unternehmen = params.get('unternehmen');
     const kampagne = params.get('kampagne');
