@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 import {
-  stempelSekunden as stempelEsm, zeitmarkerPatch, hatZeitmarker, WOERTER_PRO_SEKUNDE as WPS_ESM
+  entferneZeitmarker as entferneEsm, zeitmarkerPatch, hatZeitmarker, WOERTER_PRO_SEKUNDE as WPS_ESM
 } from '../modules/skripte/skriptSekunden.js';
 import {
   pruefeSkript as pruefeEsm, pruefeDokument, hookSekundenMax as hookMaxEsm, findeDoppelungen as doppelEsm
@@ -11,7 +11,7 @@ import {
 
 const require = createRequire(import.meta.url);
 const {
-  stempelSekunden: stempelCjs, pruefeSkript: pruefeCjs, hookSekundenMax: hookMaxCjs,
+  entferneZeitmarker: entferneCjs, pruefeSkript: pruefeCjs, hookSekundenMax: hookMaxCjs,
   findeDoppelungen: doppelCjs, neueBefunde, pruefHinweis, WOERTER_PRO_SEKUNDE: WPS_CJS
 } = require('../../netlify/functions/_shared/skript-context/formatter.js');
 const { gesprochenerEntwurf } = require('../../netlify/functions/skript-edit-background.js');
@@ -47,8 +47,8 @@ describe('Paritaet ESM und Server', () => {
     expect(WPS_ESM).toBe(WPS_CJS);
   });
 
-  it.each(STAENDE.map((s, i) => [i, s]))('stempelSekunden Stand %i', (_, stand) => {
-    expect(stempelEsm(stand)).toEqual(stempelCjs(stand));
+  it.each(STAENDE.map((s, i) => [i, s]))('entferneZeitmarker Stand %i', (_, stand) => {
+    expect(entferneEsm(stand)).toEqual(entferneCjs(stand));
   });
 
   it.each(STAENDE.flatMap((s, i) => OPTS.map((o, j) => [i, j, s, o])))('pruefeSkript Stand %i Optionen %i', (_, __, stand, opts) => {
@@ -122,12 +122,14 @@ describe('Pruefung markiert, schreibt nichts um', () => {
 });
 
 describe('zeitmarkerPatch', () => {
-  it('stempelt alle Visual-Zellen neu, wenn sich der Hook aendert', () => {
-    const stand = { ...STAENDE[0], hook: 'Kurz.' };
-    const patch = zeitmarkerPatch(stand);
-    expect(patch.hook_visuell).toBe('Sek. 0–1: Close-up Gesicht');
-    expect(patch.hauptteil_visuell.startsWith('Sek. 1–')).toBe(true);
-    expect(patch.cta_visuell).toBeDefined();
+  it('nimmt die Zeitmarker aus allen Visual-Zellen', () => {
+    const patch = zeitmarkerPatch({ ...STAENDE[0], hook: 'Kurz.' });
+    expect(patch).toEqual({
+      hook_visuell: 'Close-up Gesicht',
+      hauptteil_visuell: 'Dose\n\nKapsel in der Hand\n\nLächeln',
+      cta_visuell: 'Zeigt nach unten'
+    });
+    expect(zeitmarkerPatch(STAENDE[1])).toEqual({ hook_visuell: 'Frau am Spiegel' });
   });
 
   it('laesst die fokussierte Zelle stehen', () => {
@@ -136,13 +138,10 @@ describe('zeitmarkerPatch', () => {
     expect(patch).toHaveProperty('hook_visuell');
   });
 
-  it('Altbestand ohne Zeitmarker bleibt unberuehrt', () => {
+  it('Visuals ohne Zeitmarker bleiben unberuehrt', () => {
     expect(hatZeitmarker(STAENDE[2])).toBe(false);
     expect(zeitmarkerPatch(STAENDE[2])).toEqual({});
-  });
-
-  it('nichts geaendert: leerer Patch', () => {
-    const fertig = { ...STAENDE[0], ...stempelEsm(STAENDE[0]) };
+    const fertig = { ...STAENDE[0], ...entferneEsm(STAENDE[0]) };
     expect(zeitmarkerPatch(fertig)).toEqual({});
   });
 });

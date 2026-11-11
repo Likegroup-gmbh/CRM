@@ -27,8 +27,8 @@ export function festlegungAusAblehnungText(msg) {
 
 export const chatStandMethoden = {
   /**
-   * Abgeleitete Felder nach einer Textaenderung (ADR 0035): Zeitmarker aller
-   * Visual-Zellen aus dem Gesamtstand und die Pruefung des Dokuments.
+   * Abgeleitete Felder nach einer Textaenderung (ADR 0035): alte Zeitmarker
+   * fallen aus allen Visual-Zellen, dazu die Pruefung des Dokuments.
    */
   abgeleitet(stand, felder, { ausser = [] } = {}) {
     const patch = {};
@@ -107,8 +107,7 @@ export const chatStandMethoden = {
     const vorherigerStand = skriptStand(v.skript);
     vorherigerStand[feld] = vorherText || null;
     v.skript[feld] = wert;
-    // Gesprochener Text bestimmt Sekunden und Pruefung; eine Visual-Zelle mit Fokus bleibt, wie sie ist.
-    // Eine manuell bearbeitete Visual-Zelle wird nicht neu gestempelt.
+    // Gesprochener Text bestimmt die Pruefung; eine Visual-Zelle mit Fokus bleibt, wie sie ist.
     const fokus = v.inlineEdit?.focusedFeld?.();
     const stempel = GESPROCHEN.has(feld)
       ? this.abgeleitet(v.skript, [feld], { ausser: fokus ? [fokus] : [] })

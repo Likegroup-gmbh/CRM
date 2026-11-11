@@ -1055,7 +1055,7 @@ describe('SkriptEditorView Inline-Edit', () => {
     expect(view.skript.hook_visuell).not.toContain('Alter Shot');
   });
 
-  it('acceptVorschlag auf den Hook stempelt die Zeitmarker aller Visual-Zellen neu', async () => {
+  it('acceptVorschlag auf den Hook nimmt alte Zeitmarker aus allen Visual-Zellen', async () => {
     window.toastSystem = { success: vi.fn(), error: vi.fn() };
     mockService.loadSkript.mockResolvedValue({
       ...skript,
@@ -1075,10 +1075,10 @@ describe('SkriptEditorView Inline-Edit', () => {
 
     const patch = mockService.updateSkript.mock.calls[0][1];
     expect(patch.hook).toContain('zwoelf');
-    expect(patch.hook_visuell).toBe('Sek. 0–5: Gesicht');
-    expect(patch.hauptteil_visuell).toBe('Sek. 5–7: Dose');
+    expect(patch.hook_visuell).toBe('Gesicht');
+    expect(patch.hauptteil_visuell).toBe('Dose');
     expect(patch.pruefung).toBeDefined();
-    expect(view.skript.hauptteil_visuell).toBe('Sek. 5–7: Dose');
+    expect(view.skript.hauptteil_visuell).toBe('Dose');
   });
 
   it('Ablehnen speichert nur das abgelehnte Stueck als Festlegung, nicht die Anweisung', async () => {

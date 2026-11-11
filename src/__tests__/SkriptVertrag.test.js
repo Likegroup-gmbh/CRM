@@ -2,23 +2,23 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { stempelSekunden, pruefeSkript } = require('../../netlify/functions/_shared/skript-context/formatter.js');
+const { entferneZeitmarker, pruefeSkript } = require('../../netlify/functions/_shared/skript-context/formatter.js');
 const { fmtReferenzKarte } = require('../../netlify/functions/_shared/skript-referenz-karte.js');
 const { buildKontextText } = require('../../netlify/functions/_shared/skript-context.js');
 const { stripMasterVorlagen } = require('../../netlify/functions/_shared/skript-master.js');
 
-describe('stempelSekunden', () => {
-  it('rechnet die Uhr aus den gesprochenen Woertern und laeuft durch', () => {
-    const out = stempelSekunden({
+describe('entferneZeitmarker', () => {
+  it('setzt keine Sekunden und nimmt vorhandene Zeitmarker heraus', () => {
+    const out = entferneZeitmarker({
       hook: 'eins zwei drei vier fuenf',
       hook_visuell: 'Gesicht am Fenster',
       hauptteil: 'sechs sieben acht neun',
-      hauptteil_visuell: 'Sek. 0–9: Hand am Glas',
+      hauptteil_visuell: 'Sek. 0–9: Hand am Glas\n\n0:09–0:12 Glas abstellen',
       cta: '',
       cta_visuell: ''
     });
-    expect(out.hook_visuell).toBe('Sek. 0–2: Gesicht am Fenster');
-    expect(out.hauptteil_visuell).toBe('Sek. 2–4: Hand am Glas');
+    expect(out.hook_visuell).toBe('Gesicht am Fenster');
+    expect(out.hauptteil_visuell).toBe('Hand am Glas\n\nGlas abstellen');
     expect(out.cta_visuell).toBeNull();
   });
 });

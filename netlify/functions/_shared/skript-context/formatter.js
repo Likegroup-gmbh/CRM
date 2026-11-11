@@ -132,38 +132,19 @@ function ohneZeitmarker(beat) {
     .trim();
 }
 
-/**
- * Setzt Sekunden aus den gesprochenen Wörtern auf die Visual-Beats.
- * Die Uhr läuft über Hook, Hauptteil und CTA durch. Leeres Visual bleibt leer.
- */
-function stempelSekunden(felder) {
-  const paare = [
-    ['hook', 'hook_visuell'],
-    ['hauptteil', 'hauptteil_visuell'],
-    ['cta', 'cta_visuell']
-  ];
-  let sek = 0;
-  const out = {};
-  for (const [gesprochenKey, visuellKey] of paare) {
-    const visuell = felder?.[visuellKey];
-    if (!(visuell || '').trim()) {
-      out[visuellKey] = visuell || null;
-      sek += Math.round(zaehleWoerter(felder?.[gesprochenKey]) / WOERTER_PRO_SEKUNDE);
-      continue;
-    }
-    const spoken = beats(felder?.[gesprochenKey]);
-    const seen = beats(visuell);
-    const gestempelt = seen.map((beat, i) => {
-      const n = zaehleWoerter(spoken[i] || '') || Math.max(1, zaehleWoerter(ohneZeitmarker(beat)));
-      const dauer = Math.max(1, Math.round(n / WOERTER_PRO_SEKUNDE));
-      const von = sek;
-      const bis = sek + dauer;
-      sek = bis;
-      return `Sek. ${von}–${bis}: ${ohneZeitmarker(beat)}`;
-    });
-    out[visuellKey] = gestempelt.join('\n\n');
-  }
-  return out;
+/** Visual-Text ohne Zeitmarker vor den Beats. Leeres Visual bleibt leer. */
+function visuellOhneZeitmarker(text) {
+  if (!(text || '').trim()) return text || null;
+  return beats(text).map(ohneZeitmarker).filter(Boolean).join('\n\n') || null;
+}
+
+/** Die Visual-Zellen ohne Zeitmarker; „Was zu sehen ist“ traegt keine Sekunden. */
+function entferneZeitmarker(felder) {
+  return {
+    hook_visuell: visuellOhneZeitmarker(felder?.hook_visuell),
+    hauptteil_visuell: visuellOhneZeitmarker(felder?.hauptteil_visuell),
+    cta_visuell: visuellOhneZeitmarker(felder?.cta_visuell)
+  };
 }
 
 function claimListe(raw) {
@@ -316,7 +297,8 @@ function kuerzeTranskript(text, max = REFERENZ_TRANSKRIPT_MAX) {
 
 module.exports = {
   fmtSection, fmtSkript, fmtVarianten, produktPreis,
-  videoLaengeHinweis, wortBudget, zaehleWoerter, stempelSekunden, pruefeSkript, WOERTER_PRO_SEKUNDE,
+  videoLaengeHinweis, wortBudget, zaehleWoerter, entferneZeitmarker, visuellOhneZeitmarker,
+  pruefeSkript, WOERTER_PRO_SEKUNDE,
   hookSekundenMax, findeDoppelungen, pruefHinweis, neueBefunde,
   kuerzeTranskript, REFERENZ_TRANSKRIPT_MAX,
   cap, KONTEXT_MAX

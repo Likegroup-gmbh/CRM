@@ -16,7 +16,7 @@ const { setThinking } = require('./_shared/thinking');
 const { istMasterDokument } = require('./_shared/skript-creator-facing');
 const { logPrompt } = require('./_shared/prompt-log');
 const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
-const { stempelSekunden, pruefeSkript, pruefHinweis, neueBefunde } = require('./_shared/skript-context/formatter');
+const { visuellOhneZeitmarker, pruefeSkript, pruefHinweis, neueBefunde } = require('./_shared/skript-context/formatter');
 const { filtereHookSperre, trifftGesprochenenHook, hookLagImAuftrag, mitHookHinweis } = require('./_shared/hook-sperre');
 const {
   loadEditContext, buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel, formatZeitstempel,
@@ -245,22 +245,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       }
     }
     if (spalte.ist_visuell && vorschlag && !spalte.selektion_text && ['hook', 'hauptteil', 'cta'].includes(sektion)) {
-      const visKey = `${sektion}_visuell`;
-      const draft = {
-        hook: ctx.skript.hook,
-        hauptteil: ctx.skript.hauptteil,
-        cta: ctx.skript.cta,
-        hook_visuell: ctx.skript.hook_visuell,
-        hauptteil_visuell: ctx.skript.hauptteil_visuell,
-        cta_visuell: ctx.skript.cta_visuell
-      };
-      draft[visKey] = vorschlag;
-      vorschlag = stempelSekunden(draft)[visKey] || vorschlag;
+      vorschlag = visuellOhneZeitmarker(vorschlag) || vorschlag;
     }
 
     // Freier Chat mit Umfang: Liste der geaenderten Zellen. Jede wird wie
-    // eine einzelne Zelle geprueft; die Visual-Zellen bekommen die Sekunden
-    // aus dem gesamten Entwurf, nicht nur aus der eigenen Zelle.
+    // eine einzelne Zelle geprueft.
     const aenderungenRoh = (message.aktion === 'chat' && Array.isArray(parsed.aenderungen))
       ? parsed.aenderungen
           .filter((a) => a && typeof a === 'object')
@@ -282,22 +271,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       ausgelassen = gefiltert.verworfen.length;
     }
     if (aenderungen && aenderungen.length) {
-      const draft = {
-        hook: ctx.skript.hook,
-        hauptteil: ctx.skript.hauptteil,
-        cta: ctx.skript.cta,
-        hook_visuell: ctx.skript.hook_visuell,
-        hauptteil_visuell: ctx.skript.hauptteil_visuell,
-        cta_visuell: ctx.skript.cta_visuell
-      };
-      for (const a of aenderungen) {
-        const feld = a.sektion === 'titel' ? 'titel' : (a.spalte === 'visuell' ? `${a.sektion}_visuell` : a.sektion);
-        if (feld !== 'titel') draft[feld] = a.vorschlag_text;
-      }
-      const gestempelt = stempelSekunden(draft);
       for (const a of aenderungen) {
         if (a.spalte === 'visuell' && ['hook', 'hauptteil', 'cta'].includes(a.sektion)) {
-          a.vorschlag_text = gestempelt[`${a.sektion}_visuell`] || a.vorschlag_text;
+          a.vorschlag_text = visuellOhneZeitmarker(a.vorschlag_text) || a.vorschlag_text;
         }
       }
       vorschlag = null;

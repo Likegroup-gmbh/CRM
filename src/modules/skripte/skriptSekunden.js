@@ -1,8 +1,8 @@
 // skriptSekunden.js
-// ESM-Spiegel von stempelSekunden aus netlify/functions/_shared/skript-context/formatter.js.
-// Zeitmarker sind abgeleitete Daten (ADR 0035): nach jeder Aenderung am
-// gesprochenen Text werden alle Visual-Zellen aus dem Gesamtstand neu
-// gestempelt, nie nur die geaenderte. Paritaet sichert SkriptSekunden.test.js.
+// ESM-Spiegel von entferneZeitmarker aus netlify/functions/_shared/skript-context/formatter.js.
+// „Was zu sehen ist“ traegt keine Sekunden. Altbestand mit Zeitmarkern verliert
+// sie bei der naechsten Aenderung am gesprochenen Text, in allen Visual-Zellen.
+// Paritaet sichert SkriptSekunden.test.js.
 
 export const WOERTER_PRO_SEKUNDE = 2.3;
 
@@ -32,45 +32,30 @@ export function ohneZeitmarker(beat) {
     .trim();
 }
 
-/** Setzt Sekunden aus den gesprochenen Woertern auf die Visual-Beats; die Uhr laeuft durch. */
-export function stempelSekunden(felder) {
-  let sek = 0;
+export function visuellOhneZeitmarker(text) {
+  if (!(text || '').trim()) return text || null;
+  return beats(text).map(ohneZeitmarker).filter(Boolean).join('\n\n') || null;
+}
+
+/** Die Visual-Zellen ohne Zeitmarker. */
+export function entferneZeitmarker(felder) {
   const out = {};
-  for (const [gesprochenKey, visuellKey] of VISUELL_PAARE) {
-    const visuell = felder?.[visuellKey];
-    if (!(visuell || '').trim()) {
-      out[visuellKey] = visuell || null;
-      sek += Math.round(zaehleWoerter(felder?.[gesprochenKey]) / WOERTER_PRO_SEKUNDE);
-      continue;
-    }
-    const spoken = beats(felder?.[gesprochenKey]);
-    const seen = beats(visuell);
-    const gestempelt = seen.map((beat, i) => {
-      const n = zaehleWoerter(spoken[i] || '') || Math.max(1, zaehleWoerter(ohneZeitmarker(beat)));
-      const dauer = Math.max(1, Math.round(n / WOERTER_PRO_SEKUNDE));
-      const von = sek;
-      const bis = sek + dauer;
-      sek = bis;
-      return `Sek. ${von}–${bis}: ${ohneZeitmarker(beat)}`;
-    });
-    out[visuellKey] = gestempelt.join('\n\n');
-  }
+  for (const [, visuellKey] of VISUELL_PAARE) out[visuellKey] = visuellOhneZeitmarker(felder?.[visuellKey]);
   return out;
 }
 
-/** Nur Skripte, deren Visuals schon Zeitmarker tragen, werden gestempelt (Altbestand bleibt unberuehrt). */
 export function hatZeitmarker(felder) {
   return VISUELL_PAARE.some(([, visuellKey]) =>
     beats(felder?.[visuellKey]).some((beat) => MARKER_SEK.test(beat) || MARKER_UHR.test(beat)));
 }
 
 /**
- * Patch der Visual-Zellen, deren Zeitmarker sich aus dem Stand aendern.
+ * Patch der Visual-Zellen, die noch Zeitmarker tragen: ohne die Marker.
  * ausser: Zellen, die gerade bearbeitet werden (Fokus) - die bleiben, wie sie sind.
  */
 export function zeitmarkerPatch(stand, { ausser = [] } = {}) {
   if (!stand || !hatZeitmarker(stand)) return {};
-  const gestempelt = stempelSekunden(stand);
+  const gestempelt = entferneZeitmarker(stand);
   const patch = {};
   for (const [, visuellKey] of VISUELL_PAARE) {
     if (ausser.includes(visuellKey)) continue;

@@ -7,7 +7,7 @@
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, loadReferenzVideo, buildKontextText, videoLaengeHinweis, briefingSkriptSprache } = require('./_shared/skript-context');
-const { stempelSekunden, pruefeSkript } = require('./_shared/skript-context/formatter');
+const { entferneZeitmarker, pruefeSkript } = require('./_shared/skript-context/formatter');
 const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
 const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
 const { vertragBlock } = require('./_shared/skript-vertrag');
@@ -114,7 +114,7 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', { gesperrterHook = nul
     + 'Variante A: hook/hauptteil/cta (gesprochen) plus hook_visuell/hauptteil_visuell/cta_visuell '
     + '(was zu sehen ist) – direkt mitgenerieren.\n'
     + 'WAS ZU SEHEN IST: ein schlichter Satz pro Beat, gleiche Absatz-Anzahl wie der gesprochene Text derselben Sektion. '
-    + 'Keine Zeitmarker, keine Shotlist, kein Produktions-Storyboard. Sekunden setzt das System nach dem Schreiben. '
+    + 'Keine Zeitmarker, keine Shotlist, kein Produktions-Storyboard. '
     + 'Die Person im Bild heisst dort immer neutral "Creator" - nie Name oder Handle aus dem Kontext.\n'
     + 'hook_varianten: genau zwei oder drei alternative GESPROCHENE Hooks, deutlich anders als Variante A. '
     + 'Nur Sprechertext, kein Visual, kein Hauptteil/CTA. NICHT in inhalt_md wiederholen.\n'
@@ -293,8 +293,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       extrahiert.felder.hook = gesperrterHook;
       extrahiert.hook_varianten = varianteOhneGesperrtenHook(extrahiert.hook_varianten, gesperrterHook);
     }
-    const stempel = stempelSekunden(extrahiert.felder);
-    const felder = { ...extrahiert.felder, ...stempel };
+    const felder = { ...extrahiert.felder, ...entferneZeitmarker(extrahiert.felder) };
     // Aufbau-Optionen: nur bei gesetztem Toggle uebernehmen, sonst hart null
     felder.rezept = payload.mit_rezept ? (String(parsed.rezept || '').trim() || null) : null;
     felder.text_hook = payload.mit_text_hook ? (String(parsed.text_hook || '').trim() || null) : null;
