@@ -515,15 +515,16 @@ _Avoid_: Version (das ist die Feedbackschleife), Videoversion
 Eine Überarbeitungsrunde desselben Kooperationsvideos (`version_number`, max 3).
 Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
 Alle Dateien (Videos und Bilder) liegen flach im Ordner, ohne Varianten-Ordner (A/B/C). Der Typ kommt aus der Dateiendung, auch bei Ablage im Finder bzw. SharePoint. Der Name ist der Dateiname (Titel).
+In SharePoint liegt eine Runde als `Videos/Video_N/Feedbackschleife_K` (bzw. `Finale_Version`) und enthält alles, was der Creator in dieser Runde liefert: Videos und Bilder flach, Stories im Unterordner `Story_K` (ADR 0065). Es gibt keine eigenen Ordner `Storys/` oder `Bilder/` mehr. Bekannte Abweichung: die eingefrorene Dropbox-Ablage behält ihre alte Struktur.
 _Avoid_: Version (alleinstehend), Revision
 
 **Story**:
-Ein Story-File zu einem Kooperationsvideo. Liegt im Videos-Tab in derselben Feedbackschleife und derselben Finalen Version wie das Video (gleiche `version_number`), gruppiert unter "Stories".
+Ein Story-File zu einem Kooperationsvideo. Liegt im Videos-Tab in derselben Feedbackschleife und derselben Finalen Version wie das Video (gleiche `version_number`), gruppiert unter "Stories". In SharePoint im Ordner `Story_K` (K = Story-Nr. des Slots) innerhalb der Runde; der Ordner trägt die Zuordnung zum Slot, weil Story und Video beide `.mp4` sein können. Finale Stories liegen ohne Format-Ordner in `Finale_Version/Story_K`, ihr Seitenverhältnis kommt aus den Pixelmaßen.
 Nicht die Kampagnenart Influencer Story.
 _Avoid_: Influencer Story, Slot
 
 **Still**:
-Ein Standbild zu einem Kooperationsvideo (Feedbackschleife oder final). Liegt im Videos-Tab in derselben Runde wie das Video, gruppiert unter "Bilder". Trägt kein Seitenverhältnis. Altbilder ohne Video hängen am ersten Video der Kooperation.
+Ein Standbild zu einem Kooperationsvideo (Feedbackschleife oder final). Liegt im Videos-Tab in derselben Runde wie das Video, gruppiert unter "Bilder". Trägt kein Seitenverhältnis. Altbilder ohne Video hängen am ersten Video der Kooperation; in SharePoint liegen sie auch in dessen Runde, und Uploads ohne Video bekommen beim Ablegen dieses Video.
 _Avoid_: Thumbnail, Cover
 
 **Finale Version**:

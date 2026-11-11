@@ -3,11 +3,17 @@
 // Delta-Feed fuers CRM? Der Eltern-Ordner aus dem Register bestimmt die Bedeutung.
 // abgleich.js laedt die Eingaben und fuehrt die Entscheidung aus.
 //
+// Ablage (ADR 0065): Videos/Video_N/Feedbackschleife_K bzw. Finale_Version enthalten Video und
+// Bild flach (Typ aus der Endung) und je Story-Slot einen Ordner Story_K. Typ-Ordner Storys/
+// und Bilder/ sowie Varianten-Ordner (A/B/C) stammen aus dem Altbestand und gelten bis zum
+// Umsortieren weiter.
+//
 // Entscheidungen fuer Dateien:
 //   ignorieren | warten | unzugeordnet | entfernen
 //   asset    { typ, ziel, umziehen }  Asset-Zeile anlegen/aktualisieren
 //   format   { typ, ziel, format }    Finale Version: Formatordner nach Pixelmass + verschieben
-//   zurueck  { typ, ziel }            Fachdatei an einen Nicht-Fach-Ort verschoben: zurueck an ihren Platz
+//   zurueck  { typ, ziel }            Fachdatei an einen Nicht-Fach-Ort verschoben (oder in einem
+//                                     alten Varianten-Ordner): an ihren Platz verschieben
 // Fuer Ordner:
 //   ignorieren | warten | ordner_geloescht | wiederherstellen | frei { besitz } | frei_aktualisieren { besitz }
 //   fach { art, soll, ... } | zurueck_verschieben | zurueck_benennen | variante_umbenennen { variante }
@@ -58,8 +64,8 @@ function zielAusZeile(row) {
 
 /**
  * Fachlicher Ort eines Ordners fuer Dateien darin.
- * -> { art:'asset', typ, ziel } | { art:'lose', ziel } | { art:'finale_video', ziel }
- *    | { art:'frei' } | { art:'ignorieren', grund } | { art:'falsch', grund }
+ * -> { art:'asset', typ, ziel } | { art:'lose', ziel } | { art:'finale_video', ziel } | { art:'finale_story', ziel }
+ *    | { art:'flach', ziel } | { art:'frei' } | { art:'ignorieren', grund } | { art:'falsch', grund }
  * ziel.variant_name === undefined: der Ordner sagt nichts zur Variante.
  */
 function ortVon(eltern) {
@@ -77,8 +83,24 @@ function ortVon(eltern) {
 
   switch (eltern.art) {
     case 'variante':
-      if (typ !== 'videos' && typ !== 'storys') return { art: 'frei' };
+      // Alter Varianten-Ordner (A/B/C) einer Video-Schleife: die Datei zieht flach in die Schleife
+      if (typ === 'videos') {
+        return unvollstaendig('video')
+          ? { art: 'falsch', grund: 'register_unvollstaendig' }
+          : { art: 'flach', ziel: { ...basis, version_number: eltern.version_number || 1, is_final: false } };
+      }
+      if (typ !== 'storys') return { art: 'frei' };
       return asset(assetTyp, { ...basis, version_number: eltern.version_number || 1, is_final: false, variant_name: eltern.variante || eltern.name });
+    case 'story': {
+      // Story_K in einer Runde unter Videos/Video_N; ohne version_number liegt er in der Finalen Version
+      if (typ !== 'videos') return { art: 'falsch', grund: 'story_ordner' };
+      if (eltern.version_number == null) {
+        return unvollstaendig('story')
+          ? { art: 'falsch', grund: 'register_unvollstaendig' }
+          : { art: 'finale_story', ziel: { ...basis, version_number: 1, is_final: true } };
+      }
+      return asset('story', { ...basis, version_number: eltern.version_number, is_final: false });
+    }
     case 'schleife': {
       const ziel = { ...basis, version_number: eltern.version_number || 1, is_final: false };
       if (typ === 'videos') return unvollstaendig('video') ? { art: 'falsch', grund: 'register_unvollstaendig' } : { art: 'lose', ziel };
@@ -98,6 +120,7 @@ function ortVon(eltern) {
     }
     case 'typ':
       if (typ === 'rohmaterial') return asset('roh', { kooperation_id: basis.kooperation_id });
+      // Altbestand: Bilder/ direkt unter der Kooperation (Bild ohne Video)
       if (typ === 'bilder') {
         return basis.kooperation_id
           ? { art: 'asset', typ: 'still', ziel: { kooperation_id: basis.kooperation_id, kooperation_video_id: null, version_number: 1, is_final: false } }
@@ -174,6 +197,24 @@ function dateiEinordnen({ item, eltern, elternIstWurzel = false, elternOffen = f
       return alsAsset(typ, ort.ziel, asset);
     }
 
+    case 'flach': {
+      // Bestehende Zeile behaelt ihre Variante (Tags haengen daran), neue hat keine
+      if (asset) return zurueck(asset);
+      const typ = dateiTyp(item.name);
+      if (!typ) return { aktion: 'unzugeordnet', grund: 'dateityp' };
+      return { aktion: 'zurueck', typ, ziel: { ...ort.ziel, variant_name: null } };
+    }
+
+    case 'finale_story': {
+      // Wie bei Videos: das Seitenverhaeltnis kommt aus den Pixelmassen, nur ohne Format-Ordner
+      if (asset?.typ === 'story' && asset.row.is_final) return alsAsset('story', ort.ziel, asset);
+      const format = formatAusMass(item.breite, item.hoehe);
+      if (format) return alsAsset('story', { ...ort.ziel, variant_name: format }, asset);
+      if (!(item.breite && item.hoehe) && versuche < MASS_VERSUCHE) return { aktion: 'warten', sek: WARTEN_SEK.mass, grund: 'kein_mass' };
+      if (asset) return zurueck(asset);
+      return { aktion: 'unzugeordnet', grund: 'format_unbekannt', breite: item.breite ?? null, hoehe: item.hoehe ?? null };
+    }
+
     case 'finale_video': {
       if (asset?.typ === 'video' && asset.row.is_final) return alsAsset('video', ort.ziel, asset);
       // Bilder in der Finalen Version: direkt als finales Bild, kein Formatordner
@@ -196,7 +237,10 @@ function dateiEinordnen({ item, eltern, elternIstWurzel = false, elternOffen = f
   }
 }
 
-/** Fachordner, den jemand im Finder selbst angelegt hat (Name nach CRM-Muster). */
+/**
+ * Fachordner, den jemand im Finder selbst angelegt hat (Name nach CRM-Muster). Unter Videos/
+ * gilt die Ablage aus ADR 0065; Storys/ und Bilder/ (Altbestand) behalten ihr altes Muster.
+ */
 function fachOrdnerErkennen(eltern, name) {
   const n = String(name || '').trim();
   const typ = eltern.typ;
@@ -208,17 +252,20 @@ function fachOrdnerErkennen(eltern, name) {
     const k = nummer('story', n);
     return k ? { art: 'story', story_nummer: k, soll: NAMEN.story(k) } : null;
   }
-  if ((eltern.art === 'video' && (typ === 'videos' || typ === 'bilder')) || eltern.art === 'story') {
+  if ((eltern.art === 'video' && (typ === 'videos' || typ === 'bilder')) || (eltern.art === 'story' && typ === 'storys')) {
     const v = nummer('schleife', n);
     if (v) return { art: 'schleife', version_number: v, soll: NAMEN.schleife(v) };
     if (MUSTER.finale.test(n)) return { art: 'finale', soll: FINALE_ORDNER };
     return null;
   }
-  if (eltern.art === 'finale' && typ === 'videos') {
+  if ((eltern.art === 'schleife' || eltern.art === 'finale') && typ === 'videos') {
+    const k = nummer('story', n);
+    if (k) return { art: 'story', story_nummer: k, soll: NAMEN.story(k) };
+    if (eltern.art === 'schleife') return null;
     const f = formatAusOrdner(n);
     return f ? { art: 'format', format: formatOrdner(f), soll: formatOrdner(f) } : null;
   }
-  if (eltern.art === 'schleife' && (typ === 'videos' || typ === 'storys')) {
+  if (eltern.art === 'schleife' && typ === 'storys') {
     const v = NAMEN.variante(n);
     return { art: 'variante', variante: v, soll: v };
   }

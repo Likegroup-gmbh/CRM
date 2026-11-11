@@ -214,9 +214,14 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     return sicherstellen(typRow, { art: 'video', kooperation_video_id: video.id }, NAMEN.video(video), { ...koopBesitz(typRow), typ: typRow.typ });
   }
 
-  async function storyOrdner(videoRow, slotIndex) {
-    return sicherstellen(videoRow, { art: 'story', story_nummer: Number(slotIndex) || 1 }, NAMEN.story(slotIndex), {
-      ...koopBesitz(videoRow), typ: videoRow.typ, kooperation_video_id: videoRow.kooperation_video_id,
+  /**
+   * Story_K in einer Runde (Feedbackschleife oder Finale Version). version_number traegt die
+   * Schleife; leer heisst: Story_K liegt in der Finalen Version.
+   */
+  async function storyOrdner(rundeRow, slotIndex) {
+    return sicherstellen(rundeRow, { art: 'story', story_nummer: Number(slotIndex) || 1 }, NAMEN.story(slotIndex), {
+      ...koopBesitz(rundeRow), typ: rundeRow.typ, kooperation_video_id: rundeRow.kooperation_video_id,
+      version_number: rundeRow.art === 'schleife' ? rundeRow.version_number : null,
     });
   }
 
@@ -240,14 +245,6 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     });
   }
 
-  async function varianteOrdner(row, variante) {
-    const name = NAMEN.variante(variante);
-    return sicherstellen(row, { art: 'variante', variante: name }, name, {
-      ...koopBesitz(row), typ: row.typ, kooperation_video_id: row.kooperation_video_id,
-      story_nummer: row.story_nummer ?? null, version_number: row.version_number ?? null,
-    });
-  }
-
   async function ladeVideo(videoId) {
     const { data, error } = await supabase.from('kooperation_videos').select('id, kooperation_id, position, thema').eq('id', videoId).maybeSingle();
     if (error) throw error;
@@ -262,9 +259,27 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     return data;
   }
 
+  async function erstesVideo(kooperationId) {
+    const { data, error } = await supabase.from('kooperation_videos').select('id, kooperation_id, position, thema')
+      .eq('kooperation_id', kooperationId).order('position', { ascending: true }).limit(1);
+    if (error) throw error;
+    if (!data?.[0]) throw new Error('Kooperation hat noch kein Video: Bild kann nicht abgelegt werden');
+    return data[0];
+  }
+
+  /** Video der Datei. Bilder ohne Video (Altbestand, Creator-Upload) haengen am ersten Video. */
+  async function videoZu(ctx, story) {
+    if (ctx.typ === 'story') return ladeVideo(ctx.kooperation_video_id || story.video_id);
+    if (ctx.typ === 'still' && !ctx.kooperation_video_id) return erstesVideo(ctx.kooperation_id);
+    return ladeVideo(ctx.kooperation_video_id);
+  }
+
   /**
-   * Zielordner fuer eine Datei. link = Ordner, dessen Link das CRM zeigt (wie bei Dropbox:
-   * Videos/Video_N, Storys/Video_N, Bilder, Rohmaterial).
+   * Zielordner fuer eine Datei. Video, Bild und Story liegen in derselben Runde unter
+   * Videos/Video_N: Feedbackschleife_K bzw. Finale_Version, flach ohne Varianten-Ordner.
+   * Videos in der Finale bekommen ihren Format-Ordner, Stories ihren Story_K-Ordner.
+   * link = Ordner, dessen Link das CRM zeigt (Videos/Video_N, Rohmaterial).
+   * kooperation_video_id = Video, an dem die Datei haengt (bei Bildern ohne Video das erste).
    * @param {{typ:'video'|'story'|'still'|'roh', kooperation_id:string, kooperation_video_id?:string,
    *          story_id?:string, version_number?:number, is_final?:boolean, variant_name?:string}} ctx
    */
@@ -275,43 +290,29 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
       const roh = await typOrdner(ko, 'rohmaterial');
       return { ordner: roh, link: roh, kette: k };
     }
+    if (!['video', 'story', 'still'].includes(ctx.typ)) throw new Error(`Unbekannter Typ ${ctx.typ}`);
 
-    if (ctx.typ === 'still') {
-      const bilder = await typOrdner(ko, 'bilder');
-      if (!ctx.kooperation_video_id) return { ordner: bilder, link: bilder, kette: k };
-      const v = await videoOrdner(bilder, await ladeVideo(ctx.kooperation_video_id));
-      return { ordner: ctx.is_final ? await finaleOrdner(v) : await schleifeOrdner(v, ctx.version_number), link: bilder, kette: k };
-    }
+    const story = ctx.typ === 'story' ? await ladeStory(ctx.story_id) : null;
+    const video = await videoZu({ ...ctx, kooperation_id: ctx.kooperation_id || ko.kooperation_id }, story);
+    const v = await videoOrdner(await typOrdner(ko, 'videos'), video);
+    const runde = ctx.is_final ? await finaleOrdner(v) : await schleifeOrdner(v, ctx.version_number);
 
-    if (ctx.typ === 'video') {
-      const vids = await typOrdner(ko, 'videos');
-      const v = await videoOrdner(vids, await ladeVideo(ctx.kooperation_video_id));
-      if (ctx.is_final) return { ordner: await formatOrdnerSicherstellen(await finaleOrdner(v), ctx.variant_name), link: v, kette: k };
-      const s = await schleifeOrdner(v, ctx.version_number);
-      return { ordner: ctx.variant_name ? await varianteOrdner(s, ctx.variant_name) : s, link: v, kette: k };
-    }
-
-    if (ctx.typ === 'story') {
-      const story = await ladeStory(ctx.story_id);
-      const storys = await typOrdner(ko, 'storys');
-      const v = await videoOrdner(storys, await ladeVideo(ctx.kooperation_video_id || story.video_id));
-      const st = await storyOrdner(v, story.slot_index);
-      const basis = ctx.is_final ? await finaleOrdner(st) : await schleifeOrdner(st, ctx.version_number);
-      return { ordner: ctx.variant_name ? await varianteOrdner(basis, ctx.variant_name) : basis, link: v, kette: k };
-    }
-    throw new Error(`Unbekannter Typ ${ctx.typ}`);
+    let ordner = runde;
+    if (ctx.typ === 'video' && ctx.is_final) ordner = await formatOrdnerSicherstellen(runde, ctx.variant_name);
+    if (ctx.typ === 'story') ordner = await storyOrdner(runde, story.slot_index);
+    return { ordner, link: v, kette: k, kooperation_video_id: video.id };
   }
 
-  /** Fach-Geruest einer Kooperation: Typ-Ordner, je Video Schleifen 1-3 + Finale, je Story-Slot dasselbe. */
+  /** Fach-Geruest einer Kooperation: Videos + Rohmaterial, je Video Schleifen 1-3 + Finale, darin Story_K je Slot. */
   async function geruest(kooperationId) {
     const k = await kette(kooperationId);
     const ko = k.kooperation;
     const [videosRes, typen] = await Promise.all([
       supabase.from('kooperation_videos').select('id, kooperation_id, position, thema').eq('kooperation_id', kooperationId).order('position', { ascending: true }),
-      Promise.all(['videos', 'storys', 'bilder', 'rohmaterial'].map((t) => typOrdner(ko, t))),
+      Promise.all(['videos', 'rohmaterial'].map((t) => typOrdner(ko, t))),
     ]);
     if (videosRes.error) throw videosRes.error;
-    const [vids, storys] = typen;
+    const [vids] = typen;
     const videos = videosRes.data || [];
     const ids = videos.map((v) => v.id);
     const { data: slots, error } = ids.length
@@ -322,16 +323,12 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     let angelegt = 0;
     for (const video of videos) {
       const v = await videoOrdner(vids, video);
-      for (const n of SCHLEIFEN) await schleifeOrdner(v, n);
-      await finaleOrdner(v);
       const eigene = (slots || []).filter((s) => s.video_id === video.id);
-      if (eigene.length) {
-        const sv = await videoOrdner(storys, video);
-        for (const slot of eigene) {
-          const st = await storyOrdner(sv, slot.slot_index);
-          for (const n of SCHLEIFEN) await schleifeOrdner(st, n);
-          await finaleOrdner(st);
-        }
+      const runden = [];
+      for (const n of SCHLEIFEN) runden.push(await schleifeOrdner(v, n));
+      runden.push(await finaleOrdner(v));
+      for (const runde of runden) {
+        for (const slot of eigene) await storyOrdner(runde, slot.slot_index);
       }
       angelegt++;
     }
@@ -382,7 +379,6 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     schleifeOrdner,
     finaleOrdner,
     formatOrdner: formatOrdnerSicherstellen,
-    varianteOrdner,
     zielOrdner,
     geruest,
     umbenennen,

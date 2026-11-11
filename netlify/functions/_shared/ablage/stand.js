@@ -5,6 +5,7 @@
 const { istUuid, anstossen } = require('./konfig');
 const { AblageFehler } = require('./http');
 const { createUmzug } = require('./umzug');
+const { createUmsortieren } = require('./umsortieren');
 const ziel = require('./ziel');
 
 const LISTE = 200;
@@ -12,10 +13,11 @@ const ZIELE = new Set(['dropbox', 'sharepoint']);
 const STAND_SPALTEN = 'drive_id, letzter_lauf, letzter_erfolg, letzte_meldung, fehler, fehler_seit, abo_ablauf, '
   + 'voll_abgleich_noetig, quota_used, quota_total, zert_ablauf, rechte_lauf, rechte_fehler, alarme';
 
-function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now(), anstossenImpl = anstossen, umzug = null }) {
+function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now(), anstossenImpl = anstossen, umzug = null, umsortieren = null }) {
   const driveId = ablage?.sp?.driveId || ablage?.konfig?.driveId || null;
   const iso = (ms = jetzt()) => new Date(ms).toISOString();
   const umzugVon = () => umzug || createUmzug({ supabase, ablage });
+  const umsortierenVon = () => umsortieren || createUmsortieren({ supabase, ablage, jetzt });
 
   const ergebnis = ({ data, error }) => {
     if (error) throw error;
@@ -143,9 +145,31 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
     return { ok: true, angelegt };
   }
 
-  return { stand, notschalter, weiche, erneut, ignorieren, jetzt_abgleichen, voll_abgleich, umzug_starten };
+  function unternehmenIdPruefen(id) {
+    sharePointNoetig();
+    if (!istUuid(id)) throw new AblageFehler(400, 'unternehmen_id fehlt');
+  }
+
+  /** Trockenlauf des Struktur-Umzugs (ADR 0065): nur Register und Eingang, nichts wird bewegt. */
+  async function umsortieren_planen({ unternehmen_id: id }) {
+    unternehmenIdPruefen(id);
+    const { zaehler, rest } = await umsortierenVon().planen(id);
+    return { ok: true, zaehler, rest };
+  }
+
+  async function umsortieren_starten({ unternehmen_id: id }) {
+    unternehmenIdPruefen(id);
+    const angestossen = await anstossenImpl(event, 'ablage-umsortieren-background', { unternehmen_id: id });
+    console.log(`[ablage-stand] Umsortieren ${id} angestossen durch ${benutzer?.email || benutzer?.id || '?'}`);
+    return { ok: true, angestossen };
+  }
+
+  return { stand, notschalter, weiche, erneut, ignorieren, jetzt_abgleichen, voll_abgleich, umzug_starten, umsortieren_planen, umsortieren_starten };
 }
 
-const AKTIONEN = new Set(['stand', 'notschalter', 'weiche', 'erneut', 'ignorieren', 'jetzt_abgleichen', 'voll_abgleich', 'umzug_starten']);
+const AKTIONEN = new Set([
+  'stand', 'notschalter', 'weiche', 'erneut', 'ignorieren', 'jetzt_abgleichen', 'voll_abgleich', 'umzug_starten',
+  'umsortieren_planen', 'umsortieren_starten',
+]);
 
 module.exports = { createStand, AKTIONEN };

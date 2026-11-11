@@ -190,15 +190,17 @@ describe('ablage-freigabe', () => {
     await expect(t.freigabe.erstellen({ benutzer: MA, caller: t.caller, body: { kooperation_id: K2 } })).rejects.toMatchObject({ status: 404 });
   });
 
-  it('Storys-Ordner: eigener Link, unbekannter Typ 400', async () => {
+  it('typ storys (alte Clients) ist der Videos-Link, Stories liegen dort; unbekannter Typ 400', async () => {
     const t = setup();
     mitVideosOrdner(t);
     t.supabase.db.ablage_ordner.push({ drive_id: 'd1', item_id: 'sto', parent_item_id: 'k', name: 'Storys', art: 'typ', typ: 'storys', kooperation_id: K1 });
     const v = await t.freigabe.erstellen({ benutzer: KUNDE, caller: t.caller, body: { kooperation_id: K1 } });
     const s = await t.freigabe.erstellen({ benutzer: KUNDE, caller: t.caller, body: { kooperation_id: K1, typ: 'storys' } });
-    expect(s.id).not.toBe(v.id);
-    expect(t.sp.calls.filter(([op]) => op === 'leselink').map(([, item]) => item)).toEqual(['vid', 'sto']);
-    await expect(t.freigabe.erstellen({ benutzer: KUNDE, caller: t.caller, body: { kooperation_id: K1, typ: 'bilder' } })).rejects.toMatchObject({ status: 400 });
+    expect(s.id).toBe(v.id);
+    expect(t.sp.calls.filter(([op]) => op === 'leselink').map(([, item]) => item)).toEqual(['vid']);
+    for (const typ of ['bilder', 'constructor']) {
+      await expect(t.freigabe.erstellen({ benutzer: KUNDE, caller: t.caller, body: { kooperation_id: K1, typ } })).rejects.toMatchObject({ status: 400 });
+    }
   });
 
   it('Tenant sperrt anonyme Links: 409 links_gesperrt', async () => {

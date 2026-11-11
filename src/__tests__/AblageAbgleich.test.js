@@ -171,19 +171,30 @@ function setup({ assets = {}, abgleich = {} } = {}) {
 
 const videoZiel = (extra = {}) => ({ typ: 'video', kooperation_id: K1, kooperation_video_id: V1, version_number: 2, variant_name: 'B', ...extra });
 
+/** Varianten-Ordner aus der Zeit vor ADR 0065 (legt das CRM nicht mehr an). */
+async function alteVariante(t, schleife, name = 'B') {
+  const { item } = await t.sp.ordnerAnlegen(schleife.item_id, name);
+  t.supabase.db.ablage_ordner.push({
+    id: `alt-${name}`, drive_id: 'd1', item_id: item.id, parent_item_id: schleife.item_id, name, pfad: `${schleife.pfad}/${name}`,
+    art: 'variante', typ: 'videos', variante: name, unternehmen_id: U1, kampagne_id: KA1, kooperation_id: K1,
+    kooperation_video_id: V1, version_number: schleife.version_number,
+  });
+  return t.reg(item.id);
+}
+
 describe('ablage-abgleich: Finder-Dateien werden Assets', () => {
-  it('Datei in einer Variante -> Asset mit Schleife/Variante, uploaded_by ueber die E-Mail; Cursor gespeichert, Lease frei', async () => {
+  it('Datei in einer Feedbackschleife -> Asset der Runde ohne Variante, uploaded_by ueber die E-Mail; Cursor gespeichert, Lease frei', async () => {
     const t = setup();
-    const { ordner: variante } = await t.ordner.zielOrdner(videoZiel());
-    const f = t.sp.datei(variante.item_id, 'neu.mov', 500);
+    const { ordner: schleife } = await t.ordner.zielOrdner(videoZiel());
+    const f = t.sp.datei(schleife.item_id, 'neu.mov', 500);
     t.seite([await t.meldung(f.id)]);
 
     const r = await t.a.lauf();
     expect(r).toMatchObject({ lease: true, neu: 1, eingang: { erledigt: 1 } });
     const [row] = t.supabase.db.kooperation_video_asset;
     expect(row).toMatchObject({
-      ablage: 'sharepoint', drive_id: 'd1', item_id: f.id, video_id: V1, version_number: 2, variant_name: 'B', is_final: false,
-      file_name: 'neu.mov', file_path: '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/B/neu.mov', uploaded_by: 'b9',
+      ablage: 'sharepoint', drive_id: 'd1', item_id: f.id, video_id: V1, version_number: 2, variant_name: null, is_final: false,
+      file_name: 'neu.mov', file_path: '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/neu.mov', uploaded_by: 'b9',
     });
     expect(t.eingang(f.id)).toMatchObject({ status: 'erledigt', pfad: row.file_path });
     expect(t.supabase.db.ablage_stand[0]).toMatchObject({ delta_link: 'dl-1', lease_bis: null });
@@ -283,23 +294,55 @@ describe('ablage-abgleich: Finder-Dateien werden Assets', () => {
     expect(t.eingang(f.id)).toMatchObject({ status: 'erledigt', ergebnis: expect.objectContaining({ quelle: 'umzug', asset_id: alt }) });
   });
 
-  it('Story_4 im Finder angelegt: Slot entsteht, Ordner wird Fachordner mit CRM-Namen, Datei darin wird Story', async () => {
+  it('Story_4 in der Feedbackschleife angelegt: Slot entsteht, Ordner wird Fachordner mit CRM-Namen, Datei darin wird Story', async () => {
     const t = setup();
     const { ordner: st } = await t.ordner.zielOrdner({ typ: 'story', kooperation_id: K1, story_id: S1, version_number: 1 });
-    const storyVideo = t.supabase.db.ablage_ordner.find((o) => o.art === 'video' && o.typ === 'storys');
-    expect(st.story_nummer).toBe(2);
-    const { item: neu } = await t.sp.ordnerAnlegen(storyVideo.item_id, 'story_4');
-    const { item: schleife } = await t.sp.ordnerAnlegen(neu.id, 'Feedbackschleife_1');
-    const f = t.sp.datei(schleife.id, 's.mp4', 10);
-    t.seite([await t.meldung(f.id), await t.meldung(schleife.id), await t.meldung(neu.id)]);
+    expect(st).toMatchObject({ story_nummer: 2, typ: 'videos', version_number: 1 });
+    const schleife = t.reg(st.parent_item_id);
+    expect(schleife).toMatchObject({ art: 'schleife', typ: 'videos', version_number: 1 });
+    const { item: neu } = await t.sp.ordnerAnlegen(schleife.item_id, 'story_4');
+    const f = t.sp.datei(neu.id, 's.mp4', 10);
+    const bild = t.sp.datei(neu.id, 'cover.jpg', 4);
+    t.seite([await t.meldung(f.id), await t.meldung(bild.id), await t.meldung(neu.id)]);
     await t.a.lauf();
 
     const slot = t.supabase.db.kooperation_story.find((s) => s.slot_index === 4);
     expect(slot).toMatchObject({ video_id: V1, slot_name: 'Story 4' });
-    expect(t.reg(neu.id)).toMatchObject({ art: 'story', story_nummer: 4, typ: 'storys', kooperation_video_id: V1, name: 'Story_4' });
+    expect(t.reg(neu.id)).toMatchObject({ art: 'story', story_nummer: 4, typ: 'videos', kooperation_video_id: V1, version_number: 1, name: 'Story_4' });
     expect(t.sp.items.get(neu.id).name).toBe('Story_4');
-    expect(t.reg(schleife.id)).toMatchObject({ art: 'schleife', version_number: 1, story_nummer: 4 });
-    expect(t.supabase.db.kooperation_story_asset).toEqual([expect.objectContaining({ item_id: f.id, story_id: slot.id, video_id: V1, version_number: 1 })]);
+    expect(t.supabase.db.kooperation_story_asset).toEqual([
+      expect.objectContaining({ item_id: f.id, story_id: slot.id, video_id: V1, version_number: 1, is_final: false }),
+      expect.objectContaining({ item_id: bild.id, story_id: slot.id, version_number: 1 }),
+    ]);
+  });
+
+  it('Story in Finale_Version/Story_K: finale Story mit Seitenverhaeltnis aus dem Pixelmass', async () => {
+    const t = setup();
+    const { ordner: st } = await t.ordner.zielOrdner({ typ: 'story', kooperation_id: K1, story_id: S1, is_final: true, variant_name: '9:16' });
+    expect(st).toMatchObject({ art: 'story', version_number: null });
+    const f = t.sp.datei(st.item_id, 'final.mp4', 10);
+    Object.assign(f, { breite: 1080, hoehe: 1920 });
+    t.seite([await t.meldung(f.id)]);
+    await t.a.lauf();
+    expect(t.supabase.db.kooperation_story_asset).toEqual([expect.objectContaining({ item_id: f.id, story_id: S1, is_final: true, variant_name: '9:16' })]);
+    expect(t.sp.items.get(f.id).parent).toBe(st.item_id);
+  });
+
+  it('Altbestand: Datei im Varianten-Ordner zieht flach in die Schleife, die Variante bleibt an der Zeile', async () => {
+    const t = setup({
+      assets: { kooperation_video_asset: [{ id: id(32), video_id: V1, version_number: 2, variant_name: 'B', is_final: false, ablage: 'sharepoint', drive_id: 'd1', item_id: 'wird-gesetzt' }] },
+    });
+    const { ordner: schleife } = await t.ordner.zielOrdner(videoZiel());
+    const b = await alteVariante(t, schleife);
+    const alt = t.sp.datei(b.item_id, 'alt.mov', 5);
+    t.supabase.db.kooperation_video_asset[0].item_id = alt.id;
+    const neu = t.sp.datei(b.item_id, 'neu.mov', 5);
+    t.seite([await t.meldung(alt.id), await t.meldung(neu.id)]);
+    await t.a.lauf();
+    expect(t.sp.items.get(alt.id).parent).toBe(schleife.item_id);
+    expect(t.sp.items.get(neu.id).parent).toBe(schleife.item_id);
+    expect(t.eingang(alt.id).ergebnis).toMatchObject({ aktion: 'zurueck' });
+    expect(t.supabase.db.kooperation_video_asset.find((r) => r.item_id === alt.id).variant_name).toBe('B');
   });
 });
 
@@ -333,11 +376,12 @@ describe('ablage-abgleich: Ordner', () => {
     expect(t.sp.items.get(variante.item_id).parent).toBe(alt);
   });
 
-  it('Variante umbenannt -> Register und variant_name der Assets ziehen mit', async () => {
+  it('Altbestand: Variante umbenannt -> Register und variant_name der Assets ziehen mit', async () => {
     const t = setup({
       assets: { kooperation_video_asset: [{ id: id(31), video_id: V1, version_number: 2, variant_name: 'B', is_final: false, ablage: 'sharepoint', drive_id: 'd1', item_id: 'x' }] },
     });
-    const { ordner: variante } = await t.ordner.zielOrdner(videoZiel());
+    const { ordner: schleife } = await t.ordner.zielOrdner(videoZiel());
+    const variante = await alteVariante(t, schleife);
     t.sp.items.get(variante.item_id).name = 'Hook';
     t.seite([await t.meldung(variante.item_id)]);
     await t.a.lauf();
@@ -382,7 +426,7 @@ describe('ablage-abgleich: Loeschen, Verschieben, Vollabgleich, Lease', () => {
     expect(t.eingang(f.id).ergebnis).toMatchObject({ aktion: 'entfernt', zeilen: 1 });
   });
 
-  it('Fachdatei in einen freien Ordner verschoben -> zurueck in ihre Variante', async () => {
+  it('Fachdatei in einen freien Ordner verschoben -> zurueck in ihre Schleife', async () => {
     const t = setup();
     const { ordner: variante, kette } = await t.ordner.zielOrdner(videoZiel());
     const f = t.sp.datei(variante.item_id, 'a.mov', 5);

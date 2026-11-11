@@ -177,7 +177,7 @@ export class KundenKooperationDetail {
         
         ${contentHtml}
         ${video.story_folder_url && istSharePointUrl(video.story_folder_url)
-          ? '<button type="button" class="link-btn" data-action="ordner-link" data-typ="storys">Storys-Ordner öffnen</button>'
+          ? '<button type="button" class="link-btn" data-action="ordner-link" data-typ="videos">Ordner mit Storys öffnen</button>'
           : video.story_folder_url
             ? `<a href="${video.story_folder_url}" target="_blank" rel="noopener" class="link-btn">Storys-Ordner öffnen</a>`
             : ''}

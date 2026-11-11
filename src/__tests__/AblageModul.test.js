@@ -61,7 +61,10 @@ describe('pfad: eine Namensregel', () => {
     expect(pfad.nummer('video', 'Video_12_Thema')).toBe(12);
     expect(pfad.nummer('schleife', 'Feedbackschleife_2')).toBe(2);
     expect(pfad.MUSTER.finale.test('Finale Version')).toBe(true);
-    expect(pfad.typAusOrdner('storys')).toBe('storys');
+    expect(pfad.typAusOrdner('videos')).toBe('videos');
+    // Storys/ und Bilder/ sind keine Typ-Ordner mehr (ADR 0065)
+    expect(pfad.typAusOrdner('storys')).toBe(null);
+    expect(pfad.typAusOrdner('Bilder')).toBe(null);
     expect(pfad.systemdatei('.DS_Store')).toBe(true);
     expect(pfad.systemdatei('._clip.mov')).toBe(true);
     expect(pfad.systemdatei('clip.mov')).toBe(false);
@@ -225,16 +228,54 @@ describe('ordner: Register + Anlage', () => {
     expect(k.kooperation.pfad).toBe('/_Test/Testfirma/Sommer/Lisa');
   });
 
-  it('zielOrdner: Variante unter der Schleife, Finale nach Format', async () => {
+  it('zielOrdner: alles in der Runde des Videos, Variante ohne Ordner, Finale nach Format', async () => {
     const { ordner } = setup();
+    const basis = '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing';
     const a = await ordner.zielOrdner({ typ: 'video', kooperation_id: 'k1', kooperation_video_id: 'v1', version_number: 2, variant_name: 'B' }, { koop: koop() });
-    expect(a.ordner.pfad).toBe('/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/B');
+    expect(a.ordner.pfad).toBe(`${basis}/Feedbackschleife_2`);
+    expect(a.kooperation_video_id).toBe('v1');
     const f = await ordner.zielOrdner({ typ: 'video', kooperation_id: 'k1', kooperation_video_id: 'v1', is_final: true, variant_name: '9:16' }, { koop: koop() });
-    expect(f.ordner.pfad).toBe('/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Finale_Version/9-16');
+    expect(f.ordner.pfad).toBe(`${basis}/Finale_Version/9-16`);
     const s = await ordner.zielOrdner({ typ: 'story', kooperation_id: 'k1', story_id: 's1', version_number: 1 }, { koop: koop() });
-    expect(s.ordner.pfad).toBe('/Firma/Marke/Sommer/Lisa/Storys/Video_1_Unboxing/Story_2/Feedbackschleife_1');
+    expect(s.ordner.pfad).toBe(`${basis}/Feedbackschleife_1/Story_2`);
+    expect(s.ordner).toMatchObject({ art: 'story', typ: 'videos', story_nummer: 2, version_number: 1, kooperation_video_id: 'v1' });
+    const sf = await ordner.zielOrdner({ typ: 'story', kooperation_id: 'k1', story_id: 's1', is_final: true, variant_name: '9:16' }, { koop: koop() });
+    expect(sf.ordner.pfad).toBe(`${basis}/Finale_Version/Story_2`);
+    expect(sf.ordner.version_number).toBe(null);
+    const b = await ordner.zielOrdner({ typ: 'still', kooperation_id: 'k1', kooperation_video_id: 'v1', version_number: 3 }, { koop: koop() });
+    expect(b.ordner.pfad).toBe(`${basis}/Feedbackschleife_3`);
+    const bf = await ordner.zielOrdner({ typ: 'still', kooperation_id: 'k1', kooperation_video_id: 'v1', is_final: true }, { koop: koop() });
+    expect(bf.ordner.pfad).toBe(`${basis}/Finale_Version`);
     const r = await ordner.zielOrdner({ typ: 'roh', kooperation_id: 'k1' }, { koop: koop() });
     expect(r.ordner.pfad).toBe('/Firma/Marke/Sommer/Lisa/Rohmaterial');
+  });
+
+  it('zielOrdner: Bild ohne Video landet in der Runde des ersten Videos; ohne Video Fehler', async () => {
+    const { ordner } = setup({
+      kooperation_videos: [
+        { id: 'v2', kooperation_id: 'k1', position: 2, thema: 'Rezept' },
+        { id: 'v1', kooperation_id: 'k1', position: 1, thema: 'Unboxing' },
+      ],
+    });
+    const b = await ordner.zielOrdner({ typ: 'still', kooperation_id: 'k1', version_number: 1 }, { koop: koop() });
+    expect(b.ordner.pfad).toBe('/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1');
+    expect(b.kooperation_video_id).toBe('v1');
+    await expect(ordner.zielOrdner({ typ: 'still', kooperation_id: 'k2' }, { koop: koop({ id: 'k2' }) })).rejects.toThrow(/kein Video/);
+  });
+
+  it('geruest: nur Videos/ und Rohmaterial/, je Runde ein Story_K, keine Storys/ oder Bilder/', async () => {
+    const { supabase, ordner } = setup();
+    await ordner.geruest('k1');
+    const reg = supabase.db.ablage_ordner;
+    expect(reg.filter((o) => o.art === 'typ').map((o) => o.typ).sort()).toEqual(['rohmaterial', 'videos']);
+    const storys = reg.filter((o) => o.art === 'story');
+    expect(storys.map((o) => o.pfad).sort()).toEqual([
+      '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1/Story_2',
+      '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/Story_2',
+      '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_3/Story_2',
+      '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Finale_Version/Story_2',
+    ]);
+    expect(storys.every((o) => o.typ === 'videos' && o.kooperation_video_id === 'v1')).toBe(true);
   });
 
   it('Kampagne an andere Marke: Ordner wird verschoben statt neu angelegt', async () => {

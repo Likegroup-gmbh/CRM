@@ -120,6 +120,7 @@ function createOrdnerAbgleich(c) {
     throw new Error(`Kein freier Name fuer "${eigen.name}"`);
   }
 
+  /** Nur Altbestand: neue Ablage hat keine Varianten-Ordner, umsortieren.js loest sie auf. */
   async function varianteUmbenennen(eigen, item, wunsch, pfad) {
     const alt = eigen.variante || eigen.name;
     let name = item.name;

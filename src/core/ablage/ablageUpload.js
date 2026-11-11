@@ -38,7 +38,8 @@ export async function uploadVerwerfen(uploadId) {
 /**
  * Bytes hochladen und bestätigen. Scheitert Upload oder Commit, wird der Upload verworfen.
  * @returns {Promise<object>} Commit ({ ablage, drive_id, item_id, etag, ctag, file_path, file_name,
- *          file_size, file_url, folder_url, breite, hoehe })
+ *          file_size, file_url, folder_url, breite, hoehe, video_id }). video_id: Video, in dessen
+ *          Runde die Datei liegt (Bilder ohne Video landen beim ersten Video).
  */
 export async function hochladenNachSharePoint({ ziel, file, signal, onProgress }) {
   try {

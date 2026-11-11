@@ -1,6 +1,6 @@
 // ablage-freigabe.js
 // Kunden-Leselink auf den Videos-Ordner einer Kooperation (30 Tage, ohne Anmeldung).
-// Body: { aktion: 'erstellen', kooperation_id, typ?: 'videos'|'storys' } | { aktion: 'liste', kooperation_id }
+// Body: { aktion: 'erstellen', kooperation_id, typ?: 'videos' ('storys' = Alias) } | { aktion: 'liste', kooperation_id }
 //     | { aktion: 'widerrufen', id }
 
 const { ablageHandler, AblageFehler } = require('./_shared/ablage/http');

@@ -1,6 +1,7 @@
 // _shared/ablage/freigabe.js
-// Kunden-Leselink: "Jeder mit dem Link", nur Ansicht, auf den Videos- (oder Storys-)Ordner einer
-// Kooperation, 30 Tage gueltig. Ganze Ordner statt ZIP. Widerruf manuell oder durch den Rechte-Abgleich.
+// Kunden-Leselink: "Jeder mit dem Link", nur Ansicht, auf den Videos-Ordner einer Kooperation
+// (dort liegen seit ADR 0065 auch Stories und Bilder), 30 Tage gueltig. Ganze Ordner statt ZIP.
+// Widerruf manuell oder durch den Rechte-Abgleich.
 
 const { istUuid } = require('./konfig');
 const { istStaff, erlaubteKooperationen } = require('./zugriff');
@@ -12,7 +13,8 @@ const WIEDERVERWENDEN_AB_TAGE = 20;
 const TAG_MS = 86400000;
 
 const LISTE_SPALTEN = 'id, url, ordner_art, laeuft_ab_at, erstellt_at, widerrufen_at';
-const LINK_TYPEN = new Set(['videos', 'storys']);
+// 'storys' von alten Clients: Stories liegen unter Videos/
+const LINK_TYPEN = new Map([['videos', 'videos'], ['storys', 'videos']]);
 
 /** Links bei SharePoint entfernen und als widerrufen markieren. Fehler je Link, nicht fuer alle. */
 async function linksWiderrufen({ supabase, sp, jetzt = () => Date.now() }, zeilen, grund) {
@@ -58,8 +60,8 @@ function createFreigabe({ supabase, ablage, jetzt = () => Date.now() }) {
 
   async function erstellen({ benutzer, caller, body }) {
     const kooperationId = body.kooperation_id;
-    const typ = body.typ || 'videos';
-    if (!LINK_TYPEN.has(typ)) throw new AblageFehler(400, 'typ ist videos oder storys');
+    const typ = LINK_TYPEN.get(body.typ || 'videos');
+    if (!typ) throw new AblageFehler(400, 'typ ist videos');
     await pruefen({ benutzer, caller }, kooperationId);
     const itemId = await typOrdner(kooperationId, typ);
     if (!itemId) throw new AblageFehler(409, 'Diese Kooperation liegt noch nicht in SharePoint', 'nicht_sharepoint');

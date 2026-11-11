@@ -13,10 +13,10 @@ const { dateiSpalten, fachSpalten, upsert } = require('./asset');
 const { AblageFehler } = require('./http');
 
 const ASSET_TYP = { video: 'video', story: 'story', bilder: 'still', rohmaterial: 'roh' };
+// Bilder liegen in der Runde eines Videos, einen Bilder-Ordner der Kooperation gibt es nicht
 const LINK_SPALTE = {
   video: (job) => ({ tabelle: 'kooperation_videos', spalte: 'folder_url', id: job.target_id }),
   story: (job, t) => ({ tabelle: 'kooperation_videos', spalte: 'story_folder_url', id: t.video.id }),
-  bilder: (job) => ({ tabelle: 'kooperationen', spalte: 'bilder_folder_url', id: job.target_id }),
 };
 
 const linkUngueltig = () => new AblageFehler(404, 'Link ungültig oder abgelaufen');
@@ -94,7 +94,9 @@ function createCreatorAblage({ supabase, ablage, jetzt = () => new Date() }) {
     await altJobsFreigeben(targetType, targetId);
 
     const ctx = kontext(targetType, targetCtx, version);
-    const { ordner, link } = await ablage.ordner.zielOrdner(ctx, { koop });
+    const { ordner, link, kooperation_video_id: videoId } = await ablage.ordner.zielOrdner(ctx, { koop });
+    // Creator-Bilder haengen an der Kooperation: im Ordner des ersten Videos, also auch an ihm
+    if (ctx.typ === 'still' && !ctx.kooperation_video_id) ctx.kooperation_video_id = videoId || null;
     const name = await dateiName(tokenRow, targetCtx, koop, targetType, fileName, version, check.ext, ordner.pfad);
     const session = await sp.uploadSession(ordner.item_id, name, { conflict: 'rename', deferCommit: true });
     const linkUrl = link ? (await sp.item(link.item_id, 'id,webUrl'))?.webUrl || null : null;

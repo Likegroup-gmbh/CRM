@@ -85,7 +85,9 @@ function createDateiSchreiben(c) {
     if (!sp) throw nichtKonfiguriert();
 
     const ctx = await kontextPruefen(supabase, { ...kontextAusZeile(typ, row), kooperation_video_id: body.kooperation_video_id || null });
-    const { ordner } = await ablage.ordner.zielOrdner(ctx);
+    // Ohne Video landet das Bild beim ersten Video der Kooperation
+    const { ordner, kooperation_video_id: videoId } = await ablage.ordner.zielOrdner(ctx);
+    ctx.kooperation_video_id = ctx.kooperation_video_id || videoId || null;
     const item = await sp.item(row.item_id, 'id,name,eTag,parentReference');
     if (!item) throw new AblageFehler(404, 'Datei ist nicht mehr in SharePoint');
     let ziel = item;
@@ -93,10 +95,10 @@ function createDateiSchreiben(c) {
 
     const patch = { file_name: ziel.name, file_path: `${ordner.pfad}/${ziel.name}`, etag: ziel.eTag || null };
     // Zuordnung gleich mit: sonst saehe der Abgleich die Datei im Ordner eines anderen Videos
-    const { error } = await supabase.from(TABELLE[typ]).update({ ...patch, video_id: ctx.kooperation_video_id || null })
+    const { error } = await supabase.from(TABELLE[typ]).update({ ...patch, video_id: ctx.kooperation_video_id })
       .eq('drive_id', row.drive_id).eq('item_id', row.item_id);
     if (error) throw error;
-    return patch;
+    return { ...patch, video_id: ctx.kooperation_video_id };
   }
 
   // ─── ablage-loeschen: Kaskade einer Entitaet ────────────────

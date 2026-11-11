@@ -126,17 +126,21 @@ export async function assignImageToVideo(h, assetId, newVideoId) {
 
   try {
     let newFilePath = img.file_path || null;
+    let videoId = targetVideoId;
 
     if (istSharePoint(img)) {
-      // Server verschiebt in den Ordner des Ziel-Videos und setzt video_id gleich mit
-      newFilePath = (await ablageBildVerschieben(assetId, targetVideoId)).file_path || newFilePath;
+      // Server verschiebt in den Ordner des Ziel-Videos und setzt video_id gleich mit.
+      // Ohne Ziel-Video landet das Bild beim ersten Video der Kooperation.
+      const moved = await ablageBildVerschieben(assetId, targetVideoId);
+      newFilePath = moved.file_path || newFilePath;
+      videoId = moved.video_id ?? targetVideoId;
     } else if (img.file_path) {
       newFilePath = await dropboxBildVerschieben(h, img, targetVideoId);
     }
 
     const { error: updErr } = await window.supabase
       .from('kooperation_bilder_asset')
-      .update({ video_id: targetVideoId, file_path: newFilePath })
+      .update({ video_id: videoId, file_path: newFilePath })
       .eq('id', assetId);
     if (updErr) throw updErr;
 

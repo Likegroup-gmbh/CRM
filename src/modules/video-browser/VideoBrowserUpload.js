@@ -3,7 +3,7 @@
 // weiter beim Navigieren, abbrechbar und mit Erneut-Versuchen im Upload-Panel:
 //   Rohmaterial        → Rohmaterial-Job
 //   Feedbackschleife   → Video-Job für Videos, Still-Job für Bilder, flach ohne Variante
-//                        (Stories legt der Stories-Tab ab, hier erscheinen sie in der Runde)
+//                        (Stories legt der Stories-Tab ab: Ordner Story_K in derselben Runde)
 //   Finale Version     → wie oben mit isFinal, Videos mit Format je Datei aus den Metadaten
 // Der Fortschritt kommt aus den echten Upload-Events, nichts wird simuliert.
 

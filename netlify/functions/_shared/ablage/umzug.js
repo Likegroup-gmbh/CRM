@@ -161,8 +161,10 @@ function createUmzug({
       await setzen(row.id, { upload_url: null, kopie_url: null, versatz: 0 });
       throw new UmzugFehler('groesse_falsch');
     }
+    // Bild ohne Video liegt jetzt in der Runde des ersten Videos (Register-Zeile kennt es) und haengt auch dort
+    const video = row.typ === 'still' && !asset.video_id && ziel.kooperation_video_id ? { video_id: ziel.kooperation_video_id } : {};
     try {
-      await umstellen(supabase, row.typ, asset, dateiSpalten(item, { driveId, pfad: `${ziel.pfad}/${item.name}` }));
+      await umstellen(supabase, row.typ, asset, { ...dateiSpalten(item, { driveId, pfad: `${ziel.pfad}/${item.name}` }), ...video });
     } catch (err) {
       if (err?.code === '23505') throw new UmzugFehler('item_doppelt', { permanent: true });
       throw err;

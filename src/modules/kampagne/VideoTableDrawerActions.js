@@ -40,14 +40,17 @@ export class VideoTableDrawerActions {
     t._uploadDrawer.open(videoId, metadaten, (fileUrl, filePath, videoName, folderUrl) => {
       this.updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl);
     }, (bilderFolderUrl) => {
-      if (koop) koop.bilder_folder_url = bilderFolderUrl;
+      // SharePoint liefert keinen Bilder-Ordner (Bilder liegen in der Video-Runde): Dropbox-Link behalten
+      if (koop && bilderFolderUrl) koop.bilder_folder_url = bilderFolderUrl;
       this.refreshBilderForKoop(kooperationId);
     }, (storysFolderUrl) => {
-      const patch = { story_folder_url: storysFolderUrl };
-      if (t.store) {
-        t.store.updateVideo(videoId, patch);
-      } else {
-        if (video) video.story_folder_url = storysFolderUrl;
+      if (storysFolderUrl) {
+        const patch = { story_folder_url: storysFolderUrl };
+        if (t.store) {
+          t.store.updateVideo(videoId, patch);
+        } else if (video) {
+          video.story_folder_url = storysFolderUrl;
+        }
       }
       t.refilter();
     }, { initialTab, preselectFinal,

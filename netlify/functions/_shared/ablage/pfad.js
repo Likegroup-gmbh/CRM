@@ -5,11 +5,16 @@
 
 const TEST_ORDNER = '_Test';
 
+// Videos, Bilder und Stories liegen gemeinsam unter Videos/Video_N (ADR 0065)
 const TYP_ORDNER = {
   videos: 'Videos',
+  rohmaterial: 'Rohmaterial',
+};
+
+// Frühere Typ-Ordner: nur noch im Register von Altbestand, bis umsortieren.js sie auflöst
+const ALTE_TYP_ORDNER = {
   storys: 'Storys',
   bilder: 'Bilder',
-  rohmaterial: 'Rohmaterial',
 };
 
 const FINALE_ORDNER = 'Finale_Version';
@@ -147,6 +152,7 @@ function pfadZuLang(sitePfad, relativ) {
 module.exports = {
   TEST_ORDNER,
   TYP_ORDNER,
+  ALTE_TYP_ORDNER,
   FINALE_ORDNER,
   FORMATE,
   MAX_SEGMENT,

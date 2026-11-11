@@ -9,6 +9,11 @@ import { sortStills } from '../../stills/stillAssets.js';
 import { videoFallbackUrl } from './mediaIdentity.js';
 import { mitAblage } from '../../ablage/ablageLink.js';
 
+// PostgREST-URL bleibt kurz genug (UUIDs im in()-Filter)
+const BILDER_IDS_JE_ABFRAGE = 100;
+// PostgREST liefert hoechstens 1000 Zeilen je Abfrage
+const BILDER_SEITE = 1000;
+
 export class MediaItemBuilder {
   /** @param {object} table - KampagneKooperationenVideoTable (Datenquelle) */
   constructor(table) {
@@ -21,23 +26,33 @@ export class MediaItemBuilder {
   }
 
   // Bilder aller gefilterten Koops sicherstellen (Preload kann fehlen/leer sein),
-  // damit die durchgaengige Liste auch Bilder enthaelt.
+  // damit die durchgaengige Liste auch Bilder enthaelt. Nicht an bilder_folder_url
+  // haengen: SharePoint-Bilder liegen in den Video-Runden und setzen den Link nie.
   async ensureBilderLoaded() {
     const koops = this.table.renderer.getFilteredKooperationen() || [];
-    const missing = koops.filter(k => k.bilder_folder_url && !Array.isArray(k._bilder));
+    const missing = koops.filter(k => !Array.isArray(k._bilder));
     if (missing.length === 0) return;
 
     try {
       const ids = missing.map(k => k.id);
-      const { data, error } = await window.supabase
-        .from('kooperation_bilder_asset')
-        .select(mitAblage('id, kooperation_id, video_id, file_url, file_path, file_name, created_at, version_number, is_current, is_final, variant_name, source_asset_id'))
-        .in('kooperation_id', ids)
-        .order('file_name', { ascending: true });
-      if (error) throw error;
+      const data = [];
+      for (let i = 0; i < ids.length; i += BILDER_IDS_JE_ABFRAGE) {
+        for (let von = 0; ; von += BILDER_SEITE) {
+          const { data: teil, error } = await window.supabase
+            .from('kooperation_bilder_asset')
+            .select(mitAblage('id, kooperation_id, video_id, file_url, file_path, file_name, created_at, version_number, is_current, is_final, variant_name, source_asset_id'))
+            .in('kooperation_id', ids.slice(i, i + BILDER_IDS_JE_ABFRAGE))
+            .order('file_name', { ascending: true })
+            .order('id', { ascending: true })
+            .range(von, von + BILDER_SEITE - 1);
+          if (error) throw error;
+          data.push(...(teil || []));
+          if (!teil || teil.length < BILDER_SEITE) break;
+        }
+      }
 
       const byKoop = {};
-      for (const img of (data || [])) {
+      for (const img of data) {
         if (!byKoop[img.kooperation_id]) byKoop[img.kooperation_id] = [];
         byKoop[img.kooperation_id].push(img);
       }

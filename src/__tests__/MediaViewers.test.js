@@ -411,6 +411,39 @@ describe('MediaItemBuilder – flache Item-Liste', () => {
   });
 });
 
+describe('MediaItemBuilder.ensureBilderLoaded – Bilder nachladen', () => {
+  it('laedt Bilder auch ohne bilder_folder_url (SharePoint-Bilder liegen in der Video-Runde)', async () => {
+    const koops = [{ id: 'k1' }, { id: 'k2', bilder_folder_url: 'https://dropbox.test/b' }, { id: 'k3', _bilder: [] }];
+    const abfragen = [];
+    const vorher = window.supabase;
+    window.supabase = {
+      from: () => {
+        const q = { filter: null };
+        const api = {
+          select: () => api,
+          in: (_k, ids) => { q.filter = ids; return api; },
+          order: () => api,
+          range: () => api,
+          then: (res) => {
+            abfragen.push(q.filter);
+            return Promise.resolve({ data: [{ id: 'b1', kooperation_id: 'k1', video_id: 'v1' }], error: null }).then(res);
+          },
+        };
+        return api;
+      },
+    };
+    try {
+      await new MediaItemBuilder(makeFakeTable(koops, {})).ensureBilderLoaded();
+    } finally {
+      window.supabase = vorher;
+    }
+    expect(abfragen).toEqual([['k1', 'k2']]);
+    expect(koops[0]._bilder.map(b => b.id)).toEqual(['b1']);
+    expect(koops[1]._bilder).toEqual([]);
+    expect(koops[2]._bilder).toEqual([]);
+  });
+});
+
 describe('MediaItemBuilder.ensureStorySlotsLoaded – on-demand Story-Slots', () => {
   it('laedt fehlende story_slots (undefined) via dataLoader.loadStorySlots nach', async () => {
     const koops = [{ id: 'k1' }, { id: 'k2' }];

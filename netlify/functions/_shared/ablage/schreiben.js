@@ -123,7 +123,10 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
       ordner = { item_id: parentId, pfad: reg?.pfad ?? ordnerVon(alt.file_path) };
       ({ link } = await ablage.ordner.zielOrdner(ctx, { koop }));
     } else {
-      ({ ordner, link } = await ablage.ordner.zielOrdner(ctx, { koop }));
+      let videoId;
+      ({ ordner, link, kooperation_video_id: videoId } = await ablage.ordner.zielOrdner(ctx, { koop }));
+      // Bild ohne Video liegt jetzt im Ordner des ersten Videos und haengt auch dort
+      if (ctx.typ === 'still' && !ctx.kooperation_video_id && videoId) ctx.kooperation_video_id = videoId;
     }
 
     const name = passenderName(ordner.pfad, fileName);
@@ -221,6 +224,7 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
       file_size: item.size ?? up.groesse,
       file_url: item.webUrl || null,
       folder_url: k.link_url || null,
+      video_id: k.kooperation_video_id || null,
       breite: item.video?.width ?? item.image?.width ?? null,
       hoehe: item.video?.height ?? item.image?.height ?? null,
     };

@@ -103,11 +103,11 @@ describe('ablage-upload-ziel', () => {
     expect((await b.s.uploadZiel({ benutzer: MA, caller: b.caller, body: zielBody() })).ziel).toBe('dropbox');
   });
 
-  it('SharePoint: Session im Variantenordner, Upload-Zeile, Commit liefert die Asset-Spalten', async () => {
+  it('SharePoint: Session flach in der Schleife (Variante ohne Ordner), Upload-Zeile, Commit liefert die Asset-Spalten', async () => {
     const { s, sp, caller, supabase } = setup();
     const z = await s.uploadZiel({ benutzer: MA, caller, body: zielBody() });
     expect(z).toMatchObject({ ziel: 'sharepoint', chunk_bytes: 10 * 1024 * 1024, file_name: 'clip.mov' });
-    expect(z.ordner.pfad).toBe('/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/B');
+    expect(z.ordner.pfad).toBe('/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2');
     expect(supabase.db.ablage_upload[0]).toMatchObject({ id: z.upload_id, name: 'clip.mov', groesse: 1000, typ: 'video', erstellt_von: 'b1', item_id: null });
 
     const item = sp.hochladen(z.upload_url, 1000);
@@ -115,15 +115,28 @@ describe('ablage-upload-ziel', () => {
     const videoOrdner = supabase.db.ablage_ordner.find((o) => o.art === 'video' && o.typ === 'videos');
     expect(c).toMatchObject({
       ablage: 'sharepoint', drive_id: 'd1', item_id: item.id, file_name: 'clip.mov', file_size: 1000,
-      file_path: `${z.ordner.pfad}/clip.mov`, folder_url: `https://sp.test/${videoOrdner.item_id}`,
+      file_path: `${z.ordner.pfad}/clip.mov`, folder_url: `https://sp.test/${videoOrdner.item_id}`, video_id: V1,
     });
     expect(supabase.db.ablage_upload[0].abgeschlossen_at).toBeTruthy();
   });
 
-  it('Story landet in Storys/Video_N/Story_k/Feedbackschleife_n', async () => {
+  it('Story landet in Videos/Video_N/Feedbackschleife_n/Story_k, finale in Finale_Version/Story_k', async () => {
     const { s, caller } = setup();
     const z = await s.uploadZiel({ benutzer: MA, caller, body: { typ: 'story', kooperation_id: K1, story_id: S1, version_number: 1, file_name: 's.mp4', file_size: 5 } });
-    expect(z.ordner.pfad).toBe('/Firma/Sommer/Lisa/Storys/Video_1_Unboxing/Story_2/Feedbackschleife_1');
+    expect(z.ordner.pfad).toBe('/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1/Story_2');
+    const f = await s.uploadZiel({ benutzer: MA, caller, body: { typ: 'story', kooperation_id: K1, story_id: S1, is_final: true, variant_name: '9:16', file_name: 's.mp4', file_size: 5 } });
+    expect(f.ordner.pfad).toBe('/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Finale_Version/Story_2');
+  });
+
+  it('Bild ohne Video: Runde des ersten Videos, Commit und Upload-Kontext kennen das Video', async () => {
+    const { s, sp, caller, supabase } = setup();
+    const z = await s.uploadZiel({ benutzer: MA, caller, body: { typ: 'still', kooperation_id: K1, version_number: 1, file_name: 'b.jpg', file_size: 3 } });
+    expect(z.ordner.pfad).toBe('/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1');
+    expect(supabase.db.ablage_upload[0].kontext).toMatchObject({ typ: 'still', kooperation_video_id: V1 });
+    const item = sp.hochladen(z.upload_url, 3);
+    const c = await s.uploadCommit({ benutzer: MA, body: { upload_id: z.upload_id, item_id: item.id } });
+    expect(c.video_id).toBe(V1);
+    expect(supabase.db.ablage_ordner.some((o) => o.typ === 'bilder' || o.typ === 'storys')).toBe(false);
   });
 
   it('Grenzen und Rechte', async () => {
@@ -149,7 +162,7 @@ describe('ablage-upload-ziel', () => {
     expect(it2.id).toBe(it1.id);
     const c2 = await t.s.uploadCommit({ benutzer: MA, body: { upload_id: z2.upload_id, item_id: it2.id } });
     expect(c2).toMatchObject({ item_id: it1.id, file_name: 'neu.mp4', file_size: 2000 });
-    expect(c2.file_path.endsWith('/B/neu.mp4')).toBe(true);
+    expect(c2.file_path.endsWith('/Feedbackschleife_2/neu.mp4')).toBe(true);
 
     // Rollback beim Ersetzen loescht nie das bestehende Item
     await t.s.uploadVerwerfen({ benutzer: MA, body: { upload_id: z2.upload_id } });
@@ -214,9 +227,9 @@ describe('ablage-datei', () => {
     t.supabase.db.kooperation_bilder_asset.push({ id: A1, kooperation_id: K1, video_id: V1, version_number: 1, is_final: false, ...c });
 
     const r = await t.s.dateiVerschieben({ benutzer: MA, caller: t.caller, body: { typ: 'still', id: A1, kooperation_video_id: id(20) } });
-    expect(r.file_path).toBe('/Firma/Sommer/Lisa/Bilder/Video_2_Haul/Feedbackschleife_1/b.jpg');
+    expect(r.file_path).toBe('/Firma/Sommer/Lisa/Videos/Video_2_Haul/Feedbackschleife_1/b.jpg');
     expect(t.supabase.db.kooperation_bilder_asset[0]).toMatchObject({ video_id: id(20), file_path: r.file_path });
-    expect(t.sp.items.get(item.id).parent).toBe(t.supabase.db.ablage_ordner.find((o) => o.pfad === '/Firma/Sommer/Lisa/Bilder/Video_2_Haul/Feedbackschleife_1').item_id);
+    expect(t.sp.items.get(item.id).parent).toBe(t.supabase.db.ablage_ordner.find((o) => o.pfad === '/Firma/Sommer/Lisa/Videos/Video_2_Haul/Feedbackschleife_1').item_id);
 
     await expect(t.s.dateiVerschieben({ benutzer: MA, caller: t.caller, body: { typ: 'still', id: A1, kooperation_video_id: VX } })).rejects.toMatchObject({ status: 404 });
   });

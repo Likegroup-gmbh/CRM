@@ -1,7 +1,7 @@
 // bilderTabUpload.js
 // Upload der gewählten Stills im VideoUploadDrawer (`h` = BilderTabHandler):
 // Ziel holen, dann nach SharePoint oder Dropbox hochladen, Asset-Zeilen anlegen,
-// Koop-Ordnerlink setzen. Externe Still-Links werden direkt gespeichert.
+// Koop-Ordnerlink setzen (nur Dropbox). Externe Still-Links werden direkt gespeichert.
 
 import {
   readFileAsBase64, proxyPost, uploadLargeFile, createFolderSharedLink,
@@ -225,12 +225,15 @@ async function uploadBilderDropbox(h, fileNames, { progressFill, progressText })
   return { uploaded, bilderFolderUrl, hasFinal: fileLinks.some(fl => fl.isFinal) };
 }
 
-/** Alle gewählten Bilder nach SharePoint; scheitert eins oder der Eintrag, werden alle verworfen. */
+/**
+ * Alle gewählten Bilder nach SharePoint; scheitert eins oder der Eintrag, werden alle verworfen.
+ * Bilder liegen dort in der Runde ihres Videos (ohne Video beim ersten), einen Bilder-Ordner
+ * der Kooperation gibt es nicht: bilder_folder_url bleibt unberührt.
+ */
 async function uploadBilderSharePoint(h, fileNames, firstZiel, { progressFill, progressText }) {
   const total = h._selectedImages.length;
   const rows = [];
   const uploadIds = [];
-  let bilderFolderUrl = null;
 
   try {
     for (let i = 0; i < total; i++) {
@@ -243,12 +246,11 @@ async function uploadBilderSharePoint(h, fileNames, firstZiel, { progressFill, p
       if (ziel.ziel !== 'sharepoint') throw new Error('Die Ablage hat während des Uploads gewechselt. Bitte erneut hochladen.');
       const commit = await hochladenNachSharePoint({ ziel, file });
       uploadIds.push(ziel.upload_id);
-      if (!bilderFolderUrl) bilderFolderUrl = commit.folder_url || null;
 
       const felder = sharePointAssetFelder(commit);
       rows.push({
         kooperation_id: h.drawer.kooperationId,
-        video_id: h.drawer.videoId || null,
+        video_id: h.drawer.videoId || commit.video_id || null,
         ...felder,
         file_name: felder.file_name || fileNames[i],
         file_size: felder.file_size ?? file.size,
@@ -273,8 +275,9 @@ async function uploadBilderSharePoint(h, fileNames, firstZiel, { progressFill, p
     throw err;
   }
 
-  if (h.drawer.videoId) await updateStillCurrentFlags(h.drawer.videoId);
-  return { uploaded: rows.length, bilderFolderUrl, hasFinal: rows.some(r => r.is_final) };
+  const videoIds = [...new Set(rows.map(r => r.video_id).filter(Boolean))];
+  for (const videoId of videoIds) await updateStillCurrentFlags(videoId);
+  return { uploaded: rows.length, bilderFolderUrl: null, hasFinal: rows.some(r => r.is_final) };
 }
 
 async function finishBilderUpload(h, { uploaded, bilderFolderUrl, hasFinal }, { submitBtn, cancelBtn, progressContainer, progressFill, progressText }) {

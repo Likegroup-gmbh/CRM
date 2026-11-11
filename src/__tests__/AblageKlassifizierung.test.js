@@ -25,6 +25,8 @@ const R = {
   storyFinale: reg('finale', { typ: 'storys', kooperation_video_id: V, story_nummer: 3 }),
   bilderVideo: reg('video', { typ: 'bilder', kooperation_video_id: V }),
   bilderSchleife: reg('schleife', { typ: 'bilder', kooperation_video_id: V, version_number: 1 }),
+  rundeStory: reg('story', { typ: 'videos', kooperation_video_id: V, story_nummer: 2, version_number: 1 }),
+  finaleStory: reg('story', { typ: 'videos', kooperation_video_id: V, story_nummer: 2, version_number: null }),
   frei: reg('frei', { typ: 'videos', kooperation_video_id: V }),
   test: { id: 'r-test', item_id: 'i-test', art: 'test', name: '_Test', pfad: '/_Test' },
 };
@@ -33,11 +35,33 @@ const datei = (eltern, extra = {}) => k.dateiEinordnen({ item: { name: 'clip.mov
 const videoAsset = (row = {}) => ({ typ: 'video', row: { id: 'a1', video_id: V, version_number: 1, variant_name: null, is_final: false, ...row } });
 
 describe('dateiEinordnen: Fachordner bestimmen die Bedeutung', () => {
-  it('Datei in einer Variante -> Video-Asset mit Schleife und Variante', () => {
+  it('neue Datei in einem alten Varianten-Ordner -> flach in die Schleife, ohne Variante', () => {
     expect(datei(R.variante)).toEqual({
-      aktion: 'asset', typ: 'video', umziehen: false,
-      ziel: { kooperation_id: KO, kooperation_video_id: V, story_nummer: null, version_number: 2, is_final: false, variant_name: 'B' },
+      aktion: 'zurueck', typ: 'video',
+      ziel: { kooperation_id: KO, kooperation_video_id: V, story_nummer: null, version_number: 2, is_final: false, variant_name: null },
     });
+    expect(datei(R.variante, { item: { name: 'foto.jpg' } })).toMatchObject({ aktion: 'zurueck', typ: 'still' });
+    expect(datei(R.variante, { item: { name: 'notiz.pdf' } })).toMatchObject({ aktion: 'unzugeordnet', grund: 'dateityp' });
+  });
+
+  it('bestehende Datei im alten Varianten-Ordner -> flach in die Schleife, Variante bleibt an der Zeile', () => {
+    expect(datei(R.variante, { asset: videoAsset({ version_number: 2, variant_name: 'B' }) })).toEqual({
+      aktion: 'zurueck', typ: 'video',
+      ziel: { kooperation_id: null, kooperation_video_id: V, story_id: null, version_number: 2, is_final: false, variant_name: 'B' },
+    });
+  });
+
+  it('Story_K in einer Feedbackschleife -> Story-Asset der Runde (auch Bilder)', () => {
+    expect(datei(R.rundeStory)).toMatchObject({ aktion: 'asset', typ: 'story', ziel: { kooperation_video_id: V, story_nummer: 2, version_number: 1, is_final: false, variant_name: null } });
+    expect(datei(R.rundeStory, { item: { name: 'story.jpg' } })).toMatchObject({ aktion: 'asset', typ: 'story' });
+  });
+
+  it('Story_K in der Finalen Version: Seitenverhaeltnis aus dem Pixelmass, kein Format-Ordner', () => {
+    expect(datei(R.finaleStory, { item: { breite: 1080, hoehe: 1920 } })).toMatchObject({ aktion: 'asset', typ: 'story', ziel: { story_nummer: 2, is_final: true, version_number: 1, variant_name: '9:16' } });
+    expect(datei(R.finaleStory, { versuche: 1 })).toMatchObject({ aktion: 'warten', grund: 'kein_mass' });
+    expect(datei(R.finaleStory, { versuche: k.MASS_VERSUCHE })).toMatchObject({ aktion: 'unzugeordnet', grund: 'format_unbekannt' });
+    const final = { typ: 'story', row: { id: 's1', video_id: V, story_id: 'st1', version_number: 1, variant_name: '4:5', is_final: true } };
+    expect(datei(R.finaleStory, { asset: final })).toMatchObject({ aktion: 'asset', ziel: { is_final: true, variant_name: '4:5' } });
   });
 
   it('lose Video in einer Video-Schleife -> Video-Asset ohne Variante, bleibt liegen', () => {
@@ -96,12 +120,12 @@ describe('dateiEinordnen: Fachordner bestimmen die Bedeutung', () => {
     expect(d).toMatchObject({ aktion: 'asset', ziel: { is_final: true, variant_name: 'Hook' } });
   });
 
-  it('Storys: Schleife direkt -> Story-Asset, Finale direkt -> finale Story', () => {
+  it('Altbestand Storys: Schleife direkt -> Story-Asset, Finale direkt -> finale Story', () => {
     expect(datei(R.storySchleife)).toMatchObject({ aktion: 'asset', typ: 'story', ziel: { story_nummer: 3, version_number: 1, is_final: false, variant_name: null } });
     expect(datei(R.storyFinale)).toMatchObject({ aktion: 'asset', typ: 'story', ziel: { story_nummer: 3, is_final: true } });
   });
 
-  it('Bilder: Bilder-Ordner ohne Video, Video-Schleife mit Video', () => {
+  it('Altbestand Bilder: Bilder-Ordner ohne Video, Video-Schleife mit Video', () => {
     expect(datei(R.bilder)).toMatchObject({ aktion: 'asset', typ: 'still', ziel: { kooperation_id: KO, kooperation_video_id: null } });
     expect(datei(R.bilderSchleife)).toMatchObject({ aktion: 'asset', typ: 'still', ziel: { kooperation_video_id: V, version_number: 1 } });
   });
@@ -145,9 +169,13 @@ describe('dateiEinordnen: verschobene Fachdateien, Typwechsel, Eltern unbekannt'
     }
   });
 
-  it('Fachdatei in andere Schleife verschoben -> Asset zieht mit (Version aus dem Ordner)', () => {
-    expect(datei({ ...R.variante, version_number: 3 }, { asset: videoAsset({ version_number: 2, variant_name: 'B' }) }))
+  it('Fachdatei in andere Schleife verschoben -> Asset zieht mit (Version aus dem Ordner, Variante bleibt)', () => {
+    expect(datei({ ...R.schleife, version_number: 3 }, { asset: videoAsset({ version_number: 2, variant_name: 'B' }) }))
       .toMatchObject({ aktion: 'asset', ziel: { version_number: 3, variant_name: 'B' }, umziehen: false });
+  });
+
+  it('Video-Datei in einen Story_K-Ordner verschoben -> wird Story (umziehen)', () => {
+    expect(datei(R.rundeStory, { asset: videoAsset() })).toMatchObject({ aktion: 'asset', typ: 'story', umziehen: true });
   });
 
   it('Video-Datei nach Bilder verschoben -> Typwechsel (umziehen)', () => {
@@ -194,7 +222,7 @@ describe('dateiEinordnen: Uploads aus dem CRM', () => {
   });
 
   it('Asset schon da: Upload egal', () => {
-    expect(datei(R.variante, { upload: upload(1), asset: videoAsset({ version_number: 2, variant_name: 'B' }), jetztMs }).aktion).toBe('asset');
+    expect(datei(R.schleife, { upload: upload(1), asset: videoAsset({ version_number: 2, variant_name: 'B' }), jetztMs }).aktion).toBe('asset');
   });
 
   it('Umzug-Upload: nach der Wartezeit an die Bestandszeile, nie ein neues Asset', () => {
@@ -214,9 +242,25 @@ describe('ordnerEinordnen', () => {
     expect(ord({ eltern: R.bilderSchleife }).aktion).toBe('frei');
   });
 
-  it('Unterordner einer Video-/Story-Schleife -> Variante', () => {
-    expect(ord({ eltern: R.schleife, item: { name: 'Hook kurz' } })).toEqual({ aktion: 'fach', art: 'variante', variante: 'Hook kurz', soll: 'Hook kurz' });
+  it('Unterordner einer Video-Schleife: Story_K ist Fachordner, alles andere frei (keine Varianten mehr)', () => {
+    expect(ord({ eltern: R.schleife, item: { name: 'story_2' } })).toEqual({ aktion: 'fach', art: 'story', story_nummer: 2, soll: 'Story_2' });
+    expect(ord({ eltern: R.finale, item: { name: 'Story_1' } })).toEqual({ aktion: 'fach', art: 'story', story_nummer: 1, soll: 'Story_1' });
+    expect(ord({ eltern: R.schleife, item: { name: 'Hook kurz' } }).aktion).toBe('frei');
+    expect(ord({ eltern: R.schleife, item: { name: 'A' } }).aktion).toBe('frei');
+  });
+
+  it('Altbestand: Unterordner einer Story-Schleife unter Storys/ -> Variante', () => {
     expect(ord({ eltern: R.storySchleife, item: { name: 'C' } })).toMatchObject({ aktion: 'fach', art: 'variante', variante: 'C' });
+  });
+
+  it('neuer Story_K unter Schleife/Finale bekommt Schleife bzw. keine (= Finale) als Besitz', () => {
+    expect(ord({ eltern: R.schleife, item: { name: 'Story_3' } }).aktion).toBe('fach');
+    expect(k.besitzVon(R.schleife)).toMatchObject({ typ: 'videos', kooperation_video_id: V, version_number: 2 });
+    expect(k.besitzVon(R.finale).version_number).toBeUndefined();
+  });
+
+  it('Story_K-Ordner hat keine Unterordner nach Muster', () => {
+    expect(ord({ eltern: R.rundeStory, item: { name: 'Feedbackschleife_1' } }).aktion).toBe('frei');
   });
 
   it('Fachordner nach CRM-Muster werden erkannt und auf den CRM-Namen gebracht', () => {
@@ -227,7 +271,7 @@ describe('ordnerEinordnen', () => {
     expect(ord({ eltern: R.finale, item: { name: '9-16' } })).toEqual({ aktion: 'fach', art: 'format', format: '9-16', soll: '9-16' });
   });
 
-  it('Story_k nur unter Storys, Schleifen nicht direkt unter Storys/Video_N', () => {
+  it('Story_k nicht direkt unter Video_N, Schleifen nicht direkt unter Storys/Video_N', () => {
     expect(ord({ eltern: R.video, item: { name: 'Story_2' } }).aktion).toBe('frei');
     expect(ord({ eltern: R.storyVideo, item: { name: 'Feedbackschleife_1' } }).aktion).toBe('frei');
     expect(ord({ eltern: R.finale, item: { name: '16-9' } }).aktion).toBe('frei');

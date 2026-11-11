@@ -12,7 +12,7 @@ import { escapeHtml } from '../../core/format.js';
 import { navMark } from '../../core/dev/navTrace.js';
 import { postStand, setBusy, bestaetigen } from './medienablageFormat.js';
 import { nichtKonfiguriertHtml, kartenHtml, notschalterHtml, unzugeordnetHtml, fehlerHtml } from './medienablageStand.js';
-import { weicheHtml, filterUnternehmen, weicheSetzen, umzugStarten } from './medienablageWeiche.js';
+import { weicheHtml, filterUnternehmen, weicheSetzen, umzugStarten, umsortierenStarten } from './medienablageWeiche.js';
 
 export class MedienablagePage {
   constructor() {
@@ -184,6 +184,11 @@ export class MedienablagePage {
       const umzug = e.target.closest('[data-ma-umzug]');
       if (umzug) {
         void umzugStarten(this, umzug);
+        return;
+      }
+      const umsortieren = e.target.closest('[data-ma-umsortieren]');
+      if (umsortieren) {
+        void umsortierenStarten(this, umsortieren);
         return;
       }
       const erneut = e.target.closest('[data-ma-erneut]');

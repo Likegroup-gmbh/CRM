@@ -19,7 +19,8 @@ const ST1 = id(12);
 const START = Date.parse('2026-12-01T22:00:00Z');
 const iso = (ms) => new Date(ms).toISOString();
 const MIN = 60000;
-const ZIEL = '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/B';
+// Variante B ohne eigenen Ordner (ADR 0065): flach in der Schleife, variant_name bleibt an der Zeile
+const ZIEL = '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2';
 
 function antwort(status, body = Buffer.alloc(0), headers = {}) {
   return {
@@ -194,6 +195,23 @@ describe('Umzug Dropbox', () => {
     expect(t.zeile()).toMatchObject({ status: 'fertig', item_id: 'neu1' });
     expect(t.zeile('z2')).toMatchObject({ status: 'uebersprungen', grund: 'asset_geloescht' });
     expect(t.chunks()).toEqual([]);
+  });
+
+  it('Story und Bild ohne Video landen in der Feedbackschleife unter Videos/ (Bild am ersten Video)', async () => {
+    const t = setup({
+      dateien: { '/Alt/s.mp4': Buffer.from('0123'), '/Alt/b.jpg': Buffer.from('56') },
+      zeilen: [
+        umzugZeile({ typ: 'story', asset_id: 'st-a', quelle_ref: '/Alt/s.mp4' }),
+        umzugZeile({ id: 'z2', typ: 'still', asset_id: 'b-a', quelle_ref: '/Alt/b.jpg', naechster_versuch: iso(START - 500) }),
+      ],
+    });
+    t.db.kooperation_story_asset.push({ id: 'st-a', story_id: ST1, video_id: V1, version_number: 1, is_final: false, ablage: 'dropbox', file_name: 's.mp4' });
+    t.db.kooperation_bilder_asset.push({ id: 'b-a', kooperation_id: K1, video_id: null, version_number: 1, is_final: false, ablage: 'dropbox', file_name: 'b.jpg' });
+    await t.u.lauf();
+    const basis = '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1';
+    expect(t.db.kooperation_story_asset[0]).toMatchObject({ ablage: 'sharepoint', file_path: `${basis}/Story_1/s.mp4` });
+    expect(t.db.kooperation_bilder_asset[0]).toMatchObject({ ablage: 'sharepoint', file_path: `${basis}/b.jpg`, video_id: V1 });
+    expect(t.db.ablage_ordner.some((o) => o.typ === 'storys' || o.typ === 'bilder')).toBe(false);
   });
 
   it('leere Datei wird uebersprungen', async () => {
