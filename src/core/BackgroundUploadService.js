@@ -8,6 +8,7 @@
 import { runVideoUploadJob } from './uploadJobs/runVideoUploadJob.js';
 import { runVideoReplaceJob } from './uploadJobs/runVideoReplaceJob.js';
 import { runStorysUploadJob } from './uploadJobs/runStorysUploadJob.js';
+import { runStillUploadJob } from './uploadJobs/runStillUploadJob.js';
 import { runCustomUploadJob } from './uploadJobs/runCustomUploadJob.js';
 import { runCustomReplaceJob } from './uploadJobs/runCustomReplaceJob.js';
 import { runRohmaterialUploadJob } from './uploadJobs/runRohmaterialUploadJob.js';
@@ -34,13 +35,14 @@ const RUNNERS = {
   video: runVideoUploadJob,
   'video-replace': runVideoReplaceJob,
   storys: runStorysUploadJob,
+  still: runStillUploadJob,
   custom: runCustomUploadJob,
   'custom-replace': runCustomReplaceJob,
   rohmaterial: runRohmaterialUploadJob,
 };
 
 // Payload-Liste mit einer Datei je Item (gleicher Index) für Jobs mit mehreren Dateien
-const ITEM_LIST = { video: 'queue', storys: 'queue', custom: 'files', rohmaterial: 'files' };
+const ITEM_LIST = { video: 'queue', storys: 'queue', still: 'queue', custom: 'files', rohmaterial: 'files' };
 
 /** Payload ohne die schon fertigen Dateien; null, wenn nichts mehr fehlt. */
 function remainingPayload(job) {
@@ -72,6 +74,9 @@ class BackgroundUploadService {
   }
   enqueueStorysJob(payload) {
     return this._enqueue('storys', payload);
+  }
+  enqueueStillJob(payload) {
+    return this._enqueue('still', payload);
   }
   enqueueCustomUploadJob(payload) {
     return this._enqueue('custom', payload);
@@ -175,6 +180,13 @@ class BackgroundUploadService {
         fileName: q.file?.name || 'video',
         fileSize: q.file?.size || 0,
         meta: { variantName: q.variantName, versionNumber: q.versionNumber },
+      }));
+    }
+    if (kind === 'still') {
+      return (payload.queue || []).map(q => this._mkItem({
+        fileName: q.file?.name || 'bild',
+        fileSize: q.file?.size || 0,
+        meta: { versionNumber: q.versionNumber },
       }));
     }
     if (kind === 'video-replace') {

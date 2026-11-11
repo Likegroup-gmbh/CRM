@@ -128,6 +128,17 @@ function systemdatei(name) {
   return SYSTEM_DATEI.test(String(name || ''));
 }
 
+const VIDEO_ENDUNG = /\.(mp4|mov|m4v|avi|mkv|webm)$/i;
+const BILD_ENDUNG = /\.(jpe?g|png|webp|heic|heif|gif)$/i;
+
+/** Asset-Typ einer Datei nach Endung: 'video' | 'still' | null (unbekannt). */
+function dateiTyp(name) {
+  const n = String(name || '').trim();
+  if (VIDEO_ENDUNG.test(n)) return 'video';
+  if (BILD_ENDUNG.test(n)) return 'still';
+  return null;
+}
+
 /** Pfadlaenge pruefen (Server-relativer Pfad inkl. Site + Bibliothek). */
 function pfadZuLang(sitePfad, relativ) {
   return `${sitePfad || ''}/${relativ || ''}`.length > MAX_PFAD;
@@ -154,5 +165,6 @@ module.exports = {
   typAusOrdner,
   nummer,
   systemdatei,
+  dateiTyp,
   pfadZuLang,
 };

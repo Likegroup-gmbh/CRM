@@ -201,21 +201,22 @@ describe('ablage-abgleich: Finder-Dateien werden Assets', () => {
     expect(t.supabase.db.kooperation_video_asset).toHaveLength(1);
   });
 
-  it('lose Datei in einer Schleife -> naechste freie Variante ueber alle Schleifen, verschoben', async () => {
-    const t = setup({
-      assets: { kooperation_video_asset: [{ id: id(30), video_id: V1, version_number: 1, variant_name: 'A', is_final: false, ablage: 'dropbox' }] },
-    });
-    await t.ordner.zielOrdner(videoZiel({ version_number: 1, variant_name: 'B' }));
+  it('lose Datei in einer Schleife -> bleibt flach liegen, kein Varianten-Ordner, Typ nach Endung', async () => {
+    const t = setup();
     const { ordner: schleife2 } = await t.ordner.zielOrdner(videoZiel({ variant_name: null }));
-    const f = t.sp.datei(schleife2.item_id, 'lose.mov', 500);
-    t.seite([await t.meldung(f.id)]);
+    const video = t.sp.datei(schleife2.item_id, 'lose.mov', 500);
+    const bild = t.sp.datei(schleife2.item_id, 'foto.jpg', 300);
+    t.seite([await t.meldung(video.id), await t.meldung(bild.id)]);
     await t.a.lauf();
 
-    const c = t.supabase.db.ablage_ordner.find((o) => o.art === 'variante' && o.parent_item_id === schleife2.item_id);
-    expect(c).toMatchObject({ name: 'C', variante: 'C', version_number: 2 });
-    expect(t.sp.items.get(f.id).parent).toBe(c.item_id);
-    const row = t.supabase.db.kooperation_video_asset.find((x) => x.item_id === f.id);
-    expect(row).toMatchObject({ variant_name: 'C', version_number: 2, file_path: `${c.pfad}/lose.mov` });
+    expect(t.supabase.db.ablage_ordner.some((o) => o.art === 'variante')).toBe(false);
+    expect(t.sp.items.get(video.id).parent).toBe(schleife2.item_id);
+    expect(t.sp.items.get(bild.id).parent).toBe(schleife2.item_id);
+    const row = t.supabase.db.kooperation_video_asset.find((x) => x.item_id === video.id);
+    expect(row).toMatchObject({ variant_name: null, version_number: 2, titel: 'lose', file_path: `${schleife2.pfad}/lose.mov` });
+    expect(t.supabase.db.kooperation_video_asset.some((x) => x.item_id === bild.id)).toBe(false);
+    const still = t.supabase.db.kooperation_bilder_asset.find((x) => x.item_id === bild.id);
+    expect(still).toMatchObject({ video_id: V1, kooperation_id: K1, version_number: 2, variant_name: null, is_final: false, titel: 'foto' });
   });
 
   it('Finale Version: 9:16 wandert nach 9-16, 16:9 landet in Nicht zugeordnet', async () => {

@@ -196,9 +196,9 @@ export function uploadRowHtml(up) {
 }
 
 function uploadZoneHtml(folder) {
-  const accept = folder.kind === 'raw' ? 'video/*,.zip' : 'video/*';
-  // Ein Upload ersetzt nichts und startet keine neue Schleife: er legt eine weitere
-  // Variante in genau diesem Ordner ab. Das sagt der Text.
+  const accept = folder.kind === 'raw' ? 'video/*,.zip' : 'video/*,image/*';
+  // Ein Upload ersetzt nichts und startet keine neue Schleife: er legt weitere Dateien
+  // (Videos und Bilder) flach in genau diesem Ordner ab. Das sagt der Text.
   let hint = 'Rohmaterial hierher ziehen';
   if (folder.kind === 'final') {
     hint = folder.items.length
@@ -206,7 +206,7 @@ function uploadZoneHtml(folder) {
       : 'Finale Dateien hierher ziehen';
   } else if (folder.kind !== 'raw') {
     hint = folder.items.length
-      ? `Weitere Variante zu ${folder.name} hierher ziehen`
+      ? `Weitere Dateien für ${folder.name} hierher ziehen`
       : `Dateien für ${folder.name} hierher ziehen`;
   }
   return `

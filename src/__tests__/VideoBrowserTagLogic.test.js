@@ -42,6 +42,18 @@ describe('variantKeyOf', () => {
   it('tagHint nennt die Variante', () => {
     expect(tagHint(video('a1', 'A'))).toBe('Gilt für alle Versionen von Video A');
   });
+
+  it('Dateien ohne Variantenbuchstaben tragen ihre Tags an der Datei selbst', () => {
+    const lose = { id: 'x1', type: 'video', asset: { id: 'x1', variant_name: null } };
+    const bild = { id: 'x2', type: 'still', asset: { id: 'x2', variant_name: null } };
+    expect(variantKeyOf(lose, row)).toBe('dateix1');
+    expect(variantKeyOf(bild, row)).toBe('dateix2');
+    expect(tagHint(lose)).toBe('Gilt für diese Datei');
+    // Finale erbt den Schlüssel der Quelldatei
+    const r = { folders: [{ kind: 'schleife', items: [lose] }] };
+    const fin = { id: 'f9', type: 'video', isFinal: true, asset: { variant_name: '9:16', source_asset_id: 'x1' } };
+    expect(variantKeyOf(fin, r)).toBe('dateix1');
+  });
 });
 
 describe('attachTags', () => {

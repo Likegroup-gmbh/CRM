@@ -6,14 +6,13 @@
 // Entscheidungen fuer Dateien:
 //   ignorieren | warten | unzugeordnet | entfernen
 //   asset    { typ, ziel, umziehen }  Asset-Zeile anlegen/aktualisieren
-//   variante { typ, ziel }            lose Datei in einer Video-Schleife: Varianten-Ordner + verschieben
 //   format   { typ, ziel, format }    Finale Version: Formatordner nach Pixelmass + verschieben
 //   zurueck  { typ, ziel }            Fachdatei an einen Nicht-Fach-Ort verschoben: zurueck an ihren Platz
 // Fuer Ordner:
 //   ignorieren | warten | ordner_geloescht | wiederherstellen | frei { besitz } | frei_aktualisieren { besitz }
 //   fach { art, soll, ... } | zurueck_verschieben | zurueck_benennen | variante_umbenennen { variante }
 
-const { MUSTER, FINALE_ORDNER, NAMEN, nummer, formatOrdner, formatAusOrdner, formatAusMass, systemdatei } = require('./pfad');
+const { MUSTER, FINALE_ORDNER, NAMEN, nummer, formatOrdner, formatAusOrdner, formatAusMass, systemdatei, dateiTyp } = require('./pfad');
 
 const UPLOAD_WARTEN_MS = 10 * 60 * 1000;
 // Maße liefert Graph oft erst nach der Medienanalyse: kurz takten, Fenster bleibt 10 min
@@ -31,17 +30,6 @@ function besitzVon(eltern) {
   if (!eltern) return out;
   for (const k of BESITZ) if (eltern[k] != null) out[k] = eltern[k];
   return out;
-}
-
-/** Naechster freier Variantenbuchstabe (A-Z, dann A2, B2, ...), ohne Gross/Klein. */
-function naechsteVariante(belegt) {
-  const b = new Set([...(belegt || [])].filter(Boolean).map((s) => String(s).trim().toUpperCase()));
-  for (let runde = 1; ; runde++) {
-    for (let i = 0; i < 26; i++) {
-      const name = String.fromCharCode(65 + i) + (runde > 1 ? runde : '');
-      if (!b.has(name)) return name;
-    }
-  }
 }
 
 /** ablage_upload.kontext -> Ziel (gleiches Format wie aus dem Register). */
@@ -178,13 +166,18 @@ function dateiEinordnen({ item, eltern, elternIstWurzel = false, elternOffen = f
     case 'asset':
       return alsAsset(ort.typ, ort.ziel, asset);
 
-    case 'lose':
-      // CRM-Uploads ohne Variante liegen direkt in der Schleife; nur neue Finder-Dateien wandern
-      if (asset?.typ === 'video') return alsAsset('video', ort.ziel, asset);
-      return { aktion: 'variante', typ: 'video', ziel: ort.ziel, umziehen: !!asset };
+    case 'lose': {
+      // Alles liegt flach in der Schleife, der Typ kommt aus der Dateiendung (Video oder Bild).
+      // Kein Varianten-Ordner: Bestehende Zeilen behalten eine alte Variante, neue haben keine.
+      const typ = dateiTyp(item.name) || (asset && (asset.typ === 'video' || asset.typ === 'still') ? asset.typ : null);
+      if (!typ) return asset ? zurueck(asset) : { aktion: 'unzugeordnet', grund: 'dateityp' };
+      return alsAsset(typ, ort.ziel, asset);
+    }
 
     case 'finale_video': {
       if (asset?.typ === 'video' && asset.row.is_final) return alsAsset('video', ort.ziel, asset);
+      // Bilder in der Finalen Version: direkt als finales Bild, kein Formatordner
+      if (dateiTyp(item.name) === 'still') return alsAsset('still', ort.ziel, asset);
       const format = formatAusMass(item.breite, item.hoehe);
       if (format) {
         return { aktion: 'format', typ: 'video', format, ziel: { ...ort.ziel, variant_name: format }, umziehen: !!asset && asset.typ !== 'video' };
@@ -284,7 +277,6 @@ module.exports = {
   ortVon,
   besitzVon,
   BESITZ,
-  naechsteVariante,
   zielAusKontext,
   zielAusZeile,
   UPLOAD_WARTEN_MS,

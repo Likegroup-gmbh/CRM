@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const service = {
   getActiveJobsForVideo: vi.fn(() => []),
   enqueueVideoJob: vi.fn(() => 'job1'),
+  enqueueStillJob: vi.fn(() => 'job-still'),
   enqueueRohmaterialJob: vi.fn(() => 'job-roh'),
   getJob: vi.fn(() => ({ items: [{ id: 'i1' }, { id: 'i2' }, { id: 'i3' }] }))
 };
@@ -39,6 +40,7 @@ describe('VideoBrowserUpload: Finale Version', () => {
 
   beforeEach(() => {
     service.enqueueVideoJob.mockClear();
+    service.enqueueStillJob.mockClear();
     service.getActiveJobsForVideo.mockReturnValue([]);
     toast = vi.fn();
     onAdded = vi.fn();
@@ -83,11 +85,30 @@ describe('VideoBrowserUpload: Finale Version', () => {
     uploader.destroy();
   });
 
-  it('Feedbackschleife bleibt unverändert: Variantenbuchstaben, keine Finale', async () => {
+  it('Feedbackschleife: flach, ohne Variantenbuchstaben, keine Finale', async () => {
     const schleife = { id: 's1', kind: 'schleife', number: 1, items: [] };
     await uploader.start({ koop, row, folder: schleife, files: [file('hoch.mp4')] });
     const payload = service.enqueueVideoJob.mock.calls[0][0];
-    expect(payload.queue).toEqual([expect.objectContaining({ variantName: 'A', versionNumber: 1, isFinal: false })]);
+    expect(payload.queue).toEqual([expect.objectContaining({ variantName: null, versionNumber: 1, isFinal: false })]);
+    expect(service.enqueueStillJob).not.toHaveBeenCalled();
+    uploader.destroy();
+  });
+
+  it('Feedbackschleife: Bilder gehen als Bild-Job hoch, nicht als Video', async () => {
+    const schleife = { id: 's1', kind: 'schleife', number: 2, items: [] };
+    await uploader.start({ koop, row, folder: schleife, files: [file('foto.jpg'), file('hoch.mp4'), file('notiz.pdf')] });
+    expect(service.enqueueVideoJob.mock.calls[0][0].queue.map(q => q.file.name)).toEqual(['hoch.mp4']);
+    const still = service.enqueueStillJob.mock.calls[0][0];
+    expect(still.videoId).toBe('v1');
+    expect(still.queue).toEqual([{ file: expect.objectContaining({ name: 'foto.jpg' }), versionNumber: 2, isFinal: false }]);
+    expect(toast).toHaveBeenCalledWith('warning', expect.stringContaining('nur Videos und Bilder'));
+    uploader.destroy();
+  });
+
+  it('Finale Version: Bild ohne Formatprüfung als finales Bild', async () => {
+    await uploader.start({ koop, row, folder: finalFolder, files: [file('foto.png')] });
+    expect(service.enqueueVideoJob).not.toHaveBeenCalled();
+    expect(service.enqueueStillJob.mock.calls[0][0].queue).toEqual([{ file: expect.objectContaining({ name: 'foto.png' }), versionNumber: 1, isFinal: true }]);
     uploader.destroy();
   });
 });

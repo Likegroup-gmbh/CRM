@@ -1,12 +1,15 @@
 // _shared/ablage/abgleich-datei.js
 // Abgleich: eine Datei aus dem Eingang einordnen und ausfuehren (Asset schreiben, in
-// Varianten-/Format-Ordner verschieben, Umzug anhaengen, Fachdatei zurueck). `c` ist der
+// Format-Ordner verschieben, Umzug anhaengen, Fachdatei zurueck). `c` ist der
 // Kontext aus createAbgleich.
 
 const { TABELLE, TYPEN, dateiSpalten, fachSpalten, findeUeberall, upsert, entfernenNachItem, umstellen } = require('./asset');
-const { dateiEinordnen, naechsteVariante } = require('./klassifizierung');
+const { dateiEinordnen } = require('./klassifizierung');
 
 const DATEI_FELDER = 'id,name,size,eTag,cTag,webUrl,parentReference,file,folder,video,image,deleted,createdDateTime';
+
+/** Anzeigetitel aus dem Dateinamen (ohne Endung, gekürzt). */
+const titelAusDateiname = (name) => String(name || '').replace(/\.[a-z0-9]{2,5}$/i, '').trim().slice(0, 120) || null;
 
 const escLike = (s) => s.replace(/[%_\\]/g, '\\$&');
 
@@ -74,14 +77,6 @@ function createDateiAbgleich(c) {
       case 'asset':
         return assetSchreiben(d, { e, item, pfad, asset });
 
-      case 'variante': {
-        const name = naechsteVariante(await variantenBelegt(eltern.kooperation_video_id));
-        const v = await ordner.varianteOrdner(eltern, name);
-        const neu = await sp.verschieben(item.id, v.item_id, { conflict: 'rename' });
-        const it = { ...item, ...neu };
-        return assetSchreiben({ ...d, ziel: { ...d.ziel, variant_name: v.variante || name } }, { e, item: it, pfad: `${v.pfad}/${it.name}`, asset });
-      }
-
       case 'format': {
         const f = await ordner.formatOrdner(eltern, d.format);
         const neu = await sp.verschieben(item.id, f.item_id, { conflict: 'rename' });
@@ -109,9 +104,14 @@ function createDateiAbgleich(c) {
   async function assetSchreiben(d, { e, item, pfad, asset }) {
     const ctx = await kontext(d.typ, d.ziel);
     if (d.umziehen && asset && asset.typ !== d.typ) await entfernenNachItem(supabase, asset.typ, driveId, item.id);
+    // Neue Video-/Bild-Zeile aus dem Finder: der Dateiname (ohne Endung) wird der Titel, damit
+    // niemand "Video C" lesen muss. Bestehende Zeilen behalten ihren (evtl. umbenannten) Titel.
+    const neueZeile = !asset || asset.typ !== d.typ;
+    const titel = neueZeile && (d.typ === 'video' || d.typ === 'still') ? titelAusDateiname(item.name) : null;
     const werte = {
       ...dateiSpalten(item, { driveId, pfad: pfad ?? asset?.row?.file_path ?? null }),
       ...fachSpalten(d.typ, ctx),
+      ...(titel ? { titel } : {}),
     };
     const { row, neu } = await upsert(supabase, d.typ, werte, { uploadedBy: await benutzerZu(e.geaendert_von), jetzt: iso() });
     return { aktion: d.aktion, typ: d.typ, asset_id: row.id, neu, pfad, ...(d.quelle ? { quelle: d.quelle } : {}) };
@@ -168,18 +168,6 @@ function createDateiAbgleich(c) {
     const parallel = await finden();
     if (parallel) return parallel;
     throw error;
-  }
-
-  async function variantenBelegt(videoId) {
-    const [assets, reg] = await Promise.all([
-      supabase.from('kooperation_video_asset').select('variant_name').eq('video_id', videoId).eq('is_final', false),
-      supabase.from('ablage_ordner').select('variante, name').eq('drive_id', driveId).eq('art', 'variante')
-        .eq('typ', 'videos').eq('kooperation_video_id', videoId).is('geloescht_at', null),
-    ]);
-    return [
-      ...(assets.data || []).map((a) => a.variant_name),
-      ...(reg.data || []).map((o) => o.variante || o.name),
-    ];
   }
 
   async function allesEntfernen(itemId) {

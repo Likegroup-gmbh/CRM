@@ -110,28 +110,10 @@ export function buildTree(raw, { team }) {
   return { kooperationen };
 }
 
-/** Die nächsten `count` freien Variantenbuchstaben (A, B, C, ...) über alle Feedbackschleifen des Videos. */
-export function nextVariantLetters(row, count = 1) {
-  const used = new Set();
-  for (const folder of row?.folders || []) {
-    if (folder.kind !== 'schleife') continue;
-    for (const item of folder.items) {
-      if (item.type !== 'video') continue;
-      const name = String(item.asset?.variant_name || '').trim().toUpperCase();
-      if (name) used.add(name);
-    }
-  }
-  const out = [];
-  for (let i = 0; out.length < count; i++) {
-    const letter = i < 26 ? String.fromCharCode(65 + i) : `V${i + 1}`;
-    if (!used.has(letter)) out.push(letter);
-  }
-  return out;
-}
-
 /**
  * Verlauf einer Variante: dieselbe Variante über die Feedbackschleifen plus ihre
  * Finale Version (Verweis über source_asset_id). Nur sinnvoll bei mehr als einem Eintrag.
+ * Nur für ältere Dateien mit Variantenbuchstaben; neue Dateien haben keine Variante.
  */
 export function verlaufFor(row, item) {
   if (!row || !item || (item.type !== 'video' && item.type !== 'story')) return [];

@@ -287,7 +287,7 @@ Vom Creator wieder lösbar. Nicht der Besitz und nicht der Tag einer Kooperation
 _Avoid_: Besitz, Kooperation-Tag, Nische, Branche
 
 **Video-Tag**:
-Ein frei benanntes Merkmal an einer Variante im Video-Tab (Hook, Plattform, Stil …), aus einem Katalog, optional auf eine Kampagne begrenzt. Mehrfach. Finale Versionen erben die Tags ihrer Variante. Nicht der Creator-Tag und nicht der Tag einer Kooperation.
+Ein frei benanntes Merkmal an einer Datei im Video-Tab (Hook, Plattform, Stil …), aus einem Katalog, optional auf eine Kampagne begrenzt. Mehrfach. Neue Dateien in einer Feedbackschleife haben keine Variante (kein A/B/C), das Tag hängt an der Datei (`variant_key` = `datei<Asset-ID>`); ältere Dateien mit Variantenbuchstaben behalten ihren Schlüssel. Finale Versionen erben die Tags ihrer Quelldatei. Nicht der Creator-Tag und nicht der Tag einer Kooperation.
 _Avoid_: Label, Kategorie, Creator-Tag
 
 **Casting-Vorschlag**:
@@ -514,6 +514,7 @@ _Avoid_: Version (das ist die Feedbackschleife), Videoversion
 **Feedbackschleife**:
 Eine Überarbeitungsrunde desselben Kooperationsvideos (`version_number`, max 3).
 Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
+Alle Dateien (Videos und Bilder) liegen flach im Ordner, ohne Varianten-Ordner (A/B/C). Der Typ kommt aus der Dateiendung, auch bei Ablage im Finder bzw. SharePoint. Der Name ist der Dateiname (Titel).
 _Avoid_: Version (alleinstehend), Revision
 
 **Story**:
@@ -531,7 +532,7 @@ Liegt neben der Feedbackschleife, nicht in ihr. Entsteht auf zwei Wegen, beide n
 _Avoid_: Final, Master, Export
 
 **Dateititel**:
-Anzeigename einer Datei im Videos-Tab (Spalte `titel`). Beim Upload eines Videos der Name der hochgeladenen Datei ohne Endung, danach vom Team im Detailkopf inline änderbar. Ohne Titel gilt der abgeleitete Name (Video A, Bild 1, Story 1, Finale Version 9:16, Dateiname beim Rohmaterial). Ändert weder Dropbox-Pfad noch Download-Namen noch die Variante.
+Anzeigename einer Datei im Videos-Tab (Spalte `titel`). Beim Upload eines Videos oder Bildes (CRM oder Finder) der Name der hochgeladenen Datei ohne Endung, danach vom Team im Detailkopf inline änderbar. Ohne Titel gilt der abgeleitete Name (Video A, Bild 1, Story 1, Finale Version 9:16, Dateiname beim Rohmaterial). Ändert weder Dropbox-Pfad noch Download-Namen noch die Variante.
 _Avoid_: Dateiname (das ist `file_name`), Variante, Video-Name (das ist `video_name` am Kooperationsvideo)
 
 **Seitenverhältnis**:

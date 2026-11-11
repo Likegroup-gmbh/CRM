@@ -11,7 +11,6 @@ import {
   fitFrame,
   markerNah,
   markerProzent,
-  nextVariantLetters,
   selectLevel,
   selectionDepth,
   selectionFromSearch,
@@ -339,11 +338,6 @@ describe('Baum', () => {
 describe('Varianten und Verlauf', () => {
   const tree = buildTree(raw(), { team: true });
   const v1 = tree.kooperationen[0].rows[0];
-
-  it('vergibt den nächsten freien Buchstaben über alle Schleifen', () => {
-    expect(nextVariantLetters(v1, 1)).toEqual(['B']);
-    expect(nextVariantLetters({ folders: [] }, 2)).toEqual(['A', 'B']);
-  });
 
   it('Verlauf: dieselbe Variante über die Schleifen, aktueller Eintrag markiert', () => {
     const item = v1.folders.find(f => f.id === 's2').items[0];

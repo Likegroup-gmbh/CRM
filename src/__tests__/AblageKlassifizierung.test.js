@@ -40,10 +40,31 @@ describe('dateiEinordnen: Fachordner bestimmen die Bedeutung', () => {
     });
   });
 
-  it('lose Datei in einer Video-Schleife -> Varianten-Ordner anlegen und verschieben', () => {
+  it('lose Video in einer Video-Schleife -> Video-Asset ohne Variante, bleibt liegen', () => {
     const d = datei(R.schleife);
-    expect(d.aktion).toBe('variante');
-    expect(d.ziel).toMatchObject({ kooperation_video_id: V, version_number: 2, is_final: false });
+    expect(d).toMatchObject({ aktion: 'asset', typ: 'video', umziehen: false });
+    expect(d.ziel).toMatchObject({ kooperation_video_id: V, version_number: 2, is_final: false, variant_name: null });
+  });
+
+  it('loses Bild in einer Video-Schleife -> Bild-Asset, nicht Video', () => {
+    for (const name of ['foto.jpg', 'Foto.PNG', 'x.heic']) {
+      const d = datei(R.schleife, { item: { name } });
+      expect(d).toMatchObject({ aktion: 'asset', typ: 'still', ziel: { kooperation_video_id: V, version_number: 2, is_final: false, variant_name: null } });
+    }
+  });
+
+  it('falsch als Video angelegtes Bild wird auf Bild umgestellt', () => {
+    const d = datei(R.schleife, { item: { name: 'foto.jpg' }, asset: videoAsset({ variant_name: 'C', version_number: 2 }) });
+    expect(d).toMatchObject({ aktion: 'asset', typ: 'still', umziehen: true });
+  });
+
+  it('unbekannte Endung in der Video-Schleife -> Nicht zugeordnet', () => {
+    expect(datei(R.schleife, { item: { name: 'notiz.pdf' } })).toMatchObject({ aktion: 'unzugeordnet', grund: 'dateityp' });
+  });
+
+  it('Bild in Finale_Version -> finales Bild ohne Formatordner', () => {
+    const d = datei(R.finale, { item: { name: 'foto.jpg', breite: 1080, hoehe: 1350 } });
+    expect(d).toMatchObject({ aktion: 'asset', typ: 'still', ziel: { is_final: true, version_number: 1 } });
   });
 
   it('CRM-Upload ohne Variante direkt in der Schleife bleibt liegen (keine Verschiebung)', () => {
@@ -245,14 +266,5 @@ describe('ordnerEinordnen', () => {
 
   it('Wurzel selbst', () => {
     expect(ord({ istWurzel: true })).toEqual({ aktion: 'ignorieren', grund: 'wurzel' });
-  });
-});
-
-describe('naechsteVariante', () => {
-  it('naechster freier Buchstabe, ohne Gross/Klein, danach A2', () => {
-    expect(k.naechsteVariante([])).toBe('A');
-    expect(k.naechsteVariante(['a', 'B', null, 'Hook'])).toBe('C');
-    const alle = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
-    expect(k.naechsteVariante(alle)).toBe('A2');
   });
 });

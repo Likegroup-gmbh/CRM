@@ -1,7 +1,7 @@
 // videoBrowserTagLogic.js
-// Reine Logik der Tags im Videos-Tab: Tags gehören zur Variante (Video A, Story 2, Bild 3),
-// nicht zur einzelnen Version. Sie gelten damit in jeder Feedbackschleife und in der Finalen
-// Version (Verweis über source_asset_id). Kein DOM, kein Supabase.
+// Reine Logik der Tags im Videos-Tab: Tags gehören zur Datei (neu) bzw. zur Variante (ältere
+// Dateien mit Buchstaben, Story 2). Finale Versionen erben den Schlüssel ihrer Quelldatei
+// (Verweis über source_asset_id). Kein DOM, kein Supabase.
 
 import { FORMATE } from './videoBrowserFormat.js';
 
@@ -14,12 +14,15 @@ export const TAG_LABEL_MAX = 40;
 function ownKey(item) {
   const asset = item.asset || {};
   const variant = String(asset.variant_name || '').trim();
-  if (item.type === 'video') return variant ? `video${variant}` : null;
+  // Dateien ohne Variantenbuchstaben (alles Neue) tragen ihre Tags an der Datei selbst.
+  // Alte Dateien mit Buchstaben behalten ihren Schlüssel, damit vergebene Tags bleiben.
+  const own = !item.isFinal && asset.id ? `datei${asset.id}` : null;
+  if (item.type === 'video') return variant ? `video${variant}` : own;
   if (item.type === 'story') {
     if (!asset.story_id) return null;
     return `story${asset.story_id}${variant && !FORMATE.includes(variant) ? variant : ''}`;
   }
-  if (item.type === 'still') return variant && !item.isFinal ? `still${variant}` : null;
+  if (item.type === 'still') return variant && !item.isFinal ? `still${variant}` : own;
   return null;
 }
 
@@ -46,6 +49,8 @@ export function tagHint(item) {
   const variant = String(item?.asset?.variant_name || '').trim();
   if (item?.type === 'video' && variant && !FORMATE.includes(variant)) return `Gilt für alle Versionen von Video ${variant}`;
   if (item?.type === 'story') return 'Gilt für alle Versionen dieser Story';
+  if (item?.type === 'video' && !variant && !item.isFinal) return 'Gilt für diese Datei';
+  if (item?.type === 'still' && !variant && !item.isFinal) return 'Gilt für diese Datei';
   if (item?.type === 'still') return 'Gilt für alle Versionen dieses Bildes';
   return 'Gilt für alle Versionen dieser Variante';
 }
