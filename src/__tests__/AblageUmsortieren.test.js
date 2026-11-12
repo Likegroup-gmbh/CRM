@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createRequire } from 'module';
-import { createFakeSupabase, createFakeSharePoint, ORDNER_UNIQUE } from './fixtures/fakeSupabase.js';
+import { createFakeSupabase, createFakeSharePoint, ORDNER_UNIQUE, pfadUmschreiben, urlUmschreiben } from './fixtures/fakeSupabase.js';
 
 const require = createRequire(import.meta.url);
 const { createUmsortieren } = require('../../netlify/functions/_shared/ablage/umsortieren.js');
@@ -14,7 +14,12 @@ const KA1 = id(2);
 const U1 = id(3);
 const V1 = id(4);
 const S1 = id(6);
-const BASIS = '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing';
+const K2 = id(7);
+const KA2 = id(8);
+const M1 = id(9);
+const V2 = id(10);
+const BASIS = '/Firma/Medien/Sommer/Lisa/Videos/Video_1_Unboxing';
+const FIRMA = { id: U1, firmenname: 'Firma', ablage_ziel: 'sharepoint', ist_test: false };
 
 function setup() {
   const supabase = createFakeSupabase({
@@ -28,7 +33,13 @@ function setup() {
         id: K1, name: 'Lisa', kampagne_id: KA1, bilder_folder_url: 'https://firma.sharepoint.com/sites/m/Lisa/Bilder',
         kampagne: {
           id: KA1, kampagnenname: 'Auftrag', eigener_name: 'Sommer', unternehmen_id: U1, marke_id: null,
-          unternehmen: { id: U1, firmenname: 'Firma', ablage_ziel: 'sharepoint', ist_test: false }, marke: null,
+          unternehmen: FIRMA, marke: null,
+        },
+      }, {
+        id: K2, name: 'Max', kampagne_id: KA2,
+        kampagne: {
+          id: KA2, kampagnenname: 'Winter', eigener_name: null, unternehmen_id: U1, marke_id: M1,
+          unternehmen: FIRMA, marke: { id: M1, markenname: 'Marke' },
         },
       }],
       kooperation_videos: [{ id: V1, kooperation_id: K1, position: 1, thema: 'Unboxing', story_folder_url: 'https://firma.sharepoint.com/sites/m/Lisa/Storys/Video_1' }],
@@ -39,7 +50,7 @@ function setup() {
       kooperation_rohmaterial_asset: [],
     },
     unique: { ablage_ordner: ORDNER_UNIQUE },
-    rpc: { ablage_pfad_umschreiben: () => 0 },
+    rpc: { ablage_pfad_umschreiben: pfadUmschreiben, ablage_url_umschreiben: urlUmschreiben },
   });
   const sp = createFakeSharePoint();
   const ordner = createOrdner({ supabase, sp, schlafen: async () => {} });
@@ -102,7 +113,8 @@ describe('umsortieren: Trockenlauf', () => {
     const a = await altbestand(t);
     const vorher = t.sp.calls.length;
     const plan = await t.u.planen(U1);
-    expect(plan.zaehler).toEqual({ dateien: 4, videos: 1, storys: 2, bilder: 1, ordner: 7, rest: 1 });
+    // kette legt nur Medien/ an, Verträge/ kommt mit geruest oder dem Lauf
+    expect(plan.zaehler).toEqual({ bereich: { marken: 0, kampagnen: 0, neu: 1, anlegen: ['Verträge'] }, dateien: 4, videos: 1, storys: 2, bilder: 1, ordner: 7, rest: 1 });
     expect(plan.rest).toEqual([{ name: 'notiz.pdf', pfad: `${a.sv.pfad}/notiz.pdf` }]);
     expect(t.sp.calls.length).toBe(vorher);
   });
@@ -110,7 +122,7 @@ describe('umsortieren: Trockenlauf', () => {
   it('nichts Altes: alles null', async () => {
     const t = setup();
     await t.ordner.geruest(K1);
-    expect((await t.u.planen(U1)).zaehler).toEqual({ dateien: 0, videos: 0, storys: 0, bilder: 0, ordner: 0, rest: 0 });
+    expect((await t.u.planen(U1)).zaehler).toEqual({ bereich: { marken: 0, kampagnen: 0, neu: 0, anlegen: [] }, dateien: 0, videos: 0, storys: 0, bilder: 0, ordner: 0, rest: 0 });
   });
 });
 
@@ -148,7 +160,7 @@ describe('umsortieren: Lauf', () => {
     expect(t.sp.links.has('p-alt')).toBe(false);
     expect(t.db.kooperationen[0].bilder_folder_url).toBe(null);
     const videoOrdner = t.db.ablage_ordner.find((o) => o.art === 'video' && o.typ === 'videos');
-    expect(t.db.kooperation_videos[0].story_folder_url).toBe(`https://sp.test/${videoOrdner.item_id}`);
+    expect(t.db.kooperation_videos[0].story_folder_url).toBe(t.sp.url(videoOrdner.item_id));
   });
 
   it('zweiter Lauf hat nichts mehr zu tun', async () => {
@@ -187,6 +199,87 @@ describe('umsortieren: Lauf', () => {
     const t = setup();
     t.db.ablage_einstellung[0].wert = true;
     expect(await t.u.lauf({ unternehmenId: U1 })).toEqual({ pausiert: true });
+  });
+});
+
+/** Stand vor ADR 0067: Marke und Kampagne ohne Marke direkt unter Firma/, kein Medien/ und Verträge/. */
+async function vorBereichen(t) {
+  const a = await t.ordner.kette(K1);
+  const b = await t.ordner.kette(K2);
+  for (const row of [a.kampagne, b.marke]) await t.sp.verschieben(row.item_id, a.unternehmen.item_id);
+  await t.sp.loeschen(a.medien.item_id);
+  t.db.ablage_ordner.splice(t.db.ablage_ordner.findIndex((o) => o.id === a.medien.id), 1);
+  for (const o of t.db.ablage_ordner) {
+    if (o.pfad?.startsWith('/Firma/Medien/')) o.pfad = `/Firma/${o.pfad.slice('/Firma/Medien/'.length)}`;
+    if (o.parent_item_id === a.medien.item_id) o.parent_item_id = a.unternehmen.item_id;
+  }
+  const reg = (row) => t.db.ablage_ordner.find((o) => o.id === row.id);
+  const max = reg(b.kooperation);
+  const f = datei(t, max, 'clip.mov', 'kooperation_video_asset', { id: 'vm', video_id: V2, version_number: 1, is_final: false });
+  t.db.kooperation_video_asset.find((x) => x.id === 'vm').file_url = t.sp.url(f.id);
+  t.db.kooperation_videos.push({ id: V2, kooperation_id: K2, position: 1, thema: 'Haul', folder_url: t.sp.url(max.item_id) });
+  return { unternehmen: a.unternehmen, kampagne: reg(a.kampagne), marke: reg(b.marke), max, f };
+}
+
+describe('umsortieren: Bereiche', () => {
+  it('Trockenlauf zaehlt Marken und Kampagnen direkt unter dem Unternehmen, bewegt nichts', async () => {
+    const t = setup();
+    await vorBereichen(t);
+    const vorher = t.sp.calls.length;
+    expect((await t.u.planen(U1)).zaehler.bereich).toEqual({ marken: 1, kampagnen: 1, neu: 2, anlegen: ['Medien', 'Verträge'] });
+    expect(t.sp.calls.length).toBe(vorher);
+  });
+
+  it('Lauf: Medien/ und Verträge/ anlegen, Marke und Kampagne ohne Marke nach Medien/, Pfade und Links ziehen mit', async () => {
+    const t = setup();
+    const a = await vorBereichen(t);
+    const r = await t.u.lauf({ unternehmenId: U1 });
+    expect(r.bereich).toEqual({ verschoben: 2, fehler: [] });
+
+    const bereiche = t.db.ablage_ordner.filter((o) => o.art === 'bereich');
+    expect(bereiche.map((o) => [o.bereich, o.pfad, o.parent_item_id]).sort()).toEqual([
+      ['medien', '/Firma/Medien', a.unternehmen.item_id],
+      ['vertraege', '/Firma/Verträge', a.unternehmen.item_id],
+    ]);
+    const medien = bereiche.find((o) => o.bereich === 'medien');
+    for (const [row, pfad] of [[a.kampagne, '/Firma/Medien/Sommer'], [a.marke, '/Firma/Medien/Marke']]) {
+      expect(t.db.ablage_ordner.find((o) => o.id === row.id)).toMatchObject({ parent_item_id: medien.item_id, pfad });
+      expect(t.sp.items.get(row.item_id).parent).toBe(medien.item_id);
+    }
+
+    const ziel = '/Firma/Medien/Marke/Winter/Max';
+    expect(t.db.ablage_ordner.find((o) => o.id === a.max.id).pfad).toBe(ziel);
+    expect(t.db.kooperation_video_asset.find((x) => x.id === 'vm')).toMatchObject({
+      item_id: a.f.id, file_path: `${ziel}/clip.mov`, file_url: t.sp.url(a.f.id),
+    });
+    expect(t.sp.url(a.f.id)).toBe('https://sp.test/Firma/Medien/Marke/Winter/Max/clip.mov');
+    expect(t.db.ablage_eingang.find((e) => e.item_id === a.f.id).pfad).toBe(`${ziel}/clip.mov`);
+    expect(t.db.kooperation_videos.find((v) => v.id === V2).folder_url).toBe(t.sp.url(a.max.item_id));
+  });
+
+  it('zweiter Lauf verschiebt nichts mehr', async () => {
+    const t = setup();
+    await vorBereichen(t);
+    await t.u.lauf({ unternehmenId: U1 });
+    const vorher = t.sp.calls.filter(([op]) => op === 'verschieben' || op === 'ordnerAnlegen').length;
+    const r = await t.u.lauf({ unternehmenId: U1 });
+    expect(r.bereich).toEqual({ verschoben: 0, fehler: [] });
+    expect(t.sp.calls.filter(([op]) => op === 'verschieben' || op === 'ordnerAnlegen').length).toBe(vorher);
+    expect((await t.u.planen(U1)).zaehler.bereich).toEqual({ marken: 0, kampagnen: 0, neu: 0, anlegen: [] });
+  });
+
+  it('Verschieben scheitert: Fehler gesammelt, Register bleibt am alten Platz, Rest laeuft weiter', async () => {
+    const t = setup();
+    const a = await vorBereichen(t);
+    const orig = t.sp.verschieben.bind(t.sp);
+    t.sp.verschieben = async (itemId, ...rest) => {
+      if (itemId === a.marke.item_id) { const e = new Error('gesperrt'); e.status = 423; throw e; }
+      return orig(itemId, ...rest);
+    };
+    const r = await t.u.lauf({ unternehmenId: U1 });
+    expect(r.bereich).toEqual({ verschoben: 1, fehler: ['/Firma/Marke: gesperrt'] });
+    expect(t.db.ablage_ordner.find((o) => o.id === a.marke.id)).toMatchObject({ parent_item_id: a.unternehmen.item_id, pfad: '/Firma/Marke' });
+    expect(t.db.kooperation_video_asset.find((x) => x.id === 'vm').file_path).toBe('/Firma/Marke/Winter/Max/clip.mov');
   });
 });
 

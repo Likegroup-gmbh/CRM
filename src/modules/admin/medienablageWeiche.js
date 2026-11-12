@@ -1,7 +1,7 @@
 // medienablageWeiche.js
 // Weiche der Medienablage-Seite (`page` = MedienablagePage): Ziel neuer Uploads je
-// Unternehmen, Bestandsumzug Dropbox -> SharePoint, Umsortieren in die Feedbackschleifen
-// (ADR 0065) und die Suche in der Liste.
+// Unternehmen, Bestandsumzug Dropbox -> SharePoint, Umsortieren in Medien/ (ADR 0067) und
+// die Feedbackschleifen (ADR 0065) und die Suche in der Liste.
 
 import { escapeHtml } from '../../core/format.js';
 import { ZIEL_LABEL, zahl, bestaetigen, postStand, setBusy } from './medienablageFormat.js';
@@ -101,7 +101,7 @@ function bestandHtml(u, ziel, umzug) {
         <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm" data-ma-umzug="${escapeHtml(u.id)}"
                 ${nichtsDa ? 'disabled title="Keine Dateien mehr in Dropbox"' : ''}>Bestand umziehen</button>
         <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm" data-ma-umsortieren="${escapeHtml(u.id)}"
-                ${keinSharePoint ? 'disabled title="Keine Dateien in SharePoint"' : 'title="Storys/, Bilder/ und Varianten-Ordner in die Feedbackschleifen verschieben"'}>Umsortieren</button>
+                ${keinSharePoint ? 'disabled title="Keine Dateien in SharePoint"' : 'title="In Daten/Firma/Medien und Feedbackschleifen verschieben"'}>Umsortieren</button>
         ${stand}
       </div>
     `;
@@ -184,16 +184,26 @@ export async function umsortierenStarten(page, button) {
   }
 
   const z = plan?.zaehler || {};
-  if (!z.dateien && !z.ordner) {
-    page.toast(`${name}: alles liegt schon in den Feedbackschleifen.`, 'success');
+  const b = z.bereich || {};
+  const ziehen = (b.marken || 0) + (b.kampagnen || 0);
+  const anlegen = b.anlegen || [];
+  if (!ziehen && !anlegen.length && !z.dateien && !z.ordner) {
+    page.toast(`${name}: alles liegt schon in Medien/ und den Feedbackschleifen.`, 'success');
     return;
   }
+  const bereichText = [
+    anlegen.length ? `${anlegen.map(n => `${n}/`).join(' und ')} ${anlegen.length > 1 ? 'werden' : 'wird'} angelegt.` : '',
+    ziehen ? `${zahl(b.marken || 0)} Marken und ${zahl(b.kampagnen || 0)} Kampagnen ziehen nach Daten/${name}/Medien.` : '',
+  ].filter(Boolean).map(s => `${s} `).join('');
+  const schleifenText = z.dateien || z.ordner
+    ? `${zahl(z.dateien)} Dateien (${zahl(z.videos)} Videos, ${zahl(z.storys)} Storys, ${zahl(z.bilder)} Bilder) ziehen in die Feedbackschleifen unter Videos/. Danach werden ${zahl(z.ordner)} alte Ordner (Storys/, Bilder/, Varianten) gelöscht, sobald sie leer sind.`
+    : '';
   const restText = z.rest
     ? ` ${zahl(z.rest)} Dateien ohne CRM-Eintrag bleiben liegen, ihre Ordner auch (z. B. ${(plan.rest || []).slice(0, 3).map(r => r.name).join(', ')}).`
     : '';
   const ok = await bestaetigen({
     title: 'Ablage umsortieren',
-    message: `„${name}“: ${zahl(z.dateien)} Dateien (${zahl(z.videos)} Videos, ${zahl(z.storys)} Storys, ${zahl(z.bilder)} Bilder) ziehen in die Feedbackschleifen unter Videos/. Danach werden ${zahl(z.ordner)} alte Ordner (Storys/, Bilder/, Varianten) gelöscht, sobald sie leer sind.${restText}`,
+    message: `„${name}“: ${bereichText}${schleifenText}${restText}`.trim(),
     confirmText: 'Umsortieren',
   });
   if (!ok) return;

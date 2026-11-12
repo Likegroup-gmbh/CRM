@@ -5,6 +5,12 @@
 
 const TEST_ORDNER = '_Test';
 
+// Bereiche unter dem Unternehmen (ADR 0067): Medien traegt Marke/Kampagne/Kooperation
+const BEREICH_ORDNER = {
+  medien: 'Medien',
+  vertraege: 'Verträge',
+};
+
 // Videos, Bilder und Stories liegen gemeinsam unter Videos/Video_N (ADR 0065)
 const TYP_ORDNER = {
   videos: 'Videos',
@@ -73,6 +79,7 @@ function kampagnenName(k) {
 
 const NAMEN = {
   unternehmen: (u) => bereinigen(u?.firmenname) || 'Unternehmen',
+  bereich: (b) => BEREICH_ORDNER[b],
   marke: (m) => bereinigen(m?.markenname) || 'Marke',
   kampagne: (k) => bereinigen(kampagnenName(k)) || 'Kampagne',
   kooperation: (koop) => bereinigen(koop?.name) || 'Kooperation',
@@ -121,6 +128,12 @@ function typAusOrdner(name) {
   return Object.keys(TYP_ORDNER).find((t) => TYP_ORDNER[t].toLowerCase() === n) || null;
 }
 
+// Der Finder liefert Umlaute zerlegt (NFD)
+function bereichAusOrdner(name) {
+  const n = String(name || '').normalize('NFC').trim().toLowerCase();
+  return Object.keys(BEREICH_ORDNER).find((b) => BEREICH_ORDNER[b].toLowerCase() === n) || null;
+}
+
 function nummer(muster, name) {
   const m = MUSTER[muster].exec(String(name || '').trim());
   return m ? Number(m[1]) : null;
@@ -151,6 +164,7 @@ function pfadZuLang(sitePfad, relativ) {
 
 module.exports = {
   TEST_ORDNER,
+  BEREICH_ORDNER,
   TYP_ORDNER,
   ALTE_TYP_ORDNER,
   FINALE_ORDNER,
@@ -169,6 +183,7 @@ module.exports = {
   formatAusOrdner,
   formatAusMass,
   typAusOrdner,
+  bereichAusOrdner,
   nummer,
   systemdatei,
   dateiTyp,

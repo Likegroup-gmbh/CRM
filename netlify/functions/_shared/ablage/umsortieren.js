@@ -1,15 +1,18 @@
 // _shared/ablage/umsortieren.js
-// Struktur-Umzug innerhalb von SharePoint (ADR 0065): Bestand aus Storys/, Bilder/ und den
-// Varianten-Ordnern (A/B/C) in die Runden unter Videos/Video_N. Graph-Move: die item_id bleibt,
-// Kommentare, Tags und Promote-Finale haengen weiter an der Datei. Das Ziel kommt aus den
-// Fachspalten der Zeile (zielOrdner), wie bei Upload und Dropbox-Umzug.
+// Struktur-Umzug innerhalb von SharePoint, je Unternehmen in zwei Phasen:
+// 1. Bereiche (ADR 0067): Marken und Kampagnen direkt unter dem Unternehmen ziehen nach Medien/,
+//    Medien/ und Verträge/ werden angelegt. Ein Move je Ordner, alles darunter wandert mit.
+// 2. Feedbackschleifen (ADR 0065): Bestand aus Storys/, Bilder/ und den Varianten-Ordnern (A/B/C)
+//    in die Runden unter Videos/Video_N. Das Ziel kommt aus den Fachspalten der Zeile
+//    (zielOrdner), wie bei Upload und Dropbox-Umzug.
+// Graph-Move: die item_id bleibt, Kommentare, Tags und Promote-Finale haengen weiter an der Datei.
 // Danach die leeren alten Ordner weg, tiefste zuerst: erst Register (geloescht_at), dann
 // SharePoint. Andersherum haelt der Abgleich die Loeschung fuer eine Kaskade auf die Assets.
 // Wiederholbar: jeder Lauf plant neu aus Register und Eingang.
 
 const { TABELLE, aktuellSetzen, umstellen } = require('./asset');
 const { linksWiderrufen } = require('./freigabe');
-const { systemdatei } = require('./pfad');
+const { systemdatei, BEREICH_ORDNER } = require('./pfad');
 const { notschalterAn } = require('./ziel');
 const { istNichtGefunden } = require('./graph');
 const { SEITE, stuecke } = require('./liste');
@@ -17,6 +20,7 @@ const { SEITE, stuecke } = require('./liste');
 const BUDGET_MS = 12 * 60 * 1000;
 const TYPEN = ['video', 'story', 'still'];
 const ALTE_TYPEN = ['storys', 'bilder'];
+const BEREICHE = ['medien', 'vertraege'];
 const LISTE_MAX = 50;
 const SHAREPOINT_URL = /sharepoint\.com/i;
 
@@ -46,6 +50,45 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
     if (error) throw error;
   }
 
+  /** Ordner des Unternehmens, seine Bereiche und die Marken/Kampagnen, die noch direkt darunter liegen. */
+  async function ohneBereich(unternehmenId) {
+    const { data: u, error } = await supabase.from('ablage_ordner').select('*')
+      .eq('drive_id', driveId).eq('art', 'unternehmen').eq('unternehmen_id', unternehmenId)
+      .is('geloescht_at', null).not('item_id', 'is', null).maybeSingle();
+    if (error) throw error;
+    if (!u) return { unternehmen: null, zeilen: [], fehlen: [] };
+    const kinder = () => supabase.from('ablage_ordner').select('*')
+      .eq('drive_id', driveId).eq('parent_item_id', u.item_id).is('geloescht_at', null).not('item_id', 'is', null);
+    const [zeilen, bereiche] = await Promise.all([
+      seiten(() => kinder().in('art', ['marke', 'kampagne'])),
+      seiten(() => kinder().eq('art', 'bereich')),
+    ]);
+    const da = new Set(bereiche.map((b) => b.bereich));
+    return { unternehmen: u, zeilen, fehlen: BEREICHE.filter((b) => !da.has(b)) };
+  }
+
+  /** Phase 1: Bereiche anlegen, Marken und Kampagnen nach Medien/. */
+  async function bereicheEinfuehren(unternehmenId, { bis } = {}) {
+    const { unternehmen, zeilen } = await ohneBereich(unternehmenId);
+    const r = { verschoben: 0, fehler: [] };
+    if (!unternehmen) return r;
+    const medien = await ordner.bereichOrdner(unternehmen, 'medien');
+    await ordner.bereichOrdner(unternehmen, 'vertraege');
+    for (const row of zeilen) {
+      if (bis && jetzt() >= bis) {
+        r.unvollstaendig = true;
+        break;
+      }
+      try {
+        await ordner.umhaengen(row, medien);
+        r.verschoben++;
+      } catch (err) {
+        if (r.fehler.length < LISTE_MAX) r.fehler.push(`${row.pfad || row.item_id}: ${err.message}`);
+      }
+    }
+    return r;
+  }
+
   /** Alte Ordner eines Unternehmens: alles unter Storys/ und Bilder/, Varianten-Ordner unter Videos/. */
   async function alteOrdner(unternehmenId) {
     const basis = () => supabase.from('ablage_ordner').select('*')
@@ -59,6 +102,15 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
 
   /** Trockenlauf: was liegt in alten Ordnern und wird verschoben, was bleibt liegen. */
   async function planen(unternehmenId) {
+    const ohne = await ohneBereich(unternehmenId);
+    // Ohne Unternehmensordner legt der Lauf nichts an (kommt mit dem ersten Upload)
+    const anlegen = ohne.unternehmen ? ohne.fehlen.map((b) => BEREICH_ORDNER[b]) : [];
+    const bereich = {
+      marken: ohne.zeilen.filter((o) => o.art === 'marke').length,
+      kampagnen: ohne.zeilen.filter((o) => o.art === 'kampagne').length,
+      neu: anlegen.length,
+      anlegen,
+    };
     const alt = await alteOrdner(unternehmenId);
     const nachItem = new Map(alt.map((o) => [o.item_id, o]));
 
@@ -90,6 +142,7 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
       assets,
       ordner: alt,
       zaehler: {
+        bereich,
         dateien: assets.length, videos: anzahl('video'), storys: anzahl('story'), bilder: anzahl('still'),
         ordner: alt.length, rest: rest.length,
       },
@@ -202,8 +255,10 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
     if (process.env.ABLAGE_ZIEL === 'dropbox' || await notschalterAn(supabase)) return { pausiert: true };
     await ordner.wurzel();
     const bis = jetzt() + budgetMs;
+    const bereich = await bereicheEinfuehren(unternehmenId, { bis });
+    if (bereich.unvollstaendig) return { bereich, unvollstaendig: true };
     const plan = await planen(unternehmenId);
-    const r = { geplant: plan.zaehler.dateien, verschoben: 0, fehlt: 0, fehler: [] };
+    const r = { bereich, geplant: plan.zaehler.dateien, verschoben: 0, fehlt: 0, fehler: [] };
     const storyLinks = new Map();
     for (const a of plan.assets) {
       if (jetzt() >= bis) {

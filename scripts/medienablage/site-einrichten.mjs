@@ -1,6 +1,7 @@
 // site-einrichten.mjs
-// Richtet eine Medienablage-Site ein: Bibliothek "Videos" (falls fehlt), Versionslimit 5,
-// Berechtigungsstufe "Bearbeiten ohne Löschen". Gibt Site-ID und Drive-ID als KEY=VALUE aus.
+// Richtet eine Medienablage-Site ein: Bibliothek "Daten" (falls fehlt; eine alte Bibliothek
+// "Videos" wird umbenannt, ihre URL /Videos bleibt), Versionslimit 5, Berechtigungsstufe
+// "Bearbeiten ohne Löschen". Gibt Site-ID und Drive-ID als KEY=VALUE aus.
 //
 // Aufruf:
 //   node scripts/medienablage/site-einrichten.mjs --site https://<tenant>.sharepoint.com/sites/Medienablage-Test \
@@ -14,7 +15,9 @@ const { createTokenQuelle, zertifikatLesen, scopeFuerSharePoint, GRAPH_SCOPE } =
 const { createHttp } = require('../../netlify/functions/_shared/ablage/graph.js');
 const { createSpRechte } = require('../../netlify/functions/_shared/ablage/sp-rechte.js');
 
-const BIBLIOTHEK = 'Videos';
+const BIBLIOTHEK = 'Daten';
+// Name vor ADR 0067; dieselbe Bibliothek (gleiche Drive-ID), nur umbenannt
+const BIBLIOTHEK_ALT = 'Videos';
 const VERSIONEN = 5;
 
 async function main() {
@@ -39,12 +42,15 @@ async function main() {
   console.error(`Site: ${s.displayName} (${s.webUrl})`);
 
   const drives = async () => (await graph.get(`/sites/${s.id}/drives?$select=id,name,webUrl`))?.value || [];
-  let drive = (await drives()).find((dr) => dr.name === BIBLIOTHEK);
+  const vorhanden = await drives();
+  let drive = vorhanden.find((dr) => dr.name === BIBLIOTHEK) || vorhanden.find((dr) => dr.name === BIBLIOTHEK_ALT);
   if (!drive) {
     await graph.post(`/sites/${s.id}/lists`, { displayName: BIBLIOTHEK, list: { template: 'documentLibrary' } });
     drive = (await drives()).find((dr) => dr.name === BIBLIOTHEK);
     if (!drive) throw new Error(`Bibliothek ${BIBLIOTHEK} wurde angelegt, Drive aber nicht gefunden`);
     console.error(`Bibliothek ${BIBLIOTHEK} angelegt`);
+  } else if (drive.name === BIBLIOTHEK_ALT) {
+    console.error(`Bibliothek ${BIBLIOTHEK_ALT} vorhanden, wird in ${BIBLIOTHEK} umbenannt (${drive.webUrl} bleibt)`);
   } else {
     console.error(`Bibliothek ${BIBLIOTHEK} vorhanden`);
   }
@@ -59,9 +65,9 @@ async function main() {
       'X-HTTP-Method': 'MERGE',
       'IF-MATCH': '*',
     },
-    rawBody: JSON.stringify({ __metadata: { type: 'SP.List' }, EnableVersioning: true, MajorVersionLimit: VERSIONEN }),
+    rawBody: JSON.stringify({ __metadata: { type: 'SP.List' }, Title: BIBLIOTHEK, EnableVersioning: true, MajorVersionLimit: VERSIONEN }),
   });
-  console.error(`Versionslimit ${VERSIONEN} gesetzt`);
+  console.error(`Titel ${BIBLIOTHEK}, Versionslimit ${VERSIONEN} gesetzt`);
 
   const rechte = createSpRechte({ konfig, tokenQuelle: quelle, siteUrl: site });
   const stufen = await rechte.stufen();

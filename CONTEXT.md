@@ -515,7 +515,7 @@ _Avoid_: Version (das ist die Feedbackschleife), Videoversion
 Eine Überarbeitungsrunde desselben Kooperationsvideos (`version_number`, max 3).
 Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
 Alle Dateien (Videos und Bilder) liegen flach im Ordner, ohne Varianten-Ordner (A/B/C). Der Typ kommt aus der Dateiendung, auch bei Ablage im Finder bzw. SharePoint. Der Name ist der Dateiname (Titel).
-In SharePoint liegt eine Runde als `Videos/Video_N/Feedbackschleife_K` (bzw. `Finale_Version`) und enthält alles, was der Creator in dieser Runde liefert: Videos und Bilder flach, Stories im Unterordner `Story_K` (ADR 0065). Es gibt keine eigenen Ordner `Storys/` oder `Bilder/` mehr. Bekannte Abweichung: die eingefrorene Dropbox-Ablage behält ihre alte Struktur.
+In SharePoint liegt eine Runde als `Daten/<Firma>/Medien/…/<Kooperation>/Videos/Video_N/Feedbackschleife_K` (bzw. `Finale_Version`) und enthält alles, was der Creator in dieser Runde liefert: Videos und Bilder flach, Stories im Unterordner `Story_K` (ADR 0065). Neben `Medien/` liegt je Unternehmen `Verträge/` (ADR 0067). Es gibt keine eigenen Ordner `Storys/` oder `Bilder/` mehr. Bekannte Abweichung: die eingefrorene Dropbox-Ablage behält ihre alte Struktur.
 _Avoid_: Version (alleinstehend), Revision
 
 **Story**:

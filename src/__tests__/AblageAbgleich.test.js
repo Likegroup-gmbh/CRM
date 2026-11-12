@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createRequire } from 'module';
-import { createFakeSupabase, createFakeSharePoint, ORDNER_UNIQUE } from './fixtures/fakeSupabase.js';
+import { createFakeSupabase, createFakeSharePoint, ORDNER_UNIQUE, urlUmschreiben } from './fixtures/fakeSupabase.js';
 
 const require = createRequire(import.meta.url);
 const { createAbgleich } = require('../../netlify/functions/_shared/ablage/abgleich.js');
@@ -100,6 +100,7 @@ function rpcs(uhr) {
     },
     ablage_geruest_offen: () => uhr.geruest || [],
     ablage_pfad_umschreiben: () => 0,
+    ablage_url_umschreiben: urlUmschreiben,
   };
 }
 
@@ -194,7 +195,7 @@ describe('ablage-abgleich: Finder-Dateien werden Assets', () => {
     const [row] = t.supabase.db.kooperation_video_asset;
     expect(row).toMatchObject({
       ablage: 'sharepoint', drive_id: 'd1', item_id: f.id, video_id: V1, version_number: 2, variant_name: null, is_final: false,
-      file_name: 'neu.mov', file_path: '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/neu.mov', uploaded_by: 'b9',
+      file_name: 'neu.mov', file_path: '/Firma/Medien/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/neu.mov', uploaded_by: 'b9',
     });
     expect(t.eingang(f.id)).toMatchObject({ status: 'erledigt', pfad: row.file_path });
     expect(t.supabase.db.ablage_stand[0]).toMatchObject({ delta_link: 'dl-1', lease_bis: null });
@@ -353,7 +354,7 @@ describe('ablage-abgleich: Ordner', () => {
     const { item: frei } = await t.sp.ordnerAnlegen(kette.kooperation.item_id, 'Briefing');
     t.seite([await t.meldung(frei.id)]);
     await t.a.lauf();
-    expect(t.reg(frei.id)).toMatchObject({ art: 'frei', kooperation_id: K1, kampagne_id: KA1, unternehmen_id: U1, pfad: '/Firma/Sommer/Lisa/Briefing' });
+    expect(t.reg(frei.id)).toMatchObject({ art: 'frei', kooperation_id: K1, kampagne_id: KA1, unternehmen_id: U1, pfad: '/Firma/Medien/Sommer/Lisa/Briefing' });
   });
 
   it('Fachordner im Finder umbenannt -> CRM dreht den Namen zurueck', async () => {
@@ -364,6 +365,35 @@ describe('ablage-abgleich: Ordner', () => {
     await t.a.lauf();
     expect(t.sp.items.get(schleife.item_id).name).toBe('Feedbackschleife_2');
     expect(t.eingang(schleife.item_id)).toMatchObject({ status: 'erledigt', ergebnis: { aktion: 'zurueck_benennen' } });
+  });
+
+  it('Bereich im Finder umbenannt -> zurueck, Links von waehrend des Finder-Namens ziehen mit', async () => {
+    const t = setup();
+    const { kette } = await t.ordner.zielOrdner({ typ: 'roh', kooperation_id: K1 });
+    t.sp.items.get(kette.medien.item_id).name = 'Media';
+    t.supabase.db.kooperation_videos[0].folder_url = t.sp.url(kette.kooperation.item_id);
+    expect(t.supabase.db.kooperation_videos[0].folder_url).toBe('https://sp.test/Firma/Media/Sommer/Lisa');
+    t.seite([await t.meldung(kette.medien.item_id)]);
+    await t.a.lauf();
+    expect(t.sp.items.get(kette.medien.item_id).name).toBe('Medien');
+    expect(t.eingang(kette.medien.item_id)).toMatchObject({ status: 'erledigt', ergebnis: { aktion: 'zurueck_benennen' } });
+    expect(t.supabase.db.kooperation_videos[0].folder_url).toBe('https://sp.test/Firma/Medien/Sommer/Lisa');
+  });
+
+  it('Verträge im Finder angelegt (NFD) -> Bereich registriert, kein Umbenennen', async () => {
+    const t = setup();
+    const { kette } = await t.ordner.zielOrdner({ typ: 'roh', kooperation_id: K1 });
+    const { item: v } = await t.sp.ordnerAnlegen(kette.unternehmen.item_id, 'Verträge'.normalize('NFD'));
+    const f = t.sp.datei(v.id, 'Vertrag.pdf', 3);
+    t.seite([await t.meldung(f.id), await t.meldung(v.id)]);
+    await t.a.lauf();
+    expect(t.reg(v.id)).toMatchObject({ art: 'bereich', bereich: 'vertraege', unternehmen_id: U1, parent_item_id: kette.unternehmen.item_id });
+    expect(t.sp.calls.some(([op]) => op === 'umbenennen')).toBe(false);
+    expect(t.eingang(f.id)).toMatchObject({ status: 'ignoriert', ergebnis: { aktion: 'ignorieren', grund: 'vertraege' } });
+    // CRM findet ihn wieder statt "Verträge (2)" anzulegen
+    await t.ordner.geruest(K1);
+    expect(t.supabase.db.ablage_ordner.filter((o) => o.art === 'bereich' && o.bereich === 'vertraege').map((o) => o.item_id)).toEqual([v.id]);
+    expect(t.sp.calls.some(([op]) => op === 'umbenennen')).toBe(false);
   });
 
   it('Fachordner verschoben -> zurueck an den Platz aus dem Register', async () => {
@@ -385,7 +415,7 @@ describe('ablage-abgleich: Ordner', () => {
     t.sp.items.get(variante.item_id).name = 'Hook';
     t.seite([await t.meldung(variante.item_id)]);
     await t.a.lauf();
-    expect(t.reg(variante.item_id)).toMatchObject({ name: 'Hook', variante: 'Hook', pfad: '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/Hook' });
+    expect(t.reg(variante.item_id)).toMatchObject({ name: 'Hook', variante: 'Hook', pfad: '/Firma/Medien/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/Hook' });
     expect(t.supabase.db.kooperation_video_asset[0].variant_name).toBe('Hook');
   });
 

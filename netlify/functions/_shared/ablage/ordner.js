@@ -158,8 +158,27 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     throw new Error(`Ordner ${schluessel.art} wird gerade angelegt, bitte erneut versuchen`);
   }
 
+  /** webUrls sind pfadbasiert: nach Verschieben/Umbenennen in Assets und Ordner-Links nachziehen. */
+  async function urlsNachziehen(alt, neu) {
+    if (!alt || !neu || alt === neu) return;
+    const { error } = await supabase.rpc('ablage_url_umschreiben', { p_drive_id: driveId, p_alt: alt, p_neu: neu });
+    if (error) console.warn('[ablage-ordner] webUrls nicht nachgezogen:', alt, error.message);
+  }
+
   async function umhaengen(row, eltern) {
-    const item = await sp.verschieben(row.item_id, eltern.item_id, { conflict: 'rename' });
+    const vorher = await sp.item(row.item_id, 'id,webUrl');
+    // Register zuerst: sonst haelt der Abgleich den Move fuer eine Finder-Verschiebung und nimmt ihn zurueck
+    const { error: vorErr } = await db()
+      .update({ parent_item_id: eltern.item_id, pfad: `${eltern.pfad || ''}/${row.name}`, updated_at: new Date().toISOString() })
+      .eq('id', row.id);
+    if (vorErr && !istNamensKonflikt(vorErr)) throw vorErr;
+    let item;
+    try {
+      item = await sp.verschieben(row.item_id, eltern.item_id, { conflict: 'rename' });
+    } catch (err) {
+      if (!vorErr) await db().update({ parent_item_id: row.parent_item_id, pfad: row.pfad }).eq('id', row.id);
+      throw err;
+    }
     const neuPfad = `${eltern.pfad || ''}/${item.name}`;
     const { data, error } = await db()
       .update({ parent_item_id: eltern.item_id, name: item.name, pfad: neuPfad, updated_at: new Date().toISOString() })
@@ -170,6 +189,7 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     if (row.pfad && row.pfad !== neuPfad) {
       await supabase.rpc('ablage_pfad_umschreiben', { p_drive_id: driveId, p_alt: row.pfad, p_neu: neuPfad });
     }
+    await urlsNachziehen(vorher?.webUrl, item.webUrl);
     return data;
   }
 
@@ -178,7 +198,12 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     return sicherstellen(root, { art: 'test' }, TEST_ORDNER);
   }
 
-  /** Unternehmen/Marke/Kampagne/Kooperation; koop wie ziel.ladeKooperation. */
+  /** Bereich (Medien, Verträge) unter dem Ordner des Unternehmens. */
+  async function bereichOrdner(unternehmenRow, bereich) {
+    return sicherstellen(unternehmenRow, { art: 'bereich', bereich, unternehmen_id: unternehmenRow.unternehmen_id }, NAMEN.bereich(bereich));
+  }
+
+  /** Unternehmen/Medien/Marke/Kampagne/Kooperation; koop wie ziel.ladeKooperation. */
   async function kette(koopOderId) {
     const koop = typeof koopOderId === 'string' ? await ladeKooperation(supabase, koopOderId) : koopOderId;
     if (!koop) throw new Error('Kooperation nicht gefunden');
@@ -189,7 +214,8 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
 
     const oben = u.ist_test ? await testOrdner() : await wurzel();
     const unternehmen = await sicherstellen(oben, { art: 'unternehmen', unternehmen_id: besitz.unternehmen_id }, NAMEN.unternehmen(u));
-    let eltern = unternehmen;
+    const medien = await bereichOrdner(unternehmen, 'medien');
+    let eltern = medien;
     let marke = null;
     if (kamp.marke_id) {
       marke = await sicherstellen(eltern, { art: 'marke', marke_id: kamp.marke_id }, NAMEN.marke(kamp.marke), besitz);
@@ -199,7 +225,7 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     const kooperation = await sicherstellen(kampagne, { art: 'kooperation', kooperation_id: koop.id }, NAMEN.kooperation(koop), {
       ...besitz, marke_id: kamp.marke_id || null, kampagne_id: kamp.id,
     });
-    return { unternehmen, marke, kampagne, kooperation, koop };
+    return { unternehmen, medien, marke, kampagne, kooperation, koop };
   }
 
   const koopBesitz = (k) => ({
@@ -303,10 +329,14 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     return { ordner, link: v, kette: k, kooperation_video_id: video.id };
   }
 
-  /** Fach-Geruest einer Kooperation: Videos + Rohmaterial, je Video Schleifen 1-3 + Finale, darin Story_K je Slot. */
+  /**
+   * Fach-Geruest einer Kooperation: Videos + Rohmaterial, je Video Schleifen 1-3 + Finale, darin Story_K je Slot.
+   * Dazu der Bereich Verträge des Unternehmens.
+   */
   async function geruest(kooperationId) {
     const k = await kette(kooperationId);
     const ko = k.kooperation;
+    await bereichOrdner(k.unternehmen, 'vertraege');
     const [videosRes, typen] = await Promise.all([
       supabase.from('kooperation_videos').select('id, kooperation_id, position, thema').eq('kooperation_id', kooperationId).order('position', { ascending: true }),
       Promise.all(['videos', 'rohmaterial'].map((t) => typOrdner(ko, t))),
@@ -339,6 +369,7 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
   async function umbenennen(row, gewuenscht) {
     if (!row?.item_id) return row;
     const basis = gewuenscht;
+    let vorher;
     for (let n = 1; n <= MAX_ZAEHLER; n++) {
       const name = mitZaehler(basis, n);
       if (name.toLowerCase() === String(row.name).toLowerCase() && name === row.name) return row;
@@ -348,6 +379,7 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
         throw resErr;
       }
       try {
+        vorher ??= await sp.item(row.item_id, 'id,webUrl');
         const item = await sp.umbenennen(row.item_id, name);
         const altPfad = row.pfad;
         const neuPfad = altPfad ? `${altPfad.slice(0, altPfad.lastIndexOf('/'))}/${item.name}` : null;
@@ -355,6 +387,7 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
         if (altPfad && neuPfad && altPfad !== neuPfad) {
           await supabase.rpc('ablage_pfad_umschreiben', { p_drive_id: driveId, p_alt: altPfad, p_neu: neuPfad });
         }
+        await urlsNachziehen(vorher?.webUrl, item.webUrl);
         return { ...row, name: item.name, pfad: neuPfad };
       } catch (err) {
         await db().update({ name: row.name }).eq('id', row.id);
@@ -371,7 +404,9 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     finden,
     nachItem,
     sicherstellen,
+    umhaengen,
     testOrdner,
+    bereichOrdner,
     kette,
     typOrdner,
     videoOrdner,
@@ -382,6 +417,7 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     zielOrdner,
     geruest,
     umbenennen,
+    urlsNachziehen,
   };
 }
 

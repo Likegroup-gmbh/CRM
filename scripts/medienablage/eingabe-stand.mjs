@@ -148,9 +148,9 @@ const FELDER = [
   F('live', 'sites', 'SP_TEST_SITE_URL', 'Adresse der Test-Site', 'Dasselbe noch einmal als „Medienablage-Test“.',
     { link: (e) => `https://${adminHost(e)}/_layouts/15/online/AdminHome.aspx#/siteManagement`, standard: (e) => `https://${host(e)}/sites/Medienablage-Test`, muster: SITE_URL }),
   F('live', 'sites', 'SP_TEST_SITE_ID', 'Site-ID Test', 'Füllt der Knopf „Test-Site einrichten“ unten. Von Hand: Graph Explorer, GET /sites/{host}:/sites/Medienablage-Test?$select=id.', { muster: OHNE_LEER }),
-  F('live', 'sites', 'SP_TEST_DRIVE_ID', 'Drive-ID Test (Bibliothek „Videos“)', 'Füllt derselbe Knopf. Von Hand: GET /sites/{site-id}/drives, Eintrag „Videos“.', { muster: OHNE_LEER }),
+  F('live', 'sites', 'SP_TEST_DRIVE_ID', 'Drive-ID Test (Bibliothek „Daten“)', 'Füllt derselbe Knopf. Von Hand: GET /sites/{site-id}/drives, Eintrag „Daten“ (früher „Videos“).', { muster: OHNE_LEER }),
   F('live', 'sites', 'SP_SITE_ID', 'Site-ID Live', 'Füllt der Knopf „Live-Site einrichten“.', { muster: OHNE_LEER }),
-  F('live', 'sites', 'SP_DRIVE_ID', 'Drive-ID Live (Bibliothek „Videos“)', 'Füllt derselbe Knopf.', { muster: OHNE_LEER }),
+  F('live', 'sites', 'SP_DRIVE_ID', 'Drive-ID Live (Bibliothek „Daten“)', 'Füllt derselbe Knopf.', { muster: OHNE_LEER }),
 
   F('live', 'live', 'SUPABASE_SERVICE_ROLE_KEY', 'service_role-Key (bestehendes Projekt)',
     'Nicht neu erzeugen und kein neues Projekt. Supabase → das aktuelle Production-Projekt → Project Settings → API Keys → „service_role“ anzeigen und hier einfügen. URL und anon-Key stehen schon in .env. Der Key wird nur gebraucht, um das Zertifikat in den Vault zu schreiben.',
@@ -191,7 +191,7 @@ export const AKTIONEN = {
   },
   site_test: {
     gruppe: 'sites', label: 'Test-Site einrichten und IDs übernehmen',
-    text: 'Legt in der Test-Site die Bibliothek „Videos“ an (Versionslimit 5) und die Stufe „Bearbeiten ohne Löschen“, liest Site- und Drive-ID. Mehrfach ausführbar. Braucht die Freigabe aus dem Schritt oben.',
+    text: 'Legt in der Test-Site die Bibliothek „Daten“ an bzw. benennt „Videos“ um (Versionslimit 5) und die Stufe „Bearbeiten ohne Löschen“, liest Site- und Drive-ID. Mehrfach ausführbar. Braucht die Freigabe aus dem Schritt oben.',
     braucht: ['live:MS_TENANT_ID', 'live:MS_CLIENT_ID', 'live:SP_TEST_SITE_URL', 'zertifikat'],
   },
   site_live: {

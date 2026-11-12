@@ -187,7 +187,7 @@ finish() {
 TOTAL_STAGES=10
 
 # Entra-App mit Zertifikat, Sites "Medienablage" + "Medienablage-Test", Bibliothek
-# "Videos" (Versionslimit 5, Stufe "Bearbeiten ohne Löschen"), Netlify-Variablen.
+# "Daten" (Versionslimit 5, Stufe "Bearbeiten ohne Löschen"), Netlify-Variablen.
 # Voraussetzung: Schritt 1 ohne Blocker, Migration 20261201_medienablage.sql angewendet
 # (Vault-RPC), Node 20+.
 # Aufruf: bash scripts/medienablage/2-m365-einrichten.sh
@@ -284,7 +284,7 @@ fi
 pause
 
 stage "Sites einrichten (Bibliothek, Versionen, Berechtigungsstufe)"
-say "Das Skript legt in jeder Site die Bibliothek 'Videos' an (Versionslimit 5),"
+say "Das Skript legt in jeder Site die Bibliothek 'Daten' an bzw. benennt 'Videos' um (Versionslimit 5),"
 say "die Stufe 'Bearbeiten ohne Löschen' und gibt Site-ID und Drive-ID aus."
 if confirm "Test-Site jetzt einrichten?"; then
   node scripts/medienablage/site-einrichten.mjs --site "$SP_TEST_SITE_URL" --env-prefix SP_TEST_ \

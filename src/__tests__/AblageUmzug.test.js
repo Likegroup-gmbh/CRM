@@ -20,7 +20,7 @@ const START = Date.parse('2026-12-01T22:00:00Z');
 const iso = (ms) => new Date(ms).toISOString();
 const MIN = 60000;
 // Variante B ohne eigenen Ordner (ADR 0065): flach in der Schleife, variant_name bleibt an der Zeile
-const ZIEL = '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2';
+const ZIEL = '/Firma/Medien/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2';
 
 function antwort(status, body = Buffer.alloc(0), headers = {}) {
   return {
@@ -208,7 +208,7 @@ describe('Umzug Dropbox', () => {
     t.db.kooperation_story_asset.push({ id: 'st-a', story_id: ST1, video_id: V1, version_number: 1, is_final: false, ablage: 'dropbox', file_name: 's.mp4' });
     t.db.kooperation_bilder_asset.push({ id: 'b-a', kooperation_id: K1, video_id: null, version_number: 1, is_final: false, ablage: 'dropbox', file_name: 'b.jpg' });
     await t.u.lauf();
-    const basis = '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1';
+    const basis = '/Firma/Medien/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1';
     expect(t.db.kooperation_story_asset[0]).toMatchObject({ ablage: 'sharepoint', file_path: `${basis}/Story_1/s.mp4` });
     expect(t.db.kooperation_bilder_asset[0]).toMatchObject({ ablage: 'sharepoint', file_path: `${basis}/b.jpg`, video_id: V1 });
     expect(t.db.ablage_ordner.some((o) => o.typ === 'storys' || o.typ === 'bilder')).toBe(false);
@@ -254,7 +254,7 @@ describe('Umzug OneDrive-Links', () => {
     expect(t.kopie.uploads).toBe(1);
     expect(t.asset()).toMatchObject({
       ablage: 'sharepoint', file_name: 'Mein Video.mp4', file_size: 50,
-      file_path: '/Firma/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1/Mein Video.mp4',
+      file_path: '/Firma/Medien/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1/Mein Video.mp4',
     });
     expect(t.zeile()).toMatchObject({ status: 'fertig', kopie_url: null });
   });

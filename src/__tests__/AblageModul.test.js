@@ -172,7 +172,7 @@ function koop({ id = 'k1', name = 'Lisa', kampagneId = 'kamp1', marke = { id: 'm
   };
 }
 
-function setup(extra = {}) {
+function setup(extra = {}, rpc = {}) {
   const supabase = createFakeSupabase({
     tabellen: {
       ablage_ordner: [],
@@ -183,7 +183,7 @@ function setup(extra = {}) {
       ...extra,
     },
     unique: { ablage_ordner: ORDNER_UNIQUE },
-    rpc: { ablage_pfad_umschreiben: () => 0 },
+    rpc: { ablage_pfad_umschreiben: () => 0, ablage_url_umschreiben: () => 0, ...rpc },
   });
   const sp = createFakeSharePoint();
   const ordner = createOrdner({ supabase, sp, schlafen: async () => {} });
@@ -194,7 +194,7 @@ describe('ordner: Register + Anlage', () => {
   it('legt die Kette an und registriert Pfade; zweiter Aufruf legt nichts neu an', async () => {
     const { supabase, sp, ordner } = setup();
     const k = await ordner.kette(koop());
-    expect(k.kooperation.pfad).toBe('/Firma/Marke/Sommer/Lisa');
+    expect(k.kooperation.pfad).toBe('/Firma/Medien/Marke/Sommer/Lisa');
     const anzahl = sp.calls.length;
     await ordner.kette(koop());
     expect(sp.calls.length).toBe(anzahl);
@@ -225,12 +225,12 @@ describe('ordner: Register + Anlage', () => {
   it('Testunternehmen liegen unter _Test', async () => {
     const { ordner } = setup();
     const k = await ordner.kette(koop({ unternehmen: { id: 'ut', firmenname: 'Testfirma', ist_test: true }, marke: null }));
-    expect(k.kooperation.pfad).toBe('/_Test/Testfirma/Sommer/Lisa');
+    expect(k.kooperation.pfad).toBe('/_Test/Testfirma/Medien/Sommer/Lisa');
   });
 
   it('zielOrdner: alles in der Runde des Videos, Variante ohne Ordner, Finale nach Format', async () => {
     const { ordner } = setup();
-    const basis = '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing';
+    const basis = '/Firma/Medien/Marke/Sommer/Lisa/Videos/Video_1_Unboxing';
     const a = await ordner.zielOrdner({ typ: 'video', kooperation_id: 'k1', kooperation_video_id: 'v1', version_number: 2, variant_name: 'B' }, { koop: koop() });
     expect(a.ordner.pfad).toBe(`${basis}/Feedbackschleife_2`);
     expect(a.kooperation_video_id).toBe('v1');
@@ -247,7 +247,7 @@ describe('ordner: Register + Anlage', () => {
     const bf = await ordner.zielOrdner({ typ: 'still', kooperation_id: 'k1', kooperation_video_id: 'v1', is_final: true }, { koop: koop() });
     expect(bf.ordner.pfad).toBe(`${basis}/Finale_Version`);
     const r = await ordner.zielOrdner({ typ: 'roh', kooperation_id: 'k1' }, { koop: koop() });
-    expect(r.ordner.pfad).toBe('/Firma/Marke/Sommer/Lisa/Rohmaterial');
+    expect(r.ordner.pfad).toBe('/Firma/Medien/Marke/Sommer/Lisa/Rohmaterial');
   });
 
   it('zielOrdner: Bild ohne Video landet in der Runde des ersten Videos; ohne Video Fehler', async () => {
@@ -258,7 +258,7 @@ describe('ordner: Register + Anlage', () => {
       ],
     });
     const b = await ordner.zielOrdner({ typ: 'still', kooperation_id: 'k1', version_number: 1 }, { koop: koop() });
-    expect(b.ordner.pfad).toBe('/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1');
+    expect(b.ordner.pfad).toBe('/Firma/Medien/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1');
     expect(b.kooperation_video_id).toBe('v1');
     await expect(ordner.zielOrdner({ typ: 'still', kooperation_id: 'k2' }, { koop: koop({ id: 'k2' }) })).rejects.toThrow(/kein Video/);
   });
@@ -270,10 +270,10 @@ describe('ordner: Register + Anlage', () => {
     expect(reg.filter((o) => o.art === 'typ').map((o) => o.typ).sort()).toEqual(['rohmaterial', 'videos']);
     const storys = reg.filter((o) => o.art === 'story');
     expect(storys.map((o) => o.pfad).sort()).toEqual([
-      '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1/Story_2',
-      '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/Story_2',
-      '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_3/Story_2',
-      '/Firma/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Finale_Version/Story_2',
+      '/Firma/Medien/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_1/Story_2',
+      '/Firma/Medien/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_2/Story_2',
+      '/Firma/Medien/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Feedbackschleife_3/Story_2',
+      '/Firma/Medien/Marke/Sommer/Lisa/Videos/Video_1_Unboxing/Finale_Version/Story_2',
     ]);
     expect(storys.every((o) => o.typ === 'videos' && o.kooperation_video_id === 'v1')).toBe(true);
   });
@@ -283,8 +283,44 @@ describe('ordner: Register + Anlage', () => {
     const a = await ordner.kette(koop());
     const b = await ordner.kette(koop({ marke: { id: 'm2', markenname: 'Andere' } }));
     expect(b.kampagne.item_id).toBe(a.kampagne.item_id);
-    expect(b.kampagne.pfad).toBe('/Firma/Andere/Sommer');
+    expect(b.kampagne.pfad).toBe('/Firma/Medien/Andere/Sommer');
     expect(sp.calls.some(([op]) => op === 'verschieben')).toBe(true);
+  });
+
+  it('kette legt Daten/Firma/Medien an, geruest zusaetzlich Vertraege; beide einmal je Unternehmen', async () => {
+    const { supabase, ordner } = setup();
+    const k = await ordner.kette(koop());
+    expect(k.medien).toMatchObject({ art: 'bereich', bereich: 'medien', unternehmen_id: 'u1', name: 'Medien', pfad: '/Firma/Medien', parent_item_id: k.unternehmen.item_id });
+    expect(k.marke.parent_item_id).toBe(k.medien.item_id);
+    await ordner.geruest('k1');
+    await ordner.geruest('k2');
+    const bereiche = supabase.db.ablage_ordner.filter((o) => o.art === 'bereich');
+    expect(bereiche.map((o) => [o.bereich, o.pfad]).sort()).toEqual([['medien', '/Firma/Medien'], ['vertraege', '/Firma/Verträge']]);
+  });
+
+  it('ohne Marke: Kampagne direkt unter Medien', async () => {
+    const { ordner } = setup();
+    const k = await ordner.kette(koop({ marke: null }));
+    expect(k.kampagne.parent_item_id).toBe(k.medien.item_id);
+    expect(k.kooperation.pfad).toBe('/Firma/Medien/Sommer/Lisa');
+  });
+
+  it('umhaengen: Register vor dem Verschieben, Links unter dem alten Pfad ziehen mit', async () => {
+    const url = vi.fn(() => 1);
+    const { supabase, sp, ordner } = setup({}, { ablage_url_umschreiben: url });
+    const a = await ordner.kette(koop());
+    const alt = sp.url(a.kampagne.item_id);
+    await ordner.kette(koop({ marke: { id: 'm2', markenname: 'Andere' } }));
+    expect(url).toHaveBeenCalledWith({ p_drive_id: 'd1', p_alt: alt, p_neu: 'https://sp.test/Firma/Medien/Andere/Sommer' }, supabase.db);
+  });
+
+  it('umhaengen: Verschieben scheitert -> Register zurueck auf den alten Platz', async () => {
+    const { supabase, sp, ordner } = setup();
+    const a = await ordner.kette(koop());
+    sp.verschieben = async () => { throw new Error('gesperrt'); };
+    await expect(ordner.kette(koop({ marke: { id: 'm2', markenname: 'Andere' } }))).rejects.toThrow(/gesperrt/);
+    const kampagne = supabase.db.ablage_ordner.find((o) => o.id === a.kampagne.id);
+    expect(kampagne).toMatchObject({ parent_item_id: a.marke.item_id, pfad: '/Firma/Medien/Marke/Sommer' });
   });
 
   it('umbenennen: CRM-Name per PATCH, bei Kollision "(2)"', async () => {
@@ -293,7 +329,7 @@ describe('ordner: Register + Anlage', () => {
     const b = await ordner.kette(koop({ id: 'k2', name: 'Max' }));
     const neu = await ordner.umbenennen(b.kooperation, 'Lisa');
     expect(neu.name).toBe('Lisa (2)');
-    expect(neu.pfad).toBe('/Firma/Marke/Sommer/Lisa (2)');
+    expect(neu.pfad).toBe('/Firma/Medien/Marke/Sommer/Lisa (2)');
     expect(supabase.log.some((l) => l.rpc === 'ablage_pfad_umschreiben')).toBe(true);
     expect(a.kooperation.name).toBe('Lisa');
   });

@@ -137,7 +137,7 @@ describe('freie Ordner', () => {
       [f.id, '/Firma/Extras', [a.id]],
       [s.id, '/Firma/Extras/Sub', [b.id]],
     ]);
-    expect(r.ordner[0].dateien[0]).toMatchObject({ name: 'a.mov', groesse: 5, web_url: `https://sp.test/${a.id}` });
+    expect(r.ordner[0].dateien[0]).toMatchObject({ name: 'a.mov', groesse: 5, web_url: t.sp.url(a.id) });
   });
 
   it('nur intern und nur zugeordnet', async () => {

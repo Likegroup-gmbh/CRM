@@ -103,13 +103,17 @@ function createOrdnerAbgleich(c) {
   async function zurueckBenennen(eigen) {
     const basis = basisName(eigen.name);
     const namen = [eigen.name, ...[2, 3, 4, 5, 6].map((n) => mitZaehler(basis, n))];
+    const vorher = await sp.item(eigen.item_id, 'id,webUrl');
     for (const name of [...new Set(namen)]) {
+      let item;
       try {
-        await sp.umbenennen(eigen.item_id, name);
+        item = await sp.umbenennen(eigen.item_id, name);
       } catch (err) {
         if (istKonflikt(err)) continue;
         throw err;
       }
+      // Was waehrend des Finder-Namens gespeichert wurde, zeigt auf den falschen Pfad
+      await ordner.urlsNachziehen(vorher?.webUrl, item?.webUrl);
       if (name !== eigen.name) {
         const neuPfad = eigen.pfad ? `${eigen.pfad.slice(0, eigen.pfad.lastIndexOf('/'))}/${name}` : null;
         await registerSetzen(eigen.id, { name, pfad: neuPfad, updated_at: iso() });
@@ -170,6 +174,8 @@ function createOrdnerAbgleich(c) {
       schluessel = { art: 'finale' };
     } else if (d.art === 'format') {
       schluessel = { art: 'format', format: d.format };
+    } else if (d.art === 'bereich') {
+      schluessel = { art: 'bereich', bereich: d.bereich };
     } else {
       schluessel = { art: 'variante', variante: d.variante };
     }
@@ -194,7 +200,8 @@ function createOrdnerAbgleich(c) {
       if (!istUnique(error)) throw error;
       return alsFrei('doppelt');
     }
-    const umbenannt = soll && soll !== item.name ? (await ordner.umbenennen(row, soll)).name : null;
+    // Finder liefert Umlaute als NFD: gleicher Name, kein Umbenennen
+    const umbenannt = soll && soll !== item.name.normalize('NFC') ? (await ordner.umbenennen(row, soll)).name : null;
     return { aktion: 'fach', art: d.art, ordner_id: row.id, ...(umbenannt ? { name: umbenannt } : {}) };
   }
 

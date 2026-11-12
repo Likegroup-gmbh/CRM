@@ -29,7 +29,7 @@ function kontoAusLogin(login) {
 
 /**
  * @param {object} deps
- * @param {string} deps.listeId GUID der Bibliothek "Videos"
+ * @param {string} deps.listeId GUID der Bibliothek "Daten" (URL /Videos)
  */
 function createSpRechte({
   konfig = sharePointKonfig(),

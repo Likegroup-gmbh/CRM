@@ -3,6 +3,7 @@
 // Delta-Feed fuers CRM? Der Eltern-Ordner aus dem Register bestimmt die Bedeutung.
 // abgleich.js laedt die Eingaben und fuehrt die Entscheidung aus.
 //
+// Unter dem Unternehmen liegen die Bereiche Medien (Marke/Kampagne/Kooperation) und Verträge (ADR 0067).
 // Ablage (ADR 0065): Videos/Video_N/Feedbackschleife_K bzw. Finale_Version enthalten Video und
 // Bild flach (Typ aus der Endung) und je Story-Slot einen Ordner Story_K. Typ-Ordner Storys/
 // und Bilder/ sowie Varianten-Ordner (A/B/C) stammen aus dem Altbestand und gelten bis zum
@@ -18,7 +19,7 @@
 //   ignorieren | warten | ordner_geloescht | wiederherstellen | frei { besitz } | frei_aktualisieren { besitz }
 //   fach { art, soll, ... } | zurueck_verschieben | zurueck_benennen | variante_umbenennen { variante }
 
-const { MUSTER, FINALE_ORDNER, NAMEN, nummer, formatOrdner, formatAusOrdner, formatAusMass, systemdatei, dateiTyp } = require('./pfad');
+const { MUSTER, FINALE_ORDNER, NAMEN, nummer, formatOrdner, formatAusOrdner, formatAusMass, systemdatei, dateiTyp, bereichAusOrdner } = require('./pfad');
 
 const UPLOAD_WARTEN_MS = 10 * 60 * 1000;
 // Maße liefert Graph oft erst nach der Medienanalyse: kurz takten, Fenster bleibt 10 min
@@ -28,7 +29,7 @@ const WARTEN_SEK = { upload: 120, eltern: 30, mass: 20 };
 
 const ASSET_TYP = { videos: 'video', storys: 'story', bilder: 'still', rohmaterial: 'roh' };
 const GUELTIGE_TYPEN = new Set(Object.values(ASSET_TYP));
-const BESITZ = ['unternehmen_id', 'marke_id', 'kampagne_id', 'kooperation_id', 'kooperation_video_id', 'typ', 'story_nummer', 'version_number'];
+const BESITZ = ['unternehmen_id', 'bereich', 'marke_id', 'kampagne_id', 'kooperation_id', 'kooperation_video_id', 'typ', 'story_nummer', 'version_number'];
 
 /** Besitzer-Spalten fuer einen Ordner unter `eltern` (frei: erbt den fachlichen Ort). */
 function besitzVon(eltern) {
@@ -129,6 +130,9 @@ function ortVon(eltern) {
       return { art: 'falsch', grund: 'typ_ordner' };
     case 'frei':
       return { art: 'frei' };
+    case 'bereich':
+      // Unter Verträge ordnet das CRM noch nichts zu (Vertrag-Upload folgt)
+      return eltern.bereich === 'vertraege' ? { art: 'ignorieren', grund: 'vertraege' } : { art: 'falsch', grund: 'bereich_ordner' };
     case 'test':
     case 'unzugeordnet':
       return { art: 'ignorieren', grund: `${eltern.art}_ordner` };
@@ -244,6 +248,10 @@ function dateiEinordnen({ item, eltern, elternIstWurzel = false, elternOffen = f
 function fachOrdnerErkennen(eltern, name) {
   const n = String(name || '').trim();
   const typ = eltern.typ;
+  if (eltern.art === 'unternehmen') {
+    const bereich = bereichAusOrdner(n);
+    return bereich ? { art: 'bereich', bereich, soll: NAMEN.bereich(bereich) } : null;
+  }
   if (eltern.art === 'typ' && (typ === 'videos' || typ === 'storys' || typ === 'bilder')) {
     const pos = nummer('video', n);
     return pos ? { art: 'video', position: pos } : null;
@@ -288,7 +296,8 @@ function ordnerEinordnen({ item, eigen = null, eltern = null, elternIstWurzel = 
 
   if (eigen) {
     const verschoben = !!item.parent_item_id && item.parent_item_id !== eigen.parent_item_id;
-    const umbenannt = !!item.name && item.name !== eigen.name;
+    // Finder liefert Umlaute als NFD ("Verträge"): gleicher Name, keine Umbenennung
+    const umbenannt = !!item.name && item.name.normalize('NFC') !== String(eigen.name || '').normalize('NFC');
     if (eigen.art === 'frei') {
       if (!verschoben && !umbenannt) return { aktion: 'ignorieren', grund: 'unveraendert' };
       if (verschoben && !eltern && !elternIstWurzel && (elternOffen || versuche < ELTERN_VERSUCHE)) {

@@ -165,8 +165,50 @@ export const ORDNER_UNIQUE = [
   { name: 'ux_ablage_ordner_kooperation', key: (r) => (r.art === 'kooperation' && !r.geloescht_at ? `${r.drive_id}|${r.kooperation_id}` : null) },
   { name: 'ux_ablage_ordner_kampagne', key: (r) => (r.art === 'kampagne' && !r.geloescht_at ? `${r.drive_id}|${r.kampagne_id}` : null) },
   { name: 'ux_ablage_ordner_unternehmen', key: (r) => (r.art === 'unternehmen' && !r.geloescht_at ? `${r.drive_id}|${r.unternehmen_id}` : null) },
+  { name: 'ux_ablage_ordner_bereich', key: (r) => (r.art === 'bereich' && !r.geloescht_at ? `${r.drive_id}|${r.unternehmen_id}|${r.bereich}` : null) },
   { name: 'ux_ablage_ordner_typ', key: (r) => (r.art === 'typ' && !r.geloescht_at ? `${r.drive_id}|${r.kooperation_id}|${r.typ}` : null) },
 ];
+
+const ASSET_TABELLEN = ['kooperation_video_asset', 'kooperation_story_asset', 'kooperation_bilder_asset', 'kooperation_rohmaterial_asset'];
+const URL_SPALTEN = [
+  ...ASSET_TABELLEN.map((t) => [t, 'file_url', true]),
+  ['kooperation_rohmaterial_asset', 'folder_url'],
+  ['kooperation_videos', 'folder_url'],
+  ['kooperation_videos', 'story_folder_url'],
+  ['kooperationen', 'bilder_folder_url'],
+];
+
+/** rpc ablage_pfad_umschreiben wie in 20261201: Nachfahren in Register, Eingang und Assets. */
+export function pfadUmschreiben({ p_drive_id: driveId, p_alt: alt, p_neu: neu }, db) {
+  if (!alt || !neu || alt === neu) return 0;
+  let n = 0;
+  const ziehen = (r, spalte) => {
+    const v = r[spalte];
+    if (r.drive_id !== driveId || typeof v !== 'string' || !v.startsWith(`${alt}/`)) return;
+    r[spalte] = neu + v.slice(alt.length);
+    n++;
+  };
+  for (const r of db.ablage_ordner || []) ziehen(r, 'pfad');
+  for (const r of db.ablage_eingang || []) ziehen(r, 'pfad');
+  for (const t of ASSET_TABELLEN) for (const r of db[t] || []) if (r.ablage === 'sharepoint') ziehen(r, 'file_path');
+  return n;
+}
+
+/** rpc ablage_url_umschreiben wie in 20261209: Präfix in file_url und den Ordner-Links ersetzen. */
+export function urlUmschreiben({ p_drive_id: driveId, p_alt: alt, p_neu: neu }, db) {
+  if (!alt || !neu || alt === neu) return 0;
+  let n = 0;
+  for (const [t, spalte, mitDrive] of URL_SPALTEN) {
+    for (const r of db[t] || []) {
+      if (mitDrive && (r.ablage !== 'sharepoint' || r.drive_id !== driveId)) continue;
+      const v = r[spalte];
+      if (typeof v !== 'string' || !(v === alt || v.startsWith(`${alt}/`))) continue;
+      r[spalte] = neu + v.slice(alt.length);
+      n++;
+    }
+  }
+  return n;
+}
 
 /** Fake-SharePoint fuer Ordner-Tests: Baum im Speicher, Namen ohne Gross/Klein eindeutig. */
 export function createFakeSharePoint({ driveId = 'd1' } = {}) {
@@ -175,11 +217,18 @@ export function createFakeSharePoint({ driveId = 'd1' } = {}) {
   const kinder = (pid) => [...items.values()].filter((i) => i.parent === pid);
   const calls = [];
   const sessions = new Map();
+  // webUrl pfadbasiert wie bei Graph: aendert sich mit jedem Verschieben/Umbenennen darueber
+  const url = (itemId) => {
+    const teile = [];
+    for (let it = items.get(itemId); it && it.parent; it = items.get(it.parent)) teile.unshift(encodeURIComponent(it.name));
+    return `https://sp.test/${teile.join('/')}`;
+  };
   const fake = {
     driveId,
     siteId: 's1',
     items,
     calls,
+    url,
     async wurzel() { return { id: 'root' }; },
     async ordnerAnlegen(parentId, name) {
       calls.push(['ordnerAnlegen', parentId, name]);
@@ -196,13 +245,13 @@ export function createFakeSharePoint({ driveId = 'd1' } = {}) {
         const err = new Error('nameAlreadyExists'); err.status = 409; throw err;
       }
       it.name = name;
-      return { ...it };
+      return { ...it, webUrl: url(itemId) };
     },
     async verschieben(itemId, parentId) {
       calls.push(['verschieben', itemId, parentId]);
       const it = items.get(itemId);
       it.parent = parentId;
-      return { ...it };
+      return { ...it, webUrl: url(itemId) };
     },
 
     // ─── Dateien und Upload-Sessions ───
@@ -212,7 +261,7 @@ export function createFakeSharePoint({ driveId = 'd1' } = {}) {
       if (!it) return null;
       return {
         id: it.id, name: it.name, size: it.size ?? 0, eTag: `e-${it.id}-${it.v || 1}`, cTag: `c-${it.id}-${it.v || 1}`,
-        webUrl: `https://sp.test/${it.id}`, parentReference: { id: it.parent }, ...(it.folder ? { folder: {} } : { file: {} }),
+        webUrl: url(it.id), parentReference: { id: it.parent }, ...(it.folder ? { folder: {} } : { file: {} }),
         ...(it.breite ? { video: { width: it.breite, height: it.hoehe } } : {}),
         ...(it.erstellt ? { createdDateTime: it.erstellt } : {}),
       };

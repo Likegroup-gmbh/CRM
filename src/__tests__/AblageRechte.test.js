@@ -194,13 +194,13 @@ const ADMINS = { 'a@firma.de': [3], 'f@firma.de': [2] };
 const U1_SOLL = { ...ADMINS, 'm1@firma.de': [9], 'm3@firma.de': [2] };
 
 describe('rechteSoll (rein)', () => {
-  const soll = () => {
+  const soll = (extra = []) => {
     const klasse = { name: 'Finanzen' };
     const b = benutzer().map((x) => ({ ...x, mitarbeiter_klasse: x.mitarbeiter_klasse_id ? klasse : null }));
     const z = zuordnung();
     return rechteSoll({
       benutzer: b,
-      ordner: ordner().filter((o) => !o.geloescht_at),
+      ordner: [...ordner().filter((o) => !o.geloescht_at), ...extra],
       zuordnung: { unternehmen: z.mitarbeiter_unternehmen, marke: z.marke_mitarbeiter, kampagne: z.kampagne_mitarbeiter },
       testUnternehmen: new Set([UT]),
       mitLink: new Set(['ity']),
@@ -234,6 +234,17 @@ describe('rechteSoll (rein)', () => {
     const r = soll();
     expect(scope(r, 'if1').rechte).toEqual({ 'a@firma.de': 'bearbeiten', 'f@firma.de': 'lesen', 'm1@firma.de': 'bearbeiten', 'm3@firma.de': 'lesen' });
     expect(scope(r, 'if2')).toBeUndefined();
+  });
+
+  it('Bereiche Medien/ und Verträge/ erben vom Unternehmen; freier Ordner in Verträge/ wie direkt unter dem Unternehmen', () => {
+    const r = soll([
+      { id: 'o-bm', drive_id: 'd1', item_id: 'ibm', parent_item_id: 'iu1', art: 'bereich', bereich: 'medien', unternehmen_id: U1 },
+      { id: 'o-bv', drive_id: 'd1', item_id: 'ibv', parent_item_id: 'iu1', art: 'bereich', bereich: 'vertraege', unternehmen_id: U1 },
+      { id: 'o-fv', drive_id: 'd1', item_id: 'ifv', parent_item_id: 'ibv', art: 'frei', bereich: 'vertraege', unternehmen_id: U1 },
+    ]);
+    expect(scope(r, 'ibm')).toBeUndefined();
+    expect(scope(r, 'ibv')).toBeUndefined();
+    expect(scope(r, 'ifv').rechte).toEqual(scope(r, 'if1').rechte);
   });
 
   it('_Test und Testunternehmen erben (nur Admins), auch mit Zuordnung', () => {

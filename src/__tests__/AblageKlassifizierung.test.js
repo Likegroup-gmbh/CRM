@@ -29,6 +29,9 @@ const R = {
   finaleStory: reg('story', { typ: 'videos', kooperation_video_id: V, story_nummer: 2, version_number: null }),
   frei: reg('frei', { typ: 'videos', kooperation_video_id: V }),
   test: { id: 'r-test', item_id: 'i-test', art: 'test', name: '_Test', pfad: '/_Test' },
+  unternehmen: { id: 'r-u', item_id: 'i-u', art: 'unternehmen', name: 'Firma', pfad: '/Firma', unternehmen_id: 'u1' },
+  medien: { id: 'r-m', item_id: 'i-m', art: 'bereich', bereich: 'medien', name: 'Medien', pfad: '/Firma/Medien', unternehmen_id: 'u1' },
+  vertraege: { id: 'r-v', item_id: 'i-v', art: 'bereich', bereich: 'vertraege', name: 'Verträge', pfad: '/Firma/Verträge', unternehmen_id: 'u1' },
 };
 
 const datei = (eltern, extra = {}) => k.dateiEinordnen({ item: { name: 'clip.mov', ...extra.item }, eltern, versuche: 1, jetztMs: Date.parse('2026-11-09T12:00:00Z'), ...extra });
@@ -144,6 +147,16 @@ describe('dateiEinordnen: Fachordner bestimmen die Bedeutung', () => {
   it('freie Ordner und _Test: kein Asset', () => {
     expect(datei(R.frei)).toEqual({ aktion: 'ignorieren', grund: 'freier_ordner' });
     expect(datei(R.test)).toEqual({ aktion: 'ignorieren', grund: 'test_ordner' });
+  });
+
+  it('Bereiche: Datei in Verträge/ wird ignoriert, direkt in Medien/ Nicht zugeordnet', () => {
+    expect(datei(R.vertraege, { item: { name: 'Vertrag.pdf' } })).toEqual({ aktion: 'ignorieren', grund: 'vertraege' });
+    expect(datei(R.medien)).toEqual({ aktion: 'unzugeordnet', grund: 'bereich_ordner' });
+    expect(datei(R.unternehmen)).toEqual({ aktion: 'unzugeordnet', grund: 'unternehmen_ordner' });
+  });
+
+  it('Bereiche: Fachdatei nach Verträge/ oder Medien/ verschoben -> zurueck an ihren Platz', () => {
+    for (const eltern of [R.vertraege, R.medien]) expect(datei(eltern, { asset: videoAsset() }).aktion).toBe('zurueck');
   });
 
   it('Mac-/Office-Muell wird ignoriert, egal wo', () => {
@@ -269,6 +282,25 @@ describe('ordnerEinordnen', () => {
     expect(ord({ eltern: R.video, item: { name: 'feedbackschleife_3' } })).toEqual({ aktion: 'fach', art: 'schleife', version_number: 3, soll: 'Feedbackschleife_3' });
     expect(ord({ eltern: R.story, item: { name: 'Finale Version' } })).toEqual({ aktion: 'fach', art: 'finale', soll: 'Finale_Version' });
     expect(ord({ eltern: R.finale, item: { name: '9-16' } })).toEqual({ aktion: 'fach', art: 'format', format: '9-16', soll: '9-16' });
+  });
+
+  it('unter dem Unternehmen: Medien und Verträge sind Bereiche (auch NFD aus dem Finder), alles andere frei', () => {
+    expect(ord({ eltern: R.unternehmen, item: { name: 'medien' } })).toEqual({ aktion: 'fach', art: 'bereich', bereich: 'medien', soll: 'Medien' });
+    expect(ord({ eltern: R.unternehmen, item: { name: 'Verträge'.normalize('NFD') } })).toEqual({ aktion: 'fach', art: 'bereich', bereich: 'vertraege', soll: 'Verträge' });
+    expect(ord({ eltern: R.unternehmen, item: { name: 'Vertraege' } }).aktion).toBe('frei');
+    expect(ord({ eltern: R.unternehmen, item: { name: 'Rechnungen' } })).toEqual({ aktion: 'frei', besitz: { unternehmen_id: 'u1' } });
+  });
+
+  it('Ordner unter Verträge/ und Medien/: frei mit Bereich als Besitz', () => {
+    expect(ord({ eltern: R.vertraege, item: { name: 'Max Muster' } })).toEqual({ aktion: 'frei', besitz: { unternehmen_id: 'u1', bereich: 'vertraege' } });
+    expect(ord({ eltern: R.medien, item: { name: 'Medien' } }).aktion).toBe('frei');
+  });
+
+  it('Bereich im Finder umbenannt -> CRM dreht zurueck; nur NFD statt NFC ist keine Umbenennung', () => {
+    const eigen = { ...R.vertraege, item_id: 'neu', parent_item_id: 'i-p' };
+    expect(ord({ eigen, item: { name: 'Contracts' } })).toEqual({ aktion: 'zurueck_benennen' });
+    expect(ord({ eigen, item: { name: 'Verträge'.normalize('NFD') } })).toEqual({ aktion: 'ignorieren', grund: 'unveraendert' });
+    expect(ord({ eigen, item: { name: 'Verträge', parent_item_id: 'anders' } })).toEqual({ aktion: 'zurueck_verschieben' });
   });
 
   it('Story_k nicht direkt unter Video_N, Schleifen nicht direkt unter Storys/Video_N', () => {
