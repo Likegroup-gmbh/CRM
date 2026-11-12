@@ -474,3 +474,46 @@
 .ma-zeilen-aktionen .mdc-btn + .mdc-btn {
   margin-left: var(--space-xs);
 }
+
+/* Teams-Kanäle (ADR 0066) */
+.tk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xxs);
+  max-width: 32rem;
+}
+
+.tk-liste {
+  display: flex;
+  flex-direction: column;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: var(--space-xxs);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.tk-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-xs);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.tk-option[hidden] {
+  display: none;
+}
+
+.tk-option input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.tk-aktiv {
+  margin-bottom: var(--space-md);
+  padding: 0;
+}

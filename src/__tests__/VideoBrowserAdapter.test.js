@@ -13,7 +13,8 @@ vi.mock('../core/ablage/ablageApi.js', () => ({
   ablageDateiUmbenennen: vi.fn(async (_typ, _id, name) => ({ file_name: name, file_path: `/Ablage/K/${name}`, etag: 'e2' })),
 }));
 
-const { renameAsset, renameAdManagerFile, deleteAsset, loadVideoBrowserData, saveVideoCaption } = await import('../modules/video-browser/VideoBrowserAdapter.js');
+const { renameAsset, renameAdManagerFile, deleteAsset, loadVideoBrowserData, saveVideoCaption, saveZeitkommentar } = await import('../modules/video-browser/VideoBrowserAdapter.js');
+const { createFakeSupabase } = await import('./fixtures/fakeSupabase.js');
 const { ablageDateiLoeschen, ablageDateiUmbenennen } = await import('../core/ablage/ablageApi.js');
 const { titelAusDateiname } = await import('../core/uploadJobs/runVideoUploadJob.js');
 const { deleteSingleDropboxFile, syncVideoAssetsAfterDelete } = await import('../core/VideoDeleteHelper.js');
@@ -254,5 +255,35 @@ describe('VideoBrowserAdapter: Ad-Manager-Dateiname', () => {
     window.supabase = mockSupabase({ 'kooperation_video_asset:update': () => ({ data: [], error: null }) });
     await expect(renameAdManagerFile(spVideo(), 'Neu')).rejects.toThrow();
     expect(ablageDateiUmbenennen).toHaveBeenLastCalledWith('video', 'a1', 'v1.mp4');
+  });
+});
+
+describe('VideoBrowserAdapter: Video-Kommentar stößt die Teams-Meldung an', () => {
+  let fetchSpy;
+  beforeEach(() => {
+    window.supabase = createFakeSupabase();
+    window.currentUser = { id: 'b1', name: 'Kim Kunde', permissions: {} };
+    fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, status: 202 });
+  });
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    delete window.supabase;
+  });
+
+  it('Kundenseite: nach dem Speichern teams-meldung-senden', async () => {
+    await saveZeitkommentar({ videoId: 'v1', runde: 1, text: 'Bitte kürzen', isKunde: true });
+    expect(window.supabase.db.kooperation_video_zeitkommentar[0]).toMatchObject({ feedback_typ: 'kunde', author_benutzer_id: 'b1' });
+    expect(fetchSpy).toHaveBeenCalledWith('/.netlify/functions/teams-meldung-senden', { method: 'POST', keepalive: true });
+  });
+
+  it('Team: kein Anstoß', async () => {
+    await saveZeitkommentar({ videoId: 'v1', runde: 1, text: 'Intern', isKunde: false });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('ein scheiternder Anstoß stört das Speichern nicht', async () => {
+    fetchSpy.mockRejectedValueOnce(new Error('offline'));
+    const row = await saveZeitkommentar({ videoId: 'v1', runde: 1, text: 'Trotzdem', isKunde: true });
+    expect(row).toMatchObject({ text: 'Trotzdem' });
   });
 });

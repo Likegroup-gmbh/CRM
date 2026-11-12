@@ -218,7 +218,17 @@ export async function saveZeitkommentar({ videoId, runde, assetId = null, text, 
     .select(ZEIT_SELECT)
     .single();
   if (error) throw error;
+  if (isKunde) teamsMeldungAnstossen();
   return data;
+}
+
+// Teams-Meldung sofort statt erst mit dem Minuten-Zeitplan (ADR 0066); was hier scheitert, holt der Zeitplan nach.
+function teamsMeldungAnstossen() {
+  try {
+    globalThis.fetch?.('/.netlify/functions/teams-meldung-senden', { method: 'POST', keepalive: true })?.catch?.(() => {});
+  } catch {
+    // ohne Anstoss bleibt der Zeitplan
+  }
 }
 
 /**

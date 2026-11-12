@@ -121,6 +121,14 @@
 [functions."ablage-zeitplan"]
   schedule = "* * * * *"
 
+# Teams-Meldungen (ADR 0066): Sicherheitsnetz fuer den Anstoss aus dem Browser und
+# Wiederholungen nach Fehlern
+[functions."teams-meldung-zeitplan"]
+  schedule = "* * * * *"
+
+[functions."teams-meldung-senden"]
+  timeout = 26
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"

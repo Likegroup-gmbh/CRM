@@ -821,3 +821,15 @@ _Avoid_: Stage, Status, Phase
 **Status (Videos-Tab)**:
 Sagt, wer am Zug ist bzw. wie eine Feedbackschleife ausging. Immer aus den Dateien abgeleitet, nie gespeichert: *Wartet auf Kunde* (Kundenansicht: *Zu prüfen*) für die aktuelle Feedbackschleife, *Änderungen angefordert* für eine Schleife mit Nachfolger, *Freigegeben* sobald eine Finale Version vorliegt (an der Schleife: die letzte davor). Der Zähler an der Kooperation zählt Dateien, die beim Kunden liegen; Ordner und Dateien tragen keinen eigenen Zähler. Ein Button „Freigeben“ für den Kunden gibt es bewusst noch nicht: die Freigabe setzt heute das Team über die Finale Version.
 _Avoid_: Offen, Abgeschlossen (als Status einer Schleife)
+
+**Video-Kommentar**:
+Kommentar an einer Datei der aktuellen Feedbackschleife im Videos-Tab, optional an einer Stelle im Video (Timecode). Schreibt die Kundenseite (Kunde oder Gast mit Feedback-Recht) oder das Team. Nicht die Feedback-Felder der Kooperationstabelle und nicht die Notiz an einem Still.
+_Avoid_: Zeitkommentar (Name im Code), Feedback (das sind die Felder der Tabelle), Rezension
+
+**Teams-Kanal**:
+Ein Kanal in Microsoft Teams, den ein Admin im CRM mit Namen und Workflow-Link hinterlegt. Deckt eine feste Liste von Unternehmen ab, mit allen Marken und Kampagnen darunter; ein Unternehmen darf in mehreren Teams-Kanälen stehen. Angelegt und besetzt wird er in Teams, nicht im CRM (ADR 0066).
+_Avoid_: Channel, Kanal allein (auch Realtime-Channel und Social-Media-Kanal im Briefing), Benachrichtigungskanal
+
+**Teams-Meldung**:
+Nachricht des CRM in jeden Teams-Kanal, der das Unternehmen abdeckt, sobald die Kundenseite einen Video-Kommentar schreibt. Eine je Kommentar, sofort; nennt Unternehmen und Marke, Kampagne, Produktion, Creator mit Video-Nr, Feedbackschleife, Autor und Text und verlinkt aufs Video. Wird der Kommentar entfernt, folgt ein Nachtrag (beim Löschen einer Datei einer für alle ihre Kommentare); eine Bearbeitung ändert nichts. Ohne passenden Teams-Kanal gibt es keine.
+_Avoid_: Neuigkeit (das ist die Produkt-Änderung), Benachrichtigung, Notification, Update
