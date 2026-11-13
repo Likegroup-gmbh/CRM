@@ -464,7 +464,7 @@ export class VideoList {
       const input = document.createElement('input');
       input.type = 'file';
       input.multiple = true;
-      input.accept = 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,application/zip,.mp4,.mov,.avi,.mkv,.webm,.zip';
+      input.accept = 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,application/zip,image/*,.mp4,.mov,.avi,.mkv,.webm,.zip,.jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.avif';
       input.onchange = () => resolve([...(input.files || [])]);
       // Ein abgebrochener Dialog feuert kein change-Event; cancel wird von allen
       // Zielbrowsern unterstuetzt, sonst bliebe das Promise offen.

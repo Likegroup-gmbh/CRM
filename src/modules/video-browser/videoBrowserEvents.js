@@ -20,6 +20,10 @@ import { commitRename, endRename, startRename } from './videoBrowserRename.js';
 import { startUpload } from './videoBrowserUploadState.js';
 import { onSegmentKeydown, onShowcaseClick } from './videoBrowserShowcase.js';
 import { onKoopGroupClick, toggleKoopGroup } from './videoBrowserKoopState.js';
+import {
+  bindRohDrag, rohCheck, rohEinzelnVerschieben, rohMarkierungAufheben, rohMenuUmschalten,
+  rohNeuAnlegen, rohNeuOeffnen, rohNeuSchliessen, rohToggle, rohVerschieben
+} from './videoBrowserRoh.js';
 
 export function bindEvents(vb) {
   const on = (target, type, handler, opts) => {
@@ -30,6 +34,12 @@ export function bindEvents(vb) {
   on(vb.root, 'click', (e) => onClick(vb, e));
   on(vb.colsEl, 'keydown', (e) => onColsKey(vb, e));
   on(vb.root, 'submit', (e) => {
+    const rohForm = e.target.closest('[data-vb-roh-neu-form]');
+    if (rohForm) {
+      e.preventDefault();
+      void rohNeuAnlegen(vb, rohForm);
+      return;
+    }
     const form = e.target.closest('[data-vb-comment-form]');
     if (!form) return;
     e.preventDefault();
@@ -53,13 +63,24 @@ export function bindEvents(vb) {
     }
     const input = e.target.closest('[data-vb-file]');
     if (input) {
-      startUpload(vb, [...input.files]);
+      // Upload-Knopf an einem Rohmaterial-Unterordner trägt dessen item_id
+      startUpload(vb, [...input.files], { ordnerItemId: input.dataset.ordnerItemId || null });
       input.value = '';
     }
   });
   on(document, 'keydown', (e) => { onShortcut(vb, e); });
   on(vb.root, 'keydown', (e) => {
     if (onTabKeydown(vb, e) || onSegmentKeydown(vb, e)) return;
+    if (e.key === 'Escape' && e.target.closest('[data-vb-roh-neu-input]')) {
+      e.preventDefault();
+      rohNeuSchliessen(vb);
+      return;
+    }
+    if (e.key === 'Escape' && vb.rohMenu && e.target.closest('[data-vb-rohbar], [data-vb-roh-menu-list]')) {
+      e.preventDefault();
+      rohMenuUmschalten(vb, false);
+      return;
+    }
     if (e.target.closest('[data-vb-file-input]')) {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -112,9 +133,55 @@ export function bindEvents(vb) {
     if (e.target.closest('[data-vb-file-input]')) void commitFileRename(vb);
     const caption = e.target.closest('[data-vb-caption]');
     if (caption) void commitCaption(vb, caption);
+    // Leeres "Neuer Ordner"-Feld schließt beim Verlassen, nicht beim Klick auf Anlegen/Abbrechen
+    const rohInput = e.target.closest('[data-vb-roh-neu-input]');
+    if (rohInput && !rohInput.value.trim() && !rohInput.form?.contains(e.relatedTarget)) rohNeuSchliessen(vb);
   });
 
   bindDropzone(vb, on);
+  bindRohDrag(vb, on);
+}
+
+/** Klicks im Rohmaterial (Ordner, Markieren, Verschieben). true = erledigt. */
+function onRohClick(vb, e) {
+  const check = e.target.closest('[data-vb-roh-check]');
+  if (check) {
+    rohCheck(vb, check, { shift: e.shiftKey });
+    return true;
+  }
+  const toggle = e.target.closest('[data-vb-roh-toggle]');
+  if (toggle) {
+    rohToggle(vb, toggle.dataset.vbRohToggle);
+    return true;
+  }
+  const neu = e.target.closest('[data-vb-roh-neu]');
+  if (neu) {
+    rohNeuOeffnen(vb, neu.dataset.vbRohNeu || '');
+    return true;
+  }
+  if (e.target.closest('[data-vb-roh-neu-abbrechen]')) {
+    rohNeuSchliessen(vb);
+    return true;
+  }
+  if (e.target.closest('[data-vb-roh-menu]')) {
+    rohMenuUmschalten(vb);
+    return true;
+  }
+  if (e.target.closest('[data-vb-roh-clear]')) {
+    rohMarkierungAufheben(vb);
+    return true;
+  }
+  const ziel = e.target.closest('[data-vb-roh-ziel]');
+  if (ziel) {
+    void rohVerschieben(vb, [...vb.rohAuswahl], { videoId: ziel.dataset.vbRohZiel, version: Number(ziel.dataset.version) });
+    return true;
+  }
+  const einzeln = e.target.closest('[data-vb-roh-move-item]');
+  if (einzeln) {
+    rohEinzelnVerschieben(vb, einzeln.dataset.vbRohMoveItem);
+    return true;
+  }
+  return false;
 }
 
 function onClick(vb, e) {
@@ -136,6 +203,7 @@ function onClick(vb, e) {
   if (onKoopGroupClick(vb, e)) return;
   // Umschalter Ordner|Showcase und alles im Showcase
   if (onShowcaseClick(vb, e)) return;
+  if (onRohClick(vb, e)) return;
 
   const rowBtn = e.target.closest('.vb-col .vb-row[data-depth]');
   if (rowBtn && !rowBtn.classList.contains('vb-row--upload')) {
@@ -304,8 +372,27 @@ function gotoFromAttrs(vb, el) {
 
 /** Zeilen und Gruppenköpfe einer Spalte in Anzeigereihenfolge, ohne die in zugeklappten Gruppen. */
 function navigableRows(col) {
-  return [...col.querySelectorAll('.vb-row[data-depth]:not(.vb-row--upload), .vb-koopgroup__head')]
-    .filter(el => !el.closest('.vb-koopgroup.is-collapsed .vb-koopgroup__body'));
+  return [...col.querySelectorAll('.vb-row[data-depth]:not(.vb-row--upload), .vb-koopgroup__head, .vb-rohgroup__toggle')]
+    .filter(el => !el.closest('.vb-koopgroup.is-collapsed .vb-koopgroup__body, .vb-rohgroup__body[hidden]'));
+}
+
+/** Rohmaterial-Ordnerkopf: wie ein Gruppenkopf, links auf einem zugeklappten Ordner zurück in Spalte 2. */
+function onRohHeadKey(vb, head, e) {
+  const group = head.closest('.vb-rohgroup');
+  const open = head.getAttribute('aria-expanded') === 'true';
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const rows = navigableRows(head.closest('.vb-col'));
+    rows[rows.indexOf(head) + (e.key === 'ArrowDown' ? 1 : -1)]?.focus();
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    if (!open) rohToggle(vb, head.dataset.vbRohToggle);
+    else group.querySelector(':scope > .vb-rohgroup__body .vb-row')?.focus();
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    if (open) rohToggle(vb, head.dataset.vbRohToggle);
+    else vb.colsEl.querySelector('.vb-col[data-depth="2"] .vb-row.is-selected')?.focus();
+  }
 }
 
 /** Gruppenkopf: hoch/runter wie eine Zeile, rechts auf bzw. in die erste Zeile, links zu. Enter/Leertaste klickt. */
@@ -330,6 +417,11 @@ function onColsKey(vb, e) {
   const head = e.target.closest('.vb-koopgroup__head');
   if (head) {
     onKoopHeadKey(vb, head, e);
+    return;
+  }
+  const rohHead = e.target.closest('.vb-rohgroup__toggle');
+  if (rohHead) {
+    onRohHeadKey(vb, rohHead, e);
     return;
   }
   const rowEl = e.target.closest('.vb-row[data-depth]');

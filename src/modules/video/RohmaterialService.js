@@ -19,7 +19,7 @@ const PREPARE_ENDPOINT = '/.netlify/functions/dropbox-upload-rohmaterial';
 
 // Endungen muessen mit EXT_BY_TYPE.rohmaterial in netlify/functions/_shared/creator-upload.js
 // laufen; die Grenze ist die von ablage-upload-ziel (Creator haben eine eigene).
-export const ROHMATERIAL_EXTENSIONS = /\.(mp4|mov|avi|mkv|webm|zip)$/i;
+export const ROHMATERIAL_EXTENSIONS = /\.(mp4|mov|avi|mkv|webm|zip|jpe?g|png|webp|heic|heif|gif|bmp|tiff?|avif)$/i;
 export const MAX_ROHMATERIAL_SIZE = 20 * 1024 * 1024 * 1024;
 
 /** Spiegelt sanitizePath aus netlify/functions/_shared/dropbox.js. */
@@ -131,7 +131,7 @@ export class RohmaterialService {
    */
   static validateFile(file) {
     if (!ROHMATERIAL_EXTENSIONS.test(file.name || '')) {
-      return { ok: false, error: `${file.name}: nur Video-Dateien oder ZIP erlaubt` };
+      return { ok: false, error: `${file.name}: nur Videos, Bilder oder ZIP erlaubt` };
     }
     if (!file.size) {
       return { ok: false, error: `${file.name}: Datei ist leer` };
@@ -192,7 +192,8 @@ export class RohmaterialService {
   /**
    * Eine (schon validierte) Datei hochladen und ihre Asset-Zeile anlegen. Wirft bei Fehlern.
    *
-   * @param {{id: string, pathContext: object}} group
+   * @param {{id: string, pathContext: object, ordnerItemId?: string}} group ordnerItemId: Unterordner
+   *        im Rohmaterial (nur SharePoint), sonst die Wurzel
    * @param {File} file
    * @param {Set<string>} taken belegte Dateinamen der Kooperation, wird ergaenzt
    * @param {{ signal?: AbortSignal, onBytes?: (p: {loaded: number, total: number}) => void }} [opts]
@@ -203,7 +204,10 @@ export class RohmaterialService {
     // nicht beide auf denselben Pfad zeigen.
     taken.add(fileName);
 
-    const ziel = await ablageZielHolen({ typ: 'roh', kooperation_id: group.id, file_name: fileName, file_size: file.size });
+    const ziel = await ablageZielHolen({
+      typ: 'roh', kooperation_id: group.id, file_name: fileName, file_size: file.size,
+      ...(group.ordnerItemId ? { ordner_item_id: group.ordnerItemId } : {}),
+    });
     if (ziel.ziel === 'sharepoint') {
       await this._uploadOneSharePoint(group, file, fileName, ziel, taken, { signal, onBytes });
       return;

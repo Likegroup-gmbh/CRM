@@ -29,7 +29,8 @@ const EXT_BY_TYPE = {
   video: ['mp4', 'mov', 'avi', 'mkv', 'webm'],
   story: ['mp4', 'mov', 'avi', 'mkv', 'webm'],
   bilder: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tiff', 'tif', 'avif'],
-  rohmaterial: ['mp4', 'mov', 'avi', 'mkv', 'webm', 'zip'],
+  rohmaterial: ['mp4', 'mov', 'avi', 'mkv', 'webm', 'zip',
+    'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tiff', 'tif', 'avif'],
 };
 
 const MIME_BY_EXT = {

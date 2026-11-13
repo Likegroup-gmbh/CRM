@@ -46,6 +46,42 @@ export function ablageBildVerschieben(id, kooperationVideoId) {
 }
 
 /**
+ * Unterordner im Rohmaterial einer Kooperation anlegen (ohne parentItemId direkt in Rohmaterial/).
+ * Gibt es den Ordner schon, kommt der bestehende zurück.
+ * @returns {Promise<{ ordner: { item_id: string, parent_item_id: string, name: string, pfad: string } }>}
+ */
+export function ablageRohOrdnerAnlegen(kooperationId, name, parentItemId = null) {
+  return ablagePost('ablage-datei', { aktion: 'ordner_anlegen', kooperation_id: kooperationId, name, parent_item_id: parentItemId });
+}
+
+const ROH_BATCH = 10;
+
+/**
+ * Rohmaterial in eine Feedbackschleife verschieben; Videos und Bilder werden dort zu Dateien der Runde.
+ * Läuft in Paketen, ein Teilfehler stoppt die übrigen nicht.
+ * @returns {Promise<Array<{ id: string, ok: boolean, typ?: 'video'|'still', asset_id?: string, fehler?: string }>>}
+ */
+export async function ablageRohVerschieben(ids, kooperationVideoId, versionNumber) {
+  const ergebnisse = [];
+  for (let i = 0; i < ids.length; i += ROH_BATCH) {
+    const paket = ids.slice(i, i + ROH_BATCH);
+    try {
+      const { ergebnisse: teil } = await ablagePost('ablage-datei', {
+        aktion: 'roh_verschieben',
+        ids: paket,
+        kooperation_video_id: kooperationVideoId,
+        version_number: versionNumber,
+      });
+      ergebnisse.push(...(teil || []));
+    } catch (err) {
+      // Frühere Pakete sind schon verschoben: deren Ergebnis darf nicht verloren gehen
+      ergebnisse.push(...paket.map(id => ({ id, ok: false, fehler: err.message || 'Verschieben fehlgeschlagen' })));
+    }
+  }
+  return ergebnisse;
+}
+
+/**
  * SharePoint-Ordner und -Dateien einer Entität entfernen, vor dem DB-Delete. Ohne
  * SharePoint-Bestand oder ohne Konfiguration liefert der Server nur Nullen.
  * @param {'unternehmen'|'kampagne'|'kooperation'|'video'} entity

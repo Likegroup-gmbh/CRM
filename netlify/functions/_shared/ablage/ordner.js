@@ -4,8 +4,9 @@
 // bei Kollision "Name (2)") -> Ordner anlegen bzw. gleichnamigen unregistrierten Ordner
 // uebernehmen -> item_id eintragen. Fachordner-Namen fuehrt das CRM.
 
-const { NAMEN, TEST_ORDNER, mitZaehler, formatOrdner } = require('./pfad');
+const { NAMEN, TEST_ORDNER, mitZaehler, formatOrdner, bereinigen } = require('./pfad');
 const { ladeKooperation } = require('./ziel');
+const { besitzVon } = require('./klassifizierung');
 
 const RESERVIERUNG_ALT_MS = 2 * 60 * 1000;
 const MAX_ZAEHLER = 20;
@@ -267,6 +268,48 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     return sicherstellen(kooperationOrdner, { art: 'typ', typ, kooperation_id: kooperationOrdner.kooperation_id }, NAMEN.typ(typ), koopBesitz(kooperationOrdner));
   }
 
+  const istRohOrdner = (row) => !!row && !row.geloescht_at && row.typ === 'rohmaterial' && (row.art === 'typ' || row.art === 'frei');
+
+  /**
+   * Freier Unterordner im Rohmaterial (ADR 0070): Creator-Ordner beim Upload, "Neuer Ordner" im CRM.
+   * Den Namen fuehrt SharePoint (art 'frei'), ein vorhandener Ordner gleichen Namens wird
+   * uebernommen. Das Register steht vor dem ersten Upload, sonst wartet der Abgleich auf den
+   * Eltern-Ordner und zieht die Datei in die Rohmaterial-Wurzel.
+   * @param {object} eltern Register-Zeile: Rohmaterial-Typ-Ordner oder einer seiner Unterordner
+   */
+  async function rohUnterordner(eltern, gewuenscht) {
+    if (!istRohOrdner(eltern) || !eltern.item_id) throw new Error('Kein Rohmaterial-Ordner');
+    const name = bereinigen(gewuenscht);
+    if (!name) throw new Error('Ordnername fehlt');
+    const { item } = await sp.ordnerAnlegen(eltern.item_id, name);
+    if (!item) throw new Error(`Ordner "${name}" weder angelegt noch gefunden`);
+    if (!item.folder) throw Object.assign(new Error(`"${item.name}" ist eine Datei`), { status: 409 });
+    const pfad = `${eltern.pfad || ''}/${item.name}`;
+    const zeile = { ...besitzVon(eltern), parent_item_id: eltern.item_id, name: item.name, pfad, art: 'frei', geloescht_at: null };
+
+    const vorhanden = await nachItem(item.id);
+    if (vorhanden && !vorhanden.geloescht_at) {
+      if (!istRohOrdner(vorhanden) || vorhanden.art !== 'frei') throw Object.assign(new Error(`"${item.name}" ist ein Fachordner`), { status: 409 });
+      return vorhanden;
+    }
+    if (vorhanden) {
+      const { data, error } = await db().update({ ...zeile, updated_at: new Date().toISOString() }).eq('id', vorhanden.id).select('*').single();
+      if (error) throw error;
+      return data;
+    }
+    const { data, error } = await db().insert({ ...zeile, drive_id: driveId, item_id: item.id }).select('*').single();
+    if (!error) return data;
+    // Abgleich hat den Ordner inzwischen selbst registriert (gleicher Besitz)
+    if (istUniqueVerletzung(error)) return nachItem(item.id);
+    throw error;
+  }
+
+  /** Register-Zeile eines Rohmaterial-Ordners der Kooperation (Typ-Ordner oder Unterordner), sonst null. */
+  async function rohOrdnerVon(kooperationId, itemId) {
+    const row = await nachItem(itemId);
+    return istRohOrdner(row) && row.kooperation_id === kooperationId ? row : null;
+  }
+
   async function videoOrdner(typRow, video) {
     return sicherstellen(typRow, { art: 'video', kooperation_video_id: video.id }, NAMEN.video(video), { ...koopBesitz(typRow), typ: typRow.typ });
   }
@@ -441,6 +484,8 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     kette,
     dokumentKette,
     typOrdner,
+    rohUnterordner,
+    rohOrdnerVon,
     videoOrdner,
     storyOrdner,
     schleifeOrdner,

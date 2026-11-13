@@ -28,6 +28,7 @@ const VIDEO_ASSET_SELECT = mitAblage('id, video_id, file_url, file_path, version
 const STORY_ASSET_SELECT = mitAblage('id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, titel, source_asset_id, created_at');
 const STILL_SELECT = mitAblage('id, kooperation_id, video_id, file_url, file_path, file_name, file_size, version_number, is_final, variant_name, titel, source_asset_id, created_at');
 const ROH_SELECT = mitAblage('id, kooperation_id, file_name, file_path, file_url, file_size, folder_url, titel, created_at');
+const ROH_ORDNER_SELECT = 'item_id, parent_item_id, name, pfad, art, kooperation_id';
 const TAG_TYP_SELECT = 'id, label, gruppe, kampagne_id';
 const VARIANTE_TAG_SELECT = 'video_id, variant_key, tag_typ_id, created_at';
 const NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at';
@@ -57,6 +58,22 @@ async function readIn(table, select, column, ids, { optional = true, order } = {
   return results.flat();
 }
 
+/** Rohmaterial-Ordner aus dem Register: der Fachordner und seine Unterordner (ADR 0070), auch leere. */
+async function loadRohOrdner(koopIds) {
+  try {
+    const results = await Promise.all(chunks(koopIds).map(async (part) => {
+      const { data, error } = await window.supabase.from('ablage_ordner').select(ROH_ORDNER_SELECT)
+        .in('kooperation_id', part).eq('typ', 'rohmaterial').in('art', ['typ', 'frei']).is('geloescht_at', null);
+      if (error) throw error;
+      return data || [];
+    }));
+    return results.flat().filter(o => o.item_id);
+  } catch (error) {
+    console.warn('VideoBrowserAdapter: ablage_ordner nicht lesbar', error?.message || error);
+    return [];
+  }
+}
+
 /**
  * @param {{ kampagneId: string, produktionId?: string|null, briefingId?: string|null,
  *           linien?: Array<{id: string, name: string}>, team: boolean }} scope
@@ -80,10 +97,11 @@ export async function loadVideoBrowserData({ kampagneId, produktionId = null, br
   const koopIds = (kooperationen || []).map(k => k.id);
   if (!koopIds.length) return emptyRaw(linien);
 
-  const [videos, stillAssets, rohmaterial] = await Promise.all([
+  const [videos, stillAssets, rohmaterial, rohOrdner] = await Promise.all([
     readIn('kooperation_videos', team ? VIDEO_SELECT_TEAM : VIDEO_SELECT, 'kooperation_id', koopIds, { optional: false }),
     readIn('kooperation_bilder_asset', STILL_SELECT, 'kooperation_id', koopIds),
-    team ? readIn('kooperation_rohmaterial_asset', ROH_SELECT, 'kooperation_id', koopIds) : Promise.resolve([])
+    team ? readIn('kooperation_rohmaterial_asset', ROH_SELECT, 'kooperation_id', koopIds) : Promise.resolve([]),
+    team ? loadRohOrdner(koopIds) : Promise.resolve([])
   ]);
 
   const videoIds = videos.map(v => v.id);
@@ -113,6 +131,7 @@ export async function loadVideoBrowserData({ kampagneId, produktionId = null, br
     storyAssets,
     stillAssets,
     rohmaterial,
+    rohOrdner,
     slotNotes,
     zeitkommentare,
     stillNotes,
@@ -133,7 +152,7 @@ async function loadProdukte(videos) {
 function emptyRaw(linien) {
   return {
     kooperationen: [], linien, videos: [], stories: [], videoAssets: [],
-    storyAssets: [], stillAssets: [], rohmaterial: [], slotNotes: [], zeitkommentare: [], stillNotes: [],
+    storyAssets: [], stillAssets: [], rohmaterial: [], rohOrdner: [], slotNotes: [], zeitkommentare: [], stillNotes: [],
     tagTypen: [], varianteTags: [], ideen: [], produkte: []
   };
 }

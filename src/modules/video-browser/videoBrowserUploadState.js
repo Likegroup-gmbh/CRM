@@ -16,10 +16,11 @@ export function currentUploads(vb, resolved) {
   return key ? (vb.uploads.get(key) || []) : [];
 }
 
-export function startUpload(vb, files) {
+/** @param {{ ordnerItemId?: string|null }} [opts] ordnerItemId: Unterordner im Rohmaterial (ADR 0070) */
+export function startUpload(vb, files, { ordnerItemId = null } = {}) {
   const { koop, row, folder } = resolveSelection(vb.tree, vb.sel);
   if (!files.length || !koop || !folder || !folder.upload || !vb.canUpload) return;
-  void vb.uploader.start({ koop, row, folder, files });
+  void vb.uploader.start({ koop, row, folder, files, ordnerItemId: folder.kind === 'raw' ? ordnerItemId : null });
 }
 
 export function uploadsAdded(vb, list) {

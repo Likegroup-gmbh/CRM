@@ -137,6 +137,22 @@ describe('dateiEinordnen: Fachordner bestimmen die Bedeutung', () => {
     expect(datei(R.roh)).toMatchObject({ aktion: 'asset', typ: 'roh', ziel: { kooperation_id: KO } });
   });
 
+  it('Unterordner im Rohmaterial (Creator, final, beliebig tief) -> roh-Asset, bleibt liegen', () => {
+    const creator = reg('frei', { typ: 'rohmaterial', name: 'Anna Muster' });
+    const final = { ...creator, id: 'r-final', item_id: 'i-final', name: 'final', parent_item_id: creator.item_id };
+    for (const eltern of [creator, final]) {
+      expect(datei(eltern)).toEqual({ aktion: 'asset', typ: 'roh', ziel: { kooperation_id: KO, variant_name: null }, umziehen: false });
+      expect(datei(eltern, { item: { name: 'paket.zip' } })).toMatchObject({ aktion: 'asset', typ: 'roh' });
+    }
+    const roh = { typ: 'roh', row: { id: 'r1', kooperation_id: KO } };
+    expect(datei(creator, { asset: roh })).toMatchObject({ aktion: 'asset', typ: 'roh', umziehen: false });
+    expect(datei({ ...creator, kooperation_id: null })).toMatchObject({ aktion: 'unzugeordnet', grund: 'register_unvollstaendig' });
+  });
+
+  it('Video aus der Schleife in einen Rohmaterial-Unterordner verschoben -> wird Rohmaterial (umziehen)', () => {
+    expect(datei(reg('frei', { typ: 'rohmaterial' }), { asset: videoAsset() })).toMatchObject({ aktion: 'asset', typ: 'roh', umziehen: true });
+  });
+
   it('Datei direkt in Kooperation, Videos oder Video_N -> Nicht zugeordnet', () => {
     expect(datei(R.kooperation)).toMatchObject({ aktion: 'unzugeordnet', grund: 'kooperation_ordner' });
     expect(datei(R.videos)).toMatchObject({ aktion: 'unzugeordnet', grund: 'typ_ordner' });

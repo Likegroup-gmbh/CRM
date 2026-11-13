@@ -235,13 +235,15 @@ function createLesen({ supabase, ablage, dropbox = createDropboxAblage(), jetzt 
     await nurStaffMitKooperation({ benutzer, caller }, kooperationId);
     if (!sp) return { ordner: [] };
 
-    const { data, error } = await supabase.from('ablage_ordner').select('item_id, parent_item_id, name, pfad')
+    const { data, error } = await supabase.from('ablage_ordner').select('item_id, parent_item_id, name, pfad, typ')
       .eq('drive_id', sp.driveId).eq('art', 'frei').eq('kooperation_id', kooperationId)
       .is('geloescht_at', null).not('item_id', 'is', null);
     if (error) throw error;
-    const ids = new Set((data || []).map((o) => o.item_id));
+    // Rohmaterial-Unterordner zeigt der Videos-Tab im Rohmaterial (ADR 0070)
+    const liste = (data || []).filter((o) => o.typ !== 'rohmaterial');
+    const ids = new Set(liste.map((o) => o.item_id));
     // Unterordner eines freien Ordners kommen ueber dessen Rekursion
-    const wurzeln = (data || []).filter((o) => !ids.has(o.parent_item_id)).sort((a, b) => String(a.pfad).localeCompare(String(b.pfad)));
+    const wurzeln = liste.filter((o) => !ids.has(o.parent_item_id)).sort((a, b) => String(a.pfad).localeCompare(String(b.pfad)));
 
     const ordner = [];
     const zaehler = { n: 0 };

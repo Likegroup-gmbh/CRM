@@ -44,6 +44,7 @@ import { closeTagField, refreshTagField } from './videoBrowserTagField.js';
 import { formatTime } from '../../core/media/mediaPlayerIcons.js';
 import { currentUploads, uploadChanged, uploadSettled, uploadsAdded } from './videoBrowserUploadState.js';
 import { bindLiveUpdates } from './videoBrowserLive.js';
+import { rohZuruecksetzen } from './videoBrowserRoh.js';
 import {
   destroyShowcase,
   initShowcaseState,
@@ -102,6 +103,12 @@ class VideoBrowser {
     // Spalte 0 bei Alle Linien: Gruppierung (creator | linie) und eingeklappte Gruppenköpfe
     this.koopGroup = 'creator';
     this.collapsed = new Set();
+    // Rohmaterial (Team): eingeklappte Unterordner, markierte Dateien, offenes "Neuer Ordner"-Feld
+    // ({ koopId, parent }) und das Ziel-Menü der Verschieben-Leiste (videoBrowserRoh.js)
+    this.rohZu = new Set();
+    this.rohAuswahl = new Set();
+    this.rohNeu = null;
+    this.rohMenu = false;
     // Letzte Position des Players, damit ein Teil-Render den Zeitstempel nicht auf 0 zurücksetzt
     this._lastTime = 0;
     this._shownKey = null;
@@ -256,6 +263,7 @@ class VideoBrowser {
       zeigeLinie: this._zeigeLinie(),
       koopGroup: this.koopGroup,
       collapsed: this.collapsed,
+      roh: { zu: this.rohZu, auswahl: this.rohAuswahl, neu: this.rohNeu, menu: this.rohMenu },
       hatOffenes: !!ersterOffenerInhalt(this.tree)
     };
   }
@@ -535,6 +543,7 @@ class VideoBrowser {
     // Sprung auf eine andere Kooperation (z. B. aus dem Detail): ihre Gruppe öffnet sich
     const andereKoop = !!target.kooperationId && target.kooperationId !== this.sel.kooperationId;
     if (andereKoop) revealKoop(this, target.kooperationId);
+    if ((target.kooperationId || null) !== (this.sel.kooperationId || null)) rohZuruecksetzen(this);
     this.focusPending = focus;
     this._setSel(target);
     this._render({ fromDepth: differing + 1, detailAnimate: true });

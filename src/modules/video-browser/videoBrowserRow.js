@@ -17,6 +17,7 @@ import {
   storyName
 } from './videoBrowserFormat.js';
 import { deriveAblaufschritt, loopFolderStatus, statusOf } from './videoBrowserStatus.js';
+import { rohOrdnerBaum, rohVerschiebbar } from './videoBrowserRohOrdner.js';
 
 export function sortBy(list, ...keys) {
   return [...list].sort((a, b) => {
@@ -39,8 +40,10 @@ function storyHelpers(storyInfo) {
   return { number, label, sort };
 }
 
-function rohmaterialFolder(rowId, rohmaterial) {
+/** Rohmaterial der Kooperation; Dateien tragen ihren Unterordner (`ordner`, relativ zu Rohmaterial/). */
+function rohmaterialFolder(rowId, rohmaterial, rohOrdner) {
   const files = sortBy(rohmaterial, 'created_at').reverse();
+  const baum = rohOrdnerBaum(rohOrdner, files);
   return {
     id: ROHMATERIAL_ID,
     kind: 'raw',
@@ -50,6 +53,8 @@ function rohmaterialFolder(rowId, rohmaterial) {
     current: false,
     leer: files.length === 0,
     upload: true,
+    wurzelItemId: baum.wurzelItemId,
+    unterordner: baum.ordner,
     items: files.map(f => ({
       id: f.id,
       type: 'roh',
@@ -57,6 +62,8 @@ function rohmaterialFolder(rowId, rohmaterial) {
       name: f.titel || f.file_name || 'Datei',
       meta: [formatBytes(f.file_size), formatDatum(f.created_at)].filter(Boolean).join(' · '),
       ratio: '9:16',
+      ordner: baum.ordnerVon(f),
+      verschiebbar: rohVerschiebbar(f),
       asset: f,
       rowId
     }))
@@ -223,7 +230,7 @@ function finalFolder({ rowId, team, finalAssets, stillFinals, storyFinals, stori
  * @param {{ number: number, name: string }} storyInfo je story_id (Nummer = Slot + 1)
  */
 export function buildRow({
-  id, number, title, caption = '', kooperationId, rohmaterial, team,
+  id, number, title, caption = '', kooperationId, rohmaterial, rohOrdner = [], team,
   loopAssets, finalAssets,
   storyLoop = [], storyFinals = [], storyInfo = new Map(),
   stillLoop = [], stillFinals = [],
@@ -241,7 +248,7 @@ export function buildRow({
   const stories = storyHelpers(storyInfo);
 
   const folders = [];
-  if (team) folders.push(rohmaterialFolder(id, rohmaterial));
+  if (team) folders.push(rohmaterialFolder(id, rohmaterial, rohOrdner));
 
   for (const version of versionen) {
     folders.push(loopFolder({

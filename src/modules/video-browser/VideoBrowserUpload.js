@@ -1,7 +1,7 @@
 // VideoBrowserUpload.js
 // Upload-Zone des Videos-Tabs. Beide Wege laufen über backgroundUploadService, also
 // weiter beim Navigieren, abbrechbar und mit Erneut-Versuchen im Upload-Panel:
-//   Rohmaterial        → Rohmaterial-Job
+//   Rohmaterial        → Rohmaterial-Job, wahlweise in einen Unterordner (ordnerItemId)
 //   Feedbackschleife   → Video-Job für Videos, Still-Job für Bilder, flach ohne Variante
 //                        (Stories legt der Stories-Tab ab: Ordner Story_K in derselben Runde)
 //   Finale Version     → wie oben mit isFinal, Videos mit Format je Datei aus den Metadaten
@@ -78,7 +78,7 @@ export function createUploader({ onChange, onAdded, onSettled, toast }) {
 
   /* ---- Upload starten ---- */
 
-  async function startRaw({ koop, folder, files }) {
+  async function startRaw({ koop, folder, files, ordnerItemId = null }) {
     const folderKey = `${koop.id}:${folder.id}`;
     const valid = [];
     for (const file of files) {
@@ -97,7 +97,8 @@ export function createUploader({ onChange, onAdded, onSettled, toast }) {
     const jobId = backgroundUploadService.enqueueRohmaterialJob({
       kooperationId: koop.id,
       pathContext: ctx.pathContext,
-      files: valid
+      files: valid,
+      ...(ordnerItemId ? { ordnerItemId } : {})
     });
     track(jobId, folderKey, entries, { raw: true });
   }

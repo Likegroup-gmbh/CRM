@@ -1,6 +1,7 @@
 // _shared/ablage/schreiben.js
 // Schreibpfade CRM -> SharePoint: Upload-Ziel, Commit, Verwerfen. Datei loeschen/umbenennen/
-// verschieben und die Loeschkaskade einer Entitaet liegen in schreiben-datei.js.
+// verschieben und die Loeschkaskade einer Entitaet liegen in schreiben-datei.js, Rohmaterial-Ordner
+// und das Verschieben in eine Feedbackschleife in schreiben-roh.js.
 // Die Asset-Zeile legt der Client nach dem Commit an; bis dahin haelt ablage_upload die Datei
 // fest, damit der Abgleich keine zweite Zeile anlegt.
 
@@ -13,6 +14,7 @@ const { AblageFehler } = require('./http');
 const { ordnerVon, endung, nichtKonfiguriert, kontextAusBody, kontextAusZeile, kontextPruefen } = require('./schreiben-kontext');
 const { createDateiSchreiben } = require('./schreiben-datei');
 const { createDokumentSchreiben } = require('./schreiben-dokument');
+const { createRohSchreiben } = require('./schreiben-roh');
 const { istDokument, verweise: dokumentVerweise } = require('./dokument');
 const { dropboxUpload } = require('./schalter');
 
@@ -130,6 +132,12 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
       ({ ordner, link, kooperation_video_id: videoId } = await ablage.ordner.zielOrdner(ctx, { koop }));
       // Bild ohne Video liegt jetzt im Ordner des ersten Videos und haengt auch dort
       if (ctx.typ === 'still' && !ctx.kooperation_video_id && videoId) ctx.kooperation_video_id = videoId;
+      // Rohmaterial darf in einen Unterordner (ADR 0070); der Link bleibt der Rohmaterial-Ordner
+      if (ctx.typ === 'roh' && body.ordner_item_id && body.ordner_item_id !== ordner.item_id) {
+        const unter = typeof body.ordner_item_id === 'string' ? await ablage.ordner.rohOrdnerVon(ctx.kooperation_id, body.ordner_item_id) : null;
+        if (!unter) throw new AblageFehler(404, 'Ordner nicht gefunden');
+        ordner = unter;
+      }
     }
 
     const name = passenderName(ordner.pfad, fileName);
@@ -255,12 +263,13 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
 
   const datei = createDateiSchreiben({ supabase, ablage, sp, driveId, jetzt, passenderName });
   const dok = createDokumentSchreiben({ supabase, ablage, sp, driveId, passenderName, webUrl });
+  const roh = createRohSchreiben({ supabase, ablage, sp, driveId, jetzt, passenderName });
 
   // Dokument-Typen (ADR 0068) haben eigene Loesch- und Namensregeln
   const dateiLoeschen = (ctx) => (istDokument(ctx.body?.typ) ? dok.dateiLoeschen(ctx) : datei.dateiLoeschen(ctx));
   const dateiUmbenennen = (ctx) => (istDokument(ctx.body?.typ) ? dok.dateiUmbenennen(ctx) : datei.dateiUmbenennen(ctx));
 
-  return { uploadZiel, uploadCommit, uploadVerwerfen, ...datei, dateiLoeschen, dateiUmbenennen };
+  return { uploadZiel, uploadCommit, uploadVerwerfen, ...datei, ...roh, dateiLoeschen, dateiUmbenennen };
 }
 
 module.exports = { createSchreiben, kontextAusBody, kontextAusZeile };

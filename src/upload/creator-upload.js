@@ -14,8 +14,9 @@ import {
 
 // Muss mit SIZE_CAPS/EXT_BY_TYPE in netlify/functions/_shared/creator-upload.js laufen.
 const SIZE_CAP = 10 * 1024 * 1024 * 1024;
-const ACCEPT = 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,application/zip,.mp4,.mov,.avi,.mkv,.webm,.zip';
-const ALLOWED_EXT = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'zip'];
+const ACCEPT = 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,application/zip,image/*,.mp4,.mov,.avi,.mkv,.webm,.zip,.jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.avif';
+const ALLOWED_EXT = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'zip',
+  'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tiff', 'tif', 'avif'];
 
 // Mehr parallele TUS-Streams saettigen die Creator-Leitung und lassen jeden
 // einzelnen Upload langsamer aussehen — der Rest wartet in der Queue.

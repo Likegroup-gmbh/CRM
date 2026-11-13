@@ -8,16 +8,16 @@ import { trackUploadProgress } from './videoUploadSteps.js';
 
 /**
  * @param {object} ctx
- * @param {object} ctx.job - payload = { kooperationId, pathContext, files }
+ * @param {object} ctx.job - payload = { kooperationId, pathContext, files, ordnerItemId? }
  * @param {AbortSignal} ctx.signal
  * @param {(itemId, patch) => void} ctx.updateItem
  */
 export async function runRohmaterialUploadJob({ job, signal, updateItem }) {
-  const { kooperationId, pathContext, files } = job.payload;
+  const { kooperationId, pathContext, files, ordnerItemId = null } = job.payload;
   if (!kooperationId) throw new Error('kooperationId fehlt');
   if (!Array.isArray(files) || files.length === 0) throw new Error('Keine Dateien');
 
-  const group = { id: kooperationId, pathContext };
+  const group = { id: kooperationId, pathContext, ordnerItemId };
   const taken = await RohmaterialService.takenFileNames(kooperationId);
   const errors = [];
   let uploaded = 0;

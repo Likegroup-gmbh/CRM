@@ -140,6 +140,18 @@ describe('freie Ordner', () => {
     expect(r.ordner[0].dateien[0]).toMatchObject({ name: 'a.mov', groesse: 5, web_url: t.sp.url(a.id) });
   });
 
+  it('Rohmaterial-Unterordner gehoeren ins Rohmaterial, nicht zu den weiteren Ordnern', async () => {
+    const t = setup();
+    const { f } = await mitFrei(t);
+    const { item: roh } = await t.sp.ordnerAnlegen('root', 'Anna');
+    t.supabase.db.ablage_ordner.push(
+      { drive_id: 'd1', item_id: roh.id, parent_item_id: 'i-roh', name: 'Anna', pfad: '/Firma/Rohmaterial/Anna', art: 'frei', typ: 'rohmaterial', kooperation_id: K1 },
+    );
+    const r = await t.lesen.frei({ benutzer: MA, caller: t.caller, body: { frei: { kooperation_id: K1 } } });
+    expect(r.ordner.map((o) => o.item_id)).not.toContain(roh.id);
+    expect(r.ordner[0].item_id).toBe(f.id);
+  });
+
   it('nur intern und nur zugeordnet', async () => {
     const t = setup();
     await mitFrei(t);

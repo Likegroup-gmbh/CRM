@@ -42,7 +42,7 @@ export function isMarked(item) {
 function contextText(ctx) {
   const { koop, row, folder, item } = ctx.resolved;
   const tail = item.type === 'roh'
-    ? folder.name
+    ? [folder.name, item.ordner].filter(Boolean).join(' / ')
     : item.isFinal
       ? `${FINAL_NAME}${sourceFolder(row, item) ? ` · aus ${sourceFolder(row, item).name}` : ''}`
       : schleifeName(item.version || folder.number || 1);
@@ -54,6 +54,9 @@ function toolbarHtml(ctx) {
   const buttons = [];
   if (ctx.canDownload && collectDownloadItems('item', ctx.resolved).length) {
     buttons.push(iconButton('download', 'Herunterladen', 'data-vb-download="item"'));
+  }
+  if (ctx.canUpload && item.type === 'roh' && item.verschiebbar) {
+    buttons.push(iconButton('arrow-right', 'In Feedbackschleife verschieben', `data-vb-roh-move-item="${esc(item.id)}"`));
   }
   if (ctx.canUpload) {
     buttons.push(iconButton('pencil-square', 'Titel bearbeiten', 'data-vb-edit'));

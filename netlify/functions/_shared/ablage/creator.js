@@ -65,6 +65,12 @@ function createCreatorAblage({ supabase, ablage, jetzt = () => new Date() }) {
     }
   }
 
+  /** Rohmaterial des Creators liegt in Rohmaterial/<Creator> (ADR 0070); ohne Namen in der Wurzel. */
+  async function creatorOrdner(tokenRow, targetCtx, roh) {
+    const p = await cu.loadPathContext(supabase, tokenRow, targetCtx.koop.id).catch(() => null);
+    return p?.creatorName ? ablage.ordner.rohUnterordner(roh, p.creatorName) : roh;
+  }
+
   // ─── ablage-creator-start ───────────────────────────────────
 
   async function start(body) {
@@ -94,7 +100,9 @@ function createCreatorAblage({ supabase, ablage, jetzt = () => new Date() }) {
     await altJobsFreigeben(targetType, targetId);
 
     const ctx = kontext(targetType, targetCtx, version);
-    const { ordner, link, kooperation_video_id: videoId } = await ablage.ordner.zielOrdner(ctx, { koop });
+    const z = await ablage.ordner.zielOrdner(ctx, { koop });
+    const { link, kooperation_video_id: videoId } = z;
+    const ordner = ctx.typ === 'roh' ? await creatorOrdner(tokenRow, targetCtx, z.ordner) : z.ordner;
     // Creator-Bilder haengen an der Kooperation: im Ordner des ersten Videos, also auch an ihm
     if (ctx.typ === 'still' && !ctx.kooperation_video_id) ctx.kooperation_video_id = videoId || null;
     const name = await dateiName(tokenRow, targetCtx, koop, targetType, fileName, version, check.ext, ordner.pfad);

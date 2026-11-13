@@ -33,6 +33,7 @@ export function buildTree(raw, { team }) {
   const lostStillsByKoop = byKey((raw.stillAssets || []).filter(a => !a.video_id), 'kooperation_id');
   const assetsByStory = byKey(raw.storyAssets || [], 'story_id');
   const rohByKoop = byKey(raw.rohmaterial || [], 'kooperation_id');
+  const rohOrdnerByKoop = byKey(raw.rohOrdner || [], 'kooperation_id');
   const notesByVideo = byKey(raw.slotNotes || [], 'video_id');
   const zeitByVideo = byKey(raw.zeitkommentare || [], 'video_id');
   const stillNotesByVideo = byKey(raw.stillNotes || [], 'video_id');
@@ -69,6 +70,7 @@ export function buildTree(raw, { team }) {
         caption: v.caption || '',
         kooperationId: k.id,
         rohmaterial,
+        rohOrdner: rohOrdnerByKoop.get(k.id) || [],
         team,
         loopAssets: loopByVideo.get(v.id) || [],
         finalAssets: finalByVideo.get(v.id) || [],

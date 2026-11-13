@@ -156,6 +156,13 @@ describe('Rohmaterial ist versionslos', () => {
     expect(membership.kooperationen[0].rohmaterial).toEqual([{ name: 'clip.mov', size: 2048 }]);
   });
 
+  it('erlaubt Bilder (JPG, PNG, HEIC …) im Rohmaterial mit passendem Content-Type', () => {
+    expect(validateFile('rohmaterial', 'foto.jpg', 1_000)).toMatchObject({ ok: true, contentType: 'image/jpeg' });
+    expect(validateFile('rohmaterial', 'FOTO.PNG', 1_000)).toMatchObject({ ok: true, contentType: 'image/png' });
+    expect(validateFile('rohmaterial', 'foto.heic', 1_000).ok).toBe(true);
+    expect(validateFile('rohmaterial', 'dokument.pdf', 1_000)).toMatchObject({ ok: false, code: 'bad_type' });
+  });
+
   it('erlaubt Video-Formate und zip bis 10 GB', () => {
     expect(SIZE_CAPS.rohmaterial).toBe(10 * 1024 * 1024 * 1024);
 
@@ -167,7 +174,7 @@ describe('Rohmaterial ist versionslos', () => {
     const tooBig = validateFile('rohmaterial', 'clip.mov', 11 * 1024 * 1024 * 1024);
     expect(tooBig).toMatchObject({ ok: false, code: 'too_large' });
 
-    const badType = validateFile('rohmaterial', 'foto.jpg', 1_000);
+    const badType = validateFile('rohmaterial', 'dokument.pdf', 1_000);
     expect(badType).toMatchObject({ ok: false, code: 'bad_type' });
 
     expect(validateFile('rohmaterial', 'clip.mov', 0)).toMatchObject({ ok: false, code: 'empty' });
@@ -338,14 +345,14 @@ describe('RohmaterialService.uploadFiles', () => {
   });
 
   it('meldet ungueltige Dateien statt sie hochzuladen', async () => {
-    const bad = new File(['x'], 'foto.jpg', { type: 'image/jpeg' });
+    const bad = new File(['x'], 'dokument.pdf', { type: 'application/pdf' });
     Object.defineProperty(bad, 'size', { value: 1024 });
 
     const { uploaded, errors } = await RohmaterialService.uploadFiles(group, [bad]);
 
     expect(uploaded).toBe(0);
     expect(errors).toHaveLength(1);
-    expect(errors[0]).toMatch(/nur Video-Dateien oder ZIP/);
+    expect(errors[0]).toMatch(/nur Videos, Bilder oder ZIP/);
     expect(preparedNames).toEqual([]);
   });
 

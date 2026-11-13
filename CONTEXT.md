@@ -527,6 +527,10 @@ _Avoid_: Influencer Story, Slot
 Ein Standbild zu einem Kooperationsvideo (Feedbackschleife oder final). Liegt im Videos-Tab in derselben Runde wie das Video, gruppiert unter "Bilder". Trägt kein Seitenverhältnis. Altbilder ohne Video hängen am ersten Video der Kooperation; in SharePoint liegen sie auch in dessen Runde, und Uploads ohne Video bekommen beim Ablegen dieses Video.
 _Avoid_: Thumbnail, Cover
 
+**Rohmaterial-Ordner**:
+Unterordner in `<Kooperation>/Rohmaterial/`, in dem der Cutter arbeitet (Creator-Name, „final“, beliebig tief). Dateien darin sind Rohmaterial der Kooperation, im Videos-Tab nach Ordner gruppiert. Creator-Abgaben landen in `Rohmaterial/<Creator-Name>/`. Das Team legt Ordner im Finder oder im CRM an, umbenannt und gelöscht wird nur im Finder. Videos und Bilder daraus lassen sich in eine Feedbackschleife verschieben, dann sind sie kein Rohmaterial mehr (ADR 0070).
+_Avoid_: Creator-Ordner (das ist der Gruppenkopf), freier Ordner (das sind die Weiteren Ordner)
+
 **Finale Version**:
 Das ausgelieferte File eines Kooperationsvideos oder einer Story, in genau einem Seitenverhältnis.
 Liegt neben der Feedbackschleife, nicht in ihr. Entsteht auf zwei Wegen, beide nur durchs Team: eine vorhandene Datei einer Feedbackschleife per Klick "Als finale Version freigeben" (die Finale Version verweist auf sie, die Datei bleibt in der Schleife), oder eine Datei direkt in den Ordner Finale Version hochladen (ohne Feedbackschleife davor, z. B. wenn schon die erste Schleife final ist). Der Ordner ist für das Team immer da, auch leer; Kunden sehen ihn erst mit Inhalt. Die Freigabe setzt keinen Status von Hand, der Status folgt aus den Dateien.

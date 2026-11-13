@@ -7,7 +7,8 @@
 // dazu Rechnungen und Aufträge (ADR 0068). In den Dokument-Bereichen legt das CRM keine Zeilen aus
 // dem Finder an: Dokumente kennt es nur aus eigenen Uploads (abgleich-datei pflegt Pfad und Namen).
 // Ablage (ADR 0065): Videos/Video_N/Feedbackschleife_K bzw. Finale_Version enthalten Video und
-// Bild flach (Typ aus der Endung) und je Story-Slot einen Ordner Story_K. Typ-Ordner Storys/
+// Bild flach (Typ aus der Endung) und je Story-Slot einen Ordner Story_K. Rohmaterial/ darf freie
+// Unterordner haben, Dateien darin sind Rohmaterial der Kooperation (ADR 0070). Typ-Ordner Storys/
 // und Bilder/ sowie Varianten-Ordner (A/B/C) stammen aus dem Altbestand und gelten bis zum
 // Umsortieren weiter.
 //
@@ -134,6 +135,8 @@ function ortVon(eltern) {
       }
       return { art: 'falsch', grund: 'typ_ordner' };
     case 'frei':
+      // Unterordner im Rohmaterial (Creator-Name, "final", beliebig tief) sind Arbeitsordner der Cutter
+      if (typ === 'rohmaterial') return asset('roh', { kooperation_id: basis.kooperation_id });
       return DOKUMENT_BEREICHE.has(eltern.bereich) ? { art: 'dokument' } : { art: 'frei' };
     case 'dokument':
       return { art: 'dokument' };

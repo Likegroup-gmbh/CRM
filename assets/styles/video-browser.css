@@ -2697,6 +2697,290 @@
   }
 }
 
+/* --- Rohmaterial: Unterordner, Markieren, Verschieben (ADR 0070) ------- */
+
+.vb-col--3 {
+  --vb-roh-pad: clamp(var(--space-sm), 1.25cqi, var(--space-md));
+  --vb-roh-einzug: var(--space-md);
+}
+
+.vb-rohbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  padding: var(--space-xs) var(--vb-roh-pad);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.vb-rohbar.is-auswahl {
+  background: var(--gray-50);
+}
+
+.vb-rohbar__count {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.vb-rohbar__btn {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.vb-rohbar__neu {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding: var(--space-xxxs) var(--space-xs);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--gray-700);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.vb-rohbar__neu:hover {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.vb-rohbar__neu svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.vb-rohbar__hint {
+  margin-left: auto;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ziel-Menü klappt in der Spalte auf (kein Popover, das overflow abschneiden würde) */
+.vb-rohmenu {
+  max-height: 50%;
+  overflow-y: auto;
+  padding: var(--space-xxs) 0;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+.vb-rohmenu__label {
+  margin: 0;
+  padding: var(--space-xs) var(--vb-roh-pad) var(--space-xxxs);
+  overflow: hidden;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--gray-600);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-rohmenu__ziel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-xs) var(--vb-roh-pad);
+  border: 0;
+  background: none;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.vb-rohmenu__ziel:hover,
+.vb-rohmenu__ziel:focus-visible {
+  outline: none;
+  background: var(--gray-100);
+}
+
+.vb-rohmenu__meta,
+.vb-rohmenu__leer {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.vb-rohmenu__leer {
+  margin: 0;
+  padding: var(--space-sm) var(--vb-roh-pad);
+}
+
+.vb-rohgroup__head {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.vb-rohgroup__head .vb-row {
+  padding-left: calc(var(--vb-roh-pad) + var(--vb-roh-tiefe, 0) * var(--vb-roh-einzug));
+}
+
+.vb-rohgroup__chevron {
+  display: grid;
+  flex: none;
+  margin-right: calc(var(--space-xxs) * -1);
+  color: var(--gray-500);
+}
+
+.vb-rohgroup__chevron svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  transition: transform var(--motion-duration-fast, 160ms) ease;
+}
+
+.vb-rohgroup.is-collapsed > .vb-rohgroup__head .vb-rohgroup__chevron svg {
+  transform: rotate(-90deg);
+}
+
+.vb-rohgroup__head .vb-row__name {
+  font-weight: 500;
+}
+
+.vb-rohgroup__actions {
+  position: absolute;
+  right: var(--space-xs);
+  display: flex;
+  gap: var(--space-xxxs);
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.vb-rohgroup__head:hover .vb-rohgroup__actions,
+.vb-rohgroup__actions:focus-within {
+  opacity: 1;
+}
+
+.vb-rohgroup__actions .vb-icon-btn {
+  background: var(--bg-primary);
+}
+
+.vb-rohgroup__actions .vb-icon-btn:hover {
+  background: var(--gray-100);
+}
+
+.vb-rohgroup__body {
+  border-top: 1px solid var(--border-primary);
+}
+
+.vb-rohgroup__body[hidden] {
+  display: none;
+}
+
+.vb-rohgroup__body > li:last-child {
+  border-bottom: 0;
+}
+
+.vb-rohgroup__leer {
+  padding: var(--space-xs) calc(var(--vb-roh-pad) + (var(--vb-roh-tiefe, 0) + 1) * var(--vb-roh-einzug));
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.vb-rohgroup.is-file-drop > .vb-rohgroup__head {
+  background: var(--bg-secondary);
+  box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+
+/* Dateien im Ordner rücken eine Ebene ein; in der Wurzel gibt es keine Tiefe (Fallback -1) */
+.vb-rohlist .vb-row--roh {
+  padding-left: calc(var(--vb-roh-pad) + (var(--vb-roh-tiefe, -1) + 1) * var(--vb-roh-einzug));
+}
+
+.vb-row--roh.has-star {
+  padding-right: clamp(var(--space-sm), 1.25cqi, var(--space-md));
+}
+
+.vb-rohcheck {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--vb-roh-pad) + (var(--vb-roh-tiefe, -1) + 1) * var(--vb-roh-einzug));
+  display: grid;
+  place-items: center;
+  width: var(--height-avatar-sm);
+  height: var(--height-avatar-sm);
+  margin-block: auto;
+  border-radius: var(--radius-md);
+  background: var(--gray-100);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.vb-rohcheck input {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--gray-900);
+}
+
+.vb-rowwrap:hover > .vb-rohcheck,
+.vb-rohcheck:focus-within,
+.vb-rohcheck:has(input:checked),
+.vb-col:has(.vb-rohbar.is-auswahl) .vb-rohcheck {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .vb-rohcheck,
+  .vb-rohgroup__actions {
+    opacity: 1;
+  }
+}
+
+.vb-rohneu__form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--vb-row-h);
+  padding: 0 var(--space-xs) 0 calc(var(--vb-roh-pad) + var(--vb-roh-tiefe, 0) * var(--vb-roh-einzug));
+}
+
+.vb-rohneu__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-xxs) var(--space-xs);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.vb-rohneu__input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+/* Ziehen auf eine Feedbackschleife in Spalte 2 */
+.vb-rowwrap[data-vb-roh-drag] {
+  cursor: grab;
+}
+
+.vb.is-roh-dragging .vb-col--2 li[data-folder-id^="s"] > .vb-row {
+  box-shadow: inset 0 0 0 1px var(--gray-300);
+}
+
+.vb-col--2 li.is-roh-drop > .vb-row {
+  background: var(--bg-secondary);
+  box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+
+.vb-roh-dragghost {
+  position: fixed;
+  top: -100px;
+  left: -100px;
+  padding: var(--space-xxs) var(--space-sm);
+  border-radius: var(--radius-full);
+  background: var(--gray-900);
+  color: var(--color-white);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vb *,
   .vb *::before,

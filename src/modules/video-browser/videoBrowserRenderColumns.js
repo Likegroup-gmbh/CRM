@@ -17,6 +17,7 @@ import {
 import { ALTBESTAND_BADGE, zeigeAltbestandBadge } from '../kampagne/altbestandLinie.js';
 import { canMarkFinal, isMarked } from './videoBrowserRenderItem.js';
 import { tagMetaText } from './videoBrowserRenderTags.js';
+import { rohCheckHtml, rohInhalteHtml, rohToolbarHtml } from './videoBrowserRenderRoh.js';
 import {
   FOLDER_ICON,
   ITEM_ICON,
@@ -196,10 +197,10 @@ export function uploadRowHtml(up) {
 }
 
 function uploadZoneHtml(folder) {
-  const accept = folder.kind === 'raw' ? 'video/*,.zip' : 'video/*,image/*';
+  const accept = folder.kind === 'raw' ? 'video/*,image/*,.zip' : 'video/*,image/*';
   // Ein Upload ersetzt nichts und startet keine neue Schleife: er legt weitere Dateien
   // (Videos und Bilder) flach in genau diesem Ordner ab. Das sagt der Text.
-  let hint = 'Rohmaterial hierher ziehen';
+  let hint = 'Rohmaterial (Videos, Bilder, ZIP) hierher ziehen';
   if (folder.kind === 'final') {
     hint = folder.items.length
       ? 'Weitere finale Datei (z. B. 4:5, 1:1) hierher ziehen'
@@ -242,6 +243,9 @@ function colInhalte(ctx, activeDepth) {
 
   const itemRow = (item) => {
     const tags = tagMetaText(item, catalog);
+    const roh = item.type === 'roh';
+    // Rohmaterial lässt sich auf eine Feedbackschleife in Spalte 2 ziehen
+    const ziehbar = roh && canUpload && item.verschiebbar;
     return rowButton({
       depth: 3,
       id: item.id,
@@ -252,13 +256,17 @@ function colInhalte(ctx, activeDepth) {
       // Der Status gilt für die ganze Schleife und steht im Spaltenkopf, nicht an jeder Datei.
       meta: [item.meta, tags].filter(Boolean).join(' · '),
       chevron: true,
-      after: canUpload && canMarkFinal(item) ? starHtml(item) : ''
+      extraClass: roh ? 'vb-row--roh' : '',
+      liAttrs: ziehbar ? `draggable="true" data-vb-roh-drag="${esc(item.id)}"` : '',
+      after: roh ? rohCheckHtml(item, ctx) : (canUpload && canMarkFinal(item) ? starHtml(item) : '')
     });
   };
 
   const uploadRows = (uploads || []).map(uploadRowHtml).join('');
   const orderedItems = GROUP_ORDER.flatMap(g => groups.get(g) || []);
-  const groupHtml = orderedItems.length ? rowList(orderedItems.map(itemRow).join('')) : '';
+  const groupHtml = folder.kind === 'raw'
+    ? rohInhalteHtml(ctx, { visible, itemRow })
+    : (orderedItems.length ? rowList(orderedItems.map(itemRow).join('')) : '');
 
   const leerText = folder.kind === 'raw'
     ? (team ? 'Der Creator hat noch kein Rohmaterial hochgeladen.' : 'Noch nichts vorhanden.')
@@ -285,7 +293,7 @@ function colInhalte(ctx, activeDepth) {
     sub: statusZeile,
     activeDepth,
     zurueck: true,
-    toolbarHtml: filterChipsHtml(chips, active),
+    toolbarHtml: folder.kind === 'raw' ? rohToolbarHtml(ctx) : filterChipsHtml(chips, active),
     bodyHtml: `${uploadRows ? `<ul class="vb-rows" data-vb-upload-list>${uploadRows}</ul>` : ''}${groupHtml}${filtered}${!groupHtml && !uploadRows && !filtered ? empty(leerText) : ''}`,
     footHtml: foot
   });
