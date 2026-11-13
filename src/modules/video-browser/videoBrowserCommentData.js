@@ -51,3 +51,25 @@ export function commentsForAsset(comments, runde, assetId, type = 'video') {
   if (type === 'story') return ohneBild.filter(c => (!c.assetId && c.timecodeSec === null) || eigene(c));
   return ohneBild.filter(c => !c.assetId || eigene(c));
 }
+
+/**
+ * Wohin die Kommentare einer Datei gehören. Eine finale Datei verweist auf ihre Quelle in einer
+ * Feedbackschleife und teilt deren Kommentare. Ein direkt abgelegtes finales Video ohne Quelle
+ * hängt an der jüngsten Schleife ohne Zuordnung; finale Bilder und Stories ohne Quelle haben kein Ziel.
+ * @returns {{ runde: number, assetId: string|null, type: string }|null}
+ */
+export function kommentarZiel(row, item) {
+  if (!row || !item || item.type === 'roh') return null;
+  if (!item.isFinal) return { runde: item.runde, assetId: item.id, type: item.type };
+  const schleifen = (row.folders || []).filter(f => f.kind === 'schleife' && !f.leer);
+  const sourceId = item.asset?.source_asset_id;
+  if (sourceId) {
+    for (const f of schleifen) {
+      const quelle = f.items.find(i => i.id === sourceId && i.type === item.type);
+      if (quelle) return { runde: quelle.runde, assetId: quelle.id, type: quelle.type };
+    }
+  }
+  if (item.type !== 'video' || !schleifen.length) return null;
+  const juengste = schleifen.reduce((a, b) => (b.number > a.number ? b : a));
+  return { runde: juengste.number, assetId: null, type: 'video' };
+}

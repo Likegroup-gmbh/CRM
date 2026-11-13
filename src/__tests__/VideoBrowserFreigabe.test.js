@@ -132,6 +132,19 @@ describe('Video-Freigabe: Logik', () => {
     const html = commentsPanelHtml({ resolved: { row, folder, item }, canComment: true, drafts: {} });
     expect(html).toContain('data-vb-comment-form');
   });
+
+  it('finale Datei ist kommentierbar und zeigt die Kommentare ihrer Quelle, auch aus einer älteren Schleife', () => {
+    const data = mitFinal();
+    data.videoAssets.push({ id: 'a3', video_id: 'v1', version_number: 2, titel: 'Neuer Schnitt', is_final: false, created_at: '2026-03-10' });
+    data.zeitkommentare = [{ id: 'z1', video_id: 'v1', runde: 1, feedback_typ: 'kunde', text: 'Logo früher', timecode_sec: '2.00', asset_id: 'a1', author_name: 'Kunde', created_at: '2026-02-02' }];
+    const row = rowOf(data);
+    expect(row.folders.find(f => f.id === 's1').offen).toBe(false);
+    const folder = row.folders.find(f => f.kind === 'final');
+    const item = folder.items.find(i => i.id === 'fa1');
+    const html = commentsPanelHtml({ resolved: { row, folder, item }, canComment: true, drafts: {} });
+    expect(html).toContain('data-vb-comment-form');
+    expect(html).toContain('Logo früher');
+  });
 });
 
 describe('Video-Freigabe: Ablauf im Videos-Tab', () => {

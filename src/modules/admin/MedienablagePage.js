@@ -7,7 +7,8 @@
 // ablage-stand; nach jeder Aktion wird der Stand neu geladen.
 // Teile: medienablageStand.js (Karten, Notschalter, Eingang),
 // medienablageWeiche.js (Weiche, Umzug, Suche), medienablageDokumente.js (Verträge,
-// Rechnungen, Aufträge: eigener Notschalter, Weiche, Umzug), medienablageFormat.js (Helfer).
+// Rechnungen, Aufträge: eigener Notschalter, Weiche, Umzug), medienablageFinale.js (Finale
+// Version im Finder), medienablageFormat.js (Helfer).
 
 import { escapeHtml } from '../../core/format.js';
 import { navMark } from '../../core/dev/navTrace.js';
@@ -15,6 +16,7 @@ import { postStand, setBusy, bestaetigen } from './medienablageFormat.js';
 import { nichtKonfiguriertHtml, kartenHtml, notschalterHtml, unzugeordnetHtml, fehlerHtml } from './medienablageStand.js';
 import { weicheHtml, filterUnternehmen, weicheSetzen, umzugStarten, umsortierenStarten } from './medienablageWeiche.js';
 import { dokumenteHtml, dokumenteNotschalterUmschalten, dokumentWeicheSetzen, dokumentUmzugStarten } from './medienablageDokumente.js';
+import { finalSpiegelHtml, finalSpiegelStarten } from './medienablageFinale.js';
 
 export class MedienablagePage {
   constructor() {
@@ -117,6 +119,7 @@ export class MedienablagePage {
           ${notschalterHtml(this)}
           ${weicheHtml(this)}
           ${dokumenteHtml(this)}
+          ${finalSpiegelHtml(this)}
           ${unzugeordnetHtml(this)}
           ${fehlerHtml(this)}
         ` : nichtKonfiguriertHtml()}
@@ -202,6 +205,11 @@ export class MedienablagePage {
       const umsortieren = e.target.closest('[data-ma-umsortieren]');
       if (umsortieren) {
         void umsortierenStarten(this, umsortieren);
+        return;
+      }
+      const spiegeln = e.target.closest('[data-ma-final-spiegel]');
+      if (spiegeln) {
+        void finalSpiegelStarten(this, spiegeln);
         return;
       }
       const erneut = e.target.closest('[data-ma-erneut]');

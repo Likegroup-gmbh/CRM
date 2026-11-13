@@ -5,6 +5,8 @@
 
 const { TABELLE, TYPEN, dateiSpalten, fachSpalten, findeUeberall, upsert, entfernenNachItem, umstellen } = require('./asset');
 const { dateiEinordnen, ortVon, ELTERN_VERSUCHE } = require('./klassifizierung');
+const { konfliktNamePasst } = require('./pfad');
+const { spiegelImAbgleich, spiegelGeloescht } = require('./final-spiegel');
 const dokument = require('./dokument');
 
 const DATEI_FELDER = 'id,name,size,eTag,cTag,webUrl,parentReference,file,folder,video,image,deleted,createdDateTime';
@@ -19,6 +21,9 @@ function createDateiAbgleich(c) {
   const benutzerCache = new Map();
 
   async function dateiBearbeiten(e) {
+    // Spiegel-Kopien der Finalen Version (ADR 0073) sind keine Fachdateien
+    const spiegel = await spiegelImAbgleich({ supabase, sp, driveId }, e);
+    if (spiegel) return spiegel;
     const asset = await findeUeberall(supabase, driveId, e.item_id);
     const dok = asset ? null : await dokument.findeNachItem(supabase, driveId, e.item_id);
     const item = e.geloescht ? null : await sp.item(e.item_id, DATEI_FELDER);
@@ -63,17 +68,8 @@ function createDateiAbgleich(c) {
     if (perItem?.[0]) return perItem[0];
     const { data } = await supabase.from('ablage_upload').select('*')
       .eq('drive_id', driveId).eq('parent_item_id', parentId).is('item_id', null);
-    const passt = (up) => {
-      if (up.name.toLowerCase() === item.name.toLowerCase()) return true;
-      const dot = up.name.lastIndexOf('.');
-      const stamm = dot > 0 ? up.name.slice(0, dot) : up.name;
-      const ext = dot > 0 ? up.name.slice(dot) : '';
-      return Number(up.groesse) === Number(item.size)
-        && item.name.toLowerCase().startsWith(`${stamm.toLowerCase()} `)
-        && item.name.toLowerCase().endsWith(ext.toLowerCase())
-        && /^\d+$/.test(item.name.slice(stamm.length + 1, item.name.length - ext.length));
-    };
-    return (data || []).filter(passt).sort((a, b) => String(b.erstellt_at).localeCompare(String(a.erstellt_at)))[0] || null;
+    return (data || []).filter((up) => konfliktNamePasst(up.name, up.groesse, item))
+      .sort((a, b) => String(b.erstellt_at).localeCompare(String(a.erstellt_at)))[0] || null;
   }
 
   async function dateiAusfuehren(d, { e, item, eltern, asset, pfad }) {
@@ -181,6 +177,8 @@ function createDateiAbgleich(c) {
     let n = 0;
     for (const typ of TYPEN) n += await entfernenNachItem(supabase, typ, driveId, itemId);
     n += await dokument.entfernenNachItem(supabase, driveId, itemId);
+    // Ordner geloescht (Kaskade): Spiegel-Kopien darin sind mit weg
+    await spiegelGeloescht(supabase, driveId, itemId);
     return n;
   }
 

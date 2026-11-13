@@ -296,6 +296,32 @@ describe('VideoBrowser Controller', () => {
     });
   });
 
+  it('finale Datei bleibt kommentierbar: der Kommentar geht an die Quelle in ihrer Runde', async () => {
+    ctx = setup({ team: false });
+    saveZeitkommentar.mockClear();
+    loadVideoBrowserData.mockResolvedValueOnce({
+      ...structuredClone(RAW),
+      videoAssets: [
+        ...structuredClone(RAW.videoAssets),
+        { id: 'a2', video_id: 'v1', version_number: 2, is_final: false, created_at: '2026-02-10' },
+        { id: 'fa1', video_id: 'v1', version_number: 1, variant_name: '9:16', is_final: true, source_asset_id: 'a1', created_at: '2026-02-20' }
+      ]
+    });
+    window.history.replaceState(null, '', '/produktion/p1?tab=videos&k=k1&v=v1&f=final&i=fa1');
+    await mountVideoBrowserPane(ctx.detail, ctx.pane);
+
+    const form = ctx.pane.querySelector('[data-vb-comment-form]');
+    expect(form).not.toBeNull();
+    player.opts.onTime(12.5);
+    form.querySelector('[data-vb-comment-text]').value = 'Untertitel größer';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(ctx.pane.querySelectorAll('.vb-comment')).toHaveLength(1));
+    expect(saveZeitkommentar).toHaveBeenCalledWith(expect.objectContaining({
+      videoId: 'v1', runde: 1, assetId: 'a1', assetType: 'video', timecodeSec: 12.5, isKunde: true
+    }));
+    expect(ctx.pane.querySelector('[data-vb-tab-count]').textContent).toBe('1');
+  });
+
   it('Ordner mit einer Datei öffnet direkt die Datei', async () => {
     ctx = setup({ team: true });
     window.history.replaceState(null, '', '/produktion/p1?tab=videos&k=k1&v=v1');

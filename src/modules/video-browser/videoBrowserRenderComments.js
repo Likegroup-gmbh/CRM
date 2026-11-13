@@ -3,7 +3,7 @@
 
 import { escapeHtml as esc } from '../../core/format.js';
 import { formatTime } from '../../core/media/mediaPlayerIcons.js';
-import { commentsForAsset, formatDatum } from './videoBrowserLogic.js';
+import { commentsForAsset, formatDatum, kommentarZiel } from './videoBrowserLogic.js';
 
 const isoOf = (value) => {
   const t = new Date(value);
@@ -30,19 +30,23 @@ export function commentHtml(c) {
     </li>`;
 }
 
-/** Kommentare, die zu dieser Datei gehören (leer bei Dateien der Finalen Version und Rohmaterial). */
+/** Kommentare, die zu dieser Datei gehören (bei finalen Dateien die ihrer Quelle, leer bei Rohmaterial). */
 export function commentsOf(row, item) {
-  if (!row || !item || item.isFinal || item.type === 'roh') return [];
-  return commentsForAsset(row.comments, item.runde, item.id, item.type);
+  const ziel = kommentarZiel(row, item);
+  return ziel ? commentsForAsset(row.comments, ziel.runde, ziel.assetId, ziel.type) : [];
 }
 
 const KOMMENTIERBAR = new Set(['video', 'story', 'still']);
 
-/** Inhalt des Tabs. Die Kommentare gehören der Datei, geschrieben wird nur in der offenen Runde. */
+/**
+ * Inhalt des Tabs. Die Kommentare gehören der Datei, geschrieben wird in der offenen Runde.
+ * Finale Dateien bleiben immer kommentierbar, auch wenn ihre Quelle in einer älteren Schleife liegt.
+ */
 export function commentsPanelHtml(ctx) {
   const { row, folder, item } = ctx.resolved;
   const comments = commentsOf(row, item);
-  const canWrite = ctx.canComment && KOMMENTIERBAR.has(item.type) && !item.isFinal && folder.offen && row.kannKommentieren;
+  const canWrite = ctx.canComment && KOMMENTIERBAR.has(item.type) && !!kommentarZiel(row, item)
+    && (item.isFinal || folder.offen) && row.kannKommentieren;
   // Bilder haben keine Zeitleiste, also keinen Zeitstempel
   const mitZeit = item.type !== 'still';
   // Zeitstempel: erst an, wenn der Playhead bewegt wurde (macht der Controller über onTime).

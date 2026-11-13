@@ -9,6 +9,7 @@ import {
   detectRatio,
   ersterOffenerInhalt,
   fitFrame,
+  kommentarZiel,
   markerNah,
   markerProzent,
   selectLevel,
@@ -408,6 +409,25 @@ describe('Baum', () => {
     expect(meta('a1')).toBe('v1 · 1 Kommentar');
     expect(meta('sa1')).toBe('v1 · 2 Kommentare');
     expect(meta('b1')).toBe('v1 · 2 Kommentare');
+  });
+
+  it('Kommentarziel: finale Dateien kommentieren ihre Quelle, Videos ohne Quelle die jüngste Schleife', () => {
+    const data = raw();
+    data.videoAssets.push(
+      { id: 'fa1', video_id: 'v1', version_number: 1, variant_name: '9:16', is_final: true, source_asset_id: 'a1', created_at: '2026-03-01' },
+      { id: 'fx', video_id: 'v1', version_number: 1, variant_name: '4:5', is_final: true, created_at: '2026-03-02' }
+    );
+    data.stillAssets = [{ id: 'fs1', video_id: 'v1', version_number: 1, is_final: true, file_name: 'f.jpg', created_at: '2026-03-03' }];
+    const v1 = buildTree(data, { team: true }).kooperationen[0].rows[0];
+    const final = v1.folders.find(f => f.kind === 'final');
+    const item = (id) => final.items.find(i => i.id === id);
+
+    expect(kommentarZiel(v1, item('fa1'))).toEqual({ runde: 1, assetId: 'a1', type: 'video' });
+    expect(kommentarZiel(v1, item('fx'))).toEqual({ runde: 2, assetId: null, type: 'video' });
+    expect(kommentarZiel(v1, item('fs1'))).toBeNull();
+    const a2 = v1.folders.find(f => f.id === 's2').items.find(i => i.id === 'a2');
+    expect(kommentarZiel(v1, a2)).toEqual({ runde: 2, assetId: 'a2', type: 'video' });
+    expect(kommentarZiel(v1, { type: 'roh', id: 'r1' })).toBeNull();
   });
 
   it('erster offener Inhalt', () => {

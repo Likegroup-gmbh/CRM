@@ -42,8 +42,8 @@ export function getVideoFeedbackSlot(runde, feedbackTyp) {
  * Mappt eine Video-Version (Feedbackschleife) + Rolle auf das passende
  * Feedback-Ziel im Player.
  *  - Version 1 -> Runde 1, Version 2 -> Runde 2, Version 3+ -> Runde 3.
- *  - Alle Feedbackschleifen sind editierbar; die finale Version laeuft
- *    separat ueber is_final-Assets (dort gibt es keinen Feedback-Slot).
+ *  - Alle Feedbackschleifen sind editierbar; eine finale Version schreibt in
+ *    die Runde ihrer Quelle (playerFeedbackTarget.versionFuerFinal).
  *  - feedback_typ: Kunde -> 'kunde', sonst 'cj'.
  * @param {number} version
  * @param {boolean} isKunde

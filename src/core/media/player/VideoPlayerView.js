@@ -273,12 +273,6 @@ export class VideoPlayerView {
     }
 
     const { videoId, target, kind = 'video' } = ft;
-    if (target.isFinal) {
-      return `
-        <div class="media-viewer-feedback">
-          <div class="media-viewer-feedback-hint">Finale Version &ndash; kein Feedback m&ouml;glich.</div>
-        </div>`;
-    }
     if (!target.slot) return '';
 
     const commentsMap = kind === 'still'
@@ -290,7 +284,7 @@ export class VideoPlayerView {
       ? formatVideoFeedbackValue(comments, target.counterpartSlot.bucket)
       : '';
 
-    const editable = !target.readonly && s.table.isFieldEditableForUser('video', target.slot.field);
+    const editable = s.table.isFieldEditableForUser('video', target.slot.field);
 
     const counterpartHtml = counterpartValue
       ? `<div class="media-viewer-feedback-context">
@@ -298,9 +292,7 @@ export class VideoPlayerView {
          </div>`
       : '';
 
-    const hint = target.readonly
-      ? 'Finale Version &ndash; kein neues Feedback moeglich.'
-      : (editable ? '' : 'Nur Lesezugriff fuer deine Rolle.');
+    const hint = editable ? '' : 'Nur Lesezugriff fuer deine Rolle.';
 
     return `
       <div class="media-viewer-feedback">

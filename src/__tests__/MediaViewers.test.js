@@ -17,7 +17,7 @@ import { _clearAblageLinkCache } from '../core/ablage/ablageLink.js';
 import * as MediaCache from '../core/media/MediaCache.js';
 import { VideoElementPool } from '../core/media/player/VideoElementPool.js';
 import { bufferedAhead, hasHeadroom, whenHeadroom } from '../core/media/player/stage/playbackHeadroom.js';
-import { feedbackTargetFor } from '../core/media/player/playerFeedbackTarget.js';
+import { feedbackTargetFor, versionFuerFinal } from '../core/media/player/playerFeedbackTarget.js';
 import { applyVideoDefault } from '../core/media/player/selection/video.js';
 import { applyStillDefault } from '../core/media/player/selection/still.js';
 import { storyVersions, storyFinalVariants, storyAssetFor } from '../core/media/player/selection/story.js';
@@ -664,7 +664,7 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
     expect(storyAssetFor(slot, 2)?.id).toBe('b');
   });
 
-  it('feedbackTarget fuer finale Story-Version ist readonly ohne Feedback-Slot', () => {
+  it('feedbackTarget fuer finale Story-Version schreibt in die Runde der Quelle', () => {
     const koops = [{ id: 'k1' }];
     const videos = {
       k1: [{
@@ -673,19 +673,38 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
           id: 's1', video_id: 'v1',
           assets: [
             { id: 'sa1', version_number: 1 },
-            { id: 'f1', version_number: 1, is_final: true, variant_name: '9:16' },
+            { id: 'sa2', version_number: 2 },
+            { id: 'f1', version_number: 1, is_final: true, variant_name: '9:16', source_asset_id: 'sa1' },
+            { id: 'f2', version_number: 1, is_final: true, variant_name: '4:5' },
           ],
         }],
       }],
     };
     const player = playerWith(koops, videos);
     player.session.index = player.session.items.findIndex(e => e.type === 'story');
-    player.session.story.version = 'final';
+    player.session.story = { version: 'final', finalAssetId: 'f1' };
     const target = feedbackTargetFor(player.session);
     expect(target.videoId).toBe('v1');
-    expect(target.target.isFinal).toBe(true);
-    expect(target.target.readonly).toBe(true);
-    expect(target.target.slot).toBeNull();
+    expect(target.target.readonly).toBe(false);
+    expect(target.target.runde).toBe(1);
+    expect(target.target.slot).not.toBeNull();
+
+    // Ohne Quelle: hoechste Feedbackschleife
+    player.session.story = { version: 'final', finalAssetId: 'f2' };
+    expect(feedbackTargetFor(player.session).target.runde).toBe(2);
+  });
+
+  it('versionFuerFinal: Quelle, sonst hoechste Schleife, sonst 1', () => {
+    const assets = [
+      { id: 'a1', version_number: 1 },
+      { id: 'a3', version_number: 3 },
+      { id: 'f1', is_final: true, version_number: 1, source_asset_id: 'a1' },
+      { id: 'f2', is_final: true, version_number: 1 },
+    ];
+    expect(versionFuerFinal(assets, 'f1')).toBe(1);
+    expect(versionFuerFinal(assets, 'f2')).toBe(3);
+    expect(versionFuerFinal([{ id: 'f9', is_final: true }], 'f9')).toBe(1);
+    expect(versionFuerFinal(null, null)).toBe(1);
   });
 
   it('feedbackTarget ist null fuer Bild in Koop ohne Video', () => {

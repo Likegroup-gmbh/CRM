@@ -176,6 +176,23 @@ function pfadZuLang(sitePfad, relativ) {
   return `${sitePfad || ''}/${relativ || ''}`.length > MAX_PFAD;
 }
 
+/**
+ * Ist `item` die Datei, die unter `erwartet` angelegt wurde? Gleicher Name, oder bei
+ * conflictBehavior 'rename' "Stamm N.ext" mit gleicher Groesse.
+ */
+function konfliktNamePasst(erwartet, groesse, item) {
+  const soll = String(erwartet || '');
+  const name = String(item?.name || '');
+  if (soll.toLowerCase() === name.toLowerCase()) return true;
+  const dot = soll.lastIndexOf('.');
+  const stamm = dot > 0 ? soll.slice(0, dot) : soll;
+  const ext = dot > 0 ? soll.slice(dot) : '';
+  return Number(groesse) === Number(item?.size)
+    && name.toLowerCase().startsWith(`${stamm.toLowerCase()} `)
+    && name.toLowerCase().endsWith(ext.toLowerCase())
+    && /^\d+$/.test(name.slice(stamm.length + 1, name.length - ext.length));
+}
+
 module.exports = {
   TEST_ORDNER,
   BEREICH_ORDNER,
@@ -204,4 +221,5 @@ module.exports = {
   systemdatei,
   dateiTyp,
   pfadZuLang,
+  konfliktNamePasst,
 };

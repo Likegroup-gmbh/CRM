@@ -7,13 +7,17 @@
 //    Rollen, Klassen, Ordnern), sonst alle 15 Minuten.
 // 4. ablage-umzug-background: so viele Laeufer anstossen, dass bis zu ABLAGE_UMZUG_PARALLEL
 //    (Standard 2) gleichzeitig offene Umzugs-Zeilen abarbeiten.
-// 5. Alarme pruefen (Stillstand, Abo, Zertifikat, Speicher, Rechte) und Admins mailen.
+// 5. Finale Version im Finder (ADR 0073): Spiegel-Warteschlange abgleichen (neue, veraltete,
+//    verwaiste Finale) und ablage-final-spiegel-background anstossen, solange etwas faellig ist.
+// 6. Alarme pruefen (Stillstand, Abo, Zertifikat, Speicher, Rechte) und Admins mailen.
 // Laeuft nur auf dem veroeffentlichten Production-Deploy; Staging ist eine eigene Site.
 
 const { webhookUrl, anstossen } = require('./_shared/ablage/konfig');
 const { ablageAusEnv } = require('./_shared/ablage');
 const { createAbgleich } = require('./_shared/ablage/abgleich');
 const { createUmzug, PARALLEL } = require('./_shared/ablage/umzug');
+const { createFinalSpiegel } = require('./_shared/ablage/final-spiegel');
+const { notschalterAn } = require('./_shared/ablage/ziel');
 const { createAlarm } = require('./_shared/ablage/alarm');
 
 const RECHTE_MS = 15 * 60 * 1000;
@@ -51,10 +55,26 @@ exports.handler = async (event) => {
     if (await anstossen(event, 'ablage-umzug-background', { grund: 'zeitplan' })) umzug++;
   }
 
+  const spiegel = await schritt('Final-Spiegel', () => finalSpiegelAnstossen(event, ablage));
+
   const alarm = await schritt('Alarm', () => createAlarm({ supabase: ablage.supabase, ablage }).lauf(stand));
 
-  console.log(`[ablage-zeitplan] abo=${abo?.abo || abo?.fehler || '–'} laeuft=${laeuft} angestossen=${angestossen} rechte=${rechte} umzug=${umzug} alarme=${alarm?.aktiv?.join(',') || alarm?.fehler || '–'}`);
-  return { statusCode: 200, body: JSON.stringify({ abo, laeuft, angestossen, rechte, umzug, alarm }) };
+  console.log(`[ablage-zeitplan] abo=${abo?.abo || abo?.fehler || '–'} laeuft=${laeuft} angestossen=${angestossen} rechte=${rechte} umzug=${umzug} spiegel=${spiegel?.angestossen ?? spiegel?.fehler ?? '–'} alarme=${alarm?.aktiv?.join(',') || alarm?.fehler || '–'}`);
+  return { statusCode: 200, body: JSON.stringify({ abo, laeuft, angestossen, rechte, umzug, spiegel, alarm }) };
 };
 
+async function finalSpiegelAnstossen(event, ablage, { anstossenImpl = anstossen } = {}) {
+  if (process.env.ABLAGE_ZIEL === 'dropbox' || await notschalterAn(ablage.supabase)) return { pausiert: true };
+  const s = createFinalSpiegel({ supabase: ablage.supabase, ablage });
+  const faellig = await s.scan();
+  const parallel = Math.max(1, Number(process.env.ABLAGE_SPIEGEL_PARALLEL) || 1);
+  const bedarf = faellig ? await s.laeuferBedarf({ parallel }) : 0;
+  let angestossen = 0;
+  for (let i = 0; i < bedarf; i++) {
+    if (await anstossenImpl(event, 'ablage-final-spiegel-background', { grund: 'zeitplan' })) angestossen++;
+  }
+  return { faellig, angestossen };
+}
+
 exports.rechteFaellig = rechteFaellig;
+exports.finalSpiegelAnstossen = finalSpiegelAnstossen;

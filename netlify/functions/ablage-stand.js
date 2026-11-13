@@ -3,6 +3,7 @@
 //   | { aktion: 'weiche', unternehmen_id, ziel } | { aktion: 'erneut' | 'ignorieren', item_id }
 //   | { aktion: 'jetzt_abgleichen' } | { aktion: 'voll_abgleich' } | { aktion: 'umzug_starten', unternehmen_id }
 //   | { aktion: 'umsortieren_planen' | 'umsortieren_starten', unternehmen_id }
+//   | { aktion: 'final_spiegel_planen' | 'final_spiegel_starten' }
 
 const { ablageHandler, AblageFehler } = require('./_shared/ablage/http');
 const { istAdmin } = require('./_shared/ablage/zugriff');

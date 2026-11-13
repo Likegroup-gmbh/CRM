@@ -1,11 +1,12 @@
 // _shared/ablage/stand.js
 // Admin-Seite Medienablage: Stand lesen und Betriebsaktionen (Notschalter, Weiche, Eingang,
-// Abgleich anstossen, Umzug starten). Die Function ablage-stand prueft vorher die Admin-Rolle.
+// Abgleich anstossen, Umzug starten, Finale spiegeln). Die Function ablage-stand prueft vorher die Admin-Rolle.
 
 const { istUuid, anstossen } = require('./konfig');
 const { AblageFehler } = require('./http');
 const { createUmzug } = require('./umzug');
 const { createUmsortieren } = require('./umsortieren');
+const { createFinalSpiegel } = require('./final-spiegel');
 const ziel = require('./ziel');
 
 const LISTE = 200;
@@ -18,11 +19,14 @@ const BEREICHE = {
 const STAND_SPALTEN = 'drive_id, letzter_lauf, letzter_erfolg, letzte_meldung, fehler, fehler_seit, abo_ablauf, '
   + 'voll_abgleich_noetig, quota_used, quota_total, zert_ablauf, rechte_lauf, rechte_fehler, alarme';
 
-function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now(), anstossenImpl = anstossen, umzug = null, umsortieren = null }) {
+function createStand({
+  supabase, ablage, event, benutzer, jetzt = () => Date.now(), anstossenImpl = anstossen, umzug = null, umsortieren = null, finalSpiegel = null,
+}) {
   const driveId = ablage?.sp?.driveId || ablage?.konfig?.driveId || null;
   const iso = (ms = jetzt()) => new Date(ms).toISOString();
   const umzugVon = () => umzug || createUmzug({ supabase, ablage });
   const umsortierenVon = () => umsortieren || createUmsortieren({ supabase, ablage, jetzt });
+  const spiegelVon = () => finalSpiegel || createFinalSpiegel({ supabase, ablage, jetzt });
 
   const ergebnis = ({ data, error }) => {
     if (error) throw error;
@@ -53,12 +57,12 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
     if (!ablage) {
       return {
         ...basis, zaehler: { offen: 0, fehler: 0, unzugeordnet: 0, erledigt_24h: 0 }, unzugeordnet: [], fehler: [], unternehmen: [], umzug: [],
-        dokumente: [], dokument_umzug: [],
+        dokumente: [], dokument_umzug: [], final_spiegel: null,
       };
     }
 
     const seit24h = iso(jetzt() - 24 * 60 * 60 * 1000);
-    const [offen, fehler, unzugeordnet, erledigt24h, unzListe, fehlerListe, unternehmen, dokumente] = await Promise.all([
+    const [offen, fehler, unzugeordnet, erledigt24h, unzListe, fehlerListe, unternehmen, dokumente, finalSpiegelStand] = await Promise.all([
       zaehlen((q) => q.eq('status', 'offen')),
       zaehlen((q) => q.eq('status', 'fehler')),
       zaehlen((q) => q.eq('status', 'unzugeordnet').eq('geloescht', false)),
@@ -69,6 +73,11 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
         .eq('drive_id', driveId).eq('status', 'fehler').order('naechster_versuch', { ascending: true }).limit(LISTE).then(ergebnis),
       supabase.rpc('ablage_unternehmen_stand', { p_drive_id: driveId }).then(ergebnis),
       supabase.rpc('ablage_dokumente_stand', { p_drive_id: driveId }).then(ergebnis),
+      // Ohne Migration 20261216 bleibt die Seite benutzbar, nur ohne den Spiegel-Teil
+      Promise.resolve().then(() => spiegelVon().stand()).catch((err) => {
+        console.warn('[ablage-stand] Final-Spiegel:', err.message);
+        return null;
+      }),
     ]);
 
     const n = (v) => Number(v) || 0;
@@ -92,6 +101,7 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
         sharepoint: n(d.dokumente_sharepoint), dropbox: n(d.dokumente_dropbox), storage: n(d.dokumente_storage),
       })),
       dokument_umzug: (dokumente || []).filter(hatUmzug).map(umzugZaehler),
+      final_spiegel: finalSpiegelStand,
     };
   }
 
@@ -202,15 +212,35 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
     return { ok: true, angestossen };
   }
 
+  /** Trockenlauf "Finale spiegeln" (ADR 0073): was kopiert wuerde und wie viel Speicher es braucht. */
+  async function final_spiegel_planen() {
+    sharePointNoetig();
+    const [zaehler, quota] = await Promise.all([
+      spiegelVon().stand(),
+      supabase.from('ablage_stand').select('quota_used, quota_total').eq('drive_id', driveId).maybeSingle().then(ergebnis),
+    ]);
+    return { ok: true, ...zaehler, quota_used: Number(quota?.quota_used) || 0, quota_total: Number(quota?.quota_total) || 0 };
+  }
+
+  /** Bestand vor dem Stichtag, Fehler und im Finder geloeschte Kopien einreihen und den Laeufer starten. */
+  async function final_spiegel_starten() {
+    sharePointNoetig();
+    await ablage.ordner.wurzel();
+    const eingereiht = await spiegelVon().scan({ alle: true });
+    const angestossen = await anstossenImpl(event, 'ablage-final-spiegel-background', { grund: 'admin' });
+    console.log(`[ablage-stand] Finale spiegeln: ${eingereiht} offen, angestossen=${angestossen} durch ${benutzer?.email || benutzer?.id || '?'}`);
+    return { ok: true, eingereiht, angestossen };
+  }
+
   return {
     stand, notschalter, weiche, erneut, ignorieren, jetzt_abgleichen, voll_abgleich, umzug_starten, dokument_umzug_starten,
-    umsortieren_planen, umsortieren_starten,
+    umsortieren_planen, umsortieren_starten, final_spiegel_planen, final_spiegel_starten,
   };
 }
 
 const AKTIONEN = new Set([
   'stand', 'notschalter', 'weiche', 'erneut', 'ignorieren', 'jetzt_abgleichen', 'voll_abgleich', 'umzug_starten',
-  'dokument_umzug_starten', 'umsortieren_planen', 'umsortieren_starten',
+  'dokument_umzug_starten', 'umsortieren_planen', 'umsortieren_starten', 'final_spiegel_planen', 'final_spiegel_starten',
 ]);
 
 module.exports = { createStand, AKTIONEN };

@@ -160,7 +160,7 @@ export async function loadStorySlots(dl, videoIds) {
     const assetsResult = slotIds.length > 0
       ? await batchInQuery(
           sb.from('kooperation_story_asset'),
-          mitAblage('id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, created_at'),
+          mitAblage('id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, source_asset_id, created_at'),
           'story_id', slotIds
         ).catch(err => ({ data: [], error: err }))
       : { data: [] };

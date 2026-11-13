@@ -6,7 +6,7 @@
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
 import { splitFileName } from '../../core/videoFileNames.js';
-import { formatDatum, schleifeName, verlaufFor } from './videoBrowserLogic.js';
+import { formatDatum, kommentarZiel, schleifeName, verlaufFor } from './videoBrowserLogic.js';
 import { statusBadge } from './videoBrowserRenderParts.js';
 import { commentsOf, commentsPanelHtml } from './videoBrowserRenderComments.js';
 import { tagFieldHtml } from './videoBrowserRenderTags.js';
@@ -14,13 +14,13 @@ import { captionFieldHtml } from './videoBrowserCaption.js';
 
 export const TAB_LABEL = { details: 'Details', admanager: 'Ad Manager', kommentare: 'Kommentare' };
 
-/** Welche Tabs die Datei hat: Ad Manager nur fürs Team und nur bei Videos, Kommentare nicht bei Rohmaterial und Finalen. */
+/** Welche Tabs die Datei hat: Ad Manager nur fürs Team und nur bei Videos, Kommentare nicht bei Rohmaterial. */
 export function availableTabs(ctx) {
-  const { item } = ctx.resolved;
+  const { row, item } = ctx.resolved;
   if (!item) return [];
   const tabs = ['details'];
   if (ctx.canUpload && item.type === 'video' && item.asset?.file_path) tabs.push('admanager');
-  if (item.type !== 'roh' && !item.isFinal) tabs.push('kommentare');
+  if (kommentarZiel(row, item)) tabs.push('kommentare');
   return tabs;
 }
 

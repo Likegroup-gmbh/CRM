@@ -3,8 +3,9 @@
 // Alle Funktionen bekommen den VideoBrowser-Controller (`vb`).
 
 import { saveZeitkommentar } from './VideoBrowserAdapter.js';
-import { buildTree, commentsForAsset, cssEscape, resolveSelection } from './videoBrowserLogic.js';
+import { buildTree, cssEscape, kommentarZiel, resolveSelection } from './videoBrowserLogic.js';
 import { commentHtml } from './videoBrowserRender.js';
+import { commentsOf } from './videoBrowserRenderComments.js';
 
 function draftOf(vb, assetId) {
   return vb.drafts[assetId] || { text: '', pinned: false, pinTouched: false };
@@ -67,6 +68,8 @@ export async function submitComment(vb, form) {
   if (!form || form.dataset.busy) return;
   const { row, folder, item } = resolveSelection(vb.tree, vb.sel);
   if (!row || !folder || !item) return;
+  const ziel = kommentarZiel(row, item);
+  if (!ziel) return;
   const textEl = form.querySelector('[data-vb-comment-text]');
   const text = textEl.value.trim();
   if (!text) { textEl.focus(); return; }
@@ -79,9 +82,9 @@ export async function submitComment(vb, form) {
   try {
     const saved = await saveZeitkommentar({
       videoId: row.id,
-      runde: folder.number,
-      assetId: item.id,
-      assetType: item.type,
+      runde: ziel.runde,
+      assetId: ziel.assetId,
+      assetType: ziel.type,
       text,
       timecodeSec,
       isKunde: !vb.team
@@ -91,7 +94,8 @@ export async function submitComment(vb, form) {
     delete vb.drafts[item.id];
     textEl.value = '';
 
-    const comments = commentsForAsset(resolveSelection(vb.tree, vb.sel).row.comments, folder.number, item.id, item.type);
+    const neu = resolveSelection(vb.tree, vb.sel);
+    const comments = commentsOf(neu.row, neu.item);
     const created = comments.find(c => c.id === saved.id);
     const list = vb.detailInner.querySelector('[data-vb-comments]');
     if (created && list) {
