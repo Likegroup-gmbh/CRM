@@ -16,8 +16,9 @@ import {
   schleifeName,
   storyName
 } from './videoBrowserFormat.js';
-import { deriveAblaufschritt, loopFolderStatus, statusOf } from './videoBrowserStatus.js';
-import { rohOrdnerBaum, rohVerschiebbar } from './videoBrowserRohOrdner.js';
+import { deriveAblaufschritt, freigabeVersion, loopFolderStatus, neueSchleifeNachFinal, statusOf } from './videoBrowserStatus.js';
+import { rohOrdnerBaum, rohUmordenbar, rohVerschiebbar } from './videoBrowserRohOrdner.js';
+import { commentsForAsset } from './videoBrowserCommentData.js';
 
 export function sortBy(list, ...keys) {
   return [...list].sort((a, b) => {
@@ -54,6 +55,7 @@ function rohmaterialFolder(rowId, rohmaterial, rohOrdner) {
     leer: files.length === 0,
     upload: true,
     wurzelItemId: baum.wurzelItemId,
+    wurzelPfad: baum.wurzelPfad,
     unterordner: baum.ordner,
     items: files.map(f => ({
       id: f.id,
@@ -63,6 +65,7 @@ function rohmaterialFolder(rowId, rohmaterial, rohOrdner) {
       meta: [formatBytes(f.file_size), formatDatum(f.created_at)].filter(Boolean).join(' · '),
       ratio: '9:16',
       ordner: baum.ordnerVon(f),
+      umordenbar: rohUmordenbar(f),
       verschiebbar: rohVerschiebbar(f),
       asset: f,
       rowId
@@ -70,14 +73,15 @@ function rohmaterialFolder(rowId, rohmaterial, rohOrdner) {
   };
 }
 
-function loopFolder({ version, rowId, current, istLetzte, hatFinal, team, loopAssets, storyLoop, stillLoop, comments, stories }) {
+function loopFolder({ version, rowId, current, offen, freigegeben, team, loopAssets, storyLoop, stillLoop, comments, stories }) {
   const inVersion = (a) => (a.version_number || 1) === version;
   const videos = sortBy(loopAssets.filter(inVersion), 'created_at');
   const storys = stories.sort(storyLoop.filter(inVersion));
   const bilder = sortStills(stillLoop.filter(inVersion));
-  const status = loopFolderStatus({ current, istLetzte, hatFinal, team });
-  const runden = comments.filter(c => c.runde === version && c.scope !== 'still');
+  const status = loopFolderStatus({ current, freigegeben, team });
   const base = { version, status, rowId, runde: version, locked: false };
+  const meta = (a, type) =>
+    `v${version} · ${plural(commentsForAsset(comments, version, a.id, type).length, 'Kommentar', 'Kommentare')}`;
 
   const items = [
     ...videos.map((a, idx) => ({
@@ -86,7 +90,7 @@ function loopFolder({ version, rowId, current, istLetzte, hatFinal, team, loopAs
       type: 'video',
       group: 'Videos',
       name: a.titel || (a.variant_name ? `Video ${a.variant_name}` : `Video ${idx + 1}`),
-      meta: `v${version} · ${plural(runden.length, 'Kommentar', 'Kommentare')}`,
+      meta: meta(a, 'video'),
       ratio: '9:16',
       asset: a
     })),
@@ -96,7 +100,7 @@ function loopFolder({ version, rowId, current, istLetzte, hatFinal, team, loopAs
       type: 'still',
       group: 'Bilder',
       name: a.titel || `Bild ${idx + 1}`,
-      meta: `v${version}`,
+      meta: meta(a, 'still'),
       ratio: '4:5',
       asset: a
     })),
@@ -106,7 +110,7 @@ function loopFolder({ version, rowId, current, istLetzte, hatFinal, team, loopAs
       type: 'story',
       group: 'Stories',
       name: a.titel || stories.label(a),
-      meta: `v${version}`,
+      meta: meta(a, 'story'),
       ratio: '9:16',
       asset: a,
       storyId: a.story_id
@@ -126,9 +130,11 @@ function loopFolder({ version, rowId, current, istLetzte, hatFinal, team, loopAs
       ? alle.map(a => a.created_at || '').sort().pop() || null
       : null,
     current,
-    closed: !current,
+    // Die jüngste Schleife bleibt offen (Upload, Kommentare), auch wenn schon eine Finale Version vorliegt
+    offen,
+    closed: !offen,
     leer: items.length === 0,
-    upload: team && current,
+    upload: team && offen,
     items
   };
 }
@@ -143,6 +149,7 @@ function nextLoopFolder(number, current) {
     meta: 'Noch leer',
     status: null,
     current,
+    offen: true,
     closed: false,
     leer: true,
     upload: true,
@@ -247,6 +254,15 @@ export function buildRow({
   const maxVersion = versionen.length ? versionen[versionen.length - 1] : 0;
   const stories = storyHelpers(storyInfo);
 
+  // Nach einer Finalen Version ist der Kunde wieder am Zug, sobald eine neuere Schleife Dateien bekommt
+  const loops = [...loopAssets, ...storyLoop, ...stillLoop];
+  const finals = [...finalAssets, ...storyFinals, ...stillFinals];
+  const freigegebeneVersion = hatFinal ? freigabeVersion(loops, finals) : 0;
+  const maxDateiVersion = loops.reduce((max, a) => Math.max(max, a.version_number || 1), 0);
+  const nachFinal = hatFinal && maxDateiVersion > freigegebeneVersion
+    && neueSchleifeNachFinal(loops, finals, maxDateiVersion);
+  const kundeAmZug = !hatFinal || nachFinal;
+
   const folders = [];
   if (team) folders.push(rohmaterialFolder(id, rohmaterial, rohOrdner));
 
@@ -254,9 +270,9 @@ export function buildRow({
     folders.push(loopFolder({
       version,
       rowId: id,
-      current: version === maxVersion && !hatFinal,
-      istLetzte: version === maxVersion,
-      hatFinal,
+      current: version === maxVersion && kundeAmZug,
+      offen: version === maxVersion,
+      freigegeben: hatFinal && version === freigegebeneVersion,
       team,
       loopAssets,
       storyLoop,
@@ -266,7 +282,8 @@ export function buildRow({
     }));
   }
 
-  if (team && !hatFinal && versionen.length < MAX_SCHLEIFEN && maxVersion + 1 <= MAX_SCHLEIFEN) {
+  // Die nächste leere Schleife bleibt auch nach einer Finalen Version: das Team kann weiter überarbeiten
+  if (team && versionen.length < MAX_SCHLEIFEN && maxVersion + 1 <= MAX_SCHLEIFEN) {
     folders.push(nextLoopFolder(maxVersion + 1, versionen.length === 0));
   }
 
@@ -278,14 +295,14 @@ export function buildRow({
   const stage = deriveAblaufschritt({
     rohmaterialCount: rohmaterial.length,
     schleifenCount: versionen.length,
-    hatFinal
+    hatFinal: hatFinal && !nachFinal
   });
 
   const aktuelle = folders.find(f => f.kind === 'schleife' && f.current && !f.leer);
-  const offeneCount = hatFinal ? 0 : (aktuelle?.items.length || 0);
+  const offeneCount = kundeAmZug ? (aktuelle?.items.length || 0) : 0;
 
   let status = null;
-  if (hatFinal) status = statusOf('freigegeben', team);
+  if (!kundeAmZug) status = statusOf('freigegeben', team);
   else if (versionen.length) status = statusOf('wartet', team);
 
   const sichtbareOrdner = folders.filter(f => !(f.leer && f.kind === 'schleife' && !team));

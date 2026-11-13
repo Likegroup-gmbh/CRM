@@ -19,16 +19,35 @@ function autorName(kommentar) {
   return `${name} (Gast)`;
 }
 
-function crmLink(basisUrl, { produktionId, briefingId, kooperationId, videoId, kampagneId }) {
+/** Videos-Tab bis zur Datei: Kooperation, Video, Feedbackschleife (s1, s2, ...), Datei. */
+function crmLink(basisUrl, { produktionId, briefingId, kooperationId, videoId, runde, assetId, kampagneId }) {
   const basis = String(basisUrl || '').replace(/\/+$/, '');
   if (!basis) return '';
   if (produktionId) {
     const q = new URLSearchParams({ tab: 'videos', linie: briefingId || 'alle' });
     if (kooperationId) q.set('k', kooperationId);
     if (kooperationId && videoId) q.set('v', videoId);
+    if (kooperationId && videoId && runde) {
+      q.set('f', `s${runde}`);
+      if (assetId) q.set('i', assetId);
+    }
     return `${basis}/produktion/${produktionId}?${q}`;
   }
   return kampagneId ? `${basis}/kampagne/${kampagneId}` : '';
+}
+
+function zeitcode(sec) {
+  if (sec === null || sec === undefined || sec === '') return '';
+  const total = Math.max(0, Math.floor(Number(sec) || 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** Worauf sich der Kommentar bezieht: Bild, Story und/oder Stelle im Video ('' = ganzes Video). */
+function bezug(kommentar) {
+  if (kommentar?.still_asset_id) return 'Bild';
+  const tc = zeitcode(kommentar?.timecode_sec);
+  if (kommentar?.story_asset_id) return tc ? `Story · ${tc}` : 'Story';
+  return tc;
 }
 
 /**
@@ -55,6 +74,8 @@ function kontextAus(kommentar, basisUrl) {
       briefingId: koop.briefing_id,
       kooperationId: koop.id,
       videoId: video.id || kommentar?.video_id,
+      runde: kommentar?.runde,
+      assetId: kommentar?.asset_id || kommentar?.story_asset_id || kommentar?.still_asset_id,
       kampagneId: koop.kampagne_id || kampagne.id,
     }),
   };
@@ -106,7 +127,7 @@ function kommentarKarte(kommentar, basisUrl) {
   const k = kontextAus(kommentar, basisUrl);
   return nachricht([
     ...kopf('Neuer Kundenkommentar', k),
-    fakten(k, [{ title: 'Von', value: autorName(kommentar) }]),
+    fakten(k, [{ title: 'Zu', value: bezug(kommentar) }, { title: 'Von', value: autorName(kommentar) }]),
     { type: 'Container', style: 'emphasis', items: [{ type: 'TextBlock', text: kuerzen(kommentar?.text, TEXT_MAX), wrap: true }] },
   ], k.link);
 }
@@ -138,4 +159,4 @@ function testKarte(kanalName) {
   ], '');
 }
 
-module.exports = { TEXT_MAX, ZITAT_MAX, kuerzen, autorName, crmLink, kontextAus, kommentarKarte, entferntKarte, testKarte };
+module.exports = { TEXT_MAX, ZITAT_MAX, kuerzen, autorName, crmLink, bezug, kontextAus, kommentarKarte, entferntKarte, testKarte };

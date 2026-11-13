@@ -200,7 +200,7 @@
   padding: var(--space-md);
   border-radius: var(--radius-md);
   overflow-x: auto;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-sm);
   margin: var(--space-md) 0;
 }
@@ -215,7 +215,7 @@
   background: var(--gray-100);
   padding: 2px var(--space-xs);
   border-radius: var(--radius-sm);
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
   color: var(--primary-700);
 }

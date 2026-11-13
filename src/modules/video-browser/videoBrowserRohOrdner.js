@@ -33,9 +33,14 @@ export function rohOrdnerVonDatei(filePath, wurzelPfad = null) {
   return teile.join('/');
 }
 
+/** Kann die Datei in einen anderen Rohmaterial-Ordner (jede Datei in SharePoint)? */
+export function rohUmordenbar(asset) {
+  return asset?.ablage === 'sharepoint' && !!asset.item_id;
+}
+
 /** Kann die Datei in eine Feedbackschleife (Video oder Bild in SharePoint)? */
 export function rohVerschiebbar(asset) {
-  return asset?.ablage === 'sharepoint' && !!asset.item_id && !!rohZielTyp(asset.file_name);
+  return rohUmordenbar(asset) && !!rohZielTyp(asset.file_name);
 }
 
 function vergleichePfad(a, b) {

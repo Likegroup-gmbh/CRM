@@ -14,11 +14,15 @@ Die Cutter arbeiten im Finder direkt im Rohmaterial: Creator-Abgaben landen dort
   - ZIP und andere Endungen werden abgelehnt (`dateityp`), sonst zöge der Abgleich sie zurück ins Rohmaterial.
   - Teilfehler brechen nicht ab, jede Datei bekommt ihr Ergebnis.
   - Der Abgleich sieht denselben Move und macht denselben Typwechsel (`umziehen`). `upsert` und `entfernenNachItem` sind idempotent, die Reihenfolge ist egal.
+- **Verschieben innerhalb des Rohmaterials:** `ablage-datei` Aktion `roh_umordnen` (`ids`, `kooperation_id`, optional `ordner_item_id`, ohne = Wurzel; gleiche Grenzen wie oben).
+  - Das Ziel muss ein registrierter Rohmaterial-Ordner dieser Kooperation sein, sonst 404. Alle Dateitypen sind erlaubt, auch ZIP, weil der Typ `roh` bleibt.
+  - Je Datei: Graph-Move (Konflikt = umbenennen, Name nur gekürzt, wenn der Pfad sonst zu lang wird), dann `file_name`, `file_path` und `etag` der `roh`-Zeile nachziehen. Liegt die Datei schon dort, gibt es keinen Move.
+  - Nur Dateien in SharePoint (`nicht_sharepoint` sonst). Ist der Dropbox-Schalter an, fehlen die Ablage-Spalten im Client, dann gibt es weder Checkbox noch Drag & Drop.
 - **Videos-Tab (Team):**
   - Rohmaterial ist nach Unterordnern gruppiert: einklappbare Köpfe mit Anzahl (auch leere Ordner aus dem Register), darunter die Dateien der Wurzel. Den Unterordner leitet der Client aus `file_path` relativ zum Rohmaterial-Ordner ab.
   - „Neuer Ordner“ in der Leiste und „Unterordner anlegen“ am Ordnerkopf öffnen ein Eingabefeld in der Liste.
   - Upload in einen Ordner: über den Knopf am Ordnerkopf oder per Drop auf den Kopf.
-  - Verschieben: Datei auf eine Feedbackschleife in Spalte 2 ziehen (eine markierte Zeile nimmt alle markierten mit). Alternativ Checkboxen und „In Feedbackschleife“ mit allen Schleifen aller Videos, das gewählte Video zuerst. Für eine einzelne Datei gibt es den Knopf im Detail. Die Ansicht wechselt sofort und lädt danach den echten Stand. Schlägt alles fehl, kommt der alte Stand zurück.
+  - Verschieben: Datei auf einen Ordnerkopf, in die Wurzel (Spalte 3 außerhalb der Ordner oder „Rohmaterial“ in Spalte 2) oder auf eine Feedbackschleife in Spalte 2 ziehen (eine markierte Zeile nimmt alle markierten mit). Ein Ordner, in dem schon alle gezogenen Dateien liegen, ist kein Ziel. Alternativ Checkboxen und „Verschieben“: oben „In Ordner“ (Wurzel und registrierte Unterordner, der gemeinsame Ordner gesperrt), darunter alle Schleifen aller Videos, das gewählte Video zuerst. Für eine einzelne Datei gibt es den Knopf im Detail. Die Ansicht wechselt sofort und lädt danach den echten Stand. Schlägt alles fehl, kommt der alte Stand zurück.
 - **Weitere Ordner:** Rohmaterial-Unterordner erscheinen nicht mehr unter „Weitere Ordner“ (`lesen.frei`).
 
 ## Verworfen

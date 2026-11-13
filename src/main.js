@@ -12,6 +12,7 @@ import { initChannelBadge } from './core/ChannelBadge.js';
 initChannelBadge();
 
 // CSS Imports - müssen für Vite-Build hier sein
+import '../assets/styles/fonts.css';
 import '../assets/styles/variables.css';
 import '../assets/styles/base.css';
 import '../assets/styles/layout.css';

@@ -4,7 +4,8 @@
 
 import { clearFrom, ersterOffenerInhalt, selectLevel } from './videoBrowserLogic.js';
 import { deleteItem, download, promoteWithSlot, toggleFinal } from './videoBrowserActions.js';
-import { freieDateiOeffnen, ordnerLinkErstellen } from './videoBrowserAblage.js';
+import { freieDateiOeffnen, ordnerLinkErstellen, produktionLinkErstellen } from './videoBrowserAblage.js';
+import { freigabeAusfuehren } from './videoBrowserFreigabe.js';
 import { highlightComment, setDraftPin, setDraftText, submitComment } from './videoBrowserComments.js';
 import { bindDropzone } from './videoBrowserDropzone.js';
 import { commitFileRename, copyFileName, endFileRename, startFileRename } from './videoBrowserFileRename.js';
@@ -22,7 +23,7 @@ import { onSegmentKeydown, onShowcaseClick } from './videoBrowserShowcase.js';
 import { onKoopGroupClick, toggleKoopGroup } from './videoBrowserKoopState.js';
 import {
   bindRohDrag, rohCheck, rohEinzelnVerschieben, rohMarkierungAufheben, rohMenuUmschalten,
-  rohNeuAnlegen, rohNeuOeffnen, rohNeuSchliessen, rohToggle, rohVerschieben
+  rohNeuAnlegen, rohNeuOeffnen, rohNeuSchliessen, rohToggle, rohUmordnen, rohVerschieben
 } from './videoBrowserRoh.js';
 
 export function bindEvents(vb) {
@@ -176,6 +177,11 @@ function onRohClick(vb, e) {
     void rohVerschieben(vb, [...vb.rohAuswahl], { videoId: ziel.dataset.vbRohZiel, version: Number(ziel.dataset.version) });
     return true;
   }
+  const ordnerZiel = e.target.closest('[data-vb-roh-ordner-ziel]');
+  if (ordnerZiel) {
+    if (!ordnerZiel.disabled) void rohUmordnen(vb, [...vb.rohAuswahl], ordnerZiel.dataset.vbRohOrdnerZiel);
+    return true;
+  }
   const einzeln = e.target.closest('[data-vb-roh-move-item]');
   if (einzeln) {
     rohEinzelnVerschieben(vb, einzeln.dataset.vbRohMoveItem);
@@ -236,6 +242,12 @@ function onClick(vb, e) {
     return;
   }
 
+  const kundenFreigabe = e.target.closest('[data-vb-kunde-freigeben]');
+  if (kundenFreigabe) {
+    void freigabeAusfuehren(vb, kundenFreigabe);
+    return;
+  }
+
   const tab = e.target.closest('[data-vb-tab]');
   if (tab) {
     setDetailTab(vb, tab.dataset.vbTab);
@@ -283,6 +295,12 @@ function onClick(vb, e) {
   const ordnerLink = e.target.closest('[data-vb-ordnerlink]');
   if (ordnerLink) {
     void ordnerLinkErstellen(vb, ordnerLink);
+    return;
+  }
+
+  const produktionLink = e.target.closest('[data-vb-produktionlink]');
+  if (produktionLink) {
+    void produktionLinkErstellen(vb, produktionLink);
     return;
   }
 

@@ -20,7 +20,7 @@ export function deriveAblaufschritt({ rohmaterialCount = 0, schleifenCount = 0, 
 // Statusmodell: sagt, wer am Zug ist bzw. wie die Runde ausging.
 //   wartet       aktuelle Feedbackschleife mit Dateien, der Kunde ist am Zug
 //   aenderungen  Schleife mit Nachfolger: der Kunde hat Änderungen angefordert
-//   freigegeben  Finale Version liegt vor (bei der Schleife: die letzte davor)
+//   freigegeben  Finale Version liegt vor (bei der Schleife: die, aus der sie stammt)
 const STATUS_TONE = { wartet: 'warning', aenderungen: 'info', freigegeben: 'success' };
 
 export function statusOf(key, team = true) {
@@ -41,8 +41,37 @@ export function wartetText(since, now = new Date()) {
   return `Wartet seit ${days === 1 ? '1 Tag' : `${days} Tagen`} auf den Kunden.`;
 }
 
-export function loopFolderStatus({ current, istLetzte, hatFinal, team }) {
+export function loopFolderStatus({ current, freigegeben, team }) {
   if (current) return statusOf('wartet', team);
-  if (hatFinal && istLetzte) return statusOf('freigegeben', team);
+  if (freigegeben) return statusOf('freigegeben', team);
   return statusOf('aenderungen', team);
+}
+
+/**
+ * Feedbackschleife, aus der die Finale Version stammt: die jüngste Quelle der Finals. Ein Final ohne
+ * Quelle (direkt abgelegt) gilt für die Schleifen, deren Dateien vor ihm hochgeladen wurden.
+ * @returns {number} 0 = keine Schleife (kein Final oder Final vor jeder Schleife)
+ */
+export function freigabeVersion(loops = [], finals = []) {
+  const versionOf = new Map(loops.map(a => [a.id, a.version_number || 1]));
+  let version = 0;
+  for (const f of finals) {
+    if (f.source_asset_id && versionOf.has(f.source_asset_id)) {
+      version = Math.max(version, versionOf.get(f.source_asset_id));
+      continue;
+    }
+    const bis = String(f.created_at || '');
+    for (const a of loops) {
+      if (!bis || String(a.created_at || '') <= bis) version = Math.max(version, a.version_number || 1);
+    }
+  }
+  return version;
+}
+
+/** Liegt in der jüngsten Schleife eine Datei, die nach der letzten Finalen Version kam? Dann ist der Kunde wieder am Zug. */
+export function neueSchleifeNachFinal(loops = [], finals = [], version = 0) {
+  if (!finals.length || !version) return false;
+  const letztesFinal = finals.map(f => String(f.created_at || '')).sort().pop();
+  if (!letztesFinal) return false;
+  return loops.some(a => (a.version_number || 1) === version && String(a.created_at || '') > letztesFinal);
 }

@@ -73,7 +73,7 @@ vi.mock('../modules/video-browser/videoBrowserRatio.js', () => ({
 
 const { authorizedFetch } = await import('../core/auth/getAccessToken.js');
 const { mountVideoBrowserPane, unmountVideoBrowser } = await import('../modules/video-browser/VideoBrowser.js');
-const { hatSharepoint, ordnerLinkButton } = await import('../modules/video-browser/videoBrowserAblage.js');
+const { hatSharepoint, ordnerLinkButton, produktionLinkButton } = await import('../modules/video-browser/videoBrowserAblage.js');
 
 const LINK = { id: 'l1', url: 'https://x.sharepoint.com/:f:/s/m/abc', laeuft_ab_at: '2026-12-09T10:00:00Z' };
 const ORDNER = [{
@@ -138,7 +138,7 @@ describe('Videos-Tab: SharePoint-Medienablage', () => {
     it('erstellt den Link, kopiert ihn und meldet das Ablaufdatum', async () => {
       await open('k1');
       const button = ctx.pane.querySelector('[data-vb-ordnerlink="k1"]');
-      expect(button.textContent).toContain('Ordner-Link (30 Tage)');
+      expect(button.textContent).toContain('Ordner-Link (1 Jahr)');
 
       click(button);
       expect(button.disabled).toBe(true);
@@ -185,6 +185,48 @@ describe('Videos-Tab: SharePoint-Medienablage', () => {
       expect(ctx.pane.querySelector('[data-vb-ordnerlink]')).toBeNull();
       expect(ctx.pane.querySelector('[data-vb-freie]')).toBeNull();
       expect(ablageCalls()).toEqual([]);
+    });
+  });
+
+  describe('Produktions-Link', () => {
+    it('nur Team, nur mit Produktion und mindestens einer Kooperation in SharePoint, nie für Gäste', () => {
+      const koop = (ablage) => ({ id: 'k', rows: [{ folders: [{ items: [{ asset: { ablage } }] }] }] });
+      const lctx = (extra) => ({ team: true, produktionId: 'p1', tree: { kooperationen: [koop('dropbox'), koop('sharepoint')] }, ...extra });
+      expect(produktionLinkButton(lctx())).toContain('data-vb-produktionlink="p1"');
+      expect(produktionLinkButton(lctx({ team: false }))).toBe('');
+      expect(produktionLinkButton(lctx({ produktionId: null }))).toBe('');
+      expect(produktionLinkButton(lctx({ tree: { kooperationen: [koop('dropbox')] } }))).toBe('');
+      window.isGast = () => true;
+      expect(produktionLinkButton(lctx())).toBe('');
+    });
+
+    it('sitzt in der Spalte Kooperationen, erstellt den Link auf die Produktion und kopiert ihn', async () => {
+      await open('k1');
+      const button = ctx.pane.querySelector('.vb-koopbar [data-vb-produktionlink="p1"]');
+      expect(button.getAttribute('aria-label')).toContain('Rohmaterial');
+
+      click(button);
+      await vi.waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(LINK.url));
+      expect(ablageCalls()).toContainEqual({ path: '/.netlify/functions/ablage-freigabe', body: { aktion: 'erstellen', produktion_id: 'p1' } });
+      await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Link kopiert – gültig bis 9.12.2026', 'success'));
+      expect(button.disabled).toBe(false);
+    });
+
+    it('meldet eine Produktion ohne SharePoint-Ordner verständlich', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      authorizedFetch.mockImplementation(async (path) => (path.endsWith('ablage-freigabe')
+        ? antwort({ code: 'nicht_sharepoint', error: 'Kein Ordner' }, 409)
+        : antwort({})));
+      await open('k1');
+      click(ctx.pane.querySelector('[data-vb-produktionlink]'));
+      await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Für diese Produktion gibt es noch keinen SharePoint-Ordner.', 'error'));
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('Kunden sehen ihn nicht', async () => {
+      await open('k1', { team: false });
+      expect(ctx.pane.querySelector('[data-vb-produktionlink]')).toBeNull();
     });
   });
 

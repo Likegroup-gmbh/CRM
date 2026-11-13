@@ -23,7 +23,7 @@ function _getCached(filePath) {
 }
 
 async function sharePointUrl({ typ, id, etag }) {
-  const link = await ablageLink({ typ, id, etag }).catch(() => null);
+  const link = await ablageLink({ typ, id, etag });
   return link?.url || null;
 }
 
@@ -35,10 +35,15 @@ async function sharePointUrl({ typ, id, etag }) {
  *
  * @param {{ file_path?: string|null, file_url?: string|null, typ?: string|null, id?: string|null,
  *           ablage?: string|null, etag?: string|null }} asset - Lookup aus lookupFor
+ * @param {{ werfen?: boolean }} [opts] - werfen: Netz-/Serverfehler von ablage-link werfen statt
+ *        null, damit der Aufrufer „keine Datei“ von „nicht erreichbar“ trennen kann
  * @returns {Promise<string|null>}
  */
-export async function resolveStreamUrl(asset) {
-  if (istSharePoint(asset)) return sharePointUrl(asset);
+export async function resolveStreamUrl(asset, { werfen = false } = {}) {
+  if (istSharePoint(asset)) {
+    const url = sharePointUrl(asset);
+    return werfen ? url : url.catch(() => null);
+  }
   const filePath = asset?.file_path || null;
   const rawUrl = asset?.file_url ? toRawDropboxUrl(asset.file_url) : null;
 
@@ -75,7 +80,7 @@ export async function resolveStreamUrl(asset) {
  */
 export function prefetchStreamUrl(asset) {
   if (istSharePoint(asset)) {
-    void sharePointUrl(asset);
+    sharePointUrl(asset).catch(() => {});
     return;
   }
   if (!asset?.file_path) return;

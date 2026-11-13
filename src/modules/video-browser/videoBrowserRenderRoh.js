@@ -1,11 +1,11 @@
 // videoBrowserRenderRoh.js
 // Rohmaterial in der Inhalte-Spalte (ADR 0070): Unterordner als einklappbare Köpfe (auch leere),
 // darunter die Dateien der Wurzel. Team: Ordner anlegen, in einen Ordner hochladen, Dateien
-// markieren und über die Leiste oder per Drag & Drop in eine Feedbackschleife verschieben.
+// markieren und über die Leiste oder per Drag & Drop in einen anderen Ordner oder eine Feedbackschleife verschieben.
 
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
-import { plural } from './videoBrowserFormat.js';
+import { ROHMATERIAL_NAME, plural } from './videoBrowserFormat.js';
 import { iconButton, rowTitles } from './videoBrowserRenderParts.js';
 
 // Server erlaubt 5 Ebenen unter Rohmaterial/: Unterordner nur bis Tiefe 3 (0-basiert) anlegen
@@ -21,9 +21,9 @@ function zustand(ctx) {
   return { zu: r.zu || new Set(), auswahl: r.auswahl || new Set(), neu: r.neu || null, menu: !!r.menu };
 }
 
-/** Checkbox an der Zeile (Team, nur verschiebbare Dateien). Liegt über dem Icon, sichtbar bei Hover oder Auswahl. */
+/** Checkbox an der Zeile (Team, nur Dateien in SharePoint). Liegt über dem Icon, sichtbar bei Hover oder Auswahl. */
 export function rohCheckHtml(item, ctx) {
-  if (!ctx.canUpload || !item.verschiebbar) return '';
+  if (!ctx.canUpload || !item.umordenbar) return '';
   const on = zustand(ctx).auswahl.has(item.id);
   return `<label class="vb-rohcheck" title="Markieren"><input type="checkbox" data-vb-roh-check="${esc(item.id)}"${on ? ' checked' : ''} aria-label="Markieren: ${esc(item.name)}" /></label>`;
 }
@@ -104,7 +104,27 @@ export function rohZiele(koop, videoId) {
     .filter(z => z.schleifen.length);
 }
 
-function zielMenuHtml(ctx) {
+/** Ordner im Rohmaterial als Ziel: Wurzel und registrierte Unterordner. Der Ordner aller markierten ist gesperrt. */
+function ordnerZieleHtml(ctx, markiert) {
+  const { folder } = ctx.resolved;
+  if (!folder.wurzelItemId) return '';
+  const hier = (pfad) => markiert.every(i => lower(i.ordner) === lower(pfad));
+  const ziel = (pfad, name, tiefe) => {
+    const aktuell = hier(pfad);
+    return `<button type="button" class="vb-rohmenu__ziel vb-rohmenu__ziel--ordner" role="menuitem" data-vb-roh-ordner-ziel="${esc(pfad)}" style="--vb-roh-tiefe:${tiefe}"${aktuell ? ' disabled' : ''}>
+          <span class="vb-rohmenu__name">${icon('folder')}<span>${esc(name)}</span></span>${aktuell ? '<span class="vb-rohmenu__meta">Liegt hier</span>' : ''}
+        </button>`;
+  };
+  return `
+      <div class="vb-rohmenu__video" role="group" aria-label="In Ordner">
+        <p class="vb-rohmenu__label">In Ordner</p>
+        ${ziel('', ROHMATERIAL_NAME, 0)}
+        ${(folder.unterordner || []).filter(o => o.itemId).map(o => ziel(o.pfad, o.name, o.tiefe + 1)).join('')}
+      </div>`;
+}
+
+function schleifenZieleHtml(ctx, markiert) {
+  if (!markiert.some(i => i.verschiebbar)) return '<p class="vb-rohmenu__leer">In eine Feedbackschleife gehen nur Videos und Bilder.</p>';
   const ziele = rohZiele(ctx.resolved.koop, ctx.sel.videoId);
   if (!ziele.length) return '<p class="vb-rohmenu__leer">Kein Video mit offener Feedbackschleife.</p>';
   return ziele.map(({ row, schleifen }) => `
@@ -121,20 +141,20 @@ export function rohToolbarHtml(ctx) {
   const { folder } = ctx.resolved;
   if (!ctx.canUpload) return '';
   const st = zustand(ctx);
-  const markiert = folder.items.filter(i => st.auswahl.has(i.id)).length;
-  if (markiert) {
+  const markiert = folder.items.filter(i => st.auswahl.has(i.id));
+  if (markiert.length) {
     return `
       <div class="vb-rohbar is-auswahl" data-vb-rohbar>
-        <span class="vb-rohbar__count">${esc(`${markiert} markiert`)}</span>
-        <button type="button" class="mdc-btn mdc-btn--secondary vb-rohbar__btn" data-vb-roh-menu aria-haspopup="menu" aria-expanded="${st.menu}">${icon('arrow-right')}<span>In Feedbackschleife</span></button>
+        <span class="vb-rohbar__count">${esc(`${markiert.length} markiert`)}</span>
+        <button type="button" class="mdc-btn mdc-btn--secondary vb-rohbar__btn" data-vb-roh-menu aria-haspopup="menu" aria-expanded="${st.menu}">${icon('arrow-right')}<span>Verschieben</span></button>
         ${iconButton('x-mark', 'Markierung aufheben', 'data-vb-roh-clear')}
       </div>
-      ${st.menu ? `<div class="vb-rohmenu" role="menu" data-vb-roh-menu-list aria-label="Ziel wählen">${zielMenuHtml(ctx)}</div>` : ''}`;
+      ${st.menu ? `<div class="vb-rohmenu" role="menu" data-vb-roh-menu-list aria-label="Ziel wählen">${ordnerZieleHtml(ctx, markiert)}${schleifenZieleHtml(ctx, markiert)}</div>` : ''}`;
   }
   if (!folder.wurzelItemId) return '';
   return `
       <div class="vb-rohbar" data-vb-rohbar>
         <button type="button" class="vb-rohbar__neu" data-vb-roh-neu="">${icon('folder-add')}<span>Neuer Ordner</span></button>
-        ${folder.items.some(i => i.verschiebbar) ? '<span class="vb-rohbar__hint">Dateien auf eine Feedbackschleife ziehen</span>' : ''}
+        ${folder.items.some(i => i.umordenbar) ? '<span class="vb-rohbar__hint">Dateien auf einen Ordner oder eine Feedbackschleife ziehen</span>' : ''}
       </div>`;
 }

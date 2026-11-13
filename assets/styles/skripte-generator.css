@@ -39,7 +39,7 @@
 .skripte-log {
   background: var(--gray-900);
   color: var(--success-bg);
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
   border-radius: var(--radius-xl);
   padding: var(--space-sm) var(--space-md);

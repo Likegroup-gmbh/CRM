@@ -1,6 +1,6 @@
 // _shared/ablage/schreiben-roh.js
-// Rohmaterial im CRM (ADR 0070): Unterordner anlegen und Dateien in eine Feedbackschleife
-// verschieben. Aus Rohmaterial wird dabei ein Video oder Bild der Runde (Typ aus der Endung).
+// Rohmaterial im CRM (ADR 0070): Unterordner anlegen, Dateien zwischen den Ordnern umordnen und in
+// eine Feedbackschleife verschieben. Dort wird aus Rohmaterial ein Video oder Bild der Runde (Typ aus der Endung).
 // `c` ist der Kontext aus createSchreiben.
 
 const { istUuid } = require('./konfig');
@@ -133,7 +133,68 @@ function createRohSchreiben(c) {
     return { ergebnisse };
   }
 
-  return { rohOrdnerAnlegen, rohVerschieben };
+  // ─── ablage-datei: roh_umordnen ─────────────────────────────
+
+  async function einzelnUmordnen(row, { kooperationId, ziel }) {
+    if (!row) throw new AblageFehler(404, 'Datei nicht gefunden');
+    if (row.kooperation_id !== kooperationId) throw new AblageFehler(409, 'Datei gehört zu einer anderen Kooperation');
+    if (row.ablage !== 'sharepoint' || !row.item_id) throw new AblageFehler(409, 'Datei liegt nicht in SharePoint', 'nicht_sharepoint');
+    if (row.drive_id !== driveId) throw new AblageFehler(409, 'Datei liegt in einer anderen Bibliothek');
+
+    const item = await sp.item(row.item_id, 'id,name,eTag,parentReference');
+    if (!item) throw new AblageFehler(404, 'Datei ist nicht mehr in SharePoint');
+    let neu = item;
+    if (item.parentReference?.id !== ziel.item_id) {
+      // Tiefer Ordner + langer Name: nur kürzen, wenn der Pfad sonst nicht passt
+      const passend = passenderName(ziel.pfad, item.name);
+      neu = { ...item, ...(await sp.verschieben(row.item_id, ziel.item_id, { conflict: 'rename', ...(passend.length < item.name.length ? { name: passend } : {}) })) };
+    }
+    const patch = { file_name: neu.name, file_path: `${ziel.pfad}/${neu.name}`, etag: neu.eTag || null };
+    const { error } = await supabase.from(TABELLE.roh).update(patch).eq('drive_id', row.drive_id).eq('item_id', row.item_id);
+    if (error) throw error;
+    return patch;
+  }
+
+  /**
+   * { ids: [roh-id], kooperation_id, ordner_item_id? } -> { ergebnisse: [{ id, ok, file_name?, file_path?, fehler?, code? }] }
+   * Innerhalb des Rohmaterials (ohne ordner_item_id in die Wurzel). Die Dateien bleiben Rohmaterial,
+   * auch ZIP und andere Endungen. Der Abgleich sieht denselben Move und zieht nur den Pfad nach.
+   */
+  async function rohUmordnen({ benutzer, caller, body }) {
+    const ids = [...new Set(Array.isArray(body.ids) ? body.ids : [])];
+    if (!ids.length || !ids.every(istUuid)) throw new AblageFehler(400, 'ids fehlen');
+    if (ids.length > MAX_VERSCHIEBEN) throw new AblageFehler(400, `Höchstens ${MAX_VERSCHIEBEN} Dateien je Anfrage`);
+    const kooperationId = body.kooperation_id;
+    if (!istUuid(kooperationId)) throw new AblageFehler(400, 'kooperation_id fehlt');
+    if (body.ordner_item_id != null && typeof body.ordner_item_id !== 'string') throw new AblageFehler(400, 'ordner_item_id ungültig');
+    if (!darfMediaUpload(benutzer)) throw new AblageFehler(403, 'Keine Berechtigung');
+    if (!sp) throw nichtKonfiguriert();
+    const koop = await sharePointKooperation(caller, kooperationId);
+
+    const { ordner: wurzel } = await ablage.ordner.zielOrdner({ typ: 'roh', kooperation_id: kooperationId }, { koop });
+    const ziel = body.ordner_item_id && body.ordner_item_id !== wurzel.item_id
+      ? await ablage.ordner.rohOrdnerVon(kooperationId, body.ordner_item_id)
+      : wurzel;
+    if (!ziel) throw new AblageFehler(404, 'Ordner nicht gefunden');
+
+    const { data: rows, error } = await caller.from(TABELLE.roh)
+      .select('id, ablage, drive_id, item_id, kooperation_id').in('id', ids);
+    if (error) throw error;
+    const nachId = new Map((rows || []).map((r) => [r.id, r]));
+
+    const ergebnisse = [];
+    for (const id of ids) {
+      try {
+        ergebnisse.push({ id, ok: true, ...(await einzelnUmordnen(nachId.get(id), { kooperationId, ziel })) });
+      } catch (err) {
+        if (!(err instanceof AblageFehler)) console.error('[ablage-datei] roh_umordnen:', id, err.message || err);
+        ergebnisse.push({ id, ok: false, fehler: err instanceof AblageFehler ? err.message : 'Verschieben fehlgeschlagen', code: err.code || null });
+      }
+    }
+    return { ergebnisse };
+  }
+
+  return { rohOrdnerAnlegen, rohVerschieben, rohUmordnen };
 }
 
 module.exports = { createRohSchreiben, MAX_TIEFE, MAX_VERSCHIEBEN };

@@ -531,7 +531,10 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   border-bottom: 1px solid var(--border-primary);
 }
 
-.vb-koopbar .vb-icon-btn {
+.vb-koopbar__aktionen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   margin-left: auto;
 }
 
@@ -677,6 +680,10 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  /* Scrollbar-Platz immer reservieren: die Vorschau ist hier breitenbegrenzt (Höhe folgt der Breite),
+     sonst schaltet die Scrollbar die Breite um, der ResizeObserver des Players zieht den Rahmen nach
+     und die Spalte flackert in einer Schleife. */
+  scrollbar-gutter: stable;
   /* Kein horizontales Scrollen: lange Inhalte brechen um oder werden gekürzt */
   overflow-x: hidden;
   background: var(--bg-primary);
@@ -1112,6 +1119,16 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   font-size: var(--text-xs);
   color: var(--gray-300);
   text-align: center;
+}
+
+.vb-player__placeholder--fehler {
+  align-content: center;
+  gap: var(--space-xs);
+}
+
+/* Play-Knopf würde „Erneut versuchen“ verdecken */
+.vb-player__frame.is-ladefehler .vb-player__big {
+  display: none;
 }
 
 .vb-player__big {
@@ -1621,6 +1638,58 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
 .vb-promote.vb-finalbar-wrap .vb-promote__menu {
   left: 0;
   right: auto;
+}
+
+/* Kundenansicht: "Video freigeben" an der Stelle der Final-Leiste */
+.vb-finalbar--freigabe {
+  border-style: solid;
+  border-color: var(--success-700);
+  background: var(--success-50);
+}
+
+.vb-finalbar--freigabe:hover {
+  border-color: var(--success-700);
+  background: var(--success-100);
+}
+
+.vb-finalbar--freigabe .vb-finalbar__star,
+.vb-finalbar--freigegeben .vb-finalbar__star,
+.vb-finalbar--freigegeben.is-final .vb-finalbar__star {
+  color: var(--success-700);
+}
+
+.vb-finalbar--freigegeben {
+  margin: 0;
+  cursor: default;
+}
+
+.vb-finalbar--freigegeben.is-final .vb-finalbar__star svg {
+  fill: none;
+}
+
+.vb-next__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.vb-freigabe-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.vb-freigabe-btn svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.vb-freigabe-btn[aria-busy="true"] {
+  cursor: progress;
+}
+
+.vb-slot .vb-freigabe-btn {
+  margin: 0 var(--space-xs) var(--space-xs) 0;
 }
 
 /* Tabs: sticky am oberen Rand des Detailbereichs, gleitender Indikator aus motion.css */
@@ -2814,6 +2883,35 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   background: var(--gray-100);
 }
 
+.vb-rohmenu__ziel--ordner {
+  padding-left: calc(var(--vb-roh-pad) + var(--vb-roh-tiefe, 0) * var(--vb-roh-einzug));
+}
+
+.vb-rohmenu__ziel:disabled {
+  background: none;
+  color: var(--gray-400);
+  cursor: default;
+}
+
+.vb-rohmenu__name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.vb-rohmenu__name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-rohmenu__name svg {
+  flex: none;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
 .vb-rohmenu__meta,
 .vb-rohmenu__leer {
   font-size: var(--text-xs);
@@ -2969,18 +3067,27 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   border-color: var(--border-focus);
 }
 
-/* Ziehen auf eine Feedbackschleife in Spalte 2 */
+/* Ziehen auf einen Ordner (Spalte 3) oder Rohmaterial / eine Feedbackschleife (Spalte 2) */
 .vb-rowwrap[data-vb-roh-drag] {
   cursor: grab;
 }
 
-.vb.is-roh-dragging .vb-col--2 li[data-folder-id^="s"] > .vb-row {
+.vb.is-roh-dragging .vb-col--2 li[data-folder-id^="s"] > .vb-row,
+.vb.is-roh-dragging .vb-col--2 li[data-folder-id="raw"] > .vb-row {
   box-shadow: inset 0 0 0 1px var(--gray-300);
 }
 
-.vb-col--2 li.is-roh-drop > .vb-row {
+.vb-col--2 li.is-roh-drop > .vb-row,
+.vb-rohgroup.is-roh-drop > .vb-rohgroup__head {
   background: var(--bg-secondary);
   box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+
+/* Wurzel: wie beim Datei-Upload leuchtet die ganze Spalte */
+.vb-col--3.is-roh-drop {
+  outline: 2px dashed var(--border-focus);
+  outline-offset: -2px;
+  background: var(--bg-secondary);
 }
 
 .vb-roh-dragghost {

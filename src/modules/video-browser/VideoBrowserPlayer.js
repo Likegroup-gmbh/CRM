@@ -15,6 +15,7 @@ import { applySize, isFullscreen, onFullscreenChange, paintPlaying, paintTime, r
 import { DEFAULT_FRAME_SEC, paintControls, pause, play, seek } from './player/playerControls.js';
 import { finishMessung, loadSource } from './player/playerSource.js';
 import { bindPlayerEvents } from './player/playerEvents.js';
+import { rohZielTyp } from './videoBrowserRohOrdner.js';
 
 function shell(isStill) {
   return `
@@ -58,7 +59,9 @@ const withTimecode = (list) => list.filter(c => c.timecodeSec !== null && c.time
  *        maxHeight: Obergrenze der Rahmenhöhe statt der Standardhöhe des Detailbereichs
  */
 export function mountPlayer(host, { item, ratio, comments = [], motion = null, onTime = null, onMarker = null, onMessung = null, autoplay = false, maxHeight = null }) {
-  const isStill = item.type === 'still';
+  // Rohmaterial-Bilder (type 'roh') sind Standbilder: sonst landen sie in einem <video>-Element
+  const isStill = item.type === 'still'
+    || (item.type === 'roh' && rohZielTyp(item.asset?.file_name || item.name) === 'still');
   host.innerHTML = shell(isStill);
 
   const p = {

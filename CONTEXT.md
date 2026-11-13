@@ -443,7 +443,11 @@ _Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperation
 
 **Kundenfreigabe**:
 Der Kunde gibt ein Skript frei, das intern bereits Final ist. Danach gilt das Skript als freigegeben für weitere Aktionen, und die Skript-Freigabe am verknüpften Kooperationsvideo ist gesetzt.
-_Avoid_: Skript-Freigabe, Final
+_Avoid_: Skript-Freigabe, Final, Video-Freigabe (das ist das fertige Video)
+
+**Video-Freigabe**:
+Die Kundenseite (Kunde oder Gast mit Feedback-Recht) gibt im Videos-Tab mit einem Klick „Video freigeben“ die aktuelle Feedbackschleife eines Kooperationsvideos frei. In einem Schritt entsteht aus jeder Datei der Schleife eine Finale Version (Videos und Stories im erkannten Seitenverhältnis, Bilder ohne), und das Flag `freigabe` am Kooperationsvideo ist gesetzt (Checkbox „Freigabe“ hinter Kunde Feedback 3 in der Kooperationstabelle). Dateien ohne Standardformat bleiben in der Schleife. Kurz danach per „Rückgängig“ zurücknehmbar, später nur durchs Team (ADR 0072).
+_Avoid_: Kundenfreigabe (das ist das Skript), Skript-Freigabe, Final markieren (das ist der Weg des Teams)
 
 **Hook-Variante**:
 Alternativer gesprochener Opener am selben Skript (Hook 1–3). Keine eigene Version.
@@ -538,7 +542,7 @@ _Avoid_: Creator-Ordner (das ist der Gruppenkopf), freier Ordner (das sind die W
 
 **Finale Version**:
 Das ausgelieferte File eines Kooperationsvideos oder einer Story, in genau einem Seitenverhältnis.
-Liegt neben der Feedbackschleife, nicht in ihr. Entsteht auf zwei Wegen, beide nur durchs Team: eine vorhandene Datei einer Feedbackschleife per Klick "Als finale Version freigeben" (die Finale Version verweist auf sie, die Datei bleibt in der Schleife), oder eine Datei direkt in den Ordner Finale Version hochladen (ohne Feedbackschleife davor, z. B. wenn schon die erste Schleife final ist). Der Ordner ist für das Team immer da, auch leer; Kunden sehen ihn erst mit Inhalt. Die Freigabe setzt keinen Status von Hand, der Status folgt aus den Dateien.
+Liegt neben der Feedbackschleife, nicht in ihr. Entsteht auf drei Wegen: das Team markiert eine vorhandene Datei einer Feedbackschleife per Klick "Als finale Version freigeben" (die Finale Version verweist auf sie, die Datei bleibt in der Schleife), das Team lädt eine Datei direkt in den Ordner Finale Version hoch (ohne Feedbackschleife davor, z. B. wenn schon die erste Schleife final ist), oder die Kundenseite gibt das Video frei (Video-Freigabe, alle Dateien der aktuellen Schleife auf einmal). Der Ordner ist für das Team immer da, auch leer; Kunden sehen ihn erst mit Inhalt. Die Finale Version setzt keinen Status von Hand, der Status folgt aus den Dateien; sie sperrt auch keine weitere Feedbackschleife.
 _Avoid_: Final, Master, Export
 
 **Dateititel**:
@@ -556,6 +560,10 @@ _Avoid_: Galerie, Übersicht, eigener Tab
 **Kooperationszeile**:
 Eintrag einer Kooperation in der ersten Spalte des Videos-Tabs. Ein Klick wählt die Kooperation und zeigt ihre Videos. Bei Alle Linien benennt der Titel die Linie, nicht den Creator, wenn der Creator mehrfach vorkommt.
 _Avoid_: Kooperationsgruppe, Creator-Zeile
+
+**Ordner-Link / Produktions-Link**:
+Kunden-Leselink in SharePoint, ohne Anmeldung, nur Ansicht, 365 Tage gültig. Der Ordner-Link zeigt auf `Videos/` einer Kooperation, Team und Kunden erzeugen ihn im Detail der Kooperation. Der Produktions-Link zeigt auf den ganzen Produktions-Ordner mit allen Kooperationen, Rohmaterial eingeschlossen. Ihn erzeugt nur das Team, über den Link-Knopf in der Spalte „Kooperationen“ (ADR 0071).
+_Avoid_: Freigabe (Kollision mit Freigegeben über die Finale Version), Share-Link, Gast-Link (das ist der Zugang)
 
 **Gruppenkopf**:
 Überschrift über den Kooperationszeilen eines Creators (bei Alle Linien) bzw. einer Linie, wenn nach Linie gruppiert wird. Fasst die Zähler seiner Zeilen zusammen und lässt sich ein- und ausklappen, wählt aber nie eine Kooperation. Ein Creator mit nur einer Kooperation hat keinen Gruppenkopf. Gruppiert wird immer über den Creator-Datensatz, nie über den Namen; eine Kooperation ohne Creator-Datensatz steht allein.
@@ -830,15 +838,15 @@ Wer das Video schneidet, abgeleitet aus den Daten der Kooperation: liegt Rohmate
 _Avoid_: Schnittart, Workflow-Typ, Modus
 
 **Ablaufschritt**:
-Wo ein Kooperationsvideo oder eine Story im Ablauf steht, abgeleitet aus den Dateien: Finale Version vorhanden = Freigegeben, mindestens eine Feedbackschleife = Beim Kunden, nur Rohmaterial = Rohmaterial liegt vor, sonst noch kein Upload. Steuert Hinweise und Zähler im Videos-Tab, es gibt dafür keine eigene Leiste. Nicht zu verwechseln mit dem Status am Video und nicht von Hand gesetzt.
+Wo ein Kooperationsvideo oder eine Story im Ablauf steht, abgeleitet aus den Dateien: Finale Version vorhanden = Freigegeben (außer eine neuere Schleife kam danach), mindestens eine Feedbackschleife = Beim Kunden, nur Rohmaterial = Rohmaterial liegt vor, sonst noch kein Upload. Steuert Hinweise und Zähler im Videos-Tab, es gibt dafür keine eigene Leiste. Nicht zu verwechseln mit dem Status am Video und nicht von Hand gesetzt.
 _Avoid_: Stage, Status, Phase
 
 **Status (Videos-Tab)**:
-Sagt, wer am Zug ist bzw. wie eine Feedbackschleife ausging. Immer aus den Dateien abgeleitet, nie gespeichert: *Wartet auf Kunde* (Kundenansicht: *Zu prüfen*) für die aktuelle Feedbackschleife, *Änderungen angefordert* für eine Schleife mit Nachfolger, *Freigegeben* sobald eine Finale Version vorliegt (an der Schleife: die letzte davor). Der Zähler an der Kooperation zählt Dateien, die beim Kunden liegen; Ordner und Dateien tragen keinen eigenen Zähler. Ein Button „Freigeben“ für den Kunden gibt es bewusst noch nicht: die Freigabe setzt heute das Team über die Finale Version.
+Sagt, wer am Zug ist bzw. wie eine Feedbackschleife ausging. Immer aus den Dateien abgeleitet, nie gespeichert: *Wartet auf Kunde* (Kundenansicht: *Zu prüfen*) für die aktuelle Feedbackschleife, *Änderungen angefordert* für eine Schleife mit Nachfolger, *Freigegeben* für die Schleife, aus der die Finale Version stammt (Finale Version ohne Quelle: die letzte Schleife davor). Lädt das Team nach der Finalen Version eine neue Schleife hoch, wartet diese wieder auf den Kunden. Eine Finale Version sperrt nichts: die nächste leere Schleife bleibt für das Team da, die letzte bleibt kommentierbar. Der Zähler an der Kooperation zählt Dateien, die beim Kunden liegen; Ordner und Dateien tragen keinen eigenen Zähler. Freigeben kann das Team (Als finale Version freigeben) oder die Kundenseite (Video-Freigabe).
 _Avoid_: Offen, Abgeschlossen (als Status einer Schleife)
 
 **Video-Kommentar**:
-Kommentar an einer Datei der aktuellen Feedbackschleife im Videos-Tab, optional an einer Stelle im Video (Timecode). Schreibt die Kundenseite (Kunde oder Gast mit Feedback-Recht) oder das Team. Nicht die Feedback-Felder der Kooperationstabelle und nicht die Notiz an einem Still.
+Kommentar an einer Datei der letzten Feedbackschleife im Videos-Tab (auch nach einer Finalen Version), optional an einer Stelle im Video (Timecode). Schreibt die Kundenseite (Kunde oder Gast mit Feedback-Recht) oder das Team. Nicht die Feedback-Felder der Kooperationstabelle und nicht die Notiz an einem Still.
 _Avoid_: Zeitkommentar (Name im Code), Feedback (das sind die Felder der Tabelle), Rezension
 
 **Teams-Kanal**:

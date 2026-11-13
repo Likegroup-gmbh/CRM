@@ -17,6 +17,7 @@ const BACKOFF_MS = 30 * 1000;
 const NACHTRAG_WARTEN_MS = 60 * 1000;
 
 const KOMMENTAR_SELECT = `id, video_id, runde, text, author_name, author_benutzer_id, deleted_at,
+  timecode_sec, asset_id, story_asset_id, still_asset_id,
   video:video_id(id, position,
     kooperation:kooperation_id(id, name, briefing_id, produktion_id, kampagne_id,
       creator:creator_id(vorname, nachname),

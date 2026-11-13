@@ -51,7 +51,8 @@ const ordner = () => [
   { id: 'o-ut', drive_id: 'd1', item_id: 'iut', parent_item_id: 'it', art: 'unternehmen', unternehmen_id: UT },
   { id: 'o-weg', drive_id: 'd1', item_id: 'iweg', parent_item_id: 'root', art: 'unternehmen', unternehmen_id: id(7), geloescht_at: iso(START - H) },
 ];
-const LI = { iu1: 11, im1: 12, ik1: 13, ity: 14, if1: 15, if2: 16, it: 17, iut: 18, iweg: 19 };
+const LI = { iu1: 11, im1: 12, ik1: 13, ity: 14, if1: 15, if2: 16, it: 17, iut: 18, iweg: 19, ip1: 20 };
+const PRODUKTION = { id: 'o-p1', drive_id: 'd1', item_id: 'ip1', parent_item_id: 'ik1', art: 'produktion', unternehmen_id: U1, marke_id: MA1, kampagne_id: KA1, produktion_id: id(8) };
 
 const zuordnung = () => ({
   mitarbeiter_unternehmen: [
@@ -194,7 +195,7 @@ const ADMINS = { 'a@firma.de': [3], 'f@firma.de': [2] };
 const U1_SOLL = { ...ADMINS, 'm1@firma.de': [9], 'm3@firma.de': [2] };
 
 describe('rechteSoll (rein)', () => {
-  const soll = (extra = []) => {
+  const soll = (extra = [], mitLink = ['ity']) => {
     const klasse = { name: 'Finanzen' };
     const b = benutzer().map((x) => ({ ...x, mitarbeiter_klasse: x.mitarbeiter_klasse_id ? klasse : null }));
     const z = zuordnung();
@@ -203,7 +204,7 @@ describe('rechteSoll (rein)', () => {
       ordner: [...ordner().filter((o) => !o.geloescht_at), ...extra],
       zuordnung: { unternehmen: z.mitarbeiter_unternehmen, marke: z.marke_mitarbeiter, kampagne: z.kampagne_mitarbeiter },
       testUnternehmen: new Set([UT]),
-      mitLink: new Set(['ity']),
+      mitLink: new Set(mitLink),
     });
   };
   const scope = (r, item) => r.scopes.find((s) => s.ordner.item_id === item)?.soll;
@@ -259,6 +260,12 @@ describe('rechteSoll (rein)', () => {
     expect(scope(r, 'iko1')).toBeUndefined();
   });
 
+  it('Produktions-Ordner: ohne Link nicht verwaltet, mit Link läuft er mit der Kampagne mit', () => {
+    expect(scope(soll([PRODUKTION]), 'ip1')).toBeUndefined();
+    const r = soll([PRODUKTION], ['ity', 'ip1']);
+    expect(scope(r, 'ip1')).toMatchObject({ modus: 'mitlaufen', rechte: scope(r, 'ik1').rechte });
+  });
+
   it('gleiches Konto bei zwei Benutzern: höhere Stufe gewinnt; Hash stabil gegen Reihenfolge', () => {
     const b = [
       { id: A, rolle: 'admin', email: 'a@firma.de' },
@@ -294,6 +301,8 @@ describe('linkEntzogen', () => {
     ['Ersteller gelöscht', { erstellt_von: null, kooperation_id: KO1 }, true],
     ['andere Rolle', { erstellt_von: id(30), kooperation_id: KO1 }, true],
     ['Kooperation ohne Unternehmen', { erstellt_von: KU, kooperation_id: id(99) }, true],
+    ['Produktions-Link vom Team bleibt', { erstellt_von: M1, kooperation_id: null, produktion_id: id(8) }, false],
+    ['Produktions-Link von einem Kunden', { erstellt_von: KU, kooperation_id: null, produktion_id: id(8) }, true],
   ])('%s', (_n, link, erwartet) => {
     expect(linkEntzogen(link, ctx)).toBe(erwartet);
   });
@@ -412,6 +421,22 @@ describe('Rechte-Abgleich', () => {
     t.uhr.t += 25 * H;
     await t.ra.lauf();
     expect(t.rechte.sicht(14)).toEqual({ eigen: true, rechte: { ...U1_SOLL, 'm2@firma.de': [9], 'SharingLinks.abc': [1] } });
+  });
+
+  it('Produktions-Ordner mit Link: wird nachgeladen und läuft mit, sobald SharePoint die Vererbung unterbricht', async () => {
+    const t = setup({
+      tabellen: {
+        ablage_ordner: [...ordner(), PRODUKTION],
+        ablage_freigabelink: [{ id: 'l1', drive_id: 'd1', item_id: 'ip1', produktion_id: id(8), erstellt_von: M1, laeuft_ab_at: iso(START + 300 * 24 * H) }],
+      },
+    });
+    await t.ra.lauf();
+    expect(t.rechte.aenderungen().some((c) => c[1] === 20)).toBe(false);
+    expect(t.reg('o-p1').rechte_hash).toBeTruthy();
+    t.rechte.setze(20, true, [['alt@firma.de', [9]], ['a@firma.de', [3]], ['SharingLinks.xyz', [t.rechte.LIMITED], 8]]);
+    t.uhr.t += 25 * H;
+    await t.ra.lauf();
+    expect(t.rechte.sicht(20)).toEqual({ eigen: true, rechte: { ...U1_SOLL, 'm2@firma.de': [9], 'SharingLinks.xyz': [1] } });
   });
 
   it('Lease gehalten: Lauf endet sofort', async () => {

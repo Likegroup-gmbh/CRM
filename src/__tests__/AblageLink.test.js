@@ -6,6 +6,7 @@ vi.mock('../core/auth/getAccessToken.js', () => ({
 
 import { authorizedFetch } from '../core/auth/getAccessToken.js';
 import { ablageLink, istSharePoint, _clearAblageLinkCache } from '../core/ablage/ablageLink.js';
+import { resolveStreamUrl } from '../core/media/mediaSrc.js';
 
 const T0 = Date.parse('2026-11-09T10:00:00Z');
 const inEinerStunde = new Date(T0 + 60 * 60 * 1000).toISOString();
@@ -128,6 +129,26 @@ describe('ablageLink', () => {
     const r = ablageLink({ typ: 'video', id: 'v1' });
     await vi.advanceTimersByTimeAsync(25);
     expect((await r).url).toBe('https://contoso.sharepoint.com/dl/v1');
+  });
+});
+
+describe('resolveStreamUrl bei SharePoint', () => {
+  const sp = { ablage: 'sharepoint', typ: 'video', id: 'v1', etag: 'e1' };
+
+  beforeEach(() => {
+    authorizedFetch.mockReset();
+    _clearAblageLinkCache();
+  });
+
+  it('Serverfehler: null für alle Aufrufer, mit werfen ein Fehler', async () => {
+    authorizedFetch.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+    expect(await resolveStreamUrl(sp)).toBeNull();
+    await expect(resolveStreamUrl(sp, { werfen: true })).rejects.toThrow('ablage-link 500');
+  });
+
+  it('fehlende Datei bleibt null, auch mit werfen', async () => {
+    authorizedFetch.mockResolvedValue({ ok: true, json: async () => ({ links: {}, fehlend: ['v1'] }) });
+    expect(await resolveStreamUrl(sp, { werfen: true })).toBeNull();
   });
 });
 

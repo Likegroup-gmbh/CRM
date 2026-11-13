@@ -127,7 +127,7 @@ export function renderShell(o: ShellOptions): string {
   <style>table, td, div, p, a, span { font-family: Arial, Helvetica, sans-serif !important; }</style>
   <![endif]-->
   <!--[if !mso]><!-->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!--<![endif]-->
   <style>
     :root { color-scheme: light; supported-color-schemes: light; }${STYLE}

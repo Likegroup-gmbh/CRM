@@ -97,11 +97,16 @@ describe('videoBrowserMedia', () => {
 
     it('gibt Medientyp, id, ablage und etag an die Auflösung weiter', async () => {
       await resolveSource(video(sp));
-      expect(resolveStreamUrl).toHaveBeenLastCalledWith(expect.objectContaining({ typ: 'video', id: 'a1', ablage: 'sharepoint', etag: 'e1' }));
+      expect(resolveStreamUrl).toHaveBeenLastCalledWith(expect.objectContaining({ typ: 'video', id: 'a1', ablage: 'sharepoint', etag: 'e1' }), { werfen: true });
       await resolveSource(still(sp));
-      expect(resolveStreamUrl).toHaveBeenLastCalledWith(expect.objectContaining({ typ: 'still', id: 's1' }));
+      expect(resolveStreamUrl).toHaveBeenLastCalledWith(expect.objectContaining({ typ: 'still', id: 's1' }), { werfen: true });
       await resolveSource({ type: 'roh', asset: { id: 'r1', file_path: '/r.mov', ...sp } });
-      expect(resolveStreamUrl).toHaveBeenLastCalledWith(expect.objectContaining({ typ: 'roh', id: 'r1' }));
+      expect(resolveStreamUrl).toHaveBeenLastCalledWith(expect.objectContaining({ typ: 'roh', id: 'r1' }), { werfen: true });
+    });
+
+    it('meldet einen nicht erreichbaren Lese-Link als Fehler, nicht als fehlende Datei', async () => {
+      resolveStreamUrl.mockRejectedValueOnce(new Error('ablage-link 500'));
+      await expect(resolveSource(video(sp))).rejects.toThrow('ablage-link 500');
     });
 
     it('Cache-Key bleibt wie bei Dropbox', () => {

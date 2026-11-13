@@ -235,9 +235,9 @@ pause
 
 stage "Freigabe-Richtlinie (Links für Kunden)"
 open_url "https://${SP_TENANT_HOST%.sharepoint.com}-admin.sharepoint.com/_layouts/15/online/AdminHome.aspx#/sharing"
-say "Kunden bekommen Leselinks ohne Microsoft-Konto, die nach 30 Tagen ablaufen."
+say "Kunden bekommen Leselinks ohne Microsoft-Konto, die nach 365 Tagen ablaufen."
 step "Bei 'SharePoint' muss 'Jeder' (Anyone) wählbar sein."
-step "Unter 'Erweiterte Einstellungen für Links für jeden': Ablauf erzwingen, höchstens 30 Tage."
+step "Unter 'Erweiterte Einstellungen für Links für jeden': Ablauf nicht erzwingen oder mindestens 365 Tage erlauben."
 step "Berechtigungen für Dateien und Ordner: 'Anzeigen'."
 note "Speichern ist hier ok, das betrifft nur Links, die jemand ausdrücklich erstellt."
 confirm "Lässt sich 'Jeder' auswählen und ein Ablauf festlegen?" \

@@ -99,6 +99,7 @@ vi.mock('../modules/video-browser/VideoBrowserPlayer.js', () => ({
 vi.mock('../core/ablage/ablageApi.js', async (importOriginal) => ({
   ...(await importOriginal()),
   ablageRohVerschieben: vi.fn(async (ids) => ids.map(id => ({ id, ok: true, typ: 'video' }))),
+  ablageRohUmordnen: vi.fn(async (ids) => ids.map(id => ({ id, ok: true }))),
   ablageRohOrdnerAnlegen: vi.fn(async (_k, name, parent) => ({
     ordner: { item_id: 'o-neu', parent_item_id: parent || 'root-roh', name, pfad: `${ROH}/${name}` }
   }))
@@ -106,7 +107,7 @@ vi.mock('../core/ablage/ablageApi.js', async (importOriginal) => ({
 
 const { mountVideoBrowserPane, unmountVideoBrowser } = await import('../modules/video-browser/VideoBrowser.js');
 const { loadVideoBrowserData } = await import('../modules/video-browser/VideoBrowserAdapter.js');
-const { ablageRohVerschieben, ablageRohOrdnerAnlegen } = await import('../core/ablage/ablageApi.js');
+const { ablageRohVerschieben, ablageRohUmordnen, ablageRohOrdnerAnlegen } = await import('../core/ablage/ablageApi.js');
 
 function setup() {
   window.canFeature = (name) => ({ videoTeamSicht: true, mediaUpload: true, skriptKommentieren: true }[name] ?? false);
@@ -163,9 +164,9 @@ describe('Rohmaterial im Videos-Tab', () => {
 
     const oben = [...col.querySelectorAll('.vb-rohlist > li')].map(li => li.dataset.vbRohOrdner || li.querySelector('.vb-row')?.dataset.id);
     expect(oben).toEqual(['Anna Muster', 'Bilder', 'r3', 'r4']);
-    // ZIP lässt sich nicht verschieben: keine Checkbox, nicht ziehbar
-    expect([...col.querySelectorAll('[data-vb-roh-check]')].map(c => c.dataset.vbRohCheck)).toEqual(['r2', 'r1', 'r3']);
-    expect(col.querySelector('[data-vb-roh-drag="r4"]')).toBeNull();
+    // Auch ZIP lässt sich markieren und ziehen (in einen Ordner, nicht in eine Schleife)
+    expect([...col.querySelectorAll('[data-vb-roh-check]')].map(c => c.dataset.vbRohCheck)).toEqual(['r2', 'r1', 'r3', 'r4']);
+    expect(col.querySelector('[data-vb-roh-drag="r4"]')).toBeTruthy();
     expect(col.querySelector('[data-vb-roh-neu=""]')).toBeTruthy();
   });
 
@@ -228,7 +229,7 @@ describe('Rohmaterial im Videos-Tab', () => {
     const over = dragEvent('dragover', dt);
     ziel.dispatchEvent(over);
     expect(over.defaultPrevented).toBe(true);
-    // Rohmaterial selbst ist kein Ziel
+    // Rohmaterial ist kein Ziel, r3 liegt schon in der Wurzel
     const keinZiel = dragEvent('dragover', dt);
     ctx.pane.querySelector('.vb-col--2 li[data-folder-id="raw"] .vb-row').dispatchEvent(keinZiel);
     expect(keinZiel.defaultPrevented).toBe(false);
@@ -243,6 +244,93 @@ describe('Rohmaterial im Videos-Tab', () => {
     expect(JSON.parse(dt2.getData('application/x-vb-roh'))).toEqual(['r1', 'r2']);
     ctx.pane.querySelector('.vb-col--2 li[data-folder-id="s2"] .vb-row').dispatchEvent(dragEvent('drop', dt2));
     expect(ablageRohVerschieben).toHaveBeenLastCalledWith(['r1', 'r2'], 'v1', 2);
+  });
+
+  it('Menü: in einen anderen Ordner, der eigene ist gesperrt, die Datei wechselt sofort', async () => {
+    ctx = setup();
+    await mountVideoBrowserPane(ctx.detail, ctx.pane);
+    col3(ctx.pane).querySelector('[data-vb-roh-check="r1"]').click();
+    click(col3(ctx.pane).querySelector('[data-vb-roh-menu]'));
+    const ordner = [...col3(ctx.pane).querySelectorAll('[data-vb-roh-ordner-ziel]')];
+    expect(ordner.map(b => [b.dataset.vbRohOrdnerZiel, b.disabled])).toEqual([
+      ['', false], ['Anna Muster', true], ['Anna Muster/final', false], ['Bilder', false]
+    ]);
+
+    loadVideoBrowserData.mockClear();
+    click(col3(ctx.pane).querySelector('[data-vb-roh-ordner-ziel="Bilder"]'));
+    expect(ablageRohUmordnen).toHaveBeenCalledWith(['r1'], 'k1', 'o-bilder');
+    expect(col3(ctx.pane).querySelector('.vb-rohgroup[data-vb-roh-ordner="Bilder"] .vb-row[data-id="r1"]')).toBeTruthy();
+    expect(col3(ctx.pane).querySelector('[data-vb-roh-menu-list]')).toBeNull();
+    await flush();
+    expect(loadVideoBrowserData).toHaveBeenCalled();
+    expect(window.toastSystem.show).toHaveBeenCalledWith('1 Datei nach „Bilder“ verschoben.', 'success');
+  });
+
+  it('nur ZIP markiert: Ordner als Ziel, keine Feedbackschleife', async () => {
+    ctx = setup();
+    await mountVideoBrowserPane(ctx.detail, ctx.pane);
+    col3(ctx.pane).querySelector('[data-vb-roh-check="r4"]').click();
+    click(col3(ctx.pane).querySelector('[data-vb-roh-menu]'));
+    expect(col3(ctx.pane).querySelector('[data-vb-roh-ziel]')).toBeNull();
+    expect(col3(ctx.pane).querySelector('.vb-rohmenu__leer').textContent).toContain('nur Videos und Bilder');
+    click(col3(ctx.pane).querySelector('[data-vb-roh-ordner-ziel="Anna Muster/final"]'));
+    expect(ablageRohUmordnen).toHaveBeenCalledWith(['r4'], 'k1', 'o-final');
+  });
+
+  it('Drag & Drop auf einen Ordner, in die Wurzel und auf Rohmaterial in Spalte 2', async () => {
+    ctx = setup();
+    await mountVideoBrowserPane(ctx.detail, ctx.pane);
+    const bilder = () => col3(ctx.pane).querySelector('.vb-rohgroup[data-vb-roh-ordner="Bilder"] .vb-rohgroup__toggle');
+
+    const dt = fakeDataTransfer();
+    col3(ctx.pane).querySelector('[data-vb-roh-drag="r3"]').dispatchEvent(dragEvent('dragstart', dt));
+    const over = dragEvent('dragover', dt);
+    bilder().dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(true);
+    expect(bilder().closest('.vb-rohgroup').classList.contains('is-roh-drop')).toBe(true);
+    // Wurzel: r3 liegt schon dort
+    const wurzel = dragEvent('dragover', dt);
+    col3(ctx.pane).querySelector('.vb-row[data-id="r4"]').dispatchEvent(wurzel);
+    expect(wurzel.defaultPrevented).toBe(false);
+    bilder().dispatchEvent(dragEvent('drop', dt));
+    expect(ablageRohUmordnen).toHaveBeenLastCalledWith(['r3'], 'k1', 'o-bilder');
+    await flush();
+
+    // Aus einem Unterordner in die Wurzel, über eine Zeile der Wurzel
+    const dt2 = fakeDataTransfer();
+    col3(ctx.pane).querySelector('[data-vb-roh-drag="r2"]').dispatchEvent(dragEvent('dragstart', dt2));
+    col3(ctx.pane).querySelector('.vb-row[data-id="r4"]').dispatchEvent(dragEvent('drop', dt2));
+    expect(ablageRohUmordnen).toHaveBeenLastCalledWith(['r2'], 'k1', null);
+    await flush();
+
+    // Auf Rohmaterial in Spalte 2 geht es ebenfalls in die Wurzel
+    const dt3 = fakeDataTransfer();
+    col3(ctx.pane).querySelector('[data-vb-roh-drag="r1"]').dispatchEvent(dragEvent('dragstart', dt3));
+    const raw = ctx.pane.querySelector('.vb-col--2 li[data-folder-id="raw"] .vb-row');
+    const overRaw = dragEvent('dragover', dt3);
+    raw.dispatchEvent(overRaw);
+    expect(overRaw.defaultPrevented).toBe(true);
+    raw.dispatchEvent(dragEvent('drop', dt3));
+    expect(ablageRohUmordnen).toHaveBeenLastCalledWith(['r1'], 'k1', null);
+  });
+
+  it('Umordnen schlägt fehl: die Datei kommt in ihren Ordner zurück', async () => {
+    ctx = setup();
+    await mountVideoBrowserPane(ctx.detail, ctx.pane);
+    let fertig;
+    ablageRohUmordnen.mockImplementationOnce((ids) => new Promise((resolve) => {
+      fertig = () => resolve(ids.map(id => ({ id, ok: false, fehler: 'Datei liegt nicht in SharePoint' })));
+    }));
+    loadVideoBrowserData.mockImplementationOnce(() => new Promise(() => {}));
+    const anna = () => col3(ctx.pane).querySelector('.vb-rohgroup[data-vb-roh-ordner="Anna Muster"] > .vb-rohgroup__body');
+    col3(ctx.pane).querySelector('[data-vb-roh-check="r1"]').click();
+    click(col3(ctx.pane).querySelector('[data-vb-roh-menu]'));
+    click(col3(ctx.pane).querySelector('[data-vb-roh-ordner-ziel=""]'));
+    expect(anna().querySelector(':scope > li > .vb-row[data-id="r1"]')).toBeNull();
+    fertig();
+    await flush();
+    expect(anna().querySelector(':scope > li > .vb-row[data-id="r1"]')).toBeTruthy();
+    expect(window.toastSystem.show).toHaveBeenCalledWith('Datei liegt nicht in SharePoint', 'error');
   });
 
   it('Neuer Ordner: Feld in der Liste, Anlegen zeigt den Ordner sofort', async () => {

@@ -70,7 +70,7 @@ export async function submitComment(vb, form) {
   const textEl = form.querySelector('[data-vb-comment-text]');
   const text = textEl.value.trim();
   if (!text) { textEl.focus(); return; }
-  const pinned = form.querySelector('[data-vb-pin]')?.checked;
+  const pinned = item.type !== 'still' && !!form.querySelector('[data-vb-pin]')?.checked;
   const timecodeSec = pinned && vb.player ? vb.player.getTime() : null;
 
   form.dataset.busy = '1';
@@ -81,6 +81,7 @@ export async function submitComment(vb, form) {
       videoId: row.id,
       runde: folder.number,
       assetId: item.id,
+      assetType: item.type,
       text,
       timecodeSec,
       isKunde: !vb.team
@@ -90,7 +91,7 @@ export async function submitComment(vb, form) {
     delete vb.drafts[item.id];
     textEl.value = '';
 
-    const comments = commentsForAsset(resolveSelection(vb.tree, vb.sel).row.comments, folder.number, item.id);
+    const comments = commentsForAsset(resolveSelection(vb.tree, vb.sel).row.comments, folder.number, item.id, item.type);
     const created = comments.find(c => c.id === saved.id);
     const list = vb.detailInner.querySelector('[data-vb-comments]');
     if (created && list) {
@@ -101,6 +102,10 @@ export async function submitComment(vb, form) {
       vb.motion.commentIn(el, created.timecodeSec !== null ? vb.player?.markerEl(created.id) : null);
       revealComment(vb, el);
     }
+    const count = vb.detailInner.querySelector('[data-vb-tab-count]');
+    if (count) count.textContent = String(comments.length);
+    // Zähler der Datei in der Spalte; Detail und Player bleiben stehen
+    vb._renderNav();
   } catch (err) {
     console.error('VideoBrowser: Kommentar speichern fehlgeschlagen', err?.code, err?.message || err);
     vb.toast('error', saveErrorText(err));

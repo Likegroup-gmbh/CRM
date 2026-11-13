@@ -25,7 +25,8 @@ vi.mock('../modules/video-browser/VideoBrowserAdapter.js', () => ({
   loadVideoBrowserData: vi.fn(async () => structuredClone(RAW)),
   saveZeitkommentar: vi.fn(async (input) => ({
     id: 'z-new', video_id: input.videoId, runde: input.runde, feedback_typ: input.isKunde ? 'kunde' : 'cj',
-    text: input.text, timecode_sec: input.timecodeSec, asset_id: input.assetId, author_name: 'Tester', created_at: '2026-03-01'
+    text: input.text, timecode_sec: input.timecodeSec, author_name: 'Tester', created_at: '2026-03-01',
+    [{ story: 'story_asset_id', still: 'still_asset_id' }[input.assetType] || 'asset_id']: input.assetId
   })),
   saveWiedergabeMessung: vi.fn(),
   loadUploadContext: vi.fn(),
@@ -229,6 +230,70 @@ describe('VideoBrowser Controller', () => {
     expect(form.querySelector('[data-vb-comment-send]').disabled).toBe(false);
     spy.mockRestore();
     delete window.toastSystem;
+  });
+
+  describe('Kommentare an Story und Bild', () => {
+    const mitStoryUndBild = () => ({
+      ...structuredClone(RAW),
+      stories: [{ id: 'st1', video_id: 'v1', slot_index: 0, slot_name: 'Story' }],
+      storyAssets: [{ id: 'sa1', video_id: 'v1', story_id: 'st1', version_number: 1, is_final: false, created_at: '2026-02-02' }],
+      stillAssets: [{ id: 'b1', kooperation_id: 'k1', video_id: 'v1', version_number: 1, is_final: false, created_at: '2026-02-03' }],
+      zeitkommentare: [{
+        id: 'z-story', video_id: 'v1', runde: 1, feedback_typ: 'cj', text: 'Text früher', timecode_sec: '3.00',
+        story_asset_id: 'sa1', author_name: 'Ben', created_at: '2026-02-04'
+      }]
+    });
+
+    it('Story: Kunde kommentiert mit Zeitstempel, vorhandene Kommentare werden Marker', async () => {
+      ctx = setup({ team: false });
+      saveZeitkommentar.mockClear();
+      loadVideoBrowserData.mockResolvedValueOnce(mitStoryUndBild());
+      window.history.replaceState(null, '', '/produktion/p1?tab=videos&k=k1&v=v1&f=s1&i=sa1');
+      await mountVideoBrowserPane(ctx.detail, ctx.pane);
+
+      expect(player.opts.comments.map(c => c.id)).toEqual(['z-story']);
+      const form = ctx.pane.querySelector('[data-vb-comment-form]');
+      expect(form).not.toBeNull();
+      player.opts.onTime(12.5);
+      expect(form.querySelector('[data-vb-pin]').checked).toBe(true);
+      form.querySelector('[data-vb-comment-text]').value = 'Schrift größer';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(ctx.pane.querySelectorAll('.vb-comment')).toHaveLength(2));
+      expect(saveZeitkommentar).toHaveBeenCalledWith(expect.objectContaining({
+        videoId: 'v1', runde: 1, assetId: 'sa1', assetType: 'story', timecodeSec: 12.5, isKunde: true
+      }));
+    });
+
+    it('Bild: Formular ohne Zeitstempel, gespeichert ohne Timecode', async () => {
+      ctx = setup({ team: false });
+      saveZeitkommentar.mockClear();
+      loadVideoBrowserData.mockResolvedValueOnce(mitStoryUndBild());
+      window.history.replaceState(null, '', '/produktion/p1?tab=videos&k=k1&v=v1&f=s1&i=b1');
+      await mountVideoBrowserPane(ctx.detail, ctx.pane);
+
+      const form = ctx.pane.querySelector('[data-vb-comment-form]');
+      expect(form).not.toBeNull();
+      expect(form.querySelector('[data-vb-pin]')).toBeNull();
+      expect(ctx.pane.textContent).not.toContain('geschrieben wird beim Video');
+      player.opts.onTime(12.5);
+      form.querySelector('[data-vb-comment-text]').value = 'Logo größer';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(ctx.pane.querySelectorAll('.vb-comment')).toHaveLength(1));
+      expect(saveZeitkommentar).toHaveBeenCalledWith(expect.objectContaining({
+        assetId: 'b1', assetType: 'still', timecodeSec: null, isKunde: true
+      }));
+      expect(ctx.pane.querySelector('[data-vb-tab-count]').textContent).toBe('1');
+      expect(ctx.pane.querySelector('.vb-col--3 .vb-row[data-id="b1"]').textContent).toContain('1 Kommentar');
+    });
+
+    it('Video sieht die Story-Kommentare nicht', async () => {
+      ctx = setup({ team: false });
+      loadVideoBrowserData.mockResolvedValueOnce(mitStoryUndBild());
+      window.history.replaceState(null, '', '/produktion/p1?tab=videos&k=k1&v=v1&f=s1&i=a1');
+      await mountVideoBrowserPane(ctx.detail, ctx.pane);
+      expect(player.opts.comments).toEqual([]);
+      expect(ctx.pane.querySelectorAll('.vb-comment')).toHaveLength(0);
+    });
   });
 
   it('Ordner mit einer Datei öffnet direkt die Datei', async () => {
@@ -683,6 +748,20 @@ describe('VideoBrowser Controller', () => {
     it('Kunde sieht den leeren Ordner Finale Version nicht', async () => {
       await open('', { team: false });
       expect(ctx.pane.querySelector('.vb-col--2 .vb-row[data-id="final"]')).toBeNull();
+    });
+
+    it('nach dem Final bleibt Schleife 2 für das Team da und nimmt Uploads an', async () => {
+      loadVideoBrowserData.mockImplementation(async () => mitFinal());
+      await open('f=s2');
+      const ordner = [...ctx.pane.querySelectorAll('.vb-col--2 .vb-row')].map(r => r.dataset.id);
+      expect(ordner).toEqual(expect.arrayContaining(['s1', 's2', 'final']));
+      expect(ctx.pane.querySelector('.vb-col--3 [data-vb-dropzone]')).not.toBeNull();
+    });
+
+    it('nach dem Final kann der Kunde in Schleife 1 weiter kommentieren', async () => {
+      loadVideoBrowserData.mockImplementation(async () => mitFinal());
+      await open('f=s1&i=a1', { team: false });
+      expect(ctx.pane.querySelector('[data-vb-comment-form]')).not.toBeNull();
     });
   });
 

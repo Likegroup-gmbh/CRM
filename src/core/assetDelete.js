@@ -17,6 +17,13 @@ export const ASSET_TABLE = {
   roh: 'kooperation_rohmaterial_asset'
 };
 
+/** Spalte in kooperation_video_zeitkommentar, die auf die Datei zeigt. Rohmaterial hat keine Kommentare. */
+export const KOMMENTAR_SPALTE = {
+  video: 'asset_id',
+  story: 'story_asset_id',
+  still: 'still_asset_id'
+};
+
 export function assetTable(item) {
   const table = ASSET_TABLE[item?.type];
   if (!table || !item?.id) throw new Error('Unbekannte Datei');
@@ -49,12 +56,13 @@ export async function deleteAssetWithFile(item) {
 
   if (sharePoint) await ablageDateiLoeschen(item.type, item.id);
 
-  if (item.type === 'video') {
-    // asset_id fällt sonst auf null: die Kommentare stünden dann bei allen Varianten der Runde
+  const kommentarSpalte = KOMMENTAR_SPALTE[item.type];
+  if (kommentarSpalte) {
+    // Der Verweis fällt sonst auf null: die Kommentare stünden dann bei allen Videos der Runde
     const { error } = await sb
       .from('kooperation_video_zeitkommentar')
       .update({ deleted_at: new Date().toISOString() })
-      .eq('asset_id', item.id)
+      .eq(kommentarSpalte, item.id)
       .is('deleted_at', null);
     if (error) console.warn('assetDelete: Kommentare der Datei nicht entfernt', error.message || error);
   }

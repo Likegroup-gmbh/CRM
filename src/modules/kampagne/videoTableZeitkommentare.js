@@ -6,7 +6,7 @@
 import { VIDEO_FEEDBACK_FIELDS, VIDEO_FEEDBACK_MAX_RUNDE } from '../../core/VideoFeedbackBuckets.js';
 import { selectionToSearch } from '../video-browser/videoBrowserSelection.js';
 
-export const ZEITKOMMENTAR_SELECT = 'id, video_id, runde, feedback_typ, text, timecode_sec, asset_id, author_name, created_at, deleted_at';
+export const ZEITKOMMENTAR_SELECT = 'id, video_id, runde, feedback_typ, text, timecode_sec, asset_id, story_asset_id, still_asset_id, author_name, created_at, deleted_at';
 
 function escapeHtml(text) {
   return String(text ?? '')
@@ -54,13 +54,27 @@ export function applyZeitkommentarChange(list, row, { removed = false } = {}) {
   return [...rest, row];
 }
 
+/** Datei, an der ein Kommentar hängt (Video, Story oder Bild), sonst null. */
+export function zeitkommentarAssetId(c) {
+  return c?.asset_id || c?.story_asset_id || c?.still_asset_id || null;
+}
+
+/** "Bild" bzw. "Story", wenn der Kommentar nicht am Video hängt. */
+export function zeitkommentarArt(c) {
+  if (c?.still_asset_id) return 'Bild';
+  if (c?.story_asset_id) return 'Story';
+  return '';
+}
+
 export function renderZeitkommentarList(list, video, slot) {
   const items = zeitkommentareFuerSlot(list, slot).map(c => {
     const tc = formatTimecode(c.timecode_sec);
+    const art = zeitkommentarArt(c);
     return `<button type="button" class="feedback-zeit-item" data-action="open-zeitkommentar"
         data-video-id="${escapeHtml(video.id)}" data-kooperation-id="${escapeHtml(video.kooperation_id || '')}"
-        data-runde="${escapeHtml(c.runde)}" data-asset-id="${escapeHtml(c.asset_id || '')}"
+        data-runde="${escapeHtml(c.runde)}" data-asset-id="${escapeHtml(zeitkommentarAssetId(c) || '')}"
         title="Im Videos-Tab öffnen">
+        ${art ? `<span class="feedback-zeit-art">${art}</span>` : ''}
         ${tc ? `<span class="feedback-zeit-tc">${tc}</span>` : ''}
         <span class="feedback-zeit-text">${escapeHtml(String(c.text).trim())}</span>
         <span class="feedback-zeit-author">${escapeHtml(c.author_name || '')}</span>

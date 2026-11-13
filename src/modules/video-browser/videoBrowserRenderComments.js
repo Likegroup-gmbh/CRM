@@ -36,19 +36,19 @@ export function commentsOf(row, item) {
   return commentsForAsset(row.comments, item.runde, item.id, item.type);
 }
 
-/** Inhalt des Tabs. Die Kommentare gehören der Datei, geschrieben wird nur beim Video der offenen Runde. */
+const KOMMENTIERBAR = new Set(['video', 'story', 'still']);
+
+/** Inhalt des Tabs. Die Kommentare gehören der Datei, geschrieben wird nur in der offenen Runde. */
 export function commentsPanelHtml(ctx) {
   const { row, folder, item } = ctx.resolved;
   const comments = commentsOf(row, item);
-  const canWrite = ctx.canComment && item.type === 'video' && !item.isFinal && folder.current && !folder.closed && row.kannKommentieren;
+  const canWrite = ctx.canComment && KOMMENTIERBAR.has(item.type) && !item.isFinal && folder.offen && row.kannKommentieren;
+  // Bilder haben keine Zeitleiste, also keinen Zeitstempel
+  const mitZeit = item.type !== 'still';
   // Zeitstempel: erst an, wenn der Playhead bewegt wurde (macht der Controller über onTime).
   // Nur eine bewusste Wahl des Nutzers bleibt über ein Neu-Rendern erhalten.
   const draft = ctx.drafts?.[item.id] || { text: '', pinned: false, pinTouched: false };
   const pinned = draft.pinTouched && draft.pinned;
-  // Feedback schreibt man am Video der Runde. Bilder und Stories zeigen die Notizen der Runde.
-  const readonlyHint = item.type === 'video'
-    ? 'Kommentare abgeschlossener Feedbackschleifen sind nur noch lesbar.'
-    : `Feedback zu ${item.type === 'still' ? 'Bildern' : 'Stories'} dieser Runde steht hier, geschrieben wird beim Video.`;
   return `
       <section class="vb-comments">
         <h5 class="vb-detail__eyebrow">Kommentare</h5>
@@ -58,11 +58,11 @@ export function commentsPanelHtml(ctx) {
         <form class="vb-comment-form" data-vb-comment-form data-asset-id="${esc(item.id)}">
           <label class="vb-visually-hidden" for="vb-comment-text">Kommentar</label>
           <textarea class="form-input vb-comment-form__text" id="vb-comment-text" rows="3" placeholder="Feedback schreiben ..." aria-describedby="vb-comment-hint" data-vb-comment-text>${esc(draft.text)}</textarea>
-          <label class="vb-comment-form__pin"><input type="checkbox" data-vb-pin${pinned ? ' checked' : ''} /> Zeitstempel anhängen <span class="vb-comment-form__pin-time" data-vb-pin-time>0:00</span></label>
+          ${mitZeit ? `<label class="vb-comment-form__pin"><input type="checkbox" data-vb-pin${pinned ? ' checked' : ''} /> Zeitstempel anhängen <span class="vb-comment-form__pin-time" data-vb-pin-time>0:00</span></label>` : ''}
           <div class="vb-comment-form__actions">
             <span class="vb-comment-form__hint" id="vb-comment-hint"><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
             <button type="submit" class="mdc-btn" data-vb-comment-send>Senden</button>
           </div>
-        </form>` : `<p class="vb-info">${esc(readonlyHint)}</p>`}
+        </form>` : '<p class="vb-info">Kommentare abgeschlossener Feedbackschleifen sind nur noch lesbar.</p>'}
       </section>`;
 }

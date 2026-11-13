@@ -73,10 +73,11 @@ export function cachedUrl(item) {
 /**
  * Abspielbare Quelle einer Datei: das Original über den Temp-Link-Cache.
  * @param {object} item
- * @returns {Promise<{ url: string|null, quelle: 'original' }>}
+ * @returns {Promise<{ url: string|null, quelle: 'original' }>} url null: keine Datei;
+ *          ist ablage-link nicht erreichbar, wird geworfen
  */
 export async function resolveSource(item) {
-  const url = await resolveStreamUrl(mediaOf(item).lookup);
+  const url = await resolveStreamUrl(mediaOf(item).lookup, { werfen: true });
   return { url: url || null, quelle: 'original' };
 }
 

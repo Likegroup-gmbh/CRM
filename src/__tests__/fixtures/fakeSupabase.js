@@ -430,7 +430,7 @@ export function createFakeSharePoint({ driveId = 'd1' } = {}) {
       calls.push(['leselink', itemId]);
       const permissionId = `p${++n}`;
       fake.links.set(permissionId, itemId);
-      return { permissionId, url: `https://share.test/${permissionId}`, ablauf: new Date(ablauf).toISOString() };
+      return { permissionId, url: `https://share.test/${permissionId}`, ablauf: ablauf ? new Date(ablauf).toISOString() : null };
     },
     async freigabeEntfernen(itemId, permissionId) {
       calls.push(['freigabeEntfernen', itemId, permissionId]);

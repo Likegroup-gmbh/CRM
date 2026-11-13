@@ -1,9 +1,10 @@
 // videoBrowserRoh.js
 // Rohmaterial im Videos-Tab (Team, ADR 0070): Unterordner ein-/ausklappen und anlegen, Dateien
-// markieren und in eine Feedbackschleife verschieben, über die Leiste mit Ziel-Menü oder per
-// Drag & Drop auf eine Schleife in Spalte 2. Alle Funktionen bekommen den Controller (`vb`).
+// markieren und verschieben, in einen anderen Rohmaterial-Ordner oder eine Feedbackschleife. Über
+// die Leiste mit Ziel-Menü oder per Drag & Drop: auf einen Ordner oder die Wurzel in Spalte 3, auf
+// Rohmaterial oder eine Schleife in Spalte 2. Alle Funktionen bekommen den Controller (`vb`).
 
-import { ablageRohOrdnerAnlegen, ablageRohVerschieben } from '../../core/ablage/ablageApi.js';
+import { ablageRohOrdnerAnlegen, ablageRohUmordnen, ablageRohVerschieben } from '../../core/ablage/ablageApi.js';
 import { ablageVonQuelle } from '../../core/ablage/ablageUpload.js';
 import {
   buildTree,
@@ -14,6 +15,7 @@ import {
   selectionEquals,
   validateSelection
 } from './videoBrowserLogic.js';
+import { ROHMATERIAL_NAME } from './videoBrowserFormat.js';
 import { rohKey } from './videoBrowserRenderRoh.js';
 import { rohZielTyp } from './videoBrowserRohOrdner.js';
 
@@ -144,7 +146,7 @@ export function rohMarkierungAufheben(vb) {
 export function rohMenuUmschalten(vb, offen = !vb.rohMenu) {
   vb.rohMenu = offen && vb.rohAuswahl.size > 0;
   vb._renderNav();
-  fokus(vb, vb.rohMenu ? '[data-vb-roh-ziel]' : '[data-vb-roh-menu]');
+  fokus(vb, vb.rohMenu ? '[data-vb-roh-ziel], [data-vb-roh-ordner-ziel]:not(:disabled)' : '[data-vb-roh-menu]');
 }
 
 /** Aus dem Detail: genau diese Datei markieren und das Ziel-Menü öffnen. */
@@ -195,7 +197,6 @@ export async function rohVerschieben(vb, ids, { videoId, version }) {
     return;
   }
 
-  vb._rohMoveBusy = true;
   const before = { rohmaterial: vb.raw.rohmaterial, videoAssets: vb.raw.videoAssets, stillAssets: vb.raw.stillAssets };
   const set = new Set(movable.map(i => i.id));
   const jetzt = new Date().toISOString();
@@ -203,19 +204,69 @@ export async function rohVerschieben(vb, ids, { videoId, version }) {
   vb.raw.rohmaterial = (before.rohmaterial || []).filter(a => !set.has(a.id));
   vb.raw.videoAssets = [...(before.videoAssets || []), ...temps.filter(t => t.typ === 'video').map(t => t.row)];
   vb.raw.stillAssets = [...(before.stillAssets || []), ...temps.filter(t => t.typ === 'still').map(t => t.row)];
+
+  const ok = await optimistischVerschieben(vb, set, before, () => ablageRohVerschieben([...set], videoId, version));
+  if (ok) {
+    const ziel = { kooperationId: koop.id, videoId, folderId: `s${version}` };
+    vb.toast('success', `${plural(ok, 'Datei', 'Dateien')} nach „${schleifeName(version)}“ (${zielRow.label}) verschoben.`, {
+      action: { label: 'Öffnen', onClick: () => vb._select(ziel, { autoItem: true }) }
+    });
+  }
+}
+
+/**
+ * In einen anderen Ordner im Rohmaterial (`zielPfad` relativ zu Rohmaterial/, '' = Wurzel).
+ * Dateien, die schon dort liegen, bleiben unberührt.
+ */
+export async function rohUmordnen(vb, ids, zielPfad = '') {
+  if (!vb.canUpload || vb._rohMoveBusy || !ids?.length) return;
+  const r = offenerRohOrdner(vb);
+  if (!r?.folder.wurzelPfad) return;
+  const { koop, folder } = r;
+  const ziel = zielPfad ? (folder.unterordner || []).find(o => lower(o.pfad) === lower(zielPfad)) : null;
+  if (zielPfad && !ziel?.itemId) {
+    vb.toast('error', 'Dieser Ordner ist noch nicht in der Ablage angekommen. Bitte gleich erneut versuchen.');
+    return;
+  }
+  const wanted = new Set(ids);
+  const items = folder.items.filter(i => wanted.has(i.id) && i.umordenbar && lower(i.ordner) !== lower(zielPfad));
+  if (!items.length) {
+    rohMenuUmschalten(vb, false);
+    return;
+  }
+
+  const before = { rohmaterial: vb.raw.rohmaterial };
+  const set = new Set(items.map(i => i.id));
+  const ordnerPfad = zielPfad ? `${folder.wurzelPfad}/${ziel.pfad}` : folder.wurzelPfad;
+  vb.raw.rohmaterial = (before.rohmaterial || []).map(a => (set.has(a.id) ? { ...a, file_path: `${ordnerPfad}/${a.file_name}` } : a));
+  // Ziel samt Eltern aufklappen, damit man die Dateien dort ankommen sieht
+  const teile = zielPfad.split('/').filter(Boolean);
+  teile.forEach((_, i) => vb.rohZu.delete(rohKey(koop.id, teile.slice(0, i + 1).join('/'))));
+
+  const ok = await optimistischVerschieben(vb, set, before, () => ablageRohUmordnen([...set], koop.id, ziel?.itemId || null));
+  if (ok) vb.toast('success', `${plural(ok, 'Datei', 'Dateien')} nach „${ziel?.name || ROHMATERIAL_NAME}“ verschoben.`);
+}
+
+/**
+ * Die Ansicht steht schon auf dem neuen Stand (`vb.raw` geändert). Schickt den Auftrag, meldet
+ * Fehler je Datei, stellt bei Totalausfall `before` wieder her und lädt danach den echten Stand.
+ * @returns {Promise<number>} Anzahl verschobener Dateien
+ */
+async function optimistischVerschieben(vb, set, before, senden) {
+  vb._rohMoveBusy = true;
   for (const id of set) vb.rohAuswahl.delete(id);
   vb.rohMenu = false;
   refresh(vb);
 
   let ergebnisse;
   try {
-    ergebnisse = await ablageRohVerschieben([...set], videoId, version);
+    ergebnisse = await senden();
   } catch (err) {
     ergebnisse = [...set].map(id => ({ id, ok: false, fehler: err?.message }));
   } finally {
     vb._rohMoveBusy = false;
   }
-  if (vb.destroyed) return;
+  if (vb.destroyed) return 0;
 
   const ok = ergebnisse.filter(e => e.ok).length;
   const fehler = ergebnisse.filter(e => !e.ok);
@@ -223,34 +274,42 @@ export async function rohVerschieben(vb, ids, { videoId, version }) {
     Object.assign(vb.raw, before);
     refresh(vb);
   }
-  if (ok) {
-    const ziel = { kooperationId: koop.id, videoId, folderId: `s${version}` };
-    vb.toast('success', `${plural(ok, 'Datei', 'Dateien')} nach „${schleifeName(version)}“ (${zielRow.label}) verschoben.`, {
-      action: { label: 'Öffnen', onClick: () => vb._select(ziel, { autoItem: true }) }
-    });
-  }
   if (fehler.length) {
     const grund = fehler[0].fehler || 'Verschieben fehlgeschlagen';
     vb.toast('error', fehler.length === set.size ? grund : `${plural(fehler.length, 'Datei', 'Dateien')} nicht verschoben: ${grund}`);
   }
-  try {
-    await vb.reload();
-  } catch (err) {
-    console.error('VideoBrowser: Aktualisieren nach Verschieben fehlgeschlagen', err);
-  }
+  // Ohne await: der Toast steht sofort, der echte Stand kommt nach
+  vb.reload().catch(err => console.error('VideoBrowser: Aktualisieren nach Verschieben fehlgeschlagen', err));
+  return ok;
 }
 
-/* ---- Drag & Drop auf eine Feedbackschleife in Spalte 2 ---- */
+/* ---- Drag & Drop: Ordner und Wurzel in Spalte 3, Rohmaterial und Feedbackschleifen in Spalte 2 ---- */
 
 // vb._rohDrag deckt Browser ab, die eigene Typen während dragover nicht in `types` zeigen
 const istRohDrag = (vb, e) => !!vb._rohDrag || [...(e.dataTransfer?.types || [])].includes(ROH_DRAG_TYPE);
 
+/** -> { el, schleife: { videoId, version } } | { el, ordner: pfad } | null */
 function zielVon(vb, target) {
   const li = target?.closest?.('.vb-col--2 li[data-folder-id]');
-  if (!li) return null;
-  const { row } = resolveSelection(vb.tree, vb.sel);
-  const f = row?.folders.find(x => x.id === li.dataset.folderId);
-  return f?.kind === 'schleife' ? { li, videoId: row.id, version: f.number } : null;
+  if (li) {
+    const { row } = resolveSelection(vb.tree, vb.sel);
+    const f = row?.folders.find(x => x.id === li.dataset.folderId);
+    if (f?.kind === 'schleife') return { el: li, schleife: { videoId: row.id, version: f.number } };
+    return f?.kind === 'raw' ? { el: li, ordner: '' } : null;
+  }
+  const spalte = target?.closest?.('.vb-col--3');
+  if (!spalte || !offenerRohOrdner(vb)) return null;
+  // Ordner ohne Register-Eintrag (nur aus Dateipfaden) taugen nicht als Ziel
+  const gruppe = target.closest('.vb-rohgroup');
+  if (gruppe) return gruppe.dataset.itemId ? { el: gruppe, ordner: gruppe.dataset.vbRohOrdner } : null;
+  return { el: spalte, ordner: '' };
+}
+
+/** Liegen alle gezogenen Dateien schon in diesem Ordner? Dann ist er kein Ziel. */
+function schonDort(vb, ordner) {
+  const ids = vb._rohDrag;
+  const items = offenerRohOrdner(vb)?.folder.items || [];
+  return !!ids?.length && ids.every(id => lower(items.find(i => i.id === id)?.ordner) === lower(ordner));
 }
 
 function zielLoeschen(vb) {
@@ -288,17 +347,20 @@ export function bindRohDrag(vb, on) {
   on(vb.root, 'dragover', (e) => {
     if (!istRohDrag(vb, e)) return;
     const ziel = zielVon(vb, e.target);
-    if (!ziel) return;
+    if (!ziel || (ziel.ordner !== undefined && schonDort(vb, ziel.ordner))) {
+      zielLoeschen(vb);
+      return;
+    }
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (!ziel.li.classList.contains('is-roh-drop')) {
+    if (!ziel.el.classList.contains('is-roh-drop')) {
       zielLoeschen(vb);
-      ziel.li.classList.add('is-roh-drop');
+      ziel.el.classList.add('is-roh-drop');
     }
   });
   on(vb.root, 'dragleave', (e) => {
-    const li = e.target.closest?.('.is-roh-drop');
-    if (li && !li.contains(e.relatedTarget)) li.classList.remove('is-roh-drop');
+    const el = e.target.closest?.('.is-roh-drop');
+    if (el && !el.contains(e.relatedTarget)) el.classList.remove('is-roh-drop');
   });
   on(vb.root, 'drop', (e) => {
     if (!istRohDrag(vb, e)) return;
@@ -310,6 +372,7 @@ export function bindRohDrag(vb, on) {
     if (!ids) {
       try { ids = JSON.parse(e.dataTransfer.getData(ROH_DRAG_TYPE) || '[]'); } catch { ids = []; }
     }
-    void rohVerschieben(vb, ids, { videoId: ziel.videoId, version: ziel.version });
+    if (ziel.schleife) void rohVerschieben(vb, ids, ziel.schleife);
+    else void rohUmordnen(vb, ids, ziel.ordner);
   });
 }

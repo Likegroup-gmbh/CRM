@@ -171,13 +171,30 @@ describe('VideoBrowserAdapter: Datei löschen', () => {
     expect(syncVideoAssetsAfterDelete).not.toHaveBeenCalled();
   });
 
-  it('Bild: eigene Tabelle, danach die Kennzeichnung der aktuellen Runde', async () => {
+  it('Bild: Kommentare der Datei, eigene Tabelle, danach die Kennzeichnung der aktuellen Runde', async () => {
     window.supabase = mockSupabase({ 'kooperation_bilder_asset:select': () => ({ data: [], error: null }) });
     await deleteAsset({ id: 'b1', type: 'still', asset: { id: 'b1', video_id: 'v1', file_path: '/K/b1.jpg' } });
-    expect(window.supabase.calls.map(q => q.table)).not.toContain('kooperation_video_zeitkommentar');
-    expect(window.supabase.calls[0]).toMatchObject({ table: 'kooperation_bilder_asset', op: 'delete' });
+    expect(window.supabase.calls.map(q => `${q.table}:${q.op}`)).toEqual([
+      'kooperation_video_zeitkommentar:update',
+      'kooperation_bilder_asset:delete',
+      'kooperation_bilder_asset:select'
+    ]);
+    expect(window.supabase.calls[0].filters).toContainEqual(['still_asset_id', 'b1']);
     expect(updateStillCurrentFlags).toHaveBeenCalledWith('v1');
     expect(syncVideoAssetsAfterDelete).not.toHaveBeenCalled();
+  });
+
+  it('Story: Kommentare hängen an story_asset_id', async () => {
+    window.supabase = mockSupabase({ 'kooperation_story_asset:select': () => ({ data: [], error: null }) });
+    await deleteAsset({ id: 's1', type: 'story', asset: { id: 's1', video_id: 'v1', file_path: '/K/s1.mp4' } });
+    expect(window.supabase.calls[0]).toMatchObject({ table: 'kooperation_video_zeitkommentar', op: 'update' });
+    expect(window.supabase.calls[0].filters).toContainEqual(['story_asset_id', 's1']);
+  });
+
+  it('Rohmaterial hat keine Kommentare', async () => {
+    window.supabase = mockSupabase({ 'kooperation_rohmaterial_asset:select': () => ({ data: [], error: null }) });
+    await deleteAsset({ id: 'r1', type: 'roh', asset: { id: 'r1', file_path: '/K/r1.mov' } });
+    expect(window.supabase.calls.map(q => q.table)).not.toContain('kooperation_video_zeitkommentar');
   });
 
   it('SharePoint: Server löscht die Datei vor der Zeile, Dropbox bleibt unberührt', async () => {
@@ -285,5 +302,38 @@ describe('VideoBrowserAdapter: Video-Kommentar stößt die Teams-Meldung an', ()
     fetchSpy.mockRejectedValueOnce(new Error('offline'));
     const row = await saveZeitkommentar({ videoId: 'v1', runde: 1, text: 'Trotzdem', isKunde: true });
     expect(row).toMatchObject({ text: 'Trotzdem' });
+  });
+});
+
+describe('VideoBrowserAdapter: Kommentar an Video, Story oder Bild', () => {
+  beforeEach(() => {
+    window.supabase = createFakeSupabase();
+    window.currentUser = { id: 'b1', name: 'Tom Team', permissions: {} };
+  });
+  afterEach(() => { delete window.supabase; });
+
+  const gespeichert = () => window.supabase.db.kooperation_video_zeitkommentar[0];
+
+  it('Video: asset_id mit Timecode', async () => {
+    await saveZeitkommentar({ videoId: 'v1', runde: 1, assetId: 'a1', text: 'Hook', timecodeSec: 3.456, isKunde: false });
+    expect(gespeichert()).toMatchObject({ asset_id: 'a1', timecode_sec: 3.46 });
+    expect(gespeichert().story_asset_id).toBeUndefined();
+  });
+
+  it('Story: story_asset_id, Timecode bleibt', async () => {
+    await saveZeitkommentar({ videoId: 'v1', runde: 1, assetId: 's1', assetType: 'story', text: 'Text früher', timecodeSec: 2, isKunde: false });
+    expect(gespeichert()).toMatchObject({ story_asset_id: 's1', timecode_sec: 2 });
+    expect(gespeichert().asset_id).toBeUndefined();
+  });
+
+  it('Bild: still_asset_id, nie ein Timecode', async () => {
+    await saveZeitkommentar({ videoId: 'v1', runde: 1, assetId: 'b1', assetType: 'still', text: 'Logo größer', timecodeSec: 5, isKunde: false });
+    expect(gespeichert()).toMatchObject({ still_asset_id: 'b1', timecode_sec: null });
+    expect(gespeichert().asset_id).toBeUndefined();
+  });
+
+  it('Rohmaterial wird abgelehnt', async () => {
+    await expect(saveZeitkommentar({ videoId: 'v1', runde: 1, assetId: 'r1', assetType: 'roh', text: 'x', isKunde: false }))
+      .rejects.toThrow('Unbekannte Datei');
   });
 });

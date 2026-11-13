@@ -287,7 +287,7 @@ describe('Baum', () => {
     expect(withAutoItem({ ...base, folderId: 's3', itemId: null }, team).itemId).toBeNull();
   });
 
-  it('Finale Version: ein File je Seitenverhältnis plus Stills, Schleifen abgeschlossen', () => {
+  it('Finale Version: ein File je Seitenverhältnis plus Stills, der Kunde ist nicht mehr am Zug', () => {
     const v2 = team.kooperationen[0].rows.find(r => r.id === 'v2');
     expect(v2.stage).toBe(5);
     expect(v2.status.key).toBe('freigegeben');
@@ -295,8 +295,64 @@ describe('Baum', () => {
     expect(final.meta).toBe('3 Inhalte · 9:16, 1:1');
     expect(final.items.map(i => i.group)).toEqual(['Videos', 'Videos', 'Bilder']);
     expect(v2.folders.find(f => f.id === 's1').current).toBe(false);
-    expect(v2.folders.some(f => f.leer && f.kind === 'schleife')).toBe(false);
     expect(v2.offeneCount).toBe(0);
+  });
+
+  describe('Final blockiert nichts', () => {
+    // v2: eine Datei in Schleife 1, daraus als final markiert
+    const mitFinalAusS1 = () => {
+      const data = raw();
+      data.videoAssets = data.videoAssets.filter(a => a.video_id !== 'v2');
+      data.stillAssets = [];
+      data.videoAssets.push(
+        { id: 'q1', video_id: 'v2', version_number: 1, is_final: false, created_at: '2026-02-01' },
+        { id: 'qf', video_id: 'v2', version_number: 1, variant_name: '9:16', is_final: true, source_asset_id: 'q1', created_at: '2026-02-03' }
+      );
+      return data;
+    };
+    const v2Of = (data, team = true) => buildTree(data, { team }).kooperationen[0].rows.find(r => r.id === 'v2');
+
+    it('die nächste leere Schleife bleibt für das Team sichtbar und beschreibbar', () => {
+      const v2 = v2Of(mitFinalAusS1());
+      expect(v2.folders.map(f => f.id)).toEqual(['raw', 's1', 's2', 'final']);
+      expect(v2.folders.find(f => f.id === 's2')).toMatchObject({ leer: true, upload: true, offen: true });
+      expect(v2.folders.find(f => f.id === 's1').status.key).toBe('freigegeben');
+      expect(v2.status.key).toBe('freigegeben');
+    });
+
+    it('die freigegebene letzte Schleife bleibt offen für Upload und Kommentare, wartet aber nicht', () => {
+      const s1 = v2Of(mitFinalAusS1()).folders.find(f => f.id === 's1');
+      expect(s1).toMatchObject({ offen: true, closed: false, upload: true, current: false });
+    });
+
+    it('Upload in Schleife 2 nach dem Final: Schleife 1 freigegeben, Schleife 2 wartet auf den Kunden', () => {
+      const data = mitFinalAusS1();
+      data.videoAssets.push({ id: 'q2', video_id: 'v2', version_number: 2, is_final: false, created_at: '2026-02-10' });
+      const v2 = v2Of(data);
+      const [s1, s2] = ['s1', 's2'].map(id => v2.folders.find(f => f.id === id));
+      expect(s1.status.key).toBe('freigegeben');
+      expect(s1.offen).toBe(false);
+      expect(s2.status.key).toBe('wartet');
+      expect(s2.current).toBe(true);
+      expect(v2.stage).toBe(4);
+      expect(v2.status.key).toBe('wartet');
+      expect(v2.offeneCount).toBe(1);
+      expect(v2.folders.map(f => f.id)).toEqual(['raw', 's1', 's2', 's3', 'final']);
+    });
+
+    it('Final aus Schleife 1, obwohl Schleife 2 schon vorher da war: Schleife 2 wartet nicht', () => {
+      const data = mitFinalAusS1();
+      data.videoAssets.push({ id: 'q2', video_id: 'v2', version_number: 2, is_final: false, created_at: '2026-02-02' });
+      const v2 = v2Of(data);
+      expect(v2.folders.find(f => f.id === 's1').status.key).toBe('freigegeben');
+      expect(v2.folders.find(f => f.id === 's2').status.key).toBe('aenderungen');
+      expect(v2.status.key).toBe('freigegeben');
+      expect(v2.offeneCount).toBe(0);
+    });
+
+    it('Kunde sieht weiterhin keine leeren Schleifen', () => {
+      expect(v2Of(mitFinalAusS1(), false).folders.map(f => f.id)).toEqual(['s1', 'final']);
+    });
   });
 
   it('Kommentare: Slot-Notiz und Timecode-Kommentar je Datei', () => {
@@ -326,6 +382,32 @@ describe('Baum', () => {
     expect(commentsForAsset(v1.comments, 2, 'a2', 'video').map(c => c.text)).toEqual(['Logo früher']);
     expect(commentsForAsset(v1.comments, 2, 'x', 'story')).toEqual([]);
     expect(commentsForAsset(v1.comments, 1, 'x', 'story').map(c => c.text)).toEqual(['Hook kürzer']);
+  });
+
+  it('Kommentare an Story und Bild gehören nur ihrer Datei, das Video sieht sie nicht', () => {
+    const data = raw();
+    data.stillAssets = [{ id: 'b1', video_id: 'v1', version_number: 1, is_final: false, created_at: '2026-02-03' }];
+    data.stillNotes = [{ id: 'sn1', video_id: 'v1', runde: 1, feedback_typ: 'kunde', text: 'Alte Bild-Notiz', author_name: 'Kunde', created_at: '2026-02-03' }];
+    data.zeitkommentare.push(
+      { id: 'z2', video_id: 'v1', runde: 1, feedback_typ: 'kunde', text: 'Text in der Story früher', timecode_sec: '1.20', story_asset_id: 'sa1', author_name: 'Kunde', created_at: '2026-02-04' },
+      { id: 'z3', video_id: 'v1', runde: 1, feedback_typ: 'kunde', text: 'Logo größer', timecode_sec: null, still_asset_id: 'b1', author_name: 'Kunde', created_at: '2026-02-05' }
+    );
+    const v1 = buildTree(data, { team: true }).kooperationen[0].rows[0];
+    const texte = (assetId, type) => commentsForAsset(v1.comments, 1, assetId, type).map(c => c.text);
+
+    expect(texte('sa1', 'story')).toEqual(['Hook kürzer', 'Text in der Story früher']);
+    expect(texte('b1', 'still')).toEqual(['Alte Bild-Notiz', 'Logo größer']);
+    expect(texte('a1', 'video')).toEqual(['Hook kürzer']);
+    expect(texte('andere-story', 'story')).toEqual(['Hook kürzer']);
+    expect(texte('anderes-bild', 'still')).toEqual(['Alte Bild-Notiz']);
+    expect(v1.comments.find(c => c.id === 'z2')).toMatchObject({ assetId: 'sa1', timecodeSec: 1.2 });
+
+    // Zähler in der Dateispalte: je Datei, nicht je Runde
+    const s1 = v1.folders.find(f => f.id === 's1');
+    const meta = (id) => s1.items.find(i => i.id === id).meta;
+    expect(meta('a1')).toBe('v1 · 1 Kommentar');
+    expect(meta('sa1')).toBe('v1 · 2 Kommentare');
+    expect(meta('b1')).toBe('v1 · 2 Kommentare');
   });
 
   it('erster offener Inhalt', () => {

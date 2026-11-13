@@ -1,7 +1,8 @@
 // ablage-freigabe.js
-// Kunden-Leselink auf den Videos-Ordner einer Kooperation (30 Tage, ohne Anmeldung).
-// Body: { aktion: 'erstellen', kooperation_id, typ?: 'videos' ('storys' = Alias) } | { aktion: 'liste', kooperation_id }
-//     | { aktion: 'widerrufen', id }
+// Kunden-Leselink (365 Tage, ohne Anmeldung) auf den Videos-Ordner einer Kooperation oder,
+// nur fürs Team, auf den ganzen Produktions-Ordner (ADR 0071).
+// Body: { aktion: 'erstellen', kooperation_id, typ?: 'videos' ('storys' = Alias) } | { aktion: 'erstellen', produktion_id }
+//     | { aktion: 'liste', kooperation_id } | { aktion: 'liste', produktion_id } | { aktion: 'widerrufen', id }
 
 const { ablageHandler, AblageFehler } = require('./_shared/ablage/http');
 const { createFreigabe } = require('./_shared/ablage/freigabe');

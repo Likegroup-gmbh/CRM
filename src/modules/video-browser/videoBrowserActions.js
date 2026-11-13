@@ -301,8 +301,8 @@ export async function deleteItem(vb, button) {
   if (!vb.canUpload || button.disabled) return;
   const { row, item } = resolveSelection(vb.tree, vb.sel);
   if (!row || !item) return;
-  const kommentare = item.type === 'video' && !item.isFinal
-    ? commentsForAsset(row.comments, item.runde, item.id).filter(c => c.assetId === item.id).length
+  const kommentare = item.type !== 'roh' && !item.isFinal
+    ? commentsForAsset(row.comments, item.runde, item.id, item.type).filter(c => c.assetId === item.id).length
     : 0;
   const hinweis = kommentare ? ` ${plural(kommentare, 'Kommentar', 'Kommentare')} zu dieser Datei werden ebenfalls entfernt.` : '';
   const { confirmed } = await confirmationModal.open({

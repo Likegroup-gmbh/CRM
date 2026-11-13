@@ -56,8 +56,22 @@ describe('Teams-Karte', () => {
     expect(zitat).toBe('Bitte den Schnitt bei 0:12 kürzen');
     expect(inhalt(n).actions).toEqual([{
       type: 'Action.OpenUrl', title: 'Im CRM öffnen',
-      url: `${BASIS}/produktion/p1?tab=videos&linie=br1&k=k1&v=v1`,
+      url: `${BASIS}/produktion/p1?tab=videos&linie=br1&k=k1&v=v1&f=s2`,
     }]);
+  });
+
+  it('Bild und Story: Bezug in den Fakten, Link bis zur Datei', () => {
+    const bild = karte.kommentarKarte(kommentar({ still_asset_id: 'b1', timecode_sec: null }), BASIS);
+    expect(fakten(bild).Zu).toBe('Bild');
+    expect(inhalt(bild).actions[0].url).toBe(`${BASIS}/produktion/p1?tab=videos&linie=br1&k=k1&v=v1&f=s2&i=b1`);
+
+    const story = karte.kommentarKarte(kommentar({ story_asset_id: 's1', timecode_sec: 72.4 }), BASIS);
+    expect(fakten(story).Zu).toBe('Story · 1:12');
+    expect(inhalt(story).actions[0].url).toContain('&i=s1');
+
+    expect(karte.bezug({ story_asset_id: 's1', timecode_sec: null })).toBe('Story');
+    expect(karte.bezug({ asset_id: 'a1', timecode_sec: 12 })).toBe('0:12');
+    expect(karte.bezug({ asset_id: 'a1', timecode_sec: null })).toBe('');
   });
 
   it('Marke gleich Unternehmen steht nur einmal, eigener Kampagnenname geht vor', () => {

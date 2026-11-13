@@ -56,22 +56,13 @@ export function ablageRohOrdnerAnlegen(kooperationId, name, parentItemId = null)
 
 const ROH_BATCH = 10;
 
-/**
- * Rohmaterial in eine Feedbackschleife verschieben; Videos und Bilder werden dort zu Dateien der Runde.
- * Läuft in Paketen, ein Teilfehler stoppt die übrigen nicht.
- * @returns {Promise<Array<{ id: string, ok: boolean, typ?: 'video'|'still', asset_id?: string, fehler?: string }>>}
- */
-export async function ablageRohVerschieben(ids, kooperationVideoId, versionNumber) {
+/** Rohmaterial-Aktion je Datei in Paketen; ein Teilfehler stoppt die übrigen nicht. */
+async function rohInPaketen(ids, body) {
   const ergebnisse = [];
   for (let i = 0; i < ids.length; i += ROH_BATCH) {
     const paket = ids.slice(i, i + ROH_BATCH);
     try {
-      const { ergebnisse: teil } = await ablagePost('ablage-datei', {
-        aktion: 'roh_verschieben',
-        ids: paket,
-        kooperation_video_id: kooperationVideoId,
-        version_number: versionNumber,
-      });
+      const { ergebnisse: teil } = await ablagePost('ablage-datei', { ...body, ids: paket });
       ergebnisse.push(...(teil || []));
     } catch (err) {
       // Frühere Pakete sind schon verschoben: deren Ergebnis darf nicht verloren gehen
@@ -79,6 +70,23 @@ export async function ablageRohVerschieben(ids, kooperationVideoId, versionNumbe
     }
   }
   return ergebnisse;
+}
+
+/**
+ * Rohmaterial in eine Feedbackschleife verschieben; Videos und Bilder werden dort zu Dateien der Runde.
+ * @returns {Promise<Array<{ id: string, ok: boolean, typ?: 'video'|'still', asset_id?: string, fehler?: string }>>}
+ */
+export function ablageRohVerschieben(ids, kooperationVideoId, versionNumber) {
+  return rohInPaketen(ids, { aktion: 'roh_verschieben', kooperation_video_id: kooperationVideoId, version_number: versionNumber });
+}
+
+/**
+ * Rohmaterial in einen anderen Ordner im Rohmaterial verschieben, ohne ordnerItemId in die Wurzel.
+ * Die Dateien bleiben Rohmaterial.
+ * @returns {Promise<Array<{ id: string, ok: boolean, file_name?: string, file_path?: string, fehler?: string }>>}
+ */
+export function ablageRohUmordnen(ids, kooperationId, ordnerItemId = null) {
+  return rohInPaketen(ids, { aktion: 'roh_umordnen', kooperation_id: kooperationId, ordner_item_id: ordnerItemId });
 }
 
 /**

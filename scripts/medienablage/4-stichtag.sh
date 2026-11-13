@@ -360,7 +360,7 @@ say ""
 say "Mail an Kunden (Vorlage):"
 note "  Betreff: Neuer Ort für Ihre Videos"
 note "  Ab sofort liegen alle Videos Ihrer Kampagnen im CRM unter 'Videos'. Den bisherigen Dropbox-Links"
-note "  folgt ab <Datum> nichts mehr. Einen Ordner-Link (30 Tage gültig) erzeugen Sie selbst über"
+note "  folgt ab <Datum> nichts mehr. Einen Ordner-Link (1 Jahr gültig) erzeugen Sie selbst über"
 note "  'Ordner-Link' im Videos-Tab, oder wir schicken ihn Ihnen."
 say ""
 if [[ -n "${GRAPH_ADMIN_TOKEN:-}" ]] && confirm "Lesezugriff der App auf die persönlichen OneDrives wieder entziehen?"; then

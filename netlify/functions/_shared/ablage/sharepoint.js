@@ -300,14 +300,16 @@ function createSharePoint({
     },
 
     /** Kunden-Leselink: "Jeder mit dem Link", nur Ansicht, mit Ablauf. */
-    async leselink(itemId, ablauf) {
+    /** Ohne `ablauf` setzt der Tenant den Ablauf; erzwingt er keinen, ist `ablauf` im Ergebnis null. */
+    async leselink(itemId, ablauf = null) {
       const perm = await graph.post(`${d}/items/${itemId}/createLink`, {
         type: 'view',
         scope: 'anonymous',
-        expirationDateTime: new Date(ablauf).toISOString(),
+        ...(ablauf ? { expirationDateTime: new Date(ablauf).toISOString() } : {}),
         retainInheritedPermissions: true,
       });
-      return { permissionId: perm.id, url: perm.link?.webUrl, ablauf: perm.expirationDateTime || new Date(ablauf).toISOString() };
+      const bis = perm.expirationDateTime || (ablauf ? new Date(ablauf).toISOString() : null);
+      return { permissionId: perm.id, url: perm.link?.webUrl, ablauf: bis };
     },
 
     async freigabeEntfernen(itemId, permissionId) {

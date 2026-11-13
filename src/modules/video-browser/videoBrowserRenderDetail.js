@@ -18,6 +18,7 @@ import {
 import { detailItem } from './videoBrowserRenderItem.js';
 import { captionFieldHtml } from './videoBrowserCaption.js';
 import { freieOrdnerSlot, ordnerLinkButton } from './videoBrowserAblage.js';
+import { freigabeButtonHtml, kannFreigeben } from './videoBrowserFreigabe.js';
 
 export function naechsterSchritt(row, team) {
   const loop = row.folders.find(f => f.kind === 'schleife' && f.current && !f.leer);
@@ -42,6 +43,7 @@ function detailAnstehend(ctx) {
           <li>Wähle links eine Kooperation und ein Video.</li>
           <li>Öffne die aktuelle Feedbackschleife und sieh dir die Dateien an.</li>
           <li>Hinterlasse dein Feedback direkt an der Stelle im Video.</li>
+          ${ctx.canComment ? '<li>Passt alles, klicke auf „Video freigeben“.</li>' : ''}
         </ol>
         <button type="button" class="mdc-btn" data-vb-first-open${ctx.hatOffenes ? '' : ' disabled'}>Ersten offenen Inhalt prüfen</button>
       </section>`;
@@ -159,15 +161,21 @@ function folderRowDetail(f) {
 function detailVideo(ctx) {
   const { row } = ctx.resolved;
   const next = naechsterSchritt(row, ctx.team);
+  const freigabe = kannFreigeben(ctx, row);
+  const text = freigabe ? `${next.text} Passt alles, gib das Video frei.` : next.text;
   const hinweis = row.folders.length
     ? `<ul class="vb-list" aria-label="Ordner">${row.folders.map(folderRowDetail).join('')}</ul>`
     : empty(ctx.team ? 'Noch nichts abgelegt.' : next.text);
   const caption = captionFieldHtml(row, { editable: ctx.canEditCaption, open: ctx.captionOpen?.has(row.id) });
+  const buttons = [
+    next.ziel && `<button type="button" class="mdc-btn mdc-btn--secondary" data-goto-folder="${esc(next.ziel)}">${esc(next.label)}</button>`,
+    freigabe && freigabeButtonHtml(row)
+  ].filter(Boolean).join('');
   return `
     <section class="vb-block vb-next">
       <h4 class="vb-detail__eyebrow">Nächster Schritt</h4>
-      <p>${esc(next.text)}</p>
-      ${next.ziel ? `<button type="button" class="mdc-btn mdc-btn--secondary" data-goto-folder="${esc(next.ziel)}">${esc(next.label)}</button>` : ''}
+      <p>${esc(text)}</p>
+      ${buttons ? `<div class="vb-next__actions">${buttons}</div>` : ''}
     </section>
     ${caption ? `<div class="vb-block">${caption}</div>` : ''}
     <div class="vb-block">${hinweis}</div>`;
@@ -205,13 +213,16 @@ function detailOrdner(ctx) {
   const sheet = folder.items.length
     ? `<ul class="vb-sheet" aria-label="Dateien">${folder.items.map(tile).join('')}</ul>`
     : empty(folder.kind === 'raw' ? 'Der Creator hat noch kein Rohmaterial hochgeladen.' : 'Noch leer.');
+  const freigabe = folder.kind === 'schleife' && folder.current && kannFreigeben(ctx, row)
+    ? freigabeButtonHtml(row)
+    : '';
   return `
     <section class="vb-block">
       <h4 class="vb-detail__title">${esc(folder.name)}</h4>
       <p class="vb-detail__sub">${folder.status ? statusBadge(folder.status) : ''} ${esc(row.label)}</p>
       <p class="vb-info">${esc(erklaerung)}</p>
       ${stats}
-      <div class="vb-slot" data-slot="folder-detail-actions">${downloadButton(ctx, 'folder', 'Alle Dateien herunterladen')}</div>
+      <div class="vb-slot" data-slot="folder-detail-actions">${freigabe}${downloadButton(ctx, 'folder', 'Alle Dateien herunterladen')}</div>
     </section>
     <div class="vb-block">${sheet}</div>`;
 }

@@ -11,6 +11,9 @@ import { applyMedia, play, probeFrameRate } from './playerControls.js';
 import { applySize, paintPlaying, paintTime, renderMarkers } from './playerLayout.js';
 
 const FALLBACK_SEC = 30;
+const LADEFEHLER = import.meta.env.DEV
+  ? 'Vorschau konnte nicht geladen werden. Läuft npm run dev:functions?'
+  : 'Vorschau konnte nicht geladen werden.';
 
 export function finishMessung(p) {
   const row = p.messung?.finish();
@@ -24,7 +27,21 @@ function resetReady(p) {
   p.ready = new Promise((resolve) => { p.markReady = resolve; });
 }
 
-function showStill(p, asset, url) {
+/** Lese-Link nicht erreichbar (Netz/Server): eigener Hinweis mit neuem Versuch statt „keine Datei“. */
+function showLadefehler(p, retry) {
+  p.mediaHost.innerHTML = `
+    <div class="vb-player__placeholder vb-player__placeholder--fehler">
+      <span>${LADEFEHLER}</span>
+      <button type="button" class="secondary-btn vb-player__retry">Erneut versuchen</button>
+    </div>`;
+  // Klick soll nicht als Play/Pause auf dem Medium ankommen
+  p.mediaHost.querySelector('.vb-player__retry').addEventListener('click', (e) => {
+    e.stopPropagation();
+    retry();
+  }, { once: true });
+}
+
+function showStill(p, asset, url, retry) {
   const { frame, mediaHost } = p;
   if (url) {
     const img = document.createElement('img');
@@ -44,13 +61,14 @@ function showStill(p, asset, url) {
     mediaHost.appendChild(img);
   } else {
     frame.classList.remove('is-loading');
-    mediaHost.innerHTML = '<p class="vb-player__placeholder">Keine Vorschau verfügbar</p>';
+    if (retry) showLadefehler(p, retry);
+    else mediaHost.innerHTML = '<p class="vb-player__placeholder">Keine Vorschau verfügbar</p>';
     p.markReady();
   }
 }
 
 /** Ohne auflösbare Datei läuft ein Platzhalter mit simulierter Zeitleiste. */
-function showPlaceholder(p, resumeAt) {
+function showPlaceholder(p, resumeAt, retry) {
   p.messung.markFehler();
   finishMessung(p);
   p.markReady();
@@ -58,7 +76,8 @@ function showPlaceholder(p, resumeAt) {
   p.simulated = { t: resumeAt };
   p.duration = FALLBACK_SEC;
   p.time = resumeAt;
-  p.mediaHost.innerHTML = '<p class="vb-player__placeholder">Vorschau nicht verfügbar</p>';
+  if (retry) showLadefehler(p, retry);
+  else p.mediaHost.innerHTML = '<p class="vb-player__placeholder">Vorschau nicht verfügbar</p>';
   renderMarkers(p);
   paintTime(p);
   paintPlaying(p);
@@ -80,18 +99,20 @@ export async function loadSource(p, asset, { resumeAt = 0, resumePlay = false } 
   if (!cached) frame.classList.add('is-loading');
   const src = cached
     ? { url: cached, quelle: 'blob' }
-    : await resolveSource(asset).catch(() => ({ url: null, quelle: 'original' }));
+    : await resolveSource(asset).catch(() => ({ url: null, quelle: 'original', ladefehler: true }));
   const url = src.url;
   if (p.destroyed || token !== p.loadToken) return;
+  const retry = src.ladefehler ? () => loadSource(p, asset, { resumeAt: p.time || 0 }) : null;
 
   p.video?.pause();
   p.simTween?.kill();
   p.simulated = null;
   p.video = null;
   mediaHost.innerHTML = '';
+  frame.classList.toggle('is-ladefehler', !!retry);
 
   if (p.isStill) {
-    showStill(p, asset, url);
+    showStill(p, asset, url, retry);
     return;
   }
 
@@ -104,7 +125,7 @@ export async function loadSource(p, asset, { resumeAt = 0, resumePlay = false } 
   });
 
   if (!url) {
-    showPlaceholder(p, resumeAt);
+    showPlaceholder(p, resumeAt, retry);
     return;
   }
 

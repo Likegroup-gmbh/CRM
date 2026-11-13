@@ -18,6 +18,7 @@ import { ALTBESTAND_BADGE, zeigeAltbestandBadge } from '../kampagne/altbestandLi
 import { canMarkFinal, isMarked } from './videoBrowserRenderItem.js';
 import { tagMetaText } from './videoBrowserRenderTags.js';
 import { rohCheckHtml, rohInhalteHtml, rohToolbarHtml } from './videoBrowserRenderRoh.js';
+import { produktionLinkButton } from './videoBrowserAblage.js';
 import {
   FOLDER_ICON,
   ITEM_ICON,
@@ -82,7 +83,10 @@ function koopGroupHtml(ctx, activeDepth, group, index) {
     </li>`;
 }
 
-/** "Alle ein-/aufklappen" bei Gruppenköpfen; der Umschalter Creator | Linie nur im Team bei Alle Linien. */
+/**
+ * "Alle ein-/aufklappen" bei Gruppenköpfen; der Umschalter Creator | Linie nur im Team bei Alle Linien;
+ * der Produktions-Link nur im Team.
+ */
 function koopToolbarHtml(ctx, entries) {
   const groups = entries.filter(e => e.kind === 'group');
   const seg = ctx.team && ctx.zeigeLinie
@@ -92,8 +96,10 @@ function koopToolbarHtml(ctx, entries) {
   const toggle = groups.length
     ? iconButton(alleZu ? 'arrows-expand' : 'arrows-collapse', alleZu ? 'Alle aufklappen' : 'Alle einklappen', `data-vb-koopgroup-all="${alleZu ? 'open' : 'close'}"`)
     : '';
-  if (!seg && !toggle) return '';
-  return `<div class="vb-koopbar">${seg}${toggle}</div>`;
+  const link = produktionLinkButton(ctx);
+  if (!seg && !toggle && !link) return '';
+  const aktionen = link || toggle ? `<div class="vb-koopbar__aktionen">${link}${toggle}</div>` : '';
+  return `<div class="vb-koopbar">${seg}${aktionen}</div>`;
 }
 
 function colKooperationen(ctx, activeDepth) {
@@ -244,8 +250,8 @@ function colInhalte(ctx, activeDepth) {
   const itemRow = (item) => {
     const tags = tagMetaText(item, catalog);
     const roh = item.type === 'roh';
-    // Rohmaterial lässt sich auf eine Feedbackschleife in Spalte 2 ziehen
-    const ziehbar = roh && canUpload && item.verschiebbar;
+    // Rohmaterial lässt sich auf einen Ordner im Rohmaterial oder eine Feedbackschleife in Spalte 2 ziehen
+    const ziehbar = roh && canUpload && item.umordenbar;
     return rowButton({
       depth: 3,
       id: item.id,

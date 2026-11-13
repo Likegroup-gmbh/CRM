@@ -67,6 +67,23 @@ describe('Kommentare aus dem Videos-Tab in der Feedback-Zelle', () => {
     });
   });
 
+  it('Kommentar an Bild bzw. Story: Label und Link auf die Datei', () => {
+    const list = [
+      zeit({ id: 'b', asset_id: null, still_asset_id: 'b1', timecode_sec: null }),
+      zeit({ id: 's', asset_id: null, story_asset_id: 's1', timecode_sec: 4 })
+    ];
+    document.body.innerHTML = renderZeitkommentarList(list, { id: 'v1', kooperation_id: 'koop1' }, kundeR1);
+    const [bild, story] = document.querySelectorAll('.feedback-zeit-item');
+    expect(bild.querySelector('.feedback-zeit-art').textContent).toBe('Bild');
+    expect(bild.querySelector('.feedback-zeit-tc')).toBeNull();
+    expect(zeitkommentarSelection(bild).itemId).toBe('b1');
+    expect(story.querySelector('.feedback-zeit-art').textContent).toBe('Story');
+    expect(story.querySelector('.feedback-zeit-tc').textContent).toBe('0:04');
+    expect(zeitkommentarSelection(story).itemId).toBe('s1');
+    document.body.innerHTML = renderZeitkommentarList([zeit()], { id: 'v1', kooperation_id: 'koop1' }, kundeR1);
+    expect(document.querySelector('.feedback-zeit-art')).toBeNull();
+  });
+
   it('erscheint live und verschwindet beim Löschen', () => {
     const table = videoTable();
     document.body.innerHTML = `<div class="feedback-zeit-list" data-zeit-video-id="v1" data-zeit-field="feedback_kunde_r1"></div>`;

@@ -19,7 +19,6 @@ import {
   EMPTY_SELECTION,
   SELECTION_KEYS,
   buildTree,
-  commentsForAsset,
   cssEscape,
   ersterOffenerInhalt,
   koopGroupToSearch,
@@ -34,6 +33,7 @@ import {
 import { renderColumns, renderDetail, renderPath } from './videoBrowserRender.js';
 import { finalBarHtml, headHtml, metaHtml } from './videoBrowserRenderItem.js';
 import { tabsHtml } from './videoBrowserRenderTabs.js';
+import { commentsOf } from './videoBrowserRenderComments.js';
 import { bindEvents } from './videoBrowserEvents.js';
 import { initKoopState, koopGroupParam, revealKoop, scrollSelectedKoop } from './videoBrowserKoopState.js';
 import { ladeFreieOrdner } from './videoBrowserAblage.js';
@@ -260,6 +260,7 @@ class VideoBrowser {
       tagCatalog: this.raw?.tagTypen || [],
       uploads: currentUploads(this, resolved),
       produktionTitel: this.detail.lineTitle || this.detail.produktion?.name || '',
+      produktionId: this.detail.produktionId || null,
       zeigeLinie: this._zeigeLinie(),
       koopGroup: this.koopGroup,
       collapsed: this.collapsed,
@@ -440,7 +441,7 @@ class VideoBrowser {
     const { row, item } = ctx.resolved;
     this._shownKey = item?.id || null;
     if (host && item) {
-      const comments = item.type === 'video' && row ? commentsForAsset(row.comments, item.runde, item.id) : [];
+      const comments = commentsOf(row, item);
       this._lastTime = 0;
       this.player = mountPlayer(host, {
         item,
@@ -495,7 +496,7 @@ class VideoBrowser {
     const tabs = inner.querySelector('[data-vb-region="tabs"]');
     if (tabs && typing) {
       const count = tabs.querySelector('[data-vb-tab-count]');
-      if (count) count.textContent = String(commentsForAsset(row.comments, item.runde, item.id, item.type).length);
+      if (count) count.textContent = String(commentsOf(row, item).length);
     } else if (tabs) {
       this._closeTagField();
       tabs.innerHTML = tabsHtml(ctx);
@@ -503,7 +504,7 @@ class VideoBrowser {
       syncPinTime(this, this._lastTime, item.id);
       this._fillDuration();
     }
-    this.player?.setMarkers?.(item.type === 'video' ? commentsForAsset(row.comments, item.runde, item.id) : []);
+    this.player?.setMarkers?.(commentsOf(row, item));
   }
 
   /** Dauer aus dem Player in die Eigenschaftszeile schreiben, sobald die Datei sie kennt. */

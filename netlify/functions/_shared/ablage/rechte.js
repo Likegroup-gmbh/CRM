@@ -2,7 +2,8 @@
 // Rechte-Abgleich CRM -> SharePoint. Das CRM fuehrt (Zuordnung + Klasse), SharePoint folgt.
 // Verwaltete Scopes: Bibliothek (nur Admins), Unternehmen (+ zugeordnete Mitarbeiter),
 // Marke/Kampagne (nur wenn eigene Zuordnungen dazukommen), oberste freie Ordner (Loeschen
-// erlaubt) und Typ-Ordner mit Kunden-Leselink (der Link hat dort die Vererbung unterbrochen).
+// erlaubt) und Typ- bzw. Produktions-Ordner mit Kunden-Leselink (der Link hat dort die
+// Vererbung unterbrochen).
 // Angefasst werden nur Benutzer-Principals und die drei eigenen Stufen; Gruppen, Limited
 // Access und Vollzugriff bleiben. Kunden, Creator und Gaeste bekommen nie direkten Zugriff.
 // Zusaetzlich: Kunden-Leselinks widerrufen, deren Ersteller die Kooperation nicht mehr sieht.
@@ -60,10 +61,10 @@ const mitLoeschen = (rechte) => Object.fromEntries(
  * Reiner Sollzustand.
  * @param {object} d
  * @param {object[]} d.benutzer Admins und Mitarbeiter, mitarbeiter_klasse: { name }
- * @param {object[]} d.ordner Register-Zeilen der verwalteten Scopes (+ Typ-Ordner mit Link)
+ * @param {object[]} d.ordner Register-Zeilen der verwalteten Scopes (+ Typ- und Produktions-Ordner mit Link)
  * @param {{ unternehmen?: object[], marke?: object[], kampagne?: object[] }} d.zuordnung
  * @param {Set<string>} d.testUnternehmen
- * @param {Set<string>} [d.mitLink] item_ids der Typ-Ordner mit Kunden-Leselink
+ * @param {Set<string>} [d.mitLink] item_ids der Ordner mit Kunden-Leselink
  * @returns {{ bibliothek, scopes: { ordner, soll }[], ohneKonto: string[] }}
  *   soll = { modus: 'eigen'|'erben'|'mitlaufen', rechte: { konto: stufe }, hash }
  *   mitlaufen: Benutzer angleichen, falls SharePoint die Vererbung unterbrochen hat, sonst nichts.
@@ -128,7 +129,7 @@ function rechteSoll({ benutzer = [], ordner = [], zuordnung = {}, testUnternehme
       soll = abweichung(geerbt, mitLoeschen(geerbt));
     } else if (o.art === 'test') {
       soll = sollVon('erben');
-    } else if (o.art === 'typ' && mitLink.has(o.item_id)) {
+    } else if ((o.art === 'typ' || o.art === 'produktion') && mitLink.has(o.item_id)) {
       soll = sollVon('mitlaufen', effVon(o));
     } else {
       continue;
@@ -142,13 +143,14 @@ function rechteSoll({ benutzer = [], ordner = [], zuordnung = {}, testUnternehme
  * Hat der Ersteller eines Kunden-Leselinks den Zugriff verloren?
  * Staff-Links bleiben (sie sind fuer Kunden gedacht); Kunden-Links nur mit kunde_unternehmen
  * auf das Unternehmen der Kooperation (Regel kooperationen_select + testunternehmen_hide);
- * ohne bekannten Ersteller oder mit anderer Rolle: widerrufen.
+ * ohne bekannten Ersteller oder mit anderer Rolle: widerrufen. Links ohne Kooperation
+ * (Produktions-Ordner, ADR 0071) legt nur das Team an.
  */
 function linkEntzogen(link, { benutzer, koopUnternehmen, kundeUnternehmen, testUnternehmen }) {
   const b = link.erstellt_von ? benutzer.get(link.erstellt_von) : null;
   if (!b) return true;
   if (b.rolle === 'admin' || b.rolle === 'mitarbeiter') return false;
-  if (b.rolle !== 'kunde' || b.freigeschaltet === false) return true;
+  if (b.rolle !== 'kunde' || b.freigeschaltet === false || !link.kooperation_id) return true;
   const u = koopUnternehmen.get(link.kooperation_id);
   return !u || testUnternehmen.has(u) || !kundeUnternehmen.has(`${b.id}|${u}`);
 }
@@ -200,11 +202,11 @@ function createRechteAbgleich({ supabase, ablage, jetzt = () => Date.now() }) {
     const klasse = new Map(klassen.map((k) => [k.id, k.name]));
     for (const b of benutzer) b.mitarbeiter_klasse = { name: klasse.get(b.mitarbeiter_klasse_id) || null };
     const mitLink = new Set(linkItems.map((l) => l.item_id));
-    const typOrdner = await inStuecken([...mitLink], (teil) => supabase.from('ablage_ordner').select(ORDNER_SPALTEN)
-      .eq('drive_id', driveId).eq('art', 'typ').is('geloescht_at', null).in('item_id', teil));
+    const linkOrdner = await inStuecken([...mitLink], (teil) => supabase.from('ablage_ordner').select(ORDNER_SPALTEN)
+      .eq('drive_id', driveId).in('art', ['typ', 'produktion']).is('geloescht_at', null).in('item_id', teil));
     return {
       benutzer,
-      ordner: [...ordner, ...typOrdner],
+      ordner: [...ordner, ...linkOrdner],
       zuordnung: { unternehmen: mu, marke: mm, kampagne: mk },
       testUnternehmen: new Set(test.map((u) => u.id)),
       mitLink,

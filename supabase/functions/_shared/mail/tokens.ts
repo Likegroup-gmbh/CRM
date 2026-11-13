@@ -43,8 +43,8 @@ export const MAIL_COLORS = {
   link: '#2563eb',
 } as const;
 
-/** --font-sans: Inter, mit System-Fallback für Mail-Clients ohne Webfont. */
-export const MAIL_FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
+/** --font-sans: Geist, mit System-Fallback für Mail-Clients ohne Webfont. */
+export const MAIL_FONT = "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 
 /** Breite der Karte in Pixel (Outlook braucht eine feste Zahl). */
 export const MAIL_BREITE = 560;

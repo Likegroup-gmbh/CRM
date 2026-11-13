@@ -63,7 +63,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 const seite = `<!DOCTYPE html>
 <html lang="de"><head><meta charset="utf-8"><title>Mail-Vorschau</title>
 <style>
-  body { margin: 0; padding: 32px; font-family: Inter, system-ui, sans-serif; background: #e5e5e5; color: #171717; }
+  body { margin: 0; padding: 32px; font-family: Geist, system-ui, sans-serif; background: #e5e5e5; color: #171717; }
   h1 { font-size: 20px; margin: 0 0 24px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(620px, 1fr)); gap: 24px; }
   figure { margin: 0; }

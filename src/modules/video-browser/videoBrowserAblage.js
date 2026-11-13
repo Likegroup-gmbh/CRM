@@ -1,14 +1,14 @@
 // videoBrowserAblage.js
-// SharePoint-Medienablage im Videos-Tab: Leselink auf den Videos-Ordner einer Kooperation
-// (Team und Kunden, 30 Tage gültig, ohne Anmeldung) und die "Weiteren Ordner", die das Team
-// im Finder neben der festen Struktur anlegt (nur intern). Alle Funktionen bekommen den
-// Controller (`vb`).
+// SharePoint-Medienablage im Videos-Tab: Leselinks ohne Anmeldung, 365 Tage gültig – auf den
+// Videos-Ordner einer Kooperation (Team und Kunden) und auf den ganzen Produktions-Ordner mit
+// Rohmaterial (nur Team, ADR 0071) – sowie die "Weiteren Ordner", die das Team im Finder neben
+// der festen Struktur anlegt (nur intern). Alle Funktionen bekommen den Controller (`vb`).
 
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
 import { formatBytes, formatDatum, plural } from './videoBrowserLogic.js';
-import { empty } from './videoBrowserRenderParts.js';
+import { empty, iconButton } from './videoBrowserRenderParts.js';
 
 const FREIGABE = '/.netlify/functions/ablage-freigabe';
 const LINK = '/.netlify/functions/ablage-link';
@@ -36,7 +36,14 @@ const istGast = () => !!(window.isGast?.() || window.guestShare);
 
 export function ordnerLinkButton(koop) {
   if (istGast() || !hatSharepoint(koop)) return '';
-  return `<button type="button" class="mdc-btn mdc-btn--secondary" data-vb-ordnerlink="${esc(koop.id)}">${icon('link')}<span>Ordner-Link (30 Tage)</span></button>`;
+  return `<button type="button" class="mdc-btn mdc-btn--secondary" data-vb-ordnerlink="${esc(koop.id)}">${icon('link')}<span>Ordner-Link (1 Jahr)</span></button>`;
+}
+
+/** Link auf den ganzen Produktions-Ordner: nur Team, sobald eine Kooperation der Produktion in SharePoint liegt. */
+export function produktionLinkButton(ctx) {
+  if (!ctx.team || istGast() || !ctx.produktionId || !ctx.tree.kooperationen.some(hatSharepoint)) return '';
+  return iconButton('link', 'Produktions-Link (1 Jahr): ganzer Ordner mit allen Creatorn, Feedbackschleifen und Rohmaterial',
+    `data-vb-produktionlink="${esc(ctx.produktionId)}"`);
 }
 
 /**
@@ -68,14 +75,12 @@ async function kopieren(url, imKlick) {
   }
 }
 
-/** Leselink auf den Videos-Ordner der Kooperation holen (der Server nimmt einen aktiven wieder) und kopieren. */
-export async function ordnerLinkErstellen(vb, button) {
+/** Leselink holen (der Server nimmt einen aktiven wieder) und kopieren. */
+async function linkErstellen(vb, button, bezug, texte) {
   if (!button || button.disabled) return;
-  const kooperationId = button.dataset.vbOrdnerlink;
-  if (!kooperationId) return;
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
-  const anfrage = post(FREIGABE, { aktion: 'erstellen', kooperation_id: kooperationId });
+  const anfrage = post(FREIGABE, { aktion: 'erstellen', ...bezug });
   const imKlick = kopierenImKlick(anfrage);
   try {
     const { url, laeuft_ab_at: ablauf } = await anfrage;
@@ -85,17 +90,37 @@ export async function ordnerLinkErstellen(vb, button) {
     const bis = formatDatum(ablauf);
     vb.toast('success', `${kopiert ? 'Link kopiert' : 'Link erstellt'}${bis ? ` – gültig bis ${bis}` : ''}`);
   } catch (err) {
-    console.error('VideoBrowser: Ordner-Link fehlgeschlagen', err);
+    console.error(`VideoBrowser: ${texte.name} fehlgeschlagen`, err);
     if (vb.destroyed) return;
     vb.toast('error', err.code === 'nicht_sharepoint'
-      ? 'Für diese Kooperation gibt es noch keinen SharePoint-Ordner.'
+      ? texte.ohneOrdner
       : err.code === 'links_gesperrt'
         ? 'SharePoint erlaubt gerade keine Links ohne Anmeldung.'
-        : 'Ordner-Link konnte nicht erstellt werden.');
+        : `${texte.name} konnte nicht erstellt werden.`);
   } finally {
     button.disabled = false;
     button.removeAttribute('aria-busy');
   }
+}
+
+/** Leselink auf den Videos-Ordner der Kooperation. */
+export function ordnerLinkErstellen(vb, button) {
+  const kooperationId = button?.dataset.vbOrdnerlink;
+  if (!kooperationId) return Promise.resolve();
+  return linkErstellen(vb, button, { kooperation_id: kooperationId }, {
+    name: 'Ordner-Link',
+    ohneOrdner: 'Für diese Kooperation gibt es noch keinen SharePoint-Ordner.'
+  });
+}
+
+/** Leselink auf den Produktions-Ordner (alle Kooperationen der Produktion). */
+export function produktionLinkErstellen(vb, button) {
+  const produktionId = button?.dataset.vbProduktionlink;
+  if (!produktionId) return Promise.resolve();
+  return linkErstellen(vb, button, { produktion_id: produktionId }, {
+    name: 'Produktions-Link',
+    ohneOrdner: 'Für diese Produktion gibt es noch keinen SharePoint-Ordner.'
+  });
 }
 
 /* ---- Weitere Ordner (nur intern) ---- */

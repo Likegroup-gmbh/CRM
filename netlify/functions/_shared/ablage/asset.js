@@ -22,6 +22,13 @@ const ENTFERNEN_SPALTEN = {
 // Promote-Zeilen (Finale per source_asset_id) teilen die Datei; nur Rohmaterial hat keine
 const MIT_SOURCE = new Set(['video', 'story', 'still']);
 
+// Spalte in kooperation_video_zeitkommentar, die auf die Datei zeigt (wie src/core/assetDelete.js)
+const KOMMENTAR_SPALTE = {
+  video: 'asset_id',
+  story: 'story_asset_id',
+  still: 'still_asset_id',
+};
+
 /** Spalten aus dem driveItem (Graph). */
 function dateiSpalten(item, { driveId, pfad }) {
   return {
@@ -167,9 +174,10 @@ async function entfernenNachItem(supabase, typ, driveId, itemId) {
   const { data: rows, error: leseFehler } = await supabase.from(tabelle).select(ENTFERNEN_SPALTEN[typ]).eq('drive_id', driveId).eq('item_id', itemId);
   if (leseFehler) throw leseFehler;
   if (!rows?.length) return 0;
-  if (typ === 'video') {
-    // asset_id faellt sonst auf null: die Kommentare stuenden dann bei allen Varianten der Runde
-    await supabase.from('kooperation_video_zeitkommentar').update({ deleted_at: new Date().toISOString() }).in('asset_id', rows.map((r) => r.id)).is('deleted_at', null);
+  const kommentarSpalte = KOMMENTAR_SPALTE[typ];
+  if (kommentarSpalte) {
+    // Der Verweis faellt sonst auf null: die Kommentare stuenden dann bei allen Videos der Runde
+    await supabase.from('kooperation_video_zeitkommentar').update({ deleted_at: new Date().toISOString() }).in(kommentarSpalte, rows.map((r) => r.id)).is('deleted_at', null);
   }
   const { error } = await supabase.from(tabelle).delete().in('id', rows.map((r) => r.id));
   if (error) throw error;

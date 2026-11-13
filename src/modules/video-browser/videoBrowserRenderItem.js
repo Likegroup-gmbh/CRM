@@ -16,6 +16,7 @@ import {
 } from './videoBrowserLogic.js';
 import { iconButton, statusBadge } from './videoBrowserRenderParts.js';
 import { sourceFolder, tabsHtml } from './videoBrowserRenderTabs.js';
+import { kundenFreigabeBarHtml } from './videoBrowserFreigabe.js';
 
 export { commentHtml } from './videoBrowserRenderComments.js';
 
@@ -55,8 +56,8 @@ function toolbarHtml(ctx) {
   if (ctx.canDownload && collectDownloadItems('item', ctx.resolved).length) {
     buttons.push(iconButton('download', 'Herunterladen', 'data-vb-download="item"'));
   }
-  if (ctx.canUpload && item.type === 'roh' && item.verschiebbar) {
-    buttons.push(iconButton('arrow-right', 'In Feedbackschleife verschieben', `data-vb-roh-move-item="${esc(item.id)}"`));
+  if (ctx.canUpload && item.type === 'roh' && item.umordenbar) {
+    buttons.push(iconButton('arrow-right', 'Verschieben', `data-vb-roh-move-item="${esc(item.id)}"`));
   }
   if (ctx.canUpload) {
     buttons.push(iconButton('pencil-square', 'Titel bearbeiten', 'data-vb-edit'));
@@ -101,10 +102,11 @@ export function headHtml(ctx) {
 
 /**
  * Ein Button in voller Breite mit aria-pressed (Team). Das Format erkennt das System aus der Datei,
- * nur wenn es keins findet, fragt das Menü danach. Kunden sehen die Leiste nicht.
+ * nur wenn es keins findet, fragt das Menü danach. Kunden sehen an dieser Stelle "Video freigeben".
  */
 export function finalBarHtml(ctx) {
   const { row, item } = ctx.resolved;
+  if (!ctx.team) return kundenFreigabeBarHtml(ctx);
   if (!ctx.canUpload || !canMarkFinal(item)) return '';
   const marked = isMarked(item);
   const ratios = item.isFinal ? [item.ratio] : markedFinals(row, item).map(m => m.ratio);

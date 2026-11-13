@@ -6,7 +6,7 @@
 
 import { scopeKoopsByLinie } from '../produktion/ProduktionService.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { assetTable } from '../../core/assetDelete.js';
+import { KOMMENTAR_SPALTE, assetTable } from '../../core/assetDelete.js';
 import { proxyPost } from '../../core/dropboxLinks.js';
 import { renamedFilePath, splitFileName } from '../../core/videoFileNames.js';
 import { mitAblage, istSharePoint } from '../../core/ablage/ablageLink.js';
@@ -33,7 +33,7 @@ const TAG_TYP_SELECT = 'id, label, gruppe, kampagne_id';
 const VARIANTE_TAG_SELECT = 'video_id, variant_key, tag_typ_id, created_at';
 const NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at';
 const STILL_NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at';
-const ZEIT_SELECT = 'id, video_id, runde, feedback_typ, text, timecode_sec, asset_id, author_name, created_at, deleted_at';
+const ZEIT_SELECT = 'id, video_id, runde, feedback_typ, text, timecode_sec, asset_id, story_asset_id, still_asset_id, author_name, created_at, deleted_at';
 
 function chunks(list, size = CHUNK) {
   const out = [];
@@ -214,13 +214,17 @@ export async function createTagTyp({ label, gruppe = 'Eigene', kampagneId = null
 
 /**
  * Kommentar an einer Datei der aktuellen Feedbackschleife anlegen.
- * @param {{ videoId: string, runde: number, assetId?: string|null, text: string,
- *           timecodeSec?: number|null, isKunde: boolean }} input
+ * Bilder haben keine Zeitleiste: dort bleibt der Timecode leer.
+ * @param {{ videoId: string, runde: number, assetId?: string|null, assetType?: 'video'|'story'|'still',
+ *           text: string, timecodeSec?: number|null, isKunde: boolean }} input
  * @returns {Promise<object>} gespeicherte Zeile
  */
-export async function saveZeitkommentar({ videoId, runde, assetId = null, text, timecodeSec = null, isKunde }) {
+export async function saveZeitkommentar({ videoId, runde, assetId = null, assetType = 'video', text, timecodeSec = null, isKunde }) {
   const trimmed = String(text || '').trim();
   if (!trimmed) throw new Error('Kommentar ist leer');
+  const spalte = KOMMENTAR_SPALTE[assetType];
+  if (!spalte) throw new Error('Unbekannte Datei');
+  const ohneZeit = assetType === 'still' || timecodeSec === null || timecodeSec === undefined;
   const user = window.currentUser || {};
   const { data, error } = await window.supabase
     .from('kooperation_video_zeitkommentar')
@@ -229,8 +233,8 @@ export async function saveZeitkommentar({ videoId, runde, assetId = null, text, 
       runde,
       feedback_typ: isKunde ? 'kunde' : 'cj',
       text: trimmed,
-      timecode_sec: timecodeSec === null || timecodeSec === undefined ? null : Math.round(timecodeSec * 100) / 100,
-      asset_id: assetId,
+      timecode_sec: ohneZeit ? null : Math.round(timecodeSec * 100) / 100,
+      [spalte]: assetId,
       author_benutzer_id: user.id || null,
       author_name: user.name || 'Unbekannt'
     })
@@ -248,6 +252,27 @@ function teamsMeldungAnstossen() {
   } catch {
     // ohne Anstoss bleibt der Zeitplan
   }
+}
+
+/**
+ * Video-Freigabe durch die Kundenseite (ADR 0072): die Dateien der aktuellen Feedbackschleife
+ * werden Finale Version, das Flag `freigabe` am Video wird gesetzt. Beides serverseitig in einem Schritt.
+ * @param {string} videoId
+ * @param {Array<{ kind: 'video'|'story'|'still', source_id: string, slot: string|null }>} finals
+ * @returns {Promise<{ freigabe_vorher: boolean, video: object[], story: object[], still: object[] }>}
+ */
+export async function freigebenVideoKunde(videoId, finals) {
+  const { data, error } = await window.supabase.rpc('freigeben_video_kunde', { p_video_id: videoId, p_finals: finals });
+  if (error) throw error;
+  return { freigabe_vorher: !!data?.freigabe_vorher, video: data?.video || [], story: data?.story || [], still: data?.still || [] };
+}
+
+/** "Rückgängig" kurz nach der Freigabe: entfernt die eben angelegten Finals und stellt das Flag zurück. */
+export async function zuruecknehmenVideoKunde(videoId, ids, freigabeVorher = false) {
+  const { error } = await window.supabase.rpc('zuruecknehmen_video_kunde', {
+    p_video_id: videoId, p_ids: ids, p_freigabe: !!freigabeVorher
+  });
+  if (error) throw error;
 }
 
 /**

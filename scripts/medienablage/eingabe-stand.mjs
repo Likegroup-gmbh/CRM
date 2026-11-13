@@ -163,7 +163,7 @@ const H = (gruppe, id, text, extra = {}) => ({ gruppe, id, text, ...extra });
 const HAKEN = [
   H('m365', 'admin', () => 'Du bist Globaler Administrator und landest im Microsoft 365 Admin Center, nicht bei GoDaddy.',
     { link: () => 'https://admin.microsoft.com/Adminportal/Home#/users' }),
-  H('m365', 'anyone', () => 'SharePoint Admin Center → Richtlinien → Freigabe: „Jeder“ wählbar, Ablauf höchstens 30 Tage, Berechtigung „Anzeigen“.',
+  H('m365', 'anyone', () => 'SharePoint Admin Center → Richtlinien → Freigabe: „Jeder“ wählbar, Ablauf nicht erzwingen oder mindestens 365 Tage, Berechtigung „Anzeigen“.',
     { link: (e) => `https://${adminHost(e)}/_layouts/15/online/AdminHome.aspx#/sharing` }),
   H('m365', 'zert_hochgeladen', () => 'Zertifikat .secrets/medienablage-app.crt in der App hochgeladen (Zertifikate und Geheimnisse → Zertifikate → Hochladen). Der Fingerabdruck in Entra muss dem unten entsprechen. Kein Client Secret anlegen.',
     { link: (e) => entraApp(e, 'Credentials') }),

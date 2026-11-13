@@ -82,6 +82,44 @@ describe('VideoBrowserPlayer', () => {
     expect(onMessung).toHaveBeenCalledWith(expect.objectContaining({ fehler: true, ttff_ms: null }));
   });
 
+  it('zeigt ohne Datei den Platzhalter ohne neuen Versuch', async () => {
+    media.resolveSource.mockResolvedValue({ url: null, quelle: 'original' });
+    current = mount();
+    await flush();
+    expect(current.host.textContent).toContain('Vorschau nicht verfügbar');
+    expect(current.host.querySelector('.vb-player__retry')).toBeNull();
+  });
+
+  it('zeigt bei nicht erreichbarem Lese-Link einen Ladefehler und lädt per Klick neu', async () => {
+    media.resolveSource.mockRejectedValueOnce(new Error('ablage-link 500'));
+    current = mount();
+    await flush();
+    const frame = current.host.querySelector('[data-vb-frame]');
+    expect(current.host.textContent).toContain('Vorschau konnte nicht geladen werden');
+    expect(frame.classList.contains('is-ladefehler')).toBe(true);
+    expect(current.video()).toBeNull();
+
+    media.resolveSource.mockResolvedValueOnce({ url: 'https://sp.test/clip.mp4', quelle: 'original' });
+    current.host.querySelector('.vb-player__retry').click();
+    await flush();
+    expect(media.resolveSource).toHaveBeenCalledTimes(2);
+    expect(current.video().getAttribute('src')).toBe('https://sp.test/clip.mp4#t=0.001');
+    expect(frame.classList.contains('is-ladefehler')).toBe(false);
+    expect(current.player.isPlaying()).toBe(false);
+  });
+
+  it('zeigt den Ladefehler auch bei Standbildern', async () => {
+    media.resolveSource.mockRejectedValueOnce(new Error('offline'));
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const still = { id: 's1', type: 'still', asset: { id: 's1', file_path: '/K/bild.png', created_at: 'c' } };
+    current = { host, player: mountPlayer(host, { item: still }) };
+    await flush();
+    expect(host.textContent).toContain('Vorschau konnte nicht geladen werden');
+    expect(host.textContent).not.toContain('Keine Vorschau verfügbar');
+    expect(host.querySelector('.vb-player__retry')).not.toBeNull();
+  });
+
   it('whenReady wartet auf canplaythrough (Gate fürs Vorwärmen)', async () => {
     media.resolveSource.mockResolvedValue({ url: 'https://dropbox.test/clip.mov', quelle: 'original' });
     current = mount();

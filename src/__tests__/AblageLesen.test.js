@@ -19,6 +19,8 @@ const A2 = id(12);
 const A3 = id(13);
 const A4 = id(14);
 const B1 = id(15);
+const P1 = id(21);
+const P2 = id(22);
 
 const ADMIN = { id: 'ad', rolle: 'admin', freigeschaltet: true };
 const MA = { id: 'ma', rolle: 'mitarbeiter', freigeschaltet: true };
@@ -46,6 +48,7 @@ function setup() {
       ],
       kooperation_bilder_asset: [{ id: B1, ablage: 'sharepoint', drive_id: 'd1', item_id: datei.id, kooperation_id: K1 }],
       kooperationen: [{ id: K1 }],
+      produktion: [{ id: P1, kampagne_id: 'kamp' }],
     },
     rpc: { ablage_meine_kooperationen: ({ p_ids }) => p_ids.filter((k) => k === K1).map((k) => ({ kooperation_id: k })) },
   });
@@ -177,11 +180,11 @@ describe('ablage-freigabe', () => {
       .rejects.toMatchObject({ status: 409, code: 'nicht_sharepoint' });
   });
 
-  it('erstellen (30 Tage), wiederverwenden, liste, widerrufen nur Staff', async () => {
+  it('erstellen (365 Tage), wiederverwenden, liste, widerrufen nur Staff', async () => {
     const t = setup();
     mitVideosOrdner(t);
     const l = await t.freigabe.erstellen({ benutzer: KUNDE, caller: t.caller, body: { kooperation_id: K1 } });
-    expect(l).toMatchObject({ url: expect.stringMatching(/^https:\/\/share\.test\//), laeuft_ab_at: '2026-12-09T12:00:00.000Z' });
+    expect(l).toMatchObject({ url: expect.stringMatching(/^https:\/\/share\.test\//), laeuft_ab_at: '2027-11-09T12:00:00.000Z' });
     expect(t.supabase.db.ablage_freigabelink[0]).toMatchObject({ item_id: 'vid', kooperation_id: K1, erstellt_von: 'ku', ordner_art: 'videos' });
 
     const l2 = await t.freigabe.erstellen({ benutzer: MA, caller: t.caller, body: { kooperation_id: K1 } });
@@ -221,6 +224,79 @@ describe('ablage-freigabe', () => {
     t.sp.leselink = async () => { throw new GraphError(403, 'accessDenied', 'policy'); };
     await expect(t.freigabe.erstellen({ benutzer: KUNDE, caller: t.caller, body: { kooperation_id: K1 } }))
       .rejects.toMatchObject({ status: 409, code: 'links_gesperrt' });
+  });
+
+  it('365 Tage ueber der Tenant-Hoechstdauer: zweiter Versuch ohne Ablauf, Tenant setzt ihn', async () => {
+    const t = setup();
+    mitVideosOrdner(t);
+    const versuche = [];
+    t.sp.leselink = async (itemId, ablauf) => {
+      versuche.push(ablauf ?? null);
+      if (ablauf) throw new GraphError(400, 'invalidRequest', 'expiration');
+      return { permissionId: 'p7', url: 'https://share.test/p7', ablauf: '2026-11-16T12:00:00.000Z' };
+    };
+    const l = await t.freigabe.erstellen({ benutzer: KUNDE, caller: t.caller, body: { kooperation_id: K1 } });
+    expect(versuche).toEqual([expect.any(Number), null]);
+    expect(l).toMatchObject({ url: 'https://share.test/p7', laeuft_ab_at: '2026-11-16T12:00:00.000Z' });
+  });
+
+  it('400 und der Tenant erzwingt keinen Ablauf: unbefristeten Link wieder entfernen, 409', async () => {
+    const t = setup();
+    mitVideosOrdner(t);
+    const echt = t.sp.leselink;
+    t.sp.leselink = async (itemId, ablauf) => {
+      if (ablauf) throw new GraphError(400, 'invalidRequest', 'expiration');
+      return echt(itemId, null);
+    };
+    await expect(t.freigabe.erstellen({ benutzer: KUNDE, caller: t.caller, body: { kooperation_id: K1 } }))
+      .rejects.toMatchObject({ status: 409, code: 'links_gesperrt' });
+    expect(t.sp.links.size).toBe(0);
+    expect(t.supabase.db.ablage_freigabelink || []).toHaveLength(0);
+  });
+});
+
+describe('ablage-freigabe: Produktions-Ordner', () => {
+  const mitProduktionsOrdner = (t) => t.supabase.db.ablage_ordner.push({ drive_id: 'd1', item_id: 'prod', parent_item_id: 'kamp', name: 'Produktion', art: 'produktion', produktion_id: P1 });
+
+  it('Team erstellt, verwendet wieder, listet und widerruft', async () => {
+    const t = setup();
+    mitProduktionsOrdner(t);
+    const l = await t.freigabe.erstellen({ benutzer: MA, caller: t.caller, body: { produktion_id: P1 } });
+    expect(l).toMatchObject({ url: expect.stringMatching(/^https:\/\/share\.test\//), laeuft_ab_at: '2027-11-09T12:00:00.000Z' });
+    expect(t.supabase.db.ablage_freigabelink[0]).toMatchObject({ item_id: 'prod', produktion_id: P1, erstellt_von: 'ma', ordner_art: 'produktion' });
+    expect(t.supabase.db.ablage_freigabelink[0].kooperation_id).toBeUndefined();
+
+    const l2 = await t.freigabe.erstellen({ benutzer: ADMIN, caller: t.caller, body: { produktion_id: P1 } });
+    expect(l2.id).toBe(l.id);
+    expect(t.sp.calls.filter(([op]) => op === 'leselink').map(([, item]) => item)).toEqual(['prod']);
+
+    expect(await t.freigabe.widerrufen({ benutzer: MA, caller: t.caller, body: { id: l.id } })).toEqual({ ok: true });
+    expect(t.sp.links.size).toBe(0);
+    const { links } = await t.freigabe.liste({ benutzer: MA, caller: t.caller, body: { produktion_id: P1 } });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ ordner_art: 'produktion', widerrufen_at: expect.any(String) });
+  });
+
+  it('Kunden und Gaeste nie, nicht sichtbare Produktion 404, ohne Ordner 409', async () => {
+    const t = setup();
+    await expect(t.freigabe.erstellen({ benutzer: KUNDE, caller: t.caller, body: { produktion_id: P1 } })).rejects.toMatchObject({ status: 403 });
+    await expect(t.freigabe.erstellen({ benutzer: null, caller: t.caller, body: { produktion_id: P1 } })).rejects.toMatchObject({ status: 403 });
+    await expect(t.freigabe.liste({ benutzer: KUNDE, caller: t.caller, body: { produktion_id: P1 } })).rejects.toMatchObject({ status: 403 });
+    await expect(t.freigabe.erstellen({ benutzer: MA, caller: t.caller, body: { produktion_id: P2 } })).rejects.toMatchObject({ status: 404 });
+    await expect(t.freigabe.erstellen({ benutzer: MA, caller: t.caller, body: { produktion_id: 'kaputt' } })).rejects.toMatchObject({ status: 400 });
+    await expect(t.freigabe.erstellen({ benutzer: MA, caller: t.caller, body: { produktion_id: P1 } }))
+      .rejects.toMatchObject({ status: 409, code: 'nicht_sharepoint' });
+    expect(t.sp.calls.filter(([op]) => op === 'leselink')).toHaveLength(0);
+  });
+
+  it('Link ohne Bezug (Produktion geloescht): Staff kann ihn noch widerrufen', async () => {
+    const t = setup();
+    const permission = await t.sp.leselink('prod', Date.parse('2027-01-01T00:00:00Z'));
+    t.supabase.db.ablage_freigabelink.push({ id: id(31), drive_id: 'd1', item_id: 'prod', permission_id: permission.permissionId, kooperation_id: null, produktion_id: null, widerrufen_at: null });
+    await expect(t.freigabe.widerrufen({ benutzer: KUNDE, caller: t.caller, body: { id: id(31) } })).rejects.toMatchObject({ status: 403 });
+    expect(await t.freigabe.widerrufen({ benutzer: MA, caller: t.caller, body: { id: id(31) } })).toEqual({ ok: true });
+    expect(t.sp.links.size).toBe(0);
+    expect(t.supabase.db.ablage_freigabelink[0]).toMatchObject({ widerruf_grund: 'manuell' });
   });
 });
 

@@ -223,7 +223,7 @@
 }
 
 .share-fresh-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono, ui-monospace, monospace);
   font-size: var(--text-sm);
   letter-spacing: 0.12em;
   font-weight: 700;
@@ -253,7 +253,7 @@
 }
 
 .share-code-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono, ui-monospace, monospace);
   font-size: var(--text-xl);
   letter-spacing: 0.2em;
   font-weight: 700;

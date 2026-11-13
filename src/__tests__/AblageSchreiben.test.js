@@ -391,6 +391,51 @@ describe('Rohmaterial im CRM (ADR 0070)', () => {
     await expect(t.s.rohVerschieben({ benutzer: MA, caller: t.caller, body: body({ kooperation_video_id: VX }) })).rejects.toMatchObject({ status: 404 });
     expect(t.supabase.db.kooperation_rohmaterial_asset).toHaveLength(1);
   });
+
+  it('roh_umordnen: in einen Unterordner und zurück in die Wurzel, ZIP auch, bleibt Rohmaterial', async () => {
+    const t = setup();
+    const { ordner } = await t.s.rohOrdnerAnlegen({ benutzer: MA, caller: t.caller, body: { kooperation_id: K1, name: 'Bilder' } });
+    const foto = await rohDatei(t, A1, 'foto.png');
+    const pack = await rohDatei(t, A2, 'pack.zip');
+
+    const hin = await t.s.rohUmordnen({ benutzer: MA, caller: t.caller, body: { ids: [A1, A2, A3], kooperation_id: K1, ordner_item_id: ordner.item_id } });
+    expect(hin.ergebnisse).toEqual([
+      expect.objectContaining({ id: A1, ok: true, file_path: `${ROH}/Bilder/foto.png` }),
+      expect.objectContaining({ id: A2, ok: true, file_path: `${ROH}/Bilder/pack.zip` }),
+      expect.objectContaining({ id: A3, ok: false, fehler: 'Datei nicht gefunden' }),
+    ]);
+    expect(t.sp.items.get(foto.item.id).parent).toBe(ordner.item_id);
+    expect(t.sp.items.get(pack.item.id).parent).toBe(ordner.item_id);
+    expect(t.supabase.db.kooperation_rohmaterial_asset.map((r) => [r.id, r.file_path])).toEqual([
+      [A1, `${ROH}/Bilder/foto.png`],
+      [A2, `${ROH}/Bilder/pack.zip`],
+    ]);
+    expect(t.supabase.db.kooperation_video_asset).toHaveLength(0);
+
+    const zurueck = await t.s.rohUmordnen({ benutzer: MA, caller: t.caller, body: { ids: [A1], kooperation_id: K1, ordner_item_id: null } });
+    expect(zurueck.ergebnisse[0]).toMatchObject({ ok: true, file_path: `${ROH}/foto.png` });
+    expect(t.supabase.db.kooperation_rohmaterial_asset.find((r) => r.id === A1).file_path).toBe(`${ROH}/foto.png`);
+
+    // Liegt schon dort: kein zweiter Move
+    const verschiebungen = t.sp.calls.filter((c) => c[0] === 'verschieben').length;
+    await t.s.rohUmordnen({ benutzer: MA, caller: t.caller, body: { ids: [A1], kooperation_id: K1 } });
+    expect(t.sp.calls.filter((c) => c[0] === 'verschieben')).toHaveLength(verschiebungen);
+  });
+
+  it('roh_umordnen: fremder Ordner, Dropbox-Datei, Rechte', async () => {
+    const t = setup({ assets: { kooperation_rohmaterial_asset: [{ id: A3, kooperation_id: K1, ablage: 'dropbox', file_path: '/Dropbox/x.mov' }] } });
+    await rohDatei(t, A1, 'clip.mov');
+    const body = (extra) => ({ ids: [A1], kooperation_id: K1, ...extra });
+    await t.s.uploadZiel({ benutzer: MA, caller: t.caller, body: zielBody() });
+    const videos = t.supabase.db.ablage_ordner.find((o) => o.art === 'typ' && o.typ === 'videos');
+    await expect(t.s.rohUmordnen({ benutzer: MA, caller: t.caller, body: body({ ordner_item_id: videos.item_id }) })).rejects.toMatchObject({ status: 404 });
+    await expect(t.s.rohUmordnen({ benutzer: FINANZEN, caller: t.caller, body: body() })).rejects.toMatchObject({ status: 403 });
+    await expect(t.s.rohUmordnen({ benutzer: MA, caller: t.caller, body: body({ ids: [] }) })).rejects.toMatchObject({ status: 400 });
+    await expect(t.s.rohUmordnen({ benutzer: MA, caller: t.caller, body: body({ kooperation_id: 'x' }) })).rejects.toMatchObject({ status: 400 });
+
+    const { ergebnisse } = await t.s.rohUmordnen({ benutzer: MA, caller: t.caller, body: body({ ids: [A3] }) });
+    expect(ergebnisse[0]).toMatchObject({ ok: false, code: 'nicht_sharepoint' });
+  });
 });
 
 describe('ablage-loeschen', () => {

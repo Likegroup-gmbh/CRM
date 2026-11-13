@@ -401,7 +401,8 @@ input:-webkit-autofill:focus {
   --accent-hover: var(--primary-600);
 
   /* Hauptfont (einmal ändern, überall übernommen) — Stack wie auf main/live */
-  --font-sans: Inter, sans-serif;
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* Font-Size-Aliase */
   --font-size-sm: var(--text-sm);

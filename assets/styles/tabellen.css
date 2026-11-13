@@ -722,6 +722,11 @@
   color: var(--gray-700);
 }
 
+.kooperation-video-grid .feedback-zeit-art {
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
 .kooperation-video-grid .feedback-zeit-text {
   flex: 1 1 auto;
   min-width: 0;

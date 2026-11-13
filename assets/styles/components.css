@@ -2017,7 +2017,7 @@ h3.section-title,
 }
 
 .tracking-number {
-  font-family: monospace;
+  font-family: var(--font-mono);
   background: var(--gray-200);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-4);
@@ -6806,7 +6806,7 @@ progress.upload-progress-bar::-moz-progress-bar {
 .transcribe-log {
   background: var(--gray-900);
   color: #d1fae5;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
   border-radius: var(--radius-xl);
   padding: var(--space-md);
