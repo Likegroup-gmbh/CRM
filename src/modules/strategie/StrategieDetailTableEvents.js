@@ -763,7 +763,10 @@ export function bindCustomColumnEvents(detail) {
 
   if (detail._customHeaderDragCleanup) detail._customHeaderDragCleanup();
   const thead = q(detail, '.strategie-items-table thead');
-  detail._customHeaderDragCleanup = detail.customColumns.bindHeaderDragAndDrop(thead, () => detail.rerenderItemsTable());
+  detail._customHeaderDragCleanup = detail.customColumns.bindHeaderDragAndDrop(thead, () => {
+    const danach = detail.applyCustomColumnReorder?.() || Promise.resolve();
+    void danach.finally(() => detail.rerenderItemsTable());
+  });
   detail._tableEventListeners.add(() => {
     if (detail._customHeaderDragCleanup) { detail._customHeaderDragCleanup(); detail._customHeaderDragCleanup = null; }
   });

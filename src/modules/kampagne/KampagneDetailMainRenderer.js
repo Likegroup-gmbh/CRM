@@ -41,8 +41,8 @@ const SORT_ICON = `
 const COLUMNS_ICON = `
   ${icon('bars-3')}`;
 
-const EYE_ICON = `
-  ${icon('eye-outline')}`;
+const TABELLE_ANPASSEN_ICON = `
+  ${icon('adjustments-horizontal')}`;
 
 function escapeAttr(str) {
   return String(str)
@@ -165,7 +165,7 @@ export function renderMainPage(state) {
     ${canShare ? renderToolbarMenuItem({ id: 'btn-share-kampagne', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' }) : ''}
     ${canTableLayout ? `
       ${renderToolbarMenuItem({ id: 'btn-custom-columns', title: 'Eigene Spalten verwalten', icon: COLUMNS_ICON, label: 'Spalten' })}
-      ${renderToolbarMenuItem({ id: 'btn-column-visibility', title: 'Spalten-Sichtbarkeit anpassen', icon: EYE_ICON, label: 'Sichtbarkeit anpassen' })}
+      ${renderToolbarMenuItem({ id: 'btn-column-visibility', title: 'Spaltenreihenfolge und Sichtbarkeit', icon: TABELLE_ANPASSEN_ICON, label: 'Tabelle anpassen' })}
     ` : ''}
   `;
   const hasToolbarItems = toolbarItemsHtml.trim().length > 0;

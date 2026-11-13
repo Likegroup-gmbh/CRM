@@ -1,18 +1,33 @@
-// VideoTableColumnVisibilityDrawer.js (ES6-Modul)
-// Drawer zur Verwaltung der Spalten-Sichtbarkeit für Kunden in der Video-Tabelle
+// VideoTableColumnVisibilityDrawer.js
+// Drawer "Tabelle anpassen" der Kooperationstabelle.
+// Sichtbarkeit und Reihenfolge. Nr, Creator und Aktionen bleiben fest.
+// Die Reihenfolge speichert sofort in kampagne.column_order.
 
-import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
-import { getConfigurableColumns, isColumnPreferredVisible, setColumnPreferredVisible } from './columns/ColumnRegistry.js';
+import { getConfigurableColumns, isColumnPreferredVisible, setColumnPreferredVisible, orderWithMovableSequence } from './columns/ColumnRegistry.js';
+import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+import { icon } from '../../core/icons/IconSystem.js';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 export class VideoTableColumnVisibilityDrawer {
-  constructor(kampagneId, store) {
+  constructor(kampagneId, store, { onTableRefresh } = {}) {
     this.kampagneId = kampagneId;
     this.store = store || null;
+    this.onTableRefresh = onTableRefresh || null;
     this.hiddenColumns = [];
     this.drawerId = 'video-column-visibility-drawer';
     this._settingsLoaded = false;
     this._openRequestId = 0;
+    this._reorderUnbind = [];
+    this._draggedRow = null;
+    this._movableIds = [];
   }
 
   get columns() {
@@ -88,11 +103,11 @@ export class VideoTableColumnVisibilityDrawer {
     const headerLeft = document.createElement('div');
     const title = document.createElement('span');
     title.className = 'drawer-title';
-    title.textContent = 'Spalten-Sichtbarkeit';
+    title.textContent = 'Tabelle anpassen';
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Deaktivierte Spalten werden gemäß Tabellenansicht ausgeblendet';
+    subtitle.textContent = 'Reihenfolge und Sichtbarkeit der Spalten';
     
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
@@ -148,6 +163,7 @@ export class VideoTableColumnVisibilityDrawer {
 
   // Entferne Drawer
   removeDrawer() {
+    this.unbindReorder();
     clearTimeout(this._closeTimer);
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
     const panel = document.getElementById(this.drawerId);
@@ -157,6 +173,7 @@ export class VideoTableColumnVisibilityDrawer {
 
   // Schließe den Drawer
   close() {
+    this.unbindReorder();
     this._openRequestId += 1;
     const panel = document.getElementById(this.drawerId);
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
@@ -180,40 +197,42 @@ export class VideoTableColumnVisibilityDrawer {
 
   // Rendere den Inhalt des Drawers
   renderContent() {
-    const rows = this.columns.map(col => {
+    const columns = this.columns;
+    this._movableIds = columns.map(col => col.className);
+    const rows = columns.map(col => {
       const isVisible = isColumnPreferredVisible(col.className, this.hiddenColumns);
       return `
-        <tr>
-          <td class="video-visibility-table__cell-left">${col.label}</td>
-          <td class="video-visibility-table__cell-right">
-            <label class="toggle-switch">
-              <input 
-                type="checkbox" 
-                class="column-visibility-toggle" 
-                data-column="${col.className}" 
-                ${isVisible ? 'checked' : ''}
-              >
-              <span class="toggle-slider"></span>
-            </label>
-          </td>
-        </tr>
+        <div class="sourcing-spalten-item" data-column="${escapeHtml(col.className)}" draggable="false">
+          <span class="sourcing-spalten-griff" data-action="drag-spalte" role="button" tabindex="0" title="Reihenfolge ändern" aria-label="Reihenfolge von ${escapeHtml(col.label)} ändern">
+            ${icon('bars-3', { className: 'icon-16' })}
+          </span>
+          <span class="sourcing-spalten-name">${escapeHtml(col.label)}</span>
+          <label class="toggle-switch">
+            <input
+              type="checkbox"
+              class="column-visibility-toggle"
+              data-column="${escapeHtml(col.className)}"
+              ${isVisible ? 'checked' : ''}
+            >
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       `;
     }).join('');
 
     return `
-      <div class="video-visibility-table-wrap">
-        <table class="video-visibility-table">
-          <thead>
-            <tr>
-              <th class="video-visibility-table__cell-left">Spalte</th>
-              <th class="video-visibility-table__cell-right">Sichtbar</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
+      <h4 class="drawer-section-title">Spalten</h4>
+      <div class="sourcing-spalten-kopf">
+        <span class="sourcing-spalten-kopf-griff" aria-hidden="true"></span>
+        <span>Spalte</span>
+        <span class="sourcing-spalten-kopf-sichtbar">Sichtbar</span>
       </div>
+      <div class="sourcing-spalten-liste" id="video-tabelle-anpassen-spalten">
+        ${rows}
+      </div>
+      <p class="drawer-info-text">
+        <strong>Hinweis:</strong> Die Reihenfolge ändern Sie am Griff. „Nr“, „Creator“ und „Aktionen“ bleiben fest.
+      </p>
       <div class="drawer-footer">
         <button type="button" class="mdc-btn" id="btn-close-visibility-drawer">
           Fertig
@@ -233,6 +252,116 @@ export class VideoTableColumnVisibilityDrawer {
       if (!toggle) return;
       this.handleToggle(e);
     });
+    this.bindReorder();
+  }
+
+  unbindReorder() {
+    this._reorderUnbind.forEach(fn => fn());
+    this._reorderUnbind = [];
+    this._draggedRow = null;
+  }
+
+  bindReorder() {
+    this.unbindReorder();
+    const list = document.getElementById('video-tabelle-anpassen-spalten');
+    if (!list) return;
+
+    const rows = () => list.querySelectorAll('.sourcing-spalten-item');
+
+    list.querySelectorAll('[data-action="drag-spalte"]').forEach(handle => {
+      const onMouseDown = () => {
+        handle.closest('.sourcing-spalten-item')?.setAttribute('draggable', 'true');
+      };
+      handle.addEventListener('mousedown', onMouseDown);
+      this._reorderUnbind.push(() => handle.removeEventListener('mousedown', onMouseDown));
+    });
+
+    const onMouseUp = () => {
+      rows().forEach(row => row.setAttribute('draggable', 'false'));
+    };
+    document.addEventListener('mouseup', onMouseUp);
+    this._reorderUnbind.push(() => document.removeEventListener('mouseup', onMouseUp));
+
+    rows().forEach(row => {
+      const onDragStart = (e) => {
+        this._draggedRow = row;
+        row.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', row.dataset.column); } catch { /* jsdom */ }
+      };
+      const onDragEnd = async () => {
+        row.classList.remove('is-dragging');
+        row.setAttribute('draggable', 'false');
+        this._draggedRow = null;
+        list.querySelectorAll('.sourcing-spalten-item.drag-over')
+          .forEach(el => el.classList.remove('drag-over'));
+        await this.commitReihenfolge();
+      };
+      const onDragOver = (e) => {
+        e.preventDefault();
+        const dragged = this._draggedRow;
+        if (!dragged || dragged === row) return;
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        const siblings = Array.from(list.children);
+        const from = siblings.indexOf(dragged);
+        const to = siblings.indexOf(row);
+        if (from < 0 || to < 0) return;
+        list.insertBefore(dragged, from < to ? row.nextSibling : row);
+      };
+      const onDrop = (e) => e.preventDefault();
+
+      row.addEventListener('dragstart', onDragStart);
+      row.addEventListener('dragend', onDragEnd);
+      row.addEventListener('dragover', onDragOver);
+      row.addEventListener('drop', onDrop);
+      this._reorderUnbind.push(() => {
+        row.removeEventListener('dragstart', onDragStart);
+        row.removeEventListener('dragend', onDragEnd);
+        row.removeEventListener('dragover', onDragOver);
+        row.removeEventListener('drop', onDrop);
+      });
+    });
+  }
+
+  aktuelleReihenfolge() {
+    const list = document.getElementById('video-tabelle-anpassen-spalten');
+    if (!list) return this._movableIds;
+    return Array.from(list.querySelectorAll('.sourcing-spalten-item')).map(row => row.dataset.column);
+  }
+
+  restoreReihenfolge(ids) {
+    const list = document.getElementById('video-tabelle-anpassen-spalten');
+    if (!list) return;
+    const zeilen = new Map(
+      Array.from(list.querySelectorAll('.sourcing-spalten-item')).map(row => [row.dataset.column, row])
+    );
+    for (const id of ids) {
+      const row = zeilen.get(id);
+      if (row) list.appendChild(row);
+    }
+  }
+
+  async commitReihenfolge() {
+    const nextMovable = this.aktuelleReihenfolge();
+    const vorherMovable = this._movableIds;
+    if (nextMovable.join('|') === vorherMovable.join('|')) return;
+
+    const vorherFull = this.store?.columnOrder ?? null;
+    const nextFull = orderWithMovableSequence(this.store, nextMovable);
+    this._movableIds = nextMovable;
+    this.store?.setColumnOrder(nextFull);
+
+    try {
+      await CustomColumnDataLoader.saveColumnOrder(this.kampagneId, nextFull);
+      this.onTableRefresh?.();
+    } catch (error) {
+      this._movableIds = vorherMovable;
+      this.store?.setColumnOrder(vorherFull);
+      this.restoreReihenfolge(vorherMovable);
+      this.onTableRefresh?.();
+      console.error('Spalten-Reihenfolge speichern fehlgeschlagen:', error);
+      window.toastSystem?.show('Reihenfolge konnte nicht gespeichert werden', 'error');
+    }
   }
 
   // Synce Toggle-Zustände im bereits gerenderten DOM (nach async load)
@@ -277,4 +406,3 @@ export class VideoTableColumnVisibilityDrawer {
     await this.saveSettings();
   }
 }
-

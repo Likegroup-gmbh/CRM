@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   isColumnPreferredVisible,
   isColumnVisible,
-  setColumnPreferredVisible
+  setColumnPreferredVisible,
+  orderWithMovableSequence
 } from '../modules/kampagne/columns/ColumnRegistry.js';
 
 describe('Video-Spalten Sichtbarkeit', () => {
@@ -41,5 +42,16 @@ describe('Video-Spalten Sichtbarkeit', () => {
   it('blendet normale Spalten ohne show-Marker', () => {
     expect(setColumnPreferredVisible([], 'col-organic-paid', false)).toEqual(['col-organic-paid']);
     expect(setColumnPreferredVisible(['col-organic-paid', 'show:col-organic-paid'], 'col-organic-paid', true)).toEqual([]);
+  });
+});
+
+describe('orderWithMovableSequence', () => {
+  it('lässt Nr und Creator vorne und Aktionen hinten', () => {
+    const store = { columnOrder: null, customColumns: [] };
+    const order = orderWithMovableSequence(store, ['col-tags', 'col-status']);
+
+    expect(order.slice(0, 4)).toEqual(['col-nr', 'col-creator', 'col-tags', 'col-status']);
+    expect(order.at(-1)).toBe('col-actions');
+    expect(order.filter(id => id === 'col-status')).toHaveLength(1);
   });
 });

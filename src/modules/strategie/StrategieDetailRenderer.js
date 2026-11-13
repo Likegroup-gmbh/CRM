@@ -5,6 +5,13 @@ import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions.js';
 import { isFixedColumnVisible } from './strategieColumns.js';
+import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import {
+  baueStrategieSpaltenfolge,
+  fixedSpaltenId,
+  ordneStrategieTabellenHtml,
+  ordneStrategieZeileHtml
+} from './strategieSpaltenfolge.js';
 import { formatStrategieVideolaenge, getStrategieVideolaenge } from './strategieVideolaenge.js';
 import { renderSekundenSpanne, sekundenSpanneAttrs } from '../../core/components/SekundenSpanne.js';
 import {
@@ -71,6 +78,38 @@ function visibleFixedColumns(detail) {
   };
 }
 
+/** Volle Zellenfolge inklusive der festen Spalten, die nicht im Drawer stehen. */
+function domSpaltenfolge(detail) {
+  const customCols = detail.customColumns?.getOrderedColumns?.() || [];
+  const imDom = new Set(
+    customCols
+      .filter(col => !(detail.isKunde && !col.visible_for_kunden))
+      .map(col => makeCustomColumnId(col.id))
+  );
+  const beweglich = baueStrategieSpaltenfolge({
+    columnOrder: detail.columnOrder || null,
+    customColumnIds: customCols.map(col => makeCustomColumnId(col.id))
+  });
+  const cols = visibleFixedColumns(detail);
+  const fixedSichtbar = new Set(
+    Object.entries(cols).filter(([, sichtbar]) => sichtbar).map(([key]) => fixedSpaltenId(key))
+  );
+  const beweglichImDom = beweglich
+    .filter(id => fixedSichtbar.has(id) || imDom.has(id))
+    .filter(id => id !== 'col-creator');
+  const showWriteCols = !detail.isKunde && !!detail.canEdit;
+  // Profil und Creator bleiben zusammen links, vor Bild und Plattform.
+  return [
+    'col-number',
+    ...(showWriteCols ? ['col-drag'] : []),
+    ...(cols.creator ? ['col-creator-bild', 'col-creator'] : []),
+    'col-image',
+    'col-platform',
+    ...beweglichImDom,
+    ...(showWriteCols ? ['col-actions'] : [])
+  ];
+}
+
 export function renderItemsTable(detail) {
   const { vorschlaege, rest } = splitVideoideeVorschlaege(detail.items);
   if (rest.length === 0 && vorschlaege.length === 0) {
@@ -101,7 +140,7 @@ export function renderItemsTable(detail) {
     + Object.values(cols).filter(Boolean).length;
   const colCount = fixedCount + customCount;
 
-  return `
+  const html = `
     <div class="table-container">
       <table class="data-table strategie-items-table">
         <thead>
@@ -134,6 +173,7 @@ export function renderItemsTable(detail) {
       </table>
     </div>
   `;
+  return ordneStrategieTabellenHtml(html, domSpaltenfolge(detail));
 }
 
 export function groupItemsByTeilbereich(items) {
@@ -613,7 +653,7 @@ export function renderItemRow(detail, item, index) {
     openVideoideeId() === String(item.id) ? 'is-videoidee-open' : '',
   ].filter(Boolean).join(' ');
 
-  return `
+  const html = `
     <tr class="${rowClasses}" data-item-id="${item.id}" ${isVorschlag ? 'data-vorschlag-id="' + item.id + '"' : ''} draggable="false">
       <td class="col-number">
         <span class="col-number__stack">
@@ -639,7 +679,7 @@ export function renderItemRow(detail, item, index) {
       ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', vorschlagReadonly) : ''}
       ${cols.caption ? renderClippedTextCell(detail, item, 'caption', 'col-caption', 'Caption...', vorschlagReadonly) : ''}
       ${cols.anmerkung ? `
-        <td class="cell-textarea">
+        <td class="cell-textarea col-anmerkung">
           <textarea 
             class="strategie-textarea ${(detail.isKunde && !readonly && !isVorschlag) ? '' : 'readonly-textarea'}" 
             placeholder="${(detail.isKunde && !readonly) ? 'Ihre Anmerkung...' : 'Anmerkung Kunde...'}"
@@ -685,6 +725,7 @@ export function renderItemRow(detail, item, index) {
       ` : ''}
     </tr>
   `;
+  return ordneStrategieZeileHtml(html, domSpaltenfolge(detail));
 }
 
 function renderVorschlagActions(item) {

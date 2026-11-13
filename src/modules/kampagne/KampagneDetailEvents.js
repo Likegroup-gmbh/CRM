@@ -501,7 +501,9 @@ function showColumnVisibilityDrawer(detail) {
     detail.videoColumnVisibilityDrawer = null;
   }
   if (!detail.videoColumnVisibilityDrawer) {
-    detail.videoColumnVisibilityDrawer = new VideoTableColumnVisibilityDrawer(detail.kampagneId, detail.store);
+    detail.videoColumnVisibilityDrawer = new VideoTableColumnVisibilityDrawer(detail.kampagneId, detail.store, {
+      onTableRefresh: () => detail.kooperationenVideoTable?.refilter()
+    });
   }
   detail.videoColumnVisibilityDrawer.open();
 }

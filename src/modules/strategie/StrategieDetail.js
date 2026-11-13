@@ -14,7 +14,8 @@ import { StrategieDetailColumnVisibilityDrawer } from './StrategieDetailColumnVi
 import { buildColumnContext } from './strategieColumns.js';
 import { loadStrategiePersonas, strategiePersonaOptions } from './strategiePersonaOptions.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
-import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { isCustomColumnId, makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { hatEigeneReihenfolge, uebernehmeEigeneReihenfolge } from './strategieSpaltenfolge.js';
 import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { VideoideeVorschlagPanel } from './VideoideeVorschlagPanel.js';
@@ -57,6 +58,7 @@ export class StrategieDetail {
     this.canEdit = false;
     this.canCreate = false;
     this.hiddenColumns = [];
+    this.columnOrder = null;
     this.customColumns = new EntityCustomColumnsManager({ parentType: 'strategie', parentTable: 'strategie' });
     this._customHeaderDragCleanup = null;
     this._customHeaderResizeCleanup = null;
@@ -110,6 +112,7 @@ export class StrategieDetail {
     this.strategie = strategie;
     this.items = items;
     this.hiddenColumns = Array.isArray(strategie?.hidden_columns) ? strategie.hidden_columns : [];
+    this.columnOrder = Array.isArray(strategie?.column_order) ? strategie.column_order : null;
     await this.customColumns.loadValues(this.items.map(i => i.id));
     await this.loadPersonas();
     this._prepared = true;
@@ -218,7 +221,7 @@ export class StrategieDetail {
         <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1-11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
       </svg>`;
     const kategorienIcon = `${icon('tag')}`;
-    const sichtbarkeitIcon = `${icon('eye-outline')}`;
+    const tabelleAnpassenIcon = `${icon('adjustments-horizontal')}`;
     const customColumnsIcon = `${icon('bars-3')}`;
 
     const primary = this.canEdit ? `
@@ -233,7 +236,7 @@ export class StrategieDetail {
               ${renderToolbarMenuItem({ id: 'btn-share-strategie', title: 'Liste per E-Mail teilen', icon: shareIcon, label: 'Teilen' })}
               ${renderToolbarMenuItem({ id: 'btn-strategie-casting-link', title: this.strategie?.creator_auswahl_id ? 'Casting-Verknüpfung lösen' : 'Casting verknüpfen', icon: icon('link'), label: this.strategie?.creator_auswahl_id ? 'Casting lösen' : 'Casting verknüpfen' })}
               ${renderToolbarMenuItem({ id: 'btn-manage-kategorien', title: 'Kategorien verwalten', icon: kategorienIcon, label: 'Kategorien' })}
-              ${renderToolbarMenuItem({ id: 'btn-strategie-detail-column-visibility', title: 'Spalten-Sichtbarkeit', icon: sichtbarkeitIcon, label: 'Sichtbarkeit anpassen' })}
+              ${renderToolbarMenuItem({ id: 'btn-strategie-detail-column-visibility', title: 'Spaltenreihenfolge und Sichtbarkeit', icon: tabelleAnpassenIcon, label: 'Tabelle anpassen' })}
               ${renderToolbarMenuItem({ id: 'btn-strategie-custom-columns', title: 'Eigene Spalten verwalten', icon: customColumnsIcon, label: 'Eigene Spalten' })}
             `
     }) : '';
@@ -277,6 +280,31 @@ export class StrategieDetail {
     }
   }
 
+  async saveColumnOrder(order) {
+    await strategieService.updateStrategie(this.strategieId, { column_order: order });
+    this.columnOrder = order;
+    if (this.strategie) this.strategie.column_order = order;
+    const eigene = (order || []).filter(id => isCustomColumnId(id));
+    if (this.customColumns) this.customColumns.order = eigene;
+    if (!eigene.length || !this.customColumns?.dataLoader) return;
+    try {
+      await this.customColumns.dataLoader.saveColumnOrder(eigene);
+    } catch (error) {
+      console.error('Eigene Spaltenreihenfolge speichern fehlgeschlagen:', error);
+    }
+  }
+
+  /** Kopf-Griff einer eigenen Spalte: Plaetze in der gespeicherten Folge nachziehen. */
+  async applyCustomColumnReorder() {
+    if (!hatEigeneReihenfolge(this.columnOrder) || !this.customColumns?.getOrderedColumns) return;
+    const eigene = this.customColumns.getOrderedColumns().map(col => makeCustomColumnId(col.id));
+    const next = uebernehmeEigeneReihenfolge(this.columnOrder, eigene);
+    if (next.join('|') === this.columnOrder.join('|')) return;
+    await strategieService.updateStrategie(this.strategieId, { column_order: next });
+    this.columnOrder = next;
+    if (this.strategie) this.strategie.column_order = next;
+  }
+
   showColumnVisibilityDrawer() {
     const customColumns = this.customColumns.getOrderedColumns().map(c => ({
       className: makeCustomColumnId(c.id),
@@ -290,7 +318,12 @@ export class StrategieDetail {
         this.rerenderItemsTable();
       },
       customColumns,
-      this.columnContext()
+      this.columnContext(),
+      this.columnOrder,
+      async (order) => {
+        await this.saveColumnOrder(order);
+        this.rerenderItemsTable();
+      }
     );
     drawer.open();
   }

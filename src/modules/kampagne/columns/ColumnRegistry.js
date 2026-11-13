@@ -238,6 +238,24 @@ export function getConfigurableColumns(store) {
   return getOrderedColumns(store).filter(c => c.configurable);
 }
 
+const LOCKED_HEAD = ['col-nr', 'col-creator'];
+const LOCKED_TAIL = 'col-actions';
+
+/**
+ * Volle Spaltenreihenfolge fuer die Kooperationstabelle.
+ * Nr und Creator bleiben vorne, Aktionen hinten. Dazwischen steht die
+ * Reihenfolge aus dem Drawer "Tabelle anpassen".
+ */
+export function orderWithMovableSequence(store, movableIds) {
+  const full = getOrderedColumns(store).map(col => col.id);
+  const head = LOCKED_HEAD.filter(id => full.includes(id));
+  const tail = full.includes(LOCKED_TAIL) ? [LOCKED_TAIL] : [];
+  const movable = (movableIds || []).filter(id => full.includes(id));
+  const placed = new Set([...head, ...tail, ...movable]);
+  const rest = full.filter(id => !placed.has(id));
+  return [...head, ...movable, ...rest, ...tail];
+}
+
 /**
  * Baut ein neues columnOrder-Array wenn eine Custom Column hinzugefuegt wird.
  * Fuegt vor col-actions ein.

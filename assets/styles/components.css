@@ -976,13 +976,35 @@ h3.section-title,
   min-width: 4.5rem;
 }
 
+/* Die Liste füllt den Drawer. Hinweis und Fertig bleiben unten, nur die
+   Spalten scrollen. Ohne die alte Deckelung (60vh / 520px) blieb darunter
+   leerer Drawer. */
+.drawer-body:has(> .sourcing-spalten-liste) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.drawer-body:has(> .sourcing-spalten-liste) > .drawer-section-title,
+.drawer-body:has(> .sourcing-spalten-liste) > .sourcing-spalten-kopf,
+.drawer-body:has(> .sourcing-spalten-liste) > .sourcing-spalten-item,
+.drawer-body:has(> .sourcing-spalten-liste) > .drawer-info-text,
+.drawer-body:has(> .sourcing-spalten-liste) > .drawer-footer {
+  flex-shrink: 0;
+}
+
 .sourcing-spalten-liste {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
   margin-bottom: var(--space-lg);
-  max-height: min(60vh, 520px);
+  min-height: 0;
   overflow-y: auto;
+}
+
+.drawer-body:has(> .sourcing-spalten-liste) > .sourcing-spalten-liste {
+  flex: 1 1 auto;
+  margin-bottom: var(--space-md);
 }
 
 .sourcing-spalten-item {

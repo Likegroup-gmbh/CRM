@@ -10,6 +10,7 @@ import {
   isFixedColumnVisible,
   setFixedColumnVisibility
 } from '../modules/strategie/strategieColumns.js';
+import { standardBeweglicheSpalten } from '../modules/strategie/strategieSpaltenfolge.js';
 import { renderKategorienDrawerBody, applyKategorieOrder } from '../modules/strategie/StrategieDetailKategorienDrawer.js';
 import { strategieService } from '../modules/strategie/StrategieService.js';
 
@@ -330,6 +331,44 @@ describe('renderItemsTable – Kopfzeile und colspan', () => {
 
     expect(header[prio + 1]).toBe('Status');
     expect(header[prio + 2]).toBe('Umsetzen');
+  });
+
+  it('stellt Spalten in der gespeicherten Reihenfolge', () => {
+    const folge = standardBeweglicheSpalten();
+    const prio = folge.indexOf('col-prio');
+    const status = folge.indexOf('col-status');
+    [folge[prio], folge[status]] = [folge[status], folge[prio]];
+
+    const html = renderItemsTable(detailStub({ items, columnOrder: folge }));
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const header = [...doc.querySelectorAll('thead th')].map(th => th.className);
+    const zellen = [...doc.querySelector('tr.item-row').children].map(td =>
+      [...td.classList].find(cls => cls.startsWith('col-'))
+    );
+
+    expect(header.indexOf('col-status')).toBeLessThan(header.indexOf('col-prio'));
+    expect(zellen.indexOf('col-status')).toBeLessThan(zellen.indexOf('col-prio'));
+    expect(header.indexOf('col-platform')).toBeLessThan(header.indexOf('col-status'));
+    expect(header.at(-1)).toBe('col-actions');
+  });
+
+  it('setzt eine eigene Spalte an die gespeicherte Stelle', () => {
+    const detail = detailStub({
+      items,
+      columnOrder: ['custom:abc', ...standardBeweglicheSpalten()],
+      customColumns: {
+        getOrderedColumns: () => [{ id: 'abc', name: 'Notiz', visible_for_kunden: true }],
+        visibleCount: () => 1,
+        renderHeaders: () => '<th class="entity-custom-col-header" data-custom-col-id="custom:abc">Notiz</th>',
+        renderCells: () => '<td class="entity-custom-cell" data-custom-col-id="custom:abc"></td>'
+      }
+    });
+    const doc = new DOMParser().parseFromString(renderItemsTable(detail), 'text/html');
+    const ids = [...doc.querySelectorAll('thead th')].map(th =>
+      th.dataset.customColId || [...th.classList].find(cls => cls.startsWith('col-'))
+    );
+
+    expect(ids[ids.indexOf('col-platform') + 1]).toBe('custom:abc');
   });
 
   it('hat Plattform und keinen separaten Link-Header', () => {
