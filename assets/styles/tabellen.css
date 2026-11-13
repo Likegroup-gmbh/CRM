@@ -2531,6 +2531,26 @@ width: 18em;
   margin-left: 0.35em;
 }
 
+/* Kooperationen-Tabelle: Profilbild ueber Name und Socials */
+.koop-creator-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+.koop-creator-cell .koop-creator-avatar {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  font-size: var(--text-md);
+  margin-right: 0;
+}
+
+.koop-creator-text {
+  min-width: 0;
+}
+
 .creator-social-links {
   display: flex;
   gap: 6px;

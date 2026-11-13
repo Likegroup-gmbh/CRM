@@ -61,7 +61,7 @@ export function koopSelect(isKunde) {
 
 export const VIDEO_SELECT = 'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, link_live, stats_views, stats_likes, stats_comments, stats_fetched_at, stats_error, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link, produkt:produkt_id(id, name)), skript_id, skript:skript_id(id, titel, status)';
 
-export const CREATOR_SELECT = 'id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, telefonnummer, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land';
+export const CREATOR_SELECT = 'id, vorname, nachname, profilbild_url, profilbild_thumb_url, instagram, instagram_follower, tiktok, tiktok_follower, telefonnummer, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land';
 
 export const VERSAND_SELECT = 'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt, land, creator_adresse_id';
 

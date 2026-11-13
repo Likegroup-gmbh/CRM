@@ -12,9 +12,20 @@ const TIKTOK_ICON = `${icon('tiktok')}`;
 export const COPY_ICON = `${icon('squares-2x2')}`;
 export const CHECK_ICON = `${icon('check')}`;
 
+function renderCreatorAvatar(creator, rawName) {
+  const source = creator.profilbild_thumb_url || creator.profilbild_url;
+  const safeUrl = source ? (window.validatorSystem?.sanitizeUrl(source) ?? source) : null;
+  if (safeUrl) {
+    return `<img src="${escapeHtml(safeUrl).replace(/"/g, '&quot;')}" alt="${escapeHtml(rawName).replace(/"/g, '&quot;')}" class="table-avatar table-avatar-img koop-creator-avatar" loading="lazy" />`;
+  }
+  const initial = (creator.vorname || rawName || '?').trim().charAt(0).toUpperCase() || '?';
+  return `<span class="table-avatar koop-creator-avatar">${escapeHtml(initial)}</span>`;
+}
+
 export function renderCreatorInner(ctx) {
   const creator = ctx.creator;
-  const name = escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt');
+  const rawName = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt';
+  const name = escapeHtml(rawName);
   const nameHtml = ctx.canViewCreator && creator.id
     ? `<a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" class="table-link">${name}</a>`
     : name;
@@ -22,7 +33,8 @@ export function renderCreatorInner(ctx) {
       ${creator.instagram ? `<a href="${creator.instagram.startsWith('http') ? escapeHtml(creator.instagram) : `https://instagram.com/${encodeURIComponent(creator.instagram.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${escapeHtml(creator.instagram)}">${INSTAGRAM_ICON}</a>` : ''}
       ${creator.tiktok ? `<a href="${creator.tiktok.startsWith('http') ? escapeHtml(creator.tiktok) : `https://tiktok.com/@${encodeURIComponent(creator.tiktok.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${escapeHtml(creator.tiktok)}">${TIKTOK_ICON}</a>` : ''}
     </div>` : '';
-  return `${nameHtml}${socials}`;
+  const avatar = creator.id ? renderCreatorAvatar(creator, rawName) : '';
+  return `<div class="koop-creator-cell">${avatar}<div class="koop-creator-text">${nameHtml}${socials}</div></div>`;
 }
 
 export function renderTagsInner(koop) {

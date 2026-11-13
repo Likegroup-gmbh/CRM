@@ -2,6 +2,7 @@
 // Datenlade-Logik für die Kampagnen-Detail-Ansicht
 
 import { VideoTableDataLoader } from './VideoTableDataLoader.js';
+import { CREATOR_SELECT } from './videoTableQueries.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
 import { vertraegeProKooperation, VERTRAG_ZELLE_COLS } from '../vertrag/deckung/vertragDeckung.js';
 import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
@@ -283,7 +284,7 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
     ),
     batchIn(
       sb.from('creator'),
-      'id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, telefonnummer, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land',
+      CREATOR_SELECT,
       'id', creatorIds
     ),
     batchIn(
