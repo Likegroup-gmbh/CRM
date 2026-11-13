@@ -186,7 +186,6 @@ export function tabsHtml(ctx) {
   const list = tabs.length < 2 ? '' : `
     <div class="tab-navigation vb-tabs__list" role="tablist" aria-label="Bereiche der Datei" data-vb-tablist>
       ${tabs.map(id => `<button type="button" role="tab" class="tab-button${id === current ? ' active' : ''}" id="vb-tab-${id}" aria-selected="${id === current}" aria-controls="vb-panel-${id}" tabindex="${id === current ? '0' : '-1'}" data-vb-tab="${id}">${esc(TAB_LABEL[id])}${id === 'kommentare' ? `<span class="tab-count" data-vb-tab-count>${count}</span>` : ''}</button>`).join('')}
-      <span class="vb-tabs__indicator" data-vb-tab-indicator aria-hidden="true"></span>
     </div>`;
 
   const body = tabs.map(id => `

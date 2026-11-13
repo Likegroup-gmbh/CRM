@@ -15,7 +15,7 @@ import {
   getStickyClasses
 } from './sourcingSpaltenSichtbarkeit.js';
 import { SOURCING_TABS } from './sourcingTabs.js';
-import { INSTAGRAM_ICON, TIKTOK_ICON, NICHT_UMSETZEN_ICON } from './sourcingIcons.js';
+import { NICHT_UMSETZEN_ICON } from './sourcingIcons.js';
 import { getListenTkp, reelsPreisTooltip } from './castingPreisZellen.js';
 import { renderItemRow } from './castingItemRow.js';
 import { hatEigeneReihenfolge, ordneSourcingTabellenHtml, spaltenfolgeFuerKontext } from './sourcingSpaltenfolge.js';
@@ -179,12 +179,10 @@ export function renderItemsTable(ctx) {
   }
 
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
-  const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
   // Write-Faehigkeiten: Sichtbarkeit interner Spalten bleibt Rollen-Sache
   // (!isKunde), Editierbarkeit ist Capability (Investor: sehen ja, anfassen nein).
   const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
   const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
-  const visibleColCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns, { canEdit: canWrite, hasActions }) + customCount;
   const hide = (col) => !vis(col) ? 'style="display:none;"' : '';
   const sticky = getStickyClasses(ctx);
   const tkpLabel = getListenTkp(ctx.liste).toLocaleString('de-DE');
@@ -218,30 +216,22 @@ export function renderItemsTable(ctx) {
             ${customAt('cp-col-mail')}
             <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
             ${customAt('cp-col-telefon')}
-            <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
-            ${customAt('cp-col-link-ig')}
-            <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
-            ${customAt('cp-col-follower-ig')}
-            <th class="cp-col-engagement-ig" ${hide('cp-col-engagement-ig')} title="Durchschnitt aus Likes und Kommentaren, geteilt durch Follower. Zweite Zeile ohne Trial-Reels, wenn das Gate greift.">Engagement ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-link" ${hide('cp-col-link')}>Link</th>
+            ${customAt('cp-col-link')}
+            <th class="cp-col-follower" ${hide('cp-col-follower')}>Follower</th>
+            ${customAt('cp-col-follower')}
+            <th class="cp-col-engagement-ig" ${hide('cp-col-engagement-ig')} title="Durchschnitt aus Likes und Kommentaren, geteilt durch Follower. Zweite Zeile ohne Trial-Reels, wenn das Gate greift.">Engagement</th>
             ${customAt('cp-col-engagement-ig')}
-            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 8))}">Preis 8 Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 8))}">Preis 8 Videos</th>
             ${customAt('cp-col-cpm-ig-8')}
-            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 30))}">Preis 30 Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 30))}">Preis 30 Videos</th>
             ${customAt('cp-col-cpm-ig-30')}
-            <th class="cp-col-preis-reels" ${hide('cp-col-preis-reels')} title="Manuell gepflegt – der tatsächlich verhandelte Reel-Preis">Preis Reels ${INSTAGRAM_ICON}</th>
-            ${customAt('cp-col-preis-reels')}
-            <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-preis-video" ${hide('cp-col-preis-video')} title="Manuell gepflegt – der tatsächlich verhandelte Preis pro Video (Reel bzw. TikTok-Video)">Preis Video</th>
+            ${customAt('cp-col-preis-video')}
+            <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story</th>
             ${customAt('cp-col-reichweite-story')}
-            <th class="cp-col-preis-story" ${hide('cp-col-preis-story')} title="Manuell gepflegt">Preis Story ${INSTAGRAM_ICON}</th>
-            ${customAt('cp-col-preis-story')}
-            <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
-            ${customAt('cp-col-link-tt')}
-            <th class="cp-col-follower-tt" ${hide('cp-col-follower-tt')}>Follower ${TIKTOK_ICON}</th>
-            ${customAt('cp-col-follower-tt')}
-            <th class="cp-col-preis-tt-video" ${hide('cp-col-preis-tt-video')} title="Manuell gepflegt – der verhandelte Preis pro TikTok-Video">Preis Video ${TIKTOK_ICON}</th>
-            ${customAt('cp-col-preis-tt-video')}
-            <th class="cp-col-preis-tt-story" ${hide('cp-col-preis-tt-story')} title="Manuell gepflegt">Preis Story ${TIKTOK_ICON}</th>
-            ${customAt('cp-col-preis-tt-story')}
+            <th class="cp-col-story-preis" ${hide('cp-col-story-preis')} title="Manuell gepflegt">Preis Story</th>
+            ${customAt('cp-col-story-preis')}
             <th class="cp-col-pricing" ${hide('cp-col-pricing')} title="Der verhandelte Gesamtpreis">Gesamtpreis</th>
             ${customAt('cp-col-pricing')}
             <th class="cp-col-nutzungsrechte" ${hide('cp-col-nutzungsrechte')} title="Laufzeit, Kanäle und Sonderabsprachen">Nutzungsrechte</th>
@@ -259,17 +249,6 @@ export function renderItemsTable(ctx) {
           </tr>
         </thead>
         ${renderGroupedItems(ctx)}
-        ${!ctx.isKunde && (ctx.canCreate ?? true) ? `
-        <tfoot>
-          <tr class="add-row-footer">
-            <td colspan="${visibleColCount}">
-              <button type="button" class="add-row-btn" id="btn-add-empty-row" title="Neue Zeile hinzufügen">
-                ${icon('plus-lg')}
-              </button>
-            </td>
-          </tr>
-        </tfoot>
-        ` : ''}
       </table>
     </div>
   `;

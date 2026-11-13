@@ -81,7 +81,7 @@ describe('KI-Vorschlag als Tabellenzeile', () => {
       .toContain('Passt zur Zielgruppe Food 25-34.');
     expect(doc.querySelector('td.cp-col-matching .sourcing-matching__score').textContent)
       .toBe('57/100');
-    expect(doc.querySelector('td.cp-col-link-ig a').getAttribute('href'))
+    expect(doc.querySelector('td.cp-col-link [data-plattform="instagram"] a').getAttribute('href'))
       .toBe('https://instagram.com/hierkochtjessie');
   });
 

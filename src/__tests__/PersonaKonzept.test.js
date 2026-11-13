@@ -176,7 +176,7 @@ describe('Persona-Spalte in der Tabelle', () => {
     expect(Number(doc.querySelector('.category-header-cell').getAttribute('colspan'))).toBe(header.length);
   });
 
-  it('zeigt die Spalte auch ohne Briefing-Personas, in der Reihenfolge Creator, Produkt, Persona, Funnel', () => {
+  it('zeigt die Spalte auch ohne Briefing-Personas, in der Reihenfolge Produkt, Persona, Funnel', () => {
     const detail = detailStub({
       strategie: { briefing: { bereich: 'paid_creator_ads', persona_ids: [] } },
       items: [{ id: 'i1', teilbereich: 'A' }]
@@ -185,7 +185,8 @@ describe('Persona-Spalte in der Tabelle', () => {
     const header = [...doc.querySelectorAll('thead th')].map(th => th.textContent.trim());
     const i = header.indexOf('Persona');
     expect(i).toBeGreaterThan(-1);
-    expect(header.slice(i - 2, i + 2)).toEqual(['Creator', 'Produkt', 'Persona', 'Funnel-Stufe']);
+    expect(header.slice(i - 1, i + 2)).toEqual(['Produkt', 'Persona', 'Funnel-Stufe']);
+    expect(header.indexOf('Creator')).toBeLessThan(i);
   });
 });
 

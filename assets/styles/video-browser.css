@@ -11,7 +11,23 @@
 .main-wrapper:has(> .kampagne-detail-body[data-workflow="videos"]) {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* clip ist kein Scroll-Container: ohne min-height: 0 wächst der Wrapper auf Inhaltshöhe
+     und der Detailbereich rechts hat nichts mehr zu scrollen. */
+  min-height: 0;
+  /* clip statt hidden: hidden-Container lassen sich per Fokus/scrollIntoView trotzdem verschieben
+     und schieben dann den ganzen Tab nach oben. clip kann nie scrollen. */
+  overflow: clip;
+}
+
+/* Kein Seiten-Scroll im Videos-Tab: Fenster und Hauptbereich bleiben stehen,
+   gescrollt wird nur in den Spalten und im Detailbereich rechts. */
+html:has(.kampagne-detail-body[data-workflow="videos"]),
+body:has(.kampagne-detail-body[data-workflow="videos"]) {
+  overflow: clip;
+}
+
+.main-content:has(.kampagne-detail-body[data-workflow="videos"]) {
+  overflow: clip;
 }
 
 .kampagne-detail-body[data-workflow="videos"] {
@@ -26,15 +42,17 @@
 }
 
 /* Linien-Dropdown füllt die erste Spalte: seine Trennlinie liegt auf der Spaltenkante darunter.
-   --vb-linie-w misst VideoBrowser.js (Breite der ersten Spalte), ohne Messung bleibt es bei auto. */
-.kampagne-detail-body[data-workflow="videos"] .linien-switch:not(.linien-switch--liste) {
-  width: var(--vb-linie-w, auto);
+   --vb-linie-w misst VideoBrowser.js (Breite der ersten Spalte) und setzt dazu data-vb-linie.
+   Ohne Messung (Laden, Showcase, leerer Tab) bleibt das Dropdown wie in den anderen Tabs -
+   mit width: auto und ohne max-width wuchs es sonst beim Öffnen auf die volle Labelbreite. */
+.kampagne-detail-body[data-workflow="videos"] .kampagne-workflow-tabs[data-vb-linie] .linien-switch:not(.linien-switch--liste) {
+  width: var(--vb-linie-w);
   margin-left: calc(-1 * var(--space-xs));
   padding-left: var(--space-xs);
   padding-right: var(--space-xs);
 }
 
-.kampagne-detail-body[data-workflow="videos"] .linien-switch:not(.linien-switch--liste) .linien-switch__trigger {
+.kampagne-detail-body[data-workflow="videos"] .kampagne-workflow-tabs[data-vb-linie] .linien-switch:not(.linien-switch--liste) .linien-switch__trigger {
   flex: 1;
   min-width: 0;
   max-width: none;
@@ -51,8 +69,7 @@
 }
 
 .workflow-pane[data-pane="videos"] {
-  overflow-x: hidden;
-  overflow-y: hidden;
+  overflow: clip;
 }
 
 .vb {
@@ -1311,7 +1328,7 @@
   padding: 0;
   border: 2px solid var(--bg-primary);
   border-radius: var(--radius-full);
-  background: var(--primary-500);
+  background: var(--gray-500);
   cursor: pointer;
   pointer-events: auto;
 }
@@ -1349,8 +1366,8 @@
 }
 
 .vb-comment.is-active {
-  border-color: var(--primary-300);
-  background: var(--primary-50);
+  border-color: var(--gray-400);
+  background: var(--gray-100);
 }
 
 .vb-comment__head {
@@ -1398,10 +1415,20 @@
   background: var(--gray-100);
 }
 
+/* Formular klebt am unteren Rand des Detailbereichs: Feedback schreiben und senden,
+   ohne erst durch die Kommentare zu scrollen. Es reicht über das Padding des Detailbereichs,
+   damit es am Ende des Scrolls nicht springt. */
 .vb-comment-form {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  margin-bottom: calc(-1 * var(--space-md));
+  padding: var(--space-sm) 0 var(--space-md);
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-primary);
 }
 
 .vb-comment-form__text {
@@ -1596,12 +1623,13 @@
   right: auto;
 }
 
-/* Tabs: sticky am oberen Rand des Detailbereichs, gleitender Indikator */
+/* Tabs: sticky am oberen Rand des Detailbereichs, gleitender Indikator aus motion.css */
 .vb-tabs {
   min-width: 0;
 }
 
 .vb-tabs__list {
+  --tab-divider-color: var(--border-primary);
   position: sticky;
   top: 0;
   z-index: 3;
@@ -1610,25 +1638,10 @@
   padding: var(--space-xs) 0;
   gap: var(--space-md);
   background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-primary);
-}
-
-.vb-tabs__list .tab-button.active::after {
-  display: none;
 }
 
 .vb-tabs__list .tab-count {
   margin-left: var(--space-xxs);
-}
-
-.vb-tabs__indicator {
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 0;
-  height: 2px;
-  background: var(--gray-900);
-  pointer-events: none;
 }
 
 .vb-panel {
@@ -1642,6 +1655,7 @@
 .vb-panel:focus-visible {
   outline: none;
 }
+
 
 /* Tab Details: Eigenschaftsliste, links Beschriftung, rechts Wert */
 .vb-props {

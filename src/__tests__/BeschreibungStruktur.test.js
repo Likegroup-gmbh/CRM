@@ -492,7 +492,7 @@ describe('Strategie-Tabelle: Spalte Beschreibung = Kurzbeschreibung', () => {
     expect(cell.querySelector('textarea')).toBeNull();
   });
 
-  it('setzt die Beschreibung nach Plattform und vor Creator', () => {
+  it('setzt die Beschreibung nach Plattform, der Creator steht vorn', () => {
     const html = renderItemRow(
       { hiddenColumns: [], items: [], canEdit: true, isKunde: false },
       { id: 'i1', video_link: null, kurzbeschreibung: 'X' },
@@ -500,7 +500,7 @@ describe('Strategie-Tabelle: Spalte Beschreibung = Kurzbeschreibung', () => {
     );
     const tr = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html').querySelector('tr');
     const klassen = [...tr.children].map((td) => [...td.classList].find((c) => /^col-(platform|beschreibung|creator)$/.test(c)));
-    expect(klassen.filter(Boolean)).toEqual(['col-platform', 'col-beschreibung', 'col-creator']);
+    expect(klassen.filter(Boolean)).toEqual(['col-creator', 'col-platform', 'col-beschreibung']);
   });
 
   it('schreibt schreibgeschuetzte Zellen beim Blur nicht zurueck', async () => {

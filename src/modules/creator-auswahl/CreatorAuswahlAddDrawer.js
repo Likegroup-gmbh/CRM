@@ -214,25 +214,6 @@ export class CreatorAuswahlAddDrawer {
     }
   }
 
-  async addEmptyRow() {
-    try {
-      const newItem = await creatorAuswahlService.createItem(
-        leererCastingEintrag(this.detail.listeId, this.detail.items.length)
-      );
-      this.detail.items.push(newItem);
-      this.detail.rerenderTable();
-
-      setTimeout(() => {
-        const nameField = document.querySelector(`textarea[data-item-id="${newItem.id}"][data-field="name"]`);
-        if (nameField) nameField.focus();
-      }, 100);
-
-    } catch (error) {
-      console.error('Fehler beim Hinzufügen einer leeren Zeile:', error);
-      window.toastSystem?.show('Fehler beim Hinzufügen', 'error');
-    }
-  }
-
   verbindeInstagramAbruf(form) {
     if (!form) return;
     const linkInput = form.querySelector('input[name="link_instagram"]');

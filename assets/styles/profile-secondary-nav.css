@@ -111,7 +111,7 @@
   }
 
   .secondary-nav {
-    border-bottom: 1px solid var(--border-primary);
+    box-shadow: inset 0 calc(-1 * var(--border-xs)) 0 var(--border-primary);
     padding: 0 var(--space-md);
   }
 
@@ -121,14 +121,24 @@
   }
 
   .secondary-nav-link {
+    position: relative;
     width: auto;
-    border-bottom: var(--border-xs) solid transparent;
     padding: var(--space-sm) var(--space-xs);
     border-radius: 0;
   }
 
   .secondary-nav-link.is-active {
     background: transparent;
-    border-bottom-color: var(--gray-900);
+  }
+
+  .secondary-nav-link.is-active::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--tab-indicator-height);
+    border-radius: var(--tab-indicator-radius);
+    background: var(--tab-indicator-color);
   }
 }

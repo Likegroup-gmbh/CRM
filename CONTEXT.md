@@ -237,6 +237,10 @@ Nicht der CRM-Creator; die Stammdaten-Identität kann später entstehen.
 Darf an mehreren Videoideen des verknüpften Konzepts hängen.
 _Avoid_: Casting-Item, Kandidat, Sourcing-Creator
 
+**Plattformzeile**:
+Eine Zeile je Plattform in einer gemeinsamen Casting-Spalte (Link, Follower, Preis Video, Preis Story): Instagram oben, TikTok darunter, mit kleinem Plattform-Icon. Welche Zeilen eine Liste zeigt, folgt dem Briefing (Plattformen und Formate); der Schalter in „Tabelle anpassen“ blendet nur die ganze Spalte ein oder aus. Hat die Liste TikTok, haben alle gestapelten Zellen beide Zeilen, bei reinen Instagram-Spalten ist die TikTok-Zeile leer.
+_Avoid_: Untertabelle, Lane
+
 **Management-Anfrage**:
 Ein Casting schickt einem Ansprechpartner eines Managements eine eigene Mail mit eigenem Link, ohne Anhang. Über den Link schlägt diese Person Creator vor. Zwei Personen desselben Managements bekommen zwei Links und sehen die Vorschläge der anderen nicht.
 _Avoid_: Briefing-Anschreiben, Selbst-Bewerbung

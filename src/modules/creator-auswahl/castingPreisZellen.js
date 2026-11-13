@@ -116,30 +116,34 @@ export function rowCanWrite(ctx, item) {
   return !ctx.isKunde && (ctx.canEdit ?? true);
 }
 
-export function renderPreisFreitextCell(ctx, item, columnClass, field, hide) {
+/** Inhalt der Preis-Zelle ohne td - auch fuer die Plattformzeilen. */
+export function renderPreisFreitextInhalt(ctx, item, field) {
   const wert = ohneEuroZeichen(item[field]);
-  const canWrite = rowCanWrite(ctx, item);
 
-  return `
-    <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
-      ${canWrite ? `
+  return rowCanWrite(ctx, item) ? `
         <div class="cell-euro">
           <input type="text" class="strategie-textarea cell-euro__input" data-field="${field}" data-item-id="${item.id}" placeholder="Preis..." value="${escapeHtml(wert)}">
           <span class="cell-euro__suffix" aria-hidden="true">€</span>
         </div>
-      ` : `<div class="cell-text-readonly">${wert ? `${escapeHtml(wert)} €` : '-'}</div>`}
+      ` : `<div class="cell-text-readonly">${wert ? `${escapeHtml(wert)} €` : '-'}</div>`;
+}
+
+export function renderPreisFreitextCell(ctx, item, columnClass, field, hide) {
+  return `
+    <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
+      ${renderPreisFreitextInhalt(ctx, item, field)}
     </td>
   `;
 }
 
 /**
- * Automatisch berechnete Preis-Zelle (read-only). Der Preis entsteht hier aus
+ * Inhalt der automatisch berechneten Preis-Zelle (read-only). Der Preis entsteht hier aus
  * Views x Listen-TKP, nicht aus den gespeicherten cpm_ig_* - so wirkt eine
  * TKP-Aenderung sofort, ohne die Instagram-Daten neu abzurufen.
  * Mit showViews steht unter dem Preis die View-Basis, sonst waere in der
  * Tabelle nicht erkennbar, worauf sich der 8er- bzw. 30er-Wert bezieht.
  */
-export function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = false, hinweis = null, cleanViews = null) {
+export function renderAutoCpmInhalt(ctx, item, views, showViews = false, hinweis = null, cleanViews = null) {
   const tkp = getListenTkp(ctx.liste);
   const cpm = berechnePreisAusViews(views, tkp);
 
@@ -163,7 +167,6 @@ export function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews
     : '';
 
   return `
-    <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
       <div class="cell-text-readonly cpm-auto-value${ctx.kundenCallActive ? ' kunden-call-blur' : ''}"
            data-blur-target
            title="${escapeHtml(title)}">
@@ -171,7 +174,6 @@ export function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews
         ${reach ? `<div class="cpm-auto-reach">Ø ${reach} Views</div>` : ''}
         ${cleanLine}
       </div>
-    </td>
   `;
 }
 

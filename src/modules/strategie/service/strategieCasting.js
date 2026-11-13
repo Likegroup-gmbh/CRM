@@ -175,7 +175,7 @@ export async function getZuordbareCastingItems(strategieId) {
 
   const { data, error } = await window.supabase
     .from('creator_auswahl_items')
-    .select('id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht, prio_1, prio_2')
+    .select('id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht, prio_1, prio_2, profile_image_url, profile_image_thumb_url, creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)')
     .eq('creator_auswahl_id', strategie.creator_auswahl_id)
     .order('sortierung', { ascending: true });
   if (error) throw error;

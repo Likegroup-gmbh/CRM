@@ -14,6 +14,7 @@ import {
   toOrderEntry
 } from '../../core/customColumns/entityColumnUtils.js';
 import {
+  ANKER_ALIASE,
   DEAKTIVIERTE_SPALTEN,
   SOURCING_ANKER_SPALTEN,
   SOURCING_SPALTEN
@@ -110,7 +111,9 @@ export function baueBeweglicheSpalten({ columnOrder = null, customColumns = [] }
   const erlaubt = new Set(vorlage);
   const gespeichert = [];
   const gesehen = new Set();
-  for (const id of columnOrder) {
+  for (const gespeicherteId of columnOrder) {
+    // Alte Plattform-Spalten stehen jetzt in der gemeinsamen Spalte: an der Stelle der ersten bleiben
+    const id = ANKER_ALIASE[gespeicherteId] || gespeicherteId;
     if (!erlaubt.has(id) || gesehen.has(id)) continue;
     gespeichert.push(id);
     gesehen.add(id);

@@ -39,7 +39,7 @@ import { initKoopState, koopGroupParam, revealKoop, scrollSelectedKoop } from '.
 import { ladeFreieOrdner } from './videoBrowserAblage.js';
 import { highlightComment, syncPinTime } from './videoBrowserComments.js';
 import { syncCaptionClamp } from './videoBrowserCaption.js';
-import { defaultTab, setDetailTab, syncTabIndicator } from './videoBrowserTabs.js';
+import { defaultTab, setDetailTab } from './videoBrowserTabs.js';
 import { closeTagField, refreshTagField } from './videoBrowserTagField.js';
 import { formatTime } from '../../core/media/mediaPlayerIcons.js';
 import { currentUploads, uploadChanged, uploadSettled, uploadsAdded } from './videoBrowserUploadState.js';
@@ -129,6 +129,7 @@ class VideoBrowser {
     if (this.destroyed) return;
 
     if (!this.tree.kooperationen.length) {
+      this._setLinienWidth(null);
       this.pane.innerHTML = renderEmptyState({
         icon: 'video',
         title: 'Keine Videos vorhanden',
@@ -173,7 +174,6 @@ class VideoBrowser {
     this.motion?.destroy();
     this.cleanups.forEach(fn => fn());
     this.cleanups = [];
-    this.root?.closest('.kampagne-detail-body')?.querySelector('.kampagne-workflow-tabs')?.style.removeProperty('--vb-linie-w');
     this.pane.innerHTML = '';
   }
 
@@ -337,7 +337,7 @@ class VideoBrowser {
     // Im Showcase sind Pfadleiste und Spalten ausgeblendet (Breite 0): nichts messen
     if (this.view === 'showcase') {
       this.root.classList.remove('vb--path');
-      this.root.closest('.kampagne-detail-body')?.querySelector('.kampagne-workflow-tabs')?.style.removeProperty('--vb-linie-w');
+      this._setLinienWidth(null);
       return;
     }
     // offsetWidth statt scrollWidth: Einblend-Animationen verschieben Spalten per transform.
@@ -360,15 +360,37 @@ class VideoBrowser {
    * `--vb-linie-w` an der Tab-Zeile, genutzt in video-browser.css).
    */
   _syncLinienWidth() {
-    const bar = this.root.closest('.kampagne-detail-body')?.querySelector('.kampagne-workflow-tabs');
+    const bar = this._linienBar();
     if (!bar) return;
     const first = this.colsEl?.querySelector('.vb-col');
     if (!first) {
-      bar.style.removeProperty('--vb-linie-w');
+      this._setLinienWidth(null);
       return;
     }
     const offset = this.root.getBoundingClientRect().left - bar.getBoundingClientRect().left;
-    bar.style.setProperty('--vb-linie-w', `${first.offsetWidth + offset}px`);
+    this._setLinienWidth(first.offsetWidth + offset);
+  }
+
+  _linienBar() {
+    return this.pane.closest('.kampagne-detail-body')?.querySelector('.kampagne-workflow-tabs') || null;
+  }
+
+  /**
+   * null = keine Spalte, das Dropdown sieht aus wie in den anderen Tabs.
+   * destroy() lässt den Wert bewusst stehen: beim nächsten Öffnen des Tabs hat das Dropdown
+   * sofort die Spaltenbreite, statt bis zum Ende des Ladens anders auszusehen. Außerhalb des
+   * Videos-Tabs greift er nicht (video-browser.css).
+   */
+  _setLinienWidth(px) {
+    const bar = this._linienBar();
+    if (!bar) return;
+    if (px == null) {
+      bar.style.removeProperty('--vb-linie-w');
+      delete bar.dataset.vbLinie;
+      return;
+    }
+    bar.style.setProperty('--vb-linie-w', `${px}px`);
+    bar.dataset.vbLinie = '';
   }
 
   _renderColumns(ctx, { fromDepth = null } = {}) {
@@ -436,7 +458,6 @@ class VideoBrowser {
       this._fillDuration();
     }
 
-    syncTabIndicator(this);
     if (animate) this.motion.detailIn(this.detailEl);
   }
 
@@ -479,7 +500,6 @@ class VideoBrowser {
       this._closeTagField();
       tabs.innerHTML = tabsHtml(ctx);
       syncCaptionClamp(this);
-      syncTabIndicator(this);
       syncPinTime(this, this._lastTime, item.id);
       this._fillDuration();
     }
@@ -572,6 +592,7 @@ export async function mountVideoBrowserPane(detail, pane, isCurrent = () => true
   try {
     await browser.mount();
   } catch (error) {
+    browser._setLinienWidth(null);
     browser.destroy();
     if (detail._videoBrowser === browser) detail._videoBrowser = null;
     throw error;

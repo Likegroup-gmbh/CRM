@@ -632,7 +632,8 @@ input.input-error {
 }
 
 .table-select__trigger,
-.filter-select__trigger {
+.filter-select__trigger,
+.creator-cell-select {
   display: flex;
   align-items: center;
   gap: var(--space-xxs);
@@ -652,14 +653,16 @@ input.input-error {
 }
 
 .table-select__trigger:hover,
-.filter-select__trigger:hover {
+.filter-select__trigger:hover,
+.creator-cell-select:hover {
   background: var(--gray-50);
   border-color: var(--gray-300);
   box-shadow: var(--shadow-sm);
 }
 
 .table-select__trigger:focus-visible,
-.filter-select__trigger:focus-visible {
+.filter-select__trigger:focus-visible,
+.creator-cell-select:focus-visible {
   outline: none;
   border-color: var(--gray-400);
   box-shadow: 0 0 0 3px var(--gray-100);
@@ -944,7 +947,7 @@ input.input-error {
   cursor: not-allowed;
 }
 
-.custom-date-picker--native .custom-date-picker__day.is-selected {
+:is(.custom-date-picker--native, .custom-date-picker--text) :is(.custom-date-picker__day, .custom-date-picker__grid-item).is-selected {
   background: var(--gray-900);
   color: var(--bg-primary);
 }
@@ -2278,9 +2281,22 @@ input.readonly-field {
   color: var(--text-primary);
 }
 
-.creator-cell-btn .crm-icon {
+.creator-cell-btn .crm-icon,
+.creator-cell-select .crm-icon {
+  flex-shrink: 0;
   width: 16px;
   height: 16px;
+}
+
+/* Im Select-Look, aber nur so breit wie der Inhalt; das x zum Lösen sitzt rechts im Container */
+.creator-cell-select {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.creator-cell-select .creator-cell-btn {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
 }
 
 .creator-cell--drawer {
@@ -2504,8 +2520,8 @@ input.readonly-field {
 .creator-pool-table td.cp-col-name .strategie-textarea,
 .creator-pool-table td.cp-col-location .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
-.creator-pool-table td.cp-col-preis-story .strategie-textarea,
-.creator-pool-table td.cp-col-preis-reels .strategie-textarea,
+.creator-pool-table td.cp-col-story-preis .strategie-textarea,
+.creator-pool-table td.cp-col-preis-video .strategie-textarea,
 .creator-pool-table td.cp-col-nutzungsrechte .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
@@ -2514,8 +2530,8 @@ input.readonly-field {
 .creator-pool-table td.cp-col-name .cell-text-readonly,
 .creator-pool-table td.cp-col-location .cell-text-readonly,
 .creator-pool-table td.cp-col-reichweite-story .cell-text-readonly,
-.creator-pool-table td.cp-col-preis-story .cell-text-readonly,
-.creator-pool-table td.cp-col-preis-reels .cell-text-readonly,
+.creator-pool-table td.cp-col-story-preis .cell-text-readonly,
+.creator-pool-table td.cp-col-preis-video .cell-text-readonly,
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
@@ -2541,15 +2557,15 @@ input.readonly-field {
 }
 
 .creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
-.creator-pool-table td.cp-col-preis-story .strategie-textarea,
-.creator-pool-table td.cp-col-preis-reels .strategie-textarea,
+.creator-pool-table td.cp-col-story-preis .strategie-textarea,
+.creator-pool-table td.cp-col-preis-video .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
 .creator-pool-table td.cp-col-ek .strategie-textarea,
 .creator-pool-table td.cp-col-vk .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-story .cell-text-readonly,
-.creator-pool-table td.cp-col-preis-story .cell-text-readonly,
-.creator-pool-table td.cp-col-preis-reels .cell-text-readonly,
+.creator-pool-table td.cp-col-story-preis .cell-text-readonly,
+.creator-pool-table td.cp-col-preis-video .cell-text-readonly,
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
@@ -3816,9 +3832,21 @@ input.readonly-field {
 /* Sticky-Spalten bei Bulk-Select (Kampagne-Muster: keine Kante zwischen Sticky-Spalten,
    nur rechte Kante an der letzten Sticky-Spalte als Trenner zum scrollenden Bereich) */
 
+/* Die Breite ist zugleich der left-Offset von Bild und Name (--cp-sticky-2/3-left).
+   Checkbox 16 + Gap 8 + Icon 20 plus Padding 16/8 muessen genau hineinpassen -
+   waechst die Zelle mit dem Inhalt, schieben sich Bild und Name beim
+   Querscrollen ueber das Drag-Icon. */
+
+.creator-pool-table.has-bulk-select {
+  --cp-w-drag: 68px;
+}
+
 .creator-pool-table.has-bulk-select .cp-col-drag {
-  width: 56px;
-  min-width: 56px;
+  width: var(--cp-w-drag);
+  min-width: var(--cp-w-drag);
+  max-width: var(--cp-w-drag);
+  padding-right: var(--space-xs);
+  padding-left: var(--space-md);
 }
 
 /* Spalte 1 (Checkbox + Drag): keine Seitenkanten */

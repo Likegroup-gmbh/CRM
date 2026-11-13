@@ -4,6 +4,7 @@
 import { authService } from './AuthService.js';
 import { initPasswordHints } from '../../auth/password-hints.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ALLOWED_EMPLOYEE_DOMAINS } from './AllowedEmailDomains.js';
 import {
   accountLoginBackUrl,
@@ -207,7 +208,18 @@ export class AuthUtils {
               </div>
               <div class="form-box">
                 <label for="registerGeburtsdatum" class="label label-register">Geburtsdatum *</label>
-                <input type="date" id="registerGeburtsdatum" class="input" required>
+                ${CustomDatePicker.render({
+                  inputId: 'registerGeburtsdatum',
+                  field: 'geburtsdatum',
+                  label: 'Geburtsdatum',
+                  variant: 'text',
+                  inputClass: 'input',
+                  yearSelect: true,
+                  min: '1900-01-01',
+                  max: CustomDatePicker.formatISO(new Date()),
+                  showToday: false,
+                  required: true
+                })}
               </div>
               <div class="form-box">
                 <label for="registerFirmenhandy" class="label label-register">Firmenhandy <span class="label-optional">(optional)</span></label>
@@ -254,6 +266,7 @@ export class AuthUtils {
     if (registerForm) {
       registerForm.onsubmit = (e) => this.handleRegisterSubmit(e);
       initPasswordHints('registerPassword');
+      CustomDatePicker.bind(registerForm);
     }
   }
 
@@ -265,7 +278,8 @@ export class AuthUtils {
     const nachname = document.getElementById('registerNachname').value.trim();
     const emailInput = document.getElementById('registerEmail');
     const email = emailInput.value;
-    const geburtsdatum = document.getElementById('registerGeburtsdatum')?.value || '';
+    const geburtsdatumInput = document.getElementById('registerGeburtsdatum');
+    const geburtsdatum = CustomDatePicker.getValue(geburtsdatumInput);
     const firmenhandy = document.getElementById('registerFirmenhandy')?.value?.trim() || '';
     const password = document.getElementById('registerPassword').value;
     const errorDiv = document.getElementById('registerError');
@@ -281,7 +295,9 @@ export class AuthUtils {
       }
 
       if (!geburtsdatum) {
-        throw new Error('Bitte geben Sie Ihr Geburtsdatum ein.');
+        throw new Error(geburtsdatumInput?.value.trim()
+          ? 'Bitte geben Sie ein gültiges Geburtsdatum (TT.MM.JJJJ) ein.'
+          : 'Bitte geben Sie Ihr Geburtsdatum ein.');
       }
 
       const result = await authService.signUp(

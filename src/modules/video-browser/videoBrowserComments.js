@@ -40,6 +40,22 @@ export function syncPinTime(vb, sec, assetId) {
   pin.checked = sec > 0.05;
 }
 
+/**
+ * Holt einen Kommentar in den sichtbaren Bereich des Detailbereichs. Bewusst kein scrollIntoView:
+ * das scrollt auch overflow:hidden-Vorfahren (Seite, Tab) und schiebt dann den ganzen Inhalt nach oben.
+ * Tableiste (oben) und Formular (unten) sind sticky und verdecken Platz.
+ */
+function revealComment(vb, el) {
+  const scroller = vb.detailInner?.closest('.vb-detail');
+  if (!scroller || !el) return;
+  const box = scroller.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  const top = box.top + (scroller.querySelector('.vb-tabs__list')?.offsetHeight || 0);
+  const bottom = box.bottom - (scroller.querySelector('.vb-comment-form')?.offsetHeight || 0);
+  if (r.top < top) scroller.scrollTop -= top - r.top;
+  else if (r.bottom > bottom) scroller.scrollTop += r.bottom - bottom;
+}
+
 /** 42501 = RLS, 42P01/PGRST205 = Tabelle fehlt (Migration nicht eingespielt). */
 function saveErrorText(err) {
   if (err?.code === '42501') return 'Keine Berechtigung, hier zu kommentieren.';
@@ -83,7 +99,7 @@ export async function submitComment(vb, form) {
       const el = list.lastElementChild;
       vb.player?.setMarkers(comments);
       vb.motion.commentIn(el, created.timecodeSec !== null ? vb.player?.markerEl(created.id) : null);
-      el.scrollIntoView?.({ block: 'nearest' });
+      revealComment(vb, el);
     }
   } catch (err) {
     console.error('VideoBrowser: Kommentar speichern fehlgeschlagen', err?.code, err?.message || err);
@@ -98,5 +114,5 @@ export function highlightComment(vb, commentId) {
   vb.detailInner.querySelectorAll('.vb-comment.is-active').forEach(el => el.classList.remove('is-active'));
   const el = vb.detailInner.querySelector(`.vb-comment[data-comment-id="${cssEscape(String(commentId))}"]`);
   el?.classList.add('is-active');
-  el?.scrollIntoView?.({ block: 'nearest' });
+  revealComment(vb, el);
 }

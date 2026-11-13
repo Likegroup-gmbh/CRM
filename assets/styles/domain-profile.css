@@ -176,32 +176,6 @@ span.profile-name {
 
 /* Last Activity */
 
-/* Sidebar Tabs */
-
-.profile-sidebar-tab {
-  flex: 1;
-  padding: var(--space-sm) var(--space-md);
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: all 0.2s ease;
-}
-
-.profile-sidebar-tab:hover {
-  color: var(--text-primary);
-  background: var(--gray-50);
-}
-
-.profile-sidebar-tab.active {
-  color: var(--accent-primary);
-  border-bottom-color: var(--accent-primary);
-  background: transparent;
-}
-
 /* Sidebar Content - direkt angezeigt (kein Tab-Toggle mehr) */
 
 .profile-sidebar-content {

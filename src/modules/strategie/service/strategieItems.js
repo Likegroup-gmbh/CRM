@@ -4,9 +4,9 @@ import { assertKeinVorschlag } from './strategieItemGuards.js';
 import { deleteScreenshot } from './strategieScreenshots.js';
 
 const ITEM_RELATIONS = `
-  creator:creator_id(id, vorname, nachname, instagram, tiktok),
+  creator:creator_id(id, vorname, nachname, instagram, tiktok, profilbild_url, profilbild_thumb_url),
   produkt:produkt_id(id, name),
-  casting_eintrag:creator_auswahl_item_id(id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht, creator:creator_id(id, vorname, nachname))
+  casting_eintrag:creator_auswahl_item_id(id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht, profile_image_url, profile_image_thumb_url, creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url))
 `;
 
 // Kunde: keine Umsetzungsvorgabe. select * wuerde sie mitliefern.

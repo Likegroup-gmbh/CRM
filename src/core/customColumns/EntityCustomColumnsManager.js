@@ -39,7 +39,8 @@ export class EntityCustomColumnsManager {
     orderColumn = 'custom_column_order',
     anchorColumns = [],
     anchorLabels = {},
-    disabledAnchors = []
+    disabledAnchors = [],
+    anchorAliases = {}
   }) {
     this.parentType = parentType;
     this.parentTable = parentTable;
@@ -49,6 +50,8 @@ export class EntityCustomColumnsManager {
     this.anchorColumns = anchorColumns;
     this.anchorLabels = anchorLabels || {};
     this.disabledAnchors = disabledAnchors || [];
+    // Alte Anker aus gespeicherten Reihenfolgen -> Spalte, in der sie aufgegangen sind
+    this.anchorAliases = anchorAliases || {};
     this.dataLoader = null;
     this.columns = [];
     this.order = [];
@@ -80,7 +83,11 @@ export class EntityCustomColumnsManager {
   get hasColumns() { return this.columns.length > 0; }
 
   getOrderedColumns() {
-    return orderCustomColumns(this.columns, this.order);
+    const ordered = orderCustomColumns(this.columns, this.order);
+    return ordered.map(col => {
+      const alias = col._anchor && this.anchorAliases[col._anchor];
+      return alias ? { ...col, _anchor: alias } : col;
+    });
   }
 
   /** Anzahl Custom-Spalten, die fuer die aktuelle Rolle sichtbar sind (fuer colspan). */

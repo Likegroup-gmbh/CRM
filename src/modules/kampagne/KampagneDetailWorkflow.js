@@ -132,11 +132,12 @@ export function renderWorkflowTabBar(activeTab, detail = null) {
 /**
  * Leere Panes für alle Tabs außer Kooperationen. Der Kooperationen-Tab wird im
  * MainRenderer mit dem bestehenden Inhalt gerendert.
+ * Videos ohne globales Einblenden (tabSlider.js): der VideoBrowser fliegt seine Spalten selbst ein.
  */
 export function renderWorkflowPanes(activeTab) {
   return getVisibleWorkflowTabs()
     .filter(t => t.id !== KOOPERATIONEN_TAB)
-    .map(t => `<div class="workflow-pane" data-pane="${t.id}" id="workflow-pane-${t.id}"${t.id === activeTab ? '' : ' hidden'}></div>`)
+    .map(t => `<div class="workflow-pane" data-pane="${t.id}" id="workflow-pane-${t.id}"${t.id === 'videos' ? ' data-tab-fade="off"' : ''}${t.id === activeTab ? '' : ' hidden'}></div>`)
     .join('');
 }
 

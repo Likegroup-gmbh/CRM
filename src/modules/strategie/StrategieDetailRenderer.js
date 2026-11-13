@@ -94,8 +94,10 @@ export function renderItemsTable(detail) {
   const showWriteCols = !detail.isKunde && !!detail.canEdit;
 
   // #, Bild, Plattform sind immer da; Drag und Aktionen nur intern mit edit-Recht
+  // Creator hat zwei Zellen: Profilbild und Name
   const fixedCount = 3
     + (showWriteCols ? 2 : 0)
+    + (cols.creator ? 1 : 0)
     + Object.values(cols).filter(Boolean).length;
   const colCount = fixedCount + customCount;
 
@@ -106,10 +108,10 @@ export function renderItemsTable(detail) {
           <tr>
             <th class="col-number">#</th>
             ${showWriteCols ? '<th class="col-drag"></th>' : ''}
+            ${cols.creator ? '<th class="col-creator-bild">Profil</th><th class="col-creator">Creator</th>' : ''}
             <th class="col-image">Bild</th>
             <th class="col-platform">Plattform</th>
             ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
-            ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
             ${cols.produkt ? '<th class="col-produkt">Produkt</th>' : ''}
             ${cols.persona ? '<th class="col-persona">Persona</th>' : ''}
             ${cols.funnel ? '<th class="col-funnel">Funnel-Stufe</th>' : ''}
@@ -330,6 +332,31 @@ function renderPlatformCell(item, platformIcon, fallbackIcon) {
 }
 
 /**
+ * Profilbild des Creators vor der Namensspalte. Gleiche Optik wie die Bild-Spalte
+ * im Casting (sourcing-avatar): Thumb vor Hauptbild, sonst der Initial des Namens.
+ * Quelle: Casting-Eintrag, dann dessen Creator, dann der Altbestand-Creator.
+ */
+function renderCreatorBildCell(item) {
+  const eintrag = item.casting_eintrag;
+  const creator = eintrag?.creator || item.creator;
+  const creatorName = creator ? `${creator.vorname || ''} ${creator.nachname || ''}`.trim() : '';
+  const name = eintrag?.name || creatorName || item.creator_name || '';
+
+  const rawUrl = eintrag?.profile_image_thumb_url || eintrag?.profile_image_url
+    || creator?.profilbild_thumb_url || creator?.profilbild_url;
+  const safeUrl = rawUrl ? (window.validatorSystem?.sanitizeUrl(rawUrl) ?? rawUrl) : null;
+
+  if (!safeUrl && !name) return '<td class="col-creator-bild"></td>';
+
+  const initial = name.trim().charAt(0).toUpperCase() || '?';
+  const inner = safeUrl
+    ? `<img src="${escapeAttr(safeUrl)}" alt="${escapeAttr(name || 'Profilbild')}" class="table-avatar table-avatar-img table-avatar--sourcing" loading="lazy" />`
+    : `<span class="table-avatar table-avatar--sourcing">${escapeHtml(initial)}</span>`;
+
+  return `<td class="col-creator-bild"><div class="sourcing-avatar">${inner}</div></td>`;
+}
+
+/**
  * Creator-Zelle: zeigt den zugeordneten Casting-Eintrag (neu) oder den
  * Altbestand (creator_id/creator_name, nur Anzeige). Der Plus-Button oeffnet
  * den Casting-Drawer, das x loest die Zuordnung. Freitext wird nicht mehr
@@ -340,10 +367,6 @@ function renderCreatorCell(detail, item, readonly) {
   const eintrag = item.casting_eintrag;
   const hatEintrag = !!item.creator_auswahl_item_id;
 
-  const connectBtn = canEdit
-    ? `<button type="button" class="creator-cell-btn creator-connect-btn" data-item-id="${item.id}" title="Casting-Eintrag zuordnen" aria-label="Casting-Eintrag zuordnen">${icon('user-add')}</button>`
-    : '';
-
   if (hatEintrag) {
     const name = eintrag?.name
       || (eintrag?.creator ? `${eintrag.creator.vorname || ''} ${eintrag.creator.nachname || ''}`.trim() : '')
@@ -351,8 +374,8 @@ function renderCreatorCell(detail, item, readonly) {
     const label = escapeHtml(name);
 
     const nameHtml = eintrag?.creator_id
-      ? `<a href="/creator/${eintrag.creator_id}" class="table-link creator-cell-link" onclick="event.preventDefault(); window.navigateTo('/creator/${eintrag.creator_id}')">${label}</a>`
-      : `<span class="creator-cell-name">${label}</span>`;
+      ? `<a href="/creator/${eintrag.creator_id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/creator/${eintrag.creator_id}')">${label}</a>`
+      : label;
 
     const unlinkBtn = canEdit
       ? `<button type="button" class="creator-cell-btn creator-unlink-btn" data-item-id="${item.id}" title="Zuordnung lösen" aria-label="Zuordnung lösen">${icon('x-mark')}</button>`
@@ -360,27 +383,48 @@ function renderCreatorCell(detail, item, readonly) {
 
     return `
       <td class="cell-textarea col-creator">
+        <div class="creator-cell">${renderVerknuepftPill('user', nameHtml, unlinkBtn)}</div>
+      </td>
+    `;
+  }
+
+  // Altbestand: creator_id/creator_name nur noch Anzeige, kein Freitext-Input.
+  // Mit Edit-Recht ist der Name der Button zum Zuordnen eines Casting-Eintrags.
+  const legacyName = item.creator
+    ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
+    : (item.creator_name || '');
+
+  if (canEdit) {
+    return `
+      <td class="cell-textarea col-creator">
         <div class="creator-cell">
-          ${nameHtml}
-          <span class="creator-cell-actions">${connectBtn}${unlinkBtn}</span>
+          ${renderVerknuepfenBtn('creator-connect-btn', item.id, 'user', legacyName ? escapeHtml(legacyName) : 'Creator verknüpfen', 'Casting-Eintrag zuordnen')}
         </div>
       </td>
     `;
   }
 
-  // Altbestand: creator_id/creator_name nur noch Anzeige, kein Freitext-Input
-  const legacyName = item.creator
-    ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
-    : (item.creator_name || '');
-
   return `
     <td class="cell-textarea col-creator">
       <div class="creator-cell">
-        ${legacyName ? `<span class="creator-cell-name">${escapeHtml(legacyName)}</span>` : '<span class="strategie-cell-muted">–</span>'}
-        ${connectBtn}
+        ${legacyName ? renderVerknuepftPill('user', escapeHtml(legacyName)) : '<span class="strategie-cell-muted">–</span>'}
       </div>
     </td>
   `;
+}
+
+/**
+ * Creator-/Produkt-Zelle im Look der Tabellen-Selects (Persona, Funnel): ein Container
+ * mit Icon und Text, der nur so breit ist wie sein Inhalt. Die Klick-Klasse
+ * (…-connect-btn) hängt am Handler.
+ */
+function renderVerknuepfenBtn(klasse, itemId, iconName, label, title = label) {
+  return `<button type="button" class="creator-cell-select ${klasse}" data-item-id="${itemId}" title="${title}" aria-label="${title}">${icon(iconName)}<span class="table-select__label">${label}</span></button>`;
+}
+
+/** Verknüpfter Eintrag im selben Container: Icon, Name (ggf. Link), rechts das x zum Lösen. */
+function renderVerknuepftPill(iconName, nameHtml, unlinkBtn = '') {
+  return `<div class="creator-cell-select">${icon(iconName)}<span class="table-select__label">${nameHtml}</span>${unlinkBtn}</div>`;
 }
 
 /**
@@ -392,22 +436,25 @@ function renderProduktCell(detail, item, readonly) {
   const name = (item.produkt?.name || '').trim();
   const hatProdukt = !!item.produkt_id;
 
-  const connectBtn = canEdit
-    ? `<button type="button" class="creator-cell-btn produkt-connect-btn" data-item-id="${item.id}" title="Produkt zuordnen" aria-label="Produkt zuordnen">${icon('cube')}</button>`
-    : '';
-
   if (hatProdukt) {
     const label = escapeHtml(name || 'Unbekannt');
-    const nameHtml = `<a href="/produkt/${item.produkt_id}" class="table-link creator-cell-link" onclick="event.preventDefault(); window.navigateTo('/produkt/${item.produkt_id}')">${label}</a>`;
+    const nameHtml = `<a href="/produkt/${item.produkt_id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/produkt/${item.produkt_id}')">${label}</a>`;
     const unlinkBtn = canEdit
       ? `<button type="button" class="creator-cell-btn produkt-unlink-btn" data-item-id="${item.id}" title="Zuordnung lösen" aria-label="Zuordnung lösen">${icon('x-mark')}</button>`
       : '';
 
     return `
       <td class="cell-textarea col-produkt">
+        <div class="creator-cell">${renderVerknuepftPill('cube', nameHtml, unlinkBtn)}</div>
+      </td>
+    `;
+  }
+
+  if (canEdit) {
+    return `
+      <td class="cell-textarea col-produkt">
         <div class="creator-cell">
-          ${nameHtml}
-          <span class="creator-cell-actions">${connectBtn}${unlinkBtn}</span>
+          ${renderVerknuepfenBtn('produkt-connect-btn', item.id, 'cube', 'Produkt verknüpfen')}
         </div>
       </td>
     `;
@@ -417,7 +464,6 @@ function renderProduktCell(detail, item, readonly) {
     <td class="cell-textarea col-produkt">
       <div class="creator-cell">
         <span class="strategie-cell-muted">–</span>
-        ${connectBtn}
       </div>
     </td>
   `;
@@ -580,10 +626,10 @@ export function renderItemRow(detail, item, index) {
           ${isVorschlag ? '' : icon('bars-3')}
         </td>
       ` : ''}
+      ${cols.creator ? renderCreatorBildCell(item) + renderCreatorCell(detail, item, vorschlagReadonly) : ''}
       ${renderBildCell(item, isIdea, ideaIcon)}
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
       ${cols.beschreibung ? renderClippedTextCell(detail, item, isVorschlag ? 'beschreibung' : 'kurzbeschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
-      ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
       ${cols.produkt ? renderProduktCell(detail, item, vorschlagReadonly) : ''}
       ${cols.persona ? `<td class="col-persona">${renderPersonaControl(detail, item)}</td>` : ''}
       ${cols.funnel ? `<td class="col-funnel">${renderFunnelControl(detail, item)}</td>` : ''}

@@ -168,16 +168,6 @@ export function bindEvents() {
       this._boundEventListeners.add(() => addBtn.removeEventListener('click', handler));
     }
 
-    const addEmptyRowBtn = this._q('#btn-add-empty-row');
-    if (addEmptyRowBtn) {
-      const handler = () => {
-        this.ensureNewItemVisible();
-        this.addDrawer.addEmptyRow();
-      };
-      addEmptyRowBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => addEmptyRowBtn.removeEventListener('click', handler));
-    }
-
     this.bindDragAndDropEvents();
     this.bindSelectionEvents();
     this.bindPillEvents();

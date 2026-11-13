@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
+import { renderCell, renderZeile } from './sourcingZelleKit.js';
 import {
   CREATOR_TYP_OPTIONS,
   CREATOR_TYP_SELECT_OPTIONS,
@@ -10,11 +10,6 @@ import {
   applySourcingIgCellState, SOURCING_IG_TOOLBAR
 } from '../modules/creator-auswahl/sourcingIgCell.js';
 
-function renderCell(columnClass, item, ctx = {}) {
-  const html = renderItemRow({ isKunde: false, hiddenColumns: [], ...ctx }, { id: 'i1', ...item }, 0);
-  const doc = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
-  return doc.querySelector(`td.${columnClass}`);
-}
 
 describe('Sourcing – Follower-Zellen', () => {
   it('haelt den Rohwert im Input und die Kurzform im Overlay', () => {

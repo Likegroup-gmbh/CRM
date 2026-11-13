@@ -87,12 +87,14 @@ export function createMotion(root) {
       });
     },
 
-    /** Tab-Wechsel: der Unterstrich gleitet zum aktiven Tab (ohne `animate` sofort, z. B. initial und bei Resize). */
+    /**
+     * Segment-Umschalter (Radio): der Thumb gleitet zum gewählten Wert (ohne `animate` sofort, z. B. initial
+     * und bei Resize). Die Tab-Leisten übernimmt core/animation/tabSlider.js.
+     */
     tabIndicator(listEl, { animate = true } = {}) {
       run(() => {
         const ind = listEl?.querySelector('[data-vb-tab-indicator]');
-        // Tabs (aria-selected) und Segment-Umschalter (Radio, aria-checked) teilen sich den Indikator
-        const tab = listEl?.querySelector('[role="tab"][aria-selected="true"], [role="radio"][aria-checked="true"]');
+        const tab = listEl?.querySelector('[role="radio"][aria-checked="true"]');
         if (!ind || !tab) return;
         const vars = { x: tab.offsetLeft, width: tab.offsetWidth };
         killRunning(ind);

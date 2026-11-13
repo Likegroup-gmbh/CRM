@@ -32,7 +32,7 @@ function neuFormHtml(parentPfad, tiefe) {
   return `
     <li class="vb-rohneu" style="--vb-roh-tiefe:${tiefe}">
       <form class="vb-rohneu__form" data-vb-roh-neu-form data-parent="${esc(parentPfad)}">
-        <span class="vb-icon-slot">${icon('folder-plus')}</span>
+        <span class="vb-icon-slot">${icon('folder-add')}</span>
         <input type="text" class="vb-rohneu__input" data-vb-roh-neu-input maxlength="100" placeholder="Ordnername" aria-label="Name des neuen Ordners" autocomplete="off" />
         <button type="submit" class="vb-icon-btn" aria-label="Ordner anlegen" title="Ordner anlegen">${icon('check')}</button>
         <button type="button" class="vb-icon-btn" data-vb-roh-neu-abbrechen aria-label="Abbrechen" title="Abbrechen">${icon('x-mark')}</button>
@@ -43,7 +43,7 @@ function neuFormHtml(parentPfad, tiefe) {
 function ordnerAktionen(ctx, o) {
   if (!ctx.canUpload || !o.itemId) return '';
   const unter = o.tiefe <= MAX_ELTERN_TIEFE
-    ? iconButton('folder-plus', 'Unterordner anlegen', `data-vb-roh-neu="${esc(o.pfad)}"`)
+    ? iconButton('folder-add', 'Unterordner anlegen', `data-vb-roh-neu="${esc(o.pfad)}"`)
     : '';
   return `
         <span class="vb-rohgroup__actions">
@@ -134,7 +134,7 @@ export function rohToolbarHtml(ctx) {
   if (!folder.wurzelItemId) return '';
   return `
       <div class="vb-rohbar" data-vb-rohbar>
-        <button type="button" class="vb-rohbar__neu" data-vb-roh-neu="">${icon('folder-plus')}<span>Neuer Ordner</span></button>
+        <button type="button" class="vb-rohbar__neu" data-vb-roh-neu="">${icon('folder-add')}<span>Neuer Ordner</span></button>
         ${folder.items.some(i => i.verschiebbar) ? '<span class="vb-rohbar__hint">Dateien auf eine Feedbackschleife ziehen</span>' : ''}
       </div>`;
 }

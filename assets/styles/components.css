@@ -407,32 +407,21 @@ h3.section-title,
 
 /* Tab Navigation Styles */
 
+/* Trennlinie als inset-Schatten statt Border: Sie liegt im Padding-Bereich, wo der
+   Aktiv-Balken sie auch bei overflow-x: auto (Mobile, Monatsblatt) überdecken kann. */
 .tab-navigation {
   position: relative;
   display: flex;
   gap: var(--space-xs);
-  border: 1px solid var(--gray-50);
-  border-left: none;
-  border-top: none;
-  border-right: none; 
   width: 100%;
   padding: var(--space-xs);
-  
- 
+  box-shadow: inset 0 calc(-1 * var(--border-xs)) 0 var(--tab-divider-color);
   scrollbar-width: none;
   background: var(--color-white);
 }
 
 .tab-navigation::-webkit-scrollbar {
   display: none;
-}
-
-/* Aktionsbereich rechts in der Tab-Navigation (Suche, Filter, Spalten) */
-.tab-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
 }
 
 .tab-button {
@@ -452,24 +441,23 @@ h3.section-title,
 
 .tab-button:hover {
   color: var(--text-primary);
-  
 }
 
 .tab-button.active {
   color: var(--gray-900);
-  
-
-  
 }
 
-.tab-button.active::after {
+/* Unterkante = Unterkante der Leiste, damit der Balken die Trennlinie überdeckt */
+.tab-button.active::after,
+.drawer-tab-btn.active::after {
   content: '';
   position: absolute;
-  bottom: calc(-2.5 * var(--space-xxs));
   left: 0;
   right: 0;
-  height: 1px;
-  background-color: var(--gray-600);
+  bottom: var(--tab-indicator-offset, calc(-1 * (var(--space-xs) + var(--border-xs))));
+  height: var(--tab-indicator-height);
+  border-radius: var(--tab-indicator-radius);
+  background: var(--tab-indicator-color);
 }
 
 .tab-count {
@@ -492,8 +480,6 @@ h3.section-title,
   color: var(--gray-800);
   background: var(--gray-200);
 }
-
-/* Active Tab Indicator Line */
 
 .tab-content {
   background: var(--bg-primary);
@@ -626,86 +612,34 @@ h3.section-title,
   display: none;
 }
 
-/* Rechnung Status-Tabs (Listenansicht) */
+/* Listen-Tabs (Rechnungen, Aufträge, Monatsblatt): kompakte Buttons mit Hover-Fläche */
+
+.tab-navigation--liste .tab-button {
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tab-navigation--liste .tab-button:hover {
+  background: var(--gray-50);
+}
+
+.tab-navigation--liste .tab-button.active {
+  font-weight: 500;
+}
+
+.tab-navigation--liste .tab-count {
+  min-width: 20px;
+}
+
+.rechnung-status-tabs,
+.auftrag-tabs {
+  padding: var(--space-xs) var(--space-sm);
+  gap: var(--space-sm);
+}
 
 .rechnung-status-tabs {
-  border-bottom: none;
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--color-white);
- 
-  border-top: none;
-  gap: var(--space-sm);
-}
-
-.rechnung-status-tabs .tab-button {
-  gap: var(--space-xxs);
-  padding: var(--space-xxs) var(--space-xs);
-  border-radius: var(--radius-sm);
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.rechnung-status-tabs .tab-button:hover {
-  background: var(--gray-50);
-}
-
-.rechnung-status-tabs .tab-button.active {
-  color: var(--gray-900);
-  font-weight: 500;
-}
-
-.rechnung-status-tabs .tab-button.active::after {
-  background-color: var(--gray-900);
-  height: 2px;
-}
-
-.rechnung-status-tabs .tab-count {
-  font-size: 0.7rem;
-  min-width: 20px;
-}
-
-.rechnung-status-tabs .tab-button.active .tab-count {
-  color: var(--gray-800);
-  background: var(--gray-200);
-}
-
-/* Auftrag/Contracts Tabs (Listenansicht) - analog Rechnung-Status-Tabs */
-
-.auftrag-tabs {
-  border-bottom: 1px solid var(--gray-50);
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--color-white);
-  gap: var(--space-sm);
-}
-
-.auftrag-tabs .tab-button {
-  gap: var(--space-xxs);
-  padding: var(--space-xxs) var(--space-xs);
-  border-radius: var(--radius-sm);
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.auftrag-tabs .tab-button:hover {
-  background: var(--gray-50);
-}
-
-.auftrag-tabs .tab-button.active {
-  color: var(--gray-900);
-  font-weight: 500;
-}
-
-.auftrag-tabs .tab-button.active::after {
-  background-color: var(--gray-900);
-  height: 2px;
-}
-
-.auftrag-tabs .tab-count {
-  font-size: 0.7rem;
-  min-width: 20px;
-}
-
-.auftrag-tabs .tab-button.active .tab-count {
-  color: var(--gray-800);
-  background: var(--gray-200);
+  box-shadow: none;
 }
 
 #informationen {
@@ -1361,7 +1295,7 @@ h3.section-title,
   box-shadow: 0 0 0 1px var(--gray-400);
 }
 
-.custom-date-picker--native .custom-date-picker__popover {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__popover {
   position: absolute;
   top: calc(100% + var(--space-xs));
   left: 0;
@@ -1374,7 +1308,7 @@ h3.section-title,
   min-width: 248px;
 }
 
-.custom-date-picker--native .custom-date-picker__header {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__header {
   display: grid;
   grid-template-columns: 28px 1fr 28px;
   align-items: center;
@@ -1382,14 +1316,27 @@ h3.section-title,
   margin-bottom: var(--space-xs);
 }
 
-.custom-date-picker--native .custom-date-picker__month-label {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__month-label {
   text-align: center;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--gray-900);
 }
 
-.custom-date-picker--native .custom-date-picker__nav {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__month-label--button {
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  padding: var(--space-xxxs) var(--space-xs);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__month-label--button:hover {
+  background: var(--gray-100);
+}
+
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__nav {
   border: 1px solid var(--border-primary);
   background: var(--bg-primary);
   color: var(--gray-700);
@@ -1401,17 +1348,22 @@ h3.section-title,
   line-height: 1;
 }
 
-.custom-date-picker--native .custom-date-picker__nav:hover {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__nav:hover:not(:disabled) {
   background: var(--gray-50);
 }
 
-.custom-date-picker--native .custom-date-picker__weekdays {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   margin-bottom: var(--space-xxs);
 }
 
-.custom-date-picker--native .custom-date-picker__weekdays span {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__weekdays span {
   text-align: center;
   color: var(--gray-600);
   font-size: var(--text-xs);
@@ -1419,13 +1371,20 @@ h3.section-title,
   padding: var(--space-xxxs) 0;
 }
 
-.custom-date-picker--native .custom-date-picker__days {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: var(--space-xxxs);
 }
 
-.custom-date-picker--native .custom-date-picker__day {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-xxs);
+}
+
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__day,
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__grid-item {
   border: var(--border-xs) solid transparent;
   background: transparent;
   border-radius: var(--radius-sm);
@@ -1435,24 +1394,40 @@ h3.section-title,
   color: var(--gray-900);
 }
 
-.custom-date-picker--native .custom-date-picker__day:hover {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__grid-item {
+  height: 56px;
+  font-size: var(--text-sm);
+}
+
+:is(.custom-date-picker--native, .custom-date-picker--text) :is(.custom-date-picker__day, .custom-date-picker__grid-item):hover:not(.is-selected):not(:disabled) {
   background: var(--gray-100);
 }
 
-.custom-date-picker--native .custom-date-picker__day.is-outside-month {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__day.is-outside-month {
   color: var(--gray-500);
 }
 
-.custom-date-picker--native .custom-date-picker__day.is-today {
+:is(.custom-date-picker--native, .custom-date-picker--text) :is(.custom-date-picker__day, .custom-date-picker__grid-item).is-today {
   border-color: var(--gray-300);
 }
 
-.custom-date-picker--native .custom-date-picker__day.is-focused {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__day.is-focused {
   outline: 2px solid var(--gray-300);
   outline-offset: -1px;
 }
 
-.custom-date-picker--native .custom-date-picker__footer {
+:is(.custom-date-picker--native, .custom-date-picker--text) :is(.custom-date-picker__day, .custom-date-picker__grid-item).is-disabled {
+  color: var(--gray-300);
+  cursor: not-allowed;
+}
+
+.custom-date-picker__weekdays[hidden],
+.custom-date-picker__days[hidden],
+.custom-date-picker__grid[hidden] {
+  display: none !important;
+}
+
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__footer {
   display: flex;
   justify-content: space-between;
   gap: var(--space-sm);
@@ -1461,7 +1436,7 @@ h3.section-title,
   border-top: 1px solid var(--border-primary);
 }
 
-.custom-date-picker--native .custom-date-picker__action {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__action {
   border: none;
   background: transparent;
   color: var(--gray-700);
@@ -1472,8 +1447,53 @@ h3.section-title,
   border-radius: var(--radius-sm);
 }
 
-.custom-date-picker--native .custom-date-picker__action:hover {
+:is(.custom-date-picker--native, .custom-date-picker--text) .custom-date-picker__action:hover {
   background: var(--gray-100);
+}
+
+/* Text variant: tippbares Feld (TT.MM.JJJJ), Kalender-Button rechts im Feld */
+
+.custom-date-picker--text {
+  position: relative;
+  width: 100%;
+}
+
+.custom-date-picker--text .custom-date-picker__control {
+  position: relative;
+}
+
+.custom-date-picker--text .custom-date-picker__input {
+  padding-right: calc(var(--space-sm) + 36px);
+}
+
+.custom-date-picker--text .custom-date-picker__input.is-invalid {
+  border-color: var(--color-error);
+}
+
+.custom-date-picker--text .custom-date-picker__trigger {
+  position: absolute;
+  right: var(--space-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.custom-date-picker--text .custom-date-picker__trigger:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+}
+
+.login-box .custom-date-picker--text .custom-date-picker__trigger {
+  color: var(--gray-900);
 }
 
 .data-table .col-status {
@@ -2811,36 +2831,6 @@ h3.section-title,
   color: var(--text-primary);
 }
 
-/* Tab-Navigation Header - innerhalb der rechten Spalte */
-
-/* Tabs Header Container - Flexbox Layout für Tabs links, Actions rechts */
-
-.tabs-header-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: stretch;
-  gap: var(--space-md);
-  width: 100%;
-}
-
-.tabs-header-container .tabs-left {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-xs);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.tabs-header-container .tabs-left::-webkit-scrollbar {
-  display: none;
-  height: 4px;
-}
-
-.tabs-header-container .tabs-left::-webkit-scrollbar-thumb {
-  background: var(--gray-300);
-  border-radius: var(--radius-xs);
-}
-
 .btn-inline-action {
   display: inline-flex;
   align-items: center;
@@ -2932,10 +2922,6 @@ h3.section-title,
   height: calc(100% - var(--space-xxl));
   overflow-y: auto;
 }
-
-/* Legacy: Tab Navigation innerhalb von Profile Main Content (nicht mehr aktiv verwendet) */
-
-/* Tab-Navigation ist jetzt im .profile-tabs-header über volle Breite */
 
 /* Entity Lists */
 
@@ -4304,11 +4290,34 @@ h3.section-title,
 /* z-index muss ueber den sticky Spalten der Tabelle liegen (col-sticky: 20-27) */
 
 .sourcing-tab-navigation {
+  --tab-indicator-offset: calc(-1 * (var(--space-xs) + 2 * var(--border-xs)));
   position: sticky;
   left: 0;
   top: var(--sticky-addbar-height);
   z-index: 28;
   background: var(--bg-primary);
+}
+
+/* Direkt darunter folgt die Oberkante des Tabellenkopfs als zweite Linie: Der Balken
+   reicht 1px darüber und muss über den sticky th liegen (auch wenn die Leiste im
+   Kampagnen-Worksheet static ist und keinen eigenen z-index hat) */
+.sourcing-tab-navigation .tab-button.active::after {
+  z-index: 30;
+}
+
+.sourcing-tab-navigation > [data-tab-slider-bar] {
+  bottom: calc(-1 * var(--border-xs));
+}
+
+/* Mobil scrollt die Leiste (overflow-x: auto) und schneidet den Überstand ab */
+@media (max-width: 768px) {
+  .sourcing-tab-navigation {
+    --tab-indicator-offset: initial;
+  }
+
+  .sourcing-tab-navigation > [data-tab-slider-bar] {
+    bottom: 0;
+  }
 }
 
 /* Namenssuche links in der Sourcing-Aktions-Zeile */
@@ -6658,10 +6667,6 @@ progress.upload-progress-bar::-moz-progress-bar {
 
 .notiz-detail-edit-btn {
   margin-top: var(--space-sm);
-}
-
-.tab-button--empty {
-  opacity: 0.45;
 }
 
 @keyframes mediaSpin {

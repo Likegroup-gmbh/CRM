@@ -288,7 +288,7 @@
 
 /* Sourcing bringt .links-compact-input mit (padding: 2px 4px) statt der
    Video-Tabelle mit var(--space-xs). */
-.cp-col-link-ig .chip-cell {
+.cp-col-link .chip-cell {
   --chip-cell-pad-left: 4px;
 }
 
@@ -518,11 +518,7 @@
   background: white;
 }
 
-/* Trennlinie zwischen Kooperationen. Dicker als die Linien zwischen den
-   Videos derselben Zeile, damit die Bloecke auseinanderfallen. */
-.grid-table.kooperation-video-grid tbody tr.kooperation-row > td {
-  border-bottom: 2px solid var(--gray-300);
-}
+
 
 .kooperation-video-grid tbody tr:hover td,
 .kooperation-video-grid tbody tr:hover td.col-creator {
@@ -749,14 +745,7 @@
   display: block;
 }
 
-/* Gestapelte Video-Inputs innerhalb einer Kooperation */
-.stacked-video-input,
-.stacked-video-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  flex: 1; /* Inputs teilen sich den verfügbaren Platz gleichmäßig */
-  min-height: 0; /* Wichtig für flex-Kinder */
-}
+
 
 /* Lieferadresse: Straße / PLZ Stadt / Land untereinander, linksbündig */
 .address-text {
@@ -865,11 +854,6 @@
   animation: spin 0.8s linear infinite;
 }
 
-.stacked-video-textarea {
-  min-height: 60px; /* Einheitliche Mindesthöhe für alle Video-Textareas */
-  flex: 0 0 auto; /* Höhe folgt dem Inhalt, nicht gleichmäßig gestreckt */
-}
-
 .grid-input.save-success,
 .grid-textarea.save-success,
 .grid-select.save-success {
@@ -948,6 +932,7 @@
   margin: 0;
   padding: var(--space-sm);
   min-height: 60px;
+  height: 100%
   overflow: hidden;
   font-size: inherit; /* Erbt von th/td */
   font-weight: inherit; /* Erbt von th/td */
@@ -956,7 +941,7 @@
   white-space: pre-wrap;
   word-break: break-word;
   border: none;
-  border-bottom: 1px solid var(--gray-300);
+  
   border-radius: 0;
   background: inherit; /* Erbt Zebra-Striping von tr */
   box-sizing: border-box;
@@ -2676,43 +2661,16 @@ width: 18em;
   min-height: 60vh;
 }
 
-.ausgangsrechnungen-month-tabs,
-.rechnung-month-tabs {
-  background: var(--color-white);
+.monatsblatt-tabs {
   border-top: 1px solid var(--border-primary);
   overflow-x: auto;
   flex-wrap: nowrap;
 }
 
-.ausgangsrechnungen-month-tabs .form-select,
-.rechnung-month-tabs .form-select {
+.monatsblatt-tabs .form-select {
   flex-shrink: 0;
   width: auto;
   min-width: 5.5rem;
-}
-
-.ausgangsrechnungen-month-tabs .tab-button,
-.rechnung-month-tabs .tab-button {
-  gap: var(--space-xxs);
-  padding: var(--space-xxs) var(--space-xs);
-  border-radius: var(--radius-sm);
-}
-
-.ausgangsrechnungen-month-tabs .tab-button:hover,
-.rechnung-month-tabs .tab-button:hover {
-  background: var(--gray-50);
-}
-
-.ausgangsrechnungen-month-tabs .tab-button.active,
-.rechnung-month-tabs .tab-button.active {
-  color: var(--gray-900);
-  font-weight: 500;
-}
-
-.ausgangsrechnungen-month-tabs .tab-button.active::after,
-.rechnung-month-tabs .tab-button.active::after {
-  background-color: var(--gray-900);
-  height: 2px;
 }
 
 /* === READ-ONLY / DISABLED FELDER FÜR KUNDEN === */

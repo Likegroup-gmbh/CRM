@@ -4,6 +4,8 @@ import { icon } from '../icons/IconSystem.js';
 
 const WEEKDAY_LABELS = ['M', 'D', 'M', 'D', 'F', 'S', 'S'];
 const MONTH_FORMATTER = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' });
+const MONTH_SHORT_FORMATTER = new Intl.DateTimeFormat('de-DE', { month: 'short' });
+const YEAR_PAGE_SIZE = 12;
 
 export class CustomDatePicker {
   static _boundRoots = new WeakMap();
@@ -17,110 +19,138 @@ export class CustomDatePicker {
     label = 'Datum',
     inputClass = '',
     entity = '',
-    variant = 'button'
+    variant = 'button',
+    inputId = '',
+    required = false,
+    min = '',
+    max = '',
+    yearSelect = false,
+    showToday = true
   } = {}) {
     const safeValue = this.normalizeDateValue(value);
-    const viewDate = this.parseISO(safeValue) || new Date();
-    const viewMonth = viewDate.getMonth();
-    const viewYear = viewDate.getFullYear();
-    const isNative = variant === 'native';
+    const safeMin = this.normalizeDateValue(min);
+    const safeMax = this.normalizeDateValue(max);
+    const viewDate = this.parseISO(safeValue)
+      || this.parseISO(this.clampISO(this.formatISO(new Date()), safeMin, safeMax));
     const hasValueClass = safeValue ? 'has-value' : '';
-    const variantClass = isNative ? 'custom-date-picker--native' : '';
-
-    if (isNative) {
-      const classes = ['custom-date-picker__input', inputClass].filter(Boolean).join(' ');
-      return `
-        <div class="custom-date-picker ${variantClass} ${hasValueClass}" data-custom-datepicker data-variant="native">
-          <div class="custom-date-picker__control">
-            <input
-              type="date"
-              class="${classes}"
+    const pickerAttrs = [
+      safeMin ? `data-min="${safeMin}"` : '',
+      safeMax ? `data-max="${safeMax}"` : '',
+      yearSelect ? 'data-year-select="true"' : ''
+    ].filter(Boolean).join(' ');
+    const dataAttrs = `
               data-id="${id || ''}"
               data-field="${field || ''}"
               data-date-field="${dateField || ''}"
               ${entity ? `data-entity="${entity}"` : ''}
               data-previous-value="${safeValue}"
               data-iso-value="${safeValue}"
-              value="${safeValue}"
               data-label="${label}"
-              aria-label="${label}"
+              aria-label="${label}"`;
+    const popover = this.renderPopover({ viewDate, value: safeValue, yearSelect, showToday });
+
+    if (variant === 'native') {
+      const classes = ['custom-date-picker__input', inputClass].filter(Boolean).join(' ');
+      return `
+        <div class="custom-date-picker custom-date-picker--native ${hasValueClass}" data-custom-datepicker data-variant="native" ${pickerAttrs}>
+          <div class="custom-date-picker__control">
+            <input
+              type="date"
+              ${inputId ? `id="${inputId}"` : ''}
+              class="${classes}"
+              ${dataAttrs}
+              value="${safeValue}"
               title="${label}"
               autocomplete="off"
+              ${required ? 'required' : ''}
             >
           </div>
-          <div
-            class="custom-date-picker__popover"
-            data-view-month="${viewMonth}"
-            data-view-year="${viewYear}"
-            data-focused-value="${safeValue || this.formatISO(new Date())}"
-            hidden
-          >
-            <div class="custom-date-picker__header">
-              <button type="button" class="custom-date-picker__nav custom-date-picker__nav--prev" aria-label="Vorheriger Monat">‹</button>
-              <div class="custom-date-picker__month-label">${this.capitalizeFirst(MONTH_FORMATTER.format(viewDate))}</div>
-              <button type="button" class="custom-date-picker__nav custom-date-picker__nav--next" aria-label="Nächster Monat">›</button>
-            </div>
-            <div class="custom-date-picker__weekdays">
-              ${WEEKDAY_LABELS.map(day => `<span>${day}</span>`).join('')}
-            </div>
-            <div class="custom-date-picker__days" role="grid"></div>
-            <div class="custom-date-picker__footer">
-              <button type="button" class="custom-date-picker__action" data-action="clear">Löschen</button>
-              <button type="button" class="custom-date-picker__action" data-action="today">Heute</button>
-            </div>
+          ${popover}
+        </div>
+      `;
+    }
+
+    const triggerTitle = safeValue ? `${label}: ${this.formatDisplayDate(safeValue)}` : `${label} setzen`;
+    const trigger = `
+          <button type="button" class="custom-date-picker__trigger" aria-label="Kalender öffnen" title="${triggerTitle}">
+            ${icon('calendar-days')}
+          </button>`;
+
+    if (variant === 'text') {
+      const classes = ['custom-date-picker__input', inputClass].filter(Boolean).join(' ');
+      return `
+        <div class="custom-date-picker custom-date-picker--text ${hasValueClass}" data-custom-datepicker data-variant="text" ${pickerAttrs}>
+          <div class="custom-date-picker__control">
+            <input
+              type="text"
+              ${inputId ? `id="${inputId}"` : ''}
+              class="${classes}"
+              ${dataAttrs}
+              value="${this.formatDisplayDate(safeValue)}"
+              placeholder="TT.MM.JJJJ"
+              inputmode="numeric"
+              maxlength="10"
+              autocomplete="off"
+              ${required ? 'required' : ''}
+            >
+            ${trigger}
           </div>
+          ${popover}
         </div>
       `;
     }
 
     const classes = ['custom-date-picker__input', 'custom-date-picker__value', inputClass].filter(Boolean).join(' ');
-    const triggerTitle = safeValue ? `${label}: ${this.formatDisplayDate(safeValue)}` : `${label} setzen`;
 
     return `
-      <div class="custom-date-picker ${hasValueClass}" data-custom-datepicker>
+      <div class="custom-date-picker ${hasValueClass}" data-custom-datepicker ${pickerAttrs}>
         <div class="custom-date-picker__control">
           <input
             type="text"
             class="${classes}"
-            data-id="${id || ''}"
-            data-field="${field || ''}"
-            data-date-field="${dateField || ''}"
-            ${entity ? `data-entity="${entity}"` : ''}
-            data-previous-value="${safeValue}"
-            data-iso-value="${safeValue}"
+            ${dataAttrs}
             value="${safeValue}"
-            data-label="${label}"
-            aria-label="${label}"
             title="${label}"
             readonly
             autocomplete="off"
             tabindex="-1"
             aria-hidden="true"
           >
-          <button type="button" class="custom-date-picker__trigger" aria-label="Kalender öffnen" title="${triggerTitle}">
-            ${icon('calendar-days')}
-          </button>
+          ${trigger}
         </div>
-        <div
-          class="custom-date-picker__popover"
-          data-view-month="${viewMonth}"
-          data-view-year="${viewYear}"
-          data-focused-value="${safeValue || this.formatISO(new Date())}"
-          hidden
-        >
-          <div class="custom-date-picker__header">
-            <button type="button" class="custom-date-picker__nav custom-date-picker__nav--prev" aria-label="Vorheriger Monat">‹</button>
-            <div class="custom-date-picker__month-label">${this.capitalizeFirst(MONTH_FORMATTER.format(viewDate))}</div>
-            <button type="button" class="custom-date-picker__nav custom-date-picker__nav--next" aria-label="Nächster Monat">›</button>
-          </div>
-          <div class="custom-date-picker__weekdays">
-            ${WEEKDAY_LABELS.map(day => `<span>${day}</span>`).join('')}
-          </div>
-          <div class="custom-date-picker__days" role="grid"></div>
-          <div class="custom-date-picker__footer">
-            <button type="button" class="custom-date-picker__action" data-action="clear">Löschen</button>
-            <button type="button" class="custom-date-picker__action" data-action="today">Heute</button>
-          </div>
+        ${popover}
+      </div>
+    `;
+  }
+
+  static renderPopover({ viewDate, value, yearSelect, showToday }) {
+    const monthLabel = this.capitalizeFirst(MONTH_FORMATTER.format(viewDate));
+    const labelHtml = yearSelect
+      ? `<button type="button" class="custom-date-picker__month-label custom-date-picker__month-label--button" aria-label="Monat und Jahr wählen">${monthLabel}</button>`
+      : `<div class="custom-date-picker__month-label">${monthLabel}</div>`;
+
+    return `
+      <div
+        class="custom-date-picker__popover"
+        data-view="days"
+        data-view-month="${viewDate.getMonth()}"
+        data-view-year="${viewDate.getFullYear()}"
+        data-focused-value="${value || this.formatISO(viewDate)}"
+        hidden
+      >
+        <div class="custom-date-picker__header">
+          <button type="button" class="custom-date-picker__nav custom-date-picker__nav--prev" aria-label="Zurück">‹</button>
+          ${labelHtml}
+          <button type="button" class="custom-date-picker__nav custom-date-picker__nav--next" aria-label="Weiter">›</button>
+        </div>
+        <div class="custom-date-picker__weekdays">
+          ${WEEKDAY_LABELS.map(day => `<span>${day}</span>`).join('')}
+        </div>
+        <div class="custom-date-picker__days" role="grid"></div>
+        ${yearSelect ? '<div class="custom-date-picker__grid" hidden></div>' : ''}
+        <div class="custom-date-picker__footer">
+          <button type="button" class="custom-date-picker__action" data-action="clear">Löschen</button>
+          ${showToday ? '<button type="button" class="custom-date-picker__action" data-action="today">Heute</button>' : ''}
         </div>
       </div>
     `;
@@ -160,21 +190,42 @@ export class CustomDatePicker {
         return;
       }
 
-      if (event.target.closest('.custom-date-picker__nav--prev')) {
+      const navButton = event.target.closest('.custom-date-picker__nav');
+      if (navButton) {
         event.preventDefault();
-        this.shiftMonth(picker, -1);
+        if (navButton.disabled) return;
+        this.shiftView(picker, navButton.classList.contains('custom-date-picker__nav--prev') ? -1 : 1);
         return;
       }
 
-      if (event.target.closest('.custom-date-picker__nav--next')) {
+      if (event.target.closest('.custom-date-picker__month-label--button')) {
         event.preventDefault();
-        this.shiftMonth(picker, 1);
+        this.toggleYearView(picker);
+        return;
+      }
+
+      const gridItem = event.target.closest('.custom-date-picker__grid-item');
+      if (gridItem) {
+        event.preventDefault();
+        if (gridItem.disabled) return;
+        if (gridItem.dataset.year) {
+          popover.dataset.viewYear = gridItem.dataset.year;
+          popover.dataset.view = 'months';
+        } else if (gridItem.dataset.month) {
+          popover.dataset.viewMonth = gridItem.dataset.month;
+          popover.dataset.view = 'days';
+          const { min, max } = this.getRange(picker);
+          const firstOfMonth = this.formatISO(new Date(Number(popover.dataset.viewYear), Number(gridItem.dataset.month), 1));
+          popover.dataset.focusedValue = this.clampISO(firstOfMonth, min, max);
+        }
+        this.renderCalendar(picker);
         return;
       }
 
       const dayButton = event.target.closest('.custom-date-picker__day');
       if (dayButton) {
         event.preventDefault();
+        if (dayButton.disabled) return;
         const isoValue = dayButton.dataset.date;
         this.applyValue(input, isoValue);
         this.closePicker(picker);
@@ -188,7 +239,10 @@ export class CustomDatePicker {
         if (action === 'today') {
           const today = new Date();
           const todayIso = this.formatISO(today);
+          const { min, max } = this.getRange(picker);
+          if (!this.isInRange(todayIso, min, max)) return;
           this.applyValue(input, todayIso);
+          popover.dataset.view = 'days';
           popover.dataset.viewMonth = String(today.getMonth());
           popover.dataset.viewYear = String(today.getFullYear());
           popover.dataset.focusedValue = todayIso;
@@ -213,9 +267,13 @@ export class CustomDatePicker {
         return;
       }
 
+      if ((popover.dataset.view || 'days') !== 'days') return;
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(event.key)) return;
+      // Im Textfeld bewegen die Pfeiltasten den Cursor, nicht den Kalender.
+      if (event.target === input && picker.dataset.variant === 'text' && event.key !== 'Enter') return;
       event.preventDefault();
 
+      const { min, max } = this.getRange(picker);
       const currentFocused = this.parseISO(popover.dataset.focusedValue) || this.parseISO(input.dataset.isoValue) || new Date();
       let nextFocused = new Date(currentFocused);
 
@@ -225,10 +283,14 @@ export class CustomDatePicker {
       if (event.key === 'ArrowDown') nextFocused.setDate(currentFocused.getDate() + 7);
 
       if (event.key === 'Enter') {
-        this.applyValue(input, this.formatISO(currentFocused));
+        const focusedIso = this.formatISO(currentFocused);
+        if (!this.isInRange(focusedIso, min, max)) return;
+        this.applyValue(input, focusedIso);
         this.closePicker(picker);
         return;
       }
+
+      nextFocused = this.parseISO(this.clampISO(this.formatISO(nextFocused), min, max));
 
       const viewMonth = Number(popover.dataset.viewMonth);
       const viewYear = Number(popover.dataset.viewYear);
@@ -249,14 +311,66 @@ export class CustomDatePicker {
       }
     };
 
+    const handleTextInput = (event) => {
+      const input = this.getTextVariantInput(event.target);
+      if (!input) return;
+      const picker = input.closest('[data-custom-datepicker]');
+
+      if (event.inputType === 'insertText') {
+        if (event.data === '.' && input.value.endsWith('..')) {
+          input.value = input.value.slice(0, -1);
+        } else if (/^\d{2}$|^\d{1,2}\.\d{2}$/.test(input.value)) {
+          input.value += '.';
+        }
+      }
+
+      const iso = this.parseDisplayDate(input.value, this.getRange(picker));
+      input.dataset.isoValue = iso;
+      input.classList.remove('is-invalid');
+      this.updatePickerVisualState(input);
+
+      if (iso && this._activePicker === picker) {
+        const popover = picker.querySelector('.custom-date-picker__popover');
+        const date = this.parseISO(iso);
+        popover.dataset.view = 'days';
+        popover.dataset.viewMonth = String(date.getMonth());
+        popover.dataset.viewYear = String(date.getFullYear());
+        popover.dataset.focusedValue = iso;
+        this.renderCalendar(picker);
+      }
+    };
+
+    const handleTextFocusout = (event) => {
+      const input = this.getTextVariantInput(event.target);
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) {
+        input.dataset.isoValue = '';
+        input.classList.remove('is-invalid');
+        this.updatePickerVisualState(input);
+        return;
+      }
+      const iso = this.parseDisplayDate(text, this.getRange(input.closest('[data-custom-datepicker]')));
+      if (iso) {
+        input.value = this.formatDisplayDate(iso);
+        input.classList.remove('is-invalid');
+      } else {
+        input.classList.add('is-invalid');
+      }
+    };
+
     root.addEventListener('mousedown', handleNativeMousedown, eventOptions);
     root.addEventListener('click', handleClick, eventOptions);
     root.addEventListener('keydown', handleKeydown, eventOptions);
+    root.addEventListener('input', handleTextInput, eventOptions);
+    root.addEventListener('focusout', handleTextFocusout, eventOptions);
 
     const cleanup = () => {
       root.removeEventListener('mousedown', handleNativeMousedown, eventOptions);
       root.removeEventListener('click', handleClick, eventOptions);
       root.removeEventListener('keydown', handleKeydown, eventOptions);
+      root.removeEventListener('input', handleTextInput, eventOptions);
+      root.removeEventListener('focusout', handleTextFocusout, eventOptions);
       const picker = this._activePicker;
       if (picker && (root.contains(picker) || !picker.isConnected)) {
         this.closeActivePicker();
@@ -289,8 +403,18 @@ export class CustomDatePicker {
     if (!input) return;
     const safeValue = this.normalizeDateValue(value);
     input.dataset.isoValue = safeValue;
-    input.value = safeValue;
+    input.value = this.isTextVariant(input) ? this.formatDisplayDate(safeValue) : safeValue;
+    input.classList.remove('is-invalid');
     this.updatePickerVisualState(input);
+  }
+
+  static isTextVariant(input) {
+    return input?.closest?.('[data-custom-datepicker]')?.dataset.variant === 'text';
+  }
+
+  static getTextVariantInput(target) {
+    if (!target?.classList?.contains('custom-date-picker__input')) return null;
+    return this.isTextVariant(target) ? target : null;
   }
 
   static setDisabled(input, isDisabled) {
@@ -336,10 +460,21 @@ export class CustomDatePicker {
     const input = picker?.querySelector('.custom-date-picker__input');
     if (!popover || !input || input.disabled) return;
 
-    const selectedDate = this.parseISO(input.dataset.isoValue) || new Date();
-    popover.dataset.viewMonth = String(selectedDate.getMonth());
-    popover.dataset.viewYear = String(selectedDate.getFullYear());
-    popover.dataset.focusedValue = input.dataset.isoValue || this.formatISO(new Date());
+    const { min, max } = this.getRange(picker);
+    const selectedIso = input.dataset.isoValue || '';
+    const baseIso = selectedIso || this.clampISO(this.formatISO(new Date()), min, max);
+    const baseDate = this.parseISO(baseIso) || new Date();
+    popover.dataset.viewMonth = String(baseDate.getMonth());
+    popover.dataset.viewYear = String(baseDate.getFullYear());
+    popover.dataset.focusedValue = baseIso;
+
+    // Ohne Wert startet die Jahresauswahl direkt im Jahresraster (z. B. Geburtsdatum).
+    const startInYears = picker.dataset.yearSelect === 'true' && !selectedIso;
+    popover.dataset.view = startInYears ? 'years' : 'days';
+    if (startInYears) {
+      popover.dataset.yearPageStart = String(this.getYearPageStart(baseDate.getFullYear(), min, max));
+    }
+
     popover.hidden = false;
     picker.classList.add('is-open');
     this._activePicker = picker;
@@ -362,7 +497,9 @@ export class CustomDatePicker {
 
   static positionPopover(picker) {
     const popover = picker?.querySelector('.custom-date-picker__popover');
-    const anchor = picker?.querySelector('.custom-date-picker__trigger') || picker?.querySelector('.custom-date-picker__input');
+    const anchor = picker?.dataset.variant === 'text'
+      ? picker.querySelector('.custom-date-picker__control')
+      : picker?.querySelector('.custom-date-picker__trigger') || picker?.querySelector('.custom-date-picker__input');
     if (!popover || !anchor) return;
 
     const triggerRect = anchor.getBoundingClientRect();
@@ -426,6 +563,40 @@ export class CustomDatePicker {
     this.renderCalendar(picker);
   }
 
+  static shiftView(picker, direction) {
+    const popover = picker?.querySelector('.custom-date-picker__popover');
+    if (!popover) return;
+    const view = popover.dataset.view || 'days';
+
+    if (view === 'years') {
+      popover.dataset.yearPageStart = String(Number(popover.dataset.yearPageStart) + direction * YEAR_PAGE_SIZE);
+      this.renderCalendar(picker);
+      return;
+    }
+
+    if (view === 'months') {
+      popover.dataset.viewYear = String(Number(popover.dataset.viewYear) + direction);
+      this.renderCalendar(picker);
+      return;
+    }
+
+    this.shiftMonth(picker, direction);
+  }
+
+  static toggleYearView(picker) {
+    const popover = picker?.querySelector('.custom-date-picker__popover');
+    if (!popover) return;
+
+    if (popover.dataset.view === 'years') {
+      popover.dataset.view = 'days';
+    } else {
+      const { min, max } = this.getRange(picker);
+      popover.dataset.view = 'years';
+      popover.dataset.yearPageStart = String(this.getYearPageStart(Number(popover.dataset.viewYear), min, max));
+    }
+    this.renderCalendar(picker);
+  }
+
   static renderCalendar(picker) {
     const popover = picker?.querySelector('.custom-date-picker__popover');
     const input = picker?.querySelector('.custom-date-picker__input');
@@ -437,26 +608,113 @@ export class CustomDatePicker {
     const monthLabel = popover.querySelector('.custom-date-picker__month-label');
     if (!daysContainer || !monthLabel) return;
 
+    const grid = popover.querySelector('.custom-date-picker__grid');
+    const weekdays = popover.querySelector('.custom-date-picker__weekdays');
+    const view = grid ? (popover.dataset.view || 'days') : 'days';
+    const { min, max } = this.getRange(picker);
     const selectedValue = input.dataset.isoValue || '';
-    const focusedValue = popover.dataset.focusedValue || selectedValue || this.formatISO(new Date());
-    const todayValue = this.formatISO(new Date());
-    const matrix = this.buildMonthMatrix(year, month);
 
-    monthLabel.textContent = this.capitalizeFirst(MONTH_FORMATTER.format(new Date(year, month, 1)));
+    daysContainer.hidden = view !== 'days';
+    if (weekdays) weekdays.hidden = view !== 'days';
+    if (grid) grid.hidden = view === 'days';
 
-    daysContainer.innerHTML = matrix.map(day => {
-      const classes = ['custom-date-picker__day'];
-      if (!day.isCurrentMonth) classes.push('is-outside-month');
-      if (day.iso === selectedValue) classes.push('is-selected');
-      if (day.iso === todayValue) classes.push('is-today');
-      if (day.iso === focusedValue) classes.push('is-focused');
+    if (view === 'years') {
+      const pageStart = Number(popover.dataset.yearPageStart);
+      monthLabel.textContent = `${pageStart} – ${pageStart + YEAR_PAGE_SIZE - 1}`;
+      grid.innerHTML = this.renderYearItems(pageStart, selectedValue, min, max);
+    } else if (view === 'months') {
+      monthLabel.textContent = String(year);
+      grid.innerHTML = this.renderMonthItems(year, selectedValue, min, max);
+    } else {
+      const focusedValue = popover.dataset.focusedValue || selectedValue || this.formatISO(new Date());
+      const todayValue = this.formatISO(new Date());
+      const matrix = this.buildMonthMatrix(year, month);
 
-      return `
-        <button type="button" class="${classes.join(' ')}" data-date="${day.iso}" tabindex="-1">
-          ${day.date.getDate()}
-        </button>
-      `;
+      monthLabel.textContent = this.capitalizeFirst(MONTH_FORMATTER.format(new Date(year, month, 1)));
+
+      daysContainer.innerHTML = matrix.map(day => {
+        const classes = ['custom-date-picker__day'];
+        const disabled = !this.isInRange(day.iso, min, max);
+        if (!day.isCurrentMonth) classes.push('is-outside-month');
+        if (day.iso === selectedValue) classes.push('is-selected');
+        if (day.iso === todayValue) classes.push('is-today');
+        if (day.iso === focusedValue) classes.push('is-focused');
+        if (disabled) classes.push('is-disabled');
+
+        return `
+          <button type="button" class="${classes.join(' ')}" data-date="${day.iso}" tabindex="-1"${disabled ? ' disabled' : ''}>
+            ${day.date.getDate()}
+          </button>
+        `;
+      }).join('');
+    }
+
+    this.updateNavState(popover, view, { year, month, min, max });
+
+    if (popover.classList.contains('custom-date-picker__popover--fixed')) {
+      this.positionPopover(picker);
+    }
+  }
+
+  static renderYearItems(pageStart, selectedValue, min, max) {
+    const selectedYear = selectedValue ? Number(selectedValue.slice(0, 4)) : null;
+    const currentYear = new Date().getFullYear();
+    const minYear = min ? Number(min.slice(0, 4)) : null;
+    const maxYear = max ? Number(max.slice(0, 4)) : null;
+
+    return Array.from({ length: YEAR_PAGE_SIZE }, (_, i) => {
+      const y = pageStart + i;
+      const disabled = (minYear !== null && y < minYear) || (maxYear !== null && y > maxYear);
+      const classes = ['custom-date-picker__grid-item'];
+      if (y === selectedYear) classes.push('is-selected');
+      if (y === currentYear) classes.push('is-today');
+      if (disabled) classes.push('is-disabled');
+      return `<button type="button" class="${classes.join(' ')}" data-year="${y}"${disabled ? ' disabled' : ''}>${y}</button>`;
     }).join('');
+  }
+
+  static renderMonthItems(year, selectedValue, min, max) {
+    const selected = this.parseISO(selectedValue);
+    const today = new Date();
+
+    return Array.from({ length: 12 }, (_, m) => {
+      const firstIso = this.formatISO(new Date(year, m, 1));
+      const lastIso = this.formatISO(new Date(year, m + 1, 0));
+      const disabled = (min && lastIso < min) || (max && firstIso > max);
+      const classes = ['custom-date-picker__grid-item'];
+      if (selected && selected.getFullYear() === year && selected.getMonth() === m) classes.push('is-selected');
+      if (today.getFullYear() === year && today.getMonth() === m) classes.push('is-today');
+      if (disabled) classes.push('is-disabled');
+      const label = this.capitalizeFirst(MONTH_SHORT_FORMATTER.format(new Date(year, m, 1)));
+      return `<button type="button" class="${classes.join(' ')}" data-month="${m}"${disabled ? ' disabled' : ''}>${label}</button>`;
+    }).join('');
+  }
+
+  static updateNavState(popover, view, { year, month, min, max }) {
+    const prev = popover.querySelector('.custom-date-picker__nav--prev');
+    const next = popover.querySelector('.custom-date-picker__nav--next');
+    if (!prev || !next) return;
+
+    const minDate = this.parseISO(min);
+    const maxDate = this.parseISO(max);
+    let prevDisabled = false;
+    let nextDisabled = false;
+
+    if (view === 'years') {
+      const pageStart = Number(popover.dataset.yearPageStart);
+      prevDisabled = Boolean(minDate) && pageStart <= minDate.getFullYear();
+      nextDisabled = Boolean(maxDate) && pageStart + YEAR_PAGE_SIZE - 1 >= maxDate.getFullYear();
+    } else if (view === 'months') {
+      prevDisabled = Boolean(minDate) && year <= minDate.getFullYear();
+      nextDisabled = Boolean(maxDate) && year >= maxDate.getFullYear();
+    } else {
+      const current = year * 12 + month;
+      prevDisabled = Boolean(minDate) && current <= minDate.getFullYear() * 12 + minDate.getMonth();
+      nextDisabled = Boolean(maxDate) && current >= maxDate.getFullYear() * 12 + maxDate.getMonth();
+    }
+
+    prev.disabled = prevDisabled;
+    next.disabled = nextDisabled;
   }
 
   static applyValue(input, isoValue) {
@@ -486,6 +744,59 @@ export class CustomDatePicker {
     }
 
     return days;
+  }
+
+  static getRange(picker) {
+    return {
+      min: picker?.dataset?.min || '',
+      max: picker?.dataset?.max || ''
+    };
+  }
+
+  static isInRange(isoValue, min = '', max = '') {
+    if (!isoValue) return false;
+    return (!min || isoValue >= min) && (!max || isoValue <= max);
+  }
+
+  static clampISO(isoValue, min = '', max = '') {
+    if (min && isoValue < min) return min;
+    if (max && isoValue > max) return max;
+    return isoValue;
+  }
+
+  // Seiten im 12er-Raster; am Rand des erlaubten Bereichs wird die Seite bündig an min/max geschoben.
+  static getYearPageStart(year, min = '', max = '') {
+    let start = year - (((year % YEAR_PAGE_SIZE) + YEAR_PAGE_SIZE) % YEAR_PAGE_SIZE);
+    const minYear = min ? Number(min.slice(0, 4)) : null;
+    const maxYear = max ? Number(max.slice(0, 4)) : null;
+    if (maxYear !== null && start + YEAR_PAGE_SIZE - 1 > maxYear) start = maxYear - YEAR_PAGE_SIZE + 1;
+    if (minYear !== null && start < minYear) start = minYear;
+    return start;
+  }
+
+  /**
+   * Getippte Eingabe in ISO umwandeln. Akzeptiert TT.MM.JJJJ, T.M.JJJJ, TTMMJJJJ und JJJJ-MM-TT.
+   * @returns {string} ISO-Datum oder '' bei ungültigem Datum bzw. außerhalb von min/max.
+   */
+  static parseDisplayDate(text, { min = '', max = '' } = {}) {
+    const value = String(text ?? '').trim();
+    let day;
+    let month;
+    let year;
+    let match = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/) || value.match(/^(\d{2})(\d{2})(\d{4})$/);
+    if (match) {
+      [, day, month, year] = match.map(Number);
+    } else if ((match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/))) {
+      [, year, month, day] = match.map(Number);
+    } else {
+      return '';
+    }
+
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return '';
+
+    const iso = this.formatISO(date);
+    return this.isInRange(iso, min, max) ? iso : '';
   }
 
   static parseISO(value) {

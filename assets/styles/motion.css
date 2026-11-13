@@ -50,3 +50,23 @@
   opacity: 0;
   pointer-events: none;
 }
+
+/* Tab-Leisten (tabSlider.js): ein gleitender Balken statt des Strichs am aktiven Tab. */
+/* data-tab-slider="on" setzt erst das JS, bis dahin bleibt der ::after-Strich aus components.css. */
+/* Kein position hier: sticky Leisten (Sourcing, Video-Browser) behalten ihr sticky. */
+
+[data-tab-slider="on"] .tab-button.active::after,
+[data-tab-slider="on"] .drawer-tab-btn.active::after {
+  display: none;
+}
+
+[data-tab-slider-bar] {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: var(--tab-indicator-height);
+  border-radius: var(--tab-indicator-radius);
+  background: var(--tab-indicator-color);
+  pointer-events: none;
+}

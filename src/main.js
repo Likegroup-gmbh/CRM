@@ -68,6 +68,7 @@ import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
 import { toastSystem } from './core/ToastSystem.js';
 import { initDrawerMotion } from './core/animation/drawer.js';
+import { initTabSlider } from './core/animation/tabSlider.js';
 import { installDocumentLinkInterceptor } from './core/DocumentUrlHelper.js';
 import { creatorList, managementCreatorList } from './modules/creator/CreatorList.js';
 import { creatorListPage } from './modules/creator/CreatorListPage.js';
@@ -384,6 +385,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Slide-Effekt fuer alle Drawer (.drawer-panel), einmal zentral
   initDrawerMotion();
+  // Gleitender Unterstrich und Einblenden des Inhalts fuer alle Tab-Leisten, einmal zentral
+  initTabSlider();
 
   // Globale DOM-Variablen setzen
   window.appRoot = document.getElementById('app-root');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
+import { renderCell, renderZeile } from './sourcingZelleKit.js';
 import { renderItemsTable, renderAddSection } from '../modules/creator-auswahl/castingTableRender.js';
 import {
   berechnePreisAusViews,
@@ -8,11 +8,6 @@ import {
   DEFAULT_TKP
 } from '../modules/creator-auswahl/castingPreisZellen.js';
 
-function renderCell(columnClass, item, ctx = {}) {
-  const html = renderItemRow({ isKunde: false, hiddenColumns: [], ...ctx }, { id: 'i1', ...item }, 0);
-  const doc = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
-  return doc.querySelector(`td.${columnClass}`);
-}
 
 function tabelle(ctx = {}) {
   const html = renderItemsTable({
@@ -345,14 +340,14 @@ describe('Sourcing – TikTok-Preise (manuell)', () => {
     expect(story.querySelector('input[data-field="preis_tiktok_story"]').value).toBe('ca. 300');
   });
 
-  it('steht direkt hinter den TikTok-Followern und vor dem Gesamtpreis', () => {
+  it('steht als gemeinsame Spalte Preis Story direkt vor dem Gesamtpreis', () => {
     const kopf = Array.from(tabelle().querySelectorAll('thead th'))
       .map(th => Array.from(th.classList).find(c => c.startsWith('cp-col-')))
       .filter(Boolean);
 
-    expect(kopf[kopf.indexOf('cp-col-follower-tt') + 1]).toBe('cp-col-preis-tt-video');
-    expect(kopf[kopf.indexOf('cp-col-preis-tt-video') + 1]).toBe('cp-col-preis-tt-story');
-    expect(kopf[kopf.indexOf('cp-col-preis-tt-story') + 1]).toBe('cp-col-pricing');
+    expect(kopf[kopf.indexOf('cp-col-story-preis') + 1]).toBe('cp-col-pricing');
+    expect(kopf).not.toContain('cp-col-preis-tt-video');
+    expect(kopf).not.toContain('cp-col-preis-tt-story');
   });
 
   it('zeigt Kunden die Werte nur lesend', () => {
@@ -364,10 +359,19 @@ describe('Sourcing – TikTok-Preise (manuell)', () => {
     expect(story.querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
   });
 
-  it('blendet die Spalten aus, wenn sie versteckt sind', () => {
-    const video = renderCell('cp-col-preis-tt-video', {}, { hiddenColumns: ['cp-col-preis-tt-video'] });
+  it('blendet nur die TikTok-Zeile aus, wenn ihr Schluessel versteckt ist', () => {
+    const doc = renderZeile({ hiddenColumns: ['cp-col-preis-tt-video'] });
+    const td = doc.querySelector('td.cp-col-preis-video');
 
-    expect(video.getAttribute('style')).toContain('display:none');
+    expect(td.getAttribute('style') || '').not.toContain('display:none');
+    expect(td.querySelector('[data-plattform="instagram"] input[data-field="preis_reels"]')).not.toBeNull();
+    expect(td.querySelector('input[data-field="preis_tiktok_video"]')).toBeNull();
+  });
+
+  it('blendet die Spalte aus, wenn beide Plattformzeilen versteckt sind', () => {
+    const doc = renderZeile({ hiddenColumns: ['cp-col-preis-reels', 'cp-col-preis-tt-video'] });
+
+    expect(doc.querySelector('td.cp-col-preis-video').getAttribute('style')).toContain('display:none');
   });
 });
 

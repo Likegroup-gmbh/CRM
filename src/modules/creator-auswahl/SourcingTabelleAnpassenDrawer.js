@@ -6,6 +6,7 @@
 
 import {
   DEAKTIVIERTE_SPALTEN,
+  PLATTFORM_ZEILEN,
   SOURCING_SPALTEN,
   SOURCING_SPALTEN_LABELS
 } from './sourcingSpaltenKatalog.js';
@@ -161,12 +162,17 @@ export class SourcingTabelleAnpassenDrawer {
     // oft nicht, obwohl der Griff den Grab-Cursor zeigt.
     const rows = this.columns.map(col => {
       const isVisible = !this.hiddenColumns.includes(col.className);
+      // Gemeinsame Spalte, deren Plattformzeilen das Briefing alle ausblendet:
+      // der Schalter allein macht sie nicht sichtbar
+      const zeilen = PLATTFORM_ZEILEN[col.className];
+      const vomBriefingLeer = !!zeilen && zeilen.every(z => this.hiddenColumns.includes(z.key));
+      const nameTitle = vomBriefingLeer ? ' title="Das Briefing blendet alle Plattformen dieser Spalte aus"' : '';
       return `
         <div class="sourcing-spalten-item" data-column="${escapeHtml(col.className)}" draggable="false">
           <span class="sourcing-spalten-griff" data-action="drag-spalte" role="button" tabindex="0" title="Reihenfolge ändern" aria-label="Reihenfolge von ${escapeHtml(col.label)} ändern">
             ${icon('bars-3', { className: 'icon-16' })}
           </span>
-          <span class="sourcing-spalten-name">${escapeHtml(col.label)}</span>
+          <span class="sourcing-spalten-name"${nameTitle}>${escapeHtml(col.label)}</span>
           <label class="toggle-switch">
             <input
               type="checkbox"
@@ -192,6 +198,9 @@ export class SourcingTabelleAnpassenDrawer {
       </div>
       <p class="drawer-info-text">
         <strong>Hinweis:</strong> Die Reihenfolge ändern Sie am Griff. „Name“ und „Aktionen“ bleiben fest und können nicht ausgeblendet werden.
+      </p>
+      <p class="drawer-info-text">
+        Link, Follower, Preis Video und Preis Story zeigen Instagram und TikTok untereinander. Welche Plattformen vorkommen, folgt dem Briefing der Liste. Der Schalter blendet die ganze Spalte ein oder aus.
       </p>
       <div class="drawer-footer">
         <button type="button" class="mdc-btn" id="btn-close-sourcing-tabelle-anpassen-drawer">

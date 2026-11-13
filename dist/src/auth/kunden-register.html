@@ -7,11 +7,14 @@
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <script type="module" crossorigin src="/assets/kundenRegister-CJf0UUhH.js"></script>
+  <script type="module" crossorigin src="/assets/kundenRegister-CChs0CDK.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
   <link rel="modulepreload" crossorigin href="/assets/config-DuKnp__J.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-B71cSD34.js">
-  <link rel="stylesheet" crossorigin href="/assets/components-CqwGcR60.css">
+  <link rel="modulepreload" crossorigin href="/assets/core-RtgtRPof.js">
+  <link rel="modulepreload" crossorigin href="/assets/auth-BH2lUvTr.js">
+  <link rel="stylesheet" crossorigin href="/assets/buttons-B0lQF3L3.css">
+  <link rel="stylesheet" crossorigin href="/assets/components-BVPrdhg3.css">
+  <link rel="stylesheet" crossorigin href="/assets/icons-B3MT8Jt5.css">
 </head>
 <body style="margin: 0; padding: 0;">
   
@@ -36,14 +39,19 @@
           </div>
           <div class="form-box">
             <label class="label" for="geburtsdatum">Geburtsdatum *</label>
-            <input id="geburtsdatum" class="input" type="date" required />
+            <div id="geburtsdatum-host"></div>
           </div>
           <div class="form-box">
             <label class="label" for="password">Passwort</label>
-            <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
+            <div class="password-input-container">
+              <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
+              <button type="button" class="password-toggle" id="togglePassword" aria-label="Passwort anzeigen">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" aria-hidden="true"></svg>
+              </button>
+            </div>
           </div>
           <div class="form-box">
-            <button id="btn-submit" type="submit" class="btn primary-btn" style="width: 100%;">Konto erstellen</button>
+            <button id="btn-submit" type="submit" class="mdc-btn">Konto erstellen</button>
           </div>
           <p class="login-consent">
             Mit der Registrierung akzeptierst du unsere

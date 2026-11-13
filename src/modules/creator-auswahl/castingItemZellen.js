@@ -78,21 +78,16 @@ export function renderKundenFeedbackCell(ctx, item) {
  * Anzeige (5,5K / 1,39M). Beim Fokussieren blendet CSS das Overlay aus, sodass
  * immer die exakte Zahl bearbeitet wird und beim Speichern nichts gerundet wird.
  */
-export function renderFollowerCell(ctx, item, columnClass, field, hide) {
+export function renderFollowerInhalt(ctx, item, field) {
   const value = item[field];
   const compact = formatCompactNumber(value);
   const exact = formatExactNumber(value);
 
   if (!rowCanWrite(ctx, item)) {
-    return `
-      <td class="${columnClass}" style="${hide(columnClass)}">
-        <div class="cell-number__static" title="${exact}">${compact || '-'}</div>
-      </td>
-    `;
+    return `<div class="cell-number__static" title="${exact}">${compact || '-'}</div>`;
   }
 
   return `
-    <td class="${columnClass}" style="${hide(columnClass)}">
       <div class="cell-number">
         <input type="text"
                inputmode="numeric"
@@ -103,7 +98,6 @@ export function renderFollowerCell(ctx, item, columnClass, field, hide) {
                aria-label="${escapeHtml(FOLLOWER_LABELS[field] || field)}">
         <span class="cell-number__display" data-number-display title="${exact}">${compact || '–'}</span>
       </div>
-    </td>
   `;
 }
 
@@ -200,19 +194,17 @@ export function renderDetailOpen(item) {
   return `<button type="button" class="sourcing-avatar__open" data-open-casting-detail="${escapeHtml(item.id)}" aria-label="Details" title="Details">${icon('eye')}</button>`;
 }
 
-export function renderEngagementCell(item, hide) {
+export function renderEngagementInhalt(item) {
   const { rate, clean, showClean } = engagementDesEintrags(item);
   const text = formatEngagement(rate);
   const zweit = showClean
     ? `<div class="cpm-auto-reach cpm-auto-reach--clean">${formatEngagement(clean)} ohne Trials</div>`
     : '';
   return `
-    <td class="cp-col-engagement-ig" style="${hide('cp-col-engagement-ig')}">
       <div class="cell-text-readonly cpm-auto-value">
         <div>${text || '–'}</div>
         ${zweit}
       </div>
-    </td>
   `;
 }
 

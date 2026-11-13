@@ -9,7 +9,8 @@ import { migrateHiddenColumns } from './sourcingSpaltenSichtbarkeit.js';
 import {
   SOURCING_ANKER_SPALTEN,
   SOURCING_SPALTEN_LABELS,
-  DEAKTIVIERTE_SPALTEN
+  DEAKTIVIERTE_SPALTEN,
+  ANKER_ALIASE
 } from './sourcingSpaltenKatalog.js';
 import { renderAddSection, renderItemsTable, updateStickyHeights } from './castingTableRender.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
@@ -62,7 +63,8 @@ export class CreatorAuswahlDetail {
       parentTable: 'creator_auswahl',
       anchorColumns: SOURCING_ANKER_SPALTEN,
       anchorLabels: SOURCING_SPALTEN_LABELS,
-      disabledAnchors: DEAKTIVIERTE_SPALTEN
+      disabledAnchors: DEAKTIVIERTE_SPALTEN,
+      anchorAliases: ANKER_ALIASE
     });
     this._customHeaderDragCleanup = null;
     this._customHeaderResizeCleanup = null;

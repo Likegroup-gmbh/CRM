@@ -40,16 +40,10 @@ export function setDetailTab(vb, tab, { animate = true, focus = false } = {}) {
     if (on) panel = p;
   });
 
-  if (list) vb.motion?.tabIndicator(list, { animate: animate && previous !== tab });
+  // Der Unterstrich gleitet über core/animation/tabSlider.js (beobachtet .active / aria-selected)
   if (animate && panel && previous !== tab) vb.motion?.tabPanelIn(panel);
   if (focus) list?.querySelector(`[data-vb-tab="${tab}"]`)?.focus();
   return true;
-}
-
-/** Indikator ohne Animation an den aktiven Tab setzen (nach dem Rendern und bei Resize). */
-export function syncTabIndicator(vb) {
-  const list = vb.detailInner?.querySelector('[data-vb-tablist]');
-  if (list) vb.motion?.tabIndicator(list, { animate: false });
 }
 
 /** Pfeiltasten, Pos1 und Ende innerhalb der Tab-Leiste (Roving Tabindex, Aktivierung beim Fokus). */

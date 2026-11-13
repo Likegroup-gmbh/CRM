@@ -89,7 +89,7 @@ export function renderPageShell({ isAdmin, canEdit, showSummary, searchQuery, st
     </div>
 
     <div class="tab-navigation rechnung-type-tabs">${typeTabsHtml}</div>
-    <div class="tab-navigation rechnung-status-tabs">${statusTabsHtml}</div>
+    <div class="tab-navigation tab-navigation--liste rechnung-status-tabs">${statusTabsHtml}</div>
     </div>
 
     <div class="kr-scroll-body">

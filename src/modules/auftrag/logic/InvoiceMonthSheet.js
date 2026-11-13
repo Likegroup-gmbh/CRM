@@ -51,7 +51,7 @@ export function renderInvoiceMonthSheet({ rootId, yearSelectId, year, month, ext
   })).join('');
 
   return `
-    <div class="tab-navigation ${rootId.replace(/-/g, '-')}" id="${rootId}">
+    <div class="tab-navigation tab-navigation--liste monatsblatt-tabs" id="${rootId}">
       <select id="${yearSelectId}" class="form-select" aria-label="Jahr">
         ${yearOptions.join('')}
       </select>

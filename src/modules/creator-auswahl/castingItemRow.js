@@ -4,18 +4,22 @@
 import { CREATOR_TYP_SELECT_OPTIONS } from './creatorTypeOptions.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { escapeHtml } from '../../core/format.js';
-import { socialHref } from '../../core/format/socialLink.js';
-import { renderSourcingIgCell } from './sourcingIgCell.js';
 import { renderMatchingCell } from './sourcingMatching.js';
 import { castingUmsetzungGate } from './sourcingStatusOptions.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { isColumnVisibleForCustomer, getStickyClasses } from './sourcingSpaltenSichtbarkeit.js';
 import { hatEigeneReihenfolge, ordneSourcingZeileHtml, spaltenfolgeFuerKontext } from './sourcingSpaltenfolge.js';
-import { EXTERNAL_LINK_ICON, INSTAGRAM_ICON, TIKTOK_ICON } from './sourcingIcons.js';
+import {
+  renderPlattformZelle,
+  renderLinkInstagramInhalt,
+  renderLinkTiktokInhalt,
+  renderReichweiteStoryInhalt
+} from './castingPlattformZellen.js';
 import {
   rowCanWrite,
   renderPreisFreitextCell,
-  renderAutoCpmCell,
+  renderPreisFreitextInhalt,
+  renderAutoCpmInhalt,
   beschreibeAusreisser
 } from './castingPreisZellen.js';
 import { tauschMenuItemHtml } from '../creator-tausch/creatorTauschUi.js';
@@ -23,11 +27,11 @@ import { konzeptEinholenMenuItemHtml } from '../einladung/kundeEinladen.js';
 import {
   renderSourcingStatusCell,
   renderKundenFeedbackCell,
-  renderFollowerCell,
+  renderFollowerInhalt,
   renderKontaktCell,
   renderBildCell,
   renderDetailOpen,
-  renderEngagementCell,
+  renderEngagementInhalt,
   herkunftZeile
 } from './castingItemZellen.js';
 
@@ -123,51 +127,42 @@ export function renderItemRow(ctx, item, index) {
       ${customAt('cp-col-mail')}
       ${renderKontaktCell(ctx, item, 'cp-col-telefon', 'telefon', hide)}
       ${customAt('cp-col-telefon')}
-      <td class="cp-col-link-ig" style="${hide('cp-col-link-ig')}">
-        ${canWrite ? renderSourcingIgCell(item) : `
-          <div class="links-compact-cell links-compact-cell--readonly">
-            ${socialHref(item.link_instagram, 'instagram') ? `<a href="${escapeHtml(socialHref(item.link_instagram, 'instagram'))}" target="_blank" rel="noopener noreferrer" class="link-icon-btn" title="Instagram">${INSTAGRAM_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
-          </div>
-        `}
-      </td>
-      ${customAt('cp-col-link-ig')}
-      ${renderFollowerCell(ctx, item, 'cp-col-follower-ig', 'follower_instagram', hide)}
-      ${customAt('cp-col-follower-ig')}
-      ${renderEngagementCell(item, hide)}
+      ${renderPlattformZelle(ctx, 'cp-col-link', {
+        instagram: renderLinkInstagramInhalt(item, canWrite),
+        tiktok: renderLinkTiktokInhalt(item, canWrite)
+      }, { hide, mitIcon: false })}
+      ${customAt('cp-col-link')}
+      ${renderPlattformZelle(ctx, 'cp-col-follower', {
+        instagram: renderFollowerInhalt(ctx, item, 'follower_instagram'),
+        tiktok: renderFollowerInhalt(ctx, item, 'follower_tiktok')
+      }, { hide })}
+      ${customAt('cp-col-follower')}
+      ${renderPlattformZelle(ctx, 'cp-col-engagement-ig', {
+        instagram: renderEngagementInhalt(item)
+      }, { hide })}
       ${customAt('cp-col-engagement-ig')}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.ig_views_8, hide, true, beschreibeAusreisser(item, 8), item.ig_stats?.ohne_trials?.views_8)}
+      ${renderPlattformZelle(ctx, 'cp-col-cpm-ig-8', {
+        instagram: renderAutoCpmInhalt(ctx, item, item.ig_views_8, true, beschreibeAusreisser(item, 8), item.ig_stats?.ohne_trials?.views_8)
+      }, { hide, klassen: 'cell-textarea' })}
       ${customAt('cp-col-cpm-ig-8')}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.ig_views_30, hide, true, beschreibeAusreisser(item, 30), item.ig_stats?.ohne_trials?.views_30)}
+      ${renderPlattformZelle(ctx, 'cp-col-cpm-ig-30', {
+        instagram: renderAutoCpmInhalt(ctx, item, item.ig_views_30, true, beschreibeAusreisser(item, 30), item.ig_stats?.ohne_trials?.views_30)
+      }, { hide, klassen: 'cell-textarea' })}
       ${customAt('cp-col-cpm-ig-30')}
-      ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-reels', 'preis_reels', hide)}
-      ${customAt('cp-col-preis-reels')}
-      <td class="cell-textarea cp-col-reichweite-story" style="${hide('cp-col-reichweite-story')}">
-        ${canWrite ? `
-          <input type="text" class="strategie-textarea" data-field="reichweite_story" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_story || ''}">
-        ` : `<div class="cell-text-readonly">${item.reichweite_story || '-'}</div>`}
-      </td>
+      ${renderPlattformZelle(ctx, 'cp-col-preis-video', {
+        instagram: renderPreisFreitextInhalt(ctx, item, 'preis_reels'),
+        tiktok: renderPreisFreitextInhalt(ctx, item, 'preis_tiktok_video')
+      }, { hide, klassen: 'cell-textarea' })}
+      ${customAt('cp-col-preis-video')}
+      ${renderPlattformZelle(ctx, 'cp-col-reichweite-story', {
+        instagram: renderReichweiteStoryInhalt(item, canWrite)
+      }, { hide, klassen: 'cell-textarea' })}
       ${customAt('cp-col-reichweite-story')}
-      ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-story', 'preis_story', hide)}
-      ${customAt('cp-col-preis-story')}
-      <td class="cp-col-link-tt" style="${hide('cp-col-link-tt')}">
-        ${canWrite ? `
-          <div class="links-compact-row">
-            <input type="text" class="links-compact-input" data-field="link_tiktok" data-item-id="${item.id}" placeholder="TT Link..." value="${item.link_tiktok || ''}">
-            ${socialHref(item.link_tiktok, 'tiktok') ? `<a href="${escapeHtml(socialHref(item.link_tiktok, 'tiktok'))}" target="_blank" rel="noopener noreferrer" class="link-icon-btn" title="${escapeHtml(item.link_tiktok)}">${EXTERNAL_LINK_ICON}</a>` : ''}
-          </div>
-        ` : `
-          <div class="links-compact-cell links-compact-cell--readonly">
-            ${socialHref(item.link_tiktok, 'tiktok') ? `<a href="${escapeHtml(socialHref(item.link_tiktok, 'tiktok'))}" target="_blank" rel="noopener noreferrer" class="link-icon-btn" title="TikTok">${TIKTOK_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
-          </div>
-        `}
-      </td>
-      ${customAt('cp-col-link-tt')}
-      ${renderFollowerCell(ctx, item, 'cp-col-follower-tt', 'follower_tiktok', hide)}
-      ${customAt('cp-col-follower-tt')}
-      ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-tt-video', 'preis_tiktok_video', hide)}
-      ${customAt('cp-col-preis-tt-video')}
-      ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-tt-story', 'preis_tiktok_story', hide)}
-      ${customAt('cp-col-preis-tt-story')}
+      ${renderPlattformZelle(ctx, 'cp-col-story-preis', {
+        instagram: renderPreisFreitextInhalt(ctx, item, 'preis_story'),
+        tiktok: renderPreisFreitextInhalt(ctx, item, 'preis_tiktok_story')
+      }, { hide, klassen: 'cell-textarea' })}
+      ${customAt('cp-col-story-preis')}
       ${renderPreisFreitextCell(ctx, item, 'cp-col-pricing', 'pricing', hide)}
       ${customAt('cp-col-pricing')}
       <td class="cell-textarea cp-col-nutzungsrechte" style="${hide('cp-col-nutzungsrechte')}">

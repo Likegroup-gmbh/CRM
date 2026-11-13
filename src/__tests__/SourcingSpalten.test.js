@@ -79,26 +79,34 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     expect(spalten[spalten.indexOf('cp-col-vk') + 1]).toBe('cp-col-feedback');
   });
 
-  it('buendelt erst den ganzen Instagram-Block, dann TikTok', () => {
+  it('fasst Instagram und TikTok zu acht gemeinsamen Spalten zusammen', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
-    const ab = spalten.indexOf('cp-col-link-ig');
+    const ab = spalten.indexOf('cp-col-link');
 
-    expect(spalten.slice(ab, ab + 10)).toEqual([
-      'cp-col-link-ig', 'cp-col-follower-ig', 'cp-col-engagement-ig',
-      'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-reels',
-      'cp-col-reichweite-story', 'cp-col-preis-story',
-      'cp-col-link-tt', 'cp-col-follower-tt'
+    expect(spalten.slice(ab, ab + 8)).toEqual([
+      'cp-col-link', 'cp-col-follower', 'cp-col-engagement-ig',
+      'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-video',
+      'cp-col-reichweite-story', 'cp-col-story-preis'
     ]);
   });
 
-  it('setzt die TikTok-Preise hinter die TikTok-Follower, dann Gesamtpreis, Nutzungsrechte und Garantie', () => {
+  it('setzt hinter Preis Story Gesamtpreis, Nutzungsrechte und Garantie', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
-    const ab = spalten.indexOf('cp-col-follower-tt');
+    const ab = spalten.indexOf('cp-col-story-preis');
 
-    expect(spalten.slice(ab, ab + 6)).toEqual([
-      'cp-col-follower-tt', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story',
-      'cp-col-pricing', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie'
+    expect(spalten.slice(ab, ab + 4)).toEqual([
+      'cp-col-story-preis', 'cp-col-pricing', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie'
     ]);
+  });
+
+  it('kennt die alten Plattform-Spalten nicht mehr als eigene Zellen', () => {
+    const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
+
+    for (const alt of ['cp-col-link-ig', 'cp-col-link-tt', 'cp-col-follower-ig', 'cp-col-follower-tt',
+      'cp-col-preis-reels', 'cp-col-preis-story', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story']) {
+      expect(spalten, alt).not.toContain(alt);
+      expect(SOURCING_SPALTEN, alt).not.toContain(alt);
+    }
   });
 
   it('kennt die manuellen Reichweite-Spalten nicht mehr', () => {
@@ -157,11 +165,20 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     expect(SOURCING_SPALTEN).not.toContain('cp-col-gesamtpreis');
   });
 
-  it('schreibt Reels in die Preis-Ueberschriften, damit der Bezug klar ist', () => {
+  it('nennt die Preis-Ueberschriften neutral mit Videos statt Reels', () => {
     const doc = tableDoc([{ id: 'i1' }]);
 
-    expect(doc.querySelector('thead th.cp-col-cpm-ig-8').textContent.trim()).toContain('Preis 8 Reels');
-    expect(doc.querySelector('thead th.cp-col-cpm-ig-30').textContent.trim()).toContain('Preis 30 Reels');
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-8').textContent.trim()).toBe('Preis 8 Videos');
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-30').textContent.trim()).toBe('Preis 30 Videos');
+  });
+
+  it('traegt im Kopf weder Plattform-Icons noch Farbe', () => {
+    const kopf = tableDoc([{ id: 'i1' }]);
+
+    for (const col of ['cp-col-link', 'cp-col-follower', 'cp-col-engagement-ig', 'cp-col-cpm-ig-8',
+      'cp-col-cpm-ig-30', 'cp-col-preis-video', 'cp-col-reichweite-story', 'cp-col-story-preis']) {
+      expect(kopf.querySelector(`thead th.${col} svg`), col).toBeNull();
+    }
   });
 
   it('erklaert im Kopf-Tooltip die Werbe- und die Ausreisser-Regel', () => {
@@ -193,21 +210,11 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     expect(SOURCING_SPALTEN).not.toContain('cp-col-check');
   });
 
-  it('benennt die neuen Preis-Spalten', () => {
+  it('benennt die gemeinsamen Preis-Spalten', () => {
     const doc = tableDoc([{ id: 'i1' }]);
 
-    expect(doc.querySelector('thead th.cp-col-preis-reels').textContent.trim())
-      .toContain('Preis Reels');
-    expect(doc.querySelector('thead th.cp-col-preis-story').textContent.trim())
-      .toContain('Preis Story');
-    const ttVideo = doc.querySelector('thead th.cp-col-preis-tt-video');
-    const ttStory = doc.querySelector('thead th.cp-col-preis-tt-story');
-
-    expect(ttVideo.textContent.trim()).toContain('Preis Video');
-    expect(ttStory.textContent.trim()).toContain('Preis Story');
-    // Der TikTok-Bezug steht als Icon im Kopf
-    expect(ttVideo.querySelector('svg')).not.toBeNull();
-    expect(ttStory.querySelector('svg')).not.toBeNull();
+    expect(doc.querySelector('thead th.cp-col-preis-video').textContent.trim()).toBe('Preis Video');
+    expect(doc.querySelector('thead th.cp-col-story-preis').textContent.trim()).toBe('Preis Story');
   });
 
   it('benennt die Matching-Spalte', () => {
@@ -234,9 +241,9 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     const doc = tableDoc([{ id: 'i1' }]);
 
     expect(doc.querySelector('thead th.cp-col-reichweite-story').textContent.trim())
-      .toContain('Reichweite Story');
-    expect(doc.querySelector('thead th.cp-col-preis-story').textContent.trim())
-      .toContain('Preis Story');
+      .toBe('Reichweite Story');
+    expect(doc.querySelector('thead th.cp-col-story-preis').textContent.trim())
+      .toBe('Preis Story');
   });
 });
 
@@ -438,14 +445,14 @@ describe('Sourcing – TikTok-Spalten', () => {
     for (const col of TIKTOK_SPALTEN) {
       expect(isColumnVisibleForCustomer(col, false, TIKTOK_SPALTEN)).toBe(false);
     }
-    expect(isColumnVisibleForCustomer('cp-col-link-ig', false, TIKTOK_SPALTEN)).toBe(true);
+    expect(isColumnVisibleForCustomer('cp-col-link', false, TIKTOK_SPALTEN)).toBe(true);
   });
 
-  it('reduziert die Spaltenanzahl um vier', () => {
+  it('laesst die Spaltenanzahl gleich, weil nur die TikTok-Zeilen wegfallen', () => {
     const mit = getVisibleColumnCount(false, []);
     const ohne = getVisibleColumnCount(false, TIKTOK_SPALTEN);
 
-    expect(mit - ohne).toBe(4);
+    expect(mit).toBe(ohne);
   });
 });
 

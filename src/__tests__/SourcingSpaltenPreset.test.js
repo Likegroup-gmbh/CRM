@@ -9,7 +9,7 @@ import {
   PRESET_SPALTEN,
   STANDARD_VERSTECKTE_SPALTEN
 } from '../modules/creator-auswahl/sourcingSpaltenPreset.js';
-import { SOURCING_SPALTEN } from '../modules/creator-auswahl/sourcingSpaltenKatalog.js';
+import { PLATTFORM_ZEILEN, SOURCING_SPALTEN } from '../modules/creator-auswahl/sourcingSpaltenKatalog.js';
 
 /** Alle Spalten, die das Preset ueberhaupt anfassen kann */
 const STEUERBAR = [...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...TT_SPALTEN];
@@ -117,8 +117,10 @@ describe('Sourcing-Spalten-Preset – Randfaelle', () => {
       berechneHiddenColumns({ liste_typ: 'influencer', plattformen: 'instagram', ig_formate: 'story' })
     ].flat();
 
+    // Die Plattform-Schluessel stehen fuer Plattformzeilen gemeinsamer Spalten
+    const zeilenSchluessel = Object.values(PLATTFORM_ZEILEN).flat().map(zeile => zeile.key);
     for (const col of alle) {
-      expect(SOURCING_SPALTEN).toContain(col);
+      expect([...SOURCING_SPALTEN, ...zeilenSchluessel]).toContain(col);
     }
   });
 });

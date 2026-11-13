@@ -12,11 +12,12 @@
   overflow: hidden;
 }
 
+/* Die Linie zeichnet .tab-navigation (inset), ein Border läge unter dem Aktiv-Balken */
 .skripte-editor-fb-head.tab-navigation {
+  --tab-divider-color: var(--border-primary);
   align-items: stretch;
   padding: var(--space-xs) var(--space-md);
-  border: none;
-  border-bottom: var(--border-xs) solid var(--border-primary);
+  border-bottom: none;
 }
 
 .skripte-editor-fb-log {

@@ -151,8 +151,6 @@
 
 .calendar-sidebar-tabs {
   flex-direction: row;
-  border: none;
-  border-bottom: 1px solid var(--border-primary);
   overflow-x: visible;
   gap: 0;
   padding: 0;
@@ -182,11 +180,6 @@
 .calendar-sidebar-tabs .tab-button.active {
   color: var(--gray-900);
   background: transparent;
-  border-bottom: 1px solid var(--gray-900);
-}
-
-.calendar-sidebar-tabs .tab-button.active::after {
-  display: none;
 }
 
 /* ===== CALENDAR MAIN ===== */

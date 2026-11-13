@@ -27,6 +27,11 @@ export function killRunning(el) {
   runningTimelines.delete(el);
 }
 
+/** Laeuft am Element eine per trackRunning gemerkte Timeline (auch vor ihrem ersten Frame)? */
+export function isRunning(el) {
+  return runningTimelines.has(el);
+}
+
 /** Merkt die Timeline am Element und raeumt sich nach dem Ende selbst weg. */
 export function trackRunning(el, timeline) {
   runningTimelines.set(el, timeline);

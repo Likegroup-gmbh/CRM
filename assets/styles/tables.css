@@ -1401,6 +1401,18 @@ thead {
   width: calc(var(--space-xxl) * 2.5);
 }
 
+/* Creator-Profilbild vor dem Namen: der 44px-Avatar (table-avatar--sourcing) gibt die Breite vor */
+.strategie-items-table .col-creator-bild {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.strategie-items-table td.col-creator-bild {
+  vertical-align: middle;
+  padding: var(--space-xs) var(--space-sm);
+}
+
 .strategie-items-table .col-platform {
   width: var(--space-xxl);
   text-align: center;
@@ -1414,7 +1426,7 @@ thead {
 
 .strategie-items-table .col-prio {
   width: 11em;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .strategie-items-table td.col-prio {
@@ -1425,7 +1437,7 @@ thead {
 
 .strategie-items-table .col-funnel {
   width: 11em;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .strategie-items-table td.col-funnel {
@@ -1436,7 +1448,7 @@ thead {
 
 .strategie-items-table .col-dauer {
   width: 9em;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .strategie-items-table td.col-dauer {
@@ -1776,7 +1788,8 @@ thead {
 /* Umgesetzt (grün wie rechnung-row-paid) */
 
 .strategie-items-table .strategie-item-umgesetzt {
-  background-color: var(--green-100);
+  background-color: var(--success-row);
+  border-left: 3px solid var(--green-500);
 }
 
 .strategie-items-table .strategie-item-umgesetzt td {
@@ -1784,7 +1797,7 @@ thead {
 }
 
 .strategie-items-table tbody tr.item-row.strategie-item-umgesetzt:hover {
-  background-color: var(--green-50);
+  background-color: var(--success-row);
 }
 
 /* Creator-Spalte */
@@ -1792,6 +1805,24 @@ thead {
 .strategie-items-table .col-creator,
 .strategie-items-table .col-produkt {
   min-width: calc(var(--space-xxl) * 3);
+}
+
+/* Creator und Produkt mittig in der Zeile, wie Persona; Status auch horizontal zentriert */
+
+.strategie-items-table td.col-creator,
+.strategie-items-table td.col-produkt {
+  vertical-align: middle;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.strategie-items-table td.col-creator .creator-cell,
+.strategie-items-table td.col-produkt .creator-cell {
+  align-items: center;
+  justify-content: center;
+}
+
+.strategie-items-table .col-status {
+  text-align: center;
 }
 
 /* Umgesetzt-Spalte */
@@ -2114,13 +2145,15 @@ thead {
 .creator-pool-table td.cp-col-location,
 .creator-pool-table td.cp-col-mail,
 .creator-pool-table td.cp-col-telefon,
+.creator-pool-table td.cp-col-link,
+.creator-pool-table td.cp-col-engagement-ig,
 .creator-pool-table td.cp-col-reichweite-story,
-.creator-pool-table td.cp-col-preis-story,
+.creator-pool-table td.cp-col-story-preis,
 .creator-pool-table td.cp-col-reichweite-garantie,
 .creator-pool-table td.cp-col-pricing,
 .creator-pool-table td.cp-col-cpm-ig-8,
 .creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-preis-reels,
+.creator-pool-table td.cp-col-preis-video,
 .creator-pool-table td.cp-col-nutzungsrechte,
 .creator-pool-table td.cp-col-ek,
 .creator-pool-table td.cp-col-vk {
@@ -2132,8 +2165,7 @@ thead {
   min-width: 150px;
 }
 
-.creator-pool-table .cp-col-follower-ig,
-.creator-pool-table .cp-col-follower-tt {
+.creator-pool-table .cp-col-follower {
   width: 92px;
   min-width: 92px;
   text-align: center;
@@ -2168,9 +2200,85 @@ thead {
   max-width: 342px;
 }
 
+/* Wie die Plattform-Zellen: Zelle ohne Padding, das Feld fuellt sie komplett.
+   height: 1px gibt min-height: 100% im Feld eine Bezugshoehe, die Zeile waechst
+   weiter nach dem hoechsten Inhalt (Bild, gestapelte Plattformzeilen). */
+
 .creator-pool-table td.cp-col-notiz {
   white-space: normal;
   vertical-align: top;
+  height: 1px;
+  padding: 0;
+}
+
+.creator-pool-table td.cp-col-notiz .strategie-textarea {
+  display: block;
+  min-height: max(100%, 3.9em);
+}
+
+/* Gleiches Prinzip fuer die uebrigen Freitext-Spalten: ganze Zelle ist das Feld.
+   :is() haelt die Spaltenliste an einer Stelle; "tbody" hebt die Spezifitaet
+   ueber die Einzelregeln in forms.css (Feedback, Euro-Feld). */
+
+.creator-pool-table tbody td:is(.cp-col-location, .cp-col-telefon, .cp-col-pricing, .cp-col-nutzungsrechte, .cp-col-reichweite-garantie, .cp-col-feedback, .cp-col-ek, .cp-col-vk) {
+  height: 1px;
+  padding: 0;
+}
+
+.creator-pool-table tbody td:is(.cp-col-location, .cp-col-nutzungsrechte, .cp-col-reichweite-garantie, .cp-col-feedback) > .strategie-textarea {
+  display: block;
+  min-height: max(100%, 3.9em);
+}
+
+/* Telefon: Feld fuellt die Zelle, der Anruf-Link sitzt rechts daneben */
+
+.creator-pool-table tbody td.cp-col-telefon > .links-compact-row {
+  height: 100%;
+  gap: 0;
+}
+
+.creator-pool-table tbody td.cp-col-telefon .links-compact-input {
+  align-self: stretch;
+  border-radius: 0;
+  padding: 0 var(--space-xs);
+}
+
+/* Preisfelder: Betrag rechts, Euro-Zeichen als Overlay, Feld = ganze Zelle */
+
+.creator-pool-table tbody td:is(.cp-col-pricing, .cp-col-ek, .cp-col-vk) > .cell-euro {
+  position: relative;
+  height: 100%;
+  padding: 0;
+}
+
+.creator-pool-table tbody td:is(.cp-col-pricing, .cp-col-ek, .cp-col-vk) .cell-euro .strategie-textarea.cell-euro__input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  min-height: 3.9em;
+  padding: 0 calc(var(--space-xs) + var(--space-sm)) 0 var(--space-xs);
+  field-sizing: fixed;
+  text-align: right;
+}
+
+.creator-pool-table tbody td:is(.cp-col-pricing, .cp-col-ek, .cp-col-vk) .cell-euro__suffix {
+  position: absolute;
+  top: 50%;
+  right: var(--space-xs);
+  padding: 0;
+  transform: translateY(-50%);
+}
+
+/* Fokus in der Tabelle: nur Hintergrund, kein eigener Rand - die Zellkanten
+   (und die Trenner der fixierten Spalten) bleiben die einzigen Linien */
+
+.creator-pool-table .strategie-textarea:focus,
+.creator-pool-table .links-compact-input:focus,
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-input:focus {
+  background: var(--gray-100);
+  box-shadow: none;
 }
 
 .creator-pool-table .cp-col-status {
@@ -2179,9 +2287,7 @@ thead {
 }
 
 .creator-pool-table td.cp-col-status,
-.creator-pool-table td.cp-col-typ,
-.creator-pool-table td.cp-col-follower-ig,
-.creator-pool-table td.cp-col-follower-tt {
+.creator-pool-table td.cp-col-typ {
   padding: var(--space-xs) var(--space-sm);
   vertical-align: middle;
 }
@@ -2198,14 +2304,9 @@ thead {
   min-width: 180px;
 }
 
-.creator-pool-table .cp-col-link-ig {
+.creator-pool-table .cp-col-link {
   width: 190px;
   min-width: 190px;
-}
-
-.creator-pool-table .cp-col-link-tt {
-  width: 155px;
-  min-width: 155px;
 }
 
 .creator-pool-table .cp-col-ek,
@@ -2215,7 +2316,6 @@ thead {
 }
 
 .creator-pool-table .cp-col-reichweite-story,
-.creator-pool-table .cp-col-preis-story,
 .creator-pool-table .cp-col-reichweite-garantie {
   width: 100px;
   min-width: 100px;
@@ -2225,12 +2325,12 @@ thead {
    kleben - betrifft Reichweiten, Garantie und alle Preisspalten */
 
 .creator-pool-table .cp-col-reichweite-story,
-.creator-pool-table .cp-col-preis-story,
+.creator-pool-table .cp-col-story-preis,
 .creator-pool-table .cp-col-reichweite-garantie,
 .creator-pool-table .cp-col-pricing,
 .creator-pool-table .cp-col-cpm-ig-8,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-preis-reels,
+.creator-pool-table .cp-col-preis-video,
 .creator-pool-table .cp-col-ek,
 .creator-pool-table .cp-col-vk {
   text-align: center;
@@ -2262,65 +2362,170 @@ thead {
   color: transparent;
 }
 
-/* Spaltenbloecke einfaerben: Reels, Story und TikTok stehen nebeneinander und
-   sind ohne Farbe kaum auseinanderzuhalten.
-
-   Die Toenung laeuft ueber background-image, nicht background-color: Zeilen
-   bringen ihre eigene Hintergrundfarbe mit (Hover, gebucht, Absage). Ein
-   halbtransparenter Layer legt sich darueber, statt sie zu ersetzen. */
+/* Preisspalten mit Icon und Euro-Zeichen brauchen etwas mehr Platz.
+   Keine Block-Toenung mehr: die Plattform steht als Icon in der Zelle. */
 
 .creator-pool-table .cp-col-cpm-ig-8,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-preis-reels {
+.creator-pool-table .cp-col-preis-video,
+.creator-pool-table .cp-col-story-preis {
   width: 108px;
   min-width: 108px;
-  --cp-block-tint: 129 140 248;  /* Gedaempftes Indigo - Reels */
 }
 
-.creator-pool-table .cp-col-reichweite-story,
-.creator-pool-table .cp-col-preis-story {
-  --cp-block-tint: 159 122 134;  /* Gedaempftes Rose - Story */
+/* Gestapelte Plattformzeilen: Instagram oben, TikTok darunter.
+
+   Die Zelle hat kein Padding, damit die Trennlinie von Rand zu Rand laeuft und
+   jede Spalte gleich aussieht. height: 1px gibt dem Raster eine Bezugshoehe:
+   so fuellt es die ganze Zeile, und beide Plattformzeilen sind exakt gleich
+   hoch (auch die leere TikTok-Zeile). Die Trennlinie liegt dadurch in allen
+   Spalten auf derselben Hoehe.
+
+   Jede Plattformzeile ist eine Excel-Zelle: der Input fuellt sie ganz aus, das
+   Plattform-Icon liegt als Overlay links darueber und der Wert hat dafuer
+   links Platz. */
+
+.creator-pool-table {
+  --plattform-icon-platz: calc(var(--space-xs) + var(--icon-xs) + var(--space-xxs));
 }
 
-/* Gesamtpreis und Nutzungsrechte bekommen bewusst keinen Tint: sie gehoeren zu
-   keinem Plattform-Block, sondern sind manuell gepflegte Felder wie Name oder
-   Status - und sehen deshalb aus wie die regulaeren Spalten. */
-
-.creator-pool-table .cp-col-link-tt,
-.creator-pool-table .cp-col-follower-tt {
-  --cp-block-tint: 71 85 105;    /* Slate - TikTok */
+.creator-pool-table td.plattform-zelle {
+  height: 1px;
+  padding: 0;
+  vertical-align: top;
 }
 
-.creator-pool-table th.cp-col-cpm-ig-8,
-.creator-pool-table th.cp-col-cpm-ig-30,
-.creator-pool-table th.cp-col-preis-reels,
-.creator-pool-table th.cp-col-reichweite-story,
-.creator-pool-table th.cp-col-preis-story,
-.creator-pool-table th.cp-col-link-tt,
-.creator-pool-table th.cp-col-follower-tt {
-  background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.1), rgb(var(--cp-block-tint) / 0.1));
-  color: rgb(var(--cp-block-tint));
+.creator-pool-table .plattform-zeilen {
+  display: grid;
+  grid-auto-rows: minmax(0, 1fr);
+  height: 100%;
 }
 
-.creator-pool-table td.cp-col-cpm-ig-8,
-.creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-preis-reels,
-.creator-pool-table td.cp-col-reichweite-story,
-.creator-pool-table td.cp-col-preis-story,
-.creator-pool-table td.cp-col-link-tt,
-.creator-pool-table td.cp-col-follower-tt {
-  background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.04), rgb(var(--cp-block-tint) / 0.04));
+.creator-pool-table .plattform-zeile {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--space-xl) + var(--space-md));
 }
 
-/* Blockanfang markieren, damit die Grenze zwischen den Bloecken sichtbar ist */
+.creator-pool-table .plattform-zeile + .plattform-zeile {
+  border-top: 1px solid var(--border-primary);
+}
 
-.creator-pool-table th.cp-col-cpm-ig-8,
-.creator-pool-table td.cp-col-cpm-ig-8,
-.creator-pool-table th.cp-col-reichweite-story,
-.creator-pool-table td.cp-col-reichweite-story,
-.creator-pool-table th.cp-col-link-tt,
-.creator-pool-table td.cp-col-link-tt {
-  border-left: 2px solid rgb(var(--cp-block-tint) / 0.35);
+.creator-pool-table .plattform-zeile__icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-xs);
+  z-index: 1;
+  display: inline-flex;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.creator-pool-table .plattform-zeile__icon .crm-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.creator-pool-table .plattform-zeile__inhalt {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* Links ist Platz fuer das Icon-Overlay: der Input selbst laeuft bis zum Rand,
+   nur sein Text beginnt hinter dem Icon. */
+
+.creator-pool-table .plattform-zeile {
+  --plattform-pad-links: var(--space-xs);
+}
+
+.creator-pool-table .plattform-zeile:has(> .plattform-zeile__icon) {
+  --plattform-pad-links: var(--plattform-icon-platz);
+}
+
+.creator-pool-table .plattform-zeile__inhalt > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Eingabefelder fuellen die Zelle und werden mit dem Raster nicht hoeher */
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .strategie-textarea,
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-input,
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-number__input {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0 var(--space-xs) 0 var(--plattform-pad-links);
+  border-radius: 0;
+  field-sizing: fixed;
+  text-align: center;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-input {
+  text-align: left;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .chip-cell,
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-number,
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-euro,
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-row {
+  height: 100%;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-row {
+  gap: 0;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-number__display {
+  padding-left: var(--plattform-pad-links);
+}
+
+/* Preisfeld: Betrag rechts, das Euro-Zeichen liegt als Overlay darueber, der
+   Input bleibt die ganze Zelle */
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-euro {
+  position: relative;
+  padding: 0;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-euro .strategie-textarea.cell-euro__input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  padding: 0 calc(var(--space-xs) + var(--space-sm)) 0 var(--plattform-pad-links);
+  field-sizing: fixed;
+  text-align: right;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-euro__suffix {
+  position: absolute;
+  top: 50%;
+  right: var(--space-xs);
+  padding: 0;
+  transform: translateY(-50%);
+}
+
+/* Reine Anzeige (Kunden, Berechnungen, leere Werte): mittig in der Zelle */
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-text-readonly,
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-number__static,
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-cell--readonly {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 var(--space-xs) 0 var(--plattform-pad-links);
+  text-align: center;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-cell--readonly {
+  flex-direction: row;
 }
 
 .creator-pool-table .cp-col-feedback {
@@ -2393,43 +2598,6 @@ thead {
 /* Link-Input: versteckt hinter dem Icon, erscheint bei Focus */
 
 /* Wenn kein Link vorhanden, Input sofort anzeigen */
-
-/* Plus-Button am Tabellen-Ende */
-
-.creator-pool-table tfoot .add-row-footer td {
-  text-align: center;
-  padding: var(--space-sm);
-  background: var(--gray-50);
-  border-top: 2px dashed var(--gray-300);
-}
-
-.creator-pool-table .add-row-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--space-xl);
-  height: var(--space-xl);
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.creator-pool-table .add-row-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.creator-pool-table .add-row-btn:hover {
-  
-  transform: scale(1.1);
-}
-
-.creator-pool-table .add-row-btn:active {
-  transform: scale(0.95);
-}
 
 /* ===== FEEDBACK KANBAN ===== */
 
@@ -2767,6 +2935,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
 
 .creator-pool-table thead th.cp-col-bild {
   z-index: 26;
+  border-top: none;
   box-shadow:
     inset 0 1px 0 0 var(--gray-100),
     inset 0 -1px 0 0 var(--gray-200);
@@ -2808,112 +2977,4 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
   align-items: center;
   justify-content: space-between;
   width: 100%;
-}
-
-/* Kundenrechnungen: Kopfbereich (View-Toggle, Filter, Auftrag/Contract-Tabs,
-   Summen-Cards, Monats-Tabs) klebt sticky oben. Die Tabelle läuft im normalen
-   Seitenfluss – gescrollt wird die Seite, kein Innencontainer. */
-.main-wrapper:has(> .kundenrechnungen-page),
-.main-wrapper:has(> .rechnungen-page) {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.kundenrechnungen-page,
-.rechnungen-page {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
-}
-
-.kundenrechnungen-page .kr-sticky-head,
-.rechnungen-page .kr-sticky-head {
-  flex: 0 0 auto;
-  z-index: 40;
-  background: var(--bg-primary);
-}
-
-.kundenrechnungen-page .kr-scroll-body,
-.rechnungen-page .kr-scroll-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.kundenrechnungen-page .kr-sticky-foot,
-.rechnungen-page .kr-sticky-foot {
-  flex: 0 0 auto;
-  z-index: 40;
-  background: var(--bg-primary);
-}
-
-/* Kopfzeile als eine Zeile: Suche + Filter links, Aktions-Buttons und
-   View-Toggle rechts – die separate Filter-Box entfällt auf dieser Seite.
-   Auf schmalen Viewports bricht die Zeile sauber um. */
-.kundenrechnungen-page .kr-sticky-head .page-header {
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-}
-
-.kundenrechnungen-page .page-header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.kundenrechnungen-page .page-header-right {
-  flex-wrap: wrap;
-  row-gap: var(--space-xs);
-}
-
-/* Feste Mindesthöhe der Tabellenfläche: Beim Monatswechsel (unterschiedlich
-   viele Zeilen) bleibt das Layout stehen – kein Sprung. */
-.kundenrechnungen-page #auftrag-table-container,
-.rechnungen-page .rechnung-table-container {
-  min-height: 60vh;
-}
-
-.ausgangsrechnungen-month-tabs,
-.rechnung-month-tabs {
-  background: var(--color-white);
-  border-top: 1px solid var(--border-primary);
-  overflow-x: auto;
-  flex-wrap: nowrap;
-}
-
-.ausgangsrechnungen-month-tabs .form-select,
-.rechnung-month-tabs .form-select {
-  flex-shrink: 0;
-  width: auto;
-  min-width: 5.5rem;
-}
-
-.ausgangsrechnungen-month-tabs .tab-button,
-.rechnung-month-tabs .tab-button {
-  gap: var(--space-xxs);
-  padding: var(--space-xxs) var(--space-xs);
-  border-radius: var(--radius-sm);
-}
-
-.ausgangsrechnungen-month-tabs .tab-button:hover,
-.rechnung-month-tabs .tab-button:hover {
-  background: var(--gray-50);
-}
-
-.ausgangsrechnungen-month-tabs .tab-button.active,
-.rechnung-month-tabs .tab-button.active {
-  color: var(--gray-900);
-  font-weight: 500;
-}
-
-.ausgangsrechnungen-month-tabs .tab-button.active::after,
-.rechnung-month-tabs .tab-button.active::after {
-  background-color: var(--gray-900);
-  height: 2px;
 }

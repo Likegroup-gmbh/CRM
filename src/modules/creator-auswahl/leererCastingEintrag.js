@@ -1,6 +1,6 @@
 // leererCastingEintrag.js
 // Payload für einen neuen, leeren Casting-Eintrag. Gemeinsame Quelle für
-// "Leere Zeile" (Plus in der Tabelle), die Start-Zeile und den Quick-Add der Leiste.
+// die Start-Zeile und den Quick-Add der Leiste.
 
 const LEER = {
   typ: null,

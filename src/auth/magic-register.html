@@ -10,7 +10,10 @@
     <link rel="stylesheet" href="../../assets/styles/variables.css">
     <link rel="stylesheet" href="../../assets/styles/base.css">
     <link rel="stylesheet" href="../../assets/styles/layout.css">
+    <link rel="stylesheet" href="../../assets/styles/buttons.css">
+    <link rel="stylesheet" href="../../assets/styles/forms.css">
     <link rel="stylesheet" href="../../assets/styles/components.css">
+    <link rel="stylesheet" href="../../assets/styles/icons.css">
     <style>
       .loading-state {
         text-align: center;
@@ -93,7 +96,7 @@
             </div>
             <div class="form-box">
               <label class="label" for="geburtsdatum">Geburtsdatum *</label>
-              <input id="geburtsdatum" class="input" type="date" required />
+              <div id="geburtsdatum-host"></div>
             </div>
             <div class="form-box">
               <label class="label" for="password">Passwort</label>
@@ -108,7 +111,7 @@
               </div>
             </div>
             <div class="form-box">
-              <button id="btn-submit" type="submit" class="btn primary-btn" style="width: 100%;">Konto erstellen</button>
+              <button id="btn-submit" type="submit" class="mdc-btn">Konto erstellen</button>
             </div>
             <p class="login-consent">
               Mit der Registrierung akzeptierst du unsere
@@ -127,7 +130,8 @@
 <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm'
   import { getSupabaseConfig } from './config.js'
-  import { initPasswordHints, passwordPolicyError, isWeakPasswordError, PASSWORD_POLICY_MESSAGE } from './password-hints.js'
+  import { initPasswordHints, initPasswordToggle, passwordPolicyError, isWeakPasswordError, PASSWORD_POLICY_MESSAGE } from './password-hints.js'
+  import { CustomDatePicker } from '../core/components/CustomDatePicker.js'
 
   // State Elements
   const loadingState = document.getElementById('loading-state');
@@ -135,7 +139,6 @@
   const registerState = document.getElementById('register-state');
   const errorMessage = document.getElementById('error-message');
   const form = document.getElementById('register-form');
-  const togglePasswordBtn = document.getElementById('togglePassword');
   const btn = document.getElementById('btn-submit');
   const msg = document.getElementById('msg');
 
@@ -237,11 +240,14 @@
     const nachname = document.getElementById('nachname').value.trim();
     const name = `${vorname} ${nachname}`.trim();
     const email = document.getElementById('email').value.trim();
-    const geburtsdatum = document.getElementById('geburtsdatum').value;
+    const geburtsdatumInput = document.getElementById('geburtsdatum');
+    const geburtsdatum = CustomDatePicker.getValue(geburtsdatumInput);
     const password = document.getElementById('password').value;
 
     if (!geburtsdatum) {
-      showMessage('error', 'Bitte geben Sie Ihr Geburtsdatum ein.');
+      showMessage('error', geburtsdatumInput.value.trim()
+        ? 'Bitte geben Sie ein gültiges Geburtsdatum (TT.MM.JJJJ) ein.'
+        : 'Bitte geben Sie Ihr Geburtsdatum ein.');
       btn.disabled = false;
       btn.textContent = 'Konto erstellen';
       return;
@@ -296,22 +302,24 @@
     }
   }
 
+  document.getElementById('geburtsdatum-host').innerHTML = CustomDatePicker.render({
+    inputId: 'geburtsdatum',
+    field: 'geburtsdatum',
+    label: 'Geburtsdatum',
+    variant: 'text',
+    inputClass: 'input',
+    yearSelect: true,
+    min: '1900-01-01',
+    max: CustomDatePicker.formatISO(new Date()),
+    showToday: false,
+    required: true
+  });
+  CustomDatePicker.bind(form);
+
   // Event Listener
   form.addEventListener('submit', handleRegister);
   initPasswordHints('password');
-
-  let isPasswordVisible = false;
-  togglePasswordBtn.addEventListener('click', () => {
-    const input = document.getElementById('password');
-    isPasswordVisible = !isPasswordVisible;
-    input.type = isPasswordVisible ? 'text' : 'password';
-    const icon = togglePasswordBtn.querySelector('svg');
-    if (isPasswordVisible) {
-      icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>';
-    } else {
-      icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>';
-    }
-  });
+  initPasswordToggle('password', 'togglePassword');
 
   // Start: Token validieren
   validateToken();

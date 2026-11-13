@@ -199,7 +199,7 @@ export class AusgangsrechnungenList {
     if (!window.canViewContracts?.()) return '';
     const isContracts = this.activeTab === 'contracts';
     return `
-      <div class="tab-navigation auftrag-tabs">
+      <div class="tab-navigation tab-navigation--liste auftrag-tabs">
         <button class="tab-button ${!isContracts ? 'active' : ''}" data-tab="auftraege">
           Aufträge<span class="tab-count" data-tab-count="auftraege">0</span>
         </button>
