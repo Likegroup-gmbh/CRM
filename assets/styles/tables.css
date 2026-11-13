@@ -29,6 +29,21 @@
   flex-wrap: wrap;
 }
 
+.masterliste-ig-vorschau {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.masterliste-ig-vorschau[hidden] {
+  display: none;
+}
+
+.masterliste-ig-vorschau__name {
+  font-weight: 600;
+}
+
 .masterliste-beschreibung {
   flex: 1 0 100%;
   margin: 0;

@@ -5,6 +5,7 @@ import {
   compareMembers,
   creatorReturnPath,
   filterMembers,
+  mapMember,
   resolveHidden,
   safeReturnPath,
   visibleColumns
@@ -16,6 +17,9 @@ const member = {
   memberId: 'mem-1',
   position: 0,
   addedAt: '2026-01-01',
+  igUsername: '',
+  sourcingCreatorId: null,
+  hatDatensatz: true,
   creator: {
     id: 'cr-1',
     vorname: 'Ada',
@@ -128,5 +132,101 @@ describe('Masterliste', () => {
     expect(html).not.toContain('<input');
     expect(html).not.toContain('Zur Masterliste');
     expect(html).not.toContain('>Löschen<');
+    expect(html).toContain('status-dot--active');
+    expect(html).toContain('data-table="creator"');
+  });
+
+  it('baut einen Eintrag ohne Creator aus dem Creator-Pool', () => {
+    const eintrag = mapMember({
+      id: 'mem-2',
+      position: 1,
+      added_at: '2026-02-01',
+      ig_username: 'lina.k',
+      sourcing_creator_id: 'pool-1',
+      creator: null,
+      pool: {
+        name: 'Lina Kraus',
+        link_instagram: 'https://www.instagram.com/lina.k/',
+        follower_instagram: 48000,
+        profile_image_url: 'https://cdn.example.com/lina.jpg',
+        profile_image_thumb_url: 'https://cdn.example.com/lina-thumb.jpg',
+        email: 'lina@example.com',
+        telefon: null,
+        wohnort: 'Graz',
+        ig_stats: { engagement_rate: 4.1 }
+      }
+    });
+    expect(eintrag.hatDatensatz).toBe(false);
+    expect(eintrag.igUsername).toBe('lina.k');
+    expect(eintrag.creator).toMatchObject({
+      id: null,
+      name: 'Lina Kraus',
+      instagram: 'https://www.instagram.com/lina.k/',
+      instagram_follower: 48000,
+      ig_engagement_rate: 4.1,
+      lieferadresse_stadt: 'Graz',
+      mail: 'lina@example.com',
+      profilbild_thumb_url: 'https://cdn.example.com/lina-thumb.jpg'
+    });
+    expect(filterMembers([eintrag], 'graz')).toHaveLength(1);
+  });
+
+  it('zeigt ohne Pool-Daten den Handle als Namen', () => {
+    const eintrag = mapMember({ id: 'mem-3', ig_username: 'neu.hier', creator: null, pool: null });
+    expect(eintrag.creator.name).toBe('@neu.hier');
+    expect(eintrag.creator.instagram).toBe('neu.hier');
+  });
+
+  it('rendert Einträge ohne Creator mit rotem Punkt und eigenem Menü', () => {
+    const eintrag = mapMember({ id: 'mem-3', ig_username: 'neu.hier', creator: null, pool: null });
+    const columns = visibleColumns(resolveHidden(null), { canManage: true });
+    const html = renderMasterlisteRow(eintrag, columns, 'liste-1');
+    expect(html).toContain('status-dot--inactive');
+    expect(html).not.toContain('data-table="creator"');
+    expect(html).not.toContain('Profil ansehen');
+    expect(html).not.toContain('data-creator-id');
+    expect(html).toContain('data-action="masterliste-creator-anlegen" data-member-id="mem-3"');
+    expect(html).toContain('Instagram neu laden');
+    expect(html).toContain('data-action="remove-masterliste-member" data-member-id="mem-3"');
+  });
+
+  it('zeigt von Hand eingetragene Werte vor dem Pool', () => {
+    const eintrag = mapMember({
+      id: 'mem-5',
+      ig_username: null,
+      creator: null,
+      pool: null,
+      name: 'Ada Lovelace',
+      typ: 'Model',
+      link_tiktok: 'https://www.tiktok.com/@ada.l',
+      follower_tiktok: 50000,
+      wohnort: 'Wien',
+      email: 'ada@example.com'
+    });
+    expect(eintrag.creator).toMatchObject({
+      name: 'Ada Lovelace',
+      instagram: '',
+      tiktok: 'https://www.tiktok.com/@ada.l',
+      tiktok_follower: 50000,
+      lieferadresse_stadt: 'Wien',
+      mail: 'ada@example.com',
+      creatorTypes: ['Model']
+    });
+    const columns = visibleColumns(resolveHidden(null), { canManage: true });
+    const html = renderMasterlisteRow(eintrag, columns, 'liste-1');
+    expect(html).toContain('Creator anlegen');
+    expect(html).not.toContain('Instagram neu laden');
+  });
+
+  it('lässt den eigenen Namen vor dem Pool-Namen stehen', () => {
+    const eintrag = mapMember({ id: 'mem-6', ig_username: 'lina.k', creator: null, name: 'Lina K.', pool: { name: 'Lina Kraus', follower_instagram: 900 }, follower_instagram: 100 });
+    expect(eintrag.creator.name).toBe('Lina K.');
+    expect(eintrag.creator.instagram_follower).toBe(900);
+  });
+
+  it('bietet Instagram neu laden nur ohne Pool-Eintrag an', () => {
+    const eintrag = mapMember({ id: 'mem-4', ig_username: 'da', sourcing_creator_id: 'pool-2', creator: null, pool: { name: 'Da' } });
+    const columns = visibleColumns(resolveHidden(null), { canManage: true });
+    expect(renderMasterlisteRow(eintrag, columns, 'liste-1')).not.toContain('Instagram neu laden');
   });
 });

@@ -28,6 +28,19 @@ function avatarHtml(creator) {
   return `<span class="table-avatar">${escapeHtml(letter)}</span>`;
 }
 
+function avatarMitPunkt(member) {
+  const dot = member.hatDatensatz
+    ? '<span class="status-dot status-dot--active sourcing-avatar__dot" title="Als Creator angelegt"></span>'
+    : '<span class="status-dot status-dot--inactive sourcing-avatar__dot" title="Noch kein Creator"></span>';
+  return `<span class="sourcing-avatar">${avatarHtml(member.creator)}${dot}</span>`;
+}
+
+function nameCell(member) {
+  const creator = member.creator;
+  if (!member.hatDatensatz) return `<span class="table-text">${escapeHtml(creator.name)}</span>`;
+  return `<a href="#" class="table-link" data-table="creator" data-id="${escapeHtml(creator.id)}">${escapeHtml(creator.name)}</a>`;
+}
+
 function socialCell(platform, handle) {
   if (!handle) return '-';
   return `<a href="${escapeHtml(socialUrl(platform, handle))}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayHandle(handle))}</a>`;
@@ -57,17 +70,24 @@ function ort(creator) {
   return escapeHtml(text || '-');
 }
 
-function rowMenu(creatorId, listId) {
+function rowMenu(member, listId) {
+  const memberId = escapeHtml(member.memberId);
+  const creatorId = escapeHtml(member.creator.id);
+  const eintraege = member.hatDatensatz
+    ? `
+        <a href="#" class="action-item" data-action="view" data-id="${creatorId}">Profil ansehen</a>
+        <a href="#" class="action-item" data-action="edit" data-id="${creatorId}" data-return-to="/creator-lists/${escapeHtml(listId)}">Bearbeiten</a>`
+    : `
+        <a href="#" class="action-item" data-action="masterliste-creator-anlegen" data-member-id="${memberId}">Creator anlegen</a>
+        ${member.sourcingCreatorId || !member.igUsername ? '' : `<a href="#" class="action-item" data-action="masterliste-instagram-laden" data-member-id="${memberId}">Instagram neu laden</a>`}`;
   return `
     <div class="actions-dropdown-container" data-entity-type="creator">
       <button type="button" class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
         ${icon('dots-grid', { className: 'w-5 h-5' })}
       </button>
-      <div class="actions-dropdown">
-        <a href="#" class="action-item" data-action="view" data-id="${escapeHtml(creatorId)}">Profil ansehen</a>
-        <a href="#" class="action-item" data-action="edit" data-id="${escapeHtml(creatorId)}" data-return-to="/creator-lists/${escapeHtml(listId)}">Bearbeiten</a>
+      <div class="actions-dropdown">${eintraege}
         <div class="action-separator"></div>
-        <a href="#" class="action-item action-danger" data-action="remove-masterliste-member" data-creator-id="${escapeHtml(creatorId)}">Von der Liste nehmen</a>
+        <a href="#" class="action-item action-danger" data-action="remove-masterliste-member" data-member-id="${memberId}">Von der Liste nehmen</a>
       </div>
     </div>
   `;
@@ -79,9 +99,9 @@ function cell(col, member, listId) {
     case 'ml-col-drag':
       return `<td class="col-drag drag-handle ${col.key}" title="Reihenfolge ändern"><span aria-hidden="true">⋮⋮</span></td>`;
     case 'ml-col-bild':
-      return `<td class="${col.key}">${avatarHtml(creator)}</td>`;
+      return `<td class="${col.key}">${avatarMitPunkt(member)}</td>`;
     case 'ml-col-name':
-      return `<td class="col-name ${col.key}"><a href="#" class="table-link" data-table="creator" data-id="${escapeHtml(creator.id)}">${escapeHtml(creator.name)}</a></td>`;
+      return `<td class="col-name ${col.key}">${nameCell(member)}</td>`;
     case 'ml-col-ig':
       return `<td class="${col.key}">${socialCell('instagram', creator.instagram)}</td>`;
     case 'ml-col-follower-ig':
@@ -105,7 +125,7 @@ function cell(col, member, listId) {
     case 'ml-col-telefon':
       return `<td class="${col.key}">${escapeHtml(creator.telefonnummer || '-')}</td>`;
     case 'ml-col-actions':
-      return `<td class="col-actions ${col.key}">${rowMenu(creator.id, listId)}</td>`;
+      return `<td class="col-actions ${col.key}">${rowMenu(member, listId)}</td>`;
     default:
       return `<td class="${col.key}">-</td>`;
   }
@@ -123,5 +143,6 @@ export function renderMasterlisteRow(member, columns, listId, customAt) {
     const extra = customAt ? customAt(col.key, 'cell', member.memberId) : '';
     return `${cell(col, member, listId)}${extra}`;
   }).join('');
-  return `<tr data-member-id="${escapeHtml(member.memberId)}" data-creator-id="${escapeHtml(member.creator.id)}">${cells}</tr>`;
+  const creatorAttr = member.creator.id ? ` data-creator-id="${escapeHtml(member.creator.id)}"` : '';
+  return `<tr data-member-id="${escapeHtml(member.memberId)}"${creatorAttr}>${cells}</tr>`;
 }
