@@ -23,6 +23,13 @@ describe('Kommentar-Spalte: Autosave ueber VideoFeedbackSaveController', () => {
     expect(VideoFeedbackBinding.isEditableFeedbackField(ta)).toBe(false);
   });
 
+  it('behandelt eine Text-Spalte nicht als Kommentarfeld', () => {
+    const ta = makeCommentField();
+    ta.classList.add('custom-col-text');
+    expect(VideoFeedbackBinding.isCustomCommentField(ta)).toBe(false);
+    expect(VideoFeedbackBinding.isEditableFeedbackField(ta)).toBe(false);
+  });
+
   it('speichert debounced und genau einmal ueber table.handleFieldUpdate', async () => {
     const table = { handleFieldUpdate: vi.fn(async () => true), _rowHeightSync: { schedule: vi.fn() } };
     const controller = new VideoFeedbackSaveController(table, { debounceMs: 800 });

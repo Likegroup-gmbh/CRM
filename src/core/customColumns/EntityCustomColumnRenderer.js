@@ -30,7 +30,8 @@ export function renderCustomHeaders(orderedCols, hiddenColumns, isKunde) {
     // Nur der Hand-Griff ist draggable – der Spaltenname bleibt normal klickbar.
     const grip = isKunde ? '' : `<span class="entity-custom-col-grip" draggable="true"
       data-custom-col-grip="${colId}" title="Spalte verschieben" aria-label="Spalte verschieben" role="button">${COLUMN_GRIP_ICON}</span>`;
-    return `<th class="entity-custom-col-header" data-custom-col-id="${colId}"${hide}>` +
+    const textMark = col.field_type === 'text' ? ' entity-custom-col--text' : '';
+    return `<th class="entity-custom-col-header${textMark}" data-custom-col-id="${colId}"${hide}>` +
       `<div class="entity-custom-col-header-inner">` +
       `${grip}<span class="entity-custom-col-title">${escapeHtml(col.name)}</span>` +
       `</div>` +
@@ -55,7 +56,8 @@ export function renderCustomCells(orderedCols, entityId, getValue, hiddenColumns
     const value = getValue(entityId, col.id) ?? '';
     const isEditable = !isKunde && canEdit;
     const content = renderFieldByType(col, entityId, value, isEditable);
-    return `<td class="entity-custom-cell cell-textarea" data-custom-col-id="${makeCustomColumnId(col.id)}"${hide}>${content}</td>`;
+    const textMark = col.field_type === 'text' ? ' entity-custom-col--text' : '';
+    return `<td class="entity-custom-cell cell-textarea${textMark}" data-custom-col-id="${makeCustomColumnId(col.id)}"${hide}>${content}</td>`;
   }).join('');
 }
 
@@ -78,8 +80,10 @@ function renderFieldByType(col, entityId, value, isEditable) {
 }
 
 function renderTextField(attrs, value, isEditable, placeholder) {
-  if (!isEditable) return `<div class="cell-text-readonly">${escapeHtml(value) || '-'}</div>`;
-  return `<textarea class="strategie-textarea custom-col-input" ${attrs} placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea>`;
+  const body = !isEditable
+    ? `<div class="cell-text-readonly">${escapeHtml(value) || '-'}</div>`
+    : `<textarea class="strategie-textarea custom-col-input" ${attrs} placeholder="${escapeHtml(placeholder)}" rows="1">${escapeHtml(value)}</textarea>`;
+  return `<div class="entity-custom-text">${body}</div>`;
 }
 
 function renderLinkField(attrs, value, isEditable) {

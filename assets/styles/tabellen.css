@@ -119,6 +119,16 @@
   width: 16rem;
   min-width: 16rem;
 }
+/* Eigene Textspalte: feste Breite wie die Kommentarspalten, damit der Text
+   umbricht statt die Tabelle nach rechts aufzuziehen. Ein gezogener Rand
+   setzt width, min-width und max-width inline und der Text bricht neu um. */
+.kooperation-video-grid .col-custom-text {
+  width: 16rem;
+  min-width: 16rem;
+  max-width: 16rem;
+  white-space: normal;
+  vertical-align: top;
+}
 .kooperation-video-grid .col-finale-version { width: 16rem; min-width: 16rem; }
 .kooperation-video-grid .col-kosten,
 .kooperation-video-grid .col-vk-video { width: 12ch; min-width: 12ch; }
@@ -3085,6 +3095,29 @@ width: 18em;
   width: 100%;
 }
 
+/* Text-Spalte: weicher Umbruch und gesetzte Zeilenumbrueche. Die Hoehe folgt
+   dem Inhalt (field-sizing), die Zeile der Kooperation waechst mit.
+   width:0 + min-width:100% haelt die Mindestbreite der Zelle an der Spalte,
+   nicht an der laengsten Zeile. */
+.kooperation-video-grid .col-custom-text .video-fields-stack,
+.kooperation-video-grid .col-custom-text .video-field-wrapper,
+.kooperation-video-grid .col-custom-text .custom-col-text-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+.kooperation-video-grid .col-custom-text .custom-col-text-wrap {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+}
+.kooperation-video-grid .col-custom-text .stacked-video-textarea.auto-resize-textarea {
+  min-height: 2.25rem;
+  min-width: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .custom-col-date {
   padding: var(--space-xxs) var(--space-xs);
 }
@@ -3546,6 +3579,41 @@ th[draggable="true"]:active {
 .strategie-items-table td.entity-custom-cell {
   white-space: normal;
   overflow: hidden;
+}
+/* Eigene Textspalte in Casting und Konzept: umbrechen, Zeilenumbrueche behalten,
+   Zeilenhoehe waechst mit. Die Spalte bleibt begrenzt, damit langer Text nicht
+   seitlich aus der Tabelle laeuft. Resize ueberschreibt die Breite inline. */
+.creator-pool-table th.entity-custom-col--text,
+.creator-pool-table td.entity-custom-col--text,
+.strategie-items-table th.entity-custom-col--text,
+.strategie-items-table td.entity-custom-col--text,
+.data-table th.entity-custom-col--text,
+.data-table td.entity-custom-col--text {
+  width: 16rem;
+  min-width: 16rem;
+  max-width: 16rem;
+  vertical-align: top;
+}
+.creator-pool-table td.entity-custom-col--text,
+.strategie-items-table td.entity-custom-col--text,
+.data-table td.entity-custom-col--text {
+  white-space: normal;
+}
+.entity-custom-col--text .entity-custom-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.entity-custom-text textarea,
+.entity-custom-text .cell-text-readonly {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
 }
 .entity-custom-col-header.dragging,
 .entity-custom-col-header.column-dragging {

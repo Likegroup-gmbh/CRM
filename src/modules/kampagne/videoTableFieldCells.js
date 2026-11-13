@@ -246,10 +246,11 @@ export function renderVideoNameInner(ctx, video) {
       `;
 }
 
-// Gemeinsame Auto-Resize-Textarea (Caption, Feedback, Kommentar-Spalten):
-// Hoehe folgt dem Inhalt, Umbruch, voller Text sichtbar.
-export function renderStackedTextarea({ attrs, value, placeholder, readonly }) {
-  return `<textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
+// Gemeinsame Auto-Resize-Textarea (Caption, Feedback, Kommentar- und Text-Spalten):
+// Hoehe folgt dem Inhalt, Umbruch inklusive gesetzter Zeilenumbrueche, voller Text sichtbar.
+export function renderStackedTextarea({ attrs, value, placeholder, readonly, className = '' }) {
+  const extra = className ? ` ${className}` : '';
+  return `<textarea class="grid-textarea stacked-video-textarea auto-resize-textarea${extra}" 
           ${attrs}
           ${readonly ? 'readonly' : ''}
           placeholder="${escapeHtml(placeholder)}" rows="1">${escapeHtml(value || '')}</textarea>`;

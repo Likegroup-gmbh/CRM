@@ -14,6 +14,7 @@ import { startProduktionFromItem } from '../kooperation/produktionStart.js';
 import { refreshItemActions, updateItemRow } from './StrategieDetailRenderer.js';
 import { syncCustomPeer, syncVideoideeField } from './videoideeFieldSync.js';
 import { absorbEditedTextFields, bindTextBaseline, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
+import { bindWrappingTextareas } from '../../core/table/fitTextareaHeight.js';
 
 function tableRoot(detail) {
   return detail._getRoot?.() || window.content;
@@ -781,6 +782,7 @@ export function bindCustomColumnEvents(detail) {
   if (table) {
     const cleanup = CustomDatePicker.bind(table);
     if (cleanup) detail._tableEventListeners.add(cleanup);
+    bindWrappingTextareas(table, (fn) => detail._tableEventListeners.add(fn));
   }
 }
 

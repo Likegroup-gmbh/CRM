@@ -17,6 +17,7 @@ import {
 } from './castingKategorien.js';
 import { openCastingDetailDrawer } from './castingDetailDrawer.js';
 import { bindTextBaseline, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
+import { bindWrappingTextareas } from '../../core/table/fitTextareaHeight.js';
 
 export function bindEvents() {
   this._boundEventListeners.forEach(cleanup => cleanup());
@@ -299,6 +300,7 @@ export function _bindCustomColumnEvents() {
   if (table) {
     const cleanup = CustomDatePicker.bind(table);
     if (cleanup) this._boundEventListeners.add(cleanup);
+    bindWrappingTextareas(table, (fn) => this._boundEventListeners.add(fn));
   }
 }
 

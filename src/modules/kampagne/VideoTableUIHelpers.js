@@ -214,6 +214,9 @@ export class VideoTableUIHelpers {
     document.querySelectorAll(`th.col-header[data-col="${colKey}"]`).forEach(header => {
       header.style.width = remStr;
       header.style.minWidth = remStr;
+      // Textspalten haben ein CSS-max-width, sonst bleibt der gezogene Rand wirkungslos.
+      const lockWidth = header.classList.contains('col-custom-text');
+      if (lockWidth) header.style.maxWidth = remStr;
 
       const table = header.closest('table');
       const row = header.parentElement;
@@ -224,6 +227,7 @@ export class VideoTableUIHelpers {
         if (!cell) return;
         cell.style.width = remStr;
         cell.style.minWidth = remStr;
+        if (lockWidth) cell.style.maxWidth = remStr;
       });
     });
 
@@ -243,6 +247,8 @@ export class VideoTableUIHelpers {
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     this.saveColumnWidths();
+    // Schmalere Textspalte bricht mehr um, die Zeilenhoehe muss nachziehen.
+    this.table._rowHeightSync?.schedule();
   }
 
   saveColumnWidths() {

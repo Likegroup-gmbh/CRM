@@ -12,11 +12,13 @@ export class VideoFeedbackBinding {
   }
 
   // Kommentarfeld einer eigenen Spalte (Typ "comment"): nutzt dieselbe
-  // Autosave-Pipeline wie die Feedback-Felder.
+  // Autosave-Pipeline wie die Feedback-Felder. Text-Spalten sind auch
+  // Textareas (Umbruch, Zeilenumbruch), speichern aber weiter beim Verlassen.
   static isCustomCommentField(el) {
     return !!el
       && el.tagName === 'TEXTAREA'
-      && !!el.dataset?.customColumnId;
+      && !!el.dataset?.customColumnId
+      && !el.classList.contains('custom-col-text');
   }
 
   static isEditableFeedbackField(el) {

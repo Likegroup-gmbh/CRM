@@ -2,6 +2,8 @@
 // Spalten-Resize fuer eigene Spalten in Casting/Konzept.
 // Breite per data-custom-col-id, Persistenz in localStorage pro Liste.
 
+import { fitCustomTextareas } from '../table/fitTextareaHeight.js';
+
 const MIN_WIDTH_PX = 80;
 
 function getStorage() {
@@ -128,6 +130,7 @@ export function bindColumnResize(root, { parentType, parentId, minPx = MIN_WIDTH
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     saveWidths(parentType, parentId, widths);
+    fitCustomTextareas(root);
   };
 
   root.addEventListener('mousedown', (e) => {

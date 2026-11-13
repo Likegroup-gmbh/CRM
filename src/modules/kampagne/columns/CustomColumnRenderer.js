@@ -22,11 +22,11 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Typabhaengige Zusatzklassen: Checkbox-Stack bzw. Kommentar-Spaltenbreite
-// (gleiche Breite wie die Feedback-Spalten).
+// Typabhaengige Zusatzklassen: Checkbox-Stack, Kommentar- bzw. Text-Spaltenbreite.
 function typeClass(col) {
   if (col.fieldType === 'boolean') return ' checkbox-stack';
   if (col.fieldType === 'comment') return ' col-custom-comment';
+  if (col.fieldType === 'text') return ' col-custom-text';
   return '';
 }
 
@@ -107,10 +107,15 @@ function renderFieldByType(col, entityId, value, isEditable) {
 }
 
 function renderTextField(attrs, value, isEditable, placeholder) {
-  return `<input type="text" class="grid-input stacked-video-input custom-col-input" 
-    ${attrs} value="${escapeHtml(value)}" 
-    ${!isEditable ? 'readonly' : ''} 
-    placeholder="${escapeHtml(placeholder)}"/>`;
+  // Textarea, kein einzeiliges Input: weicher Umbruch und Enter als Zeilenumbruch.
+  // custom-col-text haelt das Feld aus der Kommentar-Autosave-Pipeline heraus.
+  return `<div class="custom-col-text-wrap">${renderStackedTextarea({
+    attrs,
+    value,
+    placeholder,
+    readonly: !isEditable,
+    className: 'custom-col-input custom-col-text'
+  })}</div>`;
 }
 
 function renderLinkField(attrs, value, isEditable) {

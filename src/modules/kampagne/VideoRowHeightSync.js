@@ -10,6 +10,8 @@
 // Mess-/Schreibphasen sind getrennt (reset -> measure -> apply) und per
 // requestAnimationFrame gebuendelt, um Reflow-Stuerme zu vermeiden.
 
+import { fitCustomTextareas } from '../../core/table/fitTextareaHeight.js';
+
 export class VideoRowHeightSync {
   /** @param {HTMLElement} container - Element, das die .kooperation-row Zeilen enthaelt */
   constructor(container) {
@@ -58,6 +60,7 @@ export class VideoRowHeightSync {
   sync(scope) {
     if (!this.container) return;
     const root = scope || this.container;
+    fitCustomTextareas(root);
     const rows = root.classList?.contains('kooperation-row')
       ? [root]
       : Array.from(root.querySelectorAll('.kooperation-row'));
