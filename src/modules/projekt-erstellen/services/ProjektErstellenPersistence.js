@@ -579,7 +579,7 @@ export class ProjektErstellenPersistence {
     }
   }
 
-  // Auftragsbestaetigungen + Rechnungen nach Dropbox hochladen + DB-Eintraege anlegen.
+  // Auftragsbestaetigungen + Rechnungen hochladen (SharePoint oder Dropbox je Weiche) + DB-Eintraege anlegen.
   // Fehler werden pro Dokumenttyp markiert, damit die UI AB und Rechnung unterscheiden kann.
   async uploadContractingDokumente({ formData, auftragId, auftragPayload, currentBenutzerId }) {
     const abResult = await this.uploadAuftragsbestaetigungenIfAny({

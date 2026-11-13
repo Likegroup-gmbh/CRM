@@ -150,7 +150,7 @@ describe('dateiEinordnen: Fachordner bestimmen die Bedeutung', () => {
   });
 
   it('Bereiche: Datei in Verträge/ wird ignoriert, direkt in Medien/ Nicht zugeordnet', () => {
-    expect(datei(R.vertraege, { item: { name: 'Vertrag.pdf' } })).toEqual({ aktion: 'ignorieren', grund: 'vertraege' });
+    expect(datei(R.vertraege, { item: { name: 'Vertrag.pdf' } })).toEqual({ aktion: 'ignorieren', grund: 'dokument_ohne_crm' });
     expect(datei(R.medien)).toEqual({ aktion: 'unzugeordnet', grund: 'bereich_ordner' });
     expect(datei(R.unternehmen)).toEqual({ aktion: 'unzugeordnet', grund: 'unternehmen_ordner' });
   });
@@ -284,11 +284,22 @@ describe('ordnerEinordnen', () => {
     expect(ord({ eltern: R.finale, item: { name: '9-16' } })).toEqual({ aktion: 'fach', art: 'format', format: '9-16', soll: '9-16' });
   });
 
-  it('unter dem Unternehmen: Medien und Verträge sind Bereiche (auch NFD aus dem Finder), alles andere frei', () => {
+  it('unter dem Unternehmen: Medien, Verträge, Rechnungen, Aufträge sind Bereiche (auch NFD aus dem Finder), alles andere frei', () => {
     expect(ord({ eltern: R.unternehmen, item: { name: 'medien' } })).toEqual({ aktion: 'fach', art: 'bereich', bereich: 'medien', soll: 'Medien' });
     expect(ord({ eltern: R.unternehmen, item: { name: 'Verträge'.normalize('NFD') } })).toEqual({ aktion: 'fach', art: 'bereich', bereich: 'vertraege', soll: 'Verträge' });
     expect(ord({ eltern: R.unternehmen, item: { name: 'Vertraege' } }).aktion).toBe('frei');
-    expect(ord({ eltern: R.unternehmen, item: { name: 'Rechnungen' } })).toEqual({ aktion: 'frei', besitz: { unternehmen_id: 'u1' } });
+    expect(ord({ eltern: R.unternehmen, item: { name: 'Rechnungen' } })).toEqual({ aktion: 'fach', art: 'bereich', bereich: 'rechnungen', soll: 'Rechnungen' });
+    expect(ord({ eltern: R.unternehmen, item: { name: 'Aufträge'.normalize('NFD') } })).toEqual({ aktion: 'fach', art: 'bereich', bereich: 'auftraege', soll: 'Aufträge' });
+    expect(ord({ eltern: R.unternehmen, item: { name: 'Angebote' } })).toEqual({ aktion: 'frei', besitz: { unternehmen_id: 'u1' } });
+  });
+
+  it('Produktions-Ordner: freie Unterordner erben die Produktion, Dateien direkt darin sind nicht zugeordnet', () => {
+    const produktion = { id: 'r-p', item_id: 'i-p', art: 'produktion', name: 'Stay Loose', pfad: '/Firma/Medien/Sommer/Stay Loose', unternehmen_id: 'u1', kampagne_id: 'ka1', produktion_id: 'p1' };
+    expect(ord({ eltern: produktion, item: { name: 'Briefing' } })).toEqual({ aktion: 'frei', besitz: { unternehmen_id: 'u1', kampagne_id: 'ka1', produktion_id: 'p1' } });
+    expect(datei(produktion)).toEqual({ aktion: 'unzugeordnet', grund: 'produktion_ordner' });
+    const eigen = { ...produktion, parent_item_id: 'i-kampagne' };
+    expect(ord({ eigen, item: { item_id: 'i-p', parent_item_id: 'i-andere', name: 'Stay Loose' } })).toEqual({ aktion: 'zurueck_verschieben' });
+    expect(ord({ eigen, item: { item_id: 'i-p', parent_item_id: 'i-kampagne', name: 'Anders' } })).toEqual({ aktion: 'zurueck_benennen' });
   });
 
   it('Ordner unter Verträge/ und Medien/: frei mit Bereich als Besitz', () => {

@@ -1,5 +1,6 @@
 // ablage-umsortieren-background.js
-// Struktur-Umzug in SharePoint je Unternehmen: Marken/Kampagnen nach Medien/ (ADR 0067), dann
+// Struktur-Umzug in SharePoint je Unternehmen: Marken/Kampagnen nach Medien/ (ADR 0067),
+// Kooperationen und Verträge in den Ordner ihrer Produktion (ADR 0069), dann
 // Storys/, Bilder/ und Varianten-Ordner in die Runden unter Videos/Video_N (ADR 0065)
 // (Background Function, bis zu 15 Minuten). Angestossen von der
 // Admin-Seite, geschuetzt ueber x-ablage-secret. Reicht das Budget nicht, stoesst der Lauf sich

@@ -1,5 +1,6 @@
 import { EntityRegistry } from './entities/index.js';
 import { sanitizeCreatorWrite } from '../../modules/creator/creatorProfil.js';
+import { dokumenteDerEntitaetLoeschen, hatEntitaetDokumente } from '../ablage/dokumentAblage.js';
 
 export class EntityMutator {
   constructor({ dataPreparer, relationManager }) {
@@ -133,6 +134,9 @@ export class EntityMutator {
         throw new Error(`Unbekannte Entität: ${entityType}`);
       }
 
+      // Rechnungs-/Auftragsdokumente fallen per Cascade weg, ihre Dateien müssen vorher raus
+      if (hatEntitaetDokumente(entityType)) await dokumenteDerEntitaetLoeschen(entityType, [id]);
+
       const { data, error } = await window.supabase
         .from(entityConfig.table)
         .delete()
@@ -179,6 +183,8 @@ export class EntityMutator {
       if (!entityConfig) {
         throw new Error(`Unbekannte Entität: ${entityType}`);
       }
+
+      if (hatEntitaetDokumente(entityType)) await dokumenteDerEntitaetLoeschen(entityType, ids);
 
       const { error, count } = await window.supabase
         .from(entityConfig.table)

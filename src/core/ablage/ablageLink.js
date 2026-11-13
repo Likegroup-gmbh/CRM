@@ -66,7 +66,8 @@ async function flush() {
   }
 
   for (const e of batch) {
-    const link = antwort?.links?.[e.id];
+    // Dokument-Typen (vertrag, rechnung, ...) antworten unter `${typ}:${id}`
+    const link = antwort?.links?.[e.id] ?? antwort?.links?.[`${e.typ}:${e.id}`];
     if (!link?.url) {
       e.resolve(null);
       continue;

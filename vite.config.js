@@ -67,7 +67,9 @@ export default defineConfig({
   server: {
     port: 3001,
     strictPort: true,
-    open: true
+    open: true,
+    // Functions lokal über `npm run dev:functions`; netlify dev scheitert am SPA-Fallback /* → index.html
+    proxy: { '/.netlify/functions': 'http://localhost:9999' }
   },
   resolve: {
     alias: {

@@ -10,7 +10,8 @@ const { ladeKooperation } = require('./ziel');
 const RESERVIERUNG_ALT_MS = 2 * 60 * 1000;
 const MAX_ZAEHLER = 20;
 const SCHLEIFEN = [1, 2, 3];
-const BEWEGLICH = new Set(['unternehmen', 'marke', 'kampagne', 'kooperation']);
+// Dokument-Ordner (ADR 0068) haengen ueber dok_schluessel am Fach-Objekt und ziehen mit um
+const BEWEGLICH = new Set(['unternehmen', 'marke', 'kampagne', 'produktion', 'kooperation', 'dokument']);
 
 const istUniqueVerletzung = (err) => err?.code === '23505';
 const istNamensKonflikt = (err) => istUniqueVerletzung(err) && /ux_ablage_ordner_name/.test(`${err.message} ${err.details || ''}`);
@@ -203,7 +204,10 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     return sicherstellen(unternehmenRow, { art: 'bereich', bereich, unternehmen_id: unternehmenRow.unternehmen_id }, NAMEN.bereich(bereich));
   }
 
-  /** Unternehmen/Medien/Marke/Kampagne/Kooperation; koop wie ziel.ladeKooperation. */
+  /**
+   * Unternehmen/Medien/[Marke/]Kampagne/[Produktion/]Kooperation; koop wie ziel.ladeKooperation.
+   * Ohne Produktion liegt die Kooperation direkt in der Kampagne (ADR 0069).
+   */
   async function kette(koopOderId) {
     const koop = typeof koopOderId === 'string' ? await ladeKooperation(supabase, koopOderId) : koopOderId;
     if (!koop) throw new Error('Kooperation nicht gefunden');
@@ -222,10 +226,37 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
       eltern = marke;
     }
     const kampagne = await sicherstellen(eltern, { art: 'kampagne', kampagne_id: kamp.id }, NAMEN.kampagne(kamp), { ...besitz, marke_id: kamp.marke_id || null });
-    const kooperation = await sicherstellen(kampagne, { art: 'kooperation', kooperation_id: koop.id }, NAMEN.kooperation(koop), {
+    let koopEltern = kampagne;
+    let produktion = null;
+    if (koop.produktion_id) {
+      produktion = await sicherstellen(kampagne, { art: 'produktion', produktion_id: koop.produktion_id }, NAMEN.produktion(koop.produktion), {
+        ...besitz, marke_id: kamp.marke_id || null, kampagne_id: kamp.id,
+      });
+      koopEltern = produktion;
+    }
+    const kooperation = await sicherstellen(koopEltern, { art: 'kooperation', kooperation_id: koop.id }, NAMEN.kooperation(koop), {
       ...besitz, marke_id: kamp.marke_id || null, kampagne_id: kamp.id,
     });
-    return { unternehmen, medien, marke, kampagne, kooperation, koop };
+    return { unternehmen, medien, marke, kampagne, produktion, kooperation, koop };
+  }
+
+  /**
+   * Ordner eines Dokuments: Unternehmen/<Bereich>/<Ebenen...> (dokument.dokumentEbenen).
+   * @param {{ id, firmenname, ist_test }} unternehmen
+   * @param {'vertraege'|'rechnungen'|'auftraege'} bereich
+   * @param {{ ebene, ref, name, extra }[]} ebenen
+   */
+  async function dokumentKette(unternehmen, bereich, ebenen) {
+    if (!unternehmen?.id) throw new Error('Dokument ohne Unternehmen');
+    const oben = unternehmen.ist_test ? await testOrdner() : await wurzel();
+    const u = await sicherstellen(oben, { art: 'unternehmen', unternehmen_id: unternehmen.id }, NAMEN.unternehmen(unternehmen));
+    let eltern = await bereichOrdner(u, bereich);
+    for (const e of ebenen) {
+      eltern = await sicherstellen(eltern, { art: 'dokument', dok_schluessel: `${bereich}:${unternehmen.id}:${e.ebene}:${e.ref}` }, e.name, {
+        bereich, unternehmen_id: unternehmen.id, ebene: e.ebene, ...e.extra,
+      });
+    }
+    return eltern;
   }
 
   const koopBesitz = (k) => ({
@@ -408,6 +439,7 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     testOrdner,
     bereichOrdner,
     kette,
+    dokumentKette,
     typOrdner,
     videoOrdner,
     storyOrdner,

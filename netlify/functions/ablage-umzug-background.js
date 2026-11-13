@@ -1,7 +1,8 @@
 // ablage-umzug-background.js
 // Umzug des Bestands nach SharePoint (Background Function, bis zu 15 Minuten). Angestossen von
 // ablage-zeitplan (solange Zeilen offen sind, mehrere Laeufer parallel) und von der Admin-Seite
-// ("Bestand umziehen"), geschuetzt ueber x-ablage-secret. Pausiert bei Notschalter.
+// ("Bestand umziehen", Medien und Dokumente), geschuetzt ueber x-ablage-secret. Pausiert bei Notschalter
+// (Dokument-Notschalter: nur Dokumente).
 
 const { secretOk } = require('./_shared/ablage/konfig');
 const { ablageAusEnv } = require('./_shared/ablage');

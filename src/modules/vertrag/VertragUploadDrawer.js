@@ -2,9 +2,8 @@ import { syncVertragFlags } from './deckung/vertragDeckung.js';
 import { backfillRechnungVertragId } from '../rechnung/RechnungVertragZuordnung.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
-import { authorizedFetch } from '../../core/auth/getAccessToken.js';
-
-const DEBUG_UPLOAD = true;
+import { uploadVertragPdf } from '../../core/DropboxDocumentUploader.js';
+import { altesDokumentEntfernen, dokumentHochladen, dokumentZeileLaden } from '../../core/ablage/dokumentAblage.js';
 
 export class VertragUploadDrawer {
   constructor() {
@@ -217,49 +216,46 @@ export class VertragUploadDrawer {
     if (progressContainer) progressContainer.style.display = 'block';
     this.hideError();
 
+    const fortschritt = (pct, text) => {
+      if (progressFill) progressFill.style.width = `${pct}%`;
+      if (progressText) progressText.textContent = text;
+    };
+
     try {
-      if (progressText) progressText.textContent = 'Verbinde mit Dropbox...';
-      const tokenResp = await authorizedFetch('/.netlify/functions/dropbox-upload-vertrag', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          unternehmen: this.metadaten.unternehmen || '',
-          marke: this.metadaten.marke || '',
-          kampagne: this.metadaten.kampagne || '',
-          kooperation: this.metadaten.kooperation || '',
-          creator: this.metadaten.creator || '',
-          vertragstyp: this.metadaten.vertragstyp || '',
-          fileName: this._selectedFile.name
-        })
+      const file = this._selectedFile;
+      fortschritt(5, 'Bereite Upload vor...');
+      const alt = await dokumentZeileLaden('vertrag_unterschrieben', this.vertragId).catch(() => null);
+      const r = await dokumentHochladen({
+        typ: 'vertrag_unterschrieben',
+        bezugId: this.vertragId,
+        file,
+        onProgress: ({ loaded, total }) => fortschritt(Math.round((loaded / total) * 90), `Lade hoch... ${Math.round((loaded / total) * 100)}%`),
+        dropbox: () => {
+          fortschritt(30, 'Lade hoch nach Dropbox...');
+          return uploadVertragPdf({
+            metadata: {
+              unternehmen: this.metadaten.unternehmen || '',
+              marke: this.metadaten.marke || '',
+              kampagne: this.metadaten.kampagne || '',
+              kooperation: this.metadaten.kooperation || '',
+              creator: this.metadaten.creator || '',
+              vertragstyp: this.metadaten.vertragstyp || '',
+            },
+            file,
+          });
+        },
+        speichern: (spalten) => {
+          fortschritt(95, 'Speichere in Datenbank...');
+          return this._saveToDb(spalten);
+        },
       });
+      if (alt) await altesDokumentEntfernen('vertrag_unterschrieben', alt, r.spalten);
 
-      if (!tokenResp.ok) {
-        const errData = await tokenResp.json().catch(() => ({}));
-        throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${tokenResp.status})`);
-      }
-
-      const { token, dropboxPath } = await tokenResp.json();
-
-      if (progressText) progressText.textContent = 'Lade hoch nach Dropbox...';
-      const uploadResult = await this._uploadToDropbox(token, dropboxPath, progressFill, progressText);
-
-      if (progressFill) progressFill.style.width = '95%';
-      if (progressText) progressText.textContent = 'Erstelle Link...';
-      const sharedLink = await this._createSharedLink(token, uploadResult.path_display || dropboxPath);
-
-      if (progressFill) progressFill.style.width = '100%';
-      if (progressText) progressText.textContent = 'Speichere in Datenbank...';
-
-      const fileUrl = sharedLink || uploadResult.path_display || dropboxPath;
-      const filePath = uploadResult.path_display || dropboxPath;
-
-      await this._saveToDb(fileUrl, filePath);
-
-      if (progressText) progressText.textContent = 'Upload abgeschlossen!';
+      fortschritt(100, 'Upload abgeschlossen!');
       this._isUploading = false;
 
       if (typeof this.onSuccess === 'function') {
-        this.onSuccess(fileUrl, filePath);
+        this.onSuccess(r.fileUrl, r.filePath);
       }
 
       setTimeout(() => this.close(), 800);
@@ -273,104 +269,9 @@ export class VertragUploadDrawer {
     }
   }
 
-  async _uploadToDropbox(token, dropboxPath, progressFill, progressText) {
-    const file = this._selectedFile;
-    const CHUNK_SIZE = 2 * 1024 * 1024;
-    const totalSize = file.size;
-
-    const readChunkAsBase64 = (start, end) => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = () => reject(new Error('Datei konnte nicht gelesen werden'));
-        reader.readAsDataURL(file.slice(start, end));
-      });
-    };
-
-    const proxyPost = async (body) => {
-      const payloadSize = JSON.stringify(body).length;
-      const hasToken = !!body.token;
-      const tokenPrefix = body.token ? body.token.substring(0, 20) : 'N/A';
-      if (DEBUG_UPLOAD) console.log(`[VertragUpload] proxyPost action=${body.action} payloadSize=${payloadSize} hasToken=${hasToken} tokenPrefix=${tokenPrefix}...`);
-
-      const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (DEBUG_UPLOAD) console.log(`[VertragUpload] proxyPost response: status=${resp.status} ok=${resp.ok}`);
-
-      if (!resp.ok) {
-        const errText = await resp.text();
-        if (DEBUG_UPLOAD) console.error(`[VertragUpload] proxyPost FAILED: status=${resp.status} body=${errText}`);
-        let errObj = {};
-        try { errObj = JSON.parse(errText); } catch (_) {}
-        throw new Error(errObj.error || `Proxy-Fehler (${resp.status})`);
-      }
-      const json = await resp.json();
-      if (DEBUG_UPLOAD) console.log(`[VertragUpload] proxyPost OK: action=${body.action} responseKeys=${Object.keys(json)} hasTokenInResp=${!!json.token}`);
-      return json;
-    };
-
-    if (totalSize <= CHUNK_SIZE) {
-      if (progressFill) progressFill.style.width = '50%';
-      if (progressText) progressText.textContent = 'Lade hoch...';
-      const chunk = await readChunkAsBase64(0, totalSize);
-      const result = await proxyPost({ action: 'upload-small', dropboxPath, chunk });
-      if (progressFill) progressFill.style.width = '90%';
-      return result;
-    }
-
-    const totalChunks = Math.ceil(totalSize / CHUNK_SIZE);
-    let offset = 0;
-
-    const firstChunk = await readChunkAsBase64(0, CHUNK_SIZE);
-    if (progressText) progressText.textContent = `Lade hoch... 1/${totalChunks}`;
-    const startResp = await proxyPost({ action: 'session-start', chunk: firstChunk });
-    const { session_id } = startResp;
-    this._proxyToken = startResp.token;
-    if (DEBUG_UPLOAD) console.log(`[VertragUpload] session-start OK: sessionId=${session_id} tokenLen=${this._proxyToken?.length} tokenPrefix=${this._proxyToken?.substring(0, 20)}...`);
-    offset = CHUNK_SIZE;
-
-    let chunkIdx = 2;
-    while (offset + CHUNK_SIZE < totalSize) {
-      const chunk = await readChunkAsBase64(offset, offset + CHUNK_SIZE);
-      const pct = Math.round((offset / totalSize) * 90);
-      if (progressFill) progressFill.style.width = `${pct}%`;
-      if (progressText) progressText.textContent = `Lade hoch... ${chunkIdx}/${totalChunks}`;
-      await proxyPost({ action: 'session-append', sessionId: session_id, offset, chunk, token: this._proxyToken });
-      offset += CHUNK_SIZE;
-      chunkIdx++;
-    }
-
-    const lastChunk = await readChunkAsBase64(offset, totalSize);
-    if (progressFill) progressFill.style.width = '85%';
-    if (progressText) progressText.textContent = `Lade hoch... ${totalChunks}/${totalChunks}`;
-    if (DEBUG_UPLOAD) {
-      const finishTokenPrefix = this._proxyToken?.substring(0, 20) || 'N/A';
-      console.log(`[VertragUpload] session-finish SENDING: sessionId=${session_id} offset=${offset} tokenPrefix=${finishTokenPrefix}... path=${dropboxPath}`);
-    }
-    const result = await proxyPost({ action: 'session-finish', sessionId: session_id, offset, dropboxPath, chunk: lastChunk, token: this._proxyToken });
-    if (progressFill) progressFill.style.width = '90%';
-    return result;
-  }
-
-  async _createSharedLink(token, dropboxPath) {
-    const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token: this._proxyToken || undefined }),
-    });
-    if (!resp.ok) return null;
-    const { url } = await resp.json();
-    return url?.replace('?dl=0', '?raw=1') || null;
-  }
-
-  async _saveToDb(fileUrl, filePath) {
+  async _saveToDb(spalten) {
     const updateData = {
-      dropbox_file_url: fileUrl,
-      dropbox_file_path: filePath,
+      ...spalten,
       status: 'unterschrieben'
     };
 

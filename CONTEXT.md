@@ -515,7 +515,7 @@ _Avoid_: Version (das ist die Feedbackschleife), Videoversion
 Eine Überarbeitungsrunde desselben Kooperationsvideos (`version_number`, max 3).
 Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
 Alle Dateien (Videos und Bilder) liegen flach im Ordner, ohne Varianten-Ordner (A/B/C). Der Typ kommt aus der Dateiendung, auch bei Ablage im Finder bzw. SharePoint. Der Name ist der Dateiname (Titel).
-In SharePoint liegt eine Runde als `Daten/<Firma>/Medien/…/<Kooperation>/Videos/Video_N/Feedbackschleife_K` (bzw. `Finale_Version`) und enthält alles, was der Creator in dieser Runde liefert: Videos und Bilder flach, Stories im Unterordner `Story_K` (ADR 0065). Neben `Medien/` liegt je Unternehmen `Verträge/` (ADR 0067). Es gibt keine eigenen Ordner `Storys/` oder `Bilder/` mehr. Bekannte Abweichung: die eingefrorene Dropbox-Ablage behält ihre alte Struktur.
+In SharePoint liegt eine Runde als `Daten/<Firma>/Medien/…/<Kampagne>/[<Produktion>/]<Kooperation>/Videos/Video_N/Feedbackschleife_K` (bzw. `Finale_Version`) und enthält alles, was der Creator in dieser Runde liefert: Videos und Bilder flach, Stories im Unterordner `Story_K` (ADR 0065). Neben `Medien/` liegen je Unternehmen `Verträge/` (ADR 0067), `Rechnungen/` und `Aufträge/` (ADR 0068). Es gibt keine eigenen Ordner `Storys/` oder `Bilder/` mehr. Bekannte Abweichung: die eingefrorene Dropbox-Ablage behält ihre alte Struktur.
 _Avoid_: Version (alleinstehend), Revision
 
 **Story**:
@@ -615,6 +615,12 @@ _Avoid_: Konzept (das ist das Dokument der Linie), Konzeptidee, Creator-Briefing
 **Rechnung**:
 Eingangsrechnung eines Creators. Der Monat sitzt am Rechnungsdatum.
 _Avoid_: Eingangsrechnung, Invoice, Beleg (das ist die PDF)
+
+**Dokument (Ablage)**:
+Eine Vertrags-, Rechnungs-, Beleg- oder Auftragsdatei, die zu einer CRM-Zeile gehört. Ein Dokument ist weder Medium noch freie Datei.
+Liegt in SharePoint unter `Daten/<Firma>/Verträge|Rechnungen|Aufträge/…`. Ob neue Dokumente dorthin gehen oder nach Dropbox, entscheidet die Dokument-Weiche des Unternehmens. Sie ist von den Medien getrennt und hat einen eigenen Notschalter (ADR 0068).
+Eine Rechnung muss angelegt sein, bevor ihre PDFs hochgeladen werden, denn der Ordner hängt an der Rechnung.
+_Avoid_: Anhang, Upload, Datei (alleinstehend)
 
 **Kundenrechnung**:
 Ausgangsrechnung an den Kunden. Eine Zeile ist ein Auftrag × Teilrechnung, nicht der Auftrag selbst.

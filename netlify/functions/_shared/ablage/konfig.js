@@ -90,11 +90,24 @@ function secretOk(event) {
   return got.length === want.length && crypto.timingSafeEqual(got, want);
 }
 
-// Fuer Selbstaufrufe: Branch-Deploys rufen ihre eigene Function, nicht Produktion
+function requestHost(event) {
+  const h = event?.headers || {};
+  return String(h.host || h.Host || '').split(',')[0].trim();
+}
+
+function istLokalHost(host) {
+  const name = host.split(':')[0].replace(/^\[|\]$/g, '').toLowerCase();
+  return name === 'localhost' || name === '127.0.0.1' || name === '::1';
+}
+
+// Fuer Selbstaufrufe: Branch-Deploys rufen ihre eigene Function, nicht Produktion.
+// Lokal gewinnt der Request-Host (http). Sonst ginge der Anstoss an URL der verknuepften
+// Site oder an https://localhost, und der Läufer auf diesem Rechner liefe nicht.
 function siteUrl(event) {
+  const host = requestHost(event);
+  if (istLokalHost(host)) return `http://${host}`;
   const env = process.env.DEPLOY_PRIME_URL || process.env.URL;
   if (env) return env.replace(/\/+$/, '');
-  const host = event?.headers?.host || event?.headers?.Host;
   return host ? `https://${host}` : '';
 }
 

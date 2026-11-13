@@ -31,8 +31,20 @@ function antwort(status, body = Buffer.alloc(0), headers = {}) {
   };
 }
 
-function setup({ assets, dateien = { '/Alt/Firma/clip.mov': Buffer.from('0123456789') }, zeilen = [] } = {}) {
-  const uhr = { t: START };
+const MEDIEN = ['video', 'story', 'still', 'roh'];
+
+/** ablage_umzug_holen bzw. ablage_dokument_umzug_holen (Weiche je Unternehmen steckt im RPC, hier immer an). */
+const holen = (uhr, medien) => ({ p_drive_id, p_sekunden }, db) => {
+  const z = db.ablage_umzug
+    .filter((x) => x.drive_id === p_drive_id && x.status === 'offen' && Date.parse(x.naechster_versuch) <= uhr.t
+      && (!x.gesperrt_bis || Date.parse(x.gesperrt_bis) < uhr.t) && MEDIEN.includes(x.typ) === medien)
+    .sort((a, b) => a.naechster_versuch.localeCompare(b.naechster_versuch))[0];
+  if (!z) return [];
+  z.gesperrt_bis = iso(uhr.t + p_sekunden * 1000);
+  return [{ ...z }];
+};
+
+function setup({ assets, dateien = { '/Alt/Firma/clip.mov': Buffer.from('0123456789') }, zeilen = [], tabellen = {}, rpc = {}, uhr = { t: START } } = {}) {
   const supabase = createFakeSupabase({
     tabellen: {
       ablage_stand: [{ drive_id: 'd1', root_item_id: 'root' }],
@@ -59,26 +71,18 @@ function setup({ assets, dateien = { '/Alt/Firma/clip.mov': Buffer.from('0123456
       kooperation_story_asset: [],
       kooperation_bilder_asset: [],
       kooperation_rohmaterial_asset: [],
+      ...tabellen,
     },
     unique: { ablage_ordner: ORDNER_UNIQUE },
-    rpc: {
-      ablage_umzug_holen: ({ p_drive_id, p_sekunden }, db) => {
-        const z = db.ablage_umzug
-          .filter((x) => x.drive_id === p_drive_id && x.status === 'offen' && Date.parse(x.naechster_versuch) <= uhr.t
-            && (!x.gesperrt_bis || Date.parse(x.gesperrt_bis) < uhr.t))
-          .sort((a, b) => a.naechster_versuch.localeCompare(b.naechster_versuch))[0];
-        if (!z) return [];
-        z.gesperrt_bis = iso(uhr.t + p_sekunden * 1000);
-        return [{ ...z }];
-      },
-    },
+    rpc: { ablage_umzug_holen: holen(uhr, true), ablage_dokument_umzug_holen: holen(uhr, false), ...rpc },
   });
   const sp = createFakeSharePoint();
   const ordner = createOrdner({ supabase, sp, schlafen: async () => {} });
   const dropbox = { downloadUrl: vi.fn(async (pfad) => (dateien[pfad] ? { url: `https://dbx.test${encodeURI(pfad)}` } : null)) };
-  const fetchImpl = vi.fn(async (url, { headers }) => {
+  const fetchImpl = vi.fn(async (url, { headers = {} } = {}) => {
     const inhalt = dateien[decodeURI(new URL(url).pathname)];
     if (!inhalt) return antwort(404);
+    if (!headers.Range) return antwort(200, inhalt, { 'content-length': String(inhalt.length) });
     if (!inhalt.length) return antwort(416);
     const [, a, b] = /bytes=(\d+)-(\d+)/.exec(headers.Range);
     const von = Number(a);
@@ -302,5 +306,95 @@ describe('Umzug Lauf', () => {
     expect(await t.u.laeuferBedarf({ parallel: 2 })).toBe(1);
     expect(await t.u.laeuferBedarf({ parallel: 5 })).toBe(2);
     expect(await t.u.uebersicht()).toEqual([{ unternehmen_id: U1, offen: 3, fertig: 1, fehler: 1, uebersprungen: 0 }]);
+  });
+});
+
+describe('Umzug Dokumente (ADR 0068)', () => {
+  const VT1 = id(30);
+  const R1 = id(31);
+  const SIG = 'https://x.supabase.co/storage/v1/object/public/unterschriebene-vertraege/vt1/sig.pdf';
+  const dokZeile = (extra) => umzugZeile({ quelle: 'dropbox', ...extra });
+
+  function dokSetup({ zeilen, einstellung = [] } = {}) {
+    const t = setup({
+      dateien: { '/Alt/Firma/Vertrag Lisa.pdf': Buffer.from('VERTRAG'), '/Alt/Firma/RE-1.pdf': Buffer.from('RECHNUNG') },
+      zeilen: zeilen ?? [
+        dokZeile({ id: 'z1', typ: 'vertrag', asset_id: VT1, quelle_ref: '/Alt/Firma/Vertrag Lisa.pdf' }),
+        dokZeile({ id: 'z2', typ: 'vertrag_unterschrieben', asset_id: VT1, quelle: 'storage', quelle_ref: 'vt1/sig.pdf', quelle_bucket: 'unterschriebene-vertraege' }),
+        dokZeile({ id: 'z3', typ: 'rechnung_alt', asset_id: R1, quelle_ref: '/Alt/Firma/RE-1.pdf' }),
+      ],
+      tabellen: {
+        ablage_einstellung: [{ schluessel: 'notschalter', wert: false }, ...einstellung],
+        unternehmen: [{ id: U1, firmenname: 'Firma', ist_test: false, dokument_ablage_ziel: 'sharepoint' }],
+        kampagne: [{ id: KA1, kampagnenname: 'Auftrag', eigener_name: 'Sommer', unternehmen_id: U1, marke_id: null }],
+        marke: [],
+        auftrag: [],
+        vertraege: [{
+          id: VT1, name: 'Vertrag Lisa', kunde_unternehmen_id: U1, kampagne_id: KA1, contracting_auftrag_id: null,
+          datei_url: 'https://www.dropbox.com/s/v.pdf', datei_path: '/Alt/Firma/Vertrag Lisa.pdf', datei_ablage: 'dropbox',
+          dropbox_file_url: null, dropbox_file_path: null, signiert_ablage: 'dropbox',
+          unterschriebener_vertrag_url: SIG, unterschriebener_vertrag_path: 'vt1/sig.pdf',
+        }],
+        rechnung: [{ id: R1, rechnung_nr: 'RE-1', unternehmen_id: U1, kampagne_id: KA1, auftrag_id: null, pdf_url: 'https://www.dropbox.com/s/r.pdf', pdf_path: '/Alt/Firma/RE-1.pdf' }],
+        rechnung_pdfs: [],
+      },
+    });
+    t.supabase.storage = {
+      from: (bucket) => ({
+        download: async (pfad) => (bucket === 'unterschriebene-vertraege' && pfad === 'vt1/sig.pdf'
+          ? { data: { arrayBuffer: async () => Uint8Array.from(Buffer.from('SIGNIERT')).buffer }, error: null }
+          : { data: null, error: { message: 'Object not found', statusCode: '404' } }),
+      }),
+    };
+    return t;
+  }
+
+  it('Dropbox + Storage + rechnung.pdf_url: Bereichs-Ordner, Spalten umgestellt, rechnung_pdfs-Zeile neu', async () => {
+    const t = dokSetup();
+    const r = await t.u.lauf();
+    expect(r).toMatchObject({ fertig: 3, leer: true, bytes: 7 + 8 + 8 });
+    const v = t.db.vertraege[0];
+    expect(v).toMatchObject({ datei_ablage: 'sharepoint', signiert_ablage: 'sharepoint', signiert_drive_id: 'd1' });
+    expect(v.datei_path).toMatch(/\/Firma\/Verträge\/Sommer\/Vertrag Lisa\.pdf$/);
+    expect(v.dropbox_file_path).toMatch(/\/Firma\/Verträge\/Sommer\/sig\.pdf$/);
+    expect(t.db.rechnung_pdfs).toHaveLength(1);
+    expect(t.db.rechnung_pdfs[0]).toMatchObject({ rechnung_id: R1, ablage: 'sharepoint', file_name: 'RE-1.pdf', size: 8, content_type: 'application/pdf' });
+    expect(t.db.rechnung_pdfs[0].file_path).toMatch(/\/Firma\/Rechnungen\/Sommer\/RE-1\/RE-1\.pdf$/);
+    expect(t.db.ablage_umzug.map((z) => z.status)).toEqual(['fertig', 'fertig', 'fertig']);
+    expect(t.db.ablage_upload.every((u) => u.abgeschlossen_at && u.kontext.umzug_typ)).toBe(true);
+    expect(t.db.ablage_upload.find((u) => u.kontext.umzug_typ === 'rechnung_alt').kontext).toMatchObject({ typ: 'rechnung', bezug_id: R1, umzug_asset_id: R1 });
+    expect(t.db.ablage_upload.find((u) => u.kontext.umzug_typ === 'vertrag').kontext).toMatchObject({ typ: 'vertrag', bezug_id: VT1, umzug_dokument_id: VT1 });
+    // deferCommit: unsichtbar bis die Upload-Zeile steht
+    expect(t.sp.calls.filter((c) => c[0] === 'uploadSession').every((c) => c[3].deferCommit)).toBe(true);
+  });
+
+  it('Dokument-Notschalter haelt nur Dokumente an; schon auf SharePoint = fertig; Datei fehlt = Fehler', async () => {
+    const t = dokSetup({ einstellung: [{ schluessel: 'notschalter_dokumente', wert: true }] });
+    expect(await t.u.lauf()).toMatchObject({ dokumente_pausiert: true, leer: true, fertig: 0 });
+    expect(t.db.ablage_umzug.every((z) => z.status === 'offen')).toBe(true);
+    ziel._reset();
+
+    const t2 = dokSetup({
+      zeilen: [
+        dokZeile({ id: 'z1', typ: 'vertrag', asset_id: VT1, quelle_ref: '/Alt/Firma/weg.pdf' }),
+        dokZeile({ id: 'z2', typ: 'rechnung_alt', asset_id: R1, quelle_ref: '/Alt/Firma/RE-1.pdf' }),
+      ],
+    });
+    Object.assign(t2.db.vertraege[0], { datei_ablage: 'dropbox', datei_path: '/Alt/Firma/weg.pdf' });
+    await t2.u.lauf();
+    expect(t2.zeile('z1')).toMatchObject({ status: 'fehler', grund: 'dropbox_fehlt' });
+    expect(t2.zeile('z2').status).toBe('fertig');
+
+    Object.assign(t2.db.vertraege[0], { datei_ablage: 'sharepoint', datei_drive_id: 'd1', datei_item_id: 'x9' });
+    Object.assign(t2.zeile('z1'), { status: 'offen', naechster_versuch: iso(t2.uhr.t - MIN) });
+    await t2.u.lauf();
+    expect(t2.zeile('z1')).toMatchObject({ status: 'fertig', item_id: 'x9' });
+  });
+
+  it('dokumenteAnlegen reiht ueber das RPC ein', async () => {
+    const anlegen = vi.fn(() => 5);
+    const t = setup({ rpc: { ablage_dokument_umzug_anlegen: anlegen } });
+    expect(await t.u.dokumenteAnlegen(U1)).toBe(5);
+    expect(anlegen).toHaveBeenCalledWith({ p_drive_id: 'd1', p_unternehmen_id: U1 }, expect.anything());
   });
 });

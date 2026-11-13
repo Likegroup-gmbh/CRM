@@ -5,10 +5,21 @@
 
 const TEST_ORDNER = '_Test';
 
-// Bereiche unter dem Unternehmen (ADR 0067): Medien traegt Marke/Kampagne/Kooperation
+// Bereiche unter dem Unternehmen (ADR 0067): Medien traegt Marke/Kampagne/Produktion/Kooperation,
+// die Dokument-Bereiche [Marke/]Kampagne[/Produktion] bzw. Contracting/Auftrag (ADR 0068, 0069)
 const BEREICH_ORDNER = {
   medien: 'Medien',
   vertraege: 'Verträge',
+  rechnungen: 'Rechnungen',
+  auftraege: 'Aufträge',
+};
+const DOKUMENT_BEREICHE = new Set(['vertraege', 'rechnungen', 'auftraege']);
+
+// Feste Namen der Dokument-Ebenen ohne eigenes Fach-Objekt
+const DOKUMENT_ORDNER = {
+  contracting: 'Contracting',
+  belege: 'Belege',
+  rechnungen: 'Rechnungen',
 };
 
 // Videos, Bilder und Stories liegen gemeinsam unter Videos/Video_N (ADR 0065)
@@ -82,6 +93,7 @@ const NAMEN = {
   bereich: (b) => BEREICH_ORDNER[b],
   marke: (m) => bereinigen(m?.markenname) || 'Marke',
   kampagne: (k) => bereinigen(kampagnenName(k)) || 'Kampagne',
+  produktion: (p) => bereinigen(p?.name) || 'Produktion',
   kooperation: (koop) => bereinigen(koop?.name) || 'Kooperation',
   typ: (typ) => TYP_ORDNER[typ],
   video: (v) => {
@@ -94,6 +106,8 @@ const NAMEN = {
   finale: () => FINALE_ORDNER,
   format: (variant) => formatOrdner(variant),
   variante: (name) => bereinigen(name, 20) || 'A',
+  auftrag: (a) => bereinigen(String(a?.titel || '').trim() || a?.auftragsname) || 'Auftrag',
+  rechnung: (r) => bereinigen(r?.rechnung_nr) || `Rechnung_${String(r?.id || '').slice(0, 8)}`,
 };
 
 function formatOrdner(variant) {
@@ -165,6 +179,8 @@ function pfadZuLang(sitePfad, relativ) {
 module.exports = {
   TEST_ORDNER,
   BEREICH_ORDNER,
+  DOKUMENT_BEREICHE,
+  DOKUMENT_ORDNER,
   TYP_ORDNER,
   ALTE_TYP_ORDNER,
   FINALE_ORDNER,

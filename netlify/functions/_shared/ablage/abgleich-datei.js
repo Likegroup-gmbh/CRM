@@ -4,7 +4,8 @@
 // Kontext aus createAbgleich.
 
 const { TABELLE, TYPEN, dateiSpalten, fachSpalten, findeUeberall, upsert, entfernenNachItem, umstellen } = require('./asset');
-const { dateiEinordnen } = require('./klassifizierung');
+const { dateiEinordnen, ortVon, ELTERN_VERSUCHE } = require('./klassifizierung');
+const dokument = require('./dokument');
 
 const DATEI_FELDER = 'id,name,size,eTag,cTag,webUrl,parentReference,file,folder,video,image,deleted,createdDateTime';
 
@@ -19,10 +20,11 @@ function createDateiAbgleich(c) {
 
   async function dateiBearbeiten(e) {
     const asset = await findeUeberall(supabase, driveId, e.item_id);
+    const dok = asset ? null : await dokument.findeNachItem(supabase, driveId, e.item_id);
     const item = e.geloescht ? null : await sp.item(e.item_id, DATEI_FELDER);
     if (!item || item.deleted) {
-      if (!asset) return { aktion: 'ignorieren', grund: 'geloescht' };
-      // Nur Admins koennen Fachdateien loeschen (Web): Asset ausblenden
+      if (!asset && !dok) return { aktion: 'ignorieren', grund: 'geloescht' };
+      // Nur Admins koennen Fachdateien loeschen (Web): Asset ausblenden, Dokument austragen
       return { aktion: 'entfernt', grund: 'geloescht', zeilen: await allesEntfernen(e.item_id) };
     }
     if (!item.file) return { aktion: 'ignorieren', grund: 'keine_datei' };
@@ -31,13 +33,15 @@ function createDateiAbgleich(c) {
     const [eltern, wurzel, upload] = await Promise.all([
       ordner.nachItem(parentId),
       ordner.wurzel(),
-      asset ? null : uploadZu(item, parentId),
+      asset || dok ? null : uploadZu(item, parentId),
     ]);
     const elternOffen = !eltern && parentId ? await c.eingangOffen(parentId) : false;
     const pfad = c.pfadUnter(eltern, parentId, wurzel, item.name);
     if (pfad && pfad !== e.pfad) {
       await supabase.from('ablage_eingang').update({ pfad }).eq('drive_id', driveId).eq('item_id', e.item_id);
     }
+
+    if (dok) return dokumentAbgleichen(dok, { e, item, eltern, elternOffen, elternIstWurzel: parentId === wurzel.item_id, pfad });
 
     const d = dateiEinordnen({
       item: { name: item.name, breite: item.video?.width ?? item.image?.width ?? null, hoehe: item.video?.height ?? item.image?.height ?? null },
@@ -86,6 +90,9 @@ function createDateiAbgleich(c) {
 
       case 'umzug':
         return umzugAnhaengen(d, { item, pfad });
+
+      case 'dokument_upload':
+        return dokumentAusUpload(d, { item, pfad });
 
       case 'zurueck': {
         const ctx = await kontext(d.typ, d.ziel);
@@ -173,7 +180,100 @@ function createDateiAbgleich(c) {
   async function allesEntfernen(itemId) {
     let n = 0;
     for (const typ of TYPEN) n += await entfernenNachItem(supabase, typ, driveId, itemId);
+    n += await dokument.entfernenNachItem(supabase, driveId, itemId);
     return n;
+  }
+
+  // ─── Dokumente (ADR 0068) ───
+
+  async function dokumentSpaltenSetzen(typ, id, item, pfad) {
+    const { error } = await supabase.from(dokument.DOKUMENT[typ].tabelle)
+      .update(dokument.spaltenAusItem(typ, item, { driveId, pfad })).eq('id', id);
+    if (error) throw error;
+  }
+
+  async function dokumentOrdner(typ, bezugId, dokumentTyp) {
+    const bezug = await dokument.ladeBezug(supabase, typ, bezugId);
+    if (!bezug?.unternehmen) return null;
+    return ordner.dokumentKette(bezug.unternehmen, dokument.DOKUMENT[typ].bereich, dokument.dokumentEbenen(typ, bezug, { dokumentTyp }));
+  }
+
+  /**
+   * Bekanntes Dokument: innerhalb der Dokument-Bereiche fuehrt SharePoint Ort und Namen (Pfad,
+   * webUrl, Name nachziehen); ausserhalb (Medien, Wurzel) zurueck in seinen Ordner.
+   */
+  async function dokumentAbgleichen(dok, { e, item, eltern, elternOffen, elternIstWurzel, pfad }) {
+    const { typ, row } = dok;
+    const imBereich = eltern && !eltern.geloescht_at && ortVon(eltern).art === 'dokument';
+    if (imBereich) {
+      await dokumentSpaltenSetzen(typ, row.id, item, pfad);
+      return { aktion: 'dokument', typ, id: row.id, pfad };
+    }
+    if (!eltern && !elternIstWurzel && (elternOffen || (e.versuche || 1) < ELTERN_VERSUCHE)) {
+      return { aktion: 'warten', sek: 30, grund: 'eltern_unbekannt' };
+    }
+    const ziel = await dokumentOrdner(typ, dokument.bezugIdVon(typ, row), row.dokument_typ);
+    if (!ziel) {
+      await dokumentSpaltenSetzen(typ, row.id, item, pfad);
+      return { aktion: 'dokument', typ, id: row.id, pfad, grund: 'ohne_unternehmen' };
+    }
+    const neu = { ...item, ...(await sp.verschieben(item.id, ziel.item_id, { conflict: 'rename' })) };
+    const zielPfad = `${ziel.pfad}/${neu.name}`;
+    await dokumentSpaltenSetzen(typ, row.id, neu, zielPfad);
+    return { aktion: 'zurueck', typ, id: row.id, pfad: zielPfad, grund: 'dokument_verschoben' };
+  }
+
+  /** Dokument-Upload, dessen Zeile der Client nie geschrieben hat (Tab zu nach dem Commit). */
+  async function dokumentAusUpload(d, { item, pfad }) {
+    const { data: up, error } = await supabase.from('ablage_upload').select('*').eq('id', d.upload_id).maybeSingle();
+    if (error) throw error;
+    const k = up?.kontext || {};
+    const def = dokument.DOKUMENT[d.typ];
+    if (!up || !def || !k.bezug_id) return { aktion: 'unzugeordnet', grund: 'dokument_ohne_bezug' };
+    const werte = dokument.spaltenAusItem(d.typ, item, { driveId, pfad });
+    if (!up.item_id) await supabase.from('ablage_upload').update({ item_id: item.id, abgeschlossen_at: iso() }).eq('id', up.id);
+
+    // Umzug: die Bestandszeile bekommt die Datei, nie eine zweite Zeile
+    if (k.umzug_dokument_id) {
+      const { data: alt, error: aErr } = await supabase.from(def.tabelle).update(werte).eq('id', k.umzug_dokument_id).select('id');
+      if (aErr) throw aErr;
+      if (!alt?.length) return { aktion: 'unzugeordnet', grund: 'umzug_ohne_dokument' };
+      await supabase.from('ablage_umzug')
+        .update({ status: 'fertig', grund: 'abgleich', item_id: item.id, fertig_at: iso(), gesperrt_bis: null })
+        .eq('typ', k.umzug_typ || d.typ).eq('asset_id', k.umzug_dokument_id).neq('status', 'fertig');
+      return { aktion: 'dokument', typ: d.typ, id: k.umzug_dokument_id, pfad, quelle: 'umzug' };
+    }
+
+    if (def.art === 'feld') {
+      const { data: v, error: vErr } = await supabase.from(def.tabelle).select(dokument.spaltenSelect(d.typ)).eq('id', k.bezug_id).maybeSingle();
+      if (vErr) throw vErr;
+      if (!v) return { aktion: 'unzugeordnet', grund: 'dokument_ohne_bezug' };
+      // Ein neuerer Upload hat den Platz schon belegt
+      if (v[def.spalten.ablage] === 'sharepoint' && v[def.spalten.item] && v[def.spalten.item] !== item.id) {
+        return { aktion: 'unzugeordnet', grund: 'dokument_ersetzt' };
+      }
+      const { error: uErr } = await supabase.from(def.tabelle).update(werte).eq('id', k.bezug_id);
+      if (uErr) throw uErr;
+      return { aktion: 'dokument', typ: d.typ, id: k.bezug_id, pfad, quelle: 'upload' };
+    }
+
+    const zeile = { ...werte, [def.bezugSpalte]: k.bezug_id };
+    if (d.typ === 'auftragsdokument') zeile.dokument_typ = k.dokument_typ || 'auftragsbestaetigung';
+    // rechnung_pdfs.uploaded_by zeigt auf auth.users, die anderen auf benutzer
+    if (up.erstellt_von && d.typ !== 'rechnung') zeile.uploaded_by = up.erstellt_von;
+    if (d.typ === 'beleg') zeile.uploaded_at = iso();
+    const { data: neu, error: iErr } = await supabase.from(def.tabelle).insert(zeile).select('id').single();
+    if (iErr) {
+      if (iErr.code === '23505') return { aktion: 'dokument', typ: d.typ, grund: 'parallel_angelegt' };
+      throw iErr;
+    }
+    // rechnung.pdf_url ohne rechnung_pdfs-Zeile: der Umzug legt sie an
+    if (k.umzug_typ && k.umzug_asset_id) {
+      await supabase.from('ablage_umzug')
+        .update({ status: 'fertig', grund: 'abgleich', item_id: item.id, fertig_at: iso(), gesperrt_bis: null })
+        .eq('typ', k.umzug_typ).eq('asset_id', k.umzug_asset_id).neq('status', 'fertig');
+    }
+    return { aktion: 'dokument', typ: d.typ, id: neu.id, pfad, quelle: k.umzug_typ ? 'umzug' : 'upload' };
   }
 
   /** lastModifiedBy (E-Mail/UPN) -> benutzer.id, zuerst ueber das Override-Feld. */

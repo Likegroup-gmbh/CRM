@@ -12,6 +12,8 @@ const { darfMediaUpload, istAdmin, sichtbar } = require('./zugriff');
 const { AblageFehler } = require('./http');
 const { ordnerVon, endung, nichtKonfiguriert, kontextAusBody, kontextAusZeile, kontextPruefen } = require('./schreiben-kontext');
 const { createDateiSchreiben } = require('./schreiben-datei');
+const { createDokumentSchreiben } = require('./schreiben-dokument');
+const { istDokument, verweise: dokumentVerweise } = require('./dokument');
 const { dropboxUpload } = require('./schalter');
 
 /**
@@ -78,6 +80,7 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
   async function uploadZiel({ benutzer, caller, body }) {
     // Vor zielFuerKooperation: KOOP_SELECT liest unternehmen.ablage_ziel
     if (dropboxUpload()) return { ziel: 'dropbox' };
+    if (istDokument(body.typ)) return dok.uploadZiel({ benutzer, caller, body });
     const typ = body.ersetzen?.typ || body.typ;
     if (!TYPEN.includes(typ)) throw new AblageFehler(400, 'Unbekannter Typ');
     if (!istUuid(body.kooperation_id)) throw new AblageFehler(400, 'kooperation_id fehlt');
@@ -242,7 +245,7 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
     if (sp && !up.kontext?.gleiches_item) {
       // Bytes kamen an, der Commit nicht: Datei ueber Name + Groesse finden
       const itemId = up.item_id || (await uploadFinden(up))?.id;
-      if (itemId && (await weitereVerweise(supabase, up.drive_id, itemId)) === 0) {
+      if (itemId && (await weitereVerweise(supabase, up.drive_id, itemId)) + (await dokumentVerweise(supabase, up.drive_id, itemId)) === 0) {
         await sp.loeschen(itemId);
       }
     }
@@ -251,8 +254,13 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
   }
 
   const datei = createDateiSchreiben({ supabase, ablage, sp, driveId, jetzt, passenderName });
+  const dok = createDokumentSchreiben({ supabase, ablage, sp, driveId, passenderName, webUrl });
 
-  return { uploadZiel, uploadCommit, uploadVerwerfen, ...datei };
+  // Dokument-Typen (ADR 0068) haben eigene Loesch- und Namensregeln
+  const dateiLoeschen = (ctx) => (istDokument(ctx.body?.typ) ? dok.dateiLoeschen(ctx) : datei.dateiLoeschen(ctx));
+  const dateiUmbenennen = (ctx) => (istDokument(ctx.body?.typ) ? dok.dateiUmbenennen(ctx) : datei.dateiUmbenennen(ctx));
+
+  return { uploadZiel, uploadCommit, uploadVerwerfen, ...datei, dateiLoeschen, dateiUmbenennen };
 }
 
 module.exports = { createSchreiben, kontextAusBody, kontextAusZeile };

@@ -4,7 +4,16 @@
 // gebaute Links (Form: .../storage/v1/object/public/<bucket>/<pfad>). Statt
 // jede Render-Stelle umzubauen, werden diese URLs on-demand (beim Klick bzw.
 // vor einem fetch-Download) in kurzlebige Signed URLs umgewandelt.
+// Dokumente in SharePoint (ADR 0068): die gespeicherte webUrl braucht eine Microsoft-Anmeldung,
+// aufgelöst wird über ablage-link (data-ablage-dokument="typ:id" oder die webUrl selbst).
 // Dropbox-Links und Public-Bild-Buckets sind nicht betroffen.
+
+import {
+  dokumentLink,
+  dokumentLinkNachUrl,
+  inNeuemTabOeffnen,
+  istSharePointDokumentUrl,
+} from './ablage/dokumentAblage.js';
 
 const PRIVATE_DOCUMENT_BUCKETS = new Set([
   'vertraege',
@@ -46,6 +55,7 @@ export async function getSignedDocumentUrl(bucket, path, ttl = SIGNED_URL_TTL_SE
  * Nicht-Storage-URLs (z.B. Dropbox) werden unverändert zurückgegeben.
  */
 export async function resolveDocumentUrl(url) {
+  if (istSharePointDokumentUrl(url)) return (await dokumentLinkNachUrl(url)) || '';
   const ref = extractPrivateDocumentRef(url);
   if (!ref) return url || '';
   return getSignedDocumentUrl(ref.bucket, ref.path);
@@ -56,6 +66,10 @@ export async function resolveDocumentUrl(url) {
  * geöffnet (Popup-Blocker), die Signed URL danach gesetzt.
  */
 export async function openDocumentUrl(url) {
+  if (istSharePointDokumentUrl(url)) {
+    // Kein Treffer (z. B. Datei nur im Finder abgelegt): webUrl mit Microsoft-Anmeldung
+    return inNeuemTabOeffnen(() => dokumentLinkNachUrl(url), { fallbackUrl: url });
+  }
   const ref = extractPrivateDocumentRef(url);
   if (!ref) {
     if (url) window.open(url, '_blank', 'noopener');
@@ -80,12 +94,22 @@ export async function openDocumentUrl(url) {
  */
 export function installDocumentLinkInterceptor() {
   document.addEventListener('click', (e) => {
-    const anchor = e.target?.closest?.('a[href]');
+    const anchor = e.target?.closest?.('a[href], a[data-ablage-dokument]');
     if (!anchor) return;
-    const ref = extractPrivateDocumentRef(anchor.getAttribute('href'));
-    if (!ref) return;
+    const href = anchor.getAttribute('href');
+    const dok = anchor.getAttribute('data-ablage-dokument');
+    if (dok) {
+      const i = dok.indexOf(':');
+      e.preventDefault();
+      e.stopPropagation();
+      inNeuemTabOeffnen(() => dokumentLink(dok.slice(0, i), dok.slice(i + 1)), {
+        fallbackUrl: href && href !== '#' ? href : null,
+      });
+      return;
+    }
+    if (!extractPrivateDocumentRef(href) && !istSharePointDokumentUrl(href)) return;
     e.preventDefault();
     e.stopPropagation();
-    openDocumentUrl(anchor.getAttribute('href'));
+    openDocumentUrl(href);
   }, true);
 }

@@ -1,8 +1,10 @@
 // _shared/ablage/umsortieren.js
-// Struktur-Umzug innerhalb von SharePoint, je Unternehmen in zwei Phasen:
+// Struktur-Umzug innerhalb von SharePoint, je Unternehmen in drei Phasen:
 // 1. Bereiche (ADR 0067): Marken und Kampagnen direkt unter dem Unternehmen ziehen nach Medien/,
 //    Medien/ und Verträge/ werden angelegt. Ein Move je Ordner, alles darunter wandert mit.
-// 2. Feedbackschleifen (ADR 0065): Bestand aus Storys/, Bilder/ und den Varianten-Ordnern (A/B/C)
+// 2. Produktionen (ADR 0069): Kooperations-Ordner unter Medien/ und Vertrags-PDFs unter Verträge/
+//    ziehen in den Ordner ihrer Produktion (struktur.js, wie die laufende Pflege im Abgleich).
+// 3. Feedbackschleifen (ADR 0065): Bestand aus Storys/, Bilder/ und den Varianten-Ordnern (A/B/C)
 //    in die Runden unter Videos/Video_N. Das Ziel kommt aus den Fachspalten der Zeile
 //    (zielOrdner), wie bei Upload und Dropbox-Umzug.
 // Graph-Move: die item_id bleibt, Kommentare, Tags und Promote-Finale haengen weiter an der Datei.
@@ -16,6 +18,7 @@ const { systemdatei, BEREICH_ORDNER } = require('./pfad');
 const { notschalterAn } = require('./ziel');
 const { istNichtGefunden } = require('./graph');
 const { SEITE, stuecke } = require('./liste');
+const { createStruktur } = require('./struktur');
 
 const BUDGET_MS = 12 * 60 * 1000;
 const TYPEN = ['video', 'story', 'still'];
@@ -33,6 +36,7 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
   const { sp, ordner } = ablage;
   const driveId = sp.driveId;
   const iso = (ms = jetzt()) => new Date(ms).toISOString();
+  const struktur = createStruktur({ supabase, sp, ordner });
 
   async function seiten(abfrage, schluessel = 'id') {
     const out = [];
@@ -89,6 +93,35 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
     return r;
   }
 
+  /** Trockenlauf Phase 2. neu: Produktions-Ordner (Medien bzw. Verträge), die erst angelegt werden. */
+  function produktionZaehlen(offen) {
+    const neu = new Set(offen.filter((o) => o.produktion_id && !o.ordner_da).map((o) => `${o.art}:${o.produktion_id}`));
+    return {
+      kooperationen: offen.filter((o) => o.art === 'kooperation').length,
+      vertraege: offen.filter((o) => o.art === 'vertrag').length,
+      neu: neu.size,
+    };
+  }
+
+  /** Phase 2: Kooperationen und Verträge in den Ordner ihrer Produktion. */
+  async function produktionenEinfuehren(unternehmenId, { bis } = {}) {
+    const r = { kooperationen: 0, vertraege: 0, fehler: [] };
+    for (const eintrag of await struktur.offen({ unternehmenId })) {
+      if (bis && jetzt() >= bis) {
+        r.unvollstaendig = true;
+        break;
+      }
+      try {
+        const { verschoben } = await struktur.nachziehen(eintrag);
+        if (eintrag.art === 'kooperation') r.kooperationen += verschoben;
+        else if (verschoben) r.vertraege++;
+      } catch (err) {
+        if (r.fehler.length < LISTE_MAX) r.fehler.push(`${eintrag.art} ${eintrag.id}: ${err.message}`);
+      }
+    }
+    return r;
+  }
+
   /** Alte Ordner eines Unternehmens: alles unter Storys/ und Bilder/, Varianten-Ordner unter Videos/. */
   async function alteOrdner(unternehmenId) {
     const basis = () => supabase.from('ablage_ordner').select('*')
@@ -111,6 +144,7 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
       neu: anlegen.length,
       anlegen,
     };
+    const produktion = produktionZaehlen(await struktur.offen({ unternehmenId }));
     const alt = await alteOrdner(unternehmenId);
     const nachItem = new Map(alt.map((o) => [o.item_id, o]));
 
@@ -143,6 +177,7 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
       ordner: alt,
       zaehler: {
         bereich,
+        produktion,
         dateien: assets.length, videos: anzahl('video'), storys: anzahl('story'), bilder: anzahl('still'),
         ordner: alt.length, rest: rest.length,
       },
@@ -257,8 +292,10 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
     const bis = jetzt() + budgetMs;
     const bereich = await bereicheEinfuehren(unternehmenId, { bis });
     if (bereich.unvollstaendig) return { bereich, unvollstaendig: true };
+    const produktion = await produktionenEinfuehren(unternehmenId, { bis });
+    if (produktion.unvollstaendig) return { bereich, produktion, unvollstaendig: true };
     const plan = await planen(unternehmenId);
-    const r = { bereich, geplant: plan.zaehler.dateien, verschoben: 0, fehlt: 0, fehler: [] };
+    const r = { bereich, produktion, geplant: plan.zaehler.dateien, verschoben: 0, fehlt: 0, fehler: [] };
     const storyLinks = new Map();
     for (const a of plan.assets) {
       if (jetzt() >= bis) {

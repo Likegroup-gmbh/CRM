@@ -4,7 +4,7 @@ import schalterDatei from '../core/ablage/schalter.json';
 
 const require = createRequire(import.meta.url);
 const { dropboxUpload } = require('../../netlify/functions/_shared/ablage/schalter.js');
-const { istKonfiguriert } = require('../../netlify/functions/_shared/ablage/konfig.js');
+const { istKonfiguriert, siteUrl } = require('../../netlify/functions/_shared/ablage/konfig.js');
 const { createSchreiben } = require('../../netlify/functions/_shared/ablage/schreiben.js');
 const { createCreatorAblage } = require('../../netlify/functions/_shared/ablage/creator.js');
 
@@ -101,5 +101,28 @@ describe('ohne Env gilt schalter.json', () => {
     expect(dropboxUpload({ VITE_DROPBOX_UPLOAD: 'ON' })).toBe(true);
     expect(dropboxUpload({ VITE_DROPBOX_UPLOAD: 'Off' })).toBe(false);
     expect(dropboxUpload({})).toBe(schalterDatei.dropboxUpload !== false);
+  });
+});
+
+describe('siteUrl', () => {
+  const vorher = { URL: process.env.URL, DEPLOY_PRIME_URL: process.env.DEPLOY_PRIME_URL };
+  afterEach(() => {
+    if (vorher.URL === undefined) delete process.env.URL;
+    else process.env.URL = vorher.URL;
+    if (vorher.DEPLOY_PRIME_URL === undefined) delete process.env.DEPLOY_PRIME_URL;
+    else process.env.DEPLOY_PRIME_URL = vorher.DEPLOY_PRIME_URL;
+  });
+
+  it('lokal http an den Request-Host, auch wenn URL auf die Site zeigt', () => {
+    process.env.URL = 'https://crm.netlify.app';
+    process.env.DEPLOY_PRIME_URL = 'https://deploy-preview.netlify.app';
+    expect(siteUrl({ headers: { host: 'localhost:3001' } })).toBe('http://localhost:3001');
+    expect(siteUrl({ headers: { Host: '127.0.0.1:9999' } })).toBe('http://127.0.0.1:9999');
+  });
+
+  it('sonst die Deploy-URL, nicht den Host', () => {
+    process.env.DEPLOY_PRIME_URL = 'https://deploy-preview.netlify.app/';
+    process.env.URL = 'https://crm.netlify.app';
+    expect(siteUrl({ headers: { host: 'crm.netlify.app' } })).toBe('https://deploy-preview.netlify.app');
   });
 });

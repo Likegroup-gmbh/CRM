@@ -6,12 +6,16 @@
 // Vor Commit bzw. Kopie steht eine ablage_upload-Zeile mit umzug_asset_id: stirbt der Laeufer
 // danach, haengt der Abgleich die Datei an die Bestandszeile statt ein zweites Asset anzulegen.
 // Einsortiert wird nach den Fachspalten der Zeile (zielOrdner), nicht nach dem alten Dropbox-Pfad.
+// Dokumente (ADR 0068, eigener Notschalter + Weiche): Quelle Dropbox oder Supabase-Storage, ganz
+// in den Speicher (max. 200 MB), Session mit deferCommit, Ordner wie beim Upload (dokumentKette).
+// rechnung_alt (rechnung.pdf_url ohne rechnung_pdfs-Zeile) wird zu einer rechnung_pdfs-Zeile.
 
 const { createDropboxAblage } = require('./dropbox');
 const { TABELLE, dateiSpalten, umstellen } = require('./asset');
 const { dateiname } = require('./pfad');
-const { notschalterAn } = require('./ziel');
+const { notschalterAn, dokumenteNotschalterAn } = require('./ziel');
 const { istNichtGefunden } = require('./graph');
+const dokument = require('./dokument');
 
 const CHUNK = 32 * 320 * 1024;
 const CLAIM_SEK = 900;
@@ -320,6 +324,140 @@ function createUmzug({
     }
   }
 
+  // ─── Dokumente ───
+
+  /** Dokumente eines Unternehmens einreihen (erneut: Fehler wieder oeffnen). -> Anzahl */
+  async function dokumenteAnlegen(unternehmenId) {
+    const { data, error } = await supabase.rpc('ablage_dokument_umzug_anlegen', { p_drive_id: driveId, p_unternehmen_id: unternehmenId });
+    if (error) throw new Error(`ablage_dokument_umzug_anlegen: ${error.message}`);
+    return Number(data) || 0;
+  }
+
+  const dokTyp = (typ) => (typ === 'rechnung_alt' ? 'rechnung' : typ);
+
+  async function dokumentLaden(row) {
+    if (row.typ === 'rechnung_alt') {
+      const { data, error } = await supabase.from('rechnung').select('id, rechnung_nr, pdf_url, pdf_path').eq('id', row.asset_id).maybeSingle();
+      if (error) throw error;
+      return data || null;
+    }
+    const def = dokument.DOKUMENT[row.typ];
+    const extra = row.typ === 'auftragsdokument' ? ['dokument_typ'] : [];
+    const { data, error } = await supabase.from(def.tabelle).select(dokument.spaltenSelect(row.typ, extra)).eq('id', row.asset_id).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  async function dokumentBytes(row) {
+    if (row.quelle === 'storage') {
+      const m = dokument.STORAGE_URL.exec(row.quelle_ref || '');
+      const bucket = row.quelle_bucket || (m && decodeURIComponent(m[1]));
+      const pfad = m ? decodeURIComponent(m[2]) : row.quelle_ref;
+      if (!bucket || !pfad) throw new UmzugFehler('ohne_quelle', { ueberspringen: true });
+      const { data, error } = await supabase.storage.from(bucket).download(pfad);
+      if (error) {
+        if (/not.?found|404/i.test(`${error.message} ${error.statusCode || ''}`)) throw new UmzugFehler('storage_fehlt', { permanent: true });
+        throw new UmzugFehler(`storage: ${String(error.message).slice(0, 200)}`);
+      }
+      return Buffer.from(await data.arrayBuffer());
+    }
+    if (row.quelle !== 'dropbox') throw new UmzugFehler(`quelle_${row.quelle}`, { permanent: true });
+    const link = await dropbox.downloadUrl(row.quelle_ref);
+    if (!link?.url) throw new UmzugFehler('dropbox_fehlt', { permanent: true });
+    const resp = await fetchImpl(link.url, { headers: {} });
+    if (resp.status === 404 || resp.status === 410) throw new UmzugFehler('dropbox_fehlt', { permanent: true });
+    if (!resp.ok) throw new UmzugFehler(`dropbox_${resp.status}`);
+    return Buffer.from(await resp.arrayBuffer());
+  }
+
+  function dokumentName(row, doc, def) {
+    if (row.typ === 'rechnung_alt') {
+      return String(doc.pdf_path || '').split('/').pop() || `Rechnung ${doc.rechnung_nr || doc.id}.pdf`;
+    }
+    return (def.spalten.name && doc[def.spalten.name]) || String(row.quelle_ref || '').split(/[?#]/)[0].split('/').pop() || 'dokument.pdf';
+  }
+
+  /** Neue Datei in die Zeile: Bestandszeile umstellen bzw. (rechnung_alt) rechnung_pdfs-Zeile anlegen. */
+  async function dokumentSchreiben(row, doc, typ, werte) {
+    const def = dokument.DOKUMENT[typ];
+    if (row.typ === 'rechnung_alt') {
+      const { error } = await supabase.from(def.tabelle).insert({
+        ...werte, rechnung_id: doc.id, content_type: /\.pdf$/i.test(werte[def.spalten.name] || '') ? 'application/pdf' : null,
+      });
+      // Abgleich war schneller und hat die Zeile aus dem Upload-Kontext angelegt
+      if (error && error.code !== '23505') throw error;
+      return;
+    }
+    const { error } = await supabase.from(def.tabelle).update(werte).eq('id', doc.id);
+    if (error) {
+      if (error.code === '23505') throw new UmzugFehler('item_doppelt', { permanent: true });
+      throw error;
+    }
+  }
+
+  async function dokumentBearbeiten(row) {
+    try {
+      const doc = await dokumentLaden(row);
+      if (!doc) return beenden(row, 'uebersprungen', 'dokument_geloescht');
+      const typ = dokTyp(row.typ);
+      const def = dokument.DOKUMENT[typ];
+      if (row.typ !== 'rechnung_alt') {
+        // inzwischen ersetzt oder vom Abgleich angehaengt
+        const q = dokument.quelleVon(typ, doc);
+        if (q?.quelle === 'sharepoint') return beenden(row, 'fertig', null, { item_id: q.item_id });
+        if (!q) return beenden(row, 'uebersprungen', 'ohne_quelle');
+      }
+      if (row.upload_id) {
+        const r = await verloren(row);
+        if (r) return r;
+      }
+
+      const bezugId = row.typ === 'rechnung_alt' ? doc.id : dokument.bezugIdVon(typ, doc);
+      const bezug = await dokument.ladeBezug(supabase, typ, bezugId);
+      if (!bezug?.unternehmen) throw new UmzugFehler('ohne_unternehmen', { permanent: true });
+      const dokumentTyp = doc.dokument_typ || null;
+      const ziel = await ordner.dokumentKette(bezug.unternehmen, def.bereich, dokument.dokumentEbenen(typ, bezug, { dokumentTyp }));
+
+      const inhalt = await dokumentBytes(row);
+      if (!inhalt.length) throw new UmzugFehler('leer', { ueberspringen: true });
+      if (inhalt.length > dokument.MAX_BYTES) throw new UmzugFehler('zu_gross', { permanent: true });
+      const name = dateiname(dokumentName(row, doc, def));
+      const { uploadUrl } = await sp.uploadSession(ziel.item_id, name, { conflict: 'rename', deferCommit: true });
+      for (let von = 0; von < inhalt.length; von += chunkBytes) {
+        await sp.chunkHochladen(uploadUrl, inhalt.subarray(von, Math.min(inhalt.length, von + chunkBytes)), von, inhalt.length);
+      }
+
+      // Vor dem Commit: stirbt der Laeufer danach, haengt der Abgleich die Datei an die Bestandszeile
+      const kontext = {
+        typ, bezug_id: bezugId, dokument_typ: dokumentTyp, ordner_pfad: ziel.pfad, umzug_typ: row.typ,
+        ...(row.typ === 'rechnung_alt' ? { umzug_asset_id: row.asset_id } : { umzug_dokument_id: row.asset_id }),
+      };
+      const { data: up, error } = await supabase.from('ablage_upload').insert({
+        drive_id: driveId, parent_item_id: ziel.item_id, name, groesse: inhalt.length, typ, kontext, erstellt_at: iso(),
+      }).select('id').single();
+      if (error) {
+        await sp.sessionVerwerfen(uploadUrl).catch(() => {});
+        throw error;
+      }
+      await setzen(row.id, { upload_id: up.id, ziel_parent_item_id: ziel.item_id, ziel_name: name, groesse: inhalt.length });
+
+      const item = await sp.sessionAbschliessen(uploadUrl);
+      if (!item?.id) throw new UmzugFehler('commit_ohne_item');
+      if (item.size != null && Number(item.size) !== inhalt.length) {
+        await sp.loeschen(item.id).catch(() => {});
+        await supabase.from('ablage_upload').delete().eq('id', up.id);
+        await setzen(row.id, { upload_id: null });
+        throw new UmzugFehler('groesse_falsch');
+      }
+      await dokumentSchreiben(row, doc, typ, dokument.spaltenAusItem(typ, item, { driveId, pfad: `${ziel.pfad}/${item.name}` }));
+      await supabase.from('ablage_upload').update({ item_id: item.id, abgeschlossen_at: iso() }).eq('id', up.id);
+      await setzen(row.id, { status: 'fertig', grund: null, item_id: item.id, fertig_at: iso(), gesperrt_bis: null });
+      return { status: 'fertig', bytes: inhalt.length };
+    } catch (err) {
+      return fehlerBuchen(row, err);
+    }
+  }
+
   // ─── Lauf ───
 
   async function beenden(row, status, grund, extra = {}) {
@@ -366,27 +504,39 @@ function createUmzug({
     }
   }
 
+  async function holen(rpc) {
+    const { data, error } = await supabase.rpc(rpc, { p_drive_id: driveId, p_sekunden: CLAIM_SEK });
+    if (error) throw new Error(`${rpc}: ${error.message}`);
+    return (Array.isArray(data) ? data[0] : data) || null;
+  }
+
+  // Medien-Notschalter und ABLAGE_ZIEL=dropbox halten alles an, der Dokument-Notschalter nur Dokumente
   async function lauf({ budgetMs = BUDGET_MS } = {}) {
     if (process.env.ABLAGE_ZIEL === 'dropbox' || await notschalterAn(supabase)) return { pausiert: true };
+    const dokumentePausiert = await dokumenteNotschalterAn(supabase);
     await ordner.wurzel();
     const bis = jetzt() + budgetMs;
     const r = { fertig: 0, offen: 0, fehler: 0, uebersprungen: 0, bytes: 0 };
     while (jetzt() < bis) {
-      const { data, error } = await supabase.rpc('ablage_umzug_holen', { p_drive_id: driveId, p_sekunden: CLAIM_SEK });
-      if (error) throw new Error(`ablage_umzug_holen: ${error.message}`);
-      const row = Array.isArray(data) ? data[0] : data;
+      let row = await holen('ablage_umzug_holen');
+      let istDok = false;
+      if (!row && !dokumentePausiert) {
+        row = await holen('ablage_dokument_umzug_holen');
+        istDok = !!row;
+      }
       if (!row) {
         r.leer = true;
         break;
       }
-      const e = await eintragBearbeiten(row, { bis });
+      const e = istDok ? await dokumentBearbeiten(row) : await eintragBearbeiten(row, { bis });
       r[e.status] = (r[e.status] || 0) + 1;
       r.bytes += e.bytes || 0;
     }
+    if (dokumentePausiert) r.dokumente_pausiert = true;
     return r;
   }
 
-  return { lauf, anlegen, uebersicht, laeuferBedarf, eintragBearbeiten };
+  return { lauf, anlegen, dokumenteAnlegen, uebersicht, laeuferBedarf, eintragBearbeiten, dokumentBearbeiten };
 }
 
 module.exports = { createUmzug, UmzugFehler, CHUNK, PARALLEL };

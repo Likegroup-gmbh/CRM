@@ -3,6 +3,7 @@
 // Zuordnung, Favoriten, Adressen, Rechnung). Der Router liegt in ActionsDropdownHandlers.js.
 
 import { getSignedDocumentUrl, resolveDocumentUrl } from './DocumentUrlHelper.js';
+import { dokumentDownloadUrl, dokumentQuelle, mitDokumentAblage } from './ablage/dokumentAblage.js';
 import { authorizedFetch } from './auth/getAccessToken.js';
 
 // Stiller Instagram-Connect für Bulk-Läufe: keine Toasts, Fehler nur in Konsole.
@@ -180,7 +181,7 @@ export async function handleRechnungDownload(rechnungId) {
   try {
     const { data: pdfs, error: pdfErr } = await window.supabase
       .from('rechnung_pdfs')
-      .select('id, file_name, file_path, file_url')
+      .select(mitDokumentAblage('id, file_name, file_path, file_url', 'rechnung'))
       .eq('rechnung_id', rechnungId);
 
     if (pdfErr) throw pdfErr;
@@ -188,11 +189,12 @@ export async function handleRechnungDownload(rechnungId) {
     let downloadUrls = [];
     if (pdfs && pdfs.length > 0) {
       downloadUrls = await Promise.all(pdfs.map(async (p) => {
+        const quelle = dokumentQuelle('rechnung', p)?.quelle;
         let url = p.file_url || '';
-        if (p.file_path && !p.file_path.startsWith('/')) {
+        if (quelle === 'storage') {
           url = await getSignedDocumentUrl('rechnungen', p.file_path).catch(() => url);
         } else {
-          url = await resolveDocumentUrl(url);
+          url = await dokumentDownloadUrl('rechnung', p);
         }
         return { url, name: p.file_name };
       }));

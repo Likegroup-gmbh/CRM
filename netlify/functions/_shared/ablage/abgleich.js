@@ -4,8 +4,8 @@
 //    ein Laeufer je Bibliothek, idempotent je (drive_id, item_id)).
 // 2. Eingang einzeln einordnen (Claim + Fencing je Item); die Entscheidung trifft
 //    klassifizierung.js, ausgefuehrt wird in abgleich-datei.js / abgleich-ordner.js.
-// 3. Fach-Geruest fuer neue Videos/Story-Slots, CRM-Namen auf die Ordner, Aufraeumen
-//    (abgleich-pflege.js).
+// 3. Fach-Geruest fuer neue Videos/Story-Slots, Produktions-Ebene nachziehen, CRM-Namen auf
+//    die Ordner, Aufraeumen (abgleich-pflege.js).
 // Abo (Webhook) erneuert der Zeitplan.
 
 const { itemZuEingang } = require('./sharepoint');
@@ -76,7 +76,7 @@ function createAbgleich({
   // werden erst beim Aufruf aufgeloest, deshalb ist die Reihenfolge der Factories egal.
   const c = { supabase, sp, ordner, driveId, jetzt, iso, rpc, stand, standSetzen, eingangOffen, pfadUnter };
   Object.assign(c, createDateiAbgleich(c), createOrdnerAbgleich(c), createPflege(c));
-  const { geruestNachziehen, namenAbgleichen, aufraeumen, aboSicherstellen } = c;
+  const { geruestNachziehen, strukturNachziehen, namenAbgleichen, aufraeumen, aboSicherstellen } = c;
 
   // ─── 1. Delta-Feed ──────────────────────────────────────────
 
@@ -239,6 +239,7 @@ function createAbgleich({
       if (!ruhig && !r.lease_verloren) r.mehr = true;
       if (!r.lease_verloren) {
         r.geruest = await geruestNachziehen({ bis });
+        r.struktur = await strukturNachziehen({ bis });
         const s = await stand();
         const faellig = pflege === true || (pflege === 'auto' && (!s?.pflege_at || jetzt() - Date.parse(s.pflege_at) >= PFLEGE_MS));
         if (faellig) {
@@ -264,6 +265,7 @@ function createAbgleich({
     verarbeiten,
     eintragBearbeiten,
     geruestNachziehen,
+    strukturNachziehen,
     namenAbgleichen,
     aufraeumen,
     aboSicherstellen,

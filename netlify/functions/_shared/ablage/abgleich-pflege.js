@@ -1,21 +1,31 @@
 // _shared/ablage/abgleich-pflege.js
-// Abgleich Schritt 3: Fach-Geruest fuer neue Videos/Story-Slots, CRM-Namen auf die Ordner,
-// alte Uploads aufraeumen, Webhook-Abo erneuern. `c` ist der Kontext aus createAbgleich.
+// Abgleich Schritt 3: Fach-Geruest fuer neue Videos/Story-Slots, Produktions-Ebene nachziehen,
+// CRM-Namen auf die Ordner, alte Uploads aufraeumen, Webhook-Abo erneuern. `c` ist der Kontext
+// aus createAbgleich.
 
 const { istNichtGefunden } = require('./graph');
 const { NAMEN, basisName } = require('./pfad');
 const { SEITE, stuecke } = require('./liste');
+const { createStruktur } = require('./struktur');
 
 const UPLOAD_ALT_MS = 2 * 86400000;
 const GERUEST_JE_LAUF = 5;
+const STRUKTUR_JE_LAUF = 5;
 const ABO_RESTTAGE = 3;
 
 const NAMENS_QUELLEN = [
   { art: 'unternehmen', spalte: 'unternehmen_id', tabelle: 'unternehmen', select: 'id, firmenname', soll: NAMEN.unternehmen },
   { art: 'marke', spalte: 'marke_id', tabelle: 'marke', select: 'id, markenname', soll: NAMEN.marke },
   { art: 'kampagne', spalte: 'kampagne_id', tabelle: 'kampagne', select: 'id, kampagnenname, eigener_name', soll: NAMEN.kampagne },
+  { art: 'produktion', spalte: 'produktion_id', tabelle: 'produktion', select: 'id, name', soll: NAMEN.produktion },
   { art: 'kooperation', spalte: 'kooperation_id', tabelle: 'kooperationen', select: 'id, name', soll: NAMEN.kooperation },
   { art: 'video', spalte: 'kooperation_video_id', tabelle: 'kooperation_videos', select: 'id, position, thema', soll: NAMEN.video },
+  // Dokument-Ordner (ADR 0068): je Ebene ein Fach-Objekt
+  { art: 'dokument', ebene: 'marke', spalte: 'marke_id', tabelle: 'marke', select: 'id, markenname', soll: NAMEN.marke },
+  { art: 'dokument', ebene: 'kampagne', spalte: 'kampagne_id', tabelle: 'kampagne', select: 'id, kampagnenname, eigener_name', soll: NAMEN.kampagne },
+  { art: 'dokument', ebene: 'produktion', spalte: 'produktion_id', tabelle: 'produktion', select: 'id, name', soll: NAMEN.produktion },
+  { art: 'dokument', ebene: 'auftrag', spalte: 'auftrag_id', tabelle: 'auftrag', select: 'id, auftragsname, titel', soll: NAMEN.auftrag },
+  { art: 'dokument', ebene: 'rechnung', spalte: 'rechnung_id', tabelle: 'rechnung', select: 'id, rechnung_nr', soll: NAMEN.rechnung },
 ];
 
 function createPflege(c) {
@@ -36,14 +46,38 @@ function createPflege(c) {
     return r;
   }
 
+  /** Kooperationen/Verträge, deren Produktion sich geaendert hat, in den richtigen Ordner (ADR 0069). */
+  async function strukturNachziehen({ bis, limit = STRUKTUR_JE_LAUF } = {}) {
+    const struktur = createStruktur({ supabase, sp, ordner });
+    const r = { verschoben: 0, fehler: [] };
+    let liste;
+    try {
+      liste = await struktur.offen({ limit });
+    } catch (err) {
+      // Nachrangig: ohne Migration 20261211 laeuft der Abgleich trotzdem weiter
+      r.fehler.push(err.message);
+      return r;
+    }
+    for (const eintrag of liste) {
+      if (bis && jetzt() >= bis) break;
+      try {
+        r.verschoben += (await struktur.nachziehen(eintrag)).verschoben;
+      } catch (err) {
+        r.fehler.push(`${eintrag.art} ${eintrag.id}: ${err.message}`);
+      }
+    }
+    return r;
+  }
+
   /** CRM fuehrt die Namen: Umbenennungen im CRM per PATCH auf die Ordner uebertragen. */
   async function namenAbgleichen({ bis } = {}) {
     const r = { umbenannt: 0, fehler: [] };
     for (const q of NAMENS_QUELLEN) {
       for (let von = 0; ; von += SEITE) {
-        const { data: rows, error } = await supabase.from('ablage_ordner').select('*')
-          .eq('drive_id', driveId).eq('art', q.art).is('geloescht_at', null).not('item_id', 'is', null)
-          .order('id', { ascending: true }).range(von, von + SEITE - 1);
+        let abfrage = supabase.from('ablage_ordner').select('*')
+          .eq('drive_id', driveId).eq('art', q.art).is('geloescht_at', null).not('item_id', 'is', null);
+        if (q.ebene) abfrage = abfrage.eq('ebene', q.ebene);
+        const { data: rows, error } = await abfrage.order('id', { ascending: true }).range(von, von + SEITE - 1);
         if (error) throw error;
         for (const teil of stuecke(rows || [])) {
           const ids = [...new Set(teil.map((o) => o[q.spalte]).filter(Boolean))];
@@ -99,7 +133,7 @@ function createPflege(c) {
     return { abo: 'angelegt', ablauf: neu.expirationDateTime };
   }
 
-  return { geruestNachziehen, namenAbgleichen, aufraeumen, aboSicherstellen };
+  return { geruestNachziehen, strukturNachziehen, namenAbgleichen, aufraeumen, aboSicherstellen };
 }
 
 module.exports = { createPflege, ABO_RESTTAGE };

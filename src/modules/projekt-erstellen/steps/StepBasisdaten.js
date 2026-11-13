@@ -77,12 +77,12 @@ export class StepBasisdaten {
           <div class="form-field">
             <label>Auftragsbestätigungen</label>
             <div id="pe-auftragsbestaetigung-uploader" class="uploader uploader--auftragsbestaetigung" data-name="auftragsbestaetigungen"></div>
-            <small class="form-hint">PDF, JPG oder PNG (max. 25 MB pro Datei). Mehrfach-Upload möglich. Werden nach dem Anlegen in Dropbox gespeichert.</small>
+            <small class="form-hint">PDF, JPG oder PNG (max. 25 MB pro Datei). Mehrfach-Upload möglich. Werden nach dem Anlegen in der Ablage des Unternehmens gespeichert.</small>
           </div>
           <div class="form-field">
             <label>Rechnungen</label>
             <div id="pe-rechnung-uploader" class="uploader uploader--rechnung" data-name="rechnungen"></div>
-            <small class="form-hint">PDF, JPG oder PNG (max. 25 MB pro Datei). Mehrfach-Upload möglich. Werden nach dem Anlegen in Dropbox gespeichert.</small>
+            <small class="form-hint">PDF, JPG oder PNG (max. 25 MB pro Datei). Mehrfach-Upload möglich. Werden nach dem Anlegen in der Ablage des Unternehmens gespeichert.</small>
           </div>
         ` : ''}
       </div>

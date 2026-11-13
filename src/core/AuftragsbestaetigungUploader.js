@@ -1,15 +1,17 @@
 // AuftragsbestaetigungUploader.js
 // Wiederverwendbare Hilfsfunktionen fuer den Upload von Auftragsbestaetigungen.
-// Nutzt /.netlify/functions/dropbox-upload-auftragsbestaetigung + dropbox-proxy
-// und legt anschliessend einen Eintrag in der Tabelle auftrag_dokumente an.
+// Ziel je Weiche des Unternehmens (ADR 0068): SharePoint Aufträge/[Marke]/<Auftrag>/[Rechnungen/]
+// oder wie bisher Dropbox (dropbox-upload-auftragsbestaetigung + dropbox-proxy).
+// Anschliessend ein Eintrag in auftrag_dokumente.
 
 import { proxyPost, uploadLargeFile, readFileAsBase64 } from './VideoUploadUtils.js';
 import { authorizedFetch } from './auth/getAccessToken.js';
+import { dokumentHochladen, dokumentLoeschen, dokumentZeileLaden, mitDokumentAblage } from './ablage/dokumentAblage.js';
 
 const SMALL_FILE_THRESHOLD = 2 * 1024 * 1024; // 2 MB
 
 /**
- * Laedt eine einzelne Datei als Auftragsbestaetigung nach Dropbox hoch
+ * Laedt eine einzelne Datei als Auftragsbestaetigung hoch (SharePoint oder Dropbox)
  * und legt einen Eintrag in auftrag_dokumente an.
  *
  * @param {object} opts
@@ -43,6 +45,41 @@ export async function uploadAuftragsbestaetigung({
   };
 
   notify('preparing', 0);
+  const r = await dokumentHochladen({
+    typ: 'auftragsdokument',
+    bezugId: auftragId,
+    file,
+    dokumentTyp,
+    onProgress: ({ loaded, total }) => notify('uploading', 10 + Math.round((loaded / (total || 1)) * 80)),
+    dropbox: () => dropboxHochladen({ file, unternehmen, marke, auftragstitel, dokumentTyp, notify }),
+    speichern: async (spalten) => {
+      const { data: inserted, error } = await window.supabase
+        .from('auftrag_dokumente')
+        .insert({
+          auftrag_id: auftragId,
+          dokument_typ: dokumentTyp,
+          dateiname: file.name,
+          dateigroesse: file.size,
+          uploaded_by: uploadedById || null,
+          ...spalten,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      return inserted;
+    },
+  });
+
+  notify('done', 100);
+  return {
+    id: r.ergebnis.id,
+    fileUrl: r.fileUrl,
+    filePath: r.filePath,
+    dateiname: r.spalten.dateiname || file.name
+  };
+}
+
+async function dropboxHochladen({ file, unternehmen, marke, auftragstitel, dokumentTyp, notify }) {
   const tokenResp = await authorizedFetch('/.netlify/functions/dropbox-upload-auftragsbestaetigung', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -64,7 +101,6 @@ export async function uploadAuftragsbestaetigung({
 
   notify('uploading', 10);
   let actualPath = dropboxPath;
-  let sessionToken = token;
 
   if (file.size <= SMALL_FILE_THRESHOLD) {
     const chunk = await readFileAsBase64(file);
@@ -80,7 +116,7 @@ export async function uploadAuftragsbestaetigung({
   const sharedLinkResp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'shared-link', path: actualPath, token: sessionToken }),
+    body: JSON.stringify({ action: 'shared-link', path: actualPath, token }),
   });
 
   let fileUrl = actualPath;
@@ -90,31 +126,7 @@ export async function uploadAuftragsbestaetigung({
   }
 
   notify('saving', 90);
-  const insertPayload = {
-    auftrag_id: auftragId,
-    dokument_typ: dokumentTyp,
-    dateiname: file.name,
-    dropbox_file_url: fileUrl,
-    dropbox_file_path: actualPath,
-    dateigroesse: file.size,
-    uploaded_by: uploadedById || null
-  };
-
-  const { data: inserted, error } = await window.supabase
-    .from('auftrag_dokumente')
-    .insert(insertPayload)
-    .select('id')
-    .single();
-
-  if (error) throw error;
-
-  notify('done', 100);
-  return {
-    id: inserted.id,
-    fileUrl,
-    filePath: actualPath,
-    dateiname: file.name
-  };
+  return { fileUrl, filePath: actualPath };
 }
 
 /**
@@ -148,20 +160,13 @@ export async function uploadAuftragsbestaetigungen(files, opts) {
 }
 
 /**
- * Loescht ein Dokument: Dropbox-Datei + DB-Eintrag.
+ * Loescht ein Dokument: Datei (SharePoint → Papierkorb, Dropbox, Storage) + DB-Eintrag.
+ * dropboxFilePath bleibt für alte Aufrufer, die Quelle kommt aus der Zeile.
  */
-export async function deleteAuftragsbestaetigung(dokumentId, dropboxFilePath) {
-  if (dropboxFilePath) {
-    try {
-      await authorizedFetch('/.netlify/functions/dropbox-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: dropboxFilePath }),
-      });
-    } catch (err) {
-      console.warn('[AuftragsbestaetigungUploader] Dropbox-Loeschung fehlgeschlagen (nicht kritisch):', err);
-    }
-  }
+export async function deleteAuftragsbestaetigung(dokumentId, dropboxFilePath = null) {
+  const row = await dokumentZeileLaden('auftragsdokument', dokumentId).catch(() => null);
+  if (row) await dokumentLoeschen('auftragsdokument', row);
+  else if (dropboxFilePath) await dokumentLoeschen('auftragsdokument', { id: dokumentId, dropbox_file_path: dropboxFilePath });
 
   const { error } = await window.supabase
     .from('auftrag_dokumente')
@@ -177,7 +182,7 @@ export async function deleteAuftragsbestaetigung(dokumentId, dropboxFilePath) {
 export async function loadAuftragsbestaetigungen(auftragId, dokumentTyp = null) {
   let query = window.supabase
     .from('auftrag_dokumente')
-    .select('id, dokument_typ, dateiname, dropbox_file_url, dropbox_file_path, dateigroesse, uploaded_by, created_at')
+    .select(mitDokumentAblage('id, dokument_typ, dateiname, dropbox_file_url, dropbox_file_path, dateigroesse, uploaded_by, created_at', 'auftragsdokument'))
     .eq('auftrag_id', auftragId)
     .order('created_at', { ascending: false });
 

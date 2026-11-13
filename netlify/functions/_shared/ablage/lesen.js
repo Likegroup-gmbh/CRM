@@ -9,6 +9,7 @@ const { systemdatei } = require('./pfad');
 const { istStaff, erlaubteKooperationen } = require('./zugriff');
 const { AblageFehler } = require('./http');
 const { createDropboxAblage } = require('./dropbox');
+const dokument = require('./dokument');
 
 const MAX_ITEMS = 100;
 // Graph-downloadUrls gelten etwa eine Stunde; der Client erneuert 5 min vorher
@@ -76,22 +77,100 @@ function createLesen({ supabase, ablage, dropbox = createDropboxAblage(), jetzt 
     return zeilen.filter((_, i) => koops[i] && erlaubt.has(koops[i]));
   }
 
+  // ─── Dokumente (ADR 0068): Sichtbarkeit nur ueber RLS der Fach-Zeile, keine Gaeste ───
+
+  /** Kurzlebiger Link je Dokument-Zeile: SharePoint downloadUrl, Dropbox Temp-Link, Storage Signed URL. */
+  async function dokumentLinks(zeilen) {
+    const out = new Map();
+    const ablauf = iso(jetzt() + SP_GUELTIG_MS);
+    const mitQuelle = zeilen.map((z) => ({ ...z, q: dokument.quelleVon(z.typ, z.row) })).filter((z) => z.q);
+    const spZeilen = mitQuelle.filter((z) => z.q.quelle === 'sharepoint' && sp && z.q.drive_id === sp.driveId);
+    if (spZeilen.length) {
+      const urls = await sp.downloadUrls([...new Set(spZeilen.map((z) => z.q.item_id))]);
+      for (const z of spZeilen) {
+        const url = urls.get(z.q.item_id);
+        if (url) out.set(z.key, { url, laeuft_ab: ablauf });
+      }
+    }
+    await parallel(mitQuelle.filter((z) => z.q.quelle !== 'sharepoint'), DROPBOX_PARALLEL, async (z) => {
+      try {
+        if (z.q.quelle === 'dropbox') {
+          const l = await dropbox.downloadUrl(z.q.pfad);
+          if (l?.url) out.set(z.key, { url: l.url, laeuft_ab: l.ablauf });
+        } else if (z.q.quelle === 'storage') {
+          const { data, error } = await supabase.storage.from(z.q.bucket).createSignedUrl(z.q.pfad, SP_GUELTIG_MS / 1000);
+          if (!error && data?.signedUrl) out.set(z.key, { url: data.signedUrl, laeuft_ab: ablauf });
+        } else if (z.q.url) {
+          out.set(z.key, { url: z.q.url, laeuft_ab: null });
+        }
+      } catch (err) {
+        console.warn('[ablage-link] Dokument:', z.typ, z.row.id, err.message);
+      }
+    });
+    return out;
+  }
+
+  /** Sichtbare Dokument-Zeilen (Aufrufer-JWT). key = `${typ}:${id}` (Vertrag hat zwei Dateien). */
+  async function sichtbareDokumente({ benutzer, caller }, items) {
+    if (!benutzer || !caller || !items.length) return [];
+    const jeTyp = new Map();
+    for (const it of items) {
+      if (!jeTyp.has(it.typ)) jeTyp.set(it.typ, new Set());
+      jeTyp.get(it.typ).add(it.id);
+    }
+    const zeilen = [];
+    for (const [typ, ids] of jeTyp) {
+      const { data, error } = await caller.from(dokument.DOKUMENT[typ].tabelle).select(dokument.spaltenSelect(typ)).in('id', [...ids]);
+      if (error) continue;
+      for (const row of data || []) zeilen.push({ typ, row, key: `${typ}:${row.id}` });
+    }
+    return zeilen;
+  }
+
+  /**
+   * { dokument_urls: [url] } -> { links: { [url]: { url, laeuft_ab } }, fehlend: [url] }
+   * Fuer Render-Stellen, die nur die gespeicherte URL kennen (DocumentUrlHelper).
+   */
+  async function dokumentNachUrl({ benutzer, caller, body }) {
+    const urls = [...new Set((body.dokument_urls || []).filter((u) => typeof u === 'string' && u))];
+    if (!urls.length) throw new AblageFehler(400, 'dokument_urls fehlen');
+    if (urls.length > 20) throw new AblageFehler(400, 'Hoechstens 20 Dokumente je Anfrage');
+    if (!benutzer || !caller) return { links: {}, fehlend: urls };
+    const zeilen = [];
+    for (const typ of dokument.TYPEN) {
+      const def = dokument.DOKUMENT[typ];
+      const { data, error } = await caller.from(def.tabelle).select(dokument.spaltenSelect(typ))
+        .in(def.spalten.url, urls).eq(def.spalten.ablage, 'sharepoint');
+      if (error) continue;
+      for (const row of data || []) zeilen.push({ typ, row, key: row[def.spalten.url] });
+    }
+    const gefunden = await dokumentLinks(zeilen);
+    const out = {};
+    for (const [key, link] of gefunden) out[key] = link;
+    return { links: out, fehlend: urls.filter((u) => !out[u]) };
+  }
+
   /**
    * { items: [{ typ, id }] } -> { links: { [id]: { url, laeuft_ab } }, fehlend: [id] }
+   * Dokument-Typen: Schluessel `${typ}:${id}`.
    */
   async function links({ benutzer, caller, body }) {
+    if (benutzer && (benutzer.rolle === 'admin' || benutzer.rolle === 'mitarbeiter') && !istStaff(benutzer)) {
+      throw new AblageFehler(403, 'Konto nicht freigeschaltet');
+    }
+    if (body.dokument_urls) return dokumentNachUrl({ benutzer, caller, body });
     const items = body.items;
     if (!Array.isArray(items) || !items.length) throw new AblageFehler(400, 'items fehlen');
     if (items.length > MAX_ITEMS) throw new AblageFehler(400, `Hoechstens ${MAX_ITEMS} Dateien je Anfrage`);
     for (const it of items) {
-      if (!it || !TABELLE[it.typ] || !istUuid(it.id)) throw new AblageFehler(400, 'typ und id je Datei noetig');
-    }
-    if (benutzer && (benutzer.rolle === 'admin' || benutzer.rolle === 'mitarbeiter') && !istStaff(benutzer)) {
-      throw new AblageFehler(403, 'Konto nicht freigeschaltet');
+      if (!it || !(TABELLE[it.typ] || dokument.istDokument(it.typ)) || !istUuid(it.id)) throw new AblageFehler(400, 'typ und id je Datei noetig');
     }
 
-    const zeilen = await sichtbareZeilen({ benutzer, caller }, items);
+    const dokItems = items.filter((it) => dokument.istDokument(it.typ));
     const out = {};
+    for (const [key, link] of await dokumentLinks(await sichtbareDokumente({ benutzer, caller }, dokItems))) out[key] = link;
+    const medienItems = items.filter((it) => TABELLE[it.typ]);
+    const zeilen = medienItems.length ? await sichtbareZeilen({ benutzer, caller }, medienItems) : [];
 
     const spZeilen = zeilen.filter((z) => z.row.ablage === 'sharepoint' && z.row.item_id);
     if (sp && spZeilen.length) {
@@ -117,7 +196,8 @@ function createLesen({ supabase, ablage, dropbox = createDropboxAblage(), jetzt 
       if (l?.url) out[z.row.id] = { url: l.url, laeuft_ab: l.ablauf };
     }
 
-    const fehlend = [...new Set(items.map((it) => it.id))].filter((id) => !out[id]);
+    const schluessel = (it) => (dokument.istDokument(it.typ) ? `${it.typ}:${it.id}` : it.id);
+    const fehlend = [...new Set(items.map(schluessel))].filter((k) => !out[k]);
     return { links: out, fehlend };
   }
 

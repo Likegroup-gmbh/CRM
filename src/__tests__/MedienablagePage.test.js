@@ -41,6 +41,11 @@ function stand(overrides = {}) {
       { id: 'u2', firmenname: 'Test GmbH', ablage_ziel: 'sharepoint', ist_test: true, dateien_sharepoint: 10, dateien_dropbox: 4 },
     ],
     umzug: [{ unternehmen_id: 'u2', offen: 2, fertig: 6, fehler: 0 }],
+    dokumente: [
+      { id: 'u1', dokument_ablage_ziel: 'dropbox', sharepoint: 0, dropbox: 7, storage: 3 },
+      { id: 'u2', dokument_ablage_ziel: 'sharepoint', sharepoint: 2, dropbox: 1, storage: 0 },
+    ],
+    dokument_umzug: [],
     ...overrides,
   };
 }
@@ -211,6 +216,29 @@ describe('MedienablagePage', () => {
     await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Umzug gestartet: 4 Dateien.', 'success'));
   });
 
+  it('Dokumente: eigener Notschalter, eigene Weiche (bereich dokumente), eigener Umzug', async () => {
+    await openPage();
+    const flush = () => vi.waitFor(() => expect(window.content.querySelector('[aria-busy]')).toBeNull());
+    expect(window.content.textContent).toContain('Weiche Dokumente');
+    expect(window.content.querySelector('[data-ma-dokument-umzug="u2"]')).not.toBeNull();
+    expect(window.content.querySelector('[data-ma-dokument-umzug="u1"]')).toBeNull();
+
+    click(window.content.querySelector('[data-ma-notschalter-dokumente]'));
+    await vi.waitFor(() => expect(aktionen()).toEqual([{ aktion: 'notschalter', bereich: 'dokumente', an: true }]));
+    await flush();
+
+    const select = window.content.querySelector('[data-ma-dokument-weiche="u1"]');
+    select.value = 'sharepoint';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(aktionen()).toHaveLength(2));
+    expect(aktionen()[1]).toEqual({ aktion: 'weiche', bereich: 'dokumente', unternehmen_id: 'u1', ziel: 'sharepoint' });
+    await flush();
+
+    click(window.content.querySelector('[data-ma-dokument-umzug="u2"]'));
+    await vi.waitFor(() => expect(aktionen()).toHaveLength(3));
+    expect(aktionen()[2]).toEqual({ aktion: 'dokument_umzug_starten', unternehmen_id: 'u2' });
+  });
+
   it('meldet einen Serverfehler als Toast', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await openPage();
@@ -226,7 +254,8 @@ describe('MedienablagePage', () => {
     suche.value = 'acm';
     suche.dispatchEvent(new Event('input', { bubbles: true }));
     const rows = [...window.content.querySelectorAll('.ma-row')];
-    expect(rows.filter(r => !r.hidden).map(r => r.dataset.maName)).toEqual(['acme']);
+    // Medien- und Dokument-Weiche filtern gemeinsam
+    expect(rows.filter(r => !r.hidden).map(r => r.dataset.maName)).toEqual(['acme', 'acme']);
   });
 
   it('ist ueber die Admin-Huelle als Unterseite erreichbar', async () => {

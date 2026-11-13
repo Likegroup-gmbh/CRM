@@ -7,7 +7,7 @@ Die SharePoint-Bibliothek hieß „Videos“, direkt darunter lagen `Unternehmen
 - **Bibliothek „Daten“.** Nur der Anzeigename ändert sich. URL (`/Videos`), Drive-ID und alle `item_id`s bleiben. `site-einrichten.mjs` findet die Bibliothek unter „Daten“ oder „Videos“ und setzt `Title` per `MERGE` auf `SP.List`.
 - **Bereiche unter dem Unternehmen:**
   - `Medien/` nimmt alles auf, was bisher direkt unter dem Unternehmen lag (Marke, Kampagne, Kooperation, …).
-  - `Verträge/` ist neu. Pfad: `Daten/<Firma>/Medien/<Marke>/<Kampagne>/<Kooperation>/Videos/Video_N/…` bzw. `Daten/<Firma>/Verträge/`.
+  - `Verträge/` ist neu. Pfad: `Daten/<Firma>/Medien/<Marke>/<Kampagne>/<Kooperation>/Videos/Video_N/…` bzw. `Daten/<Firma>/Verträge/`. Seit ADR 0069 liegt zwischen Kampagne und Kooperation die Produktion.
 - **Register:**
   - Bereichsordner haben `art = 'bereich'` und die Spalte `bereich` (`medien` | `vertraege`).
   - Je Drive und Unternehmen gibt es einen Ordner je Bereich (`ux_ablage_ordner_bereich`).

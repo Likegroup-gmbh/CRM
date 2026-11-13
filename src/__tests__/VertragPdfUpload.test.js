@@ -9,6 +9,11 @@ vi.mock('../core/DropboxDocumentUploader.js', () => ({
   }))
 }));
 
+// Weiche Dokumente des Unternehmens steht auf Dropbox
+vi.mock('../core/auth/getAccessToken.js', () => ({
+  authorizedFetch: vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ ziel: 'dropbox' }) })),
+}));
+
 function makeCtx() {
   return {
     unternehmen: [{ id: 'u-ehg', firmenname: 'EHG GmbH & Co. KG' }],
@@ -66,7 +71,10 @@ describe('uploadGeneratedVertragPdf', () => {
     const updateArg = window.supabase.from.mock.results[0].value.update.mock.calls[0][0];
     expect(updateArg).toEqual({
       datei_url: 'https://dropbox.test/vertrag.pdf',
-      datei_path: '/EHG/Kampagne/Vertraege/Anna_UGC/Vertrag_EHG_Test.pdf'
+      datei_path: '/EHG/Kampagne/Vertraege/Anna_UGC/Vertrag_EHG_Test.pdf',
+      datei_ablage: 'dropbox',
+      datei_drive_id: null,
+      datei_item_id: null,
     });
   });
 

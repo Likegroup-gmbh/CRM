@@ -6,13 +6,15 @@
 // fehlerhafte Dateien). Stand und Aktionen laufen ueber die Function
 // ablage-stand; nach jeder Aktion wird der Stand neu geladen.
 // Teile: medienablageStand.js (Karten, Notschalter, Eingang),
-// medienablageWeiche.js (Weiche, Umzug, Suche), medienablageFormat.js (Helfer).
+// medienablageWeiche.js (Weiche, Umzug, Suche), medienablageDokumente.js (Verträge,
+// Rechnungen, Aufträge: eigener Notschalter, Weiche, Umzug), medienablageFormat.js (Helfer).
 
 import { escapeHtml } from '../../core/format.js';
 import { navMark } from '../../core/dev/navTrace.js';
 import { postStand, setBusy, bestaetigen } from './medienablageFormat.js';
 import { nichtKonfiguriertHtml, kartenHtml, notschalterHtml, unzugeordnetHtml, fehlerHtml } from './medienablageStand.js';
 import { weicheHtml, filterUnternehmen, weicheSetzen, umzugStarten, umsortierenStarten } from './medienablageWeiche.js';
+import { dokumenteHtml, dokumenteNotschalterUmschalten, dokumentWeicheSetzen, dokumentUmzugStarten } from './medienablageDokumente.js';
 
 export class MedienablagePage {
   constructor() {
@@ -114,6 +116,7 @@ export class MedienablagePage {
           ${kartenHtml(this)}
           ${notschalterHtml(this)}
           ${weicheHtml(this)}
+          ${dokumenteHtml(this)}
           ${unzugeordnetHtml(this)}
           ${fehlerHtml(this)}
         ` : nichtKonfiguriertHtml()}
@@ -172,6 +175,16 @@ export class MedienablagePage {
         void this.notschalterUmschalten(schalter);
         return;
       }
+      const dokSchalter = e.target.closest('[data-ma-notschalter-dokumente]');
+      if (dokSchalter) {
+        void dokumenteNotschalterUmschalten(this, dokSchalter);
+        return;
+      }
+      const dokUmzug = e.target.closest('[data-ma-dokument-umzug]');
+      if (dokUmzug) {
+        void dokumentUmzugStarten(this, dokUmzug);
+        return;
+      }
       const abgleich = e.target.closest('[data-ma-aktion]');
       if (abgleich) {
         const aktion = abgleich.dataset.maAktion;
@@ -209,6 +222,8 @@ export class MedienablagePage {
     this._docChangeHandler = (e) => {
       const weiche = e.target.closest?.('[data-ma-weiche]');
       if (weiche) void weicheSetzen(this, weiche);
+      const dokWeiche = e.target.closest?.('[data-ma-dokument-weiche]');
+      if (dokWeiche) void dokumentWeicheSetzen(this, dokWeiche);
     };
 
     this._docInputHandler = (e) => {

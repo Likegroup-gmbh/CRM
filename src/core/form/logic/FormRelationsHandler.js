@@ -1,34 +1,6 @@
 import { compressImage } from '../../ImageCompressor.js';
-import { uploadRechnungPdf, uploadRechnungBeleg } from '../../DropboxDocumentUploader.js';
 import { resolveRechnungPathMetadata } from '../../RechnungPathMetadata.js';
-import { authorizedFetch } from '../../auth/getAccessToken.js';
-
-// Pfade die mit "/" anfangen sind Dropbox-Pfade. Beim Löschen wird über die
-// dropbox-delete Netlify Function gelöscht, sonst aus Supabase Storage.
-function isDropboxPath(p) {
-  return typeof p === 'string' && p.startsWith('/');
-}
-
-async function deleteFileEverywhere(filePath, supabaseBucket) {
-  if (!filePath) return;
-  if (isDropboxPath(filePath)) {
-    try {
-      await authorizedFetch('/.netlify/functions/dropbox-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath }),
-      });
-    } catch (err) {
-      console.warn('⚠️ Dropbox-Löschung fehlgeschlagen:', err);
-    }
-    return;
-  }
-  try {
-    await window.supabase.storage.from(supabaseBucket).remove([filePath]);
-  } catch (err) {
-    console.warn(`⚠️ Supabase Storage-Löschung (${supabaseBucket}) fehlgeschlagen:`, err);
-  }
-}
+import { rechnungDateiLoeschen, rechnungDateienHochladen } from '../../ablage/rechnungDokumente.js';
 
 // Kapselt Relations- und File-Upload-Handler, die an bestimmte Entities gebunden sind.
 // Wird von FormSystem per Delegation genutzt. Einige Methoden benötigen Zugriff auf den
@@ -230,96 +202,45 @@ export class FormRelationsHandler {
     }
   }
 
-  // Rechnung: Belege + PDF-Upload verarbeiten (alte löschen, neue nach Dropbox hochladen, DB-Update)
+  // Rechnung: Belege + PDFs verarbeiten (entfernte löschen, neue hochladen; SharePoint oder Dropbox je Weiche)
   async handleRechnungFiles(rechnungId, form) {
     if (!window.supabase || !rechnungId) return;
 
     try {
-      // Pfad-Metadaten für Dropbox einmalig auflösen
-      const { data: rechnungRow } = await window.supabase
-        .from('rechnung')
-        .select('unternehmen_id, kampagne_id, kooperation_id, rechnung_nr')
-        .eq('id', rechnungId)
-        .single();
-
-      const pathMeta = await resolveRechnungPathMetadata({
-        unternehmenId: rechnungRow?.unternehmen_id,
-        kampagneId: rechnungRow?.kampagne_id,
-        kooperationId: rechnungRow?.kooperation_id,
-        rechnungsNr: rechnungRow?.rechnung_nr,
-      });
+      // Dropbox-Pfad-Metadaten nur, wenn der Dropbox-Weg sie braucht
+      const pathMeta = async () => {
+        const { data: rechnungRow } = await window.supabase
+          .from('rechnung')
+          .select('unternehmen_id, kampagne_id, kooperation_id, rechnung_nr')
+          .eq('id', rechnungId)
+          .single();
+        return resolveRechnungPathMetadata({
+          unternehmenId: rechnungRow?.unternehmen_id,
+          kampagneId: rechnungRow?.kampagne_id,
+          kooperationId: rechnungRow?.kooperation_id,
+          rechnungsNr: rechnungRow?.rechnung_nr,
+        });
+      };
 
       const belegeUploader = form.querySelector('.uploader[data-name="belege_files"]')?.__uploaderInstance;
       if (belegeUploader) {
         const deletedIds = belegeUploader.getDeletedFileIds().filter(id => id !== 'pdf');
         for (const belegId of deletedIds) {
           try {
-            const { data: row } = await window.supabase
-              .from('rechnung_belege')
-              .select('file_path')
-              .eq('id', belegId)
-              .single();
-            await deleteFileEverywhere(row?.file_path, 'rechnung-belege');
-            await window.supabase.from('rechnung_belege').delete().eq('id', belegId);
+            await rechnungDateiLoeschen('beleg', belegId);
           } catch (err) {
             console.warn('⚠️ Fehler beim Löschen eines Belegs:', err?.message);
           }
         }
-
-        const newFiles = belegeUploader.files || [];
-        for (const file of newFiles) {
-          const result = await uploadRechnungBeleg({ metadata: pathMeta, file });
-          // uploaded_by referenziert benutzer(id), nicht auth.users - daher currentUser.id
-          const { error: belegInsErr } = await window.supabase.from('rechnung_belege').insert({
-            rechnung_id: rechnungId,
-            file_name: file.name,
-            file_path: result.filePath,
-            file_url: result.fileUrl,
-            content_type: file.type,
-            size: file.size,
-            uploaded_by: window.currentUser?.id || null
-          });
-          if (belegInsErr) {
-            throw new Error(`Beleg konnte nicht gespeichert werden: ${belegInsErr.message}`);
-          }
-        }
+        await rechnungDateienHochladen({ typ: 'beleg', rechnungId, files: belegeUploader.files, pathMeta });
       }
 
       const pdfUploader = form.querySelector('.uploader[data-name="pdf_file"]')?.__uploaderInstance;
       if (pdfUploader) {
-        const deletedPdfIds = pdfUploader.getDeletedFileIds();
-        for (const pdfId of deletedPdfIds) {
-          const { data: row, error: selErr } = await window.supabase
-            .from('rechnung_pdfs')
-            .select('file_path')
-            .eq('id', pdfId)
-            .single();
-          if (selErr) {
-            throw new Error(`PDF-Metadaten nicht gefunden (${pdfId}): ${selErr.message}`);
-          }
-          await deleteFileEverywhere(row?.file_path, 'rechnungen');
-          const { error: delErr } = await window.supabase.from('rechnung_pdfs').delete().eq('id', pdfId);
-          if (delErr) {
-            throw new Error(`PDF konnte nicht gelöscht werden (${pdfId}): ${delErr.message}`);
-          }
+        for (const pdfId of pdfUploader.getDeletedFileIds()) {
+          await rechnungDateiLoeschen('rechnung', pdfId);
         }
-
-        const newPdfFiles = pdfUploader.files || [];
-        for (const file of newPdfFiles) {
-          const result = await uploadRechnungPdf({ metadata: pathMeta, file });
-          const { error: insErr } = await window.supabase.from('rechnung_pdfs').insert({
-            rechnung_id: rechnungId,
-            file_name: file.name,
-            file_path: result.filePath,
-            file_url: result.fileUrl,
-            content_type: file.type,
-            size: file.size,
-            uploaded_by: window.currentUser?.auth_user_id || null
-          });
-          if (insErr) {
-            throw new Error(`PDF-Metadaten konnten nicht gespeichert werden: ${insErr.message}`);
-          }
-        }
+        await rechnungDateienHochladen({ typ: 'rechnung', rechnungId, files: pdfUploader.files, pathMeta });
       }
     } catch (error) {
       console.error('❌ Fehler bei Rechnungs-Dateien:', error);

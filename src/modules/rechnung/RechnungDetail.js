@@ -1,7 +1,8 @@
 // RechnungDetail.js (ES6-Modul)
 import { findSignedVertragForKooperation } from './RechnungVertragZuordnung.js';
 import { renderSegmentedControl, bindSegmentSwitcher, handleContractingCreateSubmit } from './RechnungContractingCreate.js';
-import { uploadRechnungPdf, uploadRechnungBeleg } from '../../core/DropboxDocumentUploader.js';
+import { rechnungDateienHochladen } from '../../core/ablage/rechnungDokumente.js';
+import { dokumentQuelle, mitDokumentAblage } from '../../core/ablage/dokumentAblage.js';
 import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
 import { finalizeRechnungSubmitData } from '../../core/form/logic/events/RechnungEvents.js';
 import { rechnungNotizModal } from './RechnungNotizModal.js';
@@ -11,20 +12,14 @@ import { RechnungPdfExtract, renderRechnungExtractCard } from './RechnungPdfExtr
 import { likyCanExtractPdf } from '../../core/chat/likyCapabilities.js';
 import { navigateBack } from '../../core/breadcrumbTrail.js';
 
-// Pfade die mit "/" anfangen sind Dropbox-Pfade (neue Uploads), alle anderen
-// sind Legacy Supabase Storage-Pfade. Für Dropbox-Pfade reicht die
-// gespeicherte file_url (Shared Link), für Supabase müssen wir publicUrl bauen.
-function isDropboxPath(filePath) {
-  return typeof filePath === 'string' && filePath.startsWith('/');
-}
-
-function resolveDocumentUrl(row, supabaseBucket) {
+// Dropbox/SharePoint: file_url (Shared Link bzw. webUrl, Klick löst der DocumentUrlHelper auf),
+// Legacy Supabase Storage: publicUrl aus dem Bucket.
+function resolveDocumentUrl(typ, row) {
   if (!row) return '';
-  if (isDropboxPath(row.file_path)) {
-    return row.file_url || '';
-  }
+  const q = dokumentQuelle(typ, row);
+  if (q?.quelle !== 'storage') return row.file_url || '';
   try {
-    const { data } = window.supabase.storage.from(supabaseBucket).getPublicUrl(row.file_path);
+    const { data } = window.supabase.storage.from(q.bucket).getPublicUrl(q.pfad);
     return data?.publicUrl || row.file_url || '';
   } catch {
     return row.file_url || '';
@@ -81,30 +76,28 @@ export class RechnungDetail {
     if (error) throw error;
     this.data = data;
 
-    // Belege zu dieser Rechnung laden.
-    // Dropbox-Pfade (file_path beginnt mit "/") → file_url ist bereits ein Shared Link.
-    // Legacy Supabase-Pfade → publicUrl aus Bucket generieren.
+    // Belege zu dieser Rechnung laden
     try {
       const { data: belegeRows } = await window.supabase
         .from('rechnung_belege')
-        .select('id, file_name, file_path, file_url, content_type, size, uploaded_at, uploaded_by')
+        .select(mitDokumentAblage('id, file_name, file_path, file_url, content_type, size, uploaded_at, uploaded_by', 'beleg'))
         .eq('rechnung_id', this.id)
         .order('uploaded_at', { ascending: false });
-      const processed = (belegeRows || []).map(row => ({ ...row, open_url: resolveDocumentUrl(row, 'rechnung-belege') }));
+      const processed = (belegeRows || []).map(row => ({ ...row, open_url: resolveDocumentUrl('beleg', row) }));
       this.belege = processed;
     } catch (err) {
       console.warn('⚠️ Fehler beim Laden der Belege:', err?.message);
       this.belege = [];
     }
 
-    // PDFs zu dieser Rechnung laden (gleiche Dropbox/Supabase-Unterscheidung wie bei Belegen)
+    // PDFs zu dieser Rechnung laden
     try {
       const { data: pdfRows } = await window.supabase
         .from('rechnung_pdfs')
-        .select('id, file_name, file_path, file_url, content_type, size, uploaded_at, uploaded_by')
+        .select(mitDokumentAblage('id, file_name, file_path, file_url, content_type, size, uploaded_at, uploaded_by', 'rechnung'))
         .eq('rechnung_id', this.id)
         .order('uploaded_at', { ascending: false });
-      const pdfProcessed = (pdfRows || []).map(row => ({ ...row, open_url: resolveDocumentUrl(row, 'rechnungen') }));
+      const pdfProcessed = (pdfRows || []).map(row => ({ ...row, open_url: resolveDocumentUrl('rechnung', row) }));
       this.pdfs = pdfProcessed;
     } catch (err) {
       console.warn('⚠️ Fehler beim Laden der PDFs:', err?.message);
@@ -339,31 +332,13 @@ export class RechnungDetail {
       console.log('📋 Submit-Daten vor Übertragung:', submitData);
       console.log('🔍 auftrag_id Wert:', submitData.auftrag_id, typeof submitData.auftrag_id);
 
-      // PDF Upload → Dropbox (rechnung_pdfs.file_path enthält den Dropbox-Pfad)
-      const pdfUploaderRoot = form.querySelector('.uploader[data-name="pdf_file"]');
-      const pdfFiles = [];
-      const pathMeta = await resolveRechnungPathMetadata({
+      // Dropbox-Pfad-Metadaten, nur auf dem Dropbox-Weg aufgelöst
+      const pathMeta = () => resolveRechnungPathMetadata({
         unternehmenId: submitData.unternehmen_id,
         kampagneId: submitData.kampagne_id,
         kooperationId: submitData.kooperation_id,
         rechnungsNr: submitData.rechnung_nr,
       });
-      if (pdfUploaderRoot && pdfUploaderRoot.__uploaderInstance && pdfUploaderRoot.__uploaderInstance.files.length) {
-        const files = Array.from(pdfUploaderRoot.__uploaderInstance.files);
-        for (const file of files) {
-          const result = await uploadRechnungPdf({
-            metadata: pathMeta,
-            file,
-          });
-          pdfFiles.push({
-            file_name: file.name,
-            file_path: result.filePath,
-            file_url: result.fileUrl,
-            content_type: file.type,
-            size: file.size,
-          });
-        }
-      }
 
       // Ersteller automatisch setzen
       submitData.created_by_id = window.currentUser?.id || null;
@@ -405,53 +380,14 @@ export class RechnungDetail {
           console.warn('Zusatzkosten-Sync fehlgeschlagen:', syncErr);
         }
 
-        // PDF-Metadaten in rechnung_pdfs speichern
+        // Erst jetzt hochladen: SharePoint legt die Dateien unter der Rechnung ab
+        const uploaderFiles = (name) => Array.from(form.querySelector(`.uploader[data-name="${name}"]`)?.__uploaderInstance?.files || []);
         try {
-          const rechnungId = result.id;
-          for (const pdf of pdfFiles) {
-            await window.supabase.from('rechnung_pdfs').insert({
-              rechnung_id: rechnungId,
-              file_name: pdf.file_name,
-              file_path: pdf.file_path,
-              file_url: pdf.file_url,
-              content_type: pdf.content_type,
-              size: pdf.size,
-              uploaded_by: window.currentUser?.auth_user_id || null
-            });
-          }
-        } catch (pdfErr) {
-          console.warn('⚠️ PDF-Metadaten teilweise fehlgeschlagen:', pdfErr);
-        }
-
-        // Multi-Upload Belege → Dropbox (rechnung_belege.file_path enthält Dropbox-Pfad)
-        try {
-          const belegeUploaderRoot = form.querySelector('.uploader[data-name="belege_files"]');
-          if (belegeUploaderRoot && belegeUploaderRoot.__uploaderInstance && belegeUploaderRoot.__uploaderInstance.files.length) {
-            const rechnungId = result.id;
-            const files = Array.from(belegeUploaderRoot.__uploaderInstance.files);
-            for (const file of files) {
-              const uploadResult = await uploadRechnungBeleg({
-                metadata: pathMeta,
-                file,
-              });
-              // uploaded_by referenziert benutzer(id), nicht auth.users - daher currentUser.id
-              const { error: belegInsErr } = await window.supabase.from('rechnung_belege').insert({
-                rechnung_id: rechnungId,
-                file_name: file.name,
-                file_path: uploadResult.filePath,
-                file_url: uploadResult.fileUrl,
-                content_type: file.type,
-                size: file.size,
-                uploaded_by: window.currentUser?.id || null
-              });
-              if (belegInsErr) {
-                throw new Error(`Beleg "${file.name}": ${belegInsErr.message}`);
-              }
-            }
-          }
-        } catch (belegeErr) {
-          console.warn('⚠️ Belege-Upload teilweise fehlgeschlagen:', belegeErr);
-          alert(`Rechnung erstellt, aber Beleg-Upload fehlgeschlagen: ${belegeErr?.message || belegeErr}`);
+          await rechnungDateienHochladen({ typ: 'rechnung', rechnungId: result.id, files: uploaderFiles('pdf_file'), pathMeta });
+          await rechnungDateienHochladen({ typ: 'beleg', rechnungId: result.id, files: uploaderFiles('belege_files'), pathMeta });
+        } catch (uploadErr) {
+          console.warn('⚠️ Datei-Upload teilweise fehlgeschlagen:', uploadErr);
+          alert(`Rechnung erstellt, aber Datei-Upload fehlgeschlagen: ${uploadErr?.message || uploadErr}`);
         }
         alert('Rechnung erstellt');
         navigateBack(`/rechnung/${result.id}`);

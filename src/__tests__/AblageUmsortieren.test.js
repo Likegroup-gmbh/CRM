@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createRequire } from 'module';
-import { createFakeSupabase, createFakeSharePoint, ORDNER_UNIQUE, pfadUmschreiben, urlUmschreiben } from './fixtures/fakeSupabase.js';
+import { createFakeSupabase, createFakeSharePoint, ORDNER_UNIQUE, pfadUmschreiben, urlUmschreiben, strukturOffen } from './fixtures/fakeSupabase.js';
 
 const require = createRequire(import.meta.url);
 const { createUmsortieren } = require('../../netlify/functions/_shared/ablage/umsortieren.js');
@@ -18,8 +18,11 @@ const K2 = id(7);
 const KA2 = id(8);
 const M1 = id(9);
 const V2 = id(10);
+const P1 = id(11);
+const VT1 = id(12);
 const BASIS = '/Firma/Medien/Sommer/Lisa/Videos/Video_1_Unboxing';
 const FIRMA = { id: U1, firmenname: 'Firma', ablage_ziel: 'sharepoint', ist_test: false };
+const OHNE_PRODUKTION = { kooperationen: 0, vertraege: 0, neu: 0 };
 
 function setup() {
   const supabase = createFakeSupabase({
@@ -48,9 +51,13 @@ function setup() {
       kooperation_story_asset: [],
       kooperation_bilder_asset: [],
       kooperation_rohmaterial_asset: [],
+      unternehmen: [{ ...FIRMA, dokument_ablage_ziel: 'sharepoint' }],
+      kampagne: [{ id: KA1, kampagnenname: 'Auftrag', eigener_name: 'Sommer', unternehmen_id: U1, marke_id: null }],
+      produktion: [{ id: P1, name: 'Stay Loose', kampagne_id: KA1 }],
+      vertraege: [],
     },
     unique: { ablage_ordner: ORDNER_UNIQUE },
-    rpc: { ablage_pfad_umschreiben: pfadUmschreiben, ablage_url_umschreiben: urlUmschreiben },
+    rpc: { ablage_pfad_umschreiben: pfadUmschreiben, ablage_url_umschreiben: urlUmschreiben, ablage_struktur_offen: strukturOffen },
   });
   const sp = createFakeSharePoint();
   const ordner = createOrdner({ supabase, sp, schlafen: async () => {} });
@@ -114,7 +121,10 @@ describe('umsortieren: Trockenlauf', () => {
     const vorher = t.sp.calls.length;
     const plan = await t.u.planen(U1);
     // kette legt nur Medien/ an, Verträge/ kommt mit geruest oder dem Lauf
-    expect(plan.zaehler).toEqual({ bereich: { marken: 0, kampagnen: 0, neu: 1, anlegen: ['Verträge'] }, dateien: 4, videos: 1, storys: 2, bilder: 1, ordner: 7, rest: 1 });
+    expect(plan.zaehler).toEqual({
+      bereich: { marken: 0, kampagnen: 0, neu: 1, anlegen: ['Verträge'] }, produktion: OHNE_PRODUKTION,
+      dateien: 4, videos: 1, storys: 2, bilder: 1, ordner: 7, rest: 1,
+    });
     expect(plan.rest).toEqual([{ name: 'notiz.pdf', pfad: `${a.sv.pfad}/notiz.pdf` }]);
     expect(t.sp.calls.length).toBe(vorher);
   });
@@ -122,7 +132,10 @@ describe('umsortieren: Trockenlauf', () => {
   it('nichts Altes: alles null', async () => {
     const t = setup();
     await t.ordner.geruest(K1);
-    expect((await t.u.planen(U1)).zaehler).toEqual({ bereich: { marken: 0, kampagnen: 0, neu: 0, anlegen: [] }, dateien: 0, videos: 0, storys: 0, bilder: 0, ordner: 0, rest: 0 });
+    expect((await t.u.planen(U1)).zaehler).toEqual({
+      bereich: { marken: 0, kampagnen: 0, neu: 0, anlegen: [] }, produktion: OHNE_PRODUKTION,
+      dateien: 0, videos: 0, storys: 0, bilder: 0, ordner: 0, rest: 0,
+    });
   });
 });
 
@@ -280,6 +293,67 @@ describe('umsortieren: Bereiche', () => {
     expect(r.bereich).toEqual({ verschoben: 1, fehler: ['/Firma/Marke: gesperrt'] });
     expect(t.db.ablage_ordner.find((o) => o.id === a.marke.id)).toMatchObject({ parent_item_id: a.unternehmen.item_id, pfad: '/Firma/Marke' });
     expect(t.db.kooperation_video_asset.find((x) => x.id === 'vm').file_path).toBe('/Firma/Marke/Winter/Max/clip.mov');
+  });
+});
+
+/** Stand vor ADR 0069: Kooperation und Vertrag liegen direkt in der Kampagne, obwohl sie eine Produktion haben. */
+async function vorProduktion(t) {
+  const a = await t.ordner.kette(K1);
+  const f = datei(t, a.kooperation, 'clip.mov', 'kooperation_video_asset', { id: 'vp', video_id: V1, version_number: 1, is_final: false });
+  t.db.kooperation_video_asset.find((x) => x.id === 'vp').file_url = t.sp.url(f.id);
+  const dok = await t.ordner.dokumentKette(FIRMA, 'vertraege', [{ ebene: 'kampagne', ref: KA1, name: 'Sommer', extra: { marke_id: null, kampagne_id: KA1 } }]);
+  const fv = t.sp.datei(dok.item_id, 'vertrag.pdf');
+  const vpfad = `${dok.pfad}/vertrag.pdf`;
+  t.db.ablage_eingang.push({ drive_id: 'd1', item_id: fv.id, parent_item_id: dok.item_id, name: 'vertrag.pdf', pfad: vpfad, ist_ordner: false, geloescht: false });
+  t.db.vertraege.push({
+    id: VT1, name: 'V1', kunde_unternehmen_id: U1, kampagne_id: KA1, produktion_id: P1,
+    datei_ablage: 'sharepoint', datei_drive_id: 'd1', datei_item_id: fv.id, datei_path: vpfad, datei_url: t.sp.url(fv.id), signiert_ablage: 'dropbox',
+  });
+  Object.assign(t.db.kooperationen[0], { produktion_id: P1, produktion: { id: P1, name: 'Stay Loose', kampagne_id: KA1 } });
+  return { a, f, fv };
+}
+
+describe('umsortieren: Produktionen', () => {
+  it('Trockenlauf zaehlt Kooperationen und Verträge ausserhalb ihrer Produktion, bewegt nichts', async () => {
+    const t = setup();
+    await vorProduktion(t);
+    const vorher = t.sp.calls.length;
+    // neu: Produktions-Ordner unter Medien/ und unter Verträge/
+    expect((await t.u.planen(U1)).zaehler.produktion).toEqual({ kooperationen: 1, vertraege: 1, neu: 2 });
+    expect(t.sp.calls.length).toBe(vorher);
+  });
+
+  it('Lauf: Kooperation und Vertrag ziehen in den Ordner der Produktion, Pfade und Links ziehen mit', async () => {
+    const t = setup();
+    const a = await vorProduktion(t);
+    const r = await t.u.lauf({ unternehmenId: U1 });
+    expect(r.produktion).toEqual({ kooperationen: 1, vertraege: 1, fehler: [] });
+
+    const prod = t.db.ablage_ordner.find((o) => o.art === 'produktion');
+    expect(prod).toMatchObject({ produktion_id: P1, kampagne_id: KA1, pfad: '/Firma/Medien/Sommer/Stay Loose', parent_item_id: a.a.kampagne.item_id });
+    const ziel = '/Firma/Medien/Sommer/Stay Loose/Lisa';
+    expect(t.db.ablage_ordner.find((o) => o.id === a.a.kooperation.id)).toMatchObject({ parent_item_id: prod.item_id, pfad: ziel });
+    expect(t.sp.items.get(a.a.kooperation.item_id).parent).toBe(prod.item_id);
+    expect(t.db.kooperation_video_asset.find((x) => x.id === 'vp')).toMatchObject({ item_id: a.f.id, file_path: `${ziel}/clip.mov`, file_url: t.sp.url(a.f.id) });
+
+    const vertrag = t.db.vertraege.find((v) => v.id === VT1);
+    expect(vertrag).toMatchObject({ datei_item_id: a.fv.id, datei_path: '/Firma/Verträge/Sommer/Stay Loose/vertrag.pdf', datei_url: t.sp.url(a.fv.id) });
+    expect((await t.u.planen(U1)).zaehler.produktion).toEqual(OHNE_PRODUKTION);
+  });
+
+  it('zweiter Lauf verschiebt nichts mehr; Fehler je Eintrag werden gesammelt', async () => {
+    const t = setup();
+    const a = await vorProduktion(t);
+    const orig = t.sp.verschieben.bind(t.sp);
+    t.sp.verschieben = async (itemId, ...rest) => {
+      if (itemId === a.fv.id) { const e = new Error('gesperrt'); e.status = 423; throw e; }
+      return orig(itemId, ...rest);
+    };
+    const r = await t.u.lauf({ unternehmenId: U1 });
+    expect(r.produktion).toEqual({ kooperationen: 1, vertraege: 0, fehler: [`vertrag ${VT1}: gesperrt`] });
+    t.sp.verschieben = orig;
+    expect((await t.u.lauf({ unternehmenId: U1 })).produktion).toEqual({ kooperationen: 0, vertraege: 1, fehler: [] });
+    expect((await t.u.lauf({ unternehmenId: U1 })).produktion).toEqual({ kooperationen: 0, vertraege: 0, fehler: [] });
   });
 });
 

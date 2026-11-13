@@ -3,7 +3,12 @@ import { ladeGedeckteKooperationen, syncVertragFlags } from './deckung/vertragDe
 import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
 import { VertragUtils } from './VertragUtils.js';
 import { fallbackStatusAfterUnsigned } from './vertragStatus.js';
-import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import {
+  dokumentDateienLoeschen,
+  dokumentSpalten,
+  dokumentZeileLaden,
+  vertragDateienLoeschen,
+} from '../../core/ablage/dokumentAblage.js';
 
 export function bindTableDelegation(list) {
   const tbody = document.getElementById('vertraege-table-body');
@@ -112,35 +117,8 @@ export async function deleteVertrag(list, id) {
       console.warn('Gedeckte Kooperationen konnten nicht geladen werden:', deckErr);
     }
 
-    if (vertrag?.datei_path) {
-      if (vertrag.datei_path.startsWith('/')) {
-        try {
-          await authorizedFetch('/.netlify/functions/dropbox-delete-vertrag', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: vertrag.datei_path })
-          });
-        } catch (dbxErr) {
-          console.warn('Dropbox-Löschung (datei_path) fehlgeschlagen:', dbxErr);
-        }
-      } else {
-        await window.supabase.storage.from('vertraege').remove([vertrag.datei_path]);
-      }
-    }
-    if (vertrag?.unterschriebener_vertrag_path) {
-      await window.supabase.storage.from('unterschriebene-vertraege').remove([vertrag.unterschriebener_vertrag_path]);
-    }
-    if (vertrag?.dropbox_file_path) {
-      try {
-        await authorizedFetch('/.netlify/functions/dropbox-delete-vertrag', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: vertrag.dropbox_file_path })
-        });
-      } catch (dbxErr) {
-        console.warn('Dropbox-Löschung fehlgeschlagen (wird ignoriert):', dbxErr);
-      }
-    }
+    // Erzeugtes und unterschriebenes PDF, egal ob SharePoint, Dropbox oder Storage
+    await vertragDateienLoeschen(id);
 
     const { error } = await window.supabase.from('vertraege').delete().eq('id', id);
     if (error) throw error;
@@ -258,30 +236,8 @@ export async function removeSignedContract(list, vertragId) {
   try {
     if (!window.supabase) throw new Error('Supabase nicht verfügbar');
 
-    const { data } = await window.supabase
-      .from('vertraege')
-      .select('unterschriebener_vertrag_path, dropbox_file_path')
-      .eq('id', vertragId)
-      .single();
-
-    if (data?.unterschriebener_vertrag_path) {
-      const { error: storageError } = await window.supabase.storage
-        .from('unterschriebene-vertraege')
-        .remove([data.unterschriebener_vertrag_path]);
-      if (storageError) console.warn('⚠️ Storage-Löschfehler (nicht kritisch):', storageError);
-    }
-
-    if (data?.dropbox_file_path) {
-      try {
-        await authorizedFetch('/.netlify/functions/dropbox-delete-vertrag', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: data.dropbox_file_path })
-        });
-      } catch (dbxErr) {
-        console.warn('Dropbox-Löschung fehlgeschlagen (wird ignoriert):', dbxErr);
-      }
-    }
+    const signiert = await dokumentZeileLaden('vertrag_unterschrieben', vertragId);
+    if (signiert) await dokumentDateienLoeschen('vertrag_unterschrieben', signiert);
 
     const fallbackStatus = await fallbackStatusAfterUnsigned(window.supabase, vertragId);
     const { error } = await window.supabase
@@ -289,8 +245,7 @@ export async function removeSignedContract(list, vertragId) {
       .update({
         unterschriebener_vertrag_url: null,
         unterschriebener_vertrag_path: null,
-        dropbox_file_url: null,
-        dropbox_file_path: null,
+        ...dokumentSpalten('vertrag_unterschrieben', { ziel: 'dropbox', fileUrl: null, filePath: null }),
         status: fallbackStatus
       })
       .eq('id', vertragId);

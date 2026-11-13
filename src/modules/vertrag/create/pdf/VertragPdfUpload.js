@@ -1,12 +1,12 @@
-// Zentraler Helper für den Upload von generierten Vertrag-PDFs nach Dropbox.
+// Zentraler Helper für den Upload von generierten Vertrag-PDFs.
 // Genutzt von UgcPdf.js, InfluencerPdf.js, VideografPdf.js, ModelPdf.js.
 //
-// Ersetzt den vorherigen Supabase Storage Bucket 'vertraege' / Pfad
-// `unternehmen/{unternehmen_id}/{vertrag_id}/...`. Die Datei landet jetzt unter
-// dem einheitlichen Dropbox-Pfad:
-//   /{Unternehmen}/{Marke}/{Kampagne}/{Kooperation}/Vertraege/{Creator}_{Typ}/{fileName}
+// Ziel je Weiche Dokumente (ADR 0068):
+//   SharePoint: Daten/{Unternehmen}/Verträge/[{Marke}/]{Kampagne}/{fileName}
+//   Dropbox:    /{Unternehmen}/{Marke}/{Kampagne}/{Kooperation}/Vertraege/{Creator}_{Typ}/{fileName}
 
 import { uploadVertragPdf } from '../../../../core/DropboxDocumentUploader.js';
+import { dokumentHochladen } from '../../../../core/ablage/dokumentAblage.js';
 
 // Baut die Pfad-Metadaten aus dem Vertrag und den in VertraegeCreate gehaltenen
 // Listen (this.unternehmen, this.creators, this.kampagnen). Kooperation wird
@@ -44,36 +44,35 @@ async function resolveVertragPathMetadata(ctx, vertrag) {
   };
 }
 
-// Lädt das generierte PDF nach Dropbox hoch und speichert URL/Pfad am Vertrag.
+// Lädt das generierte PDF hoch (SharePoint oder Dropbox je Weiche) und speichert URL/Pfad am Vertrag.
+// Neu generiert = neue Version derselben SharePoint-Datei.
 // Jeder Fehler wirft — ohne datei_url gilt der Vertrag nicht als erstellt.
 export async function uploadGeneratedVertragPdf(ctx, vertrag, pdfBlob, fileName) {
-  const metadata = await resolveVertragPathMetadata(ctx, vertrag);
-
-  // jsPDF .output('blob') liefert ein Blob ohne .name; uploadVertragPdf
-  // braucht aber file.name oder metadata.fileName. Wir packen daher den
-  // Dateinamen in metadata.
-  const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-  const result = await uploadVertragPdf({ metadata, file });
-  if (!result?.fileUrl) {
-    throw new Error('Dropbox-Upload ohne Datei-URL');
-  }
   if (!window.supabase || !vertrag?.id) {
     throw new Error('Vertrag ohne ID');
   }
 
-  const { error } = await window.supabase
-    .from('vertraege')
-    .update({
-      datei_url: result.fileUrl,
-      datei_path: result.filePath,
-    })
-    .eq('id', vertrag.id);
+  // jsPDF .output('blob') liefert ein Blob ohne .name
+  const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-  if (error) {
-    console.warn('⚠️ Vertrag-PDF konnte nicht in der Übersicht verknüpft werden:', error);
-    throw new Error(error.message || 'Vertrag-PDF konnte nicht verknüpft werden');
-  }
+  const r = await dokumentHochladen({
+    typ: 'vertrag',
+    bezugId: vertrag.id,
+    file,
+    dropbox: async () => {
+      const metadata = await resolveVertragPathMetadata(ctx, vertrag);
+      const result = await uploadVertragPdf({ metadata, file });
+      if (!result?.fileUrl) throw new Error('Dropbox-Upload ohne Datei-URL');
+      return result;
+    },
+    speichern: async (spalten) => {
+      const { error } = await window.supabase.from('vertraege').update(spalten).eq('id', vertrag.id);
+      if (error) {
+        console.warn('⚠️ Vertrag-PDF konnte nicht in der Übersicht verknüpft werden:', error);
+        throw new Error(error.message || 'Vertrag-PDF konnte nicht verknüpft werden');
+      }
+    },
+  });
 
-  return result;
+  return { fileUrl: r.fileUrl, filePath: r.filePath, ziel: r.ziel };
 }

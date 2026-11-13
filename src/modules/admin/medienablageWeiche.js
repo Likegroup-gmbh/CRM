@@ -185,15 +185,20 @@ export async function umsortierenStarten(page, button) {
 
   const z = plan?.zaehler || {};
   const b = z.bereich || {};
+  const p = z.produktion || {};
   const ziehen = (b.marken || 0) + (b.kampagnen || 0);
   const anlegen = b.anlegen || [];
-  if (!ziehen && !anlegen.length && !z.dateien && !z.ordner) {
-    page.toast(`${name}: alles liegt schon in Medien/ und den Feedbackschleifen.`, 'success');
+  const produktionZiehen = (p.kooperationen || 0) + (p.vertraege || 0);
+  if (!ziehen && !anlegen.length && !produktionZiehen && !z.dateien && !z.ordner) {
+    page.toast(`${name}: alles liegt schon in Medien/, den Produktionen und den Feedbackschleifen.`, 'success');
     return;
   }
   const bereichText = [
     anlegen.length ? `${anlegen.map(n => `${n}/`).join(' und ')} ${anlegen.length > 1 ? 'werden' : 'wird'} angelegt.` : '',
     ziehen ? `${zahl(b.marken || 0)} Marken und ${zahl(b.kampagnen || 0)} Kampagnen ziehen nach Daten/${name}/Medien.` : '',
+    produktionZiehen
+      ? `${zahl(p.kooperationen || 0)} Kooperationen und ${zahl(p.vertraege || 0)} Verträge ziehen in ihre Produktions-Ordner${p.neu ? ` (${zahl(p.neu)} neu)` : ''}.`
+      : '',
   ].filter(Boolean).map(s => `${s} `).join('');
   const schleifenText = z.dateien || z.ordner
     ? `${zahl(z.dateien)} Dateien (${zahl(z.videos)} Videos, ${zahl(z.storys)} Storys, ${zahl(z.bilder)} Bilder) ziehen in die Feedbackschleifen unter Videos/. Danach werden ${zahl(z.ordner)} alte Ordner (Storys/, Bilder/, Varianten) gelöscht, sobald sie leer sind.`

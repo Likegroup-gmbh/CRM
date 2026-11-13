@@ -47,6 +47,12 @@ describe('pfad: eine Namensregel', () => {
     expect(pfad.NAMEN.kampagne({ kampagnenname: 'A/B' })).toBe('A-B');
   });
 
+  it('Produktionsname 1:1, bereinigt, Fallback "Produktion"', () => {
+    expect(pfad.NAMEN.produktion({ name: 'FAG - UGC / Influencer – Stay Loose' })).toBe('FAG - UGC - Influencer – Stay Loose');
+    expect(pfad.NAMEN.produktion({ name: '  ' })).toBe('Produktion');
+    expect(pfad.NAMEN.produktion(null)).toBe('Produktion');
+  });
+
   it('Video-Ordner mit Thema, Format aus Pixelmass', () => {
     expect(pfad.NAMEN.video({ position: 2, thema: 'Unboxing: Teil 1' })).toBe('Video_2_Unboxing- Teil 1');
     expect(pfad.NAMEN.video({ position: 3 })).toBe('Video_3');
@@ -165,9 +171,11 @@ describe('sharepoint: driveItem -> Eingang', () => {
   });
 });
 
-function koop({ id = 'k1', name = 'Lisa', kampagneId = 'kamp1', marke = { id: 'm1', markenname: 'Marke' }, unternehmen = { id: 'u1', firmenname: 'Firma', ist_test: false } } = {}) {
+function koop({ id = 'k1', name = 'Lisa', kampagneId = 'kamp1', marke = { id: 'm1', markenname: 'Marke' }, unternehmen = { id: 'u1', firmenname: 'Firma', ist_test: false }, produktion = null } = {}) {
   return {
     id, name, kampagne_id: kampagneId,
+    produktion_id: produktion?.id || null,
+    produktion: produktion ? { kampagne_id: kampagneId, ...produktion } : null,
     kampagne: { id: kampagneId, kampagnenname: 'Auftrag', eigener_name: 'Sommer', unternehmen_id: unternehmen.id, marke_id: marke?.id || null, unternehmen, marke },
   };
 }
@@ -303,6 +311,43 @@ describe('ordner: Register + Anlage', () => {
     const k = await ordner.kette(koop({ marke: null }));
     expect(k.kampagne.parent_item_id).toBe(k.medien.item_id);
     expect(k.kooperation.pfad).toBe('/Firma/Medien/Sommer/Lisa');
+  });
+
+  it('mit Produktion: Kooperation unter dem Produktions-Ordner, ohne Produktion direkt in der Kampagne', async () => {
+    const { ordner } = setup();
+    const a = await ordner.kette(koop({ produktion: { id: 'p1', name: 'Stay Loose' } }));
+    expect(a.produktion).toMatchObject({
+      art: 'produktion', produktion_id: 'p1', kampagne_id: 'kamp1', marke_id: 'm1', unternehmen_id: 'u1',
+      pfad: '/Firma/Medien/Marke/Sommer/Stay Loose', parent_item_id: a.kampagne.item_id,
+    });
+    expect(a.kooperation).toMatchObject({ parent_item_id: a.produktion.item_id, pfad: '/Firma/Medien/Marke/Sommer/Stay Loose/Lisa' });
+    const b = await ordner.kette(koop({ id: 'k2', name: 'Max' }));
+    expect(b.produktion).toBe(null);
+    expect(b.kooperation.parent_item_id).toBe(b.kampagne.item_id);
+  });
+
+  it('Produktion: ein Ordner je Produktion, gleiche Namen bekommen "(2)", Name 1:1 und gekuerzt', async () => {
+    const { supabase, ordner } = setup();
+    const p1 = { id: 'p1', name: 'STAY LOOSE — Creator-Kampagne Recovery Kit' };
+    const a = await ordner.kette(koop({ produktion: p1 }));
+    const b = await ordner.kette(koop({ id: 'k2', name: 'Max', produktion: p1 }));
+    expect(a.produktion.name).toBe('STAY LOOSE — Creator-Kampagne Recovery K');
+    expect(b.produktion.item_id).toBe(a.produktion.item_id);
+    const c = await ordner.kette(koop({ id: 'k3', name: 'Tom', produktion: { id: 'p2', name: 'stay loose — Creator-Kampagne Recovery K' } }));
+    expect(c.produktion.name).toBe('stay loose — Creator-Kampagne Recovery K (2)');
+    expect(supabase.db.ablage_ordner.filter((o) => o.art === 'produktion')).toHaveLength(2);
+  });
+
+  it('Linie wechselt: Kooperation zieht unter die neue Produktion, ohne Produktion zurueck in die Kampagne', async () => {
+    const { sp, ordner } = setup();
+    const vorher = await ordner.kette(koop());
+    const a = await ordner.kette(koop({ produktion: { id: 'p1', name: 'Wind Down' } }));
+    expect(a.kooperation.item_id).toBe(vorher.kooperation.item_id);
+    expect(sp.items.get(a.kooperation.item_id).parent).toBe(a.produktion.item_id);
+    const b = await ordner.kette(koop({ produktion: { id: 'p2', name: 'Lights Out' } }));
+    expect(b.kooperation).toMatchObject({ item_id: a.kooperation.item_id, pfad: '/Firma/Medien/Marke/Sommer/Lights Out/Lisa' });
+    const c = await ordner.kette(koop());
+    expect(c.kooperation).toMatchObject({ item_id: a.kooperation.item_id, parent_item_id: c.kampagne.item_id, pfad: '/Firma/Medien/Marke/Sommer/Lisa' });
   });
 
   it('umhaengen: Register vor dem Verschieben, Links unter dem alten Pfad ziehen mit', async () => {

@@ -5,7 +5,7 @@
 
 const { istUuid } = require('./konfig');
 const { TABELLE, TYPEN, weitereVerweise } = require('./asset');
-const { mitZaehler } = require('./pfad');
+const { mitZaehler, DOKUMENT_BEREICHE } = require('./pfad');
 const { darfMediaUpload, istStaff, sichtbar } = require('./zugriff');
 const { AblageFehler } = require('./http');
 const { stuecke } = require('./liste');
@@ -180,6 +180,26 @@ function createDateiSchreiben(c) {
     const fehler = [];
     const weg = [];
     let nOrdner = 0;
+    // Verträge, Rechnungen, Aufträge (ADR 0068): Aufbewahrungspflicht, nur in den Papierkorb (93 Tage)
+    let papierkorb = 0;
+    if (body.entity === 'unternehmen') {
+      const { data: bereiche, error: bErr } = await supabase.from('ablage_ordner').select('id, item_id, pfad')
+        .eq('drive_id', driveId).eq('art', 'bereich').eq('unternehmen_id', body.id).in('bereich', [...DOKUMENT_BEREICHE])
+        .is('geloescht_at', null).not('item_id', 'is', null);
+      if (bErr) throw bErr;
+      for (const b of bereiche || []) {
+        try {
+          const { data: kinder } = await supabase.rpc('ablage_nachfahren', { p_drive_id: driveId, p_item_id: b.item_id });
+          await sp.loeschen(b.item_id);
+          await alsGeloeschtMarkieren([b.item_id, ...(kinder || []).map((k) => k.item_id)]);
+          papierkorb++;
+        } catch (err) {
+          fehler.push({ item_id: b.item_id, pfad: b.pfad, fehler: err.message });
+        }
+      }
+      // Ohne die Dokument-Bereiche nicht endgueltig loeschen: sonst waeren sie mit weg
+      if (fehler.length) return { ordner: 0, dateien: 0, papierkorb, fehler };
+    }
     for (const o of ordner || []) {
       try {
         const { data: kinder } = await supabase.rpc('ablage_nachfahren', { p_drive_id: driveId, p_item_id: o.item_id });
@@ -206,7 +226,7 @@ function createDateiSchreiben(c) {
       }
     }
     if (einzeln.length) await alsGeloeschtMarkieren(einzeln);
-    return { ordner: nOrdner, dateien: nDateien, fehler };
+    return { ordner: nOrdner, dateien: nDateien, ...(papierkorb ? { papierkorb } : {}), fehler };
   }
 
   return { dateiLoeschen, dateiUmbenennen, dateiVerschieben, entityLoeschen };

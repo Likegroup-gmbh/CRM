@@ -12,6 +12,7 @@ import {
   hasInvoiceNumber
 } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { FINAL_AUFTRAG_OR_FILTER, isFinalAuftrag } from '../../core/finalisiert.js';
+import { dokumentQuelle, mitDokumentAblage } from '../../core/ablage/dokumentAblage.js';
 import { sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
 import { isInvoiceRowPaid } from '../auftrag/logic/PaymentRowStatus.js';
 import { sumInvoiceRows, sumPaidRechnungRows } from './invoiceCardTotals.js';
@@ -62,7 +63,7 @@ created_by:created_by_id(id, name, profile_image_url),
 vertrag:vertrag_id(id, name, unterschriebener_vertrag_url, dropbox_file_url, datei_url)
 `;
 
-const RECHNUNG_PDF_SELECT = 'id, rechnung_id, file_name, file_path, file_url';
+const RECHNUNG_PDF_SELECT = mitDokumentAblage('id, rechnung_id, file_name, file_path, file_url', 'rechnung');
 const ROW_PAGE_SIZE = 1000;
 const PDF_ID_CHUNK = 200;
 const IN_CHUNK = 200;
@@ -438,7 +439,7 @@ function normalizeRechnungPdfUrls(rows) {
     if (!r.rechnung_pdfs) { r.rechnung_pdfs = []; continue; }
     for (const pdf of r.rechnung_pdfs) {
       let openUrl = pdf.file_url || '';
-      if (pdf.file_path && !pdf.file_path.startsWith('/') && window.supabase?.storage) {
+      if (dokumentQuelle('rechnung', pdf)?.quelle === 'storage' && window.supabase?.storage) {
         const { data } = window.supabase.storage.from('rechnungen').getPublicUrl(pdf.file_path);
         openUrl = data?.publicUrl || openUrl;
       }

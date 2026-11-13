@@ -3,7 +3,9 @@
 // Delta-Feed fuers CRM? Der Eltern-Ordner aus dem Register bestimmt die Bedeutung.
 // abgleich.js laedt die Eingaben und fuehrt die Entscheidung aus.
 //
-// Unter dem Unternehmen liegen die Bereiche Medien (Marke/Kampagne/Kooperation) und Verträge (ADR 0067).
+// Unter dem Unternehmen liegen die Bereiche Medien (Marke/Kampagne/Produktion/Kooperation, ADR 0069) und Verträge (ADR 0067),
+// dazu Rechnungen und Aufträge (ADR 0068). In den Dokument-Bereichen legt das CRM keine Zeilen aus
+// dem Finder an: Dokumente kennt es nur aus eigenen Uploads (abgleich-datei pflegt Pfad und Namen).
 // Ablage (ADR 0065): Videos/Video_N/Feedbackschleife_K bzw. Finale_Version enthalten Video und
 // Bild flach (Typ aus der Endung) und je Story-Slot einen Ordner Story_K. Typ-Ordner Storys/
 // und Bilder/ sowie Varianten-Ordner (A/B/C) stammen aus dem Altbestand und gelten bis zum
@@ -19,7 +21,10 @@
 //   ignorieren | warten | ordner_geloescht | wiederherstellen | frei { besitz } | frei_aktualisieren { besitz }
 //   fach { art, soll, ... } | zurueck_verschieben | zurueck_benennen | variante_umbenennen { variante }
 
-const { MUSTER, FINALE_ORDNER, NAMEN, nummer, formatOrdner, formatAusOrdner, formatAusMass, systemdatei, dateiTyp, bereichAusOrdner } = require('./pfad');
+const {
+  MUSTER, FINALE_ORDNER, NAMEN, DOKUMENT_BEREICHE, nummer, formatOrdner, formatAusOrdner, formatAusMass, systemdatei, dateiTyp, bereichAusOrdner,
+} = require('./pfad');
+const { istDokument } = require('./dokument');
 
 const UPLOAD_WARTEN_MS = 10 * 60 * 1000;
 // Maße liefert Graph oft erst nach der Medienanalyse: kurz takten, Fenster bleibt 10 min
@@ -29,7 +34,7 @@ const WARTEN_SEK = { upload: 120, eltern: 30, mass: 20 };
 
 const ASSET_TYP = { videos: 'video', storys: 'story', bilder: 'still', rohmaterial: 'roh' };
 const GUELTIGE_TYPEN = new Set(Object.values(ASSET_TYP));
-const BESITZ = ['unternehmen_id', 'bereich', 'marke_id', 'kampagne_id', 'kooperation_id', 'kooperation_video_id', 'typ', 'story_nummer', 'version_number'];
+const BESITZ = ['unternehmen_id', 'bereich', 'marke_id', 'kampagne_id', 'produktion_id', 'kooperation_id', 'kooperation_video_id', 'typ', 'story_nummer', 'version_number'];
 
 /** Besitzer-Spalten fuer einen Ordner unter `eltern` (frei: erbt den fachlichen Ort). */
 function besitzVon(eltern) {
@@ -129,10 +134,11 @@ function ortVon(eltern) {
       }
       return { art: 'falsch', grund: 'typ_ordner' };
     case 'frei':
-      return { art: 'frei' };
+      return DOKUMENT_BEREICHE.has(eltern.bereich) ? { art: 'dokument' } : { art: 'frei' };
+    case 'dokument':
+      return { art: 'dokument' };
     case 'bereich':
-      // Unter Verträge ordnet das CRM noch nichts zu (Vertrag-Upload folgt)
-      return eltern.bereich === 'vertraege' ? { art: 'ignorieren', grund: 'vertraege' } : { art: 'falsch', grund: 'bereich_ordner' };
+      return DOKUMENT_BEREICHE.has(eltern.bereich) ? { art: 'dokument' } : { art: 'falsch', grund: 'bereich_ordner' };
     case 'test':
     case 'unzugeordnet':
       return { art: 'ignorieren', grund: `${eltern.art}_ordner` };
@@ -177,6 +183,10 @@ function dateiEinordnen({ item, eltern, elternIstWurzel = false, elternOffen = f
     }
     if (GUELTIGE_TYPEN.has(upload.typ) && k.kooperation_id) {
       return { aktion: 'asset', typ: upload.typ, ziel: zielAusKontext(k), umziehen: false, quelle: 'upload' };
+    }
+    // Dokument hochgeladen, Zeile nie geschrieben: der Abgleich traegt die Datei beim Bezug ein
+    if (istDokument(upload.typ) && k.bezug_id) {
+      return { aktion: 'dokument_upload', typ: upload.typ, upload_id: upload.id };
     }
   }
 
@@ -234,6 +244,8 @@ function dateiEinordnen({ item, eltern, elternIstWurzel = false, elternOffen = f
 
     case 'frei':
       return asset ? zurueck(asset) : { aktion: 'ignorieren', grund: 'freier_ordner' };
+    case 'dokument':
+      return asset ? zurueck(asset) : { aktion: 'ignorieren', grund: 'dokument_ohne_crm' };
     case 'ignorieren':
       return asset ? zurueck(asset) : { aktion: 'ignorieren', grund: ort.grund };
     default:

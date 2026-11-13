@@ -10,6 +10,11 @@ const ziel = require('./ziel');
 
 const LISTE = 200;
 const ZIELE = new Set(['dropbox', 'sharepoint']);
+// Medien und Dokumente (ADR 0068) haben je Weiche und Notschalter
+const BEREICHE = {
+  medien: { spalte: 'ablage_ziel', notschalter: ziel.NOTSCHALTER.medien },
+  dokumente: { spalte: 'dokument_ablage_ziel', notschalter: ziel.NOTSCHALTER.dokumente },
+};
 const STAND_SPALTEN = 'drive_id, letzter_lauf, letzter_erfolg, letzte_meldung, fehler, fehler_seit, abo_ablauf, '
   + 'voll_abgleich_noetig, quota_used, quota_total, zert_ablauf, rechte_lauf, rechte_fehler, alarme';
 
@@ -39,16 +44,21 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
   async function stand() {
     const konfig = { konfiguriert: !!ablage, site_url: ablage?.konfig?.siteUrl || null, drive_id: driveId };
     const [einst, staende] = await Promise.all([
-      supabase.from('ablage_einstellung').select('wert').eq('schluessel', 'notschalter').maybeSingle().then(ergebnis),
+      supabase.from('ablage_einstellung').select('schluessel, wert').in('schluessel', Object.values(ziel.NOTSCHALTER)).then(ergebnis),
       supabase.from('ablage_stand').select(STAND_SPALTEN).then(ergebnis),
     ]);
-    const basis = { konfig, einstellung: { notschalter: einst?.wert === true }, stand: staende || [] };
+    const an = (schluessel) => (einst || []).some((e) => e.schluessel === schluessel && e.wert === true);
+    const einstellung = { notschalter: an(ziel.NOTSCHALTER.medien), notschalter_dokumente: an(ziel.NOTSCHALTER.dokumente) };
+    const basis = { konfig, einstellung, stand: staende || [] };
     if (!ablage) {
-      return { ...basis, zaehler: { offen: 0, fehler: 0, unzugeordnet: 0, erledigt_24h: 0 }, unzugeordnet: [], fehler: [], unternehmen: [], umzug: [] };
+      return {
+        ...basis, zaehler: { offen: 0, fehler: 0, unzugeordnet: 0, erledigt_24h: 0 }, unzugeordnet: [], fehler: [], unternehmen: [], umzug: [],
+        dokumente: [], dokument_umzug: [],
+      };
     }
 
     const seit24h = iso(jetzt() - 24 * 60 * 60 * 1000);
-    const [offen, fehler, unzugeordnet, erledigt24h, unzListe, fehlerListe, unternehmen] = await Promise.all([
+    const [offen, fehler, unzugeordnet, erledigt24h, unzListe, fehlerListe, unternehmen, dokumente] = await Promise.all([
       zaehlen((q) => q.eq('status', 'offen')),
       zaehlen((q) => q.eq('status', 'fehler')),
       zaehlen((q) => q.eq('status', 'unzugeordnet').eq('geloescht', false)),
@@ -58,10 +68,15 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
       supabase.from('ablage_eingang').select('item_id, name, pfad, grund, versuche, naechster_versuch')
         .eq('drive_id', driveId).eq('status', 'fehler').order('naechster_versuch', { ascending: true }).limit(LISTE).then(ergebnis),
       supabase.rpc('ablage_unternehmen_stand', { p_drive_id: driveId }).then(ergebnis),
+      supabase.rpc('ablage_dokumente_stand', { p_drive_id: driveId }).then(ergebnis),
     ]);
 
     const n = (v) => Number(v) || 0;
     const liste = unternehmen || [];
+    const umzugZaehler = (u) => ({
+      unternehmen_id: u.id, offen: n(u.umzug_offen), fertig: n(u.umzug_fertig), fehler: n(u.umzug_fehler), uebersprungen: n(u.umzug_uebersprungen),
+    });
+    const hatUmzug = (u) => n(u.umzug_offen) + n(u.umzug_fertig) + n(u.umzug_fehler) + n(u.umzug_uebersprungen) > 0;
     return {
       ...basis,
       zaehler: { offen, fehler, unzugeordnet, erledigt_24h: erledigt24h },
@@ -71,32 +86,39 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
         id: u.id, firmenname: u.firmenname, ablage_ziel: u.ablage_ziel, ist_test: !!u.ist_test,
         dateien_sharepoint: n(u.dateien_sharepoint), dateien_dropbox: n(u.dateien_dropbox),
       })),
-      umzug: liste
-        .filter((u) => n(u.umzug_offen) + n(u.umzug_fertig) + n(u.umzug_fehler) + n(u.umzug_uebersprungen) > 0)
-        .map((u) => ({
-          unternehmen_id: u.id, offen: n(u.umzug_offen), fertig: n(u.umzug_fertig),
-          fehler: n(u.umzug_fehler), uebersprungen: n(u.umzug_uebersprungen),
-        })),
+      umzug: liste.filter(hatUmzug).map(umzugZaehler),
+      dokumente: (dokumente || []).map((d) => ({
+        id: d.id, dokument_ablage_ziel: d.dokument_ablage_ziel,
+        sharepoint: n(d.dokumente_sharepoint), dropbox: n(d.dokumente_dropbox), storage: n(d.dokumente_storage),
+      })),
+      dokument_umzug: (dokumente || []).filter(hatUmzug).map(umzugZaehler),
     };
   }
 
-  async function notschalter({ an }) {
+  function bereichVon(bereich = 'medien') {
+    if (!BEREICHE[bereich]) throw new AblageFehler(400, 'Unbekannter Bereich');
+    return BEREICHE[bereich];
+  }
+
+  async function notschalter({ an, bereich }) {
     if (typeof an !== 'boolean') throw new AblageFehler(400, 'an muss true oder false sein');
+    const b = bereichVon(bereich);
     const { error } = await supabase.from('ablage_einstellung')
-      .upsert({ schluessel: 'notschalter', wert: an, updated_at: iso(), updated_by: benutzer?.id || null }, { onConflict: 'schluessel' });
+      .upsert({ schluessel: b.notschalter, wert: an, updated_at: iso(), updated_by: benutzer?.id || null }, { onConflict: 'schluessel' });
     if (error) throw error;
     // Andere warme Instanzen sehen den Schalter nach hoechstens 15 Sekunden (Cache in ziel.js)
     ziel._reset();
-    console.log(`[ablage-stand] Notschalter ${an ? 'AN' : 'aus'} durch ${benutzer?.email || benutzer?.id || '?'}`);
+    console.log(`[ablage-stand] Notschalter ${b.notschalter} ${an ? 'AN' : 'aus'} durch ${benutzer?.email || benutzer?.id || '?'}`);
     return { ok: true };
   }
 
-  async function weiche({ unternehmen_id: id, ziel: z }) {
+  async function weiche({ unternehmen_id: id, ziel: z, bereich }) {
     if (!istUuid(id) || !ZIELE.has(z)) throw new AblageFehler(400, 'Ungültige Weiche');
+    const b = bereichVon(bereich);
     if (z === 'sharepoint') sharePointNoetig();
-    const data = ergebnis(await supabase.from('unternehmen').update({ ablage_ziel: z }).eq('id', id).select('id').maybeSingle());
+    const data = ergebnis(await supabase.from('unternehmen').update({ [b.spalte]: z }).eq('id', id).select('id').maybeSingle());
     if (!data) throw new AblageFehler(404, 'Unternehmen nicht gefunden');
-    console.log(`[ablage-stand] Weiche ${id} -> ${z} durch ${benutzer?.email || benutzer?.id || '?'}`);
+    console.log(`[ablage-stand] Weiche ${b.spalte} ${id} -> ${z} durch ${benutzer?.email || benutzer?.id || '?'}`);
     return { ok: true };
   }
 
@@ -145,6 +167,22 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
     return { ok: true, angelegt };
   }
 
+  /** Verträge, Rechnungen, Belege, Auftragsdokumente eines Unternehmens (ADR 0068). */
+  async function dokument_umzug_starten({ unternehmen_id: id }) {
+    sharePointNoetig();
+    if (!istUuid(id)) throw new AblageFehler(400, 'unternehmen_id fehlt');
+    const u = ergebnis(await supabase.from('unternehmen').select('id, dokument_ablage_ziel').eq('id', id).maybeSingle());
+    if (!u) throw new AblageFehler(404, 'Unternehmen nicht gefunden');
+    if (u.dokument_ablage_ziel !== 'sharepoint') throw new AblageFehler(409, 'Erst die Weiche Dokumente auf SharePoint stellen', 'weiche_dropbox');
+    await ablage.ordner.wurzel();
+    const angelegt = await umzugVon().dokumenteAnlegen(id);
+    // Auch bei 0 neu angelegten Zeilen: eine schon offene Warteschlange (Anstoss zuvor
+    // danebengegangen) soll derselbe Klick starten. Der Läufer nimmt sich die Zeile per SKIP LOCKED.
+    const angestossen = await anstossenImpl(event, 'ablage-umzug-background', { grund: 'dokumente' });
+    console.log(`[ablage-stand] Dokument-Umzug ${id}: ${angelegt} eingereiht, angestossen=${angestossen} durch ${benutzer?.email || benutzer?.id || '?'}`);
+    return { ok: true, angelegt, angestossen };
+  }
+
   function unternehmenIdPruefen(id) {
     sharePointNoetig();
     if (!istUuid(id)) throw new AblageFehler(400, 'unternehmen_id fehlt');
@@ -164,12 +202,15 @@ function createStand({ supabase, ablage, event, benutzer, jetzt = () => Date.now
     return { ok: true, angestossen };
   }
 
-  return { stand, notschalter, weiche, erneut, ignorieren, jetzt_abgleichen, voll_abgleich, umzug_starten, umsortieren_planen, umsortieren_starten };
+  return {
+    stand, notschalter, weiche, erneut, ignorieren, jetzt_abgleichen, voll_abgleich, umzug_starten, dokument_umzug_starten,
+    umsortieren_planen, umsortieren_starten,
+  };
 }
 
 const AKTIONEN = new Set([
   'stand', 'notschalter', 'weiche', 'erneut', 'ignorieren', 'jetzt_abgleichen', 'voll_abgleich', 'umzug_starten',
-  'umsortieren_planen', 'umsortieren_starten',
+  'dokument_umzug_starten', 'umsortieren_planen', 'umsortieren_starten',
 ]);
 
 module.exports = { createStand, AKTIONEN };

@@ -1,7 +1,7 @@
 // Contracting-spezifische Create/Edit-Logik fuer Rechnungen
 // Segmented Control, Submit-Handler, File-Uploads
 
-import { uploadRechnungPdf, uploadRechnungBeleg } from '../../core/DropboxDocumentUploader.js';
+import { rechnungDateienHochladen } from '../../core/ablage/rechnungDokumente.js';
 import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
 import { navigateBack } from '../../core/breadcrumbTrail.js';
 
@@ -76,16 +76,13 @@ export async function handleContractingCreateSubmit(form) {
     await fillPoFromAuftrag(submitData);
   }
 
-  // Pfad-Metadaten (für Contracting ohne Kampagne) auflösen
-  const pathMeta = await resolveRechnungPathMetadata({
+  // Dropbox-Pfad-Metadaten (für Contracting ohne Kampagne), nur auf dem Dropbox-Weg aufgelöst
+  const pathMeta = () => resolveRechnungPathMetadata({
     unternehmenId: submitData.unternehmen_id,
     kampagneId: submitData.kampagne_id, // null bei Contracting → Fallback /Contracting/Rechnungen
     kooperationId: submitData.kooperation_id,
     rechnungsNr: submitData.rechnung_nr,
   });
-
-  // PDF Upload → Dropbox
-  const pdfFiles = await uploadPdfFiles(form, pathMeta);
 
   try {
     const result = await window.dataService.createEntity('rechnung', submitData);
@@ -101,8 +98,14 @@ export async function handleContractingCreateSubmit(form) {
       console.warn('Zusatzkosten-Sync (Contracting create) fehlgeschlagen:', syncErr);
     }
 
-    await savePdfMetadata(rechnungId, pdfFiles);
-    await uploadBelege(form, rechnungId, pathMeta);
+    // Erst jetzt hochladen: SharePoint legt die Dateien unter der Rechnung ab
+    try {
+      await rechnungDateienHochladen({ typ: 'rechnung', rechnungId, files: uploaderFiles(form, 'pdf_file'), pathMeta });
+      await rechnungDateienHochladen({ typ: 'beleg', rechnungId, files: uploaderFiles(form, 'belege_files'), pathMeta });
+    } catch (uploadErr) {
+      console.warn('⚠️ Datei-Upload (Contracting) fehlgeschlagen:', uploadErr);
+      alert(`Rechnung erstellt, aber Datei-Upload fehlgeschlagen: ${uploadErr?.message || uploadErr}`);
+    }
 
     alert('Contracting-Rechnung erstellt');
     navigateBack(`/rechnung/${rechnungId}`);
@@ -163,53 +166,6 @@ async function fillPoFromAuftrag(submitData) {
   } catch { /* non-critical */ }
 }
 
-async function uploadPdfFiles(form, pathMeta) {
-  const uploaderRoot = form.querySelector('.uploader[data-name="pdf_file"]');
-  const files = [];
-  if (!uploaderRoot?.__uploaderInstance?.files?.length) return files;
-
-  for (const file of Array.from(uploaderRoot.__uploaderInstance.files)) {
-    const result = await uploadRechnungPdf({ metadata: pathMeta, file });
-    files.push({
-      file_name: file.name,
-      file_path: result.filePath,
-      file_url: result.fileUrl,
-      content_type: file.type,
-      size: file.size,
-    });
-  }
-  return files;
-}
-
-async function savePdfMetadata(rechnungId, pdfFiles) {
-  for (const pdf of pdfFiles) {
-    await window.supabase.from('rechnung_pdfs').insert({
-      rechnung_id: rechnungId,
-      file_name: pdf.file_name, file_path: pdf.file_path, file_url: pdf.file_url,
-      content_type: pdf.content_type, size: pdf.size,
-      uploaded_by: window.currentUser?.auth_user_id || null
-    });
-  }
-}
-
-async function uploadBelege(form, rechnungId, pathMeta) {
-  const uploaderRoot = form.querySelector('.uploader[data-name="belege_files"]');
-  if (!uploaderRoot?.__uploaderInstance?.files?.length) return;
-
-  for (const file of Array.from(uploaderRoot.__uploaderInstance.files)) {
-    const result = await uploadRechnungBeleg({ metadata: pathMeta, file });
-    // uploaded_by referenziert benutzer(id), nicht auth.users - daher currentUser.id
-    const { error: belegInsErr } = await window.supabase.from('rechnung_belege').insert({
-      rechnung_id: rechnungId,
-      file_name: file.name,
-      file_path: result.filePath,
-      file_url: result.fileUrl,
-      content_type: file.type,
-      size: file.size,
-      uploaded_by: window.currentUser?.id || null
-    });
-    if (belegInsErr) {
-      throw new Error(`Beleg "${file.name}" konnte nicht gespeichert werden: ${belegInsErr.message}`);
-    }
-  }
+function uploaderFiles(form, name) {
+  return Array.from(form.querySelector(`.uploader[data-name="${name}"]`)?.__uploaderInstance?.files || []);
 }

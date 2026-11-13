@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createRequire } from 'module';
-import { createFakeSupabase, createFakeSharePoint, ORDNER_UNIQUE, urlUmschreiben } from './fixtures/fakeSupabase.js';
+import { createFakeSupabase, createFakeSharePoint, ORDNER_UNIQUE, urlUmschreiben, strukturOffen } from './fixtures/fakeSupabase.js';
 
 const require = createRequire(import.meta.url);
 const { createAbgleich } = require('../../netlify/functions/_shared/ablage/abgleich.js');
@@ -99,6 +99,7 @@ function rpcs(uhr) {
       return [...out].map(([item_id, ist_ordner]) => ({ item_id, ist_ordner }));
     },
     ablage_geruest_offen: () => uhr.geruest || [],
+    ablage_struktur_offen: strukturOffen,
     ablage_pfad_umschreiben: () => 0,
     ablage_url_umschreiben: urlUmschreiben,
   };
@@ -389,7 +390,7 @@ describe('ablage-abgleich: Ordner', () => {
     await t.a.lauf();
     expect(t.reg(v.id)).toMatchObject({ art: 'bereich', bereich: 'vertraege', unternehmen_id: U1, parent_item_id: kette.unternehmen.item_id });
     expect(t.sp.calls.some(([op]) => op === 'umbenennen')).toBe(false);
-    expect(t.eingang(f.id)).toMatchObject({ status: 'ignoriert', ergebnis: { aktion: 'ignorieren', grund: 'vertraege' } });
+    expect(t.eingang(f.id)).toMatchObject({ status: 'ignoriert', ergebnis: { aktion: 'ignorieren', grund: 'dokument_ohne_crm' } });
     // CRM findet ihn wieder statt "Verträge (2)" anzulegen
     await t.ordner.geruest(K1);
     expect(t.supabase.db.ablage_ordner.filter((o) => o.art === 'bereich' && o.bereich === 'vertraege').map((o) => o.item_id)).toEqual([v.id]);
@@ -580,6 +581,39 @@ describe('ablage-abgleich: Geruest, Namen, Aufraeumen, Abo', () => {
     expect(t.sp.calls.filter(([op]) => op === 'umbenennen')).toHaveLength(1);
   });
 
+  it('Struktur: Linie wechselt -> Kooperation zieht im naechsten Lauf unter die Produktion', async () => {
+    const t = setup({ assets: { produktion: [{ id: 'p1', name: 'Wind Down', kampagne_id: KA1 }] } });
+    const { kette } = await t.ordner.zielOrdner({ typ: 'roh', kooperation_id: K1 });
+    expect(await t.a.strukturNachziehen({})).toEqual({ verschoben: 0, fehler: [] });
+    Object.assign(t.supabase.db.kooperationen[0], { produktion_id: 'p1', produktion: { id: 'p1', name: 'Wind Down', kampagne_id: KA1 } });
+    const r = await t.a.lauf();
+    expect(r.struktur).toEqual({ verschoben: 1, fehler: [] });
+    const prod = t.supabase.db.ablage_ordner.find((o) => o.art === 'produktion');
+    expect(prod).toMatchObject({ produktion_id: 'p1', pfad: '/Firma/Medien/Sommer/Wind Down' });
+    expect(t.reg(kette.kooperation.item_id)).toMatchObject({ parent_item_id: prod.item_id, pfad: '/Firma/Medien/Sommer/Wind Down/Lisa' });
+    expect(await t.a.strukturNachziehen({})).toEqual({ verschoben: 0, fehler: [] });
+  });
+
+  it('Struktur: ohne RPC (Migration fehlt) laeuft der Abgleich weiter', async () => {
+    const t = setup();
+    const rpc = t.supabase.rpc;
+    t.supabase.rpc = async (name, args) => (name === 'ablage_struktur_offen' ? { data: null, error: { message: 'function does not exist' } } : rpc(name, args));
+    const r = await t.a.lauf();
+    expect(r.fehler).toBeUndefined();
+    expect(r.struktur).toEqual({ verschoben: 0, fehler: ['ablage_struktur_offen: function does not exist'] });
+  });
+
+  it('Namensabgleich: Produktion im CRM umbenannt -> Ordner folgt', async () => {
+    const t = setup({ assets: { produktion: [{ id: 'p1', name: 'Wind Down', kampagne_id: KA1 }] } });
+    Object.assign(t.supabase.db.kooperationen[0], { produktion_id: 'p1', produktion: { id: 'p1', name: 'Wind Down', kampagne_id: KA1 } });
+    const { kette } = await t.ordner.zielOrdner({ typ: 'roh', kooperation_id: K1 });
+    t.supabase.db.produktion[0].name = 'Lights Out';
+    const r = await t.a.namenAbgleichen({});
+    expect(r).toMatchObject({ umbenannt: 1, fehler: [] });
+    expect(t.sp.items.get(kette.produktion.item_id).name).toBe('Lights Out');
+    expect(t.reg(kette.produktion.item_id).pfad).toBe('/Firma/Medien/Sommer/Lights Out');
+  });
+
   it('Pflege laeuft hoechstens alle 10 Minuten und raeumt alte Uploads', async () => {
     const t = setup();
     t.supabase.db.ablage_upload.push(
@@ -673,5 +707,74 @@ describe('ablage-abgleich: Nachlauf bis die Datei reif ist', () => {
 
     expect(r).toMatchObject({ neu: 2, eingang: { erledigt: 2 } });
     expect(t.supabase.db.kooperation_video_asset.map((x) => x.item_id).sort()).toEqual([a.id, b.id].sort());
+  });
+});
+
+describe('ablage-abgleich: Dokumente (ADR 0068)', () => {
+  const R1 = id(30);
+  const VT1 = id(31);
+  const dokTabellen = {
+    unternehmen: [{ id: U1, firmenname: 'Firma', ist_test: false, dokument_ablage_ziel: 'sharepoint' }],
+    kampagne: [{ id: KA1, kampagnenname: 'Auftrag', eigener_name: 'Sommer', unternehmen_id: U1, marke_id: null }],
+    rechnung: [{ id: R1, rechnung_nr: 'RE-1', unternehmen_id: U1, kampagne_id: KA1 }],
+    vertraege: [{ id: VT1, name: 'V', kunde_unternehmen_id: U1, kampagne_id: KA1, datei_ablage: 'dropbox', signiert_ablage: 'dropbox' }],
+    rechnung_pdfs: [],
+    rechnung_belege: [],
+    auftrag_dokumente: [],
+  };
+  const { ladeBezug, dokumentEbenen, spaltenAusItem } = require('../../netlify/functions/_shared/ablage/dokument.js');
+  async function kette(t, typ, bezugId) {
+    const b = await ladeBezug(t.supabase, typ, bezugId);
+    return t.ordner.dokumentKette(b.unternehmen, typ === 'vertrag' ? 'vertraege' : 'rechnungen', dokumentEbenen(typ, b));
+  }
+
+  it('Upload ohne Commit: nach 10 Minuten legt der Abgleich die Beleg-Zeile an', async () => {
+    const t = setup({ assets: dokTabellen });
+    const o = await kette(t, 'beleg', R1);
+    const f = t.sp.datei(o.item_id, 'b.pdf', 7);
+    t.supabase.db.ablage_upload.push({
+      id: 'up1', drive_id: 'd1', parent_item_id: o.item_id, name: 'b.pdf', groesse: 7, typ: 'beleg', item_id: null,
+      kontext: { typ: 'beleg', bezug_id: R1 }, erstellt_von: 'b9', erstellt_at: iso(START - 15 * 60000),
+    });
+    t.seite([await t.meldung(f.id)]);
+    await t.a.lauf();
+    expect(t.supabase.db.rechnung_belege).toEqual([expect.objectContaining({
+      rechnung_id: R1, ablage: 'sharepoint', item_id: f.id, file_name: 'b.pdf', file_path: `${o.pfad}/b.pdf`, uploaded_by: 'b9',
+    })]);
+    expect(t.eingang(f.id)).toMatchObject({ status: 'erledigt', ergebnis: { aktion: 'dokument', typ: 'beleg' } });
+  });
+
+  it('Vertrag im Finder verschoben -> zurueck in seinen Ordner; im Bereich umbenannt -> Spalten ziehen mit', async () => {
+    const t = setup({ assets: dokTabellen });
+    const o = await kette(t, 'vertrag', VT1);
+    const f = t.sp.datei(o.item_id, 'v.pdf', 3);
+    Object.assign(t.supabase.db.vertraege[0], spaltenAusItem('vertrag', await t.sp.item(f.id), { driveId: 'd1', pfad: `${o.pfad}/v.pdf` }));
+    const { item: fremd } = await t.sp.ordnerAnlegen('root', 'Ablage');
+    t.supabase.db.ablage_ordner.push({ id: 'r-root-frei', drive_id: 'd1', item_id: fremd.id, parent_item_id: 'root', name: 'Ablage', pfad: '/Ablage', art: 'frei' });
+    await t.sp.verschieben(f.id, fremd.id);
+    t.seite([await t.meldung(f.id)]);
+    await t.a.lauf();
+    expect(t.sp.items.get(f.id).parent).toBe(o.item_id);
+    expect(t.eingang(f.id)).toMatchObject({ ergebnis: { aktion: 'zurueck', grund: 'dokument_verschoben' } });
+
+    t.sp.items.get(f.id).name = 'Vertrag final.pdf';
+    t.seite([await t.meldung(f.id, { eTag: 'neu' })], 'dl-2');
+    t.uhr.t += 5 * 60000;
+    await t.a.lauf();
+    expect(t.supabase.db.vertraege[0]).toMatchObject({ datei_path: `${o.pfad}/Vertrag final.pdf`, datei_item_id: f.id });
+  });
+
+  it('Dokument im Finder geloescht -> Zeile weg (zeile) bzw. Dateisatz leer (feld)', async () => {
+    const t = setup({ assets: dokTabellen });
+    const o = await kette(t, 'rechnung', R1);
+    const f = t.sp.datei(o.item_id, 'r.pdf', 3);
+    t.supabase.db.rechnung_pdfs.push({ id: id(40), rechnung_id: R1, ...spaltenAusItem('rechnung', await t.sp.item(f.id), { driveId: 'd1', pfad: `${o.pfad}/r.pdf` }) });
+    t.seite([await t.meldung(f.id)]);
+    await t.a.lauf();
+    t.sp.items.delete(f.id);
+    t.seite([t.weg(f.id, o.item_id)], 'dl-2');
+    t.uhr.t += 5 * 60000;
+    await t.a.lauf();
+    expect(t.supabase.db.rechnung_pdfs).toHaveLength(0);
   });
 });

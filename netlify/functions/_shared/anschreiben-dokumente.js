@@ -2,6 +2,10 @@
 // loadContext liefert Platzhalter-Werte + Draft-Gate.
 // afterSend ist optional (Vertrag setzt status = gesendet).
 
+const dokument = require('./ablage/dokument');
+const { ablageAusEnv } = require('./ablage');
+const { createDropboxAblage } = require('./ablage/dropbox');
+
 async function loadBriefing(supabase, dokumentId) {
   const { data, error } = await supabase
     .from('campaign_briefings')
@@ -76,15 +80,25 @@ function asDownloadUrl(url) {
 async function downloadVertragPdf(supabase, dokumentId) {
   const { data, error } = await supabase
     .from('vertraege')
-    .select('datei_url, name')
+    .select(`${dokument.spaltenSelect('vertrag')}, name`)
     .eq('id', dokumentId)
     .maybeSingle();
   if (error) throw error;
   if (!data?.datei_url) return { error: 'Keine PDF-Datei vorhanden' };
-  const url = asDownloadUrl(data.datei_url);
-  const resp = await fetch(url);
-  if (!resp.ok) return { error: `PDF konnte nicht geladen werden (${resp.status})` };
-  const buf = Buffer.from(await resp.arrayBuffer());
+  // SharePoint, Dropbox-Pfad oder Storage je nach datei_ablage (ADR 0068)
+  let buf = null;
+  try {
+    buf = await dokument.bytes({ supabase, sp: ablageAusEnv({ supabase })?.sp || null, dropbox: createDropboxAblage() }, 'vertrag', data);
+  } catch (err) {
+    if (data.datei_ablage === 'sharepoint') return { error: `PDF konnte nicht geladen werden (${err.message})` };
+    console.warn('[anschreiben] Vertrag-PDF ueber Ablage fehlgeschlagen, nehme datei_url:', err.message);
+  }
+  if (!buf && data.datei_ablage !== 'sharepoint') {
+    const resp = await fetch(asDownloadUrl(data.datei_url));
+    if (!resp.ok) return { error: `PDF konnte nicht geladen werden (${resp.status})` };
+    buf = Buffer.from(await resp.arrayBuffer());
+  }
+  if (!buf) return { error: 'PDF konnte nicht geladen werden' };
   const base = String(data.name || 'vertrag').replace(/[<>:"|?*\\/]/g, '-').trim() || 'vertrag';
   const dateiname = base.toLowerCase().endsWith('.pdf') ? base : `${base}.pdf`;
   return { pdfBase64: buf.toString('base64'), dateiname };

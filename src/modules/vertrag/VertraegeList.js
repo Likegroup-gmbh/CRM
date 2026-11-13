@@ -27,7 +27,7 @@ import {
   downloadVertrag as _downloadVertrag,
   deleteVertrag as _deleteVertrag
 } from './VertraegeListHandlers.js';
-import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import { vertragDateienLoeschen } from '../../core/ablage/dokumentAblage.js';
 
 export class VertraegeList {
   constructor() {
@@ -541,30 +541,8 @@ export class VertraegeList {
 
     const selectedIds = Array.from(this.selectedVertraege);
     try {
-      const vertraegeToDelete = this.vertraege.filter(v => selectedIds.includes(v.id) && v.datei_path);
-
-      // Aufteilen: Dropbox-Pfade (beginnen mit "/") vs Supabase-Pfade
-      const supabasePaths = vertraegeToDelete
-        .filter(v => !v.datei_path.startsWith('/'))
-        .map(v => v.datei_path);
-      const dropboxPaths = vertraegeToDelete
-        .filter(v => v.datei_path.startsWith('/'))
-        .map(v => v.datei_path);
-
-      if (supabasePaths.length > 0) {
-        await window.supabase.storage.from('vertraege').remove(supabasePaths);
-      }
-      for (const path of dropboxPaths) {
-        try {
-          await authorizedFetch('/.netlify/functions/dropbox-delete-vertrag', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: path })
-          });
-        } catch (dbxErr) {
-          console.warn('Bulk-Dropbox-Löschung fehlgeschlagen:', dbxErr);
-        }
-      }
+      // Erzeugt + unterschrieben (+ Storage-Altbestand), egal wo die Datei liegt
+      for (const id of selectedIds) await vertragDateienLoeschen(id);
 
       const { error } = await window.supabase.from('vertraege').delete().in('id', selectedIds);
       if (error) throw error;

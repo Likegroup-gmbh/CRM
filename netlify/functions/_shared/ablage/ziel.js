@@ -1,37 +1,46 @@
 // _shared/ablage/ziel.js
 // Weiche pro Unternehmen + zwei Notschalter:
 //   ablage_einstellung.notschalter (DB, wirkt sofort) und ABLAGE_ZIEL=dropbox (Env, wirkt nach Deploy).
+// Dokumente (ADR 0068) haben eine eigene Weiche (dokument_ablage_ziel) und einen eigenen
+// DB-Notschalter (notschalter_dokumente); ABLAGE_ZIEL=dropbox gilt fuer beide.
 // Ohne vollstaendige SharePoint-Konfiguration bleibt alles bei Dropbox.
 
 const { istKonfiguriert } = require('./konfig');
 
 const CACHE_MS = 15 * 1000;
-let _notschalter = { wert: false, bis: 0 };
+const NOTSCHALTER = { medien: 'notschalter', dokumente: 'notschalter_dokumente' };
+let _notschalter = new Map();
 
-async function notschalterAn(supabase, { jetzt = Date.now() } = {}) {
-  if (_notschalter.bis > jetzt) return _notschalter.wert;
+async function notschalterAn(supabase, { jetzt = Date.now(), schluessel = NOTSCHALTER.medien } = {}) {
+  const hit = _notschalter.get(schluessel);
+  if (hit && hit.bis > jetzt) return hit.wert;
   let wert = false;
   try {
     const { data } = await supabase
       .from('ablage_einstellung')
       .select('wert')
-      .eq('schluessel', 'notschalter')
+      .eq('schluessel', schluessel)
       .maybeSingle();
     wert = data?.wert === true;
   } catch {
     // DB nicht lesbar: lieber Dropbox als ein halber SharePoint-Upload
     wert = true;
   }
-  _notschalter = { wert, bis: jetzt + CACHE_MS };
+  _notschalter.set(schluessel, { wert, bis: jetzt + CACHE_MS });
   return wert;
 }
 
-function ablageZiel(unternehmen, { notschalter = false, konfiguriert = istKonfiguriert() } = {}) {
+const dokumenteNotschalterAn = (supabase, opts = {}) => notschalterAn(supabase, { ...opts, schluessel: NOTSCHALTER.dokumente });
+
+function ablageZiel(unternehmen, { notschalter = false, konfiguriert = istKonfiguriert(), spalte = 'ablage_ziel' } = {}) {
   if (process.env.ABLAGE_ZIEL === 'dropbox' || notschalter || !konfiguriert) return 'dropbox';
-  return unternehmen?.ablage_ziel === 'sharepoint' ? 'sharepoint' : 'dropbox';
+  return unternehmen?.[spalte] === 'sharepoint' ? 'sharepoint' : 'dropbox';
 }
 
-const KOOP_SELECT = `id, name, kampagne_id, creator_id,
+const dokumentZielVon = (unternehmen, opts = {}) => ablageZiel(unternehmen, { ...opts, spalte: 'dokument_ablage_ziel' });
+
+const KOOP_SELECT = `id, name, kampagne_id, creator_id, produktion_id,
+  produktion:produktion_id(id, name, kampagne_id),
   kampagne:kampagne_id(id, kampagnenname, eigener_name, unternehmen_id, marke_id,
     unternehmen:unternehmen_id(id, firmenname, ablage_ziel, ist_test),
     marke:marke_id(id, markenname))`;
@@ -55,7 +64,17 @@ async function zielFuerKooperation(supabase, kooperationId) {
 }
 
 function _reset() {
-  _notschalter = { wert: false, bis: 0 };
+  _notschalter = new Map();
 }
 
-module.exports = { ablageZiel, notschalterAn, ladeKooperation, zielFuerKooperation, KOOP_SELECT, _reset };
+module.exports = {
+  ablageZiel,
+  dokumentZielVon,
+  notschalterAn,
+  dokumenteNotschalterAn,
+  NOTSCHALTER,
+  ladeKooperation,
+  zielFuerKooperation,
+  KOOP_SELECT,
+  _reset,
+};

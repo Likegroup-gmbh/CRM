@@ -118,7 +118,7 @@ describe('VertragUploadDrawer', () => {
     window.supabase = { from: vi.fn(() => ({ update })) };
     drawer.vertragId = 'v1';
     drawer.kooperationId = null;
-    await drawer._saveToDb('https://dropbox.com/s.pdf', '/v1.pdf');
+    await drawer._saveToDb({ dropbox_file_url: 'https://dropbox.com/s.pdf', dropbox_file_path: '/v1.pdf' });
     expect(update).toHaveBeenCalledWith(expect.objectContaining({
       dropbox_file_url: 'https://dropbox.com/s.pdf',
       status: 'unterschrieben',

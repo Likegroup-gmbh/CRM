@@ -164,9 +164,20 @@ export const ORDNER_UNIQUE = [
   { name: 'ux_ablage_ordner_name', key: (r) => (!r.geloescht_at && r.art !== 'frei' ? `${r.drive_id}|${r.parent_item_id}|${String(r.name).toLowerCase()}` : null) },
   { name: 'ux_ablage_ordner_kooperation', key: (r) => (r.art === 'kooperation' && !r.geloescht_at ? `${r.drive_id}|${r.kooperation_id}` : null) },
   { name: 'ux_ablage_ordner_kampagne', key: (r) => (r.art === 'kampagne' && !r.geloescht_at ? `${r.drive_id}|${r.kampagne_id}` : null) },
+  { name: 'ux_ablage_ordner_produktion', key: (r) => (r.art === 'produktion' && !r.geloescht_at && r.produktion_id ? `${r.drive_id}|${r.produktion_id}` : null) },
   { name: 'ux_ablage_ordner_unternehmen', key: (r) => (r.art === 'unternehmen' && !r.geloescht_at ? `${r.drive_id}|${r.unternehmen_id}` : null) },
   { name: 'ux_ablage_ordner_bereich', key: (r) => (r.art === 'bereich' && !r.geloescht_at ? `${r.drive_id}|${r.unternehmen_id}|${r.bereich}` : null) },
   { name: 'ux_ablage_ordner_typ', key: (r) => (r.art === 'typ' && !r.geloescht_at ? `${r.drive_id}|${r.kooperation_id}|${r.typ}` : null) },
+  { name: 'ux_ablage_ordner_dokument', key: (r) => (r.art === 'dokument' && !r.geloescht_at ? `${r.drive_id}|${r.dok_schluessel}` : null) },
+];
+
+/** Dateispalten der Dokumente wie in 20261210: [Tabelle, Pfad, URL, Ablage, Drive]. */
+const DOKUMENT_SPALTEN = [
+  ['vertraege', 'datei_path', 'datei_url', 'datei_ablage', 'datei_drive_id'],
+  ['vertraege', 'dropbox_file_path', 'dropbox_file_url', 'signiert_ablage', 'signiert_drive_id'],
+  ['rechnung_pdfs', 'file_path', 'file_url', 'ablage', 'drive_id'],
+  ['rechnung_belege', 'file_path', 'file_url', 'ablage', 'drive_id'],
+  ['auftrag_dokumente', 'dropbox_file_path', 'dropbox_file_url', 'ablage', 'drive_id'],
 ];
 
 const ASSET_TABELLEN = ['kooperation_video_asset', 'kooperation_story_asset', 'kooperation_bilder_asset', 'kooperation_rohmaterial_asset'];
@@ -191,6 +202,16 @@ export function pfadUmschreiben({ p_drive_id: driveId, p_alt: alt, p_neu: neu },
   for (const r of db.ablage_ordner || []) ziehen(r, 'pfad');
   for (const r of db.ablage_eingang || []) ziehen(r, 'pfad');
   for (const t of ASSET_TABELLEN) for (const r of db[t] || []) if (r.ablage === 'sharepoint') ziehen(r, 'file_path');
+  for (const [t, pfad, , ablage, drive] of DOKUMENT_SPALTEN) {
+    for (const r of db[t] || []) {
+      if (r[ablage] !== 'sharepoint' || r[drive] !== driveId) continue;
+      const v = r[pfad];
+      if (typeof v === 'string' && v.startsWith(`${alt}/`)) {
+        r[pfad] = neu + v.slice(alt.length);
+        n++;
+      }
+    }
+  }
   return n;
 }
 
@@ -207,7 +228,52 @@ export function urlUmschreiben({ p_drive_id: driveId, p_alt: alt, p_neu: neu }, 
       n++;
     }
   }
+  for (const [t, , url, ablage, drive] of DOKUMENT_SPALTEN) {
+    for (const r of db[t] || []) {
+      if (r[ablage] !== 'sharepoint' || r[drive] !== driveId) continue;
+      const v = r[url];
+      if (typeof v === 'string' && (v === alt || v.startsWith(`${alt}/`))) {
+        r[url] = neu + v.slice(alt.length);
+        n++;
+      }
+    }
+  }
   return n;
+}
+
+/** rpc ablage_struktur_offen wie in 20261211 (ohne Zufall): Kooperationen, dann Verträge. */
+export function strukturOffen({ p_drive_id: driveId, p_unternehmen_id: unternehmenId = null, p_limit: limit = 5 }, db) {
+  const ordner = (db.ablage_ordner || []).filter((o) => o.drive_id === driveId && !o.geloescht_at);
+  const nachItem = (itemId) => ordner.find((o) => o.item_id === itemId) || null;
+  const da = (pred) => ordner.some((x) => x.item_id && pred(x));
+  const out = [];
+  for (const o of ordner) {
+    if (o.art !== 'kooperation' || !o.item_id || (unternehmenId && o.unternehmen_id !== unternehmenId)) continue;
+    const ko = (db.kooperationen || []).find((k) => k.id === o.kooperation_id);
+    const p = nachItem(o.parent_item_id);
+    if (!ko || !p) continue;
+    const pid = ko.produktion_id || null;
+    const falsch = pid ? !(p.art === 'produktion' && p.produktion_id === pid) : p.art === 'produktion';
+    if (!falsch) continue;
+    out.push({ art: 'kooperation', id: ko.id, unternehmen_id: o.unternehmen_id, produktion_id: pid, ordner_da: !pid || da((x) => x.art === 'produktion' && x.produktion_id === pid) });
+  }
+  for (const v of db.vertraege || []) {
+    const pr = (db.produktion || []).find((x) => x.id === v.produktion_id && x.kampagne_id === v.kampagne_id) || null;
+    for (const [drive, item] of [[v.datei_drive_id, v.datei_item_id], [v.signiert_drive_id, v.signiert_item_id]]) {
+      if (drive !== driveId || !item) continue;
+      const e = (db.ablage_eingang || []).find((x) => x.drive_id === driveId && x.item_id === item && !x.geloescht);
+      const p = e ? nachItem(e.parent_item_id) : null;
+      if (!p || p.art !== 'dokument' || p.bereich !== 'vertraege' || !['kampagne', 'produktion'].includes(p.ebene)) continue;
+      if (unternehmenId && p.unternehmen_id !== unternehmenId) continue;
+      const falsch = pr ? !(p.ebene === 'produktion' && p.produktion_id === pr.id) : p.ebene === 'produktion';
+      if (!falsch || out.some((x) => x.art === 'vertrag' && x.id === v.id)) continue;
+      out.push({
+        art: 'vertrag', id: v.id, unternehmen_id: p.unternehmen_id, produktion_id: pr?.id || null,
+        ordner_da: !pr || da((x) => x.art === 'dokument' && x.ebene === 'produktion' && x.bereich === 'vertraege' && x.produktion_id === pr.id && x.unternehmen_id === p.unternehmen_id),
+      });
+    }
+  }
+  return out.slice(0, limit);
 }
 
 /** Fake-SharePoint fuer Ordner-Tests: Baum im Speicher, Namen ohne Gross/Klein eindeutig. */
