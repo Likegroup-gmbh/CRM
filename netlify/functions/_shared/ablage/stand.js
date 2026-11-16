@@ -5,6 +5,7 @@
 const { istUuid, anstossen } = require('./konfig');
 const { AblageFehler } = require('./http');
 const { createUmzug, MAX_VERSUCHE } = require('./umzug');
+const { createUmzugRest } = require('./umzug-rest');
 const { createUmsortieren } = require('./umsortieren');
 const { createFinalSpiegel } = require('./final-spiegel');
 const ziel = require('./ziel');
@@ -25,12 +26,14 @@ const dateiAusRef = (ref) => String(ref || '').split(/[?#]/)[0].split('/').filte
 
 function createStand({
   supabase, ablage, event, benutzer, jetzt = () => Date.now(), anstossenImpl = anstossen, umzug = null, umsortieren = null, finalSpiegel = null,
+  umzugRest = null,
 }) {
   const driveId = ablage?.sp?.driveId || ablage?.konfig?.driveId || null;
   const iso = (ms = jetzt()) => new Date(ms).toISOString();
   const umzugVon = () => umzug || createUmzug({ supabase, ablage });
   const umsortierenVon = () => umsortieren || createUmsortieren({ supabase, ablage, jetzt });
   const spiegelVon = () => finalSpiegel || createFinalSpiegel({ supabase, ablage, jetzt });
+  const restVon = () => umzugRest || createUmzugRest({ supabase, driveId });
 
   const ergebnis = ({ data, error }) => {
     if (error) throw error;
@@ -86,12 +89,12 @@ function createStand({
     if (!ablage) {
       return {
         ...basis, zaehler: { offen: 0, fehler: 0, unzugeordnet: 0, erledigt_24h: 0 }, unzugeordnet: [], fehler: [], unternehmen: [], umzug: [],
-        dokumente: [], dokument_umzug: [], umzug_meldungen: [], final_spiegel: null,
+        dokumente: [], dokument_umzug: [], umzug_meldungen: [], umzug_rest: [], final_spiegel: null,
       };
     }
 
     const seit24h = iso(jetzt() - 24 * 60 * 60 * 1000);
-    const [offen, fehler, unzugeordnet, erledigt24h, unzListe, fehlerListe, unternehmen, dokumente, finalSpiegelStand] = await Promise.all([
+    const [offen, fehler, unzugeordnet, erledigt24h, unzListe, fehlerListe, unternehmen, dokumente, finalSpiegelStand, rest] = await Promise.all([
       zaehlen((q) => q.eq('status', 'offen')),
       zaehlen((q) => q.eq('status', 'fehler')),
       zaehlen((q) => q.eq('status', 'unzugeordnet').eq('geloescht', false)),
@@ -106,6 +109,11 @@ function createStand({
       Promise.resolve().then(() => spiegelVon().stand()).catch((err) => {
         console.warn('[ablage-stand] Final-Spiegel:', err.message);
         return null;
+      }),
+      // Der Rest ist Zusatz: scheitert er, bleibt der Stand benutzbar
+      Promise.resolve().then(() => restVon().laden()).catch((err) => {
+        console.warn('[ablage-stand] Umzug-Rest:', err.message);
+        return [];
       }),
     ]);
 
@@ -134,6 +142,7 @@ function createStand({
       })),
       dokument_umzug: (dokumente || []).filter(hatUmzug).map(umzugZaehler),
       umzug_meldungen: meldungen,
+      umzug_rest: rest,
       final_spiegel: finalSpiegelStand,
     };
   }

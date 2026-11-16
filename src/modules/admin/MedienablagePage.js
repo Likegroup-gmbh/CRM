@@ -1,26 +1,28 @@
 // MedienablagePage.js
 // Betriebsseite der Medienablage im Accounting-Bereich (nur Admins).
 // SharePoint ist die zweite Ablage neben Dropbox: die Seite zeigt den
-// Stand des Abgleichs, den Notschalter zurueck auf Dropbox, die Weiche je
-// Unternehmen mit Bestandsumzug und den Eingang (nicht zugeordnete und
-// fehlerhafte Dateien). Stand und Aktionen laufen ueber die Function
-// ablage-stand; nach jeder Aktion wird der Stand neu geladen.
+// Stand des Abgleichs, was vom Umzug übrig geblieben ist (und warum), den Notschalter
+// zurueck auf Dropbox, die Weiche je Unternehmen mit Bestandsumzug und den Eingang
+// (nicht zugeordnete und fehlerhafte Dateien). Stand und Aktionen laufen ueber die
+// Function ablage-stand; nach jeder Aktion wird der Stand neu geladen.
 // Teile: medienablageStand.js (Karten, Notschalter, Eingang),
-// medienablageWeiche.js (Weiche, Umzug, Suche), medienablageDokumente.js (Verträge,
-// Rechnungen, Aufträge: eigener Notschalter, Weiche, Umzug), medienablageFinale.js (Finale
-// Version im Finder), medienablageFormat.js (Helfer).
+// medienablageRest.js (Rest des Umzugs mit Ursache und naechstem Schritt, Texte in
+// medienablageRestText.js), medienablageWeiche.js (Weiche, Umzug, Suche),
+// medienablageDokumente.js (Verträge, Rechnungen, Aufträge: eigener Notschalter, Weiche, Umzug),
+// medienablageFinale.js (Finale Version im Finder), medienablageUmzugBeobachten.js (laufende
+// Umzuege beobachten, Mixin), medienablageFormat.js (Helfer).
 
 import { escapeHtml } from '../../core/format.js';
 import { navMark } from '../../core/dev/navTrace.js';
-import { postStand, setBusy, bestaetigen, zahl, uhrzeit } from './medienablageFormat.js';
+import { postStand, setBusy, bestaetigen } from './medienablageFormat.js';
 import { nichtKonfiguriertHtml, kartenHtml, notschalterHtml, unzugeordnetHtml, fehlerHtml } from './medienablageStand.js';
+import { restHtml, restErneut } from './medienablageRest.js';
 import { weicheHtml, filterUnternehmen, weicheSetzen, umzugStarten, umsortierenStarten } from './medienablageWeiche.js';
 import { dokumenteHtml, dokumenteNotschalterUmschalten, dokumentWeicheSetzen, dokumentUmzugStarten } from './medienablageDokumente.js';
 import { finalSpiegelHtml, finalSpiegelStarten } from './medienablageFinale.js';
+import { installUmzugBeobachten } from './medienablageUmzugBeobachten.js';
 
-// Solange ein Medien- oder Dokument-Umzug offen ist, laedt die Seite den Stand in diesem Takt nach.
-export const UMZUG_POLL_MS = 3000;
-const UMZUG_LABEL = { medien: 'Umzug', dokumente: 'Dokument-Umzug' };
+export { UMZUG_POLL_MS } from './medienablageUmzugBeobachten.js';
 
 export class MedienablagePage {
   constructor() {
@@ -96,153 +98,6 @@ export class MedienablagePage {
     this.umzugBeobachten();
   }
 
-  // ---------- Umzug beobachten ----------
-
-  umzuege() {
-    const mit = (bereich, liste) => (liste || []).map(u => ({ ...u, bereich }));
-    return [...mit('medien', this.data?.umzug), ...mit('dokumente', this.data?.dokument_umzug)];
-  }
-
-  umzugLaeuft() {
-    return this.umzuege().some(u => Number(u.offen) > 0);
-  }
-
-  umzugKopf({ bereich, unternehmen_id: id }) {
-    return `[Medienablage] ${UMZUG_LABEL[bereich]} (${this.unternehmen(id)?.firmenname || id})`;
-  }
-
-  umzugBeobachten() {
-    const beobachtet = this.logUmzugFortschritt();
-    this.logUmzugMeldungen(beobachtet);
-    this.planeUmzugPoll();
-  }
-
-  // Eine Konsolenzeile je geaendertem Stand. Gezaehlt wird jede abgeschlossene Datei
-  // (fertig, Fehler, uebersprungen), damit der Zaehler am Ende bei "N von N" steht.
-  // -> Schluessel der Umzuege, die laufen oder gerade fertig wurden
-  logUmzugFortschritt() {
-    const beobachtet = new Set();
-    for (const u of this.umzuege()) {
-      const offen = Number(u.offen) || 0;
-      const fertig = Number(u.fertig) || 0;
-      const fehler = Number(u.fehler) || 0;
-      const uebersprungen = Number(u.uebersprungen) || 0;
-      const schluessel = `${u.bereich}:${u.unternehmen_id}`;
-      const vorher = this._umzugLogStand.get(schluessel);
-      // Umzuege, die schon vor dem Oeffnen der Seite fertig waren, bleiben still
-      if (!offen && !vorher) continue;
-      beobachtet.add(schluessel);
-      this.logUmzugPause(u, schluessel, offen);
-      const signatur = `${offen}/${fertig}/${fehler}/${uebersprungen}`;
-      if (vorher === signatur) continue;
-
-      const gesamt = offen + fertig + fehler + uebersprungen;
-      const extra = [
-        fehler ? `${zahl(fehler)} Fehler` : '',
-        uebersprungen ? `${zahl(uebersprungen)} übersprungen` : '',
-      ].filter(Boolean).join(', ');
-      console.log(`${this.umzugKopf(u)}: ${zahl(gesamt - offen)} von ${zahl(gesamt)}${extra ? ` (${extra})` : ''}${offen ? '' : ' · abgeschlossen'}`);
-
-      if (offen) this._umzugLogStand.set(schluessel, signatur);
-      else this._umzugLogStand.delete(schluessel);
-    }
-    return beobachtet;
-  }
-
-  // Der Laeufer nimmt nichts: Notschalter (Medien haelt auch Dokumente an) oder Weiche auf Dropbox
-  umzugPausiertGrund(u) {
-    const e = this.data?.einstellung || {};
-    if (e.notschalter) return 'Notschalter ist aktiv';
-    if (u.bereich === 'dokumente') {
-      if (e.notschalter_dokumente) return 'Notschalter Dokumente ist aktiv';
-      const d = (this.data?.dokumente || []).find(x => String(x.id) === String(u.unternehmen_id));
-      return d && d.dokument_ablage_ziel !== 'sharepoint' ? 'Weiche Dokumente steht auf Dropbox' : null;
-    }
-    const firma = this.unternehmen(u.unternehmen_id);
-    return firma && firma.ablage_ziel !== 'sharepoint' ? 'Weiche steht auf Dropbox' : null;
-  }
-
-  logUmzugPause(u, schluessel, offen) {
-    const grund = offen ? this.umzugPausiertGrund(u) : null;
-    if (grund === (this._umzugPausiert.get(schluessel) || null)) return;
-    if (grund) {
-      this._umzugPausiert.set(schluessel, grund);
-      console.warn(`${this.umzugKopf(u)}: pausiert, ${grund}`);
-      return;
-    }
-    this._umzugPausiert.delete(schluessel);
-    if (offen) console.info(`${this.umzugKopf(u)}: läuft weiter`);
-  }
-
-  // Fehler, Wiederholungen, Uebersprungene und Warten je Datei, einmal je neuem Stand der Datei.
-  // Das Objekt dahinter (Quelle, Typ, Versuche) laesst sich in den DevTools aufklappen.
-  logUmzugMeldungen(beobachtet) {
-    for (const m of this.data?.umzug_meldungen || []) {
-      if (!beobachtet.has(`${m.bereich}:${m.unternehmen_id}`)) continue;
-      const signatur = `${m.status}/${m.grund}/${m.versuche}`;
-      if (this._umzugMeldungen.get(m.id) === signatur) continue;
-      this._umzugMeldungen.set(m.id, signatur);
-
-      const kopf = `${this.umzugKopf(m)}: ${m.datei || m.typ}`;
-      const um = uhrzeit(m.naechster_versuch);
-      const details = { datei: m.datei, typ: m.typ, grund: m.grund, versuche: m.versuche, quelle: m.quelle, naechster_versuch: m.naechster_versuch };
-      if (m.status === 'fehler') {
-        console.error(`${kopf} endgültig fehlgeschlagen nach ${zahl(m.versuche)} ${m.versuche === 1 ? 'Versuch' : 'Versuchen'}: ${m.grund}`, details);
-      } else if (m.status === 'uebersprungen') {
-        console.warn(`${kopf} übersprungen: ${m.grund}`, details);
-      } else if (m.versuche > 0) {
-        console.warn(`${kopf} Versuch ${zahl(m.versuche)} von ${zahl(m.max_versuche)} fehlgeschlagen: ${m.grund}${um ? ` · nächster Versuch ${um}` : ''}`, details);
-      } else {
-        console.info(`${kopf} wartet: ${m.grund}${um ? ` · weiter ab ${um}` : ''}`, details);
-      }
-    }
-  }
-
-  planeUmzugPoll() {
-    if (!this.umzugLaeuft()) {
-      this.stoppeUmzugPoll();
-      return;
-    }
-    if (this._umzugPoll) return;
-    this._umzugPoll = setTimeout(() => {
-      this._umzugPoll = null;
-      void this.umzugNachladen();
-    }, UMZUG_POLL_MS);
-  }
-
-  stoppeUmzugPoll() {
-    clearTimeout(this._umzugPoll);
-    this._umzugPoll = null;
-  }
-
-  // Wie neuLaden, aber leise (kein Toast) und neu gerendert nur bei geaendertem Stand.
-  // Waehrend einer Aktion wartet es: die Aktion laedt danach selbst neu.
-  async umzugNachladen() {
-    const ladeId = this._ladeId;
-    if (this._busy) {
-      this.planeUmzugPoll();
-      return;
-    }
-    let data;
-    try {
-      data = await postStand(this.standAnfrage());
-    } catch (e) {
-      if (ladeId !== this._ladeId) return;
-      console.warn(`[Medienablage] Stand konnte nicht nachgeladen werden, neuer Versuch in ${UMZUG_POLL_MS / 1000} s: ${e?.message || e}`);
-      this.planeUmzugPoll();
-      return;
-    }
-    if (ladeId !== this._ladeId) return;
-    if (this._busy) {
-      this.planeUmzugPoll();
-      return;
-    }
-    const geaendert = JSON.stringify(data) !== JSON.stringify(this.data);
-    this.data = data;
-    if (geaendert) this.render();
-    this.umzugBeobachten();
-  }
-
   // ---------- Helpers ----------
 
   escape(v) {
@@ -280,10 +135,11 @@ export class MedienablagePage {
     window.setContentSafely(window.content, `
       <div class="admin-page ma-page">
         <div class="admin-header">
-          <p class="admin-hint">SharePoint ist die zweite Medienablage neben Dropbox. Hier steht, ob der Abgleich läuft, welche Unternehmen schon nach SharePoint hochladen und welche Dateien im Eingang hängen.</p>
+          <p class="admin-hint">SharePoint ist die zweite Medienablage neben Dropbox. Hier steht, ob der Abgleich läuft, was vom Umzug übrig geblieben ist, welche Unternehmen schon nach SharePoint hochladen und welche Dateien im Eingang hängen.</p>
         </div>
         ${this.konfig.konfiguriert ? `
           ${kartenHtml(this)}
+          ${restHtml(this)}
           ${notschalterHtml(this)}
           ${weicheHtml(this)}
           ${dokumenteHtml(this)}
@@ -361,6 +217,11 @@ export class MedienablagePage {
         void dokumentUmzugStarten(this, dokUmzug);
         return;
       }
+      const restNeu = e.target.closest('[data-ma-rest-erneut]');
+      if (restNeu) {
+        void restErneut(this, restNeu);
+        return;
+      }
       const abgleich = e.target.closest('[data-ma-aktion]');
       if (abgleich) {
         const aktion = abgleich.dataset.maAktion;
@@ -432,3 +293,5 @@ export class MedienablagePage {
     }
   }
 }
+
+installUmzugBeobachten(MedienablagePage.prototype);

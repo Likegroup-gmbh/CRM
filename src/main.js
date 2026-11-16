@@ -47,6 +47,7 @@ import '../assets/styles/share.css';
 import '../assets/styles/share-recipient.css';
 import '../assets/styles/einladung.css';
 import '../assets/styles/stakeholder.css';
+import '../assets/styles/medienablage-rest.css';
 import '../assets/styles/admin.css';
 import '../assets/styles/skripte.css';
 import '../assets/styles/chat-thinking.css';
