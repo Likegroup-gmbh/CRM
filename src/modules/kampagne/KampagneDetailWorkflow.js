@@ -3,7 +3,7 @@
 // Kooperationen, Videos, Auswertung. Default beim Öffnen ist Briefing.
 //
 // Der Tab „Kooperationen“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
-// „Budget“ zeigt Preise und ist nur für Rollen mit Preis-Sicht da.
+// „Budget“ zeigt Preise und ist nur für Rollen mit Preis-Sicht da. „Videos“ sehen auch Gäste (ADR 0072).
 
 import { canViewTab, syncTabQueryParam, getTabQueryParam } from '../../core/TabUtils.js';
 import { refreshDocumentTitle } from '../../core/documentTitle.js';
@@ -50,7 +50,7 @@ export const WORKFLOW_TABS = [
   { id: 'skripte', label: 'Skripte' },
   { id: 'vertraege', label: 'Verträge' },
   { id: 'kooperationen', label: 'Kooperationen' },
-  { id: 'videos', label: 'Videos' },
+  { id: 'videos', label: 'Videos', gast: true },
   { id: 'auswertung', label: 'Auswertung' }
 ];
 
@@ -96,7 +96,7 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
 /* ------------------------------------------------------------------ */
 
 export function getVisibleWorkflowTabs() {
-  return WORKFLOW_TABS.filter(t => (!t.preise || window.canSeePricing?.() === true) && canViewTab(t.id));
+  return WORKFLOW_TABS.filter(t => (!t.preise || window.canSeePricing?.() === true) && (canViewTab(t.id) || (t.gast && window.isGast?.() === true)));
 }
 
 /**

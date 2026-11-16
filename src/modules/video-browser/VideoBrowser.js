@@ -83,7 +83,7 @@ class VideoBrowser {
     this.canEditCaption = this.team;
     this.captionEdit = null;
     this.captionOpen = new Set();
-    this.canComment = !!window.canFeature?.('skriptKommentieren');
+    this.canComment = !!window.canFeature?.('skriptKommentieren') && !window.isGastReadonly?.();
     this.canDownload = !!window.canFeature?.('mediaDownload');
     this.raw = null;
     this.tree = { kooperationen: [] };

@@ -210,6 +210,12 @@ describe('Video-Freigabe: Ablauf im Videos-Tab', () => {
 
     await open('&f=s1&i=a1', { comment: false });
     expect(pane().querySelector('[data-vb-kunde-freigeben]')).toBeNull();
+    unmountVideoBrowser(detail);
+
+    window.isGastReadonly = () => true;
+    await open('&f=s1&i=a1');
+    expect(pane().querySelector('[data-vb-kunde-freigeben]')).toBeNull();
+    delete window.isGastReadonly;
   });
 
   it('ein Klick: bestätigen, sofort freigegeben, Server bekommt Quellen und Formate', async () => {

@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resolveInitialWorkflowTab } from '../modules/kampagne/KampagneDetailWorkflow.js';
+import { getVisibleWorkflowTabs, resolveInitialWorkflowTab } from '../modules/kampagne/KampagneDetailWorkflow.js';
 
 const GAST_SEITEN = new Set(['kampagne', 'kooperation', 'videos', 'sourcing', 'strategie', 'skripte']);
+const tabIds = () => getVisibleWorkflowTabs().map(t => t.id);
 
-describe('Start-Tab der Produktion für Gäste', () => {
+describe('Workflow-Tabs der Produktion für Gäste', () => {
   beforeEach(() => {
     window.isAdmin = () => false;
     window.isGast = () => true;
@@ -24,5 +25,14 @@ describe('Start-Tab der Produktion für Gäste', () => {
   it('folgt weiter einem erlaubten ?tab=', () => {
     window.history.replaceState(null, '', '/produktion/p1?tab=skripte');
     expect(resolveInitialWorkflowTab()).toBe('skripte');
+  });
+
+  it('zeigt Gästen den Videos-Tab, obwohl sie kein Briefing-Recht haben', () => {
+    expect(tabIds()).toEqual(['casting', 'konzepte', 'skripte', 'kooperationen', 'videos', 'auswertung']);
+  });
+
+  it('ohne Briefing-Recht bleibt Videos für alle anderen zu', () => {
+    window.isGast = () => false;
+    expect(tabIds()).not.toContain('videos');
   });
 });
