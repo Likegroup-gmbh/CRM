@@ -539,4 +539,4 @@ function createUmzug({
   return { lauf, anlegen, dokumenteAnlegen, uebersicht, laeuferBedarf, eintragBearbeiten, dokumentBearbeiten };
 }
 
-module.exports = { createUmzug, UmzugFehler, CHUNK, PARALLEL };
+module.exports = { createUmzug, UmzugFehler, CHUNK, PARALLEL, MAX_VERSUCHE };

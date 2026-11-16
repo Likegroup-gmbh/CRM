@@ -4,7 +4,7 @@
 
 const { istUuid, anstossen } = require('./konfig');
 const { AblageFehler } = require('./http');
-const { createUmzug } = require('./umzug');
+const { createUmzug, MAX_VERSUCHE } = require('./umzug');
 const { createUmsortieren } = require('./umsortieren');
 const { createFinalSpiegel } = require('./final-spiegel');
 const ziel = require('./ziel');
@@ -18,6 +18,10 @@ const BEREICHE = {
 };
 const STAND_SPALTEN = 'drive_id, letzter_lauf, letzter_erfolg, letzte_meldung, fehler, fehler_seit, abo_ablauf, '
   + 'voll_abgleich_noetig, quota_used, quota_total, zert_ablauf, rechte_lauf, rechte_fehler, alarme';
+const MEDIEN_TYPEN = new Set(['video', 'story', 'still', 'roh']);
+const MELDUNG_SPALTEN = 'id, unternehmen_id, typ, status, grund, versuche, naechster_versuch, quelle_ref, ziel_name';
+
+const dateiAusRef = (ref) => String(ref || '').split(/[?#]/)[0].split('/').filter(Boolean).pop() || null;
 
 function createStand({
   supabase, ablage, event, benutzer, jetzt = () => Date.now(), anstossenImpl = anstossen, umzug = null, umsortieren = null, finalSpiegel = null,
@@ -45,7 +49,32 @@ function createStand({
     if (!ablage) throw new AblageFehler(409, 'SharePoint ist nicht konfiguriert', 'nicht_konfiguriert');
   }
 
-  async function stand() {
+  /**
+   * Zeilen mit Grund (endgueltige Fehler, Wiederholungen, Uebersprungene, Warten) fuer die Konsole
+   * der Admin-Seite. Nur fuer laufende Umzuege und die, die die Seite gerade beobachtet (umzug_ids):
+   * so kommt auch der Fehler an der letzten Datei noch an.
+   */
+  async function umzugMeldungen(ids) {
+    if (!ids.length) return [];
+    const zeilen = ergebnis(await supabase.from('ablage_umzug').select(MELDUNG_SPALTEN)
+      .eq('drive_id', driveId).in('unternehmen_id', ids).in('status', ['offen', 'fehler', 'uebersprungen'])
+      .not('grund', 'is', null).order('naechster_versuch', { ascending: false }).limit(LISTE));
+    return (zeilen || []).map((z) => ({
+      id: z.id,
+      unternehmen_id: z.unternehmen_id,
+      bereich: MEDIEN_TYPEN.has(z.typ) ? 'medien' : 'dokumente',
+      typ: z.typ,
+      status: z.status,
+      grund: z.grund,
+      versuche: Number(z.versuche) || 0,
+      max_versuche: MAX_VERSUCHE,
+      naechster_versuch: z.naechster_versuch,
+      datei: z.ziel_name || dateiAusRef(z.quelle_ref),
+      quelle: z.quelle_ref || null,
+    }));
+  }
+
+  async function stand({ umzug_ids: umzugIds } = {}) {
     const konfig = { konfiguriert: !!ablage, site_url: ablage?.konfig?.siteUrl || null, drive_id: driveId };
     const [einst, staende] = await Promise.all([
       supabase.from('ablage_einstellung').select('schluessel, wert').in('schluessel', Object.values(ziel.NOTSCHALTER)).then(ergebnis),
@@ -57,7 +86,7 @@ function createStand({
     if (!ablage) {
       return {
         ...basis, zaehler: { offen: 0, fehler: 0, unzugeordnet: 0, erledigt_24h: 0 }, unzugeordnet: [], fehler: [], unternehmen: [], umzug: [],
-        dokumente: [], dokument_umzug: [], final_spiegel: null,
+        dokumente: [], dokument_umzug: [], umzug_meldungen: [], final_spiegel: null,
       };
     }
 
@@ -86,6 +115,9 @@ function createStand({
       unternehmen_id: u.id, offen: n(u.umzug_offen), fertig: n(u.umzug_fertig), fehler: n(u.umzug_fehler), uebersprungen: n(u.umzug_uebersprungen),
     });
     const hatUmzug = (u) => n(u.umzug_offen) + n(u.umzug_fertig) + n(u.umzug_fehler) + n(u.umzug_uebersprungen) > 0;
+    const beobachtet = new Set([...liste, ...(dokumente || [])].filter((u) => n(u.umzug_offen) > 0).map((u) => u.id));
+    for (const id of (Array.isArray(umzugIds) ? umzugIds : []).slice(0, LISTE)) if (istUuid(id)) beobachtet.add(id);
+    const meldungen = await umzugMeldungen([...beobachtet]);
     return {
       ...basis,
       zaehler: { offen, fehler, unzugeordnet, erledigt_24h: erledigt24h },
@@ -101,6 +133,7 @@ function createStand({
         sharepoint: n(d.dokumente_sharepoint), dropbox: n(d.dokumente_dropbox), storage: n(d.dokumente_storage),
       })),
       dokument_umzug: (dokumente || []).filter(hatUmzug).map(umzugZaehler),
+      umzug_meldungen: meldungen,
       final_spiegel: finalSpiegelStand,
     };
   }

@@ -48,6 +48,12 @@ export function datumZeit(iso) {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+export function uhrzeit(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 export const zahl = (n, stellen = 0) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: stellen }).format(Number(n) || 0);
 
 export function groesse(bytes) {

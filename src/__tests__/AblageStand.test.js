@@ -17,10 +17,11 @@ const iso = (t) => new Date(t).toISOString();
 
 afterEach(() => ziel._reset());
 
-function setup({ ablage = true, eingang = [], unternehmenStand } = {}) {
+function setup({ ablage = true, eingang = [], unternehmenStand, umzugZeilen = [] } = {}) {
   const uhr = { t: START };
   const supabase = createFakeSupabase({
     tabellen: {
+      ablage_umzug: umzugZeilen,
       ablage_einstellung: [{ schluessel: 'notschalter', wert: false }],
       ablage_stand: [{ drive_id: 'd1', letzter_erfolg: iso(START - MIN), abo_ablauf: iso(START + 20 * TAG), alarme: {} }],
       ablage_eingang: eingang,
@@ -86,11 +87,44 @@ describe('ablage-stand: Stand', () => {
     expect(r.dokument_umzug).toEqual([{ unternehmen_id: U2, offen: 0, fertig: 3, fehler: 0, uebersprungen: 1 }]);
   });
 
+  it('Umzugsmeldungen: Zeilen mit Grund laufender und beobachteter Umzuege, nicht die fertigen', async () => {
+    const zeile = (n, unternehmenId, extra) => ({
+      id: `z${n}`, drive_id: 'd1', unternehmen_id: unternehmenId, typ: 'video', status: 'offen', grund: null, versuche: 0,
+      naechster_versuch: iso(START + n * MIN), quelle_ref: `/Alpha/Videos/clip${n}.mp4?dl=0`, ziel_name: null, ...extra,
+    });
+    const t = setup({
+      umzugZeilen: [
+        zeile(1, U2, { status: 'fehler', grund: 'dropbox_fehlt', versuche: 1 }),
+        zeile(2, U2, { grund: 'dropbox_503', versuche: 2, ziel_name: 'Spot final.mp4' }),
+        zeile(3, U2, { typ: 'vertrag', quelle: 'storage', status: 'uebersprungen', grund: 'leer', quelle_ref: 'vertraege/v1.pdf' }),
+        zeile(4, U2, { status: 'fertig', grund: null }),
+        zeile(5, U2),
+        zeile(6, U1, { status: 'fehler', grund: 'kopie_fehlgeschlagen', versuche: 6 }),
+        { ...zeile(7, U2, { status: 'fehler', grund: 'x' }), drive_id: 'anderes' },
+      ],
+    });
+
+    // U2 laeuft (umzug_offen 2), U1 nicht: dessen alter Fehler bleibt draussen
+    const r = await t.s.stand();
+    expect(r.umzug_meldungen.map((m) => m.id).sort()).toEqual(['z1', 'z2', 'z3']);
+    const je = Object.fromEntries(r.umzug_meldungen.map((m) => [m.id, m]));
+    expect(je.z1).toEqual({
+      id: 'z1', unternehmen_id: U2, bereich: 'medien', typ: 'video', status: 'fehler', grund: 'dropbox_fehlt', versuche: 1,
+      max_versuche: 6, naechster_versuch: iso(START + MIN), datei: 'clip1.mp4', quelle: '/Alpha/Videos/clip1.mp4?dl=0',
+    });
+    expect(je.z2).toMatchObject({ datei: 'Spot final.mp4', versuche: 2, status: 'offen' });
+    expect(je.z3).toMatchObject({ bereich: 'dokumente', datei: 'v1.pdf', status: 'uebersprungen' });
+
+    // Beobachtet die Seite U1 noch (umzug_ids), kommt auch dessen Fehler; ungueltige IDs zaehlen nicht
+    const mitU1 = await t.s.stand({ aktion: 'stand', umzug_ids: [U1, 'kaputt'] });
+    expect(mitU1.umzug_meldungen.map((m) => m.id).sort()).toEqual(['z1', 'z2', 'z3', 'z6']);
+  });
+
   it('ohne SharePoint-Konfiguration: nur Notschalter und leere Listen', async () => {
     const t = setup({ ablage: false });
     const r = await t.s.stand();
     expect(r.konfig.konfiguriert).toBe(false);
-    expect(r).toMatchObject({ unternehmen: [], umzug: [], unzugeordnet: [], fehler: [] });
+    expect(r).toMatchObject({ unternehmen: [], umzug: [], umzug_meldungen: [], unzugeordnet: [], fehler: [] });
     await expect(t.s.jetzt_abgleichen()).rejects.toMatchObject({ status: 409, code: 'nicht_konfiguriert' });
   });
 });
