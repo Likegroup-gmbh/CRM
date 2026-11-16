@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * RLS-Matrix für share_claim_has_access — spiegelt die SQL-Funktion.
@@ -10,7 +12,7 @@ function shareClaimHasAccess(jwt, share, { entityType, entityId, write = false, 
   if (share.revoked_at) return false;
   if (share.expires_at && new Date(share.expires_at).getTime() <= now) return false;
   if (share.ends_with_kampagne && kampagneCompleted) return false;
-  if (write && share.rechte !== 'feedback') return false;
+  if (write && (share.rechte !== 'feedback' || jwt.vorschau === true)) return false;
   return true;
 }
 
@@ -37,6 +39,13 @@ describe('share_claim_has_access (RLS-Matrix)', () => {
     const jwt = { share_id: 'share-1' };
     expect(shareClaimHasAccess(jwt, share, { entityType: 'sourcing', entityId: 'list-1', write: true })).toBe(false);
     expect(shareClaimHasAccess(jwt, { ...share, rechte: 'feedback' }, { entityType: 'sourcing', entityId: 'list-1', write: true })).toBe(true);
+  });
+
+  it('Mitarbeiter-Vorschau liest, schreibt aber auch bei rechte=feedback nie', () => {
+    const vorschau = { share_id: 'share-1', vorschau: true };
+    const feedback = { ...share, rechte: 'feedback' };
+    expect(shareClaimHasAccess(vorschau, feedback, { entityType: 'sourcing', entityId: 'list-1' })).toBe(true);
+    expect(shareClaimHasAccess(vorschau, feedback, { entityType: 'sourcing', entityId: 'list-1', write: true })).toBe(false);
   });
 
   it('revoked / expired / kampagne abgeschlossen = kein Zugriff', () => {
@@ -66,7 +75,7 @@ function canGastAccessSkript(jwt, share, {
   if (share.revoked_at) return false;
   if (share.expires_at && new Date(share.expires_at).getTime() <= now) return false;
   if (share.ends_with_kampagne && kampagneCompleted) return false;
-  if (write && share.rechte !== 'feedback') return false;
+  if (write && (share.rechte !== 'feedback' || jwt.vorschau === true)) return false;
   if (share.entity_id === skriptId) return true;
   return share.skript_scope === 'kampagne'
     && sharedKampagneId != null
@@ -121,5 +130,22 @@ describe('can_gast_access_skript (RLS-Matrix)', () => {
     const args = { skriptId: 'skript-2', sharedKampagneId: 'k1', targetKampagneId: 'k1', write: true };
     expect(canGastAccessSkript(jwt, skriptShare, args)).toBe(false);
     expect(canGastAccessSkript(jwt, { ...skriptShare, rechte: 'feedback' }, args)).toBe(true);
+    expect(canGastAccessSkript({ ...jwt, vorschau: true }, { ...skriptShare, rechte: 'feedback' }, args)).toBe(false);
+  });
+});
+
+describe('Migration Vorschau nur lesen', () => {
+  const sql = readFileSync(resolve(__dirname, '../../supabase/migrations/20261217_share_vorschau_nur_lesen.sql'), 'utf8');
+
+  it('sperrt den Schreibzweig in share_claim_has_access und beiden Zweigen von can_gast_access_skript', () => {
+    const zweige = sql.match(/AND \(NOT p_write OR \(ls\.rechte = 'feedback' AND NOT share_claim_ist_vorschau\(\)\)\)/g) || [];
+    expect(zweige).toHaveLength(3);
+    expect(sql).not.toMatch(/NOT p_write OR ls\.rechte = 'feedback'\)/);
+  });
+
+  it('liest den Claim so, wie vorschau.ts ihn setzt (JSON true)', () => {
+    expect(sql).toContain("COALESCE(auth.jwt() ->> 'vorschau', '') = 'true'");
+    const vorschauTs = readFileSync(resolve(__dirname, '../../supabase/functions/share-list/vorschau.ts'), 'utf8');
+    expect(vorschauTs).toMatch(/vorschau: true/);
   });
 });

@@ -1,7 +1,7 @@
 // konzeptSheet.js
 // Das Creator Concept Sheet (ADR 0059) als Daten: Abschnitte und Felder in PDF-Reihenfolge.
 // Das Webformular der Konzept-Einladung (EinladungKonzeptForm) und der Block „Creator-Sheet“
-// an der Videoidee lesen dieselbe Liste. Die Feldnamen gleicht Einladung.test.js mit der
+// an der Videoidee lesen dieselbe Liste. Die Feldnamen gleicht EinladungKonzept.test.js mit der
 // Allowlist der Edge Function (supabase/functions/einladung/felder.ts) ab.
 
 export const KONZEPT_PFLICHT = Object.freeze(['idee', 'hook', 'ablauf']);

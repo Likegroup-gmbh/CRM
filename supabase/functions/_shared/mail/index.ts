@@ -18,6 +18,8 @@ export { einreichungMail } from './templates/einreichung.ts';
 export type { EinreichungMail } from './templates/einreichung.ts';
 export { teilenMail } from './templates/teilen.ts';
 export type { TeilenMail } from './templates/teilen.ts';
+export { listenLinkMail } from './templates/listenLink.ts';
+export type { ListenLinkMail } from './templates/listenLink.ts';
 export { creatorUploadMail } from './templates/creatorUpload.ts';
 export type { CreatorUploadMail } from './templates/creatorUpload.ts';
 export { anschreibenMail } from './templates/anschreiben.ts';

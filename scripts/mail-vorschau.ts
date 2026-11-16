@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  anschreibenMail, authMail, creatorUploadMail, einladungMail, einreichungMail, teilenMail,
+  anschreibenMail, authMail, creatorUploadMail, einladungMail, einreichungMail, listenLinkMail, teilenMail,
 } from '../supabase/functions/_shared/mail/index.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -35,6 +35,10 @@ add('Teilen: Sourcing-Liste', teilenMail({
 add('Teilen: Skripte einer Kampagne', teilenMail({
   entityLabel: 'Skript', entityArticle: 'das', entityName: 'Glow Up', sharedByName: 'Lisa Beispiel',
   rechte: 'ansehen', link: `${BASIS}/share/abc`, code: '654321', allScripts: true, basisUrl: BASIS,
+}));
+add('Teilen: Listen-Link ans Kundenkonto', listenLinkMail({
+  entityLabel: 'Kampagne', entityName: 'Sommer 2026', sharedByName: 'Lisa Beispiel',
+  url: `${BASIS}/kampagne/1`, basisUrl: BASIS,
 }));
 add('Einreichung (intern)', einreichungMail({
   art: 'briefing', einreicherName: 'Kim Kunde', einladungLabel: 'Briefing-Einladung', kunde: 'FORGEWORKS AG · IRONCLAD',

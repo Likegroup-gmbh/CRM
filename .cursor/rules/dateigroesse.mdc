@@ -1,0 +1,15 @@
+---
+description: Dateigröße begrenzen und nach Verantwortung aufteilen
+alwaysApply: true
+---
+
+# Dateigröße
+
+- Höchstens 400 Zeilen pro Datei, angestrebt sind 200 bis 400. Kleinere Module sind in Ordnung, nichts wird aufgefüllt.
+- Wächst eine Datei über 400 Zeilen, wird sie im selben Schritt aufgeteilt, nicht später.
+- Aufgeteilt wird nach Verantwortung, nicht nach Zeilen:
+  - Frontend-Klassen: Methodengruppen als Mixin `installXyz(proto)` in eigene Datei (Muster: `src/core/components/shareListAccessList.js`) oder als eigenes Modul.
+  - Edge Functions: `index.ts` ist nur der Router, je Gruppe von Actions eine Datei. Gemeinsame Bausteine liegen in `supabase/functions/_shared/`.
+  - Tests: je `describe`-Thema eine Datei, gemeinsame Fakes in `*TestKit.js`.
+- Keine Sammeldateien wie `utils.js` für Unzusammenhängendes. Vorhandene Helfer nutzen (z. B. `escapeHtml` aus `src/core/format.js`) statt sie zu kopieren.
+- `src/__tests__/Dateigroesse.test.js` erzwingt das Limit für die überwachten Ordner. Neue Bereiche dort aufnehmen, sobald sie aufgeräumt sind.

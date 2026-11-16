@@ -2,7 +2,7 @@
  * Erlaubte Felder und Bereinigung einer Einreichung (ADR 0055).
  *
  * Reine Funktionen ohne Deno-Importe, damit Vitest sie testen kann
- * (src/__tests__/Einladung.test.js gleicht die Namen mit fieldConfig.js ab).
+ * (src/__tests__/EinladungAllowlist.test.js gleicht die Namen mit fieldConfig.js ab).
  *
  * Nicht erlaubt, weil intern: Zuordnung (unternehmen_id, marke_id, kampagne_id,
  * produktion_id), TKP, Verhandlungshinweis, Personas, Briefing-Verknüpfung.

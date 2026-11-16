@@ -1,16 +1,45 @@
-// Hilfen für share-list: Token, Gast-JWT, Einladungsmails.
+// Gemeinsames für share-list: Kontext, Listen-Typen, Sperrprüfung, Einladungsmails.
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { sendResendMail } from '../_shared/mail.ts';
+import { listenLinkMail } from '../_shared/mail/index.ts';
 import type { MailErgebnis } from '../_shared/mail/index.ts';
-import {
-  accountLinkMail,
-  accountListPath,
-} from '../_shared/share-recipients.ts';
+import { accountListPath } from '../_shared/share-recipients-plan.ts';
+import { jsonRes } from '../_shared/zugang/http.ts';
+import type { Staff } from '../_shared/zugang/staff.ts';
 
-export const VERIFY_WINDOW_MIN = 15;
-export const VERIFY_MAX_ATTEMPTS = 5;
+export type Admin = ReturnType<typeof createClient>;
+
+export interface ShareKontext {
+  req: Request;
+  body: Record<string, unknown>;
+  admin: Admin;
+  headers: Record<string, string>;
+  action: string;
+  secret: string | null;
+  origin: string;
+}
+
+export interface StaffKontext extends ShareKontext {
+  staff: Staff;
+}
+
+export interface ShareZeile {
+  id: string;
+  token: string;
+  entity_type: string;
+  entity_id: string;
+  rechte: string;
+  label: string | null;
+  revoked_at: string | null;
+  expires_at: string | null;
+  ends_with_kampagne: boolean;
+  code_hash?: string;
+}
+
+export const SHARE_SPALTEN = 'id, token, entity_type, entity_id, rechte, label, revoked_at, expires_at, ends_with_kampagne';
 export const JWT_TTL_SEC = 60 * 60 * 24 * 30;
+export const VORSCHAU_TTL_SEC = 60 * 60;
 
 export const ENTITY_CONFIG: Record<string, { table: string; nameColumns: string[]; label: string; article: string }> = {
   kampagne: { table: 'kampagne', nameColumns: ['eigener_name', 'kampagnenname'], label: 'Kampagne', article: 'die' },
@@ -20,86 +49,6 @@ export const ENTITY_CONFIG: Record<string, { table: string; nameColumns: string[
   skript_paket: { table: 'skript_pakete', nameColumns: ['id'], label: 'Skripte', article: 'die' },
 };
 
-export function corsHeaders(req: Request): Record<string, string> {
-  return {
-    'Access-Control-Allow-Origin': req.headers.get('origin') ?? '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
-
-export function jsonRes(data: Record<string, unknown>, status: number, headers: Record<string, string>) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...headers, 'Content-Type': 'application/json' },
-  });
-}
-
-export function generateToken(): string {
-  const bytes = new Uint8Array(24);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-export function generateCode(): string {
-  const bytes = new Uint8Array(4);
-  crypto.getRandomValues(bytes);
-  const n = new DataView(bytes.buffer).getUint32(0) % 1_000_000;
-  return String(n).padStart(6, '0');
-}
-
-export function jwtSecret(): string | null {
-  return Deno.env.get('JWT_SECRET')
-    || Deno.env.get('SUPABASE_JWT_SECRET')
-    || Deno.env.get('GUEST_JWT_SECRET')
-    || null;
-}
-
-export function b64url(input: string | ArrayBuffer): string {
-  const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : new Uint8Array(input);
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-export async function sha256Hex(value: string): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-export async function hashCode(code: string, secret: string): Promise<string> {
-  return sha256Hex(`share-code:${secret}:${code}`);
-}
-
-export function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-export async function signGuestJwt(payload: Record<string, unknown>, secret: string): Promise<string> {
-  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = b64url(JSON.stringify(payload));
-  const data = `${header}.${body}`;
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
-  return `${data}.${b64url(sig)}`;
-}
-
-export function clientIp(req: Request): string {
-  return (req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || '')
-    .split(',')[0]
-    .trim()
-    .slice(0, 64);
-}
-
 export function parseEmails(raw: unknown): string[] {
   if (Array.isArray(raw)) {
     return raw.map((e) => String(e).trim().toLowerCase()).filter(Boolean);
@@ -107,36 +56,6 @@ export function parseEmails(raw: unknown): string[] {
   const text = String(raw ?? '').trim();
   if (!text) return [];
   return text.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
-}
-
-export async function requireStaff(admin: ReturnType<typeof createClient>, req: Request) {
-  const authHeader = req.headers.get('authorization') ?? '';
-  const jwt = authHeader.replace(/^Bearer\s+/i, '');
-  if (!jwt) return { error: jsonRes({ error: 'Nicht autorisiert.' }, 401, corsHeaders(req)) };
-  const { data: { user: authUser }, error: authError } = await admin.auth.getUser(jwt);
-  if (authError || !authUser) return { error: jsonRes({ error: 'Nicht autorisiert.' }, 401, corsHeaders(req)) };
-
-  const { data: staff } = await admin
-    .from('benutzer')
-    .select('id, name, rolle')
-    .eq('auth_user_id', authUser.id)
-    .maybeSingle();
-
-  if (!staff || !['admin', 'mitarbeiter'].includes(staff.rolle)) {
-    return { error: jsonRes({ error: 'Nur Mitarbeiter können Listen teilen.' }, 403, corsHeaders(req)) };
-  }
-  return { staff };
-}
-
-export function shareIsUsable(share: {
-  revoked_at: string | null;
-  expires_at: string | null;
-}): string | null {
-  if (share.revoked_at) return 'Dieser Zugang wurde widerrufen.';
-  if (share.expires_at && new Date(share.expires_at).getTime() <= Date.now()) {
-    return 'Dieser Zugang ist abgelaufen.';
-  }
-  return null;
 }
 
 export function scriptTitleList(raw: unknown): string[] {
@@ -148,7 +67,34 @@ export function creatorAnzeigeName(creator: { vorname?: string | null; nachname?
   return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
 }
 
-export async function entityName(admin: ReturnType<typeof createClient>, entityType: string, entityId: string): Promise<{ name: string; kampagneId: string | null } | null> {
+export function gueltigerToken(raw: unknown): string | null {
+  const token = String(raw ?? '').trim();
+  return token.length >= 32 ? token : null;
+}
+
+/** Share per Token, oder die fertige Fehlerantwort (404/500). */
+export async function ladeShare(ctx: ShareKontext, token: string, mitHash = false): Promise<ShareZeile | Response> {
+  const spalten = mitHash ? `${SHARE_SPALTEN}, code_hash` : SHARE_SPALTEN;
+  const { data, error } = await ctx.admin.from('list_shares').select(spalten).eq('token', token).maybeSingle();
+  if (error) {
+    console.error('share laden fehlgeschlagen:', error);
+    return jsonRes({ error: 'Fehler beim Laden.' }, 500, ctx.headers);
+  }
+  return (data as ShareZeile | null) ?? jsonRes({ valid: false, error: 'Link ungültig.' }, 404, ctx.headers);
+}
+
+export function shareAntwort(share: ShareZeile, info: { name: string } | null) {
+  return {
+    shareId: share.id,
+    entityType: share.entity_type,
+    entityId: share.entity_id,
+    rechte: share.rechte,
+    label: share.label,
+    entityName: info?.name ?? null,
+  };
+}
+
+export async function entityName(admin: Admin, entityType: string, entityId: string): Promise<{ name: string; kampagneId: string | null } | null> {
   if (entityType === 'skript_paket') {
     const { data, error } = await admin
       .from('skript_pakete')
@@ -180,10 +126,27 @@ export async function entityName(admin: ReturnType<typeof createClient>, entityT
   return { name, kampagneId };
 }
 
-export async function kampagneDisplayName(
-  admin: ReturnType<typeof createClient>,
-  kampagneId: string | null,
-): Promise<string | null> {
+/** Widerrufen, abgelaufen oder mit der Kampagne beendet? Liefert den Grund und die Listen-Infos. */
+export async function pruefeShare(admin: Admin, share: ShareZeile): Promise<{
+  gesperrt: string | null;
+  info: { name: string; kampagneId: string | null } | null;
+}> {
+  if (share.revoked_at) return { gesperrt: 'Dieser Zugang wurde widerrufen.', info: null };
+  if (share.expires_at && new Date(share.expires_at).getTime() <= Date.now()) {
+    return { gesperrt: 'Dieser Zugang ist abgelaufen.', info: null };
+  }
+  const info = await entityName(admin, share.entity_type, share.entity_id);
+  if (!share.ends_with_kampagne) return { gesperrt: null, info };
+  const kampagneId = info?.kampagneId ?? (share.entity_type === 'kampagne' ? share.entity_id : null);
+  if (!kampagneId) return { gesperrt: null, info };
+  const { data: isDone } = await admin.rpc('kampagne_is_completed', { p_kampagne_id: kampagneId });
+  return {
+    gesperrt: isDone === true ? 'Dieser Zugang ist beendet, weil die Kampagne abgeschlossen ist.' : null,
+    info,
+  };
+}
+
+export async function kampagneDisplayName(admin: Admin, kampagneId: string | null): Promise<string | null> {
   if (!kampagneId) return null;
   const { data } = await admin
     .from('kampagne')
@@ -224,11 +187,12 @@ export async function mailAccountLinks(params: {
   if (!path) return { sent: 0 };
   return sendInviteMails({
     emails: params.emails,
-    mail: accountLinkMail({
+    mail: listenLinkMail({
       entityLabel: params.entityLabel,
       entityName: params.entityName,
       url: `${params.origin}${path}`,
       sharedByName: params.sharedByName,
+      basisUrl: params.origin,
     }),
   });
 }

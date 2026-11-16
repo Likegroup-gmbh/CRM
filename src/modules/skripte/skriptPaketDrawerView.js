@@ -2,9 +2,9 @@
 // eingeklappt. Ohne Creator gilt das Kampagnen-Paket mit allen Skripten der Kampagne.
 
 import { renderTableSelect } from '../../core/components/TableSelect.js';
-import {
-  paketAuswahl, creatorOptionen, creatorAnzeigeName, isValidEmail, emailsAusText
-} from './skriptPaketModel.js';
+import { mountShareEmailField } from '../../core/components/shareEmailField.js';
+import { escapeHtml } from '../../core/format.js';
+import { paketAuswahl, creatorOptionen, creatorAnzeigeName } from './skriptPaketModel.js';
 import { STATUS_LABELS } from './SkripteUtils.js';
 import { BLOCKED_TEXT } from '../share/shareRecipientPlan.js';
 
@@ -12,14 +12,6 @@ const RECHTE = [
   { value: 'ansehen', label: 'Nur ansehen' },
   { value: 'feedback', label: 'Ansehen + Bearbeiten' }
 ];
-
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 export function renderPaketForm(drawer) {
   const body = drawer.panel?.querySelector('#skript-paket-body');
@@ -41,14 +33,7 @@ export function renderPaketForm(drawer) {
     <section class="share-drawer-abschnitt">
       <h4 class="drawer-section-title">Empfänger</h4>
       <div class="form-group">
-        <div class="tag-input-container">
-          <div class="tag-input-wrapper">
-            <div class="selected-tags" id="skript-paket-tags"></div>
-            <input type="text" class="tag-input" id="skript-paket-email" placeholder="E-Mails eingeben oder einfügen …" autocomplete="off" aria-label="E-Mail-Adressen">
-          </div>
-          <div class="tag-suggestions" id="skript-paket-suggestions" style="display:none;"></div>
-        </div>
-        <div class="skript-paket-vorschlaege" id="skript-paket-vorschlaege" hidden></div>
+        <div id="skript-paket-email-field"></div>
         <p class="share-plan-note">${escapeHtml(BLOCKED_TEXT.paket)}</p>
         <div id="skript-paket-plan" class="share-recipient-plan"></div>
       </div>
@@ -100,9 +85,27 @@ export function renderPaketForm(drawer) {
         </div>
       </section>` : ''}`;
   renderPaketListe(drawer);
-  renderEmailTags(drawer);
+  mountEmailField(drawer, body);
   bindPaketForm(drawer);
-  body.querySelector('#skript-paket-email')?.focus();
+  drawer.emailField?.input.focus();
+}
+
+function mountEmailField(drawer, body) {
+  drawer.emailField?.destroy();
+  drawer.emailField = mountShareEmailField(body.querySelector('#skript-paket-email-field'), {
+    emails: drawer.emails,
+    vorschlaege: drawer.ansprechpartner,
+    idPrefix: 'skript-paket',
+    inputId: 'skript-paket-email',
+    onChange: (emails) => {
+      drawer.emails = emails;
+      drawer.emailsTouched = true;
+      updateSubmitLabel(drawer);
+      drawer.refreshPaketPlan?.();
+    },
+  });
+  updateSubmitLabel(drawer);
+  drawer.refreshPaketPlan?.();
 }
 
 export function updateSubmitLabel(drawer) {
@@ -188,48 +191,12 @@ function bindPaketForm(drawer) {
   drawer.panel.querySelector('#skript-paket-optionen')?.addEventListener('toggle', (e) => {
     drawer.optionenOffen = e.currentTarget.open;
   });
-  const input = drawer.panel.querySelector('#skript-paket-email');
-  input?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return;
-    if (e.key === 'Enter' || e.key === ',' || e.key === ';') {
-      e.preventDefault();
-      if (addEmail(drawer, input.value, { warn: true })) {
-        input.value = '';
-        hideSuggestions(drawer);
-      }
-    } else if (e.key === 'Backspace' && !input.value && drawer.emails.length) {
-      drawer.emails.pop();
-      drawer.emailsTouched = true;
-      renderEmailTags(drawer);
-    }
-  });
-  input?.addEventListener('paste', (e) => {
-    const text = e.clipboardData?.getData('text') || '';
-    const gefunden = emailsAusText(text);
-    if (!gefunden.length) return;
-    e.preventDefault();
-    addEmails(drawer, gefunden);
-    input.value = '';
-    hideSuggestions(drawer);
-  });
-  input?.addEventListener('input', () => {
-    if (/[,;]/.test(input.value)) {
-      const teile = input.value.split(/[,;]/);
-      const rest = teile.pop();
-      addEmails(drawer, teile.flatMap((teil) => emailsAusText(teil)));
-      input.value = rest.trim();
-    }
-    schedulePartnerSearch(drawer, input.value.trim());
-  });
-  input?.addEventListener('blur', () => {
-    const wert = input.value.trim().toLowerCase();
-    if (isValidEmail(wert) && addEmail(drawer, wert, { warn: false })) input.value = '';
-  });
   drawer.panel.querySelector('[data-copy-link]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
     const url = `${window.location.origin}/share/${drawer.share.token}`;
     try {
       await navigator.clipboard?.writeText(url);
-      e.currentTarget.textContent = 'Kopiert';
+      btn.textContent = 'Kopiert';
     } catch (_) {
       window.toastSystem?.error('Link konnte nicht kopiert werden.');
     }
@@ -237,133 +204,4 @@ function bindPaketForm(drawer) {
   drawer.panel.querySelector('[data-rotate]')?.addEventListener('click', () => drawer.rotate());
   drawer.panel.querySelector('[data-resend]')?.addEventListener('click', () => drawer.resend());
   drawer.panel.querySelector('[data-revoke]')?.addEventListener('click', () => drawer.revoke());
-}
-
-/** Fügt Adressen hinzu und rendert einmal. Gibt die Zahl neuer Adressen zurück. */
-export function addEmails(drawer, list) {
-  let neu = 0;
-  for (const raw of list || []) {
-    const email = String(raw || '').trim().toLowerCase();
-    if (!isValidEmail(email) || drawer.emails.includes(email)) continue;
-    drawer.emails.push(email);
-    neu += 1;
-  }
-  if (neu) {
-    drawer.emailsTouched = true;
-    renderEmailTags(drawer);
-  }
-  return neu;
-}
-
-/** true, wenn die Eingabe eine gültige Adresse war (neu oder schon drin). */
-export function addEmail(drawer, raw, { warn } = {}) {
-  const email = String(raw || '').trim().toLowerCase();
-  if (!email) return false;
-  if (!isValidEmail(email)) {
-    if (warn) window.toastSystem?.warning('Ungültige E-Mail-Adresse.');
-    return false;
-  }
-  addEmails(drawer, [email]);
-  return true;
-}
-
-function renderEmailTags(drawer) {
-  const el = drawer.panel?.querySelector('#skript-paket-tags');
-  if (!el) return;
-  el.innerHTML = drawer.emails.map((email) => `
-    <span class="tag-item">
-      ${escapeHtml(email)}
-      <span class="tag-remove" data-email="${escapeHtml(email)}">&times;</span>
-    </span>`).join('');
-  el.querySelectorAll('.tag-remove').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      drawer.emails = drawer.emails.filter((email) => email !== btn.dataset.email);
-      drawer.emailsTouched = true;
-      renderEmailTags(drawer);
-    });
-  });
-  renderVorschlaege(drawer);
-  updateSubmitLabel(drawer);
-  drawer.refreshPaketPlan?.();
-}
-
-function renderVorschlaege(drawer) {
-  const el = drawer.panel?.querySelector('#skript-paket-vorschlaege');
-  if (!el) return;
-  const offen = (drawer.ansprechpartner || []).filter((ap) => !drawer.emails.includes(ap.email));
-  el.hidden = !offen.length;
-  if (!offen.length) {
-    el.innerHTML = '';
-    return;
-  }
-  el.innerHTML = `
-    <span class="skript-paket-vorschlaege-label">Ansprechpartner</span>
-    ${offen.map((ap) => `
-      <button type="button" class="skript-paket-vorschlag" data-email="${escapeHtml(ap.email)}" title="${escapeHtml(ap.email)}">+ ${escapeHtml(ap.name || ap.email)}</button>`).join('')}
-    ${offen.length > 1 ? '<button type="button" class="skript-paket-vorschlag skript-paket-vorschlag--alle" data-alle-vorschlaege>Alle hinzufügen</button>' : ''}`;
-  el.querySelectorAll('[data-email]').forEach((btn) => {
-    btn.addEventListener('click', () => addEmails(drawer, [btn.dataset.email]));
-  });
-  el.querySelector('[data-alle-vorschlaege]')?.addEventListener('click', () => {
-    addEmails(drawer, offen.map((ap) => ap.email));
-  });
-}
-
-function schedulePartnerSearch(drawer, term) {
-  clearTimeout(drawer._emailSearchTimer);
-  if (!term) {
-    hideSuggestions(drawer);
-    return;
-  }
-  drawer._emailSearchTimer = setTimeout(() => searchPartners(drawer, term), 200);
-}
-
-function hideSuggestions(drawer) {
-  clearTimeout(drawer._emailSearchTimer);
-  drawer._emailSearchGen += 1;
-  const suggestions = drawer.panel?.querySelector('#skript-paket-suggestions');
-  if (!suggestions) return;
-  suggestions.style.display = 'none';
-  suggestions.innerHTML = '';
-}
-
-async function searchPartners(drawer, term) {
-  const suggestions = drawer.panel?.querySelector('#skript-paket-suggestions');
-  if (!suggestions) return;
-  const safe = term.replace(/[,()%]/g, '').slice(0, 80);
-  if (!safe) return hideSuggestions(drawer);
-  const gen = ++drawer._emailSearchGen;
-  const { data } = await window.supabase
-    .from('ansprechpartner')
-    .select('id, vorname, nachname, email, unternehmen:unternehmen_id(firmenname)')
-    .or(`vorname.ilike.%${safe}%,nachname.ilike.%${safe}%,email.ilike.%${safe}%`)
-    .order('nachname');
-  if (gen !== drawer._emailSearchGen || !drawer.panel) return;
-  const rows = (data || []).filter((ap) => {
-    const email = String(ap.email || '').trim().toLowerCase();
-    return email && isValidEmail(email) && !drawer.emails.includes(email);
-  }).slice(0, 8);
-  if (!rows.length) {
-    suggestions.innerHTML = '<div class="suggestion-hint">Keine Vorschläge</div>';
-    suggestions.style.display = 'block';
-    return;
-  }
-  suggestions.innerHTML = rows.map((ap) => {
-    const name = `${ap.vorname || ''} ${ap.nachname || ''}`.trim();
-    const email = String(ap.email).trim();
-    return `<div class="suggestion-item" data-email="${escapeHtml(email)}">${escapeHtml(name || email)}
-      <span class="suggestion-item-meta">${escapeHtml(email)}</span></div>`;
-  }).join('');
-  suggestions.style.display = 'block';
-  suggestions.querySelectorAll('.suggestion-item').forEach((item) => {
-    item.addEventListener('click', () => {
-      addEmail(drawer, item.dataset.email, { warn: false });
-      const input = drawer.panel.querySelector('#skript-paket-email');
-      if (input) {
-        input.value = '';
-        input.focus();
-      }
-      hideSuggestions(drawer);
-    });
-  });
 }

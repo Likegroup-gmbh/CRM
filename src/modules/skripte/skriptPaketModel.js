@@ -56,20 +56,6 @@ export function paketAuswahl({ skripte = [], creatorId = null, gespeichertIds = 
   return { eigene, weitere, checkedIds: [...checked] };
 }
 
-export function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 320;
-}
-
-/** Eingefügter Text mit Komma, Semikolon, Leerzeichen oder Zeilenumbruch, auch "Name <mail>". */
-export function emailsAusText(text) {
-  const out = [];
-  for (const teil of String(text || '').split(/[\s,;]+/)) {
-    const email = teil.replace(/^[<("']+|[>)"']+$/g, '').trim().toLowerCase();
-    if (isValidEmail(email) && !out.includes(email)) out.push(email);
-  }
-  return out;
-}
-
 /** Creator, die in der Kampagne mindestens ein Skript haben. */
 export function creatorOptionen(skripte = []) {
   const map = new Map();

@@ -12,15 +12,18 @@ vi.mock('../modules/skripte/skriptPaketApi.js', () => ({
   setPaketSkripte: vi.fn(),
 }));
 
-vi.mock('../modules/share/shareRecipientPlan.js', async () => {
-  const actual = await vi.importActual('../modules/share/shareRecipientPlan.js');
+vi.mock('../modules/share/shareApi.js', async () => {
+  const actual = await vi.importActual('../modules/share/shareApi.js');
   return {
     ...actual,
-    classifyShareEmails: vi.fn(async (_supabase, { emails } = {}) => ({
-      listLink: [],
-      guest: (emails || []).filter((email) => !email.startsWith('konto@')),
-      blocked: (emails || []).filter((email) => email.startsWith('konto@')).map((email) => ({ email, reason: 'paket' })),
-    })),
+    shareApi: {
+      ...actual.shareApi,
+      plan: vi.fn(async ({ emails } = {}) => ({
+        listLink: [],
+        guest: (emails || []).filter((email) => !email.startsWith('konto@')),
+        blocked: (emails || []).filter((email) => email.startsWith('konto@')).map((email) => ({ email, reason: 'paket' })),
+      })),
+    },
   };
 });
 

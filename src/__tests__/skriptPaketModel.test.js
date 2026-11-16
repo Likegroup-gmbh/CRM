@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  paketAuswahl, creatorOptionen, creatorAusZeile, emailsAusText
+  paketAuswahl, creatorOptionen, creatorAusZeile
 } from '../modules/skripte/skriptPaketModel.js';
+import { emailsAusText } from '../core/components/shareEmailField.js';
 
 const linda = { id: 'linda', vorname: 'Linda', nachname: 'L' };
 const max = { id: 'max', vorname: 'Max', nachname: 'M' };

@@ -1,19 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ShareListDrawer } from '../core/components/ShareListDrawer.js';
 import { DRAWER_EXIT_MS } from '../core/animation/drawer.js';
-import { classifyShareEmails } from '../modules/share/shareRecipientPlan.js';
-import { mockFrom, typeEmail, pressEnter } from './shareListDrawerTestKit.js';
+import { shareApi } from '../modules/share/shareApi.js';
+import { mockFrom, typeEmail, pressEnter, mockSharePlan, httpFehler } from './shareListDrawerTestKit.js';
 
-vi.mock('../modules/share/shareRecipientPlan.js', async () => {
-  const actual = await vi.importActual('../modules/share/shareRecipientPlan.js');
-  return {
-    ...actual,
-    classifyShareEmails: vi.fn(async (_supabase, { emails } = {}) => ({
-      listLink: [],
-      guest: [...(emails || [])],
-      blocked: [],
-    })),
-  };
+vi.mock('../modules/share/shareApi.js', async () => {
+  const actual = await vi.importActual('../modules/share/shareApi.js');
+  return { ...actual, shareApi: { ...actual.shareApi, plan: vi.fn() } };
 });
 
 describe('ShareListDrawer Zugänge', () => {
@@ -25,11 +18,7 @@ describe('ShareListDrawer Zugänge', () => {
       functions: { invoke: vi.fn() },
       from: vi.fn(),
     };
-    classifyShareEmails.mockImplementation(async (_supabase, { emails } = {}) => ({
-      listLink: [],
-      guest: [...(emails || [])],
-      blocked: [],
-    }));
+    mockSharePlan(shareApi.plan);
     vi.spyOn(window, 'prompt').mockReturnValue(null);
   });
 
@@ -50,12 +39,6 @@ describe('ShareListDrawer Zugänge', () => {
     expect(document.querySelector('#share-submit-btn')?.classList.contains('mdc-btn--create')).toBe(true);
     expect(document.querySelector('#share-submit-btn')?.textContent).toContain('Zugang erstellen');
     expect(document.querySelector('#share-submit-btn')?.closest('.drawer-footer')).not.toBeNull();
-  });
-
-  it('nennt den Skript-Drawer "Skript teilen"', () => {
-    mockFrom();
-    new ShareListDrawer().open({ entityType: 'skript', entityId: 's1' });
-    expect(document.querySelector('.drawer-title')?.textContent).toBe('Skript teilen');
   });
 
   describe('Schließen', () => {
@@ -300,5 +283,53 @@ describe('ShareListDrawer Zugänge', () => {
         code: '654321',
       }),
     });
+  });
+
+  it('zeigt den Code auch, wenn der Zugang angelegt wurde, die Mail aber scheiterte (502)', async () => {
+    mockFrom();
+    window.supabase.functions.invoke.mockResolvedValue(httpFehler(502, {
+      error: 'Zugang angelegt, aber E-Mail-Versand fehlgeschlagen.',
+      link: 'https://app/share/tok',
+      code: '112233',
+      shareId: 's9',
+    }));
+
+    const dialog = new ShareListDrawer();
+    dialog.open({ entityType: 'sourcing', entityId: 'e1' });
+    document.getElementById('share-label-input').value = 'Marketing';
+    pressEnter(typeEmail('gast@beispiel.de'));
+    await dialog.submit();
+
+    expect(document.querySelector('.share-code-value').textContent).toBe('112233');
+    expect(dialog.codes.s9).toBe('112233');
+    expect(window.toastSystem.warning).toHaveBeenCalledWith('Zugang angelegt, aber E-Mail-Versand fehlgeschlagen.');
+    expect(window.toastSystem.error).not.toHaveBeenCalled();
+  });
+
+  it('widerruft und ändert Rechte über die Edge Function, nicht direkt in list_shares', async () => {
+    mockFrom();
+    window.supabase.functions.invoke.mockResolvedValue({ data: { success: true }, error: null });
+    const dialog = new ShareListDrawer();
+    dialog.open({ entityType: 'kampagne', entityId: 'e1' });
+
+    await dialog.revoke('s1');
+    await dialog.updateRechte('s1', 'feedback');
+
+    const bodies = window.supabase.functions.invoke.mock.calls.map((call) => call[1].body);
+    expect(bodies).toEqual([
+      { action: 'revoke', shareId: 's1' },
+      { action: 'update', shareId: 's1', rechte: 'feedback' },
+    ]);
+    const shareChain = window.supabase.from('list_shares');
+    expect(shareChain.update).not.toHaveBeenCalled();
+  });
+
+  it('meldet die Server-Fehlermeldung beim Code-Erneuern', async () => {
+    mockFrom();
+    window.supabase.functions.invoke.mockResolvedValue(httpFehler(403, { error: 'Nur Mitarbeiter können Listen teilen.' }));
+    const dialog = new ShareListDrawer();
+    dialog.open({ entityType: 'kampagne', entityId: 'e1' });
+    await dialog.rotate('s1');
+    expect(window.toastSystem.error).toHaveBeenCalledWith('Nur Mitarbeiter können Listen teilen.');
   });
 });

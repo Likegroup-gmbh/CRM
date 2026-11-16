@@ -2,6 +2,8 @@
 // Admin-/Mitarbeiter-Übersicht aller Zugänge (list_shares) inkl. Teilnehmer.
 
 import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { escapeHtml } from '../../core/format.js';
+import { shareApi } from '../share/shareApi.js';
 
 const ENTITY_META = {
   kampagne: { label: 'Kampagne', table: 'kampagne', nameColumns: ['eigener_name', 'kampagnenname'], route: (id) => `/kampagne/${id}` },
@@ -176,13 +178,9 @@ export class SharesAdminPage {
   }
 
   async revoke(shareId) {
-    const { error } = await window.supabase
-      .from('list_shares')
-      .update({ revoked_at: new Date().toISOString() })
-      .eq('id', shareId);
-
-    if (error) {
-      window.toastSystem?.show('Widerruf fehlgeschlagen', 'error');
+    const res = await shareApi.revoke(shareId);
+    if (!res.ok) {
+      window.toastSystem?.show(res.fehler || 'Widerruf fehlgeschlagen', 'error');
       return;
     }
     window.toastSystem?.show('Zugang widerrufen', 'success');
@@ -192,13 +190,9 @@ export class SharesAdminPage {
   }
 
   async updateRechte(shareId, rechte) {
-    const { error } = await window.supabase
-      .from('list_shares')
-      .update({ rechte })
-      .eq('id', shareId);
-
-    if (error) {
-      window.toastSystem?.show('Rechte-Änderung fehlgeschlagen', 'error');
+    const res = await shareApi.update(shareId, { rechte });
+    if (!res.ok) {
+      window.toastSystem?.show(res.fehler || 'Rechte-Änderung fehlgeschlagen', 'error');
       this.render();
       return;
     }
@@ -208,11 +202,7 @@ export class SharesAdminPage {
   }
 
   escape(str) {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+    return escapeHtml(str || '');
   }
 }
 

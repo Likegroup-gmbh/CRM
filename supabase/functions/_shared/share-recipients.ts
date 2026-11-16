@@ -1,78 +1,14 @@
-// Empfänger eines Zugangs: Listen-Link, Gast-Mail oder keine Mail.
-// Spiegelt src/modules/share/shareRecipientPlan.js.
+// Empfänger eines Zugangs aus der DB bestimmen: Kundenkonten und deren Zuordnung.
+// Die Entscheidung selbst liegt in share-recipients-plan.ts.
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { canSee, planShareRecipients } from './share-recipients-plan.ts';
+import type { RecipientPlan, Scope } from './share-recipients-plan.ts';
+
+export { accountListPath } from './share-recipients-plan.ts';
+export type { RecipientPlan } from './share-recipients-plan.ts';
 
 type Admin = ReturnType<typeof createClient>;
-
-export type RecipientPlan = {
-  listLink: string[];
-  guest: string[];
-  blocked: { email: string; reason: 'paket' | 'scope' }[];
-};
-
-type Scope = {
-  unternehmenId: string | null;
-  markeId: string | null;
-  markeUnternehmenId: string | null;
-  kampagneUnternehmenId: string | null;
-  kampagneMarkeId: string | null;
-  kampagneMarkeUnternehmenId: string | null;
-};
-
-const ACCOUNT_ROUTES: Record<string, (id: string) => string> = {
-  kampagne: (id) => `/kampagne/${id}`,
-  sourcing: (id) => `/castings/${id}`,
-  strategie: (id) => `/konzepte/${id}`,
-  skript: (id) => `/skripte/${id}`,
-};
-
-export function accountListPath(entityType: string, entityId: string): string | null {
-  const build = ACCOUNT_ROUTES[entityType];
-  if (!build || !entityId) return null;
-  return build(entityId);
-}
-
-function canSee(links: { unternehmenIds: string[]; markeIds: string[] }, scope: Scope | null): boolean {
-  if (!scope) return false;
-  const companies = new Set(links.unternehmenIds);
-  const brands = new Set(links.markeIds);
-  const hitCompany = (id: string | null) => Boolean(id) && companies.has(id as string);
-  const hitBrand = (id: string | null) => Boolean(id) && brands.has(id as string);
-  return hitCompany(scope.unternehmenId)
-    || hitBrand(scope.markeId)
-    || hitCompany(scope.markeUnternehmenId)
-    || hitCompany(scope.kampagneUnternehmenId)
-    || hitBrand(scope.kampagneMarkeId)
-    || hitCompany(scope.kampagneMarkeUnternehmenId);
-}
-
-export function planShareRecipients(
-  emails: string[],
-  customersByEmail: Record<string, { canSee: boolean }>,
-  entityType: string,
-): RecipientPlan {
-  const listLink: string[] = [];
-  const guest: string[] = [];
-  const blocked: RecipientPlan['blocked'] = [];
-  for (const email of emails) {
-    const customer = customersByEmail[email];
-    if (!customer) {
-      guest.push(email);
-      continue;
-    }
-    if (entityType === 'skript_paket') {
-      blocked.push({ email, reason: 'paket' });
-      continue;
-    }
-    if (!customer.canSee) {
-      blocked.push({ email, reason: 'scope' });
-      continue;
-    }
-    listLink.push(email);
-  }
-  return { listLink, guest, blocked };
-}
 
 async function one(admin: Admin, table: string, id: string, columns: string) {
   const { data, error } = await admin.from(table).select(columns).eq('id', id).maybeSingle();
@@ -177,44 +113,4 @@ export async function classifyShareEmails(
   }
 
   return planShareRecipients(normalized, customersByEmail, entityType);
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-export function accountLinkMail(params: {
-  entityLabel: string;
-  entityName: string;
-  url: string;
-  sharedByName: string;
-}): { betreff: string; html: string } {
-  const betreff = `${params.entityLabel} „${params.entityName}"`;
-  const html = `<!DOCTYPE html>
-<html lang="de">
-<head><meta charset="utf-8"><title>${escapeHtml(betreff)}</title></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;">
-    <tr><td align="center" style="padding:40px 20px;">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
-        <tr><td style="padding:32px 40px;color:#1a1a1a;font-size:15px;line-height:1.6;">
-          <h2 style="margin:0 0 16px 0;font-size:20px;">${escapeHtml(params.entityLabel)} „${escapeHtml(params.entityName)}"</h2>
-          <p style="margin:0 0 16px 0;">${escapeHtml(params.sharedByName)} hat Ihnen diese Liste geschickt. Sie haben bereits ein Kundenkonto. Öffnen Sie den Link und melden Sie sich an.</p>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
-            <tr><td style="border-radius:6px;background:#111111;">
-              <a href="${params.url}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">Liste öffnen</a>
-            </td></tr>
-          </table>
-          <p style="margin:0;color:#999;font-size:12px;">Falls der Button nicht funktioniert, kopieren Sie diesen Link:<br><a href="${params.url}" style="color:#111111;word-break:break-all;">${params.url}</a></p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-  return { betreff, html };
 }

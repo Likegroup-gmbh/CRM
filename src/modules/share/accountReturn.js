@@ -72,11 +72,21 @@ export function accountLoginBackUrl(pending) {
   return pending.back;
 }
 
-export async function customerCanOpenList(supabase, path) {
+/** RLS-Probe mit dem übergebenen Client: true/false, null wenn kein Listenpfad oder bei Fehler. */
+export async function listVisible(supabase, path) {
   const clean = String(path || '').split(/[?#]/)[0];
   const match = clean.match(/^\/(kampagne|castings|konzepte|skripte)\/([^/]+)$/);
-  if (!match || !isConcreteListPath(clean)) return true;
-  const { data, error } = await supabase.from(LIST_TABLES[match[1]]).select('id').eq('id', match[2]).maybeSingle();
-  if (error) return true;
-  return Boolean(data);
+  if (!match || !isConcreteListPath(clean)) return null;
+  try {
+    const { data, error } = await supabase.from(LIST_TABLES[match[1]]).select('id').eq('id', match[2]).maybeSingle();
+    if (error) return null;
+    return Boolean(data);
+  } catch {
+    return null;
+  }
+}
+
+/** Im Zweifel true: der Hinweis "nicht zugeordnet" kommt nur bei einer leeren Probe. */
+export async function customerCanOpenList(supabase, path) {
+  return (await listVisible(supabase, path)) !== false;
 }

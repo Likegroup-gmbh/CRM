@@ -3,7 +3,7 @@
 // Briefing: dieselbe Feld-Config wie intern (fieldConfig.js), ohne die internen Felder.
 // Produkt: Felder aus ProduktFormConfig, ohne Zuordnung, Personas und Liky.
 // Die serverseitige Allowlist (supabase/functions/einladung/felder.ts) muss dazu passen;
-// src/__tests__/Einladung.test.js gleicht beide ab.
+// src/__tests__/EinladungAllowlist.test.js gleicht beide ab.
 
 import { FLOW_STEPS, flattenFields } from '../briefing/create/fieldConfig.js';
 
