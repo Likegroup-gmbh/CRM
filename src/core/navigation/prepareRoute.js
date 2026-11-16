@@ -2,13 +2,21 @@
 
 import { currentTrail, nextTrail, replaceRoute, trailForRoute } from '../breadcrumbTrail.js';
 
+// Welche Produktionen ein Kampagnen-Gast tatsächlich öffnen kann, begrenzt die RLS (produktion_gast_select).
+const GAST_UNTERSEITEN = { kampagne: /^\/produktion\/[^/]+\/?$/ };
+
+function gastDarfRoute(share, path) {
+  const allowed = share.allowedRoute;
+  if (path === allowed || path.startsWith(`${allowed}/`)) return true;
+  return GAST_UNTERSEITEN[share.entityType]?.test(path) ?? false;
+}
+
 export async function prepareRoute(registry, route, skipPushState = false, options = {}) {
   const replace = options.replace === true;
   // Gast-Modus (Share-Link): strikt nur die geteilte Entität, keine anderen Routen
   if (window.guestShare) {
     const normalizedRoute = String(route || '').split(/[?#]/)[0];
-    const allowed = window.guestShare.allowedRoute;
-    if (normalizedRoute !== allowed && !normalizedRoute.startsWith(`${allowed}/`)) {
+    if (!gastDarfRoute(window.guestShare, normalizedRoute)) {
       console.log('🚫 Navigation blockiert: Gast-Zugang ist auf die geteilte Liste beschränkt');
       window.toastSystem?.show('Ihr Zugang ist auf die geteilte Liste beschränkt.', 'warning');
       return { proceed: false };

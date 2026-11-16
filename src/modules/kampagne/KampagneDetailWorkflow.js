@@ -100,16 +100,16 @@ export function getVisibleWorkflowTabs() {
 }
 
 /**
- * Initialen Tab bestimmen: ?tab= wenn bekannt + erlaubt, sonst Briefing
- * (oder der erste sichtbare Tab, falls Briefing nicht erlaubt ist).
+ * Initialen Tab bestimmen: ?tab= wenn bekannt + erlaubt, sonst Briefing, für Gäste
+ * Kooperationen (oder der erste sichtbare Tab, falls der nicht erlaubt ist).
  */
 export function resolveInitialWorkflowTab() {
   const fromUrl = getTabQueryParam();
   const normalized = WORKFLOW_TAB_ALIASES[fromUrl] || fromUrl;
   const visible = getVisibleWorkflowTabs().map(t => t.id);
   if (visible.includes(normalized)) return normalized;
-  if (visible.includes(DEFAULT_WORKFLOW_TAB)) return DEFAULT_WORKFLOW_TAB;
-  return visible[0] || DEFAULT_WORKFLOW_TAB;
+  const start = window.isGast?.() ? KOOPERATIONEN_TAB : DEFAULT_WORKFLOW_TAB;
+  return visible.includes(start) ? start : (visible[0] || DEFAULT_WORKFLOW_TAB);
 }
 
 /**
