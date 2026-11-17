@@ -185,7 +185,8 @@ export class ProjektErstellenEditLoader {
         erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null,
         notiz: tr.notiz || '',
         ueberwiesen: !!tr.ueberwiesen,
-        ueberwiesen_am: tr.ueberwiesen_am || null
+        ueberwiesen_am: tr.ueberwiesen_am || null,
+        fixiert: true
       }));
     }
 
@@ -207,7 +208,8 @@ export class ProjektErstellenEditLoader {
       erwarteter_monat_zahlungseingang: auftrag.erwarteter_monat_zahlungseingang || null,
       notiz: '',
       ueberwiesen: !!auftrag.ueberwiesen,
-      ueberwiesen_am: auftrag.ueberwiesen_am || null
+      ueberwiesen_am: auftrag.ueberwiesen_am || null,
+      fixiert: true
     }];
   }
 

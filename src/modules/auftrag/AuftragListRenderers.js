@@ -8,6 +8,24 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 import { getPaymentRowStatusClass, isInvoiceRowPaid } from './logic/PaymentRowStatus.js';
 import { resolveEmptyState } from '../../core/components/EmptyState.js';
+import { verteilungsStand } from '../../core/budget/teilrechnungVerteilung.js';
+import { formatEuro } from '../../core/format.js';
+
+// Admins sehen unter dem Netto, wie viel davon nicht auf Teilrechnungen verteilt ist.
+AuftragList.prototype.renderNettoZelle = function(auftrag) {
+  const netto = this.formatCurrency(auftrag.nettobetrag);
+  const trs = auftrag.teilrechnungen || [];
+  if (!this.isAdmin || trs.length === 0) return netto;
+
+  const stand = verteilungsStand(auftrag.nettobetrag, trs);
+  if (stand.ueberschuss > 0) {
+    return `${netto}<div class="auftrag-netto-verteilung auftrag-netto-verteilung--warnung">${formatEuro(stand.ueberschuss)} über Netto</div>`;
+  }
+  if (stand.offen > 0) {
+    return `${netto}<div class="auftrag-netto-verteilung">${formatEuro(stand.offen)} nicht verteilt</div>`;
+  }
+  return netto;
+};
 
 AuftragList.prototype.renderCreatedBy = function(user) {
   if (!user || !user.name) return '-';
@@ -175,7 +193,7 @@ AuftragList.prototype._renderLegacyRow = function(auftrag, actionEntity) {
     <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
     <td class="col-zahlungsziel">${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
     <td class="col-re-faelligkeit">${this.formatDate(auftrag.re_faelligkeit)}</td>
-    <td class="col-netto">${this.formatCurrency(auftrag.nettobetrag)}</td>
+    <td class="col-netto">${this.renderNettoZelle(auftrag)}</td>
     <td class="col-ust">${this.formatCurrency(auftrag.ust_betrag)}</td>
     <td class="col-brutto">${this.formatCurrency(auftrag.bruttobetrag)}</td>
     <td class="col-re-gestellt table-cell-center">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
@@ -224,7 +242,7 @@ AuftragList.prototype._renderAuftraegeRow = function(auftrag) {
     <td class="col-zahlungsziel">${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
     <td class="col-leistungszeitraum">${this.formatLeistungszeitraum(auftrag.start, auftrag.ende)}</td>
     <td class="col-teilrechnungen table-cell-center">${teilrechnungen}</td>
-    <td class="col-netto">${this.formatCurrency(auftrag.nettobetrag)}</td>
+    <td class="col-netto">${this.renderNettoZelle(auftrag)}</td>
     <td class="col-ust">${this.formatCurrency(auftrag.ust_betrag)}</td>
     <td class="col-brutto">${this.formatCurrency(auftrag.bruttobetrag)}</td>
     ${!this.isKunde ? `<td class="col-rechnungskontakte">${this.formatRechnungskontakte(auftrag._rechnungskontakte)}</td>` : ''}

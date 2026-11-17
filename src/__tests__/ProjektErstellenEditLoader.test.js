@@ -24,6 +24,14 @@ describe('ProjektErstellenEditLoader', () => {
     expect(mapped.kampagnenanzahl).toBe(1);
   });
 
+  it('mapTeilrechnungen fixiert gespeicherte und synthetische Teilrechnungen', () => {
+    const gespeichert = loader.mapTeilrechnungen([{ position: 1, nettobetrag: 500 }], { nettobetrag: 1000 });
+    const synthetisch = loader.mapTeilrechnungen([], { nettobetrag: 1000 });
+
+    expect(gespeichert[0].fixiert).toBe(true);
+    expect(synthetisch[0].fixiert).toBe(true);
+  });
+
   it('mapKampagnen uebernimmt Volumen und faellt bei Altbestand auf den Nettobetrag zurueck', () => {
     const mapped = loader.mapKampagnen(
       [{ id: 'k1', videoanzahl: 9, creatoranzahl: 3 }],
