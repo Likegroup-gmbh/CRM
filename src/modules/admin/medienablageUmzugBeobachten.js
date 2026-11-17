@@ -6,9 +6,18 @@
 
 import { postStand, zahl, uhrzeit } from './medienablageFormat.js';
 
-// Solange ein Medien- oder Dokument-Umzug offen ist, laedt die Seite den Stand in diesem Takt nach.
+// Solange ein Medien- oder Dokument-Umzug offen ist, laedt die Seite den Fortschritt in diesem Takt nach.
+// Der volle Stand kommt erst wieder, wenn nichts mehr offen ist: er rechnet alle Assets und Dokumente.
 export const UMZUG_POLL_MS = 3000;
 const UMZUG_LABEL = { medien: 'Umzug', dokumente: 'Dokument-Umzug' };
+
+// Zaehler je Unternehmen aus dem Teilstand uebernehmen, Reihenfolge und uebrige Eintraege bleiben
+function zaehlerErsetzen(alt, neu) {
+  const je = new Map((neu || []).map(u => [String(u.unternehmen_id), u]));
+  const liste = (alt || []).map(u => je.get(String(u.unternehmen_id)) || u);
+  const da = new Set(liste.map(u => String(u.unternehmen_id)));
+  return [...liste, ...(neu || []).filter(u => !da.has(String(u.unternehmen_id)))];
+}
 
 export function installUmzugBeobachten(proto) {
   Object.assign(proto, {
@@ -129,17 +138,37 @@ export function installUmzugBeobachten(proto) {
       this._umzugPoll = null;
     },
 
-    // Wie neuLaden, aber leise (kein Toast) und neu gerendert nur bei geaendertem Stand.
-    // Waehrend einer Aktion wartet es: die Aktion laedt danach selbst neu.
+    // Teilstand der Aktion fortschritt in den vollen Stand einarbeiten. Die Weichen und der
+    // Notschalter kommen mit, weil die Pause-Meldungen davon abhaengen.
+    fortschrittEinarbeiten(teil) {
+      const weiche = new Map((teil.weichen || []).map(w => [String(w.id), w]));
+      const mitWeiche = (liste, feld) => (liste || []).map(x => {
+        const w = weiche.get(String(x.id));
+        return w && w[feld] !== x[feld] ? { ...x, [feld]: w[feld] } : x;
+      });
+      return {
+        ...this.data,
+        einstellung: teil.einstellung || this.data?.einstellung,
+        unternehmen: mitWeiche(this.data?.unternehmen, 'ablage_ziel'),
+        dokumente: mitWeiche(this.data?.dokumente, 'dokument_ablage_ziel'),
+        umzug: zaehlerErsetzen(this.data?.umzug, teil.umzug),
+        dokument_umzug: zaehlerErsetzen(this.data?.dokument_umzug, teil.dokument_umzug),
+        umzug_meldungen: teil.umzug_meldungen || [],
+      };
+    },
+
+    // Wie neuLaden, aber leise (kein Toast), nur der Fortschritt und neu gerendert nur bei
+    // geaendertem Stand. Waehrend einer Aktion wartet es: die Aktion laedt danach selbst neu.
+    // Im Hintergrund-Tab fragt es nichts ab.
     async umzugNachladen() {
       const ladeId = this._ladeId;
-      if (this._busy) {
+      if (this._busy || document.hidden) {
         this.planeUmzugPoll();
         return;
       }
-      let data;
+      let teil;
       try {
-        data = await postStand(this.standAnfrage());
+        teil = await postStand({ ...this.standAnfrage(), aktion: 'fortschritt' });
       } catch (e) {
         if (ladeId !== this._ladeId) return;
         console.warn(`[Medienablage] Stand konnte nicht nachgeladen werden, neuer Versuch in ${UMZUG_POLL_MS / 1000} s: ${e?.message || e}`);
@@ -151,10 +180,13 @@ export function installUmzugBeobachten(proto) {
         this.planeUmzugPoll();
         return;
       }
+      const data = this.fortschrittEinarbeiten(teil);
       const geaendert = JSON.stringify(data) !== JSON.stringify(this.data);
       this.data = data;
       if (geaendert) this.render();
       this.umzugBeobachten();
+      // Fertig: einmal der volle Stand, damit Dateizahlen und Rest-Liste wieder stimmen
+      if (!this.umzugLaeuft()) await this.neuLaden();
     },
   });
 }
