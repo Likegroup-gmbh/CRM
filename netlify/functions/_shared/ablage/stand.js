@@ -77,14 +77,18 @@ function createStand({
     }));
   }
 
+  async function einstellungLaden() {
+    const einst = ergebnis(await supabase.from('ablage_einstellung').select('schluessel, wert').in('schluessel', Object.values(ziel.NOTSCHALTER)));
+    const an = (schluessel) => (einst || []).some((e) => e.schluessel === schluessel && e.wert === true);
+    return { notschalter: an(ziel.NOTSCHALTER.medien), notschalter_dokumente: an(ziel.NOTSCHALTER.dokumente) };
+  }
+
   async function stand({ umzug_ids: umzugIds } = {}) {
     const konfig = { konfiguriert: !!ablage, site_url: ablage?.konfig?.siteUrl || null, drive_id: driveId };
-    const [einst, staende] = await Promise.all([
-      supabase.from('ablage_einstellung').select('schluessel, wert').in('schluessel', Object.values(ziel.NOTSCHALTER)).then(ergebnis),
+    const [einstellung, staende] = await Promise.all([
+      einstellungLaden(),
       supabase.from('ablage_stand').select(STAND_SPALTEN).then(ergebnis),
     ]);
-    const an = (schluessel) => (einst || []).some((e) => e.schluessel === schluessel && e.wert === true);
-    const einstellung = { notschalter: an(ziel.NOTSCHALTER.medien), notschalter_dokumente: an(ziel.NOTSCHALTER.dokumente) };
     const basis = { konfig, einstellung, stand: staende || [] };
     if (!ablage) {
       return {
@@ -144,6 +148,36 @@ function createStand({
       umzug_meldungen: meldungen,
       umzug_rest: rest,
       final_spiegel: finalSpiegelStand,
+    };
+  }
+
+  /**
+   * Nachladen der Admin-Seite waehrend eines Umzugs: nur Zaehler, Meldungen und Weichen der
+   * beobachteten Unternehmen. Der volle Stand rechnet alle Assets und Dokumente und ist dafuer zu teuer.
+   */
+  async function fortschritt({ umzug_ids: umzugIds } = {}) {
+    const ids = [...new Set((Array.isArray(umzugIds) ? umzugIds : []).filter(istUuid))].slice(0, LISTE);
+    const leer = { einstellung: null, weichen: [], umzug: [], dokument_umzug: [], umzug_meldungen: [] };
+    if (!ablage || !ids.length) return leer;
+    const [einstellung, firmen, zeilen, meldungen] = await Promise.all([
+      einstellungLaden(),
+      supabase.from('unternehmen').select('id, ablage_ziel, dokument_ablage_ziel').in('id', ids).then(ergebnis),
+      supabase.rpc('ablage_umzug_fortschritt', { p_drive_id: driveId, p_ids: ids }).then(ergebnis),
+      umzugMeldungen(ids),
+    ]);
+    const n = (v) => Number(v) || 0;
+    const zaehler = (z) => ({
+      unternehmen_id: z.unternehmen_id, offen: n(z.offen), fertig: n(z.fertig), fehler: n(z.fehler), uebersprungen: n(z.uebersprungen),
+    });
+    const je = (bereich) => (zeilen || []).filter((z) => z.bereich === bereich).map(zaehler);
+    return {
+      einstellung,
+      weichen: (firmen || []).map((u) => ({
+        id: u.id, ablage_ziel: u.ablage_ziel || 'dropbox', dokument_ablage_ziel: u.dokument_ablage_ziel || 'dropbox',
+      })),
+      umzug: je('medien'),
+      dokument_umzug: je('dokumente'),
+      umzug_meldungen: meldungen,
     };
   }
 
@@ -275,13 +309,13 @@ function createStand({
   }
 
   return {
-    stand, notschalter, weiche, erneut, ignorieren, jetzt_abgleichen, voll_abgleich, umzug_starten, dokument_umzug_starten,
+    stand, fortschritt, notschalter, weiche, erneut, ignorieren, jetzt_abgleichen, voll_abgleich, umzug_starten, dokument_umzug_starten,
     umsortieren_planen, umsortieren_starten, final_spiegel_planen, final_spiegel_starten,
   };
 }
 
 const AKTIONEN = new Set([
-  'stand', 'notschalter', 'weiche', 'erneut', 'ignorieren', 'jetzt_abgleichen', 'voll_abgleich', 'umzug_starten',
+  'stand', 'fortschritt', 'notschalter', 'weiche', 'erneut', 'ignorieren', 'jetzt_abgleichen', 'voll_abgleich', 'umzug_starten',
   'dokument_umzug_starten', 'umsortieren_planen', 'umsortieren_starten', 'final_spiegel_planen', 'final_spiegel_starten',
 ]);
 
