@@ -83,7 +83,10 @@ export const blocksPersistenzMethoden = {
           return;
         }
         this.rev = res.rev;
-        if (this.view.skript?.id === skriptId) this.view.skript.dokument_bloecke_rev = res.rev;
+        if (this.view.skript?.id === skriptId) {
+          this.view.skript.dokument_bloecke_rev = res.rev;
+          skripteService.quittiereUploadPruefung(this.view.skript).catch(() => {});
+        }
       } catch (err) {
         if (skriptId === this.skriptId) this.dirty = true;
         window.toastSystem?.error(`Dokument nicht gespeichert: ${err.message}`);

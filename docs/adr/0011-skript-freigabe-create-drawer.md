@@ -4,6 +4,8 @@ Der alte Generator unter `/skripte/new` hat Unternehmen, Marke, Kampagne, Briefi
 
 `strategie_items.skript_freigabe` ist das Gate für Neuanlage, nicht `kooperation_videos.skript_freigegeben` (das ist die Freigabe des fertigen Skripts am Video). Altbestand ist bewusst nicht freigegeben.
 
+Ausnahme ist der Skript-Upload aus Word oder PDF: Konzept Pflicht, Videoidee optional, keine Rückfragen und kein Entwurf von Liky (ADR 0073).
+
 Der Drawer fragt nur Unternehmen, Konzept und Videoidee. Marke, Kampagne, Briefing, Bereich, Branche und Persona kommen aus Videoidee → Konzept → Casting-Eintrag. Produkt nur bei genau einem accepted Fit der Persona, sonst leer. Skript-DNA wird nicht gewählt (`mit_dna: false`) – Generate läuft über das Master-Regelwerk (`basis` + Briefing-Bereich).
 
 ## Considered Options
