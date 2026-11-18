@@ -18,18 +18,18 @@ const TEXTFELDER = [
 
 const TOOL = {
   name: 'skript_zuordnen',
-  description: 'Ordnet den Wortlaut des PDFs den Skript-Zellen zu, ohne ihn umzuformulieren.',
+  description: 'Ordnet den Wortlaut der Datei den Skript-Zellen zu, ohne ihn umzuformulieren, mit Fett und Kursiv als Markdown.',
   input_schema: {
     type: 'object',
     additionalProperties: false,
     properties: {
       ...Object.fromEntries(TEXTFELDER.map((feld) => [feld, {
         type: 'string',
-        description: 'Wortlaut oder leer, wenn die Zelle im PDF fehlt.'
+        description: 'Wortlaut mit **fett**, *kursiv* und ***fett kursiv*** wie in der Datei, oder leer, wenn die Zelle fehlt.'
       }])),
       rest: {
         type: 'array',
-        description: 'Text, der in keine Zelle gehört, in Lesereihenfolge.',
+        description: 'Text, der in keine Zelle gehört, in Lesereihenfolge, mit Fett und Kursiv als Markdown.',
         items: {
           type: 'object',
           properties: {
@@ -58,7 +58,10 @@ const SYSTEM = [
   'Bilder beschreibst du nicht.',
   'Stehen mehrere Skripte in der Datei, übernimmst du nur eins: das, welches der Hinweis des Teams nennt, sonst das erste.',
   'Der Hinweis bestimmt, welcher Teil übernommen wird und wo Zellen stehen. Am Wortlaut ändert er nichts.',
-  'Word-Text kommt als Markdown: **fett** und *kursiv* übernimmst du mit den Sternchen, Tabellenzeilen stehen als | Zelle | Zelle |.'
+  'Formatierung übernimmst du als Markdown: fett als **Text**, kursiv als *Text*, fett und kursiv als ***Text***.',
+  'Im PDF erkennst du sie am Schriftbild der Seite. Markiere genau die Wörter, die so gesetzt sind, auch einzelne Wörter mitten im Satz, und keine anderen.',
+  'Die Marker stehen direkt am Wort, ohne Leerzeichen dazwischen.',
+  'Word-Text kommt bereits als Markdown: die Sternchen übernimmst du unverändert, Tabellenzeilen stehen als | Zelle | Zelle |.'
 ].join(' ');
 
 function liesAuftrag({ text, hinweis }) {
@@ -214,5 +217,6 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   }
 });
 
+exports.SYSTEM = SYSTEM;
 exports.liesAuftrag = liesAuftrag;
 exports.wordBildBloecke = wordBildBloecke;

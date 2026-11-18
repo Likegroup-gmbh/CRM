@@ -16,7 +16,7 @@ vi.mock('../modules/skripte/upload/liesDocx.js', () => ({
 const { skripteUploadDatenMethoden } = await import('../modules/skripte/service/skripteUploadDaten.js');
 const require = createRequire(import.meta.url);
 const { buildKontextText } = require('../../netlify/functions/_shared/skript-context.js');
-const { liesAuftrag, wordBildBloecke } = require('../../netlify/functions/skript-upload-pdf-background.js');
+const { SYSTEM, liesAuftrag, wordBildBloecke } = require('../../netlify/functions/skript-upload-pdf-background.js');
 
 describe('Hinweis in Rückfragen und Erstellung', () => {
   it('steht abgegrenzt im Kontext', () => {
@@ -39,6 +39,11 @@ describe('Hinweis beim Lesen der Datei', () => {
 
   it('PDF ohne Hinweis bleibt der kurze Auftrag', () => {
     expect(liesAuftrag({ text: '', hinweis: '' })).not.toMatch(/dokument|HINWEIS/);
+  });
+
+  it('Liky übernimmt Fett und Kursiv auch aus dem PDF', () => {
+    expect(SYSTEM).toContain('***Text***');
+    expect(SYSTEM).toContain('Im PDF erkennst du sie am Schriftbild');
   });
 
   it('übernimmt nur Bilder dieses Skripts', () => {
