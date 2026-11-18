@@ -19,89 +19,14 @@ import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
-import { icon } from '../../core/icons/IconSystem.js';
-
-const CHECK_ICON = `
-  ${icon('check-bold')}`;
+import { resetKooperationFilter } from './kooperationFilterSpalte.js';
+import { skriptGeloescht, skriptOffen, skripteTabUrl } from './KampagneDetailSkripte.js';
 
 function initToolbarMenu(signal) {
   document.querySelectorAll('.page-header-right .toolbar-menu').forEach(menu => {
     const cleanup = bindToolbarMenu(menu);
     signal.addEventListener('abort', cleanup, { once: true });
   });
-}
-
-// Filter-Auswahl (Status/Tags) in den Store schreiben, Submenu-DOM syncen
-// und die Kooperations-Ansicht neu filtern.
-function applyFilterSelection(detail, key, values) {
-  const store = detail.store;
-  if (!store) return;
-  if (key === 'status') store.setSelectedStatuses(values);
-  else store.setSelectedTags(values);
-  syncFilterSubmenu(key, values);
-  refreshKooperationenView(detail);
-}
-
-function syncFilterSubmenu(key, selected) {
-  const submenu = document.querySelector(`[data-filter-submenu="${key}"]`);
-  if (!submenu) return;
-  const hasActive = selected.length > 0;
-
-  const trigger = submenu.querySelector('.action-item.has-submenu');
-  if (trigger) trigger.classList.toggle('active', hasActive);
-
-  const panel = submenu.querySelector('.submenu');
-  if (!panel) return;
-
-  let resetBtn = panel.querySelector('[data-filter-reset]');
-  if (hasActive && !resetBtn) {
-    resetBtn = document.createElement('button');
-    resetBtn.type = 'button';
-    resetBtn.className = 'submenu-item submenu-reset';
-    resetBtn.dataset.filterReset = key;
-    resetBtn.setAttribute('role', 'menuitem');
-    resetBtn.textContent = 'Alle zurücksetzen';
-    panel.prepend(resetBtn);
-  } else if (!hasActive && resetBtn) {
-    resetBtn.remove();
-  }
-
-  syncSubmenuChecks(panel, `.submenu-item[data-filter-value]`, (item) =>
-    selected.includes(item.dataset.filterValue)
-  );
-}
-
-function syncSortSubmenu(currentSort) {
-  const submenu = document.querySelector('[data-sort-submenu]');
-  if (!submenu) return;
-  syncSubmenuChecks(submenu, '.submenu-item[data-sort-value]', (item) =>
-    item.dataset.sortValue === currentSort
-  );
-}
-
-function syncSubmenuChecks(root, selector, isActiveFn) {
-  root.querySelectorAll(selector).forEach(item => {
-    const isActive = isActiveFn(item);
-    item.setAttribute('aria-checked', isActive ? 'true' : 'false');
-    let check = item.querySelector('.submenu-check');
-    if (isActive && !check) {
-      check = document.createElement('span');
-      check.className = 'submenu-check';
-      check.innerHTML = CHECK_ICON;
-      item.appendChild(check);
-    } else if (!isActive && check) {
-      check.remove();
-    }
-  });
-}
-
-function closeToolbarMenu(root) {
-  const dropdown = root?.querySelector('.toolbar-menu-dropdown');
-  const toggle = root?.querySelector('.toolbar-menu-toggle');
-  if (!dropdown || !toggle) return;
-  dropdown.classList.remove('show');
-  toggle.setAttribute('aria-expanded', 'false');
-  dropdown.setAttribute('aria-hidden', 'true');
 }
 
 function refreshKooperationenView(detail) {
@@ -192,15 +117,25 @@ export function setupEvents(detail) {
     const loeschen = e.target.closest('[data-produktion-loeschen]');
     if (loeschen) {
       e.preventDefault();
+      const produktionId = loeschen.dataset.produktionLoeschen;
+      const produktion = (detail.produktionen || []).find(row => row.id === produktionId)
+        || (detail.produktion?.id === produktionId ? detail.produktion : null);
+      const hatLinien = (produktion?.linien || []).length > 0;
       const { deleteProduktion } = await import('../produktion/ProduktionService.js');
       const { confirmDanger } = await import('../../core/actions/actionDelete.js');
       if (!await confirmDanger({
         title: 'Produktion löschen',
-        message: 'Möchten Sie diese leere Produktion wirklich löschen?'
+        message: hatLinien
+          ? 'Möchten Sie diese Produktion wirklich löschen? Briefing, Casting, Konzept und Skripte werden mit gelöscht.'
+          : 'Möchten Sie diese leere Produktion wirklich löschen?'
       })) return;
       try {
-        await deleteProduktion(loeschen.dataset.produktionLoeschen);
+        await deleteProduktion(produktionId);
         window.toastSystem?.show('Produktion gelöscht', 'success');
+        if (detail.mode === 'workflow') {
+          window.navigateTo(`/kampagne/${detail.kampagneId}`);
+          return;
+        }
         await detail.loadCriticalData();
         detail.render();
       } catch (error) {
@@ -245,39 +180,6 @@ export function setupEvents(detail) {
   // Ein document-Click statt einem Listener pro Aktion. Reihenfolge wie vorher,
   // erster Treffer gewinnt. Selektoren überlappen sich nicht.
   document.addEventListener('click', (e) => {
-    const filterReset = e.target.closest('[data-filter-reset]');
-    if (filterReset) {
-      e.preventDefault();
-      applyFilterSelection(detail, filterReset.dataset.filterReset, []);
-      return;
-    }
-
-    const filterItem = e.target.closest('.submenu-item[data-filter-key]');
-    if (filterItem) {
-      e.preventDefault();
-      const key = filterItem.dataset.filterKey;
-      const value = filterItem.dataset.filterValue;
-      const store = detail.store;
-      if (!key || value == null || !store) return;
-      const current = key === 'status' ? store.selectedStatuses : store.selectedTags;
-      const next = current.includes(value)
-        ? current.filter(v => v !== value)
-        : [...current, value];
-      applyFilterSelection(detail, key, next);
-      return;
-    }
-
-    const sortItem = e.target.closest('.submenu-item[data-sort-value]');
-    if (sortItem) {
-      e.preventDefault();
-      const value = sortItem.dataset.sortValue;
-      detail.store?.setKooperationSort(value);
-      syncSortSubmenu(value);
-      refreshKooperationenView(detail);
-      closeToolbarMenu(sortItem.closest('.toolbar-menu'));
-      return;
-    }
-
     const filterTab = e.target.closest('.kampagne-filter-tabs .tab-button');
     if (filterTab) {
       e.preventDefault();
@@ -326,7 +228,10 @@ export function setupEvents(detail) {
         return;
       }
       const link = e.target.closest('.table-link[data-table][data-id]');
-      const route = link && getWorkflowTableRoute(link.dataset.table, link.dataset.id);
+      const imSkripteTab = link?.dataset.table === 'skripte' && detail.mode === 'workflow';
+      const route = link && (imSkripteTab
+        ? skripteTabUrl(detail, link.dataset.id)
+        : getWorkflowTableRoute(link.dataset.table, link.dataset.id));
       if (route) {
         e.preventDefault();
         window.navigateTo(route);
@@ -337,10 +242,7 @@ export function setupEvents(detail) {
     const emptyReset = e.target.closest('[data-empty-action="reset-filters"]');
     if (emptyReset) {
       e.preventDefault();
-      detail.store?.setSelectedStatuses([]);
-      detail.store?.setSelectedTags([]);
-      syncFilterSubmenu('status', []);
-      syncFilterSubmenu('tag', []);
+      resetKooperationFilter(detail);
       clearKooperationenSearch(detail);
       refreshKooperationenView(detail);
       return;
@@ -430,7 +332,8 @@ export function setupEvents(detail) {
   // Soft-Refresh
   window.addEventListener('softRefresh', async () => {
     const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
-    if (hasActiveForm) return;
+    // Der Skript-Editor hält eigene Realtime-Daten und ungespeicherte Eingaben
+    if (hasActiveForm || skriptOffen(detail)) return;
     const path = location.pathname;
     if (!detail.kampagneId || (!path.includes('/kampagne/') && !path.includes('/produktion/'))) return;
 
@@ -461,7 +364,7 @@ export function setupEvents(detail) {
   window.addEventListener('entityUpdated', (e) => {
     if (e.detail?.entity !== 'skripte' || e.detail.action !== 'deleted' || !e.detail.id) return;
     syncSkriptGeloeschtLocal(detail, e.detail.id);
-    if (detail._workflowData?.skripte) void reloadWorkflowPane(detail, 'skripte');
+    skriptGeloescht(detail, e.detail.id);
   }, { signal });
 
   window.addEventListener('vertrag-signed-action', (e) => {

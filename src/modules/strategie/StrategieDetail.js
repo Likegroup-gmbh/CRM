@@ -23,6 +23,7 @@ import { KonzeptLikyPanel } from './KonzeptLikyPanel.js';
 import { isVideoideeVorschlag } from './videoideeVorschlag.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 import { mergeRealtimeRow as mergeProtectedText } from '../../core/table/textFieldBaseline.js';
+import { syncKonzeptTableFilter } from './strategieFilterSpalte.js';
 
 const REALTIME_JOINS = ['produkt', 'casting_eintrag', 'creator'];
 
@@ -67,6 +68,7 @@ export class StrategieDetail {
     this.root = null;
     this.chromeRoot = null;
     this.embedded = false;
+    this.tableFilter = null;
   }
 
   _getRoot() {
@@ -129,6 +131,8 @@ export class StrategieDetail {
 
   async init(strategieId, { root, chromeRoot, embedded } = {}) {
     this.strategieId = strategieId;
+    this.tableFilter?.destroy();
+    this.tableFilter = null;
     this.root = root || window.content;
     this.chromeRoot = chromeRoot || null;
     this.embedded = !!embedded;
@@ -188,21 +192,29 @@ export class StrategieDetail {
   }
 
   async render() {
-    const showActions = this.canEdit || this.canCreate;
     const rootEl = this._getRoot();
     if (!rootEl) return;
+    syncKonzeptTableFilter(this);
+    const table = this.tableFilter.renderLayout(this.renderItemsTable());
+    const mountFilter = () => this.tableFilter.mount({
+      root: rootEl,
+      toggleRoot: this.chromeRoot,
+      onChange: () => this.rerenderItemsTable()
+    });
 
     if (this.embedded && this.chromeRoot) {
-      this.chromeRoot.innerHTML = showActions ? this.renderAddItemActions() : '';
-      rootEl.innerHTML = this.renderItemsTable();
+      this.chromeRoot.innerHTML = this.renderAddItemActions();
+      rootEl.innerHTML = table;
+      mountFilter();
       return;
     }
 
     rootEl.innerHTML = `
       ${this.renderHeader()}
-      ${showActions ? this.renderAddItemSection() : ''}
-      ${this.renderItemsTable()}
+      ${this.renderAddItemSection()}
+      ${table}
     `;
+    mountFilter();
 
     const addSection = rootEl.querySelector('.add-item-section--compact');
     if (addSection) {
@@ -216,6 +228,8 @@ export class StrategieDetail {
   }
 
   renderAddItemActions() {
+    const toggle = this.tableFilter?.renderToggle() || '';
+    if (!this.canEdit && !this.canCreate) return toggle;
     const shareIcon = `
       <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
         <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1-11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
@@ -242,6 +256,7 @@ export class StrategieDetail {
     }) : '';
 
     return `
+          ${toggle}
           ${primary}
           <div id="videoidee-vorschlag-block"></div>
           ${menu}
@@ -692,6 +707,7 @@ export class StrategieDetail {
   destroy() {
     if (this._tornDown) return;
     this._tornDown = true;
+    this.tableFilter?.destroy();
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this._cleanupTableEvents();

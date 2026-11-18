@@ -1,11 +1,10 @@
 // CastingDetailBulk.js
-// Auswahl, Statusfilter im Toolbar-Menue und Bulk-Kategorie
+// Auswahl, Toolbar-Menue und Bulk-Kategorie
 // (Prototype-Mixin von CreatorAuswahlDetail)
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { bindToolbarMenu as attachToolbarMenu } from '../../core/components/ToolbarMenu.js';
-import { icon } from '../../core/icons/IconSystem.js';
 import { SelectionBar, bindCheckboxSelection } from '../../core/list/SelectionBar.js';
 import { QUICK_ADD_FORM, QUICK_ADD_INPUT } from './CastingDetailQuickAdd.js';
 import { listeHatTiktok } from './castingDetailDrawerView.js';
@@ -202,80 +201,6 @@ export function bindToolbarMenu() {
   if (!menu || !dropdown) return;
 
   this._boundEventListeners.add(attachToolbarMenu(menu));
-
-  const statusFilterHandler = (e) => {
-    const reset = e.target.closest('[data-status-filter-reset]');
-    if (reset) {
-      e.preventDefault();
-      e.stopPropagation();
-      this.statusFilter = [];
-      this._syncStatusFilterSubmenu();
-      this.rerenderTable();
-      return;
-    }
-
-    const item = e.target.closest('.submenu-item[data-status-tag]');
-    if (!item) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const tag = item.dataset.statusTag;
-    if (!tag) return;
-
-    if (this.statusFilter.includes(tag)) {
-      this.statusFilter = this.statusFilter.filter(t => t !== tag);
-    } else {
-      this.statusFilter = [...this.statusFilter, tag];
-    }
-    this._syncStatusFilterSubmenu();
-    this.rerenderTable();
-  };
-  dropdown.addEventListener('click', statusFilterHandler);
-  this._boundEventListeners.add(() => dropdown.removeEventListener('click', statusFilterHandler));
-}
-
-export function _syncStatusFilterSubmenu() {
-  const submenu = this._q('.sourcing-status-filter-submenu');
-  if (!submenu) return;
-
-  const trigger = submenu.querySelector('.action-item.has-submenu');
-  if (trigger) trigger.classList.toggle('active', this.statusFilter.length > 0);
-
-  const panel = submenu.querySelector('.submenu');
-  if (!panel) return;
-
-  let resetBtn = panel.querySelector('[data-status-filter-reset]');
-  if (this.statusFilter.length > 0) {
-    if (!resetBtn) {
-      resetBtn = document.createElement('button');
-      resetBtn.type = 'button';
-      resetBtn.className = 'submenu-item sourcing-status-filter-reset';
-      resetBtn.setAttribute('data-status-filter-reset', '');
-      resetBtn.setAttribute('role', 'menuitem');
-      resetBtn.textContent = 'Alle zurücksetzen';
-      panel.prepend(resetBtn);
-    }
-  } else if (resetBtn) {
-    resetBtn.remove();
-  }
-
-  const checkHtml = `
-    ${icon('check-bold')}`;
-
-  panel.querySelectorAll('.submenu-item[data-status-tag]').forEach(item => {
-    const tag = item.dataset.statusTag;
-    const isActive = this.statusFilter.includes(tag);
-    item.setAttribute('aria-checked', isActive ? 'true' : 'false');
-    let check = item.querySelector('.submenu-check');
-    if (isActive && !check) {
-      check = document.createElement('span');
-      check.className = 'submenu-check';
-      check.innerHTML = checkHtml;
-      item.appendChild(check);
-    } else if (!isActive && check) {
-      check.remove();
-    }
-  });
 }
 
 export async function handleBulkKategorieAssign() {
@@ -378,7 +303,6 @@ export const castingDetailBulkMethods = {
   updateBulkBar,
   clearSelection,
   bindToolbarMenu,
-  _syncStatusFilterSubmenu,
   handleBulkKategorieAssign,
   handleBulkDelete
 };

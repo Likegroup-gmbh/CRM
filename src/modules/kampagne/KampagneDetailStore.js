@@ -10,9 +10,10 @@ import {
 } from '../../core/VideoFeedbackBuckets.js';
 import { sortKooperationen } from './KooperationSortHelper.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
+import { filterRows } from '../../core/filterColumn/filterRows.js';
+import { isActive } from '../../core/filterColumn/filterColumnValues.js';
+import { DEFAULT_KOOPERATION_SORT, kooperationFilterDefs } from './kooperationFilterSpalte.js';
 
-
-const DEFAULT_KOOPERATION_SORT = 'created_desc';
 // Custom-Column-Typen, die in die Freitextsuche einfliessen.
 const SEARCHABLE_CUSTOM_TYPES = new Set(['text', 'comment', 'dropdown']);
 
@@ -31,8 +32,7 @@ export class KampagneDetailStore {
     this.statusOptions = [];
 
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
-    this.selectedTags = [];
-    this.selectedStatuses = [];
+    this.columnFilters = {};       // Werte der Filterspalte, { [filterId]: value }
     this.searchQuery = '';
     this.rechnungStatusMap = {};
 
@@ -190,15 +190,8 @@ export class KampagneDetailStore {
     } else if (tab === 'abgeschlossen') {
       filtered = filtered.filter(k => this.areAllVideosApproved(k.id));
     }
-    if (this.selectedTags.length > 0) {
-      filtered = filtered.filter(k =>
-        (k._tags || []).some(tag => this.selectedTags.includes(tag))
-      );
-    }
-    if (this.selectedStatuses.length > 0) {
-      filtered = filtered.filter(k =>
-        this.selectedStatuses.includes(k.status_name || k.status_ref?.name || '')
-      );
+    if (this.hasColumnFilters()) {
+      filtered = filterRows(filtered, kooperationFilterDefs({ store: this }), this.columnFilters);
     }
     if ((this.searchQuery || '').trim()) {
       filtered = filtered.filter(k => this.matchesSearch(k));
@@ -206,20 +199,28 @@ export class KampagneDetailStore {
     return filtered;
   }
 
-  setSelectedTags(tags) {
-    this.selectedTags = tags || [];
-    this.emit('tags-filter-changed', this.selectedTags);
+  /** Gewählte Tags der Filterspalte; danach rechnen auch die Summary-Karten. */
+  getSelectedTags() {
+    const tags = this.columnFilters.tag;
+    return Array.isArray(tags) ? tags : [];
+  }
+
+  /** Werte der Filterspalte übernehmen. Ändern sich die Tags, ziehen die Karten nach. */
+  setColumnFilters(values) {
+    const vorher = this.getSelectedTags().join('\u0000');
+    this.columnFilters = { ...(values || {}) };
+    this.emit('column-filters-changed', this.columnFilters);
+    if (this.getSelectedTags().join('\u0000') !== vorher) {
+      this.emit('tags-filter-changed', this.getSelectedTags());
+    }
+  }
+
+  hasColumnFilters() {
+    return Object.values(this.columnFilters).some(isActive);
   }
 
   hasActiveFilters() {
-    return this.selectedTags.length > 0
-      || this.selectedStatuses.length > 0
-      || (this.searchQuery || '').trim().length > 0;
-  }
-
-  setSelectedStatuses(statuses) {
-    this.selectedStatuses = statuses || [];
-    this.emit('status-filter-changed', this.selectedStatuses);
+    return this.hasColumnFilters() || (this.searchQuery || '').trim().length > 0;
   }
 
   setSearchQuery(query) {
@@ -292,9 +293,10 @@ export class KampagneDetailStore {
    * kskUmgebucht bleibt global, weil es die Budget-Basis (Soll) bildet.
    */
   calculateFilteredSummary() {
-    if (this.selectedTags.length === 0) return this.calculateSummary();
+    const tags = this.getSelectedTags();
+    if (tags.length === 0) return this.calculateSummary();
     const koops = this.kooperationen.filter(k =>
-      (k._tags || []).some(tag => this.selectedTags.includes(tag))
+      (k._tags || []).some(tag => tags.includes(tag))
     );
     const videosByKoopId = {};
     for (const k of koops) {
@@ -618,8 +620,7 @@ export class KampagneDetailStore {
     this.customColumnAssets = {};
     this.columnOrder = null;
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
-    this.selectedTags = [];
-    this.selectedStatuses = [];
+    this.columnFilters = {};
     this.searchQuery = '';
     this._loadedAssetVideoIds.clear();
   }

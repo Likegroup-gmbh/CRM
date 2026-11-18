@@ -46,11 +46,11 @@ export function renderToolbarMenuItem({ id, label, icon = '', title = '', active
     </button>`;
 }
 
-export function renderToolbarMenu({ toggleId, toggleTitle = 'Weitere Aktionen', itemsHtml = '', badgeHtml = '' } = {}) {
+export function renderToolbarMenu({ toggleId, toggleTitle = 'Weitere Aktionen', toggleIcon = PLUS_ICON, itemsHtml = '', badgeHtml = '' } = {}) {
   return `
     <div class="toolbar-menu">
       <button type="button" class="toolbar-menu-toggle"${toggleId ? ` id="${escapeHtml(toggleId)}"` : ''} aria-expanded="false" aria-haspopup="true" title="${escapeHtml(toggleTitle)}" aria-label="${escapeHtml(toggleTitle)}">
-        ${PLUS_ICON}
+        ${toggleIcon}
         ${badgeHtml}
       </button>
       <div class="toolbar-menu-dropdown" role="menu" aria-hidden="true">

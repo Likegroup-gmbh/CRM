@@ -18,7 +18,6 @@ describe('CreatorAuswahlDetail – Kundenfeedback haelt die Scrollposition', () 
     detail.items = [{ id: '1', name: 'Anna', prio_1: false, prio_2: false, abgelehnt: false }];
     detail.activeTab = 'alle';
     detail.searchQuery = '';
-    detail.statusFilter = [];
     detail.liste = { teilbereich: '' };
     detail.hiddenColumns = [];
     // Re-Render nicht wirklich ausfuehren - getestet wird der Scroll-Vertrag.

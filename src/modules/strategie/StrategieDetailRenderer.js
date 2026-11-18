@@ -111,8 +111,9 @@ function domSpaltenfolge(detail) {
 }
 
 export function renderItemsTable(detail) {
-  const { vorschlaege, rest } = splitVideoideeVorschlaege(detail.items);
-  if (rest.length === 0 && vorschlaege.length === 0) {
+  const { vorschlaege, rest: alle } = splitVideoideeVorschlaege(detail.items);
+  const rest = detail.tableFilter ? detail.tableFilter.apply(alle) : alle;
+  if (alle.length === 0 && vorschlaege.length === 0) {
     return `
       <div class="table-container table-container--empty">
         ${renderEmptyState({
@@ -120,6 +121,13 @@ export function renderItemsTable(detail) {
           title: 'Noch keine Videos hinzugefügt',
           text: !detail.isKunde ? 'Über Hinzufügen oder Ideen vorschlagen' : ''
         })}
+      </div>
+    `;
+  }
+  if (rest.length === 0 && vorschlaege.length === 0) {
+    return `
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({ icon: 'filter', title: 'Keine Videoideen für die gewählten Filter' })}
       </div>
     `;
   }
@@ -245,10 +253,12 @@ export function renderGroupedItems(detail, groupedItems, colCount, vorschlaege =
   if (!alleKategorien.includes('Ohne Kategorie')) {
     alleKategorien.push('Ohne Kategorie');
   }
-  
+  const gefiltert = !!detail.tableFilter?.hasActiveFilters();
+
   return vorschlagBlock + alleKategorien.map(kategorie => {
     const items = groupedItems[kategorie] || [];
     const isEmpty = items.length === 0;
+    if (isEmpty && gefiltert) return '';
     
     return `
       <tr class="category-header-row ${isEmpty ? 'category-empty' : ''}" data-kategorie="${escapeAttr(kategorie)}">
@@ -635,6 +645,8 @@ export function renderItemRow(detail, item, index) {
   // deckt beide ab, deshalb blockt !canEdit nur Nicht-Kunden.
   const readonly = !!window.isGastReadonly?.() || (!detail.isKunde && !detail.canEdit);
   const showWriteCols = !detail.isKunde && !!detail.canEdit;
+  // Eine andere Sortierung als „Manuell“ ordnet nur die Ansicht; Ziehen würde sie speichern.
+  const canDrag = showWriteCols && !isVorschlag && (detail.tableFilter?.isManualSort() ?? true);
   const vorschlagReadonly = readonly || isVorschlag;
   // Umgesetzt-Toggle: eigene Feld-Capability (Kunde darf, Investor nicht).
   // Fallback auf das bisherige Verhalten, wenn das PermissionSystem die
@@ -645,7 +657,7 @@ export function renderItemRow(detail, item, index) {
 
   const rowClasses = [
     'item-row',
-    showWriteCols && !isVorschlag ? 'draggable' : '',
+    canDrag ? 'draggable' : '',
     isIdea ? 'idea-row' : '',
     isUmgesetzt ? 'strategie-item-umgesetzt' : '',
     item.nicht_umsetzen ? 'item-nicht-umsetzen' : '',
@@ -662,8 +674,8 @@ export function renderItemRow(detail, item, index) {
         </span>
       </td>
       ${showWriteCols ? `
-        <td class="col-drag ${isVorschlag ? '' : 'drag-handle'}">
-          ${isVorschlag ? '' : icon('bars-3')}
+        <td class="col-drag ${canDrag ? 'drag-handle' : ''}">
+          ${canDrag ? icon('bars-3') : ''}
         </td>
       ` : ''}
       ${cols.creator ? renderCreatorBildCell(item) + renderCreatorCell(detail, item, vorschlagReadonly) : ''}

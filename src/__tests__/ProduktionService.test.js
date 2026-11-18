@@ -120,33 +120,60 @@ describe('Lösch-Gates', () => {
     await expect(deleteLinieInhalt('b1')).rejects.toThrow(/Kooperationen/);
   });
 
-  it('löscht Skripte, Konzept und Casting einer Linie ohne Kooperationen', async () => {
-    const deleted = [];
-    const base = countQuery({});
+  it('löst das Casting-Konzept-Paar, bevor es Skripte, Konzept und Casting löscht', async () => {
+    const ops = [];
     window.supabase = {
       from: vi.fn((table) => {
-        const query = base(table);
-        query.delete = vi.fn(() => ({
-          eq: vi.fn((col, val) => { deleted.push([table, col, val]); return Promise.resolve({ error: null }); })
-        }));
+        const state = { op: 'select', head: false, filters: {}, payload: null };
+        const finish = () => {
+          ops.push({ table, op: state.op, filters: { ...state.filters }, payload: state.payload });
+          const data = state.head || state.op !== 'select'
+            ? null
+            : (table === 'strategie' ? [{ id: 'konzept-1' }] : table === 'creator_auswahl' ? [{ id: 'casting-1' }] : []);
+          return Promise.resolve({ data, count: 0, error: null });
+        };
+        const query = {
+          select: vi.fn((_cols, opts) => { state.head = Boolean(opts?.head); return query; }),
+          update: vi.fn((payload) => { state.op = 'update'; state.payload = payload; return query; }),
+          delete: vi.fn(() => { state.op = 'delete'; return query; }),
+          eq: vi.fn((col, val) => { state.filters[col] = val; return query; }),
+          in: vi.fn((col, val) => { state.filters[col] = val; return finish(); }),
+          then: (resolve, reject) => finish().then(resolve, reject)
+        };
         return query;
       })
     };
 
     await deleteLinieInhalt('b1');
 
-    expect(deleted).toEqual([
-      ['skripte', 'briefing_id', 'b1'],
-      ['strategie', 'briefing_id', 'b1'],
-      ['creator_auswahl', 'briefing_id', 'b1']
+    expect(ops.filter(op => op.op === 'update').map(op => [op.table, op.payload, op.filters])).toEqual([
+      ['creator_auswahl', { strategie_id: null }, { strategie_id: ['konzept-1'] }],
+      ['strategie', { creator_auswahl_id: null }, { creator_auswahl_id: ['casting-1'] }]
+    ]);
+    expect(ops.filter(op => op.op === 'delete').map(op => op.table)).toEqual([
+      'skripte', 'strategie', 'creator_auswahl'
     ]);
   });
 
-  it('sperrt eine Produktion mit Briefing (auch Entwurf)', async () => {
-    window.supabase = { from: vi.fn(countQuery({ 'campaign_briefings.produktion_id': 1 })) };
+  it('erlaubt eine Produktion, deren Linie keine Kooperationen hat', async () => {
+    window.supabase = {
+      from: vi.fn((table) => {
+        const state = { head: false };
+        const query = {
+          select: vi.fn((_cols, opts) => { state.head = Boolean(opts?.head); return query; }),
+          eq: vi.fn(() => query),
+          then: (resolve, reject) => Promise.resolve({
+            data: state.head || table !== 'campaign_briefings' ? null : [{ id: 'b1' }],
+            count: 0,
+            error: null
+          }).then(resolve, reject)
+        };
+        return query;
+      })
+    };
     const gate = await canDeleteProduktion('p1');
-    expect(gate.ok).toBe(false);
-    expect(gate.reason).toMatch(/Briefings/);
+    expect(gate.ok).toBe(true);
+    expect(gate.briefingIds).toEqual(['b1']);
   });
 
   it('sperrt eine Produktion mit Kooperationen', async () => {
@@ -163,9 +190,31 @@ describe('Lösch-Gates', () => {
     expect(del).toHaveBeenCalled();
   });
 
-  it('löscht eine Produktion mit Linien nicht', async () => {
-    window.supabase = { from: vi.fn(countQuery({ 'campaign_briefings.produktion_id': 2 })) };
-    await expect(deleteProduktion('p1')).rejects.toThrow(/Briefings/);
+  it('löscht Linien ohne Kooperationen mit der Produktion', async () => {
+    const deleted = [];
+    window.supabase = {
+      from: vi.fn((table) => {
+        const state = { op: 'select', head: false };
+        const finish = () => {
+          if (state.op === 'delete') deleted.push(table);
+          const data = !state.head && state.op === 'select' && table === 'campaign_briefings'
+            ? [{ id: 'b1' }]
+            : [];
+          return Promise.resolve({ data, count: 0, error: null });
+        };
+        const query = {
+          select: vi.fn((_cols, opts) => { state.head = Boolean(opts?.head); return query; }),
+          update: vi.fn(() => { state.op = 'update'; return query; }),
+          delete: vi.fn(() => { state.op = 'delete'; return query; }),
+          eq: vi.fn(() => query),
+          in: vi.fn(() => finish()),
+          then: (resolve, reject) => finish().then(resolve, reject)
+        };
+        return query;
+      })
+    };
+    await deleteProduktion('p1');
+    expect(deleted).toEqual(['skripte', 'strategie', 'creator_auswahl', 'campaign_briefings', 'produktion']);
   });
 });
 

@@ -135,6 +135,19 @@ describe('deckungFehlerText', () => {
 describe('Datenaktionen', () => {
   beforeEach(() => { delete window.supabase; });
 
+  it('verknuepfeKooperation haengt Rechnungen ohne Vertrag an den Vertrag', async () => {
+    const db = fakeDb([
+      { data: null, error: null },
+      { data: [{ kooperation_id: 'k2' }], error: null },
+      { data: [{ kooperation_id: 'k1' }], error: null },
+      { data: [{ id: 'r1' }], error: null }
+    ]);
+    await verknuepfeKooperation('v1', 'k2', db);
+    const update = db.calls.find((c) => c.tabelle === 'rechnung');
+    expect(update.ops[0]).toEqual(['update', { vertrag_id: 'v1' }]);
+    expect(update.ops.find((o) => o[0] === 'in')[2]).toEqual(['k2', 'k1']);
+  });
+
   it('verknuepfeKooperation wirft den lesbaren Text der DB-Exception', async () => {
     const db = fakeDb([{ data: null, error: { message: 'vertrag_kooperation:deckel:7:6' } }]);
     await expect(verknuepfeKooperation('v1', 'k2', db)).rejects.toThrow('Der Vertrag nennt 6 Videos, mit dieser Kooperation wären es 7.');

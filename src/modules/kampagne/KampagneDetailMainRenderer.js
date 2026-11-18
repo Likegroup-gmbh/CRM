@@ -15,29 +15,6 @@ const SHARE_ICON = `
     <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z" />
   </svg>`;
 
-const KAMPAGNE_KOOPERATION_SORT_OPTIONS = [
-  { value: 'name_asc', label: 'A-Z' },
-  { value: 'name_desc', label: 'Z-A' },
-  { value: 'created_desc', label: 'Neueste zuerst' },
-  { value: 'created_asc', label: 'Älteste zuerst' },
-  { value: 'posting_asc', label: 'GoLive früheste zuerst' },
-  { value: 'posting_desc', label: 'GoLive späteste zuerst' },
-  { value: 'content_deadline_asc', label: 'Content-Deadline früheste zuerst' },
-  { value: 'content_deadline_desc', label: 'Content-Deadline späteste zuerst' }
-];
-
-const CHECK_ICON = `
-  ${icon('check-bold')}`;
-
-const FILTER_ICON = `
-  ${icon('filter-alt')}`;
-
-const TAG_ICON = `
-  ${icon('tag')}`;
-
-const SORT_ICON = `
-  ${icon('arrows-up-down')}`;
-
 const COLUMNS_ICON = `
   ${icon('bars-3')}`;
 
@@ -55,59 +32,6 @@ function escapeAttr(str) {
 
 function sanitize(str) {
   return window.validatorSystem?.sanitizeHtml(String(str)) || '';
-}
-
-// Multi-Select-Submenu (Status/Tags) im Sourcing-Pattern: Hover oeffnet das
-// Panel, Auswahl wird per Checkmark angezeigt. Sync nach Klick via
-// syncFilterSubmenu in KampagneDetailEvents.js.
-function renderFilterSubmenu({ key, label, icon, options = [], selected = [] }) {
-  if (!options.length) return '';
-  const hasActive = selected.length > 0;
-  const items = options.map(opt => {
-    const isActive = selected.includes(opt);
-    return `
-      <button type="button" class="submenu-item" data-filter-key="${key}" data-filter-value="${escapeAttr(opt)}" role="menuitemcheckbox" aria-checked="${isActive}">
-        <span>${sanitize(opt)}</span>
-        ${isActive ? `<span class="submenu-check">${CHECK_ICON}</span>` : ''}
-      </button>`;
-  }).join('');
-
-  return `
-    <div class="action-submenu" data-filter-submenu="${key}">
-      <button type="button" class="action-item has-submenu${hasActive ? ' active' : ''}" role="menuitem" aria-haspopup="true">
-        ${icon}
-        <span>${label}</span>
-      </button>
-      <div class="submenu" role="menu">
-        ${hasActive ? `
-          <button type="button" class="submenu-item submenu-reset" data-filter-reset="${key}" role="menuitem">
-            Alle zurücksetzen
-          </button>` : ''}
-        ${items}
-      </div>
-    </div>`;
-}
-
-function renderSortSubmenu(currentSort) {
-  const items = KAMPAGNE_KOOPERATION_SORT_OPTIONS.map(opt => {
-    const isActive = opt.value === currentSort;
-    return `
-      <button type="button" class="submenu-item" data-sort-value="${opt.value}" role="menuitemradio" aria-checked="${isActive}">
-        <span>${opt.label}</span>
-        ${isActive ? `<span class="submenu-check">${CHECK_ICON}</span>` : ''}
-      </button>`;
-  }).join('');
-
-  return `
-    <div class="action-submenu" data-sort-submenu>
-      <button type="button" class="action-item has-submenu" role="menuitem" aria-haspopup="true">
-        ${SORT_ICON}
-        <span>Sortierung</span>
-      </button>
-      <div class="submenu" role="menu">
-        ${items}
-      </div>
-    </div>`;
 }
 
 export function renderPageLoading() {
@@ -136,8 +60,7 @@ export function renderMainPage(state) {
   const {
     kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed,
     extraKostenVkSum, ekVkMarginSum, kskUmgebucht, videoStats, isKunde, kampagneId, searchQuery,
-    availableStatuses = [], availableTags = [], selectedStatuses = [], selectedTags = [],
-    kooperationSort = 'created_desc',
+    kooperationFilter = null,
     kooperationen = [], videos = [],
     activeWorkflow = DEFAULT_WORKFLOW_TAB,
     strategien = [],
@@ -146,7 +69,6 @@ export function renderMainPage(state) {
 
   const canCreateKooperation = window.canCreate?.('kooperation') ?? false;
   const canShare = typeof window.isInternal === 'function' && window.isInternal();
-  const canTableFilter = window.canFeature?.('kampagneTableFilter') ?? false;
   const canTableLayout = window.canFeature?.('kampagneTableLayout') ?? false;
 
   const kampagneName = KampagneUtils.getDisplayName(kampagneData) || kampagneData?.kampagnenname || '';
@@ -159,9 +81,6 @@ export function renderMainPage(state) {
   // Plus-Menue nur rendern, wenn mindestens ein Eintrag drin ist — sonst
   // haengt bei Rollen ohne Tabellen-Werkzeuge (Investor) ein leeres Menue.
   const toolbarItemsHtml = `
-    ${canTableFilter ? renderFilterSubmenu({ key: 'status', label: 'Status filtern', icon: FILTER_ICON, options: availableStatuses, selected: selectedStatuses }) : ''}
-    ${canTableFilter ? renderFilterSubmenu({ key: 'tag', label: 'Tags filtern', icon: TAG_ICON, options: availableTags, selected: selectedTags }) : ''}
-    ${canTableFilter ? renderSortSubmenu(kooperationSort) : ''}
     ${canShare ? renderToolbarMenuItem({ id: 'btn-share-kampagne', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' }) : ''}
     ${canTableLayout ? `
       ${renderToolbarMenuItem({ id: 'btn-custom-columns', title: 'Eigene Spalten verwalten', icon: COLUMNS_ICON, label: 'Spalten' })}
@@ -189,11 +108,17 @@ export function renderMainPage(state) {
           <h2 class="page-header-title">${sanitize(pageTitle)}</h2>
         </div>
         <div class="page-header-right">
+          ${state.mode === 'workflow' && darfProduktionPflegen() && produktionOhneKooperationen(state.produktion)
+            ? renderProduktionAktionen(state.produktion, {
+              kannLoeschen: window.canCreate?.('briefing') ?? false
+            })
+            : ''}
           <div class="kampagne-tab-chrome" data-chrome="kooperationen">
             ${SearchInput.render('kampagne-koop', {
               placeholder: 'Suchen...',
               currentValue: searchQuery || ''
             })}
+            ${kooperationFilter ? kooperationFilter.renderToggle() : ''}
             ${(window.canFeature?.('mediaDownload') ?? false) ? `<button id="btn-download-finale" class="mdc-btn mdc-btn--secondary" title="Finale Videos der markierten Kooperationen herunterladen">Finale Videos downloaden</button>` : ''}
             ${canCreateKooperation ? `<button id="btn-new-kooperation" class="mdc-btn">Kooperation anlegen</button>` : ''}
             ${hasToolbarItems ? renderToolbarMenu({
@@ -245,7 +170,9 @@ export function renderMainPage(state) {
 
           <div class="tab-content">
             <div class="detail-section">
-              <div id="kooperationen-videos-container"></div>
+              ${kooperationFilter
+                ? kooperationFilter.renderLayout('<div id="kooperationen-videos-container"></div>')
+                : '<div id="kooperationen-videos-container"></div>'}
             </div>
           </div>
         </div>
@@ -261,6 +188,10 @@ function darfProduktionPflegen() {
   if (typeof window.isInternal === 'function' && window.isInternal()) return true;
   if (typeof window.isAdmin === 'function' && window.isAdmin()) return true;
   return false;
+}
+
+function produktionOhneKooperationen(produktion) {
+  return produktion?.koopAnzahl === 0;
 }
 
 function renderProduktionAktionen(produktion, { kannLoeschen }) {
@@ -333,7 +264,7 @@ function renderKampagneOverview({
         <td>${sanitize(briefing)}${linien.length > 1 ? ` <span class="text-muted">· ${linien.length} Linien</span>` : ''}</td>
         <td>${budgetZelle}</td>
         <td>${renderProduktionBudget(zeile.used, zeile.total)}</td>
-        <td class="col-actions">${pflegen ? renderProduktionAktionen(p, { kannLoeschen: canCreateBriefing && !linien.length }) : ''}</td>
+        <td class="col-actions">${pflegen ? renderProduktionAktionen(p, { kannLoeschen: canCreateBriefing && produktionOhneKooperationen(p) }) : ''}</td>
       </tr>`;
   }).join('');
 

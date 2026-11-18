@@ -507,15 +507,34 @@ describe('konzeptCreatorFromSkript', () => {
 });
 
 describe('docHeadActionsHtml', () => {
-  it('zeigt Senden neben Teilen unter demselben Gate', () => {
+  const menuDrin = (html, id) => {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return Boolean(div.querySelector(`.toolbar-menu-dropdown #${id}`));
+  };
+
+  it('zeigt Senden sichtbar und Teilen im Menü unter demselben Gate', () => {
     const html = docHeadActionsHtml({ kannTeilen: true });
-    expect(html).toContain('id="ed-share"');
-    expect(html.indexOf('id="ed-share"')).toBeLessThan(html.indexOf('id="ed-anschreiben"'));
     expect(html).toContain('>Senden<');
+    expect(menuDrin(html, 'ed-anschreiben')).toBe(false);
+    expect(menuDrin(html, 'ed-share')).toBe(true);
 
     const ohne = docHeadActionsHtml({ kannTeilen: false });
     expect(ohne).not.toContain('id="ed-share"');
     expect(ohne).not.toContain('id="ed-anschreiben"');
+  });
+
+  it('legt PDF, Link kopieren und Creator tauschen ins Menü', () => {
+    const html = docHeadActionsHtml({ kannPdf: true, kannTeilen: true, kannTauschen: true });
+    expect(menuDrin(html, 'ed-pdf')).toBe(true);
+    expect(menuDrin(html, 'ed-copy-link')).toBe(true);
+    expect(menuDrin(html, 'ed-creator-tauschen')).toBe(true);
+
+    expect(docHeadActionsHtml({ kannTauschen: false })).not.toContain('id="ed-creator-tauschen"');
+  });
+
+  it('zeigt kein Menü, wenn nichts drin wäre', () => {
+    expect(docHeadActionsHtml({})).not.toContain('id="ed-kopf-menu"');
   });
 
   it('zeigt Freigeben nur mit kannFreigeben', () => {
@@ -529,8 +548,8 @@ describe('docHeadActionsHtml', () => {
 
   it('zeigt Löschen nur mit kannLoeschen', () => {
     const html = docHeadActionsHtml({ kannLoeschen: true });
-    expect(html).toContain('id="ed-loeschen"');
-    expect(html).toContain('mdc-btn--delete');
+    expect(menuDrin(html, 'ed-loeschen')).toBe(true);
+    expect(html).toContain('action-danger');
 
     const ohne = docHeadActionsHtml({ kannLoeschen: false });
     expect(ohne).not.toContain('id="ed-loeschen"');

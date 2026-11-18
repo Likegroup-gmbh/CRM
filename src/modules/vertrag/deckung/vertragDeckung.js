@@ -3,6 +3,8 @@
 // Reine Regeln (spiegeln die Trigger in supabase/migrations/20261010_vertrag_deckt_kooperationen.sql)
 // und die Daten-Aktionen Verknuepfen, Loesen, Flag-Sync.
 
+import { backfillRechnungVertragId } from '../../rechnung/RechnungVertragZuordnung.js';
+
 const KOOP_COLS = 'id, name, creator_id, kampagne_id, produktion_id, briefing_id, videoanzahl, '
   + 'einkaufspreis_netto, ksk_selbstzahler, ksk_betrag, created_at';
 
@@ -158,10 +160,16 @@ export async function ladeVerknuepfbareVertraege(koop, sb) {
     .filter(({ vertrag, gedeckt: koops }) => verknuepfSperre(vertrag, koop, koops) === null);
 }
 
-/** Haengt eine Kooperation an einen bestehenden Vertrag. Wirft mit lesbarem Text. */
+/** Haengt eine Kooperation an einen bestehenden Vertrag. Wirft mit lesbarem Text.
+ *  Rechnungen dieser Kooperation ohne Vertrag laufen danach auf diesen Vertrag (ADR 0047). */
 export async function verknuepfeKooperation(vertragId, kooperationId, sb) {
   const db = client(sb);
   einzeln(await db.from('vertrag_kooperation').insert({ vertrag_id: vertragId, kooperation_id: kooperationId }));
+  try {
+    await backfillRechnungVertragId(vertragId, db);
+  } catch (err) {
+    console.warn('Rechnungen konnten nach der Verknuepfung nicht zugeordnet werden:', err);
+  }
   return { success: true };
 }
 

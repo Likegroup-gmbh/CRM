@@ -275,15 +275,12 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(kundenDoc.querySelector('.sourcing-status-filter-submenu')).toBeNull();
   });
 
-  it('legt Status-Filter und Toolbar-Actions ins Plus-Dropdown', () => {
-    const doc = kopf({ kundenCallActive: true, statusFilter: ['Zusage', 'Gebucht'] });
+  it('legt die Toolbar-Actions ins Plus-Dropdown, den Statusfilter nicht mehr', () => {
+    const doc = kopf({ kundenCallActive: true });
     const dropdown = doc.querySelector('.toolbar-menu-dropdown');
-    const statusSub = dropdown.querySelector('.sourcing-status-filter-submenu');
 
     expect(doc.getElementById('btn-sourcing-toolbar-menu')).not.toBeNull();
-    expect(statusSub.querySelector('[data-status-tag="Zusage"] .submenu-check')).not.toBeNull();
-    expect(statusSub.querySelector('[data-status-tag="Gebucht"] .submenu-check')).not.toBeNull();
-    expect(statusSub.querySelector('[data-status-tag="Angefragt"] .submenu-check')).toBeNull();
+    expect(dropdown.querySelector('.sourcing-status-filter-submenu')).toBeNull();
     expect(dropdown.querySelector('#btn-share-sourcing')).not.toBeNull();
     expect(dropdown.querySelector('#btn-kunden-call-toggle').classList.contains('active')).toBe(true);
     expect(dropdown.querySelector('#btn-sourcing-tabelle-anpassen')).not.toBeNull();

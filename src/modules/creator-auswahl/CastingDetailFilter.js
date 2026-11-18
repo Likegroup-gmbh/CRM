@@ -1,9 +1,9 @@
 // CastingDetailFilter.js
-// Namenssuche und Status-Reiter der Casting-Liste (Prototype-Mixin).
+// Namenssuche, Status-Reiter und Filterspalte der Casting-Liste (Prototype-Mixin).
 
 import { getSourcingTabForItem, SOURCING_TABS } from './sourcingTabs.js';
-import { matchesStatusFilter } from './sourcingStatusOptions.js';
 import { vorschlagToItem } from './CastingVorschlagService.js';
+import { castingFilterDefs, castingFilterGroups, createCastingTableFilter } from './castingFilterSpalte.js';
 
 export function kannVorschlaegeSehen() {
   if (this.isKunde) return false;
@@ -32,16 +32,44 @@ export function getSearchFilteredItems() {
   return items.filter(item => (item.name || '').toLowerCase().includes(query));
 }
 
-// Namenssuche und Statusfilter greifen reiteruebergreifend – die Reiter-Zahlen
+// Namenssuche und Filterspalte greifen reiteruebergreifend – die Reiter-Zahlen
 // beziehen sich deshalb auf diese Menge, nicht auf alle Items.
 export function getBaseFilteredItems() {
-  return this.getSearchFilteredItems().filter(item => matchesStatusFilter(item, this.statusFilter));
+  const items = this.getSearchFilteredItems();
+  return this.tableFilter ? this.tableFilter.filter(items) : items;
 }
 
+// Vorschläge bleiben oben stehen, sortiert werden nur die Einträge darunter.
 export function getFilteredItems() {
-  const items = this.getBaseFilteredItems();
-  if (this.activeTab === 'alle') return items;
-  return items.filter(item => getSourcingTabForItem(item) === this.activeTab);
+  const base = this.getBaseFilteredItems();
+  const items = this.activeTab === 'alle'
+    ? base
+    : base.filter(item => getSourcingTabForItem(item) === this.activeTab);
+  if (!this.tableFilter || this.tableFilter.isManualSort()) return items;
+  const vorschlaege = items.filter(item => item.isVorschlag);
+  const eintraege = items.filter(item => !item.isVorschlag);
+  return [...vorschlaege, ...this.tableFilter.sort(eintraege)];
+}
+
+export function hasColumnFilters() {
+  return !!this.tableFilter?.hasActiveFilters();
+}
+
+/** Optionen (Kategorien) und Rollen-Sicht der Filterspalte an den aktuellen Stand angleichen. */
+export function syncTableFilter() {
+  const ctx = {
+    items: this.items,
+    teilbereiche: this.getTeilbereiche(),
+    isKunde: this.isKunde,
+    hiddenColumns: this.hiddenColumns,
+    customManager: this.customColumns
+  };
+  if (!this.tableFilter) {
+    this.tableFilter = createCastingTableFilter(ctx);
+    return;
+  }
+  const filters = castingFilterDefs(ctx);
+  this.tableFilter.setFilters(filters, castingFilterGroups(filters));
 }
 
 export function getTabCounts() {
@@ -110,6 +138,8 @@ export const castingDetailFilterMethods = {
   getSearchFilteredItems,
   getBaseFilteredItems,
   getFilteredItems,
+  hasColumnFilters,
+  syncTableFilter,
   getTabCounts,
   handleSearch,
   clearSearch,

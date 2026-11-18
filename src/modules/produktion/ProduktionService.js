@@ -102,7 +102,7 @@ async function attachProduktionBudget(rows, kampagneId) {
   if (!rows.length || !window.supabase) return rows;
   const { data: koops, error } = await window.supabase
     .from('kooperationen')
-    .select('id, produktion_id')
+    .select('id, produktion_id, briefing_id')
     .eq('kampagne_id', kampagneId);
   if (error) throw error;
 
@@ -118,7 +118,21 @@ async function attachProduktionBudget(rows, kampagneId) {
   }
 
   const sums = sumBudgetByProduktion(koops || [], videos);
-  return rows.map(row => ({ ...row, budgetUsed: sums.get(row.id) || 0 }));
+  return rows.map(row => ({
+    ...row,
+    budgetUsed: sums.get(row.id) || 0,
+    koopAnzahl: koopAnzahlFuerProduktion(row, koops || [])
+  }));
+}
+
+/** Kooperationen an der Produktion oder an einer ihrer Linien. */
+export function koopAnzahlFuerProduktion(row, koops) {
+  const linien = new Set((row?.linien || []).map(linie => linie.id));
+  let anzahl = 0;
+  for (const koop of koops || []) {
+    if (koop?.produktion_id === row?.id || (koop?.briefing_id && linien.has(koop.briefing_id))) anzahl += 1;
+  }
+  return anzahl;
 }
 
 const PRODUKTION_LIST_SELECT = `
@@ -257,9 +271,22 @@ export async function loadProduktion(produktionId) {
     .eq('produktion_id', produktionId)
     .maybeSingle();
   if (verbrauchError) throw verbrauchError;
+  const row = withLinien(data);
+  const direkt = await countRows('kooperationen', 'produktion_id', produktionId);
+  const linienIds = row.linien.map(linie => linie.id);
+  let ueberLinie = 0;
+  if (linienIds.length) {
+    const { count, error: linienError } = await window.supabase
+      .from('kooperationen')
+      .select('id', { count: 'exact', head: true })
+      .in('briefing_id', linienIds);
+    if (linienError) throw linienError;
+    ueberLinie = count || 0;
+  }
   return {
-    ...withLinien(data),
-    budgetUsed: parseFloat(verbrauch?.budget_used) || 0
+    ...row,
+    budgetUsed: parseFloat(verbrauch?.budget_used) || 0,
+    koopAnzahl: direkt + ueberLinie
   };
 }
 
@@ -329,6 +356,29 @@ export async function canDeleteLinie(briefingId) {
   return { ok: true, reason: '' };
 }
 
+async function idsDerLinie(table, briefingId) {
+  const { data, error } = await window.supabase
+    .from(table)
+    .select('id')
+    .eq('briefing_id', briefingId);
+  if (error) throw error;
+  return (data || []).map(row => row.id);
+}
+
+async function loeseFremdschluessel(table, column, ids) {
+  if (!ids.length) return;
+  const { error } = await window.supabase.from(table).update({ [column]: null }).in(column, ids);
+  if (error) throw error;
+}
+
+/** Casting und Konzept verweisen mit ON DELETE RESTRICT aufeinander. */
+async function loeseLinienPaar(briefingId) {
+  const konzeptIds = await idsDerLinie('strategie', briefingId);
+  const castingIds = await idsDerLinie('creator_auswahl', briefingId);
+  await loeseFremdschluessel('creator_auswahl', 'strategie_id', konzeptIds);
+  await loeseFremdschluessel('strategie', 'creator_auswahl_id', castingIds);
+}
+
 /**
  * Löscht Skripte, Konzept und Casting der Linie. Das Briefing selbst löscht der Aufrufer.
  * Vorher mit canDeleteLinie prüfen und bestätigen lassen.
@@ -336,6 +386,7 @@ export async function canDeleteLinie(briefingId) {
 export async function deleteLinieInhalt(briefingId) {
   const gate = await canDeleteLinie(briefingId);
   if (!gate.ok) throw new Error(gate.reason);
+  await loeseLinienPaar(briefingId);
   for (const table of ['skripte', 'strategie', 'creator_auswahl']) {
     const { error } = await window.supabase.from(table).delete().eq('briefing_id', briefingId);
     if (error) throw error;
@@ -351,24 +402,35 @@ export async function deleteBriefingMitLinie(briefingId) {
 
 export const LINIE_LOESCHEN_HINWEIS = 'Casting, Konzept und Skripte dieser Linie werden mit gelöscht.';
 
-/** Eine Produktion ist nur ohne Linien (Entwürfe eingeschlossen) löschbar. */
+/** Eine Produktion ohne Kooperationen ist löschbar. Linien ohne Kooperationen gehen mit. */
 export async function canDeleteProduktion(produktionId) {
   if (!produktionId || !window.supabase) return { ok: false, reason: 'Produktion fehlt' };
-  const linien = await countRows('campaign_briefings', 'produktion_id', produktionId);
-  if (linien > 0) {
-    return { ok: false, reason: 'Diese Produktion hat Briefings und kann nicht gelöscht werden.' };
-  }
   const koops = await countRows('kooperationen', 'produktion_id', produktionId);
   if (koops > 0) {
     return { ok: false, reason: 'Diese Produktion hat Kooperationen und kann nicht gelöscht werden.' };
   }
-  return { ok: true, reason: '' };
+  const { data, error } = await window.supabase
+    .from('campaign_briefings')
+    .select('id')
+    .eq('produktion_id', produktionId);
+  if (error) throw error;
+  const briefingIds = (data || []).map(row => row.id);
+  for (const briefingId of briefingIds) {
+    const gate = await canDeleteLinie(briefingId);
+    if (!gate.ok) {
+      return { ok: false, reason: 'Diese Produktion hat Kooperationen und kann nicht gelöscht werden.' };
+    }
+  }
+  return { ok: true, reason: '', briefingIds };
 }
 
-/** Leere Produktion löschen (Gate: keine Briefings/Entwürfe, keine Kooperationen). */
+/** Produktion löschen. Linien ohne Kooperationen gehen mit. */
 export async function deleteProduktion(produktionId) {
   const gate = await canDeleteProduktion(produktionId);
   if (!gate.ok) throw new Error(gate.reason);
+  for (const briefingId of gate.briefingIds || []) {
+    await deleteBriefingMitLinie(briefingId);
+  }
   const { error } = await window.supabase.from('produktion').delete().eq('id', produktionId);
   if (error) throw error;
 }

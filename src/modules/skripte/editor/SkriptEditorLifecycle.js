@@ -93,13 +93,8 @@ SkriptEditorView.prototype.render = async function(container, skriptId) {
   }
 };
 
-SkriptEditorView.prototype.renderLayout = function() {
-  const readonly = this.isReadonly;
-  const gast = istGastAnsicht();
-  const listeCollapsed = this.sollListeStartCollapsed();
-  this.container.innerHTML = `
-    <div class="skripte-editor${readonly ? ' skripte-editor--readonly' : ''}${gast ? ' skripte-editor--gast' : ''}${listeCollapsed ? ' skripte-editor--liste-collapsed' : ''}">
-      <div class="skripte-editor-shell">
+function listeSpalteHtml(readonly) {
+  return `
         <nav class="skripte-editor-liste" id="ed-liste" aria-label="Skripte">
           <div class="skripte-editor-liste-head">
             <div class="skripte-editor-liste-head-start">
@@ -114,7 +109,25 @@ SkriptEditorView.prototype.renderLayout = function() {
             `}
           </div>
           <div id="ed-liste-items"></div>
-        </nav>
+        </nav>`;
+}
+
+SkriptEditorView.prototype.renderLayout = function() {
+  const readonly = this.isReadonly;
+  const gast = istGastAnsicht();
+  // Eingebettet wählt das Dropdown in der Tab-Zeile das Skript, "Skript anlegen" sitzt im Produktionskopf.
+  const eingebettet = Boolean(this.einbettung);
+  const listeCollapsed = !eingebettet && this.sollListeStartCollapsed();
+  const modifier = [
+    readonly && 'skripte-editor--readonly',
+    gast && 'skripte-editor--gast',
+    listeCollapsed && 'skripte-editor--liste-collapsed',
+    eingebettet && 'skripte-editor--eingebettet'
+  ].filter(Boolean).map((c) => ` ${c}`).join('');
+  this.container.innerHTML = `
+    <div class="skripte-editor${modifier}">
+      <div class="skripte-editor-shell">
+        ${eingebettet ? '' : listeSpalteHtml(readonly)}
         <main class="skripte-editor-main">
           <div class="skripte-editor-doc" id="ed-doc"></div>
         </main>
@@ -158,6 +171,10 @@ SkriptEditorView.prototype.renderLayout = function() {
 
 /** Breadcrumb: offizieller Weg (skriptCrumbs), mit Klickpfad hängt nur der Titel an. */
 SkriptEditorView.prototype.updateBreadcrumb = async function() {
+  if (this.einbettung) {
+    this.einbettung.zeigeSkript(this.skript);
+    return;
+  }
   const label = this.skript?.titel || 'Skript';
   window.setHeadline('Skripte');
   // Gaeste duerfen nur die geteilte Route - kein Link auf die Gesamtliste
@@ -247,8 +264,12 @@ SkriptEditorView.prototype.switchSkript = async function(skriptId) {
       this.skripte = await skripteService.loadSkripte(listeScope(skript));
     }
 
-    replaceSkriptUrl(skriptId);
-    this.page._merkeKontext({ skript: skriptId });
+    if (this.einbettung) {
+      this.einbettung.skriptGewechselt(skriptId);
+    } else {
+      replaceSkriptUrl(skriptId);
+      this.page._merkeKontext({ skript: skriptId });
+    }
 
     this.updateBreadcrumb();
     this.renderListe();
@@ -288,6 +309,8 @@ SkriptEditorView.prototype.cleanup = async function() {
   this.inlineEdit.detach();
   try { await this._blocks.flush(); } catch (_) { /* Abbau trotzdem */ }
   this._toolbar.destroy();
+  this.unbindKopfMenu();
+  this.unbindStatusWahl();
   this.cleanupGenJob();
   this.genStatus = null;
   this._listeKampagneId = undefined;

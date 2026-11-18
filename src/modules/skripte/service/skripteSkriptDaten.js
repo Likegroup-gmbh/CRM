@@ -290,4 +290,13 @@ export const skripteSkriptDatenMethoden = {
       .eq('skript_id', skriptId);
     if (error) throw new Error(error.message);
   },
+
+  /**
+   * Status von Hand setzen (Skripte-Tabelle, Dokumentkopf). Status und Checkbox
+   * meinen dieselbe Freigabe: jeder Status außer „freigegeben“ nimmt den Haken raus.
+   */
+  async setzeSkriptStatus(skriptId, status) {
+    await this.updateSkript(skriptId, { status });
+    await this.setVideosSkriptFreigegeben(skriptId, status === 'freigegeben');
+  },
 };

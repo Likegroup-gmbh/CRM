@@ -6,13 +6,12 @@ import { escapeHtml } from '../SkripteUtils.js';
 import { skripteService } from '../SkripteService.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 
-/** Button im Doc-Kopf, neben dem Creator-Chip. */
+/** Eintrag im "…"-Menü des Doc-Kopfs. */
 export function tauschSkriptButtonHtml() {
   return `
-    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-creator-tauschen"
-      title="Creator tauschen">
-      <span class="mdc-btn__icon">${icon('arrows-right-left')}</span>
-      <span class="mdc-btn__label">Tauschen</span>
+    <button type="button" class="action-item" id="ed-creator-tauschen" role="menuitem" title="Creator tauschen">
+      ${icon('arrows-right-left')}
+      Creator tauschen
     </button>`;
 }
 

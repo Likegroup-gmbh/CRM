@@ -206,9 +206,17 @@ const STATUS_FILTER_FELDER = Object.freeze([
 
 const FEEDBACK_FILTER_FELDER = Object.freeze(['prio_1', 'prio_2', 'abgelehnt']);
 
+export const SOURCING_PROZESS_FILTER_TAGS = Object.freeze(
+  STATUS_FILTER_FELDER.map(feld => getSourcingStatusOption(feld).label)
+);
+
+export const SOURCING_FEEDBACK_FILTER_TAGS = Object.freeze(
+  FEEDBACK_FILTER_FELDER.map(feld => getKundenFeedbackOption(feld).label)
+);
+
 export const SOURCING_STATUS_FILTER_TAGS = Object.freeze([
-  ...STATUS_FILTER_FELDER.map(feld => getSourcingStatusOption(feld).label),
-  ...FEEDBACK_FILTER_FELDER.map(feld => getKundenFeedbackOption(feld).label)
+  ...SOURCING_PROZESS_FILTER_TAGS,
+  ...SOURCING_FEEDBACK_FILTER_TAGS
 ]);
 
 const STATUS_TAG_ZU_FELD = Object.freeze(

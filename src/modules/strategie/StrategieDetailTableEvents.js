@@ -902,10 +902,18 @@ export async function handleSortUpdate(detail) {
     }
   });
 
+  // Von der Filterspalte ausgeblendete Videoideen behalten ihren Platz,
+  // die sichtbaren rücken in der neuen DOM-Reihenfolge in ihre Lücken.
+  const visibleIds = new Set(updatedItems.map(i => i.id));
+  let visibleIndex = 0;
+  const ordered = detail.items
+    .filter(i => !i.ist_vorschlag)
+    .map(item => (visibleIds.has(item.id) ? updatedItems[visibleIndex++] : item));
+
   try {
-    await strategieService.updateItemsSortierungWithTeilbereich(updatedItems);
+    await strategieService.updateItemsSortierungWithTeilbereich(ordered);
     const vorschlaege = detail.items.filter(i => i.ist_vorschlag);
-    detail.items = [...vorschlaege, ...updatedItems];
+    detail.items = [...vorschlaege, ...ordered];
     
     detail.rerenderItemsTable();
     

@@ -129,6 +129,16 @@ export function replaceRoute(url) {
   window.history.replaceState({ ...(window.history.state || {}), route: url }, '', url);
 }
 
+// Umleitung ohne Navigation (z. B. /skripte/:id → Produktion): Steht das Ziel
+// schon im Pfad, wird der Pfad davor gekürzt, sonst erschiene es doppelt.
+export function replaceRouteForRedirect(url) {
+  if (typeof window === 'undefined' || !window.history?.replaceState) return;
+  const trail = currentTrail();
+  const hit = trail.findIndex((crumb) => pathOf(crumb.url) === pathOf(url));
+  const state = { ...(window.history.state || {}), route: url, trail: hit === -1 ? trail : trail.slice(0, hit) };
+  window.history.replaceState(state, '', url);
+}
+
 // Rückweg für Abbrechen/Speichern: die Ebene, von der man kam.
 export function backTarget(fallback) {
   const trail = currentTrail();

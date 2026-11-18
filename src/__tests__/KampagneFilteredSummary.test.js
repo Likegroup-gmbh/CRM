@@ -34,7 +34,7 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
 
   it('rechnet bei Tag-Filter nur ueber getaggte Kooperationen', () => {
     const store = buildStore();
-    store.setSelectedTags(['August']);
+    store.setColumnFilters({ tag: ['August'] });
     const s = store.calculateFilteredSummary();
 
     // k2 + k3: Videos 2000 + 500 + 250
@@ -54,7 +54,7 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
 
   it('haelt kskUmgebucht global (Budget-Basis bleibt Auftragsebene)', () => {
     const store = buildStore();
-    store.setSelectedTags(['August']);
+    store.setColumnFilters({ tag: ['August'] });
     const s = store.calculateFilteredSummary();
     // k1 (Juli) ist Selbstzahler mit 49 -> bleibt in der Basis enthalten
     expect(s.kskUmgebucht).toBe(49);
@@ -62,7 +62,7 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
 
   it('liefert Nullsummen bei Tags ohne Treffer', () => {
     const store = buildStore();
-    store.setSelectedTags(['Dezember']);
+    store.setColumnFilters({ tag: ['Dezember'] });
     const s = store.calculateFilteredSummary();
 
     expect(s.koopBudgetSum).toBe(0);
@@ -74,7 +74,7 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
 
   it('OR-Logik: mehrere Tags vereinigen die Mengen', () => {
     const store = buildStore();
-    store.setSelectedTags(['Juli', 'September']);
+    store.setColumnFilters({ tag: ['Juli', 'September'] });
     const s = store.calculateFilteredSummary();
 
     // k1 (Juli) + k3 (September)

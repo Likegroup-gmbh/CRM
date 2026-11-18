@@ -54,6 +54,39 @@
   border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
+/* Status-Wahl im Dokumentkopf: so breit wie der Inhalt, nicht wie die Zelle */
+.skripte-editor-status {
+  flex-shrink: 0;
+}
+
+.skripte-editor-status .table-select {
+  width: auto;
+}
+
+.skripte-editor-status .table-select__trigger {
+  width: auto;
+  white-space: nowrap;
+}
+
+/* Hinweise direkt unter dem Dokumentkopf (Upload ohne Videoidee, Hook-Abweichung) */
+.skripte-editor-doc-head ~ .skripte-hint {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-doc-head ~ [data-upload-videoidee] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.skripte-editor-doc-head ~ [data-upload-videoidee] select {
+  width: auto;
+  max-width: 28rem;
+}
+
 .skripte-editor-persona-wahl {
   display: block;
   max-width: 28rem;

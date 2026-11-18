@@ -20,7 +20,7 @@ import { dokumentHtml } from './dokument/blockRenderer.js';
 import { gridTabelleHtml, hookVariantenTabelleHtml } from './skriptDocTabelleHtml.js';
 
 export {
-  konzeptCreatorFromSkript, creatorsFuerListe, sortListeSkripte, creatorsFuerKopf,
+  konzeptCreatorFromSkript, creatorsFuerListe, sortListeSkripte, creatorsFuerKopf, creatorDisplayName,
   listeCreatorHtml, listeVideoHtml, verknuepfungenHtml
 } from './skriptDocCreatorHtml.js';
 export { docHeadActionsHtml, personaWahlHtml, vorgabenPanelHtml } from './skriptDocKopfHtml.js';

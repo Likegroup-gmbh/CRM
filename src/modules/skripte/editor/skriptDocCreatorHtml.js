@@ -4,9 +4,8 @@
 import { escapeHtml } from '../SkripteUtils.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { avatarBubbles } from '../../../core/components/AvatarBubbles.js';
-import { tauschSkriptButtonHtml } from './skriptTauschBanner.js';
 
-function creatorDisplayName(creator) {
+export function creatorDisplayName(creator) {
   const crm = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
   return crm || creator?.name || 'Creator';
 }
@@ -152,5 +151,5 @@ export function verknuepfungenHtml({
         <span class="mdc-btn__label">Creator zuweisen</span>
       </button>`;
   }
-  return creatorChipHtml(creators) + videoChipHtml(verknuepfungen) + tauschSkriptButtonHtml();
+  return creatorChipHtml(creators) + videoChipHtml(verknuepfungen);
 }

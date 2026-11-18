@@ -143,31 +143,22 @@ export class KampagneKooperationenVideoTable {
       || sort === 'content_deadline_asc' || sort === 'content_deadline_desc';
   }
 
-  _applyTagFilter(list) {
-    const tags = this.store?.selectedTags;
-    if (!tags || tags.length === 0) return list;
-    return list.filter(k => (k._tags || []).some(t => tags.includes(t)));
-  }
-
-  _applySearchFilter(list) {
-    if (!this.store || !(this.store.searchQuery || '').trim()) return list;
-    return list.filter(k => this.store.matchesSearch(k));
+  // Reiter-Zähler zählen nach Filterspalte und Suche, wie die Tabelle selbst.
+  _countTab(tab, predicate) {
+    if (this.store) return this.store.getFiltered(tab).length;
+    return this.kooperationen.filter(predicate).length;
   }
 
   getOpenCount() {
-    return this._applySearchFilter(this._applyTagFilter(
-      this.kooperationen.filter(koop => !this.areAllVideosApproved(koop.id))
-    )).length;
+    return this._countTab('offen', koop => !this.areAllVideosApproved(koop.id));
   }
 
   getClosedCount() {
-    return this._applySearchFilter(this._applyTagFilter(
-      this.kooperationen.filter(koop => this.areAllVideosApproved(koop.id))
-    )).length;
+    return this._countTab('abgeschlossen', koop => this.areAllVideosApproved(koop.id));
   }
 
   getAllCount() {
-    return this._applySearchFilter(this._applyTagFilter(this.kooperationen)).length;
+    return this._countTab('alle', () => true);
   }
 
   updateTabCounts() {

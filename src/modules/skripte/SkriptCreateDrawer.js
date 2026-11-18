@@ -6,6 +6,7 @@ import { skripteService } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
 import { buildFreigegebeneVideoideePickerOptions } from '../strategie/strategieItemPicker.js';
 import { submitSkriptCreate } from './skriptCreateSubmit.js';
+import { ladeSkriptFlowZiel } from './skriptFlowZiel.js';
 import {
   renderFunnelWarnung, renderPersonaWarnung, renderHinweisVorhanden,
   renderCreateUebersicht, renderCreateCreator
@@ -391,6 +392,6 @@ class SkriptCreateDrawer {
     if (!ergebnis?.id) return;
     closeSkriptCreateDrawer();
     window.toastSystem?.show(ergebnis.meldung, 'success');
-    window.navigateTo(`/skripte/${ergebnis.id}`);
+    window.navigateTo(await ladeSkriptFlowZiel(ergebnis.id).catch(() => null) || `/skripte/${ergebnis.id}`);
   }
 }

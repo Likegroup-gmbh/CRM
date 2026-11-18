@@ -42,6 +42,10 @@ export class ModuleRegistry {
       this._queueNavigation(route, skipPushState, options);
       return;
     }
+    // Das Modul bedient die Route selbst (z. B. Skript im Produktions-Tab), ohne Neuaufbau
+    if (!options.replace && this.currentModule?.handleRouteInPlace?.(route, { push: !skipPushState }) === true) {
+      return;
+    }
     this._isNavigating = true;
     this._activeRoute = route;
     this._navSeq = (this._navSeq || 0) + 1;
