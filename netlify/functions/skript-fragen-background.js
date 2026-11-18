@@ -25,6 +25,7 @@ const { logPrompt } = require('./_shared/prompt-log');
 const {
   ladePersonaOptionen, personaOffenBlock, gueltigePersonaId, setzePersonaAmSkript
 } = require('./_shared/skript-persona');
+const { gueltigerBereich, bereichVomStub, setzeBereichAmSkript } = require('./_shared/skript-bereich');
 
 // Erzwungener Tool-Call: strukturell garantiertes JSON statt Text-Parsing
 const FRAGEN_TOOL = {
@@ -38,6 +39,11 @@ const FRAGEN_TOOL = {
       persona_id: {
         type: ['string', 'null'],
         description: 'Nur wenn der Block PERSONA DIESES SKRIPTS offen ist und der User eindeutig gewaehlt hat: die ID aus der Liste. Sonst null.'
+      },
+      bereich: {
+        type: ['string', 'null'],
+        description: 'Nur wenn der BEREICH DIESES SKRIPTS unbekannt ist und der User ihn eindeutig genannt hat: '
+          + 'owned_social, paid_creator_ads oder influencer_marketing. Sonst null.'
       }
     },
     required: ['nachricht', 'fertig']
@@ -82,7 +88,9 @@ function bereichBlock(ctx) {
     return '# BEREICH DIESES SKRIPTS: unbekannt\n'
       + 'Weder Briefing noch Kampagne legen den Bereich eindeutig fest. '
       + 'Deine ERSTE Frage ist der Bereich: Owned Social (Organic), Paid Creator Ads oder Influencer Marketing. '
-      + 'Ohne Bereich kann das Skript nicht generiert werden. Stelle sie vor allen anderen Fragen.\n\n';
+      + 'Ohne Bereich kann das Skript nicht generiert werden. Stelle sie vor allen anderen Fragen, '
+      + 'ausser der Dialog beantwortet sie schon. Ist die Antwort eindeutig, setze bereich auf '
+      + 'owned_social, paid_creator_ads oder influencer_marketing. Solange er offen ist, ist fertig=false.\n\n';
   }
   const label = MASTER_BEREICH_LABELS[ctx.bereich] || ctx.bereich;
   let text = `# BEREICH DIESES SKRIPTS: ${label}\n`
@@ -117,7 +125,7 @@ function buildFragenPrompt(ctx, params, history, { personaOptionen = [] } = {}) 
     : 'Das ist die erste Runde. Pruefe den Auftrag anhand des Leitfadens auf kritische Luecken.\n';
 
   task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "rueckfrage_abgeben" '
-    + `(Felder: nachricht, fertig${personaOptionen.length ? ', persona_id' : ''}).\n`
+    + `(Felder: nachricht, fertig${personaOptionen.length ? ', persona_id' : ''}${ctx.bereich ? '' : ', bereich'}).\n`
     + 'Regeln:\n'
     + '- Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + '- fertig=false: nachricht enthaelt deine naechste(n) Rueckfrage(n) (max. 2, die wichtigste zuerst).\n'
@@ -187,7 +195,7 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
       .select('*').eq('id', message.skript_id).single();
     if (!skript) throw new Error('Skript nicht gefunden');
 
-    const params = skript.prompt_kontext?.generator_payload || {
+    let params = skript.prompt_kontext?.generator_payload || {
       unternehmen_id: skript.unternehmen_id,
       marke_id: skript.marke_id,
       kampagne_id: skript.kampagne_id,
@@ -205,6 +213,7 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
     // Persona kann nach dem Anlegen gesetzt worden sein (Rueckfrage, Editor)
     if (!params.persona_id && skript.persona_id) params.persona_id = skript.persona_id;
     if (!params.produkt_id && skript.produkt_id) params.produkt_id = skript.produkt_id;
+    params = await bereichVomStub(supabase, params, skript);
 
     const ctx = await loadContext(supabase, params);
     const personaOptionen = await ladePersonaOptionen(supabase, {
@@ -252,6 +261,12 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
 
     const parsed = result.json || extractJson(result.text, { keys: ['nachricht', 'fertig'] });
 
+    const bereich = ctx.bereich || gueltigerBereich(parsed.bereich);
+    if (bereich && !ctx.bereich) {
+      await setzeBereichAmSkript(supabase, skript, bereich);
+      console.log(`[skript-fragen ${messageId}] Bereich ${bereich} gesetzt`);
+    }
+
     const gewaehlt = gueltigePersonaId(personaOptionen, parsed.persona_id);
     if (gewaehlt) {
       const { produktId } = await setzePersonaAmSkript(supabase, skript, gewaehlt);
@@ -261,7 +276,8 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
     // Nur solange running: ein Abbruch gewinnt. Fehler werfen (-> catch -> error).
     const geschrieben = await schreibeNachricht(supabase, messageId, {
       // 'vorschlag' = alles geklaert, UI zeigt "Skript jetzt generieren"
-      status: parsed.fertig === true ? 'vorschlag' : 'fertig',
+      // Ohne Bereich scheitert die Generierung; dann kein "Jetzt generieren"
+      status: parsed.fertig === true && bereich ? 'vorschlag' : 'fertig',
       inhalt: (parsed.nachricht || '').trim() || null,
       model: result.model,
       usage: result.usage
