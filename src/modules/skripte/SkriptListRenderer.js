@@ -10,7 +10,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL } from './SkripteUtils.js';
 import { renderVerknuepfungen, namedLinks } from '../../core/ui/tableVerknuepfungen.js';
 import { skriptCreatorZelleHtml } from './editor/skriptDocCreatorHtml.js';
-import { renderCreatorNameCell } from '../creator/CreatorTable.js';
+import { renderCreatorName } from '../creator/CreatorTable.js';
 import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 
 export function createButtonHtml() {
@@ -93,7 +93,7 @@ export function renderItemsRows(list, items) {
             ${list.sanitize(titel)}
           </a>
         </td>
-        ${skriptCreatorZelleHtml(s, renderCreatorNameCell)}
+        ${skriptCreatorZelleHtml(s, renderCreatorName)}
         <td>${renderStatus(s.status)}</td>
         <td>${datum}</td>
         ${renderLeistungszeitraumCell(s.kampagne)}

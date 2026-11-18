@@ -3048,6 +3048,16 @@ width: 18em;
   margin-right: var(--space-sm);
 }
 
+/* Mehrere Creator in einer Zelle (geteiltes Skript): je Creator eine Zeile */
+.table-creator-zeile {
+  display: flex;
+  align-items: center;
+}
+
+.table-creator-zeile + .table-creator-zeile {
+  margin-top: var(--space-xxs);
+}
+
 /* Avatar mit Status-Punkt: der Abstand sitzt am Wrapper, damit der Punkt am Bildrand bleibt */
 .col-name-with-icon .sourcing-avatar {
   margin-right: var(--space-sm);

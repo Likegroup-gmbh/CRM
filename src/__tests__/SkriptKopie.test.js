@@ -164,14 +164,16 @@ describe('Doc-Kopf und Tabellen', () => {
   });
 
   it('nimmt in der Creator-Zelle die Video-Creator vor der Videoidee', () => {
-    const einzel = (c) => `<td>${c?.vorname || '-'}</td>`;
+    const einzel = (c) => (c?.vorname ? `<img>${c.vorname}` : '');
     const idee = { casting_eintrag: { creator: { id: 'c-haupt', vorname: 'Haupt' } } };
     const kopie = {
       strategie_item: idee,
       kooperation_videos: [{ kooperation: { creator: { id: 'c-zweit', vorname: 'Zweit' } } }]
     };
-    expect(skriptCreatorZelleHtml(kopie, einzel)).toBe('<td>Zweit</td>');
-    expect(skriptCreatorZelleHtml({ strategie_item: idee }, einzel)).toBe('<td>Haupt</td>');
+    expect(skriptCreatorZelleHtml(kopie, einzel)).toBe('<td class="col-name-with-icon"><img>Zweit</td>');
+    expect(skriptCreatorZelleHtml({ strategie_item: idee }, einzel))
+      .toBe('<td class="col-name-with-icon"><img>Haupt</td>');
+    expect(skriptCreatorZelleHtml({}, einzel)).toBe('<td>-</td>');
 
     const geteilt = {
       strategie_item: idee,
@@ -180,7 +182,8 @@ describe('Doc-Kopf und Tabellen', () => {
         { kooperation: { creator: { id: 'c-zweit', vorname: 'Zweit' } } }
       ]
     };
-    const html = skriptCreatorZelleHtml(geteilt, einzel);
-    expect(html).toContain('Haupt, Zweit');
+    expect(skriptCreatorZelleHtml(geteilt, einzel)).toBe('<td class="col-name-with-icon">'
+      + '<div class="table-creator-zeile"><img>Haupt</div>'
+      + '<div class="table-creator-zeile"><img>Zweit</div></td>');
   });
 });

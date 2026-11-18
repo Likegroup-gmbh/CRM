@@ -10,7 +10,7 @@ import { skriptFlowUrl } from '../skripte/skriptFlowZiel.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { skriptStatusOptions } from '../skripte/skriptStatusOptions.js';
 import { skriptCreatorZelleHtml } from '../skripte/editor/skriptDocCreatorHtml.js';
-import { renderCreatorNameCell } from '../creator/CreatorTable.js';
+import { renderCreatorName } from '../creator/CreatorTable.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
@@ -100,7 +100,7 @@ export async function renderSkripteTabelle(detail) {
             ${esc(titel)}
           </a>
         </td>
-        ${skriptCreatorZelleHtml(s, renderCreatorNameCell)}
+        ${skriptCreatorZelleHtml(s, renderCreatorName)}
         <td>${statusTd}</td>
         <td>${formatDate(s.created_at)}</td>
         <td class="col-actions">${actionBuilder.create('skripte', s.id)}</td>

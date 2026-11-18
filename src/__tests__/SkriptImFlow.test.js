@@ -22,7 +22,7 @@ const { workflow, tabUtils } = vi.hoisted(() => ({
 vi.mock('../modules/kampagne/KampagneDetailWorkflow.js', () => workflow);
 vi.mock('../modules/skripte/SkriptEditorView.js', () => ({ SkriptEditorView: vi.fn() }));
 vi.mock('../modules/skripte/SkripteService.js', () => ({ skripteService: {} }));
-vi.mock('../modules/creator/CreatorTable.js', () => ({ renderCreatorNameCell: () => '<td></td>' }));
+vi.mock('../modules/creator/CreatorTable.js', () => ({ renderCreatorName: () => '' }));
 vi.mock('../core/actions/ActionBuilder.js', () => ({ actionBuilder: { create: () => '' } }));
 vi.mock('../core/icons/IconSystem.js', () => ({ icon: () => '<svg></svg>' }));
 vi.mock('../core/TabUtils.js', () => tabUtils);

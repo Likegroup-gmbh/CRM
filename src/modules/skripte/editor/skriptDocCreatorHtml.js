@@ -107,13 +107,17 @@ export function listeCreatorHtml(creators) {
 
 /**
  * Creator-Zelle der Skripte-Tabellen: wie im Editor-Kopf die Video-Creator, sonst der
- * der Videoidee. Bei einem geteilten Skript Bubbles und alle Namen.
- * `einzelZelle(creator)` rendert den Normalfall (Avatar und Link).
+ * der Videoidee. Bei einem geteilten Skript je Creator eine Zeile.
+ * `creatorName(creator)` rendert Avatar und Name ohne Zelle, ohne Name leer.
  */
-export function skriptCreatorZelleHtml(skript, einzelZelle) {
-  const creators = creatorsFuerListe(skript, skript?.kooperation_videos || []);
-  if (creators.length <= 1) return einzelZelle(creators[0] || null);
-  return `<td>${listeCreatorHtml(creators)}</td>`;
+export function skriptCreatorZelleHtml(skript, creatorName) {
+  const zeilen = creatorsFuerListe(skript, skript?.kooperation_videos || [])
+    .map(creatorName)
+    .filter(Boolean);
+  if (!zeilen.length) return '<td>-</td>';
+  if (zeilen.length === 1) return `<td class="col-name-with-icon">${zeilen[0]}</td>`;
+  return `<td class="col-name-with-icon">${zeilen
+    .map((z) => `<div class="table-creator-zeile">${z}</div>`).join('')}</td>`;
 }
 
 function creatorChipHtml(creators) {
