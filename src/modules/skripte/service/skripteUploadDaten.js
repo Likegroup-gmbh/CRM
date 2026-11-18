@@ -52,8 +52,10 @@ export const skripteUploadDatenMethoden = {
         payload, titel, dateiname, art, zellen,
         hookWeicht: hookWeicht(item, zellen.hook)
       });
-      await this._schreibeUploadBloecke(skript.id, bloecke);
-      await this._schreibeUploadVersion(skript.id, { titel, zellen, dateiname });
+      await this._sonstVerwerfen(skript.id, async () => {
+        await this._schreibeUploadBloecke(skript.id, bloecke);
+        await this._schreibeUploadVersion(skript.id, { titel, zellen, dateiname });
+      });
       return skript;
     }
 
@@ -63,10 +65,22 @@ export const skripteUploadDatenMethoden = {
       hookWeicht: false,
       statusLesen: true
     });
-    const pfad = await this._ladePdfHoch(file, skript.id);
-    await this.triggerFunction(PDF_FUNKTION, { skriptId: skript.id, pdfPath: pfad });
+    await this._sonstVerwerfen(skript.id, async () => {
+      const pfad = await this._ladePdfHoch(file, skript.id);
+      await this.triggerFunction(PDF_FUNKTION, { skriptId: skript.id, pdfPath: pfad });
+    });
     await this._warteAufPdf(skript.id);
     return skript;
+  },
+
+  /** Scheitert ein Schritt nach dem Anlegen, bleibt kein leerer Entwurf in der Liste. */
+  async _sonstVerwerfen(skriptId, schritte) {
+    try {
+      await schritte();
+    } catch (err) {
+      await this.db.from('skripte').delete().eq('id', skriptId);
+      throw err;
+    }
   },
 
   async setzeSkriptVideoidee(skript, item) {
@@ -213,6 +227,7 @@ export const skripteUploadDatenMethoden = {
       const status = data?.prompt_kontext?.upload_status;
       if (status === 'fertig') return;
       if (status === 'fehler') {
+        await this.db.from('skripte').delete().eq('id', skriptId);
         throw new Error(data.prompt_kontext.upload_fehler || 'Das PDF konnte nicht gelesen werden');
       }
       await new Promise((r) => setTimeout(r, 2000));
