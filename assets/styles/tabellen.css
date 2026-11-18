@@ -1415,6 +1415,33 @@
   background: transparent;
 }
 
+/* Filterspalte sitzt zwischen .detail-section und #kooperationen-videos-container.
+   Ohne diese Glieder wächst das Layout mit den Zeilen, overflow:hidden schneidet
+   sie ab und .grid-wrapper hat keine begrenzte Höhe, also nichts zu scrollen. */
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table .filter-column {
+  align-self: flex-start;
+  max-height: 100%;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table .filter-column-layout__main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table .filter-column-chips {
+  flex-shrink: 0;
+}
+
 .grid-table {
   border-collapse: collapse;
   font-size: var(--text-sm);
