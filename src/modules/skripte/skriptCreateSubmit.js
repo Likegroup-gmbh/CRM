@@ -8,7 +8,13 @@ export async function submitSkriptCreate(drawer) {
   const unternehmenId = drawer.el('unternehmen')?.value;
   const strategieId = drawer.el('konzept')?.value;
   const itemId = drawer.el('videoidee')?.value;
-  const file = drawer.datei();
+  let file;
+  try {
+    file = await drawer.datei();
+  } catch (err) {
+    window.toastSystem?.show(err.message, 'error');
+    return;
+  }
 
   if (!unternehmenId) {
     window.toastSystem?.show('Bitte ein Unternehmen wählen', 'error');

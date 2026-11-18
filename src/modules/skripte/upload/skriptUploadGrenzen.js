@@ -19,6 +19,22 @@ export function titelAusDateiname(name) {
   return basis.slice(0, 200) || 'Skript';
 }
 
+export const DATEI_NICHT_LESBAR = 'Die Datei ließ sich nicht lesen. Ist sie noch in Word geöffnet oder '
+  + 'synchronisiert OneDrive sie gerade? Datei schließen, kurz warten und erneut auswählen.';
+
+/**
+ * Inhalt sofort beim Auswählen in den Speicher holen: Ändern Word oder OneDrive die
+ * Datei danach, kann der Browser die ursprüngliche Referenz nicht mehr lesen.
+ */
+export async function sichereDatei(file) {
+  try {
+    const bytes = await file.arrayBuffer();
+    return new File([bytes], file.name, { type: file.type, lastModified: file.lastModified });
+  } catch {
+    throw new Error(DATEI_NICHT_LESBAR);
+  }
+}
+
 export function pruefeUploadDatei(file) {
   const art = uploadArt(file);
   if (!art) return 'Es geht nur eine Word-Datei (.docx) oder ein PDF.';

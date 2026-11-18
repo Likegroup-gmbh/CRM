@@ -12,7 +12,7 @@ import {
 } from './skriptCreateAnsicht.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
-import { UPLOAD_ACCEPT, UPLOAD_MAX_BYTES } from './upload/skriptUploadGrenzen.js';
+import { UPLOAD_ACCEPT, UPLOAD_MAX_BYTES, sichereDatei } from './upload/skriptUploadGrenzen.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'skript-create-drawer';
@@ -242,14 +242,17 @@ class SkriptCreateDrawer {
     this.lockSearchable('konzept');
   }
 
-  datei() {
-    return this.uploader?.files?.[0] || null;
+  /** Gesicherte Kopie der gewählten Datei; wirft, wenn sie nicht lesbar war. */
+  async datei() {
+    return this.dateiGesichert || null;
   }
 
   onDateiChange() {
-    const datei = this.datei();
+    const datei = this.uploader?.files?.[0] || null;
     const label = document.querySelector(`label[for="${PREFIX}-videoidee"]`);
     if (label) label.textContent = datei ? 'Videoidee' : 'Videoidee *';
+    this.dateiGesichert = datei ? sichereDatei(datei) : null;
+    this.dateiGesichert?.catch((err) => window.toastSystem?.show(err.message, 'error'));
   }
 
   initDisabledDependents() {

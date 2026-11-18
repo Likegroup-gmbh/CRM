@@ -41,6 +41,10 @@
   display: none;
 }
 
+#skript-create-drawer .form-field[hidden] {
+  display: none;
+}
+
 .skripte-create-uebersicht {
   list-style: none;
   margin: 0;

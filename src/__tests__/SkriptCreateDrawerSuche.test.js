@@ -14,6 +14,19 @@ vi.mock('../modules/skripte/SkripteService.js', () => ({
 
 const warte = () => new Promise((r) => setTimeout(r, 0));
 
+if (!Blob.prototype.arrayBuffer) {
+  Blob.prototype.arrayBuffer = function arrayBuffer() {
+    return new Promise((resolve, reject) => {
+      const leser = new FileReader();
+      leser.onload = () => resolve(leser.result);
+      leser.onerror = () => reject(leser.error);
+      leser.readAsArrayBuffer(this);
+    });
+  };
+}
+
+const text = async (blob) => new TextDecoder().decode(await blob.arrayBuffer());
+
 function suchfeld(name) {
   return document.getElementById(`skcreate-${name}`)
     .parentNode.querySelector('.searchable-select-input');
@@ -33,6 +46,7 @@ async function waehle(name, label) {
 
 describe('SkriptCreateDrawer: Suchfelder', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     document.body.innerHTML = '';
     const suche = new FormSearchableSelect({});
     window.formSystem = {
@@ -76,19 +90,61 @@ describe('SkriptCreateDrawer: Suchfelder', () => {
     expect(document.getElementById('skcreate-konzept').value).toBe('st-2');
     expect(suchfeld('videoidee').value).toBe('');
 
-    const drawer = document.getElementById('skript-create-drawer');
-    const datei = new File(['x'], 'Skript.docx');
-    const form = document.getElementById('skcreate-form');
-    const uploaderInput = drawer.querySelector('.uploader input[type="file"]');
-    Object.defineProperty(uploaderInput, 'files', { value: [datei] });
-    uploaderInput.dispatchEvent(new Event('change'));
-    form.dispatchEvent(new Event('submit', { cancelable: true }));
-    await warte();
-    await warte();
+    waehleDatei(new File(['x'], 'Skript.docx'));
+    await sende();
 
     expect(window.toastSystem.show).not.toHaveBeenCalledWith('Bitte ein Konzept wählen', 'error');
-    expect(skripteService.createSkriptAusUpload).toHaveBeenCalledWith(
-      expect.objectContaining({ file: datei, item: null })
-    );
+    const { file, item } = skripteService.createSkriptAusUpload.mock.calls[0][0];
+    expect(item).toBeNull();
+    expect(file.name).toBe('Skript.docx');
+    expect(await text(file)).toBe('x');
+  });
+
+  it('Datei, die sich nach dem Auswählen ändert, bleibt lesbar', async () => {
+    openSkriptCreateDrawer();
+    await warte();
+    await warte();
+    await waehle('unternehmen', 'Hautica');
+    await waehle('konzept', 'Winter');
+
+    const datei = new File(['inhalt'], 'Skript.docx');
+    const original = datei.arrayBuffer.bind(datei);
+    let gelesen = false;
+    datei.arrayBuffer = () => {
+      if (gelesen) return Promise.reject(new DOMException('changed', 'NotReadableError'));
+      gelesen = true;
+      return original();
+    };
+    waehleDatei(datei);
+    await sende();
+
+    expect(await text(skripteService.createSkriptAusUpload.mock.calls[0][0].file)).toBe('inhalt');
+  });
+
+  it('nicht lesbare Datei: deutsche Meldung, kein Upload', async () => {
+    openSkriptCreateDrawer();
+    await warte();
+    await warte();
+    await waehle('unternehmen', 'Hautica');
+    await waehle('konzept', 'Winter');
+
+    const datei = new File(['x'], 'Skript.docx');
+    datei.arrayBuffer = () => Promise.reject(new DOMException('weg', 'NotReadableError'));
+    waehleDatei(datei);
+    await sende();
+
+    expect(window.toastSystem.show).toHaveBeenCalledWith(expect.stringContaining('ließ sich nicht lesen'), 'error');
+    expect(skripteService.createSkriptAusUpload).not.toHaveBeenCalled();
   });
 });
+
+function waehleDatei(datei) {
+  const input = document.querySelector('#skript-create-drawer .uploader input[type="file"]');
+  Object.defineProperty(input, 'files', { value: [datei], configurable: true });
+  input.dispatchEvent(new Event('change'));
+}
+
+async function sende() {
+  document.getElementById('skcreate-form').dispatchEvent(new Event('submit', { cancelable: true }));
+  for (let i = 0; i < 4; i += 1) await warte();
+}
