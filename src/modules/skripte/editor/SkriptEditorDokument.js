@@ -11,7 +11,6 @@ import { SkriptKooperationDrawer } from '../SkriptKooperationDrawer.js';
 import { openCreatorTausch } from '../../creator-tausch/creatorTauschUi.js';
 import { findeAlterEintragFuerSkript } from '../../creator-tausch/CreatorTauschService.js';
 import { quittiereTausch } from './skriptTauschBanner.js';
-import { bindUploadHinweis } from './skriptUploadHinweis.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
 
 SkriptEditorView.prototype.bindDocHeadActions = function(el) {
@@ -161,7 +160,6 @@ SkriptEditorView.prototype.renderDoc = function() {
     this.bindPersonaWahl(el);
     this.bindDocHeadActions(el);
     this.bindVerknuepfungen(el);
-    bindUploadHinweis(this, el);
     const input = document.getElementById('ed-input');
     if (input && !input.disabled) input.placeholder = PLACEHOLDER_FRAGEN;
     this.renderVersionSelect();
@@ -197,7 +195,6 @@ SkriptEditorView.prototype.renderDoc = function() {
     btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
   });
   this.bindVerknuepfungen(el);
-  bindUploadHinweis(this, el);
   this.inlineEdit.attach(el, { readonly: !this.kannDokumentEditieren });
   this._blocks.attach(el);
   if (bloeckeEditierbar) this._toolbar.attach(el);
