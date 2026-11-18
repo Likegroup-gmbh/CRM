@@ -17,29 +17,39 @@ function mitCastingNamen(creator, castingName) {
   return { ...creator, vorname: '', nachname: '', name };
 }
 
-/** Creator wie in der Skripte-Tabelle: Casting, sonst die Kooperation. */
-export function creatorAusZeile(row) {
+/**
+ * Creator eines Skripts: die der verknüpften Kooperationsvideos, sonst der am Casting
+ * der Videoidee. Ein geteiltes Skript hat mehrere; die Hauptbesetzung steht vorn.
+ */
+export function creatorenAusZeile(row) {
   const eintrag = row?.strategie_item?.casting_eintrag;
-  const crm = eintrag?.creator;
-  if (crm?.id) return mitCastingNamen(crm, eintrag?.name);
-  const videos = row?.kooperation_videos || [];
-  for (const video of videos) {
+  const casting = eintrag?.creator?.id ? mitCastingNamen(eintrag.creator, eintrag.name) : null;
+  const ausVideos = new Map();
+  for (const video of row?.kooperation_videos || []) {
     const creator = video?.kooperation?.creator;
-    if (creator?.id) return creator;
+    if (!creator?.id || ausVideos.has(creator.id)) continue;
+    ausVideos.set(creator.id, creator.id === casting?.id ? casting : creator);
   }
-  return null;
+  if (!ausVideos.size) return casting ? [casting] : [];
+  const liste = [...ausVideos.values()];
+  return liste.sort((a, b) => Number(b.id === casting?.id) - Number(a.id === casting?.id));
+}
+
+function gehoertZu(skript, creatorId) {
+  if (Array.isArray(skript.creatorIds)) return skript.creatorIds.includes(creatorId);
+  return skript.creatorId === creatorId;
 }
 
 /**
  * Ohne creatorId ist es das Kampagnen-Paket: alle Skripte der Kampagne sind eigene.
- * @param {Array} skripte  Zeilen mit id, status, creatorId
+ * @param {Array} skripte  Zeilen mit id, status, creatorIds (oder creatorId)
  * @param {string|null} creatorId
  * @param {string[]} gespeichertIds
  * @param {boolean} hatZugang
  */
 export function paketAuswahl({ skripte = [], creatorId = null, gespeichertIds = [], hatZugang = false } = {}) {
-  const eigene = creatorId ? skripte.filter((s) => s.creatorId === creatorId) : skripte;
-  const weitere = creatorId ? skripte.filter((s) => s.creatorId !== creatorId) : [];
+  const eigene = creatorId ? skripte.filter((s) => gehoertZu(s, creatorId)) : skripte;
+  const weitere = creatorId ? skripte.filter((s) => !gehoertZu(s, creatorId)) : [];
   const saved = new Set(gespeichertIds);
   const checked = new Set();
 
@@ -60,8 +70,16 @@ export function paketAuswahl({ skripte = [], creatorId = null, gespeichertIds = 
 export function creatorOptionen(skripte = []) {
   const map = new Map();
   for (const skript of skripte) {
-    if (!skript.creator?.id) continue;
-    if (!map.has(skript.creator.id)) map.set(skript.creator.id, skript.creator);
+    for (const creator of skript.creators || [skript.creator]) {
+      if (!creator?.id || map.has(creator.id)) continue;
+      map.set(creator.id, creator);
+    }
   }
   return [...map.values()].sort((a, b) => creatorAnzeigeName(a).localeCompare(creatorAnzeigeName(b), 'de'));
+}
+
+/** Namen aller Creator eines Skripts für die Zeilen-Meta. */
+export function creatorenText(skript) {
+  const liste = (skript?.creators || [skript?.creator]).filter(Boolean);
+  return liste.map(creatorAnzeigeName).join(', ');
 }

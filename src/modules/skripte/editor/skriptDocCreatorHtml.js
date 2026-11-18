@@ -105,6 +105,17 @@ export function listeCreatorHtml(creators) {
     </span>`;
 }
 
+/**
+ * Creator-Zelle der Skripte-Tabellen: wie im Editor-Kopf die Video-Creator, sonst der
+ * der Videoidee. Bei einem geteilten Skript Bubbles und alle Namen.
+ * `einzelZelle(creator)` rendert den Normalfall (Avatar und Link).
+ */
+export function skriptCreatorZelleHtml(skript, einzelZelle) {
+  const creators = creatorsFuerListe(skript, skript?.kooperation_videos || []);
+  if (creators.length <= 1) return einzelZelle(creators[0] || null);
+  return `<td>${listeCreatorHtml(creators)}</td>`;
+}
+
 function creatorChipHtml(creators) {
   const namen = creators.map(creatorDisplayName).join(', ');
   return `

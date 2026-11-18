@@ -105,12 +105,17 @@ export async function ladeTauschKontext(alterItemId) {
  * der Kooperation in der Produktion des Skripts. null bei Altbestand ohne Eintrag.
  */
 export async function findeAlterEintragFuerSkript(skript, verknuepfungen = []) {
+  const videoCreatorIds = verknuepfungen.map((v) => v.kooperation?.creator?.id).filter(Boolean);
   if (skript?.strategie_item_id) {
     const idee = await einzeln(db().from('strategie_items')
-      .select('creator_auswahl_item_id').eq('id', skript.strategie_item_id).maybeSingle());
-    if (idee?.creator_auswahl_item_id) return idee.creator_auswahl_item_id;
+      .select('creator_auswahl_item_id, casting_eintrag:creator_auswahl_item_id(creator_id)')
+      .eq('id', skript.strategie_item_id).maybeSingle());
+    const ideeCreatorId = idee?.casting_eintrag?.creator_id;
+    // Eine Kopie für einen weiteren Creator hängt an derselben Idee, gehört aber dessen Video
+    const gehoertZumSkript = !videoCreatorIds.length || !ideeCreatorId || videoCreatorIds.includes(ideeCreatorId);
+    if (idee?.creator_auswahl_item_id && gehoertZumSkript) return idee.creator_auswahl_item_id;
   }
-  const creatorId = verknuepfungen.map((v) => v.kooperation?.creator?.id).find(Boolean);
+  const creatorId = videoCreatorIds[0];
   if (!creatorId || !skript?.produktion_id) return null;
   let trefferQuery = db().from('creator_auswahl_items')
     .select('id, creator_auswahl:creator_auswahl_id!inner(produktion_id, briefing_id)')

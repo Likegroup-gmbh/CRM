@@ -185,7 +185,11 @@ export class SkriptPaketDrawer {
 
   currentCreator() {
     if (!this.creatorId) return null;
-    return this.skripte.find((s) => s.creatorId === this.creatorId)?.creator || null;
+    for (const skript of this.skripte) {
+      const creator = (skript.creators || [skript.creator]).find((c) => c?.id === this.creatorId);
+      if (creator) return creator;
+    }
+    return null;
   }
 
   standardName() {

@@ -17,12 +17,13 @@ function menuItemHtml(id, label, iconName, title, { danger = false } = {}) {
     </button>`;
 }
 
-/** Selten genutzte Aktionen hinter "…": PDF, Link, Teilen, Creator tauschen, Löschen. */
-function kopfMenuHtml({ kannPdf, kannTeilen, kannTauschen, kannLoeschen }) {
+/** Selten genutzte Aktionen hinter "…": PDF, Link, Teilen, Kopieren, Creator tauschen, Löschen. */
+function kopfMenuHtml({ kannPdf, kannTeilen, kannKopieren, kannTauschen, kannLoeschen }) {
   const items = [
     kannPdf ? menuItemHtml('ed-pdf', 'PDF herunterladen', 'pdf', 'Skript als PDF') : '',
     kannTeilen ? menuItemHtml('ed-copy-link', 'Link kopieren', 'link', 'Adresse für ein Kundenkonto kopieren') : '',
     kannTeilen ? menuItemHtml('ed-share', 'Skripte dieses Creators teilen', 'share-alt', 'Freigegebene Skripte dieses Creators teilen') : '',
+    kannKopieren ? menuItemHtml('ed-kopieren', 'Für weiteren Creator kopieren', 'document-duplicate', 'Eigene Fassung für einen weiteren Creator anlegen') : '',
     kannTauschen ? tauschSkriptButtonHtml() : ''
   ].filter(Boolean);
   if (kannLoeschen) {
@@ -43,7 +44,8 @@ function kopfMenuHtml({ kannPdf, kannTeilen, kannTauschen, kannLoeschen }) {
  */
 export function docHeadActionsHtml({
   kannTeilen = false, kannAnschreiben = null, kannPdf = false, kannZurueck = false, kannFreigeben = false,
-  kannLoeschen = false, kannTauschen = false, status = '', statusWahlHtml = '', verknuepfungenHtml = ''
+  kannLoeschen = false, kannTauschen = false, kannKopieren = false, status = '', statusWahlHtml = '',
+  verknuepfungenHtml = ''
 } = {}) {
   const senden = kannAnschreiben == null ? kannTeilen : kannAnschreiben;
   const freigabeBadge = !statusWahlHtml && status === 'freigegeben'
@@ -71,7 +73,7 @@ export function docHeadActionsHtml({
       <span class="mdc-btn__icon">${icon('anschreiben')}</span>
       <span class="mdc-btn__label">Senden</span>
     </button>` : ''}
-    ${kopfMenuHtml({ kannPdf, kannTeilen, kannTauschen, kannLoeschen })}
+    ${kopfMenuHtml({ kannPdf, kannTeilen, kannKopieren, kannTauschen, kannLoeschen })}
   `;
 }
 

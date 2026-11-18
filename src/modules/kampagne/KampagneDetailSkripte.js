@@ -9,7 +9,7 @@ import { skripteService } from '../skripte/SkripteService.js';
 import { skriptFlowUrl } from '../skripte/skriptFlowZiel.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { skriptStatusOptions } from '../skripte/skriptStatusOptions.js';
-import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
+import { skriptCreatorZelleHtml } from '../skripte/editor/skriptDocCreatorHtml.js';
 import { renderCreatorNameCell } from '../creator/CreatorTable.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
@@ -100,7 +100,7 @@ export async function renderSkripteTabelle(detail) {
             ${esc(titel)}
           </a>
         </td>
-        ${renderCreatorNameCell(konzeptCreatorFromSkript(s))}
+        ${skriptCreatorZelleHtml(s, renderCreatorNameCell)}
         <td>${statusTd}</td>
         <td>${formatDate(s.created_at)}</td>
         <td class="col-actions">${actionBuilder.create('skripte', s.id)}</td>

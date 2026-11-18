@@ -351,7 +351,7 @@ _Avoid_: Fit Score, LLM-Ranking, position als Sortierung
 Einen Casting-Vorschlag zum Casting-Eintrag mit `creator_id` machen.
 
 **Creator-Tausch**:
-Ein abspringender Creator wird in einer Produktion durch einen anderen Casting-Eintrag desselben Castings ersetzt. Videoideen, Skripte und Kooperation wechseln zum Ersatz, der alte Eintrag gilt als Abgesagt und zählt in Track. Der Ersatz muss vorher selbst im Casting stehen und die Gates erfüllen (Kunden-Prio, Zusage oder Gebucht). Nicht tauschbar ist, sobald ein Vertrag unterschrieben ist, eine Rechnung existiert oder ein Video hochgeladen wurde. Ein unterschriebener Vertrag sperrt den Tausch auf jeder Kooperation, die er deckt. Nicht unterschriebene Verträge des Abspringers bleiben als Abgelehnt in der Historie, außer sie decken noch eine Kooperation, die nicht getauscht wird: dann bleibt der Vertrag und verliert nur die getauschte Kooperation. Das Skript behält Text und Kundenfreigabe, bekommt aber einen Hinweis und eine Festlegung zur neuen Besetzung.
+Ein abspringender Creator wird in einer Produktion durch einen anderen Casting-Eintrag desselben Castings ersetzt. Videoideen, Skripte und Kooperation wechseln zum Ersatz, der alte Eintrag gilt als Abgesagt und zählt in Track. Der Ersatz muss vorher selbst im Casting stehen und die Gates erfüllen (Kunden-Prio, Zusage oder Gebucht). Nicht tauschbar ist, sobald ein Vertrag unterschrieben ist, eine Rechnung existiert oder ein Video hochgeladen wurde. Ein unterschriebener Vertrag sperrt den Tausch auf jeder Kooperation, die er deckt. Nicht unterschriebene Verträge des Abspringers bleiben als Abgelehnt in der Historie, außer sie decken noch eine Kooperation, die nicht getauscht wird: dann bleibt der Vertrag und verliert nur die getauschte Kooperation. Das Skript behält Text und Kundenfreigabe, bekommt aber einen Hinweis und eine Festlegung zur neuen Besetzung. Hängt das Skript auch an Videos anderer Creator, bleibt es beim Hinweis, ohne Festlegung.
 _Avoid_: Ersetzen (das ist Videoidee-Vorschläge ablösen), Wechsel, Absage-Flow, Umbesetzen
 
 **Übernehmen**:
@@ -432,8 +432,16 @@ bis die neuen in der Tabelle liegen.
 _Avoid_: Umschreiben (dieselbe Zeile bleibt), Neu entwerfen (addiert, verwirft nichts)
 
 **Skript**:
-Text für genau ein Video und genau einen Creator: den der verknüpften Kooperation, sonst den Creator der Videoidee. Organic und Influencer sind eine Empfehlung von Person zu Person, außer die **Do’s und Don’ts** oder das Briefing verlangen etwas anderes. Paid bleibt ein Performance-Creative. Beim Anlegen wird die **Funnel-Stufe** der Videoidee kopiert, dazu die **Videolänge**; bei Paid ist es die Länge dieser Stufe. Eine spätere Änderung im Konzept gilt für neue Skripte, der Editor weist auf die Abweichung hin.
+Text für ein oder mehrere Videos. Die Creator des Skripts sind die der verknüpften Kooperationsvideos, sonst der Creator der Videoidee; mehrere Creator drehen dann wörtlich denselben Text. Geschrieben wird für die **Hauptbesetzung**. Braucht ein Creator eine eigene Fassung, ist das **Skript kopieren**. Organic und Influencer sind eine Empfehlung von Person zu Person, außer die **Do’s und Don’ts** oder das Briefing verlangen etwas anderes. Paid bleibt ein Performance-Creative. Beim Anlegen wird die **Funnel-Stufe** der Videoidee kopiert, dazu die **Videolänge**; bei Paid ist es die Länge dieser Stufe. Eine spätere Änderung im Konzept gilt für neue Skripte, der Editor weist auf die Abweichung hin.
 _Avoid_: Drehbuch, Copy
+
+**Hauptbesetzung**:
+Der Creator, für den Liky ein Skript schreibt: der Creator der Videoidee, außer eine **Festlegung** nennt eine andere Besetzung. Weitere Creator an einem Skript übernehmen den Text.
+_Avoid_: Haupt-Creator, Lead-Creator
+
+**Skript kopieren**:
+Legt für einen weiteren Creator ein eigenes Skript an derselben Videoidee an, damit seine Fassung abweichen darf. Die Kopie übernimmt Text, Hook-Varianten, Freie Blöcke und Festlegungen, beginnt aber als Entwurf ohne Kundenfreigabe und mit der Besetzung des neuen Creators.
+_Avoid_: Duplizieren (das ist das Briefing), Skript teilen (das ist der Link)
 
 **Skript-Freigabe**:
 Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: nicht
@@ -450,7 +458,7 @@ Freitext beim Anlegen eines Skripts. Ohne Datei geht er in Rückfragen und Erste
 _Avoid_: Regieanweisung (die ist für die Umsetzung am Set), Notiz
 
 **Kundenfreigabe**:
-Der Kunde gibt ein Skript frei, das intern bereits Final ist. Danach gilt das Skript als freigegeben für weitere Aktionen, und die Skript-Freigabe am verknüpften Kooperationsvideo ist gesetzt.
+Der Kunde gibt ein Skript frei, das intern bereits Final ist. Danach gilt das Skript als freigegeben für weitere Aktionen, und die Skript-Freigabe an allen verknüpften Kooperationsvideos ist gesetzt. Sie gilt für den Text, also für alle Creator des Skripts gemeinsam.
 _Avoid_: Skript-Freigabe, Final, Video-Freigabe (das ist das fertige Video)
 
 **Video-Freigabe**:

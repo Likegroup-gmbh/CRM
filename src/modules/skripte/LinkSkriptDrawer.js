@@ -246,7 +246,10 @@ export class LinkSkriptDrawer {
         btn.classList.add('is-loading');
       }
 
-      await skripteService.verknuepfeMitVideo(this.video.id, this.selectedSkriptId);
+      const skript = this.skripte.find((s) => s.id === this.selectedSkriptId);
+      await skripteService.verknuepfeMitVideo(this.video.id, this.selectedSkriptId, {
+        freigegeben: skript ? skript.status === 'freigegeben' : undefined
+      });
 
       window.toastSystem?.show('Skript erfolgreich verknüpft', 'success');
       window.dispatchEvent(new CustomEvent('skriptLinked', {

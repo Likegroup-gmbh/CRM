@@ -31,7 +31,7 @@ import {
 import { socialKarteLinks } from './pdf/skriptPdfSocial.js';
 import { drawFreierBlock } from './pdf/skriptPdfBloecke.js';
 
-export { creatorFuerAnschreiben, instagramZeile } from './pdf/skriptPdfSocial.js';
+export { anschreibenCreatorId, castingGiltFuerAnschreiben, creatorFuerAnschreiben, instagramZeile } from './pdf/skriptPdfSocial.js';
 export { layoutRuns } from './pdf/skriptPdfBloecke.js';
 
 const COLS = [{ w: 33 }, { w: 74.5 }, { w: 74.5 }];

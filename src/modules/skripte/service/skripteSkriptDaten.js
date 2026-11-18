@@ -219,10 +219,13 @@ export const skripteSkriptDatenMethoden = {
     return { kooperationen: koops, videos: videos || [] };
   },
 
-  async verknuepfeMitVideo(videoId, skriptId) {
+  /** Die Kundenfreigabe gilt für alle Videos eines Skripts: das neue Video übernimmt den Haken. */
+  async verknuepfeMitVideo(videoId, skriptId, { freigegeben } = {}) {
+    const patch = { skript_id: skriptId };
+    if (typeof freigegeben === 'boolean') patch.skript_freigegeben = freigegeben;
     const { error } = await this.db
       .from('kooperation_videos')
-      .update({ skript_id: skriptId })
+      .update(patch)
       .eq('id', videoId);
     if (error) throw new Error(error.message);
   },

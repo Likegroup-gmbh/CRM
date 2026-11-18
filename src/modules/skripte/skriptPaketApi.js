@@ -2,7 +2,7 @@
 // lesen hier, nicht über die übrigen Skript-Queries.
 
 import { skripteService } from './SkripteService.js';
-import { creatorAusZeile } from './skriptPaketModel.js';
+import { creatorenAusZeile } from './skriptPaketModel.js';
 import { loadAnsprechpartnerRows } from '../../core/anschreiben/snapshot.js';
 
 function db() {
@@ -28,14 +28,15 @@ export async function loadKampagneAnsprechpartner(kampagneId) {
 export async function loadKampagneSkripteFuerPaket(kampagneId) {
   const rows = await skripteService.loadSkripte({ kampagneId });
   return rows.map((row) => {
-    const creator = creatorAusZeile(row);
+    const creators = creatorenAusZeile(row);
     return {
       id: row.id,
       titel: row.titel || row.hook || 'Ohne Titel',
       status: row.status,
       nr: row.skript_nr ?? null,
-      creator,
-      creatorId: creator?.id || null
+      creator: creators[0] || null,
+      creators,
+      creatorIds: creators.map((c) => c.id)
     };
   }).sort((a, b) => (a.nr ?? 9999) - (b.nr ?? 9999) || String(a.titel).localeCompare(String(b.titel), 'de'));
 }

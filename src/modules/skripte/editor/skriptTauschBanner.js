@@ -18,11 +18,14 @@ export function tauschSkriptButtonHtml() {
 export function tauschBannerHtml(skript) {
   const t = skript?.creator_tausch;
   if (!t || t.quittiert || !window.isInternal?.()) return '';
+  const hinweis = t.geteilt
+    ? 'Das Skript gilt auch für andere Creator, der Text bleibt für alle gleich. Braucht der neue Creator eine eigene Fassung, kopiere das Skript.'
+    : 'Prüfe Ansprache und Besetzung im Skript.';
   return `
     <div class="skripte-editor-tausch-banner" role="status">
       <span>Creator getauscht: vorher <strong>${escapeHtml(t.vorher_name || 'Creator')}</strong>,
         jetzt <strong>${escapeHtml(t.jetzt_name || 'Creator')}</strong>.
-        Prüfe Ansprache und Besetzung im Skript.</span>
+        ${hinweis}</span>
       <button type="button" class="mdc-btn mdc-btn--secondary" id="ed-tausch-quittieren">
         <span class="mdc-btn__label">Passt so</span>
       </button>

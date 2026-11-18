@@ -45,6 +45,7 @@ SkriptEditorView.prototype.docHeadActions = function() {
     kannLoeschen: this.kannLoeschen,
     kannTauschen: this.kannZuweisen
       && creatorsFuerKopf(this.verknuepfungen, konzeptCreatorFromSkript(this.skript)).length > 0,
+    kannKopieren: this.kannZuweisen && Boolean(this.skript?.kampagne_id),
     status: this.skript?.status || '',
     statusWahlHtml: this.statusWahlHtml(),
     verknuepfungenHtml: this.renderVerknuepfungenHtml()
@@ -270,6 +271,7 @@ SkriptEditorView.prototype.renderVerknuepfungenHtml = function() {
 SkriptEditorView.prototype.bindVerknuepfungen = function(el) {
   el.querySelector('#ed-skript-zuweisen')?.addEventListener('click', () => this.openKooperationDrawer());
   el.querySelector('#ed-creator-tauschen')?.addEventListener('click', () => this.openCreatorTauschFuerSkript());
+  el.querySelector('#ed-kopieren')?.addEventListener('click', () => this.openKopierenDrawer());
   el.querySelector('#ed-tausch-quittieren')?.addEventListener('click', () => quittiereTausch(this));
 };
 
@@ -308,6 +310,22 @@ SkriptEditorView.prototype.reloadVerknuepfungen = async function() {
     console.warn('Skript-Verknüpfungen konnten nicht geladen werden:', err);
     this.verknuepfungen = [];
   }
+};
+
+/** Skript kopieren (ADR 0075): Video eines weiteren Creators wählen, danach die Kopie öffnen. */
+SkriptEditorView.prototype.openKopierenDrawer = function() {
+  if (!this.kannZuweisen || !this.skript?.kampagne_id) return;
+  if (!this._koopDrawer) this._koopDrawer = new SkriptKooperationDrawer();
+  this._koopDrawer.open({
+    skript: this.skript,
+    verknuepfungen: this.verknuepfungen,
+    modus: 'kopieren',
+    onSuccess: async (kopieId) => {
+      const kopie = await skripteService.loadSkript(kopieId);
+      if (kopie) this.upsertSkriptInListe(kopie);
+      await this.switchSkript(kopieId);
+    }
+  });
 };
 
 SkriptEditorView.prototype.openKooperationDrawer = function() {

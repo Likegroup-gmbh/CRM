@@ -11,6 +11,7 @@ import { skripteSkriptDatenMethoden } from './service/skripteSkriptDaten.js';
 import { skripteGeneratorDatenMethoden } from './service/skripteGeneratorDaten.js';
 import { skripteEditorDatenMethoden } from './service/skripteEditorDaten.js';
 import { skripteUploadDatenMethoden } from './service/skripteUploadDaten.js';
+import { skripteKopieDatenMethoden } from './service/skripteKopieDaten.js';
 
 export { FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
@@ -272,7 +273,8 @@ Object.assign(
   skripteSkriptDatenMethoden,
   skripteGeneratorDatenMethoden,
   skripteEditorDatenMethoden,
-  skripteUploadDatenMethoden
+  skripteUploadDatenMethoden,
+  skripteKopieDatenMethoden
 );
 
 export const skripteService = new SkripteService();
