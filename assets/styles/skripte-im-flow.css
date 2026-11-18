@@ -50,11 +50,13 @@
   padding-right: 0;
 }
 
-/* Skriptwahl bleibt am rechten Rand stehen, die Tabs laufen darunter durch */
+/* Skriptwahl bleibt am rechten Rand stehen, die Tabs laufen darunter durch.
+   Das Menü ist position:fixed, sein z-index gilt aber nur in diesem Stapel.
+   Der muss über der Editor-Leiste liegen (.skripte-editor-toolbar, z-index 6). */
 .kampagne-detail-body[data-skript-offen] .kampagne-workflow-tabs__liste {
   position: sticky;
   right: 0;
-  z-index: 1;
+  z-index: 10;
   align-self: stretch;
   margin-block: calc(-1 * var(--space-xs));
   padding: var(--space-xs);
