@@ -9,7 +9,7 @@ import { renderInvoiceMonthSheet, updateInvoiceMonthTabUI } from '../auftrag/log
 import { ENTITY_RECHNUNG, getRechnungTabKey, hydrateRechnungPdfs, loadCounts, loadRows } from './Monatsblatt.js';
 import { loadKooperationCreatorKosten } from './creatorKostenSumme.js';
 import { loadRechnungMitarbeiterScope, clearRechnungMitarbeiterScope } from './RechnungMitarbeiterScope.js';
-import { renderPageShell, updateTableRows, updateSingleRow, updateStatusTabCounts, patchPdfCells, updateInvoiceSummary } from './RechnungListRenderer.js';
+import { renderPageShell, updateTableRows, updateSingleRow, updateStatusTabCounts, patchPdfCells, updateInvoiceSummary, SKONTO_STATUS_TAB, rechnungMatchesStatusTab } from './RechnungListRenderer.js';
 import { bindRechnungListEvents } from './RechnungListEvents.js';
 import { RechnungListSelection } from './RechnungListSelection.js';
 import * as QuickFilter from './RechnungUnternehmenQuickFilter.js';
@@ -22,7 +22,11 @@ const STATUS_OPTIONS = [
   { id: 'Bezahlt', name: 'Bezahlt' }, { id: 'An Qonto gesendet', name: 'An Qonto gesendet' },
   { id: 'Marc an Qonto gesendet', name: 'Marc an Qonto gesendet' }
 ];
-const STATUS_TABS = [{ id: 'alle', label: 'Alle' }, ...STATUS_OPTIONS.map(o => ({ id: o.id, label: o.name }))];
+const STATUS_TABS = [
+  { id: 'alle', label: 'Alle' },
+  ...STATUS_OPTIONS.map(o => ({ id: o.id, label: o.name })),
+  { id: SKONTO_STATUS_TAB, label: 'Skonto' }
+];
 const TYPE_TABS = [{ id: 'rechnung', label: 'Rechnungen' }, { id: 'contracting', label: 'Contracts' }];
 
 export class RechnungList {
@@ -114,7 +118,7 @@ export class RechnungList {
     const { unternehmen_ids, ...filters } = rawFilters;
     if (Array.isArray(unternehmen_ids) && unternehmen_ids.length > 0) filters.unternehmen_ids = unternehmen_ids;
     return { entity: ENTITY_RECHNUNG, year: this.currentYear, month: this.currentMonth,
-      filters, search: this.searchQuery, typeTab: this.activeTypeTab, statusIds: STATUS_TABS.map(t => t.id),
+      filters, search: this.searchQuery, typeTab: this.activeTypeTab, statusIds: STATUS_TABS.filter(t => t.id !== SKONTO_STATUS_TAB).map(t => t.id),
       sortBy: this.sortBy };
   }
 
@@ -178,8 +182,7 @@ export class RechnungList {
   // ═══════════════════════════ Table / tabs ════════════════
 
   getFilteredRechnungen() {
-    if (this.activeStatusTab === 'alle') return this.rechnungen || [];
-    return (this.rechnungen || []).filter(r => r.status === this.activeStatusTab);
+    return (this.rechnungen || []).filter(r => rechnungMatchesStatusTab(r, this.activeStatusTab));
   }
 
   async _loadCreatorKosten(opts) {

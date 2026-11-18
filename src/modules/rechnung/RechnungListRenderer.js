@@ -24,6 +24,14 @@ export function formatRechnungSummaryCurrency(value) {
   return summaryFormatter.format(Number(value) || 0);
 }
 
+export const SKONTO_STATUS_TAB = 'skonto';
+
+export function rechnungMatchesStatusTab(rechnung, tabId) {
+  if (!tabId || tabId === 'alle') return true;
+  if (tabId === SKONTO_STATUS_TAB) return rechnung?.skonto === true;
+  return rechnung?.status === tabId;
+}
+
 export function getRechnungColumnCount(isAdmin) {
   return isAdmin ? 21 : 20;
 }
@@ -234,8 +242,11 @@ export async function updateTableRows(rechnungen, { isAdmin, statusOptions, acti
       const isContract = activeTypeTab === 'contracting';
       const entityLabel = isContract ? 'Contracts' : 'Rechnungen';
       const hasMonthFilter = currentMonth !== ALL_TAB;
+      const emptyTitle = activeStatusTab === SKONTO_STATUS_TAB
+        ? `Keine ${entityLabel} mit Skonto`
+        : `Keine ${entityLabel} vorhanden`;
       const html = hasMonthFilter
-        ? renderEmptyState({ icon: 'invoice', title: `Keine ${entityLabel} vorhanden`, text: formatMonthEmptyText(currentMonth, currentYear) })
+        ? renderEmptyState({ icon: 'invoice', title: emptyTitle, text: formatMonthEmptyText(currentMonth, currentYear) })
         : resolveEmptyState({
             hasActiveFilters: hasActiveFilters,
             states: {
@@ -244,7 +255,8 @@ export async function updateTableRows(rechnungen, { isAdmin, statusOptions, acti
               'Rückfrage': { icon: 'invoice', title: `Keine ${entityLabel} in Rückfrage` },
               Bezahlt: { icon: 'check', title: `Keine bezahlten ${entityLabel}`, text: 'Noch ist nichts bezahlt worden.' },
               'An Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} an Qonto gesendet` },
-              'Marc an Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} von Marc an Qonto gesendet` }
+              'Marc an Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} von Marc an Qonto gesendet` },
+              [SKONTO_STATUS_TAB]: { icon: 'invoice', title: `Keine ${entityLabel} mit Skonto`, text: 'Bei keiner Rechnung ist Skonto gesetzt.' }
             }
           }, activeStatusTab);
       tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state-cell">${html}</td></tr>`;
@@ -330,7 +342,10 @@ export function updateSingleRow(id, newStatus, { rechnungen, statusOptions, acti
   }
 
   updateStatusTabCounts(rechnungen, statusTabs, blattCounts, typeTabs);
-  if (activeStatusTab !== 'alle' && newStatus !== activeStatusTab) row.remove();
+  const stillVisible = rechnung
+    ? rechnungMatchesStatusTab(rechnung, activeStatusTab)
+    : activeStatusTab === 'alle' || activeStatusTab === SKONTO_STATUS_TAB || newStatus === activeStatusTab;
+  if (!stillVisible) row.remove();
 }
 
 // ────────────────────────── Tab counts ──────────────────────────
@@ -339,7 +354,7 @@ export function updateStatusTabCounts(rechnungen, statusTabs, blattCounts, typeT
   const monthRows = rechnungen || [];
   const counts = { alle: monthRows.length };
   statusTabs.forEach(t => {
-    if (t.id !== 'alle') counts[t.id] = monthRows.filter(r => r.status === t.id).length;
+    if (t.id !== 'alle') counts[t.id] = monthRows.filter(r => rechnungMatchesStatusTab(r, t.id)).length;
   });
   statusTabs.forEach(t => {
     const el = document.querySelector(`[data-status-count="${t.id}"]`);
