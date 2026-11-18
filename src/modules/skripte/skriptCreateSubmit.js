@@ -8,6 +8,7 @@ export async function submitSkriptCreate(drawer) {
   const unternehmenId = drawer.el('unternehmen')?.value;
   const strategieId = drawer.el('konzept')?.value;
   const itemId = drawer.el('videoidee')?.value;
+  const hinweis = (drawer.el('hinweis')?.value || '').trim();
   let file;
   try {
     file = await drawer.datei();
@@ -46,12 +47,13 @@ export async function submitSkriptCreate(drawer) {
 
   try {
     if (file) {
-      if (label) label.textContent = uploadArtText(file);
+      if (label) label.textContent = uploadArtText(file, hinweis);
       const vorbereitet = await payloadFuerUpload(drawer, basis);
       const skript = await skripteService.createSkriptAusUpload({
         file,
         payload: vorbereitet.payload,
-        item: vorbereitet.item
+        item: vorbereitet.item,
+        hinweis
       });
       return { id: skript.id, meldung: 'Skript aus der Datei angelegt' };
     }
@@ -73,7 +75,8 @@ export async function submitSkriptCreate(drawer) {
         beschreibung: item.beschreibung || item.kurzbeschreibung,
         caption: item.caption,
         platform: item.plattform
-      })
+      }),
+      ...(hinweis ? { hinweis } : {})
     };
 
     const stub = await skripteService.createSkriptStub(payload);
@@ -85,8 +88,9 @@ export async function submitSkriptCreate(drawer) {
   }
 }
 
-function uploadArtText(file) {
-  return /\.pdf$/i.test(file.name) ? 'PDF wird gelesen…' : 'Word wird gelesen…';
+function uploadArtText(file, hinweis) {
+  if (/\.pdf$/i.test(file.name) || hinweis) return 'Liky liest die Datei…';
+  return 'Word wird gelesen…';
 }
 
 async function payloadFuerUpload(drawer, basis) {

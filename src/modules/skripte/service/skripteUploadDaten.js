@@ -1,9 +1,10 @@
 // Skript aus einer Word- oder PDF-Datei (ADR 0073).
-// Word wird hier zugeordnet. PDF legt die Zeile an und lässt die
-// Background-Function den Wortlaut über Liky füllen.
+// Word ohne Hinweis wird hier zugeordnet. PDF und Word mit Hinweis legen die
+// Zeile an und lassen die Background-Function den Wortlaut über Liky füllen.
 
 import { neueBlockId } from '../editor/dokument/blockModell.js';
 import { liesDocx } from '../upload/liesDocx.js';
+import { docxAlsText, docxBilder } from '../upload/docxAlsText.js';
 import { ordneSkriptInhalt } from '../upload/ordneSkriptInhalt.js';
 import { pruefeUploadDatei, titelAusDateiname, uploadArt } from '../upload/skriptUploadGrenzen.js';
 import { beschreibungStrukturVon } from '../../strategie/videoidee/beschreibungStruktur.js';
@@ -35,18 +36,21 @@ function blockZumSpeichern(block, pfad) {
 
 export const skripteUploadDatenMethoden = {
   /**
-   * Legt ein Skript aus einer Datei an. PDF wartet, bis Liky zugeordnet hat.
+   * Legt ein Skript aus einer Datei an. Liest Liky, wird gewartet, bis sie zugeordnet hat.
+   * @param {string} [hinweis] sagt Liky, was aus der Datei übernommen wird
    * @returns {Promise<{ id: string }>}
    */
-  async createSkriptAusUpload({ file, payload, item = null }) {
+  async createSkriptAusUpload({ file, payload, item = null, hinweis = '' }) {
     const grund = pruefeUploadDatei(file);
     if (grund) throw new Error(grund);
     const art = uploadArt(file);
     const dateiname = file.name;
     const titel = titelAusDateiname(dateiname);
+    hinweis = String(hinweis || '').trim();
 
     if (art === 'docx') {
       const teile = await liesDocx(await file.arrayBuffer());
+      if (hinweis) return this._docxUeberLiky({ teile, payload, titel, dateiname, hinweis });
       const { zellen, bloecke } = ordneSkriptInhalt(teile);
       const skript = await this._insertUploadSkript({
         payload, titel, dateiname, art, zellen,
@@ -67,7 +71,24 @@ export const skripteUploadDatenMethoden = {
     });
     await this._sonstVerwerfen(skript.id, async () => {
       const pfad = await this._ladePdfHoch(file, skript.id);
-      await this.triggerFunction(PDF_FUNKTION, { skriptId: skript.id, pdfPath: pfad });
+      await this.triggerFunction(PDF_FUNKTION, { skriptId: skript.id, pdfPath: pfad, hinweis });
+    });
+    await this._warteAufPdf(skript.id);
+    return skript;
+  },
+
+  async _docxUeberLiky({ teile, payload, titel, dateiname, hinweis }) {
+    const text = docxAlsText(teile);
+    const skript = await this._insertUploadSkript({
+      payload, titel, dateiname, art: 'docx',
+      zellen: {},
+      hookWeicht: false,
+      statusLesen: true
+    });
+    await this._sonstVerwerfen(skript.id, async () => {
+      const bildPfade = [];
+      for (const blob of docxBilder(teile)) bildPfade.push(await this.uploadSkriptBild(skript.id, blob));
+      await this.triggerFunction(PDF_FUNKTION, { skriptId: skript.id, text, bildPfade, hinweis });
     });
     await this._warteAufPdf(skript.id);
     return skript;
@@ -158,7 +179,7 @@ export const skripteUploadDatenMethoden = {
       prompt_kontext: {
         upload_dateiname: dateiname,
         upload_art: art,
-        upload_pruefen: art === 'pdf',
+        upload_pruefen: statusLesen,
         upload_hook_weicht: Boolean(weicht),
         upload_status: statusLesen ? 'lesen' : 'fertig'
       },
@@ -228,10 +249,10 @@ export const skripteUploadDatenMethoden = {
       if (status === 'fertig') return;
       if (status === 'fehler') {
         await this.db.from('skripte').delete().eq('id', skriptId);
-        throw new Error(data.prompt_kontext.upload_fehler || 'Das PDF konnte nicht gelesen werden');
+        throw new Error(data.prompt_kontext.upload_fehler || 'Die Datei konnte nicht gelesen werden');
       }
       await new Promise((r) => setTimeout(r, 2000));
     }
-    throw new Error('Das PDF wird noch gelesen. Das Skript liegt schon in der Liste.');
+    throw new Error('Liky liest die Datei noch. Das Skript liegt schon in der Liste.');
   }
 };

@@ -1,6 +1,7 @@
-// PDF-Skript-Upload (ADR 0073). Liky ordnet den Wortlaut den Zellen zu
-// und formuliert nicht um. Die Datei wird danach gelöscht. Bilder, die als
-// JPEG im PDF stecken, landen unter der Skript-Tabelle.
+// Skript-Upload über Liky (ADR 0073): ein PDF oder der Text einer Word-Datei
+// mit Hinweis. Liky ordnet den Wortlaut den Zellen zu und formuliert nicht um.
+// Das PDF wird danach gelöscht. Bilder (JPEG im PDF, bei Word vorab
+// hochgeladen) landen unter der Skript-Tabelle.
 
 const crypto = require('crypto');
 const { callClaude, MODELS } = require('./_shared/anthropic');
@@ -42,8 +43,11 @@ const TOOL = {
   }
 };
 
+const HINWEIS_MAX = 2000;
+const BILDER_MAX = 40;
+
 const SYSTEM = [
-  'Du liest ein Skript-PDF für die LikeBase und kopierst den Wortlaut.',
+  'Du liest eine Skript-Datei für die LikeBase und kopierst den Wortlaut.',
   'Du formulierst nichts um, kürzt nicht und ergänzt nichts.',
   'Die Skript-Tabelle hat die Zeilen Hook, Hauptteil und CTA.',
   'Jede dieser Zeilen hat „Was gesagt wird“ (hook, hauptteil, cta) und „Was zu sehen ist“ (hook_visuell, hauptteil_visuell, cta_visuell).',
@@ -51,8 +55,29 @@ const SYSTEM = [
   'Groß- und Kleinschreibung der Beschriftung spielt keine Rolle.',
   'Was keine dieser Beschriftungen hat, kommt in rest, in der Reihenfolge des PDFs.',
   'Eine Liste wird ein rest-Eintrag mit typ liste und den Punkten durch Zeilenumbrüche getrennt.',
-  'Bilder beschreibst du nicht.'
+  'Bilder beschreibst du nicht.',
+  'Stehen mehrere Skripte in der Datei, übernimmst du nur eins: das, welches der Hinweis des Teams nennt, sonst das erste.',
+  'Der Hinweis bestimmt, welcher Teil übernommen wird und wo Zellen stehen. Am Wortlaut ändert er nichts.',
+  'Word-Text kommt als Markdown: **fett** und *kursiv* übernimmst du mit den Sternchen, Tabellenzeilen stehen als | Zelle | Zelle |.'
 ].join(' ');
+
+function liesAuftrag({ text, hinweis }) {
+  let prompt = text
+    ? `Ordne das Skript aus dieser Word-Datei den Zellen zu. Übernimm den Wortlaut.\n\n<dokument>\n${text}\n</dokument>\n`
+    : 'Ordne dieses Skript den Zellen zu. Übernimm den Wortlaut.\n';
+  const notiz = String(hinweis || '').trim().slice(0, HINWEIS_MAX);
+  if (notiz) prompt += `\n# HINWEIS DES TEAMS\n<hinweis>\n${notiz}\n</hinweis>\n`;
+  return prompt;
+}
+
+function wordBildBloecke(skriptId, pfade) {
+  return (Array.isArray(pfade) ? pfade : [])
+    .filter((pfad) => typeof pfad === 'string' && pfad.startsWith(`${skriptId}/`) && !pfad.includes('..'))
+    .slice(0, BILDER_MAX)
+    .map((pfad) => ({
+      id: `b_${crypto.randomUUID()}`, typ: 'bild', pfad, breite: 'mittel', unterschrift: '', intern: false
+    }));
+}
 
 function textOderNull(wert) {
   const text = String(wert || '').trim();
@@ -109,10 +134,11 @@ async function markiereFehler(supabase, skriptId, kontext, meldung) {
 }
 
 exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
-  const { skriptId, pdfPath } = payload || {};
-  if (!skriptId || !pdfPath) return { statusCode: 400, body: 'skriptId oder pdfPath fehlt' };
+  const { skriptId, pdfPath, text, bildPfade, hinweis } = payload || {};
+  const wordText = typeof text === 'string' ? text.trim() : '';
+  if (!skriptId || (!pdfPath && !wordText)) return { statusCode: 400, body: 'skriptId, pdfPath oder text fehlt' };
   const erlaubt = `skript-upload/${user.id}/`;
-  if (!String(pdfPath).startsWith(erlaubt)) {
+  if (pdfPath && !String(pdfPath).startsWith(erlaubt)) {
     return { statusCode: 403, body: 'pdfPath gehoert nicht zu diesem Upload' };
   }
 
@@ -126,31 +152,36 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   const kontext = skript.prompt_kontext || {};
   let ki = null;
   try {
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('documents')
-      .download(pdfPath);
-    if (downloadError || !fileData) throw new Error('PDF nicht lesbar');
-    const buffer = Buffer.from(await fileData.arrayBuffer());
-    await supabase.storage.from('documents').remove([pdfPath]);
-    if (pdfIstGeschuetzt(buffer)) throw new Error('Das PDF ist geschützt.');
+    let buffer = null;
+    if (pdfPath) {
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('documents')
+        .download(pdfPath);
+      if (downloadError || !fileData) throw new Error('PDF nicht lesbar');
+      buffer = Buffer.from(await fileData.arrayBuffer());
+      await supabase.storage.from('documents').remove([pdfPath]);
+      if (pdfIstGeschuetzt(buffer)) throw new Error('Das PDF ist geschützt.');
+    }
 
-    ki = await starteKiRequest(supabase, { userId: user.id, feature: 'pdf_skript_upload' });
+    ki = await starteKiRequest(supabase, { userId: user.id, feature: buffer ? 'pdf_skript_upload' : 'word_skript_upload' });
     const result = await callClaude({
       model: MODELS.extract_briefing,
       systemBlocks: [{ text: SYSTEM, cache: true }],
-      userPrompt: 'Ordne dieses Skript den Zellen zu. Übernimm den Wortlaut.',
+      userPrompt: liesAuftrag({ text: buffer ? '' : wordText, hinweis }),
       maxTokens: 8000,
       tool: TOOL,
       timeoutMs: 240000,
-      document: { base64: buffer.toString('base64'), mediaType: 'application/pdf' }
+      ...(buffer ? { document: { base64: buffer.toString('base64'), mediaType: 'application/pdf' } } : {})
     });
     await ki.abschliessen(result);
     const json = result.json;
-    if (!json) throw new Error('Keine Zuordnung aus dem PDF');
+    if (!json) throw new Error('Liky konnte die Datei keinem Skript zuordnen');
 
     const zellen = {};
     for (const feld of TEXTFELDER) zellen[feld] = textOderNull(json[feld]);
-    const bilder = await bilderHochladen(supabase, skriptId, buffer);
+    const bilder = buffer
+      ? await bilderHochladen(supabase, skriptId, buffer)
+      : wordBildBloecke(skriptId, bildPfade);
     const bloecke = restBloecke(json.rest);
     const dokument = bilder.length || bloecke.length
       ? [{ id: 'skript-tabelle', typ: 'skript_tabelle' }, ...bloecke, ...bilder]
@@ -172,13 +203,16 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       sub_nr: 0,
       titel: skript.titel,
       ...zellen,
-      aenderung_beschreibung: `Hochgeladen aus ${kontext.upload_dateiname || 'PDF'}`,
+      aenderung_beschreibung: `Hochgeladen aus ${kontext.upload_dateiname || 'Datei'}`,
       created_by: user.id
     });
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   } catch (err) {
     if (ki) await ki.fehlgeschlagen(err);
-    await markiereFehler(supabase, skriptId, kontext, err.message || 'Das PDF konnte nicht gelesen werden');
+    await markiereFehler(supabase, skriptId, kontext, err.message || 'Die Datei konnte nicht gelesen werden');
     return { statusCode: 500, body: err.message };
   }
 });
+
+exports.liesAuftrag = liesAuftrag;
+exports.wordBildBloecke = wordBildBloecke;

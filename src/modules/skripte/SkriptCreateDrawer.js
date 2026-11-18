@@ -102,6 +102,11 @@ class SkriptCreateDrawer {
             <div id="${PREFIX}-uploader" class="uploader" data-name="skript_datei"></div>
             <small class="form-hint">Word (.docx) oder PDF, max. 20 MB. Mit Datei ist die Videoidee optional.</small>
           </div>
+          <div class="form-field">
+            <label for="${PREFIX}-hinweis">Hinweise für Liky</label>
+            <textarea id="${PREFIX}-hinweis" class="form-input" rows="3" maxlength="2000" placeholder="z. B. Creator spricht Englisch, oder: Aus der Datei nur Skript 2 übernehmen"></textarea>
+            <small class="form-hint">Optional. Ohne Datei für Rückfragen und Erstellung, mit Datei, was Liky übernimmt. Gilt nur beim Anlegen.</small>
+          </div>
           <div class="form-field" id="${PREFIX}-uebersicht" hidden>
             <label>Skripte in diesem Konzept</label>
             <ul class="skripte-create-uebersicht" id="${PREFIX}-uebersicht-liste"></ul>

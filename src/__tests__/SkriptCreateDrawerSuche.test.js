@@ -121,6 +121,20 @@ describe('SkriptCreateDrawer: Suchfelder', () => {
     expect(await text(skripteService.createSkriptAusUpload.mock.calls[0][0].file)).toBe('inhalt');
   });
 
+  it('Hinweis aus dem Textfeld geht mit dem Upload an Liky', async () => {
+    openSkriptCreateDrawer();
+    await warte();
+    await warte();
+    await waehle('unternehmen', 'Hautica');
+    await waehle('konzept', 'Winter');
+
+    document.getElementById('skcreate-hinweis').value = '  Nur Skript 2  ';
+    waehleDatei(new File(['x'], 'Skripte.pdf'));
+    await sende();
+
+    expect(skripteService.createSkriptAusUpload.mock.calls[0][0].hinweis).toBe('Nur Skript 2');
+  });
+
   it('nicht lesbare Datei: deutsche Meldung, kein Upload', async () => {
     openSkriptCreateDrawer();
     await warte();

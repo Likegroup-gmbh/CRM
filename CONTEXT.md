@@ -442,8 +442,12 @@ zugeordnet werden. Gate nur für Neuanlage an einer Videoidee, nicht für besteh
 _Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperationsvideo), Freigabeprozess
 
 **Skript-Upload**:
-Ein Skript, das aus einer Word- oder PDF-Datei entsteht, statt von Liky geschrieben zu werden. Der Wortlaut wird übernommen und füllt die **Skript-Tabelle** und die Hook-Varianten: bei Word über die Beschriftung der Tabelle, beim PDF ordnet Liky zu, ohne umzuformulieren. Alles andere samt Bildern steht als **Freie Blöcke** darunter. Es gehört zum Konzept der Linie und beginnt als Entwurf; die Videoidee ist optional und lässt sich später setzen.
+Ein Skript, das aus einer Word- oder PDF-Datei entsteht, statt von Liky geschrieben zu werden. Der Wortlaut wird übernommen und füllt die **Skript-Tabelle** und die Hook-Varianten: bei Word über die Beschriftung der Tabelle, beim PDF und bei Word mit **Hinweis für Liky** ordnet Liky zu, ohne umzuformulieren. Alles andere samt Bildern steht als **Freie Blöcke** darunter. Es gehört zum Konzept der Linie und beginnt als Entwurf; die Videoidee ist optional und lässt sich später setzen.
 _Avoid_: Import (das ist die Übernahme historischer Skripte), Word-Skript
+
+**Hinweis für Liky**:
+Freitext beim Anlegen eines Skripts. Ohne Datei geht er in Rückfragen und Erstellung, damit Liky Geklärtes nicht erfragt. Mit Datei sagt er, was übernommen wird, etwa welches von mehreren Skripten. Gilt nur beim Anlegen, spätere Liky-Aufträge im Editor sehen ihn nicht.
+_Avoid_: Regieanweisung (die ist für die Umsetzung am Set), Notiz
 
 **Kundenfreigabe**:
 Der Kunde gibt ein Skript frei, das intern bereits Final ist. Danach gilt das Skript als freigegeben für weitere Aktionen, und die Skript-Freigabe am verknüpften Kooperationsvideo ist gesetzt.

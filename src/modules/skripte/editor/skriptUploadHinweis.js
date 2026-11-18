@@ -9,13 +9,13 @@ export function uploadHinweisHtml(skript) {
   const kontext = skript.prompt_kontext || {};
   const teile = [];
   if (kontext.upload_status === 'lesen') {
-    teile.push('<p class="skripte-hint" data-upload-lesen>Das PDF wird gelesen. Die Zellen füllen sich gleich.</p>');
+    teile.push('<p class="skripte-hint" data-upload-lesen>Liky liest die Datei. Die Zellen füllen sich gleich.</p>');
   }
   if (kontext.upload_status === 'fehler') {
-    teile.push(`<p class="skripte-hint skripte-hint--warnung">${escapeHtml(kontext.upload_fehler || 'Das PDF konnte nicht gelesen werden.')}</p>`);
+    teile.push(`<p class="skripte-hint skripte-hint--warnung">${escapeHtml(kontext.upload_fehler || 'Die Datei konnte nicht gelesen werden.')}</p>`);
   }
   if (kontext.upload_pruefen && kontext.upload_status !== 'lesen') {
-    teile.push('<p class="skripte-hint skripte-hint--warnung" data-upload-pruefen>Aus PDF gelesen, bitte Wortlaut prüfen.</p>');
+    teile.push('<p class="skripte-hint skripte-hint--warnung" data-upload-pruefen>Von Liky gelesen, bitte Wortlaut prüfen.</p>');
   }
   if (kontext.upload_hook_weicht) {
     teile.push('<p class="skripte-hint skripte-hint--warnung">Der Hook weicht vom gesperrten Hook der Videoidee ab. Liky ändert ihn nicht.</p>');
