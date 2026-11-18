@@ -160,10 +160,12 @@ class SkriptCreateDrawer {
       + options.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('');
     if (current) select.value = current;
     if (!window.formSystem?.createSimpleSearchableSelect) return;
-    window.formSystem.createSimpleSearchableSelect(select, [
-      { value: '', label: emptyLabel },
-      ...options.map((o) => ({ ...o, selected: o.value === current }))
-    ], { placeholder });
+    // Ohne Leer-Option: sie würde als Auswahl in das Suchfeld geschrieben und die Suche filtern.
+    window.formSystem.createSimpleSearchableSelect(
+      select,
+      options.map((o) => ({ ...o, selected: o.value === current })),
+      { placeholder: options.length ? placeholder : emptyLabel }
+    );
   }
 
   setSearchableValue(name, value) {
