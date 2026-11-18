@@ -69,7 +69,10 @@ export class AvatarBubbles {
         // Bevorzuge thumb_url wenn verfügbar (128px WebP, deutlich kleiner)
         const imageUrl = item.thumb_url || item.profile_image_url || item.logo_url;
         const hasImage = imageUrl && typeof imageUrl === 'string' && imageUrl.trim().length > 0;
-        const imageClass = hasImage ? 'avatar-bubble--with-logo' : '';
+        // Organisationen (Unternehmen, Marken) zeigen das Logo ganz (contain), Personen das Foto gefüllt (cover)
+        const isOrgLogo = hasImage && item.type !== 'person' && !item.profile_image_url;
+        const imageClass = hasImage ? `avatar-bubble--with-logo${isOrgLogo ? ' avatar-bubble--org-logo' : ''}` : '';
+        const logoClass = isOrgLogo ? 'avatar-bubble-logo avatar-bubble-logo--contain' : 'avatar-bubble-logo';
         
         // Sanitize name für title attribute
         const safeName = window.validatorSystem?.sanitizeHtml?.(item.name) || item.name;
@@ -81,7 +84,7 @@ export class AvatarBubbles {
         
         // Content: Profilbild/Logo oder Initialen
         const content = hasImage 
-          ? `<img src="${imageUrl}" alt="${safeName}" class="avatar-bubble-logo" width="32" height="32" loading="lazy" decoding="async" fetchpriority="low" />` 
+          ? `<img src="${imageUrl}" alt="${safeName}" class="${logoClass}" width="32" height="32" loading="lazy" decoding="async" fetchpriority="low" />` 
           : initials;
         
         // Label-Text (item.label hat Priorität, Fallback auf item.name)

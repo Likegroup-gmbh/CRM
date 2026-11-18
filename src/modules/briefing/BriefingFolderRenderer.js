@@ -6,6 +6,7 @@ import { renderEmptyState, resolveEmptyState } from '../../core/components/Empty
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { OHNE_MARKE_LABEL } from './BriefingFolders.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
 function canCreateBriefing() {
   return !window.isKunde?.() && (window.isAdmin?.() || window.currentUser?.permissions?.briefing?.can_edit);
@@ -58,9 +59,7 @@ function countLabel(count) {
 }
 
 function folderIconHtml(list, folder, name) {
-  return folder.logo_url
-    ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(name)}" class="folder-logo">`
-    : `${icon('folder-open')}`;
+  return renderFolderAvatar({ url: folder.logo_url, name });
 }
 
 function emptyFoldersHtml({ title, text }) {

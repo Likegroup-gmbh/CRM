@@ -1,4 +1,4 @@
-// Empfänger eines Zugangs: Listen-Link (Kundenkonto), Gast-Mail oder keine Mail.
+// Empfänger eines Zugangs: Listen-Link (Konto), Gast-Mail oder keine Mail.
 // Reine Logik ohne DB und ohne URL-Importe, damit vitest sie direkt testet.
 
 export type RecipientPlan = {
@@ -43,10 +43,15 @@ export function canSee(links: { unternehmenIds: string[]; markeIds: string[] }, 
     || hitCompany(scope.kampagneMarkeUnternehmenId);
 }
 
-/** Ohne Kundenkonto: Gast. Mit Konto: Listen-Link, außer bei Skript-Paketen oder ohne Zuordnung. */
+export type AccountInfo = { canSee: boolean; staff?: boolean };
+
+/**
+ * Ohne Konto: Gast. Kundenkonto: Listen-Link, außer bei Skript-Paketen oder ohne Zuordnung (dann keine Mail).
+ * Mitarbeiterkonto: Listen-Link, wenn es die Liste im Konto sieht, sonst Gast wie ein Externer.
+ */
 export function planShareRecipients(
   emails: string[],
-  customersByEmail: Record<string, { canSee: boolean }>,
+  accountsByEmail: Record<string, AccountInfo>,
   entityType: string,
 ): RecipientPlan {
   const listLink: string[] = [];
@@ -55,16 +60,21 @@ export function planShareRecipients(
   for (const raw of emails) {
     const email = String(raw || '').trim().toLowerCase();
     if (!email) continue;
-    const customer = customersByEmail[email];
-    if (!customer) {
+    const account = accountsByEmail[email];
+    if (!account) {
       guest.push(email);
+      continue;
+    }
+    if (account.staff) {
+      if (entityType !== 'skript_paket' && account.canSee) listLink.push(email);
+      else guest.push(email);
       continue;
     }
     if (entityType === 'skript_paket') {
       blocked.push({ email, reason: 'paket' });
       continue;
     }
-    if (!customer.canSee) {
+    if (!account.canSee) {
       blocked.push({ email, reason: 'scope' });
       continue;
     }

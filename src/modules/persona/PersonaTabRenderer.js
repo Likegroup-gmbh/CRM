@@ -7,6 +7,7 @@
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PersonaService } from './PersonaService.js';
+import { renderVerknuepfungen, acceptedProduktLinks } from '../../core/ui/tableVerknuepfungen.js';
 
 const CREATE_BTN_HTML = '<button type="button" class="mdc-btn mdc-btn--create persona-create-btn">Persona anlegen</button>';
 
@@ -21,10 +22,8 @@ function renderMarkenZellen(detail, persona) {
   return namen.map(name => `<span class="status-badge">${detail.sanitize(name)}</span>`).join(' ');
 }
 
-function renderProduktZellen(detail, persona) {
-  const namen = PersonaService.produktNamen(persona);
-  if (!namen.length) return '<span class="text-muted">-</span>';
-  return namen.map(name => `<span class="status-badge">${detail.sanitize(name)}</span>`).join(' ');
+function renderProduktZellen(persona) {
+  return renderVerknuepfungen(acceptedProduktLinks(persona.produkte));
 }
 
 export function renderPersonas(detail) {
@@ -52,7 +51,7 @@ export function renderPersonas(detail) {
       </td>
       <td>${detail.sanitize(persona.name)}</td>
       ${mitMarken ? `<td>${renderMarkenZellen(detail, persona)}</td>` : ''}
-      <td>${renderProduktZellen(detail, persona)}</td>
+      <td>${renderProduktZellen(persona)}</td>
       <td>${detail.sanitize(PersonaService.alterLabel(persona))}</td>
       <td>${detail.sanitize(persona.geschlecht || '-')}</td>
       <td>${detail.sanitize(persona.wohnort_region || '-')}</td>

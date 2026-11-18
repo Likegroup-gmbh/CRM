@@ -41,9 +41,9 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   flex-shrink: 0;
 }
 
-/* Linien-Dropdown füllt die erste Spalte: seine Trennlinie liegt auf der Spaltenkante darunter.
-   --vb-linie-w misst VideoBrowser.js (Breite der ersten Spalte) und setzt dazu data-vb-linie.
-   Ohne Messung (Laden, Showcase, leerer Tab) bleibt das Dropdown wie in den anderen Tabs -
+/* Linien-Dropdown füllt die erste Spalte (im Kalender die Liste links): seine Trennlinie liegt auf der
+   Spaltenkante darunter. --vb-linie-w misst VideoBrowser.js (Breite der Spalte) und setzt dazu data-vb-linie.
+   Ohne Messung (Laden, Showcase, Kalender ohne Liste, leerer Tab) bleibt das Dropdown wie in den anderen Tabs -
    mit width: auto und ohne max-width wuchs es sonst beim Öffnen auf die volle Labelbreite. */
 .kampagne-detail-body[data-workflow="videos"] .kampagne-workflow-tabs[data-vb-linie] .linien-switch:not(.linien-switch--liste) {
   width: var(--vb-linie-w);
@@ -2453,44 +2453,7 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   overflow-y: auto;
 }
 
-/* Umschalter: vorhandenes .view-toggle (layout.css), der aktive Hintergrund gleitet als Indikator */
-.vb-seg-field {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.vb-seg-field__label {
-  font-size: var(--text-xs);
-  color: var(--gray-600);
-}
-
-.view-toggle.vb-glide {
-  position: relative;
-}
-
-.view-toggle.vb-glide .mdc-btn {
-  position: relative;
-  z-index: 1;
-}
-
-.view-toggle.vb-glide .mdc-btn.active,
-.view-toggle.vb-glide .mdc-btn.active:hover {
-  background: transparent;
-  box-shadow: none;
-}
-
-.vb-glide__thumb {
-  position: absolute;
-  top: var(--vt-pad, var(--space-xxs));
-  bottom: var(--vt-pad, var(--space-xxs));
-  left: 0;
-  width: 0;
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  box-shadow: var(--shadow-sm);
-  pointer-events: none;
-}
+/* Umschalter: core SegmentSwitch, Optik in segment-switch.css */
 
 /* Leiste: sticky am oberen Rand des Showcase-Scrollbereichs */
 .vb-sc-bar {

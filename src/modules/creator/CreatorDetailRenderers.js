@@ -4,6 +4,7 @@
 import { CreatorDetail } from './CreatorDetailCore.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { VertragUtils } from '../vertrag/VertragUtils.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 import {
@@ -132,11 +133,12 @@ CreatorDetail.prototype.renderKooperationenContent = function() {
             ${window.validatorSystem.sanitizeHtml(k.name || 'Kooperation')}
           </a>
         </td>
-        <td>
-          <a href="/kampagne/${k.kampagne?.id || ''}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.kampagne?.id || ''}')">
-            ${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne))}
-          </a>
-        </td>
+        <td>${k.kampagne?.id ? renderVerknuepfungPill({
+          kind: 'kampagne',
+          labelHtml: window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne)),
+          href: `/kampagne/${k.kampagne.id}`,
+          attrs: `onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.kampagne.id}')"`
+        }) : '-'}</td>
         <td><span class="status-badge status-${(k.status || 'unknown').toLowerCase().replace(/\s+/g, '-')}">${k.status || '-'}</span></td>
         <td>${k.videoanzahl || 0}</td>
         <td>${k.einkaufspreis_gesamt ? this.formatCurrency(k.einkaufspreis_gesamt) : '-'}</td>

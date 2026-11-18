@@ -169,7 +169,8 @@ describe('validateIdeen', () => {
       ausschluss: []
     });
     expect(stable).toContain('Keine erfundenen Produktfeatures');
-    expect(stable).toContain('Verbote unter WICHTIGE VORGABEN');
+    expect(stable).toContain("Don'ts unter WICHTIGE VORGABEN sind hart");
+    expect(stable).toContain('Pflichtinhalte unter WICHTIGE VORGABEN muessen in jeder Idee vorkommen');
     expect(task).toContain('# WICHTIGE VORGABEN');
     expect(task).toContain('Keine Heilversprechen');
     expect(stable).toContain('Audience Situations');

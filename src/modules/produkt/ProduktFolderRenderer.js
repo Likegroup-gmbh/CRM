@@ -6,6 +6,7 @@ import { renderEmptyState, resolveEmptyState } from '../../core/components/Empty
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { NUR_UNTERNEHMEN_LABEL } from './ProduktFolders.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
 function canCreateProdukt() {
   return !window.isKunde?.() && (window.isAdmin?.() || window.currentUser?.permissions?.produkt?.can_edit);
@@ -63,9 +64,7 @@ function countLabel(count) {
 }
 
 function folderIconHtml(list, folder, name) {
-  return folder.logo_url
-    ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(name)}" class="folder-logo">`
-    : `${icon('folder-open')}`;
+  return renderFolderAvatar({ url: folder.logo_url, name });
 }
 
 function emptyFoldersHtml({ title, text }) {
@@ -169,7 +168,6 @@ export function renderItemsView(list) {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Bild</th>
               <th class="col-name">Produkt</th>
               <th>Unternehmen</th>
               <th>Marken</th>
@@ -183,7 +181,7 @@ export function renderItemsView(list) {
             </tr>
           </thead>
           <tbody id="produkte-items-body">
-            <tr><td colspan="11" class="no-data">Lade Produkte...</td></tr>
+            <tr><td colspan="10" class="no-data">Lade Produkte...</td></tr>
           </tbody>
         </table>
       </div>
@@ -208,7 +206,7 @@ export function updateItemsTable(list) {
         }
       }
     }, 'default');
-    tbody.innerHTML = `<tr><td colspan="11" class="empty-state-cell">${html}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state-cell">${html}</td></tr>`;
     list.pagination.updateTotal(0);
     list.pagination.render();
     return;

@@ -1,5 +1,6 @@
 // BriefingFieldRenderer.test.js
-// Step/Section/FieldGroup-Markup und Wrap-Gruppen im Create-Renderer.
+// Markup des Creator-Briefing-Formulars: Schritte, Zuordnung, Content-Verwendung,
+// Videolänge, Produkt- und Ideenliste, Liky-Spec.
 
 import { describe, it, expect } from 'vitest';
 import { FLOW_STEPS } from '../modules/briefing/create/fieldConfig.js';
@@ -12,179 +13,143 @@ function parse(html) {
   return root;
 }
 
+const step = (id) => FLOW_STEPS.find(s => s.id === id);
+const render = (id, formData = {}, context = {}) => parse(renderStep(step(id), formData, context));
+
 describe('Briefing FieldRenderer Hierarchie', () => {
   it('Step und Section bekommen stabile Klassen und data-Attribute', () => {
-    const html = renderStep(FLOW_STEPS.find(s => s.id === 'grundlage'), {}, {});
-    const root = parse(html);
-
-    const step = root.querySelector('.bf-step');
-    expect(step.classList.contains('bf-step--grundlage')).toBe(true);
-    expect(step.dataset.step).toBe('grundlage');
+    const root = render('rahmen');
+    const el = root.querySelector('.bf-step');
+    expect(el.classList.contains('bf-step--rahmen')).toBe(true);
+    expect(el.dataset.step).toBe('rahmen');
 
     const zuordnung = root.querySelector('.step-section--zuordnung');
-    expect(zuordnung).toBeTruthy();
-    expect(zuordnung.dataset.section).toBe('zuordnung');
-    expect(zuordnung.dataset.step).toBe('grundlage');
-
-    const body = zuordnung.querySelector(':scope > .step-section__body');
-    expect(zuordnung.querySelector(':scope > .step-section__header')).toBeTruthy();
-    expect(body).toBeTruthy();
-    expect([...body.querySelectorAll(':scope > .bf-field-group')].map(el => el.dataset.group)).toEqual([
-      'zuordnung-entities',
-      'zuordnung-titel'
-    ]);
+    expect(zuordnung.dataset.step).toBe('rahmen');
+    expect(zuordnung.classList.contains('hidden')).toBe(false);
+    expect([...zuordnung.querySelectorAll('.bf-field-group')].map(g => g.dataset.group)).toEqual(['zuordnung-entities']);
+    expect(root.querySelector('.step-section--rahmen h3').textContent).toBe('Kampagnenübersicht & Rahmen');
   });
 
-  it('nutzung-flags ist eine Wrap-Gruppe mit den vier Checkboxen', () => {
-    const html = renderStep(FLOW_STEPS.find(s => s.id === 'vertrag'), {}, {});
-    const root = parse(html);
-    const group = root.querySelector('[data-group="nutzung-flags"]');
+  it('blendet die Zuordnung aus, wenn alles aus der Produktion feststeht', () => {
+    const formData = { unternehmen_id: 'u1', marke_id: 'm1', kampagne_id: 'k1', produktion_id: 'p1' };
+    const gebunden = render('rahmen', formData, { linieGesperrt: true, produktionGebunden: true });
+    expect(gebunden.querySelector('.step-section--zuordnung').classList.contains('hidden')).toBe(true);
 
+    const ohneProduktion = render('rahmen', formData, { linieGesperrt: true });
+    const zuordnung = ohneProduktion.querySelector('.step-section--zuordnung');
+    expect(zuordnung.classList.contains('hidden')).toBe(false);
+    expect(zuordnung.querySelectorAll('[data-bekannt="true"]')).toHaveLength(3);
+    expect(zuordnung.querySelector('select[name="produktion_id"]').closest('.form-field').classList.contains('hidden')).toBe(false);
+  });
+
+  it('Content-Verwendung: drei Häkchen, das des Typs ist angehakt und gesperrt', () => {
+    const root = render('rahmen', {}, { bereich: 'paid_creator_ads' });
+    const group = root.querySelector('[data-group="content-verwendung"]');
     expect(group.classList.contains('bf-field-group--wrap')).toBe(true);
-    expect(group.classList.contains('bf-field-group--nutzung-flags')).toBe(true);
-    expect([...group.querySelectorAll('input[type="checkbox"]')].map(el => el.name)).toEqual([
-      'nutzung_markenkanal',
-      'nutzung_paid_media',
-      'nutzung_creator_kanal',
-      'nutzung_whitelisting'
-    ]);
+    expect(group.querySelector('.bf-field-group__label').textContent).toBe('Wie wird der Content verwendet?');
+    const boxen = [...group.querySelectorAll('input[type="checkbox"]')];
+    expect(boxen.map(b => b.name)).toEqual(['nutzung_markenkanal', 'nutzung_paid_media', 'nutzung_creator_kanal']);
+    const paid = boxen.find(b => b.name === 'nutzung_paid_media');
+    expect(paid.checked && paid.disabled).toBe(true);
+    expect(boxen.filter(b => b.disabled)).toHaveLength(1);
   });
 
-  it('bf-channels enthält Meta-Block und TikTok-Block als Geschwister', () => {
-    const html = renderStep(
-      FLOW_STEPS.find(s => s.id === 'vertrag'),
-      { bereich: 'paid_creator_ads' },
-      {}
-    );
-    const root = parse(html);
-    const channels = root.querySelector('.bf-channels');
-    const blocks = [...channels.querySelectorAll(':scope > .bf-channel')];
-    const titles = blocks.map(block => {
-      const title = block.querySelector('.bf-channel__title');
-      return title ? title.textContent.trim() : '';
+  it('Timings: Bis-Datum hat das Von-Datum als min', () => {
+    const root = render('rahmen', { content_deadline: '2026-12-01' });
+    const bis = root.querySelector('input[name="content_deadline_bis"]');
+    expect(bis.dataset.nachDatum).toBe('content_deadline');
+    expect(bis.closest('[data-custom-datepicker]').dataset.min).toBe('2026-12-01');
+    expect(root.querySelector('input[name="go_live_bis"]').closest('[data-custom-datepicker]').dataset.min).toBeUndefined();
+  });
+});
+
+describe('Videolänge: Mindestlänge oder von/bis', () => {
+  const modus = (formData) => {
+    const root = render('rahmen', formData);
+    return {
+      root,
+      gewaehlt: root.querySelector('input[name="videolaenge__modus"]:checked').value,
+      minimum: root.querySelector('[data-videolaenge-teil="minimum"]'),
+      bereich: root.querySelector('[data-videolaenge-teil="bereich"]')
+    };
+  };
+
+  it('Spanne zeigt den Regler', () => {
+    const { gewaehlt, minimum, bereich } = modus({ videolaenge: { von: 15, bis: 20 } });
+    expect(gewaehlt).toBe('bereich');
+    expect(bereich.classList.contains('hidden')).toBe(false);
+    expect(bereich.dataset.von).toBe('15');
+    expect(minimum.classList.contains('hidden')).toBe(true);
+  });
+
+  it('bis = null ist eine Mindestlänge', () => {
+    const { root, gewaehlt, bereich } = modus({ videolaenge: { von: 30, bis: null } });
+    expect(gewaehlt).toBe('minimum');
+    expect(root.querySelector('input[name="videolaenge__minimum"]').value).toBe('30');
+    expect(bereich.classList.contains('hidden')).toBe(true);
+  });
+
+  it('ohne Wert keine Vorgabe, ein gemerkter Modus gewinnt', () => {
+    expect(modus({}).gewaehlt).toBe('keine');
+    expect(modus({ videolaenge_modus: 'minimum' }).gewaehlt).toBe('minimum');
+  });
+});
+
+describe('Produktliste', () => {
+  it('startet mit einer leeren Zeile mit allen PDF-Feldern und Upload', () => {
+    const root = render('produkt');
+    const rows = root.querySelectorAll('[data-produkt-row]');
+    expect(rows).toHaveLength(1);
+    expect([...rows[0].querySelectorAll('[data-produkt-feld]')].map(el => el.dataset.produktFeld))
+      .toEqual(['name', 'url', 'kurzbeschreibung', 'usp', 'loesung']);
+    expect(rows[0].querySelector('[data-produkt-pdf]')).toBeTruthy();
+    expect(rows[0].querySelector('[data-produkt-status]').textContent).toBe('');
+  });
+
+  it('zeigt den Status je Produkt und lässt in der Einladung den Upload weg', () => {
+    const root = render('produkt', {
+      produkte: [{ produkt_id: 'p1', name: 'Serum' }, { url: 'https://shop.example/creme' }]
+    }, { einladung: true });
+    const rows = [...root.querySelectorAll('[data-produkt-row]')];
+    expect(rows.map(r => r.dataset.produktId)).toEqual(['p1', '']);
+    expect(rows.map(r => r.querySelector('[data-produkt-status]').textContent)).toEqual(['Am Briefing', 'Wird angelegt']);
+    expect(root.querySelector('[data-produkt-pdf]')).toBeNull();
+    expect(rows[1].querySelector('[data-produkt-feld="url"]').value).toBe('https://shop.example/creme');
+  });
+});
+
+describe('Umsetzungsideen', () => {
+  it('je Eintrag Text plus Schalter Inspiration/verbindlich', () => {
+    const root = render('umsetzung', {
+      umsetzungsideen_eintraege: [{ text: 'Unboxing', verbindlich: true }, 'Alter Freitext']
     });
-
-    expect(titles).toContain('Meta');
-    expect(titles).toContain('TikTok');
-    expect(titles.indexOf('Meta')).toBeLessThan(titles.indexOf('TikTok'));
-    expect(blocks.find(b => b.textContent.includes('Meta')).querySelector('.checkbox-group')).toBeTruthy();
-
-    const tiktok = blocks.find(b => b.querySelector('.bf-channel__title')?.textContent.trim() === 'TikTok');
-    expect(tiktok.classList.contains('bf-channel--toggle')).toBe(true);
-    expect(tiktok.querySelector('.bf-channel__title').tagName).toBe('DIV');
-    expect(tiktok.querySelector('.bf-channel__title').classList.contains('checkbox-label')).toBe(false);
-    expect(tiktok.querySelector('.checkbox-group .checkbox-label span').textContent.trim()).toBe('TikTok');
-
-    const pinterest = blocks.find(b => b.querySelector('.bf-channel__title')?.textContent.trim() === 'Pinterest');
-    const pinterestChip = pinterest.querySelector('.checkbox-label--icon');
-    expect(pinterestChip.querySelector('.checkbox-label__icon use').getAttribute('href')).toBe('#crm-icon-pinterest');
-    expect(pinterestChip.querySelector('input[type="checkbox"]')).toBeTruthy();
-    expect(root.querySelector('.bf-channel--custom')).toBeTruthy();
+    const rows = [...root.querySelectorAll('[data-idee-row]')];
+    expect(rows.map(r => r.querySelector('[data-idee-text]').value)).toEqual(['Unboxing', 'Alter Freitext']);
+    expect(rows.map(r => r.querySelector('[data-idee-verbindlich]').checked)).toEqual([true, false]);
+    expect(rows.map(r => r.querySelector('[data-idee-art]').textContent)).toEqual(['Verbindlich', 'Inspiration']);
   });
 
-  it('legt Umsetzungsideen und Referenzen in eine Header-Zeile', () => {
-    const html = renderStep(FLOW_STEPS.find(s => s.id === 'konzepte'), {}, {});
-    const root = parse(html);
-    const group = root.querySelector('[data-group="konzept-ideen-kopf"]');
-    const header = group.querySelector(':scope > .bf-split-header');
-    const ideenListe = group.querySelector('[data-repeatable="umsetzungsideen"]');
-    const repeatable = group.querySelector('[data-repeatable="referenzen"]');
-    const addIdee = header.querySelector('[data-repeatable-add="umsetzungsideen"]');
-    const add = header.querySelector('[data-repeatable-add="referenzen"]');
-    const labels = [...header.querySelectorAll('.bf-split-header__label')].map(el => el.textContent);
-
-    expect(group.classList.contains('bf-field-group--split-header')).toBe(true);
-    expect(labels).toEqual(['Vorhandene Umsetzungsideen', 'Referenzen und Beispiele']);
-    expect(addIdee.textContent).toContain('Idee hinzufügen');
-    expect(add.textContent).toContain('Beispiel hinzufügen');
-    expect(ideenListe.closest('.form-field').querySelector('label')).toBeNull();
-    expect(ideenListe.closest('.form-field').querySelector('[data-repeatable-add]')).toBeNull();
-    expect(repeatable.closest('.form-field').querySelector('[data-repeatable-add]')).toBeNull();
-    expect(header.compareDocumentPosition(ideenListe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(ideenListe.compareDocumentPosition(repeatable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // Ideen: eine leere Startzeile als Textarea, Referenzen bleiben leer
-    expect(ideenListe.querySelectorAll('textarea[data-item]')).toHaveLength(1);
-    expect(repeatable.childElementCount).toBe(0);
-
-    const ideen = root.querySelector('[data-group="konzept-ideen"]');
-    const groups = [...ideen.children].map(el => el.dataset.group || el.querySelector('textarea, input')?.name);
-    expect(groups[0]).toBe('konzept-ideen-kopf');
-    expect(ideen.querySelector('textarea#learnings_text')).toBeTruthy();
+  it('Dos & Don\'ts stehen als Zeile nebeneinander, Don\'ts zuerst', () => {
+    const group = render('umsetzung').querySelector('[data-group="dos-donts"]');
+    expect(group.classList.contains('bf-field-group--row')).toBe(true);
+    expect([...group.querySelectorAll('textarea')].map(t => t.name)).toEqual(['vorgabe_donts', 'vorgabe_dos']);
   });
 });
 
-describe('Briefing Creator-Merkmale als TableSelect', () => {
-  const casting = () => FLOW_STEPS.find(s => s.id === 'casting');
-
-  it('Alter und Geschlecht sind TableSelects mit hidden input, kein natives select', () => {
-    const root = parse(renderStep(casting(), {}, {}));
-    const group = root.querySelector('.bf-group');
-
-    for (const name of ['alter', 'geschlecht']) {
-      const wrapper = group.querySelector(`[data-table-select][data-field="creator_merkmale__${name}"]`);
-      expect(wrapper).toBeTruthy();
-      expect(wrapper.querySelector(`input[type="hidden"][name="creator_merkmale__${name}"]`)).toBeTruthy();
-    }
-    expect(group.querySelector('select')).toBeNull();
-    // Optionsliste in voller Breite des Felds
-    expect(group.querySelectorAll('[data-table-select][data-match-width]')).toHaveLength(2);
-    expect(group.querySelector('input[name="creator_merkmale__standort"][type="text"]')).toBeTruthy();
-
-    expect(group.querySelector('[data-field="creator_merkmale__alter_von"]')).toBeNull();
-    expect(group.querySelector('[data-field="creator_merkmale__alter_bis"]')).toBeNull();
-
-    const alter = group.querySelector('[data-field="creator_merkmale__alter"]');
-    const werte = [...alter.querySelectorAll('.table-select__panel .table-select__item')].map(el => el.dataset.value);
-    expect(werte).toEqual(['', '18-24', '25-34', '35-44', '45-54', '55+']);
-
-    const geschlecht = group.querySelector('[data-field="creator_merkmale__geschlecht"]');
-    expect([...geschlecht.querySelectorAll('.table-select__item')].map(el => el.dataset.value))
-      .toEqual(['', 'männlich', 'weiblich', 'divers', 'paar', 'familie', 'tier']);
-  });
-
-  it('zeigt gespeicherte Werte im Trigger', () => {
-    const root = parse(renderStep(casting(), {
-      creator_merkmale: { alter: '18-24', geschlecht: 'weiblich' }
-    }, {}));
-    const label = (name) => root
-      .querySelector(`[data-field="creator_merkmale__${name}"] .table-select__label`).textContent.trim();
-    expect(label('alter')).toBe('18–24');
-    expect(label('geschlecht')).toBe('Weiblich');
-  });
-
-  it('alter Freitext bleibt als Extra-Option, Zwischenstand Von/Bis wird eine Spanne', () => {
-    const frei = parse(renderStep(casting(), {
-      creator_merkmale: { alter: '22–38 Jahre', geschlecht: 'Vorrangig weiblich' }
-    }, {}));
-    expect(frei.querySelector('input[name="creator_merkmale__alter"]').value).toBe('22–38 Jahre');
-    expect(frei.querySelector('[data-field="creator_merkmale__alter"] .table-select__label').textContent.trim())
-      .toBe('22–38 Jahre');
-
-    const zwischenstand = parse(renderStep(casting(), {
-      creator_merkmale: { alter_von: '25-34', alter_bis: '25-34' }
-    }, {}));
-    expect(zwischenstand.querySelector('input[name="creator_merkmale__alter"]').value).toBe('25-34');
-    expect(zwischenstand.querySelector('input[name="creator_merkmale__alter_von"]')).toBeNull();
-    expect(frei.querySelector('input[name="creator_merkmale__geschlecht"]').value).toBe('Vorrangig weiblich');
-  });
-});
-
-describe('Briefing Liky-Spec nach fieldGroup', () => {
-  it('Merkmale-Subfelder liefern ihre Optionen mit', () => {
-    const merkmale = buildSpec('paid_creator_ads').find(f => f.name === 'creator_merkmale');
-    const alter = merkmale.fields.find(f => f.name === 'alter');
-    expect(alter.options.map(o => o.value)).toEqual(['18-24', '25-34', '35-44', '45-54', '55+']);
-    expect(merkmale.fields.find(f => f.name === 'standort').options).toBeUndefined();
-  });
-
-  it('enthält persistierte Felder aus den Groups, keine fieldGroups', () => {
+describe('Briefing Liky-Spec', () => {
+  it('enthält die Inhaltsfelder ohne Zuordnung und ohne fieldGroups', () => {
     const spec = buildSpec('paid_creator_ads');
     const names = spec.map(f => f.name);
-    expect(names).toEqual(expect.arrayContaining([
-      'funnel_stufen', 'ad_channels', 'nutzung_markenkanal'
-    ]));
-    expect(spec.every(f => f.type !== 'fieldGroup')).toBe(true);
+    expect(names).toEqual(expect.arrayContaining(['aktivierung_name', 'plattformen', 'produkte', 'vorgabe_pflicht']));
+    expect(spec.every(f => f.type !== 'fieldGroup' && f.type !== 'entitySelect')).toBe(true);
     expect(names).not.toContain('unternehmen_id');
-    expect(names).not.toContain('marke_id');
+  });
+
+  it('Produkte, Ideen und Videolänge sagen ihre Wertform an', () => {
+    const spec = Object.fromEntries(buildSpec('owned_social').map(f => [f.name, f]));
+    expect(spec.produkte.fields.map(f => f.name)).toEqual(['name', 'url', 'kurzbeschreibung', 'usp', 'loesung']);
+    expect(spec.umsetzungsideen_eintraege.valueShape).toContain('verbindlich: boolean');
+    expect(spec.videolaenge.valueShape).toContain('bis: null');
+    expect(spec.plattformen.options.map(o => o.value)).toEqual(['instagram', 'facebook', 'tiktok', 'youtube']);
   });
 });

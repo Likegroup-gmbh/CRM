@@ -93,10 +93,10 @@ describe('AddItemDrawer – Sektionen und TableSelect', () => {
     expect(felder).toEqual(['add_kategorie']);
   });
 
-  it('belegt Funnel-Stufe und Produkt vor, wenn es genau eine gibt', async () => {
+  it('belegt das Produkt vor, wenn es genau eins gibt; die Funnel-Stufe kommt nie aus dem Briefing', async () => {
     await oeffnen(PAID_STRATEGIE(), [{ id: 'p1', name: 'Serum' }]);
 
-    expect(document.querySelector('[name="funnel_stufe"]').value).toBe('mid');
+    expect(document.querySelector('[name="funnel_stufe"]').value).toBe('');
     expect(document.querySelector('[name="produkt_id"]').value).toBe('p1');
     expect(document.querySelector('[name="kategorie"]').value).toBe('');
   });

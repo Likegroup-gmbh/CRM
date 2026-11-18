@@ -8,7 +8,10 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { renderWorkflowTabBar, renderWorkflowPanes, DEFAULT_WORKFLOW_TAB } from './KampagneDetailWorkflow.js';
+import { renderProduktZelle, renderBriefingZelle } from './produktionVerknuepfungen.js';
 import { renderWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
+import { renderAuswertungChrome } from '../auswertung/auswertungPane.js';
+import { kampagneSichtAusUrl, renderKampagneSichtSchalter } from '../auswertung/auswertungKampagne.js';
 
 const SHARE_ICON = `
   <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
@@ -224,6 +227,7 @@ export function renderMainPage(state) {
           <div class="kampagne-tab-chrome" data-chrome="vertraege">
             ${renderWorkflowCreateChrome('vertraege', createCtx)}
           </div>
+          ${renderAuswertungChrome()}
         </div>
       </div>
 
@@ -315,42 +319,39 @@ function renderKampagneOverview({
   const zeilen = verbrauchZeilen(produktionen || [], kampagneBudgetPot(kampagneData));
   const rows = (produktionen || []).map((p, index) => {
     const linien = p.linien || [];
-    const produkte = [...new Set(linien.flatMap(l =>
-      (l.briefing?.produkte || []).map(row => row?.produkt?.name).filter(Boolean)
-    ))];
-    const produkt = produkte.length ? produkte.join(', ') : (p.produkt?.name || '–');
-    const briefing = linien.length
-      ? linien.map(l => `${l.name}${l.is_draft ? ' (Entwurf)' : ''}`).join(', ')
-      : '–';
+    const briefingName = linien.map(l => l.name).filter(Boolean).join(', ');
     const zeile = zeilen[index] || { eigenesBudget: null, used: null, total: 0 };
     const budgetZelle = zeile.eigenesBudget != null
       ? KampagneUtils.formatCurrency(zeile.eigenesBudget)
       : '<span class="text-muted">–</span>';
     return `
       <tr>
-        <td><a href="/produktion/${p.id}" class="table-link" data-table="produktion" data-id="${p.id}">${sanitize(p.name || briefing || 'Produktion')}</a></td>
-        <td>${sanitize(produkt)}</td>
-        <td>${sanitize(briefing)}${linien.length > 1 ? ` <span class="text-muted">· ${linien.length} Linien</span>` : ''}</td>
+        <td><a href="/produktion/${p.id}" class="table-link" data-table="produktion" data-id="${p.id}">${sanitize(p.name || briefingName || 'Produktion')}</a></td>
+        <td>${renderProduktZelle(p)}</td>
+        <td>${renderBriefingZelle(p)}</td>
         <td>${budgetZelle}</td>
         <td>${renderProduktionBudget(zeile.used, zeile.total)}</td>
         <td class="col-actions">${pflegen ? renderProduktionAktionen(p, { kannLoeschen: canCreateBriefing && !linien.length }) : ''}</td>
       </tr>`;
   }).join('');
 
+  const sicht = kampagneSichtAusUrl();
   return `
     ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht, { kooperationen, videos, isKunde })}
-    <div class="kampagne-detail-body">
+    <div class="kampagne-detail-body" data-kampagne-sicht="${sicht}">
       <div class="page-header">
         <div class="page-header-title-group">
           ${safeLogoUrl ? `<img src="${escapeAttr(safeLogoUrl)}" alt="${escapeAttr(orgLogoAlt)}" class="toolbar-entity-logo" loading="lazy" />` : ''}
           <h2 class="page-header-title">${sanitize(kampagneName)}</h2>
         </div>
         <div class="page-header-right">
+          ${renderKampagneSichtSchalter(sicht)}
           ${canCreateBriefing ? `<button type="button" id="btn-new-produktion" class="mdc-btn">Produktion anlegen</button>` : ''}
         </div>
       </div>
       <div class="content-section">
-        <div class="data-table-container">
+        <div class="kampagne-auswertung" data-kampagne-sicht-pane="auswertung"${sicht === 'auswertung' ? '' : ' hidden'}></div>
+        <div class="data-table-container" data-kampagne-sicht-pane="produktionen"${sicht === 'produktionen' ? '' : ' hidden'}>
           <table class="data-table">
             <thead>
               <tr><th>Produktion</th><th>Produkt</th><th>Briefings</th><th>Budget</th><th>Verbrauch</th><th class="col-actions"></th></tr>

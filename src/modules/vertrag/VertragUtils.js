@@ -1,4 +1,5 @@
 import { getVertragStatus as readVertragStatus } from './vertragStatus.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 function sanitizePath(str) {
   if (!str) return '';
@@ -62,7 +63,12 @@ export class VertragUtils {
     const fallback = ctx.kind === 'auftrag' ? 'Contracting-Auftrag' : 'Kampagne';
     const label = sanitize(ctx.label || fallback);
     if (!ctx.href) return label;
-    return `<a href="${ctx.href}" class="table-link" data-table="${ctx.dataTable}" data-id="${ctx.id}">${label}</a>`;
+    return renderVerknuepfungPill({
+      kind: ctx.kind,
+      labelHtml: label,
+      href: ctx.href,
+      attrs: `data-table="${ctx.dataTable}" data-id="${ctx.id}"`
+    });
   }
 
   /**

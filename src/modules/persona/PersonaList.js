@@ -20,6 +20,7 @@ import {
   acceptedProduktLinks,
   attachBriefingsToPersonas
 } from '../../core/ui/tableVerknuepfungen.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import {
   buildCompanyFolders,
   buildBrandFolders,
@@ -492,9 +493,12 @@ export class PersonaList extends BasePaginatedList {
         ${showCheckbox ? `<td class="col-checkbox"><input type="checkbox" class="persona-check" data-id="${persona.id}"></td>` : ''}
         <td>${sanitize(persona.oberbegriff || '-')}</td>
         <td class="col-name">
-          <a href="#" class="table-link persona-row-open" data-persona-id="${persona.id}">
-            ${sanitize(persona.name || '')}
-          </a>
+          ${renderVerknuepfungPill({
+            kind: 'persona',
+            labelHtml: sanitize(persona.name || ''),
+            attrs: `data-persona-id="${persona.id}"`,
+            className: 'persona-row-open'
+          })}
         </td>
         <td>${this.renderUnternehmen(persona.unternehmen)}</td>
         <td>${marken}</td>

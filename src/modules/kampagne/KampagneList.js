@@ -408,7 +408,7 @@ export class KampagneList {
       if (!this._isMounted) return;
       window.ErrorHandler?.handle(error, 'KampagneList._loadFolderRows');
       const tbody = document.getElementById('kampagnen-folder-body');
-      if (tbody) tbody.innerHTML = '<tr><td colspan="3" class="error-message">Ordner konnten nicht geladen werden.</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="2" class="error-message">Ordner konnten nicht geladen werden.</td></tr>';
     }
   }
 
@@ -423,7 +423,6 @@ export class KampagneList {
           <table class="data-table data-table--kampagne-folders">
             <thead>
               <tr>
-                <th class="col-thumb">Bild</th>
                 <th class="col-folder-name">Name</th>
                 <th class="col-folder-count">Anzahl</th>
               </tr>

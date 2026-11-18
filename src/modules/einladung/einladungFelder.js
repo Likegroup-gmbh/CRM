@@ -1,53 +1,36 @@
 // einladungFelder.js
 // Was der Kunde auf dem Einladungsformular sieht (ADR 0055).
-// Briefing: dieselbe Feld-Config wie intern (fieldConfig.js), ohne die internen Felder.
+// Briefing: dieselbe Feld-Config wie intern (fieldConfig.js, Creator-Briefing-PDF), ohne die Zuordnung.
 // Produkt: Felder aus ProduktFormConfig, ohne Zuordnung, Personas und Liky.
 // Die serverseitige Allowlist (supabase/functions/einladung/felder.ts) muss dazu passen;
 // src/__tests__/EinladungAllowlist.test.js gleicht beide ab.
 
 import { FLOW_STEPS, flattenFields } from '../briefing/create/fieldConfig.js';
 
-/** Briefing-Felder, die nur das Team sieht. */
+/** Briefing-Felder, die nur das Team sieht: die Zuordnung kommt aus der Einladung. */
 export const BRIEFING_INTERN = new Set([
   'unternehmen_id',
   'marke_id',
   'kampagne_id',
-  'produktion_id',
-  'tkp',
-  'verhandlungshinweis'
+  'produktion_id'
 ]);
 
-const STEP_LABEL = {
-  vertrag: 'Kanäle und Nutzung'
-};
-
-const SECTION_TITLE = {
-  zuordnung: 'Worum geht es?'
-};
-
-/** Hilfetexte, wo das interne Formular keinen hat. */
+/** Hilfetexte für Kunden. Gehen vor den internen Hilfetexten aus briefingFelder.json. */
 export const BRIEFING_HILFE = {
-  beschreibung: 'Ein bis zwei Sätze: Was soll mit diesem Briefing erreicht werden?',
-  nischen: 'Wählen Sie die Themenwelten, in denen die Creator unterwegs sein sollen. „Keine Vorgabe“ überlässt uns die Auswahl.',
-  beteiligte_personen: 'Soll der Creator allein im Video sein, oder darf jemand dazukommen?',
-  voraussetzungen_sonstiges: 'Alles, was in keine Checkbox passt.',
-  aufgabe: 'Beschreiben Sie, was die Creator im Video tun sollen. Je konkreter, desto besser passt das Ergebnis.',
+  aktivierung_name: 'Ein kurzer Name für die Kampagne, zum Beispiel „Sommer-Launch“.',
+  nutzungsrechte: 'Wo und wie lange darf der Content genutzt werden? Zum Beispiel 12 Monate Paid Ads auf Meta.',
+  produkte: 'Name oder Link zum Shop genügt. Bei mehreren Produkten eins pro Zeile.',
+  beschreibung: 'Worum geht es in der Kampagne, und wen wollen Sie erreichen?',
+  kernbotschaft: 'Was soll beim Zuschauer hängen bleiben? Ein Satz genügt.',
+  aufgabe: 'Was sollen die Creator im Video tun? Je konkreter, desto besser passt das Ergebnis.',
   setting: 'Wo und in welcher Stimmung soll gedreht werden?',
-  produktionsvoraussetzungen: 'Zum Beispiel Drehorte, Produktmuster oder Dinge, die vorab geklärt werden müssen.',
-  umsetzungsideen: 'Haben Sie schon Ideen für Videos? Dann gerne hier, eine pro Eintrag.',
-  learnings_text: 'Was hat bei früheren Videos gut oder schlecht funktioniert?',
-  cta: 'Was soll der Zuschauer am Ende tun?',
-  ziel_url: 'Wohin sollen Zuschauer geleitet werden?',
-  nutzungsdauer: 'Wie lange darf das Video von der Marke genutzt werden?',
-  rohmaterial: 'Brauchen Sie das ungeschnittene Material zusätzlich zum fertigen Video?'
+  umsetzungsideen_eintraege: 'Textideen oder Links zu Referenzvideos. Markieren Sie je Eintrag, ob er verbindlich umgesetzt werden soll oder nur als Inspiration dient.'
 };
 
 export const BRIEFING_SCHRITT_INFO = {
-  grundlage: 'Ein paar Eckdaten zum Briefing.',
-  casting: 'Wen suchen wir? Alles, was Sie hier nicht festlegen, entscheiden wir mit unserer Erfahrung.',
-  aufgabe: 'Was sollen die Creator umsetzen?',
-  konzepte: 'Ideen, Referenzen und Regeln für die Umsetzung.',
-  vertrag: 'Auf welchen Plattformen läuft das Video, wie lang ist es und wie wird es genutzt?'
+  rahmen: 'Eckdaten zur Kampagne: Nutzung, Plattformen, Format und Termine.',
+  produkt: 'Welche Produkte stehen im Mittelpunkt, und was ist die Idee dahinter?',
+  umsetzung: 'Was sollen die Creator umsetzen, und was ist Pflicht?'
 };
 
 function filterFields(fields = []) {
@@ -60,8 +43,8 @@ function filterFields(fields = []) {
       out.push({ ...field, fields: inner });
       continue;
     }
-    const helper = field.helper || BRIEFING_HILFE[field.name];
-    let feld = helper && helper !== field.helper ? { ...field, helper } : field;
+    const helper = BRIEFING_HILFE[field.name] || field.helper;
+    let feld = helper !== field.helper ? { ...field, helper } : field;
     // Kunden dürfen den Katalog nicht erweitern: einfache Auswahl statt Suchfeld mit Anlegen.
     if (feld.allowCreate) feld = { ...feld, searchable: false, allowCreate: false };
     out.push(feld);
@@ -77,16 +60,11 @@ export function kundenSteps() {
     for (const section of step.sections) {
       const fields = filterFields(section.fields);
       if (fields.length === 0) continue;
-      sections.push({
-        ...section,
-        title: SECTION_TITLE[section.id] || section.title,
-        fields
-      });
+      sections.push({ ...section, fields });
     }
     if (sections.length === 0) continue;
     steps.push({
       ...step,
-      label: STEP_LABEL[step.id] || step.label,
       info: BRIEFING_SCHRITT_INFO[step.id] || '',
       sections
     });
@@ -94,13 +72,13 @@ export function kundenSteps() {
   return steps;
 }
 
-/** Namen aller Felder, die das Kundenformular erheben kann. */
+/** Namen aller Felder, die das Kundenformular erhebt (auch die Produktliste ohne eigene Spalte). */
 export function kundenFeldNamen() {
   const names = new Set();
   for (const step of kundenSteps()) {
     for (const section of step.sections) {
       for (const field of flattenFields(section.fields)) {
-        if (field.persist !== false && field.name) names.add(field.name);
+        if (field.name) names.add(field.name);
       }
     }
   }

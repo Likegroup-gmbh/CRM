@@ -11,6 +11,7 @@ import {
   skriptLinks,
   vertragLinks
 } from '../../core/ui/tableVerknuepfungen.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 import { replaceRoute } from '../../core/breadcrumbTrail.js';
 import { listAllProduktionen } from './ProduktionService.js';
@@ -122,10 +123,14 @@ function produktionProduktLinks(produktion) {
 function renderRow(produktion, zeile) {
   const briefingName = briefingsOf(produktion).map(b => b?.aktivierung_name).filter(Boolean).join(', ');
   const name = produktion.name || briefingName || 'Produktion';
-  const briefing = briefingName || '–';
   const kampagne = produktion.kampagne;
   const kampagneLabel = kampagne?.id
-    ? `<a href="/kampagne/${kampagne.id}" class="table-link" data-table="kampagne" data-id="${kampagne.id}">${esc(KampagneUtils.getDisplayName(kampagne))}</a>`
+    ? renderVerknuepfungPill({
+      kind: 'kampagne',
+      label: KampagneUtils.getDisplayName(kampagne),
+      href: `/kampagne/${kampagne.id}`,
+      attrs: `data-table="kampagne" data-id="${kampagne.id}"`
+    })
     : '–';
   return `
     <tr>
@@ -133,7 +138,7 @@ function renderRow(produktion, zeile) {
       <td>${kampagneLabel}</td>
       ${renderLeistungszeitraumCell(kampagne)}
       <td>${renderVerknuepfungen(produktionProduktLinks(produktion))}</td>
-      <td>${esc(briefing)}</td>
+      <td>${renderVerknuepfungen(namedLinks(briefingsOf(produktion), { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
       <td>${renderVerknuepfungen(namedLinks(briefingsOf(produktion).flatMap(b => b?.verknuepfte_personas || []), { labelKey: 'name', kind: 'persona' }))}</td>
       <td>${renderVerknuepfungen(namedLinks(produktion.creator_auswahl, { labelKey: 'name', kind: 'casting' }))}</td>
       <td>${renderVerknuepfungen(namedLinks(produktion.strategie, { labelKey: 'name', kind: 'konzept' }))}</td>

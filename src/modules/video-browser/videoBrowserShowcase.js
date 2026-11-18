@@ -1,8 +1,8 @@
 // videoBrowserShowcase.js
 // Controller-Teil der Showcase-Ansicht (zweite Darstellung im Videos-Tab, siehe CONTEXT.md "Showcase").
-// Zustand am Controller (`vb`): view ('ordner' | 'showcase'), showcase ({ group, fmt, size, typ, tag }),
-// scResult (Ergebnis von buildShowcase). Daten, Tags und Filter-Chips kommen aus dem Baum des
-// Spaltenbrowsers. Der Showcase wird nur ein- und ausgeblendet, nichts wird unmountet.
+// Zustand am Controller (`vb`): showcase ({ group, fmt, size, typ, tag }), scResult (Ergebnis von
+// buildShowcase). Daten, Tags und Filter-Chips kommen aus dem Baum des Spaltenbrowsers. Den Wechsel der
+// Ansicht steuert videoBrowserView.js; der Showcase wird nur ein- und ausgeblendet, nichts wird unmountet.
 
 import {
   DEFAULT_SHOWCASE,
@@ -11,26 +11,29 @@ import {
   sizePx,
   toggleChip
 } from './videoBrowserLogic.js';
-import { chipsHtml, gridHtml, showcaseShellHtml, summaryText, toolbarHtml, viewSwitchHtml } from './videoBrowserRenderShowcase.js';
+import { chipsHtml, gridHtml, showcaseShellHtml, summaryText, toolbarHtml } from './videoBrowserRenderShowcase.js';
 import { createShowcaseMedia } from './videoBrowserShowcaseMedia.js';
 import { closeShowcaseLightbox, openShowcaseLightbox } from './videoBrowserShowcaseLightbox.js';
 import { downloadItems } from './videoBrowserDownload.js';
 import { downloadMeta } from './videoBrowserActions.js';
+import { VB_SEG_ATTR } from './videoBrowserRenderParts.js';
+import { onSegmentKeydown as segmentKeydown, setSegmentValue } from '../../core/components/SegmentSwitch.js';
 
 /* ---- Aufbau ---- */
 
-/** Vor dem Gerüst: Ansicht und Einstellungen aus der URL (Showcase-Links lassen sich weitergeben). */
+/**
+ * Vor dem Gerüst: Einstellungen aus der URL (Showcase-Links lassen sich weitergeben).
+ * @returns {boolean} true, wenn die URL den Showcase meint
+ */
 export function initShowcaseState(vb) {
   const fromUrl = showcaseFromSearch(window.location.search);
   vb.showcase = fromUrl || { ...DEFAULT_SHOWCASE };
-  vb.view = fromUrl ? 'showcase' : 'ordner';
   vb.scBox = null;
   vb.scResult = null;
-  // Der Ansicht-Umschalter gehört in die Workflow-Tab-Zeile (rechter Slot), sonst in eine eigene Leiste
-  vb.viewSlot = vb.pane.closest('.kampagne-detail-body')?.querySelector('[data-workflow-liste-slot]') || null;
+  return !!fromUrl;
 }
 
-/** HTML der Ansicht-Leiste im Gerüst. Mit Tab-Zeile leer, dort sitzt der Umschalter (mountShowcase). */
+/** HTML der Ansicht-Leiste im Gerüst. Mit Tab-Zeile leer, dort sitzt der Umschalter (mountView). */
 export const showcaseToolbarHtml = (vb) => (vb.viewSlot ? '' : toolbarHtml(vb.view));
 
 /** HTML des Showcase-Bereichs (leer gerendert, Inhalte füllt `renderShowcase`). */
@@ -39,29 +42,14 @@ export const showcaseSectionHtml = (vb) => `
     ${showcaseShellHtml(vb.showcase, { canDownload: vb.canDownload })}
   </section>`;
 
-/** Nach dem Gerüst und nach createMotion. */
+/** Nach dem Gerüst, nach createMotion und nach dem Ansicht-Umschalter (mountView). */
 export function mountShowcase(vb) {
   vb.scEl = vb.root.querySelector('[data-vb-showcase]');
   vb.scScrollEl = vb.scEl.querySelector('[data-vb-sc-scroll]');
   vb.scGridEl = vb.scEl.querySelector('[data-vb-sc-grid]');
   vb.scChipsEl = vb.scEl.querySelector('[data-vb-sc-chips]');
   vb.scSummaryEl = vb.scEl.querySelector('[data-vb-sc-summary]');
-  vb.root.dataset.vbView = vb.view;
   vb.scMedia = createShowcaseMedia({ motion: vb.motion });
-
-  // Umschalter in der Tab-Zeile: liegt außerhalb des Wurzelelements, braucht eigene delegierte Listener
-  if (vb.viewSlot) {
-    vb.viewSlot.innerHTML = viewSwitchHtml(vb.view);
-    const click = (e) => { onShowcaseClick(vb, e); };
-    const key = (e) => { onSegmentKeydown(vb, e); };
-    vb.viewSlot.addEventListener('click', click);
-    vb.viewSlot.addEventListener('keydown', key);
-    vb.cleanups.push(() => {
-      vb.viewSlot.removeEventListener('click', click);
-      vb.viewSlot.removeEventListener('keydown', key);
-    });
-  }
-  vb.viewEl = (vb.viewSlot || vb.root).querySelector('[data-vb-seg="view"]');
 
   // Hover per Delegation am Grid, nicht ein Listener je Kachel
   const over = (e) => vb.scMedia.onPointerOver(e);
@@ -86,8 +74,6 @@ export function mountShowcase(vb) {
 export function destroyShowcase(vb) {
   void closeShowcaseLightbox(vb, { animate: false });
   vb.scMedia?.destroy();
-  // Der Umschalter in der Tab-Zeile steht außerhalb des Panes: mit dem Tab verschwindet er auch
-  if (vb.viewSlot) vb.viewEl?.remove();
 }
 
 /* ---- Rendern ---- */
@@ -111,9 +97,9 @@ export function renderShowcase(vb) {
   vb._syncUrl();
 }
 
-/** Alle Umschalter an den Zustand angleichen. */
+/** Alle Umschalter an den Zustand angleichen (auch Umfang im Kalender, videoBrowserKalender.js). */
 function syncSegments(vb, { animate, scope = vb.root }) {
-  const values = { ...vb.showcase, view: vb.view };
+  const values = { ...vb.showcase, umfang: vb.kalender?.umfang, view: vb.view };
   const groups = [...scope.querySelectorAll('[data-vb-seg]')];
   // Der Ansicht-Umschalter kann in der Tab-Zeile außerhalb des Wurzelelements stehen
   if (scope === vb.root && vb.viewEl && !groups.includes(vb.viewEl)) groups.push(vb.viewEl);
@@ -123,16 +109,9 @@ function syncSegments(vb, { animate, scope = vb.root }) {
 }
 
 /** Radiogruppe umschalten, der Indikator gleitet (motion.tabIndicator). */
-function setSegment(vb, group, value, { animate }) {
+export function setSegment(vb, group, value, { animate }) {
   if (!group || value === undefined) return;
-  let changed = false;
-  group.querySelectorAll('[data-vb-seg-opt]').forEach((opt) => {
-    const on = opt.dataset.value === value;
-    if (on && opt.getAttribute('aria-checked') !== 'true') changed = true;
-    opt.setAttribute('aria-checked', String(on));
-    opt.classList.toggle('active', on);
-    opt.tabIndex = on ? 0 : -1;
-  });
+  const changed = setSegmentValue(group, value, { attr: VB_SEG_ATTR });
   vb.motion?.tabIndicator(group, { animate: animate && changed });
 }
 
@@ -171,8 +150,8 @@ function changeState(vb, patch) {
   vb.motion?.flipFrom(before, vb.scGridEl);
 }
 
-/** Rects der Dateien in der Inhalte-Spalte: Startpunkte für den Einflug (A1). */
-function measureColumnRects(vb) {
+/** Rects der Dateien in der Inhalte-Spalte: Startpunkte für den Einflug (A1). Nur aus der Ordner-Ansicht sinnvoll. */
+export function measureColumnRects(vb) {
   const rects = new Map();
   vb.colsEl?.querySelectorAll('.vb-col--3 .vb-row[data-id]').forEach((row) => {
     const lead = row.querySelector('.vb-row__lead') || row;
@@ -181,30 +160,19 @@ function measureColumnRects(vb) {
   return rects;
 }
 
-export function setView(vb, view) {
-  if (view === vb.view) return;
-  setSegment(vb, vb.viewEl, view, { animate: true });
-  if (view === 'showcase') {
-    const fromRects = measureColumnRects(vb);
-    vb.player?.pause?.();
-    vb._closeTagField();
-    vb.view = 'showcase';
-    vb.root.dataset.vbView = 'showcase';
-    vb.scEl.hidden = false;
-    renderShowcase(vb);
-    // Die Umschalter des Showcase waren ausgeblendet: Indikatoren jetzt ohne Animation setzen
-    syncSegments(vb, { animate: false, scope: vb.scEl });
-    vb.motion?.showcaseIn(vb.scEl, fromRects);
-  } else {
-    void closeShowcaseLightbox(vb, { animate: false });
-    vb.scMedia?.stopHover();
-    vb.view = 'ordner';
-    vb.root.dataset.vbView = 'ordner';
-    vb.scEl.hidden = true;
-    // Erstaufbau des Spaltenbrowsers, die Auswahl bleibt erhalten
-    vb._render({ fromDepth: 0, detailAnimate: true });
-    vb._syncUrl();
-  }
+/** Einblenden (videoBrowserView.setView hat `vb.view` schon gesetzt). */
+export function showShowcase(vb, fromRects = new Map()) {
+  vb.scEl.hidden = false;
+  renderShowcase(vb);
+  // Die Umschalter des Showcase waren ausgeblendet: Indikatoren jetzt ohne Animation setzen
+  syncSegments(vb, { animate: false, scope: vb.scEl });
+  vb.motion?.showcaseIn(vb.scEl, fromRects);
+}
+
+export function hideShowcase(vb) {
+  void closeShowcaseLightbox(vb, { animate: false });
+  vb.scMedia?.stopHover();
+  vb.scEl.hidden = true;
 }
 
 /* ---- Aktionen ---- */
@@ -229,12 +197,12 @@ async function downloadAll(vb, button) {
 
 /** Klick-Routing. @returns {boolean} true, wenn der Klick dem Showcase gehörte */
 export function onShowcaseClick(vb, e) {
+  // Nur die Umschalter im Showcase; den Ansicht-Umschalter bedient videoBrowserView.js
   const opt = e.target.closest('[data-vb-seg-opt]');
-  if (opt) {
+  if (opt && vb.scEl?.contains(opt)) {
     const id = opt.closest('[data-vb-seg]').dataset.vbSeg;
     const { value } = opt.dataset;
-    if (id === 'view') setView(vb, value);
-    else if (vb.showcase[id] !== value) changeState(vb, { [id]: value });
+    if (vb.showcase[id] !== value) changeState(vb, { [id]: value });
     return true;
   }
 
@@ -265,18 +233,5 @@ export function onShowcaseClick(vb, e) {
 
 /** Pfeiltasten in einer Radiogruppe (Roving Tabindex, Auswahl beim Fokus). @returns {boolean} */
 export function onSegmentKeydown(vb, e) {
-  const opt = e.target.closest?.('[data-vb-seg-opt]');
-  if (!opt) return false;
-  const opts = [...opt.closest('[data-vb-seg]').querySelectorAll('[data-vb-seg-opt]')];
-  const i = opts.indexOf(opt);
-  let next = -1;
-  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % opts.length;
-  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i - 1 + opts.length) % opts.length;
-  else if (e.key === 'Home') next = 0;
-  else if (e.key === 'End') next = opts.length - 1;
-  if (next < 0) return false;
-  e.preventDefault();
-  opts[next].focus();
-  opts[next].click();
-  return true;
+  return segmentKeydown(e, { attr: VB_SEG_ATTR });
 }

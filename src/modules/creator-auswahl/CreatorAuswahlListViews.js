@@ -5,15 +5,21 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 import {
   renderVerknuepfungen,
   namedLinks,
   skriptLinks,
   skripteAusStrategie
 } from '../../core/ui/tableVerknuepfungen.js';
+
+function ordnerNameZelle(logoUrl, linkHtml) {
+  return `<td class="col-name">${renderTableIdentity({ url: logoUrl, logo: true, iconHtml: icon('folder-open'), nameHtml: linkHtml })}</td>`;
+}
 
 // Create ist eine Capability, keine Rolle: Investor/Finanzen (intern, view-only)
 // bekommen keinen Anlegen-Button.
@@ -136,10 +142,7 @@ export function updateCompaniesGrid() {
   grid.innerHTML = this.companyFolders.map((folder) => `
     <div class="folder-card" data-unternehmen-id="${folder.id}" data-unternehmen-name="${this.sanitize(folder.firmenname)}">
       <div class="folder-icon">
-        ${folder.logo_url
-          ? `<img src="${this.sanitize(folder.logo_url)}" alt="${this.sanitize(folder.firmenname)}" class="folder-logo">`
-          : `${icon('folder-open')}`
-        }
+        ${renderFolderAvatar({ url: folder.logo_url, name: folder.firmenname })}
       </div>
       <div class="folder-info">
         <span class="folder-name">${this.sanitize(folder.firmenname)}</span>
@@ -161,12 +164,7 @@ export function updateCompaniesTable() {
 
   tbody.innerHTML = this.companyFolders.map((folder) => `
     <tr class="table-row-clickable company-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${this.sanitize(folder.firmenname)}">
-      <td>
-        ${folder.logo_url ? `<img src="${this.sanitize(folder.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${this.sanitize(folder.firmenname)}">
-          ${this.sanitize(folder.firmenname)}
-        </a>
-      </td>
+      ${ordnerNameZelle(folder.logo_url, `<a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${this.sanitize(folder.firmenname)}">${this.sanitize(folder.firmenname)}</a>`)}
       <td>${folder.count}</td>
     </tr>
   `).join('');
@@ -245,12 +243,7 @@ export function updateBrandsTable() {
 
   tbody.innerHTML = this.brandFolders.map((brand) => `
     <tr class="table-row-clickable brand-row" data-marke-id="${brand.id}" data-marke-name="${this.sanitize(brand.markenname)}">
-      <td>
-        ${brand.logo_url ? `<img src="${this.sanitize(brand.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link brand-link" data-marke-id="${brand.id}" data-marke-name="${this.sanitize(brand.markenname)}">
-          ${this.sanitize(brand.markenname)}
-        </a>
-      </td>
+      ${ordnerNameZelle(brand.logo_url, `<a href="#" class="table-link brand-link" data-marke-id="${brand.id}" data-marke-name="${this.sanitize(brand.markenname)}">${this.sanitize(brand.markenname)}</a>`)}
       <td>${brand.count}</td>
     </tr>
   `).join('');

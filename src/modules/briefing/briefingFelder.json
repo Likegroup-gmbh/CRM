@@ -1,0 +1,127 @@
+{
+  "schritte": [
+    {
+      "id": "rahmen",
+      "label": "Rahmen",
+      "titel": "Kampagnenübersicht & Rahmen",
+      "felder": [
+        { "name": "aktivierung_name", "label": "Kampagnentitel", "type": "text", "required": true, "placeholder": "z.B. Sommer-Launch 2026", "pdf": "titel" },
+        {
+          "type": "fieldGroup", "id": "content-verwendung", "layout": "wrap", "label": "Wie wird der Content verwendet?",
+          "fields": [
+            { "name": "nutzung_markenkanal", "label": "Owned Media", "type": "checkbox", "lockForBereich": "owned_social", "pdf": "owned" },
+            { "name": "nutzung_paid_media", "label": "Paid Ads", "type": "checkbox", "lockForBereich": "paid_creator_ads", "pdf": "paid" },
+            { "name": "nutzung_creator_kanal", "label": "Influencer-Marketing", "type": "checkbox", "lockForBereich": "influencer_marketing", "pdf": "influencer" }
+          ]
+        },
+        {
+          "type": "fieldGroup", "id": "plattformen", "layout": "stack",
+          "fields": [
+            {
+              "name": "plattformen", "label": "Plattformen", "type": "checkboxes", "compact": true,
+              "options": [
+                { "value": "instagram", "label": "Instagram", "pdf": "instagram" },
+                { "value": "facebook", "label": "Facebook", "pdf": "facebook" },
+                { "value": "tiktok", "label": "TikTok", "pdf": "tiktok" },
+                { "value": "youtube", "label": "YouTube", "pdf": "youtube" }
+              ]
+            },
+            { "name": "plattformen_weitere", "label": "Weitere Plattformen", "type": "text", "placeholder": "z.B. Snapchat, Pinterest", "pdf": "weitere_plattform" }
+          ]
+        },
+        {
+          "type": "fieldGroup", "id": "seitenverhaeltnis", "layout": "stack",
+          "fields": [
+            {
+              "name": "seitenverhaeltnisse", "label": "Seitenverhältnis", "type": "checkboxes", "compact": true,
+              "options": [
+                { "value": "9:16", "label": "9:16 (Hochformat)", "pdf": "format_9_16" },
+                { "value": "4:5", "label": "4:5" },
+                { "value": "1:1", "label": "1:1 (Quadrat)", "pdf": "format_1_1" },
+                { "value": "16:9", "label": "16:9 (Querformat)", "pdf": "format_16_9" }
+              ]
+            },
+            { "name": "seitenverhaeltnis_weitere", "label": "Weitere Formate", "type": "text", "placeholder": "z.B. Story-Sequenz, Karussell", "pdf": "weitere_formate" }
+          ]
+        },
+        {
+          "name": "videolaenge", "label": "Videolänge", "type": "videolaenge", "min": 1, "max": 180,
+          "columns": ["videolaenge_von", "videolaenge_bis"],
+          "pdf": { "minimum": "laenge_minimum", "bereich": "laenge_bereich", "mindestlaenge": "mindestlaenge", "von": "laenge_von", "bis": "laenge_bis" }
+        },
+        {
+          "name": "nutzungsrechte", "label": "Details zur Content-Verwendung & Nutzungsrechte", "type": "textarea", "rows": 3,
+          "placeholder": "Z. B. Nutzungsdauer, Accounts, Collab-Post, Partnership / Spark Ads, Rohmaterial", "pdf": "rechte"
+        },
+        {
+          "type": "fieldGroup", "id": "timings", "layout": "row", "label": "Timings",
+          "fields": [
+            { "name": "content_deadline", "label": "Content-Abgabe", "type": "date", "pdf": "abgabe" },
+            { "name": "content_deadline_bis", "label": "bis (optional)", "type": "date", "nachDatum": "content_deadline", "pdfBis": "abgabe" },
+            { "name": "go_live", "label": "Veröffentlichung", "type": "date", "pdf": "veroeffentlichung" },
+            { "name": "go_live_bis", "label": "bis (optional)", "type": "date", "nachDatum": "go_live", "pdfBis": "veroeffentlichung" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "produkt",
+      "label": "Produkt & Idee",
+      "titel": "Produkt & Kampagnenidee",
+      "felder": [
+        {
+          "name": "produkte", "label": "Produkte", "type": "produktListe", "persist": false, "max": 10,
+          "helper": "Jedes Produkt wird mit Name oder Link angelegt und an das Briefing gehängt. Gibt es das Produkt im Unternehmen schon, wird es verknüpft.",
+          "fields": [
+            { "name": "name", "label": "Produktname", "type": "text", "placeholder": "z.B. Clear Case Kollektion", "pdf": "produkt" },
+            { "name": "url", "label": "Produktlink", "type": "url", "placeholder": "https://…", "pdf": "produktlink" },
+            { "name": "kurzbeschreibung", "label": "Kurzbeschreibung", "type": "textarea", "rows": 2, "pdf": "beschreibung" },
+            { "name": "usp", "label": "Produkteigenschaften", "type": "textarea", "rows": 2, "placeholder": "Eine Eigenschaft pro Zeile", "pdf": "eigenschaften" },
+            { "name": "loesung", "label": "Welches Problem löst das Produkt / welchen Nutzen bietet es?", "type": "textarea", "rows": 2, "pdf": "nutzen" }
+          ]
+        },
+        {
+          "name": "beschreibung", "label": "Kampagnenidee & Zielgruppe", "type": "textarea", "rows": 4,
+          "placeholder": "Kreativer Gedanke, angesprochene Zielgruppe, Rolle des Produkts und Kampagnenziel", "pdf": "idee"
+        },
+        {
+          "name": "kernbotschaft", "label": "Kernbotschaft", "type": "textarea", "rows": 2,
+          "placeholder": "Was soll beim Publikum hängen bleiben?", "pdf": "botschaft"
+        }
+      ]
+    },
+    {
+      "id": "umsetzung",
+      "label": "Umsetzung",
+      "titel": "Deine Aufgabe & Umsetzung",
+      "hinweis": "Verbindliche Vorgaben und freie Inspiration bitte klar unterscheiden.",
+      "felder": [
+        {
+          "name": "aufgabe", "label": "Deine Aufgabe", "type": "textarea", "rows": 4,
+          "placeholder": "Was soll der Creator im Video tun?", "pdf": "aufgabe"
+        },
+        {
+          "name": "vorgabe_pflicht", "label": "Was muss gesagt oder gezeigt werden?", "type": "textarea", "rows": 4,
+          "helper": "Produktintegration, sichtbare Elemente, Pflichtaussagen, CTA, Rabatt und rechtliche Hinweise",
+          "placeholder": "z.B. Produktname in den ersten 3 Sekunden, Rabattcode SOMMER20 nennen", "pdf": "pflicht"
+        },
+        {
+          "name": "setting", "label": "Setting & Produktionshinweise (optional)", "type": "textarea", "rows": 2,
+          "placeholder": "z.B. Zuhause in der Küche, Tageslicht", "pdf": "produktion"
+        },
+        {
+          "type": "fieldGroup", "id": "dos-donts", "layout": "row", "label": "Dos & Don'ts",
+          "fields": [
+            { "name": "vorgabe_donts", "label": "Don'ts", "type": "textarea", "rows": 4, "helper": "Was muss vermieden werden?", "pdf": "donts" },
+            { "name": "vorgabe_dos", "label": "Dos", "type": "textarea", "rows": 4, "helper": "Was ist bei der Umsetzung gewünscht?", "pdf": "dos" }
+          ]
+        },
+        {
+          "name": "umsetzungsideen_eintraege", "label": "Umsetzungsideen & Referenzen (optional)", "type": "ideenListe", "max": 20,
+          "helper": "Textideen oder Links. Je Eintrag: Inspiration oder verbindliche Vorgabe? Verbindliche werden 1:1 zu Videoideen im Konzept.",
+          "placeholder": "Idee oder Link, z.B. https://www.tiktok.com/@…", "pdf": "referenzen"
+        }
+      ]
+    }
+  ]
+}

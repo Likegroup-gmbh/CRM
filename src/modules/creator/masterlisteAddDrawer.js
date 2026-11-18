@@ -5,6 +5,7 @@
 import { creatorAuswahlService } from '../creator-auswahl/CreatorAuswahlService.js';
 import { ladeCreatorFuerHandles } from '../creator-auswahl/castingCreatorVerknuepfung.js';
 import { CREATOR_TYP_OPTIONS } from '../creator-auswahl/creatorTypeOptions.js';
+import { renderTableAvatar } from '../../core/format/tableIdentity.js';
 import {
   IG_TEXT_FIELDS,
   applyPreviewToForm,
@@ -401,15 +402,8 @@ function vorschauHtml(handle, fields) {
   const followerText = Number.isFinite(follower) && fields.follower_instagram != null
     ? `${follower.toLocaleString('de-DE')} Follower`
     : '';
-  const bild = fields.profile_image_thumb_url || fields.profile_image_url;
-  const safe = bild && window.validatorSystem?.sanitizeUrl
-    ? window.validatorSystem.sanitizeUrl(bild)
-    : (/^https?:\/\//i.test(bild || '') ? bild : '');
-  const avatar = safe
-    ? `<img src="${escapeHtml(safe)}" alt="" class="table-avatar table-avatar-img" width="32" height="32">`
-    : `<span class="table-avatar">${escapeHtml(name.replace(/^@/, '').charAt(0).toUpperCase() || '?')}</span>`;
   return `
-    ${avatar}
+    ${renderTableAvatar({ url: fields.profile_image_thumb_url || fields.profile_image_url, name })}
     <div>
       <div class="masterliste-ig-vorschau__name">${escapeHtml(name)}</div>
       <div class="form-hint">@${escapeHtml(handle)}${followerText ? ` · ${escapeHtml(followerText)}` : ''}</div>

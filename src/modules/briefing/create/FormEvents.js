@@ -1,564 +1,132 @@
 // FormEvents.js
-// Event-Binding fuer den Briefing-Generator: Multistep-Navigation,
-// Conditional-Logic (Live-Toggle), Repeatable-Felder, Uploads,
-// Unternehmen->Marke-Kaskade, Searchable Selects.
+// Events des Briefing-Formulars: Multistep-Navigation (intern) und die Feld-Events,
+// die intern und Einladung teilen (bindFormularEvents): Videolänge-Modus, „bis“-Datum,
+// Umsetzungsideen. Zuordnung: ZuordnungEvents.js, Produktliste: ProduktListeEvents.js.
 
 import { BriefingCreate } from './BriefingCreateCore.js';
-import { evaluateCondition, getAllFields } from './fieldConfig.js';
+import { feldNachName } from './fieldConfig.js';
 import { bindSekundenSpanne } from '../../../core/components/SekundenSpanne.js';
-import { escapeHtml } from './FieldRenderer.js';
-import { icon } from '../../../core/icons/IconSystem.js';
+import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';
+import { ideeZeileHtml } from './fieldRendererListen.js';
 import { navigateBack } from '../../../core/breadcrumbTrail.js';
+import './ZuordnungEvents.js';
+import './ProduktListeEvents.js';
+
+function briefingForm() {
+  return document.getElementById('briefing-form');
+}
 
 BriefingCreate.prototype.bindMultistepEvents = function() {
-  const cancelBtn = document.getElementById('btn-cancel');
-  const prevBtn = document.getElementById('btn-prev');
-  const nextBtn = document.getElementById('btn-next');
-  const submitBtn = document.getElementById('btn-submit');
-  const saveDraftBtn = document.getElementById('btn-save-draft');
+  document.getElementById('btn-cancel')?.addEventListener('click', () => navigateBack('/briefing'));
 
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      navigateBack('/briefing');
+  document.getElementById('btn-save-draft')?.addEventListener('click', async () => {
+    this.saveCurrentStepData();
+    await this.saveDraftToDB();
+  });
+
+  document.getElementById('btn-prev')?.addEventListener('click', () => {
+    this.saveCurrentStepData();
+    this._animateAndRender(() => {
+      this.currentStep--;
+      this.render();
     });
-  }
+  });
 
-  if (saveDraftBtn) {
-    saveDraftBtn.addEventListener('click', async () => {
-      this.saveCurrentStepData();
-      await this.saveDraftToDB();
+  document.getElementById('btn-next')?.addEventListener('click', () => {
+    if (!this.validateCurrentStep()) return;
+    this.saveCurrentStepData();
+    this._animateAndRender(() => {
+      this.currentStep++;
+      this.render();
     });
-  }
+  });
 
-  if (prevBtn) {
-    prevBtn.addEventListener('click', () => {
-      this.saveCurrentStepData();
-      if (this.currentStep === 2) {
-        this._animateAndRender(() => {
-          this.currentStep = 1;
-          this.isGenerated = false;
-          this.render();
-        });
-      } else {
-        this._animateAndRender(() => {
-          this.currentStep--;
-          this.render();
-        });
-      }
-    });
-  }
+  document.getElementById('btn-submit')?.addEventListener('click', async () => {
+    if (!this.validateCurrentStep()) return;
+    this.saveCurrentStepData();
+    await this.handleSubmit();
+  });
 
-  if (nextBtn) {
-    nextBtn.addEventListener('click', () => {
-      if (this.validateCurrentStep()) {
-        this.saveCurrentStepData();
-        this._animateAndRender(() => {
-          this.currentStep++;
-          this.render();
-        });
-      }
-    });
-  }
-
-  if (submitBtn) {
-    submitBtn.addEventListener('click', async () => {
-      if (this.validateCurrentStep()) {
-        this.saveCurrentStepData();
-        await this.handleSubmit();
-      }
-    });
-  }
-
-  this.bindConditionalEvents();
-  this.bindRepeatableEvents();
+  this.bindFormularEvents();
   this.bindCascadeEvents();
-  this.bindSekundenSpanne();
+  this.bindProduktListe();
   void this.syncZielProduktion();
 };
 
-BriefingCreate.prototype.bindSekundenSpanne = function() {
-  const form = document.getElementById('briefing-form');
+/** Feld-Events, die intern und im Einladungsformular gleich sind. */
+BriefingCreate.prototype.bindFormularEvents = function() {
+  const form = briefingForm();
   if (!form) return;
 
-  // Der Slider selbst liegt in core/components/SekundenSpanne.js (auch im Konzept genutzt).
-  form.querySelectorAll('[data-sekunden-spanne]').forEach(root => bindSekundenSpanne(root));
-};
+  CustomDatePicker.bind(form);
 
-// ---------------------------------------------------------------
-// Conditional Logic: Wrapper live ein-/ausblenden
-// ---------------------------------------------------------------
-BriefingCreate.prototype.bindConditionalEvents = function() {
-  const form = document.getElementById('briefing-form');
-  if (!form) return;
+  form.querySelectorAll('[data-sekunden-spanne]').forEach(root => bindSekundenSpanne(root, {
+    onCommit: () => this.saveCurrentStepData()
+  }));
 
   form.addEventListener('change', (e) => {
     if (this._isInitializing) return;
-    // Geaendertes Feld sofort in formData spiegeln, dann Conditions neu auswerten
+    if (e.target.closest?.('[data-produkt-row]')) return;
+    this.zeigeVideolaengeModus(e.target);
+    this.zieheBisDatumNach(e.target);
+    this.zeigeIdeeArt(e.target);
     this.saveCurrentStepData();
-    this.refreshConditions();
     if (e.target?.id === 'kampagne_id' && !this._linieGesperrt) {
       this.formData.produktion_id = null;
-      void this.syncZielProduktion();
+      void this.syncZielProduktion?.();
     }
   });
-};
 
-function produktionOptionLabel(row) {
-  const name = row?.name || 'Produktion';
-  if (row?.budget == null) return name;
-  const betrag = Number(row.budget).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-  return `${name} · ${betrag}`;
-}
-
-BriefingCreate.prototype.syncZielProduktion = async function() {
-  const select = document.getElementById('produktion_id');
-  if (!select || !window.supabase) return;
-  const field = select.closest('.form-field');
-  const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
-  if (!kampagneId) {
-    field?.classList.add('hidden');
-    select.required = false;
-    this.formData.produktion_id = null;
-    return;
-  }
-
-  const { data, error } = await window.supabase
-    .from('produktion')
-    .select('id, name, budget')
-    .eq('kampagne_id', kampagneId)
-    .order('created_at', { ascending: true });
-  if (error) {
-    console.warn('Produktionen für das Briefing nicht geladen', error);
-    return;
-  }
-
-  // Eine Produktion nimmt beliebig viele Briefings auf (Linien, ADR 0045).
-  const rows = data || [];
-  const boundId = this._produktionKontext?.produktionId || null;
-  field?.classList.remove('hidden');
-  const current = this.formData.produktion_id || boundId || '';
-  const placeholder = rows.length ? 'Produktion auswählen...' : 'Keine Produktion – im Auftrag oder in der Kampagne anlegen';
-  select.innerHTML = `<option value="">${placeholder}</option>${rows.map(row => `
-    <option value="${row.id}">${window.validatorSystem?.sanitizeHtml(produktionOptionLabel(row)) || produktionOptionLabel(row)}</option>
-  `).join('')}`;
-  select.value = rows.some(row => row.id === current) ? current : '';
-  const locked = !!boundId && rows.some(row => row.id === boundId);
-  select.disabled = locked;
-  select.required = !locked;
-  this.formData.produktion_id = select.value || null;
-};
-
-BriefingCreate.prototype.refreshConditions = function() {
-  const form = document.getElementById('briefing-form');
-  if (!form) return;
-
-  form.querySelectorAll('.bf-conditional').forEach(wrapper => {
-    if (wrapper.dataset.conditionJson) {
-      try {
-        const condition = JSON.parse(wrapper.dataset.conditionJson);
-        wrapper.classList.toggle('hidden', !evaluateCondition(condition, this.formData));
-      } catch (err) {
-        console.warn('Briefing-Condition unlesbar', err);
-      }
+  form.addEventListener('click', (e) => {
+    const add = e.target.closest('[data-ideen-add]');
+    if (add) {
+      this.ideeHinzufuegen(add.dataset.ideenAdd);
       return;
     }
-    const field = wrapper.dataset.conditionField;
-    if (!field) return;
-
-    const condition = {};
-    if (wrapper.dataset.conditionEquals !== undefined) condition.equals = parseConditionValue(wrapper.dataset.conditionEquals);
-    if (wrapper.dataset.conditionIn) condition.in = wrapper.dataset.conditionIn.split(',');
-    if (wrapper.dataset.conditionIncludes !== undefined) condition.includes = wrapper.dataset.conditionIncludes;
-    if (wrapper.dataset.conditionIncludesAny) condition.includesAny = wrapper.dataset.conditionIncludesAny.split(',');
-    condition.field = field;
-
-    wrapper.classList.toggle('hidden', !evaluateCondition(condition, this.formData));
-  });
-};
-
-function parseConditionValue(raw) {
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
-  return raw;
-}
-
-// ---------------------------------------------------------------
-// Repeatable-Felder (KPI, Text, Upload)
-// ---------------------------------------------------------------
-BriefingCreate.prototype.bindRepeatableEvents = function() {
-  const form = document.getElementById('briefing-form');
-  if (!form) return;
-
-  form.addEventListener('click', async (e) => {
-    const addBtn = e.target.closest('[data-repeatable-add]');
-    if (addBtn) {
-      const fieldName = addBtn.dataset.repeatableAdd;
-      const container = form.querySelector(`[data-repeatable="${fieldName}"]`);
-      if (!container) return;
-
-      const max = parseInt(container.dataset.max || '20', 10);
-      if (container.querySelectorAll('[data-repeatable-row]').length >= max) {
-        window.toastSystem?.show(`Maximal ${max} Eintraege.`, 'warning');
-        return;
-      }
-      container.insertAdjacentHTML('beforeend', this.buildRepeatableRow(
-        container.dataset.repeatableType,
-        container.querySelectorAll('[data-repeatable-row]').length,
-        { multiline: container.dataset.multiline === 'true', placeholder: container.dataset.placeholder }
-      ));
-      return;
-    }
-
-    const removeBtn = e.target.closest('.bf-repeatable-remove');
-    if (removeBtn) {
-      removeBtn.closest('[data-repeatable-row]')?.remove();
+    const remove = e.target.closest('.bf-repeatable-remove');
+    if (remove) {
+      remove.closest('[data-repeatable-row]')?.remove();
       this.saveCurrentStepData();
-      return;
-    }
-
-    const fileTrigger = e.target.closest('[data-file-trigger]');
-    if (fileTrigger) {
-      const row = fileTrigger.closest('[data-repeatable-row]');
-      row?.querySelector('[data-file]')?.click();
-      return;
-    }
-  });
-
-  // Upload-Zeilen: Typ-Wechsel (URL <-> Upload) + Datei-Upload
-  form.addEventListener('change', async (e) => {
-    const typSelect = e.target.closest('[data-typ]');
-    if (typSelect) {
-      const row = typSelect.closest('[data-repeatable-row]');
-      const isUpload = typSelect.value === 'upload';
-      row.querySelector('[data-url]')?.classList.toggle('hidden', isUpload);
-      row.querySelector('[data-file-zone]')?.classList.toggle('hidden', !isUpload);
-      return;
-    }
-
-    const fileInput = e.target.closest('[data-file]');
-    if (fileInput && fileInput.files?.length) {
-      await this.uploadBriefingAsset(fileInput);
     }
   });
 };
 
-BriefingCreate.prototype.buildRepeatableRow = function(type, index, options = {}) {
-  if (type === 'kpi') {
-    // KPI-Optionen aus dem sichtbaren Container uebernehmen (erste Zeile als Vorlage)
-    const container = document.querySelector('.bf-repeatable[data-repeatable-type="kpi"]');
-    const firstSelect = container?.querySelector('select[data-kpi]');
-    const optionsHtml = firstSelect ? firstSelect.innerHTML : '<option value="">KPI wählen...</option>';
-    return `
-      <div class="bf-repeatable-row" data-repeatable-row>
-        <select data-kpi class="bf-repeatable-row__select">${optionsHtml}</select>
-        <input type="text" data-zielwert placeholder="Zielwert">
-        <button type="button" class="mdc-btn mdc-btn--icon bf-repeatable-remove" title="Entfernen">${icon('trash')}</button>
-      </div>
-    `;
-  }
-  if (type === 'text') {
-    const placeholder = escapeHtml(options.placeholder || 'Eintrag');
-    const input = options.multiline
-      ? `<textarea data-item rows="2" placeholder="${placeholder}"></textarea>`
-      : `<input type="text" data-item placeholder="${placeholder}">`;
-    return `
-      <div class="bf-repeatable-row" data-repeatable-row>
-        ${input}
-        <button type="button" class="mdc-btn mdc-btn--icon bf-repeatable-remove" title="Entfernen">${icon('trash')}</button>
-      </div>
-    `;
-  }
-  // upload
-  return `
-    <div class="bf-repeatable-row bf-upload-row" data-repeatable-row>
-      <span class="bf-upload-row__index">${index + 1}</span>
-      <select data-typ class="bf-repeatable-row__select">
-        <option value="url" selected>URL</option>
-        <option value="upload" >Upload</option>
-      </select>
-      <input type="url" data-url placeholder="https://...">
-      <span class="bf-upload-row__file hidden" data-file-zone>
-        <input type="file" data-file class="hidden">
-        <button type="button" class="mdc-btn mdc-btn--secondary" data-file-trigger>${icon('upload')} Datei</button>
-        <span data-file-label></span>
-      </span>
-      <input type="hidden" data-value value="">
-      <input type="hidden" data-label value="">
-      <button type="button" class="mdc-btn mdc-btn--icon bf-repeatable-remove" title="Entfernen">${icon('trash')}</button>
-    </div>
-  `;
-};
-
-// Datei in den documents-Bucket laden, Pfad in der Zeile hinterlegen
-BriefingCreate.prototype.uploadBriefingAsset = async function(fileInput) {
-  const row = fileInput.closest('[data-repeatable-row]');
-  const label = row?.querySelector('[data-file-label]');
-  const file = fileInput.files[0];
-  if (!row || !file) return;
-
-  try {
-    if (label) label.textContent = 'Laedt hoch...';
-
-    const folder = this.editId || `neu-${Date.now()}`;
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `campaign-briefings/${folder}/${Date.now()}_${safeName}`;
-
-    const { error } = await window.supabase.storage
-      .from('documents')
-      .upload(path, file, { upsert: false });
-
-    if (error) throw error;
-
-    row.querySelector('[data-value]').value = path;
-    row.querySelector('[data-label]').value = file.name;
-    if (label) label.textContent = file.name;
-    this.saveCurrentStepData();
-    window.toastSystem?.show('Datei hochgeladen', 'success');
-  } catch (error) {
-    console.error('Upload fehlgeschlagen:', error);
-    if (label) label.textContent = 'Upload fehlgeschlagen';
-    window.toastSystem?.show(`Upload fehlgeschlagen: ${error.message}`, 'error');
-  }
-};
-
-// ---------------------------------------------------------------
-// Unternehmen -> Marke Kaskade
-// ---------------------------------------------------------------
-BriefingCreate.prototype.bindCascadeEvents = function() {
-  // Gesperrter Kontext (aus Produktion/Kampagne): Unternehmen und Marke sind fix.
-  if (this._linieGesperrt) return;
-
-  const unternehmenSelect = document.getElementById('unternehmen_id');
-  if (unternehmenSelect) {
-    unternehmenSelect.addEventListener('change', async (e) => {
-      this.formData.unternehmen_id = e.target.value || null;
-      this.formData.marke_id = null;
-      this.formData.kampagne_id = null;
-      this.rebuildMarkeSelect();
-      await this.refreshProdukte();
-      this.rebuildLinieSelects();
-    });
-  }
-
-  const markeSelect = document.getElementById('marke_id');
-  if (markeSelect) {
-    markeSelect.addEventListener('change', async (e) => {
-      this.formData.marke_id = e.target.value || null;
-      this.formData.kampagne_id = null;
-      await this.refreshProdukte();
-      this.rebuildLinieSelects();
-    });
-  }
-};
-
-BriefingCreate.prototype.rebuildLinieSelects = function() {
-  const unternehmenId = this.formData.unternehmen_id;
-  const markeId = this.formData.marke_id;
-  const kampagnen = (this.kampagnen || []).filter(k => {
-    if (!unternehmenId || k.unternehmen_id !== unternehmenId) return false;
-    if (markeId && k.marke_id && k.marke_id !== markeId) return false;
-    return true;
-  });
-  // Gesperrt: die vorbelegte Kampagne bleibt sichtbar, auch wenn der Filter sie ausschließt.
-  if (this._linieGesperrt) {
-    const gewaehlt = (this.kampagnen || []).find(k => k.id === this.formData.kampagne_id);
-    if (gewaehlt && !kampagnen.some(k => k.id === gewaehlt.id)) kampagnen.unshift(gewaehlt);
-  }
-  this.rebuildEntitySelect('kampagne_id', kampagnen, {
-    labelKey: 'label',
-    placeholder: unternehmenId ? 'Kampagne auswählen...' : 'Bitte zuerst Unternehmen wählen...',
-    locked: this._linieGesperrt
+BriefingCreate.prototype.zeigeVideolaengeModus = function(target) {
+  const match = /^(.+)__modus$/.exec(target?.name || '');
+  if (!match) return;
+  const root = target.closest(`[data-videolaenge="${match[1]}"]`);
+  root?.querySelectorAll('[data-videolaenge-teil]').forEach((teil) => {
+    teil.classList.toggle('hidden', teil.dataset.videolaengeTeil !== target.value);
   });
 };
 
-BriefingCreate.prototype.rebuildEntitySelect = function(name, options, { labelKey, placeholder, locked }) {
-  const select = document.getElementById(name);
-  if (!select) return;
-
-  const container = select.closest('.form-field');
-  const oldSearchable = container?.querySelector('.searchable-select-container');
-  if (oldSearchable) oldSearchable.remove();
-  select.style.display = '';
-
-  const current = this.formData[name] || '';
-  const enabled = !!this.formData.unternehmen_id && !locked;
-  select.innerHTML = `
-    <option value="">${escapeHtml(placeholder)}</option>
-    ${options.map(o => `<option value="${o.id}" ${current === o.id ? 'selected' : ''}>${escapeHtml(o[labelKey] || o.id)}</option>`).join('')}
-  `;
-  select.disabled = !enabled;
-  select.value = current;
-
-  if (enabled && window.formSystem?.createSearchableSelect) {
-    window.formSystem.createSearchableSelect(select, options.map(o => ({
-      value: o.id,
-      label: o[labelKey] || o.id,
-      selected: o.id === current
-    })), {
-      name,
-      placeholder,
-      value: current || null
-    });
-  }
-};
-
-BriefingCreate.prototype.rebuildMarkeSelect = function() {
-  const markeSelect = document.getElementById('marke_id');
-  if (!markeSelect) return;
-
-  const container = markeSelect.closest('.form-field');
-  const oldSearchable = container?.querySelector('.searchable-select-container');
-  if (oldSearchable) oldSearchable.remove();
-  markeSelect.style.display = '';
-
-  const unternehmenId = this.formData.unternehmen_id;
-  const filtered = unternehmenId ? this.marken.filter(m => m.unternehmen_id === unternehmenId) : [];
-  const gesperrt = !!this._linieGesperrt;
-  const aktuell = this.formData.marke_id || '';
-  if (gesperrt && aktuell && !filtered.some(m => m.id === aktuell)) {
-    const gewaehlt = this.marken.find(m => m.id === aktuell);
-    if (gewaehlt) filtered.unshift(gewaehlt);
-  }
-
-  markeSelect.innerHTML = `
-    <option value="">${gesperrt ? '–' : (unternehmenId ? 'Marke auswählen (optional)...' : 'Bitte zuerst Unternehmen wählen...')}</option>
-    ${filtered.map(m => `<option value="${m.id}" ${gesperrt && aktuell === m.id ? 'selected' : ''}>${escapeHtml(m.markenname)}</option>`).join('')}
-  `;
-  markeSelect.disabled = gesperrt || !unternehmenId;
-  if (gesperrt) markeSelect.value = aktuell;
-
-  if (!gesperrt && unternehmenId && window.formSystem?.createSearchableSelect) {
-    window.formSystem.createSearchableSelect(markeSelect, filtered.map(m => ({ value: m.id, label: m.markenname })), {
-      name: 'marke_id',
-      placeholder: 'Marke suchen...',
-      value: null
-    });
-  }
-};
-
-// ---------------------------------------------------------------
-// Searchable Selects initialisieren
-// ---------------------------------------------------------------
-BriefingCreate.prototype.initSearchableSelects = function() {
-  this._isInitializing = true;
-
-  try {
-    const unternehmenSelect = document.getElementById('unternehmen_id');
-    if (unternehmenSelect && !this._linieGesperrt && window.formSystem?.createSearchableSelect) {
-      window.formSystem.createSearchableSelect(unternehmenSelect, this.unternehmen.map(u => ({
-        value: u.id,
-        label: u.firmenname,
-        selected: u.id === this.formData.unternehmen_id
-      })), {
-        name: 'unternehmen_id',
-        placeholder: 'Unternehmen suchen...',
-        value: this.formData.unternehmen_id || null
-      });
-    }
-
-    const markeSelect = document.getElementById('marke_id');
-    if (markeSelect && !this._linieGesperrt && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
-      const filtered = this.marken.filter(m => m.unternehmen_id === this.formData.unternehmen_id);
-      window.formSystem.createSearchableSelect(markeSelect, filtered.map(m => ({
-        value: m.id,
-        label: m.markenname,
-        selected: m.id === this.formData.marke_id
-      })), {
-        name: 'marke_id',
-        placeholder: 'Marke suchen...',
-        value: this.formData.marke_id || null
-      });
-    }
-
-    const kampagneSelect = document.getElementById('kampagne_id');
-    if (kampagneSelect && !kampagneSelect.disabled && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
-      const markeId = this.formData.marke_id;
-      const filtered = (this.kampagnen || []).filter(k => {
-        if (k.unternehmen_id !== this.formData.unternehmen_id) return false;
-        if (markeId && k.marke_id && k.marke_id !== markeId) return false;
-        return true;
-      });
-      window.formSystem.createSearchableSelect(kampagneSelect, filtered.map(k => ({
-        value: k.id,
-        label: k.label,
-        selected: k.id === this.formData.kampagne_id
-      })), {
-        name: 'kampagne_id',
-        placeholder: 'Kampagne suchen...',
-        value: this.formData.kampagne_id || null
-      });
-    }
-
-    const assigneeSelect = document.getElementById('assignee_id');
-    if (assigneeSelect && window.formSystem?.createSearchableSelect) {
-      window.formSystem.createSearchableSelect(assigneeSelect, this.benutzer.map(b => ({
-        value: b.id,
-        label: b.name,
-        selected: b.id === this.formData.assignee_id
-      })), {
-        name: 'assignee_id',
-        placeholder: 'Mitarbeiter suchen...',
-        value: this.formData.assignee_id || null
-      });
-    }
-
-    void this.initNutzungsdauerSelect();
-  } finally {
-    setTimeout(() => { this._isInitializing = false; }, 100);
-  }
-};
-
-function uniqueLabels(labels) {
-  const out = [];
-  const seen = new Set();
-  for (const raw of labels) {
-    const label = String(raw ?? '').trim();
-    const key = label.toLowerCase();
-    if (!label || seen.has(key)) continue;
-    seen.add(key);
-    out.push(label);
-  }
-  return out;
-}
-
-// Einfaches Searchable-Select mit allowCreate (nicht tagBased/Multiselect).
-// Vorgaben plus Katalog. createLookupEntry schreibt nur displayField;
-// label_norm setzt die Tabelle selbst.
-BriefingCreate.prototype.initNutzungsdauerSelect = async function() {
-  const select = document.getElementById('nutzungsdauer');
-  if (!select || !window.formSystem?.createSearchableSelect) return;
-
-  const field = getAllFields().find(item => item.name === 'nutzungsdauer');
-  if (!field?.allowCreate) return;
-
-  let extras = [];
-  if (window.supabase) {
-    const { data, error } = await window.supabase
-      .from(field.table)
-      .select(field.displayField)
-      .order(field.displayField, { ascending: true });
-    if (error) console.error('Nutzungsdauer-Katalog laden fehlgeschlagen:', error);
-    else extras = (data || []).map(row => row[field.displayField]);
-  }
-
-  const current = String(this.formData.nutzungsdauer || '').trim();
-  const currentKey = current.toLowerCase();
-  const labels = uniqueLabels([
-    ...(field.options || []).map(opt => opt.label),
-    ...extras,
-    current
-  ]);
-
-  window.formSystem.createSearchableSelect(select, labels.map(label => ({
-    value: label,
-    label,
-    selected: Boolean(currentKey) && label.toLowerCase() === currentKey
-  })), {
-    name: field.name,
-    placeholder: field.placeholder,
-    allowCreate: true,
-    table: field.table,
-    displayField: field.displayField,
-    valueField: field.valueField
+// „bis“ darf nicht vor dem Start liegen: min nachziehen, zu frühes „bis“ leeren.
+BriefingCreate.prototype.zieheBisDatumNach = function(target) {
+  if (!target?.classList?.contains('custom-date-picker__input')) return;
+  const form = briefingForm();
+  const start = CustomDatePicker.getValue(target);
+  form?.querySelectorAll(`input[data-nach-datum="${target.name}"]`).forEach((bis) => {
+    CustomDatePicker.setMin(bis, start);
+    const ende = CustomDatePicker.getValue(bis);
+    if (ende && start && ende < start) CustomDatePicker.setValue(bis, '');
   });
+};
+
+BriefingCreate.prototype.zeigeIdeeArt = function(target) {
+  if (!target?.matches?.('[data-idee-verbindlich]')) return;
+  const art = target.closest('[data-idee-row]')?.querySelector('[data-idee-art]');
+  if (art) art.textContent = target.checked ? 'Verbindlich' : 'Inspiration';
+};
+
+BriefingCreate.prototype.ideeHinzufuegen = function(name) {
+  const container = briefingForm()?.querySelector(`[data-ideenliste="${name}"]`);
+  const field = feldNachName(name);
+  if (!container || !field) return;
+  const max = parseInt(container.dataset.max || '20', 10);
+  if (container.querySelectorAll('[data-idee-row]').length >= max) {
+    window.toastSystem?.show(`Maximal ${max} Einträge.`, 'warning');
+    return;
+  }
+  container.insertAdjacentHTML('beforeend', ideeZeileHtml(field, {}));
+  container.querySelector('[data-idee-row]:last-child [data-idee-text]')?.focus();
 };

@@ -2,6 +2,7 @@
 // Tabellen-Rendering für die Strategie-Detail-Ansicht
 
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import { renderTableAvatar, renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions.js';
 import { isFixedColumnVisible } from './strategieColumns.js';
@@ -98,11 +99,11 @@ function domSpaltenfolge(detail) {
     .filter(id => fixedSichtbar.has(id) || imDom.has(id))
     .filter(id => id !== 'col-creator');
   const showWriteCols = !detail.isKunde && !!detail.canEdit;
-  // Profil und Creator bleiben zusammen links, vor Bild und Plattform.
+  // Creator bleibt links, vor Bild und Plattform.
   return [
     'col-number',
     ...(showWriteCols ? ['col-drag'] : []),
-    ...(cols.creator ? ['col-creator-bild', 'col-creator'] : []),
+    ...(cols.creator ? ['col-creator'] : []),
     'col-image',
     'col-platform',
     ...beweglichImDom,
@@ -133,10 +134,8 @@ export function renderItemsTable(detail) {
   const showWriteCols = !detail.isKunde && !!detail.canEdit;
 
   // #, Bild, Plattform sind immer da; Drag und Aktionen nur intern mit edit-Recht
-  // Creator hat zwei Zellen: Profilbild und Name
   const fixedCount = 3
     + (showWriteCols ? 2 : 0)
-    + (cols.creator ? 1 : 0)
     + Object.values(cols).filter(Boolean).length;
   const colCount = fixedCount + customCount;
 
@@ -147,7 +146,7 @@ export function renderItemsTable(detail) {
           <tr>
             <th class="col-number">#</th>
             ${showWriteCols ? '<th class="col-drag"></th>' : ''}
-            ${cols.creator ? '<th class="col-creator-bild">Profil</th><th class="col-creator">Creator</th>' : ''}
+            ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
             <th class="col-image">Bild</th>
             <th class="col-platform">Plattform</th>
             ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
@@ -372,37 +371,35 @@ function renderPlatformCell(item, platformIcon, fallbackIcon) {
 }
 
 /**
- * Profilbild des Creators vor der Namensspalte. Gleiche Optik wie die Bild-Spalte
- * im Casting (sourcing-avatar): Thumb vor Hauptbild, sonst der Initial des Namens.
+ * Profilbild vor dem Creator-Namen: Thumb vor Hauptbild, sonst der Initial des Namens.
  * Quelle: Casting-Eintrag, dann dessen Creator, dann der Altbestand-Creator.
+ * Ohne Zuordnung bleibt das Bild weg.
  */
-function renderCreatorBildCell(item) {
+function creatorAvatar(item) {
   const eintrag = item.casting_eintrag;
   const creator = eintrag?.creator || item.creator;
   const creatorName = creator ? `${creator.vorname || ''} ${creator.nachname || ''}`.trim() : '';
   const name = eintrag?.name || creatorName || item.creator_name || '';
-
-  const rawUrl = eintrag?.profile_image_thumb_url || eintrag?.profile_image_url
+  const url = eintrag?.profile_image_thumb_url || eintrag?.profile_image_url
     || creator?.profilbild_thumb_url || creator?.profilbild_url;
-  const safeUrl = rawUrl ? (window.validatorSystem?.sanitizeUrl(rawUrl) ?? rawUrl) : null;
+  return url || name ? renderTableAvatar({ url, name }) : '';
+}
 
-  if (!safeUrl && !name) return '<td class="col-creator-bild"></td>';
-
-  const initial = name.trim().charAt(0).toUpperCase() || '?';
-  const inner = safeUrl
-    ? `<img src="${escapeAttr(safeUrl)}" alt="${escapeAttr(name || 'Profilbild')}" class="table-avatar table-avatar-img table-avatar--sourcing" loading="lazy" />`
-    : `<span class="table-avatar table-avatar--sourcing">${escapeHtml(initial)}</span>`;
-
-  return `<td class="col-creator-bild"><div class="sourcing-avatar">${inner}</div></td>`;
+/** Creator-Zelle: Profilbild links, rechts die Verknuepfung (siehe creatorVerknuepfung). */
+function renderCreatorCell(detail, item, readonly) {
+  return `<td class="cell-textarea col-creator">${renderTableIdentity({
+    avatarHtml: creatorAvatar(item),
+    nameHtml: `<div class="creator-cell">${creatorVerknuepfung(detail, item, readonly)}</div>`
+  })}</td>`;
 }
 
 /**
- * Creator-Zelle: zeigt den zugeordneten Casting-Eintrag (neu) oder den
- * Altbestand (creator_id/creator_name, nur Anzeige). Der Plus-Button oeffnet
- * den Casting-Drawer, das x loest die Zuordnung. Freitext wird nicht mehr
+ * Zeigt den zugeordneten Casting-Eintrag (neu) oder den Altbestand
+ * (creator_id/creator_name, nur Anzeige). Der Plus-Button oeffnet den
+ * Casting-Drawer, das x loest die Zuordnung. Freitext wird nicht mehr
  * geschrieben.
  */
-function renderCreatorCell(detail, item, readonly) {
+function creatorVerknuepfung(detail, item, readonly) {
   const canEdit = !detail.isKunde && !readonly;
   const eintrag = item.casting_eintrag;
   const hatEintrag = !!item.creator_auswahl_item_id;
@@ -421,11 +418,7 @@ function renderCreatorCell(detail, item, readonly) {
       ? `<button type="button" class="creator-cell-btn creator-unlink-btn" data-item-id="${item.id}" title="Zuordnung lösen" aria-label="Zuordnung lösen">${icon('x-mark')}</button>`
       : '';
 
-    return `
-      <td class="cell-textarea col-creator">
-        <div class="creator-cell">${renderVerknuepftPill('user', nameHtml, unlinkBtn)}</div>
-      </td>
-    `;
+    return renderVerknuepftPill('creator', nameHtml, unlinkBtn);
   }
 
   // Altbestand: creator_id/creator_name nur noch Anzeige, kein Freitext-Input.
@@ -435,22 +428,10 @@ function renderCreatorCell(detail, item, readonly) {
     : (item.creator_name || '');
 
   if (canEdit) {
-    return `
-      <td class="cell-textarea col-creator">
-        <div class="creator-cell">
-          ${renderVerknuepfenBtn('creator-connect-btn', item.id, 'user', legacyName ? escapeHtml(legacyName) : 'Creator verknüpfen', 'Casting-Eintrag zuordnen')}
-        </div>
-      </td>
-    `;
+    return renderVerknuepfenBtn('creator-connect-btn', item.id, 'creator', legacyName ? escapeHtml(legacyName) : 'Creator verknüpfen', 'Casting-Eintrag zuordnen');
   }
 
-  return `
-    <td class="cell-textarea col-creator">
-      <div class="creator-cell">
-        ${legacyName ? renderVerknuepftPill('user', escapeHtml(legacyName)) : '<span class="strategie-cell-muted">–</span>'}
-      </div>
-    </td>
-  `;
+  return legacyName ? renderVerknuepftPill('creator', escapeHtml(legacyName)) : '<span class="strategie-cell-muted">–</span>';
 }
 
 /**
@@ -666,7 +647,7 @@ export function renderItemRow(detail, item, index) {
           ${isVorschlag ? '' : icon('bars-3')}
         </td>
       ` : ''}
-      ${cols.creator ? renderCreatorBildCell(item) + renderCreatorCell(detail, item, vorschlagReadonly) : ''}
+      ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
       ${renderBildCell(item, isIdea, ideaIcon)}
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
       ${cols.beschreibung ? renderClippedTextCell(detail, item, isVorschlag ? 'beschreibung' : 'kurzbeschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}

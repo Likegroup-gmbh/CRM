@@ -16,7 +16,7 @@ const { setThinking } = require('./_shared/thinking');
 const { istMasterDokument } = require('./_shared/skript-creator-facing');
 const { logPrompt } = require('./_shared/prompt-log');
 const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
-const { visuellOhneZeitmarker, pruefeSkript, pruefHinweis, neueBefunde } = require('./_shared/skript-context/formatter');
+const { visuellOhneZeitmarker, pruefeSkript, pruefHinweis, neueBefunde, hookVorgabeText } = require('./_shared/skript-context/formatter');
 const { filtereHookSperre, trifftGesprochenenHook, hookLagImAuftrag, mitHookHinweis } = require('./_shared/hook-sperre');
 const {
   loadEditContext, buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel, formatZeitstempel,
@@ -183,7 +183,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
       messages,
-      maxTokens: stark ? 8192 : 4096,
+      maxTokens: stark ? 16384 : 4096,
       thinking: stark,
       thinkingBudget: stark ? 2048 : undefined,
       tool: EDIT_TOOL,
@@ -298,7 +298,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const pruefOpts = {
       video_laenge: ctx.skript.video_laenge,
       verbotene_claims: ctx.kontext?.produkt?.verbotene_claims,
-      hook_vorgaben: ctx.kontext?.briefing?.hook_vorgaben
+      hook_vorgaben: hookVorgabeText(ctx.kontext?.briefing)
     };
     const entwurf = gesprochenerEntwurf(ctx.skript, {
       sektion, vorschlag, ist_visuell: spalte.ist_visuell, selektion_text: spalte.selektion_text, aenderungen

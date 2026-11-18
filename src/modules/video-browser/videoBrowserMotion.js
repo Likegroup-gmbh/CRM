@@ -6,6 +6,7 @@
 // prefers-reduced-motion: Dauern 0, keine Endlos-Animation.
 
 import { gsap, prefersReducedMotion, killRunning, trackRunning } from '../../core/animation/gsap.js';
+import { moveSegmentThumb } from '../../core/components/SegmentSwitch.js';
 import { showcaseEffects } from './videoBrowserShowcaseMotion.js';
 
 const d = (seconds) => (prefersReducedMotion() ? 0 : seconds);
@@ -92,18 +93,7 @@ export function createMotion(root) {
      * und bei Resize). Die Tab-Leisten übernimmt core/animation/tabSlider.js.
      */
     tabIndicator(listEl, { animate = true } = {}) {
-      run(() => {
-        const ind = listEl?.querySelector('[data-vb-tab-indicator]');
-        const tab = listEl?.querySelector('[role="radio"][aria-checked="true"]');
-        if (!ind || !tab) return;
-        const vars = { x: tab.offsetLeft, width: tab.offsetWidth };
-        killRunning(ind);
-        if (!animate || prefersReducedMotion()) {
-          gsap.set(ind, vars);
-          return;
-        }
-        trackRunning(ind, gsap.to(ind, { ...vars, duration: 0.3, ease: 'power3.out' }));
-      });
+      run(() => moveSegmentThumb(listEl, { animate }));
     },
 
     /** Tab-Wechsel: der neue Inhalt blendet gestaffelt ein. */

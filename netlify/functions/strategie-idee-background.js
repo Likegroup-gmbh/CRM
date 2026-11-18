@@ -4,6 +4,7 @@
 // strategie_idee_jobs an, POSTet { jobId } hierher und pollt die Zeile.
 // Diese Function schreibt Fortschritt, Ergebnis oder Fehler per Service Role
 // und inseriert flagged strategie_items (ist_vorschlag). Additiv, kein Replace.
+// Verbindliche Umsetzungsideen des Briefings kommen vor dem KI-Lauf 1:1 dazu.
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, MODELS } = require('./_shared/anthropic');
@@ -15,7 +16,12 @@ const {
   planeLaeufe,
   entwerfeLaeufe,
   leereLaeufeFehler,
-  buildVorschlagInsert
+  buildVorschlagInsert,
+  offeneVerbindlicheIdeen,
+  frueherAngelegt,
+  buildVerbindlichInsert,
+  starteReferenzVerarbeitung,
+  erstzeile
 } = require('./_shared/strategie-idee');
 
 const THINKING_LABELS = {
@@ -116,6 +122,48 @@ exports.handler = async (event) => {
     // Mehrere Produkte ohne Quote werfen hier, es wird nicht gemischt.
     const laeufe = planeLaeufe({ input: job.input, produkte: input.produkte });
     const mehrere = input.produkte.length > 1;
+    if (!input.personas.length) {
+      schreibeStep('start', 'Konzept ohne Personas', 'Ohne Personas werden die Ideen allgemein');
+    }
+
+    // strategie_items.created_by -> benutzer(id), nicht auth.users
+    const { data: benutzer } = await supabase.from('benutzer')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+    const { data: maxRow } = await supabase.from('strategie_items')
+      .select('sortierung')
+      .eq('strategie_id', job.strategie_id)
+      .order('sortierung', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let sortierung = Number.isFinite(maxRow?.sortierung) ? maxRow.sortierung + 1 : 0;
+
+    const verbindlich = offeneVerbindlicheIdeen({
+      briefing: input.briefing,
+      items: input.items,
+      frueher: await frueherAngelegt(supabase, job.strategie_id)
+    });
+    const verbindlichSchluessel = verbindlich.map((idee) => idee.schluessel);
+    if (verbindlich.length) {
+      schreibeStep('verbindlich', 'Verbindliche Ideen anlegen', verbindlich.length === 1
+        ? 'Ich lege die verbindliche Idee aus dem Briefing an'
+        : `Ich lege ${verbindlich.length} verbindliche Ideen aus dem Briefing an`);
+      const produktId = input.produkte.length === 1 ? input.produkte[0].id : null;
+      const { data: angelegt, error: vErr } = await supabase.from('strategie_items')
+        .insert(verbindlich.map((idee) => buildVerbindlichInsert({
+          strategieId: job.strategie_id, idee, sortierung: sortierung++, createdBy: benutzer?.id || null, produktId
+        })))
+        .select('id, video_link');
+      if (vErr) throw new Error(`Verbindliche Ideen konnten nicht gespeichert werden: ${vErr.message}`);
+      // Sofort festhalten: scheitert der KI-Lauf, gelten sie trotzdem als angelegt.
+      queue = queue
+        .then(() => supabase.from('strategie_idee_jobs').update({ result: { verbindlich: verbindlichSchluessel } }).eq('id', jobId))
+        .catch((e) => console.error(`[${jobId}] Verbindliche Schluessel nicht gespeichert:`, e.message));
+      const referenz = (angelegt || []).find((row) => row.video_link);
+      if (referenz) await starteReferenzVerarbeitung(event, referenz.id);
+      input.ausschluss.push(...verbindlich.map((idee) => erstzeile(idee.rest || idee.text)).filter(Boolean));
+    }
     const gesamt = laeufe.reduce((summe, lauf) => summe + lauf.anzahl, 0);
     labels.generieren = `Liky entwirft ${gesamt} ${ideenWort(gesamt)}`;
 
@@ -155,7 +203,7 @@ exports.handler = async (event) => {
         console.warn(`[${jobId}] Lauf ohne Ideen:`, diagnose);
         queue = queue
           .then(() => supabase.from('strategie_idee_jobs')
-            .update({ result: diagnose })
+            .update({ result: { ...diagnose, verbindlich: verbindlichSchluessel } })
             .eq('id', jobId))
           .catch((e) => console.error(`[${jobId}] Diagnose-Update fehlgeschlagen:`, e.message));
       }
@@ -167,20 +215,6 @@ exports.handler = async (event) => {
     }
 
     await ki.abschliessen({ model: zustand.model, usage: zustand.usage });
-
-    // strategie_items.created_by -> benutzer(id), nicht auth.users
-    const { data: benutzer } = await supabase.from('benutzer')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .maybeSingle();
-
-    const { data: maxRow } = await supabase.from('strategie_items')
-      .select('sortierung')
-      .eq('strategie_id', job.strategie_id)
-      .order('sortierung', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    let sortierung = Number.isFinite(maxRow?.sortierung) ? maxRow.sortierung + 1 : 0;
 
     const rows = geschrieben.ergebnisse.flatMap(({ produkt, ideen }) => ideen.map((idee) => (
       buildVorschlagInsert({
@@ -197,7 +231,9 @@ exports.handler = async (event) => {
 
     const payload = {
       success: true,
-      anzahl: rows.length,
+      anzahl: rows.length + verbindlich.length,
+      verbindlich: verbindlichSchluessel,
+      ohne_personas: !input.personas.length,
       verworfen: geschrieben.verworfen
     };
 

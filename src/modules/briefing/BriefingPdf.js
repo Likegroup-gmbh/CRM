@@ -2,7 +2,7 @@
 // Anschreiben-PDF aus dem Briefing-Modell — gleicher Stack wie die
 // Vertrags-PDFs: jsPDF-Text + PdfTextFlow, kein HTML-Raster.
 
-import { buildBriefingPdfModel } from './BriefingDocView.js';
+import { buildBriefingPdfModel } from './briefingPdfModell.js';
 import { ensureSpace, renderPaginatedText } from '../../core/pdf/PdfTextFlow.js';
 import { loadJsPdf } from '../../core/pdf/loadJsPdf.js';
 import { loadCustomerLogoPng, toPdfImageDataUrl } from '../../core/pdf/pdfImage.js';
@@ -124,6 +124,12 @@ export async function createBriefingPdf(detail) {
         doc.setFontSize(10);
         y = renderPaginatedText(doc, block.text, flowOpts(y, onPageBreak));
         y += 2;
+      } else if (block.type === 'sub') {
+        y = ensureSpace(y + 2, 12, MAX_CONTENT_Y, onPageBreak);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10.5);
+        y = renderPaginatedText(doc, block.text, flowOpts(y, onPageBreak, 5.5));
+        y += 1;
       } else {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);

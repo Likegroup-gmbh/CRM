@@ -75,7 +75,7 @@ describe('KI-Vorschlag als Tabellenzeile', () => {
 
     expect(tr.classList.contains('item-row--vorschlag')).toBe(true);
     expect(tr.getAttribute('data-vorschlag-id')).toBe('v-1');
-    expect(doc.querySelector('td.cp-col-bild img').getAttribute('src'))
+    expect(doc.querySelector('td.cp-col-name .table-identity__media img').getAttribute('src'))
       .toBe('https://cdn.test/jessie_thumb.avif');
     expect(doc.querySelector('td.cp-col-notiz').textContent)
       .toContain('Passt zur Zielgruppe Food 25-34.');

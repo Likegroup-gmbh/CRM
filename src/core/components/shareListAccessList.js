@@ -1,30 +1,13 @@
-// Bestehende Zugänge im Teilen-Drawer.
+// Bestehende Zugänge im Teilen-Drawer: laden, rendern, Klicks in Zeile und Menü verteilen.
+// Das Drei-Punkte-Menü ist ein ActionsDropdown-Portal an document.body, daher die
+// Delegation über document.
 
-import { escapeHtml } from '../format.js';
+import { accessRowHtml, codeBlockHtml, einladungsText, gastLink, ROW_RECHTE_FIELD } from './shareListAccessRow.js';
+
+const LEER_TEXT = 'Noch keine Zugänge. Oben Empfänger eintragen oder ohne Mail einen Zugang erstellen.';
 
 export function installShareListAccessList(proto) {
   Object.assign(proto, {
-    showCreatedBanner(link, code) {
-      const banner = this.panel?.querySelector('#share-created-banner');
-      if (!banner || !code) return;
-      banner.hidden = false;
-      banner.innerHTML = `
-        <div class="share-code-banner-title">Zugang angelegt — Code nur jetzt im Klartext</div>
-        <div class="share-code-banner-row">
-          <span class="share-code-value">${escapeHtml(code)}</span>
-          <button type="button" class="share-inline-btn" data-copy="${escapeHtml(code)}">Code kopieren</button>
-        </div>
-        ${link ? `<div class="share-code-banner-row">
-          <span class="share-link-value">${escapeHtml(link)}</span>
-          <button type="button" class="share-inline-btn" data-copy="${escapeHtml(link)}">Gast-Link kopieren</button>
-        </div>` : ''}
-      `;
-      banner.querySelectorAll('[data-copy]').forEach((btn) => {
-        btn.addEventListener('click', () => this.copy(btn.dataset.copy, btn));
-      });
-      banner.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-    },
-
     async loadShares() {
       const container = this.panel?.querySelector('#share-recipients');
       if (!container) return;
@@ -43,61 +26,82 @@ export function installShareListAccessList(proto) {
         return;
       }
       const rows = data || [];
-      if (rows.length === 0) {
+      // Frisch angelegte Zugänge bleiben sichtbar, auch wenn die Liste sie noch nicht liefert:
+      // der Code ist nur jetzt im Klartext da.
+      const ids = new Set(rows.map((share) => share.id));
+      Object.keys(this.angelegt).forEach((id) => { if (ids.has(id)) delete this.angelegt[id]; });
+      this.shares = [...Object.values(this.angelegt), ...rows];
+      this.renderShares();
+    },
+
+    renderShares() {
+      const container = this.panel?.querySelector('#share-recipients');
+      if (!container) return;
+      this.closeRowMail();
+      const anzahl = this.panel.querySelector('#share-zugaenge-anzahl');
+      if (anzahl) anzahl.textContent = this.shares.length ? String(this.shares.length) : '';
+
+      if (this.shares.length === 0) {
         container.className = '';
-        container.innerHTML = '<p class="share-dialog-empty">Noch keine Zugänge.</p>';
+        container.innerHTML = `<p class="share-dialog-empty">${LEER_TEXT}</p>`;
         return;
       }
-
       const origin = window.location.origin;
       container.className = 'share-access-list';
-      container.innerHTML = rows.map((share) => {
-        const lastAccess = share.last_access_at
-          ? `zuletzt ${new Date(share.last_access_at).toLocaleDateString('de-DE')}`
-          : 'noch nicht geöffnet';
-        const expiry = share.expires_at
-          ? `bis ${new Date(share.expires_at).toLocaleDateString('de-DE')}`
-          : (share.ends_with_kampagne ? 'endet mit Kampagne' : 'ohne Ablauf');
-        const participants = (share.share_participants || [])
-          .map((p) => p.name)
-          .filter(Boolean);
-        const link = `${origin}/share/${share.token}`;
-        const freshCode = this.codes[share.id];
-        return `
-          <div class="share-recipient-row share-access-row" data-share-id="${share.id}">
-            <div class="share-recipient-info">
-              <span class="share-recipient-email">${escapeHtml(share.label || 'Zugang')}</span>
-              <span class="share-recipient-meta">${lastAccess} · ${expiry}${participants.length ? ` · ${escapeHtml(participants.join(', '))}` : ''}</span>
-              ${freshCode ? `<span class="share-fresh-code">Code: ${escapeHtml(freshCode)}</span>` : ''}
-            </div>
-            <div class="share-recipient-actions">
-              <select class="share-recipient-rechte" data-share-id="${share.id}" title="Rechte ändern">
-                ${this.rechteOptions().map(([value, label]) => `<option value="${value}" ${share.rechte === value ? 'selected' : ''}>${label}</option>`).join('')}
-              </select>
-              <button type="button" class="share-recipient-revoke" data-copy="${escapeHtml(link)}">Gast-Link</button>
-              <button type="button" class="share-recipient-revoke" data-rotate="${share.id}">Code erneuern</button>
-              <button type="button" class="share-recipient-revoke" data-mail="${share.id}">Mail</button>
-              <button type="button" class="share-recipient-revoke" data-share-id="${share.id}" data-revoke>Widerrufen</button>
-            </div>
-          </div>
-        `;
-      }).join('');
+      container.innerHTML = this.shares.map((share) => accessRowHtml(share, {
+        code: this.codes[share.id],
+        origin,
+        entityName: this.entityName,
+        rechteOptionen: this.rechteOptions(),
+        neu: share.id === this.frischId,
+      })).join('');
 
-      container.querySelectorAll('[data-revoke]').forEach((btn) => {
-        btn.addEventListener('click', () => this.revoke(btn.dataset.shareId));
-      });
-      container.querySelectorAll('.share-recipient-rechte').forEach((select) => {
-        select.addEventListener('change', () => this.updateRechte(select.dataset.shareId, select.value));
-      });
-      container.querySelectorAll('[data-copy]').forEach((btn) => {
-        btn.addEventListener('click', () => this.copy(btn.dataset.copy, btn));
-      });
-      container.querySelectorAll('[data-rotate]').forEach((btn) => {
-        btn.addEventListener('click', () => this.rotate(btn.dataset.rotate));
-      });
-      container.querySelectorAll('[data-mail]').forEach((btn) => {
-        btn.addEventListener('click', () => this.resend(btn.dataset.mail));
-      });
+      const neu = this.frischId && container.querySelector(`[data-share-id="${this.frischId}"]`);
+      neu?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+      this.frischId = null;
+    },
+
+    /** Code-Block einer Zeile neu setzen, ohne die Liste (und ein offenes Mail-Feld) neu zu bauen. */
+    refreshRowCode(shareId) {
+      const share = this.shares.find((s) => s.id === shareId);
+      const slot = this.panel?.querySelector(`[data-share-id="${shareId}"] .share-access-code-slot`);
+      const code = this.codes[shareId];
+      if (!share || !slot) return;
+      const link = gastLink(share.token, window.location.origin);
+      slot.innerHTML = code ? codeBlockHtml(code, einladungsText({ entityName: this.entityName, link, code })) : '';
+    },
+
+    bindAccessList(signal) {
+      const container = this.panel?.querySelector('#share-recipients');
+      container?.addEventListener('click', (e) => {
+        const copyBtn = e.target.closest('[data-copy]');
+        if (copyBtn) {
+          this.copy(copyBtn.dataset.copy, copyBtn);
+          return;
+        }
+        const linkBtn = e.target.closest('[data-copy-link]');
+        if (linkBtn) this.copy(linkBtn.dataset.copyLink, linkBtn, 'Gast-Link kopiert.');
+      }, { signal });
+
+      document.addEventListener('click', (e) => {
+        const item = e.target.closest('.actions-dropdown-portal .action-item[data-action^="share-"]');
+        const quelle = item?.closest('.actions-dropdown-portal')?._sourceContainer;
+        if (!item || !quelle || !this.panel?.contains(quelle)) return;
+        e.preventDefault();
+        this.rowAction(item.dataset.action, item.dataset.id);
+      }, { signal });
+
+      document.addEventListener('table-select-change', (e) => {
+        const { field, itemId, value, element } = e.detail || {};
+        if (field !== ROW_RECHTE_FIELD || !this.panel?.contains(element)) return;
+        this.updateRechte(itemId, value);
+      }, { signal });
+    },
+
+    rowAction(action, shareId) {
+      if (action === 'share-mail') this.openRowMail(shareId);
+      else if (action === 'share-rotate') this.rotate(shareId);
+      else if (action === 'share-revoke') this.confirmRevoke(shareId);
     },
   });
 }

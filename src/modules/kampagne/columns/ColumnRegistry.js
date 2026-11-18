@@ -14,8 +14,6 @@ const DEFAULT_COLUMNS = [
   { id: 'col-extra-kosten', label: 'Extra Kosten', dataCol: '1d', configurable: true },
   { id: 'col-vertrag', label: 'Vertrag', dataCol: '4', configurable: true },
   { id: 'col-nutzungsrechte', label: 'Nutzungsrechte', dataCol: '5', configurable: true },
-  { id: 'col-start-datum', label: 'Erstellt', dataCol: '6', configurable: true },
-  { id: 'col-videoanzahl', label: 'Videos', dataCol: '9', configurable: true },
   { id: 'col-video-nr', label: 'Video-Nr', dataCol: '10', configurable: true },
   { id: 'col-vk-video', label: 'Kosten', dataCol: '10b', configurable: true },
   { id: 'col-video-script-deadline', label: 'Script Deadline', dataCol: '10d', configurable: true },
@@ -46,10 +44,6 @@ const DEFAULT_COLUMNS = [
   { id: 'col-caption', label: 'Caption', dataCol: '27', configurable: true },
   { id: 'col-finale-version', label: 'Finale Version', dataCol: '28', configurable: true },
   { id: 'col-posting-datum', label: 'Posting Datum', dataCol: '29', configurable: true },
-  { id: 'col-link-live', label: 'Live Link', dataCol: '29b', configurable: true },
-  { id: 'col-stats-views', label: 'Views', dataCol: '29c', configurable: true },
-  { id: 'col-stats-likes', label: 'Likes', dataCol: '29d', configurable: true },
-  { id: 'col-stats-comments', label: 'Kommentare', dataCol: '29e', configurable: true },
   { id: 'col-actions', label: 'Aktionen', dataCol: '30', configurable: false }
 ];
 

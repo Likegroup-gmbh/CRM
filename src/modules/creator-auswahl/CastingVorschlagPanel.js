@@ -6,6 +6,10 @@
 import { CastingVorschlagService } from './CastingVorschlagService.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
+// Pausiert (ADR 0073): das Briefing ist keine Grundlage mehr fuers Casting.
+// Bestehende Vorschlaege bleiben in der Tabelle; leer ('') schaltet wieder frei.
+const PAUSIERT = 'Casting-Vorschläge sind pausiert: das Briefing ist keine Grundlage mehr fürs Casting.';
+
 function esc(value) {
   const div = document.createElement('div');
   div.textContent = value ?? '';
@@ -84,9 +88,9 @@ export class CastingVorschlagPanel {
 
     const count = this.vorschlaege.length;
     const hatListeBriefing = !!this.detail.liste?.briefing_id;
-    const btnTitle = hatListeBriefing
-      ? ''
-      : ' disabled title="Casting ohne Briefing: ohne Bedarf kein Lauf"';
+    let btnTitle = '';
+    if (PAUSIERT) btnTitle = ` disabled title="${esc(PAUSIERT)}"`;
+    else if (!hatListeBriefing) btnTitle = ' disabled title="Casting ohne Briefing: ohne Bedarf kein Lauf"';
     block.innerHTML = this.laeuft
       ? `<span class="casting-vorschlag__progress">${esc(this.fortschritt || 'Läuft…')}</span>`
       : `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-casting-vorschlag-holen"${btnTitle}>
@@ -145,7 +149,7 @@ export class CastingVorschlagPanel {
   }
 
   async holen() {
-    if (this.laeuft) return;
+    if (this.laeuft || PAUSIERT) return;
     this.laeuft = true;
     this.fortschritt = 'Vorschläge sind unterwegs…';
     this.bindProgress();

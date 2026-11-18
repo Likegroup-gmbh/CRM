@@ -3,9 +3,6 @@
 
 import { formatVideoFeedbackValue } from '../../core/VideoFeedbackBuckets.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
-import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
-import { renderChipCell, renderPlatformChip, renderStaticChip } from '../../core/components/chipCell.js';
-import { liveLinkDotState, LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { CONTENT_ART_OPTIONS } from '../kooperation/contentArtOptions.js';
 import { renderZeitkommentarList } from './videoTableZeitkommentare.js';
@@ -54,78 +51,6 @@ export function renderVideoDatePicker(table, video, fieldName, label) {
   return `<div class="video-date-cell">${pickerHtml}<span class="video-date-display">${displayText}</span></div>`;
 }
 
-/**
- * Live-Link-Zelle: sichtbar ist nur der Chip ("Reel · @handle") plus ein
- * kleiner Status-Punkt. Die drei Aktionen (Statistiken abrufen, Video
- * oeffnen, Link entfernen) liegen in einer schwebenden Hover-Toolbar, die
- * bei Hover ueber der Zelle erscheint. data-hover-toolbar genuegt dafuer -
- * die Engine bindet global, die Aktionen stehen in liveLinkToolbarConfig.
- *
- * Das Geruest kommt aus chipCell (src/core/components), die Sourcing-Tabelle
- * nutzt dasselbe fuer ihre Instagram-Spalte. Der Chip ist ein Overlay ueber
- * dem Input - dasselbe Muster wie bei den Stats-Zahlen
- * (renderStatsNumberCell): der Input haelt die Roh-URL, beim Fokussieren
- * blendet CSS den Chip aus. Vorher standen Input, Haekchen, Extern-Link und X
- * in einer Flex-Row; der Input wurde dabei zerdrueckt und sprang in der
- * Breite, sobald ein Link gespeichert war.
- */
-export function renderLiveLinkCell(table, koop, video) {
-  const url = video.link_live || '';
-  const handle = koop?.creator?.instagram || koop?.creator?.tiktok || '';
-  const chip = renderPlatformChip(url, handle);
-
-  if (!table.isFieldEditableForUser('video', 'link_live')) {
-    return renderStaticChip({ href: url, chip, title: 'Video öffnen' })
-      || `<span class="stacked-video-empty">-</span>`;
-  }
-
-  return renderChipCell({
-    toolbar: LIVE_LINK_TOOLBAR,
-    id: video.id,
-    input: {
-      className: 'grid-input stacked-video-input',
-      value: url,
-      placeholder: 'Reel-Link',
-      attrs: {
-        'data-entity': 'video',
-        'data-id': video.id,
-        'data-field': 'link_live',
-        'data-live-link-handle': handle
-      }
-    },
-    chip,
-    dot: liveLinkDotState(video)
-  });
-}
-
-/**
- * Views/Likes/Kommentare. Editierbar, weil der Abruf nicht immer greift
- * (Creator ohne Business-Account, Collab-Post unter dem Marken-Handle) -
- * dann traegt man die Zahl von Hand ein.
- *
- * Wie die Follower-Zelle im Sourcing: der Rohwert steckt im Input, darueber
- * liegt die kompakte Anzeige (21,6K / 1,39M). Beim Fokussieren blendet CSS
- * das Overlay aus, editiert wird also immer die exakte Zahl.
- */
-export function renderStatsNumberCell(table, video, fieldName, label) {
-  const value = video[fieldName];
-  const compact = formatCompactNumber(value);
-  const exact = formatExactNumber(value);
-
-  if (!table.isFieldEditableForUser('video', fieldName)) {
-    return `<div class="video-stats-text" title="${exact}">${compact || '—'}</div>`;
-  }
-
-  return `
-      <div class="video-stats-cell">
-        <input type="text" inputmode="numeric" class="grid-input stacked-video-input cell-number__input"
-          data-entity="video" data-id="${video.id}" data-field="${fieldName}" data-value-type="compact-integer"
-          value="${value != null ? value : ''}" aria-label="${escapeHtml(label)}"/>
-        <span class="cell-number__display" data-number-display title="${exact}">${compact || '—'}</span>
-      </div>
-    `;
-}
-
 export function renderExtraKostenInner(koop) {
   return koop.verkaufspreis_zusatzkosten != null && parseFloat(koop.verkaufspreis_zusatzkosten) !== 0
     ? parseFloat(koop.verkaufspreis_zusatzkosten).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
@@ -146,7 +71,10 @@ export function renderVkInner(video) {
 }
 
 export function renderVideoTypInner(video) {
-  return `<div class="video-typ-text">${escapeHtml(video.kampagnenart || '—')}</div>`;
+  const art = video.kampagnenart
+    ? `<span class="tag tag--kampagne-art">${escapeHtml(video.kampagnenart)}</span>`
+    : '—';
+  return `<div class="video-typ-text">${art}</div>`;
 }
 
 export function renderThemaInner(ctx, video) {

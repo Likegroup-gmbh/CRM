@@ -148,7 +148,7 @@ const PERSONA_TOOL = {
                 // damit der Vorname zu beiden passt.
                 alter_von: { type: ['integer', 'null'] },
                 alter_bis: { type: ['integer', 'null'] },
-                namensregister: { type: 'string', enum: REGISTER_LABELS, description: 'Stilrichtung des Vornamens, abgeleitet aus Briefing, sonst Produkt und Marke. Wird nicht gespeichert.' },
+                namensregister: { type: 'string', enum: REGISTER_LABELS, description: 'Stilrichtung des Vornamens, abgeleitet aus Produkt und Marke. Wird nicht gespeichert.' },
                 name: { type: 'string', description: 'Deutscher Vorname, passend zu Namensregister und Alter' },
                 oberbegriff: { type: 'string', description: 'Kategorie des Typs Mensch, z.B. "Die preisbewusste Qualitaetskaeuferin". Weder Beruf noch Nutzungskontext (Arbeit, Sport, Reisen, Pendeln) als Identitaet, ausser das Produkt ist berufsgebunden.' },
                 geschlecht: { type: ['string', 'null'], description: 'Weiblich, Maennlich, Divers oder Gemischt' },
@@ -376,16 +376,6 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
     verworfenerName: input.ersetzteKarte?.name
   });
 
-  const briefingText = String(input.briefingText || '').trim();
-  if (briefingText) {
-    task += '\n# BRIEFING DER LINIE (nur fuer die Namenswahl)\n'
-      + 'Das Briefing bestimmt das Namensregister des Vornamens: Ton, Zielwelt, Plattform, Sprache, Setting. '
-      + 'Es steuert AUSSCHLIESSLICH den Vornamen. Alle anderen Persona-Felder (Alter, Beruf, Pain Points, Kaufmotive, '
-      + `Oberbegriff, Beschreibung usw.) leitest du nur aus Produkt und Marke${breit ? '' : ' und bestehenden Personas'} ab, `
-      + 'nie aus dem Briefing. Die Persona bleibt ein wiederverwendbarer Typ Mensch auf Unternehmensebene.\n'
-      + `${briefingText}\n`;
-  }
-
   task += '\n# AUFTRAG\n';
   if (input.modus === 'karte') {
     task += 'Ersetze GENAU EINE verworfene Karte durch eine neue Persona. ';
@@ -405,20 +395,17 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
 
   if (breit) task += BREIT_AUFTRAG;
 
-  const quelleRegister = briefingText ? 'dem Briefing der Linie' : 'Produkt und Marke';
   const namenKopf = `Namensregister: ${REGISTER_LABELS.join(' | ')}. Namen mit den Jahrgaengen, zu denen sie passen (jung bis 30, mittel 31-50, aelter ab 51):\n`
     + `${fmtNamenListe(namenListe)}\n`;
   if (unisex) {
-    task += 'Reihenfolge: erst alter_von und alter_bis, dann namensregister aus '
-      + `${quelleRegister}, dann der Vorname. `
+    task += 'Reihenfolge: erst alter_von und alter_bis, dann namensregister aus Produkt und Marke, dann der Vorname. '
       + 'Der Vorname kommt aus dieser Liste, exakt eine Schreibweise, und passt zum gewaehlten Register UND zum Alter. '
       + 'Bestehende Personas sind fuer den Vornamen keine Vorlage. '
       + 'geschlecht ist "Gemischt". '
       + 'oberbegriff, beruf und beschreibung ohne -in/-er und ohne sie/er.\n'
       + namenKopf;
   } else {
-    task += 'Vorname: waehle namensregister aus '
-      + `${quelleRegister}, der Jahrgang des Namens passt zum Alter. `
+    task += 'Vorname: waehle namensregister aus Produkt und Marke, der Jahrgang des Namens passt zum Alter. '
       + 'Die Liste ist nur Orientierung fuer Register und Jahrgang. Der Name darf frei gewaehlt werden, auch geschlechtlich.\n'
       + namenKopf;
   }

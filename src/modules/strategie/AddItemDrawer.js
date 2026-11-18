@@ -8,12 +8,7 @@ import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { renderTableSelect, tableSelect } from '../../core/components/TableSelect.js';
-import {
-  FUNNEL_WERTE,
-  FUNNEL_LABELS,
-  briefingFunnelStufen,
-  briefingEinzigeFunnelStufe
-} from './strategieFunnelOptions.js';
+import { FUNNEL_WERTE, FUNNEL_LABELS } from './strategieFunnelOptions.js';
 import { briefingEinzigePersonaId, STRATEGIE_PERSONA_OFFEN } from './strategiePersonaOptions.js';
 import {
   buildAddItemQueueEntry,
@@ -276,21 +271,19 @@ export class AddItemDrawer {
     });
   }
 
-  /** Funnel-Stufe nur bei Paid oder wenn das Briefing Stufen nennt. */
+  /** Funnel-Stufe nur bei Paid. */
   funnelFeldSichtbar() {
-    const briefing = this.strategie?.briefing;
-    return briefing?.bereich === 'paid_creator_ads' || briefingFunnelStufen(briefing).length > 0;
+    return this.strategie?.briefing?.bereich === 'paid_creator_ads';
   }
 
-  /** Vorbelegt, wenn das Briefing genau eine Stufe nennt, sonst leer. */
+  /** Startet leer: die Stufe waehlt der Mensch je Videoidee. */
   renderFunnelField() {
     if (!this.funnelFeldSichtbar()) return '';
-    const vorbelegt = briefingEinzigeFunnelStufe(this.strategie?.briefing);
     return this.renderSelectField({
       label: 'Funnel-Stufe',
       field: 'add_funnel',
       name: 'funnel_stufe',
-      value: vorbelegt || '',
+      value: '',
       options: FUNNEL_WERTE.map(w => ({ value: w, label: FUNNEL_LABELS[w] })),
       placeholder: 'Keine Stufe'
     });
@@ -304,7 +297,7 @@ export class AddItemDrawer {
   /** Dauer als Slider (wie im Briefing), vorbelegt aus dem Briefing. Leer = keine Vorgabe. */
   renderDauerField() {
     this.dauerDirty = false;
-    const iv = this.dauerVorbelegung(briefingEinzigeFunnelStufe(this.strategie?.briefing));
+    const iv = this.dauerVorbelegung(null);
     const spanne = { von: iv?.von, bis: iv?.bis };
     return `
           <div class="form-field add-item-section__full">

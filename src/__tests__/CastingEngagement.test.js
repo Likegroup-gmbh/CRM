@@ -76,16 +76,18 @@ describe('Kurzbeschreibung beim Instagram-Abruf', () => {
 });
 
 describe('Auge und Schublade', () => {
-  it('legt das Auge auf das Profilbild', () => {
+  it('legt das Auge auf das Profilbild in der Namenszelle', () => {
     const doc = rowDoc({ name: 'Ada' });
-    const bild = doc.querySelector('td.cp-col-bild');
-    expect(bild.querySelector('[data-open-casting-detail="i1"]')).not.toBeNull();
-    expect(doc.querySelector('td.cp-col-name [data-open-casting-detail]')).toBeNull();
+    const media = doc.querySelector('td.cp-col-name .table-identity__media');
+    expect(media.querySelector('.table-avatar')).not.toBeNull();
+    expect(media.querySelector('[data-open-casting-detail="i1"]')).not.toBeNull();
+    expect(doc.querySelectorAll('[data-open-casting-detail]')).toHaveLength(1);
   });
 
-  it('setzt das Auge an den Namen, wenn die Bild-Spalte aus ist', () => {
+  it('behaelt das Auge, auch wenn hidden_columns noch die alte Bild-Spalte nennt', () => {
     const doc = rowDoc({ name: 'Ada' }, { hiddenColumns: ['cp-col-bild'] });
-    expect(doc.querySelector('td.cp-col-name [data-open-casting-detail="i1"]')).not.toBeNull();
+    expect(doc.querySelector('td.cp-col-bild')).toBeNull();
+    expect(doc.querySelector('td.cp-col-name .table-identity__media [data-open-casting-detail="i1"]')).not.toBeNull();
   });
 
   it('zeigt Bio und Kurzbeschreibung getrennt und blendet die Mail fuer Kunden aus', () => {

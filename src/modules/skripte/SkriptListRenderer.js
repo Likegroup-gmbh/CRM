@@ -4,6 +4,7 @@
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderEmptyState, renderEmptyStateRow, resolveEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
@@ -12,6 +13,7 @@ import { renderVerknuepfungen, namedLinks } from '../../core/ui/tableVerknuepfun
 import { konzeptCreatorFromSkript } from './editor/SkriptEditorDocRenderer.js';
 import { renderCreatorNameCell } from '../creator/CreatorTable.js';
 import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
 export function createButtonHtml() {
   if (!window.canCreate?.('skripte')) return '';
@@ -61,9 +63,7 @@ function countLabel(count) {
 }
 
 function folderIconHtml(list, folder, name) {
-  return folder.logo_url
-    ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(name)}" class="folder-logo">`
-    : `${icon('folder-open')}`;
+  return renderFolderAvatar({ url: folder.logo_url, name });
 }
 
 function emptyFoldersHtml({ title, text }) {
@@ -134,15 +134,14 @@ function folderCard(list, folder, { idValue, name, extraAttrs = '' }) {
   `;
 }
 
+function folderNameCell(logoUrl, linkHtml) {
+  return `<td class="col-name">${renderTableIdentity({ url: logoUrl, logo: true, iconHtml: icon('folder-open'), nameHtml: linkHtml })}</td>`;
+}
+
 function folderTableRow(list, folder, { rowClass, idValue, name, extraAttrs = '', linkClass }) {
   return `
     <tr class="table-row-clickable ${rowClass}" data-folder-id="${idValue ?? ''}" data-folder-name="${list.sanitize(name)}" ${extraAttrs}>
-      <td>
-        ${folder.logo_url ? `<img src="${list.sanitize(folder.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link ${linkClass}" data-folder-id="${idValue ?? ''}" data-folder-name="${list.sanitize(name)}" ${extraAttrs}>
-          ${list.sanitize(name)}
-        </a>
-      </td>
+      ${folderNameCell(folder.logo_url, `<a href="#" class="table-link ${linkClass}" data-folder-id="${idValue ?? ''}" data-folder-name="${list.sanitize(name)}" ${extraAttrs}>${list.sanitize(name)}</a>`)}
       <td>${folder.count}</td>
     </tr>
   `;
@@ -216,12 +215,7 @@ export function updateCompaniesTable(list) {
 
   tbody.innerHTML = list.companyFolders.map((folder) => `
     <tr class="table-row-clickable company-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
-      <td>
-        ${folder.logo_url ? `<img src="${list.sanitize(folder.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
-          ${list.sanitize(folder.firmenname)}
-        </a>
-      </td>
+      ${folderNameCell(folder.logo_url, `<a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">${list.sanitize(folder.firmenname)}</a>`)}
       <td>${folder.count}</td>
     </tr>
   `).join('');
@@ -362,7 +356,7 @@ export function updateCampaignsGrid(list) {
 
   grid.innerHTML = list.campaignFolders.map((folder) => `
     <div class="folder-card" data-kampagne-id="${folder.id}" data-kampagne-name="${list.sanitize(folder.name)}">
-      <div class="folder-icon">${icon('folder-open')}</div>
+      <div class="folder-icon">${renderFolderAvatar()}</div>
       <div class="folder-info">
         <span class="folder-name">${list.sanitize(folder.name)}</span>
         <span class="folder-count">${countLabel(folder.count)}</span>

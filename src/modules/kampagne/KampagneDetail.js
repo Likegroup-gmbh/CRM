@@ -398,7 +398,7 @@ export class KampagneDetail {
       this._refreshSummaryCards({ animate: true });
     };
 
-    for (const event of ['video-updated', 'video-added', 'videos-changed', 'kooperation-removed']) {
+    for (const event of ['video-updated', 'video-added', 'videos-changed', 'posts-changed', 'kooperation-removed']) {
       this.store.on(event, refresh);
     }
   }

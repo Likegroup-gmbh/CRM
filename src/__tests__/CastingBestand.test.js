@@ -284,7 +284,7 @@ describe('CastingBestandList', () => {
 
     it('setzt bei vorhandenem Creator den grünen Punkt und den Link', () => {
       const tr = rowEl({ ...row, hat_creator: true });
-      const dot = tr.querySelector('.sourcing-avatar .sourcing-avatar__dot');
+      const dot = tr.querySelector('.col-name .table-identity__media .sourcing-avatar__dot');
       expect(dot.classList.contains('status-dot--active')).toBe(true);
       expect(dot.getAttribute('title')).toBe('Als Creator angelegt');
       expect(tr.querySelector('a.table-link').dataset.id).toBe('c1');
@@ -293,7 +293,7 @@ describe('CastingBestandList', () => {
 
     it('setzt ohne Creator-Datensatz den roten Punkt und keinen Link', () => {
       const tr = rowEl({ ...row, id: null, hat_creator: false, vorname: null, nachname: 'Polina' });
-      const dot = tr.querySelector('.sourcing-avatar .sourcing-avatar__dot');
+      const dot = tr.querySelector('.col-name .table-identity__media .sourcing-avatar__dot');
       expect(dot.classList.contains('status-dot--inactive')).toBe(true);
       expect(dot.getAttribute('title')).toBe('Noch kein Creator');
       expect(tr.querySelector('a.table-link')).toBeNull();

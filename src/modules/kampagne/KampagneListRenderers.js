@@ -9,6 +9,7 @@ import { KampagneUtils } from './KampagneUtils.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { resolveEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
 import { getHideCompleted } from './kampagneListPrefs.js';
 import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
@@ -305,14 +306,11 @@ export function renderFolderRows(folders, { mode }) {
         }
       }
     }, 'default');
-    return `<tr><td colspan="3" class="empty-state-cell">${html}</td></tr>`;
+    return `<tr><td colspan="2" class="empty-state-cell">${html}</td></tr>`;
   }
 
   return folders.map((folder) => {
     const name = mode === 'companies' ? folder.firmenname : folder.markenname;
-    const logo = folder.logo_url
-      ? `<img src="${window.validatorSystem.sanitizeHtml(folder.logo_url)}" alt="${window.validatorSystem.sanitizeHtml(name)}" class="table-logo" width="24" height="24">`
-      : icon('folder-open');
     const countLabel = `${folder.count} ${folder.count === 1 ? 'Kampagne' : 'Kampagnen'}`;
     const attrs = mode === 'companies'
       ? `data-unternehmen-id="${folder.id}" data-unternehmen-name="${window.validatorSystem.sanitizeHtml(name)}"`
@@ -321,8 +319,12 @@ export function renderFolderRows(folders, { mode }) {
         : `data-marke-id="${folder.id}" data-marke-name="${window.validatorSystem.sanitizeHtml(name)}"`;
     return `
       <tr class="kampagne-folder-row" ${attrs}>
-        <td class="col-thumb">${logo}</td>
-        <td class="col-folder-name table-link">${window.validatorSystem.sanitizeHtml(name)}</td>
+        <td class="col-folder-name">${renderTableIdentity({
+          url: folder.logo_url,
+          logo: true,
+          iconHtml: icon('folder-open'),
+          nameHtml: `<span class="table-link">${window.validatorSystem.sanitizeHtml(name)}</span>`
+        })}</td>
         <td class="col-folder-count">${countLabel}</td>
       </tr>
     `;

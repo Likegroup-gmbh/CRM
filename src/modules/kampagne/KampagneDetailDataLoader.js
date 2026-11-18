@@ -3,6 +3,7 @@
 
 import { VideoTableDataLoader } from './VideoTableDataLoader.js';
 import { CREATOR_SELECT } from './videoTableQueries.js';
+import { ladeLivePosts } from './kampagneLivePerformance.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
 import { vertraegeProKooperation, VERTRAG_ZELLE_COLS } from '../vertrag/deckung/vertragDeckung.js';
 import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
@@ -275,10 +276,10 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
   const batchIn = VideoTableDataLoader.batchInQuery;
   const sb = window.supabase;
 
-  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult, rechnungResult, customColsResult, colOrderResult] = await Promise.allSettled([
+  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult, rechnungResult, customColsResult, colOrderResult, livePostsResult] = await Promise.allSettled([
     batchIn(
       sb.from('kooperation_videos'),
-      'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, link_live, stats_views, stats_likes, stats_comments, stats_fetched_at, stats_error, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link, produkt:produkt_id(id, name)), skript_id, skript:skript_id(id, titel, status)',
+      'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link, produkt:produkt_id(id, name)), skript_id, skript:skript_id(id, titel, status)',
       'kooperation_id', koopIds,
       q => q.order('position', { ascending: true })
     ),
@@ -309,7 +310,8 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
       .select('kooperation_id, status')
       .in('kooperation_id', koopIds),
     CustomColumnDataLoader.loadCustomColumns(kampagneId),
-    CustomColumnDataLoader.loadColumnOrder(kampagneId)
+    CustomColumnDataLoader.loadColumnOrder(kampagneId),
+    ladeLivePosts(kampagneId, { isKunde })
   ]);
 
   const allVideos = videosResult.status === 'fulfilled' ? (videosResult.value.data || []) : [];
@@ -389,6 +391,7 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
 
   store.setKooperationen(kooperationen);
   store.setVideos(videosByKoopId);
+  store.setLivePosts(livePostsResult.status === 'fulfilled' ? livePostsResult.value : []);
   store.setVideoComments({});
   store.setVersandInfos(versandMap);
   store.setCreatorAdressen(creatorAdressenMap);

@@ -1,6 +1,6 @@
 // VideoTableEventBinder
 // Buendelt das gesamte Event-Binding der Kampagnen-Video-Tabelle (Feld-Updates,
-// Feedback-Autosave, Upload/Settings/Media-Buttons, Status-Dropdown, Resize/Drag).
+// Feedback-Autosave, Upload/Settings/Media-Buttons, Status-Select, Resize/Drag).
 // Wird bei jedem (Re-)Render aufgerufen und nutzt einen frischen AbortController,
 // damit alte Listener sauber getrennt werden. Haelt den Orchestrator schlank.
 
@@ -10,7 +10,7 @@ import { VideoFeedbackBinding } from './VideoFeedbackBinding.js';
 import { getVideoFeedbackSlotByField } from '../../core/VideoFeedbackBuckets.js';
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
-import { applyLiveLinkCellState, findVideoInTable } from './liveLinkCell.js';
+import { KOOP_STATUS_FIELD } from './videoTableKoopCells.js';
 import { bindTextBaseline, isGuardedTextField, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 import { openZeitkommentar } from './videoTableZeitkommentare.js';
 export class VideoTableEventBinder {
@@ -64,14 +64,6 @@ export class VideoTableEventBinder {
         if (isGuardedTextField(e.target) && !shouldPersistTextField(e.target)) return;
         if (isGuardedTextField(e.target)) rememberTextBaseline(e.target);
         await t.handleFieldUpdate(e.target);
-
-        // Chip der Live-Link-Zelle nachziehen: die Tabelle rendert einzelne
-        // Zellen nicht neu, sonst stuende dort noch der alte Link.
-        if (e.target.dataset?.field === 'link_live') {
-          const videoId = e.target.dataset.id;
-          const video = findVideoInTable(t, videoId) || { link_live: e.target.value.trim() };
-          applyLiveLinkCellState(e.target.closest('.chip-cell'), video);
-        }
       }
     }, { capture: true, signal });
 
@@ -240,44 +232,13 @@ export class VideoTableEventBinder {
       }
     }, { signal });
 
-    container.addEventListener('click', (e) => {
-      const trigger = e.target.closest('.status-select-trigger');
-      if (trigger) {
-        e.preventDefault();
-        e.stopPropagation();
-        const wrapper = trigger.closest('.status-select-wrapper');
-        const isOpen = wrapper?.classList.contains('show');
-        t._closeStatusPortal();
-        if (wrapper && !isOpen) {
-          wrapper.classList.add('show');
-          t._openStatusPortal(wrapper);
-        }
-        return;
-      }
+    // Status-Select (TableSelect): Oeffnen/Schliessen erledigt die Komponente,
+    // die Optionsliste haengt als Portal an body -> Event kommt am document an.
+    document.addEventListener('table-select-change', (e) => {
+      const { field, itemId, value, element } = e.detail || {};
+      if (field !== KOOP_STATUS_FIELD || !element?.closest('.kooperation-video-grid')) return;
+      t._handleStatusDropdownChange(itemId, value || null);
     }, { signal });
-
-    // Item-Click an document, da Portal an document.body haengt (nicht im container).
-    // Klick daneben schliesst. Beides ein Listener.
-    document.addEventListener('click', (e) => {
-      const item = e.target.closest('.status-dropdown-portal .status-dropdown-item, .status-select-wrapper .status-dropdown-item');
-      if (item) {
-        // preventDefault: <a href="#"> wuerde sonst zum Seiten-Anfang scrollen
-        e.preventDefault();
-        e.stopPropagation();
-        const portal = item.closest('.status-dropdown-portal');
-        const wrapper = item.closest('.status-select-wrapper');
-        const koopId = portal?.dataset.kooperationId || wrapper?.dataset.kooperationId;
-        const newValue = item.dataset.value || null;
-        t._closeStatusPortal();
-        if (koopId) t._handleStatusDropdownChange(koopId, newValue);
-        return;
-      }
-      if (e.target.closest('.status-select-wrapper') || e.target.closest('.status-dropdown-portal')) return;
-      t._closeStatusPortal();
-    }, { signal });
-
-    window.addEventListener('resize', () => t._closeStatusPortal(), { signal });
-    window.addEventListener('scroll', () => t._closeStatusPortal(), { signal, capture: true });
 
     t._finalBulkDownload?.bind(container, signal);
     t._finalBulkDownload?.syncAfterRender();

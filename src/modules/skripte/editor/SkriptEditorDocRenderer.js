@@ -51,7 +51,8 @@ function pruefungHtml(skript) {
   const teile = [];
   if (p.laenge && p.laenge.status && p.laenge.status !== 'ok') {
     const richtung = p.laenge.status === 'ueber' ? 'darüber' : 'darunter';
-    teile.push(`${p.laenge.worte} Wörter, ${richtung} von ${p.laenge.min}–${p.laenge.max}.`);
+    const soll = p.laenge.max == null ? `mindestens ${p.laenge.min}` : `${p.laenge.min}–${p.laenge.max}`;
+    teile.push(`${p.laenge.worte} Wörter, ${richtung} von ${soll}.`);
   }
   if (p.hook_zeit?.status === 'ueber') {
     teile.push(`Hook ca. ${p.hook_zeit.sekunden} Sek., Vorgabe bis ${p.hook_zeit.max} Sek.`);

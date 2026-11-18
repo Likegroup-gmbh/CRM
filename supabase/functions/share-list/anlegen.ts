@@ -1,4 +1,4 @@
-// Staff-Aktionen create und send_account_links: Zugang anlegen, Listen-Links an Kundenkonten.
+// Staff-Aktionen create und send_account_links: Zugang anlegen, Listen-Links an Konten.
 
 import { EMAIL_REGEX } from '../_shared/mail.ts';
 import { teilenMail } from '../_shared/mail/index.ts';
@@ -77,8 +77,11 @@ async function create(ctx: StaffKontext, secret: string): Promise<Response> {
     entityType,
     entityId,
     entityLabel: entityConfig.label,
+    entityArticle: entityConfig.article,
     entityName: info.name,
     sharedByName: staff.name || 'Ihr Ansprechpartner',
+    message,
+    replyTo: staff.email,
     origin,
   });
 
@@ -122,6 +125,7 @@ async function create(ctx: StaffKontext, secret: string): Promise<Response> {
 
   const mailResult = await sendInviteMails({
     emails: plan.guest,
+    replyTo: staff.email,
     mail: teilenMail({
       entityLabel: entityConfig.label,
       entityArticle: entityConfig.article,
@@ -168,8 +172,11 @@ async function sendAccountLinks(ctx: StaffKontext): Promise<Response> {
     entityType,
     entityId,
     entityLabel: entityConfig.label,
+    entityArticle: entityConfig.article,
     entityName: info.name,
     sharedByName: staff.name || 'Ihr Ansprechpartner',
+    message: String(body.message ?? '').trim().slice(0, 500),
+    replyTo: staff.email,
     origin,
   });
   if (plan.listLink.length > 0 && accountResult.error && accountResult.sent === 0) {

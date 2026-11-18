@@ -1,4 +1,5 @@
 import { icon } from './icons/IconSystem.js';
+import { renderTableSelect } from './components/TableSelect.js';
 import { getVertragStatus, vertragStatusLabel } from '../modules/vertrag/vertragStatus.js';
 
 /**
@@ -55,13 +56,15 @@ const STATUS_RANK = {
   entwurf: 1,
 };
 
-const BADGE_CLASS = {
-  entwurf: 'vertrag-badge--draft',
-  erstellt: 'vertrag-badge--created',
-  gesendet: 'vertrag-badge--gesendet',
-  verzoegert: 'vertrag-badge--verzoegert',
-  abgelehnt: 'vertrag-badge--abgelehnt',
-};
+// Dot-Farben der Vertrag-Status im TableSelect (Status ist systemgefuehrt, nie editierbar)
+const VERTRAG_OPTIONS = Object.freeze([
+  { value: 'entwurf', label: vertragStatusLabel('entwurf'), color: 'var(--warning)' },
+  { value: 'erstellt', label: vertragStatusLabel('erstellt'), color: 'var(--info)' },
+  { value: 'gesendet', label: vertragStatusLabel('gesendet'), color: 'var(--primary-500)' },
+  { value: 'verzoegert', label: vertragStatusLabel('verzoegert'), color: 'var(--warning-700)' },
+  { value: 'abgelehnt', label: vertragStatusLabel('abgelehnt'), color: 'var(--danger)' },
+  { value: 'unterschrieben', label: vertragStatusLabel('unterschrieben'), color: 'var(--color-success)' }
+]);
 
 export function pickVertragForAnzeige(vertraege) {
   const list = vertraege || [];
@@ -76,25 +79,20 @@ export function pickVertragForAnzeige(vertraege) {
 
 /**
  * Pure rendering function für die Vertrag-Zelle in der Kampagnen-Tabelle.
- * Zeigt ausschließlich Status-Badges (keine Checkbox).
+ * Zeigt den Vertrag-Status im TableSelect-Look (nicht klickbar: der Status
+ * entsteht aus dem Vertragslauf und wird nicht von Hand gesetzt, ADR 0026).
  */
 export function renderVertragCell(koop) {
   const vertrag = pickVertragForAnzeige(koop._vertraege);
-  if (!vertrag) {
-    return `<span class="vertrag-badge vertrag-badge--none">Noch nicht erstellt</span>`;
-  }
 
-  const status = getVertragStatus(vertrag);
-  if (status === 'unterschrieben') {
-    const url = vertrag.dropbox_file_url || vertrag.unterschriebener_vertrag_url;
-    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="contract-signed-action contract-signed-action--open" title="${escapeHtml(vertrag.name || 'Vertrag')}">
-      ${icon('check-circle')}
-      Unterschrieben
-    </a>`;
-  }
-
-  const cls = BADGE_CLASS[status] || 'vertrag-badge--created';
-  return `<span class="vertrag-badge ${cls}" title="${escapeHtml(vertrag.name || 'Vertrag')}">${escapeHtml(vertragStatusLabel(status))}</span>`;
+  return renderTableSelect({
+    field: 'koop_vertrag',
+    itemId: koop.id,
+    value: vertrag ? getVertragStatus(vertrag) : '',
+    options: VERTRAG_OPTIONS,
+    placeholder: 'Noch nicht erstellt',
+    disabled: true
+  });
 }
 
 /**

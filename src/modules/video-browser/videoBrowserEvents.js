@@ -20,6 +20,7 @@ import {
 import { commitRename, endRename, startRename } from './videoBrowserRename.js';
 import { startUpload } from './videoBrowserUploadState.js';
 import { onSegmentKeydown, onShowcaseClick } from './videoBrowserShowcase.js';
+import { onViewClick } from './videoBrowserView.js';
 import { onKoopGroupClick, toggleKoopGroup } from './videoBrowserKoopState.js';
 import {
   bindRohDrag, rohCheck, rohEinzelnVerschieben, rohMarkierungAufheben, rohMenuUmschalten,
@@ -119,7 +120,7 @@ export function bindEvents(vb) {
       return;
     }
     // Enter und Leertaste auf klickbaren Zeilen (Titel, Eigenschaft, Dateiname) wie ein Klick
-    if (isActivationKey(e) && e.target.closest('[role="button"]:not(button)')) {
+    if (!e.defaultPrevented && isActivationKey(e) && e.target.closest('[role="button"]:not(button)')) {
       e.preventDefault();
       e.target.closest('[role="button"]').click();
     }
@@ -207,7 +208,8 @@ function onClick(vb, e) {
   // Spalte 0: Gruppenkopf, Umschalter Creator | Linie, Alle ein-/aufklappen (vor dem Showcase,
   // der sonst jeden Segment-Umschalter für sich beansprucht)
   if (onKoopGroupClick(vb, e)) return;
-  // Umschalter Ordner|Showcase und alles im Showcase
+  // Umschalter Ordner | Showcase | Kalender und alles im Kalender, danach alles im Showcase
+  if (onViewClick(vb, e)) return;
   if (onShowcaseClick(vb, e)) return;
   if (onRohClick(vb, e)) return;
 

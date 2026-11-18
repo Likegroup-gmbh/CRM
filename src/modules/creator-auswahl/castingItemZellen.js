@@ -3,6 +3,7 @@
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 import { escapeHtml } from '../../core/format.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import {
   SOURCING_STATUS_OPTIONS,
   KUNDEN_FEEDBACK_OPTIONS,
@@ -162,22 +163,13 @@ export function renderKontaktCell(ctx, item, columnClass, field, hide) {
 }
 
 /**
- * Profilbild-Zelle. Das Bild kommt beim Instagram-Fetch als AVIF in den Storage,
- * sonst steht der Initial des Namens als Platzhalter - gleiches Muster wie in
- * der CRM-Creator-Tabelle.
- *
+ * Name mit Profilbild davor. Das Bild kommt beim Instagram-Fetch als AVIF in den
+ * Storage, sonst steht der Initial des Namens als Platzhalter.
  * Fuer den kleinen Avatar reicht das 128px-Thumbnail; Zeilen, die vor der
  * Umstellung abgerufen wurden, haben nur das Hauptbild.
+ * Auf dem Bild liegen der Creator-Punkt (nur intern) und der Detail-Button.
  */
-export function renderBildCell(ctx, item, sticky, hide) {
-  const rawUrl = item.profile_image_thumb_url || item.profile_image_url;
-  const safeUrl = rawUrl ? (window.validatorSystem?.sanitizeUrl(rawUrl) ?? rawUrl) : null;
-  const initial = (item.name || '?').trim().charAt(0).toUpperCase() || '?';
-
-  const inner = safeUrl
-    ? `<img src="${escapeHtml(safeUrl)}" alt="${escapeHtml(item.name || 'Profilbild')}" class="table-avatar table-avatar-img table-avatar--sourcing" loading="lazy" />`
-    : `<span class="table-avatar table-avatar--sourcing">${escapeHtml(initial)}</span>`;
-
+export function renderNameIdentitaet(ctx, item, { nameHtml, subHtml = '' }) {
   const badge = (!ctx.isKunde && !item.isVorschlag) ? castingCreatorBadge(item) : null;
   const dot = badge === 'green'
     ? '<span class="status-dot status-dot--active sourcing-avatar__dot" title="Als Creator angelegt"></span>'
@@ -185,12 +177,16 @@ export function renderBildCell(ctx, item, sticky, hide) {
       ? '<span class="status-dot status-dot--inactive sourcing-avatar__dot" title="Noch kein Creator"></span>'
       : '';
 
-  return `<td class="cp-col-bild ${sticky.bild}" style="${hide('cp-col-bild')}">
-    <div class="sourcing-avatar">${inner}${dot}${renderDetailOpen(item)}</div>
-  </td>`;
+  return renderTableIdentity({
+    url: item.profile_image_thumb_url || item.profile_image_url,
+    name: item.name,
+    nameHtml,
+    subHtml,
+    badgeHtml: `${dot}${renderDetailOpen(item)}`
+  });
 }
 
-export function renderDetailOpen(item) {
+function renderDetailOpen(item) {
   return `<button type="button" class="sourcing-avatar__open" data-open-casting-detail="${escapeHtml(item.id)}" aria-label="Details" title="Details">${icon('eye')}</button>`;
 }
 

@@ -1,10 +1,10 @@
 // fieldConfig.js
-// Briefing-Generator nach FLOW §7: Typ, A Grundlage, B Casting, C Aufgabe,
-// D Konzepte, Vertrag. Typ-Extras sitzen in A–D. Eine gemeinsame Strecke,
-// keine dreifache Kopie. DB-Werte fuer bereich bleiben (v1-kompatibel).
+// Briefing-Formular nach dem Creator-Briefing-PDF (ADR 0073): erst der Typ-Baum, dann die
+// drei Sektionen aus briefingFelder.json, für alle Typen gleich. Der Typ steuert nur
+// Skript-Ton, Casting-Liste und das gesperrte Häkchen bei der Content-Verwendung.
+// Was das PDF nicht fragt, steht in briefingAltfelder.js. DB-Werte für bereich bleiben (v1-kompatibel).
 
-import { GESCHLECHT_OPTIONS } from '../../../core/form/config/CreatorFormConfig.js';
-import { VIDEOLAENGE_FUNNEL_FELD } from '../videolaenge.js';
+import BRIEFING_FELDER from '../briefingFelder.json';
 
 export const BEREICH_OPTIONS = [
   { value: 'paid_creator_ads', label: 'Paid', desc: 'Primär für Werbeanzeigen produziert.' },
@@ -14,20 +14,7 @@ export const BEREICH_OPTIONS = [
 
 export const BEREICH_LABELS = Object.fromEntries(BEREICH_OPTIONS.map(b => [b.value, b.label]));
 
-export const NUTZUNGSDAUER_PRESETS = [
-  '1 Monat',
-  '3 Monate',
-  '6 Monate',
-  '12 Monate',
-  '24 Monate',
-  '90 Monate'
-];
-
-export const ANSATZ_OPTIONS = [
-  { value: 'kampagne', label: 'Kampagne' },
-  { value: 'always_on', label: 'Always-on' }
-];
-
+// Nur noch für ältere Briefings (Meta-Zeile im Dokument).
 export const MAERKTE_OPTIONS = [
   { value: 'deutschland', label: 'Deutschland' },
   { value: 'oesterreich', label: 'Österreich' },
@@ -39,85 +26,43 @@ export const SPRACHEN_OPTIONS = [
   { value: 'englisch', label: 'Englisch' }
 ];
 
-export const FUNNEL_STUFEN_OPTIONS = [
-  { value: 'upper', label: 'Upper Funnel – Awareness' },
-  { value: 'mid', label: 'Mid Funnel – Consideration' },
-  { value: 'lower', label: 'Lower Funnel – Conversion' }
-];
+/** Titel der drei PDF-Sektionen in Reihenfolge (Doc, Creator-PDF, Bewerbung). */
+export const SEKTIONEN = BRIEFING_FELDER.schritte.map(s => ({ id: s.id, titel: s.titel, hinweis: s.hinweis || '' }));
 
-export const NISCHEN_OPTIONS = [
-  { value: 'beauty', label: 'Beauty / Skincare' },
-  { value: 'fashion', label: 'Fashion' },
-  { value: 'food', label: 'Food / Cooking' },
-  { value: 'fitness', label: 'Fitness / Sport' },
-  { value: 'health', label: 'Health / Wellness' },
-  { value: 'lifestyle', label: 'Lifestyle' },
-  { value: 'family', label: 'Family / Parenting' },
-  { value: 'home', label: 'Home / Interior' },
-  { value: 'diy', label: 'DIY' },
-  { value: 'tech', label: 'Tech' },
-  { value: 'gaming', label: 'Gaming' },
-  { value: 'automotive', label: 'Automotive' },
-  { value: 'travel', label: 'Travel' },
-  { value: 'finance', label: 'Finance' },
-  { value: 'business', label: 'Business / Career' },
-  { value: 'education', label: 'Education' },
-  { value: 'entertainment', label: 'Entertainment / Comedy' },
-  { value: 'music', label: 'Music' },
-  { value: 'art', label: 'Art / Creative' },
-  { value: 'outdoor', label: 'Outdoor' },
-  { value: 'pets', label: 'Pets' },
-  { value: 'sonstiges', label: 'Sonstiges' },
-  { value: 'keine_vorgabe', label: 'Keine Vorgabe / Agenturempfehlung' }
-];
+function fieldGroup(id, layout, fields) {
+  return { type: 'fieldGroup', id, layout, fields };
+}
 
-export const VORAUSSETZUNGEN_KERN = [
-  { value: 'kind_familie', label: 'Kind / Familie' },
-  { value: 'haustier', label: 'Haustier' }
-];
+// Zuordnung: bekannt (aus Produktion oder Kampagne) heißt ausgeblendet und im Hintergrund gesetzt.
+// Sichtbar bleibt nur, was fehlt (FieldRenderer, syncZielProduktion).
+const ZUORDNUNG = {
+  id: 'zuordnung',
+  title: 'Zuordnung',
+  hideWhenKnown: true,
+  fields: [
+    fieldGroup('zuordnung-entities', 'stack', [
+      { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', hideWhenKnown: true, required: true, placeholder: 'Unternehmen auswählen...' },
+      { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', hideWhenKnown: true, placeholder: 'Marke auswählen...' },
+      { name: 'kampagne_id', label: 'Kampagne', type: 'entitySelect', table: 'kampagne', displayField: 'label', dependsOn: 'unternehmen_id', scopeMarke: true, hideWhenKnown: true, required: true, placeholder: 'Kampagne auswählen...' },
+      { name: 'produktion_id', label: 'Produktion', type: 'entitySelect', displayField: 'name', dependsOn: 'kampagne_id', required: true, placeholder: 'Produktion auswählen...' }
+    ])
+  ]
+};
 
-export const VORAUSSETZUNGEN_WEITER = [
-  { value: 'auto_fuehrerschein', label: 'Auto / Führerschein' },
-  { value: 'kueche', label: 'Küche / Kochmöglichkeit' },
-  { value: 'garten_outdoor', label: 'Garten / Outdoor-Fläche' },
-  { value: 'instrument', label: 'Instrument' },
-  { value: 'gaming_setup', label: 'Gaming Setup' },
-  { value: 'sport_equipment', label: 'Sport-/Fitness-Equipment' },
-  { value: 'location_wohnsituation', label: 'Bestimmte Location / Wohnsituation' },
-  { value: 'weitere_personen', label: 'Weitere Person(en) verfügbar' },
-  { value: 'sonstiges', label: 'Sonstiges' }
-];
+function sektion(schritt) {
+  return {
+    id: schritt.id,
+    title: schritt.titel,
+    description: schritt.hinweis || '',
+    fields: schritt.felder
+  };
+}
 
-export const VORAUSSETZUNGEN_OPTIONS = [
-  ...VORAUSSETZUNGEN_KERN,
-  ...VORAUSSETZUNGEN_WEITER
-];
-
-export const CREATOR_GROESSEN_IM = [
-  { value: 'nano', label: 'Nano (0–10K)' },
-  { value: 'micro', label: 'Micro (10K–100K)' },
-  { value: 'mid_tier', label: 'Mid-Tier (100K–500K)' },
-  { value: 'macro', label: 'Macro (500K–1Mio)' },
-  { value: 'hero', label: 'Hero (1Mio+)' },
-  { value: 'keine_vorgabe', label: 'Keine Vorgabe / Agenturempfehlung' }
-];
-
-export const CREATOR_GROESSEN_UGC = [
-  { value: 'ugc_creator', label: 'UGC Creator (keine Zahl)' },
-  ...CREATOR_GROESSEN_IM
-];
-
-// Creator-Merkmale (Casting): Alter (Spanne) und Geschlecht als TableSelect.
-// Leerer Wert = "Keine Vorgabe". Geschlecht teilt sich die Werte mit dem Creator.
-export const CREATOR_ALTER_OPTIONS = [
-  { value: '18-24', label: '18–24' },
-  { value: '25-34', label: '25–34' },
-  { value: '35-44', label: '35–44' },
-  { value: '45-54', label: '45–54' },
-  { value: '55+', label: '55+' }
-];
-
-export const CREATOR_GESCHLECHT_OPTIONS = GESCHLECHT_OPTIONS;
+export const FLOW_STEPS = BRIEFING_FELDER.schritte.map((schritt, i) => ({
+  id: schritt.id,
+  label: schritt.label,
+  sections: i === 0 ? [ZUORDNUNG, sektion(schritt)] : [sektion(schritt)]
+}));
 
 function optionKey(value) {
   return String(value ?? '').trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s+/g, ' ');
@@ -130,476 +75,6 @@ export function optionWert(options, raw) {
   const hit = (options || []).find(o => optionKey(o.value) === key || optionKey(o.label) === key);
   return hit ? hit.value : null;
 }
-
-/**
- * Anzeigezeilen einer Gruppe: Option-Label statt Rohwert.
- * @returns {{ sub: object, label: string, text: string }[]}
- */
-export function groupAnzeigeZeilen(field, value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
-  const src = field.name === 'creator_merkmale' ? merkmaleAufNeuesFormat(value) : value;
-  const rows = [];
-  for (const sub of field.fields || []) {
-    const raw = String(src[sub.name] ?? '').trim();
-    if (!raw) continue;
-    const treffer = sub.options ? optionWert(sub.options, raw) : null;
-    const text = treffer != null ? sub.options.find(o => o.value === treffer).label : raw;
-    rows.push({ sub, label: sub.label, text });
-  }
-  return rows;
-}
-
-function ersteZahl(text) {
-  const m = String(text ?? '').match(/\d{1,3}/);
-  return m ? Number(m[0]) : null;
-}
-
-function letzteZahl(text) {
-  const m = String(text ?? '').match(/\d{1,3}/g);
-  return m ? Number(m[m.length - 1]) : null;
-}
-
-/**
- * Zwischenstand mit zwei Dropdowns (alter_von/alter_bis) zu einer Spanne:
- * gleiche Werte bleiben der Options-Wert, sonst "18-44" bzw. "45+".
- */
-function alterAusVonBis(von, bis) {
-  const v = String(von ?? '').trim();
-  const b = String(bis ?? '').trim();
-  if (!v || !b || optionKey(v) === optionKey(b)) return v || b;
-  const start = Math.min(...[ersteZahl(v), ersteZahl(b)].filter(n => n != null));
-  if (!Number.isFinite(start)) return v;
-  if (/\+\s*$/.test(v) || /\+\s*$/.test(b)) return `${start}+`;
-  const ende = Math.max(...[letzteZahl(v), letzteZahl(b)].filter(n => n != null));
-  return Number.isFinite(ende) && ende !== start ? `${start}-${ende}` : v;
-}
-
-/**
- * creator_merkmale auf die aktuellen Subfelder bringen: alter_von/alter_bis
- * (Zwischenstand) werden zu einer Spanne in `alter`, `alter` und Geschlecht
- * werden auf den Options-Wert gelegt, wenn sie treffen. Alles andere (alter
- * Freitext, "Vorrangig weiblich") bleibt unveraendert und erscheint im
- * Dropdown als Extra-Option.
- */
-export function merkmaleAufNeuesFormat(value) {
-  const src = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  const out = { ...src };
-  delete out.alter_von;
-  delete out.alter_bis;
-  let alter = String(src.alter ?? '').trim();
-  if (!alter) alter = alterAusVonBis(src.alter_von, src.alter_bis);
-  if (alter) out.alter = optionWert(CREATOR_ALTER_OPTIONS, alter) || alter;
-  const geschlecht = optionWert(CREATOR_GESCHLECHT_OPTIONS, src.geschlecht);
-  if (geschlecht) out.geschlecht = geschlecht;
-  return out;
-}
-
-export const PAID_OBJECTIVES_OPTIONS = [
-  { value: 'awareness', label: 'Awareness / Reach' },
-  { value: 'traffic', label: 'Traffic' },
-  { value: 'video_views', label: 'Video Views' },
-  { value: 'engagement', label: 'Engagement / Community Interaction' },
-  { value: 'leads', label: 'Leads' },
-  { value: 'app_promotion', label: 'App Promotion / App Installs' },
-  { value: 'sales', label: 'Sales / Conversions' }
-];
-
-export const OWNED_CONTENT_ZIELE_OPTIONS = [
-  { value: 'reichweite', label: 'Reichweite / Views steigern' },
-  { value: 'watch_time', label: 'Watch Time erhöhen' },
-  { value: 'retention', label: 'Retention verbessern' },
-  { value: 'engagement', label: 'Engagement steigern' },
-  { value: 'shares', label: 'Shares erhöhen' },
-  { value: 'saves', label: 'Saves erhöhen' },
-  { value: 'community', label: 'Community Interaction steigern' },
-  { value: 'follower_growth', label: 'Follower Growth unterstützen' },
-  { value: 'consideration', label: 'Product / Brand Consideration stärken' },
-  { value: 'sonstiges', label: 'Sonstiges' }
-];
-
-export const ROHMATERIAL_OPTIONS = [
-  { value: 'ja', label: 'Ja' },
-  { value: 'nein', label: 'Nein' }
-];
-
-const SONSTIGE_PLATTFORMEN = 'Sonstige Plattformen';
-
-export const IM_CHANNELS = [
-  { key: 'instagram', label: 'Instagram', formats: [
-    { value: 'reel', label: 'Reel' },
-    { value: 'story', label: 'Story' },
-    { value: 'feed_post', label: 'Feed Post' },
-    { value: 'carousel', label: 'Carousel' },
-    { value: 'live', label: 'Live' }
-  ]},
-  { key: 'tiktok', label: 'TikTok', formats: [
-    { value: 'video', label: 'TikTok Video' },
-    { value: 'story', label: 'TikTok Story' },
-    { value: 'live', label: 'LIVE' }
-  ]},
-  { key: 'youtube', label: 'YouTube', formats: [
-    { value: 'short', label: 'YouTube Short' },
-    { value: 'longform', label: 'YouTube Long-form' },
-    { value: 'live', label: 'YouTube Live' }
-  ]},
-  { key: 'facebook', label: 'Facebook', formats: null },
-  { key: 'pinterest', label: 'Pinterest', formats: null }
-];
-
-export const PAID_CHANNELS = [
-  { key: 'meta', label: 'Meta', formats: [
-    { value: 'instagram', label: 'Instagram' },
-    { value: 'facebook', label: 'Facebook' }
-  ]},
-  { key: 'tiktok', label: 'TikTok', formats: null },
-  { key: 'youtube', label: 'YouTube', formats: [
-    { value: 'shorts', label: 'YouTube Shorts' },
-    { value: 'instream', label: 'YouTube Long-form / In-Stream' }
-  ]},
-  { key: 'google', label: 'Google', formats: [
-    { value: 'performance_max', label: 'Performance Max' },
-    { value: 'display', label: 'Display' },
-    { value: 'demand_gen', label: 'Demand Gen' }
-  ]},
-  { key: 'pinterest', label: 'Pinterest', formats: null }
-];
-
-export const OWNED_CHANNELS = [
-  { key: 'instagram', label: 'Instagram', formats: [
-    { value: 'reel', label: 'Reel' },
-    { value: 'story', label: 'Story' },
-    { value: 'feed_post', label: 'Feed Post' },
-    { value: 'carousel', label: 'Carousel' }
-  ]},
-  { key: 'tiktok', label: 'TikTok', formats: [
-    { value: 'video', label: 'TikTok Video' }
-  ]},
-  { key: 'youtube', label: 'YouTube', formats: [
-    { value: 'short', label: 'YouTube Short' },
-    { value: 'longform', label: 'YouTube Long-form' }
-  ]},
-  { key: 'facebook', label: 'Facebook', formats: null },
-  { key: 'pinterest', label: 'Pinterest', formats: null }
-];
-
-const PAID = { field: 'bereich', equals: 'paid_creator_ads' };
-const ORGANIC = { field: 'bereich', equals: 'owned_social' };
-const INFLUENCER = { field: 'bereich', equals: 'influencer_marketing' };
-const ORGANIC_OR_INFLUENCER = { field: 'bereich', in: ['owned_social', 'influencer_marketing'] };
-
-function fieldGroup(id, layout, fields) {
-  return { type: 'fieldGroup', id, layout, persist: false, fields };
-}
-
-// Videolänge je Funnel-Stufe (nur Paid, nur für angehakte Stufen). Gespeichert wird
-// alles zusammen in campaign_briefings.videolaenge_funnel (Keys upper/mid/lower).
-const VIDEOLAENGE_FUNNEL_FELDER = FUNNEL_STUFEN_OPTIONS.map(opt => ({
-  name: VIDEOLAENGE_FUNNEL_FELD[opt.value],
-  label: `Videolänge ${opt.label.split(' – ')[0]} in Sekunden`,
-  type: 'sekundenSpanne',
-  min: 1,
-  max: 180,
-  columns: ['videolaenge_funnel'],
-  helper: 'Gilt für Videoideen dieser Funnel-Stufe. Leer: es gilt die allgemeine Videolänge oben.',
-  condition: { all: [PAID, { field: 'funnel_stufen', includes: opt.value }] }
-}));
-
-export const FLOW_STEPS = [
-  {
-    id: 'grundlage',
-    label: 'Grundlage',
-    sections: [
-      {
-        id: 'zuordnung',
-        title: 'Zuordnung',
-        fields: [
-          fieldGroup('zuordnung-entities', 'stack', [
-            { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', lockWithLinie: true, required: true, placeholder: 'Unternehmen auswählen...' },
-            { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', lockWithLinie: true, placeholder: 'Marke auswählen...' },
-            { name: 'kampagne_id', label: 'Kampagne', type: 'entitySelect', table: 'kampagne', displayField: 'label', dependsOn: 'unternehmen_id', scopeMarke: true, lockWithLinie: true, required: true, placeholder: 'Kampagne auswählen...' },
-            { name: 'produktion_id', label: 'Produktion', type: 'entitySelect', displayField: 'name', dependsOn: 'kampagne_id', required: true, placeholder: 'Produktion auswählen...' }
-          ]),
-          fieldGroup('zuordnung-titel', 'stack', [
-            { name: 'aktivierung_name', label: 'Titel', type: 'text', required: true, placeholder: 'z.B. Make-up September' },
-            { name: 'beschreibung', label: 'Schwerpunkt (optional)', type: 'textarea', rows: 2, placeholder: 'Worum geht es in diesem Briefing?' },
-            {
-              name: 'tkp',
-              label: 'TKP (€ pro 1.000 Views)',
-              type: 'number',
-              required: true,
-              defaultValue: 25,
-              min: 0,
-              step: '0.01',
-              condition: INFLUENCER,
-              placeholder: '25'
-            }
-          ])
-        ]
-      },
-      {
-        id: 'paid-zweck',
-        title: 'Paid-Zweck',
-        condition: PAID,
-        fields: [
-          fieldGroup('paid-ziele', 'stack', [
-            { name: 'funnel_stufen', label: 'Funnel-Stufe', type: 'checkboxes', options: FUNNEL_STUFEN_OPTIONS },
-            { name: 'paid_objectives', label: 'Paid Objective', type: 'checkboxes', options: PAID_OBJECTIVES_OPTIONS, compact: true }
-          ]),
-          fieldGroup('paid-termine', 'row', [
-            { name: 'content_deadline', label: 'Content-Deadline', type: 'date' },
-            { name: 'go_live', label: 'Go-Live', type: 'date' }
-          ])
-        ]
-      },
-      {
-        id: 'organic-zweck',
-        title: 'Organic-Zweck',
-        condition: ORGANIC,
-        fields: [
-          fieldGroup('organic-ziele', 'stack', [
-            { name: 'content_ziele', label: 'Organisches Content-Ziel', type: 'checkboxes', options: OWNED_CONTENT_ZIELE_OPTIONS, compact: true },
-            { name: 'plattformmechanik', label: 'Gewünschte Plattformmechanik', type: 'textarea', rows: 2, placeholder: 'z.B. Duett, Stich, Serie, Trend-Sound' }
-          ])
-        ]
-      },
-      {
-        id: 'zeitraum',
-        title: 'Zeitraum',
-        condition: INFLUENCER,
-        fields: [
-          fieldGroup('zeitraum-termine', 'row', [
-            { name: 'veroeffentlichungszeitraum', label: 'Veröffentlichungszeitraum', type: 'text', placeholder: 'z.B. KW 40–42' },
-            { name: 'content_deadline', label: 'Content-Deadline', type: 'date' },
-            { name: 'go_live', label: 'Go-Live', type: 'date' }
-          ]),
-          fieldGroup('zeitraum-freigabe', 'stack', [
-            { name: 'freigabeprozess', label: 'Freigabeprozess', type: 'textarea', rows: 2, placeholder: 'z.B. Freigabe durch den Kunden vor Veröffentlichung, 48 Stunden' }
-          ])
-        ]
-      }
-    ]
-  },
-  {
-    id: 'casting',
-    label: 'Casting',
-    sections: [
-      {
-        id: 'casting-suche',
-        title: 'Welche Creator suchen wir?',
-        fields: [
-          fieldGroup('casting-profil', 'stack', [
-            { name: 'nischen', label: 'Nische / Content-Schwerpunkt', type: 'checkboxes', options: NISCHEN_OPTIONS, compact: true },
-            {
-              name: 'creator_merkmale', label: 'Merkmale', type: 'group',
-              fields: [
-                { name: 'alter', label: 'Alter', type: 'tableSelect', options: CREATOR_ALTER_OPTIONS },
-                { name: 'geschlecht', label: 'Geschlecht', type: 'tableSelect', options: CREATOR_GESCHLECHT_OPTIONS },
-                { name: 'standort', label: 'Standort', type: 'text', placeholder: 'z.B. DACH, Berlin, keine Vorgabe' }
-              ]
-            },
-            { name: 'beteiligte_personen', label: 'Beteiligte Personen', type: 'textarea', rows: 2, placeholder: 'z.B. allein, mit Partner oder Kind' },
-            { name: 'creator_groessen', label: 'Creator-Größe (falls relevant)', type: 'checkboxes', options: CREATOR_GROESSEN_UGC }
-          ]),
-          fieldGroup('casting-voraussetzungen', 'stack', [
-            { name: 'voraussetzungen', label: 'Voraussetzungen', type: 'checkboxes', options: VORAUSSETZUNGEN_OPTIONS, compact: true },
-            { name: 'voraussetzungen_sonstiges', label: 'Sonstige Voraussetzungen', type: 'textarea', rows: 2, placeholder: 'z.B. Wohnung mit Balkon' },
-            { name: 'produkt_erfahrung', label: 'Produktspezifische Erfahrung', type: 'textarea', rows: 2, placeholder: 'z.B. hat das Produkt schon selbst genutzt' },
-            {
-              type: 'disclosure',
-              name: 'aussehen',
-              persist: false,
-              label: 'Aussehen',
-              fields: [
-                { name: 'hauttyp', label: 'Hauttyp', type: 'text', placeholder: 'z.B. Mischhaut, sensible Haut' },
-                { name: 'haartyp', label: 'Haartyp', type: 'text', placeholder: 'z.B. lockig, coloriert' }
-              ]
-            }
-          ])
-        ]
-      }
-    ]
-  },
-  {
-    id: 'aufgabe',
-    label: 'Aufgabe',
-    sections: [
-      {
-        id: 'aufgabe-umsetzung',
-        title: 'Was sollen die Creator umsetzen?',
-        fields: [
-          fieldGroup('aufgabe-kern', 'stack', [
-            { name: 'aufgabe', label: 'Konkrete Aufgabe und gewünschte Produktanwendung', type: 'textarea', rows: 4, placeholder: 'z.B. Produkt in der Abendroutine zeigen, Nutzen im Alltag glaubhaft einbauen' },
-            {
-              name: 'art_der_integration', label: 'Art der Integration', type: 'textarea', rows: 2,
-              condition: INFLUENCER,
-              placeholder: 'z.B. Dedicated Video, Integration in bestehende Formate, Mention'
-            },
-            { name: 'setting', label: 'Gewünschtes Setting', type: 'textarea', rows: 2, placeholder: 'z.B. Zuhause in der Küche, Tageslicht' }
-          ]),
-          fieldGroup('aufgabe-grenzen', 'stack', [
-            { name: 'produktionsvoraussetzungen', label: 'Besondere Produktionsvoraussetzungen', type: 'textarea', rows: 2, placeholder: 'z.B. nur Indoor, kein Filialdreh ohne Absprache' }
-          ])
-        ]
-      }
-    ]
-  },
-  {
-    id: 'konzepte',
-    label: 'Konzepte',
-    sections: [
-      {
-        id: 'kreative-umsetzung',
-        title: 'Was ist bei der kreativen Umsetzung zu beachten?',
-        fields: [
-          fieldGroup('konzept-ideen', 'stack', [
-            fieldGroup('konzept-ideen-kopf', 'splitHeader', [
-              {
-                name: 'umsetzungsideen', label: 'Vorhandene Umsetzungsideen', type: 'repeatableText',
-                itemLabel: 'Idee', multiline: true, minRows: 1, max: 20,
-                placeholder: 'Eine Idee pro Eintrag, z.B. Vorher-Nachher: Problem und Lösung in 20 Sekunden'
-              },
-              { name: 'referenzen', label: 'Referenzen und Beispiele', type: 'repeatableUpload', max: 3 }
-            ]),
-            { name: 'learnings_text', label: 'Learnings aus vergangenen Produktionen', type: 'textarea', rows: 3, placeholder: 'z.B. Hook in den ersten zwei Sekunden, nicht zu werblich' }
-          ]),
-          fieldGroup('konzept-pflicht', 'stack', [
-            {
-              name: 'wichtige_vorgaben', label: 'Do’s und Don’ts (Wichtige Vorgaben)', type: 'textarea', rows: 6,
-              helper: 'Ein Punkt pro Zeile: Pflichtinhalte, Do’s, Don’ts, Ausschlüsse. Verbote mit „kein“, „nicht“ oder „ohne“ schreiben. Gilt ein Verbot der Person, so formulieren: „Creator ohne Haustier“. Gilt es dem Video: „Im Bild keine Kinder“.',
-              placeholder: 'z.B.\nProduktname in den ersten 3 Sekunden nennen\nauthentisch bleiben\nkein Scripted Sales Pitch\nnicht „klinisch getestet“ sagen\nCreator ohne Tattoos\nIm Bild keine Konkurrenzprodukte'
-            }
-          ])
-        ]
-      }
-    ]
-  },
-  {
-    id: 'vertrag',
-    label: 'Vertrag',
-    sections: [
-      {
-        id: 'kanaele',
-        title: 'Kanäle',
-        fields: [
-          fieldGroup('kanaele-plattformen', 'stack', [
-            {
-              name: 'ad_channels', label: 'Ad-Plattformen', type: 'channelGroup', channels: PAID_CHANNELS,
-              customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Snapchat, Twitch...',
-              condition: PAID
-            },
-            {
-              name: 'publish_channels', label: 'Veröffentlichungs-Plattformen', type: 'channelGroup', channels: IM_CHANNELS,
-              customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Pinterest Pin, Twitch Stream...',
-              condition: INFLUENCER
-            },
-            {
-              name: 'publish_channels', label: 'Veröffentlichungs-Plattformen', type: 'channelGroup', channels: OWNED_CHANNELS,
-              customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Snapchat, Twitch...',
-              condition: ORGANIC
-            }
-          ]),
-          fieldGroup('kanaele-laenge', 'stack', [
-            {
-              name: 'videolaenge', label: 'Videolänge in Sekunden', type: 'sekundenSpanne',
-              min: 1, max: 180,
-              columns: ['videolaenge_von', 'videolaenge_bis']
-            },
-            ...VIDEOLAENGE_FUNNEL_FELDER
-          ]),
-          fieldGroup('kanaele-paid-cta', 'stack', [
-            { name: 'cta', label: 'CTA', type: 'text', condition: PAID, placeholder: 'z.B. Jetzt entdecken, Shop-Link in Bio' },
-            { name: 'ziel_url', label: 'Ziel-Link / Landingpage', type: 'url', placeholder: 'https://...', condition: PAID },
-            { name: 'hook_vorgaben', label: 'Hook- oder Conversion-Vorgaben', type: 'textarea', rows: 2, condition: PAID, placeholder: 'z.B. Problem in Sekunde 1, Benefit vor Sekunde 3' },
-            { name: 'unterschiedliche_hooks', label: 'Unterschiedliche Hooks', type: 'checkbox' },
-            { name: 'hooks_anzahl', label: 'Anzahl der Hooks', type: 'text', placeholder: 'z.B. 3', condition: { field: 'unterschiedliche_hooks', equals: true } }
-          ]),
-          fieldGroup('kanaele-kontext', 'stack', [
-            { name: 'trendkontext', label: 'Community- oder Trendkontext', type: 'textarea', rows: 2, condition: ORGANIC, placeholder: 'z.B. aktueller Sound, Community-Challenge' },
-            { name: 'posting_anforderungen', label: 'Posting-Anforderungen', type: 'textarea', rows: 2, condition: INFLUENCER, placeholder: 'z.B. Reel + 3 Stories, Hashtag X, Markierung der Marke' }
-          ])
-        ]
-      },
-      {
-        id: 'nutzung',
-        title: 'Zusätzliche Nutzung',
-        fields: [
-          fieldGroup('nutzung-flags', 'wrap', [
-            { name: 'nutzung_markenkanal', label: 'Nutzung auf den Kanälen der Marke', type: 'checkbox' },
-            { name: 'nutzung_paid_media', label: 'Paid-Media-Nutzung', type: 'checkbox' },
-            { name: 'nutzung_creator_kanal', label: 'Veröffentlichung auf dem Kanal des Creators', type: 'checkbox' },
-            { name: 'nutzung_whitelisting', label: 'Whitelisting, Spark Ads oder Partnership Ads', type: 'checkbox' }
-          ]),
-          fieldGroup('nutzung-details', 'stack', [
-            {
-              name: 'nutzungsdauer', label: 'Nutzungsdauer', type: 'select',
-              searchable: true, allowCreate: true,
-              table: 'nutzungsdauer_optionen', displayField: 'label', valueField: 'label',
-              options: NUTZUNGSDAUER_PRESETS.map(label => ({ value: label, label })),
-              placeholder: 'z.B. 6 Monate, Full Buyout'
-            },
-            { name: 'rohmaterial', label: 'Rohmaterial erforderlich', type: 'radio', options: ROHMATERIAL_OPTIONS }
-          ])
-        ]
-      },
-      {
-        id: 'weitere-plattformen-paid',
-        title: 'Weitere Plattformen',
-        condition: {
-          all: [
-            PAID,
-            { any: [
-              { field: 'nutzung_markenkanal', equals: true },
-              { field: 'nutzung_creator_kanal', equals: true }
-            ] }
-          ]
-        },
-        fields: [
-          {
-            name: 'publish_channels', label: 'Veröffentlichungs-Plattformen', type: 'channelGroup', channels: OWNED_CHANNELS,
-            customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Snapchat, Twitch...'
-          }
-        ]
-      },
-      {
-        id: 'weitere-plattformen-organic',
-        title: 'Weitere Plattformen',
-        condition: {
-          all: [
-            ORGANIC_OR_INFLUENCER,
-            { any: [
-              { field: 'nutzung_paid_media', equals: true },
-              { field: 'nutzung_whitelisting', equals: true }
-            ] }
-          ]
-        },
-        fields: [
-          {
-            name: 'ad_channels', label: 'Ad-Plattformen', type: 'channelGroup', channels: PAID_CHANNELS,
-            customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Snapchat, Twitch...'
-          }
-        ]
-      },
-      {
-        id: 'verhandlung',
-        title: 'Verhandlung',
-        fields: [
-          {
-            name: 'verhandlungshinweis', label: 'Verhandlungshinweis', type: 'textarea', rows: 3,
-            helper: 'Intern für den Vertrag, nicht im Creator-PDF. z.B. Nutzungsdauer, wenn Full Buyout nicht geht.',
-            placeholder: 'z.B. Nutzungsdauer auf 6 Monate herunterhandeln'
-          }
-        ]
-      }
-    ]
-  }
-];
-
-export const MASTER_STEPS = FLOW_STEPS;
-export const MODULE_STEPS = {
-  influencer_marketing: [],
-  paid_creator_ads: [],
-  owned_social: []
-};
 
 export function flattenFields(fields = []) {
   const out = [];
@@ -617,12 +92,10 @@ export function getStepsForBereich(_bereich) {
   return FLOW_STEPS;
 }
 
-export function getAllFields() {
+function alleFelder() {
   const fields = [];
   for (const step of FLOW_STEPS) {
-    for (const section of step.sections) {
-      fields.push(...flattenFields(section.fields).filter(f => f.persist !== false));
-    }
+    for (const section of step.sections) fields.push(...flattenFields(section.fields));
   }
   const seen = new Set();
   return fields.filter(f => {
@@ -632,36 +105,18 @@ export function getAllFields() {
   });
 }
 
-export function isFieldActive(name, formData) {
-  for (const step of FLOW_STEPS) {
-    for (const section of step.sections) {
-      if (section.condition && !evaluateCondition(section.condition, formData)) continue;
-      for (const field of flattenFields(section.fields)) {
-        if (field.name !== name) continue;
-        if (!field.condition || evaluateCondition(field.condition, formData)) return true;
-      }
-    }
-  }
-  return false;
+const ALLE_FELDER = alleFelder();
+
+/** Felder mit Spalte in campaign_briefings (ohne persist:false wie die Produktliste). */
+export function getAllFields() {
+  return ALLE_FELDER.filter(f => f.persist !== false);
 }
 
-export function evaluateCondition(condition, formData) {
-  if (!condition) return true;
-  if (condition.all) return condition.all.every(c => evaluateCondition(c, formData));
-  if (condition.any) return condition.any.some(c => evaluateCondition(c, formData));
-  const value = formData[condition.field];
+/** Inhaltsfelder des Creator-Briefings (ohne Zuordnung), auch die ohne Spalte. */
+export function inhaltsFelder() {
+  return ALLE_FELDER.filter(f => f.type !== 'entitySelect');
+}
 
-  if (condition.equals !== undefined) {
-    return value === condition.equals;
-  }
-  if (condition.in) {
-    return condition.in.includes(value);
-  }
-  if (condition.includes !== undefined) {
-    return Array.isArray(value) && value.includes(condition.includes);
-  }
-  if (condition.includesAny !== undefined) {
-    return Array.isArray(value) && condition.includesAny.some(v => value.includes(v));
-  }
-  return true;
+export function feldNachName(name) {
+  return ALLE_FELDER.find(f => f.name === name) || null;
 }

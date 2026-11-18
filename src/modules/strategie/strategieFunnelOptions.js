@@ -1,10 +1,10 @@
 // strategieFunnelOptions.js
-// Funnel-Stufe an der Videoidee (strategie_items.funnel_stufe): Source of Truth
-// fuer das Skript. Das Briefing nennt die Stufen grob (Mehrfachauswahl), die
-// Videoidee hat genau eine oder keine. Leer heisst: keine Vorgabe.
+// Funnel-Stufe an der Videoidee (strategie_items.funnel_stufe): einzige Quelle
+// fuer das Skript. Das Briefing nennt keine Stufen mehr (ADR 0073). Die Videoidee
+// hat genau eine oder keine. Leer heisst: keine Vorgabe.
 //
-// Die Werte sind das Briefing-Vokabular (upper/mid/lower). Das Skript kennt
-// top/mid/bottom; funnelFuerSkript() uebersetzt beim Anlegen.
+// Die Werte sind upper/mid/lower. Das Skript kennt top/mid/bottom;
+// funnelFuerSkript() uebersetzt beim Anlegen.
 
 export const FUNNEL_WERTE = Object.freeze(['upper', 'mid', 'lower']);
 
@@ -31,10 +31,6 @@ export const STRATEGIE_FUNNEL_OPTIONS = Object.freeze([
 ]);
 
 const SKRIPT_FUNNEL = Object.freeze({ upper: 'top', mid: 'mid', lower: 'bottom' });
-const BRIEFING_FUNNEL_FELD = Object.freeze({
-  paid_creator_ads: 'pa_funnel_stufen',
-  influencer_marketing: 'im_funnel_stufen'
-});
 
 export function isFunnelWert(value) {
   return FUNNEL_WERTE.includes(value);
@@ -92,28 +88,6 @@ export function funnelAbweichungsHinweis(skript) {
     ? ' Die Videolänge wurde mit der damaligen Stufe übernommen.'
     : '';
   return `Im Konzept steht jetzt ${konzeptText}, das Skript wurde mit ${skriptText} angelegt.${laengeText}`;
-}
-
-function alsListe(raw) {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === 'string' && raw.trim()) return [raw.trim()];
-  return [];
-}
-
-/** Die im Briefing genannten Stufen (nur bekannte Werte, ohne Doppelte). */
-export function briefingFunnelStufen(briefing) {
-  const feld = BRIEFING_FUNNEL_FELD[briefing?.bereich];
-  if (!feld) return [];
-  let raw = alsListe(briefing[feld]);
-  // Flow-Briefings spiegeln nach pa_funnel_stufen; die Quellspalte ist der Fallback.
-  if (!raw.length && briefing.bereich === 'paid_creator_ads') raw = alsListe(briefing.funnel_stufen);
-  return [...new Set(raw.filter(isFunnelWert))];
-}
-
-/** Die Stufe fuer eine Vorbelegung: nur wenn das Briefing genau eine nennt. */
-export function briefingEinzigeFunnelStufe(briefing) {
-  const stufen = briefingFunnelStufen(briefing);
-  return stufen.length === 1 ? stufen[0] : null;
 }
 
 /**

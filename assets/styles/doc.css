@@ -70,6 +70,13 @@
   padding: var(--space-xxl);
 }
 
+/* Kinder dürfen nicht unter ihre Inhaltshöhe schrumpfen (z. B. .multistep-content
+   mit min-height): sonst läuft der Inhalt über die Box hinaus und das
+   Padding unten klebt am letzten Feld. */
+.doc__shell > form > * {
+  flex-shrink: 0;
+}
+
 .doc__main {
   display: flex;
   flex-direction: column;

@@ -3,6 +3,7 @@
 import { creatorUtils } from './CreatorUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { engagementDesEintrags, formatEngagement } from '../creator-auswahl/castingEngagement.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import {
   displayHandle,
   escapeHtml,
@@ -16,29 +17,19 @@ function tags(names, tagClass) {
   ).join('')}</div>`;
 }
 
-function avatarHtml(creator) {
-  const source = creator.profilbild_thumb_url || creator.profilbild_url;
-  const safe = source && window.validatorSystem?.sanitizeUrl
-    ? window.validatorSystem.sanitizeUrl(source)
-    : (/^https?:\/\//i.test(source || '') ? source : '');
-  if (safe) {
-    return `<img src="${escapeHtml(safe)}" alt="" class="table-avatar table-avatar-img" width="24" height="24" loading="lazy">`;
-  }
-  const letter = (creator.vorname || creator.name || '?').charAt(0).toUpperCase();
-  return `<span class="table-avatar">${escapeHtml(letter)}</span>`;
-}
-
-function avatarMitPunkt(member) {
+function nameCell(member) {
+  const creator = member.creator;
   const dot = member.hatDatensatz
     ? '<span class="status-dot status-dot--active sourcing-avatar__dot" title="Als Creator angelegt"></span>'
     : '<span class="status-dot status-dot--inactive sourcing-avatar__dot" title="Noch kein Creator"></span>';
-  return `<span class="sourcing-avatar">${avatarHtml(member.creator)}${dot}</span>`;
-}
-
-function nameCell(member) {
-  const creator = member.creator;
-  if (!member.hatDatensatz) return `<span class="table-text">${escapeHtml(creator.name)}</span>`;
-  return `<a href="#" class="table-link" data-table="creator" data-id="${escapeHtml(creator.id)}">${escapeHtml(creator.name)}</a>`;
+  return renderTableIdentity({
+    url: creator.profilbild_thumb_url || creator.profilbild_url,
+    name: creator.vorname || creator.name,
+    nameHtml: member.hatDatensatz
+      ? `<a href="#" class="table-link" data-table="creator" data-id="${escapeHtml(creator.id)}">${escapeHtml(creator.name)}</a>`
+      : `<span class="table-text">${escapeHtml(creator.name)}</span>`,
+    badgeHtml: dot
+  });
 }
 
 function socialCell(platform, handle) {
@@ -98,8 +89,6 @@ function cell(col, member, listId) {
   switch (col.key) {
     case 'ml-col-drag':
       return `<td class="col-drag drag-handle ${col.key}" title="Reihenfolge ändern"><span aria-hidden="true">⋮⋮</span></td>`;
-    case 'ml-col-bild':
-      return `<td class="${col.key}">${avatarMitPunkt(member)}</td>`;
     case 'ml-col-name':
       return `<td class="col-name ${col.key}">${nameCell(member)}</td>`;
     case 'ml-col-ig':

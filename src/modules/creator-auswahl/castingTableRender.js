@@ -198,7 +198,6 @@ export function renderItemsTable(ctx) {
         <thead>
           <tr>
             ${canWrite ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
-            <th class="cp-col-bild ${sticky.bild}" ${hide('cp-col-bild')}></th>
             <th class="${sticky.name} cp-col-name">Name</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')} title="Startet mit der Instagram-Bio, sobald der Creator abgerufen wurde">Kurzbeschreibung</th>
             ${customAt('cp-col-notiz')}

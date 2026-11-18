@@ -137,6 +137,28 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
     expect(html).toContain('style="width: 7%"');
   });
 
+  it('zeigt Produkte und Briefings als Pill-Links statt als Text', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{
+        id: 'p1',
+        name: 'Next Magenta',
+        linien: [
+          { id: 'b1', name: 'Serum', briefing: { produkte: [{ produkt: { id: 'pr1', name: 'Serum 30ml' } }] } },
+          { id: 'b2', name: 'Kur', is_draft: true, briefing: { produkte: [{ produkt: { id: 'pr1', name: 'Serum 30ml' } }] } }
+        ]
+      }]
+    });
+
+    expect(html).toContain('href="/produkt/pr1"');
+    expect(html.match(/href="\/produkt\/pr1"/g)).toHaveLength(1);
+    expect(html).toContain('href="/briefing/b1"');
+    expect(html).toContain('href="/briefing/b2"');
+    expect(html).toContain('Kur (Entwurf)');
+    expect(html).toContain('verknuepfung-pill');
+  });
+
   it('legt Mitarbeitern rechts ein Menü für Name und Produktionsbudget hin', () => {
     window.isAdmin = () => false;
     window.isInternal = () => true;

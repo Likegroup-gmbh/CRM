@@ -1,252 +1,22 @@
 // strategie-idee.js
-// Prompt, Tool-Schema und Validate fuer Videoidee-Vorschlaege im Konzept
-// (ADR 0015). Kein Candidate-Pool: das Modell schreibt neue Ideen als
-// strukturierte Bloecke, der Client zeigt sie als flagged strategie_items.
+// Videoidee-Vorschlaege im Konzept (ADR 0015): Laeufe entwerfen und als
+// flagged strategie_items inserieren. Kein Candidate-Pool: das Modell schreibt
+// neue Ideen als strukturierte Bloecke. Die Bausteine liegen in strategie-idee/
+// (anzahl, prompt, validierung, laden, verbindlich); diese Datei buendelt sie.
 
-const { fmtCampaignBriefing } = require('./skript-context/briefing-felder');
-const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
-
-const ANZAHL = 5;
-const ANZAHL_MIN = 1;
-const ANZAHL_MAX = 12;
-const PRODUKT_FELDER = 'id, name, kurzbeschreibung, usp, pain_points, loesung';
-const PERSONA_FELDER = 'id, name, oberbegriff, pain_points, beduerfnisse';
-
-/** job.input.anzahl: Integer, sonst 5, Clamp 1–12. Fehlend bleibt der alte Default. */
-function normalisiereAnzahl(input) {
-  const raw = input && typeof input === 'object' ? input.anzahl : undefined;
-  if (raw == null || raw === '') return ANZAHL;
-  const n = typeof raw === 'number' ? raw : Number(raw);
-  if (!Number.isInteger(n)) return ANZAHL;
-  return Math.min(ANZAHL_MAX, Math.max(ANZAHL_MIN, n));
-}
-
-// Funnel-Stufe an der Videoidee (strategie_items.funnel_stufe). Das Briefing nennt
-// die Stufen grob; Liky waehlt je Vorschlag eine davon, nie eine andere.
-const FUNNEL_WERTE = ['upper', 'mid', 'lower'];
-const FUNNEL_LABELS = {
-  upper: 'Upper Funnel – Awareness',
-  mid: 'Mid Funnel – Consideration',
-  lower: 'Lower Funnel – Conversion'
-};
-const BRIEFING_FUNNEL_FELD = {
-  paid_creator_ads: 'pa_funnel_stufen',
-  influencer_marketing: 'im_funnel_stufen'
-};
-
-function funnelListe(raw) {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === 'string' && raw.trim()) return [raw.trim()];
-  return [];
-}
-
-/** Die im Briefing genannten Stufen (nur bekannte Werte, ohne Doppelte). */
-function briefingFunnelStufen(briefing) {
-  const feld = BRIEFING_FUNNEL_FELD[briefing?.bereich];
-  if (!feld) return [];
-  let raw = funnelListe(briefing[feld]);
-  if (!raw.length && briefing.bereich === 'paid_creator_ads') raw = funnelListe(briefing.funnel_stufen);
-  return [...new Set(raw.filter((w) => FUNNEL_WERTE.includes(w)))];
-}
-
-function konzeptTool(anzahl = ANZAHL, stufen = []) {
-  const n = normalisiereAnzahl({ anzahl });
-  const erlaubt = (stufen || []).filter((w) => FUNNEL_WERTE.includes(w));
-  const ideeProperties = {
-    titel: {
-      type: 'string',
-      description: 'Kurzer merkbare Titel, gleichzeitig der Hook in einem Satz. Keine Anfuehrungszeichen.'
-    },
-    pain_point: { type: 'string', description: 'Welchen Pain die Idee angreift, ein bis zwei Saetze.' },
-    hook: { type: 'string', description: 'Gesprochener oder sichtbarer Aufmacher der ersten Sekunden.' },
-    kernbotschaft: { type: 'string', description: 'Was haengen bleiben soll, ein Satz.' },
-    ablauf: { type: 'string', description: 'Grober Ablauf in zwei bis vier Schritten, keine Shotliste.' }
-  };
-  const ideeRequired = ['titel', 'pain_point', 'hook', 'kernbotschaft', 'ablauf'];
-  if (erlaubt.length) {
-    ideeProperties.funnel_stufe = {
-      type: 'string',
-      enum: erlaubt,
-      description: 'Funnel-Stufe, fuer die die Idee gedacht ist. Nur eine der Briefing-Stufen. '
-        + 'Bei mehreren Stufen die passendste waehlen und jede Stufe mindestens einmal vergeben, soweit die Anzahl reicht.'
-    };
-    ideeRequired.push('funnel_stufe');
-  }
-  return {
-    name: 'videoideen_abgeben',
-    description: 'Gibt Videoideen fuer ein Konzept ab. Jede Idee ist ein eigener Creative Angle.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        ideen: {
-          type: 'array',
-          description: `Genau ${n} distinkte Videoideen: verschiedene Situationen, nicht dieselbe Szene anders formuliert.`,
-          items: {
-            type: 'object',
-            properties: ideeProperties,
-            required: ideeRequired
-          }
-        }
-      },
-      required: ['ideen']
-    }
-  };
-}
-
-const KONZEPT_TOOL = konzeptTool(ANZAHL);
-
-function cap(value, max = 400) {
-  const s = String(value || '').trim();
-  return s.length > max ? `${s.slice(0, max)}…` : s;
-}
-
-function erstzeile(text) {
-  const s = String(text || '').replace(/\r\n/g, '\n').trim();
-  if (!s) return '';
-  return s.split('\n')[0].trim();
-}
-
-function formatBeschreibung({ titel, pain_point, hook, kernbotschaft, ablauf } = {}) {
-  const bloecke = [
-    String(titel || '').trim(),
-    pain_point ? `Pain Point: ${String(pain_point).trim()}` : '',
-    hook ? `Hook: ${String(hook).trim()}` : '',
-    kernbotschaft ? `Kernbotschaft: ${String(kernbotschaft).trim()}` : '',
-    ablauf ? `Ablauf: ${String(ablauf).trim()}` : ''
-  ].filter(Boolean);
-  return bloecke.join('\n\n');
-}
-
-function fmtProdukt(p) {
-  const teile = [
-    p.name ? `Name: ${cap(p.name, 120)}` : null,
-    p.kurzbeschreibung ? `Kurzbeschreibung: ${cap(p.kurzbeschreibung)}` : null,
-    p.usp ? `USP: ${cap(p.usp)}` : null,
-    p.pain_points ? `Pain Points: ${cap(p.pain_points)}` : null,
-    p.loesung ? `Loesung: ${cap(p.loesung)}` : null
-  ].filter(Boolean);
-  return teile.length ? `- ${teile.join(' | ')}` : null;
-}
-
-function fmtPersona(p) {
-  const teile = [
-    p.name || null,
-    p.oberbegriff ? `(${cap(p.oberbegriff, 80)})` : null,
-    p.pain_points ? `Pain: ${cap(p.pain_points, 200)}` : null,
-    p.beduerfnisse ? `Beduerfnis: ${cap(p.beduerfnisse, 200)}` : null
-  ].filter(Boolean);
-  const as = fmtAudienceSituations(p.audience_situations, 200);
-  const kopf = teile.length ? `- ${teile.join(' ')}` : null;
-  if (!kopf && !as) return null;
-  return as ? `${kopf || '- Persona'}\n  Audience Situations: ${as}` : kopf;
-}
-
-async function loadIdeeInput(supabase, strategieId) {
-  const { data: strategie, error: sErr } = await supabase.from('strategie')
-    .select('id, name, briefing_id, marke_id, unternehmen_id')
-    .eq('id', strategieId)
-    .single();
-  if (sErr || !strategie) throw new Error('Konzept nicht gefunden');
-  if (!strategie.briefing_id) throw new Error('Konzept ohne Briefing: ohne Briefing kein Lauf');
-
-  const { data: briefing, error: bErr } = await supabase.from('campaign_briefings')
-    .select('*')
-    .eq('id', strategie.briefing_id)
-    .maybeSingle();
-  if (bErr || !briefing) throw new Error('Briefing nicht gefunden');
-
-  const { data: links } = await supabase.from('campaign_briefing_produkt')
-    .select('produkt_id')
-    .eq('briefing_id', briefing.id);
-  const produktIds = [...new Set((links || []).map((l) => l.produkt_id).filter(Boolean))];
-
-  let produkte = [];
-  if (produktIds.length) {
-    const { data } = await supabase.from('produkt')
-      .select(PRODUKT_FELDER)
-      .in('id', produktIds);
-    produkte = data || [];
-  }
-
-  const personas = await loadPersonas(supabase, briefing, produktIds);
-
-  const { data: items } = await supabase.from('strategie_items')
-    .select('id, beschreibung')
-    .eq('strategie_id', strategieId)
-    .order('sortierung');
-
-  const ausschluss = (items || [])
-    .map((i) => erstzeile(i.beschreibung))
-    .filter(Boolean);
-
-  return { strategie, briefing, produkte, personas, ausschluss, vorhandeneAnzahl: (items || []).length };
-}
-
-/**
- * Das am Item verlinkte Produkt (strategie_items.produkt_id), unabhaengig vom Briefing.
- * Null ohne ID oder wenn das Produkt nicht lesbar ist.
- */
-async function ladeItemProdukt(supabase, produktId) {
-  if (!produktId) return null;
-  const { data } = await supabase.from('produkt')
-    .select(PRODUKT_FELDER)
-    .eq('id', produktId)
-    .maybeSingle();
-  return data || null;
-}
-
-/**
- * Quoten aus job.input.proProdukt: [{ produkt_id, anzahl }].
- * Nur Produkte, die am Briefing haengen. Unbekannte IDs und Zahlen unter 1
- * fliegen raus, doppelte IDs addieren sich, die Summe wird auf ANZAHL_MAX
- * gekuerzt (frühere Eintraege behalten ihre Zahl).
- * Gibt null zurueck, wenn der Input keine proProdukt-Liste traegt.
- */
-function normalisiereQuoten(input, produkte) {
-  const raw = input && typeof input === 'object' ? input.proProdukt : undefined;
-  if (!Array.isArray(raw)) return null;
-
-  const bekannt = new Map((produkte || []).filter((p) => p?.id).map((p) => [p.id, p]));
-  const summen = new Map();
-  for (const eintrag of raw) {
-    const id = eintrag?.produkt_id;
-    if (!bekannt.has(id)) continue;
-    const n = typeof eintrag.anzahl === 'number' ? eintrag.anzahl : Number(eintrag.anzahl);
-    if (!Number.isInteger(n) || n < 1) continue;
-    summen.set(id, (summen.get(id) || 0) + n);
-  }
-
-  let rest = ANZAHL_MAX;
-  const quoten = [];
-  for (const [id, n] of summen) {
-    if (rest <= 0) break;
-    const anzahl = Math.min(n, rest);
-    quoten.push({ produkt: bekannt.get(id), anzahl });
-    rest -= anzahl;
-  }
-  return quoten;
-}
-
-/**
- * Laeufe eines Auftrags: pro Lauf ein Produkt (oder keins) und eine Zahl.
- * - proProdukt im Input: ein Lauf pro Quote.
- * - sonst bei genau einem Produkt: ein Lauf fuer dieses Produkt.
- * - sonst ohne Produkt: ein Lauf nur aus dem Briefing.
- * - sonst (mehrere Produkte, keine Quote): Fehler, es wird nicht gemischt.
- * @returns {Array<{ produkt: object|null, anzahl: number }>}
- */
-function planeLaeufe({ input, produkte } = {}) {
-  const quoten = normalisiereQuoten(input, produkte);
-  if (quoten) {
-    if (!quoten.length) throw new Error('Keine gültige Produkt-Zuordnung im Auftrag');
-    return quoten;
-  }
-  const liste = (produkte || []).filter(Boolean);
-  if (liste.length > 1) {
-    throw new Error('Das Briefing hat mehrere Produkte: bitte pro Produkt eine Anzahl angeben');
-  }
-  return [{ produkt: liste[0] || null, anzahl: normalisiereAnzahl(input) }];
-}
+const {
+  ANZAHL, ANZAHL_MIN, ANZAHL_MAX, normalisiereAnzahl, normalisiereQuoten, planeLaeufe
+} = require('./strategie-idee/anzahl');
+const {
+  FUNNEL_WERTE, funnelStufenFuer, konzeptTool, KONZEPT_TOOL, fmtProdukt, fmtPersona, buildPrompt
+} = require('./strategie-idee/prompt');
+const {
+  erstzeile, formatBeschreibung, normalizeIdeenJson, ideenDiagnose, leerFehler, validateIdeen
+} = require('./strategie-idee/validierung');
+const { loadIdeeInput, loadPersonas, ladeItemProdukt } = require('./strategie-idee/laden');
+const {
+  verbindlicheIdeen, offeneVerbindlicheIdeen, frueherAngelegt, buildVerbindlichInsert, starteReferenzVerarbeitung
+} = require('./strategie-idee/verbindlich');
 
 function summiereUsage(a, b) {
   if (!a) return b ? { ...b } : null;
@@ -258,217 +28,6 @@ function summiereUsage(a, b) {
       : (summe[key] ?? value);
   }
   return summe;
-}
-
-/** Prompt-Block zu den Briefing-Stufen. Leer ohne Stufen: dann gibt es keine Vorgabe. */
-function fmtFunnelStufen(stufen, n) {
-  const liste = (stufen || []).filter((w) => FUNNEL_WERTE.includes(w));
-  if (!liste.length) return '';
-  const namen = liste.map((w) => `${w} (${FUNNEL_LABELS[w]})`).join(', ');
-  if (liste.length === 1) {
-    return `\nFunnel-Stufe: Das Briefing nennt nur ${namen}. Setze funnel_stufe bei jeder Idee auf ${liste[0]}.\n`;
-  }
-  return `\nFunnel-Stufen im Briefing: ${namen}.\n`
-    + 'Setze funnel_stufe je Idee auf die Stufe, zu der Hook und Ablauf am besten passen (Awareness: Problem und Neugier; '
-    + 'Consideration: Vergleich, Nutzen, Beweis; Conversion: Einwand, Angebot, Handlung). '
-    + `Verteile die ${n} Ideen ueber diese Stufen: jede Stufe kommt vor, soweit die Anzahl reicht. Keine andere Stufe.\n`;
-}
-
-function buildPrompt({ briefing, produkte, personas, ausschluss, anzahl, hinweis, produktFix = false } = {}) {
-  const n = normalisiereAnzahl({ anzahl });
-  const funnelText = fmtFunnelStufen(briefingFunnelStufen(briefing), n);
-  const briefingText = fmtCampaignBriefing(briefing) || '(Briefing ohne auswertbare Felder)';
-  const produktText = (produkte || []).map(fmtProdukt).filter(Boolean).join('\n') || '(keine Produkte am Briefing)';
-  const personaText = (personas || []).map(fmtPersona).filter(Boolean).join('\n') || '(keine akzeptierten Personas)';
-  const ausschlussText = (ausschluss || []).length
-    ? (ausschluss || []).map((t) => `- ${t}`).join('\n')
-    : '(noch keine Ideen im Konzept)';
-
-  const stable = `Du schreibst Videoideen fuer ein Kampagnen-Konzept einer Creator-Agentur.
-Eine Idee ist eine neue Situation, kein Nacherzaehlen des Briefings. Das Briefing ist die Grenze, nicht die Geschichte.
-
-Grenze (hart):
-- Keine erfundenen Produktfeatures, Preise, Claims. Nur was im Briefing oder Produkt steht.
-- Verbote unter WICHTIGE VORGABEN im Briefing (kein, nicht, nie, ohne) sind hart. Eine Idee, die ein Verbot bricht, wird nicht abgegeben.
-- Pflichtinhalte unter WICHTIGE VORGABEN, Hook-Vorgaben, CTA und Creator-Vorgaben muessen in der Idee gehen. Sie sind die Grenze, nicht der Ablauf.
-- Do's unter WICHTIGE VORGABEN sind Soll, kein Lock.
-
-Geschichte:
-- Starte in einem konkreten Moment aus dem Leben der Persona. Hat sie Audience Situations, nimm eine davon.
-- Das Produkt kommt in diesen Moment, es ist nicht der Aufmacher.
-- Aufgabe, Schwerpunkt, Kundenideen, Umsetzungstext und Hook-Wortlaut aus dem Briefing nicht umformulieren und nicht als Ablauf abschreiben.
-
-Form:
-- Deutsch, Du-Form in Hook und Ablauf nur wenn es zur Marke passt, sonst neutral.
-- Titel = merkbare Kurzform des Hooks, eine Zeile, keine Anfuehrungszeichen.
-- Pain Point, Hook, Kernbotschaft, grober Ablauf: konkret, keine Agenturlyrik.
-- Ablauf: 2–4 Schritte, was passiert, keine Kameraanweisung.
-${produktFix
-    ? `- Genau ${n} Ideen, alle fuer das eine genannte Produkt. Keine Idee fuer ein anderes Produkt, kein anderes Produkt im Text.`
-    : `- Genau ${n} Ideen, quer ueber die Produkte (nicht ${n} pro Produkt). Ohne Produkt nur aus dem Briefing.`}
-- Die Ideen unterscheiden sich in Situation und Einstieg. Anderer Drehort oder andere Formulierung derselben Szene reicht nicht.
-- Keine Idee, deren Titel einer ausgeschlossenen Erstzeile entspricht (Gross/Klein egal).`;
-
-  const task = `Personas:
-${personaText}
-
-Produkte:
-${produktText}
-
-Briefing (Grenze und Kontext, nicht die Geschichte):
-${briefingText}
-${funnelText}
-Bereits vorhandene Ideen (nicht wiederholen):
-${ausschlussText}
-${hinweis ? `\nHinweis aus dem Team (beruecksichtigen):\n${cap(hinweis, 600)}\n` : ''}
-Gib ${n} neue Videoideen ueber das Tool ab.`;
-
-  return { stable, task };
-}
-
-function parseMaybeJson(value) {
-  if (typeof value !== 'string') return value;
-  const s = value.trim();
-  if (!s) return value;
-  try {
-    return JSON.parse(s);
-  } catch (_) {
-    return value;
-  }
-}
-
-function pickIdeenArray(obj) {
-  const parsed = parseMaybeJson(obj);
-  if (Array.isArray(parsed)) return parsed;
-  if (!parsed || typeof parsed !== 'object') return [];
-  for (const key of ['ideen', 'videoideen', 'ideas']) {
-    const val = parseMaybeJson(parsed[key]);
-    if (Array.isArray(val)) return val;
-  }
-  if (parsed.videoideen_abgeben != null) return pickIdeenArray(parsed.videoideen_abgeben);
-  return [];
-}
-
-/** Tool-Input auf ein Ideen-Array ziehen: String, Wrapper, Aliase. */
-function normalizeIdeenJson(json) {
-  return pickIdeenArray(json);
-}
-
-function ideeTitel(raw) {
-  return String(raw?.titel || raw?.title || raw?.Titel || '').trim();
-}
-
-function jsonKeys(json) {
-  if (json == null) return [];
-  if (Array.isArray(json)) return ['<array>'];
-  if (typeof json === 'object') return Object.keys(json).slice(0, 20);
-  return [typeof json];
-}
-
-function ideenDiagnose(json, geprueft, result) {
-  return {
-    json_keys: jsonKeys(json),
-    verworfen: (geprueft?.verworfen || []).slice(0, 20),
-    stop_reason: result?.stop_reason || null
-  };
-}
-
-function leerGrund(geprueft) {
-  const gruende = (geprueft?.verworfen || []).map((v) => v.grund);
-  if (!gruende.length) return 'leeres Array';
-  const unique = [...new Set(gruende)];
-  if (unique.length === 1 && unique[0] === 'ohne_titel') return 'ohne Titel';
-  if (unique.length === 1 && unique[0] === 'ausschluss') return 'alles Ausschluss';
-  if (unique.length === 1 && unique[0] === 'leer') return 'leere Felder';
-  return unique.join(', ');
-}
-
-function leerFehler(geprueft) {
-  return `Die KI konnte keine tragfähigen Videoideen liefern (${leerGrund(geprueft)})`;
-}
-
-async function loadPersonas(supabase, briefing, produktIds) {
-  const personaIds = Array.isArray(briefing?.persona_ids)
-    ? briefing.persona_ids.filter(Boolean)
-    : [];
-  let personas = [];
-
-  if (personaIds.length) {
-    const { data: rows } = await supabase.from('personas')
-      .select(PERSONA_FELDER)
-      .in('id', personaIds);
-    const byId = new Map((rows || []).map((p) => [p.id, p]));
-    personas = personaIds.map((id) => byId.get(id)).filter(Boolean);
-  } else if (produktIds.length) {
-    const { data: vorschlaege } = await supabase.from('produkt_persona_vorschlag')
-      .select(`persona_id, persona:persona_id(${PERSONA_FELDER})`)
-      .in('produkt_id', produktIds)
-      .eq('status', 'accepted');
-    const gesehen = new Set();
-    for (const v of (vorschlaege || [])) {
-      const p = v.persona;
-      if (p?.id && !gesehen.has(p.id)) {
-        gesehen.add(p.id);
-        personas.push(p);
-      }
-    }
-  }
-
-  if (personas.length) await attachAudienceSituations(supabase, personas);
-  return personas;
-}
-
-/**
- * Stufe einer Idee: nur eine der Briefing-Stufen. Gibt es genau eine, gilt sie;
- * ohne gueltige Angabe bleibt die Stufe leer (keine Vorgabe).
- */
-function waehleFunnelStufe(rawStufe, stufen) {
-  const erlaubt = (stufen || []).filter((w) => FUNNEL_WERTE.includes(w));
-  if (!erlaubt.length) return null;
-  const wert = String(rawStufe || '').trim().toLowerCase();
-  if (erlaubt.includes(wert)) return wert;
-  return erlaubt.length === 1 ? erlaubt[0] : null;
-}
-
-function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL, stufen = [] } = {}) {
-  const raw = normalizeIdeenJson(json);
-  const belegt = new Set((ausschluss || []).map((t) => erstzeile(t).toLowerCase()).filter(Boolean));
-  const ideen = [];
-  const verworfen = [];
-
-  for (const rawIdee of raw) {
-    const titel = ideeTitel(rawIdee);
-    if (!titel) {
-      verworfen.push({ grund: 'ohne_titel' });
-      continue;
-    }
-    const key = titel.toLowerCase();
-    if (belegt.has(key)) {
-      verworfen.push({ grund: 'ausschluss', titel });
-      continue;
-    }
-    const pain_point = String(rawIdee?.pain_point || '').trim();
-    const hook = String(rawIdee?.hook || '').trim();
-    const kernbotschaft = String(rawIdee?.kernbotschaft || '').trim();
-    const ablauf = String(rawIdee?.ablauf || '').trim();
-    if (!pain_point && !hook && !kernbotschaft && !ablauf) {
-      verworfen.push({ grund: 'leer', titel });
-      continue;
-    }
-    belegt.add(key);
-    ideen.push({
-      titel,
-      pain_point,
-      hook,
-      kernbotschaft,
-      ablauf,
-      funnel_stufe: waehleFunnelStufe(rawIdee?.funnel_stufe, stufen),
-      beschreibung: formatBeschreibung({ titel, pain_point, hook, kernbotschaft, ablauf })
-    });
-    if (ideen.length >= anzahl) break;
-  }
-
-  return { ideen, verworfen };
 }
 
 /**
@@ -485,7 +44,7 @@ function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL, stufen = [] } =
  */
 async function entwerfeLaeufe({ input, laeufe, hinweis, rufe, zustand = {}, onStep, onDiagnose } = {}) {
   const ausschluss = [...(input?.ausschluss || [])];
-  const stufen = briefingFunnelStufen(input?.briefing);
+  const stufen = funnelStufenFuer(input?.briefing);
   const ergebnisse = [];
   const verworfen = [];
   let letzteGeprueft = null;
@@ -576,7 +135,7 @@ module.exports = {
   entwerfeLaeufe,
   leereLaeufeFehler,
   konzeptTool,
-  briefingFunnelStufen,
+  funnelStufenFuer,
   erstzeile,
   formatBeschreibung,
   fmtProdukt,
@@ -589,5 +148,10 @@ module.exports = {
   validateIdeen,
   leerFehler,
   ideenDiagnose,
-  buildVorschlagInsert
+  buildVorschlagInsert,
+  verbindlicheIdeen,
+  offeneVerbindlicheIdeen,
+  frueherAngelegt,
+  buildVerbindlichInsert,
+  starteReferenzVerarbeitung
 };

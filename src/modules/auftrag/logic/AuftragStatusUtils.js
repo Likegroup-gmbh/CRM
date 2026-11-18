@@ -6,7 +6,7 @@
 import { escapeHtml } from '../../../core/format.js';
 
 const AMPEL_MAP = {
-  'Beauftragt':     { color: '#22c55e', label: 'Aktiv',          cssClass: 'beauftragt' },
+  'Beauftragt':     { color: 'var(--success-500)', label: 'Aktiv',          cssClass: 'beauftragt' },
   'Abgeschlossen':  { color: '#ef4444', label: 'Abgeschlossen',  cssClass: 'abgeschlossen' },
   'Storniert':      { color: '#9ca3af', label: 'Storniert',       cssClass: 'storniert' }
 };

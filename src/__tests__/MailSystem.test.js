@@ -9,8 +9,8 @@ import {
   button, infoZeilen, nachricht, schritte, text, rohHtml,
 } from '../../supabase/functions/_shared/mail/sections.ts';
 import {
-  anschreibenMail, authMail, creatorUploadMail, einladungMail, einreichungMail, managementAnfrageMail, teilenMail,
-  BRIEFING_SCHRITTE,
+  anschreibenMail, authMail, creatorUploadMail, einladungMail, einreichungMail, listenLinkMail, managementAnfrageMail,
+  teilenMail, BRIEFING_SCHRITTE,
 } from '../../supabase/functions/_shared/mail/index.ts';
 import { kundenSteps } from '../modules/einladung/einladungFelder.js';
 
@@ -133,7 +133,7 @@ describe('Template einladung', () => {
     expect(html).toContain('Formular öffnen');
     expect(html).toContain(`href="${LINK}"`);
     expect(html).toContain('>Paid</span>');
-    for (const schritt of BRIEFING_SCHRITTE) expect(html).toContain(`${schritt}</span>`);
+    for (const schritt of BRIEFING_SCHRITTE) expect(html).toContain(`${esc(schritt)}</span>`);
     expect(html).toContain('Oliver Mackeldanz');
     expect(html).toContain('im Auftrag von LikeGroup');
   });
@@ -190,6 +190,48 @@ describe('Template teilen', () => {
   it('Nachricht erscheint nur, wenn sie gesetzt ist', () => {
     expect(teilenMail({ ...base, message: 'Viel Spaß' }).html).toContain('Viel Spaß');
     expect(teilenMail(base).html).not.toContain('Nachricht von');
+  });
+});
+
+describe('Template listenLink (Konto, ohne Code)', () => {
+  const base = {
+    entityLabel: 'Kampagne',
+    entityArticle: 'die',
+    entityName: 'Sommer <Edit>',
+    sharedByName: 'Lisa',
+    url: `${BASIS}/kampagne/k1`,
+    email: 'kunde+<x>@firma.de',
+    basisUrl: BASIS,
+  };
+
+  it('Betreff wie die Gast-Mail, Button je Typ, kein Code', () => {
+    const { betreff, html } = listenLinkMail(base);
+    expect(betreff).toBe(teilenMail({ ...base, entityArticle: 'die', rechte: 'ansehen', link: base.url, code: '123456' }).betreff);
+    expect(html).toContain('Kampagne öffnen');
+    expect(html).toContain('einen Code brauchen Sie nicht');
+    expect(html).toContain('direkt in der Kampagne');
+    expect(html).not.toContain('class="code"');
+    expect(html).not.toContain('Leiten Sie diese Mail');
+  });
+
+  it('nennt die Konto-Adresse escaped', () => {
+    const { html } = listenLinkMail(base);
+    expect(html).toContain('Ihr Konto');
+    expect(html).toContain('kunde+&lt;x&gt;@firma.de');
+    expect(html).not.toContain('Sommer <Edit>');
+    expect(listenLinkMail({ ...base, email: undefined }).html).not.toContain('Ihr Konto');
+  });
+
+  it('Artikel: das Skript, im Skript', () => {
+    const { html } = listenLinkMail({ ...base, entityLabel: 'Skript', entityArticle: 'das' });
+    expect(html).toContain('Ein Skript wurde mit Ihnen geteilt');
+    expect(html).toContain('direkt im Skript');
+    expect(html).toContain('Skript öffnen');
+  });
+
+  it('Nachricht erscheint nur, wenn sie gesetzt ist', () => {
+    expect(listenLinkMail({ ...base, message: 'Bitte bis Freitag' }).html).toContain('Nachricht von Lisa');
+    expect(listenLinkMail(base).html).not.toContain('Nachricht von');
   });
 });
 
@@ -274,6 +316,7 @@ describe('Farben', () => {
       einladungMail({ art: 'briefing', briefingTyp: 'owned_social', absenderName: 'A', kunde: 'K', nachricht: 'N', code: '111111', link: LINK, basisUrl: BASIS }).html,
       einladungMail({ art: 'produkt', absenderName: 'A', code: '111111', link: LINK }).html,
       teilenMail({ entityLabel: 'Kampagne', entityArticle: 'die', entityName: 'K', sharedByName: 'A', rechte: 'ansehen', link: LINK, code: '111111', message: 'M' }).html,
+      listenLinkMail({ entityLabel: 'Kampagne', entityArticle: 'die', entityName: 'K', sharedByName: 'A', url: LINK, email: 'a@b.de', message: 'M' }).html,
       einreichungMail({ art: 'briefing', einreicherName: 'A', einladungLabel: 'L', kunde: 'K', link: LINK }).html,
       creatorUploadMail({ link: LINK, kampagneName: 'K', expiresAt: '2026-12-24T10:00:00Z' }).html,
       anschreibenMail({ betreff: 'B', textHtml: '<p>X</p>' }).html,

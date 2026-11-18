@@ -1,619 +1,66 @@
 // FieldRenderer.js
-// Generische HTML-Renderer fuer die Feldtypen aus fieldConfig.js.
-// Nutzt dieselben CSS-Klassen wie der Vertragsgenerator
-// (form-field, radio-group, radio-option, checkbox-label, ...).
-//
-// Conditional Fields: Wrapper mit data-condition-* Attributen;
-// das Ein-/Ausblenden uebernimmt FormEvents.js (Live) bzw. wird
-// beim Rendern ueber evaluateCondition vorberechnet.
+// HTML für das Briefing-Formular aus fieldConfig.js (Creator-Briefing-PDF).
+// Einfache Typen: fieldRendererBasis.js, zusammengesetzte: fieldRendererListen.js.
+// Die Zuordnung (Unternehmen bis Produktion) verschwindet ganz, wenn alles bekannt ist.
 
-import { evaluateCondition, merkmaleAufNeuesFormat } from './fieldConfig.js';
-import { icon } from '../../../core/icons/IconSystem.js';
-import { renderTableSelect } from '../../../core/components/TableSelect.js';
-import { renderSekundenSpanne, sekundenSpanneAttrs } from '../../../core/components/SekundenSpanne.js';
+import { escapeHtml } from '../../../core/format.js';
+import {
+  renderTextLike,
+  renderTextarea,
+  renderDate,
+  renderCheckbox,
+  renderCheckboxes,
+  renderEntitySelect,
+  istBekannt
+} from './fieldRendererBasis.js';
+import { renderVideolaenge, renderProduktListe, renderIdeenListe } from './fieldRendererListen.js';
+import { flattenFields } from './fieldConfig.js';
 
-export function escapeHtml(value) {
-  if (value === null || value === undefined) return '';
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function conditionAttrs(condition) {
-  if (!condition) return '';
-  if (condition.all || condition.any) {
-    return `data-condition-json="${escapeHtml(JSON.stringify(condition))}"`;
-  }
-  const parts = [`data-condition-field="${escapeHtml(condition.field)}"`];
-  if (condition.equals !== undefined) parts.push(`data-condition-equals="${escapeHtml(condition.equals)}"`);
-  if (condition.in) parts.push(`data-condition-in="${escapeHtml(condition.in.join(','))}"`);
-  if (condition.includes !== undefined) parts.push(`data-condition-includes="${escapeHtml(condition.includes)}"`);
-  if (condition.includesAny) parts.push(`data-condition-includes-any="${escapeHtml(condition.includesAny.join(','))}"`);
-  return parts.join(' ');
-}
-
-// Wrapper: blendet Felder/Sections mit Condition abhaengig von formData ein/aus
-function wrapConditional(html, condition, formData) {
-  if (!condition) return html;
-  const visible = evaluateCondition(condition, formData);
-  return `<div class="bf-conditional ${visible ? '' : 'hidden'}" ${conditionAttrs(condition)}>${html}</div>`;
-}
-
-function renderLabel(field) {
-  const required = field.required ? ' <span class="required">*</span>' : '';
-  const withFor = field.type === 'text' || field.type === 'url' || field.type === 'date' || field.type === 'number';
-  return `<label ${withFor ? `for="${field.name}"` : ''}>${escapeHtml(field.label)}${required}</label>`;
-}
-
-function renderSelect(field, formData) {
-  const current = String(formData[field.name] ?? '').trim();
-  const options = field.options || [];
-  const known = options.some(opt => opt.value === current);
-  const extra = current && !known
-    ? `<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>`
-    : '';
-  const opts = options.map(opt => `
-    <option value="${escapeHtml(opt.value)}" ${current === opt.value ? 'selected' : ''}>${escapeHtml(opt.label)}</option>
-  `).join('');
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <select id="${escapeHtml(field.name)}" name="${escapeHtml(field.name)}" data-searchable="true"
-              data-placeholder="${escapeHtml(field.placeholder || 'Auswählen...')}">
-        <option value="">${escapeHtml(field.placeholder || 'Auswählen...')}</option>
-        ${opts}
-        ${extra}
-      </select>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-function renderHelper(field) {
-  return field.helper ? `<p class="field-helper">${escapeHtml(field.helper)}</p>` : '';
-}
-
-// ---------------------------------------------------------------
-// Einzelne Feldtypen
-// ---------------------------------------------------------------
-
-function renderNumber(field, formData) {
-  const raw = formData[field.name];
-  const value = raw === undefined || raw === null || raw === ''
-    ? (field.defaultValue ?? '')
-    : raw;
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <input type="number" id="${field.name}" name="${field.name}"
-             value="${escapeHtml(value)}"
-             ${field.min !== undefined ? `min="${escapeHtml(field.min)}"` : ''}
-             ${field.step ? `step="${escapeHtml(field.step)}"` : ''}
-             ${field.placeholder ? `placeholder="${escapeHtml(field.placeholder)}"` : ''}
-             ${field.required ? 'required' : ''}>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-function renderTextLike(field, formData, inputType) {
-  const value = formData[field.name] ?? '';
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <input type="${inputType}" id="${field.name}" name="${field.name}"
-             value="${escapeHtml(value)}"
-             ${field.placeholder ? `placeholder="${escapeHtml(field.placeholder)}"` : ''}
-             ${field.required ? 'required' : ''}>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-function renderTextarea(field, formData) {
-  const value = formData[field.name] ?? '';
-  return `
-    <div class="form-field">
-      ${field.hideLabel ? '' : renderLabel(field)}
-      <textarea id="${field.name}" name="${field.name}" rows="${field.rows || 3}"
-                ${field.placeholder ? `placeholder="${escapeHtml(field.placeholder)}"` : ''}
-                ${field.required ? 'required' : ''}>${escapeHtml(value)}</textarea>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-function renderDate(field, formData) {
-  const value = formData[field.name] ?? '';
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <input type="date" id="${field.name}" name="${field.name}" value="${escapeHtml(value)}">
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-function renderRadio(field, formData) {
-  const current = formData[field.name];
-  const options = field.options.map(opt => {
-    // Boolean-Radios: formData speichert echte Booleans, DOM liefert Strings
-    const checked = String(current) === String(opt.value) && current !== null && current !== undefined && current !== '';
-    return `
-      <label class="radio-option">
-        <input type="radio" name="${field.name}" value="${escapeHtml(opt.value)}" ${checked ? 'checked' : ''}>
-        <span>${escapeHtml(opt.label)}</span>
-      </label>
-    `;
-  }).join('');
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <div class="radio-group">${options}</div>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-function renderSekundenSpanneField(field, formData) {
-  const min = field.min ?? 1;
-  const max = field.max ?? 180;
-  const raw = formData[field.name];
-  const spanne = { von: raw?.von, bis: raw?.bis, min, max };
-  return `
-    <div class="form-field" ${sekundenSpanneAttrs({ name: field.name, ...spanne })}>
-      ${renderLabel(field)}${renderSekundenSpanne(spanne)}
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-function renderCheckbox(field, formData) {
-  const checked = formData[field.name] === true;
-  return `
-    <div class="form-field">
-      <label class="checkbox-label">
-        <input type="checkbox" name="${field.name}" value="true" ${checked ? 'checked' : ''}>
-        <span>${escapeHtml(field.label)}</span>
-      </label>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-function renderCheckboxes(field, formData) {
-  const selected = Array.isArray(formData[field.name]) ? formData[field.name] : [];
-  const options = field.options.map(opt => `
-    <label class="checkbox-label">
-      <input type="checkbox" name="${field.name}" value="${escapeHtml(opt.value)}" ${selected.includes(opt.value) ? 'checked' : ''}>
-      <span>${escapeHtml(opt.label)}</span>
-    </label>
-  `).join('');
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <div class="checkbox-group ${field.compact ? 'checkbox-group--compact' : ''}">${options}</div>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-// Feste Optionen als Checkboxen + Freitext fuer zusaetzliche Werte (alles -> text[])
-function renderCustomMulti(field, formData) {
-  const all = Array.isArray(formData[field.name]) ? formData[field.name] : [];
-  const knownValues = field.options.map(o => o.value);
-  const selectedKnown = all.filter(v => knownValues.includes(v));
-  const customValues = all.filter(v => !knownValues.includes(v));
-
-  const options = field.options.map(opt => `
-    <label class="checkbox-label">
-      <input type="checkbox" name="${field.name}" value="${escapeHtml(opt.value)}" ${selectedKnown.includes(opt.value) ? 'checked' : ''}>
-      <span>${escapeHtml(opt.label)}</span>
-    </label>
-  `).join('');
-
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      ${field.options.length ? `<div class="checkbox-group">${options}</div>` : ''}
-      <input type="text" name="${field.name}__custom" class="bf-custom-multi-input"
-             value="${escapeHtml(customValues.join(', '))}"
-             placeholder="${escapeHtml(field.customPlaceholder || 'Weitere (kommagetrennt)...')}">
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-// Flache Sub-Felder -> jsonb-Spalte (name="feld__sub")
-function renderGroupTableSelect(field, sub, subName, subValue) {
-  const value = String(subValue ?? '');
-  const known = (sub.options || []).some(opt => opt.value === value);
-  const options = [
-    { value: '', label: sub.emptyLabel || 'Keine Vorgabe' },
-    ...(sub.options || []),
-    // Gespeicherter Freitext aus der Zeit vor dem Dropdown bleibt sichtbar
-    ...(value && !known ? [{ value, label: value }] : [])
-  ];
-  return `
-    <div class="form-field">
-      <label>${escapeHtml(sub.label)}</label>
-      ${renderTableSelect({
-        field: subName,
-        itemId: field.name,
-        value,
-        options,
-        placeholder: sub.emptyLabel || 'Keine Vorgabe',
-        input: subName,
-        matchWidth: true
-      })}
-    </div>
-  `;
-}
-
-function renderGroup(field, formData) {
-  const raw = (formData[field.name] && typeof formData[field.name] === 'object') ? formData[field.name] : {};
-  const groupValue = field.name === 'creator_merkmale' ? merkmaleAufNeuesFormat(raw) : raw;
-  const subFields = field.fields.map(sub => {
-    const subName = `${field.name}__${sub.name}`;
-    const subValue = groupValue[sub.name] ?? '';
-    if (sub.type === 'tableSelect') return renderGroupTableSelect(field, sub, subName, subValue);
-    if (sub.type === 'textarea') {
-      return `
-        <div class="form-field">
-          <label for="${subName}">${escapeHtml(sub.label)}</label>
-          <textarea id="${subName}" name="${subName}" rows="${sub.rows || 2}"
-                    ${sub.placeholder ? `placeholder="${escapeHtml(sub.placeholder)}"` : ''}>${escapeHtml(subValue)}</textarea>
-        </div>
-      `;
-    }
-    return `
-      <div class="form-field">
-        <label for="${subName}">${escapeHtml(sub.label)}</label>
-        <input type="text" id="${subName}" name="${subName}" value="${escapeHtml(subValue)}"
-               ${sub.placeholder ? `placeholder="${escapeHtml(sub.placeholder)}"` : ''}>
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <div class="bf-group">${subFields}</div>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-// Plattform -> Formate -> jsonb { instagram: [...], tiktok: true, weitere: '...' }
-function renderChannelGroup(field, formData) {
-  const value = (formData[field.name] && typeof formData[field.name] === 'object') ? formData[field.name] : {};
-
-  const blocks = field.channels.map(channel => {
-    const channelValue = value[channel.key];
-    const formatOptions = channel.formats || [{ value: 'true', label: channel.label }];
-    const selected = channel.formats
-      ? (Array.isArray(channelValue) ? channelValue : [])
-      : (channelValue === true ? ['true'] : []);
-    const chipIcon = channel.key === 'pinterest' ? 'pinterest' : null;
-    const formats = formatOptions.map(fmt => `
-      <label class="checkbox-label${chipIcon ? ' checkbox-label--icon' : ''}">
-        <input type="checkbox" name="${field.name}__${channel.key}" value="${escapeHtml(fmt.value)}" ${selected.includes(fmt.value) ? 'checked' : ''}>
-        ${chipIcon ? `<span class="checkbox-label__icon" aria-hidden="true">${icon(chipIcon)}</span>` : ''}
-        <span>${escapeHtml(fmt.label)}</span>
-      </label>
-    `).join('');
-    return `
-      <div class="bf-channel${channel.formats ? '' : ' bf-channel--toggle'}">
-        <div class="bf-channel__title">${escapeHtml(channel.label)}</div>
-        <div class="checkbox-group checkbox-group--compact">${formats}</div>
-      </div>
-    `;
-  }).join('');
-
-  const customBlock = field.customLabel ? `
-    <div class="bf-channel bf-channel--custom">
-      <div class="bf-channel__title">${escapeHtml(field.customLabel)}</div>
-      <input type="text" name="${field.name}__weitere" value="${escapeHtml(value.weitere || '')}"
-             placeholder="${escapeHtml(field.customPlaceholder || '')}">
-    </div>
-  ` : '';
-
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <div class="bf-channels">${blocks}${customBlock}</div>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-// [{ kpi, zielwert }] -> jsonb
-function renderRepeatableKpi(field, formData) {
-  const rows = Array.isArray(formData[field.name]) ? formData[field.name] : [];
-  const optionsHtml = (selected) => `
-    <option value="">KPI wählen...</option>
-    ${field.kpiOptions.map(o => `<option value="${escapeHtml(o.value)}" ${selected === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
-  `;
-
-  const rowHtml = (entry = {}) => `
-    <div class="bf-repeatable-row" data-repeatable-row>
-      <select data-kpi class="bf-repeatable-row__select">${optionsHtml(entry.kpi)}</select>
-      <input type="text" data-zielwert placeholder="Zielwert" value="${escapeHtml(entry.zielwert || '')}">
-      <button type="button" class="mdc-btn mdc-btn--icon bf-repeatable-remove" title="Entfernen">${icon('trash')}</button>
-    </div>
-  `;
-
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <div class="bf-repeatable" data-repeatable="${field.name}" data-repeatable-type="kpi">
-        ${rows.map(rowHtml).join('')}
-      </div>
-      <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${field.name}">
-        ${icon('plus')} KPI hinzufügen
-      </button>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-// ["...", ...] -> jsonb
-// Optionen: multiline (Textarea je Eintrag), minRows (leere Startzeilen, damit
-// das Feld nicht unsichtbar ist), placeholder, hideLabel/hideAdd (Split-Header).
-function renderRepeatableText(field, formData) {
-  const rows = Array.isArray(formData[field.name]) ? [...formData[field.name]] : [];
-  while (rows.length < (field.minRows || 0)) rows.push('');
-  const placeholder = escapeHtml(field.placeholder || field.itemLabel || 'Eintrag');
-
-  const inputHtml = (entry) => field.multiline
-    ? `<textarea data-item rows="2" placeholder="${placeholder}">${escapeHtml(entry)}</textarea>`
-    : `<input type="text" data-item placeholder="${placeholder}" value="${escapeHtml(entry)}">`;
-
-  const rowHtml = (entry = '') => `
-    <div class="bf-repeatable-row" data-repeatable-row>
-      ${inputHtml(entry)}
-      <button type="button" class="mdc-btn mdc-btn--icon bf-repeatable-remove" title="Entfernen">${icon('trash')}</button>
-    </div>
-  `;
-
-  const addButton = field.hideAdd ? '' : `
-      <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${field.name}">
-        ${icon('plus')} ${escapeHtml(field.itemLabel || 'Eintrag')} hinzufügen
-      </button>`;
-
-  return `
-    <div class="form-field">
-      ${field.hideLabel ? '' : renderLabel(field)}
-      <div class="bf-repeatable" data-repeatable="${field.name}" data-repeatable-type="text" data-max="${field.max || 10}"
-           ${field.multiline ? 'data-multiline="true"' : ''} data-placeholder="${placeholder}">
-        ${rows.map(rowHtml).join('')}
-      </div>
-      ${addButton}
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-// [{ typ: 'url'|'upload', value, label? }] -> jsonb
-function renderRepeatableUpload(field, formData) {
-  const rows = Array.isArray(formData[field.name]) ? formData[field.name] : [];
-
-  const rowHtml = (entry = {}, index) => {
-    const isUpload = entry.typ === 'upload';
-    return `
-      <div class="bf-repeatable-row bf-upload-row" data-repeatable-row>
-        <span class="bf-upload-row__index">${index + 1}</span>
-        <select data-typ class="bf-repeatable-row__select">
-          <option value="url" ${!isUpload ? 'selected' : ''}>URL</option>
-          <option value="upload" ${isUpload ? 'selected' : ''}>Upload</option>
-        </select>
-        <input type="url" data-url placeholder="https://..." value="${!isUpload ? escapeHtml(entry.value || '') : ''}" class="${isUpload ? 'hidden' : ''}">
-        <span class="bf-upload-row__file ${isUpload ? '' : 'hidden'}" data-file-zone>
-          <input type="file" data-file class="hidden">
-          <button type="button" class="mdc-btn mdc-btn--secondary" data-file-trigger>${icon('upload')} Datei</button>
-          <span data-file-label>${isUpload ? escapeHtml(entry.label || 'Datei hochgeladen') : ''}</span>
-        </span>
-        <input type="hidden" data-value value="${escapeHtml(entry.value || '')}">
-        <input type="hidden" data-label value="${escapeHtml(entry.label || '')}">
-        <button type="button" class="mdc-btn mdc-btn--icon bf-repeatable-remove" title="Entfernen">${icon('trash')}</button>
-      </div>
-    `;
-  };
-
-  const addButton = field.hideAdd ? '' : `
-      <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${field.name}">
-        ${icon('plus')} Beispiel hinzufügen
-      </button>`;
-
-  return `
-    <div class="form-field">
-      ${field.hideLabel ? '' : renderLabel(field)}
-      <div class="bf-repeatable" data-repeatable="${field.name}" data-repeatable-type="upload" data-max="${field.max || 3}">${rows.map(rowHtml).join('')}</div>
-      ${addButton}
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-function renderEntityMulti(field, formData, context) {
-  const selected = Array.isArray(formData[field.name]) ? formData[field.name] : [];
-  let options = context?.[field.table] || [];
-  let disabled = false;
-  let placeholder = field.placeholder || 'Suchen und hinzufügen...';
-
-  if (field.dependsOn && !formData[field.dependsOn]) {
-    options = [];
-    disabled = true;
-    placeholder = 'Bitte zuerst Unternehmen wählen...';
-  }
-
-  const opts = options.map(o => `
-    <option value="${escapeHtml(o.id)}" ${selected.includes(o.id) ? 'selected' : ''}>${escapeHtml(o[field.displayField] || o.id)}</option>
-  `).join('');
-
-  return `
-    <div class="form-field" data-entity-multi="${escapeHtml(field.name)}">
-      ${renderLabel(field)}
-      <select id="${escapeHtml(field.name)}" name="${escapeHtml(field.name)}" multiple
-              data-searchable="true" data-tag-based="true"
-              data-placeholder="${escapeHtml(placeholder)}"
-              ${field.dependsOn ? `data-depends-on="${escapeHtml(field.dependsOn)}"` : ''}
-              ${disabled ? 'disabled' : ''}>
-        ${opts}
-      </select>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-// Entity-Select (Unternehmen/Marke/Benutzer), Optionen kommen aus context
-function renderEntitySelect(field, formData, context) {
-  const current = formData[field.name] ?? '';
-  let options = context?.[field.table] || [];
-  let disabled = false;
-  let emptyLabel = field.placeholder || 'Auswählen...';
-
-  if (field.dependsOn) {
-    const parentValue = formData[field.dependsOn];
-    if (!parentValue) {
-      disabled = true;
-      emptyLabel = 'Bitte zuerst Unternehmen wählen...';
-      options = [];
-    } else {
-      options = options.filter(o => o[field.dependsOn] === parentValue || o.unternehmen_id === parentValue);
-    }
-  }
-
-  if (field.scopeMarke && formData.marke_id) {
-    options = options.filter(o => !o.marke_id || o.marke_id === formData.marke_id);
-  }
-
-  if (field.lockWithLinie && context?.linieGesperrt) {
-    disabled = true;
-    if (current && !options.some(o => o.id === current)) {
-      const kept = (context?.[field.table] || []).find(o => o.id === current);
-      if (kept) options = [kept, ...options];
-    }
-    if (!current) emptyLabel = '–';
-  }
-
-  const opts = options.map(o => `
-    <option value="${o.id}" ${current === o.id ? 'selected' : ''}>${escapeHtml(o[field.displayField] || o.id)}</option>
-  `).join('');
-
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <select id="${field.name}" name="${field.name}" data-searchable="true"
-              ${field.dependsOn ? `data-depends-on="${field.dependsOn}"` : ''}
-              ${disabled ? 'disabled' : ''} ${field.required ? 'required' : ''}>
-        <option value="">${escapeHtml(emptyLabel)}</option>
-        ${opts}
-      </select>
-      ${renderHelper(field)}
-    </div>
-  `;
-}
-
-// ---------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------
-
-function renderDisclosure(field, formData, context) {
-  const inner = (field.fields || []).map(f => renderField(f, formData, context)).join('');
-  return `
-    <details class="bf-disclosure">
-      <summary class="bf-disclosure__summary">${escapeHtml(field.label)}</summary>
-      <div class="bf-disclosure__body">${inner}</div>
-    </details>
-  `;
-}
+export { escapeHtml };
 
 function classList(...parts) {
   return parts.filter(Boolean).join(' ');
 }
 
-const SPLIT_HEADER_LISTS = new Set(['repeatableText', 'repeatableUpload']);
-
-function splitHeaderAddLabel(field) {
-  return field.type === 'repeatableText'
-    ? `${field.itemLabel || 'Eintrag'} hinzufügen`
-    : 'Beispiel hinzufügen';
-}
-
-// Listenfelder: Label + Add-Button als Seite der Kopfzeile. Alles andere
-// (Textarea links) behaelt das klassische <label for>.
-function splitHeaderSide(field, { start }) {
-  if (!field) return '';
-  if (!SPLIT_HEADER_LISTS.has(field.type)) {
-    const required = field.required ? ' <span class="required">*</span>' : '';
-    return `<label for="${escapeHtml(field.name)}">${escapeHtml(field.label || '')}${required}</label>`;
-  }
-  return `
-        <div class="${classList('bf-split-header__side', start && 'bf-split-header__side--start')}">
-          <span class="bf-split-header__label">${escapeHtml(field.label || '')}</span>
-          <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${escapeHtml(field.name)}">${icon('plus')} ${escapeHtml(splitHeaderAddLabel(field))}</button>
-        </div>`;
-}
-
-function renderSplitHeaderGroup(field, formData, context) {
-  const [left, right] = field.fields || [];
-  const id = field.id || '';
-  const classes = classList('bf-field-group', 'bf-field-group--split-header', id && `bf-field-group--${id}`);
-  const bodies = [left, right]
-    .filter(Boolean)
-    .map(f => renderField({ ...f, hideLabel: true, hideAdd: true }, formData, context))
-    .join('');
-
-  return `
-    <div class="${classes}"${id ? ` data-group="${escapeHtml(id)}"` : ''}>
-      <div class="bf-split-header">
-        ${splitHeaderSide(left, { start: true })}
-        ${splitHeaderSide(right, { start: false })}
-      </div>
-      ${bodies}
-    </div>
-  `;
-}
-
 function renderFieldGroup(field, formData, context) {
-  if (field.layout === 'splitHeader') return renderSplitHeaderGroup(field, formData, context);
   const layout = field.layout || 'stack';
   const id = field.id || '';
   const classes = classList('bf-field-group', `bf-field-group--${layout}`, id && `bf-field-group--${id}`);
   const inner = (field.fields || []).map(f => renderField(f, formData, context)).join('');
-  return `<div class="${classes}"${id ? ` data-group="${escapeHtml(id)}"` : ''}>${inner}</div>`;
+  const label = field.label ? `<div class="bf-field-group__label">${escapeHtml(field.label)}</div>` : '';
+  const body = label ? `${label}<div class="bf-field-group__body">${inner}</div>` : inner;
+  return `<div class="${classes}"${id ? ` data-group="${escapeHtml(id)}"` : ''}>${body}</div>`;
 }
 
 export function renderField(field, formData, context) {
-  let html;
   switch (field.type) {
-    case 'text': html = renderTextLike(field, formData, 'text'); break;
-    case 'number': html = renderNumber(field, formData); break;
-    case 'url': html = renderTextLike(field, formData, 'url'); break;
-    case 'date': html = renderDate(field, formData); break;
-    case 'textarea': html = renderTextarea(field, formData); break;
-    case 'radio': html = renderRadio(field, formData); break;
-    case 'checkbox': html = renderCheckbox(field, formData); break;
-    case 'checkboxes': html = renderCheckboxes(field, formData); break;
-    case 'sekundenSpanne': html = renderSekundenSpanneField(field, formData); break;
-    case 'customMulti': html = renderCustomMulti(field, formData); break;
-    case 'group': html = renderGroup(field, formData); break;
-    case 'channelGroup': html = renderChannelGroup(field, formData); break;
-    case 'repeatableKpi': html = renderRepeatableKpi(field, formData); break;
-    case 'repeatableText': html = renderRepeatableText(field, formData); break;
-    case 'repeatableUpload': html = renderRepeatableUpload(field, formData); break;
-    case 'entitySelect': html = renderEntitySelect(field, formData, context); break;
-    case 'entityMulti': html = renderEntityMulti(field, formData, context); break;
-    case 'select': html = renderSelect(field, formData); break;
-    case 'disclosure': html = renderDisclosure(field, formData, context); break;
-    case 'fieldGroup': html = renderFieldGroup(field, formData, context); break;
-    default: html = renderTextLike(field, formData, 'text');
+    case 'text': return renderTextLike(field, formData, 'text');
+    case 'url': return renderTextLike(field, formData, 'url');
+    case 'number': return renderTextLike(field, formData, 'number');
+    case 'date': return renderDate(field, formData);
+    case 'textarea': return renderTextarea(field, formData);
+    case 'checkbox': return renderCheckbox(field, formData, context);
+    case 'checkboxes': return renderCheckboxes(field, formData);
+    case 'entitySelect': return renderEntitySelect(field, formData, context);
+    case 'videolaenge': return renderVideolaenge(field, formData);
+    case 'produktListe': return renderProduktListe(field, formData, context);
+    case 'ideenListe': return renderIdeenListe(field, formData);
+    case 'fieldGroup': return renderFieldGroup(field, formData, context);
+    default: return renderTextLike(field, formData, 'text');
   }
-  return wrapConditional(html, field.condition, formData);
+}
+
+/**
+ * Zuordnung ausblenden, wenn Unternehmen, Kampagne und Produktion feststehen.
+ * Die Produktion gilt als bekannt, wenn der Kontext sie bindet (aus der Produktion angelegt).
+ */
+function zuordnungBekannt(section, formData, context) {
+  if (!section.hideWhenKnown) return false;
+  return flattenFields(section.fields).every(f => {
+    if (f.name === 'produktion_id') return !!context?.produktionGebunden;
+    if (!f.required) return true;
+    return istBekannt(f, formData, context);
+  });
 }
 
 export function renderSection(section, formData, context, stepId = '') {
@@ -624,17 +71,17 @@ export function renderSection(section, formData, context, stepId = '') {
         ${section.description ? `<p class="step-description">${escapeHtml(section.description)}</p>` : ''}
       </div>` : '';
   const sectionId = section.id || '';
-  const classes = classList('step-section', sectionId && `step-section--${sectionId}`);
+  const hidden = zuordnungBekannt(section, formData, context);
+  const classes = classList('step-section', sectionId && `step-section--${sectionId}`, hidden && 'hidden');
   const dataAttrs = classList(
     sectionId && `data-section="${escapeHtml(sectionId)}"`,
     stepId && `data-step="${escapeHtml(stepId)}"`
   );
-  const html = `
+  return `
     <div class="${classes}"${dataAttrs ? ` ${dataAttrs}` : ''}>${header}
       <div class="step-section__body">${fields}</div>
     </div>
   `;
-  return wrapConditional(html, section.condition, formData);
 }
 
 export function renderStep(stepDef, formData, context) {

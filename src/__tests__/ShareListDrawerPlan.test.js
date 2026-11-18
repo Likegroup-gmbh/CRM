@@ -62,7 +62,7 @@ describe('ShareListDrawer Kundenkonto und Empfänger-Vorschau', () => {
     dialog.open({ entityType: 'kampagne', entityId: 'e1', entityName: 'Telekom' });
     pressEnter(typeEmail('kunde@telekom.de'));
     await vi.waitFor(() => {
-      expect(document.querySelector('.share-plan-row')?.textContent).toContain('Listen-Link');
+      expect(document.querySelector('.share-plan-row')?.textContent).toContain('Link ins Konto');
     });
 
     await dialog.submit();
@@ -97,6 +97,72 @@ describe('ShareListDrawer Kundenkonto und Empfänger-Vorschau', () => {
 
     expect(window.supabase.functions.invoke).not.toHaveBeenCalled();
     expect(window.toastSystem.warning).toHaveBeenCalledWith('Keine Mail. Zuerst Unternehmen oder Marke zuordnen.');
+  });
+
+  it('füllt den Namen aus der Firmen-Domain und überschreibt Eingetipptes nicht', async () => {
+    mockFrom();
+    const dialog = new ShareListDrawer();
+    dialog.open({ entityType: 'kampagne', entityId: 'e1' });
+    const name = document.getElementById('share-label-input');
+
+    pressEnter(typeEmail('lisa@telekom.de'));
+    await vi.waitFor(() => expect(name.value).toBe('Telekom'));
+
+    name.value = 'Marketing-Team';
+    pressEnter(typeEmail('max@vodafone.de'));
+    await vi.waitFor(() => expect(document.querySelector('.share-plan-row')?.textContent).toContain('max@vodafone.de'));
+    expect(name.value).toBe('Marketing-Team');
+  });
+
+  it('blendet Name und Rechte aus, wenn nur Kundenkonten den Listen-Link bekommen', async () => {
+    mockFrom();
+    mockSharePlan(shareApi.plan, { listLink: ['kunde@telekom.de'], guest: [], blocked: [] });
+    const dialog = new ShareListDrawer();
+    dialog.open({ entityType: 'kampagne', entityId: 'e1' });
+    expect(document.getElementById('share-gast-optionen').hidden).toBe(false);
+
+    pressEnter(typeEmail('kunde@telekom.de'));
+    await vi.waitFor(() => expect(document.getElementById('share-gast-optionen').hidden).toBe(true));
+    expect(document.getElementById('share-nur-konten').hidden).toBe(false);
+    expect(document.getElementById('share-submit-btn').textContent).toBe('Listen-Link senden');
+  });
+
+  it('beschriftet die Hauptaktion nach Empfängern und sperrt sie ohne zustellbare Adresse', async () => {
+    mockFrom();
+    const dialog = new ShareListDrawer();
+    dialog.open({ entityType: 'kampagne', entityId: 'e1' });
+    const btn = document.getElementById('share-submit-btn');
+
+    pressEnter(typeEmail('a@agentur.de'));
+    pressEnter(typeEmail('b@agentur.de'));
+    await vi.waitFor(() => expect(btn.textContent).toBe('An 2 Empfänger senden'));
+
+    mockSharePlan(shareApi.plan, { listLink: [], guest: [], blocked: [{ email: 'c@telekom.de', reason: 'scope' }] });
+    dialog.setEmails(['c@telekom.de']);
+    await vi.waitFor(() => expect(btn.textContent).toBe('Keine Mail möglich'));
+    expect(btn.disabled).toBe(true);
+    expect(document.querySelector('.share-plan-row--gesperrt').textContent).toContain('c@telekom.de');
+  });
+
+  it('kopiert Link und Code direkt nach dem Anlegen ohne Mail', async () => {
+    mockFrom();
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    window.supabase.functions.invoke.mockResolvedValue({
+      data: { success: true, link: 'https://app/share/tok', code: '123456', shareId: 's1', mailed: 0 },
+      error: null,
+    });
+    const dialog = new ShareListDrawer();
+    dialog.open({ entityType: 'kampagne', entityId: 'e1', entityName: 'Telekom' });
+    await dialog.submit();
+
+    expect(writeText).toHaveBeenCalledWith('Telekom\nLink: https://app/share/tok\nCode: 123456');
+    expect(window.toastSystem.success).toHaveBeenCalledWith('Zugang angelegt, Link und Code kopiert.');
+
+    writeText.mockClear();
+    document.getElementById('share-copy-list-link').click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/kampagne/e1`));
+    delete navigator.clipboard;
   });
 
   it('bricht ab, wenn die Empfänger nicht geprüft werden konnten', async () => {

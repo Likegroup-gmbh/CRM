@@ -1,8 +1,8 @@
 // Anthropic Messages API Client (ohne SDK, nur fetch)
 // Modelle via Env konfigurierbar:
-//   ANTHROPIC_MODEL_WRITE      (Default: claude-opus-4-6)  - Skript-Schreiben
+//   ANTHROPIC_MODEL_WRITE      (Default: claude-opus-5-5)  - Skript-Schreiben
 //   ANTHROPIC_MODEL_DISTILL    (Default: claude-haiku-5-5) - Verdichtung/Labeling
-//   ANTHROPIC_MODEL_EDIT_WRITE (Default: claude-opus-4-6)  - Editor: alle Schreib-Aktionen (mit Extended Thinking)
+//   ANTHROPIC_MODEL_EDIT_WRITE (Default: claude-opus-5-5)  - Editor: alle Schreib-Aktionen (mit Extended Thinking)
 //   ANTHROPIC_MODEL_EDIT_FAST  (Default: claude-haiku-5-5) - Editor: freier Chat / Rueckfragen
 //   ANTHROPIC_MODEL_EXTRACT    (Default: claude-haiku-5-5) - Webseiten-Extraktion (site-extract)
 //   ANTHROPIC_MODEL_EXTRACT_PRODUKT (Default: claude-sonnet-5-5) - Produktseiten: mehr Felder, mehr Interpretation
@@ -11,13 +11,18 @@
 //   ANTHROPIC_MODEL_PERSONA    (Default: claude-sonnet-5-5) - Persona-Vorschlaege aus dem Produkt
 //   ANTHROPIC_MODEL_KONZEPT    (Default: claude-sonnet-5-5) - Videoideen im Konzept
 //   ANTHROPIC_MODEL_RESOLVE    (Default: claude-haiku-5-5) - Websuche: Name -> Homepage (Management-Connect)
+//   ANTHROPIC_MODEL_EXTRACT_INSIGHTS (Default: claude-sonnet-5-5) - Insights-Screenshots: Zahlen exakt lesen
+//
+// JSON-Bergung aus Text-Antworten liegt in anthropic-json.js und wird hier weiter exportiert.
+
+const { extractJson, repairJsonStrings, extractByKeys, extractXmlParameters } = require('./anthropic-json');
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 
 const MODELS = {
-  write: process.env.ANTHROPIC_MODEL_WRITE || 'claude-opus-4-6',
+  write: process.env.ANTHROPIC_MODEL_WRITE || 'claude-opus-5-5',
   distill: process.env.ANTHROPIC_MODEL_DISTILL || 'claude-haiku-5-5',
-  edit_write: process.env.ANTHROPIC_MODEL_EDIT_WRITE || 'claude-opus-4-6',
+  edit_write: process.env.ANTHROPIC_MODEL_EDIT_WRITE || 'claude-opus-5-5',
   edit_fast: process.env.ANTHROPIC_MODEL_EDIT_FAST || 'claude-haiku-5-5',
   extract: process.env.ANTHROPIC_MODEL_EXTRACT || 'claude-haiku-5-5',
   extract_produkt: process.env.ANTHROPIC_MODEL_EXTRACT_PRODUKT || 'claude-sonnet-5-5',
@@ -26,9 +31,11 @@ const MODELS = {
   persona: process.env.ANTHROPIC_MODEL_PERSONA || 'claude-sonnet-5-5',
   casting: process.env.ANTHROPIC_MODEL_CASTING || 'claude-sonnet-5-5',
   konzept: process.env.ANTHROPIC_MODEL_KONZEPT || 'claude-sonnet-5-5',
-  resolve: process.env.ANTHROPIC_MODEL_RESOLVE || 'claude-haiku-5-5'
+  resolve: process.env.ANTHROPIC_MODEL_RESOLVE || 'claude-haiku-5-5',
+  extract_insights: process.env.ANTHROPIC_MODEL_EXTRACT_INSIGHTS || 'claude-sonnet-5-5'
 };
 
+const isOpus55 = (model) => String(model || '').startsWith('claude-opus-5-5');
 const isSonnet55 = (model) => String(model || '').startsWith('claude-sonnet-5-5');
 const isHaiku55 = (model) => String(model || '').startsWith('claude-haiku-5-5');
 
@@ -38,6 +45,9 @@ const isHaiku55 = (model) => String(model || '').startsWith('claude-haiku-5-5');
  * API dafuer akzeptiert, haengt am Modell:
  * - Opus 4.x / aeltere Modelle: Extended Thinking mit budget_tokens, erzwungenes
  *   tool_choice nur ohne Thinking.
+ * - Opus 5.5: Thinking ist immer adaptiv an ('disabled', 'between_tools' und
+ *   budget_tokens sind ein 400). Erzwungenes tool_choice ist ein 400, deshalb
+ *   'auto' plus Hinweis im Prompt. Thinking-Tokens zaehlen in max_tokens.
  * - Sonnet 5.5: denkt ohne thinking-Feld von selbst. "Aus" heisst between_tools
  *   ('disabled' und budget_tokens sind ein 400). Erzwungenes tool_choice ist
  *   ein 400, deshalb 'auto' plus Hinweis im Prompt.
@@ -48,10 +58,15 @@ const isHaiku55 = (model) => String(model || '').startsWith('claude-haiku-5-5');
 function shapeRequest({ model, maxTokens = 4096, thinking = false, thinkingBudget = 2048, tool = null, toolForced = true }) {
   const sonnet55 = isSonnet55(model);
   const haiku55 = isHaiku55(model);
-  const adaptiveModel = sonnet55 || haiku55;
+  const opus55 = isOpus55(model);
+  const adaptiveModel = sonnet55 || haiku55 || opus55;
+  // Opus 5.5 und Sonnet 5.5 lehnen erzwungenes tool_choice mit 400 ab
+  const noForcedTool = sonnet55 || opus55;
 
   let thinkingParam = null;
-  if (adaptiveModel) {
+  if (opus55) {
+    thinkingParam = { type: 'adaptive' };
+  } else if (adaptiveModel) {
     if (thinking) thinkingParam = { type: 'adaptive' };
     else thinkingParam = sonnet55 ? { type: 'between_tools' } : { type: 'disabled' };
   } else if (thinking) {
@@ -63,8 +78,8 @@ function shapeRequest({ model, maxTokens = 4096, thinking = false, thinkingBudge
     ? Math.max(maxTokens, thinkingBudget + 2048)
     : maxTokens;
 
-  // Erzwungener Tool-Call ist mit Thinking nicht kombinierbar, auf Sonnet 5.5 gar nicht
-  const forced = !!(tool && toolForced && !thinking && !sonnet55);
+  // Erzwungener Tool-Call ist mit Thinking nicht kombinierbar, auf Sonnet/Opus 5.5 gar nicht
+  const forced = !!(tool && toolForced && !thinking && !noForcedTool);
   const toolParams = tool
     ? {
       tools: [tool],
@@ -74,7 +89,7 @@ function shapeRequest({ model, maxTokens = 4096, thinking = false, thinkingBudge
 
   // Ohne Zwang muss der Prompt sagen, dass die Antwort ueber das Tool kommt.
   // Als letzter System-Block ohne cache_control, damit der gecachte Prefix gleich bleibt.
-  const systemHint = sonnet55 && tool && toolForced
+  const systemHint = noForcedTool && tool && toolForced
     ? `Liefere deine Antwort ausschliesslich ueber einen Aufruf des Tools "${tool.name}".`
     : null;
 
@@ -114,8 +129,10 @@ class ClaudeTimeoutError extends Error {
  * danach in result.sources ([{ url, title }]), die Suchanfragen des Modells in
  * result.searchQueries. Abgerechnet wird die Suche ueber usage.server_tool_use
  * (siehe claude-cost.js).
+ * images: [{ base64, mediaType }] als Bildblöcke vor dem Text der letzten User-Message
+ * (nach einem Dokument), z. B. Insights-Screenshots.
  */
-async function callClaude({ model, systemBlocks = [], userPrompt, messages = null, maxTokens = 4096, thinking = false, thinkingBudget = 2048, timeoutMs = 0, tool = null, toolForced = true, document = null }) {
+async function callClaude({ model, systemBlocks = [], userPrompt, messages = null, maxTokens = 4096, thinking = false, thinkingBudget = 2048, timeoutMs = 0, tool = null, toolForced = true, document = null, images = [] }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY nicht gesetzt');
 
@@ -128,8 +145,8 @@ async function callClaude({ model, systemBlocks = [], userPrompt, messages = nul
   const shaped = shapeRequest({ model, maxTokens, thinking, thinkingBudget, tool, toolForced });
   if (shaped.systemHint) system.push({ type: 'text', text: shaped.systemHint });
 
-  // PDF als Document-Block vor dem Text der letzten User-Message.
-  const apiMessages = buildApiMessages({ userPrompt, messages, document });
+  // PDF und Bilder als Blöcke vor dem Text der letzten User-Message.
+  const apiMessages = buildApiMessages({ userPrompt, messages, document, images });
 
   const controller = timeoutMs > 0 ? new AbortController() : null;
   // Der Timer laeuft ueber Request UND Body-Lesen: bei non-streaming haelt
@@ -222,24 +239,30 @@ function documentBlock(document) {
   };
 }
 
-/** messages, sonst eine User-Message. Dokument haengt an der letzten User-Message. */
-function buildApiMessages({ userPrompt, messages, document }) {
-  const doc = documentBlock(document);
+function imageBlocks(images) {
+  return (Array.isArray(images) ? images : [])
+    .filter((img) => img?.base64)
+    .map((img) => ({
+      type: 'image',
+      source: { type: 'base64', media_type: img.mediaType || 'image/png', data: img.base64 }
+    }));
+}
+
+/** messages, sonst eine User-Message. Dokument und Bilder haengen an der letzten User-Message. */
+function buildApiMessages({ userPrompt, messages, document, images = [] }) {
+  const anhang = [documentBlock(document), ...imageBlocks(images)].filter(Boolean);
   if (Array.isArray(messages) && messages.length) {
     const out = messages.map((m) => ({ role: m.role, content: m.content }));
-    if (!doc) return out;
+    if (!anhang.length) return out;
     for (let i = out.length - 1; i >= 0; i--) {
       if (out[i].role !== 'user') continue;
       const text = typeof out[i].content === 'string' ? out[i].content : (userPrompt || '');
-      out[i] = { role: 'user', content: [doc, { type: 'text', text }] };
+      out[i] = { role: 'user', content: [...anhang, { type: 'text', text }] };
       break;
     }
     return out;
   }
-  const content = [];
-  if (doc) content.push(doc);
-  content.push({ type: 'text', text: userPrompt });
-  return [{ role: 'user', content }];
+  return [{ role: 'user', content: [...anhang, { type: 'text', text: userPrompt }] }];
 }
 
 /** tool_use.input ist Objekt; manche Antworten liefern denselben JSON-String. */
@@ -256,213 +279,8 @@ function parseToolInput(input) {
   }
 }
 
-/**
- * Repariert die typischen Fehler, die Modelle beim Schreiben von JSON-Text
- * machen: unescapte Anfuehrungszeichen und rohe Zeilenumbrueche in Werten.
- *
- * Struktur-bewusster Automat statt reinem Lookahead: er fuehrt mit, ob der
- * aktuelle String ein Key oder ein Value ist und in welchem Container
- * (Objekt/Array) er steht. Ein " beendet den String nur, wenn an dieser
- * Position auch strukturell ein String enden darf:
- * - Key: danach muss ein Doppelpunkt kommen
- * - Value: danach Komma oder der Closer des AKTUELLEN Containers
- *   ('}' im Objekt, ']' im Array - ein ']' mitten im Objekt-Value wie in
- *   '[Overlay: "Nur heute"]' ist damit kein String-Ende mehr)
- * - nach einem Komma im Objekt muss ein Key folgen; ist knownKeys gesetzt,
- *   zaehlt nur ein erwarteter Key (loest 'sagte "Hallo", "Tschuess": ...' auf)
- */
-function repairJsonStrings(src, knownKeys = []) {
-  const keySet = new Set(knownKeys);
-  let out = '';
-  const stack = [];
-  let inString = false;
-  let escaped = false;
-  let stringIsKey = false;
-  let expectKey = false;
-
-  const endsKey = (rest) => /^\s*:/.test(rest);
-
-  const endsValue = (rest) => {
-    // Abgeschnittene Antwort: Ende der Eingabe als String-Ende akzeptieren
-    if (/^\s*$/.test(rest)) return true;
-    const container = stack[stack.length - 1];
-    const closer = container === '[' ? ']' : '}';
-    if (rest.trimStart().startsWith(closer)) return true;
-    const comma = rest.match(/^\s*,\s*/);
-    if (!comma) return false;
-    const after = rest.slice(comma[0].length);
-    if (container === '[') {
-      // Naechstes Array-Element muss ein Wert-Anfang sein
-      return /^["{[\d\-tfn]/.test(after) || after.startsWith(']');
-    }
-    // Objekt: nach dem Komma muss ein Key folgen
-    const key = after.match(/^"([^"\\]*)"\s*:/);
-    if (!key) return false;
-    return keySet.size === 0 || keySet.has(key[1]);
-  };
-
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i];
-
-    if (!inString) {
-      out += ch;
-      if (ch === '"') {
-        inString = true;
-        stringIsKey = stack[stack.length - 1] === '{' && expectKey;
-      } else if (ch === '{') { stack.push('{'); expectKey = true; }
-      else if (ch === '[') { stack.push('['); }
-      else if (ch === '}' || ch === ']') { stack.pop(); }
-      else if (ch === ':') { expectKey = false; }
-      else if (ch === ',') { expectKey = stack[stack.length - 1] === '{'; }
-      continue;
-    }
-    if (escaped) { out += ch; escaped = false; continue; }
-    if (ch === '\\') { out += ch; escaped = true; continue; }
-
-    if (ch === '"') {
-      const rest = src.slice(i + 1);
-      if (stringIsKey ? endsKey(rest) : endsValue(rest)) {
-        out += ch;
-        inString = false;
-      } else {
-        out += '\\"';
-      }
-      continue;
-    }
-    if (ch === '\n') { out += '\\n'; continue; }
-    if (ch === '\r') { out += '\\r'; continue; }
-    if (ch === '\t') { out += '\\t'; continue; }
-    out += ch;
-  }
-
-  return out;
-}
-
-/**
- * Letzte Rettung fuer flache Objekte mit bekannten Feldern: die Werte werden
- * zwischen den "key":-Markern herausgeschnitten, statt das JSON zu parsen.
- * Funktioniert auch bei hoffnungslos kaputtem Quoting, solange die Feldnamen
- * selbst intakt sind. Gibt null zurueck, wenn kein Marker gefunden wurde.
- */
-function extractByKeys(raw, keys) {
-  if (!keys || !keys.length) return null;
-
-  const marker = [];
-  for (const key of keys) {
-    const m = raw.match(new RegExp(`"${key}"\\s*:\\s*`));
-    if (m) marker.push({ key, start: m.index, valueStart: m.index + m[0].length });
-  }
-  if (!marker.length) return null;
-  marker.sort((a, b) => a.start - b.start);
-
-  const result = {};
-  for (let i = 0; i < marker.length; i++) {
-    const { key, valueStart } = marker[i];
-    const end = i + 1 < marker.length ? marker[i + 1].start : raw.length;
-    let segment = raw.slice(valueStart, end).trim();
-    // Trenner zum naechsten Feld bzw. die schliessende Klammer abschneiden
-    if (i === marker.length - 1) segment = segment.replace(/\}\s*$/, '');
-    segment = segment.replace(/,\s*$/, '').trim();
-
-    if (segment.startsWith('"')) {
-      let text = segment.slice(1);
-      if (text.endsWith('"')) text = text.slice(0, -1);
-      result[key] = text
-        .replace(/\\"/g, '"')
-        .replace(/\\n/g, '\n')
-        .replace(/\\t/g, '\t')
-        .replace(/\\\\/g, '\\');
-    } else if (segment === 'null') {
-      result[key] = null;
-    } else if (segment === 'true' || segment === 'false') {
-      result[key] = segment === 'true';
-    } else if (segment !== '' && !Number.isNaN(Number(segment))) {
-      result[key] = Number(segment);
-    } else {
-      result[key] = segment || null;
-    }
-  }
-  return result;
-}
-
-/**
- * Fallback fuer Anthropic-Tool-XML, wenn das Modell trotz tool_choice
- * als Text dump't: <parameter name="feld">…</parameter> oder <feld>…</feld>.
- */
-function extractXmlParameters(raw, keys) {
-  if (!raw || !keys?.length) return null;
-  const result = {};
-  for (const key of keys) {
-    const param = raw.match(new RegExp(
-      `<parameter\\s+name="${key}"\\s*>([\\s\\S]*?)(?:</parameter>|<(?:parameter|function)\\b)`,
-      'i'
-    ));
-    if (param) {
-      result[key] = param[1].trim();
-      continue;
-    }
-    const tag = raw.match(new RegExp(`<${key}>([\\s\\S]*?)</${key}>`, 'i'));
-    if (tag) result[key] = tag[1].trim();
-  }
-  return Object.keys(result).length ? result : null;
-}
-
-/**
- * Extrahiert ein JSON-Objekt aus einer Modell-Antwort
- * (tolerant gegenueber ```json-Fences und Text drumherum).
- * Scheitert das strikte Parsen, wird ein Reparaturlauf versucht - Modelle
- * escapen Anfuehrungszeichen in laengeren deutschen Texten regelmaessig nicht.
- * Optionen:
- * - keys: erwartete Feldnamen des Schemas. Schaerft die Reparatur-Heuristik
- *   und aktiviert die Feld-Extraktion als letzte Fallback-Schicht.
- * - onWarn: Callback fuer Diagnose-Meldungen (z.B. job.log), damit stille
- *   Reparaturen und Rohantworten nicht nur in den Netlify-Logs landen.
- */
-function extractJson(text, { keys = [], onWarn } = {}) {
-  const warn = (msg) => {
-    console.warn(`[extractJson] ${msg}`);
-    if (onWarn) { try { onWarn(msg); } catch (_) { /* Diagnose darf nie werfen */ } }
-  };
-
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1] : text;
-  const start = candidate.indexOf('{');
-  const end = candidate.lastIndexOf('}');
-  if (start === -1 || end === -1) {
-    const xml = extractXmlParameters(candidate, keys);
-    if (xml) {
-      warn('Hinweis: KI-Antwort als Tool-XML geborgen');
-      return xml;
-    }
-    throw new Error('Keine JSON-Struktur in der Antwort gefunden');
-  }
-  const raw = candidate.slice(start, end + 1);
-
-  try {
-    return JSON.parse(raw);
-  } catch (strictError) {
-    try {
-      const parsed = JSON.parse(repairJsonStrings(raw, keys));
-      warn(`Hinweis: KI-Antwort war kein valides JSON, automatisch repariert (${strictError.message})`);
-      return parsed;
-    } catch (_) {
-      const geborgen = extractByKeys(raw, keys);
-      if (geborgen && Object.keys(geborgen).length) {
-        warn(`Hinweis: KI-Antwort per Feld-Extraktion geborgen (${strictError.message})`);
-        return geborgen;
-      }
-      const xml = extractXmlParameters(candidate, keys);
-      if (xml) {
-        warn(`Hinweis: KI-Antwort als Tool-XML geborgen (${strictError.message})`);
-        return xml;
-      }
-      console.error(`[extractJson] Antwort nicht parsebar (${strictError.message}). Rohantwort: ${raw.slice(0, 600)}`);
-      if (onWarn) {
-        try { onWarn(`Rohantwort (gekuerzt): ${raw.slice(0, 800)}`); } catch (_) { /* noop */ }
-      }
-      throw strictError;
-    }
-  }
-}
-
-module.exports = { callClaude, shapeRequest, readWebSearch, parseToolInput, extractJson, repairJsonStrings, extractByKeys, extractXmlParameters, MODELS, ClaudeTimeoutError };
+module.exports = {
+  callClaude, shapeRequest, readWebSearch, parseToolInput, buildApiMessages,
+  extractJson, repairJsonStrings, extractByKeys, extractXmlParameters,
+  MODELS, ClaudeTimeoutError
+};

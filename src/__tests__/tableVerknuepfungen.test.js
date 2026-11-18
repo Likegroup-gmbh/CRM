@@ -42,7 +42,9 @@ describe('renderVerknuepfungen', () => {
     expect(html).toContain('href="/castings/c1"');
     expect(html).toContain('href="/konzepte/k1"');
     expect(html).toContain('href="/skripte/s1"');
-    expect(html).toContain('class="table-link table-link--rel"');
+    expect(html).toContain('verknuepfung-pill table-link--rel');
+    // Entity-Icon steht vor dem Label
+    expect(html).toMatch(/<a [^>]*><svg[\s\S]*?<span class="verknuepfung-pill__label">Summer<\/span>/);
     expect(html).not.toContain('data-table');
   });
 

@@ -140,10 +140,10 @@ describe('Sourcing – eigene Spalten mit Anker', () => {
   });
 
   it('sperrt die Sticky-Spalten und die Aktionen als Anker', () => {
-    for (const gesperrt of ['cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-actions']) {
+    for (const gesperrt of ['cp-col-drag', 'cp-col-name', 'cp-col-actions']) {
       expect(SOURCING_ANKER_SPALTEN).not.toContain(gesperrt);
     }
-    expect(SOURCING_ANKER_SPALTEN.length).toBe(SOURCING_SPALTEN.length - 4);
+    expect(SOURCING_ANKER_SPALTEN.length).toBe(SOURCING_SPALTEN.length - 3);
   });
 });
 

@@ -34,11 +34,14 @@ describe('ShareListDrawer Zugänge', () => {
     expect(document.querySelector('.drawer-panel.share-list-drawer .drawer-title')?.textContent).toBe('Liste teilen');
     expect(document.querySelector('.drawer-subtitle')?.textContent).toBe('Kampagne 2026');
     expect(document.querySelector('.modal')).toBeNull();
-    expect(document.querySelector('.form-label.required')?.textContent).toContain('Name des Zugangs');
-    expect(document.querySelector('.drawer-footer .mdc-btn--secondary')?.textContent).toContain('Schließen');
+    expect(document.querySelector('label[for="share-label-input"]')?.textContent).toContain('Name des Zugangs');
+    expect(document.getElementById('share-label-input').value).toMatch(/^Gast-Zugang \d\d\.\d\d\.$/);
+    expect(document.querySelector('.drawer-footer #share-copy-list-link')?.textContent).toContain('Listen-Link kopieren');
+    expect(document.querySelector('.drawer-footer [data-action="close"]')).toBeNull();
     expect(document.querySelector('#share-submit-btn')?.classList.contains('mdc-btn--create')).toBe(true);
     expect(document.querySelector('#share-submit-btn')?.textContent).toContain('Zugang erstellen');
     expect(document.querySelector('#share-submit-btn')?.closest('.drawer-footer')).not.toBeNull();
+    expect(document.activeElement?.id).toBe('share-email-tag-input');
   });
 
   describe('Schließen', () => {
@@ -58,12 +61,6 @@ describe('ShareListDrawer Zugänge', () => {
       return document.querySelector('.share-list-drawer') === null
         && document.querySelector('.drawer-overlay') === null;
     }
-
-    it('über den Schließen-Button im Footer', () => {
-      offen();
-      document.querySelector('.drawer-footer [data-action="close"]').click();
-      expect(istWeg()).toBe(true);
-    });
 
     it('über das X im Header', () => {
       offen();
@@ -93,6 +90,19 @@ describe('ShareListDrawer Zugänge', () => {
       expect(document.getElementById('share-email-suggestions').style.display).toBe('none');
     });
 
+    it('Escape bei offenem Menü oder offener Bestätigung lässt den Drawer offen', () => {
+      offen();
+      for (const klasse of ['actions-dropdown-portal', 'modal overlay-modal']) {
+        const offenesElement = document.createElement('div');
+        offenesElement.className = klasse;
+        document.body.appendChild(offenesElement);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        vi.advanceTimersByTime(DRAWER_EXIT_MS + 10);
+        expect(document.querySelector('.share-list-drawer')).not.toBeNull();
+        offenesElement.remove();
+      }
+    });
+
     it('erneutes open räumt das alte Panel ab', () => {
       const drawer = offen();
       drawer.open({ entityType: 'strategie', entityId: 'e2' });
@@ -101,14 +111,21 @@ describe('ShareListDrawer Zugänge', () => {
     });
   });
 
-  it('legt ohne Namen keinen Zugang an', async () => {
+  it('legt mit geleertem Namen einen Zugang mit Standardnamen an', async () => {
     mockFrom();
+    window.supabase.functions.invoke.mockResolvedValue({
+      data: { success: true, link: 'https://app/share/tok', code: '654321', shareId: 's1', mailed: 0 },
+      error: null,
+    });
     const dialog = new ShareListDrawer();
     dialog.open({ entityType: 'sourcing', entityId: 'e1' });
+    document.getElementById('share-label-input').value = '  ';
     await dialog.submit();
 
-    expect(window.toastSystem.warning).toHaveBeenCalledWith('Bitte einen Namen für den Zugang vergeben.');
-    expect(window.supabase.functions.invoke).not.toHaveBeenCalled();
+    const body = window.supabase.functions.invoke.mock.calls[0][1].body;
+    expect(body.action).toBe('create');
+    expect(body.label).toMatch(/^Gast-Zugang \d\d\.\d\d\.$/);
+    expect(window.toastSystem.warning).not.toHaveBeenCalled();
   });
 
   it('legt Zugang per create an (Label/Rechte, kein E-Mail-Pflichtfeld)', async () => {
@@ -236,53 +253,24 @@ describe('ShareListDrawer Zugänge', () => {
     expect(document.querySelector('.share-recipient-email').textContent).not.toContain('@');
   });
 
-  it('versendet Mail an die Tags, ohne Prompt', async () => {
-    const shares = { data: [], error: null };
-    mockFrom({ shares });
-    window.supabase.functions.invoke.mockImplementation(async (_name, { body }) => {
-      if (body.action === 'create') {
-        shares.data = [{
-          id: 's1',
-          token: 't'.repeat(32),
-          label: 'Marketing',
-          rechte: 'ansehen',
-          created_at: new Date().toISOString(),
-          last_access_at: null,
-          expires_at: null,
-          ends_with_kampagne: true,
-          share_participants: [],
-        }];
-        return { data: { success: true, link: 'https://app/share/tok', code: '654321', shareId: 's1', mailed: 0 }, error: null };
-      }
-      return { data: { success: true, mailed: 1 }, error: null };
+  it('zeigt den frischen Code in der neuen Zeile, auch wenn die Liste sie noch nicht liefert', async () => {
+    mockFrom();
+    window.supabase.functions.invoke.mockResolvedValue({
+      data: { success: true, link: 'https://app/share/tok123', code: '445566', shareId: 's7', mailed: 0 },
+      error: null,
     });
-
     const dialog = new ShareListDrawer();
-    dialog.open({ entityType: 'sourcing', entityId: 'e1' });
-    document.getElementById('share-label-input').value = 'Marketing';
+    dialog.open({ entityType: 'sourcing', entityId: 'e1', entityName: 'Liste A' });
+    document.getElementById('share-label-input').value = 'Agentur';
     await dialog.submit();
 
-    await vi.waitFor(() => {
-      expect(document.querySelector('[data-mail]')).not.toBeNull();
-    });
-
-    document.querySelector('[data-mail]').click();
-    expect(window.toastSystem.warning).toHaveBeenCalled();
-    expect(window.prompt).not.toHaveBeenCalled();
-    expect(window.supabase.functions.invoke).toHaveBeenCalledTimes(1);
-
-    pressEnter(typeEmail('team@kunde.de'));
-    await dialog.resend('s1');
-
-    expect(window.prompt).not.toHaveBeenCalled();
-    expect(window.supabase.functions.invoke).toHaveBeenCalledWith('share-list', {
-      body: expect.objectContaining({
-        action: 'resend',
-        shareId: 's1',
-        emails: ['team@kunde.de'],
-        code: '654321',
-      }),
-    });
+    const zeile = document.querySelector('[data-share-id="s7"]');
+    expect(zeile.querySelector('.share-recipient-email').textContent).toBe('Agentur');
+    expect(zeile.querySelector('.share-code-value').textContent).toBe('445566');
+    expect(zeile.querySelector('[data-copy-link]').dataset.copyLink).toBe(`${window.location.origin}/share/tok123`);
+    expect(document.querySelectorAll('.share-code-value')).toHaveLength(1);
+    expect(document.getElementById('share-zugaenge-anzahl').textContent).toBe('1');
+    expect(document.getElementById('share-label-input').value).toMatch(/^Gast-Zugang/);
   });
 
   it('zeigt den Code auch, wenn der Zugang angelegt wurde, die Mail aber scheiterte (502)', async () => {

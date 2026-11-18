@@ -7,7 +7,7 @@ import { fetchAllRows } from '../../core/fetchAllRows.js';
 import { budgetOrNull } from './produktionsbudget.js';
 import { AUTOMATIK_PRODUKTION_NAME, geistProduktionName, lineNames } from './produktionNames.js';
 import { castingPresetFromBriefing } from './castingPresetFromBriefing.js';
-import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN, wendePresetAn } from '../creator-auswahl/sourcingSpaltenPreset.js';
+import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN } from '../creator-auswahl/sourcingSpaltenPreset.js';
 import { addBriefingProdukte } from '../briefing/BriefingProdukte.js';
 
 export function scopeByProduktion(query, produktionId) {
@@ -450,7 +450,7 @@ async function zeileFuerLinie(table, briefingId, produktionId, columns) {
 /**
  * Finalisiertes Briefing: eine Linie mit einem Casting und einem Konzept.
  * Fehlende Kinder werden nachgelegt, vorhandene nicht verdoppelt.
- * Listenwerte kommen aus dem Briefing und überschreiben nur das Casting dieser Linie.
+ * Listenwerte kommen aus dem Briefing, nur wenn das Casting der Linie neu entsteht.
  * Der Produktionsname wird nur beim ersten Finalisieren der ersten Linie übernommen.
  */
 export async function ensureBriefingLine({ briefing, kampagneId, produktId, produktionId = null }) {
@@ -507,7 +507,7 @@ export async function ensureBriefingLine({ briefing, kampagneId, produktId, prod
 }
 
 async function syncCasting(produktionId, briefing, kampagneId, names, preset) {
-  const liste = await zeileFuerLinie('creator_auswahl', briefing.id, produktionId, 'id, hidden_columns, strategie_id');
+  const liste = await zeileFuerLinie('creator_auswahl', briefing.id, produktionId, 'id');
 
   if (!liste) {
     const { error } = await window.supabase
@@ -530,18 +530,10 @@ async function syncCasting(produktionId, briefing, kampagneId, names, preset) {
     return;
   }
 
+  // Listenwerte (Typ, Plattformen, Formate, TKP, Spalten) setzt nur das erste Anlegen.
   const { error } = await window.supabase
     .from('creator_auswahl')
-    .update({
-      name: names.casting,
-      briefing_id: briefing.id,
-      produktion_id: produktionId,
-      liste_typ: preset.liste_typ,
-      plattformen: preset.plattformen,
-      ig_formate: preset.ig_formate,
-      tkp: preset.tkp,
-      hidden_columns: wendePresetAn(liste.hidden_columns || [], preset)
-    })
+    .update({ name: names.casting, briefing_id: briefing.id, produktion_id: produktionId })
     .eq('id', liste.id);
   if (error) throw error;
 }

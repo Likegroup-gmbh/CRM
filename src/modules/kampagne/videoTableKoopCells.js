@@ -5,6 +5,9 @@ import { getCachedCreatorUploadStatus } from './CreatorUploadActions.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml } from './videoTableFieldCells.js';
 import { darfRezensionSchreiben } from '../creator/rezension.js';
+import { renderTableAvatar, renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
+import { renderTableSelect } from '../../core/components/TableSelect.js';
 const INSTAGRAM_ICON = `${icon('instagram')}`;
 const TIKTOK_ICON = `${icon('tiktok')}`;
 
@@ -12,29 +15,30 @@ const TIKTOK_ICON = `${icon('tiktok')}`;
 export const COPY_ICON = `${icon('squares-2x2')}`;
 export const CHECK_ICON = `${icon('check')}`;
 
-function renderCreatorAvatar(creator, rawName) {
-  const source = creator.profilbild_thumb_url || creator.profilbild_url;
-  const safeUrl = source ? (window.validatorSystem?.sanitizeUrl(source) ?? source) : null;
-  if (safeUrl) {
-    return `<img src="${escapeHtml(safeUrl).replace(/"/g, '&quot;')}" alt="${escapeHtml(rawName).replace(/"/g, '&quot;')}" class="table-avatar table-avatar-img koop-creator-avatar" loading="lazy" />`;
-  }
-  const initial = (creator.vorname || rawName || '?').trim().charAt(0).toUpperCase() || '?';
-  return `<span class="table-avatar koop-creator-avatar">${escapeHtml(initial)}</span>`;
-}
-
 export function renderCreatorInner(ctx) {
   const creator = ctx.creator;
   const rawName = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt';
   const name = escapeHtml(rawName);
+  const href = `/creator/${creator.id}`;
   const nameHtml = ctx.canViewCreator && creator.id
-    ? `<a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" class="table-link">${name}</a>`
+    ? renderVerknuepfungPill({
+      kind: 'creator',
+      label: rawName,
+      href,
+      attrs: `onclick="event.preventDefault(); window.navigateTo('${href}')"`
+    })
     : name;
   const socials = (creator.instagram || creator.tiktok) ? `<div class="creator-social-links">
       ${creator.instagram ? `<a href="${creator.instagram.startsWith('http') ? escapeHtml(creator.instagram) : `https://instagram.com/${encodeURIComponent(creator.instagram.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${escapeHtml(creator.instagram)}">${INSTAGRAM_ICON}</a>` : ''}
       ${creator.tiktok ? `<a href="${creator.tiktok.startsWith('http') ? escapeHtml(creator.tiktok) : `https://tiktok.com/@${encodeURIComponent(creator.tiktok.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${escapeHtml(creator.tiktok)}">${TIKTOK_ICON}</a>` : ''}
     </div>` : '';
-  const avatar = creator.id ? renderCreatorAvatar(creator, rawName) : '';
-  return `<div class="koop-creator-cell">${avatar}<div class="koop-creator-text">${nameHtml}${socials}</div></div>`;
+  return renderTableIdentity({
+    avatarHtml: creator.id
+      ? renderTableAvatar({ url: creator.profilbild_thumb_url || creator.profilbild_url, name: creator.vorname || rawName })
+      : '',
+    nameHtml,
+    subHtml: socials
+  });
 }
 
 export function renderTagsInner(koop) {
@@ -46,9 +50,13 @@ export function renderTagsInner(koop) {
 export function renderProduktInner(_ctx, video) {
   const produkt = video?.strategie_item?.produkt;
   if (!produkt?.id) return '<span class="strategie-cell-muted">–</span>';
-  const label = escapeHtml((produkt.name || '').trim() || 'Unbekannt');
   const href = `/produkt/${produkt.id}`;
-  return `<a href="${href}" class="table-link creator-cell-link" onclick="event.preventDefault(); window.navigateTo('${href}')">${label}</a>`;
+  return renderVerknuepfungPill({
+    kind: 'produkt',
+    labelHtml: escapeHtml((produkt.name || '').trim() || 'Unbekannt'),
+    href,
+    attrs: `onclick="event.preventDefault(); window.navigateTo('${href}')"`
+  });
 }
 
 export function renderLieferadresseInner(ctx, video) {
@@ -196,49 +204,30 @@ function renderActionStatusSubmenu(table, koop) {
     `;
 }
 
-function renderStatusBadge(koop) {
-  const statusName = koop.status_name || koop.status_ref?.name || '';
-  const statusClass = statusName ? `status-${statusName.toLowerCase().replace(/\s+/g, '-')}` : '';
+// Feldname im 'table-select-change'-Event (VideoTableEventBinder)
+export const KOOP_STATUS_FIELD = 'koop_status';
 
-  if (!statusName) {
-    return '<span class="text-muted">-</span>';
-  }
-
-  return `<span class="status-badge ${statusClass}">${escapeHtml(statusName)}</span>`;
-}
-
+/**
+ * Status-Spalte als TableSelect (wie Prio/Funnel in der Strategie-Tabelle).
+ * Ohne Edit-Recht oder ohne Optionsliste (z. B. Kunde) bleibt der Trigger
+ * stehen, ist aber nicht klickbar.
+ */
 export function renderStatusSelect(table, koop) {
   const statusOptions = table.statusOptions || [];
   const isEditable = (window.permissionSystem?.canEditField('kooperation', 'status_id') ?? false)
     && statusOptions.length > 0;
-
-  if (!isEditable) return renderStatusBadge(koop);
-
-  const currentId = koop.status_id || '';
   const statusName = koop.status_name || koop.status_ref?.name || '';
-  const statusClass = statusName ? `status-${statusName.toLowerCase().replace(/\s+/g, '-')}` : '';
-  const chevron = `<span class="status-select-chevron">${icon('chevron-down')}</span>`;
-  const checkSvg = `${icon('check-bold', { className: 'size-5' })}`;
 
-  const triggerClasses = statusName
-    ? `status-badge ${statusClass} status-select-trigger`
-    : `status-badge status-select-trigger status-no-value`;
-  const triggerLabel = statusName ? escapeHtml(statusName) : '<span class="text-muted">–</span>';
-
-  return `<div class="status-select-wrapper" data-kooperation-id="${koop.id}">
-      <span class="${triggerClasses}" role="button">${triggerLabel} ${chevron}</span>
-      <div class="status-dropdown">
-        <a href="#" class="status-dropdown-item ${!currentId ? 'is-active' : ''}" data-value="">
-          <span>– kein Status –</span>
-          ${!currentId ? `<span class="submenu-check">${checkSvg}</span>` : ''}
-        </a>
-        ${statusOptions.map(opt => {
-          const isActive = opt.id === currentId;
-          return `<a href="#" class="status-dropdown-item ${isActive ? 'is-active' : ''}" data-value="${opt.id}">
-            <span>${escapeHtml(opt.name)}</span>
-            ${isActive ? `<span class="submenu-check">${checkSvg}</span>` : ''}
-          </a>`;
-        }).join('')}
-      </div>
-    </div>`;
+  // Ohne Status null: matcht keine Option und zeigt den Platzhalter
+  return renderTableSelect({
+    field: KOOP_STATUS_FIELD,
+    itemId: koop.id,
+    value: koop.status_id || null,
+    options: [
+      { value: '', label: '– kein Status –' },
+      ...statusOptions.map(opt => ({ value: opt.id, label: opt.name }))
+    ],
+    placeholder: statusName || '–',
+    disabled: !isEditable
+  });
 }

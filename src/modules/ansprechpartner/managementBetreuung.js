@@ -7,6 +7,7 @@ import { renderEmptyState, renderSectionHeader } from '../../core/components/Emp
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { PhoneNumberField } from '../../core/form/fields/PhoneNumberField.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 
 function text(value) {
   return String(value ?? '')
@@ -53,10 +54,6 @@ export function renderManagementBetreuung({ people, creators, links }) {
   const creatorIds = new Set(options.map((option) => option.value));
   const rows = people.map((person) => {
     const name = personName(person) || 'Ansprechpartner';
-    const initial = text((person.vorname || name || '?')[0].toUpperCase());
-    const avatar = person.profile_image_url
-      ? `<img src="${text(person.profile_image_url)}" class="table-avatar table-avatar-img" width="24" height="24" alt="" />`
-      : `<span class="table-avatar">${initial}</span>`;
     const mail = person.email
       ? `<a href="mailto:${text(person.email)}" class="info-mailto-link">${text(person.email)}</a>`
       : '<span class="betreuung-creator-empty">–</span>';
@@ -82,9 +79,12 @@ export function renderManagementBetreuung({ people, creators, links }) {
 
     return `
       <tr>
-        <td class="col-name-with-icon">
-          ${avatar}
-          <a href="#" class="table-link" data-table="ansprechpartner" data-id="${text(person.id)}">${text(name)}</a>
+        <td class="col-name">
+          ${renderTableIdentity({
+            url: person.profile_image_url,
+            name: person.vorname || name,
+            nameHtml: `<a href="#" class="table-link" data-table="ansprechpartner" data-id="${text(person.id)}">${text(name)}</a>`
+          })}
         </td>
         <td>${mail}</td>
         <td class="ap-col-nowrap">${phone}</td>

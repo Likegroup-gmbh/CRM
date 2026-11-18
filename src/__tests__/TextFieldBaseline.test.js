@@ -256,8 +256,7 @@ describe('Kampagnen-Tabelle speichert Caption nur nach einer Änderung', () => {
       initAutoResizeTextareas() {},
       bindResizeEvents() {},
       bindDragToScroll() {},
-      columnDragHandler: { bind() {} },
-      _closeStatusPortal() {}
+      columnDragHandler: { bind() {} }
     };
     new VideoTableEventBinder(table).bind();
 

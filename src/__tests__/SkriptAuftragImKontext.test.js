@@ -86,12 +86,19 @@ describe('Kernidee und Abgrenzung im Kontext', () => {
     expect(text).toContain('<user_vorgabe>\nLeber nach dem Wochenende\n</user_vorgabe>');
   });
 
-  it('Umsetzungsideen sind fuer Skripte Abgrenzung, sonst das alte Label', () => {
+  it('Umsetzungsideen sind fuer Skripte andere Videos des Konzepts, verbindlich getrennt von Inspiration', () => {
     const briefing = {
-      bereich: 'paid_creator_ads', aktivierung_name: 'Leber', aufgabe: 'Leber im Alltag', umsetzungsideen: ['Video A: Etiketten-Check']
+      bereich: 'paid_creator_ads', aktivierung_name: 'Leber', aufgabe: 'Leber im Alltag',
+      umsetzungsideen_eintraege: [{ text: 'Video A: Etiketten-Check', verbindlich: true }, { text: 'Morgenroutine', verbindlich: false }]
     };
-    expect(fmtCampaignBriefing(briefing, { fuerSkript: true })).toContain('Andere Videos des Konzepts (Abgrenzung');
-    expect(fmtCampaignBriefing(briefing)).toContain('Vorhandene Umsetzungsideen');
+    const skript = fmtCampaignBriefing(briefing, { fuerSkript: true });
+    expect(skript).toContain('Verbindliche Ideen des Kunden (jede ist eine eigene Videoidee des Konzepts');
+    expect(skript).toContain('Inspiration des Kunden (andere Videos des Konzepts');
+    expect(skript.indexOf('Etiketten-Check')).toBeLessThan(skript.indexOf('Morgenroutine'));
+    expect(fmtCampaignBriefing(briefing)).toContain('Umsetzungsideen - verbindlich');
+
+    const alt = { ...briefing, umsetzungsideen_eintraege: null, umsetzungsideen: ['Video A: Etiketten-Check'] };
+    expect(fmtCampaignBriefing(alt)).toContain('Umsetzungsideen - Inspiration');
   });
 });
 

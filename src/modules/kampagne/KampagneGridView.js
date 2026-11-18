@@ -17,6 +17,7 @@ import { shouldHideCompleted } from './kampagneListPrefs.js';
 import { loadKampagnenWithRelations } from './KampagneListDataLoader.js';
 import { renderTableWrapper, updateTable } from './KampagneListRenderers.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
 const BASE_PATH = '/kampagne';
 const GRID_SELECT = `
@@ -170,9 +171,7 @@ function countLabel(count) {
 }
 
 function folderIconHtml(folder, name) {
-  return folder.logo_url
-    ? `<img src="${sanitize(folder.logo_url)}" alt="${sanitize(name)}" class="folder-logo">`
-    : `${icon('folder-open')}`;
+  return renderFolderAvatar({ url: folder.logo_url, name });
 }
 
 function folderCard(folder, { name, extraAttrs = '' }) {

@@ -3,9 +3,7 @@
 //
 // Gespeichert wird sie als column_order auf der Liste: ein Array aus
 // "cp-col-…" und "custom:{uuid}". Null oder leer heisst Standardreihenfolge.
-// Drag, Name und Aktionen stehen nicht in dem Array – die bleiben fest.
-// Bild bleibt nur dann in der linken Sticky-Gruppe, wenn es weiter die erste
-// bewegliche Spalte ist. Sonst scrollt es mit.
+// Drag, Name (mit Profilbild) und Aktionen stehen nicht in dem Array – die bleiben fest.
 
 import {
   groupCustomColumnsByAnchor,
@@ -35,14 +33,20 @@ export function standardBeweglicheSpalten() {
 }
 
 /**
- * Anker fuer die flache Folge. Bild ist dabei, damit eine eigene Spalte
- * direkt hinter dem Bild (und damit hinter dem fixierten Namen) liegen kann.
- * Der Griff im Tabellenkopf nimmt Bild weiter nicht an – dort wuerde eine
- * Spalte in die Sticky-Gruppe rutschen.
+ * Anker vor der ersten beweglichen Spalte, also direkt hinter dem fixierten
+ * Namen. cp-col-bild stammt aus der Zeit, als das Profilbild eine eigene
+ * Spalte war; gespeicherte Eintraege nennen es noch.
+ */
+const VORNE_ANKER = ['cp-col-name', 'cp-col-bild'];
+
+/**
+ * Anker fuer die flache Folge. Die vorderen Anker sind dabei, damit eine
+ * eigene Spalte direkt hinter dem Namen liegen kann. Der Griff im Tabellenkopf
+ * nimmt sie weiter nicht an – dort wuerde eine Spalte in die Sticky-Gruppe rutschen.
  */
 export function sourcingOrderAnchors() {
   return [
-    'cp-col-bild',
+    ...VORNE_ANKER,
     ...SOURCING_ANKER_SPALTEN.filter(col => !DEAKTIVIERTE_SPALTEN.includes(col))
   ];
 }
@@ -51,6 +55,9 @@ export function sourcingOrderAnchors() {
 export function fuegeEigeneSpaltenEin(standards, customColumns) {
   const grouped = groupCustomColumnsByAnchor(customColumns || [], sourcingOrderAnchors());
   const out = [];
+  for (const anker of VORNE_ANKER) {
+    for (const col of grouped.byAnchor.get(anker) || []) out.push(makeCustomColumnId(col.id));
+  }
   for (const std of standards) {
     out.push(std);
     for (const col of grouped.byAnchor.get(std) || []) {
@@ -122,25 +129,17 @@ export function baueBeweglicheSpalten({ columnOrder = null, customColumns = [] }
   return fuegeFehlendeEin(gespeichert, fehlend, vorlage);
 }
 
-/**
- * Volle Tabellenreihenfolge inklusive der festen Spalten.
- * Bild steht nur dann zwischen Drag und Name, wenn es die erste bewegliche
- * Spalte ist. Sonst rueckt der Name nach und Bild scrollt mit den anderen.
- */
+/** Volle Tabellenreihenfolge inklusive der festen Spalten. */
 export function baueSourcingSpaltenfolge({
   columnOrder = null,
   customColumns = [],
   includeDrag = true,
   includeActions = true
 } = {}) {
-  const beweglich = baueBeweglicheSpalten({ columnOrder, customColumns });
-  const bildVorne = beweglich[0] === 'cp-col-bild';
-  const scroll = bildVorne ? beweglich.slice(1) : beweglich;
   const folge = [];
   if (includeDrag) folge.push('cp-col-drag');
-  if (bildVorne) folge.push('cp-col-bild');
   folge.push('cp-col-name');
-  folge.push(...scroll);
+  folge.push(...baueBeweglicheSpalten({ columnOrder, customColumns }));
   if (includeActions) folge.push(FEST_RECHTS);
   return folge;
 }
@@ -171,7 +170,7 @@ export function ersetzeEigeneSpalten(folge, customColumns) {
 export function ankerEintraegeAusFolge(folge) {
   const anchors = new Set(sourcingOrderAnchors());
   const entries = [];
-  let lastAnchor = null;
+  let lastAnchor = VORNE_ANKER[0];
   for (const id of folge || []) {
     if (!isCustomColumnId(id)) {
       if (anchors.has(id)) lastAnchor = id;

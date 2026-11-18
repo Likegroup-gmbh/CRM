@@ -2,6 +2,7 @@
 // Wiederverwendbare Tabellen-Ausgabe für Creator
 import { creatorUtils } from './CreatorUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 
 function renderTags(items, tagClass) {
   if (!items || !items.length) return '-';
@@ -39,19 +40,16 @@ export function renderCreatorNameCell(creator) {
   if (!name) return '<td>-</td>';
 
   const safeName = window.validatorSystem?.sanitizeHtml(name) || escapeAttr(name);
-  const avatarSource = creator.profilbild_thumb_url || creator.profilbild_url;
-  const safeAvatarUrl = avatarSource ? (window.validatorSystem?.sanitizeUrl(avatarSource) || null) : null;
-  const initial = (creator.vorname || name || '?')[0].toUpperCase();
-  const avatarHtml = safeAvatarUrl
-    ? `<img src="${safeAvatarUrl}" alt="${escapeAttr(name)}" class="table-avatar table-avatar-img" loading="lazy" />`
-    : `<span class="table-avatar">${escapeAttr(initial)}</span>`;
-
   const id = creator.id;
   const nameHtml = id && canViewCreatorLink()
     ? `<a href="#" class="table-link" data-table="creator" data-id="${escapeAttr(id)}">${safeName}</a>`
     : safeName;
 
-  return `<td class="col-name-with-icon">${avatarHtml}${nameHtml}</td>`;
+  return `<td class="col-name">${renderTableIdentity({
+    url: creator.profilbild_thumb_url || creator.profilbild_url,
+    name: creator.vorname || name,
+    nameHtml
+  })}</td>`;
 }
 
 export function renderCreatorTable(creators, options = {}) {
@@ -72,13 +70,6 @@ export function renderCreatorTable(creators, options = {}) {
     const ttFollower = creatorUtils.formatFollowerRange(c.tiktok_follower);
     const stadt = c.lieferadresse_stadt || '-';
     const land = c.lieferadresse_land || '-';
-
-    // Kleiner Tabellen-Avatar: 128px-Thumb reicht, Fallback fuer Altbestand
-    const avatarSource = c.profilbild_thumb_url || c.profilbild_url;
-    const safeAvatarUrl = avatarSource ? window.validatorSystem?.sanitizeUrl(avatarSource) : null;
-    const avatarHtml = safeAvatarUrl
-      ? `<img src="${safeAvatarUrl}" alt="${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}" class="table-avatar table-avatar-img" loading="lazy" />`
-      : `<span class="table-avatar">${(c.vorname || '?')[0].toUpperCase()}</span>`;
 
     const actionsCell = canShowActions && showRemoveAction
       ? `
@@ -137,9 +128,13 @@ export function renderCreatorTable(creators, options = {}) {
     return `
       <tr data-id="${id || ''}">
         ${showSelection ? `<td><input type=\"checkbox\" class=\"creator-check\" data-id=\"${id}\"></td>` : ''}
-        <td class="col-name-with-icon">
-          ${avatarHtml}
-          ${id && canViewCreator ? `<a href="#" class="table-link" data-table="creator" data-id="${id}">${name}</a>` : name}
+        <td class="col-name">
+          ${renderTableIdentity({
+            // Kleiner Tabellen-Avatar: 128px-Thumb reicht, Fallback fuer Altbestand
+            url: c.profilbild_thumb_url || c.profilbild_url,
+            name: c.vorname || name,
+            nameHtml: id && canViewCreator ? `<a href="#" class="table-link" data-table="creator" data-id="${id}">${name}</a>` : name
+          })}
         </td>
         <td>${typen}</td>
         <td>${sprachen}</td>

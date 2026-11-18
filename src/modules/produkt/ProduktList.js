@@ -10,6 +10,7 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { replaceRoute } from '../../core/breadcrumbTrail.js';
 import { ProduktFilterLogic } from './filters/ProduktFilterLogic.js';
 import {
@@ -61,7 +62,7 @@ export class ProduktList extends BasePaginatedList {
       sortAscending: true,
       paginationContainerId: 'pagination-produkt',
       tbodySelector: '.data-table tbody',
-      tableColspan: 12,
+      tableColspan: 11,
       checkboxClass: 'produkt-check',
       selectAllId: 'select-all-produkte'
     });
@@ -598,7 +599,6 @@ export class ProduktList extends BasePaginatedList {
   renderSingleRow(produkt, options = {}) {
     const showCheckbox = options.checkbox !== false && this.canBulkDelete;
     const sanitize = this.sanitize.bind(this);
-    const thumb = this.renderThumb(produkt);
     const marken = this.renderMarken(produkt);
     const variantenAnzahl = (produkt.varianten || []).length;
     const verknuepfungen = this.verknuepfungenFuerLinie(produkt);
@@ -606,11 +606,12 @@ export class ProduktList extends BasePaginatedList {
     return `
       <tr data-id="${produkt.id}" data-unternehmen-id="${produkt.unternehmen_id || ''}">
         ${showCheckbox ? `<td class="col-checkbox"><input type="checkbox" class="produkt-check" data-id="${produkt.id}"></td>` : ''}
-        <td class="col-thumb">${thumb}</td>
-        <td class="col-name col-name-with-icon">
-          <a href="#" class="table-link produkt-row-open" data-produkt-id="${produkt.id}" data-unternehmen-id="${produkt.unternehmen_id || ''}">
-            ${sanitize(produkt.name || '')}
-          </a>
+        <td class="col-name">
+          ${renderTableIdentity({
+            url: ProduktService.publicUrl(ProduktService.hauptbild(produkt)?.storage_pfad),
+            name: produkt.name,
+            nameHtml: `<a href="#" class="table-link produkt-row-open" data-produkt-id="${produkt.id}" data-unternehmen-id="${produkt.unternehmen_id || ''}">${sanitize(produkt.name || '')}</a>`
+          })}
         </td>
         <td>${this.renderUnternehmen(produkt.unternehmen)}</td>
         <td>${marken}</td>
@@ -650,15 +651,6 @@ export class ProduktList extends BasePaginatedList {
       briefings: eigene.briefings.filter(b => b.id === briefingId),
       skripte: skriptLinks((produkt.skripte || []).filter(s => s?.briefing_id === briefingId))
     };
-  }
-
-  renderThumb(produkt) {
-    const bild = ProduktService.hauptbild(produkt);
-    const url = bild ? ProduktService.publicUrl(bild.storage_pfad) : null;
-    if (!url) {
-      return `<span class="table-avatar">${(produkt.name || '?')[0].toUpperCase()}</span>`;
-    }
-    return `<img src="${this.sanitize(url)}" class="table-logo" width="24" height="24" alt="" loading="lazy">`;
   }
 
   renderMarken(produkt) {
@@ -719,7 +711,6 @@ export class ProduktList extends BasePaginatedList {
           <thead>
             <tr>
               ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-produkte"></th>` : ''}
-              <th>Bild</th>
               <th class="col-name">Produkt</th>
               <th>Unternehmen</th>
               <th>Marken</th>
@@ -734,7 +725,7 @@ export class ProduktList extends BasePaginatedList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="${canBulkDelete ? '12' : '11'}" class="no-data">Lade Produkte...</td>
+              <td colspan="${canBulkDelete ? '11' : '10'}" class="no-data">Lade Produkte...</td>
             </tr>
           </tbody>
         </table>

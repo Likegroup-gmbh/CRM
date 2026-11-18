@@ -4,21 +4,17 @@
 // Prototype-Extension angehangen (RenderShell, FormEvents, DataPersistence).
 // Struktur 1:1 wie src/modules/vertrag/create/.
 
-import { loadProdukteForBriefing } from '../BriefingProdukte.js';
 import { OHNE_QUERY } from '../BriefingFolders.js';
 
 export class BriefingCreate {
   constructor() {
-    this.currentStep = 1;      // 1 = Typ-Auswahl, 2..n = Content-Steps
+    this.currentStep = 1;
     this.selectedBereich = null;
     this.formData = {};
     this.unternehmen = [];
     this.marken = [];
     this.kampagnen = [];
-    this.benutzer = [];
-    this.produkte = [];
     this._linieGesperrt = false;
-    this.isGenerated = false;
     this.editId = null;
     this._isRendering = false;
     this._isInitializing = false;
@@ -67,7 +63,7 @@ BriefingCreate.prototype.init = async function(editId = null) {
     await this.resolveProduktionKontext();
     this.formData.videolaenge = { von: 15, bis: 20 };
     await this.applyEinreichung?.();
-    await this.refreshProdukte();
+    await this.vorbelegeKontextProdukt?.();
     if (!String(this.formData.aktivierung_name || '').trim()) {
       const name = this.resolveBriefingName();
       if (name) this.formData.aktivierung_name = name;
@@ -150,12 +146,6 @@ BriefingCreate.prototype.loadStammdaten = async function() {
       .order('markenname');
     this.marken = marken || [];
 
-    const { data: benutzer } = await window.supabase
-      .from('benutzer')
-      .select('id, name')
-      .order('name');
-    this.benutzer = benutzer || [];
-
     const { data: kampagnen } = await window.supabase
       .from('kampagne')
       .select('id, kampagnenname, eigener_name, unternehmen_id, marke_id')
@@ -167,21 +157,8 @@ BriefingCreate.prototype.loadStammdaten = async function() {
       unternehmen_id: k.unternehmen_id,
       marke_id: k.marke_id
     }));
-    await this.refreshProdukte();
   } catch (error) {
     console.error('Fehler beim Laden der Stammdaten:', error);
-  }
-};
-
-BriefingCreate.prototype.refreshProdukte = async function() {
-  try {
-    this.produkte = await loadProdukteForBriefing(
-      this.formData.unternehmen_id,
-      this.formData.marke_id
-    );
-  } catch (error) {
-    console.error('Fehler beim Laden der Produkte:', error);
-    this.produkte = [];
   }
 };
 
@@ -189,7 +166,6 @@ BriefingCreate.prototype.resetForm = function() {
   this.currentStep = 1;
   this.selectedBereich = null;
   this.formData = {};
-  this.isGenerated = false;
   this.editId = null;
   this._linieGesperrt = false;
   this._produktionKontext = null;

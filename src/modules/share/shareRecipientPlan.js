@@ -3,7 +3,7 @@
 
 import { escapeHtml } from '../../core/format.js';
 
-export const LIST_LINK_TEXT = 'Listen-Link per Mail';
+export const LIST_LINK_TEXT = 'Link ins Konto per Mail, ohne Code';
 export const GUEST_TEXT = 'Gast-Zugang mit Link und Code';
 
 export const BLOCKED_TEXT = {
@@ -44,4 +44,30 @@ export function renderRecipientPlan(el, plan) {
   el.innerHTML = recipientPlanRows(plan).map((row) => `
     <p class="share-plan-row"><span class="share-plan-email">${escapeHtml(row.email)}</span> ${escapeHtml(row.text)}</p>
   `).join('');
+}
+
+/** Eine Gruppe je Versandart; gesperrte Adressen nach Grund. Leere Gruppen fallen weg. */
+export function recipientPlanGroups(plan) {
+  if (!plan) return [];
+  const gesperrt = new Map();
+  for (const row of plan.blocked) {
+    const text = BLOCKED_TEXT[row.reason] || BLOCKED_TEXT.scope;
+    gesperrt.set(text, [...(gesperrt.get(text) || []), row.email]);
+  }
+  return [
+    { art: 'konto', text: LIST_LINK_TEXT, emails: plan.listLink },
+    { art: 'gast', text: GUEST_TEXT, emails: plan.guest },
+    ...[...gesperrt].map(([text, emails]) => ({ art: 'gesperrt', text, emails })),
+  ].filter((gruppe) => gruppe.emails.length);
+}
+
+export function renderRecipientPlanGrouped(el, plan) {
+  if (!el) return;
+  el.innerHTML = recipientPlanGroups(plan).map(({ art, text, emails }) => {
+    const adressen = `<span class="share-plan-email">${escapeHtml(emails.join(', '))}</span>`;
+    const inhalt = art === 'gesperrt'
+      ? `${adressen}: ${escapeHtml(text)}`
+      : `${escapeHtml(text)}: ${adressen}`;
+    return `<p class="share-plan-row share-plan-row--${art}">${inhalt}</p>`;
+  }).join('');
 }

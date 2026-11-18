@@ -31,11 +31,11 @@ beforeEach(() => {
 });
 
 describe('Konzepte-Tabelle: Creator-Profilbild und Name', () => {
-  it('stellt Profilbild und Name direkt hinter die Verschieben-Spalte', () => {
+  it('stellt die Creator-Spalte mit Profilbild direkt hinter die Verschieben-Spalte', () => {
     const zeile = renderRow(eintrag());
     const zellen = erste([...zeile.querySelectorAll('tr.item-row > td')]);
     const drag = zellen.indexOf('col-drag');
-    expect(zellen.slice(drag, drag + 4)).toEqual(['col-drag', 'col-creator-bild', 'col-creator', 'col-image']);
+    expect(zellen.slice(drag, drag + 3)).toEqual(['col-drag', 'col-creator', 'col-image']);
 
     const tabelle = new DOMParser().parseFromString(
       renderItemsTable(detailStub({ items: [{ id: 'i1', teilbereich: 'A' }] })),
@@ -43,10 +43,10 @@ describe('Konzepte-Tabelle: Creator-Profilbild und Name', () => {
     );
     const kopf = erste([...tabelle.querySelectorAll('thead th')]);
     const kopfDrag = kopf.indexOf('col-drag');
-    expect(kopf.slice(kopfDrag, kopfDrag + 4)).toEqual(['col-drag', 'col-creator-bild', 'col-creator', 'col-image']);
+    expect(kopf.slice(kopfDrag, kopfDrag + 3)).toEqual(['col-drag', 'col-creator', 'col-image']);
   });
 
-  it('zaehlt den colspan der Gruppenzeile inklusive Bildspalte', () => {
+  it('zaehlt den colspan der Gruppenzeile passend zu den Spaltenkoepfen', () => {
     const tabelle = new DOMParser().parseFromString(
       renderItemsTable(detailStub({ items: [{ id: 'i1', teilbereich: 'A' }] })),
       'text/html'
@@ -60,7 +60,7 @@ describe('Konzepte-Tabelle: Creator-Profilbild und Name', () => {
       profile_image_url: 'https://cdn/gross.avif',
       profile_image_thumb_url: 'https://cdn/thumb.avif'
     }));
-    const img = doc.querySelector('td.col-creator-bild img.table-avatar--sourcing');
+    const img = doc.querySelector('td.col-creator .table-identity__media img.table-avatar-img');
     expect(img.getAttribute('src')).toBe('https://cdn/thumb.avif');
   });
 
@@ -68,18 +68,18 @@ describe('Konzepte-Tabelle: Creator-Profilbild und Name', () => {
     const doc = renderRow(eintrag({
       creator: { id: 'c1', vorname: 'Mia', nachname: 'Muster', profilbild_url: 'https://cdn/crm.avif' }
     }));
-    expect(doc.querySelector('td.col-creator-bild img').getAttribute('src')).toBe('https://cdn/crm.avif');
+    expect(doc.querySelector('td.col-creator img.table-avatar').getAttribute('src')).toBe('https://cdn/crm.avif');
   });
 
   it('zeigt ohne Bild den Initial des Namens', () => {
     const doc = renderRow(eintrag());
-    expect(doc.querySelector('td.col-creator-bild span.table-avatar').textContent.trim()).toBe('M');
+    expect(doc.querySelector('td.col-creator span.table-avatar').textContent.trim()).toBe('M');
   });
 
-  it('laesst die Bildzelle ohne Zuordnung leer', () => {
+  it('zeigt ohne Zuordnung kein Bild, nur den Verknuepfen-Button', () => {
     const doc = renderRow({});
-    expect(doc.querySelector('td.col-creator-bild')).not.toBeNull();
-    expect(doc.querySelector('td.col-creator-bild .table-avatar')).toBeNull();
+    expect(doc.querySelector('td.col-creator .table-avatar')).toBeNull();
+    expect(doc.querySelector('td.col-creator .table-identity__text .creator-connect-btn')).not.toBeNull();
   });
 
   it('zeigt leere Creator- und Produkt-Zellen als Verknuepfen-Button mit Text', () => {
@@ -117,7 +117,7 @@ describe('Konzepte-Tabelle: Creator-Profilbild und Name', () => {
 
   it('blendet das Bild zusammen mit der Creator-Spalte aus', () => {
     const doc = renderRow(eintrag(), { hiddenColumns: ['fixed:creator'] });
-    expect(doc.querySelector('td.col-creator-bild')).toBeNull();
     expect(doc.querySelector('td.col-creator')).toBeNull();
+    expect(doc.querySelector('.table-avatar')).toBeNull();
   });
 });

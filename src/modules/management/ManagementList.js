@@ -9,6 +9,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { ManagementConnect } from './ManagementConnect.js';
 
 export class ManagementList extends BasePaginatedList {
@@ -116,13 +117,13 @@ export class ManagementList extends BasePaginatedList {
     return `
       <tr data-id="${m.id}">
         ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="management-check" data-id="${m.id}"></td>` : ''}
-        <td class="col-name col-name-with-icon">
-          ${m.logo_url
-            ? `<img src="${m.logo_url}" class="table-logo" width="24" height="24" alt="" />`
-            : `<span class="table-avatar">${(m.firmenname || '?')[0].toUpperCase()}</span>`}
-          <a href="#" class="table-link" data-table="management" data-id="${m.id}">
-            ${sanitize(m.firmenname || '')}
-          </a>
+        <td class="col-name">
+          ${renderTableIdentity({
+            url: m.logo_url,
+            logo: true,
+            name: m.firmenname,
+            nameHtml: `<a href="#" class="table-link" data-table="management" data-id="${m.id}">${sanitize(m.firmenname || '')}</a>`
+          })}
         </td>
         <td class="col-stadt">${sanitize(m.stadt || '-')}</td>
         <td>${sanitize(m.land || '-')}</td>

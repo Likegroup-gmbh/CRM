@@ -67,7 +67,8 @@ export class CreatorListDetail {
       parentType: 'masterliste',
       parentTable: 'creator_list',
       anchorColumns: ANCHOR_COLUMNS,
-      anchorLabels: ANCHOR_LABELS
+      anchorLabels: ANCHOR_LABELS,
+      anchorAliases: { 'ml-col-bild': 'ml-col-ig' }
     });
   }
 

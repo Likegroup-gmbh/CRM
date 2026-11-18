@@ -1,8 +1,8 @@
 // VideoBrowser.js
 // Controller des Videos-Tabs (Produktion → Videos): Spaltenbrowser mit vier Ebenen
 // (Kooperation → Video/Story → Ordner → Datei), Pfadleiste, Detailbereich, Upload-Zone,
-// Kommentare mit Timecode. Zweite Darstellung: Showcase (Grid der Finalen Versionen, videoBrowserShowcase.js),
-// umschaltbar über "Ordner | Showcase" oben im Tab.
+// Kommentare mit Timecode. Weitere Darstellungen: Showcase (Grid der Finalen Versionen) und Kalender
+// (Posting-Daten), umschaltbar über "Ordner | Showcase | Kalender" oben im Tab (videoBrowserView.js).
 //
 // Zustand: Auswahl (URL: ?k=&v=&f=&i=), Baum aus videoBrowserLogic.buildTree.
 // Rechte nur über canFeature/Features (videoTeamSicht, mediaUpload, skriptKommentieren).
@@ -21,12 +21,9 @@ import {
   buildTree,
   cssEscape,
   ersterOffenerInhalt,
-  koopGroupToSearch,
   resolveSelection,
   selectionEquals,
   selectionFromSearch,
-  selectionToSearch,
-  showcaseToSearch,
   validateSelection,
   withAutoItem
 } from './videoBrowserLogic.js';
@@ -35,7 +32,7 @@ import { finalBarHtml, headHtml, metaHtml } from './videoBrowserRenderItem.js';
 import { tabsHtml } from './videoBrowserRenderTabs.js';
 import { commentsOf } from './videoBrowserRenderComments.js';
 import { bindEvents } from './videoBrowserEvents.js';
-import { initKoopState, koopGroupParam, revealKoop, scrollSelectedKoop } from './videoBrowserKoopState.js';
+import { initKoopState, revealKoop, scrollSelectedKoop } from './videoBrowserKoopState.js';
 import { ladeFreieOrdner } from './videoBrowserAblage.js';
 import { highlightComment, syncPinTime } from './videoBrowserComments.js';
 import { syncCaptionClamp } from './videoBrowserCaption.js';
@@ -46,30 +43,22 @@ import { currentUploads, uploadChanged, uploadSettled, uploadsAdded } from './vi
 import { bindLiveUpdates } from './videoBrowserLive.js';
 import { rohZuruecksetzen } from './videoBrowserRoh.js';
 import {
-  destroyShowcase,
-  initShowcaseState,
-  mountShowcase,
-  renderShowcase,
+  destroyView,
+  initView,
+  mountView,
+  refreshView,
   setView,
-  showcaseSectionHtml,
-  showcaseToolbarHtml
-} from './videoBrowserShowcase.js';
+  syncViewUrl,
+  viewSectionsHtml,
+  viewToolbarHtml,
+  writeUrl
+} from './videoBrowserView.js';
 
 /** Spätestens dann werden die Nachbarn vorgewärmt, auch wenn das aktive Video noch lädt. */
 const WARM_GATE_MS = 4000;
 
-/**
- * Auswahl, Gruppierung der Spalte 0 und (bei offenem Showcase) dessen Einstellungen in die URL
- * spiegeln, fremde Parameter bleiben.
- */
-function syncUrl(sel, showcase = null, koopGroup = null) {
-  if (typeof window === 'undefined' || !window.history?.replaceState) return;
-  const search = koopGroupToSearch(showcaseToSearch(selectionToSearch(window.location.search, sel), showcase), koopGroup);
-  window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}${window.location.hash}`);
-}
-
 export function clearVideoBrowserUrl() {
-  syncUrl(EMPTY_SELECTION);
+  writeUrl(EMPTY_SELECTION);
 }
 
 class VideoBrowser {
@@ -142,10 +131,10 @@ class VideoBrowser {
     initKoopState(this);
     // Deep Link oder Reload: die gewählte Kooperation liegt nie in einer eingeklappten Gruppe
     revealKoop(this, this.sel.kooperationId);
-    initShowcaseState(this);
+    initView(this);
     this._buildShell();
     this.motion = createMotion(this.root);
-    mountShowcase(this);
+    mountView(this);
     this.uploader = createUploader({
       onAdded: (list) => uploadsAdded(this, list),
       onChange: (patch) => uploadChanged(this, patch),
@@ -169,7 +158,7 @@ class VideoBrowser {
     this._captionRO?.disconnect();
     clearTimeout(this._captionSavedTimer);
     clearTimeout(this._captionCopiedTimer);
-    destroyShowcase(this);
+    destroyView(this);
     this.uploader?.destroy();
     this.motion?.destroy();
     this.cleanups.forEach(fn => fn());
@@ -203,7 +192,7 @@ class VideoBrowser {
     if (!selectionEquals(before, this.sel)) this._syncUrl();
     // Dieselbe Datei bleibt stehen: nur Kopf, Leiste und Tabs werden ersetzt, der Player läuft weiter
     this._render({ restoreFocus: false, patch: true, detailAnimate });
-    if (this.view === 'showcase') renderShowcase(this);
+    refreshView(this);
   }
 
   /* ---- Gerüst ---- */
@@ -211,7 +200,7 @@ class VideoBrowser {
   _buildShell() {
     this.pane.innerHTML = `
       <div class="vb" data-vb data-vb-view="${this.view}">
-        ${showcaseToolbarHtml(this)}
+        ${viewToolbarHtml(this)}
         <nav class="vb-path" data-vb-path aria-label="Pfad"></nav>
         <div class="vb-main">
           <div class="vb-cols" data-vb-cols></div>
@@ -220,7 +209,7 @@ class VideoBrowser {
             <div class="vb-detail__inner" data-vb-detail-inner></div>
           </section>
         </div>
-        ${showcaseSectionHtml(this)}
+        ${viewSectionsHtml(this)}
       </div>`;
     this.root = this.pane.querySelector('[data-vb]');
     this.pathEl = this.root.querySelector('[data-vb-path]');
@@ -335,17 +324,18 @@ class VideoBrowser {
    */
   _syncLayout() {
     if (!this.root) return;
-    // Im Showcase sind Pfadleiste und Spalten ausgeblendet (Breite 0): nichts messen
-    if (this.view === 'showcase') {
+    // Im Showcase und im Kalender sind Pfadleiste und Spalten ausgeblendet (Breite 0): nichts messen.
+    // Im Kalender übernimmt die Liste links (nur Team) die Rolle der ersten Spalte.
+    if (this.view !== 'ordner') {
       this.root.classList.remove('vb--path');
-      this._setLinienWidth(null);
+      this._syncLinienWidth(this.view === 'kalender' ? this.kalListeEl : null);
       return;
     }
     // offsetWidth statt scrollWidth: Einblend-Animationen verschieben Spalten per transform.
     const scrolls = !!this.colsEl
       && [...this.colsEl.children].reduce((sum, col) => sum + col.offsetWidth, 0) > this.colsEl.clientWidth + 1;
     this.root.classList.toggle('vb--path', scrolls);
-    this._syncLinienWidth();
+    this._syncLinienWidth(this.colsEl?.querySelector('.vb-col'));
     this._syncKoopSegment();
   }
 
@@ -356,20 +346,19 @@ class VideoBrowser {
   }
 
   /**
-   * Linien-Dropdown der Tab-Zeile endet bündig mit der ersten Spalte: seine Trennlinie liegt auf der
-   * Spaltenkante darunter. Die Breite der Spalte ist flexibel, deshalb wird sie gemessen (CSS-Variable
-   * `--vb-linie-w` an der Tab-Zeile, genutzt in video-browser.css).
+   * Linien-Dropdown der Tab-Zeile endet bündig mit `spalte` (erste Spalte bzw. Kalender-Liste, beide am
+   * linken Rand von `.vb`): seine Trennlinie liegt auf der Spaltenkante darunter. Die Breite der Spalte ist
+   * flexibel, deshalb wird sie gemessen (CSS-Variable `--vb-linie-w` an der Tab-Zeile, video-browser.css).
    */
-  _syncLinienWidth() {
+  _syncLinienWidth(spalte) {
     const bar = this._linienBar();
     if (!bar) return;
-    const first = this.colsEl?.querySelector('.vb-col');
-    if (!first) {
+    if (!spalte) {
       this._setLinienWidth(null);
       return;
     }
     const offset = this.root.getBoundingClientRect().left - bar.getBoundingClientRect().left;
-    this._setLinienWidth(first.offsetWidth + offset);
+    this._setLinienWidth(spalte.offsetWidth + offset);
   }
 
   _linienBar() {
@@ -541,7 +530,7 @@ class VideoBrowser {
   }
 
   _syncUrl() {
-    syncUrl(this.sel, this.view === 'showcase' ? this.showcase : null, koopGroupParam(this, this._zeigeLinie()));
+    syncViewUrl(this);
   }
 
   /** Showcase → Ordner, die Auswahl springt auf die Datei ("Im Ordner öffnen", nur Team). */

@@ -7,7 +7,9 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { NUR_UNTERNEHMEN_LABEL } from './ProduktionFolders.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
 export const BACK_BUTTON_ID = 'btn-produktion-back';
 
@@ -99,17 +101,14 @@ function levelConfig(list, level) {
   };
 }
 
-function logoHtml(list, folder, { grid }) {
-  if (!folder.logo_url) return grid ? icon('folder-open') : '';
-  return grid
-    ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(folder.name)}" class="folder-logo">`
-    : `<img src="${list.sanitize(folder.logo_url)}" class="table-logo" width="24" height="24" alt="" />`;
+function gridLogoHtml(list, folder) {
+  return renderFolderAvatar({ url: folder.logo_url, name: folder.name });
 }
 
 function gridHtml(list, level, config) {
   const cards = config.folders.map((folder) => `
     <div class="folder-card" data-folder-level="${level}" data-folder-name="${list.sanitize(folder.name)}" ${folder.attrs}>
-      <div class="folder-icon">${logoHtml(list, folder, { grid: true })}</div>
+      <div class="folder-icon">${gridLogoHtml(list, folder)}</div>
       <div class="folder-info">
         <span class="folder-name">${list.sanitize(folder.name)}</span>
         <span class="folder-count">${countLabel(folder.count)}</span>
@@ -127,9 +126,13 @@ function gridHtml(list, level, config) {
 function tableHtml(list, level, config) {
   const rows = config.folders.map((folder) => `
     <tr class="table-row-clickable" data-folder-level="${level}" data-folder-name="${list.sanitize(folder.name)}" ${folder.attrs}>
-      <td>
-        ${logoHtml(list, folder, { grid: false })}
-        <a href="#" class="table-link">${list.sanitize(folder.name)}</a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: folder.logo_url,
+          logo: true,
+          iconHtml: icon('folder-open'),
+          nameHtml: `<a href="#" class="table-link">${list.sanitize(folder.name)}</a>`
+        })}
       </td>
       <td>${folder.count}</td>
     </tr>

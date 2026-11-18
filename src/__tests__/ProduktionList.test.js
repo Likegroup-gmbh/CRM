@@ -20,6 +20,7 @@ describe('globale Produktionsliste', () => {
       name: 'Neuer Süßer Senf 2.0',
       produkt: { id: 'pr1', name: 'Senf' },
       briefing: {
+        id: 'b1',
         aktivierung_name: 'Briefing Senf',
         produkte: [{ produkt: { id: 'pr1', name: 'Senf' } }],
         verknuepfte_personas: [{ id: 'pe1', name: 'Anna' }]
@@ -53,6 +54,7 @@ describe('globale Produktionsliste', () => {
     expect(html).toContain('Senf');
     expect(html.match(/href="\/produkt\/pr1"/g)).toHaveLength(1);
     expect(html).toContain('Briefing Senf');
+    expect(html).toContain('href="/briefing/b1"');
     expect(html).toContain('href="/persona/pe1"');
     expect(html).toContain('href="/castings/c1"');
     expect(html).toContain('href="/konzepte/s1"');

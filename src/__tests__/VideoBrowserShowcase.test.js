@@ -134,7 +134,7 @@ describe('VideoBrowser Showcase', () => {
 
     const slot = body.querySelector('[data-workflow-liste-slot]');
     expect(ctx.pane.querySelector('[data-vb-toolbar]')).toBeNull();
-    expect(slot.querySelectorAll('[data-vb-seg="view"].view-toggle .mdc-btn')).toHaveLength(2);
+    expect(slot.querySelectorAll('[data-vb-seg="view"].view-toggle .mdc-btn')).toHaveLength(3);
     expect(slot.querySelector('.mdc-btn.active').textContent.trim()).toBe('Ordner');
 
     click(slot.querySelector('[data-value="showcase"]'));

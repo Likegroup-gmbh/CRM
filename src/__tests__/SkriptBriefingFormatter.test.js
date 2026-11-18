@@ -77,7 +77,7 @@ describe('fmtCampaignBriefing', () => {
       aufgabe: 'Produkt im Alltag zeigen',
       umsetzungsideen: ['Vorher-Nachher in 20 Sekunden', 'Problem-Lösung, Kabel vs. Kabellos', '  ']
     });
-    expect(text).toContain('- Vorhandene Umsetzungsideen:\n  - Vorher-Nachher in 20 Sekunden\n  - Problem-Lösung, Kabel vs. Kabellos');
+    expect(text).toContain('- Umsetzungsideen - Inspiration (frei interpretierbar, kein Muss):\n  - Vorher-Nachher in 20 Sekunden\n  - Problem-Lösung, Kabel vs. Kabellos');
     expect(text).not.toContain('Vorher-Nachher in 20 Sekunden;');
   });
 

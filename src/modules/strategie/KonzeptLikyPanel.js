@@ -360,9 +360,8 @@ export class KonzeptLikyPanel {
       this._doneThinking();
       const n = Number(payload?.anzahl);
       const gezeigt = Number.isInteger(n) ? n : anzahl;
-      this._pushLiky(gezeigt === 1
-        ? '1 Idee liegt als Vorschlag in der Tabelle.'
-        : `${gezeigt} Ideen liegen als Vorschläge in der Tabelle.`);
+      const allgemein = payload?.ohne_personas ? ' Ohne Personas werden die Ideen allgemein.' : '';
+      this._pushLiky(`${gezeigt === 1 ? '1 Idee liegt als Vorschlag' : `${gezeigt} Ideen liegen als Vorschläge`} in der Tabelle.${allgemein}`);
       // Aus dem Chat gestartet: der Vorschlag-Block bindet den Job nicht selbst.
       if (ausChat) await this._neuLaden();
     } catch (error) {

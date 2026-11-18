@@ -61,7 +61,7 @@ describe('fmtCampaignBriefing: Creator-Vorgaben, Setting, Ausschluesse', () => {
     expect(text).not.toContain('HART: Beteiligte');
     expect(text).toContain('- Alter: 25-35');
     expect(text).not.toContain('HART: Alter');
-    expect(text).toContain('Creator-Aufgabe: Serum in der Morgenroutine zeigen');
+    expect(text).toContain('Deine Aufgabe: Serum in der Morgenroutine zeigen');
   });
 
   it('Alter aus dem Dropdown steht mit Halbgeviertstrich, alter Freitext im Wortlaut', () => {

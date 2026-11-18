@@ -2,7 +2,6 @@
 // Geteilte Helfer fuer Meta Business Discovery (instagram-connect,
 // sourcing-instagram-stats). Der Meta-Token bleibt serverseitig.
 
-const sharp = require('sharp');
 const { parseAppUsage } = require('./instagram-budget');
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
@@ -133,6 +132,9 @@ async function storeImagePair(supabase, sourceUrl, basePath, options = {}) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const original = Buffer.from(await res.arrayBuffer());
 
+    // Erst hier laden: natives Modul, das auf einem fremd gebauten Deploy schon beim require
+    // bricht. post-link-abruf braucht von hier nur graphGet und soll daran nicht hängen.
+    const sharp = require('sharp');
     const encode = (w) => sharp(original)
       .resize({ width: w, withoutEnlargement: true })
       .avif({ quality: AVIF_QUALITY, effort: AVIF_EFFORT })

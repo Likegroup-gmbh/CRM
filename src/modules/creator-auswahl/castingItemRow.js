@@ -29,8 +29,7 @@ import {
   renderKundenFeedbackCell,
   renderFollowerInhalt,
   renderKontaktCell,
-  renderBildCell,
-  renderDetailOpen,
+  renderNameIdentitaet,
   renderEngagementInhalt,
   herkunftZeile
 } from './castingItemZellen.js';
@@ -71,23 +70,13 @@ export function renderItemRow(ctx, item, index) {
           `}
         </td>
       ` : ''}
-      ${renderBildCell(ctx, item, sticky, hide)}
       <td class="cell-textarea cp-col-name ${sticky.name}">
-        ${canWrite ? `
-          <div class="cp-name-cell-inner">
-            <div class="cp-name-cell-line">
-              ${vis('cp-col-bild') ? '' : renderDetailOpen(item)}
-              <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
-            </div>
-            ${ctx.isKunde ? '' : herkunftZeile(item)}
-          </div>
-        ` : `
-          <div class="cp-name-cell-line">
-            ${vis('cp-col-bild') ? '' : renderDetailOpen(item)}
-            <div class="cell-text-readonly">${escapeHtml(item.name || '-')}</div>
-          </div>
-          ${ctx.isKunde ? '' : herkunftZeile(item)}
-        `}
+        ${renderNameIdentitaet(ctx, item, {
+          nameHtml: canWrite
+            ? `<textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>`
+            : `<div class="cell-text-readonly">${escapeHtml(item.name || '-')}</div>`,
+          subHtml: ctx.isKunde ? '' : herkunftZeile(item)
+        })}
       </td>
       <td class="cell-textarea cp-col-notiz" style="${hide('cp-col-notiz')}">
         ${canWrite ? `

@@ -1,4 +1,7 @@
 // Klickbare Verknüpfungs-Stapel für die Standard-Tabellen.
+// Darstellung (Pill mit Entity-Icon) liegt in verknuepfungPill.js.
+
+import { renderVerknuepfungPill, renderVerknuepfungStack } from './verknuepfungPill.js';
 
 const ROUTE_PREFIX = {
   briefing: '/briefing',
@@ -10,14 +13,6 @@ const ROUTE_PREFIX = {
 };
 
 let clicksBound = false;
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 export function asList(value) {
   if (!value) return [];
@@ -45,16 +40,17 @@ export function ensureVerknuepfungClicks() {
 
 export function renderVerknuepfungen(items) {
   ensureVerknuepfungClicks();
-  const html = (items || []).map((item) => {
+  return renderVerknuepfungStack((items || []).map((item) => {
     if (!item?.id || !item.label) return '';
     const href = hrefFor(item);
     if (!href) return '';
-    const safe = escapeHtml(item.label);
-    return `<a href="${escapeHtml(href)}" class="table-link table-link--rel" title="${safe}">${safe}</a>`;
-  }).filter(Boolean).join('');
-
-  if (!html) return '-';
-  return `<div class="table-link-stack">${html}</div>`;
+    return renderVerknuepfungPill({
+      kind: item.kind,
+      label: item.label,
+      href,
+      className: 'table-link--rel'
+    });
+  }));
 }
 
 export function namedLinks(rows, { labelKey, kind }) {

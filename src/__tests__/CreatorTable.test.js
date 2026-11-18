@@ -19,7 +19,7 @@ describe('renderCreatorNameCell', () => {
   it('rendert Dash ohne Creator', () => {
     const doc = parseCell(renderCreatorNameCell(null));
     expect(doc.querySelector('td').textContent).toBe('-');
-    expect(doc.querySelector('.col-name-with-icon')).toBeNull();
+    expect(doc.querySelector('.table-identity')).toBeNull();
   });
 
   it('rendert Dash ohne Namen', () => {
@@ -36,10 +36,10 @@ describe('renderCreatorNameCell', () => {
       profilbild_url: 'https://cdn.example/full.jpg'
     });
     const doc = parseCell(html);
-    const img = doc.querySelector('img.table-avatar.table-avatar-img');
+    const img = doc.querySelector('td.col-name .table-identity__media img.table-avatar.table-avatar-img');
     expect(img).not.toBeNull();
     expect(img.getAttribute('src')).toBe('https://cdn.example/thumb.jpg');
-    const link = doc.querySelector('a.table-link');
+    const link = doc.querySelector('.table-identity__text a.table-link');
     expect(link.dataset.table).toBe('creator');
     expect(link.dataset.id).toBe('c1');
     expect(link.textContent).toBe('Lea Hoff');
@@ -63,7 +63,7 @@ describe('renderCreatorNameCell', () => {
       name: 'Casting Name'
     }));
     expect(doc.querySelector('a')).toBeNull();
-    expect(doc.querySelector('.col-name-with-icon').textContent).toContain('Casting Name');
+    expect(doc.querySelector('td.col-name .table-identity__text').textContent).toContain('Casting Name');
     expect(doc.querySelector('span.table-avatar').textContent).toBe('C');
   });
 
@@ -77,6 +77,6 @@ describe('renderCreatorNameCell', () => {
     }));
     expect(doc.querySelector('a')).toBeNull();
     expect(doc.querySelector('img.table-avatar')).not.toBeNull();
-    expect(doc.querySelector('.col-name-with-icon').textContent).toContain('Lea Hoff');
+    expect(doc.querySelector('td.col-name .table-identity__text').textContent).toContain('Lea Hoff');
   });
 });

@@ -169,3 +169,40 @@ export function showcaseToSearch(search, state) {
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
+
+/* URL der Kalender-Ansicht: ?ansicht=kalender&umfang=kampagne&modus=woche&datum=2026-11-01 (Standardwerte fehlen) */
+
+export const KALENDER_UMFANG = ['auswahl', 'kampagne'];
+export const KALENDER_MODUS = ['monat', 'woche'];
+export const DEFAULT_KALENDER = Object.freeze({ umfang: 'auswahl', modus: 'monat', datum: null });
+const KALENDER_PARAMS = ['umfang', 'modus', 'datum'];
+
+/** `null`, wenn die URL nicht den Kalender meint, sonst der Zustand (unbekannte Werte fallen auf den Standard). */
+export function kalenderFromSearch(search) {
+  const params = new URLSearchParams(search || '');
+  if (params.get('ansicht') !== 'kalender') return null;
+  const datum = params.get('datum') || '';
+  return {
+    umfang: oneOf(KALENDER_UMFANG, params.get('umfang'), DEFAULT_KALENDER.umfang),
+    modus: oneOf(KALENDER_MODUS, params.get('modus'), DEFAULT_KALENDER.modus),
+    datum: /^\d{4}-\d{2}-\d{2}$/.test(datum) ? datum : null
+  };
+}
+
+/**
+ * Neuer Query-String: mit `state` steht der Kalender drin, mit `null` fehlt er. Läuft nach
+ * `showcaseToSearch`: `ansicht` wird nur entfernt, wenn sie den Kalender meint. Fremde Parameter bleiben.
+ */
+export function kalenderToSearch(search, state) {
+  const params = new URLSearchParams(search || '');
+  KALENDER_PARAMS.forEach(key => params.delete(key));
+  if (params.get('ansicht') === 'kalender') params.delete('ansicht');
+  if (state) {
+    params.set('ansicht', 'kalender');
+    if (state.umfang !== DEFAULT_KALENDER.umfang) params.set('umfang', state.umfang);
+    if (state.modus !== DEFAULT_KALENDER.modus) params.set('modus', state.modus);
+    if (state.datum) params.set('datum', state.datum);
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}

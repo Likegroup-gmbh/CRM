@@ -60,3 +60,41 @@ export function typeEmail(value) {
 export function pressEnter(el) {
   el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
 }
+
+export function shareRow(id, extra = {}) {
+  return {
+    id,
+    token: `tok-${id}`,
+    label: 'Marketing',
+    rechte: 'ansehen',
+    created_at: new Date().toISOString(),
+    last_access_at: null,
+    expires_at: null,
+    ends_with_kampagne: true,
+    share_participants: [],
+    ...extra,
+  };
+}
+
+/** Klick im Drei-Punkte-Menü einer Zeile, so wie ActionsDropdown das Portal an body hängt. */
+export function klickMenue(shareId, action) {
+  const container = document.querySelector(`[data-share-id="${shareId}"] .actions-dropdown-container`);
+  const portal = container.querySelector('.actions-dropdown').cloneNode(true);
+  portal.classList.replace('actions-dropdown', 'actions-dropdown-portal');
+  portal._sourceContainer = container;
+  document.body.appendChild(portal);
+  portal.querySelector(`[data-action="${action}"]`).click();
+  portal.remove();
+}
+
+/** functions.invoke je Action beantworten; unbekannte Actions bekommen success. */
+export function mockActions(antworten) {
+  window.supabase.functions.invoke.mockImplementation(async (_name, { body }) => ({
+    data: { success: true, ...(antworten[body.action] || {}) },
+    error: null,
+  }));
+}
+
+export function actionsAufgerufen() {
+  return window.supabase.functions.invoke.mock.calls.map((call) => call[1].body.action);
+}

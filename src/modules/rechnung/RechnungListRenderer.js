@@ -13,6 +13,7 @@ import { ALL_TAB, formatMonthEmptyText } from '../auftrag/logic/InvoiceMonthFilt
 import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 import { renderVertragCell } from './RechnungVertragColumn.js';
 import { summarizeRechnungRows } from './invoiceCardTotals.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 const currencyFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 const summaryFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
@@ -258,7 +259,7 @@ export async function updateTableRows(rechnungen, { isAdmin, statusOptions, acti
       <tr data-id="${r.id}" class="${getRowClass(r, today)}">
         ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
         <td class="col-name"><span class="col-name-inner">${r.rechnung_nr || '-'}${renderNotizIndicator(r.id, activeStatusTab, notizMap)}</span></td>
-        <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="${r.rechnungstyp === 'contracting' ? 'contracts' : 'auftragsdetails'}" data-id="${r.rechnungstyp === 'contracting' ? r.auftrag_id : (r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id)}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
+        <td class="col-auftrag">${r.auftrag_id ? renderVerknuepfungPill({ kind: r.rechnungstyp === 'contracting' ? 'contract' : 'auftragsdetails', label: r.auftrag?.auftragsname || '-', attrs: `data-table="${r.rechnungstyp === 'contracting' ? 'contracts' : 'auftragsdetails'}" data-id="${r.rechnungstyp === 'contracting' ? r.auftrag_id : (r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id)}"` }) : '-'}</td>
         <td class="col-po">${r.po_nummer || '-'}</td>
         <td class="col-created-at">${formatDate(r.created_at)}</td>
         <td class="col-unternehmen">${r.unternehmen?.firmenname || '-'}</td>

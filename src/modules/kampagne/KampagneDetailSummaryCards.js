@@ -38,7 +38,7 @@ function renderVideoStatsCardHtml(videoStats) {
   const commentsDisplay = formatCompactNumber(werte.comments) || '0';
 
   return `
-        <div class="summary-card summary-card--performance" data-summary-card="video-stats">
+        <div class="summary-card summary-card--performance" data-summary-card="video-stats"${window.isAdmin?.() === true ? ' data-auswertung-oeffnen role="button" tabindex="0" title="Zur Auswertung"' : ''}>
           <div class="summary-card__overline">Live-Performance</div>
           <div class="performance-hero">
             <span class="performance-hero__value" data-summary-value="stats-views" title="${viewsExact}">${viewsDisplay}</span>

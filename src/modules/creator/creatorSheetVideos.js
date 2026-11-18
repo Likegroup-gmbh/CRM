@@ -2,6 +2,7 @@
 // die readOnly-Fassade fuer den Media-Viewer.
 
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { pickLatestAsset } from '../../core/stills/stillAssets.js';
 import { mitAblage } from '../../core/ablage/ablageLink.js';
@@ -41,11 +42,12 @@ export function renderVideosSection(detail, videosByKoop) {
       rows.push(`
         <tr>
           <td>${esc(titel)}</td>
-          <td>
-            <a href="/kooperation/${koop.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/kooperation/${koop.id}')">
-              ${esc(koop.name || 'Kooperation')}
-            </a>
-          </td>
+          <td>${renderVerknuepfungPill({
+            kind: 'kooperation',
+            labelHtml: esc(koop.name || 'Kooperation'),
+            href: `/kooperation/${koop.id}`,
+            attrs: `onclick="event.preventDefault(); window.navigateTo('/kooperation/${koop.id}')"`
+          })}</td>
           <td>${video.stats_views != null ? Number(video.stats_views).toLocaleString('de-DE') : '–'}</td>
           <td>${renderVideoContentCell(koop, video)}</td>
         </tr>

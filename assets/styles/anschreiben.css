@@ -141,6 +141,10 @@
   gap: var(--space-sm);
 }
 
+.empfaenger-fest__row .table-avatar {
+  font-size: var(--text-xs);
+}
+
 .empfaenger-fest__meta {
   display: flex;
   flex-direction: column;

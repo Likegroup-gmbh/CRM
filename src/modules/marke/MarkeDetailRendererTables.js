@@ -8,6 +8,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 
 export function renderKampagnen(detail) {
@@ -115,14 +116,13 @@ export function renderAnsprechpartner(detail) {
 
   const rows = detail.ansprechpartner.map(ap => `
     <tr>
-      <td class="col-name-with-icon">
-        ${ap.profile_image_url 
-          ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />` 
-          : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
-        <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-          ${detail.sanitize(ap.vorname)} ${detail.sanitize(ap.nachname)}
-        </a>
-        ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft">${icon('link')}</span>` : ''}
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: ap.profile_image_url,
+          name: ap.vorname || ap.nachname,
+          nameHtml: `<a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">${detail.sanitize(ap.vorname)} ${detail.sanitize(ap.nachname)}</a>`
+            + (ap.ist_verknuepft ? ` <span class="tag tag--verknuepft" title="verknüpft">${icon('link')}</span>` : '')
+        })}
       </td>
       <td>${detail.sanitize(ap.position?.name) || '-'}</td>
       <td>${ap.email ? `<a href="mailto:${ap.email}">${detail.sanitize(ap.email)}</a>` : '-'}</td>

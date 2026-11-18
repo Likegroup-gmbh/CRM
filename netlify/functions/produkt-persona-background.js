@@ -27,26 +27,6 @@ const {
   GRUND_ZU_WENIG_GRUPPEN
 } = require('./_shared/produkt-persona');
 const { passendeNamen } = require('./_shared/unisex-vornamen');
-const { fmtCampaignBriefing } = require('./_shared/skript-context/briefing-felder');
-
-/**
- * Briefing der Linie als Prompt-Text (gespeicherter Stand, auch Entwurf).
- * Nur fuer die Namenswahl. Fehlt es, gehoert es einem anderen Unternehmen oder
- * schlaegt das Laden fehl, bleibt der Text leer: Produkt und Marke tragen dann allein.
- */
-async function ladeBriefingText(supabase, briefingId, unternehmenId) {
-  if (!briefingId) return '';
-  try {
-    const { data, error } = await supabase.from('campaign_briefings')
-      .select('*').eq('id', briefingId).maybeSingle();
-    if (error || !data) return '';
-    if (unternehmenId && data.unternehmen_id && data.unternehmen_id !== unternehmenId) return '';
-    return fmtCampaignBriefing(data).trim();
-  } catch (e) {
-    console.warn(`⚠️ produkt-persona-background: Briefing ${briefingId} nicht lesbar: ${e.message}`);
-    return '';
-  }
-}
 
 function usageZusammen(a, b) {
   if (!b) return a || null;
@@ -167,8 +147,7 @@ exports.handler = async (event) => {
       belegteNamen: (input.behalten || []).map((b) => b?.name),
       verworfenerName
     });
-    const briefingText = await ladeBriefingText(supabase, input.briefing_id, job.unternehmen_id);
-    const { stable, task } = buildPrompt({ ...input, briefingText }, { pool: matchPool, poolQuelle: quelle });
+    const { stable, task } = buildPrompt(input, { pool: matchPool, poolQuelle: quelle });
     // Breiter Lauf (initial, Ersatz der einzigen Karte): Kaeufergruppen-Analyse
     // vor der Persona, Beruf nur bei berufsgebundenen Produkten
     const breit = istBreiterLauf(input);

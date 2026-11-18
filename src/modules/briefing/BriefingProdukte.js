@@ -39,6 +39,24 @@ export async function loadBriefingProdukte(briefingId) {
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de'));
 }
 
+/** Felder, die das Creator-Briefing je Produkt zeigt (live aus produkt, keine Kopie). */
+export const BRIEFING_PRODUKT_SPALTEN = 'id, name, url, kurzbeschreibung, usp, loesung';
+
+/** Produkte des Briefings mit den Briefing-Feldern, nach Name sortiert. */
+export async function loadBriefingProduktDetails(briefingId) {
+  if (!briefingId || !window.supabase) return [];
+
+  const { data, error } = await window.supabase
+    .from('campaign_briefing_produkt')
+    .select(`produkt:produkt_id(${BRIEFING_PRODUKT_SPALTEN})`)
+    .eq('briefing_id', briefingId);
+  if (error) throw error;
+  return (data || [])
+    .map(row => row.produkt)
+    .filter(Boolean)
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de'));
+}
+
 /**
  * Hängt vorhandene Produkte an die Linie. Idempotent und rein additiv:
  * bestehende Zeilen bleiben, Personas und Briefing-Daten werden nicht berührt.

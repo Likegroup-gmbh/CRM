@@ -485,10 +485,16 @@
   font-size: var(--text-xs);
 }
 
+/* Trennlinie über der Summe = border-bottom der Zeile davor. Ein border-top
+   verliert in der kollabierten Tabelle gegen deren helle Unterkante. */
 .stakeholder-row--total td {
-  border-top: 1px solid var(--border-secondary);
+  border-top: none;
   border-bottom: none;
   font-weight: 600;
+}
+
+tr:has(+ .stakeholder-row--total) > td {
+  border-bottom-color: var(--border-secondary);
 }
 
 .stakeholder-empty {

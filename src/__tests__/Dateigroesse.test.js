@@ -8,15 +8,20 @@ const ROOT = join(__dirname, '..', '..');
 const ORDNER = [
   'src/modules/share',
   'src/modules/shares',
+  'src/modules/briefing',
+  'src/modules/auswertung',
   'supabase/functions/share-list',
   'supabase/functions/einladung',
   'supabase/functions/_shared',
 ];
 
 const DATEI_MUSTER = [
-  { ordner: 'src/core/components', muster: /^share/i },
+  { ordner: 'src/core', muster: /^calendarDates/i },
+  { ordner: 'src/core/components', muster: /^(share|SegmentSwitch|CalendarGrid|calendarGrid)/i },
   { ordner: 'src/modules/skripte', muster: /^skriptPaket/i },
-  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse)/i },
+  { ordner: 'src/modules/kampagne', muster: /^(KampagneCalendar|kampagneCalendar)/i },
+  { ordner: 'src/modules/video-browser', muster: /^(videoBrowserKalender|videoBrowserView)/i },
+  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender)/i },
 ];
 
 function dateienIn(ordner) {

@@ -3,8 +3,6 @@ import { castingPresetFromBriefing } from '../modules/produktion/castingPresetFr
 import { ensureBriefingLine } from '../modules/produktion/ProduktionService.js';
 import { sourcingConfig } from '../core/form/config/SourcingFormConfig.js';
 import { renderWorkflowCreateChrome } from '../modules/kampagne/KampagneWorkflowCreate.js';
-import { IG_REELS_SPALTEN } from '../modules/creator-auswahl/sourcingSpaltenPreset.js';
-
 function memoryDb() {
   const rows = {
     produktion: [],
@@ -129,13 +127,28 @@ describe('castingPresetFromBriefing', () => {
     expect(castingPresetFromBriefing({ bereich: 'owned_social' }).liste_typ).toBe('ugc');
   });
 
-  it('ignoriert Feed, Carousel und YouTube und fällt auf Reel + Story zurück', () => {
+  it('ignoriert Feed, Carousel und YouTube und fällt auf Reel + Story zurück; TKP startet bei 25', () => {
     expect(castingPresetFromBriefing(influencer)).toEqual({
       liste_typ: 'influencer',
       plattformen: 'instagram',
       ig_formate: 'reel,story',
-      tkp: 40
+      tkp: 25
     });
+  });
+
+  it('liest die Plattformen des Creator-Briefings vor den alten Kanal-Spalten', () => {
+    expect(castingPresetFromBriefing({
+      bereich: 'influencer_marketing',
+      plattformen: ['tiktok', 'youtube', 'instagram'],
+      publish_channels: { youtube: ['short'] }
+    })).toEqual({
+      liste_typ: 'influencer',
+      plattformen: 'instagram,tiktok',
+      ig_formate: 'reel,story',
+      tkp: 25
+    });
+    expect(castingPresetFromBriefing({ bereich: 'influencer_marketing', plattformen: ['facebook'] }))
+      .toMatchObject({ plattformen: 'instagram,tiktok' });
   });
 
   it('fällt auf Instagram + TikTok zurück, wenn keins von beiden gewählt ist', () => {
@@ -233,7 +246,7 @@ describe('ensureBriefingLine', () => {
     expect(db.rows.creator_auswahl[0].name).toBe('Serum Oktober Casting');
   });
 
-  it('legt beim zweiten Speichern nichts Zweites an und schreibt die Liste fort', async () => {
+  it('legt beim zweiten Speichern nichts Zweites an und überschreibt die Listenwerte nicht', async () => {
     await ensureBriefingLine({ briefing: influencer, kampagneId: 'kamp-1', produktId: 'serum', produktionId: 'prod-1' });
     db.rows.creator_auswahl[0].hidden_columns.push('cp-col-mail');
 
@@ -250,10 +263,9 @@ describe('ensureBriefingLine', () => {
 
     expect(db.rows.creator_auswahl).toHaveLength(1);
     expect(db.rows.strategie).toHaveLength(1);
-    expect(db.rows.creator_auswahl[0].tkp).toBe(12);
-    expect(db.rows.creator_auswahl[0].plattformen).toBe('instagram,tiktok');
+    expect(db.rows.creator_auswahl[0].tkp).toBe(25);
+    expect(db.rows.creator_auswahl[0].plattformen).toBe('instagram');
     expect(db.rows.creator_auswahl[0].hidden_columns).toContain('cp-col-mail');
-    expect(db.rows.creator_auswahl[0].hidden_columns).not.toEqual(expect.arrayContaining(IG_REELS_SPALTEN));
   });
 
   it('startet für ein zweites Briefing derselben Produktion eine eigene Linie', async () => {

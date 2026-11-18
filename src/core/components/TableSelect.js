@@ -72,7 +72,7 @@ export function tableSelectDisabled({ gastReadonly = false, isKunde = false, kun
  * @param {Array}    config.options      [{ value, label, color?, disabled? }]
  * @param {boolean}  [config.disabled]   Rendert einen nicht klickbaren Trigger
  * @param {string}   [config.placeholder] Anzeige, wenn kein Wert passt
- * @param {string}   [config.meta]       Zusatzzeile unter dem Trigger (z.B. Datum)
+ * @param {string}   [config.meta]       Zusatzzeile ueber dem Trigger (aus dem Flow, verschiebt ihn nicht) (z.B. Datum)
  * @param {string}   [config.input]      Formular-Modus: rendert ein hidden input mit diesem
  *                                       name. TableSelect haelt Input, Label und Haken beim
  *                                       Wechsel selbst aktuell, ein leerer Wert gilt als
@@ -121,8 +121,8 @@ export function renderTableSelect({
          data-value="${escapeHtml(value ?? '')}"
          ${matchWidth ? 'data-match-width' : ''}>
       ${input ? `<input type="hidden" name="${escapeHtml(input)}" value="${escapeHtml(value ?? '')}" data-table-select-input>` : ''}
-      ${trigger}
       ${meta ? `<div class="table-select__meta">${escapeHtml(meta)}</div>` : ''}
+      ${trigger}
       ${disabled ? '' : `
         <div class="table-select__panel" role="listbox" aria-label="${escapeHtml(field)}">
           ${options.map(o => renderOption(o, value)).join('')}

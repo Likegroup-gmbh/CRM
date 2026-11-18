@@ -9,6 +9,7 @@ import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { fmtNum } from './AuftragDetailRenderer.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 // Netto-Beträge aus Kooperationen summieren (inkl. KSK-Aufschlaege)
 const verbrauchtesBudgetNetto = (kooperationen) =>
@@ -308,11 +309,11 @@ Object.assign(AuftragDetail.prototype, {
       
       return `
         <tr>
-          <td>
-            <a href="#" class="table-link" data-table="creator" data-id="${creator.id || ''}">
-              ${window.validatorSystem.sanitizeHtml(creatorName)}
-            </a>
-          </td>
+          <td>${renderVerknuepfungPill({
+            kind: 'creator',
+            labelHtml: window.validatorSystem.sanitizeHtml(creatorName),
+            attrs: `data-table="creator" data-id="${creator.id || ''}"`
+          })}</td>
           <td class="text-center">${koop.videoanzahl || 0}</td>
           <td class="budget-cell">
             ${budgetInfo !== '-' ? `<div class="budget-info">${window.validatorSystem.sanitizeHtml(budgetInfo)}</div>` : '-'}

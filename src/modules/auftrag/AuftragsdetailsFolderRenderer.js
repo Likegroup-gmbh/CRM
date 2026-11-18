@@ -7,6 +7,7 @@ import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { NUR_UNTERNEHMEN_LABEL } from './AuftragsdetailsFolders.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
 export function viewToggleHtml(listViewMode) {
   return ViewModeToggle.render([
@@ -103,9 +104,7 @@ function countLabel(count) {
 }
 
 function folderIconHtml(list, folder, name) {
-  return folder.logo_url
-    ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(name)}" class="folder-logo">`
-    : `${icon('folder-open')}`;
+  return renderFolderAvatar({ url: folder.logo_url, name });
 }
 
 function emptyFoldersHtml(list, { title, text }) {

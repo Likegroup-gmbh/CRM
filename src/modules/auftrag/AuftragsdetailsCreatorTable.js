@@ -2,6 +2,7 @@
 
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 // Rendere Creator & Videos Tabelle
 export function renderCreatorVideosTable(detail) {
@@ -109,15 +110,13 @@ export function renderCreatorVideosTable(detail) {
     const creatorLinkHtml = isKunde
       ? sanitize(row.creatorName)
       : (row.creatorId
-        ? `<a href="#" class="table-link" data-table="creator" data-id="${row.creatorId}">
-             ${sanitize(row.creatorName)}
-           </a>`
+        ? renderVerknuepfungPill({ kind: 'creator', labelHtml: sanitize(row.creatorName), attrs: `data-table="creator" data-id="${row.creatorId}"` })
         : sanitize(row.creatorName));
 
     const kampagneLinkHtml = isKunde
       ? sanitize(row.kampagneName)
       : (row.kampagneId
-        ? `<a href="#" class="table-link" data-table="kampagne" data-id="${row.kampagneId}">${sanitize(row.kampagneName)}</a>`
+        ? renderVerknuepfungPill({ kind: 'kampagne', labelHtml: sanitize(row.kampagneName), attrs: `data-table="kampagne" data-id="${row.kampagneId}"` })
         : sanitize(row.kampagneName));
 
     return `

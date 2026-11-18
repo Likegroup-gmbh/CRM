@@ -466,19 +466,14 @@ describe('buildPrompt', () => {
     expect(alleBelegt).not.toContain('Kim');
   });
 
-  it('Briefing geht nur als Namensquelle in den Prompt, nicht in andere Felder', () => {
-    const mit = buildPrompt(
+  it('das Briefing geht nicht in den Prompt, das Namensregister kommt aus Produkt und Marke', () => {
+    const { task } = buildPrompt(
       { ...input, briefingText: '\n# CAMPAIGN-BRIEFING\n- Creator-Aufgabe: Skater-Look, rau, laut\n' },
       { pool: [], poolQuelle: 'leer' }
     );
-    expect(mit.task).toContain('BRIEFING DER LINIE (nur fuer die Namenswahl)');
-    expect(mit.task).toContain('Skater-Look');
-    expect(mit.task).toContain('AUSSCHLIESSLICH den Vornamen');
-    expect(mit.task).toContain('aus dem Briefing der Linie');
-
-    const ohne = buildPrompt(input, { pool: [], poolQuelle: 'leer' });
-    expect(ohne.task).not.toContain('BRIEFING DER LINIE');
-    expect(ohne.task).toContain('aus Produkt und Marke');
+    expect(task).not.toContain('BRIEFING DER LINIE');
+    expect(task).not.toContain('Skater-Look');
+    expect(task).toContain('aus Produkt und Marke');
   });
 
   it('Karten-Modus ersetzt durch eine neue Persona, ohne Pool-Match', () => {

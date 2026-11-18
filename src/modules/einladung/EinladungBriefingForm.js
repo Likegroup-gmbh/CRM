@@ -1,6 +1,7 @@
 // EinladungBriefingForm.js
-// Öffentliches Briefing-Formular: dieselben Felder und Renderer wie der interne
-// Generator, aber ohne interne Felder, ohne Liky und ohne Datenbankzugriff.
+// Öffentliches Briefing-Formular: dieselben Felder, Renderer und Feld-Events wie der
+// interne Generator, aber ohne Zuordnung, ohne Liky und ohne Datenbankzugriff.
+// Produkte werden nur erfasst (produktSyncAus), angelegt erst beim Anlegen der Einreichung.
 // Abschicken erzeugt eine Einreichung (ADR 0055), nie ein Briefing.
 
 import { BriefingCreate } from '../briefing/create/BriefingCreateCore.js';
@@ -8,10 +9,7 @@ import '../briefing/create/FormEvents.js';
 import '../briefing/create/DataPersistence.js';
 import { renderStep, escapeHtml } from '../briefing/create/FieldRenderer.js';
 import { kundenSteps } from './einladungFelder.js';
-import { ladeDateiHoch } from './einladungApi.js';
 import { sendeEinreichung, zeigeFormFehler } from './einladungFormBasis.js';
-
-const MAX_DATEI_BYTES = 25 * 1024 * 1024;
 
 export class EinladungBriefingForm extends BriefingCreate {
   /**
@@ -28,15 +26,15 @@ export class EinladungBriefingForm extends BriefingCreate {
     this.onFertig = onFertig;
     this.onSitzungAbgelaufen = onSitzungAbgelaufen;
     this.sendet = false;
+    this.produktSyncAus = true;
   }
 
   mount(root) {
     this.root = root;
     this.root.innerHTML = this.renderGeruest();
     this.form = this.root.querySelector('#briefing-form');
-    this.bindConditionalEvents();
-    this.bindRepeatableEvents();
-    this.bindSekundenSpanne();
+    this.bindFormularEvents();
+    this.bindProduktListe();
     this.root.querySelector('[data-aktion="zurueck"]').addEventListener('click', () => this.gehe(-1));
     this.root.querySelector('[data-aktion="weiter"]').addEventListener('click', () => this.gehe(1));
     this.root.querySelector('[data-aktion="senden"]').addEventListener('click', () => this.senden());
@@ -45,7 +43,7 @@ export class EinladungBriefingForm extends BriefingCreate {
   }
 
   renderGeruest() {
-    const context = {};
+    const context = { bereich: this.selectedBereich, einladung: true };
     const panels = this.steps.map((step, i) => `
       <section class="einladung-schritt" data-schritt="${i}" hidden>
         <header class="einladung-schritt__kopf">
@@ -108,43 +106,5 @@ export class EinladungBriefingForm extends BriefingCreate {
     if (this.sendet) return;
     this.saveCurrentStepData();
     await sendeEinreichung(this, this.formData);
-  }
-
-  // Referenz-Dateien: signierte Upload-URL statt documents-Bucket (der Kunde hat kein Konto).
-  async uploadBriefingAsset(fileInput) {
-    const row = fileInput.closest('[data-repeatable-row]');
-    const label = row?.querySelector('[data-file-label]');
-    const datei = fileInput.files[0];
-    if (!row || !datei) return;
-
-    if (datei.size > MAX_DATEI_BYTES) {
-      if (label) label.textContent = 'Datei zu groß (max. 25 MB)';
-      fileInput.value = '';
-      return;
-    }
-
-    if (label) label.textContent = 'Lädt hoch …';
-    const ergebnis = await ladeDateiHoch({
-      token: this.token,
-      sitzung: this.sitzung,
-      datei,
-      slot: 'referenz'
-    });
-
-    if (!ergebnis.ok) {
-      if (ergebnis.sitzungAbgelaufen) {
-        this.saveCurrentStepData();
-        this.onSitzungAbgelaufen();
-        return;
-      }
-      if (label) label.textContent = ergebnis.fehler;
-      fileInput.value = '';
-      return;
-    }
-
-    row.querySelector('[data-value]').value = ergebnis.pfad;
-    row.querySelector('[data-label]').value = ergebnis.name;
-    if (label) label.textContent = ergebnis.name;
-    this.saveCurrentStepData();
   }
 }

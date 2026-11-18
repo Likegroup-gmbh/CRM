@@ -12,7 +12,6 @@ import {
   VIDEO_FEEDBACK_LEGACY_SELECT,
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
-import { applyLiveLinkCellState, findLiveLinkCell } from './liveLinkCell.js';
 import { acquireKampagneChannel } from './kampagneRealtimeChannel.js';
 import { koopGehoertZurLinie } from '../produktion/ProduktionService.js';
 import { mergeKeepingFilled, shouldKeepDisplayedText } from '../../core/table/textFieldBaseline.js';
@@ -558,13 +557,6 @@ export class VideoTableRealtimeHandler {
         anyUpdated = true;
       }
     });
-
-    // Chip und Status-Punkt der Live-Link-Zelle mitziehen. Der generische
-    // Feld-Loop oben setzt nur den Input-Wert; das Overlay darueber wuerde
-    // sonst den Link vor der Fremd-Aenderung zeigen. Laeuft auch bei
-    // unveraendertem Link, weil stats_fetched_at und stats_error kein eigenes
-    // Feld in der Zeile haben und den Punkt umfaerben.
-    applyLiveLinkCellState(findLiveLinkCell(videoId), video);
 
     if (anyUpdated) {
       const row = document.querySelector(`tr:has([data-id="${videoId}"])`);

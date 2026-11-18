@@ -8,9 +8,9 @@ const { shapeRequest, MODELS } = require('../../netlify/functions/_shared/anthro
 const TOOL = { name: 'liefere', description: 'x', input_schema: { type: 'object' } };
 
 describe('Modell-Defaults', () => {
-  it('Haiku und Sonnet laufen auf 5.5, Schreiben auf Opus 4.6', () => {
-    expect(MODELS.write).toBe('claude-opus-4-6');
-    expect(MODELS.edit_write).toBe('claude-opus-4-6');
+  it('Haiku, Sonnet und Opus laufen auf 5.5', () => {
+    expect(MODELS.write).toBe('claude-opus-5-5');
+    expect(MODELS.edit_write).toBe('claude-opus-5-5');
     for (const key of ['distill', 'edit_fast', 'extract', 'resolve']) {
       expect(MODELS[key]).toBe('claude-haiku-5-5');
     }
@@ -61,7 +61,30 @@ describe('calculateCost 5.5', () => {
   });
 });
 
+describe('calculateCost Opus 5.5', () => {
+  it('Opus 5.5 rechnet 4 / 20 mit Cache-Write 5 und Cache-Read 0,20 (nicht das Opus-5-Prefix)', () => {
+    const cost = calculateCost('claude-opus-5-5', {
+      input_tokens: 1_000_000,
+      output_tokens: 1_000_000,
+      cache_creation_input_tokens: 1_000_000,
+      cache_read_input_tokens: 1_000_000
+    });
+    expect(cost.model).toBe('claude-opus-5-5');
+    expect(cost.usd).toBeCloseTo(4 + 20 + 5 + 0.2, 6);
+  });
+});
+
 describe('shapeRequest', () => {
+  it('Opus 5.5: immer adaptiv, nie disabled/enabled, tool_choice auto, Hinweis im Prompt', () => {
+    for (const thinking of [false, true]) {
+      const r = shapeRequest({ model: 'claude-opus-5-5', thinking, thinkingBudget: 2048, maxTokens: 1000, tool: TOOL, toolForced: true });
+      expect(r.thinking).toEqual({ type: 'adaptive' });
+      expect(r.maxTokens).toBe(1000);
+      expect(r.toolParams.tool_choice).toEqual({ type: 'auto' });
+      expect(r.systemHint).toContain('liefere');
+    }
+  });
+
   it('Sonnet 5.5: between_tools, tool_choice auto, Hinweis im Prompt', () => {
     const r = shapeRequest({ model: 'claude-sonnet-5-5', tool: TOOL, toolForced: true });
     expect(r.thinking).toEqual({ type: 'between_tools' });

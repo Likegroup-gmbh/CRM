@@ -10,7 +10,6 @@ import { followerStufe, nameZuVorNachname } from './creatorInstagramPrefill.js';
 
 export const MASTERLISTE_SPALTEN = [
   { key: 'ml-col-drag', label: 'Reihenfolge', fixed: true },
-  { key: 'ml-col-bild', label: 'Bild' },
   { key: 'ml-col-name', label: 'Name', fixed: true },
   { key: 'ml-col-ig', label: 'Instagram' },
   { key: 'ml-col-follower-ig', label: 'Follower Instagram' },

@@ -24,6 +24,7 @@ import {
 } from './CastingBestandAuswahl.js';
 import { bestandKey } from '../creator-auswahl/bestandZuCasting.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 
 export const CASTING_BESTAND_ENTITY = 'creator-casting';
 
@@ -168,11 +169,6 @@ export class CastingBestandList extends BasePaginatedList {
   renderSingleRow(creator) {
     const sanitize = this.sanitize.bind(this);
     const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || '-';
-    const avatarSource = creator.profilbild_thumb_url || creator.profilbild_url;
-    const safeAvatarUrl = avatarSource ? window.validatorSystem?.sanitizeUrl(avatarSource) : null;
-    const avatarHtml = safeAvatarUrl
-      ? `<img src="${safeAvatarUrl}" alt="${sanitize(name)}" class="table-avatar table-avatar-img" loading="lazy" />`
-      : `<span class="table-avatar">${sanitize((creator.vorname || name || '?')[0].toUpperCase())}</span>`;
 
     // Ohne Creator-Datensatz (id null) gibt es kein Detail: Name als Text, roter Punkt.
     const hatCreator = creator.hat_creator !== false && !!creator.id;
@@ -202,9 +198,13 @@ export class CastingBestandList extends BasePaginatedList {
     return `
       <tr${rowAttrs ? ` ${rowAttrs}` : ''}>
         ${checkboxCell}
-        <td class="col-name col-name-with-icon">
-          <span class="sourcing-avatar">${avatarHtml}${dot}</span>
-          ${nameHtml}
+        <td class="col-name">
+          ${renderTableIdentity({
+            url: creator.profilbild_thumb_url || creator.profilbild_url,
+            name: creator.vorname || name,
+            nameHtml,
+            badgeHtml: dot
+          })}
         </td>
         <td data-col="branchen">${this.renderTags(creator.branchen, 'tag--branche')}</td>
         <td>${this.renderTags(creator.creator_types, 'tag--type')}</td>

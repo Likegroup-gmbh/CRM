@@ -80,6 +80,11 @@ export const ENTITY_ICONS = {
   rechnungen: 'rechnung',
   'koops-videos': 'video',
   strategien: 'strategy',
+  konzept: 'strategy',
+  konzepte: 'strategy',
+  skript: 'skripte',
+  produktion: 'briefcase',
+  produktionen: 'briefcase',
 };
 
 /**

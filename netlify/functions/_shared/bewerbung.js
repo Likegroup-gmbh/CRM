@@ -1,23 +1,13 @@
-// Oeffentliche Bewerbungsseite: Token-Hash, Pruefung der Zeilen, Briefing ohne interne Felder.
+// Oeffentliche Bewerbungsseite: Token-Hash, Pruefung der Zeilen, Briefing als Creator-PDF-Inhalt
+// (bewerbung-briefing.js).
 // Service-Role only fuer Lesen und Anlegen. Das Team liest die Tabelle direkt.
 
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
+const { BEWERBUNG_BRIEFING_SPALTEN, briefingAbschnitte } = require('./bewerbung-briefing');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const BRIEFING_FELDER = [
-  ['beschreibung', 'Schwerpunkt'],
-  ['aufgabe', 'Aufgabe'],
-  ['plattformmechanik', 'Plattformmechanik'],
-  ['veroeffentlichungszeitraum', 'Veröffentlichungszeitraum'],
-  ['content_deadline', 'Content-Deadline'],
-  ['go_live', 'Go-Live'],
-  ['freigabeprozess', 'Freigabeprozess'],
-  ['voraussetzungen_sonstiges', 'Sonstige Voraussetzungen'],
-  ['vorgaben_ausschluesse', 'Vorgaben und Ausschlüsse'],
-];
 
 function hashToken(raw) {
   return crypto.createHash('sha256').update(String(raw)).digest('hex');
@@ -58,16 +48,6 @@ function validateZeile(row) {
       link_tiktok: linkTiktok || null,
     },
   };
-}
-
-function briefingAbschnitte(row) {
-  if (!row) return [];
-  return BRIEFING_FELDER
-    .map(([key, label]) => {
-      const text = clean(row[key]);
-      return text ? { label, text } : null;
-    })
-    .filter(Boolean);
 }
 
 function json(statusCode, body) {
@@ -125,14 +105,15 @@ async function loadByToken(supabase, rawToken) {
   if (listError) throw listError;
 
   let briefing = null;
+  let produkte = [];
   const briefingId = link.casting?.briefing_id;
   if (briefingId) {
-    const { data } = await supabase
-      .from('campaign_briefings')
-      .select('aktivierung_name, beschreibung, aufgabe, plattformmechanik, veroeffentlichungszeitraum, content_deadline, go_live, freigabeprozess, voraussetzungen_sonstiges, vorgaben_ausschluesse')
-      .eq('id', briefingId)
-      .maybeSingle();
+    const [{ data }, { data: links }] = await Promise.all([
+      supabase.from('campaign_briefings').select(BEWERBUNG_BRIEFING_SPALTEN).eq('id', briefingId).maybeSingle(),
+      supabase.from('campaign_briefing_produkt').select('produkt:produkt_id(name, url)').eq('briefing_id', briefingId)
+    ]);
     briefing = data;
+    produkte = (links || []).map((l) => l.produkt).filter(Boolean);
   }
 
   const person = [link.ansprechpartner?.vorname, link.ansprechpartner?.nachname].filter(Boolean).join(' ');
@@ -144,7 +125,7 @@ async function loadByToken(supabase, rawToken) {
       casting: link.casting?.name || '',
       briefing: {
         title: briefing?.aktivierung_name || link.casting?.name || 'Briefing',
-        sections: briefingAbschnitte(briefing),
+        sections: briefingAbschnitte(briefing, produkte),
       },
       bewerbungen: bewerbungen || [],
     },

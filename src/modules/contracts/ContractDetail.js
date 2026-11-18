@@ -11,6 +11,7 @@ import { ContractDokumentDrawer } from './ContractDokumentDrawer.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { VertragUtils } from '../vertrag/VertragUtils.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 function formatFileSize(bytes) {
   if (!bytes && bytes !== 0) return '';
@@ -376,7 +377,7 @@ export class ContractDetail {
         <tr>
           <td>${VertragUtils.renderVertragNameHtml(v, escapeHtml)}</td>
           <td>${v.creator?.id
-            ? `<a href="/creator/${v.creator.id}" class="table-link" data-table="creator" data-id="${v.creator.id}">${escapeHtml(creatorName)}</a>`
+            ? renderVerknuepfungPill({ kind: 'creator', labelHtml: escapeHtml(creatorName), href: `/creator/${v.creator.id}`, attrs: `data-table="creator" data-id="${v.creator.id}"` })
             : escapeHtml(creatorName)}</td>
           <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
           <td>${v.datei_url

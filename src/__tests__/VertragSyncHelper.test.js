@@ -81,70 +81,58 @@ describe('VertragSyncHelper', () => {
   });
 
   describe('renderVertragCell', () => {
+    const render = (koop) => new DOMParser().parseFromString(renderVertragCell(koop), 'text/html');
+    const label = (doc) => doc.querySelector('.table-select__label').textContent.trim();
 
-    it('rendert keine Checkbox mehr', () => {
-      const html = renderVertragCell({ id: 'k1', vertrag_unterschrieben: false, _vertraege: [] });
-      expect(html).not.toContain('type="checkbox"');
+    it('rendert den TableSelect ohne Checkbox, nicht klickbar', () => {
+      const doc = render({ id: 'k1', vertrag_unterschrieben: false, _vertraege: [] });
+      expect(doc.querySelector('input[type="checkbox"]')).toBeNull();
+      expect(doc.querySelector('.table-select').dataset.itemId).toBe('k1');
+      expect(doc.querySelector('button.table-select__trigger')).toBeNull();
+      expect(doc.querySelector('.table-select__trigger--disabled')).not.toBeNull();
     });
 
-    it('rendert "Unterschrieben" Badge-Link wenn signed Vertrag existiert', () => {
-      const koop = {
+    it('zeigt "Unterschrieben" wenn signed Vertrag existiert', () => {
+      const doc = render({
         id: 'k1',
-        vertrag_unterschrieben: true,
         _vertraege: [{ id: 'v1', dropbox_file_url: 'https://dropbox.com/signed.pdf', name: 'Vertrag A' }],
-      };
-      const html = renderVertragCell(koop);
-      expect(html).toContain('href="https://dropbox.com/signed.pdf"');
-      expect(html).toContain('contract-signed-action--open');
-      expect(html).toContain('Unterschrieben');
+      });
+      expect(label(doc)).toBe('Unterschrieben');
     });
 
-    it('rendert "Erstellt" Badge wenn generierter Vertrag existiert', () => {
-      const koop = {
+    it('zeigt "Erstellt" wenn generierter Vertrag existiert', () => {
+      const doc = render({
         id: 'k1',
-        vertrag_unterschrieben: false,
         _vertraege: [{ id: 'v1', datei_url: 'https://example.com/vertrag.pdf', is_draft: false, name: 'Vertrag B' }],
-      };
-      const html = renderVertragCell(koop);
-      expect(html).toContain('vertrag-badge--created');
-      expect(html).toContain('Erstellt');
+      });
+      expect(label(doc)).toBe('Erstellt');
     });
 
-    it('rendert "Entwurf" Badge wenn nur Draft existiert', () => {
-      const koop = {
-        id: 'k1',
-        vertrag_unterschrieben: false,
-        _vertraege: [{ id: 'v1', is_draft: true }],
-      };
-      const html = renderVertragCell(koop);
-      expect(html).toContain('vertrag-badge--draft');
-      expect(html).toContain('Entwurf');
+    it('zeigt "Entwurf" wenn nur Draft existiert', () => {
+      const doc = render({ id: 'k1', _vertraege: [{ id: 'v1', is_draft: true }] });
+      expect(label(doc)).toBe('Entwurf');
     });
 
-    it('rendert "Gesendet" Badge', () => {
-      const koop = {
+    it('zeigt "Gesendet"', () => {
+      const doc = render({
         id: 'k1',
         _vertraege: [{ id: 'v1', status: 'gesendet', datei_url: 'https://example.com/vertrag.pdf', is_draft: false, name: 'V' }],
-      };
-      const html = renderVertragCell(koop);
-      expect(html).toContain('vertrag-badge--gesendet');
-      expect(html).toContain('Gesendet');
+      });
+      expect(label(doc)).toBe('Gesendet');
     });
 
-    it('rendert "Abgelehnt" Badge', () => {
-      const koop = {
+    it('zeigt "Abgelehnt"', () => {
+      const doc = render({
         id: 'k1',
         _vertraege: [{ id: 'v1', status: 'abgelehnt', datei_url: 'https://example.com/vertrag.pdf', is_draft: false }],
-      };
-      const html = renderVertragCell(koop);
-      expect(html).toContain('vertrag-badge--abgelehnt');
-      expect(html).toContain('Abgelehnt');
+      });
+      expect(label(doc)).toBe('Abgelehnt');
     });
 
-    it('rendert "Noch nicht erstellt" Badge wenn kein Vertrag existiert', () => {
-      const html = renderVertragCell({ id: 'k1', vertrag_unterschrieben: false, _vertraege: [] });
-      expect(html).toContain('vertrag-badge--none');
-      expect(html).toContain('Noch nicht erstellt');
+    it('zeigt "Noch nicht erstellt" wenn kein Vertrag existiert', () => {
+      const doc = render({ id: 'k1', vertrag_unterschrieben: false, _vertraege: [] });
+      expect(label(doc)).toBe('Noch nicht erstellt');
+      expect(doc.querySelector('.table-select__trigger--empty')).not.toBeNull();
     });
 
   });

@@ -1,279 +1,162 @@
 // BriefingPersistence.test.js
-// Draft -> Laden -> Final-Lifecycle des Briefing-Generators.
-// Testet saveCurrentStepData (DOM -> formData), prepareDataForDB
-// (formData -> campaign_briefings-Payload) und loadFromDB gegen
-// gemocktes Supabase.
+// Formular -> formData (saveCurrentStepData) -> campaign_briefings-Payload (prepareDataForDB).
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { BriefingCreate } from '../modules/briefing/create/BriefingCreateCore.js';
-import { starteBriefingAuswertung } from '../modules/briefing/create/BriefingAuswertung.js';
-import { renderField } from '../modules/briefing/create/FieldRenderer.js';
-import '../modules/briefing/create/DataPersistence.js';
-import '../modules/briefing/create/FormEvents.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createInstance, renderFormular } from './briefingCreateTestKit.js';
+import { ideenFuerDB } from '../modules/briefing/create/DataPersistence.js';
 
-vi.mock('../modules/briefing/create/BriefingAuswertung.js', () => ({
-  starteBriefingAuswertung: vi.fn().mockResolvedValue({ id: 'job-1' })
-}));
-
-function createInstance() {
-  const instance = new BriefingCreate();
-  instance.selectedBereich = 'influencer_marketing';
-  return instance;
-}
-
-function looseChain() {
-  const query = {
-    select: vi.fn(() => query),
-    eq: vi.fn(() => query),
-    not: vi.fn(() => query),
-    is: vi.fn(() => query),
-    neq: vi.fn(() => query),
-    limit: vi.fn(() => query),
-    insert: vi.fn(() => query),
-    update: vi.fn(() => query),
-    delete: vi.fn(() => query),
-    maybeSingle: vi.fn(async () => ({ data: null, error: null })),
-    single: vi.fn(async () => ({ data: { id: 'row-1' }, error: null })),
-    then: (resolve, reject) => Promise.resolve({ data: [], error: null }).then(resolve, reject)
-  };
-  return query;
-}
-
-function mockSupabase({ row = null, produkte = [] } = {}) {
-  const calls = { insert: [], update: [], junctionInsert: [], junctionDelete: 0 };
-  const sb = {
-    from: vi.fn((table) => {
-      if (table === 'produktion') {
-        const chain = looseChain();
-        chain.maybeSingle = vi.fn(async () => ({
-          data: { id: 'pn1', name: 'Serum Sommer', kampagne_id: 'k1' },
-          error: null
-        }));
-        return chain;
-      }
-      if (table === 'creator_auswahl' || table === 'strategie') {
-        return looseChain();
-      }
-      if (table === 'campaign_briefing_produkt') {
-        return {
-          delete: vi.fn(() => ({
-            eq: vi.fn(async () => {
-              calls.junctionDelete += 1;
-              return { error: null };
-            })
-          })),
-          insert: vi.fn(async (rows) => {
-            calls.junctionInsert.push(rows);
-            return { error: null };
-          }),
-          select: vi.fn(() => ({
-            eq: vi.fn(async () => ({
-              data: produkte.map(p => ({ produkt_id: p.id, produkt: p })),
-              error: null
-            }))
-          }))
-        };
-      }
-      if (table === 'personas') {
-        const chain = {
-          select: vi.fn(() => chain),
-          eq: vi.fn(() => chain),
-          not: vi.fn(() => chain),
-          order: vi.fn(() => chain),
-          then: (resolve) => resolve({ data: [], error: null })
-        };
-        return chain;
-      }
-      if (table === 'produkt') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              order: vi.fn(async () => ({ data: [], error: null }))
-            }))
-          }))
-        };
-      }
-      expect(table).toBe('campaign_briefings');
-      return {
-        insert: vi.fn((rows) => {
-          calls.insert.push(rows[0]);
-          return {
-            select: vi.fn(() => ({
-              single: vi.fn(async () => ({ data: { id: 'briefing-1' }, error: null }))
-            }))
-          };
-        }),
-        update: vi.fn((data) => {
-          calls.update.push(data);
-          return { eq: vi.fn(async () => ({ error: null })) };
-        }),
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn(async () => ({ data: row, error: null }))
-          }))
-        }))
-      };
-    })
-  };
-  return { sb, calls };
-}
-
-describe('Briefing DataPersistence', () => {
+describe('saveCurrentStepData', () => {
   beforeEach(() => {
-    window.toastSystem = { show: vi.fn() };
-    window.navigateTo = vi.fn();
     document.body.innerHTML = '';
   });
 
-  afterEach(() => {
-    starteBriefingAuswertung.mockClear();
-    delete window.supabase;
-  });
-
-  it('saveCurrentStepData sammelt Felder typgerecht aus dem DOM', () => {
-    document.body.innerHTML = `
-      <form id="briefing-form">
-        <input type="text" name="aktivierung_name" value="Fremdwert">
-        <input type="checkbox" name="nischen" value="beauty" checked>
-        <input type="checkbox" name="nischen" value="fashion">
-        <input type="hidden" name="creator_merkmale__alter" value="25-34">
-        <input type="hidden" name="creator_merkmale__geschlecht" value="">
-        <input type="text" name="creator_merkmale__standort" value="">
-        <input type="checkbox" name="publish_channels__instagram" value="reel" checked>
-        <input type="checkbox" name="nutzung_markenkanal" value="true">
-        <input type="hidden" name="nutzungsdauer" value="12 Monate">
-      </form>
-    `;
-
+  it('liest das gerenderte Formular verlustfrei zurück', () => {
+    const formData = {
+      aktivierung_name: 'Sommer-Launch',
+      nutzung_markenkanal: true,
+      plattformen: ['instagram', 'tiktok'],
+      plattformen_weitere: 'Snapchat',
+      seitenverhaeltnisse: ['9:16'],
+      videolaenge: { von: 15, bis: 20 },
+      nutzungsrechte: '6 Monate',
+      content_deadline: '2026-12-01',
+      content_deadline_bis: '2026-12-05',
+      kernbotschaft: 'Spart Zeit',
+      vorgabe_donts: 'Keine Konkurrenz',
+      umsetzungsideen_eintraege: [{ text: 'Unboxing', verbindlich: true }, { text: 'Morgenroutine', verbindlich: false }]
+    };
+    renderFormular(formData, { bereich: 'influencer_marketing' });
     const instance = createInstance();
     instance.saveCurrentStepData();
 
-    expect(instance.formData.aktivierung_name).toBe('Fremdwert');
-    expect(instance.formData.nischen).toEqual(['beauty']);
-    expect(instance.formData.creator_merkmale).toEqual({
-      alter: '25-34', geschlecht: '', standort: ''
+    expect(instance.formData).toMatchObject({ ...formData, nutzung_creator_kanal: true, bereich: 'influencer_marketing' });
+    expect(instance.formData.videolaenge_modus).toBe('bereich');
+    expect(instance.formData.vorgabe_pflicht).toBe('');
+  });
+
+  it('Videolänge: Mindestlänge aus dem Zahlenfeld, keine Vorgabe ist null', () => {
+    const form = renderFormular({ videolaenge: { von: 30, bis: null } });
+    const instance = createInstance();
+    instance.saveCurrentStepData();
+    expect(instance.formData.videolaenge).toEqual({ von: 30, bis: null });
+    expect(instance.formData.videolaenge_modus).toBe('minimum');
+
+    form.querySelector('input[name="videolaenge__modus"][value="keine"]').checked = true;
+    instance.saveCurrentStepData();
+    expect(instance.formData.videolaenge).toBeNull();
+    expect(instance.formData.videolaenge_modus).toBe('keine');
+  });
+
+  it('Produkte: leere Zeilen fallen weg, verknüpfte bleiben mit ID', () => {
+    renderFormular({
+      produkte: [{ produkt_id: 'p1', name: 'Serum' }, {}, { url: 'https://shop.example/creme' }]
     });
-    expect(instance.formData.publish_channels).toEqual({ instagram: ['reel'] });
-    expect(instance.formData.nutzung_markenkanal).toBe(false);
-    expect(instance.formData.nutzungsdauer).toBe('12 Monate');
-    expect(instance.formData.bereich).toBe('influencer_marketing');
-  });
-
-  it('saveCurrentStepData liest die Videolänge aus dem Slider', () => {
-    document.body.innerHTML = `
-      <form id="briefing-form">
-        <div data-sekunden-spanne="videolaenge" data-von="12" data-bis="14"></div>
-      </form>
-    `;
     const instance = createInstance();
     instance.saveCurrentStepData();
-    expect(instance.formData.videolaenge).toEqual({ von: 12, bis: 14 });
+    expect(instance.formData.produkte).toEqual([
+      { produkt_id: 'p1', name: 'Serum', url: '', kurzbeschreibung: '', usp: '', loesung: '' },
+      { produkt_id: null, name: '', url: 'https://shop.example/creme', kurzbeschreibung: '', usp: '', loesung: '' }
+    ]);
   });
 
-  it('Videolänge 15–20 zeigt beide Griffe und den Strich', () => {
-    document.body.innerHTML = `<form id="briefing-form">${renderField({
-      name: 'videolaenge', label: 'Videolänge in Sekunden', type: 'sekundenSpanne', min: 1, max: 180
-    }, { videolaenge: { von: 15, bis: 20 } })}</form>`;
-
-    const root = document.querySelector('[data-sekunden-spanne]');
-    expect(root.querySelector('.sek-spanne').classList.contains('is-empty')).toBe(false);
-    expect(document.querySelector('[data-sek="von"]').value).toBe('15');
-    expect(document.querySelector('[data-sek="bis"]').value).toBe('20');
-    expect(root.querySelector('[data-handle="von"]').style.left).not.toBe(root.querySelector('[data-handle="bis"]').style.left);
-    expect(root.querySelector('[data-fill]').style.width).not.toBe('0%');
-  });
-
-  it('Blur auf einer leeren Seite setzt beide Sekunden, Leeren räumt ab', () => {
-    document.body.innerHTML = `<form id="briefing-form">${renderField({
-      name: 'videolaenge', label: 'Videolänge', type: 'sekundenSpanne', min: 1, max: 180
-    }, {})}</form>`;
-    const instance = new BriefingCreate();
-    instance.bindSekundenSpanne();
-
-    const von = document.querySelector('[data-sek="von"]');
-    von.value = '8';
-    von.dispatchEvent(new Event('blur'));
-
-    const root = document.querySelector('[data-sekunden-spanne]');
-    expect(root.dataset.von).toBe('8');
-    expect(root.dataset.bis).toBe('8');
-    expect(document.querySelector('[data-sek="bis"]').value).toBe('8');
-    expect(root.querySelector('.sek-spanne').classList.contains('is-empty')).toBe(false);
-
-    root.querySelector('[data-leeren]').click();
-    expect(root.dataset.von).toBe('');
-    expect(root.dataset.bis).toBe('');
-    expect(root.querySelector('.sek-spanne').classList.contains('is-empty')).toBe(true);
-  });
-
-  it('prepareDataForDB leert Paid-Felder im Influencer-Briefing und spiegelt Prefix-Spalten', () => {
+  it('Ideen: leere Einträge fallen weg, der Schalter wird gelesen', () => {
+    const form = renderFormular({ umsetzungsideen_eintraege: [{ text: 'A' }, { text: 'B' }] });
+    const rows = form.querySelectorAll('[data-idee-row]');
+    rows[0].querySelector('[data-idee-text]').value = '  ';
+    rows[1].querySelector('[data-idee-verbindlich]').checked = true;
     const instance = createInstance();
-    instance.formData = {
-      bereich: 'influencer_marketing',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Test',
-      nischen: ['beauty'],
-      aufgabe: 'Routine filmen',
-      cta: 'Shop now',
-      funnel_stufen: ['upper']
-    };
+    instance.saveCurrentStepData();
+    expect(instance.formData.umsetzungsideen_eintraege).toEqual([{ text: 'B', verbindlich: true }]);
+  });
+});
 
+describe('prepareDataForDB', () => {
+  it('schreibt nur Felder des Creator-Briefings, Altfelder bleiben unberührt', () => {
+    const instance = createInstance('paid_creator_ads');
+    instance.formData = {
+      bereich: 'paid_creator_ads',
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Ads',
+      aufgabe: 'Produkt zeigen',
+      setting: 'Küche',
+      cta: 'Jetzt kaufen',
+      funnel_stufen: ['upper'],
+      tkp: 12,
+      produkte: [{ produkt_id: 'p1', name: 'Serum' }]
+    };
     const data = instance.prepareDataForDB();
 
-    expect(data.nutzungsdauer).toBeNull();
-    expect(data.nischen).toEqual(['beauty']);
-    expect(data.aufgabe).toBe('Routine filmen');
-    expect(data.cta).toBeNull();
-    expect(data.funnel_stufen).toBeNull();
-    expect(data.im_nischen).toEqual(['beauty']);
-    expect(data.im_umsetzung).toBe('Routine filmen');
-    expect(data).not.toHaveProperty('persona_ids');
-    expect(data).not.toHaveProperty('produkt_ids');
+    expect(data.aufgabe).toBe('Produkt zeigen');
+    for (const alt of ['cta', 'funnel_stufen', 'tkp', 'produkte', 'produkt_ids', 'persona_ids', 'videolaenge']) {
+      expect(data, alt).not.toHaveProperty(alt);
+    }
+    expect(data.pa_umsetzung).toBe('Produkt zeigen');
+    expect(data.pa_situationen).toBe('Küche');
   });
 
-  it('prepareDataForDB speichert flache Voraussetzungen und Sonstige getrennt', () => {
-    const instance = createInstance();
-    instance.formData = {
-      bereich: 'influencer_marketing',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Test',
-      voraussetzungen: ['kind_familie', 'kueche'],
-      voraussetzungen_sonstiges: 'Wohnung mit Balkon',
-      produkt_erfahrung: 'kennt das Serum',
-      nutzungsdauer: '90 Monate'
-    };
-
+  it('Häkchen sind boolean, der Typ folgt aus der Content-Verwendung', () => {
+    const instance = createInstance(null);
+    instance.formData = { nutzung_markenkanal: undefined, nutzung_creator_kanal: true };
     const data = instance.prepareDataForDB();
-
-    expect(data.voraussetzungen).toEqual(['kind_familie', 'kueche']);
-    expect(data.voraussetzungen_sonstiges).toBe('Wohnung mit Balkon');
-    expect(data.produkt_erfahrung).toBe('kennt das Serum');
-    expect(data.nutzungsdauer).toBe('90 Monate');
-    expect(data.im_voraussetzungen).toEqual(['kind_familie', 'kueche']);
-    expect(data.im_voraussetzungen_custom).toBe('kennt das Serum');
-  });
-
-  it('prepareDataForDB mappt leere Werte auf null und Checkboxen auf boolean', () => {
-    const instance = createInstance();
-    instance.formData = {
-      bereich: 'influencer_marketing',
-      unternehmen_id: 'u1',
-      aktivierung_name: '',
-      nutzung_markenkanal: undefined
-    };
-
-    const data = instance.prepareDataForDB();
-
-    expect(data.aktivierung_name).toBeNull();
+    expect(data.nutzung_creator_kanal).toBe(true);
     expect(data.nutzung_markenkanal).toBe(false);
-    expect(data.marke_id).toBeNull();
-    expect(data.videolaenge_von).toBeNull();
-    expect(data.videolaenge_bis).toBeNull();
-    expect(data).not.toHaveProperty('videolaenge');
-    expect(data).not.toHaveProperty('pa_videolaengen');
+    expect(data.nutzung_paid_media).toBe(false);
+    expect(data.bereich).toBe('influencer_marketing');
   });
 
-  it('prepareDataForDB nimmt den Namen aus formData (Drawer, Bestand), sonst den Kampagnennamen', () => {
+  it('der bisherige Typ bleibt, solange sein Häkchen gesetzt ist', () => {
+    const instance = createInstance(null);
+    instance.formData = { bereich: 'owned_social', nutzung_markenkanal: true, nutzung_paid_media: true };
+    expect(instance.prepareDataForDB().bereich).toBe('owned_social');
+
+    instance.formData = { bereich: 'owned_social', nutzung_paid_media: true };
+    expect(instance.prepareDataForDB().bereich).toBe('paid_creator_ads');
+  });
+
+  it('leere Werte werden null', () => {
+    const instance = createInstance();
+    instance.formData = { unternehmen_id: 'u1', aktivierung_name: '', plattformen: [], kernbotschaft: '  ' };
+    const data = instance.prepareDataForDB();
+    expect(data.aktivierung_name).toBeNull();
+    expect(data.plattformen).toBeNull();
+    expect(data.kernbotschaft).toBeNull();
+    expect(data.marke_id).toBeNull();
+    expect(data.umsetzungsideen_eintraege).toBeNull();
+  });
+
+  it('Videolänge: Spanne und Mindestlänge in die zwei Spalten', () => {
+    const instance = createInstance('paid_creator_ads');
+    instance.formData = { videolaenge: { von: 8, bis: 17 } };
+    expect(instance.prepareDataForDB()).toMatchObject({ videolaenge_von: 8, videolaenge_bis: 17 });
+    instance.formData = { videolaenge: { von: 30, bis: null } };
+    expect(instance.prepareDataForDB()).toMatchObject({ videolaenge_von: 30, videolaenge_bis: null });
+    instance.formData = { videolaenge: null };
+    expect(instance.prepareDataForDB()).toMatchObject({ videolaenge_von: null, videolaenge_bis: null });
+  });
+
+  it('Bis-Datum nur mit Startdatum davor', () => {
+    const instance = createInstance();
+    instance.formData = { content_deadline: '2026-12-05', content_deadline_bis: '2026-12-01', go_live_bis: '2026-12-10' };
+    const data = instance.prepareDataForDB();
+    expect(data.content_deadline).toBe('2026-12-05');
+    expect(data.content_deadline_bis).toBeNull();
+    expect(data.go_live_bis).toBeNull();
+
+    instance.formData = { content_deadline: '2026-12-01', content_deadline_bis: '2026-12-05' };
+    expect(instance.prepareDataForDB().content_deadline_bis).toBe('2026-12-05');
+  });
+
+  it('Umsetzungsideen als { text, verbindlich }', () => {
+    expect(ideenFuerDB([{ text: ' A ', verbindlich: true }, 'B', { text: '' }, { text: 'C', verbindlich: 'ja' }])).toEqual([
+      { text: 'A', verbindlich: true },
+      { text: 'B', verbindlich: false },
+      { text: 'C', verbindlich: false }
+    ]);
+    expect(ideenFuerDB([])).toBeNull();
+    expect(ideenFuerDB(null)).toBeNull();
+  });
+
+  it('nimmt den Kampagnentitel aus formData, sonst den Kampagnennamen', () => {
     const instance = createInstance();
     instance.kampagnen = [{ id: 'k1', label: 'Anzeige', kampagnenname: 'Projekt A' }];
 
@@ -286,306 +169,5 @@ describe('Briefing DataPersistence', () => {
     instance.formData = {};
     instance._produktionKontext = { kampagneId: 'k1' };
     expect(instance.prepareDataForDB().aktivierung_name).toBe('Projekt A');
-  });
-
-  it('handleSubmit bricht ab, wenn die Kampagne keinen Projektnamen liefert', async () => {
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
-    const instance = createInstance();
-    instance.kampagnen = [{ id: 'k1', label: 'Anzeige', kampagnenname: '' }];
-    instance.formData = { unternehmen_id: 'u1', kampagne_id: 'k1' };
-
-    await instance.handleSubmit();
-
-    expect(calls.insert.length).toBe(0);
-    expect(window.toastSystem.show).toHaveBeenCalledWith(expect.stringContaining('Titel'), 'warning');
-  });
-
-  it('prepareDataForDB schreibt das Sekundenintervall und lässt Altspalten weg', () => {
-    const instance = createInstance();
-    instance.selectedBereich = 'paid_creator_ads';
-    instance.formData = {
-      bereich: 'paid_creator_ads',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Ads',
-      videolaenge: { von: 8, bis: 17 }
-    };
-
-    const data = instance.prepareDataForDB();
-
-    expect(data.videolaenge_von).toBe(8);
-    expect(data.videolaenge_bis).toBe(17);
-    expect(data).not.toHaveProperty('videolaenge');
-    expect(data).not.toHaveProperty('pa_videolaengen');
-  });
-
-  it('prepareDataForDB schreibt die Videolänge je Funnel-Stufe nur für angehakte Stufen', () => {
-    const instance = createInstance();
-    instance.selectedBereich = 'paid_creator_ads';
-    instance.formData = {
-      bereich: 'paid_creator_ads',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Ads',
-      funnel_stufen: ['upper', 'lower'],
-      videolaenge: { von: 15, bis: 20 },
-      videolaenge_funnel_upper: { von: 6, bis: 10 },
-      videolaenge_funnel_mid: { von: 12, bis: 14 },
-      videolaenge_funnel_lower: { von: 30, bis: 45 }
-    };
-
-    const data = instance.prepareDataForDB();
-
-    expect(data.videolaenge_funnel).toEqual({ upper: { von: 6, bis: 10 }, lower: { von: 30, bis: 45 } });
-    expect(data.videolaenge_von).toBe(15);
-    expect(data).not.toHaveProperty('videolaenge_funnel_upper');
-  });
-
-  it('prepareDataForDB: abgehakte Stufen fliegen raus, ohne Stufe oder ohne Paid ist es null', () => {
-    const instance = createInstance();
-    instance.selectedBereich = 'paid_creator_ads';
-    instance.formData = {
-      bereich: 'paid_creator_ads',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Ads',
-      funnel_stufen: ['mid'],
-      videolaenge_funnel_upper: { von: 6, bis: 10 }
-    };
-    expect(instance.prepareDataForDB().videolaenge_funnel).toBeNull();
-
-    instance.formData = {
-      bereich: 'owned_social',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Organic',
-      funnel_stufen: ['upper'],
-      videolaenge_funnel_upper: { von: 6, bis: 10 }
-    };
-    instance.selectedBereich = 'owned_social';
-    expect(instance.prepareDataForDB().videolaenge_funnel).toBeNull();
-  });
-
-  it('loadFromDB spiegelt videolaenge_funnel zurück in die Formularfelder', async () => {
-    const row = {
-      id: 'briefing-1',
-      bereich: 'paid_creator_ads',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Paid Push',
-      funnel_stufen: ['upper', 'mid'],
-      videolaenge_von: 15,
-      videolaenge_bis: 20,
-      videolaenge_funnel: { upper: { von: 6, bis: 10 } }
-    };
-    const { sb } = mockSupabase({ row });
-    window.supabase = sb;
-
-    const instance = new BriefingCreate();
-    await instance.loadFromDB('briefing-1');
-
-    expect(instance.formData.videolaenge).toEqual({ von: 15, bis: 20 });
-    expect(instance.formData.videolaenge_funnel_upper).toEqual({ von: 6, bis: 10 });
-    expect(instance.formData.videolaenge_funnel_mid).toBeUndefined();
-  });
-
-  it('saveDraftToDB legt Entwurf an und setzt editId', async () => {
-    vi.useFakeTimers();
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
-    const instance = createInstance();
-    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Draft' };
-
-    await instance.saveDraftToDB();
-
-    expect(calls.insert.length).toBe(1);
-    expect(calls.insert[0].is_draft).toBe(true);
-    expect(calls.insert[0].aktivierung_name).toBe('Draft');
-    expect(calls.insert[0]).not.toHaveProperty('produkt_ids');
-    expect(calls.insert[0]).not.toHaveProperty('persona_ids');
-    expect(instance.editId).toBe('briefing-1');
-    expect(calls.junctionDelete).toBe(0);
-    expect(calls.junctionInsert).toEqual([]);
-    vi.useRealTimers();
-  });
-
-  it('handleSubmit aktualisiert bestehendes Briefing als final', async () => {
-    vi.useFakeTimers();
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
-    const instance = createInstance();
-    instance.editId = 'briefing-1';
-    instance.formData = {
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Final',
-      kampagne_id: 'k1',
-      produktion_id: 'pn1',
-      produkt_id: 'p1'
-    };
-
-    await instance.handleSubmit();
-
-    expect(calls.update.length).toBe(1);
-    expect(calls.update[0].is_draft).toBe(false);
-    expect(calls.insert.length).toBe(0);
-    expect(starteBriefingAuswertung).toHaveBeenCalledWith({ briefingId: 'briefing-1' });
-    expect(window.toastSystem.show).toHaveBeenCalledWith(
-      'Briefing gespeichert – KI-Auswertung läuft im Hintergrund',
-      'success'
-    );
-    vi.useRealTimers();
-  });
-
-  it('handleSubmit kehrt zur Herkunft zurück, nicht in die Produktion', async () => {
-    vi.useFakeTimers();
-    const { sb } = mockSupabase();
-    window.supabase = sb;
-    const submit = async () => {
-      const instance = createInstance();
-      instance.editId = 'briefing-1';
-      instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Final', kampagne_id: 'k1', produktion_id: 'pn1' };
-      await instance.handleSubmit();
-      vi.advanceTimersByTime(500);
-    };
-
-    try {
-      window.history.replaceState({
-        route: '/briefing/briefing-1/edit',
-        trail: [{ label: 'Briefings', url: '/briefing?status=offen' }, { label: 'Final', url: '/briefing/briefing-1' }]
-      }, '', '/briefing/briefing-1/edit');
-      await submit();
-      expect(window.navigateTo).toHaveBeenLastCalledWith('/briefing/briefing-1');
-
-      window.history.replaceState({ route: '/briefing/new', trail: [] }, '', '/briefing/new');
-      await submit();
-      expect(window.navigateTo).toHaveBeenLastCalledWith('/briefing/briefing-1');
-
-      window.history.replaceState({
-        route: '/briefing/new',
-        trail: [{ label: 'Serum', url: '/produktion/p1?tab=briefing' }]
-      }, '', '/briefing/new');
-      await submit();
-      // Aus der Produktion: zurück auf das Briefing-Tab, das neue Briefing ist die aktive Linie.
-      expect(window.navigateTo).toHaveBeenLastCalledWith('/produktion/p1?tab=briefing&linie=briefing-1');
-
-      window.history.replaceState({
-        route: '/briefing/new',
-        trail: [{ label: 'Serum', url: '/produktion/p1?tab=casting&linie=alt' }]
-      }, '', '/briefing/new');
-      await submit();
-      expect(window.navigateTo).toHaveBeenLastCalledWith('/produktion/p1?tab=briefing&linie=briefing-1');
-    } finally {
-      window.history.replaceState(null, '', '/');
-      vi.useRealTimers();
-    }
-  });
-
-  it('handleSubmit bricht ohne Pflichtfelder ab', async () => {
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
-    const instance = createInstance();
-    instance.formData = { aktivierung_name: 'Ohne Unternehmen' };
-
-    await instance.handleSubmit();
-
-    expect(calls.insert.length).toBe(0);
-    expect(calls.update.length).toBe(0);
-    expect(starteBriefingAuswertung).not.toHaveBeenCalled();
-    expect(window.toastSystem.show).toHaveBeenCalledWith(expect.stringContaining('Unternehmen'), 'warning');
-  });
-
-  it('loadFromDB befuellt formData und springt in den Wizard', async () => {
-    const row = {
-      id: 'briefing-1',
-      bereich: 'paid_creator_ads',
-      unternehmen_id: 'u1',
-      marke_id: 'm1',
-      aktivierung_name: 'Paid Push',
-      beschreibung: 'Launch',
-      paid_objectives: ['sales'],
-      persona_ids: ['pe1'],
-      voraussetzungen: ['kind_familie', 'kueche']
-    };
-    const { sb } = mockSupabase({ row, produkte: [{ id: 'p1', name: 'Serum' }] });
-    window.supabase = sb;
-
-    const instance = new BriefingCreate();
-    await instance.loadFromDB('briefing-1');
-
-    expect(instance.selectedBereich).toBe('paid_creator_ads');
-    expect(instance.isGenerated).toBe(true);
-    expect(instance.currentStep).toBe(2);
-    expect(instance.formData.aktivierung_name).toBe('Paid Push');
-    expect(instance.formData.paid_objectives).toEqual(['sales']);
-    expect(instance.formData.beschreibung).toBe('Launch');
-    expect(instance.formData.voraussetzungen).toEqual(['kind_familie', 'kueche']);
-    expect(instance.formData.voraussetzungen_weiter).toBeUndefined();
-    expect(instance.formData.marke_id).toBe('m1');
-    expect(instance.formData).not.toHaveProperty('produkt_ids');
-    expect(instance.formData).not.toHaveProperty('persona_ids');
-  });
-
-  it('loadFromDB übersetzt alte Tokens in das Intervall', async () => {
-    const row = {
-      id: 'briefing-1',
-      bereich: 'paid_creator_ads',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Paid Push',
-      videolaengen: ['15s', '60s'],
-      pa_videolaengen: ['6s']
-    };
-    const { sb } = mockSupabase({ row });
-    window.supabase = sb;
-
-    const instance = new BriefingCreate();
-    await instance.loadFromDB('briefing-1');
-
-    expect(instance.formData.videolaenge).toEqual({ von: 15, bis: 60 });
-  });
-
-  it('loadFromDB füllt Texte aus Legacy-Spalten vor, alte Do/Don\'t-Spalten gelten nicht mehr', async () => {
-    const row = {
-      id: 'briefing-1',
-      bereich: 'paid_creator_ads',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Alt',
-      pa_umsetzung: 'Produkt zeigen',
-      pa_situationen: 'Küche',
-      pa_learnings_text: 'Hook früh',
-      dos_donts: 'Authentisch bleiben'
-    };
-    const { sb } = mockSupabase({ row });
-    window.supabase = sb;
-
-    const instance = new BriefingCreate();
-    await instance.loadFromDB('briefing-1');
-
-    expect(instance.formData.aufgabe).toBe('Produkt zeigen');
-    expect(instance.formData.setting).toBe('Küche');
-    expect(instance.formData.learnings_text).toBe('Hook früh');
-    expect(instance.formData.wichtige_vorgaben).toBeUndefined();
-    expect(instance.formData.dos).toBeUndefined();
-  });
-
-  it('loadFromDB: wichtige_vorgaben kommt aus der Spalte, Flow gewinnt gegen Legacy', async () => {
-    const row = {
-      id: 'briefing-1',
-      bereich: 'paid_creator_ads',
-      unternehmen_id: 'u1',
-      aufgabe: 'Neu',
-      pa_umsetzung: 'Alt',
-      wichtige_vorgaben: 'Pflichtinhalte:\nProduktname nennen',
-      dos: 'Alt-Do',
-      dos_donts: 'Alt-Do'
-    };
-    const { sb } = mockSupabase({ row });
-    window.supabase = sb;
-
-    const instance = new BriefingCreate();
-    await instance.loadFromDB('briefing-1');
-
-    expect(instance.formData.aufgabe).toBe('Neu');
-    expect(instance.formData.wichtige_vorgaben).toBe('Pflichtinhalte:\nProduktname nennen');
-    expect(instance.formData.dos).toBeUndefined();
   });
 });

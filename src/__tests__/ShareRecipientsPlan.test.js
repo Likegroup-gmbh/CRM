@@ -7,8 +7,10 @@ import {
 } from '../../supabase/functions/_shared/share-recipients-plan.ts';
 import {
   accountListPath,
+  recipientPlanGroups,
   recipientPlanRows,
   renderRecipientPlan,
+  renderRecipientPlanGrouped,
   BLOCKED_TEXT,
   GUEST_TEXT,
   LIST_LINK_TEXT,
@@ -53,6 +55,29 @@ describe('planShareRecipients (Server)', () => {
     expect(plan.blocked).toEqual([{ email: 'kunde@telekom.de', reason: 'paket' }]);
   });
 
+  it('gibt einem Mitarbeiterkonto, das die Liste sieht, den Link ins Konto', () => {
+    const plan = planShareRecipients(['Oliver@LikeGroup.de'], { 'oliver@likegroup.de': { canSee: true, staff: true } }, 'sourcing');
+    expect(plan).toEqual({ listLink: ['oliver@likegroup.de'], guest: [], blocked: [] });
+  });
+
+  it('schickt ein Mitarbeiterkonto ohne Sicht als Gast statt es zu sperren', () => {
+    const plan = planShareRecipients(['ma@likegroup.de'], { 'ma@likegroup.de': { canSee: false, staff: true } }, 'kampagne');
+    expect(plan).toEqual({ listLink: [], guest: ['ma@likegroup.de'], blocked: [] });
+  });
+
+  it('schickt ein Mitarbeiterkonto beim Skript-Paket als Gast, Kundenkonten bleiben gesperrt', () => {
+    const plan = planShareRecipients(
+      ['ma@likegroup.de', 'kunde@telekom.de'],
+      { 'ma@likegroup.de': { canSee: true, staff: true }, 'kunde@telekom.de': { canSee: true } },
+      'skript_paket',
+    );
+    expect(plan).toEqual({
+      listLink: [],
+      guest: ['ma@likegroup.de'],
+      blocked: [{ email: 'kunde@telekom.de', reason: 'paket' }],
+    });
+  });
+
   it('erkennt die Zuordnung über Unternehmen oder Marke', () => {
     expect(canSee({ unternehmenIds: ['firma'], markeIds: [] }, scope)).toBe(true);
     expect(canSee({ unternehmenIds: [], markeIds: ['marke'] }, scope)).toBe(true);
@@ -94,6 +119,21 @@ describe('Anzeige der Aufteilung', () => {
     expect(el.querySelectorAll('.share-plan-row')).toHaveLength(1);
     expect(el.innerHTML).toContain('&lt;b&gt;@x.de');
     renderRecipientPlan(el, null);
+    expect(el.innerHTML).toBe('');
+  });
+
+  it('gruppiert nach Versandart und gesperrte Adressen nach Grund', () => {
+    expect(recipientPlanGroups({ ...plan, guest: ['gast@beispiel.de', 'zwei@beispiel.de'] })).toEqual([
+      { art: 'konto', text: LIST_LINK_TEXT, emails: ['kunde@telekom.de'] },
+      { art: 'gast', text: GUEST_TEXT, emails: ['gast@beispiel.de', 'zwei@beispiel.de'] },
+      { art: 'gesperrt', text: BLOCKED_TEXT.paket, emails: ['konto@x.de'] },
+      { art: 'gesperrt', text: BLOCKED_TEXT.scope, emails: ['alt@x.de'] },
+    ]);
+    const el = document.createElement('div');
+    renderRecipientPlanGrouped(el, { listLink: [], guest: ['<b>@x.de'], blocked: [] });
+    expect(el.querySelectorAll('.share-plan-row--gast')).toHaveLength(1);
+    expect(el.innerHTML).toContain('&lt;b&gt;@x.de');
+    renderRecipientPlanGrouped(el, null);
     expect(el.innerHTML).toBe('');
   });
 });

@@ -3,11 +3,13 @@
 
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
-import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
+import { renderSegmentSwitch } from '../../core/components/SegmentSwitch.js';
 import { collectDownloadItems, kooperationTitel, plural, schleifeName, wartetText } from './videoBrowserLogic.js';
 
 export const FOLDER_ICON = { raw: 'folder', schleife: 'chat-bubble-left-ellipsis', final: 'check' };
 export const ITEM_ICON = { video: 'film', story: 'phone-mobile', still: 'photo', roh: 'document' };
+
+export const VB_SEG_ATTR = 'data-vb-seg';
 
 export const ratioCss = (ratio) => String(ratio || '9:16').replace(':', ' / ');
 
@@ -139,28 +141,11 @@ export function filterEmptyHtml(clearAttr = 'data-vb-filter-clear') {
 }
 
 /**
- * Umschalter als Radiogruppe: das vorhandene ViewModeToggle (Liste/Grid/Kalender-Optik) mit gleitendem
- * Indikator hinter dem aktiven Button. Der Indikator ist `[data-vb-tab-indicator]`, das gewählte Element
- * `aria-checked`, siehe motion.tabIndicator.
+ * Umschalter als Radiogruppe (core SegmentSwitch) mit `data-vb-seg`, damit der Controller ihn erkennt.
  * @param {{ id: string, label?: string, options: Array<{ value: string, label: string, icon?: string }>, value: string }} cfg
  */
-export function segmentHtml({ id, label = '', options, value }) {
-  const labelId = `vb-seg-${id}`;
-  const group = ViewModeToggle.render(
-    options.map(o => ({
-      label: esc(o.label),
-      icon: o.icon,
-      active: o.value === value,
-      attrs: `type="button" role="radio" data-vb-seg-opt data-value="${esc(o.value)}" aria-checked="${o.value === value}" tabindex="${o.value === value ? 0 : -1}"`
-    })),
-    {
-      className: 'vb-glide view-toggle--sm',
-      groupAttrs: `role="radiogroup" data-vb-seg="${esc(id)}" ${label ? `aria-labelledby="${labelId}"` : `aria-label="${esc(id)}"`}`,
-      extraHtml: '<span class="vb-glide__thumb" data-vb-tab-indicator aria-hidden="true"></span>'
-    }
-  );
-  if (!label) return group;
-  return `<div class="vb-seg-field"><span class="vb-seg-field__label" id="${labelId}">${esc(label)}</span>${group}</div>`;
+export function segmentHtml(cfg) {
+  return renderSegmentSwitch({ ...cfg, attr: VB_SEG_ATTR });
 }
 
 export function colShell({ depth, title, sub, activeDepth, bodyHtml, footHtml = '', headExtra = '', toolbarHtml = '', zurueck = false }) {

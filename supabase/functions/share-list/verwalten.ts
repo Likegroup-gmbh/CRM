@@ -115,13 +115,17 @@ async function resend(ctx: StaffKontext, shareId: string): Promise<Response> {
     console.error('Empfänger-Aufteilung fehlgeschlagen:', err);
     return jsonRes({ error: 'Empfänger konnten nicht geprüft werden.' }, 500, headers);
   }
+  const message = String(body.message ?? '').trim().slice(0, 500) || undefined;
   const accountResult = await mailAccountLinks({
     emails: empfaenger.listLink,
     entityType: share.entity_type,
     entityId: share.entity_id,
     entityLabel: entityConfig?.label || 'Liste',
+    entityArticle: entityConfig?.article || 'die',
     entityName: info?.name || share.label || 'Unbenannt',
     sharedByName: staff.name || 'Ihr Ansprechpartner',
+    message,
+    replyTo: staff.email,
     origin,
   });
   if (empfaenger.guest.length === 0) {
@@ -141,6 +145,7 @@ async function resend(ctx: StaffKontext, shareId: string): Promise<Response> {
     : (info?.name || share.label || 'Unbenannt');
   const mailResult = await sendInviteMails({
     emails: empfaenger.guest,
+    replyTo: staff.email,
     mail: teilenMail({
       entityLabel: entityConfig?.label || 'Liste',
       entityArticle: entityConfig?.article || 'die',
@@ -151,7 +156,7 @@ async function resend(ctx: StaffKontext, shareId: string): Promise<Response> {
       titles: paket ? scriptTitleList(body.scriptTitles) : undefined,
       link,
       code,
-      message: String(body.message ?? '').trim().slice(0, 500) || undefined,
+      message,
       basisUrl: origin,
     }),
   });

@@ -1,7 +1,7 @@
 // Gemeinsames für share-list: Kontext, Listen-Typen, Sperrprüfung, Einladungsmails.
 
 import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { sendResendMail } from '../_shared/mail.ts';
+import { EMAIL_REGEX, sendResendMail } from '../_shared/mail.ts';
 import { listenLinkMail } from '../_shared/mail/index.ts';
 import type { MailErgebnis } from '../_shared/mail/index.ts';
 import { accountListPath } from '../_shared/share-recipients-plan.ts';
@@ -159,14 +159,19 @@ export async function kampagneDisplayName(admin: Admin, kampagneId: string | nul
   return eigener || name || null;
 }
 
+/** `mail` als Funktion, wenn die Mail je Empfänger anders aussieht. Antworten gehen an replyTo (der teilende Mitarbeiter). */
 export async function sendInviteMails(params: {
   emails: string[];
-  mail: MailErgebnis;
+  mail: MailErgebnis | ((to: string) => MailErgebnis);
+  replyTo?: string | null;
 }): Promise<{ sent: number; error?: string }> {
   let sent = 0;
   let lastError = '';
+  // Resend lehnt die ganze Mail ab, wenn reply_to kein gültiges Format hat.
+  const replyTo = params.replyTo && EMAIL_REGEX.test(params.replyTo) ? params.replyTo : null;
   for (const to of params.emails) {
-    const result = await sendResendMail({ to, subject: params.mail.betreff, html: params.mail.html });
+    const mail = typeof params.mail === 'function' ? params.mail(to) : params.mail;
+    const result = await sendResendMail({ to, subject: mail.betreff, html: mail.html, replyTo });
     if (result.ok) sent += 1;
     else lastError = result.error || '';
   }
@@ -178,8 +183,11 @@ export async function mailAccountLinks(params: {
   entityType: string;
   entityId: string;
   entityLabel: string;
+  entityArticle: string;
   entityName: string;
   sharedByName: string;
+  message?: string;
+  replyTo?: string | null;
   origin: string;
 }): Promise<{ sent: number; error?: string }> {
   if (params.emails.length === 0) return { sent: 0 };
@@ -187,11 +195,15 @@ export async function mailAccountLinks(params: {
   if (!path) return { sent: 0 };
   return sendInviteMails({
     emails: params.emails,
-    mail: listenLinkMail({
+    replyTo: params.replyTo,
+    mail: (to) => listenLinkMail({
       entityLabel: params.entityLabel,
+      entityArticle: params.entityArticle,
       entityName: params.entityName,
       url: `${params.origin}${path}`,
       sharedByName: params.sharedByName,
+      email: to,
+      message: params.message || undefined,
       basisUrl: params.origin,
     }),
   });

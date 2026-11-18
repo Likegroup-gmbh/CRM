@@ -21,7 +21,7 @@ cd /Users/deezy/CRM-v2
 npm run dev
 ```
 
-Badge **v2** oben rechts = richtiger Channel. Fehlt es, bist du auf v1 oder `VITE_APP_CHANNEL` ist leer.
+Das **v2**-Badge oben rechts ist aktuell **aus**. Es erscheint nur, wenn `VITE_APP_CHANNEL=v2` gesetzt ist **und** der Schalter an ist: `channelBadge` in `src/core/parallelbetrieb/schalter.json` auf `true`, oder `VITE_CHANNEL_BADGE=on` (übersteuert die Datei, wirkt nach neuem Build). Das ganze Modul liegt in `src/core/parallelbetrieb/`.
 
 ## Kollege: Worktree holen
 

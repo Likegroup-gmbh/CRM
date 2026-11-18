@@ -26,10 +26,11 @@ import {
 
 export const VIEW_OPTIONS = [
   { value: 'ordner', label: 'Ordner', icon: 'folder' },
-  { value: 'showcase', label: 'Showcase', icon: 'showcase' }
+  { value: 'showcase', label: 'Showcase', icon: 'showcase' },
+  { value: 'kalender', label: 'Kalender', icon: 'calendar' }
 ];
 
-/** Umschalter "Ordner | Showcase" für die Workflow-Tab-Zeile (rechts, in `[data-workflow-liste-slot]`). */
+/** Umschalter "Ordner | Showcase | Kalender" für die Workflow-Tab-Zeile (rechts, in `[data-workflow-liste-slot]`). */
 export const viewSwitchHtml = (view) => segmentHtml({ id: 'view', options: VIEW_OPTIONS, value: view });
 
 /** Ohne Tab-Zeile (z. B. Test-Umgebung): eigene Leiste über dem Spaltenbrowser. */

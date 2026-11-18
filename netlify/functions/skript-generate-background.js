@@ -7,7 +7,7 @@
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, loadReferenzVideo, buildKontextText, videoLaengeHinweis, briefingSkriptSprache } = require('./_shared/skript-context');
-const { entferneZeitmarker, pruefeSkript } = require('./_shared/skript-context/formatter');
+const { entferneZeitmarker, pruefeSkript, hookVorgabeText } = require('./_shared/skript-context/formatter');
 const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
 const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
 const { vertragBlock } = require('./_shared/skript-vertrag');
@@ -263,7 +263,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       model,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      maxTokens: 8192,
+      // Opus 5.5 denkt immer; die Thinking-Tokens zaehlen in max_tokens mit
+      maxTokens: 16384,
       tool: SKRIPT_TOOL,
       // Konservativ: ein haengender Claude-Call soll nicht bis zum
       // Netlify-Limit blockieren, sondern als Job-Fehler sichtbar werden
@@ -362,7 +363,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       pruefung: pruefeSkript(felder, {
         video_laenge: payload.video_laenge,
         verbotene_claims: ctx.produkt?.verbotene_claims,
-        hook_vorgaben: ctx.briefing?.hook_vorgaben
+        hook_vorgaben: hookVorgabeText(ctx.briefing)
       }),
       // Merge statt Replace: generator_payload (Retry/Anzeige) und der
       // Referenz-Snapshot muessen die Generierung ueberleben

@@ -3,7 +3,10 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 import {
   getVertragStatus,
   vertragStatusLabel,
@@ -79,10 +82,7 @@ export function updateFoldersGrid(folders) {
   grid.innerHTML = folders.map(folder => `
     <div class="folder-card" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">
       <div class="folder-icon">
-        ${folder.logo_url
-          ? `<img src="${escapeHtml(folder.logo_url)}" alt="${escapeHtml(folder.firmenname)}" class="folder-logo">`
-          : `${icon('folder-open')}`
-        }
+        ${renderFolderAvatar({ url: folder.logo_url, name: folder.firmenname })}
       </div>
       <div class="folder-info">
         <span class="folder-name">${escapeHtml(folder.firmenname)}</span>
@@ -108,14 +108,13 @@ export function updateUnternehmenListTableBody(folders) {
 
   tbody.innerHTML = folders.map(folder => `
     <tr class="table-row-clickable unternehmen-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">
-      <td>
-        <div class="flex-center-sm">
-          ${folder.logo_url
-            ? `<img src="${escapeHtml(folder.logo_url)}" alt="${escapeHtml(folder.firmenname)}" class="table-logo">`
-            : ''
-          }
-          <a href="#" class="table-link unternehmen-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">${escapeHtml(folder.firmenname)}</a>
-        </div>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: folder.logo_url,
+          logo: true,
+          iconHtml: icon('folder-open'),
+          nameHtml: `<a href="#" class="table-link unternehmen-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">${escapeHtml(folder.firmenname)}</a>`
+        })}
       </td>
       <td>${folder.count}</td>
     </tr>
@@ -194,8 +193,6 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
       ? `${escapeHtml(creator.vorname)} ${escapeHtml(creator.nachname || '')}`.trim()
       : '-';
 
-    const typClass = vertrag.typ ? `typ-${vertrag.typ.toLowerCase().replace(/\s+/g, '-')}` : '';
-
     const dateiHtml = vertrag.datei_url
       ? `<a href="${escapeHtml(vertrag.datei_url)}" target="_blank" class="datei-link datei-icon" title="PDF anzeigen">
           ${icon('pdf')}
@@ -234,15 +231,13 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
         <td class="col-status">${statusHtml}</td>
         <td class="col-typ">
           ${vertrag.typ
-            ? `<span class="status-badge ${typClass}">${escapeHtml(vertrag.typ)}</span>`
+            ? `<span class="tag tag--type">${escapeHtml(vertrag.typ)}</span>`
             : '-'}
         </td>
         <td class="col-creator">
-          ${creator.id ? `
-            <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
-              ${creatorName}
-            </a>
-          ` : '-'}
+          ${creator.id
+            ? renderVerknuepfungPill({ kind: 'creator', labelHtml: creatorName, attrs: `data-table="creator" data-id="${creator.id}"` })
+            : '-'}
         </td>
         <td class="col-datei">${dateiHtml}</td>
         <td class="col-signed">${unterschriebenHtml}</td>

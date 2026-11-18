@@ -118,20 +118,3 @@
   width: 14px;
   height: 14px;
 }
-
-.cp-name-cell-line {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-xs);
-}
-
-.cp-name-cell-line .strategie-textarea,
-.cp-name-cell-line .cell-text-readonly {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.cp-name-cell-line .sourcing-avatar__open {
-  position: static;
-  flex: none;
-}

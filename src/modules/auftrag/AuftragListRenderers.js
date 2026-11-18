@@ -8,6 +8,7 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 import { getPaymentRowStatusClass, isInvoiceRowPaid } from './logic/PaymentRowStatus.js';
 import { resolveEmptyState } from '../../core/components/EmptyState.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 AuftragList.prototype.renderCreatedBy = function(user) {
   if (!user || !user.name) return '-';
@@ -35,11 +36,12 @@ AuftragList.prototype.getListColumnCount = function(mode) {
 AuftragList.prototype.renderAuftragsdetailsLink = function(auftrag) {
   if (auftrag.auftragsdetails_id) {
     const name = window.validatorSystem.sanitizeHtml(auftrag.auftragsname || 'Unbekannter Auftrag');
-    return `
-      <a href="#" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')" class="table-link details-link" title="Auftragsdetails anzeigen">
-        ${name}
-      </a>
-    `;
+    return renderVerknuepfungPill({
+      kind: 'auftragsdetails',
+      labelHtml: name,
+      attrs: `onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${auftrag.auftragsdetails_id}')"`,
+      className: 'details-link'
+    });
   }
   if (auftrag.auftragtype === 'Contracting') {
     return '<span class="tag tag--contracting">Contracting</span>';
@@ -49,11 +51,12 @@ AuftragList.prototype.renderAuftragsdetailsLink = function(auftrag) {
 
 AuftragList.prototype.renderContractDetailsLink = function(auftrag) {
   const name = window.validatorSystem.sanitizeHtml(auftrag.auftragsname || auftrag.titel || 'Contract');
-  return `
-    <a href="#" onclick="event.preventDefault(); window.navigateTo('/contracts/${auftrag.id}')" class="table-link details-link" title="Contract anzeigen">
-      ${name}
-    </a>
-  `;
+  return renderVerknuepfungPill({
+    kind: 'contract',
+    labelHtml: name,
+    attrs: `onclick="event.preventDefault(); window.navigateTo('/contracts/${auftrag.id}')"`,
+    className: 'details-link'
+  });
 };
 
 AuftragList.prototype._renderLegacyListHead = function() {

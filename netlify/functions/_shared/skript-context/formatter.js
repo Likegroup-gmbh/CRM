@@ -94,13 +94,19 @@ const WOERTER_PRO_SEKUNDE = 2.3;
 
 /**
  * Menschlich lesbarer Laengen-Hinweis inkl. Wort-Budget aus einer
- * Sekunden-Spanne wie "30-45". Liefert null bei fehlender/kaputter Angabe.
+ * Sekunden-Spanne wie "30-45" oder einer Mindestlaenge "30+" (max dann null).
+ * Liefert null bei fehlender/kaputter Angabe.
  */
 function wortBudget(spanne) {
   if (!spanne) return null;
+  const rund5 = (n) => Math.max(5, Math.round(n / 5) * 5);
+  const minimum = String(spanne).trim().match(/^(\d+)\s*\+$/);
+  if (minimum) {
+    const von = parseInt(minimum[1], 10);
+    return von > 0 ? { von, bis: null, min: rund5(von * WOERTER_PRO_SEKUNDE), max: null } : null;
+  }
   const [von, bis] = String(spanne).split('-').map((n) => parseInt(n, 10));
   if (!Number.isFinite(von) || !Number.isFinite(bis) || bis <= 0) return null;
-  const rund5 = (n) => Math.max(5, Math.round(n / 5) * 5);
   return {
     von,
     bis,
@@ -112,6 +118,9 @@ function wortBudget(spanne) {
 function videoLaengeHinweis(spanne) {
   const budget = wortBudget(spanne);
   if (!budget) return null;
+  if (budget.max == null) {
+    return `mindestens ${budget.von} Sekunden gesprochen, das sind mindestens ca. ${budget.min} Woerter GESAMT (gesamtes Skript)`;
+  }
   return `${budget.von}-${budget.bis} Sekunden gesprochen, das sind ca. ${budget.min}-${budget.max} Woerter GESAMT (gesamtes Skript)`;
 }
 
@@ -151,8 +160,16 @@ function claimListe(raw) {
   return String(raw || '').split(/[\n,;]+/).map((s) => s.trim()).filter((s) => s.length >= 4);
 }
 
+/** Text fuer die Hook-Zeit-Pruefung: Pflichtinhalte des Briefings, dahinter das Altfeld hook_vorgaben. */
+function hookVorgabeText(briefing) {
+  return [briefing?.vorgabe_pflicht, briefing?.hook_vorgaben]
+    .map((t) => String(t || '').trim())
+    .filter(Boolean)
+    .join('\n') || null;
+}
+
 /**
- * Obergrenze des Hooks in Sekunden aus dem Briefing-Feld hook_vorgaben:
+ * Obergrenze des Hooks in Sekunden aus der Hook-Vorgabe (hookVorgabeText):
  * "Hook (0–3 Sek.)", "innerhalb der ersten 3 Sekunden", "in Sekunde 1-3".
  */
 function hookSekundenMax(hookVorgaben) {
@@ -222,7 +239,7 @@ function pruefeSkript(felder, { video_laenge, verbotene_claims, hook_vorgaben } 
   if (budget) {
     let status = 'ok';
     if (worte < budget.min) status = 'unter';
-    else if (worte > budget.max) status = 'ueber';
+    else if (budget.max != null && worte > budget.max) status = 'ueber';
     laenge = { status, worte, min: budget.min, max: budget.max };
   }
   const hay = [felder?.hook, felder?.hauptteil, felder?.cta].filter(Boolean).join('\n').toLowerCase();
@@ -264,7 +281,8 @@ function pruefHinweis(p) {
   const teile = [];
   if (p.laenge && p.laenge.status && p.laenge.status !== 'ok') {
     const richtung = p.laenge.status === 'ueber' ? 'darüber' : 'darunter';
-    teile.push(`${p.laenge.worte} Wörter, ${richtung} von ${p.laenge.min}–${p.laenge.max}.`);
+    const soll = p.laenge.max == null ? `mindestens ${p.laenge.min}` : `${p.laenge.min}–${p.laenge.max}`;
+    teile.push(`${p.laenge.worte} Wörter, ${richtung} von ${soll}.`);
   }
   if (p.hook_zeit?.status === 'ueber') {
     teile.push(`Hook ca. ${p.hook_zeit.sekunden} Sek., Vorgabe bis ${p.hook_zeit.max} Sek.`);
@@ -299,7 +317,7 @@ module.exports = {
   fmtSection, fmtSkript, fmtVarianten, produktPreis,
   videoLaengeHinweis, wortBudget, zaehleWoerter, entferneZeitmarker, visuellOhneZeitmarker,
   pruefeSkript, WOERTER_PRO_SEKUNDE,
-  hookSekundenMax, findeDoppelungen, pruefHinweis, neueBefunde,
+  hookSekundenMax, hookVorgabeText, findeDoppelungen, pruefHinweis, neueBefunde,
   kuerzeTranskript, REFERENZ_TRANSKRIPT_MAX,
   cap, KONTEXT_MAX
 };

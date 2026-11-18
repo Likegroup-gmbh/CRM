@@ -22,6 +22,9 @@ const PRICES_USD_PER_MTOK = {
   'claude-opus-4-7': { input: 5, cacheWrite: 6.25, cacheRead: 0.5, output: 25 },
   'claude-opus-4-8': { input: 5, cacheWrite: 6.25, cacheRead: 0.5, output: 25 },
   'claude-opus-5': { input: 5, cacheWrite: 6.25, cacheRead: 0.5, output: 25 },
+  // Opus 5.5: guenstiger als Opus 5, Cache-Reads bei 0,05x Input. Der laengere
+  // Key gewinnt in findPrices gegen das Prefix 'claude-opus-5'.
+  'claude-opus-5-5': { input: 4, cacheWrite: 5, cacheRead: 0.2, output: 20 },
   'claude-fable-5': { input: 10, cacheWrite: 12.5, cacheRead: 1, output: 50 }
 };
 

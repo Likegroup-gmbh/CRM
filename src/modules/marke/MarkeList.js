@@ -15,6 +15,7 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { MarkeService } from './services/MarkeService.js';
 import { safeExternalUrl } from '../../core/UrlHelper.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 
 export class MarkeList extends BasePaginatedList {
   constructor() {
@@ -187,13 +188,11 @@ export class MarkeList extends BasePaginatedList {
     return `
       <tr data-id="${marke.id}">
         ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="marke-check" data-id="${marke.id}"></td>` : ''}
-        <td class="col-name col-name-with-icon">
-          ${marke.logo_url 
-            ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />` 
-            : `<span class="table-avatar">${(marke.markenname || '?')[0].toUpperCase()}</span>`}
-          <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-            ${sanitize(marke.markenname || '')}
-          </a>
+        <td class="col-name">
+          ${renderTableIdentity({
+            url: marke.logo_url, logo: true, name: marke.markenname,
+            nameHtml: `<a href="#" class="table-link" data-table="marke" data-id="${marke.id}">${sanitize(marke.markenname || '')}</a>`
+          })}
         </td>
         <td>${this.renderUnternehmen(marke.unternehmen)}</td>
         <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>

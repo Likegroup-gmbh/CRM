@@ -24,8 +24,8 @@ function inScope(vb, el) {
 /** @returns {boolean} true, wenn der Druck ein Kürzel ausgelöst hat */
 export function onShortcut(vb, e) {
   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return false;
-  // Im Showcase ist der Detailbereich ausgeblendet: keine Kürzel auf der versteckten Datei
-  if (vb.view === 'showcase') return false;
+  // Im Showcase und im Kalender ist der Detailbereich ausgeblendet: keine Kürzel auf der versteckten Datei
+  if (vb.view !== 'ordner') return false;
   const target = e.target;
   if (!inScope(vb, target) || isTyping(target)) return false;
   // Im Player gehört F dem Vollbild (und M, Leertaste usw. der Wiedergabe)

@@ -6,6 +6,7 @@ import { renderKampagnenTable } from '../kampagne/KampagneTable.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import { getSourcingStatus, getKundenFeedback, getSourcingStatusOption, getKundenFeedbackOption } from '../creator-auswahl/sourcingStatusOptions.js';
 
 CreatorDetail.prototype.renderKampagnenContent = function() {
@@ -61,7 +62,7 @@ CreatorDetail.prototype.renderCastingsContent = function() {
         ? `<a href="/castings/${liste.id}" class="table-link" data-table="castings" data-id="${liste.id}">${castingName}</a>`
         : castingName;
       const kampagneCell = kampagne?.id
-        ? `<a href="/kampagne/${kampagne.id}" class="table-link" data-table="kampagne" data-id="${kampagne.id}">${kampagneName}</a>`
+        ? renderVerknuepfungPill({ kind: 'kampagne', labelHtml: kampagneName, href: `/kampagne/${kampagne.id}`, attrs: `data-table="kampagne" data-id="${kampagne.id}"` })
         : kampagneName;
 
       return `

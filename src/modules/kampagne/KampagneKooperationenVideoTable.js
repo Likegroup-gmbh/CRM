@@ -11,12 +11,8 @@ import { VideoFeedbackSaveController } from '../../core/videoFeedback/VideoFeedb
 import { VideoFeedbackBinding } from './VideoFeedbackBinding.js';
 import { VideoTableEventBinder } from './VideoTableEventBinder.js';
 import { VideoTableStatusDropdown } from './VideoTableStatusDropdown.js';
+import { tableSelect } from '../../core/components/TableSelect.js';
 import { VideoTableDrawerActions } from './VideoTableDrawerActions.js';
-import { VideoStatsFetcher } from './VideoStatsFetcher.js';
-import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
-import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
-import { createLiveLinkToolbarConfig } from './liveLinkToolbarConfig.js';
-import { LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
@@ -61,18 +57,12 @@ export class KampagneKooperationenVideoTable {
     this._eventBinder = new VideoTableEventBinder(this);
     this._statusDropdown = new VideoTableStatusDropdown(this);
     this._drawerActions = new VideoTableDrawerActions(this);
-    this._statsFetcher = new VideoStatsFetcher(this);
     this.columnDragHandler = new ColumnDragHandler(this);
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
     this._linkSkriptDrawer = new LinkSkriptDrawer();
     this._mediaViewer = new VideoPlayerLightbox(this);
     this._finalBulkDownload = new FinalVideoBulkDownload(this);
-
-    // Die Hover-Toolbar der Live-Link-Spalte laeuft ueber die zentrale Engine.
-    // Ihre Aktionen brauchen den StatsFetcher dieser Instanz, also wird die
-    // Config hier mit Kontext angemeldet statt global deklariert.
-    registerHoverToolbar(LIVE_LINK_TOOLBAR, createLiveLinkToolbarConfig(this));
   }
 
   // Store-backed getters (Proxy zum Store, Fallback auf lokale Daten für Kompatibilität)
@@ -250,11 +240,7 @@ export class KampagneKooperationenVideoTable {
 
   bindEvents() { this._eventBinder.bind(); }
 
-  // Status-Dropdown delegiert an VideoTableStatusDropdown (Portal + Update).
-  positionStatusDropdown(wrapper) { return this._statusDropdown.positionStatusDropdown(wrapper); }
-  _closeStatusPortal() { return this._statusDropdown.closePortal(); }
-  _openStatusPortal(wrapper) { return this._statusDropdown.openPortal(wrapper); }
-  _positionStatusPortal(trigger, portal) { return this._statusDropdown._positionPortal(trigger, portal); }
+  // Status-Update delegiert an VideoTableStatusDropdown.
   _updateStatusInline(kooperationId, statusId, statusName) {
     return this._statusDropdown.updateInline(kooperationId, statusId, statusName);
   }
@@ -351,7 +337,7 @@ export class KampagneKooperationenVideoTable {
       const container = this.containerId ? document.getElementById(this.containerId) : null;
       if (!container) return;
 
-      this._closeStatusPortal();
+      tableSelect.closeAll();
 
       // container selbst ueberlebt den innerHTML-Tausch (lebender Node),
       // .grid-wrapper und die Floating-Bar werden neu gebaut -> Selektoren.
@@ -384,11 +370,7 @@ export class KampagneKooperationenVideoTable {
     this.fieldHandler?.flushEditedTextFields();
     this.feedbackSaveController?.flushAll();
 
-    this._closeStatusPortal();
-    // Die Engine selbst bleibt stehen, sie gehoert der Anwendung. Nur diese
-    // Config verweist auf eine Tabelle, die es gleich nicht mehr gibt.
-    unregisterHoverToolbar(LIVE_LINK_TOOLBAR);
-    hoverToolbar.close();
+    tableSelect.closeAll();
 
     this._rowHeightSync?.disconnect();
     this._rowHeightSync = null;

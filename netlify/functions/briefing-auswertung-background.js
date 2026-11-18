@@ -152,7 +152,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       model,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      maxTokens: 4096,
+      maxTokens: 8192,
       tool: AUSWERTUNG_TOOL,
       timeoutMs: 480000
     });

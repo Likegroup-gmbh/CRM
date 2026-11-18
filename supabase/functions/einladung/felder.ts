@@ -4,8 +4,9 @@
  * Reine Funktionen ohne Deno-Importe, damit Vitest sie testen kann
  * (src/__tests__/EinladungAllowlist.test.js gleicht die Namen mit fieldConfig.js ab).
  *
- * Nicht erlaubt, weil intern: Zuordnung (unternehmen_id, marke_id, kampagne_id,
- * produktion_id), TKP, Verhandlungshinweis, Personas, Briefing-Verknüpfung.
+ * Briefing: die Felder des Creator-Briefing-PDFs (ADR 0073). Nicht erlaubt, weil intern:
+ * Zuordnung (unternehmen_id, marke_id, kampagne_id, produktion_id), Personas, Briefing-Verknüpfung
+ * und Produkt-IDs (Produkte legt erst das Team beim Anlegen der Einreichung an).
  */
 
 export type Art = 'produkt' | 'briefing' | 'konzept';
@@ -13,21 +14,17 @@ export type Art = 'produkt' | 'briefing' | 'konzept';
 export const BRIEFING_TYPEN = ['paid_creator_ads', 'owned_social', 'influencer_marketing'] as const;
 
 export const BRIEFING_FELDER = [
-  'beschreibung',
-  'funnel_stufen', 'paid_objectives', 'content_deadline', 'go_live',
-  'content_ziele', 'plattformmechanik',
-  'veroeffentlichungszeitraum', 'freigabeprozess',
-  'nischen', 'creator_merkmale', 'beteiligte_personen', 'creator_groessen',
-  'voraussetzungen', 'voraussetzungen_sonstiges', 'produkt_erfahrung', 'hauttyp', 'haartyp',
-  'aufgabe', 'art_der_integration', 'setting', 'produktionsvoraussetzungen',
-  'umsetzungsideen', 'referenzen', 'learnings_text', 'wichtige_vorgaben',
-  'ad_channels', 'publish_channels',
-  'videolaenge', 'videolaenge_funnel_upper', 'videolaenge_funnel_mid', 'videolaenge_funnel_lower',
-  'cta', 'ziel_url', 'hook_vorgaben', 'unterschiedliche_hooks', 'hooks_anzahl',
-  'trendkontext', 'posting_anforderungen',
-  'nutzung_markenkanal', 'nutzung_paid_media', 'nutzung_creator_kanal', 'nutzung_whitelisting',
-  'nutzungsdauer', 'rohmaterial',
+  'aktivierung_name',
+  'nutzung_markenkanal', 'nutzung_paid_media', 'nutzung_creator_kanal',
+  'plattformen', 'plattformen_weitere', 'seitenverhaeltnisse', 'seitenverhaeltnis_weitere',
+  'videolaenge', 'nutzungsrechte',
+  'content_deadline', 'content_deadline_bis', 'go_live', 'go_live_bis',
+  'produkte', 'beschreibung', 'kernbotschaft',
+  'aufgabe', 'vorgabe_pflicht', 'setting', 'vorgabe_donts', 'vorgabe_dos', 'umsetzungsideen_eintraege',
 ] as const;
+
+/** Eingabefelder einer Produktzeile im Briefing (wie PRODUKT_EINGABE in briefingProduktSync.js). */
+export const BRIEFING_PRODUKT_EINGABE = ['name', 'url', 'kurzbeschreibung', 'usp', 'loesung'] as const;
 
 export const PRODUKT_FELDER = [
   'name', 'url', 'kurzbeschreibung', 'usp', 'pain_points', 'loesung',
@@ -51,7 +48,9 @@ export const MAX_TEXT = 10_000;
 export const MAX_LISTE = 100;
 export const MAX_BILDER = 5;
 export const MAIL_MAX_EMPFAENGER = 10;
-export const MAX_REFERENZEN = 3;
+export const MAX_PRODUKTE = 10;
+export const MAX_IDEEN = 20;
+export const MAX_VIDEO_SEKUNDEN = 3600;
 export const MAX_VARIANTEN = 30;
 
 export const UPLOAD_MIME = [
@@ -131,42 +130,65 @@ function eigenerPfad(pfad: unknown, einladungId: string): string | null {
   return p;
 }
 
-/** Briefing: nur erlaubte Felder, bereinigte Werte, Referenz-Uploads nur aus dieser Einladung. */
+/** Produktzeilen: nur Texte und ein gültiger Link, nie eine Produkt-ID. Name oder Link ist Pflicht. */
+function bereinigeProduktliste(raw: unknown): Record<string, string>[] {
+  const liste = Array.isArray(raw) ? raw.slice(0, MAX_PRODUKTE) : [];
+  const sauber: Record<string, string>[] = [];
+  for (const eintrag of liste) {
+    const e = (eintrag && typeof eintrag === 'object' ? eintrag : {}) as Record<string, unknown>;
+    const zeile: Record<string, string> = {};
+    for (const feld of BRIEFING_PRODUKT_EINGABE) {
+      const v = text(e[feld], feld === 'name' ? 200 : feld === 'url' ? 2000 : MAX_TEXT);
+      if (!v || (feld === 'url' && !istUrl(v))) continue;
+      zeile[feld] = v;
+    }
+    if (zeile.name || zeile.url) sauber.push(zeile);
+  }
+  return sauber;
+}
+
+/** Umsetzungsideen als [{ text, verbindlich }]. */
+function bereinigeIdeen(raw: unknown): { text: string; verbindlich: boolean }[] {
+  const liste = Array.isArray(raw) ? raw.slice(0, MAX_IDEEN) : [];
+  const sauber: { text: string; verbindlich: boolean }[] = [];
+  for (const eintrag of liste) {
+    const e = (eintrag && typeof eintrag === 'object' ? eintrag : { text: eintrag }) as Record<string, unknown>;
+    const t = text(e.text, 2000);
+    if (t) sauber.push({ text: t, verbindlich: e.verbindlich === true });
+  }
+  return sauber;
+}
+
+/** Videolänge { von, bis }: bis leer heißt Mindestlänge (ADR 0075). */
+function bereinigeVideolaenge(raw: unknown): { von: number; bis: number | null } | null {
+  const e = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const von = zahl(e.von);
+  const bis = zahl(e.bis);
+  if (von === null || von <= 0 || von > MAX_VIDEO_SEKUNDEN) return null;
+  if (bis === null) return { von, bis: null };
+  return bis >= von && bis <= MAX_VIDEO_SEKUNDEN ? { von, bis } : null;
+}
+
+/** Briefing: nur erlaubte Felder, bereinigte Werte. Das Briefing kennt keine Uploads mehr. */
 export function bereinigeBriefing(
   eingabe: unknown,
-  { einladungId, bereich }: { einladungId: string; bereich: string },
+  { bereich }: { einladungId?: string; bereich: string },
 ): Bereinigt {
   const src = (eingabe && typeof eingabe === 'object' ? eingabe : {}) as Record<string, unknown>;
   const formData: Record<string, unknown> = {};
-  const dateien: Datei[] = [];
 
   for (const name of BRIEFING_FELDER) {
     if (!(name in src)) continue;
-    if (name === 'referenzen') {
-      const liste = Array.isArray(src.referenzen) ? src.referenzen.slice(0, MAX_REFERENZEN) : [];
-      const sauber = [];
-      for (const eintrag of liste) {
-        const e = (eintrag && typeof eintrag === 'object' ? eintrag : {}) as Record<string, unknown>;
-        if (e.typ === 'upload') {
-          const pfad = eigenerPfad(e.value, einladungId);
-          if (!pfad) continue;
-          const label = text(e.label, 200) || 'Datei';
-          sauber.push({ typ: 'upload', value: pfad, label });
-          dateien.push({ feld: 'referenzen', pfad, name: label });
-        } else {
-          const url = text(e.value, 2000);
-          if (url && istUrl(url)) sauber.push({ typ: 'url', value: url });
-        }
-      }
-      if (sauber.length) formData.referenzen = sauber;
-      continue;
-    }
-    const clean = bereinigeWert(src[name]);
+    let clean: unknown;
+    if (name === 'produkte') clean = bereinigeProduktliste(src.produkte);
+    else if (name === 'umsetzungsideen_eintraege') clean = bereinigeIdeen(src.umsetzungsideen_eintraege);
+    else if (name === 'videolaenge') clean = bereinigeVideolaenge(src.videolaenge);
+    else clean = bereinigeWert(src[name]);
     if (!leer(clean)) formData[name] = clean;
   }
 
   formData.bereich = bereich;
-  return { formData, dateien };
+  return { formData, dateien: [] };
 }
 
 /** Produkt: Pflicht sind Name und Shop-URL; Varianten und Bilder werden einzeln geprüft. */

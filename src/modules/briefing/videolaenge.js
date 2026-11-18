@@ -1,6 +1,6 @@
 // videolaenge.js
-// Videolänge: geschlossenes Intervall in ganzen Sekunden, von und bis inklusive.
-// Leer heißt, es ist keine Videolänge vorgegeben.
+// Videolänge: geschlossenes Intervall in ganzen Sekunden, von und bis inklusive, oder
+// eine Mindestlänge (von ohne bis, ADR 0075). Leer heißt, es ist keine Videolänge vorgegeben.
 
 export const VIDEOLAENGE_MIN = 1;
 export const VIDEOLAENGE_MAX = 180;
@@ -52,14 +52,35 @@ export function intervallOderNull(von, bis) {
   return a <= b ? { von: a, bis: b } : { von: b, bis: a };
 }
 
+function leer(v) {
+  return v == null || v === '';
+}
+
+/** Mindestlänge { von, bis: null }: von gesetzt, bis leer. Sonst null. */
+export function mindestlaengeOderNull(von, bis) {
+  if (leer(von) || !leer(bis)) return null;
+  const a = clampSekunde(von);
+  return a == null ? null : { von: a, bis: null };
+}
+
+/** Intervall oder Mindestlänge, sonst null. */
+export function videolaengeOderNull(von, bis) {
+  return intervallOderNull(von, bis) || mindestlaengeOderNull(von, bis);
+}
+
 export function formatVideolaenge(von, bis) {
+  const min = mindestlaengeOderNull(von, bis);
+  if (min) return `ab ${min.von} Sek.`;
   const iv = intervallOderNull(von, bis);
   if (!iv) return null;
   if (iv.von === iv.bis) return `${iv.von} Sek.`;
   return `${iv.von}–${iv.bis} Sek.`;
 }
 
+/** Skript-Schlüssel: "15-20", bei einer Mindestlänge "15+". */
 export function skriptSchluessel(von, bis) {
+  const min = mindestlaengeOderNull(von, bis);
+  if (min) return `${min.von}+`;
   const iv = intervallOderNull(von, bis);
   if (!iv) return null;
   return `${iv.von}-${iv.bis}`;
@@ -69,6 +90,8 @@ export function skriptSchluessel(von, bis) {
 export function formatVideoLaengeSchluessel(schluessel) {
   if (schluessel == null || schluessel === '') return null;
   const raw = String(schluessel).trim();
+  const plus = raw.match(/^(\d+)\+$/);
+  if (plus) return formatVideolaenge(parseInt(plus[1], 10), null);
   const match = raw.match(/^(\d+)-(\d+)$/);
   if (!match) return raw;
   const von = parseInt(match[1], 10);
@@ -132,8 +155,7 @@ function formatTextAusBriefing(briefing) {
 }
 
 function gespeichertesIntervall(briefing) {
-  if (briefing.videolaenge_von == null || briefing.videolaenge_bis == null) return null;
-  return intervallOderNull(briefing.videolaenge_von, briefing.videolaenge_bis);
+  return videolaengeOderNull(briefing.videolaenge_von, briefing.videolaenge_bis);
 }
 
 export function videolaengeAusBriefing(briefing) {
@@ -204,7 +226,7 @@ function ersterText(value) {
 export function anzeigeWert(briefing) {
   if (!briefing) return null;
   const stored = gespeichertesIntervall(briefing);
-  if (stored) return { art: 'intervall', ...stored };
+  if (stored) return { art: stored.bis == null ? 'minimum' : 'intervall', ...stored };
 
   const tokens = alsListe(briefing.videolaengen);
   if (tokens.length) return { art: 'tokens', values: tokens };

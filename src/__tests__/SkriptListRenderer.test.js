@@ -65,12 +65,12 @@ describe('SkriptListRenderer Items', () => {
     const cells = doc.querySelectorAll('td');
     expect(cells).toHaveLength(11);
     expect(cells[1].textContent.trim()).toBe('Hook Test');
-    expect(cells[2].classList.contains('col-name-with-icon')).toBe(true);
+    expect(cells[2].classList.contains('col-name')).toBe(true);
     const link = cells[2].querySelector('a.table-link');
     expect(link.dataset.table).toBe('creator');
     expect(link.dataset.id).toBe('c1');
     expect(link.textContent).toBe('Casting');
-    expect(cells[2].querySelector('img.table-avatar')).not.toBeNull();
+    expect(cells[2].querySelector('.table-identity__media img.table-avatar')).not.toBeNull();
   });
 
   it('ohne Creator Dash in Spalte 3, Nr. in Spalte 1', () => {

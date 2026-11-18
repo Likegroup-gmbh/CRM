@@ -20,9 +20,9 @@ import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { bindKampagnenAuswertung } from '../auswertung/auswertungKampagne.js';
 
-const CHECK_ICON = `
-  ${icon('check-bold')}`;
+const CHECK_ICON = icon('check-bold');
 
 function initToolbarMenu(signal) {
   document.querySelectorAll('.page-header-right .toolbar-menu').forEach(menu => {
@@ -146,6 +146,7 @@ export function setupEvents(detail) {
 
   initToolbarMenu(signal);
   initKooperationenSearch(detail, signal);
+  bindKampagnenAuswertung(detail, signal);
 
   document.getElementById('btn-new-produktion')?.addEventListener('click', async (e) => {
     const button = e.currentTarget;

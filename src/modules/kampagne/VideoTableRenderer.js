@@ -7,8 +7,6 @@ import {
   escapeHtml,
   renderVideoFieldStack,
   renderVideoDatePicker,
-  renderLiveLinkCell,
-  renderStatsNumberCell,
   renderExtraKostenInner,
   renderVideoNrInner,
   renderVkInner,
@@ -47,10 +45,6 @@ export { COPY_ICON, CHECK_ICON };
 export class VideoTableRenderer {
   constructor(table) {
     this.table = table;
-  }
-
-  _renderLiveLinkCell(koop, video) {
-    return renderLiveLinkCell(this.table, koop, video);
   }
 
   renderStillsCell(koop, video) {
@@ -245,41 +239,35 @@ export class VideoTableRenderer {
 
     const map = {
       'col-nr': (c) => this._td(c, 'col-nr', `${c.rowNumber}`, 'read-only'),
-      'col-creator': (c) => this._td(c, 'col-creator', renderCreatorInner(c), 'read-only'),
-      'col-status': (c) => this._td(c, 'col-status', renderStatusSelectCell(c.t, c.koop)),
-      'col-tags': (c) => this._td(c, 'col-tags', renderTagsInner(c.koop)),
-      'col-extra-kosten': (c) => this._td(c, 'col-extra-kosten', renderExtraKostenInner(c.koop), 'read-only'),
+      'col-creator': (c) => this._td(c, 'col-creator', renderCreatorInner(c), 'read-only cell-centered'),
+      'col-status': (c) => this._td(c, 'col-status', renderStatusSelectCell(c.t, c.koop), 'cell-centered'),
+      'col-tags': (c) => this._td(c, 'col-tags', renderTagsInner(c.koop), 'cell-centered'),
+      'col-extra-kosten': (c) => this._td(c, 'col-extra-kosten', renderExtraKostenInner(c.koop), 'read-only cell-centered'),
       'col-vertrag': (c) => this._td(c, 'col-vertrag', renderVertragCell(c.koop), 'cell-centered'),
       'col-nutzungsrechte': (c) => this._td(c, 'col-nutzungsrechte', renderNutzungsrechteCell(c.koop), 'cell-centered'),
-      'col-start-datum': (c) => this._td(c, 'col-start-datum', c.formatDate(c.koop.created_at), 'read-only'),
-      'col-videoanzahl': (c) => this._td(c, 'col-videoanzahl', `${c.koop.videoanzahl || 0}`, 'read-only'),
       'col-video-nr': (c) => this._stackTd(c, 'col-video-nr', (video, index) => renderVideoNrInner(c, video, index)),
-      'col-vk-video': (c) => this._stackTd(c, 'col-vk-video', (video) => renderVkInner(video)),
-      'col-video-script-deadline': (c) => this._stackTd(c, 'col-video-script-deadline', (video) => renderVideoDatePicker(c.t, video, 'skript_deadline', 'Script Deadline')),
-      'col-video-content-deadline': (c) => this._stackTd(c, 'col-video-content-deadline', (video) => renderVideoDatePicker(c.t, video, 'content_deadline', 'Content Deadline')),
-      'col-video-typ': (c) => this._stackTd(c, 'col-video-typ', (video) => renderVideoTypInner(video)),
+      'col-vk-video': (c) => this._stackTd(c, 'col-vk-video', (video) => renderVkInner(video), 'video-stack-cell video-stack-cell--center'),
+      'col-video-script-deadline': (c) => this._stackTd(c, 'col-video-script-deadline', (video) => renderVideoDatePicker(c.t, video, 'skript_deadline', 'Script Deadline'), 'video-stack-cell video-stack-cell--center'),
+      'col-video-content-deadline': (c) => this._stackTd(c, 'col-video-content-deadline', (video) => renderVideoDatePicker(c.t, video, 'content_deadline', 'Content Deadline'), 'video-stack-cell video-stack-cell--center'),
+      'col-video-typ': (c) => this._stackTd(c, 'col-video-typ', (video) => renderVideoTypInner(video), 'video-stack-cell video-stack-cell--center'),
       'col-thema': (c) => this._stackTd(c, 'col-thema', (video) => renderThemaInner(c, video)),
-      'col-idee-strategie': (c) => this._stackTd(c, 'col-idee-strategie', (video) => renderIdeeStrategieInner(c, video)),
-      'col-skript': (c) => this._stackTd(c, 'col-skript', (video) => renderSkriptCell(c.koop, video, c.t)),
-      'col-organic-paid': (c) => this._stackTd(c, 'col-organic-paid', (video) => renderOrganicPaidInner(c, video)),
-      'col-produkt': (c) => this._stackTd(c, 'col-produkt', (video) => renderProduktInner(c, video)),
-      'col-lieferadresse': (c) => this._stackTd(c, 'col-lieferadresse', (video) => renderLieferadresseInner(c, video)),
-      'col-telefon': (c) => this._td(c, 'col-telefon', renderTelefonInner(c), 'read-only'),
+      'col-idee-strategie': (c) => this._stackTd(c, 'col-idee-strategie', (video) => renderIdeeStrategieInner(c, video), 'video-stack-cell video-stack-cell--center'),
+      'col-skript': (c) => this._stackTd(c, 'col-skript', (video) => renderSkriptCell(c.koop, video, c.t), 'video-stack-cell video-stack-cell--center'),
+      'col-organic-paid': (c) => this._stackTd(c, 'col-organic-paid', (video) => renderOrganicPaidInner(c, video), 'video-stack-cell video-stack-cell--center'),
+      'col-produkt': (c) => this._stackTd(c, 'col-produkt', (video) => renderProduktInner(c, video), 'video-stack-cell video-stack-cell--center'),
+      'col-lieferadresse': (c) => this._stackTd(c, 'col-lieferadresse', (video) => renderLieferadresseInner(c, video), 'video-stack-cell video-stack-cell--center'),
+      'col-telefon': (c) => this._td(c, 'col-telefon', renderTelefonInner(c), 'read-only cell-centered'),
       'col-paket-tracking': (c) => this._stackTd(c, 'col-paket-tracking', (video) => renderTrackingInner(c, video)),
       'col-drehort': (c) => this._stackTd(c, 'col-drehort', (video) => renderDrehortInner(c, video)),
       'col-link-skript': (c) => this._stackTd(c, 'col-link-skript', (video) => renderLinkSkriptInner(c, video)),
       'col-skript-freigegeben': (c) => this._stackTd(c, 'col-skript-freigegeben', (video) => renderCheckboxStackInner(c, video, 'skript_freigegeben'), 'video-stack-cell checkbox-stack'),
       'col-video-name': (c) => this._stackTd(c, 'col-video-name', (video) => renderVideoNameInner(c, video)),
-      'col-link-content': (c) => this._stackTd(c, 'col-link-content', (video) => renderContentCell(c.koop, video)),
-      'col-stills': (c) => this._stackTd(c, 'col-stills', (video) => renderStillsCell(c.koop, video)),
+      'col-link-content': (c) => this._stackTd(c, 'col-link-content', (video) => renderContentCell(c.koop, video), 'video-stack-cell video-stack-cell--center'),
+      'col-stills': (c) => this._stackTd(c, 'col-stills', (video) => renderStillsCell(c.koop, video), 'video-stack-cell video-stack-cell--center'),
       'col-freigabe': (c) => this._stackTd(c, 'col-freigabe', (video) => renderCheckboxStackInner(c, video, 'freigabe'), 'video-stack-cell checkbox-stack'),
       'col-caption': (c) => this._stackTd(c, 'col-caption', (video) => renderCaptionInner(c, video), 'video-stack-cell wide-field'),
-      'col-finale-version': (c) => this._stackTd(c, 'col-finale-version', (video) => renderFinaleVersionCell(c.koop, video)),
-      'col-posting-datum': (c) => this._stackTd(c, 'col-posting-datum', (video) => renderVideoDatePicker(c.t, video, 'posting_datum', 'Posting Datum')),
-      'col-link-live': (c) => this._stackTd(c, 'col-link-live', (video) => renderLiveLinkCell(c.t, c.koop, video)),
-      'col-stats-views': (c) => this._stackTd(c, 'col-stats-views', (video) => renderStatsNumberCell(c.t, video, 'stats_views', 'Views')),
-      'col-stats-likes': (c) => this._stackTd(c, 'col-stats-likes', (video) => renderStatsNumberCell(c.t, video, 'stats_likes', 'Likes')),
-      'col-stats-comments': (c) => this._stackTd(c, 'col-stats-comments', (video) => renderStatsNumberCell(c.t, video, 'stats_comments', 'Kommentare')),
+      'col-finale-version': (c) => this._stackTd(c, 'col-finale-version', (video) => renderFinaleVersionCell(c.koop, video), 'video-stack-cell video-stack-cell--center'),
+      'col-posting-datum': (c) => this._stackTd(c, 'col-posting-datum', (video) => renderVideoDatePicker(c.t, video, 'posting_datum', 'Posting Datum'), 'video-stack-cell video-stack-cell--center'),
       'col-actions': (c) => this._td(c, 'col-actions', renderActionsInner(c))
     };
 

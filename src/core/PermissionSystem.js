@@ -147,19 +147,19 @@ const KLASSE_PERMISSIONS = {
 // eine neue Rolle bekommt die Eigenschaften hier zugeschrieben, nicht in
 // den Renderern. Klasse schlaegt Rolle (wie bei den Entity-Permissions).
 // Features: contactMail, kampagneTableFilter, kampagneTableLayout,
-// mediaUpload, mediaDownload, skriptKommentieren, videoTeamSicht.
-// videoTeamSicht: Team-Sicht im Videos-Tab (Rohmaterial, sechs Ablaufschritte).
+// mediaUpload, mediaDownload, skriptKommentieren, videoTeamSicht, briefingFruehereAngaben.
+// videoTeamSicht: Team-Sicht im Videos-Tab; briefingFruehereAngaben: Altfelder am Briefing (ADR 0073).
 const FEATURE_MATRIX = {
-  admin:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: true  },
-  mitarbeiter:   { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: true  },
+  admin:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: true , briefingFruehereAngaben: true  },
+  mitarbeiter:   { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: true , briefingFruehereAngaben: true  },
   // Kunde: sieht Mails, filtert die Kampagnen-Tabelle, laedt finale Videos
   // und kommentiert Skripte; Layout-Werkzeuge und Uploads bleiben intern.
-  kunde:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: false },
-  kunde_editor:  { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: false },
-  gast:          { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: false },
-  investor:      { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false, videoTeamSicht: false },
-  agent:         { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false, videoTeamSicht: false },
-  pending:       { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false, videoTeamSicht: false },
+  kunde:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: false, briefingFruehereAngaben: false },
+  kunde_editor:  { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: false, briefingFruehereAngaben: false },
+  gast:          { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true,  videoTeamSicht: false, briefingFruehereAngaben: false },
+  investor:      { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false, videoTeamSicht: false, briefingFruehereAngaben: false },
+  agent:         { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false, videoTeamSicht: false, briefingFruehereAngaben: false },
+  pending:       { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false, videoTeamSicht: false, briefingFruehereAngaben: false },
 };
 
 // Finanzen-Klasse = Investor-Zeile (gleiche Einschraenkungen).
@@ -179,9 +179,7 @@ const KUNDE_READONLY_FIELDS = {
   strategie: ['strategie_funnel', 'strategie_persona', 'strategie_videolaenge'],
   video: [
     'thema', 'link_produkte', 'link_skript',
-    'caption', 'posting_datum', 'drehort', 'content_art', 'video_name',
-    // Live-Performance ist Reporting: Kunden sehen die Zahlen, pflegen sie aber nicht
-    'link_live', 'stats_views', 'stats_likes', 'stats_comments'
+    'caption', 'posting_datum', 'drehort', 'content_art', 'video_name'
   ],
 };
 

@@ -36,9 +36,10 @@ add('Teilen: Skripte einer Kampagne', teilenMail({
   entityLabel: 'Skript', entityArticle: 'das', entityName: 'Glow Up', sharedByName: 'Lisa Beispiel',
   rechte: 'ansehen', link: `${BASIS}/share/abc`, code: '654321', allScripts: true, basisUrl: BASIS,
 }));
-add('Teilen: Listen-Link ans Kundenkonto', listenLinkMail({
-  entityLabel: 'Kampagne', entityName: 'Sommer 2026', sharedByName: 'Lisa Beispiel',
-  url: `${BASIS}/kampagne/1`, basisUrl: BASIS,
+add('Teilen: an ein bestehendes Konto (ohne Code)', listenLinkMail({
+  entityLabel: 'Kampagne', entityArticle: 'die', entityName: 'Sommer 2026', sharedByName: 'Lisa Beispiel',
+  url: `${BASIS}/kampagne/1`, email: 'kim.kunde@forgeworks.de',
+  message: 'Die Kampagne ist jetzt für euch freigeschaltet. Schaut gern rein.', basisUrl: BASIS,
 }));
 add('Einreichung (intern)', einreichungMail({
   art: 'briefing', einreicherName: 'Kim Kunde', einladungLabel: 'Briefing-Einladung', kunde: 'FORGEWORKS AG · IRONCLAD',

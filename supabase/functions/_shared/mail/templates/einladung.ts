@@ -13,7 +13,7 @@ import type { MailErgebnis } from './typen.ts';
  * Schritte des Kundenformulars. src/__tests__/MailSystem.test.js gleicht die Liste
  * mit kundenSteps() (einladungFelder.js) ab, damit sie nicht auseinanderläuft.
  */
-export const BRIEFING_SCHRITTE = ['Grundlage', 'Casting', 'Aufgabe', 'Konzepte', 'Kanäle und Nutzung'] as const;
+export const BRIEFING_SCHRITTE = ['Rahmen', 'Produkt & Idee', 'Umsetzung'] as const;
 
 /** Anzeigenamen der Briefing-Typen (wie fieldConfig.js). */
 export const BRIEFING_TYP_LABEL: Record<string, string> = {

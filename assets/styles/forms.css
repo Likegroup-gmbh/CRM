@@ -543,82 +543,6 @@ input.input-error {
   gap: var(--space-xs);
 }
 
-/* Status Select Custom Dropdown (Table) */
-
-.status-select-wrapper {
-  position: relative;
-  display: inline-flex;
-}
-
-.status-select-trigger {
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  user-select: none;
-  transition: opacity 0.15s, box-shadow 0.15s;
-}
-
-.status-select-trigger:hover {
-  opacity: 0.85;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
-}
-
-.status-select-trigger.status-no-value {
-  background: var(--gray-100);
-  color: var(--text-secondary);
-}
-
-.status-select-chevron {
-  flex-shrink: 0;
-  opacity: 0.4;
-  transition: transform 0.15s;
-}
-
-.status-select-wrapper.show .status-select-chevron {
-  transform: rotate(180deg);
-}
-
-.status-select-wrapper.show .status-dropdown {
-  /* Inline-Dropdown bleibt versteckt -- die sichtbare UI ist das Portal an document.body,
-     das nicht von .grid-wrapper { overflow-y: clip } abgeschnitten wird. */
-  display: none;
-}
-
-.status-select-wrapper.shows-up .status-dropdown {
-  top: auto;
-  bottom: calc(100% + 4px);
-}
-
-.status-dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
-  color: var(--gray-800);
-  text-decoration: none;
-  white-space: nowrap;
-  font-weight: 500;
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.status-dropdown-item:hover {
-  background: #f5f7fb;
-}
-
-.status-dropdown-item .submenu-check {
-  margin-left: auto;
-  color: var(--success);
-  display: inline-flex;
-}
-
-.status-dropdown-item .submenu-check svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-  stroke-width: 2;
-}
-
 /* ==========================================================================
    Table Select – generischer Spaltentyp "Select" fuer Tabellenzellen
    Optik an .actions-dropdown-portal angelehnt. Das sichtbare Panel ist immer
@@ -633,7 +557,8 @@ input.input-error {
 
 .table-select__trigger,
 .filter-select__trigger,
-.creator-cell-select {
+.creator-cell-select,
+.verknuepfung-pill {
   display: flex;
   align-items: center;
   gap: var(--space-xxs);
@@ -646,7 +571,7 @@ input.input-error {
   color: var(--text-primary);
   font-family: inherit;
   font-size: var(--text-xs);
-  font-weight: 500;
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
@@ -654,7 +579,8 @@ input.input-error {
 
 .table-select__trigger:hover,
 .filter-select__trigger:hover,
-.creator-cell-select:hover {
+.creator-cell-select:hover,
+.verknuepfung-pill:hover {
   background: var(--gray-50);
   border-color: var(--gray-300);
   box-shadow: var(--shadow-sm);
@@ -662,7 +588,8 @@ input.input-error {
 
 .table-select__trigger:focus-visible,
 .filter-select__trigger:focus-visible,
-.creator-cell-select:focus-visible {
+.creator-cell-select:focus-visible,
+.verknuepfung-pill:focus-visible {
   outline: none;
   border-color: var(--gray-400);
   box-shadow: 0 0 0 3px var(--gray-100);
@@ -720,9 +647,15 @@ input.input-error {
   transform: rotate(180deg);
 }
 
+/* Datum liegt ueber dem Trigger, ausserhalb des Flows: der Trigger bleibt
+   dadurch auf gleicher Hoehe wie Selects ohne Datum (z.B. Kundenfeedback) */
 .table-select__meta {
-  margin-top: var(--space-xxxs);
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: var(--space-xxxs);
   padding-left: var(--space-xxs);
+  white-space: nowrap;
   font-size: var(--text-xxs);
   color: var(--text-secondary);
 }
@@ -2115,9 +2048,15 @@ width: 100%;
 
 .form-logo-image {
   width: 72px;
+  height: 72px;
   border-radius: var(--radius-sm);
-  
-  object-fit: contain;
+}
+
+/* Personenfoto statt Logo: fuellt die Kachel */
+
+.form-logo-image.form-logo-image--foto {
+  padding: 0;
+  object-fit: cover;
 }
 
 .info-address {
@@ -2282,7 +2221,8 @@ input.readonly-field {
 }
 
 .creator-cell-btn .crm-icon,
-.creator-cell-select .crm-icon {
+.creator-cell-select .crm-icon,
+.verknuepfung-pill .crm-icon {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
@@ -2442,8 +2382,7 @@ input.readonly-field {
   padding: var(--space-xs);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 /* Wenn Checkbox-Spalte vorhanden ist, Name als zweite fixe Spalte verschieben */
@@ -2480,8 +2419,7 @@ input.readonly-field {
   padding: var(--space-xs);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 .auftragsdetails-table-container .data-table:has(th.col-checkbox) th.col-ad-auftrag,
@@ -2508,13 +2446,6 @@ input.readonly-field {
 
 .creator-pool-table td:has(input[type="checkbox"]) {
   border-right: 1px solid var(--border-primary);
-}
-
-/* Ohne Bulk-Select (Kunden-/Gastansicht) gibt es keine Checkbox-Spalte:
-   Bild rutscht auf Position 1, Name auf Position 2 */
-
-.creator-pool-table:not(.has-bulk-select) {
-  --cp-sticky-2-left: var(--cp-w-bild);
 }
 
 .creator-pool-table td.cp-col-name .strategie-textarea,
@@ -2881,8 +2812,7 @@ input.readonly-field {
   padding: var(--space-xs);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 /* Wenn Checkbox-Spalte vorhanden ist, Name als zweite fixe Spalte verschieben */
@@ -3722,20 +3652,14 @@ input.readonly-field {
   padding: var(--space-xs);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
-/* Wenn Checkbox-Spalte vorhanden: Vorname als zweite, Nachname als dritte fixe Spalte */
+/* Wenn Checkbox-Spalte vorhanden: Name als zweite fixe Spalte */
 
-.ansprechpartner-table-container .data-table:has(th.col-checkbox) th.col-vorname,
-.ansprechpartner-table-container .data-table:has(th.col-checkbox) td.col-vorname {
+.ansprechpartner-table-container .data-table:has(th.col-checkbox) th.ap-col-name,
+.ansprechpartner-table-container .data-table:has(th.col-checkbox) td.ap-col-name {
   left: var(--ap-col-checkbox-width);
-}
-
-.ansprechpartner-table-container .data-table:has(th.col-checkbox) th.col-nachname,
-.ansprechpartner-table-container .data-table:has(th.col-checkbox) td.col-nachname {
-  left: calc(var(--ap-col-checkbox-width) + var(--ap-col-vorname-width));
 }
 
 /* Header über Body-Zellen halten (gestaffelt) */
@@ -3748,8 +3672,7 @@ input.readonly-field {
 /* Hover-Zustand für fixierte Spalten */
 
 .ansprechpartner-table-container .data-table tbody tr:hover td.col-checkbox,
-.ansprechpartner-table-container .data-table tbody tr:hover td.col-vorname,
-.ansprechpartner-table-container .data-table tbody tr:hover td.col-nachname {
+.ansprechpartner-table-container .data-table tbody tr:hover td.ap-col-name {
   background: var(--gray-50);
 }
 
@@ -3832,9 +3755,9 @@ input.readonly-field {
 /* Sticky-Spalten bei Bulk-Select (Kampagne-Muster: keine Kante zwischen Sticky-Spalten,
    nur rechte Kante an der letzten Sticky-Spalte als Trenner zum scrollenden Bereich) */
 
-/* Die Breite ist zugleich der left-Offset von Bild und Name (--cp-sticky-2/3-left).
+/* Die Breite ist zugleich der left-Offset des Namens (--cp-sticky-2-left).
    Checkbox 16 + Gap 8 + Icon 20 plus Padding 16/8 muessen genau hineinpassen -
-   waechst die Zelle mit dem Inhalt, schieben sich Bild und Name beim
+   waechst die Zelle mit dem Inhalt, schiebt sich der Name beim
    Querscrollen ueber das Drag-Icon. */
 
 .creator-pool-table.has-bulk-select {
@@ -3853,31 +3776,16 @@ input.readonly-field {
 
 .creator-pool-table.has-bulk-select th.col-sticky-1,
 .creator-pool-table.has-bulk-select td.col-sticky-1 {
-  border: none;
   border-right: none;
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
 }
 
 .creator-pool-table.has-bulk-select thead th.col-sticky-1 {
   z-index: 27;
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-200);
 }
 
-/* Die Kanten haengen an den Spalten, nicht an der Sticky-Position: die
-   Bild-Spalte laesst sich ausblenden, dann rutscht der Name eine Position nach
-   links. Links steht die Kante zur Checkbox-Spalte, rechts der Trenner zum
-   scrollenden Bereich - zwischen Bild und Name bleibt es kantenlos. */
+/* Der Name sitzt direkt an der Checkbox-Spalte: links die Kante zur Checkbox,
+   rechts der Trenner zum scrollenden Bereich. */
 
-/* Kante links an der Spalte, die direkt an der Checkbox sitzt. Ist die
-   Bild-Spalte ausgeblendet, hat sie keine Sticky-Klasse und der Name steht auf
-   Position 2 - dann traegt er die Kante. */
-
-.creator-pool-table.has-bulk-select th.cp-col-bild,
-.creator-pool-table.has-bulk-select td.cp-col-bild,
 .creator-pool-table.has-bulk-select th.cp-col-name.col-sticky-2,
 .creator-pool-table.has-bulk-select td.cp-col-name.col-sticky-2 {
   border-left: 1px solid var(--border-primary);
@@ -3998,8 +3906,8 @@ input.readonly-field {
 }
 
 .media-viewer-feedback textarea.save-success {
-  border-color: #22c55e;
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18);
+  border-color: var(--success-500);
+  box-shadow: 0 0 0 2px rgba(4, 166, 104, 0.18);
 }
 
 .media-viewer-feedback textarea.save-error {

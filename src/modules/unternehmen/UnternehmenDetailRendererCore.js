@@ -9,6 +9,7 @@ import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderPersonas } from '../persona/PersonaTabRenderer.js';
 import { renderProdukte } from '../produkt/ProduktTabRenderer.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { renderNotizDokument } from '../../core/components/NotizDokument.js';
 
 export function renderUnternehmenDetailPage(detail) {
@@ -26,6 +27,7 @@ export function renderUnternehmenDetailPage(detail) {
       ? 'Testunternehmen'
       : (detail.unternehmen?.branchen_names?.join(', ') || 'Unternehmen'),
     avatarUrl: detail.unternehmen?.logo_url,
+    avatarLogo: true,
     avatarOnly: false
   };
 
@@ -180,13 +182,13 @@ export function renderMarken(detail) {
 
   const rows = detail.marken.map(marke => `
     <tr>
-      <td class="col-name-with-icon">
-        ${marke.logo_url
-          ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />`
-          : `<span class="table-avatar">${(marke.markenname || '?')[0].toUpperCase()}</span>`}
-        <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-          ${detail.sanitize(marke.markenname) || 'Unbekannte Marke'}
-        </a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: marke.logo_url,
+          logo: true,
+          name: marke.markenname,
+          nameHtml: `<a href="#" class="table-link" data-table="marke" data-id="${marke.id}">${detail.sanitize(marke.markenname) || 'Unbekannte Marke'}</a>`
+        })}
       </td>
       <td class="col-webseite">${marke.webseite ? `<a href="${UnternehmenService.sanitizeUrl(marke.webseite)}" target="_blank" rel="noopener">${detail.sanitize(marke.webseite)}</a>` : '-'}</td>
       <td>${detail.sanitize(marke.branche) || '-'}</td>

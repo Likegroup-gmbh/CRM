@@ -7,6 +7,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { ProduktService } from '../produkt/ProduktService.js';
 import { NUR_UNTERNEHMEN_LABEL } from '../produkt/ProduktFolders.js';
 import { einreichungDatum } from './einreichungService.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 
 const BUCKET = 'einreichung';
 const THUMB_GUELTIG_SEKUNDEN = 3600;
@@ -44,11 +45,6 @@ export async function ladeThumbs(einreichungen) {
   }
 }
 
-function renderThumb(name, url) {
-  if (!url) return `<span class="table-avatar">${esc((name || '?')[0].toUpperCase())}</span>`;
-  return `<img src="${esc(url)}" class="table-logo" width="24" height="24" alt="" loading="lazy">`;
-}
-
 function renderUnternehmen(unternehmen) {
   if (!unternehmen?.firmenname) return '-';
   return avatarBubbles.renderBubbles([{
@@ -75,9 +71,12 @@ function renderZeile(einreichung, { thumbs, zeigeLinie }) {
 
   return `
     <tr data-einreichung-id="${esc(einreichung.id)}">
-      <td class="col-thumb">${renderThumb(name, thumbs.get(einreichung.id))}</td>
-      <td class="col-name col-name-with-icon">
-        <a href="#" class="table-link" data-einreichung-pruefen>${esc(name)}</a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: thumbs.get(einreichung.id),
+          name,
+          nameHtml: `<a href="#" class="table-link" data-einreichung-pruefen>${esc(name)}</a>`
+        })}
       </td>
       <td>${renderUnternehmen(einladung.unternehmen)}</td>
       <td>${renderMarke(einladung.marke)}</td>
@@ -105,7 +104,6 @@ export function renderProduktEinreichungTabelle(offen, { thumbs = new Map(), zei
       <table class="data-table">
         <thead>
           <tr>
-            <th>Bild</th>
             <th class="col-name">Produkt</th>
             <th>Unternehmen</th>
             <th>Marken</th>

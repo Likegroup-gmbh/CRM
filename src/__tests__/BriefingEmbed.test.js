@@ -5,7 +5,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../modules/briefing/BriefingProdukte.js', () => ({
-  loadBriefingProdukte: vi.fn(async () => [])
+  loadBriefingProdukte: vi.fn(async () => []),
+  loadBriefingProduktDetails: vi.fn(async () => [])
 }));
 
 import { BriefingDetail } from '../modules/briefing/BriefingDetail.js';

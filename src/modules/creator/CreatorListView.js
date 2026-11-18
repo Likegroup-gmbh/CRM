@@ -9,6 +9,7 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { creatorUtils } from './CreatorUtils.js';
 import { GENERATIONEN, GROESSEN } from './creatorProfil.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { settleRezensionFilters } from './rezension.js';
 import { columnStartsCollapsed, mountCreatorFilterColumn } from './creatorFilterColumn.js';
 
@@ -33,21 +34,18 @@ CreatorList.prototype.renderSingleRow = function(creator) {
   if (!creator.instagram) actionOptions.disabledActions = ['connect'];
   if (creator.ig_connected_at) actionOptions.igConnected = true;
 
-  // Kleiner Tabellen-Avatar: 128px-Thumb reicht, Fallback fuer Altbestand
-  const avatarSource = creator.profilbild_thumb_url || creator.profilbild_url;
-  const safeAvatarUrl = avatarSource ? window.validatorSystem?.sanitizeUrl(avatarSource) : null;
-  const avatarHtml = safeAvatarUrl
-    ? `<img src="${safeAvatarUrl}" alt="${sanitize(`${creator.vorname || ''} ${creator.nachname || ''}`.trim())}" class="table-avatar table-avatar-img" loading="lazy" />`
-    : `<span class="table-avatar">${(creator.vorname || '?')[0].toUpperCase()}</span>`;
-  
+  const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim();
+
   return `
     <tr data-id="${creator.id}">
       ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
-      <td class="col-name col-name-with-icon">
-        ${avatarHtml}
-        <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
-          ${sanitize(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || '-')}
-        </a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          // Kleiner Tabellen-Avatar: 128px-Thumb reicht, Fallback fuer Altbestand
+          url: creator.profilbild_thumb_url || creator.profilbild_url,
+          name: creator.vorname || name,
+          nameHtml: `<a href="#" class="table-link" data-table="creator" data-id="${creator.id}">${sanitize(name || '-')}</a>`
+        })}
       </td>
       <td>${this.renderLocationTag(creator.lieferadresse_stadt, 'stadt')}</td>
       <td>${this.renderLocationTag(creator.lieferadresse_land, 'land')}</td>

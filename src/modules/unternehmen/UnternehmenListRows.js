@@ -6,6 +6,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { testunternehmenBadgeHtml } from '../../core/budget/testunternehmen.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 
 export function renderBrancheTags(branchen, sanitize) {
   if (!branchen || (Array.isArray(branchen) && branchen.length === 0)) return '-';
@@ -86,12 +87,13 @@ export function renderUnternehmenRow(u, ctx) {
     <tr data-id="${u.id}">
       ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
       <td class="col-name">
-        ${chevron}
-        ${u.logo_url ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
-          ${sanitize(u.internes_kuerzel || u.firmenname || '')}
-        </a>
-        ${u.ist_test ? ` ${testunternehmenBadgeHtml()}` : ''}
+        ${renderTableIdentity({
+          prefixHtml: chevron,
+          url: u.logo_url,
+          logo: true,
+          name: u.internes_kuerzel || u.firmenname,
+          nameHtml: `<a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">${sanitize(u.internes_kuerzel || u.firmenname || '')}</a>${u.ist_test ? ` ${testunternehmenBadgeHtml()}` : ''}`
+        })}
       </td>
       <td class="col-stadt">${sanitize(u.rechnungsadresse_stadt || '-')}</td>
       <td class="col-land">${sanitize(u.rechnungsadresse_land || '-')}</td>
@@ -111,9 +113,6 @@ export function renderUnternehmenRow(u, ctx) {
 export function renderNestedMarkeRow(marke, parentId = marke.unternehmen_id, ctx) {
   const { sanitize, canBulkDelete, matchedMarkeIds } = ctx;
   const name = sanitize(marke.markenname || '');
-  const avatar = marke.logo_url
-    ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />`
-    : `<span class="table-avatar">${(marke.markenname || '?')[0].toUpperCase()}</span>`;
   const allMitarbeiter = marke._mitarbeiter || [];
   const management = allMitarbeiter.filter(m => m.role === 'management');
   const leads = allMitarbeiter.filter(m => m.role === 'lead_mitarbeiter');
@@ -126,11 +125,13 @@ export function renderNestedMarkeRow(marke, parentId = marke.unternehmen_id, ctx
   return `
     <tr class="nested-marke-row${matchClass}" data-id="${marke.id}" data-parent-id="${parentId || ''}">
       ${canBulkDelete ? `<td class="col-checkbox"></td>` : ''}
-      <td class="col-name col-name-with-icon">
-        ${avatar}
-        <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-          ${name}
-        </a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: marke.logo_url,
+          logo: true,
+          name: marke.markenname,
+          nameHtml: `<a href="#" class="table-link" data-table="marke" data-id="${marke.id}">${name}</a>`
+        })}
       </td>
       <td class="col-stadt"></td>
       <td class="col-land"></td>

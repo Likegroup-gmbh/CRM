@@ -11,6 +11,7 @@
 import { OptionsManager } from '../form/data/OptionsManager.js';
 import { loadAnsprechpartnerRows } from './snapshot.js';
 import { loadAllCreators } from '../creatorRows.js';
+import { renderTableAvatar } from '../format/tableIdentity.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -558,11 +559,10 @@ export class EmpfaengerComposer {
   _renderFest() {
     const rows = this.festItems.map((e) => {
       const label = e.name || e.email || '';
-      const initial = (e.vorname || label || '?')[0].toUpperCase();
       const mail = e.email || 'keine E-Mail';
       return `
         <div class="empfaenger-fest__row">
-          <span class="table-avatar">${escapeHtml(initial)}</span>
+          ${renderTableAvatar({ name: e.vorname || label })}
           <div class="empfaenger-fest__meta">
             <span class="empfaenger-fest__name">${escapeHtml(label)}</span>
             <span class="empfaenger-fest__mail">${escapeHtml(mail)}</span>

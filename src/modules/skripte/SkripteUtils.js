@@ -167,6 +167,7 @@ export function skriptCrumbs(skript) {
 
 // USD pro 1M Tokens (Stand Juli 2026, Anthropic-Preisliste)
 const MODEL_PRICING = [
+  { match: 'opus-5-5', input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
   { match: 'opus', input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
   { match: 'sonnet', input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
   { match: 'haiku', input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 }

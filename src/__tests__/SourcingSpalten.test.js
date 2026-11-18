@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
-import { renderItemsTable } from '../modules/creator-auswahl/castingTableRender.js';
 import {
   isColumnVisibleForCustomer,
   getVisibleColumnCount,
@@ -13,24 +12,7 @@ import {
 } from '../modules/creator-auswahl/sourcingSpaltenKatalog.js';
 import { SourcingTabelleAnpassenDrawer } from '../modules/creator-auswahl/SourcingTabelleAnpassenDrawer.js';
 import { standardBeweglicheSpalten } from '../modules/creator-auswahl/sourcingSpaltenfolge.js';
-
-function baseCtx(overrides = {}) {
-  return { isKunde: false, hiddenColumns: [], ...overrides };
-}
-
-function rowDoc(item = {}, ctx = {}) {
-  const html = renderItemRow(baseCtx(ctx), { id: 'i1', ...item }, 0);
-  return new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
-}
-
-function cell(columnClass, item = {}, ctx = {}) {
-  return rowDoc(item, ctx).querySelector(`td.${columnClass}`);
-}
-
-function tableDoc(items, ctx = {}) {
-  const html = renderItemsTable(baseCtx({ items, hasAnyItems: items.length > 0, ...ctx }));
-  return new DOMParser().parseFromString(html, 'text/html');
-}
+import { baseCtx, rowDoc, cell, tableDoc } from './sourcingTabelleTestKit.js';
 
 describe('Sourcing – Spaltenreihenfolge', () => {
   /** Reihenfolge der cp-col-Klassen, wie sie im DOM stehen */
@@ -40,14 +22,15 @@ describe('Sourcing – Spaltenreihenfolge', () => {
       .filter(Boolean);
   }
 
-  it('stellt Bild zwischen Checkbox und Namen, Status und Kundenfeedback hinter die Creator Art', () => {
+  it('stellt den Namen mit Bild direkt hinter die Checkbox, Status und Kundenfeedback hinter die Creator Art', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
-    expect(spalten.slice(0, 11)).toEqual([
-      'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz', 'cp-col-matching',
+    expect(spalten.slice(0, 10)).toEqual([
+      'cp-col-drag', 'cp-col-name', 'cp-col-notiz', 'cp-col-matching',
       'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
       'cp-col-location', 'cp-col-mail', 'cp-col-telefon'
     ]);
+    expect(SOURCING_SPALTEN).not.toContain('cp-col-bild');
   });
 
   it('stellt die Kurzbeschreibung direkt hinter den Namen, Matching davor die Creator Art', () => {
@@ -135,13 +118,10 @@ describe('Sourcing – Spaltenreihenfolge', () => {
 
     expect(kopf.slice(ab, ab + 3)).toEqual(['cp-col-name', 'cp-col-status', 'cp-col-notiz']);
     expect(reihenfolge(doc.querySelectorAll('tbody tr.item-row > td'))).toEqual(kopf);
-    expect(getStickyClasses(baseCtx({ columnOrder }))).toEqual({
-      bild: 'col-sticky-2',
-      name: 'col-sticky-3'
-    });
+    expect(getStickyClasses(baseCtx({ columnOrder }))).toEqual({ name: 'col-sticky-2' });
   });
 
-  it('loest das Bild aus der Sticky-Gruppe, wenn es nicht mehr vorn steht', () => {
+  it('haelt den Namen auch bei umsortierten Spalten in der Sticky-Gruppe', () => {
     const columnOrder = [
       'cp-col-status',
       ...standardBeweglicheSpalten().filter(id => id !== 'cp-col-status')
@@ -149,10 +129,8 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     const doc = tableDoc([{ id: 'i1' }], { columnOrder });
     const kopf = reihenfolge(doc.querySelectorAll('thead th'));
 
-    expect(kopf.slice(0, 4)).toEqual([
-      'cp-col-drag', 'cp-col-name', 'cp-col-status', 'cp-col-bild'
-    ]);
-    expect(doc.querySelector('th.cp-col-bild').classList.contains('col-sticky-2')).toBe(false);
+    expect(kopf.slice(0, 3)).toEqual(['cp-col-drag', 'cp-col-name', 'cp-col-status']);
+    expect(doc.querySelector('.cp-col-bild')).toBeNull();
     expect(doc.querySelector('th.cp-col-name').classList.contains('col-sticky-2')).toBe(true);
     expect(doc.querySelector('td.cp-col-name').classList.contains('col-sticky-2')).toBe(true);
   });
@@ -327,110 +305,6 @@ describe('Sourcing – Mail und Telefon nur intern', () => {
   it('laesst sie fuer interne Nutzer ueber den Drawer abschaltbar', () => {
     expect(isColumnVisibleForCustomer('cp-col-mail', false, [])).toBe(true);
     expect(isColumnVisibleForCustomer('cp-col-mail', false, ['cp-col-mail'])).toBe(false);
-  });
-});
-
-describe('Sourcing – Bild-Spalte', () => {
-  it('zeigt das Profilbild aus dem Storage', () => {
-    const bild = cell('cp-col-bild', { name: 'Mia', profile_image_url: 'https://cdn.test/p.avif' });
-    const img = bild.querySelector('img.table-avatar-img');
-
-    expect(img.getAttribute('src')).toBe('https://cdn.test/p.avif');
-    expect(img.getAttribute('alt')).toBe('Mia');
-    expect(img.getAttribute('loading')).toBe('lazy');
-    expect(img.classList.contains('table-avatar--sourcing')).toBe(true);
-  });
-
-  it('nimmt fuer den kleinen Avatar das Thumbnail, wenn es vorhanden ist', () => {
-    const bild = cell('cp-col-bild', {
-      name: 'Mia',
-      profile_image_url: 'https://cdn.test/p.avif',
-      profile_image_thumb_url: 'https://cdn.test/p_thumb.avif'
-    });
-
-    expect(bild.querySelector('img').getAttribute('src')).toBe('https://cdn.test/p_thumb.avif');
-  });
-
-  it('faellt ohne Bild auf den Initial des Namens zurueck', () => {
-    const bild = cell('cp-col-bild', { name: 'mia mueller' });
-
-    expect(bild.querySelector('img')).toBeNull();
-    expect(bild.querySelector('span.table-avatar').textContent.trim()).toBe('M');
-  });
-
-  it('zeigt ohne Namen ein Fragezeichen', () => {
-    expect(cell('cp-col-bild', {}).querySelector('span.table-avatar').textContent.trim()).toBe('?');
-  });
-
-  it('ist auch fuer Kunden sichtbar', () => {
-    const bild = cell('cp-col-bild', { profile_image_url: 'https://cdn.test/p.webp' }, { isKunde: true });
-
-    expect(bild.querySelector('img')).not.toBeNull();
-  });
-
-  it('setzt den gruenen Punkt bei vorhandener creator_id', () => {
-    const bild = cell('cp-col-bild', { creator_id: 'c1' });
-    const dot = bild.querySelector('.sourcing-avatar__dot');
-
-    expect(dot.classList.contains('status-dot--active')).toBe(true);
-    expect(dot.getAttribute('title')).toBe('Als Creator angelegt');
-  });
-
-  it('setzt den roten Punkt nur bei Prio plus Zusage ohne Creator', () => {
-    const rot = cell('cp-col-bild', { prio_1: true, zusage: true });
-    expect(rot.querySelector('.sourcing-avatar__dot').classList.contains('status-dot--inactive')).toBe(true);
-
-    expect(cell('cp-col-bild', { zusage: true }).querySelector('.sourcing-avatar__dot')).toBeNull();
-    expect(cell('cp-col-bild', { prio_1: true }).querySelector('.sourcing-avatar__dot')).toBeNull();
-  });
-
-  it('zeigt Kunden und Vorschlaegen keinen Punkt', () => {
-    const kunde = cell('cp-col-bild', { creator_id: 'c1' }, { isKunde: true });
-    expect(kunde.querySelector('.sourcing-avatar__dot')).toBeNull();
-
-    const vorschlag = cell('cp-col-bild', {
-      isVorschlag: true,
-      creator_id: 'c1',
-      prio_1: true,
-      zusage: true
-    });
-    expect(vorschlag.querySelector('.sourcing-avatar__dot')).toBeNull();
-  });
-});
-
-describe('Sourcing – Sticky-Positionen', () => {
-  it('setzt intern Bild auf Position 2 und Name auf 3', () => {
-    expect(getStickyClasses(baseCtx())).toEqual({
-      bild: 'col-sticky-2',
-      name: 'col-sticky-3'
-    });
-  });
-
-  it('zieht den Namen auf Position 2, wenn das Bild ausgeblendet ist', () => {
-    expect(getStickyClasses(baseCtx({ hiddenColumns: ['cp-col-bild'] }))).toEqual({
-      bild: '',
-      name: 'col-sticky-2'
-    });
-  });
-
-  it('rueckt in der Kundenansicht ohne Drag-Spalte eine Position nach vorn', () => {
-    expect(getStickyClasses(baseCtx({ isKunde: true }))).toEqual({
-      bild: 'col-sticky-1',
-      name: 'col-sticky-2'
-    });
-  });
-
-  it('macht den Namen zur einzigen fixierten Spalte, wenn Kunde und kein Bild', () => {
-    const ctx = baseCtx({ isKunde: true, hiddenColumns: ['cp-col-bild'] });
-
-    expect(getStickyClasses(ctx)).toEqual({ bild: '', name: 'col-sticky-1' });
-  });
-
-  it('vergibt die Klassen in Kopf und Zeile identisch', () => {
-    const doc = tableDoc([{ id: 'i1' }]);
-
-    expect(doc.querySelector('thead th.cp-col-name').classList.contains('col-sticky-3')).toBe(true);
-    expect(doc.querySelector('tbody td.cp-col-name').classList.contains('col-sticky-3')).toBe(true);
   });
 });
 

@@ -159,6 +159,20 @@ input:-webkit-autofill:focus {
   --green-900: #013b22;
   --green-950: #002413;
 
+  /* ── Lila ── */
+  --purple-25:  #fbfaff;
+  --purple-50:  #f6f3ff;
+  --purple-100: #f0e9fe;
+  --purple-200: #e3d6ff;
+  --purple-300: #d3bdfe;
+  --purple-400: #bd96ff;
+  --purple-500: #a06aec;
+  --purple-600: #814dc6;
+  --purple-700: #65379f;
+  --purple-800: #4f2a7f;
+  --purple-900: #3a1e5e;
+  --purple-950: #23113c;
+
   
   --color-error: #dc2626;
   --color-error-light: #ef4444;
@@ -197,9 +211,6 @@ input:-webkit-autofill:focus {
   --color-info-light: #edf6ff;
   --color-info-dark: #1e42bc;
 
-  --color-purple-100: #e0def6;
-  --color-purple-200: #362786;
-  
   /* Badge Colors */
   --badge-blue-bg: #dbeafe;
   --badge-blue-text: #1e40af;
@@ -211,10 +222,14 @@ input:-webkit-autofill:focus {
   /* Semantic Status Aliases für einfachere Verwendung */
   --success: var(--color-success);
   --success-bg: var(--color-success-light);
-  --success-50: #f0fdf4;
-  --success-100: #dcfce7;
-  --success-400: #4ade80;
-  --success-700: #15803d;
+  --success-50: var(--green-50);
+  --success-100: var(--green-100);
+  --success-200: var(--green-200);
+  --success-300: var(--green-300);
+  --success-400: var(--green-400);
+  --success-500: var(--green-500);
+  --success-600: var(--green-600);
+  --success-700: var(--green-700);
   
   --danger: var(--color-error);
   --danger-bg: #fee2e2;
@@ -266,6 +281,8 @@ input:-webkit-autofill:focus {
   --height-select: 36px;
   --height-avatar-sm: 32px;
   --height-avatar-md: 48px;
+  /* Bild der Namenszelle in allen Tabellen (Profilbild, Logo, Produkt) */
+  --size-table-avatar: 2.5rem;
 
   /* ===== GAPS ===== */
   --gap-2: 0.125rem;       /* 2px */
@@ -370,13 +387,10 @@ input:-webkit-autofill:focus {
   --success-light: var(--color-success-light);
   --success-dark: var(--color-success-dark);
   --success-text: var(--color-success-dark);
-  --success-300: #6ee7b7;
 
   /* Weitere Farb-Extras (einzeln referenziert) */
   --yellow-100: #fef9c3;
   --yellow-600: #ca8a04;
-  --purple-100: #ede9fe;
-  --purple-700: #6d28d9;
   --cyan-100: #cffafe;
   --cyan-700: #0e7490;
   --gray-25: #fcfcfc;

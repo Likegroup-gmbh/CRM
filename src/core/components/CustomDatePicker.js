@@ -25,7 +25,9 @@ export class CustomDatePicker {
     min = '',
     max = '',
     yearSelect = false,
-    showToday = true
+    showToday = true,
+    name = '',
+    inputAttrs = ''
   } = {}) {
     const safeValue = this.normalizeDateValue(value);
     const safeMin = this.normalizeDateValue(min);
@@ -39,6 +41,8 @@ export class CustomDatePicker {
       yearSelect ? 'data-year-select="true"' : ''
     ].filter(Boolean).join(' ');
     const dataAttrs = `
+              ${name ? `name="${name}"` : ''}
+              ${inputAttrs}
               data-id="${id || ''}"
               data-field="${field || ''}"
               data-date-field="${dateField || ''}"
@@ -406,6 +410,15 @@ export class CustomDatePicker {
     input.value = this.isTextVariant(input) ? this.formatDisplayDate(safeValue) : safeValue;
     input.classList.remove('is-invalid');
     this.updatePickerVisualState(input);
+  }
+
+  /** Untergrenze nachträglich ändern (z. B. „bis“-Feld folgt dem Startdatum). '' hebt sie auf. */
+  static setMin(input, min) {
+    const picker = input?.closest?.('[data-custom-datepicker]');
+    if (!picker) return;
+    const safeMin = this.normalizeDateValue(min);
+    if (safeMin) picker.dataset.min = safeMin;
+    else delete picker.dataset.min;
   }
 
   static isTextVariant(input) {

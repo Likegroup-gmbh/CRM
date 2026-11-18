@@ -4,6 +4,7 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 const BACK_SVG = `${icon('arrow-left')}`;
 
@@ -101,16 +102,16 @@ export class VideoTableRenderer {
 
     const kampagneName = KampagneUtils.getDisplayName(kampagne) || '-';
     const kampagneHtml = kampagne.id
-      ? `<a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">${esc(kampagneName)}</a>`
+      ? renderVerknuepfungPill({ kind: 'kampagne', labelHtml: esc(kampagneName), attrs: `data-table="kampagne" data-id="${kampagne.id}"` })
       : '-';
 
     const kooperationTd = isKunde
       ? ''
-      : `<td>${kooperation.id ? `<a href="#" class="table-link" data-table="kooperation" data-id="${kooperation.id}">${esc(kooperation.name || '—')}</a>` : '-'}</td>`;
+      : `<td>${kooperation.id ? renderVerknuepfungPill({ kind: 'kooperation', labelHtml: esc(kooperation.name || '—'), attrs: `data-table="kooperation" data-id="${kooperation.id}"` }) : '-'}</td>`;
 
     const creatorTd = isKunde
       ? `<td>${creatorName}</td>`
-      : `<td>${creator.id ? `<a href="#" class="table-link" data-table="creator" data-id="${creator.id}">${creatorName}</a>` : '-'}</td>`;
+      : `<td>${creator.id ? renderVerknuepfungPill({ kind: 'creator', labelHtml: creatorName, attrs: `data-table="creator" data-id="${creator.id}"` }) : '-'}</td>`;
 
     return `
       <tr data-id="${video.id}">

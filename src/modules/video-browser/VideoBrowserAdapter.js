@@ -21,8 +21,9 @@ const KOOP_SELECT = `
   creator:creator_id (id, vorname, nachname, instagram, profilbild_thumb_url, profilbild_url)
 `;
 const VIDEO_SELECT = 'id, kooperation_id, position, titel, thema, video_name, caption, status, created_at';
-// Videoidee nur fürs Team: Kunden (v. a. kunde_editor) dürfen strategie_items nicht durchgängig lesen
-const VIDEO_SELECT_TEAM = `${VIDEO_SELECT}, strategie_item_id`;
+// Nur fürs Team: Videoidee (Kunden dürfen strategie_items nicht durchgängig lesen),
+// Posting-Datum, Live-Link und die Stats für die Auswertungstabelle.
+const VIDEO_SELECT_TEAM = `${VIDEO_SELECT}, strategie_item_id, posting_datum`;
 const STORY_SELECT = 'id, video_id, slot_index, slot_name, created_at';
 const VIDEO_ASSET_SELECT = mitAblage('id, video_id, file_url, file_path, version_number, variant_name, titel, ad_manager_name, description, is_current, is_final, source_asset_id, created_at');
 const STORY_ASSET_SELECT = mitAblage('id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, titel, source_asset_id, created_at');

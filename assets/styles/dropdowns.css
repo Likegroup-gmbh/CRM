@@ -48,33 +48,6 @@
   }
 }
 
-.status-dropdown {
-  display: none;
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 1000;
-  min-width: 180px;
-  background: white;
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-xxs) 0;
-}
-
-/* Status-Dropdown Portal (an document.body, position: fixed) */
-
-.status-dropdown-portal {
-  position: fixed;
-  z-index: 99999;
-  min-width: 180px;
-  background: white;
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-xxs) 0;
-}
-
 .data-table td:last-child .actions-dropdown-container { display: flex; justify-content: flex-end; }
 
 /* Prefer targeted override using :has when supported */

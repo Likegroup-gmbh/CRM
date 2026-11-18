@@ -76,7 +76,7 @@ export const ANKER_ALIASE = {
  * hinter alle Preisspalten. Matching folgt direkt danach (Briefing-Fit).
  */
 export const SOURCING_SPALTEN = [
-  'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz', 'cp-col-matching',
+  'cp-col-drag', 'cp-col-name', 'cp-col-notiz', 'cp-col-matching',
   'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
   'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
   'cp-col-link', 'cp-col-follower', 'cp-col-engagement-ig',
@@ -90,11 +90,11 @@ export const SOURCING_SPALTEN = [
 
 /**
  * Standardspalten, hinter denen eine eigene Spalte verankert werden darf.
- * Die drei linken Sticky-Spalten fehlen bewusst: dort wuerden die festen
+ * Die linken Sticky-Spalten fehlen bewusst: dort wuerden die festen
  * left-Offsets aus dem CSS brechen. Die Aktionen bleiben immer ganz rechts.
  */
 export const SOURCING_ANKER_SPALTEN = SOURCING_SPALTEN.filter(
-  col => !['cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-actions'].includes(col)
+  col => !['cp-col-drag', 'cp-col-name', 'cp-col-actions'].includes(col)
 );
 
 /**
@@ -104,7 +104,6 @@ export const SOURCING_ANKER_SPALTEN = SOURCING_SPALTEN.filter(
  * als Anker nutzbar.
  */
 export const SOURCING_SPALTEN_LABELS = {
-  'cp-col-bild': 'Bild',
   'cp-col-notiz': 'Kurzbeschreibung',
   'cp-col-matching': 'Matching',
   'cp-col-typ': 'Creator Art',

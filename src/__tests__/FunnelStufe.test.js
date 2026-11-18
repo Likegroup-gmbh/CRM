@@ -3,8 +3,6 @@ import { createRequire } from 'module';
 import {
   STRATEGIE_FUNNEL_OPTIONS,
   buildStrategieFunnelUpdates,
-  briefingEinzigeFunnelStufe,
-  briefingFunnelStufen,
   funnelAbweichungsHinweis,
   funnelFuerSkript,
   funnelSpalteStandardSichtbar,
@@ -20,7 +18,7 @@ import { PermissionSystem } from '../core/PermissionSystem.js';
 
 const require = createRequire(import.meta.url);
 const {
-  briefingFunnelStufen: serverStufen,
+  funnelStufenFuer,
   konzeptTool,
   validateIdeen,
   buildPrompt,
@@ -89,26 +87,16 @@ describe('Funnel-Optionen', () => {
   });
 });
 
-describe('Briefing-Stufen', () => {
-  it('liest die Stufen nach Bereich, ohne Doppelte und Unbekannte', () => {
-    expect(briefingFunnelStufen(PAID(['upper', 'mid', 'mid', 'quatsch']))).toEqual(['upper', 'mid']);
-    expect(briefingFunnelStufen({ bereich: 'owned_social', pa_funnel_stufen: ['upper'] })).toEqual([]);
-    expect(briefingFunnelStufen(null)).toEqual([]);
+describe('Stufen fuer Liky (nie aus dem Briefing)', () => {
+  it('Paid waehlt aus allen drei Stufen, auch wenn ein altes Briefing Stufen nennt', () => {
+    expect(funnelStufenFuer(PAID([]))).toEqual(['upper', 'mid', 'lower']);
+    expect(funnelStufenFuer(PAID(['mid']))).toEqual(['upper', 'mid', 'lower']);
   });
 
-  it('faellt bei Paid auf die Quellspalte funnel_stufen zurueck', () => {
-    expect(briefingFunnelStufen({ bereich: 'paid_creator_ads', funnel_stufen: ['lower'] })).toEqual(['lower']);
-  });
-
-  it('liefert die Vorbelegung nur bei genau einer Stufe', () => {
-    expect(briefingEinzigeFunnelStufe(PAID(['mid']))).toBe('mid');
-    expect(briefingEinzigeFunnelStufe(PAID(['mid', 'lower']))).toBeNull();
-    expect(briefingEinzigeFunnelStufe(PAID([]))).toBeNull();
-  });
-
-  it('Server und Client lesen dieselben Stufen', () => {
-    const briefing = PAID(['lower', 'upper']);
-    expect(serverStufen(briefing)).toEqual(briefingFunnelStufen(briefing));
+  it('Organic, Influencer und ohne Briefing gibt es keine Stufe', () => {
+    expect(funnelStufenFuer({ bereich: 'owned_social', pa_funnel_stufen: ['upper'] })).toEqual([]);
+    expect(funnelStufenFuer({ bereich: 'influencer_marketing', im_funnel_stufen: ['upper'] })).toEqual([]);
+    expect(funnelStufenFuer(null)).toEqual([]);
   });
 });
 
@@ -328,7 +316,7 @@ describe('Liky-Vorschlaege mit Funnel-Stufe', () => {
     titel, pain_point: 'p', hook: 'h', kernbotschaft: 'k', ablauf: 'a', funnel_stufe
   });
 
-  it('das Tool kennt die Stufe nur mit Briefing-Stufen, als Enum', () => {
+  it('das Tool kennt die Stufe nur mit erlaubten Stufen, als Enum', () => {
     const ohne = konzeptTool(3).input_schema.properties.ideen.items;
     expect(ohne.properties.funnel_stufe).toBeUndefined();
 
@@ -337,35 +325,31 @@ describe('Liky-Vorschlaege mit Funnel-Stufe', () => {
     expect(mit.required).toContain('funnel_stufe');
   });
 
-  it('der Prompt verlangt bei mehreren Stufen eine Verteilung', () => {
-    const { task } = buildPrompt({ briefing: PAID(['mid', 'lower']), produkte: [], personas: [], ausschluss: [], anzahl: 4 });
-    expect(task).toContain('Funnel-Stufen im Briefing');
+  it('der Prompt verlangt bei Paid eine Verteilung ueber alle drei Stufen', () => {
+    const { task } = buildPrompt({ briefing: PAID(['mid']), produkte: [], personas: [], ausschluss: [], anzahl: 4 });
+    expect(task).toContain('Funnel-Stufen: upper (Upper Funnel – Awareness), mid (Mid Funnel – Consideration), lower (Lower Funnel – Conversion)');
     expect(task).toContain('jede Stufe kommt vor');
+    expect(task).not.toContain('Setze funnel_stufe bei jeder Idee auf mid');
   });
 
-  it('der Prompt setzt bei einer Stufe diese fuer alle Ideen', () => {
-    const { task } = buildPrompt({ briefing: PAID(['mid']), produkte: [], personas: [], ausschluss: [], anzahl: 2 });
-    expect(task).toContain('Setze funnel_stufe bei jeder Idee auf mid');
-  });
-
-  it('der Prompt schweigt ohne Briefing-Stufen', () => {
+  it('der Prompt schweigt ausserhalb von Paid', () => {
     const { task } = buildPrompt({ briefing: { bereich: 'owned_social' }, produkte: [], personas: [], ausschluss: [], anzahl: 2 });
     expect(task).not.toContain('Funnel-Stufe');
   });
 
-  it('validateIdeen behaelt nur Stufen aus dem Briefing', () => {
+  it('validateIdeen behaelt nur erlaubte Stufen', () => {
     const { ideen } = validateIdeen({
       ideen: [idee('A', 'mid'), idee('B', 'upper'), idee('C', 'quatsch')]
     }, { stufen: ['mid', 'lower'] });
     expect(ideen.map(i => i.funnel_stufe)).toEqual(['mid', null, null]);
   });
 
-  it('bei genau einer Briefing-Stufe gilt sie auch ohne Angabe', () => {
+  it('bei genau einer erlaubten Stufe gilt sie auch ohne Angabe', () => {
     const { ideen } = validateIdeen({ ideen: [idee('A', undefined)] }, { stufen: ['lower'] });
     expect(ideen[0].funnel_stufe).toBe('lower');
   });
 
-  it('ohne Briefing-Stufen bleibt die Stufe leer', () => {
+  it('ohne erlaubte Stufen bleibt die Stufe leer', () => {
     const { ideen } = validateIdeen({ ideen: [idee('A', 'mid')] });
     expect(ideen[0].funnel_stufe).toBeNull();
   });

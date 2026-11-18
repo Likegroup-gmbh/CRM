@@ -1,21 +1,15 @@
-// Listenwerte einer Produktion aus dem Briefing.
+// Listenwerte einer Produktion aus dem Briefing (nur beim ersten Anlegen des Castings).
 // Paid und Organic werden UGC ohne Reichweiten-Spalten.
-// Influencer übernimmt Instagram/TikTok und Reel/Story, sonst die weite Vorgabe.
+// Influencer übernimmt Instagram/TikTok aus den Plattformen des Briefings, sonst beide.
+// Das Briefing fragt weder IG-Formate noch TKP ab (ADR 0073): Formate nur aus
+// älteren Briefings, sonst Reel und Story; TKP startet mit 25.
 
-function channelGewaehlt(channels, key) {
-  const value = channels?.[key];
-  if (Array.isArray(value)) return value.length > 0;
-  return value === true;
-}
+import { briefingPlattformen } from '../briefing/briefingAltfelder.js';
 
-function influencerTkp(value) {
-  if (value === '' || value === null || value === undefined) return 25;
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? n : 25;
-}
+const TKP_START = 25;
 
 /**
- * @param {object} briefing bereich, publish_channels, tkp
+ * @param {object} briefing bereich, plattformen (ältere: publish_channels)
  * @returns {{liste_typ: string|null, plattformen: string|null, ig_formate: string|null, tkp: number|null}}
  */
 export function castingPresetFromBriefing(briefing = {}) {
@@ -27,31 +21,18 @@ export function castingPresetFromBriefing(briefing = {}) {
     return { liste_typ: null, plattformen: null, ig_formate: null, tkp: null };
   }
 
-  const channels = briefing.publish_channels || {};
-  const hatInstagram = channelGewaehlt(channels, 'instagram');
-  const hatTiktok = channelGewaehlt(channels, 'tiktok');
-  let plattformen;
-  if (hatInstagram && hatTiktok) plattformen = 'instagram,tiktok';
-  else if (hatInstagram) plattformen = 'instagram';
-  else if (hatTiktok) plattformen = 'tiktok';
-  else plattformen = 'instagram,tiktok';
+  const imBriefing = briefingPlattformen(briefing);
+  const gewaehlt = ['instagram', 'tiktok'].filter((p) => imBriefing.includes(p));
+  const plattformen = gewaehlt.length ? gewaehlt.join(',') : 'instagram,tiktok';
 
-  const formate = Array.isArray(channels.instagram) ? channels.instagram : [];
-  const hatReel = formate.includes('reel');
-  const hatStory = formate.includes('story');
-  const instagramDabei = plattformen.includes('instagram');
-  let igFormate = null;
-  if (instagramDabei) {
-    if (hatReel && hatStory) igFormate = 'reel,story';
-    else if (hatReel) igFormate = 'reel';
-    else if (hatStory) igFormate = 'story';
-    else igFormate = 'reel,story';
-  }
+  const formate = Array.isArray(briefing.publish_channels?.instagram) ? briefing.publish_channels.instagram : [];
+  const auswahl = ['reel', 'story'].filter((f) => formate.includes(f));
+  const igFormate = plattformen.includes('instagram') ? (auswahl.length ? auswahl.join(',') : 'reel,story') : null;
 
   return {
     liste_typ: 'influencer',
     plattformen,
     ig_formate: igFormate,
-    tkp: influencerTkp(briefing.tkp)
+    tkp: TKP_START
   };
 }

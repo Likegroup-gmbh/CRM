@@ -517,7 +517,8 @@ h3.section-title,
 .kampagne-detail-body[data-workflow="casting"] .kampagne-tab-chrome[data-chrome="casting"],
 .kampagne-detail-body[data-workflow="konzepte"] .kampagne-tab-chrome[data-chrome="konzepte"],
 .kampagne-detail-body[data-workflow="skripte"] .kampagne-tab-chrome[data-chrome="skripte"],
-.kampagne-detail-body[data-workflow="vertraege"] .kampagne-tab-chrome[data-chrome="vertraege"] {
+.kampagne-detail-body[data-workflow="vertraege"] .kampagne-tab-chrome[data-chrome="vertraege"],
+.kampagne-detail-body[data-workflow="auswertung"] .kampagne-tab-chrome[data-chrome="auswertung"] {
   display: flex;
 }
 
@@ -869,26 +870,15 @@ h3.section-title,
   outline-offset: 2px;
 }
 
-.contract-signed-action--open {
-  background: var(--success-bg);
-  color: var(--success);
-}
-
-.contract-signed-action--open:hover {
-  background: #d9e7e0;
-  
-}
-
-.contract-signed-action--open:hover svg {
-  
-}
-
+/* Anzeigen und Hochladen teilen sich dieselbe neutrale Optik */
+.contract-signed-action--open,
 .contract-signed-action--upload {
   background: var(--bg-primary);
   color: var(--text-secondary);
   border-color: var(--border-primary);
 }
 
+.contract-signed-action--open:hover,
 .contract-signed-action--upload:hover {
   background: var(--bg-secondary);
   color: var(--text-primary);
@@ -1485,6 +1475,8 @@ h3.section-title,
 }
 
 .custom-date-picker--text .custom-date-picker__input {
+  width: 100%;
+  box-sizing: border-box;
   padding-right: calc(var(--space-sm) + 36px);
 }
 
@@ -1509,9 +1501,11 @@ h3.section-title,
   transition: all 0.2s ease;
 }
 
-.custom-date-picker--text .custom-date-picker__trigger:hover {
+.custom-date-picker--text .custom-date-picker__trigger:hover,
+.custom-date-picker--text .custom-date-picker__trigger:focus-visible {
   color: var(--text-primary);
-  background-color: var(--bg-secondary);
+  background: none;
+  outline: none;
 }
 
 .login-box .custom-date-picker--text .custom-date-picker__trigger {
@@ -2148,11 +2142,21 @@ h3.section-title,
   padding: var(--space-xxs);
 }
 
+/* Organisationen (Unternehmen, Marken): Logo ganz sichtbar (contain) in rundem Rahmen. */
+
+.avatar-bubble--org-logo {
+  padding: var(--space-xxxs);
+}
+
 .avatar-bubble-logo {
   width: 100%;
   height: 100%;
   object-fit: cover;
   border-radius: 50%;
+}
+
+.avatar-bubble-logo.avatar-bubble-logo--contain {
+  object-fit: contain;
 }
 
 /* "+X mehr" Badge für überzählige Avatars */
@@ -2956,7 +2960,6 @@ h3.section-title,
 .entity-logo {
   width: 32px;
   height: 32px;
-  object-fit: contain;
   border-radius: var(--radius-xs);
 }
 
@@ -3077,7 +3080,7 @@ h3.section-title,
   max-width: var(--budget-max-width);
   width: 100%;
   margin: 0 auto;
-  padding-top: var(--space-lg);
+  
   padding-bottom: var(--space-xxl);
 }
 
@@ -3675,13 +3678,20 @@ h3.section-title,
    Strategie Kategorie-Header
    ========================================================================== */
 
+/* Eine Linie je Kante: Oberkante = border-bottom der Zeile darüber (siehe
+   tr:has(+ .category-header-row) unten), Unterkante = border-bottom der Zelle.
+   Ein border-top hier würde in der kollabierten Tabelle gegen die Linie der
+   Vorgängerzeile verlieren und in anderer Farbe durchscheinen. */
 .category-header-cell {
   background-color: var(--gray-100);
   font-size: var(--text-xl);
-  border-top: 1px solid var(--gray-500);
-  border-bottom: 1px solid var(--gray-500);
+  border-top: none;
+  border-bottom: 1px solid var(--border-primary);
   text-align: left;
-  
+}
+
+tr:has(+ .category-header-row) > td {
+  border-bottom-color: var(--border-primary);
 }
 
 /* Drag & Drop für Header-Zeilen (als Drop-Target) */
@@ -3705,7 +3715,7 @@ h3.section-title,
 
 .category-header-row.category-empty .category-header-cell {
   background: var(--gray-50);
-  border-style: dashed;
+  border-bottom-style: dashed;
   color: var(--text-muted);
 }
 
@@ -3986,7 +3996,7 @@ h3.section-title,
 
 .kategorie-header-row td {
   border: none;
-  border-bottom: 1px solid var(--gray-300);
+  border-bottom: 1px solid var(--border-primary);
   padding: 0;
 }
 
@@ -4356,7 +4366,6 @@ h3.section-title,
 .toolbar-entity-logo {
   width: 2.4rem;
   height: 2.4rem;
-  object-fit: contain;
   border-radius: var(--radius-md);
   flex-shrink: 0;
 }
@@ -4501,7 +4510,7 @@ h3.section-title,
 }
 
 .ig-fetch-btn.is-success {
-  color: var(--color-success, #16a34a);
+  color: var(--color-success);
 }
 
 .ig-fetch-btn.is-error {
@@ -4961,7 +4970,6 @@ h3.section-title,
   width: 24px;
   height: 24px;
   border-radius: var(--border-radius-sm);
-  object-fit: contain;
   flex-shrink: 0;
 }
 
@@ -4999,8 +5007,6 @@ h3.section-title,
   width: 48px;
   height: 48px;
   border-radius: var(--border-radius-md);
-  object-fit: contain;
-  background: var(--bg-secondary);
 }
 
 .preview-org-avatar {
@@ -5423,33 +5429,6 @@ h3.section-title,
   border: 1px solid var(--warning-300);
 }
 
-/* Vertragstyp Badges */
-
-.typ-ugc {
-  background: var(--primary-100);
-  color: var(--primary-700);
-}
-
-.typ-influencer-kooperation {
-  background: var(--purple-100);
-  color: var(--purple-700);
-}
-
-.typ-videograph {
-  background: var(--cyan-100);
-  color: var(--cyan-700);
-}
-
-.typ-model {
-  background: var(--amber-100);
-  color: var(--amber-700);
-}
-
-.typ-contracting {
-  background: var(--green-100);
-  color: var(--green-700);
-}
-
 /* Page Header Left */
 
 /* Danger Button */
@@ -5558,26 +5537,14 @@ h3.section-title,
 }
 
 .folder-icon {
-  width: var(--space-xxl);
-  height: var(--space-xxl);
+  /* Grid-Karte zeigt dieselbe Bild-Kachel wie die Tabellen (folderAvatar.js), nur groesser */
+  
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: var(--space-sm);
 }
 
-.folder-icon .folder-svg {
-  width: 56px;
-  height: 56px;
-  color: var(--color-primary);
-}
-
-.folder-icon .folder-logo {
-  width: var(--space-xl);
-  height: var(--space-xl);
-  object-fit: contain;
-  border-radius: var(--radius-md);
-}
 
 .folder-info {
   display: flex;
@@ -6802,10 +6769,9 @@ progress.upload-progress-bar::-moz-progress-bar {
   overflow: hidden;
 }
 
-/* HINWEIS: #d1fae5 hat kein exaktes Token in variables.css */
 .transcribe-log {
   background: var(--gray-900);
-  color: #d1fae5;
+  color: var(--success-100);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   border-radius: var(--radius-xl);
@@ -7214,7 +7180,7 @@ progress.upload-progress-bar::-moz-progress-bar {
    (core/components/EmptyState.js, Styles in tabellen.css) */
 
 /* Auftrag-stornieren-Button in der Sidebar (AuftragDetail)
-   HINWEIS: #22c55e hat kein exaktes Token in variables.css, daher Hex. */
+   */
 .btn-stornieren {
   margin-top: var(--space-sm);
   width: 100%;
@@ -7228,8 +7194,8 @@ progress.upload-progress-bar::-moz-progress-bar {
   transition: all 0.2s;
 }
 .btn-stornieren--success {
-  border-color: #22c55e;
-  color: #22c55e;
+  border-color: var(--success-500);
+  color: var(--success-500);
 }
 
 /* Summary-Card als vertikaler Key/Value-Stack (ContractDetail Kunde-Tile) */

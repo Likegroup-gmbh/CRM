@@ -92,8 +92,13 @@ describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
     join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261028_briefing_videolaenge_funnel.sql'),
     'utf8'
   );
+  const creatorPdfSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261221_briefing_creator_pdf.sql'),
+    'utf8'
+  );
   const columns = new Set([
     ...extractColumns(sql),
+    ...extractAlterColumns(creatorPdfSql),
     ...extractAlterColumns(laengeFunnelSql),
     ...extractAlterColumns(vorgabenSql),
     ...extractAlterColumns(flowSql),

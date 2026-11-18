@@ -5,9 +5,11 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 import {
   renderVerknuepfungen,
   namedLinks,
@@ -91,10 +93,7 @@ export function updateCompaniesGrid(list) {
   grid.innerHTML = list.companyFolders.map((folder) => `
     <div class="folder-card" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
       <div class="folder-icon">
-        ${folder.logo_url
-          ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(folder.firmenname)}" class="folder-logo">`
-          : `${icon('folder-open')}`
-        }
+        ${renderFolderAvatar({ url: folder.logo_url, name: folder.firmenname })}
       </div>
       <div class="folder-info">
         <span class="folder-name">${list.sanitize(folder.firmenname)}</span>
@@ -121,11 +120,13 @@ export function updateCompaniesTable(list) {
 
   tbody.innerHTML = list.companyFolders.map((folder) => `
     <tr class="table-row-clickable company-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
-      <td>
-        ${folder.logo_url ? `<img src="${list.sanitize(folder.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
-          ${list.sanitize(folder.firmenname)}
-        </a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: folder.logo_url,
+          logo: true,
+          iconHtml: icon('folder-open'),
+          nameHtml: `<a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">${list.sanitize(folder.firmenname)}</a>`
+        })}
       </td>
       <td>${folder.count}</td>
     </tr>
@@ -216,11 +217,13 @@ export function updateBrandsTable(list) {
 
   tbody.innerHTML = list.brandFolders.map((brand) => `
     <tr class="table-row-clickable brand-row" data-marke-id="${brand.id}" data-marke-name="${list.sanitize(brand.markenname)}">
-      <td>
-        ${brand.logo_url ? `<img src="${list.sanitize(brand.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link brand-link" data-marke-id="${brand.id}" data-marke-name="${list.sanitize(brand.markenname)}">
-          ${list.sanitize(brand.markenname)}
-        </a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: brand.logo_url,
+          logo: true,
+          iconHtml: icon('folder-open'),
+          nameHtml: `<a href="#" class="table-link brand-link" data-marke-id="${brand.id}" data-marke-name="${list.sanitize(brand.markenname)}">${list.sanitize(brand.markenname)}</a>`
+        })}
       </td>
       <td>${brand.count}</td>
     </tr>

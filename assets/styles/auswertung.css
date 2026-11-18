@@ -1,0 +1,363 @@
+/* Auswertungs-Tab (src/modules/auswertung). Grundlage ist der Budget-Tab (.budget-tab*,
+   components.css); hier steht nur, was davon abweicht. */
+
+/* Volle Breite wie Personas und Casting, nicht die Dokumentspalte des Budget-Tabs.
+   Eine linke Einrückung für Titel, Kacheln und Posts: die erste Kennzahl hat im
+   Budget-Tab absichtlich 0 und klebt hier sonst an der Kante. */
+.budget-tab.auswertung {
+  --auswertung-inset: var(--space-md);
+  max-width: none;
+  margin: 0;
+}
+
+.budget-tab.auswertung > .budget-tab__head,
+.budget-tab.auswertung > .auswertung-ansichten,
+.auswertung .budget-tab__section-head,
+.auswertung-stats > .auswertung-stat:first-child {
+  padding-left: var(--auswertung-inset);
+}
+
+.main-wrapper:has(.kampagne-detail-body[data-workflow="auswertung"]) {
+  scrollbar-gutter: stable;
+}
+
+/* Bei „Gesamte Kampagne“ filtert die Linie nichts */
+.kampagne-detail-body[data-auswertung-ebene="kampagne"] [data-linien-switch]:not([data-liste-switch]) {
+  display: none;
+}
+
+.auswertung-inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-in-out);
+}
+
+.auswertung[aria-busy="true"] .auswertung-inhalt {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.auswertung-ansichten {
+  margin: 0;
+}
+
+/* Sechs Kennzahlen in einer Reihe, ausgeblendete rücken auf */
+.auswertung-stats {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+
+.auswertung-stat {
+  position: relative;
+  padding-right: var(--space-xl);
+}
+
+.auswertung-stat .card-hint {
+  top: var(--space-md);
+  right: var(--space-xs);
+}
+
+.auswertung-stat .summary-progress {
+  margin-top: var(--space-xs);
+}
+
+/* Diagramm und Zusammenfassung nebeneinander, schmal untereinander */
+.auswertung-raster {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-xl);
+  align-items: start;
+}
+
+.auswertung-diagramm__steuerung {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) 0 var(--space-sm) var(--auswertung-inset);
+}
+
+.auswertung-diagramm__zeilen {
+  grid-template-columns: minmax(7rem, 1fr) minmax(5rem, 2fr) minmax(5rem, auto);
+  column-gap: var(--space-md);
+}
+
+.auswertung-diagramm .budget-tab__creator {
+  padding-left: var(--auswertung-inset);
+}
+
+.auswertung-balken--leer .budget-tab__creator-title {
+  color: var(--gray-500);
+}
+
+.auswertung-zusammenfassung__kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.auswertung-zusammenfassung__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 0;
+  padding-left: var(--space-lg);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--gray-800);
+}
+
+.auswertung-zusammenfassung__liste li::marker {
+  color: var(--gray-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.auswertung-zusammenfassung__aktionen {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+.auswertung-zusammenfassung__fuss {
+  margin: var(--space-md) 0 0;
+  padding-top: var(--space-sm);
+  border-top: var(--border-xs) solid var(--gray-100);
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.auswertung-zusammenfassung__offen {
+  display: block;
+  margin-top: var(--space-xxs);
+  color: var(--gray-700);
+}
+
+.auswertung-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--gray-900);
+  text-decoration-line: underline;
+  text-decoration-color: var(--gray-300);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.auswertung-link:hover {
+  text-decoration-color: var(--gray-600);
+}
+
+/* Post-Tabelle: erste Spalte dieselbe Einrückung wie Kacheln und „Posts“ */
+.auswertung-tabelle .data-table td {
+  vertical-align: middle;
+}
+
+.auswertung-tabelle .data-table th:first-child,
+.auswertung-tabelle .data-table td:first-child {
+  padding-left: var(--auswertung-inset);
+}
+
+.auswertung-zahl {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.auswertung-tabelle th.auswertung-zahl .th-sort {
+  justify-content: flex-end;
+}
+
+.auswertung-tabelle__rang {
+  width: 3rem;
+}
+
+.auswertung-rang {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--gray-500);
+}
+
+.auswertung-rang--top {
+  background: var(--gray-950);
+  color: var(--color-white);
+  font-weight: 500;
+}
+
+.auswertung-zeile {
+  cursor: pointer;
+}
+
+.auswertung-zeile--offen .auswertung-zahl,
+.auswertung-stat__leer {
+  color: var(--gray-400);
+}
+
+.auswertung-zeile:focus-visible {
+  outline: 2px solid var(--gray-300);
+  outline-offset: -2px;
+}
+
+.auswertung-tabelle__titel {
+  display: block;
+  font-weight: 500;
+  color: var(--gray-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auswertung-tabelle__sub {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auswertung-plattform {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  white-space: nowrap;
+}
+
+/* Poster im Format 4:5, bis es da ist das Icon der Art */
+.auswertung-poster {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2.5rem;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--gray-100);
+  color: var(--gray-400);
+}
+
+.auswertung-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.auswertung-poster--gross {
+  width: 6rem;
+  height: 7.5rem;
+  border-radius: var(--radius-md);
+}
+
+/* Detail-Panel */
+.auswertung-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.auswertung-panel .drawer-section-title {
+  margin: var(--space-sm) 0 0;
+}
+
+.auswertung-panel__held {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.auswertung-panel__aufrufe {
+  font-size: var(--text-xxxl);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--gray-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.auswertung-panel__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+}
+
+.auswertung-panel__muted {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+}
+
+.auswertung-panel__werte {
+  margin: 0;
+}
+
+.auswertung-panel__werte > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-xs) 0;
+  border-bottom: var(--border-xs) solid var(--gray-100);
+  font-size: var(--text-sm);
+}
+
+.auswertung-panel__werte dt {
+  color: var(--gray-600);
+}
+
+.auswertung-panel__werte dd {
+  margin: 0;
+  font-weight: 500;
+  color: var(--gray-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.auswertung-post-drawer .drawer-footer {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-top: var(--border-xs) solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+/* Kampagnenseite: Umschalter „Produktionen | Auswertung“ */
+[data-kampagne-sicht-pane][hidden],
+.kampagne-detail-body[data-kampagne-sicht="auswertung"] #btn-new-produktion {
+  display: none;
+}
+
+.summary-card[data-auswertung-oeffnen] {
+  cursor: pointer;
+}
+
+.summary-card[data-auswertung-oeffnen]:focus-visible {
+  outline: 2px solid var(--gray-300);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1100px) {
+  .auswertung-raster {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .auswertung-diagramm__zeilen {
+    grid-template-columns: 1fr;
+  }
+
+  /* Der Budget-Tab setzt hier links auf 0. In der Auswertung bleibt die Einrückung. */
+  .auswertung-stats > .auswertung-stat,
+  .auswertung-stats > .auswertung-stat + .auswertung-stat {
+    padding-left: var(--auswertung-inset);
+  }
+}

@@ -21,7 +21,8 @@ import { scopeByProduktion, scopeKoopsByLinie } from '../produktion/ProduktionSe
 import { effectiveLinie, renderLinienSwitch, syncLinienSwitch } from './linienScope.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
-import { renderCreatorNameCell } from '../creator/CreatorTable.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { mountVideoBrowserPane, unmountVideoBrowser, clearVideoBrowserUrl } from '../video-browser/VideoBrowser.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { mountCastingPane, unmountCastingWorksheet, loadCastingPrefetch } from './KampagneDetailCasting.js';
@@ -39,6 +40,7 @@ import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
 import { ladeBudgetDaten, renderBudgetTab } from '../produktion/budgetTab.js';
 import { aktuelleBudgetTags, mountBudgetFilter, unmountBudgetFilter } from '../produktion/budgetTabFilter.js';
+import { mountAuswertungPane, renderAuswertungPane, unmountAuswertungPane } from '../auswertung/auswertungPane.js';
 
 export const WORKFLOW_TABS = [
   { id: 'budget', label: 'Budget', preise: true },
@@ -285,6 +287,8 @@ export function suspendWorkflowTab(detail, tabId) {
     unmountVertraegePane(detail);
   } else if (tabId === 'budget') {
     unmountBudgetFilter(detail);
+  } else if (tabId === 'auswertung') {
+    unmountAuswertungPane(detail, { verlassen: true });
   } else if (tabId === 'videos') {
     unmountVideoBrowser(detail);
     clearVideoBrowserUrl();
@@ -415,6 +419,7 @@ export async function loadWorkflowPane(detail, tabId) {
     pane.innerHTML = html;
     if (tabId === 'vertraege') mountVertraegePane(detail);
     if (tabId === 'budget') mountBudgetPane(detail);
+    if (tabId === 'auswertung') mountAuswertungPane(detail, pane);
   } catch (error) {
     console.error(`❌ KAMPAGNEDETAIL: Workflow-Pane "${tabId}" fehlgeschlagen:`, error);
     detail._workflowLoaded[tabId] = false;
@@ -446,6 +451,7 @@ export function refreshWorkflowAfterRender(detail) {
   unmountKatalogPanes(detail);
   unmountBriefingPane(detail);
   unmountVideoBrowser(detail);
+  unmountAuswertungPane(detail);
   detail._workflowLoaded = {};
   detail._workflowData = {};
   const tab = detail.activeWorkflowTab;
@@ -605,6 +611,24 @@ export function mountVertraegePane(detail) {
 /* Pane-Renderer                                                       */
 /* ------------------------------------------------------------------ */
 
+// Creator: Foto links, daneben die Verknüpfungs-Pill (für Kunden nur der Name).
+function skriptCreatorHtml(detail, skript) {
+  const creator = konzeptCreatorFromSkript(skript);
+  if (!creator?.name) return '-';
+  const nameHtml = detail.isKunde || !creator.id
+    ? esc(creator.name)
+    : renderVerknuepfungPill({
+        kind: 'creator',
+        labelHtml: esc(creator.name),
+        attrs: `data-table="creator" data-id="${creator.id}"`
+      });
+  return renderTableIdentity({
+    url: creator.profilbild_thumb_url || creator.profilbild_url,
+    name: creator.vorname || creator.name,
+    nameHtml
+  });
+}
+
 async function renderSkriptePane(detail) {
   const skripte = await getWorkflowData(detail, 'skripte', () =>
     skripteService.loadSkripte({
@@ -640,15 +664,16 @@ async function renderSkriptePane(detail) {
       : `<span class="tag tag--status ${statusVariant}">${esc(statusLabel)}</span>`;
     return `
       <tr>
-        <td>${s.skript_nr || '–'}</td>
-        <td class="col-name">
-          <a href="/skripte/${s.id}" class="table-link" data-table="skripte" data-id="${s.id}">
-            ${esc(titel)}
-          </a>
-        </td>
-        ${renderCreatorNameCell(konzeptCreatorFromSkript(s))}
-        <td>${statusTd}</td>
-        <td>${formatDate(s.created_at)}</td>
+        <td class="col-nr">${s.skript_nr || '–'}</td>
+        <td class="col-creator">${skriptCreatorHtml(detail, s)}</td>
+        <td class="col-titel">${renderVerknuepfungPill({
+          kind: 'skript',
+          label: titel,
+          href: `/skripte/${s.id}`,
+          attrs: `data-table="skripte" data-id="${s.id}"`
+        })}</td>
+        <td class="col-status">${statusTd}</td>
+        <td class="col-erstellt-am">${formatDate(s.created_at)}</td>
         <td class="col-actions">${actionBuilder.create('skripte', s.id)}</td>
       </tr>
     `;
@@ -656,14 +681,14 @@ async function renderSkriptePane(detail) {
 
   return `
     <div class="data-table-container">
-      <table class="data-table">
+      <table class="data-table data-table--skripte">
         <thead>
           <tr>
-            <th>Nr.</th>
-            <th>Titel</th>
-            <th>Creator</th>
-            <th>Status</th>
-            <th>Erstellt am</th>
+            <th class="col-nr">Nr.</th>
+            <th class="col-creator">Creator</th>
+            <th class="col-titel">Titel</th>
+            <th class="col-status">Status</th>
+            <th class="col-erstellt-am">Erstellt am</th>
             <th class="col-actions">Aktionen</th>
           </tr>
         </thead>
@@ -740,15 +765,6 @@ function mountBudgetPane(detail) {
   mountBudgetFilter(detail, {
     daten: detail._workflowData?.budget,
     optionen: () => budgetTabOptionen(detail)
-  });
-}
-
-// Auswertung: bewusst nur Platzhalter (kein CTA, keine KI-Briefing-Auswertung).
-function renderAuswertungPane() {
-  return renderEmptyState({
-    icon: 'info',
-    title: 'Auswertung folgt',
-    text: 'Für diese Produktion liegt noch keine Auswertung vor.'
   });
 }
 

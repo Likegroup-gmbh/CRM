@@ -3,44 +3,26 @@
 // /briefing/new?einreichung=<id>&produktion=<id> lädt das Formular mit dem Payload vor.
 // Speichern läuft über die normalen Wege (Entwurf oder Briefing erstellen); danach
 // wird die Einreichung auf `angelegt` gesetzt. Der Payload der Einreichung bleibt unverändert.
+// Produkte kommen ohne ID; die Produktliste legt sie mit der Dubletten-Regel an (ADR 0074).
 
 import { BriefingCreate } from './BriefingCreateCore.js';
-import {
-  ladeDatei,
-  ladeEinreichung,
-  markiereBriefingAngelegt
-} from '../../einladung/einreichungService.js';
+import { nutzungAusBereich } from './bereichAbleiten.js';
+import { ladeEinreichung, markiereBriefingAngelegt } from '../../einladung/einreichungService.js';
 import { briefingBasis, briefingTitel, freierTitel } from '../../produktion/produktionNames.js';
 
 /** Zuordnung kommt aus Produktion und URL, nie aus dem Kunden-Payload. */
 const KONTEXT_FELDER = ['unternehmen_id', 'marke_id', 'kampagne_id', 'produktion_id', 'produkt_id'];
 
-async function kopiereReferenzDateien(einreichungId, referenzen) {
-  const out = [];
-  let fehlgeschlagen = 0;
-  for (const eintrag of referenzen || []) {
-    if (eintrag?.typ !== 'upload') {
-      out.push(eintrag);
-      continue;
-    }
-    try {
-      const blob = await ladeDatei(eintrag.value);
-      const name = String(eintrag.label || 'datei').replace(/[^a-zA-Z0-9._-]/g, '_');
-      const pfad = `campaign-briefings/einreichung-${einreichungId}/${Date.now()}_${name}`;
-      const { error } = await window.supabase.storage
-        .from('documents')
-        .upload(pfad, blob, { upsert: false, contentType: blob.type || undefined });
-      if (error) throw error;
-      out.push({ ...eintrag, value: pfad });
-    } catch (error) {
-      console.warn('Referenzdatei der Einreichung nicht übernommen:', error);
-      fehlgeschlagen += 1;
-    }
-  }
-  if (fehlgeschlagen) {
-    window.toastSystem?.warning(`${fehlgeschlagen} Referenzdatei(en) konnten nicht übernommen werden.`);
-  }
-  return out;
+/** Einreichungen vor ADR 0073: Ideen und Referenz-Links als Inspiration in die Ideenliste. */
+function ideenAusAltPayload(payload) {
+  const alt = Array.isArray(payload.umsetzungsideen) ? payload.umsetzungsideen : [];
+  const links = (Array.isArray(payload.referenzen) ? payload.referenzen : [])
+    .filter(r => r?.typ === 'url' && r.value)
+    .map(r => r.value);
+  return [...alt, ...links]
+    .map(t => String(t ?? '').trim())
+    .filter(Boolean)
+    .map(text => ({ text, verbindlich: false }));
 }
 
 async function titelFuerEinreichung(formData, produktionId, absender) {
@@ -93,8 +75,12 @@ BriefingCreate.prototype.applyEinreichung = async function() {
 
   const payload = { ...(einreichung.payload?.formData || {}) };
   for (const feld of KONTEXT_FELDER) delete payload[feld];
-  if (Array.isArray(payload.referenzen)) {
-    payload.referenzen = await kopiereReferenzDateien(einreichung.id, payload.referenzen);
+  if (Array.isArray(payload.produkte)) {
+    payload.produkte = payload.produkte.map(p => ({ ...p, produkt_id: null }));
+  }
+  if (!Array.isArray(payload.umsetzungsideen_eintraege) || !payload.umsetzungsideen_eintraege.length) {
+    const ideen = ideenAusAltPayload(payload);
+    if (ideen.length) payload.umsetzungsideen_eintraege = ideen;
   }
 
   this._einreichungId = einreichung.id;
@@ -102,9 +88,9 @@ BriefingCreate.prototype.applyEinreichung = async function() {
   this.formData = { ...payload, ...kontext, bereich: einladung.briefing_typ };
   // Eine leere Videolänge bleibt leer: der Kunde hat nichts vorgegeben.
   this.formData.videolaenge = payload.videolaenge || null;
+  Object.assign(this.formData, nutzungAusBereich(this.formData, einladung.briefing_typ));
   this.selectedBereich = einladung.briefing_typ;
-  this.isGenerated = true;
-  this.currentStep = 2;
+  this.currentStep = 1;
 
   const produktionId = kontext.produktion_id || einladung.produktion_id;
   if (produktionId && !this.formData.aktivierung_name) {

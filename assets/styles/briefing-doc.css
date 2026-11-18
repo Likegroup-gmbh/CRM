@@ -292,6 +292,40 @@
   margin: 0 var(--space-xxs) var(--space-xxs) 0;
 }
 
+.briefing-doc__specs + .briefing-doc__kicker,
+.briefing-doc__prose + .briefing-doc__kicker,
+.briefing-doc__produkt + .briefing-doc__kicker {
+  margin-top: var(--space-lg);
+}
+
+.briefing-doc__produkt {
+  margin: 0 0 var(--space-md);
+}
+
+.briefing-doc__produkt-name {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.briefing-doc__ideen {
+  white-space: normal;
+}
+
+.briefing-doc__ideen .tag {
+  margin-right: var(--space-xxs);
+}
+
+.briefing-doc__alt > summary {
+  cursor: pointer;
+  list-style: revert;
+}
+
+.briefing-doc__alt:not([open]) > summary {
+  margin-bottom: 0;
+}
+
 /* Print-Variante: feste Papierbreite, keine Aktionsleiste,
    ruhigere Abstaende. */
 

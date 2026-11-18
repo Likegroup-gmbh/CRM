@@ -10,6 +10,7 @@ import {
 } from '../../core/VideoFeedbackBuckets.js';
 import { sortKooperationen } from './KooperationSortHelper.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
+import { summiereLivePerformance } from './kampagneLivePerformance.js';
 
 
 const DEFAULT_KOOPERATION_SORT = 'created_desc';
@@ -29,6 +30,7 @@ export class KampagneDetailStore {
     this.creatorAdressen = {};
     this.kampagneInfo = null;
     this.statusOptions = [];
+    this.livePosts = [];           // bestätigte kooperation_post (Kachel Live-Performance)
 
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
     this.selectedTags = [];
@@ -319,25 +321,18 @@ export class KampagneDetailStore {
       extraKostenVkSum,
       kskUmgebucht,
       ekVkMarginSum: 0,
-      videoStats: this.calculateVideoStats(allVideos)
+      videoStats: this.calculateVideoStats(koops.map(k => k.id))
     };
   }
 
-  /**
-   * Live-Performance der gesamten Kampagne: Summe ueber alle Videos, bei denen
-   * Zahlen hinterlegt sind (abgerufen oder von Hand eingetragen).
-   * Optional auf eine bestimmte Video-Menge einschraenkbar (z.B. Tag-Filter).
-   */
-  calculateVideoStats(videosList) {
-    const allVideos = videosList || Object.values(this.videos).flat();
-    const sum = (field) => allVideos.reduce((acc, v) => acc + (Number(v?.[field]) || 0), 0);
+  setLivePosts(posts) {
+    this.livePosts = posts || [];
+    this.emit('posts-changed');
+  }
 
-    return {
-      views: sum('stats_views'),
-      likes: sum('stats_likes'),
-      comments: sum('stats_comments'),
-      videosMitDaten: allVideos.filter(v => v?.stats_views != null || v?.stats_likes != null || v?.stats_comments != null).length
-    };
+  /** Live-Performance: bestätigte Posts der geladenen (oder der übergebenen) Kooperationen. */
+  calculateVideoStats(koopIds = this.kooperationen.map(k => k.id)) {
+    return summiereLivePerformance(this.livePosts, koopIds);
   }
 
   // ========================================

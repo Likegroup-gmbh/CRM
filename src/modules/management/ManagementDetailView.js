@@ -7,6 +7,7 @@ import { renderSecondaryNav } from '../../core/TabUtils.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 import { renderManagementBetreuung } from '../ansprechpartner/managementBetreuung.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 export function renderManagementPage(detail) {
   if (!detail.activeMainTab) detail.activeMainTab = 'creators';
@@ -18,6 +19,7 @@ export function renderManagementPage(detail) {
     email: '',
     subtitle: 'Management',
     avatarUrl: detail.management?.logo_url,
+    avatarLogo: true,
     avatarOnly: false
   };
 
@@ -138,10 +140,10 @@ function renderRechnungen(detail) {
       <tr>
         <td><a href="/rechnung/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${detail.sanitize(r.rechnung_nr || '—')}</a></td>
         <td><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
-        <td>${r.auftrag ? `<a href="#" class="table-link" data-table="auftrag" data-id="${r.auftrag.id}">${detail.sanitize(r.auftrag.auftragsname || '-')}</a>` : '-'}</td>
+        <td>${r.auftrag ? renderVerknuepfungPill({ kind: 'auftrag', labelHtml: detail.sanitize(r.auftrag.auftragsname || '-'), attrs: `data-table="auftrag" data-id="${r.auftrag.id}"` }) : '-'}</td>
         <td>${detail.sanitize(r.po_nummer) || '-'}</td>
         <td>${detail.formatDate(r.created_at)}</td>
-        <td>${r.kampagne ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne.id}">${detail.sanitize(kampagneName)}</a>` : '-'}</td>
+        <td>${r.kampagne ? renderVerknuepfungPill({ kind: 'kampagne', labelHtml: detail.sanitize(kampagneName), attrs: `data-table="kampagne" data-id="${r.kampagne.id}"` }) : '-'}</td>
         <td>${detail.sanitize(r.land) || '-'}</td>
         <td>${creatorBubble}</td>
         <td>${detail.formatDate(r.gestellt_am)}</td>

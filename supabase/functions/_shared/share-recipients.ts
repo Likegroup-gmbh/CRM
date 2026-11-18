@@ -1,14 +1,21 @@
-// Empfänger eines Zugangs aus der DB bestimmen: Kundenkonten und deren Zuordnung.
+// Empfänger eines Zugangs aus der DB bestimmen: Kunden- und Mitarbeiterkonten und deren Sicht.
 // Die Entscheidung selbst liegt in share-recipients-plan.ts.
 
 import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { canSee, planShareRecipients } from './share-recipients-plan.ts';
-import type { RecipientPlan, Scope } from './share-recipients-plan.ts';
+import type { AccountInfo, RecipientPlan, Scope } from './share-recipients-plan.ts';
+import { staffVisibility } from './share-recipients-staff.ts';
 
 export { accountListPath } from './share-recipients-plan.ts';
 export type { RecipientPlan } from './share-recipients-plan.ts';
 
 type Admin = ReturnType<typeof createClient>;
+type UserRow = { id: string; email?: string | null; rolle: string; auth_user_id: string | null; freigeschaltet?: boolean | null };
+
+const CUSTOMER_ROLES = ['kunde', 'kunde_editor'];
+const STAFF_ROLES = ['admin', 'mitarbeiter'];
+
+const emailOf = (row: { email?: string | null }) => String(row.email || '').trim().toLowerCase();
 
 async function one(admin: Admin, table: string, id: string, columns: string) {
   const { data, error } = await admin.from(table).select(columns).eq('id', id).maybeSingle();
@@ -81,18 +88,21 @@ export async function classifyShareEmails(
 
   const { data: users, error } = await admin
     .from('benutzer')
-    .select('id, email, rolle')
-    .in('rolle', ['kunde', 'kunde_editor']);
+    .select('id, email, rolle, auth_user_id, freigeschaltet')
+    .in('rolle', [...CUSTOMER_ROLES, ...STAFF_ROLES]);
   if (error) throw error;
 
   const wanted = new Set(normalized);
-  const customers = (users || []).filter((row: { email?: string }) => wanted.has(String(row.email || '').trim().toLowerCase()));
+  const accounts = ((users || []) as UserRow[]).filter((row) => wanted.has(emailOf(row)));
+  const customers = accounts.filter((row) => CUSTOMER_ROLES.includes(row.rolle));
+  // Nicht freigeschaltete Mitarbeiter können sich nicht anmelden und gelten als Gast.
+  const staff = accounts.filter((row) => STAFF_ROLES.includes(row.rolle) && row.freigeschaltet === true);
   const scope = customers.length ? await loadScope(admin, entityType, entityId) : null;
 
   let companyRows: { kunde_id: string; unternehmen_id: string }[] = [];
   let brandRows: { kunde_id: string; marke_id: string }[] = [];
   if (customers.length) {
-    const ids = customers.map((row: { id: string }) => row.id);
+    const ids = customers.map((row) => row.id);
     const companies = await admin.from('kunde_unternehmen').select('kunde_id, unternehmen_id').in('kunde_id', ids);
     if (companies.error) throw companies.error;
     const brands = await admin.from('kunde_marke').select('kunde_id, marke_id').in('kunde_id', ids);
@@ -101,16 +111,19 @@ export async function classifyShareEmails(
     brandRows = brands.data || [];
   }
 
-  const customersByEmail: Record<string, { canSee: boolean }> = {};
-  for (const row of customers as { id: string; email?: string }[]) {
-    const email = String(row.email || '').trim().toLowerCase();
-    customersByEmail[email] = {
+  const accountsByEmail: Record<string, AccountInfo> = {};
+  for (const row of customers) {
+    accountsByEmail[emailOf(row)] = {
       canSee: canSee({
         unternehmenIds: companyRows.filter((link) => link.kunde_id === row.id).map((link) => link.unternehmen_id),
         markeIds: brandRows.filter((link) => link.kunde_id === row.id).map((link) => link.marke_id),
       }, scope),
     };
   }
+  const staffSees = staff.length ? await staffVisibility(admin, staff, entityType, entityId) : {};
+  for (const row of staff) {
+    accountsByEmail[emailOf(row)] = { canSee: staffSees[row.id] === true, staff: true };
+  }
 
-  return planShareRecipients(normalized, customersByEmail, entityType);
+  return planShareRecipients(normalized, accountsByEmail, entityType);
 }

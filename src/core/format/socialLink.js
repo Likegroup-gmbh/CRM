@@ -5,10 +5,10 @@
 // "Reel · @handle" und haelt die URL im Input darunter.
 //
 // Zwei Arten von Links kommen vor:
-//   Beitrag - Live-Link der Kooperationen-Videos (/reel/CODE)
+//   Beitrag - Link eines Posts (/reel/CODE)
 //   Profil  - Creator-Link im Sourcing (/paulinemary)
 //
-// Das Shortcode-Parsing spiegelt netlify/functions/kooperation-video-stats.js
+// Das Shortcode-Parsing spiegelt netlify/functions/_shared/instagram-post-abruf.js
 // (extractShortcode), erweitert um den Typ: Reels laufen je nach Herkunft unter
 // /reel/, /reels/, /p/ oder /tv/, und bei Profil-Permalinks steckt noch ein
 // Segment davor (/username/reel/CODE).

@@ -45,6 +45,9 @@ const {
   buildDontLesungPrompt
 } = match;
 
+// Pausiert (ADR 0073): das Briefing traegt keinen Casting-Bedarf mehr. Leer ('') schaltet wieder frei.
+const PAUSIERT = 'Casting-Vorschläge sind pausiert: das Briefing ist keine Grundlage mehr fürs Casting.';
+
 const THINKING_LABELS = {
   start: 'Ich lese Briefing und Bedarf',
   pool: 'Ich hole die Creator aus der Datenbank',
@@ -104,6 +107,10 @@ exports.handler = async (event) => {
   }
   if (job.status !== 'pending') {
     console.warn(`⚠️ casting-vorschlag-background: Job ${jobId} bereits ${job.status}, kein zweiter Lauf`);
+    return { statusCode: 409 };
+  }
+  if (PAUSIERT) {
+    await markJobError(PAUSIERT);
     return { statusCode: 409 };
   }
 

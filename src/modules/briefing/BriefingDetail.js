@@ -1,16 +1,16 @@
 // BriefingDetail.js (ES6-Modul)
-// Dokumentansicht eines Campaign Briefings (campaign_briefings).
-// Rendert die Inhalte datengetrieben aus fieldConfig.js (gleiche
-// Step-/Section-Struktur wie der Generator). Textareas sind inline
-// editierbar; Specs/Tags gehen weiter ueber /briefing/:id/edit.
+// Dokumentansicht eines Campaign Briefings (campaign_briefings): die drei Sektionen des
+// Creator-Briefings (BriefingDocView). Textfelder sind inline editierbar; alles andere
+// geht ueber /briefing/:id/edit. Kunden laden nur BRIEFING_SPALTEN, das Team alles
+// (fuer „Fruehere Angaben“).
 
 import { dropAnschreibenWarm, warmAnschreiben } from '../../core/anschreiben/openAnschreiben.js';
-import { formatVideolaenge, tokenLabel } from './videolaenge.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderBriefingDoc, bindBriefingDoc } from './BriefingDocView.js';
-import { loadBriefingProdukte } from './BriefingProdukte.js';
+import { loadBriefingProduktDetails } from './BriefingProdukte.js';
+import { BRIEFING_SPALTEN } from './briefingSpalten.js';
 import { backTarget } from '../../core/breadcrumbTrail.js';
-import { groupAnzeigeZeilen } from './create/fieldConfig.js';
+import { formatBriefingWert } from './briefingWertAnzeige.js';
 export class BriefingDetail {
   constructor() {
     this.briefingId = null;
@@ -32,6 +32,10 @@ export class BriefingDetail {
 
   canEdit() {
     return Boolean(window.isAdmin?.() || window.currentUser?.permissions?.briefing?.can_edit);
+  }
+
+  zeigtFruehereAngaben() {
+    return Boolean(window.canFeature?.('briefingFruehereAngaben'));
   }
 
   /** Duplizieren legt eine neue Linie an: Anlegerecht (canCreate) und eine Produktion am Briefing. */
@@ -91,7 +95,7 @@ export class BriefingDetail {
     const { data, error } = await window.supabase
       .from('campaign_briefings')
       .select(`
-        *,
+        ${this.zeigtFruehereAngaben() ? '*' : BRIEFING_SPALTEN},
         unternehmen:unternehmen_id(id, firmenname, logo_url),
         marke:marke_id(id, markenname, logo_url)
       `)
@@ -100,7 +104,7 @@ export class BriefingDetail {
 
     if (error) throw error;
     this.briefing = data;
-    this.briefing.produkte = await loadBriefingProdukte(this.briefingId);
+    this.briefing.produkte = await loadBriefingProduktDetails(this.briefingId);
     const personaIds = Array.isArray(data.persona_ids) ? data.persona_ids.filter(Boolean) : [];
     if (personaIds.length && window.supabase) {
       const { data: personas } = await window.supabase
@@ -174,7 +178,8 @@ export class BriefingDetail {
       canAnschreiben,
       canDuplicate: this.canDuplicate(),
       showEdit: this.embedded,
-      embedded: this.embedded
+      embedded: this.embedded,
+      fruehereAngaben: this.zeigtFruehereAngaben()
     });
 
     if (this.embedded) this.host.innerHTML = html;
@@ -186,6 +191,7 @@ export class BriefingDetail {
     const root = this._contentRoot()?.querySelector('.briefing-doc');
     this._docHandle = bindBriefingDoc(root, {
       briefingId: this.briefingId,
+      bereich: this.briefing?.bereich,
       canEdit: this.canEdit(),
       onSaved: (feld, text) => {
         if (this.briefing) this.briefing[feld] = text;
@@ -210,96 +216,10 @@ export class BriefingDetail {
   }
 
   formatValue(field, value) {
-    if (value === null || value === undefined || value === '') return null;
-
-    switch (field.type) {
-      case 'checkbox':
-        return value ? 'Ja' : null; // nicht gesetzte Checkboxen ausblenden
-      case 'date':
-        return this.formatDate(value);
-      case 'url':
-        return `<a href="${this.escape(value)}" target="_blank" rel="noopener">Link</a>`;
-      case 'radio': {
-        const opt = field.options?.find(o => String(o.value) === String(value));
-        return this.escape(opt?.label || value);
-      }
-      case 'sekundenSpanne': {
-        if (!value || typeof value !== 'object') return null;
-        if (value.art === 'intervall') {
-          const text = formatVideolaenge(value.von, value.bis);
-          return text ? this.escape(text) : null;
-        }
-        if (value.art === 'tokens') {
-          if (!Array.isArray(value.values) || !value.values.length) return null;
-          return value.values
-            .map(v => `<span class="tag tag--type">${this.escape(tokenLabel(v))}</span>`)
-            .join(' ');
-        }
-        if (value.art === 'text') return this.escape(value.text);
-        return null;
-      }
-      case 'checkboxes':
-      case 'customMulti': {
-        if (!Array.isArray(value) || value.length === 0) return null;
-        const labels = value.map(v => {
-          const opt = field.options?.find(o => o.value === v);
-          return opt?.label || v;
-        });
-        return labels.map(l => `<span class="tag tag--type">${this.escape(l)}</span>`).join(' ');
-      }
-      case 'group': {
-        if (typeof value !== 'object') return null;
-        const parts = groupAnzeigeZeilen(field, value)
-          .map(row => `<strong>${this.escape(row.label)}:</strong> ${this.escape(row.text)}`);
-        return parts.length ? parts.join('<br>') : null;
-      }
-      case 'channelGroup': {
-        if (typeof value !== 'object') return null;
-        const parts = [];
-        for (const channel of field.channels || []) {
-          const cv = value[channel.key];
-          if (cv === true) {
-            parts.push(`<span class="tag tag--type">${this.escape(channel.label)}</span>`);
-          } else if (Array.isArray(cv) && cv.length) {
-            const formatLabels = cv.map(f => channel.formats?.find(o => o.value === f)?.label || f);
-            parts.push(`<strong>${this.escape(channel.label)}:</strong> ${formatLabels.map(l => `<span class="tag tag--type">${this.escape(l)}</span>`).join(' ')}`);
-          }
-        }
-        if (value.weitere) parts.push(`<strong>Weitere:</strong> ${this.escape(value.weitere)}`);
-        return parts.length ? parts.join('<br>') : null;
-      }
-      case 'repeatableKpi': {
-        if (!Array.isArray(value) || value.length === 0) return null;
-        return value
-          .filter(e => e.kpi || e.zielwert)
-          .map(e => {
-            const label = field.kpiOptions?.find(o => o.value === e.kpi)?.label || e.kpi;
-            return `<strong>${this.escape(label)}:</strong> ${this.escape(e.zielwert || '-')}`;
-          })
-          .join('<br>');
-      }
-      case 'repeatableText': {
-        if (!Array.isArray(value) || value.length === 0) return null;
-        return value.map(v => `• ${this.escape(v)}`).join('<br>');
-      }
-      case 'repeatableUpload': {
-        if (!Array.isArray(value) || value.length === 0) return null;
-        const links = value.map((entry, i) => {
-          if (entry.typ === 'upload' && entry.value) {
-            const { data: urlData } = window.supabase.storage.from('documents').getPublicUrl(entry.value);
-            const url = urlData?.publicUrl || '#';
-            return `<a href="${url}" target="_blank" rel="noopener">${this.escape(entry.label || `Datei ${i + 1}`)}</a>`;
-          }
-          if (entry.value) {
-            return `<a href="${this.escape(entry.value)}" target="_blank" rel="noopener">${this.escape(entry.value)}</a>`;
-          }
-          return null;
-        }).filter(Boolean);
-        return links.length ? links.join('<br>') : null;
-      }
-      default:
-        return this.escape(value);
-    }
+    return formatBriefingWert(field, value, {
+      escape: (v) => this.escape(v),
+      formatDate: (d) => this.formatDate(d)
+    });
   }
 
   formatDate(d) {

@@ -409,7 +409,6 @@
 .creator-card__coops-bubbles .avatar-bubble-logo {
   width: 100%;
   height: 100%;
-  object-fit: cover;
 }
 
 .creator-card__coops-leer {

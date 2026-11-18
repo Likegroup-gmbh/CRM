@@ -19,7 +19,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-
+    border-bottom: 1px solid var(--border-primary);
     gap: var(--space-md);
     padding: var(--space-md);
     
@@ -918,16 +918,25 @@ thead {
   top: 0;
   z-index: 10;
   background: var(--bg-primary);
-  /* Schatten für visuelle Trennung beim Scrollen */
+  /* Schatten für visuelle Trennung beim Scrollen. Er ist die einzige Linie unter
+     dem Kopf: ein sticky th nimmt seine Border in der kollabierten Tabelle nicht
+     mit, deshalb wird die Kante darunter unterdrückt (hidden schlägt auch den
+     border-top der ersten Datenzeile) statt zweimal in anderer Farbe zu erscheinen. */
   box-shadow: inset 0 -1px 0 0 var(--gray-200);
+  border-bottom-style: hidden;
+  /* Oberkante liefert, was über der Tabelle steht (Reiter-Leiste, Seitenkopf).
+     Ein eigener border-top läge direkt daneben als zweite Linie in anderem Grau. */
+  border-top: none;
+  /* Fixierte Kopfzellen (Name, Checkbox, ...) ziehen dieselbe untere Linie */
+  --sticky-bottom-line: var(--gray-200);
 }
 
 .data-table tbody tr:hover {
   background-color: var(--gray-50);
 }
 
-/* Bild-Spalte: nur so breit wie Logo plus Header „Bild“, Rest geht an den Namen.
-   Gleiche Klasse wie die Produktliste (td.col-thumb). */
+/* Bild-Spalte der Upload- und Variantentabellen in Formularen. Listen zeigen das
+   Bild in der Namenszelle (tabelle-identitaet.css). */
 
 .data-table th.col-thumb,
 .data-table td.col-thumb {
@@ -1151,7 +1160,6 @@ thead {
   display: none;
 }
 
-.entity-list-item .table-logo,
 .entity-list-item .table-avatar {
   margin-right: var(--space-sm);
 }
@@ -1416,18 +1424,6 @@ thead {
   width: calc(var(--space-xxl) * 2.5);
 }
 
-/* Creator-Profilbild vor dem Namen: der 44px-Avatar (table-avatar--sourcing) gibt die Breite vor */
-.strategie-items-table .col-creator-bild {
-  width: 1%;
-  white-space: nowrap;
-  text-align: center;
-}
-
-.strategie-items-table td.col-creator-bild {
-  vertical-align: middle;
-  padding: var(--space-xs) var(--space-sm);
-}
-
 .strategie-items-table .col-platform {
   width: var(--space-xxl);
   text-align: center;
@@ -1546,7 +1542,9 @@ thead {
   top: calc(var(--sticky-add-section-height, 0px) + var(--sticky-thead-height, 37px));
   z-index: 21;
   background: var(--gray-100);
-  box-shadow: inset 0 -1px 0 0 var(--gray-300);
+  /* Untere Linie kommt aus .kategorie-header-row td (border-bottom, die Tabelle
+     ist border-collapse: separate, die Border bleibt beim Sticky erhalten). Ein
+     zusätzlicher Inset-Schatten würde sie auf 2px verdoppeln. */
 }
 
 .creator-pool-table .kategorie-header-row > td.kategorie-header--default {
@@ -1569,34 +1567,6 @@ thead {
 
 .strategie-items-table tbody tr.idea-row:hover {
   background: var(--gray-50);
-}
-
-/* ============================================
-   TABLE USER CELL (für Mitarbeiter, etc.)
-   ============================================ */
-
-.table-user-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.table-user-cell .table-avatar {
-  margin-right: 0;
-}
-
-.table-avatar-placeholder {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  background: var(--primary-100);
-  color: var(--primary-700);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  flex-shrink: 0;
 }
 
 /* Zuordnungsart Badges */
@@ -1684,9 +1654,8 @@ thead {
   max-width: var(--kampagne-col-name-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 /* Drag-to-Scroll setzt auf dem Container cursor: grab. Die Namenszelle soll
@@ -1728,9 +1697,8 @@ thead {
   max-width: var(--auftragsdetails-col-auftrag-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 .auftragsdetails-table-container .data-table thead th.col-ad-auftrag {
@@ -1804,7 +1772,13 @@ thead {
 
 .strategie-items-table .strategie-item-umgesetzt {
   background-color: var(--success-row);
-  border-left: 3px solid var(--green-500);
+}
+
+/* Marker als Inset-Schatten, nicht als tr-border-left: In der kollabierten
+   Tabelle würde der 3px-Rand den linken Tabellenrand um 1,5px verschieben und
+   alle Linien (Kopf, Gruppen) fingen versetzt zum Rest der Seite an. */
+.strategie-items-table .strategie-item-umgesetzt > td:first-child {
+  box-shadow: inset 3px 0 0 var(--green-500);
 }
 
 .strategie-items-table .strategie-item-umgesetzt td {
@@ -1817,9 +1791,12 @@ thead {
 
 /* Creator-Spalte */
 
-.strategie-items-table .col-creator,
 .strategie-items-table .col-produkt {
   min-width: calc(var(--space-xxl) * 3);
+}
+
+.strategie-items-table .col-creator {
+  min-width: calc(var(--space-xxl) * 3 + var(--size-table-avatar) + var(--space-sm));
 }
 
 /* Creator und Produkt mittig in der Zeile, wie Persona; Status auch horizontal zentriert */
@@ -1834,6 +1811,11 @@ thead {
 .strategie-items-table td.col-produkt .creator-cell {
   align-items: center;
   justify-content: center;
+}
+
+/* Creator: Verknuepfung direkt neben dem Profilbild statt mittig in der Zelle */
+.strategie-items-table td.col-creator .creator-cell {
+  justify-content: flex-start;
 }
 
 .strategie-items-table .col-status {
@@ -1872,21 +1854,20 @@ thead {
 
 /* Alle Zellen - nur rechts+unten, mit !important um geerbte data-table Regeln zu überschreiben */
 
-.creator-pool-table thead th {
-  border-top: 1px solid var(--border-primary);
-  border-bottom: 1px solid var(--border-primary);
-}
+/* Alle Linien sind echte Borders in --border-primary (die Tabelle ist
+   border-collapse: separate, Borders bleiben auch an sticky Zellen erhalten).
+   Die Grundregeln stehen in kampagne-tabellen.css. */
 
 .creator-pool-table th:last-child,
 .creator-pool-table td:last-child {
   border-right: none;
 }
 
-/* Sticky-Spalten: Echte Borders werden durch box-shadow ersetzt (bleiben beim Scrollen sichtbar) */
+/* Sticky-Spalten: Borders bleiben beim Scrollen sichtbar (separate Tabelle) */
 
 /* Die linke Spaltengruppe bleibt beim Querscrollen stehen. Welche Spalte welche
    Position einnimmt, entscheidet getStickyClasses() in sourcingSpaltenSichtbarkeit.js:
-   intern Checkbox > Bild > Name, in der Kundenansicht faellt die Checkbox weg.
+   intern Checkbox > Name (mit Bild), in der Kundenansicht faellt die Checkbox weg.
    Die left-Offsets ergeben sich hier kumulativ aus den Spaltenbreiten. */
 
 .creator-pool-table {
@@ -1895,20 +1876,7 @@ thead {
   width: max-content;
   min-width: 100%;
   --cp-w-drag: 32px;
-  --cp-w-bild: 62px;
   --cp-sticky-2-left: var(--cp-w-drag);
-  --cp-sticky-3-left: calc(var(--cp-w-drag) + var(--cp-w-bild));
-}
-
-.creator-pool-table .cp-col-bild {
-  width: var(--cp-w-bild);
-  min-width: var(--cp-w-bild);
-  text-align: center;
-}
-
-.creator-pool-table td.cp-col-bild {
-  padding: var(--space-xs);
-  vertical-align: middle;
 }
 
 /* Position 1 - Sticky */
@@ -1920,11 +1888,6 @@ thead {
   z-index: 20;
   background: white;
   padding: 0 var(--space-xs);
-  border: none;
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-100),
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100);
 }
 
 /* Position 2 - Sticky */
@@ -1935,142 +1898,87 @@ thead {
   left: var(--cp-sticky-2-left);
   z-index: 20;
   background: white;
-  border: none;
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-100),
-    inset 0 1px 0 0 var(--gray-100),
-    inset 1px 0 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100);
-}
-
-/* Position 3 - Sticky, letzte fixierte Spalte */
-
-.creator-pool-table th.col-sticky-3,
-.creator-pool-table td.col-sticky-3 {
-  position: sticky;
-  left: var(--cp-sticky-3-left);
-  z-index: 20;
-  background: white;
-  border: none;
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-100),
-    inset 0 1px 0 0 var(--gray-100),
-    inset 1px 0 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-200);
 }
 
 /* Header der fixierten Spalten höherer z-index + konsistente Borders */
 
 .creator-pool-table thead th.col-sticky-1,
-.creator-pool-table thead th.col-sticky-2,
-.creator-pool-table thead th.col-sticky-3 {
+.creator-pool-table thead th.col-sticky-2 {
   z-index: 25;
   background: white;
 }
 
-.creator-pool-table thead th.col-sticky-1 {
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-200),
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100);
-}
-
-.creator-pool-table thead th.col-sticky-2 {
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-200),
-    inset 0 1px 0 0 var(--gray-100),
-    inset 1px 0 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100);
-}
-
-.creator-pool-table thead th.col-sticky-3 {
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-200),
-    inset 0 1px 0 0 var(--gray-100),
-    inset 1px 0 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-200);
-}
-
-/* Schatten rechts von der dritten Spalte – entfernt für saubere Optik */
-
 /* Hover-Zustand für sticky Spalten */
 
 .creator-pool-table tbody tr:hover td.col-sticky-1,
-.creator-pool-table tbody tr:hover td.col-sticky-2,
-.creator-pool-table tbody tr:hover td.col-sticky-3 {
+.creator-pool-table tbody tr:hover td.col-sticky-2 {
   background: var(--gray-50);
 }
 
 /* Item-Gebucht für sticky Spalten */
 
 .creator-pool-table .item-gebucht td.col-sticky-1,
-.creator-pool-table .item-gebucht td.col-sticky-2,
-.creator-pool-table .item-gebucht td.col-sticky-3 {
+.creator-pool-table .item-gebucht td.col-sticky-2 {
   background: var(--green-50);
 }
 
 /* Hover auf gebuchte Zeilen bleibt grün */
 
 .creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-1,
-.creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-2,
-.creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-3 {
+.creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-2 {
   background: var(--green-50);
 }
 
 /* Item-Nicht-Umsetzen für sticky Spalten */
 
 .creator-pool-table .item-nicht-umsetzen td.col-sticky-1,
-.creator-pool-table .item-nicht-umsetzen td.col-sticky-2,
-.creator-pool-table .item-nicht-umsetzen td.col-sticky-3 {
+.creator-pool-table .item-nicht-umsetzen td.col-sticky-2 {
   background: var(--gray-100);
 }
 
 /* KI-Vorschlag: farbiger Rand + leichter Ton, damit die Zeile wie ein
-   Eintrag wirkt, aber als Vorschlag erkennbar bleibt. */
-.creator-pool-table tbody tr.item-row--vorschlag > td {
+   Eintrag wirkt, aber als Vorschlag erkennbar bleibt. Jede Zelle zeichnet nur
+   ihre Unterkante. Die Oberkante setzt nur der erste Vorschlag einer Folge
+   (--vs-oben): direkt aufeinanderfolgende Vorschlaege haetten sonst Unterkante
+   + Oberkante uebereinander, also eine doppelt dicke Linie. */
+.creator-pool-table tbody tr.item-row--vorschlag > td,
+.strategie-items-table tbody tr.item-row--vorschlag > td {
+  --vs-oben: 0 0 0 0 transparent;
+  --vs-links: 0 0 0 0 transparent;
+  --vs-rechts: 0 0 0 0 transparent;
   background: var(--orange-25);
-  box-shadow: inset 0 1px 0 0 var(--color-warning), inset 0 -1px 0 0 var(--color-warning);
-}
-
-.creator-pool-table tbody tr.item-row--vorschlag > td:first-child {
   box-shadow:
-    inset 2px 1px 0 0 var(--color-warning),
+    var(--vs-oben),
+    var(--vs-links),
+    var(--vs-rechts),
     inset 0 -1px 0 0 var(--color-warning);
 }
 
-.creator-pool-table tbody tr.item-row--vorschlag > td:last-child {
-  box-shadow:
-    inset -2px 1px 0 0 var(--color-warning),
-    inset 0 -1px 0 0 var(--color-warning);
+.creator-pool-table tbody tr.item-row--vorschlag > td:first-child,
+.strategie-items-table tbody tr.item-row--vorschlag > td:first-child {
+  --vs-links: inset 2px 0 0 0 var(--color-warning);
+}
+
+.creator-pool-table tbody tr.item-row--vorschlag > td:last-child,
+.strategie-items-table tbody tr.item-row--vorschlag > td:last-child {
+  --vs-rechts: inset -2px 0 0 0 var(--color-warning);
+}
+
+.creator-pool-table tbody > tr.item-row--vorschlag:first-child > td,
+.creator-pool-table tbody > tr:not(.item-row--vorschlag) + tr.item-row--vorschlag > td,
+.strategie-items-table tbody > tr.item-row--vorschlag:first-child > td,
+.strategie-items-table tbody > tr:not(.item-row--vorschlag) + tr.item-row--vorschlag > td {
+  --vs-oben: inset 0 1px 0 0 var(--color-warning);
 }
 
 .creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-1,
-.creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-2,
-.creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-3 {
+.creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-2 {
   background: var(--orange-25);
 }
 
 .creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-1,
-.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-2,
-.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-3 {
+.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-2 {
   background: var(--orange-50);
-}
-
-.strategie-items-table tbody tr.item-row--vorschlag > td {
-  background: var(--orange-25);
-  box-shadow: inset 0 1px 0 0 var(--color-warning), inset 0 -1px 0 0 var(--color-warning);
-}
-
-.strategie-items-table tbody tr.item-row--vorschlag > td:first-child {
-  box-shadow:
-    inset 2px 1px 0 0 var(--color-warning),
-    inset 0 -1px 0 0 var(--color-warning);
-}
-
-.strategie-items-table tbody tr.item-row--vorschlag > td:last-child {
-  box-shadow:
-    inset -2px 1px 0 0 var(--color-warning),
-    inset 0 -1px 0 0 var(--color-warning);
 }
 
 .casting-vorschlag {
@@ -2146,8 +2054,8 @@ thead {
 }
 
 .creator-pool-table .cp-col-name {
-  width: 140px;
-  min-width: 140px;
+  width: calc(140px + var(--size-table-avatar) + var(--space-sm));
+  min-width: calc(140px + var(--size-table-avatar) + var(--space-sm));
 }
 
 /* Zellen mit einzeiligem Wert. Die Zeilenhoehe kommt vom Profilbild und von der
@@ -2286,14 +2194,47 @@ thead {
   transform: translateY(-50%);
 }
 
-/* Fokus in der Tabelle: nur Hintergrund, kein eigener Rand - die Zellkanten
-   (und die Trenner der fixierten Spalten) bleiben die einzigen Linien */
+/* Fokus in der Tabelle: keine Hintergrundfarbe und kein Rand. Der blinkende
+   Cursor zeigt, wo getippt wird; die Zellkanten (und die Trenner der
+   fixierten Spalten) bleiben die einzigen Linien. */
 
+.strategie-items-table td .strategie-textarea:focus,
 .creator-pool-table .strategie-textarea:focus,
 .creator-pool-table .links-compact-input:focus,
 .creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-input:focus {
-  background: var(--gray-100);
+  background: transparent;
   box-shadow: none;
+}
+
+/* Namenszelle: wie die Kurzbeschreibung ist die ganze Zelle das Feld.
+   Das Bild sitzt links davor und behaelt seinen Abstand, das Feld daneben
+   fuellt die volle Zellhoehe (mind. 3.9em wie die Kurzbeschreibung). */
+
+.creator-pool-table tbody td.cp-col-name {
+  height: 1px;
+  padding: 0;
+}
+
+.creator-pool-table tbody td.cp-col-name > .table-identity {
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  align-items: stretch;
+}
+
+.creator-pool-table tbody td.cp-col-name .table-identity__media {
+  align-self: center;
+  margin: var(--space-xs) 0 var(--space-xs) var(--space-sm);
+}
+
+.creator-pool-table tbody td.cp-col-name .table-identity__text {
+  display: flex;
+  flex-direction: column;
+}
+
+.creator-pool-table tbody td.cp-col-name .table-identity__text > .strategie-textarea {
+  flex: 1 1 auto;
+  min-height: 3.9em;
 }
 
 .creator-pool-table .cp-col-status {
@@ -2566,8 +2507,8 @@ thead {
   z-index: 20;
   background: white;
   border-right: none;
-  border-left: none;
-  box-shadow: inset 1px 0 0 0 var(--gray-200), -4px 0 8px rgba(0, 0, 0, 0.04);
+  border-left: 1px solid var(--border-primary);
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.04);
   overflow: visible;
 }
 
@@ -2595,9 +2536,9 @@ thead {
 .creator-pool-table tbody tr.item-row--vorschlag > td.cp-col-actions {
   background: var(--orange-25);
   box-shadow:
-    inset -2px 1px 0 0 var(--color-warning),
+    var(--vs-oben),
+    inset -2px 0 0 0 var(--color-warning),
     inset 0 -1px 0 0 var(--color-warning),
-    inset 1px 0 0 0 var(--gray-200),
     -4px 0 8px rgba(0, 0, 0, 0.04);
 }
 
@@ -2659,9 +2600,8 @@ thead {
   min-width: var(--rechnung-col-name-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 /* Auftrag als zweite Sticky-Spalte -- z-index 20 (unter Name) */
@@ -2677,9 +2617,8 @@ thead {
   max-width: var(--rechnung-col-auftrag-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 .rechnung-table-container .data-table thead th.col-name {
@@ -2804,55 +2743,30 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
 
 .ansprechpartner-table-container {
   --ap-col-checkbox-width: 2.5em;
-  --ap-col-vorname-width: 10em;
-  --ap-col-nachname-width: 10em;
+  --ap-col-name-width: calc(18em + var(--size-table-avatar));
   overflow-x: auto;
   overflow-y: visible;
 }
 
-/* Vorname-Spalte -- z-index 21 */
+/* Name-Spalte (Bild, Vor- und Nachname) -- z-index 21 */
 
-.ansprechpartner-table-container .data-table th.col-vorname,
-.ansprechpartner-table-container .data-table td.col-vorname {
+.ansprechpartner-table-container .data-table th.ap-col-name,
+.ansprechpartner-table-container .data-table td.ap-col-name {
   position: sticky;
   left: 0;
   z-index: 21;
   background: white;
-  width: var(--ap-col-vorname-width);
-  min-width: var(--ap-col-vorname-width);
-  max-width: var(--ap-col-vorname-width);
+  width: var(--ap-col-name-width);
+  min-width: var(--ap-col-name-width);
+  max-width: var(--ap-col-name-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
-}
-
-/* Nachname-Spalte -- z-index 20 */
-
-.ansprechpartner-table-container .data-table th.col-nachname,
-.ansprechpartner-table-container .data-table td.col-nachname {
-  position: sticky;
-  left: var(--ap-col-vorname-width);
-  z-index: 20;
-  background: white;
-  width: var(--ap-col-nachname-width);
-  min-width: var(--ap-col-nachname-width);
-  max-width: var(--ap-col-nachname-width);
-  border: none;
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
-.ansprechpartner-table-container .data-table thead th.col-vorname {
+.ansprechpartner-table-container .data-table thead th.ap-col-name {
   z-index: 26;
-  background: white;
-}
-
-.ansprechpartner-table-container .data-table thead th.col-nachname {
-  z-index: 25;
   background: white;
 }
 
@@ -2939,39 +2853,10 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
   font-style: italic;
 }
 
-/* Bild-Spalte: keine rechte Kante, sie gehoert optisch zum Namen */
-
-.creator-pool-table th.cp-col-bild,
-.creator-pool-table td.cp-col-bild {
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
-}
-
-.creator-pool-table thead th.cp-col-bild {
-  z-index: 26;
-  border-top: none;
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-200);
-}
-
-/* Name ist immer die letzte fixierte Spalte: rechte Kante als Trenner */
-
-.creator-pool-table th.cp-col-name,
-.creator-pool-table td.cp-col-name {
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
-}
+/* Name ist immer die letzte fixierte Spalte: ihr border-right ist der Trenner */
 
 .creator-pool-table thead th.cp-col-name {
   z-index: 26;
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-200);
 }
 
 /* Selektierte Zeilen visuell hervorheben */

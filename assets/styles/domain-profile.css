@@ -135,6 +135,18 @@
   object-fit: cover;
 }
 
+/* Logo von Unternehmen, Marke, Management: ganz sichtbar in der gleichen Kachel, */
+
+.profile-avatar-large--logo {
+  background: var(--bg-primary);
+}
+
+.profile-avatar-large--logo img {
+  box-sizing: border-box;
+  object-fit: contain;
+  padding: var(--space-xs);
+}
+
 .profile-initials-large {
   width: 100%;
   height: 100%;

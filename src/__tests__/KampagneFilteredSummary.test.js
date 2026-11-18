@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { KampagneDetailStore } from '../modules/kampagne/KampagneDetailStore.js';
+import { mitLivePost, summiereLivePerformance } from '../modules/kampagne/kampagneLivePerformance.js';
 
 function buildStore() {
   const store = new KampagneDetailStore('kamp-1');
@@ -9,13 +10,18 @@ function buildStore() {
     { id: 'k3', _tags: ['August', 'September'], creator_id: null, videoanzahl: 1, verkaufspreis_zusatzkosten: 50 },
   ]);
   store.setVideos({
-    k1: [{ id: 'v1', verkaufspreis_netto: 1000, stats_views: 100, stats_likes: 10, stats_comments: 5 }],
-    k2: [{ id: 'v2', verkaufspreis_netto: 2000, stats_views: 200, stats_likes: 20, stats_comments: 10 }],
+    k1: [{ id: 'v1', verkaufspreis_netto: 1000 }],
+    k2: [{ id: 'v2', verkaufspreis_netto: 2000 }],
     k3: [
-      { id: 'v3', verkaufspreis_netto: 500, stats_views: 50, stats_likes: 5, stats_comments: 1 },
-      { id: 'v4', verkaufspreis_netto: 250, stats_views: null, stats_likes: null, stats_comments: null },
+      { id: 'v3', verkaufspreis_netto: 500 },
+      { id: 'v4', verkaufspreis_netto: 250 },
     ],
   });
+  store.setLivePosts([
+    { id: 'p1', kooperation_id: 'k1', metrics: { views: 100, likes: 10, comments: 5 } },
+    { id: 'p2', kooperation_id: 'k2', metrics: { views: 200, likes: 20, comments: 10 } },
+    { id: 'p3', kooperation_id: 'k3', metrics: { views: 50, likes: 5, comments: 1 } },
+  ]);
   return store;
 }
 
@@ -45,11 +51,11 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
     expect(s.koopCreatorsUsed).toBe(1);
     // Zusatzkosten 200 + 50
     expect(s.extraKostenVkSum).toBe(250);
-    // Stats nur aus k2/k3-Videos
+    // Stats nur aus den bestätigten Posts von k2/k3
     expect(s.videoStats.views).toBe(250);
     expect(s.videoStats.likes).toBe(25);
     expect(s.videoStats.comments).toBe(11);
-    expect(s.videoStats.videosMitDaten).toBe(2);
+    expect(s.videoStats.posts).toBe(2);
   });
 
   it('haelt kskUmgebucht global (Budget-Basis bleibt Auftragsebene)', () => {
@@ -84,20 +90,36 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
   });
 });
 
-describe('KampagneDetailStore.calculateVideoStats(videosList)', () => {
-  it('akzeptiert eine eingeschraenkte Video-Menge', () => {
+describe('KampagneDetailStore.calculateVideoStats(koopIds)', () => {
+  it('akzeptiert eine eingeschraenkte Kooperations-Menge', () => {
     const store = buildStore();
-    const stats = store.calculateVideoStats([
-      { stats_views: 5, stats_likes: 1, stats_comments: 0 },
-    ]);
-    expect(stats.views).toBe(5);
-    expect(stats.videosMitDaten).toBe(1);
+    const stats = store.calculateVideoStats(['k1']);
+    expect(stats).toEqual({ views: 100, likes: 10, comments: 5, posts: 1 });
   });
 
-  it('faellt ohne Parameter auf alle Videos zurueck', () => {
+  it('faellt ohne Parameter auf die geladenen Kooperationen zurueck', () => {
     const store = buildStore();
+    store.setLivePosts([...store.livePosts, { id: 'px', kooperation_id: 'fremd', metrics: { views: 999 } }]);
     const stats = store.calculateVideoStats();
     expect(stats.views).toBe(350);
-    expect(stats.videosMitDaten).toBe(3);
+    expect(stats.posts).toBe(3);
+  });
+});
+
+describe('Live-Performance aus der Auswertung', () => {
+  it('bestätigt zählt, Entwurf und Gelöschtes fallen raus', () => {
+    const store = buildStore();
+    const post = { id: 'p4', kooperationId: 'k1', status: 'confirmed', metrics: { views: 40, likes: 2 } };
+    store.setLivePosts(mitLivePost(store.livePosts, post));
+    expect(store.calculateVideoStats().views).toBe(390);
+    store.setLivePosts(mitLivePost(store.livePosts, { ...post, status: 'draft' }));
+    expect(store.calculateVideoStats().views).toBe(350);
+    store.setLivePosts(mitLivePost(store.livePosts, { id: 'p1' }, { weg: true }));
+    expect(store.calculateVideoStats()).toMatchObject({ views: 250, posts: 2 });
+  });
+
+  it('ignoriert fehlende oder kaputte Werte', () => {
+    expect(summiereLivePerformance([{ kooperation_id: 'k1', metrics: { views: '12', likes: null } }, { kooperation_id: 'k1' }]))
+      .toEqual({ views: 0, likes: 0, comments: 0, posts: 2 });
   });
 });
