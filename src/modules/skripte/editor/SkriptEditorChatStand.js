@@ -116,6 +116,7 @@ export const chatStandMethoden = {
     Object.assign(v.skript, stempel);
     try {
       await skripteService.updateSkript(v.skript.id, { [feld]: wert, ...stempel });
+      skripteService.quittiereUploadPruefung(v.skript).catch(() => {});
       this.zeigeZellen(stempel);
       const neueVersion = await skripteService.createVersion(
         v.skript, manuellBeschreibung(feld), vorherigerStand, v.aktiveVersion

@@ -17,6 +17,7 @@ const { mockService } = vi.hoisted(() => ({
     updateChatMessage: vi.fn(),
     createChatMessage: vi.fn(),
     createVersion: vi.fn(),
+    quittiereUploadPruefung: vi.fn(async () => {}),
     wechsleVersion: vi.fn(),
     triggerFunction: vi.fn(),
     personaLabel: vi.fn((p) => p?.name || ''),

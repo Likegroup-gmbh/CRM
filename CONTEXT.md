@@ -433,8 +433,12 @@ _Avoid_: Drehbuch, Copy
 **Skript-Freigabe**:
 Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: nicht
 „Nicht umsetzen“. Ein Casting-Eintrag ist keine Voraussetzung; der Creator kann später
-zugeordnet werden. Gate nur für Neuanlage, nicht für bestehende Skripte.
+zugeordnet werden. Gate nur für Neuanlage an einer Videoidee, nicht für bestehende Skripte und nicht für einen **Skript-Upload** ohne Videoidee.
 _Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperationsvideo), Freigabeprozess
+
+**Skript-Upload**:
+Ein Skript, das aus einer Word- oder PDF-Datei entsteht, statt von Liky geschrieben zu werden. Der Wortlaut wird übernommen und füllt die **Skript-Tabelle** und die Hook-Varianten: bei Word über die Beschriftung der Tabelle, beim PDF ordnet Liky zu, ohne umzuformulieren. Alles andere samt Bildern steht als **Freie Blöcke** darunter. Es gehört zum Konzept der Linie und beginnt als Entwurf; die Videoidee ist optional und lässt sich später setzen.
+_Avoid_: Import (das ist die Übernahme historischer Skripte), Word-Skript
 
 **Kundenfreigabe**:
 Der Kunde gibt ein Skript frei, das intern bereits Final ist. Danach gilt das Skript als freigegeben für weitere Aktionen, und die Skript-Freigabe am verknüpften Kooperationsvideo ist gesetzt.

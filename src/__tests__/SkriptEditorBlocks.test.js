@@ -10,7 +10,8 @@ vi.mock('../modules/skripte/SkripteService.js', () => ({
     saveDokumentBloecke: vi.fn(),
     loadDokumentBloecke: vi.fn(),
     skriptBildUrl: vi.fn((pfad) => `https://cdn/${pfad}`),
-    uploadSkriptBild: vi.fn()
+    uploadSkriptBild: vi.fn(),
+    quittiereUploadPruefung: vi.fn(async () => {})
   }
 }));
 

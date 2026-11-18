@@ -5,23 +5,18 @@
 import { skripteService } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
 import { buildFreigegebeneVideoideePickerOptions } from '../strategie/strategieItemPicker.js';
-import { buildReferenzVideoPayload } from './strategieVorlage.js';
-import { resolveSkriptCreatePayload, funnelWarnung, personaWarnung, personaIdFuerSkript } from './skriptCreateKontext.js';
+import { submitSkriptCreate } from './skriptCreateSubmit.js';
+import {
+  renderFunnelWarnung, renderPersonaWarnung, renderHinweisVorhanden,
+  renderCreateUebersicht, renderCreateCreator
+} from './skriptCreateAnsicht.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import { truncateText } from '../strategie/strategieItemPicker.js';
+import { UploaderField } from '../../core/form/fields/UploaderField.js';
+import { UPLOAD_ACCEPT, UPLOAD_MAX_BYTES } from './upload/skriptUploadGrenzen.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'skript-create-drawer';
 const PREFIX = 'skcreate';
-
-function creatorName(item) {
-  const eintrag = item?.casting_eintrag;
-  if (eintrag?.name) return eintrag.name;
-  const c = eintrag?.creator;
-  const crmName = c ? `${c.vorname || ''} ${c.nachname || ''}`.trim() : '';
-  if (crmName) return crmName;
-  return item?.creator_name || 'Kein Creator';
-}
 
 export function openSkriptCreateDrawer(prefill) {
   closeSkriptCreateDrawer();
@@ -102,6 +97,11 @@ class SkriptCreateDrawer {
             <span class="skripte-hint skripte-hint--warnung" id="${PREFIX}-funnel-hint" hidden></span>
             <span class="skripte-hint skripte-hint--warnung" id="${PREFIX}-persona-hint" hidden></span>
           </div>
+          <div class="form-field">
+            <label>Skript-Datei</label>
+            <div id="${PREFIX}-uploader" class="uploader" data-name="skript_datei"></div>
+            <small class="form-hint">Word (.docx) oder PDF, max. 20 MB. Mit Datei ist die Videoidee optional.</small>
+          </div>
           <div class="form-field" id="${PREFIX}-uebersicht" hidden>
             <label>Skripte in diesem Konzept</label>
             <ul class="skripte-create-uebersicht" id="${PREFIX}-uebersicht-liste"></ul>
@@ -135,6 +135,12 @@ class SkriptCreateDrawer {
     this.el('unternehmen')?.addEventListener('change', () => this.onUnternehmenChange());
     this.el('konzept')?.addEventListener('change', () => this.onKonzeptChange());
     this.el('videoidee')?.addEventListener('change', () => this.onVideoideeChange());
+    this.uploader = new UploaderField({
+      accept: UPLOAD_ACCEPT,
+      maxFileSize: UPLOAD_MAX_BYTES,
+      onFilesChanged: () => this.onDateiChange()
+    });
+    this.uploader.mount(this.el('uploader'));
     const form = document.getElementById(`${PREFIX}-form`);
     form?.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -224,11 +230,24 @@ class SkriptCreateDrawer {
     }
     this.lockSearchable('unternehmen');
 
-    if (this.konzepte.length === 1) {
-      this.setSearchableValue('konzept', this.konzepte[0].id);
-      await this.onKonzeptChange();
-      this.lockSearchable('konzept');
-    }
+    const zurLinie = prefill.briefing_id
+      ? this.konzepte.find((k) => k.briefing_id === prefill.briefing_id)
+      : null;
+    const konzept = zurLinie || (this.konzepte.length === 1 ? this.konzepte[0] : null);
+    if (!konzept) return;
+    this.setSearchableValue('konzept', konzept.id);
+    await this.onKonzeptChange();
+    this.lockSearchable('konzept');
+  }
+
+  datei() {
+    return this.uploader?.files?.[0] || null;
+  }
+
+  onDateiChange() {
+    const datei = this.datei();
+    const label = document.querySelector(`label[for="${PREFIX}-videoidee"]`);
+    if (label) label.textContent = datei ? 'Videoidee' : 'Videoidee *';
   }
 
   initDisabledDependents() {
@@ -303,7 +322,7 @@ class SkriptCreateDrawer {
 
     if (!strategieId) {
       this.items = [];
-      this.renderUebersicht();
+      renderCreateUebersicht(this);
       select.disabled = true;
       this.refreshSearchableSelect('videoidee', [], {
         placeholder: 'Videoidee suchen…',
@@ -317,7 +336,7 @@ class SkriptCreateDrawer {
       unternehmenId,
       strategieId
     });
-    this.renderUebersicht();
+    renderCreateUebersicht(this);
     const options = buildFreigegebeneVideoideePickerOptions(this.items);
     select.disabled = options.length === 0;
     this.refreshSearchableSelect('videoidee', options, {
@@ -343,157 +362,25 @@ class SkriptCreateDrawer {
     const id = this.el('videoidee')?.value || '';
     const item = this.items.find((i) => i.id === id) || null;
     this.selectedItem = item;
-    this.renderCreator(item);
-    this.renderHinweisVorhanden(item);
-    this.renderFunnelWarnung(item);
-    this.renderPersonaWarnung(item);
-  }
-
-  /** Paid ohne Funnel-Stufe im Konzept: Warnung, kein Gate. */
-  renderFunnelWarnung(item) {
-    const el = this.el('funnel-hint');
-    if (!el) return;
-    const text = funnelWarnung(item);
-    el.textContent = text;
-    el.hidden = !text;
-  }
-
-  /** Videoidee ohne Persona bei Briefing mit Personas: Warnung, kein Gate. */
-  renderPersonaWarnung(item) {
-    const el = this.el('persona-hint');
-    if (!el) return;
-    const text = personaWarnung(item);
-    el.textContent = text;
-    el.hidden = !text;
-  }
-
-  /** Warnung, wenn zur gewählten Idee schon Skripte existieren. */
-  renderHinweisVorhanden(item) {
-    const hint = this.el('videoidee-hint');
-    if (!hint || !this.items.length) return;
-    if (!item?.hasSkript) {
-      hint.textContent = 'Nur Ideen, die im Konzept ausdrücklich freigegeben wurden.';
-      return;
-    }
-    const nr = item.skript_nr ? `Nr. ${item.skript_nr}` : 'Diese Idee';
-    hint.textContent = `${nr} hat schon ${item.skripte.length === 1 ? 'ein Skript' : `${item.skripte.length} Skripte`}. Beim Erstellen entsteht ein weiteres.`;
-  }
-
-  /** Alle freigegebenen Ideen des Konzepts: Nr., Creator, Status, Link zum Skript. */
-  renderUebersicht() {
-    const box = this.el('uebersicht');
-    const liste = this.el('uebersicht-liste');
-    if (!box || !liste) return;
-    if (!this.items.length) {
-      box.hidden = true;
-      liste.innerHTML = '';
-      return;
-    }
-
-    const sortiert = [...this.items].sort((a, b) => (a.skript_nr ?? Infinity) - (b.skript_nr ?? Infinity));
-    liste.innerHTML = sortiert.map((item) => {
-      const nr = item.skript_nr ? `${item.skript_nr}.` : '–';
-      const skripte = item.skripte || [];
-      const status = skripte.length
-        ? skripte.map((s) => `<a href="/skripte/${escapeHtml(s.id)}" class="table-link" data-skript-id="${escapeHtml(s.id)}">${escapeHtml(s.status_label)}</a>`).join(', ')
-        : '<span class="skripte-hint">Noch kein Skript</span>';
-      return `
-        <li class="skripte-create-uebersicht-zeile${skripte.length ? ' ist-generiert' : ''}">
-          <span class="skripte-create-uebersicht-nr">${nr}</span>
-          <span class="skripte-create-uebersicht-text" title="${escapeHtml(truncateText(item.beschreibung || item.kurzbeschreibung, 200))}">
-            ${escapeHtml(creatorName(item))} · ${escapeHtml(truncateText(item.beschreibung || item.kurzbeschreibung, 60))}
-          </span>
-          <span class="skripte-create-uebersicht-status">${status}</span>
-        </li>`;
-    }).join('');
-    box.hidden = false;
-
-    liste.querySelectorAll('a[data-skript-id]').forEach((a) => {
-      a.addEventListener('click', (e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-        e.preventDefault();
-        const id = a.dataset.skriptId;
-        closeSkriptCreateDrawer();
-        window.navigateTo?.(`/skripte/${id}`);
-      });
-    });
+    renderCreateCreator(this, item);
+    renderHinweisVorhanden(this, item);
+    renderFunnelWarnung(this, item);
+    renderPersonaWarnung(this, item);
   }
 
   clearVideoidee() {
     this.selectedItem = null;
     this.setSearchableValue('videoidee', '');
-    this.renderCreator(null);
-    this.renderFunnelWarnung(null);
-    this.renderPersonaWarnung(null);
-  }
-
-  renderCreator(item) {
-    const box = this.el('kontext');
-    const el = this.el('creator-anzeige');
-    if (!box) return;
-    if (!item) {
-      box.hidden = true;
-      if (el) el.textContent = '–';
-      return;
-    }
-    if (el) el.textContent = creatorName(item);
-    box.hidden = false;
+    renderCreateCreator(this, null);
+    renderFunnelWarnung(this, null);
+    renderPersonaWarnung(this, null);
   }
 
   async submit() {
-    const unternehmenId = this.el('unternehmen')?.value;
-    const strategieId = this.el('konzept')?.value;
-    const itemId = this.el('videoidee')?.value;
-    if (!unternehmenId) {
-      window.toastSystem?.show('Bitte ein Unternehmen wählen', 'error');
-      return;
-    }
-    if (!strategieId) {
-      window.toastSystem?.show('Bitte ein Konzept wählen', 'error');
-      return;
-    }
-    if (!itemId) {
-      window.toastSystem?.show('Bitte eine freigegebene Videoidee wählen', 'error');
-      return;
-    }
-
-    const basis = this.items.find((i) => i.id === itemId);
-    if (!basis) {
-      window.toastSystem?.show('Die gewählte Videoidee ist nicht mehr verfügbar', 'error');
-      return;
-    }
-
-    const btn = this.el('submit');
-    if (btn) btn.disabled = true;
-
-    try {
-      const voll = await skripteService.loadStrategieItem(itemId);
-      const item = { ...basis, ...(voll || {}) };
-      const videoIdee = (item.beschreibung || item.kurzbeschreibung || '').trim();
-      if (!videoIdee) throw new Error('Die Videoidee hat keine Beschreibung');
-
-      const personaId = personaIdFuerSkript(item);
-      const produktIds = await skripteService.loadAcceptedProduktIds(personaId);
-      const payload = {
-        ...resolveSkriptCreatePayload(item, { produktIds }),
-        produktion_id: this.prefill?.produktion_id || null,
-        referenz_video: buildReferenzVideoPayload({
-          strategieItemId: item.id,
-          url: item.video_link,
-          transkript: item.transkript,
-          beschreibung: item.beschreibung || item.kurzbeschreibung,
-          caption: item.caption,
-          platform: item.plattform
-        })
-      };
-
-      const stub = await skripteService.createSkriptStub(payload);
-      closeSkriptCreateDrawer();
-      window.toastSystem?.show('Skript angelegt – Liky stellt Rückfragen', 'success');
-      window.navigateTo(`/skripte/${stub.id}`);
-    } catch (err) {
-      window.toastSystem?.show(err.message || 'Skript konnte nicht angelegt werden', 'error');
-      if (btn) btn.disabled = false;
-    }
+    const ergebnis = await submitSkriptCreate(this);
+    if (!ergebnis?.id) return;
+    closeSkriptCreateDrawer();
+    window.toastSystem?.show(ergebnis.meldung, 'success');
+    window.navigateTo(`/skripte/${ergebnis.id}`);
   }
 }
