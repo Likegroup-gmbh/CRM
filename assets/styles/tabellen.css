@@ -1346,7 +1346,10 @@
 .kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Senkrecht darf die Seite mit scrollen, falls die Tabelle unter dem
+     sichtbaren Bereich liegt. Waagerecht bleibt sie im grid-wrapper. */
+  overflow-x: hidden;
+  overflow-y: auto;
   min-height: 0;
 }
 
@@ -1391,18 +1394,27 @@
 }
 
 .kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  /* Deckel, falls ein Zwischenelement die Flex-Kette bricht: ohne begrenzte
+     Höhe ist scrollHeight = clientHeight und overflow:hidden darüber
+     schneidet die unteren Zeilen ab. */
+  max-height: calc(100dvh - 14rem);
+  overflow-x: auto;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--gray-400) transparent;
 }
 
 /* Senkrechte Leiste zeigen, waagerechte native Leiste ausblenden
-   (dafür gibt es die schwebende Leiste). */
-.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar {
+   (dafür gibt es die schwebende Leiste). height:0 nur an der waagerechten
+   Leiste, sonst verschwindet in WebKit auch die senkrechte. */
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar:vertical {
   display: block;
   width: 10px;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar:horizontal {
   height: 0;
 }
 
