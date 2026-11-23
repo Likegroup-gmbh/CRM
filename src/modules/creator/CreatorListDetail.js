@@ -11,7 +11,6 @@ import {
   canManageMasterliste,
   compareMembers,
   escapeHtml,
-  filterMembers,
   mapMember,
   resolveHidden,
   visibleColumns
@@ -21,6 +20,7 @@ import { masterlistenCrumbs, ordnerDerListe } from './masterlisteOrdner.js';
 import { closeMasterlisteFormDrawer, openMasterlisteFormDrawer } from './masterlisteFormDrawer.js';
 import { installMasterlisteSpalten } from './masterlisteDetailSpalten.js';
 import { installMasterlisteEintraege } from './masterlisteDetailEintraege.js';
+import { masterlisteDarfZiehen, masterlisteHatFilter, mountMasterlisteFilter, sichtbareMember, syncMasterlisteTableFilter } from './masterlisteFilterSpalte.js';
 
 const LIST_SELECT = 'id, name, beschreibung, created_at, hidden_columns, unternehmen_id, unternehmen:unternehmen_id(id, firmenname)';
 
@@ -55,6 +55,8 @@ export class CreatorListDetail {
     this._abortController = null;
     this._headerDragCleanup = null;
     this._igWarteschlange = Promise.resolve();
+    this.tableFilter = null;
+    this._filterMounted = false;
     this.addDrawer = new MasterlisteAddDrawer(this);
     this.customColumns = new EntityCustomColumnsManager({
       parentType: 'masterliste',
@@ -138,9 +140,11 @@ export class CreatorListDetail {
     const beschreibung = this.list?.beschreibung
       ? `<p class="masterliste-beschreibung">${escapeHtml(this.list.beschreibung)}</p>`
       : '';
+    syncMasterlisteTableFilter(this);
+    this._filterMounted = false;
 
     window.setContentSafely(window.content, `
-      <div class="list-container">
+      <div class="list-container" id="masterliste-page">
         <div class="table-filter-wrapper masterliste-kopf">
           <div class="filter-bar">
             <div class="filter-left">
@@ -148,6 +152,7 @@ export class CreatorListDetail {
                 placeholder: 'Creator in dieser Liste suchen...',
                 currentValue: this.searchQuery
               })}
+              ${this.tableFilter.renderToggle()}
             </div>
           </div>
           <div class="table-actions">
@@ -159,12 +164,14 @@ export class CreatorListDetail {
           </div>
           ${beschreibung}
         </div>
-        <div class="table-container data-table-container">
-          <table class="data-table" id="masterliste-table">
-            <thead><tr id="masterliste-head"></tr></thead>
-            <tbody id="masterliste-body"></tbody>
-          </table>
-        </div>
+        ${this.tableFilter.renderLayout(`
+          <div class="table-container data-table-container">
+            <table class="data-table" id="masterliste-table">
+              <thead><tr id="masterliste-head"></tr></thead>
+              <tbody id="masterliste-body"></tbody>
+            </table>
+          </div>
+        `)}
       </div>
     `);
 
@@ -265,14 +272,15 @@ export class CreatorListDetail {
         `${parkedHeader}<th class="ml-col-actions">Aktionen</th>`
       );
 
-    const members = filterMembers(this.members, this.searchQuery);
+    syncMasterlisteTableFilter(this);
+    const members = sichtbareMember(this);
     const colspan = columns.length + this.customColumns.visibleCount(this.hidden, false);
+    this._headerDragCleanup?.();
     if (!members.length) {
-      const searching = this.searchQuery.trim().length > 0;
-      body.innerHTML = renderEmptyStateRow(searching ? {
+      body.innerHTML = renderEmptyStateRow(masterlisteHatFilter(this) ? {
         icon: 'search',
         title: 'Keine Treffer',
-        text: 'Kein Creator in dieser Masterliste entspricht der Suche.'
+        text: 'Kein Creator entspricht der Suche oder den Filtern.'
       } : {
         icon: 'creator',
         title: 'Noch keine Creator',
@@ -281,6 +289,7 @@ export class CreatorListDetail {
           ? '<button type="button" class="mdc-btn" data-action="add-masterliste-member">Creator hinzufügen</button>'
           : ''
       }, Math.max(colspan, 1));
+      mountMasterlisteFilter(this);
       return;
     }
 
@@ -294,10 +303,10 @@ export class CreatorListDetail {
     }).join('');
 
     window.ActionsDropdown?.init?.();
-    this._headerDragCleanup?.();
     const table = document.getElementById('masterliste-table');
     this._headerDragCleanup = this.customColumns.bindHeaderDragAndDrop(table, () => this.renderTable());
-    if (canManage && !this.searchQuery.trim()) this.bindRowDrag();
+    if (masterlisteDarfZiehen(this)) this.bindRowDrag();
+    mountMasterlisteFilter(this);
   }
 
   listeFuerFormular() {
@@ -367,6 +376,9 @@ export class CreatorListDetail {
   destroy() {
     this._abortController?.abort();
     this._abortController = null;
+    this.tableFilter?.destroy();
+    this.tableFilter = null;
+    this._filterMounted = false;
     this.linkBar?.destroy();
     this.linkBar = null;
     this._headerDragCleanup?.();
