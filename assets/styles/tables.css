@@ -73,6 +73,18 @@
   color: var(--text-secondary);
 }
 
+/* Die Tabelle ist breiter als der Seitenbereich. .main-wrapper schneidet
+   horizontales Überlaufen sonst ab (overflow-x: hidden), Trackpad und
+   Touch kommen an die rechten Spalten nicht heran. clip auf der Y-Achse,
+   damit overflow-x: auto sie nicht zu auto macht: der Seitenbereich bleibt
+   der vertikale Scrollport und der Tabellenkopf klebt weiter oben. */
+#masterliste-page .data-table-container,
+#masterlisten-inhalt:has(.data-table) {
+  overflow-x: auto;
+  overflow-y: clip;
+  max-width: 100%;
+}
+
 .table-actions {
     display: flex;
     align-items: center;
