@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   leseMasterlisteLinks,
-  eintragAusFormular,
-  prefillOhneDatensatz,
   quickAddText,
   teileHandlesAuf,
   verknuepfbareMember
 } from '../modules/creator/masterliste.js';
+import { eintragAusFormular, prefillOhneDatensatz } from '../modules/creator/masterlisteEintrag.js';
 
 const crmMember = { memberId: 'm-1', hatDatensatz: true, igUsername: '', creator: { id: 'cr-1', instagram: 'https://instagram.com/ada' } };
 const offenerMember = { memberId: 'm-2', hatDatensatz: false, igUsername: 'lina.k', creator: { id: null, instagram: 'lina.k' } };

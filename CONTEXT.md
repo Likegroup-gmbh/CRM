@@ -261,6 +261,7 @@ _Avoid_: Casting-Eintrag, Influencer, Kandidat
 
 **Masterliste**:
 Wiederverwendbare Sammlung von Creatorn, die die Agentur gemeinsam pflegt.
+Optional gehört sie einem Unternehmen; die Übersicht zeigt einen Ordner je Unternehmen und „Ohne Unternehmen“ für Listen der ganzen Agentur (ADR 0076). Eine Marken-Ebene gibt es nicht.
 Profilfelder kommen live aus den Stammdaten. Was nur für diese Liste gilt, liegt in eigenen Spalten.
 Die Reihenfolge zieht das Team selbst. Eine Masterliste ist kein Casting.
 Per Instagram-Profil-Link (auch mehrere auf einmal) oder von Hand (Creator Art, Name und Profilfelder wie im Casting, ohne Preise) kommt auch eine Person ohne Creator-Datensatz auf die Liste. Von Hand Eingetragenes gilt vor dem Creator-Pool, Bild und Instagram-Zahlen kommen aus dem Pool; ein Punkt am Bild zeigt, ob der Datensatz da ist (grün) oder fehlt (rot). Gehört der Handle genau einem Creator, wird die Zeile mit ihm verknüpft; „Creator anlegen“ macht aus einer roten Zeile eine grüne. Derselbe Handle steht höchstens einmal auf einer Liste.
