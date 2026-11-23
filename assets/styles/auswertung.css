@@ -21,8 +21,8 @@
   scrollbar-gutter: stable;
 }
 
-/* Bei „Gesamte Kampagne“ filtert die Linie nichts */
-.kampagne-detail-body[data-auswertung-ebene="kampagne"] [data-linien-switch]:not([data-liste-switch]) {
+/* Die Linie filtert nur auf Ebene „Linie“ */
+.kampagne-detail-body[data-workflow="auswertung"][data-auswertung-ebene]:not([data-auswertung-ebene="linie"]) [data-linien-switch]:not([data-liste-switch]) {
   display: none;
 }
 
@@ -61,77 +61,6 @@
   margin-top: var(--space-xs);
 }
 
-/* Diagramm und Zusammenfassung nebeneinander, schmal untereinander */
-.auswertung-raster {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: var(--space-xl);
-  align-items: start;
-}
-
-.auswertung-diagramm__steuerung {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-md);
-  padding: var(--space-sm) 0 var(--space-sm) var(--auswertung-inset);
-}
-
-.auswertung-diagramm__zeilen {
-  grid-template-columns: minmax(7rem, 1fr) minmax(5rem, 2fr) minmax(5rem, auto);
-  column-gap: var(--space-md);
-}
-
-.auswertung-diagramm .budget-tab__creator {
-  padding-left: var(--auswertung-inset);
-}
-
-.auswertung-balken--leer .budget-tab__creator-title {
-  color: var(--gray-500);
-}
-
-.auswertung-zusammenfassung__kopf {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
-}
-
-.auswertung-zusammenfassung__liste {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin: var(--space-md) 0 0;
-  padding-left: var(--space-lg);
-  font-size: var(--text-sm);
-  line-height: 1.55;
-  color: var(--gray-800);
-}
-
-.auswertung-zusammenfassung__liste li::marker {
-  color: var(--gray-500);
-  font-variant-numeric: tabular-nums;
-}
-
-.auswertung-zusammenfassung__aktionen {
-  display: flex;
-  gap: var(--space-xs);
-  margin-top: var(--space-md);
-}
-
-.auswertung-zusammenfassung__fuss {
-  margin: var(--space-md) 0 0;
-  padding-top: var(--space-sm);
-  border-top: var(--border-xs) solid var(--gray-100);
-  font-size: var(--text-xs);
-  color: var(--gray-500);
-}
-
-.auswertung-zusammenfassung__offen {
-  display: block;
-  margin-top: var(--space-xxs);
-  color: var(--gray-700);
-}
-
 .auswertung-link {
   padding: 0;
   border: 0;
@@ -148,9 +77,50 @@
   text-decoration-color: var(--gray-600);
 }
 
-/* Post-Tabelle: erste Spalte dieselbe Einrückung wie Kacheln und „Posts“ */
+/* Kopf der Posts: Titel und Stand links, Filter rechts, schmal darunter */
+.auswertung-posts__kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.auswertung-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.auswertung-filter__feld {
+  width: 11rem;
+}
+
+/* Post-Tabelle: erste Spalte dieselbe Einrückung wie Kacheln und „Posts“.
+   Dreizehn Spalten passen erst ab breiten Bildschirmen, darunter scrollt die Tabelle waagerecht. */
+.auswertung-tabelle {
+  overflow-x: auto;
+}
+
 .auswertung-tabelle .data-table td {
   vertical-align: middle;
+}
+
+.auswertung-tabelle th.auswertung-zahl,
+.auswertung-tabelle td.auswertung-zahl {
+  padding-inline: var(--space-xs);
+}
+
+.auswertung-tabelle__post .table-identity__text {
+  max-width: 16rem;
+}
+
+.auswertung-tabelle__creator {
+  white-space: nowrap;
+}
+
+.auswertung-tabelle__creator a.verknuepfung-pill {
+  max-width: 10rem;
 }
 
 .auswertung-tabelle .data-table th:first-child,
@@ -227,6 +197,18 @@
   align-items: center;
   gap: var(--space-xxs);
   white-space: nowrap;
+}
+
+/* Plattform samt Link zum Post: derselbe Button wie die Social-Pills der Creator */
+.auswertung-plattform-pill {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Ohne Link (Stories): gleicher Rahmen, aber ohne Hover und Klick */
+.auswertung-plattform-pill--ohne-link {
+  cursor: default;
+  pointer-events: none;
 }
 
 /* Poster im Format 4:5, bis es da ist das Icon der Art */
@@ -344,17 +326,7 @@
   outline-offset: 2px;
 }
 
-@media (max-width: 1100px) {
-  .auswertung-raster {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 @media (max-width: 768px) {
-  .auswertung-diagramm__zeilen {
-    grid-template-columns: 1fr;
-  }
-
   /* Der Budget-Tab setzt hier links auf 0. In der Auswertung bleibt die Einrückung. */
   .auswertung-stats > .auswertung-stat,
   .auswertung-stats > .auswertung-stat + .auswertung-stat {

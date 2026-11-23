@@ -4,6 +4,7 @@
 
 import { skripteService } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
+import { oeffneSkript } from './skriptOeffnen.js';
 import { buildFreigegebeneVideoideePickerOptions } from '../strategie/strategieItemPicker.js';
 import { buildReferenzVideoPayload } from './strategieVorlage.js';
 import { resolveSkriptCreatePayload, funnelWarnung, personaWarnung, personaIdFuerSkript } from './skriptCreateKontext.js';
@@ -414,7 +415,7 @@ class SkriptCreateDrawer {
         e.preventDefault();
         const id = a.dataset.skriptId;
         closeSkriptCreateDrawer();
-        window.navigateTo?.(`/skripte/${id}`);
+        oeffneSkript(id);
       });
     });
   }
@@ -490,7 +491,7 @@ class SkriptCreateDrawer {
       const stub = await skripteService.createSkriptStub(payload);
       closeSkriptCreateDrawer();
       window.toastSystem?.show('Skript angelegt – Liky stellt Rückfragen', 'success');
-      window.navigateTo(`/skripte/${stub.id}`);
+      oeffneSkript(stub.id);
     } catch (err) {
       window.toastSystem?.show(err.message || 'Skript konnte nicht angelegt werden', 'error');
       if (btn) btn.disabled = false;

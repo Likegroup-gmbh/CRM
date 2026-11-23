@@ -1,10 +1,10 @@
 // auswertungKennzahlen.js
 // Kennzahlen der Auswertung aus Posts und Einheiten (Kooperationsvideo, Story, Still). Reine
-// Funktionen ohne DOM, damit Report, CSV, Report-Freigabe und Zusammenfassung serverseitig
-// dieselben Zahlen rechnen (Muster ADR 0040). Gerechnet wird nur über bestätigte Posts.
+// Funktionen ohne DOM, damit Report, CSV und Report-Freigabe serverseitig dieselben Zahlen
+// rechnen (Muster ADR 0040). Gerechnet wird nur über bestätigte Posts.
 // Hat eine Kennzahl keine Grundlage, ist sie null und wird nicht als 0 gezeigt.
 
-import { AUFSCHLUESSELUNGEN, INTERAKTIONEN, PLATTFORMEN } from './auswertungKonfig.js';
+import { INTERAKTIONEN, PLATTFORMEN } from './auswertungKonfig.js';
 
 const TAG_MS = 24 * 60 * 60 * 1000;
 
@@ -148,54 +148,4 @@ export function topPosts(posts, anzahl = 3) {
     .sort((a, b) => b.metrics.views - a.metrics.views)
     .slice(0, anzahl)
     .map(p => p.id);
-}
-
-/* ------------------------------------------------------------------ */
-/* Aufschlüsselung für das Diagramm                                    */
-/* ------------------------------------------------------------------ */
-
-function gruppenSchluessel(post, einheit, nach) {
-  if (nach === 'plattform') {
-    return [{ key: post.plattform, label: PLATTFORMEN[post.plattform]?.label || post.plattform }];
-  }
-  if (nach === 'creator') {
-    const c = einheit?.creator;
-    return [{ key: c?.id || c?.name || 'ohne', label: c?.name || 'Ohne Creator' }];
-  }
-  if (nach === 'linie') {
-    return [{ key: einheit?.linie?.id || 'ohne', label: einheit?.linie?.name || 'Ohne Linie' }];
-  }
-  if (nach === 'produktion') {
-    return [{ key: einheit?.produktion?.id || 'ohne', label: einheit?.produktion?.name || 'Ohne Produktion' }];
-  }
-  const leer = AUFSCHLUESSELUNGEN.find(a => a.value === nach)?.leer || 'Ohne Angabe';
-  const tags = einheit?.tags?.[nach] || [];
-  if (!tags.length) return [{ key: `ohne:${nach}`, label: leer, leer: true }];
-  return tags.map(t => ({ key: t, label: t }));
-}
-
-function gruppenWert(posts, kennzahl) {
-  if (kennzahl === 'engagement') return engagementRate(posts);
-  if (kennzahl === 'wiedergabe') return mittelUeber(posts, 'avgWatchSec').wert;
-  return summeUeber(posts, 'views').summe;
-}
-
-/**
- * Bestätigte Posts nach `nach` gruppieren und `kennzahl` je Gruppe rechnen, absteigend sortiert.
- * Eine Einheit mit zwei Persona-Tags zählt in beiden Gruppen. Gruppen ohne Wert fallen weg.
- * @returns {Array<{ key: string, label: string, posts: number, wert: number, leer?: boolean }>}
- */
-export function gruppiere(posts, einheitenById, nach, kennzahl) {
-  const gruppen = new Map();
-  bestaetigtePosts(posts).forEach((p) => {
-    const einheit = einheitenById.get(p.einheitId);
-    gruppenSchluessel(p, einheit, nach).forEach(({ key, label, leer }) => {
-      if (!gruppen.has(key)) gruppen.set(key, { key, label, leer: Boolean(leer), liste: [] });
-      gruppen.get(key).liste.push(p);
-    });
-  });
-  return [...gruppen.values()]
-    .map(g => ({ key: g.key, label: g.label, leer: g.leer, posts: g.liste.length, wert: gruppenWert(g.liste, kennzahl) }))
-    .filter(g => g.wert != null)
-    .sort((a, b) => b.wert - a.wert || a.label.localeCompare(b.label, 'de'));
 }

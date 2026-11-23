@@ -46,6 +46,23 @@ export function eintraegeAus(modell) {
   return out.sort((a, b) => STATUS[a.status].rang - STATUS[b.status].rang || a.ordnung - b.ordnung);
 }
 
+/**
+ * Hält den Eintrag, an dem gerade gearbeitet wird, an seinem Platz. Ändert sich sein Status (Link
+ * abgerufen, KI fertig), würde die Sortierung ihn sonst wegschieben, bevor man die Zahlen prüfen
+ * und speichern konnte. Die Sortierung greift wieder, sobald `fix` weg ist (anderer Eintrag gewählt).
+ * @param {Array<object>} eintraege - sortiert
+ * @param {{ key: string, index: number }|null} fix
+ */
+export function mitFixiertem(eintraege, fix) {
+  if (!fix) return eintraege;
+  const von = eintraege.findIndex(x => x.key === fix.key);
+  if (von < 0) return eintraege;
+  const out = [...eintraege];
+  const [eintrag] = out.splice(von, 1);
+  out.splice(Math.min(fix.index, out.length), 0, eintrag);
+  return out;
+}
+
 export function zaehle(eintraege) {
   const zahlen = { alle: eintraege.length, pruefen: 0, fehlt: 0, erfasst: 0 };
   eintraege.forEach((e) => {

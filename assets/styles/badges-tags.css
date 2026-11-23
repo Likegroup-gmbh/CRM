@@ -379,6 +379,10 @@
   gap: var(--space-xxs);
 }
 
+.tag--nowrap {
+  white-space: nowrap;
+}
+
 /* Platzhalter, wenn ein Eintrag keine Tags hat */
 .tag--leer {
   color: var(--text-muted);

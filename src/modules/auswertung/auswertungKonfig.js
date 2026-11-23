@@ -59,21 +59,6 @@ export function plattformAusLink(url, art = null) {
 /** Messregel in Tagen nach dem Post, bis die Kampagne eine eigene hat. */
 export const MESSREGEL_TAGE = 7;
 
-export const AUFSCHLUESSELUNGEN = [
-  { value: 'creator', label: 'Creator' },
-  { value: 'persona', label: 'Persona', leer: 'Ohne Persona' },
-  { value: 'ansatz', label: 'Ansatz', leer: 'Ohne Ansatz' },
-  { value: 'plattform', label: 'Plattform' },
-  { value: 'linie', label: 'Linie', nurMitLinien: true },
-  { value: 'produktion', label: 'Produktion', nurKampagne: true }
-];
-
-export const DIAGRAMM_KENNZAHLEN = [
-  { value: 'aufrufe', label: 'Aufrufe' },
-  { value: 'engagement', label: 'Engagement-Rate' },
-  { value: 'wiedergabe', label: 'Ø Wiedergabe' }
-];
-
 export function felderDerPlattform(plattform) {
   return PLATTFORM_FELDER[plattform] || [];
 }

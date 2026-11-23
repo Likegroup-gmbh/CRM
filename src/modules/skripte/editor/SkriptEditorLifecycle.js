@@ -20,9 +20,10 @@ function istGastAnsicht() {
   return Boolean(window.isGast?.());
 }
 
-SkriptEditorView.prototype.render = async function(container, skriptId) {
+SkriptEditorView.prototype.render = async function(container, skriptId, { einbettung = null } = {}) {
   await this.cleanup();
   this.container = container;
+  this.einbettung = einbettung;
 
   container.innerHTML = '<div class="empty-state"><p>Skript wird geladen...</p></div>';
 
@@ -158,6 +159,7 @@ SkriptEditorView.prototype.renderLayout = function() {
 
 /** Breadcrumb: offizieller Weg (skriptCrumbs), mit Klickpfad hängt nur der Titel an. */
 SkriptEditorView.prototype.updateBreadcrumb = async function() {
+  if (this.einbettung) return;
   const label = this.skript?.titel || 'Skript';
   window.setHeadline('Skripte');
   // Gaeste duerfen nur die geteilte Route - kein Link auf die Gesamtliste
@@ -247,8 +249,12 @@ SkriptEditorView.prototype.switchSkript = async function(skriptId) {
       this.skripte = await skripteService.loadSkripte(listeScope(skript));
     }
 
-    replaceSkriptUrl(skriptId);
-    this.page._merkeKontext({ skript: skriptId });
+    if (this.einbettung) {
+      this.einbettung.onSkriptChange?.(skriptId);
+    } else {
+      replaceSkriptUrl(skriptId);
+      this.page._merkeKontext({ skript: skriptId });
+    }
 
     this.updateBreadcrumb();
     this.renderListe();

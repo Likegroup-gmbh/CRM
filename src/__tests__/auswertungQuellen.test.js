@@ -162,9 +162,9 @@ describe('Link: Abrufen und Speichern', () => {
     return input;
   }
 
-  it('Reel-Link: Abrufen legt an, übernimmt die Zahlen als erfasst und geht weiter', async () => {
+  it('Reel-Link: Abrufen legt an und übernimmt die Zahlen, der Eintrag bleibt gewählt und an seinem Platz', async () => {
     speichern.rufeLinkAb.mockImplementation(async id => post(id, 'video:v1', { link: REEL, source: 'api', status: 'confirmed', metrics: { views: 31504, likes: 1200 } }));
-    ansicht = montiere({ einheiten: [einheit(1)] });
+    ansicht = montiere({ einheiten: [einheit(1), einheit(2)] });
     tippe(REEL);
     const knopf = ansicht.form().querySelector('[data-erfassen-aktion="abrufen"]');
     expect(knopf.disabled).toBe(false);
@@ -172,10 +172,11 @@ describe('Link: Abrufen und Speichern', () => {
     await warte();
     expect(speichern.legePostAn).toHaveBeenCalledWith({ einheitId: 'video:v1', plattform: 'ig_reel', dateiId: null, link: REEL });
     expect(speichern.rufeLinkAb).toHaveBeenCalledWith('n1');
-    expect(window.toastSystem.show).toHaveBeenCalledWith('Hook 1: 31.504 Aufrufe von Instagram übernommen.', 'success', undefined, expect.objectContaining({ action: expect.objectContaining({ label: 'Ansehen' }) }));
-    expect(ansicht.zeilen()[0].status).toBe('erfasst');
-    expect(ansicht.zustand.erfassen.fertig).toBe(true);
-    expect(ansicht.root.querySelector('[data-erfassen-pruefung]').textContent).toContain('Alles erfasst');
+    expect(window.toastSystem.show).toHaveBeenCalledWith('Hook 1: 31.504 Aufrufe von Instagram übernommen.', 'success', undefined, undefined);
+    expect(ansicht.zeilen()[0]).toMatchObject({ key: 'post:n1', status: 'erfasst' });
+    expect(ansicht.zustand.erfassen.auswahl).toBe('post:n1');
+    expect(ansicht.zustand.erfassen.fertig).toBe(false);
+    expect(ansicht.form().querySelector('[name="views"], [data-kennzahl="views"]')).not.toBeNull();
   });
 
   it('Story-Link: Abrufen bleibt aus, Enter speichert den Link und öffnet die Felder', async () => {

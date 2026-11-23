@@ -13,6 +13,7 @@ import { BILDER_ASSET_SELECT, pickLatestAsset } from '../../core/stills/stillAss
 import { mitAblage } from '../../core/ablage/ablageLink.js';
 import { batchInQuery } from './videoTableQueries.js';
 import { patchZeitkommentarLists } from './videoTableZeitkommentare.js';
+import { renderContentCell } from './videoTableMediaCells.js';
 
 const settledOk = (result) => result.status === 'fulfilled' && !result.value?.error;
 
@@ -265,6 +266,15 @@ export function patchRenderedAssetsAndComments(dl, assetsByVideoId) {
     if (thumbnail && asset.file_url) {
       thumbnail.src = asset.file_url;
       thumbnail.closest('.video-thumbnail')?.classList.remove('no-asset');
+    }
+  }
+
+  // Die Tabelle rendert vor den Assets: ohne file_url zeigt die Zelle den Ordner statt Play.
+  for (const koop of t.kooperationen || []) {
+    for (const video of t.videos?.[koop.id] || []) {
+      if (!assetsByVideoId.has(video.id)) continue;
+      const cell = container.querySelector(`.col-link-content .video-field-wrapper[data-video-id="${video.id}"]`);
+      if (cell) cell.innerHTML = renderContentCell(koop, video);
     }
   }
 

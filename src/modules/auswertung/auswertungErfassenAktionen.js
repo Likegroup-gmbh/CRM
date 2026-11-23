@@ -41,7 +41,6 @@ export function freiePlattform(einheit, posts) {
  * @param {() => HTMLFormElement|null} ctx.form
  * @param {(post: object, opts?: { waehle?: boolean, fokus?: boolean }) => void} ctx.uebernimm
  * @param {(postId: string, opts?: { danach?: 'weiter'|'einheit' }) => void} ctx.entferne
- * @param {(key: string) => void} ctx.waehle
  * @param {(vonKey: string) => void} ctx.weiter
  * @param {(an: boolean) => void} ctx.beschaeftigt
  * @param {(post: object) => string} ctx.labelFuer
@@ -186,10 +185,8 @@ export function erstelleAktionen(ctx) {
           toast(`${label}: Zahlen neu abgerufen.`, 'success');
           return;
         }
-        toast(`${label}: ${exakt(fertig.metrics.views)} Aufrufe von Instagram übernommen.`, 'success', {
-          action: { label: 'Ansehen', onClick: () => ctx.waehle(`post:${fertig.id}`) }
-        });
-        ctx.weiter(`post:${fertig.id}`);
+        // Der Eintrag bleibt gewählt und an seinem Platz: erst Zahlen ansehen, dann selbst speichern
+        toast(`${label}: ${exakt(fertig.metrics.views)} Aufrufe von Instagram übernommen.`, 'success');
       } catch (error) {
         toast(error.message || 'Abruf fehlgeschlagen', error.retryable ? 'warning' : 'error');
       }

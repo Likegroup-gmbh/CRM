@@ -8,9 +8,9 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { bindSegmentSwitches } from '../../core/components/SegmentSwitch.js';
 import { merkeZustand, spieleUebergang } from './auswertungMotion.js';
 import { ladePoster } from './auswertungTabelle.js';
-import { FILTER_ATTR, STATUS, aktualisiereKopf, eintraegeAus, gefiltert, naechsterEintrag, renderZeilen } from './auswertungArbeitsliste.js';
+import { FILTER_ATTR, STATUS, aktualisiereKopf, eintraegeAus, gefiltert, mitFixiertem, naechsterEintrag, renderZeilen } from './auswertungArbeitsliste.js';
 import { abrufGrund, aktualisiereLinkHinweis, bilderAus, ziehtDateien } from './auswertungQuellen.js';
-import { fokussiereErstesFeld, messWarnung, renderKennzahlFelder, zahlAusEingabe } from './auswertungFormular.js';
+import { fokussiereErstesFeld, messWarnung, renderKennzahlFelder, setzeFeldWert, zahlAusEingabe } from './auswertungFormular.js';
 import { blaettere, fuelleScreenshots } from './auswertungScreenshots.js';
 import { erstelleAktionen } from './auswertungErfassenAktionen.js';
 import { passt, renderPruefbereich } from './auswertungPruefbereich.js';
@@ -38,7 +38,10 @@ export function bindeErfassen(root, { modell, zustand, posterCache, aendere }) {
   const abort = new AbortController();
   const { signal } = abort;
   const e = zustand.erfassen;
-  let eintraege = eintraegeAus(modell());
+  // Der bearbeitete Eintrag bleibt an seinem Platz, bis ein anderer gewählt wird (siehe mitFixiertem)
+  let fix = null;
+  const lade = () => mitFixiertem(eintraegeAus(modell()), fix);
+  let eintraege = lade();
   let geaendert = new Set();
   let merker = {};
 
@@ -75,14 +78,14 @@ export function bindeErfassen(root, { modell, zustand, posterCache, aendere }) {
     if (!f) return;
     const plattform = werte.find(([name]) => name === 'plattform');
     if (plattform) {
-      f.querySelector('[name="plattform"]').value = plattform[1];
+      setzeFeldWert(f.querySelector('[name="plattform"]'), plattform[1]);
       wechslePlattform(plattform[1]);
     }
     werte.forEach(([name, wert]) => {
       const el = f.querySelector(`[name="${name}"]`);
       if (!el || name === 'plattform') return;
       if (el.classList.contains('custom-date-picker__input')) CustomDatePicker.setValue(el, wert);
-      else el.value = wert;
+      else setzeFeldWert(el, wert);
       el.closest('.erfassen-feld')?.classList.remove('is-unsicher');
     });
   }
@@ -104,6 +107,11 @@ export function bindeErfassen(root, { modell, zustand, posterCache, aendere }) {
   function waehle(key, { fokus = false, listeFokus = false } = {}) {
     e.auswahl = key;
     e.fertig = false;
+    if (fix && fix.key !== key) {
+      fix = null;
+      eintraege = lade();
+      zeichneListe();
+    }
     const ziel = eintraege.find(x => x.key === key);
     if (ziel && !passt(ziel, e.filter)) {
       e.filter = 'alle';
@@ -124,6 +132,8 @@ export function bindeErfassen(root, { modell, zustand, posterCache, aendere }) {
 
   /** Nach dem Bestätigen: nächster „Prüfen“, sonst „Fehlt“; der Filter folgt, wenn er ihn verbirgt. */
   function weiter(vonKey) {
+    fix = null;
+    eintraege = lade();
     const naechster = naechsterEintrag(eintraege, vonKey);
     if (!naechster) {
       e.auswahl = null;
@@ -140,10 +150,16 @@ export function bindeErfassen(root, { modell, zustand, posterCache, aendere }) {
 
   function uebernimm(post, { waehle: auswaehlen = false, fokus = false } = {}) {
     if (!aendere.post(post)) return;
-    eintraege = eintraegeAus(modell());
     const key = `post:${post.id}`;
-    const warAusgewaehlt = e.auswahl === key || e.auswahl === `einheit:${post.einheitId}`;
-    if (auswaehlen || e.auswahl === `einheit:${post.einheitId}`) {
+    const einheitKey = `einheit:${post.einheitId}`;
+    const warAusgewaehlt = e.auswahl === key || e.auswahl === einheitKey;
+    if (auswaehlen || warAusgewaehlt) {
+      const platz = eintraege.findIndex(x => x.key === key || x.key === einheitKey);
+      const gleicher = fix && (fix.key === key || fix.key === einheitKey);
+      fix = platz < 0 ? null : { key, index: gleicher ? fix.index : platz };
+    }
+    eintraege = lade();
+    if (auswaehlen || e.auswahl === einheitKey) {
       e.auswahl = key;
       e.fertig = false;
       const eintrag = eintraege.find(x => x.key === key);
@@ -157,7 +173,8 @@ export function bindeErfassen(root, { modell, zustand, posterCache, aendere }) {
   function entferne(postId, { danach = 'weiter' } = {}) {
     const weg = eintraege.find(x => x.key === `post:${postId}`);
     if (!aendere.weg(postId)) return;
-    eintraege = eintraegeAus(modell());
+    if (fix?.key === `post:${postId}`) fix = null;
+    eintraege = lade();
     if (e.auswahl !== `post:${postId}`) {
       zeichneListe();
       return;
@@ -177,7 +194,6 @@ export function bindeErfassen(root, { modell, zustand, posterCache, aendere }) {
     form,
     uebernimm,
     entferne,
-    waehle: (key) => waehle(key),
     weiter,
     beschaeftigt: (an) => {
       const f = form();
@@ -311,8 +327,16 @@ export function bindeErfassen(root, { modell, zustand, posterCache, aendere }) {
     }
     if (!t.closest?.('[data-erfassen-form]') || !t.name) return;
     geaendert.add(t.name);
-    if (t.name === 'plattform') wechslePlattform(t.value);
     if (t.name === 'postedAt' || t.name === 'measuredAt') aktualisiereMesswarnung();
+  }, { signal });
+
+  // Eigenes Dropdown (Plattform, Datei): meldet sich per table-select-change statt change
+  document.addEventListener('table-select-change', (ev) => {
+    const { field, value, element } = ev.detail || {};
+    if (!element?.closest?.('[data-erfassen-form]') || !field) return;
+    geaendert.add(field);
+    element.querySelector('.table-select__trigger')?.removeAttribute('aria-invalid');
+    if (field === 'plattform') wechslePlattform(value);
   }, { signal });
 
   document.addEventListener('paste', (ev) => {

@@ -1,5 +1,5 @@
 // _shared/ablage/alarm.js
-// Alert-Mails an die Admins, aufgerufen vom minuetlichen Zeitplan:
+// Alert-Mails an die Admins, aufgerufen vom Zeitplan (alle 5 Minuten):
 //   stillstand  Abgleich seit 15 Minuten ohne Erfolg
 //   abo         Webhook-Abo laeuft in weniger als 3 Tagen ab (Verlaengerung schlug fehl)
 //   zertifikat  App-Zertifikat laeuft in weniger als 30 Tagen ab
@@ -51,7 +51,7 @@ function alarmeAus(stand, jetzt = Date.now()) {
       + ' Dateien aus dem Finder kommen so lange nicht ins CRM.';
   }
   const abo = ms(stand.abo_ablauf);
-  if (!abo) a.abo = 'Es besteht kein Webhook-Abo. Der Zeitplan konnte es nicht anlegen; Änderungen kommen nur noch minütlich per Abgleich.';
+  if (!abo) a.abo = 'Es besteht kein Webhook-Abo. Der Zeitplan konnte es nicht anlegen; Änderungen kommen nur noch alle 5 Minuten per Abgleich.';
   else if (abo - jetzt < ABO_MS) a.abo = `Das Webhook-Abo läuft am ${datum(abo)} ab und ließ sich nicht verlängern.`;
   const zert = ms(stand.zert_ablauf);
   if (zert && zert - jetzt < ZERT_MS) {

@@ -1,7 +1,7 @@
 // teams-meldung-senden.js
 // Anstoss aus dem Browser nach einem Video-Kommentar der Kundenseite (ADR 0066). Ohne Body und
 // ohne Login: die Function arbeitet nur die Outbox teams_meldung ab, die der Datenbank-Trigger
-// gefuellt hat. Der Minuten-Zeitplan holt nach, was hier nicht durchgeht.
+// gefuellt hat. Der 5-Minuten-Zeitplan holt nach, was hier nicht durchgeht.
 
 const { json } = require('./_shared/ablage/konfig');
 const { verteilenAusEnv } = require('./_shared/teams/verteilen');

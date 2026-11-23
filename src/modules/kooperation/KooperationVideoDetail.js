@@ -16,6 +16,8 @@ import { MAX_VIDEO_SIZE } from '../../core/VideoUploadUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import { mitAblage } from '../../core/ablage/ablageLink.js';
+import { ablageLinkKlick, dateiLinkHtml, ordnerLinkHtml } from '../../core/ablage/ablageOrdnerLink.js';
 
 const DEBUG_UPLOAD = true;
 
@@ -101,7 +103,7 @@ export const kooperationVideoDetail = {
     try {
       const { data: assets } = await window.supabase
         .from('kooperation_video_asset')
-        .select('id, file_url, file_path, version_number, is_current, description, uploaded_by, created_at')
+        .select(mitAblage('id, file_url, file_path, version_number, is_current, description, uploaded_by, created_at', 'ablage, etag'))
         .eq('video_id', this.videoId)
         .order('version_number', { ascending: false });
       this.assets = assets || [];
@@ -126,10 +128,8 @@ export const kooperationVideoDetail = {
     const canUpload = window.isInternal();
 
     // Ordner-Link anzeigen statt Video-Player
-    const folderUrl = v.folder_url || '';
-    const mediaHtml = folderUrl
-      ? `<a href="${folderUrl}" target="_blank" rel="noopener" class="mdc-btn">Ordner öffnen</a>`
-      : renderEmptyState({ icon: 'folder', title: 'Kein Ordner hinterlegt' });
+    const mediaHtml = ordnerLinkHtml({ url: v.folder_url, kooperationId: v.kooperation_id, inhalt: 'Ordner öffnen', klasse: 'mdc-btn' })
+      || renderEmptyState({ icon: 'folder', title: 'Kein Ordner hinterlegt' });
 
     // Nur aktive (nicht soft-geloeschte) Kommentare als Slot-Wert anzeigen.
     const activeComments = (this.comments || []).filter(c => !c.deleted_at);
@@ -282,10 +282,7 @@ export const kooperationVideoDetail = {
               ${icon('dots-vertical-filled')}
             </button>
             <div class="actions-dropdown">
-              <a href="${asset.file_url}" target="_blank" rel="noopener" class="action-item">
-                ${icon('eye')}
-                Anzeigen
-              </a>
+              ${dateiLinkHtml({ asset, typ: 'video', inhalt: `${icon('eye')} Anzeigen`, klasse: 'action-item' })}
               ${!asset.is_current && canEdit ? `
               <a href="#" class="action-item set-current-version" data-asset-id="${asset.id}">
                 ${icon('check-circle')}
@@ -323,6 +320,7 @@ export const kooperationVideoDetail = {
 
     // Tab-Switching
     document.addEventListener('click', (e) => {
+      if (ablageLinkKlick(e)) return;
       if (e.target.classList.contains('tab-button')) {
         e.preventDefault();
         const tabName = e.target.dataset.tab;

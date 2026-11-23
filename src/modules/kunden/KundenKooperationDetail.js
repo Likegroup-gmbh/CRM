@@ -2,41 +2,9 @@
 // Kunden-Portal: Kooperation-Detail (Uploads read-only)
 
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
-import { ablageLink, istSharePoint, mitAblage } from '../../core/ablage/ablageLink.js';
-import { authorizedFetch } from '../../core/auth/getAccessToken.js';
-
-// SharePoint-webUrls oeffnen nur Konten mit Rechten; Kunden bekommen Leselinks
-const istSharePointUrl = (url) => {
-  try { return new URL(url).hostname.endsWith('.sharepoint.com'); } catch { return false; }
-};
-
-async function ordnerLeselink(kooperationId, typ) {
-  const res = await authorizedFetch('/.netlify/functions/ablage-freigabe', {
-    method: 'POST',
-    body: JSON.stringify({ aktion: 'erstellen', kooperation_id: kooperationId, typ }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.url) throw new Error(data.error || `Fehler (${res.status})`);
-  return data.url;
-}
-
-/** Fenster synchron im Klick oeffnen (Popup-Blocker), URL danach setzen. */
-async function inNeuemFenster(holeUrl) {
-  const win = window.open('', '_blank');
-  try {
-    const url = await holeUrl();
-    if (win) {
-      win.opener = null;
-      win.location = url;
-    } else {
-      window.open(url, '_blank', 'noopener');
-    }
-  } catch (err) {
-    win?.close();
-    console.error('❌ Link konnte nicht geöffnet werden', err);
-    window.toastSystem?.show?.('Link konnte nicht geöffnet werden.', 'error');
-  }
-}
+import { mitAblage } from '../../core/ablage/ablageLink.js';
+import { istSharePointUrl } from '../../core/ablage/dokumentAblage.js';
+import { ablageLinkKlick, dateiLinkHtml, ordnerLinkHtml } from '../../core/ablage/ablageOrdnerLink.js';
 
 export class KundenKooperationDetail {
   _abortController = null;
@@ -150,18 +118,12 @@ export class KundenKooperationDetail {
     const hasAnyLinks = currentAssets.length > 0;
 
     let contentHtml = '';
-    if (video.folder_url && istSharePointUrl(video.folder_url)) {
-      contentHtml = '<button type="button" class="link-btn" data-action="ordner-link" data-typ="videos">Ordner öffnen</button>';
-    } else if (video.folder_url) {
-      contentHtml = `<a href="${video.folder_url}" target="_blank" rel="noopener" class="link-btn">Ordner öffnen</a>`;
+    if (video.folder_url) {
+      contentHtml = ordnerLinkHtml({ url: video.folder_url, kooperationId: this.koopId, inhalt: 'Ordner öffnen', klasse: 'link-btn' });
     } else if (hasAnyLinks) {
       contentHtml = currentAssets.map(a => {
         const label = a.description || a.variant_name || `Version ${a.version_number || 1}`;
-        if (istSharePoint(a)) {
-          return `<button type="button" class="link-btn kunden-koop-link-btn" data-action="datei-link" data-id="${a.id}" data-etag="${safe(a.etag || '')}">${safe(label)}</button>`;
-        }
-        if (!a.file_url) return '';
-        return `<a href="${a.file_url}" target="_blank" rel="noopener" class="link-btn kunden-koop-link-btn">${safe(label)}</a>`;
+        return dateiLinkHtml({ asset: a, typ: 'video', inhalt: safe(label), klasse: 'link-btn kunden-koop-link-btn' });
       }).join('');
     } else {
       contentHtml = renderEmptyState({ icon: 'folder', title: 'Kein Content hinterlegt' });
@@ -176,11 +138,12 @@ export class KundenKooperationDetail {
         </div>
         
         ${contentHtml}
-        ${video.story_folder_url && istSharePointUrl(video.story_folder_url)
-          ? '<button type="button" class="link-btn" data-action="ordner-link" data-typ="videos">Ordner mit Storys öffnen</button>'
-          : video.story_folder_url
-            ? `<a href="${video.story_folder_url}" target="_blank" rel="noopener" class="link-btn">Storys-Ordner öffnen</a>`
-            : ''}
+        ${ordnerLinkHtml({
+          url: video.story_folder_url,
+          kooperationId: this.koopId,
+          inhalt: istSharePointUrl(video.story_folder_url) ? 'Ordner mit Storys öffnen' : 'Storys-Ordner öffnen',
+          klasse: 'link-btn',
+        })}
       </div>
     `;
   }
@@ -196,22 +159,7 @@ export class KundenKooperationDetail {
         window.history.back();
         return;
       }
-      const ordner = e.target.closest('[data-action="ordner-link"]');
-      if (ordner) {
-        e.preventDefault();
-        await inNeuemFenster(() => ordnerLeselink(this.koopId, ordner.dataset.typ));
-        return;
-      }
-      const datei = e.target.closest('[data-action="datei-link"]');
-      if (datei) {
-        e.preventDefault();
-        await inNeuemFenster(async () => {
-          const link = await ablageLink({ typ: 'video', id: datei.dataset.id, etag: datei.dataset.etag || null });
-          if (!link?.url) throw new Error('Kein Link');
-          return link.url;
-        });
-        return;
-      }
+      if (ablageLinkKlick(e)) return;
       const dl = e.target.closest('[data-action="download"]');
       if (dl) {
         e.preventDefault();

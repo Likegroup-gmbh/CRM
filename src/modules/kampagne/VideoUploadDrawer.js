@@ -4,6 +4,10 @@ import { BilderTabHandler } from './BilderTabHandler.js';
 import { CustomUploadTabHandler } from './CustomUploadTabHandler.js';
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+import { exportHinweisHtml } from '../../core/media/exportHinweis.js';
+
+const EXPORT_HINWEIS_ID = 'upload-export-hinweis';
+const TABS_MIT_EXPORT_HINWEIS = ['video', 'storys'];
 
 export class VideoUploadDrawer {
   constructor() {
@@ -208,6 +212,8 @@ export class VideoUploadDrawer {
     if (storysPane) storysPane.style.display = tabName === 'storys' ? '' : 'none';
     if (bilderPane) bilderPane.style.display = tabName === 'bilder' ? '' : 'none';
     if (customPane) customPane.style.display = tabName === 'custom' ? '' : 'none';
+    const hinweis = document.getElementById(EXPORT_HINWEIS_ID);
+    if (hinweis) hinweis.style.display = TABS_MIT_EXPORT_HINWEIS.includes(tabName) ? '' : 'none';
 
     if (tabName === 'bilder') {
       this.bilderTab.ensureInitialized();
@@ -238,6 +244,7 @@ export class VideoUploadDrawer {
     body.innerHTML = `
       ${this._renderActiveJobsBanner()}
       ${this._renderTabNav()}
+      ${this.useExternalLinks ? '' : exportHinweisHtml({ id: EXPORT_HINWEIS_ID, hidden: !TABS_MIT_EXPORT_HINWEIS.includes(this._activeTab) })}
       ${this.videoTab.renderTab(this._activeTab)}
       ${this.storysTab.renderTab(this._activeTab)}
       ${this.bilderTab.renderTab(this._activeTab)}

@@ -56,7 +56,7 @@ const ACTION_SPECS = {
   }
 };
 
-function campaignPrefill(detail) {
+export function campaignPrefill(detail) {
   const k = detail.kampagneData || {};
   const linie = (detail.linien || []).find(l => l.id === detail.linieId) || null;
   const lineTitle = linie?.name || detail.lineTitle || '';

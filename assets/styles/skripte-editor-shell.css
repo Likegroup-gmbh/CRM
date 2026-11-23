@@ -81,6 +81,26 @@
   }
 }
 
+/* Eingebettet (Produktion, Tab Skripte): die Skriptliste bleibt bis 1000px stehen.
+   Die App-Sidebar nimmt dort schon Platz, die Liste ist die Navigation zwischen den Skripten. */
+@media (min-width: 1001px) and (max-width: 1200px) {
+  .skripte-pane-editor .skripte-editor-shell {
+    grid-template-columns: var(--panel-md) minmax(0, 1fr) var(--panel-lg);
+  }
+  .skripte-pane-editor .skripte-editor--liste-collapsed .skripte-editor-shell {
+    grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr) var(--panel-lg);
+  }
+  .skripte-pane-editor .skripte-editor--gast .skripte-editor-shell {
+    grid-template-columns: var(--panel-md) minmax(0, 1fr);
+  }
+  .skripte-pane-editor .skripte-editor--gast.skripte-editor--liste-collapsed .skripte-editor-shell {
+    grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr);
+  }
+  .skripte-pane-editor .skripte-editor-liste {
+    display: flex;
+  }
+}
+
 /* Skript-Wechsel: Inhalte dimmen statt Layout neu aufzubauen */
 .skripte-editor--laedt {
   opacity: 0.45;
@@ -394,4 +414,48 @@
 .skripte-editor-tabelle--varianten {
   height: auto;
   flex: none;
+}
+
+/* Eingebettet (Produktion, Tab Skripte) mit offenem Editor: wie die Skript-Seite.
+   Seitenkopf, Tab-Leiste und Leiste „Alle Skripte“ bleiben stehen, nur die Spalten scrollen.
+   Die Tabelle scrollt weiter normal (greift nur mit Editor im Pane). */
+.main-wrapper:has(> .kampagne-detail-body[data-workflow="skripte"] .skripte-pane-editor) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.kampagne-detail-body[data-workflow="skripte"]:has(.skripte-pane-editor) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.kampagne-detail-body[data-workflow="skripte"]:has(.skripte-pane-editor) > .tab-navigation {
+  flex-shrink: 0;
+}
+
+.kampagne-detail-body[data-workflow="skripte"]:has(.skripte-pane-editor) > .content-section,
+.workflow-pane[data-pane="skripte"]:has(.skripte-pane-editor) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.skripte-pane-bar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-pane-editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }

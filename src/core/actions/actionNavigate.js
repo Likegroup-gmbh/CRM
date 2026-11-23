@@ -3,6 +3,7 @@
 
 import { produktFormRoute, produktListDetailRoute } from '../../modules/produkt/ProduktService.js';
 import { personaFormRoute } from '../../modules/persona/PersonaService.js';
+import { oeffneSkript } from '../../modules/skripte/skriptOeffnen.js';
 const VIEW_ROUTES = {
   strategie: (id) => `/konzepte/${id}`,
   creator_auswahl: (id) => `/castings/${id}`,
@@ -33,6 +34,10 @@ export async function handleView(entityId, entityType) {
   }
   if (entityType === 'persona') {
     await navigateToPersonaForm(entityId);
+    return;
+  }
+  if (entityType === 'skripte') {
+    oeffneSkript(entityId);
     return;
   }
   const route = VIEW_ROUTES[entityType]?.(entityId) ?? `/${entityType}/${entityId}`;

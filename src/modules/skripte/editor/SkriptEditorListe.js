@@ -35,6 +35,10 @@ SkriptEditorView.prototype.bindListeHead = function() {
   this.container.querySelector('#ed-neu')?.addEventListener('click', async (e) => {
     e.preventDefault();
     if (this.isReadonly) return;
+    if (this.einbettung?.neuPrefill) {
+      openSkriptCreateDrawer(this.einbettung.neuPrefill());
+      return;
+    }
     openSkriptCreateDrawer(await this.neuPrefill());
   });
 };

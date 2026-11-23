@@ -36,8 +36,7 @@ export function renderCreatorInner(ctx) {
     avatarHtml: creator.id
       ? renderTableAvatar({ url: creator.profilbild_thumb_url || creator.profilbild_url, name: creator.vorname || rawName })
       : '',
-    nameHtml,
-    subHtml: socials
+    nameHtml: `<div class="creator-name-row">${nameHtml}${socials}</div>`
   });
 }
 

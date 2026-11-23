@@ -1,10 +1,10 @@
 // ablage-umzug-background.js
-// Umzug des Bestands nach SharePoint (Background Function, bis zu 15 Minuten). Angestossen von
-// ablage-zeitplan (solange Zeilen offen sind, mehrere Laeufer parallel) und von der Admin-Seite
-// ("Bestand umziehen", Medien und Dokumente), geschuetzt ueber x-ablage-secret. Pausiert bei Notschalter
-// (Dokument-Notschalter: nur Dokumente).
+// Umzug des Bestands nach SharePoint (Background Function, bis zu 15 Minuten). Angestossen von der
+// Admin-Seite ("Bestand umziehen", Medien und Dokumente), geschuetzt ueber x-ablage-secret. Endet
+// der Lauf am Budget statt an einer leeren Warteschlange, stoesst er sich selbst neu an: der
+// Zeitplan hat keinen Umzug-Takt mehr. Pausiert bei Notschalter (Dokument-Notschalter: nur Dokumente).
 
-const { secretOk } = require('./_shared/ablage/konfig');
+const { secretOk, anstossen } = require('./_shared/ablage/konfig');
 const { ablageAusEnv } = require('./_shared/ablage');
 const { createUmzug } = require('./_shared/ablage/umzug');
 
@@ -18,6 +18,7 @@ exports.handler = async (event) => {
   try {
     const r = await createUmzug({ supabase: ablage.supabase, ablage }).lauf();
     console.log(`[ablage-umzug] ${JSON.stringify(r)}`);
+    if (!r.leer && !r.pausiert) await anstossen(event, 'ablage-umzug-background', { grund: 'weiter' });
     return { statusCode: 200, body: JSON.stringify(r) };
   } catch (err) {
     console.error('[ablage-umzug]', err);

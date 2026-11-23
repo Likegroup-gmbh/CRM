@@ -13,6 +13,7 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { replaceRoute } from '../../core/breadcrumbTrail.js';
 import { PersonaFilterLogic } from './filters/PersonaFilterLogic.js';
 import { PersonaService } from './PersonaService.js';
+import { renderTabellenTag, renderMarkenBubbles } from '../../core/ui/tabellenZellen.js';
 import {
   renderVerknuepfungen,
   namedLinks,
@@ -486,7 +487,6 @@ export class PersonaList extends BasePaginatedList {
   renderSingleRow(persona, options = {}) {
     const showCheckbox = options.checkbox !== false && this.canBulkDelete;
     const sanitize = this.sanitize.bind(this);
-    const marken = this.renderMarken(persona);
 
     return `
       <tr data-id="${persona.id}" data-unternehmen-id="${persona.unternehmen_id || ''}">
@@ -501,11 +501,11 @@ export class PersonaList extends BasePaginatedList {
           })}
         </td>
         <td>${this.renderUnternehmen(persona.unternehmen)}</td>
-        <td>${marken}</td>
-        <td>${sanitize(PersonaService.alterLabel(persona))}</td>
-        <td>${sanitize(persona.geschlecht || '-')}</td>
+        <td>${renderMarkenBubbles(persona.marken)}</td>
+        <td>${renderTabellenTag(PersonaService.alterLabel(persona), sanitize)}</td>
+        <td>${renderTabellenTag(persona.geschlecht, sanitize)}</td>
         <td>${sanitize(persona.wohnort_region || '-')}</td>
-        <td>${this._formatDate(persona.created_at)}</td>
+        <td>${renderTabellenTag(this._formatDate(persona.created_at), sanitize)}</td>
         <td>${renderVerknuepfungen(acceptedProduktLinks(persona.produkte))}</td>
         <td>${renderVerknuepfungen(namedLinks(persona.verknuepfte_briefings, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
         <td>${renderVerknuepfungen(skriptLinks(persona.skripte))}</td>
@@ -514,12 +514,6 @@ export class PersonaList extends BasePaginatedList {
         </td>
       </tr>
     `;
-  }
-
-  renderMarken(persona) {
-    const namen = PersonaService.markenNamen(persona);
-    if (!namen.length) return `<span class="text-muted">${NUR_UNTERNEHMEN_LABEL}</span>`;
-    return namen.map(name => `<span class="status-badge">${this.sanitize(name)}</span>`).join(' ');
   }
 
   renderUnternehmen(unternehmen) {

@@ -1,10 +1,16 @@
 // personaCreateScope.js
-// Zuordnung aus dem Create-Drawer: Unternehmen, Marke und Briefing sind
-// Pflicht. Produkt ist optional und steht nur in der URL, wenn eins gewählt
-// wurde. Der Drawer legt keine Persona an.
+// Zuordnung aus dem Create-Drawer: Unternehmen und Briefing sind Pflicht.
+// Marke und Produkt sind optional und stehen nur in der URL, wenn eins
+// gewählt wurde (nicht jedes Unternehmen hat eine Marke). Der Drawer legt
+// keine Persona an.
 
 function withProdukt(q, produktId) {
   if (produktId) q.set('produkt', produktId);
+  return q;
+}
+
+function withMarke(q, markeId) {
+  if (markeId) q.set('marke', markeId);
   return q;
 }
 
@@ -17,26 +23,24 @@ export function readCreateScope(search, ctx = null) {
   const markeId = ctx?.markeId || params.get('marke') || null;
   const briefingId = params.get('briefing') || null;
   const produktId = params.get('produkt') || null;
-  if (!unternehmenId || !markeId || !briefingId) return null;
+  if (!unternehmenId || !briefingId) return null;
 
   return { unternehmenId, markeId, briefingId, produktId };
 }
 
-export function personaCreateRoute(origin, { unternehmenId, markeId, briefingId, produktId }) {
-  if (origin === 'marke') {
+export function personaCreateRoute(origin, { unternehmenId, markeId = null, briefingId, produktId }) {
+  if (origin === 'marke' && markeId) {
     const q = withProdukt(new URLSearchParams({ briefing: briefingId }), produktId);
     return `/marke/${markeId}/persona?${q}`;
   }
   if (origin === 'unternehmen') {
-    const q = withProdukt(new URLSearchParams({ marke: markeId, briefing: briefingId }), produktId);
-    return `/unternehmen/${unternehmenId}/persona?${q}`;
+    const q = withMarke(new URLSearchParams(), markeId);
+    q.set('briefing', briefingId);
+    return `/unternehmen/${unternehmenId}/persona?${withProdukt(q, produktId)}`;
   }
-  const q = withProdukt(new URLSearchParams({
-    unternehmen: unternehmenId,
-    marke: markeId,
-    briefing: briefingId
-  }), produktId);
-  return `/persona/new?${q}`;
+  const q = withMarke(new URLSearchParams({ unternehmen: unternehmenId }), markeId);
+  q.set('briefing', briefingId);
+  return `/persona/new?${withProdukt(q, produktId)}`;
 }
 
 export async function resolveCreateScopeLabels(scope) {
@@ -55,7 +59,9 @@ export async function resolveCreateScopeLabels(scope) {
       : Promise.resolve({ data: null });
     const [unternehmen, marke, briefing, produkt] = await Promise.all([
       window.supabase.from('unternehmen').select('firmenname').eq('id', scope.unternehmenId).maybeSingle(),
-      window.supabase.from('marke').select('markenname').eq('id', scope.markeId).maybeSingle(),
+      scope.markeId
+        ? window.supabase.from('marke').select('markenname').eq('id', scope.markeId).maybeSingle()
+        : Promise.resolve({ data: null }),
       window.supabase.from('campaign_briefings').select('aktivierung_name').eq('id', scope.briefingId).maybeSingle(),
       produktPromise
     ]);

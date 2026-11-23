@@ -8,6 +8,8 @@ import {
 } from './KampagneDetailWorkflow.js';
 import { handleVertragListAction } from '../vertrag/VertraegeListHandlers.js';
 import { syncSkriptGeloeschtLocal } from './skriptFreigabeSync.js';
+import { offenesSkriptId, oeffneSkriptImPane, skriptEditorOffen } from './KampagneDetailSkripte.js';
+import { oeffneSkript, SKRIPT_OEFFNEN_EVENT } from '../skripte/skriptOeffnen.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { closeLinienMenu, koopLinie, toggleLinienMenu } from './linienScope.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
@@ -327,6 +329,11 @@ export function setupEvents(detail) {
         return;
       }
       const link = e.target.closest('.table-link[data-table][data-id]');
+      if (link?.dataset.table === 'skripte') {
+        e.preventDefault();
+        oeffneSkript(link.dataset.id);
+        return;
+      }
       const route = link && getWorkflowTableRoute(link.dataset.table, link.dataset.id);
       if (route) {
         e.preventDefault();
@@ -462,7 +469,19 @@ export function setupEvents(detail) {
   window.addEventListener('entityUpdated', (e) => {
     if (e.detail?.entity !== 'skripte' || e.detail.action !== 'deleted' || !e.detail.id) return;
     syncSkriptGeloeschtLocal(detail, e.detail.id);
+    if (skriptEditorOffen(detail)) {
+      // Das offene Skript räumt der Editor selbst ab (zurück zur Tabelle); ein anderes nur aus dem Cache.
+      if (e.detail.id !== offenesSkriptId(detail) && detail._workflowData) delete detail._workflowData.skripte;
+      return;
+    }
     if (detail._workflowData?.skripte) void reloadWorkflowPane(detail, 'skripte');
+  }, { signal });
+
+  // Skript öffnen (Tabelle, Aktionsmenü, Anlegen): im Skripte-Tab bleibt es im Interface.
+  window.addEventListener(SKRIPT_OEFFNEN_EVENT, (e) => {
+    if (detail.activeWorkflowTab !== 'skripte' || !document.getElementById('workflow-pane-skripte')) return;
+    e.preventDefault();
+    void oeffneSkriptImPane(detail, e.detail?.id);
   }, { signal });
 
   window.addEventListener('vertrag-signed-action', (e) => {

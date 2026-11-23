@@ -88,7 +88,7 @@ export function isStandaloneProduktPath(pathname = window.location?.pathname || 
   return pathname.split('/').filter(Boolean)[0] === 'produkt';
 }
 
-const MARKEN_SELECT = 'marken:produkt_marke(marke_id, marke:marke_id(id, markenname))';
+const MARKEN_SELECT = 'marken:produkt_marke(marke_id, marke:marke_id(id, markenname, logo_url))';
 
 const TABELLEN_SELECT = `
   varianten:produkt_variante(id),

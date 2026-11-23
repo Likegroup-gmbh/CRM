@@ -491,6 +491,17 @@ export const ICON_DEFS = {
     viewBox: '0 0 24 24',
     body: '<path stroke-linecap="round" stroke-linejoin="round" d="M16 7V11M12 7V11" /><path stroke-linecap="round" stroke-linejoin="round" d="M16 3H8C6.11438 3 5.17157 3 4.58579 3.58358C4 4.16716 4 5.10641 4 6.98492V13.56C4 13.9302 4 14.1153 4.02462 14.2702C4.16017 15.1228 4.83135 15.7914 5.68713 15.9265C5.8426 15.951 6.0284 15.951 6.4 15.951C6.4929 15.951 6.53935 15.951 6.57822 15.9571C6.79216 15.9909 6.95996 16.158 6.99384 16.3712C7 16.4099 7 16.4562 7 16.5487V18.0921C7 19.2742 7 19.8653 7.3345 19.9822C7.66899 20.0991 8.03962 19.6375 8.78087 18.7144L10.6998 16.3249C10.8473 16.1412 10.921 16.0493 11.0237 16.0002C11.1264 15.951 11.2445 15.951 11.4806 15.951H15.3431C16.1606 15.951 16.5694 15.951 16.9369 15.7993C17.3045 15.6477 17.5935 15.3597 18.1716 14.7838L18.8284 14.1295C19.4065 13.5536 19.6955 13.2656 19.8478 12.8995C20 12.5333 20 12.1261 20 11.3117V6.98492C20 5.10641 20 4.16716 19.4142 3.58358C18.8284 3 17.8856 3 16 3Z" />'
   },
+  // Panel auf-/zuklappen (Seitenleiste links): Trennlinie + Chevron.
+  // NICHT mit arrows-expand/-collapse verwechseln: die vergroessern/verkleinern.
+  'panel-left-open': {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" stroke-linejoin="round" d="M21 11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M9 3V21" /><path stroke-linecap="round" stroke-linejoin="round" d="M14 9L15.1082 9.87868C16.3694 10.8787 17 11.3787 17 12C17 12.6213 16.3694 13.1213 15.1082 14.1213L14 15" />'
+  },
+  // Spiegelbild von panel-left-open (Chevron nach links, Trennlinie rechts)
+  'panel-left-close': {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" stroke-linejoin="round" d="M21 11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 3V21" /><path stroke-linecap="round" stroke-linejoin="round" d="M10 9L8.8918 9.87868C7.6306 10.8787 7 11.3787 7 12C7 12.6213 7.6306 13.1213 8.8918 14.1213L10 15" />'
+  },
   // Panel verkleinern: Stroke-Pendant zu arrows-expand (Pfeile nach innen)
   'arrows-collapse': {
     viewBox: '0 0 24 24',

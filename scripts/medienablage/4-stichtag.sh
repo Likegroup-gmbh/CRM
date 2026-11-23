@@ -255,7 +255,6 @@ umask 077
   for k in MS_TENANT_ID MS_CLIENT_ID SP_SITE_URL SP_SITE_ID SP_DRIVE_ID SP_WEBHOOK_CLIENT_STATE ABLAGE_SECRET; do
     printf '%s=%s\n' "$k" "$(_existing "$k" || true)"
   done
-  printf 'ABLAGE_UMZUG_PARALLEL=2\n'
 } > "$NETLIFY_IMPORT"
 if confirm "Zertifikat aus .secrets in den Live-Vault schreiben?"; then
   node scripts/medienablage/vault-setzen.mjs --env "$ENV_FILE" \
@@ -314,12 +313,12 @@ if confirm "Alle Unternehmen auf sharepoint stellen?"; then
   ok "Weichen umgestellt"
 fi
 warn "Rückweg ohne Deploy: Admin-Seite → Notschalter 'Alle Uploads zurück zu Dropbox'."
-note "Danach prüfen: Rechte-Karte auf der Admin-Seite (läuft binnen einer Minute an), ein Mitarbeiter sieht seine Unternehmen im OneDrive."
+note "Danach prüfen: Rechte-Karte auf der Admin-Seite (läuft binnen fünf Minuten an), ein Mitarbeiter sieht seine Unternehmen im OneDrive."
 pause
 
 stage "Umzug des Bestands starten"
 say "Pro Unternehmen über die Admin-Seite ('Bestand umziehen') oder alle auf einmal hier."
-say "Der Zeitplan stößt jede Minute bis zu ABLAGE_UMZUG_PARALLEL Läufer an (Standard 2)."
+say "Ein Läufer arbeitet die Warteschlange ab und stößt sich selbst neu an, bis sie leer ist."
 if confirm "Bestand aller SharePoint-Unternehmen einreihen?"; then
   sql "$LIVE_DB_URL" "select u.firmenname, public.ablage_umzug_anlegen(s.drive_id, u.id) from unternehmen u cross join ablage_stand s where u.ablage_ziel = 'sharepoint' order by 2 desc" | head -n 30
 fi
@@ -344,7 +343,6 @@ note "sonstige             voruebergehend (Graph/Dropbox), sechs Versuche mit Ba
 say ""
 note "Erneut einreihen (öffnet nur Zeilen mit Status fehler):"
 note "  select ablage_umzug_anlegen(drive_id, '<unternehmen_id>') from ablage_stand;"
-note "Drosselt Graph (429 im Log) → ABLAGE_UMZUG_PARALLEL auf 1; läuft sauber → bis 4 erhöhen."
 pause "Umzug durch (offen = 0)? Enter"
 
 stage "Abschluss: prüfen, Kunden informieren, Dropbox abschalten"

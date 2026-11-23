@@ -22,6 +22,9 @@ import { upsertById } from './skriptEditorMessages.js';
 export class SkriptEditorView {
   constructor(page) {
     this.page = page;
+    // Eingebettet in ein Host-Interface (Skripte-Tab der Kampagne): kein eigener
+    // Seitenkopf, keine URL-Hoheit. { onSkriptChange(id), onClose(), neuPrefill() }
+    this.einbettung = null;
     this.skript = null;
     this.skripte = [];
     this._listeKampagneId = undefined; // Scope der Sidebar; undefined = noch nicht gesetzt

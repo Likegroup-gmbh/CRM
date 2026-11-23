@@ -13,6 +13,7 @@ import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
 import { KOOP_STATUS_FIELD } from './videoTableKoopCells.js';
 import { bindTextBaseline, isGuardedTextField, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 import { openZeitkommentar } from './videoTableZeitkommentare.js';
+import { ablageLinkKlick } from '../../core/ablage/ablageOrdnerLink.js';
 export class VideoTableEventBinder {
   constructor(table) {
     this.table = table;
@@ -158,6 +159,7 @@ export class VideoTableEventBinder {
     }, { signal });
 
     container.addEventListener('click', (e) => {
+      if (ablageLinkKlick(e)) return;
       const zeitBtn = e.target.closest('[data-action="open-zeitkommentar"]');
       if (zeitBtn) {
         e.preventDefault();

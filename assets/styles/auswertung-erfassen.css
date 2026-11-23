@@ -230,3 +230,62 @@
     border-bottom: var(--border-xs) solid var(--border-primary);
   }
 }
+
+/* Breit: Erfassen ist so hoch wie das Fenster (auswertungErfassenHoehe.js setzt --erfassen-hoehe).
+   Die Seite scrollt nicht mit; Liste, Blatt und Formular scrollen je für sich, Köpfe und die
+   Aktionsleiste bleiben stehen. Schmal (Spalten gestapelt) wächst die Ansicht wie sonst mit. */
+@container auswertung (width > 62rem) {
+  .erfassen {
+    grid-template-rows: minmax(0, 1fr);
+    height: var(--erfassen-hoehe, auto);
+    overflow: hidden;
+  }
+
+  .erfassen-liste,
+  .erfassen-pruefung,
+  .erfassen-form,
+  .erfassen-mitte,
+  .erfassen-rechts {
+    min-height: 0;
+  }
+
+  .erfassen-liste {
+    overflow: hidden;
+  }
+
+  .erfassen-liste__kopf {
+    flex: none;
+  }
+
+  .erfassen-liste__zeilen {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .erfassen-form {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .erfassen-quelle {
+    flex: none;
+  }
+
+  .erfassen-buehne {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .erfassen-rechts {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .erfassen-kopf {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg-primary);
+  }
+}

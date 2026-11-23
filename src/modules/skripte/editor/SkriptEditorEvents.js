@@ -27,7 +27,8 @@ SkriptEditorView.prototype.bindEvents = function() {
     const { entity, action, id } = e.detail || {};
     if (entity !== 'skripte' || action !== 'deleted' || !id) return;
     if (id === this.skript?.id) {
-      window.navigateTo(backTarget('/skripte'));
+      if (this.einbettung) this.einbettung.onClose?.();
+      else window.navigateTo(backTarget('/skripte'));
       return;
     }
     this.skripte = this.skripte.filter((s) => s.id !== id);

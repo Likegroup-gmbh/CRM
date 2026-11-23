@@ -1,5 +1,5 @@
 // teams-meldung-zeitplan.js
-// Sicherheitsnetz fuer die Teams-Meldungen (ADR 0066): jede Minute die Outbox abarbeiten,
+// Sicherheitsnetz fuer die Teams-Meldungen (ADR 0066): alle 5 Minuten die Outbox abarbeiten,
 // auch Wiederholungen nach Fehlern. Scheduled Functions haben 30 s.
 
 const { verteilenAusEnv } = require('./_shared/teams/verteilen');

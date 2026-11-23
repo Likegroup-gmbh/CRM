@@ -906,11 +906,11 @@ Konten, die einen Post gesehen haben, jedes einmal gezählt (Feld `reach`). Nich
 _Avoid_: Reichweite, Erreichte Konten (alter Instagram-Name), Views für Betrachter
 
 **Auswertung**:
-Tab der Produktion mit den bestätigten Zahlen der Posts: je Linie, für alle Linien der Produktion oder für die ganze Kampagne (Umschalter „Produktion | Gesamte Kampagne“). Auf der Kampagnenseite dieselbe Ansicht mit der Ebene Kampagne. Das Team sieht live und erfasst dort; Kunde und Gast sehen nur die letzte Report-Freigabe.
+Tab der Produktion mit den bestätigten Zahlen der Posts: je Linie, für alle Linien der Produktion oder für die ganze Kampagne mit allen Produktionen (Umschalter „Linie | Produktion | Gesamte Kampagne“, „Linie“ erst ab zwei Linien; welche Linie, wählt das Linien-Dropdown). Auf der Kampagnenseite dieselbe Ansicht mit der Ebene Kampagne. Das Team sieht live und erfasst dort; Kunde und Gast sehen nur die letzte Report-Freigabe.
 _Avoid_: Reporting, Statistik, Live-Performance (das ist die Kachel der Kampagnenseite), Monatsauswertung
 
 **Report-Freigabe**:
-Das Team friert den Report einer Produktion für Kunde und Gast ein: Kennzahlen, Posts mit Werten und die Zusammenfassung. Kunde und Gast sehen immer die letzte Report-Freigabe, nie die Live-Daten. Die Linien-Sicht filtert sie; die Kampagnen-Sicht setzt sich aus den letzten Report-Freigaben ihrer Produktionen zusammen und hat nur eine eigene Zusammenfassung (ADR 0077).
+Das Team friert den Report einer Produktion für Kunde und Gast ein: Kennzahlen und Posts mit Werten. Kunde und Gast sehen immer die letzte Report-Freigabe, nie die Live-Daten. Die Linien-Sicht filtert sie; die Kampagnen-Sicht setzt sich aus den letzten Report-Freigaben ihrer Produktionen zusammen (ADR 0077). Aufschlüsselung und Zusammenfassung gibt es im Report nicht mehr; Creator, Ansatz und Plattform filtern die Post-Tabelle.
 _Avoid_: Freigabe (alleinstehend), Snapshot, Berichtsstand (das ist das Investor-Dashboard), Veröffentlichen (das tut der Creator mit dem Post)
 
 **Teams-Kanal**:
