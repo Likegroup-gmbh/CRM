@@ -9,6 +9,7 @@ import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { OHNE_KATEGORIE } from './castingKategorien.js';
 
 export function renderForm() {
+  if (this.mode === 'masterliste') return this.renderMasterlisteTab();
   const isDatabaseMode = this.mode === 'database';
   const creatorTypOptionsHtml = CREATOR_TYP_OPTIONS
     .map(typ => `<option value="${typ}">${typ}</option>`)
@@ -191,6 +192,11 @@ export function bindFormEvents() {
   const closeBtn = form?.querySelector('[data-action="close-drawer"]');
 
   closeBtn?.addEventListener('click', () => this.close());
+
+  if (this.mode === 'masterliste') {
+    this.bindMasterlisteTab();
+    return;
+  }
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();

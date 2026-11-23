@@ -44,6 +44,27 @@
   font-weight: 600;
 }
 
+.casting-masterliste-liste {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow: auto;
+  margin-top: var(--space-sm);
+}
+
+.casting-masterliste-zeile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.casting-masterliste-zeile.is-disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .masterliste-beschreibung {
   flex: 1 0 100%;
   margin: 0;
