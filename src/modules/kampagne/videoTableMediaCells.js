@@ -6,6 +6,7 @@ import { finalStills, stillsForVideoCell } from '../../core/stills/stillAssets.j
 import { STILL_FINAL_VARIANT } from '../../core/PromoteFinalAsset.js';
 import { toRawDropboxUrl, canPreviewImageAsset } from '../../core/VideoUploadUtils.js';
 import { istSharePoint } from '../../core/ablage/ablageLink.js';
+import { ordnerLinkHtml } from '../../core/ablage/ablageOrdnerLink.js';
 import { escapeHtml } from './videoTableFieldCells.js';
 const PLAY_ICON = `${icon('play-circle')}`;
 const FOLDER_ICON = `${icon('folder-open')}`;
@@ -106,7 +107,8 @@ export function renderContentCell(koop, video) {
   if (hasPlayable) {
     buttons.push(`<button type="button" class="external-link-btn media-action-btn play-btn" data-action="play-video" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Video abspielen">${PLAY_ICON}</button>`);
   } else if (folderUrl) {
-    buttons.push(`<a href="${folderUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Ordner öffnen">${FOLDER_ICON}</a>`);
+    const ordner = ordnerLinkHtml({ url: folderUrl, kooperationId: koop.id, inhalt: FOLDER_ICON, klasse: 'external-link-btn', titel: 'Ordner öffnen' });
+    if (ordner) buttons.push(ordner);
   }
 
   if (hasStorys) {

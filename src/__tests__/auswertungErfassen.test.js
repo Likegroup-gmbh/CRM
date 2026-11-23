@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CustomDatePicker } from '../core/components/CustomDatePicker.js';
-import { eintraegeAus, gefiltert, naechsterEintrag, zaehle } from '../modules/auswertung/auswertungArbeitsliste.js';
+import { tableSelect } from '../core/components/TableSelect.js';
+import { eintraegeAus, gefiltert, mitFixiertem, naechsterEintrag, zaehle } from '../modules/auswertung/auswertungArbeitsliste.js';
 import {
   bestaetigungsTeil, messWarnung, pflichtFehler, renderKennzahlFelder, zahlAusEingabe
 } from '../modules/auswertung/auswertungFormular.js';
@@ -51,6 +52,15 @@ describe('Arbeitsliste: Status, Sortierung, Filter', () => {
     const eintraege = eintraegeAus(modellAus([...EINHEITEN, einheit(5)], POSTS));
     expect(zaehle(eintraege)).toEqual({ alle: 5, pruefen: 2, fehlt: 1, erfasst: 1 });
     expect(gefiltert(eintraege, 'fehlt').map(e => e.key)).toEqual(['einheit:video:v5']);
+  });
+
+  it('fixierter Eintrag bleibt trotz Statuswechsel an seinem Platz', () => {
+    const eintraege = eintraegeAus(modellAus([...EINHEITEN, einheit(5)], POSTS));
+    const keys = (liste) => liste.map(e => e.key);
+    expect(keys(mitFixiertem(eintraege, { key: 'post:p1', index: 0 }))[0]).toBe('post:p1');
+    expect(keys(mitFixiertem(eintraege, { key: 'post:p1', index: 2 })).indexOf('post:p1')).toBe(2);
+    expect(mitFixiertem(eintraege, { key: 'gibt:es:nicht', index: 0 })).toBe(eintraege);
+    expect(mitFixiertem(eintraege, null)).toBe(eintraege);
   });
 
   it('nach dem Bestätigen: nächster Prüfen, sonst Fehlt', () => {
@@ -126,6 +136,23 @@ describe('Ansicht: Auswahl, Tastatur, Bestätigen & weiter', () => {
     input.value = '810';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     expect(input.closest('.erfassen-feld').classList.contains('is-unsicher')).toBe(false);
+  });
+
+  it('Plattform ist das eigene Dropdown, die Wahl tauscht die Kennzahlenfelder', () => {
+    ansicht = montiere({ einheiten: EINHEITEN, posts: POSTS });
+    const form = ansicht.form();
+    expect(form.querySelector('select')).toBeNull();
+    const wrapper = form.querySelector('[data-table-select][data-field="plattform"]');
+    tableSelect.init();
+    try {
+      wrapper.querySelector('.table-select__trigger').click();
+      document.querySelector('.table-select__portal [data-value="ig_story"]').click();
+      expect(form.querySelector('[name="plattform"]').value).toBe('ig_story');
+      expect(wrapper.querySelector('.table-select__label').textContent).toBe('Instagram-Story');
+      expect(form.querySelector('[data-kennzahl="exits"]')).not.toBeNull();
+    } finally {
+      tableSelect.destroy();
+    }
   });
 
   it('↓ wechselt zum nächsten Eintrag', () => {

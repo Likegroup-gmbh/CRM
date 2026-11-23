@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { openPersonaCreateDrawer, closePersonaCreateDrawer } from '../modules/persona/PersonaCreateDrawer.js';
 import { personaCreateRoute, readCreateScope } from '../modules/persona/personaCreateScope.js';
+import { FormSearchableSelect } from '../core/form/logic/FormSearchableSelect.js';
+import { OptionsManager } from '../core/form/data/OptionsManager.js';
 
 function thenable(rows) {
   const q = {
     eqs: [],
+    iss: [],
     select() { return q; },
     eq(col, val) { q.eqs.push([col, val]); return q; },
+    is(col, val) { q.iss.push([col, val]); return q; },
     in() { return q; },
     order() { return q; },
     maybeSingle() {
@@ -23,6 +27,7 @@ const tables = {
   unternehmen: [{ id: 'u1', firmenname: 'Hautica' }],
   marke: [{ id: 'm1', markenname: 'Clear' }],
   campaign_briefings: [{ id: 'b1', aktivierung_name: 'Sommer' }],
+  produkt: [{ id: 'p1', name: 'Case', unternehmen_id: 'u1' }],
   produkt_marke: [
     { produkt: { id: 'p1', name: 'Case', unternehmen_id: 'u1' } },
     { produkt: { id: 'p-other', name: 'Fremd', unternehmen_id: 'u9' } }
@@ -58,6 +63,15 @@ async function pick(id, value, until) {
   await until();
 }
 
+async function choose(id, label, until) {
+  const input = document.getElementById(id).parentNode.querySelector('.searchable-select-input');
+  input.dispatchEvent(new Event('focus'));
+  [...input.parentNode.querySelectorAll('.searchable-select-item')]
+    .find((el) => el.textContent.trim() === label)
+    .click();
+  await until();
+}
+
 describe('personaCreateRoute', () => {
   it('baut die drei Create-Routen', () => {
     const ids = { unternehmenId: 'u1', markeId: 'm1', briefingId: 'b1', produktId: 'p1' };
@@ -71,6 +85,18 @@ describe('personaCreateRoute', () => {
     expect(personaCreateRoute('liste', ids)).toBe('/persona/new?unternehmen=u1&marke=m1&briefing=b1');
     expect(personaCreateRoute('unternehmen', ids)).toBe('/unternehmen/u1/persona?marke=m1&briefing=b1');
     expect(personaCreateRoute('marke', ids)).toBe('/marke/m1/persona?briefing=b1');
+  });
+
+  it('baut die Routen auch ohne Marke', () => {
+    const ids = { unternehmenId: 'u1', markeId: null, briefingId: 'b1', produktId: 'p1' };
+    expect(personaCreateRoute('liste', ids)).toBe('/persona/new?unternehmen=u1&briefing=b1&produkt=p1');
+    expect(personaCreateRoute('unternehmen', ids)).toBe('/unternehmen/u1/persona?briefing=b1&produkt=p1');
+    expect(readCreateScope('?unternehmen=u1&briefing=b1')).toEqual({
+      unternehmenId: 'u1',
+      markeId: null,
+      briefingId: 'b1',
+      produktId: null
+    });
   });
 
   it('liest die Zuordnung ohne Produkt, aber nicht ohne Briefing', () => {
@@ -114,7 +140,7 @@ describe('PersonaCreateDrawer', () => {
     document.getElementById('persona-create-drawer')?.remove();
   });
 
-  it('ohne Unternehmen, Marke und Briefing kein Submit', async () => {
+  it('ohne Unternehmen und Briefing kein Submit', async () => {
     openPersonaCreateDrawer();
     await waitForOptions('pccreate-unternehmen', 'u1');
 
@@ -124,6 +150,22 @@ describe('PersonaCreateDrawer', () => {
     document.getElementById('pccreate-form').dispatchEvent(new Event('submit', { cancelable: true }));
     expect(window.navigateTo).not.toHaveBeenCalled();
     expect(window.toastSystem.show).toHaveBeenCalled();
+  });
+
+  it('Marke ist optional: ohne Marke geht es mit Unternehmen und Briefing weiter', async () => {
+    openPersonaCreateDrawer({ origin: 'liste' });
+    await waitForOptions('pccreate-unternehmen', 'u1');
+    expect(document.querySelector('label[for="pccreate-marke"]').textContent).not.toContain('*');
+
+    await pick('pccreate-unternehmen', 'u1', () => waitForOptions('pccreate-briefing', 'b1'));
+    const briefing = seen.filter((c) => c.table === 'campaign_briefings').at(-1);
+    expect(briefing.q.iss).toEqual(expect.arrayContaining([['marke_id', null]]));
+
+    await pick('pccreate-briefing', 'b1', () => waitForOptions('pccreate-produkt', 'p1'));
+    expect(document.getElementById('pccreate-submit').disabled).toBe(false);
+
+    document.getElementById('pccreate-submit').click();
+    expect(window.navigateTo).toHaveBeenCalledWith('/persona/new?unternehmen=u1&briefing=b1');
   });
 
   it('lädt Marke, Briefing und Produkt abhängig von der Vorstufe', async () => {
@@ -163,6 +205,22 @@ describe('PersonaCreateDrawer', () => {
     expect(document.getElementById('pccreate-submit').disabled).toBe(false);
     document.getElementById('pccreate-submit').click();
     expect(window.navigateTo).toHaveBeenCalledWith('/persona/new?unternehmen=u1&marke=m1&briefing=b1');
+  });
+
+  it('Markenwechsel lässt kein altes Briefing im Hidden-Input zurück', async () => {
+    window.formSystem = new FormSearchableSelect(new OptionsManager());
+    openPersonaCreateDrawer({ origin: 'liste' });
+    await waitForOptions('pccreate-unternehmen', 'u1');
+    await choose('pccreate-unternehmen', 'Hautica', () => waitForOptions('pccreate-marke', 'm1'));
+    await choose('pccreate-marke', 'Clear', () => waitForOptions('pccreate-briefing', 'b1'));
+    await choose('pccreate-briefing', 'Sommer', () => waitForOptions('pccreate-produkt', 'p1'));
+    expect(document.getElementById('pccreate-submit').disabled).toBe(false);
+
+    tables.campaign_briefings = [{ id: 'b2', aktivierung_name: 'Winter' }];
+    await choose('pccreate-marke', 'Clear', () => waitForOptions('pccreate-briefing', 'b2'));
+
+    expect(document.getElementById('pccreate-briefing_value').value).toBe('');
+    expect(document.getElementById('pccreate-submit').disabled).toBe(true);
   });
 
   it('leerer Briefing-Schnitt blockiert und verlinkt das Anlegen', async () => {

@@ -182,13 +182,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--space-xl);
+  height: var(--space-xl);
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--gray-500);
+  color: var(--gray-600);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
   position: relative;
@@ -200,9 +200,19 @@
   color: var(--gray-900);
 }
 
+/* Gleiche Groesse wie .nav-icon, damit der Button gleichwertig zu den Nav-Icons wirkt */
 .sidebar-toggle-btn svg {
-  width: 18px;
-  height: 18px;
+  width: var(--space-lm);
+  height: var(--space-lm);
+}
+
+.sidebar-toggle-static--open,
+.sidebar-collapsed .sidebar-toggle-static--close {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-toggle-static--open {
+  display: block;
 }
 
 .logo-image {
@@ -246,7 +256,9 @@
   display: none;
 }
 
+/* gap: 0, sonst schiebt der Abstand zum (unsichtbaren) Label das Icon aus der Mitte */
 .sidebar-collapsed .nav-link {
+  gap: 0;
   justify-content: center;
   padding: var(--space-xs);
   width: var(--space-xl);
@@ -256,6 +268,14 @@
 
 .sidebar-collapsed .nav-link::before {
   inset: 0;
+  border-radius: var(--radius-sm);
+}
+
+/* Hover wie beim Toggle-Button (.sidebar-toggle-btn:hover) */
+.sidebar-collapsed .nav-link:hover::before {
+  opacity: 1;
+  transform: none;
+  background: var(--gray-200);
 }
 
 .sidebar-collapsed .nav-icon {

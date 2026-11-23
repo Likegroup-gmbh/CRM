@@ -567,7 +567,7 @@ input.input-error {
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
+  
   color: var(--text-primary);
   font-family: inherit;
   font-size: var(--text-xs);
@@ -1034,6 +1034,10 @@ input.input-error {
   opacity: 0.45;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+.searchable-select-item.is-placeholder {
+  color: var(--text-secondary);
 }
 
 .searchable-select-item:hover {

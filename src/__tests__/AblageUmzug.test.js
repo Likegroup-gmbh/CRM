@@ -293,7 +293,7 @@ describe('Umzug Lauf', () => {
     expect(t.zeile().status).toBe('offen');
   });
 
-  it('Laeuferbedarf und Uebersicht', async () => {
+  it('Uebersicht', async () => {
     const t = setup({
       zeilen: [
         umzugZeile(),
@@ -303,8 +303,6 @@ describe('Umzug Lauf', () => {
         umzugZeile({ id: 'z5', asset_id: id(23), status: 'fehler' }),
       ],
     });
-    expect(await t.u.laeuferBedarf({ parallel: 2 })).toBe(1);
-    expect(await t.u.laeuferBedarf({ parallel: 5 })).toBe(2);
     expect(await t.u.uebersicht()).toEqual([{ unternehmen_id: U1, offen: 3, fertig: 1, fehler: 1, uebersprungen: 0 }]);
   });
 });

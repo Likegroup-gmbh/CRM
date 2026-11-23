@@ -11,6 +11,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderTabellenTag, renderMarkenBubbles } from '../../core/ui/tabellenZellen.js';
 import { replaceRoute } from '../../core/breadcrumbTrail.js';
 import { ProduktFilterLogic } from './filters/ProduktFilterLogic.js';
 import {
@@ -599,7 +600,6 @@ export class ProduktList extends BasePaginatedList {
   renderSingleRow(produkt, options = {}) {
     const showCheckbox = options.checkbox !== false && this.canBulkDelete;
     const sanitize = this.sanitize.bind(this);
-    const marken = this.renderMarken(produkt);
     const variantenAnzahl = (produkt.varianten || []).length;
     const verknuepfungen = this.verknuepfungenFuerLinie(produkt);
 
@@ -614,10 +614,10 @@ export class ProduktList extends BasePaginatedList {
           })}
         </td>
         <td>${this.renderUnternehmen(produkt.unternehmen)}</td>
-        <td>${marken}</td>
-        <td>${sanitize(ProduktService.preisLabel(produkt))}</td>
+        <td>${renderMarkenBubbles(produkt.marken)}</td>
+        <td>${renderTabellenTag(ProduktService.preisLabel(produkt), sanitize)}</td>
         <td>${variantenAnzahl > 0 ? variantenAnzahl : '-'}</td>
-        <td>${this._formatDate(produkt.created_at)}</td>
+        <td>${renderTabellenTag(this._formatDate(produkt.created_at), sanitize)}</td>
         <td>${renderVerknuepfungen(verknuepfungen.personas)}</td>
         <td>${renderVerknuepfungen(verknuepfungen.briefings)}</td>
         <td>${renderVerknuepfungen(verknuepfungen.skripte)}</td>
@@ -651,12 +651,6 @@ export class ProduktList extends BasePaginatedList {
       briefings: eigene.briefings.filter(b => b.id === briefingId),
       skripte: skriptLinks((produkt.skripte || []).filter(s => s?.briefing_id === briefingId))
     };
-  }
-
-  renderMarken(produkt) {
-    const namen = ProduktService.markenNamen(produkt);
-    if (!namen.length) return `<span class="text-muted">${NUR_UNTERNEHMEN_LABEL}</span>`;
-    return namen.map(name => `<span class="status-badge">${this.sanitize(name)}</span>`).join(' ');
   }
 
   renderUnternehmen(unternehmen) {

@@ -1467,6 +1467,10 @@ span.videoidee-struktur__lock {
   margin-bottom: 0;
 }
 
+#video-upload-drawer .export-hinweis {
+  margin: var(--space-md) var(--space-md) 0;
+}
+
 #video-upload-drawer .drawer-tab-nav {
   width: 100%;
   margin-bottom: 0;

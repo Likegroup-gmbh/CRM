@@ -8,7 +8,10 @@
 // videoPool, prefetcher, currentMedia(), download().
 
 import * as MediaCache from '../../MediaCache.js';
+import { resolveStreamUrl } from '../../mediaSrc.js';
 import { perfLog, mediaLog } from '../../mediaPerf.js';
+import { istSharePoint } from '../../../ablage/ablageLink.js';
+import { ablageLinkKlick } from '../../../ablage/ablageOrdnerLink.js';
 import { isRiskyFormat, lookupPath } from '../mediaIdentity.js';
 import { cachedSource, networkSource, fillBlobCache } from './sourceResolver.js';
 import { swapVideoSrc } from './swapVideoSrc.js';
@@ -49,6 +52,8 @@ export class StageController {
     const { session } = this.host;
     const token = ++this.token;
     this._cancelWatch();
+    session.ladeFehler = false;
+    session.linkErneuert = false;
     const media = this.host.currentMedia();
     if (!media) return;
 
@@ -71,6 +76,8 @@ export class StageController {
     MediaCache.pin(media.key);
     session.src = resolved;
     session.fallbackUrl = resolved;
+    // null heisst bei SharePoint meist Drosselung im Graph-$batch, nicht "keine Datei".
+    session.ladeFehler = !resolved && istSharePoint(media.lookup);
     session.loading = false;
     this.apply();
     perfLog('resolve', { hit: 'miss', key: media.key });
@@ -216,22 +223,61 @@ export class StageController {
     else video.addEventListener('playing', hide, { once: true });
   }
 
-  /** Fallback-Ansicht, wenn das Video-Element einen Fehler wirft (Codec/Container). */
+  /** "Erneut versuchen" nach einem Ladefehler: Link neu anfragen. */
+  retry() {
+    const { session } = this.host;
+    session.ladeFehler = false;
+    session.loading = true;
+    this.apply();
+    return this.show();
+  }
+
+  /**
+   * Fallback-Ansicht, wenn das Video-Element einen Fehler wirft (Codec/Container).
+   * SharePoint-Links laufen nach rund einer Stunde ab: vorher einmal frisch holen.
+   */
   onVideoError() {
     const stage = this.el();
     if (!stage) return;
     const { session, view } = this.host;
+    if (this._linkErneuerbar()) {
+      session.linkErneuert = true;
+      void this._linkErneuern(this.token);
+      return;
+    }
     const link = session.fallbackUrl || session.src;
     stage.innerHTML = view.renderUnplayable(link);
     const dl = stage.querySelector('.vpl-fallback-download');
     if (dl) dl.addEventListener('click', () => this.host.download());
   }
 
-  /** Hinweis + Fehler-Listener an ein frisch gerendertes Stage-Innere binden. */
+  _linkErneuerbar() {
+    const { session } = this.host;
+    if (session.linkErneuert || !session.src || session.src.startsWith('blob:')) return false;
+    return istSharePoint(this.host.currentMedia()?.lookup);
+  }
+
+  async _linkErneuern(token) {
+    const { session } = this.host;
+    const url = await resolveStreamUrl(this.host.currentMedia()?.lookup);
+    if (token !== this.token) return;
+    // Gleiche URL aus dem Cache: der Link war nicht abgelaufen, der Fehler liegt am Format.
+    if (!url || url === session.src) {
+      this.onVideoError();
+      return;
+    }
+    session.src = url;
+    session.fallbackUrl = url;
+    this.apply();
+  }
+
+  /** Hinweis, Fehler-Listener und Fallback-Knöpfe an ein frisch gerendertes Stage-Innere binden. */
   _bindStage(stage) {
     this.bindFormatHint(stage);
     const video = stage?.querySelector('video');
     if (video) video.addEventListener('error', () => this.onVideoError(), { once: true });
+    stage?.querySelector('.vpl-erneut')?.addEventListener('click', () => this.retry());
+    stage?.querySelectorAll('[data-action^="ablage-"]').forEach(b => b.addEventListener('click', ablageLinkKlick));
   }
 
   /**

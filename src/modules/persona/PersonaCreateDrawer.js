@@ -1,89 +1,16 @@
 // PersonaCreateDrawer.js
-// Rechter Create-Drawer. Kaskade: Unternehmen → Marke → Briefing, Produkt
-// optional. Submit legt nichts an, sondern öffnet das Worksheet mit dieser
+// Rechter Create-Drawer. Kaskade: Unternehmen → Marke (optional) → Briefing,
+// Produkt optional. Submit legt nichts an, sondern öffnet das Worksheet mit dieser
 // Zuordnung.
 
-import { applyFinalisiertFilter } from '../../core/finalisiert.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { personaCreateRoute } from './personaCreateScope.js';
+import { installPersonaCreateSelects } from './personaCreateSelects.js';
+import { loadUnternehmen, loadMarken, loadBriefings, loadProdukte, loadMarkeRow } from './personaCreateDaten.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DRAWER_ID = 'persona-create-drawer';
 const PREFIX = 'pccreate';
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-async function allowedIds(fn) {
-  const ids = await fn?.();
-  return ids ?? null;
-}
-
-async function loadUnternehmen() {
-  const allowed = await allowedIds(window.getAllowedUnternehmenIds);
-  if (allowed !== null && allowed.length === 0) return [];
-
-  let query = window.supabase.from('unternehmen').select('id, firmenname').order('firmenname');
-  if (allowed !== null) query = query.in('id', allowed);
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
-}
-
-async function loadMarken(unternehmenId) {
-  const allowed = await allowedIds(window.getAllowedMarkenIds);
-  if (allowed !== null && allowed.length === 0) return [];
-
-  let query = window.supabase
-    .from('marke')
-    .select('id, markenname')
-    .eq('unternehmen_id', unternehmenId)
-    .order('markenname');
-  if (allowed !== null) query = query.in('id', allowed);
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
-}
-
-async function loadBriefings(unternehmenId, markeId) {
-  let query = window.supabase
-    .from('campaign_briefings')
-    .select('id, aktivierung_name')
-    .eq('unternehmen_id', unternehmenId)
-    .eq('marke_id', markeId);
-  query = applyFinalisiertFilter(query, 'campaign_briefings')
-    .order('created_at', { ascending: false });
-  const { data, error } = await query;
-  if (error) throw error;
-  return data || [];
-}
-
-async function loadProdukte(unternehmenId, markeId) {
-  const { data, error } = await window.supabase
-    .from('produkt_marke')
-    .select('produkt:produkt_id(id, name, unternehmen_id)')
-    .eq('marke_id', markeId);
-  if (error) throw error;
-  return (data || [])
-    .map((row) => row.produkt)
-    .filter((produkt) => produkt && produkt.unternehmen_id === unternehmenId)
-    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'de'));
-}
-
-async function loadMarkeRow(markeId) {
-  const { data, error } = await window.supabase
-    .from('marke')
-    .select('id, markenname, unternehmen_id, unternehmen:unternehmen_id(firmenname)')
-    .eq('id', markeId)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
 
 export function openPersonaCreateDrawer(prefill = null) {
   document.getElementById(`${DRAWER_ID}-overlay`)?.remove();
@@ -164,7 +91,7 @@ class PersonaCreateDrawer {
       <div class="drawer-header">
         <div>
           <span class="drawer-title">Neue Persona</span>
-          <p class="drawer-subtitle">Unternehmen, Marke und Briefing</p>
+          <p class="drawer-subtitle">Unternehmen und Briefing, optional Marke</p>
         </div>
         <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
       </div>
@@ -175,13 +102,13 @@ class PersonaCreateDrawer {
             <select id="${PREFIX}-unternehmen" class="form-input"><option value="">Laden...</option></select>
           </div>
           <div class="form-field">
-            <label for="${PREFIX}-marke">Marke *</label>
+            <label for="${PREFIX}-marke">Marke</label>
             <select id="${PREFIX}-marke" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
             <p class="form-hint" id="${PREFIX}-marke-hint" hidden></p>
           </div>
           <div class="form-field">
             <label for="${PREFIX}-briefing">Briefing *</label>
-            <select id="${PREFIX}-briefing" class="form-input" disabled><option value="">– Erst Marke wählen –</option></select>
+            <select id="${PREFIX}-briefing" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
             <p class="form-hint" id="${PREFIX}-briefing-hint" hidden></p>
           </div>
           <div class="form-field">
@@ -226,96 +153,22 @@ class PersonaCreateDrawer {
     });
   }
 
-  refreshSearchableSelect(name, options, { placeholder, emptyLabel }) {
-    const select = this.el(name);
-    if (!select) return;
-    const current = select.value;
-    select.innerHTML = `<option value="">${emptyLabel}</option>`
-      + options.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('');
-    if (current && [...select.options].some((o) => o.value === current)) select.value = current;
-    if (!window.formSystem?.createSimpleSearchableSelect) return;
-    window.formSystem.createSimpleSearchableSelect(select, [
-      { value: '', label: emptyLabel },
-      ...options.map((o) => ({ ...o, selected: o.value === select.value }))
-    ], { placeholder });
-  }
-
-  setSearchableValue(name, value) {
-    const select = this.el(name);
-    if (!select) return;
-    select.value = value || '';
-    const label = select.selectedOptions[0]?.textContent || '';
-    const wrap = select.parentNode?.querySelector('.searchable-select-container');
-    const hidden = wrap?.querySelector('input[type="hidden"]');
-    const input = wrap?.querySelector('.searchable-select-input');
-    if (hidden) hidden.value = value || '';
-    if (input) input.value = value ? label : '';
-  }
-
-  ensureOption(name, value, label) {
-    const select = this.el(name);
-    if (!select || !value) return;
-    if ([...select.options].some((o) => o.value === value)) return;
-    const opt = document.createElement('option');
-    opt.value = value;
-    opt.textContent = label || value;
-    select.appendChild(opt);
-  }
-
-  lockSearchable(name) {
-    const select = this.el(name);
-    if (!select) return;
-    select.disabled = true;
-    const wrap = select.parentNode?.querySelector('.searchable-select-container');
-    const input = wrap?.querySelector('.searchable-select-input');
-    if (input) {
-      input.disabled = true;
-      input.readOnly = true;
-    }
-    wrap?.classList.add('prefilled-locked');
-    select.closest('.form-field')?.classList.add('form-field--prefilled');
-  }
-
-  setHint(name, message, { html = false } = {}) {
-    const hint = this.el(`${name}-hint`);
-    if (!hint) return;
-    if (!message) {
-      hint.hidden = true;
-      hint.textContent = '';
-      return;
-    }
-    hint.hidden = false;
-    if (html) hint.innerHTML = message;
-    else hint.textContent = message;
-  }
-
-  value(name) {
-    const select = this.el(name);
-    if (!select) return '';
-    const hidden = select.parentNode?.querySelector(
-      `.searchable-select-container input[type="hidden"][name="${name}"], .searchable-select-container input[type="hidden"]`
-    );
-    return select.value || hidden?.value || '';
-  }
-
   syncSubmit() {
     const btn = this.el('submit');
     if (!btn) return;
-    btn.disabled = !(this.value('unternehmen') && this.value('marke') && this.value('briefing'));
+    btn.disabled = !(this.value('unternehmen') && this.value('briefing'));
   }
 
   initDisabledDependents() {
     this.resetSelect('marke', '– Erst Unternehmen wählen –');
-    this.resetSelect('briefing', '– Erst Marke wählen –');
+    this.resetSelect('briefing', '– Erst Unternehmen wählen –');
     this.resetSelect('produkt', '– Erst Briefing wählen –');
   }
 
   resetSelect(name, emptyLabel) {
+    this.setSearchableValue(name, '');
     const select = this.el(name);
-    if (select) {
-      select.disabled = true;
-      select.value = '';
-    }
+    if (select) select.disabled = true;
     this.refreshSearchableSelect(name, [], {
       placeholder: `${name} suchen…`,
       emptyLabel
@@ -340,11 +193,12 @@ class PersonaCreateDrawer {
     await this.onUnternehmenChange();
     this.lockSearchable('unternehmen');
 
-    if (!prefill.marke_id) return;
-    this.ensureOption('marke', prefill.marke_id, prefill.markeName);
-    this.setSearchableValue('marke', prefill.marke_id);
-    await this.onMarkeChange();
-    this.lockSearchable('marke');
+    if (prefill.marke_id) {
+      this.ensureOption('marke', prefill.marke_id, prefill.markeName);
+      this.setSearchableValue('marke', prefill.marke_id);
+      await this.onMarkeChange();
+      this.lockSearchable('marke');
+    }
 
     if (!prefill.briefing_id) return;
     this.ensureOption('briefing', prefill.briefing_id, prefill.briefingName);
@@ -359,14 +213,15 @@ class PersonaCreateDrawer {
 
   async onUnternehmenChange() {
     this.resetSelect('marke', '– Erst Unternehmen wählen –');
-    this.resetSelect('briefing', '– Erst Marke wählen –');
+    this.resetSelect('briefing', '– Erst Unternehmen wählen –');
     this.resetSelect('produkt', '– Erst Briefing wählen –');
     await this.loadMarkenOptions();
+    await this.loadBriefingOptions();
     this.syncSubmit();
   }
 
   async onMarkeChange() {
-    this.resetSelect('briefing', '– Erst Marke wählen –');
+    this.resetSelect('briefing', '– Erst Unternehmen wählen –');
     this.resetSelect('produkt', '– Erst Briefing wählen –');
     await this.loadBriefingOptions();
     this.syncSubmit();
@@ -401,18 +256,18 @@ class PersonaCreateDrawer {
       label: m.markenname
     })), {
       placeholder: 'Marke suchen…',
-      emptyLabel: rows.length ? '– Marke wählen –' : '– Keine Marke vorhanden –'
+      emptyLabel: rows.length ? '– Keine Marke –' : '– Keine Marke vorhanden –'
     });
-    this.setHint('marke', rows.length ? '' : 'Keine Marke für dieses Unternehmen.');
+    this.setHint('marke', rows.length ? '' : 'Keine Marke für dieses Unternehmen. Das ist in Ordnung, die Persona wird ohne Marke angelegt.');
   }
 
   async loadBriefingOptions() {
     const unternehmenId = this.value('unternehmen');
-    const markeId = this.value('marke');
+    const markeId = this.value('marke') || null;
     const select = this.el('briefing');
     if (!select) return;
-    if (!unternehmenId || !markeId) {
-      this.resetSelect('briefing', '– Erst Marke wählen –');
+    if (!unternehmenId) {
+      this.resetSelect('briefing', '– Erst Unternehmen wählen –');
       return;
     }
 
@@ -434,10 +289,11 @@ class PersonaCreateDrawer {
     });
 
     if (!rows.length) {
-      const params = new URLSearchParams({ unternehmen: unternehmenId, marke: markeId });
+      const params = new URLSearchParams({ unternehmen: unternehmenId });
+      if (markeId) params.set('marke', markeId);
       this.setHint(
         'briefing',
-        `Kein finalisiertes Briefing für diese Marke. <a href="/briefing/new?${params}">Briefing anlegen</a>`,
+        `Kein finalisiertes Briefing ${markeId ? 'für diese Marke' : 'ohne Marke'}. <a href="/briefing/new?${params}">Briefing anlegen</a>`,
         { html: true }
       );
       this.el('briefing-hint')?.querySelector('a')?.addEventListener('click', (e) => {
@@ -452,11 +308,11 @@ class PersonaCreateDrawer {
 
   async loadProduktOptions() {
     const unternehmenId = this.value('unternehmen');
-    const markeId = this.value('marke');
+    const markeId = this.value('marke') || null;
     const briefingId = this.value('briefing');
     const select = this.el('produkt');
     if (!select) return;
-    if (!unternehmenId || !markeId || !briefingId) {
+    if (!unternehmenId || !briefingId) {
       this.resetSelect('produkt', '– Erst Briefing wählen –');
       return;
     }
@@ -475,18 +331,18 @@ class PersonaCreateDrawer {
       label: p.name || 'Produkt'
     })), {
       placeholder: 'Produkt suchen…',
-      emptyLabel: rows.length ? '– Kein Produkt –' : '– Kein Produkt dieser Marke –'
+      emptyLabel: rows.length ? '– Kein Produkt –' : '– Kein Produkt vorhanden –'
     });
-    this.setHint('produkt', rows.length ? '' : 'Kein Produkt dieser Marke. Die Persona lässt sich trotzdem anlegen.');
+    this.setHint('produkt', rows.length ? '' : 'Kein Produkt gefunden. Die Persona lässt sich trotzdem anlegen.');
   }
 
   submit() {
     const unternehmenId = this.value('unternehmen');
-    const markeId = this.value('marke');
+    const markeId = this.value('marke') || null;
     const briefingId = this.value('briefing');
     const produktId = this.value('produkt') || null;
-    if (!unternehmenId || !markeId || !briefingId) {
-      window.toastSystem?.show?.('Unternehmen, Marke und Briefing sind Pflicht', 'error');
+    if (!unternehmenId || !briefingId) {
+      window.toastSystem?.show?.('Unternehmen und Briefing sind Pflicht', 'error');
       this.syncSubmit();
       return;
     }
@@ -501,3 +357,5 @@ class PersonaCreateDrawer {
     window.navigateTo?.(route);
   }
 }
+
+installPersonaCreateSelects(PersonaCreateDrawer.prototype);

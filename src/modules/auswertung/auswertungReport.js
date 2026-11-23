@@ -1,12 +1,10 @@
 // auswertungReport.js
-// Report-Ansicht (Spec 5) im Stil des Budget-Tabs: Kopf mit Lead-Satz, Kennzahlen mit
-// Formel-Hinweis, Aufschlüsselung neben der Zusammenfassung und die Post-Tabelle. Zahlen mit data-count zählen beim Wechsel hoch.
+// Report-Ansicht (Spec 5) im Stil des Budget-Tabs: Kennzahlen mit Formel-Hinweis und darunter die
+// Post-Tabelle mit ihren Filtern. Zahlen mit data-count zählen beim Wechsel hoch.
 
 import { renderCardHintHtml } from '../../core/budget/cardHints.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { esc, euro, kompakt, plural, prozent, wertNachArt } from './auswertungFormat.js';
-import { renderDiagramm } from './auswertungDiagramm.js';
-import { renderZusammenfassung } from './auswertungZusammenfassung.js';
 import { renderTabelle } from './auswertungTabelle.js';
 
 // `leer`: Unterzeile, solange noch kein Post bestätigt ist
@@ -116,20 +114,12 @@ function leer(team) {
  * Inhalt unter den Unterreitern für die Report-Ansicht. Ohne bestätigten Post sieht das Team schon
  * Kacheln und alle möglichen Posts, nur ohne Zahlen.
  * @param {object} modell - baueModell
- * @param {{ auswahl?: object, sort?: object, team?: boolean, zeigeKosten?: boolean }} opts
+ * @param {{ sort?: object, filter?: object, team?: boolean, zeigeKosten?: boolean }} opts
  */
-export function renderReport(modell, { auswahl = {}, sort, team = false, zeigeKosten = false } = {}) {
-  if (!modell.fortschritt.bestaetigt) {
-    if (!team || !modell.einheiten.length) return leer(team);
-    return `
-      ${renderKennzahlen(modell, { zeigeKosten, leer: true })}
-      <section class="auswertung-posts" data-auswertung-tabelle>${renderTabelle(modell, { sort, team })}</section>`;
-  }
+export function renderReport(modell, { sort, filter, team = false, zeigeKosten = false } = {}) {
+  const bestaetigt = modell.fortschritt.bestaetigt > 0;
+  if (!bestaetigt && (!team || !modell.einheiten.length)) return leer(team);
   return `
-    ${renderKennzahlen(modell, { zeigeKosten })}
-    <div class="auswertung-raster">
-      <section class="auswertung-diagramm" data-auswertung-diagramm>${renderDiagramm(modell, auswahl)}</section>
-      <section class="auswertung-zusammenfassung">${renderZusammenfassung(modell, { team })}</section>
-    </div>
-    <section class="auswertung-posts" data-auswertung-tabelle>${renderTabelle(modell, { sort, team })}</section>`;
+    ${renderKennzahlen(modell, { zeigeKosten, leer: !bestaetigt })}
+    <section class="auswertung-posts" data-auswertung-tabelle>${renderTabelle(modell, { sort, filter, team })}</section>`;
 }

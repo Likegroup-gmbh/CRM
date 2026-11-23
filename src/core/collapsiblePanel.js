@@ -28,8 +28,8 @@ export function bindCollapsible({
   const apply = (collapsed) => {
     root.classList.toggle(collapsedClass, collapsed);
     toggleBtn.innerHTML = collapsed
-      ? icon('arrows-expand-diagonal')
-      : icon('arrows-expand');
+      ? icon('panel-left-open')
+      : icon('panel-left-close');
     toggleBtn.title = collapsed ? titles.collapsed : titles.expanded;
     toggleBtn.setAttribute('aria-expanded', String(!collapsed));
     toggleBtn.setAttribute('aria-label', toggleBtn.title);

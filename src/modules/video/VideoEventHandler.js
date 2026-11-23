@@ -1,6 +1,8 @@
 // VideoEventHandler.js
 // Event-Binding fuer VideoList: View-Toggle, Folder-Clicks, Navigation, Drag-to-Scroll
 
+import { ablageLinkKlick } from '../../core/ablage/ablageOrdnerLink.js';
+
 const TABLE_ROUTES = {
   video: (id) => `/video/${id}`,
   kooperation: (id) => `/kooperation/${id}`,
@@ -164,6 +166,7 @@ export class VideoEventHandler {
 
   _bindTableLinks() {
     const handler = (e) => {
+      if (ablageLinkKlick(e)) return;
       const link = e.target.closest('.table-link[data-table]');
       if (!link) return;
       e.preventDefault();

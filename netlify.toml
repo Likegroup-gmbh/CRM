@@ -116,15 +116,16 @@
 [functions."poster-abgleich"]
   schedule = "*/5 * * * *"
 
-# Medienablage (SharePoint): Sicherheitsnetz fuer den Webhook. Jede Minute Abo pruefen und
-# ablage-abgleich-background anstossen (Scheduled Functions haben nur 30 s)
+# Medienablage (SharePoint): Sicherheitsnetz fuer den Webhook. Alle 5 Minuten Abo pruefen und
+# ablage-abgleich-background anstossen (Scheduled Functions haben nur 30 s). Jeder Lauf kostet
+# rund 17 DB-Calls; der Webhook ist der Hauptweg, Meldungen waehrend eines Laufs holt der Lauf nach.
 [functions."ablage-zeitplan"]
-  schedule = "* * * * *"
+  schedule = "*/5 * * * *"
 
 # Teams-Meldungen (ADR 0066): Sicherheitsnetz fuer den Anstoss aus dem Browser und
 # Wiederholungen nach Fehlern
 [functions."teams-meldung-zeitplan"]
-  schedule = "* * * * *"
+  schedule = "*/5 * * * *"
 
 [functions."teams-meldung-senden"]
   timeout = 26

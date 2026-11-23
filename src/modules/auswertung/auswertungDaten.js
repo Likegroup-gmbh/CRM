@@ -17,7 +17,7 @@ function frisch(key) {
   return eintrag.promise;
 }
 
-async function lade({ kampagneId, produktion, ebene }) {
+async function ladeEinmal({ kampagneId, produktion, ebene }) {
   const produktionId = ebene === 'kampagne' ? null : produktion?.id || null;
   const [roh, posts] = await Promise.all([
     ladeEinheiten({ kampagneId, produktion, ebene }),
@@ -25,6 +25,24 @@ async function lade({ kampagneId, produktion, ebene }) {
   ]);
   // Ziel Aufrufe kommt aus dem Briefing, sobald es dort ein Feld gibt
   return { ...roh, posts, zielFuer: () => null };
+}
+
+const PAUSEN_MS = [400, 1200];
+
+/**
+ * Der Report liest viele Tabellen in einem Rutsch; ein einzelner Aussetzer (Netz, Token-Wechsel,
+ * 5xx) soll nicht als „Inhalt konnte nicht geladen werden“ enden. Zweimal nachfassen, dann Fehler.
+ */
+async function lade(scope) {
+  for (let versuch = 0; ; versuch += 1) {
+    try {
+      return await ladeEinmal(scope);
+    } catch (error) {
+      if (versuch >= PAUSEN_MS.length) throw error;
+      console.warn(`Auswertung: Laden fehlgeschlagen, neuer Versuch ${versuch + 2}`, error?.message || error);
+      await new Promise(resolve => setTimeout(resolve, PAUSEN_MS[versuch]));
+    }
+  }
 }
 
 /**

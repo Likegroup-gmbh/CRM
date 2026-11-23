@@ -4,12 +4,10 @@ import {
   einheitStatus,
   engagementRate,
   fortschritt,
-  gruppiere,
   interaktionen,
   messTage,
   topPosts
 } from '../modules/auswertung/auswertungKennzahlen.js';
-import { zusammenfassungsFakten } from '../modules/auswertung/auswertungFakten.js';
 
 const post = (id, plattform, metrics, extra = {}) => ({
   id, einheitId: extra.einheitId || `e-${id}`, plattform, metrics, status: 'confirmed', ...extra
@@ -110,39 +108,5 @@ describe('Status der Einheiten', () => {
     expect(einheitStatus({ erwartet: false }, [])).toBe('optional');
     expect(einheitStatus({ erwartet: true }, [])).toBe('fehlt');
     expect(einheitStatus({ erwartet: true }, [{ status: 'draft' }])).toBe('pruefen');
-  });
-});
-
-describe('Aufschlüsselung', () => {
-  const einheiten = new Map([
-    ['e1', { id: 'e1', tags: { persona: ['Pendlerin'] }, creator: { id: 'c1', name: 'Katrin' } }],
-    ['e2', { id: 'e2', tags: { persona: [] }, creator: { id: 'c2', name: 'Jonas' } }]
-  ]);
-  const posts = [
-    post('a', 'tiktok', { views: 300 }, { einheitId: 'e1' }),
-    post('b', 'tiktok', { views: 900 }, { einheitId: 'e2' })
-  ];
-
-  it('legt Posts ohne Persona-Tag in den Eimer „Ohne Persona“', () => {
-    const gruppen = gruppiere(posts, einheiten, 'persona', 'aufrufe');
-    expect(gruppen.map(g => [g.label, g.wert])).toEqual([['Ohne Persona', 900], ['Pendlerin', 300]]);
-    expect(gruppen[0].leer).toBe(true);
-  });
-
-  it('lässt bei Ø Wiedergabe Gruppen ohne Wert weg', () => {
-    expect(gruppiere(posts, einheiten, 'creator', 'wiedergabe')).toEqual([]);
-  });
-});
-
-describe('Fakten der Zusammenfassung', () => {
-  it('nennt erst ab drei bestätigten Posts etwas', () => {
-    const wenige = [post('a', 'tiktok', { views: 1 }), post('b', 'tiktok', { views: 2 })];
-    expect(zusammenfassungsFakten(wenige, new Map())).toEqual([]);
-  });
-
-  it('rechnet den Anteil des stärksten Posts aus den Zahlen', () => {
-    const posts = [100, 100, 200].map((v, i) => post(`p${i}`, 'tiktok', { views: v }));
-    const [fakt] = zusammenfassungsFakten(posts, new Map());
-    expect(fakt).toMatchObject({ art: 'staerksterPost', postId: 'p2', anteil: 0.5 });
   });
 });

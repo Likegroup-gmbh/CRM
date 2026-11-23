@@ -1,11 +1,9 @@
 // auswertungModell.js
 // Alles, was der Report für eine Sicht braucht, aus Einheiten und Posts: Ausschnitt nach Ebene
-// und Linie, Kennzahlen, Fortschritt, Fakten der Zusammenfassung und offene Einheiten fürs Team.
+// und Linie, Kennzahlen, Fortschritt und offene Einheiten fürs Team.
 // Rein, damit Produktions-Tab und Kampagnenseite dasselbe Modell rechnen.
 
-import { AUFSCHLUESSELUNGEN } from './auswertungKonfig.js';
 import { berechneKennzahlen, einheitStatus, fortschritt, postsJeEinheit, topPosts } from './auswertungKennzahlen.js';
-import { zusammenfassungsFakten } from './auswertungFakten.js';
 import { einheitInLinie, verbrauchFuer } from './auswertungEinheiten.js';
 
 function ebeneLabel({ ebene, produktion, linie, linienAnzahl }) {
@@ -18,13 +16,14 @@ function ebeneLabel({ ebene, produktion, linie, linienAnzahl }) {
 /**
  * @param {{ einheiten: object[], posts: object[], verbrauch: object[], produktionen: object[],
  *   zielFuer?: (posts: object[]) => number|null }} basis
- * @param {{ ebene: 'produktion'|'kampagne', produktionId?: string|null, linieId?: string|null }} sicht
+ * @param {{ ebene: 'linie'|'produktion'|'kampagne', produktionId?: string|null, linieId?: string|null }} sicht
+ *   `linieId` filtert nur auf Ebene Linie; ist sie unbekannt, gilt die ganze Produktion.
  */
 export function baueModell(basis, { ebene, produktionId = null, linieId = null }) {
   const kampagne = ebene === 'kampagne';
   const produktion = (basis.produktionen || []).find(p => p.id === produktionId) || null;
   const linien = produktion?.linien || [];
-  const linie = !kampagne && linieId ? linien.find(l => l.id === linieId) || null : null;
+  const linie = ebene === 'linie' && linieId ? linien.find(l => l.id === linieId) || null : null;
   const aktiveLinie = linie ? linie.id : null;
 
   const einheiten = (basis.einheiten || [])
@@ -47,7 +46,6 @@ export function baueModell(basis, { ebene, produktionId = null, linieId = null }
   const pruefen = posts.filter(p => p.status !== 'confirmed');
 
   const mitLinien = !kampagne && !aktiveLinie && linien.length > 1;
-  const aufschluesselungen = AUFSCHLUESSELUNGEN.filter(a => (!a.nurMitLinien || mitLinien) && (!a.nurKampagne || kampagne));
 
   return {
     ebene,
@@ -55,16 +53,15 @@ export function baueModell(basis, { ebene, produktionId = null, linieId = null }
     produktion,
     linie,
     titel: ebeneLabel({ ebene, produktion, linie, linienAnzahl: linien.length }),
+    mitLinien,
     einheiten,
     einheitenById,
     posts,
     kennzahlen,
     fortschritt: fortschritt(einheiten, posts),
-    fakten: zusammenfassungsFakten(posts, einheitenById),
     top: topPosts(posts),
     fehlend,
     optional,
-    pruefen,
-    aufschluesselungen
+    pruefen
   };
 }

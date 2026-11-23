@@ -254,6 +254,12 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   border-radius: var(--radius-md);
 }
 
+.vb-col__foot .export-hinweis {
+  padding: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  font-size: var(--text-xs);
+}
+
 .vb-col__head {
   display: flex;
   align-items: center;

@@ -39,7 +39,7 @@ describe('bindCollapsible', () => {
     expect(panel.isCollapsed()).toBe(false);
     expect(toggleBtn.getAttribute('aria-expanded')).toBe('true');
     expect(toggleBtn.title).toBe('Navigation verkleinern');
-    expect(toggleBtn.innerHTML).toContain('arrows-expand');
+    expect(toggleBtn.innerHTML).toContain('panel-left-close');
 
     panel.toggle();
 
@@ -48,7 +48,7 @@ describe('bindCollapsible', () => {
     expect(toggleBtn.getAttribute('aria-expanded')).toBe('false');
     expect(toggleBtn.title).toBe('Navigation einblenden');
     expect(toggleBtn.getAttribute('aria-label')).toBe('Navigation einblenden');
-    expect(toggleBtn.innerHTML).toContain('arrows-expand-diagonal');
+    expect(toggleBtn.innerHTML).toContain('panel-left-open');
 
     panel.toggle();
 
@@ -71,7 +71,7 @@ describe('bindCollapsible', () => {
     panel.restore();
 
     expect(panel.isCollapsed()).toBe(true);
-    expect(toggleBtn.innerHTML).toContain('arrows-expand-diagonal');
+    expect(toggleBtn.innerHTML).toContain('panel-left-open');
   });
 
   it('restore ohne Pref laesst den aktuellen Zustand', () => {

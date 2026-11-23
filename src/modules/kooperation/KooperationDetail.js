@@ -1,7 +1,7 @@
 // KooperationDetail.js (ES6-Modul)
 // Kooperations-Detailseite – migriert auf PersonDetailBase (Standard-Layout)
-import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { kooperationVersandManager } from './VersandManager.js';
+import { renderKooperationVideos } from './kooperationVideosTab.js';
 import { TaskKanbanBoard } from '../tasks/TaskKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
@@ -14,9 +14,9 @@ import {
   createEmptyVideoFeedbackComments,
   getVideoFeedbackBucket,
   isMissingFeedbackTypeError,
-  VIDEO_FEEDBACK_LEGACY_SELECT,
-  VIDEO_FEEDBACK_FIELDS
+  VIDEO_FEEDBACK_LEGACY_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
+import { ablageLinkKlick } from '../../core/ablage/ablageOrdnerLink.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 import { navigateBack, trailProduktion } from '../../core/breadcrumbTrail.js';
 
@@ -620,132 +620,7 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   renderVideos() {
-    if (!this.videos || this.videos.length === 0) {
-      return renderEmptyState({
-        icon: 'film',
-        title: 'Keine Videos angelegt',
-        text: 'Videos werden automatisch beim Erstellen/Bearbeiten der Kooperation generiert.'
-      });
-    }
-
-    const isKundeRole = window.isKunde();
-
-    const rows = this.videos.map(v => {
-      const formatList = (arr) => {
-        if (!arr || arr.length === 0) return '-';
-        return arr.map(c => {
-          const date = c.created_at ? new Date(c.created_at).toLocaleDateString('de-DE') : '';
-          const author = c.author_name || '';
-          const text = this.sanitize(c.text || '');
-          return `<div class="fb-line"><span class="fb-meta">${author}${date ? ' • ' + date : ''}</span><div class="fb-text">${text}</div></div>`;
-        }).join('');
-      };
-
-      const isKunde = window.isKunde();
-      const isAdmin = window.isAdmin();
-
-      const menu = `
-        <div class="actions-dropdown-container" data-entity-type="kooperation_videos">
-          <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-            ${icon('dots-vertical-filled')}
-          </button>
-          <div class="actions-dropdown">
-            ${!isKunde ? `
-            <div class="action-submenu">
-              <a href="#" class="action-item has-submenu" data-submenu="status">
-                ${actionsDropdown.getHeroIcon('invoice')}
-                <span>Status ändern</span>
-              </a>
-              <div class="submenu" data-submenu="status">
-                <a href="#" class="submenu-item" data-action="set-field" data-field="status" data-value="produktion" data-id="${v.id}">
-                  ${actionsDropdown.getStatusIcon('Strategiebriefing')}
-                  <span>Produktion</span>
-                  ${(v.status || 'produktion') === 'produktion' ? '<span class="submenu-check">✓</span>' : ''}
-                </a>
-                <a href="#" class="submenu-item" data-action="set-field" data-field="status" data-value="abgeschlossen" data-id="${v.id}">
-                  ${actionsDropdown.getHeroIcon('check')}
-                  <span>Abgeschlossen</span>
-                  ${v.status === 'abgeschlossen' ? '<span class="submenu-check">✓</span>' : ''}
-                </a>
-              </div>
-            </div>
-            ` : ''}
-            <a href="#" class="action-item" data-action="video-view" data-id="${v.id}">
-              ${icon('eye-outline', { className: 'size-6' })}
-              Details ansehen
-            </a>
-            ${!isKunde ? `
-            <a href="#" class="action-item" data-action="video-edit" data-id="${v.id}">
-              ${icon('pencil-square', { className: 'size-6' })}
-              Bearbeiten
-            </a>
-            ` : ''}
-            ${isAdmin ? `
-            <div class="action-separator"></div>
-            <a href="#" class="action-item action-danger" data-action="video-delete" data-id="${v.id}">
-              ${icon('trash-alt', { className: 'size-6' })}
-              Löschen
-            </a>
-            ` : ''}
-          </div>
-        </div>`;
-
-      const vkFormatted = v.verkaufspreis_netto != null ? parseFloat(v.verkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
-      const ekFormatted = v.einkaufspreis_netto != null ? parseFloat(v.einkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
-      const skriptDeadlineFormatted = v.skript_deadline ? new Date(v.skript_deadline).toLocaleDateString('de-DE') : '-';
-      const contentDeadlineFormatted = v.content_deadline ? new Date(v.content_deadline).toLocaleDateString('de-DE') : '-';
-
-      return `
-        <tr>
-          <td>${v.position || '-'}</td>
-          <td>${this.sanitize(v.kampagnenart || '-')}</td>
-          <td>${this.sanitize(v.content_art || '-')}</td>
-          <td>${skriptDeadlineFormatted}</td>
-          <td>${contentDeadlineFormatted}</td>
-          <td class="text-right">${vkFormatted}</td>
-          ${!isKundeRole ? `<td class="text-right">${ekFormatted}</td>` : ''}
-          <td>
-            ${v.folder_url
-              ? `<a href="${v.folder_url}" target="_blank" rel="noopener">Ordner öffnen</a>`
-              : (v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${this.sanitize(v.titel)}</a>` : '-')}
-            ${v.currentAsset ? `<span class="version-badge koop-version-badge">V${v.currentAsset.version_number || 1}</span>` : ''}
-          </td>
-          ${VIDEO_FEEDBACK_FIELDS.map(slot => `<td class="feedback-cell">${formatList(v.feedback?.[slot.bucket])}</td>`).join('')}
-          <td><span class="status-badge status-${(v.status || 'produktion').toLowerCase()}">${v.status === 'abgeschlossen' ? 'Abgeschlossen' : 'Produktion'}</span></td>
-          <td>${menu}</td>
-        </tr>`;
-    }).join('');
-
-    return `
-      ${actionsHtml}
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Kampagnenart</th>
-              <th>Content Art</th>
-              <th>Skript Deadline</th>
-              <th>Content Deadline</th>
-              <th class="text-right">VK Netto</th>
-              ${!isKundeRole ? '<th class="text-right">EK Netto</th>' : ''}
-              <th>URL</th>
-              ${VIDEO_FEEDBACK_FIELDS.map(slot => `<th>${slot.label}</th>`).join('')}
-              <th>Status</th>
-              <th>Aktion</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-          <tfoot>
-            <tr>
-              <td colspan="3" class="u-text-right fw-semibold">Gesamt VK Netto:</td>
-              <td class="text-right fw-semibold">${(this.videos || []).reduce((s, v) => s + (parseFloat(v.verkaufspreis_netto) || 0), 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</td>
-              <td colspan="${!isKundeRole ? '10' : '9'}"></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    `;
+    return renderKooperationVideos(this);
   }
 
   renderVersand() {
@@ -829,6 +704,8 @@ export class KooperationDetail extends PersonDetailBase {
   // ============================================
 
   async _handleDocumentClick(e) {
+    if (ablageLinkKlick(e)) return;
+
     // Tab-Button (robust via closest)
     const tab = getSecondaryNavTabFromEvent(e);
     if (tab) {

@@ -1,7 +1,11 @@
-// Klickbare Verknüpfungs-Stapel für die Standard-Tabellen.
-// Darstellung (Pill mit Entity-Icon) liegt in verknuepfungPill.js.
+// Klickbare Verknüpfungen für die Standard-Tabellen.
+// Darstellung (Pill mit Entity-Icon) liegt in verknuepfungPill.js,
+// der Chip mit Popover ab zwei Einträgen in verknuepfungDropdown.js.
 
 import { renderVerknuepfungPill, renderVerknuepfungStack } from './verknuepfungPill.js';
+import { renderVerknuepfungDropdown } from './verknuepfungDropdown.js';
+
+const DROPDOWN_AB = 2;
 
 const ROUTE_PREFIX = {
   briefing: '/briefing',
@@ -38,19 +42,25 @@ export function ensureVerknuepfungClicks() {
   });
 }
 
-export function renderVerknuepfungen(items) {
+/**
+ * Eine Verknuepfung als Pill, ab DROPDOWN_AB als Chip mit Popover.
+ * @param {object} [opts]
+ * @param {string} [opts.label] Eigenes Nomen fuer den Chip statt des Plurals aus kind
+ */
+export function renderVerknuepfungen(items, { label } = {}) {
   ensureVerknuepfungClicks();
-  return renderVerknuepfungStack((items || []).map((item) => {
-    if (!item?.id || !item.label) return '';
-    const href = hrefFor(item);
-    if (!href) return '';
-    return renderVerknuepfungPill({
-      kind: item.kind,
-      label: item.label,
-      href,
-      className: 'table-link--rel'
-    });
+  const gueltig = (items || [])
+    .filter((item) => item?.id && item.label)
+    .map((item) => ({ item, href: hrefFor(item) }))
+    .filter(({ href }) => href);
+  const pills = gueltig.map(({ item, href }) => renderVerknuepfungPill({
+    kind: item.kind,
+    label: item.label,
+    href,
+    className: 'table-link--rel'
   }));
+  if (pills.length < DROPDOWN_AB) return renderVerknuepfungStack(pills);
+  return renderVerknuepfungDropdown(pills, { kinds: gueltig.map(({ item }) => item.kind), label });
 }
 
 export function namedLinks(rows, { labelKey, kind }) {

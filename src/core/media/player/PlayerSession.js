@@ -23,6 +23,10 @@ export class PlayerSession {
     this.loading = false;
     this.src = null;
     this.fallbackUrl = null;
+    /** Ablage-Datei ohne Link (ablage-link fehlgeschlagen): Erneut-versuchen statt "Kein Video". */
+    this.ladeFehler = false;
+    /** SharePoint-Link nach einem Video-Error schon einmal neu geholt. */
+    this.linkErneuert = false;
 
     /** Einmaliger Direkteinstieg "Finale Version": { final: true, assetId } */
     this.intent = null;
@@ -40,6 +44,8 @@ export class PlayerSession {
     this.still = { version: null, assetId: null };
     this.src = null;
     this.fallbackUrl = null;
+    this.ladeFehler = false;
+    this.linkErneuert = false;
   }
 
   /** Intent verbrauchen: gilt nur fuer das erste geladene Item. */

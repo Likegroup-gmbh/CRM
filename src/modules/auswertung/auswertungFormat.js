@@ -1,5 +1,5 @@
 // auswertungFormat.js
-// Anzeige der Auswertung: Zahlen kompakt (Kacheln, Diagramm) oder ausgeschrieben (Tabelle, Panel),
+// Anzeige der Auswertung: Zahlen kompakt (Kacheln) oder ausgeschrieben (Tabelle, Panel),
 // Prozent, Sekunden, Datum und Plattform-Icon. Ein Wert ohne Grundlage wird „–“, nie 0.
 
 import { icon } from '../../core/icons/IconSystem.js';
@@ -49,6 +49,27 @@ export function plattformLabel(plattform, { lang = false } = {}) {
   const p = PLATTFORMEN[plattform];
   if (!p) return esc(plattform || LEER);
   return `<span class="auswertung-plattform">${plattformIcon(plattform)}<span>${esc(lang ? p.label : p.kurz)}</span></span>`;
+}
+
+/**
+ * Plattform mit dem Link zum Post als Button, wie die Social-Pills der Creator: Icon, Kurzname,
+ * Pfeil. Ohne gültigen Link (z. B. Stories) derselbe Rahmen mit Icon und Name, aber ohne Pfeil
+ * und nicht klickbar. Ohne Plattform und ohne Link „–“.
+ */
+export function plattformLink(plattform, url) {
+  const href = /^https?:\/\//i.test(url || '') ? url : '';
+  const p = PLATTFORMEN[plattform];
+  if (!href && !p) return LEER;
+  const inhalt = p
+    ? `<span class="mdc-btn__icon">${plattformIcon(plattform)}</span><span class="mdc-btn__label">${esc(p.kurz)}</span>`
+    : '<span class="mdc-btn__label">Link</span>';
+  const klassen = 'mdc-btn mdc-btn--secondary mdc-btn--sm auswertung-plattform-pill';
+  if (!href) return `<span class="${klassen} auswertung-plattform-pill--ohne-link">${inhalt}</span>`;
+  const titel = `${p?.label || 'Post'} öffnen`;
+  return `<a class="${klassen}" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(titel)}" aria-label="${esc(titel)}">
+    ${inhalt}
+    <span class="mdc-btn__icon">${icon('external-link', { size: 16 })}</span>
+  </a>`;
 }
 
 /** „Video 1 · 4:5“: Einheit plus Format der geposteten Datei, falls die Einheit mehrere hat. */

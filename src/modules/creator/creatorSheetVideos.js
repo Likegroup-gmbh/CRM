@@ -6,6 +6,7 @@ import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { pickLatestAsset } from '../../core/stills/stillAssets.js';
 import { mitAblage } from '../../core/ablage/ablageLink.js';
+import { ordnerLinkHtml } from '../../core/ablage/ablageOrdnerLink.js';
 import { VideoTableDataLoader } from '../kampagne/VideoTableDataLoader.js';
 
 const PLAY_ICON = `${icon('play-circle')}`;
@@ -23,8 +24,9 @@ function renderVideoContentCell(koop, video) {
 
   if (videoUrl) {
     buttons.push(`<button type="button" class="external-link-btn media-action-btn play-btn" data-action="play-video" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Video abspielen">${PLAY_ICON}</button>`);
-  } else if (video.folder_url) {
-    buttons.push(`<a href="${escUrl(video.folder_url)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Ordner öffnen">${FOLDER_ICON}</a>`);
+  } else if (escUrl(video.folder_url)) {
+    const ordner = ordnerLinkHtml({ url: escUrl(video.folder_url), kooperationId: koop.id, inhalt: FOLDER_ICON, klasse: 'external-link-btn', titel: 'Ordner öffnen' });
+    if (ordner) buttons.push(ordner);
   }
   if (video.story_folder_url) {
     buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-storys" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Storys ansehen">${STORYS_ICON}</button>`);

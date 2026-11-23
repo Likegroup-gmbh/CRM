@@ -17,11 +17,15 @@ const ORDNER = [
 
 const DATEI_MUSTER = [
   { ordner: 'src/core', muster: /^calendarDates/i },
+  { ordner: 'src/core/ablage', muster: /^ablageOrdnerLink/i },
+  { ordner: 'src/modules/kooperation', muster: /^kooperationVideosTab/i },
   { ordner: 'src/core/components', muster: /^(share|SegmentSwitch|CalendarGrid|calendarGrid)/i },
+  { ordner: 'src/core/form/logic', muster: /^(FormSearchableSelect|searchableSelect)/i },
+  { ordner: 'src/core/ui', muster: /^(verknuepfung|tableVerknuepfungen)/i },
   { ordner: 'src/modules/skripte', muster: /^skriptPaket/i },
   { ordner: 'src/modules/kampagne', muster: /^(KampagneCalendar|kampagneCalendar)/i },
   { ordner: 'src/modules/video-browser', muster: /^(videoBrowserKalender|videoBrowserView)/i },
-  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender)/i },
+  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender|searchableSelect|verknuepfung|tableVerknuepfungen|ablageOrdnerLink)/i },
 ];
 
 function dateienIn(ordner) {

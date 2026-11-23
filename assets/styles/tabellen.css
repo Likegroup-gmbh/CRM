@@ -44,6 +44,74 @@ a.verknuepfung-pill {
   white-space: nowrap;
 }
 
+/* Ab zwei Verknüpfungen: Chip in der Zelle, Liste im Popover am body
+   (verknuepfungDropdown.js). Rahmen und Hover erbt der Chip von .verknuepfung-pill. */
+.verknuepfung-dropdown {
+  min-width: 8rem;
+  max-width: 100%;
+}
+
+button.verknuepfung-chip {
+  width: fit-content;
+  max-width: 14rem;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.verknuepfung-chip[aria-expanded="true"] {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.verknuepfung-chip .crm-icon.verknuepfung-chip__chevron {
+  width: 12px;
+  height: 12px;
+  color: var(--text-secondary);
+  transition: transform 0.15s ease;
+}
+
+.verknuepfung-chip[aria-expanded="true"] .crm-icon.verknuepfung-chip__chevron {
+  transform: rotate(180deg);
+}
+
+/* Startzustand unsichtbar, playMenu blendet ein. */
+.verknuepfung-popover {
+  position: fixed;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  max-width: min(20rem, calc(100vw - 16px));
+  max-height: min(16rem, 60vh);
+  overflow-y: auto;
+  padding: var(--space-xs);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  scrollbar-width: thin;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.verknuepfung-popover a.verknuepfung-pill {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: none;
+  padding: var(--space-xs);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.verknuepfung-popover a.verknuepfung-pill:hover,
+.verknuepfung-popover a.verknuepfung-pill:focus-visible {
+  background: var(--gray-50);
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .table-link.email-link {
   color: #557ce9;
   text-decoration-color: rgba(129, 157, 239, 0.4);
@@ -744,6 +812,16 @@ a.verknuepfung-pill {
   text-align: center;
 }
 
+/* Auswahl- und Nr-Spalte: horizontal und vertikal mittig (Padding symmetrisch) */
+.kooperation-video-grid thead th.col-header.col-nr,
+.kooperation-video-grid thead th.col-header.col-final-check,
+.kooperation-video-grid tbody td.grid-cell.col-nr,
+.kooperation-video-grid tbody td.grid-cell.col-final-check {
+  text-align: center;
+  vertical-align: middle;
+  padding-inline: 0;
+}
+
 .kooperation-video-grid td.cell-centered .table-select {
   width: fit-content;
   max-width: 100%;
@@ -758,9 +836,29 @@ a.verknuepfung-pill {
   flex: 0 1 auto;
 }
 
-.kooperation-video-grid td.cell-centered .creator-social-links,
 .kooperation-video-grid td.cell-centered .tags {
   justify-content: center;
+}
+
+/* Creator-Spalte: linksbuendig, Bild immer an derselben Stelle.
+   Name-Pill und Social-Pills stehen in einer Reihe neben dem Bild. */
+.kooperation-video-grid td.col-creator.cell-centered {
+  text-align: left;
+}
+
+.kooperation-video-grid td.col-creator.cell-centered .table-identity {
+  justify-content: flex-start;
+}
+
+.kooperation-video-grid td.col-creator .creator-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.kooperation-video-grid td.col-creator .creator-name-row > .verknuepfung-pill {
+  flex: 0 1 auto;
 }
 
 .kooperation-video-grid td.col-actions {
@@ -2621,25 +2719,56 @@ width: 18em;
   margin-left: 0.35em;
 }
 
+/* Social-Links als Icon-Pills im Look der Verknuepfungs-Pill (forms.css) */
 .creator-social-links {
   display: flex;
-  gap: 6px;
-  margin-top: var(--space-xs);
+  gap: var(--space-xxs);
+  flex-shrink: 0;
 }
 
 .creator-social-links a {
   display: inline-flex;
-  color: var(--gray-400);
-  transition: color 0.15s;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xxs) var(--space-xs);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+ 
+  color: var(--text-primary);
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .creator-social-links a:hover {
-  color: var(--gray-700);
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.creator-social-links a:focus-visible {
+  outline: none;
+  border-color: var(--gray-400);
+  box-shadow: 0 0 0 3px var(--gray-100);
 }
 
 .creator-social-links .platform-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Kooperationen-Tabelle: Icon-Pills so hoch wie die Namens-Pill, nicht höher */
+.kooperation-video-grid td.col-creator .creator-name-row {
+  align-items: stretch;
+}
+
+.kooperation-video-grid td.col-creator .creator-social-links a {
+  box-sizing: border-box;
+}
+
+.kooperation-video-grid td.col-creator .creator-social-links .platform-icon {
   width: 14px;
   height: 14px;
+  vertical-align: 0;
 }
 
 /* Icon/Boolean-Spalten (✅/❌) kompakt */

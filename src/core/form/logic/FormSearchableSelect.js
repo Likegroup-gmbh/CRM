@@ -1,44 +1,13 @@
 // FormSearchableSelect.js
 // Kapselt die gesamte Searchable-Select-Logik inkl. Phone-/Country-Fields und allowCreate.
 // Wird als Handler in FormSystem instanziert; FormSystem delegiert die öffentlichen Methoden.
+// Dropdown-Rendering und allowCreate liegen als Mixins in eigenen Dateien.
 import { OptionsManager } from '../data/OptionsManager.js';
+import { isPlaceholderOption } from './searchableSelection.js';
+import { installSearchableDropdown } from './searchableSelectDropdown.js';
+import { installSearchableCreate } from './searchableSelectCreate.js';
 
-// Programmatisch dieselbe Auswahl setzen wie ein Klick im Dropdown.
-// PDF-Auslesung und _selectOption teilen sich diesen Weg, damit die
-// DOM-Struktur des Searchable-Selects nur hier steht.
-export function applySearchableSelection(selectEl, { value, label, optionLabel, dataset } = {}) {
-  if (!selectEl || value == null) return false;
-
-  let optionElement = Array.from(selectEl.options).find(opt => opt.value === value);
-  if (!optionElement) {
-    optionElement = document.createElement('option');
-    optionElement.value = value;
-    optionElement.textContent = optionLabel ?? label ?? '';
-    selectEl.appendChild(optionElement);
-  }
-  if (dataset) {
-    Object.entries(dataset).forEach(([key, val]) => {
-      if (val != null && val !== '') optionElement.dataset[key] = val;
-    });
-  }
-
-  selectEl.value = value;
-
-  const container = selectEl.parentNode?.querySelector('.searchable-select-container');
-  const hidden = document.getElementById(`${selectEl.id}_value`)
-    || document.getElementById(`${selectEl.id}-hidden`)
-    || container?.querySelector('input[type="hidden"]');
-  if (hidden) hidden.value = value;
-
-  const input = container?.querySelector('.searchable-select-input');
-  if (input) {
-    input.value = label ?? '';
-    if (input.hasAttribute('data-was-required')) input.setCustomValidity('');
-  }
-
-  selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-  return true;
-}
+export { applySearchableSelection } from './searchableSelection.js';
 
 export class FormSearchableSelect {
   constructor(optionsManager) {
@@ -124,10 +93,14 @@ export class FormSearchableSelect {
     const container = document.createElement('div');
     container.className = 'searchable-select-container';
 
+    // Ohne Wert zeigt das Feld das Label der Platzhalter-Option, beim Tippen den Suchhinweis.
+    const searchPlaceholder = field.placeholder || 'Suchen...';
+    const emptyPlaceholder = options.find(isPlaceholderOption)?.label || searchPlaceholder;
+
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'searchable-select-input' + (isReadonly ? ' is-disabled' : '');
-    input.placeholder = field.placeholder || 'Suchen...';
+    input.placeholder = emptyPlaceholder;
     input.autocomplete = 'new-password';
     input.setAttribute('data-form-type', 'other');
     input.setAttribute('data-lpignore', 'true');
@@ -193,8 +166,8 @@ export class FormSearchableSelect {
     container.appendChild(dropdown);
     container.appendChild(hiddenInput);
 
-    const selectedOption = options.find(option => option.selected)
-      || options.find(option => option.value === initialValue);
+    const selectedOption = options.find(option => option.selected && !isPlaceholderOption(option))
+      || (initialValue ? options.find(option => option.value === initialValue) : null);
     if (selectedOption) {
       if (isPhoneField && selectedOption.isoCode) {
         const flagEmoji = this.isoToFlagEmoji(selectedOption.isoCode);
@@ -248,16 +221,20 @@ export class FormSearchableSelect {
       if (isPhoneField && input.placeholder && input.value === input.placeholder) {
         input.value = '';
       }
+      input.placeholder = searchPlaceholder;
+
+      // Steht ein gewählter Wert im Input, öffnet das Dropdown trotzdem mit allen Optionen.
+      const query = hiddenInput.value ? '' : input.value;
 
       if (field?.serverSearch) {
         try {
-          const results = await field.serverSearch(input.value || '');
+          const results = await field.serverSearch(query);
           options.length = 0;
           options.push(...results);
         } catch (e) { console.error('serverSearch error:', e); }
       }
 
-      this.updateDropdownItems(dropdown, options, field?.serverSearch ? '' : input.value, field);
+      this.updateDropdownItems(dropdown, options, field?.serverSearch ? '' : query, field);
 
       if (isPhoneField) {
         setTimeout(() => {
@@ -275,6 +252,7 @@ export class FormSearchableSelect {
     input.addEventListener('blur', () => {
       setTimeout(() => {
         dropdown.classList.remove('show');
+        input.placeholder = emptyPlaceholder;
 
         if (isPhoneField) {
           detachPhonePositionListeners();
@@ -343,271 +321,12 @@ export class FormSearchableSelect {
     }
   }
 
-  // Dropdown-Items rendern/filtern (DOM-Recycling + Lazy Rendering: max 50 initial)
-  updateDropdownItems(dropdown, options, filterText, field = null) {
-    try { dropdown.parentNode.dataset.options = JSON.stringify(options || []); } catch (_) { }
-
-    const cleanFilterText = filterText.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
-    const lowerFilter = cleanFilterText.toLowerCase();
-
-    const filteredOptions = this._filterOptions(options, lowerFilter);
-    const renderEntries = this._buildRenderEntries(filteredOptions);
-
-    const selectElement = dropdown.parentNode.parentNode.querySelector('select');
-    const isPhoneField = selectElement?.dataset?.phoneField === 'true';
-    const isCountryField = selectElement?.dataset?.countryField === 'true';
-
-    const exactMatch = options.some(opt =>
-      this._optionSearchText(opt).trim() === lowerFilter
-    );
-
-    const BATCH_SIZE = 50;
-    const renderCount = Math.min(renderEntries.length, BATCH_SIZE);
-
-    dropdown.querySelectorAll('.searchable-select-group-header, .searchable-select-item:not(.create-new)').forEach(el => el.remove());
-
-    const fragment = document.createDocumentFragment();
-    for (let i = 0; i < renderCount; i++) {
-      fragment.appendChild(this._createRenderEntryElement(
-        dropdown, renderEntries[i], isPhoneField, isCountryField
-      ));
-    }
-    const createNew = dropdown.querySelector('.create-new');
-    if (createNew) {
-      dropdown.insertBefore(fragment, createNew);
-    } else {
-      dropdown.appendChild(fragment);
-    }
-
-    dropdown._lazyRenderEntries = renderEntries.length > BATCH_SIZE ? renderEntries : null;
-    dropdown._lazyOffset = renderCount;
-    dropdown._isPhoneField = isPhoneField;
-    dropdown._isCountryField = isCountryField;
-
-    if (renderEntries.length > BATCH_SIZE) {
-      if (!dropdown._scrollHandler) {
-        dropdown._scrollHandler = () => this._loadMoreItems(dropdown);
-        dropdown.addEventListener('scroll', dropdown._scrollHandler, { passive: true });
-      }
-    } else {
-      dropdown._lazyRenderEntries = null;
-      dropdown._lazyOffset = 0;
-    }
-
-    dropdown.querySelectorAll('.create-new').forEach(el => el.remove());
-
-    if (field?.allowCreate && cleanFilterText.length > 0 && !exactMatch) {
-      const createItem = document.createElement('div');
-      createItem.className = 'searchable-select-item create-new';
-      createItem.innerHTML = `<span class="create-new-icon">+</span> Neu erstellen: <strong>${cleanFilterText}</strong>`;
-
-      createItem.addEventListener('click', async () => {
-        await this.handleCreateNewOption(dropdown, options, cleanFilterText, field);
-      });
-
-      createItem.addEventListener('mouseenter', () => createItem.classList.add('hover'));
-      createItem.addEventListener('mouseleave', () => createItem.classList.remove('hover'));
-
-      dropdown.appendChild(createItem);
-    }
-  }
-
-  _optionSearchText(option) {
-    return [option.label, option.subtitle, option.group].filter(Boolean).join(' ').toLowerCase();
-  }
-
-  _filterOptions(options, lowerFilter) {
-    if (!lowerFilter) return options;
-    return options.filter(option => this._optionSearchText(option).includes(lowerFilter));
-  }
-
-  _buildRenderEntries(filteredOptions) {
-    const entries = [];
-    let lastGroup = null;
-
-    filteredOptions.forEach(option => {
-      const group = option.group || null;
-      if (group && group !== lastGroup) {
-        entries.push({ type: 'header', group });
-        lastGroup = group;
-      } else if (!group) {
-        lastGroup = null;
-      }
-      entries.push({ type: 'item', option });
-    });
-
-    return entries;
-  }
-
-  _createRenderEntryElement(dropdown, entry, isPhoneField, isCountryField) {
-    if (entry.type === 'header') {
-      const header = document.createElement('div');
-      header.className = 'searchable-select-group-header';
-      header.textContent = entry.group;
-      return header;
-    }
-
-    const item = document.createElement('div');
-    item.className = 'searchable-select-item';
-    this._fillItemContent(item, entry.option, isPhoneField, isCountryField);
-    if (entry.option?.disabled) {
-      item.classList.add('is-disabled');
-      if (entry.option.disabledReason) item.title = entry.option.disabledReason;
-      return item;
-    }
-    item.onclick = () => this._selectOption(dropdown, entry.option, isPhoneField, isCountryField);
-    item.onmouseenter = () => item.classList.add('hover');
-    item.onmouseleave = () => item.classList.remove('hover');
-    return item;
-  }
-
-  _fillItemContent(item, option, isPhoneField, isCountryField) {
-    if ((isPhoneField || isCountryField) && option.isoCode) {
-      item.textContent = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`;
-      return;
-    }
-
-    if (option.subtitle) {
-      item.innerHTML = `
-        <div class="searchable-select-item-label">${this._escapeHtml(option.label)}</div>
-        <div class="searchable-select-item-subtitle">${this._escapeHtml(option.subtitle)}</div>
-      `;
-    } else {
-      item.textContent = option.label;
-    }
-  }
-
-  _escapeHtml(text) {
-    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-    return String(text || '').replace(/[&<>"']/g, m => map[m]);
-  }
-
-  // Weitere Items beim Scrollen nachladen
-  _loadMoreItems(dropdown) {
-    if (!dropdown._lazyRenderEntries) return;
-    const { scrollTop, scrollHeight, clientHeight } = dropdown;
-    if (scrollTop + clientHeight < scrollHeight - 40) return;
-
-    const BATCH_SIZE = 50;
-    const entries = dropdown._lazyRenderEntries;
-    const offset = dropdown._lazyOffset;
-    if (offset >= entries.length) return;
-
-    const end = Math.min(offset + BATCH_SIZE, entries.length);
-    const isPhoneField = dropdown._isPhoneField;
-    const isCountryField = dropdown._isCountryField;
-
-    const fragment = document.createDocumentFragment();
-    for (let i = offset; i < end; i++) {
-      fragment.appendChild(this._createRenderEntryElement(
-        dropdown, entries[i], isPhoneField, isCountryField
-      ));
-    }
-
-    const createNew = dropdown.querySelector('.create-new');
-    if (createNew) {
-      dropdown.insertBefore(fragment, createNew);
-    } else {
-      dropdown.appendChild(fragment);
-    }
-
-    dropdown._lazyOffset = end;
-  }
-
-  // Click-Handler für Dropdown-Item
-  _selectOption(dropdown, option, isPhoneField, isCountryField) {
-    const selectEl = dropdown.parentNode.parentNode.querySelector('select');
-    let label = option.label;
-    if (isPhoneField && option.isoCode) {
-      const vorwahl = option.vorwahl || '';
-      const countryName = option.label.replace(/^\+\d+\s*/, '').trim();
-      label = `${this.isoToFlagEmoji(option.isoCode)} ${vorwahl} ${countryName}`.trim();
-    } else if (isCountryField && option.isoCode) {
-      label = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`.trim();
-    }
-
-    applySearchableSelection(selectEl, {
-      value: option.value,
-      label,
-      optionLabel: option.label,
-      dataset: {
-        isoCode: option.isoCode,
-        vorwahl: option.vorwahl
-      }
-    });
-    dropdown.classList.remove('show');
-  }
-
-  // Neue Option erstellen und auswählen (allowCreate Feature)
-  async handleCreateNewOption(dropdown, options, newValue, field) {
-    try {
-      const newEntry = await this.createLookupEntry(field.table, field.displayField, newValue);
-
-      const newOption = {
-        value: newEntry[field.valueField],
-        label: newEntry[field.displayField],
-        selected: false
-      };
-
-      options.push(newOption);
-
-      const selectElement = dropdown.parentNode.parentNode.querySelector('select');
-      const input = dropdown.parentNode.querySelector('.searchable-select-input');
-      const hiddenInput = dropdown.parentNode.querySelector('input[type="hidden"]');
-
-      const optionElement = document.createElement('option');
-      optionElement.value = newOption.value;
-      optionElement.textContent = newOption.label;
-      selectElement.appendChild(optionElement);
-
-      selectElement.value = newOption.value;
-      input.value = newOption.label;
-      if (hiddenInput) {
-        hiddenInput.value = newOption.value;
-      }
-
-      if (input.hasAttribute('data-was-required')) {
-        input.setCustomValidity('');
-      }
-
-      selectElement.dispatchEvent(new Event('change', { bubbles: true }));
-
-      dropdown.classList.remove('show');
-
-      if (window.staticDataCache) {
-        window.staticDataCache.invalidate(field.table);
-      }
-
-    } catch (error) {
-      console.error('Fehler beim Erstellen der neuen Option:', error);
-      alert(`Fehler beim Erstellen: ${error.message || 'Unbekannter Fehler'}`);
-    }
-  }
-
   // Searchable Select reinitialisieren
   reinitializeSearchableSelect(selectElement, options, field) {
     selectElement.style.display = 'none';
     this.createSearchableSelect(selectElement, options, field);
   }
-
-  // Neuen Lookup-Eintrag in DB erstellen (für allowCreate Feature)
-  async createLookupEntry(table, displayField, value) {
-    try {
-      const { data, error } = await window.supabase
-        .from(table)
-        .insert({ [displayField]: value })
-        .select()
-        .single();
-
-      if (error) {
-        console.error(`Fehler beim Erstellen in ${table}:`, error);
-        throw error;
-      }
-
-      return data;
-    } catch (err) {
-      console.error(`createLookupEntry fehlgeschlagen:`, err);
-      throw err;
-    }
-  }
 }
+
+installSearchableDropdown(FormSearchableSelect.prototype);
+installSearchableCreate(FormSearchableSelect.prototype);

@@ -16,6 +16,7 @@ import { darfRezensionSehen, formatRezension, loadCreatorRezensionen, renderReze
 import { bindCreatorMerkmale } from './creatorMerkmale.js';
 import { durchschnittlicheViews } from './creatorReels.js';
 import { renderInstagramProfilLink } from './creatorCardRender.js';
+import { ablageLinkKlick } from '../../core/ablage/ablageOrdnerLink.js';
 
 const DRAWER_ID = 'creator-kontakt-drawer';
 const CHEVRON_ICON = `${icon('chevron-down')}`;
@@ -190,6 +191,7 @@ export async function openCreatorSheet(creator) {
       if (section) section.style.display = expanded ? '' : 'none';
       return;
     }
+    if (ablageLinkKlick(event)) return;
     const playBtn = event.target.closest('[data-action="play-video"]');
     if (playBtn) {
       playerHolder.player?.openVideo(playBtn.dataset.videoId, playBtn.dataset.kooperationId)

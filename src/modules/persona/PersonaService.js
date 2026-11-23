@@ -12,7 +12,7 @@
 
 import { quelleNachEdit } from './audienceSituationGate.js';
 
-const MARKEN_SELECT = 'marken:persona_marke(marke_id, marke:marke_id(id, markenname))';
+const MARKEN_SELECT = 'marken:persona_marke(marke_id, marke:marke_id(id, markenname, logo_url))';
 const PRODUKTE_SELECT = 'produkte:produkt_persona_vorschlag(produkt_id, status, produkt:produkt_id(id, name))';
 const BUDGETRAHMEN = ['niedrig', 'mittel', 'hoch'];
 

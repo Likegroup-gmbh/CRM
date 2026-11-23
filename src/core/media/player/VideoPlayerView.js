@@ -6,6 +6,7 @@
 
 import { getAssetDisplayLabel, canPreviewImageAsset } from '../../VideoUploadUtils.js';
 import { escapeHtml } from '../../format.js';
+import { dateiLinkHtml, ordnerLinkHtml } from '../../ablage/ablageOrdnerLink.js';
 import { DOWNLOAD_ICON } from '../downloadMediaAsset.js';
 import {
   formatVideoFeedbackValue,
@@ -126,6 +127,7 @@ export class VideoPlayerView {
       if (s.src) {
         return `<img class="vpl-image" src="${escapeHtml(s.src)}" alt="${escapeHtml(getAssetDisplayLabel(asset) || 'Bild')}">`;
       }
+      if (s.ladeFehler) return this.renderLadeFehler('Bild');
       return `<div class="media-viewer-empty"><span>Bild kann nicht geladen werden.</span></div>`;
     }
 
@@ -143,24 +145,44 @@ export class VideoPlayerView {
         ${this._formatHint()}`;
     }
 
-    const folderUrl = item?.video?.folder_url;
+    if (s.ladeFehler) return this.renderLadeFehler('Video');
+    const ordner = ordnerLinkHtml({
+      url: item?.video?.folder_url,
+      kooperationId: item?.koop?.id,
+      inhalt: 'Ordner öffnen',
+      klasse: 'media-viewer-fallback-link',
+    });
     return `
       <div class="media-viewer-empty">
         <span>Kein Video hochgeladen.</span>
-        ${folderUrl ? `<a class="media-viewer-fallback-link" href="${escapeHtml(folderUrl)}" target="_blank" rel="noopener">Ordner oeffnen</a>` : ''}
+        ${ordner}
+      </div>`;
+  }
+
+  // Die Datei liegt in der Ablage, aber ablage-link lieferte keinen Link (Netz, Graph-Drosselung).
+  renderLadeFehler(was) {
+    return `
+      <div class="media-viewer-empty">
+        <span>${was} konnte gerade nicht geladen werden.</span>
+        <div class="media-viewer-fallback-actions">
+          <button type="button" class="mdc-btn mdc-btn--secondary vpl-erneut">Erneut versuchen</button>
+        </div>
       </div>`;
   }
 
   // Sharing-Links (z. B. SharePoint) lassen sich nicht einbetten: statt eines
   // kaputten Bildes den Grund nennen und den Link extern anbieten.
   renderImageNotPreviewable(asset) {
-    const link = asset?.file_url || '';
+    const link = dateiLinkHtml({
+      asset,
+      typ: 'still',
+      inhalt: 'Extern öffnen',
+      klasse: 'mdc-btn mdc-btn--secondary media-viewer-fallback-link',
+    });
     return `
       <div class="media-viewer-empty">
         <span>Externer Link &ndash; Vorschau nicht möglich.</span>
-        ${link ? `<div class="media-viewer-fallback-actions">
-          <a class="mdc-btn mdc-btn--secondary media-viewer-fallback-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">Extern öffnen</a>
-        </div>` : ''}
+        ${link ? `<div class="media-viewer-fallback-actions">${link}</div>` : ''}
       </div>`;
   }
 

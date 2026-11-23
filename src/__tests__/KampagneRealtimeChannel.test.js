@@ -4,38 +4,18 @@ import {
   __resetKampagneChannels,
   GRACE_MS,
   RECONNECT_BASE_MS,
-  RESYNC_AFTER_HIDDEN_MS
+  RESYNC_AFTER_HIDDEN_MS,
+  RESYNC_JITTER_MS
 } from '../modules/kampagne/kampagneRealtimeChannel.js';
-
-function makeSupabase() {
-  const channels = [];
-  const supabase = {
-    channel: vi.fn((name) => {
-      const api = {
-        name,
-        handlers: [],
-        statusCb: null,
-        on: vi.fn((_type, opts, cb) => { api.handlers.push({ opts, cb }); return api; }),
-        subscribe: vi.fn((cb) => { api.statusCb = cb; return api; })
-      };
-      channels.push(api);
-      return api;
-    }),
-    removeChannel: vi.fn()
-  };
-  return { supabase, channels };
-}
-
-function setVisibility(state) {
-  Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
-  document.dispatchEvent(new Event('visibilitychange'));
-}
+import { makeSupabase, setVisibility } from './kampagneRealtimeTestKit.js';
 
 describe('kampagneRealtimeChannel', () => {
   let channels;
 
   beforeEach(() => {
     vi.useFakeTimers();
+    // Streuung auf die Mitte: Reconnect genau nach Basis, Resync nach halbem Jitter
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const made = makeSupabase();
     channels = made.channels;
     window.supabase = made.supabase;
@@ -44,6 +24,7 @@ describe('kampagneRealtimeChannel', () => {
   afterEach(() => {
     __resetKampagneChannels();
     vi.useRealTimers();
+    vi.restoreAllMocks();
     delete window.supabase;
     setVisibility('visible');
   });
@@ -128,6 +109,8 @@ describe('kampagneRealtimeChannel', () => {
     expect(window.supabase.removeChannel).toHaveBeenCalledWith(first);
 
     channels[2].statusCb('SUBSCRIBED');
+    expect(onResync).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(RESYNC_JITTER_MS);
     expect(onResync).toHaveBeenCalledTimes(1);
   });
 
@@ -180,11 +163,14 @@ describe('kampagneRealtimeChannel', () => {
     setVisibility('hidden');
     vi.advanceTimersByTime(RESYNC_AFTER_HIDDEN_MS - 1000);
     setVisibility('visible');
+    vi.advanceTimersByTime(RESYNC_JITTER_MS);
     expect(onResync).not.toHaveBeenCalled();
 
     setVisibility('hidden');
     vi.advanceTimersByTime(RESYNC_AFTER_HIDDEN_MS + 1000);
     setVisibility('visible');
+    expect(onResync).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(RESYNC_JITTER_MS);
     expect(onResync).toHaveBeenCalledTimes(1);
   });
 });

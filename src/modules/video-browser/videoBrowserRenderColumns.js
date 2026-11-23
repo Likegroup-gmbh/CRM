@@ -3,6 +3,7 @@
 
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
+import { exportHinweisHtml } from '../../core/media/exportHinweis.js';
 import {
   KOOP_GROUPS,
   activeFilterValue,
@@ -216,7 +217,7 @@ function uploadZoneHtml(folder) {
       ? `Weitere Dateien für ${folder.name} hierher ziehen`
       : `Dateien für ${folder.name} hierher ziehen`;
   }
-  return `
+  return `${folder.kind === 'raw' ? '' : exportHinweisHtml()}
     <div class="upload-dropzone" data-vb-dropzone data-folder-id="${esc(folder.id)}">
       <div class="dropzone-content">
         <p class="dropzone-text">${esc(hint)} oder <button type="button" class="dropzone-browse-btn">vom Rechner wählen</button></p>

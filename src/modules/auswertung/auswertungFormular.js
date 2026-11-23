@@ -4,6 +4,7 @@
 // für unsichere KI-Werte. Rendern und Einlesen sind rein; die Aktionen bindet auswertungErfassen.
 
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { renderTableSelect, tableSelect } from '../../core/components/TableSelect.js';
 import { formatExactNumber } from '../../core/format/compactNumber.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { KENNZAHLEN, MESSREGEL_TAGE, PLATTFORMEN, felderDerPlattform } from './auswertungKonfig.js';
@@ -118,14 +119,28 @@ export function renderKennzahlFelder(plattform, werte = {}, unsicher = []) {
   return felderDerPlattform(plattform).map(key => kennzahlFeld(key, werte[key], { unsicher: unsicher.includes(key) })).join('');
 }
 
+/** Eigenes Dropdown (TableSelect im Formular-Modus): hidden input `name` hält den Wert, Wechsel kommt als table-select-change. */
 function auswahl(name, label, optionen, wert) {
   return `
-    <label class="erfassen-feld">
+    <div class="erfassen-feld">
       <span class="erfassen-feld__label">${esc(label)}</span>
-      <select class="form-select" name="${name}">
-        ${optionen.map(([v, l]) => `<option value="${esc(v)}"${v === wert ? ' selected' : ''}>${esc(l)}</option>`).join('')}
-      </select>
-    </label>`;
+      ${renderTableSelect({
+        field: name,
+        itemId: 'erfassen',
+        value: wert,
+        options: optionen.map(([value, l]) => ({ value, label: l })),
+        input: name,
+        matchWidth: true
+      })}
+    </div>`;
+}
+
+/** Wert eines Formularfelds setzen; beim eigenen Dropdown Label und Haken mitziehen. */
+export function setzeFeldWert(el, wert) {
+  const wrapper = el.closest('[data-table-select]');
+  const item = wrapper && [...wrapper.querySelectorAll('.table-select__panel .table-select__item')].find(i => i.dataset.value === String(wert));
+  if (item) tableSelect.syncForm(wrapper, item, String(wert));
+  else el.value = wert;
 }
 
 function datumFeld(name, label, wert) {
@@ -217,8 +232,10 @@ export function zeigeFeldFehler(form, fehler) {
     return;
   }
   const feld = form.querySelector(`[name="${fehler.name}"]`);
-  feld?.setAttribute('aria-invalid', 'true');
-  feld?.focus();
+  // Beim eigenen Dropdown ist das Feld ein hidden input, markiert und fokussiert wird der Trigger
+  const ziel = feld?.type === 'hidden' ? feld.closest('[data-table-select]')?.querySelector('.table-select__trigger') : feld;
+  ziel?.setAttribute('aria-invalid', 'true');
+  ziel?.focus();
   if (hinweis) {
     hinweis.textContent = fehler.text;
     hinweis.hidden = false;

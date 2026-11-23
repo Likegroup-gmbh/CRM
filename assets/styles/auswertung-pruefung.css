@@ -134,9 +134,25 @@
 }
 
 .erfassen-feld .form-input,
-.erfassen-feld .form-select,
 .erfassen-feld .custom-date-picker {
   width: 100%;
+}
+
+/* Eigenes Dropdown (TableSelect) in Optik der Eingabefelder */
+.erfassen-feld .table-select__trigger {
+  padding: var(--space-xs);
+  border-color: var(--gray-300);
+  border-radius: var(--radius-xl);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.erfassen-feld .table-select__trigger:hover,
+.erfassen-feld .table-select.show .table-select__trigger {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+  box-shadow: none;
 }
 
 .erfassen-feld .form-input {

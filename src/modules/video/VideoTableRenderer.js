@@ -5,6 +5,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
+import { ordnerLinkHtml } from '../../core/ablage/ablageOrdnerLink.js';
 
 const BACK_SVG = `${icon('arrow-left')}`;
 
@@ -95,10 +96,13 @@ export class VideoTableRenderer {
       ? `<div class="tags tags-compact"><span class="tag tag--type">${esc(video.content_art)}</span></div>`
       : '-';
 
-    const folderUrl = video.folder_url || '';
-    const contentLinkHtml = folderUrl
-      ? `<a href="${esc(folderUrl)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Ordner öffnen">${FOLDER_LINK_SVG}</a>`
-      : '–';
+    const contentLinkHtml = ordnerLinkHtml({
+      url: video.folder_url,
+      kooperationId: video.kooperation_id,
+      inhalt: FOLDER_LINK_SVG,
+      klasse: 'external-link-btn',
+      titel: 'Ordner öffnen',
+    }) || '–';
 
     const kampagneName = KampagneUtils.getDisplayName(kampagne) || '-';
     const kampagneHtml = kampagne.id
