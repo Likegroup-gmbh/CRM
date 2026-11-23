@@ -10,6 +10,8 @@ import { SKRIPT_BILDER_BUCKET } from './editor/dokument/skriptBild.js';
 import { skripteSkriptDatenMethoden } from './service/skripteSkriptDaten.js';
 import { skripteGeneratorDatenMethoden } from './service/skripteGeneratorDaten.js';
 import { skripteEditorDatenMethoden } from './service/skripteEditorDaten.js';
+import { skripteUploadDatenMethoden } from './service/skripteUploadDaten.js';
+import { skripteKopieDatenMethoden } from './service/skripteKopieDaten.js';
 
 export { FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
@@ -54,7 +56,7 @@ export class SkripteService {
     if (!unternehmenId) return [];
 
     let q = this.db.from('strategie')
-      .select('id, name, unternehmen_id, marke_id, kampagne_id, briefing_id')
+      .select('id, name, unternehmen_id, marke_id, kampagne_id, briefing_id, produktion_id')
       .eq('unternehmen_id', unternehmenId);
     if (kampagneId) q = q.eq('kampagne_id', kampagneId);
     if (produktionId) q = q.eq('produktion_id', produktionId);
@@ -96,13 +98,13 @@ export class SkripteService {
    * Ohne Konzept keine Treffer – der Drawer filtert immer auf ein Konzept.
    * Ein Casting-Eintrag ist keine Voraussetzung.
    */
-  async loadFreigegebeneVideoideen({ unternehmenId, strategieId = null } = {}) {
+  async loadFreigegebeneVideoideen({ unternehmenId, strategieId = null, nurFreigabe = true } = {}) {
     if (!unternehmenId || !strategieId) return [];
 
-    const q = this.db.from('strategie_items')
+    let q = this.db.from('strategie_items')
       .select(`
-        id, strategie_id, video_link, plattform, beschreibung, kurzbeschreibung, transkript_quelle,
-        creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, nicht_umsetzen, skript_freigabe, funnel_stufe, persona_id,
+        id, strategie_id, video_link, plattform, beschreibung, kurzbeschreibung, beschreibung_struktur, transkript_quelle,
+        creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, nicht_umsetzen, skript_freigabe, hook_gesperrt, funnel_stufe, persona_id,
         videolaenge_von, videolaenge_bis,
         casting_eintrag:creator_auswahl_item_id(id, name, persona_id, creator_id, creator:creator_id(vorname, nachname)),
         strategie:strategie_id!inner(
@@ -113,11 +115,11 @@ export class SkripteService {
           briefing:briefing_id(id, aktivierung_name, bereich, persona_ids, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, videolaenge_funnel, im_formatvorgaben, os_formatvorgaben)
         )
       `)
-      .eq('skript_freigabe', true)
       .eq('nicht_umsetzen', false)
       .eq('ist_vorschlag', false)
       .eq('strategie.unternehmen_id', unternehmenId)
       .eq('strategie_id', strategieId);
+    if (nurFreigabe) q = q.eq('skript_freigabe', true);
 
     const { data, error } = await q.order('sortierung');
     if (error) throw new Error(error.message);
@@ -166,7 +168,7 @@ export class SkripteService {
   async loadStrategieItem(id) {
     if (!id) return null;
     const { data, error } = await this.db.from('strategie_items')
-      .select('id, strategie_id, video_link, plattform, beschreibung, kurzbeschreibung, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, funnel_stufe, persona_id, videolaenge_von, videolaenge_bis')
+      .select('id, strategie_id, video_link, plattform, beschreibung, kurzbeschreibung, beschreibung_struktur, transkript, caption, creator_name, creator_auswahl_item_id, produkt_id, screenshot_url, funnel_stufe, persona_id, hook_gesperrt, videolaenge_von, videolaenge_bis')
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -270,7 +272,9 @@ Object.assign(
   SkripteService.prototype,
   skripteSkriptDatenMethoden,
   skripteGeneratorDatenMethoden,
-  skripteEditorDatenMethoden
+  skripteEditorDatenMethoden,
+  skripteUploadDatenMethoden,
+  skripteKopieDatenMethoden
 );
 
 export const skripteService = new SkripteService();

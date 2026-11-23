@@ -86,7 +86,7 @@ SkriptEditorView.prototype.setListeCollapsed = function(collapsed, opts) {
 
 SkriptEditorView.prototype.renderListe = function() {
   const el = document.getElementById('ed-liste-items');
-  if (!el) return;
+  if (!el && !this.einbettung) return;
   // Safety-Net: nur Skripte derselben Kampagne wie das geoeffnete.
   // Das geoeffnete Skript bleibt immer sichtbar, auch wenn kampagne_id null ist.
   // Zusaetzlich nur die Linie (Briefing) des geoeffneten Skripts.
@@ -100,6 +100,10 @@ SkriptEditorView.prototype.renderListe = function() {
       || (matchesKampagne(s, kampagneId) && matchesLinie(s, briefingId))),
     verknuepfungenFuer
   );
+  if (this.einbettung) {
+    this.einbettung.zeigeListe(items, { aktivId: this.skript?.id || null, verknuepfungenFuer });
+    return;
+  }
   el.innerHTML = items.map((s) => {
     const aktiv = s.id === this.skript?.id;
     const verknuepfungen = verknuepfungenFuer(s);

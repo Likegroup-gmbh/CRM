@@ -12,6 +12,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { settleRezensionFilters } from './rezension.js';
 import { columnStartsCollapsed, mountCreatorFilterColumn } from './creatorFilterColumn.js';
+import { renderFilterColumnAside } from '../../core/filterColumn/filterColumnView.js';
 
 /**
  * Rendert eine einzelne Creator-Zeile
@@ -96,7 +97,7 @@ CreatorList.prototype.renderShellContent = function() {
     ? `<button type="button" id="creator-filter-toggle" class="mdc-btn mdc-btn--secondary" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="creator-filter-column">
         <span class="mdc-btn__icon">${icon('adjustments-horizontal')}</span>
         <span class="mdc-btn__label">Sortieren und Filtern</span>
-        <span class="filter-count-badge" id="creator-filter-count" hidden></span>
+        <span class="filter-count-badge" id="creator-filter-count" data-filter-total hidden></span>
       </button>`
     : '<div id="filter-dropdown-container"></div>';
 
@@ -160,16 +161,9 @@ CreatorList.prototype.renderShellContent = function() {
   if (!filterColumn) return `${toolbar}${actions}${grid}`;
 
   return `
-    <div class="creator-browser${collapsed ? ' is-column-collapsed' : ''}">
-      <div class="creator-filter-backdrop" data-action="close-creator-filters"></div>
-      <aside class="creator-filter-column" id="creator-filter-column" aria-label="Sortieren und Filtern">
-        <div class="creator-filter-column__head">
-          <span class="creator-filter-column__title">Sortieren und Filtern</span>
-          <button type="button" class="creator-filter-column__close" data-action="close-creator-filters" aria-label="Sortieren und Filtern schließen">${icon('x-mark')}</button>
-        </div>
-        <div id="creator-filter-column-body"></div>
-      </aside>
-      <div class="creator-browser__main">
+    <div class="creator-browser filter-column-layout${collapsed ? ' is-column-collapsed' : ''}">
+      ${renderFilterColumnAside({ key: 'creator' })}
+      <div class="creator-browser__main filter-column-layout__main">
         ${toolbar}
         ${grid}
       </div>

@@ -306,7 +306,7 @@ AuftragList.prototype.loadTeilrechnungenMap = async function(auftragIds) {
   try {
     const { data, error } = await window.supabase
       .from('auftrag_teilrechnung')
-      .select('id, auftrag_id, position, ueberwiesen, ueberwiesen_am, rechnung_gestellt, rechnung_gestellt_am')
+      .select('id, auftrag_id, position, nettobetrag, ueberwiesen, ueberwiesen_am, rechnung_gestellt, rechnung_gestellt_am')
       .in('auftrag_id', auftragIds)
       .order('position', { ascending: true });
     if (error) throw error;

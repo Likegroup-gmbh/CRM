@@ -68,6 +68,13 @@ describe('Monatsblatt Rechnung', () => {
     delete window.supabase;
   });
 
+  it('laedt das Skonto-Flag mit den Zeilen', async () => {
+    const queries = installSupabase({ rows: [{ id: 'r1', skonto: true }] });
+    await loadRows({ year: 2026, month: 0, typeTab: 'rechnung' });
+    const rowQuery = rechnungQueries(queries).find(query => !query.calls.selectOpts?.head);
+    expect(String(rowQuery.calls.select)).toContain('skonto');
+  });
+
   it('wendet typeTab in der Query an', async () => {
     const queries = installSupabase({ rows: [{ id: 'r1' }] });
     await loadRows({ year: 2026, month: 0, typeTab: 'contracting' });

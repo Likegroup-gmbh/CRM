@@ -53,7 +53,7 @@ export class CreatorAuswahlDetail {
     this.kundenCallActive = false;
     this.activeTab = 'alle';
     this.searchQuery = '';
-    this.statusFilter = [];
+    this.tableFilter = null;
     this.tabelleAnpassenDrawer = null;
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
     this.vorschlagPanel = new CastingVorschlagPanel(this);
@@ -124,7 +124,8 @@ export class CreatorAuswahlDetail {
     this.embedded = !!embedded;
     this.isKunde = window.isKunde();
     this.searchQuery = '';
-    this.statusFilter = [];
+    this.tableFilter?.destroy();
+    this.tableFilter = null;
 
     // Die Hover-Toolbar der Instagram-Spalte laeuft ueber die zentrale Engine.
     // Ihre Abruf-Aktion braucht diese Instanz, also wird die Config hier mit
@@ -214,6 +215,7 @@ export class CreatorAuswahlDetail {
     if (this._tornDown) return;
     this._tornDown = true;
     this._unsubscribeRealtime();
+    this.tableFilter?.destroy();
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this.addDrawer.remove();
@@ -389,7 +391,9 @@ export class CreatorAuswahlDetail {
       hasAnyItems: this.getDisplayItems().length > 0,
       activeTab: this.activeTab,
       searchQuery: this.searchQuery,
-      statusFilter: this.statusFilter,
+      filterActive: this.hasColumnFilters(),
+      dragDisabled: !(this.tableFilter?.isManualSort() ?? true),
+      filterToggleHtml: this.tableFilter?.renderToggle() || '',
       tabCounts: this.getTabCounts(),
       bewerbungen: this.bewerbungen || [],
       liste: this.liste,
@@ -408,23 +412,30 @@ export class CreatorAuswahlDetail {
   }
 
   async render() {
+    this.syncTableFilter();
     const ctx = this.getRenderContext();
     const rootEl = this._getRoot();
     if (!rootEl) return;
+    const table = this.tableFilter.renderLayout(renderItemsTable(ctx));
 
     if (this.embedded && this.chromeRoot) {
       this.chromeRoot.innerHTML = renderAddSection(ctx);
       rootEl.innerHTML = `
         ${renderTabNavigation(ctx)}
-        ${renderItemsTable(ctx)}
+        ${table}
       `;
     } else {
       rootEl.innerHTML = `
         ${renderAddSection(ctx)}
         ${renderTabNavigation(ctx)}
-        ${renderItemsTable(ctx)}
+        ${table}
       `;
     }
+    this.tableFilter.mount({
+      root: rootEl,
+      toggleRoot: this.chromeRoot,
+      onChange: () => this.rerenderTable()
+    });
     // Eigene Vorschlag-Zeilen ueber der Liste (nie fuer Kunden/Gaeste)
     this.vorschlagPanel?.mount?.();
     updateStickyHeights(this._getRoot());

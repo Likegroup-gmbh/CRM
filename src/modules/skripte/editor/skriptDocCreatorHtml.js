@@ -4,9 +4,8 @@
 import { escapeHtml } from '../SkripteUtils.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { avatarBubbles } from '../../../core/components/AvatarBubbles.js';
-import { tauschSkriptButtonHtml } from './skriptTauschBanner.js';
 
-function creatorDisplayName(creator) {
+export function creatorDisplayName(creator) {
   const crm = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
   return crm || creator?.name || 'Creator';
 }
@@ -106,6 +105,21 @@ export function listeCreatorHtml(creators) {
     </span>`;
 }
 
+/**
+ * Creator-Zelle der Skripte-Tabellen: wie im Editor-Kopf die Video-Creator, sonst der
+ * der Videoidee. Bei einem geteilten Skript je Creator eine Zeile.
+ * `creatorName(creator)` rendert Avatar und Name ohne Zelle, ohne Name leer.
+ */
+export function skriptCreatorZelleHtml(skript, creatorName) {
+  const zeilen = creatorsFuerListe(skript, skript?.kooperation_videos || [])
+    .map(creatorName)
+    .filter(Boolean);
+  if (!zeilen.length) return '<td>-</td>';
+  if (zeilen.length === 1) return `<td class="col-name">${zeilen[0]}</td>`;
+  return `<td class="col-name">${zeilen
+    .map((z) => `<div class="table-creator-zeile">${z}</div>`).join('')}</td>`;
+}
+
 function creatorChipHtml(creators) {
   const namen = creators.map(creatorDisplayName).join(', ');
   return `
@@ -152,5 +166,5 @@ export function verknuepfungenHtml({
         <span class="mdc-btn__label">Creator zuweisen</span>
       </button>`;
   }
-  return creatorChipHtml(creators) + videoChipHtml(verknuepfungen) + tauschSkriptButtonHtml();
+  return creatorChipHtml(creators) + videoChipHtml(verknuepfungen);
 }

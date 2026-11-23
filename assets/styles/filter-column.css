@@ -1,0 +1,223 @@
+/* ==========================================================================
+   Filterspalte: Sortierung und Filter links neben einer Liste oder Tabelle.
+   Creator-Datenbank (offen) und Tabellen in der Produktion (eingeklappt).
+   ========================================================================== */
+
+.filter-column-layout {
+  display: flex;
+  align-items: flex-start;
+}
+
+.filter-column-layout__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.filter-column-layout.is-column-collapsed .filter-column,
+.filter-column-layout.is-column-collapsed .filter-column-backdrop {
+  display: none;
+}
+
+.filter-column-toggle .filter-count-badge {
+  min-width: 18px;
+  height: 18px;
+}
+
+.filter-column-toggle[aria-expanded="true"] {
+  background: var(--bg-secondary);
+}
+
+.filter-column {
+  position: sticky;
+  top: 0;
+  flex: 0 0 280px;
+  width: 280px;
+  max-height: calc(100vh - 54px - var(--space-lg) * 2);
+  overflow: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.filter-column-backdrop {
+  display: none;
+}
+
+.filter-column__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+  z-index: 1;
+}
+
+.filter-column__title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.filter-column__close {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-secondary);
+  line-height: 0;
+}
+
+.filter-column-sort {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.filter-column-group {
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.filter-column-group summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.filter-column-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-column-group summary:hover {
+  background: var(--bg-secondary);
+}
+
+.filter-column-group summary:focus-visible {
+  outline: var(--border-sm) solid var(--border-focus);
+  outline-offset: calc(var(--border-sm) * -1);
+}
+
+.filter-column-group__chevron {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--text-tertiary);
+  transition: transform 0.15s ease;
+}
+
+.filter-column-group__chevron svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.filter-column-group:not([open]) .filter-column-group__chevron {
+  transform: rotate(-90deg);
+}
+
+.filter-column-group__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-xxs) var(--space-md) var(--space-md);
+}
+
+.filter-column-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.filter-column-field__label {
+  font-size: var(--text-xsm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.filter-column-field .filter-submenu-input,
+.filter-column-field .filter-submenu-select {
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.filter-column-field .filter-submenu-checkboxes {
+  max-height: 168px;
+}
+
+.filter-column__foot {
+  padding: var(--space-md);
+}
+
+.filter-column-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.filter-column-chips:empty {
+  display: none;
+}
+
+/* Tabellen in der Produktion: Spalte neben breiter Tabelle mit fixierten
+   Spalten. Die Tabelle scrollt weiter horizontal in ihrem eigenen Container. */
+
+.filter-column-layout--table {
+  gap: var(--space-sm);
+}
+
+.filter-column-layout--table .filter-column {
+  flex-basis: 260px;
+  width: 260px;
+  top: var(--sticky-add-section-height, 0px);
+  z-index: 6;
+}
+
+.filter-column-layout--table .filter-column-chips {
+  margin-bottom: var(--space-sm);
+}
+
+.filter-column-layout--table .filter-column-layout__main {
+  overflow: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-column-group__chevron {
+    transition: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-column-layout:not(.is-column-collapsed) .filter-column-chips {
+    display: none;
+  }
+
+  .filter-column-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: var(--sidebar-width-collapsed);
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 35;
+  }
+
+  .filter-column,
+  .filter-column-layout--table .filter-column {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: var(--sidebar-width-collapsed);
+    width: min(320px, calc(100vw - var(--sidebar-width-collapsed)));
+    max-height: none;
+    z-index: 40;
+    border-radius: 0;
+  }
+}

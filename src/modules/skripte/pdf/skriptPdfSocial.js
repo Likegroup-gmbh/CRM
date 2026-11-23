@@ -4,7 +4,7 @@
 import { konzeptCreatorFromSkript } from '../editor/skriptDocCreatorHtml.js';
 import { httpUrl } from './skriptPdfLayout.js';
 
-function creatorAusVerknuepfungen(rows) {
+function kooperationsCreator(rows) {
   const sorted = [...(rows || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   for (const row of sorted) {
     const creator = row.kooperation?.creator;
@@ -12,7 +12,7 @@ function creatorAusVerknuepfungen(rows) {
     const name = [creator.vorname, creator.nachname].filter(Boolean).join(' ').trim();
     const bildUrl = creator.profilbild_url || creator.profilbild_thumb_url || '';
     if (!name && !bildUrl) continue;
-    return { name: name || 'Creator', bildUrl, instagram: String(creator.instagram || '').trim() };
+    return creator;
   }
   return null;
 }
@@ -21,16 +21,39 @@ function instagramAusCasting(skript) {
   return String(skript?.strategie_item?.casting_eintrag?.link_instagram || '').trim();
 }
 
+/** Id des Creators, den das Anschreiben zeigt: Kooperation, sonst Videoidee. */
+export function anschreibenCreatorId(skript, verknuepfungen) {
+  const ausKooperation = kooperationsCreator(verknuepfungen);
+  if (ausKooperation) return ausKooperation.id || null;
+  return skript?.strategie_item?.casting_eintrag?.creator?.id || null;
+}
+
+/**
+ * Links aus dem Casting-Eintrag gelten nur für dessen Creator. Bei einer Kopie oder
+ * einem geteilten Skript zeigt das Video oft einen anderen Creator als die Videoidee.
+ */
+export function castingGiltFuerAnschreiben(skript, verknuepfungen) {
+  const castingId = skript?.strategie_item?.casting_eintrag?.creator?.id;
+  const anzeigeId = anschreibenCreatorId(skript, verknuepfungen);
+  return !castingId || !anzeigeId || castingId === anzeigeId;
+}
+
 /** Genau ein Creator: Kooperation, sonst der der Videoidee. Instagram aus der Casting-Liste. */
 export function creatorFuerAnschreiben(skript, verknuepfungen) {
-  const ausKooperation = creatorAusVerknuepfungen(verknuepfungen);
+  const ausKooperation = kooperationsCreator(verknuepfungen);
   const konzept = konzeptCreatorFromSkript(skript);
-  const base = ausKooperation || (konzept?.name ? {
-    name: konzept.name,
-    bildUrl: konzept.profilbild_url || konzept.profilbild_thumb_url || '',
-    instagram: '',
-  } : null);
+  let base = null;
+  if (ausKooperation) {
+    base = {
+      name: [ausKooperation.vorname, ausKooperation.nachname].filter(Boolean).join(' ').trim() || 'Creator',
+      bildUrl: ausKooperation.profilbild_url || ausKooperation.profilbild_thumb_url || '',
+      instagram: String(ausKooperation.instagram || '').trim(),
+    };
+  } else if (konzept?.name) {
+    base = { name: konzept.name, bildUrl: konzept.profilbild_url || konzept.profilbild_thumb_url || '', instagram: '' };
+  }
   if (!base) return null;
+  if (!castingGiltFuerAnschreiben(skript, verknuepfungen)) return base;
   const vomCreator = String(
     base.instagram
     || skript?.strategie_item?.casting_eintrag?.creator?.instagram

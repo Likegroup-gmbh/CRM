@@ -226,6 +226,8 @@ export class FormSearchableSelect {
       // Steht ein gewählter Wert im Input, öffnet das Dropdown trotzdem mit allen Optionen.
       const query = hiddenInput.value ? '' : input.value;
 
+      input.select();
+
       if (field?.serverSearch) {
         try {
           const results = await field.serverSearch(query);
@@ -247,6 +249,14 @@ export class FormSearchableSelect {
           window.addEventListener('resize', updateDropdownPosition, { signal: sig });
         }, 10);
       }
+    });
+
+    // Der mouseup nach dem Fokus-Klick würde die Markierung aus dem focus-Handler wieder aufheben.
+    let keepSelectionOnMouseUp = false;
+    input.addEventListener('mousedown', () => { keepSelectionOnMouseUp = document.activeElement !== input; });
+    input.addEventListener('mouseup', (e) => {
+      if (keepSelectionOnMouseUp) e.preventDefault();
+      keepSelectionOnMouseUp = false;
     });
 
     input.addEventListener('blur', () => {

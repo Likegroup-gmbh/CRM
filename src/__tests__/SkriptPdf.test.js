@@ -202,6 +202,17 @@ describe('creatorFuerAnschreiben', () => {
     expect(creator.instagram).toBe('https://instagram.com/casting');
   });
 
+  it('nimmt Casting-Links nicht fuer einen anderen Creator (Kopie, geteiltes Skript)', () => {
+    const creator = creatorFuerAnschreiben({
+      strategie_item: {
+        casting_eintrag: { link_instagram: 'https://instagram.com/haupt', creator: { id: 'c-haupt', instagram: '@haupt' } },
+      },
+    }, [
+      { position: 1, kooperation: { creator: { id: 'c-zweit', vorname: 'Zoe', nachname: 'Z', profilbild_url: 'http://zoe', instagram: '@zoe' } } },
+    ]);
+    expect(creator).toEqual({ name: 'Zoe Z', bildUrl: 'http://zoe', instagram: '@zoe' });
+  });
+
   it('beschriftet die Plattform, nicht die Account-URL', async () => {
     await createSkriptAnhang([{
       titel: 'X',

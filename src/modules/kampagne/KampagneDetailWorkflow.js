@@ -8,7 +8,6 @@
 import { canViewTab, syncTabQueryParam, getTabQueryParam } from '../../core/TabUtils.js';
 import { refreshDocumentTitle } from '../../core/documentTitle.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
-import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { renderVertraegeTableBody } from '../vertrag/VertraegeListRenderers.js';
 import {
   bindTableDelegation,
@@ -19,13 +18,11 @@ import {
 import { skripteService } from '../skripte/SkripteService.js';
 import { scopeByProduktion, scopeKoopsByLinie } from '../produktion/ProduktionService.js';
 import { effectiveLinie, renderLinienSwitch, syncLinienSwitch } from './linienScope.js';
-import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
-import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
-import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
-import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { mountVideoBrowserPane, unmountVideoBrowser, clearVideoBrowserUrl } from '../video-browser/VideoBrowser.js';
-import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { mountCastingPane, unmountCastingWorksheet, loadCastingPrefetch } from './KampagneDetailCasting.js';
+import {
+  mountSkriptePane, renderSkripteTabelle, skriptOffen, suspendSkriptePane, unmountSkriptePane
+} from './KampagneDetailSkripte.js';
 import { mountKonzeptPane, unmountKonzeptWorksheet, loadKonzeptPrefetch } from './KampagneDetailKonzept.js';
 import {
   mountPersonasPane,
@@ -89,9 +86,6 @@ const WORKFLOW_TABLE_ROUTES = {
 export function getWorkflowTableRoute(table, id) {
   return WORKFLOW_TABLE_ROUTES[table]?.(id) || null;
 }
-
-const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || '';
-const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
 
 /* ------------------------------------------------------------------ */
 /* Shell                                                               */
@@ -271,11 +265,13 @@ export function suspendWorkflowTab(detail, tabId) {
 
   // Konzept/Casting/Katalog zählen in ihrem eigenen unmount mit. Die übrigen
   // Panes haben keinen Worksheet-unmount, hier reicht der Zähler.
-  if (tabId !== 'konzepte' && tabId !== 'casting' && tabId !== 'produkte' && tabId !== 'personas' && tabId !== 'briefing') {
+  if (tabId !== 'konzepte' && tabId !== 'casting' && tabId !== 'produkte' && tabId !== 'personas' && tabId !== 'briefing' && tabId !== 'skripte') {
     bumpPaneGen(detail, tabId);
   }
 
-  if (tabId === 'produkte' || tabId === 'personas') {
+  if (tabId === 'skripte') {
+    suspendSkriptePane(detail);
+  } else if (tabId === 'produkte' || tabId === 'personas') {
     unmountKatalogPanes(detail);
   } else if (tabId === 'briefing') {
     unmountBriefingPane(detail);
@@ -334,6 +330,16 @@ export async function loadWorkflowPane(detail, tabId) {
       return;
     }
     syncWorkflowCreateChrome(detail, 'konzepte');
+    return;
+  }
+
+  if (tabId === 'skripte') {
+    detail._workflowLoaded = detail._workflowLoaded || {};
+    if (detail._workflowLoaded.skripte) return;
+    const gen = paneGeneration(detail, 'skripte');
+    detail._workflowLoaded.skripte = true;
+    await mountSkriptePane(detail);
+    if (!isPaneGenCurrent(detail, 'skripte', gen)) detail._workflowLoaded.skripte = false;
     return;
   }
 
@@ -444,6 +450,7 @@ export async function reloadWorkflowPane(detail, tabId) {
 }
 
 export function refreshWorkflowAfterRender(detail) {
+  void unmountSkriptePane(detail);
   unmountCastingWorksheet(detail);
   unmountKonzeptWorksheet(detail);
   unmountVertraegePane(detail);
@@ -477,6 +484,8 @@ export async function patchWorkflowItem(detail, cacheKey, itemId, updates) {
   const list = detail._workflowData?.[cacheKey];
   const item = list?.find(i => i.id === itemId);
   if (item) Object.assign(item, updates);
+  // Offener Skript-Editor: die Tabelle kommt erst beim Schließen wieder
+  if (skriptOffen(detail)) return;
 
   const pane = document.getElementById(`workflow-pane-${detail.activeWorkflowTab}`);
   const renderer = PANE_RENDERERS[detail.activeWorkflowTab];
@@ -496,11 +505,8 @@ export async function handleWorkflowTableSelect(detail, { field, itemId, value }
   try {
     if (field === 'skript_status') {
       if (detail.isKunde) return;
-      await skripteService.updateSkript(itemId, { status: value });
-      // Status und Checkbox meinen dieselbe Freigabe: jeder Status ungleich
-      // 'freigegeben' nimmt den Haken an allen verknüpften Videos raus.
+      await skripteService.setzeSkriptStatus(itemId, value);
       const freigegeben = skriptFreigegebenFuerStatus(value);
-      await skripteService.setVideosSkriptFreigegeben(itemId, freigegeben);
       syncSkriptFreigabeLocal(detail, itemId, { freigegeben, status: value }, patchWorkflowItem);
       window.toastSystem?.show('Skript-Status aktualisiert', 'success');
     }
@@ -514,7 +520,7 @@ export async function handleWorkflowTableSelect(detail, { field, itemId, value }
 /* Lazy-Daten (gecacht pro Detail-Instanz, Reset in refreshWorkflow)   */
 /* ------------------------------------------------------------------ */
 
-async function getWorkflowData(detail, key, loader) {
+export async function getWorkflowData(detail, key, loader) {
   detail._workflowData = detail._workflowData || {};
   if (detail._workflowData[key] === undefined) {
     detail._workflowData[key] = await loader();
@@ -611,93 +617,6 @@ export function mountVertraegePane(detail) {
 /* Pane-Renderer                                                       */
 /* ------------------------------------------------------------------ */
 
-// Creator: Foto links, daneben die Verknüpfungs-Pill (für Kunden nur der Name).
-function skriptCreatorHtml(detail, skript) {
-  const creator = konzeptCreatorFromSkript(skript);
-  if (!creator?.name) return '-';
-  const nameHtml = detail.isKunde || !creator.id
-    ? esc(creator.name)
-    : renderVerknuepfungPill({
-        kind: 'creator',
-        labelHtml: esc(creator.name),
-        attrs: `data-table="creator" data-id="${creator.id}"`
-      });
-  return renderTableIdentity({
-    url: creator.profilbild_thumb_url || creator.profilbild_url,
-    name: creator.vorname || creator.name,
-    nameHtml
-  });
-}
-
-async function renderSkriptePane(detail) {
-  const skripte = await getWorkflowData(detail, 'skripte', () =>
-    skripteService.loadSkripte({
-      kampagneId: detail.kampagneId,
-      produktionId: detail.produktionId || null,
-      briefingId: effectiveLinie(detail, 'skripte')
-    })
-  );
-
-  if (!skripte.length) {
-    return renderEmptyState({
-      icon: 'skripte',
-      title: 'Keine Skripte vorhanden',
-      text: `Für ${effectiveLinie(detail, 'skripte') ? 'diese Linie' : 'diese Produktion'} wurden noch keine Skripte erstellt.`
-    });
-  }
-
-  // Status inline editierbar (intern + canEdit), sonst Badge wie bisher.
-  const canEditStatus = !detail.isKunde && (window.canEdit?.('skripte') ?? false);
-  const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
-
-  const rows = skripte.map(s => {
-    const titel = (s.titel || s.hook || 'Ohne Titel').toString().slice(0, 80);
-    const statusLabel = STATUS_LABELS[s.status] || s.status || '–';
-    const statusVariant = STATUS_TAG_VARIANT[s.status] || 'tag--type';
-    const statusTd = canEditStatus
-      ? renderTableSelect({
-          field: 'skript_status',
-          itemId: s.id,
-          value: s.status || '',
-          options: statusOptions
-        })
-      : `<span class="tag tag--status ${statusVariant}">${esc(statusLabel)}</span>`;
-    return `
-      <tr>
-        <td class="col-nr">${s.skript_nr || '–'}</td>
-        <td class="col-creator">${skriptCreatorHtml(detail, s)}</td>
-        <td class="col-titel">${renderVerknuepfungPill({
-          kind: 'skript',
-          label: titel,
-          href: `/skripte/${s.id}`,
-          attrs: `data-table="skripte" data-id="${s.id}"`
-        })}</td>
-        <td class="col-status">${statusTd}</td>
-        <td class="col-erstellt-am">${formatDate(s.created_at)}</td>
-        <td class="col-actions">${actionBuilder.create('skripte', s.id)}</td>
-      </tr>
-    `;
-  }).join('');
-
-  return `
-    <div class="data-table-container">
-      <table class="data-table data-table--skripte">
-        <thead>
-          <tr>
-            <th class="col-nr">Nr.</th>
-            <th class="col-creator">Creator</th>
-            <th class="col-titel">Titel</th>
-            <th class="col-status">Status</th>
-            <th class="col-erstellt-am">Erstellt am</th>
-            <th class="col-actions">Aktionen</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
-}
-
 export async function renderVertraegePane(detail) {
   const vertraege = await getWorkflowData(detail, 'vertraege', () => loadVertraege(detail));
 
@@ -714,7 +633,8 @@ export async function renderVertraegePane(detail) {
     canBulkDelete: false,
     canEdit,
     isAdmin,
-    canDelete
+    canDelete,
+    canCreate: canEdit
   });
 
   return `
@@ -770,7 +690,7 @@ function mountBudgetPane(detail) {
 
 const PANE_RENDERERS = {
   budget: renderBudgetPane,
-  skripte: renderSkriptePane,
+  skripte: renderSkripteTabelle,
   vertraege: renderVertraegePane,
   auswertung: renderAuswertungPane
 };

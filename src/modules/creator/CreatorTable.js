@@ -31,13 +31,13 @@ function canViewCreatorLink() {
 }
 
 /**
- * Schlanke Tabellenzelle: Avatar (Thumb, sonst Initiale) + Name + optional Link.
+ * Avatar (Thumb, sonst Initiale) + Name + optional Link, ohne Zelle. Ohne Name leer.
  * creator: { id, vorname, nachname, name, profilbild_url, profilbild_thumb_url }
  */
-export function renderCreatorNameCell(creator) {
-  if (!creator) return '<td>-</td>';
+export function renderCreatorName(creator) {
+  if (!creator) return '';
   const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || creator.name || '';
-  if (!name) return '<td>-</td>';
+  if (!name) return '';
 
   const safeName = window.validatorSystem?.sanitizeHtml(name) || escapeAttr(name);
   const id = creator.id;
@@ -45,11 +45,17 @@ export function renderCreatorNameCell(creator) {
     ? `<a href="#" class="table-link" data-table="creator" data-id="${escapeAttr(id)}">${safeName}</a>`
     : safeName;
 
-  return `<td class="col-name">${renderTableIdentity({
+  return renderTableIdentity({
     url: creator.profilbild_thumb_url || creator.profilbild_url,
     name: creator.vorname || name,
     nameHtml
-  })}</td>`;
+  });
+}
+
+/** Schlanke Tabellenzelle mit einem Creator, ohne Name "-". */
+export function renderCreatorNameCell(creator) {
+  const inhalt = renderCreatorName(creator);
+  return inhalt ? `<td class="col-name">${inhalt}</td>` : '<td>-</td>';
 }
 
 export function renderCreatorTable(creators, options = {}) {

@@ -81,8 +81,8 @@ describe('Filterspalte', () => {
     const root = document.createElement('div');
     root.innerHTML = html;
 
-    const groups = [...root.querySelectorAll('.creator-filter-group')];
-    expect(groups.map((group) => group.querySelector('.creator-filter-group__title').textContent)).toEqual([
+    const groups = [...root.querySelectorAll('.filter-column-group')];
+    expect(groups.map((group) => group.querySelector('.filter-column-group__title').textContent)).toEqual([
       'Grundlagen', 'Social Media', 'Standort', 'Kontakt', 'Beziehungen', 'Zeit'
     ]);
     expect(groups.every((group) => group.querySelector('[data-group-count]').hidden)).toBe(true);
@@ -90,15 +90,15 @@ describe('Filterspalte', () => {
     expect(groups[1].open).toBe(false);
     expect(root.textContent).toContain('Spielt Instrument');
     expect(root.textContent).not.toContain('Mehr anzeigen');
-    expect(root.querySelector('.creator-filter-reset').textContent).toBe('Zurücksetzen');
-    expect(root.querySelector('.creator-filter-sort .creator-filter-field__label').textContent).toBe('Sortieren nach');
+    expect(root.querySelector('.filter-column-reset').textContent).toBe('Zurücksetzen');
+    expect(root.querySelector('.filter-column-sort .filter-column-field__label').textContent).toBe('Sortieren nach');
     expect(root.querySelector('input[name="creator-sort"]').value).toBe('name');
-    expect(root.querySelector('.creator-filter-sort .table-select__label').textContent).toBe('Name, A–Z');
+    expect(root.querySelector('.filter-column-sort .table-select__label').textContent).toBe('Name, A–Z');
     expect(root.querySelector('select')).toBeNull();
     const sorted = document.createElement('div');
     sorted.innerHTML = renderColumnBody(CREATOR_FILTERS, CREATOR_FILTER_GROUPS, {}, 'rezension');
     expect(sorted.querySelector('input[name="creator-sort"]').value).toBe('rezension');
-    expect(sorted.querySelector('.creator-filter-sort').nextElementSibling.classList.contains('creator-filter-group')).toBe(true);
+    expect(sorted.querySelector('.filter-column-sort').nextElementSibling.classList.contains('filter-column-group')).toBe(true);
   });
 
   it('zählt aktive Filter je Gruppe', () => {
@@ -110,7 +110,7 @@ describe('Filterspalte', () => {
 
     const root = document.createElement('div');
     root.innerHTML = renderColumnBody(CREATOR_FILTERS, CREATOR_FILTER_GROUPS, { lieferadresse_stadt: 'Berlin' });
-    const badge = root.querySelector('.creator-filter-group[data-group="location"] [data-group-count]');
+    const badge = root.querySelector('.filter-column-group[data-group="location"] [data-group-count]');
     expect(badge.hidden).toBe(false);
     expect(badge.textContent).toBe('1');
   });

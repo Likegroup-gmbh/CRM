@@ -74,17 +74,19 @@ export async function openAddToListModal(dropdown, creatorId) {
       try {
         const { data: existing } = await window.supabase.from('creator_list_member').select('list_id').eq('creator_id', creatorId);
         const excludedListIds = (existing || []).map(r => r.list_id).filter(Boolean);
-        const { data } = await window.supabase.from('creator_list').select('id, name, created_at').order('created_at', { ascending: false });
+        const { data } = await window.supabase.from('creator_list').select('id, name, created_at, unternehmen:unternehmen_id(firmenname)').order('created_at', { ascending: false });
         listen = (data || []).filter(l => !excludedListIds.includes(l.id));
       } catch {}
     },
 
     search: async (term) => {
       const f = term.toLowerCase();
-      return listen.filter(l => (l.name || '').toLowerCase().includes(f));
+      return listen.filter(l => `${l.name || ''} ${l.unternehmen?.firmenname || ''}`.toLowerCase().includes(f));
     },
 
-    renderItem: (l) => esc(l.name),
+    renderItem: (l) => (l.unternehmen?.firmenname
+      ? `${esc(l.name)} <span class="text-muted">· ${esc(l.unternehmen.firmenname)}</span>`
+      : esc(l.name)),
 
     onConfirm: async (listId) => {
       const { error } = await window.supabase.from('creator_list_member').insert({ list_id: listId, creator_id: creatorId, added_at: new Date().toISOString() });

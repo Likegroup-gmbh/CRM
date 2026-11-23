@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  paketAuswahl, creatorOptionen, creatorAusZeile
+  paketAuswahl, creatorOptionen, creatorenAusZeile, creatorenText
 } from '../modules/skripte/skriptPaketModel.js';
 import { emailsAusText } from '../core/components/shareEmailField.js';
 
@@ -90,23 +90,49 @@ describe('creatorOptionen', () => {
   });
 });
 
-describe('creatorAusZeile', () => {
-  it('nimmt den Creator am Casting, sonst die Kooperation', () => {
-    expect(creatorAusZeile({
+describe('creatorenAusZeile', () => {
+  const ids = (row) => creatorenAusZeile(row).map((c) => c.id);
+
+  it('nimmt die Creator der Videos, sonst den am Casting', () => {
+    expect(ids({
       strategie_item: { casting_eintrag: { creator: linda } },
       kooperation_videos: [{ kooperation: { creator: max } }]
-    })?.id).toBe('linda');
-    expect(creatorAusZeile({
-      kooperation_videos: [{ kooperation: { creator: max } }]
-    })?.id).toBe('max');
-    expect(creatorAusZeile({})).toBeNull();
+    })).toEqual(['max']);
+    expect(ids({ strategie_item: { casting_eintrag: { creator: linda } } })).toEqual(['linda']);
+    expect(ids({})).toEqual([]);
+  });
+
+  it('listet bei einem geteilten Skript alle, die Hauptbesetzung vorn', () => {
+    expect(ids({
+      strategie_item: { casting_eintrag: { creator: linda } },
+      kooperation_videos: [
+        { kooperation: { creator: max } },
+        { kooperation: { creator: linda } },
+        { kooperation: { creator: max } }
+      ]
+    })).toEqual(['linda', 'max']);
   });
 
   it('zeigt den geänderten Casting-Namen statt der Stammdaten', () => {
-    const creator = creatorAusZeile({
-      strategie_item: { casting_eintrag: { name: 'Linda neu', creator: linda } }
+    const [creator] = creatorenAusZeile({
+      strategie_item: { casting_eintrag: { name: 'Linda neu', creator: linda } },
+      kooperation_videos: [{ kooperation: { creator: linda } }]
     });
     expect(creator.id).toBe('linda');
     expect(`${creator.vorname} ${creator.nachname}`.trim() || creator.name).toBe('Linda neu');
+  });
+});
+
+describe('Paket mit geteiltem Skript', () => {
+  const geteilt = { id: 'g', status: 'final', creatorIds: ['linda', 'max'], creators: [linda, max], creator: linda };
+
+  it('zählt das Skript bei jedem seiner Creator zu den eigenen', () => {
+    expect(paketAuswahl({ skripte: [geteilt], creatorId: 'max' }).eigene.map((s) => s.id)).toEqual(['g']);
+    expect(paketAuswahl({ skripte: [geteilt], creatorId: 'linda' }).eigene.map((s) => s.id)).toEqual(['g']);
+  });
+
+  it('bietet jeden Creator als Option an und nennt alle Namen', () => {
+    expect(creatorOptionen([geteilt]).map((c) => c.id)).toEqual(['linda', 'max']);
+    expect(creatorenText(geteilt)).toBe('Linda L, Max M');
   });
 });

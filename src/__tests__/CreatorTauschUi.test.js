@@ -33,6 +33,13 @@ describe('Skript-Banner', () => {
     expect(html).toContain('Lea');
     expect(html).toContain('Mia &lt;b&gt;');
     expect(html).toContain('ed-tausch-quittieren');
+    expect(html).toContain('Prüfe Ansprache und Besetzung');
+  });
+
+  it('sagt bei einem geteilten Skript, dass der Text fuer alle bleibt', () => {
+    const html = tauschBannerHtml({ creator_tausch: { ...vermerk, geteilt: true } });
+    expect(html).toContain('auch für andere Creator');
+    expect(html).not.toContain('Prüfe Ansprache und Besetzung');
   });
 
   it('zeigt nichts ohne Vermerk, nach Quittieren oder fuer Externe', () => {

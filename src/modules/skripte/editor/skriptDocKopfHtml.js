@@ -6,13 +6,49 @@ import { funnelAbweichungsHinweis } from '../../strategie/strategieFunnelOptions
 import { formatVideoLaengeSchluessel } from '../../briefing/videolaenge.js';
 import { escapeHtml } from '../SkripteUtils.js';
 import { icon } from '../../../core/icons/IconSystem.js';
+import { renderToolbarMenu } from '../../../core/components/ToolbarMenu.js';
+import { tauschSkriptButtonHtml } from './skriptTauschBanner.js';
 
-/** Doc-Kopf: Version, Kundenfreigabe, optional Teilen, dann Creator-Zuweisen, Löschen. */
+function menuItemHtml(id, label, iconName, title, { danger = false } = {}) {
+  return `
+    <button type="button" class="action-item${danger ? ' action-danger' : ''}" id="${id}" role="menuitem" title="${escapeHtml(title)}">
+      ${iconName ? icon(iconName) : ''}
+      ${escapeHtml(label)}
+    </button>`;
+}
+
+/** Selten genutzte Aktionen hinter "…": PDF, Link, Teilen, Kopieren, Creator tauschen, Löschen. */
+function kopfMenuHtml({ kannPdf, kannTeilen, kannKopieren, kannTauschen, kannLoeschen }) {
+  const items = [
+    kannPdf ? menuItemHtml('ed-pdf', 'PDF herunterladen', 'pdf', 'Skript als PDF') : '',
+    kannTeilen ? menuItemHtml('ed-copy-link', 'Link kopieren', 'link', 'Adresse für ein Kundenkonto kopieren') : '',
+    kannTeilen ? menuItemHtml('ed-share', 'Skripte dieses Creators teilen', 'share-alt', 'Freigegebene Skripte dieses Creators teilen') : '',
+    kannKopieren ? menuItemHtml('ed-kopieren', 'Für weiteren Creator kopieren', 'document-duplicate', 'Eigene Fassung für einen weiteren Creator anlegen') : '',
+    kannTauschen ? tauschSkriptButtonHtml() : ''
+  ].filter(Boolean);
+  if (kannLoeschen) {
+    if (items.length) items.push('<div class="action-separator"></div>');
+    items.push(menuItemHtml('ed-loeschen', 'Löschen', 'trash', 'Skript löschen', { danger: true }));
+  }
+  if (!items.length) return '';
+  return renderToolbarMenu({
+    toggleId: 'ed-kopf-menu',
+    toggleIcon: icon('dots-vertical-filled'),
+    itemsHtml: items.join('')
+  });
+}
+
+/**
+ * Doc-Kopf: Version, Status, Senden und Creator sichtbar, der Rest im "…"-Menü.
+ * Mit statusWahlHtml (Team) ersetzt die Status-Wahl das Freigegeben-Badge.
+ */
 export function docHeadActionsHtml({
-  kannTeilen = false, kannAnschreiben = null, kannPdf = false, kannZurueck = false, kannFreigeben = false, kannLoeschen = false, status = '', verknuepfungenHtml = ''
+  kannTeilen = false, kannAnschreiben = null, kannPdf = false, kannZurueck = false, kannFreigeben = false,
+  kannLoeschen = false, kannTauschen = false, kannKopieren = false, status = '', statusWahlHtml = '',
+  verknuepfungenHtml = ''
 } = {}) {
   const senden = kannAnschreiben == null ? kannTeilen : kannAnschreiben;
-  const freigabeBadge = status === 'freigegeben'
+  const freigabeBadge = !statusWahlHtml && status === 'freigegeben'
     ? `<span class="skripte-badge skripte-badge--success" title="Vom Kunden freigegeben">Freigegeben</span>`
     : '';
   const freigebenBtn = kannFreigeben ? `
@@ -27,37 +63,17 @@ export function docHeadActionsHtml({
     <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-zurueck">
       <span class="mdc-btn__label">Zurück</span>
     </button>` : ''}
+    ${statusWahlHtml}
     ${freigabeBadge}
     ${freigebenBtn}
-    ${kannPdf ? `
-    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-pdf"
-      title="Skript als PDF">
-      <span class="mdc-btn__icon">${icon('pdf')}</span>
-      <span class="mdc-btn__label">PDF</span>
-    </button>` : ''}
-    ${kannTeilen ? `
-    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-copy-link"
-      title="Adresse für ein Kundenkonto kopieren">
-      <span class="mdc-btn__label">Link kopieren</span>
-    </button>
-    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-share"
-      title="Freigegebene Skripte dieses Creators teilen">
-      <span class="mdc-btn__icon">${icon('share-alt')}</span>
-      <span class="mdc-btn__label">Teilen</span>
-    </button>` : ''}
+    ${verknuepfungenHtml}
     ${senden ? `
     <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-anschreiben"
       title="Skript per E-Mail senden">
       <span class="mdc-btn__icon">${icon('anschreiben')}</span>
       <span class="mdc-btn__label">Senden</span>
     </button>` : ''}
-    ${verknuepfungenHtml}
-    ${kannLoeschen ? `
-    <button type="button" class="mdc-btn mdc-btn--delete skripte-editor-share-btn" id="ed-loeschen"
-      title="Skript löschen">
-      <span class="mdc-btn__icon">${icon('trash')}</span>
-      <span class="mdc-btn__label">Löschen</span>
-    </button>` : ''}
+    ${kopfMenuHtml({ kannPdf, kannTeilen, kannKopieren, kannTauschen, kannLoeschen })}
   `;
 }
 

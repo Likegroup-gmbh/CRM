@@ -248,7 +248,10 @@ export function syncTabQueryParam(tab) {
   if (!tab || typeof window === 'undefined' || !window.history?.replaceState) return;
   const url = new URL(window.location.href);
   url.searchParams.set('tab', tab);
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  const route = `${url.pathname}${url.search}${url.hash}`;
+  // route mitziehen: popstate navigiert nach state.route, nicht nach der URL
+  const state = window.history.state ? { ...window.history.state, route } : window.history.state;
+  window.history.replaceState(state, '', route);
 }
 
 /**

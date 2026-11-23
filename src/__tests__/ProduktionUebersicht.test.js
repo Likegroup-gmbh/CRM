@@ -172,6 +172,7 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
       produktionen: [{
         id: 'p1',
         name: 'Next Magenta',
+        koopAnzahl: 0,
         linien: [{ id: 'l1', name: 'Linie' }]
       }]
     });
@@ -182,10 +183,11 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
     expect(menu).toContain('Name bearbeiten');
     expect(menu).toContain('data-action="produktion-budget"');
     expect(menu).toContain('Produktionsbudget anpassen');
-    expect(menu).not.toContain('data-produktion-loeschen');
+    expect(menu).toContain('data-produktion-loeschen="p1"');
+    expect(menu).toContain('Löschen');
   });
 
-  it('bietet Löschen nur bei einer leeren Produktion im Menü an', () => {
+  it('bietet Löschen im Aktionsmenü, wenn keine Kooperationen da sind', () => {
     window.isAdmin = () => false;
     window.isInternal = () => true;
     window.canCreate = () => true;
@@ -193,9 +195,42 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
     const html = renderMainPage({
       mode: 'overview',
       kampagneData,
-      produktionen: [{ id: 'p1', name: 'Leer', linien: [] }]
+      produktionen: [{ id: 'p1', name: 'Leer', linien: [], koopAnzahl: 0 }]
     });
 
+    expect(html).toContain('data-produktion-loeschen="p1"');
+    expect(html).toContain('Löschen');
+  });
+
+  it('versteckt Löschen im Aktionsmenü, solange Kooperationen hängen', () => {
+    window.isAdmin = () => false;
+    window.isInternal = () => true;
+    window.canCreate = () => true;
+
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{
+        id: 'p1',
+        name: 'Belegt',
+        koopAnzahl: 3,
+        linien: [{ id: 'l1', name: 'Linie' }]
+      }]
+    });
+
+    expect(html).not.toContain('data-produktion-loeschen');
+  });
+
+  it('zeigt das Aktionsmenü mit Löschen auch auf der Produktionsseite', () => {
+    const html = renderMainPage({
+      mode: 'workflow',
+      lineTitle: 'SELPHY Drucker',
+      kampagneData,
+      activeWorkflow: 'briefing',
+      produktion: { id: 'p1', name: 'SELPHY Drucker', koopAnzahl: 0, linien: [{ id: 'b1' }] }
+    });
+
+    expect(html).toContain('aria-label="Aktionen"');
     expect(html).toContain('data-produktion-loeschen="p1"');
     expect(html).toContain('Löschen');
   });

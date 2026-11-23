@@ -15,11 +15,12 @@ import {
 import { renderToolbarListenKopf } from '../../../core/components/ToolbarMenu.js';
 import { SEKTION_LABELS_KURZ, hatHookVarianten } from './skriptEditorKonstanten.js';
 import { tauschBannerHtml } from './skriptTauschBanner.js';
+import { uploadHinweisHtml } from './skriptUploadHinweis.js';
 import { dokumentHtml } from './dokument/blockRenderer.js';
 import { gridTabelleHtml, hookVariantenTabelleHtml } from './skriptDocTabelleHtml.js';
 
 export {
-  konzeptCreatorFromSkript, creatorsFuerListe, sortListeSkripte, creatorsFuerKopf,
+  konzeptCreatorFromSkript, creatorsFuerListe, sortListeSkripte, creatorsFuerKopf, creatorDisplayName,
   listeCreatorHtml, listeVideoHtml, verknuepfungenHtml
 } from './skriptDocCreatorHtml.js';
 export { docHeadActionsHtml, personaWahlHtml, vorgabenPanelHtml } from './skriptDocKopfHtml.js';
@@ -80,7 +81,7 @@ function docHeadHtml(skript, extraHtml = '', fallbackName = 'Skript') {
         logoAlt: marke?.markenname || unternehmen?.firmenname || 'Logo'
       })}
       ${extraHtml}
-    </div>${tauschBannerHtml(skript)}`;
+    </div>${uploadHinweisHtml(skript)}${tauschBannerHtml(skript)}`;
 }
 
 /** Rueckfragen-Phase: Vorgaben + Aufbau-Toggles statt (noch leerem) Skript-Inhalt. */

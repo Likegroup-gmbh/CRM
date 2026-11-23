@@ -198,7 +198,7 @@ describe('Anzahl Teilrechnungen aendern', () => {
     expect(step.wizard.formData.auftrag.nettobetrag).toBe(3000);
   });
 
-  it('zieht beim Verkleinern den Auftrags-Nettobetrag nach', () => {
+  it('laesst beim Verkleinern das Angebotsnetto stehen', () => {
     const step = createStep({
       nettobetrag: 3000,
       teilrechnungen: [
@@ -213,7 +213,79 @@ describe('Anzahl Teilrechnungen aendern', () => {
     const trs = step.wizard.formData.auftrag.teilrechnungen;
     expect(trs).toHaveLength(2);
     expect(trs.map(tr => tr.re_nr)).toEqual(['RE-1', 'RE-2']);
-    expect(step.wizard.formData.auftrag.nettobetrag).toBe(2000);
+    expect(step.wizard.formData.auftrag.nettobetrag).toBe(3000);
+  });
+});
+
+describe('Angebotsnetto aendern', () => {
+  function createStep(auftrag) {
+    const wizard = new ProjektErstellenWizard(document.createElement('div'));
+    Object.assign(wizard.formData.auftrag, auftrag);
+    return new StepDetails(wizard);
+  }
+
+  it('aendert gespeicherte Teilrechnungen nicht', () => {
+    const step = createStep({
+      nettobetrag: 1322900.84,
+      teilrechnungen: [
+        { position: 1, nettobetrag: 644978.39, fixiert: true },
+        { position: 2, nettobetrag: 617813.70, fixiert: true }
+      ]
+    });
+
+    step._distributeEvenly();
+
+    expect(step.wizard.formData.auftrag.teilrechnungen.map(tr => tr.nettobetrag))
+      .toEqual([644978.39, 617813.70]);
+  });
+
+  it('verteilt nur den Rest auf unberuehrte Teilrechnungen', () => {
+    const step = createStep({
+      nettobetrag: 5000,
+      teilrechnungen: [
+        { position: 1, nettobetrag: 1000, fixiert: true },
+        { position: 2, nettobetrag: 0 },
+        { position: 3, nettobetrag: 0 }
+      ]
+    });
+
+    step._distributeEvenly();
+
+    const trs = step.wizard.formData.auftrag.teilrechnungen;
+    expect(trs.map(tr => tr.nettobetrag)).toEqual([1000, 2000, 2000]);
+    expect(trs[1].bruttobetrag).toBe(2380);
+  });
+
+  it('verteilt bei neuen Auftraegen weiterhin gleichmaessig', () => {
+    const step = createStep({
+      nettobetrag: 3000,
+      teilrechnungen: [{ position: 1, nettobetrag: 0 }, { position: 2, nettobetrag: 0 }]
+    });
+
+    step._distributeEvenly();
+
+    expect(step.wizard.formData.auftrag.teilrechnungen.map(tr => tr.nettobetrag)).toEqual([1500, 1500]);
+  });
+
+  it('zeigt unter dem Netto den verteilten Anteil und warnt bei Ueberschuss', () => {
+    const step = createStep({
+      nettobetrag: 1000,
+      teilrechnungen: [{ position: 1, nettobetrag: 400, rechnung_gestellt_am: '2026-10-01' }]
+    });
+    step.host = document.createElement('div');
+    step.host.innerHTML = '<p id="pe-netto-verteilung-hint" hidden></p>';
+    const hint = step.host.querySelector('p');
+
+    step._renderVerteilungsHinweis();
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).toContain('40 %');
+    expect(hint.textContent).toContain('noch offen');
+    expect(hint.classList.contains('pe-netto-verteilung-hint--warnung')).toBe(false);
+
+    step.wizard.formData.auftrag.nettobetrag = 300;
+    step._renderVerteilungsHinweis();
+    expect(hint.textContent).toContain('übersteigen');
+    expect(hint.classList.contains('pe-netto-verteilung-hint--warnung')).toBe(true);
   });
 });
 

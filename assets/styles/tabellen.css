@@ -1518,7 +1518,10 @@ button.verknuepfung-chip {
 .kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Senkrecht darf die Seite mit scrollen, falls die Tabelle unter dem
+     sichtbaren Bereich liegt. Waagerecht bleibt sie im grid-wrapper. */
+  overflow-x: hidden;
+  overflow-y: auto;
   min-height: 0;
 }
 
@@ -1563,18 +1566,27 @@ button.verknuepfung-chip {
 }
 
 .kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  /* Deckel, falls ein Zwischenelement die Flex-Kette bricht: ohne begrenzte
+     Höhe ist scrollHeight = clientHeight und overflow:hidden darüber
+     schneidet die unteren Zeilen ab. */
+  max-height: calc(100dvh - 14rem);
+  overflow-x: auto;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--gray-400) transparent;
 }
 
 /* Senkrechte Leiste zeigen, waagerechte native Leiste ausblenden
-   (dafür gibt es die schwebende Leiste). */
-.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar {
+   (dafür gibt es die schwebende Leiste). height:0 nur an der waagerechten
+   Leiste, sonst verschwindet in WebKit auch die senkrechte. */
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar:vertical {
   display: block;
   width: 10px;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar:horizontal {
   height: 0;
 }
 
@@ -1585,6 +1597,33 @@ button.verknuepfung-chip {
 
 .kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Filterspalte sitzt zwischen .detail-section und #kooperationen-videos-container.
+   Ohne diese Glieder wächst das Layout mit den Zeilen, overflow:hidden schneidet
+   sie ab und .grid-wrapper hat keine begrenzte Höhe, also nichts zu scrollen. */
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table .filter-column {
+  align-self: flex-start;
+  max-height: 100%;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table .filter-column-layout__main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table .filter-column-chips {
+  flex-shrink: 0;
 }
 
 .grid-table {
@@ -3147,6 +3186,11 @@ width: 18em;
 }
 
 /* Bild und Name der Namensspalten: tabelle-identitaet.css */
+
+/* Mehrere Creator in einer Zelle (geteiltes Skript): je Creator eine Zeile */
+.table-creator-zeile + .table-creator-zeile {
+  margin-top: var(--space-xxs);
+}
 
 /* Auswahlmodus (core/list/SelectionBar.js): Die Checkbox-Spalte steht immer im HTML und
    erscheint mit .is-auswahl an der Tabelle. Klick auf die Zeile wählt, der Namenslink ist klicktot. */

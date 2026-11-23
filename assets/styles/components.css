@@ -4110,9 +4110,9 @@ tr:has(+ .category-header-row) > td {
   justify-content: center;
   padding: var(--space-xs) var(--space-sm);
   font-size: var(--text-xs);
-  color: var(--primary);
+  color: var(--text-primary);
   background: var(--blue-50);
-  border: 1px dashed var(--primary);
+  border: var(--border-xs) dashed var(--primary-300);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s ease;
@@ -4201,7 +4201,10 @@ tr:has(+ .category-header-row) > td {
 .thema-link-btn.skript-link-open {
   gap: var(--space-xs);
   max-width: 100%;
+  /* Breite mitsetzen: nur border-style faellt auf medium (3px, currentColor) zurueck. */
+  border-width: var(--border-xs);
   border-style: solid;
+  border-color: var(--primary-300);
   text-decoration: none;
 }
 

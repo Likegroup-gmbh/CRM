@@ -20,6 +20,7 @@ const { loadRueckfragenDialog, fmtRueckfragenBlock } = require('./_shared/skript
 const { beansprucheJob, autorisiereSkript, hatLaufendenJob, istJobAbgebrochen } = require('./_shared/skript-auftrag');
 const { ladeGesperrtenHook, hookSperreGenerierungBlock, varianteOhneGesperrtenHook } = require('./_shared/hook-sperre');
 const { personaVomStub } = require('./_shared/skript-persona');
+const { bereichVomStub } = require('./_shared/skript-bereich');
 
 // Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
 // Anfuehrungszeichen im Skript-Text koennen das Parsen nicht mehr brechen
@@ -221,6 +222,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       : 'Keine Videovorlage - Aufbau kommt aus dem Master');
 
     Object.assign(payload, await personaVomStub(supabase, payload));
+    Object.assign(payload, await bereichVomStub(supabase, payload));
     const ctx = await loadContext(supabase, payload);
     if (!ctx.bereich) {
       throw new Error('Bereich fehlt – bitte Owned Social, Paid Creator Ads oder Influencer Marketing wählen');

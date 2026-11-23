@@ -486,7 +486,7 @@ export function buildCastingEintragFromCreator(creator, listeId, sortierung) {
   return {
     creator_auswahl_id: listeId,
     creator_id: creator?.id || null,
-    typ: 'Influencer',
+    typ: creator?.typ || 'Influencer',
     name,
     link_instagram: socialProfileUrl(creator?.instagram, 'instagram'),
     follower_instagram: parseFollowerCount(creator?.instagram_follower),

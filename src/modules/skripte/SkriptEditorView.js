@@ -11,6 +11,7 @@ import './editor/SkriptEditorLifecycle.js';
 import './editor/SkriptEditorEvents.js';
 import './editor/SkriptEditorListe.js';
 import './editor/SkriptEditorDokument.js';
+import './editor/SkriptEditorStatus.js';
 import './editor/SkriptEditorLiky.js';
 
 export { SkriptEditorView };

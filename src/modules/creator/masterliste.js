@@ -6,8 +6,6 @@
 import { parseSocialLink } from '../../core/format/socialLink.js';
 import { normalizeHandle } from './creatorProfil.js';
 import { eindeutigerCreator } from '../creator-auswahl/castingCreatorVerknuepfung.js';
-import { followerStufe, nameZuVorNachname } from './creatorInstagramPrefill.js';
-
 export const MASTERLISTE_SPALTEN = [
   { key: 'ml-col-drag', label: 'Reihenfolge', fixed: true },
   { key: 'ml-col-name', label: 'Name', fixed: true },
@@ -186,7 +184,7 @@ export function filterLists(lists, query) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return lists || [];
   return (lists || []).filter(list =>
-    `${list.name} ${list.beschreibung} ${list.autor}`.toLowerCase().includes(q)
+    `${list.name} ${list.beschreibung} ${list.autor} ${list.unternehmenName}`.toLowerCase().includes(q)
   );
 }
 
@@ -199,7 +197,10 @@ export function mapListRow(row) {
     beschreibung: row?.beschreibung || '',
     createdAt: row?.created_at || null,
     count: Number(rawCount) || 0,
-    autor
+    autor,
+    unternehmenId: row?.unternehmen_id || null,
+    unternehmenName: row?.unternehmen?.firmenname || '',
+    unternehmenLogo: row?.unternehmen?.logo_url || ''
   };
 }
 
@@ -320,84 +321,4 @@ export function verknuepfbareMember(members, creators) {
     links.push({ memberId: member.memberId, creatorId: creator.id });
   }
   return links;
-}
-
-function teileName(name) {
-  const strikt = nameZuVorNachname(name);
-  if (strikt.vorname) return strikt;
-  const [vorname = '', ...rest] = text(name).split(/\s+/).filter(Boolean);
-  return { vorname, nachname: rest.join(' ') };
-}
-
-/** Formularwerte fuer "Creator anlegen" aus einem Eintrag ohne Creator (Handarbeit vor Pool). */
-export function prefillOhneDatensatz(member) {
-  const eigen = member?.eigen || {};
-  const pool = member?.pool || {};
-  const name = teileName(eigen.name || pool.name);
-  return {
-    vorname: name.vorname,
-    nachname: name.nachname,
-    mail: eigen.email || pool.email || '',
-    telefonnummer: eigen.telefon || pool.telefon || '',
-    instagram: member?.igUsername || '',
-    instagram_follower: followerStufe(pool.follower_instagram ?? eigen.follower_instagram),
-    tiktok: normalizeHandle(eigen.link_tiktok),
-    tiktok_follower: followerStufe(eigen.follower_tiktok),
-    lieferadresse_stadt: eigen.wohnort || pool.wohnort || '',
-    profilbild_url: pool.profile_image_url || ''
-  };
-}
-
-function ganzzahl(value) {
-  const raw = text(value).replace(/[.\s]/g, '');
-  if (!raw) return null;
-  const zahl = Number(raw);
-  return Number.isFinite(zahl) && zahl >= 0 ? Math.round(zahl) : null;
-}
-
-function tiktokLink(raw) {
-  const value = text(raw);
-  if (!value) return null;
-  const parsed = parseSocialLink(value);
-  if (parsed.platform === 'tiktok' && parsed.type === 'profile' && parsed.handle) {
-    return `https://www.tiktok.com/@${parsed.handle.toLowerCase()}`;
-  }
-  if (/^@?[A-Za-z0-9._]{1,30}$/.test(value)) return `https://www.tiktok.com/@${value.replace(/^@/, '').toLowerCase()}`;
-  return value;
-}
-
-/**
- * Formular "Neuer Creator" -> Zeilenwerte oder Fehler.
- * Creator Art und Name sind Pflicht wie im Casting; der Instagram-Link ist optional,
- * muss aber ein Profil sein.
- */
-export function eintragAusFormular(values, { erlaubteTypen = [] } = {}) {
-  const typ = text(values?.typ);
-  const name = text(values?.name);
-  if (!typ || !name) return { fehler: 'Bitte Creator Art und Name ausfüllen' };
-  if (erlaubteTypen.length && !erlaubteTypen.includes(typ)) return { fehler: 'Ungültige Creator Art' };
-
-  const linkInstagram = text(values?.link_instagram);
-  let handle = null;
-  if (linkInstagram) {
-    const parsed = parseSocialLink(linkInstagram);
-    if (parsed.platform !== 'instagram' || parsed.type !== 'profile' || !parsed.handle) {
-      return { fehler: 'Bitte einen Instagram-Profil-Link einfügen (kein Reel oder Post)' };
-    }
-    handle = parsed.handle.toLowerCase();
-  }
-
-  return {
-    handle,
-    werte: {
-      name,
-      typ,
-      follower_instagram: ganzzahl(values?.follower_instagram),
-      link_tiktok: tiktokLink(values?.link_tiktok),
-      follower_tiktok: ganzzahl(values?.follower_tiktok),
-      wohnort: text(values?.wohnort) || null,
-      email: text(values?.email) || null,
-      telefon: text(values?.telefon) || null
-    }
-  };
 }

@@ -5,6 +5,7 @@
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
 import { creatorAuswahlAddFormMethods } from './creatorAuswahlAddForm.js';
+import { installCastingMasterlisteTab } from './castingAddMasterliste.js';
 import { leererCastingEintrag } from './leererCastingEintrag.js';
 import {
   IG_TEXT_FIELDS,
@@ -77,6 +78,7 @@ export class CreatorAuswahlAddDrawer {
       <div class="view-toggle">
         <button type="button" class="mdc-btn mdc-btn--secondary active" data-mode="new">Neuer Creator</button>
         <button type="button" class="mdc-btn mdc-btn--secondary" data-mode="database">Aus Datenbank</button>
+        <button type="button" class="mdc-btn mdc-btn--secondary" data-mode="masterliste">Aus Masterliste</button>
       </div>
     `;
 
@@ -564,3 +566,4 @@ export class CreatorAuswahlAddDrawer {
 }
 
 Object.assign(CreatorAuswahlAddDrawer.prototype, creatorAuswahlAddFormMethods);
+installCastingMasterlisteTab(CreatorAuswahlAddDrawer.prototype);

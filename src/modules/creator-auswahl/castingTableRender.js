@@ -7,7 +7,6 @@ import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { escapeHtml } from '../../core/format.js';
-import { SOURCING_STATUS_FILTER_TAGS } from './sourcingStatusOptions.js';
 import { OHNE_KATEGORIE_KEY, orderedKategorieGroups } from './castingKategorien.js';
 import {
   isColumnVisibleForCustomer,
@@ -32,40 +31,6 @@ function renderListenKopf(ctx) {
     logoUrl: unternehmen?.logo_url || '',
     logoAlt: unternehmen?.firmenname || 'Unternehmen'
   });
-}
-
-const STATUS_FILTER_ICON = `
-  ${icon('filter-alt')}`;
-
-const STATUS_FILTER_CHECK_ICON = `
-  ${icon('check-bold')}`;
-
-function renderStatusFilterSubmenu(ctx = {}) {
-  const selected = ctx.statusFilter || [];
-  const hasActive = selected.length > 0;
-  const items = SOURCING_STATUS_FILTER_TAGS.map(tag => {
-    const isActive = selected.includes(tag);
-    return `
-      <button type="button" class="submenu-item" data-status-tag="${escapeHtml(tag)}" role="menuitemcheckbox" aria-checked="${isActive}">
-        <span>${escapeHtml(tag)}</span>
-        ${isActive ? `<span class="submenu-check">${STATUS_FILTER_CHECK_ICON}</span>` : ''}
-      </button>`;
-  }).join('');
-
-  return `
-    <div class="action-submenu sourcing-status-filter-submenu">
-      <button type="button" class="action-item has-submenu${hasActive ? ' active' : ''}" data-submenu="status-filter" role="menuitem" aria-haspopup="true">
-        ${STATUS_FILTER_ICON}
-        <span>Status filtern</span>
-      </button>
-      <div class="submenu" data-submenu="status-filter" role="menu">
-        ${hasActive ? `
-          <button type="button" class="submenu-item sourcing-status-filter-reset" data-status-filter-reset role="menuitem">
-            Alle zurücksetzen
-          </button>` : ''}
-        ${items}
-      </div>
-    </div>`;
 }
 
 const SHARE_ICON = `
@@ -93,6 +58,7 @@ function renderAddSectionActions(ctx = {}) {
           placeholder: 'Name suchen...',
           currentValue: ctx.searchQuery || ''
         })}
+        ${ctx.filterToggleHtml || ''}
         ${ctx.canCreate ? `
         <button type="button" class="mdc-btn" id="btn-open-add-drawer">
           ${icon('plus-lg')}
@@ -107,7 +73,6 @@ function renderAddSectionActions(ctx = {}) {
         ${renderToolbarMenu({
           toggleId: 'btn-sourcing-toolbar-menu',
           itemsHtml: `
-            ${renderStatusFilterSubmenu(ctx)}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-konzept-link', title: ctx.liste?.strategie_id ? 'Konzept-Verknüpfung lösen' : 'Konzept verknüpfen', icon: LINK_ICON, label: ctx.liste?.strategie_id ? 'Konzept lösen' : 'Konzept verknüpfen' })}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-kategorien', title: 'Kategorien verwalten', icon: KATEGORIEN_ICON, label: 'Kategorien' })}
             ${renderToolbarMenuItem({ id: 'btn-share-sourcing', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' })}
@@ -147,14 +112,13 @@ export function renderItemsTable(ctx) {
       </div>
     `;
   }
-  const statusFilter = ctx.statusFilter || [];
-  if (ctx.items.length === 0 && ctx.hasAnyItems && statusFilter.length > 0) {
+  if (ctx.items.length === 0 && ctx.hasAnyItems && ctx.filterActive) {
     const imReiter = ctx.activeTab && ctx.activeTab !== 'alle'
       ? ` im Reiter "${SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab}"`
       : '';
     return `
       <div class="table-container table-container--empty">
-        ${renderEmptyState({ icon: 'filter', title: `Keine Creator mit Status ${statusFilter.join(' oder ')}${imReiter}` })}
+        ${renderEmptyState({ icon: 'filter', title: `Keine Creator für die gewählten Filter${imReiter}` })}
       </div>
     `;
   }

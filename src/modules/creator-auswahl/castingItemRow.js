@@ -51,9 +51,11 @@ export function renderItemRow(ctx, item, index) {
     : '';
 
   const isBooked = !!item.gebucht;
+  // Eine andere Sortierung als „Manuell“ ordnet nur die Ansicht; Ziehen würde sie speichern.
+  const canDrag = canWrite && !ctx.dragDisabled && !isVorschlag;
   const rowClass = [
     'item-row',
-    canWrite ? 'draggable' : '',
+    canDrag ? 'draggable' : '',
     isBooked ? 'item-gebucht' : '',
     isVorschlag ? 'item-row--vorschlag' : ''
   ].filter(Boolean).join(' ');
@@ -61,11 +63,11 @@ export function renderItemRow(ctx, item, index) {
   const html = `
     <tr class="${rowClass}" data-item-id="${item.id}"${isVorschlag ? ` data-vorschlag-id="${item.vorschlagId || item.id}"` : ''} draggable="false">
       ${tableCanWrite ? `
-        <td class="col-drag ${isVorschlag ? '' : 'drag-handle '}col-sticky-1 cp-col-drag">
+        <td class="col-drag ${canDrag ? 'drag-handle ' : ''}col-sticky-1 cp-col-drag">
           ${isVorschlag ? '' : `
           <div class="drag-cell-content">
             <input type="checkbox" class="sourcing-item-check" data-item-id="${item.id}">
-            ${icon('bars-3')}
+            ${canDrag ? icon('bars-3') : ''}
           </div>
           `}
         </td>

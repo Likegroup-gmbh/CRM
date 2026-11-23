@@ -32,7 +32,7 @@ describe('ListenerMonitor ein-/ausblenden', () => {
   });
 
   it('klappt auf einen Tab zusammen und wieder auf', () => {
-    ensureListenerMonitor();
+    ensureListenerMonitor({ overlay: true });
     const overlay = document.getElementById('listener-monitor');
     expect(overlay).toBeTruthy();
     expect(overlay.textContent).toMatch(/doc:/);
@@ -57,7 +57,7 @@ describe('ListenerMonitor ein-/ausblenden', () => {
 
   it('bleibt nach Remount eingeklappt', () => {
     localStorage.setItem(COLLAPSED_KEY, '1');
-    ensureListenerMonitor();
+    ensureListenerMonitor({ overlay: true });
     const overlay = document.getElementById('listener-monitor');
     expect(overlay.classList.contains('is-collapsed')).toBe(true);
     expect(overlay.textContent).not.toMatch(/doc:/);

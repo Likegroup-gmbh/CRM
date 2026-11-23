@@ -1,5 +1,5 @@
 // SkriptePage.js
-// /skripte = Table-Liste, /skripte/:id = 3-Spalten-Editor,
+// /skripte = Table-Liste, /skripte/:id = 3-Spalten-Editor (mit Linie: Umleitung in die Produktion),
 // /skripte/master = Regelwerk-Liste, /:id = Dokument-Seite.
 // /skripte/dna (Skript-DNA entfallen, ADR 0038) leitet auf /skripte/master um.
 
@@ -9,7 +9,8 @@ import { SkriptRegelwerkList } from './regelwerk/SkriptRegelwerkList.js';
 import { SkriptRegelwerkDetail } from './regelwerk/SkriptRegelwerkDetail.js';
 import { masterAdapter } from './regelwerk/regelwerkAdapters.js';
 import { replaceSkriptUrl } from './SkripteUtils.js';
-import { replaceRoute } from '../../core/breadcrumbTrail.js';
+import { ladeSkriptFlowZiel } from './skriptFlowZiel.js';
+import { replaceRoute, replaceRouteForRedirect } from '../../core/breadcrumbTrail.js';
 
 const KONTEXT_KEY = 'skripte:kontext';
 const REGELWERK = { master: masterAdapter };
@@ -120,6 +121,7 @@ export class SkriptePage {
   }
 
   async openEditor(skriptId) {
+    if (await this._oeffneImFlow(skriptId)) return;
     window.setHeadline('Skripte');
     window.setContentSafely(window.content, `
       <div class="skripte-page skripte-page--editor">
@@ -133,6 +135,23 @@ export class SkriptePage {
     replaceSkriptUrl(skriptId);
     this._merkeKontext({ skript: skriptId });
     await this.editorView.render(container, skriptId);
+  }
+
+  /** Skript mit Linie: Umleitung in die Produktion (ADR 0074). true = umgeleitet. */
+  async _oeffneImFlow(skriptId) {
+    const registry = window.moduleRegistry;
+    if (!registry?._redirect) return false;
+    let ziel = null;
+    try {
+      ziel = await ladeSkriptFlowZiel(skriptId);
+    } catch (error) {
+      console.warn('⚠️ Skript-Flow-Ziel nicht ermittelbar, bleibe im Tool:', error?.message || error);
+    }
+    // Inzwischen weiternavigiert: nicht umleiten
+    if (!ziel || registry.currentModule !== this) return false;
+    replaceRouteForRedirect(ziel);
+    await registry._redirect(ziel);
+    return true;
   }
 
   _merkeKontext(update) {

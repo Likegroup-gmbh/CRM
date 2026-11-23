@@ -392,7 +392,7 @@ function mountOverlay() {
   }
 }
 
-export function ensureListenerMonitor() {
+export function ensureListenerMonitor({ overlay = false } = {}) {
   if (typeof window === 'undefined') return;
   if (!shouldActivateDevMode()) return;
 
@@ -401,12 +401,16 @@ export function ensureListenerMonitor() {
     patched = true;
   }
 
+  if (!overlay) {
+    hideListenerMonitor();
+    document.getElementById('listener-monitor')?.remove();
+    return;
+  }
+
   mountOverlay();
   if (state.overlay) {
     updateUI();
   }
-
-  console.log('🔬 ListenerMonitor aktiv – Hover blendet aus, Click = Toggle Log, Shift+Click = Dump, Alt+Click = Element-Count, aus = einklappen');
 }
 
 export function initListenerMonitor() {

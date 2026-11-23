@@ -13,6 +13,7 @@ import { updateSummaryCardsDOM, updateVideoStatsCardDOM } from './KampagneDetail
 import { setupEvents, teardownEvents } from './KampagneDetailEvents.js';
 import { showEditForm as _showEditForm } from './KampagneDetailEditHandler.js';
 import { KampagneDetailStore } from './KampagneDetailStore.js';
+import { destroyKooperationFilter, mountKooperationFilter, syncKooperationFilter } from './kooperationFilterSpalte.js';
 import {
   activateWorkflowTab,
   refreshWorkflowAfterRender,
@@ -21,16 +22,19 @@ import {
   DEFAULT_WORKFLOW_TAB,
   unmountVertraegePane,
   startWorkflowPrefetch,
-  cancelWorkflowPrefetch,
-  patchWorkflowItem
+  cancelWorkflowPrefetch
 } from './KampagneDetailWorkflow.js';
-import { syncSkriptFreigabeLocal, videoGehoertZuSkript } from './skriptFreigabeSync.js';
+import { openSkripteChannel, closeSkripteChannel } from './kampagneSkripteChannel.js';
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
 import { unmountKatalogPanes } from './KampagneDetailKatalog.js';
 import { unmountBriefingPane } from './KampagneDetailBriefing.js';
 import { unmountBudgetFilter } from '../produktion/budgetTabFilter.js';
+import {
+  routeImSkripteTab, skriptOffen, skriptParam, SKRIPTE_TAB,
+  unmountSkriptePane, vergissOffenesSkript, zeigeSkripteTabelle
+} from './KampagneDetailSkripte.js';
 import {
   ALLE,
   koopLinie,
@@ -44,6 +48,7 @@ export class KampagneDetail {
     this.kampagneId = null;
     this.kampagneData = null;
     this.store = null;
+    this.koopFilter = null;
     this.koopBudgetSum = 0;
     this.koopVideosUsed = 0;
     this.koopCreatorsUsed = 0;
@@ -69,6 +74,8 @@ export class KampagneDetail {
     this.lineTitle = '';
     this.isKunde = false;
     this.activeWorkflowTab = DEFAULT_WORKFLOW_TAB;
+    this.skriptOffenId = null;
+    this.skriptEditor = null;
 
     this._isMounted = false;
     this._initPromise = null;
@@ -108,6 +115,7 @@ export class KampagneDetail {
 
   /** Aktive Linie merken, in URL und Dropdown spiegeln, Tabelle und Tabs neu laden. */
   async _commitLinie() {
+    vergissOffenesSkript(this);
     rememberLinie(this.produktionId, this.linieId);
     syncLinieQueryParam(this.linieId, this.linieAlle);
     syncLinienSwitch(this, this.activeWorkflowTab);
@@ -132,6 +140,7 @@ export class KampagneDetail {
     this.linieId = null;
     this.linieAlle = false;
     this.lineTitle = '';
+    this.skriptOffenId = openAsProduktion ? skriptParam() : null;
 
     if (openAsProduktion) {
       // Loading sofort zeigen: das Quell-Modul ist schon zerstört, ohne
@@ -177,8 +186,9 @@ export class KampagneDetail {
 
     this._isMounted = true;
     cancelWorkflowPrefetch(this);
-    this._teardownSkripteRealtime();
+    closeSkripteChannel(this);
     this._destroyDrawers();
+    void unmountSkriptePane(this);
     unmountCastingWorksheet(this);
     unmountKonzeptWorksheet(this);
     unmountKatalogPanes(this);
@@ -201,6 +211,7 @@ export class KampagneDetail {
       this.store.destroy();
       this.store = null;
     }
+    destroyKooperationFilter(this);
 
     // Workflow-Tab aus ?tab= (unbekannt/nicht erlaubt → Briefing).
     // Alte Links ?tab=produktion und ?tab=kooperation werden auf Kooperationen gezogen.
@@ -258,7 +269,8 @@ export class KampagneDetail {
     return this._initPromise;
   }
 
-  _updateBreadcrumb() {
+  /** @param {{ produktionUrl?: string }} [opts] Ziel des Produktions-Crumbs (offenes Skript: die Skripte-Tabelle) */
+  _updateBreadcrumb({ produktionUrl } = {}) {
     if (!window.breadcrumbSystem || !this.kampagneData) return;
     const kampagneName = KampagneUtils.getDisplayName(this.kampagneData) || 'Kampagne';
     // Kunden sehen nur ihr eigenes Unternehmen: kein Firmen-Ordner im Weg.
@@ -274,7 +286,7 @@ export class KampagneDetail {
       window.breadcrumbSystem.updateBreadcrumb([
         ...kampagneCrumbs.slice(0, -1),
         { ...kampagneCrumb, clickable: true },
-        { label: this.lineTitle || this.produktion?.name || 'Produktion', url: `/produktion/${this.produktionId}`, clickable: false }
+        { label: this.lineTitle || this.produktion?.name || 'Produktion', url: produktionUrl || `/produktion/${this.produktionId}`, clickable: false }
       ], null, { switcher: { segment: 'produktion', id: this.produktionId, kampagneId: this.kampagneId } });
       return;
     }
@@ -320,6 +332,7 @@ export class KampagneDetail {
     window.setHeadline(this.mode === 'workflow' ? `Produktion: ${headlineName}` : `Kampagne: ${headlineName}`);
 
     this.isKunde = window.isKunde();
+    syncKooperationFilter(this);
 
     const html = renderMainPage({
       kampagneData: this.kampagneData,
@@ -333,11 +346,7 @@ export class KampagneDetail {
       isKunde: this.isKunde,
       kampagneId: this.kampagneId,
       searchQuery: this.store?.searchQuery || '',
-      availableStatuses: this.store?.getAvailableStatuses() || [],
-      availableTags: this.store?.getAvailableTags() || [],
-      selectedStatuses: this.store?.selectedStatuses || [],
-      selectedTags: this.store?.selectedTags || [],
-      kooperationSort: this.store?.kooperationSort || 'created_desc',
+      kooperationFilter: this.koopFilter,
       ...this._summaryRows(),
       activeWorkflow: this.activeWorkflowTab,
       strategien: this.strategien,
@@ -350,6 +359,7 @@ export class KampagneDetail {
     });
 
     window.setContentSafely(window.content, html);
+    mountKooperationFilter(this);
 
     if (this.mode !== 'overview') {
       refreshWorkflowAfterRender(this);
@@ -420,7 +430,7 @@ export class KampagneDetail {
    */
   _refreshSummaryCards({ animate = false } = {}) {
     if (!this.store) return;
-    const hasTagFilter = (this.store.selectedTags || []).length > 0;
+    const hasTagFilter = this.store.getSelectedTags().length > 0;
     const summary = hasTagFilter
       ? this.store.calculateFilteredSummary()
       : this.store.calculateSummary();
@@ -461,6 +471,7 @@ export class KampagneDetail {
       });
       if (!this._isMounted) return;
       this._refreshSummaryCards();
+      if (syncKooperationFilter(this)) mountKooperationFilter(this);
       if (this.currentView === 'kanban' && this.kanbanBoard) {
         this.kanbanBoard.render();
       } else {
@@ -488,7 +499,7 @@ export class KampagneDetail {
       this.kooperationenVideoTable.bindEvents();
       this.kooperationenVideoTable.initFloatingScrollbar();
       this.kooperationenVideoTable.initRealtimeSubscription();
-      this._initSkripteRealtime();
+      void openSkripteChannel(this);
       this.kooperationenVideoTable.loadColumnWidths();
 
       if (this._visibilityHandler) {
@@ -514,7 +525,16 @@ export class KampagneDetail {
   }
 
   switchWorkflowTab(tabId) {
+    if (tabId === SKRIPTE_TAB && skriptOffen(this)) {
+      zeigeSkripteTabelle(this);
+      return;
+    }
     activateWorkflowTab(this, tabId);
+  }
+
+  /** Router-Hook: Skript öffnen/schließen im Skripte-Tab ohne Neuaufbau. */
+  handleRouteInPlace(route, opts) {
+    return routeImSkripteTab(this, route, opts);
   }
 
   /**
@@ -570,81 +590,6 @@ export class KampagneDetail {
       this._unmountKanban();
       void this._remountVideoTable();
     }
-  }
-
-  /**
-   * Realtime auf skripte: Kundenfreigabe (RPC) oder ein Status-Wechsel in
-   * einem anderen Tab/Fenster setzt Status-Select im Skripte-Pane und die
-   * Checkboxen in der Produktionstabelle live nach. Eigene Writes sind schon
-   * lokal synchronisiert und werden ueber den Diff-Check uebersprungen.
-   */
-  _initSkripteRealtime() {
-    if (this._skripteChannel || !window.supabase?.channel || !this.kampagneId) return;
-    this._skripteChannel = window.supabase
-      .channel(`kampagne-skripte-${this.kampagneId}`, {
-        config: { broadcast: { self: false } }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'skripte',
-        filter: `kampagne_id=eq.${this.kampagneId}`
-      }, (payload) => this._handleSkriptRealtimeUpdate(payload))
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          this._skripteRetryAttempt = 0;
-          return;
-        }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('REALTIME: Skripte-Channel Error:', err);
-          this._teardownSkripteRealtime();
-          // Backoff statt fester 5 s: ein dauerhaft fehlschlagender Channel
-          // sonst baut sich endlos neu auf (je Aufbau Subscription-Pruefung).
-          const attempt = this._skripteRetryAttempt || 0;
-          this._skripteRetryAttempt = attempt + 1;
-          const delay = Math.min(5000 * 2 ** attempt, 60000);
-          this._skripteRetryTimer = setTimeout(() => {
-            this._skripteRetryTimer = null;
-            if (this._isMounted) this._initSkripteRealtime();
-          }, delay);
-        }
-      });
-  }
-
-  _teardownSkripteRealtime() {
-    clearTimeout(this._skripteRetryTimer);
-    this._skripteRetryTimer = null;
-    if (this._skripteChannel) {
-      window.supabase?.removeChannel(this._skripteChannel);
-      this._skripteChannel = null;
-    }
-  }
-
-  _handleSkriptRealtimeUpdate(payload) {
-    const skript = payload?.new;
-    if (!skript?.id || skript.status === undefined) return;
-    const freigegeben = skript.status === 'freigegeben';
-
-    // Nur patchen, wenn sich lokal etwas unterscheidet — eigene Writes sind
-    // bereits synchronisiert und wuerden sonst unnoetig Store-Events feuern.
-    let dirty = false;
-    const cached = this._workflowData?.skripte?.find((s) => s.id === skript.id);
-    if (cached && cached.status !== skript.status) dirty = true;
-    if (!dirty && this.store?.videos) {
-      for (const list of Object.values(this.store.videos)) {
-        for (const video of list) {
-          if (!videoGehoertZuSkript(video, skript.id)) continue;
-          if ((video.skript_freigegeben || false) !== freigegeben || video.skript?.status !== skript.status) {
-            dirty = true;
-            break;
-          }
-        }
-        if (dirty) break;
-      }
-    }
-    if (!dirty) return;
-
-    syncSkriptFreigabeLocal(this, skript.id, { freigegeben, status: skript.status }, patchWorkflowItem);
   }
 
   _unmountVideoTable() {
@@ -722,7 +667,7 @@ export class KampagneDetail {
     this._isMounted = false;
     this._initPromise = null;
     cancelWorkflowPrefetch(this);
-    this._teardownSkripteRealtime();
+    closeSkripteChannel(this);
 
     teardownEvents();
     this._destroyDrawers();
@@ -742,6 +687,7 @@ export class KampagneDetail {
       this.kanbanBoard = null;
     }
 
+    void unmountSkriptePane(this);
     unmountCastingWorksheet(this);
     unmountKonzeptWorksheet(this);
     unmountKatalogPanes(this);
@@ -754,6 +700,7 @@ export class KampagneDetail {
       this.store.destroy();
       this.store = null;
     }
+    destroyKooperationFilter(this);
 
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {

@@ -251,6 +251,24 @@ describe('Skript-Creator-Zuordnung', () => {
     expect(skripteFuerEmpfaenger(items, { typ: 'ansprechpartner', id: 'ap1' })).toHaveLength(3);
   });
 
+  it('gibt bei einem geteilten Skript nur die Links des Empfaengers weiter', () => {
+    const items = [{
+      id: 's1',
+      creatorIds: ['c-anna', 'c-bea'],
+      creators: [{ ...anna, instagram: '@anna', tiktok: '' }, { ...bea, instagram: '', tiktok: '@bea' }],
+      creator: { name: 'Anna A', bildUrl: 'http://anna', instagram: 'https://instagram.com/anna-casting' },
+      creatorId: 'c-anna',
+      instagram: 'https://instagram.com/anna-casting',
+      tiktok: 'https://tiktok.com/@anna',
+    }];
+    const [fuerBea] = skripteFuerEmpfaenger(items, { typ: 'creator', id: 'c-bea' });
+    expect(fuerBea.creator).toEqual({ name: 'Bea B', bildUrl: 'http://bea', instagram: '' });
+    expect(fuerBea.instagram).toBe('');
+    expect(fuerBea.tiktok).toBe('@bea');
+    const [fuerAnna] = skripteFuerEmpfaenger(items, { typ: 'creator', id: 'c-anna' });
+    expect(fuerAnna.tiktok).toBe('https://tiktok.com/@anna');
+  });
+
   it('Scope enthaelt nur Creator mit Mail und deren Management', async () => {
     const db = {
       from: vi.fn((table) => {

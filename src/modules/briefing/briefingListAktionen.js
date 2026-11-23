@@ -166,12 +166,10 @@ export function installBriefingListAktionen(proto) {
       });
 
       try {
-        const { error } = await window.supabase
-          .from('campaign_briefings')
-          .delete()
-          .in('id', selectedIds);
-
-        if (error) throw error;
+        const { deleteBriefingMitLinie } = await import('../produktion/ProduktionService.js');
+        for (const id of selectedIds) {
+          await deleteBriefingMitLinie(id);
+        }
 
         selectedIds.forEach(id => {
           document.querySelector(`tr[data-id="${id}"]`)?.remove();

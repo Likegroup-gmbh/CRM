@@ -6,24 +6,26 @@ import { escapeHtml } from '../SkripteUtils.js';
 import { skripteService } from '../SkripteService.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 
-/** Button im Doc-Kopf, neben dem Creator-Chip. */
+/** Eintrag im "…"-Menü des Doc-Kopfs. */
 export function tauschSkriptButtonHtml() {
   return `
-    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-creator-tauschen"
-      title="Creator tauschen">
-      <span class="mdc-btn__icon">${icon('arrows-right-left')}</span>
-      <span class="mdc-btn__label">Tauschen</span>
+    <button type="button" class="action-item" id="ed-creator-tauschen" role="menuitem" title="Creator tauschen">
+      ${icon('arrows-right-left')}
+      Creator tauschen
     </button>`;
 }
 
 export function tauschBannerHtml(skript) {
   const t = skript?.creator_tausch;
   if (!t || t.quittiert || !window.isInternal?.()) return '';
+  const hinweis = t.geteilt
+    ? 'Das Skript gilt auch für andere Creator, der Text bleibt für alle gleich. Braucht der neue Creator eine eigene Fassung, kopiere das Skript.'
+    : 'Prüfe Ansprache und Besetzung im Skript.';
   return `
     <div class="skripte-editor-tausch-banner" role="status">
       <span>Creator getauscht: vorher <strong>${escapeHtml(t.vorher_name || 'Creator')}</strong>,
         jetzt <strong>${escapeHtml(t.jetzt_name || 'Creator')}</strong>.
-        Prüfe Ansprache und Besetzung im Skript.</span>
+        ${hinweis}</span>
       <button type="button" class="mdc-btn mdc-btn--secondary" id="ed-tausch-quittieren">
         <span class="mdc-btn__label">Passt so</span>
       </button>

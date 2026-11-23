@@ -61,10 +61,10 @@ export async function findSignedVertragForKooperation(kooperationId, supabase) {
  * Verknuepft nachtraeglich alle Rechnungen mit vertrag_id = NULL, die zu einer Kooperation
  * gehoeren, die der gerade unterschriebene Vertrag deckt.
  *
- * Wird aufgerufen, nachdem ein Vertrag unterschrieben wurde (via Dropbox oder Supabase Storage).
- * Fixt das Timing-Problem, bei dem eine Rechnung vor der Vertrags-Unterschrift erstellt wurde
- * und dadurch `vertrag_id = NULL` hatte. Kooperationen, die der Vertrag nicht deckt, bekommen
- * ihn nicht, auch wenn Creator und Kampagne gleich sind.
+ * Wird aufgerufen, nachdem ein Vertrag unterschrieben wurde und wenn eine Kooperation
+ * nachtraeglich an einen bestehenden Vertrag gehaengt wird. Fixt das Timing, bei dem die
+ * Rechnung schon existierte und dadurch `vertrag_id = NULL` hatte. Kooperationen, die der
+ * Vertrag nicht deckt, bekommen ihn nicht, auch wenn Creator und Kampagne gleich sind.
  *
  * @param {string} vertragId - ID des unterschriebenen Vertrags
  * @param {object} [supabase] - optionaler Supabase-Client (default: window.supabase)

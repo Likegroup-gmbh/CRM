@@ -56,6 +56,7 @@ vi.mock('../modules/skripte/SkripteUtils.js', () => ({
   badge: (text, variant = 'neutral') => `<span class="skripte-badge skripte-badge--${variant}">${text}</span>`,
   formatUsageCost: () => null,
   replaceSkriptUrl: () => {},
+  STATUS_LABELS: { entwurf: 'Entwurf', final: 'Final' },
   skriptEditorPath: (id) => (!id || id === 'neu' || id === 'new') ? '/skripte' : `/skripte/${id}`,
   skriptCrumbs: () => [],
   relativeZeit: () => 'Vor 4 Stunden',

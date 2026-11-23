@@ -219,10 +219,13 @@ export const skripteSkriptDatenMethoden = {
     return { kooperationen: koops, videos: videos || [] };
   },
 
-  async verknuepfeMitVideo(videoId, skriptId) {
+  /** Die Kundenfreigabe gilt für alle Videos eines Skripts: das neue Video übernimmt den Haken. */
+  async verknuepfeMitVideo(videoId, skriptId, { freigegeben } = {}) {
+    const patch = { skript_id: skriptId };
+    if (typeof freigegeben === 'boolean') patch.skript_freigegeben = freigegeben;
     const { error } = await this.db
       .from('kooperation_videos')
-      .update({ skript_id: skriptId })
+      .update(patch)
       .eq('id', videoId);
     if (error) throw new Error(error.message);
   },
@@ -289,5 +292,14 @@ export const skripteSkriptDatenMethoden = {
       .update({ skript_freigegeben: Boolean(freigegeben) })
       .eq('skript_id', skriptId);
     if (error) throw new Error(error.message);
+  },
+
+  /**
+   * Status von Hand setzen (Skripte-Tabelle, Dokumentkopf). Status und Checkbox
+   * meinen dieselbe Freigabe: jeder Status außer „freigegeben“ nimmt den Haken raus.
+   */
+  async setzeSkriptStatus(skriptId, status) {
+    await this.updateSkript(skriptId, { status });
+    await this.setVideosSkriptFreigegeben(skriptId, status === 'freigegeben');
   },
 };

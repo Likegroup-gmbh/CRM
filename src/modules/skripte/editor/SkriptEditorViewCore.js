@@ -20,8 +20,14 @@ import { SkriptEditorToolbar } from './SkriptEditorToolbar.js';
 import { upsertById } from './skriptEditorMessages.js';
 
 export class SkriptEditorView {
-  constructor(page) {
+  /**
+   * @param {object} page - Skripte-Seite (Kontext-Merker) oder Host
+   * @param {{ einbettung?: object }} [opts] - eingebettet in der Produktion (ADR 0074):
+   *   einbettung.zeigeSkript(skript), .skriptGewechselt(id), .zeigeListe(items, { aktivId, verknuepfungenFuer })
+   */
+  constructor(page, { einbettung = null } = {}) {
     this.page = page;
+    this.einbettung = einbettung;
     this.skript = null;
     this.skripte = [];
     this._listeKampagneId = undefined; // Scope der Sidebar; undefined = noch nicht gesetzt
@@ -154,6 +160,15 @@ export class SkriptEditorView {
   /** Löschen im Doc-Kopf: nur intern, mit can_delete und für ein geladenes Skript. */
   get kannLoeschen() {
     return Boolean(window.isInternal?.()) && (window.canDelete?.('skripte') ?? false) && Boolean(this.skript?.id);
+  }
+
+  /** Status von Hand: intern mit Bearbeiten-Recht, wie in der Skripte-Tabelle. */
+  get kannStatusSetzen() {
+    return Boolean(window.isInternal?.())
+      && !window.permissionSystem?.isGast
+      && (window.canEdit?.('skripte') ?? false)
+      && Boolean(this.skript?.id)
+      && !this.neuModus;
   }
 
   /** Freigeben: nur Share-Gast mit Bearbeiten-Recht, und nur aus Status Final. */

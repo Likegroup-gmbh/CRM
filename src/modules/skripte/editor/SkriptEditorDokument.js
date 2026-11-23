@@ -5,23 +5,34 @@ import { skripteService } from '../SkripteService.js';
 import { PLACEHOLDER_DEFAULT, PLACEHOLDER_FRAGEN } from './skriptEditorKonstanten.js';
 import {
   fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml,
-  verknuepfungenHtml, konzeptCreatorFromSkript
+  verknuepfungenHtml, konzeptCreatorFromSkript, creatorsFuerKopf
 } from './SkriptEditorDocRenderer.js';
+import { bindToolbarMenu } from '../../../core/components/ToolbarMenu.js';
 import { SkriptKooperationDrawer } from '../SkriptKooperationDrawer.js';
 import { openCreatorTausch } from '../../creator-tausch/creatorTauschUi.js';
 import { findeAlterEintragFuerSkript } from '../../creator-tausch/CreatorTauschService.js';
 import { quittiereTausch } from './skriptTauschBanner.js';
+import { bindUploadHinweis } from './skriptUploadHinweis.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
 
 SkriptEditorView.prototype.bindDocHeadActions = function(el) {
   el.querySelector('#ed-zurueck')?.addEventListener('click', () => {
     window.moduleRegistry?.navigateTo('/skripte');
   });
+  this.unbindKopfMenu();
+  const menu = el.querySelector('#ed-kopf-menu')?.closest('.toolbar-menu');
+  if (menu) this._kopfMenuCleanup = bindToolbarMenu(menu);
   this.bindShareButton(el);
   this.bindPdfButton(el);
   this.bindAnschreibenButton(el);
   this.bindFreigebenButton(el);
   this.bindLoeschenButton(el);
+};
+
+/** Das "…"-Menü hängt Listener an document; jedes Neurendern des Doc-Kopfs räumt sie ab. */
+SkriptEditorView.prototype.unbindKopfMenu = function() {
+  this._kopfMenuCleanup?.();
+  this._kopfMenuCleanup = null;
 };
 
 SkriptEditorView.prototype.docHeadActions = function() {
@@ -32,7 +43,11 @@ SkriptEditorView.prototype.docHeadActions = function() {
     kannZurueck: window.guestShare?.entityType === 'skript_paket',
     kannFreigeben: this.kannFreigeben,
     kannLoeschen: this.kannLoeschen,
+    kannTauschen: this.kannZuweisen
+      && creatorsFuerKopf(this.verknuepfungen, konzeptCreatorFromSkript(this.skript)).length > 0,
+    kannKopieren: this.kannZuweisen && Boolean(this.skript?.kampagne_id),
     status: this.skript?.status || '',
+    statusWahlHtml: this.statusWahlHtml(),
     verknuepfungenHtml: this.renderVerknuepfungenHtml()
   });
 };
@@ -159,6 +174,7 @@ SkriptEditorView.prototype.renderDoc = function() {
     this.bindPersonaWahl(el);
     this.bindDocHeadActions(el);
     this.bindVerknuepfungen(el);
+    bindUploadHinweis(this, el);
     const input = document.getElementById('ed-input');
     if (input && !input.disabled) input.placeholder = PLACEHOLDER_FRAGEN;
     this.renderVersionSelect();
@@ -194,6 +210,7 @@ SkriptEditorView.prototype.renderDoc = function() {
     btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
   });
   this.bindVerknuepfungen(el);
+  bindUploadHinweis(this, el);
   this.inlineEdit.attach(el, { readonly: !this.kannDokumentEditieren });
   this._blocks.attach(el);
   if (bloeckeEditierbar) this._toolbar.attach(el);
@@ -254,6 +271,7 @@ SkriptEditorView.prototype.renderVerknuepfungenHtml = function() {
 SkriptEditorView.prototype.bindVerknuepfungen = function(el) {
   el.querySelector('#ed-skript-zuweisen')?.addEventListener('click', () => this.openKooperationDrawer());
   el.querySelector('#ed-creator-tauschen')?.addEventListener('click', () => this.openCreatorTauschFuerSkript());
+  el.querySelector('#ed-kopieren')?.addEventListener('click', () => this.openKopierenDrawer());
   el.querySelector('#ed-tausch-quittieren')?.addEventListener('click', () => quittiereTausch(this));
 };
 
@@ -292,6 +310,22 @@ SkriptEditorView.prototype.reloadVerknuepfungen = async function() {
     console.warn('Skript-Verknüpfungen konnten nicht geladen werden:', err);
     this.verknuepfungen = [];
   }
+};
+
+/** Skript kopieren (ADR 0075): Video eines weiteren Creators wählen, danach die Kopie öffnen. */
+SkriptEditorView.prototype.openKopierenDrawer = function() {
+  if (!this.kannZuweisen || !this.skript?.kampagne_id) return;
+  if (!this._koopDrawer) this._koopDrawer = new SkriptKooperationDrawer();
+  this._koopDrawer.open({
+    skript: this.skript,
+    verknuepfungen: this.verknuepfungen,
+    modus: 'kopieren',
+    onSuccess: async (kopieId) => {
+      const kopie = await skripteService.loadSkript(kopieId);
+      if (kopie) this.upsertSkriptInListe(kopie);
+      await this.switchSkript(kopieId);
+    }
+  });
 };
 
 SkriptEditorView.prototype.openKooperationDrawer = function() {

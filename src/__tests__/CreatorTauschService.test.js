@@ -72,6 +72,29 @@ describe('findeAlterEintragFuerSkript', () => {
     expect(id).toBe('item-2');
   });
 
+  it('nimmt bei einer Kopie den Eintrag des Video-Creators, nicht den der Idee', async () => {
+    window.supabase = fakeDb([
+      { data: { creator_auswahl_item_id: 'item-idee', casting_eintrag: { creator_id: 'c-haupt' } }, error: null },
+      { data: [{ id: 'item-kopie' }], error: null }
+    ]);
+    const id = await findeAlterEintragFuerSkript(
+      { strategie_item_id: 's1', produktion_id: 'p' },
+      [{ kooperation: { creator: { id: 'c-zweit' } } }]
+    );
+    expect(id).toBe('item-kopie');
+  });
+
+  it('bleibt beim Eintrag der Idee, wenn deren Creator am geteilten Skript haengt', async () => {
+    window.supabase = fakeDb([
+      { data: { creator_auswahl_item_id: 'item-idee', casting_eintrag: { creator_id: 'c-haupt' } }, error: null }
+    ]);
+    const id = await findeAlterEintragFuerSkript(
+      { strategie_item_id: 's1', produktion_id: 'p' },
+      [{ kooperation: { creator: { id: 'c-zweit' } } }, { kooperation: { creator: { id: 'c-haupt' } } }]
+    );
+    expect(id).toBe('item-idee');
+  });
+
   it('liefert null bei Altbestand ohne Eintrag', async () => {
     window.supabase = fakeDb([]);
     expect(await findeAlterEintragFuerSkript({ produktion_id: 'p' }, [])).toBeNull();

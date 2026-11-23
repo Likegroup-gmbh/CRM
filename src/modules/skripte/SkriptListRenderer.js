@@ -10,8 +10,8 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL } from './SkripteUtils.js';
 import { renderVerknuepfungen, namedLinks } from '../../core/ui/tableVerknuepfungen.js';
-import { konzeptCreatorFromSkript } from './editor/SkriptEditorDocRenderer.js';
-import { renderCreatorNameCell } from '../creator/CreatorTable.js';
+import { skriptCreatorZelleHtml } from './editor/skriptDocCreatorHtml.js';
+import { renderCreatorName } from '../creator/CreatorTable.js';
 import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
@@ -93,7 +93,7 @@ export function renderItemsRows(list, items) {
             ${list.sanitize(titel)}
           </a>
         </td>
-        ${renderCreatorNameCell(konzeptCreatorFromSkript(s))}
+        ${skriptCreatorZelleHtml(s, renderCreatorName)}
         <td>${renderStatus(s.status)}</td>
         <td>${datum}</td>
         ${renderLeistungszeitraumCell(s.kampagne)}

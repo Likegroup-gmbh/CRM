@@ -154,6 +154,14 @@ VertraegeCreate.prototype.init = async function(draftId = null) {
       return;
     }
 
+    // Neu anlegen nur aus einer Produktion, als Vorlage oder als Contracting.
+    // Die Liste /vertraege legt keine Verträge mehr an.
+    if (!draftId && !this.darfVertragAnlegen()) {
+      window.toastSystem?.show('Verträge werden in der Produktion angelegt.', 'info');
+      window.navigateTo?.('/vertraege');
+      return;
+    }
+
     // Lade Stammdaten
     await this.loadStammdaten();
     
@@ -166,6 +174,14 @@ VertraegeCreate.prototype.init = async function(draftId = null) {
     
     // Rendere Formular
     this.render();
+};
+
+VertraegeCreate.prototype.darfVertragAnlegen = function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('produktion')) return true;
+    if (params.get('vorlage')) return true;
+    if (params.get('typ') === 'Contracting') return true;
+    return false;
 };
 
 VertraegeCreate.prototype.applyQueryPrefill = async function() {

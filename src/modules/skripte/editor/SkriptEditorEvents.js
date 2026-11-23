@@ -7,6 +7,7 @@ import { SkriptEditorView } from './SkriptEditorViewCore.js';
 
 // Events: Selektion, Menue, Chat-Input. Einmal beim Oeffnen verdrahtet.
 SkriptEditorView.prototype.bindEvents = function() {
+  this.bindStatusWahl();
   this.onDocMouseDown = (e) => {
     for (const id of ['ed-selmenu', 'ed-modmenu', 'ed-vermenu', 'ed-blockmenu', 'ed-toolbar-pop']) {
       const menu = document.getElementById(id);
@@ -27,7 +28,8 @@ SkriptEditorView.prototype.bindEvents = function() {
     const { entity, action, id } = e.detail || {};
     if (entity !== 'skripte' || action !== 'deleted' || !id) return;
     if (id === this.skript?.id) {
-      window.navigateTo(backTarget('/skripte'));
+      // Eingebettet schließt die Produktion den Editor selbst (zurück zur Tabelle).
+      if (!this.einbettung) window.navigateTo(backTarget('/skripte'));
       return;
     }
     this.skripte = this.skripte.filter((s) => s.id !== id);

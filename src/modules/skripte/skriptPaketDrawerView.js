@@ -4,7 +4,7 @@
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { mountShareEmailField } from '../../core/components/shareEmailField.js';
 import { escapeHtml } from '../../core/format.js';
-import { paketAuswahl, creatorOptionen, creatorAnzeigeName } from './skriptPaketModel.js';
+import { paketAuswahl, creatorOptionen, creatorAnzeigeName, creatorenText } from './skriptPaketModel.js';
 import { STATUS_LABELS } from './SkripteUtils.js';
 import { BLOCKED_TEXT } from '../share/shareRecipientPlan.js';
 
@@ -153,12 +153,12 @@ export function renderPaketListe(drawer) {
     </div>
     <div class="skript-paket-liste">
       ${auswahl.eigene.length
-        ? auswahl.eigene.map((s) => zeile(s, drawer.creatorId ? '' : (s.creator ? creatorAnzeigeName(s.creator) : ''))).join('')
+        ? auswahl.eigene.map((s) => zeile(s, drawer.creatorId ? '' : creatorenText(s))).join('')
         : `<p class="share-dialog-empty">${escapeHtml(leer)}</p>`}
       ${auswahl.weitere.length ? `
         <button type="button" class="mdc-btn mdc-btn--secondary" id="skript-paket-weitere">Weitere Skripte der Kampagne</button>
         <div id="skript-paket-weitere-liste" class="skript-paket-liste" ${weitereOffen ? '' : 'hidden'}>
-          ${auswahl.weitere.map((s) => zeile(s, s.creator ? creatorAnzeigeName(s.creator) : 'ohne Creator')).join('')}
+          ${auswahl.weitere.map((s) => zeile(s, creatorenText(s) || 'ohne Creator')).join('')}
         </div>` : ''}
     </div>`;
   const alleBtn = el.querySelector('[data-alle]');

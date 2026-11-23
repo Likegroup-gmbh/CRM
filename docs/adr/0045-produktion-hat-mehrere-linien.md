@@ -11,7 +11,7 @@ Bisher war die Produktion 1:1 mit ihrem Briefing: Finalisieren legte genau eine 
 - Das Produktionsbudget bleibt an der Produktion, alle Linien teilen es.
 - Die Kooperation trägt die Linie. Derselbe Creator in zwei Linien ergibt zwei Kooperationen. Verträge und Videos hängen über die Kooperation an der Linie.
 - In der Produktion zeigen Briefing, Produkte, Personas, Casting, Konzept und Skripte immer genau eine Linie (`?linie=<briefingId>`, zuletzt genutzte als Default). Produktion, Verträge und Videos haben zusätzlich "Alle Linien". Zwischen Produktionen derselben Kampagne wechselt ein Switcher in der Breadcrumb.
-- Die geplante Anzahl im Auftrag lässt sich nur erhöhen. Eine Linie ist nicht löschbar, sobald sie Kooperationen hat. Eine Produktion ist nur ohne Linien und ohne Entwürfe löschbar.
+- Die geplante Anzahl im Auftrag lässt sich nur erhöhen. Eine Linie ist nicht löschbar, sobald sie Kooperationen hat. Eine Produktion ohne Kooperationen ist löschbar; ihre Linien, auch Entwürfe, gehen mit.
 - Bestand: Jede Produktion mit Briefing wird zu einer Produktion mit einer Linie. Bisher versteckte Produktionen ohne Briefing werden sichtbar. Keine Zusammenlegung.
 
 Löst 0029 ab. Ersetzt von 0035 den Teil "Produktionen ohne Briefing sind versteckt, Picker `ziel_produktion_id`" und von 0041 den Teil "Produktion mit Briefing heißt wie das Briefing".

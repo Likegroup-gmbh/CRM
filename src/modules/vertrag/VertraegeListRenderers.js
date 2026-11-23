@@ -17,7 +17,7 @@ const escapeHtml = (text) => {
   return window.validatorSystem?.sanitizeHtml(text) || text;
 };
 
-export function renderFoldersView(listViewMode, canEdit) {
+export function renderFoldersView(listViewMode) {
   const viewToggleHtml = ViewModeToggle.render([
     { buttonId: 'btn-view-list', label: 'Liste', icon: 'list', active: listViewMode === 'list' },
     { buttonId: 'btn-view-grid', label: 'Grid', icon: 'grid', active: listViewMode === 'grid' }
@@ -30,9 +30,6 @@ export function renderFoldersView(listViewMode, canEdit) {
           <div class="filter-left">
             ${viewToggleHtml}
           </div>
-        </div>
-        <div class="table-actions">
-          ${canEdit ? '<button id="btn-vertrag-new" class="mdc-btn">Neuen Vertrag anlegen</button>' : ''}
         </div>
       </div>
 
@@ -121,7 +118,7 @@ export function updateUnternehmenListTableBody(folders) {
   `).join('');
 }
 
-export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }, activeTypeTab = 'vertraege') {
+export function renderVertraegeView({ isAdmin, canBulkDelete }, activeTypeTab = 'vertraege') {
   const typeTabs = [
     { id: 'vertraege', label: 'Verträge' },
     { id: 'contracting', label: 'Contracting' }
@@ -149,7 +146,6 @@ export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }, activeT
           <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>` : ''}
-          ${canEdit ? '<button id="btn-vertrag-new" class="mdc-btn">Neuen Vertrag anlegen</button>' : ''}
         </div>
       </div>
 
@@ -184,7 +180,7 @@ export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }, activeT
   `;
 }
 
-export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, isAdmin, canDelete = canBulkDelete }) {
+export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, isAdmin, canDelete = canBulkDelete, canCreate = false }) {
   const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
 
   return vertraege.map(vertrag => {
@@ -217,7 +213,7 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
 
     const statusHtml = renderVertragStatusCell(vertrag);
 
-    const actionsHtml = renderVertragActions(vertrag, isAdmin, canEdit, canDelete);
+    const actionsHtml = renderVertragActions(vertrag, isAdmin, canEdit, canDelete, canCreate);
 
     return `
       <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}" data-vertrag-draft="${vertrag.is_draft ? '1' : '0'}">
@@ -258,7 +254,7 @@ export function renderVertragStatusCell(vertrag) {
   return `<span class="status-badge status-${status}">${escapeHtml(text)}</span>`;
 }
 
-export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAdmin) {
+export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAdmin, canCreate = true) {
   const isDraft = vertrag.is_draft;
 
   let actions = '';
@@ -316,7 +312,8 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
       <a href="#" class="action-item" data-action="edit" data-id="${vertrag.id}">
         ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
         Bearbeiten
-      </a>
+      </a>` : ''}
+      ${canEdit && canCreate ? `
       <a href="#" class="action-item" data-action="vertrag-als-vorlage" data-id="${vertrag.id}">
         ${window.ActionsDropdown?.getHeroIcon('document-duplicate') || icon('document-duplicate')}
         Als Vorlage verwenden
