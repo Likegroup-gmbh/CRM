@@ -1,21 +1,19 @@
 // ablage-zeitplan.js
-// Scheduled Function (jede Minute, siehe netlify.toml): Sicherheitsnetz fuer den Webhook.
+// Scheduled Function (alle 5 Minuten, siehe netlify.toml): Sicherheitsnetz fuer den Webhook.
 // 1. Abo auf die Bibliothek anlegen bzw. verlaengern, wenn es in weniger als 3 Tagen ablaeuft.
 // 2. ablage-abgleich-background anstossen, wenn gerade kein Lauf die Lease haelt. Die Arbeit
 //    laeuft dort: Scheduled Functions haben nur 30 Sekunden.
-// 3. ablage-rechte-background anstossen: sofort bei rechte_faellig (Trigger auf Zuordnungen,
-//    Rollen, Klassen, Ordnern), sonst alle 15 Minuten.
-// 4. ablage-umzug-background: so viele Laeufer anstossen, dass bis zu ABLAGE_UMZUG_PARALLEL
-//    (Standard 2) gleichzeitig offene Umzugs-Zeilen abarbeiten.
-// 5. Finale Version im Finder (ADR 0073): Spiegel-Warteschlange abgleichen (neue, veraltete,
+// 3. ablage-rechte-background anstossen: bei rechte_faellig (Trigger auf Zuordnungen,
+//    Rollen, Klassen, Ordnern) zum naechsten Takt, sonst alle 15 Minuten.
+// 4. Finale Version im Finder (ADR 0073): Spiegel-Warteschlange abgleichen (neue, veraltete,
 //    verwaiste Finale) und ablage-final-spiegel-background anstossen, solange etwas faellig ist.
-// 6. Alarme pruefen (Stillstand, Abo, Zertifikat, Speicher, Rechte) und Admins mailen.
+// 5. Alarme pruefen (Stillstand, Abo, Zertifikat, Speicher, Rechte) und Admins mailen.
+// Der Bestands-Umzug hat keinen Takt mehr: die Admin-Seite stoesst ablage-umzug-background an.
 // Laeuft nur auf dem veroeffentlichten Production-Deploy; Staging ist eine eigene Site.
 
 const { webhookUrl, anstossen } = require('./_shared/ablage/konfig');
 const { ablageAusEnv } = require('./_shared/ablage');
 const { createAbgleich } = require('./_shared/ablage/abgleich');
-const { createUmzug, PARALLEL } = require('./_shared/ablage/umzug');
 const { createFinalSpiegel } = require('./_shared/ablage/final-spiegel');
 const { notschalterAn } = require('./_shared/ablage/ziel');
 const { createAlarm } = require('./_shared/ablage/alarm');
@@ -48,19 +46,12 @@ exports.handler = async (event) => {
   const angestossen = laeuft ? false : await anstossen(event, 'ablage-abgleich-background', { grund: 'zeitplan' });
   const rechte = rechteFaellig(stand) ? await anstossen(event, 'ablage-rechte-background', { grund: 'zeitplan' }) : false;
 
-  const parallel = Math.max(1, Number(process.env.ABLAGE_UMZUG_PARALLEL) || PARALLEL);
-  const bedarf = await schritt('Umzug', () => createUmzug({ supabase: ablage.supabase, ablage }).laeuferBedarf({ parallel }));
-  let umzug = 0;
-  for (let i = 0; i < (Number(bedarf) || 0); i++) {
-    if (await anstossen(event, 'ablage-umzug-background', { grund: 'zeitplan' })) umzug++;
-  }
-
   const spiegel = await schritt('Final-Spiegel', () => finalSpiegelAnstossen(event, ablage));
 
   const alarm = await schritt('Alarm', () => createAlarm({ supabase: ablage.supabase, ablage }).lauf(stand));
 
-  console.log(`[ablage-zeitplan] abo=${abo?.abo || abo?.fehler || '–'} laeuft=${laeuft} angestossen=${angestossen} rechte=${rechte} umzug=${umzug} spiegel=${spiegel?.angestossen ?? spiegel?.fehler ?? '–'} alarme=${alarm?.aktiv?.join(',') || alarm?.fehler || '–'}`);
-  return { statusCode: 200, body: JSON.stringify({ abo, laeuft, angestossen, rechte, umzug, spiegel, alarm }) };
+  console.log(`[ablage-zeitplan] abo=${abo?.abo || abo?.fehler || '–'} laeuft=${laeuft} angestossen=${angestossen} rechte=${rechte} spiegel=${spiegel?.angestossen ?? spiegel?.fehler ?? '–'} alarme=${alarm?.aktiv?.join(',') || alarm?.fehler || '–'}`);
+  return { statusCode: 200, body: JSON.stringify({ abo, laeuft, angestossen, rechte, spiegel, alarm }) };
 };
 
 async function finalSpiegelAnstossen(event, ablage, { anstossenImpl = anstossen } = {}) {

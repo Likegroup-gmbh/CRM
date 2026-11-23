@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { bindLiveUpdates, LIVE_RELOAD_MS } from '../modules/video-browser/videoBrowserLive.js';
-import { __resetKampagneChannels } from '../modules/kampagne/kampagneRealtimeChannel.js';
+import { bindLiveUpdates, LIVE_RELOAD_MS, LIVE_RELOAD_MAX_MS } from '../modules/video-browser/videoBrowserLive.js';
+import { __resetKampagneChannels, RESYNC_JITTER_MS } from '../modules/kampagne/kampagneRealtimeChannel.js';
 
 function makeSupabase() {
   const channels = [];
@@ -69,6 +69,16 @@ describe('Video-Browser: Live-Aktualisierung', () => {
     expect(vb.reload).toHaveBeenCalledTimes(1);
   });
 
+  it('lädt bei Dauer-Meldungen spätestens nach LIVE_RELOAD_MAX_MS', async () => {
+    const takt = LIVE_RELOAD_MS - 500;
+    for (let t = 0; t < LIVE_RELOAD_MAX_MS; t += takt) {
+      emit('kooperation_medien_stand', stand('k1'));
+      await vi.advanceTimersByTimeAsync(takt);
+    }
+
+    expect(vb.reload).toHaveBeenCalledTimes(1);
+  });
+
   it('reagiert auf Video-Änderungen nur der eigenen Kooperationen', async () => {
     emit('kooperation_videos', { eventType: 'UPDATE', new: { id: 'v9', kooperation_id: 'fremd' } });
     await vi.advanceTimersByTimeAsync(LIVE_RELOAD_MS);
@@ -114,7 +124,7 @@ describe('Video-Browser: Live-Aktualisierung', () => {
     channels[0].subscribe.mock.calls[0][0]('CHANNEL_ERROR');
     await vi.advanceTimersByTimeAsync(5000);
     channels[2].subscribe.mock.calls[0][0]('SUBSCRIBED');
-    await vi.advanceTimersByTimeAsync(LIVE_RELOAD_MS);
+    await vi.advanceTimersByTimeAsync(RESYNC_JITTER_MS + LIVE_RELOAD_MS);
     expect(vb.reload).toHaveBeenCalledTimes(1);
   });
 

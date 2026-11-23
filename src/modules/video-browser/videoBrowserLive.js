@@ -5,7 +5,10 @@
 
 import { acquireKampagneChannel } from '../kampagne/kampagneRealtimeChannel.js';
 
-export const LIVE_RELOAD_MS = 800;
+// Ein Upload oder SharePoint-Abgleich meldet Datei fuer Datei; jeder Reload laedt den ganzen
+// Baum. Gesammelt wird bis 2,5 s Ruhe, laengstens 10 s nach der ersten Meldung.
+export const LIVE_RELOAD_MS = 2500;
+export const LIVE_RELOAD_MAX_MS = 10000;
 
 /** Während einer Bearbeitung wird nicht neu gezeichnet; der Reload wartet. */
 function bearbeitet(vb) {
@@ -28,16 +31,20 @@ export function bindLiveUpdates(vb) {
   if (!kampagneId || !vb.root) return;
 
   let timer = null;
+  let ersteMeldung = null;
   let laeuft = false;
   let nochmal = false;
 
   const planen = () => {
+    const jetzt = Date.now();
+    ersteMeldung ??= jetzt;
     clearTimeout(timer);
-    timer = setTimeout(laden, LIVE_RELOAD_MS);
+    timer = setTimeout(laden, Math.min(LIVE_RELOAD_MS, ersteMeldung + LIVE_RELOAD_MAX_MS - jetzt));
   };
 
   async function laden() {
     timer = null;
+    ersteMeldung = null;
     if (vb.destroyed) return;
     if (bearbeitet(vb)) {
       planen();

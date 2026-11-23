@@ -119,7 +119,6 @@ function netlifyDateien() {
       MS_TENANT_ID: l.MS_TENANT_ID, MS_CLIENT_ID: l.MS_CLIENT_ID,
       SP_SITE_URL: l.SP_SITE_URL, SP_SITE_ID: l.SP_SITE_ID, SP_DRIVE_ID: l.SP_DRIVE_ID,
       SP_WEBHOOK_CLIENT_STATE: l.SP_WEBHOOK_CLIENT_STATE, ABLAGE_SECRET: l.ABLAGE_SECRET,
-      ABLAGE_UMZUG_PARALLEL: l.ABLAGE_UMZUG_PARALLEL || '2',
     });
     zeilen.push(`Live: ${rel(NETLIFY.live)} geschrieben.`);
   }
