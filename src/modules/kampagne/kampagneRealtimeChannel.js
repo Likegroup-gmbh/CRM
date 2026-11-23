@@ -14,12 +14,21 @@
 //  - Zwei Channels (Teile) mit eigenem Reconnect: Ein abgelehntes Abo (z. B.
 //    Tabelle fehlt in der Publikation) laesst den ganzen Channel scheitern.
 //    Der Medien-Stand ist neu und darf Videos und Kommentare nicht mitreissen.
+//  - Ein Resync laedt die ganze Kampagnen-Tabelle (rund 40 Requests). Nach einem
+//    Realtime-Aussetzer reconnecten alle Tabs gleichzeitig; ohne Streuung und
+//    Mindestabstand ueberrollen die Resyncs die Datenbank und loesen den naechsten
+//    Aussetzer aus. Reconnects und Resyncs sind deshalb gestreut und zusammengefasst.
+//  - Abonniert wird erst mit Nutzer-Token (realtimeAuth.js), nicht als anon.
+
+import { realtimeAuthAktiv, ensureRealtimeAuth, refreshRealtimeAuth, beiSession } from '../../core/realtimeAuth.js';
 
 export const GRACE_MS = 30000;
 export const RECONNECT_BASE_MS = 2000;
 export const RECONNECT_MAX_MS = 30000;
 // Kuerzer im Hintergrund: kein Refetch, die Verbindung hat vermutlich gehalten.
-export const RESYNC_AFTER_HIDDEN_MS = 20000;
+export const RESYNC_AFTER_HIDDEN_MS = 5 * 60 * 1000;
+export const RESYNC_JITTER_MS = 8000;
+export const RESYNC_MIN_GAP_MS = 60000;
 
 const registry = new Map();
 let visibilityBound = false;
@@ -33,7 +42,7 @@ function onVisibilityChange() {
   const away = hiddenAt ? Date.now() - hiddenAt : 0;
   hiddenAt = null;
   if (away < RESYNC_AFTER_HIDDEN_MS) return;
-  for (const entry of registry.values()) notifyResync(entry);
+  for (const entry of registry.values()) planResync(entry);
 }
 
 function bindVisibility() {
@@ -57,6 +66,19 @@ function notifyResync(entry) {
       console.warn('REALTIME: onResync fehlgeschlagen:', err);
     }
   }
+}
+
+/** Ein Resync je Kampagne, gestreut und mit Mindestabstand zum letzten. */
+function planResync(entry) {
+  if (entry.resyncTimer) return;
+  const frei = entry.lastResyncAt == null ? 0 : entry.lastResyncAt + RESYNC_MIN_GAP_MS - Date.now();
+  const delay = Math.max(frei, Math.random() * RESYNC_JITTER_MS);
+  entry.resyncTimer = setTimeout(() => {
+    entry.resyncTimer = null;
+    if (entry.listeners.size === 0) return;
+    entry.lastResyncAt = Date.now();
+    notifyResync(entry);
+  }, delay);
 }
 
 function dispatch(entry, table, payload) {
@@ -114,13 +136,40 @@ function buildChannel(entry, teil) {
   return teil.def.bind(channel, kampagneId, route);
 }
 
+function istAktiv(entry) {
+  return registry.get(entry.kampagneId) === entry && entry.listeners.size > 0;
+}
+
 function connect(entry) {
   for (const teil of entry.teile) connectTeil(entry, teil);
 }
 
 function connectTeil(entry, teil) {
-  if (teil.channel || !window.supabase?.channel) return;
+  if (teil.channel || teil.authLaeuft || teil.sessionAbmelden || !window.supabase?.channel) return;
+  if (!realtimeAuthAktiv()) {
+    subscribeTeil(entry, teil);
+    return;
+  }
 
+  teil.authLaeuft = true;
+  const auth = teil.authErneuern ? refreshRealtimeAuth() : ensureRealtimeAuth();
+  teil.authErneuern = false;
+  auth.then((ok) => {
+    teil.authLaeuft = false;
+    if (!istAktiv(entry) || teil.channel) return;
+    if (ok) {
+      subscribeTeil(entry, teil);
+      return;
+    }
+    // Ohne Session (Gast, abgemeldet) kein Abo und kein Retry-Takt: erst die naechste Session
+    teil.sessionAbmelden = beiSession(() => {
+      teil.sessionAbmelden = null;
+      if (istAktiv(entry)) connectTeil(entry, teil);
+    });
+  });
+}
+
+function subscribeTeil(entry, teil) {
   const channel = buildChannel(entry, teil);
   teil.channel = channel;
 
@@ -133,7 +182,7 @@ function connectTeil(entry, teil) {
       teil.fehlerGemeldet = false;
       if (teil.needsResync) {
         teil.needsResync = false;
-        notifyResync(entry);
+        planResync(entry);
       }
       return;
     }
@@ -144,6 +193,8 @@ function connectTeil(entry, teil) {
         teil.fehlerGemeldet = true;
         console.error(`REALTIME: Channel Error (${teil.def.key}):`, err);
       }
+      // Als anon abonniert (Token abgelaufen): vor dem naechsten Versuch die Session erneuern
+      if (/invalid column for filter/i.test(String(err?.message || err || ''))) teil.authErneuern = true;
       teil.needsResync = true;
       scheduleReconnect(entry, teil);
     }
@@ -157,6 +208,8 @@ function disconnect(entry) {
 function disconnectTeil(teil) {
   clearTimeout(teil.reconnectTimer);
   teil.reconnectTimer = null;
+  teil.sessionAbmelden?.();
+  teil.sessionAbmelden = null;
   const channel = teil.channel;
   teil.channel = null;
   if (channel) window.supabase?.removeChannel?.(channel);
@@ -171,7 +224,9 @@ function clearReconnects(entry) {
 
 function scheduleReconnect(entry, teil) {
   if (teil.reconnectTimer || entry.listeners.size === 0) return;
-  const delay = Math.min(RECONNECT_BASE_MS * 2 ** teil.attempt, RECONNECT_MAX_MS);
+  // Streuung +-50 %: alle Tabs verlieren die Verbindung im selben Moment
+  const basis = Math.min(RECONNECT_BASE_MS * 2 ** teil.attempt, RECONNECT_MAX_MS);
+  const delay = basis * (0.5 + Math.random());
   teil.attempt += 1;
   teil.reconnectTimer = setTimeout(() => {
     teil.reconnectTimer = null;
@@ -184,6 +239,8 @@ function scheduleReconnect(entry, teil) {
 function teardown(entry) {
   clearTimeout(entry.graceTimer);
   entry.graceTimer = null;
+  clearTimeout(entry.resyncTimer);
+  entry.resyncTimer = null;
   disconnect(entry);
   if (registry.get(entry.kampagneId) === entry) registry.delete(entry.kampagneId);
   unbindVisibility();
@@ -208,9 +265,14 @@ export function acquireKampagneChannel(kampagneId, listener) {
         reconnectTimer: null,
         attempt: 0,
         needsResync: false,
-        fehlerGemeldet: false
+        fehlerGemeldet: false,
+        authLaeuft: false,
+        authErneuern: false,
+        sessionAbmelden: null
       })),
-      graceTimer: null
+      graceTimer: null,
+      resyncTimer: null,
+      lastResyncAt: null
     };
     registry.set(kampagneId, entry);
   }

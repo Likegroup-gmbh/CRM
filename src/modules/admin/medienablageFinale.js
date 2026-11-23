@@ -27,7 +27,7 @@ export function finalSpiegelHtml(page) {
         <div class="dq-list-header ma-list-header">
           <div>
             <h2 class="dq-list-title">Finale Version im Finder</h2>
-            <p class="dq-list-hint">Als final markierte Dateien liegen als Kopie in Finale_Version. Neue Finale kopiert der Zeitplan zwei Minuten nach dem Markieren; den Bestand davor holt „Finale spiegeln“ nach.</p>
+            <p class="dq-list-hint">Als final markierte Dateien liegen als Kopie in Finale_Version. Neue Finale kopiert der Zeitplan spätestens sieben Minuten nach dem Markieren; den Bestand davor holt „Finale spiegeln“ nach.</p>
           </div>
         </div>
         <div class="ma-umzug">

@@ -26,7 +26,6 @@ const KOPIE_NEU_SEK = 30;
 // So lange bekommt der Abgleich Zeit, eine womoeglich schon committete Datei anzuhaengen
 const ABGLEICH_FRIST_MS = 30 * 60 * 1000;
 const MAX_VERSUCHE = 6;
-const PARALLEL = 2;
 const SEITE = 1000;
 
 class UmzugFehler extends Error {
@@ -90,17 +89,6 @@ function createUmzug({
       if (!data || data.length < SEITE) break;
     }
     return [...je.values()];
-  }
-
-  /** Wie viele Laeufer der Zeitplan zusaetzlich anstossen soll. */
-  async function laeuferBedarf({ parallel = PARALLEL } = {}) {
-    const t = iso();
-    const basis = () => supabase.from('ablage_umzug').select('id', { count: 'exact', head: true }).eq('drive_id', driveId).eq('status', 'offen');
-    const [laufend, faellig] = await Promise.all([basis().gt('gesperrt_bis', t), basis().lte('naechster_versuch', t)]);
-    if (laufend.error) throw laufend.error;
-    if (faellig.error) throw faellig.error;
-    const frei = (faellig.count || 0) - (laufend.count || 0);
-    return Math.max(0, Math.min(parallel - (laufend.count || 0), frei));
   }
 
   async function assetLaden(typ, id) {
@@ -536,7 +524,7 @@ function createUmzug({
     return r;
   }
 
-  return { lauf, anlegen, dokumenteAnlegen, uebersicht, laeuferBedarf, eintragBearbeiten, dokumentBearbeiten };
+  return { lauf, anlegen, dokumenteAnlegen, uebersicht, eintragBearbeiten, dokumentBearbeiten };
 }
 
-module.exports = { createUmzug, UmzugFehler, CHUNK, PARALLEL, MAX_VERSUCHE };
+module.exports = { createUmzug, UmzugFehler, CHUNK, MAX_VERSUCHE };

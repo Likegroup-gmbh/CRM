@@ -1,7 +1,7 @@
 // _shared/teams/verteilen.js
 // Arbeitet die Outbox teams_meldung ab (ADR 0066): faellige Zeilen per Lease holen, Kontext
 // laden, Karte bauen, an den Workflow des Kanals schicken, Ergebnis an Zeile und Kanal.
-// Aufgerufen vom Anstoss aus dem Browser (teams-meldung-senden) und vom Minuten-Zeitplan.
+// Aufgerufen vom Anstoss aus dem Browser (teams-meldung-senden) und vom 5-Minuten-Zeitplan.
 //
 // Reihenfolge: erst die Meldungen zu neuen Kommentaren, dann die Nachtraege 'entfernt'. Ein
 // Nachtrag geht nur raus, wenn die Meldung selbst gesendet ist; laeuft sie noch, wartet er,

@@ -201,7 +201,9 @@ function createAbgleich({
   /**
    * Ein Hintergrundlauf: abwechselnd Delta lesen und Eingang einordnen, bis beides leer ist.
    * Nach neuen oder wartenden Eintraegen bleibt er nachlaufSek wach, bis die Dateien reif sind:
-   * Webhooks waehrend des Laufs scheitern an der Lease, der Zeitplan kaeme erst zur naechsten Minute.
+   * Webhooks waehrend des Laufs scheitern an der Lease, der Zeitplan kaeme erst nach 5 Minuten.
+   * Kam eine Meldung (ablage_stand.letzte_meldung) nach dem letzten Delta-Lesen, endet der Lauf
+   * mit mehr: true und der Background-Lauf stoesst sich neu an.
    * @param {{ budgetMs?:number, pflege?:boolean|'auto' }} [opts]
    */
   async function lauf({ budgetMs = BUDGET_MS, pflege = 'auto' } = {}) {
@@ -214,8 +216,10 @@ function createAbgleich({
     const r = { lease: true, seiten: 0, neu: 0, eingang: { erledigt: 0, warten: 0, unzugeordnet: 0, ignoriert: 0, fehler: 0, ueberholt: 0 } };
     let ruhig = false;
     let wachBis = 0;
+    let deltaAb = start;
     try {
       while (jetzt() < bis) {
+        deltaAb = jetzt();
         const delta = await deltaLesen(token, { bis: Math.min(bis, jetzt() + RUNDE_MS) });
         r.seiten += delta.seiten;
         r.neu += delta.neu;
@@ -241,6 +245,7 @@ function createAbgleich({
         r.geruest = await geruestNachziehen({ bis });
         r.struktur = await strukturNachziehen({ bis });
         const s = await stand();
+        if (s?.letzte_meldung && Date.parse(s.letzte_meldung) > deltaAb) r.mehr = true;
         const faellig = pflege === true || (pflege === 'auto' && (!s?.pflege_at || jetzt() - Date.parse(s.pflege_at) >= PFLEGE_MS));
         if (faellig) {
           r.namen = await namenAbgleichen({ bis });
