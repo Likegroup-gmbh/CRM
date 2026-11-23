@@ -236,7 +236,6 @@ export class StrategieDetail {
       </svg>`;
     const kategorienIcon = `${icon('tag')}`;
     const tabelleAnpassenIcon = `${icon('adjustments-horizontal')}`;
-    const customColumnsIcon = `${icon('bars-3')}`;
 
     const primary = this.canEdit ? `
           <button type="button" class="mdc-btn" id="btn-open-add-drawer">
@@ -251,7 +250,6 @@ export class StrategieDetail {
               ${renderToolbarMenuItem({ id: 'btn-strategie-casting-link', title: this.strategie?.creator_auswahl_id ? 'Casting-Verknüpfung lösen' : 'Casting verknüpfen', icon: icon('link'), label: this.strategie?.creator_auswahl_id ? 'Casting lösen' : 'Casting verknüpfen' })}
               ${renderToolbarMenuItem({ id: 'btn-manage-kategorien', title: 'Kategorien verwalten', icon: kategorienIcon, label: 'Kategorien' })}
               ${renderToolbarMenuItem({ id: 'btn-strategie-detail-column-visibility', title: 'Spaltenreihenfolge und Sichtbarkeit', icon: tabelleAnpassenIcon, label: 'Tabelle anpassen' })}
-              ${renderToolbarMenuItem({ id: 'btn-strategie-custom-columns', title: 'Eigene Spalten verwalten', icon: customColumnsIcon, label: 'Eigene Spalten' })}
             `
     }) : '';
 
@@ -338,6 +336,10 @@ export class StrategieDetail {
       async (order) => {
         await this.saveColumnOrder(order);
         this.rerenderItemsTable();
+      },
+      {
+        spaltenPflege: this.customColumns,
+        onColumnsChanged: () => this.rerenderItemsTable()
       }
     );
     drawer.open();
@@ -593,13 +595,6 @@ export class StrategieDetail {
         const handler = () => this.showColumnVisibilityDrawer();
         visibilityBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => visibilityBtn.removeEventListener('click', handler));
-      }
-
-      const customColumnsBtn = this._q('#btn-strategie-custom-columns');
-      if (customColumnsBtn) {
-        const handler = () => this.customColumns.openManagementDrawer(() => this.rerenderItemsTable());
-        customColumnsBtn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => customColumnsBtn.removeEventListener('click', handler));
       }
 
       const castingLinkBtn = this._q('#btn-strategie-casting-link');

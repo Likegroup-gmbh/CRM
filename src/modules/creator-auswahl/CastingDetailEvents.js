@@ -141,13 +141,6 @@ export function bindEvents() {
       this._boundEventListeners.add(() => tabelleAnpassenBtn.removeEventListener('click', handler));
     }
 
-    const customColumnsBtn = this._q('#btn-sourcing-custom-columns');
-    if (customColumnsBtn) {
-      const handler = () => this.customColumns.openManagementDrawer(() => this.rerenderTable());
-      customColumnsBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => customColumnsBtn.removeEventListener('click', handler));
-    }
-
     const kategorienBtn = this._q('#btn-sourcing-kategorien');
     if (kategorienBtn) {
       const handler = () => this.openKategorienDrawer();

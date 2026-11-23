@@ -44,9 +44,6 @@ const KUNDEN_CALL_ICON = `
 const TABELLE_ANPASSEN_ICON = `
   ${icon('adjustments-horizontal')}`;
 
-const CUSTOM_COLUMNS_ICON = `
-  ${icon('bars-3')}`;
-
 const LINK_ICON = `${icon('link')}`;
 
 const KATEGORIEN_ICON = `${icon('tag')}`;
@@ -78,7 +75,6 @@ function renderAddSectionActions(ctx = {}) {
             ${renderToolbarMenuItem({ id: 'btn-share-sourcing', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' })}
             ${renderToolbarMenuItem({ id: 'btn-kunden-call-toggle', title: 'EK und CPM für Kundenpräsentation ausblenden', icon: KUNDEN_CALL_ICON, label: 'Kunden Call', active: kundenCallActive })}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-tabelle-anpassen', title: 'Spaltenreihenfolge und Sichtbarkeit', icon: TABELLE_ANPASSEN_ICON, label: 'Tabelle anpassen' })}
-            ${renderToolbarMenuItem({ id: 'btn-sourcing-custom-columns', title: 'Eigene Spalten verwalten', icon: CUSTOM_COLUMNS_ICON, label: 'Eigene Spalten' })}
           `
         })}
         ` : ''}

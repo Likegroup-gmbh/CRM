@@ -275,13 +275,6 @@ export function setupEvents(detail) {
       return;
     }
 
-    if (e.target.closest('#btn-custom-columns')) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      showCustomColumnsDrawer(detail);
-      return;
-    }
-
     if (e.target.closest('#btn-view-table')) {
       e.preventDefault();
       detail.switchView('table');
@@ -407,14 +400,17 @@ function showColumnVisibilityDrawer(detail) {
   }
   if (!detail.videoColumnVisibilityDrawer) {
     detail.videoColumnVisibilityDrawer = new VideoTableColumnVisibilityDrawer(detail.kampagneId, detail.store, {
-      onTableRefresh: () => detail.kooperationenVideoTable?.refilter()
+      onTableRefresh: () => detail.kooperationenVideoTable?.refilter(),
+      onPflege: (host, ctx) => {
+        const editor = ensureCustomColumnsDrawer(detail);
+        editor.mountIn(host, ctx);
+      }
     });
   }
   detail.videoColumnVisibilityDrawer.open();
 }
 
-function showCustomColumnsDrawer(detail) {
-  if (!(window.canFeature?.('kampagneTableLayout') ?? false)) return;
+function ensureCustomColumnsDrawer(detail) {
   const drawer = detail._customColumnsDrawer;
   if (drawer && (drawer.kampagneId !== detail.kampagneId || drawer.store !== detail.store)) {
     drawer.destroy();
@@ -427,7 +423,7 @@ function showCustomColumnsDrawer(detail) {
       () => detail.kooperationenVideoTable?.refilter()
     );
   }
-  detail._customColumnsDrawer.open();
+  return detail._customColumnsDrawer;
 }
 
 function handleKampagneVertragListAction(detail, action, vertragId) {

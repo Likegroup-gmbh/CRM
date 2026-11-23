@@ -15,7 +15,6 @@ import {
 import { renderAddSection, renderItemsTable, updateStickyHeights } from './castingTableRender.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
-import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
 import { ankerEintraegeAusFolge, ersetzeEigeneSpalten } from './sourcingSpaltenfolge.js';
 import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
 import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
@@ -323,16 +322,12 @@ export class CreatorAuswahlDetail {
   }
 
   showTabelleAnpassenDrawer() {
-    const customColumns = this.customColumns.getOrderedColumns().map(c => ({
-      className: makeCustomColumnId(c.id),
-      label: c.name,
-      anchor: c._anchor ?? null
-    }));
     // Drawer bei jedem Oeffnen neu bauen, damit neue Custom-Spalten erscheinen
     this.tabelleAnpassenDrawer = new SourcingTabelleAnpassenDrawer({
       liste: this.liste,
       hiddenColumns: this.hiddenColumns,
-      customColumns,
+      spaltenPflege: this.customColumns,
+      onColumnsChanged: () => this.rerenderTable(),
       onHiddenColumnsChange: async (newHiddenColumns) => {
         this.hiddenColumns = newHiddenColumns;
         await this.saveColumnVisibilitySettings();

@@ -978,6 +978,7 @@ h3.section-title,
 .drawer-body:has(> .sourcing-spalten-liste) > .drawer-section-title,
 .drawer-body:has(> .sourcing-spalten-liste) > .sourcing-spalten-kopf,
 .drawer-body:has(> .sourcing-spalten-liste) > .sourcing-spalten-item,
+.drawer-body:has(> .sourcing-spalten-liste) > .tabelle-spalte-hinzufuegen,
 .drawer-body:has(> .sourcing-spalten-liste) > .drawer-info-text,
 .drawer-body:has(> .sourcing-spalten-liste) > .drawer-footer {
   flex-shrink: 0;
@@ -1012,6 +1013,17 @@ h3.section-title,
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
+  min-width: 0;
+}
+
+.sourcing-spalten-name--mit-aktion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.sourcing-spalten-name--mit-aktion > span {
+  flex: 1;
   min-width: 0;
 }
 

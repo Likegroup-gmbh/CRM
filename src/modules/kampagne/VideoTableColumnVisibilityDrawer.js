@@ -7,6 +7,8 @@ import { getConfigurableColumns, isColumnPreferredVisible, setColumnPreferredVis
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { bindGripReorder } from '../../core/list/gripReorder.js';
+import { renderSpalteHinzufuegen, renderSpaltenName } from '../../core/customColumns/tabelleSpaltenPflege.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -17,10 +19,11 @@ function escapeHtml(value) {
 }
 
 export class VideoTableColumnVisibilityDrawer {
-  constructor(kampagneId, store, { onTableRefresh } = {}) {
+  constructor(kampagneId, store, { onTableRefresh, onPflege } = {}) {
     this.kampagneId = kampagneId;
     this.store = store || null;
     this.onTableRefresh = onTableRefresh || null;
+    this.onPflege = onPflege || null;
     this.hiddenColumns = [];
     this.drawerId = 'video-column-visibility-drawer';
     this._settingsLoaded = false;
@@ -28,6 +31,8 @@ export class VideoTableColumnVisibilityDrawer {
     this._reorderUnbind = [];
     this._draggedRow = null;
     this._movableIds = [];
+    this._pflegeBound = false;
+    this._changeBound = false;
   }
 
   get columns() {
@@ -164,6 +169,8 @@ export class VideoTableColumnVisibilityDrawer {
   // Entferne Drawer
   removeDrawer() {
     this.unbindReorder();
+    this._pflegeBound = false;
+    this._changeBound = false;
     clearTimeout(this._closeTimer);
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
     const panel = document.getElementById(this.drawerId);
@@ -206,7 +213,7 @@ export class VideoTableColumnVisibilityDrawer {
           <span class="sourcing-spalten-griff" data-action="drag-spalte" role="button" tabindex="0" title="Reihenfolge ändern" aria-label="Reihenfolge von ${escapeHtml(col.label)} ändern">
             ${icon('bars-3', { className: 'icon-16' })}
           </span>
-          <span class="sourcing-spalten-name">${escapeHtml(col.label)}</span>
+          ${renderSpaltenName(col.label, col.className)}
           <label class="toggle-switch">
             <input
               type="checkbox"
@@ -230,6 +237,7 @@ export class VideoTableColumnVisibilityDrawer {
       <div class="sourcing-spalten-liste" id="video-tabelle-anpassen-spalten">
         ${rows}
       </div>
+      ${renderSpalteHinzufuegen()}
       <p class="drawer-info-text">
         <strong>Hinweis:</strong> Die Reihenfolge ändern Sie am Griff. „Nr“, „Creator“ und „Aktionen“ bleiben fest.
       </p>
@@ -246,13 +254,48 @@ export class VideoTableColumnVisibilityDrawer {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
 
-    // Event-Delegation minimiert Listener-Overhead
-    body.addEventListener('change', (e) => {
-      const toggle = e.target.closest('.column-visibility-toggle');
-      if (!toggle) return;
-      this.handleToggle(e);
-    });
+    if (!this._changeBound) {
+      this._changeBound = true;
+      body.addEventListener('change', (e) => {
+        const toggle = e.target.closest('.column-visibility-toggle');
+        if (!toggle || !body.contains(toggle)) return;
+        this.handleToggle(e);
+      });
+    }
     this.bindReorder();
+    this._bindPflegeOnce();
+  }
+
+  restoreList() {
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    body.innerHTML = this.renderContent();
+    this.bindEvents();
+  }
+
+  openPflege(columnId) {
+    if (!this.onPflege) return;
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    this.unbindReorder();
+    this.onPflege(body, {
+      columnId,
+      onBack: () => this.restoreList()
+    });
+  }
+
+  _bindPflegeOnce() {
+    if (this._pflegeBound) return;
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    this._pflegeBound = true;
+    body.addEventListener('click', (event) => {
+      const add = event.target.closest('[data-action="spalte-hinzufuegen"]');
+      const edit = event.target.closest('[data-action="spalte-bearbeiten"]');
+      if ((!add && !edit) || !body.contains(event.target)) return;
+      event.preventDefault();
+      this.openPflege(edit ? edit.dataset.column : null);
+    });
   }
 
   unbindReorder() {
@@ -265,62 +308,11 @@ export class VideoTableColumnVisibilityDrawer {
     this.unbindReorder();
     const list = document.getElementById('video-tabelle-anpassen-spalten');
     if (!list) return;
-
-    const rows = () => list.querySelectorAll('.sourcing-spalten-item');
-
-    list.querySelectorAll('[data-action="drag-spalte"]').forEach(handle => {
-      const onMouseDown = () => {
-        handle.closest('.sourcing-spalten-item')?.setAttribute('draggable', 'true');
-      };
-      handle.addEventListener('mousedown', onMouseDown);
-      this._reorderUnbind.push(() => handle.removeEventListener('mousedown', onMouseDown));
-    });
-
-    const onMouseUp = () => {
-      rows().forEach(row => row.setAttribute('draggable', 'false'));
-    };
-    document.addEventListener('mouseup', onMouseUp);
-    this._reorderUnbind.push(() => document.removeEventListener('mouseup', onMouseUp));
-
-    rows().forEach(row => {
-      const onDragStart = (e) => {
-        this._draggedRow = row;
-        row.classList.add('is-dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        try { e.dataTransfer.setData('text/plain', row.dataset.column); } catch { /* jsdom */ }
-      };
-      const onDragEnd = async () => {
-        row.classList.remove('is-dragging');
-        row.setAttribute('draggable', 'false');
-        this._draggedRow = null;
-        list.querySelectorAll('.sourcing-spalten-item.drag-over')
-          .forEach(el => el.classList.remove('drag-over'));
-        await this.commitReihenfolge();
-      };
-      const onDragOver = (e) => {
-        e.preventDefault();
-        const dragged = this._draggedRow;
-        if (!dragged || dragged === row) return;
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-        const siblings = Array.from(list.children);
-        const from = siblings.indexOf(dragged);
-        const to = siblings.indexOf(row);
-        if (from < 0 || to < 0) return;
-        list.insertBefore(dragged, from < to ? row.nextSibling : row);
-      };
-      const onDrop = (e) => e.preventDefault();
-
-      row.addEventListener('dragstart', onDragStart);
-      row.addEventListener('dragend', onDragEnd);
-      row.addEventListener('dragover', onDragOver);
-      row.addEventListener('drop', onDrop);
-      this._reorderUnbind.push(() => {
-        row.removeEventListener('dragstart', onDragStart);
-        row.removeEventListener('dragend', onDragEnd);
-        row.removeEventListener('dragover', onDragOver);
-        row.removeEventListener('drop', onDrop);
-      });
-    });
+    this._reorderUnbind.push(bindGripReorder(list, {
+      rowSelector: '.sourcing-spalten-item',
+      handleSelector: '[data-action="drag-spalte"]',
+      onCommit: () => this.commitReihenfolge()
+    }));
   }
 
   aktuelleReihenfolge() {

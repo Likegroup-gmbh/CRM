@@ -3552,36 +3552,26 @@ th[draggable="true"]:active {
   gap: 6px;
 }
 
-.dd-opt-arrows {
+.dd-opt-row.is-dragging {
+  opacity: 0.5;
+}
+
+.dd-opt-row.is-dragging .sourcing-spalten-griff {
+  cursor: grabbing;
+}
+
+.tabelle-spalten-pflege {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--space-md);
 }
 
-.dd-opt-arrow {
-  width: 20px;
-  height: 15px;
-  padding: 0;
-  border: 1px solid var(--gray-300);
-  border-radius: 3px;
-  background: var(--white);
-  color: var(--gray-500);
-  font-size: 10px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.tabelle-spalten-pflege > [data-action="spalten-pflege-zurueck"] {
+  align-self: flex-start;
 }
 
-.dd-opt-arrow:hover:not(:disabled) {
-  background: var(--gray-100);
-  color: var(--gray-700);
-}
-
-.dd-opt-arrow:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+.tabelle-spalte-hinzufuegen {
+  margin-bottom: var(--space-md);
 }
 
 .dd-opt-input {

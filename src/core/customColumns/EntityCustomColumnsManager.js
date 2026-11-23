@@ -191,6 +191,19 @@ export class EntityCustomColumnsManager {
     drawer.open();
   }
 
+  /** Formular im schon offenen Drawer "Tabelle anpassen", ohne zweites Overlay. */
+  mountEditor(host, { columnId = null, onBack, onChange } = {}) {
+    this._editor?.unmount?.();
+    const drawer = new EntityCustomColumnsDrawer({
+      dataLoader: this.dataLoader,
+      columns: this.columns,
+      order: this.order,
+      onChange: () => onChange?.()
+    });
+    this._editor = drawer;
+    drawer.mountIn(host, { columnId, onBack });
+  }
+
   isCustomField(el) {
     return EntityCustomColumnFieldHandler.isCustomColumnField(el);
   }

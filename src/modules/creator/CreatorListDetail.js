@@ -154,7 +154,6 @@ export class CreatorListDetail {
             ${canManage ? `
               <button type="button" class="mdc-btn mdc-btn--secondary" data-action="edit-masterliste">Bearbeiten</button>
               <button type="button" class="mdc-btn mdc-btn--secondary" data-action="masterliste-spalten">Tabelle anpassen</button>
-              <button type="button" class="mdc-btn mdc-btn--secondary" data-action="masterliste-eigene-spalten">Eigene Spalten</button>
               <button type="button" class="mdc-btn" data-action="add-masterliste-member">Creator hinzufügen</button>
             ` : ''}
           </div>
@@ -193,11 +192,6 @@ export class CreatorListDetail {
       if (e.target.closest('[data-action="masterliste-spalten"]')) {
         e.preventDefault();
         this.openColumnsDrawer();
-        return;
-      }
-      if (e.target.closest('[data-action="masterliste-eigene-spalten"]')) {
-        e.preventDefault();
-        this.customColumns.openManagementDrawer(() => this.renderTable());
         return;
       }
       const removeBtn = e.target.closest('[data-action="remove-masterliste-member"]');

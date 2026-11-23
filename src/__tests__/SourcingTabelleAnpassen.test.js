@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SourcingTabelleAnpassenDrawer } from '../modules/creator-auswahl/SourcingTabelleAnpassenDrawer.js';
+import { EntityCustomColumnsDrawer } from '../core/customColumns/EntityCustomColumnsDrawer.js';
 import { wendePresetAn, TT_SPALTEN } from '../modules/creator-auswahl/sourcingSpaltenPreset.js';
 
 /** Drawer oeffnen und die Callbacks mitgeben */
@@ -45,6 +46,40 @@ describe('Drawer "Tabelle anpassen" – Spalten', () => {
     oeffne({ liste_typ: 'mix' }, [], [{ className: 'custom:abc', label: 'Eigene Notiz' }]);
 
     expect(document.querySelector('[data-column="custom:abc"]')).not.toBeNull();
+    expect(document.querySelector('[data-action="spalte-hinzufuegen"]')).not.toBeNull();
+    expect(document.querySelector('[data-action="spalte-bearbeiten"][data-column="custom:abc"]')).not.toBeNull();
+    expect(document.querySelector('[data-column="cp-col-notiz"] [data-action="spalte-bearbeiten"]')).toBeNull();
+  });
+
+  it('wechselt im selben Drawer zwischen Liste, Bearbeiten und Anlegen', () => {
+    const columns = [{ id: 'abc', name: 'Eigene Notiz', field_type: 'text', visible_for_kunden: true }];
+    const drawer = new SourcingTabelleAnpassenDrawer({
+      liste: { liste_typ: 'mix' },
+      hiddenColumns: [],
+      onHiddenColumnsChange: vi.fn(),
+      onListeChange: vi.fn(),
+      spaltenPflege: {
+        getOrderedColumns: () => columns,
+        mountEditor(host, opts) {
+          const editor = new EntityCustomColumnsDrawer({ dataLoader: {}, columns, order: [] });
+          editor.mountIn(host, opts);
+        }
+      }
+    });
+    drawer.open();
+
+    document.querySelector('[data-action="spalte-bearbeiten"]').click();
+    const body = document.getElementById('sourcing-tabelle-anpassen-drawer-body');
+    expect(body.querySelector('#sourcing-tabelle-anpassen-spalten')).toBeNull();
+    expect(body.querySelector('.custom-col-name-input').value).toBe('Eigene Notiz');
+    expect(document.getElementById('sourcing-tabelle-anpassen-drawer')).not.toBeNull();
+
+    body.querySelector('[data-action="spalten-pflege-zurueck"]').click();
+    expect(document.querySelector('#sourcing-tabelle-anpassen-spalten')).not.toBeNull();
+
+    document.querySelector('[data-action="spalte-hinzufuegen"]').click();
+    expect(body.querySelector('.cc-add-form-title').textContent).toBe('Neue Spalte');
+    expect(document.querySelector('#entity-custom-columns-drawer')).toBeNull();
   });
 
   it('zeigt jede Spalte mit Griff, in der Standardreihenfolge', () => {

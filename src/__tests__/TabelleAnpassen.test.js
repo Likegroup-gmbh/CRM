@@ -147,6 +147,8 @@ describe('Menüpunkt Tabelle anpassen', () => {
     const html = detail.renderAddItemActions();
     expect(html).toContain('Tabelle anpassen');
     expect(html).not.toContain('Sichtbarkeit anpassen');
+    expect(html).not.toContain('btn-strategie-custom-columns');
+    expect(html).not.toContain('Eigene Spalten');
   });
 
   it('steht so im Kooperations-Menü', () => {
@@ -159,5 +161,6 @@ describe('Menüpunkt Tabelle anpassen', () => {
     });
     expect(html).toContain('Tabelle anpassen');
     expect(html).not.toContain('Sichtbarkeit anpassen');
+    expect(html).not.toContain('btn-custom-columns');
   });
 });

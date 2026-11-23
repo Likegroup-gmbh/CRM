@@ -13,6 +13,9 @@ import {
 import { baueBeweglicheSpalten } from './sourcingSpaltenfolge.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { renderSpalteHinzufuegen, renderSpaltenName } from '../../core/customColumns/tabelleSpaltenPflege.js';
+import { bindGripReorder } from '../../core/list/gripReorder.js';
 
 const SPALTEN_LABELS = new Map(
   SOURCING_SPALTEN
@@ -49,28 +52,56 @@ export class SourcingTabelleAnpassenDrawer {
    * @param {(hiddenColumns: string[]) => Promise<void>|void} config.onHiddenColumnsChange
    * @param {(updates: object) => Promise<void>|void} config.onListeChange
    * @param {(columnOrder: string[]) => Promise<void>|void} config.onColumnOrderChange
+   * @param {object} [config.spaltenPflege] EntityCustomColumnsManager
+   * @param {() => void} [config.onColumnsChanged]
    */
-  constructor({ liste, hiddenColumns, customColumns = [], onHiddenColumnsChange, onListeChange, onColumnOrderChange }) {
+  constructor({
+    liste,
+    hiddenColumns,
+    customColumns = [],
+    onHiddenColumnsChange,
+    onListeChange,
+    onColumnOrderChange,
+    spaltenPflege = null,
+    onColumnsChanged = null
+  }) {
     this.liste = liste || {};
     this.hiddenColumns = hiddenColumns || [];
     this.onHiddenColumnsChange = onHiddenColumnsChange;
     this.onListeChange = onListeChange;
     this.onColumnOrderChange = onColumnOrderChange;
+    this.spaltenPflege = spaltenPflege;
+    this.onColumnsChanged = onColumnsChanged;
     this.drawerId = 'sourcing-tabelle-anpassen-drawer';
     this._reorderUnbind = [];
     this._draggedRow = null;
+    this._pflegeBound = false;
+    this._customColumns = spaltenPflege?.getOrderedColumns
+      ? this._aktuelleEigeneSpalten()
+      : (customColumns || []);
+    this.columns = this._composeColumns(this._customColumns);
+  }
 
+  _composeColumns(customColumns) {
     const labels = new Map(SPALTEN_LABELS);
     for (const col of customColumns || []) {
       if (col.className && col.label) labels.set(col.className, col.label);
     }
-
-    this.columns = baueBeweglicheSpalten({
+    return baueBeweglicheSpalten({
       columnOrder: this.liste.column_order,
       customColumns: eigeneSpaltenFuerFolge(customColumns)
     })
       .filter(id => !DEAKTIVIERTE_SPALTEN.includes(id) && labels.has(id))
       .map(id => ({ className: id, label: labels.get(id) }));
+  }
+
+  _aktuelleEigeneSpalten() {
+    if (!this.spaltenPflege?.getOrderedColumns) return this._customColumns;
+    return this.spaltenPflege.getOrderedColumns().map(col => ({
+      className: makeCustomColumnId(col.id),
+      label: col.name,
+      anchor: col._anchor ?? null
+    }));
   }
 
   open() {
@@ -133,10 +164,47 @@ export class SourcingTabelleAnpassenDrawer {
     });
 
     this.bindEvents();
+    this._bindPflegeOnce();
+  }
+
+  restoreList() {
+    this._customColumns = this._aktuelleEigeneSpalten();
+    this.columns = this._composeColumns(this._customColumns);
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    body.innerHTML = this.renderContent();
+    this.bindEvents();
+  }
+
+  openPflege(columnId) {
+    if (!this.spaltenPflege?.mountEditor) return;
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    this.unbindReorder();
+    this.spaltenPflege.mountEditor(body, {
+      columnId,
+      onChange: () => this.onColumnsChanged?.(),
+      onBack: () => this.restoreList()
+    });
+  }
+
+  _bindPflegeOnce() {
+    if (this._pflegeBound) return;
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    this._pflegeBound = true;
+    body.addEventListener('click', (event) => {
+      const add = event.target.closest('[data-action="spalte-hinzufuegen"]');
+      const edit = event.target.closest('[data-action="spalte-bearbeiten"]');
+      if ((!add && !edit) || !body.contains(event.target)) return;
+      event.preventDefault();
+      this.openPflege(edit ? edit.dataset.column : null);
+    });
   }
 
   removeDrawer() {
     this.unbindReorder();
+    this._pflegeBound = false;
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
     const panel = document.getElementById(this.drawerId);
     if (overlay) overlay.remove();
@@ -167,12 +235,16 @@ export class SourcingTabelleAnpassenDrawer {
       const zeilen = PLATTFORM_ZEILEN[col.className];
       const vomBriefingLeer = !!zeilen && zeilen.every(z => this.hiddenColumns.includes(z.key));
       const nameTitle = vomBriefingLeer ? ' title="Das Briefing blendet alle Plattformen dieser Spalte aus"' : '';
+      const nameHtml = renderSpaltenName(col.label, col.className);
+      const titledName = nameTitle
+        ? nameHtml.replace('class="sourcing-spalten-name"', `class="sourcing-spalten-name"${nameTitle}`)
+        : nameHtml;
       return `
         <div class="sourcing-spalten-item" data-column="${escapeHtml(col.className)}" draggable="false">
           <span class="sourcing-spalten-griff" data-action="drag-spalte" role="button" tabindex="0" title="Reihenfolge ändern" aria-label="Reihenfolge von ${escapeHtml(col.label)} ändern">
             ${icon('bars-3', { className: 'icon-16' })}
           </span>
-          <span class="sourcing-spalten-name"${nameTitle}>${escapeHtml(col.label)}</span>
+          ${titledName}
           <label class="toggle-switch">
             <input
               type="checkbox"
@@ -196,6 +268,7 @@ export class SourcingTabelleAnpassenDrawer {
       <div class="sourcing-spalten-liste" id="sourcing-tabelle-anpassen-spalten">
         ${rows}
       </div>
+      ${renderSpalteHinzufuegen()}
       <p class="drawer-info-text">
         <strong>Hinweis:</strong> Die Reihenfolge ändern Sie am Griff. „Name“ und „Aktionen“ bleiben fest und können nicht ausgeblendet werden.
       </p>
@@ -231,63 +304,11 @@ export class SourcingTabelleAnpassenDrawer {
     this.unbindReorder();
     const list = document.getElementById('sourcing-tabelle-anpassen-spalten');
     if (!list) return;
-
-    const rows = () => list.querySelectorAll('.sourcing-spalten-item');
-
-    // Wie bei den Kategorien: nur der Griff macht die Zeile ziehbar.
-    list.querySelectorAll('[data-action="drag-spalte"]').forEach(handle => {
-      const onMouseDown = () => {
-        handle.closest('.sourcing-spalten-item')?.setAttribute('draggable', 'true');
-      };
-      handle.addEventListener('mousedown', onMouseDown);
-      this._reorderUnbind.push(() => handle.removeEventListener('mousedown', onMouseDown));
-    });
-
-    const onMouseUp = () => {
-      rows().forEach(row => row.setAttribute('draggable', 'false'));
-    };
-    document.addEventListener('mouseup', onMouseUp);
-    this._reorderUnbind.push(() => document.removeEventListener('mouseup', onMouseUp));
-
-    rows().forEach(row => {
-      const onDragStart = (e) => {
-        this._draggedRow = row;
-        row.classList.add('is-dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        try { e.dataTransfer.setData('text/plain', row.dataset.column); } catch { /* jsdom */ }
-      };
-      const onDragEnd = async () => {
-        row.classList.remove('is-dragging');
-        row.setAttribute('draggable', 'false');
-        this._draggedRow = null;
-        list.querySelectorAll('.sourcing-spalten-item.drag-over')
-          .forEach(el => el.classList.remove('drag-over'));
-        await this.commitReihenfolge();
-      };
-      const onDragOver = (e) => {
-        e.preventDefault();
-        const dragged = this._draggedRow;
-        if (!dragged || dragged === row) return;
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-        const siblings = Array.from(list.children);
-        const from = siblings.indexOf(dragged);
-        const to = siblings.indexOf(row);
-        if (from < 0 || to < 0) return;
-        list.insertBefore(dragged, from < to ? row.nextSibling : row);
-      };
-      const onDrop = (e) => e.preventDefault();
-
-      row.addEventListener('dragstart', onDragStart);
-      row.addEventListener('dragend', onDragEnd);
-      row.addEventListener('dragover', onDragOver);
-      row.addEventListener('drop', onDrop);
-      this._reorderUnbind.push(() => {
-        row.removeEventListener('dragstart', onDragStart);
-        row.removeEventListener('dragend', onDragEnd);
-        row.removeEventListener('dragover', onDragOver);
-        row.removeEventListener('drop', onDrop);
-      });
-    });
+    this._reorderUnbind.push(bindGripReorder(list, {
+      rowSelector: '.sourcing-spalten-item',
+      handleSelector: '[data-action="drag-spalte"]',
+      onCommit: () => this.commitReihenfolge()
+    }));
   }
 
   aktuelleReihenfolge() {

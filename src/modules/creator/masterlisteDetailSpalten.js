@@ -1,6 +1,7 @@
 // Masterliste-Detail: Reihenfolge per Ziehen und sichtbare Spalten.
 
-import { ANCHOR_COLUMNS, ANCHOR_LABELS, canManageMasterliste, escapeHtml } from './masterliste.js';
+import { ANCHOR_COLUMNS, ANCHOR_LABELS, canManageMasterliste } from './masterliste.js';
+import { renderSpalteHinzufuegen, renderSpaltenName } from '../../core/customColumns/tabelleSpaltenPflege.js';
 
 export function installMasterlisteSpalten(proto) {
   Object.assign(proto, {
@@ -78,9 +79,9 @@ export function installMasterlisteSpalten(proto) {
       const rows = toggles.map(item => `
         <div class="sourcing-spalten-item">
           <span aria-hidden="true"></span>
-          <span class="sourcing-spalten-name">${escapeHtml(item.label)}</span>
+          ${renderSpaltenName(item.label, item.key)}
           <label class="toggle-switch">
-            <input type="checkbox" class="column-visibility-toggle" data-column="${escapeHtml(item.key)}" ${this.hidden.includes(item.key) ? '' : 'checked'}>
+            <input type="checkbox" class="column-visibility-toggle" data-column="${item.key}" ${this.hidden.includes(item.key) ? '' : 'checked'}>
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -101,6 +102,7 @@ export function installMasterlisteSpalten(proto) {
             <span class="sourcing-spalten-kopf-sichtbar">Sichtbar</span>
           </div>
           <div class="sourcing-spalten-liste">${rows}</div>
+          ${renderSpalteHinzufuegen()}
           <p class="drawer-info-text">„Name“ und „Aktionen“ bleiben fest und können nicht ausgeblendet werden.</p>
           <div class="drawer-footer">
             <button type="button" class="mdc-btn" data-action="close-masterliste-columns">Fertig</button>
@@ -111,11 +113,30 @@ export function installMasterlisteSpalten(proto) {
       overlay.addEventListener('click', close);
       panel.querySelector('.drawer-close-btn').addEventListener('click', close);
       panel.querySelector('[data-action="close-masterliste-columns"]').addEventListener('click', close);
-      panel.querySelectorAll('.column-visibility-toggle').forEach(toggle => {
-        toggle.addEventListener('change', () => {
-          const shown = new Set([...panel.querySelectorAll('.column-visibility-toggle:checked')].map(input => input.dataset.column));
-          const hidden = toggles.map(item => item.key).filter(key => !shown.has(key));
-          this.saveHidden(hidden, { close: false });
+      const bindToggles = () => {
+        panel.querySelectorAll('.column-visibility-toggle').forEach(toggle => {
+          toggle.addEventListener('change', () => {
+            const shown = new Set([...panel.querySelectorAll('.column-visibility-toggle:checked')].map(input => input.dataset.column));
+            const keys = [
+              ...ANCHOR_COLUMNS,
+              ...this.customColumns.getOrderedColumns().map(col => `custom:${col.id}`)
+            ];
+            const hidden = keys.filter(key => !shown.has(key));
+            this.saveHidden(hidden, { close: false });
+          });
+        });
+      };
+      bindToggles();
+      const body = panel.querySelector('.drawer-body');
+      body.addEventListener('click', (event) => {
+        const add = event.target.closest('[data-action="spalte-hinzufuegen"]');
+        const edit = event.target.closest('[data-action="spalte-bearbeiten"]');
+        if ((!add && !edit) || !body.contains(event.target)) return;
+        event.preventDefault();
+        this.customColumns.mountEditor(body, {
+          columnId: edit ? edit.dataset.column : null,
+          onChange: () => this.renderTable(),
+          onBack: () => this.openColumnsDrawer()
         });
       });
       document.body.appendChild(overlay);

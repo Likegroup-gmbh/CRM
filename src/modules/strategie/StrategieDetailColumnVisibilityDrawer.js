@@ -14,7 +14,8 @@ import {
   fixedKeyAusId,
   fixedSpaltenId
 } from './strategieSpaltenfolge.js';
-import { isCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { isCustomColumnId, makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { renderSpalteHinzufuegen, renderSpaltenName } from '../../core/customColumns/tabelleSpaltenPflege.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -34,27 +35,44 @@ export class StrategieDetailColumnVisibilityDrawer {
    * @param {{funnelStandardSichtbar:boolean}|null} columnContext
    * @param {string[]|null} columnOrder
    * @param {(order:string[])=>void} onColumnOrderChange
+   * @param {{spaltenPflege?: object, onColumnsChanged?: () => void}|null} pflege
    */
-  constructor(hiddenColumns, onSave, customColumns = [], columnContext = null, columnOrder = null, onColumnOrderChange = null) {
+  constructor(hiddenColumns, onSave, customColumns = [], columnContext = null, columnOrder = null, onColumnOrderChange = null, pflege = null) {
     this.hiddenColumns = hiddenColumns || [];
     this.onSave = onSave;
     this.columnContext = columnContext;
+    this.columnOrder = columnOrder;
     this.onColumnOrderChange = onColumnOrderChange;
+    this.spaltenPflege = pflege?.spaltenPflege || null;
+    this.onColumnsChanged = pflege?.onColumnsChanged || null;
+    this._customColumns = customColumns || [];
     this.drawerId = 'strategie-detail-column-visibility-drawer';
     this._reorderUnbind = [];
     this._draggedRow = null;
+    this._pflegeBound = false;
+    this._rebuildColumns(this._customColumns);
+  }
 
+  _rebuildColumns(customColumns) {
     const labels = new Map(STRATEGIE_FIXED_COLUMNS.map(col => [fixedSpaltenId(col.key), col.label]));
     for (const col of customColumns || []) {
       if (col.className && col.label) labels.set(col.className, col.label);
     }
     const ids = baueStrategieSpaltenfolge({
-      columnOrder,
+      columnOrder: this.columnOrder,
       customColumnIds: (customColumns || []).map(col => col.className).filter(id => isCustomColumnId(id))
     });
     this.columns = ids
       .filter(id => labels.has(id))
       .map(id => ({ id, label: labels.get(id) }));
+  }
+
+  _aktuelleEigeneSpalten() {
+    if (!this.spaltenPflege?.getOrderedColumns) return this._customColumns;
+    return this.spaltenPflege.getOrderedColumns().map(col => ({
+      className: makeCustomColumnId(col.id),
+      label: col.name
+    }));
   }
 
   open() {
@@ -107,6 +125,52 @@ export class StrategieDetailColumnVisibilityDrawer {
     requestAnimationFrame(() => { overlay.classList.add('active'); panel.classList.add('show'); });
 
     this.bindEvents();
+    this._bindPflegeOnce();
+  }
+
+  restoreList() {
+    const customColumns = this._aktuelleEigeneSpalten();
+    this._customColumns = customColumns;
+    if (this.spaltenPflege) {
+      const kept = this.columns.map(col => col.id).filter(id => (
+        !isCustomColumnId(id) || customColumns.some(col => col.className === id)
+      ));
+      for (const col of customColumns) {
+        if (!kept.includes(col.className)) kept.push(col.className);
+      }
+      this.columnOrder = kept;
+    }
+    this._rebuildColumns(customColumns);
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    body.innerHTML = this.renderContent();
+    this.bindEvents();
+  }
+
+  openPflege(columnId) {
+    if (!this.spaltenPflege?.mountEditor) return;
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    this.unbindReorder();
+    this.spaltenPflege.mountEditor(body, {
+      columnId,
+      onChange: () => this.onColumnsChanged?.(),
+      onBack: () => this.restoreList()
+    });
+  }
+
+  _bindPflegeOnce() {
+    if (this._pflegeBound) return;
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    this._pflegeBound = true;
+    body.addEventListener('click', (event) => {
+      const add = event.target.closest('[data-action="spalte-hinzufuegen"]');
+      const edit = event.target.closest('[data-action="spalte-bearbeiten"]');
+      if ((!add && !edit) || !body.contains(event.target)) return;
+      event.preventDefault();
+      this.openPflege(edit ? edit.dataset.column : null);
+    });
   }
 
   istSichtbar(columnId) {
@@ -121,7 +185,7 @@ export class StrategieDetailColumnVisibilityDrawer {
         <span class="sourcing-spalten-griff" data-action="drag-spalte" role="button" tabindex="0" title="Reihenfolge ändern" aria-label="Reihenfolge von ${escapeHtml(col.label)} ändern">
           ${icon('bars-3', { className: 'icon-16' })}
         </span>
-        <span class="sourcing-spalten-name">${escapeHtml(col.label)}</span>
+        ${renderSpaltenName(col.label, col.id)}
         <label class="toggle-switch">
           <input type="checkbox" class="column-visibility-toggle" data-column="${escapeHtml(col.id)}" ${this.istSichtbar(col.id) ? 'checked' : ''}>
           <span class="toggle-slider"></span>
@@ -150,6 +214,7 @@ export class StrategieDetailColumnVisibilityDrawer {
       <div class="sourcing-spalten-liste" id="strategie-tabelle-anpassen-spalten">
         ${rows}
       </div>
+      ${renderSpalteHinzufuegen()}
       <p class="drawer-info-text">
         <strong>Hinweis:</strong> Die Reihenfolge ändern Sie am Griff. „#“, „Profil“, „Creator“, „Bild“, „Plattform“ und „Aktionen“ bleiben fest.
       </p>
@@ -288,6 +353,7 @@ export class StrategieDetailColumnVisibilityDrawer {
 
   removeDrawer() {
     this.unbindReorder();
+    this._pflegeBound = false;
     document.getElementById(`${this.drawerId}-overlay`)?.remove();
     document.getElementById(this.drawerId)?.remove();
   }
