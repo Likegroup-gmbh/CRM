@@ -628,7 +628,8 @@ export async function renderVertraegePane(detail) {
     canBulkDelete: false,
     canEdit,
     isAdmin,
-    canDelete
+    canDelete,
+    canCreate: canEdit
   });
 
   return `

@@ -170,9 +170,10 @@ export class VertraegeList {
   // RENDER
   // ============================================
 
+  // Anlegen passiert im Tab Verträge der Produktion, nicht auf dieser Liste.
   _render() {
     const html = this.viewMode === 'folders'
-      ? renderFoldersView(this.listViewMode, this.getVertragPermissions().canEdit)
+      ? renderFoldersView(this.listViewMode)
       : renderVertraegeView(this.getVertragPermissions(), this.activeTypeTab);
     window.setContentSafely(window.content, html);
   }
@@ -200,9 +201,6 @@ export class VertraegeList {
       const isContracting = this.activeTypeTab === 'contracting';
       const filters = modularFilterSystem.getFilters('vertrag') || {};
       const hasActiveFilters = Object.values(filters).some(v => v && (Array.isArray(v) ? v.length > 0 : v !== ''));
-      const createUrl = this.currentUnternehmenId
-        ? `/vertraege/new?unternehmen=${this.currentUnternehmenId}`
-        : '/vertraege/new';
       const html = resolveEmptyState({
         hasActiveFilters,
         states: {
@@ -211,10 +209,7 @@ export class VertraegeList {
             title: isContracting ? 'Keine Contracts vorhanden' : 'Keine Verträge vorhanden',
             text: isContracting
               ? 'Es wurden noch keine Contracts erstellt.'
-              : 'Für dieses Unternehmen wurden noch keine Verträge erstellt.',
-            actionsHtml: perms.canEdit
-              ? `<button class="mdc-btn" onclick="window.navigateTo('${createUrl}')">Neuen Vertrag anlegen</button>`
-              : ''
+              : 'Für dieses Unternehmen wurden noch keine Verträge erstellt.'
           }
         }
       }, 'default');
@@ -276,21 +271,6 @@ export class VertraegeList {
       };
       btnViewGrid.addEventListener('click', handler);
       this._boundEventListeners.add(() => btnViewGrid.removeEventListener('click', handler));
-    }
-
-    // Neuer Vertrag
-    const newBtn = document.getElementById('btn-vertrag-new');
-    if (newBtn) {
-      const handler = (e) => {
-        e.preventDefault();
-        if (this.currentUnternehmenId) {
-          window.navigateTo(`/vertraege/new?unternehmen=${this.currentUnternehmenId}`);
-        } else {
-          window.navigateTo('/vertraege/new');
-        }
-      };
-      newBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => newBtn.removeEventListener('click', handler));
     }
 
     // Empty-State-Action "Filter zurücksetzen"
