@@ -95,6 +95,31 @@ describe('Masterlisten-Übersicht mit Ordnern', () => {
     };
   });
 
+  it('hält das Firmenlogo in der Grid-Karte auf der Avatar-Größe', async () => {
+    const mitLogo = ROWS.map((row) => row.unternehmen
+      ? { ...row, unternehmen: { ...row.unternehmen, logo_url: 'https://cdn.example/logo.png' } }
+      : row);
+    window.supabase = {
+      from() {
+        return {
+          select() { return this; },
+          order() { return Promise.resolve({ data: mitLogo, error: null }); }
+        };
+      }
+    };
+    const page = new CreatorListPage();
+    await page.init();
+    const bilder = [...document.querySelectorAll('.folder-card img')];
+    expect(bilder).toHaveLength(2);
+    for (const img of bilder) {
+      expect(img.classList.contains('table-avatar--logo')).toBe(true);
+      expect(img.classList.contains('folder-logo')).toBe(false);
+      expect(img.getAttribute('src')).toBe('https://cdn.example/logo.png');
+    }
+    expect(document.querySelector('.folder-card[data-ordner-id="ohne"] img')).toBeNull();
+    page.destroy();
+  });
+
   it('zeigt Ordner und öffnet einen Ordner mit seinen Listen', async () => {
     const page = new CreatorListPage();
     await page.init();
