@@ -137,11 +137,18 @@ export async function handleSortUpdate() {
   }
 }
 
+const FLOATING_SCROLLBAR_ID = 'floating-scrollbar-creator-auswahl';
+
 export function initFloatingScrollbar() {
   if (this.cleanupFloatingScrollbar) {
     this.cleanupFloatingScrollbar();
     this.cleanupFloatingScrollbar = null;
   }
+  // Die Bar haengt an body und ueberlebt so ihre Instanz. Eine zerstoerte
+  // Instanz baut keine neue (und nimmt der lebenden ihre nicht weg), eine
+  // lebende ersetzt eine verwaiste.
+  if (this._tornDown) return;
+  document.getElementById(FLOATING_SCROLLBAR_ID)?.remove();
 
   const tableWrapper = this._q('.table-container');
   if (!tableWrapper) return;
@@ -149,7 +156,7 @@ export function initFloatingScrollbar() {
   const scrollTarget = this._getHScrollTarget(tableWrapper);
 
   const floatingScrollbar = document.createElement('div');
-  floatingScrollbar.id = 'floating-scrollbar-creator-auswahl';
+  floatingScrollbar.id = FLOATING_SCROLLBAR_ID;
   floatingScrollbar.className = 'floating-scrollbar-kampagne';
 
   const scrollbarInner = document.createElement('div');

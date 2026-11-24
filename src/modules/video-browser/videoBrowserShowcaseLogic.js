@@ -1,21 +1,25 @@
 // videoBrowserShowcaseLogic.js
-// Reine Logik der Showcase-Ansicht (Grid aller Finalen Versionen einer Produktion):
-// Finale sammeln, Seitenverhältnis wählen, filtern, gruppieren, flache Anzeigeliste.
+// Reine Logik der Showcase-Ansicht (Grid der Videos einer Produktion): aktuellen Stand samt
+// Ausstehender Videos oder nur Finale sammeln, je Variante die 9:16-Datei wählen, nach Status,
+// Typ und Tag filtern, je Creator gruppieren, flache Anzeigeliste.
 // Kein DOM, kein Supabase. Tags und Katalog kommen aus videoBrowserTagLogic (item.tagIds).
 
-import { FINAL_FORMATE, FINAL_ID, plural } from './videoBrowserFormat.js';
+import { FINAL_ID, plural } from './videoBrowserFormat.js';
+import { statusOf } from './videoBrowserStatus.js';
 
-/** Datenmenge: nur Finale Versionen oder der aktuelle Stand (Finale, sonst die letzte Runde). */
+/** Datenmenge: der aktuelle Stand (Finale, sonst die letzte Runde, sonst Ausstehend) oder nur Finale Versionen. */
 export const SHOWCASE_INHALT = [
-  { value: 'final', label: 'Nur final' },
-  { value: 'aktuell', label: 'Aktueller Stand' }
+  { value: 'aktuell', label: 'Aktueller Stand' },
+  { value: 'final', label: 'Nur final' }
 ];
 export const SHOWCASE_GROUPS = [
   { value: 'creator', label: 'Creator' },
-  { value: 'persona', label: 'Persona' },
   { value: 'keine', label: 'Keine' }
 ];
-export const SHOWCASE_RATIOS = FINAL_FORMATE.map(value => ({ value, label: value }));
+/** Seitenverhältnis des Showcase: je Variante die Datei darin, Ausstehende Videos haben es auch in der Vollansicht. */
+export const SHOWCASE_RATIO = '9:16';
+/** Werte des Status-Filters (Kachelstatus, siehe `kachelStatus`). */
+export const SHOWCASE_STATUS = ['alle', 'feedback', 'wartet', 'ausstehend', 'freigegeben'];
 /** Mindestbreite der Kacheln in px (S, M, L). */
 export const SHOWCASE_SIZES = [
   { value: 'S', label: 'S', px: 124 },
@@ -27,13 +31,11 @@ export const SHOWCASE_TYPES = [
   { id: 'still', label: 'Bilder' },
   { id: 'story', label: 'Stories' }
 ];
-export const PERSONA_GROUP = 'Persona';
-export const NO_PERSONA_LABEL = 'Ohne Persona';
 /** Ab dieser Kachelzahl wird nicht mehr per Flip umgeordnet, nur eingeblendet. */
 export const FLIP_LIMIT = 200;
 
 export const DEFAULT_SHOWCASE = Object.freeze({
-  inhalt: 'final', group: 'creator', fmt: '9:16', size: 'M', typ: null, tag: null
+  inhalt: 'aktuell', group: 'creator', status: 'alle', size: 'M', typ: null, tag: null
 });
 
 const TYP_PREFIX = 'typ:';
@@ -58,9 +60,29 @@ export function collectFinals(tree) {
 
 const TYPE_RANK = { video: 0, still: 1, story: 2 };
 
+export const AUSSTEHEND = 'ausstehend';
+export const isAusstehend = (item) => item?.type === AUSSTEHEND;
+
+/** Hochgeladen = eine Datei in einer Feedbackschleife oder der Finalen Version. Rohmaterial zählt nicht. */
+export const istHochgeladen = (row) => (row.folders || [])
+  .some(f => (f.kind === 'schleife' || f.kind === 'final') && f.items.length > 0);
+
+/** Kachel eines Ausstehenden Videos. Kein eigenes Seitenverhältnis: die Kachel nimmt SHOWCASE_RATIO. */
+function ausstehendItem(koop, row) {
+  return {
+    id: `${AUSSTEHEND}:${row.id}`,
+    type: AUSSTEHEND,
+    name: row.title || row.label,
+    ratio: null,
+    tagIds: [],
+    hatRohmaterial: (koop.rohmaterialCount || 0) > 0
+  };
+}
+
 /**
- * Aktueller Stand: je Variante die Finale Version, sonst die Datei der letzten Feedbackschleife.
- * Varianten aus früheren Runden ohne Finale gehören nicht dazu. Reihenfolge wie `collectFinals`:
+ * Aktueller Stand: je Variante die Finale Version, sonst die Datei der letzten Feedbackschleife,
+ * ein Video ohne Datei als Ausstehendes Video an seiner Stelle. Varianten aus früheren Runden
+ * ohne Finale gehören nicht dazu. Reihenfolge wie `collectFinals`:
  * Kooperation, Video, dann Videos, Bilder, Stories (Varianten in der Reihenfolge der Runde).
  * @returns {Array<{ koop: object, row: object, item: object }>}
  */
@@ -88,6 +110,7 @@ export function collectCurrent(tree) {
       }
       for (const f of finals) if (!used.has(f.id)) entries.push({ koop, row, item: f });
       entries.sort((a, b) => (TYPE_RANK[a.item.type] ?? 9) - (TYPE_RANK[b.item.type] ?? 9));
+      if (!entries.length) entries.push({ koop, row, item: ausstehendItem(koop, row) });
       out.push(...entries);
     }
   }
@@ -111,10 +134,48 @@ export function pickFormat(entries, fmt) {
   return [...groups.values()].map(list => list.find(e => e.item.ratio === fmt) || list[0]);
 }
 
-/** Typ- und Tag-Filter, UND-verknüpft. */
-export function filterShowcase(entries, { typ = null, tag = null } = {}) {
-  return entries.filter(({ item }) =>
-    (!typ || item.type === typ) && (!tag || (item.tagIds || []).includes(tag)));
+/**
+ * Status einer Kachel für den Filter: Finale sind freigegeben, Ausstehende Videos ausstehend.
+ * "Änderungen angefordert" zählt wie "Feedback erhalten": in beiden Fällen ist das Team am Zug.
+ */
+export function kachelStatus(item) {
+  if (isAusstehend(item)) return 'ausstehend';
+  if (item.isFinal) return 'freigegeben';
+  const key = item.status?.key || null;
+  return key === 'aenderungen' ? 'feedback' : key;
+}
+
+/**
+ * Optionen des Status-Filters mit den Labels der Rolle (wie die Badges der Kacheln). Was die Rolle
+ * selbst tun muss, steht vorn: beim Team "Feedback erhalten", beim Kunden "Zu prüfen".
+ */
+export function showcaseStatusOptions(team = true) {
+  const order = team ? ['feedback', 'wartet', 'ausstehend', 'freigegeben'] : ['wartet', 'feedback', 'ausstehend', 'freigegeben'];
+  const label = (key) => (key === 'ausstehend' ? (team ? 'Ausstehend' : 'In Produktion') : statusOf(key, team).label);
+  return [{ value: 'alle', label: 'Alle' }, ...order.map(value => ({ value, label: label(value) }))];
+}
+
+/** Kacheln je Status, für die Zähler im Filter. */
+export function statusCounts(entries) {
+  const counts = Object.fromEntries(SHOWCASE_STATUS.map(key => [key, 0]));
+  counts.alle = entries.length;
+  for (const { item } of entries) {
+    const key = kachelStatus(item);
+    if (key in counts) counts[key] += 1;
+  }
+  return counts;
+}
+
+/**
+ * Status-, Typ- und Tag-Filter, UND-verknüpft. Ausstehende Videos zählen als Video ohne Tags:
+ * sie bleiben bei "Videos" und ohne Filter, ein Tag-Filter blendet sie aus.
+ */
+export function filterShowcase(entries, { status = 'alle', typ = null, tag = null } = {}) {
+  return entries.filter(({ item }) => {
+    if (status && status !== 'alle' && kachelStatus(item) !== status) return false;
+    if (isAusstehend(item)) return !tag && (!typ || typ === 'video');
+    return (!typ || item.type === typ) && (!tag || (item.tagIds || []).includes(tag));
+  });
 }
 
 /**
@@ -154,77 +215,103 @@ export function toggleChip(state, chipId) {
   return next;
 }
 
-/** Ein Filterwert, den es in der Datenmenge nicht (mehr) gibt, wird zurückgesetzt. */
+/**
+ * Ein Filterwert, den es in der Datenmenge nicht (mehr) gibt, wird zurückgesetzt. "Nur final" kennt
+ * keinen Status-Filter (alles ist freigegeben). Ein Status ohne Kacheln bleibt: "nichts zu tun" ist eine Antwort.
+ */
 export function reconcileState(state, entries, catalog) {
   const ids = new Set(showcaseChips(entries, catalog).map(c => c.id));
   const next = { ...state };
   if (next.typ && !ids.has(`${TYP_PREFIX}${next.typ}`)) next.typ = null;
   if (next.tag && !ids.has(`${TAG_PREFIX}${next.tag}`)) next.tag = null;
+  if (next.inhalt !== 'aktuell' || !SHOWCASE_STATUS.includes(next.status)) next.status = 'alle';
   return next;
 }
 
-/** Persona = erstes Tag der Gruppe "Persona", über Gruppe und Tag-Id, nicht über das Label. */
-export function personaOf(item, catalog) {
-  const byId = new Map((catalog || []).map(t => [t.id, t]));
-  for (const id of item.tagIds || []) {
-    const tag = byId.get(id);
-    if (tag && tag.gruppe === PERSONA_GROUP) return tag;
+/** Gruppe "Creator" läuft über den Creator-Datensatz: mehrere Kooperationen desselben Creators stehen zusammen. */
+export const creatorKey = (koop) => (koop.creatorId ? `creator:${koop.creatorId}` : `koop:${koop.id}`);
+
+/** Je Creator: Videos der Kooperationen im Baum (soll) und davon hochgeladene. */
+export function uploadCounts(tree) {
+  const counts = new Map();
+  for (const koop of tree?.kooperationen || []) {
+    const key = creatorKey(koop);
+    const c = counts.get(key) || { soll: 0, hochgeladen: 0, koops: 0 };
+    c.koops += 1;
+    for (const row of koop.rows || []) {
+      c.soll += 1;
+      if (istHochgeladen(row)) c.hochgeladen += 1;
+    }
+    counts.set(key, c);
   }
-  return null;
+  return counts;
 }
 
 /**
  * Abschnitte je Modus. `keine` liefert einen Abschnitt ohne Kopf. Leere Abschnitte entfallen.
- * @returns {Array<{ id: string, label: string, koop: object|null, persona: object|null, head: boolean, entries: Array }>}
+ * `counts` aus uploadCounts: der Kopf nennt "3 von 5 hochgeladen", `mehrereKooperationen` lässt
+ * die Kacheln ihre Linie nennen.
+ * @returns {Array<{ id: string, label: string, koop: object|null, head: boolean, entries: Array,
+ *   soll?: number, hochgeladen?: number, mehrereKooperationen?: boolean }>}
  */
-export function groupShowcase(entries, mode, catalog) {
+export function groupShowcase(entries, mode, counts = new Map()) {
   if (!entries.length) return [];
   if (mode === 'keine') {
-    return [{ id: 'alle', label: '', koop: null, persona: null, head: false, entries }];
+    return [{ id: 'alle', label: '', koop: null, head: false, entries }];
   }
   const groups = new Map();
-  const add = (id, make, entry) => {
-    if (!groups.has(id)) groups.set(id, { id, head: true, koop: null, persona: null, entries: [], ...make });
-    groups.get(id).entries.push(entry);
-  };
   for (const entry of entries) {
-    if (mode === 'persona') {
-      const persona = personaOf(entry.item, catalog);
-      add(persona ? persona.id : 'ohne-persona', { label: persona ? persona.label : NO_PERSONA_LABEL, persona }, entry);
-    } else {
-      add(entry.koop.id, { label: entry.koop.name, koop: entry.koop }, entry);
+    const key = creatorKey(entry.koop);
+    if (!groups.has(key)) {
+      const c = counts.get(key);
+      groups.set(key, {
+        id: key,
+        label: entry.koop.name,
+        koop: entry.koop,
+        head: true,
+        entries: [],
+        soll: c?.soll ?? 0,
+        hochgeladen: c?.hochgeladen ?? 0,
+        mehrereKooperationen: (c?.koops ?? 1) > 1
+      });
     }
+    groups.get(key).entries.push(entry);
   }
-  const list = [...groups.values()];
-  if (mode === 'persona') {
-    list.sort((a, b) => (a.id === 'ohne-persona') - (b.id === 'ohne-persona') || byLabel(a, b));
-  }
-  return list;
+  return [...groups.values()];
 }
 
 /** Flache Liste in Anzeigereihenfolge (Navigation der Vollansicht). */
 export const displayList = (groups) => groups.flatMap(g => g.entries);
 
-/** Gesamte Pipeline: Datenmenge, gefilterte Menge, Abschnitte, Anzeigeliste. */
+/**
+ * Gesamte Pipeline: Datenmenge, gefilterte Menge, Abschnitte, Anzeigeliste. `statusCounts` zählt
+ * nach Typ und Tag, aber vor dem Status-Filter (`statusBasis`): jede Option nennt, wie viele Kacheln sie
+ * zeigt. Die Textsuche legt videoBrowserShowcase.js darüber (sucheShowcase).
+ */
 export function buildShowcase(tree, state, catalog) {
   const collect = state.inhalt === 'aktuell' ? collectCurrent : collectFinals;
-  const base = pickFormat(collect(tree), state.fmt);
+  const base = pickFormat(collect(tree), SHOWCASE_RATIO);
   const filters = reconcileState(state, base, catalog);
   const filtered = filterShowcase(base, filters);
-  const groups = groupShowcase(filtered, filters.group, catalog);
+  const groups = groupShowcase(filtered, filters.group, uploadCounts(tree));
+  const statusBasis = filterShowcase(base, { ...filters, status: 'alle' });
   return {
     state: filters,
     total: base.length,
     chips: showcaseChips(base, catalog),
+    statusBasis,
+    statusCounts: statusCounts(statusBasis),
     groups,
     list: displayList(groups)
   };
 }
 
-/** "{n} Inhalte von {m} Creators" für die gefilterte Menge. */
+/** "{n} Inhalte von {m} Creators · {k} ausstehend" für die gefilterte Menge. */
 export function showcaseSummary(list) {
-  const creators = new Set(list.map(e => e.koop.id)).size;
-  return `${plural(list.length, 'Inhalt', 'Inhalte')} von ${plural(creators, 'Creator', 'Creators')}`;
+  const ausstehend = list.filter(e => isAusstehend(e.item)).length;
+  const creators = new Set(list.map(e => creatorKey(e.koop))).size;
+  const text = `${plural(list.length - ausstehend, 'Inhalt', 'Inhalte')} von ${plural(creators, 'Creator', 'Creators')}`;
+  return ausstehend ? `${text} · ${ausstehend} ausstehend` : text;
 }
 
 export const sizePx = (size) => (SHOWCASE_SIZES.find(s => s.value === size) || SHOWCASE_SIZES[1]).px;

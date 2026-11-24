@@ -1,19 +1,26 @@
 // videoBrowserShowcase.js
-// Controller-Teil der Showcase-Ansicht (zweite Darstellung im Videos-Tab, siehe CONTEXT.md "Showcase").
-// Zustand am Controller (`vb`): showcase ({ group, fmt, size, typ, tag }), scResult (Ergebnis von
-// buildShowcase). Daten, Tags und Filter-Chips kommen aus dem Baum des Spaltenbrowsers. Den Wechsel der
-// Ansicht steuert videoBrowserView.js; der Showcase wird nur ein- und ausgeblendet, nichts wird unmountet.
+// Controller-Teil der Showcase-Ansicht (erste Darstellung und Standard im Videos-Tab, siehe CONTEXT.md
+// "Showcase"). Zustand am Controller (`vb`): showcase ({ inhalt, group, status, size, typ, tag }), scResult
+// (Ergebnis von buildShowcase). Daten, Tags und Filter-Chips kommen aus dem Baum des Spaltenbrowsers. Den
+// Wechsel der Ansicht steuert videoBrowserView.js; der Showcase wird nur ein- und ausgeblendet, nichts wird
+// unmountet. Ein Klick auf eine Kachel öffnet die Vollansicht (videoBrowserVollansicht.js).
 
 import {
   DEFAULT_SHOWCASE,
   buildShowcase,
+  isAusstehend,
   showcaseFromSearch,
+  showcaseSummary,
   sizePx,
+  statusCounts,
   toggleChip
 } from './videoBrowserLogic.js';
-import { chipsHtml, gridHtml, showcaseShellHtml, summaryText, toolbarHtml } from './videoBrowserRenderShowcase.js';
+import { chipsHtml, gridHtml, showcaseShellHtml, toolbarHtml } from './videoBrowserRenderShowcase.js';
+import { kachelText, showcaseTreffer, sucheBegriffe, trifft } from './videoBrowserSuche.js';
+import { sucheFeldHtml, zeigeLeer, zeigeTreffer } from './videoBrowserSucheAnsicht.js';
 import { createShowcaseMedia } from './videoBrowserShowcaseMedia.js';
-import { closeShowcaseLightbox, openShowcaseLightbox } from './videoBrowserShowcaseLightbox.js';
+import { closeVollansicht, openVollansicht, syncVollansicht } from './videoBrowserVollansicht.js';
+import { bindAusstehendDrop, paintAusstehendUploads } from './videoBrowserShowcaseUpload.js';
 import { downloadItems } from './videoBrowserDownload.js';
 import { downloadMeta } from './videoBrowserActions.js';
 import { VB_SEG_ATTR } from './videoBrowserRenderParts.js';
@@ -28,18 +35,17 @@ import { onSegmentKeydown as segmentKeydown, setSegmentValue } from '../../core/
 export function initShowcaseState(vb) {
   const fromUrl = showcaseFromSearch(window.location.search);
   vb.showcase = fromUrl || { ...DEFAULT_SHOWCASE };
-  vb.scBox = null;
   vb.scResult = null;
   return !!fromUrl;
 }
 
-/** HTML der Ansicht-Leiste im Gerüst. Mit Tab-Zeile leer, dort sitzt der Umschalter (mountView). */
-export const showcaseToolbarHtml = (vb) => (vb.viewSlot ? '' : toolbarHtml(vb.view));
+/** HTML der Ansicht-Leiste im Gerüst. Mit Tab-Zeile leer, dort sitzen Suche und Umschalter (mountView). */
+export const showcaseToolbarHtml = (vb) => (vb.viewSlot ? '' : toolbarHtml(vb.view, sucheFeldHtml()));
 
 /** HTML des Showcase-Bereichs (leer gerendert, Inhalte füllt `renderShowcase`). */
 export const showcaseSectionHtml = (vb) => `
   <section class="vb-showcase" data-vb-showcase aria-label="Showcase"${vb.view === 'showcase' ? '' : ' hidden'}>
-    ${showcaseShellHtml(vb.showcase, { canDownload: vb.canDownload })}
+    ${showcaseShellHtml(vb.showcase, { canDownload: vb.canDownload, team: vb.team })}
   </section>`;
 
 /** Nach dem Gerüst, nach createMotion und nach dem Ansicht-Umschalter (mountView). */
@@ -60,6 +66,7 @@ export function mountShowcase(vb) {
     vb.scGridEl.removeEventListener('pointerover', over);
     vb.scGridEl.removeEventListener('pointerout', out);
   });
+  if (vb.canUpload) bindAusstehendDrop(vb);
 
   if (vb.view === 'showcase') renderShowcase(vb);
 
@@ -72,29 +79,107 @@ export function mountShowcase(vb) {
 }
 
 export function destroyShowcase(vb) {
-  void closeShowcaseLightbox(vb, { animate: false });
   vb.scMedia?.destroy();
 }
 
 /* ---- Rendern ---- */
 
-/** Datenmenge neu berechnen und Zusammenfassung, Chips und Grid ersetzen. Die Umschalter bleiben stehen. */
+const downloadbar = (list) => list.filter(e => e.item.asset?.file_path || e.item.asset?.file_url);
+
+/**
+ * Status-Umschalter: Anzahl je Option (`data-count`, CSS zeigt sie) und gesperrt bei "Nur final".
+ * Die Zähler ändern die Breite der Optionen, deshalb springt der Thumb an die gewählte nach.
+ */
+function paintStatusSegment(vb, sc) {
+  const group = vb.scEl.querySelector('[data-vb-seg="status"]');
+  if (!group) return;
+  const field = group.closest('.segment-field') || group;
+  const aus = sc.state.inhalt !== 'aktuell';
+  field.classList.toggle('is-off', aus);
+  field.toggleAttribute('inert', aus);
+  group.setAttribute('aria-disabled', String(aus));
+  group.querySelectorAll('[data-value]').forEach((opt) => {
+    if (opt.dataset.value === 'alle' || aus) delete opt.dataset.count;
+    else opt.dataset.count = String(sc.statusCounts[opt.dataset.value] ?? 0);
+  });
+  vb.motion?.tabIndicator(group, { animate: false });
+}
+
+/**
+ * Datenmenge neu berechnen und Chips und Grid ersetzen, danach die Textsuche anwenden. Die Umschalter
+ * bleiben stehen. `scResult.alle` ist die gerenderte Liste, `scResult.list` die Treffer daraus.
+ */
 export function renderShowcase(vb) {
   const sc = buildShowcase(vb.tree, vb.showcase, vb.raw?.tagTypen || []);
   vb.showcase = sc.state;
-  vb.scResult = sc;
+  vb.scResult = { ...sc, alle: sc.list };
 
   const scroll = vb.scScrollEl.scrollTop;
   vb.scEl.style.setProperty('--tile', `${sizePx(sc.state.size)}px`);
-  vb.scSummaryEl.textContent = sc.total ? summaryText(sc) : '';
   vb.scChipsEl.innerHTML = chipsHtml(sc);
-  vb.scGridEl.innerHTML = gridHtml(sc, { catalog: vb.raw?.tagTypen || [], team: vb.team });
+  vb.scGridEl.innerHTML = gridHtml(sc, { catalog: vb.raw?.tagTypen || [], team: vb.team, canUpload: vb.canUpload });
+  sucheShowcase(vb);
   vb.scScrollEl.scrollTop = scroll;
 
-  const empty = !sc.list.length;
-  vb.scEl.querySelectorAll('[data-vb-sc-download]').forEach((btn) => { btn.disabled = empty; });
-  vb.scMedia.observe(vb.scGridEl, sc.list);
+  vb.scMedia.observe(vb.scGridEl, vb.scResult.alle);
+  paintAusstehendUploads(vb);
+  syncVollansicht(vb);
   vb._syncUrl();
+}
+
+/**
+ * Textsuche auf das Grid: Kacheln ohne Treffer und Gruppen ohne Kachel blenden aus (mit `animate` per Flip).
+ * Anzeigeliste, Indizes der Kacheln, Zusammenfassung, Gruppenzähler, Status-Zähler und Download folgen
+ * den Treffern. Rendert nichts neu, die Poster bleiben stehen.
+ */
+export function sucheShowcase(vb, { animate = false } = {}) {
+  const sc = vb.scResult;
+  const grid = vb.scGridEl;
+  if (!sc || !grid) return;
+  const catalog = vb.raw?.tagTypen || [];
+  const hit = showcaseTreffer(sc.alle, vb.suche, catalog);
+  const tiles = [...grid.querySelectorAll('[data-vb-sc-tile]')];
+  if (tiles.length !== sc.alle.length) return;
+
+  let n = 0;
+  tiles.forEach((tile, i) => {
+    if (hit[i]) tile.dataset.index = String(n++);
+    else delete tile.dataset.index;
+  });
+  sc.list = sc.alle.filter((_, i) => hit[i]);
+  const begriffe = sucheBegriffe(vb.suche);
+  sc.statusCounts = statusCounts(sc.statusBasis.filter(e => trifft(kachelText(e, catalog), begriffe)));
+
+  const pos = new Map(tiles.map((t, i) => [t, i]));
+  grid.querySelectorAll('[data-vb-sc-group]').forEach((section) => {
+    const count = section.querySelector('.vb-sc-group__count');
+    if (!count) return;
+    const k = [...section.querySelectorAll('[data-vb-sc-tile]')].map(t => pos.get(t))
+      .filter(i => hit[i] && !isAusstehend(sc.alle[i].item)).length;
+    count.textContent = `${k} ${k === 1 ? 'Inhalt' : 'Inhalte'}`;
+  });
+
+  vb.scSummaryEl.textContent = sc.total ? showcaseSummary(sc.list) : '';
+  paintStatusSegment(vb, sc);
+  const empty = !downloadbar(sc.list).length;
+  vb.scEl.querySelectorAll('[data-vb-sc-download]').forEach((btn) => { btn.disabled = empty; });
+
+  zeigeTreffer(vb, tiles.map((el, i) => ({ el, sichtbar: hit[i], gruppe: el.closest('[data-vb-sc-group]') })), { animate });
+  zeigeLeer(vb, grid, sc.alle.length && !sc.list.length ? vb.suche : null);
+}
+
+/**
+ * Vollansicht ab einer Kachel (index) oder einem Link (sel): blättert durch die Anzeigeliste,
+ * beim Schließen zieht das Grid nach, wenn sich etwas geändert hat.
+ */
+export function openShowcaseVollansicht(vb, { index = null, sel = null } = {}) {
+  openVollansicht(vb, {
+    quelle: 'showcase',
+    list: vb.scResult?.list || [],
+    index,
+    sel,
+    onClose: ({ dirty }) => { if (dirty && vb.view === 'showcase') renderShowcase(vb); }
+  });
 }
 
 /** Alle Umschalter an den Zustand angleichen (auch Umfang im Kalender, videoBrowserKalender.js). */
@@ -131,6 +216,8 @@ function changeState(vb, patch) {
       // Inzwischen kam eine neuere Änderung (sie hat schon gerendert) oder die Ansicht ist weg
       if (vb.destroyed || gen !== vb._scSwap || vb.view !== 'showcase') return;
       renderShowcase(vb);
+      // "Nur final" setzt den Status auf "Alle" zurück (reconcileState): der Thumb folgt
+      syncSegments(vb, { animate: true, scope: vb.scEl });
       vb.motion?.swapIn(vb.scEl);
     };
     if (out) void out.then(render);
@@ -170,7 +257,7 @@ export function showShowcase(vb, fromRects = new Map()) {
 }
 
 export function hideShowcase(vb) {
-  void closeShowcaseLightbox(vb, { animate: false });
+  closeVollansicht(vb, { instant: true });
   vb.scMedia?.stopHover();
   vb.scEl.hidden = true;
 }
@@ -179,7 +266,7 @@ export function hideShowcase(vb) {
 
 async function downloadAll(vb, button) {
   if (!vb.canDownload || button.disabled) return;
-  const entries = (vb.scResult?.list || []).filter(e => e.item.asset?.file_path || e.item.asset?.file_url);
+  const entries = downloadbar(vb.scResult?.list || []);
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
   try {
@@ -188,7 +275,7 @@ async function downloadAll(vb, button) {
     console.error('VideoBrowser: Showcase-Download fehlgeschlagen', err);
     vb.toast('error', 'Download fehlgeschlagen.');
   } finally {
-    button.disabled = !vb.scResult?.list?.length;
+    button.disabled = !downloadbar(vb.scResult?.list || []).length;
     button.removeAttribute('aria-busy');
   }
 }
@@ -214,13 +301,13 @@ export function onShowcaseClick(vb, e) {
     return true;
   }
   if (e.target.closest('[data-vb-sc-filter-clear]')) {
-    changeState(vb, { typ: null, tag: null });
+    changeState(vb, { status: 'alle', typ: null, tag: null });
     return true;
   }
 
   const tile = e.target.closest('[data-vb-sc-tile]');
   if (tile) {
-    openShowcaseLightbox(vb, { index: Number(tile.dataset.index) });
+    openShowcaseVollansicht(vb, { index: Number(tile.dataset.index) });
     return true;
   }
   const download = e.target.closest('[data-vb-sc-download]');

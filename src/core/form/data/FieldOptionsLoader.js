@@ -8,7 +8,8 @@ import { isFinalisiert } from '../../finalisiert.js';
 import { fetchAllRows, fetchAllRowsWave } from '../../fetchAllRows.js';
 import { creatorDisplayName, loadAllCreators } from '../../creatorRows.js';
 import { calculateKoopAbrechenbarkeit } from '../../budget/koopFakturierung.js';
-import { RECHNUNG_ABRECHEN_SELECT, VIDEO_EK_SELECT } from '../../budget/koopAbrechenbarkeitLaden.js';
+import { RECHNUNG_ABRECHEN_SELECT, VIDEO_ABRECHEN_SELECT } from '../../budget/koopAbrechenbarkeitLaden.js';
+import { koopsMitUpload } from '../../budget/koopVideoUpload.js';
 import { formatEuro } from '../../format.js';
 
 // Feldoptionen laden - grosser Dispatcher je nach Feld-Typ
@@ -336,10 +337,10 @@ async function loadSwitchCaseOptions(entity, field, form) {
 }
 
 // Kooperationen fuer das Rechnung-Formular laden (mit Mitarbeiter-Filterung).
-// Freigabe ueber den Restbetrag (ADR 0004/0015): solange die gestellten
-// Rechnungen das Soll nicht erreichen und keine Schlussrechnung existiert,
-// bleibt die Kooperation abrechenbar. Das Vertrags-Flag
-// mehrere_rechnungen_erlaubt hat keine Funktion mehr.
+// Nur Kooperationen mit hochgeladenem Video. Freigabe ueber den Restbetrag
+// (ADR 0004/0015): solange die gestellten Rechnungen das Soll nicht erreichen
+// und keine Schlussrechnung existiert, bleibt die Kooperation abrechenbar.
+// Das Vertrags-Flag mehrere_rechnungen_erlaubt hat keine Funktion mehr.
 export async function loadKooperationenOhneRechnung() {
   if (!window.supabase) return [];
   try {
@@ -361,7 +362,7 @@ export async function loadKooperationenOhneRechnung() {
         'kooperationen',
         'id, name, kampagne_id, creator_id, created_at, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag'
       ),
-      fetchAllRowsWave(window.supabase, 'kooperation_videos', VIDEO_EK_SELECT)
+      fetchAllRowsWave(window.supabase, 'kooperation_videos', VIDEO_ABRECHEN_SELECT)
     ]);
 
     if (rechnungenRes.status === 'rejected') {
@@ -378,23 +379,21 @@ export async function loadKooperationenOhneRechnung() {
     const alleKoops = koopsRes.value;
     alleKoops.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    // Video-EK schlaegt den Kooperations-EK (Konvention aus koopFakturierung).
-    // Ohne Rechnungen spielen die Videos keine Rolle (alles abrechenbar).
-    let videos = [];
-    if (mitRechnung.size > 0) {
-      if (videosRes.status === 'fulfilled') {
-        videos = videosRes.value;
-      } else {
-        console.warn('⚠️ Kooperations-Videos konnten nicht geladen werden:', videosRes.reason);
-      }
+    // Ohne Videos ist der Upload-Stand unbekannt: dann bleibt der Selektor leer.
+    if (videosRes.status === 'rejected') {
+      console.error('❌ Fehler beim Laden der Kooperations-Videos:', videosRes.reason);
+      return [];
     }
+    const videos = videosRes.value;
+    const mitUpload = koopsMitUpload(videos);
 
+    // Video-EK schlaegt den Kooperations-EK (Konvention aus koopFakturierung).
     const abrechenbarkeit = calculateKoopAbrechenbarkeit({
       kooperationen: alleKoops,
       videos,
       rechnungen
     });
-    const koops = alleKoops.filter(k => abrechenbarkeit.get(k.id)?.abrechenbar !== false);
+    const koops = alleKoops.filter(k => mitUpload.has(k.id) && abrechenbarkeit.get(k.id)?.abrechenbar !== false);
 
     let kampagneMap = {};
     let kampagneUnternehmenMap = {};

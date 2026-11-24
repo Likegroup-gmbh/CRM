@@ -116,6 +116,7 @@ function refreshView(vb) {
   const valid = validateSelection(vb.sel, vb.tree);
   if (!selectionEquals(valid, vb.sel)) vb._setSel(valid);
   vb._render({ restoreFocus: false, patch: true });
+  vb.voll?.refresh();
 }
 
 function findRow(vb, rowId) {

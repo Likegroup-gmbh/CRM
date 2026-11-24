@@ -53,6 +53,8 @@ export function commentsPanelHtml(ctx) {
   // Nur eine bewusste Wahl des Nutzers bleibt über ein Neu-Rendern erhalten.
   const draft = ctx.drafts?.[item.id] || { text: '', pinned: false, pinTouched: false };
   const pinned = draft.pinTouched && draft.pinned;
+  // Ordner-Detail und Vollansicht können gleichzeitig im DOM stehen: eigene Ids je Bereich
+  const id = ctx.idPrefix || 'vb';
   return `
       <section class="vb-comments">
         <h5 class="vb-detail__eyebrow">Kommentare</h5>
@@ -60,11 +62,11 @@ export function commentsPanelHtml(ctx) {
         ${comments.length ? '' : '<p class="vb-empty" data-vb-comments-empty>Noch keine Kommentare.</p>'}
         ${canWrite ? `
         <form class="vb-comment-form" data-vb-comment-form data-asset-id="${esc(item.id)}">
-          <label class="vb-visually-hidden" for="vb-comment-text">Kommentar</label>
-          <textarea class="form-input vb-comment-form__text" id="vb-comment-text" rows="3" placeholder="Feedback schreiben ..." aria-describedby="vb-comment-hint" data-vb-comment-text>${esc(draft.text)}</textarea>
+          <label class="vb-visually-hidden" for="${id}-comment-text">Kommentar</label>
+          <textarea class="form-input vb-comment-form__text" id="${id}-comment-text" rows="3" placeholder="Feedback schreiben ..." aria-describedby="${id}-comment-hint" data-vb-comment-text>${esc(draft.text)}</textarea>
           ${mitZeit ? `<label class="vb-comment-form__pin"><input type="checkbox" data-vb-pin${pinned ? ' checked' : ''} /> Zeitstempel anhängen <span class="vb-comment-form__pin-time" data-vb-pin-time>0:00</span></label>` : ''}
           <div class="vb-comment-form__actions">
-            <span class="vb-comment-form__hint" id="vb-comment-hint"><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+            <span class="vb-comment-form__hint" id="${id}-comment-hint"><kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
             <button type="submit" class="mdc-btn" data-vb-comment-send>Senden</button>
           </div>
         </form>` : '<p class="vb-info">Kommentare abgeschlossener Feedbackschleifen sind nur noch lesbar.</p>'}

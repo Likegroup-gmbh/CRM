@@ -3,9 +3,7 @@
 // Zeilenaenderungen, Status und Bulk liegen als Prototype-Mixins daneben.
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { SourcingTabelleAnpassenDrawer } from './SourcingTabelleAnpassenDrawer.js';
 import { renderTabNavigation } from './sourcingTabs.js';
-import { migrateHiddenColumns } from './sourcingSpaltenSichtbarkeit.js';
 import {
   SOURCING_ANKER_SPALTEN,
   SOURCING_SPALTEN_LABELS,
@@ -15,7 +13,6 @@ import {
 import { renderAddSection, renderItemsTable, updateStickyHeights } from './castingTableRender.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
-import { ankerEintraegeAusFolge, ersetzeEigeneSpalten } from './sourcingSpaltenfolge.js';
 import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
 import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
 import { createSourcingIgToolbarConfig } from './sourcingIgToolbarConfig.js';
@@ -31,6 +28,7 @@ import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
 import { handleCastingRealtime, rerenderUnlessTyping } from './castingRealtime.js';
 import { castingDetailQuickAddMethods } from './CastingDetailQuickAdd.js';
+import { castingDetailSpaltenMethods } from './CastingDetailSpalten.js';
 import { parseTeilbereiche } from './castingKategorien.js';
 import { loadBewerbungen } from './bewerbungTab.js';
 import { showCastingKategorienDrawer } from './CastingKategorienDrawer.js';
@@ -117,6 +115,14 @@ export class CreatorAuswahlDetail {
   }
 
   async init(listeId, { root, chromeRoot, embedded, prefetched } = {}) {
+    // Die Standalone-Route nutzt eine Singleton-Instanz: ohne Reset waere jedes
+    // destroy() nach dem ersten Verlassen ein No-op.
+    this._tornDown = false;
+    const lauf = this._initLauf = (this._initLauf || 0) + 1;
+    // destroy() oder ein neueres init() kann waehrend jedes await kommen
+    // (Tab- oder Seitenwechsel). Danach nichts mehr binden, sonst haengen
+    // Scrollbar und Listener an body.
+    const veraltet = () => this._tornDown || this._initLauf !== lauf;
     this.listeId = listeId;
     this.root = root || window.content;
     this.chromeRoot = chromeRoot || null;
@@ -139,10 +145,13 @@ export class CreatorAuswahlDetail {
 
     try {
       const { liste, items } = prefetched || await this._fetchDataStages(listeId);
+      if (veraltet()) return;
       this.liste = liste;
       this.items = items;
       this.bewerbungen = this.isKunde ? [] : await loadBewerbungen(listeId);
+      if (veraltet()) return;
       await this._verknuepfeBekannteCreator();
+      if (veraltet()) return;
 
       this.loadColumnVisibilitySettings();
 
@@ -152,14 +161,17 @@ export class CreatorAuswahlDetail {
 
       if (this.items.length === 0 && !this.getTeilbereiche().length && !this.isKunde && this._canSourcing('create')) {
         await this.addDrawer.createInitialEmptyRow();
+        if (veraltet()) return;
       }
 
       if (!this.embedded) window.setHeadline('');
       await this.render();
+      if (veraltet()) return;
       this.bindEvents();
       this._subscribeRealtime();
     } catch (error) {
       console.error('Fehler beim Laden:', error);
+      if (veraltet()) return;
       const rootEl = this._getRoot();
       if (rootEl) {
         rootEl.innerHTML = `
@@ -246,112 +258,6 @@ export class CreatorAuswahlDetail {
       document.removeEventListener('mousemove', this._dragMouseMove);
       document.removeEventListener('mouseup', this._dragMouseUp);
     }
-  }
-
-  // --- Spalten-Sichtbarkeit ---
-
-  loadColumnVisibilitySettings() {
-    this.hiddenColumns = migrateHiddenColumns(this.liste?.hidden_columns);
-    try {
-      const callKey = `sourcing_detail_kunden_call_${this.listeId}`;
-      this.kundenCallActive = localStorage.getItem(callKey) === 'true';
-    } catch (error) {
-      this.kundenCallActive = false;
-    }
-  }
-
-  async saveColumnVisibilitySettings() {
-    try {
-      await creatorAuswahlService.updateListe(this.listeId, {
-        hidden_columns: this.hiddenColumns
-      });
-      if (this.liste) this.liste.hidden_columns = this.hiddenColumns;
-    } catch (error) {
-      console.error('Fehler beim Speichern der Spalten-Sichtbarkeit:', error);
-    }
-  }
-
-  /**
-   * Reihenfolge aus dem Drawer. Die eigenen Spalten bekommen denselben Anker,
-   * damit der Griff im Tabellenkopf sie weiterhin an dieselbe Stelle zieht.
-   */
-  async saveColumnOrder(order) {
-    await creatorAuswahlService.updateListe(this.listeId, { column_order: order });
-    if (this.liste) this.liste.column_order = order;
-
-    if (this.customColumns?.hasColumns && this.customColumns.dataLoader) {
-      const entries = ankerEintraegeAusFolge(order);
-      this.customColumns.order = entries;
-      try {
-        await this.customColumns.dataLoader.saveColumnOrder(entries);
-      } catch (error) {
-        console.error('Anker der eigenen Spalten speichern fehlgeschlagen:', error);
-      }
-    }
-
-    this.rerenderTable();
-  }
-
-  /** Kopf-Griff einer eigenen Spalte: Standardreihenfolge behalten, Anker neu setzen. */
-  async uebernehmeKopfVerschiebung() {
-    const gespeichert = this.liste?.column_order;
-    if (!Array.isArray(gespeichert) || gespeichert.length === 0) return;
-    const neu = ersetzeEigeneSpalten(gespeichert, this.customColumns.getOrderedColumns());
-    if (neu.join('|') === gespeichert.join('|')) return;
-    await creatorAuswahlService.updateListe(this.listeId, { column_order: neu });
-    this.liste.column_order = neu;
-  }
-
-  /**
-   * Listeneinstellungen speichern. Ein neuer TKP schlägt direkt auf die
-   * Reels-Preise durch, geänderte hidden_columns auf die Spalten.
-   * In beiden Fällen die Tabelle neu rendern.
-   */
-  async saveListenEinstellungen(updates) {
-    try {
-      await creatorAuswahlService.updateListe(this.listeId, updates);
-      Object.assign(this.liste, updates);
-      if (updates.hidden_columns) {
-        this.hiddenColumns = updates.hidden_columns;
-      }
-      this.rerenderTable();
-    } catch (error) {
-      console.error('Fehler beim Speichern der Listeneinstellungen:', error);
-      window.toastSystem?.show('Einstellung konnte nicht gespeichert werden', 'error');
-    }
-  }
-
-  showTabelleAnpassenDrawer() {
-    // Drawer bei jedem Oeffnen neu bauen, damit neue Custom-Spalten erscheinen
-    this.tabelleAnpassenDrawer = new SourcingTabelleAnpassenDrawer({
-      liste: this.liste,
-      hiddenColumns: this.hiddenColumns,
-      spaltenPflege: this.customColumns,
-      onColumnsChanged: () => this.rerenderTable(),
-      onHiddenColumnsChange: async (newHiddenColumns) => {
-        this.hiddenColumns = newHiddenColumns;
-        await this.saveColumnVisibilitySettings();
-        this.rerenderTable();
-      },
-      onListeChange: (updates) => this.saveListenEinstellungen(updates),
-      onColumnOrderChange: (order) => this.saveColumnOrder(order)
-    });
-    this.tabelleAnpassenDrawer.open();
-  }
-
-  toggleKundenCall() {
-    this.kundenCallActive = !this.kundenCallActive;
-    try {
-      const callKey = `sourcing_detail_kunden_call_${this.listeId}`;
-      localStorage.setItem(callKey, this.kundenCallActive ? 'true' : 'false');
-    } catch (error) { /* ignore */ }
-
-    const btn = this._q('#btn-kunden-call-toggle');
-    if (btn) btn.classList.toggle('active', this.kundenCallActive);
-
-    this._qq('[data-blur-target]').forEach(el => {
-      el.classList.toggle('kunden-call-blur', this.kundenCallActive);
-    });
   }
 
   // --- Rendering ---
@@ -469,7 +375,8 @@ Object.assign(
   castingDetailZeilenStatusMethods,
   castingDetailLinksMethods,
   castingDetailBulkMethods,
-  castingDetailQuickAddMethods
+  castingDetailQuickAddMethods,
+  castingDetailSpaltenMethods
 );
 
 export const creatorAuswahlDetail = new CreatorAuswahlDetail();

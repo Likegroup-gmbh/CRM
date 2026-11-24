@@ -67,22 +67,19 @@ export const ANKER_ALIASE = {
  * Alle Standardspalten in Renderreihenfolge. Link, Follower, Preis Video und
  * Preis Story fassen Instagram und TikTok als Plattformzeilen zusammen.
  *
- * Der Status steht direkt hinter der Creator Art: er entscheidet, wie es mit
- * einem Creator weitergeht, und war hinten in der Tabelle nur mit Querscrollen
- * erreichbar.
- *
  * Die Kurzbeschreibung steht direkt hinter dem Namen: sie sagt, wer der
- * Creator ueberhaupt ist, und gehoert damit neben den Namen statt ans Ende
- * hinter alle Preisspalten. Matching folgt direkt danach (Briefing-Fit).
+ * Creator ueberhaupt ist. Danach kommen Link, Reichweite und Preise; Matching,
+ * Creator Art, Status, Kundenfeedback und Kontakt stehen hinter dem Gesamtpreis.
  */
 export const SOURCING_SPALTEN = [
-  'cp-col-drag', 'cp-col-name', 'cp-col-notiz', 'cp-col-matching',
-  'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
-  'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
+  'cp-col-drag', 'cp-col-name', 'cp-col-notiz',
   'cp-col-link', 'cp-col-follower', 'cp-col-engagement-ig',
   'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-video',
   'cp-col-reichweite-story', 'cp-col-story-preis',
-  'cp-col-pricing', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie',
+  'cp-col-pricing',
+  'cp-col-matching', 'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
+  'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
+  'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie',
   'cp-col-ek', 'cp-col-vk',
   'cp-col-feedback',
   'cp-col-actions'

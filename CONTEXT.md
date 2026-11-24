@@ -577,6 +577,10 @@ Steht im Dropbox-Ordner (`Video_2_...`) und im Dateinamen vor `v{n}` bzw. `final
 Nicht die Feedbackschleife.
 _Avoid_: Version (das ist die Feedbackschleife), Videoversion
 
+**Ausstehendes Video**:
+Ein Kooperationsvideo, zu dem noch keine Datei in einer Feedbackschleife oder Finalen Version liegt. Eine Kooperation hat so viele Kooperationsvideos, wie der Creator liefern soll; jedes ohne solche Datei ist ausstehend. Rohmaterial der Kooperation ändert daran nichts, wird aber als Hinweis genannt ("Rohmaterial liegt vor"). Der Showcase zeigt es bei "Aktueller Stand" als leere Kachel, die Kundenseite sieht dort "In Produktion". Nur das Team sieht den **Frist-Tag** gegen die Content-Deadline des jeweiligen Kooperationsvideos (jedes hat eine eigene): ab 7 Tagen vorher "Fällig in n Tagen" bzw. "Morgen fällig" (amber), am Tag "Heute fällig", danach "n Tage überfällig" (rot). Davor, ohne Deadline und auf Videos mit Datei gibt es keinen Tag; die Vollansicht nennt das Datum zusätzlich als Eigenschaft "Content-Deadline".
+_Avoid_: Platzhalter (das ist die Kooperation ohne Creator), Slot, leeres Video
+
 **Feedbackschleife**:
 Eine Überarbeitungsrunde desselben Kooperationsvideos (`version_number`, max 3).
 Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
@@ -611,12 +615,20 @@ _Avoid_: Dateiname (das ist `file_name`), Variante, Video-Name (das ist `video_n
 _Avoid_: Format (Kollision mit Kampagnenart, auch im Briefing heißt das Feld Seitenverhältnis), Ratio, 4:3
 
 **Showcase**:
-Zweite Darstellung im Videos-Tab (Umschalter "Ordner | Showcase | Kalender" als ViewModeToggle rechts in der Workflow-Tab-Zeile, ebenso Gruppieren, Seitenverhältnis und Größe, mit gleitendem Indikator): alle Finalen Versionen der Produktion bzw. der gewählten Linie nebeneinander in einem Grid, für Überblick und Abschlusstermin. Kein eigener Tab, kein eigener Datenstand: der Baum des Spaltenbrowsers wird nur anders gezeigt, Tags und Filter-Chips sind dieselben. Das "Seitenverhältnis" im Showcase wählt je Variante die Datei im bevorzugten Verhältnis (hat die Variante es nicht, die vorhandene), es schneidet nichts zu. Der Umschalter "Inhalt" wählt die Datenmenge: "Nur final" (Standard, nur Finale Versionen) oder "Aktueller Stand" (je Variante die Finale Version, sonst die Datei der letzten Feedbackschleife, also alle Videos; Kacheln zeigen dort Stern bei Finalen und Status bei den übrigen). Gruppierung nach Creator, Persona (Tag-Gruppe "Persona") oder ohne. Einstellungen stehen in der URL (`ansicht=showcase`). Ohne ZIP-Download und ohne Link für Kunden.
+Erste Darstellung und Standard im Videos-Tab, für Team und Kundenseite (Umschalter "Showcase | Ordner | Kalender" als ViewModeToggle rechts in der Workflow-Tab-Zeile, ebenso Inhalt, Gruppieren, Status und Größe, mit gleitendem Indikator): die Videos der Produktion bzw. der gewählten Linie nebeneinander in einem Grid, für Überblick und Abschlusstermin. Links auf eine bestimmte Datei (Teams-Meldung, Auswertung) öffnen weiter den Ordner. Kein eigener Tab, kein eigener Datenstand: der Baum des Spaltenbrowsers wird nur anders gezeigt, Tags und Filter-Chips sind dieselben. Der Showcase zeigt je Variante die Datei in 9:16 (hat die Variante sie nicht, die vorhandene), er schneidet nichts zu; einen Umschalter für das Seitenverhältnis gibt es nicht. Der Umschalter "Status" filtert nach dem Status der Kachel, mit Anzahl je Option und den Labels der Rolle: Team "Feedback erhalten" (dazu "Änderungen angefordert"), "Wartet auf Kunde", "Ausstehend", "Freigegeben"; Kundenseite "Zu prüfen", "Feedback gegeben", "In Produktion", "Freigegeben". Was die Rolle selbst tun muss, steht vorn. Bei "Nur final" ist er gesperrt und steht auf "Alle". Der Umschalter "Inhalt" wählt die Datenmenge: "Aktueller Stand" (Standard: je Variante die Finale Version, sonst die Datei der letzten Feedbackschleife, also alle Videos; Kacheln zeigen dort Stern bei Finalen und Status bei den übrigen, Ausstehende Videos stehen als leere Kachel dabei) oder "Nur final" (nur Finale Versionen, keine Ausstehenden Videos). Gruppierung nach Creator oder ohne; Creator gruppiert über den Creator-Datensatz wie der Gruppenkopf, der Kopf nennt, wie viele seiner Kooperationsvideos hochgeladen sind ("3 von 5 hochgeladen"). Einstellungen stehen in der URL (`ansicht=showcase`). Ohne ZIP-Download und ohne Link für Kunden.
 _Avoid_: Galerie, Übersicht, eigener Tab
+
+**Vollansicht**:
+Große Ansicht einer Datei oder eines Ausstehenden Videos im Videos-Tab: der Player mit allen Steuerelementen, daneben die Video-Kommentare zum Lesen und schnellen Schreiben und die Details mit den Eigenschaften und Verknüpfungen (Creator, Kooperation, Linie, Videoidee, Skript, Produkt). Öffnet aus dem Showcase per Klick auf eine Kachel und aus dem Ordner über das Datei-Detail; im Showcase blättert sie durch alle Kacheln, auch die Ausstehenden Videos, aus dem Ordner durch die Dateien desselben Ordners. Bei einem Ausstehenden Video zeigt sie statt des Players die Upload-Zone für die erste Feedbackschleife (nur Team), so groß wie ein 9:16-Player, damit die Breite beim Blättern gleich bleibt. Freigeben geht dort wie im Ordner, Löschen und Verschieben nicht. Nicht der Player der Kooperationstabelle: der schreibt in die Feedback-Felder.
+_Avoid_: Lightbox, Großansicht, Review-Ansicht, Vollbild (das ist der Player im Vollbildmodus)
 
 **Kalender (Videos-Tab)**:
 Dritte Darstellung im Videos-Tab: jedes Kooperationsvideo mit Posting-Datum als Eintrag an seinem Tag, im Monat oder in der Woche. Der Umschalter „Umfang“ wählt die gewählte Linie bzw. Produktion oder die Gesamte Kampagne. Stories und Stills stehen nicht drin. Videos ohne Posting-Datum stehen für das Team in einer Liste daneben: in den Kalender gezogen bekommen sie ein Posting-Datum, zurückgezogen verlieren sie es. Das Team verschiebt Einträge und ändert damit das Posting-Datum; Kunden sehen den Kalender nur lesend und ohne die Liste. Nicht der Kalender der Kampagnen-Übersicht, der zeigt Deadlines der Kampagnen.
 _Avoid_: Posting-Kalender, Redaktionsplan, Posting-Plan, Content-Kalender
+
+**Suche (Videos-Tab)**:
+Ein Textfeld vor dem Ansicht-Umschalter, das in allen drei Darstellungen gleichzeitig filtert, während man tippt. Es durchsucht Creator, Handle, Kooperation, Linie, Produkte, Videotitel und die Namen und Tags der Dateien. Jedes Wort muss treffen, Groß- und Kleinschreibung sowie Akzente zählen nicht, eine Zahl trifft nur als ganze Zahl („Video 1“ trifft nicht „Video 12“). Die Suche wirkt zusätzlich zu den Chips und dem Status-Filter, die Zähler zählen nur die Treffer. Im Ordner filtert sie die Kooperationen und die Videos der gewählten Kooperation, eine offene Auswahl bleibt stehen. Sie steht nicht in der URL und gilt nur, solange der Tab offen ist.
+_Avoid_: Filter (das sind die Chips), Volltextsuche
 
 **Kooperationszeile**:
 Eintrag einer Kooperation in der ersten Spalte des Videos-Tabs. Ein Klick wählt die Kooperation und zeigt ihre Videos. Bei Alle Linien benennt der Titel die Linie, nicht den Creator, wenn der Creator mehrfach vorkommt.
@@ -692,6 +704,7 @@ _Avoid_: Konzept (das ist das Dokument der Linie), Konzeptidee, Creator-Briefing
 
 **Rechnung**:
 Eingangsrechnung eines Creators. Der Monat sitzt am Rechnungsdatum.
+Anlegen setzt einen Video-Upload zur Kooperation voraus: mindestens eine Datei an einem ihrer Videos (Feedbackschleife oder Finale Version). Ein externer Link zählt nicht. Contracting-Rechnungen sind ausgenommen, bestehende Rechnungen bleiben bearbeitbar.
 _Avoid_: Eingangsrechnung, Invoice, Beleg (das ist die PDF)
 
 **Dokument (Ablage)**:
@@ -919,11 +932,11 @@ Ein Kooperationsvideo, eine Story oder ein Still, veröffentlicht auf genau eine
 _Avoid_: Video (für den Post), Veröffentlichung, Asset, Upload
 
 **Betrachter**:
-Konten, die einen Post gesehen haben, jedes einmal gezählt (Feld `reach`). Nicht Aufrufe: die zählen jede Wiedergabe und sind fast immer höher. Bezugsgröße der Engagement-Rate bei Instagram (ADR 0078).
+Konten, die einen Post gesehen haben, jedes einmal gezählt (Feld `reach`). Nicht Aufrufe: die zählen jede Wiedergabe und sind fast immer höher. Nur Instagram weist sie aus (ADR 0078). Eine Engagement-Rate gibt es in der Auswertung nicht mehr (ADR 0081).
 _Avoid_: Reichweite, Erreichte Konten (alter Instagram-Name), Views für Betrachter
 
 **Auswertung**:
-Tab der Produktion mit den bestätigten Zahlen der Posts: je Linie, für alle Linien der Produktion oder für die ganze Kampagne mit allen Produktionen (Umschalter „Linie | Produktion | Gesamte Kampagne“, „Linie“ erst ab zwei Linien; welche Linie, wählt das Linien-Dropdown). Auf der Kampagnenseite dieselbe Ansicht mit der Ebene Kampagne. Das Team sieht live und erfasst dort; Kunde und Gast sehen nur die letzte Report-Freigabe.
+Tab der Produktion mit den bestätigten Zahlen der Posts: je Linie, für alle Linien der Produktion oder für die ganze Kampagne mit allen Produktionen (Umschalter „Linie | Produktion | Gesamte Kampagne“, „Linie“ erst ab zwei Linien; welche Linie, wählt das Linien-Dropdown). Auf der Kampagnenseite dieselbe Ansicht mit der Ebene Kampagne. Das Team sieht live und erfasst dort; Kunde und Gast sehen nur die letzte Report-Freigabe. Oben stehen immer alle Kennzahlen als Kacheln, in der Reihenfolge der Spalten der Post-Tabelle (ohne Wert mit „–“). Die Post-Tabelle bündelt die Posts je Creator wie die Kooperationstabelle; die Creator-Zelle nennt Aufrufe und Stand der Gruppe (ADR 0081).
 _Avoid_: Reporting, Statistik, Live-Performance (das ist die Kachel der Kampagnenseite), Monatsauswertung
 
 **Report-Freigabe**:
@@ -931,7 +944,7 @@ Das Team friert den Report einer Produktion für Kunde und Gast ein: Kennzahlen 
 _Avoid_: Freigabe (alleinstehend), Snapshot, Berichtsstand (das ist das Investor-Dashboard), Veröffentlichen (das tut der Creator mit dem Post)
 
 **Report-PDF**:
-PDF der Auswertung für den Kunden, A4 quer: ein Deckblatt mit den Kennzahlen, danach je bestätigtem Post eine Kachel mit dem Poster der geposteten Datei (füllt die Kachel, Ränder werden beschnitten) und vier Werten der Plattform, nach Aufrufen sortiert. Die Kacheln stehen in einer Reihe je Seite und verteilen sich gleichmäßig (8 Posts bei höchstens 5 je Seite: 4 + 4). Kosten stehen nie darin. Gedruckt wird die Vorlage aus dem Code mit Chromium, nicht nachgebaut (ADR 0080).
+PDF der Auswertung für den Kunden, A4 quer: ein Deckblatt mit allen acht Kennzahlen der Auswertung (ohne Kosten), danach je bestätigtem Post eine Kachel mit dem Poster der geposteten Datei (füllt die Kachel, Ränder werden beschnitten) und vier Werten der Plattform (Reel, Post, TikTok: Aufrufe, Likes, Kommentare, Interaktionen; Story: Aufrufe, Betrachter, Link-Klicks, Sticker-Taps), nach Aufrufen sortiert. Die Kacheln stehen in einer Reihe je Seite und verteilen sich gleichmäßig (8 Posts bei höchstens 5 je Seite: 4 + 4). Kosten stehen nie darin. Gedruckt wird die Vorlage aus dem Code mit Chromium, nicht nachgebaut (ADR 0080).
 _Avoid_: Export (alleinstehend), Report (alleinstehend), Berichtsstand, Snapshot
 
 **PDF-Vorlagen**:

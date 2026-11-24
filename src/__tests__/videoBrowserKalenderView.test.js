@@ -141,7 +141,8 @@ describe('VideoBrowser Kalender', () => {
     click(seg(ctx.pane, 'view', 'ordner'));
     expect(root.dataset.vbView).toBe('ordner');
     expect(ctx.pane.querySelector('[data-vb-kalender]').hidden).toBe(true);
-    expect(window.location.search).not.toContain('ansicht');
+    expect(window.location.search).toContain('ansicht=ordner');
+    expect(window.location.search).not.toContain('ansicht=kalender');
   });
 
   it('Umfang Gesamte Kampagne nimmt andere Produktionen dazu und steht in der URL', async () => {
@@ -202,16 +203,19 @@ describe('VideoBrowser Kalender', () => {
     err.mockRestore();
   });
 
-  it('Suche filtert die Liste nach Creator', async () => {
+  it('die Suche des Tabs filtert Liste und Einträge nach Creator, die Liste hat kein eigenes Feld', async () => {
     await openKalender();
-    const input = ctx.pane.querySelector('[data-vb-kal-suche]');
+    expect(ctx.pane.querySelector('[data-vb-kal-liste] input')).toBeNull();
+    const input = ctx.pane.querySelector('[data-vb-suche-input]');
     input.value = 'mia';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     expect(cardIds(ctx.pane)).toEqual([]);
+    expect(eventIds(ctx.pane)).toEqual(['v1']);
     expect(ctx.pane.querySelector('[data-vb-kal-cards]').textContent).toContain('Keine Treffer');
     input.value = 'jan';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     expect(cardIds(ctx.pane)).toEqual(['v2']);
+    expect(eventIds(ctx.pane)).toEqual([]);
   });
 
   it('Kunde: keine Liste, nichts ziehbar, Hinweis auf Videos ohne Posting-Datum', async () => {

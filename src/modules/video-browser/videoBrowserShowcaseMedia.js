@@ -145,7 +145,7 @@ export function createShowcaseMedia({ motion } = {}) {
     current = tile;
     const item = entries.get(tile.dataset.itemId)?.item;
     motion?.hoverIn(tile);
-    if (!item || item.type === 'still') return;
+    if (!item || item.type === 'still' || item.type === 'ausstehend') return;
     const url = await sourceOf(item);
     if (destroyed || current !== tile || !url) return;
     const video = document.createElement('video');

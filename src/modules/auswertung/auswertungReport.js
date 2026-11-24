@@ -4,54 +4,9 @@
 
 import { renderCardHintHtml } from '../../core/budget/cardHints.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
-import { esc, euro, kompakt, plural, prozent, wertNachArt } from './auswertungFormat.js';
+import { esc, kompakt, prozent, wertNachArt } from './auswertungFormat.js';
+import { KACHELN, kachelSub, kachelWert } from './auswertungKacheln.js';
 import { renderTabelle } from './auswertungTabelle.js';
-
-// `leer`: Unterzeile, solange noch kein Post bestätigt ist
-const KARTEN = [
-  {
-    key: 'aufrufe', label: 'Aufrufe', art: 'zahl', wert: k => k.aufrufe,
-    sub: k => `Ø ${kompakt(k.aufrufeProPost)} pro Post`,
-    leer: () => 'Summe der bestätigten Posts',
-    hint: { formula: 'Σ Aufrufe der bestätigten Posts', hint: 'Ziel-Erreichung = Aufrufe ÷ Ziel' }
-  },
-  {
-    key: 'reach', label: 'Betrachter', art: 'zahl', wert: k => k.reach,
-    sub: k => `aus ${plural(k.reachPosts, 'Instagram-Post', 'Instagram-Posts')}`,
-    leer: () => 'nur Instagram',
-    hint: { formula: 'Σ Betrachter', hint: 'Konten, die den Post gesehen haben, jedes einmal (Aufrufe zählen jede Wiedergabe). Nur Instagram – TikTok weist das nicht aus' }
-  },
-  {
-    key: 'engagement', label: 'Engagement-Rate', art: 'prozent', wert: k => k.engagementRate,
-    sub: k => `${kompakt(k.interaktionen)} Interaktionen`,
-    leer: () => 'über alle bestätigten Posts',
-    hint: { formula: 'Σ Interaktionen ÷ Σ Basis', hint: 'Basis: Betrachter (Instagram) bzw. Aufrufe (TikTok), gewichtet über alle Posts' }
-  },
-  {
-    key: 'wiedergabe', label: 'Ø Wiedergabe', art: 'sekunden', wert: k => k.wiedergabe,
-    sub: k => `über ${plural(k.wiedergabePosts, 'Reel oder TikTok', 'Reels & TikToks')}`,
-    leer: () => 'Reels & TikToks',
-    hint: { formula: 'Mittel der Ø Wiedergabe je Post', hint: 'nur Posts, die den Wert ausweisen' }
-  },
-  {
-    key: 'klicks', label: 'Link-Klicks', art: 'zahl', wert: k => k.linkKlicks,
-    sub: k => `aus ${plural(k.linkKlicksStories, 'Story', 'Stories')}`,
-    leer: () => 'nur Instagram-Stories',
-    hint: { formula: 'Σ Link-Klicks', hint: 'nur Instagram-Stories' }
-  },
-  {
-    key: 'sticker', label: 'Sticker-Taps', art: 'zahl', wert: k => k.stickerTaps,
-    sub: k => `aus ${plural(k.stickerTapsStories, 'Story', 'Stories')}`,
-    leer: () => 'nur Instagram-Stories',
-    hint: { formula: 'Σ „Auf Sticker getippt“', hint: 'nur Instagram-Stories, alle Sticker zusammen (Erwähnung, Hashtag, Ort …). Der Link-Sticker zählt bei den Link-Klicks' }
-  },
-  {
-    key: 'kosten', label: 'Kosten pro 1.000 Aufrufe', art: 'euro', wert: k => k.kostenPro1000, preis: true,
-    sub: k => `${euro(k.verbrauch)} Verbrauch`,
-    leer: k => (k.verbrauch ? `${euro(k.verbrauch)} Verbrauch` : 'noch kein Verbrauch'),
-    hint: { formula: 'Verbrauch ÷ Aufrufe × 1.000', hint: 'Verbrauch: VK netto der Videos plus Zusatzkosten der Kooperationen' }
-  }
-];
 
 const zaehl = (key, wert, art) => `data-count="${key}" data-count-value="${wert}" data-count-format="${art}"`;
 
@@ -65,41 +20,32 @@ function zielFortschritt(k) {
     <div class="budget-tab__stat-sub">${esc(`${prozent(k.zielQuote, 0)} von ${kompakt(k.zielAufrufe)} Ziel`)}</div>`;
 }
 
+/** Ohne Wert steht „–“ ohne Zähler da, die Unterzeile nennt, woher der Wert käme. */
 function renderKarte(karte, k) {
-  const wert = karte.wert(k);
-  const sub = karte.sub(k);
+  const wert = kachelWert(karte, k);
+  const sub = kachelSub(karte, k);
+  const wertHtml = wert == null
+    ? `<div class="budget-tab__stat-value auswertung-stat__leer">${esc(wertNachArt(karte.art, null))}</div>`
+    : `<div class="budget-tab__stat-value" ${zaehl(karte.key, wert, karte.art)}>${esc(wertNachArt(karte.art, wert))}</div>`;
   return `
     <div class="budget-tab__stat auswertung-stat">
       <div class="budget-tab__stat-label">${esc(karte.label)}</div>
       ${renderCardHintHtml(karte.hint)}
-      <div class="budget-tab__stat-value" ${zaehl(karte.key, wert, karte.art)}>${esc(wertNachArt(karte.art, wert))}</div>
+      ${wertHtml}
       <div class="budget-tab__stat-sub" title="${esc(sub)}">${esc(sub)}</div>
       ${karte.key === 'aufrufe' ? zielFortschritt(k) : ''}
     </div>`;
 }
 
-function renderLeereKarte(karte, k) {
-  const sub = karte.leer(k);
-  return `
-    <div class="budget-tab__stat auswertung-stat">
-      <div class="budget-tab__stat-label">${esc(karte.label)}</div>
-      ${renderCardHintHtml(karte.hint)}
-      <div class="budget-tab__stat-value auswertung-stat__leer">${esc(wertNachArt(karte.art, null))}</div>
-      <div class="budget-tab__stat-sub" title="${esc(sub)}">${esc(sub)}</div>
-    </div>`;
-}
-
 /**
- * Kennzahlen ohne Grundlage fallen weg (Spec 4), Kosten nur mit Preis-Sicht. Ohne bestätigten
- * Post (`leer`) stehen alle Kacheln mit „–“ da, damit der Aufbau des Reports schon sichtbar ist.
+ * Alle Kacheln stehen immer da, auch ohne Grundlage (dann mit „–“), damit der Aufbau des Reports
+ * gleich bleibt. Kosten nur mit Preis-Sicht. Zwei gleich breite Reihen (`--4` oder `--5`).
  */
-export function renderKennzahlen(modell, { zeigeKosten = false, leer = false } = {}) {
+export function renderKennzahlen(modell, { zeigeKosten = false } = {}) {
   const k = modell.kennzahlen;
-  const karten = KARTEN
-    .filter(karte => leer || karte.wert(k) != null)
-    .filter(karte => !karte.preis || zeigeKosten)
-    .map(karte => (leer ? renderLeereKarte(karte, k) : renderKarte(karte, k)));
-  return `<div class="budget-tab__stats auswertung-stats">${karten.join('')}</div>`;
+  const karten = KACHELN.filter(karte => !karte.preis || zeigeKosten);
+  const spalten = Math.ceil(karten.length / 2);
+  return `<div class="budget-tab__stats auswertung-stats auswertung-stats--${spalten}">${karten.map(karte => renderKarte(karte, k)).join('')}</div>`;
 }
 
 function leer(team) {
@@ -120,6 +66,6 @@ export function renderReport(modell, { sort, filter, team = false, zeigeKosten =
   const bestaetigt = modell.fortschritt.bestaetigt > 0;
   if (!bestaetigt && (!team || !modell.einheiten.length)) return leer(team);
   return `
-    ${renderKennzahlen(modell, { zeigeKosten, leer: !bestaetigt })}
+    ${renderKennzahlen(modell, { zeigeKosten })}
     <section class="auswertung-posts" data-auswertung-tabelle>${renderTabelle(modell, { sort, filter, team })}</section>`;
 }

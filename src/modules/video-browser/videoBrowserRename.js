@@ -2,7 +2,8 @@
 // Titel einer Datei inline im Detailkopf bearbeiten. Zustand liegt in `vb.renaming`.
 
 import { TITEL_MAX, renameAsset } from './VideoBrowserAdapter.js';
-import { buildTree, resolveSelection } from './videoBrowserLogic.js';
+import { buildTree } from './videoBrowserLogic.js';
+import { detailResolved, detailRoot } from './videoBrowserHost.js';
 import { setEditButton as toggleEditButton } from './videoBrowserRenderParts.js';
 
 const LABELS = { edit: 'Titel bearbeiten', save: 'Titel speichern' };
@@ -10,8 +11,8 @@ const setEditButton = (button, editing) => toggleEditButton(button, editing, LAB
 
 export function startRename(vb) {
   if (!vb.canUpload || vb.renaming) return;
-  const { item } = resolveSelection(vb.tree, vb.sel);
-  const title = vb.detailInner.querySelector('[data-vb-asset-title]');
+  const { item } = detailResolved(vb);
+  const title = detailRoot(vb)?.querySelector('[data-vb-asset-title]');
   if (!item || !title) return;
   const input = document.createElement('input');
   input.type = 'text';
@@ -21,7 +22,7 @@ export function startRename(vb) {
   input.setAttribute('aria-label', 'Titel');
   input.setAttribute('data-vb-title-input', '');
   title.replaceChildren(input);
-  const button = vb.detailInner.querySelector('[data-vb-edit]');
+  const button = detailRoot(vb).querySelector('[data-vb-edit]');
   setEditButton(button, true);
   vb.renaming = { itemId: item.id, name: item.name, input, title, button, busy: false };
   input.focus();
@@ -40,7 +41,7 @@ export async function commitRename(vb) {
   const state = vb.renaming;
   if (!state || state.busy) return;
   const value = state.input.value.trim();
-  const { item } = resolveSelection(vb.tree, vb.sel);
+  const { item } = detailResolved(vb);
   if (!value || value === state.name || item?.id !== state.itemId) {
     endRename(vb);
     return;
@@ -54,6 +55,7 @@ export async function commitRename(vb) {
     endRename(vb, saved);
     // Detail und Player bleiben stehen, nur Spalten und Pfad tragen den neuen Namen.
     vb._renderNav();
+    if (vb.voll) vb.voll.dirty = true;
     vb.motion?.savedFlash(state.title);
   } catch (err) {
     console.error('VideoBrowser: Titel speichern fehlgeschlagen', err);

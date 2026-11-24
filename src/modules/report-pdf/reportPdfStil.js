@@ -121,9 +121,9 @@ body {
 .rp-punkt { color: var(--akzent); }
 .rp-untertitel { margin-bottom: 3mm; font-size: 11pt; font-weight: 500; }
 .rp-intro { font-size: 10pt; line-height: 1.45; color: var(--leise); }
-.rp-kennzahlen { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+.rp-kennzahlen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4mm; }
 .rp-kennzahl {
-  padding: 5mm 5mm 4.5mm;
+  padding: 4.5mm 4mm 4mm;
   background: #fff;
   border-top: 0.6mm solid var(--akzent);
   border-radius: 0 0 1.5mm 1.5mm;
@@ -134,7 +134,7 @@ body {
   text-transform: uppercase;
   color: var(--akzent);
 }
-.rp-kennzahl__wert { margin: 2mm 0 1mm; font-size: 20pt; font-weight: 700; }
+.rp-kennzahl__wert { margin: 2mm 0 1mm; font-size: 17pt; font-weight: 700; white-space: nowrap; }
 .rp-kennzahl__sub { font-size: 7.5pt; color: var(--leise); }
 
 /* Kachelseiten */

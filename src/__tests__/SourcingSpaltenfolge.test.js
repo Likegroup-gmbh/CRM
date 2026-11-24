@@ -12,9 +12,9 @@ function spalte(id, anchor) {
 }
 
 describe('Sourcing-Spaltenfolge', () => {
-  it('beginnt ohne gespeicherte Folge mit Kurzbeschreibung, Matching, Creator Art', () => {
+  it('beginnt ohne gespeicherte Folge mit Kurzbeschreibung, Link, Follower', () => {
     expect(baueBeweglicheSpalten().slice(0, 3)).toEqual([
-      'cp-col-notiz', 'cp-col-matching', 'cp-col-typ'
+      'cp-col-notiz', 'cp-col-link', 'cp-col-follower'
     ]);
   });
 

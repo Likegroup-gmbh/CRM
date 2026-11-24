@@ -120,6 +120,52 @@ describe('VideoBrowserPlayer', () => {
     expect(host.querySelector('.vb-player__retry')).not.toBeNull();
   });
 
+  it('legt die Steuerung ins Bild, ohne Bild-Schritt', async () => {
+    media.resolveSource.mockResolvedValue({ url: null, quelle: 'original' });
+    current = mount();
+    await flush();
+    const frame = current.host.querySelector('[data-vb-frame]');
+    ['[data-vb-slider]', '[data-vb-play]', '[data-vb-mute]', '[data-vb-volume]', '[data-vb-time]', '[data-vb-speed]', '[data-vb-fs]'].forEach((sel) => {
+      expect(frame.querySelector(sel), sel).not.toBeNull();
+    });
+    expect(current.host.querySelector('[data-vb-frame="-1"], [data-vb-frame="1"]')).toBeNull();
+  });
+
+  it('spielt mit Ton ab und schaltet nur bei blockiertem Autoplay stumm', async () => {
+    media.resolveSource.mockResolvedValue({ url: 'https://dropbox.test/clip.mov', quelle: 'original' });
+    const blocked = Object.assign(new Error('blocked'), { name: 'NotAllowedError' });
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValueOnce(blocked)
+      .mockResolvedValue();
+    try {
+      current = mount({ autoplay: true });
+      await flush();
+      const el = current.video();
+      expect(el.muted).toBe(false);
+      fire(el, 'loadedmetadata');
+      await flush();
+      expect(play).toHaveBeenCalledTimes(2);
+      expect(el.muted).toBe(true);
+      expect(current.host.querySelector('[data-vb-mute]').getAttribute('aria-label')).toBe('Ton einschalten');
+    } finally {
+      play.mockRestore();
+    }
+  });
+
+  it('merkt sich Stummschalten für den nächsten Player', async () => {
+    media.resolveSource.mockResolvedValue({ url: 'https://dropbox.test/clip.mov', quelle: 'original' });
+    current = mount();
+    await flush();
+    current.host.querySelector('[data-vb-mute]').click();
+    expect(current.video().muted).toBe(true);
+    current.player.destroy();
+    current = mount();
+    await flush();
+    expect(current.video().muted).toBe(true);
+    current.host.querySelector('[data-vb-mute]').click();
+    expect(current.video().muted).toBe(false);
+  });
+
   it('whenReady wartet auf canplaythrough (Gate fürs Vorwärmen)', async () => {
     media.resolveSource.mockResolvedValue({ url: 'https://dropbox.test/clip.mov', quelle: 'original' });
     current = mount();

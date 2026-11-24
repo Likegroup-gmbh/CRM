@@ -181,20 +181,6 @@ export function renderItemsTable(ctx) {
             <th class="${sticky.name} cp-col-name">Name</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')} title="Startet mit der Instagram-Bio, sobald der Creator abgerufen wurde">Kurzbeschreibung</th>
             ${customAt('cp-col-notiz')}
-            <th class="cp-col-matching" ${hide('cp-col-matching')} title="Gesamtscore aus Fit, Track und Fresh – wie gut der Creator zum Briefing passt">Matching</th>
-            ${customAt('cp-col-matching')}
-            <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
-            ${customAt('cp-col-typ')}
-            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
-            ${customAt('cp-col-status')}
-            <th class="cp-col-kunden-feedback" ${hide('cp-col-kunden-feedback')} title="Die Bewertung des Kunden: Prio oder Abgelehnt">Kundenfeedback</th>
-            ${customAt('cp-col-kunden-feedback')}
-            <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
-            ${customAt('cp-col-location')}
-            <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
-            ${customAt('cp-col-mail')}
-            <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
-            ${customAt('cp-col-telefon')}
             <th class="cp-col-link" ${hide('cp-col-link')}>Link</th>
             ${customAt('cp-col-link')}
             <th class="cp-col-follower" ${hide('cp-col-follower')}>Follower</th>
@@ -213,6 +199,20 @@ export function renderItemsTable(ctx) {
             ${customAt('cp-col-story-preis')}
             <th class="cp-col-pricing" ${hide('cp-col-pricing')} title="Der verhandelte Gesamtpreis">Gesamtpreis</th>
             ${customAt('cp-col-pricing')}
+            <th class="cp-col-matching" ${hide('cp-col-matching')} title="Gesamtscore aus Fit, Track und Fresh – wie gut der Creator zum Briefing passt">Matching</th>
+            ${customAt('cp-col-matching')}
+            <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
+            ${customAt('cp-col-typ')}
+            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
+            ${customAt('cp-col-status')}
+            <th class="cp-col-kunden-feedback" ${hide('cp-col-kunden-feedback')} title="Die Bewertung des Kunden: Prio oder Abgelehnt">Kundenfeedback</th>
+            ${customAt('cp-col-kunden-feedback')}
+            <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
+            ${customAt('cp-col-location')}
+            <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
+            ${customAt('cp-col-mail')}
+            <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
+            ${customAt('cp-col-telefon')}
             <th class="cp-col-nutzungsrechte" ${hide('cp-col-nutzungsrechte')} title="Laufzeit, Kanäle und Sonderabsprachen">Nutzungsrechte</th>
             ${customAt('cp-col-nutzungsrechte')}
             <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>

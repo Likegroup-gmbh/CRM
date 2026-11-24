@@ -101,6 +101,23 @@ describe('Zeilen wechseln', () => {
     expect(huelle.style.height).toBe('');
   });
 
+  it('tauscht die Gruppen einer table, das thead bleibt samt Fokus stehen', () => {
+    const gruppen = (...ids) => ids.map(id => `<tbody data-flip-id="${id}"><tr><td>${id}</td></tr></tbody>`).join('');
+    document.body.innerHTML = `<table><thead><tr><th tabindex="0">Aufrufe</th></tr></thead>${gruppen('a', 'b', 'c')}</table>`;
+    const table = document.querySelector('table');
+    const thead = table.querySelector('thead');
+    const kopf = thead.querySelector('th');
+    kopf.focus();
+
+    wechsleZeilen(table, gruppen('c', 'a'));
+    finish();
+    finish();
+
+    expect(table.firstElementChild).toBe(thead);
+    expect([...table.querySelectorAll('tbody')].map(el => el.dataset.flipId)).toEqual(['c', 'a']);
+    expect(document.activeElement).toBe(kopf);
+  });
+
   it('eine abgehängte Tabelle tauscht nach dem Ausblenden nicht mehr', () => {
     const { tbody } = mountTabelle('a', 'b');
     const danach = vi.fn();

@@ -1,17 +1,19 @@
 // reportPdfModell.js
 // View-Model des Report-PDF aus dem Modell der Auswertung (baueModell): Kennzahlen fürs Deckblatt
-// und je bestätigtem Post eine Kachel, nach Aufrufen sortiert wie die Post-Tabelle. Alle Werte
-// kommen fertig formatiert heraus, damit die Vorlage in der Function ohne Formatierer auskommt.
+// und je bestätigtem Post eine Kachel, nach Aufrufen sortiert. Alle Werte kommen fertig formatiert
+// heraus, damit die Vorlage in der Function ohne Formatierer auskommt.
 // Kosten stehen nie darin: das Report-PDF geht an den Kunden.
 
 import { KENNZAHLEN, PLATTFORMEN } from '../auswertung/auswertungKonfig.js';
-import { bestaetigtePosts, engagementRate } from '../auswertung/auswertungKennzahlen.js';
-import { STANDARD_SORT, postDatei, sortiertePosts } from '../auswertung/auswertungTabelle.js';
-import { datum, kompakt, plural, prozent, sekunden } from '../auswertung/auswertungFormat.js';
+import { bestaetigtePosts, interaktionen } from '../auswertung/auswertungKennzahlen.js';
+import { STANDARD_SORT, sortiertePosts } from '../auswertung/auswertungGruppen.js';
+import { KACHELN, kachelSub, kachelWert as deckblattWert } from '../auswertung/auswertungKacheln.js';
+import { postDatei } from '../auswertung/auswertungTabelle.js';
+import { datum, kompakt, plural, wertNachArt } from '../auswertung/auswertungFormat.js';
 
 const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
-const FEED_WERTE = ['views', 'likes', 'comments', 'engagement'];
+const FEED_WERTE = ['views', 'likes', 'comments', 'interaktionen'];
 
 /** Vier Kennzahlen je Plattform, in dieser Reihenfolge auf der Kachel. */
 export const KACHEL_WERTE = {
@@ -21,17 +23,8 @@ export const KACHEL_WERTE = {
   ig_story: ['views', 'reach', 'linkClicks', 'stickerTaps']
 };
 
-// Kurz, weil die Kachel bei sechs je Seite nur gut 40 mm breit ist
-const KACHEL_LABEL = { engagement: 'Engagement' };
-
-const DECKBLATT = [
-  { label: 'Aufrufe', wert: k => k.aufrufe, text: kompakt, sub: k => `Ø ${kompakt(k.aufrufeProPost)} pro Post` },
-  { label: 'Betrachter', wert: k => k.reach, text: kompakt, sub: k => `aus ${plural(k.reachPosts, 'Instagram-Post', 'Instagram-Posts')}` },
-  { label: 'Engagement-Rate', wert: k => k.engagementRate, text: prozent, sub: k => `${kompakt(k.interaktionen)} Interaktionen` },
-  { label: 'Ø Wiedergabe', wert: k => k.wiedergabe, text: sekunden, sub: k => `über ${plural(k.wiedergabePosts, 'Reel oder TikTok', 'Reels & TikToks')}` },
-  { label: 'Link-Klicks', wert: k => k.linkKlicks, text: kompakt, sub: k => `aus ${plural(k.linkKlicksStories, 'Story', 'Stories')}` },
-  { label: 'Sticker-Taps', wert: k => k.stickerTaps, text: kompakt, sub: k => `aus ${plural(k.stickerTapsStories, 'Story', 'Stories')}` }
-];
+/** Kennzahlen des Deckblatts: dieselben Kacheln wie im Report, ohne Kosten. */
+const DECKBLATT = KACHELN.filter(k => !k.preis);
 
 const zahl = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -54,9 +47,8 @@ export function zeitraumText(posts) {
 }
 
 function kachelWert(post, key) {
-  const label = KACHEL_LABEL[key] || KENNZAHLEN[key]?.label || key;
-  const wert = key === 'engagement' ? prozent(engagementRate([post])) : kompakt(zahl(post.metrics?.[key]));
-  return { label, wert };
+  if (key === 'interaktionen') return { label: 'Interaktionen', wert: kompakt(interaktionen(post)) };
+  return { label: KENNZAHLEN[key]?.label || key, wert: kompakt(zahl(post.metrics?.[key])) };
 }
 
 const mitAt = (handle) => (handle ? `@${String(handle).replace(/^@/, '')}` : '');
@@ -114,7 +106,7 @@ export function reportPdfVm(modell, { titel = '', untertitel = '', kunde = null,
     zeitraum,
     intro: introText(posts.length, creator.size, zeitraum),
     kennzahlen: posts.length
-      ? DECKBLATT.filter(d => zahl(d.wert(k)) != null).map(d => ({ label: d.label, wert: d.text(d.wert(k)), sub: d.sub(k) }))
+      ? DECKBLATT.map(d => ({ label: d.label, wert: wertNachArt(d.art, deckblattWert(d, k)), sub: kachelSub(d, k) }))
       : [],
     kacheln: posts.map(p => kachel(p, einheit(p), posterUrls))
   };

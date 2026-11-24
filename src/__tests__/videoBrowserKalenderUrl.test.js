@@ -29,14 +29,14 @@ describe('Kalender im Videos-Tab: URL', () => {
     const kalender = kalenderToSearch('?k=1', { umfang: 'kampagne', modus: 'woche', datum: '2026-11-16' });
     expect(kalenderToSearch(kalender, null)).toBe('?k=1');
 
-    const showcase = showcaseToSearch('', { inhalt: 'final', group: 'creator', fmt: '9:16', size: 'M', typ: null, tag: null });
+    const showcase = showcaseToSearch('', { inhalt: 'final', group: 'creator', status: 'alle', size: 'M', typ: null, tag: null });
     const beide = kalenderToSearch(showcase, null);
     expect(showcaseFromSearch(beide)).not.toBeNull();
     expect(kalenderFromSearch(beide)).toBeNull();
   });
 
   it('überschreibt eine Showcase-URL, wenn der Kalender offen ist', () => {
-    const showcase = showcaseToSearch('', { inhalt: 'final', group: 'creator', fmt: '9:16', size: 'M', typ: null, tag: null });
+    const showcase = showcaseToSearch('', { inhalt: 'final', group: 'creator', status: 'alle', size: 'M', typ: null, tag: null });
     const qs = kalenderToSearch(showcaseToSearch(showcase, null), { ...DEFAULT_KALENDER, umfang: 'kampagne' });
     expect(showcaseFromSearch(qs)).toBeNull();
     expect(kalenderFromSearch(qs)).toMatchObject({ umfang: 'kampagne' });

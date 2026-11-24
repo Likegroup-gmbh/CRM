@@ -4,12 +4,13 @@
 // der Umschalter "Umfang" (gewählte Linie bzw. Produktion oder Gesamte Kampagne). Das Team zieht Karten
 // zwischen Tagen und zwischen Kalender und Liste (videoBrowserKalenderListe.js), Kunden sehen nur.
 // Zustand am Controller (`vb`): kalender ({ umfang, modus, datum }, steht in der URL), kalRows (geladene
-// Videos, null bis zum ersten Laden), kalResult ({ events, ohneDatum }), kalSuche.
+// Videos, null bis zum ersten Laden), kalResult ({ events, ohneDatum }). Die Textsuche des Tabs (`vb.suche`,
+// videoBrowserSucheFeld.js) filtert Einträge und Liste.
 
 import { CalendarGrid } from '../../core/components/CalendarGrid.js';
 import { formatDateLocal, isInPeriod, parseDateOnly } from '../../core/calendarDates.js';
 import { DEFAULT_KALENDER, kalenderFromSearch } from './videoBrowserSelection.js';
-import { kalenderEintraege, loadPostingVideos, mitPostingDatum, savePostingDatum } from './videoBrowserKalenderData.js';
+import { filterListe, kalenderEintraege, loadPostingVideos, mitPostingDatum, savePostingDatum } from './videoBrowserKalenderData.js';
 import { kalenderListeShellHtml, mountKalenderListe, renderKalenderListe } from './videoBrowserKalenderListe.js';
 import { segmentHtml } from './videoBrowserRenderParts.js';
 import { setSegment } from './videoBrowserShowcase.js';
@@ -25,7 +26,6 @@ export function initKalenderState(vb) {
   vb.kalender = fromUrl || { ...DEFAULT_KALENDER };
   vb.kalRows = null;
   vb.kalResult = { events: [], ohneDatum: [] };
-  vb.kalSuche = '';
   vb.kalGen = 0;
   return !!fromUrl;
 }
@@ -66,7 +66,7 @@ export function mountKalender(vb) {
   vb.kalGrid = new CalendarGrid(vb.kalEl.querySelector('[data-vb-kal-grid]'), {
     view: gridView(vb.kalender.modus),
     anchor: vb.kalender.datum || new Date(),
-    getEvents: () => vb.kalResult.events,
+    getEvents: () => filterListe(vb.kalResult.events, vb.suche),
     headerExtraEl: vb.kalKopfEl,
     onMove: vb.team ? (id, iso) => movePosting(vb, id, iso) : undefined,
     onStateChange: ({ view, anchor }) => onGridState(vb, view, anchor),

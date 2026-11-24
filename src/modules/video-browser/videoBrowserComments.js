@@ -1,9 +1,11 @@
 // videoBrowserComments.js
 // Kommentare im Detailbereich: Entwürfe, Zeitstempel-Checkbox, Speichern, Hervorheben.
-// Alle Funktionen bekommen den VideoBrowser-Controller (`vb`).
+// Alle Funktionen bekommen den VideoBrowser-Controller (`vb`) und arbeiten im aktiven
+// Detailbereich (videoBrowserHost.js): Ordner-Detail oder Vollansicht.
 
 import { saveZeitkommentar } from './VideoBrowserAdapter.js';
-import { buildTree, cssEscape, kommentarZiel, resolveSelection } from './videoBrowserLogic.js';
+import { buildTree, cssEscape, kommentarZiel } from './videoBrowserLogic.js';
+import { commentScroller, detailPlayer, detailResolved, detailRoot } from './videoBrowserHost.js';
 import { commentHtml } from './videoBrowserRender.js';
 import { commentsOf } from './videoBrowserRenderComments.js';
 
@@ -34,9 +36,10 @@ function fmt(sec) {
  * selbst angefasst hat. Bei 0:00 hat noch niemand eine Stelle gewählt.
  */
 export function syncPinTime(vb, sec, assetId) {
-  const label = vb.detailInner?.querySelector('[data-vb-pin-time]');
+  const root = detailRoot(vb);
+  const label = root?.querySelector('[data-vb-pin-time]');
   if (label) label.textContent = fmt(sec);
-  const pin = vb.detailInner?.querySelector('[data-vb-pin]');
+  const pin = root?.querySelector('[data-vb-pin]');
   if (!pin || vb.drafts[assetId]?.pinTouched) return;
   pin.checked = sec > 0.05;
 }
@@ -47,7 +50,7 @@ export function syncPinTime(vb, sec, assetId) {
  * Tableiste (oben) und Formular (unten) sind sticky und verdecken Platz.
  */
 function revealComment(vb, el) {
-  const scroller = vb.detailInner?.closest('.vb-detail');
+  const scroller = commentScroller(vb);
   if (!scroller || !el) return;
   const box = scroller.getBoundingClientRect();
   const r = el.getBoundingClientRect();
@@ -66,7 +69,7 @@ function saveErrorText(err) {
 
 export async function submitComment(vb, form) {
   if (!form || form.dataset.busy) return;
-  const { row, folder, item } = resolveSelection(vb.tree, vb.sel);
+  const { row, folder, item } = detailResolved(vb);
   if (!row || !folder || !item) return;
   const ziel = kommentarZiel(row, item);
   if (!ziel) return;
@@ -74,7 +77,7 @@ export async function submitComment(vb, form) {
   const text = textEl.value.trim();
   if (!text) { textEl.focus(); return; }
   const pinned = item.type !== 'still' && !!form.querySelector('[data-vb-pin]')?.checked;
-  const timecodeSec = pinned && vb.player ? vb.player.getTime() : null;
+  const timecodeSec = pinned && detailPlayer(vb) ? detailPlayer(vb).getTime() : null;
 
   form.dataset.busy = '1';
   const send = form.querySelector('[data-vb-comment-send]');
@@ -94,20 +97,22 @@ export async function submitComment(vb, form) {
     delete vb.drafts[item.id];
     textEl.value = '';
 
-    const neu = resolveSelection(vb.tree, vb.sel);
+    const neu = detailResolved(vb);
     const comments = commentsOf(neu.row, neu.item);
     const created = comments.find(c => c.id === saved.id);
-    const list = vb.detailInner.querySelector('[data-vb-comments]');
+    const root = detailRoot(vb);
+    const player = detailPlayer(vb);
+    const list = root?.querySelector('[data-vb-comments]');
     if (created && list) {
-      vb.detailInner.querySelector('[data-vb-comments-empty]')?.remove();
+      root.querySelector('[data-vb-comments-empty]')?.remove();
       list.insertAdjacentHTML('beforeend', commentHtml(created));
       const el = list.lastElementChild;
-      vb.player?.setMarkers(comments);
-      vb.motion.commentIn(el, created.timecodeSec !== null ? vb.player?.markerEl(created.id) : null);
+      player?.setMarkers(comments);
+      vb.motion.commentIn(el, created.timecodeSec !== null ? player?.markerEl(created.id) : null);
       revealComment(vb, el);
     }
-    const count = vb.detailInner.querySelector('[data-vb-tab-count]');
-    if (count) count.textContent = String(comments.length);
+    root?.querySelectorAll('[data-vb-tab-count]').forEach((count) => { count.textContent = String(comments.length); });
+    if (vb.voll) vb.voll.dirty = true;
     // Zähler der Datei in der Spalte; Detail und Player bleiben stehen
     vb._renderNav();
   } catch (err) {
@@ -120,8 +125,10 @@ export async function submitComment(vb, form) {
 }
 
 export function highlightComment(vb, commentId) {
-  vb.detailInner.querySelectorAll('.vb-comment.is-active').forEach(el => el.classList.remove('is-active'));
-  const el = vb.detailInner.querySelector(`.vb-comment[data-comment-id="${cssEscape(String(commentId))}"]`);
+  const root = detailRoot(vb);
+  if (!root) return;
+  root.querySelectorAll('.vb-comment.is-active').forEach(el => el.classList.remove('is-active'));
+  const el = root.querySelector(`.vb-comment[data-comment-id="${cssEscape(String(commentId))}"]`);
   el?.classList.add('is-active');
   revealComment(vb, el);
 }

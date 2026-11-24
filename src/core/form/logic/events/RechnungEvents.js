@@ -1,6 +1,7 @@
 import { KampagneUtils } from '../../../../modules/kampagne/KampagneUtils.js';
 import { findSignedVertragForKooperation } from '../../../../modules/rechnung/RechnungVertragZuordnung.js';
 import { ladeAbrechenbarkeit } from '../../../budget/koopAbrechenbarkeitLaden.js';
+import { UPLOAD_FEHLT } from '../../../budget/koopVideoUpload.js';
 import { formatEuro } from '../../../format.js';
 
 let _debounceTimer = null;
@@ -22,14 +23,14 @@ function findSelect(form, name) {
     || form.querySelector(`select[data-field-name="${name}"]`);
 }
 
-function showVertragWarning(form, message) {
+function showVertragWarning(form, message, titel = 'Kein Vertrag vorhanden') {
   hideVertragWarning(form);
 
   const banner = document.createElement('div');
   banner.id = VERTRAG_WARNING_ID;
   banner.className = 'notice-box notice-info';
   banner.innerHTML = `
-    <strong>Kein Vertrag vorhanden</strong>
+    <strong>${titel}</strong>
     ${message}
   `;
 
@@ -507,27 +508,37 @@ export async function setup(form, ctx) {
       return;
     }
 
-    // Vertrag-Prefilter: prüfen ob finaler Vertrag vorhanden
-    const vertragCheck = await findSignedVertragForKooperation(koopId);
-    if (!vertragCheck.ok) {
+    const sperren = (message, titel) => {
       aktuelleAbrechenbarkeit = null;
       aktuelleKoopKskSelbstzahler = null;
       removeRestbetragHinweis(form);
       updateAbrechnungHinweis(form, null);
-      showVertragWarning(form, vertragCheck.message);
+      showVertragWarning(form, message, titel);
+    };
+
+    // Vertrag-Prefilter: prüfen ob finaler Vertrag vorhanden
+    const vertragCheck = await findSignedVertragForKooperation(koopId);
+    if (!vertragCheck.ok) {
+      sperren(vertragCheck.message);
       return;
     }
-    hideVertragWarning(form);
 
     // Abrechenbarkeit der Kooperation bestimmen (ADR 0004/0015): gestellte
     // Rechnungen + Video-EK laden, Restbetrag fuer Prefill und Warnung.
+    // Ohne hochgeladenes Video keine Rechnung.
     try {
-      const { abrechenbarkeit } = await ladeAbrechenbarkeit(window.supabase, [koop]);
+      const { abrechenbarkeit, mitUpload } = await ladeAbrechenbarkeit(window.supabase, [koop]);
+      if (!mitUpload.has(koopId)) {
+        sperren(UPLOAD_FEHLT.text, UPLOAD_FEHLT.titel);
+        return;
+      }
       aktuelleAbrechenbarkeit = abrechenbarkeit.get(koopId) || null;
     } catch (e) {
       console.warn('⚠️ Abrechenbarkeit konnte nicht bestimmt werden:', e);
-      aktuelleAbrechenbarkeit = null;
+      sperren('Der Video-Upload konnte nicht geprüft werden. Bitte die Kooperation erneut wählen.', UPLOAD_FEHLT.titel);
+      return;
     }
+    hideVertragWarning(form);
 
     // Parallele Queries: Unternehmen, Kampagne+Auftrag, Creator
     const [unternehmenResult, kampagneResult, creatorResult] = await Promise.all([

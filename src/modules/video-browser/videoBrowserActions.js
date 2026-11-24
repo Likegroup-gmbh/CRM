@@ -1,6 +1,7 @@
 // videoBrowserActions.js
 // Aktionen an der gewählten Datei: final markieren bzw. aufheben, herunterladen, löschen.
-// Alle Funktionen bekommen den VideoBrowser-Controller (`vb`).
+// Alle Funktionen bekommen den VideoBrowser-Controller (`vb`). Final und Download gelten für den
+// aktiven Detailbereich (Ordner oder Vollansicht, videoBrowserHost.js), Löschen nur im Ordner.
 
 import { confirmationModal } from '../../core/ConfirmationModal.js';
 import { escapeHtml } from '../../core/format.js';
@@ -24,6 +25,7 @@ import {
 } from './videoBrowserLogic.js';
 import { canMarkFinal, isMarked } from './videoBrowserRenderItem.js';
 import { ratioOfItem } from './videoBrowserRatio.js';
+import { detailPlayer, detailResolved, detailRoot, detailSel } from './videoBrowserHost.js';
 
 /* ---- Final markieren ---- */
 
@@ -39,8 +41,8 @@ function setBusy(button, busy) {
 
 /** Format der Datei: erst aus dem laufenden Player (nur die gewählte), sonst aus den Metadaten der Datei. */
 async function formatOf(vb, item) {
-  if (vb.sel.itemId === item.id) {
-    const dims = vb.player?.getDimensions?.();
+  if (detailSel(vb).itemId === item.id) {
+    const dims = detailPlayer(vb)?.getDimensions?.();
     const direct = dims ? detectRatio(dims.width, dims.height) : null;
     if (direct) return direct;
   }
@@ -66,11 +68,11 @@ function rowLi(vb, itemId) {
 
 /** Menü für das Format ist nötig, wenn das System keins erkennt: Datei wählen und Menü öffnen. */
 function askFormat(vb, item) {
-  if (vb.sel.itemId !== item.id) {
+  if (detailSel(vb).itemId !== item.id) {
     const found = findItem(vb, item.id);
     if (found) vb._select({ kooperationId: found.koop.id, videoId: found.row.id, folderId: found.folder.id, itemId: item.id });
   }
-  const menu = vb.detailInner.querySelector('[data-vb-promote-menu]');
+  const menu = detailRoot(vb)?.querySelector('[data-vb-promote-menu]');
   if (!menu) return;
   menu.hidden = false;
   menu.querySelector('[data-vb-promote-slot]')?.focus();
@@ -103,10 +105,12 @@ function refreshView(vb, { selectSource = null } = {}) {
   const valid = validateSelection(vb.sel, vb.tree);
   if (selectSource) {
     vb._select(selectSource);
+    vb.voll?.refresh();
     return;
   }
   if (!selectionEquals(valid, vb.sel)) vb._setSel(valid);
   vb._render({ restoreFocus: false, patch: true });
+  vb.voll?.refresh();
 }
 
 /** Zurück zur Quelle, wenn die gewählte finale Datei verschwindet. */
@@ -128,7 +132,7 @@ function undoToast(vb, text, onUndo) {
  */
 export async function toggleFinal(vb, { itemId = null, slots = null, source = 'bar', collapse = false, button = null } = {}) {
   if (!vb.canUpload) return;
-  const id = itemId || vb.sel.itemId;
+  const id = itemId || detailSel(vb).itemId;
   const found = id ? findItem(vb, id) : null;
   if (!found || !canMarkFinal(found.item)) return;
   const { item } = found;
@@ -177,7 +181,7 @@ async function promoteFlow(vb, { found, kind, key, before, slots, source, button
   // Der Flug startet an der Vorschau bzw. am Stern der Zeile, bevor sich die Ansicht ändert
   const fromRect = source === 'row'
     ? rowLi(vb, item.id)?.querySelector('.vb-icon-slot')?.getBoundingClientRect()
-    : vb.detailInner.querySelector('[data-vb-frame]')?.getBoundingClientRect();
+    : detailRoot(vb)?.querySelector('[data-vb-frame]')?.getBoundingClientRect();
 
   const temps = useSlots.map(slot => tempFinal(kind, item.asset, slot));
   vb.raw[key] = [
@@ -197,6 +201,7 @@ async function promoteFlow(vb, { found, kind, key, before, slots, source, button
     });
     vb.tree = buildTree(vb.raw, { team: vb.team });
     vb._renderNav();
+    vb.voll?.refresh();
   } catch (err) {
     console.error('VideoBrowser: Final markieren fehlgeschlagen', err);
     if (vb.destroyed) return false;
@@ -264,7 +269,7 @@ function flyGhost(vb, rect) {
 
 /** Alte Namen für die Final-Leiste: Klick auf den Slot im Menü. */
 export function promoteWithSlot(vb, button, slot) {
-  return toggleFinal(vb, { itemId: vb.sel.itemId, slots: [slot], button });
+  return toggleFinal(vb, { itemId: detailSel(vb).itemId, slots: [slot], button });
 }
 
 /* ---- Download ---- */
@@ -280,7 +285,7 @@ export function downloadMeta(vb, koop) {
 
 export async function download(vb, button) {
   if (!vb.canDownload || button.disabled) return;
-  const resolved = resolveSelection(vb.tree, vb.sel);
+  const resolved = detailResolved(vb);
   const entries = collectDownloadItems(button.dataset.vbDownload, resolved);
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');

@@ -7,7 +7,7 @@ import { createWiedergabeMessung, formatOf, perfNow } from '../../../core/media/
 import { lookupPath } from '../../../core/media/player/mediaIdentity.js';
 import { getPoster, peekPoster } from '../../../core/media/PosterCache.js';
 import { cachedUrl, mediaOf, resolveSource } from '../videoBrowserMedia.js';
-import { applyMedia, play, probeFrameRate } from './playerControls.js';
+import { applyMedia, play } from './playerControls.js';
 import { applySize, paintPlaying, paintTime, renderMarkers } from './playerLayout.js';
 
 const FALLBACK_SEC = 30;
@@ -147,7 +147,6 @@ export async function loadSource(p, asset, { resumeAt = 0, resumePlay = false } 
   }
   el.src = `${url}${url.includes('#') ? '' : '#t=0.001'}`;
   applyMedia(p);
-  probeFrameRate(p, el);
   el.addEventListener('loadedmetadata', () => {
     if (p.destroyed || token !== p.loadToken) return;
     p.duration = el.duration || 0;

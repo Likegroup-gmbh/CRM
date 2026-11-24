@@ -19,7 +19,8 @@ const OHNE_LABEL = { creator: 'Ohne Creator', ansatz: 'Ohne Ansatz' };
 
 export const leererFilter = () => ({ creator: [], ansatz: [], plattform: [] });
 
-const creatorWert = (einheit) => einheit?.creator?.id || einheit?.creator?.name || OHNE;
+/** Schlüssel des Creators einer Einheit; auch die Gruppen der Post-Tabelle hängen daran. */
+export const creatorWert = (einheit) => einheit?.creator?.id || einheit?.creator?.name || OHNE;
 const ansatzWerte = (einheit) => (einheit?.tags?.ansatz?.length ? einheit.tags.ansatz : [OHNE]);
 
 /** Werte einer Tabellenzeile je Filter. Ohne Post hat die Zeile keine Plattform. */

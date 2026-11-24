@@ -147,13 +147,6 @@ export function showcaseEffects({ run, d }) {
       });
     },
 
-    /** A6: Blättern, das neue Medium gleitet aus der Richtung ein (dir = ±1). */
-    slideIn(frame, dir) {
-      run(() => {
-        if (frame) gsap.fromTo(frame, { x: dir * 60, opacity: 0 }, { x: 0, opacity: 1, duration: d(0.4), ease: 'power3.out', clearProps: CLEAR });
-      });
-    },
-
     /** A7: Vollansicht schließt, das Overlay blendet kurz aus. Löst auf, wenn es entfernt werden kann. */
     lightboxOut({ overlay }) {
       return new Promise((resolve) => {

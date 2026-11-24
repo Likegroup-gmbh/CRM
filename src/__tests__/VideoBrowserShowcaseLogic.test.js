@@ -6,7 +6,6 @@ import {
   collectFinals,
   filterShowcase,
   groupShowcase,
-  personaOf,
   pickFormat,
   reconcileState,
   showcaseChips,
@@ -89,8 +88,9 @@ describe('collectCurrent (Aktueller Stand)', () => {
 
   it('buildShowcase wählt die Datenmenge über inhalt', () => {
     const tree = { kooperationen: [koop('k', 'Lena', [full('v1', [], [loop('n1', 'video', 'videoA')], [])])] };
-    expect(buildShowcase(tree, { ...DEFAULT_SHOWCASE }, []).total).toBe(0);
-    expect(buildShowcase(tree, { ...DEFAULT_SHOWCASE, inhalt: 'aktuell' }, []).total).toBe(1);
+    expect(DEFAULT_SHOWCASE.inhalt).toBe('aktuell');
+    expect(buildShowcase(tree, { ...DEFAULT_SHOWCASE }, []).total).toBe(1);
+    expect(buildShowcase(tree, { ...DEFAULT_SHOWCASE, inhalt: 'final' }, []).total).toBe(0);
   });
 });
 
@@ -156,55 +156,49 @@ describe('Filter', () => {
 describe('Gruppierung', () => {
   const base = pickFormat(collectFinals(TREE), '9:16');
 
-  it('Creator: ein Abschnitt je Kooperation in Ordner-Reihenfolge', () => {
-    const groups = groupShowcase(base, 'creator', CATALOG);
+  it('Creator: ein Abschnitt je Creator in Ordner-Reihenfolge', () => {
+    const groups = groupShowcase(base, 'creator');
     expect(groups.map(g => [g.label, g.entries.length])).toEqual([['Lena Hartmann', 3], ['Jonas Weber', 1]]);
   });
 
-  it('Persona: über Tag-Gruppe, alphabetisch, „Ohne Persona“ zuletzt', () => {
-    const groups = groupShowcase(base, 'persona', CATALOG);
-    expect(groups.map(g => g.label)).toEqual(['Persona A', 'Persona B', 'Ohne Persona']);
-    expect(groups[2].entries.map(e => e.item.id)).toEqual(['b45', 's1']);
-  });
-
-  it('personaOf ignoriert Tags anderer Gruppen und ist label-unabhängig', () => {
-    expect(personaOf({ tagIds: ['t2'] }, CATALOG)).toBeNull();
-    expect(personaOf({ tagIds: ['t2', 't1'] }, CATALOG).id).toBe('t1');
-    expect(personaOf({ tagIds: ['t2'] }, [{ id: 't2', label: 'Persona X', gruppe: 'Plattform' }])).toBeNull();
-  });
-
   it('Keine: ein Abschnitt ohne Kopf', () => {
-    const groups = groupShowcase(base, 'keine', CATALOG);
+    const groups = groupShowcase(base, 'keine');
     expect(groups).toHaveLength(1);
     expect(groups[0].head).toBe(false);
   });
 
   it('leere Menge ergibt keine Abschnitte', () => {
-    expect(groupShowcase([], 'creator', CATALOG)).toEqual([]);
+    expect(groupShowcase([], 'creator')).toEqual([]);
   });
 });
 
 describe('buildShowcase', () => {
   it('liefert flache Anzeigeliste in Abschnittsreihenfolge und setzt verwaiste Filter zurück', () => {
-    const result = buildShowcase(TREE, { ...DEFAULT_SHOWCASE, group: 'persona', tag: 'gibtsnicht' }, CATALOG);
+    const result = buildShowcase(TREE, { ...DEFAULT_SHOWCASE, inhalt: 'final', tag: 'gibtsnicht' }, CATALOG);
     expect(result.state.tag).toBeNull();
-    expect(result.list.map(e => e.item.id)).toEqual(['a916', 'c916', 'b45', 's1']);
+    expect(result.list.map(e => e.item.id)).toEqual(['a916', 'b45', 's1', 'c916']);
     expect(result.total).toBe(4);
   });
 
   it('Zusammenfassung zählt Inhalte und Creators der gefilterten Menge', () => {
-    const { list } = buildShowcase(TREE, { ...DEFAULT_SHOWCASE, typ: 'video' }, CATALOG);
+    const { list } = buildShowcase(TREE, { ...DEFAULT_SHOWCASE, inhalt: 'final', typ: 'video' }, CATALOG);
     expect(showcaseSummary(list)).toBe('2 Inhalte von 1 Creator');
   });
 });
 
 describe('URL', () => {
   it('Roundtrip, fremde Parameter bleiben', () => {
-    const state = { inhalt: 'aktuell', group: 'persona', fmt: '4:5', size: 'L', typ: 'video', tag: 't1' };
+    const state = { inhalt: 'aktuell', group: 'keine', status: 'feedback', size: 'L', typ: 'video', tag: 't1' };
     const search = showcaseToSearch('?tab=videos&linie=l1', state);
     expect(search).toContain('tab=videos');
-    expect(search).toContain('format=4x5');
+    expect(search).toContain('status=feedback');
     expect(showcaseFromSearch(search)).toEqual(state);
+  });
+
+  it('Status „Alle“ fehlt in der URL, ein altes format= wird entfernt', () => {
+    const search = showcaseToSearch('?tab=videos&format=4x5', { ...DEFAULT_SHOWCASE });
+    expect(search).not.toContain('status=');
+    expect(search).not.toContain('format=');
   });
 
   it('ohne Showcase fehlen die Parameter', () => {
@@ -214,7 +208,7 @@ describe('URL', () => {
   });
 
   it('unbekannte Werte fallen auf den Standard', () => {
-    expect(showcaseFromSearch('?ansicht=showcase&gruppe=x&format=2x3&groesse=XL&typ=foo'))
+    expect(showcaseFromSearch('?ansicht=showcase&gruppe=x&status=quatsch&groesse=XL&typ=foo'))
       .toEqual({ ...DEFAULT_SHOWCASE });
   });
 });

@@ -1,13 +1,13 @@
 // auswertungPanel.js
 // Detail-Panel eines Posts (Spec 5.5) in der bestehenden Drawer-Schale: Kontext, Poster, Aufrufe
-// mit Engagement-Rate, alle Kennzahlen der Plattform, Herkunft (Link, KI oder manuell) und für das
+// mit Interaktionen, alle Kennzahlen der Plattform, Herkunft (Link, KI oder manuell) und für das
 // Team die Screenshots sowie die Sprünge in Erfassen und in den Video-Tab. Esc schließt, danach
 // geht der Fokus zurück auf die Zeile.
 
 import { openDrawer } from '../creator/creatorDrawer.js';
 import { KENNZAHLEN, MESSREGEL_TAGE, felderDerPlattform } from './auswertungKonfig.js';
-import { engagementRate, interaktionen, messTage } from './auswertungKennzahlen.js';
-import { LEER, dateiLabel, datum, esc, exakt, herkunftText, kompakt, plattformLabel, plural, prozent, sekunden } from './auswertungFormat.js';
+import { interaktionen, messTage } from './auswertungKennzahlen.js';
+import { LEER, dateiLabel, datum, esc, exakt, herkunftText, kompakt, plattformLabel, plural, sekunden } from './auswertungFormat.js';
 import { postDatei } from './auswertungTabelle.js';
 import { fuelleVorschauen } from './auswertungScreenshots.js';
 
@@ -83,7 +83,7 @@ export function oeffnePostPanel({ post, einheit, team, posterCache, zurueck = nu
           <span class="auswertung-poster auswertung-poster--gross" data-panel-poster></span>
           <div>
             <div class="auswertung-panel__aufrufe">${esc(kompakt(post.metrics?.views))}</div>
-            <div class="auswertung-panel__muted">Aufrufe · ${esc(prozent(engagementRate([post])))} Engagement-Rate</div>
+            <div class="auswertung-panel__muted">Aufrufe · ${esc(exakt(interaktionen(post)))} Interaktionen</div>
           </div>
         </div>
         ${eckdaten(post)}

@@ -1,21 +1,41 @@
 // VideoBrowserPlayer.js
-// Vorschau-Player des Videos-Tabs: Rahmen im Seitenverhältnis, Zeitleiste mit
-// Kommentar-Markern, Play/Pause, Lautstärke, Geschwindigkeit und Bild-Schritt für die
-// Review-Arbeit. Ohne auflösbare Datei läuft ein Platzhalter (A7-Fallback über GSAP).
+// Vorschau-Player des Videos-Tabs: Rahmen in Bildbreite und im Seitenverhältnis, die Steuerung
+// liegt im Bild (Zeitleiste mit Kommentar-Markern, Play/Pause, Ton, Zeit, Geschwindigkeit,
+// Vollbild). Ohne auflösbare Datei läuft ein Platzhalter (A7-Fallback über GSAP).
 // Standbilder werden nur angezeigt.
 //
 // Der Zustand liegt in einem Objekt `p`, das die Teilmodule in ./player/ bekommen:
 // playerLayout (Anzeige, Vollbild), playerControls (Steuerung), playerSource (Quelle laden),
 // playerEvents (Maus und Tastatur).
 
-import { icon } from '../../core/icons/IconSystem.js';
 import { ICON_PLAY, ICON_FS, ICON_VOLUME } from '../../core/media/mediaPlayerIcons.js';
 import { cssEscape } from './videoBrowserLogic.js';
 import { applySize, isFullscreen, onFullscreenChange, paintPlaying, paintTime, renderMarkers } from './player/playerLayout.js';
-import { DEFAULT_FRAME_SEC, paintControls, pause, play, seek } from './player/playerControls.js';
+import { paintControls, pause, play, seek, startAudio } from './player/playerControls.js';
 import { finishMessung, loadSource } from './player/playerSource.js';
 import { bindPlayerEvents } from './player/playerEvents.js';
 import { rohZielTyp } from './videoBrowserRohOrdner.js';
+
+const fsButton = (extra = '') => `<button type="button" class="vb-ctl${extra}" data-vb-fs aria-label="Vollbild" title="Vollbild (F)">${ICON_FS}</button>`;
+
+const chrome = () => `
+          <div class="vb-player__chrome">
+            <div class="vb-timeline__track" data-vb-track>
+              <input class="vpl-seek vb-timeline__seek" data-vb-slider type="range" min="0" max="0" step="0.1" value="0" aria-label="Wiedergabeposition" />
+              <div class="vb-timeline__markers" data-vb-markers></div>
+            </div>
+            <div class="vb-player__bar">
+              <button type="button" class="vb-ctl" data-vb-play aria-label="Abspielen">${ICON_PLAY}</button>
+              <div class="vb-player__volume">
+                <button type="button" class="vb-ctl" data-vb-mute title="Ton an/aus (M)">${ICON_VOLUME}</button>
+                <input class="vpl-seek vb-volume" type="range" min="0" max="1" step="0.05" value="1" data-vb-volume aria-label="Lautstärke" />
+              </div>
+              <span class="vb-player__time" data-vb-time>0:00 / 0:00</span>
+              <span class="vb-player__spacer"></span>
+              <button type="button" class="vb-ctl vb-ctl--text" data-vb-speed title="Wiedergabegeschwindigkeit">1×</button>
+              ${fsButton()}
+            </div>
+          </div>`;
 
 function shell(isStill) {
   return `
@@ -23,27 +43,9 @@ function shell(isStill) {
       <div class="vb-player__stage" data-vb-stage>
         <div class="vb-player__frame" data-vb-frame>
           <div class="vb-player__media" data-vb-media></div>
-          ${isStill ? '' : `<button type="button" class="vb-player__big" data-vb-play aria-label="Abspielen">${ICON_PLAY}</button>`}
-          <button type="button" class="vb-player__fs" data-vb-fs aria-label="Vollbild" title="Vollbild (F)">${ICON_FS}</button>
+          ${isStill ? fsButton(' vb-player__fs') : `<button type="button" class="vb-player__big" data-vb-play aria-label="Abspielen">${ICON_PLAY}</button>${chrome()}`}
         </div>
       </div>
-      ${isStill ? '' : `
-      <div class="vb-timeline">
-        <button type="button" class="vb-timeline__play" data-vb-play aria-label="Abspielen">${ICON_PLAY}</button>
-        <span class="vb-timeline__time" data-vb-time>0:00 / 0:00</span>
-        <div class="vb-timeline__track" data-vb-track>
-          <input class="vpl-seek vb-timeline__seek" data-vb-slider type="range" min="0" max="0" step="0.1" value="0" aria-label="Wiedergabeposition" />
-          <div class="vb-timeline__markers" data-vb-markers></div>
-        </div>
-      </div>
-      <div class="vb-controls">
-        <button type="button" class="vb-ctl" data-vb-frame="-1" aria-label="Ein Bild zurück" title="Ein Bild zurück (,)">${icon('chevron-left')}</button>
-        <button type="button" class="vb-ctl" data-vb-frame="1" aria-label="Ein Bild vor" title="Ein Bild vor (.)">${icon('chevron-right')}</button>
-        <button type="button" class="vb-ctl vb-ctl--text" data-vb-speed title="Wiedergabegeschwindigkeit">1×</button>
-        <span class="vb-controls__spacer"></span>
-        <button type="button" class="vb-ctl" data-vb-mute title="Ton an/aus (M)">${ICON_VOLUME}</button>
-        <input class="vb-volume" type="range" min="0" max="1" step="0.05" value="1" data-vb-volume aria-label="Lautstärke" />
-      </div>`}
     </figure>`;
 }
 
@@ -53,16 +55,19 @@ const withTimecode = (list) => list.filter(c => c.timecodeSec !== null && c.time
  * @param {HTMLElement} host
  * @param {{ item: object, ratio?: string, comments?: Array, motion?: object,
  *           onTime?: (sec: number) => void, onMarker?: (commentId: string) => void,
- *           onMessung?: (row: object) => void, autoplay?: boolean, maxHeight?: () => number }} options
+ *           onMessung?: (row: object) => void, autoplay?: boolean,
+ *           maxHeight?: () => number, maxWidth?: () => number }} options
  *        onMessung: eine Zeile je Wiedergabe (erstes Bild, Start, Stalls), beim Quellwechsel und Schließen
- *        autoplay: startet stumm, sobald die Datei bereit ist (Showcase-Vollansicht)
+ *        autoplay: startet mit Ton, sobald die Datei bereit ist; blockt der Browser das, stumm (Vollansicht)
  *        maxHeight: Obergrenze der Rahmenhöhe statt der Standardhöhe des Detailbereichs
+ *        maxWidth: Obergrenze der Rahmenbreite statt der Breite des Hosts (Host folgt dem Bild)
  */
-export function mountPlayer(host, { item, ratio, comments = [], motion = null, onTime = null, onMarker = null, onMessung = null, autoplay = false, maxHeight = null }) {
+export function mountPlayer(host, { item, ratio, comments = [], motion = null, onTime = null, onMarker = null, onMessung = null, autoplay = false, maxHeight = null, maxWidth = null }) {
   // Rohmaterial-Bilder (type 'roh') sind Standbilder: sonst landen sie in einem <video>-Element
   const isStill = item.type === 'still'
     || (item.type === 'roh' && rohZielTyp(item.asset?.file_name || item.name) === 'still');
   host.innerHTML = shell(isStill);
+  const { volume, muted } = startAudio();
 
   const p = {
     host,
@@ -85,10 +90,11 @@ export function mountPlayer(host, { item, ratio, comments = [], motion = null, o
     volumeInput: host.querySelector('[data-vb-volume]'),
     destroyed: false,
     rate: 1,
-    volume: 1,
-    muted: !!autoplay,
+    volume,
+    muted,
     maxHeight,
-    frameSec: DEFAULT_FRAME_SEC,
+    maxWidth,
+    idleTimer: null,
     currentRatio: ratio || item.ratio || '9:16',
     dims: null,
     video: null,

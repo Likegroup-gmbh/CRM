@@ -7,6 +7,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { testunternehmenBadgeHtml } from '../../core/budget/testunternehmen.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
 import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderOrtTag } from '../../core/format/ortTag.js';
 
 export function renderBrancheTags(branchen, sanitize) {
   if (!branchen || (Array.isArray(branchen) && branchen.length === 0)) return '-';
@@ -95,8 +96,8 @@ export function renderUnternehmenRow(u, ctx) {
           nameHtml: `<a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">${sanitize(u.internes_kuerzel || u.firmenname || '')}</a>${u.ist_test ? ` ${testunternehmenBadgeHtml()}` : ''}`
         })}
       </td>
-      <td class="col-stadt">${sanitize(u.rechnungsadresse_stadt || '-')}</td>
-      <td class="col-land">${sanitize(u.rechnungsadresse_land || '-')}</td>
+      <td class="col-stadt">${renderOrtTag(u.rechnungsadresse_stadt, 'stadt', sanitize)}</td>
+      <td class="col-land">${renderOrtTag(u.rechnungsadresse_land, 'land', sanitize)}</td>
       <td class="col-webseite table-cell-center">${u.webseite ? `<a href="${UnternehmenService.sanitizeUrl(u.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${sanitize(u.webseite)}">${icon('external-link')}</a>` : '-'}</td>
       <td class="col-branche">${renderBrancheTags(u.branchen, sanitize)}</td>
       <td class="col-ansprechpartner">${renderAnsprechpartnerList(u._ansprechpartner)}</td>

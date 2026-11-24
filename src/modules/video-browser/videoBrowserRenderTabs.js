@@ -32,7 +32,8 @@ export function activeTab(ctx) {
 
 /* ---- Details ---- */
 
-function prop(label, iconName, valueHtml, { action = null, hint = '' } = {}) {
+/** Eine Eigenschaftszeile (Icon, Label, Wert), auch für die Details der Vollansicht. */
+export function propHtml(label, iconName, valueHtml, { action = null, hint = '' } = {}) {
   const attrs = action ? ` role="button" tabindex="0" data-vb-prop-action="${action}"${hint ? ` title="${esc(hint)}"` : ''}` : '';
   return `
     <div class="vb-prop${action ? ' vb-prop--action' : ''}"${attrs}>
@@ -54,7 +55,6 @@ function decisionText(ctx, folder, item) {
   const key = item.status?.key;
   if (key === 'wartet') return ctx.team ? wartetKurz(folder) : '';
   if (key === 'feedback') return ctx.team ? 'Kundenfeedback liegt vor.' : 'Dein Feedback ist beim Team.';
-  if (key === 'freigegeben') return 'Freigegeben.';
   if (key === 'aenderungen') return 'Änderungen angefordert.';
   return '';
 }
@@ -95,28 +95,29 @@ export function detailsPanelHtml(ctx) {
 
   const text = decisionText(ctx, folder, item);
   if (item.type !== 'roh') {
-    rows.push(prop(ctx.team ? 'Kunde' : 'Status', 'eye',
+    rows.push(propHtml(ctx.team ? 'Kunde' : 'Status', 'eye',
       `${statusBadge(item.status)}${text ? ` <span class="vb-prop__text" data-slot="decision">${esc(text)}</span>` : '<span data-slot="decision"></span>'}`));
   }
 
   const tags = tagFieldHtml(ctx, item);
-  if (tags) rows.push(prop('Tags', 'tag', tags));
+  if (tags) rows.push(propHtml('Tags', 'tag', tags));
 
   const verlauf = item.type === 'roh' ? '' : verlaufHtml(row, item);
-  if (verlauf) rows.push(prop('Verlauf', 'arrow-path', verlauf));
+  if (verlauf) rows.push(propHtml('Verlauf', 'arrow-path', verlauf));
 
-  rows.push(prop('Runde', 'calendar', esc(rundeText(row, folder, item))));
+  rows.push(propHtml('Runde', 'calendar', esc(rundeText(row, folder, item))));
 
   if (item.type === 'video' || item.type === 'story') {
-    rows.push(prop('Dauer', 'clock', '<span data-vb-prop-duration>–</span>'));
+    rows.push(propHtml('Dauer', 'clock', '<span data-vb-prop-duration>–</span>'));
   }
   const format = formatText(folder, item);
-  if (format) rows.push(prop('Format', 'film', esc(format)));
+  if (format) rows.push(propHtml('Format', 'film', esc(format)));
 
   const path = item.asset?.file_path;
-  if (ctx.canUpload && item.type === 'video' && path) {
+  // Den Ad Manager gibt es nur im Ordner
+  if (ctx.canUpload && !ctx.ohneAdManager && item.type === 'video' && path) {
     const { stem, ext } = splitFileName(path);
-    rows.push(prop('Dateiname', 'document-text',
+    rows.push(propHtml('Dateiname', 'document-text',
       `<span class="vb-prop__ellipsis" data-vb-prop-filename>${esc(stem + ext)}</span>`,
       { action: 'filename', hint: 'Im Ad Manager bearbeiten' }));
   }

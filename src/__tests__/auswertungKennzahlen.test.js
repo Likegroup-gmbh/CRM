@@ -2,11 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   berechneKennzahlen,
   einheitStatus,
-  engagementRate,
   fortschritt,
   interaktionen,
-  messTage,
-  topPosts
+  messTage
 } from '../modules/auswertung/auswertungKennzahlen.js';
 
 const post = (id, plattform, metrics, extra = {}) => ({
@@ -14,17 +12,19 @@ const post = (id, plattform, metrics, extra = {}) => ({
 });
 
 describe('Kennzahlen', () => {
-  it('rechnet die Engagement-Rate gewichtet über die Summen', () => {
-    const posts = [
-      post('a', 'ig_reel', { views: 1000, reach: 100, likes: 50 }),
-      post('b', 'ig_reel', { views: 10000, reach: 10000, likes: 100 })
-    ];
-    // gewichtet: 150 / 10100, Durchschnitt der Raten wäre (0,5 + 0,01) / 2
-    expect(engagementRate(posts)).toBeCloseTo(150 / 10100, 6);
-  });
-
-  it('nimmt bei TikTok die Aufrufe als Basis', () => {
-    expect(engagementRate([post('t', 'tiktok', { views: 2000, likes: 100, shares: 100 })])).toBeCloseTo(0.1, 6);
+  it('summiert Likes, Kommentare und Interaktionen, ohne Engagement-Rate', () => {
+    const k = berechneKennzahlen([
+      post('a', 'ig_reel', { views: 1000, reach: 100, likes: 50, comments: 5, shares: 3 }),
+      post('b', 'tiktok', { views: 10000, likes: 100, saves: 7 }),
+      post('s', 'ig_story', { views: 300, likes: 4, replies: 2 })
+    ]);
+    expect(k.likes).toBe(154);
+    expect(k.likesPosts).toBe(3);
+    expect(k.kommentare).toBe(5);
+    expect(k.kommentarePosts).toBe(1);
+    expect(k.interaktionen).toBe(171);
+    expect(k.interaktionenProPost).toBeCloseTo(57, 6);
+    expect(k).not.toHaveProperty('engagementRate');
   });
 
   it('zählt fehlende Interaktionsfelder als 0', () => {
@@ -43,6 +43,7 @@ describe('Kennzahlen', () => {
   it('liefert null statt 0, wenn eine Kennzahl keine Grundlage hat', () => {
     const k = berechneKennzahlen([post('t', 'tiktok', { views: 500, likes: 10 })]);
     expect(k.reach).toBeNull();
+    expect(k.kommentare).toBeNull();
     expect(k.linkKlicks).toBeNull();
     expect(k.wiedergabe).toBeNull();
     expect(k.zielQuote).toBeNull();
@@ -82,11 +83,6 @@ describe('Kennzahlen', () => {
   it('nennt die Tage zwischen Post und Messung', () => {
     expect(messTage({ postedAt: '2026-10-01', measuredAt: '2026-10-08' })).toBe(7);
     expect(messTage({ postedAt: '2026-10-01' })).toBeNull();
-  });
-
-  it('hebt die drei Posts mit den meisten Aufrufen hervor', () => {
-    const posts = [10, 50, 30, 40].map((v, i) => post(`p${i}`, 'tiktok', { views: v }));
-    expect(topPosts(posts)).toEqual(['p1', 'p3', 'p2']);
   });
 });
 

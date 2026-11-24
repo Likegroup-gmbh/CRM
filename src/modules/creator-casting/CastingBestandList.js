@@ -25,6 +25,7 @@ import {
 import { bestandKey } from '../creator-auswahl/bestandZuCasting.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderOrtTag } from '../../core/format/ortTag.js';
 
 export const CASTING_BESTAND_ENTITY = 'creator-casting';
 
@@ -213,7 +214,7 @@ export class CastingBestandList extends BasePaginatedList {
         <td>${creatorUtils.formatFollowerRange(creator.instagram_follower, { compact: true })}</td>
         <td class="table-cell-center" data-col="tiktok_link">${this.renderSocialLink(creator.tiktok, 'tiktok')}</td>
         <td>${creatorUtils.formatFollowerRange(creator.tiktok_follower, { compact: true })}</td>
-        <td>${creator.lieferadresse_stadt ? sanitize(creator.lieferadresse_stadt) : '-'}</td>
+        <td>${renderOrtTag(creator.lieferadresse_stadt, 'stadt', sanitize)}</td>
         <td class="table-cell-center" data-col="castings">${this.formatNumber(creator.castings || 0)}</td>
         <td class="table-cell-center" data-col="prio_1">${this.formatNumber(creator.prio_1 || 0)}</td>
         <td class="table-cell-center" data-col="prio_2">${this.formatNumber(creator.prio_2 || 0)}</td>

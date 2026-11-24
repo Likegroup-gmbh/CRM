@@ -126,6 +126,23 @@ describe('CustomDatePicker text variant', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
   });
 
+  it('öffnet beim Klick ins Feld, ein zweiter Klick lässt ihn offen', () => {
+    ctx.input.click();
+    expect(ctx.popover.hidden).toBe(false);
+    ctx.input.click();
+    expect(ctx.popover.hidden).toBe(false);
+  });
+
+  it('reagiert bei verschachtelt gebundenen Wurzeln nur einmal', () => {
+    const cleanupDoc = CustomDatePicker.bind(document);
+    try {
+      ctx.picker.querySelector('.custom-date-picker__trigger').click();
+      expect(ctx.popover.hidden).toBe(false);
+    } finally {
+      cleanupDoc();
+    }
+  });
+
   it('sperrt Tage nach max und das Weiterblättern', () => {
     CustomDatePicker.setValue(ctx.input, '2026-11-01');
     ctx.picker.querySelector('.custom-date-picker__trigger').click();

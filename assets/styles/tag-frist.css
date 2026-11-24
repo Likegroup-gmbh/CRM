@@ -1,0 +1,36 @@
+/* Frist-Tag (Content-Deadline eines Ausstehenden Videos), Variante des .tag aus badges-tags.css.
+   Stufen: überfällig (rot), heute (rot, gedämpft), bald (amber). Logik in videoBrowserDeadline.js. */
+
+.tag--frist {
+  gap: var(--space-xxs);
+  font-weight: 500;
+}
+
+.tag--frist svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  flex-shrink: 0;
+}
+
+.tag--frist-ueberfaellig {
+  color: var(--color-danger-dark);
+  border-color: var(--color-danger);
+  background-color: var(--color-danger-light);
+}
+
+.tag--frist-heute {
+  color: var(--color-danger-dark);
+  border-color: var(--color-danger);
+  background-color: var(--bg-primary);
+}
+
+.tag--frist-bald {
+  color: var(--color-warning-dark);
+  border-color: var(--color-warning);
+  background-color: var(--warning-bg);
+}
+
+.vb-sc-aus__frist {
+  display: inline-flex;
+  justify-content: center;
+}

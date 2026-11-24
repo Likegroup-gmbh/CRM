@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { baueModell } from '../modules/auswertung/auswertungModell.js';
 import { filterLage, filterOptionen, leererFilter, passtZumFilter } from '../modules/auswertung/auswertungFilter.js';
-import { renderTabelle, renderTabellenZeilen, tabellenSub } from '../modules/auswertung/auswertungTabelle.js';
+import { renderTabelle, renderTabellenGruppen, tabellenSub } from '../modules/auswertung/auswertungTabelle.js';
 
 const produktion = { id: 'p1', name: 'Produktion 1', linien: [] };
 
@@ -58,22 +58,22 @@ describe('Filtern der Post-Tabelle', () => {
   });
 
   it('filtert bestätigte und offene Zeilen nach Creator', () => {
-    const html = renderTabellenZeilen(modell, { team: true, filter: filter({ creator: ['c1'] }) });
+    const html = renderTabellenGruppen(modell, { team: true, filter: filter({ creator: ['c1'] }) });
     expect(zeilenIds(html)).toEqual(['pa', 'pc']);
   });
 
   it('„Ohne Ansatz“ findet Einheiten ohne Ansatz-Tag', () => {
     const ohne = filterOptionen(modell).ansatz.at(-1).value;
-    expect(zeilenIds(renderTabellenZeilen(modell, { team: true, filter: filter({ ansatz: [ohne] }) }))).toEqual(['pc']);
+    expect(zeilenIds(renderTabellenGruppen(modell, { team: true, filter: filter({ ansatz: [ohne] }) }))).toEqual(['pc']);
   });
 
   it('eine Zeile ohne Post fällt beim Plattform-Filter weg', () => {
-    const html = renderTabellenZeilen(modell, { team: true, filter: filter({ plattform: ['ig_reel'] }) });
+    const html = renderTabellenGruppen(modell, { team: true, filter: filter({ plattform: ['ig_reel'] }) });
     expect(zeilenIds(html)).toEqual(['pb']);
   });
 
   it('meldet einen leeren Filter statt „Noch keine Posts“', () => {
-    const html = renderTabellenZeilen(modell, { filter: filter({ creator: ['c1'], plattform: ['ig_reel'] }) });
+    const html = renderTabellenGruppen(modell, { filter: filter({ creator: ['c1'], plattform: ['ig_reel'] }) });
     expect(html).toContain('Keine Posts für diesen Filter.');
   });
 });
@@ -87,9 +87,9 @@ describe('Kopf der Post-Tabelle', () => {
     expect(html).toContain('Alle Creator');
   });
 
-  it('nennt ohne Filter den Stand, mit Filter Aufrufe, Engagement-Rate und Ø Wiedergabe der Auswahl', () => {
+  it('nennt ohne Filter den Stand, mit Filter Aufrufe, Interaktionen und Ø Wiedergabe der Auswahl', () => {
     expect(tabellenSub(modell, { team: true, filter: leererFilter() })).toBe('2 ausgewertet · 2 ohne Zahlen');
     expect(tabellenSub(modell, { team: true, filter: filter({ creator: ['c2'] }) }))
-      .toBe('1 von 2 ausgewertet · 3,0K Aufrufe · 5,0 % Engagement-Rate · Ø 4,0 s Wiedergabe · 1 ohne Zahlen');
+      .toBe('1 von 2 ausgewertet · 3,0K Aufrufe · 100 Interaktionen · Ø 4,0 s Wiedergabe · 1 ohne Zahlen');
   });
 });

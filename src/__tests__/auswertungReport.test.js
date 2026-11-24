@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { baueModell } from '../modules/auswertung/auswertungModell.js';
 import { renderReport } from '../modules/auswertung/auswertungReport.js';
-import { offenHinweis, renderTabellenZeilen } from '../modules/auswertung/auswertungTabelle.js';
+import { offenHinweis, renderTabellenGruppen } from '../modules/auswertung/auswertungTabelle.js';
 
 const produktion = { id: 'p1', name: 'Produktion 1', linien: [] };
 const datei = (id) => [{ id: `${id}-916`, ratio: '9:16' }];
@@ -63,7 +63,7 @@ describe('Report ohne bestätigte Posts', () => {
     expect(offen).toContain('1.200');
     expect(offen).toContain('Zahlen prüfen');
 
-    const bestaetigt = renderTabellenZeilen(modellAus([einheit('a')], [{ ...entwurf, status: 'confirmed' }]), { team: true });
+    const bestaetigt = renderTabellenGruppen(modellAus([einheit('a')], [{ ...entwurf, status: 'confirmed' }]), { team: true });
     expect(bestaetigt).toContain('data-post-id="p1"');
     expect(bestaetigt).toContain('>80<');
   });
@@ -86,7 +86,7 @@ describe('Report mit bestätigten Posts', () => {
   const bestaetigt = (id, metrics, extra = {}) => ({
     id, einheitId: 'video:a', status: 'confirmed', plattform: 'tiktok', postedAt: '2026-10-01', metrics, ...extra
   });
-  const doc = (html) => new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
+  const doc = (html) => new DOMParser().parseFromString(`<table>${html}</table>`, 'text/html');
   const mitSeitenrecht = (darf, fn) => {
     const vorher = window.canViewPage;
     window.canViewPage = () => darf;
@@ -99,6 +99,43 @@ describe('Report mit bestätigten Posts', () => {
     expect(html).toContain('data-auswertung-tabelle');
     expect(html).not.toContain('Aufschlüsselung');
     expect(html).not.toContain('Zusammenfassung');
+  });
+
+  it('zeigt alle Kacheln immer, ohne Grundlage mit „–“ und Leertext, und keine Engagement-Rate', () => {
+    const modell = modellAus([einheit('a')], [bestaetigt('p1', { views: 900, likes: 40, comments: 3 })]);
+    const html = renderReport(modell, { team: true });
+    const kacheln = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('.auswertung-stat')];
+    expect(kacheln.map(k => k.querySelector('.budget-tab__stat-label').textContent)).toEqual([
+      'Aufrufe', 'Likes', 'Kommentare', 'Betrachter', 'Interaktionen', 'Ø Wiedergabe', 'Link-Klicks', 'Sticker-Taps'
+    ]);
+    const sticker = kacheln.find(k => k.textContent.includes('Sticker-Taps'));
+    expect(sticker.querySelector('.auswertung-stat__leer').textContent).toBe('–');
+    expect(sticker.querySelector('.budget-tab__stat-sub').textContent).toBe('nur Instagram-Stories');
+    expect(sticker.querySelector('[data-count]')).toBeNull();
+    const likes = kacheln.find(k => k.textContent.includes('Likes'));
+    expect(likes.querySelector('[data-count="likes"]').dataset.countValue).toBe('40');
+    expect(html).toContain('auswertung-stats--4');
+    expect(html).not.toMatch(/engagement/i);
+  });
+
+  it('mit Preis-Sicht neun Kacheln in zwei Reihen (5 + 4)', () => {
+    const html = renderReport(modellAus([einheit('a')], [bestaetigt('p1', { views: 900 })]), { team: true, zeigeKosten: true });
+    expect(html.match(/class="budget-tab__stat auswertung-stat"/g)).toHaveLength(9);
+    expect(html).toContain('auswertung-stats--5');
+  });
+
+  it('Spalten: Link-Klicks und Sticker-Taps, keine Engagement-Rate', () => {
+    const html = renderReport(modellAus([einheit('a', { art: 'story' })], [
+      bestaetigt('p1', { views: 900, linkClicks: 31, stickerTaps: 7 }, { plattform: 'ig_story' })
+    ]), { team: true });
+    const tabelle = new DOMParser().parseFromString(html, 'text/html').querySelector('table[data-auswertung-table]');
+    const koepfe = [...tabelle.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    expect(koepfe).toEqual([
+      '#', 'Creator', 'Post', 'Plattform', 'Gepostet', 'Aufrufe', 'Likes', 'Kommentare', 'Betrachter',
+      'Interaktionen', 'Ø Wiedergabe', 'Link-Klicks', 'Sticker-Taps'
+    ]);
+    const zellen = [...tabelle.querySelectorAll('tr[data-post-id="p1"] > td')].map(td => td.textContent.trim());
+    expect(zellen.slice(-2)).toEqual(['31', '7']);
   });
 
   it('zeigt Kosten pro 1.000 Aufrufe nur mit Preis-Sicht', () => {
@@ -125,7 +162,7 @@ describe('Report mit bestätigten Posts', () => {
   it('Creator-Spalte: Thumb und Name als Link zum Creator, der Name steht nicht mehr unter dem Post', () => {
     const creator = { id: 'c1', name: 'Lea Berg', avatarUrl: 'https://cdn/thumb.avif' };
     mitSeitenrecht(true, () => {
-      const zeile = doc(renderTabellenZeilen(modellAus([einheit('a', { creator })], [bestaetigt('p1', { views: 900 })])));
+      const zeile = doc(renderTabellenGruppen(modellAus([einheit('a', { creator })], [bestaetigt('p1', { views: 900 })])));
       const zelle = zeile.querySelector('td.auswertung-tabelle__creator .table-identity');
       expect(zelle.querySelector('.table-identity__media img.table-avatar-img').getAttribute('src')).toBe('https://cdn/thumb.avif');
       const link = zelle.querySelector('a.verknuepfung-pill[data-auswertung-creator]');
@@ -137,7 +174,7 @@ describe('Report mit bestätigten Posts', () => {
 
   it('Creator-Spalte: ohne Bild das Initial, ohne Recht auf Creator kein Link', () => {
     mitSeitenrecht(false, () => {
-      const zeile = doc(renderTabellenZeilen(modellAus([einheit('a')], [bestaetigt('p1', { views: 900 })])));
+      const zeile = doc(renderTabellenGruppen(modellAus([einheit('a')], [bestaetigt('p1', { views: 900 })])));
       const zelle = zeile.querySelector('td.auswertung-tabelle__creator');
       expect(zelle.querySelector('span.table-avatar').textContent).toBe('L');
       expect(zelle.querySelector('a')).toBeNull();
@@ -147,21 +184,21 @@ describe('Report mit bestätigten Posts', () => {
 
   it('Plattform-Zelle: Icon, Name und Öffnen-Pfeil in einem Link, ohne Link nur Icon und Name', () => {
     const modell = (link) => modellAus([einheit('a')], [bestaetigt('p1', { views: 900 }, { plattform: 'ig_reel', link })]);
-    const mitLink = doc(renderTabellenZeilen(modell('https://instagram.com/reel/X'))).querySelectorAll('tr > td')[3];
+    const mitLink = doc(renderTabellenGruppen(modell('https://instagram.com/reel/X'))).querySelectorAll('tr > td')[3];
     const pill = mitLink.querySelector('a.auswertung-plattform-pill');
     expect(pill.getAttribute('href')).toBe('https://instagram.com/reel/X');
     expect(pill.getAttribute('target')).toBe('_blank');
     expect(pill.querySelectorAll('svg')).toHaveLength(2);
     expect(pill.querySelector('.mdc-btn__label').textContent).toBe('Reel');
 
-    const ohne = doc(renderTabellenZeilen(modell(null))).querySelectorAll('tr > td')[3];
+    const ohne = doc(renderTabellenGruppen(modell(null))).querySelectorAll('tr > td')[3];
     const statisch = ohne.querySelector('span.auswertung-plattform-pill--ohne-link');
     expect(ohne.querySelector('a')).toBeNull();
     expect(statisch.classList.contains('mdc-btn--secondary')).toBe(true);
     expect(statisch.querySelectorAll('svg')).toHaveLength(1);
     expect(statisch.textContent.trim()).toBe('Reel');
 
-    const unsicher = doc(renderTabellenZeilen(modell('javascript:alert(1)'))).querySelectorAll('tr > td')[3];
+    const unsicher = doc(renderTabellenGruppen(modell('javascript:alert(1)'))).querySelectorAll('tr > td')[3];
     expect(unsicher.querySelector('a')).toBeNull();
   });
 
@@ -171,7 +208,7 @@ describe('Report mit bestätigten Posts', () => {
       bestaetigt('p2', { views: 100, avgWatchSec: 9 }, { einheitId: 'video:b' })
     ]);
     expect(renderReport(modell, { team: true })).toContain('Ø Wiedergabe');
-    const zeilen = renderTabellenZeilen(modell, { sort: { field: 'wiedergabe', ascending: false } });
+    const zeilen = renderTabellenGruppen(modell, { sort: { field: 'wiedergabe', ascending: false } });
     expect(zeilen.indexOf('data-post-id="p2"')).toBeLessThan(zeilen.indexOf('data-post-id="p1"'));
     expect(zeilen).toContain('9,0 s');
   });

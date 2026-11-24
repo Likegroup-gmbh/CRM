@@ -86,38 +86,6 @@ export function renderItemRow(ctx, item, index) {
         ` : `<div class="cell-text-readonly">${escapeHtml(item.notiz || '-')}</div>`}
       </td>
       ${customAt('cp-col-notiz')}
-      <td class="cp-col-matching" style="${hide('cp-col-matching')}">
-        ${renderMatchingCell(item.matching_score, item.matching_scores || item.scores || {})}
-      </td>
-      ${customAt('cp-col-matching')}
-      <td class="cp-col-typ" style="${hide('cp-col-typ')}">
-        ${canWrite ? renderTableSelect({
-          field: 'creator_typ',
-          itemId: item.id,
-          value: item.typ || '',
-          options: CREATOR_TYP_SELECT_OPTIONS,
-          disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly })
-        }) : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
-      </td>
-      ${customAt('cp-col-typ')}
-      <td class="cp-col-status" style="${hide('cp-col-status')}">
-        ${renderSourcingStatusCell(ctx, item)}
-      </td>
-      ${customAt('cp-col-status')}
-      <td class="cp-col-kunden-feedback" style="${hide('cp-col-kunden-feedback')}">
-        ${renderKundenFeedbackCell(ctx, item)}
-      </td>
-      ${customAt('cp-col-kunden-feedback')}
-      <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
-        ${canWrite ? `
-          <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
-      </td>
-      ${customAt('cp-col-location')}
-      ${renderKontaktCell(ctx, item, 'cp-col-mail', 'email', hide)}
-      ${customAt('cp-col-mail')}
-      ${renderKontaktCell(ctx, item, 'cp-col-telefon', 'telefon', hide)}
-      ${customAt('cp-col-telefon')}
       ${renderPlattformZelle(ctx, 'cp-col-link', {
         instagram: renderLinkInstagramInhalt(item, canWrite),
         tiktok: renderLinkTiktokInhalt(item, canWrite)
@@ -156,6 +124,38 @@ export function renderItemRow(ctx, item, index) {
       ${customAt('cp-col-story-preis')}
       ${renderPreisFreitextCell(ctx, item, 'cp-col-pricing', 'pricing', hide)}
       ${customAt('cp-col-pricing')}
+      <td class="cp-col-matching" style="${hide('cp-col-matching')}">
+        ${renderMatchingCell(item.matching_score, item.matching_scores || item.scores || {})}
+      </td>
+      ${customAt('cp-col-matching')}
+      <td class="cp-col-typ" style="${hide('cp-col-typ')}">
+        ${canWrite ? renderTableSelect({
+          field: 'creator_typ',
+          itemId: item.id,
+          value: item.typ || '',
+          options: CREATOR_TYP_SELECT_OPTIONS,
+          disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly })
+        }) : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
+      </td>
+      ${customAt('cp-col-typ')}
+      <td class="cp-col-status" style="${hide('cp-col-status')}">
+        ${renderSourcingStatusCell(ctx, item)}
+      </td>
+      ${customAt('cp-col-status')}
+      <td class="cp-col-kunden-feedback" style="${hide('cp-col-kunden-feedback')}">
+        ${renderKundenFeedbackCell(ctx, item)}
+      </td>
+      ${customAt('cp-col-kunden-feedback')}
+      <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
+        ${canWrite ? `
+          <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
+        ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
+      </td>
+      ${customAt('cp-col-location')}
+      ${renderKontaktCell(ctx, item, 'cp-col-mail', 'email', hide)}
+      ${customAt('cp-col-mail')}
+      ${renderKontaktCell(ctx, item, 'cp-col-telefon', 'telefon', hide)}
+      ${customAt('cp-col-telefon')}
       <td class="cell-textarea cp-col-nutzungsrechte" style="${hide('cp-col-nutzungsrechte')}">
         ${canWrite ? `
           <textarea class="strategie-textarea" data-field="nutzungsrechte" data-item-id="${item.id}" placeholder="Nutzungsrechte...">${escapeHtml(item.nutzungsrechte || '')}</textarea>

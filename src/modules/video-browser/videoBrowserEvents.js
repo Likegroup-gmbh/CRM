@@ -1,23 +1,20 @@
 // videoBrowserEvents.js
 // Event-Verdrahtung des Videos-Tabs: delegierte Listener am Wurzelelement, Klick-Routing und
 // Tastatur-Navigation in den Spalten. Alle Funktionen bekommen den Controller (`vb`).
+// Die Handler des Detailbereichs teilt sich der Ordner mit der Vollansicht (videoBrowserDetailEvents.js).
 
-import { clearFrom, ersterOffenerInhalt, selectLevel } from './videoBrowserLogic.js';
-import { deleteItem, download, promoteWithSlot, toggleFinal } from './videoBrowserActions.js';
+import { clearFrom, ersterOffenerInhalt, resolveSelection, selectLevel } from './videoBrowserLogic.js';
+import { deleteItem, toggleFinal } from './videoBrowserActions.js';
 import { freieDateiOeffnen, ordnerLinkErstellen, produktionLinkErstellen } from './videoBrowserAblage.js';
-import { freigabeAusfuehren } from './videoBrowserFreigabe.js';
-import { highlightComment, setDraftPin, setDraftText, submitComment } from './videoBrowserComments.js';
 import { bindDropzone } from './videoBrowserDropzone.js';
 import { commitFileRename, copyFileName, endFileRename, startFileRename } from './videoBrowserFileRename.js';
 import { clearFolderFilter, toggleFolderFilter } from './videoBrowserFilter.js';
 import { isActivationKey, onShortcut } from './videoBrowserKeys.js';
 import { onTabKeydown, setDetailTab } from './videoBrowserTabs.js';
-import { openTagField } from './videoBrowserTagField.js';
-import { removeTag } from './videoBrowserTags.js';
 import {
-  cancelCaptionEdit, commitCaption, copyCaption, onCaptionInput, startCaptionEdit, toggleCaptionOpen
-} from './videoBrowserCaption.js';
-import { commitRename, endRename, startRename } from './videoBrowserRename.js';
+  onDetailChange, onDetailClick, onDetailFocusout, onDetailInput, onDetailKeydown, onDetailMousedown, onDetailSubmit
+} from './videoBrowserDetailEvents.js';
+import { openVollansicht } from './videoBrowserVollansicht.js';
 import { startUpload } from './videoBrowserUploadState.js';
 import { onSegmentKeydown, onShowcaseClick } from './videoBrowserShowcase.js';
 import { onViewClick } from './videoBrowserView.js';
@@ -42,27 +39,11 @@ export function bindEvents(vb) {
       void rohNeuAnlegen(vb, rohForm);
       return;
     }
-    const form = e.target.closest('[data-vb-comment-form]');
-    if (!form) return;
-    e.preventDefault();
-    void submitComment(vb, form);
+    onDetailSubmit(vb, e);
   });
-  on(vb.root, 'input', (e) => {
-    const caption = e.target.closest('[data-vb-caption]');
-    if (caption) {
-      onCaptionInput(vb, caption);
-      return;
-    }
-    const text = e.target.closest('[data-vb-comment-text]');
-    if (!text) return;
-    setDraftText(vb, text.closest('[data-vb-comment-form]').dataset.assetId, text.value);
-  });
+  on(vb.root, 'input', (e) => { onDetailInput(vb, e); });
   on(vb.root, 'change', (e) => {
-    const pin = e.target.closest('[data-vb-pin]');
-    if (pin) {
-      setDraftPin(vb, pin.closest('[data-vb-comment-form]').dataset.assetId, pin.checked);
-      return;
-    }
+    if (onDetailChange(vb, e)) return;
     const input = e.target.closest('[data-vb-file]');
     if (input) {
       // Upload-Knopf an einem Rohmaterial-Unterordner trägt dessen item_id
@@ -93,32 +74,7 @@ export function bindEvents(vb) {
       }
       return;
     }
-    if (e.target.closest('[data-vb-title-input]')) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        void commitRename(vb);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        endRename(vb);
-      }
-      return;
-    }
-    const captionField = e.target.closest('[data-vb-caption]');
-    if (captionField) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        cancelCaptionEdit(vb);
-      } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        captionField.blur();
-      }
-      return;
-    }
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && e.target.closest('[data-vb-comment-text]')) {
-      e.preventDefault();
-      void submitComment(vb, e.target.closest('[data-vb-comment-form]'));
-      return;
-    }
+    if (onDetailKeydown(vb, e)) return;
     // Enter und Leertaste auf klickbaren Zeilen (Titel, Eigenschaft, Dateiname) wie ein Klick
     if (!e.defaultPrevented && isActivationKey(e) && e.target.closest('[role="button"]:not(button)')) {
       e.preventDefault();
@@ -127,14 +83,12 @@ export function bindEvents(vb) {
   });
   // Der Haken speichert per Klick: das Feld darf vorher nicht durch Blur speichern.
   on(vb.root, 'mousedown', (e) => {
-    if (vb.renaming && e.target.closest('[data-vb-edit]')) e.preventDefault();
+    onDetailMousedown(vb, e);
     if (vb.renamingFile && e.target.closest('[data-vb-edit-file]')) e.preventDefault();
   });
   on(vb.root, 'focusout', (e) => {
-    if (e.target.closest('[data-vb-title-input]')) void commitRename(vb);
+    onDetailFocusout(vb, e);
     if (e.target.closest('[data-vb-file-input]')) void commitFileRename(vb);
-    const caption = e.target.closest('[data-vb-caption]');
-    if (caption) void commitCaption(vb, caption);
     // Leeres "Neuer Ordner"-Feld schließt beim Verlassen, nicht beim Klick auf Anlegen/Abbrechen
     const rohInput = e.target.closest('[data-vb-roh-neu-input]');
     if (rohInput && !rohInput.value.trim() && !rohInput.form?.contains(e.relatedTarget)) rohNeuSchliessen(vb);
@@ -191,17 +145,21 @@ function onRohClick(vb, e) {
   return false;
 }
 
+/** Vollansicht aus dem Datei-Kopf: blättert durch die Dateien desselben Ordners. */
+function openFromFolder(vb) {
+  const { koop, row, folder, item } = resolveSelection(vb.tree, vb.sel);
+  if (!folder || !item || item.type === 'roh') return;
+  const list = folder.items.filter(i => i.type !== 'roh').map(i => ({ koop, row, item: i }));
+  openVollansicht(vb, {
+    quelle: 'ordner',
+    list,
+    index: Math.max(0, list.findIndex(e => e.item.id === item.id))
+  });
+}
+
 function onClick(vb, e) {
-  if (e.target.closest('[data-vb-caption-copy]')) {
-    void copyCaption(vb);
-    return;
-  }
-  if (e.target.closest('[data-vb-caption-more]')) {
-    toggleCaptionOpen(vb);
-    return;
-  }
-  if (e.target.closest('[data-vb-caption-view]')) {
-    startCaptionEdit(vb);
+  if (e.target.closest('[data-vb-voll-open]')) {
+    openFromFolder(vb);
     return;
   }
 
@@ -226,29 +184,13 @@ function onClick(vb, e) {
     return;
   }
 
-  const slotBtn = e.target.closest('[data-vb-promote-slot]');
-  if (slotBtn) {
-    void promoteWithSlot(vb, slotBtn.closest('[data-vb-promote-wrap]')?.querySelector('[data-vb-final-toggle]'), slotBtn.dataset.vbPromoteSlot);
-    return;
-  }
-
-  const finalToggle = e.target.closest('[data-vb-final-toggle]');
-  if (finalToggle) {
-    void toggleFinal(vb, { button: finalToggle, source: 'bar' });
-    return;
-  }
-
   const finalRemove = e.target.closest('[data-vb-final-remove]');
   if (finalRemove) {
     void toggleFinal(vb, { button: finalRemove, source: 'bar', collapse: true });
     return;
   }
 
-  const kundenFreigabe = e.target.closest('[data-vb-kunde-freigeben]');
-  if (kundenFreigabe) {
-    void freigabeAusfuehren(vb, kundenFreigabe);
-    return;
-  }
+  if (onDetailClick(vb, e)) return;
 
   const tab = e.target.closest('[data-vb-tab]');
   if (tab) {
@@ -266,16 +208,6 @@ function onClick(vb, e) {
     return;
   }
 
-  if (e.target.closest('[data-vb-tag-open]')) {
-    openTagField(vb);
-    return;
-  }
-  const tagRemove = e.target.closest('[data-vb-tag-remove]');
-  if (tagRemove) {
-    void removeTag(vb, tagRemove.dataset.vbTagRemove);
-    return;
-  }
-
   // Eigenschaftszeile "Dateiname": springt in den Ad Manager und startet die Bearbeitung sofort
   if (e.target.closest('[data-vb-prop-action="filename"]')) {
     startFileRename(vb);
@@ -285,12 +217,6 @@ function onClick(vb, e) {
   const copy = e.target.closest('[data-vb-adm-copy]');
   if (copy) {
     void copyFileName(vb, copy.dataset.vbAdmCopy);
-    return;
-  }
-
-  const downloadBtn = e.target.closest('[data-vb-download]');
-  if (downloadBtn) {
-    void download(vb, downloadBtn);
     return;
   }
 
@@ -326,18 +252,6 @@ function onClick(vb, e) {
     return;
   }
 
-  // Der Titel ist selbst klickbar (Team), wie das Stift-Icon
-  if (e.target.closest('[data-vb-asset-title]') && vb.canUpload && !vb.renaming) {
-    startRename(vb);
-    return;
-  }
-
-  if (e.target.closest('[data-vb-edit]')) {
-    if (vb.renaming) void commitRename(vb);
-    else startRename(vb);
-    return;
-  }
-
   const remove = e.target.closest('[data-vb-delete]');
   if (remove) {
     void deleteItem(vb, remove);
@@ -363,13 +277,6 @@ function onClick(vb, e) {
     return;
   }
 
-  const seek = e.target.closest('.vb-comment [data-seek]');
-  if (seek && vb.player) {
-    vb.player.seek(Number(seek.dataset.seek));
-    highlightComment(vb, seek.closest('.vb-comment').dataset.commentId);
-    return;
-  }
-
   const zone = e.target.closest('[data-vb-dropzone]');
   if (zone && !e.target.closest('[data-vb-file]')) {
     zone.querySelector('[data-vb-file]')?.click();
@@ -390,10 +297,10 @@ function gotoFromAttrs(vb, el) {
   vb._select(next, { autoItem: !!gotoFolder && !gotoItem });
 }
 
-/** Zeilen und Gruppenköpfe einer Spalte in Anzeigereihenfolge, ohne die in zugeklappten Gruppen. */
+/** Zeilen und Gruppenköpfe einer Spalte in Anzeigereihenfolge, ohne die in zugeklappten Gruppen und ohne Suchtreffer. */
 function navigableRows(col) {
   return [...col.querySelectorAll('.vb-row[data-depth]:not(.vb-row--upload), .vb-koopgroup__head, .vb-rohgroup__toggle')]
-    .filter(el => !el.closest('.vb-koopgroup.is-collapsed .vb-koopgroup__body, .vb-rohgroup__body[hidden]'));
+    .filter(el => !el.closest('.vb-koopgroup.is-collapsed .vb-koopgroup__body, .vb-rohgroup__body[hidden], [data-vb-suche-aus]'));
 }
 
 /** Rohmaterial-Ordnerkopf: wie ein Gruppenkopf, links auf einem zugeklappten Ordner zurück in Spalte 2. */

@@ -1,8 +1,8 @@
 // auswertungMotion.js
 // Bewegung im Report (Spec 12): Kennzahlen zählen vom alten auf den neuen Wert. Beim Filtern und
-// Sortieren der Post-Tabelle blenden wegfallende Zeilen aus, danach gleiten die übrigen per Flip an
-// ihren Platz, neue blenden ein und die Tabelle folgt der neuen Höhe. Die Erfassen-Liste tauscht
-// sofort und gleitet nur. Alles nur bei echten Wechseln und ohne reduzierte Bewegung.
+// Sortieren der Post-Tabelle blenden wegfallende Creator-Gruppen aus, danach gleiten die übrigen per
+// Flip an ihren Platz, neue blenden ein und die Tabelle folgt der neuen Höhe. Die Erfassen-Liste
+// tauscht sofort und gleitet nur. Alles nur bei echten Wechseln und ohne reduzierte Bewegung.
 
 import { gsap, Flip, prefersReducedMotion } from '../../core/animation/gsap.js';
 import { cancelCountTo, countTo, liveCountValue } from '../../core/animation/countTo.js';
@@ -76,10 +76,18 @@ const laeufe = new WeakMap();
 
 const schluessel = (el) => el.dataset?.flipId || null;
 
+/** Getauscht werden nur Kinder mit data-flip-id; ein <thead> davor bleibt samt Fokus stehen. */
+const teile = (root) => [...root.children].filter(schluessel);
+
+function ersetze(root, alt, inhalt) {
+  alt.forEach(el => el.remove());
+  root.append(inhalt);
+}
+
 /** Zweite Phase: Positionen und Höhe merken, tauschen, von dort in den neuen Stand gleiten. */
 function tausche(root, inhalt, lauf, { huelle, danach }) {
   const ids = new Set([...inhalt.children].map(schluessel).filter(Boolean));
-  const alt = [...root.children];
+  const alt = teile(root);
   const bleibenAlt = alt.filter(el => ids.has(schluessel(el)));
   const altIds = new Set(bleibenAlt.map(schluessel));
   lauf.bewegung?.kill();
@@ -87,10 +95,10 @@ function tausche(root, inhalt, lauf, { huelle, danach }) {
   const zustand = bleibenAlt.length ? Flip.getState(bleibenAlt, { props: 'opacity' }) : null;
   const hoeheVorher = huelle?.offsetHeight;
 
-  root.replaceChildren(inhalt);
+  ersetze(root, alt, inhalt);
   danach?.();
 
-  const zeilen = [...root.children];
+  const zeilen = teile(root);
   const bleiben = zeilen.filter(el => altIds.has(schluessel(el)));
   const kommen = zeilen.filter(el => !altIds.has(schluessel(el)));
   // Lücken schließen und Platz machen landen weich, reines Umsortieren kreuzt sich besser mit inOut
@@ -124,11 +132,11 @@ function tausche(root, inhalt, lauf, { huelle, danach }) {
 }
 
 /**
- * Zeilen von `root` gegen `html` tauschen. Wegfallende Zeilen blenden aus, danach gleiten die
- * übrigen (gleiche data-flip-id) an ihren Platz, neue blenden gestaffelt ein und `huelle` folgt der
- * neuen Höhe. `danach` läuft direkt nach dem Tausch. Ein neuer Wechsel verwirft einen noch nicht
- * getauschten und setzt an den sichtbaren Positionen an.
- * @param {HTMLElement} root - z. B. tbody
+ * Die Kinder mit data-flip-id von `root` gegen `html` tauschen. Wegfallende blenden aus, danach
+ * gleiten die übrigen (gleiche data-flip-id) an ihren Platz, neue blenden gestaffelt ein und
+ * `huelle` folgt der neuen Höhe. `danach` läuft direkt nach dem Tausch. Ein neuer Wechsel verwirft
+ * einen noch nicht getauschten und setzt an den sichtbaren Positionen an.
+ * @param {HTMLElement} root - z. B. die table mit einem <tbody> je Creator
  * @param {string} html
  * @param {{ huelle?: HTMLElement|null, danach?: () => void }} [opts]
  */
@@ -137,7 +145,7 @@ export function wechsleZeilen(root, html, { huelle = null, danach } = {}) {
   const vorlage = document.createElement('template');
   vorlage.innerHTML = html;
   const inhalt = vorlage.content;
-  const alt = [...root.children];
+  const alt = teile(root);
   const lauf = laeufe.get(root) || { ausblenden: null, bewegung: null };
   laeufe.set(root, lauf);
   lauf.ausblenden?.kill();
@@ -147,7 +155,7 @@ export function wechsleZeilen(root, html, { huelle = null, danach } = {}) {
     lauf.bewegung?.kill();
     lauf.bewegung = null;
     if (huelle) gsap.set(huelle, { clearProps: 'height,overflowY' });
-    root.replaceChildren(inhalt);
+    ersetze(root, alt, inhalt);
     danach?.();
     return;
   }

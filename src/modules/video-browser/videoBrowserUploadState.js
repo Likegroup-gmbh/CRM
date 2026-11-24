@@ -1,9 +1,11 @@
 // videoBrowserUploadState.js
-// Laufende Uploads je Ordner im Controller (`vb.uploads`) und ihre Zeilen in der Inhalte-Spalte.
+// Laufende Uploads je Ordner im Controller (`vb.uploads`) und ihre Zeilen in der Inhalte-Spalte,
+// dazu der Fortschritt auf Ausstehenden Videos (videoBrowserShowcaseUpload.js).
 // Das Hochladen selbst macht VideoBrowserUpload.js.
 
 import { cssEscape, resolveSelection } from './videoBrowserLogic.js';
 import { uploadRowHtml } from './videoBrowserRender.js';
+import { paintAusstehendUploads } from './videoBrowserShowcaseUpload.js';
 
 function folderKey(resolved) {
   const { koop, row, folder } = resolved;
@@ -27,6 +29,7 @@ export function uploadsAdded(vb, list) {
   if (vb.destroyed || !list.length) return;
   const key = list[0].folderKey;
   vb.uploads.set(key, [...list, ...(vb.uploads.get(key) || [])]);
+  paintAusstehendUploads(vb);
   if (key !== folderKey(resolveSelection(vb.tree, vb.sel))) return;
   const body = vb.colsEl.querySelector('.vb-col--3 [data-vb-body]');
   if (!body) return;
@@ -53,6 +56,7 @@ export function uploadChanged(vb, { id, progress, error }) {
     if (!up) continue;
     if (progress !== undefined) up.progress = progress;
     if (error !== undefined) up.error = error;
+    paintAusstehendUploads(vb);
     const el = vb.colsEl.querySelector(`[data-upload-id="${cssEscape(id)}"]`);
     if (!el) return;
     if (up.error) {
@@ -76,5 +80,6 @@ export async function uploadSettled(vb, { ok, folderKey: key }) {
   const list = (vb.uploads.get(key) || []).filter(u => u.error);
   if (list.length) vb.uploads.set(key, list);
   else vb.uploads.delete(key);
+  paintAusstehendUploads(vb);
   if (ok || list.length === 0) vb._render({ restoreFocus: false });
 }

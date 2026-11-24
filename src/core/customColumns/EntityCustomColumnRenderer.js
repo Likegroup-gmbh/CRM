@@ -5,6 +5,7 @@
 import { CustomDatePicker } from '../components/CustomDatePicker.js';
 import { escapeHtml, makeCustomColumnId } from './entityColumnUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderCustomTableSelect } from './customColumnSelect.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 const FOLDER_ICON = `${icon('folder')}`;
@@ -49,13 +50,13 @@ export function renderCustomHeaders(orderedCols, hiddenColumns, isKunde) {
  * @param {boolean} canEdit - false = view-only Rollen (Investor): Werte lesbar, nicht editierbar
  * @returns {string} aneinandergereihte <td>
  */
-export function renderCustomCells(orderedCols, entityId, getValue, hiddenColumns, isKunde, canEdit = true) {
+export function renderCustomCells(orderedCols, entityId, getValue, hiddenColumns, isKunde, canEdit = true, { tableSelect = false } = {}) {
   return (orderedCols || []).map(col => {
     if (isKunde && !col.visible_for_kunden) return '';
     const hide = isHidden(col, hiddenColumns) ? ' style="display:none;"' : '';
     const value = getValue(entityId, col.id) ?? '';
     const isEditable = !isKunde && canEdit;
-    const content = renderFieldByType(col, entityId, value, isEditable);
+    const content = renderFieldByType(col, entityId, value, isEditable, { tableSelect });
     const textMark = col.field_type === 'text' ? ' entity-custom-col--text' : '';
     return `<td class="entity-custom-cell cell-textarea${textMark}" data-custom-col-id="${makeCustomColumnId(col.id)}"${hide}>${content}</td>`;
   }).join('');
@@ -65,14 +66,17 @@ export function renderCustomField(col, entityId, value, isEditable) {
   return renderFieldByType(col, entityId, value, isEditable);
 }
 
-function renderFieldByType(col, entityId, value, isEditable) {
+function renderFieldByType(col, entityId, value, isEditable, { tableSelect = false } = {}) {
   const attrs = `data-custom-column-id="${col.id}" data-entity-id="${entityId}"`;
   switch (col.field_type) {
     case 'text': return renderTextField(attrs, value, isEditable, col.name);
     case 'link': return renderLinkField(attrs, value, isEditable);
     case 'date': return renderDateField(col, entityId, value, isEditable);
     case 'boolean': return renderBooleanField(attrs, value, isEditable);
-    case 'dropdown': return renderDropdownField(attrs, value, isEditable, col);
+    case 'dropdown':
+      return tableSelect && isEditable
+        ? renderCustomTableSelect(col, entityId, value)
+        : renderDropdownField(attrs, value, isEditable, col);
     case 'number': return renderNumberField(attrs, value, isEditable, col.name);
     case 'upload': return renderUploadField(col, entityId, value, isEditable);
     default: return renderTextField(attrs, value, isEditable, col.name);

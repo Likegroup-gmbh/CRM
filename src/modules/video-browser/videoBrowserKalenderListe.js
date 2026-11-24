@@ -1,10 +1,9 @@
 // videoBrowserKalenderListe.js
 // Liste links im Kalender des Videos-Tabs, nur fürs Team: Videos ohne Posting-Datum im gewählten Umfang.
 // Eine Karte auf einen Tag gezogen setzt das Posting-Datum (Drop im CalendarGrid), eine Kalenderkarte
-// auf die Liste gezogen entfernt es. Die Suche baut nur die Karten neu, das Feld behält Fokus und Cursor.
+// auf die Liste gezogen entfernt es. Gefiltert wird über die Textsuche des Tabs (`vb.suche`).
 
 import { escapeHtml as esc } from '../../core/format.js';
-import { icon } from '../../core/icons/IconSystem.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { getDragId, hasDragId, setDragId } from '../../core/components/calendarGridDnd.js';
@@ -15,12 +14,6 @@ const LISTE_DRAG_TYPE = 'application/x-vb-kal-liste';
 
 export const kalenderListeShellHtml = () => `
   <aside class="vb-kal-liste" data-vb-kal-liste aria-label="Videos ohne Posting-Datum">
-    <div class="vb-kal-liste__kopf">
-      <label class="vb-kal-liste__suche">
-        ${icon('search')}
-        <input type="search" class="vb-kal-liste__input" placeholder="Creator, Titel, Thema" aria-label="Videos ohne Posting-Datum durchsuchen" autocomplete="off" data-vb-kal-suche>
-      </label>
-    </div>
     <h3 class="vb-kal-liste__titel">Ohne Posting-Datum <span class="vb-kal-liste__count" data-vb-kal-count>0</span></h3>
     <div class="vb-kal-liste__body" data-vb-kal-cards></div>
   </aside>`;
@@ -56,7 +49,7 @@ export function renderKalenderListe(vb) {
   const el = vb.kalListeEl;
   if (!el) return;
   const alle = vb.kalResult?.ohneDatum || [];
-  const treffer = filterListe(alle, vb.kalSuche);
+  const treffer = filterListe(alle, vb.suche);
   el.querySelector('[data-vb-kal-count]').textContent = String(alle.length);
   el.querySelector('[data-vb-kal-cards]').innerHTML = bodyHtml(vb, alle, treffer);
 }
@@ -75,11 +68,6 @@ export function mountKalenderListe(vb, { onDrop }) {
   };
   const fromListe = (e) => Array.from(e.dataTransfer?.types || []).includes(LISTE_DRAG_TYPE);
 
-  on('input', (e) => {
-    if (!e.target.closest?.('[data-vb-kal-suche]')) return;
-    vb.kalSuche = e.target.value;
-    renderKalenderListe(vb);
-  });
   on('dragstart', (e) => {
     const card = e.target.closest?.('[data-vb-kal-card]');
     if (!card) return;

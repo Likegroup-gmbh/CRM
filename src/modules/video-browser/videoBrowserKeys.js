@@ -1,11 +1,11 @@
 // videoBrowserKeys.js
-// Tastenkürzel im Detailbereich (nur Team):
+// Tastenkürzel im Detailbereich (nur Team), im Ordner und in der Vollansicht:
 //   E  Titel bearbeiten      F  Final markieren bzw. aufheben      T  Tag hinzufügen (Tab "Details")
 // Sie gelten nur, wenn der Fokus in der Ansicht liegt (oder nirgends), nicht in Eingabefeldern und nicht
 // im Player: dort gehört F dem Vollbild.
 
 import { toggleFinal } from './videoBrowserActions.js';
-import { resolveSelection } from './videoBrowserLogic.js';
+import { detailResolved } from './videoBrowserHost.js';
 import { startRename } from './videoBrowserRename.js';
 import { canMarkFinal } from './videoBrowserRenderItem.js';
 import { openTagField } from './videoBrowserTagField.js';
@@ -15,17 +15,18 @@ function isTyping(el) {
   return /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable || el.getAttribute?.('role') === 'combobox';
 }
 
-/** Gehört der Tastendruck dieser Ansicht? */
+/** Gehört der Tastendruck dieser Ansicht? Bei offener Vollansicht nur ihr. */
 function inScope(vb, el) {
   if (!vb.root?.isConnected) return false;
-  return el === document.body || el === document.documentElement || vb.root.contains(el);
+  if (el === document.body || el === document.documentElement) return true;
+  return vb.voll ? !!vb.voll.overlay?.contains(el) : vb.root.contains(el);
 }
 
 /** @returns {boolean} true, wenn der Druck ein Kürzel ausgelöst hat */
 export function onShortcut(vb, e) {
   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return false;
-  // Im Showcase und im Kalender ist der Detailbereich ausgeblendet: keine Kürzel auf der versteckten Datei
-  if (vb.view !== 'ordner') return false;
+  // Im Showcase und im Kalender ist der Detailbereich ausgeblendet: Kürzel nur in der Vollansicht
+  if (vb.view !== 'ordner' && !vb.voll) return false;
   const target = e.target;
   if (!inScope(vb, target) || isTyping(target)) return false;
   // Im Player gehört F dem Vollbild (und M, Leertaste usw. der Wiedergabe)
@@ -34,7 +35,7 @@ export function onShortcut(vb, e) {
 
   const key = String(e.key || '').toLowerCase();
   if (key !== 'e' && key !== 'f' && key !== 't') return false;
-  const { item } = resolveSelection(vb.tree, vb.sel);
+  const { item } = detailResolved(vb);
   if (!item) return false;
 
   if (key === 'e') {

@@ -330,7 +330,7 @@ export class RechnungPdfExtract {
       if (!koops?.length) return;
 
       const ids = [...new Set(koops.map((k) => k.kampagne_id).filter(Boolean))];
-      const [{ abrechenbarkeit }, { data: kampagnen }] = await Promise.all([
+      const [{ abrechenbarkeit, mitUpload }, { data: kampagnen }] = await Promise.all([
         ladeAbrechenbarkeit(window.supabase, koops),
         ids.length
           ? window.supabase.from('kampagne').select('id, kampagnenname, eigener_name').in('id', ids)
@@ -341,7 +341,7 @@ export class RechnungPdfExtract {
         acc[k.id] = KampagneUtils.getDisplayName(k);
         return acc;
       }, {});
-      const offene = koops.filter((k) => abrechenbarkeit.get(k.id)?.abrechenbar);
+      const offene = koops.filter((k) => mitUpload.has(k.id) && abrechenbarkeit.get(k.id)?.abrechenbar);
       if (!offene.length) return;
 
       const vorschlag = offene[0];

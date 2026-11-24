@@ -6,7 +6,8 @@
 import { bindFilterSelects } from '../../core/filters/FilterSelect.js';
 import { bindSortableHeaders, syncSortHeaders } from '../../core/list/sortableHeader.js';
 import { renderReport } from './auswertungReport.js';
-import { STANDARD_SORT, ladePoster, renderTabellenZeilen, tabellenSub } from './auswertungTabelle.js';
+import { ladePoster, renderTabellenGruppen, tabellenSub } from './auswertungTabelle.js';
+import { STANDARD_SORT } from './auswertungGruppen.js';
 import { entferneFilterPanels, filterAusEvent, leererFilter } from './auswertungFilter.js';
 import { liesZaehler, wechsleZeilen, zaehleHoch } from './auswertungMotion.js';
 import { oeffnePostPanel } from './auswertungPanel.js';
@@ -101,19 +102,19 @@ export function bindeAnsicht(root, { modell, zustand, kontext, posterCache, onAn
   const { signal } = abort;
 
   /**
-   * Kopfzeile sofort, Zeilen nach Sortierung oder Filter animiert: wegfallende blenden aus, die
-   * übrigen gleiten an ihren Platz, neue blenden ein.
+   * Kopfzeile sofort, Creator-Gruppen nach Sortierung oder Filter animiert: wegfallende blenden
+   * aus, die übrigen gleiten an ihren Platz, neue blenden ein.
    */
   const zeichneTabelle = () => {
-    const tbody = root.querySelector('[data-auswertung-tbody]');
-    if (!tbody) return;
+    const table = root.querySelector('[data-auswertung-table]');
+    if (!table) return;
     const m = modell();
     const sub = root.querySelector('[data-auswertung-tabelle-sub]');
     if (sub) sub.textContent = tabellenSub(m, { team: kontext.team, filter: zustand.filter });
     syncSortHeaders(root.querySelector('[data-auswertung-thead]'), zustand.sort);
-    wechsleZeilen(tbody, renderTabellenZeilen(m, { sort: zustand.sort, team: kontext.team, filter: zustand.filter }), {
-      huelle: tbody.closest('.auswertung-tabelle'),
-      danach: () => ladePoster(tbody, m, posterCache)
+    wechsleZeilen(table, renderTabellenGruppen(m, { sort: zustand.sort, team: kontext.team, filter: zustand.filter }), {
+      huelle: table.closest('.auswertung-tabelle'),
+      danach: () => ladePoster(table, m, posterCache)
     });
   };
 
@@ -160,6 +161,8 @@ export function bindeAnsicht(root, { modell, zustand, kontext, posterCache, onAn
     }
     const ansicht = e.target.closest('[data-auswertung-ansicht]');
     if (ansicht) { onAnsicht(ansicht.dataset.auswertungAnsicht); return; }
+    // Rang und Creator gehören zur ganzen Gruppe, nicht zum Post der ersten Zeile
+    if (e.target.closest('[data-auswertung-gruppenkopf]')) return;
     const erfassen = e.target.closest('[data-auswertung-erfassen], [data-auswertung-erfassen-einheit]');
     if (erfassen) {
       onAnsicht('erfassen', { postId: erfassen.dataset.auswertungErfassen, einheitId: erfassen.dataset.auswertungErfassenEinheit });

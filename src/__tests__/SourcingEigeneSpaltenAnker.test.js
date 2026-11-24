@@ -297,13 +297,13 @@ describe('Sourcing – Positionsmenue getMoveTargets / moveColumnTo', () => {
     const values = targets.map(t => t.value);
 
     expect(values).toContain('anchor:cp-col-pricing');
-    expect(values).toContain('anchor:cp-col-status');
+    expect(values).toContain('anchor:cp-col-link');
     expect(values).toContain('custom:b');
     expect(values).toContain('end');
     expect(values).not.toContain('custom:a');
 
     // Anker vor dem zugehörigen Custom-Eintrag, End vor trailing Customs
-    expect(values.indexOf('anchor:cp-col-status')).toBeLessThan(values.indexOf('anchor:cp-col-pricing'));
+    expect(values.indexOf('anchor:cp-col-link')).toBeLessThan(values.indexOf('anchor:cp-col-pricing'));
     expect(values.indexOf('anchor:cp-col-pricing')).toBeLessThan(values.indexOf('end'));
     expect(values.indexOf('end')).toBeLessThan(values.indexOf('custom:b'));
   });

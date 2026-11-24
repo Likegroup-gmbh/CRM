@@ -5449,7 +5449,7 @@ tr:has(+ .category-header-row) > td {
   gap: var(--space-xs);
   color: var(--primary-600);
   text-decoration: none;
-  font-size: var(--text-sm);
+  
 }
 
 .datei-link:hover {

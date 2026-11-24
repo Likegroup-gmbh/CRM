@@ -42,9 +42,39 @@
   margin: 0;
 }
 
-/* Sechs Kennzahlen in einer Reihe, ausgeblendete rücken auf */
 .auswertung-stats {
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+
+/* Zwei gleich breite Reihen: 8 Kacheln stehen 4 + 4, mit Kosten 5 + 4. Jede Reihe beginnt
+   ohne Trennlinie links und mit derselben Einrückung wie die erste Kachel. */
+@media (min-width: 769px) {
+  .auswertung-stats--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .auswertung-stats--5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .auswertung-stats--4 > .auswertung-stat:nth-child(4n + 1),
+  .auswertung-stats--5 > .auswertung-stat:nth-child(5n + 1) {
+    padding-left: var(--auswertung-inset);
+    border-left: none;
+  }
+
+  .auswertung-stats--4 > .auswertung-stat:nth-child(n + 5),
+  .auswertung-stats--5 > .auswertung-stat:nth-child(n + 6) {
+    border-top: var(--border-xs) solid var(--gray-100);
+  }
+
+  /* Neun Kacheln lassen in der zweiten Reihe einen Platz frei: der Füller führt Trennlinie
+     und Seitenlinie dort weiter, sonst bricht die Linie rechts ab. */
+  .auswertung-stats--5:has(> .auswertung-stat:nth-child(9):last-child)::after {
+    content: "";
+    border-top: var(--border-xs) solid var(--gray-100);
+    border-left: var(--border-xs) solid var(--gray-100);
+  }
 }
 
 .auswertung-stat {
@@ -106,6 +136,29 @@
   vertical-align: middle;
 }
 
+/* Gruppe je Creator wie in der Kooperationstabelle: Rang und Creator stehen einmal oben links
+   über alle Zeilen der Gruppe, nehmen den Hover der ersten Zeile nicht mit und öffnen nichts.
+   Die Linie unter der Gruppe ist kräftiger als die zwischen ihren Zeilen. */
+.auswertung-tabelle .auswertung-gruppe td[data-auswertung-gruppenkopf] {
+  vertical-align: top;
+  background: var(--bg-primary);
+  cursor: default;
+}
+
+.auswertung-tabelle .auswertung-gruppe > tr:last-child > td,
+.auswertung-tabelle .auswertung-gruppe td[data-auswertung-gruppenkopf] {
+  border-bottom: var(--border-xs) solid var(--gray-200);
+}
+
+/* Ab der zweiten Zeile ist der Post die erste Zelle der Zeile; er bleibt wie in der ersten eingerückt */
+.auswertung-tabelle .auswertung-gruppe > tr:not(:first-child) > td.auswertung-tabelle__post {
+  padding-left: var(--space-sm);
+}
+
+.auswertung-tabelle__ohne {
+  color: var(--gray-500);
+}
+
 .auswertung-tabelle th.auswertung-zahl,
 .auswertung-tabelle td.auswertung-zahl {
   padding-inline: var(--space-xs);
@@ -124,7 +177,7 @@
 }
 
 .auswertung-tabelle .data-table th:first-child,
-.auswertung-tabelle .data-table td:first-child {
+.auswertung-tabelle .data-table td.auswertung-tabelle__rang {
   padding-left: var(--auswertung-inset);
 }
 

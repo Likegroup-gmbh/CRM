@@ -1,0 +1,124 @@
+/* Textsuche im Videos-Tab (videoBrowserSucheFeld.js): Feld vor dem Ansicht-Umschalter in der
+   Workflow-Tab-Zeile, Markierung der Nicht-Treffer und leerer Zustand. */
+
+.vb-suche {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 220px;
+  height: 36px;
+  padding: 0 var(--space-xxs) 0 var(--space-sm);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--gray-100);
+  color: var(--gray-500);
+  transition: width .25s cubic-bezier(.2, .8, .2, 1), background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.vb-suche:hover {
+  background: var(--gray-200);
+}
+
+.vb-suche:focus-within,
+.vb-suche.is-aktiv {
+  width: 280px;
+  border-color: var(--gray-300);
+  background: var(--bg-primary);
+}
+
+.vb-suche:focus-within {
+  border-color: var(--gray-400);
+  box-shadow: 0 0 0 3px var(--gray-100);
+}
+
+.vb-suche > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.vb-suche__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.vb-suche__input::placeholder {
+  color: var(--gray-500);
+}
+
+/* Eigener Leeren-Knopf statt des nativen */
+.vb-suche__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.vb-suche__key {
+  flex: none;
+  min-width: 20px;
+  margin-right: var(--space-xxs);
+  padding: 0 var(--space-xxs);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: 18px;
+  text-align: center;
+  color: var(--gray-500);
+}
+
+.vb-suche:focus-within .vb-suche__key,
+.vb-suche.is-aktiv .vb-suche__key {
+  display: none;
+}
+
+.vb-suche__clear {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+}
+
+.vb-suche__clear:hover {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.vb-suche__clear[hidden] {
+  display: none;
+}
+
+.vb-suche__clear svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Ohne Tab-Zeile: Suche und Umschalter nebeneinander */
+.vb-toolbar {
+  gap: var(--space-sm);
+}
+
+/* Kein Treffer: ausgeblendet. Ohne !important, damit Flip Wegfallendes beim Ausblenden noch zeigen kann. */
+.vb [data-vb-suche-aus] {
+  display: none;
+}
+
+.vb-sc-body > .vb-suche-leer,
+.vb-col__body > .vb-suche-leer {
+  padding: var(--space-md);
+}

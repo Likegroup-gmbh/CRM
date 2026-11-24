@@ -3,16 +3,16 @@
 // Die Combobox bleibt nach jeder Auswahl offen (Mehrfachauswahl), Esc und Klick daneben schließen.
 
 import { TagCombobox } from '../../core/components/TagCombobox.js';
-import { resolveSelection } from './videoBrowserLogic.js';
+import { detailResolved, detailRoot } from './videoBrowserHost.js';
 import { tagOptions } from './videoBrowserTagLogic.js';
 import { tagChipHtml, tagTriggerHtml, tagsOf } from './videoBrowserRenderTags.js';
 import { addTag, createTag, removeTag } from './videoBrowserTags.js';
 import { setDetailTab } from './videoBrowserTabs.js';
 
-const slotOf = (vb) => vb.detailInner?.querySelector('[data-vb-tag-slot]') || null;
+const slotOf = (vb) => detailRoot(vb)?.querySelector('[data-vb-tag-slot]') || null;
 
 function optionsFor(vb, query) {
-  const { item } = resolveSelection(vb.tree, vb.sel);
+  const { item } = detailResolved(vb);
   const opts = tagOptions(vb.raw?.tagTypen || [], item?.tagIds || [], query);
   return {
     groups: opts.groups.map(g => ({ label: g.group, items: g.tags.map(t => ({ id: t.id, label: t.label })) })),
@@ -24,11 +24,12 @@ function optionsFor(vb, query) {
 /** Combobox öffnen (Klick auf "+ Tag" und Taste T). Wechselt dafür in den Tab "Details". */
 export function openTagField(vb) {
   if (!vb.canUpload) return false;
-  const { item } = resolveSelection(vb.tree, vb.sel);
+  const { item } = detailResolved(vb);
   if (!item?.variantKey) return false;
   if (vb.tagField) { vb.tagField.open(); return true; }
 
-  setDetailTab(vb, 'details', { animate: true });
+  if (vb.voll) vb.voll.showTab('details');
+  else setDetailTab(vb, 'details', { animate: true });
   const host = slotOf(vb);
   if (!host) return false;
 
@@ -39,7 +40,7 @@ export function openTagField(vb) {
     onSelect: (entry) => { void addTag(vb, entry.id); },
     onCreate: (label) => { void createTag(vb, label); },
     onRemoveLast: () => {
-      const current = resolveSelection(vb.tree, vb.sel).item;
+      const current = detailResolved(vb).item;
       const last = current?.tagIds?.[current.tagIds.length - 1];
       if (last) void removeTag(vb, last);
     },
@@ -70,9 +71,9 @@ export function closeTagField(vb, { focus = false } = {}) {
  * Optionsliste der offenen Combobox neu bauen. Neue Chips poppen ein, entfernte schrumpfen weg.
  */
 export function refreshTagField(vb) {
-  const container = vb.detailInner?.querySelector('[data-vb-tag-chips]');
+  const container = detailRoot(vb)?.querySelector('[data-vb-tag-chips]');
   if (!container) return;
-  const { item } = resolveSelection(vb.tree, vb.sel);
+  const { item } = detailResolved(vb);
   const wanted = tagsOf(item, vb.raw?.tagTypen || []);
   const editable = !!vb.canUpload;
   const have = [...container.querySelectorAll('[data-tag-id]')].filter(c => !c.dataset.leaving);

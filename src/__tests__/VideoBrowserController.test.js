@@ -43,7 +43,9 @@ vi.mock('../modules/video-browser/VideoBrowserAdapter.js', () => ({
 vi.mock('../modules/video-browser/videoBrowserMedia.js', () => ({
   prefetchLinks: vi.fn(),
   warmNeighbors: vi.fn(),
-  stopWarming: vi.fn()
+  stopWarming: vi.fn(),
+  cachedUrl: vi.fn(() => null),
+  networkUrl: vi.fn(async () => null)
 }));
 
 vi.mock('../modules/video-browser/VideoBrowserUpload.js', () => ({
@@ -86,7 +88,7 @@ function setup({ team, download = false }) {
     videoTeamSicht: team, mediaUpload: team, skriptKommentieren: true, mediaDownload: download
   }[name] ?? false);
   window.matchMedia = () => ({ matches: true, addListener() {}, removeListener() {} });
-  window.history.replaceState(null, '', '/produktion/p1?tab=videos');
+  window.history.replaceState(null, '', '/produktion/p1?tab=videos&ansicht=ordner');
   const pane = document.createElement('div');
   document.body.appendChild(pane);
   const detail = { kampagneId: 'kamp', produktionId: 'p1', linien: [], linieAlle: false, linieId: null, produktion: { name: 'Prod' } };
@@ -453,7 +455,7 @@ describe('VideoBrowser Controller', () => {
       expect(meta.querySelector('[data-vb-asset-version]').textContent).toBe('Feedbackschleife 1');
       expect(meta.querySelector('.vb-status')).not.toBeNull();
       const aktionen = [...top.querySelectorAll('.vb-asset-head__actions .vb-icon-btn')].map(b => b.getAttribute('aria-label'));
-      expect(aktionen).toEqual(['Herunterladen', 'Titel bearbeiten', 'Löschen']);
+      expect(aktionen).toEqual(['Vollansicht', 'Herunterladen', 'Titel bearbeiten', 'Löschen']);
     });
 
     it('Kunde sieht nur Herunterladen', async () => {
@@ -1190,7 +1192,7 @@ describe('VideoBrowser Spalte 0: Gruppenköpfe bei Alle Linien', () => {
     ctx.detail.linien = LINIEN;
     ctx.detail.linieAlle = alle;
     ctx.detail.linieId = 'b1';
-    window.history.replaceState(null, '', `/produktion/p1?tab=videos${search}`);
+    window.history.replaceState(null, '', `/produktion/p1?tab=videos&ansicht=ordner${search}`);
     await mountVideoBrowserPane(ctx.detail, ctx.pane);
   }
 

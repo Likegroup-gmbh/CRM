@@ -22,37 +22,45 @@ describe('Sourcing – Spaltenreihenfolge', () => {
       .filter(Boolean);
   }
 
-  it('stellt den Namen mit Bild direkt hinter die Checkbox, Status und Kundenfeedback hinter die Creator Art', () => {
+  it('stellt den Namen mit Bild direkt hinter die Checkbox, danach Kurzbeschreibung und Link', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
-    expect(spalten.slice(0, 10)).toEqual([
-      'cp-col-drag', 'cp-col-name', 'cp-col-notiz', 'cp-col-matching',
-      'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
-      'cp-col-location', 'cp-col-mail', 'cp-col-telefon'
+    expect(spalten.slice(0, 4)).toEqual([
+      'cp-col-drag', 'cp-col-name', 'cp-col-notiz', 'cp-col-link'
     ]);
     expect(SOURCING_SPALTEN).not.toContain('cp-col-bild');
   });
 
-  it('stellt die Kurzbeschreibung direkt hinter den Namen, Matching davor die Creator Art', () => {
-    const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
-    const ab = spalten.indexOf('cp-col-name');
-
-    expect(spalten.slice(ab, ab + 4)).toEqual([
-      'cp-col-name', 'cp-col-notiz', 'cp-col-matching', 'cp-col-typ'
-    ]);
+  it('stellt die Kurzbeschreibung direkt hinter den Namen, den Link direkt dahinter', () => {
     expect(SOURCING_SPALTEN[SOURCING_SPALTEN.indexOf('cp-col-name') + 1])
       .toBe('cp-col-notiz');
     expect(SOURCING_SPALTEN[SOURCING_SPALTEN.indexOf('cp-col-notiz') + 1])
-      .toBe('cp-col-matching');
+      .toBe('cp-col-link');
   });
 
   it('zieht die Kurzbeschreibung auch im Kopf nach vorne', () => {
     const kopf = reihenfolge(tableDoc([{ id: 'i1' }]).querySelectorAll('thead th'));
     const ab = kopf.indexOf('cp-col-name');
 
-    expect(kopf.slice(ab, ab + 4)).toEqual([
-      'cp-col-name', 'cp-col-notiz', 'cp-col-matching', 'cp-col-typ'
+    expect(kopf.slice(ab, ab + 3)).toEqual([
+      'cp-col-name', 'cp-col-notiz', 'cp-col-link'
     ]);
+  });
+
+  it('setzt Matching, Creator Art, Status, Kundenfeedback und Kontakt zwischen Gesamtpreis und Nutzungsrechte', () => {
+    const block = [
+      'cp-col-pricing',
+      'cp-col-matching', 'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
+      'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
+      'cp-col-nutzungsrechte'
+    ];
+    const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
+    const kopf = reihenfolge(tableDoc([{ id: 'i1' }]).querySelectorAll('thead th'));
+    const ausschnitt = (folge) => folge.slice(folge.indexOf('cp-col-pricing'), folge.indexOf('cp-col-pricing') + block.length);
+
+    expect(ausschnitt(spalten)).toEqual(block);
+    expect(ausschnitt(kopf)).toEqual(block);
+    expect(ausschnitt(SOURCING_SPALTEN)).toEqual(block);
   });
 
   it('haelt die Kurzbeschreibung nicht mehr am Ende bei der Rueckmeldung', () => {
@@ -73,13 +81,11 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     ]);
   });
 
-  it('setzt hinter Preis Story Gesamtpreis, Nutzungsrechte und Garantie', () => {
+  it('setzt hinter Preis Story den Gesamtpreis, hinter die Nutzungsrechte die Garantie', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
-    const ab = spalten.indexOf('cp-col-story-preis');
 
-    expect(spalten.slice(ab, ab + 4)).toEqual([
-      'cp-col-story-preis', 'cp-col-pricing', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie'
-    ]);
+    expect(spalten[spalten.indexOf('cp-col-story-preis') + 1]).toBe('cp-col-pricing');
+    expect(spalten[spalten.indexOf('cp-col-nutzungsrechte') + 1]).toBe('cp-col-reichweite-garantie');
   });
 
   it('kennt die alten Plattform-Spalten nicht mehr als eigene Zellen', () => {

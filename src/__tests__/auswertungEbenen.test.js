@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { baueModell } from '../modules/auswertung/auswertungModell.js';
-import { renderTabellenZeilen } from '../modules/auswertung/auswertungTabelle.js';
+import { renderTabellenGruppen } from '../modules/auswertung/auswertungTabelle.js';
 
 const ORGANIC = { id: 'l1', name: 'Organic' };
 const PAID = { id: 'l2', name: 'Paid' };
@@ -66,14 +66,14 @@ describe('Ebenen der Auswertung', () => {
   });
 
   it('die Post-Zeile nennt auf Ebene Produktion die Linie, auf Ebene Kampagne die Produktion', () => {
-    const produktion = renderTabellenZeilen(baueModell(basis, { ebene: 'produktion', produktionId: 'p1' }));
+    const produktion = renderTabellenGruppen(baueModell(basis, { ebene: 'produktion', produktionId: 'p1' }));
     expect(produktion).toContain('Organic');
     expect(produktion).toContain('Paid');
 
-    const linie = renderTabellenZeilen(baueModell(basis, { ebene: 'linie', produktionId: 'p1', linieId: 'l1' }));
+    const linie = renderTabellenGruppen(baueModell(basis, { ebene: 'linie', produktionId: 'p1', linieId: 'l1' }));
     expect(linie).not.toContain('Organic');
 
-    const kampagne = renderTabellenZeilen(baueModell(basis, { ebene: 'kampagne' }));
+    const kampagne = renderTabellenGruppen(baueModell(basis, { ebene: 'kampagne' }));
     expect(kampagne).toContain('Q4 Shorts');
     expect(kampagne).not.toContain('Organic');
   });

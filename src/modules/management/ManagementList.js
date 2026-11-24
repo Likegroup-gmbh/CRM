@@ -10,6 +10,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderOrtTag } from '../../core/format/ortTag.js';
 import { ManagementConnect } from './ManagementConnect.js';
 
 export class ManagementList extends BasePaginatedList {
@@ -125,8 +126,8 @@ export class ManagementList extends BasePaginatedList {
             nameHtml: `<a href="#" class="table-link" data-table="management" data-id="${m.id}">${sanitize(m.firmenname || '')}</a>`
           })}
         </td>
-        <td class="col-stadt">${sanitize(m.stadt || '-')}</td>
-        <td>${sanitize(m.land || '-')}</td>
+        <td class="col-stadt">${renderOrtTag(m.stadt, 'stadt', sanitize)}</td>
+        <td class="col-land">${renderOrtTag(m.land, 'land', sanitize)}</td>
         <td class="col-webseite table-cell-center">${m.webseite ? `<a href="${this.sanitizeUrl(m.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${sanitize(m.webseite)}">${icon('external-link')}</a>` : '-'}</td>
         <td>${sanitize(m.email || '-')}</td>
         <td class="table-cell-center">${creatorCount > 0 ? `<span class="tag tag--branche">${creatorCount}</span>` : '-'}</td>
@@ -167,7 +168,7 @@ export class ManagementList extends BasePaginatedList {
               ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-management"></th>` : ''}
               <th class="col-name">Name</th>
               <th class="col-stadt">Stadt</th>
-              <th>Land</th>
+              <th class="col-land">Land</th>
               <th class="col-webseite table-cell-center">Webseite</th>
               <th>E-Mail</th>
               <th class="table-cell-center">Creator</th>

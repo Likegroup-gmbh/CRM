@@ -9,7 +9,7 @@ function kachel(i, extra = {}) {
     creator: `Creator ${i}`,
     unterzeile: `@c${i} · 03.11.2026`,
     posterUrl: `https://projekt.supabase.co/storage/v1/object/sign/poster/${i}.jpg?token=x`,
-    werte: [{ label: 'Aufrufe', wert: '12,0K' }, { label: 'Likes', wert: '800' }, { label: 'Kommentare', wert: '40' }, { label: 'Engagement', wert: '7,2 %' }],
+    werte: [{ label: 'Aufrufe', wert: '12,0K' }, { label: 'Likes', wert: '800' }, { label: 'Kommentare', wert: '40' }, { label: 'Interaktionen', wert: '870' }],
     ...extra
   };
 }

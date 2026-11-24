@@ -10,6 +10,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
 import { saveVideoCaption } from './VideoBrowserAdapter.js';
 import { cssEscape } from './videoBrowserLogic.js';
+import { detailRoot } from './videoBrowserHost.js';
 
 /** Instagram-Limit, der Zähler zeigt es nur beim Bearbeiten. */
 export const CAPTION_MAX = 2200;
@@ -86,7 +87,7 @@ function rowById(vb, videoId) {
 }
 
 const blockOf = (vb, videoId) =>
-  vb.detailInner?.querySelector(`[data-vb-caption-block][data-video-id="${cssEscape(videoId)}"]`) || null;
+  detailRoot(vb)?.querySelector(`[data-vb-caption-block][data-video-id="${cssEscape(videoId)}"]`) || null;
 
 function grow(field) {
   field.style.height = 'auto';
@@ -113,7 +114,7 @@ function measureClamp(block) {
 export function syncCaptionClamp(vb) {
   vb._captionRO?.disconnect();
   vb._captionRO = null;
-  const block = vb.detailInner?.querySelector('[data-vb-caption-block]');
+  const block = detailRoot(vb)?.querySelector('[data-vb-caption-block]');
   if (!block) return;
   measureClamp(block);
   if (typeof ResizeObserver === 'undefined') return;
@@ -163,7 +164,7 @@ function rememberCaption(vb, videoId, value) {
 export function startCaptionEdit(vb) {
   if (!vb.canEditCaption || vb.captionEdit) return;
   if (window.getSelection?.()?.toString()) return; // Text markiert (zum Kopieren): nicht ins Bearbeiten springen
-  const block = vb.detailInner?.querySelector('[data-vb-caption-block]');
+  const block = detailRoot(vb)?.querySelector('[data-vb-caption-block]');
   if (!block) return;
   const videoId = block.dataset.videoId;
   const row = rowById(vb, videoId);
@@ -236,7 +237,7 @@ export async function commitCaption(vb, field) {
 /* ---- Kürzung und Kopieren ---- */
 
 export function toggleCaptionOpen(vb) {
-  const block = vb.detailInner?.querySelector('[data-vb-caption-block]');
+  const block = detailRoot(vb)?.querySelector('[data-vb-caption-block]');
   if (!block) return;
   const videoId = block.dataset.videoId;
   if (!vb.captionOpen) vb.captionOpen = new Set();
@@ -252,7 +253,7 @@ export function toggleCaptionOpen(vb) {
 }
 
 export async function copyCaption(vb) {
-  const block = vb.detailInner?.querySelector('[data-vb-caption-block]');
+  const block = detailRoot(vb)?.querySelector('[data-vb-caption-block]');
   if (!block) return;
   const field = block.querySelector('[data-vb-caption]');
   const text = (field ? field.value : rowById(vb, block.dataset.videoId)?.caption || '').trim();

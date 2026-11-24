@@ -68,7 +68,7 @@ export function scrollSelectedKoop(vb) {
   row?.scrollIntoView?.({ block: 'nearest' });
 }
 
-function applyGroupDom(vb, wrap, open, { animate = true, stagger = true } = {}) {
+export function applyGroupDom(vb, wrap, open, { animate = true, stagger = true } = {}) {
   if (!wrap) return;
   const id = wrap.dataset.vbKoopgroupWrap;
   const head = wrap.querySelector('[data-vb-koopgroup]');
@@ -102,11 +102,13 @@ function syncAllToggle(vb) {
 /** Ein Gruppenkopf klappt auf oder zu. Die Auswahl bleibt, wie sie ist. */
 export function toggleKoopGroup(vb, id, open) {
   if (!id) return;
-  const willOpen = open ?? vb.collapsed.has(id);
+  const wrap = vb.colsEl?.querySelector(`[data-vb-koopgroup-wrap="${cssEscape(id)}"]`);
+  // Der DOM zählt: die Suche klappt Gruppen mit Treffern auf, ohne den Merker zu ändern
+  const willOpen = open ?? (wrap ? wrap.classList.contains('is-collapsed') : vb.collapsed.has(id));
   if (willOpen) vb.collapsed.delete(id);
   else vb.collapsed.add(id);
   save(vb);
-  applyGroupDom(vb, vb.colsEl?.querySelector(`[data-vb-koopgroup-wrap="${cssEscape(id)}"]`), willOpen);
+  applyGroupDom(vb, wrap, willOpen);
   syncAllToggle(vb);
 }
 

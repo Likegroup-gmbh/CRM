@@ -520,12 +520,13 @@ describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
 });
 
 describe('Sourcing – Nutzungsrechte', () => {
-  it('steht als Freitext direkt hinter dem Gesamtpreis', () => {
+  it('steht als Freitext hinter dem Kontakt-Block, der auf den Gesamtpreis folgt', () => {
     const kopf = Array.from(tabelle().querySelectorAll('thead th'))
       .map(th => Array.from(th.classList).find(c => c.startsWith('cp-col-')))
       .filter(Boolean);
 
-    expect(kopf[kopf.indexOf('cp-col-pricing') + 1]).toBe('cp-col-nutzungsrechte');
+    expect(kopf[kopf.indexOf('cp-col-telefon') + 1]).toBe('cp-col-nutzungsrechte');
+    expect(kopf.indexOf('cp-col-pricing')).toBeLessThan(kopf.indexOf('cp-col-nutzungsrechte'));
   });
 
   it('speichert in das Feld nutzungsrechte', () => {

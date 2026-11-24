@@ -42,6 +42,7 @@ import { formatTime } from '../../core/media/mediaPlayerIcons.js';
 import { currentUploads, uploadChanged, uploadSettled, uploadsAdded } from './videoBrowserUploadState.js';
 import { bindLiveUpdates } from './videoBrowserLive.js';
 import { rohZuruecksetzen } from './videoBrowserRoh.js';
+import { sucheOrdner } from './videoBrowserSucheAnsicht.js';
 import {
   destroyView,
   initView,
@@ -390,6 +391,7 @@ class VideoBrowser {
     const focusedHead = document.activeElement?.closest?.('[data-vb-koopgroup]')?.dataset.vbKoopgroup;
 
     this.colsEl.innerHTML = renderColumns(ctx).join('');
+    sucheOrdner(this);
     this._syncKoopSegment();
     if (focusedHead) this.colsEl.querySelector(`[data-vb-koopgroup="${cssEscape(focusedHead)}"]`)?.focus({ preventScroll: true });
     const cols = [...this.colsEl.querySelectorAll('.vb-col')];

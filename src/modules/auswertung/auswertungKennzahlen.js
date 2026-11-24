@@ -4,7 +4,7 @@
 // rechnen (Muster ADR 0040). Gerechnet wird nur über bestätigte Posts.
 // Hat eine Kennzahl keine Grundlage, ist sie null und wird nicht als 0 gezeigt.
 
-import { INTERAKTIONEN, PLATTFORMEN } from './auswertungKonfig.js';
+import { INTERAKTIONEN } from './auswertungKonfig.js';
 
 const TAG_MS = 24 * 60 * 60 * 1000;
 
@@ -19,26 +19,6 @@ export function bestaetigtePosts(posts) {
 /** Summe der Interaktionen eines Posts. Fehlende Felder zählen 0. */
 export function interaktionen(post) {
   return INTERAKTIONEN.reduce((sum, key) => sum + (zahl(post?.metrics?.[key]) ?? 0), 0);
-}
-
-/** Bezugsgröße der Engagement-Rate: Reichweite bei Instagram, Aufrufe bei TikTok. */
-export function engagementBasis(post) {
-  const key = PLATTFORMEN[post?.plattform]?.basis;
-  const wert = key ? zahl(post?.metrics?.[key]) : null;
-  return wert && wert > 0 ? wert : null;
-}
-
-/** Gewichtet über die Summen, nicht als Durchschnitt der einzelnen Raten. */
-export function engagementRate(posts) {
-  let zaehler = 0;
-  let nenner = 0;
-  (posts || []).forEach((p) => {
-    const basis = engagementBasis(p);
-    if (basis == null) return;
-    zaehler += interaktionen(p);
-    nenner += basis;
-  });
-  return nenner > 0 ? zaehler / nenner : null;
 }
 
 function summeUeber(posts, key) {
@@ -74,7 +54,10 @@ export function berechneKennzahlen(posts, { verbrauch = null, zielAufrufe = null
   const liste = bestaetigtePosts(posts);
   const anzahl = liste.length;
   const aufrufe = summeUeber(liste, 'views').summe;
+  const likes = summeUeber(liste, 'likes');
+  const kommentare = summeUeber(liste, 'comments');
   const reach = summeUeber(liste, 'reach');
+  const summeInteraktionen = anzahl ? liste.reduce((sum, p) => sum + interaktionen(p), 0) : null;
   const watch = mittelUeber(liste, 'avgWatchSec');
   const stories = liste.filter(p => p.plattform === 'ig_story');
   const klicks = summeUeber(stories, 'linkClicks');
@@ -87,10 +70,14 @@ export function berechneKennzahlen(posts, { verbrauch = null, zielAufrufe = null
     aufrufeProPost: anzahl && aufrufe != null ? aufrufe / anzahl : null,
     zielAufrufe: ziel && ziel > 0 ? ziel : null,
     zielQuote: ziel && ziel > 0 && aufrufe != null ? aufrufe / ziel : null,
+    likes: likes.summe,
+    likesPosts: likes.anzahl,
+    kommentare: kommentare.summe,
+    kommentarePosts: kommentare.anzahl,
     reach: reach.summe,
     reachPosts: reach.anzahl,
-    interaktionen: anzahl ? liste.reduce((sum, p) => sum + interaktionen(p), 0) : null,
-    engagementRate: engagementRate(liste),
+    interaktionen: summeInteraktionen,
+    interaktionenProPost: anzahl ? summeInteraktionen / anzahl : null,
     wiedergabe: watch.wert,
     wiedergabePosts: watch.anzahl,
     linkKlicks: klicks.summe,
@@ -139,13 +126,4 @@ export function fortschritt(einheiten, posts) {
   const bestaetigt = bestaetigtePosts(posts).length;
   const pruefen = (posts || []).filter(p => !istBestaetigt(p)).length;
   return { bestaetigt, pruefen, fehlt, offen: pruefen + fehlt, gesamt: bestaetigt + pruefen + fehlt };
-}
-
-/** IDs der drei Posts mit den meisten Aufrufen, unabhängig von der Sortierung der Tabelle. */
-export function topPosts(posts, anzahl = 3) {
-  return bestaetigtePosts(posts)
-    .filter(p => zahl(p.metrics?.views) != null)
-    .sort((a, b) => b.metrics.views - a.metrics.views)
-    .slice(0, anzahl)
-    .map(p => p.id);
 }

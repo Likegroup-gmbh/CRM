@@ -38,7 +38,7 @@ function socialCell(platform, handle) {
 }
 
 function followerCell(value) {
-  const range = creatorUtils.formatFollowerRange(value);
+  const range = creatorUtils.formatFollowerRange(value, { compact: true });
   return escapeHtml(range);
 }
 

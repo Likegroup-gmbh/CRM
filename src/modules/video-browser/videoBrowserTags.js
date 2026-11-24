@@ -4,19 +4,21 @@
 // Alle Funktionen bekommen den VideoBrowser-Controller (`vb`).
 
 import { createTagTyp, deleteVarianteTag, insertVarianteTag } from './VideoBrowserAdapter.js';
-import { buildTree, resolveSelection } from './videoBrowserLogic.js';
+import { buildTree } from './videoBrowserLogic.js';
+import { detailResolved } from './videoBrowserHost.js';
 import { NEW_TAG_GROUP, cleanTagLabel, findTagByLabel } from './videoBrowserTagLogic.js';
 
 function rebuild(vb) {
   vb.tree = buildTree(vb.raw, { team: vb.team });
   vb._renderNav();
   vb._refreshTagField?.();
+  if (vb.voll) vb.voll.dirty = true;
 }
 
 const sameEntry = (a, b) => a.video_id === b.video_id && a.variant_key === b.variant_key && a.tag_typ_id === b.tag_typ_id;
 
 function target(vb) {
-  const { row, item } = resolveSelection(vb.tree, vb.sel);
+  const { row, item } = detailResolved(vb);
   if (!vb.canUpload || !row || !item?.variantKey) return null;
   return { row, item, videoId: row.id, variantKey: item.variantKey };
 }

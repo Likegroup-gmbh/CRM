@@ -89,7 +89,7 @@ describe('Drawer "Tabelle anpassen" – Spalten', () => {
       .map(row => row.dataset.column);
 
     expect(ids.slice(0, 4)).toEqual([
-      'cp-col-notiz', 'cp-col-matching', 'cp-col-typ', 'cp-col-status'
+      'cp-col-notiz', 'cp-col-link', 'cp-col-follower', 'cp-col-engagement-ig'
     ]);
     expect(document.querySelectorAll('.sourcing-spalten-griff').length).toBe(ids.length);
     expect(ids).not.toContain('cp-col-bild');

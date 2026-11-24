@@ -4,6 +4,7 @@
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
+import { bindCustomSelectChange } from '../../core/customColumns/customColumnSelect.js';
 import { MasterlisteAddDrawer } from './masterlisteAddDrawer.js';
 import {
   ANCHOR_COLUMNS,
@@ -63,7 +64,8 @@ export class CreatorListDetail {
       parentTable: 'creator_list',
       anchorColumns: ANCHOR_COLUMNS,
       anchorLabels: ANCHOR_LABELS,
-      anchorAliases: { 'ml-col-bild': 'ml-col-ig' }
+      anchorAliases: { 'ml-col-bild': 'ml-col-ig' },
+      tableSelect: true
     });
   }
 
@@ -234,6 +236,8 @@ export class CreatorListDetail {
         window.toastSystem?.show('Speichern fehlgeschlagen.', 'error');
       });
     }, { signal });
+
+    bindCustomSelectChange(this.customColumns, { signal, onError: () => this.renderTable() });
 
     document.addEventListener('change', (e) => {
       const field = e.target;

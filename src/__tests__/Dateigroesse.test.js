@@ -29,9 +29,9 @@ const DATEI_MUSTER = [
   { ordner: 'src/modules/produkt', muster: /^produktFormEinbettung/i },
   { ordner: 'src/modules/persona', muster: /^personaFormEinbettung/i },
   { ordner: 'src/core/doc', muster: /^docEinbettung/i },
-  { ordner: 'src/modules/video-browser', muster: /^(videoBrowserKalender|videoBrowserView)/i },
+  { ordner: 'src/modules/video-browser', muster: /^(videoBrowserKalender|videoBrowserView|videoBrowserVollansicht|videoBrowserVerknuepfungen|videoBrowserAdapterWrite|videoBrowserHost|videoBrowserDetailEvents|videoBrowserShowcase|videoBrowserRenderShowcase|videoBrowserSuche)/i },
   { ordner: 'src/modules/admin', muster: /^PdfVorlagen/i },
-  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender|searchableSelect|verknuepfung|tableVerknuepfungen|ablageOrdnerLink|tabSlider|viewToggleSlider|produktionFlow|docEinbettung|skriptImFlow|reportPdf)/i },
+  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender|videoBrowserShowcase|videoBrowserVollansicht|videoBrowserVerknuepfungen|videoBrowserSuche|searchableSelect|verknuepfung|tableVerknuepfungen|ablageOrdnerLink|tabSlider|viewToggleSlider|produktionFlow|docEinbettung|skriptImFlow|reportPdf)/i },
 ];
 
 function dateienIn(ordner) {

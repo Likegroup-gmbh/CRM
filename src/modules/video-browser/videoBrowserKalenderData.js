@@ -7,6 +7,7 @@ import { koopGehoertZurLinie } from '../produktion/ProduktionService.js';
 import { videoName } from './videoBrowserFormat.js';
 import { sortBy } from './videoBrowserRow.js';
 import { formatDateLocal, parseDateOnly } from '../../core/calendarDates.js';
+import { sucheBegriffe, sucheNormal, trifft } from './videoBrowserSuche.js';
 
 const SELECT = `
   id, kooperation_id, position, titel, thema, video_name, posting_datum, created_at,
@@ -97,21 +98,19 @@ function eintrag(row, nr) {
   const titel = row.titel || row.thema || row.video_name || '';
   const day = parseDateOnly(row.posting_datum);
   const creator = creatorName(koop);
+  const label = videoName(nr);
+  const linieName = linieId ? (koop.linie?.aktivierung_name || 'Briefing') : OHNE_LINIE;
   return {
     id: row.id,
     kooperationId: koop.id || row.kooperation_id,
     creator,
     creatorBild: koop.creator?.profilbild_thumb_url || koop.creator?.profilbild_url || null,
     nr,
-    label: videoName(nr),
+    label,
     titel,
     postingDatum: day ? formatDateLocal(day) : null,
-    linie: {
-      id: linieId,
-      name: linieId ? (koop.linie?.aktivierung_name || 'Briefing') : OHNE_LINIE,
-      farbe: linieFarbe(linieId)
-    },
-    suche: [creator, row.titel, row.thema, row.video_name].filter(Boolean).join(' ').toLowerCase()
+    linie: { id: linieId, name: linieName, farbe: linieFarbe(linieId) },
+    suche: sucheNormal([creator, label, row.titel, row.thema, row.video_name, linieId ? linieName : ''].filter(Boolean).join(' '))
   };
 }
 
@@ -138,15 +137,16 @@ export function kalenderEintraege(rows, scope) {
       title: e.creator,
       sub: e.label,
       tooltip: e.titel || undefined,
-      draggable: true
+      draggable: true,
+      suche: e.suche
     }));
   const ohneDatum = eintraege.filter(e => !e.postingDatum).sort(nachCreator);
   return { events, ohneDatum };
 }
 
-/** Suche der Liste: Creator, Titel, Thema und Videoname, Groß- und Kleinschreibung egal. */
+/** Textsuche des Videos-Tabs auf Einträge und Liste: Creator, Video-Nr., Titel, Thema, Videoname, Linie. */
 export function filterListe(items, query) {
-  const q = String(query || '').trim().toLowerCase();
-  if (!q) return items || [];
-  return (items || []).filter(e => e.suche.includes(q));
+  const begriffe = sucheBegriffe(query);
+  if (!begriffe.length) return items || [];
+  return (items || []).filter(e => trifft(e.suche, begriffe));
 }

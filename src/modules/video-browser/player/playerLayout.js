@@ -15,9 +15,11 @@ const maxFrameHeight = () => Math.max(MIN_H, Math.min(MAX_H, Math.round(window.i
 const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
 export const isFullscreen = (p) => fsEl() === p.root;
 
-// Die Bühne füllt die Spaltenbreite, der Rahmen wird mittig hineingepasst (abzüglich Bühnen-Padding).
-// Im Vollbild füllt die Bühne den Bildschirm, sonst gilt die Maximalhöhe.
+// Der Rahmen ist so breit wie das Bild und sitzt mittig in der Spalte (abzüglich Bühnen-Padding).
+// Im Vollbild füllt die Bühne den Bildschirm. `maxWidth` kommt von außen, wenn die Spalte selbst
+// der Bildbreite folgt (Vollansicht): sonst könnte der Rahmen nie breiter werden als zuvor.
 function innerWidth(p) {
+  if (p.maxWidth) return p.maxWidth();
   const cs = getComputedStyle(p.stage);
   const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
   return p.host.clientWidth - pad;
@@ -81,6 +83,7 @@ export function paintPlaying(p) {
     b.innerHTML = p.playing ? ICON_PAUSE : ICON_PLAY;
   });
   p.root.classList.toggle('is-playing', p.playing);
+  if (!p.playing) p.root.classList.remove('is-idle');
   const big = p.host.querySelector('.vb-player__big');
   if (p.motion) p.motion.playButton(big, p.playing);
 }

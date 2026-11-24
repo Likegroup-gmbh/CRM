@@ -1,5 +1,6 @@
 // RechnungDetail.js (ES6-Modul)
 import { findSignedVertragForKooperation } from './RechnungVertragZuordnung.js';
+import { pruefeKoopUpload } from '../../core/budget/koopVideoUpload.js';
 import { renderSegmentedControl, bindSegmentSwitcher, handleContractingCreateSubmit } from './RechnungContractingCreate.js';
 import { rechnungDateienHochladen } from '../../core/ablage/rechnungDokumente.js';
 import { dokumentQuelle, mitDokumentAblage } from '../../core/ablage/dokumentAblage.js';
@@ -316,6 +317,12 @@ export class RechnungDetail {
       const vertragCheck = await this.validateVertragForKooperation(submitData.kooperation_id);
       if (!vertragCheck.ok) {
         alert(vertragCheck.message);
+        return;
+      }
+
+      const uploadCheck = await pruefeKoopUpload(window.supabase, submitData.kooperation_id);
+      if (!uploadCheck.ok) {
+        alert(uploadCheck.message);
         return;
       }
 

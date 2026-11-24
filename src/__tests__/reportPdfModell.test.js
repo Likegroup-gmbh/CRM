@@ -48,7 +48,7 @@ describe('Report-PDF: View-Model', () => {
     expect(vm.kacheln.map(k => k.id)).toEqual(['p-c', 'p-a', 'p-b']);
   });
 
-  it('zeigt je Plattform genau 4 Werte, Feed mit Engagement', () => {
+  it('zeigt je Plattform genau 4 Werte, Feed mit Interaktionen statt Engagement', () => {
     for (const plattform of ['ig_reel', 'ig_post', 'tiktok', 'ig_story']) {
       expect(KACHEL_WERTE[plattform]).toHaveLength(4);
     }
@@ -56,8 +56,22 @@ describe('Report-PDF: View-Model', () => {
       post('p-a', 'a', { plattform: 'tiktok', metrics: { views: 12000, likes: 800, comments: 40, shares: 10, saves: 5 } })
     ]);
     expect(vm.kacheln[0].plattform).toBe('TikTok');
-    expect(vm.kacheln[0].werte.map(w => w.label)).toEqual(['Aufrufe', 'Likes', 'Kommentare', 'Engagement']);
+    expect(vm.kacheln[0].werte.map(w => w.label)).toEqual(['Aufrufe', 'Likes', 'Kommentare', 'Interaktionen']);
     expect(vm.kacheln[0].werte[0].wert).toBe(kompakt(12000));
+    expect(vm.kacheln[0].werte[3].wert).toBe(kompakt(855));
+    expect(JSON.stringify(vm)).not.toMatch(/engagement/i);
+  });
+
+  it('Deckblatt: immer alle 8 Kennzahlen, ohne Grundlage mit „–“ und Leertext', () => {
+    const { vm } = vmAus([einheit('a')], [
+      post('p-a', 'a', { plattform: 'tiktok', metrics: { views: 12000, likes: 800, comments: 40 } })
+    ]);
+    expect(vm.kennzahlen.map(k => k.label)).toEqual([
+      'Aufrufe', 'Likes', 'Kommentare', 'Betrachter', 'Interaktionen', 'Ø Wiedergabe', 'Link-Klicks', 'Sticker-Taps'
+    ]);
+    const sticker = vm.kennzahlen.find(k => k.label === 'Sticker-Taps');
+    expect(sticker).toEqual({ label: 'Sticker-Taps', wert: '–', sub: 'nur Instagram-Stories' });
+    expect(vm.kennzahlen.find(k => k.label === 'Likes').wert).toBe(kompakt(800));
   });
 
   it('Story zeigt Aufrufe, Betrachter, Link-Klicks und Sticker-Taps', () => {

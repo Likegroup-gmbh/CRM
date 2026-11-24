@@ -40,8 +40,11 @@ export class EntityCustomColumnsManager {
     anchorColumns = [],
     anchorLabels = {},
     disabledAnchors = [],
-    anchorAliases = {}
+    anchorAliases = {},
+    tableSelect = false
   }) {
+    // true: Dropdown-Spalten als internes Dropdown (TableSelect), Speichern per table-select-change
+    this.tableSelect = tableSelect;
     this.parentType = parentType;
     this.parentTable = parentTable;
     this.orderColumn = orderColumn;
@@ -116,7 +119,8 @@ export class EntityCustomColumnsManager {
       (eId, uuid) => this.getValue(eId, uuid),
       hiddenColumns,
       isKunde,
-      canEdit
+      canEdit,
+      { tableSelect: this.tableSelect }
     );
   }
 
@@ -137,7 +141,8 @@ export class EntityCustomColumnsManager {
       (eId, uuid) => this.getValue(eId, uuid),
       hiddenColumns,
       isKunde,
-      canEdit
+      canEdit,
+      { tableSelect: this.tableSelect }
     );
   }
 

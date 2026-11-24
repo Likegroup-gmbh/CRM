@@ -3,7 +3,7 @@
 // und Linie, Kennzahlen, Fortschritt und offene Einheiten fürs Team.
 // Rein, damit Produktions-Tab und Kampagnenseite dasselbe Modell rechnen.
 
-import { berechneKennzahlen, einheitStatus, fortschritt, postsJeEinheit, topPosts } from './auswertungKennzahlen.js';
+import { berechneKennzahlen, einheitStatus, fortschritt, postsJeEinheit } from './auswertungKennzahlen.js';
 import { einheitInLinie, verbrauchFuer } from './auswertungEinheiten.js';
 
 function ebeneLabel({ ebene, produktion, linie, linienAnzahl }) {
@@ -59,7 +59,6 @@ export function baueModell(basis, { ebene, produktionId = null, linieId = null }
     posts,
     kennzahlen,
     fortschritt: fortschritt(einheiten, posts),
-    top: topPosts(posts),
     fehlend,
     optional,
     pruefen

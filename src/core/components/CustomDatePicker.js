@@ -10,6 +10,15 @@ const YEAR_PAGE_SIZE = 12;
 export class CustomDatePicker {
   static _boundRoots = new WeakMap();
   static _activePicker = null;
+  // Verschachtelte Wurzeln (z. B. Overlay und document) sehen dasselbe Event: nur die innerste reagiert,
+  // sonst öffnet die eine den Kalender und die andere schließt ihn sofort wieder.
+  static _handledEvents = new WeakSet();
+
+  static _claim(event) {
+    if (this._handledEvents.has(event)) return false;
+    this._handledEvents.add(event);
+    return true;
+  }
 
   static render({
     id,
@@ -169,6 +178,7 @@ export class CustomDatePicker {
     const eventOptions = signal ? { signal } : {};
 
     const handleClick = (event) => {
+      if (!this._claim(event)) return;
       const picker = event.target.closest('[data-custom-datepicker]');
 
       if (!picker && this._activePicker) {
@@ -191,6 +201,12 @@ export class CustomDatePicker {
       if (picker.dataset.variant === 'native' && event.target.closest('.custom-date-picker__input')) {
         event.preventDefault();
         this.togglePicker(picker);
+        return;
+      }
+
+      // Klick ins Textfeld öffnet den Kalender, ein zweiter Klick setzt nur den Cursor.
+      if (picker.dataset.variant === 'text' && event.target === input) {
+        if (popover.hidden) this.openPicker(picker);
         return;
       }
 
@@ -259,7 +275,7 @@ export class CustomDatePicker {
     };
 
     const handleKeydown = (event) => {
-      if (!this._activePicker) return;
+      if (!this._activePicker || !this._claim(event)) return;
       const picker = this._activePicker;
       const popover = picker.querySelector('.custom-date-picker__popover');
       const input = picker.querySelector('.custom-date-picker__input');
@@ -317,7 +333,7 @@ export class CustomDatePicker {
 
     const handleTextInput = (event) => {
       const input = this.getTextVariantInput(event.target);
-      if (!input) return;
+      if (!input || !this._claim(event)) return;
       const picker = input.closest('[data-custom-datepicker]');
 
       if (event.inputType === 'insertText') {

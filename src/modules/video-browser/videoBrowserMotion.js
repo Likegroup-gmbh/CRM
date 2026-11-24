@@ -8,6 +8,7 @@
 import { gsap, prefersReducedMotion, killRunning, trackRunning } from '../../core/animation/gsap.js';
 import { moveSegmentThumb } from '../../core/components/SegmentSwitch.js';
 import { showcaseEffects } from './videoBrowserShowcaseMotion.js';
+import { sucheEffects } from './videoBrowserSucheMotion.js';
 
 const d = (seconds) => (prefersReducedMotion() ? 0 : seconds);
 const CLEAR = 'transform,opacity';
@@ -41,6 +42,8 @@ export function createMotion(root) {
   return {
     // Showcase-Ansicht (Einflug, Flip, Hover, Vollansicht): eigene Datei, selber Context
     ...showcaseEffects({ run, d }),
+    // Textsuche (Flip der Treffer): eigene Datei, selber Context
+    ...sucheEffects({ run, d }),
 
     /** A1/A2: neue Spalten gleiten herein, danach ihre Zeilen gestaffelt, danach nach rechts scrollen. */
     columnsIn(columns, { fromDepth = 0, scroller = null } = {}) {
@@ -51,7 +54,8 @@ export function createMotion(root) {
           const tl = gsap.timeline();
           // Nur Opacity: ein x-Versatz der Spalte vergrößert kurz die Scrollbreite (Scrollbalken blitzt, Spalten springen).
           tl.from(col, { opacity: 0, duration: d(0.42), delay: d(i * 0.07), ease: 'power3.out', clearProps: CLEAR }, 0);
-          const rows = col.querySelectorAll('.vb-row, .vb-group__head');
+          // Von der Suche ausgeblendete Zeilen verzögern die Staffel nicht
+          const rows = [...col.querySelectorAll('.vb-row, .vb-group__head')].filter(r => !r.closest('[data-vb-suche-aus]'));
           if (rows.length) {
             tl.from(rows, {
               x: 12, opacity: 0, duration: d(0.32), delay: d(i * 0.07 + 0.06),

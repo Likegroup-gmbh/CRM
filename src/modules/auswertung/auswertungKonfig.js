@@ -4,10 +4,10 @@
 // KI-Schema lesen von hier. Ein Feld, das die Plattform nicht hat, bleibt leer und ist nie 0.
 
 export const PLATTFORMEN = {
-  ig_reel: { label: 'Instagram-Reel', kurz: 'Reel', icon: 'instagram', basis: 'reach' },
-  ig_story: { label: 'Instagram-Story', kurz: 'Story', icon: 'instagram', basis: 'reach' },
-  ig_post: { label: 'Instagram-Post', kurz: 'Post', icon: 'instagram', basis: 'reach' },
-  tiktok: { label: 'TikTok', kurz: 'TikTok', icon: 'tiktok', basis: 'views' }
+  ig_reel: { label: 'Instagram-Reel', kurz: 'Reel', icon: 'instagram' },
+  ig_story: { label: 'Instagram-Story', kurz: 'Story', icon: 'instagram' },
+  ig_post: { label: 'Instagram-Post', kurz: 'Post', icon: 'instagram' },
+  tiktok: { label: 'TikTok', kurz: 'TikTok', icon: 'tiktok' }
 };
 
 // Aufrufe zählen jede Wiedergabe, Betrachter jedes Konto einmal (bei Instagram früher „Erreichte

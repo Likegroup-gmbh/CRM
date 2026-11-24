@@ -1,7 +1,7 @@
 // videoBrowserSelection.js
 // Auswahl im Spaltenbrowser (Kooperation → Video → Ordner → Datei) und ihre Abbildung auf die URL.
 
-import { DEFAULT_SHOWCASE, SHOWCASE_GROUPS, SHOWCASE_INHALT, SHOWCASE_RATIOS, SHOWCASE_SIZES, SHOWCASE_TYPES } from './videoBrowserShowcaseLogic.js';
+import { DEFAULT_SHOWCASE, SHOWCASE_GROUPS, SHOWCASE_INHALT, SHOWCASE_SIZES, SHOWCASE_STATUS, SHOWCASE_TYPES } from './videoBrowserShowcaseLogic.js';
 import { isKoopGroup } from './videoBrowserGroups.js';
 
 export const SELECTION_KEYS = ['kooperationId', 'videoId', 'folderId', 'itemId'];
@@ -130,23 +130,42 @@ export function koopGroupToSearch(search, mode) {
   return qs ? `?${qs}` : '';
 }
 
-/* URL der Showcase-Ansicht: ?ansicht=showcase&inhalt=final|aktuell&gruppe=…&format=9x16&groesse=M&typ=…&tag=… */
+/* Ansicht: ?ansicht=showcase|ordner|kalender. Ohne Wert öffnet ein Link auf eine Datei (k) den Ordner, sonst der Showcase. */
 
-const SHOWCASE_PARAMS = ['ansicht', 'inhalt', 'gruppe', 'format', 'groesse', 'typ', 'tag'];
-const ratioToParam = (ratio) => ratio.replace(':', 'x');
+const ANSICHTEN = ['showcase', 'ordner', 'kalender'];
+
+export function ansichtFromSearch(search) {
+  const params = new URLSearchParams(search || '');
+  const ansicht = params.get('ansicht');
+  if (ANSICHTEN.includes(ansicht)) return ansicht;
+  return params.get('k') ? 'ordner' : 'showcase';
+}
+
+/** Läuft nach `kalenderToSearch`: `ansicht=ordner` steht drin, solange der Ordner offen ist. */
+export function ordnerToSearch(search, on) {
+  const params = new URLSearchParams(search || '');
+  if (params.get('ansicht') === 'ordner') params.delete('ansicht');
+  if (on) params.set('ansicht', 'ordner');
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/* URL der Showcase-Ansicht: ?ansicht=showcase&inhalt=aktuell|final&gruppe=…&status=feedback&groesse=M&typ=…&tag=…
+   (status fehlt bei "alle"). Mit k, v, f und i dazu ist die Vollansicht dieser Kachel offen.
+   `format` stammt aus Links vor dem Status-Filter und wird nur noch entfernt. */
+
+const SHOWCASE_PARAMS = ['ansicht', 'inhalt', 'gruppe', 'status', 'format', 'groesse', 'typ', 'tag'];
 const oneOf = (list, value, fallback) => (list.includes(value) ? value : fallback);
 
 /** `null`, wenn die URL nicht den Showcase meint, sonst der Zustand (unbekannte Werte fallen auf den Standard). */
 export function showcaseFromSearch(search) {
   const params = new URLSearchParams(search || '');
   if (params.get('ansicht') !== 'showcase') return null;
-  const ratios = SHOWCASE_RATIOS.map(r => r.value);
-  const fmt = (params.get('format') || '').replace('x', ':');
   const typ = params.get('typ');
   return {
     inhalt: oneOf(SHOWCASE_INHALT.map(i => i.value), params.get('inhalt'), DEFAULT_SHOWCASE.inhalt),
     group: oneOf(SHOWCASE_GROUPS.map(g => g.value), params.get('gruppe'), DEFAULT_SHOWCASE.group),
-    fmt: oneOf(ratios, fmt, DEFAULT_SHOWCASE.fmt),
+    status: oneOf(SHOWCASE_STATUS, params.get('status'), DEFAULT_SHOWCASE.status),
     size: oneOf(SHOWCASE_SIZES.map(s => s.value), params.get('groesse'), DEFAULT_SHOWCASE.size),
     typ: SHOWCASE_TYPES.some(t => t.id === typ) ? typ : null,
     tag: params.get('tag') || null
@@ -161,7 +180,7 @@ export function showcaseToSearch(search, state) {
     params.set('ansicht', 'showcase');
     params.set('inhalt', state.inhalt);
     params.set('gruppe', state.group);
-    params.set('format', ratioToParam(state.fmt));
+    if (state.status && state.status !== DEFAULT_SHOWCASE.status) params.set('status', state.status);
     params.set('groesse', state.size);
     if (state.typ) params.set('typ', state.typ);
     if (state.tag) params.set('tag', state.tag);

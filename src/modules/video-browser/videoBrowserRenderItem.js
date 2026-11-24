@@ -53,6 +53,7 @@ function contextText(ctx) {
 function toolbarHtml(ctx) {
   const { item } = ctx.resolved;
   const buttons = [];
+  if (item.type !== 'roh') buttons.push(iconButton('arrows-expand', 'Vollansicht', 'data-vb-voll-open'));
   if (ctx.canDownload && collectDownloadItems('item', ctx.resolved).length) {
     buttons.push(iconButton('download', 'Herunterladen', 'data-vb-download="item"'));
   }

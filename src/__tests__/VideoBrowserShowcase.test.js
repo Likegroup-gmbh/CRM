@@ -1,45 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const RAW = {
-  kooperationen: [
-    { id: 'k1', name: 'Koop A', briefing_id: null, creator: { vorname: 'Mia', nachname: 'Roth' } },
-    { id: 'k2', name: 'Koop B', briefing_id: null, creator: { vorname: 'Jan', nachname: 'Voss' } }
-  ],
-  linien: [],
-  videos: [
-    { id: 'v1', kooperation_id: 'k1', position: 1, titel: 'Hook', created_at: '2026-01-01' },
-    { id: 'v2', kooperation_id: 'k2', position: 1, titel: 'Direkt', created_at: '2026-01-02' }
-  ],
-  stories: [],
-  videoAssets: [
-    { id: 'a1', video_id: 'v1', version_number: 1, variant_name: 'A', is_final: false, created_at: '2026-02-01' },
-    { id: 'a2', video_id: 'v1', version_number: 1, variant_name: 'B', is_final: false, created_at: '2026-02-02' },
-    { id: 'f1', video_id: 'v1', version_number: 1, variant_name: '9:16', is_final: true, source_asset_id: 'a1', created_at: '2026-03-01' },
-    { id: 'f2', video_id: 'v1', version_number: 1, variant_name: '4:5', is_final: true, source_asset_id: 'a1', created_at: '2026-03-02' },
-    { id: 'f3', video_id: 'v1', version_number: 1, variant_name: '9:16', is_final: true, source_asset_id: 'a2', created_at: '2026-03-03' },
-    { id: 'f4', video_id: 'v2', version_number: 1, variant_name: '9:16', is_final: true, source_asset_id: null, created_at: '2026-03-04' }
-  ],
-  storyAssets: [],
-  stillAssets: [],
-  rohmaterial: [],
-  slotNotes: [],
-  zeitkommentare: [],
-  tagTypen: [
-    { id: 't1', label: 'Persona A', gruppe: 'Persona' },
-    { id: 't2', label: 'TikTok', gruppe: 'Plattform' }
-  ],
-  varianteTags: [
-    { video_id: 'v1', variant_key: 'videoA', tag_typ_id: 't1', created_at: '1' },
-    { video_id: 'v1', variant_key: 'videoA', tag_typ_id: 't2', created_at: '2' },
-    { video_id: 'v1', variant_key: 'videoB', tag_typ_id: 't2', created_at: '3' }
-  ]
-};
-
-vi.mock('../modules/video-browser/VideoBrowserAdapter.js', () => ({
-  loadVideoBrowserData: vi.fn(async () => structuredClone(RAW)),
-  saveWiedergabeMessung: vi.fn(),
-  saveVideoCaption: vi.fn(async () => null)
-}));
+vi.mock('../modules/video-browser/VideoBrowserAdapter.js', async () => {
+  const { kit } = await import('./videoBrowserShowcaseTestKit.js');
+  return {
+    loadVideoBrowserData: vi.fn(async () => structuredClone(kit.raw)),
+    saveWiedergabeMessung: vi.fn(),
+    saveVideoCaption: vi.fn(async () => null)
+  };
+});
 
 vi.mock('../modules/video-browser/videoBrowserMedia.js', () => ({
   prefetchLinks: vi.fn(),
@@ -53,15 +21,12 @@ vi.mock('../modules/video-browser/VideoBrowserUpload.js', () => ({
   createUploader: () => ({ start: vi.fn(), destroy: vi.fn() })
 }));
 
-const lightboxPlayer = { opts: null, destroyed: 0 };
 vi.mock('../modules/video-browser/VideoBrowserPlayer.js', () => ({
-  mountPlayer: (host, opts) => {
+  mountPlayer: (host) => {
     host.innerHTML = '<div data-vb-frame></div>';
-    lightboxPlayer.opts = opts;
     return {
       seek: vi.fn(), getTime: () => 0, setMarkers: vi.fn(), markerEl: () => null, pause: vi.fn(), play: vi.fn(),
-      destroy: () => { lightboxPlayer.destroyed += 1; },
-      getDimensions: () => null, whenReady: () => Promise.resolve()
+      destroy: vi.fn(), getDimensions: () => null, getDuration: () => 0, whenReady: () => Promise.resolve()
     };
   }
 }));
@@ -77,25 +42,13 @@ vi.mock('../modules/video-browser/videoBrowserRatio.js', () => ({
 }));
 
 const { mountVideoBrowserPane, unmountVideoBrowser } = await import('../modules/video-browser/VideoBrowser.js');
+const { RAW, click, seg, setup, tileIds, tiles } = await import('./videoBrowserShowcaseTestKit.js');
 
-function setup({ team = true, search = '' } = {}) {
-  window.canFeature = (name) => ({
-    videoTeamSicht: team, mediaUpload: team, skriptKommentieren: true, mediaDownload: true
-  }[name] ?? false);
-  window.matchMedia = () => ({ matches: true, addListener() {}, removeListener() {} });
-  window.history.replaceState(null, '', `/produktion/p1?tab=videos${search}`);
-  const pane = document.createElement('div');
-  document.body.appendChild(pane);
-  const detail = { kampagneId: 'kamp', produktionId: 'p1', linien: [], linieAlle: false, linieId: null, produktion: { name: 'Prod' } };
-  return { pane, detail };
-}
-
-const click = (el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-const flush = () => new Promise(resolve => setTimeout(resolve, 0));
-const tiles = (pane) => [...pane.querySelectorAll('[data-vb-sc-tile]')];
-const tileIds = (pane) => tiles(pane).map(t => t.dataset.itemId);
-const seg = (pane, id, value) => pane.querySelector(`[data-vb-seg="${id}"] [data-value="${value}"]`);
-const key = (k) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+/** Dazu ein zweites Video von Mia ohne Datei. */
+const MIT_AUSSTEHEND = {
+  ...RAW,
+  videos: [...RAW.videos, { id: 'v3', kooperation_id: 'k1', position: 2, titel: 'Unboxing', created_at: '2026-01-03' }]
+};
 
 describe('VideoBrowser Showcase', () => {
   let ctx;
@@ -105,24 +58,33 @@ describe('VideoBrowser Showcase', () => {
   async function openShowcase(opts) {
     ctx = setup(opts);
     await mountVideoBrowserPane(ctx.detail, ctx.pane);
-    if (!opts?.search) click(seg(ctx.pane, 'view', 'showcase'));
     return ctx;
   }
 
-  it('schaltet auf Showcase, blendet den Spaltenbrowser aus und spiegelt Ansicht und Einstellungen in die URL', async () => {
+  it('Showcase ist Standard und spiegelt Ansicht und Einstellungen in die URL, der Ordner schreibt ansicht=ordner', async () => {
     await openShowcase();
     expect(ctx.pane.querySelector('[data-vb]').dataset.vbView).toBe('showcase');
     expect(ctx.pane.querySelector('[data-vb-showcase]').hidden).toBe(false);
     expect(seg(ctx.pane, 'view', 'showcase').getAttribute('aria-checked')).toBe('true');
     expect(window.location.search).toContain('ansicht=showcase');
-    expect(window.location.search).toContain('format=9x16');
+    expect(window.location.search).toContain('inhalt=aktuell');
+    expect(window.location.search).not.toContain('format=');
+    expect(window.location.search).not.toContain('status=');
     expect(window.location.search).toContain('tab=videos');
 
     click(seg(ctx.pane, 'view', 'ordner'));
     expect(ctx.pane.querySelector('[data-vb]').dataset.vbView).toBe('ordner');
     expect(ctx.pane.querySelector('[data-vb-showcase]').hidden).toBe(true);
-    expect(window.location.search).not.toContain('ansicht');
+    expect(window.location.search).toContain('ansicht=ordner');
+    expect(window.location.search).not.toContain('inhalt=');
     expect(ctx.pane.querySelectorAll('.vb-col').length).toBeGreaterThan(0);
+  });
+
+  it('ein Link mit Auswahl ohne Ansicht öffnet den Ordner', async () => {
+    await openShowcase({ search: '&k=k1&v=v1' });
+    expect(ctx.pane.querySelector('[data-vb]').dataset.vbView).toBe('ordner');
+    expect(window.location.search).toContain('k=k1');
+    expect(window.location.search).toContain('ansicht=ordner');
   });
 
   it('setzt den Ansicht-Umschalter in die Workflow-Tab-Zeile (ViewModeToggle) und nimmt ihn beim Abbau mit', async () => {
@@ -134,28 +96,65 @@ describe('VideoBrowser Showcase', () => {
 
     const slot = body.querySelector('[data-workflow-liste-slot]');
     expect(ctx.pane.querySelector('[data-vb-toolbar]')).toBeNull();
-    expect(slot.querySelectorAll('[data-vb-seg="view"].view-toggle .mdc-btn')).toHaveLength(3);
-    expect(slot.querySelector('.mdc-btn.active').textContent.trim()).toBe('Ordner');
-
-    click(slot.querySelector('[data-value="showcase"]'));
-    expect(ctx.pane.querySelector('[data-vb]').dataset.vbView).toBe('showcase');
+    const buttons = [...slot.querySelectorAll('[data-vb-seg="view"].view-toggle .mdc-btn')];
+    expect(buttons.map(b => b.textContent.trim())).toEqual(['Showcase', 'Ordner', 'Kalender']);
     expect(slot.querySelector('.mdc-btn.active').textContent.trim()).toBe('Showcase');
     // Die Umschalter im Showcase sind ebenfalls ViewModeToggles
     expect(ctx.pane.querySelectorAll('.vb-sc-bar .view-toggle .mdc-btn.active')).toHaveLength(4);
+
+    click(slot.querySelector('[data-value="ordner"]'));
+    expect(ctx.pane.querySelector('[data-vb]').dataset.vbView).toBe('ordner');
+    expect(slot.querySelector('.mdc-btn.active').textContent.trim()).toBe('Ordner');
 
     unmountVideoBrowser(ctx.detail);
     expect(slot.innerHTML.trim()).toBe('');
   });
 
-  it('zeigt je Variante die Finale Version im Seitenverhältnis, nach Creator gruppiert', async () => {
+  it('zeigt je Variante die Finale Version in 9:16, nach Creator gruppiert, ohne Seitenverhältnis-Umschalter', async () => {
     await openShowcase();
     expect(tileIds(ctx.pane)).toEqual(['f1', 'f3', 'f4']);
     expect([...ctx.pane.querySelectorAll('.vb-sc-group__name')].map(n => n.textContent)).toEqual(['Mia Roth', 'Jan Voss']);
     expect(ctx.pane.querySelector('[data-vb-sc-summary]').textContent).toBe('3 Inhalte von 2 Creators');
+    expect(ctx.pane.querySelector('[data-vb-seg="fmt"]')).toBeNull();
+  });
 
-    click(seg(ctx.pane, 'fmt', '4:5'));
-    expect(tileIds(ctx.pane)).toEqual(['f2', 'f3', 'f4']);
-    expect(window.location.search).toContain('format=4x5');
+  it('Status-Filter nach Inhalt und Gruppieren: Team-Labels, Zähler, URL, „Filter aufheben“', async () => {
+    await openShowcase({ raw: MIT_AUSSTEHEND });
+    const ids = [...ctx.pane.querySelectorAll('.vb-sc-bar [data-vb-seg]')].map(g => g.dataset.vbSeg);
+    expect(ids).toEqual(['inhalt', 'group', 'status', 'size']);
+    const opts = [...ctx.pane.querySelectorAll('[data-vb-seg="status"] [data-value]')];
+    expect(opts.map(o => o.textContent.trim())).toEqual(['Alle', 'Feedback erhalten', 'Wartet auf Kunde', 'Ausstehend', 'Freigegeben']);
+    expect(opts.map(o => o.dataset.count ?? null)).toEqual([null, '0', '0', '1', '3']);
+
+    click(seg(ctx.pane, 'status', 'ausstehend'));
+    expect(tileIds(ctx.pane)).toEqual(['ausstehend:v3']);
+    expect(window.location.search).toContain('status=ausstehend');
+
+    click(seg(ctx.pane, 'status', 'feedback'));
+    expect(tileIds(ctx.pane)).toEqual([]);
+    click(ctx.pane.querySelector('[data-vb-sc-filter-clear]'));
+    expect(tileIds(ctx.pane)).toHaveLength(4);
+    expect(seg(ctx.pane, 'status', 'alle').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('Kunde: dieselben Status mit Kunden-Labels, seine Aufgabe „Zu prüfen“ vorn', async () => {
+    await openShowcase({ raw: MIT_AUSSTEHEND, team: false });
+    const opts = [...ctx.pane.querySelectorAll('[data-vb-seg="status"] [data-value]')];
+    expect(opts.map(o => o.textContent.trim())).toEqual(['Alle', 'Zu prüfen', 'Feedback gegeben', 'In Produktion', 'Freigegeben']);
+    click(seg(ctx.pane, 'status', 'freigegeben'));
+    expect(tileIds(ctx.pane)).toEqual(['f1', 'f3', 'f4']);
+  });
+
+  it('„Nur final“ sperrt den Status-Filter und setzt ihn auf „Alle“', async () => {
+    await openShowcase({ search: '&ansicht=showcase&status=freigegeben' });
+    expect(seg(ctx.pane, 'status', 'freigegeben').getAttribute('aria-checked')).toBe('true');
+    click(seg(ctx.pane, 'inhalt', 'final'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const field = ctx.pane.querySelector('[data-vb-seg="status"]').closest('.segment-field');
+    expect(field.classList.contains('is-off')).toBe(true);
+    expect(field.hasAttribute('inert')).toBe(true);
+    expect(seg(ctx.pane, 'status', 'alle').getAttribute('aria-checked')).toBe('true');
+    expect(window.location.search).not.toContain('status=');
   });
 
   it('Filter: Einfachauswahl als Toggle, UND-verknüpft, leerer Zustand mit „Filter aufheben“', async () => {
@@ -178,26 +177,26 @@ describe('VideoBrowser Showcase', () => {
     expect(tileIds(ctx.pane)).toEqual(['f1', 'f3']);
   });
 
-  it('Persona gruppiert über die Tag-Gruppe, „Ohne Persona“ zuletzt, Keine blendet die Köpfe aus', async () => {
+  it('Gruppieren kennt nur Creator und Keine, Keine blendet die Köpfe aus', async () => {
     await openShowcase();
-    click(seg(ctx.pane, 'group', 'persona'));
-    expect([...ctx.pane.querySelectorAll('.vb-sc-group__name')].map(n => n.textContent)).toEqual(['Persona A', 'Ohne Persona']);
+    expect([...ctx.pane.querySelectorAll('[data-vb-seg="group"] [data-value]')].map(b => b.dataset.value)).toEqual(['creator', 'keine']);
 
     click(seg(ctx.pane, 'group', 'keine'));
     expect(ctx.pane.querySelectorAll('.vb-sc-group__head')).toHaveLength(0);
     expect(tileIds(ctx.pane)).toEqual(['f1', 'f3', 'f4']);
   });
 
-  it('Inhalt „Aktueller Stand“ steht in der URL, Finale tragen dort den Stern', async () => {
+  it('Inhalt „Aktueller Stand“ steht vorn und ist Standard, Finale tragen dort den Stern', async () => {
     await openShowcase();
+    expect([...ctx.pane.querySelectorAll('[data-vb-seg="inhalt"] [data-value]')].map(b => b.dataset.value)).toEqual(['aktuell', 'final']);
+    expect(seg(ctx.pane, 'inhalt', 'aktuell').getAttribute('aria-checked')).toBe('true');
+    expect(tileIds(ctx.pane)).toEqual(['f1', 'f3', 'f4']);
+    expect(ctx.pane.querySelectorAll('.vb-sc-tile__mark--final').length).toBeGreaterThan(0);
+
+    click(seg(ctx.pane, 'inhalt', 'final'));
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(window.location.search).toContain('inhalt=final');
     expect(ctx.pane.querySelector('.vb-sc-tile__mark')).toBeNull();
-
-    click(seg(ctx.pane, 'inhalt', 'aktuell'));
-    expect(window.location.search).toContain('inhalt=aktuell');
-    expect(seg(ctx.pane, 'inhalt', 'aktuell').getAttribute('aria-checked')).toBe('true');
-    expect(tileIds(ctx.pane)).toEqual(expect.arrayContaining(['f1', 'f3', 'f4']));
-    expect(ctx.pane.querySelectorAll('.vb-sc-tile__mark--final').length).toBeGreaterThan(0);
   });
 
   it('Größe ändert nur die Kachelbreite, ohne die Kacheln neu zu bauen', async () => {
@@ -209,55 +208,12 @@ describe('VideoBrowser Showcase', () => {
     expect(window.location.search).toContain('groesse=L');
   });
 
-  it('stellt Ansicht und Einstellungen aus der URL wieder her', async () => {
+  it('stellt Ansicht und Einstellungen aus der URL wieder her, ein altes format= fällt weg', async () => {
     ctx = setup({ search: '&ansicht=showcase&format=4x5&gruppe=keine&groesse=S&tag=t1' });
     await mountVideoBrowserPane(ctx.detail, ctx.pane);
     expect(ctx.pane.querySelector('[data-vb-showcase]').hidden).toBe(false);
-    expect(tileIds(ctx.pane)).toEqual(['f2']);
+    expect(tileIds(ctx.pane)).toEqual(['f1']);
     expect(seg(ctx.pane, 'size', 'S').getAttribute('aria-checked')).toBe('true');
-  });
-
-  it('Vollansicht blättert zyklisch über die Anzeigeliste, Esc schließt', async () => {
-    await openShowcase();
-    click(tiles(ctx.pane)[0]);
-    await flush();
-    expect(document.querySelector('.vb-sc-lightbox')).not.toBeNull();
-    expect(document.querySelector('.vb-sc-box__count').textContent).toBe('1 / 3');
-    expect(lightboxPlayer.opts.autoplay).toBe(true);
-
-    key('ArrowLeft');
-    await flush();
-    expect(document.querySelector('.vb-sc-box__count').textContent).toBe('3 / 3');
-    key('ArrowRight');
-    await flush();
-    expect(document.querySelector('.vb-sc-box__count').textContent).toBe('1 / 3');
-
-    key('Escape');
-    await flush();
-    expect(document.querySelector('.vb-sc-lightbox')).toBeNull();
-    expect(lightboxPlayer.destroyed).toBeGreaterThan(0);
-  });
-
-  it('„Im Ordner öffnen“ nur fürs Team und springt in die Finale Version', async () => {
-    await openShowcase({ team: true });
-    click(tiles(ctx.pane)[1]);
-    await flush();
-    const open = document.querySelector('[data-vb-sc-open-folder]');
-    expect(open).not.toBeNull();
-    click(open);
-    await flush();
-    expect(document.querySelector('.vb-sc-lightbox')).toBeNull();
-    expect(ctx.pane.querySelector('[data-vb]').dataset.vbView).toBe('ordner');
-    expect(window.location.search).toContain('f=final');
-    expect(window.location.search).toContain('i=f3');
-    expect(window.location.search).not.toContain('ansicht');
-  });
-
-  it('Kunde sieht „Im Ordner öffnen“ nicht', async () => {
-    await openShowcase({ team: false });
-    click(tiles(ctx.pane)[0]);
-    await flush();
-    expect(document.querySelector('.vb-sc-lightbox')).not.toBeNull();
-    expect(document.querySelector('[data-vb-sc-open-folder]')).toBeNull();
+    expect(window.location.search).not.toContain('format=');
   });
 });
