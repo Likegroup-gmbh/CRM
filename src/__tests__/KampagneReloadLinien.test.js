@@ -85,3 +85,39 @@ describe('reloadLinien', () => {
     expect(loadProduktion).not.toHaveBeenCalled();
   });
 });
+
+describe('switchLinie', () => {
+  beforeEach(() => {
+    window.supabase = undefined;
+    window.localStorage?.clear();
+    window.history.replaceState({}, '', '/produktion/p1?tab=kooperationen&linie=alle');
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('behält "Alle Linien" und lädt die Kooperationstabelle nicht neu', async () => {
+    const detail = detailStub();
+    detail.linieAlle = true;
+    detail.kooperationenVideoTable.briefingId = null;
+
+    await detail.switchLinie('b1', { alleBehalten: true });
+
+    expect(detail.linieId).toBe('b1');
+    expect(detail.linieAlle).toBe(true);
+    expect(detail.kooperationenVideoTable.briefingId).toBeNull();
+    expect(detail.reloadKooperationTable).not.toHaveBeenCalled();
+  });
+
+  it('verlässt "Alle Linien" beim normalen Wechsel und lädt die Tabelle der Linie', async () => {
+    const detail = detailStub();
+    detail.linieAlle = true;
+
+    await detail.switchLinie('b1');
+
+    expect(detail.linieAlle).toBe(false);
+    expect(detail.kooperationenVideoTable.briefingId).toBe('b1');
+    expect(detail.reloadKooperationTable).toHaveBeenCalled();
+  });
+});

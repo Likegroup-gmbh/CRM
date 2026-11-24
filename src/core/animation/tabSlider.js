@@ -10,9 +10,10 @@
 // Zeigt ein Pane beim Wechsel nur einen Spinner (oder nichts), blendet der Inhalt ein, sobald er kommt.
 // Opt-out: data-tab-slider="off" an der Leiste, data-tab-fade="off" am Pane.
 // Panels des Video-Browsers ([data-vb-panel]) blendet videoBrowserMotion.tabPanelIn ein.
-// Optik des Balkens liegt in assets/styles/motion.css.
+// Optik des Balkens liegt in assets/styles/motion.css, Tempo und Easing in slideMotion.js.
 
 import { gsap, prefersReducedMotion, killRunning, trackRunning, isRunning } from './gsap.js';
+import { slideTo, offsetIn } from './slideMotion.js';
 
 const NAV_SELECTOR = '.tab-navigation, .drawer-tab-nav';
 const TAB_SELECTOR = '.tab-button, .drawer-tab-btn, [role="tab"]';
@@ -85,17 +86,6 @@ function barOf(nav) {
   return Array.from(nav.children).find(isBar) || null;
 }
 
-/** Abstand zum linken Innenrand der Leiste (offsetLeft bleibt bei transform: scale der Seite unverfaelscht). */
-function leftIn(el, nav) {
-  let x = 0;
-  let node = el;
-  while (node && node !== nav) {
-    x += node.offsetLeft;
-    node = node.offsetParent;
-  }
-  return node === nav ? x : null;
-}
-
 function createBar(nav) {
   // Der Balken liegt absolut in der Leiste; sticky/relative bleiben, nur static braucht einen Bezugsrahmen
   if (getComputedStyle(nav).position === 'static') nav.style.position = 'relative';
@@ -132,17 +122,14 @@ function syncNav(nav, { animate = true } = {}) {
     gsap.set(bar, { autoAlpha: 0 });
     return;
   }
-  const x = leftIn(tab, nav);
+  const pos = offsetIn(tab, nav);
   const width = tab.offsetWidth;
   // Leiste nicht sichtbar: der ResizeObserver meldet sich, sobald sie es wird
-  if (x === null || !width) return;
+  if (!pos || !width) return;
 
-  const vars = { x, width, autoAlpha: 1 };
+  const vars = { x: pos.x, width, autoAlpha: 1 };
   // Laeuft schon ein Gleiten (z. B. Resize mittendrin), wird es umgelenkt statt abgebrochen
-  const glide = !prefersReducedMotion() && Boolean(state) && (animate || isRunning(bar));
-  killRunning(bar);
-  if (glide) trackRunning(bar, gsap.to(bar, { ...vars, duration: 0.3, ease: 'power3.out' }));
-  else gsap.set(bar, vars);
+  slideTo(bar, vars, { animate: Boolean(state) && (animate || isRunning(bar)) });
   states.set(nav, { vars });
 }
 

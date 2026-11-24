@@ -127,15 +127,27 @@ describe('Drawer Kooperation „Tabelle anpassen“', () => {
 
     expect(document.querySelector('.drawer-title').textContent).toBe('Tabelle anpassen');
     const list = document.getElementById('video-tabelle-anpassen-spalten');
-    const tags = list.querySelector('[data-column="col-tags"]');
+    const vertrag = list.querySelector('[data-column="col-vertrag"]');
     const status = list.querySelector('[data-column="col-status"]');
-    zieh(tags.querySelector('.sourcing-spalten-griff'), tags, status);
+    zieh(vertrag.querySelector('.sourcing-spalten-griff'), vertrag, status);
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(store.columnOrder.slice(0, 4)).toEqual(['col-nr', 'col-creator', 'col-tags', 'col-status']);
+    expect(store.columnOrder.slice(0, 4)).toEqual(['col-nr', 'col-creator', 'col-vertrag', 'col-status']);
     expect(store.columnOrder.at(-1)).toBe('col-actions');
     expect(onTableRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('listet nur Spalten, die die Tabelle noch hat', () => {
+    const store = { columnOrder: null, customColumns: [], setColumnOrder() {} };
+    new VideoTableColumnVisibilityDrawer('kampagne-a', store).open();
+
+    const labels = [...document.querySelectorAll('#video-tabelle-anpassen-spalten .sourcing-spalten-name')]
+      .map(el => el.textContent.trim());
+    const weg = ['Tags', 'Thema', 'Idee/Konzept', 'Link Skript / Briefing',
+      'Content', 'Caption', 'Finale Version', 'CJ Feedback 1', 'Kunde Feedback 3'];
+    for (const label of weg) expect(labels, label).not.toContain(label);
+    for (const label of ['Skript', 'Stills', 'Freigabe']) expect(labels, label).toContain(label);
   });
 });
 

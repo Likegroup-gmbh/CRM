@@ -4,7 +4,7 @@
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
 import { renderSegmentSwitch } from '../../core/components/SegmentSwitch.js';
-import { collectDownloadItems, kooperationTitel, plural, schleifeName, wartetText } from './videoBrowserLogic.js';
+import { collectDownloadItems, feedbackText, kooperationTitel, plural, schleifeName, wartetText } from './videoBrowserLogic.js';
 
 export const FOLDER_ICON = { raw: 'folder', schleife: 'chat-bubble-left-ellipsis', final: 'check' };
 export const ITEM_ICON = { video: 'film', story: 'phone-mobile', still: 'photo', roh: 'document' };
@@ -49,6 +49,8 @@ export function schleifenText(ctx, folder) {
   switch (folder.status?.key) {
     case 'wartet':
       return ctx.team ? wartetText(folder.since) : 'Bitte prüfe die Dateien und hinterlasse dein Feedback.';
+    case 'feedback':
+      return feedbackText(folder.number, ctx.team);
     case 'aenderungen':
       return `Änderungen angefordert. Die Überarbeitung steht in ${schleifeName(folder.number + 1)}.`;
     case 'freigegeben':

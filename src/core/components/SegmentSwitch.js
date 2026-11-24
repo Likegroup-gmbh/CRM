@@ -5,7 +5,7 @@
 
 import { ViewModeToggle } from './ViewModeToggle.js';
 import { escapeHtml as esc } from '../format.js';
-import { gsap, prefersReducedMotion, killRunning, trackRunning } from '../animation/gsap.js';
+import { slideTo } from '../animation/slideMotion.js';
 
 export const SEGMENT_ATTR = 'data-seg';
 
@@ -36,13 +36,7 @@ export function moveSegmentThumb(group, { animate = true } = {}) {
   const thumb = group?.querySelector('[data-seg-thumb]');
   const opt = group?.querySelector('[role="radio"][aria-checked="true"]');
   if (!thumb || !opt) return;
-  const vars = { x: opt.offsetLeft, width: opt.offsetWidth };
-  killRunning(thumb);
-  if (!animate || prefersReducedMotion()) {
-    gsap.set(thumb, vars);
-    return;
-  }
-  trackRunning(thumb, gsap.to(thumb, { ...vars, duration: 0.3, ease: 'power3.out' }));
+  slideTo(thumb, { x: opt.offsetLeft, width: opt.offsetWidth }, { animate });
 }
 
 /**

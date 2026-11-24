@@ -3,6 +3,7 @@
 import { creatorUtils } from './CreatorUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 function renderTags(items, tagClass) {
   if (!items || !items.length) return '-';
@@ -35,15 +36,28 @@ function canViewCreatorLink() {
  * creator: { id, vorname, nachname, name, profilbild_url, profilbild_thumb_url }
  */
 export function renderCreatorName(creator) {
+  return creatorIdentity(creator, false);
+}
+
+/** Wie renderCreatorName, der Link als Verknüpfungs-Pill (Button-Optik wie Titel). */
+export function renderCreatorPillName(creator) {
+  return creatorIdentity(creator, true);
+}
+
+function creatorIdentity(creator, pill) {
   if (!creator) return '';
   const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || creator.name || '';
   if (!name) return '';
 
   const safeName = window.validatorSystem?.sanitizeHtml(name) || escapeAttr(name);
   const id = creator.id;
-  const nameHtml = id && canViewCreatorLink()
-    ? `<a href="#" class="table-link" data-table="creator" data-id="${escapeAttr(id)}">${safeName}</a>`
-    : safeName;
+  const attrs = `data-table="creator" data-id="${escapeAttr(id)}"`;
+  let nameHtml = safeName;
+  if (id && canViewCreatorLink()) {
+    nameHtml = pill
+      ? renderVerknuepfungPill({ kind: 'creator', label: name, attrs })
+      : `<a href="#" class="table-link" ${attrs}>${safeName}</a>`;
+  }
 
   return renderTableIdentity({
     url: creator.profilbild_thumb_url || creator.profilbild_url,

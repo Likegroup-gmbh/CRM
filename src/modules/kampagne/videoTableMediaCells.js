@@ -7,14 +7,19 @@ import { STILL_FINAL_VARIANT } from '../../core/PromoteFinalAsset.js';
 import { toRawDropboxUrl, canPreviewImageAsset } from '../../core/VideoUploadUtils.js';
 import { istSharePoint } from '../../core/ablage/ablageLink.js';
 import { ordnerLinkHtml } from '../../core/ablage/ablageOrdnerLink.js';
+import {
+  renderVerknuepfungPill,
+  renderVerknuepfungPillStatisch,
+  renderVerknuepfenPill
+} from '../../core/ui/verknuepfungPill.js';
 import { escapeHtml } from './videoTableFieldCells.js';
+import { skriptFlowUrlSync } from '../skripte/skriptFlowZiel.js';
 const PLAY_ICON = `${icon('play-circle')}`;
 const FOLDER_ICON = `${icon('folder-open')}`;
 const STORYS_ICON = `${icon('device-phone')}`;
 const BILDER_ICON = `${icon('photo')}`;
 const GEAR_ICON = `${icon('cog')}`;
 const UPLOAD_ICON = `${icon('upload')}`;
-const SKRIPT_ICON = `${icon('skripte', { className: 'w-4 h-4' })}`;
 const IDEE_ICON = `${icon('lightbulb', { className: 'w-4 h-4' })}`;
 
 function renderIdeeInhalt(ctx, item) {
@@ -48,47 +53,22 @@ export function renderSkriptCell(koop, video, table = null) {
   const titel = (skript?.titel || '').trim() || 'Skript';
 
   if (skriptId) {
-    const href = `/skripte/${skriptId}`;
-    if (isGast) {
-      return `
-          <span class="skript-link-cell skript-link-cell--static">
-            ${SKRIPT_ICON}<span class="skript-link-title">${escapeHtml(titel)}</span>
-          </span>
-        `;
-    }
-    if (canLink) {
-      return `
-          <button type="button" class="thema-link-btn skript-link-open"
-            data-action="open-skript"
-            data-skript-id="${skriptId}"
-            title="${escapeHtml(titel)}">
-            ${SKRIPT_ICON}<span class="skript-link-title">${escapeHtml(titel)}</span>
-          </button>
-        `;
-    }
-    return `
-        <a href="${href}" class="thema-link-btn skript-link-open"
-          data-action="open-skript"
-          data-skript-id="${skriptId}"
-          title="${escapeHtml(titel)}">
-          ${SKRIPT_ICON}<span class="skript-link-title">${escapeHtml(titel)}</span>
-        </a>
-      `;
+    if (isGast) return renderVerknuepfungPillStatisch({ kind: 'skript', label: titel });
+    const href = skriptFlowUrlSync({ produktionId: table?.produktionId, skript: { ...skript, id: skriptId } })
+      || `/skripte/${skriptId}`;
+    return renderVerknuepfungPill({
+      kind: 'skript',
+      label: titel,
+      href,
+      attrs: `data-action="open-skript" data-skript-id="${escapeHtml(skriptId)}"`
+    });
   }
 
-  if (video.strategie_item) {
-    return `<span class="no-strategie-hint">Noch kein Skript verknüpft</span>`;
-  }
-
-  if (canLink) {
-    return `
-        <button type="button" class="thema-link-btn"
-          data-action="link-skript"
-          data-video-id="${video.id}"
-          data-kooperation-id="${koop.id}">
-          Skript verknüpfen
-        </button>
-      `;
+  if (canLink && !video.strategie_item) {
+    return renderVerknuepfenPill({
+      label: 'Skript verknüpfen',
+      attrs: `data-action="link-skript" data-video-id="${video.id}" data-kooperation-id="${koop.id}"`
+    });
   }
   return `<span class="no-strategie-hint">Noch kein Skript verknüpft</span>`;
 }

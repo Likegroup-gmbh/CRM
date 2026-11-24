@@ -1,19 +1,26 @@
 // skriptFlowZiel.js
-// Skripte mit Linie öffnen in der Produktion, Tab Skripte (ADR 0074).
+// Skripte mit Linie öffnen in der Produktion, Tab Skripte (ADR 0074, 0079).
 // Gäste, Skripte ohne Linie und wer Produktion oder Skripte-Tab nicht sieht, bleiben im eigenständigen Tool.
 
 import { canViewTab } from '../../core/TabUtils.js';
+import { flowUrl } from '../kampagne/produktionFlowZiele.js';
 
 export function skriptFlowUrl({ produktionId, linieId = null, skriptId = null }) {
-  const params = new URLSearchParams({ tab: 'skripte' });
-  if (linieId) params.set('linie', linieId);
-  if (skriptId) params.set('skript', skriptId);
-  return `/produktion/${produktionId}?${params}`;
+  return flowUrl({ produktionId, tab: 'skripte', linieId, id: skriptId });
 }
 
 export function darfSkriptImFlow() {
   if (window.guestShare || window.permissionSystem?.isGast || window.isGast?.()) return false;
   return canViewTab('skripte');
+}
+
+/**
+ * Ziel-URL ohne DB-Abfrage, wenn die Produktion schon offen ist und das Skript
+ * seine Linie (briefing_id) mitbringt. null = Fallback auf /skripte/:id.
+ */
+export function skriptFlowUrlSync({ produktionId, skript }) {
+  if (!produktionId || !skript?.id || !skript.briefing_id || !darfSkriptImFlow()) return null;
+  return skriptFlowUrl({ produktionId, linieId: skript.briefing_id, skriptId: skript.id });
 }
 
 /**

@@ -903,7 +903,7 @@ Wo ein Kooperationsvideo oder eine Story im Ablauf steht, abgeleitet aus den Dat
 _Avoid_: Stage, Status, Phase
 
 **Status (Videos-Tab)**:
-Sagt, wer am Zug ist bzw. wie eine Feedbackschleife ausging. Immer aus den Dateien abgeleitet, nie gespeichert: *Wartet auf Kunde* (Kundenansicht: *Zu prüfen*) für die aktuelle Feedbackschleife, *Änderungen angefordert* für eine Schleife mit Nachfolger, *Freigegeben* für die Schleife, aus der die Finale Version stammt (Finale Version ohne Quelle: die letzte Schleife davor). Lädt das Team nach der Finalen Version eine neue Schleife hoch, wartet diese wieder auf den Kunden. Eine Finale Version sperrt nichts: die nächste leere Schleife bleibt für das Team da, die letzte bleibt kommentierbar. Der Zähler an der Kooperation zählt Dateien, die beim Kunden liegen; Ordner und Dateien tragen keinen eigenen Zähler. Freigeben kann das Team (Als finale Version freigeben) oder die Kundenseite (Video-Freigabe).
+Sagt, wer am Zug ist bzw. wie eine Feedbackschleife ausging. Immer aus den Dateien und Kommentaren abgeleitet, nie gespeichert. In der aktuellen Feedbackschleife hat jede Datei ihren eigenen Status: *Wartet auf Kunde* (Kundenansicht: *Zu prüfen*), solange sie kein Kundenfeedback hat, sonst *Feedback erhalten* (Kundenansicht: *Feedback gegeben*). Kundenfeedback ist ein Kommentar der Kundenseite, der für die Datei gilt und nach ihrem Upload geschrieben wurde; dazu zählen Video-Kommentare, Runden- und Bild-Notizen (auch die Spalten „Kunde Feedback N“), aber keine Team-Kommentare. Die Schleife wartet, solange eine Datei wartet; haben alle Feedback, ist das Team am Zug (Überarbeitung in der nächsten Schleife). Ältere Schleifen: *Änderungen angefordert* bei einer Schleife mit Nachfolger, *Freigegeben* für die Schleife, aus der die Finale Version stammt (Finale Version ohne Quelle: die letzte Schleife davor). Eine leere Schleife hat keinen Status; besteht die jüngste Runde nur aus Kommentaren, zählt für das Video die letzte Schleife mit Dateien. Lädt das Team nach der Finalen Version eine neue Schleife hoch, wartet diese wieder auf den Kunden. Eine Finale Version sperrt nichts: die nächste leere Schleife bleibt für das Team da, die letzte bleibt kommentierbar. Der Zähler an der Kooperation zählt Dateien, die beim Kunden liegen und noch kein Kundenfeedback haben; Ordner und Dateien tragen keinen eigenen Zähler. Freigeben kann das Team (Als finale Version freigeben) oder die Kundenseite (Video-Freigabe), die Kundenseite auch nach ihrem Feedback.
 _Avoid_: Offen, Abgeschlossen (als Status einer Schleife)
 
 **Video-Kommentar**:
@@ -929,6 +929,14 @@ _Avoid_: Reporting, Statistik, Live-Performance (das ist die Kachel der Kampagne
 **Report-Freigabe**:
 Das Team friert den Report einer Produktion für Kunde und Gast ein: Kennzahlen und Posts mit Werten. Kunde und Gast sehen immer die letzte Report-Freigabe, nie die Live-Daten. Die Linien-Sicht filtert sie; die Kampagnen-Sicht setzt sich aus den letzten Report-Freigaben ihrer Produktionen zusammen (ADR 0077). Aufschlüsselung und Zusammenfassung gibt es im Report nicht mehr; Creator, Ansatz und Plattform filtern die Post-Tabelle.
 _Avoid_: Freigabe (alleinstehend), Snapshot, Berichtsstand (das ist das Investor-Dashboard), Veröffentlichen (das tut der Creator mit dem Post)
+
+**Report-PDF**:
+PDF der Auswertung für den Kunden, A4 quer: ein Deckblatt mit den Kennzahlen, danach je bestätigtem Post eine Kachel mit dem Poster der geposteten Datei (füllt die Kachel, Ränder werden beschnitten) und vier Werten der Plattform, nach Aufrufen sortiert. Die Kacheln stehen in einer Reihe je Seite und verteilen sich gleichmäßig (8 Posts bei höchstens 5 je Seite: 4 + 4). Kosten stehen nie darin. Gedruckt wird die Vorlage aus dem Code mit Chromium, nicht nachgebaut (ADR 0080).
+_Avoid_: Export (alleinstehend), Report (alleinstehend), Berichtsstand, Snapshot
+
+**PDF-Vorlagen**:
+Seite im Accounting-Bereich, nur für Admins: zeigt die Vorlage des Report-PDF mit Beispieldaten oder einer echten Produktion (nur Kampagnen und Produktionen mit bestätigten Posts), mit Reglern für die Anzahl der Posts und die Kacheln je Seite, und erzeugt probeweise das PDF. Die Vorlage selbst ist Code, die Seite bearbeitet sie nicht; Vorschau und PDF sind dasselbe HTML.
+_Avoid_: Sandbox (das Wort meint sonst das Testunternehmen), Template-Editor, Spielwiese
 
 **Teams-Kanal**:
 Ein Kanal in Microsoft Teams, den ein Admin im CRM mit Namen und Workflow-Link hinterlegt. Deckt eine feste Liste von Unternehmen ab, mit allen Marken und Kampagnen darunter; ein Unternehmen darf in mehreren Teams-Kanälen stehen. Angelegt und besetzt wird er in Teams, nicht im CRM (ADR 0066).

@@ -1,12 +1,13 @@
 // AdminPage.js
 // Huelle fuer die Admin-Unterseiten im Accounting-Bereich
-// (/admin/datenqualitaet, /admin/medienablage, /admin/teams-kanaele). Das
-// Accounting-Dashboard (/admin) ist die Stakeholder-Uebersicht und laeuft
-// nicht mehr durch diese Huelle.
+// (/admin/datenqualitaet, /admin/medienablage, /admin/teams-kanaele,
+// /admin/pdf-vorlagen). Das Accounting-Dashboard (/admin) ist die
+// Stakeholder-Uebersicht und laeuft nicht mehr durch diese Huelle.
 
 import { DatenqualitaetPage } from './DatenqualitaetPage.js';
 import { MedienablagePage } from './MedienablagePage.js';
 import { TeamsKanaelePage } from './TeamsKanaelePage.js';
+import { PdfVorlagenPage } from './PdfVorlagenPage.js';
 
 const SUB_PAGES = {
   datenqualitaet: {
@@ -20,6 +21,10 @@ const SUB_PAGES = {
   'teams-kanaele': {
     headline: 'Accounting – Teams-Kanäle',
     create: () => new TeamsKanaelePage(),
+  },
+  'pdf-vorlagen': {
+    headline: 'Accounting – PDF-Vorlagen',
+    create: () => new PdfVorlagenPage(),
   },
 };
 

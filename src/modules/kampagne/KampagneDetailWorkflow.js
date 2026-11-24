@@ -20,9 +20,8 @@ import { scopeByProduktion, scopeKoopsByLinie } from '../produktion/ProduktionSe
 import { effectiveLinie, renderLinienSwitch, syncLinienSwitch } from './linienScope.js';
 import { mountVideoBrowserPane, unmountVideoBrowser, clearVideoBrowserUrl } from '../video-browser/VideoBrowser.js';
 import { mountCastingPane, unmountCastingWorksheet, loadCastingPrefetch } from './KampagneDetailCasting.js';
-import {
-  mountSkriptePane, renderSkripteTabelle, skriptOffen, suspendSkriptePane, unmountSkriptePane
-} from './KampagneDetailSkripte.js';
+import { mountSkriptePane, renderSkripteTabelle, unmountSkriptePane } from './KampagneDetailSkripte.js';
+import { detailOffen, syncDetailParam } from './produktionTabDetail.js';
 import { mountKonzeptPane, unmountKonzeptWorksheet, loadKonzeptPrefetch } from './KampagneDetailKonzept.js';
 import {
   mountPersonasPane,
@@ -258,19 +257,29 @@ export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
 
 /**
  * Verlassenen Workflow-Tab abbauen: eingebundene Seite destroyen, Pane leeren,
- * Loaded-Flag zurück. Kooperationen wird nicht angefasst.
+ * Loaded-Flag zurück. Kooperationen wird nicht angefasst. Was der Tab offen hält,
+ * bleibt gemerkt, nur sein Parameter verlässt die URL.
  */
 export function suspendWorkflowTab(detail, tabId) {
   if (!tabId || tabId === KOOPERATIONEN_TAB) return;
+  syncDetailParam(tabId, null);
+  if (tabId === 'videos') clearVideoBrowserUrl();
+  return unmountPane(detail, tabId, { verlassen: true });
+}
 
-  // Konzept/Casting/Katalog zählen in ihrem eigenen unmount mit. Die übrigen
-  // Panes haben keinen Worksheet-unmount, hier reicht der Zähler.
-  if (tabId !== 'konzepte' && tabId !== 'casting' && tabId !== 'produkte' && tabId !== 'personas' && tabId !== 'briefing' && tabId !== 'skripte') {
-    bumpPaneGen(detail, tabId);
-  }
+/** Pane mit neuem Zustand mounten (anderes Skript, Produkt …). Der alte räumt erst fertig ab. */
+export async function remountWorkflowPane(detail, tabId) {
+  await unmountPane(detail, tabId);
+  await loadWorkflowPane(detail, tabId);
+}
 
+function unmountPane(detail, tabId, { verlassen = false } = {}) {
+  // Panes mit eigenem Mount zählen in ihrem unmount mit, den übrigen reicht der Zähler
+  if (!PANE_MOUNTS[tabId]) bumpPaneGen(detail, tabId);
+
+  let fertig;
   if (tabId === 'skripte') {
-    suspendSkriptePane(detail);
+    fertig = unmountSkriptePane(detail);
   } else if (tabId === 'produkte' || tabId === 'personas') {
     unmountKatalogPanes(detail);
   } else if (tabId === 'briefing') {
@@ -284,17 +293,27 @@ export function suspendWorkflowTab(detail, tabId) {
   } else if (tabId === 'budget') {
     unmountBudgetFilter(detail);
   } else if (tabId === 'auswertung') {
-    unmountAuswertungPane(detail, { verlassen: true });
+    unmountAuswertungPane(detail, { verlassen });
   } else if (tabId === 'videos') {
     unmountVideoBrowser(detail);
-    clearVideoBrowserUrl();
   }
 
   const pane = document.getElementById(`workflow-pane-${tabId}`);
   if (pane) pane.innerHTML = '';
 
   if (detail._workflowLoaded) detail._workflowLoaded[tabId] = false;
+  return fertig;
 }
+
+// Panes mit eigenem Mount; nachher läuft erst, wenn der Mount noch aktuell ist
+const PANE_MOUNTS = {
+  casting: { mount: (d) => mountCastingPane(d), nachher: (d) => syncWorkflowCreateChrome(d, 'casting') },
+  konzepte: { mount: (d) => mountKonzeptPane(d), nachher: (d) => syncWorkflowCreateChrome(d, 'konzepte') },
+  skripte: { mount: (d) => mountSkriptePane(d) },
+  briefing: { mount: (d) => mountBriefingPane(d) },
+  produkte: { mount: (d) => mountProduktePane(d) },
+  personas: { mount: (d) => mountPersonasPane(d) }
+};
 
 /**
  * Pane füllen. Nach suspendWorkflowTab mountet der nächste Besuch neu.
@@ -305,79 +324,18 @@ export async function loadWorkflowPane(detail, tabId) {
   const pane = document.getElementById(`workflow-pane-${tabId}`);
   if (!pane) return;
 
-  if (tabId === 'casting') {
+  const eigener = PANE_MOUNTS[tabId];
+  if (eigener) {
     detail._workflowLoaded = detail._workflowLoaded || {};
-    if (detail._workflowLoaded.casting) return;
-    const gen = paneGeneration(detail, 'casting');
-    detail._workflowLoaded.casting = true;
-    await mountCastingPane(detail);
-    if (!isPaneGenCurrent(detail, 'casting', gen)) {
-      detail._workflowLoaded.casting = false;
+    if (detail._workflowLoaded[tabId]) return;
+    const gen = paneGeneration(detail, tabId);
+    detail._workflowLoaded[tabId] = true;
+    await eigener.mount(detail);
+    if (!isPaneGenCurrent(detail, tabId, gen)) {
+      detail._workflowLoaded[tabId] = false;
       return;
     }
-    syncWorkflowCreateChrome(detail, 'casting');
-    return;
-  }
-
-  if (tabId === 'konzepte') {
-    detail._workflowLoaded = detail._workflowLoaded || {};
-    if (detail._workflowLoaded.konzepte) return;
-    const gen = paneGeneration(detail, 'konzepte');
-    detail._workflowLoaded.konzepte = true;
-    await mountKonzeptPane(detail);
-    if (!isPaneGenCurrent(detail, 'konzepte', gen)) {
-      detail._workflowLoaded.konzepte = false;
-      return;
-    }
-    syncWorkflowCreateChrome(detail, 'konzepte');
-    return;
-  }
-
-  if (tabId === 'skripte') {
-    detail._workflowLoaded = detail._workflowLoaded || {};
-    if (detail._workflowLoaded.skripte) return;
-    const gen = paneGeneration(detail, 'skripte');
-    detail._workflowLoaded.skripte = true;
-    await mountSkriptePane(detail);
-    if (!isPaneGenCurrent(detail, 'skripte', gen)) detail._workflowLoaded.skripte = false;
-    return;
-  }
-
-  if (tabId === 'briefing') {
-    detail._workflowLoaded = detail._workflowLoaded || {};
-    if (detail._workflowLoaded.briefing) return;
-    const gen = paneGeneration(detail, 'briefing');
-    detail._workflowLoaded.briefing = true;
-    await mountBriefingPane(detail);
-    if (!isPaneGenCurrent(detail, 'briefing', gen)) {
-      detail._workflowLoaded.briefing = false;
-    }
-    return;
-  }
-
-  if (tabId === 'produkte') {
-    detail._workflowLoaded = detail._workflowLoaded || {};
-    if (detail._workflowLoaded.produkte) return;
-    const gen = paneGeneration(detail, 'produkte');
-    detail._workflowLoaded.produkte = true;
-    await mountProduktePane(detail);
-    if (!isPaneGenCurrent(detail, 'produkte', gen)) {
-      detail._workflowLoaded.produkte = false;
-      return;
-    }
-    return;
-  }
-
-  if (tabId === 'personas') {
-    detail._workflowLoaded = detail._workflowLoaded || {};
-    if (detail._workflowLoaded.personas) return;
-    const gen = paneGeneration(detail, 'personas');
-    detail._workflowLoaded.personas = true;
-    await mountPersonasPane(detail);
-    if (!isPaneGenCurrent(detail, 'personas', gen)) {
-      detail._workflowLoaded.personas = false;
-      return;
-    }
+    eigener.nachher?.(detail);
     return;
   }
 
@@ -484,8 +442,8 @@ export async function patchWorkflowItem(detail, cacheKey, itemId, updates) {
   const list = detail._workflowData?.[cacheKey];
   const item = list?.find(i => i.id === itemId);
   if (item) Object.assign(item, updates);
-  // Offener Skript-Editor: die Tabelle kommt erst beim Schließen wieder
-  if (skriptOffen(detail)) return;
+  // Offene Ansicht (Skript-Editor …): die Tabelle kommt erst beim Schließen wieder
+  if (detailOffen(detail)) return;
 
   const pane = document.getElementById(`workflow-pane-${detail.activeWorkflowTab}`);
   const renderer = PANE_RENDERERS[detail.activeWorkflowTab];

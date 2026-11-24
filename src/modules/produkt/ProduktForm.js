@@ -14,8 +14,10 @@
 // Im Unternehmens- und Listen-Kontext traegt das Dokument ein Marken-
 // Multiselect. Aus einer Marke heraus ist die Zuordnung fix. Briefings
 // sind in jedem Kontext ein Tag-Multiselect.
+// Eingebettet im Produkte-Tab der Produktion: produktFormEinbettung.js.
 
-import { ProduktService, MAX_BILDER, isStandaloneProduktPath } from './ProduktService.js';
+import { ProduktService, MAX_BILDER } from './ProduktService.js';
+import { installProduktFormEinbettung, standaloneProduktContext } from './produktFormEinbettung.js';
 import { ProduktVariantenPanel } from './ProduktVarianten.js';
 import { ProduktExtractPanel } from './ProduktExtractPanel.js';
 import { ProduktPersonaPanel } from './ProduktPersonaPanel.js';
@@ -26,8 +28,7 @@ import { bindProduktUrlSync, markPdfUrlSource } from './produktUrlSync.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
-import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
-import { backTarget, returnTo } from '../../core/breadcrumbTrail.js';
+import { backTarget } from '../../core/breadcrumbTrail.js';
 import { setPrefillValues } from '../../core/form/data/PrefillSelected.js';
 import { markiereProduktAngelegt, verwirfEinreichung } from '../einladung/einreichungService.js';
 import { addBriefingProdukte } from '../briefing/BriefingProdukte.js';
@@ -88,17 +89,10 @@ export class ProduktForm {
     this._abort?.abort();
     this._abort = new AbortController();
 
-    const standalone = isStandaloneProduktPath();
-    const pathId = window.location.pathname.split('/').filter(Boolean)[1];
-    this.produktId = standalone
-      ? (pathId && pathId !== 'new' ? pathId : null)
-      : new URLSearchParams(window.location.search).get('produkt');
-    this.createScope = this.produktId ? null : readProduktCreateScope(window.location.search);
-    // Kontext-Briefing der Produktion: im Create ueber den Scope, im Edit
-    // ueber den URL-Param (ProduktList.openProdukt haengt ihn an).
-    this.kontextBriefingId = this.createScope?.briefingId
-      || new URLSearchParams(window.location.search).get('briefing')
-      || null;
+    const { standalone, produktId, createScope, kontextBriefingId } = this._ausgangslage();
+    this.produktId = produktId;
+    this.createScope = createScope;
+    this.kontextBriefingId = kontextBriefingId;
     this.produkt = null;
     this.markenIds = [];
     this.briefingIds = [];
@@ -140,7 +134,7 @@ export class ProduktForm {
         this.produkt = await ProduktService.loadOne(this.produktId, this.ctx);
         if (!this.produkt) {
           window.toastSystem?.error?.('Produkt nicht gefunden');
-          returnTo(this.returnRoute);
+          this._zurueck();
           return;
         }
         [this.varianten, this.bilder, this.markenIds, this.briefingIds] = await Promise.all([
@@ -153,7 +147,7 @@ export class ProduktForm {
     } catch (err) {
       console.error('Produkt-Formular konnte nicht geladen werden:', err);
       window.ErrorHandler?.handle?.(err, 'ProduktForm.init');
-      window.navigateTo(this.ctx?.basePath || '/produkt');
+      this._zurueck(this.ctx?.basePath || '/produkt');
       return;
     }
 
@@ -176,33 +170,13 @@ export class ProduktForm {
       ? ProduktService.label(this.produkt)
       : 'Neues Produkt anlegen';
 
-    window.setHeadline(title);
-
-    const detailLabel = this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen';
-    const crumbs = this.isStandalone
-      ? [
-          { label: 'Produkte', url: '/produkt', clickable: true },
-          { label: detailLabel, clickable: false }
-        ]
-      : [
-          { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
-          { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
-          { label: 'Produkte', url: this.returnRoute, clickable: true },
-          { label: detailLabel, clickable: false }
-        ];
-    window.breadcrumbSystem?.updateBreadcrumb(crumbs, null, {
-      switcher: this.isEdit
-        ? (this.isStandalone
-          ? { segment: 'produkt', id: this.produktId }
-          : nestedSwitcherContext('produkt', this.produktId, this.ctx))
-        : null
-    });
+    this._kopf(title, this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen');
 
     const formData = this.isEdit
       ? { ...this.produkt, marke_ids: this.markenIds, briefing_ids: this.briefingIds, _isEditMode: true, _entityId: this.produkt.id }
       : this.createFormData();
 
-    window.content.innerHTML = renderProduktDoc(formData, {
+    this._inhalt().innerHTML = renderProduktDoc(formData, {
       mitMarkenFeld: this.zeigtMarkenFeld,
       mitUnternehmenFeld: this.zeigtUnternehmenFeld,
       unternehmenId: this.ctx.unternehmenId
@@ -315,7 +289,7 @@ export class ProduktForm {
         window.toastSystem?.error?.('Verwerfen fehlgeschlagen.');
         return false;
       }
-      returnTo(this.returnRoute);
+      this._zurueck();
     }
     return false;
   }
@@ -487,7 +461,7 @@ export class ProduktForm {
     // Abbrechen: Liste oder Produkte-Tab der Marke/Firma
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => returnTo(this.returnRoute), opts);
+      cancelBtn.addEventListener('click', () => this._zurueck(), opts);
     }
 
     if (this.isStandalone) {
@@ -632,7 +606,7 @@ export class ProduktForm {
       }
 
       window.toastSystem?.success?.(this.isEdit ? 'Produkt gespeichert' : 'Produkt angelegt');
-      returnTo(this.returnRoute);
+      this._zurueck();
     } catch (err) {
       console.error('Produkt speichern fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Speichern: ' + err.message);
@@ -836,7 +810,7 @@ export class ProduktForm {
     try {
       await ProduktService.remove(this.produktId);
       window.toastSystem?.success?.('Produkt gelöscht');
-      returnTo(this.returnRoute);
+      this._zurueck();
     } catch (err) {
       console.error('Produkt loeschen fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Löschen: ' + err.message);
@@ -876,34 +850,6 @@ export class ProduktForm {
   }
 }
 
-function readProduktCreateScope(search) {
-  const params = new URLSearchParams(String(search || '').replace(/^\?/, ''));
-  const unternehmenId = params.get('unternehmen');
-  const markeId = params.get('marke');
-  const briefingId = params.get('briefing');
-  const produktionId = params.get('produktion');
-  if (!unternehmenId && !markeId && !briefingId && !produktionId) return null;
-  return {
-    unternehmenId: unternehmenId || null,
-    markeId: markeId || null,
-    briefingId: briefingId || null,
-    produktionId: produktionId || null
-  };
-}
-
-function standaloneProduktContext() {
-  return {
-    typ: 'produkt',
-    markeId: null,
-    unternehmenId: null,
-    owner: null,
-    basePath: '/produkt',
-    listPath: '/produkt',
-    listLabel: 'Produkte',
-    ownerLabel: null,
-    markenAnzahl: 0,
-    standalone: true
-  };
-}
+installProduktFormEinbettung(ProduktForm.prototype);
 
 export const produktForm = new ProduktForm();

@@ -236,7 +236,9 @@ export class VideoTableEventBinder {
       if (openSkript) {
         e.preventDefault();
         const skriptId = openSkript.dataset.skriptId;
-        if (skriptId) window.navigateTo(`/skripte/${skriptId}`);
+        const ziel = openSkript.getAttribute('href');
+        if (ziel && ziel !== '#') window.navigateTo(ziel);
+        else if (skriptId) window.navigateTo(`/skripte/${skriptId}`);
         return;
       }
       const linkSkript = e.target.closest('[data-action="link-skript"]');

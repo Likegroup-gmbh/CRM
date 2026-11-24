@@ -10,6 +10,8 @@ const ORDNER = [
   'src/modules/shares',
   'src/modules/briefing',
   'src/modules/auswertung',
+  'src/modules/report-pdf',
+  'src/core/animation',
   'supabase/functions/share-list',
   'supabase/functions/einladung',
   'supabase/functions/_shared',
@@ -23,9 +25,13 @@ const DATEI_MUSTER = [
   { ordner: 'src/core/form/logic', muster: /^(FormSearchableSelect|searchableSelect)/i },
   { ordner: 'src/core/ui', muster: /^(verknuepfung|tableVerknuepfungen)/i },
   { ordner: 'src/modules/skripte', muster: /^skriptPaket/i },
-  { ordner: 'src/modules/kampagne', muster: /^(KampagneCalendar|kampagneCalendar)/i },
+  { ordner: 'src/modules/kampagne', muster: /^(KampagneCalendar|kampagneCalendar|produktionFlow|produktionTabDetail|detailWahlSwitch|skriptWahlSwitch|KampagneDetailKatalog|KampagneDetailSkripte)/i },
+  { ordner: 'src/modules/produkt', muster: /^produktFormEinbettung/i },
+  { ordner: 'src/modules/persona', muster: /^personaFormEinbettung/i },
+  { ordner: 'src/core/doc', muster: /^docEinbettung/i },
   { ordner: 'src/modules/video-browser', muster: /^(videoBrowserKalender|videoBrowserView)/i },
-  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender|searchableSelect|verknuepfung|tableVerknuepfungen|ablageOrdnerLink)/i },
+  { ordner: 'src/modules/admin', muster: /^PdfVorlagen/i },
+  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender|searchableSelect|verknuepfung|tableVerknuepfungen|ablageOrdnerLink|tabSlider|viewToggleSlider|produktionFlow|docEinbettung|skriptImFlow|reportPdf)/i },
 ];
 
 function dateienIn(ordner) {

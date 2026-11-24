@@ -110,7 +110,7 @@ export function zuordnenKonzeptInhalte(kooperationen, videosByKoopId, ideen, skr
       if (!video.skript_id && itemId) {
         const skript = skriptByItem.get(itemId);
         if (skript) {
-          next.skript = { id: skript.id, titel: skript.titel, status: skript.status };
+          next.skript = { id: skript.id, titel: skript.titel, status: skript.status, briefing_id: skript.briefing_id };
           next._skriptAusKonzept = true;
           // Virtuell verknüpft: die Freigabe-Checkbox spiegelt den
           // Skript-Status, die DB-Spalte des Videos bleibt unbeteiligt.
@@ -169,7 +169,7 @@ export async function loadKonzeptInhalte(client, { kampagneId, produktionId = nu
 
   const { data: skripte, error: skriptError } = await client
     .from('skripte')
-    .select('id, titel, status, strategie_item_id, created_at')
+    .select('id, titel, status, briefing_id, strategie_item_id, created_at')
     .in('strategie_item_id', itemIds);
   if (skriptError) throw new Error(skriptError.message || 'Skripte konnten nicht geladen werden');
 

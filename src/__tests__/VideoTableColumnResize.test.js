@@ -119,7 +119,7 @@ function renderTableHost(table) {
 describe('Kooperationstabelle: Body folgt der Spaltenreihenfolge', () => {
   it('Body-data-col-id-Sequenz == getOrderedColumns, Custom zwischen Builtins', () => {
     const store = makeOrderStore([
-      'col-nr', 'col-creator', 'col-status', 'custom:uuid-1', 'col-tags', 'col-actions'
+      'col-nr', 'col-creator', 'col-status', 'col-extra-kosten', 'custom:uuid-1', 'col-vertrag', 'col-actions'
     ]);
     const host = renderTableHost(makeVideoTable({ store }));
 
@@ -132,8 +132,8 @@ describe('Kooperationstabelle: Body folgt der Spaltenreihenfolge', () => {
 
     // Custom Column steht mitten drin, nicht als Block vor den Aktionen
     const customIdx = bodyIds.indexOf('custom:uuid-1');
-    expect(bodyIds[customIdx - 1]).toBe('col-status');
-    expect(bodyIds[customIdx + 1]).toBe('col-tags');
+    expect(bodyIds[customIdx - 1]).toBe('col-extra-kosten');
+    expect(bodyIds[customIdx + 1]).toBe('col-vertrag');
   });
 
   it('haelt Nr/Creator vorne und Aktionen hinten, jede Zelle traegt data-col-id + col.id-Klasse', () => {
@@ -169,7 +169,7 @@ function buildDragDom() {
             <th class="col-header col-nr" data-col-id="col-nr">Nr</th>
             <th class="col-header col-creator" data-col-id="col-creator">Creator</th>
             <th class="col-header col-status" data-col-id="col-status" draggable="true">Status</th>
-            <th class="col-header col-tags" data-col-id="col-tags" draggable="true">Tags</th>
+            <th class="col-header col-vertrag" data-col-id="col-vertrag" draggable="true">Vertrag</th>
             <th class="col-header col-actions" data-col-id="col-actions">Aktionen</th>
           </tr>
         </thead>
@@ -178,7 +178,7 @@ function buildDragDom() {
             <td class="grid-cell col-nr" data-col-id="col-nr">1</td>
             <td class="grid-cell col-creator" data-col-id="col-creator">Max</td>
             <td class="grid-cell col-status" data-col-id="col-status">Offen</td>
-            <td class="grid-cell col-tags" data-col-id="col-tags">-</td>
+            <td class="grid-cell col-vertrag" data-col-id="col-vertrag">-</td>
             <td class="grid-cell col-actions" data-col-id="col-actions">…</td>
           </tr>
         </tbody>
@@ -190,7 +190,7 @@ function buildDragDom() {
   const rectFor = (left, right) => () => ({ top: 100, height: 32, left, right, width: right - left, bottom: 132 });
   document.querySelector('th.col-creator').getBoundingClientRect = rectFor(40, 200);
   document.querySelector('th.col-status').getBoundingClientRect = rectFor(200, 360);
-  document.querySelector('th.col-tags').getBoundingClientRect = rectFor(360, 520);
+  document.querySelector('th.col-vertrag').getBoundingClientRect = rectFor(360, 520);
   document.querySelector('th.col-actions').getBoundingClientRect = rectFor(900, 980);
   return table;
 }
@@ -231,7 +231,7 @@ describe('ColumnDragHandler', () => {
     const handler = new ColumnDragHandler({ isKundeRole: () => false });
     handler._dragCol = 'col-status';
 
-    handler._showIndicator(document.querySelector('th.col-tags'), { clientX: 370 });
+    handler._showIndicator(document.querySelector('th.col-vertrag'), { clientX: 370 });
 
     const indicator = document.querySelector('.column-drop-indicator');
     expect(indicator.style.top).toBe('100px');
@@ -289,11 +289,11 @@ describe('ColumnDragHandler', () => {
     handler.bind(document.querySelector('table'), new AbortController().signal);
     handler._dragCol = 'col-status';
 
-    const thTags = document.querySelector('th.col-tags');
-    handler._onDragOver({ ...makeDragEvent(thTags), clientX: 30 });
+    const thVertrag = document.querySelector('th.col-vertrag');
+    handler._onDragOver({ ...makeDragEvent(thVertrag), clientX: 30 });
     expect(wrapper.scrollLeft).toBe(78);
 
-    handler._onDragOver({ ...makeDragEvent(thTags), clientX: 980 });
+    handler._onDragOver({ ...makeDragEvent(thVertrag), clientX: 980 });
     expect(wrapper.scrollLeft).toBe(100);
   });
 
@@ -339,10 +339,10 @@ describe('ColumnDragHandler', () => {
     };
     const handler = new ColumnDragHandler({ store, refilter: vi.fn(), isKundeRole: () => false, kampagneId: 'k1' });
 
-    await handler._reorderColumns('col-status', 'col-tags', { clientX: 500 }, document.querySelector('th.col-tags'));
+    await handler._reorderColumns('col-status', 'col-vertrag', { clientX: 500 }, document.querySelector('th.col-vertrag'));
 
     const order = store.columnOrder;
-    expect(order.indexOf('col-status')).toBe(order.indexOf('col-tags') + 1);
+    expect(order.indexOf('col-status')).toBe(order.indexOf('col-vertrag') + 1);
   });
 });
 

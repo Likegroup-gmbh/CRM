@@ -1,6 +1,8 @@
 // videoBrowserStatus.js
 // Ablaufschritt und Statusmodell des Videos-Tabs, abgeleitet aus den Daten (nichts wird gespeichert).
 
+import { MAX_SCHLEIFEN, schleifeName } from './videoBrowserFormat.js';
+
 /** Intern = Rohmaterial der Kooperation vorhanden, sonst extern. */
 export function deriveBearbeitungsart(rohmaterialCount) {
   return rohmaterialCount > 0 ? 'intern' : 'extern';
@@ -18,14 +20,16 @@ export function deriveAblaufschritt({ rohmaterialCount = 0, schleifenCount = 0, 
 }
 
 // Statusmodell: sagt, wer am Zug ist bzw. wie die Runde ausging.
-//   wartet       aktuelle Feedbackschleife mit Dateien, der Kunde ist am Zug
+//   wartet       Datei der aktuellen Feedbackschleife ohne Kundenfeedback, der Kunde ist am Zug
+//   feedback     aktuelle Feedbackschleife, alle Dateien haben Kundenfeedback: das Team ist am Zug
 //   aenderungen  Schleife mit Nachfolger: der Kunde hat Änderungen angefordert
 //   freigegeben  Finale Version liegt vor (bei der Schleife: die, aus der sie stammt)
-const STATUS_TONE = { wartet: 'warning', aenderungen: 'info', freigegeben: 'success' };
+const STATUS_TONE = { wartet: 'warning', feedback: 'info', aenderungen: 'info', freigegeben: 'success' };
 
 export function statusOf(key, team = true) {
   const labels = {
     wartet: team ? 'Wartet auf Kunde' : 'Zu prüfen',
+    feedback: team ? 'Feedback erhalten' : 'Feedback gegeben',
     aenderungen: 'Änderungen angefordert',
     freigegeben: 'Freigegeben'
   };
@@ -41,8 +45,23 @@ export function wartetText(since, now = new Date()) {
   return `Wartet seit ${days === 1 ? '1 Tag' : `${days} Tagen`} auf den Kunden.`;
 }
 
-export function loopFolderStatus({ current, freigegeben, team }) {
-  if (current) return statusOf('wartet', team);
+/** Feedbackschleife `number` hat Kundenfeedback: Die Überarbeitung kommt in die nächste, nach der letzten möglichen ohne Ziel. */
+export function feedbackText(number, team = true) {
+  const naechste = number < MAX_SCHLEIFEN ? schleifeName(number + 1) : null;
+  if (team) {
+    return naechste
+      ? `Kundenfeedback liegt vor. Die Überarbeitung kommt in ${naechste}.`
+      : 'Kundenfeedback liegt vor. Die Überarbeitung steht an.';
+  }
+  return naechste
+    ? `Dein Feedback ist beim Team. Die Überarbeitung erscheint in ${naechste}.`
+    : 'Dein Feedback ist beim Team. Die Überarbeitung erscheint hier, sobald sie bereitsteht.';
+}
+
+/** `offen`: Dateien der Schleife ohne Kundenfeedback. Eine leere Schleife hat keinen Status. */
+export function loopFolderStatus({ current, freigegeben, team, offen = 0, leer = false }) {
+  if (leer) return null;
+  if (current) return statusOf(offen > 0 ? 'wartet' : 'feedback', team);
   if (freigegeben) return statusOf('freigegeben', team);
   return statusOf('aenderungen', team);
 }

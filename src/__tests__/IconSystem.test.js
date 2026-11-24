@@ -31,6 +31,7 @@ const ALLOWED_SVG = /<svg[^>]*(viewBox="0 0 50 50"|viewBox="0 0 120 66"|viewBox=
 const ALLOWED_FILES = new Set([
   'src/core/icons/IconSystem.js',                     // Sprite-Template + icon()-Output
   'src/core/doc/DocPage.js',                          // animierter Progress-Circle (Submit-Button)
+  'src/modules/report-pdf/reportPdfBeispiel.js',      // Platzhalter-Poster der Beispieldaten (Bild, kein Icon)
 ]);
 
 function walk(dir, out = []) {

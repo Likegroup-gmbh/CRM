@@ -21,8 +21,8 @@ import { PersonaProduktPanel } from './PersonaProduktPanel.js';
 import { PersonaAudienceSituationPanel } from './PersonaAudienceSituationPanel.js';
 import { PersonaLikyPanel } from './PersonaLikyPanel.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
-import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
-import { backTarget, returnTo } from '../../core/breadcrumbTrail.js';
+import { backTarget } from '../../core/breadcrumbTrail.js';
+import { installPersonaFormEinbettung } from './personaFormEinbettung.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { loadBriefingIdsForPersona, setPersonaBriefings } from '../briefing/BriefingPersonas.js';
 import { setPrefillValues } from '../../core/form/data/PrefillSelected.js';
@@ -44,10 +44,6 @@ export class PersonaForm {
 
   get isEdit() {
     return !!this.personaId;
-  }
-
-  get isStandalone() {
-    return window.location.pathname.split('/').filter(Boolean)[0] === 'persona';
   }
 
   get returnRoute() {
@@ -75,7 +71,7 @@ export class PersonaForm {
           this.persona = await PersonaService.loadOne(this.personaId);
           if (!this.persona) {
             window.toastSystem?.error?.('Persona nicht gefunden');
-            returnTo(this.returnRoute);
+            this._zurueck();
             return;
           }
           this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
@@ -101,7 +97,7 @@ export class PersonaForm {
           this.persona = await PersonaService.loadOne(this.personaId, this.ctx);
           if (!this.persona) {
             window.toastSystem?.error?.('Persona nicht gefunden');
-            returnTo(this.returnRoute);
+            this._zurueck();
             return;
           }
           this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
@@ -112,7 +108,7 @@ export class PersonaForm {
       if (!this.isEdit) {
         this.createScope = readCreateScope(window.location.search, this.isStandalone ? null : this.ctx);
         if (!this.createScope) {
-          returnTo(this.returnRoute);
+          this._zurueck();
           return;
         }
         this.ctx.unternehmenId = this.createScope.unternehmenId;
@@ -121,7 +117,7 @@ export class PersonaForm {
     } catch (err) {
       console.error('Persona-Formular konnte nicht geladen werden:', err);
       window.ErrorHandler?.handle?.(err, 'PersonaForm.init');
-      window.navigateTo(this.isStandalone ? '/persona' : (this.ctx?.basePath || '/marke'));
+      this._zurueck(this.isStandalone ? '/persona' : (this.ctx?.basePath || '/marke'));
       return;
     }
 
@@ -134,35 +130,14 @@ export class PersonaForm {
       ? PersonaService.label(this.persona)
       : 'Neue Persona anlegen';
 
-    window.setHeadline(title);
-
-    if (this.isStandalone) {
-      // Schlichter Kontext statt nestedSwitcherContext: ctx.basePath ist '/persona',
-      // damit wuerde nestedOwnerRoute '/persona/persona?persona=<id>' bauen. Der
-      // Fallback '/persona/<id>' ist die korrekte Standalone-Route.
-      window.breadcrumbSystem?.updateBreadcrumb([
-        { label: 'Personas', url: '/persona', clickable: true },
-        { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
-      ], null, {
-        switcher: this.isEdit ? { segment: 'persona', id: this.personaId } : null
-      });
-    } else {
-      window.breadcrumbSystem?.updateBreadcrumb([
-        { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
-        { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
-        { label: 'Personas', url: this.returnRoute, clickable: true },
-        { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
-      ], null, {
-        switcher: this.isEdit ? nestedSwitcherContext('persona', this.personaId, this.ctx) : null
-      });
-    }
+    this._kopf(title, this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen');
 
     const scopeCreate = !this.isEdit && this.createScope;
     const formData = this.isEdit
       ? { ...this.persona, marke_ids: this.markenIds, briefing_ids: this.briefingIds, _isEditMode: true, _entityId: this.persona.id }
       : (scopeCreate ? { unternehmen_id: this.createScope.unternehmenId } : null);
 
-    window.content.innerHTML = renderPersonaDoc(formData, {
+    this._inhalt().innerHTML = renderPersonaDoc(formData, {
       mitMarkenFeld: scopeCreate ? false : this.zeigtMarkenFeld,
       mitUnternehmenFeld: scopeCreate ? false : this.isStandalone,
       mitBriefingFeld: !scopeCreate,
@@ -255,7 +230,7 @@ export class PersonaForm {
     // Abbrechen: Liste oder Personas-Tab der Marke/des Unternehmens
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => returnTo(this.returnRoute), opts);
+      cancelBtn.addEventListener('click', () => this._zurueck(), opts);
     }
 
     if (this.isEdit) {
@@ -344,7 +319,7 @@ export class PersonaForm {
       }
 
       window.toastSystem?.success?.(this.isEdit ? 'Persona gespeichert' : 'Persona angelegt');
-      returnTo(this.returnRoute);
+      this._zurueck();
     } catch (err) {
       console.error('Persona speichern fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Speichern: ' + err.message);
@@ -397,7 +372,7 @@ export class PersonaForm {
     try {
       await PersonaService.remove(this.personaId);
       window.toastSystem?.success?.('Persona gelöscht');
-      returnTo(this.returnRoute);
+      this._zurueck();
     } catch (err) {
       console.error('Persona loeschen fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Löschen: ' + err.message);
@@ -432,5 +407,7 @@ export class PersonaForm {
     this.likyPanel = null;
   }
 }
+
+installPersonaFormEinbettung(PersonaForm.prototype);
 
 export const personaForm = new PersonaForm();

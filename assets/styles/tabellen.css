@@ -25,12 +25,22 @@
 
 /* Verknüpfungs-Pill: Rahmen, Hover und Icon-Größe kommen aus forms.css
    (geteilt mit .creator-cell-select). Hier nur, was für Links in Zellen gilt. */
-a.verknuepfung-pill {
+a.verknuepfung-pill,
+button.verknuepfung-pill,
+span.verknuepfung-pill {
   width: fit-content;
   max-width: 14rem;
   min-width: 0;
   text-decoration: none;
   color: var(--text-primary);
+}
+
+span.verknuepfung-pill--statisch,
+span.verknuepfung-pill--statisch:hover {
+  cursor: default;
+  background: var(--bg-primary);
+  border-color: var(--border-primary);
+  box-shadow: none;
 }
 
 .verknuepfung-pill > * {
@@ -49,13 +59,6 @@ a.verknuepfung-pill {
 .verknuepfung-dropdown {
   min-width: 8rem;
   max-width: 100%;
-}
-
-button.verknuepfung-chip {
-  width: fit-content;
-  max-width: 14rem;
-  min-width: 0;
-  text-decoration: none;
 }
 
 .verknuepfung-chip[aria-expanded="true"] {
@@ -2484,21 +2487,28 @@ button.verknuepfung-chip {
 .data-table.data-table--skripte { table-layout: fixed; }
 
 .data-table.data-table--skripte th.col-nr,
-.data-table.data-table--skripte td.col-nr { width: 3.5em; }
+.data-table.data-table--skripte td.col-nr { width: 4em; }
 
+/* Titel und Creator teilen sich den freien Platz im Verhältnis ca. 3 : 2
+   (Fixed-Layout verteilt Überschuss proportional zu diesen Breiten) */
+.data-table.data-table--skripte th.col-titel,
+.data-table.data-table--skripte td.col-titel { width: 30em; }
+
+/* Creator-Pill (Name komplett) neben dem Avatar */
 .data-table.data-table--skripte th.col-creator,
-.data-table.data-table--skripte td.col-creator { width: calc(14em + var(--size-table-avatar) + var(--space-sm)); }
+.data-table.data-table--skripte td.col-creator { width: calc(20em + var(--size-table-avatar) + var(--space-sm)); }
 
-/* Titel-Pill darf die ganze Spalte nutzen (Standard: max. 14rem) */
-.data-table.data-table--skripte td.col-titel a.verknuepfung-pill { max-width: 100%; }
+/* Titel- und Creator-Pill dürfen die ganze Spalte nutzen (Standard: max. 14rem) */
+.data-table.data-table--skripte td.col-titel a.verknuepfung-pill,
+.data-table.data-table--skripte td.col-creator a.verknuepfung-pill { max-width: 100%; }
 
-/* Breiteste Option: "Feedback gegeben" muss ohne Abschneiden passen */
+/* Breiteste Option ("Feedback gegeben" / "Rückfragen offen") plus Rand links und rechts */
 .data-table.data-table--skripte th.col-status,
-.data-table.data-table--skripte td.col-status { width: 13em; }
+.data-table.data-table--skripte td.col-status { width: 12em; }
 
 .data-table.data-table--skripte th.col-erstellt-am,
 .data-table.data-table--skripte td.col-erstellt-am {
-  width: 6.5em;
+  width: 7em;
   white-space: nowrap;
 }
 

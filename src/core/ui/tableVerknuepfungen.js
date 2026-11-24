@@ -36,6 +36,8 @@ export function ensureVerknuepfungClicks() {
   document.addEventListener('click', (event) => {
     const link = event.target.closest?.('a.table-link--rel');
     if (!link) return;
+    // Neuer Tab oder Fenster: der Browser öffnet den href selbst
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
     event.preventDefault();
     const href = link.getAttribute('href');
     if (href) window.navigateTo?.(href);

@@ -1,65 +1,32 @@
 // KampagneDetailSkripte.js
-// Tab Skripte der Produktion (ADR 0074): Die Tabelle der Linie ist der Einstieg,
-// ein Klick öffnet den Skript-Editor im selben Tab. ?skript= hält das offene Skript,
-// die Skriptwahl sitzt rechts in der Tab-Zeile, die Breadcrumb hängt den Titel an.
-// Öffnen und Schließen laufen ohne Neuaufbau der Seite (handleRouteInPlace).
+// Tab Skripte der Produktion (ADR 0074, 0079): Die Tabelle der Linie ist der Einstieg,
+// ein Klick öffnet den Skript-Editor im selben Tab. ?skript= hält das offene Skript
+// (produktionTabDetail), die Skriptwahl sitzt rechts in der Tab-Zeile, die Breadcrumb
+// hängt den Titel an. Öffnen und Schließen laufen über produktionFlowRoute.
 
 import { SkriptEditorView } from '../skripte/SkriptEditorView.js';
 import { skripteService } from '../skripte/SkripteService.js';
-import { skriptFlowUrl } from '../skripte/skriptFlowZiel.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { skriptStatusOptions } from '../skripte/skriptStatusOptions.js';
 import { skriptCreatorZelleHtml } from '../skripte/editor/skriptDocCreatorHtml.js';
-import { renderCreatorName } from '../creator/CreatorTable.js';
+import { renderCreatorPillName } from '../creator/CreatorTable.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
-import { pathOf, replaceRoute } from '../../core/breadcrumbTrail.js';
 import { bindListenSwitch, clearListenSwitch, effectiveLinie, placeListenSwitch } from './linienScope.js';
 import { renderSkriptWahl, skriptTitel, SKRIPT_WAHL_ATTR } from './skriptWahlSwitch.js';
 import {
-  activateWorkflowTab, bumpPaneGen, getVisibleWorkflowTabs, getWorkflowData,
-  isPaneGenCurrent, loadWorkflowPane, paneGeneration, reloadWorkflowPane
+  bumpPaneGen, getWorkflowData, isPaneGenCurrent, paneGeneration, reloadWorkflowPane
 } from './KampagneDetailWorkflow.js';
+import { detailOffen, markiereAnsicht, offeneId, setzeOffen, tabUrl } from './produktionTabDetail.js';
+import { zeigeImTab, zeigeTabListe } from './produktionFlowRoute.js';
 
 export const SKRIPTE_TAB = 'skripte';
 
 const SPINNER = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
 const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || '';
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
-
-/** ?skript= aus der URL (Startzustand beim Öffnen der Produktion). */
-export function skriptParam(search = (typeof window !== 'undefined' ? window.location.search : '')) {
-  return new URLSearchParams(search).get('skript') || null;
-}
-
-export function skriptOffen(detail) {
-  return detail?.activeWorkflowTab === SKRIPTE_TAB && Boolean(detail.skriptOffenId);
-}
-
-/** Adresse des Skripte-Tabs dieser Produktion; ohne skriptId die Tabelle. */
-export function skripteTabUrl(detail, skriptId = null) {
-  return skriptFlowUrl({
-    produktionId: detail.produktionId,
-    linieId: effectiveLinie(detail, SKRIPTE_TAB),
-    skriptId
-  });
-}
-
-function syncSkriptParam(skriptId) {
-  if (typeof window === 'undefined') return;
-  const url = new URL(window.location.href);
-  if (skriptId) url.searchParams.set('skript', skriptId);
-  else url.searchParams.delete('skript');
-  replaceRoute(`${url.pathname}${url.search}${url.hash}`);
-}
-
-function markiereSkriptOffen(offen) {
-  const body = document.querySelector('.kampagne-detail-body[data-workflow]');
-  if (!body) return;
-  if (offen) body.dataset.skriptOffen = '';
-  else delete body.dataset.skriptOffen;
-}
 
 /* ------------------------------------------------------------------ */
 /* Tabelle                                                             */
@@ -94,15 +61,16 @@ export async function renderSkripteTabelle(detail) {
       : `<span class="tag tag--status ${statusVariant}">${esc(statusLabel)}</span>`;
     return `
       <tr>
-        <td>${s.skript_nr || '–'}</td>
-        <td class="col-name">
-          <a href="${esc(skripteTabUrl(detail, s.id))}" class="table-link" data-table="skripte" data-id="${s.id}">
-            ${esc(titel)}
-          </a>
-        </td>
-        ${skriptCreatorZelleHtml(s, renderCreatorName)}
-        <td>${statusTd}</td>
-        <td>${formatDate(s.created_at)}</td>
+        <td class="col-nr">${s.skript_nr || '–'}</td>
+        <td class="col-titel">${renderVerknuepfungPill({
+          kind: 'skript',
+          label: titel,
+          href: tabUrl(detail, SKRIPTE_TAB, s.id),
+          attrs: `data-table="skripte" data-id="${s.id}"`
+        })}</td>
+        ${skriptCreatorZelleHtml(s, renderCreatorPillName, 'col-creator')}
+        <td class="col-status">${statusTd}</td>
+        <td class="col-erstellt-am">${formatDate(s.created_at)}</td>
         <td class="col-actions">${actionBuilder.create('skripte', s.id)}</td>
       </tr>
     `;
@@ -110,14 +78,14 @@ export async function renderSkripteTabelle(detail) {
 
   return `
     <div class="data-table-container">
-      <table class="data-table">
+      <table class="data-table data-table--skripte">
         <thead>
           <tr>
-            <th>Nr.</th>
-            <th>Titel</th>
-            <th>Creator</th>
-            <th>Status</th>
-            <th>Erstellt am</th>
+            <th class="col-nr">Nr.</th>
+            <th class="col-titel">Titel</th>
+            <th class="col-creator">Creator</th>
+            <th class="col-status">Status</th>
+            <th class="col-erstellt-am">Erstellt am</th>
             <th class="col-actions">Aktionen</th>
           </tr>
         </thead>
@@ -134,19 +102,18 @@ export async function renderSkripteTabelle(detail) {
 function einbettungFuer(detail) {
   return {
     zeigeSkript(skript) {
-      detail._updateBreadcrumb({ produktionUrl: skripteTabUrl(detail) });
+      detail._updateBreadcrumb({ produktionUrl: tabUrl(detail, SKRIPTE_TAB) });
       window.breadcrumbSystem?.showEditLeaf(skript ? skriptTitel(skript) : 'Skript');
     },
     skriptGewechselt(skriptId) {
-      detail.skriptOffenId = skriptId;
-      syncSkriptParam(skriptId);
+      setzeOffen(detail, SKRIPTE_TAB, skriptId);
     },
     zeigeListe(items, { aktivId, verknuepfungenFuer }) {
       const { slot } = placeListenSwitch(renderSkriptWahl({ items, aktivId, verknuepfungenFuer }), 'kampagne-skript-wahl');
       if (!slot) return;
       bindListenSwitch(slot, SKRIPT_WAHL_ATTR, (skriptId) => {
         if (!skriptId) {
-          window.navigateTo?.(skripteTabUrl(detail));
+          zeigeTabListe(detail, SKRIPTE_TAB);
           return;
         }
         void detail.skriptEditor?.switchSkript(skriptId);
@@ -156,12 +123,13 @@ function einbettungFuer(detail) {
 }
 
 async function mountEditor(detail, pane, gen) {
+  const skriptId = offeneId(detail, SKRIPTE_TAB);
   const view = new SkriptEditorView(detail, { einbettung: einbettungFuer(detail) });
   detail.skriptEditor = view;
-  markiereSkriptOffen(true);
-  syncSkriptParam(detail.skriptOffenId);
+  markiereAnsicht(SKRIPTE_TAB, true);
+  setzeOffen(detail, SKRIPTE_TAB, skriptId);
   pane.innerHTML = '<div class="skripte-editor-host"></div>';
-  await view.render(pane.firstElementChild, detail.skriptOffenId);
+  await view.render(pane.firstElementChild, skriptId);
   if (!isPaneGenCurrent(detail, SKRIPTE_TAB, gen) || !pane.isConnected) {
     if (detail.skriptEditor === view) detail.skriptEditor = null;
     void view.cleanup();
@@ -174,7 +142,7 @@ export async function mountSkriptePane(detail) {
   if (!pane) return;
   const gen = paneGeneration(detail, SKRIPTE_TAB);
   try {
-    if (detail.skriptOffenId) {
+    if (offeneId(detail, SKRIPTE_TAB)) {
       await mountEditor(detail, pane, gen);
       return;
     }
@@ -195,13 +163,13 @@ export async function mountSkriptePane(detail) {
 
 /**
  * Editor abbauen (Tab verlassen, Neurendern, Destroy). Das offene Skript bleibt
- * gemerkt (skriptOffenId), damit der Tab es beim nächsten Besuch wieder öffnet.
+ * gemerkt (detail.offen), damit der Tab es beim nächsten Besuch wieder öffnet.
  */
 export function unmountSkriptePane(detail) {
   bumpPaneGen(detail, SKRIPTE_TAB);
   const view = detail.skriptEditor;
   detail.skriptEditor = null;
-  markiereSkriptOffen(false);
+  markiereAnsicht(SKRIPTE_TAB, false);
   if (!view) return Promise.resolve();
   clearListenSwitch();
   // Status und Titel können sich im Editor geändert haben
@@ -210,74 +178,16 @@ export function unmountSkriptePane(detail) {
   return view.cleanup().catch((error) => console.warn('⚠️ Skript-Editor-Abbau:', error?.message || error));
 }
 
-/** Skripte-Tab verlassen: Editor weg, ?skript= aus der URL. */
-export function suspendSkriptePane(detail) {
-  unmountSkriptePane(detail);
-  if (detail.skriptOffenId) syncSkriptParam(null);
-}
-
-async function remountSkriptePane(detail) {
-  if (detail.skriptEditor && detail.skriptEditor.skript?.id === detail.skriptOffenId) return;
-  // Der alte Editor räumt fertig ab, bevor der neue dieselben Element-IDs belegt
-  await unmountSkriptePane(detail);
-  if (detail._workflowLoaded) detail._workflowLoaded[SKRIPTE_TAB] = false;
-  await loadWorkflowPane(detail, SKRIPTE_TAB);
-}
-
-/** Linie gewechselt: Editor schließt, die Tabelle der neuen Linie folgt. */
-export function vergissOffenesSkript(detail) {
-  if (!detail.skriptOffenId) return;
-  detail.skriptOffenId = null;
-  syncSkriptParam(null);
-}
-
-/** Klick auf den schon aktiven Skripte-Tab: zurück zur Tabelle. */
-export function zeigeSkripteTabelle(detail) {
-  window.navigateTo?.(skripteTabUrl(detail));
-}
-
-/**
- * Navigation auf den Skripte-Tab derselben Produktion und Linie ohne Neuaufbau.
- * push: Klick (neuer History-Eintrag); sonst Zurück/Vor, die URL ist schon das Ziel.
- * @returns {boolean} true = erledigt, der Router macht nichts mehr
- */
-export function routeImSkripteTab(detail, route, { push = false } = {}) {
-  if (detail.mode !== 'workflow' || !detail._isMounted || !detail.produktionId) return false;
-  if (window.guestShare) return false;
-  let url;
-  try {
-    url = new URL(route, window.location.origin);
-  } catch {
-    return false;
-  }
-  if (pathOf(url.pathname) !== `/produktion/${detail.produktionId}`) return false;
-  if (url.searchParams.get('tab') !== SKRIPTE_TAB) return false;
-  const linie = url.searchParams.get('linie');
-  if (linie && linie !== detail.linieId) return false;
-  if (!getVisibleWorkflowTabs().some(t => t.id === SKRIPTE_TAB)) return false;
-
-  const ziel = `${url.pathname}${url.search}${url.hash}`;
-  if (push) window.history.pushState({ ...(window.history.state || {}), route: ziel }, '', ziel);
-  detail.skriptOffenId = url.searchParams.get('skript') || null;
-
-  if (detail.activeWorkflowTab !== SKRIPTE_TAB) {
-    void activateWorkflowTab(detail, SKRIPTE_TAB, { syncUrl: false });
-  } else {
-    void remountSkriptePane(detail);
-  }
-  return true;
-}
-
 /** Skript gelöscht (Menü, Editor, anderer Tab): Tabelle auffrischen, offenes Skript schließen. */
 export function skriptGeloescht(detail, skriptId) {
   const hatteDaten = Boolean(detail._workflowData?.[SKRIPTE_TAB]);
   if (detail._workflowData) delete detail._workflowData[SKRIPTE_TAB];
-  if (detail.skriptOffenId === skriptId) {
-    vergissOffenesSkript(detail);
-    if (detail.activeWorkflowTab === SKRIPTE_TAB) void remountSkriptePane(detail);
+  if (offeneId(detail, SKRIPTE_TAB) === skriptId) {
+    if (detail.activeWorkflowTab === SKRIPTE_TAB) zeigeImTab(detail, SKRIPTE_TAB, null);
+    else setzeOffen(detail, SKRIPTE_TAB, null);
     return;
   }
   // Der offene Editor nimmt das Skript selbst aus seiner Liste
-  if (skriptOffen(detail)) return;
+  if (detailOffen(detail, SKRIPTE_TAB)) return;
   if (hatteDaten) void reloadWorkflowPane(detail, SKRIPTE_TAB);
 }

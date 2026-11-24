@@ -33,10 +33,9 @@ import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
 import { unmountKatalogPanes } from './KampagneDetailKatalog.js';
 import { unmountBriefingPane } from './KampagneDetailBriefing.js';
 import { unmountBudgetFilter } from '../produktion/budgetTabFilter.js';
-import {
-  routeImSkripteTab, skriptOffen, skriptParam, SKRIPTE_TAB,
-  unmountSkriptePane, vergissOffenesSkript, zeigeSkripteTabelle
-} from './KampagneDetailSkripte.js';
+import { unmountSkriptePane } from './KampagneDetailSkripte.js';
+import { detailOffen, offenAusUrl, vergissAlle } from './produktionTabDetail.js';
+import { routeImFlow, zeigeTabListe } from './produktionFlowRoute.js';
 import {
   ALLE,
   koopLinie,
@@ -76,7 +75,7 @@ export class KampagneDetail {
     this.lineTitle = '';
     this.isKunde = false;
     this.activeWorkflowTab = DEFAULT_WORKFLOW_TAB;
-    this.skriptOffenId = null;
+    this.offen = {};
     this.skriptEditor = null;
 
     this._isMounted = false;
@@ -116,15 +115,15 @@ export class KampagneDetail {
   }
 
   /** Aktive Linie merken, in URL und Dropdown spiegeln, Tabelle und Tabs neu laden. */
-  async _commitLinie() {
-    vergissOffenesSkript(this);
+  async _commitLinie({ koopNeuLaden = true } = {}) {
+    vergissAlle(this);
     rememberLinie(this.produktionId, this.linieId);
     syncLinieQueryParam(this.linieId, this.linieAlle);
     syncLinienSwitch(this, this.activeWorkflowTab);
 
     if (this.kooperationenVideoTable) this.kooperationenVideoTable.briefingId = koopLinie(this);
     cancelWorkflowPrefetch(this);
-    await this.reloadKooperationTable();
+    if (koopNeuLaden) await this.reloadKooperationTable();
     if (!this._isMounted) return;
     refreshWorkflowAfterRender(this);
     if (this.activeWorkflowTab === 'kooperationen') startWorkflowPrefetch(this);
@@ -142,7 +141,7 @@ export class KampagneDetail {
     this.linieId = null;
     this.linieAlle = false;
     this.lineTitle = '';
-    this.skriptOffenId = openAsProduktion ? skriptParam() : null;
+    this.offen = openAsProduktion ? offenAusUrl() : {};
 
     if (openAsProduktion) {
       // Loading sofort zeigen: das Quell-Modul ist schon zerstört, ohne
@@ -529,32 +528,36 @@ export class KampagneDetail {
   }
 
   switchWorkflowTab(tabId) {
-    if (tabId === SKRIPTE_TAB && skriptOffen(this)) {
-      zeigeSkripteTabelle(this);
+    // Klick auf den aktiven Tab mit offener Ansicht: zurück zur Liste
+    if (detailOffen(this, tabId)) {
+      zeigeTabListe(this, tabId);
       return;
     }
     activateWorkflowTab(this, tabId);
   }
 
-  /** Router-Hook: Skript öffnen/schließen im Skripte-Tab ohne Neuaufbau. */
+  /** Router-Hook: Ziele im Produktionsflow ohne Neuaufbau zeigen (ADR 0079). */
   handleRouteInPlace(route, opts) {
-    return routeImSkripteTab(this, route, opts);
+    return routeImFlow(this, route, opts);
   }
 
   /**
    * Linie wechseln (Chip in der Leiste oder "Alle Linien"). Der Tab bleibt,
-   * die Tabs laden mit der neuen Linie neu.
+   * die Tabs laden mit der neuen Linie neu. alleBehalten: "Alle Linien" der
+   * Kooperationstabelle bleibt an, nur die Linie der Einzel-Tabs wechselt.
    */
-  async switchLinie(value) {
+  async switchLinie(value, { alleBehalten = false } = {}) {
     if (this.mode !== 'workflow' || !this.linien.length) return;
-    const alle = value === ALLE;
-    if (!alle && !this.linien.some(l => l.id === value)) return;
-    const linieId = alle ? this.linieId : value;
+    const zuAlle = value === ALLE;
+    if (!zuAlle && !this.linien.some(l => l.id === value)) return;
+    const alle = zuAlle || (alleBehalten && this.linieAlle);
+    const linieId = zuAlle ? this.linieId : value;
     if (alle === this.linieAlle && linieId === this.linieId) return;
 
+    const koopVorher = koopLinie(this);
     this.linieAlle = alle;
     this.linieId = linieId;
-    await this._commitLinie();
+    await this._commitLinie({ koopNeuLaden: koopLinie(this) !== koopVorher });
   }
 
   switchTab(tabName) {

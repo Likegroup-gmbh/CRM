@@ -26,3 +26,4 @@ Im Produktionsflow (ADR 0045) listet der Tab Skripte die Skripte der Linie. Ein 
 - Wer die Produktion oder den Skripte-Tab nicht sehen darf, bekommt weiter das eigenständige Tool. Die Prüfung läuft über die Berechtigung des Tabs und darüber, ob die RLS die Produktion liefert.
 - Ein Soft-Refresh der Produktion wartet, solange ein Skript offen ist; der Editor hält seine Daten selbst über Realtime aktuell.
 - Liky öffnet wie bisher als Bubble über dem Dokument, auch in der Produktion.
+- ADR 0079 verallgemeinert das Öffnen im Tab auf alle Verknüpfungen im Produktionsflow (Briefing, Produkt, Persona, Konzept, Casting). Der Skripte-Tab läuft seitdem über denselben Mechanismus.

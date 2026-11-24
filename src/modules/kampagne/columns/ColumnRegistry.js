@@ -47,17 +47,29 @@ const DEFAULT_COLUMNS = [
   { id: 'col-actions', label: 'Aktionen', dataCol: '30', configurable: false }
 ];
 
-const BUILTIN_MAP = new Map(DEFAULT_COLUMNS.map(c => [c.id, c]));
+// Stillgelegt: weder in der Tabelle noch in „Tabelle anpassen“. Definition und
+// Renderer bleiben stehen; Zurückholen = ID hier streichen.
+const RETIRED_COLUMN_IDS = new Set([
+  'col-tags', 'col-thema', 'col-idee-strategie', 'col-link-skript',
+  // pflegt der Video-Tab
+  'col-link-content', 'col-caption', 'col-finale-version',
+  ...VIDEO_FEEDBACK_FIELDS.map(slot => slot.colClass)
+]);
+
+const ACTIVE_COLUMNS = DEFAULT_COLUMNS.filter(c => !RETIRED_COLUMN_IDS.has(c.id));
+
+const BUILTIN_MAP = new Map(ACTIVE_COLUMNS.map(c => [c.id, c]));
 
 // Ohne Eintrag ausgeblendet. Sichtbar nur mit `show:${id}` in hidden_columns,
 // damit eine leere Liste sie nicht wieder aufblendet.
-const DEFAULT_HIDDEN_COLUMNS = new Set(['col-idee-strategie', 'col-skript', 'col-tags', 'col-thema', 'col-link-skript']);
+const DEFAULT_HIDDEN_COLUMNS = new Set(['col-skript']);
 
 export function showColumnKey(colId) {
   return `show:${colId}`;
 }
 
 export function isColumnPreferredVisible(colId, hiddenColumns) {
+  if (RETIRED_COLUMN_IDS.has(colId)) return false;
   const list = hiddenColumns || [];
   if (DEFAULT_HIDDEN_COLUMNS.has(colId)) return list.includes(showColumnKey(colId));
   return !list.includes(colId);
@@ -77,7 +89,7 @@ export function setColumnPreferredVisible(hiddenColumns, colId, visible) {
 const CUSTOM_COL_PREFIX = 'custom:';
 
 export function getDefaultColumnIds() {
-  return DEFAULT_COLUMNS.map(c => c.id);
+  return ACTIVE_COLUMNS.map(c => c.id);
 }
 
 export function getBuiltinColumn(colId) {
@@ -132,13 +144,13 @@ export function getOrderedColumns(store) {
   // an ihrer Default-Position einfuegen (direkt hinter dem naechsten
   // vorangehenden Default-Nachbarn), damit Header und hart codierte
   // Body-Zellen zusammenpassen.
-  for (let defIdx = 0; defIdx < DEFAULT_COLUMNS.length; defIdx++) {
-    const col = DEFAULT_COLUMNS[defIdx];
+  for (let defIdx = 0; defIdx < ACTIVE_COLUMNS.length; defIdx++) {
+    const col = ACTIVE_COLUMNS[defIdx];
     if (usedIds.has(col.id)) continue;
 
     let insertIdx = -1;
     for (let prev = defIdx - 1; prev >= 0; prev--) {
-      const prevIdx = result.findIndex(c => c.id === DEFAULT_COLUMNS[prev].id);
+      const prevIdx = result.findIndex(c => c.id === ACTIVE_COLUMNS[prev].id);
       if (prevIdx >= 0) {
         insertIdx = prevIdx + 1;
         break;
@@ -169,7 +181,7 @@ export function getOrderedColumns(store) {
 }
 
 function buildDefaultOrderWithCustom(customColumns) {
-  const result = DEFAULT_COLUMNS.map(c => ({ ...c, isCustom: false }));
+  const result = ACTIVE_COLUMNS.map(c => ({ ...c, isCustom: false }));
 
   if (customColumns.length === 0) return result;
 

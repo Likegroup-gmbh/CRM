@@ -18,7 +18,7 @@ import {
 } from './videoBrowserFormat.js';
 import { deriveAblaufschritt, freigabeVersion, loopFolderStatus, neueSchleifeNachFinal, statusOf } from './videoBrowserStatus.js';
 import { rohOrdnerBaum, rohUmordenbar, rohVerschiebbar } from './videoBrowserRohOrdner.js';
-import { commentsForAsset } from './videoBrowserCommentData.js';
+import { commentsForAsset, hatKundenfeedback } from './videoBrowserCommentData.js';
 
 export function sortBy(list, ...keys) {
   return [...list].sort((a, b) => {
@@ -78,12 +78,11 @@ function loopFolder({ version, rowId, current, offen, freigegeben, team, loopAss
   const videos = sortBy(loopAssets.filter(inVersion), 'created_at');
   const storys = stories.sort(storyLoop.filter(inVersion));
   const bilder = sortStills(stillLoop.filter(inVersion));
-  const status = loopFolderStatus({ current, freigegeben, team });
-  const base = { version, status, rowId, runde: version, locked: false };
+  const base = { version, rowId, runde: version, locked: false };
   const meta = (a, type) =>
     `v${version} · ${plural(commentsForAsset(comments, version, a.id, type).length, 'Kommentar', 'Kommentare')}`;
 
-  const items = [
+  const dateien = [
     ...videos.map((a, idx) => ({
       ...base,
       id: a.id,
@@ -116,6 +115,13 @@ function loopFolder({ version, rowId, current, offen, freigegeben, team, loopAss
       storyId: a.story_id
     }))
   ];
+  // In der aktuellen Schleife trägt jede Datei ihren Status: ohne Kundenfeedback wartet sie auf den Kunden
+  const ohneFeedback = new Set(current ? dateien.filter(i => !hatKundenfeedback(comments, version, i)).map(i => i.id) : []);
+  const status = loopFolderStatus({ current, freigegeben, team, offen: ohneFeedback.size, leer: dateien.length === 0 });
+  const items = dateien.map(i => ({
+    ...i,
+    status: current ? statusOf(ohneFeedback.has(i.id) ? 'wartet' : 'feedback', team) : status
+  }));
   const alle = [...videos, ...storys, ...bilder];
 
   return {
@@ -298,12 +304,15 @@ export function buildRow({
     hatFinal: hatFinal && !nachFinal
   });
 
-  const aktuelle = folders.find(f => f.kind === 'schleife' && f.current && !f.leer);
-  const offeneCount = kundeAmZug ? (aktuelle?.items.length || 0) : 0;
+  const schleifen = folders.filter(f => f.kind === 'schleife' && !f.leer);
+  const aktuelle = schleifen.find(f => f.current);
+  const offeneCount = aktuelle ? aktuelle.items.filter(i => i.status?.key === 'wartet').length : 0;
 
+  // Ohne aktuelle Schleife mit Dateien (jüngste Runde nur aus Kommentaren) zählt die letzte mit Dateien
   let status = null;
   if (!kundeAmZug) status = statusOf('freigegeben', team);
-  else if (versionen.length) status = statusOf('wartet', team);
+  else if (aktuelle) status = aktuelle.status;
+  else if (schleifen.length) status = schleifen[schleifen.length - 1].status;
 
   const sichtbareOrdner = folders.filter(f => !(f.leer && f.kind === 'schleife' && !team));
 

@@ -48,7 +48,8 @@ const raw = () => ({
   rohmaterial: [{ id: 'r1', kooperation_id: 'k1', file_name: 'clip.mov', file_size: 5 * 1024 * 1024, created_at: '2026-01-10' }],
   slotNotes: [{ id: 'n1', video_id: 'v1', runde: 1, feedback_typ: 'cj', text: 'Hook kürzer', author_name: 'Ben', created_at: '2026-02-02' }],
   zeitkommentare: [
-    { id: 'z1', video_id: 'v1', runde: 2, feedback_typ: 'kunde', text: 'Logo früher', timecode_sec: '4.50', asset_id: 'a2', author_name: 'Kunde', created_at: '2026-02-06' }
+    // Team-Kommentar: als Kundenkommentar hätte a2 Feedback und würde nicht mehr auf den Kunden warten
+    { id: 'z1', video_id: 'v1', runde: 2, feedback_typ: 'cj', text: 'Logo früher', timecode_sec: '4.50', asset_id: 'a2', author_name: 'Ben', created_at: '2026-02-06' }
   ]
 });
 
@@ -361,7 +362,7 @@ describe('Baum', () => {
     expect(v1.comments).toHaveLength(2);
     const z = v1.comments.find(c => c.timecodeSec !== null);
     expect(z.timecodeSec).toBe(4.5);
-    expect(z.author.role).toBe('kunde');
+    expect(z.author.role).toBe('team');
     expect(commentsForAsset(v1.comments, 2, 'a2')).toHaveLength(1);
     expect(commentsForAsset(v1.comments, 2, 'andere')).toHaveLength(0);
     expect(commentsForAsset(v1.comments, 1, 'a1')).toHaveLength(1);

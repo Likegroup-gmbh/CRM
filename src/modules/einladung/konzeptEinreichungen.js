@@ -6,6 +6,7 @@
 
 import { mountEinreichungInbox, syncEinreichungsZaehler, istStaff } from './EinreichungInbox.js';
 import { effectiveLinie } from '../kampagne/linienScope.js';
+import { offeneId } from '../kampagne/produktionTabDetail.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 /**
@@ -35,7 +36,8 @@ export async function konzeptFuerEinreichung(detail, einreichung) {
     .order('created_at', { ascending: true });
   if (error) throw error;
   const ids = (data || []).map((s) => s.id);
-  return ids.includes(detail._konzeptSelectedId) ? detail._konzeptSelectedId : (ids[0] || null);
+  const gewaehlt = offeneId(detail, 'konzepte');
+  return ids.includes(gewaehlt) ? gewaehlt : (ids[0] || null);
 }
 
 async function pruefen(detail, einreichung, neuLaden) {

@@ -4203,13 +4203,6 @@ tr:has(+ .category-header-row) > td {
   border-color: var(--primary);
 }
 
-.skript-link-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  min-width: 0;
-}
-
 .thema-link-btn.skript-link-open {
   gap: var(--space-xs);
   max-width: 100%;

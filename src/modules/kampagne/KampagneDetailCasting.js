@@ -6,6 +6,7 @@ import { CreatorAuswahlDetail } from '../creator-auswahl/CreatorAuswahlDetail.js
 import { creatorAuswahlService } from '../creator-auswahl/CreatorAuswahlService.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
+import { offeneId, setzeOffen } from './produktionTabDetail.js';
 
 const LISTE_ATTR = 'data-casting-liste';
 
@@ -51,9 +52,8 @@ export async function loadCastingPrefetch(detail, gen) {
   if (!prefetchStillCurrent(detail, gen)) return null;
   if (!listen.length) return { listen, selectedId: null, worksheet: null };
 
-  const selectedId = listen.some(l => l.id === detail._castingSelectedListeId)
-    ? detail._castingSelectedListeId
-    : listen[0].id;
+  const gemerkt = offeneId(detail, 'casting');
+  const selectedId = listen.some(l => l.id === gemerkt) ? gemerkt : listen[0].id;
   const worksheet = new CreatorAuswahlDetail();
   try {
     worksheet._prefetchPayload = await worksheet._fetchDataStages(selectedId);
@@ -114,10 +114,10 @@ export async function mountCastingPane(detail) {
       return;
     }
 
-    const selectedId = listen.some(l => l.id === detail._castingSelectedListeId)
-      ? detail._castingSelectedListeId
-      : listen[0].id;
-    detail._castingSelectedListeId = selectedId;
+    const gemerkt = offeneId(detail, 'casting');
+    const selectedId = listen.some(l => l.id === gemerkt) ? gemerkt : listen[0].id;
+    // ?casting= nur, wenn es etwas zu wählen gibt
+    setzeOffen(detail, 'casting', selectedId, { url: listen.length > 1 });
 
     const warmWorksheet = prefetched?.worksheet && prefetched.selectedId === selectedId
       ? prefetched.worksheet
@@ -167,7 +167,7 @@ function renderCastingShell(listen, selectedId) {
 
 function bindSwitcher(detail, pane, slot) {
   bindListenSwitch(slot || pane, LISTE_ATTR, async (listeId) => {
-    detail._castingSelectedListeId = listeId;
+    setzeOffen(detail, 'casting', listeId);
     const root = pane.querySelector('.kampagne-casting-worksheet');
     if (!root) return;
     if (detail.castingWorksheet) {

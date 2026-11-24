@@ -58,6 +58,18 @@ describe('renderVerknuepfungen', () => {
     document.querySelector('a').click();
     expect(window.navigateTo).toHaveBeenCalledWith('/briefing/b1');
   });
+
+  it('lässt Cmd-, Strg-, Shift- und Mittelklick zum Browser durch', () => {
+    window.navigateTo = vi.fn();
+    document.body.innerHTML = renderVerknuepfungen([{ id: 'b1', label: 'Summer', kind: 'briefing' }]);
+    const link = document.querySelector('a');
+    for (const init of [{ metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { button: 1 }]) {
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...init });
+      link.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(window.navigateTo).not.toHaveBeenCalled();
+  });
 });
 
 describe('persona_ids Zuordnung', () => {

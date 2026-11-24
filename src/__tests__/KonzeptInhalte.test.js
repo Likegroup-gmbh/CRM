@@ -234,6 +234,47 @@ describe('Idee- und Skript-Zelle', () => {
     expect(ideeHtml).not.toContain('Idee verknüpfen');
     expect(skriptHtml).toContain('Skript verknüpfen');
   });
+
+  it('rendert das verknüpfte Skript als Verknüpfungs-Pill mit Skript-Icon', () => {
+    document.body.innerHTML = renderSkriptCell({ id: 'koop-1' }, {
+      id: 'v1',
+      skript: { id: 'sk1', titel: 'Opener Final' }
+    });
+    const pill = document.querySelector('a.verknuepfung-pill[data-action="open-skript"]');
+    expect(pill.getAttribute('href')).toBe('/skripte/sk1');
+    expect(pill.querySelector('use').getAttribute('href')).toBe('#crm-icon-skripte');
+    expect(pill.textContent.trim()).toBe('Opener Final');
+  });
+
+  it('verlinkt das Skript direkt in den Skripte-Tab der offenen Produktion', () => {
+    window.isAdmin = () => true;
+    const zelle = (skript) => {
+      document.body.innerHTML = renderSkriptCell({ id: 'koop-1' }, { id: 'v1', skript_id: 'sk1', skript }, { produktionId: 'p1' });
+      return document.querySelector('a[data-action="open-skript"]').getAttribute('href');
+    };
+    expect(zelle({ id: 'sk1', titel: 'Opener', briefing_id: 'b1' })).toBe('/produktion/p1?tab=skripte&linie=b1&skript=sk1');
+    expect(zelle({ id: 'sk1', titel: 'Altbestand', briefing_id: null })).toBe('/skripte/sk1');
+    delete window.isAdmin;
+  });
+
+  it('rendert „Skript verknüpfen“ als Pill mit Plus-Icon', () => {
+    document.body.innerHTML = renderSkriptCell({ id: 'koop-1' }, { id: 'v1' });
+    const pill = document.querySelector('button.verknuepfung-pill[data-action="link-skript"]');
+    expect(pill.dataset.videoId).toBe('v1');
+    expect(pill.dataset.kooperationId).toBe('koop-1');
+    expect(pill.querySelector('use').getAttribute('href')).toBe('#crm-icon-plus-sign');
+    expect(pill.textContent.trim()).toBe('Skript verknüpfen');
+  });
+
+  it('zeigt Share-Gästen das Skript als statische Pill ohne Link', () => {
+    window.isGast = () => true;
+    document.body.innerHTML = renderSkriptCell({ id: 'koop-1' }, {
+      id: 'v1',
+      skript: { id: 'sk1', titel: 'Opener Final' }
+    });
+    expect(document.querySelector('a')).toBeNull();
+    expect(document.querySelector('span.verknuepfung-pill--statisch').textContent.trim()).toBe('Opener Final');
+  });
 });
 
 describe('Produkt-Zelle', () => {

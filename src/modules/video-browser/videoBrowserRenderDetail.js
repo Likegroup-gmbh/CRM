@@ -3,7 +3,7 @@
 
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
-import { FINAL_ID, kooperationLabels, kooperationTitel, kooperationZusatz, plural, weitereKooperationen } from './videoBrowserLogic.js';
+import { FINAL_ID, feedbackText, kooperationLabels, kooperationTitel, kooperationZusatz, plural, weitereKooperationen } from './videoBrowserLogic.js';
 import {
   FOLDER_ICON,
   ITEM_ICON,
@@ -18,17 +18,40 @@ import {
 import { detailItem } from './videoBrowserRenderItem.js';
 import { captionFieldHtml } from './videoBrowserCaption.js';
 import { freieOrdnerSlot, ordnerLinkButton } from './videoBrowserAblage.js';
-import { freigabeButtonHtml, kannFreigeben } from './videoBrowserFreigabe.js';
+import { aktuelleSchleife, freigabeButtonHtml, kannFreigeben } from './videoBrowserFreigabe.js';
+
+/** Die leere Schleife, in die das Team die Überarbeitung ablegt. */
+const naechsteLeereSchleife = (row) => row.folders.find(f => f.kind === 'schleife' && f.leer && f.upload) || null;
+
+/** Team nach dem Kundenfeedback (oder ohne aktuelle Schleife mit Dateien): die Überarbeitung ist dran. */
+function ueberarbeitungSchritt(row, loop) {
+  const ziel = naechsteLeereSchleife(row);
+  const text = loop
+    ? feedbackText(loop.number, true)
+    : `Als Nächstes folgt die Überarbeitung${ziel ? ` in ${ziel.name}` : ''}.`;
+  return ziel
+    ? { text, ziel: ziel.id, label: 'Zur nächsten Feedbackschleife' }
+    : { text, ziel: loop?.id || null, label: 'Zur Feedbackschleife' };
+}
 
 export function naechsterSchritt(row, team) {
-  const loop = row.folders.find(f => f.kind === 'schleife' && f.current && !f.leer);
+  const loop = aktuelleSchleife(row);
+  const wartet = row.status?.key === 'wartet';
   if (team) {
     if (row.stage === null) return { text: 'Noch kein Upload. Lege Rohmaterial oder ein fertiges Video ab.', ziel: row.folders[0]?.id || null, label: 'Zum Ordner' };
     if (row.stage === 2) return { text: 'Das Rohmaterial liegt vor. Als Nächstes folgt der Schnitt der ersten Feedbackschleife.', ziel: row.folders.find(f => f.kind === 'schleife')?.id || null, label: 'Zur Feedbackschleife' };
-    if (row.stage === 4) return { text: `${loop?.name || 'Die Feedbackschleife'} liegt beim Kunden. Es fehlt noch das Feedback.`, ziel: loop?.id || null, label: 'Zur Feedbackschleife' };
+    if (row.stage === 4 && wartet) return { text: `${loop?.name || 'Die Feedbackschleife'} liegt beim Kunden. Es fehlt noch das Feedback.`, ziel: loop?.id || null, label: 'Zur Feedbackschleife' };
+    if (row.stage === 4) return ueberarbeitungSchritt(row, loop);
     return { text: 'Die Finale Version liegt vor.', ziel: FINAL_ID, label: 'Zur Finalen Version' };
   }
-  if (row.stage === 4) return { text: `Bitte prüfe die Dateien in ${loop?.name || 'der Feedbackschleife'} und hinterlasse dein Feedback.`, ziel: loop?.id || null, label: 'Zur Prüfung' };
+  if (row.stage === 4 && wartet) return { text: `Bitte prüfe die Dateien in ${loop?.name || 'der Feedbackschleife'} und hinterlasse dein Feedback.`, ziel: loop?.id || null, label: 'Zur Prüfung' };
+  if (row.stage === 4 && row.status) {
+    return {
+      text: loop ? feedbackText(loop.number, false) : 'Die Überarbeitung läuft. Sobald die nächste Feedbackschleife bereitsteht, erscheint sie hier.',
+      ziel: loop?.id || null,
+      label: 'Zur Feedbackschleife'
+    };
+  }
   if (row.stage === 5) return { text: 'Freigegeben. Die Finale Version steht bereit.', ziel: FINAL_ID, label: 'Zur Finalen Version' };
   return { text: `${row.label} ist noch in Produktion. Sobald die erste Version bereitsteht, erscheint sie hier.`, ziel: null, label: '' };
 }
@@ -55,10 +78,17 @@ function detailAnstehend(ctx) {
       let ordner = null;
       if (r.stage === null) text = 'Noch kein Upload';
       else if (r.stage === 2) { text = 'Rohmaterial wartet auf Schnitt'; ordner = r.folders.find(f => f.kind === 'schleife')?.id || null; }
-      else if (r.stage === 4) {
-        const loop = r.folders.find(f => f.kind === 'schleife' && f.current && !f.leer);
+      else if (r.stage === 4 && r.offeneCount > 0) {
+        const loop = aktuelleSchleife(r);
         text = `${plural(r.offeneCount, 'Datei', 'Dateien')} beim Kunden (${loop?.name || 'Feedbackschleife'})`;
         ordner = loop?.id || null;
+      } else if (r.stage === 4) {
+        const loop = aktuelleSchleife(r);
+        const ziel = naechsteLeereSchleife(r);
+        text = loop
+          ? `Kundenfeedback liegt vor (${loop.name}), Überarbeitung steht an`
+          : `Überarbeitung steht an${ziel ? ` (${ziel.name})` : ''}`;
+        ordner = ziel?.id || loop?.id || null;
       }
       if (text) eintraege.push({ k, r, text, ordner });
     }

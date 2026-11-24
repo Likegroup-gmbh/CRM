@@ -52,6 +52,7 @@ import '../assets/styles/share-recipient.css';
 import '../assets/styles/einladung.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/admin.css';
+import '../assets/styles/pdf-vorlagen.css';
 import '../assets/styles/medienablage-rest.css';
 import '../assets/styles/ablage-ordner-link.css';
 import '../assets/styles/skripte.css';
@@ -81,6 +82,7 @@ import { modularFilterSystem as filterSystem } from './core/filters/ModularFilte
 import { toastSystem } from './core/ToastSystem.js';
 import { initDrawerMotion } from './core/animation/drawer.js';
 import { initTabSlider } from './core/animation/tabSlider.js';
+import { initViewToggleSlider } from './core/animation/viewToggleSlider.js';
 import { installDocumentLinkInterceptor } from './core/DocumentUrlHelper.js';
 import { creatorList, managementCreatorList } from './modules/creator/CreatorList.js';
 import { creatorListPage } from './modules/creator/CreatorListPage.js';
@@ -399,6 +401,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   initDrawerMotion();
   // Gleitender Unterstrich und Einblenden des Inhalts fuer alle Tab-Leisten, einmal zentral
   initTabSlider();
+  // Gleitender Hintergrund fuer alle View-Toggles (Liste/Grid/Kalender ...), einmal zentral
+  initViewToggleSlider();
 
   // Globale DOM-Variablen setzen
   window.appRoot = document.getElementById('app-root');

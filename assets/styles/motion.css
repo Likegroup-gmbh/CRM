@@ -70,3 +70,33 @@
   background: var(--tab-indicator-color);
   pointer-events: none;
 }
+
+/* View-Toggles (viewToggleSlider.js): der aktive Hintergrund gleitet als Thumb. */
+/* data-view-slider="on" setzt erst das JS, bis dahin bleibt die .active-Optik aus layout.css. */
+/* Position und Groesse des Thumbs setzt das JS (x, y, width, height des aktiven Buttons). */
+
+.view-toggle[data-view-slider="on"] .mdc-btn,
+.view-toggle[data-view-slider="on"] .secondary-btn {
+  position: relative;
+  z-index: 1;
+}
+
+.view-toggle[data-view-slider="on"] .mdc-btn.active,
+.view-toggle[data-view-slider="on"] .mdc-btn.active:hover,
+.view-toggle[data-view-slider="on"] .secondary-btn.active,
+.view-toggle[data-view-slider="on"] .secondary-btn.active:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-view-slider-thumb] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}

@@ -139,7 +139,7 @@ export function verlaufFor(row, item) {
     folderId: e.folder.id,
     itemId: e.item.id,
     label: e.folder.name,
-    status: e.folder.status?.key || null,
+    status: e.item.status?.key || null,
     current: e.item.id === item.id
   }));
   const finals = row.folders
@@ -163,7 +163,7 @@ export function ersterOffenerInhalt(tree) {
     for (const row of koop.rows) {
       if (row.offeneCount === 0) continue;
       const folder = row.folders.find(f => f.kind === 'schleife' && f.current && !f.leer);
-      const item = folder?.items[0];
+      const item = folder?.items.find(i => i.status?.key === 'wartet');
       if (folder && item) {
         return { kooperationId: koop.id, videoId: row.id, folderId: folder.id, itemId: item.id };
       }

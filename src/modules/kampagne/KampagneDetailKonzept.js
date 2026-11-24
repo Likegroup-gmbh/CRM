@@ -8,6 +8,7 @@ import { mountKonzeptEinreichungen } from '../einladung/konzeptEinreichungen.js'
 import { istStaff } from '../einladung/EinreichungInbox.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
+import { offeneId, setzeOffen } from './produktionTabDetail.js';
 
 const LISTE_ATTR = 'data-konzept-liste';
 const ANSICHT_KONZEPT = 'konzept';
@@ -103,9 +104,8 @@ export async function loadKonzeptPrefetch(detail, gen) {
   if (!prefetchStillCurrent(detail, gen)) return null;
   if (!listen.length) return { listen, selectedId: null, worksheet: null };
 
-  const selectedId = listen.some(l => l.id === detail._konzeptSelectedId)
-    ? detail._konzeptSelectedId
-    : listen[0].id;
+  const gemerkt = offeneId(detail, 'konzepte');
+  const selectedId = listen.some(l => l.id === gemerkt) ? gemerkt : listen[0].id;
   const worksheet = new StrategieDetail();
   try {
     await worksheet.prepareEmbedded(selectedId);
@@ -165,10 +165,10 @@ export async function mountKonzeptPane(detail) {
       return;
     }
 
-    const selectedId = listen.some(l => l.id === detail._konzeptSelectedId)
-      ? detail._konzeptSelectedId
-      : listen[0].id;
-    detail._konzeptSelectedId = selectedId;
+    const gemerkt = offeneId(detail, 'konzepte');
+    const selectedId = listen.some(l => l.id === gemerkt) ? gemerkt : listen[0].id;
+    // ?konzept= nur, wenn es etwas zu wählen gibt
+    setzeOffen(detail, 'konzepte', selectedId, { url: listen.length > 1 });
 
     const warmWorksheet = prefetched?.worksheet && prefetched.selectedId === selectedId
       ? prefetched.worksheet
@@ -241,7 +241,7 @@ function renderKonzeptShell(detail, listen, selectedId, worksheetHtml = '') {
 
 function bindSwitcher(detail, pane, slot) {
   bindListenSwitch(slot || pane, LISTE_ATTR, async (strategieId) => {
-    detail._konzeptSelectedId = strategieId;
+    setzeOffen(detail, 'konzepte', strategieId);
     const root = pane.querySelector('.kampagne-konzept-worksheet');
     if (!root) return;
     if (detail.konzeptWorksheet) {

@@ -1,7 +1,8 @@
 // SkriptImFlow.test.js
 // Skript-Editor im Skripte-Tab der Produktion (ADR 0074): Ziel-URL und
-// Umleitung von /skripte/:id, Skriptwahl in der Tab-Zeile, Navigation ohne
-// Neuaufbau über handleRouteInPlace.
+// Umleitung von /skripte/:id, Skriptwahl in der Tab-Zeile, Löschen des offenen
+// Skripts, Router fragt das Modul zuerst. Die Navigation im Flow selbst
+// (ADR 0079) testet produktionFlowRoute.test.js.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -12,9 +13,9 @@ const { workflow, tabUtils } = vi.hoisted(() => ({
     getVisibleWorkflowTabs: vi.fn(() => [{ id: 'skripte' }, { id: 'vertraege' }]),
     getWorkflowData: vi.fn(),
     isPaneGenCurrent: vi.fn(() => true),
-    loadWorkflowPane: vi.fn(async () => {}),
     paneGeneration: vi.fn(() => 1),
-    reloadWorkflowPane: vi.fn(async () => {})
+    reloadWorkflowPane: vi.fn(async () => {}),
+    remountWorkflowPane: vi.fn(async () => {})
   },
   tabUtils: { canViewTab: vi.fn(() => true) }
 }));
@@ -27,10 +28,10 @@ vi.mock('../core/actions/ActionBuilder.js', () => ({ actionBuilder: { create: ()
 vi.mock('../core/icons/IconSystem.js', () => ({ icon: () => '<svg></svg>' }));
 vi.mock('../core/TabUtils.js', () => tabUtils);
 
-import { ladeSkriptFlowZiel, skriptFlowUrl } from '../modules/skripte/skriptFlowZiel.js';
+import { ladeSkriptFlowZiel, skriptFlowUrl, skriptFlowUrlSync } from '../modules/skripte/skriptFlowZiel.js';
 import { replaceRouteForRedirect } from '../core/breadcrumbTrail.js';
 import { renderSkriptWahl } from '../modules/kampagne/skriptWahlSwitch.js';
-import { routeImSkripteTab, skriptGeloescht, skriptParam } from '../modules/kampagne/KampagneDetailSkripte.js';
+import { skriptGeloescht } from '../modules/kampagne/KampagneDetailSkripte.js';
 import { ModuleRegistry } from '../core/ModuleRegistry.js';
 
 function fakeDb(result) {
@@ -50,7 +51,7 @@ function produktion(overrides = {}) {
     linieId: 'b1',
     linien: [{ id: 'b1' }, { id: 'b2' }],
     activeWorkflowTab: 'vertraege',
-    skriptOffenId: null,
+    offen: {},
     skriptEditor: null,
     _updateBreadcrumb: vi.fn(),
     ...overrides
@@ -96,6 +97,18 @@ describe('Ziel in der Produktion', () => {
     expect(db.from).not.toHaveBeenCalled();
   });
 
+  it('baut das Ziel ohne DB-Abfrage aus der geladenen Zeile', () => {
+    const skript = { id: 's1', briefing_id: 'b1' };
+    expect(skriptFlowUrlSync({ produktionId: 'p1', skript })).toBe('/produktion/p1?tab=skripte&linie=b1&skript=s1');
+    expect(skriptFlowUrlSync({ produktionId: null, skript })).toBeNull();
+    expect(skriptFlowUrlSync({ produktionId: 'p1', skript: { id: 's1', briefing_id: null } })).toBeNull();
+    window.isGast = () => true;
+    expect(skriptFlowUrlSync({ produktionId: 'p1', skript })).toBeNull();
+    window.isGast = () => false;
+    tabUtils.canViewTab.mockReturnValueOnce(false);
+    expect(skriptFlowUrlSync({ produktionId: 'p1', skript })).toBeNull();
+  });
+
   it('kürzt bei der Umleitung den Klickpfad bis zur Produktion', () => {
     const trail = [
       { label: 'Kampagne', url: '/kampagne/k1' },
@@ -130,61 +143,26 @@ describe('Skriptwahl in der Tab-Zeile', () => {
   });
 });
 
-describe('Navigation im Skripte-Tab ohne Neuaufbau', () => {
-  it('öffnet ein Skript aus einem anderen Tab mit eigenem History-Eintrag', () => {
-    const detail = produktion();
-    const trail = [{ label: 'Kampagne', url: '/kampagne/k1' }];
-    window.history.replaceState({ route: '/produktion/p1?tab=vertraege', trail }, '', '/produktion/p1?tab=vertraege&linie=b1');
-    const laengeVorher = window.history.length;
-
-    const erledigt = routeImSkripteTab(detail, '/produktion/p1?tab=skripte&linie=b1&skript=s1', { push: true });
-
-    expect(erledigt).toBe(true);
-    expect(window.history.length).toBe(laengeVorher + 1);
-    expect(window.history.state).toEqual({ route: '/produktion/p1?tab=skripte&linie=b1&skript=s1', trail });
-    expect(detail.skriptOffenId).toBe('s1');
-    expect(workflow.activateWorkflowTab).toHaveBeenCalledWith(detail, 'skripte', { syncUrl: false });
-  });
-
-  it('schließt das Skript im selben Tab (Zurück) und lädt die Tabelle', async () => {
-    const detail = produktion({ activeWorkflowTab: 'skripte', skriptOffenId: 's1' });
-
-    expect(routeImSkripteTab(detail, '/produktion/p1?tab=skripte&linie=b1')).toBe(true);
-    expect(detail.skriptOffenId).toBeNull();
-    await vi.waitFor(() => expect(workflow.loadWorkflowPane).toHaveBeenCalledWith(detail, 'skripte'));
-    expect(workflow.activateWorkflowTab).not.toHaveBeenCalled();
-  });
-
-  it('überlässt dem Router andere Produktion, andere Linie, anderen Tab und Gäste', () => {
-    const detail = produktion();
-    expect(routeImSkripteTab(detail, '/produktion/p2?tab=skripte&skript=s1')).toBe(false);
-    expect(routeImSkripteTab(detail, '/produktion/p1?tab=skripte&linie=b2&skript=s1')).toBe(false);
-    expect(routeImSkripteTab(detail, '/produktion/p1?tab=vertraege')).toBe(false);
-    expect(routeImSkripteTab(produktion({ mode: 'overview' }), '/produktion/p1?tab=skripte')).toBe(false);
-    window.guestShare = { entityType: 'kampagne' };
-    expect(routeImSkripteTab(detail, '/produktion/p1?tab=skripte&skript=s1')).toBe(false);
-    expect(detail.skriptOffenId).toBeNull();
-  });
-
-  it('überlässt dem Router den Tab, wenn der Nutzer ihn nicht sieht', () => {
-    workflow.getVisibleWorkflowTabs.mockReturnValueOnce([{ id: 'vertraege' }]);
-    expect(routeImSkripteTab(produktion(), '/produktion/p1?tab=skripte&skript=s1')).toBe(false);
-  });
-
-  it('liest das offene Skript aus der URL', () => {
-    expect(skriptParam('?tab=skripte&skript=s9')).toBe('s9');
-    expect(skriptParam('?tab=skripte')).toBeNull();
-  });
-
-  it('schließt das offene Skript, wenn es gelöscht wurde', async () => {
+describe('Offenes Skript gelöscht', () => {
+  it('schließt das Skript und zeigt die Tabelle der Linie', async () => {
     window.history.replaceState({ route: '/produktion/p1?tab=skripte&skript=s1' }, '', '/produktion/p1?tab=skripte&skript=s1');
-    const detail = produktion({ activeWorkflowTab: 'skripte', skriptOffenId: 's1' });
+    const detail = produktion({ activeWorkflowTab: 'skripte', offen: { skripte: 's1' } });
 
     skriptGeloescht(detail, 's1');
 
-    expect(detail.skriptOffenId).toBeNull();
-    expect(window.location.search).toBe('?tab=skripte');
-    await vi.waitFor(() => expect(workflow.loadWorkflowPane).toHaveBeenCalledWith(detail, 'skripte'));
+    expect(detail.offen.skripte).toBeNull();
+    expect(window.location.search).toBe('?tab=skripte&linie=b1');
+    await vi.waitFor(() => expect(workflow.remountWorkflowPane).toHaveBeenCalledWith(detail, 'skripte'));
+  });
+
+  it('vergisst das Skript in einem anderen Tab, ohne die URL anzufassen', () => {
+    const detail = produktion({ offen: { skripte: 's1' } });
+
+    skriptGeloescht(detail, 's1');
+
+    expect(detail.offen.skripte).toBeNull();
+    expect(window.location.search).toBe('?tab=vertraege&linie=b1');
+    expect(workflow.remountWorkflowPane).not.toHaveBeenCalled();
   });
 });
 
@@ -213,6 +191,18 @@ describe('Router fragt das aktive Modul zuerst', () => {
     registry.currentModule.handleRouteInPlace.mockClear();
     await registry.navigateTo('/produktion/p1?tab=skripte', false, { replace: true });
     expect(registry.currentModule.handleRouteInPlace).not.toHaveBeenCalled();
+  });
+
+  it('fragt nicht noch einmal, wenn das Modul nach einer Abfrage selbst abgibt', async () => {
+    const registry = new ModuleRegistry();
+    registry._confirmLeave = vi.fn(async () => true);
+    registry._doNavigate = vi.fn(async () => null);
+    registry.currentModule = { handleRouteInPlace: vi.fn(() => true) };
+
+    await registry.navigateTo('/skripte/s1', false, { ohneModulRoute: true });
+
+    expect(registry.currentModule.handleRouteInPlace).not.toHaveBeenCalled();
+    expect(registry._doNavigate).toHaveBeenCalledTimes(1);
   });
 });
 

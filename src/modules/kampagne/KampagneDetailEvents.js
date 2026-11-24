@@ -22,7 +22,8 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { bindKampagnenAuswertung } from '../auswertung/auswertungKampagne.js';
 import { resetKooperationFilter } from './kooperationFilterSpalte.js';
-import { skriptGeloescht, skriptOffen, skripteTabUrl } from './KampagneDetailSkripte.js';
+import { skriptGeloescht } from './KampagneDetailSkripte.js';
+import { detailOffen } from './produktionTabDetail.js';
 
 function initToolbarMenu(signal) {
   document.querySelectorAll('.page-header-right .toolbar-menu').forEach(menu => {
@@ -231,9 +232,10 @@ export function setupEvents(detail) {
         return;
       }
       const link = e.target.closest('.table-link[data-table][data-id]');
-      const imSkripteTab = link?.dataset.table === 'skripte' && detail.mode === 'workflow';
-      const route = link && (imSkripteTab
-        ? skripteTabUrl(detail, link.dataset.id)
+      const href = link?.getAttribute('href') || '';
+      // Ziele im Flow tragen ihre Adresse im href, die Produktion zeigt sie ohne Neuaufbau
+      const route = link && (href.startsWith('/produktion/')
+        ? href
         : getWorkflowTableRoute(link.dataset.table, link.dataset.id));
       if (route) {
         e.preventDefault();
@@ -329,8 +331,8 @@ export function setupEvents(detail) {
   // Soft-Refresh
   window.addEventListener('softRefresh', async () => {
     const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
-    // Der Skript-Editor hält eigene Realtime-Daten und ungespeicherte Eingaben
-    if (hasActiveForm || skriptOffen(detail)) return;
+    // Offene Ansichten (Skript-Editor, Formulare) halten eigene Daten und ungespeicherte Eingaben
+    if (hasActiveForm || detailOffen(detail)) return;
     const path = location.pathname;
     if (!detail.kampagneId || (!path.includes('/kampagne/') && !path.includes('/produktion/'))) return;
 

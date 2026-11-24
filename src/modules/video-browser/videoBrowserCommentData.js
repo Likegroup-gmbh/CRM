@@ -53,6 +53,17 @@ export function commentsForAsset(comments, runde, assetId, type = 'video') {
 }
 
 /**
+ * Hat die Kundenseite die Datei kommentiert, seit sie hochgeladen ist? Team-Kommentare zählen nicht,
+ * ältere Runden-Notizen auch nicht für Dateien, die danach in dieselbe Schleife kamen.
+ * @param {{ id: string, type: string, asset?: { created_at?: string } }} item Datei einer Feedbackschleife
+ */
+export function hatKundenfeedback(comments, runde, item) {
+  const seit = String(item?.asset?.created_at || '');
+  return commentsForAsset(comments, runde, item?.id, item?.type)
+    .some(c => c.author?.role === 'kunde' && String(c.createdAt || '') >= seit);
+}
+
+/**
  * Wohin die Kommentare einer Datei gehören. Eine finale Datei verweist auf ihre Quelle in einer
  * Feedbackschleife und teilt deren Kommentare. Ein direkt abgelegtes finales Video ohne Quelle
  * hängt an der jüngsten Schleife ohne Zuordnung; finale Bilder und Stories ohne Quelle haben kein Ziel.

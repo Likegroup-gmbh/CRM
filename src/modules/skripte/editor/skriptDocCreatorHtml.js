@@ -110,13 +110,13 @@ export function listeCreatorHtml(creators) {
  * der Videoidee. Bei einem geteilten Skript je Creator eine Zeile.
  * `creatorName(creator)` rendert Avatar und Name ohne Zelle, ohne Name leer.
  */
-export function skriptCreatorZelleHtml(skript, creatorName) {
+export function skriptCreatorZelleHtml(skript, creatorName, zellenKlasse = 'col-name') {
   const zeilen = creatorsFuerListe(skript, skript?.kooperation_videos || [])
-    .map(creatorName)
+    .map((c) => creatorName(c))
     .filter(Boolean);
   if (!zeilen.length) return '<td>-</td>';
-  if (zeilen.length === 1) return `<td class="col-name">${zeilen[0]}</td>`;
-  return `<td class="col-name">${zeilen
+  if (zeilen.length === 1) return `<td class="${zellenKlasse}">${zeilen[0]}</td>`;
+  return `<td class="${zellenKlasse}">${zeilen
     .map((z) => `<div class="table-creator-zeile">${z}</div>`).join('')}</td>`;
 }
 

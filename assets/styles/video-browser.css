@@ -999,6 +999,7 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
 }
 
 .vb-dot--wartet { background: var(--warning-500); }
+.vb-dot--feedback,
 .vb-dot--aenderungen { background: var(--primary-500); }
 .vb-dot--freigegeben { background: var(--success-700); }
 

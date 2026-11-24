@@ -1,12 +1,15 @@
 // KampagneDetailKatalog.js
 // Produkte- und Personas-Tab der Produktion: die flache Liste, nur das
-// Produkt und die Personas dieses Briefings.
+// Produkt und die Personas dieses Briefings. Ist eins offen (?produkt=, ?persona=),
+// zeigt der Tab sein Formular (KampagneDetailKatalogDetail, ADR 0079).
 
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { ProduktList } from '../produkt/ProduktList.js';
 import { PersonaList } from '../persona/PersonaList.js';
 import { effectiveLinie } from './linienScope.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
+import { mountKatalogDetail, unmountKatalogDetail } from './KampagneDetailKatalogDetail.js';
+import { offeneId } from './produktionTabDetail.js';
 
 export function katalogScope(detail) {
   const produktion = detail?.produktion || {};
@@ -39,6 +42,7 @@ export function unmountKatalogPanes(detail) {
   bumpPaneGen(detail, 'personas');
   unmountList(detail, 'produktList');
   unmountList(detail, 'personaList');
+  unmountKatalogDetail(detail);
 }
 
 async function mountList(detail, { tabId, key, List }) {
@@ -47,6 +51,10 @@ async function mountList(detail, { tabId, key, List }) {
   const gen = paneGeneration(detail, tabId);
 
   unmountList(detail, key);
+  if (offeneId(detail, tabId)) {
+    await mountKatalogDetail(detail, tabId, pane, gen);
+    return;
+  }
   pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
 
   const list = new List();

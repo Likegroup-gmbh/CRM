@@ -228,7 +228,7 @@ export class VideoTableDrawerActions {
     try {
       const { data } = await window.supabase
         .from('kooperation_videos')
-        .select('skript_id, skript:skript_id(id, titel, status)')
+        .select('skript_id, skript:skript_id(id, titel, status, briefing_id)')
         .eq('id', videoId)
         .single();
       const patch = {

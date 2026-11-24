@@ -53,6 +53,7 @@ export const ENTITY_ICONS = {
   'admin-datenqualitaet': 'shield',
   'admin-medienablage': 'archive-box',
   'admin-teams-kanaele': 'chat-bubble-left',
+  'admin-pdf-vorlagen': 'document-chart',
   transcribe: 'video',
   kunden: 'home',
   adresse: 'map-pin',

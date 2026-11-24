@@ -48,11 +48,12 @@ export function passeHoeheAn(root) {
 
 /**
  * Misst beim Einsetzen, bei jedem Neuzeichnen des Inhalts und bei Größenänderung des Fensters.
- * @param {HTMLElement} root - [data-auswertung]
+ * Auch für andere Seiten im Erfassen-Layout (PDF-Vorlagen): dort ist `inhalt` die Seite selbst.
+ * @param {HTMLElement} root - [data-auswertung], enthält `.erfassen`
+ * @param {{ inhalt?: HTMLElement|null }} [opts] - Element, dessen Kinder wechseln (Standard: [data-auswertung-inhalt])
  * @returns {() => void} cleanup
  */
-export function bindeErfassenHoehe(root) {
-  const inhalt = root?.querySelector('[data-auswertung-inhalt]');
+export function bindeErfassenHoehe(root, { inhalt = root?.querySelector('[data-auswertung-inhalt]') } = {}) {
   if (!inhalt) return () => {};
   let frame = 0;
   const messen = () => {

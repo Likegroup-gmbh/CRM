@@ -48,11 +48,14 @@ export function sourceFolder(row, item) {
   return row.folders.find(f => f.kind === 'schleife' && f.items.some(i => i.id === sourceId)) || null;
 }
 
+/** Der Status der Datei, nicht der Schleife: in der aktuellen Schleife hat jede Datei ihren eigenen. */
 function decisionText(ctx, folder, item) {
   if (item.isFinal) return 'Freigegeben als Finale Version.';
-  if (folder.status?.key === 'wartet') return ctx.team ? wartetKurz(folder) : '';
-  if (folder.status?.key === 'freigegeben') return 'Freigegeben.';
-  if (folder.status?.key === 'aenderungen') return 'Änderungen angefordert.';
+  const key = item.status?.key;
+  if (key === 'wartet') return ctx.team ? wartetKurz(folder) : '';
+  if (key === 'feedback') return ctx.team ? 'Kundenfeedback liegt vor.' : 'Dein Feedback ist beim Team.';
+  if (key === 'freigegeben') return 'Freigegeben.';
+  if (key === 'aenderungen') return 'Änderungen angefordert.';
   return '';
 }
 
@@ -65,7 +68,8 @@ function rundeText(row, folder, item) {
     return source ? `Finale Version · aus ${source.name}` : 'Finale Version';
   }
   const name = schleifeName(item.version || folder.number || 1);
-  if (folder.status?.key === 'wartet') return folder.since ? `${name} · seit ${formatDatum(folder.since)} beim Kunden` : `${name} · beim Kunden`;
+  if (item.status?.key === 'wartet') return folder.since ? `${name} · seit ${formatDatum(folder.since)} beim Kunden` : `${name} · beim Kunden`;
+  if (item.status?.key === 'feedback') return `${name} · Feedback liegt vor`;
   if (folder.closed) return `${name} · abgeschlossen`;
   return name;
 }
