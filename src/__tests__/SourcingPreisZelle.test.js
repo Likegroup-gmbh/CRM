@@ -3,7 +3,9 @@ import { renderCell, renderZeile } from './sourcingZelleKit.js';
 import { renderItemsTable, renderAddSection } from '../modules/creator-auswahl/castingTableRender.js';
 import {
   berechnePreisAusViews,
+  bindListenTkpFeld,
   getListenTkp,
+  parseListenTkp,
   ohneEuroZeichen,
   DEFAULT_TKP
 } from '../modules/creator-auswahl/castingPreisZellen.js';
@@ -211,6 +213,60 @@ describe('Sourcing – TKP der Liste', () => {
     expect(berechnePreisAusViews(3333, 33.33)).toBe(111.09);
     expect(berechnePreisAusViews(null, 25)).toBeNull();
   });
+
+  it('liest 40, 12,5 und 12.5 und weist leer, 0 und negativ zurueck', () => {
+    expect(parseListenTkp('40')).toBe(40);
+    expect(parseListenTkp('12,5')).toBe(12.5);
+    expect(parseListenTkp('12.5')).toBe(12.5);
+    expect(parseListenTkp('12,555')).toBe(12.56);
+    expect(parseListenTkp('')).toBeNull();
+    expect(parseListenTkp('   ')).toBeNull();
+    expect(parseListenTkp('0')).toBeNull();
+    expect(parseListenTkp('-1')).toBeNull();
+    expect(parseListenTkp('abc')).toBeNull();
+  });
+
+  it('speichert einen neuen TKP beim Verlassen und laesst denselben Wert liegen', () => {
+    const input = document.createElement('input');
+    const saves = [];
+    const off = bindListenTkpFeld(input, {
+      getAktuell: () => 25,
+      onSave: (tkp) => saves.push(tkp)
+    });
+
+    input.value = '40';
+    input.dispatchEvent(new Event('blur'));
+    expect(saves).toEqual([40]);
+
+    input.value = '25,00';
+    input.dispatchEvent(new Event('blur'));
+    expect(saves).toEqual([40]);
+    expect(input.value).toBe('25');
+    off();
+  });
+
+  it('stellt 0 und leere Eingaben auf den bisherigen TKP zurueck', () => {
+    const input = document.createElement('input');
+    const meldungen = [];
+    window.toastSystem = { show: (msg) => meldungen.push(msg) };
+    const off = bindListenTkpFeld(input, {
+      getAktuell: () => 40,
+      onSave: () => { throw new Error('soll nicht speichern'); }
+    });
+
+    input.value = '0';
+    input.dispatchEvent(new Event('blur'));
+    input.value = '';
+    input.dispatchEvent(new Event('blur'));
+
+    expect(input.value).toBe('40');
+    expect(meldungen).toEqual([
+      'TKP muss größer als 0 sein',
+      'TKP muss größer als 0 sein'
+    ]);
+    off();
+    delete window.toastSystem;
+  });
 });
 
 describe('Sourcing – Kopfzeile der Detailtabelle', () => {
@@ -226,6 +282,23 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(doc.querySelector('#btn-sourcing-tabelle-anpassen').textContent.trim())
       .toBe('Tabelle anpassen');
     expect(doc.querySelector('#sourcing-tkp-input')).toBeNull();
+    expect(doc.querySelector('.add-item-actions-right > #sourcing-listen-tkp')).toBeNull();
+  });
+
+  it('zeigt den TKP oben im Plus-Menü, 40 wenn gesetzt und 25 sonst', () => {
+    const mit = kopf({ liste: { tkp: 40 } });
+    const feld = mit.querySelector('#sourcing-listen-tkp');
+
+    expect(feld.closest('.toolbar-menu-dropdown')).not.toBeNull();
+    expect(feld.closest('.toolbar-menu-dropdown').firstElementChild).toBe(feld.closest('.toolbar-tkp-zeile'));
+    expect(feld.classList.contains('form-input')).toBe(false);
+    expect(feld.closest('.toolbar-tkp-zeile').querySelector('svg')).not.toBeNull();
+    expect(feld.value).toBe('40');
+    expect(feld.parentElement.textContent).toContain('€');
+
+    expect(kopf({ liste: {} }).querySelector('#sourcing-listen-tkp').value).toBe('25');
+    expect(kopf({ liste: { tkp: null } }).querySelector('#sourcing-listen-tkp').value).toBe('25');
+    expect(kopf({ isKunde: true, canCreate: false }).querySelector('#sourcing-listen-tkp')).toBeNull();
   });
 
   it('zeigt das Logo des Unternehmens im linken Block', () => {

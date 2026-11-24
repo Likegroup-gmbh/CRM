@@ -24,6 +24,60 @@ export function getListenTkp(liste) {
 }
 
 /**
+ * Eingabe aus dem Plus-Menü. Komma und Punkt gelten, das Ergebnis ist auf
+ * Cent gerundet. Leer, 0 und alles andere als eine positive Zahl sind ungueltig.
+ */
+export function parseListenTkp(raw) {
+  const text = String(raw ?? '').trim().replace(',', '.');
+  if (!text) return null;
+  const n = Number(text);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 100) / 100;
+}
+
+/** Wert, den das Zahlenfeld anzeigt. Immer mit Punkt, damit er zurueckgelesen wird. */
+export function tkpAlsEingabe(wert) {
+  const n = parseListenTkp(wert);
+  return String(n == null ? DEFAULT_TKP : n);
+}
+
+/**
+ * Speichert beim Verlassen und bei Enter. Derselbe Wert schreibt nichts,
+ * eine ungueltige Eingabe stellt den bisherigen TKP wieder her.
+ * @returns {() => void} Listener abbauen
+ */
+export function bindListenTkpFeld(input, { getAktuell, onSave }) {
+  if (!input) return () => {};
+
+  const speichere = () => {
+    const aktuell = parseListenTkp(getAktuell()) ?? DEFAULT_TKP;
+    const wert = parseListenTkp(input.value);
+    if (wert == null) {
+      input.value = tkpAlsEingabe(aktuell);
+      window.toastSystem?.show('TKP muss größer als 0 sein', 'error');
+      return;
+    }
+    input.value = tkpAlsEingabe(wert);
+    if (wert === aktuell) return;
+    onSave(wert);
+  };
+
+  const onBlur = () => speichere();
+  const onKeydown = (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    input.blur();
+  };
+
+  input.addEventListener('blur', onBlur);
+  input.addEventListener('keydown', onKeydown);
+  return () => {
+    input.removeEventListener('blur', onBlur);
+    input.removeEventListener('keydown', onKeydown);
+  };
+}
+
+/**
  * Kopf-Tooltip der berechneten Reels-Preise. Beschreibt die Rechenregel in der
  * Form, in der sie auch dem Kunden erklaert wird - die Spalte ist sonst eine
  * Blackbox aus Views und TKP.

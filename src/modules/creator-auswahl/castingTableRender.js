@@ -15,7 +15,7 @@ import {
 } from './sourcingSpaltenSichtbarkeit.js';
 import { SOURCING_TABS } from './sourcingTabs.js';
 import { NICHT_UMSETZEN_ICON } from './sourcingIcons.js';
-import { getListenTkp, reelsPreisTooltip } from './castingPreisZellen.js';
+import { getListenTkp, reelsPreisTooltip, tkpAlsEingabe } from './castingPreisZellen.js';
 import { renderItemRow } from './castingItemRow.js';
 import { hatEigeneReihenfolge, ordneSourcingTabellenHtml, spaltenfolgeFuerKontext } from './sourcingSpaltenfolge.js';
 import { renderBewerbungTable } from './bewerbungTab.js';
@@ -48,6 +48,25 @@ const LINK_ICON = `${icon('link')}`;
 
 const KATEGORIEN_ICON = `${icon('tag')}`;
 
+/** TKP der Liste, oben im Plus-Menü. Klicks hier schließen das Menü nicht. */
+function renderTkpZeile(ctx) {
+  return `
+    <label class="action-submenu toolbar-tkp-zeile">
+      <span class="toolbar-tkp-label">
+        ${icon('currency-euro')}
+        <span>TKP</span>
+      </span>
+      <span class="toolbar-tkp-eingabe">
+        <input id="sourcing-listen-tkp" class="toolbar-tkp-feld" type="text" inputmode="decimal"
+          autocomplete="off" spellcheck="false"
+          value="${escapeHtml(tkpAlsEingabe(getListenTkp(ctx.liste)))}"
+          title="Euro pro 1.000 Views"
+          aria-label="TKP in Euro pro 1.000 Views">
+        <span>€</span>
+      </span>
+    </label>`;
+}
+
 function renderAddSectionActions(ctx = {}) {
   const kundenCallActive = ctx.kundenCallActive || false;
   return `
@@ -70,6 +89,7 @@ function renderAddSectionActions(ctx = {}) {
         ${renderToolbarMenu({
           toggleId: 'btn-sourcing-toolbar-menu',
           itemsHtml: `
+            ${renderTkpZeile(ctx)}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-konzept-link', title: ctx.liste?.strategie_id ? 'Konzept-Verknüpfung lösen' : 'Konzept verknüpfen', icon: LINK_ICON, label: ctx.liste?.strategie_id ? 'Konzept lösen' : 'Konzept verknüpfen' })}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-kategorien', title: 'Kategorien verwalten', icon: KATEGORIEN_ICON, label: 'Kategorien' })}
             ${renderToolbarMenuItem({ id: 'btn-share-sourcing', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' })}

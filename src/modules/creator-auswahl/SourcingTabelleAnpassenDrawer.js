@@ -1,8 +1,8 @@
 // SourcingTabelleAnpassenDrawer.js (ES6-Modul)
 // Drawer "Tabelle anpassen" der Sourcing-Detailseite.
-// Spalten-Sichtbarkeit und Reihenfolge. Art der Liste, Plattform, Format
-// und TKP leben am Briefing und werden von dort fortgeschrieben.
-// Die Reihenfolge speichert sofort. Name und Aktionen bleiben fest.
+// Spalten-Sichtbarkeit und Reihenfolge. Der TKP wird im Plus-Menü der Liste
+// geändert, nicht hier. Die Reihenfolge speichert sofort. Name und Aktionen
+// bleiben fest.
 
 import {
   DEAKTIVIERTE_SPALTEN,

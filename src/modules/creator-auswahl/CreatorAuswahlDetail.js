@@ -303,9 +303,9 @@ export class CreatorAuswahlDetail {
   }
 
   /**
-   * Listeneinstellungen aus dem Drawer speichern: TKP schlaegt direkt auf die
-   * Reels-Preise durch, Typ/Plattform/Format kommen mit neu vorbelegten
-   * hidden_columns. Deshalb in beiden Faellen die Tabelle neu rendern.
+   * Listeneinstellungen speichern. Ein neuer TKP schlägt direkt auf die
+   * Reels-Preise durch, geänderte hidden_columns auf die Spalten.
+   * In beiden Fällen die Tabelle neu rendern.
    */
   async saveListenEinstellungen(updates) {
     try {

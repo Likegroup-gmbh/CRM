@@ -18,6 +18,7 @@ import {
 import { openCastingDetailDrawer } from './castingDetailDrawer.js';
 import { bindTextBaseline, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 import { bindWrappingTextareas } from '../../core/table/fitTextareaHeight.js';
+import { bindListenTkpFeld, getListenTkp } from './castingPreisZellen.js';
 
 export function bindEvents() {
   this._boundEventListeners.forEach(cleanup => cleanup());
@@ -154,6 +155,11 @@ export function bindEvents() {
       konzeptLinkBtn.addEventListener('click', handler);
       this._boundEventListeners.add(() => konzeptLinkBtn.removeEventListener('click', handler));
     }
+
+    this._boundEventListeners.add(bindListenTkpFeld(this._q('#sourcing-listen-tkp'), {
+      getAktuell: () => getListenTkp(this.liste),
+      onSave: (tkp) => this.saveListenEinstellungen({ tkp })
+    }));
 
     const addBtn = this._q('#btn-open-add-drawer');
     if (addBtn) {
