@@ -198,6 +198,7 @@ export class SelectionBar {
 
     document.body.appendChild(bar);
     this.el = bar;
+    syncPageClearance();
     return bar;
   }
 
@@ -208,6 +209,7 @@ export class SelectionBar {
     this.el.classList.toggle('is-idle', this.hasIdle && count === 0);
     const countEl = this.el.querySelector('.bulk-count');
     if (countEl) countEl.textContent = `${count} ${this.countLabel}`;
+    syncPageClearance();
   }
 
   query(selector) {
@@ -217,5 +219,28 @@ export class SelectionBar {
   destroy() {
     this.el?.remove();
     this.el = null;
+    syncPageClearance();
+  }
+}
+
+/**
+ * Solange eine Leiste sichtbar ist, bekommt die Seite unten Luft.
+ * Die Leiste ist position:fixed und würde sonst die letzten Zeilen verdecken.
+ * Die Höhe steht als Variable, damit der Abstand zur tatsächlichen Leiste passt.
+ */
+function syncPageClearance() {
+  const bars = [...document.querySelectorAll('.selection-bar')]
+    .filter((el) => el.style.display !== 'none');
+  if (bars.length === 0) {
+    document.body.classList.remove('has-selection-bar');
+    document.documentElement.style.removeProperty('--selection-bar-height');
+    return;
+  }
+  document.body.classList.add('has-selection-bar');
+  const hoehe = Math.max(...bars.map((el) => el.getBoundingClientRect().height));
+  if (hoehe > 0) {
+    document.documentElement.style.setProperty('--selection-bar-height', `${Math.ceil(hoehe)}px`);
+  } else {
+    document.documentElement.style.removeProperty('--selection-bar-height');
   }
 }

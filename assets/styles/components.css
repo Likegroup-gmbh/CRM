@@ -6226,6 +6226,17 @@ progress.upload-progress-bar::-moz-progress-bar {
 
 /* --- Floating Auswahl-Leiste (core/list/SelectionBar.js) --- */
 
+/* Leiste sitzt fest über dem Seitenende. #dashboard-content hat sonst
+   Padding 0, deshalb liegen die letzten Zeilen darunter (Casting und
+   Masterliste). Der Zusatzabstand lässt die Seite so weit scrollen,
+   dass die letzte Zeile über der Leiste steht. Der Scrollport endet
+   um den unteren Rand von .main-content (space-sm) über dem Viewport. */
+body.has-selection-bar:has(.creator-pool-table-container, #masterliste-page) #dashboard-content {
+  padding-bottom: calc(
+    var(--space-xxl) - var(--space-sm) + var(--selection-bar-height, 4.5rem) + var(--space-lg)
+  );
+}
+
 .selection-bar {
   position: fixed;
   bottom: var(--space-xxl);

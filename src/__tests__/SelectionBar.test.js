@@ -125,6 +125,8 @@ describe('bindCheckboxSelection', () => {
 describe('SelectionBar', () => {
   afterEach(() => {
     document.body.innerHTML = '';
+    document.body.classList.remove('has-selection-bar');
+    document.documentElement.style.removeProperty('--selection-bar-height');
   });
 
   it('baut die Leiste versteckt auf und zeigt Zähler ab einer Auswahl', () => {
@@ -202,6 +204,41 @@ describe('SelectionBar', () => {
     bar.update(0);
     expect(el.style.display).toBe('none');
     expect(el.querySelector('.selection-bar__idle')).toBeNull();
+  });
+
+  it('gibt der Casting-Seite Abstand, solange die Leiste sichtbar ist', () => {
+    const rect = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this.classList?.contains('selection-bar')) {
+        return { height: 64.2, width: 480, top: 0, left: 0, bottom: 64.2, right: 480, x: 0, y: 0, toJSON() {} };
+      }
+      return rect.call(this);
+    };
+    try {
+      const bar = new SelectionBar({ id: 'bar-test' });
+      bar.mount('<button data-selection-action="go">Los</button>');
+      expect(document.body.classList.contains('has-selection-bar')).toBe(false);
+      expect(document.documentElement.style.getPropertyValue('--selection-bar-height')).toBe('');
+
+      bar.update(2);
+      expect(document.body.classList.contains('has-selection-bar')).toBe(true);
+      expect(document.documentElement.style.getPropertyValue('--selection-bar-height')).toBe('65px');
+
+      bar.update(0);
+      expect(document.body.classList.contains('has-selection-bar')).toBe(false);
+      expect(document.documentElement.style.getPropertyValue('--selection-bar-height')).toBe('');
+
+      bar.mount('', { idleHtml: '<span>ruhend</span>' });
+      expect(document.body.classList.contains('has-selection-bar')).toBe(true);
+      expect(document.documentElement.style.getPropertyValue('--selection-bar-height')).toBe('65px');
+
+      bar.destroy();
+      expect(document.getElementById('bar-test')).toBeNull();
+      expect(document.body.classList.contains('has-selection-bar')).toBe(false);
+      expect(document.documentElement.style.getPropertyValue('--selection-bar-height')).toBe('');
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = rect;
+    }
   });
 
   it('ignoriert Klicks auf deaktivierte Aktionen und räumt mit destroy auf', () => {
