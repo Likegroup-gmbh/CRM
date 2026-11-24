@@ -10,6 +10,7 @@ import { renderEmptyState, renderEmptyStateRow } from '../../core/components/Emp
 import { icon } from '../../core/icons/IconSystem.js';
 import { fmtNum } from './AuftragDetailRenderer.js';
 import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
+import { istPlatzhalter } from '../kooperation/platzhalter.js';
 
 // Netto-Beträge aus Kooperationen summieren (inkl. KSK-Aufschlaege)
 const verbrauchtesBudgetNetto = (kooperationen) =>
@@ -259,7 +260,9 @@ Object.assign(AuftragDetail.prototype, {
 
     const rows = this.kooperationen.map(koop => {
       const creator = koop.creator || {};
-      const creatorName = [creator.vorname, creator.nachname].filter(Boolean).join(' ') || '-';
+      const creatorName = istPlatzhalter(koop)
+        ? 'Platzhalter'
+        : ([creator.vorname, creator.nachname].filter(Boolean).join(' ') || '-');
       
       // Videos für diese Kooperation
       const koopVideos = this.videos.filter(v => v.kooperation_id === koop.id);

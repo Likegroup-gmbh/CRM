@@ -11,6 +11,7 @@ import { syncSkriptGeloeschtLocal } from './skriptFreigabeSync.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { closeLinienMenu, koopLinie, toggleLinienMenu } from './linienScope.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
+import { bindPlatzhalterButton } from '../kooperation/platzhalterAnlegen.js';
 import { handleWorkflowCreate } from './KampagneWorkflowCreate.js';
 import { setBudgetTags } from '../produktion/budgetTabFilter.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
@@ -310,6 +311,7 @@ export function setupEvents(detail) {
       navigateToNewKooperationFromKampagne(detail.kampagneId, detail.kampagneData, detail.produktionId, koopLinie(detail));
     }, { signal });
   }
+  bindPlatzhalterButton(detail, signal, koopLinie);
 
   // Kampagne teilen (Gast-Zugang per E-Mail)
   const btnShareKampagne = document.getElementById('btn-share-kampagne');

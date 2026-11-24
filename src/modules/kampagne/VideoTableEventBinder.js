@@ -14,6 +14,7 @@ import { KOOP_STATUS_FIELD } from './videoTableKoopCells.js';
 import { bindTextBaseline, isGuardedTextField, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 import { openZeitkommentar } from './videoTableZeitkommentare.js';
 import { ablageLinkKlick } from '../../core/ablage/ablageOrdnerLink.js';
+import { oeffneCreatorSetzen } from '../kooperation/platzhalterSetzen.js';
 export class VideoTableEventBinder {
   constructor(table) {
     this.table = table;
@@ -125,6 +126,17 @@ export class VideoTableEventBinder {
     }, { signal });
 
     container.addEventListener('click', (e) => {
+      const platzhalterBtn = e.target.closest('[data-action="platzhalter-creator"]');
+      if (platzhalterBtn) {
+        e.preventDefault();
+        oeffneCreatorSetzen(platzhalterBtn, {
+          koopId: platzhalterBtn.dataset.id,
+          stand: t.deckenStand,
+          onDone: () => window.kampagneDetail?.reloadKooperationTable?.()
+        });
+        return;
+      }
+
       const uploadBtn = e.target.closest('.video-upload-btn');
       if (uploadBtn) {
         e.preventDefault();

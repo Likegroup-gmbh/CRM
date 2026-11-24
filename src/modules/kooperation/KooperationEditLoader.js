@@ -9,6 +9,7 @@ import { setup as setupKooperationTags } from '../../core/form/logic/events/Koop
 import { makeRecalcAllPrices, attachVideoStepper, refreshStepperUI } from './KooperationStepperBinder.js';
 import { applyFinalisiertFilter } from '../../core/finalisiert.js';
 import { loadAllCreators } from '../../core/creatorRows.js';
+import { zeigeFormularHinweis } from './platzhalterSetzen.js';
 
 export class KooperationEditLoader {
   // Einstiegspunkt: alle Daten parallel laden + Felder befüllen
@@ -86,9 +87,13 @@ export class KooperationEditLoader {
     // usedVideos zählt nur die anderen Kooperationen (neq auf die eigene id).
     // Die eigene videoanzahl darf deshalb nicht noch einmal gutgeschrieben
     // werden, sonst lässt der Stepper mehr zu als die Limit-Prüfung beim Speichern.
-    const usedVideos = (andereKooperationen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
+    const usedVideos = (andereKooperationen || [])
+      .filter(k => k.creator_id)
+      .reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
     const remainingVideos = Math.max(0, totalVideos - usedVideos);
-    const isUnlimited = totalVideos === 0;
+    const isUnlimited = totalVideos === 0 || !creatorId;
+    if (!creatorId) form.dataset.platzhalter = '1';
+    else delete form.dataset.platzhalter;
 
     this._initVideoStepper(form, data?.videoanzahl, remainingVideos, isUnlimited);
 
@@ -107,6 +112,9 @@ export class KooperationEditLoader {
 
   // Events binden (Stepper + Video-Rows + Tags + Preise)
   async bindEvents(form, data) {
+    if (form?.dataset?.platzhalter === '1') {
+      void zeigeFormularHinweis(form, data?.id || data?._entityId);
+    }
     const ctx = form._kooperationEditCtx || {};
     const kampagnenartenOptions = ctx.kampagnenartenOptions || [];
 
@@ -285,7 +293,7 @@ export class KooperationEditLoader {
     if (!kampagneId || !window.supabase) return [];
     let query = window.supabase
       .from('kooperationen')
-      .select('id, videoanzahl')
+      .select('id, videoanzahl, creator_id')
       .eq('kampagne_id', kampagneId);
     if (currentKoopId) query = query.neq('id', currentKoopId);
     const { data } = await query;

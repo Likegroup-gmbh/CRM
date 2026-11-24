@@ -43,19 +43,16 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
     store.setColumnFilters({ tag: ['August'] });
     const s = store.calculateFilteredSummary();
 
-    // k2 + k3: Videos 2000 + 500 + 250
-    expect(s.koopBudgetSum).toBe(2750);
-    // videoanzahl 3 + 1
-    expect(s.koopVideosUsed).toBe(4);
-    // nur k2 hat creator_id
+    // k3 ist Platzhalter und zählt nicht. Übrig bleibt k2.
+    expect(s.koopBudgetSum).toBe(2000);
+    expect(s.koopVideosUsed).toBe(3);
     expect(s.koopCreatorsUsed).toBe(1);
-    // Zusatzkosten 200 + 50
-    expect(s.extraKostenVkSum).toBe(250);
-    // Stats nur aus den bestätigten Posts von k2/k3
-    expect(s.videoStats.views).toBe(250);
-    expect(s.videoStats.likes).toBe(25);
-    expect(s.videoStats.comments).toBe(11);
-    expect(s.videoStats.posts).toBe(2);
+    // Zusatzkosten nur von k2. k3 ist Platzhalter.
+    expect(s.extraKostenVkSum).toBe(200);
+    expect(s.videoStats.views).toBe(200);
+    expect(s.videoStats.likes).toBe(20);
+    expect(s.videoStats.comments).toBe(10);
+    expect(s.videoStats.posts).toBe(1);
   });
 
   it('haelt kskUmgebucht global (Budget-Basis bleibt Auftragsebene)', () => {
@@ -83,10 +80,10 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
     store.setColumnFilters({ tag: ['Juli', 'September'] });
     const s = store.calculateFilteredSummary();
 
-    // k1 (Juli) + k3 (September)
-    expect(s.koopBudgetSum).toBe(1750);
-    expect(s.koopVideosUsed).toBe(3);
-    expect(s.extraKostenVkSum).toBe(150);
+    // k1 (Juli). k3 (September) ist Platzhalter und zählt nicht.
+    expect(s.koopBudgetSum).toBe(1000);
+    expect(s.koopVideosUsed).toBe(2);
+    expect(s.extraKostenVkSum).toBe(100);
   });
 });
 

@@ -236,7 +236,10 @@ export class FormSystem {
       console.log(`🧪 FORMSYSTEM: Submit-Daten fuer ${entity}:`, submitData);
 
       // Validierung
-      const errors = this.validator.validateFormData(entity, submitData);
+      let errors = this.validator.validateFormData(entity, submitData);
+      if (entity === 'kooperation' && form.dataset.platzhalter === '1') {
+        errors = errors.filter(message => message !== 'Creator ist erforderlich.');
+      }
       if (errors.length > 0) {
         this.validator.showValidationErrors(errors);
         return;

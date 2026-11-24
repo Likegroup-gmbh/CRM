@@ -4,6 +4,8 @@
 
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
 import { KooperationenKanbanBoard } from './KooperationenKanbanBoard.js';
+import { deckenStandDerSeite } from '../kooperation/platzhalterKontext.js';
+import { setOffenePlatzhalterZahl } from '../kooperation/platzhalterAnlegen.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { kampagneDetailCrumbs } from './kampagneFolderCrumbs.js';
 import { getRouteConfig } from '../../core/breadcrumbRoutes.js';
@@ -382,6 +384,7 @@ export class KampagneDetail {
 
   _createVideoTable(tableData) {
     this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.deckenStand = deckenStandDerSeite(this);
     this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
     this.kooperationenVideoTable.briefingId = this.mode === 'workflow' ? koopLinie(this) : null;
     this.kooperationenVideoTable.statusOptions = tableData?.statusOptions || [];
@@ -444,6 +447,7 @@ export class KampagneDetail {
       summary.kskUmgebucht,
       { animate, ...this._summaryRows() }
     );
+    setOffenePlatzhalterZahl(this.store.kooperationen);
     updateVideoStatsCardDOM(summary.videoStats, { animate });
   }
 
@@ -623,6 +627,7 @@ export class KampagneDetail {
       store: this.store,
       kampagneId: this.kampagneId
     });
+    this.kanbanBoard.deckenStand = deckenStandDerSeite(this);
 
     const activeTab = document.querySelector('.kampagne-filter-tabs .tab-button.active');
     const tabName = activeTab?.dataset?.tab || 'offen';
@@ -635,6 +640,7 @@ export class KampagneDetail {
   async _remountVideoTable() {
     if (!this.store) return;
     this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.deckenStand = deckenStandDerSeite(this);
     this.kooperationenVideoTable.reloadKooperationen = () => this.reloadKooperationTable();
     this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
     this.kooperationenVideoTable.briefingId = this.mode === 'workflow' ? koopLinie(this) : null;

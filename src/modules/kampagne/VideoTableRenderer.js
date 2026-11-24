@@ -3,6 +3,7 @@ import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { getOrderedColumns } from './columns/ColumnRegistry.js';
 import { renderCustomHeader, renderCustomCell } from './columns/CustomColumnRenderer.js';
 import { renderEmptyState, resolveEmptyState } from '../../core/components/EmptyState.js';
+import { hinweisTexte } from '../kooperation/platzhalter.js';
 import {
   escapeHtml,
   renderVideoFieldStack,
@@ -105,6 +106,8 @@ export class VideoTableRenderer {
       });
     }
 
+    this._hinweisMap = this._platzhalterHinweise();
+
     const filteredKooperationen = this.getFilteredKooperationen();
 
     if (filteredKooperationen.length === 0) {
@@ -142,7 +145,15 @@ export class VideoTableRenderer {
     `;
   }
 
+  _platzhalterHinweise() {
+    const t = this.table;
+    if (t.isKundeRole?.()) return new Map();
+    const koops = t.store?.kooperationen || t.kooperationen || [];
+    return hinweisTexte(koops, t.videos || {}, t.deckenStand);
+  }
+
   renderSingleRowHtml(index) {
+    this._hinweisMap = this._platzhalterHinweise();
     const koops = this._filteredKooperationen || this.getFilteredKooperationen();
     if (index < 0 || index >= koops.length) return '';
     return this.renderKooperationWithVideos(koops[index], index + 1);
@@ -185,6 +196,7 @@ export class VideoTableRenderer {
       ? t.store.getVisibleVideos(koop)
       : allVideos;
     const creator = koop.creator || {};
+    const hinweis = this._hinweisMap?.get(koop.id) || '';
     const canViewViaPage = window.canViewPage?.('creator');
     const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
     const canViewCreator = canViewViaPage !== false && canViewViaPerm !== false;
@@ -194,7 +206,7 @@ export class VideoTableRenderer {
     // der Reihenfolge aus getOrderedColumns (Custom Columns stehen mitten
     // drin, nicht als Block vor den Aktionen). Sonst wandert beim
     // Spalten-Drag nur der Header und der Body bleibt in der alten Reihenfolge.
-    const ctx = { t, koop, videos, allVideosCount: allVideos.length, creator, canViewCreator, formatDate, rowNumber };
+    const ctx = { t, koop, videos, allVideosCount: allVideos.length, creator, canViewCreator, formatDate, rowNumber, hinweis };
     const cells = getOrderedColumns(t.store)
       .map(col => this._renderBodyCell(col, ctx))
       .join('\n');

@@ -523,7 +523,9 @@ export class KooperationList {
           <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(kooperation.kampagne) !== 'Unbenannte Kampagne' ? KampagneUtils.getDisplayName(kooperation.kampagne) : (this._kampagneMap?.[kooperation.kampagne_id] ? KampagneUtils.getDisplayName(this._kampagneMap[kooperation.kampagne_id]) : 'Unbekannt'))}</td>
           ${renderLeistungszeitraumCell(this._kampagneMap?.[kooperation.kampagne_id] || kooperation.kampagne)}
           <td>
-            ${window.validatorSystem.sanitizeHtml(kooperation.creator ? `${kooperation.creator.vorname} ${kooperation.creator.nachname}` : (this._creatorMap?.[kooperation.creator_id] ? `${this._creatorMap[kooperation.creator_id].vorname} ${this._creatorMap[kooperation.creator_id].nachname}` : 'Unbekannt'))}
+            ${window.validatorSystem.sanitizeHtml(kooperation.creator_id
+              ? (kooperation.creator ? `${kooperation.creator.vorname} ${kooperation.creator.nachname}` : (this._creatorMap?.[kooperation.creator_id] ? `${this._creatorMap[kooperation.creator_id].vorname} ${this._creatorMap[kooperation.creator_id].nachname}` : 'Unbekannt'))
+              : 'Platzhalter')}
           </td>
           <td>${kooperation.videoanzahl || 0}</td>
           <td>${formatCurrency(kooperation.einkaufspreis_gesamt)}</td>

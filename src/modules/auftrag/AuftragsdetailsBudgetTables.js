@@ -1,6 +1,7 @@
 // Tabellen der Auftragsdetails: Kampagnen, Zusatzleistungen, Kategorien.
 
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
+import { istPlatzhalter } from '../kooperation/platzhalter.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { CHIP_PREFIX_MAP } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
 
@@ -34,11 +35,12 @@ export function renderKampagnenTable(detail) {
 
   const rowsHtml = detail.kampagnen.map(kampagne => {
     const koops = detail.kooperationen.filter(k => k.kampagne_id === kampagne.id);
+    const gebucht = koops.filter(k => !istPlatzhalter(k));
     const koopCount = koops.length;
-    const videoCount = koops.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
+    const videoCount = gebucht.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
     // EK inkl. KSK-Selbstzahler-Aufschlag (echte Creator-Kosten)
-    const ekGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.einkaufspreis_netto) || 0), 0) + summeKskSelbstzahler(koops);
-    const vkGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_netto) || 0), 0);
+    const ekGesamt = gebucht.reduce((sum, k) => sum + (parseFloat(k.einkaufspreis_netto) || 0), 0) + summeKskSelbstzahler(gebucht);
+    const vkGesamt = gebucht.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_netto) || 0), 0);
 
     totalEk += ekGesamt;
     totalVk += vkGesamt;

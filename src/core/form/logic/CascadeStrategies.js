@@ -168,11 +168,12 @@ export const cascadeStrategies = {
       if (kampagneIds.length > 0) {
         const { data: koops, error: koopErr } = await window.supabase
           .from('kooperationen')
-          .select('kampagne_id, videoanzahl')
+          .select('kampagne_id, videoanzahl, creator_id')
           .in('kampagne_id', kampagneIds);
         if (!koopErr && koops) {
           const usedMap = {};
           koops.forEach(row => {
+            if (!row.creator_id) return;
             const key = row.kampagne_id;
             const val = parseInt(row.videoanzahl, 10) || 0;
             usedMap[key] = (usedMap[key] || 0) + val;
@@ -249,11 +250,12 @@ export const cascadeStrategies = {
       if (kampagneIds.length > 0) {
         const { data: koops, error: koopErr } = await window.supabase
           .from('kooperationen')
-          .select('kampagne_id, videoanzahl')
+          .select('kampagne_id, videoanzahl, creator_id')
           .in('kampagne_id', kampagneIds);
         if (!koopErr && koops) {
           const usedMap = {};
           koops.forEach(row => {
+            if (!row.creator_id) return;
             const key = row.kampagne_id;
             const val = parseInt(row.videoanzahl, 10) || 0;
             usedMap[key] = (usedMap[key] || 0) + val;

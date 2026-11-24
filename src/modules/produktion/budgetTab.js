@@ -4,13 +4,14 @@
 // unabhängig von Vertrag-Status und Rechnungen.
 
 import { budgetOrNull, ladeBudgetStand, roundMoney } from './produktionsbudget.js';
+import { istPlatzhalter } from '../kooperation/platzhalter.js';
 import { koopGehoertZurLinie } from './ProduktionService.js';
 import { instagramProfilUrl, normalizeHandle } from '../creator/creatorProfil.js';
 import { formatCompactNumber } from '../../core/format/compactNumber.js';
 import { cancelCountTo, countTo, liveCountValue } from '../../core/animation/countTo.js';
 
 export const BUDGET_KOOP_SELECT = `
-  id, name, briefing_id, produktion_id, verkaufspreis_zusatzkosten,
+  id, name, creator_id, briefing_id, produktion_id, verkaufspreis_zusatzkosten,
   creator:creator_id(id, vorname, nachname, instagram, tiktok),
   kooperation_videos(verkaufspreis_netto),
   kooperation_tags(tag_id, kooperation_tag_typen(id, name))
@@ -197,7 +198,8 @@ export function skalaTicks(skala, budget = null) {
  * @param {string|null} [params.linieId] - hervorgehobene Linie, null = nichts hervorheben
  */
 export function berechneBudgetTab({ koops = [], andereProduktionen = 0, decke = null, linieId = null } = {}) {
-  const posten = (koops || []).map(koop => ({
+  const gebucht = (koops || []).filter(koop => !istPlatzhalter(koop));
+  const posten = gebucht.map(koop => ({
     id: koop.id,
     name: koop.name || 'Kooperation',
     creator: koop.creator || null,

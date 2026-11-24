@@ -112,7 +112,7 @@ Object.assign(AuftragDetail.prototype, {
 
         if (!koopError && kooperationen) {
           // Videos aus Kooperationen (falls nicht schon in Kampagnen erfasst)
-          const koopVideos = kooperationen.reduce((sum, k) => sum + (k.videoanzahl || 0), 0);
+          const koopVideos = kooperationen.filter(k => k.creator_id).reduce((sum, k) => sum + (k.videoanzahl || 0), 0);
           
           // Unique Creator aus Kooperationen
           const uniqueCreators = new Set(kooperationen.map(k => k.creator_id).filter(Boolean));

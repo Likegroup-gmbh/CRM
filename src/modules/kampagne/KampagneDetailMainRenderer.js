@@ -12,6 +12,7 @@ import { renderProduktZelle, renderBriefingZelle } from './produktionVerknuepfun
 import { renderWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { renderAuswertungChrome } from '../auswertung/auswertungPane.js';
 import { kampagneSichtAusUrl, renderKampagneSichtSchalter } from '../auswertung/auswertungKampagne.js';
+import { offenePlatzhalterBeschriftung } from '../kooperation/platzhalterAnlegen.js';
 
 const SHARE_ICON = `
   <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
@@ -119,6 +120,8 @@ export function renderMainPage(state) {
             })}
             ${kooperationFilter ? kooperationFilter.renderToggle() : ''}
             ${(window.canFeature?.('mediaDownload') ?? false) ? `<button id="btn-download-finale" class="mdc-btn mdc-btn--secondary" title="Finale Videos der markierten Kooperationen herunterladen">Finale Videos downloaden</button>` : ''}
+            <span class="platzhalter-offen" data-offene-platzhalter>${offenePlatzhalterBeschriftung(kooperationen)}</span>
+            ${canCreateKooperation ? `<button id="btn-new-platzhalter" class="mdc-btn mdc-btn--secondary">Platzhalter</button>` : ''}
             ${canCreateKooperation ? `<button id="btn-new-kooperation" class="mdc-btn">Kooperation anlegen</button>` : ''}
             ${hasToolbarItems ? renderToolbarMenu({
               toggleId: 'btn-kampagne-toolbar-menu',

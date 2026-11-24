@@ -363,7 +363,8 @@ VertraegeCreate.prototype.updateFilteredCreators = async function() {
         window.supabase
           .from('kooperationen')
           .select('id, creator_id, kampagne_id, name, videoanzahl, einkaufspreis_netto, einkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, created_at')
-          .eq('kampagne_id', kampagneId),
+          .eq('kampagne_id', kampagneId)
+          .not('creator_id', 'is', null),
         window.supabase
           .from('creator_auswahl')
           .select('id, creator_auswahl_items(creator_id, zusage, gebucht)')

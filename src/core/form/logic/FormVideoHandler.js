@@ -63,7 +63,7 @@ export class FormVideoHandler {
 
       let koopQuery = window.supabase
         .from('kooperationen')
-        .select('id, videoanzahl')
+        .select('id, videoanzahl, creator_id')
         .eq('kampagne_id', kampagneId);
 
       if (kooperationId) {
@@ -83,7 +83,11 @@ export class FormVideoHandler {
         return { isValid: true };
       }
 
-      const usedVideos = (existingKoops || []).reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
+      if (!submitData?.creator_id) return { isValid: true };
+
+      const usedVideos = (existingKoops || [])
+        .filter(koop => koop.creator_id)
+        .reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
       const remainingVideos = Math.max(0, totalVideos - usedVideos);
 
       if (desiredVideos > remainingVideos) {

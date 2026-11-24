@@ -8,6 +8,7 @@ import { darfRezensionSchreiben } from '../creator/rezension.js';
 import { renderTableAvatar, renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
+import { istPlatzhalter } from '../kooperation/platzhalter.js';
 const INSTAGRAM_ICON = `${icon('instagram')}`;
 const TIKTOK_ICON = `${icon('tiktok')}`;
 
@@ -16,6 +17,16 @@ export const COPY_ICON = `${icon('squares-2x2')}`;
 export const CHECK_ICON = `${icon('check')}`;
 
 export function renderCreatorInner(ctx) {
+  if (istPlatzhalter(ctx.koop)) {
+    const canEdit = window.permissionSystem?.canEdit('kooperation') ?? false;
+    const hinweis = !ctx.t.isKundeRole() && ctx.hinweis
+      ? `<div class="platzhalter-hinweis">${escapeHtml(ctx.hinweis)}</div>`
+      : '';
+    const action = canEdit
+      ? `<button type="button" class="mdc-btn mdc-btn--secondary platzhalter-setzen" data-action="platzhalter-creator" data-id="${ctx.koop.id}">Creator setzen</button>`
+      : '';
+    return `<div class="koop-creator-cell"><div class="koop-creator-text"><span>Platzhalter</span>${action}${hinweis}</div></div>`;
+  }
   const creator = ctx.creator;
   const rawName = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt';
   const name = escapeHtml(rawName);

@@ -4,6 +4,7 @@
 // aggregiert werden kann. Keine window-Abhängigkeiten.
 
 import { berechneVerfuegbaresBudget, calculateEkVkTotals, calculateAgencyFeeSummary } from './EkVkAgencyFeeHelper.js';
+import { istPlatzhalter } from '../../modules/kooperation/platzhalter.js';
 
 /**
  * Bestimmt die Budget-Kachel-Variante: Influencer-Auftraege haben ein
@@ -50,6 +51,9 @@ export function getBudgetCardVariant(details) {
  * @returns {object} budgetSummary
  */
 export function calculateBudgetOverview({ auftrag, details, kooperationen = [], videos = [], kampagnen = [] }) {
+  const gebuchteIds = new Set(kooperationen.filter(k => !istPlatzhalter(k)).map(k => k.id));
+  kooperationen = kooperationen.filter(k => gebuchteIds.has(k.id));
+  videos = videos.filter(v => !v?.kooperation_id || gebuchteIds.has(v.kooperation_id));
   const variant = getBudgetCardVariant(details);
 
   // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler

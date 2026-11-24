@@ -8,6 +8,7 @@ import { animateNumber } from '../../core/animation/animateNumber.js';
 import { calculateBudgetOverview, getBudgetCardVariant } from '../../core/budget/calculateBudgetOverview.js';
 import { renderAgencyFeeCardHtml, renderKskCardHtml, renderCreatorAnteilCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
 import { CARD_HINTS, renderSummaryLabelHtml } from '../../core/budget/cardHints.js';
+import { istPlatzhalter } from '../kooperation/platzhalter.js';
 
 const VIDEO_STATS_METRIKEN = [
   { key: 'views', slug: 'stats-views', label: 'Views' },
@@ -175,10 +176,13 @@ function renderUgcBudgetCardsHtml(overview, { canSeePricing, formatCurrency }) {
 }
 
 export function calculateSummaryCards(kooperationen, videos) {
-  const koopBudgetSum = (videos || []).reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
-  const koopVideosUsed = (kooperationen || []).reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
-  const extraKostenVkSum = (kooperationen || []).reduce((sum, koop) => sum + (parseFloat(koop.verkaufspreis_zusatzkosten) || 0), 0);
-  const koopCreatorsUsed = (kooperationen || []).filter(koop => koop.creator_id).length;
+  const gebucht = (kooperationen || []).filter(koop => !istPlatzhalter(koop));
+  const ids = new Set(gebucht.map(koop => koop.id));
+  const zaehlVideos = (videos || []).filter(video => !video?.kooperation_id || ids.has(video.kooperation_id));
+  const koopBudgetSum = zaehlVideos.reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
+  const koopVideosUsed = gebucht.reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
+  const extraKostenVkSum = gebucht.reduce((sum, koop) => sum + (parseFloat(koop.verkaufspreis_zusatzkosten) || 0), 0);
+  const koopCreatorsUsed = gebucht.filter(koop => koop.creator_id).length;
 
   console.log('✅ KAMPAGNEDETAIL: Summary Cards berechnet:', { budget: koopBudgetSum, videos: koopVideosUsed, creators: koopCreatorsUsed, extraKosten: extraKostenVkSum });
   return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum };

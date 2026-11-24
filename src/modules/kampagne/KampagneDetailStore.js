@@ -11,6 +11,7 @@ import {
 import { sortKooperationen } from './KooperationSortHelper.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
 import { summiereLivePerformance } from './kampagneLivePerformance.js';
+import { istPlatzhalter } from '../kooperation/platzhalter.js';
 import { filterRows } from '../../core/filterColumn/filterRows.js';
 import { isActive } from '../../core/filterColumn/filterColumnValues.js';
 import { DEFAULT_KOOPERATION_SORT, kooperationFilterDefs } from './kooperationFilterSpalte.js';
@@ -308,13 +309,15 @@ export class KampagneDetailStore {
   }
 
   _calculateSummaryFor(koops, videosByKoopId) {
-    const allVideos = Object.values(videosByKoopId).flat();
+    const gebucht = koops.filter(k => !istPlatzhalter(k));
+    const allVideos = gebucht.flatMap(k => videosByKoopId[k.id] || []);
     const koopBudgetSum = allVideos.reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
-    const koopVideosUsed = koops.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-    const extraKostenVkSum = koops.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
-    const koopCreatorsUsed = koops.filter(k => k.creator_id).length;
-    // KSK-Selbstzahler: aus dem KSK-Topf ins Creator-Budget umgebuchter Anteil
-    const kskUmgebucht = summeKskSelbstzahler(this.kooperationen);
+    const koopVideosUsed = gebucht.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
+    const extraKostenVkSum = gebucht.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
+    const koopCreatorsUsed = gebucht.filter(k => k.creator_id).length;
+    // KSK-Selbstzahler: aus dem KSK-Topf ins Creator-Budget umgebuchter Anteil.
+    // Platzhalter buchen erst um, wenn ein Creator gesetzt ist.
+    const kskUmgebucht = summeKskSelbstzahler((this.kooperationen || []).filter(k => !istPlatzhalter(k)));
 
     return {
       koopBudgetSum,
@@ -323,7 +326,7 @@ export class KampagneDetailStore {
       extraKostenVkSum,
       kskUmgebucht,
       ekVkMarginSum: 0,
-      videoStats: this.calculateVideoStats(koops.map(k => k.id))
+      videoStats: this.calculateVideoStats(gebucht.map(k => k.id))
     };
   }
 

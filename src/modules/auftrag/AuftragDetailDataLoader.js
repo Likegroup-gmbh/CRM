@@ -5,6 +5,7 @@
 import { AuftragDetail } from './AuftragDetailCore.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
+import { istPlatzhalter } from '../kooperation/platzhalter.js';
 
 Object.assign(AuftragDetail.prototype, {
   // Lade kritische Daten parallel
@@ -215,6 +216,7 @@ Object.assign(AuftragDetail.prototype, {
           ksk_selbstzahler,
           ksk_betrag,
           kampagne_id,
+          creator_id,
           creator:creator_id (
             id,
             vorname,
@@ -255,9 +257,10 @@ Object.assign(AuftragDetail.prototype, {
       this.realCreatorCount = uniqueCreatorIds.size;
       
       // EK-Verbrauch inkl. KSK-Selbstzahler-Aufschlaege
-      this.usedBudget = this.kooperationen.reduce((sum, koop) => sum + (parseFloat(koop.einkaufspreis_netto) || 0), 0)
-        + summeKskSelbstzahler(this.kooperationen);
-      this.usedVideoCount = this.kooperationen.reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
+      const gebucht = this.kooperationen.filter(koop => !istPlatzhalter(koop));
+      this.usedBudget = gebucht.reduce((sum, koop) => sum + (parseFloat(koop.einkaufspreis_netto) || 0), 0)
+        + summeKskSelbstzahler(gebucht);
+      this.usedVideoCount = gebucht.reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
       
       console.log(`✅ AUFTRAGDETAIL: ${this.kooperationen.length} Kooperationen, ${this.realCreatorCount} Creator und ${this.realVideoCount} Videos geladen`);
     } catch (error) {

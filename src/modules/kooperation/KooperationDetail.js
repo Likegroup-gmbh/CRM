@@ -19,6 +19,7 @@ import {
 import { ablageLinkKlick } from '../../core/ablage/ablageOrdnerLink.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 import { navigateBack, trailProduktion } from '../../core/breadcrumbTrail.js';
+import { mountCreatorSetzen } from './platzhalterSetzen.js';
 
 export class KooperationDetail extends PersonDetailBase {
   constructor() {
@@ -374,6 +375,17 @@ export class KooperationDetail extends PersonDetailBase {
     });
 
     window.setContentSafely(window.content, html);
+    const slot = document.getElementById('platzhalter-creator-setzen');
+    if (slot) {
+      mountCreatorSetzen(slot, {
+        koopId: this.kooperationId,
+        persistent: true,
+        onDone: async () => {
+          await this.loadCriticalData();
+          this.render();
+        }
+      });
+    }
   }
 
   // ============================================
@@ -389,7 +401,7 @@ export class KooperationDetail extends PersonDetailBase {
     return {
       name: title,
       email: '',
-      subtitle: creatorName ? `Creator: ${creatorName}` : 'Kooperation',
+      subtitle: creatorName ? `Creator: ${creatorName}` : (this.kooperation?.creator_id ? 'Kooperation' : 'Platzhalter'),
       avatarUrl: null,
       avatarOnly: false
     };
@@ -523,7 +535,13 @@ export class KooperationDetail extends PersonDetailBase {
           <button onclick="window.navigateTo('/creator/${this.creator.id}')" class="mdc-btn mdc-btn--secondary">Creator Details anzeigen</button>
         </div>` : ''}
       </div>
-    ` : '';
+    ` : (!this.kooperation?.creator_id ? `
+      <div class="detail-card">
+        <h3 class="section-title">Creator</h3>
+        <p>Platzhalter. Der Creator ist noch offen.</p>
+        ${!isKunde && (window.permissionSystem?.canEdit('kooperation') ?? false) ? '<div id="platzhalter-creator-setzen"></div>' : ''}
+      </div>
+    ` : '');
 
     const kampagneHtml = this.kampagne ? `
       <div class="detail-card">
