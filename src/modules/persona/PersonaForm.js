@@ -23,10 +23,11 @@ import { PersonaLikyPanel } from './PersonaLikyPanel.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { backTarget } from '../../core/breadcrumbTrail.js';
 import { installPersonaFormEinbettung } from './personaFormEinbettung.js';
-import { icon } from '../../core/icons/IconSystem.js';
 import { loadBriefingIdsForPersona, setPersonaBriefings } from '../briefing/BriefingPersonas.js';
 import { setPrefillValues } from '../../core/form/data/PrefillSelected.js';
 import { readCreateScope, resolveCreateScopeLabels } from './personaCreateScope.js';
+import { briefingIdsZumSpeichern, markenIdsZumSpeichern } from './personaZuordnung.js';
+import { injectPersonaDeleteButton, loeschePersona } from './personaLoeschen.js';
 
 export class PersonaForm {
   constructor() {
@@ -196,12 +197,7 @@ export class PersonaForm {
     return !this.ctx.markeId && this.ctx.markenAnzahl > 0;
   }
 
-  /**
-   * Standalone: Unternehmen ist ein sichtbares, pflichtiges Searchable-Select.
-   * Im Edit bleibt es readonly, damit die Persona nicht zwischen Unternehmen
-   * wandert. Das Marken-Feld bleibt optional, der DirectQueryLoader filtert
-   * ueber dependsOn automatisch.
-   */
+  /** Unternehmen bleibt im Edit readonly. Marken und Briefings filtert der Loader über filterBy. */
   prepareStandalone(form) {
     if (!form) return;
 
@@ -234,26 +230,11 @@ export class PersonaForm {
     }
 
     if (this.isEdit) {
-      this.injectDeleteButton(form, opts);
+      injectPersonaDeleteButton(form, {
+        onClick: () => this.handleDelete(),
+        signal
+      });
     }
-  }
-
-  injectDeleteButton(form, opts) {
-    const actions = form.querySelector('.form-actions');
-    if (!actions || actions.querySelector('.persona-delete-btn')) return;
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'mdc-btn mdc-btn--delete persona-delete-btn';
-    btn.innerHTML = `
-      <span class="mdc-btn__icon" aria-hidden="true">
-        ${icon('trash-alt')}
-      </span>
-      <span class="mdc-btn__label">Löschen</span>
-    `;
-    btn.addEventListener('click', () => this.handleDelete(), opts);
-
-    actions.insertBefore(btn, actions.firstChild);
   }
 
   async handleSubmit() {
@@ -327,30 +308,25 @@ export class PersonaForm {
     }
   }
 
-  /**
-   * Ohne sichtbares Feld bleibt die bestehende Zuordnung erhalten - aus einer
-   * Marke heraus kommt sie nur dazu. Sonst zaehlt genau die Auswahl im Tag-Feld.
-   */
   collectMarkenIds(data) {
-    if (!this.isEdit && this.createScope?.markeId) return [this.createScope.markeId];
-    if (this.isStandalone) {
-      const werte = data.marke_ids;
-      if (Array.isArray(werte)) return werte;
-      return werte ? [werte] : [];
-    }
-    if (!this.zeigtMarkenFeld) {
-      return [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
-    }
-    const werte = data.marke_ids;
-    if (Array.isArray(werte)) return werte;
-    return werte ? [werte] : [];
+    return markenIdsZumSpeichern({
+      isEdit: this.isEdit,
+      isStandalone: this.isStandalone,
+      zeigtMarkenFeld: this.isStandalone ? true : this.zeigtMarkenFeld,
+      createMarkeId: this.createScope?.markeId || null,
+      kontextMarkeId: this.ctx?.markeId || null,
+      vorhandene: this.markenIds,
+      submitted: data?.marke_ids
+    });
   }
 
   collectBriefingIds(data) {
-    if (!this.isEdit && this.createScope?.briefingId) return [this.createScope.briefingId];
-    const werte = data?.briefing_ids;
-    if (Array.isArray(werte)) return werte;
-    return werte ? [werte] : [];
+    return briefingIdsZumSpeichern({
+      isEdit: this.isEdit,
+      createBriefingId: this.createScope?.briefingId || null,
+      vorhandene: this.briefingIds,
+      submitted: data?.briefing_ids
+    });
   }
 
   /** Der globale SubmitGuard sperrt den Button in der Capture-Phase des Submits. */
@@ -359,24 +335,12 @@ export class PersonaForm {
     if (btn) window.submitGuard?.unlockButton?.(btn);
   }
 
-  async handleDelete() {
-    const res = await window.confirmationModal?.open({
-      title: 'Persona löschen?',
-      message: `"${PersonaService.label(this.persona)}" wird endgültig gelöscht. Eine Zielgruppen-DNA dieser Persona wird mit entfernt, Skripte bleiben erhalten.`,
-      confirmText: 'Löschen',
-      cancelText: 'Abbrechen',
-      danger: true
+  handleDelete() {
+    return loeschePersona({
+      persona: this.persona,
+      personaId: this.personaId,
+      zurueck: () => this._zurueck()
     });
-    if (!res?.confirmed) return;
-
-    try {
-      await PersonaService.remove(this.personaId);
-      window.toastSystem?.success?.('Persona gelöscht');
-      this._zurueck();
-    } catch (err) {
-      console.error('Persona loeschen fehlgeschlagen:', err);
-      window.toastSystem?.error?.('Fehler beim Löschen: ' + err.message);
-    }
   }
 
   clearFieldErrors(form) {

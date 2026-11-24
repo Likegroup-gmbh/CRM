@@ -1,6 +1,7 @@
 // HTML der Masterlisten-Übersicht: Ordner als Karten oder Zeilen, Listen als Tabelle.
 
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { escapeHtml, formatDate } from './masterliste.js';
 
@@ -16,9 +17,7 @@ export function renderOrdnerGrid(ordnerListe) {
   return ordnerListe.map(ordner => `
     <div class="folder-card" ${ordnerAttrs(ordner)}>
       <div class="folder-icon">
-        ${ordner.logoUrl
-          ? `<img src="${escapeHtml(ordner.logoUrl)}" alt="${escapeHtml(ordner.name)}" class="folder-logo">`
-          : icon('folder-open')}
+        ${renderFolderAvatar({ url: ordner.logoUrl, name: ordner.name })}
       </div>
       <div class="folder-info">
         <span class="folder-name">${escapeHtml(ordner.name)}</span>

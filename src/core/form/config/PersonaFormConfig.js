@@ -69,7 +69,6 @@ export const personaConfig = {
       displayField: 'markenname',
       valueField: 'id',
       filterBy: 'unternehmen_id',
-      dependsOn: 'unternehmen_id',
       relationTable: 'persona_marke',
       relationField: 'marke_id',
       relationEntityField: 'persona_id',
@@ -92,8 +91,11 @@ export const personaConfig = {
       table: 'campaign_briefings',
       displayField: 'aktivierung_name',
       valueField: 'id',
+      // Kein dependsOn: der Erst-Load muss die Linien laden. Sonst bleibt das
+      // Tag-Feld leer und Speichern loest die Persona von jeder finalisierten
+      // Linie. Gleiche Falle wie produktion_id am Vertrag. filterBy reicht;
+      // ein Unternehmenswechsel laedt ueber die filterBy-Kaskade neu.
       filterBy: 'unternehmen_id',
-      dependsOn: 'unternehmen_id',
       customField: true,
       placeholder: 'Briefings suchen und hinzufügen...',
       helpText: 'Optional. Dieselbe Persona kann an mehreren Briefings hängen.',
