@@ -111,7 +111,7 @@ describe('Leiste unten in der Masterliste', () => {
     detail.mountLinkBar();
     const bar = document.getElementById('masterliste-link-bar');
     expect(bar.classList.contains('is-idle')).toBe(true);
-    expect(bar.querySelector('#masterliste-link-input').placeholder).toBe('Instagram-Link(s) einfügen');
+    expect(bar.querySelector('#masterliste-link-input').placeholder).toBe('Instagram-Link oder @Handle einfügen');
 
     bar.querySelector('[data-selection-action="masterliste-aus-db"]').click();
     expect(document.querySelector('#masterliste-add-drawer [data-mode="database"]').classList.contains('active')).toBe(true);

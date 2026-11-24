@@ -19,6 +19,12 @@ describe('leseMasterlisteLinks', () => {
     expect(ungueltig).toEqual([]);
   });
 
+  it('nimmt Handles mit und ohne @', () => {
+    const { handles, ungueltig } = leseMasterlisteLinks('@Ada ada, lina.k reel');
+    expect(handles).toEqual(['ada', 'lina.k']);
+    expect(ungueltig).toEqual(['reel']);
+  });
+
   it('nimmt jeden Handle nur einmal', () => {
     const { handles } = leseMasterlisteLinks('https://instagram.com/ada https://www.instagram.com/ADA/');
     expect(handles).toEqual(['ada']);
@@ -29,7 +35,7 @@ describe('leseMasterlisteLinks', () => {
       'https://www.instagram.com/reel/DABC123/',
       'https://www.instagram.com/p/XYZ/',
       'https://www.tiktok.com/@ada',
-      'hallo',
+      'kein-link',
       'https://instagram.com/ok'
     ].join(' '));
     expect(handles).toEqual(['ok']);

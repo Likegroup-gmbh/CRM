@@ -74,7 +74,7 @@ export function installMasterlisteEintraege(proto) {
       if (!canManageMasterliste() || this._addLinksBusy) return false;
       const { handles, ungueltig } = leseMasterlisteLinks(raw);
       if (!handles.length) {
-        window.toastSystem?.show('Bitte Instagram-Profil-Links einfügen (kein Reel oder Post)', 'info');
+        window.toastSystem?.show('Bitte Instagram-Profil-Link oder @Handle einfügen (kein Reel oder Post)', 'info');
         return false;
       }
 
@@ -202,7 +202,7 @@ export function installMasterlisteEintraege(proto) {
         idleHtml: `
           <form data-selection-form="masterliste-links" autocomplete="off" novalidate>
             <input id="masterliste-link-input" name="links" type="text" class="form-input"
-                   placeholder="Instagram-Link(s) einfügen" aria-label="Instagram-Link(s) einfügen">
+                   placeholder="Instagram-Link oder @Handle einfügen" aria-label="Instagram-Link oder @Handle einfügen">
             <button type="submit" class="mdc-btn mdc-btn--sm">Hinzufügen</button>
             <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm" data-selection-action="masterliste-aus-db">Aus Datenbank</button>
           </form>

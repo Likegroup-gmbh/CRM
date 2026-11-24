@@ -1,5 +1,5 @@
 // CastingDetailQuickAdd.js
-// Schnell anlegen: Profil-Link in die Leiste einfuegen, Eintrag ist da und der
+// Schnell anlegen: Profil-Link oder Instagram-Handle in die Leiste einfuegen, Eintrag ist da und der
 // Instagram-Abruf laeuft (Prototype-Mixin von CreatorAuswahlDetail).
 // Alles Weitere ist wiederverwendet: Anlegen wie im Drawer, Abruf ueber den
 // Zellen-Button der neuen Zeile (erst Creator-Pool, dann Meta).
@@ -8,16 +8,21 @@ import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { leererCastingEintrag } from './leererCastingEintrag.js';
 import { listeHatTiktok } from './castingDetailDrawerView.js';
 import { normalizedInstagramUrl } from './instagramDrawerFill.js';
-import { parseSocialLink } from '../../core/format/socialLink.js';
+import { bareInstagramHandle, parseSocialLink } from '../../core/format/socialLink.js';
 
 export const QUICK_ADD_FORM = 'quick-add';
 export const QUICK_ADD_INPUT = 'quick-add-link';
 
-/** Link -> { platform, handle, field, value } oder { error }. Nur Profil-Links. */
+/** Link oder Instagram-Handle -> { platform, handle, field, value } oder { error }. */
 export function leseQuickAddLink(raw, { tiktok = false } = {}) {
-  const parsed = parseSocialLink(String(raw || '').trim());
+  const text = String(raw || '').trim();
+  const parsed = parseSocialLink(text);
+  const handleNur = parsed.type === 'profile' ? null : bareInstagramHandle(text);
+  if (handleNur) {
+    return { platform: 'instagram', handle: handleNur, field: 'link_instagram', value: normalizedInstagramUrl(handleNur) };
+  }
   if (parsed.type !== 'profile' || !parsed.handle) {
-    return { error: 'Bitte einen Profil-Link einfügen (kein Reel oder Post)' };
+    return { error: 'Bitte einen Profil-Link oder Instagram-Handle einfügen (kein Reel oder Post)' };
   }
   const handle = parsed.handle.toLowerCase();
   if (parsed.platform === 'instagram') {

@@ -3,7 +3,7 @@
 // Ein Eintrag ohne Creator-Datensatz haengt am Instagram-Handle und zeigt
 // die Werte aus dem Creator-Pool (sourcing_creator).
 
-import { parseSocialLink } from '../../core/format/socialLink.js';
+import { bareInstagramHandle, parseSocialLink } from '../../core/format/socialLink.js';
 import { normalizeHandle } from './creatorProfil.js';
 import { eindeutigerCreator } from '../creator-auswahl/castingCreatorVerknuepfung.js';
 export const MASTERLISTE_SPALTEN = [
@@ -242,11 +242,13 @@ export function leseMasterlisteLinks(raw) {
   const ungueltig = [];
   for (const teil of String(raw || '').split(/[\s,;]+/).filter(Boolean)) {
     const parsed = parseSocialLink(teil);
-    if (parsed.platform !== 'instagram' || parsed.type !== 'profile' || !parsed.handle) {
+    const handle = parsed.platform === 'instagram' && parsed.type === 'profile' && parsed.handle
+      ? parsed.handle.toLowerCase()
+      : bareInstagramHandle(teil);
+    if (!handle) {
       ungueltig.push(teil);
       continue;
     }
-    const handle = parsed.handle.toLowerCase();
     if (!handles.includes(handle)) handles.push(handle);
   }
   return { handles, ungueltig };

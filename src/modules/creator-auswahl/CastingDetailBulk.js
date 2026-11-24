@@ -74,10 +74,12 @@ export function renderBulkBar() {
 }
 
 function renderQuickAddIdle(tiktok) {
-  const placeholder = tiktok ? 'Instagram- oder TikTok-Link einfügen' : 'Instagram-Link einfügen';
+  const placeholder = tiktok
+    ? 'Instagram- oder TikTok-Link oder @Handle einfügen'
+    : 'Instagram-Link oder @Handle einfügen';
   return `
     <form data-selection-form="${QUICK_ADD_FORM}" autocomplete="off">
-      <input id="${QUICK_ADD_INPUT}" name="link" type="url" class="form-input"
+      <input id="${QUICK_ADD_INPUT}" name="link" type="text" class="form-input"
              placeholder="${placeholder}" aria-label="${placeholder}">
       <button type="submit" class="mdc-btn mdc-btn--sm">Hinzufügen</button>
       <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm" data-selection-action="quick-add-db">Aus Datenbank</button>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSocialLink, formatLinkLabel, socialHref } from '../core/format/socialLink.js';
+import { parseSocialLink, formatLinkLabel, socialHref, bareInstagramHandle } from '../core/format/socialLink.js';
 
 describe('parseSocialLink', () => {
   it('liest Reel-Links inklusive Query-Parametern', () => {
@@ -142,6 +142,16 @@ describe('formatLinkLabel', () => {
   });
 });
 
+
+describe('bareInstagramHandle', () => {
+  it('liest @Handle und Handle, nicht Links oder reservierte Pfade', () => {
+    expect(bareInstagramHandle('@Pauline.Mary')).toBe('pauline.mary');
+    expect(bareInstagramHandle('paulinemary')).toBe('paulinemary');
+    expect(bareInstagramHandle('https://instagram.com/paulinemary')).toBeNull();
+    expect(bareInstagramHandle('reel')).toBeNull();
+    expect(bareInstagramHandle('kein Link')).toBeNull();
+  });
+});
 
 describe('socialHref', () => {
   it('macht aus einem Handle eine absolute Profil-URL (kein relativer Link)', () => {

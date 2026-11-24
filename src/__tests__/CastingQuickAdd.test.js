@@ -17,9 +17,20 @@ describe('leseQuickAddLink', () => {
     });
   });
 
+  it('nimmt einen Instagram-Handle mit und ohne @', () => {
+    expect(leseQuickAddLink('@Pauline.Mary')).toEqual({
+      platform: 'instagram',
+      handle: 'pauline.mary',
+      field: 'link_instagram',
+      value: 'https://www.instagram.com/pauline.mary/'
+    });
+    expect(leseQuickAddLink('paulinemary').handle).toBe('paulinemary');
+  });
+
   it('lehnt Reels, Freitext und leere Eingaben ab', () => {
     expect(leseQuickAddLink('https://www.instagram.com/reel/DABC123/').error).toBeTruthy();
-    expect(leseQuickAddLink('irgendwas').error).toBeTruthy();
+    expect(leseQuickAddLink('kein Link').error).toBeTruthy();
+    expect(leseQuickAddLink('reel').error).toBeTruthy();
     expect(leseQuickAddLink('').error).toBeTruthy();
   });
 
@@ -37,6 +48,7 @@ describe('findeQuickAddDuplikat', () => {
     const items = [{ id: 'a', link_instagram: 'https://instagram.com/Anna/' }, { id: 'b', link_instagram: null }];
     const link = leseQuickAddLink('https://www.instagram.com/anna');
     expect(findeQuickAddDuplikat(items, link).id).toBe('a');
+    expect(findeQuickAddDuplikat(items, leseQuickAddLink('@anna')).id).toBe('a');
     expect(findeQuickAddDuplikat(items, leseQuickAddLink('https://instagram.com/bert'))).toBeNull();
   });
 });
@@ -78,7 +90,10 @@ describe('Casting-Detail Quick-Add', () => {
   it('zeigt die Leiste mit Link-Feld schon ohne Auswahl', () => {
     const bar = document.getElementById('sourcing-bulk-bar');
     expect(bar.style.display).toBe('flex');
-    expect(bar.querySelector('#quick-add-link')).not.toBeNull();
+    const input = bar.querySelector('#quick-add-link');
+    expect(input).not.toBeNull();
+    expect(input.type).toBe('text');
+    expect(input.placeholder).toBe('Instagram-Link oder @Handle einfügen');
   });
 
   it('legt Eintrag an, holt die Instagram-Daten und leert das Feld', async () => {

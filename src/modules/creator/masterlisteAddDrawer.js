@@ -214,8 +214,8 @@ export class MasterlisteAddDrawer {
         <div class="form-field">
           <label class="form-label" for="masterliste-links">Instagram-Links *</label>
           <textarea id="masterliste-links" name="links" class="form-input" rows="8"
-                    placeholder="https://instagram.com/creator_eins&#10;https://instagram.com/creator_zwei"></textarea>
-          <small class="form-hint">Getrennt durch Leerzeichen, Zeilenumbruch, Komma oder Semikolon. Nur Profil-Links, keine Reels oder Posts.</small>
+                    placeholder="https://instagram.com/creator_eins&#10;@creator_zwei"></textarea>
+          <small class="form-hint">Getrennt durch Leerzeichen, Zeilenumbruch, Komma oder Semikolon. Profil-Links oder @Handles, keine Reels oder Posts.</small>
           <p id="masterliste-links-zaehler" class="form-hint" hidden></p>
         </div>
         ${footer('Creator hinzufügen', true)}

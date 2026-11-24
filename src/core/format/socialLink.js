@@ -127,7 +127,23 @@ export function parseSocialLink(url) {
   return { ...empty, host };
 }
 
-const BARE_HANDLE = /^@?[A-Za-z0-9._]{1,30}$/;
+/**
+ * Reiner Instagram-Handle (@name oder name). Links bleiben bei parseSocialLink,
+ * damit ein Reel nicht als Handle durchrutscht. Reservierte Pfade wie "reel"
+ * sind keine Profile.
+ * @param {string} value
+ * @returns {string|null} Handle in Kleinbuchstaben
+ */
+export function bareInstagramHandle(value) {
+  const match = String(value || '').trim().match(BARE_HANDLE);
+  if (!match) return null;
+  const handle = match[1].toLowerCase();
+  if (RESERVIERTE_PFADE.has(handle)) return null;
+  return handle;
+}
+
+// Gleicher Zeichenvorrat wie isValidUsername in instagram-graph.js.
+const BARE_HANDLE = /^@?([A-Za-z0-9._]{1,30})$/;
 const PROFILE_BASE = {
   instagram: 'https://www.instagram.com/',
   tiktok: 'https://www.tiktok.com/@'
