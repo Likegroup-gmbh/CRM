@@ -190,7 +190,9 @@
   display: none;
 }
 
-.vb-voll__tabs {
+/* Mit .vb-voll vorangestellt: .tab-navigation (display: flex) liegt im Prod-Build in einem
+   eigenen CSS-Chunk, der nach diesem Stylesheet greifen kann. Gleiche Spezifität verlöre. */
+.vb-voll .vb-voll__tabs {
   display: none;
 }
 
@@ -312,7 +314,7 @@
     grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
-  .vb-voll__tabs {
+  .vb-voll .vb-voll__tabs {
     display: flex;
     padding: 0 var(--space-md);
   }
@@ -370,7 +372,7 @@
     z-index: 1;
   }
 
-  .vb-voll__tabs {
+  .vb-voll .vb-voll__tabs {
     display: none;
   }
 
