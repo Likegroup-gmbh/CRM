@@ -30,8 +30,17 @@
   padding-inline: var(--space-md);
 }
 
-.vb-voll-props .vb-prop {
-  grid-template-columns: 7rem minmax(0, 1fr);
+/* Eine Labelbreite für "Video" und "Datei", damit die Werte bündig stehen. Das längste Label
+   ("Content-Deadline" samt Icon) braucht rund 137px, Labels brechen nie um. */
+.vb-voll__details .vb-prop {
+  grid-template-columns: 8.75rem minmax(0, 1fr);
+}
+
+.vb-voll__details .vb-prop__label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .vb-voll-props .verknuepfung-pill {
