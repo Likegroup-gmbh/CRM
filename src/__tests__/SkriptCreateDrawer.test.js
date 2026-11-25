@@ -43,6 +43,9 @@ describe('SkriptCreateDrawer', () => {
     expect(document.querySelector('#skcreate-persona')).toBeNull();
     expect(document.querySelector('#skcreate-branche')).toBeNull();
     expect(document.querySelector('#skcreate-briefing')).toBeNull();
+    const master = document.querySelector('#skcreate-master');
+    expect(master).not.toBeNull();
+    expect(master.checked).toBe(true);
   });
 
   it('Kampagnen-Prefill: ein Konzept wird gesetzt und gelockt', async () => {

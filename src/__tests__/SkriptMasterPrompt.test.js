@@ -112,6 +112,35 @@ describe('buildPrompt Master + inhalt_md', () => {
     expect(stable).not.toContain('ANTI-PATTERNS');
   });
 
+  it('ohne Master bleiben Tabelle, Briefing-Pfad und Regie, das Regelwerk fällt', () => {
+    const { stable, task } = buildPrompt({
+      master: MASTER,
+      masterAktiv: false,
+      bereich: 'owned_social',
+      modus: { name: 'Dynamisch', inhalt: 'Schnelle Wechsel.' }
+    }, {
+      video_idee: 'Airfryer',
+      hinweis: 'Ton locker',
+      referenz_video: { transkript_verwendet: 'Fremder Hook.' }
+    });
+
+    expect(stable).not.toContain('MASTER-REGELWERK');
+    expect(stable).not.toContain('Nichts erfinden.');
+    expect(stable).not.toContain('verbindlichen Master-Regelwerk');
+    expect(stable).not.toContain('nicht vermischt');
+    expect(stable).toContain('niemals erfinden');
+    expect(task).toContain('hook, hauptteil, cta');
+    expect(task).toContain('WAS ZU SEHEN IST');
+    expect(task).toContain('hook_varianten');
+    expect(task).toContain('# STANDARDTON UND AUFBAU');
+    expect(task).toContain('REGIE-MODUS: Dynamisch');
+    expect(task).toContain('<hinweis_team>');
+    expect(task).not.toContain('Master gehen vor');
+    expect(task).not.toContain('Master-Regelwerk bleibt verbindlich');
+    expect(task).not.toContain('schlaegt das Master-Regelwerk');
+    expect(task).toContain('Dos sind Soll');
+  });
+
   it('injiziert Regie-Modus in den Task-Block', () => {
     const { stable, task } = buildPrompt({
       master: [],
@@ -197,6 +226,49 @@ describe('Feedback-Frage nach der Erstgenerierung', () => {
     const { supabase, inserts } = fakeSupabase({ vorhanden: [{ id: 'm1' }] });
     expect(await legeFeedbackFrageAn(supabase, { skriptId: 's1', userId: 'u1' })).toBe(false);
     expect(inserts).toHaveLength(0);
+  });
+});
+
+describe('buildEditPrompt ohne Master', () => {
+  it('lässt Regelwerk und die Master-Sätze weg, die Tabelle bleibt im Format', () => {
+    const { stable, task } = buildEditPrompt({
+      skript: {
+        titel: 'Test',
+        hook: 'Hallo',
+        hauptteil: 'Mitte',
+        cta: 'Ende',
+        bereich: 'paid_creator_ads',
+        prompt_kontext: {}
+      },
+      history: [],
+      kontext: { briefing: null, master: MASTER, masterAktiv: false }
+    }, { aktion: 'chat', sektion: 'hook', inhalt: 'Kuerzer' });
+
+    expect(stable).not.toContain('MASTER-REGELWERK');
+    expect(stable).not.toContain('wie Master und ZUSAETZLICHE INFOS');
+    expect(stable).toContain('wie ZUSAETZLICHE INFOS');
+    expect(task).not.toContain('schlaegt das Master-Regelwerk');
+    expect(task).not.toContain('Paid-Master');
+    expect(task).toContain('# PAID');
+    expect(task).toContain('HOOK:');
+  });
+});
+
+describe('buildFragenPrompt ohne Master', () => {
+  const { buildFragenPrompt } = require('../../netlify/functions/skript-fragen-background.js');
+
+  it('stellt die Rückfragen ohne Regelwerk', () => {
+    const { stable, task } = buildFragenPrompt({
+      master: MASTER,
+      masterAktiv: false,
+      bereich: 'owned_social'
+    }, { video_idee: 'x' }, []);
+    expect(stable).not.toContain('MASTER-REGELWERK');
+    expect(stable).not.toContain('Master-Regelwerk');
+    expect(stable).not.toContain('Schutzregeln');
+    expect(task).toContain('# BEREICH DIESES SKRIPTS');
+    expect(task).toContain('# STANDARDTON UND AUFBAU');
+    expect(task).not.toContain('schlaegt das Master-Regelwerk');
   });
 });
 

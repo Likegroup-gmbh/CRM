@@ -16,7 +16,7 @@ const { vertragBlock } = require('./skript-vertrag');
 const { zusatzInfosMarkdown, istMasterDokument } = require('./skript-creator-facing');
 const { hookSperreEditBlock } = require('./hook-sperre');
 const {
-  VERBINDLICHE_REGELN, AUFTRAG_IM_KONTEXT, ANSCHLUSS_REGEL, ANTWORT_REGEL,
+  VERBINDLICHE_REGELN, AUFTRAG_IM_KONTEXT, auftragImKontext, ANSCHLUSS_REGEL, ANTWORT_REGEL,
   GRID_SEKTIONEN, filtereFestgezogen, AKTION_LABELS, AKTION_ANWEISUNGEN
 } = require('./skript-edit-prompt/regeln');
 const {
@@ -61,7 +61,8 @@ function ladeVisuellStil() {
 function buildEditPrompt(ctx, message) {
   const { skript, history, modus } = ctx;
   const kontext = ctx.kontext || {};
-  const master = kontext.master || [];
+  const masterAktiv = kontext.masterAktiv !== false;
+  const master = masterAktiv ? (kontext.master || []) : [];
   const hatGrid = Boolean(skript.hook || skript.hauptteil || skript.cta
     || skript.hook_visuell || skript.hauptteil_visuell || skript.cta_visuell);
   const istMaster = istMasterDokument(skript);
@@ -78,9 +79,8 @@ function buildEditPrompt(ctx, message) {
     + 'Will der User eine neue Fassung, paraphrasiere nicht: anderer Einstieg, andere Saetze. Das gilt fuer den Wortlaut, nicht fuer Funktion und Kernbegriffe. '
     + 'Saetze aus frueheren Vorschlaegen nur dann nicht wiederverwenden, wenn der Vorschlag abgelehnt wurde oder der User ausdruecklich etwas ganz Neues will. Was der User gutheisst, bleibt woertlich. '
     + 'Verbote im Block WICHTIGE VORGABEN bleiben Verbote. Pflichtinhalte und Do\'s nur, wo der Fakt belegt ist.\n';
-  stable += AUFTRAG_IM_KONTEXT;
-
-  stable += fmtMasterBlock(master);
+  stable += auftragImKontext(masterAktiv);
+  if (masterAktiv) stable += fmtMasterBlock(master);
 
   if (visualSpalte || chatWaehltSpalte) {
     stable += '\n# VISUELLER STIL (verbindliches Format fuer "Was zu sehen ist")\n'
@@ -222,7 +222,7 @@ function buildEditPrompt(ctx, message) {
       + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
       + '- Verletzt die Anweisung eine harte Grenze: vorschlag_text = null, antwort nennt die blockierende Vorgabe.\n'
       + '- festlegung nur setzen, wenn die Anweisung eine dauerhafte Vorgabe ist. Sonst null. Niemals den angenommenen Wortlaut.\n';
-    task += vertragBlock(skript.bereich || kontext.bereich);
+    task += vertragBlock(skript.bereich || kontext.bereich, { masterAktiv });
     return mitVerlauf(stable, task, history);
   }
 
@@ -260,7 +260,7 @@ function buildEditPrompt(ctx, message) {
         : ''))
     + '\n- festlegung nur setzen, wenn die Anweisung eine dauerhafte Vorgabe ist (Besetzung, Verbot, abgelehnter Ansatz). Sonst null. Niemals den vorgeschlagenen Wortlaut. Mehrere dauerhafte Vorgaben: festlegungen (Liste, je ein Satz).\n';
 
-  task += vertragBlock(skript.bereich || kontext.bereich);
+  task += vertragBlock(skript.bereich || kontext.bereich, { masterAktiv });
   return mitVerlauf(stable, task, history);
 }
 

@@ -51,7 +51,7 @@ export async function submitSkriptCreate(drawer) {
       const vorbereitet = await payloadFuerUpload(drawer, basis);
       const skript = await skripteService.createSkriptAusUpload({
         file,
-        payload: vorbereitet.payload,
+        payload: mitMaster(drawer, vorbereitet.payload),
         item: vorbereitet.item,
         hinweis
       });
@@ -76,7 +76,8 @@ export async function submitSkriptCreate(drawer) {
         caption: item.caption,
         platform: item.plattform
       }),
-      ...(hinweis ? { hinweis } : {})
+      ...(hinweis ? { hinweis } : {}),
+      master_regelwerk: masterAn(drawer)
     };
 
     const stub = await skripteService.createSkriptStub(payload);
@@ -86,6 +87,14 @@ export async function submitSkriptCreate(drawer) {
     if (btn) btn.disabled = false;
     if (label) label.textContent = 'Skript erstellen';
   }
+}
+
+function masterAn(drawer) {
+  return drawer.el('master')?.checked !== false;
+}
+
+function mitMaster(drawer, payload) {
+  return { ...payload, master_regelwerk: masterAn(drawer) };
 }
 
 function uploadArtText(file, hinweis) {

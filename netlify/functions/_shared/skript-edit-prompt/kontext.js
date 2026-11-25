@@ -45,7 +45,7 @@ async function resolveModusSlug(supabase, message) {
 // Skript-Texte, die Meta-Vorgaben und die Scope-/Kontext-IDs.
 const EDIT_SKRIPT_COLS = 'id, titel, hook, hook_visuell, hauptteil, hauptteil_visuell, cta, cta_visuell, '
   + 'hook_variante_1, hook_variante_2, hook_variante_3, inhalt_md, '
-  + 'tonalitaet, video_laenge, funnel_stufe, video_idee, location, regieanweisung, prompt_kontext, festlegungen, festgezogen, '
+  + 'tonalitaet, video_laenge, funnel_stufe, video_idee, location, regieanweisung, prompt_kontext, festlegungen, festgezogen, master_regelwerk, '
   + 'branche_id, persona_id, marke_id, briefing_id, bereich, unternehmen_id, kampagne_id, produkt_id, strategie_item_id';
 
 const EDIT_VERLAUF_LIMIT = 12;
@@ -71,6 +71,7 @@ function editParams(skript) {
     video_laenge: skript?.video_laenge || null,
     funnel_stufe: skript?.funnel_stufe || null,
     tonalitaet: skript?.tonalitaet || null,
+    master_regelwerk: skript?.master_regelwerk !== false,
     referenz_video: pk.referenz_video || pk.generator_payload?.referenz_video || null
   };
 }

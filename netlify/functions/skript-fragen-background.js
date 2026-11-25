@@ -60,7 +60,13 @@ const LEITFADEN_FALLBACK = 'Interviewe den Mitarbeiter zu allen offenen Punkten 
   + 'Wichtigster Punkt: der CTA - erfinde NIE einen Registrierungs- oder Kaufweg, sondern frag nach. '
   + 'Maximal 2 Fragen pro Runde.';
 
-function ladeLeitfaden() {
+function leitfadenOhneMaster(text) {
+  return String(text || '')
+    .replace('Master-Regelwerk, ', '')
+    .replace('aus dem Master-Regelwerk', 'aus Video-Idee und Briefing');
+}
+
+function ladeLeitfaden(masterAktiv = true) {
   const kandidaten = [
     path.resolve(__dirname, '_shared/prompts/skript-rueckfragen.md'),
     path.resolve(__dirname, '../../netlify/functions/_shared/prompts/skript-rueckfragen.md'),
@@ -68,11 +74,12 @@ function ladeLeitfaden() {
   ];
   for (const p of kandidaten) {
     try {
-      return fs.readFileSync(p, 'utf8');
+      const text = fs.readFileSync(p, 'utf8');
+      return masterAktiv ? text : leitfadenOhneMaster(text);
     } catch (_) { /* naechsten Kandidaten versuchen */ }
   }
   console.warn('[skript-fragen] Leitfaden-Datei nicht gefunden, nutze Fallback');
-  return LEITFADEN_FALLBACK;
+  return masterAktiv ? LEITFADEN_FALLBACK : leitfadenOhneMaster(LEITFADEN_FALLBACK);
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +110,7 @@ function bereichBlock(ctx) {
 }
 
 function buildFragenPrompt(ctx, params, history, { personaOptionen = [] } = {}) {
+  const masterAktiv = ctx.masterAktiv !== false;
   // Block 1 (stabil, cachebar): Rolle + Leitfaden
   const bereichLabel = MASTER_BEREICH_LABELS[ctx.bereich] || ctx.bereich || 'unbekannt';
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
@@ -110,8 +118,8 @@ function buildFragenPrompt(ctx, params, history, { personaOptionen = [] } = {}) 
     + `(Bereich: ${bereichLabel}). `
     + 'BEVOR das Dokument geschrieben wird, klaerst du im Dialog mit einem Mitarbeiter alle offenen Punkte. '
     + 'Du schreibst in dieser Phase KEIN Skript und KEIN Konzept.\n';
-  stable += fmtMasterBlock(ctx.master);
-  stable += '\n# LEITFADEN FUER DIE RUECKFRAGEN\n' + ladeLeitfaden();
+  if (masterAktiv) stable += fmtMasterBlock(ctx.master);
+  stable += '\n# LEITFADEN FUER DIE RUECKFRAGEN\n' + ladeLeitfaden(masterAktiv);
 
   // Block 2 (variabel): Kontext (inkl. Campaign-Briefing) + bisheriger Dialog
   let task = bereichBlock(ctx);
@@ -134,7 +142,7 @@ function buildFragenPrompt(ctx, params, history, { personaOptionen = [] } = {}) 
     + '- Stelle KEINE Frage, deren Antwort bereits im CAMPAIGN-BRIEFING, in den CRM-Daten oder im bisherigen Dialog steht.\n'
     + '- Steht im CRM-Kontext eine Creator-Sektion mit status "zugewiesen", ist der Creator final: '
     + 'keine Frage zum Creator-Status und keine creatorunabhaengige Fassung anbieten.';
-  task += vertragBlock(ctx.bereich);
+  task += vertragBlock(ctx.bereich, { masterAktiv });
 
   return {
     stable,
@@ -213,6 +221,7 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
     // Persona kann nach dem Anlegen gesetzt worden sein (Rueckfrage, Editor)
     if (!params.persona_id && skript.persona_id) params.persona_id = skript.persona_id;
     if (!params.produkt_id && skript.produkt_id) params.produkt_id = skript.produkt_id;
+    params.master_regelwerk = skript.master_regelwerk !== false;
     params = await bereichVomStub(supabase, params, skript);
 
     const ctx = await loadContext(supabase, params);

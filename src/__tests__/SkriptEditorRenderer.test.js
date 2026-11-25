@@ -136,6 +136,12 @@ describe('SkriptEditorDocRenderer', () => {
     expect(html).toContain('Transkript hier');
     expect(html).toContain('href="https://www.tiktok.com/video/1"');
     expect(html).not.toContain('function link');
+    expect(html).toContain('Master-Regelwerk');
+    expect(html).toContain('>an<');
+  });
+
+  it('vorgabenPanelHtml zeigt das Master-Regelwerk als aus', () => {
+    expect(vorgabenPanelHtml({ master_regelwerk: false })).toContain('>aus<');
   });
 
   it('fragenModusHtml zeigt Titel, Rueckfragen-Badge und Aufbau-Toggles statt Generieren-Button', () => {
@@ -531,6 +537,16 @@ describe('docHeadActionsHtml', () => {
     expect(menuDrin(html, 'ed-creator-tauschen')).toBe(true);
 
     expect(docHeadActionsHtml({ kannTauschen: false })).not.toContain('id="ed-creator-tauschen"');
+  });
+
+  it('schaltet das Master-Regelwerk in beide Richtungen', () => {
+    const aus = docHeadActionsHtml({ kannMaster: true, masterAn: true });
+    expect(menuDrin(aus, 'ed-master')).toBe(true);
+    expect(aus).toContain('Master-Regelwerk weglassen');
+
+    const an = docHeadActionsHtml({ kannMaster: true, masterAn: false });
+    expect(an).toContain('Master-Regelwerk verwenden');
+    expect(docHeadActionsHtml({ kannMaster: false })).not.toContain('id="ed-master"');
   });
 
   it('zeigt kein Menü, wenn nichts drin wäre', () => {

@@ -9,7 +9,7 @@ import { submitSkriptCreate } from './skriptCreateSubmit.js';
 import { ladeSkriptFlowZiel } from './skriptFlowZiel.js';
 import {
   renderFunnelWarnung, renderPersonaWarnung, renderHinweisVorhanden,
-  renderCreateUebersicht, renderCreateCreator
+  renderCreateUebersicht, renderCreateCreator, masterSchalterHtml
 } from './skriptCreateAnsicht.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
@@ -108,6 +108,7 @@ class SkriptCreateDrawer {
             <textarea id="${PREFIX}-hinweis" class="form-input" rows="3" maxlength="2000" placeholder="z. B. Creator spricht Englisch, oder: Aus der Datei nur Skript 2 übernehmen"></textarea>
             <small class="form-hint">Optional. Ohne Datei für Rückfragen und Erstellung, mit Datei, was Liky übernimmt. Gilt nur beim Anlegen.</small>
           </div>
+          ${masterSchalterHtml(PREFIX)}
           <div class="form-field" id="${PREFIX}-uebersicht" hidden>
             <label>Skripte in diesem Konzept</label>
             <ul class="skripte-create-uebersicht" id="${PREFIX}-uebersicht-liste"></ul>

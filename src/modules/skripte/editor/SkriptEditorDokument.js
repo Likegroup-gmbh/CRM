@@ -46,6 +46,8 @@ SkriptEditorView.prototype.docHeadActions = function() {
     kannTauschen: this.kannZuweisen
       && creatorsFuerKopf(this.verknuepfungen, konzeptCreatorFromSkript(this.skript)).length > 0,
     kannKopieren: this.kannZuweisen && Boolean(this.skript?.kampagne_id),
+    kannMaster: this.kannMasterSchalten,
+    masterAn: this.skript?.master_regelwerk !== false,
     status: this.skript?.status || '',
     statusWahlHtml: this.statusWahlHtml(),
     verknuepfungenHtml: this.renderVerknuepfungenHtml()
@@ -272,7 +274,30 @@ SkriptEditorView.prototype.bindVerknuepfungen = function(el) {
   el.querySelector('#ed-skript-zuweisen')?.addEventListener('click', () => this.openKooperationDrawer());
   el.querySelector('#ed-creator-tauschen')?.addEventListener('click', () => this.openCreatorTauschFuerSkript());
   el.querySelector('#ed-kopieren')?.addEventListener('click', () => this.openKopierenDrawer());
+  el.querySelector('#ed-master')?.addEventListener('click', () => this.schalteMasterRegelwerk());
   el.querySelector('#ed-tausch-quittieren')?.addEventListener('click', () => quittiereTausch(this));
+};
+
+/** Schalter aus dem …-Menü. Der Text bleibt, erst der nächste KI-Aufruf nutzt die neue Einstellung. */
+SkriptEditorView.prototype.schalteMasterRegelwerk = async function() {
+  if (!this.kannMasterSchalten || !this.skript?.id) return;
+  const neu = this.skript.master_regelwerk === false;
+  const btn = document.getElementById('ed-master');
+  if (btn) btn.disabled = true;
+  try {
+    await skripteService.updateSkript(this.skript.id, { master_regelwerk: neu });
+    this.skript.master_regelwerk = neu;
+    this.renderDoc();
+    window.toastSystem?.show(
+      neu
+        ? 'Master-Regelwerk ist an. Der Text bleibt, die nächste Antwort nutzt es.'
+        : 'Master-Regelwerk ist aus. Der Text bleibt, die nächste Antwort lässt es weg.',
+      'success'
+    );
+  } catch (err) {
+    if (btn) btn.disabled = false;
+    window.toastSystem?.show(err.message || 'Konnte nicht gespeichert werden', 'error');
+  }
 };
 
 /** Creator tauschen: alten Casting-Eintrag aus dem Skript aufloesen, dann derselbe Dialog wie im Casting. */

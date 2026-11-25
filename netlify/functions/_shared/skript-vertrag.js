@@ -8,17 +8,21 @@ function istEmpfehlungBereich(bereich) {
   return EMPFEHLUNG_BEREICHE.includes(bereich);
 }
 
-function leiterBlock() {
-  return '\n# LEITER\n'
+function leiterBlock(masterAktiv = true) {
+  const kopf = '\n# LEITER\n'
     + 'Von oben nach unten. Das Obere schlaegt das Untere.\n'
-    + '1. Don\'ts und belegte Fakten (Claims, Preis, Mechanik, Besetzung). Verletzt die Anweisung das: nicht umsetzen.\n'
-    + '2. Eine ausdrueckliche Anweisung im Editor schlaegt das Master-Regelwerk beim Ton und bei der Geschichte.\n'
+    + '1. Don\'ts und belegte Fakten (Claims, Preis, Mechanik, Besetzung). Verletzt die Anweisung das: nicht umsetzen.\n';
+  if (!masterAktiv) {
+    return `${kopf}2. Eine ausdrueckliche Anweisung im Editor gilt fuer Ton und Geschichte.\n`
+      + '3. Dos sind Soll, kein Lock.\n';
+  }
+  return `${kopf}2. Eine ausdrueckliche Anweisung im Editor schlaegt das Master-Regelwerk beim Ton und bei der Geschichte.\n`
     + '3. Das Master-Regelwerk gilt fuer Aufbau und Bereichssystem, nicht als Werbeton und nicht vor einer Anweisung.\n'
     + '4. Dos sind Soll, kein Lock.\n';
 }
 
-function vertragBlock(bereich) {
-  let text = leiterBlock();
+function vertragBlock(bereich, { masterAktiv = true } = {}) {
+  let text = leiterBlock(masterAktiv);
   if (istEmpfehlungBereich(bereich)) {
     text += '\n# STANDARDTON UND AUFBAU\n'
       + 'Das Skript ist eine Empfehlung von Person zu Person, als wuerde der Creator es Freunden oder der Community empfehlen. '
@@ -33,7 +37,8 @@ function vertragBlock(bereich) {
   } else if (bereich === 'paid_creator_ads') {
     text += '\n# PAID\n'
       + 'Paid bleibt ein Performance-Creative. Kein Empfehlungston als Default. '
-      + 'Kein Aufbau Alltag-Problem-Produkt-CTA. Der Funnel-Aufbau aus dem Paid-Master gilt.\n';
+      + 'Kein Aufbau Alltag-Problem-Produkt-CTA.'
+      + (masterAktiv ? ' Der Funnel-Aufbau aus dem Paid-Master gilt.\n' : '\n');
   }
   return text;
 }

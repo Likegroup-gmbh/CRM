@@ -80,6 +80,20 @@ export function renderCreateUebersicht(drawer) {
   });
 }
 
+export function masterSchalterHtml(prefix) {
+  return `
+    <div class="form-field">
+      <div class="skripte-create-master">
+        <span id="${prefix}-master-label">Master-Regelwerk verwenden</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="${prefix}-master" checked aria-labelledby="${prefix}-master-label">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <small class="form-hint">Steht der Schalter aus, schreibt Liky ohne die Master-Dokumente. Briefing, Videoidee und die Skript-Tabelle bleiben.</small>
+    </div>`;
+}
+
 export function renderCreateCreator(drawer, item) {
   const box = drawer.el('kontext');
   const el = drawer.el('creator-anzeige');

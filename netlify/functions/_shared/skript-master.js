@@ -85,6 +85,33 @@ function stripMasterVorlagen(md) {
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+/** false schaltet das Regelwerk aus. Alles andere, auch null, bleibt an. */
+function masterIstAktiv(wert) {
+  return wert !== false;
+}
+
+/** Rolle der Erstgenerierung. Ohne Master entfallen Regelwerk und Bereichstrennung. */
+function rolleGenerierung(aktiv) {
+  const kopf = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
+    + '(Owned Media, Paid Ads, Influencer-Konzepte; TikTok, Instagram Reels). ';
+  const fakten = 'Fehlende Produktfakten, Claims, Preise, Offers, Bewertungen oder Ergebnisse darfst du niemals erfinden. '
+    + 'Verbote im Block WICHTIGE VORGABEN duerfen im Skript nicht vorkommen. '
+    + 'Pflichtinhalte und Do\'s nur, wo der Fakt belegt ist; fehlt der Fakt, wird die Pflicht weggelassen und unter ## Abweichungen benannt.\n';
+  if (!aktiv) return `${kopf}Du schreibst drehfertige Konzepte. ${fakten}`;
+  return `${kopf}Du schreibst drehfertige Konzepte nach dem verbindlichen Master-Regelwerk. `
+    + 'Die drei Systeme Owned, Paid und Influencer duerfen nicht vermischt werden. '
+    + fakten;
+}
+
+/** Spalte am Skript. Ohne Zeile (Altpfad ohne Stub) bleibt das Regelwerk an. */
+async function liesMasterAktiv(supabase, skriptId) {
+  if (!skriptId) return true;
+  const { data, error } = await supabase.from('skripte')
+    .select('master_regelwerk').eq('id', skriptId).maybeSingle();
+  if (error) throw new Error(`Master-Regelwerk-Flag laden fehlgeschlagen: ${error.message}`);
+  return masterIstAktiv(data?.master_regelwerk);
+}
+
 function fmtMasterBlock(docs) {
   if (!docs?.length) return '';
   let out = '\n# MASTER-REGELWERK (verbindlich - Bereichssysteme nicht vermischen)\n'
@@ -104,6 +131,9 @@ module.exports = {
   resolveSkriptBereich,
   bereichAusKampagnenarten,
   loadMasterDocs,
+  masterIstAktiv,
+  rolleGenerierung,
+  liesMasterAktiv,
   fmtMasterBlock,
   stripMasterVorlagen
 };
