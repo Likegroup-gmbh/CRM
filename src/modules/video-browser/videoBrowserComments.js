@@ -47,7 +47,7 @@ export function syncPinTime(vb, sec, assetId) {
 /**
  * Holt einen Kommentar in den sichtbaren Bereich des Detailbereichs. Bewusst kein scrollIntoView:
  * das scrollt auch overflow:hidden-Vorfahren (Seite, Tab) und schiebt dann den ganzen Inhalt nach oben.
- * Tableiste (oben) und Formular (unten) sind sticky und verdecken Platz.
+ * Die Tableiste (oben) ist sticky und verdeckt Platz.
  */
 function revealComment(vb, el) {
   const scroller = commentScroller(vb);
@@ -55,9 +55,8 @@ function revealComment(vb, el) {
   const box = scroller.getBoundingClientRect();
   const r = el.getBoundingClientRect();
   const top = box.top + (scroller.querySelector('.vb-tabs__list')?.offsetHeight || 0);
-  const bottom = box.bottom - (scroller.querySelector('.vb-comment-form')?.offsetHeight || 0);
   if (r.top < top) scroller.scrollTop -= top - r.top;
-  else if (r.bottom > bottom) scroller.scrollTop += r.bottom - bottom;
+  else if (r.bottom > box.bottom) scroller.scrollTop += r.bottom - box.bottom;
 }
 
 /** 42501 = RLS, 42P01/PGRST205 = Tabelle fehlt (Migration nicht eingespielt). */
@@ -105,8 +104,8 @@ export async function submitComment(vb, form) {
     const list = root?.querySelector('[data-vb-comments]');
     if (created && list) {
       root.querySelector('[data-vb-comments-empty]')?.remove();
-      list.insertAdjacentHTML('beforeend', commentHtml(created));
-      const el = list.lastElementChild;
+      list.insertAdjacentHTML('afterbegin', commentHtml(created));
+      const el = list.firstElementChild;
       player?.setMarkers(comments);
       vb.motion.commentIn(el, created.timecodeSec !== null ? player?.markerEl(created.id) : null);
       revealComment(vb, el);

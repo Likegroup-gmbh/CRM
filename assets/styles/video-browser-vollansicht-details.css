@@ -1,0 +1,111 @@
+/* ==========================================================================
+   Videos-Tab: Details-Spalte der Vollansicht (videoBrowserVollansichtDetails.js).
+   Hülle und Breiten stehen in video-browser-vollansicht.css.
+   Die Trennlinien laufen randlos: die Spalte hat seitlich kein Padding, das tragen die Abschnitte.
+   ========================================================================== */
+
+/* Kein Player in dieser Spalte: ohne reservierte Scrollbar-Spur enden die Linien am Rand */
+.vb-voll .vb-voll__details {
+  padding-inline: 0;
+  scrollbar-gutter: auto;
+}
+
+.vb-voll__details [data-vb-voll-region="details"] > * {
+  padding-inline: var(--space-md);
+}
+
+.vb-voll-section + .vb-voll-section {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-primary);
+}
+
+.vb-voll-section > .vb-detail__eyebrow {
+  margin: 0 0 var(--space-xs);
+}
+
+/* Caption im Abschnitt "Datei": Linie über die volle Spaltenbreite */
+.vb-voll-section .vb-caption {
+  margin-inline: calc(-1 * var(--space-md));
+  padding-inline: var(--space-md);
+}
+
+.vb-voll-props .vb-prop {
+  grid-template-columns: 7rem minmax(0, 1fr);
+}
+
+.vb-voll-props .verknuepfung-pill {
+  max-width: 100%;
+}
+
+.vb-voll-prop__stack {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xxs) var(--space-xs);
+  min-width: 0;
+}
+
+.vb-voll-prop__hint {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.vb-voll-prop__empty {
+  color: var(--gray-400);
+}
+
+/* Posting-Datum: wirkt wie die übrigen Werte (Text, Hover-Fläche), Klick öffnet den Kalender,
+   Tippen geht trotzdem. Das Popover positioniert der CustomDatePicker fixed am Feld. */
+.vb-voll-prop__date {
+  width: 100%;
+}
+
+.vb-voll-prop__date .custom-date-picker__input {
+  width: 100%;
+  height: var(--space-xl);
+  margin-inline: calc(-1 * var(--space-xs));
+  padding: 0 calc(var(--space-xs) + 28px) 0 var(--space-xs);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--gray-900);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.vb-voll-prop__date .custom-date-picker__input::placeholder {
+  color: var(--gray-400);
+}
+
+.vb-voll-prop__date .custom-date-picker__input:hover {
+  background: var(--gray-50);
+}
+
+.vb-voll-prop__date .custom-date-picker__input:focus,
+.vb-voll-prop__date .custom-date-picker.is-open .custom-date-picker__input {
+  outline: none;
+  border-color: var(--gray-300);
+  background: var(--bg-primary);
+  cursor: text;
+}
+
+.vb-voll-prop__date .custom-date-picker__trigger {
+  right: 0;
+  padding: var(--space-xxs);
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.vb-voll-prop__date .custom-date-picker__trigger svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.vb-voll-prop__date:hover .custom-date-picker__trigger,
+.vb-voll-prop__date .custom-date-picker.is-open .custom-date-picker__trigger,
+.vb-voll-prop__date .custom-date-picker__control:focus-within .custom-date-picker__trigger {
+  opacity: 1;
+}

@@ -27,6 +27,26 @@ export function formatDatum(d) {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('de-DE');
 }
 
+export function formatDatumZeit(d) {
+  if (!d) return '';
+  const date = new Date(d);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/** Zeit eines Kommentars: relativ bis gestern, danach das Datum. Zukunft (Uhrenversatz) gilt als "gerade eben". */
+export function kommentarZeit(d, now = new Date()) {
+  if (!d) return '';
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return '';
+  const min = Math.floor((now.getTime() - date.getTime()) / 60000);
+  if (min < 1) return 'gerade eben';
+  if (min < 60) return `vor ${min} Min.`;
+  if (min < 24 * 60) return `vor ${Math.floor(min / 60)} Std.`;
+  const gestern = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (date >= gestern) return 'gestern';
+  return formatDatum(date);
+}
+
 export function formatBytes(bytes) {
   const b = Number(bytes) || 0;
   if (!b) return '';

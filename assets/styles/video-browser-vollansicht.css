@@ -1,6 +1,7 @@
 /* ==========================================================================
    Videos-Tab: Vollansicht (videoBrowserVollansicht*.js, CONTEXT.md "Vollansicht").
-   Ausstehende Videos (Kachel und Bühne) stehen in video-browser-ausstehend.css.
+   Ausstehende Videos (Kachel und Bühne) stehen in video-browser-ausstehend.css,
+   die Details-Spalte in video-browser-vollansicht-details.css.
    Die Vollansicht hängt als MediaLightbox am body, nicht in .vb: Box-Sizing setzt sie selbst.
    Breiten: ab 1280px drei Spalten (Player | Feedback | Details), darunter Player und
    eine Spalte mit Tabs, unter 768px alles untereinander.
@@ -214,97 +215,7 @@
   border-left: 1px solid var(--border-primary);
 }
 
-/* --- Details ---------------------------------------------------------- */
-
-.vb-voll-section + .vb-voll-section {
-  margin-top: var(--space-lg);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--border-primary);
-}
-
-.vb-voll-section > .vb-detail__eyebrow {
-  margin: 0 0 var(--space-xs);
-}
-
-.vb-voll-props .vb-prop {
-  grid-template-columns: 7rem minmax(0, 1fr);
-}
-
-.vb-voll-props .verknuepfung-pill {
-  max-width: 100%;
-}
-
-.vb-voll-prop__stack {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-xxs) var(--space-xs);
-  min-width: 0;
-}
-
-.vb-voll-prop__hint {
-  font-size: var(--text-xs);
-  color: var(--gray-500);
-}
-
-.vb-voll-prop__empty {
-  color: var(--gray-400);
-}
-
-/* Posting-Datum: wirkt wie die übrigen Werte (Text, Hover-Fläche), Klick öffnet den Kalender,
-   Tippen geht trotzdem. Das Popover positioniert der CustomDatePicker fixed am Feld. */
-.vb-voll-prop__date {
-  width: 100%;
-}
-
-.vb-voll-prop__date .custom-date-picker__input {
-  width: 100%;
-  height: var(--space-xl);
-  margin-inline: calc(-1 * var(--space-xs));
-  padding: 0 calc(var(--space-xs) + 28px) 0 var(--space-xs);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: none;
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-  color: var(--gray-900);
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
-}
-
-.vb-voll-prop__date .custom-date-picker__input::placeholder {
-  color: var(--gray-400);
-}
-
-.vb-voll-prop__date .custom-date-picker__input:hover {
-  background: var(--gray-50);
-}
-
-.vb-voll-prop__date .custom-date-picker__input:focus,
-.vb-voll-prop__date .custom-date-picker.is-open .custom-date-picker__input {
-  outline: none;
-  border-color: var(--gray-300);
-  background: var(--bg-primary);
-  cursor: text;
-}
-
-.vb-voll-prop__date .custom-date-picker__trigger {
-  right: 0;
-  padding: var(--space-xxs);
-  opacity: 0;
-  transition: opacity .15s ease;
-}
-
-.vb-voll-prop__date .custom-date-picker__trigger svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
-}
-
-.vb-voll-prop__date:hover .custom-date-picker__trigger,
-.vb-voll-prop__date .custom-date-picker.is-open .custom-date-picker__trigger,
-.vb-voll-prop__date .custom-date-picker__control:focus-within .custom-date-picker__trigger {
-  opacity: 1;
-}
+/* Details (Eigenschaften, Posting-Datum, randlose Linien) stehen in video-browser-vollansicht-details.css */
 
 /* --- Mittlere Breite: Player und eine Spalte mit Tabs ----------------- */
 
@@ -317,6 +228,11 @@
   .vb-voll .vb-voll__tabs {
     display: flex;
     padding: 0 var(--space-md);
+  }
+
+  /* Der Tab "Feedback" trägt schon Titel und Zähler */
+  .vb-voll .vb-comments__head {
+    display: none;
   }
 
   .vb-voll__details {
@@ -374,6 +290,10 @@
 
   .vb-voll .vb-voll__tabs {
     display: none;
+  }
+
+  .vb-voll .vb-comments__head {
+    display: flex;
   }
 
   .vb-voll[data-tab] .vb-voll__feedback,

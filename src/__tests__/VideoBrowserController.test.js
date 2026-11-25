@@ -261,6 +261,7 @@ describe('VideoBrowser Controller', () => {
       form.querySelector('[data-vb-comment-text]').value = 'Schrift größer';
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       await vi.waitFor(() => expect(ctx.pane.querySelectorAll('.vb-comment')).toHaveLength(2));
+      expect([...ctx.pane.querySelectorAll('.vb-comment__text')].map(p => p.textContent)).toEqual(['Schrift größer', 'Text früher']);
       expect(saveZeitkommentar).toHaveBeenCalledWith(expect.objectContaining({
         videoId: 'v1', runde: 1, assetId: 'sa1', assetType: 'story', timecodeSec: 12.5, isKunde: true
       }));
