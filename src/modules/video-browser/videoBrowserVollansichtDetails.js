@@ -77,11 +77,11 @@ export function videoPropsHtml(ctx) {
   if (team) {
     const idee = links.idee;
     const ideeHtml = idee?.strategieId
-      ? `<span class="vb-voll-prop__stack">${link('strategie', kurz(idee.beschreibung || 'Videoidee'), `/konzepte/${idee.strategieId}`)}${virtuellHint(links.ideeVirtuell)}</span>`
+      ? `<span class="vb-voll-prop__stack">${link('videoidee', kurz(idee.beschreibung || 'Videoidee'), `/konzepte/${idee.strategieId}`)}${virtuellHint(links.ideeVirtuell)}</span>`
       : (idee ? esc(kurz(idee.beschreibung || 'Videoidee')) : LEER);
-    rows.push(propHtml('Videoidee', 'light-bulb', ideeHtml));
+    rows.push(propHtml('Videoidee', 'videoidee', ideeHtml));
   }
-  rows.push(propHtml('Skript', 'document-text', skriptHtml(ctx, links)));
+  rows.push(propHtml('Skript', 'skript', skriptHtml(ctx, links)));
   const produkt = links.idee?.produkt;
   if (team) rows.push(propHtml('Produkt', 'cube', produkt ? link('produkt', produkt.name, `/produkt/${produkt.id}`) : LEER));
   rows.push(propHtml('Posting-Datum', 'calendar', postingHtml(ctx, row)));

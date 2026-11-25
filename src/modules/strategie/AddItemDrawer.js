@@ -585,7 +585,7 @@ export class AddItemDrawer {
       tiktok: `${icon('tiktok')}`,
       instagram: `${icon('instagram')}`,
       other: `${icon('globe')}`,
-      idea: `${icon('light-bulb')}`
+      idea: `${icon('videoidee')}`
     };
 
     // Status-Icons (rechts)

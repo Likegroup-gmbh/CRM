@@ -4,6 +4,7 @@
 // Entwürfe (Kommentartext, offene Eingaben) bleiben erhalten.
 
 import { icon } from '../../core/icons/IconSystem.js';
+import { entityIcon } from '../../core/icons/entityIcons.js';
 import { escapeHtml as esc } from '../../core/format.js';
 import { splitFileName } from '../../core/videoFileNames.js';
 import { formatDatum, kommentarZiel, schleifeName, verlaufFor } from './videoBrowserLogic.js';
@@ -37,7 +38,7 @@ export function propHtml(label, iconName, valueHtml, { action = null, hint = '' 
   const attrs = action ? ` role="button" tabindex="0" data-vb-prop-action="${action}"${hint ? ` title="${esc(hint)}"` : ''}` : '';
   return `
     <div class="vb-prop${action ? ' vb-prop--action' : ''}"${attrs}>
-      <dt class="vb-prop__label">${icon(iconName)}<span>${esc(label)}</span></dt>
+      <dt class="vb-prop__label">${entityIcon(iconName)}<span>${esc(label)}</span></dt>
       <dd class="vb-prop__value">${valueHtml}</dd>
     </div>`;
 }

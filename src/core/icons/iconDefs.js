@@ -3,10 +3,12 @@
 // Stroke wird über CSS-Variable gesteuert.
 
 import { EDITOR_ICON_DEFS } from './editorIcons.js';
+import { IDEE_ICON_DEFS } from './ideeIcons.js';
 
 export const ICON_DEFS = {
   // Wiederverwendbares Editor-Set (eigene Datei, projektuebergreifend kopierbar)
   ...EDITOR_ICON_DEFS,
+  ...IDEE_ICON_DEFS,
 
   // --- Dashboard / Navigation ---
   search: {

@@ -84,6 +84,11 @@ export const ENTITY_ICONS = {
   konzept: 'strategy',
   konzepte: 'strategy',
   skript: 'skripte',
+  videoidee: 'videoidee',
+  videoideen: 'videoidee',
+  'video-idee': 'videoidee',
+  idee: 'videoidee',
+  ideen: 'videoidee',
   produktion: 'briefcase',
   produktionen: 'briefcase',
 };

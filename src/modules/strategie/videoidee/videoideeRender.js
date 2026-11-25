@@ -173,7 +173,7 @@ function renderBild(item) {
 
   let bild;
   if (isIdea) {
-    bild = `<div class="idea-placeholder">${icon('light-bulb')}<span>Idee</span></div>`;
+    bild = `<div class="idea-placeholder">${icon('videoidee')}<span>Idee</span></div>`;
   } else if (item.screenshot_url) {
     bild = `<img src="${escapeAttr(item.screenshot_url)}" alt="Screenshot" class="strategie-screenshot">`;
   } else {

@@ -616,7 +616,7 @@ function renderUmgesetztCell(item, readonly) {
 export function renderItemRow(detail, item, index) {
   const platformIcon = getPlatformIcon(item.plattform);
   const externalLinkIcon = `${icon('external-link', { className: 'icon-20' })}`;
-  const ideaIcon = `${icon('light-bulb')}`;
+  const ideaIcon = `${icon('videoidee')}`;
   const isIdea = !item.video_link;
   const isUmgesetzt = !!item.video_umgesetzt;
   const isVorschlag = isVideoideeVorschlag(item);
