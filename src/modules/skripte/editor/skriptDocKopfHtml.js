@@ -163,7 +163,7 @@ export function vorgabenPanelHtml(skript, { kannPersonaSetzen = false } = {}) {
     ['Rezept unter dem CTA', genPayload.mit_rezept ? 'Ja' : null],
     ['Text-Hook', genPayload.mit_text_hook ? 'Ja' : null],
     ['Caption', genPayload.mit_caption ? 'Ja' : null],
-    ['Master-Regelwerk', s.master_regelwerk === false ? 'aus' : 'an']
+    ['Master-Regelwerk', s.master_regelwerk === false ? 'Aus' : 'An']
   ].filter(([, wert]) => wert);
 
   const funnelHinweis = funnelAbweichungsHinweis(s);
