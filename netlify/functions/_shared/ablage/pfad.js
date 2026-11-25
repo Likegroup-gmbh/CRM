@@ -108,6 +108,7 @@ const NAMEN = {
   variante: (name) => bereinigen(name, 20) || 'A',
   auftrag: (a) => bereinigen(String(a?.titel || '').trim() || a?.auftragsname) || 'Auftrag',
   rechnung: (r) => bereinigen(r?.rechnung_nr) || `Rechnung_${String(r?.id || '').slice(0, 8)}`,
+  spalte: (c) => bereinigen(c?.name) || 'Spalte',
 };
 
 function formatOrdner(variant) {

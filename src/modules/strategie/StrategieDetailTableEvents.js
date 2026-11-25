@@ -719,16 +719,6 @@ export async function handleCategoryChange(detail, itemId, newKategorie) {
   }
 }
 
-function buildUploadMetadaten(detail) {
-  const s = detail.strategie || {};
-  return {
-    unternehmen: s.unternehmen?.firmenname || '',
-    marke: s.marke?.markenname || '',
-    kampagne: s.kampagne?.kampagnenname || '',
-    kooperationName: s.name || 'Konzept',
-  };
-}
-
 export function bindCustomColumnEvents(detail) {
   if (!detail.customColumns?.hasColumns) return;
 
@@ -754,12 +744,6 @@ export function bindCustomColumnEvents(detail) {
         el.removeEventListener('change', handler);
       });
     }
-  });
-
-  qAll(detail, '.custom-upload-btn').forEach(btn => {
-    const handler = () => detail.customColumns.openUploadDrawer(btn, buildUploadMetadaten(detail), () => detail.rerenderItemsTable());
-    btn.addEventListener('click', handler);
-    detail._tableEventListeners.add(() => btn.removeEventListener('click', handler));
   });
 
   if (detail._customHeaderDragCleanup) detail._customHeaderDragCleanup();

@@ -5,14 +5,8 @@ vi.mock('../core/auth/getAccessToken.js', () => ({
   getAccessToken: vi.fn(async () => 'tok'),
   setGuestJwt: vi.fn(),
 }));
-vi.mock('../core/VideoUploadUtils.js', async (importOriginal) => ({
-  ...(await importOriginal()),
-  proxyPost: vi.fn(),
-}));
 
 import { downloadMediaAsset } from '../core/media/downloadMediaAsset.js';
-import { proxyPost, _resetProxyAvailability } from '../core/VideoUploadUtils.js';
-import { _clearMediaSrcCache } from '../core/media/mediaSrc.js';
 import { _clearAblageLinkCache } from '../core/ablage/ablageLink.js';
 
 const LINK = 'https://contoso.sharepoint.com/_layouts/15/download.aspx?UniqueId=x&tempauth=t';
@@ -42,10 +36,7 @@ describe('downloadMediaAsset', () => {
   let klicks;
 
   beforeEach(() => {
-    _clearMediaSrcCache();
     _clearAblageLinkCache();
-    _resetProxyAvailability();
-    vi.mocked(proxyPost).mockReset();
     klicks = [];
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
       klicks.push({ href: this.href, download: this.getAttribute('download'), target: this.target });
@@ -64,7 +55,6 @@ describe('downloadMediaAsset', () => {
       expect(fetchMock.mock.calls.map(c => c[0])).toEqual(['/.netlify/functions/ablage-link', LINK]);
       expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ items: [{ typ: 'video', id: 'a1' }] });
       expect(klicks).toEqual([{ href: 'blob:datei', download: 'kunde_final_9_16.mp4', target: '' }]);
-      expect(proxyPost).not.toHaveBeenCalled();
     });
 
     it('ohne Dateiname: oeffnet den Lese-Link direkt (Graph liefert als Attachment)', async () => {
@@ -73,7 +63,6 @@ describe('downloadMediaAsset', () => {
 
       expect(fetchMock.mock.calls.map(c => c[0])).toEqual(['/.netlify/functions/ablage-link']);
       expect(klicks).toEqual([{ href: LINK, download: null, target: '_blank' }]);
-      expect(proxyPost).not.toHaveBeenCalled();
     });
 
     it('Blob scheitert: faellt auf den Lese-Link zurueck, ohne neu anzufragen', async () => {
@@ -84,12 +73,11 @@ describe('downloadMediaAsset', () => {
       expect(klicks.at(-1)).toMatchObject({ href: LINK, target: '_blank' });
     });
 
-    it('kein Lese-Link: Fehler-Toast, nie die webUrl und nie Dropbox', async () => {
+    it('kein Lese-Link: Fehler-Toast, nie die webUrl', async () => {
       mockFetch({ fehlend: true });
       expect(await downloadMediaAsset(SP, 'x.mp4', { typ: 'video' })).toBe(false);
 
       expect(klicks).toEqual([]);
-      expect(proxyPost).not.toHaveBeenCalled();
       expect(window.toastSystem.show).toHaveBeenLastCalledWith('Datei kann nicht heruntergeladen werden.', 'error');
     });
 
@@ -100,14 +88,24 @@ describe('downloadMediaAsset', () => {
     });
   });
 
-  it('Dropbox unveraendert: frischer Shared-Link mit dl=1', async () => {
-    globalThis.fetch = vi.fn();
-    vi.mocked(proxyPost).mockResolvedValue({ url: 'https://www.dropbox.com/scl/fi/x/a.mp4?rlkey=k&dl=0' });
+  describe('Altbestand ausserhalb von SharePoint', () => {
+    const ALT = 'https://www.dropbox.com/scl/fi/x/a.mp4?rlkey=k&raw=1';
 
-    expect(await downloadMediaAsset({ id: 'd1', file_path: '/x/a.mp4', file_url: null }, undefined, { typ: 'video' })).toBe(true);
+    it('oeffnet den gespeicherten Link, ohne ablage-link', async () => {
+      globalThis.fetch = vi.fn();
+      expect(await downloadMediaAsset({ id: 'd1', ablage: 'dropbox', file_path: '/x/a.mp4', file_url: ALT }, undefined, { typ: 'video' })).toBe(true);
 
-    expect(proxyPost).toHaveBeenCalledWith({ action: 'shared-link', path: '/x/a.mp4' });
-    expect(klicks).toEqual([{ href: 'https://www.dropbox.com/scl/fi/x/a.mp4?rlkey=k&dl=1', download: null, target: '_blank' }]);
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(klicks).toEqual([{ href: ALT, download: null, target: '_blank' }]);
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('nur ein Pfad ohne Link: kein Download', async () => {
+      globalThis.fetch = vi.fn();
+      expect(await downloadMediaAsset({ id: 'd1', ablage: 'dropbox', file_path: '/x/a.mp4', file_url: null }, undefined, { typ: 'video' })).toBe(false);
+
+      expect(klicks).toEqual([]);
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(window.toastSystem.show).toHaveBeenLastCalledWith('Datei kann nicht heruntergeladen werden.', 'error');
+    });
   });
 });

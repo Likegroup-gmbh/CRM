@@ -3,14 +3,15 @@
 // Ablauf je Fachordner: Register nach Besitzer fragen -> Namen reservieren (Unique-Index,
 // bei Kollision "Name (2)") -> Ordner anlegen bzw. gleichnamigen unregistrierten Ordner
 // uebernehmen -> item_id eintragen. Fachordner-Namen fuehrt das CRM.
+// Das Geruest unter der Kooperation liegt in ordner-medien.js, die Upload-Spalten in ordner-spalte.js.
 
-const { NAMEN, TEST_ORDNER, mitZaehler, formatOrdner, bereinigen } = require('./pfad');
-const { ladeKooperation } = require('./ziel');
-const { besitzVon } = require('./klassifizierung');
+const { NAMEN, TEST_ORDNER, mitZaehler } = require('./pfad');
+const { ladeKooperation } = require('./kooperation');
+const { createMedienOrdner, SCHLEIFEN } = require('./ordner-medien');
+const { createSpalteOrdner } = require('./ordner-spalte');
 
 const RESERVIERUNG_ALT_MS = 2 * 60 * 1000;
 const MAX_ZAEHLER = 20;
-const SCHLEIFEN = [1, 2, 3];
 // Dokument-Ordner (ADR 0068) haengen ueber dok_schluessel am Fach-Objekt und ziehen mit um
 const BEWEGLICH = new Set(['unternehmen', 'marke', 'kampagne', 'produktion', 'kooperation', 'dokument']);
 
@@ -260,185 +261,6 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     return eltern;
   }
 
-  const koopBesitz = (k) => ({
-    unternehmen_id: k.unternehmen_id, marke_id: k.marke_id, kampagne_id: k.kampagne_id, kooperation_id: k.kooperation_id,
-  });
-
-  async function typOrdner(kooperationOrdner, typ) {
-    return sicherstellen(kooperationOrdner, { art: 'typ', typ, kooperation_id: kooperationOrdner.kooperation_id }, NAMEN.typ(typ), koopBesitz(kooperationOrdner));
-  }
-
-  const istRohOrdner = (row) => !!row && !row.geloescht_at && row.typ === 'rohmaterial' && (row.art === 'typ' || row.art === 'frei');
-
-  /**
-   * Freier Unterordner im Rohmaterial (ADR 0070): Creator-Ordner beim Upload, "Neuer Ordner" im CRM.
-   * Den Namen fuehrt SharePoint (art 'frei'), ein vorhandener Ordner gleichen Namens wird
-   * uebernommen. Das Register steht vor dem ersten Upload, sonst wartet der Abgleich auf den
-   * Eltern-Ordner und zieht die Datei in die Rohmaterial-Wurzel.
-   * @param {object} eltern Register-Zeile: Rohmaterial-Typ-Ordner oder einer seiner Unterordner
-   */
-  async function rohUnterordner(eltern, gewuenscht) {
-    if (!istRohOrdner(eltern) || !eltern.item_id) throw new Error('Kein Rohmaterial-Ordner');
-    const name = bereinigen(gewuenscht);
-    if (!name) throw new Error('Ordnername fehlt');
-    const { item } = await sp.ordnerAnlegen(eltern.item_id, name);
-    if (!item) throw new Error(`Ordner "${name}" weder angelegt noch gefunden`);
-    if (!item.folder) throw Object.assign(new Error(`"${item.name}" ist eine Datei`), { status: 409 });
-    const pfad = `${eltern.pfad || ''}/${item.name}`;
-    const zeile = { ...besitzVon(eltern), parent_item_id: eltern.item_id, name: item.name, pfad, art: 'frei', geloescht_at: null };
-
-    const vorhanden = await nachItem(item.id);
-    if (vorhanden && !vorhanden.geloescht_at) {
-      if (!istRohOrdner(vorhanden) || vorhanden.art !== 'frei') throw Object.assign(new Error(`"${item.name}" ist ein Fachordner`), { status: 409 });
-      return vorhanden;
-    }
-    if (vorhanden) {
-      const { data, error } = await db().update({ ...zeile, updated_at: new Date().toISOString() }).eq('id', vorhanden.id).select('*').single();
-      if (error) throw error;
-      return data;
-    }
-    const { data, error } = await db().insert({ ...zeile, drive_id: driveId, item_id: item.id }).select('*').single();
-    if (!error) return data;
-    // Abgleich hat den Ordner inzwischen selbst registriert (gleicher Besitz)
-    if (istUniqueVerletzung(error)) return nachItem(item.id);
-    throw error;
-  }
-
-  /** Register-Zeile eines Rohmaterial-Ordners der Kooperation (Typ-Ordner oder Unterordner), sonst null. */
-  async function rohOrdnerVon(kooperationId, itemId) {
-    const row = await nachItem(itemId);
-    return istRohOrdner(row) && row.kooperation_id === kooperationId ? row : null;
-  }
-
-  async function videoOrdner(typRow, video) {
-    return sicherstellen(typRow, { art: 'video', kooperation_video_id: video.id }, NAMEN.video(video), { ...koopBesitz(typRow), typ: typRow.typ });
-  }
-
-  /**
-   * Story_K in einer Runde (Feedbackschleife oder Finale Version). version_number traegt die
-   * Schleife; leer heisst: Story_K liegt in der Finalen Version.
-   */
-  async function storyOrdner(rundeRow, slotIndex) {
-    return sicherstellen(rundeRow, { art: 'story', story_nummer: Number(slotIndex) || 1 }, NAMEN.story(slotIndex), {
-      ...koopBesitz(rundeRow), typ: rundeRow.typ, kooperation_video_id: rundeRow.kooperation_video_id,
-      version_number: rundeRow.art === 'schleife' ? rundeRow.version_number : null,
-    });
-  }
-
-  async function schleifeOrdner(row, n) {
-    return sicherstellen(row, { art: 'schleife', version_number: Number(n) || 1 }, NAMEN.schleife(n), {
-      ...koopBesitz(row), typ: row.typ, kooperation_video_id: row.kooperation_video_id, story_nummer: row.story_nummer ?? null,
-    });
-  }
-
-  async function finaleOrdner(row) {
-    return sicherstellen(row, { art: 'finale' }, NAMEN.finale(), {
-      ...koopBesitz(row), typ: row.typ, kooperation_video_id: row.kooperation_video_id, story_nummer: row.story_nummer ?? null,
-    });
-  }
-
-  async function formatOrdnerSicherstellen(finaleRow, variant) {
-    const f = formatOrdner(variant);
-    if (!f) return finaleRow;
-    return sicherstellen(finaleRow, { art: 'format', format: f }, f, {
-      ...koopBesitz(finaleRow), typ: finaleRow.typ, kooperation_video_id: finaleRow.kooperation_video_id,
-    });
-  }
-
-  async function ladeVideo(videoId) {
-    const { data, error } = await supabase.from('kooperation_videos').select('id, kooperation_id, position, thema').eq('id', videoId).maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error('Video nicht gefunden');
-    return data;
-  }
-
-  async function ladeStory(storyId) {
-    const { data, error } = await supabase.from('kooperation_story').select('id, video_id, slot_index').eq('id', storyId).maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error('Story-Slot nicht gefunden');
-    return data;
-  }
-
-  async function erstesVideo(kooperationId) {
-    const { data, error } = await supabase.from('kooperation_videos').select('id, kooperation_id, position, thema')
-      .eq('kooperation_id', kooperationId).order('position', { ascending: true }).limit(1);
-    if (error) throw error;
-    if (!data?.[0]) throw new Error('Kooperation hat noch kein Video: Bild kann nicht abgelegt werden');
-    return data[0];
-  }
-
-  /** Video der Datei. Bilder ohne Video (Altbestand, Creator-Upload) haengen am ersten Video. */
-  async function videoZu(ctx, story) {
-    if (ctx.typ === 'story') return ladeVideo(ctx.kooperation_video_id || story.video_id);
-    if (ctx.typ === 'still' && !ctx.kooperation_video_id) return erstesVideo(ctx.kooperation_id);
-    return ladeVideo(ctx.kooperation_video_id);
-  }
-
-  /**
-   * Zielordner fuer eine Datei. Video, Bild und Story liegen in derselben Runde unter
-   * Videos/Video_N: Feedbackschleife_K bzw. Finale_Version, flach ohne Varianten-Ordner.
-   * Videos in der Finale bekommen ihren Format-Ordner, Stories ihren Story_K-Ordner.
-   * link = Ordner, dessen Link das CRM zeigt (Videos/Video_N, Rohmaterial).
-   * kooperation_video_id = Video, an dem die Datei haengt (bei Bildern ohne Video das erste).
-   * @param {{typ:'video'|'story'|'still'|'roh', kooperation_id:string, kooperation_video_id?:string,
-   *          story_id?:string, version_number?:number, is_final?:boolean, variant_name?:string}} ctx
-   */
-  async function zielOrdner(ctx, { koop } = {}) {
-    const k = await kette(koop || ctx.kooperation_id);
-    const ko = k.kooperation;
-    if (ctx.typ === 'roh') {
-      const roh = await typOrdner(ko, 'rohmaterial');
-      return { ordner: roh, link: roh, kette: k };
-    }
-    if (!['video', 'story', 'still'].includes(ctx.typ)) throw new Error(`Unbekannter Typ ${ctx.typ}`);
-
-    const story = ctx.typ === 'story' ? await ladeStory(ctx.story_id) : null;
-    const video = await videoZu({ ...ctx, kooperation_id: ctx.kooperation_id || ko.kooperation_id }, story);
-    const v = await videoOrdner(await typOrdner(ko, 'videos'), video);
-    const runde = ctx.is_final ? await finaleOrdner(v) : await schleifeOrdner(v, ctx.version_number);
-
-    let ordner = runde;
-    if (ctx.typ === 'video' && ctx.is_final) ordner = await formatOrdnerSicherstellen(runde, ctx.variant_name);
-    if (ctx.typ === 'story') ordner = await storyOrdner(runde, story.slot_index);
-    return { ordner, link: v, kette: k, kooperation_video_id: video.id };
-  }
-
-  /**
-   * Fach-Geruest einer Kooperation: Videos + Rohmaterial, je Video Schleifen 1-3 + Finale, darin Story_K je Slot.
-   * Dazu der Bereich Verträge des Unternehmens.
-   */
-  async function geruest(kooperationId) {
-    const k = await kette(kooperationId);
-    const ko = k.kooperation;
-    await bereichOrdner(k.unternehmen, 'vertraege');
-    const [videosRes, typen] = await Promise.all([
-      supabase.from('kooperation_videos').select('id, kooperation_id, position, thema').eq('kooperation_id', kooperationId).order('position', { ascending: true }),
-      Promise.all(['videos', 'rohmaterial'].map((t) => typOrdner(ko, t))),
-    ]);
-    if (videosRes.error) throw videosRes.error;
-    const [vids] = typen;
-    const videos = videosRes.data || [];
-    const ids = videos.map((v) => v.id);
-    const { data: slots, error } = ids.length
-      ? await supabase.from('kooperation_story').select('id, video_id, slot_index').in('video_id', ids)
-      : { data: [], error: null };
-    if (error) throw error;
-
-    let angelegt = 0;
-    for (const video of videos) {
-      const v = await videoOrdner(vids, video);
-      const eigene = (slots || []).filter((s) => s.video_id === video.id);
-      const runden = [];
-      for (const n of SCHLEIFEN) runden.push(await schleifeOrdner(v, n));
-      runden.push(await finaleOrdner(v));
-      for (const runde of runden) {
-        for (const slot of eigene) await storyOrdner(runde, slot.slot_index);
-      }
-      angelegt++;
-    }
-    return { kooperation: ko, videos: angelegt };
-  }
-
   /** Fachordner umbenennen (CRM fuehrt den Namen). Zieht Pfade im Register und in den Assets nach. */
   async function umbenennen(row, gewuenscht) {
     if (!row?.item_id) return row;
@@ -472,7 +294,7 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     throw new Error(`Kein freier Name fuer "${gewuenscht}"`);
   }
 
-  return {
+  const o = {
     driveId,
     wurzel,
     finden,
@@ -483,19 +305,12 @@ function createOrdner({ supabase, sp, driveId = sp.driveId, schlafen = (ms) => n
     bereichOrdner,
     kette,
     dokumentKette,
-    typOrdner,
-    rohUnterordner,
-    rohOrdnerVon,
-    videoOrdner,
-    storyOrdner,
-    schleifeOrdner,
-    finaleOrdner,
-    formatOrdner: formatOrdnerSicherstellen,
-    zielOrdner,
-    geruest,
     umbenennen,
     urlsNachziehen,
   };
+  Object.assign(o, createMedienOrdner(o, { supabase, sp, driveId }));
+  Object.assign(o, createSpalteOrdner(o, { supabase }));
+  return o;
 }
 
 module.exports = { createOrdner, SCHLEIFEN };

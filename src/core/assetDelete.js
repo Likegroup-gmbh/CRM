@@ -1,11 +1,11 @@
 // assetDelete.js
-// Eine Datei (Video, Story, Still, Rohmaterial) endgültig löschen: erst die Zeile, dann die
-// Datei in Dropbox. Die Datei bleibt, solange eine andere Zeile denselben Pfad nutzt
-// (Finale Versionen teilen sich die Datei ihrer Quelle). is_current und link_content
-// räumt der Video-Trigger ab. Liegt die Datei in SharePoint, löscht der Server sie vor der
-// Zeile (er braucht die Zeile für die Rechteprüfung) und lässt sie bei geteilter Nutzung stehen.
+// Eine Datei (Video, Story, Still, Rohmaterial) endgültig löschen. Liegt sie in SharePoint,
+// löscht der Server sie vor der Zeile (er braucht die Zeile für die Rechteprüfung) und lässt
+// sie stehen, solange eine andere Zeile sie nutzt (Finale Versionen teilen sich die Datei ihrer
+// Quelle). Altbestand außerhalb von SharePoint ist nur ein Link: dort fällt nur die Zeile weg.
+// is_current und link_content räumt der Video-Trigger ab.
 
-import { deleteSingleDropboxFile, syncVideoAssetsAfterDelete } from './VideoDeleteHelper.js';
+import { syncVideoAssetsAfterDelete } from './VideoDeleteHelper.js';
 import { updateStillCurrentFlags } from './stills/stillAssets.js';
 import { ablageDateiLoeschen } from './ablage/ablageApi.js';
 import { istSharePoint } from './ablage/ablageLink.js';
@@ -30,21 +30,8 @@ export function assetTable(item) {
   return table;
 }
 
-/** Dropbox-Datei löschen, sobald keine Zeile der Tabelle mehr auf den Pfad zeigt (best effort). */
-export async function deleteFileIfUnreferenced(table, filePath) {
-  if (!filePath) return;
-  const { data, error } = await window.supabase
-    .from(table)
-    .select('id')
-    .eq('file_path', filePath)
-    .limit(1);
-  if (error || data?.length) return;
-  await deleteSingleDropboxFile(filePath)
-    .catch(err => console.warn('assetDelete: Dropbox-Löschung fehlgeschlagen', err));
-}
-
 /**
- * Zeile und (falls ungeteilt) Dropbox-Datei löschen, ohne das Video abzugleichen.
+ * Zeile und (falls ungeteilt) SharePoint-Datei löschen, ohne das Video abzugleichen.
  * Für Aufrufer, die den Abgleich selbst anstoßen (z. B. über einen onDelete-Callback).
  * @param {{ type: 'video'|'story'|'still'|'roh', id: string, asset?: object }} item
  */
@@ -52,9 +39,8 @@ export async function deleteAssetWithFile(item) {
   const table = assetTable(item);
   const asset = item.asset || {};
   const sb = window.supabase;
-  const sharePoint = istSharePoint(asset);
 
-  if (sharePoint) await ablageDateiLoeschen(item.type, item.id);
+  if (istSharePoint(asset)) await ablageDateiLoeschen(item.type, item.id);
 
   const kommentarSpalte = KOMMENTAR_SPALTE[item.type];
   if (kommentarSpalte) {
@@ -70,8 +56,6 @@ export async function deleteAssetWithFile(item) {
   const { data, error } = await sb.from(table).delete().eq('id', item.id).select('id');
   if (error) throw error;
   if (!data?.length) throw new Error('Datei konnte nicht gelöscht werden');
-
-  if (!sharePoint) await deleteFileIfUnreferenced(table, asset.file_path);
 }
 
 /** Wie deleteAssetWithFile, danach Video bzw. Stills der Runde abgleichen. */

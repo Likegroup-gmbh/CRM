@@ -4,20 +4,20 @@
 // Eine fehlerhafte Datei stoppt die übrigen nicht; der Job endet dann als Fehler.
 
 import { RohmaterialService } from '../../modules/video/RohmaterialService.js';
-import { trackUploadProgress } from './videoUploadSteps.js';
+import { trackUploadProgress } from './uploadFortschritt.js';
 
 /**
  * @param {object} ctx
- * @param {object} ctx.job - payload = { kooperationId, pathContext, files, ordnerItemId? }
+ * @param {object} ctx.job - payload = { kooperationId, files, ordnerItemId? }
  * @param {AbortSignal} ctx.signal
  * @param {(itemId, patch) => void} ctx.updateItem
  */
 export async function runRohmaterialUploadJob({ job, signal, updateItem }) {
-  const { kooperationId, pathContext, files, ordnerItemId = null } = job.payload;
+  const { kooperationId, files, ordnerItemId = null } = job.payload;
   if (!kooperationId) throw new Error('kooperationId fehlt');
   if (!Array.isArray(files) || files.length === 0) throw new Error('Keine Dateien');
 
-  const group = { id: kooperationId, pathContext, ordnerItemId };
+  const group = { id: kooperationId, ordnerItemId };
   const taken = await RohmaterialService.takenFileNames(kooperationId);
   const errors = [];
   let uploaded = 0;
@@ -26,14 +26,13 @@ export async function runRohmaterialUploadJob({ job, signal, updateItem }) {
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     const file = files[i];
     const item = job.items[i];
-    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
+    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size });
 
     try {
       await RohmaterialService.uploadOne(group, file, taken, {
         signal,
         onBytes: trackUploadProgress(item, updateItem),
       });
-      if (item.directOk === null) updateItem(item.id, { directOk: true });
       updateItem(item.id, { status: 'done', loaded: file.size });
       uploaded++;
     } catch (err) {

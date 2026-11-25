@@ -10,7 +10,6 @@ export const ICON_MUTE = icon('volume-mute');
 export const ICON_FS = icon('arrows-expand-filled', { className: 'crm-icon--filled' });
 export const ICON_FS_EXIT = icon('arrows-collapse-filled', { className: 'crm-icon--filled' });
 export const ICON_CLOSE = icon('x-mark', { className: 'crm-icon--filled' });
-export const ICON_DROPBOX = icon('dropbox', { className: 'crm-icon--filled' });
 
 export function formatTime(sec) {
   if (!Number.isFinite(sec) || sec < 0) sec = 0;

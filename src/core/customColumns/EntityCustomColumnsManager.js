@@ -59,7 +59,6 @@ export class EntityCustomColumnsManager {
     this.columns = [];
     this.order = [];
     this.values = {};   // { [entityId]: { [columnId]: value } }
-    this._uploadDrawer = null;
   }
 
   async init(parentId) {
@@ -587,38 +586,5 @@ export class EntityCustomColumnsManager {
   _vorherigerAnchor(anchor) {
     const idx = this.anchorColumns.indexOf(anchor);
     return idx > 0 ? this.anchorColumns[idx - 1] : null;
-  }
-
-  /**
-   * Oeffnet den (kampagnen-eigenen) VideoUploadDrawer im custom-Tab fuer ein Upload-Feld.
-   * Schreibt ueber valueTable/assetTable in die entity_custom_column*-Tabellen.
-   */
-  async openUploadDrawer(btn, metadaten, onChange) {
-    const columnId = btn.dataset.customColumnId;
-    const entityId = btn.dataset.entityId;
-    const columnName = btn.dataset.columnName || 'Upload';
-
-    if (!this._uploadDrawer) {
-      const mod = await import('../../modules/kampagne/VideoUploadDrawer.js');
-      this._uploadDrawer = new mod.VideoUploadDrawer();
-    }
-
-    this._uploadDrawer.open(null, metadaten || {}, null, null, null, {
-      initialTab: 'custom',
-      customMeta: {
-        columnId,
-        entityId,
-        columnName,
-        folderName: columnName,
-        valueTable: this.dataLoader.valueTable,
-        assetTable: this.dataLoader.assetTable,
-        currentValue: this.getValue(entityId, columnId) || null,
-        onSuccess: (folderUrl) => {
-          // folderUrl === null: alle Dateien geloescht -> Zelle zeigt wieder Upload-Button
-          this.setValue(entityId, columnId, folderUrl || null);
-          onChange?.();
-        }
-      }
-    });
   }
 }

@@ -34,4 +34,5 @@ Der Ordner-Link im Videos-Tab zeigt auf `Videos/` einer einzelnen Kooperation. E
   2. Functions.
   3. Client.
 - Voraussetzung: Die Site „Medienablage“ erlaubt in den Freigabe-Einstellungen „Anyone“. Sonst kommt 409 `links_gesperrt`, genau wie beim Ordner-Link.
-- Produktionen ohne SharePoint-Ordner (nur Dropbox-Bestand, ADR 0065) bekommen keinen Button bzw. 409.
+- Produktionen ohne SharePoint-Ordner (nur Altbestand, ADR 0082) bekommen keinen Button bzw. 409.
+- Upload-Spalten der Kampagne haben seit ADR 0082 denselben Leselink auf ihren Spalten-Ordner (`custom_column_id`, `entity_id`); Kunden nur bei sichtbarer Spalte.

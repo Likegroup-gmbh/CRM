@@ -1,64 +1,14 @@
 import { resolveStreamUrl } from './mediaSrc.js';
 import { lookupFor } from './player/mediaIdentity.js';
-import { istSharePoint } from '../ablage/ablageLink.js';
-import { proxyPost } from '../VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export const DOWNLOAD_ICON = `${icon('download')}`;
 
 /**
- * Wandelt einen Dropbox-Shared-Link in einen Force-Download-Link (dl=1).
- * Direkte dropboxusercontent-Links unterstuetzen den Parameter nicht zuverlaessig
- * und liefern null zurueck (-> Fallback ueber shared-link/file_path).
- * @param {string|null} fileUrl
- * @returns {string|null}
- */
-function toDownloadUrl(fileUrl) {
-  if (!fileUrl) return null;
-  if (/dropboxusercontent\.com/i.test(fileUrl)) return null;
-  if (!/dropbox\.com/i.test(fileUrl)) return null;
-  try {
-    const u = new URL(fileUrl);
-    u.searchParams.delete('raw');
-    u.searchParams.set('dl', '1');
-    return u.toString();
-  } catch {
-    return fileUrl.replace(/([?&])(?:dl|raw)=\d\b/gi, '$1dl=1');
-  }
-}
-
-/**
- * Ermittelt einen Force-Download-Link (www.dropbox.com ...?dl=1) fuer das Asset.
- * 1) wenn file_path vorhanden: frischen Shared-Link erzeugen und dl=1 erzwingen
- *    (zuverlaessigster Force-Download, umgeht /s/-Legacy-/rlkey-Links ohne dl=1)
- * 2) sonst vorhandenen Shared-Link (file_url) auf dl=1 umschreiben
- * SharePoint: der Lese-Link aus ablage-link (Graph liefert ihn als Attachment aus).
- */
-async function resolveDownloadUrl(asset, lookup) {
-  if (istSharePoint(asset)) return resolveStreamUrl(lookup);
-  if (asset?.file_path) {
-    try {
-      const { url } = await proxyPost({ action: 'shared-link', path: asset.file_path });
-      const dl = toDownloadUrl(url);
-      if (dl) return dl;
-    } catch (err) {
-      console.warn('Shared-Link fuer Download konnte nicht erstellt werden:', err);
-    }
-  }
-  return toDownloadUrl(asset?.file_url);
-}
-
-const IMAGE_EXT = /\.(jpe?g|png|gif|webp|bmp|svg|heic|heif)(?:\?|#|$)/i;
-
-function looksLikeImage(asset, filename) {
-  return IMAGE_EXT.test(filename || '') || IMAGE_EXT.test(asset?.file_path || '') || IMAGE_EXT.test(asset?.file_url || '');
-}
-
-/**
  * Startet einen echten Datei-Download per programmatischem Anchor-Klick.
- * Dropbox liefert bei dl=1 die Datei als Attachment (Content-Disposition) aus,
- * daher laedt der Browser herunter ohne wegzunavigieren und ohne neuen Tab.
- * Funktioniert cross-origin ohne CORS, auch fuer grosse Dateien (Browser streamt).
+ * Der SharePoint-Leselink liefert die Datei als Attachment (Content-Disposition) aus,
+ * daher laedt der Browser herunter ohne wegzunavigieren. Funktioniert cross-origin ohne
+ * CORS, auch fuer grosse Dateien (Browser streamt).
  */
 function triggerHiddenDownload(url, filename) {
   const a = document.createElement('a');
@@ -66,7 +16,7 @@ function triggerHiddenDownload(url, filename) {
   if (filename) a.download = filename; // cross-origin ignoriert, aber harmlos
   a.rel = 'noopener';
   // target=_blank verhindert, dass ein evtl. Navigations-Fallback das aktuelle
-  // Popup/die Seite verlaesst; dl=1 laedt trotzdem als Attachment.
+  // Popup/die Seite verlaesst.
   a.target = '_blank';
   document.body.appendChild(a);
   a.click();
@@ -74,10 +24,8 @@ function triggerHiddenDownload(url, filename) {
 }
 
 /**
- * Blob-Download mit erzwungenem Dateinamen. Dropbox dl=1 ignoriert das
- * download-Attribut (Content-Disposition mit Dropbox-Namen), daher wird bei
- * gesetztem filename ueber den Stream-Link gefetcht und als Blob gespeichert.
- * Genau eine Datei im RAM, ObjectURL wird danach revoked.
+ * Blob-Download mit erzwungenem Dateinamen: ueber den Stream-Link fetchen und als Blob
+ * speichern. Genau eine Datei im RAM, ObjectURL wird danach revoked.
  * @returns {Promise<boolean>} true bei Erfolg
  */
 async function tryNamedBlobDownload(lookup, filename) {
@@ -104,8 +52,8 @@ async function tryNamedBlobDownload(lookup, filename) {
 
 /**
  * Laedt die aktuell angezeigte Datei direkt herunter (echter Datei-Download).
- * Mit filename: Blob-Weg, damit der Wunsch-Name auch bei Dropbox-Altdateien
- * greift. Ohne filename: Dropbox dl=1 (Force-Download), kein RAM-Verbrauch.
+ * Mit filename: Blob-Weg, damit der Wunsch-Name greift (scheitert bei fremden Hosts an CORS,
+ * dann wie ohne filename). Ohne filename: Leselink bzw. externer Link direkt.
  *
  * @param {{ file_path?: string|null, file_url?: string|null }} asset
  * @param {string} [filename]
@@ -130,38 +78,14 @@ export async function downloadMediaAsset(asset, filename, opts = {}) {
       toast('Download gestartet', 'success');
       return true;
     }
-    // Fallback: dl=1 mit Dropbox-Namen (besser als kein Download).
   }
 
-  const downloadUrl = await resolveDownloadUrl(asset, lookup);
-  if (downloadUrl) {
-    triggerHiddenDownload(downloadUrl, filename);
-    toast('Download gestartet', 'success');
-    return true;
-  }
-
-  if (istSharePoint(asset)) {
+  const url = await resolveStreamUrl(lookup);
+  if (!url) {
     toast('Datei kann nicht heruntergeladen werden.', 'error');
     return false;
   }
-
-  // Fallback: Stream-Link aufloesen und dl=1 erzwingen.
-  const streamUrl = await resolveStreamUrl(lookup);
-  if (!streamUrl) {
-    toast('Datei kann nicht heruntergeladen werden.', 'error');
-    return false;
-  }
-
-  if (!filename && looksLikeImage(asset, filename)) {
-    const ok = await tryNamedBlobDownload(lookup, 'download');
-    if (ok) {
-      toast('Download gestartet', 'success');
-      return true;
-    }
-  }
-
-  const forced = streamUrl + (streamUrl.includes('?') ? '&' : '?') + 'dl=1';
-  triggerHiddenDownload(forced, filename);
+  triggerHiddenDownload(url, filename);
   toast('Download gestartet', 'success');
   return true;
 }

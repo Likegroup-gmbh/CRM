@@ -11,6 +11,7 @@ const SPALTEN = {
   kooperation_story_asset: ['id', 'video_id', 'story_id', 'drive_id', 'item_id'],
   kooperation_bilder_asset: ['id', 'video_id', 'drive_id', 'item_id'],
   kooperation_rohmaterial_asset: ['id', 'kooperation_id', 'drive_id', 'item_id'],
+  custom_column_assets: ['id', 'custom_column_id', 'entity_id', 'kooperation_id', 'drive_id', 'item_id'],
 };
 
 function fakeSupabase(zeilenJeTabelle) {

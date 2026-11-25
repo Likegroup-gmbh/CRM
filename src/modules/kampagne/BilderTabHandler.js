@@ -1,7 +1,7 @@
 import { IMAGE_EXTENSIONS, IMAGE_MIME_PREFIX, MAX_IMAGE_SIZE } from '../../core/VideoUploadUtils.js';
 import { STILL_FINAL_VARIANT } from '../../core/stills/stillAssets.js';
-import { bilderUploadPane, bilderLinkPane, linkQueueHtml, fileQueueHtml } from './bilderTabRender.js';
-import { handleBilderUpload, handleBilderLinkSubmit } from './bilderTabUpload.js';
+import { bilderUploadPane, fileQueueHtml } from './bilderTabRender.js';
+import { handleBilderUpload } from './bilderTabUpload.js';
 import { bindExistingEvents, loadExistingImages } from './bilderTabExisting.js';
 
 export class BilderTabHandler {
@@ -25,7 +25,6 @@ export class BilderTabHandler {
     this._selectedImages = [];
     this._existingImages = [];
     this._existingVersions = [];
-    this._linkQueue = [];
     this._isUploadingImages = false;
     this._initialized = false;
   }
@@ -38,22 +37,21 @@ export class BilderTabHandler {
     return this._existingVersions.length > 0 ? Math.max(...this._existingVersions) : 1;
   }
 
-  _newQueueItem({ file = null, url = '' } = {}) {
+  _newQueueItem(file) {
     if (this.drawer.preselectFinal) {
-      return { file, url, variantName: STILL_FINAL_VARIANT, versionNumber: 1, isFinal: true };
+      return { file, variantName: STILL_FINAL_VARIANT, versionNumber: 1, isFinal: true };
     }
-    return { file, url, variantName: '', versionNumber: this._defaultVersion(), isFinal: false };
+    return { file, variantName: '', versionNumber: this._defaultVersion(), isFinal: false };
   }
 
   _queueItemAt(idx) {
-    if (this.drawer.useExternalLinks) return this._linkQueue?.[idx];
     return this._selectedImages[idx];
   }
 
   // ─── Render ────────────────────────────────────────────────
 
   renderTab(activeTab) {
-    return this.drawer.useExternalLinks ? bilderLinkPane(activeTab) : bilderUploadPane(activeTab);
+    return bilderUploadPane(activeTab);
   }
 
   // ─── Events ────────────────────────────────────────────────
@@ -64,19 +62,10 @@ export class BilderTabHandler {
 
     cancelBtn?.addEventListener('click', () => this.drawer.close());
     submitBtn?.addEventListener('click', () => {
-      if (this.drawer.useExternalLinks) {
-        if (this._linkQueue && this._linkQueue.length > 0 && !this._isUploadingImages) handleBilderLinkSubmit(this);
-      } else {
-        if (this._selectedImages.length > 0 && !this._isUploadingImages) handleBilderUpload(this);
-      }
+      if (this._selectedImages.length > 0 && !this._isUploadingImages) handleBilderUpload(this);
     });
 
-    if (this.drawer.useExternalLinks) {
-      const addLinkBtn = document.getElementById('bilder-link-add-btn');
-      addLinkBtn?.addEventListener('click', () => this._addBilderLinkEntry());
-    } else {
-      this._bindDropzone();
-    }
+    this._bindDropzone();
 
     this._bindQueueEvents();
     bindExistingEvents(this);
@@ -107,24 +96,9 @@ export class BilderTabHandler {
     const previewList = document.getElementById('bilder-preview-list');
     previewList?.addEventListener('click', (e) => {
       const removeBtn = e.target.closest('.bilder-file-remove');
-      if (removeBtn) {
-        const idx = parseInt(removeBtn.dataset.idx, 10);
-        if (this.drawer.useExternalLinks) {
-          this._removeBilderLink(idx);
-        } else {
-          this._removeSelectedImage(idx);
-        }
-      }
+      if (removeBtn) this._removeSelectedImage(parseInt(removeBtn.dataset.idx, 10));
     });
     previewList?.addEventListener('input', (e) => {
-      const urlInput = e.target.closest('.bilder-link-url-input');
-      if (urlInput) {
-        const idx = parseInt(urlInput.dataset.idx, 10);
-        if (this._linkQueue && this._linkQueue[idx]) {
-          this._linkQueue[idx].url = urlInput.value;
-        }
-        this._updateBilderSubmitState();
-      }
       const variantInput = e.target.closest('.bilder-variant-name-input');
       if (variantInput) {
         const idx = parseInt(variantInput.dataset.idx, 10);
@@ -171,7 +145,7 @@ export class BilderTabHandler {
 
       const alreadySelected = this._selectedImages.some(q => q.file?.name === file.name && q.file?.size === file.size);
       if (!alreadySelected) {
-        this._selectedImages.push(this._newQueueItem({ file }));
+        this._selectedImages.push(this._newQueueItem(file));
       }
     }
 
@@ -193,42 +167,15 @@ export class BilderTabHandler {
     const list = document.getElementById('bilder-preview-list');
     if (!list) return;
 
-    if (this._selectedImages.length === 0 && !(this.drawer.useExternalLinks && this._linkQueue?.length)) {
-      list.innerHTML = '';
-      return;
-    }
-
-    list.innerHTML = this.drawer.useExternalLinks
-      ? linkQueueHtml(this._linkQueue || [], this._existingVersions)
-      : fileQueueHtml(this._selectedImages, this._existingVersions);
+    list.innerHTML = this._selectedImages.length
+      ? fileQueueHtml(this._selectedImages, this._existingVersions)
+      : '';
   }
 
   _updateBilderSubmitState() {
     const btn = document.getElementById('bilder-upload-submit-btn');
     if (!btn) return;
-    if (this.drawer.useExternalLinks) {
-      const hasLinks = this._linkQueue && this._linkQueue.length > 0;
-      const allFilled = hasLinks && this._linkQueue.every(q => (q.url || '').trim().length > 0);
-      btn.disabled = this._isUploadingImages || !allFilled;
-    } else {
-      btn.disabled = this._isUploadingImages || this._selectedImages.length === 0;
-    }
-  }
-
-  // ─── External Link Mode ─────────────────────────────────────
-
-  _addBilderLinkEntry() {
-    if (!this._linkQueue) this._linkQueue = [];
-    this._linkQueue.push(this._newQueueItem({ url: '' }));
-    this._renderSelectedImagesList();
-    this._updateBilderSubmitState();
-  }
-
-  _removeBilderLink(idx) {
-    if (!this._linkQueue) return;
-    this._linkQueue.splice(idx, 1);
-    this._renderSelectedImagesList();
-    this._updateBilderSubmitState();
+    btn.disabled = this._isUploadingImages || this._selectedImages.length === 0;
   }
 
   // ─── Error Helpers ─────────────────────────────────────────

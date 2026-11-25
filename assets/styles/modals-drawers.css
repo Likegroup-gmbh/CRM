@@ -1420,41 +1420,6 @@ span.videoidee-struktur__lock {
 .video-upload-drawer-footer { padding: var(--space-md) 0 0; }
 
 /* ============================================
-   DRAWER MODE CHIP (Kein Dropbox)
-   ============================================ */
-
-.drawer-mode-chip {
-  flex-shrink: 0;
-  padding: var(--space-xs) var(--space-sm);
-  border: var(--border-xs) solid var(--gray-300);
-  border-radius: 999px;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  line-height: 1.2;
-  cursor: pointer;
-  user-select: none;
-  background: var(--bg-primary);
-  color: var(--gray-700);
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.drawer-mode-chip:hover:not(:disabled) {
-  border-color: var(--gray-500);
-}
-
-.drawer-mode-chip.is-active {
-  background: var(--color-primary);
-  color: var(--text-inverse);
-  border-color: var(--color-primary);
-}
-
-.drawer-mode-chip:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-/* ============================================
    UPLOAD DRAWER (scoped layout – nur #video-upload-drawer)
    ============================================ */
 
@@ -1478,31 +1443,10 @@ span.videoidee-struktur__lock {
   box-sizing: border-box;
 }
 
-#video-upload-drawer .link-share-mode.drawer-tab-nav {
-  padding: 0;
-}
-
-#video-upload-drawer .link-folder-section .form-input {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  cursor: text;
-}
-
 #video-upload-drawer .video-upload-drawer-content,
 #video-upload-drawer .storys-upload-drawer-content,
 #video-upload-drawer .bilder-upload-drawer-content {
   padding: var(--space-md);
-}
-
-#video-upload-drawer .upload-drawer-btn--secondary {
-  background: var(--bg-primary);
-  border: 1px solid var(--gray-300);
-  color: var(--gray-900);
-}
-
-#video-upload-drawer .upload-drawer-btn--secondary:hover {
-  border-color: var(--gray-500);
 }
 
 /* ============================================

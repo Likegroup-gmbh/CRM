@@ -4,7 +4,6 @@ import { pruefeKoopUpload } from '../../core/budget/koopVideoUpload.js';
 import { renderSegmentedControl, bindSegmentSwitcher, handleContractingCreateSubmit } from './RechnungContractingCreate.js';
 import { rechnungDateienHochladen } from '../../core/ablage/rechnungDokumente.js';
 import { dokumentQuelle, mitDokumentAblage } from '../../core/ablage/dokumentAblage.js';
-import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
 import { finalizeRechnungSubmitData } from '../../core/form/logic/events/RechnungEvents.js';
 import { rechnungNotizModal } from './RechnungNotizModal.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
@@ -13,7 +12,7 @@ import { RechnungPdfExtract, renderRechnungExtractCard } from './RechnungPdfExtr
 import { likyCanExtractPdf } from '../../core/chat/likyCapabilities.js';
 import { navigateBack } from '../../core/breadcrumbTrail.js';
 
-// Dropbox/SharePoint: file_url (Shared Link bzw. webUrl, Klick löst der DocumentUrlHelper auf),
+// SharePoint bzw. Altbestand: file_url (webUrl bzw. alter Link, Klick löst der DocumentUrlHelper auf),
 // Legacy Supabase Storage: publicUrl aus dem Bucket.
 function resolveDocumentUrl(typ, row) {
   if (!row) return '';
@@ -339,14 +338,6 @@ export class RechnungDetail {
       console.log('📋 Submit-Daten vor Übertragung:', submitData);
       console.log('🔍 auftrag_id Wert:', submitData.auftrag_id, typeof submitData.auftrag_id);
 
-      // Dropbox-Pfad-Metadaten, nur auf dem Dropbox-Weg aufgelöst
-      const pathMeta = () => resolveRechnungPathMetadata({
-        unternehmenId: submitData.unternehmen_id,
-        kampagneId: submitData.kampagne_id,
-        kooperationId: submitData.kooperation_id,
-        rechnungsNr: submitData.rechnung_nr,
-      });
-
       // Ersteller automatisch setzen
       submitData.created_by_id = window.currentUser?.id || null;
 
@@ -390,8 +381,8 @@ export class RechnungDetail {
         // Erst jetzt hochladen: SharePoint legt die Dateien unter der Rechnung ab
         const uploaderFiles = (name) => Array.from(form.querySelector(`.uploader[data-name="${name}"]`)?.__uploaderInstance?.files || []);
         try {
-          await rechnungDateienHochladen({ typ: 'rechnung', rechnungId: result.id, files: uploaderFiles('pdf_file'), pathMeta });
-          await rechnungDateienHochladen({ typ: 'beleg', rechnungId: result.id, files: uploaderFiles('belege_files'), pathMeta });
+          await rechnungDateienHochladen({ typ: 'rechnung', rechnungId: result.id, files: uploaderFiles('pdf_file') });
+          await rechnungDateienHochladen({ typ: 'beleg', rechnungId: result.id, files: uploaderFiles('belege_files') });
         } catch (uploadErr) {
           console.warn('⚠️ Datei-Upload teilweise fehlgeschlagen:', uploadErr);
           alert(`Rechnung erstellt, aber Datei-Upload fehlgeschlagen: ${uploadErr?.message || uploadErr}`);

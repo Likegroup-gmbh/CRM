@@ -8,6 +8,7 @@ import {
   loadAuftragsbestaetigungen
 } from '../../core/AuftragsbestaetigungUploader.js';
 import { ContractDokumentDrawer } from './ContractDokumentDrawer.js';
+import { dokumentLinkAttrs } from '../../core/ablage/dokumentAblage.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { VertragUtils } from '../vertrag/VertragUtils.js';
@@ -203,14 +204,14 @@ export class ContractDetail {
               <tr>
                 <td>
                   ${d.dropbox_file_url
-                    ? `<a href="${escapeHtml(d.dropbox_file_url)}" target="_blank" rel="noopener noreferrer" class="table-link">${escapeHtml(d.dateiname || '—')}</a>`
+                    ? `<a ${dokumentLinkAttrs('auftragsdokument', d)} class="table-link">${escapeHtml(d.dateiname || '—')}</a>`
                     : escapeHtml(d.dateiname || '—')}
                 </td>
                 <td>${formatFileSize(d.dateigroesse)}</td>
                 <td>${formatDate(d.created_at)}</td>
                 <td class="u-text-right">
                   ${isAdmin ? `
-                    <button type="button" class="btn-icon btn-delete-dokument" data-id="${d.id}" data-path="${escapeHtml(d.dropbox_file_path || '')}" title="Löschen">
+                    <button type="button" class="btn-icon btn-delete-dokument" data-id="${d.id}" title="Löschen">
                       ${icon('trash-alt')}
                     </button>
                   ` : ''}
@@ -501,9 +502,7 @@ export class ContractDetail {
       const deleteDokBtn = e.target.closest('.btn-delete-dokument');
       if (deleteDokBtn) {
         e.preventDefault();
-        const dokId = deleteDokBtn.dataset.id;
-        const path = deleteDokBtn.dataset.path || null;
-        this.handleDeleteDokument(dokId, path);
+        this.handleDeleteDokument(deleteDokBtn.dataset.id);
         return;
       }
 
@@ -532,13 +531,13 @@ export class ContractDetail {
     });
   }
 
-  async handleDeleteDokument(dokId, dropboxPath) {
+  async handleDeleteDokument(dokId) {
     if (!dokId) return;
     const ok = window.confirm('Dokument wirklich löschen?');
     if (!ok) return;
 
     try {
-      await deleteAuftragsbestaetigung(dokId, dropboxPath);
+      await deleteAuftragsbestaetigung(dokId);
       window.toastSystem?.show('Dokument gelöscht', 'success');
 
       await this.loadDokumente();

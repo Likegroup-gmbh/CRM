@@ -239,10 +239,6 @@ class BackgroundUploadService {
       meta: meta || {},
       startedAt: null,
       finishedAt: null,
-      transport: null, // 'direct' | 'proxy' | null (vor Upload)
-      directOk: null, // null = noch nicht entschieden, true = direkt durch, false = Fallback aktiv
-      directError: null,
-      directErrorNotified: false, // verhindert Doppel-Toast pro Item
     };
   }
 

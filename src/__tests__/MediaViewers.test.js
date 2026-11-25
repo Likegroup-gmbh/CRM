@@ -8,12 +8,9 @@ vi.mock('../core/auth/getAccessToken.js', () => ({
 }));
 
 import { resolveVideoFeedbackTarget, getVideoFeedbackSlot } from '../core/VideoFeedbackBuckets.js';
-import { getTemporaryLink, toRawDropboxUrl, _resetProxyAvailability } from '../core/VideoUploadUtils.js';
 import { VideoPlayerLightbox } from '../core/media/player/VideoPlayerLightbox.js';
 import { MediaItemBuilder } from '../core/media/player/MediaItemBuilder.js';
 import { VideoAssetLoader } from '../core/media/player/VideoAssetLoader.js';
-import { resolveStreamUrl, prefetchStreamUrl, _clearMediaSrcCache } from '../core/media/mediaSrc.js';
-import { _clearAblageLinkCache } from '../core/ablage/ablageLink.js';
 import * as MediaCache from '../core/media/MediaCache.js';
 import { VideoElementPool } from '../core/media/player/VideoElementPool.js';
 import { bufferedAhead, hasHeadroom, whenHeadroom } from '../core/media/player/stage/playbackHeadroom.js';
@@ -63,218 +60,6 @@ describe('resolveVideoFeedbackTarget – Version->Runde Mapping', () => {
   it('getVideoFeedbackSlot findet exakten Slot', () => {
     expect(getVideoFeedbackSlot(2, 'kunde').field).toBe('feedback_kunde_r2');
     expect(getVideoFeedbackSlot(9, 'cj')).toBeNull();
-  });
-});
-
-describe('toRawDropboxUrl – Shared-Link -> einbettbar', () => {
-  it('wandelt ?dl=0 in raw=1', () => {
-    expect(toRawDropboxUrl('https://www.dropbox.com/s/abc/x.mp4?dl=0'))
-      .toBe('https://www.dropbox.com/s/abc/x.mp4?raw=1');
-  });
-
-  it('wandelt rlkey &dl=0 in raw=1 (Hauptbug)', () => {
-    const out = toRawDropboxUrl('https://www.dropbox.com/scl/fi/76at/x.mp4?rlkey=op0&dl=0');
-    expect(out).toContain('raw=1');
-    expect(out).not.toContain('dl=0');
-    expect(out).toContain('rlkey=op0');
-  });
-
-  it('laesst direkte dropboxusercontent-Links unveraendert', () => {
-    const direct = 'https://uc123.dl.dropboxusercontent.com/cd/0/x.mp4';
-    expect(toRawDropboxUrl(direct)).toBe(direct);
-  });
-});
-
-describe('getTemporaryLink – dropbox-proxy Client-Helper', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    _resetProxyAvailability();
-  });
-
-  it('deaktiviert Proxy nach 404 -> zweiter Call fetcht nicht mehr', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: false, status: 404 }));
-    global.fetch = fetchMock;
-
-    expect(await getTemporaryLink('/a')).toBeNull();
-    expect(await getTemporaryLink('/b')).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('postet action=temporary-link mit Pfad und liefert link zurueck', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ link: 'https://dl.dropboxusercontent.com/x.mp4' }),
-    }));
-    global.fetch = fetchMock;
-
-    const link = await getTemporaryLink('/Firma/video.mp4', 'tok');
-    expect(link).toBe('https://dl.dropboxusercontent.com/x.mp4');
-
-    const [url, opts] = fetchMock.mock.calls[0];
-    expect(url).toBe('/.netlify/functions/dropbox-proxy');
-    const body = JSON.parse(opts.body);
-    expect(body).toMatchObject({ action: 'temporary-link', path: '/Firma/video.mp4', token: 'tok' });
-  });
-
-  it('gibt null zurueck wenn Pfad fehlt', async () => {
-    global.fetch = vi.fn();
-    expect(await getTemporaryLink('')).toBeNull();
-    expect(global.fetch).not.toHaveBeenCalled();
-  });
-
-  it('gibt null zurueck bei HTTP-Fehler', async () => {
-    global.fetch = vi.fn(async () => ({ ok: false }));
-    expect(await getTemporaryLink('/x')).toBeNull();
-  });
-});
-
-describe('resolveStreamUrl – Temp-Link-Cache & Fallback', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    _clearMediaSrcCache();
-    _resetProxyAvailability();
-  });
-
-  it('Cache-Hit: zweiter Aufruf mit gleichem file_path fetcht nicht erneut', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ link: 'https://dl.dropboxusercontent.com/a.mp4' }),
-    }));
-    global.fetch = fetchMock;
-
-    const a1 = await resolveStreamUrl({ file_path: '/x/a.mp4', file_url: null });
-    const a2 = await resolveStreamUrl({ file_path: '/x/a.mp4', file_url: null });
-
-    expect(a1).toBe('https://dl.dropboxusercontent.com/a.mp4');
-    expect(a2).toBe(a1);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('laesst SharePoint-Links unveraendert (kein raw=1)', async () => {
-    const url = 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc?e=xyz';
-    expect(await resolveStreamUrl({ file_path: null, file_url: url })).toBe(url);
-  });
-
-  it('Fallback auf toRawDropboxUrl wenn kein file_path', async () => {
-    const fetchMock = vi.fn();
-    global.fetch = fetchMock;
-
-    const url = await resolveStreamUrl({
-      file_path: null,
-      file_url: 'https://www.dropbox.com/scl/fi/z/v.mp4?rlkey=k&dl=0',
-    });
-
-    expect(url).toContain('raw=1');
-    expect(url).not.toContain('dl=0');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('Fallback auf raw=1 wenn Temp-Link fehlschlaegt; cached nicht', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: false }));
-    global.fetch = fetchMock;
-
-    const url = await resolveStreamUrl({
-      file_path: '/x/a.mp4',
-      file_url: 'https://www.dropbox.com/s/a/a.mp4?dl=0',
-    });
-    expect(url).toBe('https://www.dropbox.com/s/a/a.mp4?raw=1');
-
-    // zweiter Aufruf fetcht erneut, da kein erfolgreicher Link gecacht wurde
-    await resolveStreamUrl({ file_path: '/x/a.mp4', file_url: 'https://www.dropbox.com/s/a/a.mp4?dl=0' });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('TTL: nach Ablauf wird erneut aufgeloest', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ link: 'https://dl.dropboxusercontent.com/a.mp4' }),
-    }));
-    global.fetch = fetchMock;
-
-    const nowSpy = vi.spyOn(Date, 'now');
-    const t0 = 1_000_000;
-    nowSpy.mockReturnValue(t0);
-    await resolveStreamUrl({ file_path: '/x/a.mp4', file_url: null });
-
-    // innerhalb TTL -> Cache-Hit
-    nowSpy.mockReturnValue(t0 + 60_000);
-    await resolveStreamUrl({ file_path: '/x/a.mp4', file_url: null });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    // nach TTL (3.5h + Puffer) -> neue Aufloesung
-    nowSpy.mockReturnValue(t0 + 4 * 60 * 60 * 1000);
-    await resolveStreamUrl({ file_path: '/x/a.mp4', file_url: null });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe('resolveStreamUrl – SharePoint ueber ablage-link', () => {
-  const sp = {
-    file_path: '/Kampagne/clip.mp4',
-    file_url: 'https://contoso.sharepoint.com/sites/x/Shared%20Documents/clip.mp4',
-    typ: 'video', id: 'a1', ablage: 'sharepoint', etag: 'e1',
-  };
-  const linkAntwort = (links, fehlend = []) => vi.fn(async () => ({
-    ok: true,
-    json: async () => ({ links, fehlend }),
-  }));
-  const inEinerStunde = () => new Date(Date.now() + 60 * 60 * 1000).toISOString();
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    _clearMediaSrcCache();
-    _clearAblageLinkCache();
-    _resetProxyAvailability();
-  });
-
-  it('holt den Lese-Link ueber ablage-link (nie dropbox-proxy) und cacht ihn', async () => {
-    const fetchMock = linkAntwort({ a1: { url: 'https://contoso.sharepoint.com/dl/a1', laeuft_ab: inEinerStunde() } });
-    global.fetch = fetchMock;
-
-    expect(await resolveStreamUrl(sp)).toBe('https://contoso.sharepoint.com/dl/a1');
-    expect(await resolveStreamUrl(sp)).toBe('https://contoso.sharepoint.com/dl/a1');
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, opts] = fetchMock.mock.calls[0];
-    expect(url).toBe('/.netlify/functions/ablage-link');
-    expect(JSON.parse(opts.body)).toEqual({ items: [{ typ: 'video', id: 'a1' }] });
-  });
-
-  it('fehlender Link: null statt der webUrl, kein Dropbox-Fallback', async () => {
-    const fetchMock = linkAntwort({}, ['a1']);
-    global.fetch = fetchMock;
-
-    expect(await resolveStreamUrl(sp)).toBeNull();
-    expect(fetchMock.mock.calls.map(c => c[0])).toEqual(['/.netlify/functions/ablage-link']);
-  });
-
-  it('Netzfehler wirft nicht, sondern liefert null', async () => {
-    global.fetch = vi.fn(async () => { throw new Error('offline'); });
-    expect(await resolveStreamUrl(sp)).toBeNull();
-  });
-
-  it('ohne typ kein Aufruf (Lookup ohne Medientyp)', async () => {
-    global.fetch = vi.fn();
-    expect(await resolveStreamUrl({ ...sp, typ: null })).toBeNull();
-    expect(global.fetch).not.toHaveBeenCalled();
-  });
-
-  it('prefetchStreamUrl waermt den Lese-Link vor, gleichzeitige Aufrufe gehen in einen Call', async () => {
-    const fetchMock = linkAntwort({
-      a1: { url: 'https://contoso.sharepoint.com/dl/a1', laeuft_ab: inEinerStunde() },
-      s1: { url: 'https://contoso.sharepoint.com/dl/s1', laeuft_ab: inEinerStunde() },
-    });
-    global.fetch = fetchMock;
-
-    prefetchStreamUrl(sp);
-    prefetchStreamUrl({ ...sp, typ: 'story', id: 's1' });
-    const url = await resolveStreamUrl(sp);
-
-    expect(url).toBe('https://contoso.sharepoint.com/dl/a1');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).items).toEqual([
-      { typ: 'video', id: 'a1' }, { typ: 'story', id: 's1' },
-    ]);
   });
 });
 
@@ -1231,8 +1016,6 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
 
   beforeEach(() => {
     MediaCache._clearMediaCache();
-    _clearMediaSrcCache();
-    _resetProxyAvailability();
     let c = 0;
     URL.createObjectURL = vi.fn(() => `blob:obj-${++c}`);
     URL.revokeObjectURL = vi.fn();
@@ -1242,7 +1025,7 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
     const player = makePlayer(koops, videos);
-    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4', file_url: 'https://dl/v1.mp4' });
 
     // Blob vorab in den Cache legen.
     global.fetch = vi.fn(async () => ({ ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) }));
@@ -1264,18 +1047,15 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
     const player = makePlayer(koops, videos);
-    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4', file_url: 'https://dl/v1.mp4' });
 
     global.fetch = vi.fn(async (url) => {
-      if (typeof url === 'string' && url.includes('dropbox-proxy')) {
-        return { ok: true, json: async () => ({ link: 'https://dl/v1.mp4' }) };
-      }
       return { ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) };
     });
 
     await player.stage.show();
 
-    // Zunaechst Dropbox-Stream-URL (Cache-Miss). Ohne Headroom kein Blob-Download.
+    // Zunaechst die Stream-URL (Cache-Miss). Ohne Headroom kein Blob-Download.
     const v = player.lightbox.contentEl.querySelector('.vpl-video');
     expect(v.getAttribute('src')).toContain('https://dl/v1.mp4');
     expect(player.stage.activeVideoKey).toBe('video:a1:t1');
@@ -1301,12 +1081,9 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
     const player = makePlayer(koops, videos);
     let neighborSignal = null;
     player.prefetcher.prefetchNeighbors = vi.fn(({ signal } = {}) => { neighborSignal = signal; });
-    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4', file_url: 'https://dl/v1.mp4' });
 
     global.fetch = vi.fn(async (url) => {
-      if (typeof url === 'string' && url.includes('dropbox-proxy')) {
-        return { ok: true, json: async () => ({ link: 'https://dl/v1.mp4' }) };
-      }
       return { ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) };
     });
 
@@ -1331,12 +1108,9 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
     const player = makePlayer(koops, videos);
-    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4', file_url: 'https://dl/v1.mp4' });
 
     global.fetch = vi.fn(async (url) => {
-      if (typeof url === 'string' && url.includes('dropbox-proxy')) {
-        return { ok: true, json: async () => ({ link: 'https://dl/v1.mp4' }) };
-      }
       return { ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) };
     });
 
@@ -1443,15 +1217,10 @@ describe('MediaCache.ensure – Abbruch per signal', () => {
 describe('MediaPrefetcher.prefetchNeighbors – Nachbar-Videos voll vorwaermen', () => {
   beforeEach(() => {
     MediaCache._clearMediaCache();
-    _clearMediaSrcCache();
-    _resetProxyAvailability();
     let c = 0;
     URL.createObjectURL = vi.fn(() => `blob:nb-${++c}`);
     URL.revokeObjectURL = vi.fn();
     global.fetch = vi.fn(async (url) => {
-      if (typeof url === 'string' && url.includes('dropbox-proxy')) {
-        return { ok: true, json: async () => ({ link: 'https://dl/stream.mp4' }) };
-      }
       return { ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) };
     });
   });
@@ -1471,8 +1240,8 @@ describe('MediaPrefetcher.prefetchNeighbors – Nachbar-Videos voll vorwaermen',
     player.session.index = 0; // aktiv = v1, Nachbarn ahead = v2, v3
 
     // Assets vorab cachen, damit kein Supabase-Load noetig ist.
-    player.assetLoader._cache.set('v2', [{ id: 'a2', created_at: 't2', version_number: 1, is_current: true, file_path: '/x/v2.mp4' }]);
-    player.assetLoader._cache.set('v3', [{ id: 'a3', created_at: 't3', version_number: 1, is_current: true, file_path: '/x/v3.mov' }]);
+    player.assetLoader._cache.set('v2', [{ id: 'a2', created_at: 't2', version_number: 1, is_current: true, file_path: '/x/v2.mp4', file_url: 'https://dl/v2.mp4' }]);
+    player.assetLoader._cache.set('v3', [{ id: 'a3', created_at: 't3', version_number: 1, is_current: true, file_path: '/x/v3.mov', file_url: 'https://dl/v3.mov' }]);
 
     player.prefetcher.prefetchNeighbors();
 
@@ -1504,8 +1273,8 @@ describe('MediaPrefetcher.prefetchNeighbors – Nachbar-Videos voll vorwaermen',
 
   describe('Key-Paritaet Prewarm <-> Player', () => {
     const assets = [
-      { id: 'loop1', created_at: 't1', version_number: 1, is_current: true, is_final: false, file_path: '/x/loop.mp4' },
-      { id: 'fin1', created_at: 't2', version_number: 1, is_current: false, is_final: true, file_path: '/x/final.mp4' },
+      { id: 'loop1', created_at: 't1', version_number: 1, is_current: true, is_final: false, file_path: '/x/loop.mp4', file_url: 'https://dl/loop.mp4' },
+      { id: 'fin1', created_at: 't2', version_number: 1, is_current: false, is_final: true, file_path: '/x/final.mp4', file_url: 'https://dl/final.mp4' },
     ];
 
     async function prewarmVsPlayer(isKunde) {
@@ -1545,7 +1314,7 @@ describe('MediaPrefetcher.prefetchNeighbors – Nachbar-Videos voll vorwaermen',
         k1: [{
           id: 'v1', file_url: 'u1',
           story_slots: [{ id: 's1', video_id: 'v1', slot_index: 1, assets: [
-            { id: 'sf', is_final: true, created_at: 'tf', file_path: '/x/story-final.jpg' },
+            { id: 'sf', is_final: true, created_at: 'tf', file_path: '/x/story-final.jpg', file_url: 'https://dl/story-final.jpg' },
           ] }],
         }],
       };

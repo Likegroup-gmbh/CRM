@@ -9,8 +9,6 @@ const ENDPOINT = '/.netlify/functions/ablage-stand';
 
 export const GB = 1024 ** 3;
 
-export const ZIEL_LABEL = { dropbox: 'Dropbox', sharepoint: 'SharePoint' };
-
 const RELATIV_STUFEN = [
   ['year', 365 * 24 * 60 * 60],
   ['month', 30 * 24 * 60 * 60],
@@ -46,12 +44,6 @@ export function datumZeit(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-export function uhrzeit(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 export const zahl = (n, stellen = 0) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: stellen }).format(Number(n) || 0);

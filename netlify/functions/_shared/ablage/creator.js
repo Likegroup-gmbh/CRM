@@ -3,11 +3,9 @@
 // Zielordner, kein Staging-Bucket. Erst complete schaltet die Datei frei, nachdem Groesse und
 // Feedbackschleife geprueft sind; vorher sieht sie niemand (auch nicht der Delta-Feed).
 
-const crypto = require('crypto');
 const cu = require('../creator-upload');
 const { CHUNK_BYTES } = require('./konfig');
-const { zielFuerKooperation } = require('./ziel');
-const { dropboxUpload } = require('./schalter');
+const { ladeKooperation } = require('./kooperation');
 const { dateiname, kampagnenName, MAX_PFAD } = require('./pfad');
 const { dateiSpalten, fachSpalten, upsert } = require('./asset');
 const { AblageFehler } = require('./http');
@@ -54,14 +52,13 @@ function createCreatorAblage({ supabase, ablage, jetzt = () => new Date() }) {
   async function altJobsFreigeben(targetType, targetId) {
     if (!cu.holdsInFlightLock(targetType)) return;
     const { data: aktiv } = await supabase.from('creator_upload_job')
-      .select('id, status, created_at, staging_key, ablage, upload_url')
+      .select('id, status, created_at, upload_url')
       .eq('target_type', targetType).eq('target_id', targetId).in('status', ['pending', 'processing']);
     for (const alt of aktiv || []) {
       const stale = alt.status === 'pending' || Date.now() - new Date(alt.created_at).getTime() > 60 * 60 * 1000;
       if (!stale) continue;
       await jobSetzen(alt.id, { status: 'aborted', error: 'Verworfen — neuer Upload gestartet' });
-      if (alt.ablage === 'sharepoint' && alt.upload_url) await sp?.sessionVerwerfen(alt.upload_url).catch(() => {});
-      else await cu.deleteStagingObject(supabase, alt.staging_key);
+      if (alt.upload_url) await sp?.sessionVerwerfen(alt.upload_url).catch(() => {});
     }
   }
 
@@ -74,8 +71,7 @@ function createCreatorAblage({ supabase, ablage, jetzt = () => new Date() }) {
   // ─── ablage-creator-start ───────────────────────────────────
 
   async function start(body) {
-    // Die Seite nimmt dann den TUS-Weg ueber creator-upload-start, der den Token selbst prueft
-    if (dropboxUpload()) return { ziel: 'dropbox' };
+    if (!sp) throw new AblageFehler(503, 'Medienablage ist nicht eingerichtet', 'nicht_konfiguriert');
     const { token, targetType, targetId, fileName, fileSize, contentType } = body;
     if (!cu.isKnownTarget(targetType) || !targetId) throw new AblageFehler(400, 'Ungueltiges Ziel');
     const tokenRow = await cu.resolveToken(supabase, token);
@@ -83,8 +79,8 @@ function createCreatorAblage({ supabase, ablage, jetzt = () => new Date() }) {
     const targetCtx = await cu.resolveTarget(supabase, tokenRow, targetType, targetId);
     if (!targetCtx) throw linkUngueltig();
 
-    const { ziel, koop } = await zielFuerKooperation(supabase, targetCtx.koop.id);
-    if (ziel !== 'sharepoint' || !sp || !koop) return { ziel: 'dropbox' };
+    const koop = await ladeKooperation(supabase, targetCtx.koop.id);
+    if (!koop) throw linkUngueltig();
 
     const check = cu.validateFile(targetType, fileName, fileSize, contentType);
     if (!check.ok) throw new AblageFehler(400, check.error, check.code);
@@ -113,13 +109,11 @@ function createCreatorAblage({ supabase, ablage, jetzt = () => new Date() }) {
       token_id: tokenRow.id,
       target_type: targetType,
       target_id: targetId,
-      staging_key: `sp:${crypto.randomUUID()}`,
       version_number: version,
       file_name: String(fileName || 'datei').slice(0, 255),
       file_size: Number(fileSize),
       content_type: check.contentType,
       status: 'pending',
-      ablage: 'sharepoint',
       upload_url: session.uploadUrl,
       ablage_kontext: { ...ctx, drive_id: driveId, parent_item_id: ordner.item_id, ordner_pfad: ordner.pfad, name, link_url: linkUrl },
     }).select('id').single();
@@ -154,7 +148,7 @@ function createCreatorAblage({ supabase, ablage, jetzt = () => new Date() }) {
     if (error) throw error;
     if (!job) throw new AblageFehler(404, 'Upload nicht gefunden');
     if (job.status === 'done') return { status: 'done', versionNumber: job.version_number };
-    if (job.ablage !== 'sharepoint' || !job.upload_url) throw new AblageFehler(400, 'Upload läuft über einen anderen Weg');
+    if (!job.upload_url) throw new AblageFehler(400, 'Upload läuft über einen anderen Weg');
     if (job.status !== 'pending') throw new AblageFehler(409, 'Upload wird bereits verarbeitet');
     if (!sp) throw new AblageFehler(503, 'Medienablage ist nicht eingerichtet', 'nicht_konfiguriert');
 

@@ -1,5 +1,7 @@
 # 0068 Dokumente in der Ablage
 
+> Teilweise abgelöst durch ADR 0082 (25.11.2026): Dokumente gehen immer nach SharePoint. Weiche (`dokument_ablage_ziel`), Notschalter, `ABLAGE_ZIEL`/`dropboxUpload`, der Dropbox-Weg in `dokumentHochladen` und der Bestandsumzug sind entfernt. Dokumente außerhalb von SharePoint sind Altbestand und öffnen als externer Link. Registry, Ordner, Lesen und Löschen gelten weiter.
+
 Verträge, Rechnungs-PDFs, Belege und Auftragsdokumente lagen in Dropbox, ältere noch in Supabase-Storage. Jede Stelle im Client hatte ihren eigenen Upload und erkannte Dropbox an einem führenden `/` im Pfad. Diese Dokumente gehören in den Ordner des Kunden, neben die Medien (ADR 0067). Bilder, Poster, der `documents`-Bucket, Staging und Einreichungen bleiben, wo sie sind.
 
 ## Entscheidung

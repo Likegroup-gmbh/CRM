@@ -4,7 +4,6 @@
 
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
-const { dropboxUpload } = require('./schalter');
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
@@ -17,6 +16,7 @@ const MAX_BYTES = {
   story: 2 * GIB,
   still: 2 * GIB,
   roh: 20 * GIB,
+  spalte: 2 * GIB,
 };
 
 const SECRET_HEADER = 'x-ablage-secret';
@@ -71,9 +71,7 @@ function sharePointKonfig(env = process.env) {
   };
 }
 
-// Schalter an: ablageAusEnv() ist ueberall null (Zeitplan, Background, Loeschkaskade, Poster)
 function istKonfiguriert(k = sharePointKonfig()) {
-  if (dropboxUpload()) return false;
   return !!(k.tenantId && k.clientId && k.siteUrl && k.host && k.siteId && k.driveId);
 }
 

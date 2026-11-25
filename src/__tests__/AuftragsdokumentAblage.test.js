@@ -59,25 +59,11 @@ describe('Auftragsdokumente (ADR 0068)', () => {
     });
     const r = await uploadAuftragsbestaetigung({ file, auftragId: 'a1', dokumentTyp: 'rechnung', uploadedById: 'b1' });
     expect(calls[0].body).toMatchObject({ typ: 'auftragsdokument', bezug_id: 'a1', dokument_typ: 'rechnung' });
-    expect(calls.map((c) => c.fn)).not.toContain('dropbox-upload-auftragsbestaetigung');
     expect(inserts[0].row).toMatchObject({
       auftrag_id: 'a1', dokument_typ: 'rechnung', uploaded_by: 'b1',
       ablage: 'sharepoint', item_id: 'i1', dateiname: 'AB (2).pdf', dropbox_file_path: 'Daten/Acme/Aufträge/Auftrag X/Rechnungen/AB (2).pdf',
     });
     expect(r).toMatchObject({ id: 'neu1', dateiname: 'AB (2).pdf' });
-  });
-
-  it('Weiche dropbox: bisheriger Dropbox-Weg', async () => {
-    const { inserts } = fakeDb();
-    antworten({
-      'ablage-upload-ziel': { ziel: 'dropbox' },
-      'dropbox-upload-auftragsbestaetigung': { token: 't', dropboxPath: '/CRM/Acme/AB.pdf' },
-      'dropbox-proxy': { url: 'https://dropbox.com/s/AB.pdf?dl=0' },
-    });
-    await uploadAuftragsbestaetigung({ file, auftragId: 'a1', unternehmen: 'Acme' });
-    expect(inserts[0].row).toMatchObject({
-      dokument_typ: 'auftragsbestaetigung', dropbox_file_url: 'https://dropbox.com/s/AB.pdf?raw=1', dropbox_file_path: '/CRM/Acme/AB.pdf', ablage: 'dropbox',
-    });
   });
 
   it('Loeschen: SharePoint ueber ablage-datei, dann Zeile', async () => {

@@ -1,25 +1,23 @@
 // videoBrowserMedia.js
 // Schnelles Laden der Medien im Videos-Tab. Nutzt dieselben Bausteine wie der Medien-Player
-// (core/media): Temp-Link-Cache, Blob-Cache und Content-Keys.
+// (core/media): Link-Cache, Blob-Cache und Content-Keys.
 //
 // - Quelle: Blob aus dem Cache, sonst das Original als Stream.
 // - Link vorab auflösen: beim Öffnen einer Ablage für alle Dateien darin, einzeln über den
-//   Temp-Link-Cache.
+//   Link-Cache.
 // - Nachbarn vorwärmen: eine Datei nach der anderen, Videos nur bis zu den Metadaten
 //   (Verbindung, Moov-Box, erstes Bild), Standbilder ganz in den Blob-Cache. Das aktive Video
 //   lädt nur der Player selbst, als Stream: ein zweiter Voll-Download würde ihm die
 //   Bandbreite nehmen.
 
-import { resolveStreamUrl, prefetchStreamUrl } from '../../core/media/mediaSrc.js';
+import { resolveStreamUrl } from '../../core/media/mediaSrc.js';
 import * as MediaCache from '../../core/media/MediaCache.js';
 import { cacheKeyFor, isRiskyFormat, lookupFor, lookupPath } from '../../core/media/player/mediaIdentity.js';
 import { istSharePoint } from '../../core/ablage/ablageLink.js';
 
 const CACHE_TYPE = { video: 'video', story: 'story', still: 'bild' };
 const MAX_PREFETCH = 8;
-const DROPBOX_HOSTS = ['https://dl.dropboxusercontent.com', 'https://www.dropbox.com'];
 
-let preconnected = false;
 const preconnectedOrigins = new Set();
 
 function preconnect(href) {
@@ -30,13 +28,6 @@ function preconnect(href) {
   link.href = href;
   link.crossOrigin = 'anonymous';
   document.head.appendChild(link);
-}
-
-/** Verbindung zu Dropbox schon vor dem ersten Klick aufbauen (einmalig). */
-export function preconnectMedia() {
-  if (preconnected) return;
-  preconnected = true;
-  DROPBOX_HOSTS.forEach(preconnect);
 }
 
 /** SharePoint-Host steht erst im Lese-Link (Tenant), daher erst nach dem ersten Link. */
@@ -71,7 +62,7 @@ export function cachedUrl(item) {
 }
 
 /**
- * Abspielbare Quelle einer Datei: das Original über den Temp-Link-Cache.
+ * Abspielbare Quelle einer Datei: das Original über den Link-Cache.
  * @param {object} item
  * @returns {Promise<{ url: string|null, quelle: 'original' }>} url null: keine Datei;
  *          ist ablage-link nicht erreichbar, wird geworfen
@@ -88,14 +79,12 @@ export function networkUrl(item) {
 
 /** Links aller abspielbaren Dateien vorab auflösen (billig). */
 export function prefetchLinks(items) {
-  preconnectMedia();
   let n = 0;
   for (const item of items || []) {
     if (!CACHE_TYPE[item?.type]) continue;
     const { lookup, hasSource } = mediaOf(item);
     if (!hasSource || n >= MAX_PREFETCH) continue;
     if (istSharePoint(lookup)) resolveStreamUrl(lookup).then(preconnectHostOf).catch(() => {});
-    else prefetchStreamUrl(lookup);
     n += 1;
   }
 }

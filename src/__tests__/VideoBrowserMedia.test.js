@@ -26,7 +26,7 @@ describe('videoBrowserMedia', () => {
   beforeAll(() => { HTMLMediaElement.prototype.load = () => {}; });
   afterEach(() => { stopWarming(); MediaCache._clearMediaCache(); vi.clearAllMocks(); });
 
-  it('spielt immer das Original über den Temp-Link', async () => {
+  it('spielt immer das Original über den Link-Cache', async () => {
     expect(await resolveSource(video())).toEqual({ url: 'https://cdn.test//x/clip.mp4', quelle: 'original' });
     expect(mediaOf(video({ file_path: '/x/clip.mov' })).risky).toBe(true);
   });
@@ -84,11 +84,11 @@ describe('videoBrowserMedia', () => {
     expect(warmVideos()).toHaveLength(0);
   });
 
-  it('löst Links nur für abspielbare Dateien mit Quelle vorab auf', () => {
+  it('Altbestand und Dateien ohne Quelle: nichts vorab aufzulösen, keine Verbindung', () => {
     prefetchLinks([video(), { type: 'roh', asset: { id: 'r', file_path: '/a.zip' } }, video({ id: 'a2', file_path: null, file_url: null })]);
-    expect(prefetchStreamUrl).toHaveBeenCalledTimes(1);
+    expect(prefetchStreamUrl).not.toHaveBeenCalled();
     expect(resolveStreamUrl).not.toHaveBeenCalled();
-    expect([...document.head.querySelectorAll('link[rel="preconnect"]')].some((l) => /sharepoint/.test(l.href))).toBe(false);
+    expect(document.head.querySelectorAll('link[rel="preconnect"]')).toHaveLength(0);
   });
 
   describe('SharePoint', () => {
@@ -109,7 +109,7 @@ describe('videoBrowserMedia', () => {
       await expect(resolveSource(video(sp))).rejects.toThrow('ablage-link 500');
     });
 
-    it('Cache-Key bleibt wie bei Dropbox', () => {
+    it('Cache-Key wie beim Altbestand', () => {
       expect(mediaOf(video(sp)).key).toBe('video:a1:2026-01-01');
       expect(mediaOf(video(sp)).hasSource).toBe(true);
     });
@@ -120,8 +120,7 @@ describe('videoBrowserMedia', () => {
       expect(prefetchStreamUrl).not.toHaveBeenCalled();
       expect(resolveStreamUrl).toHaveBeenCalledWith(expect.objectContaining({ typ: 'video', ablage: 'sharepoint' }));
       await flush();
-      expect(preconnects()).toContain('https://contoso.sharepoint.com');
-      expect(preconnects()).toContain('https://dl.dropboxusercontent.com');
+      expect(preconnects()).toEqual(['https://contoso.sharepoint.com']);
     });
   });
 });

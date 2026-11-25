@@ -273,7 +273,7 @@ VertraegeCreate.prototype.loadStammdaten = async function() {
       this.unternehmen = unternehmen || [];
       console.log('📊 VERTRAG: Unternehmen geladen:', this.unternehmen.length);
 
-      // Lade Kampagnen mit Unternehmen-ID + Marke (für Dropbox-Pfad bei PDF-Upload)
+      // Lade Kampagnen mit Unternehmen-ID + Marke
       const { data: kampagnen } = await window.supabase
         .from('kampagne')
         .select('id, kampagnenname, eigener_name, unternehmen_id, auftrag_id, marke_id, marke:marke_id(id, markenname)')

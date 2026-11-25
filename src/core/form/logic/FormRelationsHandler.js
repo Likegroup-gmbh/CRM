@@ -1,5 +1,4 @@
 import { compressImage } from '../../ImageCompressor.js';
-import { resolveRechnungPathMetadata } from '../../RechnungPathMetadata.js';
 import { rechnungDateiLoeschen, rechnungDateienHochladen } from '../../ablage/rechnungDokumente.js';
 
 // Kapselt Relations- und File-Upload-Handler, die an bestimmte Entities gebunden sind.
@@ -202,26 +201,11 @@ export class FormRelationsHandler {
     }
   }
 
-  // Rechnung: Belege + PDFs verarbeiten (entfernte löschen, neue hochladen; SharePoint oder Dropbox je Weiche)
+  // Rechnung: Belege + PDFs verarbeiten (entfernte löschen, neue nach SharePoint hochladen)
   async handleRechnungFiles(rechnungId, form) {
     if (!window.supabase || !rechnungId) return;
 
     try {
-      // Dropbox-Pfad-Metadaten nur, wenn der Dropbox-Weg sie braucht
-      const pathMeta = async () => {
-        const { data: rechnungRow } = await window.supabase
-          .from('rechnung')
-          .select('unternehmen_id, kampagne_id, kooperation_id, rechnung_nr')
-          .eq('id', rechnungId)
-          .single();
-        return resolveRechnungPathMetadata({
-          unternehmenId: rechnungRow?.unternehmen_id,
-          kampagneId: rechnungRow?.kampagne_id,
-          kooperationId: rechnungRow?.kooperation_id,
-          rechnungsNr: rechnungRow?.rechnung_nr,
-        });
-      };
-
       const belegeUploader = form.querySelector('.uploader[data-name="belege_files"]')?.__uploaderInstance;
       if (belegeUploader) {
         const deletedIds = belegeUploader.getDeletedFileIds().filter(id => id !== 'pdf');
@@ -232,7 +216,7 @@ export class FormRelationsHandler {
             console.warn('⚠️ Fehler beim Löschen eines Belegs:', err?.message);
           }
         }
-        await rechnungDateienHochladen({ typ: 'beleg', rechnungId, files: belegeUploader.files, pathMeta });
+        await rechnungDateienHochladen({ typ: 'beleg', rechnungId, files: belegeUploader.files });
       }
 
       const pdfUploader = form.querySelector('.uploader[data-name="pdf_file"]')?.__uploaderInstance;
@@ -240,7 +224,7 @@ export class FormRelationsHandler {
         for (const pdfId of pdfUploader.getDeletedFileIds()) {
           await rechnungDateiLoeschen('rechnung', pdfId);
         }
-        await rechnungDateienHochladen({ typ: 'rechnung', rechnungId, files: pdfUploader.files, pathMeta });
+        await rechnungDateienHochladen({ typ: 'rechnung', rechnungId, files: pdfUploader.files });
       }
     } catch (error) {
       console.error('❌ Fehler bei Rechnungs-Dateien:', error);

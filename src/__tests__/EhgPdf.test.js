@@ -171,7 +171,7 @@ describe('EhgPdf', () => {
   it('DE: lädt die PDF hoch und verknüpft sie am Vertrag', async () => {
     await generate('de');
     expect(uploadGeneratedVertragPdf).toHaveBeenCalledTimes(1);
-    const [, vertrag, blob, fileName] = uploadGeneratedVertragPdf.mock.calls[0];
+    const [vertrag, blob, fileName] = uploadGeneratedVertragPdf.mock.calls[0];
     expect(vertrag.id).toBe('v-1');
     expect(blob).toBeInstanceOf(Blob);
     expect(fileName).toMatch(/^Vertrag_EHG_EF Testvertrag_\d{4}-\d{2}-\d{2}\.pdf$/);
@@ -179,7 +179,7 @@ describe('EhgPdf', () => {
 
   it('EN: Dateiname EN_Contract_EHG', async () => {
     await generate('en');
-    const fileName = uploadGeneratedVertragPdf.mock.calls[0][3];
+    const fileName = uploadGeneratedVertragPdf.mock.calls[0][2];
     expect(fileName).toMatch(/^EN_Contract_EHG_EF Testvertrag_\d{4}-\d{2}-\d{2}\.pdf$/);
   });
 

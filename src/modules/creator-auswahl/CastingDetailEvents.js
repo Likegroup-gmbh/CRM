@@ -263,13 +263,6 @@ export function _bindCustomColumnEvents() {
     }
   });
 
-  // Upload-Buttons
-  this._qq('.custom-upload-btn').forEach(btn => {
-    const handler = () => this.customColumns.openUploadDrawer(btn, this._buildUploadMetadaten(), () => this.rerenderTable());
-    btn.addEventListener('click', handler);
-    this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-  });
-
   // Header Drag&Drop ueber Hand-Griff (nur Custom-Spalten)
   if (this._customHeaderDragCleanup) this._customHeaderDragCleanup();
   const thead = this._q('.creator-pool-table thead');
@@ -301,15 +294,6 @@ export function _bindCustomColumnEvents() {
     if (cleanup) this._boundEventListeners.add(cleanup);
     bindWrappingTextareas(table, (fn) => this._boundEventListeners.add(fn));
   }
-}
-
-export function _buildUploadMetadaten() {
-  return {
-    unternehmen: this.liste?.unternehmen?.firmenname || '',
-    marke: this.liste?.marke?.markenname || '',
-    kampagne: this.liste?.kampagne?.kampagnenname || '',
-    kooperationName: this.liste?.name || 'Casting',
-  };
 }
 
 export function bindPillEvents() {
@@ -382,7 +366,6 @@ export function closePillDropdown() {
 export const castingDetailEventsMethods = {
   bindEvents,
   _bindCustomColumnEvents,
-  _buildUploadMetadaten,
   bindPillEvents,
   openPillDropdown,
   closePillDropdown

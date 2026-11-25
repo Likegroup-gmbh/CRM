@@ -7,7 +7,7 @@ vi.mock('../core/AblageUploader.js', () => ({ uploadToSession: vi.fn(async () =>
 import { authorizedFetch } from '../core/auth/getAccessToken.js';
 import { uploadToSession } from '../core/AblageUploader.js';
 import {
-  DOKUMENT, dokumentQuelle, dokumentSpalten, dokumentHochladen, dokumentLinkAttrs, istSharePointDokumentUrl, mitDokumentAblage,
+  DOKUMENT, dokumentQuelle, dokumentSpalten, dokumentSpaltenLeeren, dokumentHochladen, dokumentLinkAttrs, istSharePointDokumentUrl, mitDokumentAblage,
   dokumentLoeschen, vertragDateienLoeschen, _clearDokumentCache,
 } from '../core/ablage/dokumentAblage.js';
 
@@ -61,18 +61,21 @@ describe('Registry: Client = Server', () => {
 
   it('ohne Ablage-Spalte im select: SharePoint an der webUrl erkennen, nicht am fuehrenden /', () => {
     expect(dokumentQuelle('rechnung', { file_path: '/Firma/Rechnungen/RE/r.pdf', file_url: 'https://x.sharepoint.com/sites/M/Daten/r.pdf' }).quelle).toBe('sharepoint');
-    expect(dokumentQuelle('rechnung', { file_path: '/CRM/Rechnungen/r.pdf', file_url: 'https://dropbox.com/r' }).quelle).toBe('dropbox');
+    expect(dokumentQuelle('rechnung', { file_path: '/CRM/Rechnungen/r.pdf', file_url: 'https://dropbox.com/r' })).toEqual({ quelle: 'link', url: 'https://dropbox.com/r' });
   });
 });
 
 describe('Spalten und Links', () => {
-  it('SharePoint-Commit -> Registry-Spalten, Dropbox setzt die Ablage zurueck', () => {
+  it('SharePoint-Commit -> Registry-Spalten, Leeren setzt die Ablage zurueck', () => {
     const commit = { drive_id: 'd1', item_id: 'i1', file_url: 'https://x.sharepoint.com/a.pdf', file_path: '/F/a.pdf', file_name: 'a.pdf', file_size: 3, etag: 'e', ctag: 'c' };
-    expect(dokumentSpalten('vertrag', { ziel: 'sharepoint', commit })).toEqual({
+    expect(dokumentSpalten('vertrag', commit)).toEqual({
       datei_ablage: 'sharepoint', datei_drive_id: 'd1', datei_item_id: 'i1', datei_url: commit.file_url, datei_path: '/F/a.pdf',
     });
-    expect(dokumentSpalten('beleg', { ziel: 'dropbox', fileUrl: 'u', filePath: '/p', file: { name: 'b.pdf', size: 9 } })).toEqual({
-      file_url: 'u', file_path: '/p', file_name: 'b.pdf', size: 9, ablage: 'dropbox', drive_id: null, item_id: null, etag: null, ctag: null,
+    expect(dokumentSpalten('beleg', commit)).toEqual({
+      file_url: commit.file_url, file_path: '/F/a.pdf', file_name: 'a.pdf', size: 3, ablage: 'sharepoint', drive_id: 'd1', item_id: 'i1', etag: 'e', ctag: 'c',
+    });
+    expect(dokumentSpaltenLeeren('beleg')).toEqual({
+      ablage: 'dropbox', drive_id: null, item_id: null, file_url: null, file_path: null, etag: null, ctag: null,
     });
   });
 
@@ -97,30 +100,18 @@ describe('Spalten und Links', () => {
 describe('dokumentHochladen', () => {
   const file = new File(['%PDF'], 'v.pdf', { type: 'application/pdf' });
 
-  it('Weiche dropbox: bisheriger Weg, Spalten fuer die Zeile', async () => {
-    antworten({ 'ablage-upload-ziel': { ziel: 'dropbox' } });
-    const dropbox = vi.fn(async () => ({ fileUrl: 'https://dropbox.com/v?raw=1', filePath: '/CRM/v.pdf' }));
-    const speichern = vi.fn(async (spalten) => spalten);
-    const r = await dokumentHochladen({ typ: 'vertrag', bezugId: 'vt1', file, dropbox, speichern });
-    expect(r).toMatchObject({ ziel: 'dropbox', filePath: '/CRM/v.pdf' });
-    expect(speichern).toHaveBeenCalledWith(expect.objectContaining({ datei_url: 'https://dropbox.com/v?raw=1', datei_ablage: 'dropbox' }), { ziel: 'dropbox' });
-    expect(uploadToSession).not.toHaveBeenCalled();
-  });
-
   it('SharePoint: Session, Commit, Speichern; scheitert Speichern, wird der Upload verworfen', async () => {
     const calls = antworten({
       'ablage-upload-ziel': (b) => ({ ziel: 'sharepoint', upload_id: 'up1', upload_url: 'https://up', chunk_bytes: 10, echo: b }),
       'ablage-upload-commit': { drive_id: 'd1', item_id: 'item1', file_url: 'https://x.sharepoint.com/v.pdf', file_path: '/F/v.pdf', file_name: 'v.pdf', file_size: 4 },
       'ablage-datei': { ok: true },
     });
-    const dropbox = vi.fn();
-    const ok = await dokumentHochladen({ typ: 'auftragsdokument', bezugId: 'a1', dokumentTyp: 'rechnung', file, dropbox, speichern: async (s) => s });
+    const ok = await dokumentHochladen({ typ: 'auftragsdokument', bezugId: 'a1', dokumentTyp: 'rechnung', file, speichern: async (s) => s });
     expect(ok.ergebnis).toMatchObject({ ablage: 'sharepoint', item_id: 'item1', dropbox_file_path: '/F/v.pdf', dateiname: 'v.pdf' });
     expect(calls[0].body).toMatchObject({ typ: 'auftragsdokument', bezug_id: 'a1', dokument_typ: 'rechnung', file_name: 'v.pdf', file_size: 4 });
-    expect(dropbox).not.toHaveBeenCalled();
 
     calls.length = 0;
-    await expect(dokumentHochladen({ typ: 'beleg', bezugId: 'r1', file, dropbox, speichern: async () => { throw new Error('RLS'); } }))
+    await expect(dokumentHochladen({ typ: 'beleg', bezugId: 'r1', file, speichern: async () => { throw new Error('RLS'); } }))
       .rejects.toThrow('RLS');
     expect(calls.map((c) => c.fn)).toEqual(['ablage-upload-ziel', 'ablage-upload-commit', 'ablage-datei']);
     expect(calls[2].body).toEqual({ aktion: 'upload_verwerfen', upload_id: 'up1' });
@@ -128,22 +119,20 @@ describe('dokumentHochladen', () => {
 });
 
 describe('dokumentLoeschen', () => {
-  it('SharePoint ueber ablage-datei, Dropbox ueber dropbox-delete, Fehler nur geloggt', async () => {
-    const calls = antworten({ 'ablage-datei': { geloescht: true }, 'dropbox-delete': {} });
+  it('SharePoint ueber ablage-datei, alte Links bleiben, Fehler nur geloggt', async () => {
+    const calls = antworten({ 'ablage-datei': { geloescht: true } });
     await dokumentLoeschen('rechnung', { id: 'r1', ablage: 'sharepoint', item_id: 'i', file_path: '/F/r.pdf' });
-    await dokumentLoeschen('rechnung', { id: 'r2', ablage: 'dropbox', file_path: '/CRM/r.pdf' });
-    expect(calls).toEqual([
-      { fn: 'ablage-datei', body: { aktion: 'loeschen', typ: 'rechnung', id: 'r1' } },
-      { fn: 'dropbox-delete', body: { filePath: '/CRM/r.pdf' } },
-    ]);
+    expect(await dokumentLoeschen('rechnung', { id: 'r2', ablage: 'dropbox', file_path: '/CRM/r.pdf', file_url: 'https://dropbox.com/r' }))
+      .toEqual({ quelle: 'link' });
+    expect(calls).toEqual([{ fn: 'ablage-datei', body: { aktion: 'loeschen', typ: 'rechnung', id: 'r1' } }]);
     antworten({ 'ablage-datei': new Error('weg') });
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(await dokumentLoeschen('beleg', { id: 'b1', ablage: 'sharepoint', item_id: 'i' })).toMatchObject({ quelle: 'sharepoint', fehler: 'weg' });
     warn.mockRestore();
   });
 
-  it('vertragDateienLoeschen: erzeugtes PDF auf SharePoint, unterschriebenes auf Dropbox + Storage-Altbestand', async () => {
-    const calls = antworten({ 'ablage-datei': { geloescht: true }, 'dropbox-delete': {} });
+  it('vertragDateienLoeschen: erzeugtes PDF auf SharePoint, unterschriebenes als alter Link + Storage-Altbestand', async () => {
+    const calls = antworten({ 'ablage-datei': { geloescht: true } });
     const zeilen = {
       vertrag: { id: 'v1', datei_url: 'https://t.sharepoint.com/x.pdf', datei_path: 'Daten/A/Verträge/x.pdf', datei_ablage: 'sharepoint', datei_item_id: 'i1' },
       vertrag_unterschrieben: {
@@ -164,10 +153,7 @@ describe('dokumentLoeschen', () => {
       storage: { from: vi.fn(() => ({ remove })) },
     };
     await vertragDateienLoeschen('v1');
-    expect(calls).toEqual([
-      { fn: 'ablage-datei', body: { aktion: 'loeschen', typ: 'vertrag', id: 'v1' } },
-      { fn: 'dropbox-delete', body: { filePath: '/CRM/s.pdf' } },
-    ]);
+    expect(calls).toEqual([{ fn: 'ablage-datei', body: { aktion: 'loeschen', typ: 'vertrag', id: 'v1' } }]);
     expect(window.supabase.storage.from).toHaveBeenCalledWith('unterschriebene-vertraege');
     expect(remove).toHaveBeenCalledWith(['v1/alt.pdf']);
     delete window.supabase;
@@ -198,7 +184,7 @@ describe('Rechnungen: Upload nach dem Insert, Löschen samt Cascade', () => {
     return { inserts, deletes, remove };
   }
 
-  it('SharePoint: Zeile mit Ablage-Spalten, uploaded_by je Tabelle; Pfad-Metadaten nur fuer Dropbox', async () => {
+  it('SharePoint: Zeile mit Ablage-Spalten, uploaded_by je Tabelle', async () => {
     window.currentUser = { id: 'b1', auth_user_id: 'auth1' };
     const { rechnungDateienHochladen } = await import('../core/ablage/rechnungDokumente.js');
     const { inserts } = fakeDb({});
@@ -206,10 +192,8 @@ describe('Rechnungen: Upload nach dem Insert, Löschen samt Cascade', () => {
       'ablage-upload-ziel': { ziel: 'sharepoint', upload_id: 'up1', upload_url: 'https://up', chunk_bytes: 10 },
       'ablage-upload-commit': { drive_id: 'd1', item_id: 'i9', file_url: 'https://t.sharepoint.com/r.pdf', file_path: 'Daten/A/Rechnungen/R1/r.pdf', file_name: 'r.pdf', file_size: 4 },
     });
-    const pathMeta = vi.fn(async () => ({}));
-    await rechnungDateienHochladen({ typ: 'rechnung', rechnungId: 'r1', files: [file], pathMeta });
-    await rechnungDateienHochladen({ typ: 'beleg', rechnungId: 'r1', files: [file], pathMeta });
-    expect(pathMeta).not.toHaveBeenCalled();
+    await rechnungDateienHochladen({ typ: 'rechnung', rechnungId: 'r1', files: [file] });
+    await rechnungDateienHochladen({ typ: 'beleg', rechnungId: 'r1', files: [file] });
     expect(inserts[0]).toMatchObject({ t: 'rechnung_pdfs', row: { rechnung_id: 'r1', uploaded_by: 'auth1', ablage: 'sharepoint', item_id: 'i9', file_path: 'Daten/A/Rechnungen/R1/r.pdf' } });
     expect(inserts[1]).toMatchObject({ t: 'rechnung_belege', row: { uploaded_by: 'b1', ablage: 'sharepoint' } });
     delete window.currentUser;
@@ -233,13 +217,12 @@ describe('Rechnungen: Upload nach dem Insert, Löschen samt Cascade', () => {
       rechnung_pdfs: [{ id: 'p1', rechnung_id: 'r1', ablage: 'dropbox', file_path: '/CRM/r1.pdf' }, { id: 'p2', rechnung_id: 'r2', file_path: '/CRM/r2.pdf' }],
       rechnung_belege: [{ id: 'b1', rechnung_id: 'r1', ablage: 'sharepoint', item_id: 'y', file_path: 'Daten/A/Rechnungen/b.pdf' }],
     });
-    const calls = antworten({ 'ablage-datei': { geloescht: true }, 'dropbox-delete': {} });
+    const calls = antworten({ 'ablage-datei': { geloescht: true } });
     expect(hatEntitaetDokumente('auftrag')).toBe(true);
     expect(hatEntitaetDokumente('kampagne')).toBe(false);
     await dokumenteDerEntitaetLoeschen('auftrag', ['a1']);
     expect(calls).toEqual([
       { fn: 'ablage-datei', body: { aktion: 'loeschen', typ: 'auftragsdokument', id: 'd1' } },
-      { fn: 'dropbox-delete', body: { filePath: '/CRM/r1.pdf' } },
       { fn: 'ablage-datei', body: { aktion: 'loeschen', typ: 'beleg', id: 'b1' } },
     ]);
   });

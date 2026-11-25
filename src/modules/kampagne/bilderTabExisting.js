@@ -2,7 +2,6 @@
 // Vorhandene Stills im Stills-Tab des VideoUploadDrawers (`h` = BilderTabHandler):
 // laden, anzeigen, einem Video zuordnen, löschen.
 
-import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 import { ablageDateiLoeschen, ablageBildVerschieben } from '../../core/ablage/ablageApi.js';
 import { istSharePoint, mitAblage } from '../../core/ablage/ablageLink.js';
 import { existingImagesHtml } from './bilderTabRender.js';
@@ -62,8 +61,7 @@ export function bindExistingEvents(h) {
     const deleteBtn = e.target.closest('.existing-image-delete');
     if (deleteBtn) {
       const assetId = deleteBtn.dataset.id;
-      const path = deleteBtn.dataset.path;
-      if (assetId) deleteExistingImage(h, assetId, path);
+      if (assetId) deleteExistingImage(h, assetId);
     }
   });
   existingList?.addEventListener('change', (e) => {
@@ -75,44 +73,8 @@ export function bindExistingEvents(h) {
   });
 }
 
-/** Dropbox-Datei in den Bilder-Ordner des Ziel-Videos verschieben; liefert den neuen Pfad. */
-async function dropboxBildVerschieben(h, img, targetVideoId) {
-  const targetVideo = targetVideoId ? getKoopVideos(h).find(v => v.id === targetVideoId) : null;
-
-  const folderResp = await authorizedFetch('/.netlify/functions/dropbox-upload-bilder', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'ensure-folder',
-      unternehmen: h.drawer.metadaten.unternehmen || '',
-      marke: h.drawer.metadaten.marke || '',
-      kampagne: h.drawer.metadaten.kampagne || '',
-      kooperation: h.drawer.metadaten.kooperationName || '',
-      ...(targetVideo ? { videoPosition: targetVideo.position || 1, videoThema: targetVideo.thema || '' } : {}),
-    }),
-  });
-  if (!folderResp.ok) throw new Error('Zielordner konnte nicht angelegt werden');
-  const folderData = await folderResp.json();
-
-  const fileName = img.file_path.split('/').pop();
-  const toPath = `${folderData.folderPath}/${fileName}`;
-  if (toPath === img.file_path) return img.file_path;
-
-  const moveResp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'move', fromPath: img.file_path, toPath, token: folderData.token }),
-  });
-  if (!moveResp.ok) {
-    const errData = await moveResp.json().catch(() => ({}));
-    throw new Error(errData.error || 'Verschieben in Dropbox fehlgeschlagen');
-  }
-  const moveData = await moveResp.json();
-  return moveData.path || toPath;
-}
-
-// Ordnet ein Bild einem Video zu (oder hebt die Zuordnung auf). Dropbox- und
-// SharePoint-Dateien werden physisch in den Ziel-Unterordner verschoben; reine Links nur per DB.
+// Ordnet ein Bild einem Video zu (oder hebt die Zuordnung auf). SharePoint-Dateien werden
+// physisch in den Ziel-Unterordner verschoben, Altbestand (nur Link) nur per DB.
 export async function assignImageToVideo(h, assetId, newVideoId) {
   const img = h._existingImages.find(i => i.id === assetId);
   if (!img) return;
@@ -134,8 +96,6 @@ export async function assignImageToVideo(h, assetId, newVideoId) {
       const moved = await ablageBildVerschieben(assetId, targetVideoId);
       newFilePath = moved.file_path || newFilePath;
       videoId = moved.video_id ?? targetVideoId;
-    } else if (img.file_path) {
-      newFilePath = await dropboxBildVerschieben(h, img, targetVideoId);
     }
 
     const { error: updErr } = await window.supabase
@@ -156,22 +116,15 @@ export async function assignImageToVideo(h, assetId, newVideoId) {
   }
 }
 
-export async function deleteExistingImage(h, assetId, filePath) {
+export async function deleteExistingImage(h, assetId) {
   if (h._isUploadingImages) return;
 
   const item = document.querySelector(`.existing-image-delete[data-id="${assetId}"]`)?.closest('.existing-image-item');
   if (item) item.style.opacity = '0.5';
 
   try {
-    const sharePoint = istSharePoint((h._existingImages || []).find(i => i.id === assetId));
-    if (sharePoint) {
+    if (istSharePoint((h._existingImages || []).find(i => i.id === assetId))) {
       await ablageDateiLoeschen('still', assetId);
-    } else if (filePath) {
-      await authorizedFetch('/.netlify/functions/dropbox-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath }),
-      }).catch(err => console.warn('Dropbox-Löschung fehlgeschlagen:', err));
     }
 
     await window.supabase
@@ -186,20 +139,6 @@ export async function deleteExistingImage(h, assetId, filePath) {
       .eq('kooperation_id', koopId);
 
     if ((count ?? 0) === 0) {
-      if (filePath && !sharePoint) {
-        // /Bilder-Wurzelordner der Koop loeschen (nicht nur den Video-Unterordner):
-        // Pfade sind .../Kooperation/Bilder/... (alt) oder .../Bilder/Video_x_.../... (neu)
-        const marker = '/Bilder/';
-        const idx = filePath.indexOf(marker);
-        const folderPath = idx >= 0
-          ? filePath.substring(0, idx + marker.length - 1)
-          : filePath.substring(0, filePath.lastIndexOf('/'));
-        authorizedFetch('/.netlify/functions/dropbox-delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: folderPath }),
-        }).catch(() => {});
-      }
       await window.supabase
         .from('kooperationen')
         .update({ bilder_folder_url: null })

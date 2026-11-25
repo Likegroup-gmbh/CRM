@@ -13,7 +13,6 @@
 //   Aufträge/[<Marke>/]<Auftrag>/                      Auftragsbestätigung, darin Rechnungen/
 
 const { NAMEN, DOKUMENT_ORDNER } = require('./pfad');
-const { dokumenteNotschalterAn, dokumentZielVon } = require('./ziel');
 
 const MIB = 1024 * 1024;
 
@@ -85,7 +84,7 @@ function spaltenAusItem(typ, item, { driveId, pfad }) {
   return out;
 }
 
-/** feld: Dateisatz leeren (Datei weg). */
+/** feld: Dateisatz leeren (Datei weg). 'dropbox' ist der Wert fuer "nicht in SharePoint" (Altbestand). */
 function leereSpalten(typ) {
   const s = DOKUMENT[typ].spalten;
   return { [s.ablage]: 'dropbox', [s.drive]: null, [s.item]: null, [s.url]: null, [s.pfad]: null };
@@ -94,8 +93,9 @@ function leereSpalten(typ) {
 const STORAGE_URL = /\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/([^?#]+)/;
 
 /**
- * Wo liegt die Datei? -> { quelle: 'sharepoint'|'dropbox'|'storage'|'link', ... } | null
- *   sharepoint: { drive_id, item_id }, dropbox: { pfad }, storage: { bucket, pfad }, link: { url }
+ * Wo liegt die Datei? -> { quelle: 'sharepoint'|'storage'|'link', ... } | null
+ *   sharepoint: { drive_id, item_id }, storage: { bucket, pfad }, link: { url }
+ * Altbestand aus Dropbox (Pfad mit '/') ist nur noch ein Link.
  */
 function quelleVon(typ, row) {
   const def = DOKUMENT[typ];
@@ -109,7 +109,7 @@ function quelleVon(typ, row) {
     pfad = row[def.alt.pfad];
   }
   if (!url && !pfad) return null;
-  if (typeof pfad === 'string' && pfad.startsWith('/')) return { quelle: 'dropbox', pfad };
+  if (typeof pfad === 'string' && pfad.startsWith('/')) return url ? { quelle: 'link', url } : null;
   const m = typeof url === 'string' ? STORAGE_URL.exec(url) : null;
   if (m) return { quelle: 'storage', bucket: decodeURIComponent(m[1]), pfad: pfad || decodeURIComponent(m[2]) };
   if (pfad) return { quelle: 'storage', bucket: def.bucket, pfad };
@@ -161,15 +161,9 @@ async function ladeBezug(supabase, typ, bezugId) {
     if (!auftrag) return null;
     unternehmenId = auftrag.unternehmen_id;
   }
-  const unternehmen = await einzeln(supabase, 'unternehmen', 'id, firmenname, ist_test, dokument_ablage_ziel', unternehmenId);
+  const unternehmen = await einzeln(supabase, 'unternehmen', 'id, firmenname, ist_test', unternehmenId);
   const marke = await einzeln(supabase, 'marke', 'id, markenname, unternehmen_id', kampagne?.marke_id || auftrag?.marke_id);
   return { typ, bezug_id: bezugId, vertrag, rechnung, auftrag, kampagne, produktion, marke, unternehmen };
-}
-
-/** Weiche fuer ein Dokument: 'sharepoint' | 'dropbox'. */
-async function dokumentZiel(supabase, bezug) {
-  const notschalter = await dokumenteNotschalterAn(supabase);
-  return dokumentZielVon(bezug?.unternehmen, { notschalter });
 }
 
 /**
@@ -265,22 +259,20 @@ async function entfernenNachItem(supabase, driveId, itemId) {
   return n;
 }
 
-// ─── Inhalt (Anschreiben, Umzug) ───
+// ─── Inhalt (Anschreiben) ───
 
 /**
  * Bytes einer Dokument-Datei, egal wo sie liegt.
- * @param {{ supabase, sp?, dropbox?, fetchImpl? }} deps
+ * @param {{ supabase, sp?, fetchImpl? }} deps
  * @returns {Promise<Buffer|null>} null, wenn die Datei fehlt
  */
-async function bytes({ supabase, sp = null, dropbox = null, fetchImpl = (...a) => fetch(...a) }, typ, row) {
+async function bytes({ supabase, sp = null, fetchImpl = (...a) => fetch(...a) }, typ, row) {
   const q = quelleVon(typ, row);
   if (!q) return null;
   let url = null;
   if (q.quelle === 'sharepoint') {
     if (!sp || q.drive_id !== sp.driveId) throw new Error('SharePoint-Datei, Ablage nicht konfiguriert');
     url = (await sp.downloadUrl(q.item_id))?.url || null;
-  } else if (q.quelle === 'dropbox') {
-    url = dropbox ? (await dropbox.downloadUrl(q.pfad))?.url || null : null;
   } else if (q.quelle === 'storage') {
     const { data, error } = await supabase.storage.from(q.bucket).download(q.pfad);
     if (error) {
@@ -289,6 +281,7 @@ async function bytes({ supabase, sp = null, dropbox = null, fetchImpl = (...a) =
     }
     return Buffer.from(await data.arrayBuffer());
   } else {
+    // Freigabe-Links mit dl=0 liefern eine Vorschauseite, raw=1 die Datei
     url = String(q.url).replace(/[?&]dl=0/, (m) => (m[0] === '?' ? '?raw=1' : '&raw=1'));
   }
   if (!url) return null;
@@ -312,7 +305,6 @@ module.exports = {
   quelleVon,
   STORAGE_URL,
   ladeBezug,
-  dokumentZiel,
   dokumentEbenen,
   findeNachItem,
   verweise,

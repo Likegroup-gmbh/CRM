@@ -16,7 +16,7 @@ Der Detailbereich wird in Regionen gerendert (`head`, `meta`, `preview`, `final`
 - Final bleibt das ADR-0017-Modell (eigene Zeile pro Seitenverhältnis, `source_asset_id`, mehrere erlaubt). Kein Format-Umschalter, keine „Neue Version“-Zeile, keine Stern-Badges in Contact Sheet und Versionsverlauf.
 - Kein Kunden-Entscheidungsblock (Freigeben / Änderungen / Aussortieren).
 - Löschen behält Bestätigungsdialog und Hard Delete, bekommt nur die Einklapp-Animation.
-- Ad-Manager-Name behält das echte Dropbox-Umbenennen; dazu Live-Vorschau „Wird zu: …“, Kopieren-Button und Hinweis-Toast bei Bereinigung.
+- Ad-Manager-Name behält das echte Umbenennen der Datei (seit ADR 0082 nur in SharePoint); dazu Live-Vorschau „Wird zu: …“, Kopieren-Button und Hinweis-Toast bei Bereinigung.
 - „Aus Finale Version entfernen“ = Markierung aufheben, ohne Dialog, mit Einklapp-Animation. Rückgängig über Toast.
 - Kunde startet im Tab „Kommentare“, Team in „Details“. Tab „Ad Manager“ nur für Team und Videos mit `file_path`. Die Tab-Leiste erscheint erst ab zwei Tabs. `detailTab` gilt global, nicht pro Item.
 - Titel ist per Klick editierbar (kein Doppelklick mehr), Taste E wie Klick.

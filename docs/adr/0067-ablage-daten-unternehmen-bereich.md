@@ -51,4 +51,4 @@ Die SharePoint-Bibliothek hieß „Videos“, direkt darunter lagen `Unternehmen
 - Ordner-Links, die außerhalb des CRM gespeichert sind (Mails, Lesezeichen), zeigen auf den alten Pfad. Die Spalten im CRM ziehen nach.
 - Heißt eine Marke beim Umsortieren schon „Medien“, wird der Bereich zu „Medien (2)“.
 - Löschen eines Unternehmens löscht `Verträge/` mit.
-- Die Dropbox-Ablage bleibt, wie sie ist (eingefroren, ADR 0065).
+- Die Dropbox-Ablage bleibt, wie sie ist (eingefroren, ADR 0065). Seit ADR 0082 ist sie nur noch Altbestand als Link, neue Dateien gehen immer nach SharePoint.

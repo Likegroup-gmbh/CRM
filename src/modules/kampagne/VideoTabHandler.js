@@ -3,7 +3,6 @@ import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUpl
 import { icon } from '../../core/icons/IconSystem.js';
 import { videoTabShell } from './videoTabRender.js';
 import { MAX_VIDEO_MB, addFiles, bindQueueEvents, renderQueue } from './videoTabQueue.js';
-import { bindLinkEvents, handleFolderSubmit, handleLinkSubmit, renderLinkPane } from './videoTabLinks.js';
 import { bindExistingEvents, loadExistingVideoAssets } from './videoTabExisting.js';
 
 export class VideoTabHandler {
@@ -13,8 +12,6 @@ export class VideoTabHandler {
     this._isUploading = false;
     this._existingVersions = [];
     this._existingAssets = [];
-    this._linkMode = 'video';
-    this._folderUrl = '';
     this._onVideoDoneBound = (e) => this._onVideoDoneEvent(e);
   }
 
@@ -24,8 +21,6 @@ export class VideoTabHandler {
     this._queue = [];
     this._isUploading = false;
     this._existingAssets = [];
-    this._folderUrl = this.drawer.metadaten?.folderUrl || '';
-    this._linkMode = this._folderUrl ? 'folder' : 'video';
     window.removeEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._onVideoDoneBound);
   }
 
@@ -56,7 +51,6 @@ export class VideoTabHandler {
   // ─── Render ────────────────────────────────────────────────
 
   renderTab(activeTab) {
-    if (this.drawer.useExternalLinks) return renderLinkPane(this, activeTab);
     const maxSize = MAX_VIDEO_MB >= 1024 ? `${MAX_VIDEO_MB / 1024} GB` : `${MAX_VIDEO_MB} MB`;
     return videoTabShell(activeTab, `
       <div class="upload-dropzone" id="video-upload-dropzone">
@@ -85,8 +79,7 @@ export class VideoTabHandler {
     document.getElementById('video-upload-cancel-btn')?.addEventListener('click', () => this.drawer.close());
     document.getElementById('video-upload-submit-btn')?.addEventListener('click', () => this._submit());
 
-    if (this.drawer.useExternalLinks) bindLinkEvents(this, panel);
-    else this._bindDropzone(panel);
+    this._bindDropzone(panel);
 
     bindQueueEvents(this);
     bindExistingEvents(this);
@@ -94,14 +87,8 @@ export class VideoTabHandler {
   }
 
   _submit() {
-    if (this._isUploading) return;
-    if (this.drawer.useExternalLinks && this._linkMode === 'folder') {
-      handleFolderSubmit(this);
-      return;
-    }
-    if (this._queue.length === 0) return;
-    if (this.drawer.useExternalLinks) handleLinkSubmit(this);
-    else this.handleUpload();
+    if (this._isUploading || this._queue.length === 0) return;
+    this.handleUpload();
   }
 
   _bindDropzone(panel) {
@@ -128,18 +115,9 @@ export class VideoTabHandler {
   _updateSubmitButtonState() {
     const submitBtn = document.getElementById('video-upload-submit-btn');
     if (!submitBtn) return;
-    if (this.drawer.useExternalLinks && this._linkMode === 'folder') {
-      submitBtn.disabled = this._isUploading || !(this._folderUrl || '').trim();
-      return;
-    }
     const hasItems = this._queue.length > 0;
     const allVariantsNamed = this._queue.every(q => q.variantName.trim().length > 0);
-    if (this.drawer.useExternalLinks) {
-      const allUrlsFilled = this._queue.every(q => (q.url || '').trim().length > 0);
-      submitBtn.disabled = this._isUploading || !hasItems || !allVariantsNamed || !allUrlsFilled;
-    } else {
-      submitBtn.disabled = !hasItems || !allVariantsNamed;
-    }
+    submitBtn.disabled = !hasItems || !allVariantsNamed;
   }
 
   // ─── Upload (Enqueue Background) ───────────────────────────

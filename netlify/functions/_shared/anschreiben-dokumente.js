@@ -4,7 +4,6 @@
 
 const dokument = require('./ablage/dokument');
 const { ablageAusEnv } = require('./ablage');
-const { createDropboxAblage } = require('./ablage/dropbox');
 
 async function loadBriefing(supabase, dokumentId) {
   const { data, error } = await supabase
@@ -71,12 +70,6 @@ async function loadSkript(supabase, dokumentId) {
   };
 }
 
-function asDownloadUrl(url) {
-  const raw = String(url || '').trim();
-  if (!raw) return '';
-  return raw.replace(/[?&]dl=0/, (m) => (m[0] === '?' ? '?raw=1' : '&raw=1'));
-}
-
 async function downloadVertragPdf(supabase, dokumentId) {
   const { data, error } = await supabase
     .from('vertraege')
@@ -85,18 +78,12 @@ async function downloadVertragPdf(supabase, dokumentId) {
     .maybeSingle();
   if (error) throw error;
   if (!data?.datei_url) return { error: 'Keine PDF-Datei vorhanden' };
-  // SharePoint, Dropbox-Pfad oder Storage je nach datei_ablage (ADR 0068)
+  // SharePoint, Storage oder (Altbestand) der gespeicherte Link, je nach datei_ablage (ADR 0068)
   let buf = null;
   try {
-    buf = await dokument.bytes({ supabase, sp: ablageAusEnv({ supabase })?.sp || null, dropbox: createDropboxAblage() }, 'vertrag', data);
+    buf = await dokument.bytes({ supabase, sp: ablageAusEnv({ supabase })?.sp || null }, 'vertrag', data);
   } catch (err) {
-    if (data.datei_ablage === 'sharepoint') return { error: `PDF konnte nicht geladen werden (${err.message})` };
-    console.warn('[anschreiben] Vertrag-PDF ueber Ablage fehlgeschlagen, nehme datei_url:', err.message);
-  }
-  if (!buf && data.datei_ablage !== 'sharepoint') {
-    const resp = await fetch(asDownloadUrl(data.datei_url));
-    if (!resp.ok) return { error: `PDF konnte nicht geladen werden (${resp.status})` };
-    buf = Buffer.from(await resp.arrayBuffer());
+    return { error: `PDF konnte nicht geladen werden (${err.message})` };
   }
   if (!buf) return { error: 'PDF konnte nicht geladen werden' };
   const base = String(data.name || 'vertrag').replace(/[<>:"|?*\\/]/g, '-').trim() || 'vertrag';

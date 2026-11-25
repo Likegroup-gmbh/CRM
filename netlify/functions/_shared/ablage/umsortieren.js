@@ -6,7 +6,7 @@
 //    ziehen in den Ordner ihrer Produktion (struktur.js, wie die laufende Pflege im Abgleich).
 // 3. Feedbackschleifen (ADR 0065): Bestand aus Storys/, Bilder/ und den Varianten-Ordnern (A/B/C)
 //    in die Runden unter Videos/Video_N. Das Ziel kommt aus den Fachspalten der Zeile
-//    (zielOrdner), wie bei Upload und Dropbox-Umzug.
+//    (zielOrdner), wie beim Upload.
 // Graph-Move: die item_id bleibt, Kommentare, Tags und Promote-Finale haengen weiter an der Datei.
 // Danach die leeren alten Ordner weg, tiefste zuerst: erst Register (geloescht_at), dann
 // SharePoint. Andersherum haelt der Abgleich die Loeschung fuer eine Kaskade auf die Assets.
@@ -15,7 +15,6 @@
 const { TABELLE, aktuellSetzen, umstellen } = require('./asset');
 const { linksWiderrufen } = require('./freigabe');
 const { systemdatei, BEREICH_ORDNER } = require('./pfad');
-const { notschalterAn } = require('./ziel');
 const { istNichtGefunden } = require('./graph');
 const { SEITE, stuecke } = require('./liste');
 const { createStruktur } = require('./struktur');
@@ -287,7 +286,6 @@ function createUmsortieren({ supabase, ablage, jetzt = () => Date.now() }) {
   }
 
   async function lauf({ unternehmenId, budgetMs = BUDGET_MS } = {}) {
-    if (process.env.ABLAGE_ZIEL === 'dropbox' || await notschalterAn(supabase)) return { pausiert: true };
     await ordner.wurzel();
     const bis = jetzt() + budgetMs;
     const bereich = await bereicheEinfuehren(unternehmenId, { bis });

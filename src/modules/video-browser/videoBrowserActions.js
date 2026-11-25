@@ -312,7 +312,7 @@ export async function deleteItem(vb, button) {
   const hinweis = kommentare ? ` ${plural(kommentare, 'Kommentar', 'Kommentare')} zu dieser Datei werden ebenfalls entfernt.` : '';
   const { confirmed } = await confirmationModal.open({
     title: 'Datei löschen',
-    message: `„${escapeHtml(item.name)}“ wird endgültig gelöscht, auch die Datei in Dropbox.${hinweis}`,
+    message: `„${escapeHtml(item.name)}“ wird endgültig gelöscht, auch die Datei in SharePoint.${hinweis}`,
     confirmText: 'Löschen'
   });
   if (!confirmed || vb.destroyed) return;

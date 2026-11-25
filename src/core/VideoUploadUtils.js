@@ -1,7 +1,6 @@
 import { icon } from './icons/IconSystem.js';
 
 export * from './videoFileNames.js';
-export * from './dropboxLinks.js';
 export * from './externalAssets.js';
 
 export const MAX_VERSIONS = 3;
@@ -31,15 +30,6 @@ export function escapeAttr(str) {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-}
-
-export function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = () => reject(new Error(`Datei konnte nicht gelesen werden: ${file.name}`));
-    reader.readAsDataURL(file);
-  });
 }
 
 // ─── Upload-Drawer Button Icons ──────────────────────────────

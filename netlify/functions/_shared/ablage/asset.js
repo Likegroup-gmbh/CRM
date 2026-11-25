@@ -7,6 +7,7 @@ const TABELLE = {
   story: 'kooperation_story_asset',
   still: 'kooperation_bilder_asset',
   roh: 'kooperation_rohmaterial_asset',
+  spalte: 'custom_column_assets',
 };
 
 const TYPEN = Object.keys(TABELLE);
@@ -17,6 +18,7 @@ const ENTFERNEN_SPALTEN = {
   story: 'id, video_id, story_id',
   still: 'id, video_id',
   roh: 'id',
+  spalte: 'id',
 };
 
 // Promote-Zeilen (Finale per source_asset_id) teilen die Datei; nur Rohmaterial hat keine
@@ -48,7 +50,8 @@ function dateiSpalten(item, { driveId, pfad }) {
 
 /**
  * Fachliche Spalten je Typ.
- * @param {object} ctx { kooperation_id, kooperation_video_id, story_id, version_number, is_final, variant_name, titel }
+ * @param {object} ctx { kooperation_id, kooperation_video_id, story_id, version_number, is_final, variant_name, titel,
+ *                      custom_column_id, entity_id }
  */
 function fachSpalten(typ, ctx) {
   const final = !!ctx.is_final;
@@ -82,6 +85,9 @@ function fachSpalten(typ, ctx) {
       };
     case 'roh':
       return { kooperation_id: ctx.kooperation_id, ...(ctx.folder_url ? { folder_url: ctx.folder_url } : {}) };
+    case 'spalte':
+      // entity_id: Kooperation bzw. Video, je nach Ebene der Spalte
+      return { custom_column_id: ctx.custom_column_id, entity_id: ctx.entity_id, kooperation_id: ctx.kooperation_id };
     default:
       throw new Error(`Unbekannter Asset-Typ ${typ}`);
   }
@@ -98,7 +104,7 @@ async function findeNachItem(supabase, typ, driveId, itemId) {
   return data || null;
 }
 
-/** Sucht die Datei in allen vier Tabellen. -> { typ, row } | null */
+/** Sucht die Datei in allen Asset-Tabellen. -> { typ, row } | null */
 async function findeUeberall(supabase, driveId, itemId) {
   for (const typ of TYPEN) {
     const row = await findeNachItem(supabase, typ, driveId, itemId);
@@ -185,7 +191,7 @@ async function entfernenNachItem(supabase, typ, driveId, itemId) {
   return rows.length;
 }
 
-/** Bestands-Zeile (Dropbox/OneDrive) auf die SharePoint-Datei umstellen; Promote-Finale ziehen mit. */
+/** Zeile auf neue Datei-Werte setzen (Umsortieren); Promote-Finale ziehen mit. */
 async function umstellen(supabase, typ, row, werte) {
   const tabelle = TABELLE[typ];
   const { data, error } = await supabase.from(tabelle).update(werte).eq('id', row.id).select('*').single();

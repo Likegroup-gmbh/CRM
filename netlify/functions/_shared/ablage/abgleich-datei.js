@@ -1,9 +1,8 @@
 // _shared/ablage/abgleich-datei.js
 // Abgleich: eine Datei aus dem Eingang einordnen und ausfuehren (Asset schreiben, in
-// Format-Ordner verschieben, Umzug anhaengen, Fachdatei zurueck). `c` ist der
-// Kontext aus createAbgleich.
+// Format-Ordner verschieben, Fachdatei zurueck). `c` ist der Kontext aus createAbgleich.
 
-const { TABELLE, TYPEN, dateiSpalten, fachSpalten, findeUeberall, upsert, entfernenNachItem, umstellen } = require('./asset');
+const { TYPEN, dateiSpalten, fachSpalten, findeUeberall, upsert, entfernenNachItem } = require('./asset');
 const { dateiEinordnen, ortVon, ELTERN_VERSUCHE } = require('./klassifizierung');
 const { konfliktNamePasst } = require('./pfad');
 const { spiegelImAbgleich, spiegelGeloescht } = require('./final-spiegel');
@@ -84,9 +83,6 @@ function createDateiAbgleich(c) {
         return assetSchreiben(d, { e, item: it, pfad: `${f.pfad}/${it.name}`, asset });
       }
 
-      case 'umzug':
-        return umzugAnhaengen(d, { item, pfad });
-
       case 'dokument_upload':
         return dokumentAusUpload(d, { item, pfad });
 
@@ -117,22 +113,23 @@ function createDateiAbgleich(c) {
       ...(titel ? { titel } : {}),
     };
     const { row, neu } = await upsert(supabase, d.typ, werte, { uploadedBy: await benutzerZu(e.geaendert_von), jetzt: iso() });
+    if (d.typ === 'spalte' && neu) await spalteWertSetzen(ctx, item.parentReference?.id);
     return { aktion: d.aktion, typ: d.typ, asset_id: row.id, neu, pfad, ...(d.quelle ? { quelle: d.quelle } : {}) };
   }
 
-  /** Datei aus dem Umzug, dessen Laeufer vor dem Umstellen der Zeile abbrach. */
-  async function umzugAnhaengen(d, { item, pfad }) {
-    const { data: row, error } = await supabase.from(TABELLE[d.typ]).select('*').eq('id', d.asset_id).maybeSingle();
+  /** Zelle der Spalte zeigt den Ordner (wie nach dem Upload aus dem CRM). */
+  async function spalteWertSetzen(ctx, ordnerItemId) {
+    if (!ctx.custom_column_id || !ctx.entity_id || !ordnerItemId) return;
+    const url = (await sp.item(ordnerItemId, 'id,webUrl'))?.webUrl;
+    if (!url) return;
+    const { data: wert } = await supabase.from('custom_column_values').select('value')
+      .eq('custom_column_id', ctx.custom_column_id).eq('entity_id', ctx.entity_id).maybeSingle();
+    if (wert?.value === url) return;
+    const { error } = await supabase.from('custom_column_values').upsert(
+      { custom_column_id: ctx.custom_column_id, entity_id: ctx.entity_id, value: url, updated_at: iso() },
+      { onConflict: 'custom_column_id,entity_id' },
+    );
     if (error) throw error;
-    if (!row) return { aktion: 'unzugeordnet', grund: 'umzug_ohne_asset' };
-    if (row.ablage === 'sharepoint' && row.item_id && row.item_id !== item.id) return { aktion: 'unzugeordnet', grund: 'umzug_doppelt' };
-    await umstellen(supabase, d.typ, row, dateiSpalten(item, { driveId, pfad }));
-    const t = iso();
-    if (d.upload_id) await supabase.from('ablage_upload').update({ item_id: item.id, abgeschlossen_at: t }).eq('id', d.upload_id);
-    await supabase.from('ablage_umzug')
-      .update({ status: 'fertig', grund: 'abgleich', item_id: item.id, fertig_at: t, upload_url: null, kopie_url: null, gesperrt_bis: null })
-      .eq('typ', d.typ).eq('asset_id', row.id).neq('status', 'fertig');
-    return { aktion: 'asset', typ: d.typ, asset_id: row.id, neu: false, pfad, quelle: 'umzug' };
   }
 
   /** Ziel aus Register/Upload -> Kontext fuer fachSpalten/zielOrdner (Story-Slot, Kooperation). */
@@ -145,6 +142,8 @@ function createDateiAbgleich(c) {
       version_number: Number(ziel.version_number) || 1,
       is_final: !!ziel.is_final,
       variant_name: ziel.variant_name ?? null,
+      custom_column_id: ziel.custom_column_id || null,
+      entity_id: ziel.entity_id || null,
     };
     if (typ === 'story' && !ctx.story_id) ctx.story_id = (await storySlot(ctx.kooperation_video_id, ziel.story_nummer)).id;
     if (!ctx.kooperation_id && ctx.kooperation_video_id) {
@@ -231,17 +230,6 @@ function createDateiAbgleich(c) {
     const werte = dokument.spaltenAusItem(d.typ, item, { driveId, pfad });
     if (!up.item_id) await supabase.from('ablage_upload').update({ item_id: item.id, abgeschlossen_at: iso() }).eq('id', up.id);
 
-    // Umzug: die Bestandszeile bekommt die Datei, nie eine zweite Zeile
-    if (k.umzug_dokument_id) {
-      const { data: alt, error: aErr } = await supabase.from(def.tabelle).update(werte).eq('id', k.umzug_dokument_id).select('id');
-      if (aErr) throw aErr;
-      if (!alt?.length) return { aktion: 'unzugeordnet', grund: 'umzug_ohne_dokument' };
-      await supabase.from('ablage_umzug')
-        .update({ status: 'fertig', grund: 'abgleich', item_id: item.id, fertig_at: iso(), gesperrt_bis: null })
-        .eq('typ', k.umzug_typ || d.typ).eq('asset_id', k.umzug_dokument_id).neq('status', 'fertig');
-      return { aktion: 'dokument', typ: d.typ, id: k.umzug_dokument_id, pfad, quelle: 'umzug' };
-    }
-
     if (def.art === 'feld') {
       const { data: v, error: vErr } = await supabase.from(def.tabelle).select(dokument.spaltenSelect(d.typ)).eq('id', k.bezug_id).maybeSingle();
       if (vErr) throw vErr;
@@ -265,13 +253,7 @@ function createDateiAbgleich(c) {
       if (iErr.code === '23505') return { aktion: 'dokument', typ: d.typ, grund: 'parallel_angelegt' };
       throw iErr;
     }
-    // rechnung.pdf_url ohne rechnung_pdfs-Zeile: der Umzug legt sie an
-    if (k.umzug_typ && k.umzug_asset_id) {
-      await supabase.from('ablage_umzug')
-        .update({ status: 'fertig', grund: 'abgleich', item_id: item.id, fertig_at: iso(), gesperrt_bis: null })
-        .eq('typ', k.umzug_typ).eq('asset_id', k.umzug_asset_id).neq('status', 'fertig');
-    }
-    return { aktion: 'dokument', typ: d.typ, id: neu.id, pfad, quelle: k.umzug_typ ? 'umzug' : 'upload' };
+    return { aktion: 'dokument', typ: d.typ, id: neu.id, pfad, quelle: 'upload' };
   }
 
   /** lastModifiedBy (E-Mail/UPN) -> benutzer.id, zuerst ueber das Override-Feld. */

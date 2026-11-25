@@ -636,14 +636,14 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       addFooter();
 
       // ============================================
-      // PDF speichern und nach Dropbox hochladen
+      // PDF speichern und hochladen
       // ============================================
       const pdfBlob = doc.output('blob');
       const filePrefix = lang === 'en' ? 'EN_Contract_Model' : 'Vertrag_Model';
       const fileName = `${filePrefix}_${vertrag.name || 'Model'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-      const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-      console.log('✅ Model-PDF nach Dropbox hochgeladen und URL gespeichert');
+      const uploadResult = await uploadGeneratedVertragPdf(vertrag, pdfBlob, fileName);
+      console.log('✅ Model-PDF hochgeladen und URL gespeichert');
       doc.save(fileName);
       return uploadResult;
 

@@ -6,7 +6,6 @@
 const COLUMNS_TABLE = 'entity_custom_columns';
 const VALUES_TABLE = 'entity_custom_column_values';
 const OPTIONS_TABLE = 'entity_custom_column_dropdown_options';
-const ASSETS_TABLE = 'entity_custom_column_assets';
 
 export class EntityCustomColumnDataLoader {
   /**
@@ -24,7 +23,6 @@ export class EntityCustomColumnDataLoader {
   }
 
   get valueTable() { return VALUES_TABLE; }
-  get assetTable() { return ASSETS_TABLE; }
 
   async loadColumns() {
     const [colResult, optResult] = await Promise.all([

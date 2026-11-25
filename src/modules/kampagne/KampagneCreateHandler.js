@@ -2,7 +2,7 @@
 // Kampagnen-Erstellung, Formular-Handling, Auftragsdetails-Transfer und Bulk-Delete
 
 import { KampagneUtils } from './KampagneUtils.js';
-import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
+import { ablageCascade } from '../../core/VideoDeleteHelper.js';
 
 export class KampagneCreateHandler {
   constructor() {
@@ -563,7 +563,7 @@ export class KampagneCreateHandler {
 
     try {
       await Promise.allSettled(
-        selectedIds.map(id => deleteDropboxCascade('kampagne', id))
+        selectedIds.map(id => ablageCascade('kampagne', id))
       );
 
       const result = await window.dataService.deleteEntities('kampagne', selectedIds);

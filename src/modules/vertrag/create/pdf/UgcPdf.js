@@ -696,8 +696,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
         : (lang === 'en' ? 'EN_Contract' : 'Vertrag');
       const fileName = `${filePrefix}_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-      const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-      console.log('✅ PDF nach Dropbox hochgeladen und URL gespeichert');
+      const uploadResult = await uploadGeneratedVertragPdf(vertrag, pdfBlob, fileName);
+      console.log('✅ PDF hochgeladen und URL gespeichert');
       doc.save(fileName);
       return uploadResult;
 

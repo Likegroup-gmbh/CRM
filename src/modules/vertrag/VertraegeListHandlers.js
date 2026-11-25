@@ -5,7 +5,7 @@ import { VertragUtils } from './VertragUtils.js';
 import { fallbackStatusAfterUnsigned } from './vertragStatus.js';
 import {
   dokumentDateienLoeschen,
-  dokumentSpalten,
+  dokumentSpaltenLeeren,
   dokumentZeileLaden,
   vertragDateienLoeschen,
 } from '../../core/ablage/dokumentAblage.js';
@@ -117,7 +117,7 @@ export async function deleteVertrag(list, id) {
       console.warn('Gedeckte Kooperationen konnten nicht geladen werden:', deckErr);
     }
 
-    // Erzeugtes und unterschriebenes PDF, egal ob SharePoint, Dropbox oder Storage
+    // Erzeugtes und unterschriebenes PDF, egal ob SharePoint, alter Link oder Storage
     await vertragDateienLoeschen(id);
 
     const { error } = await window.supabase.from('vertraege').delete().eq('id', id);
@@ -245,7 +245,7 @@ export async function removeSignedContract(list, vertragId) {
       .update({
         unterschriebener_vertrag_url: null,
         unterschriebener_vertrag_path: null,
-        ...dokumentSpalten('vertrag_unterschrieben', { ziel: 'dropbox', fileUrl: null, filePath: null }),
+        ...dokumentSpaltenLeeren('vertrag_unterschrieben'),
         status: fallbackStatus
       })
       .eq('id', vertragId);

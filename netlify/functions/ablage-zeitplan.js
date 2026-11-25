@@ -8,14 +8,12 @@
 // 4. Finale Version im Finder (ADR 0073): Spiegel-Warteschlange abgleichen (neue, veraltete,
 //    verwaiste Finale) und ablage-final-spiegel-background anstossen, solange etwas faellig ist.
 // 5. Alarme pruefen (Stillstand, Abo, Zertifikat, Speicher, Rechte) und Admins mailen.
-// Der Bestands-Umzug hat keinen Takt mehr: die Admin-Seite stoesst ablage-umzug-background an.
 // Laeuft nur auf dem veroeffentlichten Production-Deploy; Staging ist eine eigene Site.
 
 const { webhookUrl, anstossen } = require('./_shared/ablage/konfig');
 const { ablageAusEnv } = require('./_shared/ablage');
 const { createAbgleich } = require('./_shared/ablage/abgleich');
 const { createFinalSpiegel } = require('./_shared/ablage/final-spiegel');
-const { notschalterAn } = require('./_shared/ablage/ziel');
 const { createAlarm } = require('./_shared/ablage/alarm');
 
 const RECHTE_MS = 15 * 60 * 1000;
@@ -55,7 +53,6 @@ exports.handler = async (event) => {
 };
 
 async function finalSpiegelAnstossen(event, ablage, { anstossenImpl = anstossen } = {}) {
-  if (process.env.ABLAGE_ZIEL === 'dropbox' || await notschalterAn(ablage.supabase)) return { pausiert: true };
   const s = createFinalSpiegel({ supabase: ablage.supabase, ablage });
   const faellig = await s.scan();
   const parallel = Math.max(1, Number(process.env.ABLAGE_SPIEGEL_PARALLEL) || 1);

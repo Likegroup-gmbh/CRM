@@ -298,9 +298,9 @@ describe('poster-generator', () => {
       sharp: fakeSharp,
       now: () => T0,
       thumbnails: async () => [
-        { ok: false, fehler: 'dropbox:unsupported_extension', permanent: true },
-        { ok: false, fehler: 'dropbox:conversion_error', permanent: false },
-        { ok: false, fehler: 'dropbox:conversion_error', permanent: false },
+        { ok: false, fehler: 'altbestand:keine_quelle', permanent: true },
+        { ok: false, fehler: 'sharepoint:keinThumbnail', permanent: false },
+        { ok: false, fehler: 'sharepoint:keinThumbnail', permanent: false },
       ],
     });
 
@@ -308,7 +308,7 @@ describe('poster-generator', () => {
     expect(status).toEqual(['failed', 'pending', 'failed']);
 
     const [perm, backoff, aus] = log.updates.map((u) => u.felder);
-    expect(perm).toMatchObject({ status: 'failed', fehler: 'dropbox:unsupported_extension' });
+    expect(perm).toMatchObject({ status: 'failed', fehler: 'altbestand:keine_quelle' });
     // Versuch 2: 60 s * 2^1
     expect(backoff).toMatchObject({ status: 'pending', naechster_versuch: new Date(T0 + 120_000).toISOString() });
     expect(aus).toMatchObject({ status: 'failed' });
@@ -320,7 +320,7 @@ describe('poster-generator', () => {
     const gen = generator.createPosterGenerator({
       service,
       now: () => T0,
-      thumbnails: async () => { throw new generator.BatchError('Dropbox 429: too_many_requests', 30); },
+      thumbnails: async () => { throw new generator.BatchError('SharePoint 429: tooManyRequests', 30); },
     });
 
     const [e] = await gen.verarbeite([auftrag(1, 2)]);
@@ -377,44 +377,6 @@ describe('poster-generator', () => {
     const gen = generator.createPosterGenerator({ service });
     expect(await gen.verwaisteEntfernen()).toBe(151);
     expect(log.removed.map((r) => r.length)).toEqual([100, 50]);
-  });
-});
-
-describe('dropboxThumbnails', () => {
-  it('ordnet Ergebnisse den Pfaden zu und erkennt dauerhafte Fehler', async () => {
-    const fetchImpl = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        entries: [
-          { '.tag': 'success', metadata: {}, thumbnail: Buffer.from('jpg').toString('base64') },
-          { '.tag': 'failure', failure: { '.tag': 'path', path: { '.tag': 'not_found' } } },
-          { '.tag': 'failure', failure: { '.tag': 'unsupported_extension' } },
-          { '.tag': 'failure', failure: { '.tag': 'conversion_error' } },
-        ],
-      }),
-    }));
-    const paths = ['/a.mov', '/b.mov', '/c.mkv', '/d.mov'];
-    const out = await generator.dropboxThumbnails(paths, { fetchImpl, token: async () => 'tok' });
-
-    expect(out[0]).toEqual({ ok: true, buffer: Buffer.from('jpg') });
-    expect(out[1]).toEqual({ ok: false, fehler: 'dropbox:path/not_found', permanent: true });
-    expect(out[2]).toEqual({ ok: false, fehler: 'dropbox:unsupported_extension', permanent: true });
-    expect(out[3]).toEqual({ ok: false, fehler: 'dropbox:conversion_error', permanent: false });
-
-    const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe('https://content.dropboxapi.com/2/files/get_thumbnail_batch');
-    expect(init.headers.Authorization).toBe('Bearer tok');
-    expect(JSON.parse(init.body).entries[0]).toEqual({ path: '/a.mov', format: 'jpeg', size: 'w480h320', mode: 'fitone_bestfit' });
-  });
-
-  it('wirft bei HTTP-Fehlern einen BatchError mit Retry-After', async () => {
-    const fetchImpl = async () => ({
-      ok: false, status: 429, text: async () => 'too_many_requests',
-      headers: { get: (h) => (h === 'retry-after' ? '30' : null) },
-    });
-    const err = await generator.dropboxThumbnails(['/a.mov'], { fetchImpl, token: async () => 'tok' }).catch((e) => e);
-    expect(err).toBeInstanceOf(generator.BatchError);
-    expect(err.retryAfterSec).toBe(30);
   });
 });
 

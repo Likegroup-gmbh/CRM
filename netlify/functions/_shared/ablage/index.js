@@ -10,7 +10,7 @@ const { createOrdner } = require('./ordner');
 
 let _ablage = null;
 
-/** null, wenn SharePoint nicht konfiguriert ist (dann gilt ueberall Dropbox). */
+/** null, wenn SharePoint nicht konfiguriert ist: Uploads scheitern dann mit 503 (nicht_konfiguriert). */
 function ablageAusEnv({ supabase = serviceClient(), konfig = sharePointKonfig() } = {}) {
   if (!supabase || !istKonfiguriert(konfig)) return null;
   if (_ablage && _ablage.supabase === supabase && _ablage.konfig.driveId === konfig.driveId) return _ablage;

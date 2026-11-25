@@ -28,7 +28,6 @@ export class VideoTableDrawerActions {
       videoThema: video?.thema || '',
       unternehmen: t.kampagneInfo?.unternehmen || '',
       unternehmenId: t.kampagneInfo?.unternehmenId || null,
-      keinDropbox: t.kampagneInfo?.keinDropbox || false,
       marke: t.kampagneInfo?.marke || '',
       kampagne: t.kampagneInfo?.name || '',
       creatorName,
@@ -40,7 +39,7 @@ export class VideoTableDrawerActions {
     t._uploadDrawer.open(videoId, metadaten, (fileUrl, filePath, videoName, folderUrl) => {
       this.updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl);
     }, (bilderFolderUrl) => {
-      // SharePoint liefert keinen Bilder-Ordner (Bilder liegen in der Video-Runde): Dropbox-Link behalten
+      // SharePoint liefert keinen Bilder-Ordner (Bilder liegen in der Video-Runde): alten Link behalten
       if (koop && bilderFolderUrl) koop.bilder_folder_url = bilderFolderUrl;
       this.refreshBilderForKoop(kooperationId);
     }, (storysFolderUrl) => {
@@ -142,7 +141,6 @@ export class VideoTableDrawerActions {
       unternehmen: t.kampagneInfo?.unternehmen || '',
       marke: t.kampagneInfo?.marke || '',
       kampagne: t.kampagneInfo?.name || '',
-      keinDropbox: t.kampagneInfo?.keinDropbox || false,
     };
 
     t._uploadDrawer.open(null, metadaten, null, null, null, {
@@ -151,8 +149,6 @@ export class VideoTableDrawerActions {
         columnId,
         entityId,
         columnName,
-        folderName: columnName,
-        currentValue: t.store?.getCustomColumnValue(entityId, columnId) || null,
         onSuccess: (folderUrl) => {
           // folderUrl === null: alle Dateien geloescht -> Zelle zeigt wieder Upload-Button
           if (t.store) {

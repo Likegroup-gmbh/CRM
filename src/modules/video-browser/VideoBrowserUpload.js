@@ -59,7 +59,7 @@ export function createUploader({ onChange, onAdded, onSettled, toast }) {
       onSettled({ ok: true, folderKey: job.folderKey });
     } else if (status === 'error' || status === 'aborted') {
       jobs.delete(jobId);
-      // Fertige Dateien liegen schon in Dropbox und der DB: nicht als fehlgeschlagen zeigen
+      // Fertige Dateien liegen schon in SharePoint und der DB: nicht als fehlgeschlagen zeigen
       const items = backgroundUploadService.getJob(jobId)?.items || [];
       const statusOf = (itemId) => items.find(i => i.id === itemId);
       let done = 0;
@@ -88,15 +88,11 @@ export function createUploader({ onChange, onAdded, onSettled, toast }) {
     }
     if (!valid.length) return;
 
-    const ctx = await getContext(koop.id);
-    if (ctx.keinDropbox) { toast('error', 'Für dieses Unternehmen ist Dropbox deaktiviert. Hier ist kein Upload möglich.'); return; }
-
     const entries = valid.map(f => entry(f, folderKey));
     onAdded(entries);
 
     const jobId = backgroundUploadService.enqueueRohmaterialJob({
       kooperationId: koop.id,
-      pathContext: ctx.pathContext,
       files: valid,
       ...(ordnerItemId ? { ordnerItemId } : {})
     });
@@ -134,7 +130,6 @@ export function createUploader({ onChange, onAdded, onSettled, toast }) {
       return null;
     }
     const ctx = await getContext(koop.id);
-    if (ctx.keinDropbox) { toast('error', 'Für dieses Unternehmen ist Dropbox deaktiviert. Hier ist kein Upload möglich.'); return null; }
     return {
       kooperationId: koop.id,
       kooperationName: ctx.pathContext.kooperation,

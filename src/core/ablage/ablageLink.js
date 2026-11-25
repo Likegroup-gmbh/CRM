@@ -9,14 +9,12 @@
 // PUFFER_MS vor Ablauf; ein neues etag (Replace, Umbenennen) fragt neu.
 
 import { authorizedFetch } from '../auth/getAccessToken.js';
-import { DROPBOX_UPLOAD } from './schalter.js';
 
-/** Spalten der Ablage an allen vier Asset-Tabellen (Migration 20261201_medienablage). */
+/** Spalten der Ablage an allen Asset-Tabellen (Migration 20261201_medienablage, Spalten: 20261228). */
 export const ABLAGE_SELECT = 'ablage, drive_id, item_id, etag, ctag, breite, hoehe';
 
-/** Asset-Spalten plus Ablage-Spalten; bei DROPBOX_UPLOAD ohne, die gibt es auf Live noch nicht. */
-export const mitAblage = (spalten, ablageSpalten = ABLAGE_SELECT) =>
-  (DROPBOX_UPLOAD ? spalten : `${spalten}, ${ablageSpalten}`);
+/** Asset-Spalten plus Ablage-Spalten. */
+export const mitAblage = (spalten, ablageSpalten = ABLAGE_SELECT) => `${spalten}, ${ablageSpalten}`;
 
 const ENDPOINT = '/.netlify/functions/ablage-link';
 const BATCH_MS = 25;
@@ -30,7 +28,7 @@ const inflight = new Map();
 let queue = new Map();
 let timer = null;
 
-/** True, wenn die Datei in SharePoint liegt (sonst Dropbox). */
+/** True, wenn die Datei in SharePoint liegt (sonst Altbestand: file_url ist nur ein Link). */
 export function istSharePoint(asset) {
   return asset?.ablage === 'sharepoint';
 }
@@ -81,7 +79,7 @@ async function flush() {
 
 /**
  * Lese-Link einer SharePoint-Datei.
- * @param {{ typ: 'video'|'story'|'still'|'roh', id: string, etag?: string|null }} datei
+ * @param {{ typ: 'video'|'story'|'still'|'roh'|'spalte', id: string, etag?: string|null }} datei
  * @returns {Promise<{ url: string, laeuft_ab: string|null }|null>} null, wenn die Datei fehlt
  *          oder nicht freigegeben ist; Netz-/Serverfehler werfen
  */

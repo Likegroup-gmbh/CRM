@@ -63,7 +63,7 @@ async function deleteExistingAsset(h, asset) {
 }
 
 /** Datei wählen lassen und als Ersatz im Hintergrund hochladen. */
-function replaceExistingAsset(h, assetId, oldFilePath, versionNumber, variantName) {
+function replaceExistingAsset(h, assetId, versionNumber, variantName) {
   const fileInput = document.getElementById('video-upload-file-input');
   if (!fileInput) return;
 
@@ -88,8 +88,6 @@ function replaceExistingAsset(h, assetId, oldFilePath, versionNumber, variantNam
       metadaten: h.drawer.metadaten,
       file,
       assetId,
-      oldFilePath,
-      oldAblage: h._existingAssets?.find(a => a.id === assetId)?.ablage,
       versionNumber,
       variantName,
     });
@@ -110,8 +108,8 @@ export function bindExistingEvents(h) {
     }
     const replaceBtn = e.target.closest('.existing-video-replace');
     if (replaceBtn) {
-      const { id, path, version, variant } = replaceBtn.dataset;
-      if (id) replaceExistingAsset(h, id, path, parseInt(version, 10) || 1, variant || '');
+      const { id, version, variant } = replaceBtn.dataset;
+      if (id) replaceExistingAsset(h, id, parseInt(version, 10) || 1, variant || '');
     }
   });
 }

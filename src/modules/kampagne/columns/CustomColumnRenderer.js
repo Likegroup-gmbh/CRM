@@ -6,6 +6,7 @@ import { isColumnVisible } from './ColumnRegistry.js';
 import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { renderStackedTextarea } from '../videoTableFieldCells.js';
+import { ordnerLinkHtml } from '../../../core/ablage/ablageOrdnerLink.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 
@@ -189,8 +190,14 @@ function renderNumberField(attrs, value, isEditable, placeholder) {
 
 function renderUploadField(attrs, col, entityId, value, isEditable) {
   if (value) {
-    const folderLink = `<a href="${escapeHtml(value)}" target="_blank" rel="noopener noreferrer" 
-      class="external-link-btn stacked-video-link-btn custom-upload-folder-link" title="Ordner öffnen">${FOLDER_ICON}</a>`;
+    // SharePoint-Ordner: Kunden bekommen einen Leselink auf den Spalten-Ordner, alte Links bleiben <a href>
+    const folderLink = ordnerLinkHtml({
+      url: value,
+      spalte: { customColumnId: col.uuid, entityId },
+      inhalt: FOLDER_ICON,
+      klasse: 'external-link-btn stacked-video-link-btn custom-upload-folder-link',
+      titel: 'Ordner öffnen',
+    }) || `<span class="stacked-video-empty">-</span>`;
     if (!isEditable) return folderLink;
     return `${folderLink}<button type="button" class="custom-upload-btn custom-upload-settings-btn" 
       data-custom-column-id="${col.uuid}" data-entity-id="${entityId}" data-column-name="${escapeHtml(col.label)}"

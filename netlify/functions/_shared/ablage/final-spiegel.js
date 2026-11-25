@@ -4,12 +4,11 @@
 // Finale_Version/Story_K bzw. Finale_Version (Bilder). Die Kopie ist Spiegel, nicht Quelle: das CRM
 // spielt weiter das Original, Asset-Zeilen kennen die Kopie nicht, nur ablage_final_spiegel.
 // Kopiert wird server-seitig (Graph copy, Monitor-URL), der Spiegel folgt dem Original: neuer
-// Inhalt (cTag) oder neue Datei (Umzug) -> alte Kopie weg, neue Kopie. Final aufgehoben, Rueckgaengig
+// Inhalt (cTag) oder neue Datei -> alte Kopie weg, neue Kopie. Final aufgehoben, Rueckgaengig
 // oder Original geloescht -> Kopie weg. Im Finder geloeschte Kopien bleiben weg (Status entfernt).
 
 const { TABELLE } = require('./asset');
 const { konfliktNamePasst } = require('./pfad');
-const { notschalterAn } = require('./ziel');
 const { istNichtGefunden } = require('./graph');
 
 const SPIEGEL = 'ablage_final_spiegel';
@@ -340,9 +339,7 @@ function createFinalSpiegel({
     return (Array.isArray(data) ? data[0] : data) || null;
   }
 
-  // Medien-Notschalter und ABLAGE_ZIEL=dropbox halten auch die Kopien an
   async function lauf({ budgetMs = BUDGET_MS } = {}) {
-    if (process.env.ABLAGE_ZIEL === 'dropbox' || await notschalterAn(supabase)) return { pausiert: true };
     await ordner.wurzel();
     const r = { eingereiht: await scan(), fertig: 0, offen: 0, fehler: 0, entfernt: 0, bytes: 0 };
     const bis = jetzt() + budgetMs;

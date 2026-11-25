@@ -9,7 +9,6 @@ import { renderCustomTableSelect } from './customColumnSelect.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 const FOLDER_ICON = `${icon('folder')}`;
-const GEAR_ICON = `${icon('cog')}`;
 /** Phosphor Hand – Griff zum Verschieben eigener Spalten */
 const COLUMN_GRIP_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M188,80a27.79,27.79,0,0,0-13.36,3.4,28,28,0,0,0-46.64-11A28,28,0,0,0,80,92v20H68a28,28,0,0,0-28,28v12a88,88,0,0,0,176,0V108A28,28,0,0,0,188,80Zm12,72a72,72,0,0,1-144,0V140a12,12,0,0,1,12-12H80v24a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V108a12,12,0,0,1,24,0Z"></path></svg>`;
 
@@ -78,7 +77,7 @@ function renderFieldByType(col, entityId, value, isEditable, { tableSelect = fal
         ? renderCustomTableSelect(col, entityId, value)
         : renderDropdownField(attrs, value, isEditable, col);
     case 'number': return renderNumberField(attrs, value, isEditable, col.name);
-    case 'upload': return renderUploadField(col, entityId, value, isEditable);
+    case 'upload': return renderUploadField(value);
     default: return renderTextField(attrs, value, isEditable, col.name);
   }
 }
@@ -144,16 +143,8 @@ function renderNumberField(attrs, value, isEditable, placeholder) {
   return `<input type="number" class="strategie-textarea custom-col-input custom-col-number" ${attrs} value="${escapeHtml(value != null ? String(value) : '')}" placeholder="${escapeHtml(placeholder)}" step="any"/>`;
 }
 
-function renderUploadField(col, entityId, value, isEditable) {
-  if (value) {
-    const folderLink = `<a href="${escapeHtml(value)}" target="_blank" rel="noopener noreferrer" class="link-icon-btn custom-upload-folder-link" title="Ordner öffnen">${FOLDER_ICON}</a>`;
-    if (!isEditable) return folderLink;
-    return `${folderLink}<button type="button" class="custom-upload-btn custom-upload-settings-btn" data-custom-column-id="${col.id}" data-entity-id="${entityId}" data-column-name="${escapeHtml(col.name)}" title="Dateien verwalten">${GEAR_ICON}</button>`;
-  }
-  if (!isEditable) return `<div class="cell-text-readonly">-</div>`;
-
-  return `<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm custom-upload-btn" data-custom-column-id="${col.id}" data-entity-id="${entityId}" data-column-name="${escapeHtml(col.name)}" title="Dateien hochladen">
-    ${icon('upload', { className: 'icon-16' })}
-    Upload
-  </button>`;
+/** Alte Upload-Spalten (Typ abgeschafft): nur noch der gespeicherte Ordner-Link. */
+function renderUploadField(value) {
+  if (!value) return `<div class="cell-text-readonly">-</div>`;
+  return `<a href="${escapeHtml(value)}" target="_blank" rel="noopener noreferrer" class="link-icon-btn custom-upload-folder-link" title="Ordner öffnen">${FOLDER_ICON}</a>`;
 }

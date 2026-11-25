@@ -144,8 +144,8 @@ function authErrorBody(result) {
 
 // ─── requireStaff ────────────────────────────────────────────
 // verifyAuth + requireInternal in einem Schritt, mit kurzem Token-Cache.
-// Chunk-Uploads ueber dropbox-proxy rufen die Function im Sekundentakt auf;
-// ohne Cache gingen dabei pro Chunk ein GoTrue-Call und eine benutzer-Query raus.
+// Functions, die der Client in schneller Folge ruft, sparen sich so je Aufruf einen
+// GoTrue-Call und eine benutzer-Query.
 // Der Cache haelt nur erfolgreiche Pruefungen und gilt pro Function-Instanz.
 
 const STAFF_CACHE_TTL_MS = 60 * 1000;

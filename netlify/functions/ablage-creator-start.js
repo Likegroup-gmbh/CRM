@@ -1,6 +1,6 @@
 // ablage-creator-start.js
-// Creator-Token-Seite: gleicher Body wie creator-upload-start. { ziel:'dropbox' } -> die Seite
-// nimmt den bisherigen TUS-Weg ueber creator-upload-start; sonst Upload-Session mit deferCommit.
+// Creator-Token-Seite: Upload-Session mit deferCommit im Zielordner (SharePoint).
+// Body: { token, targetType, targetId, fileName, fileSize, contentType }.
 
 const { ablageHandler } = require('./_shared/ablage/http');
 const { createCreatorAblage } = require('./_shared/ablage/creator');

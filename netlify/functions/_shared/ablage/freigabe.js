@@ -2,7 +2,8 @@
 // Kunden-Leselink: "Jeder mit dem Link", nur Ansicht, 365 Tage gueltig. Ganze Ordner statt ZIP.
 // Ziel ist der Videos-Ordner einer Kooperation (dort liegen seit ADR 0065 auch Stories und Bilder)
 // oder der Produktions-Ordner mit allen Kooperationen darunter, Rohmaterial eingeschlossen
-// (ADR 0071, nur Team). Widerruf manuell oder durch den Rechte-Abgleich.
+// (ADR 0071, nur Team), dazu der Ordner einer Upload-Spalte (Kunden nur bei sichtbarer Spalte).
+// Widerruf manuell oder durch den Rechte-Abgleich.
 
 const { istUuid } = require('./konfig');
 const { istStaff, sichtbar, erlaubteKooperationen } = require('./zugriff');
@@ -120,7 +121,27 @@ function createFreigabe({ supabase, ablage, jetzt = () => Date.now() }) {
     return data;
   }
 
+  /** Ordner einer Upload-Spalte: { custom_column_id, entity_id } (Kooperation bzw. Video). */
+  async function spalteLink({ benutzer, caller, body }) {
+    if (!istUuid(body.custom_column_id) || !istUuid(body.entity_id)) throw new AblageFehler(400, 'custom_column_id und entity_id fehlen');
+    const spalte = await sichtbar(caller, 'custom_columns', body.custom_column_id, 'id, entity_type, visible_for_kunden');
+    if (!spalte || (!istStaff(benutzer) && !spalte.visible_for_kunden)) throw new AblageFehler(404, 'Spalte nicht gefunden');
+    let kooperationId = body.entity_id;
+    let filter = { art: 'spalte', custom_column_id: spalte.id, kooperation_id: body.entity_id };
+    if (spalte.entity_type === 'video') {
+      const video = await sichtbar(caller, 'kooperation_videos', body.entity_id, 'id, kooperation_id');
+      if (!video) throw new AblageFehler(404, 'Video nicht gefunden');
+      kooperationId = video.kooperation_id;
+      filter = { art: 'spalte_video', custom_column_id: spalte.id, kooperation_video_id: video.id };
+    }
+    await pruefen({ benutzer, caller }, kooperationId);
+    const itemId = await ordnerItem(filter);
+    if (!itemId) throw new AblageFehler(409, 'Diese Spalte hat noch keinen Ordner in SharePoint', 'nicht_sharepoint');
+    return linkFuerOrdner(itemId, { benutzer, ordnerArt: 'spalte', bezug: { kooperation_id: kooperationId } });
+  }
+
   async function erstellen({ benutzer, caller, body }) {
+    if (body.custom_column_id) return spalteLink({ benutzer, caller, body });
     if (body.produktion_id) {
       await pruefenProduktion({ benutzer, caller }, body.produktion_id);
       const itemId = await ordnerItem({ art: 'produktion', produktion_id: body.produktion_id });

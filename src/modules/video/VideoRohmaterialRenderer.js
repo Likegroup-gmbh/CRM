@@ -6,7 +6,6 @@
 
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import { toDownloadDropboxUrl } from '../../core/VideoUploadUtils.js';
 
 const BACK_SVG = `${icon('arrow-left')}`;
 const FOLDER_SVG = `${icon('folder-open')}`;
@@ -110,8 +109,7 @@ export class VideoRohmaterialRenderer {
   }
 
   static _renderRow(file) {
-    // dl=1 statt raw=1: der Cutter will die Datei lokal, nicht im Dropbox-Viewer.
-    const downloadUrl = toDownloadDropboxUrl(file.file_url) || file.file_url || '';
+    const downloadUrl = file.file_url || '';
     const downloadBtn = downloadUrl
       ? `<a href="${esc(downloadUrl)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Herunterladen">${DOWNLOAD_SVG}</a>`
       : '';

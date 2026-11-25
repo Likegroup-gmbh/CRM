@@ -89,7 +89,7 @@ export async function getAccessToken({ autoLogout = true } = {}) {
  */
 export async function authorizedFetch(path, options = {}) {
   // Gast-Modus: Gaeste haben keine Supabase-Session. Sie senden ihr Gast-JWT,
-  // damit z.B. dropbox-proxy Lese-Links per RLS pruefen kann. Kein Refresh und
+  // damit z.B. ablage-link Lese-Links per RLS pruefen kann. Kein Refresh und
   // kein Auto-Logout - ein 401/403 geht unveraendert an den Aufrufer.
   if (guestJwt) {
     return fetch(path, {

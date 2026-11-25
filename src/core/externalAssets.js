@@ -12,27 +12,6 @@ export const VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvide
 export const MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024;
 export const MAX_STORY_SIZE = 2 * 1024 * 1024 * 1024;
 
-// ─── External Link Helpers ───────────────────────────────────
-
-export function normalizeExternalUrl(input) {
-  if (!input) return '';
-  let url = input.trim();
-  if (url && !/^https?:\/\//i.test(url)) {
-    url = 'https://' + url;
-  }
-  return url;
-}
-
-export function isValidExternalUrl(url) {
-  if (!url) return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 function looksLikeOpaqueShareToken(value) {
   if (!value) return false;
   if (IMAGE_EXTENSIONS.test(value) || VIDEO_EXTENSIONS.test(value)) return false;
@@ -75,8 +54,8 @@ export function isDirectImageUrl(url) {
 }
 
 /**
- * true, wenn sich das Bild-Asset im Browser anzeigen laesst: Dropbox-Assets
- * ueber den Temp-Link zum Pfad, externe Links nur als direkte Bild-URL.
+ * true, wenn sich das Bild-Asset im Browser anzeigen laesst: Dateien in der Ablage
+ * (file_path) ueber den Leselink, externe Links nur als direkte Bild-URL.
  * Sharing-Links (z. B. SharePoint /:i:/) liefern ohne Sitzung im Tenant eine
  * HTML-Seite bzw. 403 und lassen sich deshalb nicht einbetten.
  * @param {{ file_path?: string|null, file_url?: string|null }} asset

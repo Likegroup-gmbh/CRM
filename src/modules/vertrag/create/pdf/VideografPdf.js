@@ -512,8 +512,8 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       const filePrefix = lang === 'en' ? 'EN_Contract_Videograf' : 'Vertrag_Videograf';
       const fileName = `${filePrefix}_${vertrag.name || 'Produktion'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-      const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-      console.log('✅ Videograf-PDF nach Dropbox hochgeladen und URL gespeichert');
+      const uploadResult = await uploadGeneratedVertragPdf(vertrag, pdfBlob, fileName);
+      console.log('✅ Videograf-PDF hochgeladen und URL gespeichert');
       doc.save(fileName);
       return uploadResult;
 

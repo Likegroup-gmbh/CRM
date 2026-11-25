@@ -7,7 +7,6 @@ const require = createRequire(import.meta.url);
 const pfad = require('../../netlify/functions/_shared/ablage/pfad.js');
 const { clientAssertion, createTokenQuelle } = require('../../netlify/functions/_shared/ablage/graph-auth.js');
 const { createHttp, batch, GraphError } = require('../../netlify/functions/_shared/ablage/graph.js');
-const { ablageZiel } = require('../../netlify/functions/_shared/ablage/ziel.js');
 const { createOrdner } = require('../../netlify/functions/_shared/ablage/ordner.js');
 const { itemZuEingang } = require('../../netlify/functions/_shared/ablage/sharepoint.js');
 const asset = require('../../netlify/functions/_shared/ablage/asset.js');
@@ -139,23 +138,6 @@ describe('graph: Retry', () => {
     expect(res[24].body.url).toBe('/u24');
     const zu = { post: async () => ({ responses: [{ id: '0', status: 429, headers: { 'Retry-After': '7' } }] }) };
     await expect(batch(zu, [{ url: '/a' }])).rejects.toMatchObject({ status: 429, retryAfter: 7 });
-  });
-});
-
-describe('ziel: Weiche + Notschalter', () => {
-  it('nur SharePoint, wenn konfiguriert, Weiche an und kein Notschalter', () => {
-    const u = { ablage_ziel: 'sharepoint' };
-    expect(ablageZiel(u, { konfiguriert: true })).toBe('sharepoint');
-    expect(ablageZiel(u, { konfiguriert: false })).toBe('dropbox');
-    expect(ablageZiel(u, { konfiguriert: true, notschalter: true })).toBe('dropbox');
-    expect(ablageZiel({ ablage_ziel: 'dropbox' }, { konfiguriert: true })).toBe('dropbox');
-    expect(ablageZiel(null, { konfiguriert: true })).toBe('dropbox');
-    process.env.ABLAGE_ZIEL = 'dropbox';
-    try {
-      expect(ablageZiel(u, { konfiguriert: true })).toBe('dropbox');
-    } finally {
-      delete process.env.ABLAGE_ZIEL;
-    }
   });
 });
 

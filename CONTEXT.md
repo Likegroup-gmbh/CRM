@@ -567,13 +567,13 @@ Der konkrete Moment am Anfang des Skripts, bevor das Produkt vorkommt. Eine Audi
 _Avoid_: Situation, Setting, Audience Situation
 
 **Kooperationsvideo**:
-Das hochgeladene Videofile in einer Kooperation (Dropbox-Asset), wird in der
-VideoPlayerLightbox abgespielt. Nicht zu verwechseln mit der Videoidee.
+Das hochgeladene Videofile in einer Kooperation (Datei in SharePoint), wird in der
+VideoPlayerLightbox abgespielt. Es gibt nur Uploads, keine externen Links (ADR 0082). Nicht zu verwechseln mit der Videoidee.
 _Avoid_: Upload, Videodatei
 
 **Video-Nr**:
 Positionsnummer des Kooperationsvideos in der Kooperation (1, 2, 3), Feld `position`.
-Steht im Dropbox-Ordner (`Video_2_...`) und im Dateinamen vor `v{n}` bzw. `final`.
+Steht im Ordner (`Video_2_...`) und im Dateinamen vor `v{n}` bzw. `final`.
 Nicht die Feedbackschleife.
 _Avoid_: Version (das ist die Feedbackschleife), Videoversion
 
@@ -585,7 +585,7 @@ _Avoid_: Platzhalter (das ist die Kooperation ohne Creator), Slot, leeres Video
 Eine Überarbeitungsrunde desselben Kooperationsvideos (`version_number`, max 3).
 Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
 Alle Dateien (Videos und Bilder) liegen flach im Ordner, ohne Varianten-Ordner (A/B/C). Der Typ kommt aus der Dateiendung, auch bei Ablage im Finder bzw. SharePoint. Der Name ist der Dateiname (Titel).
-In SharePoint liegt eine Runde als `Daten/<Firma>/Medien/…/<Kampagne>/[<Produktion>/]<Kooperation>/Videos/Video_N/Feedbackschleife_K` (bzw. `Finale_Version`) und enthält alles, was der Creator in dieser Runde liefert: Videos und Bilder flach, Stories im Unterordner `Story_K` (ADR 0065). Neben `Medien/` liegen je Unternehmen `Verträge/` (ADR 0067), `Rechnungen/` und `Aufträge/` (ADR 0068). Es gibt keine eigenen Ordner `Storys/` oder `Bilder/` mehr. Bekannte Abweichung: die eingefrorene Dropbox-Ablage behält ihre alte Struktur.
+In SharePoint liegt eine Runde als `Daten/<Firma>/Medien/…/<Kampagne>/[<Produktion>/]<Kooperation>/Videos/Video_N/Feedbackschleife_K` (bzw. `Finale_Version`) und enthält alles, was der Creator in dieser Runde liefert: Videos und Bilder flach, Stories im Unterordner `Story_K` (ADR 0065). Neben `Medien/` liegen je Unternehmen `Verträge/` (ADR 0067), `Rechnungen/` und `Aufträge/` (ADR 0068). Es gibt keine eigenen Ordner `Storys/` oder `Bilder/` mehr. Bekannte Abweichung: der Altbestand in Dropbox behält seine alte Struktur.
 _Avoid_: Version (alleinstehend), Revision
 
 **Story**:
@@ -607,7 +607,7 @@ Liegt neben der Feedbackschleife, nicht in ihr. Entsteht auf drei Wegen: das Tea
 _Avoid_: Final, Master, Export
 
 **Dateititel**:
-Anzeigename einer Datei im Videos-Tab (Spalte `titel`). Beim Upload eines Videos oder Bildes (CRM oder Finder) der Name der hochgeladenen Datei ohne Endung, danach vom Team im Detailkopf inline änderbar. Ohne Titel gilt der abgeleitete Name (Video A, Bild 1, Story 1, Finale Version 9:16, Dateiname beim Rohmaterial). Ändert weder Dropbox-Pfad noch Download-Namen noch die Variante.
+Anzeigename einer Datei im Videos-Tab (Spalte `titel`). Beim Upload eines Videos oder Bildes (CRM oder Finder) der Name der hochgeladenen Datei ohne Endung, danach vom Team im Detailkopf inline änderbar. Ohne Titel gilt der abgeleitete Name (Video A, Bild 1, Story 1, Finale Version 9:16, Dateiname beim Rohmaterial). Ändert weder Dateipfad noch Download-Namen noch die Variante.
 _Avoid_: Dateiname (das ist `file_name`), Variante, Video-Name (das ist `video_name` am Kooperationsvideo)
 
 **Seitenverhältnis**:
@@ -657,7 +657,13 @@ _Avoid_: Kampagnen-Tabelle
 
 **Eigene Spalte**:
 User-definierte Spalte in der Kooperationstabelle.
+Eine Upload-Spalte (Typ Datei-Upload) legt ihre Dateien in SharePoint unter `<Kooperation>/<Spaltenname>/` ab, bei Spalten auf Videoebene je Video in `Video_<N>_<Thema>/` darunter. Die Zelle zeigt den Ordner-Link. Wird die Spalte gelöscht, ist ihr Ordner endgültig weg. In Konzept- und Casting-Listen gibt es keinen Upload-Typ (ADR 0082).
 _Avoid_: Custom Column (in der UI)
+
+**Altbestand (Ablage)**:
+Datei-Zeile, deren Datei nicht in SharePoint liegt (`ablage = 'dropbox'`): alte Uploads, Dokumente und Spalten-Dateien aus Dropbox oder externe Links. Öffnet nur als Link in einem neuen Tab, spielt nicht im Player, hat kein Poster und lässt sich weder verschieben noch umbenennen. Löschen entfernt nur die Zeile. Mit dem Ende des Dropbox-Kontos sind die Links tot (ADR 0082).
+Nicht die Altbestand-Linie (übernommene V1-Linie ohne Briefing).
+_Avoid_: Dropbox-Asset, Legacy, externer Link (alleinstehend)
 
 **Anschreiben**:
 E-Mail mit Dokumentanhang (Briefing-PDF, Vertrags-PDF oder Skript-PDF) an adressierbare Empfänger.
@@ -709,7 +715,7 @@ _Avoid_: Eingangsrechnung, Invoice, Beleg (das ist die PDF)
 
 **Dokument (Ablage)**:
 Eine Vertrags-, Rechnungs-, Beleg- oder Auftragsdatei, die zu einer CRM-Zeile gehört. Ein Dokument ist weder Medium noch freie Datei.
-Liegt in SharePoint unter `Daten/<Firma>/Verträge|Rechnungen|Aufträge/…`. Ob neue Dokumente dorthin gehen oder nach Dropbox, entscheidet die Dokument-Weiche des Unternehmens. Sie ist von den Medien getrennt und hat einen eigenen Notschalter (ADR 0068).
+Liegt in SharePoint unter `Daten/<Firma>/Verträge|Rechnungen|Aufträge/…` (ADR 0068). Neue Dokumente gehen immer dorthin, ältere außerhalb von SharePoint sind Altbestand (ADR 0082).
 Eine Rechnung muss angelegt sein, bevor ihre PDFs hochgeladen werden, denn der Ordner hängt an der Rechnung.
 _Avoid_: Anhang, Upload, Datei (alleinstehend)
 

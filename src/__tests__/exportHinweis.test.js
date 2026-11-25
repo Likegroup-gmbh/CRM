@@ -99,11 +99,7 @@ describe('Export-Hinweis', () => {
       expect(sichtbar(hinweis())).toBe(true);
     });
 
-    it('fehlt im Link-Modus und in eigenen Upload-Spalten', async () => {
-      await drawer.open('video-1', { ...META, keinDropbox: true }, vi.fn());
-      expect(hinweis()).toBeNull();
-
-      drawer.removeDrawer();
+    it('fehlt in eigenen Upload-Spalten', async () => {
       await drawer.open('video-1', META, vi.fn(), null, null, { initialTab: 'custom', customMeta: { columnName: 'Extra' } });
       expect(hinweis()).toBeNull();
     });

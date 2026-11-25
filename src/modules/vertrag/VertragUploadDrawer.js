@@ -2,7 +2,6 @@ import { syncVertragFlags } from './deckung/vertragDeckung.js';
 import { backfillRechnungVertragId } from '../rechnung/RechnungVertragZuordnung.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
-import { uploadVertragPdf } from '../../core/DropboxDocumentUploader.js';
 import { altesDokumentEntfernen, dokumentHochladen, dokumentZeileLaden } from '../../core/ablage/dokumentAblage.js';
 
 export class VertragUploadDrawer {
@@ -230,20 +229,6 @@ export class VertragUploadDrawer {
         bezugId: this.vertragId,
         file,
         onProgress: ({ loaded, total }) => fortschritt(Math.round((loaded / total) * 90), `Lade hoch... ${Math.round((loaded / total) * 100)}%`),
-        dropbox: () => {
-          fortschritt(30, 'Lade hoch nach Dropbox...');
-          return uploadVertragPdf({
-            metadata: {
-              unternehmen: this.metadaten.unternehmen || '',
-              marke: this.metadaten.marke || '',
-              kampagne: this.metadaten.kampagne || '',
-              kooperation: this.metadaten.kooperation || '',
-              creator: this.metadaten.creator || '',
-              vertragstyp: this.metadaten.vertragstyp || '',
-            },
-            file,
-          });
-        },
         speichern: (spalten) => {
           fortschritt(95, 'Speichere in Datenbank...');
           return this._saveToDb(spalten);

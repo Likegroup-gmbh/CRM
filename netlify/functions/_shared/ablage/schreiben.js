@@ -1,13 +1,13 @@
 // _shared/ablage/schreiben.js
 // Schreibpfade CRM -> SharePoint: Upload-Ziel, Commit, Verwerfen. Datei loeschen/umbenennen/
 // verschieben und die Loeschkaskade einer Entitaet liegen in schreiben-datei.js, Rohmaterial-Ordner
-// und das Verschieben in eine Feedbackschleife in schreiben-roh.js.
+// und das Verschieben in eine Feedbackschleife in schreiben-roh.js, Upload-Spalten in schreiben-spalte.js.
 // Die Asset-Zeile legt der Client nach dem Commit an; bis dahin haelt ablage_upload die Datei
 // fest, damit der Abgleich keine zweite Zeile anlegt.
 
-const { CHUNK_BYTES, MAX_BYTES, GIB, istUuid } = require('./konfig');
-const { TABELLE, TYPEN, weitereVerweise } = require('./asset');
-const { zielFuerKooperation } = require('./ziel');
+const { MAX_BYTES, GIB, istUuid } = require('./konfig');
+const { TABELLE, weitereVerweise } = require('./asset');
+const { ladeKooperation } = require('./kooperation');
 const { dateiname, mitZaehler, MAX_PFAD } = require('./pfad');
 const { darfMediaUpload, istAdmin, sichtbar } = require('./zugriff');
 const { AblageFehler } = require('./http');
@@ -15,8 +15,11 @@ const { ordnerVon, endung, nichtKonfiguriert, kontextAusBody, kontextAusZeile, k
 const { createDateiSchreiben } = require('./schreiben-datei');
 const { createDokumentSchreiben } = require('./schreiben-dokument');
 const { createRohSchreiben } = require('./schreiben-roh');
+const { createSpalteSchreiben } = require('./schreiben-spalte');
+const { sessionEroeffnen, ersetzenKontext } = require('./schreiben-session');
 const { istDokument, verweise: dokumentVerweise } = require('./dokument');
-const { dropboxUpload } = require('./schalter');
+
+const MEDIEN_TYPEN = ['video', 'story', 'still', 'roh'];
 
 /**
  * @param {object} deps
@@ -80,11 +83,11 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
   // ─── ablage-upload-ziel ─────────────────────────────────────
 
   async function uploadZiel({ benutzer, caller, body }) {
-    // Vor zielFuerKooperation: KOOP_SELECT liest unternehmen.ablage_ziel
-    if (dropboxUpload()) return { ziel: 'dropbox' };
+    if (!sp) throw nichtKonfiguriert();
     if (istDokument(body.typ)) return dok.uploadZiel({ benutzer, caller, body });
+    if (body.typ === 'spalte') return spalte.uploadZiel({ benutzer, caller, body });
     const typ = body.ersetzen?.typ || body.typ;
-    if (!TYPEN.includes(typ)) throw new AblageFehler(400, 'Unbekannter Typ');
+    if (!MEDIEN_TYPEN.includes(typ)) throw new AblageFehler(400, 'Unbekannter Typ');
     if (!istUuid(body.kooperation_id)) throw new AblageFehler(400, 'kooperation_id fehlt');
     const fileName = String(body.file_name || '').trim();
     const fileSize = Number(body.file_size);
@@ -99,15 +102,8 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
       if (!alt) throw new AblageFehler(404, 'Datei nicht gefunden');
     }
 
-    const { ziel, koop } = await zielFuerKooperation(supabase, body.kooperation_id);
+    const koop = await ladeKooperation(supabase, body.kooperation_id);
     if (!koop) throw new AblageFehler(404, 'Kooperation nicht gefunden');
-    if (ziel !== 'sharepoint' || !sp) {
-      // Eine SharePoint-Datei per Dropbox zu ersetzen hinterliesse eine Zeile mit ablage=sharepoint und Dropbox-Pfad
-      if (alt?.ablage === 'sharepoint') {
-        throw new AblageFehler(503, 'SharePoint ist gerade abgeschaltet – Ersetzen bitte später erneut versuchen', 'notschalter');
-      }
-      return { ziel: 'dropbox' };
-    }
     if (fileSize > MAX_BYTES[typ]) {
       throw new AblageFehler(413, `Datei zu groß (max. ${Math.round(MAX_BYTES[typ] / GIB)} GB)`, 'zu_gross', { max_bytes: MAX_BYTES[typ] });
     }
@@ -141,10 +137,6 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
     }
 
     const name = passenderName(ordner.pfad, fileName);
-    const session = altItem
-      ? await sp.uploadSessionFuerItem(altItem.id)
-      : await sp.uploadSession(ordner.item_id, name, { conflict: 'rename' });
-
     const [ordnerUrl, linkUrl] = await Promise.all([
       webUrl(ordner.item_id),
       link && link.item_id !== ordner.item_id ? webUrl(link.item_id) : Promise.resolve(null),
@@ -156,36 +148,9 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
       link_item_id: link?.item_id || ordner.item_id,
       link_url: linkUrl || ordnerUrl,
       ...(alt ? { ersetzen: { typ, id: alt.id, ablage: alt.ablage, file_path: alt.file_path } } : {}),
-      ...(altItem ? { gleiches_item: true, umbenennen_auf: name !== altItem.name ? name : null } : {}),
+      ...ersetzenKontext(altItem, name),
     };
-
-    const { data: up, error } = await supabase
-      .from('ablage_upload')
-      .insert({
-        drive_id: driveId,
-        parent_item_id: ordner.item_id,
-        name,
-        groesse: fileSize,
-        typ,
-        kontext,
-        item_id: altItem?.id || null,
-        erstellt_von: benutzer.id,
-      })
-      .select('id')
-      .single();
-    if (error) {
-      await sp.sessionVerwerfen(session.uploadUrl).catch(() => {});
-      throw error;
-    }
-
-    return {
-      ziel: 'sharepoint',
-      upload_id: up.id,
-      upload_url: session.uploadUrl,
-      chunk_bytes: CHUNK_BYTES,
-      file_name: name,
-      ordner: { item_id: ordner.item_id, pfad: ordner.pfad, web_url: ordnerUrl },
-    };
+    return sessionEroeffnen({ supabase, sp, driveId }, { benutzer, typ, ordner, name, groesse: fileSize, kontext, altItem, ordnerUrl });
   }
 
   // ─── ablage-upload-commit ───────────────────────────────────
@@ -236,6 +201,7 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
       file_url: item.webUrl || null,
       folder_url: k.link_url || null,
       video_id: k.kooperation_video_id || null,
+      kooperation_id: k.kooperation_id || null,
       breite: item.video?.width ?? item.image?.width ?? null,
       hoehe: item.video?.height ?? item.image?.height ?? null,
     };
@@ -264,6 +230,7 @@ function createSchreiben({ supabase, ablage, jetzt = () => new Date() }) {
   const datei = createDateiSchreiben({ supabase, ablage, sp, driveId, jetzt, passenderName });
   const dok = createDokumentSchreiben({ supabase, ablage, sp, driveId, passenderName, webUrl });
   const roh = createRohSchreiben({ supabase, ablage, sp, driveId, jetzt, passenderName });
+  const spalte = createSpalteSchreiben({ supabase, ablage, sp, driveId, passenderName, webUrl });
 
   // Dokument-Typen (ADR 0068) haben eigene Loesch- und Namensregeln
   const dateiLoeschen = (ctx) => (istDokument(ctx.body?.typ) ? dok.dateiLoeschen(ctx) : datei.dateiLoeschen(ctx));

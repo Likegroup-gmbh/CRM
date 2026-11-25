@@ -1,7 +1,7 @@
 // actionDelete.js
 // Bestätigungsdialog + entity-spezifische Löschung
 
-import { deleteDropboxCascade } from '../VideoDeleteHelper.js';
+import { ablageCascade } from '../VideoDeleteHelper.js';
 import { deleteUnternehmenCascade, collectDependentIds } from '../../modules/unternehmen/services/UnternehmenDeleteService.js';
 import { ProduktService } from '../../modules/produkt/ProduktService.js';
 import { PersonaService } from '../../modules/persona/PersonaService.js';
@@ -196,9 +196,7 @@ export async function confirmDelete(entityId, entityType) {
   if (!proceed) return;
 
   if (entityType === 'kampagne' || entityType === 'kooperation') {
-    await deleteDropboxCascade(entityType, entityId).catch(err =>
-      console.warn('Dropbox-Cascade Warnung:', err)
-    );
+    await ablageCascade(entityType, entityId);
   }
 
   const result = await deleteByType(entityId, entityType);
@@ -238,7 +236,7 @@ async function confirmDeleteUnternehmen(entityId) {
     .map(([table, ids]) => `• ${ids.length} ${LABELS[table] || table}`);
 
   const summary = lines.length > 0
-    ? `Folgende zugehörige Daten werden unwiderruflich entfernt:\n\n${lines.join('\n')}\n\nInklusive aller Dropbox-Dateien und Storage-Dateien.`
+    ? `Folgende zugehörige Daten werden unwiderruflich entfernt:\n\n${lines.join('\n')}\n\nInklusive aller SharePoint- und Storage-Dateien.`
     : 'Dieses Unternehmen hat keine zugehörigen Daten.';
 
   const proceed = await confirmDanger({
@@ -252,7 +250,7 @@ async function confirmDeleteUnternehmen(entityId) {
   const result = await deleteUnternehmenCascade(entityId, {
     userId: window.currentUser?.id,
     onProgress: ({ step, count }) => {
-      const stepLabels = { ...LABELS, storage: 'Storage-Dateien', dropbox: 'Dropbox-Dateien', unternehmen: 'Unternehmen' };
+      const stepLabels = { ...LABELS, storage: 'Storage-Dateien', ablage: 'SharePoint-Dateien', unternehmen: 'Unternehmen' };
       progressModal.update(`Lösche ${stepLabels[step] || step} (${count})...`);
     },
   });

@@ -2,11 +2,9 @@
 // Pure Job-Runner für Video-Upload (Kampagne-VideoUploadDrawer).
 // Keine DOM-Zugriffe — alle Status-Updates über ctx.updateItem.
 
-import { uploadFileDirect } from '../DropboxDirectUploader.js';
-import { createFolderSharedLink, buildVersionedFileName, buildFinalFileName, nextFreeIndexedFileName } from '../VideoUploadUtils.js';
-import { deleteFileIfUnreferenced } from '../assetDelete.js';
+import { buildVersionedFileName, buildFinalFileName, nextFreeIndexedFileName } from '../VideoUploadUtils.js';
 import { ablageZielHolen, hochladenNachSharePoint, sharePointAssetFelder, uploadVerwerfen } from '../ablage/ablageUpload.js';
-import { fetchTokenAndPath, createSharedLink, trackUploadProgress } from './videoUploadSteps.js';
+import { trackUploadProgress } from './uploadFortschritt.js';
 
 function buildVersionedFileName_(file, versionNumber, metadaten) {
   const ext = (file.name.split('.').pop() || 'mp4');
@@ -39,7 +37,7 @@ export function titelAusDateiname(name) {
 }
 
 // is_current und link_content leitet der Trigger auf kooperation_video_asset ab.
-async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal, titel, ablageFelder = {} }) {
+async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal, titel, ablageFelder }) {
   const version = parseInt(versionNumber, 10) || 1;
   const { error } = await window.supabase
     .from('kooperation_video_asset')
@@ -113,7 +111,7 @@ export async function runVideoUploadJob(ctx) {
     }
     const item = job.items[i];
 
-    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
+    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size });
 
     const ziel = await ablageZielHolen({
       typ: 'video',
@@ -125,75 +123,20 @@ export async function runVideoUploadJob(ctx) {
       file_name: fileName,
       file_size: file.size,
     });
-    if (ziel.ziel === 'sharepoint') {
-      const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: trackUploadProgress(item, updateItem) });
-      if (job.items[i].directOk === null) updateItem(item.id, { directOk: true });
-      updateItem(item.id, { status: 'saving' });
-      if (!folderUrl) folderUrl = commit.folder_url || null;
-      if (isFinal) hasFinalUpload = true;
-      else hasLoopUpload = true;
-      if (isFinal && commit.file_name) takenFinalNames.push(commit.file_name);
-
-      const { file_url: spUrl, file_path: spPath, ...ablageFelder } = sharePointAssetFelder(commit);
-      try {
-        await saveAssetVersion({ videoId, fileUrl: spUrl, filePath: spPath, variantName, versionNumber, isFinal, titel: titelAusDateiname(file.name), ablageFelder });
-      } catch (err) {
-        await uploadVerwerfen(ziel.upload_id);
-        throw err;
-      }
-      updateItem(item.id, { status: 'done', loaded: file.size });
-      continue;
-    }
-
-    const { token, dropboxPath, kooperationFolderPath } = await fetchTokenAndPath({
-      metadaten, versionNumber, variantName, fileName, isFinal,
-    });
-
-    const getToken = async () => {
-      const fresh = await fetchTokenAndPath({ metadaten, versionNumber, variantName, fileName, isFinal });
-      return fresh.token;
-    };
-
-    // 'add': zwei Dateien derselben Schleife und Variante landen sonst auf demselben
-    // Pfad, und die zweite überschreibt die Datei der ersten Zeile
-    const uploadResult = await uploadFileDirect({
-      file,
-      dropboxPath,
-      mode: 'add',
-      token,
-      getToken,
-      signal,
-      onProgress: trackUploadProgress(item, updateItem),
-    });
-
-    const actualPath = uploadResult.path_display || dropboxPath;
-
-    // Wenn nichts auf 'proxy' geschwenkt hat, lief Direct durch
-    if (job.items[i].directOk === null) updateItem(item.id, { directOk: true });
-
+    const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: trackUploadProgress(item, updateItem) });
     updateItem(item.id, { status: 'saving' });
-
-    const sharedLink = await createSharedLink(token, actualPath);
-    if (!folderUrl) {
-      folderUrl = await createFolderSharedLink(token, kooperationFolderPath);
-    }
-
-    // Kein Roh-Pfad als URL-Fallback: Ein Dropbox-Pfad in file_url/link_content
-    // erzeugt einen toten Play-Button (Video wirkt "verschwunden"). Wiedergabe
-    // laeuft dann ueber file_path + Temporary-Link.
-    const fileUrl = sharedLink || null;
+    if (!folderUrl) folderUrl = commit.folder_url || null;
     if (isFinal) hasFinalUpload = true;
     else hasLoopUpload = true;
+    if (isFinal && commit.file_name) takenFinalNames.push(commit.file_name);
 
+    const { file_url: spUrl, file_path: spPath, ...ablageFelder } = sharePointAssetFelder(commit);
     try {
-      await saveAssetVersion({ videoId, fileUrl, filePath: actualPath, variantName, versionNumber, isFinal, titel: titelAusDateiname(file.name) });
+      await saveAssetVersion({ videoId, fileUrl: spUrl, filePath: spPath, variantName, versionNumber, isFinal, titel: titelAusDateiname(file.name), ablageFelder });
     } catch (err) {
-      // Rollback ohne verwaiste Datei. Bei gleichem Inhalt liefert Dropbox den
-      // bestehenden Pfad zurück, der einer anderen Zeile gehören kann.
-      await deleteFileIfUnreferenced('kooperation_video_asset', actualPath);
+      await uploadVerwerfen(ziel.upload_id);
       throw err;
     }
-
     updateItem(item.id, { status: 'done', loaded: file.size });
   }
 
@@ -206,7 +149,7 @@ export async function runVideoUploadJob(ctx) {
       .update({ folder_url: folderUrl })
       .eq('id', videoId);
     // Nicht still schlucken: Der Job muss als fehlgeschlagen sichtbar werden,
-    // sonst liegt die Datei in Dropbox, aber das CRM zeigt wieder "Upload".
+    // sonst liegt die Datei in SharePoint, aber das CRM zeigt wieder "Upload".
     if (videoUpdateErr) {
       throw new Error(`Video-Metadaten konnten nicht gespeichert werden: ${videoUpdateErr.message}`);
     }

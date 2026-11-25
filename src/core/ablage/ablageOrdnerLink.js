@@ -2,8 +2,8 @@
 // Links auf die Medienablage. Eine SharePoint-webUrl öffnet nur ein Konto im Tenant, also das
 // Team (Kunden bekommen nach rechte.js nie direkte Rechte, sonst AADSTS50020). Alle anderen
 // bekommen einen Knopf: Ordner über ablage-freigabe (Leselink ohne Anmeldung auf den
-// Videos-Ordner der Kooperation), Dateien über ablage-link. Gäste lehnt ablage-freigabe ab,
-// für sie gibt es keinen Ordner-Knopf.
+// Videos-Ordner der Kooperation bzw. den Ordner einer Upload-Spalte), Dateien über ablage-link.
+// Gäste lehnt ablage-freigabe ab, für sie gibt es keinen Ordner-Knopf.
 
 import { ablagePost } from './ablageApi.js';
 import { ablageLink, istSharePoint } from './ablageLink.js';
@@ -29,23 +29,28 @@ const direktLink = (url, attr, inhalt) =>
   `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"${attr}>${inhalt}</a>`;
 
 /**
- * Ordner-Link: `<a href>` für Dropbox und fürs Team, für Kunden ein Knopf auf den Leselink,
- * für Gäste nichts.
- * @param {{ url: string|null, kooperationId: string|null, inhalt: string, klasse?: string, titel?: string }} o
- *   inhalt ist fertiges HTML (Icon oder escapter Text)
+ * Ordner-Link: `<a href>` für alte Links und fürs Team, für Kunden ein Knopf auf den Leselink,
+ * für Gäste nichts. Mit `spalte` gilt der Leselink dem Ordner der Upload-Spalte statt dem
+ * Videos-Ordner der Kooperation.
+ * @param {{ url: string|null, kooperationId?: string|null, spalte?: { customColumnId: string, entityId: string },
+ *   inhalt: string, klasse?: string, titel?: string }} o  inhalt ist fertiges HTML (Icon oder escapter Text)
  */
-export function ordnerLinkHtml({ url, kooperationId, inhalt, klasse = '', titel = '' }) {
+export function ordnerLinkHtml({ url, kooperationId = null, spalte = null, inhalt, klasse = '', titel = '' }) {
   if (!url) return '';
   const attr = attribute(klasse, titel);
   if (!brauchtLeselink(url)) return direktLink(url, attr, inhalt);
-  if (istGast() || !kooperationId) return '';
+  if (istGast()) return '';
+  if (spalte?.customColumnId && spalte?.entityId) {
+    return `<button type="button"${attr} data-action="${ORDNER}" data-custom-column-id="${escapeHtml(spalte.customColumnId)}" data-entity-id="${escapeHtml(spalte.entityId)}">${inhalt}</button>`;
+  }
+  if (!kooperationId) return '';
   return `<button type="button"${attr} data-action="${ORDNER}" data-kooperation-id="${escapeHtml(kooperationId)}">${inhalt}</button>`;
 }
 
 /**
- * Datei-Link: `<a href=file_url>` für Dropbox und fürs Team, sonst ein Knopf auf den
+ * Datei-Link: `<a href=file_url>` für Altbestand und fürs Team, sonst ein Knopf auf den
  * Download-Link aus ablage-link.
- * @param {{ asset: object, typ: 'video'|'story'|'still', inhalt: string, klasse?: string, titel?: string }} o
+ * @param {{ asset: object, typ: 'video'|'story'|'still'|'spalte', inhalt: string, klasse?: string, titel?: string }} o
  */
 export function dateiLinkHtml({ asset, typ, inhalt, klasse = '', titel = '' }) {
   const attr = attribute(klasse, titel);
@@ -85,8 +90,15 @@ export async function ordnerLeselink(kooperationId) {
   return data.url || null;
 }
 
+/** Leselink auf den Ordner einer Upload-Spalte (Zelle: Kooperation oder Video). */
+export async function spalteLeselink(customColumnId, entityId) {
+  const data = await ablagePost('ablage-freigabe', { aktion: 'erstellen', custom_column_id: customColumnId, entity_id: entityId });
+  return data.url || null;
+}
+
 function urlFuer(button) {
-  const { action, kooperationId, typ, id, etag } = button.dataset;
+  const { action, kooperationId, customColumnId, entityId, typ, id, etag } = button.dataset;
+  if (action === ORDNER && customColumnId && entityId) return () => spalteLeselink(customColumnId, entityId);
   if (action === ORDNER) return kooperationId ? () => ordnerLeselink(kooperationId) : null;
   if (!typ || !id) return null;
   return () => ablageLink({ typ, id, etag: etag || null }).then(link => link?.url || null);

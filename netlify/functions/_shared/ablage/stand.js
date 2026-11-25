@@ -1,39 +1,23 @@
 // _shared/ablage/stand.js
-// Admin-Seite Medienablage: Stand lesen und Betriebsaktionen (Notschalter, Weiche, Eingang,
-// Abgleich anstossen, Umzug starten, Finale spiegeln). Die Function ablage-stand prueft vorher die Admin-Rolle.
+// Admin-Seite Medienablage: Stand lesen und Betriebsaktionen (Eingang, Abgleich anstossen,
+// Umsortieren, Finale spiegeln). Die Function ablage-stand prueft vorher die Admin-Rolle.
 
 const { istUuid, anstossen } = require('./konfig');
 const { AblageFehler } = require('./http');
-const { createUmzug, MAX_VERSUCHE } = require('./umzug');
-const { createUmzugRest } = require('./umzug-rest');
 const { createUmsortieren } = require('./umsortieren');
 const { createFinalSpiegel } = require('./final-spiegel');
-const ziel = require('./ziel');
 
 const LISTE = 200;
-const ZIELE = new Set(['dropbox', 'sharepoint']);
-// Medien und Dokumente (ADR 0068) haben je Weiche und Notschalter
-const BEREICHE = {
-  medien: { spalte: 'ablage_ziel', notschalter: ziel.NOTSCHALTER.medien },
-  dokumente: { spalte: 'dokument_ablage_ziel', notschalter: ziel.NOTSCHALTER.dokumente },
-};
 const STAND_SPALTEN = 'drive_id, letzter_lauf, letzter_erfolg, letzte_meldung, fehler, fehler_seit, abo_ablauf, '
   + 'voll_abgleich_noetig, quota_used, quota_total, zert_ablauf, rechte_lauf, rechte_fehler, alarme';
-const MEDIEN_TYPEN = new Set(['video', 'story', 'still', 'roh']);
-const MELDUNG_SPALTEN = 'id, unternehmen_id, typ, status, grund, versuche, naechster_versuch, quelle_ref, ziel_name';
-
-const dateiAusRef = (ref) => String(ref || '').split(/[?#]/)[0].split('/').filter(Boolean).pop() || null;
 
 function createStand({
-  supabase, ablage, event, benutzer, jetzt = () => Date.now(), anstossenImpl = anstossen, umzug = null, umsortieren = null, finalSpiegel = null,
-  umzugRest = null,
+  supabase, ablage, event, benutzer, jetzt = () => Date.now(), anstossenImpl = anstossen, umsortieren = null, finalSpiegel = null,
 }) {
   const driveId = ablage?.sp?.driveId || ablage?.konfig?.driveId || null;
   const iso = (ms = jetzt()) => new Date(ms).toISOString();
-  const umzugVon = () => umzug || createUmzug({ supabase, ablage });
   const umsortierenVon = () => umsortieren || createUmsortieren({ supabase, ablage, jetzt });
   const spiegelVon = () => finalSpiegel || createFinalSpiegel({ supabase, ablage, jetzt });
-  const restVon = () => umzugRest || createUmzugRest({ supabase, driveId });
 
   const ergebnis = ({ data, error }) => {
     if (error) throw error;
@@ -52,53 +36,16 @@ function createStand({
     if (!ablage) throw new AblageFehler(409, 'SharePoint ist nicht konfiguriert', 'nicht_konfiguriert');
   }
 
-  /**
-   * Zeilen mit Grund (endgueltige Fehler, Wiederholungen, Uebersprungene, Warten) fuer die Konsole
-   * der Admin-Seite. Nur fuer laufende Umzuege und die, die die Seite gerade beobachtet (umzug_ids):
-   * so kommt auch der Fehler an der letzten Datei noch an.
-   */
-  async function umzugMeldungen(ids) {
-    if (!ids.length) return [];
-    const zeilen = ergebnis(await supabase.from('ablage_umzug').select(MELDUNG_SPALTEN)
-      .eq('drive_id', driveId).in('unternehmen_id', ids).in('status', ['offen', 'fehler', 'uebersprungen'])
-      .not('grund', 'is', null).order('naechster_versuch', { ascending: false }).limit(LISTE));
-    return (zeilen || []).map((z) => ({
-      id: z.id,
-      unternehmen_id: z.unternehmen_id,
-      bereich: MEDIEN_TYPEN.has(z.typ) ? 'medien' : 'dokumente',
-      typ: z.typ,
-      status: z.status,
-      grund: z.grund,
-      versuche: Number(z.versuche) || 0,
-      max_versuche: MAX_VERSUCHE,
-      naechster_versuch: z.naechster_versuch,
-      datei: z.ziel_name || dateiAusRef(z.quelle_ref),
-      quelle: z.quelle_ref || null,
-    }));
-  }
-
-  async function einstellungLaden() {
-    const einst = ergebnis(await supabase.from('ablage_einstellung').select('schluessel, wert').in('schluessel', Object.values(ziel.NOTSCHALTER)));
-    const an = (schluessel) => (einst || []).some((e) => e.schluessel === schluessel && e.wert === true);
-    return { notschalter: an(ziel.NOTSCHALTER.medien), notschalter_dokumente: an(ziel.NOTSCHALTER.dokumente) };
-  }
-
-  async function stand({ umzug_ids: umzugIds } = {}) {
+  async function stand() {
     const konfig = { konfiguriert: !!ablage, site_url: ablage?.konfig?.siteUrl || null, drive_id: driveId };
-    const [einstellung, staende] = await Promise.all([
-      einstellungLaden(),
-      supabase.from('ablage_stand').select(STAND_SPALTEN).then(ergebnis),
-    ]);
-    const basis = { konfig, einstellung, stand: staende || [] };
+    const staende = ergebnis(await supabase.from('ablage_stand').select(STAND_SPALTEN));
+    const basis = { konfig, stand: staende || [] };
     if (!ablage) {
-      return {
-        ...basis, zaehler: { offen: 0, fehler: 0, unzugeordnet: 0, erledigt_24h: 0 }, unzugeordnet: [], fehler: [], unternehmen: [], umzug: [],
-        dokumente: [], dokument_umzug: [], umzug_meldungen: [], umzug_rest: [], final_spiegel: null,
-      };
+      return { ...basis, zaehler: { offen: 0, fehler: 0, unzugeordnet: 0, erledigt_24h: 0 }, unzugeordnet: [], fehler: [], unternehmen: [], final_spiegel: null };
     }
 
     const seit24h = iso(jetzt() - 24 * 60 * 60 * 1000);
-    const [offen, fehler, unzugeordnet, erledigt24h, unzListe, fehlerListe, unternehmen, dokumente, finalSpiegelStand, rest] = await Promise.all([
+    const [offen, fehler, unzugeordnet, erledigt24h, unzListe, fehlerListe, unternehmen, finalSpiegelStand] = await Promise.all([
       zaehlen((q) => q.eq('status', 'offen')),
       zaehlen((q) => q.eq('status', 'fehler')),
       zaehlen((q) => q.eq('status', 'unzugeordnet').eq('geloescht', false)),
@@ -107,105 +54,22 @@ function createStand({
         .eq('drive_id', driveId).order('geaendert_at', { ascending: false }).limit(LISTE).then(ergebnis),
       supabase.from('ablage_eingang').select('item_id, name, pfad, grund, versuche, naechster_versuch')
         .eq('drive_id', driveId).eq('status', 'fehler').order('naechster_versuch', { ascending: true }).limit(LISTE).then(ergebnis),
-      supabase.rpc('ablage_unternehmen_stand', { p_drive_id: driveId }).then(ergebnis),
-      supabase.rpc('ablage_dokumente_stand', { p_drive_id: driveId }).then(ergebnis),
+      supabase.from('unternehmen').select('id, firmenname, ist_test').order('firmenname', { ascending: true }).then(ergebnis),
       // Ohne Migration 20261216 bleibt die Seite benutzbar, nur ohne den Spiegel-Teil
       Promise.resolve().then(() => spiegelVon().stand()).catch((err) => {
         console.warn('[ablage-stand] Final-Spiegel:', err.message);
         return null;
       }),
-      // Der Rest ist Zusatz: scheitert er, bleibt der Stand benutzbar
-      Promise.resolve().then(() => restVon().laden()).catch((err) => {
-        console.warn('[ablage-stand] Umzug-Rest:', err.message);
-        return [];
-      }),
     ]);
 
-    const n = (v) => Number(v) || 0;
-    const liste = unternehmen || [];
-    const umzugZaehler = (u) => ({
-      unternehmen_id: u.id, offen: n(u.umzug_offen), fertig: n(u.umzug_fertig), fehler: n(u.umzug_fehler), uebersprungen: n(u.umzug_uebersprungen),
-    });
-    const hatUmzug = (u) => n(u.umzug_offen) + n(u.umzug_fertig) + n(u.umzug_fehler) + n(u.umzug_uebersprungen) > 0;
-    const beobachtet = new Set([...liste, ...(dokumente || [])].filter((u) => n(u.umzug_offen) > 0).map((u) => u.id));
-    for (const id of (Array.isArray(umzugIds) ? umzugIds : []).slice(0, LISTE)) if (istUuid(id)) beobachtet.add(id);
-    const meldungen = await umzugMeldungen([...beobachtet]);
     return {
       ...basis,
       zaehler: { offen, fehler, unzugeordnet, erledigt_24h: erledigt24h },
       unzugeordnet: unzListe || [],
       fehler: fehlerListe || [],
-      unternehmen: liste.map((u) => ({
-        id: u.id, firmenname: u.firmenname, ablage_ziel: u.ablage_ziel, ist_test: !!u.ist_test,
-        dateien_sharepoint: n(u.dateien_sharepoint), dateien_dropbox: n(u.dateien_dropbox),
-      })),
-      umzug: liste.filter(hatUmzug).map(umzugZaehler),
-      dokumente: (dokumente || []).map((d) => ({
-        id: d.id, dokument_ablage_ziel: d.dokument_ablage_ziel,
-        sharepoint: n(d.dokumente_sharepoint), dropbox: n(d.dokumente_dropbox), storage: n(d.dokumente_storage),
-      })),
-      dokument_umzug: (dokumente || []).filter(hatUmzug).map(umzugZaehler),
-      umzug_meldungen: meldungen,
-      umzug_rest: rest,
+      unternehmen: (unternehmen || []).map((u) => ({ id: u.id, firmenname: u.firmenname, ist_test: !!u.ist_test })),
       final_spiegel: finalSpiegelStand,
     };
-  }
-
-  /**
-   * Nachladen der Admin-Seite waehrend eines Umzugs: nur Zaehler, Meldungen und Weichen der
-   * beobachteten Unternehmen. Der volle Stand rechnet alle Assets und Dokumente und ist dafuer zu teuer.
-   */
-  async function fortschritt({ umzug_ids: umzugIds } = {}) {
-    const ids = [...new Set((Array.isArray(umzugIds) ? umzugIds : []).filter(istUuid))].slice(0, LISTE);
-    const leer = { einstellung: null, weichen: [], umzug: [], dokument_umzug: [], umzug_meldungen: [] };
-    if (!ablage || !ids.length) return leer;
-    const [einstellung, firmen, zeilen, meldungen] = await Promise.all([
-      einstellungLaden(),
-      supabase.from('unternehmen').select('id, ablage_ziel, dokument_ablage_ziel').in('id', ids).then(ergebnis),
-      supabase.rpc('ablage_umzug_fortschritt', { p_drive_id: driveId, p_ids: ids }).then(ergebnis),
-      umzugMeldungen(ids),
-    ]);
-    const n = (v) => Number(v) || 0;
-    const zaehler = (z) => ({
-      unternehmen_id: z.unternehmen_id, offen: n(z.offen), fertig: n(z.fertig), fehler: n(z.fehler), uebersprungen: n(z.uebersprungen),
-    });
-    const je = (bereich) => (zeilen || []).filter((z) => z.bereich === bereich).map(zaehler);
-    return {
-      einstellung,
-      weichen: (firmen || []).map((u) => ({
-        id: u.id, ablage_ziel: u.ablage_ziel || 'dropbox', dokument_ablage_ziel: u.dokument_ablage_ziel || 'dropbox',
-      })),
-      umzug: je('medien'),
-      dokument_umzug: je('dokumente'),
-      umzug_meldungen: meldungen,
-    };
-  }
-
-  function bereichVon(bereich = 'medien') {
-    if (!BEREICHE[bereich]) throw new AblageFehler(400, 'Unbekannter Bereich');
-    return BEREICHE[bereich];
-  }
-
-  async function notschalter({ an, bereich }) {
-    if (typeof an !== 'boolean') throw new AblageFehler(400, 'an muss true oder false sein');
-    const b = bereichVon(bereich);
-    const { error } = await supabase.from('ablage_einstellung')
-      .upsert({ schluessel: b.notschalter, wert: an, updated_at: iso(), updated_by: benutzer?.id || null }, { onConflict: 'schluessel' });
-    if (error) throw error;
-    // Andere warme Instanzen sehen den Schalter nach hoechstens 15 Sekunden (Cache in ziel.js)
-    ziel._reset();
-    console.log(`[ablage-stand] Notschalter ${b.notschalter} ${an ? 'AN' : 'aus'} durch ${benutzer?.email || benutzer?.id || '?'}`);
-    return { ok: true };
-  }
-
-  async function weiche({ unternehmen_id: id, ziel: z, bereich }) {
-    if (!istUuid(id) || !ZIELE.has(z)) throw new AblageFehler(400, 'Ungültige Weiche');
-    const b = bereichVon(bereich);
-    if (z === 'sharepoint') sharePointNoetig();
-    const data = ergebnis(await supabase.from('unternehmen').update({ [b.spalte]: z }).eq('id', id).select('id').maybeSingle());
-    if (!data) throw new AblageFehler(404, 'Unternehmen nicht gefunden');
-    console.log(`[ablage-stand] Weiche ${b.spalte} ${id} -> ${z} durch ${benutzer?.email || benutzer?.id || '?'}`);
-    return { ok: true };
   }
 
   async function eingangSetzen(itemId, patch, aus) {
@@ -238,35 +102,6 @@ function createStand({
     sharePointNoetig();
     ergebnis(await supabase.from('ablage_stand').update({ voll_abgleich_noetig: true, updated_at: iso() }).eq('drive_id', driveId));
     return { ok: true, angestossen: await anstossenImpl(event, 'ablage-abgleich-background', { grund: 'voll' }) };
-  }
-
-  async function umzug_starten({ unternehmen_id: id }) {
-    sharePointNoetig();
-    if (!istUuid(id)) throw new AblageFehler(400, 'unternehmen_id fehlt');
-    const u = ergebnis(await supabase.from('unternehmen').select('id, ablage_ziel').eq('id', id).maybeSingle());
-    if (!u) throw new AblageFehler(404, 'Unternehmen nicht gefunden');
-    if (u.ablage_ziel !== 'sharepoint') throw new AblageFehler(409, 'Erst die Weiche auf SharePoint stellen', 'weiche_dropbox');
-    await ablage.ordner.wurzel();
-    const angelegt = await umzugVon().anlegen(id);
-    if (angelegt) await anstossenImpl(event, 'ablage-umzug-background', { grund: 'admin' });
-    console.log(`[ablage-stand] Umzug ${id}: ${angelegt} eingereiht durch ${benutzer?.email || benutzer?.id || '?'}`);
-    return { ok: true, angelegt };
-  }
-
-  /** Verträge, Rechnungen, Belege, Auftragsdokumente eines Unternehmens (ADR 0068). */
-  async function dokument_umzug_starten({ unternehmen_id: id }) {
-    sharePointNoetig();
-    if (!istUuid(id)) throw new AblageFehler(400, 'unternehmen_id fehlt');
-    const u = ergebnis(await supabase.from('unternehmen').select('id, dokument_ablage_ziel').eq('id', id).maybeSingle());
-    if (!u) throw new AblageFehler(404, 'Unternehmen nicht gefunden');
-    if (u.dokument_ablage_ziel !== 'sharepoint') throw new AblageFehler(409, 'Erst die Weiche Dokumente auf SharePoint stellen', 'weiche_dropbox');
-    await ablage.ordner.wurzel();
-    const angelegt = await umzugVon().dokumenteAnlegen(id);
-    // Auch bei 0 neu angelegten Zeilen: eine schon offene Warteschlange (Anstoss zuvor
-    // danebengegangen) soll derselbe Klick starten. Der Läufer nimmt sich die Zeile per SKIP LOCKED.
-    const angestossen = await anstossenImpl(event, 'ablage-umzug-background', { grund: 'dokumente' });
-    console.log(`[ablage-stand] Dokument-Umzug ${id}: ${angelegt} eingereiht, angestossen=${angestossen} durch ${benutzer?.email || benutzer?.id || '?'}`);
-    return { ok: true, angelegt, angestossen };
   }
 
   function unternehmenIdPruefen(id) {
@@ -309,14 +144,13 @@ function createStand({
   }
 
   return {
-    stand, fortschritt, notschalter, weiche, erneut, ignorieren, jetzt_abgleichen, voll_abgleich, umzug_starten, dokument_umzug_starten,
-    umsortieren_planen, umsortieren_starten, final_spiegel_planen, final_spiegel_starten,
+    stand, erneut, ignorieren, jetzt_abgleichen, voll_abgleich, umsortieren_planen, umsortieren_starten, final_spiegel_planen, final_spiegel_starten,
   };
 }
 
 const AKTIONEN = new Set([
-  'stand', 'fortschritt', 'notschalter', 'weiche', 'erneut', 'ignorieren', 'jetzt_abgleichen', 'voll_abgleich', 'umzug_starten',
-  'dokument_umzug_starten', 'umsortieren_planen', 'umsortieren_starten', 'final_spiegel_planen', 'final_spiegel_starten',
+  'stand', 'erneut', 'ignorieren', 'jetzt_abgleichen', 'voll_abgleich', 'umsortieren_planen', 'umsortieren_starten',
+  'final_spiegel_planen', 'final_spiegel_starten',
 ]);
 
 module.exports = { createStand, AKTIONEN };

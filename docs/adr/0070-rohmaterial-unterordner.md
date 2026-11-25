@@ -17,7 +17,7 @@ Die Cutter arbeiten im Finder direkt im Rohmaterial: Creator-Abgaben landen dort
 - **Verschieben innerhalb des Rohmaterials:** `ablage-datei` Aktion `roh_umordnen` (`ids`, `kooperation_id`, optional `ordner_item_id`, ohne = Wurzel; gleiche Grenzen wie oben).
   - Das Ziel muss ein registrierter Rohmaterial-Ordner dieser Kooperation sein, sonst 404. Alle Dateitypen sind erlaubt, auch ZIP, weil der Typ `roh` bleibt.
   - Je Datei: Graph-Move (Konflikt = umbenennen, Name nur gekürzt, wenn der Pfad sonst zu lang wird), dann `file_name`, `file_path` und `etag` der `roh`-Zeile nachziehen. Liegt die Datei schon dort, gibt es keinen Move.
-  - Nur Dateien in SharePoint (`nicht_sharepoint` sonst). Ist der Dropbox-Schalter an, fehlen die Ablage-Spalten im Client, dann gibt es weder Checkbox noch Drag & Drop.
+  - Nur Dateien in SharePoint (`nicht_sharepoint` sonst).
 - **Videos-Tab (Team):**
   - Rohmaterial ist nach Unterordnern gruppiert: einklappbare Köpfe mit Anzahl (auch leere Ordner aus dem Register), darunter die Dateien der Wurzel. Den Unterordner leitet der Client aus `file_path` relativ zum Rohmaterial-Ordner ab.
   - „Neuer Ordner“ in der Leiste und „Unterordner anlegen“ am Ordnerkopf öffnen ein Eingabefeld in der Liste.
@@ -39,5 +39,5 @@ Die Cutter arbeiten im Finder direkt im Rohmaterial: Creator-Abgaben landen dort
   2. Migration `20261212_ablage_rohmaterial_ordner.sql`.
   3. Client.
 - Verschobene Dateien bekommen eine neue Asset-ID im Ziel-Typ. Kommentare hängen an Video-Assets, Rohmaterial hat keine, also geht nichts verloren.
-- Dropbox-Rohmaterial (eingefroren, ADR 0065) lässt sich nicht verschieben und bekommt keine Checkbox.
+- Rohmaterial-Altbestand außerhalb von SharePoint (ADR 0082) lässt sich nicht verschieben und bekommt keine Checkbox.
 - Ein im Finder umbenannter Unterordner zieht die Pfade über den normalen Abgleich nach. Die Gruppierung im CRM folgt beim nächsten Laden.

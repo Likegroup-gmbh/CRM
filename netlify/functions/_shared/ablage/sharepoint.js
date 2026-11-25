@@ -170,7 +170,7 @@ function createSharePoint({
       }
     },
 
-    /** Ein Chunk (Server-seitig: Creator-Upload, Umzug). Liefert 202-Status oder das fertige Item. */
+    /** Ein Chunk, server-seitig hochgeladen (Skripte). Liefert 202-Status oder das fertige Item. */
     async chunkHochladen(uploadUrl, buffer, start, gesamt) {
       const ende = start + buffer.length - 1;
       const resp = await ohneAuth(uploadUrl, {

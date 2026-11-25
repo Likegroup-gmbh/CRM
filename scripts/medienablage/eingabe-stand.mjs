@@ -169,7 +169,7 @@ const HAKEN = [
     { link: (e) => entraApp(e, 'Credentials') }),
   H('m365', 'api_rechte', () => 'API-Berechtigungen: Microsoft Graph → Anwendungsberechtigungen → Sites.Selected, SharePoint → Anwendungsberechtigungen → Sites.Selected, dann „Administratorzustimmung erteilen“. Beide Zeilen grün.',
     { link: (e) => entraApp(e, 'CallAnAPI') }),
-  H('sites', 'speicher', () => 'Speicher geprüft: Aktive Websites zeigt oben rechts den Speicher des ganzen Tenants, alle Sites teilen ihn. Der Dropbox-Bestand (Videos, Storys, Bilder, Rohmaterial) muss mit Luft hineinpassen, sonst bricht der Umzug mitten drin ab. Mehr Speicher: Microsoft 365 Admin Center → Marketplace → „Office 365 Extra File Storage“.',
+  H('sites', 'speicher', () => 'Speicher geprüft: Aktive Websites zeigt oben rechts den Speicher des ganzen Tenants, alle Sites teilen ihn. Alle Medien (Videos, Storys, Bilder, Rohmaterial) müssen mit Luft hineinpassen, sonst brechen Uploads ab. Mehr Speicher: Microsoft 365 Admin Center → Marketplace → „Office 365 Extra File Storage“.',
     { link: (e) => `https://${adminHost(e)}/_layouts/15/online/AdminHome.aspx#/siteManagement` }),
   H('sites', 'sites_freigegeben', (e) => `App für beide Sites freigeben: Graph Explorer als Admin, „Berechtigungen ändern“ → Sites.FullControl.All. Je Site GET https://graph.microsoft.com/v1.0/sites/${host(e)}:/sites/<Name>?$select=id, dann POST /sites/{id}/permissions mit dem Body unten, dann PATCH /sites/{id}/permissions/{permission-id} mit {"roles":["fullcontrol"]}.`,
     {
@@ -178,7 +178,7 @@ const HAKEN = [
     }),
   H('live', 'migrationen_live', () => 'Migration 20261201_medienablage.sql auf dem bestehenden Production-Projekt angewendet. Erst danach kann der Vault den Schlüssel aufnehmen.'),
   H('live', 'vault_live', () => 'Zertifikat im Vault des bestehenden Projekts (Knopf unten meldet „ok“).'),
-  H('netlify', 'netlify_live', () => 'Live-Site → Site configuration → Environment variables → „Import from a .env file“ → Inhalt der Datei eingefügt. ABLAGE_ZIEL NICHT setzen. Vorhandene Variablen (Supabase, Dropbox) nicht überschreiben.',
+  H('netlify', 'netlify_live', () => 'Live-Site → Site configuration → Environment variables → „Import from a .env file“ → Inhalt der Datei eingefügt. Vorhandene Variablen (Supabase) nicht überschreiben.',
     { link: () => 'https://app.netlify.com/' }),
 ];
 export const HAKEN_IDS = new Set(HAKEN.map((h) => h.id));
@@ -205,7 +205,7 @@ export const AKTIONEN = {
   },
   netlify_dateien: {
     gruppe: 'netlify', label: 'Import-Datei erzeugen',
-    text: 'Baut aus den Werten oben die Datei für „Import from a .env file“ auf der Live-Site. ABLAGE_SECRET und SP_WEBHOOK_CLIENT_STATE werden einmal erzeugt und gespeichert, damit sie bei jedem Lauf gleich bleiben. Supabase- und Dropbox-Variablen stehen da nicht drin.',
+    text: 'Baut aus den Werten oben die Datei für „Import from a .env file“ auf der Live-Site. ABLAGE_SECRET und SP_WEBHOOK_CLIENT_STATE werden einmal erzeugt und gespeichert, damit sie bei jedem Lauf gleich bleiben. Supabase-Variablen stehen da nicht drin.',
     braucht: [],
   },
 };

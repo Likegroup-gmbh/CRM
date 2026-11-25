@@ -13,7 +13,7 @@ import {
   resolveKooperationCreateRedirect
 } from './kooperationFromKampagne.js';
 import { navigateBack } from '../../core/breadcrumbTrail.js';
-import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
+import { ablageCascade } from '../../core/VideoDeleteHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 
 export class KooperationList {
@@ -655,7 +655,7 @@ export class KooperationList {
 
     try {
       await Promise.allSettled(
-        selectedIds.map(id => deleteDropboxCascade('kooperation', id))
+        selectedIds.map(id => ablageCascade('kooperation', id))
       );
 
       const result = await window.dataService.deleteEntities('kooperation', selectedIds);

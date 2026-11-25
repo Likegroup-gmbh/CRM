@@ -372,37 +372,6 @@
   color: var(--text-secondary);
 }
 
-.ma-notschalter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  flex-wrap: wrap;
-  padding: var(--space-md);
-}
-
-.ma-notschalter--an {
-  border-color: var(--color-error);
-  background: var(--danger-bg);
-}
-
-.ma-notschalter-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xxs);
-  max-width: 70ch;
-}
-
-.ma-notschalter-text .dq-list-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.ma-notschalter-btn {
-  padding: var(--space-xs) var(--space-md);
-}
-
 .ma-list-header {
   flex-direction: row;
   align-items: flex-end;
@@ -426,14 +395,6 @@
 
 .ma-badge {
   margin-left: var(--space-xs);
-}
-
-.ma-ziel {
-  padding: var(--space-xxs) var(--space-xs);
-  font-size: var(--text-xs);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
 }
 
 .ma-umzug {

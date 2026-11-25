@@ -1,5 +1,7 @@
 # 0064 Das Poster ist abgeleitete Datei; der Browser cacht Bytes, nicht URLs
 
+> Quelle geändert durch ADR 0082 (25.11.2026): Poster entstehen aus den Graph-Thumbnails der SharePoint-Datei (`ablageThumbnails`), nicht mehr aus Dropbox `get_thumbnail_batch`. Altbestand außerhalb von SharePoint bekommt keins (`altbestand:keine_quelle`, dauerhaft). Schlüssel, Abgleich, Read-Repair und `PosterCache` gelten weiter. Die Dropbox-Angaben unten sind Geschichte.
+
 Der Showcase lud für jede Kachel das Original aus Dropbox: bei Videos einen Temp-Link und dann so viel vom Video, bis das erste Bild da war (Canvas), bei Stills das ganze Bild. Bei 30 bis 40+ Kacheln geschah das in jeder Sitzung neu, gecacht war nur der Temp-Link. Im Ordner blieb der Player bis zum ersten Frame schwarz. Beim letzten Versuch mit Signed URLs wurden die URLs selbst gespeichert, liefen ab, und die Bilder verschwanden nach einiger Zeit.
 
 ## Entscheidung
@@ -52,7 +54,7 @@ Der Showcase lud für jede Kachel das Original aus Dropbox: bei Videos einen Tem
   select * from poster_stand();
   ```
 
-  Scheitern Videos mit `dropbox:unsupported_extension`, wird nur `thumbnails` im Generator ausgetauscht: ffmpeg oder, nach dem Wechsel zu SharePoint, Graph-Thumbnails. Vorab mit gültigen Credentials testen: `node scripts/poster-spike.mjs /tmp/poster-spike /Pfad/a.mov /Pfad/b.mp4`.
+  Scheitern Videos mit `dropbox:unsupported_extension`, wird nur `thumbnails` im Generator ausgetauscht: ffmpeg oder, nach dem Wechsel zu SharePoint, Graph-Thumbnails. Das Spike-Skript ist mit ADR 0082 gelöscht.
 - Beim Wechsel des Speichers (SharePoint) bleibt der Schlüssel `file_path + revision`. Ändern sich die Pfade, entstehen alle Poster neu, und die alten verwaisen und werden geräumt.
 - Wird die Quelle einer Finalen Version gelöscht, fällt die Revision auf das eigene `created_at` zurück. Die Finale Version bekommt dann ein eigenes Poster.
 - `failed` bleibt `failed`. Für einen neuen Versuch reicht `delete from asset_poster where status = 'failed' …`; Abgleich und Read-Repair legen die Schlüssel neu an.

@@ -7,7 +7,6 @@ import {
   getAssetDisplayLabel,
   isExternalAsset,
   isDirectImageUrl,
-  toRawDropboxUrl,
   FINAL_VARIANTS,
 } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -50,7 +49,7 @@ function linkIcon(url) {
 
 function assetThumb(url) {
   if (!isDirectImageUrl(url)) return '';
-  return `<img src="${escapeHtml(toRawDropboxUrl(url))}" alt="" class="settings-asset-thumb" loading="lazy" onerror="this.style.display='none'">`;
+  return `<img src="${escapeHtml(url)}" alt="" class="settings-asset-thumb" loading="lazy" onerror="this.style.display='none'">`;
 }
 
 function externalBadge(asset) {

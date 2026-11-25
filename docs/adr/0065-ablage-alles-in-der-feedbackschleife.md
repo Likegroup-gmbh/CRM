@@ -10,7 +10,7 @@ Die SharePoint-Ablage trennte nach Dateiart: `Kooperation/{Videos,Storys,Bilder,
   - Finale Videos in den Format-Ordnern (`9-16`, `4-5`, `1-1`) wie bisher. Finale Stories liegen ohne Format-Ordner in `Finale_Version/Story_K`; ihr Seitenverhältnis kommt aus den Pixelmaßen wie bei Videos.
 - **Typ-Ordner** gibt es nur noch für `Videos` und `Rohmaterial`. Das Gerüst legt je Video die Schleifen 1 bis 3, `Finale_Version` und in jeder Runde einen `Story_K` je Slot an.
 - **Register:** Ein `Story_K` hat `art = 'story'`, `typ = 'videos'` und die `version_number` seiner Schleife; `version_number IS NULL` heißt, er liegt in der Finalen Version. `ablage_geruest_offen` zählt einen Slot als fertig, sobald sein Ordner in der Finalen Version existiert (Migration `20261207`).
-- **Bilder ohne Video** (Altbestand, Creator-Upload ohne Ziel) liegen in der Runde des ersten Videos und bekommen beim Ablegen dessen `video_id`, so wie `CONTEXT.md` das für die Anzeige schon festlegte. Upload-Kontext, Commit (`video_id`), Creator-Job und Dropbox-Umzug tragen das Video weiter.
+- **Bilder ohne Video** (Altbestand, Creator-Upload ohne Ziel) liegen in der Runde des ersten Videos und bekommen beim Ablegen dessen `video_id`, so wie `CONTEXT.md` das für die Anzeige schon festlegte. Upload-Kontext, Commit (`video_id`) und Creator-Job tragen das Video weiter (der Dropbox-Umzug tat das auch, bis ADR 0082 ihn entfernt hat).
 - **Varianten-Ordner** entstehen nicht mehr. Der Abgleich zieht eine Datei aus einem alten Varianten-Ordner flach in ihre Schleife, die Variante bleibt an der Zeile (Tags hängen daran). Ein Unterordner einer Video-Schleife, der nicht `Story_K` heißt, ist ein freier Ordner.
 - **Kunden-Link** nur noch auf `Videos/`, dort liegt alles. `typ: 'storys'` von alten Clients ist ein Alias dafür.
 - **Lightbox und Player** hängen an den Asset-Zeilen, nicht an Ordnern. Der Player lädt Bilder ohne Bedingung auf `bilder_folder_url` nach; SharePoint setzt diesen Link nicht mehr.
@@ -26,7 +26,7 @@ Die SharePoint-Ablage trennte nach Dateiart: `Kooperation/{Videos,Storys,Bilder,
 
 - **Stories ohne eigenen Ordner flach in die Schleife.** Story und Video sind nicht an der Endung unterscheidbar, und ohne Ordner fehlt der Slot.
 - **Bilder in `Bilder/` unter der Runde.** Das ist ein zusätzlicher Klick ohne Information; die Endung reicht.
-- **Dropbox mit umbauen.** Dropbox ist eingefroren und läuft aus. Ihre alte Struktur ist eine bekannte Abweichung.
+- **Dropbox mit umbauen.** Dropbox ist eingefroren und läuft aus. Ihre alte Struktur ist eine bekannte Abweichung. Seit ADR 0082 gibt es keinen Dropbox-Code mehr, der Bestand dort ist nur noch Altbestand als Link.
 - **Bestand neu hochladen statt verschieben.** Neue Items bekämen neue `item_id`s, geteilte Links und SharePoint-Versionen gingen verloren, und jede Datei liefe einmal komplett durch die Function. Ein Move innerhalb desselben Drives überträgt keine Bytes.
 
 ## Folgen

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 import { createFakeSupabase, createFakeSharePoint, ORDNER_UNIQUE, pfadUmschreiben, urlUmschreiben, strukturOffen } from './fixtures/fakeSupabase.js';
 
@@ -6,7 +6,6 @@ const require = createRequire(import.meta.url);
 const { createUmsortieren } = require('../../netlify/functions/_shared/ablage/umsortieren.js');
 const { createOrdner } = require('../../netlify/functions/_shared/ablage/ordner.js');
 const { createStand } = require('../../netlify/functions/_shared/ablage/stand.js');
-const ziel = require('../../netlify/functions/_shared/ablage/ziel.js');
 
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const K1 = id(1);
@@ -21,14 +20,13 @@ const V2 = id(10);
 const P1 = id(11);
 const VT1 = id(12);
 const BASIS = '/Firma/Medien/Sommer/Lisa/Videos/Video_1_Unboxing';
-const FIRMA = { id: U1, firmenname: 'Firma', ablage_ziel: 'sharepoint', ist_test: false };
+const FIRMA = { id: U1, firmenname: 'Firma', ist_test: false };
 const OHNE_PRODUKTION = { kooperationen: 0, vertraege: 0, neu: 0 };
 
 function setup() {
   const supabase = createFakeSupabase({
     tabellen: {
       ablage_stand: [{ drive_id: 'd1', root_item_id: 'root' }],
-      ablage_einstellung: [{ schluessel: 'notschalter', wert: false }],
       ablage_ordner: [],
       ablage_eingang: [],
       ablage_freigabelink: [],
@@ -51,7 +49,7 @@ function setup() {
       kooperation_story_asset: [],
       kooperation_bilder_asset: [],
       kooperation_rohmaterial_asset: [],
-      unternehmen: [{ ...FIRMA, dokument_ablage_ziel: 'sharepoint' }],
+      unternehmen: [FIRMA],
       kampagne: [{ id: KA1, kampagnenname: 'Auftrag', eigener_name: 'Sommer', unternehmen_id: U1, marke_id: null }],
       produktion: [{ id: P1, name: 'Stay Loose', kampagne_id: KA1 }],
       vertraege: [],
@@ -112,7 +110,6 @@ async function altbestand(t) {
   return { koop, storys, sv, s2, s2l1, s2f, bilder, schleife2, varB, f };
 }
 
-afterEach(() => ziel._reset());
 
 describe('umsortieren: Trockenlauf', () => {
   it('zaehlt Dateien in alten Ordnern je Typ, Restdateien ohne CRM-Zeile, bewegt nichts', async () => {
@@ -206,12 +203,6 @@ describe('umsortieren: Lauf', () => {
     // tiefster Ordner zuerst: Story_2/Feedbackschleife_1
     expect(t.db.ablage_ordner.find((o) => o.id === a.s2l1.id).geloescht_at).toBe(null);
     expect(t.sp.items.has(a.s2l1.item_id)).toBe(true);
-  });
-
-  it('Notschalter pausiert', async () => {
-    const t = setup();
-    t.db.ablage_einstellung[0].wert = true;
-    expect(await t.u.lauf({ unternehmenId: U1 })).toEqual({ pausiert: true });
   });
 });
 

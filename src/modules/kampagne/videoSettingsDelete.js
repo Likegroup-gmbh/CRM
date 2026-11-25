@@ -2,36 +2,24 @@
 // Löschen von Video-, Story- und Bild-Dateien im VideoSettingsDrawer (`d`).
 
 import { deleteAssetWithFile } from '../../core/assetDelete.js';
-import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 import { ablageDateiLoeschen } from '../../core/ablage/ablageApi.js';
 import { istSharePoint } from '../../core/ablage/ablageLink.js';
 
-/** SharePoint vor der Zeile löschen (Server prüft die Zeile), Dropbox best effort. */
-async function deleteFile(typ, asset, filePath) {
+/** SharePoint vor der Zeile löschen (Server prüft die Zeile); Altbestand ist nur ein Link. */
+async function deleteFile(typ, asset) {
   if (istSharePoint(asset)) await ablageDateiLoeschen(typ, asset.id);
-  else await deleteDropboxFile(filePath);
 }
 
-async function deleteDropboxFile(filePath) {
-  if (!filePath) return;
-  await authorizedFetch('/.netlify/functions/dropbox-delete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filePath }),
-  }).catch(err => console.warn('Dropbox-Löschung fehlgeschlagen:', err));
-}
-
-/** Nachfragen, löschen, Drawer neu zeichnen. `run(assetId, filePath)` macht das eigentliche Löschen. */
+/** Nachfragen, löschen, Drawer neu zeichnen. `run(assetId)` macht das eigentliche Löschen. */
 function bindDelete(d, selector, question, run) {
   document.querySelectorAll(selector).forEach(btn => {
     btn.addEventListener('click', async () => {
       const assetId = btn.dataset.assetId;
-      const filePath = btn.dataset.filePath || '';
       if (!confirm(question)) return;
 
       btn.disabled = true;
       try {
-        await run(assetId, filePath);
+        await run(assetId);
         d.renderContent();
         d.bindEvents();
       } catch (err) {
@@ -51,14 +39,14 @@ export function bindDeleteButtons(d) {
     if (typeof d.onDelete === 'function') await d.onDelete(deletedAsset);
   });
 
-  bindDelete(d, '.story-asset-delete-btn', 'Diese Story-Datei wirklich löschen?', async (assetId, filePath) => {
-    await deleteFile('story', d.storyAssets.find(a => a.id === assetId), filePath);
+  bindDelete(d, '.story-asset-delete-btn', 'Diese Story-Datei wirklich löschen?', async (assetId) => {
+    await deleteFile('story', d.storyAssets.find(a => a.id === assetId));
     await window.supabase.from('kooperation_story_asset').delete().eq('id', assetId);
     d.storyAssets = d.storyAssets.filter(a => a.id !== assetId);
   });
 
-  bindDelete(d, '.bilder-asset-delete-btn', 'Dieses Bild wirklich löschen?', async (assetId, filePath) => {
-    await deleteFile('still', d.bilderAssets.find(a => a.id === assetId), filePath);
+  bindDelete(d, '.bilder-asset-delete-btn', 'Dieses Bild wirklich löschen?', async (assetId) => {
+    await deleteFile('still', d.bilderAssets.find(a => a.id === assetId));
     await window.supabase.from('kooperation_bilder_asset').delete().eq('id', assetId);
     d.bilderAssets = d.bilderAssets.filter(a => a.id !== assetId);
     d.onBilderChanged?.();

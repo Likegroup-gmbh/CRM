@@ -4,13 +4,10 @@ import {
   buildFinalFileName,
   buildAssetDownloadName,
   getAvailableVersions,
-  normalizeExternalUrl,
-  isValidExternalUrl,
   getAssetDisplayLabel,
   isExternalAsset,
   isDirectImageUrl,
   canPreviewImageAsset,
-  toRawDropboxUrl,
   withStillIndex,
   countStillNameUsage,
   createStillIndexCounter,
@@ -162,53 +159,6 @@ describe('getAvailableVersions', () => {
   });
 });
 
-describe('normalizeExternalUrl', () => {
-  it('fügt https:// hinzu wenn Protokoll fehlt', () => {
-    expect(normalizeExternalUrl('drive.google.com/file/123')).toBe('https://drive.google.com/file/123');
-  });
-
-  it('lässt bestehende https:// URL unverändert', () => {
-    expect(normalizeExternalUrl('https://example.com/video')).toBe('https://example.com/video');
-  });
-
-  it('lässt http:// URL unverändert', () => {
-    expect(normalizeExternalUrl('http://example.com/video')).toBe('http://example.com/video');
-  });
-
-  it('trimmt Whitespace', () => {
-    expect(normalizeExternalUrl('  https://example.com  ')).toBe('https://example.com');
-  });
-
-  it('gibt leeren String für null/undefined zurück', () => {
-    expect(normalizeExternalUrl(null)).toBe('');
-    expect(normalizeExternalUrl(undefined)).toBe('');
-    expect(normalizeExternalUrl('')).toBe('');
-  });
-});
-
-describe('isValidExternalUrl', () => {
-  it('akzeptiert gültige https URL', () => {
-    expect(isValidExternalUrl('https://drive.google.com/file/123')).toBe(true);
-  });
-
-  it('akzeptiert gültige http URL', () => {
-    expect(isValidExternalUrl('http://example.com')).toBe(true);
-  });
-
-  it('lehnt ftp-Protokoll ab', () => {
-    expect(isValidExternalUrl('ftp://files.example.com')).toBe(false);
-  });
-
-  it('lehnt ungültige URL ab', () => {
-    expect(isValidExternalUrl('not a url')).toBe(false);
-  });
-
-  it('lehnt leere/null Werte ab', () => {
-    expect(isValidExternalUrl('')).toBe(false);
-    expect(isValidExternalUrl(null)).toBe(false);
-  });
-});
-
 describe('getAssetDisplayLabel', () => {
   it('bevorzugt variant_name', () => {
     expect(getAssetDisplayLabel({ variant_name: 'Haupt', file_name: 'a.mp4' })).toBe('Haupt');
@@ -276,13 +226,6 @@ describe('canPreviewImageAsset', () => {
   it('lehnt leere Assets ab', () => {
     expect(canPreviewImageAsset(null)).toBe(false);
     expect(canPreviewImageAsset({})).toBe(false);
-  });
-});
-
-describe('toRawDropboxUrl', () => {
-  it('veraendert SharePoint-Links nicht', () => {
-    const url = 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc';
-    expect(toRawDropboxUrl(url)).toBe(url);
   });
 });
 
@@ -402,7 +345,7 @@ describe('Ad-Manager-Dateiname', () => {
     expect(renamedFilePath('/K/V/a.mp4', 'Neuer Name.MP4')).toBe('/K/V/Neuer Name.mp4');
   });
 
-  it('renamedFilePath entfernt Zeichen, die Dropbox ablehnt, und meldet leere Namen', () => {
+  it('renamedFilePath entfernt Zeichen, die die Ablage ablehnt, und meldet leere Namen', () => {
     expect(renamedFilePath('/K/a.mp4', 'a/b:c')).toBe('/K/a-b-c.mp4');
     expect(renamedFilePath('/K/a.mp4', '  .mp4')).toBeNull();
   });

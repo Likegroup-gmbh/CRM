@@ -184,10 +184,10 @@ finish() {
 # Replace the example below. Set TOTAL_STAGES to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=11
+TOTAL_STAGES=10
 
 # Staging, komplett getrennt von Live: eigenes Supabase-Projekt, eigene Netlify-Site aus
-# Branch "staging", Dropbox-App mit App-Ordner, SharePoint "Medienablage-Test".
+# Branch "staging", SharePoint "Medienablage-Test".
 # Schreibt nach .env.staging (Vite lädt sie mit --mode staging).
 # Voraussetzung: Schritt 2 erledigt (MS_* und SP_TEST_* in .env).
 # Aufruf: bash scripts/medienablage/3-staging-einrichten.sh
@@ -213,7 +213,7 @@ pause
 
 stage "Branch staging"
 say "Die Staging-Site baut aus dem Branch 'staging'. Er startet auf dem Stand von v2."
-note "Regel: feat/medienablage → staging (testen) → v2 nur mit Weichen auf dropbox, nicht mitten am Arbeitstag."
+note "Regel: feat/medienablage → staging (testen) → v2, nicht mitten am Arbeitstag."
 if git show-ref --verify --quiet refs/heads/staging; then
   note "Branch staging existiert schon."
 elif confirm "Branch staging aus v2 anlegen und pushen?"; then
@@ -271,31 +271,11 @@ write_env STAGING_ADMIN_EMAIL "$STAGING_ADMIN_EMAIL"
 pause
 
 stage "Testdaten einspielen"
-say "Zwei Test-Unternehmen (eines auf SharePoint, eines auf Dropbox), doppelte Kooperationsnamen."
+say "Zwei Test-Unternehmen, doppelte Kooperationsnamen."
 if confirm "Seed jetzt einspielen?"; then
   psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 -v admin_email="$STAGING_ADMIN_EMAIL" \
     -q -f scripts/medienablage/staging-seed.sql && printf '  %s✓%s Seed\n' "$GREEN" "$RESET"
 fi
-pause
-
-stage "Dropbox-App nur für Staging"
-say "Eigene App mit App-Ordner: Staging kann nie ins echte Dropbox schreiben."
-open_url "https://www.dropbox.com/developers/apps/create"
-step "Scoped access → App folder → Name z. B. 'CRM Staging Medienablage'"
-step "Permissions: files.metadata.write, files.content.write, files.content.read, sharing.write → Submit"
-step "Settings: App key und App secret kopieren"
-ask DROPBOX_APP_KEY "App key:"
-ask_secret DROPBOX_APP_SECRET "App secret:"
-write_env DROPBOX_APP_KEY "$DROPBOX_APP_KEY"
-write_env DROPBOX_APP_SECRET "$DROPBOX_APP_SECRET"
-open_url "https://www.dropbox.com/oauth2/authorize?client_id=${DROPBOX_APP_KEY}&response_type=code&token_access_type=offline"
-step "Zulassen → den angezeigten Code kopieren"
-ask_secret DROPBOX_CODE "Autorisierungscode:"
-DROPBOX_REFRESH_TOKEN=$(curl -s https://api.dropboxapi.com/oauth2/token \
-  -d code="$DROPBOX_CODE" -d grant_type=authorization_code \
-  -u "${DROPBOX_APP_KEY}:${DROPBOX_APP_SECRET}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).refresh_token||"")}catch{}})')
-if [[ -n "$DROPBOX_REFRESH_TOKEN" ]]; then write_env DROPBOX_REFRESH_TOKEN "$DROPBOX_REFRESH_TOKEN"
-else warn "Kein Refresh-Token erhalten (Code abgelaufen?). Stufe wiederholen."; fi
 pause
 
 stage "Zertifikat in den Staging-Vault"
@@ -327,9 +307,6 @@ umask 077
   printf 'SUPABASE_SERVICE_KEY=%s\n' "$SUPABASE_SERVICE_ROLE_KEY"
   printf 'VITE_APP_CHANNEL=staging\n'
   printf 'APP_BASE_URL=%s\n' "$STAGING_SITE_URL"
-  printf 'DROPBOX_APP_KEY=%s\n' "$DROPBOX_APP_KEY"
-  printf 'DROPBOX_APP_SECRET=%s\n' "$DROPBOX_APP_SECRET"
-  printf 'DROPBOX_REFRESH_TOKEN=%s\n' "$(_existing DROPBOX_REFRESH_TOKEN || true)"
   printf 'POSTER_SECRET=%s\n' "$(_existing POSTER_SECRET || true)"
   printf 'CREATOR_UPLOAD_TOKEN_KEY=%s\n' "$(_existing CREATOR_UPLOAD_TOKEN_KEY || true)"
   printf 'ABLAGE_SECRET=%s\n' "$(_existing ABLAGE_SECRET || true)"

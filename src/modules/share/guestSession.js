@@ -92,7 +92,7 @@ export function applyGuestJwt(jwt) {
     },
   });
   App.set('supabase', window.supabase);
-  // Netlify Functions (z.B. dropbox-proxy) bekommen das Gast-JWT als Bearer
+  // Netlify Functions (z.B. ablage-link) bekommen das Gast-JWT als Bearer
   setGuestJwt(jwt);
 }
 

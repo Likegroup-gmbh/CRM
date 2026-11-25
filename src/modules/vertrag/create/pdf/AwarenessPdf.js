@@ -872,8 +872,8 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     const filePrefix = en ? 'EN_Contract_Awareness' : 'Vertrag_Awareness';
     const fileName = `${filePrefix}_${vertrag.name || 'Kooperation'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-    const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-    console.log('✅ Direktvertrag-PDF nach Dropbox hochgeladen und URL gespeichert');
+    const uploadResult = await uploadGeneratedVertragPdf(vertrag, pdfBlob, fileName);
+    console.log('✅ Direktvertrag-PDF hochgeladen und URL gespeichert');
     doc.save(fileName);
     return uploadResult;
   } catch (error) {

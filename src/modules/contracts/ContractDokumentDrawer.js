@@ -1,6 +1,6 @@
 // ContractDokumentDrawer.js
 // Drawer zum Hochladen neuer Dokumente (Auftragsbestaetigungen) fuer einen Contract.
-// Nutzt das bestehende AuftragsbestaetigungUploader-System (Dropbox via Netlify-Functions).
+// Nutzt das bestehende AuftragsbestaetigungUploader-System (SharePoint-Ablage).
 
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { uploadAuftragsbestaetigungen } from '../../core/AuftragsbestaetigungUploader.js';
@@ -155,9 +155,6 @@ export class ContractDokumentDrawer {
 
       const { successes, errors } = await uploadAuftragsbestaetigungen(files, {
         auftragId: this.contract.id,
-        unternehmen: this.contract.unternehmen?.firmenname || '',
-        marke: this.contract.marke?.markenname || '',
-        auftragstitel: this.contract.titel || this.contract.auftragsname || '',
         uploadedById: benutzerId
       });
 

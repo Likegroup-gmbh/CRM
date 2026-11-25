@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { deleteUnternehmenCascade, collectDependentIds, persistDeleteErrors, cleanupStorage, cleanupDropbox } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
+import { deleteUnternehmenCascade, collectDependentIds, persistDeleteErrors, cleanupStorage } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
 
 function createTrackingSupabase(config = {}) {
   const log = [];
@@ -565,61 +565,6 @@ describe('UnternehmenDeleteService', () => {
 
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0].step).toContain('storage');
-    });
-  });
-
-  describe('cleanupDropbox', () => {
-
-    it('ruft deleteDropboxCascade für jede Kampagne auf', async () => {
-      const fetchLog = [];
-      const mockFetch = vi.fn(async (url, opts) => {
-        fetchLog.push({ url, body: opts?.body ? JSON.parse(opts.body) : null });
-        return { ok: true, status: 200, json: async () => ({ success: true }) };
-      });
-
-      const result = await cleanupDropbox(['k1', 'k2'], [], { fetch: mockFetch });
-
-      expect(fetchLog).toHaveLength(2);
-      expect(fetchLog[0].body).toEqual({ entityType: 'kampagne', entityId: 'k1' });
-      expect(fetchLog[1].body).toEqual({ entityType: 'kampagne', entityId: 'k2' });
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('ruft deleteDropboxCascade für verwaiste Kooperationen auf', async () => {
-      const fetchLog = [];
-      const mockFetch = vi.fn(async (url, opts) => {
-        fetchLog.push({ url, body: opts?.body ? JSON.parse(opts.body) : null });
-        return { ok: true, status: 200, json: async () => ({ success: true }) };
-      });
-
-      const result = await cleanupDropbox([], ['koop1', 'koop2'], { fetch: mockFetch });
-
-      expect(fetchLog).toHaveLength(2);
-      expect(fetchLog[0].body).toEqual({ entityType: 'kooperation', entityId: 'koop1' });
-      expect(fetchLog[1].body).toEqual({ entityType: 'kooperation', entityId: 'koop2' });
-    });
-
-    it('sammelt Dropbox-Fehler statt abzubrechen', async () => {
-      const mockFetch = vi.fn(async () => ({
-        ok: false,
-        status: 500,
-        json: async () => ({ error: 'Dropbox API down' }),
-      }));
-
-      const result = await cleanupDropbox(['k1', 'k2'], [], { fetch: mockFetch });
-
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(result.errors).toHaveLength(2);
-      expect(result.errors[0].step).toBe('dropbox_kampagne_k1');
-    });
-
-    it('macht nichts wenn keine Kampagnen und keine Kooperationen', async () => {
-      const mockFetch = vi.fn();
-
-      const result = await cleanupDropbox([], [], { fetch: mockFetch });
-
-      expect(mockFetch).not.toHaveBeenCalled();
-      expect(result.errors).toHaveLength(0);
     });
   });
 });

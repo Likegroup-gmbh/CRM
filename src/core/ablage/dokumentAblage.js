@@ -1,14 +1,12 @@
 // dokumentAblage.js
 // Verträge, Rechnungs-PDFs, Belege und Auftragsdokumente in der Ablage (ADR 0068).
 // Eine Stelle für Hochladen, Spalten, Quelle, Öffnen und Löschen; die Fachmodule geben nur
-// Typ, Bezug und ihren bisherigen Dropbox-Weg mit. Ob SharePoint oder Dropbox entscheidet der
-// Server (Weiche je Unternehmen + Notschalter Dokumente), bei DROPBOX_UPLOAD wird nicht gefragt.
+// Typ und Bezug mit. Neue Dateien landen immer in SharePoint; Altbestand (Storage, alte Links)
+// wird weiter gelesen und gelöscht.
 // Spiegel von netlify/functions/_shared/ablage/dokument.js (DokumentRegistry.test.js).
 
 import { ablagePost } from './ablageApi.js';
 import { ablageZielHolen, hochladenNachSharePoint, uploadVerwerfen } from './ablageUpload.js';
-import { DROPBOX_UPLOAD } from './schalter.js';
-import { authorizedFetch } from '../auth/getAccessToken.js';
 
 const ZEILEN_SPALTEN = (url, pfad, name, groesse) => ({
   url, pfad, name, groesse, ablage: 'ablage', drive: 'drive_id', item: 'item_id', etag: 'etag', ctag: 'ctag',
@@ -48,9 +46,8 @@ export function dokumentAblageSpalten(typ) {
   return NEUE_SPALTEN.map((k) => s[k]).filter(Boolean);
 }
 
-/** select() plus Ablage-Spalten der Typen; bei DROPBOX_UPLOAD ohne (auf Live evtl. noch nicht migriert). */
+/** select() plus Ablage-Spalten der Typen. */
 export function mitDokumentAblage(spalten, ...typen) {
-  if (DROPBOX_UPLOAD) return spalten;
   const extra = [...new Set(typen.flatMap(dokumentAblageSpalten))];
   return extra.length ? `${spalten}, ${extra.join(', ')}` : spalten;
 }
@@ -75,7 +72,8 @@ export function istSharePointDokumentUrl(url) {
 
 /**
  * Wo liegt die Datei? Ersetzt alle startsWith('/')-Prüfungen: SharePoint-Pfade beginnen auch mit '/'.
- * @returns {{ quelle: 'sharepoint' } | { quelle: 'dropbox', pfad } | { quelle: 'storage', bucket, pfad } | { quelle: 'link', url } | null}
+ * Altbestand aus Dropbox (Pfad mit '/') ist nur noch ein Link.
+ * @returns {{ quelle: 'sharepoint' } | { quelle: 'storage', bucket, pfad } | { quelle: 'link', url } | null}
  */
 export function dokumentQuelle(typ, row) {
   const def = DOKUMENT[typ];
@@ -89,9 +87,9 @@ export function dokumentQuelle(typ, row) {
     pfad = row[def.alt.pfad];
   }
   if (!url && !pfad) return null;
-  // Ohne Ablage-Spalte im select (DROPBOX_UPLOAD) erkennt man SharePoint nur an der webUrl
+  // Ohne Ablage-Spalte im select erkennt man SharePoint nur an der webUrl
   if (row[s.ablage] === undefined && istSharePointUrl(url)) return { quelle: 'sharepoint', url, pfad };
-  if (typeof pfad === 'string' && pfad.startsWith('/')) return { quelle: 'dropbox', pfad, url };
+  if (typeof pfad === 'string' && pfad.startsWith('/')) return url ? { quelle: 'link', url } : null;
   const m = typeof url === 'string' ? STORAGE_URL.exec(url) : null;
   if (m) return { quelle: 'storage', bucket: decodeURIComponent(m[1]), pfad: pfad || decodeURIComponent(m[2]), url };
   if (pfad) return { quelle: 'storage', bucket: def.bucket, pfad, url };
@@ -100,36 +98,26 @@ export function dokumentQuelle(typ, row) {
 
 export const istSharePointDokument = (typ, row) => dokumentQuelle(typ, row)?.quelle === 'sharepoint';
 
-/**
- * DB-Spalten für das Ergebnis eines Uploads, egal ob SharePoint oder Dropbox.
- * @param {string} typ
- * @param {{ ziel: 'sharepoint', commit: object } | { ziel: 'dropbox', fileUrl: string, filePath: string, file?: File }} e
- */
-export function dokumentSpalten(typ, e) {
+/** DB-Spalten aus dem Commit eines SharePoint-Uploads. */
+export function dokumentSpalten(typ, commit) {
   const s = DOKUMENT[typ].spalten;
-  const out = {};
-  if (e.ziel === 'sharepoint') {
-    const c = e.commit;
-    Object.assign(out, {
-      [s.ablage]: 'sharepoint', [s.drive]: c.drive_id, [s.item]: c.item_id, [s.url]: c.file_url ?? null, [s.pfad]: c.file_path,
-    });
-    if (s.name) out[s.name] = c.file_name ?? null;
-    if (s.groesse) out[s.groesse] = c.file_size ?? null;
-    if (s.etag) out[s.etag] = c.etag ?? null;
-    if (s.ctag) out[s.ctag] = c.ctag ?? null;
-    return out;
-  }
-  Object.assign(out, { [s.url]: e.fileUrl ?? null, [s.pfad]: e.filePath ?? null });
-  if (s.name && e.file?.name) out[s.name] = e.file.name;
-  if (s.groesse && e.file?.size != null) out[s.groesse] = e.file.size;
-  // Ersetzt eine frühere SharePoint-Datei: Ablage-Spalten zurücksetzen (nur wenn migriert)
-  if (!DROPBOX_UPLOAD) {
-    out[s.ablage] = 'dropbox';
-    out[s.drive] = null;
-    out[s.item] = null;
-    if (s.etag) out[s.etag] = null;
-    if (s.ctag) out[s.ctag] = null;
-  }
+  const out = {
+    [s.ablage]: 'sharepoint', [s.drive]: commit.drive_id, [s.item]: commit.item_id,
+    [s.url]: commit.file_url ?? null, [s.pfad]: commit.file_path,
+  };
+  if (s.name) out[s.name] = commit.file_name ?? null;
+  if (s.groesse) out[s.groesse] = commit.file_size ?? null;
+  if (s.etag) out[s.etag] = commit.etag ?? null;
+  if (s.ctag) out[s.ctag] = commit.ctag ?? null;
+  return out;
+}
+
+/** Dateisatz leeren (Datei weg). 'dropbox' ist der DB-Wert für "nicht in SharePoint". */
+export function dokumentSpaltenLeeren(typ) {
+  const s = DOKUMENT[typ].spalten;
+  const out = { [s.ablage]: 'dropbox', [s.drive]: null, [s.item]: null, [s.url]: null, [s.pfad]: null };
+  if (s.etag) out[s.etag] = null;
+  if (s.ctag) out[s.ctag] = null;
   return out;
 }
 
@@ -141,13 +129,12 @@ export function dokumentSpalten(typ, e) {
  * @param {keyof DOKUMENT} o.typ
  * @param {string} o.bezugId vertraege.id | rechnung.id | auftrag.id
  * @param {File|Blob} o.file
- * @param {() => Promise<{ fileUrl: string, filePath: string }>} o.dropbox bisheriger Dropbox-Weg
- * @param {(spalten: object, info: { ziel: string }) => Promise<any>} [o.speichern]
+ * @param {(spalten: object) => Promise<any>} [o.speichern]
  * @param {'auftragsbestaetigung'|'rechnung'} [o.dokumentTyp] nur auftragsdokument
  * @param {string} [o.ersetzenId] bestehende Zeile (zeile-Typen)
- * @returns {Promise<{ ziel: 'sharepoint'|'dropbox', spalten: object, fileUrl: string|null, filePath: string|null, ergebnis: any }>}
+ * @returns {Promise<{ spalten: object, fileUrl: string|null, filePath: string|null, ergebnis: any }>}
  */
-export async function dokumentHochladen({ typ, bezugId, file, dropbox, speichern, dokumentTyp, ersetzenId, onProgress, signal }) {
+export async function dokumentHochladen({ typ, bezugId, file, speichern, dokumentTyp, ersetzenId, onProgress, signal }) {
   if (!DOKUMENT[typ]) throw new Error(`Unbekannter Dokument-Typ: ${typ}`);
   if (!file) throw new Error('Keine Datei angegeben');
   const name = file.name || `dokument_${Date.now()}.pdf`;
@@ -160,33 +147,25 @@ export async function dokumentHochladen({ typ, bezugId, file, dropbox, speichern
     ...(ersetzenId ? { ersetzen_id: ersetzenId } : {}),
   });
 
-  if (ziel.ziel === 'dropbox') {
-    if (typeof dropbox !== 'function') throw new Error('Dropbox-Weg fehlt');
-    const r = await dropbox();
-    const spalten = dokumentSpalten(typ, { ziel: 'dropbox', fileUrl: r.fileUrl, filePath: r.filePath, file });
-    const ergebnis = speichern ? await speichern(spalten, { ziel: 'dropbox' }) : null;
-    return { ziel: 'dropbox', spalten, fileUrl: r.fileUrl ?? null, filePath: r.filePath ?? null, ergebnis };
-  }
-
   const datei = file.name ? file : new File([file], name, { type: file.type || 'application/pdf' });
   const commit = await hochladenNachSharePoint({ ziel, file: datei, signal, onProgress });
-  const spalten = dokumentSpalten(typ, { ziel: 'sharepoint', commit });
+  const spalten = dokumentSpalten(typ, commit);
   let ergebnis = null;
   if (speichern) {
     try {
-      ergebnis = await speichern(spalten, { ziel: 'sharepoint' });
+      ergebnis = await speichern(spalten);
     } catch (err) {
       // Ersetzen (gleiches Item) verwirft der Server nie
       await uploadVerwerfen(ziel.upload_id);
       throw err;
     }
   }
-  return { ziel: 'sharepoint', spalten, fileUrl: commit.file_url ?? null, filePath: commit.file_path ?? null, ergebnis };
+  return { spalten, fileUrl: commit.file_url ?? null, filePath: commit.file_path ?? null, ergebnis };
 }
 
 /**
  * Datei eines Dokuments entfernen, vor dem Löschen der Zeile bzw. dem Leeren der Spalten.
- * SharePoint: Papierkorb (Server prüft Rechte und weitere Verweise). Dropbox/Storage: wie bisher.
+ * SharePoint: Papierkorb (Server prüft Rechte und weitere Verweise). Storage: entfernen. Alte Links bleiben.
  * Fehler werden geloggt, nicht geworfen: eine verwaiste Datei ist besser als eine hängende Zeile.
  */
 export async function dokumentLoeschen(typ, row) {
@@ -194,14 +173,7 @@ export async function dokumentLoeschen(typ, row) {
   if (!q) return { quelle: null };
   try {
     if (q.quelle === 'sharepoint') {
-      if (DROPBOX_UPLOAD) return { quelle: 'sharepoint', uebersprungen: true };
       await ablagePost('ablage-datei', { aktion: 'loeschen', typ, id: row.id });
-    } else if (q.quelle === 'dropbox') {
-      await authorizedFetch('/.netlify/functions/dropbox-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: q.pfad }),
-      });
     } else if (q.quelle === 'storage') {
       const { error } = await window.supabase.storage.from(q.bucket).remove([q.pfad]);
       if (error) throw error;
@@ -213,7 +185,7 @@ export async function dokumentLoeschen(typ, row) {
   return { quelle: q.quelle };
 }
 
-/** Wie dokumentLoeschen, plus Altbestand (vertrag_unterschrieben: Storage neben Dropbox/SharePoint). */
+/** Wie dokumentLoeschen, plus Altbestand (vertrag_unterschrieben: Storage neben SharePoint). */
 export async function dokumentDateienLoeschen(typ, row) {
   const def = DOKUMENT[typ];
   const s = def.spalten;
@@ -238,7 +210,7 @@ export async function vertragDateienLoeschen(vertragId) {
 }
 
 /**
- * Nach dem Ersetzen: die vorige Datei wegräumen, wenn sie woanders lag (Dropbox/Storage).
+ * Nach dem Ersetzen: die vorige Datei wegräumen, wenn sie im Storage lag.
  * SharePoint ersetzt per neuer Version desselben Items, da bleibt nichts liegen.
  * @param {object} alt Zeile vor dem Upload, @param {object} neuSpalten Spalten des neuen Uploads
  */
@@ -351,7 +323,7 @@ export async function dokumentLinkNachUrl(url) {
 const escAttr = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /**
- * Attribute für <a>: href wie bisher (Dropbox/Storage), bei SharePoint zusätzlich
+ * Attribute für <a>: href wie gespeichert (Storage, alter Link), bei SharePoint zusätzlich
  * data-ablage-dokument, das der Klick-Interceptor (DocumentUrlHelper) auflöst.
  */
 export function dokumentLinkAttrs(typ, row) {
@@ -401,7 +373,6 @@ export function dokumentOeffnen(typ, row) {
     void inNeuemTabOeffnen(() => (row?.id ? dokumentLink(typ, row.id) : dokumentLinkNachUrl(q.url)));
     return;
   }
-  if (q.quelle === 'dropbox' && !q.url) return;
   void import('../DocumentUrlHelper.js').then((m) => m.openDocumentUrl(q.url || ''));
 }
 

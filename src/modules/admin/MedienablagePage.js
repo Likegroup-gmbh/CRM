@@ -1,48 +1,31 @@
 // MedienablagePage.js
-// Betriebsseite der Medienablage im Accounting-Bereich (nur Admins).
-// SharePoint ist die zweite Ablage neben Dropbox: die Seite zeigt den
-// Stand des Abgleichs, was vom Umzug übrig geblieben ist (und warum), den Notschalter
-// zurueck auf Dropbox, die Weiche je Unternehmen mit Bestandsumzug und den Eingang
-// (nicht zugeordnete und fehlerhafte Dateien). Stand und Aktionen laufen ueber die
-// Function ablage-stand; nach jeder Aktion wird der Stand neu geladen.
-// Teile: medienablageStand.js (Karten, Notschalter, Eingang),
-// medienablageRest.js (Rest des Umzugs mit Ursache und naechstem Schritt, Texte in
-// medienablageRestText.js), medienablageWeiche.js (Weiche, Umzug, Suche),
-// medienablageDokumente.js (Verträge, Rechnungen, Aufträge: eigener Notschalter, Weiche, Umzug),
-// medienablageFinale.js (Finale Version im Finder), medienablageUmzugBeobachten.js (laufende
-// Umzuege beobachten, Mixin), medienablageFormat.js (Helfer).
+// Betriebsseite der Medienablage im Accounting-Bereich (nur Admins). Alle Dateien liegen
+// in SharePoint (ADR 0082): die Seite zeigt den Stand des Abgleichs, Umsortieren je
+// Unternehmen, Finale spiegeln und den Eingang (nicht zugeordnete und fehlerhafte Dateien).
+// Stand und Aktionen laufen ueber die Function ablage-stand; nach jeder Aktion wird der
+// Stand neu geladen.
+// Teile: medienablageStand.js (Karten, Eingang), medienablageUmsortieren.js (Umsortieren,
+// Suche), medienablageFinale.js (Finale Version im Finder), medienablageFormat.js (Helfer).
 
 import { escapeHtml } from '../../core/format.js';
 import { navMark } from '../../core/dev/navTrace.js';
-import { postStand, setBusy, bestaetigen } from './medienablageFormat.js';
-import { nichtKonfiguriertHtml, kartenHtml, notschalterHtml, unzugeordnetHtml, fehlerHtml } from './medienablageStand.js';
-import { restHtml, restErneut } from './medienablageRest.js';
-import { weicheHtml, filterUnternehmen, weicheSetzen, umzugStarten, umsortierenStarten } from './medienablageWeiche.js';
-import { dokumenteHtml, dokumenteNotschalterUmschalten, dokumentWeicheSetzen, dokumentUmzugStarten } from './medienablageDokumente.js';
+import { postStand, setBusy } from './medienablageFormat.js';
+import { nichtKonfiguriertHtml, kartenHtml, unzugeordnetHtml, fehlerHtml } from './medienablageStand.js';
+import { umsortierenHtml, filterUnternehmen, umsortierenStarten } from './medienablageUmsortieren.js';
 import { finalSpiegelHtml, finalSpiegelStarten } from './medienablageFinale.js';
-import { installUmzugBeobachten } from './medienablageUmzugBeobachten.js';
-
-export { UMZUG_POLL_MS } from './medienablageUmzugBeobachten.js';
 
 export class MedienablagePage {
   constructor() {
     this.data = null;
     this._docClickHandler = null;
-    this._docChangeHandler = null;
     this._docInputHandler = null;
     // Abbruch-Token wie in der Datenqualitaet: ein laufender Load rendert
     // nur, solange sein Token noch gilt.
     this._ladeId = 0;
     // Eine Aktion zur Zeit; weitere Klicks waehrenddessen verfallen.
     this._busy = false;
-    // Suchtext der Weiche, ueberlebt das Neu-Rendern nach Aktionen.
+    // Suchtext der Unternehmensliste, ueberlebt das Neu-Rendern nach Aktionen.
     this._suche = '';
-    // Laufende Umzuege: zuletzt geloggter Stand je Bereich und Unternehmen, gemeldete Dateien
-    // (Fehler, Wiederholungen) und Pausen, Timer fuers Nachladen
-    this._umzugLogStand = new Map();
-    this._umzugMeldungen = new Map();
-    this._umzugPausiert = new Map();
-    this._umzugPoll = null;
     this.ready = Promise.resolve();
   }
 
@@ -70,17 +53,10 @@ export class MedienablagePage {
     this.render();
     this.bindEvents();
     navMark('render:done');
-    this.umzugBeobachten();
   }
 
   async loadData() {
-    this.data = await postStand(this.standAnfrage());
-  }
-
-  // Beobachtete Umzuege mitschicken: ihre Meldungen kommen so auch nach der letzten Datei noch
-  standAnfrage() {
-    const ids = [...new Set([...this._umzugLogStand.keys()].map(k => k.split(':')[1]))];
-    return ids.length ? { aktion: 'stand', umzug_ids: ids } : { aktion: 'stand' };
+    this.data = await postStand({ aktion: 'stand' });
   }
 
   async neuLaden() {
@@ -95,7 +71,6 @@ export class MedienablagePage {
     }
     if (ladeId !== this._ladeId) return;
     this.render();
-    this.umzugBeobachten();
   }
 
   // ---------- Helpers ----------
@@ -112,10 +87,6 @@ export class MedienablagePage {
     return this.data?.konfig || {};
   }
 
-  get notschalterAn() {
-    return !!this.data?.einstellung?.notschalter;
-  }
-
   // Ein Eintrag je Drive; angezeigt wird der konfigurierte.
   get stand() {
     const liste = this.data?.stand || [];
@@ -129,20 +100,17 @@ export class MedienablagePage {
   // ---------- Rendering ----------
 
   render() {
-    // Das Nachladen waehrend eines Umzugs rendert neu: Fokus und Cursor der Suche bleiben
+    // Neu-Rendern nach Aktionen: Fokus und Cursor der Suche bleiben
     const suche = document.activeElement?.matches?.('[data-ma-suche]') ? document.activeElement : null;
     const cursor = suche?.selectionStart ?? null;
     window.setContentSafely(window.content, `
       <div class="admin-page ma-page">
         <div class="admin-header">
-          <p class="admin-hint">SharePoint ist die zweite Medienablage neben Dropbox. Hier steht, ob der Abgleich läuft, was vom Umzug übrig geblieben ist, welche Unternehmen schon nach SharePoint hochladen und welche Dateien im Eingang hängen.</p>
+          <p class="admin-hint">Alle Uploads gehen nach SharePoint. Hier steht, ob der Abgleich läuft, welche Dateien im Eingang hängen, und hier wird umsortiert und Finale gespiegelt.</p>
         </div>
         ${this.konfig.konfiguriert ? `
           ${kartenHtml(this)}
-          ${restHtml(this)}
-          ${notschalterHtml(this)}
-          ${weicheHtml(this)}
-          ${dokumenteHtml(this)}
+          ${umsortierenHtml(this)}
           ${finalSpiegelHtml(this)}
           ${unzugeordnetHtml(this)}
           ${fehlerHtml(this)}
@@ -178,50 +146,12 @@ export class MedienablagePage {
     await this.neuLaden();
   }
 
-  async notschalterUmschalten(button) {
-    if (this._busy) return;
-    const an = !this.notschalterAn;
-    if (an) {
-      const ok = await bestaetigen({
-        title: 'Notschalter einschalten',
-        message: 'Alle neuen Uploads gehen ab sofort wieder nach Dropbox, auch für Unternehmen mit Ziel SharePoint. Dateien in SharePoint bleiben lesbar.',
-        confirmText: 'Alle Uploads zu Dropbox',
-        danger: true,
-      });
-      if (!ok) return;
-    }
-    await this.ausfuehren({ aktion: 'notschalter', an }, {
-      button,
-      erfolg: an ? 'Notschalter aktiv: alle Uploads gehen nach Dropbox.' : 'Notschalter aufgehoben: die Weiche gilt wieder.',
-    });
-  }
-
   // ---------- Events ----------
 
   bindEvents() {
     if (this._docClickHandler) return;
 
     this._docClickHandler = (e) => {
-      const schalter = e.target.closest('[data-ma-notschalter]');
-      if (schalter) {
-        void this.notschalterUmschalten(schalter);
-        return;
-      }
-      const dokSchalter = e.target.closest('[data-ma-notschalter-dokumente]');
-      if (dokSchalter) {
-        void dokumenteNotschalterUmschalten(this, dokSchalter);
-        return;
-      }
-      const dokUmzug = e.target.closest('[data-ma-dokument-umzug]');
-      if (dokUmzug) {
-        void dokumentUmzugStarten(this, dokUmzug);
-        return;
-      }
-      const restNeu = e.target.closest('[data-ma-rest-erneut]');
-      if (restNeu) {
-        void restErneut(this, restNeu);
-        return;
-      }
       const abgleich = e.target.closest('[data-ma-aktion]');
       if (abgleich) {
         const aktion = abgleich.dataset.maAktion;
@@ -229,11 +159,6 @@ export class MedienablagePage {
           button: abgleich,
           erfolg: aktion === 'voll_abgleich' ? 'Vollabgleich angestoßen.' : 'Abgleich angestoßen.',
         });
-        return;
-      }
-      const umzug = e.target.closest('[data-ma-umzug]');
-      if (umzug) {
-        void umzugStarten(this, umzug);
         return;
       }
       const umsortieren = e.target.closest('[data-ma-umsortieren]');
@@ -261,13 +186,6 @@ export class MedienablagePage {
       }
     };
 
-    this._docChangeHandler = (e) => {
-      const weiche = e.target.closest?.('[data-ma-weiche]');
-      if (weiche) void weicheSetzen(this, weiche);
-      const dokWeiche = e.target.closest?.('[data-ma-dokument-weiche]');
-      if (dokWeiche) void dokumentWeicheSetzen(this, dokWeiche);
-    };
-
     this._docInputHandler = (e) => {
       if (!e.target.closest?.('[data-ma-suche]')) return;
       this._suche = e.target.value || '';
@@ -275,23 +193,17 @@ export class MedienablagePage {
     };
 
     document.addEventListener('click', this._docClickHandler);
-    document.addEventListener('change', this._docChangeHandler);
     document.addEventListener('input', this._docInputHandler);
   }
 
   destroy() {
     // Ein noch laufender Load darf nicht mehr in die naechste Seite rendern.
     this._ladeId += 1;
-    this.stoppeUmzugPoll();
     if (this._docClickHandler) {
       document.removeEventListener('click', this._docClickHandler);
-      document.removeEventListener('change', this._docChangeHandler);
       document.removeEventListener('input', this._docInputHandler);
       this._docClickHandler = null;
-      this._docChangeHandler = null;
       this._docInputHandler = null;
     }
   }
 }
-
-installUmzugBeobachten(MedienablagePage.prototype);

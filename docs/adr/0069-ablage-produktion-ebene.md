@@ -50,4 +50,4 @@ In SharePoint lag unter der Kampagne direkt die Kooperation (`Medien/<Marke>/<Ka
 - Lange Produktionsnamen werden mitten im Wort abgeschnitten („STAY LOOSE — Creator-Kampagne Recovery K“).
 - Pfade ändern sich, also entstehen die betroffenen Poster neu (wie in ADR 0067).
 - Ordner-Links außerhalb des CRM zeigen auf den alten Pfad.
-- Die Dropbox-Ablage bleibt, wie sie ist (eingefroren, ADR 0065).
+- Die Dropbox-Ablage bleibt, wie sie ist (eingefroren, ADR 0065). Seit ADR 0082 ist sie nur noch Altbestand als Link.

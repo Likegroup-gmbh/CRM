@@ -1,4 +1,4 @@
-// Laedt ein bestehendes PDF (URL / Dropbox-Shared-Link) als Blob fuer den Anhang.
+// Laedt ein bestehendes PDF (URL, auch alter Shared-Link mit dl=0) als Blob fuer den Anhang.
 // Kernel-Hilfe: Adapter rufen das auf, Seiten nicht.
 
 import { resolveDocumentUrl } from '../DocumentUrlHelper.js';

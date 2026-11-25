@@ -7,7 +7,7 @@ const { createLesen } = require('../../netlify/functions/_shared/ablage/lesen.js
 const { createFreigabe } = require('../../netlify/functions/_shared/ablage/freigabe.js');
 const { istGastToken } = require('../../netlify/functions/_shared/ablage/http.js');
 const { GraphError } = require('../../netlify/functions/_shared/ablage/graph.js');
-const { gemischteThumbnails, BatchError } = require('../../netlify/functions/_shared/poster-generator.js');
+const { ablageThumbnails, BatchError } = require('../../netlify/functions/_shared/poster-generator.js');
 
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const K1 = id(1);
@@ -42,7 +42,7 @@ function setup() {
     tabellen: {
       kooperation_video_asset: [
         { id: A1, ablage: 'sharepoint', drive_id: 'd1', item_id: datei.id, video_id: V1 },
-        { id: A2, ablage: 'dropbox', file_path: '/Firma/x.mp4', video_id: V1 },
+        { id: A2, ablage: 'dropbox', file_path: '/Firma/x.mp4', file_url: 'https://www.dropbox.com/s/x/x.mp4?raw=1', video_id: V1 },
         { id: A3, ablage: 'sharepoint', drive_id: 'd1', item_id: fremd.id, video_id: V2 },
         { id: A4, ablage: 'sharepoint', drive_id: 'anderes', item_id: 'zz', video_id: V1 },
       ],
@@ -52,21 +52,20 @@ function setup() {
     },
     rpc: { ablage_meine_kooperationen: ({ p_ids }) => p_ids.filter((k) => k === K1).map((k) => ({ kooperation_id: k })) },
   });
-  const dropbox = { downloadUrl: async (p) => (p === '/Firma/x.mp4' ? { url: 'https://db.test/x', ablauf: '2026-11-09T16:00:00.000Z' } : null) };
   const jetzt = () => Date.parse('2026-11-09T12:00:00Z');
-  const lesen = createLesen({ supabase, ablage: { sp }, dropbox, jetzt });
+  const lesen = createLesen({ supabase, ablage: { sp }, jetzt });
   const freigabe = createFreigabe({ supabase, ablage: { sp }, jetzt });
-  return { sp, supabase, caller, dropbox, lesen, freigabe, datei, fremd, jetzt };
+  return { sp, supabase, caller, lesen, freigabe, datei, fremd, jetzt };
 }
 
 const alle = [{ typ: 'video', id: A1 }, { typ: 'video', id: A2 }, { typ: 'video', id: A3 }, { typ: 'video', id: A4 }, { typ: 'still', id: B1 }];
 
 describe('ablage-link', () => {
-  it('Admin: SharePoint-downloadUrl, Dropbox-Temp-Link, fremdes Drive fehlt', async () => {
+  it('Admin: SharePoint-downloadUrl, Altbestand als gespeicherter Link, fremdes Drive fehlt', async () => {
     const t = setup();
     const r = await t.lesen.links({ benutzer: ADMIN, caller: t.caller, body: { items: alle } });
     expect(r.links[A1]).toEqual({ url: `https://dl.test/${t.datei.id}`, laeuft_ab: '2026-11-09T12:55:00.000Z' });
-    expect(r.links[A2].url).toBe('https://db.test/x');
+    expect(r.links[A2]).toEqual({ url: 'https://www.dropbox.com/s/x/x.mp4?raw=1', laeuft_ab: null });
     expect(r.links[A3].url).toBe(`https://dl.test/${t.fremd.id}`);
     expect(r.links[B1].url).toBe(`https://dl.test/${t.datei.id}`);
     expect(r.fehlend).toEqual([A4]);
@@ -100,9 +99,9 @@ describe('ablage-link', () => {
     await expect(t.lesen.links({ benutzer: { ...MA, freigeschaltet: false }, caller: t.caller, body: { items: alle } })).rejects.toMatchObject({ status: 403 });
   });
 
-  it('ohne SharePoint-Konfiguration: Dropbox geht weiter', async () => {
+  it('ohne SharePoint-Konfiguration: nur Altbestand-Links', async () => {
     const t = setup();
-    const lesen = createLesen({ supabase: t.supabase, ablage: null, dropbox: t.dropbox });
+    const lesen = createLesen({ supabase: t.supabase, ablage: null });
     const r = await lesen.links({ benutzer: ADMIN, caller: t.caller, body: { items: alle } });
     expect(Object.keys(r.links)).toEqual([A2]);
   });
@@ -303,27 +302,26 @@ describe('ablage-freigabe: Produktions-Ordner', () => {
 describe('Poster: SharePoint-Thumbnails', () => {
   const fetchImpl = async (url) => ({ ok: true, arrayBuffer: async () => new TextEncoder().encode(url).buffer });
 
-  it('verteilt Dropbox- und SharePoint-Schluessel, Reihenfolge bleibt', async () => {
+  it('holt SharePoint-Schluessel, Altbestand scheitert dauerhaft, Reihenfolge bleibt', async () => {
     const sp = createFakeSharePoint();
     const x = sp.datei('root', 'x.mp4');
-    const dropbox = async (pfade) => pfade.map((p) => ({ ok: true, buffer: Buffer.from(`db:${p}`) }));
-    const thumbs = gemischteThumbnails({ sp, dropbox, fetchImpl });
+    const thumbs = ablageThumbnails({ sp, fetchImpl });
     const r = await thumbs(['/a.jpg', `sp:d1:${x.id}`, 'sp:fremd:i9', '/b.mov']);
-    expect(r[0].buffer.toString()).toBe('db:/a.jpg');
+    expect(r[0]).toEqual({ ok: false, fehler: 'altbestand:keine_quelle', permanent: true });
     expect(r[1].buffer.toString()).toBe(`https://thumb.test/${x.id}`);
     expect(r[2]).toMatchObject({ ok: false, fehler: 'sharepoint:fremdesDrive', permanent: true });
-    expect(r[3].buffer.toString()).toBe('db:/b.mov');
+    expect(r[3]).toMatchObject({ ok: false, permanent: true });
     expect(sp.calls.find(([op]) => op === 'thumbnailUrls')[2]).toBe('c480x1600');
   });
 
   it('noch kein Standbild: laengeres Warten; Drosselung: BatchError mit Retry-After', async () => {
     const sp = createFakeSharePoint();
     sp.thumbnailUrls = async (ids) => ids.map(() => ({ ok: false, fehler: 'sharepoint:keinThumbnail', permanent: false }));
-    const r = await gemischteThumbnails({ sp, fetchImpl })(['sp:d1:i1']);
+    const r = await ablageThumbnails({ sp, fetchImpl })(['sp:d1:i1']);
     expect(r[0]).toMatchObject({ ok: false, warteSek: 600 });
 
     sp.thumbnailUrls = async () => { throw new GraphError(429, 'tooManyRequests', 'x', { retryAfter: 30 }); };
-    const err = await gemischteThumbnails({ sp, fetchImpl })(['sp:d1:i1']).catch((e) => e);
+    const err = await ablageThumbnails({ sp, fetchImpl })(['sp:d1:i1']).catch((e) => e);
     expect(err).toBeInstanceOf(BatchError);
     expect(err.retryAfterSec).toBe(30);
   });

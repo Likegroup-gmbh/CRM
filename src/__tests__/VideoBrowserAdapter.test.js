@@ -3,10 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../modules/produktion/ProduktionService.js', () => ({ scopeKoopsByLinie: q => q }));
 vi.mock('../modules/kampagne/KampagneUtils.js', () => ({ KampagneUtils: { getDisplayName: () => '' } }));
 vi.mock('../core/VideoDeleteHelper.js', () => ({
-  deleteSingleDropboxFile: vi.fn(async () => {}),
   syncVideoAssetsAfterDelete: vi.fn(async () => ({}))
 }));
-vi.mock('../core/dropboxLinks.js', () => ({ proxyPost: vi.fn(async (b) => ({ path: b.toPath })) }));
 vi.mock('../core/stills/stillAssets.js', () => ({ updateStillCurrentFlags: vi.fn(async () => {}) }));
 vi.mock('../core/ablage/ablageApi.js', () => ({
   ablageDateiLoeschen: vi.fn(async () => ({ geloescht: true })),
@@ -17,9 +15,8 @@ const { renameAsset, renameAdManagerFile, deleteAsset, loadVideoBrowserData, sav
 const { createFakeSupabase } = await import('./fixtures/fakeSupabase.js');
 const { ablageDateiLoeschen, ablageDateiUmbenennen } = await import('../core/ablage/ablageApi.js');
 const { titelAusDateiname } = await import('../core/uploadJobs/runVideoUploadJob.js');
-const { deleteSingleDropboxFile, syncVideoAssetsAfterDelete } = await import('../core/VideoDeleteHelper.js');
+const { syncVideoAssetsAfterDelete } = await import('../core/VideoDeleteHelper.js');
 const { updateStillCurrentFlags } = await import('../core/stills/stillAssets.js');
-const { proxyPost } = await import('../core/dropboxLinks.js');
 
 /** Supabase-Attrappe: zeichnet jede Abfrage auf, Ergebnis je "tabelle:op". */
 function mockSupabase(results = {}) {
@@ -179,48 +176,37 @@ describe('VideoBrowserAdapter: Caption', () => {
 
 describe('VideoBrowserAdapter: Datei löschen', () => {
   beforeEach(() => {
-    deleteSingleDropboxFile.mockClear();
+    ablageDateiLoeschen.mockClear();
     syncVideoAssetsAfterDelete.mockClear();
     updateStillCurrentFlags.mockClear();
   });
   afterEach(() => { delete window.supabase; });
 
-  it('Video: Kommentare der Datei, Zeile und Dropbox-Datei weg, Video wird abgeglichen', async () => {
-    window.supabase = mockSupabase({ 'kooperation_video_asset:select': () => ({ data: [], error: null }) });
-    const item = video();
-    await deleteAsset(item);
-    const ops = window.supabase.calls.map(q => `${q.table}:${q.op}`);
-    expect(ops).toEqual([
+  it('Altbestand (nur Link): Kommentare der Datei und Zeile weg, Video wird abgeglichen', async () => {
+    window.supabase = mockSupabase();
+    await deleteAsset(video({ ablage: 'dropbox' }));
+    expect(window.supabase.calls.map(q => `${q.table}:${q.op}`)).toEqual([
       'kooperation_video_zeitkommentar:update',
-      'kooperation_video_asset:delete',
-      'kooperation_video_asset:select'
+      'kooperation_video_asset:delete'
     ]);
     expect(window.supabase.calls[0].payload.deleted_at).toBeTruthy();
     expect(window.supabase.calls[0].filters).toContainEqual(['asset_id', 'a1']);
-    expect(deleteSingleDropboxFile).toHaveBeenCalledWith('/K/v1.mp4');
+    expect(ablageDateiLoeschen).not.toHaveBeenCalled();
     expect(syncVideoAssetsAfterDelete).toHaveBeenCalledWith('v1');
   });
 
-  it('Datei bleibt in Dropbox, solange eine andere Zeile denselben Pfad nutzt', async () => {
-    window.supabase = mockSupabase({ 'kooperation_video_asset:select': () => ({ data: [{ id: 'f1' }], error: null }) });
-    await deleteAsset(video());
-    expect(deleteSingleDropboxFile).not.toHaveBeenCalled();
-  });
-
-  it('ohne gelöschte Zeile bleibt Dropbox unberührt', async () => {
+  it('ohne gelöschte Zeile: Fehler, kein Abgleich', async () => {
     window.supabase = mockSupabase({ 'kooperation_video_asset:delete': () => ({ data: [], error: null }) });
     await expect(deleteAsset(video())).rejects.toThrow();
-    expect(deleteSingleDropboxFile).not.toHaveBeenCalled();
     expect(syncVideoAssetsAfterDelete).not.toHaveBeenCalled();
   });
 
   it('Bild: Kommentare der Datei, eigene Tabelle, danach die Kennzeichnung der aktuellen Runde', async () => {
-    window.supabase = mockSupabase({ 'kooperation_bilder_asset:select': () => ({ data: [], error: null }) });
+    window.supabase = mockSupabase();
     await deleteAsset({ id: 'b1', type: 'still', asset: { id: 'b1', video_id: 'v1', file_path: '/K/b1.jpg' } });
     expect(window.supabase.calls.map(q => `${q.table}:${q.op}`)).toEqual([
       'kooperation_video_zeitkommentar:update',
-      'kooperation_bilder_asset:delete',
-      'kooperation_bilder_asset:select'
+      'kooperation_bilder_asset:delete'
     ]);
     expect(window.supabase.calls[0].filters).toContainEqual(['still_asset_id', 'b1']);
     expect(updateStillCurrentFlags).toHaveBeenCalledWith('v1');
@@ -228,20 +214,19 @@ describe('VideoBrowserAdapter: Datei löschen', () => {
   });
 
   it('Story: Kommentare hängen an story_asset_id', async () => {
-    window.supabase = mockSupabase({ 'kooperation_story_asset:select': () => ({ data: [], error: null }) });
+    window.supabase = mockSupabase();
     await deleteAsset({ id: 's1', type: 'story', asset: { id: 's1', video_id: 'v1', file_path: '/K/s1.mp4' } });
     expect(window.supabase.calls[0]).toMatchObject({ table: 'kooperation_video_zeitkommentar', op: 'update' });
     expect(window.supabase.calls[0].filters).toContainEqual(['story_asset_id', 's1']);
   });
 
   it('Rohmaterial hat keine Kommentare', async () => {
-    window.supabase = mockSupabase({ 'kooperation_rohmaterial_asset:select': () => ({ data: [], error: null }) });
+    window.supabase = mockSupabase();
     await deleteAsset({ id: 'r1', type: 'roh', asset: { id: 'r1', file_path: '/K/r1.mov' } });
     expect(window.supabase.calls.map(q => q.table)).not.toContain('kooperation_video_zeitkommentar');
   });
 
-  it('SharePoint: Server löscht die Datei vor der Zeile, Dropbox bleibt unberührt', async () => {
-    ablageDateiLoeschen.mockClear();
+  it('SharePoint: Server löscht die Datei vor der Zeile', async () => {
     const order = [];
     ablageDateiLoeschen.mockImplementationOnce(async () => { order.push('ablage'); return { geloescht: true }; });
     window.supabase = mockSupabase({
@@ -250,8 +235,6 @@ describe('VideoBrowserAdapter: Datei löschen', () => {
     await deleteAsset(video({ ablage: 'sharepoint', file_path: '/Ablage/K/v1.mp4' }));
     expect(ablageDateiLoeschen).toHaveBeenCalledWith('video', 'a1');
     expect(order).toEqual(['ablage', 'delete']);
-    expect(deleteSingleDropboxFile).not.toHaveBeenCalled();
-    expect(window.supabase.calls.map(q => `${q.table}:${q.op}`)).not.toContain('kooperation_video_asset:select');
     expect(syncVideoAssetsAfterDelete).toHaveBeenCalledWith('v1');
   });
 
@@ -266,36 +249,11 @@ describe('VideoBrowserAdapter: Datei löschen', () => {
 describe('VideoBrowserAdapter: Ad-Manager-Dateiname', () => {
   afterEach(() => { delete window.supabase; vi.clearAllMocks(); });
 
-  it('benennt die Datei in Dropbox um und zieht alle Zeilen mit dem Pfad nach', async () => {
+  it('Altbestand ausserhalb von SharePoint wird nicht umbenannt', async () => {
     window.supabase = mockSupabase();
-    const res = await renameAdManagerFile(video(), 'Brand_Spot_final');
-    expect(proxyPost).toHaveBeenCalledWith({ action: 'move', fromPath: '/K/v1.mp4', toPath: '/K/Brand_Spot_final.mp4' });
-    expect(res).toEqual({ path: '/K/Brand_Spot_final.mp4', stem: 'Brand_Spot_final' });
-    const [q] = window.supabase.calls;
-    expect(q).toMatchObject({
-      table: 'kooperation_video_asset', op: 'update',
-      payload: { file_path: '/K/Brand_Spot_final.mp4', ad_manager_name: 'Brand_Spot_final' }
-    });
-    expect(q.filters).toEqual([['video_id', 'v1'], ['file_path', '/K/v1.mp4']]);
-  });
-
-  it('übernimmt den Namen, den Dropbox bei Kollision vergibt', async () => {
-    proxyPost.mockResolvedValueOnce({ path: '/K/Spot (1).mp4' });
-    window.supabase = mockSupabase();
-    const res = await renameAdManagerFile(video(), 'Spot');
-    expect(res.stem).toBe('Spot (1)');
-  });
-
-  it('benennt zurück, wenn der Eintrag in der Datenbank scheitert', async () => {
-    window.supabase = mockSupabase({ 'kooperation_video_asset:update': () => ({ data: [], error: null }) });
-    await expect(renameAdManagerFile(video(), 'Neu')).rejects.toThrow();
-    expect(proxyPost).toHaveBeenLastCalledWith({ action: 'move', fromPath: '/K/Neu.mp4', toPath: '/K/v1.mp4' });
-  });
-
-  it('lehnt einen leeren Namen ab, ohne Dropbox anzufassen', async () => {
-    window.supabase = mockSupabase();
-    await expect(renameAdManagerFile(video(), '  .mp4 ')).rejects.toThrow();
-    expect(proxyPost).not.toHaveBeenCalled();
+    await expect(renameAdManagerFile(video(), 'Brand_Spot_final')).rejects.toThrow('Datei liegt nicht in SharePoint');
+    expect(ablageDateiUmbenennen).not.toHaveBeenCalled();
+    expect(window.supabase.calls).toHaveLength(0);
   });
 
   const spVideo = () => video({ ablage: 'sharepoint', item_id: 'it1', file_path: '/Ablage/K/v1.mp4' });
@@ -304,11 +262,16 @@ describe('VideoBrowserAdapter: Ad-Manager-Dateiname', () => {
     window.supabase = mockSupabase();
     const res = await renameAdManagerFile(spVideo(), 'Brand_Spot');
     expect(ablageDateiUmbenennen).toHaveBeenCalledWith('video', 'a1', 'Brand_Spot.mp4');
-    expect(proxyPost).not.toHaveBeenCalled();
     expect(res).toEqual({ path: '/Ablage/K/Brand_Spot.mp4', stem: 'Brand_Spot' });
     const [q] = window.supabase.calls;
     expect(q.payload).toEqual({ file_path: '/Ablage/K/Brand_Spot.mp4', file_name: 'Brand_Spot.mp4', etag: 'e2', ad_manager_name: 'Brand_Spot' });
     expect(q.filters).toEqual([['video_id', 'v1'], ['item_id', 'it1']]);
+  });
+
+  it('SharePoint: lehnt einen leeren Namen ab, ohne umzubenennen', async () => {
+    window.supabase = mockSupabase();
+    await expect(renameAdManagerFile(spVideo(), '  .mp4 ')).rejects.toThrow('Dateiname ist leer');
+    expect(ablageDateiUmbenennen).not.toHaveBeenCalled();
   });
 
   it('SharePoint: benennt zurück, wenn der Eintrag scheitert', async () => {

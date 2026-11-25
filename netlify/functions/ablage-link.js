@@ -1,5 +1,5 @@
 // ablage-link.js
-// Kurzlebige Links fuer Wiedergabe und Download (SharePoint: Graph-downloadUrl, Dropbox: Temp-Link).
+// Kurzlebige Links fuer Wiedergabe und Download (SharePoint: Graph-downloadUrl, Altbestand: gespeicherter Link).
 // Fuer Team, Kunden und Gaeste; Sichtbarkeit ueber RLS mit dem JWT des Aufrufers.
 // Body: { items: [{ typ, id }] } | { dokument_urls: [url] } | { frei: { kooperation_id } } | { frei_datei: { item_id } }
 // Dokumente (vertrag, rechnung, ...) liefern Schluessel `${typ}:${id}` bzw. die gespeicherte URL.

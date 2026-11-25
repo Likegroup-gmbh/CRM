@@ -159,7 +159,6 @@ export function renderActionsInner(ctx) {
 
 function renderCreatorUploadItems(table, koop) {
   if (!(window.canFeature?.('mediaUpload') ?? false)) return '';
-  if (table.kampagneInfo?.keinDropbox) return '';
   if (!koop.creator_id) return '';
 
   const status = getCachedCreatorUploadStatus(table.kampagneId).get(koop.creator_id);

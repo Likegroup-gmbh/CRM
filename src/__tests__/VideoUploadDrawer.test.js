@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { VideoUploadDrawer } from '../modules/kampagne/VideoUploadDrawer.js';
-import { deleteSingleDropboxFile } from '../core/VideoDeleteHelper.js';
-
-vi.mock('../core/VideoDeleteHelper.js', async (importOriginal) => ({
-  ...(await importOriginal()),
-  deleteSingleDropboxFile: vi.fn(() => Promise.resolve()),
-}));
 
 function createMockSupabase(assets = []) {
   const chainable = () => {
@@ -181,33 +175,7 @@ describe('VideoUploadDrawer', () => {
   });
 
   describe('Abgeleitete Felder kommen aus der DB', () => {
-    it('Link speichern: nur die Zeile, link_content wird aus der DB gelesen', async () => {
-      const sb = createTrackingSupabase([], { video: { link_content: 'https://db.link/fs2' } });
-      window.supabase = sb;
-      const onSuccess = vi.fn();
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, onSuccess);
-
-      document.getElementById('video-link-add-btn').click();
-      const urlInput = document.querySelector('.video-link-url-input');
-      urlInput.value = 'https://drive.google.com/fs1';
-      urlInput.dispatchEvent(new Event('input', { bubbles: true }));
-      const nameInput = document.querySelector('.video-variant-name-input');
-      nameInput.value = 'A';
-      nameInput.dispatchEvent(new Event('input', { bubbles: true }));
-      document.getElementById('video-upload-submit-btn').click();
-
-      await vi.waitFor(() => expect(onSuccess).toHaveBeenCalled());
-
-      const insert = sb._log.find(e => e.op === 'insert' && e.table === 'kooperation_video_asset');
-      expect(insert.data).toMatchObject({
-        file_url: 'https://drive.google.com/fs1', version_number: 1, variant_name: 'A', is_final: false,
-      });
-      expect(insert.data).not.toHaveProperty('is_current');
-      expect(sb._log.filter(e => e.op === 'update')).toEqual([]);
-      expect(onSuccess).toHaveBeenCalledWith('https://db.link/fs2', null, 'Testvideo', null);
-    });
-
-    it('Löschen: Kommentare weg, geteilte Datei bleibt, Abgleich über onVideoAssetDeleted', async () => {
+    it('Löschen: Kommentare weg, Zeile weg, Abgleich über onVideoAssetDeleted', async () => {
       const finale = {
         id: 'a-final', file_url: 'https://dl/x', file_path: '/x/v1.mp4', version_number: 1,
         variant_name: '9:16', is_current: false, is_final: true, created_at: '2026-01-01T00:00:00Z',
@@ -226,8 +194,6 @@ describe('VideoUploadDrawer', () => {
         op: 'update', table: 'kooperation_video_zeitkommentar', data: { deleted_at: expect.any(String) },
       });
       expect(sb._log).toContainEqual({ op: 'delete', table: 'kooperation_video_asset' });
-      // die Referenzprüfung findet noch eine Zeile mit demselben Pfad
-      expect(deleteSingleDropboxFile).not.toHaveBeenCalled();
       expect(onVideoAssetDeleted).toHaveBeenCalledWith(finale);
       expect(sb._log.filter(e => e.op === 'update' && e.table === 'kooperation_video_asset')).toEqual([]);
     });
@@ -242,113 +208,16 @@ describe('VideoUploadDrawer', () => {
       expect(panel?.classList.contains('drawer-panel--upload')).toBe(true);
     });
 
-    it('Link-Modus: Speichern-Button nutzt Check-Icon, kein Link-Ketten-SVG', async () => {
+    it('kein Link-Modus mehr: immer Dropzone, kein Chip, keine Link- oder Ordner-Felder', async () => {
       window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true, folderUrl: 'https://contoso.sharepoint.com/:f:/g/abc' }, vi.fn());
 
-      const submitBtn = document.getElementById('video-upload-submit-btn');
-      expect(submitBtn?.innerHTML).toContain('#crm-icon-check-filled');
-      expect(submitBtn?.innerHTML).not.toContain('#crm-icon-link');
-      expect(submitBtn?.querySelector('.mdc-btn__icon')).not.toBeNull();
-    });
-
-    it('Link-Modus: Link-hinzufügen nutzt Plus-Icon in mdc-btn__icon', async () => {
-      window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
-
-      const addBtn = document.getElementById('video-link-add-btn');
-      expect(addBtn?.innerHTML).toContain('#crm-icon-plus-lg');
-      expect(addBtn?.classList.contains('upload-drawer-btn--secondary')).toBe(true);
-    });
-  });
-
-  describe('Ordner teilen', () => {
-    it('zeigt Video-Link und Ordner teilen im Kein-Dropbox-Tab', async () => {
-      window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
-
-      expect(document.querySelector('[data-link-mode="video"]')?.classList.contains('active')).toBe(true);
-      expect(document.querySelector('[data-link-mode="folder"]')).not.toBeNull();
-      expect(document.getElementById('video-link-add-btn')).not.toBeNull();
-      expect(document.getElementById('video-folder-url-input')).toBeNull();
-    });
-
-    it('wechselt in den Ordner-Modus', async () => {
-      window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
-
-      document.querySelector('[data-link-mode="folder"]').click();
-
-      expect(document.querySelector('[data-link-mode="folder"]')?.classList.contains('active')).toBe(true);
-      expect(document.getElementById('video-link-add-btn')).toBeNull();
-      expect(document.getElementById('video-folder-url-input')).not.toBeNull();
-      expect(document.getElementById('video-upload-submit-btn').disabled).toBe(true);
-    });
-
-    it('startet im Ordner-Modus wenn folderUrl gesetzt ist', async () => {
-      window.supabase = createMockSupabase([]);
-      const url = 'https://contoso.sharepoint.com/:f:/g/abc';
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true, folderUrl: url }, vi.fn());
-
-      expect(document.getElementById('video-folder-url-input')?.value).toBe(url);
-      expect(document.querySelector('[data-link-mode="folder"]')?.classList.contains('active')).toBe(true);
-      expect(document.getElementById('video-upload-submit-btn').disabled).toBe(false);
-    });
-
-    it('speichert folder_url ohne Asset und ohne link_content', async () => {
-      const sb = createTrackingSupabase([]);
-      window.supabase = sb;
-      const onSuccess = vi.fn();
-      const url = 'https://contoso.sharepoint.com/:f:/g/abc';
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, onSuccess);
-
-      document.querySelector('[data-link-mode="folder"]').click();
-      const input = document.getElementById('video-folder-url-input');
-      input.value = url;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      document.getElementById('video-upload-submit-btn').click();
-
-      await vi.waitFor(() => expect(onSuccess).toHaveBeenCalled());
-
-      const videoUpdates = sb._log.filter(e => e.op === 'update' && e.table === 'kooperation_videos');
-      expect(videoUpdates).toEqual([
-        { op: 'update', table: 'kooperation_videos', data: { folder_url: url } }
-      ]);
-      expect(sb._log.find(e => e.op === 'insert')).toBeUndefined();
-      expect(onSuccess).toHaveBeenCalledWith(null, null, 'Testvideo', url);
-    });
-  });
-
-  describe('Kein-Dropbox Header-Chip', () => {
-    it('zeigt aktiven Chip wenn keinDropbox in Metadaten gesetzt ist', async () => {
-      window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
-
-      const chip = document.getElementById('external-links-chip');
-      expect(chip).not.toBeNull();
-      expect(chip.classList.contains('is-active')).toBe(true);
-      expect(chip.getAttribute('aria-pressed')).toBe('true');
-      expect(document.getElementById('external-links-toggle')).toBeNull();
-    });
-
-    it('toggelt useExternalLinks beim Klick auf den Chip', async () => {
-      window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-
-      const chip = document.getElementById('external-links-chip');
-      expect(drawer.useExternalLinks).toBe(false);
-      expect(chip.classList.contains('is-active')).toBe(false);
-
-      chip.click();
-      expect(drawer.useExternalLinks).toBe(true);
-      expect(chip.classList.contains('is-active')).toBe(true);
-      expect(chip.getAttribute('aria-pressed')).toBe('true');
-      expect(document.getElementById('video-upload-dropzone')).toBeNull();
-
-      chip.click();
-      expect(drawer.useExternalLinks).toBe(false);
-      expect(chip.classList.contains('is-active')).toBe(false);
       expect(document.getElementById('video-upload-dropzone')).not.toBeNull();
+      expect(document.getElementById('external-links-chip')).toBeNull();
+      expect(document.getElementById('video-link-add-btn')).toBeNull();
+      expect(document.getElementById('video-folder-url-input')).toBeNull();
+      expect(document.querySelector('[data-link-mode]')).toBeNull();
+      expect(drawer.useExternalLinks).toBeUndefined();
     });
   });
 

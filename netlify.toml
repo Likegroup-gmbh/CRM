@@ -48,14 +48,6 @@
 [functions."beschreibung-analyse"]
   timeout = 60
 
-# Dropbox Upload Function – Videos können groß sein
-[functions."dropbox-upload"]
-  timeout = 300
-
-# Dropbox Proxy – chunked upload + shared links
-[functions."dropbox-proxy"]
-  timeout = 300
-
 # Video-Transkription der Testseite /transcribe und des Skript-Generators
 # (Background Function: automatisch 15 Min Timeout, antwortet sofort 202)
 [functions."transcribe-background"]
@@ -101,15 +93,7 @@
 [functions."cleanup-temp-produktbilder"]
   schedule = "@daily"
 
-# Creator-Upload: Dropbox save_url + Finalisieren (keine grossen Bytes durch
-# die Function, aber Dropbox-/DB-Roundtrips)
-[functions."creator-upload-complete"]
-  timeout = 26
-
-[functions."creator-upload-status"]
-  timeout = 26
-
-# Orphan-GC: haengengebliebene Staging-Uploads taeglich aufraeumen
+# Orphan-GC: haengengebliebene Creator-Uploads (SharePoint-Sessions) taeglich aufraeumen
 [functions."creator-upload-cleanup"]
   schedule = "@daily"
 

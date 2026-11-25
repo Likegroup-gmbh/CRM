@@ -22,10 +22,10 @@ WHERE lower(u.email) = lower(:'admin_email')
 UPDATE public.benutzer SET rolle = 'admin', freigeschaltet = true
 WHERE lower(email) = lower(:'admin_email');
 
--- Zwei Unternehmen: eines auf SharePoint, eines auf Dropbox (prüft die Weiche).
-INSERT INTO public.unternehmen (id, firmenname, ablage_ziel) VALUES
-  ('5a5e0000-0000-4000-8000-000000000001', 'Staging SharePoint GmbH', 'sharepoint'),
-  ('5a5e0000-0000-4000-8000-000000000002', 'Staging Dropbox AG', 'dropbox')
+-- Zwei Unternehmen, damit Ordner und Rechte getrennt geprüft werden können.
+INSERT INTO public.unternehmen (id, firmenname) VALUES
+  ('5a5e0000-0000-4000-8000-000000000001', 'Staging SharePoint GmbH'),
+  ('5a5e0000-0000-4000-8000-000000000002', 'Staging Zwei AG')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.marke (id, markenname, unternehmen_id) VALUES

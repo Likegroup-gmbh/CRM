@@ -6,7 +6,7 @@
 // vor einem fetch-Download) in kurzlebige Signed URLs umgewandelt.
 // Dokumente in SharePoint (ADR 0068): die gespeicherte webUrl braucht eine Microsoft-Anmeldung,
 // aufgelöst wird über ablage-link (data-ablage-dokument="typ:id" oder die webUrl selbst).
-// Dropbox-Links und Public-Bild-Buckets sind nicht betroffen.
+// Externe Links (SharePoint, Altbestand) und Public-Bild-Buckets sind nicht betroffen.
 
 import {
   dokumentLink,
@@ -52,7 +52,7 @@ export async function getSignedDocumentUrl(bucket, path, ttl = SIGNED_URL_TTL_SE
 
 /**
  * Wandelt eine (ggf. tote Public-)URL bei Bedarf in eine Signed URL um.
- * Nicht-Storage-URLs (z.B. Dropbox) werden unverändert zurückgegeben.
+ * Nicht-Storage-URLs (z.B. SharePoint) werden unverändert zurückgegeben.
  */
 export async function resolveDocumentUrl(url) {
   if (istSharePointDokumentUrl(url)) return (await dokumentLinkNachUrl(url)) || '';

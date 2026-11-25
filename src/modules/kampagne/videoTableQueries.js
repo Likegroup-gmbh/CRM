@@ -49,7 +49,7 @@ export function batchInQuery(supabaseFrom, selectStr, column, ids, extraFilters)
   });
 }
 
-const KAMPAGNE_JOIN = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname, kein_dropbox), marke:marke_id(id, markenname))';
+const KAMPAGNE_JOIN = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
 const STATUS_JOIN = 'status_ref:status_id(id, name)';
 
 /** Kunden sehen keine Preise. */

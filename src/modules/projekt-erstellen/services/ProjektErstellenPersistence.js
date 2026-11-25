@@ -579,7 +579,7 @@ export class ProjektErstellenPersistence {
     }
   }
 
-  // Auftragsbestaetigungen + Rechnungen hochladen (SharePoint oder Dropbox je Weiche) + DB-Eintraege anlegen.
+  // Auftragsbestaetigungen + Rechnungen nach SharePoint hochladen + DB-Eintraege anlegen.
   // Fehler werden pro Dokumenttyp markiert, damit die UI AB und Rechnung unterscheiden kann.
   async uploadContractingDokumente({ formData, auftragId, auftragPayload, currentBenutzerId }) {
     const abResult = await this.uploadAuftragsbestaetigungenIfAny({
@@ -598,82 +598,26 @@ export class ProjektErstellenPersistence {
     };
   }
 
-  async uploadAuftragsbestaetigungenIfAny({ formData, auftragId, auftragPayload, currentBenutzerId }) {
+  async uploadAuftragsbestaetigungenIfAny({ formData, auftragId, currentBenutzerId }) {
     const files = formData?.auftrag?.auftragsbestaetigungen_files;
     if (!Array.isArray(files) || files.length === 0) {
       return { successes: [], errors: [] };
     }
 
-    const supabase = SUPABASE();
-    let unternehmenName = '';
-    let markeName = '';
-
-    try {
-      if (auftragPayload.unternehmen_id) {
-        const { data: u } = await supabase
-          .from('unternehmen')
-          .select('firmenname')
-          .eq('id', auftragPayload.unternehmen_id)
-          .single();
-        unternehmenName = u?.firmenname || '';
-      }
-      if (auftragPayload.marke_id) {
-        const { data: m } = await supabase
-          .from('marke')
-          .select('markenname')
-          .eq('id', auftragPayload.marke_id)
-          .single();
-        markeName = m?.markenname || '';
-      }
-    } catch (lookupErr) {
-      console.warn('⚠️ Unternehmen/Marke fuer Dropbox-Pfad nicht ermittelbar:', lookupErr);
-    }
-
     return uploadAuftragsbestaetigungen(files, {
       auftragId,
-      unternehmen: unternehmenName,
-      marke: markeName,
-      auftragstitel: auftragPayload.titel || '',
       uploadedById: currentBenutzerId
     });
   }
 
-  async uploadRechnungenIfAny({ formData, auftragId, auftragPayload, currentBenutzerId }) {
+  async uploadRechnungenIfAny({ formData, auftragId, currentBenutzerId }) {
     const files = formData?.auftrag?.rechnungen_files;
     if (!Array.isArray(files) || files.length === 0) {
       return { successes: [], errors: [] };
     }
 
-    const supabase = SUPABASE();
-    let unternehmenName = '';
-    let markeName = '';
-
-    try {
-      if (auftragPayload.unternehmen_id) {
-        const { data: u } = await supabase
-          .from('unternehmen')
-          .select('firmenname')
-          .eq('id', auftragPayload.unternehmen_id)
-          .single();
-        unternehmenName = u?.firmenname || '';
-      }
-      if (auftragPayload.marke_id) {
-        const { data: m } = await supabase
-          .from('marke')
-          .select('markenname')
-          .eq('id', auftragPayload.marke_id)
-          .single();
-        markeName = m?.markenname || '';
-      }
-    } catch (lookupErr) {
-      console.warn('⚠️ Unternehmen/Marke fuer Dropbox-Pfad nicht ermittelbar:', lookupErr);
-    }
-
     return uploadAuftragsbestaetigungen(files, {
       auftragId,
-      unternehmen: unternehmenName,
-      marke: markeName,
-      auftragstitel: auftragPayload.titel || '',
       dokumentTyp: 'rechnung',
       uploadedById: currentBenutzerId
     });

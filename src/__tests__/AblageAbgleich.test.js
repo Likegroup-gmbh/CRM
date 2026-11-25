@@ -89,34 +89,6 @@ describe('ablage-abgleich: Finder-Dateien werden Assets', () => {
     expect(t.eingang(f.id).ergebnis).toMatchObject({ quelle: 'upload' });
   });
 
-  it('Umzug: Laeufer starb nach dem Commit -> Datei haengt an der Bestandszeile, Umzug fertig', async () => {
-    const alt = id(41);
-    const t = setup({
-      assets: {
-        kooperation_video_asset: [
-          { id: alt, video_id: V1, version_number: 2, variant_name: null, is_final: false, ablage: 'dropbox', file_path: '/Alt/clip.mov' },
-          { id: id(42), video_id: V1, is_final: true, source_asset_id: alt, ablage: 'dropbox', file_path: '/Alt/clip.mov' },
-        ],
-        ablage_umzug: [{ id: 'z1', typ: 'video', asset_id: alt, status: 'offen', upload_url: 'https://upload.test/x', gesperrt_bis: iso(START + 60000) }],
-      },
-    });
-    const { ordner: schleife } = await t.ordner.zielOrdner(videoZiel({ variant_name: null }));
-    const f = t.sp.datei(schleife.item_id, 'clip.mov', 777);
-    t.supabase.db.ablage_upload.push({
-      id: id(43), drive_id: 'd1', parent_item_id: schleife.item_id, name: 'clip.mov', groesse: 777, typ: 'video', item_id: null,
-      erstellt_at: iso(t.uhr.t - 11 * 60000), kontext: { kooperation_id: K1, kooperation_video_id: V1, version_number: 2, umzug_asset_id: alt },
-    });
-    t.seite([await t.meldung(f.id)]);
-    await t.a.lauf();
-
-    const rows = t.supabase.db.kooperation_video_asset;
-    expect(rows).toHaveLength(2);
-    expect(rows.every((r) => r.ablage === 'sharepoint' && r.item_id === f.id && r.file_path === `${schleife.pfad}/clip.mov`)).toBe(true);
-    expect(t.supabase.db.ablage_upload[0]).toMatchObject({ item_id: f.id, abgeschlossen_at: iso(START) });
-    expect(t.supabase.db.ablage_umzug[0]).toMatchObject({ status: 'fertig', grund: 'abgleich', item_id: f.id, upload_url: null, gesperrt_bis: null });
-    expect(t.eingang(f.id)).toMatchObject({ status: 'erledigt', ergebnis: expect.objectContaining({ quelle: 'umzug', asset_id: alt }) });
-  });
-
   it('Story_4 in der Feedbackschleife angelegt: Slot entsteht, Ordner wird Fachordner mit CRM-Namen, Datei darin wird Story', async () => {
     const t = setup();
     const { ordner: st } = await t.ordner.zielOrdner({ typ: 'story', kooperation_id: K1, story_id: S1, version_number: 1 });

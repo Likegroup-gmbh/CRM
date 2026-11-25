@@ -60,7 +60,7 @@ function removeQueueItem(h, idx) {
 export function renderQueue(h) {
   const list = document.getElementById('video-upload-queue');
   if (!list) return;
-  const opts = { existingVersions: h._existingVersions, external: !!h.drawer.useExternalLinks };
+  const opts = { existingVersions: h._existingVersions };
   list.innerHTML = h._queue.map((item, i) => queueItemHtml(item, i, opts)).join('');
 }
 
@@ -91,12 +91,6 @@ export function bindQueueEvents(h) {
     if (variantInput) {
       const item = itemOf(variantInput);
       if (item) item.variantName = variantInput.value;
-      h._updateSubmitButtonState();
-    }
-    const urlInput = e.target.closest('.video-link-url-input');
-    if (urlInput) {
-      const item = itemOf(urlInput);
-      if (item) item.url = urlInput.value;
       h._updateSubmitButtonState();
     }
   });

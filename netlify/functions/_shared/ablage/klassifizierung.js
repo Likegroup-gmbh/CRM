@@ -10,7 +10,8 @@
 // Bild flach (Typ aus der Endung) und je Story-Slot einen Ordner Story_K. Rohmaterial/ darf freie
 // Unterordner haben, Dateien darin sind Rohmaterial der Kooperation (ADR 0070). Typ-Ordner Storys/
 // und Bilder/ sowie Varianten-Ordner (A/B/C) stammen aus dem Altbestand und gelten bis zum
-// Umsortieren weiter.
+// Umsortieren weiter. Upload-Spalten der Kampagne liegen unter <Kooperation>/<Spalte> (direkt
+// bzw. je Video in Video_N), Dateien darin gehoeren der Spalte (custom_column_assets).
 //
 // Entscheidungen fuer Dateien:
 //   ignorieren | warten | unzugeordnet | entfernen
@@ -34,8 +35,8 @@ const ELTERN_VERSUCHE = 5;
 const WARTEN_SEK = { upload: 120, eltern: 30, mass: 20 };
 
 const ASSET_TYP = { videos: 'video', storys: 'story', bilder: 'still', rohmaterial: 'roh' };
-const GUELTIGE_TYPEN = new Set(Object.values(ASSET_TYP));
-const BESITZ = ['unternehmen_id', 'bereich', 'marke_id', 'kampagne_id', 'produktion_id', 'kooperation_id', 'kooperation_video_id', 'typ', 'story_nummer', 'version_number'];
+const GUELTIGE_TYPEN = new Set([...Object.values(ASSET_TYP), 'spalte']);
+const BESITZ = ['unternehmen_id', 'bereich', 'marke_id', 'kampagne_id', 'produktion_id', 'kooperation_id', 'kooperation_video_id', 'typ', 'story_nummer', 'version_number', 'custom_column_id'];
 
 /** Besitzer-Spalten fuer einen Ordner unter `eltern` (frei: erbt den fachlichen Ort). */
 function besitzVon(eltern) {
@@ -54,11 +55,22 @@ function zielAusKontext(k) {
     version_number: Number(k.version_number) || 1,
     is_final: !!k.is_final,
     variant_name: k.variant_name || null,
+    custom_column_id: k.custom_column_id || null,
+    entity_id: k.entity_id || null,
   };
 }
 
 /** Asset-Zeile -> Ziel (fuer "zurueck an den alten Platz"). */
 function zielAusZeile(row) {
+  // Spalten-Datei: entity_id ist die Kooperation oder (Spalte auf Videoebene) das Video
+  if (row.custom_column_id) {
+    return {
+      kooperation_id: row.kooperation_id || null,
+      kooperation_video_id: row.entity_id && row.entity_id !== row.kooperation_id ? row.entity_id : null,
+      custom_column_id: row.custom_column_id,
+      entity_id: row.entity_id || null,
+    };
+  }
   return {
     kooperation_id: row.kooperation_id || null,
     kooperation_video_id: row.video_id || null,
@@ -142,6 +154,17 @@ function ortVon(eltern) {
       return { art: 'dokument' };
     case 'bereich':
       return DOKUMENT_BEREICHE.has(eltern.bereich) ? { art: 'dokument' } : { art: 'falsch', grund: 'bereich_ordner' };
+    case 'spalte':
+      return basis.kooperation_id && eltern.custom_column_id
+        ? { art: 'asset', typ: 'spalte', ziel: { kooperation_id: basis.kooperation_id, custom_column_id: eltern.custom_column_id, entity_id: basis.kooperation_id } }
+        : { art: 'falsch', grund: 'register_unvollstaendig' };
+    case 'spalte_video':
+      return basis.kooperation_id && basis.kooperation_video_id && eltern.custom_column_id
+        ? { art: 'asset', typ: 'spalte', ziel: { ...basis, custom_column_id: eltern.custom_column_id, entity_id: basis.kooperation_video_id } }
+        : { art: 'falsch', grund: 'register_unvollstaendig' };
+    case 'spalte_videos':
+      // Spalte auf Videoebene: Dateien gehoeren in den Ordner eines Videos
+      return { art: 'frei' };
     case 'test':
     case 'unzugeordnet':
       return { art: 'ignorieren', grund: `${eltern.art}_ordner` };
@@ -180,10 +203,6 @@ function dateiEinordnen({ item, eltern, elternIstWurzel = false, elternOffen = f
     const seit = Date.parse(upload.abgeschlossen_at || upload.erstellt_at || '') || 0;
     if (jetztMs - seit < UPLOAD_WARTEN_MS) return { aktion: 'warten', sek: WARTEN_SEK.upload, grund: 'upload_laeuft' };
     const k = upload.kontext || {};
-    // Umzug des Bestands: die Datei gehoert zu einer bestehenden Zeile, nie ein zweites Asset
-    if (GUELTIGE_TYPEN.has(upload.typ) && k.umzug_asset_id) {
-      return { aktion: 'umzug', typ: upload.typ, asset_id: k.umzug_asset_id, upload_id: upload.id };
-    }
     if (GUELTIGE_TYPEN.has(upload.typ) && k.kooperation_id) {
       return { aktion: 'asset', typ: upload.typ, ziel: zielAusKontext(k), umziehen: false, quelle: 'upload' };
     }

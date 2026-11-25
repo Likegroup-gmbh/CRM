@@ -15,6 +15,8 @@ const ORDNER = [
   'supabase/functions/share-list',
   'supabase/functions/einladung',
   'supabase/functions/_shared',
+  'netlify/functions/_shared/ablage',
+  'src/core/uploadJobs',
 ];
 
 const DATEI_MUSTER = [
@@ -25,13 +27,14 @@ const DATEI_MUSTER = [
   { ordner: 'src/core/form/logic', muster: /^(FormSearchableSelect|searchableSelect)/i },
   { ordner: 'src/core/ui', muster: /^(verknuepfung|tableVerknuepfungen)/i },
   { ordner: 'src/modules/skripte', muster: /^skriptPaket/i },
-  { ordner: 'src/modules/kampagne', muster: /^(KampagneCalendar|kampagneCalendar|produktionFlow|kooperationFlowZiel|produktionTabDetail|detailWahlSwitch|skriptWahlSwitch|KampagneDetailKatalog|KampagneDetailSkripte)/i },
+  { ordner: 'src/modules/kampagne', muster: /^(KampagneCalendar|kampagneCalendar|produktionFlow|kooperationFlowZiel|produktionTabDetail|detailWahlSwitch|skriptWahlSwitch|KampagneDetailKatalog|KampagneDetailSkripte|storysTab|CustomUploadTabHandler|customUploadBestand)/i },
+  { ordner: 'src/modules/kooperation', muster: /^kooperationVideoDetail/i },
   { ordner: 'src/modules/produkt', muster: /^produktFormEinbettung/i },
   { ordner: 'src/modules/persona', muster: /^personaFormEinbettung/i },
   { ordner: 'src/core/doc', muster: /^docEinbettung/i },
   { ordner: 'src/modules/video-browser', muster: /^(videoBrowserKalender|videoBrowserView|videoBrowserVollansicht|videoBrowserVerknuepfungen|videoBrowserAdapterWrite|videoBrowserHost|videoBrowserDetailEvents|videoBrowserShowcase|videoBrowserRenderShowcase|videoBrowserSuche|videoBrowserKommentarAutoren)/i },
-  { ordner: 'src/modules/admin', muster: /^PdfVorlagen/i },
-  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender|videoBrowserShowcase|videoBrowserVollansicht|videoBrowserVerknuepfungen|videoBrowserSuche|searchableSelect|verknuepfung|tableVerknuepfungen|ablageOrdnerLink|tabSlider|viewToggleSlider|produktionFlow|docEinbettung|skriptImFlow|reportPdf)/i },
+  { ordner: 'src/modules/admin', muster: /^(PdfVorlagen|medienablage)/i },
+  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender|videoBrowserShowcase|videoBrowserVollansicht|videoBrowserVerknuepfungen|videoBrowserSuche|searchableSelect|verknuepfung|tableVerknuepfungen|ablageOrdnerLink|tabSlider|viewToggleSlider|produktionFlow|docEinbettung|skriptImFlow|reportPdf|VerifyAuthStaffCache|AblageCascade|AblageSpalte|CustomUploadJob|MediaSrc|RohmaterialService|VideoRohmaterialRenderer|VertragPdfUpload|medienablage)/i },
 ];
 
 function dateienIn(ordner) {

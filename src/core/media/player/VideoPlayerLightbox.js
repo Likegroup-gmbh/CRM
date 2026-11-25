@@ -1,6 +1,4 @@
 import { MediaLightbox } from '../MediaLightbox.js';
-import { ICON_DROPBOX } from '../mediaPlayerIcons.js';
-import { toPreviewDropboxUrl } from '../../VideoUploadUtils.js';
 import { prefetchStreamUrl } from '../mediaSrc.js';
 import * as MediaCache from '../MediaCache.js';
 import { PlayerSession } from './PlayerSession.js';
@@ -101,7 +99,6 @@ export class VideoPlayerLightbox {
 
   async _open(finders, kooperationId = null, intent = null) {
     const s = this.session;
-    this.prefetcher.addPreconnect();
     await Promise.all([
       this.itemBuilder.ensureBilderLoaded(),
       this.itemBuilder.ensureStorySlotsLoaded(),
@@ -123,17 +120,12 @@ export class VideoPlayerLightbox {
     s.resetItemState();
     s.intent = intent;
 
-    // Warm-Start: Temp-Link des angeklickten Mediums sofort anfragen
+    // Warm-Start: Leselink des angeklickten Mediums sofort anfragen
     const lookup = this.currentMedia()?.lookup;
-    if (lookup && (lookup.file_path || lookup.file_url)) prefetchStreamUrl(lookup);
+    if (lookup) prefetchStreamUrl(lookup);
 
     this.lightbox.open({
       className: 'video-player-lightbox media-split-lightbox',
-      headerAction: {
-        icon: ICON_DROPBOX,
-        ariaLabel: 'Auf Dropbox ansehen',
-        getHref: () => toPreviewDropboxUrl(this.currentMedia()?.lookup.file_url),
-      },
       onPrev: () => this.navigate(-1),
       onNext: () => this.navigate(1),
       hasPrev: () => s.index > 0,

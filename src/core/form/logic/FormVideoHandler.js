@@ -297,7 +297,7 @@ export class FormVideoHandler {
       if (failed.length > 0) {
         throw new Error(`${failed.length} von ${toRemove.length} Videos konnten nicht gelöscht werden`);
       }
-      console.log(`✅ ${toRemove.length} überzählige Videos entfernt (inkl. Dropbox + Assets)`);
+      console.log(`✅ ${toRemove.length} überzählige Videos entfernt (inkl. Dateien + Assets)`);
     }
 
     if (fresh.length > 0) {

@@ -1,9 +1,9 @@
 // bilderTabRender.js
-// HTML des Stills-Tabs im VideoUploadDrawer: Upload- bzw. Link-Pane, Warteschlange
+// HTML des Stills-Tabs im VideoUploadDrawer: Upload-Pane, Warteschlange
 // und die Liste vorhandener Stills (gruppiert nach Video).
 
 import {
-  escapeHtml, MAX_VERSIONS, mdcBtnIcon, ICON_PLUS_16, ICON_CHECK_16, ICON_UPLOAD_16,
+  escapeHtml, MAX_VERSIONS, mdcBtnIcon, ICON_UPLOAD_16,
 } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -20,13 +20,13 @@ function existingSection() {
           </div>`;
 }
 
-function footer(submitIcon, submitLabel) {
+function footer() {
   return `
           <div class="drawer-footer bilder-upload-drawer-footer">
             <button type="button" class="mdc-btn mdc-btn--cancel" id="bilder-upload-cancel-btn">Abbrechen</button>
             <button type="button" class="mdc-btn mdc-btn--create" id="bilder-upload-submit-btn" disabled>
-              ${mdcBtnIcon(submitIcon)}
-              <span class="mdc-btn__label">${submitLabel}</span>
+              ${mdcBtnIcon(ICON_UPLOAD_16)}
+              <span class="mdc-btn__label">Hochladen</span>
             </button>
           </div>`;
 }
@@ -54,28 +54,7 @@ export function bilderUploadPane(activeTab) {
           </div>
 
           <div class="upload-error-msg" id="bilder-upload-error" style="display:none;"></div>
-${footer(ICON_UPLOAD_16, 'Hochladen')}
-${existingSection()}
-        </div>
-      </div>
-    `;
-}
-
-export function bilderLinkPane(activeTab) {
-  return `
-      <div id="upload-tab-bilder" style="${activeTab !== 'bilder' ? 'display:none' : ''}">
-        <div class="bilder-upload-drawer-content">
-          <div class="link-add-section">
-            <button type="button" class="mdc-btn upload-drawer-btn--secondary" id="bilder-link-add-btn">
-              ${mdcBtnIcon(ICON_PLUS_16)}
-              <span class="mdc-btn__label">Still-Link hinzufügen</span>
-            </button>
-          </div>
-
-          <div class="upload-file-list" id="bilder-preview-list"></div>
-
-          <div class="upload-error-msg" id="bilder-upload-error" style="display:none;"></div>
-${footer(ICON_CHECK_16, 'Speichern')}
+${footer()}
 ${existingSection()}
         </div>
       </div>
@@ -92,25 +71,6 @@ function versionOptionsHtml(item, existingVersions) {
   }).join('');
   html += `<option value="final"${item.isFinal ? ' selected' : ''}>Finale Version</option>`;
   return html;
-}
-
-export function linkQueueHtml(queue, existingVersions) {
-  return queue.map((item, i) => `
-        <div class="upload-file-item video-queue-item">
-          <div class="video-queue-variant flex-1">
-            <input type="url" class="form-input bilder-link-url-input" data-idx="${i}"
-              value="${escapeHtml(item.url || '')}" placeholder="https://..." />
-          </div>
-          <div class="video-queue-variant">
-            <input type="text" class="form-input bilder-variant-name-input" data-idx="${i}"
-              value="${escapeHtml(item.variantName || '')}" placeholder="Varianten-Name" maxlength="120"/>
-          </div>
-          <div class="video-queue-selects">
-            <select class="form-input bilder-version-select" data-idx="${i}">${versionOptionsHtml(item, existingVersions)}</select>
-          </div>
-          <button type="button" class="file-remove-btn bilder-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
-        </div>
-      `).join('');
 }
 
 export function fileQueueHtml(queue, existingVersions) {
@@ -151,7 +111,7 @@ function existingImageHtml(img, videos, trashIcon) {
             </div>
             <div class="existing-asset-actions">
               ${videoSelect}
-              <button type="button" class="existing-image-delete" data-id="${img.id}" data-path="${escapeHtml(img.file_path || '')}" title="Löschen">${trashIcon}</button>
+              <button type="button" class="existing-image-delete" data-id="${img.id}" title="Löschen">${trashIcon}</button>
             </div>
           </div>`;
 }

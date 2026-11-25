@@ -1,30 +1,32 @@
 // _shared/ablage/lesen.js
 // Lesepfad: kurzlebige Links fuer Wiedergabe und Download (ablage-link), freie Ordner fuers Team.
 // Sichtbarkeit ueber die Asset-ID mit dem JWT des Aufrufers (RLS), bei Mitarbeitern zusaetzlich
-// die Zuordnung zur Kooperation. Dropbox-Zeilen bekommen wie bisher einen Temp-Link.
+// die Zuordnung zur Kooperation. Altbestand ausserhalb von SharePoint ist nur noch ein Link (file_url).
 
 const { istUuid } = require('./konfig');
 const { TABELLE } = require('./asset');
 const { systemdatei } = require('./pfad');
 const { istStaff, erlaubteKooperationen } = require('./zugriff');
 const { AblageFehler } = require('./http');
-const { createDropboxAblage } = require('./dropbox');
 const dokument = require('./dokument');
 
 const MAX_ITEMS = 100;
 // Graph-downloadUrls gelten etwa eine Stunde; der Client erneuert 5 min vorher
 const SP_GUELTIG_MS = 55 * 60 * 1000;
-const DROPBOX_PARALLEL = 6;
+const STORAGE_PARALLEL = 6;
 const FREI_TIEFE = 3;
 const FREI_MAX_DATEIEN = 300;
 const VORFAHREN_MAX = 8;
 
 const SPALTEN = {
-  video: 'id, ablage, drive_id, item_id, file_path, video_id',
-  story: 'id, ablage, drive_id, item_id, file_path, video_id',
-  still: 'id, ablage, drive_id, item_id, file_path, kooperation_id, video_id',
-  roh: 'id, ablage, drive_id, item_id, file_path, kooperation_id',
+  video: 'id, ablage, drive_id, item_id, file_url, video_id',
+  story: 'id, ablage, drive_id, item_id, file_url, video_id',
+  still: 'id, ablage, drive_id, item_id, file_url, kooperation_id, video_id',
+  roh: 'id, ablage, drive_id, item_id, file_url, kooperation_id',
+  spalte: 'id, ablage, drive_id, item_id, file_url, kooperation_id',
 };
+
+const istLink = (url) => typeof url === 'string' && /^https?:\/\//i.test(url);
 
 async function parallel(liste, n, fn) {
   let i = 0;
@@ -38,13 +40,13 @@ async function parallel(liste, n, fn) {
 }
 
 /**
- * @param {{ supabase: object, ablage: object|null, dropbox?: object, jetzt?: () => number }} deps
+ * @param {{ supabase: object, ablage: object|null, jetzt?: () => number }} deps
  */
-function createLesen({ supabase, ablage, dropbox = createDropboxAblage(), jetzt = () => Date.now() }) {
+function createLesen({ supabase, ablage, jetzt = () => Date.now() }) {
   const sp = ablage?.sp || null;
   const iso = (ms) => new Date(ms).toISOString();
 
-  /** Kooperation je Zeile: Videos und Storys ueber video_id, Bilder/Rohmaterial direkt. */
+  /** Kooperation je Zeile: Videos und Storys ueber video_id, Bilder/Rohmaterial/Spalten direkt. */
   async function kooperationJeZeile(zeilen) {
     const videoIds = [...new Set(zeilen.filter((z) => !z.row.kooperation_id && z.row.video_id).map((z) => z.row.video_id))];
     const videoKoop = new Map();
@@ -79,7 +81,7 @@ function createLesen({ supabase, ablage, dropbox = createDropboxAblage(), jetzt 
 
   // ─── Dokumente (ADR 0068): Sichtbarkeit nur ueber RLS der Fach-Zeile, keine Gaeste ───
 
-  /** Kurzlebiger Link je Dokument-Zeile: SharePoint downloadUrl, Dropbox Temp-Link, Storage Signed URL. */
+  /** Kurzlebiger Link je Dokument-Zeile: SharePoint downloadUrl, Storage Signed URL, sonst der gespeicherte Link. */
   async function dokumentLinks(zeilen) {
     const out = new Map();
     const ablauf = iso(jetzt() + SP_GUELTIG_MS);
@@ -92,12 +94,9 @@ function createLesen({ supabase, ablage, dropbox = createDropboxAblage(), jetzt 
         if (url) out.set(z.key, { url, laeuft_ab: ablauf });
       }
     }
-    await parallel(mitQuelle.filter((z) => z.q.quelle !== 'sharepoint'), DROPBOX_PARALLEL, async (z) => {
+    await parallel(mitQuelle.filter((z) => z.q.quelle !== 'sharepoint'), STORAGE_PARALLEL, async (z) => {
       try {
-        if (z.q.quelle === 'dropbox') {
-          const l = await dropbox.downloadUrl(z.q.pfad);
-          if (l?.url) out.set(z.key, { url: l.url, laeuft_ab: l.ablauf });
-        } else if (z.q.quelle === 'storage') {
+        if (z.q.quelle === 'storage') {
           const { data, error } = await supabase.storage.from(z.q.bucket).createSignedUrl(z.q.pfad, SP_GUELTIG_MS / 1000);
           if (!error && data?.signedUrl) out.set(z.key, { url: data.signedUrl, laeuft_ab: ablauf });
         } else if (z.q.url) {
@@ -183,17 +182,8 @@ function createLesen({ supabase, ablage, dropbox = createDropboxAblage(), jetzt 
       }
     }
 
-    const dbZeilen = zeilen.filter((z) => z.row.ablage !== 'sharepoint' && z.row.file_path);
-    const proPfad = new Map();
-    await parallel([...new Set(dbZeilen.map((z) => z.row.file_path))], DROPBOX_PARALLEL, async (pfad) => {
-      proPfad.set(pfad, await dropbox.downloadUrl(pfad).catch((err) => {
-        console.warn('[ablage-link] Dropbox:', pfad, err.message);
-        return null;
-      }));
-    });
-    for (const z of dbZeilen) {
-      const l = proPfad.get(z.row.file_path);
-      if (l?.url) out[z.row.id] = { url: l.url, laeuft_ab: l.ablauf };
+    for (const z of zeilen) {
+      if (z.row.ablage !== 'sharepoint' && istLink(z.row.file_url)) out[z.row.id] = { url: z.row.file_url, laeuft_ab: null };
     }
 
     const schluessel = (it) => (dokument.istDokument(it.typ) ? `${it.typ}:${it.id}` : it.id);

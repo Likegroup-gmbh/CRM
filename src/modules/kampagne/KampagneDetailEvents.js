@@ -17,7 +17,7 @@ import { setBudgetTags } from '../produktion/budgetTabFilter.js';
 import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
-import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
+import { ablageCascade } from '../../core/VideoDeleteHelper.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { bindKampagnenAuswertung } from '../auswertung/auswertungKampagne.js';
@@ -438,10 +438,7 @@ function handleKampagneVertragListAction(detail, action, vertragId) {
 
 async function deleteKampagne(detail) {
   try {
-    const cascade = await deleteDropboxCascade('kampagne', detail.kampagneId);
-    if (cascade.failed > 0) {
-      console.warn('Dropbox-Cascade: Einige Dateien konnten nicht gelöscht werden:', cascade.failures);
-    }
+    await ablageCascade('kampagne', detail.kampagneId);
     const { error } = await window.supabase.from('kampagne').delete().eq('id', detail.kampagneId);
     if (error) throw error;
     window.dispatchEvent(new CustomEvent('entityUpdated', {

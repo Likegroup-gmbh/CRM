@@ -3,7 +3,7 @@
 // als Blob herunter und liefert beim erneuten Oeffnen sofort eine object-URL
 // (kein Netz, kein erneutes Laden).
 //
-// Hintergrund: Dropbox-CDN-Antworten kommen mit `cache-control: max-age=60`,
+// Hintergrund: Stream-Antworten kommen mit kurzem `cache-control`,
 // der Browser-HTTP-Cache haelt grosse Medien also nicht. Dieser Cache ueberlebt
 // das Schliessen/Oeffnen des Players (modulweit, session-scoped).
 //

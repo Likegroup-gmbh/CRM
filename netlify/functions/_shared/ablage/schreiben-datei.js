@@ -11,11 +11,13 @@ const { AblageFehler } = require('./http');
 const { stuecke } = require('./liste');
 const { ordnerVon, endung, nichtKonfiguriert, kontextAusZeile, kontextPruefen } = require('./schreiben-kontext');
 
+// art: Ordner der Entitaet; alles darunter faellt mit (ablage_nachfahren)
 const ENTITAET = {
-  unternehmen: { tabelle: 'unternehmen', art: 'unternehmen', spalte: 'unternehmen_id' },
-  kampagne: { tabelle: 'kampagne', art: 'kampagne', spalte: 'kampagne_id' },
-  kooperation: { tabelle: 'kooperationen', art: 'kooperation', spalte: 'kooperation_id' },
-  video: { tabelle: 'kooperation_videos', art: 'video', spalte: 'kooperation_video_id' },
+  unternehmen: { tabelle: 'unternehmen', art: ['unternehmen'], spalte: 'unternehmen_id' },
+  kampagne: { tabelle: 'kampagne', art: ['kampagne'], spalte: 'kampagne_id' },
+  kooperation: { tabelle: 'kooperationen', art: ['kooperation'], spalte: 'kooperation_id' },
+  video: { tabelle: 'kooperation_videos', art: ['video', 'spalte_video'], spalte: 'kooperation_video_id' },
+  spalte: { tabelle: 'custom_columns', art: ['spalte', 'spalte_videos'], spalte: 'custom_column_id' },
 };
 
 function createDateiSchreiben(c) {
@@ -128,6 +130,7 @@ function createDateiSchreiben(c) {
 
   /** Alle SharePoint-Dateien einer Entitaet, auch ausserhalb ihrer Ordner. */
   async function dateienFuer(entity, id) {
+    if (entity === 'spalte') return nurDieseBibliothek(await spDateien(TABELLE.spalte, 'custom_column_id', [id]));
     let koops = [];
     let videos = [];
     if (entity === 'video') videos = [id];
@@ -142,9 +145,14 @@ function createDateiSchreiben(c) {
       spDateien(TABELLE.story, 'video_id', videos),
       entity === 'video' ? spDateien(TABELLE.still, 'video_id', videos) : spDateien(TABELLE.still, 'kooperation_id', koops),
       spDateien(TABELLE.roh, 'kooperation_id', koops),
+      entity === 'video' ? spDateien(TABELLE.spalte, 'entity_id', videos) : spDateien(TABELLE.spalte, 'kooperation_id', koops),
     ]);
+    return nurDieseBibliothek(listen.flat());
+  }
+
+  function nurDieseBibliothek(zeilen) {
     const gesehen = new Set();
-    return listen.flat().filter((r) => r.drive_id === driveId && r.item_id && !gesehen.has(r.item_id) && gesehen.add(r.item_id));
+    return zeilen.filter((r) => r.drive_id === driveId && r.item_id && !gesehen.has(r.item_id) && gesehen.add(r.item_id));
   }
 
   async function endgueltig(itemId) {
@@ -173,7 +181,7 @@ function createDateiSchreiben(c) {
     if (!(await sichtbar(caller, e.tabelle, body.id))) throw new AblageFehler(404, 'Nicht gefunden');
 
     const { data: ordner, error } = await supabase.from('ablage_ordner').select('id, item_id, pfad')
-      .eq('drive_id', driveId).eq('art', e.art).eq(e.spalte, body.id).is('geloescht_at', null).not('item_id', 'is', null);
+      .eq('drive_id', driveId).in('art', e.art).eq(e.spalte, body.id).is('geloescht_at', null).not('item_id', 'is', null);
     if (error) throw error;
     const dateien = await dateienFuer(body.entity, body.id);
 

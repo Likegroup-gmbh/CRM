@@ -373,26 +373,6 @@ function bindCustom(detail, panel) {
       el.addEventListener('change', handler);
     }
   });
-  panel.querySelectorAll('.custom-upload-btn').forEach((btn) => {
-    if (btn.dataset.videoideeBound === '1') return;
-    btn.dataset.videoideeBound = '1';
-    btn.addEventListener('click', () => {
-      detail.customColumns.openUploadDrawer(btn, uploadMeta(detail), () => {
-        detail.rerenderItemsTable?.();
-        renderOpenItem(detail, panel.dataset.itemId, { scroll: false });
-      });
-    });
-  });
-}
-
-function uploadMeta(detail) {
-  const s = detail.strategie || {};
-  return {
-    unternehmen: s.unternehmen?.firmenname || '',
-    marke: s.marke?.markenname || '',
-    kampagne: s.kampagne?.kampagnenname || '',
-    kooperationName: s.name || 'Konzept'
-  };
 }
 
 function bindVorschlag(detail, panel) {

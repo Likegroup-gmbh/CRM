@@ -45,7 +45,6 @@ function applyKampagneInfo(t) {
     name: firstKamp.kampagnenname || firstKamp.eigener_name || '',
     unternehmen: firstKamp.unternehmen?.firmenname || '',
     unternehmenId: firstKamp.unternehmen?.id || null,
-    keinDropbox: firstKamp.unternehmen?.kein_dropbox || false,
     marke: firstKamp.marke?.markenname || ''
   };
 }
@@ -228,8 +227,8 @@ export class VideoTableDataLoader {
       parallelTasks.push(this.loadAssetsAndComments(videoIds));
       parallelTasks.push(this.loadStorySlots(videoIds));
     }
-    // Creator-Upload-Zugaenge (nur intern, nur wenn Dropbox genutzt wird)
-    if (typeof window.isInternal === 'function' && window.isInternal() && !t.kampagneInfo?.keinDropbox) {
+    // Creator-Upload-Zugaenge (nur intern)
+    if (typeof window.isInternal === 'function' && window.isInternal()) {
       parallelTasks.push(
         import('./CreatorUploadActions.js')
           .then(m => m.loadCreatorUploadStatus(t.kampagneId))

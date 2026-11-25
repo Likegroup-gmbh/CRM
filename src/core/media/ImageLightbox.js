@@ -9,7 +9,7 @@ const EXTERNAL_ICON = `${icon('arrow-top-right')}`;
  * durch die uebergebene Liste, Escape/Backdrop schliessen.
  *
  * Bewusst duenn gehalten - im Gegensatz zum VideoPlayerLightbox gibt es hier
- * kein Feedback-Panel und keine Dropbox-Anbindung. Die Quellen sind einfache
+ * kein Feedback-Panel und keine Ablage-Anbindung. Die Quellen sind einfache
  * URLs (Supabase public oder blob: aus dem Uploader).
  */
 export class ImageLightbox {

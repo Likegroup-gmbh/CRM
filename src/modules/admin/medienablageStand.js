@@ -1,6 +1,6 @@
 // medienablageStand.js
 // Stand-Teile der Medienablage-Seite (`page` = MedienablagePage): Karten mit
-// Abgleich/Eingang/Abo/Zertifikat/Speicher/Rechten, Notschalter und der Eingang
+// Abgleich/Eingang/Abo/Zertifikat/Speicher/Rechten und der Eingang
 // (nicht zugeordnete und fehlerhafte Dateien).
 
 import { escapeHtml } from '../../core/format.js';
@@ -16,7 +16,7 @@ export function nichtKonfiguriertHtml() {
       <div class="dq-list-card ma-nicht-konfiguriert">
         <div class="dq-leer">
           <strong>SharePoint ist nicht konfiguriert.</strong>
-          Alle Uploads laufen über Dropbox. Sobald Site und Drive hinterlegt sind, erscheinen hier Abgleich, Weiche und Eingang.
+          Ohne Site und Drive sind keine Uploads möglich. Sobald beides hinterlegt ist, erscheinen hier Abgleich, Umsortieren und Eingang.
         </div>
       </div>
     `;
@@ -95,24 +95,6 @@ export function kartenHtml(page) {
           <button type="button" class="mdc-btn mdc-btn--secondary" data-ma-aktion="voll_abgleich">${icon('arrow-path')}<span>Vollabgleich</span></button>
           <span class="ma-aktionen-hint">Der Vollabgleich liest die ganze Ablage neu ein und dauert entsprechend länger.</span>
         </div>
-      </div>
-    `;
-}
-
-export function notschalterHtml(page) {
-  const an = page.notschalterAn;
-  return `
-      <div class="dq-list-card ma-notschalter${an ? ' ma-notschalter--an' : ''}">
-        <div class="ma-notschalter-text">
-          <h2 class="dq-list-title">Notschalter <span class="status-badge ${an ? 'danger' : 'inactive'}">${an ? 'Aktiv' : 'Aus'}</span></h2>
-          <p class="dq-list-hint">${an
-            ? 'Alle neuen Uploads gehen nach Dropbox, unabhängig von der Weiche. Erneut klicken hebt den Notschalter auf.'
-            : 'Schickt alle neuen Uploads sofort zurück nach Dropbox, unabhängig von der Weiche. Dateien in SharePoint bleiben lesbar.'}</p>
-        </div>
-        <button type="button" class="mdc-btn ${an ? 'mdc-btn--delete' : 'mdc-btn--secondary'} ma-notschalter-btn"
-                data-ma-notschalter aria-pressed="${an}">
-          ${icon('exclamation-triangle')}<span>Alle Uploads zurück zu Dropbox</span>
-        </button>
       </div>
     `;
 }

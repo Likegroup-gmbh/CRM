@@ -2,7 +2,6 @@
 // Segmented Control, Submit-Handler, File-Uploads
 
 import { rechnungDateienHochladen } from '../../core/ablage/rechnungDokumente.js';
-import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
 import { navigateBack } from '../../core/breadcrumbTrail.js';
 
 // --- Segmented Control ---
@@ -76,14 +75,6 @@ export async function handleContractingCreateSubmit(form) {
     await fillPoFromAuftrag(submitData);
   }
 
-  // Dropbox-Pfad-Metadaten (für Contracting ohne Kampagne), nur auf dem Dropbox-Weg aufgelöst
-  const pathMeta = () => resolveRechnungPathMetadata({
-    unternehmenId: submitData.unternehmen_id,
-    kampagneId: submitData.kampagne_id, // null bei Contracting → Fallback /Contracting/Rechnungen
-    kooperationId: submitData.kooperation_id,
-    rechnungsNr: submitData.rechnung_nr,
-  });
-
   try {
     const result = await window.dataService.createEntity('rechnung', submitData);
     if (!result.success) throw new Error(result.error || 'Unbekannter Fehler');
@@ -100,8 +91,8 @@ export async function handleContractingCreateSubmit(form) {
 
     // Erst jetzt hochladen: SharePoint legt die Dateien unter der Rechnung ab
     try {
-      await rechnungDateienHochladen({ typ: 'rechnung', rechnungId, files: uploaderFiles(form, 'pdf_file'), pathMeta });
-      await rechnungDateienHochladen({ typ: 'beleg', rechnungId, files: uploaderFiles(form, 'belege_files'), pathMeta });
+      await rechnungDateienHochladen({ typ: 'rechnung', rechnungId, files: uploaderFiles(form, 'pdf_file') });
+      await rechnungDateienHochladen({ typ: 'beleg', rechnungId, files: uploaderFiles(form, 'belege_files') });
     } catch (uploadErr) {
       console.warn('⚠️ Datei-Upload (Contracting) fehlgeschlagen:', uploadErr);
       alert(`Rechnung erstellt, aber Datei-Upload fehlgeschlagen: ${uploadErr?.message || uploadErr}`);

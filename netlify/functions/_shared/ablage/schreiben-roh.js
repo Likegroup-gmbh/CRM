@@ -6,7 +6,7 @@
 const { istUuid } = require('./konfig');
 const { TABELLE, dateiSpalten, fachSpalten, upsert, entfernenNachItem } = require('./asset');
 const { dateiTyp } = require('./pfad');
-const { zielFuerKooperation } = require('./ziel');
+const { ladeKooperation } = require('./kooperation');
 const { darfMediaUpload, sichtbar } = require('./zugriff');
 const { AblageFehler } = require('./http');
 const { nichtKonfiguriert } = require('./schreiben-kontext');
@@ -22,9 +22,9 @@ function createRohSchreiben(c) {
 
   async function sharePointKooperation(caller, kooperationId) {
     if (!(await sichtbar(caller, 'kooperationen', kooperationId))) throw new AblageFehler(404, 'Kooperation nicht gefunden');
-    const { ziel, koop } = await zielFuerKooperation(supabase, kooperationId);
+    if (!sp) throw nichtKonfiguriert();
+    const koop = await ladeKooperation(supabase, kooperationId);
     if (!koop) throw new AblageFehler(404, 'Kooperation nicht gefunden');
-    if (ziel !== 'sharepoint' || !sp) throw new AblageFehler(409, 'Für diese Kooperation ist SharePoint nicht aktiv', 'nicht_sharepoint');
     return koop;
   }
 

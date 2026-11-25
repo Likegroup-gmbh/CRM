@@ -1,6 +1,6 @@
 // MediaPrefetcher
-// Beschleunigt das Blaettern im Player: Preconnect zu Dropbox, vorheriges
-// Aufloesen von Nachbar-Assets/Temp-Links und Byte-Prefetch der Nachbarvideos.
+// Beschleunigt das Blaettern im Player: vorheriges Aufloesen von Nachbar-Assets/Leselinks
+// und Byte-Prefetch der Nachbarvideos.
 // host = VideoPlayerLightbox: session (Items/Index/Tabelle), assetLoader, stage.
 
 import { resolveStreamUrl } from '../mediaSrc.js';
@@ -11,22 +11,9 @@ import { resolveItemMedia, defaultPicksFor } from './resolveItemMedia.js';
 export class MediaPrefetcher {
   constructor(host) {
     this.host = host;
-    this._preconnected = false;
     this._container = null;
     this._bytePrefetch = new Map();
     this._prefetchTimerId = null;
-  }
-
-  addPreconnect() {
-    if (this._preconnected) return;
-    this._preconnected = true;
-    ['https://dl.dropboxusercontent.com', 'https://www.dropbox.com'].forEach(href => {
-      const l = document.createElement('link');
-      l.rel = 'preconnect';
-      l.href = href;
-      l.crossOrigin = 'anonymous';
-      document.head.appendChild(l);
-    });
   }
 
   prefetchNeighborAssets() {

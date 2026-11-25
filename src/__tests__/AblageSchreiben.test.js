@@ -6,7 +6,6 @@ const require = createRequire(import.meta.url);
 const { createSchreiben } = require('../../netlify/functions/_shared/ablage/schreiben.js');
 const { createCreatorAblage } = require('../../netlify/functions/_shared/ablage/creator.js');
 const { createOrdner } = require('../../netlify/functions/_shared/ablage/ordner.js');
-const ziel = require('../../netlify/functions/_shared/ablage/ziel.js');
 const cu = require('../../netlify/functions/_shared/creator-upload.js');
 
 const ENV = { MS_TENANT_ID: 't', MS_CLIENT_ID: 'c', SP_SITE_URL: 'https://x.sharepoint.com/sites/Medienablage', SP_SITE_ID: 's1', SP_DRIVE_ID: 'd1' };
@@ -27,26 +26,25 @@ const A4 = id(14);
 const MA = { id: 'b1', rolle: 'mitarbeiter', freigeschaltet: true };
 const FINANZEN = { id: 'b2', rolle: 'admin', freigeschaltet: true, mitarbeiter_klasse: { name: 'Finanzen' } };
 
-function koop({ ablageZiel = 'sharepoint' } = {}) {
+function koop() {
   return {
     id: K1, name: 'Lisa', kampagne_id: KA1, creator_id: 'cr1', created_at: '2026-01-01',
     kampagne: {
       id: KA1, kampagnenname: 'Auftrag', eigener_name: 'Sommer', unternehmen_id: U1, marke_id: null,
-      unternehmen: { id: U1, firmenname: 'Firma', ablage_ziel: ablageZiel, ist_test: false }, marke: null,
+      unternehmen: { id: U1, firmenname: 'Firma', ist_test: false }, marke: null,
     },
     creator: { vorname: 'Lisa', nachname: 'M' },
   };
 }
 
-function setup({ ablageZiel = 'sharepoint', notschalter = false, assets = {}, ohneSp = false } = {}) {
+function setup({ assets = {}, ohneSp = false } = {}) {
   const supabase = createFakeSupabase({
     tabellen: {
-      ablage_einstellung: [{ schluessel: 'notschalter', wert: notschalter }],
       ablage_stand: [{ drive_id: 'd1', root_item_id: 'root' }],
       ablage_ordner: [],
       ablage_upload: [],
       ablage_eingang: [],
-      kooperationen: [koop({ ablageZiel })],
+      kooperationen: [koop()],
       kooperation_videos: [
         { id: V1, kooperation_id: K1, position: 1, thema: 'Unboxing' },
         { id: VX, kooperation_id: id(99), position: 1 },
@@ -79,28 +77,18 @@ const zielBody = (extra = {}) => ({
 
 beforeEach(() => {
   Object.assign(process.env, ENV);
-  ziel._reset();
 });
 afterEach(() => {
   for (const k of Object.keys(ENV)) delete process.env[k];
-  delete process.env.ABLAGE_ZIEL;
 });
 
 describe('ablage-upload-ziel', () => {
-  it('Weiche auf dropbox: nur { ziel: dropbox }, keine Session', async () => {
-    const { s, sp, caller, supabase } = setup({ ablageZiel: 'dropbox' });
-    expect(await s.uploadZiel({ benutzer: MA, caller, body: zielBody() })).toEqual({ ziel: 'dropbox' });
+  it('ohne Konfiguration: harter Fehler, keine Session', async () => {
+    const { s, sp, caller, supabase } = setup({ ohneSp: true });
+    await expect(s.uploadZiel({ benutzer: MA, caller, body: zielBody() }))
+      .rejects.toMatchObject({ status: 503, code: 'nicht_konfiguriert' });
     expect(sp.calls.filter(([op]) => op === 'uploadSession')).toHaveLength(0);
     expect(supabase.db.ablage_upload).toHaveLength(0);
-  });
-
-  it('Notschalter und ABLAGE_ZIEL schicken zu Dropbox', async () => {
-    const a = setup({ notschalter: true });
-    expect((await a.s.uploadZiel({ benutzer: MA, caller: a.caller, body: zielBody() })).ziel).toBe('dropbox');
-    ziel._reset();
-    process.env.ABLAGE_ZIEL = 'dropbox';
-    const b = setup();
-    expect((await b.s.uploadZiel({ benutzer: MA, caller: b.caller, body: zielBody() })).ziel).toBe('dropbox');
   });
 
   it('SharePoint: Session flach in der Schleife (Variante ohne Ordner), Upload-Zeile, Commit liefert die Asset-Spalten', async () => {
@@ -167,12 +155,6 @@ describe('ablage-upload-ziel', () => {
     // Rollback beim Ersetzen loescht nie das bestehende Item
     await t.s.uploadVerwerfen({ benutzer: MA, body: { upload_id: z2.upload_id } });
     expect(t.sp.items.has(it1.id)).toBe(true);
-  });
-
-  it('Ersetzen einer SharePoint-Datei bei Notschalter: 503 statt Dropbox', async () => {
-    const t = setup({ notschalter: true, assets: { kooperation_video_asset: [{ id: A1, video_id: V1, ablage: 'sharepoint', drive_id: 'd1', item_id: 'x' }] } });
-    await expect(t.s.uploadZiel({ benutzer: MA, caller: t.caller, body: { ...zielBody(), ersetzen: { typ: 'video', id: A1 } } }))
-      .rejects.toMatchObject({ status: 503, code: 'notschalter' });
   });
 
   it('Commit prueft Besitzer und Zielordner', async () => {
@@ -312,7 +294,7 @@ describe('Rohmaterial im CRM (ADR 0070)', () => {
     expect(unter.ordner).toMatchObject({ pfad: `${ROH}/final/Schnitt`, parent_item_id: a.ordner.item_id });
   });
 
-  it('ordner_anlegen: Rechte, fremde Eltern, Dropbox, Tiefe', async () => {
+  it('ordner_anlegen: Rechte, fremde Eltern, ohne Konfiguration, Tiefe', async () => {
     const t = setup();
     await expect(t.s.rohOrdnerAnlegen({ benutzer: FINANZEN, caller: t.caller, body: { kooperation_id: K1, name: 'x' } })).rejects.toMatchObject({ status: 403 });
     await expect(t.s.rohOrdnerAnlegen({ benutzer: MA, caller: t.caller, body: { kooperation_id: K1, name: '  ' } })).rejects.toMatchObject({ status: 400 });
@@ -328,8 +310,8 @@ describe('Rohmaterial im CRM (ADR 0070)', () => {
     await expect(t.s.rohOrdnerAnlegen({ benutzer: MA, caller: t.caller, body: { kooperation_id: K1, name: 'e6', parent_item_id: eltern.item_id } }))
       .rejects.toMatchObject({ status: 400, code: 'zu_tief' });
 
-    const d = setup({ ablageZiel: 'dropbox' });
-    await expect(d.s.rohOrdnerAnlegen({ benutzer: MA, caller: d.caller, body: { kooperation_id: K1, name: 'x' } })).rejects.toMatchObject({ status: 409, code: 'nicht_sharepoint' });
+    const d = setup({ ohneSp: true });
+    await expect(d.s.rohOrdnerAnlegen({ benutzer: MA, caller: d.caller, body: { kooperation_id: K1, name: 'x' } })).rejects.toMatchObject({ status: 503, code: 'nicht_konfiguriert' });
   });
 
   it('upload-ziel: Rohmaterial in einen Unterordner, fremde Ordner nicht', async () => {
@@ -468,11 +450,6 @@ describe('ablage-loeschen', () => {
 describe('Creator-Upload mit deferCommit', () => {
   const startBody = (extra = {}) => ({ token: ROH_TOKEN, targetType: 'video', targetId: V1, fileName: 'mein clip.mov', fileSize: 5000, contentType: 'video/quicktime', ...extra });
   const creator = (t) => createCreatorAblage({ supabase: t.supabase, ablage: { sp: t.sp, ordner: t.ordner } });
-
-  it('Weiche auf dropbox: bisheriger Weg', async () => {
-    const t = setup({ ablageZiel: 'dropbox' });
-    expect(await creator(t).start(startBody())).toEqual({ ziel: 'dropbox' });
-  });
 
   it('Start -> Bytes -> Complete: Datei erst nach Pruefung sichtbar, Asset + Ordner-Link', async () => {
     const t = setup();

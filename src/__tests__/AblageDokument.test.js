@@ -8,7 +8,6 @@ const { createStruktur } = require('../../netlify/functions/_shared/ablage/struk
 const { createSchreiben } = require('../../netlify/functions/_shared/ablage/schreiben.js');
 const { createLesen } = require('../../netlify/functions/_shared/ablage/lesen.js');
 const { createOrdner } = require('../../netlify/functions/_shared/ablage/ordner.js');
-const ziel = require('../../netlify/functions/_shared/ablage/ziel.js');
 
 const ENV = { MS_TENANT_ID: 't', MS_CLIENT_ID: 'c', SP_SITE_URL: 'https://x.sharepoint.com/sites/Medienablage', SP_SITE_ID: 's1', SP_DRIVE_ID: 'd1' };
 
@@ -29,17 +28,16 @@ const KA2 = id(12);
 const MA = { id: 'b1', rolle: 'mitarbeiter', freigeschaltet: true };
 const KUNDE = { id: 'b9', rolle: 'kunde' };
 
-function setup({ dokZiel = 'sharepoint', notschalter = false, istTest = false, tabellen = {} } = {}) {
+function setup({ istTest = false, tabellen = {} } = {}) {
   const supabase = createFakeSupabase({
     tabellen: {
-      ablage_einstellung: [{ schluessel: 'notschalter', wert: false }, { schluessel: 'notschalter_dokumente', wert: notschalter }],
       ablage_stand: [{ drive_id: 'd1', root_item_id: 'root' }],
       ablage_ordner: [],
       ablage_upload: [],
       ablage_eingang: [],
       unternehmen: [
-        { id: U1, firmenname: 'Firma', ist_test: istTest, ablage_ziel: 'dropbox', dokument_ablage_ziel: dokZiel },
-        { id: U2, firmenname: 'Kunde Zwei', ist_test: false, ablage_ziel: 'dropbox', dokument_ablage_ziel: dokZiel },
+        { id: U1, firmenname: 'Firma', ist_test: istTest },
+        { id: U2, firmenname: 'Kunde Zwei', ist_test: false },
       ],
       marke: [{ id: M1, markenname: 'Marke A', unternehmen_id: U1 }],
       kampagne: [{ id: KA1, kampagnenname: 'Auftrag', eigener_name: 'Sommer', unternehmen_id: U1, marke_id: M1 }],
@@ -74,19 +72,18 @@ function setup({ dokZiel = 'sharepoint', notschalter = false, istTest = false, t
 
 beforeEach(() => {
   Object.assign(process.env, ENV);
-  ziel._reset();
 });
 afterEach(() => {
   for (const k of Object.keys(ENV)) delete process.env[k];
-  delete process.env.ABLAGE_ZIEL;
 });
 
 describe('Registry', () => {
-  it('quelleVon: Ablage-Spalte schlaegt Pfad-Heuristik, Altbestand ueber Storage', () => {
+  it('quelleVon: Ablage-Spalte schlaegt Pfad-Heuristik, Altbestand ueber Storage oder Link', () => {
     expect(dokument.quelleVon('vertrag', { datei_ablage: 'sharepoint', datei_drive_id: 'd1', datei_item_id: 'x', datei_path: '/Firma/Verträge/v.pdf' }))
       .toEqual({ quelle: 'sharepoint', drive_id: 'd1', item_id: 'x' });
     expect(dokument.quelleVon('vertrag', { datei_ablage: 'dropbox', datei_path: '/CRM/Vertraege/v.pdf', datei_url: 'https://www.dropbox.com/s/v?dl=0' }))
-      .toEqual({ quelle: 'dropbox', pfad: '/CRM/Vertraege/v.pdf' });
+      .toEqual({ quelle: 'link', url: 'https://www.dropbox.com/s/v?dl=0' });
+    expect(dokument.quelleVon('vertrag', { datei_ablage: 'dropbox', datei_path: '/CRM/Vertraege/v.pdf' })).toBeNull();
     expect(dokument.quelleVon('vertrag', { datei_path: 'kampagne/v.pdf' })).toEqual({ quelle: 'storage', bucket: 'vertraege', pfad: 'kampagne/v.pdf' });
     expect(dokument.quelleVon('rechnung', { file_url: 'https://p.supabase.co/storage/v1/object/public/rechnungen/a%20b.pdf' }))
       .toEqual({ quelle: 'storage', bucket: 'rechnungen', pfad: 'a b.pdf' });
@@ -234,20 +231,6 @@ describe('Struktur: Vertrag folgt seiner Produktion', () => {
 });
 
 describe('Upload-Ziel und Commit', () => {
-  it('Weiche dropbox, Notschalter, ABLAGE_ZIEL: { ziel: dropbox }', async () => {
-    for (const opts of [{ dokZiel: 'dropbox' }, { notschalter: true }]) {
-      ziel._reset();
-      const t = setup(opts);
-      expect(await t.s.uploadZiel({ benutzer: MA, caller: t.caller, body: { typ: 'vertrag', bezug_id: VT1, file_name: 'v.pdf', file_size: 10 } }))
-        .toEqual({ ziel: 'dropbox' });
-      expect(t.sp.calls.filter(([op]) => op === 'uploadSession')).toHaveLength(0);
-    }
-    ziel._reset();
-    process.env.ABLAGE_ZIEL = 'dropbox';
-    const t = setup();
-    expect((await t.s.uploadZiel({ benutzer: MA, caller: t.caller, body: { typ: 'rechnung', bezug_id: R1, file_name: 'r.pdf', file_size: 10 } })).ziel).toBe('dropbox');
-  });
-
   it('Vertrag: Session im Kampagnen-Ordner, Commit liefert die Datei', async () => {
     const t = setup();
     const z = await t.s.uploadZiel({ benutzer: MA, caller: t.caller, body: { typ: 'vertrag', bezug_id: VT1, file_name: 'Vertrag.PDF', file_size: 10 } });
@@ -259,7 +242,7 @@ describe('Upload-Ziel und Commit', () => {
     expect(c).toMatchObject({ ablage: 'sharepoint', drive_id: 'd1', item_id: item.id, file_path: '/Firma/Verträge/Marke A/Sommer/Vertrag.pdf' });
   });
 
-  it('Ersetzen eines SharePoint-Vertrags: neue Version desselben Items, bei Notschalter 503', async () => {
+  it('Ersetzen eines SharePoint-Vertrags: neue Version desselben Items', async () => {
     const t = setup();
     const z = await t.s.uploadZiel({ benutzer: MA, caller: t.caller, body: { typ: 'vertrag', bezug_id: VT1, file_name: 'v.pdf', file_size: 10 } });
     const item = t.sp.hochladen(z.upload_url, 10);
@@ -268,11 +251,6 @@ describe('Upload-Ziel und Commit', () => {
     expect(t.sp.calls).toContainEqual(['uploadSessionFuerItem', item.id]);
     expect(t.supabase.db.ablage_upload.at(-1)).toMatchObject({ item_id: item.id, kontext: { gleiches_item: true } });
     expect(neu.ordner.pfad).toBe(z.ordner.pfad);
-
-    t.supabase.db.ablage_einstellung[1].wert = true;
-    ziel._reset();
-    await expect(t.s.uploadZiel({ benutzer: MA, caller: t.caller, body: { typ: 'vertrag', bezug_id: VT1, file_name: 'v3.pdf', file_size: 12 } }))
-      .rejects.toMatchObject({ status: 503, code: 'notschalter' });
   });
 
   it('Auftragsdokument Rechnung landet in Aufträge/<Marke>/<Auftrag>/Rechnungen; Kunden duerfen nicht hochladen', async () => {
@@ -319,7 +297,7 @@ describe('Loeschen, Umbenennen, Links', () => {
 
   it('ablage-link: Dokument-Schluessel typ:id, URL-Lookup fuer Render-Stellen', async () => {
     const { t, f } = await mitRechnungPdf();
-    const lesen = createLesen({ supabase: t.supabase, ablage: t.ablage, dropbox: { downloadUrl: async () => null } });
+    const lesen = createLesen({ supabase: t.supabase, ablage: t.ablage });
     const r = await lesen.links({ benutzer: MA, caller: t.caller, body: { items: [{ typ: 'rechnung', id: id(50) }, { typ: 'vertrag', id: VT1 }] } });
     expect(r.links[`rechnung:${id(50)}`].url).toBe(`https://dl.test/${f.id}`);
     expect(r.fehlend).toEqual([`vertrag:${VT1}`]);

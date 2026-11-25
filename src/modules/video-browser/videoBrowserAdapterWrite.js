@@ -4,7 +4,6 @@
 // Aufrufer importieren nur von dort.
 
 import { KOMMENTAR_SPALTE, assetTable } from '../../core/assetDelete.js';
-import { proxyPost } from '../../core/dropboxLinks.js';
 import { renamedFilePath, splitFileName } from '../../core/videoFileNames.js';
 import { istSharePoint } from '../../core/ablage/ablageLink.js';
 import { ablageDateiUmbenennen } from '../../core/ablage/ablageApi.js';
@@ -94,7 +93,7 @@ export async function saveVideoCaption(videoId, caption) {
 export const TITEL_MAX = 120;
 
 /**
- * Anzeigetitel einer Datei setzen. Dropbox-Pfad und file_name bleiben unverändert.
+ * Anzeigetitel einer Datei setzen. Dateipfad und file_name bleiben unverändert.
  * RLS lässt nur Admin/Mitarbeiter schreiben: null Zeilen heißt keine Berechtigung.
  */
 export async function renameAsset(item, titel) {
@@ -111,41 +110,21 @@ export async function renameAsset(item, titel) {
 }
 
 /**
- * Ad-Manager-Dateiname eines Videos: benennt die Datei in Dropbox um und trägt den Namen (ohne
- * Endung) ein. Alle Zeilen, die dieselbe Datei teilen (Feedbackschleife und ihre Finale
- * Versionen), ziehen mit, sonst zeigt ein Teil auf den alten Pfad. Der Anzeigetitel bleibt.
- * Schlägt der Eintrag fehl, wird die Datei zurückbenannt.
+ * Ad-Manager-Dateiname eines Videos: der Server benennt die Datei in SharePoint um, eingetragen
+ * wird der Name ohne Endung. Alle Zeilen, die dieselbe Datei teilen (Feedbackschleife und ihre
+ * Finale Versionen), ziehen über item_id mit. Der Anzeigetitel bleibt. Altbestand außerhalb von
+ * SharePoint lässt sich nicht umbenennen.
  * @returns {Promise<{ path: string, stem: string }>}
  */
 export async function renameAdManagerFile(item, name) {
   const asset = item.asset;
   const oldPath = asset?.file_path;
-  if (!oldPath || !asset.video_id) throw new Error('Datei hat keinen Dropbox-Pfad');
+  if (!oldPath || !asset.video_id || !istSharePoint(asset)) throw new Error('Datei liegt nicht in SharePoint');
   const target = renamedFilePath(oldPath, name, { adManager: true });
   if (!target) throw new Error('Dateiname ist leer');
-  if (istSharePoint(asset)) return renameAdManagerSharePoint(asset, oldPath, target);
-
-  let path = oldPath;
-  if (target !== oldPath) {
-    const moved = await proxyPost({ action: 'move', fromPath: oldPath, toPath: target });
-    path = moved.path || target;
-  }
-  const { stem } = splitFileName(path);
-
-  const { data, error } = await window.supabase
-    .from('kooperation_video_asset')
-    .update({ file_path: path, ad_manager_name: stem })
-    .eq('video_id', asset.video_id)
-    .eq('file_path', oldPath)
-    .select('id');
-  if (error || !data?.length) {
-    if (path !== oldPath) await proxyPost({ action: 'move', fromPath: path, toPath: oldPath }).catch(() => {});
-    throw error || new Error('Dateiname konnte nicht gespeichert werden');
-  }
-  return { path, stem };
+  return renameAdManagerSharePoint(asset, oldPath, target);
 }
 
-/** Wie oben, nur benennt der Server die Datei in SharePoint um. Zeilen derselben Datei über item_id. */
 async function renameAdManagerSharePoint(asset, oldPath, target) {
   const oldName = oldPath.split('/').pop();
   const newName = target.split('/').pop();

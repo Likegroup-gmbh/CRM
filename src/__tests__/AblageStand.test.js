@@ -1,11 +1,10 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createRequire } from 'module';
 import { createFakeSupabase } from './fixtures/fakeSupabase.js';
 
 const require = createRequire(import.meta.url);
-const { createStand } = require('../../netlify/functions/_shared/ablage/stand.js');
+const { createStand, AKTIONEN } = require('../../netlify/functions/_shared/ablage/stand.js');
 const { createAlarm, alarmeAus } = require('../../netlify/functions/_shared/ablage/alarm.js');
-const ziel = require('../../netlify/functions/_shared/ablage/ziel.js');
 
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const U1 = id(1);
@@ -15,43 +14,29 @@ const MIN = 60000;
 const TAG = 24 * 60 * MIN;
 const iso = (t) => new Date(t).toISOString();
 
-afterEach(() => ziel._reset());
-
-function setup({ ablage = true, eingang = [], unternehmenStand, umzugZeilen = [] } = {}) {
+function setup({ ablage = true, eingang = [] } = {}) {
   const uhr = { t: START };
   const supabase = createFakeSupabase({
     tabellen: {
-      ablage_umzug: umzugZeilen,
-      ablage_einstellung: [{ schluessel: 'notschalter', wert: false }],
       ablage_stand: [{ drive_id: 'd1', letzter_erfolg: iso(START - MIN), abo_ablauf: iso(START + 20 * TAG), alarme: {} }],
       ablage_eingang: eingang,
       ablage_unzugeordnet: eingang.filter((e) => e.status === 'unzugeordnet' && !e.geloescht),
-      unternehmen: [{ id: U1, firmenname: 'Alpha', ablage_ziel: 'dropbox' }, { id: U2, firmenname: 'Beta', ablage_ziel: 'sharepoint' }],
+      unternehmen: [{ id: U1, firmenname: 'Alpha' }, { id: U2, firmenname: 'Beta', ist_test: true }],
       benutzer: [
         { id: 'a1', rolle: 'admin', freigeschaltet: true, email: 'Chef@Firma.de' },
         { id: 'a2', rolle: 'admin', freigeschaltet: false, email: 'alt@firma.de' },
         { id: 'm1', rolle: 'mitarbeiter', freigeschaltet: true, email: 'm@firma.de' },
       ],
     },
-    rpc: {
-      ablage_unternehmen_stand: () => unternehmenStand ?? [
-        { id: U1, firmenname: 'Alpha', ablage_ziel: 'dropbox', ist_test: false, dateien_sharepoint: 0, dateien_dropbox: '12', umzug_offen: 0, umzug_fertig: 0, umzug_fehler: 0, umzug_uebersprungen: 0 },
-        { id: U2, firmenname: 'Beta', ablage_ziel: 'sharepoint', ist_test: true, dateien_sharepoint: 3, dateien_dropbox: 2, umzug_offen: 2, umzug_fertig: '5', umzug_fehler: 1, umzug_uebersprungen: 0 },
-      ],
-      ablage_dokumente_stand: () => [
-        { id: U1, dokument_ablage_ziel: 'dropbox', dokumente_sharepoint: 0, dokumente_dropbox: '4', dokumente_storage: 2, umzug_offen: 0, umzug_fertig: 0, umzug_fehler: 0, umzug_uebersprungen: 0 },
-        { id: U2, dokument_ablage_ziel: 'sharepoint', dokumente_sharepoint: 1, dokumente_dropbox: 0, dokumente_storage: 0, umzug_offen: 0, umzug_fertig: 3, umzug_fehler: 0, umzug_uebersprungen: 1 },
-      ],
-    },
   });
   const angestossen = [];
-  const umzug = { anlegen: vi.fn(async () => 7), dokumenteAnlegen: vi.fn(async () => 4) };
+  const finalSpiegel = { stand: vi.fn(async () => ({ offen: 0, fertig: 4 })) };
   const ab = ablage ? { sp: { driveId: 'd1' }, konfig: { siteUrl: 'https://t.sharepoint.com/sites/Medienablage', driveId: 'd1' }, ordner: { wurzel: vi.fn(async () => ({})) } } : null;
   const s = createStand({
-    supabase, ablage: ab, event: {}, benutzer: { id: 'a1', email: 'chef@firma.de' }, jetzt: () => uhr.t, umzug,
+    supabase, ablage: ab, event: {}, benutzer: { id: 'a1', email: 'chef@firma.de' }, jetzt: () => uhr.t, finalSpiegel,
     anstossenImpl: async (_e, name, body) => { angestossen.push([name, body.grund]); return true; },
   });
-  return { uhr, supabase, db: supabase.db, s, angestossen, umzug, ab };
+  return { uhr, supabase, db: supabase.db, s, angestossen, ab };
 }
 
 const eintrag = (itemId, status, extra = {}) => ({
@@ -60,7 +45,7 @@ const eintrag = (itemId, status, extra = {}) => ({
 });
 
 describe('ablage-stand: Stand', () => {
-  it('liefert Konfig, Zaehler, Listen, Unternehmen und Umzug im Vertrag der Admin-Seite', async () => {
+  it('liefert Konfig, Zaehler, Listen, Unternehmen und Finale im Vertrag der Admin-Seite', async () => {
     const t = setup({
       eingang: [
         eintrag('o1', 'offen'), eintrag('o2', 'offen'), eintrag('f1', 'fehler'),
@@ -70,86 +55,33 @@ describe('ablage-stand: Stand', () => {
     });
     const r = await t.s.stand();
     expect(r.konfig).toEqual({ konfiguriert: true, site_url: 'https://t.sharepoint.com/sites/Medienablage', drive_id: 'd1' });
-    expect(r.einstellung).toEqual({ notschalter: false, notschalter_dokumente: false });
     expect(r.stand[0]).toMatchObject({ drive_id: 'd1' });
     expect(r.zaehler).toEqual({ offen: 2, fehler: 1, unzugeordnet: 1, erledigt_24h: 1 });
     expect(r.unzugeordnet.map((x) => x.item_id)).toEqual(['u1']);
     expect(r.fehler).toEqual([expect.objectContaining({ item_id: 'f1', versuche: 3 })]);
     expect(r.unternehmen).toEqual([
-      { id: U1, firmenname: 'Alpha', ablage_ziel: 'dropbox', ist_test: false, dateien_sharepoint: 0, dateien_dropbox: 12 },
-      { id: U2, firmenname: 'Beta', ablage_ziel: 'sharepoint', ist_test: true, dateien_sharepoint: 3, dateien_dropbox: 2 },
+      { id: U1, firmenname: 'Alpha', ist_test: false },
+      { id: U2, firmenname: 'Beta', ist_test: true },
     ]);
-    expect(r.umzug).toEqual([{ unternehmen_id: U2, offen: 2, fertig: 5, fehler: 1, uebersprungen: 0 }]);
-    expect(r.dokumente).toEqual([
-      { id: U1, dokument_ablage_ziel: 'dropbox', sharepoint: 0, dropbox: 4, storage: 2 },
-      { id: U2, dokument_ablage_ziel: 'sharepoint', sharepoint: 1, dropbox: 0, storage: 0 },
-    ]);
-    expect(r.dokument_umzug).toEqual([{ unternehmen_id: U2, offen: 0, fertig: 3, fehler: 0, uebersprungen: 1 }]);
+    expect(r.final_spiegel).toEqual({ offen: 0, fertig: 4 });
+    expect(r).not.toHaveProperty('einstellung');
+    expect(r).not.toHaveProperty('umzug');
   });
 
-  it('Umzugsmeldungen: Zeilen mit Grund laufender und beobachteter Umzuege, nicht die fertigen', async () => {
-    const zeile = (n, unternehmenId, extra) => ({
-      id: `z${n}`, drive_id: 'd1', unternehmen_id: unternehmenId, typ: 'video', status: 'offen', grund: null, versuche: 0,
-      naechster_versuch: iso(START + n * MIN), quelle_ref: `/Alpha/Videos/clip${n}.mp4?dl=0`, ziel_name: null, ...extra,
-    });
-    const t = setup({
-      umzugZeilen: [
-        zeile(1, U2, { status: 'fehler', grund: 'dropbox_fehlt', versuche: 1 }),
-        zeile(2, U2, { grund: 'dropbox_503', versuche: 2, ziel_name: 'Spot final.mp4' }),
-        zeile(3, U2, { typ: 'vertrag', quelle: 'storage', status: 'uebersprungen', grund: 'leer', quelle_ref: 'vertraege/v1.pdf' }),
-        zeile(4, U2, { status: 'fertig', grund: null }),
-        zeile(5, U2),
-        zeile(6, U1, { status: 'fehler', grund: 'kopie_fehlgeschlagen', versuche: 6 }),
-        { ...zeile(7, U2, { status: 'fehler', grund: 'x' }), drive_id: 'anderes' },
-      ],
-    });
-
-    // U2 laeuft (umzug_offen 2), U1 nicht: dessen alter Fehler bleibt draussen
-    const r = await t.s.stand();
-    expect(r.umzug_meldungen.map((m) => m.id).sort()).toEqual(['z1', 'z2', 'z3']);
-    const je = Object.fromEntries(r.umzug_meldungen.map((m) => [m.id, m]));
-    expect(je.z1).toEqual({
-      id: 'z1', unternehmen_id: U2, bereich: 'medien', typ: 'video', status: 'fehler', grund: 'dropbox_fehlt', versuche: 1,
-      max_versuche: 6, naechster_versuch: iso(START + MIN), datei: 'clip1.mp4', quelle: '/Alpha/Videos/clip1.mp4?dl=0',
-    });
-    expect(je.z2).toMatchObject({ datei: 'Spot final.mp4', versuche: 2, status: 'offen' });
-    expect(je.z3).toMatchObject({ bereich: 'dokumente', datei: 'v1.pdf', status: 'uebersprungen' });
-
-    // Beobachtet die Seite U1 noch (umzug_ids), kommt auch dessen Fehler; ungueltige IDs zaehlen nicht
-    const mitU1 = await t.s.stand({ aktion: 'stand', umzug_ids: [U1, 'kaputt'] });
-    expect(mitU1.umzug_meldungen.map((m) => m.id).sort()).toEqual(['z1', 'z2', 'z3', 'z6']);
-  });
-
-  it('ohne SharePoint-Konfiguration: nur Notschalter und leere Listen', async () => {
+  it('ohne SharePoint-Konfiguration: leere Listen, Aktionen mit 409', async () => {
     const t = setup({ ablage: false });
     const r = await t.s.stand();
     expect(r.konfig.konfiguriert).toBe(false);
-    expect(r).toMatchObject({ unternehmen: [], umzug: [], umzug_meldungen: [], unzugeordnet: [], fehler: [] });
+    expect(r).toMatchObject({ unternehmen: [], unzugeordnet: [], fehler: [], final_spiegel: null });
     await expect(t.s.jetzt_abgleichen()).rejects.toMatchObject({ status: 409, code: 'nicht_konfiguriert' });
+  });
+
+  it('kennt keine Weiche, keinen Notschalter und keinen Umzug mehr', () => {
+    for (const alt of ['notschalter', 'weiche', 'umzug_starten', 'dokument_umzug_starten']) expect(AKTIONEN.has(alt)).toBe(false);
   });
 });
 
 describe('ablage-stand: Aktionen', () => {
-  it('Notschalter schreibt die Einstellung und wirkt in dieser Instanz sofort', async () => {
-    const t = setup();
-    expect(await ziel.notschalterAn(t.supabase)).toBe(false);
-    await t.s.notschalter({ an: true });
-    expect(t.db.ablage_einstellung[0]).toMatchObject({ wert: true, updated_by: 'a1' });
-    expect(await ziel.notschalterAn(t.supabase)).toBe(true);
-    await expect(t.s.notschalter({ an: 'ja' })).rejects.toMatchObject({ status: 400 });
-  });
-
-  it('Weiche: setzt das Ziel, prueft Eingaben', async () => {
-    const t = setup();
-    await t.s.weiche({ unternehmen_id: U1, ziel: 'sharepoint' });
-    expect(t.db.unternehmen[0].ablage_ziel).toBe('sharepoint');
-    await expect(t.s.weiche({ unternehmen_id: U1, ziel: 'box' })).rejects.toMatchObject({ status: 400 });
-    await expect(t.s.weiche({ unternehmen_id: id(9), ziel: 'dropbox' })).rejects.toMatchObject({ status: 404 });
-    const ohne = setup({ ablage: false });
-    await expect(ohne.s.weiche({ unternehmen_id: U1, ziel: 'sharepoint' })).rejects.toMatchObject({ status: 409 });
-    await ohne.s.weiche({ unternehmen_id: U2, ziel: 'dropbox' });
-  });
-
   it('Erneut: Eintrag wieder offen, sofort faellig, Abgleich angestossen; erledigte bleiben', async () => {
     const t = setup({ eingang: [eintrag('u1', 'unzugeordnet', { gesperrt_bis: iso(START + MIN) }), eintrag('e1', 'erledigt')] });
     await t.s.erneut({ item_id: 'u1' });
@@ -169,42 +101,6 @@ describe('ablage-stand: Aktionen', () => {
     expect(await t.s.voll_abgleich()).toEqual({ ok: true, angestossen: true });
     expect(t.db.ablage_stand[0].voll_abgleich_noetig).toBe(true);
     expect(t.angestossen).toEqual([['ablage-abgleich-background', 'voll']]);
-  });
-
-  it('Umzug starten: nur mit Weiche SharePoint, reiht ein und stoesst Laeufer an', async () => {
-    const t = setup();
-    await expect(t.s.umzug_starten({ unternehmen_id: U1 })).rejects.toMatchObject({ status: 409, code: 'weiche_dropbox' });
-    expect(await t.s.umzug_starten({ unternehmen_id: U2 })).toEqual({ ok: true, angelegt: 7 });
-    expect(t.umzug.anlegen).toHaveBeenCalledWith(U2);
-    expect(t.ab.ordner.wurzel).toHaveBeenCalled();
-    expect(t.angestossen).toEqual([['ablage-umzug-background', 'admin']]);
-    t.umzug.anlegen.mockResolvedValueOnce(0);
-    await t.s.umzug_starten({ unternehmen_id: U2 });
-    expect(t.angestossen).toHaveLength(1);
-  });
-
-  it('Dokumente: eigener Notschalter und eigene Weiche, Medien bleiben unberuehrt', async () => {
-    const t = setup();
-    t.db.ablage_einstellung.push({ schluessel: 'notschalter_dokumente', wert: false });
-    await t.s.notschalter({ an: true, bereich: 'dokumente' });
-    expect(await ziel.dokumenteNotschalterAn(t.supabase)).toBe(true);
-    expect(await ziel.notschalterAn(t.supabase)).toBe(false);
-    await t.s.weiche({ unternehmen_id: U1, ziel: 'sharepoint', bereich: 'dokumente' });
-    expect(t.db.unternehmen[0]).toMatchObject({ ablage_ziel: 'dropbox', dokument_ablage_ziel: 'sharepoint' });
-    await expect(t.s.weiche({ unternehmen_id: U1, ziel: 'sharepoint', bereich: 'video' })).rejects.toMatchObject({ status: 400 });
-  });
-
-  it('Dokument-Umzug: nur mit Weiche Dokumente auf SharePoint', async () => {
-    const t = setup();
-    await expect(t.s.dokument_umzug_starten({ unternehmen_id: U2 })).rejects.toMatchObject({ status: 409, code: 'weiche_dropbox' });
-    t.db.unternehmen[1].dokument_ablage_ziel = 'sharepoint';
-    expect(await t.s.dokument_umzug_starten({ unternehmen_id: U2 })).toEqual({ ok: true, angelegt: 4, angestossen: true });
-    expect(t.umzug.dokumenteAnlegen).toHaveBeenCalledWith(U2);
-    expect(t.angestossen).toEqual([['ablage-umzug-background', 'dokumente']]);
-    // Schon offene Zeile: nichts Neues, der Klick stößt den Läufer trotzdem an
-    t.umzug.dokumenteAnlegen.mockResolvedValueOnce(0);
-    expect(await t.s.dokument_umzug_starten({ unternehmen_id: U2 })).toEqual({ ok: true, angelegt: 0, angestossen: true });
-    expect(t.angestossen).toHaveLength(2);
   });
 });
 

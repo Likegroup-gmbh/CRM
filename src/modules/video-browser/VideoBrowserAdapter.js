@@ -248,9 +248,9 @@ export async function createTagTyp({ label, gruppe = 'Eigene', kampagneId = null
 }
 
 /**
- * Pfadkontext für Dropbox-Uploads einer Kooperation (gleiche Felder wie der
- * Rohmaterial-Upload und der Video-Upload-Drawer).
- * @returns {Promise<{ pathContext: object, creatorName: string, keinDropbox: boolean }>}
+ * Namen für die Upload-Metadaten einer Kooperation (gleiche Felder wie der
+ * Video-Upload-Drawer); daraus entstehen die Dateinamen.
+ * @returns {Promise<{ pathContext: object, creatorName: string }>}
  */
 export async function loadUploadContext(kooperationId) {
   const { data, error } = await window.supabase
@@ -260,7 +260,7 @@ export async function loadUploadContext(kooperationId) {
       creator:creator_id (vorname, nachname),
       kampagne:kampagne_id (
         id, kampagnenname, eigener_name,
-        unternehmen:unternehmen_id (id, firmenname, kein_dropbox),
+        unternehmen:unternehmen_id (id, firmenname),
         marke:marke_id (id, markenname)
       )
     `)
@@ -275,7 +275,6 @@ export async function loadUploadContext(kooperationId) {
       kampagne: KampagneUtils.getDisplayName(kamp),
       kooperation: data.name || ''
     },
-    creatorName: [data.creator?.vorname, data.creator?.nachname].filter(Boolean).join(' '),
-    keinDropbox: !!kamp.unternehmen?.kein_dropbox
+    creatorName: [data.creator?.vorname, data.creator?.nachname].filter(Boolean).join(' ')
   };
 }

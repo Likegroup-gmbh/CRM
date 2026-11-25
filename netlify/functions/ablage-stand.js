@@ -1,8 +1,6 @@
 // ablage-stand.js
-// Admin-Seite Medienablage (nur Admins). Body: { aktion: 'stand', umzug_ids? } | { aktion: 'fortschritt', umzug_ids }
-//   | { aktion: 'notschalter', an }
-//   | { aktion: 'weiche', unternehmen_id, ziel } | { aktion: 'erneut' | 'ignorieren', item_id }
-//   | { aktion: 'jetzt_abgleichen' } | { aktion: 'voll_abgleich' } | { aktion: 'umzug_starten', unternehmen_id }
+// Admin-Seite Medienablage (nur Admins). Body: { aktion: 'stand' } | { aktion: 'erneut' | 'ignorieren', item_id }
+//   | { aktion: 'jetzt_abgleichen' } | { aktion: 'voll_abgleich' }
 //   | { aktion: 'umsortieren_planen' | 'umsortieren_starten', unternehmen_id }
 //   | { aktion: 'final_spiegel_planen' | 'final_spiegel_starten' }
 

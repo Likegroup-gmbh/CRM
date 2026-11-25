@@ -241,7 +241,10 @@ describe('dateiEinordnen: Uploads aus dem CRM', () => {
   it('nach 10 Minuten ohne Zeile: Asset aus dem Upload-Kontext (keine Varianten-Verschiebung)', () => {
     expect(datei(R.schleife, { upload: upload(11), jetztMs })).toEqual({
       aktion: 'asset', typ: 'video', umziehen: false, quelle: 'upload',
-      ziel: { kooperation_id: KO, kooperation_video_id: V, story_id: null, version_number: 1, is_final: false, variant_name: 'A' },
+      ziel: {
+        kooperation_id: KO, kooperation_video_id: V, story_id: null, version_number: 1, is_final: false, variant_name: 'A',
+        custom_column_id: null, entity_id: null,
+      },
     });
   });
 
@@ -252,12 +255,6 @@ describe('dateiEinordnen: Uploads aus dem CRM', () => {
 
   it('Asset schon da: Upload egal', () => {
     expect(datei(R.schleife, { upload: upload(1), asset: videoAsset({ version_number: 2, variant_name: 'B' }), jetztMs }).aktion).toBe('asset');
-  });
-
-  it('Umzug-Upload: nach der Wartezeit an die Bestandszeile, nie ein neues Asset', () => {
-    const up = upload(11, { id: 'up1', kontext: { kooperation_id: KO, umzug_asset_id: 'a-alt' } });
-    expect(datei(R.schleife, { upload: { ...up, erstellt_at: new Date(jetztMs - 60000).toISOString() }, jetztMs }).aktion).toBe('warten');
-    expect(datei(R.schleife, { upload: up, jetztMs })).toEqual({ aktion: 'umzug', typ: 'video', asset_id: 'a-alt', upload_id: 'up1' });
   });
 });
 

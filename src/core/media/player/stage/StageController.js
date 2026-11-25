@@ -98,7 +98,7 @@ export class StageController {
    * Aktives Kooperationsvideo: Voll-Download und Video-Nachbar erst nach
    * Headroom, damit der Stream beim Start die Leitung nicht teilt. Sobald der
    * Blob fertig ist, wird das laufende <video> darauf umgestellt -> das (spaeter
-   * geparkte) Element haengt am Blob statt an der Dropbox-URL. `waiting` bricht
+   * geparkte) Element haengt am Blob statt an der Stream-URL. `waiting` bricht
    * nur den Nachbar-Download ab, nicht den laufenden Stream.
    */
   _fillWhenReady(video, media, streamUrl, token) {
@@ -162,7 +162,7 @@ export class StageController {
       perfLog('pool-hit', { key });
       mediaLog(`"${label}" sofort aus Speicher wiederverwendet (kein Laden).`);
       // Falls inzwischen ein Blob bereitsteht, das geparkte Element aber noch an
-      // der Dropbox-URL haengt: auf Blob umstellen (Position erhalten) -> kein
+      // der Stream-URL haengt: auf Blob umstellen (Position erhalten) -> kein
       // erneutes Netz-Laden beim Zurueckblaettern.
       const blobUrl = MediaCache.getObjectUrl(key);
       const video = stage.querySelector('.vpl-video');
@@ -282,7 +282,7 @@ export class StageController {
 
   /**
    * Stellt das aktuell sichtbare Stage-Video auf die fertige Blob-URL um, ohne
-   * Position/Play-Status zu verlieren. Dropbox-Stream-URLs (max-age=60) wuerden
+   * Position/Play-Status zu verlieren. Stream-URLs (kurzer HTTP-Cache) wuerden
    * beim Parken/Reattach den Puffer verlieren und neu laden – der Blob nicht.
    */
   _upgradeActiveToBlob(key, blobUrl) {

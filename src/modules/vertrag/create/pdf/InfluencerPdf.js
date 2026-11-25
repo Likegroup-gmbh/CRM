@@ -616,8 +616,8 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       const filePrefix = lang === 'en' ? 'EN_Contract_Influencer' : 'Vertrag_Influencer';
       const fileName = `${filePrefix}_${vertrag.name || 'Kooperation'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-      const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-      console.log('✅ Influencer-PDF nach Dropbox hochgeladen und URL gespeichert');
+      const uploadResult = await uploadGeneratedVertragPdf(vertrag, pdfBlob, fileName);
+      console.log('✅ Influencer-PDF hochgeladen und URL gespeichert');
       doc.save(fileName);
       return uploadResult;
 

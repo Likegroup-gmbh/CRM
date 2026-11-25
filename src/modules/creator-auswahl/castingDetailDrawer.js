@@ -30,14 +30,6 @@ function bindBody(detail) {
     el.addEventListener('change', handler, { signal });
     el.addEventListener('blur', handler, { signal });
   });
-  panel.querySelectorAll('.custom-upload-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      detail.customColumns?.openUploadDrawer(btn, detail._buildUploadMetadaten?.() || {}, () => {
-        detail.rerenderTable?.();
-        paint(detail);
-      });
-    }, { signal });
-  });
   const cleanup = CustomDatePicker.bind(panel);
   if (cleanup) signal.addEventListener('abort', cleanup, { once: true });
 }

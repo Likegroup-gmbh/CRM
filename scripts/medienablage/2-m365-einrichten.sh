@@ -325,9 +325,6 @@ say "Datei für den Import: $(pwd)/$NETLIFY_IMPORT"
 open_url "https://app.netlify.com/"
 step "Produktions-Site → Site configuration → Environment variables → Add a variable → 'Import from a .env file'"
 step "Inhalt der Datei einfügen, Scope: Functions, Kontexte: alle."
-warn "ABLAGE_ZIEL NICHT setzen. Ohne Wert gilt die Weiche pro Unternehmen (Standard dropbox)."
-note "Notschalter im Ernstfall: Admin → Medienablage → 'Alle zurück zu Dropbox' (sofort),"
-note "oder ABLAGE_ZIEL=dropbox setzen und neu deployen (Env wirkt erst nach Deploy)."
 pause "Importiert? Enter"
 
 finish

@@ -4,7 +4,7 @@
 // Storys/, Bilder/ und Varianten-Ordner in die Runden unter Videos/Video_N (ADR 0065)
 // (Background Function, bis zu 15 Minuten). Angestossen von der
 // Admin-Seite, geschuetzt ueber x-ablage-secret. Reicht das Budget nicht, stoesst der Lauf sich
-// selbst erneut an (hoechstens MAX_RUNDEN). Pausiert bei Notschalter.
+// selbst erneut an (hoechstens MAX_RUNDEN).
 // Body: { unternehmen_id, runde? }
 
 const { secretOk, istUuid, anstossen } = require('./_shared/ablage/konfig');

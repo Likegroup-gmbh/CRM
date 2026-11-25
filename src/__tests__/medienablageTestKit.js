@@ -1,17 +1,15 @@
 // Testhilfen fuer die Medienablage-Seite: Stand-Fixture, gemockter Endpunkt ablage-stand
-// (stand, fortschritt, Aktionen), Konsolen-Spies und Lebenszyklus der Seite.
+// (stand und Aktionen), Konsolen-Spies und Lebenszyklus der Seite.
 // vi.mock('../core/auth/getAccessToken.js') bleibt in der Testdatei.
 
 import { vi, beforeEach, afterEach } from 'vitest';
 
 const STUNDE = 60 * 60 * 1000;
 const iso = (offsetMs) => new Date(Date.now() + offsetMs).toISOString();
-const LESEND = new Set(['stand', 'fortschritt']);
 
 export function stand(overrides = {}) {
   return {
     konfig: { konfiguriert: true, site_url: 'https://x.sharepoint.com/sites/m', drive_id: 'd1' },
-    einstellung: { notschalter: false },
     stand: [{
       drive_id: 'd1',
       letzter_lauf: iso(-5 * 60 * 1000),
@@ -31,15 +29,10 @@ export function stand(overrides = {}) {
     unzugeordnet: [{ item_id: 'i1', name: 'clip.mov', pfad: '/Unsortiert/clip.mov', grund: 'kein_ordner', geaendert_at: iso(-STUNDE), geaendert_von: 'Anna', groesse: 5 * 1024 ** 2 }],
     fehler: [{ item_id: 'i2', name: 'kaputt.mp4', pfad: '/A/kaputt.mp4', grund: 'timeout', versuche: 2, naechster_versuch: iso(STUNDE) }],
     unternehmen: [
-      { id: 'u1', firmenname: 'Acme', ablage_ziel: 'dropbox', ist_test: false, dateien_sharepoint: 0, dateien_dropbox: 120 },
-      { id: 'u2', firmenname: 'Test GmbH', ablage_ziel: 'sharepoint', ist_test: true, dateien_sharepoint: 10, dateien_dropbox: 4 },
+      { id: 'u1', firmenname: 'Acme', ist_test: false },
+      { id: 'u2', firmenname: 'Test GmbH', ist_test: true },
     ],
-    umzug: [{ unternehmen_id: 'u2', offen: 2, fertig: 6, fehler: 0 }],
-    dokumente: [
-      { id: 'u1', dokument_ablage_ziel: 'dropbox', sharepoint: 0, dropbox: 7, storage: 3 },
-      { id: 'u2', dokument_ablage_ziel: 'sharepoint', sharepoint: 2, dropbox: 1, storage: 0 },
-    ],
-    dokument_umzug: [],
+    final_spiegel: { offen: 0, fertig: 6, fehler: 0, entfernt: 0, ohne_kopie: 2, kopie_bytes: 3 * 1024 ** 3, ohne_kopie_bytes: 1024 ** 3 },
     ...overrides,
   };
 }
@@ -48,31 +41,14 @@ export function antwort(data, status = 200) {
   return { ok: status < 400, status, json: async () => data };
 }
 
-/** Antwort der Aktion fortschritt aus einem vollen Stand, wie der Server sie liefert: nur die beobachteten Unternehmen. */
-export function fortschrittAus(s, umzugIds = []) {
-  const ids = new Set(umzugIds);
-  const nur = (liste) => (liste || []).filter((x) => ids.has(x.unternehmen_id));
-  return {
-    einstellung: s.einstellung,
-    weichen: (s.unternehmen || []).filter((u) => ids.has(u.id)).map((u) => ({
-      id: u.id,
-      ablage_ziel: u.ablage_ziel,
-      dokument_ablage_ziel: (s.dokumente || []).find((d) => d.id === u.id)?.dokument_ablage_ziel || 'dropbox',
-    })),
-    umzug: nur(s.umzug),
-    dokument_umzug: nur(s.dokument_umzug),
-    umzug_meldungen: nur(s.umzug_meldungen),
-  };
-}
-
 export const click = (el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 /**
- * Registriert beforeEach/afterEach fuer die Seite. zustand.stand ist der volle Stand, den der
- * gemockte Endpunkt liefert; fortschritt rechnet sich daraus.
+ * Registriert beforeEach/afterEach fuer die Seite. zustand.stand ist der Stand, den der
+ * gemockte Endpunkt liefert; zustand.antworten ueberschreibt die Antwort je Aktion.
  */
 export function medienablageUmgebung({ authorizedFetch, MedienablagePage }) {
-  const zustand = { stand: stand() };
+  const zustand = { stand: stand(), antworten: {} };
   const created = [];
   const konsole = {};
   const bodies = () => authorizedFetch.mock.calls.map(([, opts]) => JSON.parse(opts.body));
@@ -89,12 +65,11 @@ export function medienablageUmgebung({ authorizedFetch, MedienablagePage }) {
     vi.clearAllMocks();
     for (const art of ['log', 'info', 'warn', 'error']) konsole[art] = vi.spyOn(console, art).mockImplementation(() => {});
     zustand.stand = stand();
+    zustand.antworten = {};
     authorizedFetch.mockImplementation(async (_path, opts) => {
       const body = JSON.parse(opts.body);
       if (body.aktion === 'stand') return antwort(structuredClone(zustand.stand));
-      if (body.aktion === 'fortschritt') return antwort(structuredClone(fortschrittAus(zustand.stand, body.umzug_ids)));
-      if (body.aktion === 'umzug_starten') return antwort({ ok: true, angelegt: 4 });
-      return antwort({ ok: true });
+      return antwort(zustand.antworten[body.aktion] ?? { ok: true });
     });
     window.setHeadline = vi.fn();
     window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
@@ -119,9 +94,7 @@ export function medienablageUmgebung({ authorizedFetch, MedienablagePage }) {
     created,
     openPage,
     bodies,
-    aktionen: () => bodies().filter((b) => !LESEND.has(b.aktion)),
-    abrufe: (aktion) => bodies().filter((b) => b.aktion === aktion).length,
-    umzugLogs: (art = 'log') => konsole[art].mock.calls.map(([t]) => String(t)).filter((t) => t.startsWith('[Medienablage]')),
+    aktionen: () => bodies().filter((b) => b.aktion !== 'stand'),
     konsole,
   };
 }

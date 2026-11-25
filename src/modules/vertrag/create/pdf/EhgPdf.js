@@ -501,8 +501,8 @@ VertraegeCreate.prototype.generateEhgPDF = async function(vertrag, lang = this.g
     const pdfBlob = doc.output('blob');
     const filePrefix = en ? 'EN_Contract_EHG' : 'Vertrag_EHG';
     const fileName = `${filePrefix}_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
-    const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-    console.log('✅ EHG-Vertrag-PDF nach Dropbox hochgeladen');
+    const uploadResult = await uploadGeneratedVertragPdf(vertrag, pdfBlob, fileName);
+    console.log('✅ EHG-Vertrag-PDF hochgeladen');
     doc.save(fileName);
     return uploadResult;
   } catch (error) {

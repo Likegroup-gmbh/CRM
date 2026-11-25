@@ -4044,14 +4044,6 @@ input.readonly-field {
   color: var(--text-tertiary);
 }
 
-/* HINWEIS: --font-size-xs ist aktuell nirgends definiert; Referenz wird
-   verhaltensgleich aus dem Inline-Style uebernommen. */
-.dropzone-hint--spaced {
-  margin: var(--space-xxs) 0 0;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-}
-
 /* ============================================================
    Briefing-Generator (campaign_briefings)
    Layout fuer datengetriebene Feldtypen aus FieldRenderer.js

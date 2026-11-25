@@ -1,5 +1,5 @@
 // ablageApi.js
-// Aufrufe an die Medienablage-Functions (SharePoint). Dropbox-Zeilen laufen nie hierüber.
+// Aufrufe an die Medienablage-Functions (SharePoint). Altbestand außerhalb von SharePoint läuft nie hierüber.
 
 import { authorizedFetch } from '../auth/getAccessToken.js';
 
@@ -25,7 +25,7 @@ export async function ablagePost(fn, body, { fetch: fetchFn } = {}) {
  * SharePoint-Datei einer Asset-Zeile löschen. Muss vor dem Löschen der Zeile laufen: der
  * Server prüft die Rechte an der Zeile und lässt die Datei stehen, solange eine andere
  * Zeile auf sie zeigt.
- * @param {'video'|'story'|'still'|'roh'} typ
+ * @param {'video'|'story'|'still'|'roh'|'spalte'} typ
  */
 export function ablageDateiLoeschen(typ, id, opts) {
   return ablagePost('ablage-datei', { aktion: 'loeschen', typ, id }, opts);
@@ -92,7 +92,7 @@ export function ablageRohUmordnen(ids, kooperationId, ordnerItemId = null) {
 /**
  * SharePoint-Ordner und -Dateien einer Entität entfernen, vor dem DB-Delete. Ohne
  * SharePoint-Bestand oder ohne Konfiguration liefert der Server nur Nullen.
- * @param {'unternehmen'|'kampagne'|'kooperation'|'video'} entity
+ * @param {'unternehmen'|'kampagne'|'kooperation'|'video'|'spalte'} entity
  * @returns {Promise<{ ordner: number, dateien: number, fehler: Array }>}
  */
 export function ablageEntityLoeschen(entity, id, opts) {

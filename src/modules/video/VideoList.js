@@ -432,7 +432,7 @@ export class VideoList {
       .find(f => f.id === assetId);
     if (!asset) return;
 
-    const message = `"${asset.file_name || 'Diese Datei'}" wird auch in Dropbox gelöscht.`;
+    const message = `"${asset.file_name || 'Diese Datei'}" wird auch in SharePoint gelöscht.`;
     let confirmed;
     if (window.confirmationModal) {
       const res = await window.confirmationModal.open({

@@ -26,8 +26,7 @@ function buildPageBaseUrl(event) {
 async function loadContext(supabase, kampagneId, creatorId) {
   const { data: koop, error } = await supabase
     .from('kooperationen')
-    .select(`id, kampagne:kampagne_id(id, kampagnenname, eigener_name,
-        unternehmen:unternehmen_id(id, kein_dropbox)),
+    .select(`id, kampagne:kampagne_id(id, kampagnenname, eigener_name),
       creator:creator_id(id, vorname, nachname, mail)`)
     .eq('kampagne_id', kampagneId)
     .eq('creator_id', creatorId)
@@ -152,9 +151,6 @@ exports.handler = async (event) => {
     if (action === 'send' || action === 'resend') {
       const koop = await loadContext(supabase, kampagneId, creatorId);
       if (!koop) return json(404, { error: 'Keine Kooperation für diesen Creator in dieser Kampagne' });
-      if (koop.kampagne?.unternehmen?.kein_dropbox) {
-        return json(400, { error: 'Dieses Unternehmen nutzt kein Dropbox — Creator-Upload nicht möglich' });
-      }
       if (!koop.creator?.mail) {
         return json(400, { error: 'Keine E-Mail-Adresse beim Creator hinterlegt' });
       }

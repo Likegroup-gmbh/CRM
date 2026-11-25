@@ -20,6 +20,10 @@ const NAMENS_QUELLEN = [
   { art: 'produktion', spalte: 'produktion_id', tabelle: 'produktion', select: 'id, name', soll: NAMEN.produktion },
   { art: 'kooperation', spalte: 'kooperation_id', tabelle: 'kooperationen', select: 'id, name', soll: NAMEN.kooperation },
   { art: 'video', spalte: 'kooperation_video_id', tabelle: 'kooperation_videos', select: 'id, position, thema', soll: NAMEN.video },
+  // Upload-Spalten der Kampagne: Spaltenname, darunter je Video Video_N_Thema
+  { art: 'spalte', spalte: 'custom_column_id', tabelle: 'custom_columns', select: 'id, name', soll: NAMEN.spalte },
+  { art: 'spalte_videos', spalte: 'custom_column_id', tabelle: 'custom_columns', select: 'id, name', soll: NAMEN.spalte },
+  { art: 'spalte_video', spalte: 'kooperation_video_id', tabelle: 'kooperation_videos', select: 'id, position, thema', soll: NAMEN.video },
   // Dokument-Ordner (ADR 0068): je Ebene ein Fach-Objekt
   { art: 'dokument', ebene: 'marke', spalte: 'marke_id', tabelle: 'marke', select: 'id, markenname', soll: NAMEN.marke },
   { art: 'dokument', ebene: 'kampagne', spalte: 'kampagne_id', tabelle: 'kampagne', select: 'id, kampagnenname, eigener_name', soll: NAMEN.kampagne },

@@ -1,5 +1,5 @@
 // videoFileNames.js
-// Dateinamen für Uploads und Downloads: versionierte/finale Namen, Dropbox-taugliche Namen,
+// Dateinamen für Uploads und Downloads: versionierte/finale Namen, ablagetaugliche Namen,
 // laufende Indizes gegen Kollisionen (Stills, zweiter Upload desselben Namens).
 
 /** Umlaute und ß ausgeschrieben (ä → ae, Ä → Ae, ß → ss). */
@@ -41,7 +41,7 @@ export function buildFinalFileName(creator, unternehmen, kampagne, videoPosition
 
 /**
  * Download-Dateiname fuer ein bestehendes Asset: identisch zum Upload-Namen,
- * damit auch Altdateien (alter Dropbox-Name) beim Download die Video-Nr tragen.
+ * damit auch Altdateien (alter Dateiname) beim Download die Video-Nr tragen.
  * @param {{creatorName?: string, unternehmen?: string, kampagne?: string}} meta
  * @param {{position?: number}} video
  * @param {{is_final?: boolean, version_number?: number, variant_name?: string, file_path?: string, file_url?: string}} asset
@@ -50,7 +50,7 @@ export function buildAssetDownloadName(meta, video, asset) {
   const path = asset?.file_path || asset?.file_url || '';
   const extMatch = /\.([a-zA-Z0-9]{2,5})(?:\?|#|$)/.exec(path);
   const ext = extMatch ? extMatch[1] : 'mp4';
-  // Vom Team vergebener Ad-Manager-Name gewinnt: die Datei heißt in Dropbox genauso
+  // Vom Team vergebener Ad-Manager-Name gewinnt: die Datei heißt in der Ablage genauso
   if (asset?.ad_manager_name) return `${asset.ad_manager_name}.${ext}`;
   const position = video?.position || 1;
   if (asset?.is_final) {
@@ -60,7 +60,7 @@ export function buildAssetDownloadName(meta, video, asset) {
   return buildVersionedFileName(meta?.creatorName, meta?.unternehmen, meta?.kampagne, position, asset?.version_number || 1, ext);
 }
 
-/** Basename eines Dropbox-Pfads oder einer URL, ohne Query. */
+/** Basename eines Ablage-Pfads oder einer URL, ohne Query. */
 export function fileBasename(path) {
   if (!path) return '';
   const clean = String(path).split('?')[0].split('#')[0];
@@ -86,7 +86,7 @@ export function renamedFilePath(path, name, { adManager = false } = {}) {
   if (ext && stem.toLowerCase().endsWith(ext.toLowerCase())) stem = stem.slice(0, -ext.length);
   stem = adManager
     ? sanitizeAdManagerName(stem)
-    : sanitizeDropboxFileName(stem).replace(/^[\s.-]+|[\s.]+$/g, '');
+    : sanitizeFileName(stem).replace(/^[\s.-]+|[\s.]+$/g, '');
   if (!stem) return null;
   const slash = path.lastIndexOf('/');
   return `${slash >= 0 ? path.slice(0, slash + 1) : ''}${stem}${ext}`;
@@ -118,10 +118,11 @@ export function previewAdManagerStem(input, ext = '') {
 }
 
 /**
- * Dropbox-Dateiname, gleiche Regeln wie sanitizePath in netlify/functions/_shared/dropbox.js.
- * Muss damit uebereinstimmen, sonst erkennt der Client eine Kollision nicht.
+ * Dateiname ohne verbotene Zeichen, gleiche Ersetzung wie bereinigen in
+ * netlify/functions/_shared/ablage/pfad.js. Muss damit übereinstimmen, sonst erkennt der
+ * Client eine Kollision nicht.
  */
-export function sanitizeDropboxFileName(str) {
+export function sanitizeFileName(str) {
   if (!str) return '';
   return String(str)
     .replace(/[<>:"|?*\\/]/g, '-')
@@ -131,7 +132,7 @@ export function sanitizeDropboxFileName(str) {
 
 /**
  * Erste Datei behaelt den Basisnamen. Ab der zweiten haengt ein Index an
- * (`name_02.ext`), damit ein zweiter Upload dieselbe Dropbox-Datei nicht
+ * (`name_02.ext`), damit ein zweiter Upload dieselbe Datei nicht
  * ueberschreibt. _01 gibt es nicht: die unindizierte Datei ist die erste.
  */
 export function nextFreeIndexedFileName(baseFileName, existingNames) {
@@ -163,8 +164,7 @@ function finalDownloadName(rebuilt, storedPath) {
 
 // ─── Stills: eindeutige Dateinamen ───────────────────────────
 // Mehrere Stills derselben Feedbackschleife erzeugen sonst identische
-// Dateinamen; Dropbox-Upload laeuft mit mode:'overwrite' -> Dateien
-// ueberschreiben sich gegenseitig. Deshalb bekommt jeder Still eine
+// Dateinamen. Deshalb bekommt jeder Still eine
 // laufende Nummer: name_v1.jpg -> name_v1_01.jpg, name_v1_02.jpg, ...
 
 export function withStillIndex(fileName, n) {

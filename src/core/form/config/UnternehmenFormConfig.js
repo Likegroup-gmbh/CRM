@@ -114,7 +114,6 @@ export const unternehmenConfig = {
     },
     // Sonstige Felder ohne Section
     { name: 'invoice_email', label: 'Rechnungs-Email', type: 'email', required: false, validation: { type: 'email' } },
-    { name: 'status', label: 'Status', type: 'select', required: false, editOnly: true, options: ['Aktiv', 'Inaktiv', 'Prospekt'] },
-    { name: 'kein_dropbox', label: 'Content ohne Dropbox (nur externe Links)', type: 'toggle', required: false, section: 'online' }
+    { name: 'status', label: 'Status', type: 'select', required: false, editOnly: true, options: ['Aktiv', 'Inaktiv', 'Prospekt'] }
   ]
 };

@@ -1,6 +1,6 @@
 // ablage-upload-ziel.js
-// Wohin geht dieser Upload? { ziel:'dropbox' } -> der Client nimmt den bisherigen Weg.
-// { ziel:'sharepoint', upload_url, ... } -> Upload-Session fuer genau diese eine Datei.
+// Upload-Session in SharePoint fuer genau diese eine Datei: { ziel:'sharepoint', upload_url, ... }.
+// Ohne SharePoint-Konfiguration 503 (nicht_konfiguriert).
 
 const { ablageHandler } = require('./_shared/ablage/http');
 const { createSchreiben } = require('./_shared/ablage/schreiben');

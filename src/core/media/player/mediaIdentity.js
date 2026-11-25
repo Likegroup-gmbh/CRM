@@ -25,7 +25,7 @@ const ABLAGE_TYP = { video: 'video', story: 'story', still: 'still', bild: 'stil
 
 /**
  * Lookup fuer resolveStreamUrl/prefetchStreamUrl. typ, id, ablage und etag braucht nur
- * SharePoint (ablage-link); Dropbox loest weiter ueber file_path/file_url auf.
+ * SharePoint (ablage-link); Altbestand ist der gespeicherte Link (file_url).
  * @param {object|null} asset
  * @param {'video'|'story'|'still'|'bild'|'roh'|null} [type]
  * @param {string|null} [fallbackUrl] - greift nur, wenn das Asset keine file_url hat

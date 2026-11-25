@@ -92,8 +92,6 @@ export async function api(fn, body, prefix = 'creator-upload-') {
     const err = new Error(data?.error || `Fehler (${resp.status})`);
     err.status = resp.status;
     err.code = data?.code || null;
-    // Netlify-404 ohne JSON: die Function gibt es (noch) nicht
-    err.ohneFunction = resp.status === 404 && !data;
     throw err;
   }
   return data || {};

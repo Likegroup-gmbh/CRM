@@ -1,12 +1,11 @@
 // creator-upload.js — Oeffentliche Creator-Upload-Seite (Rohmaterial-Abgabe).
-// Kein Supabase-Client, kein Anon-Key: nur die Token-API + TUS mit
-// x-signature. Token kommt per URL-Hash (#t=...), nie per Query.
+// Kein Supabase-Client, kein Anon-Key: nur die Token-API, die Bytes gehen direkt in eine
+// SharePoint-Upload-Session. Token kommt per URL-Hash (#t=...), nie per Query.
 //
 // Der Creator laedt sein Rohmaterial ab — kein Slot, keine Feedbackschleife.
 // Geschnitten wird intern; Feedbackschleifen/Finale laufen ueber das CRM.
 // Texte, Zustand, Token-API und Darstellung: creatorUploadSeite.js.
 
-import * as tus from 'tus-js-client';
 import { uploadToSession } from '../core/AblageUploader.js';
 import {
   state, $, getTokenFromUrl, api, render, renderSessionList, updateProgressBar, setState,
@@ -18,7 +17,7 @@ const ACCEPT = 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video
 const ALLOWED_EXT = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'zip',
   'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tiff', 'tif', 'avif'];
 
-// Mehr parallele TUS-Streams saettigen die Creator-Leitung und lassen jeden
+// Mehr parallele Uploads saettigen die Creator-Leitung und lassen jeden
 // einzelnen Upload langsamer aussehen — der Rest wartet in der Queue.
 const MAX_PARALLEL = 2;
 
@@ -31,47 +30,10 @@ function fileExt(name) {
 
 // ─── Upload ─────────────────────────────────────────────────
 
-function pollStatus(jobId) {
-  return new Promise((resolve, reject) => {
-    let attempts = 0;
-    const tick = async () => {
-      attempts++;
-      try {
-        const res = await api('status', { jobId });
-        if (res.status === 'done') return resolve(res);
-        if (res.status === 'failed') return reject(new Error(res.error || 'failed'));
-        if (attempts > 120) return reject(new Error('timeout'));
-        setTimeout(tick, 2500);
-      } catch (err) {
-        if (err.status === 404) return reject(err);
-        if (attempts > 120) return reject(err);
-        setTimeout(tick, 2500);
-      }
-    };
-    tick();
-  });
-}
-
-function abortUpload(jobId) {
-  if (!jobId) return;
-  const body = JSON.stringify({ token: state.token, jobId });
-  // sendBeacon ueberlebt pagehide; fetch nur als Fallback.
-  if (navigator.sendBeacon && navigator.sendBeacon('/.netlify/functions/creator-upload-abort', new Blob([body], { type: 'application/json' }))) {
-    return;
-  }
-  fetch('/.netlify/functions/creator-upload-abort', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-    keepalive: true,
-  }).catch(() => {});
-}
-
 function isTooLargeError(err) {
   if (!err) return false;
-  const status = err.status ?? err.originalResponse?.getStatus?.() ?? err.originalRequest?.status;
-  if (status === 413) return true;
-  const msg = String(err.message || err.originalResponse?.getBody?.() || '').toLowerCase();
+  if (err.status === 413) return true;
+  const msg = String(err.message || '').toLowerCase();
   return msg.includes('entitytoolarge') || msg.includes('file size') || msg.includes('file-size') || msg.includes('too large') || msg.includes('payload too large');
 }
 
@@ -86,7 +48,6 @@ function enqueue(koopId, files) {
       state: 'queued',
       progress: 0,
       errorCode: null,
-      jobId: null,
     };
     if (!ALLOWED_EXT.includes(fileExt(file.name))) {
       entry.state = 'failed';
@@ -122,36 +83,27 @@ async function runUpload(entry) {
   entry.errorCode = null;
   renderSessionList(entry.koopId);
 
+  // Offene Sessions und Jobs raeumt der Server ab (creator-upload-cleanup, neuer Start)
   const controller = new AbortController();
-  const onPageHide = () => {
-    controller.abort();
-    abortUpload(entry.jobId);
-  };
+  const onPageHide = () => controller.abort();
   window.addEventListener('pagehide', onPageHide);
 
   try {
-    const startBody = {
+    const ziel = await api('start', {
       targetType: 'rohmaterial',
       targetId: entry.koopId,
       fileName: entry.file.name,
       fileSize: entry.file.size,
       contentType: entry.file.type || '',
-    };
-    const ziel = await api('start', startBody, 'ablage-creator-').catch((err) => {
-      if (err.ohneFunction) return { ziel: 'dropbox' };
-      throw err;
-    });
-    if (ziel.ziel === 'sharepoint') await uploadNachSharePoint(entry, ziel, controller.signal);
-    else if (ziel.ziel === 'dropbox') await uploadPerTus(entry, await api('start', startBody));
-    else throw new Error('Ablage-Ziel unbekannt');
+    }, 'ablage-creator-');
+    if (ziel.ziel !== 'sharepoint') throw new Error('Ablage-Ziel unbekannt');
+    await uploadNachSharePoint(entry, ziel, controller.signal);
 
     entry.state = 'done';
     entry.progress = 100;
     renderSessionList(entry.koopId);
   } catch (err) {
     console.error('Upload fehlgeschlagen:', err);
-    abortUpload(entry.jobId);
-    entry.jobId = null;
     // 404 der Upload-Session ist eine abgelaufene Sitzung, kein ungültiger Link
     if (err.status === 404 && err.name !== 'SessionError') {
       setState('error');
@@ -184,38 +136,6 @@ async function uploadNachSharePoint(entry, ziel, signal) {
   entry.state = 'processing';
   renderSessionList(entry.koopId);
   await api('complete', { jobId: ziel.jobId, ...(item?.id ? { itemId: item.id } : {}) }, 'ablage-creator-');
-}
-
-async function uploadPerTus(entry, start) {
-  entry.jobId = start.jobId;
-
-  await new Promise((resolve, reject) => {
-    const upload = new tus.Upload(entry.file, {
-      endpoint: start.uploadEndpoint,
-      headers: { 'x-signature': start.uploadToken },
-      metadata: {
-        bucketName: start.bucket,
-        objectName: start.stagingPath,
-        contentType: start.contentType,
-      },
-      chunkSize: 6 * 1024 * 1024,
-      retryDelays: [0, 3000, 5000, 10000, 20000],
-      onProgress: (uploaded, total) => {
-        entry.progress = Math.round((uploaded / total) * 100);
-        updateProgressBar(entry);
-      },
-      onError: reject,
-      onSuccess: resolve,
-    });
-    upload.start();
-  });
-
-  entry.state = 'processing';
-  renderSessionList(entry.koopId);
-
-  await api('complete', { jobId: entry.jobId });
-  await pollStatus(entry.jobId);
-  entry.jobId = null;
 }
 
 // ─── Events ─────────────────────────────────────────────────

@@ -2,17 +2,15 @@
 // Erzeugt Poster (Standbild als WebP, hoechstens 480 px breit) fuer Videos und Bilder im
 // Videos-Tab (ADR 0064) und legt sie in den privaten Bucket.
 //
-// Quellen: Dropbox (files/get_thumbnail_batch, 25 Dateien je Call, Standbild auch fuer Videos,
-// wandelt HEIC) und SharePoint (Graph-Thumbnails per $batch, Schluessel 'sp:<drive>:<item>').
-// Was scheitert, landet mit Grund in asset_poster.fehler und der Client faellt auf das
-// Original zurueck.
+// Quelle: SharePoint (Graph-Thumbnails per $batch, Schluessel 'sp:<drive>:<item>'). Andere
+// Schluessel (Altbestand ausserhalb von SharePoint) scheitern dauerhaft. Was scheitert, landet mit
+// Grund in asset_poster.fehler und der Client faellt auf das Original zurueck.
 //
 // Ein Lauf: claimen (poster_auftraege_holen), Thumbnails holen, mit sharp auf WebP bringen,
 // hochladen, abschliessen. Der Abschluss schreibt nur mit dem versuche-Stand des Claims
 // (Fencing): ein ueberholter Lauf ueberschreibt nichts.
 
 const crypto = require('crypto');
-const { getAccessToken } = require('./dropbox');
 const { BUCKET, serviceClient } = require('./poster');
 
 const BATCH = 25;
@@ -20,11 +18,6 @@ const MAX_BREITE = 480;
 const WEBP_QUALITY = 72;
 const MAX_VERSUCHE = 3;
 const BACKOFF_SEC = 60;
-const DROPBOX_SIZE = 'w480h320';
-// Kuerzere Seite passt in w480h320, Hochformat kommt also mit 480 px Breite zurueck
-const DROPBOX_MODE = 'fitone_bestfit';
-// Fehler, bei denen ein neuer Versuch nichts aendert
-const PERMANENT = new Set(['path', 'unsupported_extension', 'unsupported_image', 'encrypted_content']);
 
 /** Deterministischer Pfad im Bucket: ein Schluessel, eine Datei (Upsert ist idempotent). */
 function storagePathFor(filePath, revision) {
@@ -38,37 +31,6 @@ class BatchError extends Error {
     this.name = 'BatchError';
     this.retryAfterSec = retryAfterSec;
   }
-}
-
-/**
- * Dropbox-Thumbnails fuer bis zu 25 Pfade. Ergebnis in derselben Reihenfolge.
- * HTTP-Fehler (Rate Limit, 5xx, Token) gelten fuer den ganzen Batch und werfen BatchError.
- * @returns {Promise<Array<{ ok: true, buffer: Buffer } | { ok: false, fehler: string, permanent: boolean }>>}
- */
-async function dropboxThumbnails(paths, { fetchImpl = (...a) => fetch(...a), token = getAccessToken } = {}) {
-  const t = await token();
-  const resp = await fetchImpl('https://content.dropboxapi.com/2/files/get_thumbnail_batch', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      entries: paths.map((path) => ({ path, format: 'jpeg', size: DROPBOX_SIZE, mode: DROPBOX_MODE })),
-    }),
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    const retryAfter = Number(resp.headers?.get?.('retry-after')) || null;
-    throw new BatchError(`Dropbox ${resp.status}: ${text.slice(0, 200)}`, retryAfter);
-  }
-  const { entries = [] } = await resp.json();
-  return paths.map((_, i) => {
-    const entry = entries[i];
-    if (entry?.['.tag'] === 'success' && entry.thumbnail) {
-      return { ok: true, buffer: Buffer.from(entry.thumbnail, 'base64') };
-    }
-    const tag = entry?.failure?.['.tag'] || 'unbekannt';
-    const detail = entry?.failure?.[tag]?.['.tag'];
-    return { ok: false, fehler: `dropbox:${tag}${detail ? `/${detail}` : ''}`, permanent: PERMANENT.has(tag) };
-  });
 }
 
 // Passt in 480 x 1600 ohne Zuschnitt: Hochformat kommt mit 480 px Breite
@@ -116,14 +78,15 @@ async function sharePointThumbnails(keys, { sp, fetchImpl = (...a) => fetch(...a
   return out;
 }
 
-/** Verteilt die Schluessel auf Dropbox und SharePoint, Ergebnis in Eingabe-Reihenfolge. */
-function gemischteThumbnails({ sp = null, dropbox = dropboxThumbnails, fetchImpl } = {}) {
+/** SharePoint-Schluessel holen, alle anderen scheitern dauerhaft. Ergebnis in Eingabe-Reihenfolge. */
+function ablageThumbnails({ sp = null, fetchImpl } = {}) {
   return async (keys) => {
     const out = new Array(keys.length);
     const spIdx = [];
-    const dbIdx = [];
-    keys.forEach((k, i) => (String(k).startsWith('sp:') ? spIdx : dbIdx).push(i));
-    if (dbIdx.length) (await dropbox(dbIdx.map((i) => keys[i]))).forEach((r, j) => { out[dbIdx[j]] = r; });
+    keys.forEach((k, i) => {
+      if (String(k).startsWith('sp:')) spIdx.push(i);
+      else out[i] = { ok: false, fehler: 'altbestand:keine_quelle', permanent: true };
+    });
     if (spIdx.length) {
       (await sharePointThumbnails(spIdx.map((i) => keys[i]), { sp, fetchImpl })).forEach((r, j) => { out[spIdx[j]] = r; });
     }
@@ -152,7 +115,7 @@ function chunk(list, size) {
  */
 function createPosterGenerator(deps) {
   const service = deps.service;
-  const thumbnails = deps.thumbnails || dropboxThumbnails;
+  const thumbnails = deps.thumbnails || ablageThumbnails();
   const now = deps.now || (() => Date.now());
   const sharpImpl = () => deps.sharp || require('sharp');
   const iso = (ms) => new Date(ms).toISOString();
@@ -197,7 +160,7 @@ function createPosterGenerator(deps) {
   }
 
   /**
-   * Batch-Fehler (Rate Limit, Dropbox down): Lease freigeben, ohne einen Versuch zu verbrauchen.
+   * Batch-Fehler (Drosselung, SharePoint nicht erreichbar): Lease freigeben, ohne einen Versuch zu verbrauchen.
    * versuche geht auf den Stand vor dem Claim zurueck, der naechste Claim zaehlt wieder hoch.
    */
   async function freigeben(auftrag, err) {
@@ -299,7 +262,7 @@ function posterAusEnv() {
   if (!service) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_KEY fehlt');
   const { ablageAusEnv } = require('./ablage');
   const ablage = ablageAusEnv({ supabase: service });
-  return createPosterGenerator({ service, thumbnails: gemischteThumbnails({ sp: ablage?.sp || null }) });
+  return createPosterGenerator({ service, thumbnails: ablageThumbnails({ sp: ablage?.sp || null }) });
 }
 
 module.exports = {
@@ -308,9 +271,8 @@ module.exports = {
   BACKOFF_SEC,
   BatchError,
   storagePathFor,
-  dropboxThumbnails,
   sharePointThumbnails,
-  gemischteThumbnails,
+  ablageThumbnails,
   toWebp,
   createPosterGenerator,
   posterAusEnv,

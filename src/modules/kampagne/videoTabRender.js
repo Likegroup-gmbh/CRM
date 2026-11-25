@@ -1,13 +1,11 @@
 // videoTabRender.js
-// HTML des Video-Tabs im VideoUploadDrawer: Tab-Gerüst, Link-/Ordner-Modus, Warteschlange,
-// vorhandene Videos. Reine Funktionen.
+// HTML des Video-Tabs im VideoUploadDrawer: Tab-Gerüst, Warteschlange, vorhandene Videos.
+// Reine Funktionen.
 
 import {
   MAX_VERSIONS, FINAL_VARIANTS,
   escapeHtml,
   mdcBtnIcon,
-  ICON_PLUS_16,
-  ICON_CHECK_16,
 } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -42,49 +40,6 @@ export function videoTabShell(activeTab, innerHtml, { submitIcon, submitLabel })
   `;
 }
 
-// ─── Link-Modus ─────────────────────────────────────────────
-
-function linkModeNav(isFolder) {
-  return `
-    <div class="drawer-tab-nav link-share-mode" role="tablist">
-      <button type="button" class="drawer-tab-btn ${isFolder ? '' : 'active'}" data-link-mode="video" role="tab" aria-selected="${isFolder ? 'false' : 'true'}">Video-Link</button>
-      <button type="button" class="drawer-tab-btn ${isFolder ? 'active' : ''}" data-link-mode="folder" role="tab" aria-selected="${isFolder ? 'true' : 'false'}">Ordner teilen</button>
-    </div>
-  `;
-}
-
-function folderFields(folderUrl) {
-  return `
-    <div class="link-folder-section">
-      <label class="custom-upload-label" for="video-folder-url-input">OneDrive- / SharePoint-Ordner</label>
-      <input type="url" id="video-folder-url-input" class="form-input"
-        value="${escapeHtml(folderUrl || '')}"
-        placeholder="https://….sharepoint.com/…" />
-      <p class="dropzone-hint">Der Kunde öffnet den Ordner und schaut die Videos dort.</p>
-    </div>
-  `;
-}
-
-function videoLinkFields() {
-  return `
-    <div class="link-add-section">
-      <button type="button" class="mdc-btn upload-drawer-btn--secondary" id="video-link-add-btn">
-        ${mdcBtnIcon(ICON_PLUS_16)}
-        <span class="mdc-btn__label">Link hinzufügen</span>
-      </button>
-    </div>
-    <div class="upload-file-list" id="video-upload-queue"></div>
-  `;
-}
-
-export function renderLinkTab(activeTab, { linkMode, folderUrl }) {
-  const isFolder = linkMode === 'folder';
-  return videoTabShell(activeTab, `
-    ${linkModeNav(isFolder)}
-    ${isFolder ? folderFields(folderUrl) : videoLinkFields()}
-  `, { submitIcon: ICON_CHECK_16, submitLabel: 'Speichern' });
-}
-
 // ─── Warteschlange ──────────────────────────────────────────
 
 function versionOptions(item, existingVersions) {
@@ -112,21 +67,14 @@ function variantField(item, idx) {
     placeholder="Varianten-Name (z.B. Voice-Over Berlin)" maxlength="120"/>`;
 }
 
-/** Eine Zeile der Warteschlange: Link-Eingabe (externe Links) oder Datei. */
-export function queueItemHtml(item, idx, { existingVersions, external }) {
-  const source = external
-    ? `<div class="video-queue-variant flex-1">
-        <input type="url" class="form-input video-link-url-input" data-idx="${idx}"
-          value="${escapeHtml(item.url || '')}"
-          placeholder="https://drive.google.com/..." />
-      </div>`
-    : `<div class="file-info">
-        <span class="file-name">${escapeHtml(item.file.name)}</span>
-        <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
-      </div>`;
+/** Eine Zeile der Warteschlange. */
+export function queueItemHtml(item, idx, { existingVersions }) {
   return `
     <div class="upload-file-item video-queue-item">
-      ${source}
+      <div class="file-info">
+        <span class="file-name">${escapeHtml(item.file.name)}</span>
+        <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
+      </div>
       <div class="video-queue-variant">
         ${variantField(item, idx)}
       </div>
@@ -154,7 +102,7 @@ function existingItem(asset, { fallbackName, suffix, replace }) {
   const name = asset.variant_name || asset.file_path?.split('/').pop() || fallbackName;
   const date = asset.created_at ? new Date(asset.created_at).toLocaleDateString('de-DE') : '';
   const replaceBtn = replace
-    ? `<button type="button" class="existing-video-replace" data-id="${asset.id}" data-path="${escapeHtml(asset.file_path || '')}" data-version="${asset.version_number}" data-variant="${escapeHtml(asset.variant_name || '')}" title="Ersetzen">${icon('arrow-path')}</button>`
+    ? `<button type="button" class="existing-video-replace" data-id="${asset.id}" data-version="${asset.version_number}" data-variant="${escapeHtml(asset.variant_name || '')}" title="Ersetzen">${icon('arrow-path')}</button>`
     : '';
   return `
     <div class="existing-image-item existing-storys-asset-item">

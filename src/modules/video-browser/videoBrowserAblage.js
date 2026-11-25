@@ -6,7 +6,6 @@
 // bekommen den Controller (`vb`).
 
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
-import { DROPBOX_UPLOAD } from '../../core/ablage/schalter.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
 import { formatBytes, formatDatum, plural } from './videoBrowserLogic.js';
@@ -35,9 +34,9 @@ const hatDateien = (koop) => !!koop?.rows?.some(r => r.folders.some(f => f.items
 
 /**
  * Hat die Kooperation einen SharePoint-Ordner? Sicher, sobald eine Datei dort liegt. Ohne Dateien legt
- * der Abgleich bei aktiver SharePoint-Ablage das Gerüst an; fehlt es noch, antwortet ablage-freigabe 409.
+ * der Abgleich das Gerüst an; fehlt es noch, antwortet ablage-freigabe 409.
  */
-export const liegtInSharepoint = (koop) => hatSharepoint(koop) || (!DROPBOX_UPLOAD && !hatDateien(koop));
+export const liegtInSharepoint = (koop) => hatSharepoint(koop) || !hatDateien(koop);
 
 /** Gäste (Share-Links) bekommen keinen eigenen Ordner-Link. */
 const istGast = () => !!(window.isGast?.() || window.guestShare);

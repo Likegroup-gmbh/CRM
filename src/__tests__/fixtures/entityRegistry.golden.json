@@ -254,10 +254,6 @@
         {
           "name": "logo_path",
           "type": "string"
-        },
-        {
-          "name": "kein_dropbox",
-          "type": "boolean"
         }
       ],
       "relations": {

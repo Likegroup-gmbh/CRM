@@ -11,15 +11,16 @@ const { AdminPage } = await import('../modules/admin/AdminPage.js');
 const { NavigationSystem } = await import('../modules/navigation/NavigationSystem.js');
 
 // Medienablage-Seite: Stand und Aktionen laufen ueber ablage-stand.
-// authorizedFetch ist gemockt und antwortet je nach aktion. Laufende Umzuege: MedienablageUmzugBeobachten.test.js
+// authorizedFetch ist gemockt und antwortet je nach aktion.
 const t = medienablageUmgebung({ authorizedFetch, MedienablagePage });
 const { zustand, openPage, bodies, aktionen } = t;
+const flush = () => vi.waitFor(() => expect(window.content.querySelector('[aria-busy]')).toBeNull());
 
 describe('MedienablagePage', () => {
-  it('laedt den Stand ueber ablage-stand und rendert die Statuskarten', async () => {
+  it('laedt den Stand ueber ablage-stand und rendert Karten, Umsortieren, Finale und Eingang', async () => {
     await openPage();
     expect(authorizedFetch).toHaveBeenCalledWith('/.netlify/functions/ablage-stand', expect.objectContaining({ method: 'POST' }));
-    expect(bodies()[0]).toEqual({ aktion: 'stand' });
+    expect(bodies()).toEqual([{ aktion: 'stand' }]);
 
     const karten = [...window.content.querySelectorAll('.ma-karte')];
     const labels = karten.map(k => k.querySelector('.ma-karte-label').textContent);
@@ -33,139 +34,84 @@ describe('MedienablagePage', () => {
     // Zertifikat laeuft in 10 Tagen ab: unter der 30-Tage-Grenze, also gelb
     expect(karten.find(k => k.textContent.includes('Zertifikat')).classList).toContain('ma-karte--warn');
 
-    // Weiche, Umzug und Eingang
+    expect(window.content.querySelector('[data-ma-umsortieren="u1"]')).not.toBeNull();
     expect(window.content.textContent).toContain('Testunternehmen');
-    expect(window.content.textContent).toContain('Umzug läuft · 6 von 8');
+    expect(window.content.textContent).toContain('6 Finale im Finder');
     expect(window.content.querySelector('[data-ma-erneut="i1"]')).not.toBeNull();
     expect(window.content.querySelector('[data-ma-ignorieren="i1"]')).not.toBeNull();
     expect(window.content.querySelector('[data-ma-erneut="i2"]')).not.toBeNull();
   });
 
-  it('zeigt "nicht konfiguriert" ohne Karten und Weiche', async () => {
+  it('keine Spur mehr von Weiche, Notschalter, Umzug oder Dropbox', async () => {
+    await openPage();
+    for (const sel of ['[data-ma-weiche]', '[data-ma-notschalter]', '[data-ma-umzug]', '[data-ma-dokument-weiche]', '[data-ma-dokument-umzug]']) {
+      expect(window.content.querySelector(sel)).toBeNull();
+    }
+    expect(window.content.textContent).not.toMatch(/Dropbox/i);
+  });
+
+  it('zeigt "nicht konfiguriert" ohne Karten und Umsortieren', async () => {
     zustand.stand = stand({ konfig: { konfiguriert: false, site_url: null, drive_id: null } });
     await openPage();
     expect(window.content.textContent).toContain('SharePoint ist nicht konfiguriert');
+    expect(window.content.textContent).toContain('Ohne Site und Drive sind keine Uploads möglich');
     expect(window.content.querySelector('.ma-karte')).toBeNull();
-    expect(window.content.querySelector('[data-ma-weiche]')).toBeNull();
+    expect(window.content.querySelector('[data-ma-umsortieren]')).toBeNull();
   });
 
-  it('Notschalter fragt nach, schaltet ein und laedt neu', async () => {
+  it('Eingang und Abgleich schicken ihre Aktionen und laden danach neu', async () => {
     await openPage();
-    const schalter = window.content.querySelector('[data-ma-notschalter]');
-    expect(schalter.getAttribute('aria-pressed')).toBe('false');
-
-    zustand.stand = stand({ einstellung: { notschalter: true } });
-    click(schalter);
-
-    await vi.waitFor(() => expect(aktionen()).toEqual([{ aktion: 'notschalter', an: true }]));
-    expect(window.confirmationModal.open).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => expect(window.content.querySelector('[data-ma-notschalter]').getAttribute('aria-pressed')).toBe('true'));
-    expect(window.toastSystem.show).toHaveBeenCalledWith('Notschalter aktiv: alle Uploads gehen nach Dropbox.', 'success');
-  });
-
-  it('Notschalter bleibt aus, wenn die Rueckfrage abgebrochen wird', async () => {
-    window.confirmationModal.open.mockResolvedValueOnce({ confirmed: false });
-    await openPage();
-    click(window.content.querySelector('[data-ma-notschalter]'));
-    await vi.waitFor(() => expect(window.confirmationModal.open).toHaveBeenCalled());
-    await Promise.resolve();
-    expect(aktionen()).toEqual([]);
-  });
-
-  it('Notschalter ausschalten braucht keine Rueckfrage', async () => {
-    zustand.stand = stand({ einstellung: { notschalter: true } });
-    await openPage();
-    click(window.content.querySelector('[data-ma-notschalter]'));
-    await vi.waitFor(() => expect(aktionen()).toEqual([{ aktion: 'notschalter', an: false }]));
-    expect(window.confirmationModal.open).not.toHaveBeenCalled();
-  });
-
-  it('Weiche auf SharePoint fragt nach und schickt unternehmen_id und ziel', async () => {
-    await openPage();
-    const select = window.content.querySelector('[data-ma-weiche="u1"]');
-    select.value = 'sharepoint';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-
-    await vi.waitFor(() => expect(aktionen()).toEqual([{ aktion: 'weiche', unternehmen_id: 'u1', ziel: 'sharepoint' }]));
-    expect(window.confirmationModal.open).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Acme: neue Uploads gehen nach SharePoint.', 'success'));
-    // Nach der Aktion wird der Stand neu geladen
-    await vi.waitFor(() => expect(bodies().filter(b => b.aktion === 'stand')).toHaveLength(2));
-  });
-
-  it('Weiche zurueck auf Dropbox ohne Rueckfrage', async () => {
-    await openPage();
-    const select = window.content.querySelector('[data-ma-weiche="u2"]');
-    select.value = 'dropbox';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-    await vi.waitFor(() => expect(aktionen()).toEqual([{ aktion: 'weiche', unternehmen_id: 'u2', ziel: 'dropbox' }]));
-    expect(window.confirmationModal.open).not.toHaveBeenCalled();
-  });
-
-  it('abgebrochene Weiche setzt die Auswahl zurueck', async () => {
-    window.confirmationModal.open.mockResolvedValueOnce({ confirmed: false });
-    await openPage();
-    const select = window.content.querySelector('[data-ma-weiche="u1"]');
-    select.value = 'sharepoint';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-    await vi.waitFor(() => expect(select.value).toBe('dropbox'));
-    expect(aktionen()).toEqual([]);
-  });
-
-  it('Eingang, Abgleich und Umzug schicken ihre Aktionen', async () => {
-    await openPage();
-    const flush = () => vi.waitFor(() => expect(window.content.querySelector('[aria-busy]')).toBeNull());
 
     click(window.content.querySelector('[data-ma-erneut="i1"]'));
-    await vi.waitFor(() => expect(aktionen()).toHaveLength(1));
+    await vi.waitFor(() => expect(aktionen()).toEqual([{ aktion: 'erneut', item_id: 'i1' }]));
     await flush();
     click(window.content.querySelector('[data-ma-ignorieren="i1"]'));
     await vi.waitFor(() => expect(aktionen()).toHaveLength(2));
+    expect(aktionen()[1]).toEqual({ aktion: 'ignorieren', item_id: 'i1' });
     await flush();
     click(window.content.querySelector('[data-ma-aktion="voll_abgleich"]'));
     await vi.waitFor(() => expect(aktionen()).toHaveLength(3));
-    await flush();
-
-    // Umzug: u2 laeuft noch, deshalb ohne laufenden Umzug neu laden
-    zustand.stand = stand({ umzug: [] });
-    authorizedFetch.mockClear();
-    t.created.pop().destroy();
-    await openPage();
-    click(window.content.querySelector('[data-ma-umzug="u2"]'));
-    await vi.waitFor(() => expect(aktionen()).toEqual([{ aktion: 'umzug_starten', unternehmen_id: 'u2' }]));
-    await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Umzug gestartet: 4 Dateien.', 'success'));
+    expect(aktionen()[2]).toEqual({ aktion: 'voll_abgleich' });
+    await vi.waitFor(() => expect(bodies().filter(b => b.aktion === 'stand').length).toBeGreaterThanOrEqual(2));
   });
 
-  it('Dokumente: eigener Notschalter, eigene Weiche (bereich dokumente), eigener Umzug', async () => {
+  it('Umsortieren: erst Trockenlauf, dann mit den Zahlen bestaetigen und starten', async () => {
+    zustand.antworten.umsortieren_planen = { zaehler: { bereich: { marken: 1, kampagnen: 2 }, dateien: 5, videos: 3, storys: 1, bilder: 1, ordner: 2 } };
+    zustand.antworten.umsortieren_starten = { angestossen: true };
     await openPage();
-    const flush = () => vi.waitFor(() => expect(window.content.querySelector('[aria-busy]')).toBeNull());
-    expect(window.content.textContent).toContain('Weiche Dokumente');
-    expect(window.content.querySelector('[data-ma-dokument-umzug="u2"]')).not.toBeNull();
-    expect(window.content.querySelector('[data-ma-dokument-umzug="u1"]')).toBeNull();
 
-    click(window.content.querySelector('[data-ma-notschalter-dokumente]'));
-    await vi.waitFor(() => expect(aktionen()).toEqual([{ aktion: 'notschalter', bereich: 'dokumente', an: true }]));
-    await flush();
+    click(window.content.querySelector('[data-ma-umsortieren="u1"]'));
+    await vi.waitFor(() => expect(aktionen()).toEqual([
+      { aktion: 'umsortieren_planen', unternehmen_id: 'u1' },
+      { aktion: 'umsortieren_starten', unternehmen_id: 'u1' },
+    ]));
+    expect(window.confirmationModal.open.mock.calls[0][0].message).toContain('5 Dateien');
+    await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Umsortieren läuft im Hintergrund.', 'success'));
+  });
 
-    const select = window.content.querySelector('[data-ma-dokument-weiche="u1"]');
-    select.value = 'sharepoint';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-    await vi.waitFor(() => expect(aktionen()).toHaveLength(2));
-    expect(aktionen()[1]).toEqual({ aktion: 'weiche', bereich: 'dokumente', unternehmen_id: 'u1', ziel: 'sharepoint' });
-    await flush();
+  it('Umsortieren ohne Arbeit: nur Trockenlauf, keine Rueckfrage', async () => {
+    zustand.antworten.umsortieren_planen = { zaehler: {} };
+    await openPage();
+    click(window.content.querySelector('[data-ma-umsortieren="u2"]'));
+    await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith(expect.stringContaining('alles liegt schon'), 'success'));
+    expect(aktionen()).toEqual([{ aktion: 'umsortieren_planen', unternehmen_id: 'u2' }]);
+    expect(window.confirmationModal.open).not.toHaveBeenCalled();
+  });
 
-    click(window.content.querySelector('[data-ma-dokument-umzug="u2"]'));
-    await vi.waitFor(() => expect(aktionen()).toHaveLength(3));
-    expect(aktionen()[2]).toEqual({ aktion: 'dokument_umzug_starten', unternehmen_id: 'u2' });
+  it('Finale spiegeln: Trockenlauf, Rueckfrage, Start', async () => {
+    zustand.antworten.final_spiegel_planen = { ohne_kopie: 2, ohne_kopie_bytes: 1024 ** 3, fehler: 0, entfernt: 0 };
+    zustand.antworten.final_spiegel_starten = { eingereiht: 2 };
+    await openPage();
+    click(window.content.querySelector('[data-ma-final-spiegel]'));
+    await vi.waitFor(() => expect(aktionen()).toEqual([{ aktion: 'final_spiegel_planen' }, { aktion: 'final_spiegel_starten' }]));
+    await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Finale werden gespiegelt: 2 Kopien eingereiht.', 'success'));
   });
 
   it('meldet einen Serverfehler als Toast', async () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await openPage();
     authorizedFetch.mockImplementationOnce(async () => antwort({ error: 'Graph nicht erreichbar' }, 502));
     click(window.content.querySelector('[data-ma-aktion="jetzt_abgleichen"]'));
     await vi.waitFor(() => expect(window.toastSystem.show).toHaveBeenCalledWith('Fehlgeschlagen: Graph nicht erreichbar', 'error'));
-    spy.mockRestore();
   });
 
   it('Suche blendet nicht passende Unternehmen aus', async () => {
@@ -174,8 +120,12 @@ describe('MedienablagePage', () => {
     suche.value = 'acm';
     suche.dispatchEvent(new Event('input', { bubbles: true }));
     const rows = [...window.content.querySelectorAll('.ma-row')];
-    // Medien- und Dokument-Weiche filtern gemeinsam
-    expect(rows.filter(r => !r.hidden).map(r => r.dataset.maName)).toEqual(['acme', 'acme']);
+    expect(rows.filter(r => !r.hidden).map(r => r.dataset.maName)).toEqual(['acme']);
+    expect(window.content.querySelector('[data-ma-suche-leer]').hidden).toBe(true);
+
+    suche.value = 'nichts';
+    suche.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(window.content.querySelector('[data-ma-suche-leer]').hidden).toBe(false);
   });
 
   it('ist ueber die Admin-Huelle als Unterseite erreichbar', async () => {
@@ -183,7 +133,7 @@ describe('MedienablagePage', () => {
     await admin.init('medienablage');
     await admin.ready;
     expect(window.setHeadline).toHaveBeenCalledWith('Accounting – Medienablage');
-    expect(window.content.querySelector('[data-ma-notschalter]')).not.toBeNull();
+    expect(window.content.querySelector('[data-ma-umsortieren]')).not.toBeNull();
     admin.destroy();
   });
 

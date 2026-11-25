@@ -1,41 +1,28 @@
 // RohmaterialService.js
 // Rohmaterial einer Kampagne: laden, hochladen, loeschen.
 //
-// Rohmaterial ist der Creator-Intake (Dropbox: .../{Kooperation}/Rohmaterial/).
+// Rohmaterial ist der Creator-Intake (SharePoint: .../{Kooperation}/Rohmaterial/).
 // Der Regelweg ist der tokenisierte Creator-Link; dieser Service deckt die
 // interne Seite ab — Cutter sieht/laedt die Dateien, Mitarbeiter kann
 // nachtraeglich selbst hochladen oder Fehlabgaben entfernen.
 //
 // Nur intern: RLS auf kooperation_rohmaterial_asset laesst Kunden gar nicht lesen.
 
-import { uploadLargeFile } from '../../core/VideoUploadUtils.js';
-import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 import { ablageZielHolen, hochladenNachSharePoint, sharePointAssetFelder, uploadVerwerfen } from '../../core/ablage/ablageUpload.js';
 import { ablageDateiLoeschen } from '../../core/ablage/ablageApi.js';
 import { istSharePoint, mitAblage } from '../../core/ablage/ablageLink.js';
-
-const PREPARE_ENDPOINT = '/.netlify/functions/dropbox-upload-rohmaterial';
+import { sanitizeFileName } from '../../core/videoFileNames.js';
 
 // Endungen muessen mit EXT_BY_TYPE.rohmaterial in netlify/functions/_shared/creator-upload.js
 // laufen; die Grenze ist die von ablage-upload-ziel (Creator haben eine eigene).
 export const ROHMATERIAL_EXTENSIONS = /\.(mp4|mov|avi|mkv|webm|zip|jpe?g|png|webp|heic|heif|gif|bmp|tiff?|avif)$/i;
 export const MAX_ROHMATERIAL_SIZE = 20 * 1024 * 1024 * 1024;
 
-/** Spiegelt sanitizePath aus netlify/functions/_shared/dropbox.js. */
-export function sanitizeRohmaterialFileName(name) {
-  if (!name) return '';
-  return String(name)
-    .replace(/[<>:"|?*\\/]/g, '-')
-    .replace(/-{2,}/g, '-')
-    .trim();
-}
-
 /**
  * Rohmaterial behaelt den Originalnamen und ueberschreibt nie — bei Kollision
  * _2, _3, ... vor der Extension. Gleiche Regel wie resolveFileNameCollision im
  * Creator-Upload, hier aber clientseitig. Gegen Wettlaeufe mit einem gleichzeitigen
- * Creator-Upload committed der Upload zusaetzlich mit mode=add.
+ * Creator-Upload benennt SharePoint bei Konflikt zusaetzlich selbst um.
  *
  * @param {string} fileName schon sanitisierter Name
  * @param {Set<string>} taken bereits belegte Dateinamen im Zielordner
@@ -58,12 +45,8 @@ export class RohmaterialService {
    * Alle Kooperationen der Kampagne mit ihrem Rohmaterial — auch leere, damit
    * der Cutter sieht wessen Abgabe noch fehlt.
    *
-   * Der Dropbox-Pfadkontext (unternehmen/marke/kampagne/kooperation) wird pro
-   * Gruppe mitgeliefert und muss zu loadPathContext() im Creator-Upload passen,
-   * sonst landen Staff-Uploads in einem anderen Ordner als die Creator-Abgaben.
-   *
    * @param {string} kampagneId
-   * @returns {Promise<Array<{id, name, creatorName, folderUrl, files, pathContext}>>}
+   * @returns {Promise<Array<{id, name, creatorName, folderUrl, files}>>}
    */
   static async loadGroups(kampagneId) {
     if (!window.supabase || !kampagneId) return [];
@@ -72,12 +55,7 @@ export class RohmaterialService {
       .from('kooperationen')
       .select(`
         id, name,
-        creator:creator_id (id, vorname, nachname),
-        kampagne:kampagne_id (
-          id, kampagnenname, eigener_name,
-          unternehmen:unternehmen_id (id, firmenname),
-          marke:marke_id (id, markenname)
-        )
+        creator:creator_id (id, vorname, nachname)
       `)
       .eq('kampagne_id', kampagneId)
       .order('name', { ascending: true });
@@ -108,19 +86,12 @@ export class RohmaterialService {
 
     return koopList.map(k => {
       const files = filesByKoop.get(k.id) || [];
-      const kamp = k.kampagne || {};
       return {
         id: k.id,
         name: k.name || '',
         creatorName: [k.creator?.vorname, k.creator?.nachname].filter(Boolean).join(' '),
         folderUrl: files.find(f => f.folder_url)?.folder_url || null,
         files,
-        pathContext: {
-          unternehmen: kamp.unternehmen?.firmenname || '',
-          marke: kamp.marke?.markenname || '',
-          kampagne: KampagneUtils.getDisplayName(kamp),
-          kooperation: k.name || '',
-        },
       };
     });
   }
@@ -137,7 +108,7 @@ export class RohmaterialService {
       return { ok: false, error: `${file.name}: Datei ist leer` };
     }
     if (file.size > MAX_ROHMATERIAL_SIZE) {
-      return { ok: false, error: `${file.name}: zu groß (max. 10 GB)` };
+      return { ok: false, error: `${file.name}: zu groß (max. 20 GB)` };
     }
     return { ok: true };
   }
@@ -149,7 +120,7 @@ export class RohmaterialService {
    * Teil-Erfolg ist moeglich: jede Datei wird einzeln abgearbeitet, ein Fehler
    * stoppt die restlichen nicht. Der Aufrufer bekommt beides zurueck.
    *
-   * @param {{id: string, pathContext: object}} group
+   * @param {{id: string}} group
    * @param {File[]} files
    * @param {(done: number, total: number, name: string) => void} [onProgress]
    * @param {(index: number, bytes: {loaded: number, total: number}) => void} [onBytes]
@@ -192,14 +163,14 @@ export class RohmaterialService {
   /**
    * Eine (schon validierte) Datei hochladen und ihre Asset-Zeile anlegen. Wirft bei Fehlern.
    *
-   * @param {{id: string, pathContext: object, ordnerItemId?: string}} group ordnerItemId: Unterordner
-   *        im Rohmaterial (nur SharePoint), sonst die Wurzel
+   * @param {{id: string, ordnerItemId?: string}} group ordnerItemId: Unterordner im Rohmaterial,
+   *        sonst die Wurzel
    * @param {File} file
    * @param {Set<string>} taken belegte Dateinamen der Kooperation, wird ergaenzt
    * @param {{ signal?: AbortSignal, onBytes?: (p: {loaded: number, total: number}) => void }} [opts]
    */
   static async uploadOne(group, file, taken, { signal, onBytes } = {}) {
-    const fileName = resolveRohmaterialName(sanitizeRohmaterialFileName(file.name), taken);
+    const fileName = resolveRohmaterialName(sanitizeFileName(file.name), taken);
     // Sofort belegen, damit zwei gleichnamige Dateien derselben Auswahl
     // nicht beide auf denselben Pfad zeigen.
     taken.add(fileName);
@@ -208,50 +179,6 @@ export class RohmaterialService {
       typ: 'roh', kooperation_id: group.id, file_name: fileName, file_size: file.size,
       ...(group.ordnerItemId ? { ordner_item_id: group.ordnerItemId } : {}),
     });
-    if (ziel.ziel === 'sharepoint') {
-      await this._uploadOneSharePoint(group, file, fileName, ziel, taken, { signal, onBytes });
-      return;
-    }
-
-    const prepare = await authorizedFetch(PREPARE_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'prepare',
-        ...group.pathContext,
-        fileName,
-      }),
-    });
-    if (!prepare.ok) {
-      const errData = await prepare.json().catch(() => ({}));
-      throw new Error(errData.error || `Vorbereitung fehlgeschlagen (${prepare.status})`);
-    }
-    const { token, dropboxPath, folderPath } = await prepare.json();
-
-    const result = await uploadLargeFile(file, dropboxPath, token, { mode: 'add', signal, onProgress: onBytes });
-    const filePath = result?.path_display || dropboxPath;
-
-    const [fileUrl, folderUrl] = await Promise.all([
-      this._sharedLink(token, filePath),
-      this._sharedLink(token, folderPath),
-    ]);
-
-    const { error: insertErr } = await window.supabase
-      .from('kooperation_rohmaterial_asset')
-      .insert({
-        kooperation_id: group.id,
-        file_url: fileUrl,
-        file_path: filePath,
-        file_name: filePath.split('/').pop() || fileName,
-        file_size: file.size,
-        folder_url: folderUrl,
-        uploaded_by: window.currentUser?.id || null,
-        created_at: new Date().toISOString(),
-      });
-    if (insertErr) throw insertErr;
-  }
-
-  static async _uploadOneSharePoint(group, file, fileName, ziel, taken, { signal, onBytes } = {}) {
     const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: onBytes });
     const felder = sharePointAssetFelder(commit);
     if (felder.file_name) taken.add(felder.file_name);
@@ -282,27 +209,16 @@ export class RohmaterialService {
   }
 
   /**
-   * Loescht ein Rohmaterial-Asset in Dropbox und in der Datenbank.
-   * Ein fehlender Dropbox-Pfad (oder eine bereits geloeschte Datei) blockiert
-   * das Entfernen der Zeile nicht — sonst bleiben Geister in der Liste.
+   * Loescht ein Rohmaterial-Asset: SharePoint-Datei in den Papierkorb, dann die Zeile.
+   * Altbestand ausserhalb von SharePoint ist nur ein Link, da verschwindet nur die Zeile.
    *
-   * @param {{id: string, file_path?: string}} asset
+   * @param {{id: string, ablage?: string}} asset
    */
   static async deleteAsset(asset) {
     if (!asset?.id) return;
 
     if (istSharePoint(asset)) {
       await ablageDateiLoeschen('roh', asset.id);
-    } else if (asset.file_path) {
-      try {
-        await authorizedFetch('/.netlify/functions/dropbox-delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: asset.file_path }),
-        });
-      } catch (err) {
-        console.warn('Dropbox-Delete fehlgeschlagen:', err);
-      }
     }
 
     const { error } = await window.supabase
@@ -310,21 +226,6 @@ export class RohmaterialService {
       .delete()
       .eq('id', asset.id);
     if (error) throw error;
-  }
-
-  static async _sharedLink(token, path) {
-    try {
-      const resp = await authorizedFetch('/.netlify/functions/dropbox-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'shared-link', path, token }),
-      });
-      if (!resp.ok) return null;
-      const { url } = await resp.json();
-      return url ? url.replace(/([?&])dl=0\b/i, '$1raw=1') : null;
-    } catch {
-      return null;
-    }
   }
 }
 

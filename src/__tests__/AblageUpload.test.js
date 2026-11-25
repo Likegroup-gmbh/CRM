@@ -33,18 +33,13 @@ beforeEach(() => {
 describe('ablageZielHolen', () => {
   const body = { typ: 'video', kooperation_id: 'k1', file_name: 'a.mp4', file_size: 10 };
 
-  it('schickt den Body unverändert an ablage-upload-ziel', async () => {
-    server.antworten['ablage-upload-ziel'] = { status: 200, body: { ziel: 'dropbox' } };
-    await expect(ablageZielHolen(body)).resolves.toEqual({ ziel: 'dropbox' });
+  it('schickt den Body unverändert an ablage-upload-ziel und liefert das SharePoint-Ziel', async () => {
+    server.antworten['ablage-upload-ziel'] = { status: 200, body: ZIEL };
+    await expect(ablageZielHolen(body)).resolves.toEqual(ZIEL);
     expect(server.calls).toEqual([{ fn: 'ablage-upload-ziel', body }]);
   });
 
-  it('liefert das SharePoint-Ziel', async () => {
-    server.antworten['ablage-upload-ziel'] = { status: 200, body: ZIEL };
-    await expect(ablageZielHolen(body)).resolves.toEqual(ZIEL);
-  });
-
-  it('unvollständiges oder unbekanntes Ziel ist ein Fehler, kein Dropbox-Rückfall', async () => {
+  it('unvollständiges oder unbekanntes Ziel ist ein Fehler', async () => {
     server.antworten['ablage-upload-ziel'] = { status: 200, body: { ziel: 'sharepoint', upload_id: 'up1' } };
     await expect(ablageZielHolen(body)).rejects.toThrow('Ablage-Ziel konnte nicht bestimmt werden');
     server.antworten['ablage-upload-ziel'] = { status: 200, body: {} };
