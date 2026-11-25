@@ -16,7 +16,6 @@ const DEFAULT_COLUMNS = [
   { id: 'col-vertrag', label: 'Vertrag', dataCol: '4', configurable: true },
   { id: 'col-nutzungsrechte', label: 'Nutzungsrechte', dataCol: '5', configurable: true },
   { id: 'col-start-datum', label: 'Erstellt', dataCol: '6', configurable: true },
-  { id: 'col-videoanzahl', label: 'Videos', dataCol: '9', configurable: true },
   { id: 'col-video-nr', label: 'Video-Nr', dataCol: '10', configurable: true },
   { id: 'col-vk-video', label: 'Kosten', dataCol: '10b', configurable: true },
   { id: 'col-video-script-deadline', label: 'Script Deadline', dataCol: '10d', configurable: true },

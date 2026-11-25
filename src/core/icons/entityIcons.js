@@ -54,6 +54,7 @@ export const ENTITY_ICONS = {
   'admin-medienablage': 'archive-box',
   'admin-teams-kanaele': 'chat-bubble-left',
   'admin-pdf-vorlagen': 'document-chart',
+  'admin-tiktok-api': 'play-circle',
   transcribe: 'video',
   kunden: 'home',
   adresse: 'map-pin',

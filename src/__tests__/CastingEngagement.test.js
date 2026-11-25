@@ -3,7 +3,8 @@ import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
 import {
   engagementDesEintrags,
   formatEngagement,
-  bioDesEintrags
+  bioDesEintrags,
+  tiktokEngagement
 } from '../modules/creator-auswahl/castingEngagement.js';
 import { notizNachAbruf, computeEngagementRate } from '../../netlify/functions/_shared/instagram-engagement.js';
 import { openCastingDetailDrawer, closeCastingDetailDrawer } from '../modules/creator-auswahl/castingDetailDrawer.js';
@@ -50,9 +51,19 @@ describe('Engagement-Rate im Casting', () => {
     const doc = rowDoc({
       ig_stats: { engagement_rate: 4.2, engagement_rate_clean: 3, trial_gate: { aktiv: true } }
     });
-    const zelle = doc.querySelector('td.cp-col-engagement-ig');
+    const zelle = doc.querySelector('td.cp-col-engagement [data-plattform="instagram"]');
     expect(zelle.textContent).toContain('4,2 %');
-    expect(zelle.textContent).toContain('ohne Trials');
+    const zweit = zelle.querySelector('.cpm-auto-reach--clean');
+    expect(zweit.textContent.replace(/\s+/g, ' ').trim()).toBe('o. T. 3 %');
+    expect(zweit.title).toBe('ohne Trial-Reels');
+  });
+
+  it('zeigt die TikTok-Rate aus tt_stats in der TikTok-Zeile, ohne Trial-Zweitwert', () => {
+    expect(tiktokEngagement({ tt_stats: { engagement_rate: 2.75 } })).toEqual({ rate: 2.75, clean: null, showClean: false });
+    expect(tiktokEngagement({}).rate).toBeNull();
+    const zelle = rowDoc({ tt_stats: { engagement_rate: 2.75 } }).querySelector('td.cp-col-engagement [data-plattform="tiktok"]');
+    expect(zelle.textContent).toContain('2,75 %');
+    expect(zelle.querySelector('.cpm-auto-reach--clean')).toBeNull();
   });
 });
 
@@ -72,6 +83,30 @@ describe('Kurzbeschreibung beim Instagram-Abruf', () => {
       { like_count: 30, comments_count: 10 }
     ], 1000);
     expect(rate).toBe(2.5);
+  });
+});
+
+describe('Engagement-Rate: welche Posts zählen', () => {
+  const NOW = Date.parse('2026-11-25T12:00:00Z');
+  const vorTagen = (tage) => new Date(NOW - tage * 86400000).toISOString();
+  const post = (likes, extra = {}) => ({ like_count: likes, comments_count: 0, timestamp: vorTagen(10), ...extra });
+  const normal = Array.from({ length: 6 }, () => post(20));
+
+  it('lässt Werbung, Posts jünger als 4 Tage und den viralen Ausreißer weg', () => {
+    const media = [
+      ...normal,
+      post(500, { caption: 'Neues Serum #anzeige' }),
+      post(1, { timestamp: vorTagen(1) }),
+      post(5000),
+    ];
+    expect(computeEngagementRate(media, 1000, { now: NOW })).toBe(2);
+  });
+
+  it('teilt bei TikTok durch die Views statt durch die Follower', () => {
+    const media = normal.map(m => ({ ...m, view_count: 400 }));
+    expect(computeEngagementRate(media, 1000, { bezug: 'views', now: NOW })).toBe(5);
+    expect(computeEngagementRate(media, null, { bezug: 'views', now: NOW })).toBe(5);
+    expect(computeEngagementRate(media, null, { now: NOW })).toBeNull();
   });
 });
 

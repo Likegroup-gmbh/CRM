@@ -4457,11 +4457,11 @@ tr:has(+ .category-header-row) > td {
   padding-right: var(--space-xxs);
 }
 
-/* IG-Fetch-Button in der Sourcing-Zelle. Sitzt fest rechts im Chip, damit
-   Hover sofort "frisch bei Instagram abrufen" zeigt - ohne auf die
-   schwebende Toolbar zu warten. */
+/* Profil-Abruf-Button (Instagram, TikTok) in der Sourcing-Zelle. Sitzt fest rechts
+   im Chip, damit Hover sofort "frisch abrufen" zeigt - ohne auf die schwebende
+   Toolbar zu warten. */
 
-.ig-fetch-btn {
+.profil-abruf-btn {
   position: absolute;
   top: 50%;
   right: 2px;
@@ -4480,52 +4480,52 @@ tr:has(+ .category-header-row) > td {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.ig-fetch-btn svg {
+.profil-abruf-btn svg {
   width: 13px;
   height: 13px;
 }
 
-.ig-fetch-btn.is-refresh svg {
+.profil-abruf-btn.is-refresh svg {
   width: 14px;
   height: 14px;
 }
 
-.ig-fetch-btn.is-empty {
+.profil-abruf-btn.is-empty {
   display: none;
 }
 
-.ig-fetch-btn:hover:not(:disabled) {
+.profil-abruf-btn:hover:not(:disabled) {
   background: var(--gray-100);
   color: var(--color-primary);
 }
 
-.ig-fetch-btn:disabled {
+.profil-abruf-btn:disabled {
   cursor: default;
 }
 
-.ig-fetch-btn.is-loading svg {
+.profil-abruf-btn.is-loading svg {
   display: none;
 }
 
-.ig-fetch-btn.is-loading::after {
+.profil-abruf-btn.is-loading::after {
   content: '';
   width: 12px;
   height: 12px;
   border: 2px solid var(--gray-300, #d1d5db);
   border-top-color: var(--color-primary);
   border-radius: 50%;
-  animation: ig-fetch-spin 0.7s linear infinite;
+  animation: profil-abruf-spin 0.7s linear infinite;
 }
 
-.ig-fetch-btn.is-success {
+.profil-abruf-btn.is-success {
   color: var(--color-success);
 }
 
-.ig-fetch-btn.is-error {
+.profil-abruf-btn.is-error {
   color: var(--color-danger, #dc2626);
 }
 
-@keyframes ig-fetch-spin {
+@keyframes profil-abruf-spin {
   to { transform: rotate(360deg); }
 }
 
@@ -4639,7 +4639,7 @@ tr:has(+ .category-header-row) > td {
   border: 2px solid var(--gray-300);
   border-top-color: var(--color-primary);
   border-radius: 50%;
-  animation: ig-fetch-spin 0.7s linear infinite;
+  animation: profil-abruf-spin 0.7s linear infinite;
 }
 
 .hover-toolbar__divider {
@@ -5982,16 +5982,6 @@ progress.upload-progress-bar::-moz-progress-bar {
   gap: var(--space-sm);
 }
 
-.finale-play-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  width: auto;
-  height: auto;
-  flex-shrink: 0;
-  padding: var(--space-xxs) var(--space-sm);
-}
-
 .finale-variant-label {
   font-size: 11px; font-weight: 600; white-space: nowrap;
 }
@@ -6056,28 +6046,6 @@ progress.upload-progress-bar::-moz-progress-bar {
 }
 
 .content-cell-actions { display: flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap; }
-
-/* Settings/Gear-Button neben dem Ordner-Link in Custom-Upload-Zellen */
-
-.custom-upload-settings-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent;
-  border: var(--border-xs) solid var(--border-secondary);
-  color: var(--text-tertiary);
-  border-radius: var(--radius-md);
-  padding: var(--space-xxs) var(--space-xs);
-  cursor: pointer;
-  margin-left: var(--space-xxs);
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-
-.custom-upload-settings-btn:hover {
-  border-color: var(--border-focus);
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-}
-
-.custom-upload-settings-btn svg { width: var(--icon-xs); height: var(--icon-xs); }
 
 /* Platzhalter wenn kein Content vorhanden (Kunden-Ansicht) */
 

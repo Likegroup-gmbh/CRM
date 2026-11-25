@@ -24,10 +24,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const require = createRequire(import.meta.url);
-const {
-  computeInstagramCpm,
-  formatCpmReport
-} = require('../netlify/functions/_shared/instagram-cpm.js');
+const { computeInstagramCpm } = require('../netlify/functions/_shared/instagram-cpm.js');
+const { formatCpmReport } = require('../netlify/functions/_shared/instagram-cpm-report.js');
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 

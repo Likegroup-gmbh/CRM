@@ -276,7 +276,7 @@ Darf an mehreren Videoideen des verknüpften Konzepts hängen.
 _Avoid_: Casting-Item, Kandidat, Sourcing-Creator
 
 **Plattformzeile**:
-Eine Zeile je Plattform in einer gemeinsamen Casting-Spalte (Link, Follower, Preis Video, Preis Story): Instagram oben, TikTok darunter, mit kleinem Plattform-Icon. Welche Zeilen eine Liste zeigt, folgt beim ersten Finalisieren den Plattformen des Briefings, danach der Einstellung der Liste; der Schalter in „Tabelle anpassen“ blendet nur die ganze Spalte ein oder aus. Hat die Liste TikTok, haben alle gestapelten Zellen beide Zeilen, bei reinen Instagram-Spalten ist die TikTok-Zeile leer.
+Eine Zeile je Plattform in einer gemeinsamen Casting-Spalte (Link, Follower, Engagement, Ø Views 12, Preis 12 Videos, Ø Views 30, Preis 30 Videos, Preis Video, Preis Story): Instagram oben, TikTok darunter, mit kleinem Plattform-Icon. Follower, Engagement, die Ø Views und die beiden Preise aus Views kommen per Profilabruf, auf TikTok nur über den Profil-Link (ADR 0083). Views und Preis eines Fensters stehen in getrennten Spalten; der Wert ohne Trial-Reels steht als zweite Zeile „o. T.“ darunter (ADR 0084). Welche Zeilen eine Liste zeigt, folgt beim ersten Finalisieren den Plattformen des Briefings, danach der Einstellung der Liste; der Schalter in „Tabelle anpassen“ blendet nur die ganze Spalte ein oder aus. Hat die Liste TikTok, haben alle gestapelten Zellen beide Zeilen, bei reinen Instagram-Spalten ist die TikTok-Zeile leer.
 _Avoid_: Untertabelle, Lane
 
 **Management-Anfrage**:

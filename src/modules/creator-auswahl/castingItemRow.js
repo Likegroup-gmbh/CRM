@@ -19,6 +19,7 @@ import {
   rowCanWrite,
   renderPreisFreitextCell,
   renderPreisFreitextInhalt,
+  renderAutoViewsInhalt,
   renderAutoCpmInhalt,
   beschreibeAusreisser
 } from './castingPreisZellen.js';
@@ -33,6 +34,7 @@ import {
   renderEngagementInhalt,
   herkunftZeile
 } from './castingItemZellen.js';
+import { tiktokEngagement } from './castingEngagement.js';
 
 export function renderItemRow(ctx, item, index) {
   const isLinkedToCRM = !!item.creator_id;
@@ -89,25 +91,34 @@ export function renderItemRow(ctx, item, index) {
       ${renderPlattformZelle(ctx, 'cp-col-link', {
         instagram: renderLinkInstagramInhalt(item, canWrite),
         tiktok: renderLinkTiktokInhalt(item, canWrite)
-      }, { hide, mitIcon: false })}
+      }, { hide, mitIcon: true })}
       ${customAt('cp-col-link')}
       ${renderPlattformZelle(ctx, 'cp-col-follower', {
         instagram: renderFollowerInhalt(ctx, item, 'follower_instagram'),
         tiktok: renderFollowerInhalt(ctx, item, 'follower_tiktok')
       }, { hide })}
       ${customAt('cp-col-follower')}
-      ${renderPlattformZelle(ctx, 'cp-col-engagement-ig', {
-        instagram: renderEngagementInhalt(item)
+      ${renderPlattformZelle(ctx, 'cp-col-engagement', {
+        instagram: renderEngagementInhalt(item),
+        tiktok: renderEngagementInhalt(item, tiktokEngagement(item))
       }, { hide })}
-      ${customAt('cp-col-engagement-ig')}
-      ${renderPlattformZelle(ctx, 'cp-col-cpm-ig-8', {
-        instagram: renderAutoCpmInhalt(ctx, item, item.ig_views_8, true, beschreibeAusreisser(item, 8), item.ig_stats?.ohne_trials?.views_8)
+      ${customAt('cp-col-engagement')}
+      ${[12, 30].map(fenster => {
+        const igViews = item[`ig_views_${fenster}`];
+        const igOhneTrials = item.ig_stats?.ohne_trials?.[`views_${fenster}`];
+        const ttViews = item[`tt_views_${fenster}`];
+        return `
+      ${renderPlattformZelle(ctx, `cp-col-views-${fenster}`, {
+        instagram: renderAutoViewsInhalt(igViews, beschreibeAusreisser(item.ig_stats, fenster), igOhneTrials),
+        tiktok: renderAutoViewsInhalt(ttViews, beschreibeAusreisser(item.tt_stats, fenster, 'Video'))
       }, { hide, klassen: 'cell-textarea' })}
-      ${customAt('cp-col-cpm-ig-8')}
-      ${renderPlattformZelle(ctx, 'cp-col-cpm-ig-30', {
-        instagram: renderAutoCpmInhalt(ctx, item, item.ig_views_30, true, beschreibeAusreisser(item, 30), item.ig_stats?.ohne_trials?.views_30)
+      ${customAt(`cp-col-views-${fenster}`)}
+      ${renderPlattformZelle(ctx, `cp-col-cpm-${fenster}`, {
+        instagram: renderAutoCpmInhalt(ctx, igViews, igOhneTrials),
+        tiktok: renderAutoCpmInhalt(ctx, ttViews)
       }, { hide, klassen: 'cell-textarea' })}
-      ${customAt('cp-col-cpm-ig-30')}
+      ${customAt(`cp-col-cpm-${fenster}`)}`;
+      }).join('')}
       ${renderPlattformZelle(ctx, 'cp-col-preis-video', {
         instagram: renderPreisFreitextInhalt(ctx, item, 'preis_reels'),
         tiktok: renderPreisFreitextInhalt(ctx, item, 'preis_tiktok_video')

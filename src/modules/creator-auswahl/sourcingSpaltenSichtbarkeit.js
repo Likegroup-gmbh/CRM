@@ -2,11 +2,14 @@
 // Migration gespeicherter hidden_columns, Kunden-Sichtbarkeit, Spaltenzahl und Sticky-Offsets
 
 import {
+  BASIS_ZEILEN,
   DEAKTIVIERTE_SPALTEN,
   PLATTFORM_ZEILEN,
   SOURCING_SPALTEN,
+  TIKTOK_ABRUF_ZEILEN,
   TIKTOK_SPALTEN
 } from './sourcingSpaltenKatalog.js';
+import { PROFIL_PLATTFORMEN } from './sourcingProfilPlattformen.js';
 
 /** Spalten, die es in der Tabelle nicht mehr gibt, aber noch in hidden_columns stehen koennen */
 const ENTFERNTE_SPALTEN = [
@@ -17,7 +20,7 @@ const ENTFERNTE_SPALTEN = [
   // Der getrimmte Schnitt ("Preis Ø Reels") ist durch die beiden
   // Ausreisser-bereinigten Spalten ersetzt.
   'cp-col-cpm-ig-trimmed',
-  // Die "o. A."-Spalten sind weg: Preis 8/30 Reels sind jetzt selbst bereinigt,
+  // Die "o. A."-Spalten sind weg: die Preise 8/30 Reels sind seither selbst bereinigt,
   // eine ungefilterte Variante gibt es nicht mehr.
   'cp-col-cpm-ig-8-clean', 'cp-col-cpm-ig-30-clean',
   // Angefragt und Rueckmeldung waren Checkbox-Spalten, ihre Information steckt
@@ -33,15 +36,46 @@ const ENTFERNTE_SPALTEN = [
 /** Die fuenf Status-Checkbox-Spalten, die zur Select-Spalte cp-col-status wurden */
 const ALTE_STATUS_SPALTEN = ['cp-col-onhold', 'cp-col-buchen', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-absagen'];
 
+/** Keys aus der Zeit des 8er-Fensters, das kurze Fenster hat jetzt 12 Videos (ADR 0084) */
+const ACHTER_KEYS = {
+  'cp-col-cpm-8': 'cp-col-cpm-12',
+  'cp-col-cpm-ig-8': 'cp-col-cpm-ig-12',
+  'cp-col-cpm-tt-8': 'cp-col-cpm-tt-12'
+};
+
+/** Preis-Key -> Views-Key desselben Fensters. Views starten so versteckt wie ihr Preis. */
+const VIEWS_ZUM_PREIS = {
+  'cp-col-cpm-12': 'cp-col-views-12',
+  'cp-col-cpm-30': 'cp-col-views-30',
+  'cp-col-cpm-ig-12': 'cp-col-views-ig-12',
+  'cp-col-cpm-ig-30': 'cp-col-views-ig-30',
+  'cp-col-cpm-tt-12': 'cp-col-views-tt-12',
+  'cp-col-cpm-tt-30': 'cp-col-views-tt-30'
+};
+
+/**
+ * Stand vor der Views-Aufteilung: 8er-Keys umbenennen, die neuen Views-Spalten folgen
+ * dem Preis. Greift nur, solange noch 8er-Keys gespeichert sind - danach darf jemand
+ * die Views bewusst ohne den Preis einblenden.
+ */
+function migriereAchterFenster(cols) {
+  if (!cols.some(c => ACHTER_KEYS[c])) return cols;
+  const umbenannt = cols.map(c => ACHTER_KEYS[c] || c);
+  const views = umbenannt.map(c => VIEWS_ZUM_PREIS[c]).filter(Boolean);
+  return [...umbenannt, ...views];
+}
+
 /**
  * Bringt gespeicherte hidden_columns auf den aktuellen Spaltenstand:
  * - die frueher kombinierte Links-Spalte wurde in IG und TT aufgeteilt
+ * - Engagement, Views und Preis 12/30 bekamen TikTok-Zeilen (folgen der TikTok-Link-Zeile)
+ * - das kurze Preisfenster hat 12 statt 8 Videos, Views stehen in eigenen Spalten
  * - die fuenf Status-Checkboxen wurden zur Select-Spalte cp-col-status
  *   (nur wenn vorher alle fuenf versteckt waren, bleibt der Status versteckt)
  * - die manuellen CPM-Spalten gibt es nicht mehr
  */
 export function migrateHiddenColumns(hiddenColumns) {
-  let cols = Array.isArray(hiddenColumns) ? [...hiddenColumns] : [];
+  let cols = migriereAchterFenster(Array.isArray(hiddenColumns) ? [...hiddenColumns] : []);
 
   if (cols.includes('cp-col-links')) {
     cols = cols
@@ -49,12 +83,35 @@ export function migrateHiddenColumns(hiddenColumns) {
       .concat('cp-col-link-ig', 'cp-col-link-tt');
   }
 
+  // Engagement, Views und Preis 12/30 haben jetzt Plattformzeilen. Listen ohne TikTok
+  // (Link-Zeile versteckt) bekaemen sonst leere TikTok-Zeilen, Listen ohne
+  // Instagram eine leere Engagement-Zeile (die Preise steuert das Reels-Preset).
+  if (cols.includes('cp-col-link-tt')) cols.push(...TIKTOK_ABRUF_ZEILEN);
+  if (cols.includes('cp-col-link-ig')) cols.push('cp-col-engagement-ig');
+
   const alleStatusVersteckt = ALTE_STATUS_SPALTEN.every(c => cols.includes(c));
   if (alleStatusVersteckt) cols.push('cp-col-status');
 
   cols = cols.filter(c => !ALTE_STATUS_SPALTEN.includes(c) && !ENTFERNTE_SPALTEN.includes(c));
 
   return [...new Set(cols)];
+}
+
+/** Plattformen, fuer die mindestens ein Eintrag einen Link hat ('instagram', 'tiktok') */
+export function plattformenDerEintraege(items) {
+  return Object.values(PROFIL_PLATTFORMEN)
+    .filter(p => (items || []).some(item => item?.[p.linkFeld]))
+    .map(p => p.plattform);
+}
+
+/**
+ * Sichtbarkeit fuer die Tabelle: hidden_columns der Liste, aber ohne die Basiszeilen der
+ * Plattformen, fuer die Eintraege Links haben. Ein TikTok-Creator in einer UGC-Liste zeigt so
+ * Link, Follower und Engagement, ohne dass jemand das Preset aendert.
+ */
+export function mitPlattformenDerEintraege(hiddenColumns, items) {
+  const frei = new Set(plattformenDerEintraege(items).flatMap(p => BASIS_ZEILEN[p]));
+  return (hiddenColumns || []).filter(key => !frei.has(key));
 }
 
 /** Spalten mit internen Daten, die Kunden und Gaeste nie sehen duerfen */

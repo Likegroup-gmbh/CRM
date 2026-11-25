@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
-import { migrateHiddenColumns } from '../modules/creator-auswahl/sourcingSpaltenSichtbarkeit.js';
 import {
   getSourcingStatus,
   getKundenFeedback,
@@ -321,7 +320,7 @@ describe('Sourcing-Zeile – Status-Spalte', () => {
 
     expect(doc.querySelector('td.cp-col-cpm-ig')).toBeNull();
     expect(doc.querySelector('td.cp-col-cpm-tt')).toBeNull();
-    expect(doc.querySelector('td.cp-col-cpm-ig-8')).not.toBeNull();
+    expect(doc.querySelector('td.cp-col-cpm-12')).not.toBeNull();
   });
 
   it('zeigt den aktuellen Status im Trigger und markiert ihn in der Optionsliste', () => {
@@ -436,40 +435,5 @@ describe('Sourcing-Zeile – Kundenfeedback-Spalte', () => {
     const doc = renderRow({}, { hiddenColumns: ['cp-col-kunden-feedback'] });
 
     expect(doc.querySelector('td.cp-col-kunden-feedback').getAttribute('style')).toContain('display:none');
-  });
-});
-
-describe('migrateHiddenColumns', () => {
-  it('entfernt die alten Status-Spalten aus gespeicherten Einstellungen', () => {
-    expect(migrateHiddenColumns(['cp-col-onhold', 'cp-col-notiz'])).toEqual(['cp-col-notiz']);
-  });
-
-  it('versteckt die Status-Spalte nur, wenn vorher alle fuenf versteckt waren', () => {
-    const alle = ['cp-col-onhold', 'cp-col-buchen', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-absagen'];
-
-    expect(migrateHiddenColumns(alle)).toEqual(['cp-col-status']);
-    expect(migrateHiddenColumns(alle.slice(0, 4))).toEqual([]);
-  });
-
-  it('entfernt die abgeschafften CPM-Spalten', () => {
-    expect(migrateHiddenColumns(['cp-col-cpm-ig', 'cp-col-cpm-tt', 'cp-col-vk'])).toEqual(['cp-col-vk']);
-  });
-
-  it('entfernt die o.-A.-Spalten und die beiden Checkbox-Spalten', () => {
-    const alt = [
-      'cp-col-cpm-ig-8-clean', 'cp-col-cpm-ig-30-clean',
-      'cp-col-anfragen', 'cp-col-check', 'cp-col-notiz'
-    ];
-
-    expect(migrateHiddenColumns(alt)).toEqual(['cp-col-notiz']);
-  });
-
-  it('teilt die alte Links-Spalte weiterhin in IG und TT auf', () => {
-    expect(migrateHiddenColumns(['cp-col-links'])).toEqual(['cp-col-link-ig', 'cp-col-link-tt']);
-  });
-
-  it('kommt mit fehlenden Werten klar', () => {
-    expect(migrateHiddenColumns(null)).toEqual([]);
-    expect(migrateHiddenColumns(undefined)).toEqual([]);
   });
 });

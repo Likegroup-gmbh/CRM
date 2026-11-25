@@ -70,13 +70,13 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     expect(spalten[spalten.indexOf('cp-col-vk') + 1]).toBe('cp-col-feedback');
   });
 
-  it('fasst Instagram und TikTok zu acht gemeinsamen Spalten zusammen', () => {
+  it('fasst Instagram und TikTok zu zehn gemeinsamen Spalten zusammen', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const ab = spalten.indexOf('cp-col-link');
 
-    expect(spalten.slice(ab, ab + 8)).toEqual([
-      'cp-col-link', 'cp-col-follower', 'cp-col-engagement-ig',
-      'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-video',
+    expect(spalten.slice(ab, ab + 10)).toEqual([
+      'cp-col-link', 'cp-col-follower', 'cp-col-engagement',
+      'cp-col-views-12', 'cp-col-cpm-12', 'cp-col-views-30', 'cp-col-cpm-30', 'cp-col-preis-video',
       'cp-col-reichweite-story', 'cp-col-story-preis'
     ]);
   });
@@ -92,6 +92,8 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
     for (const alt of ['cp-col-link-ig', 'cp-col-link-tt', 'cp-col-follower-ig', 'cp-col-follower-tt',
+      'cp-col-engagement-ig', 'cp-col-cpm-ig-8', 'cp-col-cpm-ig-12', 'cp-col-cpm-ig-30',
+      'cp-col-cpm-8', 'cp-col-views-ig-12', 'cp-col-views-ig-30',
       'cp-col-preis-reels', 'cp-col-preis-story', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story']) {
       expect(spalten, alt).not.toContain(alt);
       expect(SOURCING_SPALTEN, alt).not.toContain(alt);
@@ -152,26 +154,29 @@ describe('Sourcing – Spaltenreihenfolge', () => {
   it('nennt die Preis-Ueberschriften neutral mit Videos statt Reels', () => {
     const doc = tableDoc([{ id: 'i1' }]);
 
-    expect(doc.querySelector('thead th.cp-col-cpm-ig-8').textContent.trim()).toBe('Preis 8 Videos');
-    expect(doc.querySelector('thead th.cp-col-cpm-ig-30').textContent.trim()).toBe('Preis 30 Videos');
+    expect(doc.querySelector('thead th.cp-col-cpm-12').textContent.trim()).toBe('Preis 12 Videos');
+    expect(doc.querySelector('thead th.cp-col-cpm-30').textContent.trim()).toBe('Preis 30 Videos');
   });
 
   it('traegt im Kopf weder Plattform-Icons noch Farbe', () => {
     const kopf = tableDoc([{ id: 'i1' }]);
 
-    for (const col of ['cp-col-link', 'cp-col-follower', 'cp-col-engagement-ig', 'cp-col-cpm-ig-8',
-      'cp-col-cpm-ig-30', 'cp-col-preis-video', 'cp-col-reichweite-story', 'cp-col-story-preis']) {
+    for (const col of ['cp-col-link', 'cp-col-follower', 'cp-col-engagement', 'cp-col-views-12',
+      'cp-col-cpm-12', 'cp-col-views-30', 'cp-col-cpm-30', 'cp-col-preis-video',
+      'cp-col-reichweite-story', 'cp-col-story-preis']) {
       expect(kopf.querySelector(`thead th.${col} svg`), col).toBeNull();
     }
   });
 
   it('erklaert im Kopf-Tooltip die Werbe- und die Ausreisser-Regel', () => {
-    const titel = tableDoc([{ id: 'i1' }])
-      .querySelector('thead th.cp-col-cpm-ig-8')
-      .getAttribute('title');
+    const doc = tableDoc([{ id: 'i1' }]);
 
-    expect(titel).toContain('Werbe-Kennzeichnung');
-    expect(titel).toContain('doppelt so viele');
+    for (const col of ['cp-col-views-12', 'cp-col-cpm-12']) {
+      const titel = doc.querySelector(`thead th.${col}`).getAttribute('title');
+      expect(titel, col).toContain('ohne Werbung');
+      expect(titel, col).toContain('angepinnte TikToks');
+      expect(titel, col).toContain('doppelt so viele');
+    }
   });
 
   it('kennt die getrimmte und die o.-A.-Preis-Spalten nicht mehr', () => {
@@ -217,7 +222,7 @@ describe('Sourcing – Spaltenreihenfolge', () => {
   it('nennt im Tooltip den TKP der Liste statt der festen 25', () => {
     const doc = tableDoc([{ id: 'i1' }], { liste: { tkp: 40 } });
 
-    expect(doc.querySelector('thead th.cp-col-cpm-ig-8').getAttribute('title'))
+    expect(doc.querySelector('thead th.cp-col-cpm-12').getAttribute('title'))
       .toContain('40 € TKP');
   });
 
@@ -315,13 +320,15 @@ describe('Sourcing – Mail und Telefon nur intern', () => {
 });
 
 describe('Sourcing – TikTok-Spalten', () => {
-  it('umfasst Link, Follower und die beiden Preis-Spalten', () => {
+  it('umfasst Link, Follower, die Abruf-Werte und die beiden Preis-Spalten', () => {
     expect(TIKTOK_SPALTEN).toEqual([
-      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story'
+      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-engagement-tt',
+      'cp-col-views-tt-12', 'cp-col-cpm-tt-12', 'cp-col-views-tt-30', 'cp-col-cpm-tt-30',
+      'cp-col-preis-tt-video', 'cp-col-preis-tt-story'
     ]);
   });
 
-  it('blendet genau diese vier aus, wenn sie vorbelegt sind', () => {
+  it('blendet genau diese aus, wenn sie vorbelegt sind', () => {
     for (const col of TIKTOK_SPALTEN) {
       expect(isColumnVisibleForCustomer(col, false, TIKTOK_SPALTEN)).toBe(false);
     }

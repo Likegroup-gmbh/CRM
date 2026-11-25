@@ -78,6 +78,22 @@ describe('VideoRowHeightSync – Hoehenangleich pro data-video-id', () => {
     expect(b.style.minHeight).toBe('61px');
   });
 
+  it('misst die Wrapper ohne Auffuellen, nicht in der gestreckten Hoehe', () => {
+    // Gestreckt (flex-grow bis zur Zellenhoehe) 90px, eigener Inhalt 30px
+    const w = makeWrapper('v1', 0);
+    w.getBoundingClientRect = () => {
+      const messung = w.closest('.kooperation-row').classList.contains('is-hoehen-messung');
+      const height = messung ? 30 : 90;
+      return { height, width: 100, top: 0, left: 0, right: 100, bottom: height };
+    };
+    container = makeContainer([[w]]);
+
+    new VideoRowHeightSync(container).sync();
+
+    expect(w.style.minHeight).toBe('30px');
+    expect(container.querySelector('.is-hoehen-messung')).toBeNull();
+  });
+
   it('sync ohne Zeilen wirft nicht', () => {
     container = makeContainer([]);
     expect(() => new VideoRowHeightSync(container).sync()).not.toThrow();

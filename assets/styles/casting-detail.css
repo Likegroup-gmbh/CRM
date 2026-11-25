@@ -87,6 +87,19 @@
   overflow-x: auto;
 }
 
+/* Link-Feld mit Abruf-Button rechts im Feld, wie in der Tabellenzelle */
+.casting-detail-link {
+  position: relative;
+}
+
+.casting-detail-link .form-input {
+  padding-right: 30px;
+}
+
+.casting-detail-link .profil-abruf-btn {
+  right: 6px;
+}
+
 .casting-detail-drawer .ig-posts-grid {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
 }

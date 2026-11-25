@@ -15,7 +15,8 @@ import {
 } from './sourcingSpaltenSichtbarkeit.js';
 import { SOURCING_TABS } from './sourcingTabs.js';
 import { NICHT_UMSETZEN_ICON } from './sourcingIcons.js';
-import { getListenTkp, reelsPreisTooltip, tkpAlsEingabe } from './castingPreisZellen.js';
+import { getListenTkp, reelsPreisTooltip, tkpAlsEingabe, viewsTooltip } from './castingPreisZellen.js';
+import { SOURCING_SPALTEN_LABELS } from './sourcingSpaltenKatalog.js';
 import { renderItemRow } from './castingItemRow.js';
 import { hatEigeneReihenfolge, ordneSourcingTabellenHtml, spaltenfolgeFuerKontext } from './sourcingSpaltenfolge.js';
 import { renderBewerbungTable } from './bewerbungTab.js';
@@ -185,12 +186,13 @@ export function renderItemsTable(ctx) {
             ${customAt('cp-col-link')}
             <th class="cp-col-follower" ${hide('cp-col-follower')}>Follower</th>
             ${customAt('cp-col-follower')}
-            <th class="cp-col-engagement-ig" ${hide('cp-col-engagement-ig')} title="Durchschnitt aus Likes und Kommentaren, geteilt durch Follower. Zweite Zeile ohne Trial-Reels, wenn das Gate greift.">Engagement</th>
-            ${customAt('cp-col-engagement-ig')}
-            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 8))}">Preis 8 Videos</th>
-            ${customAt('cp-col-cpm-ig-8')}
-            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 30))}">Preis 30 Videos</th>
-            ${customAt('cp-col-cpm-ig-30')}
+            <th class="cp-col-engagement" ${hide('cp-col-engagement')} title="Likes und Kommentare je Post. Instagram: geteilt durch Follower, zweite Zeile ohne Trial-Reels, wenn das Gate greift. TikTok: geteilt durch Views. Ohne Werbung, Posts jünger als 4 Tage und Ausreißer.">Engagement</th>
+            ${customAt('cp-col-engagement')}
+            ${[12, 30].map(fenster => `
+            <th class="cp-col-views-${fenster}" ${hide(`cp-col-views-${fenster}`)} title="${escapeHtml(viewsTooltip(fenster))}">${SOURCING_SPALTEN_LABELS[`cp-col-views-${fenster}`]}</th>
+            ${customAt(`cp-col-views-${fenster}`)}
+            <th class="cp-col-cpm-${fenster}" ${hide(`cp-col-cpm-${fenster}`)} title="${escapeHtml(reelsPreisTooltip(tkpLabel, fenster))}">${SOURCING_SPALTEN_LABELS[`cp-col-cpm-${fenster}`]}</th>
+            ${customAt(`cp-col-cpm-${fenster}`)}`).join('')}
             <th class="cp-col-preis-video" ${hide('cp-col-preis-video')} title="Manuell gepflegt – der tatsächlich verhandelte Preis pro Video (Reel bzw. TikTok-Video)">Preis Video</th>
             ${customAt('cp-col-preis-video')}
             <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story</th>

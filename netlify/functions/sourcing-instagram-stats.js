@@ -20,7 +20,7 @@
 //   -> Meta-Abruf: ein Call, Profil plus die letzten 30 Beitraege. Reels mit
 //      Werbe- oder Co-Post-Kennzeichnung, Trial-Duplikate und alles juenger
 //      als 4 Tage fallen aus der Rechnung. Der Views-Schnitt kommt aus genau
-//      8 bzw. 30 sauberen Reels dieser 30 Beitraege. Reicht der Rest nicht,
+//      12 bzw. 30 sauberen Reels dieser 30 Beitraege. Reicht der Rest nicht,
 //      bleibt der betroffene Schnitt leer. Ausreisser werden nicht abgezogen,
 //      sondern durch den naechst-aelteren organischen Reel in dieser Menge
 //      ersetzt.
@@ -175,7 +175,7 @@ exports.handler = async (event) => {
       pool_fetched_at: pool.ig_fetched_at,
       item: updated,
       stats: {
-        views_8: pool.ig_views_8,
+        views_12: pool.ig_views_12,
         views_30: pool.ig_views_30
       },
       ...(debug ? { debug } : {})
@@ -216,7 +216,7 @@ exports.handler = async (event) => {
       pool_fetched_at: pool.ig_fetched_at,
       item: updated,
       stats: {
-        views_8: pool.ig_views_8,
+        views_12: pool.ig_views_12,
         views_30: pool.ig_views_30
       },
       ...(debug ? { debug } : {})
@@ -265,7 +265,7 @@ exports.handler = async (event) => {
         pool_fetched_at: pool.ig_fetched_at,
         item: updated,
         stats: {
-          views_8: pool.ig_views_8,
+          views_12: pool.ig_views_12,
           views_30: pool.ig_views_30
         },
         ...(debug ? { debug } : {})
@@ -298,7 +298,7 @@ exports.handler = async (event) => {
           pool_fetched_at: pool.ig_fetched_at,
           item: updated,
           stats: {
-            views_8: pool.ig_views_8,
+            views_12: pool.ig_views_12,
             views_30: pool.ig_views_30
           },
           ...(debug ? { debug } : {})
@@ -401,7 +401,7 @@ exports.handler = async (event) => {
     pool_fetched_at: poolRow.ig_fetched_at,
     item: updated,
     stats: {
-      views_8: stats.views_8,
+      views_12: stats.views_12,
       views_30: stats.views_30,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,

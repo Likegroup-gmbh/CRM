@@ -15,14 +15,16 @@ import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
 import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
-import { createSourcingIgToolbarConfig } from './sourcingIgToolbarConfig.js';
-import { SOURCING_IG_TOOLBAR } from './sourcingIgCell.js';
+import { createSourcingProfilToolbarConfig } from './sourcingProfilToolbar.js';
+import { PROFIL_PLATTFORMEN } from './sourcingProfilPlattformen.js';
+import { mitPlattformenDerEintraege } from './sourcingSpaltenSichtbarkeit.js';
 import { verknuepfeOffeneEintraege, verknuepfungsText } from './castingCreatorVerknuepfung.js';
 import { CastingVorschlagPanel } from './CastingVorschlagPanel.js';
 import { castingDetailEventsMethods } from './CastingDetailEvents.js';
 import { castingDetailFilterMethods } from './CastingDetailFilter.js';
 import { castingDetailTableUxMethods } from './CastingDetailTableUx.js';
 import { absorbCastingEdits, castingDetailRowActionsMethods } from './CastingDetailRowActions.js';
+import { castingDetailProfilAbrufMethods } from './CastingDetailProfilAbruf.js';
 import { castingDetailZeilenStatusMethods } from './CastingDetailZeilenStatus.js';
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
@@ -132,10 +134,12 @@ export class CreatorAuswahlDetail {
     this.tableFilter?.destroy();
     this.tableFilter = null;
 
-    // Die Hover-Toolbar der Instagram-Spalte laeuft ueber die zentrale Engine.
-    // Ihre Abruf-Aktion braucht diese Instanz, also wird die Config hier mit
-    // Kontext angemeldet statt global deklariert.
-    registerHoverToolbar(SOURCING_IG_TOOLBAR, createSourcingIgToolbarConfig(this));
+    // Die Hover-Toolbars der Link-Spalten (Instagram, TikTok) laufen ueber die
+    // zentrale Engine. Ihre Abruf-Aktion braucht diese Instanz, also werden die
+    // Configs hier mit Kontext angemeldet statt global deklariert.
+    for (const p of Object.values(PROFIL_PLATTFORMEN)) {
+      registerHoverToolbar(p.toolbar, createSourcingProfilToolbarConfig(this, p.plattform));
+    }
     this._hoverRegistered = true;
 
     if (!this.embedded && this.isKunde) {
@@ -236,7 +240,7 @@ export class CreatorAuswahlDetail {
     // Config verweist auf eine Instanz, die es gleich nicht mehr gibt.
     // Prefetch-Instanzen, die nie gemountet wurden, haben nichts angemeldet.
     if (this._hoverRegistered) {
-      unregisterHoverToolbar(SOURCING_IG_TOOLBAR);
+      Object.values(PROFIL_PLATTFORMEN).forEach(p => unregisterHoverToolbar(p.toolbar));
       this._hoverRegistered = false;
     }
     hoverToolbar.close();
@@ -303,7 +307,7 @@ export class CreatorAuswahlDetail {
       canEdit: can('edit'),
       canDelete: can('delete'),
       gastReadonly: window.isGastReadonly?.() || false,
-      hiddenColumns: this.hiddenColumns,
+      hiddenColumns: mitPlattformenDerEintraege(this.hiddenColumns, this.items),
       columnOrder: Array.isArray(this.liste?.column_order) ? this.liste.column_order : null,
       kundenCallActive: this.kundenCallActive,
       teilbereiche: this.getTeilbereiche(),
@@ -372,6 +376,7 @@ Object.assign(
   castingDetailEventsMethods,
   castingDetailTableUxMethods,
   castingDetailRowActionsMethods,
+  castingDetailProfilAbrufMethods,
   castingDetailZeilenStatusMethods,
   castingDetailLinksMethods,
   castingDetailBulkMethods,

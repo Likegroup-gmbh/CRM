@@ -247,42 +247,6 @@
   color: var(--primary, #3b82f6);
 }
 
-/* Upload-Button in der Link-Content Spalte */
-
-.video-upload-btn {
-  display: inline-flex; align-items: center; gap: var(--space-xs);
-  background: var(--gray-900); color: var(--gray-100);
-  border: none; border-radius: var(--radius-xl); padding: var(--space-xs);
-  font-size: var(--text-sm); font-weight: 500; cursor: pointer;
-  transition: background 0.15s;
-}
-
-.video-upload-btn:hover { background: var(--gray-800); }
-
-.video-upload-btn svg { width: var(--icon-xs); height: var(--icon-xs); }
-
-/* Settings/Gear-Button in der Link-Content Spalte */
-
-.video-settings-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent;
-  border: var(--border-xs) solid var(--border-secondary);
-  color: var(--text-tertiary);
-  border-radius: var(--radius-md);
-  padding: var(--space-xxs) var(--space-xs);
-  cursor: pointer;
-  margin-left: var(--space-xxs);
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-
-.video-settings-btn:hover {
-  border-color: var(--border-focus);
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-}
-
-.video-settings-btn svg { width: var(--icon-xs); height: var(--icon-xs); }
-
 .video-settings-section { display: flex; flex-direction: column; gap: var(--space-xs); }
 
 .video-settings-path { font-size: var(--text-11); color: var(--text-muted); word-break: break-all; }

@@ -11,9 +11,9 @@ export const IG_TEXT_FIELDS = ['name', 'email', 'telefon', 'wohnort', 'notiz'];
 
 const STAT_KEYS = [
   'sourcing_creator_id',
-  'ig_views_8',
+  'ig_views_12',
   'ig_views_30',
-  'cpm_ig_8',
+  'cpm_ig_12',
   'cpm_ig_30',
   'ig_stats',
   'ig_fetched_at',

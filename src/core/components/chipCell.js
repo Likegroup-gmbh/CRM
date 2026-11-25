@@ -44,12 +44,15 @@ export const CHIP_DOT_STATES = ['is-empty', 'is-idle', 'is-fetched', 'is-error',
  * Innerer Inhalt des Chips: Plattform-Icon plus Beschriftung. Die Beschriftung
  * kommt aus formatLinkLabel und unterscheidet sich damit automatisch je Link -
  * "Reel · @handle" bei einem Beitrag, "@handle" bei einem Profil.
+ *
+ * @param {{ohneIcon?: boolean}} [opts] ohneIcon: nur die Beschriftung, wenn die Zelle das
+ *   Plattform-Icon selbst zeigt (Casting-Link-Spalte)
  */
-export function renderPlatformChip(url, handle) {
+export function renderPlatformChip(url, handle, { ohneIcon = false } = {}) {
   if (!url) return '';
 
   const { platform } = parseSocialLink(url);
-  const icon = platform === 'instagram'
+  const icon = ohneIcon ? '' : platform === 'instagram'
     ? INSTAGRAM_ICON
     : platform === 'tiktok' ? TIKTOK_ICON : LINK_ICON;
 

@@ -7,7 +7,7 @@ import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { bindToolbarMenu as attachToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { SelectionBar, bindCheckboxSelection } from '../../core/list/SelectionBar.js';
 import { QUICK_ADD_FORM, QUICK_ADD_INPUT } from './CastingDetailQuickAdd.js';
-import { listeHatTiktok } from './castingDetailDrawerView.js';
+import { listeHatInstagram, listeHatTiktok } from './castingDetailDrawerView.js';
 import {
   KONZEPT_EINHOLEN_LABEL,
   konzeptEinladungKontext,
@@ -69,14 +69,19 @@ export function renderBulkBar() {
     ${this._canSourcing('delete')
       ? '<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm selection-bar-delete" data-selection-action="delete">Löschen</button>'
       : ''}
-  `, { idleHtml: kannAnlegen ? renderQuickAddIdle(listeHatTiktok(this.liste)) : '' });
+  `, { idleHtml: kannAnlegen ? renderQuickAddIdle(this.liste) : '' });
   this.updateBulkBar();
 }
 
-function renderQuickAddIdle(tiktok) {
-  const placeholder = tiktok
-    ? 'Instagram- oder TikTok-Link oder @Handle einfügen'
-    : 'Instagram-Link oder @Handle einfügen';
+// TikTok nur als Profil-Link: ein reiner Handle bleibt Instagram
+function quickAddPlatzhalter(liste) {
+  const tiktok = listeHatTiktok(liste);
+  if (!listeHatInstagram(liste)) return 'TikTok-Link einfügen';
+  return tiktok ? 'Instagram-Link, @Handle oder TikTok-Link einfügen' : 'Instagram-Link oder @Handle einfügen';
+}
+
+function renderQuickAddIdle(liste) {
+  const placeholder = quickAddPlatzhalter(liste);
   return `
     <form data-selection-form="${QUICK_ADD_FORM}" autocomplete="off">
       <input id="${QUICK_ADD_INPUT}" name="link" type="text" class="form-input"

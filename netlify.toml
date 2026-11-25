@@ -120,6 +120,16 @@
 [functions."teams-meldung-senden"]
   timeout = 26
 
+# TikTok-API (Admin): Apify-Lauf starten und pollen, je Aufruf bis zu 15 s waitForFinish
+# plus Dataset-Abruf (tiktok-scraper.js, _shared/tiktok/apify.js)
+[functions."tiktok-scraper"]
+  timeout = 26
+
+# TikTok-Profilabruf im Casting (ADR 0083): wie tiktok-scraper, je Aufruf bis zu 10 s Warten auf
+# Apify, danach Dataset, Profilbild und Speichern
+[functions."tiktok-profil"]
+  timeout = 26
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"

@@ -1,25 +1,45 @@
-// Engagement-Rate und Kurzbeschreibung fuer den Casting-Abruf.
-// Dieselbe Formel wie beim Verbinden in der Creator-Datenbank:
-// Durchschnitt (Likes + Kommentare) / Follower ueber die geladenen Posts, in Prozent.
+// Engagement-Rate und Kurzbeschreibung fuer den Profilabruf. Eine Formel fuer Casting
+// (Instagram und TikTok) und Creator-Datenbank (instagram-connect.js).
 // Die bereinigte Rate laesst Trial-Reels weg, sobald das Trial-Gate aktiv ist.
 
-const { classifyVideos } = require('./instagram-cpm');
+const { MIN_AGE_HOURS, classifyVideos, detectOutliers, istWerbePost } = require('./instagram-cpm');
 const { waehleAnzeigeReels } = require('./instagram-reels');
 
 /** Wie viele Reels als Kacheln gespeichert werden. Mehr Bild-Uploads sprengen das Funktions-Timeout. */
 const KARTEN_LIMIT = 6;
 
-function computeEngagementRate(mediaData, followers) {
-  if (!followers || followers <= 0 || !mediaData?.length) return null;
-  let sum = 0;
-  let counted = 0;
-  for (const m of mediaData) {
-    if (m.like_count === undefined && m.comments_count === undefined) continue;
-    sum += (Number(m.like_count) || 0) + (Number(m.comments_count) || 0);
-    counted += 1;
-  }
-  if (counted === 0) return null;
-  return Number((((sum / counted) / followers) * 100).toFixed(3));
+const interaktionen = (m) => (Number(m.like_count) || 0) + (Number(m.comments_count) || 0);
+const summe = (posts, wert) => posts.reduce((acc, m) => acc + wert(m), 0);
+
+/**
+ * Posts, ueber die die Rate laeuft: dieselbe Bereinigung wie beim Preis. Werbung faellt raus
+ * (geboostet, Likes von Nicht-Followern), Posts juenger als 4 Tage auch (die Likes laufen noch
+ * auf), dazu hoechstens ein Ausreisser oben und einer unten nach der Regel aus detectOutliers.
+ */
+function bereinigtePosts(media, now) {
+  const cutoff = now - MIN_AGE_HOURS * 60 * 60 * 1000;
+  const posts = (media || []).filter((m) => m
+    && (m.like_count !== undefined || m.comments_count !== undefined)
+    && !(m.ad_marker || istWerbePost(m.caption))
+    && !(Date.parse(m.timestamp) > cutoff));
+  const { indices } = detectOutliers(posts.map(interaktionen));
+  return posts.filter((_, i) => !indices.has(i));
+}
+
+/**
+ * Engagement-Rate in Prozent ueber die bereinigten Posts.
+ * - bezug 'follower' (Instagram): Schnitt (Likes + Kommentare) / Follower, der Instagram-Standard.
+ * - bezug 'views' (TikTok): Summe (Likes + Kommentare) / Summe Views. Der For-You-Feed spielt Videos
+ *   weit ueber die Follower hinaus aus, auf Follower gerechnet kaemen 30 bis 100 % heraus.
+ */
+function computeEngagementRate(media, followers, { bezug = 'follower', now = Date.now() } = {}) {
+  const posts = bereinigtePosts(media, now);
+  if (!posts.length) return null;
+  const nenner = bezug === 'views'
+    ? summe(posts, (m) => Number(m.view_count) || 0)
+    : (followers > 0 ? followers * posts.length : 0);
+  if (!nenner) return null;
+  return Number(((summe(posts, interaktionen) / nenner) * 100).toFixed(3));
 }
 
 /**
@@ -31,9 +51,9 @@ function engagementFuerProfil(media, followers, now = Date.now()) {
   const trialIds = new Set(
     included.filter((v) => v.trial_views).map((v) => v.id).filter(Boolean)
   );
-  const engagement_rate = computeEngagementRate(media, followers);
+  const engagement_rate = computeEngagementRate(media, followers, { now });
   const engagement_rate_clean = trialGate?.aktiv
-    ? computeEngagementRate((media || []).filter((m) => !trialIds.has(m.id)), followers)
+    ? computeEngagementRate((media || []).filter((m) => !trialIds.has(m.id)), followers, { now })
     : null;
   return { engagement_rate, engagement_rate_clean, trialIds, trialGate };
 }

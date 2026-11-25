@@ -35,6 +35,15 @@ span.verknuepfung-pill {
   color: var(--text-primary);
 }
 
+/* Medien-Buttons in Zellen (Play, Verwalten, Stills, Finale): Pill-Look aus
+   forms.css, so breit wie Icon und Label. */
+.media-pill-btn {
+  width: auto;
+  flex-shrink: 0;
+  justify-content: center;
+  text-decoration: none;
+}
+
 span.verknuepfung-pill--statisch,
 span.verknuepfung-pill--statisch:hover {
   cursor: default;
@@ -159,7 +168,6 @@ span.verknuepfung-pill--statisch:hover {
 .kooperation-video-grid .col-organic-paid { width: 14ch; min-width: 14ch; }
 .kooperation-video-grid .col-kampagne { width: 16ch; min-width: 16ch; }
 .kooperation-video-grid .col-posting-datum { width: 14ch; min-width: 14ch; }
-.kooperation-video-grid .col-videoanzahl { width: 5ch; min-width: 5ch; }
 .kooperation-video-grid .col-start-datum { width: 10ch; min-width: 10ch; }
 .kooperation-video-grid .col-link-live { width: 24ch; min-width: 24ch; }
 .kooperation-video-grid .col-stats-views,
@@ -172,6 +180,7 @@ span.verknuepfung-pill--statisch:hover {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  padding: var(--space-md);
 }
 .kooperation-video-grid .col-vertrag { width: 18ch; min-width: 18ch; }
 .kooperation-video-grid .col-nutzungsrechte { width: 18ch; min-width: 18ch; }
@@ -242,11 +251,11 @@ span.verknuepfung-pill--statisch:hover {
   padding-right: 18px;
 }
 
-.chip-cell--ig-fetch .chip-cell__input {
+.chip-cell--profil-abruf .chip-cell__input {
   padding-right: 26px;
 }
 
-.chip-cell--ig-fetch .chip-cell__chip {
+.chip-cell--profil-abruf .chip-cell__chip {
   inset: 0 26px 1px var(--chip-cell-pad-left);
 }
 
@@ -594,7 +603,7 @@ span.verknuepfung-pill--statisch:hover {
 }
 
 /* Anzeige-Zellen ohne direktes Eingabefeld */
-.kooperation-video-grid .grid-cell.read-only,
+.kooperation-video-grid .grid-cell.read-only:not(.video-stack-cell),
 .kooperation-video-grid .grid-cell.col-status,
 .kooperation-video-grid .grid-cell.col-tags,
 .kooperation-video-grid .grid-cell.col-actions,
@@ -727,12 +736,26 @@ span.verknuepfung-pill--statisch:hover {
   border-bottom: none;
 }
 
+/* height:1px laesst height:100% des Stacks gegen die Zeilenhoehe aufloesen.
+   Ist eine Kooperations-Zelle (Creator, Tags ...) hoeher als die Videos,
+   fuellen die Wrapper den Rest; sonst endeten Spalte und Hintergrund zu frueh
+   und der Inhalt saesse hoeher als in den mittigen Kooperations-Zellen. */
 .kooperation-video-grid .video-stack-cell {
+  height: 1px;
   padding: 0;
   vertical-align: top;
 }
 
-.kooperation-video-grid .video-stack-cell .video-field-wrapper:has([readonly]),
+.kooperation-video-grid .video-stack-cell .video-field-wrapper {
+  flex: 1 0 auto;
+}
+
+.kooperation-video-grid .kooperation-row.is-hoehen-messung .video-field-wrapper {
+  flex-grow: 0;
+}
+
+/* Das versteckte Input des Datepickers ist immer readonly, die Zelle bleibt editierbar */
+.kooperation-video-grid .video-stack-cell .video-field-wrapper:has([readonly]:not(.custom-date-picker__input)),
 .kooperation-video-grid .video-stack-cell .video-field-wrapper:has([disabled]) {
   padding: 0;
   background: var(--readonly-bg);
@@ -924,7 +947,8 @@ span.verknuepfung-pill--statisch:hover {
   justify-content: center;
 }
 
-.kooperation-video-grid .video-stack-cell--center .video-field-wrapper {
+.kooperation-video-grid .video-stack-cell--center .video-field-wrapper,
+.kooperation-video-grid .checkbox-stack .video-field-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1145,15 +1169,6 @@ span.verknuepfung-pill--statisch:hover {
   border-radius: 0;
   background: inherit; /* Erbt Zebra-Striping von tr */
   box-sizing: border-box;
-}
-
-/* Video-Nr Spalte: Zentrierte Nummerierung */
-.kooperation-video-grid .col-video-nr .video-field-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 0;
 }
 
 .kooperation-video-grid .col-video-nr .video-nr-text {
@@ -3167,29 +3182,13 @@ width: 18em;
   margin: auto;
 }
 
-/* Play+Label in der Finale-Spalte: nicht auf das 32px-Quadrat von
-   .external-link-btn zwingen, sonst laeuft "9:16" in den Upload-Button. */
 .kooperation-video-grid .finale-cell-actions {
   gap: var(--space-sm);
   flex-wrap: nowrap;
 }
 
-.kooperation-video-grid .finale-cell-actions .finale-play-btn {
-  width: auto;
-  height: auto;
-  min-height: var(--space-xl);
-  padding: var(--space-xxs) var(--space-sm);
-  gap: var(--space-xs);
-  flex-shrink: 0;
-  margin: 0;
-  border: var(--border-xs) solid var(--border-secondary);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-}
-
 .kooperation-video-grid .finale-cell-actions .finale-upload-btn {
   flex-shrink: 0;
-  margin: 0;
 }
 
 /* === SKELETON LOADING SYSTEM === */

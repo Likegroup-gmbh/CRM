@@ -195,11 +195,11 @@ function renderUploadField(attrs, col, entityId, value, isEditable) {
       url: value,
       spalte: { customColumnId: col.uuid, entityId },
       inhalt: FOLDER_ICON,
-      klasse: 'external-link-btn stacked-video-link-btn custom-upload-folder-link',
+      klasse: 'media-pill-btn custom-upload-folder-link',
       titel: 'Ordner öffnen',
     }) || `<span class="stacked-video-empty">-</span>`;
     if (!isEditable) return folderLink;
-    return `${folderLink}<button type="button" class="custom-upload-btn custom-upload-settings-btn" 
+    return `${folderLink}<button type="button" class="media-pill-btn custom-upload-btn custom-upload-settings-btn" 
       data-custom-column-id="${col.uuid}" data-entity-id="${entityId}" data-column-name="${escapeHtml(col.label)}"
       title="Dateien verwalten">${GEAR_ICON}</button>`;
   }
@@ -208,7 +208,7 @@ function renderUploadField(attrs, col, entityId, value, isEditable) {
     return `<span class="stacked-video-empty">-</span>`;
   }
 
-  return `<button type="button" class="video-upload-btn custom-upload-btn" 
+  return `<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm video-upload-btn custom-upload-btn" 
     data-custom-column-id="${col.uuid}" data-entity-id="${entityId}" data-column-name="${escapeHtml(col.label)}"
     title="Dateien hochladen">
     ${icon('upload')}

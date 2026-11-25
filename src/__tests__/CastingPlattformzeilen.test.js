@@ -21,8 +21,12 @@ import {
 import { berechneHiddenColumns } from '../modules/creator-auswahl/sourcingSpaltenPreset.js';
 import { EntityCustomColumnsManager } from '../core/customColumns/EntityCustomColumnsManager.js';
 
-const GEMEINSAM = ['cp-col-link', 'cp-col-follower', 'cp-col-preis-video', 'cp-col-story-preis'];
-const NUR_INSTAGRAM = ['cp-col-engagement-ig', 'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-reichweite-story'];
+const GEMEINSAM = [
+  'cp-col-link', 'cp-col-follower', 'cp-col-engagement',
+  'cp-col-views-12', 'cp-col-cpm-12', 'cp-col-views-30', 'cp-col-cpm-30',
+  'cp-col-preis-video', 'cp-col-story-preis'
+];
+const NUR_INSTAGRAM = ['cp-col-reichweite-story'];
 
 const ITEM = {
   id: 'i1',
@@ -34,7 +38,9 @@ const ITEM = {
   preis_tiktok_video: '800',
   preis_story: '250',
   preis_tiktok_story: '300',
-  ig_views_8: 6029
+  ig_views_12: 6029,
+  tt_views_12: 12000,
+  tt_stats: { engagement_rate: 4.5 }
 };
 
 function zeile(ctx = {}, item = ITEM) {
@@ -87,6 +93,17 @@ describe('Casting – Plattformzeilen: Zeilen je Zelle', () => {
     }
   });
 
+  it('zeigt Engagement, Views und Preis 12 aus dem TikTok-Abruf in der TikTok-Zeile', () => {
+    const doc = zeile({ liste: { tkp: 20 } });
+    const tt = (spalte) => doc.querySelector(`td.${spalte} [data-plattform="tiktok"]`);
+
+    expect(tt('cp-col-engagement').textContent).toContain('4,5 %');
+    expect(tt('cp-col-views-12').querySelector('.cpm-auto-views').textContent).toBe('12,0K');
+    expect(tt('cp-col-cpm-12').querySelector('.cpm-auto-price').textContent).toBe('240,00 €');
+    expect(tt('cp-col-views-30').textContent).toContain('-');
+    expect(tt('cp-col-cpm-30').textContent).toContain('-');
+  });
+
   it('zeigt bei fehlendem TikTok-Wert einen Strich im Follower', () => {
     const doc = zeile({}, { id: 'i1', follower_instagram: 1000 });
     const tt = doc.querySelector('td.cp-col-follower [data-plattform="tiktok"]');
@@ -122,25 +139,29 @@ describe('Casting – Plattformzeilen: Zeilen je Zelle', () => {
 });
 
 describe('Casting – Plattformzeilen: Icons', () => {
-  it('setzt vor jeden Wert ein Plattform-Icon', () => {
+  it('setzt das Plattform-Icon nur in die Link-Spalte', () => {
     const doc = zeile();
 
-    for (const spalte of ['cp-col-follower', 'cp-col-preis-video', 'cp-col-story-preis', 'cp-col-engagement-ig']) {
-      const icons = doc.querySelectorAll(`td.${spalte} .plattform-zeile:not(.plattform-zeile--leer) .plattform-zeile__icon`);
-      expect(icons.length, spalte).toBeGreaterThan(0);
-      for (const icon of icons) expect(icon.querySelector('svg'), spalte).not.toBeNull();
-    }
-    const follower = doc.querySelectorAll('td.cp-col-follower .plattform-zeile__icon');
-    expect(Array.from(follower).map(el => el.title)).toEqual(['Instagram', 'TikTok']);
+    const icons = doc.querySelectorAll('td.cp-col-link .plattform-zeile__icon');
+    expect(Array.from(icons).map(el => el.title)).toEqual(['Instagram', 'TikTok']);
+    for (const icon of icons) expect(icon.querySelector('svg')).not.toBeNull();
   });
 
-  it('laesst den Link ohne extra Icon: das Link-Icon ist selbst die Plattform', () => {
+  it('laesst alle anderen Spalten ohne Icon', () => {
     const doc = zeile();
 
-    expect(doc.querySelector('td.cp-col-link .plattform-zeile__icon')).toBeNull();
-    const tt = doc.querySelector('td.cp-col-link [data-plattform="tiktok"] a.link-icon-btn');
+    for (const spalte of GEMEINSAM.filter(s => s !== 'cp-col-link')) {
+      expect(doc.querySelector(`td.${spalte} .plattform-zeile__icon`), spalte).toBeNull();
+    }
+  });
+
+  it('zeigt den Link-Chip ohne eigenes Icon, damit es nicht doppelt ist', () => {
+    const doc = zeile();
+
+    const tt = doc.querySelector('td.cp-col-link [data-plattform="tiktok"] .chip-cell__chip');
     expect(tt).not.toBeNull();
-    expect(tt.querySelector('svg')).not.toBeNull();
+    expect(tt.querySelector('svg')).toBeNull();
+    expect(tt.querySelector('.chip-cell__label')).not.toBeNull();
   });
 
   it('zeigt im Tabellenkopf keine Icons', () => {
@@ -201,7 +222,7 @@ describe('Casting – Plattformzeilen: gespeicherte Reihenfolge', () => {
       'cp-col-preis-reels', 'cp-col-follower-tt', 'cp-col-link-tt'
     ];
     const neu = baueBeweglicheSpalten({ columnOrder: alt });
-    const gespeichert = ['cp-col-notiz', 'cp-col-follower', 'cp-col-link', 'cp-col-cpm-ig-8', 'cp-col-preis-video'];
+    const gespeichert = ['cp-col-notiz', 'cp-col-follower', 'cp-col-link', 'cp-col-cpm-12', 'cp-col-preis-video'];
 
     // Die gespeicherte Nachbarschaft bleibt, neue Spalten drängen sich dazwischen
     expect(neu.filter(id => gespeichert.includes(id))).toEqual(gespeichert);

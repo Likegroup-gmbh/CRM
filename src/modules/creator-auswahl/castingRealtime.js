@@ -4,11 +4,12 @@
 // den lokalen Stand, dessen Save schreibt danach ohnehin.
 
 import { hasUnsavedTextEdit, rememberTextBaseline } from '../../core/table/textFieldBaseline.js';
+import { plattformenDerEintraege } from './sourcingSpaltenSichtbarkeit.js';
 
 const IGNORED_KEYS = new Set(['updated_at']);
 const NUMBER_DISPLAY_KEYS = new Set(['follower_instagram', 'follower_tiktok']);
-// Felder, deren Zelle mehr zeigt als den Input-Wert (Chip, Status-Punkt).
-const ROW_RENDER_KEYS = new Set(['link_instagram']);
+// Felder, deren Zelle mehr zeigt als den Input-Wert (Chip, Abruf-Button).
+const ROW_RENDER_KEYS = new Set(['link_instagram', 'link_tiktok']);
 
 function sameValue(a, b) {
   if ((a ?? null) === (b ?? null)) return true;
@@ -62,6 +63,7 @@ export function applyCastingRowUpdate(detail, row) {
   if (!keys.length) return 'unchanged';
 
   const rowEl = detail._q(`.item-row[data-item-id="${row.id}"]`);
+  const plattformenVorher = plattformenDerEintraege(detail.items).join();
   let needsRow = false;
   for (const key of keys) {
     // Tabelle und offener Detail-Drawer zeigen dieselben Felder.
@@ -74,6 +76,10 @@ export function applyCastingRowUpdate(detail, row) {
   }
 
   if (!needsRow || !rowEl) return 'applied';
+  // Erster Link einer Plattform: deren Zeilen erscheinen in allen Zeilen und im Kopf
+  if (plattformenDerEintraege(detail.items).join() !== plattformenVorher) {
+    return rerenderUnlessTyping(detail) ? 'applied' : 'deferred';
+  }
   if (isTypingIn(rowEl)) return 'deferred';
   detail.refreshItemRow(row.id);
   return 'applied';

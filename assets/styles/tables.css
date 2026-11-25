@@ -546,8 +546,9 @@ thead {
 
 .data-table .custom-date-picker.has-value .custom-date-picker__trigger,
 .kooperation-video-grid .custom-date-picker.has-value .custom-date-picker__trigger {
-  background: var(--color-success);
-  color: var(--bg-primary);
+  background: var(--success-100);
+  border-color: var(--success-300);
+  color: var(--success-700);
 }
 
 .data-table .custom-date-picker__trigger svg,
@@ -1668,7 +1669,7 @@ thead {
 }
 
 .strategie-items-table tbody tr.item-row.item-gebucht:hover {
-  background-color: var(--green-50);
+  background-color: var(--success-row);
 }
 
 .strategie-items-table tbody tr.idea-row:hover {
@@ -1866,7 +1867,7 @@ thead {
 /* Item-Zeilen-Zustände */
 
 .strategie-items-table .item-gebucht {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 .strategie-items-table .item-nicht-umsetzen {
@@ -2025,14 +2026,14 @@ thead {
 
 .creator-pool-table .item-gebucht td.col-sticky-1,
 .creator-pool-table .item-gebucht td.col-sticky-2 {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 /* Hover auf gebuchte Zeilen bleibt grün */
 
 .creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-1,
 .creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-2 {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 /* Item-Nicht-Umsetzen für sticky Spalten */
@@ -2175,13 +2176,15 @@ thead {
 .creator-pool-table td.cp-col-mail,
 .creator-pool-table td.cp-col-telefon,
 .creator-pool-table td.cp-col-link,
-.creator-pool-table td.cp-col-engagement-ig,
+.creator-pool-table td.cp-col-engagement,
 .creator-pool-table td.cp-col-reichweite-story,
 .creator-pool-table td.cp-col-story-preis,
 .creator-pool-table td.cp-col-reichweite-garantie,
 .creator-pool-table td.cp-col-pricing,
-.creator-pool-table td.cp-col-cpm-ig-8,
-.creator-pool-table td.cp-col-cpm-ig-30,
+.creator-pool-table td.cp-col-views-12,
+.creator-pool-table td.cp-col-cpm-12,
+.creator-pool-table td.cp-col-views-30,
+.creator-pool-table td.cp-col-cpm-30,
 .creator-pool-table td.cp-col-preis-video,
 .creator-pool-table td.cp-col-nutzungsrechte,
 .creator-pool-table td.cp-col-ek,
@@ -2390,8 +2393,10 @@ thead {
 .creator-pool-table .cp-col-story-preis,
 .creator-pool-table .cp-col-reichweite-garantie,
 .creator-pool-table .cp-col-pricing,
-.creator-pool-table .cp-col-cpm-ig-8,
-.creator-pool-table .cp-col-cpm-ig-30,
+.creator-pool-table .cp-col-views-12,
+.creator-pool-table .cp-col-cpm-12,
+.creator-pool-table .cp-col-views-30,
+.creator-pool-table .cp-col-cpm-30,
 .creator-pool-table .cp-col-preis-video,
 .creator-pool-table .cp-col-ek,
 .creator-pool-table .cp-col-vk {
@@ -2402,6 +2407,14 @@ thead {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   line-height: 1.25;
+}
+
+/* Jede Zeile bleibt in ihrer Spalte: lieber abgeschnitten (der Tooltip hat den
+   vollen Wert) als in die Nachbarspalte laufen */
+.creator-pool-table .cpm-auto-value > div {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .creator-pool-table .cpm-auto-reach {
@@ -2418,17 +2431,24 @@ thead {
   padding-top: 2px;
 }
 
-/* Blur setzt color nur auf dem Wrapper - die Views-Zeile braucht sie explizit */
+.creator-pool-table .cpm-auto-tag {
+  color: var(--text-tertiary);
+}
 
-.creator-pool-table .cpm-auto-value.kunden-call-blur .cpm-auto-reach {
+/* Blur setzt color nur auf dem Wrapper - die Zeile ohne Trials braucht sie explizit */
+
+.creator-pool-table .cpm-auto-value.kunden-call-blur .cpm-auto-reach,
+.creator-pool-table .cpm-auto-value.kunden-call-blur .cpm-auto-tag {
   color: transparent;
 }
 
 /* Preisspalten mit Icon und Euro-Zeichen brauchen etwas mehr Platz.
    Keine Block-Toenung mehr: die Plattform steht als Icon in der Zelle. */
 
-.creator-pool-table .cp-col-cpm-ig-8,
-.creator-pool-table .cp-col-cpm-ig-30,
+.creator-pool-table .cp-col-views-12,
+.creator-pool-table .cp-col-cpm-12,
+.creator-pool-table .cp-col-views-30,
+.creator-pool-table .cp-col-cpm-30,
 .creator-pool-table .cp-col-preis-video,
 .creator-pool-table .cp-col-story-preis {
   width: 108px;
@@ -2506,6 +2526,11 @@ thead {
 
 .creator-pool-table .plattform-zeile:has(> .plattform-zeile__icon) {
   --plattform-pad-links: var(--plattform-icon-platz);
+}
+
+/* Link-Chip ohne eigenes Icon: die Beschriftung beginnt hinter dem Overlay-Icon */
+.creator-pool-table .plattform-zeile .chip-cell {
+  --chip-cell-pad-left: var(--plattform-pad-links);
 }
 
 .creator-pool-table .plattform-zeile__inhalt > * {
@@ -2628,11 +2653,11 @@ thead {
 }
 
 .creator-pool-table .item-gebucht td.cp-col-actions {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 .creator-pool-table tbody tr.item-row.item-gebucht:hover td.cp-col-actions {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 .creator-pool-table .item-nicht-umsetzen td.cp-col-actions {

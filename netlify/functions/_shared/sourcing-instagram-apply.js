@@ -10,7 +10,7 @@ const { notizNachAbruf } = require('./instagram-engagement');
 const {
   formatCpmDebug,
   formatCpmReport
-} = require('./instagram-cpm');
+} = require('./instagram-cpm-report');
 const { extractEmail, extractPhone, extractCity } = require('./bio-extract');
 
 // Kill-Switch: nach dem Testen auf false – kein Server-Log, kein debug in Response
@@ -84,18 +84,18 @@ function leer(value) {
 function statsFromPool(pool) {
   const ig = pool.ig_stats || {};
   return {
-    views_8: pool.ig_views_8,
+    views_12: pool.ig_views_12,
     views_30: pool.ig_views_30,
-    cpm_8: pool.cpm_ig_8,
+    cpm_12: pool.cpm_ig_12,
     cpm_30: pool.cpm_ig_30,
-    sample_8: ig.sample_8,
+    sample_12: ig.sample_12,
     sample_30: ig.sample_30,
     // Bewusst ohne Default: fehlt das Feld (alter Pool-Eintrag), soll
     // formatCpmDebug in den permalink-Fallback laufen statt ein leeres
     // Fenster zu melden.
-    used_8: ig.used_8,
+    used_12: ig.used_12,
     used_30: ig.used_30,
-    outliers_8: ig.outliers_8 || [],
+    outliers_12: ig.outliers_12 || [],
     outliers_30: ig.outliers_30 || [],
     ohne_trials: ig.ohne_trials ?? null,
     trial_gate: ig.trial_gate ?? null,
@@ -134,9 +134,9 @@ function buildItemUpdate(pool, item) {
     sourcing_creator_id: pool.id,
     link_instagram: pool.link_instagram,
     follower_instagram: pool.follower_instagram,
-    ig_views_8: pool.ig_views_8,
+    ig_views_12: pool.ig_views_12,
     ig_views_30: pool.ig_views_30,
-    cpm_ig_8: pool.cpm_ig_8,
+    cpm_ig_12: pool.cpm_ig_12,
     cpm_ig_30: pool.cpm_ig_30,
     ig_stats: pool.ig_stats || {},
     ig_fetched_at: pool.ig_fetched_at,
@@ -221,11 +221,11 @@ function bauePoolRecord({ username, profile: p, stats, engagement, karten, mapPo
     ig_image_failed_at: (bild?.url || pool?.profile_image_url) ? null : jetzt,
     follower_instagram: p.followers_count ?? null,
     // Der 30er-Wert ist die belastbarste Groesse; hat der Creator dafuer zu
-    // wenige Reels, greift der 8er-Wert
-    reichweite_instagram: formatReach(stats.views_30 ?? stats.views_8),
-    ig_views_8: stats.views_8,
+    // wenige Reels, greift der 12er-Wert
+    reichweite_instagram: formatReach(stats.views_30 ?? stats.views_12),
+    ig_views_12: stats.views_12,
     ig_views_30: stats.views_30,
-    cpm_ig_8: stats.cpm_8,
+    cpm_ig_12: stats.cpm_12,
     cpm_ig_30: stats.cpm_30,
     ig_fetched_at: jetzt,
     ig_fetch_error: null,
@@ -236,11 +236,11 @@ function bauePoolRecord({ username, profile: p, stats, engagement, karten, mapPo
       website: p.website || null,
       media_count: p.media_count ?? null,
       calc_version: stats.calc_version,
-      sample_8: stats.sample_8,
+      sample_12: stats.sample_12,
       sample_30: stats.sample_30,
-      used_8: stats.used_8,
+      used_12: stats.used_12,
       used_30: stats.used_30,
-      outliers_8: stats.outliers_8,
+      outliers_12: stats.outliers_12,
       outliers_30: stats.outliers_30,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,

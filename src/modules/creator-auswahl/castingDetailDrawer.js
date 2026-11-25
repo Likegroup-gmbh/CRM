@@ -1,10 +1,11 @@
 // Schublade eines Casting-Eintrags.
-// Oben das Instagram-Profil, darunter dieselben Felder wie in der Tabelle.
+// Oben das Instagram-Profil, darunter dieselben Felder wie in der Tabelle
+// (TikTok mit Abruf-Button am Link, Engagement und Preis 8/30).
 // Speichern passiert beim Verlassen des Feldes, die Zeile uebernimmt den Wert.
 
 import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
-import { renderIgFetchButton } from './sourcingIgCell.js';
+import { renderAbrufButton } from './sourcingProfilZelle.js';
 import { rowCanWrite } from './castingPreisZellen.js';
 import { renderBody, renderHeader, zahl } from './castingDetailDrawerView.js';
 
@@ -41,6 +42,13 @@ async function speichern(detail, el) {
   if (follower && item && el.dataset.field === 'follower_instagram') {
     follower.textContent = zahl(item.follower_instagram);
   }
+  // Abruf-Button folgt dem Link: ohne Link versteckt, mit Link sofort klickbar
+  const plattform = { link_instagram: 'instagram', link_tiktok: 'tiktok' }[el.dataset.field];
+  if (plattform && item) {
+    panel?.querySelectorAll(`[data-profil-abruf="${plattform}"]`).forEach((btn) => {
+      btn.outerHTML = renderAbrufButton(item, plattform);
+    });
+  }
   detail.refreshItemRow?.(el.dataset.itemId);
 }
 
@@ -54,7 +62,7 @@ function paint(detail) {
   if (name && document.activeElement !== name) name.value = item.name || '';
   const actions = panel.querySelector('[data-casting-header-actions]');
   if (actions) {
-    const abruf = rowCanWrite(detail, item) ? renderIgFetchButton(item) : '';
+    const abruf = rowCanWrite(detail, item) ? renderAbrufButton(item, 'instagram') : '';
     actions.innerHTML = `${abruf}<button type="button" class="drawer-close-btn" data-close-casting-detail aria-label="Schließen">&times;</button>`;
   }
   const body = panel.querySelector('[data-casting-detail-body]');

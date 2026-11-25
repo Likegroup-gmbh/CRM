@@ -5,6 +5,7 @@ import { CreatorList } from './CreatorListCore.js';
 import './CreatorListView.js';
 import './CreatorListBulk.js';
 import './CreatorListForm.js';
+import './CreatorListFormStart.js';
 
 export { CreatorList };
 export const creatorList = new CreatorList({ mode: 'all' });

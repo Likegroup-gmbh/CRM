@@ -146,8 +146,9 @@ describe('Drawer Kooperation „Tabelle anpassen“', () => {
       .map(el => el.textContent.trim());
     const erwartet = ['Tags', 'Thema', 'Idee/Konzept', 'Link Skript / Briefing', 'Skript', 'Stills', 'Freigabe',
       'Content', 'Caption', 'Finale Version', 'LG Feedback 1', 'Kunde Feedback 1', 'LG Feedback 3', 'Kunde Feedback 3',
-      'Erstellt', 'Videos', 'Live Link', 'Views', 'Likes', 'Kommentare'];
+      'Erstellt', 'Video-Nr', 'Live Link', 'Views', 'Likes', 'Kommentare'];
     for (const label of erwartet) expect(labels, label).toContain(label);
+    expect(labels).not.toContain('Videos');
     expect(labels.filter(label => label.startsWith('CJ'))).toEqual([]);
   });
 });
