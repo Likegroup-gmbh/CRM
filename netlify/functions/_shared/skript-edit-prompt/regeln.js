@@ -26,6 +26,15 @@ Gehen Anweisung und Kontext nicht zusammen, setze die Anweisung um und sage in a
 Neu formulieren heisst neuer Wortlaut, nicht neuer Inhalt: Funktion, Kernbegriffe (Produkt, Kategorie, Claims) und Aussage bleiben.
 `;
 
+/** Ohne Master nennt der Auftrag die Zelle nicht mehr nach dem Regelwerk. */
+function auftragImKontext(masterAktiv = true) {
+  if (masterAktiv !== false) return AUFTRAG_IM_KONTEXT;
+  return AUFTRAG_IM_KONTEXT.replace(
+    'wie Master und ZUSAETZLICHE INFOS (Produktionskopf) sie festlegen',
+    'wie ZUSAETZLICHE INFOS (Produktionskopf) sie festlegen'
+  );
+}
+
 const ANSCHLUSS_REGEL = `
 # ANSCHLUSS
 Die geaenderte Zelle steht zwischen Zellen, die sich nicht aendern. Sie knuepft an die vorige an und fuehrt in die naechste hinein, so wie sie im AKTUELLEN SKRIPT stehen. Nicht anfassen heisst nicht ignorieren.
@@ -96,6 +105,7 @@ const AKTION_ANWEISUNGEN = {
 module.exports = {
   VERBINDLICHE_REGELN,
   AUFTRAG_IM_KONTEXT,
+  auftragImKontext,
   ANSCHLUSS_REGEL,
   ANTWORT_REGEL,
   GRID_SEKTIONEN,

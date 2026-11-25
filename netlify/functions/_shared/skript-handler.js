@@ -6,11 +6,21 @@
 const { createClient } = require('@supabase/supabase-js');
 const { verifyAuth, requireInternal, authErrorBody } = require('./verify-auth');
 
+function supabaseFuerSkript() {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    const fehlend = [!url && 'SUPABASE_URL', !key && 'SUPABASE_SERVICE_KEY'].filter(Boolean).join(', ');
+    throw new Error(`Supabase-Konfiguration fehlt (${fehlend})`);
+  }
+  return createClient(url, key);
+}
+
 function withSkriptHandler(fn) {
   return async (event) => {
     if (event.httpMethod !== 'POST') return { statusCode: 405 };
 
-    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+    const supabase = supabaseFuerSkript();
     const auth = await verifyAuth(event, supabase);
     if (!auth.user) {
       return {

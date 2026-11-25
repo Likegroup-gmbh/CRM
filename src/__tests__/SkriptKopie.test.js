@@ -88,6 +88,12 @@ describe('kopieZeile', () => {
     });
     expect(zeile.id).toBeUndefined();
     expect(zeile.creator_tausch).toBeUndefined();
+    expect(zeile.master_regelwerk).toBe(true);
+  });
+
+  it('übernimmt ein ausgeschaltetes Master-Regelwerk', () => {
+    const zeile = kopieZeile({ ...quelle, master_regelwerk: false }, { userId: 'u1', am: AM });
+    expect(zeile.master_regelwerk).toBe(false);
   });
 
   it('kopiert nur die freigegebenen Spalten', () => {

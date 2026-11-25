@@ -152,6 +152,15 @@ export class SkriptEditorView {
       && !this.neuModus;
   }
 
+  /** Master-Regelwerk am Skript umschalten: nur das interne Team. */
+  get kannMasterSchalten() {
+    return Boolean(window.isInternal?.())
+      && !window.permissionSystem?.isGast
+      && (window.canEdit?.('skripte') ?? false)
+      && Boolean(this.skript?.id)
+      && !this.neuModus;
+  }
+
   /** Senden bleibt auch ohne Kampagne. */
   get kannAnschreiben() {
     return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false) && Boolean(this.skript?.id) && !this.neuModus;

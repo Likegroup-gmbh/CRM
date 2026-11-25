@@ -18,13 +18,22 @@ function menuItemHtml(id, label, iconName, title, { danger = false } = {}) {
 }
 
 /** Selten genutzte Aktionen hinter "…": PDF, Link, Teilen, Kopieren, Creator tauschen, Löschen. */
-function kopfMenuHtml({ kannPdf, kannTeilen, kannKopieren, kannTauschen, kannLoeschen }) {
+function kopfMenuHtml({ kannPdf, kannTeilen, kannKopieren, kannTauschen, kannLoeschen, kannMaster, masterAn }) {
+  const masterEin = masterAn !== false;
   const items = [
     kannPdf ? menuItemHtml('ed-pdf', 'PDF herunterladen', 'pdf', 'Skript als PDF') : '',
     kannTeilen ? menuItemHtml('ed-copy-link', 'Link kopieren', 'link', 'Adresse für ein Kundenkonto kopieren') : '',
     kannTeilen ? menuItemHtml('ed-share', 'Skripte dieses Creators teilen', 'share-alt', 'Freigegebene Skripte dieses Creators teilen') : '',
     kannKopieren ? menuItemHtml('ed-kopieren', 'Für weiteren Creator kopieren', 'document-duplicate', 'Eigene Fassung für einen weiteren Creator anlegen') : '',
-    kannTauschen ? tauschSkriptButtonHtml() : ''
+    kannTauschen ? tauschSkriptButtonHtml() : '',
+    kannMaster ? menuItemHtml(
+      'ed-master',
+      masterEin ? 'Master-Regelwerk weglassen' : 'Master-Regelwerk verwenden',
+      'adjustments-horizontal',
+      masterEin
+        ? 'Nächste KI-Antwort ohne Master-Regelwerk. Der Text bleibt.'
+        : 'Nächste KI-Antwort mit Master-Regelwerk. Der Text bleibt.'
+    ) : ''
   ].filter(Boolean);
   if (kannLoeschen) {
     if (items.length) items.push('<div class="action-separator"></div>');
@@ -44,7 +53,8 @@ function kopfMenuHtml({ kannPdf, kannTeilen, kannKopieren, kannTauschen, kannLoe
  */
 export function docHeadActionsHtml({
   kannTeilen = false, kannAnschreiben = null, kannPdf = false, kannZurueck = false, kannFreigeben = false,
-  kannLoeschen = false, kannTauschen = false, kannKopieren = false, status = '', statusWahlHtml = '',
+  kannLoeschen = false, kannTauschen = false, kannKopieren = false, kannMaster = false, masterAn = true,
+  status = '', statusWahlHtml = '',
   verknuepfungenHtml = ''
 } = {}) {
   const senden = kannAnschreiben == null ? kannTeilen : kannAnschreiben;
@@ -73,7 +83,7 @@ export function docHeadActionsHtml({
       <span class="mdc-btn__icon">${icon('anschreiben')}</span>
       <span class="mdc-btn__label">Senden</span>
     </button>` : ''}
-    ${kopfMenuHtml({ kannPdf, kannTeilen, kannKopieren, kannTauschen, kannLoeschen })}
+    ${kopfMenuHtml({ kannPdf, kannTeilen, kannKopieren, kannTauschen, kannLoeschen, kannMaster, masterAn })}
   `;
 }
 
@@ -152,7 +162,8 @@ export function vorgabenPanelHtml(skript, { kannPersonaSetzen = false } = {}) {
     ['Regieanweisung', s.regieanweisung],
     ['Rezept unter dem CTA', genPayload.mit_rezept ? 'Ja' : null],
     ['Text-Hook', genPayload.mit_text_hook ? 'Ja' : null],
-    ['Caption', genPayload.mit_caption ? 'Ja' : null]
+    ['Caption', genPayload.mit_caption ? 'Ja' : null],
+    ['Master-Regelwerk', s.master_regelwerk === false ? 'aus' : 'an']
   ].filter(([, wert]) => wert);
 
   const funnelHinweis = funnelAbweichungsHinweis(s);

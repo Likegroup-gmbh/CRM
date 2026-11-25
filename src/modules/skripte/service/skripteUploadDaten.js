@@ -176,6 +176,7 @@ export const skripteUploadDatenMethoden = {
       aktive_sub_nr: 0,
       herkunft: 'hochgeladen',
       status: 'entwurf',
+      master_regelwerk: enriched.master_regelwerk !== false,
       prompt_kontext: {
         upload_dateiname: dateiname,
         upload_art: art,

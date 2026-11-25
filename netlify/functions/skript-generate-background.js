@@ -9,7 +9,7 @@ const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, loadReferenzVideo, buildKontextText, videoLaengeHinweis, briefingSkriptSprache } = require('./_shared/skript-context');
 const { entferneZeitmarker, pruefeSkript, hookVorgabeText } = require('./_shared/skript-context/formatter');
 const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
-const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
+const { fmtMasterBlock, MASTER_BEREICH_LABELS, rolleGenerierung, liesMasterAktiv } = require('./_shared/skript-master');
 const { vertragBlock } = require('./_shared/skript-vertrag');
 const { extractSkriptAusMaster } = require('./_shared/skript-creator-facing');
 const { withSkriptHandler } = require('./_shared/skript-handler');
@@ -62,18 +62,12 @@ const HARTE_GRENZEN_GENERIERUNG = 'Harte Grenzen: die Verbote (kein, nicht, nie,
 // Prompt-Bau (Kontext-Aufbau + Sektions-Formatierung: _shared/skript-context)
 // ---------------------------------------------------------------------------
 function buildPrompt(ctx, params, rueckfragenDialog = '', { gesperrterHook = null } = {}) {
-  const master = ctx.master || [];
+  const masterAktiv = ctx.masterAktiv !== false;
+  const master = masterAktiv ? (ctx.master || []) : [];
 
-  // Block 1 (stabil, cachebar): Rolle + Master
-  let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
-    + '(Owned Media, Paid Ads, Influencer-Konzepte; TikTok, Instagram Reels). '
-    + 'Du schreibst drehfertige Konzepte nach dem verbindlichen Master-Regelwerk. '
-    + 'Die drei Systeme Owned, Paid und Influencer duerfen nicht vermischt werden. '
-    + 'Fehlende Produktfakten, Claims, Preise, Offers, Bewertungen oder Ergebnisse darfst du niemals erfinden. '
-    + 'Verbote im Block WICHTIGE VORGABEN duerfen im Skript nicht vorkommen. '
-    + 'Pflichtinhalte und Do\'s nur, wo der Fakt belegt ist; fehlt der Fakt, wird die Pflicht weggelassen und unter ## Abweichungen benannt.\n';
-
-  stable += fmtMasterBlock(master);
+  // Block 1 (stabil, cachebar): Rolle + Master, sofern das Skript ihn will
+  let stable = rolleGenerierung(masterAktiv);
+  if (masterAktiv) stable += fmtMasterBlock(master);
 
   // Block 2 (variabel): Auftrag dieser Generierung
   const sprache = briefingSkriptSprache(ctx.briefing);
@@ -170,7 +164,7 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', { gesperrterHook = nul
       + 'Im Zweifel lieber knapp unter dem Budget bleiben als darueber.';
   }
 
-  task += vertragBlock(ctx.bereich);
+  task += vertragBlock(ctx.bereich, { masterAktiv });
 
   return { stable, task };
 }
@@ -217,9 +211,10 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       payload.referenz_karte = await karteAusReferenz(referenzVideo);
       job.log(payload.referenz_karte ? 'Videovorlage als Karte' : 'Keine Karte aus der Videovorlage');
     }
+    payload.master_regelwerk = await liesMasterAktiv(supabase, payload.skript_id);
     job.log(referenzVideo
       ? `Videovorlage: ${referenzVideo.quelle === 'strategie_item' ? `Strategie-Item (${referenzVideo.platform || 'unbekannt'})` : referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`
-      : 'Keine Videovorlage - Aufbau kommt aus dem Master');
+      : `Keine Videovorlage${payload.master_regelwerk === false ? '' : ' - Aufbau kommt aus dem Master'}`);
 
     Object.assign(payload, await personaVomStub(supabase, payload));
     Object.assign(payload, await bereichVomStub(supabase, payload));

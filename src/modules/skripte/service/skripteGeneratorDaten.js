@@ -47,6 +47,7 @@ export const skripteGeneratorDatenMethoden = {
       tonalitaet: enriched.tonalitaet || null,
       herkunft: 'generiert',
       status: 'fragen',
+      master_regelwerk: enriched.master_regelwerk !== false,
       prompt_kontext: { generator_payload: enriched },
       created_by: user?.id
     }).select().single();
@@ -108,6 +109,7 @@ export const skripteGeneratorDatenMethoden = {
       video_laenge: payload.video_laenge || null,
       funnel_stufe: payload.funnel_stufe || null,
       tonalitaet: payload.tonalitaet || null,
+      ...('master_regelwerk' in payload ? { master_regelwerk: payload.master_regelwerk !== false } : {}),
       prompt_kontext: { ...(existing?.prompt_kontext || {}), generator_payload: payload }
     }).eq('id', id).select().single();
     if (error) throw new Error(error.message);

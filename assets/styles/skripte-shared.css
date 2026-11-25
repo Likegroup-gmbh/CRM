@@ -45,6 +45,18 @@
   display: none;
 }
 
+.skripte-create-master {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.skripte-create-master .toggle-switch {
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+
 .skripte-create-uebersicht {
   list-style: none;
   margin: 0;

@@ -3,7 +3,7 @@
 // Zwei parallele Query-Wellen statt des frueheren 13-Query-Waterfalls:
 // Welle 1 haengt nur an den params-IDs, Welle 2 an den Ergebnissen aus 1.
 
-const { resolveSkriptBereich, loadMasterDocs } = require('../skript-master');
+const { resolveSkriptBereich, loadMasterDocs, masterIstAktiv } = require('../skript-master');
 const { attachAudienceSituations } = require('../audience-situation');
 
 // ---------------------------------------------------------------------------
@@ -12,7 +12,7 @@ const { attachAudienceSituations } = require('../audience-situation');
 // Regelquelle ist das Master-Regelwerk (basis + Bereich), keine Skript-DNA mehr.
 async function loadContext(supabase, params) {
   const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, briefing_id, strategie_item_id } = params;
-  const ctx = { master: [], masterVersionen: [] };
+  const ctx = { master: [], masterVersionen: [], masterAktiv: masterIstAktiv(params.master_regelwerk) };
 
   // Welle 1: alle Quellen, die nur an params-IDs haengen (nicht voneinander)
   const unternehmenPromise = unternehmen_id
@@ -108,9 +108,11 @@ async function loadContext(supabase, params) {
       .select('id, name').eq('id', ctx.brancheId).single()
     : Promise.resolve({ data: null });
 
-  // Master-Regelwerk: Basis immer + Bereichs-Doc. Auch der Fragen-Pfad laedt
-  // es voll - die Rueckfragen muessen die Ausgabestruktur kennen.
-  const masterPromise = loadMasterDocs(supabase, ctx.bereich, { schlank: false });
+  // Master-Regelwerk: Basis immer + Bereichs-Doc, ausser das Skript hat es aus.
+  // Die Ausgabestruktur haengt nicht am Regelwerk.
+  const masterPromise = ctx.masterAktiv
+    ? loadMasterDocs(supabase, ctx.bereich, { schlank: false })
+    : Promise.resolve({ master: [], masterVersionen: [] });
 
   const [{ data: branche }, masterResult] = await Promise.all([
     branchePromise, masterPromise

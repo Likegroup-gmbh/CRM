@@ -9,7 +9,7 @@ export const KOPIE_FELDER = [
   'id', 'titel', 'unternehmen_id', 'marke_id', 'kampagne_id', 'produktion_id', 'briefing_id',
   'produkt_id', 'persona_id', 'branche_id', 'bereich', 'strategie_item_id', 'video_idee',
   'video_laenge', 'funnel_stufe', 'tonalitaet', 'location', 'regieanweisung', 'herkunft', 'model',
-  'prompt_kontext', 'hook', 'hauptteil', 'cta', 'hook_visuell', 'hauptteil_visuell', 'cta_visuell',
+  'prompt_kontext', 'master_regelwerk', 'hook', 'hauptteil', 'cta', 'hook_visuell', 'hauptteil_visuell', 'cta_visuell',
   'hook_variante_1', 'hook_variante_2', 'hook_variante_3', 'text_hook', 'rezept', 'caption',
   'inhalt_md', 'festlegungen', 'festgezogen', 'dokument_bloecke'
 ];
@@ -45,7 +45,8 @@ export function kopieZeile(quelle, { creatorName = '', userId = null, am } = {})
     status: 'entwurf',
     aktive_version_nr: 1,
     aktive_sub_nr: 0,
-    created_by: userId
+    created_by: userId,
+    master_regelwerk: quelle?.master_regelwerk !== false
   };
 }
 
