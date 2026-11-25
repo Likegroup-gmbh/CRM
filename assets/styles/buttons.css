@@ -16,7 +16,7 @@
   border: none;
   border-radius: var(--radius-xl);
   font-size: var(--text-sm);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--gray-100);
   background: var(--gray-900);
   cursor: pointer;
@@ -43,6 +43,23 @@
 .mdc-btn.is-loading .mdc-btn__spinner { display: inline-flex; }
 
 .mdc-btn.is-loading { pointer-events: none; background: var(--bg-secondary); color: var(--text-primary); border-color: var(--gray-300); }
+
+/* State: running (Lauf aktiv, Button bleibt klickbar als Stopp, z.B. Management-Connect) */
+
+.mdc-btn.is-running { background: var(--bg-secondary); color: var(--text-primary); border-color: var(--gray-300); }
+
+.mdc-btn.is-running::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: mdc-spin .8s linear infinite;
+}
 
 /* State: success */
 
@@ -367,11 +384,6 @@ button.is-submit-locked,
   border-color: var(--accent-primary);
   color: var(--color-white);
   transform: translateY(-1px);
-}
-
-.add-item-drawer-form-row--actions .mdc-btn {
-  width: auto;
-  min-width: var(--min-width-md);
 }
 
 .creator-pool-table td.cell-icon-only .link-icon-btn {

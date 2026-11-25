@@ -3,6 +3,12 @@ import { StorysTabHandler } from './StorysTabHandler.js';
 import { BilderTabHandler } from './BilderTabHandler.js';
 import { CustomUploadTabHandler } from './CustomUploadTabHandler.js';
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+import { exportHinweisHtml } from '../../core/media/exportHinweis.js';
+import { escapeHtml } from '../../core/format.js';
+
+const EXPORT_HINWEIS_ID = 'upload-export-hinweis';
+const TABS_MIT_EXPORT_HINWEIS = ['video', 'storys'];
 
 export class VideoUploadDrawer {
   constructor() {
@@ -15,7 +21,6 @@ export class VideoUploadDrawer {
     this.onStorysSuccess = null;
 
     this._activeTab = 'video';
-    this.useExternalLinks = false;
 
     this.videoTab = new VideoTabHandler(this);
     this.storysTab = new StorysTabHandler(this);
@@ -32,7 +37,7 @@ export class VideoUploadDrawer {
    * @param {function} [onBilderSuccess]
    * @param {function} [onStorysSuccess]
    */
-  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', preselectFinal = false, onBilderCleared, onStorysCleared, onBilderChanged, onFinaleChanged, customMeta } = {}) {
+  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', preselectFinal = false, onBilderCleared, onStorysCleared, onBilderChanged, onFinaleChanged, onVideoAssetDeleted, customMeta } = {}) {
     this.videoId = videoId;
     this.kooperationId = metadaten.kooperationId;
     this.metadaten = metadaten;
@@ -43,7 +48,8 @@ export class VideoUploadDrawer {
     this.onStorysCleared = onStorysCleared || null;
     this.onBilderChanged = onBilderChanged || null;
     this.onFinaleChanged = onFinaleChanged || null;
-    this.useExternalLinks = !!metadaten.keinDropbox;
+    // Gleicht Video und Tabellenzeile ab, nachdem eine Datei gelöscht wurde
+    this.onVideoAssetDeleted = onVideoAssetDeleted || null;
     this.customMeta = customMeta || null;
     // Neue Queue-Items starten mit "Finale Version" vorausgewaehlt (Finale-Spalten-Button)
     this.preselectFinal = !!preselectFinal;
@@ -59,7 +65,6 @@ export class VideoUploadDrawer {
       this.createDrawer();
       this.renderForm();
       this.bindEvents();
-      this._syncExternalLinksChip();
       return;
     }
 
@@ -71,7 +76,6 @@ export class VideoUploadDrawer {
     this.createDrawer();
     this.renderForm();
     this.bindEvents();
-    this._syncExternalLinksChip();
 
     this.videoTab._existingVersions = videoVersions;
     this.videoTab._loadExistingVideoAssets();
@@ -110,17 +114,6 @@ export class VideoUploadDrawer {
     title.textContent = 'Datei hochladen';
     headerLeft.appendChild(title);
 
-    const externalLinksChip = document.createElement('button');
-    externalLinksChip.type = 'button';
-    externalLinksChip.id = 'external-links-chip';
-    externalLinksChip.className = 'drawer-mode-chip';
-    externalLinksChip.textContent = 'Kein Dropbox';
-    externalLinksChip.setAttribute('aria-label', 'Kein Dropbox – nur externe Links');
-    externalLinksChip.addEventListener('click', () => {
-      if (externalLinksChip.disabled || this.isAnyUploadActive()) return;
-      this._onExternalLinksToggle(!this.useExternalLinks);
-    });
-
     const headerRight = document.createElement('div');
     headerRight.className = 'drawer-header-right';
     const closeBtn = document.createElement('button');
@@ -131,7 +124,6 @@ export class VideoUploadDrawer {
     headerRight.appendChild(closeBtn);
 
     header.appendChild(headerLeft);
-    header.appendChild(externalLinksChip);
     header.appendChild(headerRight);
 
     const body = document.createElement('div');
@@ -143,40 +135,17 @@ export class VideoUploadDrawer {
 
     document.body.appendChild(overlay);
     document.body.appendChild(panel);
-    this._syncExternalLinksChip();
 
     requestAnimationFrame(() => {
       panel.classList.add('show');
     });
   }
 
-  // ─── External Links Toggle (Header-Chip) ───────────────────
-
-  _syncExternalLinksChip() {
-    const chip = document.getElementById('external-links-chip');
-    if (!chip) return;
-    chip.classList.toggle('is-active', this.useExternalLinks);
-    chip.setAttribute('aria-pressed', String(this.useExternalLinks));
-    chip.disabled = this.isAnyUploadActive();
-  }
-
-  _onExternalLinksToggle(checked) {
-    if (this.isAnyUploadActive()) return;
-    this.useExternalLinks = checked;
-    this.videoTab.reset();
-    this.storysTab.reset();
-    this.bilderTab.reset();
-    this.customTab.reset();
-    this.renderForm();
-    this.bindEvents();
-    this._syncExternalLinksChip();
-  }
-
   // ─── Tab Navigation ────────────────────────────────────────
 
   _renderTabNav() {
     if (this._activeTab === 'custom') {
-      const colName = this.customMeta?.columnName || 'Upload';
+      const colName = escapeHtml(this.customMeta?.columnName || 'Upload');
       return `<div class="drawer-tab-nav"><button type="button" class="drawer-tab-btn active" data-drawer-tab="custom">${colName}</button></div>`;
     }
     return `
@@ -205,6 +174,8 @@ export class VideoUploadDrawer {
     if (storysPane) storysPane.style.display = tabName === 'storys' ? '' : 'none';
     if (bilderPane) bilderPane.style.display = tabName === 'bilder' ? '' : 'none';
     if (customPane) customPane.style.display = tabName === 'custom' ? '' : 'none';
+    const hinweis = document.getElementById(EXPORT_HINWEIS_ID);
+    if (hinweis) hinweis.style.display = TABS_MIT_EXPORT_HINWEIS.includes(tabName) ? '' : 'none';
 
     if (tabName === 'bilder') {
       this.bilderTab.ensureInitialized();
@@ -235,6 +206,7 @@ export class VideoUploadDrawer {
     body.innerHTML = `
       ${this._renderActiveJobsBanner()}
       ${this._renderTabNav()}
+      ${exportHinweisHtml({ id: EXPORT_HINWEIS_ID, hidden: !TABS_MIT_EXPORT_HINWEIS.includes(this._activeTab) })}
       ${this.videoTab.renderTab(this._activeTab)}
       ${this.storysTab.renderTab(this._activeTab)}
       ${this.bilderTab.renderTab(this._activeTab)}
@@ -258,7 +230,6 @@ export class VideoUploadDrawer {
     const html = this._renderActiveJobsBanner();
     if (existing) existing.remove();
     if (html) body.insertAdjacentHTML('afterbegin', html);
-    this._syncExternalLinksChip();
   }
 
   // ─── Event Binding ─────────────────────────────────────────
@@ -271,7 +242,7 @@ export class VideoUploadDrawer {
     overlay?.addEventListener('click', () => this.close());
     closeBtn?.addEventListener('click', () => this.close());
 
-    panel?.querySelectorAll('.drawer-tab-btn').forEach(btn => {
+    panel?.querySelectorAll('.drawer-tab-btn[data-drawer-tab]').forEach(btn => {
       btn.addEventListener('click', () => this._switchTab(btn.dataset.drawerTab));
     });
 
@@ -295,16 +266,6 @@ export class VideoUploadDrawer {
     return this.bilderTab.isUploading;
   }
 
-  // ─── Proxy methods for backwards compatibility (tests) ────
-
-  saveAssetVersion(...args) {
-    return this.videoTab.saveAssetVersion(...args);
-  }
-
-  _updateSubmitButtonState() {
-    return this.videoTab._updateSubmitButtonState();
-  }
-
   // ─── Close / Cleanup ──────────────────────────────────────
 
   close() {
@@ -320,7 +281,7 @@ export class VideoUploadDrawer {
       this._onJobsChangedBound = null;
     }
 
-    setTimeout(() => this.removeDrawer(), 300);
+    setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
   }
 
   removeDrawer() {

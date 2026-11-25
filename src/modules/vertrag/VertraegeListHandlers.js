@@ -1,7 +1,14 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
+import { ladeGedeckteKooperationen, syncVertragFlags } from './deckung/vertragDeckung.js';
 import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
 import { VertragUtils } from './VertragUtils.js';
+import { fallbackStatusAfterUnsigned } from './vertragStatus.js';
+import {
+  dokumentDateienLoeschen,
+  dokumentSpaltenLeeren,
+  dokumentZeileLaden,
+  vertragDateienLoeschen,
+} from '../../core/ablage/dokumentAblage.js';
 
 export function bindTableDelegation(list) {
   const tbody = document.getElementById('vertraege-table-body');
@@ -34,7 +41,7 @@ export function bindTableDelegation(list) {
       e.preventDefault();
       const action = actionItem.dataset.action;
       const id = actionItem.dataset.id;
-      await handleAction(list, action, id);
+      await handleVertragListAction(list, action, id);
       return;
     }
 
@@ -67,7 +74,70 @@ function openVertragRecord(list, id) {
   window.toastSystem?.show('Keine PDF-Datei vorhanden', 'warning');
 }
 
-async function handleAction(list, action, id) {
+export async function openVertragAnschreiben(list, id) {
+  if (!window.isInternal?.()) return;
+  const vertrag = list.vertraege?.find(v => v.id === id);
+  if (!vertrag) return;
+  const { openAnschreiben } = await import('../../core/anschreiben/openAnschreiben.js');
+  await openAnschreiben({
+    dokumentTyp: 'vertrag',
+    dokumentId: id,
+    vertrag,
+  });
+}
+
+export function downloadVertrag(list, id) {
+  const vertrag = list.vertraege?.find(v => v.id === id);
+  if (!vertrag?.datei_url) {
+    window.toastSystem?.show('Keine PDF-Datei vorhanden', 'warning');
+    return;
+  }
+  openDocumentUrl(vertrag.datei_url);
+}
+
+export async function deleteVertrag(list, id) {
+  const result = await window.confirmationModal?.open({
+    title: 'Vertrag löschen?',
+    message: 'Möchten Sie diesen Vertrag wirklich löschen?',
+    confirmText: 'Löschen',
+    cancelText: 'Abbrechen',
+    danger: true
+  });
+  if (!result?.confirmed) return;
+
+  try {
+    const vertrag = list.vertraege?.find(v => v.id === id);
+
+    // Gedeckte Kooperationen vor dem Loeschen merken: die Junction faellt mit dem Vertrag weg
+    let gedeckteIds = vertrag?.kooperation_id ? [vertrag.kooperation_id] : [];
+    try {
+      const gedeckt = (await ladeGedeckteKooperationen([id])).get(id) || [];
+      gedeckteIds = [...new Set([...gedeckteIds, ...gedeckt.map(k => k.id)])];
+    } catch (deckErr) {
+      console.warn('Gedeckte Kooperationen konnten nicht geladen werden:', deckErr);
+    }
+
+    // Erzeugtes und unterschriebenes PDF, egal ob SharePoint, alter Link oder Storage
+    await vertragDateienLoeschen(id);
+
+    const { error } = await window.supabase.from('vertraege').delete().eq('id', id);
+    if (error) throw error;
+
+    const hadSigned = vertrag?.unterschriebener_vertrag_url || vertrag?.dropbox_file_url;
+    if (hadSigned && gedeckteIds.length) {
+      await syncVertragFlags(null, false, { extraKooperationIds: gedeckteIds });
+    }
+
+    window.toastSystem?.show('Vertrag gelöscht', 'success');
+    await list.reloadData();
+  } catch (error) {
+    console.error('❌ Fehler beim Löschen:', error);
+    window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
+  }
+}
+
+export async function handleVertragListAction(list, action, id) {
+  if (!id) return;
   switch (action) {
     case 'view':
       openVertragRecord(list, id);
@@ -80,11 +150,39 @@ async function handleAction(list, action, id) {
       }
       window.navigateTo(`/vertraege/${id}/edit`);
       break;
-    case 'download':
-      list.downloadVertrag(id);
+    case 'vertrag-als-vorlage':
+      if (!list.getVertragPermissions().canEdit) {
+        window.toastSystem?.show('Sie haben keine Berechtigung, Verträge zu erstellen.', 'warning');
+        break;
+      }
+      window.navigateTo(`/vertraege/new?vorlage=${encodeURIComponent(id)}`);
       break;
+    case 'download':
+      downloadVertrag(list, id);
+      break;
+    case 'generate-pdf':
+      try {
+        const { generateVertragPdf } = await import('./generateVertragPdf.js');
+        await generateVertragPdf(list, id);
+      } catch (error) {
+        console.error('❌ PDF erzeugen fehlgeschlagen:', error);
+        window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
+      }
+      break;
+    case 'anschreiben':
+      await openVertragAnschreiben(list, id);
+      break;
+    case 'vertrag-kooperationen': {
+      if (!list.getVertragPermissions().canEdit) {
+        window.toastSystem?.show('Sie haben keine Berechtigung, Vertragsentwürfe zu bearbeiten.', 'warning');
+        break;
+      }
+      const { openVertragKooperationen } = await import('./deckung/VertragDeckungDrawer.js');
+      await openVertragKooperationen(id, () => list.reloadData());
+      break;
+    }
     case 'delete':
-      list.deleteVertrag(id);
+      await deleteVertrag(list, id);
       break;
     case 'add-signed':
     case 'replace-signed':
@@ -138,47 +236,26 @@ export async function removeSignedContract(list, vertragId) {
   try {
     if (!window.supabase) throw new Error('Supabase nicht verfügbar');
 
-    const { data } = await window.supabase
-      .from('vertraege')
-      .select('unterschriebener_vertrag_path, dropbox_file_path')
-      .eq('id', vertragId)
-      .single();
+    const signiert = await dokumentZeileLaden('vertrag_unterschrieben', vertragId);
+    if (signiert) await dokumentDateienLoeschen('vertrag_unterschrieben', signiert);
 
-    if (data?.unterschriebener_vertrag_path) {
-      const { error: storageError } = await window.supabase.storage
-        .from('unterschriebene-vertraege')
-        .remove([data.unterschriebener_vertrag_path]);
-      if (storageError) console.warn('⚠️ Storage-Löschfehler (nicht kritisch):', storageError);
-    }
-
-    if (data?.dropbox_file_path) {
-      try {
-        await fetch('/.netlify/functions/dropbox-delete-vertrag', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: data.dropbox_file_path })
-        });
-      } catch (dbxErr) {
-        console.warn('Dropbox-Löschung fehlgeschlagen (wird ignoriert):', dbxErr);
-      }
-    }
-
+    const fallbackStatus = await fallbackStatusAfterUnsigned(window.supabase, vertragId);
     const { error } = await window.supabase
       .from('vertraege')
       .update({
         unterschriebener_vertrag_url: null,
         unterschriebener_vertrag_path: null,
-        dropbox_file_url: null,
-        dropbox_file_path: null
+        ...dokumentSpaltenLeeren('vertrag_unterschrieben'),
+        status: fallbackStatus
       })
       .eq('id', vertragId);
 
     if (error) throw error;
 
     const vertrag = list.vertraege.find(v => v.id === vertragId);
-    if (vertrag?.kooperation_id) {
-      await syncVertragCheckbox(vertrag.kooperation_id, false);
-    }
+    await syncVertragFlags(vertragId, false, {
+      extraKooperationIds: vertrag?.kooperation_id ? [vertrag.kooperation_id] : []
+    });
 
     window.toastSystem?.show('Vertrag entfernt', 'success');
     await list.reloadData();

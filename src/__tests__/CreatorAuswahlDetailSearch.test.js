@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CreatorAuswahlDetail } from '../modules/creator-auswahl/CreatorAuswahlDetail.js';
-import { renderItemsTable, renderAddSection } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { renderItemsTable, renderAddSection } from '../modules/creator-auswahl/castingTableRender.js';
 
 function makeItem(overrides = {}) {
   return {
@@ -70,7 +70,8 @@ describe('CreatorAuswahlDetail – Namenssuche', () => {
     const counts = detail.getTabCounts();
     expect(counts).toEqual({
       alle: 2, offen: 1, angefragt: 0, on_hold: 1,
-      in_verhandlung: 0, absage: 0, zusage: 0, gebucht: 0
+      in_verhandlung: 0, absage: 0, zusage: 0, gebucht: 0,
+      bewerbung: 0
     });
   });
 
@@ -96,6 +97,7 @@ describe('CreatorAuswahlDetail – Namenssuche', () => {
       <button id="sourcing-item-search-clear" style="display:flex;"></button>
     `;
 
+    detail.root = document.body;
     detail.searchQuery = 'anna';
     detail.clearSearch();
 

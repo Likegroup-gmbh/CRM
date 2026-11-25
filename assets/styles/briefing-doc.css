@@ -5,12 +5,78 @@
    Tokens ausschliesslich aus variables.css.
    ============================================================ */
 
+.main-wrapper:has(> .briefing-detail) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.briefing-detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Eingebettet (Produktion, Tab Briefing): wie die Briefing-Seite. Seitenkopf,
+   Tab-Leiste und Aktionsleiste bleiben stehen, nur das Dokument scrollt. */
+.main-wrapper:has(> .kampagne-detail-body[data-workflow="briefing"]) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.kampagne-detail-body[data-workflow="briefing"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.kampagne-detail-body[data-workflow="briefing"] > .tab-navigation {
+  flex-shrink: 0;
+}
+
+.kampagne-detail-body[data-workflow="briefing"] > .content-section,
+.kampagne-detail-body[data-workflow="briefing"] .workflow-pane[data-pane="briefing"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.briefing-doc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  min-height: calc(var(--space-sm) * 2 + var(--space-xs) * 2 + 1.5 * var(--text-sm) + var(--border-xs) * 3);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.briefing-detail__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-lg);
+}
+
 .briefing-doc {
-  max-width: 48rem;
+  max-width: var(--doc-max-width);
   width: 100%;
   margin: 0 auto;
   padding-top: var(--space-lg);
   padding-bottom: var(--space-xxl);
+}
+
+.briefing-detail .briefing-doc {
+  padding-top: 0;
 }
 
 .briefing-doc__top {
@@ -193,6 +259,7 @@
 .briefing-doc__specs {
   width: 100%;
   border-collapse: collapse;
+  background: var(--gray-50);
 }
 
 .briefing-doc__specs th,
@@ -223,6 +290,40 @@
 
 .briefing-doc__specs .tag {
   margin: 0 var(--space-xxs) var(--space-xxs) 0;
+}
+
+.briefing-doc__specs + .briefing-doc__kicker,
+.briefing-doc__prose + .briefing-doc__kicker,
+.briefing-doc__produkt + .briefing-doc__kicker {
+  margin-top: var(--space-lg);
+}
+
+.briefing-doc__produkt {
+  margin: 0 0 var(--space-md);
+}
+
+.briefing-doc__produkt-name {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.briefing-doc__ideen {
+  white-space: normal;
+}
+
+.briefing-doc__ideen .tag {
+  margin-right: var(--space-xxs);
+}
+
+.briefing-doc__alt > summary {
+  cursor: pointer;
+  list-style: revert;
+}
+
+.briefing-doc__alt:not([open]) > summary {
+  margin-bottom: 0;
 }
 
 /* Print-Variante: feste Papierbreite, keine Aktionsleiste,

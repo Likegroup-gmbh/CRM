@@ -17,6 +17,8 @@ const { NEUIGKEIT_TOOL, buildSystemPrompt, buildUserPrompt, sanitizeTitel, sanit
 
 const DIFF_MAX_CHARS = 100000;
 const DIFF_MAX_LINES_PER_FILE = 200;
+// Der rohe Diff grosser Merges sprengt den Standardpuffer (1 MB, ENOBUFS); gekuerzt wird danach.
+const GIT_MAX_BUFFER = 256 * 1024 * 1024;
 
 function requireEnv(names) {
   const fehlend = names.filter((n) => !process.env[n]);
@@ -26,7 +28,7 @@ function requireEnv(names) {
 }
 
 function git(cmd) {
-  return execSync(`git ${cmd}`, { encoding: 'utf8' }).trim();
+  return execSync(`git ${cmd}`, { encoding: 'utf8', maxBuffer: GIT_MAX_BUFFER }).trim();
 }
 
 function shaExists(sha) {

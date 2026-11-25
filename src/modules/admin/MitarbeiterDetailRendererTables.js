@@ -4,8 +4,9 @@
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
-import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { summiereBuchungenNachJahr } from './mitarbeiterBuchungen.js';
 
 export function renderKampagnenTable(detail) {
   const rows = (detail.assignments.kampagnen || []).map(k => `
@@ -201,5 +202,80 @@ export function renderBudget(detail) {
     `
     : renderEmptyState({ icon: 'handshake', title: 'Keine Kooperationen zugewiesen' });
 
-  return `${summary}${table}`;
+  return `
+    ${renderEigeneBuchungen(detail)}
+    ${renderSectionHeader({ title: 'Kooperationen der zugeordneten Firmen' })}
+    ${summary}${table}
+  `;
+}
+
+// Kooperationen, die dem Mitarbeiter über assignee_id gehören (Einkauf, Verkauf, Marge pro Jahr)
+export function renderEigeneBuchungen(detail) {
+  const eigene = detail.budget?.eigeneKoops || [];
+  const titel = renderSectionHeader({ title: 'Eigene Buchungen' });
+
+  if (eigene.length === 0) {
+    return `
+      ${titel}
+      ${renderEmptyState({
+        icon: 'handshake',
+        title: 'Noch keine eigenen Buchungen',
+        text: 'Es zählen nur Kooperationen, bei denen dieser Mitarbeiter als Verantwortlicher eingetragen ist.'
+      })}
+    `;
+  }
+
+  const sanitize = (value) => window.validatorSystem.sanitizeHtml(value);
+
+  const jahresRows = summiereBuchungenNachJahr(eigene).map(z => `
+    <tr>
+      <td>${z.jahr ?? 'Ohne Datum'}</td>
+      <td class="u-text-right">${z.anzahl}</td>
+      <td class="u-text-right">${detail.formatCurrency(z.einkauf)}</td>
+      <td class="u-text-right">${detail.formatCurrency(z.verkauf)}</td>
+      <td class="u-text-right">${detail.formatCurrency(z.marge)}</td>
+    </tr>
+  `).join('');
+
+  const koopRows = eigene.map(k => `
+    <tr>
+      <td><a href="/kooperation/${k.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">${sanitize(k.name || k.id)}</a></td>
+      <td>${sanitize(KampagneUtils.getDisplayName(k.kampagne))}</td>
+      <td>${k.created_at ? new Date(k.created_at).toLocaleDateString('de-DE') : '-'}</td>
+      <td class="u-text-right">${detail.formatCurrency(Number(k.einkaufspreis_netto) || 0)}</td>
+      <td class="u-text-right">${detail.formatCurrency(Number(k.verkaufspreis_netto) || 0)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    ${titel}
+    <div class="data-table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Jahr</th>
+            <th class="u-text-right">Kooperationen</th>
+            <th class="u-text-right">Einkauf Netto</th>
+            <th class="u-text-right">Verkauf Netto</th>
+            <th class="u-text-right">Marge</th>
+          </tr>
+        </thead>
+        <tbody>${jahresRows}</tbody>
+      </table>
+    </div>
+    <div class="data-table-container u-mt-sm">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Kooperation</th>
+            <th>Kampagne</th>
+            <th>Angelegt</th>
+            <th class="u-text-right">Einkauf Netto</th>
+            <th class="u-text-right">Verkauf Netto</th>
+          </tr>
+        </thead>
+        <tbody>${koopRows}</tbody>
+      </table>
+    </div>
+  `;
 }

@@ -1,10 +1,10 @@
 // CreatorAuswahlService.js
-// Service für Creator-Auswahl Datenbank-Operationen
+// Listen, Zugriff und Dropdowns. Eintraege liegen in CreatorAuswahlItems.
 
-import { CREATOR_TYP_OPTIONS, canonicalizeCreatorTyp, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
-import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import { CREATOR_TYP_OPTIONS, canonicalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.js';
 import { assertBriefingForCreate, assertBriefingLinkLock } from '../briefing/BriefingLinkGuard.js';
 import { strategieService } from '../strategie/StrategieService.js';
+import { creatorAuswahlItemsMethods } from './CreatorAuswahlItems.js';
 
 export class CreatorAuswahlService {
   constructor() {
@@ -24,33 +24,76 @@ export class CreatorAuswahlService {
    * Filtert basierend auf Benutzerrolle und Kampagnen-Zuordnung
    */
   async getAllListen() {
+    return this._listenImScope(() => this._fetchAllListen());
+  }
+
+  /**
+   * Schmale Variante für Auswahllisten (Casting wählen): nur id, Name, Kategorien
+   * und Kampagnenname, mit demselben Zugriffs-Scope wie getAllListen.
+   */
+  async getListenFuerPicker() {
+    return this._listenImScope(() => this._fetchListenFuerPicker());
+  }
+
+  /**
+   * Zugriffs-Scope auf eine Listenabfrage anwenden. Scope und Abfrage laufen
+   * parallel; gefiltert wird danach.
+   */
+  async _listenImScope(fetchListen) {
     const user = window.currentUser;
-    
+
     if (window.isAdmin() || window.isInvestor?.()) {
-      return this._fetchAllListen();
+      return fetchListen();
     }
 
     if (window.isKunde()) {
-      const customerScope = await this._getCustomerAccessScope(user?.id);
+      const [customerScope, allListen] = await Promise.all([
+        this._getCustomerAccessScope(user?.id),
+        fetchListen()
+      ]);
       console.log('🔐 Kundenscope Sourcing:', customerScope);
 
-      const allListen = await this._fetchAllListen();
       const filtered = allListen.filter((liste) => this._isInCustomerScope(liste, customerScope));
 
       console.log(`🔐 Listen (Kunde) gefiltert: ${filtered.length} von ${allListen.length}`);
       return filtered;
     }
 
-    const allowedKampagneIds = await this._getAllowedKampagneIds(user);
+    // TEMPORAER bis der v2-Flow eine Kampagne erzwingt:
+    // tasks/issues/005-temporaerer-unternehmens-scope-zurueckbauen.md
+    // Kampagnen-Zuordnung ODER freigeschaltetes Unternehmen: Listen ohne
+    // kampagne_id erscheinen sonst nur auf der Unternehmensseite.
+    const [allowedKampagneIds, allowedUnternehmenIds, allListen] = await Promise.all([
+      this._getAllowedKampagneIds(user),
+      window.dataScopeService?.getAllowedUnternehmenIds?.(),
+      fetchListen()
+    ]);
     console.log('🔐 Erlaubte Kampagnen für Benutzer:', allowedKampagneIds);
 
-    const allListen = await this._fetchAllListen();
-    const filtered = allListen.filter(
-      (l) => l.kampagne_id && allowedKampagneIds.includes(l.kampagne_id)
-    );
+    const filtered = allListen.filter((l) => {
+      if (l.kampagne_id && allowedKampagneIds.includes(l.kampagne_id)) return true;
+      if (allowedUnternehmenIds === null) return true;
+      return !!(l.unternehmen_id && allowedUnternehmenIds?.includes(l.unternehmen_id));
+    });
 
     console.log(`🔐 Listen gefiltert: ${filtered.length} von ${allListen.length}`);
     return filtered;
+  }
+
+  async _fetchListenFuerPicker() {
+    const { data, error } = await window.supabase
+      .from('creator_auswahl')
+      .select(`
+        id, name, teilbereich, kampagne_id, marke_id, unternehmen_id,
+        kampagne:kampagne_id(id, kampagnenname, eigener_name)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Fehler beim Abrufen der Casting-Auswahl:', error);
+      throw error;
+    }
+    return data || [];
   }
 
   /**
@@ -63,9 +106,11 @@ export class CreatorAuswahlService {
         *,
         unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
         marke:marke_id(id, markenname, logo_url),
-        kampagne:kampagne_id(id, kampagnenname),
+        kampagne:kampagne_id(id, kampagnenname, eigener_name, start, deadline, auftrag:auftrag_id(start, ende)),
         created_by_user:created_by(id, name, profile_image_url),
-        creator_auswahl_items(count)
+        creator_auswahl_items(count),
+        briefing:briefing_id(id, aktivierung_name),
+        strategie:strategie_id(id, name, strategie_items(skripte(id, titel)))
       `)
       .order('created_at', { ascending: false });
 
@@ -78,6 +123,26 @@ export class CreatorAuswahlService {
       ...liste,
       item_count: liste.creator_auswahl_items?.[0]?.count ?? 0
     }));
+  }
+
+  /**
+   * Casting-Listen einer Kampagne (id + name für Switcher / Empty-Check).
+   */
+  async getListenByKampagneId(kampagneId, { produktionId, briefingId } = {}) {
+    if (!kampagneId) return [];
+    let query = window.supabase
+      .from('creator_auswahl')
+      .select('id, name, created_at')
+      .eq('kampagne_id', kampagneId)
+      .order('created_at', { ascending: false });
+    if (produktionId) query = query.eq('produktion_id', produktionId);
+    if (briefingId) query = query.eq('briefing_id', briefingId);
+    const { data, error } = await query;
+    if (error) {
+      console.error('Fehler beim Abrufen der Casting-Listen:', error);
+      throw error;
+    }
+    return data || [];
   }
 
   async _getCustomerAccessScope(userId) {
@@ -330,429 +395,6 @@ export class CreatorAuswahlService {
   }
 
   // =====================================================
-  // ITEMS
-  // =====================================================
-
-  /**
-   * Items einer Liste abrufen
-   */
-  async getItems(listeId) {
-    const { data, error } = await window.supabase
-      .from('creator_auswahl_items')
-      .select(`
-        *,
-        creator:creator_id(id, vorname, nachname, instagram, tiktok)
-      `)
-      .eq('creator_auswahl_id', listeId)
-      .order('sortierung', { ascending: true });
-
-    if (error) {
-      console.error('Fehler beim Abrufen der Items:', error);
-      throw error;
-    }
-
-    return data;
-  }
-
-  /**
-   * Item erstellen
-   */
-  async createItem(itemData) {
-    const payload = {
-      ...itemData,
-      created_by: window.currentUser?.id
-    };
-
-    if (Object.prototype.hasOwnProperty.call(payload, 'typ')) {
-      payload.typ = this._assertValidCreatorTyp(payload.typ);
-    }
-
-    const { data, error } = await window.supabase
-      .from('creator_auswahl_items')
-      .insert(payload)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Fehler beim Erstellen des Items:', error);
-      throw error;
-    }
-
-    return data;
-  }
-
-  /**
-   * Item aktualisieren
-   */
-  async updateItem(id, updates) {
-    const payload = { ...updates };
-    if (Object.prototype.hasOwnProperty.call(payload, 'typ')) {
-      payload.typ = this._assertValidCreatorTyp(payload.typ);
-    }
-
-    const { data, error } = await window.supabase
-      .from('creator_auswahl_items')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Fehler beim Aktualisieren des Items:', error);
-      throw error;
-    }
-
-    return data;
-  }
-
-  /**
-   * Item löschen (Defense-in-Depth: Client-seitiger Scope-Check, RLS sichert zusätzlich ab)
-   *
-   * Haengt der Eintrag an Videoideen, werden deren Zuordnungen vorher geloest
-   * (creator_auswahl_item_id -> NULL). Ideen mit Skript sind eingefroren:
-   * dort blockt das Loeschen, weil sonst die Skript-Vorlage ihren Creator
-   * verliert.
-   */
-  async deleteItem(id) {
-    if (window.isKunde()) {
-      throw new Error('Keine Berechtigung zum Löschen von Creator-Einträgen');
-    }
-    if (!window.checkUserPermission('sourcing', 'delete')) {
-      throw new Error('Keine Berechtigung zum Löschen von Creator-Einträgen');
-    }
-
-    await this._loeseVideoideeZuordnungen(id, 'gelöscht');
-
-    const { error } = await window.supabase
-      .from('creator_auswahl_items')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Fehler beim Löschen des Items:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Loesung der Zuordnung an allen Videoideen, die diesen Casting-Eintrag
-   * tragen. Wirft, wenn eine davon eingefroren ist (Skript existiert).
-   * @param {string} auswahlItemId
-   * @param {string} aktion - 'gelöscht' | 'abgesagt' (nur fuer Fehlertext)
-   */
-  async _loeseVideoideeZuordnungen(auswahlItemId, aktion) {
-    const { data: ideen, error } = await window.supabase
-      .from('strategie_items')
-      .select('id')
-      .eq('creator_auswahl_item_id', auswahlItemId);
-    if (error) throw error;
-    if (!ideen || ideen.length === 0) return;
-
-    const ids = ideen.map(i => i.id);
-    const { data: skripte, error: sErr } = await window.supabase
-      .from('skripte')
-      .select('strategie_item_id')
-      .in('strategie_item_id', ids);
-    if (sErr) throw sErr;
-
-    if (skripte && skripte.length > 0) {
-      throw new Error(
-        `Der Eintrag kann nicht ${aktion} werden: mindestens eine verknüpfte Videoidee hat bereits ein Skript. ` +
-        'Bitte zuerst die Vorlage am Skript lösen.'
-      );
-    }
-
-    const { error: upErr } = await window.supabase
-      .from('strategie_items')
-      .update({
-        creator_auswahl_item_id: null,
-        skript_freigabe: false,
-        skript_freigabe_am: null,
-        skript_freigabe_von: null
-      })
-      .in('id', ids);
-    if (upErr) throw upErr;
-  }
-
-  /**
-   * Sortierung mehrerer Items aktualisieren
-   */
-  async updateItemsSortierung(items) {
-    const promises = items.map((item, index) =>
-      window.supabase
-        .from('creator_auswahl_items')
-        .update({ sortierung: index })
-        .eq('id', item.id)
-    );
-
-    const results = await Promise.all(promises);
-    const errors = results.filter(r => r.error);
-    if (errors.length > 0) {
-      throw new Error('Sortierung konnte nicht aktualisiert werden');
-    }
-  }
-
-  /**
-   * Sortierung und Kategorie mehrerer Items aktualisieren
-   */
-  async updateItemsSortierungWithKategorie(items) {
-    const promises = items.map((item, index) =>
-      window.supabase
-        .from('creator_auswahl_items')
-        .update({ 
-          sortierung: index,
-          kategorie: item.kategorie 
-        })
-        .eq('id', item.id)
-    );
-
-    const results = await Promise.all(promises);
-    
-    const errors = results.filter(r => r.error);
-    if (errors.length > 0) {
-      console.error('Fehler beim Aktualisieren der Sortierung/Kategorie:', errors);
-      throw new Error('Sortierung konnte nicht aktualisiert werden');
-    }
-  }
-
-  async updateItemsKategorie(itemIds, kategorie) {
-    const { data, error } = await window.supabase
-      .from('creator_auswahl_items')
-      .update({ kategorie })
-      .in('id', itemIds)
-      .select();
-
-    if (error) {
-      console.error('Fehler beim Batch-Update der Kategorie:', error);
-      throw error;
-    }
-
-    return data;
-  }
-
-  // =====================================================
-  // SCRAPING
-  // =====================================================
-
-  /**
-   * Creator-Daten über Netlify Function scrapen
-   */
-  async scrapeCreator(url) {
-    try {
-      const response = await authorizedFetch('/.netlify/functions/creator-scrape', {
-        method: 'POST',
-        body: JSON.stringify({ url })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Scraping fehlgeschlagen');
-      }
-
-      return result.data;
-    } catch (error) {
-      console.error('Fehler beim Scraping:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Instagram-Profil, Follower und CPM-Werte fuer eine Zeile abrufen.
-   * Die Netlify Function schreibt direkt in creator_auswahl_items und
-   * liefert das aktualisierte Item zurueck.
-   *
-   * Ohne force wird der Creator-Pool (sourcing_creator) bevorzugt: kennt er
-   * den Handle schon, kommen die Werte von dort und Meta bleibt verschont.
-   * @returns {Promise<{ item: object, source: 'pool'|'meta', poolFetchedAt: string|null, debug: object|null }>}
-   */
-  async fetchInstagramStats(itemId, { force = false } = {}) {
-    const response = await authorizedFetch('/.netlify/functions/sourcing-instagram-stats', {
-      method: 'POST',
-      body: JSON.stringify({ item_id: itemId, force })
-    });
-
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok || !result.ok) {
-      const error = new Error(result.error || 'Instagram-Abruf fehlgeschlagen');
-      error.retryable = response.status === 429;
-      error.hint = result.hint || null;
-      throw error;
-    }
-
-    return {
-      item: result.item,
-      source: result.source || 'meta',
-      poolFetchedAt: result.pool_fetched_at || null,
-      debug: result.debug || null
-    };
-  }
-
-  // =====================================================
-  // CRM-ÜBERNAHME
-  // =====================================================
-
-  /**
-   * Creator ins CRM übernehmen. Die Handles kommen aus den Link-Feldern der
-   * Zeile (link_instagram / link_tiktok) - die Legacy-Felder creator_handle
-   * und plattform dienen nur noch als Fallback fuer Altdaten.
-   */
-  async transferToCRM(itemId) {
-    // Item laden
-    const { data: item, error: fetchError } = await window.supabase
-      .from('creator_auswahl_items')
-      .select('*')
-      .eq('id', itemId)
-      .single();
-
-    if (fetchError) throw fetchError;
-    if (!item) throw new Error('Item nicht gefunden');
-
-    // Namen splitten
-    const nameParts = (item.name || '').trim().split(' ');
-    const vorname = nameParts[0] || '';
-    const nachname = nameParts.slice(1).join(' ') || '';
-
-    // Handles aus den Profil-Links, Fallback: Legacy-Felder der Altdaten
-    const instagramHandle = handleAusLink(item.link_instagram)
-      || ((item.plattform === 'instagram' || item.plattform === 'both')
-        ? (item.creator_handle || '').replace('@', '') || null
-        : null);
-    const tiktokHandle = handleAusLink(item.link_tiktok)
-      || ((item.plattform === 'tiktok' || item.plattform === 'both')
-        ? (item.creator_handle || '').replace('@', '') || null
-        : null);
-
-    // Creator erstellen
-    const { data: creator, error: createError } = await window.supabase
-      .from('creator')
-      .insert({
-        vorname,
-        nachname,
-        mail: item.email || null,
-        telefonnummer: item.telefon || null,
-        instagram: instagramHandle,
-        tiktok: tiktokHandle,
-        instagram_follower: item.follower_instagram ?? null,
-        tiktok_follower: item.follower_tiktok ?? null,
-        lieferadresse_stadt: item.wohnort || null,
-        notiz: item.notiz || item.beschreibung || null,
-        profilbild_url: item.profile_image_url || null
-      })
-      .select()
-      .single();
-
-    if (createError) throw createError;
-
-    // Item mit Creator verknüpfen
-    await this.updateItem(itemId, { creator_id: creator.id });
-
-    return creator;
-  }
-
-  // =====================================================
-  // BUCHUNGS-WORKFLOW (Management + Kooperation)
-  // =====================================================
-
-  /**
-   * Aktive Management-Zuordnung eines Creators, inkl. Name des Managements.
-   * @returns {Promise<{ id: string, management: { id: string, firmenname: string } }|null>}
-   */
-  async getAktivesManagement(creatorId) {
-    const { data, error } = await window.supabase
-      .from('creator_management')
-      .select('id, management:management_id(id, firmenname)')
-      .eq('creator_id', creatorId)
-      .eq('ist_aktiv', true)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Fehler beim Laden der Management-Zuordnung:', error);
-      throw error;
-    }
-
-    return data || null;
-  }
-
-  /** Alle Managements fuer die Auswahl im Buchungs-Drawer */
-  async getAlleManagements() {
-    const { data, error } = await window.supabase
-      .from('management')
-      .select('id, firmenname')
-      .order('firmenname', { ascending: true });
-
-    if (error) {
-      console.error('Fehler beim Laden der Managements:', error);
-      throw error;
-    }
-
-    return data || [];
-  }
-
-  /** Weist einem Creator ein Management zu (aktiv) */
-  async assignManagement(creatorId, managementId) {
-    const { data, error } = await window.supabase
-      .from('creator_management')
-      .insert({
-        creator_id: creatorId,
-        management_id: managementId,
-        ist_aktiv: true
-      })
-      .select('id, management:management_id(id, firmenname)')
-      .single();
-
-    if (error) {
-      console.error('Fehler beim Zuweisen des Managements:', error);
-      throw error;
-    }
-
-    return data;
-  }
-
-  /**
-   * Existiert fuer diesen Creator in dieser Kampagne schon eine Kooperation?
-   * Der Duplikat-Check laeuft ueber das Paar kampagne_id + creator_id.
-   */
-  async findKooperation(kampagneId, creatorId) {
-    const { data, error } = await window.supabase
-      .from('kooperationen')
-      .select('id')
-      .eq('kampagne_id', kampagneId)
-      .eq('creator_id', creatorId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Fehler beim Prüfen der Kooperation:', error);
-      throw error;
-    }
-
-    return data || null;
-  }
-
-  /** Legt die Kooperation eines gebuchten Creators in der Kampagne an */
-  async createKooperation({ name, kampagne_id, creator_id, unternehmen_id }) {
-    const { data, error } = await window.supabase
-      .from('kooperationen')
-      .insert({
-        name,
-        kampagne_id,
-        creator_id,
-        unternehmen_id,
-        status: 'aktiv'
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Fehler beim Anlegen der Kooperation:', error);
-      throw error;
-    }
-
-    return data;
-  }
-
-  // =====================================================
   // DROPDOWN-DATEN
   // =====================================================
 
@@ -788,6 +430,8 @@ export class CreatorAuswahlService {
   }
 }
 
+Object.assign(CreatorAuswahlService.prototype, creatorAuswahlItemsMethods);
+
 /**
  * Handle aus einem Profil-Link ziehen: aus "https://tiktok.com/@name/" oder
  * "https://www.instagram.com/name" wird "name". Funktioniert auch, wenn
@@ -807,4 +451,3 @@ export function handleAusLink(url) {
 
 // Singleton-Instanz exportieren
 export const creatorAuswahlService = new CreatorAuswahlService();
-

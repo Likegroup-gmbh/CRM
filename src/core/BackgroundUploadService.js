@@ -8,8 +8,10 @@
 import { runVideoUploadJob } from './uploadJobs/runVideoUploadJob.js';
 import { runVideoReplaceJob } from './uploadJobs/runVideoReplaceJob.js';
 import { runStorysUploadJob } from './uploadJobs/runStorysUploadJob.js';
+import { runStillUploadJob } from './uploadJobs/runStillUploadJob.js';
 import { runCustomUploadJob } from './uploadJobs/runCustomUploadJob.js';
 import { runCustomReplaceJob } from './uploadJobs/runCustomReplaceJob.js';
+import { runRohmaterialUploadJob } from './uploadJobs/runRohmaterialUploadJob.js';
 
 const EVT = {
   QUEUE_CHANGED: 'upload:queue-changed',
@@ -33,9 +35,22 @@ const RUNNERS = {
   video: runVideoUploadJob,
   'video-replace': runVideoReplaceJob,
   storys: runStorysUploadJob,
+  still: runStillUploadJob,
   custom: runCustomUploadJob,
   'custom-replace': runCustomReplaceJob,
+  rohmaterial: runRohmaterialUploadJob,
 };
+
+// Payload-Liste mit einer Datei je Item (gleicher Index) für Jobs mit mehreren Dateien
+const ITEM_LIST = { video: 'queue', storys: 'queue', still: 'queue', custom: 'files', rohmaterial: 'files' };
+
+/** Payload ohne die schon fertigen Dateien; null, wenn nichts mehr fehlt. */
+function remainingPayload(job) {
+  const key = ITEM_LIST[job.kind];
+  if (!key) return job.payload;
+  const rest = (job.payload[key] || []).filter((_, i) => job.items[i]?.status !== 'done');
+  return rest.length ? { ...job.payload, [key]: rest } : null;
+}
 
 class BackgroundUploadService {
   constructor() {
@@ -60,11 +75,17 @@ class BackgroundUploadService {
   enqueueStorysJob(payload) {
     return this._enqueue('storys', payload);
   }
+  enqueueStillJob(payload) {
+    return this._enqueue('still', payload);
+  }
   enqueueCustomUploadJob(payload) {
     return this._enqueue('custom', payload);
   }
   enqueueCustomReplaceJob(payload) {
     return this._enqueue('custom-replace', payload);
+  }
+  enqueueRohmaterialJob(payload) {
+    return this._enqueue('rohmaterial', payload);
   }
 
   getJob(jobId) {
@@ -101,13 +122,16 @@ class BackgroundUploadService {
   }
 
   /**
-   * Fehlgeschlagenen Job neu in die Queue legen (mit neuer ID, gleiche Payload).
+   * Fehlgeschlagenen Job neu in die Queue legen (mit neuer ID). Nur die Dateien, die
+   * noch nicht fertig sind: fertige hätten sonst eine zweite Zeile und Datei.
    */
   retry(jobId) {
     const old = this._jobs.get(jobId);
     if (!old) return null;
     if (old.status !== 'error' && old.status !== 'aborted') return null;
-    return this._enqueue(old.kind, old.payload);
+    const payload = remainingPayload(old);
+    if (!payload) return null;
+    return this._enqueue(old.kind, payload);
   }
 
   /**
@@ -158,6 +182,13 @@ class BackgroundUploadService {
         meta: { variantName: q.variantName, versionNumber: q.versionNumber },
       }));
     }
+    if (kind === 'still') {
+      return (payload.queue || []).map(q => this._mkItem({
+        fileName: q.file?.name || 'bild',
+        fileSize: q.file?.size || 0,
+        meta: { versionNumber: q.versionNumber },
+      }));
+    }
     if (kind === 'video-replace') {
       return [this._mkItem({
         fileName: payload.file?.name || 'video',
@@ -177,6 +208,13 @@ class BackgroundUploadService {
         fileName: f.name || 'datei',
         fileSize: f.size || 0,
         meta: { columnId: payload.columnId, entityId: payload.entityId },
+      }));
+    }
+    if (kind === 'rohmaterial') {
+      return (payload.files || []).map(f => this._mkItem({
+        fileName: f.name || 'rohmaterial',
+        fileSize: f.size || 0,
+        meta: { kooperationId: payload.kooperationId },
       }));
     }
     if (kind === 'custom-replace') {
@@ -201,10 +239,6 @@ class BackgroundUploadService {
       meta: meta || {},
       startedAt: null,
       finishedAt: null,
-      transport: null, // 'direct' | 'proxy' | null (vor Upload)
-      directOk: null, // null = noch nicht entschieden, true = direkt durch, false = Fallback aktiv
-      directError: null,
-      directErrorNotified: false, // verhindert Doppel-Toast pro Item
     };
   }
 

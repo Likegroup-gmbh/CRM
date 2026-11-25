@@ -5,7 +5,17 @@
 // bleibt als Anzeige stehen, wird aber nicht mehr geschrieben.
 
 import { strategieService } from './StrategieService.js';
-import { icon } from '../../core/icons/IconSystem.js';
+import { ensureCastingEintragHatCreator } from '../creator-auswahl/ensureCastingEintragHatCreator.js';
+import { refreshItemActions } from './StrategieDetailRenderer.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+
+function writeLiveItem(detail, item, patch) {
+  const live = detail?.items?.find(i => i.id === item?.id) || item;
+  if (!live) return null;
+  Object.assign(live, patch);
+  if (live !== item) Object.assign(item, patch);
+  return live;
+}
 
 const DRAWER_ID = 'strategie-creator-drawer';
 const OVERLAY_ID = 'strategie-creator-overlay';
@@ -33,8 +43,10 @@ export class StrategieCreatorDrawer {
     this.castingId = null;
   }
 
-  async open(itemId, { onSuccess } = {}) {
-    const item = this.detail.items.find(i => i.id === itemId);
+  async open(itemOrId, { onSuccess } = {}) {
+    const item = typeof itemOrId === 'object' && itemOrId?.id
+      ? itemOrId
+      : this.detail?.items?.find(i => i.id === itemOrId);
     if (!item) {
       window.toastSystem?.show('Item nicht gefunden', 'error');
       return;
@@ -57,7 +69,7 @@ export class StrategieCreatorDrawer {
     panel.className = 'drawer-panel';
     panel.id = DRAWER_ID;
 
-    const kontext = (item.beschreibung || '').trim();
+    const kontext = (item.beschreibung || item.kurzbeschreibung || '').trim();
 
     panel.innerHTML = `
       <div class="drawer-header">
@@ -207,15 +219,33 @@ export class StrategieCreatorDrawer {
         btn.classList.add('is-loading');
       }
 
+      const eintrag = this.castingItems.find(e => e.id === this.selectedItemId)
+        || { id: this.selectedItemId };
+      try {
+        await ensureCastingEintragHatCreator(eintrag);
+      } catch (error) {
+        if (error?.cancelled) {
+          if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('is-loading');
+          }
+          return;
+        }
+        throw error;
+      }
+
       await strategieService.assignCastingItem(this.item.id, this.selectedItemId);
 
-      this.item.creator_auswahl_item_id = this.selectedItemId;
-      this.item.casting_eintrag = this.castingItems.find(e => e.id === this.selectedItemId) || null;
+      const live = writeLiveItem(this.detail, this.item, {
+        creator_auswahl_item_id: this.selectedItemId,
+        casting_eintrag: this.castingItems.find(e => e.id === this.selectedItemId) || eintrag || null
+      });
 
       window.toastSystem?.show('Casting-Eintrag zugeordnet', 'success');
       if (this.onSuccess) await this.onSuccess();
+      refreshItemActions(this.detail, live?.id);
       this.close();
-      this.detail.rerenderItemsTable();
+      this.detail?.rerenderItemsTable?.();
     } catch (error) {
       console.error('Fehler beim Zuordnen:', error);
       window.toastSystem?.show(error.message || 'Fehler beim Zuordnen', 'error');
@@ -240,13 +270,16 @@ export class StrategieCreatorDrawer {
 
     try {
       await strategieService.unassignCastingItem(this.item.id);
-      this.item.creator_auswahl_item_id = null;
-      this.item.casting_eintrag = null;
+      const live = writeLiveItem(this.detail, this.item, {
+        creator_auswahl_item_id: null,
+        casting_eintrag: null
+      });
 
       window.toastSystem?.show('Zuordnung gelöst', 'success');
       if (this.onSuccess) await this.onSuccess();
+      refreshItemActions(this.detail, live?.id);
       this.close();
-      this.detail.rerenderItemsTable();
+      this.detail?.rerenderItemsTable?.();
     } catch (error) {
       console.error('Fehler beim Lösen:', error);
       window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');
@@ -258,7 +291,7 @@ export class StrategieCreatorDrawer {
     if (panel) {
       panel.classList.remove('show');
       document.getElementById(OVERLAY_ID)?.classList.remove('active');
-      setTimeout(() => removeStrategieCreatorDrawer(), 250);
+      setTimeout(() => removeStrategieCreatorDrawer(), DRAWER_EXIT_MS);
     } else {
       removeStrategieCreatorDrawer();
     }

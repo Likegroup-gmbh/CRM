@@ -13,6 +13,8 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { magicLinkService } from '../auth/MagicLinkService.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableAvatar } from '../../core/format/tableIdentity.js';
+import { backTarget } from '../../core/breadcrumbTrail.js';
 
 export class AnsprechpartnerDetail extends PersonDetailBase {
   constructor() {
@@ -410,12 +412,9 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
 
     const items = this.ansprechpartner.ansprechpartner_unternehmen.map(item => {
       const u = item.unternehmen;
-      const logoHtml = u.logo_url
-        ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />`
-        : `<span class="table-avatar">${(u.firmenname || '?')[0].toUpperCase()}</span>`;
       return `
         <a href="#" class="entity-list-item" data-table="unternehmen" data-id="${u.id}">
-          ${logoHtml}
+          ${renderTableAvatar({ url: u.logo_url, logo: true, name: u.firmenname })}
           <span class="entity-list-name">${this.sanitize(u.firmenname || 'Unbekannt')}</span>
         </a>
       `;
@@ -436,12 +435,9 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
 
     const items = this.ansprechpartner.ansprechpartner_marke.map(item => {
       const m = item.marke;
-      const logoHtml = m.logo_url
-        ? `<img src="${m.logo_url}" class="table-logo" width="24" height="24" alt="" />`
-        : `<span class="table-avatar">${(m.markenname || '?')[0].toUpperCase()}</span>`;
       return `
         <a href="#" class="entity-list-item" data-table="marke" data-id="${m.id}">
-          ${logoHtml}
+          ${renderTableAvatar({ url: m.logo_url, logo: true, name: m.markenname })}
           <span class="entity-list-name">${this.sanitize(m.markenname || 'Unbekannt')}</span>
         </a>
       `;
@@ -545,7 +541,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       }
       if (e.target.id === 'btn-back' || e.target.closest('#btn-back') || e.target.id === 'btn-back-error' || e.target.closest('#btn-back-error')) {
         e.preventDefault();
-        window.navigateTo('/ansprechpartner');
+        window.navigateTo(backTarget('/ansprechpartner'));
         return;
       }
       if (e.target.classList.contains('table-link')) {
@@ -792,7 +788,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     const currentProfileImageHtml = this.ansprechpartner?.profile_image_url ? `
       <div class="form-logo-display">
         <label class="form-logo-label">Aktuelles Profilbild:</label>
-        <img src="${this.ansprechpartner.profile_image_url}" alt="${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname}" class="form-logo-image" />
+        <img src="${this.ansprechpartner.profile_image_url}" alt="${this.ansprechpartner.vorname} ${this.ansprechpartner.nachname}" class="form-logo-image form-logo-image--foto" />
       </div>
     ` : '';
     

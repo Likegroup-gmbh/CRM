@@ -6,6 +6,10 @@
 import { makeCustomColumnId, escapeHtml, parseOrderEntry } from './entityColumnUtils.js';
 import { renderEmptyState } from '../components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../animation/drawer.js';
+import { renderDraftOptionsHtml, renderSavedOptionsHtml } from './dropdownOptionRows.js';
+import { mountEntityColumnEditor, renderEntityEmbed } from './entityColumnEmbed.js';
+import { installEntityColumnEvents } from './entityColumnDrawerEvents.js';
 
 const FIELD_TYPES = [
   { value: 'text', label: 'Text' },
@@ -13,8 +17,7 @@ const FIELD_TYPES = [
   { value: 'date', label: 'Datum' },
   { value: 'boolean', label: 'Ja/Nein (Checkbox)' },
   { value: 'dropdown', label: 'Dropdown' },
-  { value: 'number', label: 'Zahl' },
-  { value: 'upload', label: 'Datei-Upload' }
+  { value: 'number', label: 'Zahl' }
 ];
 
 export class EntityCustomColumnsDrawer {
@@ -92,7 +95,7 @@ export class EntityCustomColumnsDrawer {
       <div class="custom-columns-list">
         ${(this.columns || []).length > 0
           ? `<table class="custom-columns-table">
-              <thead><tr><th>Name</th><th>Typ</th><th>Kunde</th><th></th></tr></thead>
+              <thead><tr><th>Name</th><th>Typ</th><th>Kunde</th><th>Aktionen</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>`
           : renderEmptyState({ title: 'Noch keine eigenen Spalten angelegt', size: 'small' })}
@@ -124,7 +127,7 @@ export class EntityCustomColumnsDrawer {
         <tr class="cc-dropdown-toggle-row">
           <td colspan="4">
             <button type="button" class="cc-dropdown-toggle" data-column-id="${col.id}">${icon} Optionen (${cnt})</button>
-            ${isExpanded ? `<div class="cc-dropdown-panel" data-column-id="${col.id}">${this._renderDropdownOptions(col)}</div>` : ''}
+            ${isExpanded ? `<div class="cc-dropdown-panel" data-column-id="${col.id}">${renderSavedOptionsHtml(col)}</div>` : ''}
           </td>
         </tr>`;
     }
@@ -132,7 +135,7 @@ export class EntityCustomColumnsDrawer {
     return `
       <tr data-column-id="${col.id}">
         <td><input type="text" class="custom-col-name-input" value="${escapeHtml(col.name)}" data-column-id="${col.id}" placeholder="Spaltenname"/></td>
-        <td><span class="badge badge-muted">${typeLabel}</span></td>
+        <td><span class="tag tag--type">${typeLabel}</span></td>
         <td>
           <label class="toggle-switch toggle-switch-small">
             <input type="checkbox" class="custom-col-kunde-toggle" data-column-id="${col.id}" ${col.visible_for_kunden ? 'checked' : ''}/>
@@ -148,33 +151,9 @@ export class EntityCustomColumnsDrawer {
       ${dropdownRow}`;
   }
 
-  _renderDropdownOptions(col) {
-    const opts = (col._dropdownOptions || []).slice().sort((a, b) => a.position - b.position);
-    const rows = opts.map((opt, idx) => `
-      <div class="dd-opt-row" data-option-id="${opt.id}" data-column-id="${col.id}">
-        <div class="dd-opt-arrows">
-          <button type="button" class="dd-opt-arrow dropdown-opt-move-up" data-option-id="${opt.id}" ${idx === 0 ? 'disabled' : ''} title="Hoch">↑</button>
-          <button type="button" class="dd-opt-arrow dropdown-opt-move-down" data-option-id="${opt.id}" ${idx === opts.length - 1 ? 'disabled' : ''} title="Runter">↓</button>
-        </div>
-        <input type="text" class="dd-opt-input dropdown-opt-label" data-option-id="${opt.id}" data-column-id="${col.id}" value="${escapeHtml(opt.label)}"/>
-        <button type="button" class="dd-opt-del dropdown-opt-delete" data-option-id="${opt.id}" data-column-id="${col.id}" title="Entfernen">&times;</button>
-      </div>`).join('');
-
-    return `
-      <div class="dd-opts-list">${rows || '<p class="dd-opts-empty">Keine Optionen vorhanden.</p>'}</div>
-      <div class="dd-opts-add-row">
-        <input type="text" class="dd-opt-input dropdown-opt-new-input" data-column-id="${col.id}" placeholder="Neue Option…"/>
-        <button type="button" class="dd-opts-add-btn dropdown-opt-add-btn" data-column-id="${col.id}">+</button>
-      </div>`;
-  }
-
   _renderAddForm() {
     const typeOpts = FIELD_TYPES.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
-    const newOptsHtml = this._newColumnDropdownOptions.map((label, idx) => `
-      <div class="dd-opt-row cc-new-opt-row">
-        <span class="dd-opt-text">${escapeHtml(label)}</span>
-        <button type="button" class="dd-opt-del cc-new-opt-delete" data-new-opt-idx="${idx}" title="Entfernen">&times;</button>
-      </div>`).join('');
+    const newOptsHtml = renderDraftOptionsHtml(this._newColumnDropdownOptions);
 
     return `
       <div class="cc-add-form">
@@ -205,61 +184,15 @@ export class EntityCustomColumnsDrawer {
       </div>`;
   }
 
-  _bindEvents(body) {
-    body.querySelector('#btn-close-entity-custom-columns')?.addEventListener('click', () => this.close());
-    body.querySelector('#btn-add-custom-column')?.addEventListener('click', () => this._showAddForm());
-    body.querySelector('#btn-entity-cancel-add-column')?.addEventListener('click', () => this._hideAddForm());
-    body.querySelector('#btn-entity-confirm-add-column')?.addEventListener('click', () => this._handleAddColumn());
+  mountIn(host, opts) {
+    mountEntityColumnEditor(this, host, opts);
+  }
 
-    const typeSelect = body.querySelector('#entity-cc-new-type');
-    if (typeSelect) {
-      typeSelect.addEventListener('change', () => this._onNewTypeChange(typeSelect.value));
-      this._onNewTypeChange(typeSelect.value);
-    }
-
-    body.querySelector('#btn-entity-cc-new-opt-add')?.addEventListener('click', () => this._handleAddNewColumnOption());
-    body.querySelector('#entity-cc-new-opt-input')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); this._handleAddNewColumnOption(); }
-    });
-
-    body.addEventListener('click', (e) => {
-      const del = e.target.closest('.custom-col-delete-btn');
-      if (del) return this._handleDeleteColumn(del.dataset.columnId, del.dataset.columnName);
-      const toggle = e.target.closest('.cc-dropdown-toggle');
-      if (toggle) return this._toggleDropdownOptions(toggle.dataset.columnId);
-      const addOpt = e.target.closest('.dropdown-opt-add-btn');
-      if (addOpt) return this._handleAddDropdownOption(addOpt.dataset.columnId);
-      const delOpt = e.target.closest('.dropdown-opt-delete');
-      if (delOpt) return this._handleDeleteDropdownOption(delOpt.dataset.optionId, delOpt.dataset.columnId);
-      const up = e.target.closest('.dropdown-opt-move-up');
-      if (up) return this._handleMoveDropdownOption(up.dataset.optionId, -1);
-      const down = e.target.closest('.dropdown-opt-move-down');
-      if (down) return this._handleMoveDropdownOption(down.dataset.optionId, 1);
-      const delNew = e.target.closest('.cc-new-opt-delete');
-      if (delNew) {
-        this._newColumnDropdownOptions.splice(parseInt(delNew.dataset.newOptIdx, 10), 1);
-        this._refreshNewOptsList();
-      }
-    });
-
-    body.addEventListener('blur', (e) => {
-      if (e.target.classList.contains('custom-col-name-input'))
-        this._handleRename(e.target.dataset.columnId, e.target.value.trim());
-      if (e.target.classList.contains('dropdown-opt-label'))
-        this._handleRenameDropdownOption(e.target.dataset.optionId, e.target.dataset.columnId, e.target.value.trim());
-    }, true);
-
-    body.addEventListener('change', (e) => {
-      if (e.target.classList.contains('custom-col-kunde-toggle'))
-        this._handleKundeToggle(e.target.dataset.columnId, e.target.checked);
-    });
-
-    body.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && e.target.classList.contains('dropdown-opt-new-input')) {
-        e.preventDefault();
-        this._handleAddDropdownOption(e.target.dataset.columnId);
-      }
-    });
+  unmount() {
+    this._unbindInteractions?.();
+    this._embedded = false;
+    this._onBack = null;
+    this._host = null;
   }
 
   _onNewTypeChange(val) {
@@ -281,16 +214,6 @@ export class EntityCustomColumnsDrawer {
     input.focus();
   }
 
-  _refreshNewOptsList() {
-    const list = document.querySelector('.cc-new-dd-list');
-    if (!list) return;
-    list.innerHTML = this._newColumnDropdownOptions.map((label, idx) => `
-      <div class="dd-opt-row cc-new-opt-row">
-        <span class="dd-opt-text">${escapeHtml(label)}</span>
-        <button type="button" class="dd-opt-del cc-new-opt-delete" data-new-opt-idx="${idx}" title="Entfernen">&times;</button>
-      </div>`).join('');
-  }
-
   _showAddForm() {
     this._newColumnDropdownOptions = [];
     const area = document.getElementById('entity-custom-column-form-area');
@@ -300,6 +223,10 @@ export class EntityCustomColumnsDrawer {
   }
 
   _hideAddForm() {
+    if (this._embedded) {
+      this._leaveEmbed?.();
+      return;
+    }
     const area = document.getElementById('entity-custom-column-form-area');
     if (area) area.style.display = 'none';
     const n = document.getElementById('entity-cc-new-name');
@@ -353,9 +280,13 @@ export class EntityCustomColumnsDrawer {
       const orderIdx = this.order.findIndex(e => parseOrderEntry(e)?.id === deletedId);
       if (orderIdx >= 0) this.order.splice(orderIdx, 1);
       await this.dataLoader.saveColumnOrder(this.order);
-      this._refreshContent();
       this.onChange?.();
       window.toastSystem?.show(`Spalte „${columnName}" gelöscht`, 'success');
+      if (this._embedded) {
+        this._leaveEmbed?.();
+        return;
+      }
+      this._refreshContent();
     } catch (error) {
       console.error('❌ Spalte löschen fehlgeschlagen:', error);
       window.toastSystem?.show('Fehler beim Löschen', 'error');
@@ -393,87 +324,11 @@ export class EntityCustomColumnsDrawer {
     this._refreshContent();
   }
 
-  async _handleAddDropdownOption(columnId) {
-    const input = document.querySelector(`.dropdown-opt-new-input[data-column-id="${columnId}"]`);
-    const label = input?.value.trim();
-    if (!label) { window.toastSystem?.show('Bitte einen Wert eingeben', 'warning'); return; }
-    const col = this.columns.find(c => c.id === columnId);
-    if (!col) return;
-    if ((col._dropdownOptions || []).some(o => o.label === label)) {
-      window.toastSystem?.show('Option existiert bereits', 'warning'); return;
-    }
-    try {
-      const newOpt = await this.dataLoader.addDropdownOption(columnId, label);
-      (col._dropdownOptions ||= []).push(newOpt);
-      this._refreshDropdownPanel(columnId);
-      this.onChange?.();
-    } catch (error) {
-      console.error('❌ Option hinzufügen fehlgeschlagen:', error);
-      window.toastSystem?.show('Fehler beim Hinzufügen', 'error');
-    }
-  }
-
-  async _handleDeleteDropdownOption(optionId, columnId) {
-    const col = this.columns.find(c => c.id === columnId);
-    if (!col) return;
-    try {
-      await this.dataLoader.deleteDropdownOption(optionId);
-      col._dropdownOptions = (col._dropdownOptions || []).filter(o => o.id !== optionId);
-      this._refreshDropdownPanel(columnId);
-      this.onChange?.();
-    } catch (error) {
-      console.error('❌ Option löschen fehlgeschlagen:', error);
-      window.toastSystem?.show('Fehler beim Löschen', 'error');
-    }
-  }
-
-  async _handleRenameDropdownOption(optionId, columnId, newLabel) {
-    if (!newLabel) return;
-    const col = this.columns.find(c => c.id === columnId);
-    if (!col) return;
-    const opt = (col._dropdownOptions || []).find(o => o.id === optionId);
-    if (!opt || opt.label === newLabel) return;
-    try {
-      await this.dataLoader.updateDropdownOption(optionId, { label: newLabel });
-      opt.label = newLabel;
-      this.onChange?.();
-    } catch (error) {
-      console.error('❌ Option umbenennen fehlgeschlagen:', error);
-      window.toastSystem?.show('Fehler beim Umbenennen', 'error');
-    }
-  }
-
-  async _handleMoveDropdownOption(optionId, direction) {
-    let col = null, opt = null;
-    for (const c of (this.columns || [])) {
-      const f = (c._dropdownOptions || []).find(o => o.id === optionId);
-      if (f) { col = c; opt = f; break; }
-    }
-    if (!col || !opt) return;
-    const sorted = [...(col._dropdownOptions || [])].sort((a, b) => a.position - b.position);
-    const idx = sorted.findIndex(o => o.id === optionId);
-    const swapIdx = idx + direction;
-    if (swapIdx < 0 || swapIdx >= sorted.length) return;
-    const other = sorted[swapIdx];
-    try {
-      await this.dataLoader.swapDropdownPositions(opt, other);
-      const tmp = opt.position; opt.position = other.position; other.position = tmp;
-      this._refreshDropdownPanel(col.id);
-      this.onChange?.();
-    } catch (error) {
-      console.error('❌ Option verschieben fehlgeschlagen:', error);
-      window.toastSystem?.show('Fehler beim Verschieben', 'error');
-    }
-  }
-
-  _refreshDropdownPanel(columnId) {
-    const panel = document.querySelector(`.cc-dropdown-panel[data-column-id="${columnId}"]`);
-    if (!panel) { this._refreshContent(); return; }
-    const col = this.columns.find(c => c.id === columnId);
-    if (col) panel.innerHTML = this._renderDropdownOptions(col);
-  }
-
   _refreshContent() {
+    if (this._embedded) {
+      renderEntityEmbed(this);
+      return;
+    }
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
     body.innerHTML = this._renderContent();
@@ -492,6 +347,8 @@ export class EntityCustomColumnsDrawer {
     if (panel) panel.classList.remove('show');
     if (overlay) overlay.classList.remove('active');
     clearTimeout(this._closeTimer);
-    this._closeTimer = setTimeout(() => this.removeDrawer(), 300);
+    this._closeTimer = setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
   }
 }
+
+installEntityColumnEvents(EntityCustomColumnsDrawer.prototype);

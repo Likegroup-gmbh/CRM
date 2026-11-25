@@ -5,13 +5,23 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
+import {
+  renderVerknuepfungen,
+  namedLinks,
+  skriptLinks,
+  skripteAusStrategie
+} from '../../core/ui/tableVerknuepfungen.js';
 
 // Create ist eine Capability, keine Rolle: Investor/Finanzen (intern, view-only)
 // bekommen keinen Anlegen-Button.
 function canCreateStrategie() {
-  return window.canCreate?.('strategie') ?? false;
+  // Konzept entsteht beim Finalisieren des Briefings, nicht über diese Liste.
+  return false;
 }
 
 function strategieCreateButtonHtml() {
@@ -74,7 +84,7 @@ export function updateCompaniesGrid(list) {
     grid.innerHTML = `<div class="grid-span-all">${renderEmptyState({
       icon: 'clipboard',
       title: 'Keine Konzepte vorhanden',
-      text: canCreateStrategie() ? 'Legen Sie Ihr erstes Konzept an, um loszulegen.' : 'Es wurden noch keine Konzepte für Sie freigegeben.',
+      text: 'Konzepte entstehen beim Finalisieren des Briefings.',
       actionsHtml: strategieCreateButtonHtml()
     })}</div>`;
     return;
@@ -83,10 +93,7 @@ export function updateCompaniesGrid(list) {
   grid.innerHTML = list.companyFolders.map((folder) => `
     <div class="folder-card" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
       <div class="folder-icon">
-        ${folder.logo_url
-          ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(folder.firmenname)}" class="folder-logo">`
-          : `${icon('folder-open')}`
-        }
+        ${renderFolderAvatar({ url: folder.logo_url, name: folder.firmenname })}
       </div>
       <div class="folder-info">
         <span class="folder-name">${list.sanitize(folder.firmenname)}</span>
@@ -105,7 +112,7 @@ export function updateCompaniesTable(list) {
     tbody.innerHTML = renderEmptyStateRow({
       icon: 'clipboard',
       title: 'Keine Konzepte vorhanden',
-      text: canCreateStrategie() ? 'Legen Sie Ihr erstes Konzept an, um loszulegen.' : 'Es wurden noch keine Konzepte für Sie freigegeben.',
+      text: 'Konzepte entstehen beim Finalisieren des Briefings.',
       actionsHtml: strategieCreateButtonHtml()
     }, 2);
     return;
@@ -113,11 +120,13 @@ export function updateCompaniesTable(list) {
 
   tbody.innerHTML = list.companyFolders.map((folder) => `
     <tr class="table-row-clickable company-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
-      <td>
-        ${folder.logo_url ? `<img src="${list.sanitize(folder.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
-          ${list.sanitize(folder.firmenname)}
-        </a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: folder.logo_url,
+          logo: true,
+          iconHtml: icon('folder-open'),
+          nameHtml: `<a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">${list.sanitize(folder.firmenname)}</a>`
+        })}
       </td>
       <td>${folder.count}</td>
     </tr>
@@ -127,8 +136,9 @@ export function updateCompaniesTable(list) {
 export function renderBrandsView(list) {
   const isKunde = window.isKunde();
   const canCreate = canCreateStrategie();
-  const showBrandsSection = !isKunde || list.brandFolders.length > 0;
-  const showCompanyOnlySection = !isKunde || list.companyOnlyItems.length > 0;
+  const showBrandsSection = list.brandFolders.length > 0;
+  const showCompanyOnlySection = list.companyOnlyItems.length > 0;
+  const nichtsDa = !showBrandsSection && !showCompanyOnlySection;
 
   return `
     <div class="list-container">
@@ -162,6 +172,12 @@ export function renderBrandsView(list) {
         </div>
       ` : ''}
 
+      ${nichtsDa ? `
+        <div class="table-container table-container--empty">
+          ${renderEmptyState({ icon: 'clipboard', title: 'Keine Konzepte vorhanden' })}
+        </div>
+      ` : ''}
+
       ${showCompanyOnlySection ? `
         <div class="table-container table-container--spaced">
           <h3 class="table-section-title">Konzepte ohne Marke (nur Unternehmen)</h3>
@@ -170,7 +186,11 @@ export function renderBrandsView(list) {
               <tr>
                 <th>Name</th>
                 <th>Kampagne</th>
+                <th class="col-leistungszeitraum">Leistungszeitraum</th>
                 <th>Erstellt von</th>
+                <th>Briefing</th>
+                <th>Casting</th>
+                <th>Skript</th>
                 <th>Aktionen</th>
               </tr>
             </thead>
@@ -197,11 +217,13 @@ export function updateBrandsTable(list) {
 
   tbody.innerHTML = list.brandFolders.map((brand) => `
     <tr class="table-row-clickable brand-row" data-marke-id="${brand.id}" data-marke-name="${list.sanitize(brand.markenname)}">
-      <td>
-        ${brand.logo_url ? `<img src="${list.sanitize(brand.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link brand-link" data-marke-id="${brand.id}" data-marke-name="${list.sanitize(brand.markenname)}">
-          ${list.sanitize(brand.markenname)}
-        </a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: brand.logo_url,
+          logo: true,
+          iconHtml: icon('folder-open'),
+          nameHtml: `<a href="#" class="table-link brand-link" data-marke-id="${brand.id}" data-marke-name="${list.sanitize(brand.markenname)}">${list.sanitize(brand.markenname)}</a>`
+        })}
       </td>
       <td>${brand.count}</td>
     </tr>
@@ -219,7 +241,11 @@ export function renderItemsRows(list, items) {
           </a>
         </td>
         <td>${kampagneName}</td>
+        ${renderLeistungszeitraumCell(strategie.kampagne)}
         <td>${list.sanitize(strategie.created_by_user?.name || '-')}</td>
+        <td>${renderVerknuepfungen(namedLinks(strategie.briefing, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(strategie.creator_auswahl, { labelKey: 'name', kind: 'casting' }))}</td>
+        <td>${renderVerknuepfungen(skriptLinks(skripteAusStrategie(strategie)))}</td>
         <td class="col-actions">
           ${actionBuilder.create('strategie_liste', strategie.id)}
         </td>
@@ -231,15 +257,6 @@ export function renderItemsRows(list, items) {
 export function updateCompanyOnlyTable(list) {
   const tbody = document.getElementById('company-only-table-body');
   if (!tbody) return;
-
-  if (list.companyOnlyItems.length === 0) {
-    tbody.innerHTML = renderEmptyStateRow({
-      icon: 'building',
-      title: 'Keine unternehmensweiten Konzepte ohne Marke',
-      actionsHtml: strategieCreateButtonHtml()
-    }, 4);
-    return;
-  }
 
   tbody.innerHTML = renderItemsRows(list, list.companyOnlyItems);
 }
@@ -269,12 +286,16 @@ export function renderItemsView(list) {
             <tr>
               <th class="col-name">Name</th>
               <th class="col-kampagne">Kampagne</th>
+              <th class="col-leistungszeitraum">Leistungszeitraum</th>
               <th class="col-erstellt-von">Erstellt von</th>
+              <th>Briefing</th>
+              <th>Casting</th>
+              <th>Skript</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="strategien-table-body">
-            <tr><td colspan="4" class="table-empty-cell">Lade Konzepte...</td></tr>
+            <tr><td colspan="8" class="table-empty-cell">Lade Konzepte...</td></tr>
           </tbody>
         </table>
       </div>
@@ -290,9 +311,9 @@ export function updateItemsTable(list) {
   if (list.currentItems.length === 0) {
     tbody.innerHTML = renderEmptyStateRow({
       icon: 'clipboard',
-      title: 'Keine Konzepte für diese Marke vorhanden',
+      title: list._ohneMarke ? 'Keine Konzepte vorhanden' : 'Keine Konzepte für diese Marke vorhanden',
       actionsHtml: strategieCreateButtonHtml()
-    }, 4);
+    }, 8);
     list.pagination.updateTotal(0);
     list.pagination.render();
     return;

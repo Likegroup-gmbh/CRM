@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ICON_DEFS, ICON_ALIASES } from '../core/icons/iconDefs.js';
+import { EDITOR_ICON_DEFS } from '../core/icons/editorIcons.js';
 import { ENTITY_ICONS } from '../core/icons/entityIcons.js';
 import { icon, hasIcon, normalizeIconKey, defsHash } from '../core/icons/IconSystem.js';
 
@@ -30,6 +31,7 @@ const ALLOWED_SVG = /<svg[^>]*(viewBox="0 0 50 50"|viewBox="0 0 120 66"|viewBox=
 const ALLOWED_FILES = new Set([
   'src/core/icons/IconSystem.js',                     // Sprite-Template + icon()-Output
   'src/core/doc/DocPage.js',                          // animierter Progress-Circle (Submit-Button)
+  'src/modules/report-pdf/reportPdfBeispiel.js',      // Platzhalter-Poster der Beispieldaten (Bild, kein Icon)
 ]);
 
 function walk(dir, out = []) {
@@ -92,6 +94,10 @@ describe('IconSystem Guard', () => {
     expect(normalizeIconKey('modus-klassisch')).toBe('clapperboard');
     expect(normalizeIconKey('modus-dynamisch')).toBe('spark-doc');
     expect(normalizeIconKey('ai-visual')).toBe('skripte');
+    expect(normalizeIconKey('dropdown')).toBe('chevron-down');
+    expect(ICON_DEFS['chevron-down'].body).toContain('M18 9.00005');
+    expect(normalizeIconKey('anschreiben')).toBe('mail-send');
+    expect(ICON_DEFS['mail-send'].body).not.toContain('stroke-width');
   });
 
   it('buildSpriteSvg enthaelt pro Def-Key genau ein <symbol>', () => {
@@ -120,6 +126,27 @@ describe('IconSystem Guard', () => {
     expect(icon('plus')).not.toContain('crm-icon--filled');
   });
 
+  it('pinterest ist zentral verfuegbar ohne stroke-width im Def', () => {
+    expect(hasIcon('pinterest')).toBe(true);
+    expect(ICON_DEFS.pinterest.viewBox).toBe('0 0 24 24');
+    expect(ICON_DEFS.pinterest.body).not.toContain('stroke-width');
+    expect(ICON_DEFS.pinterest.body).toContain('<circle');
+  });
+
+  it('skript-freigabe ist zentral verfuegbar ohne stroke-width im Def', () => {
+    expect(hasIcon('skript-freigabe')).toBe(true);
+    expect(ICON_DEFS['skript-freigabe'].viewBox).toBe('0 0 24 24');
+    expect(ICON_DEFS['skript-freigabe'].body).not.toContain('stroke-width');
+  });
+
+  it('prio und status sind zentral verfuegbar ohne stroke-width im Def', () => {
+    for (const key of ['prio', 'status']) {
+      expect(hasIcon(key)).toBe(true);
+      expect(ICON_DEFS[key].viewBox).toBe('0 0 24 24');
+      expect(ICON_DEFS[key].body).not.toContain('stroke-width');
+    }
+  });
+
   it('Liky/Chat-Icons sind zentral verfuegbar (ai-chat, arrows-collapse, chat-bot Alias)', () => {
     expect(hasIcon('ai-chat')).toBe(true);
     expect(hasIcon('arrows-collapse')).toBe(true);
@@ -130,5 +157,13 @@ describe('IconSystem Guard', () => {
     // Kein stroke-width im Def - Stroke kommt aus CSS
     expect(ICON_DEFS['ai-chat'].body).not.toContain('stroke-width');
     expect(ICON_DEFS['arrows-collapse'].body).not.toContain('stroke-width');
+  });
+
+  it('Editor-Icon-Set (editorIcons.js) ist in ICON_DEFS eingebunden, ohne stroke-width', () => {
+    for (const key of Object.keys(EDITOR_ICON_DEFS)) {
+      expect(hasIcon(key), key).toBe(true);
+      expect(ICON_DEFS[key].viewBox).toBe('0 0 24 24');
+      expect(ICON_DEFS[key].body).not.toContain('stroke-width');
+    }
   });
 });

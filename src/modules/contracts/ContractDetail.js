@@ -8,9 +8,11 @@ import {
   loadAuftragsbestaetigungen
 } from '../../core/AuftragsbestaetigungUploader.js';
 import { ContractDokumentDrawer } from './ContractDokumentDrawer.js';
+import { dokumentLinkAttrs } from '../../core/ablage/dokumentAblage.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { VertragUtils } from '../vertrag/VertragUtils.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 function formatFileSize(bytes) {
   if (!bytes && bytes !== 0) return '';
@@ -145,7 +147,7 @@ export class ContractDetail {
 
           <div class="detail-section u-mt-lg">
             <h3 class="section-title section-title--spaced">Auftragsbestätigungen</h3>
-            ${this.renderDokumenteSection()}
+            ${this.renderDokumenteSection(this.dokumenteVonTyp('auftragsbestaetigung'))}
           </div>
 
           <div class="detail-section u-mt-lg">
@@ -156,6 +158,7 @@ export class ContractDetail {
           <div class="detail-section u-mt-lg">
             <h3 class="section-title section-title--spaced">Rechnungen</h3>
             ${this.renderRechnungenTable()}
+            ${this.renderRechnungDokumente()}
           </div>
         </div>
       </div>
@@ -164,9 +167,22 @@ export class ContractDetail {
     window.setContentSafely(window.content, html);
   }
 
-  renderDokumenteSection() {
+  // Dokumente ohne Typ gelten als Auftragsbestaetigung (Altbestand)
+  dokumenteVonTyp(typ) {
+    return (this.dokumente || []).filter(d => (d.dokument_typ || 'auftragsbestaetigung') === typ);
+  }
+
+  renderRechnungDokumente() {
+    const docs = this.dokumenteVonTyp('rechnung');
+    if (docs.length === 0) return '';
+    return `
+      <h4 class="section-title section-title--spaced">Hochgeladene Rechnungs-Dokumente</h4>
+      ${this.renderDokumenteSection(docs)}
+    `;
+  }
+
+  renderDokumenteSection(docs = this.dokumente || []) {
     const isAdmin = window.isAdmin?.();
-    const docs = this.dokumente || [];
 
     if (docs.length === 0) {
       return renderEmptyState({ icon: 'document', title: 'Noch keine Dokumente vorhanden' });
@@ -188,14 +204,14 @@ export class ContractDetail {
               <tr>
                 <td>
                   ${d.dropbox_file_url
-                    ? `<a href="${escapeHtml(d.dropbox_file_url)}" target="_blank" rel="noopener noreferrer" class="table-link">${escapeHtml(d.dateiname || '—')}</a>`
+                    ? `<a ${dokumentLinkAttrs('auftragsdokument', d)} class="table-link">${escapeHtml(d.dateiname || '—')}</a>`
                     : escapeHtml(d.dateiname || '—')}
                 </td>
                 <td>${formatFileSize(d.dateigroesse)}</td>
                 <td>${formatDate(d.created_at)}</td>
                 <td class="u-text-right">
                   ${isAdmin ? `
-                    <button type="button" class="btn-icon btn-delete-dokument" data-id="${d.id}" data-path="${escapeHtml(d.dropbox_file_path || '')}" title="Löschen">
+                    <button type="button" class="btn-icon btn-delete-dokument" data-id="${d.id}" title="Löschen">
                       ${icon('trash-alt')}
                     </button>
                   ` : ''}
@@ -212,10 +228,9 @@ export class ContractDetail {
     const c = this.contract || {};
     const rechnungen = c.rechnungen || [];
 
-    // Gesamtbudget: creator_budget (Netto abzüglich Agentur Fee/KSK), Fallback gesamt_budget/nettobetrag
+    // Gesamtbudget: creator_budget (Netto abzüglich Agentur Fee/KSK), Fallback nettobetrag
     const totalBudget = parseFloat(
       c.creator_budget ||
-      c.gesamt_budget ||
       c.nettobetrag ||
       0
     ) || 0;
@@ -363,7 +378,7 @@ export class ContractDetail {
         <tr>
           <td>${VertragUtils.renderVertragNameHtml(v, escapeHtml)}</td>
           <td>${v.creator?.id
-            ? `<a href="/creator/${v.creator.id}" class="table-link" data-table="creator" data-id="${v.creator.id}">${escapeHtml(creatorName)}</a>`
+            ? renderVerknuepfungPill({ kind: 'creator', labelHtml: escapeHtml(creatorName), href: `/creator/${v.creator.id}`, attrs: `data-table="creator" data-id="${v.creator.id}"` })
             : escapeHtml(creatorName)}</td>
           <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
           <td>${v.datei_url
@@ -487,9 +502,7 @@ export class ContractDetail {
       const deleteDokBtn = e.target.closest('.btn-delete-dokument');
       if (deleteDokBtn) {
         e.preventDefault();
-        const dokId = deleteDokBtn.dataset.id;
-        const path = deleteDokBtn.dataset.path || null;
-        this.handleDeleteDokument(dokId, path);
+        this.handleDeleteDokument(deleteDokBtn.dataset.id);
         return;
       }
 
@@ -518,13 +531,13 @@ export class ContractDetail {
     });
   }
 
-  async handleDeleteDokument(dokId, dropboxPath) {
+  async handleDeleteDokument(dokId) {
     if (!dokId) return;
     const ok = window.confirm('Dokument wirklich löschen?');
     if (!ok) return;
 
     try {
-      await deleteAuftragsbestaetigung(dokId, dropboxPath);
+      await deleteAuftragsbestaetigung(dokId);
       window.toastSystem?.show('Dokument gelöscht', 'success');
 
       await this.loadDokumente();

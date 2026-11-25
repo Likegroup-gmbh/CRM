@@ -6,6 +6,8 @@ Damit der Ausnahmefall nicht zur Doppelzahlung führt (Marlies leitet die Rechnu
 
 Für Ausnahme-Regelungen bei Zusatzkosten (Beispiel Juniper: Programmteilnahmen laufen über das Honorar, andere Kosten derselben Kampagne bleiben Zusatzkosten) tragen die Auftragsdetails einen Freitext-`abrechnung_hinweis`, der beim Anlegen der Rechnung eingeblendet wird. Gepflegt und gelesen wird er in den Auftragsdetails — dort lebt die Budget-/Kampagnenplanung, nicht im Auftrags-Formular. Der Hinweis ist rein intern: Er fließt in kein Kunden-Dokument (Angebot, Vertrag, Briefing) und wird in der Detailansicht nur für interne Rollen eingeblendet (`canSeePricing`-Gate). Bewusst kein Toggle: Die Ausnahme gilt pro Kostenart, nicht pro Auftrag, und Kostenarten sind im Datenmodell nicht strukturiert.
 
+Dieselbe Soll-Logik steuert auch den Rechnungsstatus in den Auftragsdetails: „Bezahlt" gilt erst, wenn das bezahlte Honorar das Soll erreicht oder eine bezahlte Schlussrechnung existiert; bezahlte Teilbeträge zeigen „Teilweise bezahlt" — statt wie bisher alle Videos einer Kooperation pauschal als bezahlt zu markieren, sobald irgendeine Rechnung bezahlt war (Fall Sue Giers/CryoGlow: 6.000 von 12.000 € bezahlt, beide Videos zeigten „Bezahlt"). Eine Zuordnung auf Video-Ebene bleibt bewusst außen vor — Rechnungen beziehen sich auf die Kooperation, nicht auf einzelne Videos.
+
 ## Considered Options
 
 - **Fakturiert inkl. KSK-Aufschlag** (ursprüngliche Annahme vor Marcs Antwort): Der Aufschlag verbraucht den Restbetrag still mit — genau das von Marc untersagte Verhalten, und das Doppelzahlungsrisiko bliebe unsichtbar.
@@ -23,3 +25,4 @@ Für Ausnahme-Regelungen bei Zusatzkosten (Beispiel Juniper: Programmteilnahmen 
 - `vertraege.mehrere_rechnungen_erlaubt` verliert seine letzte Funktion: Checkbox im Vertrags-Wizard und Freischalt-Logik im Selektor entfallen; die Spalte bleibt als historischer Bestand.
 - Marcs Idealbild „Zusatzkosten werden separat in Rechnung gestellt" ist Zukunft, kein Jetzt-Umbau — der `abrechnung_hinweis` bildet die Übergangs-Disziplin ab.
 - Die Idee einer internen KSK-Schulung ist Organisationsthema, kein Code — hier nur als Kontext festgehalten.
+- Im Hinterkopf (noch nicht entschieden): Marc erwägt, die KSK künftig **immer** als Zahl auf der Rechnung auszuweisen — auch wenn die Agentur abführt. Dann reicht die Ableitung „Selbstzahler = `ksk_betrag > 0`" nicht mehr: Das Label muss zwischen „Creator führt KSK ab" und „Agentur führt KSK ab" unterscheiden (über das `ksk_selbstzahler`-Flag der Kooperation/des Creators), und die weichen Warnungen beim Anlegen müssen auf die neue Konvention angepasst werden.

@@ -1,0 +1,37 @@
+/* pdf-vorlagen.css
+   PDF-Vorlagen im Accounting-Bereich: gleiche Arbeitsfläche wie Erfassen (auswertung-erfassen.css,
+   auswertung-pruefung.css): links Kopf, Felder und Aktionen, rechts die Bühne mit Punktraster.
+   Hier steht nur, was es dort nicht gibt: die Vorschau als verkleinertes iframe. */
+
+/* Eigener Container für die Breiten-Regeln von .erfassen (@container auswertung) */
+.pv-page {
+  max-width: none;
+  container: auswertung / inline-size;
+}
+
+/* Ohne Unterreiter darüber trägt die Tabelle auch die obere und untere Kante selbst */
+.pv-page .erfassen {
+  border-block: var(--border-xs) solid var(--border-primary);
+}
+
+/* Das iframe hat natürliche Größe und wird per transform verkleinert (PdfVorlagenPage.einpassen);
+   die Hülle schneidet den Überstand ab und zählt mit ihrer Breite nicht in die Spalte hinein.
+   flex: none, sonst schrumpft sie (overflow) auf die Höhe der Bühne und die Vorschau wird
+   abgeschnitten, statt in der Bühne zu scrollen. */
+.pv-huelle {
+  flex: none;
+  overflow: hidden;
+  contain: inline-size;
+}
+
+/* Reicht die Fensterhöhe für alle Felder nicht, scrollt die Spalte; die Aktionsleiste bleibt unten */
+.pv-page .erfassen-felder {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.pv-huelle > iframe {
+  display: block;
+  border: 0;
+  transform-origin: top left;
+}

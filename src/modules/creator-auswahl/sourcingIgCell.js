@@ -53,7 +53,7 @@ export function renderIgFetchButton(item = {}) {
     title = `Abruf fehlgeschlagen: ${item.ig_fetch_error}`;
     label = 'Erneut versuchen';
   } else if (hasFetched) {
-    iconHtml = icon('arrow-path-filled', { className: 'crm-icon--filled' });
+    iconHtml = icon('refresh');
     stateClass = ' is-refresh';
     title = `Stand: ${new Date(item.ig_fetched_at).toLocaleString('de-DE')} · frisch bei Instagram abrufen`;
     label = 'Instagram-Daten frisch abrufen';

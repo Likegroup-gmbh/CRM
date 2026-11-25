@@ -43,9 +43,7 @@ export async function loadSelectOptions(ctx, entityType, filterConfig) {
         value: creator.id,
         label: creatorDisplayName(creator) || 'Unbekannt'
       }));
-    }
-
-    if (options.length === 0 && window.supabase && filterConfig.table) {
+    } else if (options.length === 0 && window.supabase && filterConfig.table) {
       const displayField = filterConfig.displayField || 'name';
       const valueField = filterConfig.valueField || 'id';
 

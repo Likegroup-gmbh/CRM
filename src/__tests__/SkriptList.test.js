@@ -2,11 +2,14 @@
 // Smoke + Ordner-Aggregation + Deep-Link-Params.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { skriptEditorPath, STATUS_LABELS, OHNE_QUERY, OHNE_MARKE_LABEL } from '../modules/skripte/SkripteUtils.js';
+import {
+  skriptEditorPath, skriptCrumbs, STATUS_LABELS, OHNE_QUERY, OHNE_MARKE_LABEL
+} from '../modules/skripte/SkripteUtils.js';
 import {
   SkriptList,
   matchesMarke,
   matchesKampagne,
+  matchesLinie,
   scopedByUnternehmen
 } from '../modules/skripte/SkriptList.js';
 import { createButtonHtml } from '../modules/skripte/SkriptListRenderer.js';
@@ -51,6 +54,7 @@ describe('SkriptList Smoke', () => {
     expect(STATUS_LABELS.fragen).toBe('Rückfragen offen');
     expect(STATUS_LABELS.entwurf).toBe('Entwurf');
     expect(STATUS_LABELS.final).toBe('Final');
+    expect(STATUS_LABELS.freigegeben).toBe('Freigegeben');
   });
 });
 
@@ -60,6 +64,14 @@ describe('SkriptList Ordner', () => {
     expect(matchesMarke({ marke_id: 'm1' }, null)).toBe(false);
     expect(matchesKampagne({ kampagne_id: null }, null)).toBe(true);
     expect(matchesKampagne({ kampagne_id: 'k1' }, 'k1')).toBe(true);
+  });
+
+  it('matchesLinie trennt Briefings und behandelt null als ohne', () => {
+    expect(matchesLinie({ briefing_id: null }, null)).toBe(true);
+    expect(matchesLinie({ briefing_id: 'b1' }, null)).toBe(false);
+    expect(matchesLinie({ briefing_id: 'b1' }, 'b1')).toBe(true);
+    expect(matchesLinie({ briefing_id: 'b2' }, 'b1')).toBe(false);
+    expect(matchesLinie({}, 'b1')).toBe(false);
   });
 
   it('buildCompanyFolders gruppiert und skippt ohne Unternehmen', () => {
@@ -202,6 +214,45 @@ describe('SkriptList Deep-Links', () => {
   });
 });
 
+describe('Skript-Breadcrumb', () => {
+  afterEach(() => {
+    delete window.breadcrumbSystem;
+  });
+
+  it('offizieller Weg: Firma > Marke > Kampagne > Titel, Links öffnen die Ordner', () => {
+    const crumbs = skriptCrumbs(item());
+    expect(crumbs.map((c) => c.label)).toEqual(['Skripte', 'Acme', 'Acme Brand', 'Sommer', 'Hook']);
+
+    const list = new SkriptList();
+    list.applyQueryParams(new URL(crumbs[3].url, 'http://x').searchParams);
+    expect(list.viewMode).toBe('items');
+    expect(list.currentKampagneId).toBe('k1');
+    expect(crumbs[4]).toMatchObject({ url: '/skripte/s1', clickable: false });
+  });
+
+  it('ohne Marke und Kampagne: nur die Firma', () => {
+    const crumbs = skriptCrumbs(item({ marke_id: null, marke: null, kampagne_id: null, kampagne: null }));
+    expect(crumbs.map((c) => c.label)).toEqual(['Skripte', 'Acme', 'Hook']);
+  });
+
+  it('ohne Marke mit Kampagne: Kampagnen-Ordner unter "ohne Marke"', () => {
+    const crumbs = skriptCrumbs(item({ marke_id: null, marke: null }));
+    expect(crumbs.map((c) => c.label)).toEqual(['Skripte', 'Acme', 'Sommer', 'Hook']);
+    const params = new URL(crumbs[2].url, 'http://x').searchParams;
+    expect(params.get('marke')).toBe(OHNE_QUERY);
+    expect(params.get('kampagne')).toBe('k1');
+  });
+
+  it('Unternehmens-Ebene setzt den Root-Crumb (kein alter Firmen-Crumb)', () => {
+    const updateBreadcrumb = vi.fn();
+    window.breadcrumbSystem = { updateBreadcrumb };
+    const list = new SkriptList();
+    list.viewMode = 'companies';
+    list.updateBreadcrumbDisplay();
+    expect(updateBreadcrumb).toHaveBeenCalledWith([{ label: 'Skripte', url: '/skripte', clickable: false }]);
+  });
+});
+
 describe('createButtonHtml Kunden', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -213,7 +264,7 @@ describe('createButtonHtml Kunden', () => {
     const html = createButtonHtml();
     expect(html).toContain('btn-skript-new');
     expect(html).toContain('/skripte/master');
-    expect(html).toContain('/skripte/dna');
+    expect(html).not.toContain('/skripte/dna');
   });
 
   it('kein create-Recht (Kunde, Investor) sieht keinen Create-Button', () => {

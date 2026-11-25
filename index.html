@@ -21,8 +21,8 @@
                  script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; 
                  style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; 
                  img-src 'self' data: blob: https: cdn.jsdelivr.net; 
-                 media-src 'self' blob: https://*.dropbox.com https://www.dropbox.com https://*.dropboxusercontent.com; 
-                 connect-src 'self' https://cdn.jsdelivr.net https://yktycclozgsgaasduyol.supabase.co wss://yktycclozgsgaasduyol.supabase.co https://content.dropboxapi.com https://api.dropboxapi.com https://*.dropboxusercontent.com https://www.dropbox.com https://*.dropbox.com; 
+                 media-src 'self' blob: https://*.sharepoint.com; 
+                 connect-src 'self' https://cdn.jsdelivr.net https://yktycclozgsgaasduyol.supabase.co wss://yktycclozgsgaasduyol.supabase.co https://*.supabase.co wss://*.supabase.co https://*.sharepoint.com; 
                  font-src 'self' cdn.jsdelivr.net data:;">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-XSS-Protection" content="1; mode=block">
@@ -36,11 +36,13 @@
   <div id="login-root"></div>
   <div id="app-root" class="page-wrapper" style="display: none;">
     <script>
-      // Gespeicherte Präferenz oder schmaler Viewport (Sidebar klappt bei
-      // ≤768px automatisch ein, siehe NavigationSystem._bindSidebarAutoCollapse)
-      if (localStorage.getItem('sidebar-collapsed') === 'true'
-          || window.matchMedia('(max-width: 768px)').matches) {
-        document.currentScript.parentElement.classList.add('sidebar-collapsed');
+      // Muss SIDEBAR_NARROW_QUERY in src/core/collapsiblePanel.js entsprechen
+      // (dieses Script läuft vor dem Modul-Import).
+      var appRoot = document.currentScript.parentElement;
+      var sidebarNarrow = window.matchMedia('(max-width: 768px)').matches;
+      if (sidebarNarrow) appRoot.classList.add('sidebar-narrow');
+      if (localStorage.getItem('sidebar-collapsed') === 'true' || sidebarNarrow) {
+        appRoot.classList.add('sidebar-collapsed');
       }
     </script>
     <aside class="sidebar">
@@ -49,7 +51,9 @@
           <img src="./src/images/logo/like-base.svg" alt="LIKEBASE Logo" class="logo-image">
         </a>
         <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle" title="Navigation verkleinern">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+          <!-- Platzhalter bis bindCollapsible das Icon setzt; beide Varianten, damit der gespeicherte Zustand ohne Sprung passt -->
+          <svg class="sidebar-toggle-static sidebar-toggle-static--close" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11Z" /><path d="M15 3V21" /><path d="M10 9L8.8918 9.87868C7.6306 10.8787 7 11.3787 7 12C7 12.6213 7.6306 13.1213 8.8918 14.1213L10 15" /></svg>
+          <svg class="sidebar-toggle-static sidebar-toggle-static--open" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11Z" /><path d="M9 3V21" /><path d="M14 9L15.1082 9.87868C16.3694 10.8787 17 11.3787 17 12C17 12.6213 16.3694 13.1213 15.1082 14.1213L14 15" /></svg>
         </button>
       </div>
       <nav id="main-nav" class="main-nav"></nav>
@@ -65,6 +69,11 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
             </svg>
           </a>
+          <button type="button" id="btn-cpm-rechner" class="secondary-btn" title="CPM-Rechner">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 7.756a4.5 4.5 0 1 0 0 8.488M7.5 10.5h5.25m-5.25 3h5.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          </button>
           <a href="/education" class="secondary-btn education-btn" title="Education" data-route="/education">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5" />

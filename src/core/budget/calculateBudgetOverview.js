@@ -4,6 +4,7 @@
 // aggregiert werden kann. Keine window-Abhängigkeiten.
 
 import { berechneVerfuegbaresBudget, calculateEkVkTotals, calculateAgencyFeeSummary } from './EkVkAgencyFeeHelper.js';
+import { istPlatzhalter } from '../../modules/kooperation/platzhalter.js';
 
 /**
  * Bestimmt die Budget-Kachel-Variante: Influencer-Auftraege haben ein
@@ -50,6 +51,9 @@ export function getBudgetCardVariant(details) {
  * @returns {object} budgetSummary
  */
 export function calculateBudgetOverview({ auftrag, details, kooperationen = [], videos = [], kampagnen = [] }) {
+  const gebuchteIds = new Set(kooperationen.filter(k => !istPlatzhalter(k)).map(k => k.id));
+  kooperationen = kooperationen.filter(k => gebuchteIds.has(k.id));
+  videos = videos.filter(v => !v?.kooperation_id || gebuchteIds.has(v.kooperation_id));
   const variant = getBudgetCardVariant(details);
 
   // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
@@ -101,9 +105,25 @@ export function calculateBudgetOverview({ auftrag, details, kooperationen = [], 
     (agencyFeeSummary?.kskValue || 0) +
     (extraKostenVkSum || 0);
   const auftragsvolumen = parseFloat(auftrag?.nettobetrag) || 0;
+
+  // Zusatzleistungen (extra_services) sind reserviertes Auftragsvolumen, kein
+  // Creator-Verbrauch. Sie stehen als eigene Kacheln, muessen den Rest aber
+  // mindern — sonst rechnet der MA mit einem Topf, der laengst belegt ist.
+  const d = details || {};
+  const extraServices = Array.isArray(d.extra_services) ? d.extra_services : [];
+  const extraServicesSum = (d.extra_services_enabled !== false)
+    ? extraServices
+        .filter(s => s && typeof s.name === 'string' && s.name.trim())
+        .reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0)
+    : 0;
+
   // Negativ = Budgetueberschreitung. Nicht klemmen (ADR 0007), sonst ist ein
   // um 20.000 € gerissener Auftrag nicht von einem punktgenauen zu unterscheiden.
-  const verfuegbaresBudgetRest = auftragsvolumen - verbrauchtesBudget;
+  const verfuegbaresBudgetRest = auftragsvolumen - extraServicesSum - verbrauchtesBudget;
+
+  // Balken-Nenner: was nach den reservierten Zusatzleistungen ueberhaupt
+  // spendable ist. 100 % heisst: der freie Topf ist voll gebucht.
+  const spendableBudget = auftragsvolumen - extraServicesSum;
 
   return {
     variant,
@@ -125,6 +145,8 @@ export function calculateBudgetOverview({ auftrag, details, kooperationen = [], 
     creatorAnteil,
     verbrauchtesBudget,
     verfuegbaresBudget: verfuegbaresBudgetRest,
-    auftragsvolumen
+    auftragsvolumen,
+    extraServicesSum,
+    spendableBudget
   };
 }

@@ -1,0 +1,184 @@
+{
+  "fix": "SharkNinja reine Influencer-Bloecke: umsatz_netto = verkaufspreis_netto_von",
+  "date": "2026-09-10",
+  "scope": "Nur SharkNinja-Auftraege mit ausschliesslich campaign_type=influencer, VK von=bis > 0, umsatz_netto != VK. Tab-2-nettobetrag, Teilrechnungen, Fee, KSK unangetastet.",
+  "restore": "UPDATE auftrag_kampagnenart_blocks SET umsatz_netto = <umsatz_jetzt> WHERE id = <block_id>;",
+  "updates": [
+    {
+      "auftrag_id": "8983cede-ebe0-4745-b62d-d512ca30f506",
+      "block_id": "9d071467-bf47-4403-8cd0-d040d4ca88e9",
+      "po": "PO-SharkNinja-2026-2-40",
+      "auftrag": "1. Kampagne Kaffee Q1",
+      "nettobetrag": 120000,
+      "umsatz_jetzt": 120000,
+      "ek": 96979.59,
+      "vk": 96979.59,
+      "umsatz_neu": 96979.59
+    },
+    {
+      "auftrag_id": "f000df56-4410-482c-8ce3-9b72e065beab",
+      "block_id": "31dc9ac7-a322-47e1-b749-c0fef6cb6088",
+      "po": "PO-SharkNinja-2026-5-68",
+      "auftrag": "2. Kaffee Kampagne Q2",
+      "nettobetrag": 60000,
+      "umsatz_jetzt": 60000,
+      "ek": 47074.5,
+      "vk": 47074.5,
+      "umsatz_neu": 47074.5
+    },
+    {
+      "auftrag_id": "68dee9c2-c437-438c-9a18-97f41e7c080d",
+      "block_id": "f996804b-c40d-4e71-9058-9e8575ba2e93",
+      "po": "PO-SharkNinja-2026-6-69",
+      "auftrag": "Einmalprojekt_4_SharkNinja",
+      "nettobetrag": 140875,
+      "umsatz_jetzt": 140875,
+      "ek": 114293.25,
+      "vk": 114293.25,
+      "umsatz_neu": 114293.25
+    },
+    {
+      "auftrag_id": "27a7464e-a6e6-43df-a8df-909067687750",
+      "block_id": "15e70794-cd34-45f2-8341-0940e3debc3a",
+      "po": "PO-SharkNinja-2026-4-62",
+      "auftrag": "Influencer-Marketing-Kampagnen Q2 2026 / Crispi + Creami",
+      "nettobetrag": 200000,
+      "umsatz_jetzt": 200000,
+      "ek": 162261.94,
+      "vk": 162261.94,
+      "umsatz_neu": 162261.94
+    },
+    {
+      "auftrag_id": "cdab5772-cf77-4e72-a3c0-dabda32e4301",
+      "block_id": "7f470ba2-714b-4a8a-bc65-042d74244b75",
+      "po": "PO-SharkNinja-2026-44-456",
+      "auftrag": "Ninja - Q3 - Zusatzbudget 6 Marken",
+      "nettobetrag": 329558,
+      "umsatz_jetzt": 329558,
+      "ek": 273186.05,
+      "vk": 273186.05,
+      "umsatz_neu": 273186.05
+    },
+    {
+      "auftrag_id": "d4d5aab3-132d-46cd-8ac2-c1844fb4c9a8",
+      "block_id": "7a4e79a1-f3dd-451d-94c6-c2eca2266cc7",
+      "po": "PO-SharkNinja-2026-16-280",
+      "auftrag": "Ninja Q3 - Creami",
+      "nettobetrag": 134000,
+      "umsatz_jetzt": 134000,
+      "ek": 108579.6,
+      "vk": 108579.6,
+      "umsatz_neu": 108579.6
+    },
+    {
+      "auftrag_id": "7173aa15-c080-4dea-9dd5-fa94e87e46db",
+      "block_id": "832ffbb9-8a0d-4b7b-b5dd-3176856dcd5f",
+      "po": "PO-SharkNinja-2026-15-278",
+      "auftrag": "Ninja Q3 - Crispi + DualZone",
+      "nettobetrag": 300000,
+      "umsatz_jetzt": 300000,
+      "ek": 243088.66,
+      "vk": 243088.66,
+      "umsatz_neu": 243088.66
+    },
+    {
+      "auftrag_id": "b39fdf55-4e0c-46f1-817d-45da182e0e25",
+      "block_id": "b33dafd2-079f-4612-86ae-672df2e0d242",
+      "po": "PO-SharkNinja-2026-14-276",
+      "auftrag": "Ninja Q3 - Slushi",
+      "nettobetrag": 250000,
+      "umsatz_jetzt": 250000,
+      "ek": 202573.88,
+      "vk": 202573.88,
+      "umsatz_neu": 202573.88
+    },
+    {
+      "auftrag_id": "d2ef8b47-55d8-47a5-81c1-fc7a4ee285c0",
+      "block_id": "d4b9a90c-0c0e-42d5-a8e1-9a6b3aaf65fe",
+      "po": "PO-SharkNinja-2026-7-90",
+      "auftrag": "Q2 Mikro-Influencer Kampagne",
+      "nettobetrag": 110000,
+      "umsatz_jetzt": 110000,
+      "ek": 89244.06,
+      "vk": 89244.06,
+      "umsatz_neu": 89244.06
+    },
+    {
+      "auftrag_id": "b5dd9ca6-0d9a-4fed-bd47-65b6f4d4a058",
+      "block_id": "108d4861-3f8b-4b9f-a701-7eecb1d97b19",
+      "po": "PO-SharkNinja-2026-13-266",
+      "auftrag": "Shark Beauty CryoGlow-Relaunch",
+      "nettobetrag": 431640,
+      "umsatz_jetzt": 431640,
+      "ek": 360000,
+      "vk": 360000,
+      "umsatz_neu": 360000
+    },
+    {
+      "auftrag_id": "c132a1cf-d3f1-48df-94cb-2411b7184e76",
+      "block_id": "1868a420-5612-4d15-bf15-32bcaa7a9baa",
+      "po": "PO-SharkNinja-2026-48-494",
+      "auftrag": "Shark Home - Q3 - BlastBoss",
+      "nettobetrag": 120000,
+      "umsatz_jetzt": 120000,
+      "ek": 99130.44,
+      "vk": 99130.44,
+      "umsatz_neu": 99130.44
+    },
+    {
+      "auftrag_id": "0e6fc2aa-f864-4f39-a432-acc64f7f9f02",
+      "block_id": "77f3fc41-d19a-488b-aff9-87f00ee914a8",
+      "po": "PO-SharkNinja-2026-20-302",
+      "auftrag": "SharkBeauty - Q3 - Silki",
+      "nettobetrag": 247000,
+      "umsatz_jetzt": 247000,
+      "ek": 199662.45,
+      "vk": 199662.45,
+      "umsatz_neu": 199662.45
+    },
+    {
+      "auftrag_id": "c6bb9356-9bcf-4106-a5d4-1a56d440aed0",
+      "block_id": "013f2369-7ca3-43f8-8426-9f15acfaf1b7",
+      "po": "PO-SharkNinja-2026-12-176",
+      "auftrag": "SharkNinja - Q2 2026 - UGC / Influencer",
+      "nettobetrag": 218000,
+      "umsatz_jetzt": 218000,
+      "ek": 176865.5,
+      "vk": 176865.5,
+      "umsatz_neu": 176865.5
+    },
+    {
+      "auftrag_id": "3b9a45de-d25f-4e9b-92e5-f4cd415c63e4",
+      "block_id": "cf473c53-7c82-4d70-8f91-d89ac2af1069",
+      "po": "PO-SharkNinja-2026-11-173",
+      "auftrag": "SharkNinja - Q2 2026 - Zusatzbudget Autobarista",
+      "nettobetrag": 196251.16,
+      "umsatz_jetzt": 196251.16,
+      "ek": 93174.69,
+      "vk": 115969,
+      "umsatz_neu": 115969
+    },
+    {
+      "auftrag_id": "6c47d55f-b4df-4118-9716-ae43c8f7f905",
+      "block_id": "8ac6b69c-032a-4cd6-a56f-5776f5308ea5",
+      "po": "PO-SharkNinja-2026-8-130",
+      "auftrag": "SharkNinja Germany GmbH – Ninja – UGC / Influencer – März 2026",
+      "nettobetrag": 80000,
+      "umsatz_jetzt": 80000,
+      "ek": 64541.37,
+      "vk": 64541.37,
+      "umsatz_neu": 64541.37
+    },
+    {
+      "auftrag_id": "6b0daab4-9b0d-417a-a09c-cd616d3139f3",
+      "block_id": "1d08fc14-ae9e-4e9d-a9da-6d2aa5352723",
+      "po": "PO-SharkNinja-2026-51-536",
+      "auftrag": "SharkNinja-Q4-Jet Ibiza-Barterdeal",
+      "nettobetrag": 25000,
+      "umsatz_jetzt": 100000,
+      "ek": 5000,
+      "vk": 5000,
+      "umsatz_neu": 5000
+    }
+  ]
+}

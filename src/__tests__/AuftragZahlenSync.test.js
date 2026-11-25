@@ -13,7 +13,7 @@ vi.mock('../core/animation/animateNumber.js');
 import { ModuleRegistry } from '../core/ModuleRegistry.js';
 import { ProjektErstellenPersistence } from '../modules/projekt-erstellen/services/ProjektErstellenPersistence.js';
 import { ProjektErstellenWizard } from '../modules/projekt-erstellen/ProjektErstellenWizard.js';
-import { resolveVolumen } from '../modules/stakeholder/StakeholderOverviewPage.js';
+import { resolveVolumen } from '../modules/stakeholder/kern/StakeholderOverviewPage.js';
 import { AusgangsrechnungenList } from '../modules/ausgangsrechnungen/AusgangsrechnungenList.js';
 import { animateNumber } from '../core/animation/animateNumber.js';
 import { StepDetails } from '../modules/projekt-erstellen/steps/StepDetails.js';
@@ -113,6 +113,7 @@ describe('Contracting speichert Agenturleistungen in auftrag_details', () => {
         update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
         delete: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
         insert: vi.fn(async () => ({ error: null })),
+        select: vi.fn(() => ({ eq: vi.fn(async () => ({ data: [], error: null })) })),
         upsert: vi.fn(async (payload) => {
           upserted[table] = payload;
           return { error: null };
@@ -197,7 +198,7 @@ describe('Anzahl Teilrechnungen aendern', () => {
     expect(step.wizard.formData.auftrag.nettobetrag).toBe(3000);
   });
 
-  it('zieht beim Verkleinern den Auftrags-Nettobetrag nach', () => {
+  it('laesst beim Verkleinern das Angebotsnetto stehen', () => {
     const step = createStep({
       nettobetrag: 3000,
       teilrechnungen: [
@@ -212,7 +213,79 @@ describe('Anzahl Teilrechnungen aendern', () => {
     const trs = step.wizard.formData.auftrag.teilrechnungen;
     expect(trs).toHaveLength(2);
     expect(trs.map(tr => tr.re_nr)).toEqual(['RE-1', 'RE-2']);
-    expect(step.wizard.formData.auftrag.nettobetrag).toBe(2000);
+    expect(step.wizard.formData.auftrag.nettobetrag).toBe(3000);
+  });
+});
+
+describe('Angebotsnetto aendern', () => {
+  function createStep(auftrag) {
+    const wizard = new ProjektErstellenWizard(document.createElement('div'));
+    Object.assign(wizard.formData.auftrag, auftrag);
+    return new StepDetails(wizard);
+  }
+
+  it('aendert gespeicherte Teilrechnungen nicht', () => {
+    const step = createStep({
+      nettobetrag: 1322900.84,
+      teilrechnungen: [
+        { position: 1, nettobetrag: 644978.39, fixiert: true },
+        { position: 2, nettobetrag: 617813.70, fixiert: true }
+      ]
+    });
+
+    step._distributeEvenly();
+
+    expect(step.wizard.formData.auftrag.teilrechnungen.map(tr => tr.nettobetrag))
+      .toEqual([644978.39, 617813.70]);
+  });
+
+  it('verteilt nur den Rest auf unberuehrte Teilrechnungen', () => {
+    const step = createStep({
+      nettobetrag: 5000,
+      teilrechnungen: [
+        { position: 1, nettobetrag: 1000, fixiert: true },
+        { position: 2, nettobetrag: 0 },
+        { position: 3, nettobetrag: 0 }
+      ]
+    });
+
+    step._distributeEvenly();
+
+    const trs = step.wizard.formData.auftrag.teilrechnungen;
+    expect(trs.map(tr => tr.nettobetrag)).toEqual([1000, 2000, 2000]);
+    expect(trs[1].bruttobetrag).toBe(2380);
+  });
+
+  it('verteilt bei neuen Auftraegen weiterhin gleichmaessig', () => {
+    const step = createStep({
+      nettobetrag: 3000,
+      teilrechnungen: [{ position: 1, nettobetrag: 0 }, { position: 2, nettobetrag: 0 }]
+    });
+
+    step._distributeEvenly();
+
+    expect(step.wizard.formData.auftrag.teilrechnungen.map(tr => tr.nettobetrag)).toEqual([1500, 1500]);
+  });
+
+  it('zeigt unter dem Netto den verteilten Anteil und warnt bei Ueberschuss', () => {
+    const step = createStep({
+      nettobetrag: 1000,
+      teilrechnungen: [{ position: 1, nettobetrag: 400, rechnung_gestellt_am: '2026-10-01' }]
+    });
+    step.host = document.createElement('div');
+    step.host.innerHTML = '<p id="pe-netto-verteilung-hint" hidden></p>';
+    const hint = step.host.querySelector('p');
+
+    step._renderVerteilungsHinweis();
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).toContain('40 %');
+    expect(hint.textContent).toContain('noch offen');
+    expect(hint.classList.contains('pe-netto-verteilung-hint--warnung')).toBe(false);
+
+    step.wizard.formData.auftrag.nettobetrag = 300;
+    step._renderVerteilungsHinweis();
+    expect(hint.textContent).toContain('übersteigen');
+    expect(hint.classList.contains('pe-netto-verteilung-hint--warnung')).toBe(true);
   });
 });
 
@@ -288,21 +361,25 @@ describe('Kundenrechnungen-Monatssummen', () => {
     expect(spans).toBe(list.getListColumnCount());
   });
 
-  it('rendert Summary-Cards fuer Netto, Mehrwertsteuer und Brutto ueber der Tabelle', () => {
+  it('rendert vier Netto-Kacheln ueber der Tabelle', () => {
     const list = new AusgangsrechnungenList();
     renderFullPage(list);
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     expect(cards).not.toBeNull();
-    expect(cards.querySelector('[data-summary-card="nettobetrag"] .summary-label').textContent).toBe('Netto');
-    expect(cards.querySelector('[data-summary-card="ust_betrag"] .summary-label').textContent).toBe('Mehrwertsteuer');
-    expect(cards.querySelector('[data-summary-card="bruttobetrag"] .summary-label').textContent).toBe('Brutto');
+    expect(cards.querySelector('[data-summary-card="nettobetrag"] .summary-label').textContent).toBe('Netto Umsatz');
+    expect(cards.querySelector('[data-summary-card="re_datum_netto"] .summary-label').textContent).toBe('Netto Rechnungen gestellt');
+    expect(cards.querySelector('[data-summary-card="bezahlt_netto"] .summary-label').textContent).toBe('Netto Rechnungen bereits bezahlt');
+    expect(cards.querySelector('[data-summary-card="unbezahlt_netto"] .summary-label').textContent).toBe('Netto Rechnungen unbezahlt');
+    expect(cards.querySelector('[data-summary-card="nettobetrag"] .summary-card-breakdown').textContent).toContain('abzuführende MwSt');
+    expect(cards.querySelector('[data-summary-card="unbezahlt_netto"] .summary-card-breakdown').textContent).toContain('davon überfällig');
+    expect(cards.querySelectorAll('.summary-card')).toHaveLength(4);
     // Cards sitzen oberhalb der Tabelle
     const table = document.getElementById('auftrag-table-container');
     expect(cards.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('schreibt die Summen auch in die Cards, nicht nur in den tfoot', () => {
+  it('schreibt Netto Umsatz und abzuführende MwSt in die Kachel, Brutto nur in den tfoot', () => {
     const list = new AusgangsrechnungenList();
     renderFullPage(list);
 
@@ -312,11 +389,16 @@ describe('Kundenrechnungen-Monatssummen', () => {
     ]);
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    const foot = document.getElementById('ausgangsrechnungen-summary');
+    const nettoCard = cards.querySelector('[data-summary-card="nettobetrag"]');
     expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
       .toBe(list.formatSummaryCurrency(2000));
-    expect(cards.querySelector('[data-summary-value="ust_betrag"]').textContent)
+    expect(nettoCard.querySelector('[data-summary-value="ust_betrag"]').textContent)
       .toBe(list.formatSummaryCurrency(380));
-    expect(cards.querySelector('[data-summary-value="bruttobetrag"]').textContent)
+    expect(cards.querySelector('[data-summary-value="bruttobetrag"]')).toBeNull();
+    expect(foot.querySelector('[data-summary="ust_betrag"]').textContent)
+      .toBe(list.formatSummaryCurrency(380));
+    expect(foot.querySelector('[data-summary="bruttobetrag"]').textContent)
       .toBe(list.formatSummaryCurrency(2380));
     expect(animateNumber).not.toHaveBeenCalled();
   });
@@ -333,11 +415,17 @@ describe('Kundenrechnungen-Monatssummen', () => {
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     const foot = document.getElementById('ausgangsrechnungen-summary');
-    // 3 Summen-Felder x 2 Surfaces (Card + tfoot) + 2 Bezahlt-Werte (nur Card)
-    expect(animateNumber).toHaveBeenCalledTimes(8);
+    // Netto: Karte + tfoot. MwSt: Karte + tfoot. Brutto: nur tfoot.
+    // RE-Datum, Bezahlt, Differenz und Überfällig: nur Karte.
+    expect(animateNumber).toHaveBeenCalledTimes(9);
     expect(animateNumber).toHaveBeenCalledWith(
       cards.querySelector('[data-summary-value="nettobetrag"]'),
       1000,
+      { format: expect.any(Function) }
+    );
+    expect(animateNumber).toHaveBeenCalledWith(
+      cards.querySelector('[data-summary-card="nettobetrag"] [data-summary-value="ust_betrag"]'),
+      190,
       { format: expect.any(Function) }
     );
     expect(animateNumber).toHaveBeenCalledWith(
@@ -345,9 +433,9 @@ describe('Kundenrechnungen-Monatssummen', () => {
       1190,
       { format: expect.any(Function) }
     );
-    // Zeile ohne ueberwiesen_am -> Bezahlt-Card animiert auf 0
+    // Zeile ohne ueberwiesen_am -> Bezahlt-Kachel animiert auf 0
     expect(animateNumber).toHaveBeenCalledWith(
-      cards.querySelector('[data-summary-value="bezahlt_brutto"]'),
+      cards.querySelector('[data-summary-value="bezahlt_netto"]'),
       0,
       { format: expect.any(Function) }
     );
@@ -355,22 +443,42 @@ describe('Kundenrechnungen-Monatssummen', () => {
     expect(format(1234.5)).toBe(list.formatSummaryCurrency(1234.5));
   });
 
-  it('zeigt auf der Bezahlt-Card nur ueberwiesene Zeilen (Netto + Brutto)', () => {
+  it('zaehlt RE-Datum- und Bezahlt-Netto getrennt von der Gesamtsumme', () => {
     const list = new AusgangsrechnungenList();
     renderFullPage(list);
 
     list.updateInvoiceSummary([
-      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, ueberwiesen_am: '2026-09-01' },
-      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, ueberwiesen_am: null }
+      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, rechnung_gestellt_am: '2026-08-01', ueberwiesen_am: '2026-09-01' },
+      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, rechnung_gestellt_am: '2026-08-15', ueberwiesen_am: null },
+      { nettobetrag: 500, ust_betrag: 95, bruttobetrag: 595, rechnung_gestellt_am: null, ueberwiesen_am: null },
+      { nettobetrag: 100, rechnung_gestellt_am: '' }
     ]);
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
+      .toBe(list.formatSummaryCurrency(3600));
+    expect(cards.querySelector('[data-summary-value="re_datum_netto"]').textContent)
+      .toBe(list.formatSummaryCurrency(3000));
     expect(cards.querySelector('[data-summary-value="bezahlt_netto"]').textContent)
       .toBe(list.formatSummaryCurrency(1000));
-    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]').textContent)
-      .toBe(list.formatSummaryCurrency(1190));
-    // Gesamt-Summen bleiben unveraendert ueber alle Zeilen
-    expect(cards.querySelector('[data-summary-value="bruttobetrag"]').textContent)
-      .toBe(list.formatSummaryCurrency(3570));
+    expect(cards.querySelector('[data-summary-value="unbezahlt_netto"]').textContent)
+      .toBe(list.formatSummaryCurrency(2600));
+  });
+
+  it('summiert ueberfaelliges Netto: Faelligkeit vor heute und nicht bezahlt', () => {
+    const list = new AusgangsrechnungenList();
+    renderFullPage(list);
+
+    list.updateInvoiceSummary([
+      { nettobetrag: 1000, re_faelligkeit: '2020-01-01', ueberwiesen_am: null },
+      { nettobetrag: 2000, re_faelligkeit: '2020-06-01', ueberwiesen_am: '2026-06-01' },
+      { nettobetrag: 500, re_faelligkeit: '2099-12-31', ueberwiesen_am: null },
+      { nettobetrag: 100, re_faelligkeit: null, ueberwiesen_am: null }
+    ]);
+
+    const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    const last = cards.querySelector('[data-summary-card="unbezahlt_netto"]');
+    expect(last.querySelector('[data-summary-value="ueberfaellig_netto"]').textContent)
+      .toBe(list.formatSummaryCurrency(1000));
   });
 });

@@ -18,9 +18,76 @@ const {
   downloadSubtitleText
 } = require('../screenshot-utils/video-interceptor');
 
+const { BESCHREIBUNG_SCHEMA, parseStruktur, strukturZuText } = require('./beschreibung-struktur');
+
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4/accounts';
 const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo';
 const LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+const WHISPER_ATTEMPTS = 3;
+const WHISPER_RETRY_MS = 1000;
+/** Steht im Job-Log. Fehlt die Zeile, laeuft ein aelterer Function-Build. */
+const PIPELINE_BUILD = '20260929c';
+
+function isWhisperAuthError(status, message) {
+  if (Number(status) === 401) return true;
+  return /authentication error/i.test(String(message || ''));
+}
+
+/** Echter 401 ist ein kaputter Token. Nur die sporadische Meldung ohne 401 lohnt einen Retry. */
+function isRetryableWhisperAuth(status, message) {
+  if (Number(status) === 401) return false;
+  return /authentication error/i.test(String(message || ''));
+}
+
+function whisperFehler(status, message) {
+  if (Number(status) === 401) {
+    const err = new Error('Whisper fehlgeschlagen: Cloudflare-Token abgelehnt (401), CLOUDFLARE_AI_TOKEN pruefen');
+    err.status = 401;
+    err.auth = true;
+    return err;
+  }
+  const detail = String(message || '').trim() || `HTTP ${status}`;
+  const err = new Error(`Whisper fehlgeschlagen: ${detail} (HTTP ${status})`);
+  err.status = status;
+  err.auth = isWhisperAuthError(status, detail);
+  return err;
+}
+
+/** Sporadische Auth-Meldung wiederholen, echten 401 und jeden anderen Fehler sofort durchreichen. */
+async function withWhisperRetry(attempt, {
+  attempts = WHISPER_ATTEMPTS,
+  pauseMs = WHISPER_RETRY_MS,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  onRetry = () => {}
+} = {}) {
+  let last;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await attempt(i);
+    } catch (e) {
+      last = e;
+      if (!isRetryableWhisperAuth(e.status, e.message) || i === attempts) throw e;
+      onRetry(i, e);
+      await sleep(pauseMs);
+    }
+  }
+  throw last;
+}
+
+/** Netlify-Formulare liefern gern ein trailing Newline mit - Cloudflare antwortet darauf 401. */
+function cloudflareCredentials(env = process.env) {
+  return {
+    accountId: String(env.CLOUDFLARE_ACCOUNT_ID || '').trim(),
+    aiToken: String(env.CLOUDFLARE_AI_TOKEN || '').trim()
+  };
+}
+
+/** Nur die letzten vier Zeichen und die Laenge - genug, um V1- und V2-Deploy zu unterscheiden. */
+function fingerprint(wert) {
+  const s = String(wert || '');
+  if (!s) return '(leer)';
+  return `…${s.slice(-4)} (${s.length} Zeichen)`;
+}
 
 /** Plattformen, fuer die eine Tonspur bzw. Untertitel erreichbar sind. */
 const TRANSCRIBABLE_PLATFORMS = Object.freeze(['tiktok', 'instagram']);
@@ -39,7 +106,7 @@ function buildNavigateUrl(platform, url) {
   return url;
 }
 
-async function runWhisper(videoBuffer, accountId, aiToken) {
+async function runWhisperOnce(videoBuffer, accountId, aiToken) {
   const base64Audio = videoBuffer.toString('base64');
   const res = await fetch(`${CF_API_BASE}/${accountId}/ai/run/${WHISPER_MODEL}`, {
     method: 'POST',
@@ -52,33 +119,59 @@ async function runWhisper(videoBuffer, accountId, aiToken) {
 
   const json = await res.json();
   if (!res.ok || !json.success) {
-    const errMsg = (json.errors || []).map(e => e.message).join('; ') || `HTTP ${res.status}`;
-    throw new Error(`Whisper fehlgeschlagen: ${errMsg}`);
+    const errMsg = (json.errors || []).map(e => e.message).join('; ');
+    throw whisperFehler(res.status, errMsg);
   }
   return (json.result?.text || '').trim();
 }
 
-async function runDescription(transcript, caption, accountId, aiToken) {
+async function runWhisper(videoBuffer, accountId, aiToken, opts = {}) {
+  return withWhisperRetry(
+    () => runWhisperOnce(videoBuffer, accountId, aiToken),
+    { onRetry: opts.onRetry }
+  );
+}
+
+const BESCHREIBUNG_SYSTEM_PLAIN = 'Du bist ein Assistent einer Influencer-Marketing-Agentur. Erstelle eine praegnante deutsche Beschreibung (2-4 Saetze) des Videoinhalts basierend auf Transkript und Caption. Beschreibe Thema, Kernaussage und Stil des Videos. Antworte NUR mit der Beschreibung, ohne Einleitung.';
+
+const BESCHREIBUNG_SYSTEM_STRUKTUR = `Du bist ein Assistent einer Influencer-Marketing-Agentur. Analysiere ein Video anhand von Transkript und Caption und gib die Analyse als JSON-Objekt auf Deutsch zurueck.
+
+Felder (alle Strings):
+- titel: kurzer, merkbarer Titel, ohne Anfuehrungszeichen.
+- angle: der strategische Blickwinkel des Videos in einem Satz (Wie wird das Thema aufgehaengt?).
+- hook: der gesprochene Aufmacher der ersten Sekunden, woertlich aus dem Transkript.
+- visual_hook: was zu Beginn zu sehen ist. Nur wenn aus Transkript oder Caption erkennbar, sonst leerer String.
+- hauptteil: was im Mittelteil passiert, beschreibend in zwei bis vier Saetzen. Keine woertliche Wiedergabe.
+- cta: der Aufruf am Ende, woertlich aus dem Transkript oder der Caption. Leerer String, wenn keiner vorkommt.
+
+Ist ein verlinktes Produkt genannt, dient es nur zur Einordnung des Angles. Hook und CTA bleiben woertlich aus dem Transkript, Produktmerkmale werden nicht erfunden oder ins Video hineingedeutet.
+
+Erfinde nichts. Antworte NUR mit dem JSON-Objekt, ohne Einleitung und ohne Markdown.`;
+
+function produktKontext(produkt) {
+  if (!produkt?.name) return '';
+  const kurz = String(produkt.kurzbeschreibung || '').trim().slice(0, 400);
+  return `Verlinktes Produkt: ${produkt.name}${kurz ? ` (${kurz})` : ''}`;
+}
+
+function describeContext(transcript, caption, produkt = null) {
   const contextParts = [];
+  const produktText = produktKontext(produkt);
+  if (produktText) contextParts.push(produktText);
   if (caption) contextParts.push(`Video-Caption: "${caption}"`);
   contextParts.push(`Transkript:\n${transcript}`);
+  return contextParts.join('\n\n');
+}
 
+/** Ein Llama-Aufruf. Liefert result.response (String oder, im JSON-Modus, Objekt). */
+async function runLlama(accountId, aiToken, body) {
   const res = await fetch(`${CF_API_BASE}/${accountId}/ai/run/${LLM_MODEL}`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${aiToken}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      messages: [
-        {
-          role: 'system',
-          content: 'Du bist ein Assistent einer Influencer-Marketing-Agentur. Erstelle eine praegnante deutsche Beschreibung (2-4 Saetze) des Videoinhalts basierend auf Transkript und Caption. Beschreibe Thema, Kernaussage und Stil des Videos. Antworte NUR mit der Beschreibung, ohne Einleitung.'
-        },
-        { role: 'user', content: contextParts.join('\n\n') }
-      ],
-      max_tokens: 512
-    })
+    body: JSON.stringify(body)
   });
 
   const json = await res.json();
@@ -86,7 +179,57 @@ async function runDescription(transcript, caption, accountId, aiToken) {
     const errMsg = (json.errors || []).map(e => e.message).join('; ') || `HTTP ${res.status}`;
     throw new Error(`Beschreibung fehlgeschlagen: ${errMsg}`);
   }
-  return (json.result?.response || '').trim();
+  return json.result?.response ?? '';
+}
+
+async function runPlainDescription(transcript, caption, accountId, aiToken, produkt = null) {
+  const response = await runLlama(accountId, aiToken, {
+    messages: [
+      { role: 'system', content: BESCHREIBUNG_SYSTEM_PLAIN },
+      { role: 'user', content: describeContext(transcript, caption, produkt) }
+    ],
+    max_tokens: 512
+  });
+  return String(response || '').trim();
+}
+
+/**
+ * Strukturierte Beschreibung (Titel, Angle, Hook, Visual Hook, Hauptteil, CTA).
+ * Erst mit JSON-Schema, dann ohne (Modell/Plan ohne JSON-Modus). Ist die Antwort
+ * nicht lesbar, faellt es auf den alten Fliesstext zurueck: struktur ist dann null.
+ *
+ * produkt (optional): das am Item verlinkte Produkt, nur als Kontext.
+ *
+ * @returns {Promise<{ struktur: Object|null, text: string }>}
+ */
+async function runDescription(transcript, caption, accountId, aiToken, produkt = null) {
+  const body = {
+    messages: [
+      { role: 'system', content: BESCHREIBUNG_SYSTEM_STRUKTUR },
+      { role: 'user', content: describeContext(transcript, caption, produkt) }
+    ],
+    max_tokens: 700
+  };
+
+  let response = null;
+  try {
+    response = await runLlama(accountId, aiToken, {
+      ...body,
+      response_format: { type: 'json_schema', json_schema: BESCHREIBUNG_SCHEMA }
+    });
+  } catch (_) {
+    try {
+      response = await runLlama(accountId, aiToken, body);
+    } catch (_e) {
+      response = null;
+    }
+  }
+
+  const struktur = parseStruktur(response);
+  if (struktur) return { struktur, text: strukturZuText(struktur) };
+
+  const text = await runPlainDescription(transcript, caption, accountId, aiToken, produkt);
+  return { struktur: null, text };
 }
 
 /**
@@ -135,6 +278,10 @@ async function collectVideoData({ page, platform, navigateUrl, onStep = () => {}
  * @param {Function} [opts.onStep]         (step, message) fuer den Fortschritt
  * @param {Function} [opts.onLog]          (message) fuer reine Log-Zeilen
  * @param {Function} [opts.onVideoData]    (videoData) sobald die Metadaten stehen
+ * @param {Function} [opts.onCaption]      (caption) sobald die Post-Caption da ist,
+ *                                         noch vor Whisper
+ * @param {Function} [opts.onTranscript]   (transcript, source) sobald das Transkript
+ *                                         steht, noch vor der Llama-Beschreibung
  * @param {Function} [opts.releaseBrowser] Wird aufgerufen, sobald der Browser nicht
  *                                         mehr gebraucht wird (Whisper laeuft remote)
  */
@@ -147,11 +294,14 @@ async function transcribeVideoOnPage({
   onStep = () => {},
   onLog = () => {},
   onVideoData = () => {},
+  onCaption = () => {},
+  onTranscript = () => {},
   releaseBrowser = null
 }) {
   if (!accountId || !aiToken) {
     throw new Error('CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_AI_TOKEN nicht gesetzt (Netlify Env-Vars)');
   }
+  onLog(`Cloudflare: Account ${fingerprint(accountId)}, Token ${fingerprint(aiToken)}`);
   if (!isTranscribablePlatform(platform)) {
     throw new Error(`Plattform nicht unterstuetzt: ${platform} (nur TikTok/Instagram)`);
   }
@@ -162,6 +312,7 @@ async function transcribeVideoOnPage({
   const videoData = await collectVideoData({ page, platform, navigateUrl, onStep, onLog });
   if (videoData.error) throw new Error(videoData.error);
   onVideoData(videoData);
+  if (videoData.caption) await onCaption(videoData.caption);
 
   let transcript = null;
   let transcriptSource = 'whisper';
@@ -191,7 +342,9 @@ async function transcribeVideoOnPage({
     if (releaseBrowser) await releaseBrowser();
 
     onStep('whisper', 'Whisper-Transkription (Cloudflare Workers AI)...');
-    transcript = await runWhisper(videoBuffer, accountId, aiToken);
+    transcript = await runWhisper(videoBuffer, accountId, aiToken, {
+      onRetry: (attempt, err) => onLog(`Whisper erneut (${attempt + 1}/${WHISPER_ATTEMPTS}): ${err.message}`)
+    });
     onLog(`Transkript: ${transcript.length} Zeichen`);
   } else if (releaseBrowser) {
     await releaseBrowser();
@@ -201,13 +354,24 @@ async function transcribeVideoOnPage({
     throw new Error('Transkript ist leer (Video ohne Sprache?)');
   }
 
+  await onTranscript(transcript, transcriptSource);
+
   onStep('description', 'Beschreibung generieren (Llama 3.1)...');
-  const description = await runDescription(transcript, videoData.caption, accountId, aiToken);
+  let beschreibung;
+  try {
+    beschreibung = await runDescription(transcript, videoData.caption, accountId, aiToken);
+  } catch (e) {
+    onLog(`Beschreibung fehlgeschlagen: ${e.message}`);
+    const err = new Error(e.message);
+    err.descriptionFailed = true;
+    throw err;
+  }
 
   return {
     transcript,
     transcriptSource,
-    description,
+    description: beschreibung.text,
+    beschreibungStruktur: beschreibung.struktur,
     caption: videoData.caption || null,
     authorName: videoData.authorName || null,
     authorUrl: videoData.authorUrl || null,
@@ -222,10 +386,19 @@ async function transcribeVideoOnPage({
 
 module.exports = {
   TRANSCRIBABLE_PLATFORMS,
+  WHISPER_ATTEMPTS,
+  PIPELINE_BUILD,
+  cloudflareCredentials,
+  fingerprint,
   isTranscribablePlatform,
+  isWhisperAuthError,
+  isRetryableWhisperAuth,
+  whisperFehler,
+  withWhisperRetry,
   buildNavigateUrl,
   collectVideoData,
   transcribeVideoOnPage,
   runWhisper,
-  runDescription
+  runDescription,
+  runPlainDescription
 };

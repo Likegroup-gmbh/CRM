@@ -42,28 +42,30 @@ export class CreatorUtils {
   }
 
   // Follower-Range formatieren (Integer → "25.000 - 50.000")
-  formatFollowerRange(value) {
+  // Mit { compact: true } kurz: "10k bis 25k" statt "10.000 - 25.000"
+  formatFollowerRange(value, { compact = false } = {}) {
     if (!value || isNaN(value)) {
       return '-';
     }
     
     const ranges = [
-      { max: 2500, label: '0 - 2.500' },
-      { max: 5000, label: '2.500 - 5.000' },
-      { max: 10000, label: '5.000 - 10.000' },
-      { max: 25000, label: '10.000 - 25.000' },
-      { max: 50000, label: '25.000 - 50.000' },
-      { max: 100000, label: '50.000 - 100.000' },
-      { max: 250000, label: '100.000 - 250.000' },
-      { max: 500000, label: '250.000 - 500.000' },
-      { max: 1000000, label: '500.000 - 1.000.000' },
-      { max: Infinity, label: '+ 1.000.000' }
+      { max: 2500, label: '0 - 2.500', short: '0 bis 2,5k' },
+      { max: 5000, label: '2.500 - 5.000', short: '2,5k bis 5k' },
+      { max: 10000, label: '5.000 - 10.000', short: '5k bis 10k' },
+      { max: 25000, label: '10.000 - 25.000', short: '10k bis 25k' },
+      { max: 50000, label: '25.000 - 50.000', short: '25k bis 50k' },
+      { max: 100000, label: '50.000 - 100.000', short: '50k bis 100k' },
+      { max: 250000, label: '100.000 - 250.000', short: '100k bis 250k' },
+      { max: 500000, label: '250.000 - 500.000', short: '250k bis 500k' },
+      { max: 1000000, label: '500.000 - 1.000.000', short: '500k bis 1M' },
+      { max: Infinity, label: '+ 1.000.000', short: '+ 1M' }
     ];
     
+    const pick = (r) => (compact ? r.short : r.label);
     for (const r of ranges) {
-      if (value <= r.max) return r.label;
+      if (value <= r.max) return pick(r);
     }
-    return '+ 1.000.000';
+    return pick(ranges[ranges.length - 1]);
   }
 
   // Budget formatieren

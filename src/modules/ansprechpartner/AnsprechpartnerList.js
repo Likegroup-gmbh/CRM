@@ -13,6 +13,7 @@ import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { CountryDisplay } from '../../core/components/CountryDisplay.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 
 // Sprach-Mapping für Abkürzungen
 const SPRACH_KUERZEL = {
@@ -47,7 +48,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
       sortAscending: true,
       paginationContainerId: 'pagination-ansprechpartner',
       tbodySelector: '.data-table tbody',
-      tableColspan: 14,
+      tableColspan: 13,
       checkboxClass: 'ansprechpartner-check',
       selectAllId: 'select-all-ansprechpartner',
       ...opts
@@ -244,18 +245,12 @@ export class AnsprechpartnerList extends BasePaginatedList {
     return `
       <tr data-id="${ap.id}">
         ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="ansprechpartner-check" data-id="${ap.id}"></td>` : ''}
-        <td class="col-vorname col-name col-name-with-icon">
-          ${ap.profile_image_url 
-            ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />` 
-            : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
-          <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-            ${sanitize(ap.vorname || '')}
-          </a>
-        </td>
-        <td class="col-nachname">
-          <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-            ${sanitize(ap.nachname || '')}
-          </a>
+        <td class="ap-col-name col-name">
+          ${renderTableIdentity({
+            url: ap.profile_image_url,
+            name: ap.vorname || ap.nachname,
+            nameHtml: `<a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">${sanitize(`${ap.vorname || ''} ${ap.nachname || ''}`.trim())}</a>`
+          })}
         </td>
         <td>${isManagement ? this.renderManagement(ap) : this.renderUnternehmen(ap)}</td>
         <td class="ap-col-marke">
@@ -327,8 +322,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
           <thead>
             <tr>
               ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-ansprechpartner"></th>` : ''}
-              <th class="col-vorname col-name">Vorname</th>
-              <th class="col-nachname">Nachname</th>
+              <th class="ap-col-name col-name">Name</th>
               <th>${isManagement ? 'Management' : 'Unternehmen'}</th>
               <th class="ap-col-marke">Marke</th>
               <th class="ap-col-nowrap">Stadt</th>
@@ -345,7 +339,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="${(canBulkDelete ? 15 : 14) - (canSeeMail ? 0 : 1)}" class="no-data">Lade Ansprechpartner...</td>
+              <td colspan="${(canBulkDelete ? 14 : 13) - (canSeeMail ? 0 : 1)}" class="no-data">Lade Ansprechpartner...</td>
             </tr>
           </tbody>
         </table>

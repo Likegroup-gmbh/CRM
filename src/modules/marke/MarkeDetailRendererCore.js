@@ -83,6 +83,7 @@ export function renderMarkeDetailPage(detail) {
     email: '',
     subtitle: detail.marke?.unternehmen?.firmenname || 'Marke',
     avatarUrl: detail.marke?.logo_url,
+    avatarLogo: true,
     avatarOnly: false
   };
 

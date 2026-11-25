@@ -7,19 +7,14 @@
 // Vorschlag auf accepted; Verwerfen gilt nur fuer dieses Casting.
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import {
-  matchingScore,
-  normalizeInstagramUrl,
-  normalizeTiktokUrl
-} from './sourcingMatching.js';
-
+import { matchingScore, normalizeInstagramUrl, normalizeTiktokUrl } from './sourcingMatching.js';
 const ENDPOINT = '/.netlify/functions/casting-vorschlag-background';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 4 * 60 * 1000;
 /** Function hat den Job nicht angefasst (Auth-504, Worker-Crash, Env). */
 export const JOB_START_WATCHDOG_MS = 25 * 1000;
 
-const VORSCHLAG_SELECT = '*, creator:creator_id(id, vorname, nachname, instagram, tiktok, instagram_follower, tiktok_follower, profilbild_thumb_url, profilbild_url, lieferadresse_stadt, mail, telefonnummer, creator_creator_type(creator_type_id(id,name)))';
+const VORSCHLAG_SELECT = '*, creator:creator_id(id, vorname, nachname, instagram, tiktok, instagram_follower, tiktok_follower, profilbild_thumb_url, profilbild_url, lieferadresse_stadt, mail, telefonnummer, ig_username, ig_biography, ig_media_count, ig_engagement_rate, ig_engagement_rate_clean, ig_trial_gate, ig_recent_posts, ig_recent_posts_clean, creator_creator_type(creator_type_id(id,name)))';
 
 const ERLAUBTE_TYPEN = ['UGC Paid', 'UGC Organic', 'Influencer', 'Vor-Ort-Produktion', 'Videograf', 'Model'];
 
@@ -62,7 +57,7 @@ export function vorschlagToItem(vorschlag, { listeTyp } = {}) {
     name: creatorName(creator),
     notiz: vorschlag.fit_grund || '',
     typ: pickCreatorTyp(creator, listeTyp),
-    kategorie: vorschlag.kategorie_hint || null,
+    kategorie: null,
     wohnort: creator.lieferadresse_stadt || null,
     email: creator.mail || null,
     telefon: creator.telefonnummer || null,
@@ -73,7 +68,8 @@ export function vorschlagToItem(vorschlag, { listeTyp } = {}) {
     profile_image_thumb_url: creator.profilbild_thumb_url || null,
     profile_image_url: creator.profilbild_url || null,
     matching_score: vorschlag.matching_score ?? matchingScore(scores),
-    matching_scores: scores
+    matching_scores: scores,
+    creator: vorschlag.creator || null
   };
 }
 
@@ -188,11 +184,10 @@ export class CastingVorschlagService {
   // --- Aktivieren / Verwerfen ---
 
   /**
-   * Macht aus dem Vorschlag einen Casting-Eintrag mit creator_id (Kategorie:
-   * kategorie_hint, wenn sie noch existiert, sonst Ohne Kategorie) und setzt
-   * den Vorschlag auf accepted. Gibt das angelegte Item zurueck.
+   * Macht aus dem Vorschlag einen Casting-Eintrag mit creator_id (ohne
+   * Kategorie) und setzt den Vorschlag auf accepted.
    */
-  static async aktivieren(vorschlag, { listeId, listeTyp, kategorien = [] } = {}) {
+  static async aktivieren(vorschlag, { listeId, listeTyp } = {}) {
     if (!vorschlag?.creator_id) throw new Error('Vorschlag ohne Creator');
 
     const { data: creator, error } = await window.supabase
@@ -203,9 +198,6 @@ export class CastingVorschlagService {
     if (error || !creator) throw new Error('Creator nicht gefunden');
 
     const name = creatorName(creator);
-    const kategorie = vorschlag.kategorie_hint && kategorien.includes(vorschlag.kategorie_hint)
-      ? vorschlag.kategorie_hint
-      : null;
     const scores = vorschlag.scores || {};
 
     const itemData = {
@@ -216,7 +208,7 @@ export class CastingVorschlagService {
       follower_instagram: Number(creator.instagram_follower) || null,
       link_tiktok: normalizeTiktokUrl(creator.tiktok),
       follower_tiktok: Number(creator.tiktok_follower) || null,
-      kategorie,
+      kategorie: null,
       wohnort: creator.lieferadresse_stadt || null,
       email: creator.mail || null,
       telefon: creator.telefonnummer || null,

@@ -11,7 +11,8 @@ vi.mock('../core/pdf/PdfBrand.js', async (importOriginal) => {
 });
 
 import { BriefingDetail } from '../modules/briefing/BriefingDetail.js';
-import { createBriefingPdf, drawBriefingLockup } from '../modules/briefing/BriefingPdf.js';
+import { createBriefingPdf } from '../modules/briefing/BriefingPdf.js';
+import { drawLockup } from '../core/pdf/pdfLockup.js';
 import { buildBriefingPdfModel } from '../modules/briefing/BriefingDocView.js';
 import { LIKEGROUP_FOOTER_DE, PDF_BRAND } from '../core/pdf/PdfBrand.js';
 
@@ -71,9 +72,12 @@ function makeDetail() {
     is_draft: false,
     beschreibung: THEMA,
     aufgabe: AUFGABE,
+    videolaenge_von: 15,
+    videolaenge_bis: 20,
+    plattformen: ['tiktok'],
+    vorgabe_pflicht: 'Produktname nennen',
     learnings_text: 'Hook in den ersten zwei Sekunden',
     funnel_stufen: ['upper'],
-    videolaengen: ['15s'],
     unternehmen: { firmenname: 'Ogilvy' },
     marke: { markenname: 'Coca-Cola' },
     produkte: [{ name: 'Coca-Cola Light' }],
@@ -106,7 +110,7 @@ describe('createBriefingPdf', () => {
     await expect(createBriefingPdf({})).rejects.toThrow('Kein Briefing geladen');
   });
 
-  it('schreibt Titel, Thema und Prosa, nicht die Mitarbeiter-Badges', async () => {
+  it('schreibt Titel, die drei Sektionen und Produkte, nicht Altfelder oder Badges', async () => {
     const appendSpy = vi.spyOn(document.head, 'appendChild');
     const result = await createBriefingPdf(makeDetail());
     const text = MockJsPDF.last.rawTexts.join('\n');
@@ -119,19 +123,21 @@ describe('createBriefingPdf', () => {
     expect(text).toContain('Ogilvy');
     expect(text).toContain('Coca-Cola');
     expect(text).toContain('Coca-Cola Light');
-    expect(text).toContain('Genuss (Alltagstrinkerin)');
+    expect(text).not.toContain('Alltagstrinkerin');
     expect(text).toContain('×');
     expect(text).not.toContain('Nutzungsdauer intern auf 3 Monate');
-    expect(text).toContain('Thema');
-    expect(text).toContain('Hook in den ersten zwei Sekunden');
-    expect(text).toContain('Upper Funnel');
-    expect(text).toContain('15 Sek.');
+    expect(text).toContain('Kampagnenübersicht & Rahmen');
+    expect(text).toContain('Produkt & Kampagnenidee');
+    expect(text).toContain('Deine Aufgabe & Umsetzung');
+    expect(text).toContain('Was muss gesagt oder gezeigt werden?');
+    expect(text).toContain('15–20 Sek.');
+    expect(text).toContain('TikTok');
+    expect(text).not.toContain('Hook in den ersten zwei Sekunden');
+    expect(text).not.toContain('Upper Funnel');
     expect(text).toContain(LIKEGROUP_FOOTER_DE);
     expect(text).toContain('Seite 1');
-    expect(MockJsPDF.last.images[0]).toMatchObject({
-      x: PDF_BRAND.logoLeft.x,
-      y: PDF_BRAND.logoLeft.y,
-    });
+    expect(MockJsPDF.last.images[0].x).toBe(PDF_BRAND.logoLeft.x);
+    expect(MockJsPDF.last.images[0].w / MockJsPDF.last.images[0].h).toBeCloseTo(120 / 66);
 
     expect(text).not.toContain('Final');
     expect(text).not.toContain('Paid Creator Ads');
@@ -155,18 +161,23 @@ describe('createBriefingPdf', () => {
     expect(MockJsPDF.last.htmlCalls).toBe(0);
   });
 
-  it('zeichnet LikeGroup × Kundenlogo', () => {
+  it('zeichnet LikeGroup × Kundenlogo, Quadrat bleibt quadratisch', () => {
     const doc = new MockJsPDF();
-    drawBriefingLockup(doc, 'data:image/png;base64,AAA', 'data:image/png;base64,BBB', {
+    drawLockup(doc, 'data:image/png;base64,AAA', {
+      dataUrl: 'data:image/png;base64,BBB',
+      width: 400,
+      height: 400,
+    }, {
       customerName: 'Coca-Cola',
     });
     expect(doc.images).toHaveLength(2);
-    expect(doc.images[0]).toMatchObject({
-      x: PDF_BRAND.logoLeft.x,
-      y: PDF_BRAND.logoLeft.y,
-    });
-    expect(doc.images[1].x).toBeGreaterThan(doc.images[0].x);
-    expect(doc.images[1].y).toBe(PDF_BRAND.logoLeft.y);
+    expect(doc.images[0].x).toBe(PDF_BRAND.logoLeft.x);
+    expect(doc.images[0].w / doc.images[0].h).toBeCloseTo(120 / 66);
+    const customer = doc.images[1];
+    expect(customer.x).toBeGreaterThan(doc.images[0].x);
+    expect(customer.w).toBeCloseTo(customer.h);
+    expect(customer.w).toBeCloseTo(PDF_BRAND.logoLeft.h);
+    expect(customer.w).toBeLessThan(PDF_BRAND.logoLeft.w);
     expect(doc.rawTexts.join('\n')).toContain('×');
     expect(doc.rawTexts.join('\n')).not.toContain('Coca-Cola');
   });
@@ -182,13 +193,18 @@ describe('buildBriefingPdfModel', () => {
     };
   });
 
-  it('hat keinen CRM-Chrome im Modell', () => {
+  it('hat keinen CRM-Chrome, keine Personas und keine Altfelder im Modell', () => {
     const model = buildBriefingPdfModel(makeDetail());
     const dumped = JSON.stringify(model);
     expect(model.title).toBe(TITLE);
     expect(model.subtitle).toBe('Ogilvy · Coca-Cola');
-    expect(model.products).toBe('Coca-Cola Light · Genuss (Alltagstrinkerin)');
-    expect(model.sections.some((s) => s.title === 'Thema')).toBe(true);
+    expect(model.products).toBe('Coca-Cola Light');
+    expect(model.meta).toBeNull();
+    expect(model.sections.map((s) => s.title)).toEqual([
+      'Kampagnenübersicht & Rahmen', 'Produkt & Kampagnenidee', 'Deine Aufgabe & Umsetzung'
+    ]);
+    expect(dumped).not.toContain('Alltagstrinkerin');
+    expect(dumped).not.toContain('Hook in den ersten');
     expect(JSON.stringify(model)).not.toContain('Nutzungsdauer intern');
     expect(dumped).not.toContain('Final');
     expect(dumped).not.toContain('Paid Creator Ads');

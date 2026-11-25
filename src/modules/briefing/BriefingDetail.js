@@ -1,13 +1,16 @@
 // BriefingDetail.js (ES6-Modul)
-// Dokumentansicht eines Campaign Briefings (campaign_briefings).
-// Rendert die Inhalte datengetrieben aus fieldConfig.js (gleiche
-// Step-/Section-Struktur wie der Generator). Textareas sind inline
-// editierbar; Specs/Tags gehen weiter ueber /briefing/:id/edit.
+// Dokumentansicht eines Campaign Briefings (campaign_briefings): die drei Sektionen des
+// Creator-Briefings (BriefingDocView). Textfelder sind inline editierbar; alles andere
+// geht ueber /briefing/:id/edit. Kunden laden nur BRIEFING_SPALTEN, das Team alles
+// (fuer „Fruehere Angaben“).
 
+import { dropAnschreibenWarm, warmAnschreiben } from '../../core/anschreiben/openAnschreiben.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderBriefingDoc, bindBriefingDoc } from './BriefingDocView.js';
-import { loadBriefingProdukte } from './BriefingProdukte.js';
-
+import { loadBriefingProduktDetails } from './BriefingProdukte.js';
+import { BRIEFING_SPALTEN } from './briefingSpalten.js';
+import { backTarget } from '../../core/breadcrumbTrail.js';
+import { formatBriefingWert } from './briefingWertAnzeige.js';
 export class BriefingDetail {
   constructor() {
     this.briefingId = null;
@@ -15,13 +18,54 @@ export class BriefingDetail {
     this.compactView = true;
     this._abortController = null;
     this._docHandle = null;
+    // Eingebettet (Produktion, Tab Briefing): Host-Element statt Seite.
+    this.host = null;
+    this._onDeleted = null;
+    this._onDuplicated = null;
+    this._duplicating = false;
+    this._destroyed = false;
+  }
+
+  get embedded() {
+    return Boolean(this.host);
   }
 
   canEdit() {
     return Boolean(window.isAdmin?.() || window.currentUser?.permissions?.briefing?.can_edit);
   }
 
+  zeigtFruehereAngaben() {
+    return Boolean(window.canFeature?.('briefingFruehereAngaben'));
+  }
+
+  /** Duplizieren legt eine neue Linie an: Anlegerecht (canCreate) und eine Produktion am Briefing. */
+  canDuplicate() {
+    return Boolean(this.briefing?.produktion_id && window.canCreate?.('briefing'));
+  }
+
+  /**
+   * Dokumentansicht in ein Host-Element legen (Produktion, Tab Briefing).
+   * Kein Headline, kein Breadcrumb, kein Modul-Check: die Seite gehört dem Host.
+   * @param {HTMLElement} host
+   * @param {string} briefingId
+   * @param {{ onDeleted?: Function, onDuplicated?: Function }} [opts]
+   */
+  async mountEmbedded(host, briefingId, { onDeleted, onDuplicated } = {}) {
+    this._destroyed = false;
+    this.host = host;
+    this.briefingId = briefingId;
+    this._onDeleted = onDeleted || null;
+    this._onDuplicated = onDuplicated || null;
+
+    await this.loadData();
+    if (this._destroyed || !this.host?.isConnected) return;
+    await this.render();
+    this.bindEvents();
+    this.setupCacheInvalidation();
+  }
+
   async init(briefingId) {
+    this._destroyed = false;
     this.briefingId = briefingId;
 
     if (window.moduleRegistry?.currentModule !== this) {
@@ -32,10 +76,8 @@ export class BriefingDetail {
       await this.loadData();
 
       if (window.breadcrumbSystem && this.briefing) {
-        window.breadcrumbSystem.updateDetailLabel(this.briefing.aktivierung_name || 'Details', {
-          id: 'btn-edit-briefing',
-          canEdit: this.canEdit()
-        });
+        const label = this.briefing.aktivierung_name || 'Details';
+        window.breadcrumbSystem.updateDetailLabel(label, { id: 'btn-edit-briefing', canEdit: this.canEdit() });
       }
 
       await this.render();
@@ -53,7 +95,7 @@ export class BriefingDetail {
     const { data, error } = await window.supabase
       .from('campaign_briefings')
       .select(`
-        *,
+        ${this.zeigtFruehereAngaben() ? '*' : BRIEFING_SPALTEN},
         unternehmen:unternehmen_id(id, firmenname, logo_url),
         marke:marke_id(id, markenname, logo_url)
       `)
@@ -62,7 +104,7 @@ export class BriefingDetail {
 
     if (error) throw error;
     this.briefing = data;
-    this.briefing.produkte = await loadBriefingProdukte(this.briefingId);
+    this.briefing.produkte = await loadBriefingProduktDetails(this.briefingId);
     const personaIds = Array.isArray(data.persona_ids) ? data.persona_ids.filter(Boolean) : [];
     if (personaIds.length && window.supabase) {
       const { data: personas } = await window.supabase
@@ -73,30 +115,58 @@ export class BriefingDetail {
     } else {
       this.briefing.personas = [];
     }
+    this.warmBriefingAnschreiben();
+  }
+
+  warmBriefingAnschreiben() {
+    if (!this.briefing || this.briefing.is_draft || !window.isInternal?.()) return;
+    warmAnschreiben({
+      dokumentTyp: 'briefing',
+      dokumentId: this.briefingId,
+      detail: this,
+    }).catch((err) => console.error('Anschreiben vorwärmen fehlgeschlagen:', err));
   }
 
   setupCacheInvalidation() {
     const signal = this._abortController?.signal;
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'briefing' && e.detail.id === this.briefingId) {
+        dropAnschreibenWarm('briefing', this.briefingId);
         tabDataCache.invalidate('briefing', this.briefingId);
         if (e.detail.action === 'updated') {
           this.loadData().then(() => this.render());
         }
+        if (e.detail.action === 'deleted') this._handleDeleted();
       }
     }, { signal });
   }
 
+  // Löschen läuft zentral über confirmDeleteBriefing; hier nur die Folge.
+  _handleDeleted() {
+    if (this.embedded) {
+      this._onDeleted?.(this.briefingId);
+      return;
+    }
+    window.navigateTo(backTarget('/briefing'));
+  }
+
+  _contentRoot() {
+    return this.host || window.content;
+  }
+
   async render() {
     await this._unbindDoc();
+    if (this._destroyed) return;
 
     if (!this.briefing) {
       this.showNotFound();
       return;
     }
 
-    const title = this.briefing.aktivierung_name || 'Briefing';
-    window.setHeadline(`Briefing: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
+    if (!this.embedded) {
+      const title = this.briefing.aktivierung_name || 'Briefing';
+      window.setHeadline(`Briefing: ${window.validatorSystem?.sanitizeHtml?.(title) || title}`);
+    }
 
     const canDelete = window.isAdmin() || window.currentUser?.permissions?.briefing?.can_delete;
     const canAnschreiben = Boolean(window.isInternal?.()) && !this.briefing.is_draft;
@@ -105,20 +175,34 @@ export class BriefingDetail {
       compact: this.compactView,
       canDelete,
       canEdit: this.canEdit(),
-      canAnschreiben
+      canAnschreiben,
+      canDuplicate: this.canDuplicate(),
+      showEdit: this.embedded,
+      embedded: this.embedded,
+      fruehereAngaben: this.zeigtFruehereAngaben()
     });
 
-    window.setContentSafely(window.content, html);
+    if (this.embedded) this.host.innerHTML = html;
+    else window.setContentSafely(window.content, html);
     this._bindDoc();
   }
 
   _bindDoc() {
-    const root = window.content?.querySelector('.briefing-doc');
+    const root = this._contentRoot()?.querySelector('.briefing-doc');
     this._docHandle = bindBriefingDoc(root, {
       briefingId: this.briefingId,
+      bereich: this.briefing?.bereich,
       canEdit: this.canEdit(),
       onSaved: (feld, text) => {
         if (this.briefing) this.briefing[feld] = text;
+        if (feld !== 'aktivierung_name' || this.embedded) return;
+        const title = text || 'Briefing';
+        window.breadcrumbSystem?.updateDetailLabel(title, {
+          id: 'btn-edit-briefing',
+          canEdit: this.canEdit()
+        });
+        const safe = window.validatorSystem?.sanitizeHtml?.(title) || title;
+        window.setHeadline?.(`Briefing: ${safe}`);
       }
     });
   }
@@ -132,82 +216,10 @@ export class BriefingDetail {
   }
 
   formatValue(field, value) {
-    if (value === null || value === undefined || value === '') return null;
-
-    switch (field.type) {
-      case 'checkbox':
-        return value ? 'Ja' : null; // nicht gesetzte Checkboxen ausblenden
-      case 'date':
-        return this.formatDate(value);
-      case 'url':
-        return `<a href="${this.escape(value)}" target="_blank" rel="noopener">Link</a>`;
-      case 'radio': {
-        const opt = field.options?.find(o => String(o.value) === String(value));
-        return this.escape(opt?.label || value);
-      }
-      case 'checkboxes':
-      case 'customMulti': {
-        if (!Array.isArray(value) || value.length === 0) return null;
-        const labels = value.map(v => {
-          const opt = field.options?.find(o => o.value === v);
-          return opt?.label || v;
-        });
-        return labels.map(l => `<span class="tag tag--type">${this.escape(l)}</span>`).join(' ');
-      }
-      case 'group': {
-        if (typeof value !== 'object') return null;
-        const parts = field.fields
-          .filter(sub => value[sub.name])
-          .map(sub => `<strong>${this.escape(sub.label)}:</strong> ${this.escape(value[sub.name])}`);
-        return parts.length ? parts.join('<br>') : null;
-      }
-      case 'channelGroup': {
-        if (typeof value !== 'object') return null;
-        const parts = [];
-        for (const channel of field.channels || []) {
-          const cv = value[channel.key];
-          if (cv === true) {
-            parts.push(`<span class="tag tag--type">${this.escape(channel.label)}</span>`);
-          } else if (Array.isArray(cv) && cv.length) {
-            const formatLabels = cv.map(f => channel.formats?.find(o => o.value === f)?.label || f);
-            parts.push(`<strong>${this.escape(channel.label)}:</strong> ${formatLabels.map(l => `<span class="tag tag--type">${this.escape(l)}</span>`).join(' ')}`);
-          }
-        }
-        if (value.weitere) parts.push(`<strong>Weitere:</strong> ${this.escape(value.weitere)}`);
-        return parts.length ? parts.join('<br>') : null;
-      }
-      case 'repeatableKpi': {
-        if (!Array.isArray(value) || value.length === 0) return null;
-        return value
-          .filter(e => e.kpi || e.zielwert)
-          .map(e => {
-            const label = field.kpiOptions?.find(o => o.value === e.kpi)?.label || e.kpi;
-            return `<strong>${this.escape(label)}:</strong> ${this.escape(e.zielwert || '-')}`;
-          })
-          .join('<br>');
-      }
-      case 'repeatableText': {
-        if (!Array.isArray(value) || value.length === 0) return null;
-        return value.map(v => `• ${this.escape(v)}`).join('<br>');
-      }
-      case 'repeatableUpload': {
-        if (!Array.isArray(value) || value.length === 0) return null;
-        const links = value.map((entry, i) => {
-          if (entry.typ === 'upload' && entry.value) {
-            const { data: urlData } = window.supabase.storage.from('documents').getPublicUrl(entry.value);
-            const url = urlData?.publicUrl || '#';
-            return `<a href="${url}" target="_blank" rel="noopener">${this.escape(entry.label || `Datei ${i + 1}`)}</a>`;
-          }
-          if (entry.value) {
-            return `<a href="${this.escape(entry.value)}" target="_blank" rel="noopener">${this.escape(entry.value)}</a>`;
-          }
-          return null;
-        }).filter(Boolean);
-        return links.length ? links.join('<br>') : null;
-      }
-      default:
-        return this.escape(value);
-    }
+    return formatBriefingWert(field, value, {
+      escape: (v) => this.escape(v),
+      formatDate: (d) => this.formatDate(d)
+    });
   }
 
   formatDate(d) {
@@ -224,17 +236,12 @@ export class BriefingDetail {
       window.toastSystem?.show('Änderungen konnten nicht gespeichert werden', 'error');
       return;
     }
-    const { AnschreibenDrawer } = await import('../../core/anschreiben/AnschreibenDrawer.js');
-    const { createBriefingPdf } = await import('./BriefingPdf.js');
-    const drawer = new AnschreibenDrawer({
+    const { openAnschreiben } = await import('../../core/anschreiben/openAnschreiben.js');
+    await openAnschreiben({
       dokumentTyp: 'briefing',
       dokumentId: this.briefingId,
-      dokumentName: this.briefing.aktivierung_name || 'Briefing',
-      unternehmenId: this.briefing.unternehmen_id,
-      markeId: this.briefing.marke_id || null,
-      createPdf: () => createBriefingPdf(this),
+      detail: this,
     });
-    drawer.open();
   }
 
   escape(s) {
@@ -252,7 +259,9 @@ export class BriefingDetail {
     this._abortController = new AbortController();
     const signal = this._abortController.signal;
 
-    document.addEventListener('click', (e) => {
+    // Seite: Klicks aus Breadcrumb und Dokument am document. Eingebettet: nur im Host.
+    const scope = this.host || document;
+    scope.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-briefing')) {
         e.preventDefault();
         this._unbindDoc().finally(() => {
@@ -268,57 +277,65 @@ export class BriefingDetail {
         e.preventDefault();
         this._openAnschreiben();
       }
-    }, { signal });
-
-    document.addEventListener('click', async (e) => {
-      if (e.target.id === 'btn-delete-briefing') {
+      if (e.target.closest('#btn-delete-briefing')) {
         e.preventDefault();
-        const doDelete = async () => {
-          try {
-            const { error } = await window.supabase
-              .from('campaign_briefings')
-              .delete()
-              .eq('id', this.briefingId);
-            if (error) throw error;
-            window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'briefing', action: 'deleted', id: this.briefingId } }));
-            window.navigateTo('/briefing');
-          } catch (err) {
-            console.error('Fehler beim Löschen des Briefings:', err);
-            window.toastSystem?.show('Löschen fehlgeschlagen.', 'error');
-          }
-        };
-
-        if (window.confirmationModal) {
-          const res = await window.confirmationModal.open({
-            title: 'Briefing löschen',
-            message: 'Dieses Briefing wirklich löschen?',
-            confirmText: 'Endgültig löschen',
-            cancelText: 'Abbrechen',
-            danger: true
-          });
-          if (res?.confirmed) await doDelete();
-        } else if (confirm('Dieses Briefing wirklich löschen?')) {
-          await doDelete();
-        }
+        this._confirmDelete();
+      }
+      const duplicateBtn = e.target.closest('#btn-duplicate-briefing');
+      if (duplicateBtn) {
+        e.preventDefault();
+        this._duplicate(duplicateBtn);
       }
     }, { signal });
   }
 
+  async _duplicate(button) {
+    if (this._duplicating || !this.canDuplicate()) return;
+    this._duplicating = true;
+    if (button) button.disabled = true;
+    try {
+      const { duplicateBriefingMitHinweis } = await import('./duplicateBriefing.js');
+      const kopie = await duplicateBriefingMitHinweis(this.briefingId);
+      if (!kopie || this._destroyed) return;
+      if (this._onDuplicated) this._onDuplicated(kopie);
+      else window.navigateTo(`/briefing/${kopie.id}`);
+    } finally {
+      this._duplicating = false;
+      if (button?.isConnected) button.disabled = false;
+    }
+  }
+
+  async _confirmDelete() {
+    const { confirmDeleteBriefing } = await import('../../core/actions/actionDelete.js');
+    await confirmDeleteBriefing(this.briefingId);
+  }
+
   showNotFound() {
-    window.setHeadline('Briefing nicht gefunden');
-    window.content.innerHTML = `
+    const html = `
       <div class="error-message">
         <h2>Briefing nicht gefunden</h2>
         <p>Das angeforderte Briefing konnte nicht gefunden werden.</p>
       </div>
     `;
+    if (this.embedded) {
+      this.host.innerHTML = html;
+      return;
+    }
+    window.setHeadline('Briefing nicht gefunden');
+    window.content.innerHTML = html;
   }
 
   destroy() {
+    this._destroyed = true;
     this._abortController?.abort();
     this._abortController = null;
     this._unbindDoc();
     tabDataCache.invalidate('briefing', this.briefingId);
+    if (this.embedded) {
+      this.host = null;
+      this._onDeleted = null;
+      return;
+    }
     window.setContentSafely('');
   }
 }

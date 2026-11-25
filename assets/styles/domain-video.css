@@ -45,84 +45,6 @@
    ADD-TO-VIDEO DRAWER
    ============================================ */
 
-.add-to-video-preview {
-  display: flex;
-  gap: var(--space-md);
-  padding: var(--space-md);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-lg);
-  border: 1px solid var(--border-color);
-}
-
-.add-to-video-preview .preview-image {
-  flex-shrink: 0;
-  width: 100px;
-}
-
-.add-to-video-preview .preview-image img {
-  width: 100%;
-  height: auto;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
-}
-
-.add-to-video-preview .preview-idea-icon {
-  width: 100px;
-  height: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--amber-50);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--amber-200);
-}
-
-.add-to-video-preview .preview-idea-icon svg {
-  width: 32px;
-  height: 32px;
-  color: var(--amber-500);
-}
-
-.add-to-video-preview .preview-placeholder {
-  width: 100px;
-  height: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gray-100);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.add-to-video-preview .preview-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.add-to-video-preview .preview-beschreibung {
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  line-height: 1.5;
-  margin: 0;
-}
-
-.add-to-video-preview .preview-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  font-size: var(--text-xs);
-  color: var(--color-primary);
-  text-decoration: none;
-}
-
-.add-to-video-preview .preview-link:hover {
-  text-decoration: underline;
-}
-
 .add-to-video-empty {
   text-align: center;
   padding: var(--space-xl);
@@ -403,6 +325,13 @@
 
 .video-version-delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.video-settings-folder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
 .video-settings-actions {
   display: flex;
   flex-direction: row;
@@ -528,10 +457,10 @@
   border-radius: 999px;
   background: linear-gradient(
     to right,
-    #fff 0%,
-    #fff var(--p),
-    rgba(255, 255, 255, 0.25) var(--p),
-    rgba(255, 255, 255, 0.25) 100%
+    var(--seek-fill, #fff) 0%,
+    var(--seek-fill, #fff) var(--p),
+    var(--seek-rail, rgba(255, 255, 255, 0.25)) var(--p),
+    var(--seek-rail, rgba(255, 255, 255, 0.25)) 100%
   );
   cursor: pointer;
 }
@@ -542,7 +471,7 @@
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: var(--bg-primary);
+  background: var(--seek-thumb, var(--bg-primary));
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
@@ -551,7 +480,7 @@
   height: 13px;
   border: none;
   border-radius: 50%;
-  background: var(--bg-primary);
+  background: var(--seek-thumb, var(--bg-primary));
 }
 
 /* Panel rechts, hell (Design-System) */
@@ -684,17 +613,6 @@
   margin-top: var(--space-sm);
 }
 
-/* Thumb-Ersatz, wenn sich das Bild nicht einbetten laesst (Sharing-Link) */
-.media-gallery-thumb-label {
-  display: block;
-  padding: var(--space-xxs);
-  font-size: 10px;
-  line-height: 1.2;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .media-viewer-fallback-actions .vpl-fallback-download {
   display: inline-flex;
   align-items: center;
@@ -776,6 +694,15 @@
   min-width: 160px;
 }
 
+.media-viewer-control.vpl-promote {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  align-self: flex-start;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
 .media-viewer-control label {
   font-size: 0.72rem;
   font-weight: 600;
@@ -822,36 +749,6 @@
   
   color: var(--gray-500);
   
-}
-
-/* --- Bilder-Galerie Thumbnails --- */
-
-.media-gallery-thumbs {
-  display: flex;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-  margin-top: 0.85rem;
-}
-
-.media-gallery-thumb {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-  background: #000;
-}
-
-.media-gallery-thumb.active {
-  border-color: var(--primary, #3b82f6);
-}
-
-.media-gallery-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 /* --- Rohmaterial-Ansicht (/videos -> Kampagne -> Rohmaterial) --- */

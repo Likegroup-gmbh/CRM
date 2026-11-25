@@ -1,4 +1,5 @@
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 export class KooperationVersandManager {
   constructor() {
     this.drawerId = 'kooperation-versand-drawer';
@@ -163,7 +164,7 @@ export class KooperationVersandManager {
     if (panel) {
       panel.classList.remove('show');
       // Nach Animation entfernen
-      setTimeout(() => this.removeDrawer(), 250);
+      setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
     }
   }
 

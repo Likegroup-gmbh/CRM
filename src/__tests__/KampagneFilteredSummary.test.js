@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { KampagneDetailStore } from '../modules/kampagne/KampagneDetailStore.js';
+import { mitLivePost, summiereLivePerformance } from '../modules/kampagne/kampagneLivePerformance.js';
 
 function buildStore() {
   const store = new KampagneDetailStore('kamp-1');
@@ -9,13 +10,18 @@ function buildStore() {
     { id: 'k3', _tags: ['August', 'September'], creator_id: null, videoanzahl: 1, verkaufspreis_zusatzkosten: 50 },
   ]);
   store.setVideos({
-    k1: [{ id: 'v1', verkaufspreis_netto: 1000, stats_views: 100, stats_likes: 10, stats_comments: 5 }],
-    k2: [{ id: 'v2', verkaufspreis_netto: 2000, stats_views: 200, stats_likes: 20, stats_comments: 10 }],
+    k1: [{ id: 'v1', verkaufspreis_netto: 1000 }],
+    k2: [{ id: 'v2', verkaufspreis_netto: 2000 }],
     k3: [
-      { id: 'v3', verkaufspreis_netto: 500, stats_views: 50, stats_likes: 5, stats_comments: 1 },
-      { id: 'v4', verkaufspreis_netto: 250, stats_views: null, stats_likes: null, stats_comments: null },
+      { id: 'v3', verkaufspreis_netto: 500 },
+      { id: 'v4', verkaufspreis_netto: 250 },
     ],
   });
+  store.setLivePosts([
+    { id: 'p1', kooperation_id: 'k1', metrics: { views: 100, likes: 10, comments: 5 } },
+    { id: 'p2', kooperation_id: 'k2', metrics: { views: 200, likes: 20, comments: 10 } },
+    { id: 'p3', kooperation_id: 'k3', metrics: { views: 50, likes: 5, comments: 1 } },
+  ]);
   return store;
 }
 
@@ -34,27 +40,24 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
 
   it('rechnet bei Tag-Filter nur ueber getaggte Kooperationen', () => {
     const store = buildStore();
-    store.setSelectedTags(['August']);
+    store.setColumnFilters({ tag: ['August'] });
     const s = store.calculateFilteredSummary();
 
-    // k2 + k3: Videos 2000 + 500 + 250
-    expect(s.koopBudgetSum).toBe(2750);
-    // videoanzahl 3 + 1
-    expect(s.koopVideosUsed).toBe(4);
-    // nur k2 hat creator_id
+    // k3 ist Platzhalter und zählt nicht. Übrig bleibt k2.
+    expect(s.koopBudgetSum).toBe(2000);
+    expect(s.koopVideosUsed).toBe(3);
     expect(s.koopCreatorsUsed).toBe(1);
-    // Zusatzkosten 200 + 50
-    expect(s.extraKostenVkSum).toBe(250);
-    // Stats nur aus k2/k3-Videos
-    expect(s.videoStats.views).toBe(250);
-    expect(s.videoStats.likes).toBe(25);
-    expect(s.videoStats.comments).toBe(11);
-    expect(s.videoStats.videosMitDaten).toBe(2);
+    // Zusatzkosten nur von k2. k3 ist Platzhalter.
+    expect(s.extraKostenVkSum).toBe(200);
+    expect(s.videoStats.views).toBe(200);
+    expect(s.videoStats.likes).toBe(20);
+    expect(s.videoStats.comments).toBe(10);
+    expect(s.videoStats.posts).toBe(1);
   });
 
   it('haelt kskUmgebucht global (Budget-Basis bleibt Auftragsebene)', () => {
     const store = buildStore();
-    store.setSelectedTags(['August']);
+    store.setColumnFilters({ tag: ['August'] });
     const s = store.calculateFilteredSummary();
     // k1 (Juli) ist Selbstzahler mit 49 -> bleibt in der Basis enthalten
     expect(s.kskUmgebucht).toBe(49);
@@ -62,7 +65,7 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
 
   it('liefert Nullsummen bei Tags ohne Treffer', () => {
     const store = buildStore();
-    store.setSelectedTags(['Dezember']);
+    store.setColumnFilters({ tag: ['Dezember'] });
     const s = store.calculateFilteredSummary();
 
     expect(s.koopBudgetSum).toBe(0);
@@ -74,30 +77,59 @@ describe('KampagneDetailStore.calculateFilteredSummary', () => {
 
   it('OR-Logik: mehrere Tags vereinigen die Mengen', () => {
     const store = buildStore();
-    store.setSelectedTags(['Juli', 'September']);
+    store.setColumnFilters({ tag: ['Juli', 'September'] });
     const s = store.calculateFilteredSummary();
 
-    // k1 (Juli) + k3 (September)
-    expect(s.koopBudgetSum).toBe(1750);
-    expect(s.koopVideosUsed).toBe(3);
-    expect(s.extraKostenVkSum).toBe(150);
+    // k1 (Juli). k3 (September) ist Platzhalter und zählt nicht.
+    expect(s.koopBudgetSum).toBe(1000);
+    expect(s.koopVideosUsed).toBe(2);
+    expect(s.extraKostenVkSum).toBe(100);
   });
 });
 
-describe('KampagneDetailStore.calculateVideoStats(videosList)', () => {
-  it('akzeptiert eine eingeschraenkte Video-Menge', () => {
+describe('KampagneDetailStore.calculateVideoStats(koopIds)', () => {
+  it('akzeptiert eine eingeschraenkte Kooperations-Menge', () => {
     const store = buildStore();
-    const stats = store.calculateVideoStats([
-      { stats_views: 5, stats_likes: 1, stats_comments: 0 },
-    ]);
-    expect(stats.views).toBe(5);
-    expect(stats.videosMitDaten).toBe(1);
+    const stats = store.calculateVideoStats(['k1']);
+    expect(stats).toEqual({ views: 100, likes: 10, comments: 5, posts: 1 });
   });
 
-  it('faellt ohne Parameter auf alle Videos zurueck', () => {
+  it('faellt ohne Parameter auf die geladenen Kooperationen zurueck', () => {
     const store = buildStore();
+    store.setLivePosts([...store.livePosts, { id: 'px', kooperation_id: 'fremd', metrics: { views: 999 } }]);
     const stats = store.calculateVideoStats();
     expect(stats.views).toBe(350);
-    expect(stats.videosMitDaten).toBe(3);
+    expect(stats.posts).toBe(3);
+  });
+});
+
+describe('Live-Performance aus der Auswertung', () => {
+  it('bestätigt zählt, Entwurf und Gelöschtes fallen raus', () => {
+    const store = buildStore();
+    const post = { id: 'p4', kooperationId: 'k1', status: 'confirmed', metrics: { views: 40, likes: 2 } };
+    store.setLivePosts(mitLivePost(store.livePosts, post));
+    expect(store.calculateVideoStats().views).toBe(390);
+    store.setLivePosts(mitLivePost(store.livePosts, { ...post, status: 'draft' }));
+    expect(store.calculateVideoStats().views).toBe(350);
+    store.setLivePosts(mitLivePost(store.livePosts, { id: 'p1' }, { weg: true }));
+    expect(store.calculateVideoStats()).toMatchObject({ views: 250, posts: 2 });
+  });
+
+  it('nimmt Video, Link, Plattform und Handle für die Kooperationstabelle mit', () => {
+    const post = {
+      id: 'p5', einheitId: 'video:v1', kooperationId: 'k1', status: 'confirmed',
+      plattform: 'ig_reel', accountHandle: 'lena', link: 'https://www.instagram.com/reel/ABC/',
+      measuredAt: '2026-11-20', metrics: { views: 10 }
+    };
+    expect(mitLivePost([], post)).toEqual([{
+      id: 'p5', kooperation_id: 'k1', video_id: 'v1', plattform: 'ig_reel', account_handle: 'lena',
+      link: 'https://www.instagram.com/reel/ABC/', measured_at: '2026-11-20', metrics: { views: 10 }
+    }]);
+    expect(mitLivePost([], { ...post, einheitId: 'story:s1' })[0].video_id).toBeNull();
+  });
+
+  it('ignoriert fehlende oder kaputte Werte', () => {
+    expect(summiereLivePerformance([{ kooperation_id: 'k1', metrics: { views: '12', likes: null } }, { kooperation_id: 'k1' }]))
+      .toEqual({ views: 0, likes: 0, comments: 0, posts: 2 });
   });
 });

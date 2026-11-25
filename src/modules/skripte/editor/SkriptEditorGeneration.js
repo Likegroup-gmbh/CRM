@@ -27,7 +27,7 @@ export class SkriptEditorGeneration {
   /** Neue Rueckfragen-Runde: pending Assistant-Message anlegen und Function triggern. */
   async startFragenRunde() {
     const v = this.view;
-    const assistantMsg = await skripteService.createChatMessage({
+    const angelegt = await skripteService.createChatMessage({
       skript_id: v.skript.id,
       rolle: 'assistant',
       aktion: 'rueckfrage',
@@ -35,7 +35,7 @@ export class SkriptEditorGeneration {
       status: 'pending',
       progress_steps: pendingThinking()
     });
-    v.messages.push(assistantMsg);
+    const assistantMsg = v.upsertMessage(angelegt);
     v.renderChat({ forceScroll: true });
     v.ensurePolling();
     try {
@@ -62,7 +62,6 @@ export class SkriptEditorGeneration {
       briefing_id: v.skript.briefing_id,
       bereich: v.skript.bereich,
       modus: v.skript.prompt_kontext?.modus || v.skript.prompt_kontext?.generator_payload?.modus || null,
-      mit_dna: v.skript.mit_dna,
       video_idee: v.skript.video_idee,
       location: v.skript.location,
       regieanweisung: v.skript.regieanweisung,
@@ -75,6 +74,7 @@ export class SkriptEditorGeneration {
     v.genStatus = { laeuft: true, step: 'pending', progress_steps: pendingThinking() };
     v.renderDoc();
     v.renderChat({ forceScroll: true });
+    v.updateSendButton?.();
 
     try {
       const { jobId, stop } = await skriptAuftrag.starteJob({
@@ -90,6 +90,7 @@ export class SkriptEditorGeneration {
       v.genStatus = { error: err.message };
       v.renderDoc();
       v.renderChat({ forceScroll: true });
+      v.updateSendButton?.();
     }
   }
 
@@ -106,6 +107,7 @@ export class SkriptEditorGeneration {
       v.genStatus = { error: job.error_message || 'Unbekannt' };
       v.renderChat({ forceScroll: true });
       this.setGenButtonAktiv(true);
+      v.updateSendButton?.();
       return;
     }
 
@@ -125,6 +127,7 @@ export class SkriptEditorGeneration {
     v.genStatus = null;
     v.genPayload = null;
     v.genStubId = null;
+    v.updateSendButton?.();
     window.toastSystem?.success('Skript generiert');
 
     // Liste aktualisieren, damit das neue Skript links auftaucht -
@@ -169,5 +172,6 @@ export class SkriptEditorGeneration {
     v.renderDoc();
     v.renderChat({ forceScroll: true });
     this.setGenButtonAktiv(true);
+    v.updateSendButton?.();
   }
 }

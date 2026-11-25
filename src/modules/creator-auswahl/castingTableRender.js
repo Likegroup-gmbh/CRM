@@ -1,0 +1,319 @@
+// castingTableRender.js
+// Kopfzeile, Toolbar und gruppierte Casting-Tabelle
+
+import { SearchInput } from '../../core/components/SearchInput.js';
+import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf } from '../../core/components/ToolbarMenu.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import { escapeHtml } from '../../core/format.js';
+import { OHNE_KATEGORIE_KEY, orderedKategorieGroups } from './castingKategorien.js';
+import {
+  isColumnVisibleForCustomer,
+  getVisibleColumnCount,
+  getStickyClasses
+} from './sourcingSpaltenSichtbarkeit.js';
+import { SOURCING_TABS } from './sourcingTabs.js';
+import { NICHT_UMSETZEN_ICON } from './sourcingIcons.js';
+import { getListenTkp, reelsPreisTooltip, tkpAlsEingabe } from './castingPreisZellen.js';
+import { renderItemRow } from './castingItemRow.js';
+import { hatEigeneReihenfolge, ordneSourcingTabellenHtml, spaltenfolgeFuerKontext } from './sourcingSpaltenfolge.js';
+import { renderBewerbungTable } from './bewerbungTab.js';
+
+// --- Render-Funktionen ---
+// ctx = { items, liste, isKunde, hiddenColumns }
+
+/** Logo und Name der Liste - der linke Teil der Kopfzeile */
+function renderListenKopf(ctx) {
+  const unternehmen = ctx.liste?.unternehmen;
+  return renderToolbarListenKopf({
+    name: ctx.liste?.name || '',
+    logoUrl: unternehmen?.logo_url || '',
+    logoAlt: unternehmen?.firmenname || 'Unternehmen'
+  });
+}
+
+const SHARE_ICON = `
+  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
+  </svg>`;
+
+const KUNDEN_CALL_ICON = `
+  ${icon('phone')}`;
+
+const TABELLE_ANPASSEN_ICON = `
+  ${icon('adjustments-horizontal')}`;
+
+const LINK_ICON = `${icon('link')}`;
+
+const KATEGORIEN_ICON = `${icon('tag')}`;
+
+/** TKP der Liste, oben im Plus-Menü. Klicks hier schließen das Menü nicht. */
+function renderTkpZeile(ctx) {
+  return `
+    <label class="action-submenu toolbar-tkp-zeile">
+      <span class="toolbar-tkp-label">
+        ${icon('currency-euro')}
+        <span>TKP</span>
+      </span>
+      <span class="toolbar-tkp-eingabe">
+        <input id="sourcing-listen-tkp" class="toolbar-tkp-feld" type="text" inputmode="decimal"
+          autocomplete="off" spellcheck="false"
+          value="${escapeHtml(tkpAlsEingabe(getListenTkp(ctx.liste)))}"
+          title="Euro pro 1.000 Views"
+          aria-label="TKP in Euro pro 1.000 Views">
+        <span>€</span>
+      </span>
+    </label>`;
+}
+
+function renderAddSectionActions(ctx = {}) {
+  const kundenCallActive = ctx.kundenCallActive || false;
+  return `
+        ${SearchInput.render('sourcing-item', {
+          placeholder: 'Name suchen...',
+          currentValue: ctx.searchQuery || ''
+        })}
+        ${ctx.filterToggleHtml || ''}
+        ${ctx.canCreate ? `
+        <button type="button" class="mdc-btn" id="btn-open-add-drawer">
+          ${icon('plus-lg')}
+          Creator hinzufügen
+        </button>
+        <button type="button" class="mdc-btn mdc-btn--secondary" id="btn-management-anfrage">
+          Managements anfragen
+        </button>
+        ` : ''}
+        <div id="casting-vorschlag-block"></div>
+        ${ctx.canCreate ? `
+        ${renderToolbarMenu({
+          toggleId: 'btn-sourcing-toolbar-menu',
+          itemsHtml: `
+            ${renderTkpZeile(ctx)}
+            ${renderToolbarMenuItem({ id: 'btn-sourcing-konzept-link', title: ctx.liste?.strategie_id ? 'Konzept-Verknüpfung lösen' : 'Konzept verknüpfen', icon: LINK_ICON, label: ctx.liste?.strategie_id ? 'Konzept lösen' : 'Konzept verknüpfen' })}
+            ${renderToolbarMenuItem({ id: 'btn-sourcing-kategorien', title: 'Kategorien verwalten', icon: KATEGORIEN_ICON, label: 'Kategorien' })}
+            ${renderToolbarMenuItem({ id: 'btn-share-sourcing', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' })}
+            ${renderToolbarMenuItem({ id: 'btn-kunden-call-toggle', title: 'EK und CPM für Kundenpräsentation ausblenden', icon: KUNDEN_CALL_ICON, label: 'Kunden Call', active: kundenCallActive })}
+            ${renderToolbarMenuItem({ id: 'btn-sourcing-tabelle-anpassen', title: 'Spaltenreihenfolge und Sichtbarkeit', icon: TABELLE_ANPASSEN_ICON, label: 'Tabelle anpassen' })}
+          `
+        })}
+        ` : ''}
+  `;
+}
+
+export function renderAddSection(ctx = {}) {
+  if (ctx.actionsOnly) {
+    return renderAddSectionActions(ctx);
+  }
+  return `
+    <div class="add-item-section add-item-section--compact">
+      <div class="add-item-actions-left">
+        ${renderListenKopf(ctx)}
+      </div>
+      <div class="add-item-actions-right">
+        ${renderAddSectionActions(ctx)}
+      </div>
+    </div>
+  `;
+}
+
+export function renderItemsTable(ctx) {
+  if (ctx.activeTab === 'bewerbung' && !ctx.isKunde) return renderBewerbungTable(ctx.bewerbungen || []);
+  const searchQuery = (ctx.searchQuery || '').trim();
+  // Suche aktiv und gar kein Name matcht (unabhaengig vom Reiter)
+  if (ctx.items.length === 0 && ctx.hasAnyItems && searchQuery && (ctx.tabCounts?.alle ?? 0) === 0) {
+    return `
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({ icon: 'search', title: `Keine Treffer für "${searchQuery}"` })}
+      </div>
+    `;
+  }
+  if (ctx.items.length === 0 && ctx.hasAnyItems && ctx.filterActive) {
+    const imReiter = ctx.activeTab && ctx.activeTab !== 'alle'
+      ? ` im Reiter "${SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab}"`
+      : '';
+    return `
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({ icon: 'filter', title: `Keine Creator für die gewählten Filter${imReiter}` })}
+      </div>
+    `;
+  }
+  if (ctx.items.length === 0 && ctx.hasAnyItems && ctx.activeTab && ctx.activeTab !== 'alle') {
+    const tabLabel = SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab;
+    return `
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({ icon: 'creator', title: `Keine Creator im Reiter "${tabLabel}"` })}
+      </div>
+    `;
+  }
+  if (ctx.items.length === 0 && !(ctx.teilbereiche || []).length) {
+    return `
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({
+          icon: 'creator',
+          title: 'Noch keine Creator hinzugefügt',
+          text: !ctx.isKunde ? 'Fügen Sie unten einen Profil-Link oder @Handle ein' : ''
+        })}
+      </div>
+    `;
+  }
+
+  const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
+  // Write-Faehigkeiten: Sichtbarkeit interner Spalten bleibt Rollen-Sache
+  // (!isKunde), Editierbarkeit ist Capability (Investor: sehen ja, anfassen nein).
+  const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
+  const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
+  const hide = (col) => !vis(col) ? 'style="display:none;"' : '';
+  const sticky = getStickyClasses(ctx);
+  const tkpLabel = getListenTkp(ctx.liste).toLocaleString('de-DE');
+  // Einfuegepunkt fuer eigene Spalten, die hinter dieser Standardspalte
+  // verankert sind. Muss in Kopf und Datenzeile an denselben Stellen stehen.
+  const customAt = (anchor) => ctx.customManager
+    ? ctx.customManager.renderHeadersAt(anchor, ctx.hiddenColumns, ctx.isKunde)
+    : '';
+
+  const html = `
+    <div class="table-container creator-pool-table-container">
+      <table class="data-table strategie-items-table creator-pool-table${canWrite ? ' has-bulk-select' : ''}">
+        <thead>
+          <tr>
+            ${canWrite ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
+            <th class="${sticky.name} cp-col-name">Name</th>
+            <th class="cp-col-notiz" ${hide('cp-col-notiz')} title="Startet mit der Instagram-Bio, sobald der Creator abgerufen wurde">Kurzbeschreibung</th>
+            ${customAt('cp-col-notiz')}
+            <th class="cp-col-link" ${hide('cp-col-link')}>Link</th>
+            ${customAt('cp-col-link')}
+            <th class="cp-col-follower" ${hide('cp-col-follower')}>Follower</th>
+            ${customAt('cp-col-follower')}
+            <th class="cp-col-engagement-ig" ${hide('cp-col-engagement-ig')} title="Durchschnitt aus Likes und Kommentaren, geteilt durch Follower. Zweite Zeile ohne Trial-Reels, wenn das Gate greift.">Engagement</th>
+            ${customAt('cp-col-engagement-ig')}
+            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 8))}">Preis 8 Videos</th>
+            ${customAt('cp-col-cpm-ig-8')}
+            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 30))}">Preis 30 Videos</th>
+            ${customAt('cp-col-cpm-ig-30')}
+            <th class="cp-col-preis-video" ${hide('cp-col-preis-video')} title="Manuell gepflegt – der tatsächlich verhandelte Preis pro Video (Reel bzw. TikTok-Video)">Preis Video</th>
+            ${customAt('cp-col-preis-video')}
+            <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story</th>
+            ${customAt('cp-col-reichweite-story')}
+            <th class="cp-col-story-preis" ${hide('cp-col-story-preis')} title="Manuell gepflegt">Preis Story</th>
+            ${customAt('cp-col-story-preis')}
+            <th class="cp-col-pricing" ${hide('cp-col-pricing')} title="Der verhandelte Gesamtpreis">Gesamtpreis</th>
+            ${customAt('cp-col-pricing')}
+            <th class="cp-col-matching" ${hide('cp-col-matching')} title="Gesamtscore aus Fit, Track und Fresh – wie gut der Creator zum Briefing passt">Matching</th>
+            ${customAt('cp-col-matching')}
+            <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
+            ${customAt('cp-col-typ')}
+            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
+            ${customAt('cp-col-status')}
+            <th class="cp-col-kunden-feedback" ${hide('cp-col-kunden-feedback')} title="Die Bewertung des Kunden: Prio oder Abgelehnt">Kundenfeedback</th>
+            ${customAt('cp-col-kunden-feedback')}
+            <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
+            ${customAt('cp-col-location')}
+            <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
+            ${customAt('cp-col-mail')}
+            <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
+            ${customAt('cp-col-telefon')}
+            <th class="cp-col-nutzungsrechte" ${hide('cp-col-nutzungsrechte')} title="Laufzeit, Kanäle und Sonderabsprachen">Nutzungsrechte</th>
+            ${customAt('cp-col-nutzungsrechte')}
+            <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
+            ${customAt('cp-col-reichweite-garantie')}
+            <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
+            ${customAt('cp-col-ek')}
+            <th class="cp-col-vk" ${hide('cp-col-vk')}>VK</th>
+            ${customAt('cp-col-vk')}
+            <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
+            ${customAt('cp-col-feedback')}
+            ${ctx.customManager ? ctx.customManager.renderHeaders(ctx.hiddenColumns, ctx.isKunde) : ''}
+            ${hasActions ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
+          </tr>
+        </thead>
+        ${renderGroupedItems(ctx)}
+      </table>
+    </div>
+  `;
+  if (!hatEigeneReihenfolge(ctx.columnOrder)) return html;
+  return ordneSourcingTabellenHtml(html, spaltenfolgeFuerKontext(ctx));
+}
+
+function renderKategorieHeaderRow(group, colCount, ctx) {
+  const escapedKey = escapeAttr(group.key);
+  const escapedLabel = escapeAttr(group.label);
+  const rowExtra = group.variant === 'rejected' ? ' kategorie-header-row--rejected' : '';
+  const headerExtra = group.variant === 'rejected'
+    ? ' kategorie-header--rejected'
+    : group.variant === 'default'
+      ? ' kategorie-header--default'
+      : '';
+  const label = group.variant === 'rejected'
+    ? `${NICHT_UMSETZEN_ICON} ${escapedLabel}`
+    : escapedLabel;
+  const checkboxTitle = group.key === OHNE_KATEGORIE_KEY
+    ? 'Alle ohne Kategorie auswählen'
+    : `Alle in '${group.label}' auswählen`;
+  const checkbox = !ctx.isKunde && (ctx.canEdit ?? true)
+    ? `<input type="checkbox" class="sourcing-group-select" data-group-key="${escapedKey}" title="${escapeAttr(checkboxTitle)}">`
+    : '';
+
+  return `
+      <tr class="kategorie-header-row${rowExtra}" data-group-key="${escapedKey}">
+        <td colspan="${colCount}" class="kategorie-header${headerExtra}">
+          <div class="kategorie-header-content">
+            ${checkbox}
+            <span class="kategorie-label">${label}</span>
+            <span class="kategorie-count">(${group.items.length})</span>
+          </div>
+        </td>
+      </tr>
+    `;
+}
+
+function wrapGroupTbody(groupKey, innerHtml) {
+  return `<tbody class="kategorie-group-tbody" data-group-key="${escapeAttr(groupKey || OHNE_KATEGORIE_KEY)}">${innerHtml}</tbody>`;
+}
+
+export function renderGroupedItems(ctx) {
+  const teilbereiche = ctx.teilbereiche || [];
+  const items = ctx.items || [];
+
+  // Ohne definierte Kategorien und ohne Kategorie an den Zeilen: flache Liste ohne Gruppenkopf
+  if (!teilbereiche.length) {
+    const gruppen = orderedKategorieGroups(items, []);
+    if (gruppen.length <= 1 && gruppen[0]?.key === OHNE_KATEGORIE_KEY) {
+      const rows = items.map((item, index) => renderItemRow(ctx, item, index)).join('');
+      return wrapGroupTbody(OHNE_KATEGORIE_KEY, rows);
+    }
+  }
+
+  const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
+  const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
+  const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
+  const colCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns, { canEdit: canWrite, hasActions }) + customCount;
+
+  let html = '';
+  let globalIndex = 0;
+  for (const group of orderedKategorieGroups(items, teilbereiche)) {
+    let inner = renderKategorieHeaderRow(group, colCount, ctx);
+    for (const item of group.items) {
+      inner += renderItemRow(ctx, item, globalIndex++);
+    }
+    html += wrapGroupTbody(group.key, inner);
+  }
+
+  return html;
+}
+
+export function updateStickyHeights(rootEl) {
+  if (!rootEl) return;
+  const addSection = rootEl.querySelector('.add-item-section--compact');
+  const addH = addSection ? addSection.offsetHeight : 0;
+  const tabNav = rootEl.querySelector('.sourcing-tab-navigation');
+  const tabH = tabNav ? tabNav.offsetHeight : 0;
+  rootEl.style.setProperty('--sticky-addbar-height', addH + 'px');
+  rootEl.style.setProperty('--sticky-add-section-height', (addH + tabH) + 'px');
+
+  const thead = rootEl.querySelector('.creator-pool-table thead');
+  if (thead) {
+    rootEl.style.setProperty('--sticky-thead-height', thead.offsetHeight + 'px');
+  }
+}
+

@@ -12,19 +12,36 @@
 // mitten im Dokument.
 //
 // Im Unternehmens- und Listen-Kontext traegt das Dokument ein Marken-
-// Multiselect. Aus einer Marke heraus ist die Zuordnung fix.
+// Multiselect. Aus einer Marke heraus ist die Zuordnung fix. Briefings
+// sind in jedem Kontext ein Tag-Multiselect.
+// Eingebettet im Produkte-Tab der Produktion: produktFormEinbettung.js.
 
-import { ProduktService, MAX_BILDER, isStandaloneProduktPath } from './ProduktService.js';
+import { ProduktService, MAX_BILDER } from './ProduktService.js';
+import { installProduktFormEinbettung, standaloneProduktContext } from './produktFormEinbettung.js';
 import { ProduktVariantenPanel } from './ProduktVarianten.js';
 import { ProduktExtractPanel } from './ProduktExtractPanel.js';
 import { ProduktPersonaPanel } from './ProduktPersonaPanel.js';
+import { injectFormActions } from './ProduktFormActions.js';
 import { ProduktPersonaService } from './ProduktPersonaService.js';
 import { renderProduktDoc, bindProduktDoc, refreshDocHeights } from './ProduktDoc.js';
+import { bindProduktUrlSync, markPdfUrlSource } from './produktUrlSync.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
-import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
-import { icon } from '../../core/icons/IconSystem.js';
+import { backTarget } from '../../core/breadcrumbTrail.js';
+import { setPrefillValues } from '../../core/form/data/PrefillSelected.js';
+import { markiereProduktAngelegt, verwirfEinreichung } from '../einladung/einreichungService.js';
+import { addBriefingProdukte } from '../briefing/BriefingProdukte.js';
+import {
+  bilderAlsDateien,
+  einreichungFormData,
+  einreichungIdAusUrl,
+  einsatzsituationenAusEinreichung,
+  findeNamensDubletten,
+  fragNachDublette,
+  ladeProduktEinreichung,
+  variantenAusEinreichung
+} from './produktEinreichung.js';
 
 export class ProduktForm {
   constructor() {
@@ -32,6 +49,7 @@ export class ProduktForm {
     this.produktId = null;
     this.produkt = null;
     this.markenIds = [];
+    this.briefingIds = [];
     this.varianten = [];
     this.bilder = [];
     this.variantenPanel = null;
@@ -39,6 +57,10 @@ export class ProduktForm {
     this.personaPanel = null;
     this.uploader = null;
     this._abort = null;
+    this.createScope = null;
+    this.kontextBriefingId = null;
+    this.einreichung = null;
+    this._dublettenName = null;
   }
 
   get isEdit() {
@@ -50,8 +72,8 @@ export class ProduktForm {
   }
 
   get returnRoute() {
-    if (this.isStandalone) return '/produkt';
-    return `${this.ctx.basePath}?tab=produkte`;
+    const fallback = this.isStandalone ? '/produkt' : `${this.ctx.basePath}?tab=produkte`;
+    return backTarget(fallback);
   }
 
   get zeigtMarkenFeld() {
@@ -67,15 +89,41 @@ export class ProduktForm {
     this._abort?.abort();
     this._abort = new AbortController();
 
-    const standalone = isStandaloneProduktPath();
-    const pathId = window.location.pathname.split('/').filter(Boolean)[1];
-    this.produktId = standalone
-      ? (pathId && pathId !== 'new' ? pathId : null)
-      : new URLSearchParams(window.location.search).get('produkt');
+    const { standalone, produktId, createScope, kontextBriefingId } = this._ausgangslage();
+    this.produktId = produktId;
+    this.createScope = createScope;
+    this.kontextBriefingId = kontextBriefingId;
     this.produkt = null;
     this.markenIds = [];
+    this.briefingIds = [];
     this.varianten = [];
     this.bilder = [];
+    this.einreichung = null;
+    this._dublettenName = null;
+
+    // Review einer Kunden-Einreichung (ADR 0055): nur beim Anlegen aus /produkt/new
+    const einreichungId = !this.produktId && standalone ? einreichungIdAusUrl() : null;
+    if (einreichungId) {
+      this.einreichung = await ladeProduktEinreichung(einreichungId);
+      if (!this.einreichung) {
+        window.navigateTo('/produkt');
+        return;
+      }
+      this.varianten = variantenAusEinreichung(this.einreichung);
+      // Einladung von einer Linie (ADR 0057): Anlegen übernimmt das Produkt dort, auch wenn
+      // die URL die Linie nicht trägt.
+      const einladung = this.einreichung.einladung || {};
+      if (einladung.briefing_id && !this.createScope?.briefingId) {
+        this.createScope = {
+          unternehmenId: einladung.unternehmen_id || null,
+          markeId: einladung.marke_id || null,
+          produktionId: einladung.briefing?.produktion_id || null,
+          ...(this.createScope || {}),
+          briefingId: einladung.briefing_id
+        };
+        this.kontextBriefingId = einladung.briefing_id;
+      }
+    }
 
     try {
       this.ctx = standalone || !ownerId
@@ -86,19 +134,20 @@ export class ProduktForm {
         this.produkt = await ProduktService.loadOne(this.produktId, this.ctx);
         if (!this.produkt) {
           window.toastSystem?.error?.('Produkt nicht gefunden');
-          window.navigateTo(this.returnRoute);
+          this._zurueck();
           return;
         }
-        [this.varianten, this.bilder, this.markenIds] = await Promise.all([
+        [this.varianten, this.bilder, this.markenIds, this.briefingIds] = await Promise.all([
           ProduktService.loadVarianten(this.produktId),
           ProduktService.loadBilder(this.produktId),
-          ProduktService.loadMarkenIds(this.produktId)
+          ProduktService.loadMarkenIds(this.produktId),
+          ProduktService.loadBriefingIds(this.produktId)
         ]);
       }
     } catch (err) {
       console.error('Produkt-Formular konnte nicht geladen werden:', err);
       window.ErrorHandler?.handle?.(err, 'ProduktForm.init');
-      window.navigateTo(this.ctx?.basePath || '/produkt');
+      this._zurueck(this.ctx?.basePath || '/produkt');
       return;
     }
 
@@ -110,6 +159,10 @@ export class ProduktForm {
     if (this.isStandalone) {
       this.syncMarkenFeldSichtbarkeit();
     }
+    if (this.einreichung) {
+      window.toastSystem?.info?.(`Einreichung von ${this.einreichung.absender_name} geladen. Prüfen, anpassen und anlegen.`);
+      await this.pruefeDublette();
+    }
   }
 
   async render() {
@@ -117,33 +170,13 @@ export class ProduktForm {
       ? ProduktService.label(this.produkt)
       : 'Neues Produkt anlegen';
 
-    window.setHeadline(title);
-
-    const detailLabel = this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen';
-    const crumbs = this.isStandalone
-      ? [
-          { label: 'Produkte', url: '/produkt', clickable: true },
-          { label: detailLabel, clickable: false }
-        ]
-      : [
-          { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
-          { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
-          { label: 'Produkte', url: this.returnRoute, clickable: true },
-          { label: detailLabel, clickable: false }
-        ];
-    window.breadcrumbSystem?.updateBreadcrumb(crumbs, null, {
-      switcher: this.isEdit
-        ? (this.isStandalone
-          ? { segment: 'produkt', id: this.produktId }
-          : nestedSwitcherContext('produkt', this.produktId, this.ctx))
-        : null
-    });
+    this._kopf(title, this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen');
 
     const formData = this.isEdit
-      ? { ...this.produkt, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.produkt.id }
-      : null;
+      ? { ...this.produkt, marke_ids: this.markenIds, briefing_ids: this.briefingIds, _isEditMode: true, _entityId: this.produkt.id }
+      : this.createFormData();
 
-    window.content.innerHTML = renderProduktDoc(formData, {
+    this._inhalt().innerHTML = renderProduktDoc(formData, {
       mitMarkenFeld: this.zeigtMarkenFeld,
       mitUnternehmenFeld: this.zeigtUnternehmenFeld,
       unternehmenId: this.ctx.unternehmenId
@@ -152,8 +185,13 @@ export class ProduktForm {
     const form = document.getElementById('produkt-form');
     bindProduktDoc(form, formData);
 
-    // Searchable-Selects und filterBy (Marke nach Firma) muessen stehen,
+    // Searchable-Selects und filterBy (Marke und Briefing nach Firma) muessen stehen,
     // bevor applyUnternehmenScope die Firmenliste setzt.
+    // Das Kontext-Briefing aus der URL kommt als Tag ins Feld: der Loader
+    // markiert es beim Optionen-Aufbau (siehe PrefillSelected).
+    if (!this.isEdit && this.createScope?.briefingId) {
+      setPrefillValues(form.querySelector('[name="briefing_ids"]'), [this.createScope.briefingId]);
+    }
     await window.formSystem.bindFormEvents('produkt', formData);
 
     this.mountBilderUploader(form);
@@ -172,12 +210,88 @@ export class ProduktForm {
     await this.personaPanel.mount(form, {
       produktId: this.produktId,
       markeId: this.ctx.markeId || null,
+      briefingId: this.kontextBriefingId,
       getUnternehmenId: () => this.ctx.unternehmenId
         || form.querySelector('[name="unternehmen_id"]')?.value
         || null,
       getMarkeIds: () => this.currentMarkeIds(),
+      getBriefingIds: () => this.currentBriefingIds(),
       legacyEinsatzsituation: this.produkt?.einsatzsituation || null
     });
+    this.uebernehmeEinsatzsituationen();
+  }
+
+  /** Einsatzsituationen der Einreichung als neue Use Cases ins Persona-Band legen. */
+  uebernehmeEinsatzsituationen() {
+    if (!this.einreichung || !this.personaPanel) return;
+    const namen = einsatzsituationenAusEinreichung(this.einreichung);
+    if (!namen.length) return;
+    namen.forEach((name, i) => {
+      this.personaPanel.useCases.push({
+        key: `uc-einreichung-${i}`,
+        id: null,
+        name,
+        beschreibung: '',
+        deleted: false
+      });
+    });
+    this.personaPanel.render();
+  }
+
+  /** Bilder der Einreichung in den Uploader legen (als neue Dateien, der Save läuft wie sonst). */
+  async fuelleBilderAusEinreichung() {
+    const uploader = this.getBilderUploader();
+    if (!this.einreichung || !uploader) return;
+    const dateien = await bilderAlsDateien(this.einreichung);
+    if (dateien.length) uploader.handleFiles(dateien);
+  }
+
+  /**
+   * Namensvergleich in der Marke (sonst im Unternehmen).
+   * Rückgabe false: nicht anlegen (abgebrochen oder Einreichung verworfen).
+   */
+  async pruefeDublette() {
+    const einladung = this.einreichung?.einladung;
+    if (!einladung) return true;
+    const form = document.getElementById('produkt-form');
+    const name = form?.querySelector('[name="name"]')?.value || '';
+    if (this._dublettenName !== null && this._dublettenName === name.trim().toLowerCase()) return true;
+
+    let dubletten = [];
+    try {
+      dubletten = await findeNamensDubletten({
+        unternehmenId: einladung.unternehmen_id,
+        markeId: einladung.marke_id || null,
+        name
+      });
+    } catch (err) {
+      console.warn('Namensvergleich fehlgeschlagen:', err);
+      return true;
+    }
+    if (!dubletten.length) return true;
+
+    const linieId = einladung.briefing_id || null;
+    const wahl = await fragNachDublette(dubletten, { mitLinie: !!linieId });
+    if (wahl === 'neu') {
+      this._dublettenName = name.trim().toLowerCase();
+      return true;
+    }
+    if (wahl === 'vorhanden') {
+      try {
+        // Einladung von einer Linie: das vorhandene Produkt kommt an die Linie (ADR 0057).
+        if (linieId) await addBriefingProdukte(linieId, [dubletten[0].id]);
+        await verwirfEinreichung(this.einreichung);
+        window.toastSystem?.success?.(linieId
+          ? 'Vorhandenes Produkt an die Linie übernommen. Einreichung verworfen.'
+          : 'Einreichung verworfen. Das vorhandene Produkt bleibt unverändert.');
+      } catch (err) {
+        console.error('Verwerfen fehlgeschlagen:', err);
+        window.toastSystem?.error?.('Verwerfen fehlgeschlagen.');
+        return false;
+      }
+      this._zurueck();
+    }
+    return false;
   }
 
   findUnternehmenSelect() {
@@ -191,32 +305,62 @@ export class ProduktForm {
     if (!select) return;
 
     const rows = await ProduktService.loadCreateUnternehmenOptions(window.currentUser?.id);
-    const options = rows.map(u => ({ value: u.id, label: u.firmenname }));
+    const wanted = this.createScope?.unternehmenId || null;
+    const options = rows.map(u => ({
+      value: u.id,
+      label: u.firmenname,
+      selected: !!wanted && u.id === wanted
+    }));
+    if (wanted) select.value = wanted;
     if (window.formSystem?.reinitializeSearchableSelect) {
       window.formSystem.reinitializeSearchableSelect(select, options, {
         placeholder: 'Unternehmen suchen und auswählen...',
         type: 'select',
         searchable: true
       });
-      return;
+    } else {
+      select.innerHTML = '<option value="">Unternehmen suchen und auswählen...</option>';
+      options.forEach(opt => {
+        const el = document.createElement('option');
+        el.value = opt.value;
+        el.textContent = opt.label;
+        select.appendChild(el);
+      });
     }
 
-    select.innerHTML = '<option value="">Unternehmen suchen und auswählen...</option>';
-    options.forEach(opt => {
+    this.commitUnternehmenPrefill(select, options, wanted);
+  }
+
+  /**
+   * Der Prefill setzt nur das Label im Searchable. Marke und Briefing laden
+   * ihre Optionen ueber das change-Event auf unternehmen_id (filterBy) und
+   * lesen dabei select.value - die Option muss also im nativen Select stehen.
+   */
+  commitUnternehmenPrefill(select, options, wanted) {
+    if (!wanted) return;
+    const option = options.find(o => o.value === wanted);
+    if (!option) return;
+
+    if (!Array.from(select.options).some(o => o.value === wanted)) {
       const el = document.createElement('option');
-      el.value = opt.value;
-      el.textContent = opt.label;
+      el.value = wanted;
+      el.textContent = option.label;
       select.appendChild(el);
-    });
+    }
+    select.value = wanted;
+    if (!select.dataset.fieldName) select.dataset.fieldName = 'unternehmen_id';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   syncMarkenFeldSichtbarkeit() {
     if (!this.isStandalone) return;
     const form = document.getElementById('produkt-form');
-    const section = form?.querySelector('[data-doc-field="marke_ids"]');
-    if (!section) return;
+    if (!form) return;
     const value = form.querySelector('[name="unternehmen_id"]')?.value;
-    section.hidden = !value;
+    for (const name of ['marke_ids', 'briefing_ids']) {
+      const section = form.querySelector(`[data-doc-field="${name}"]`);
+      if (section) section.hidden = !value;
+    }
   }
 
   /**
@@ -242,6 +386,7 @@ export class ProduktForm {
     this.uploader.mount(root);
 
     this.fillBilderUploader();
+    if (this.einreichung) void this.fuelleBilderAusEinreichung();
   }
 
   /** Bereits gespeicherte Kollektionsbilder in den Uploader spiegeln. */
@@ -316,7 +461,7 @@ export class ProduktForm {
     // Abbrechen: Liste oder Produkte-Tab der Marke/Firma
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => window.navigateTo(this.returnRoute), opts);
+      cancelBtn.addEventListener('click', () => this._zurueck(), opts);
     }
 
     if (this.isStandalone) {
@@ -326,6 +471,8 @@ export class ProduktForm {
       }, opts);
     }
 
+    bindProduktUrlSync(form, { signal });
+
     // Ergebnisse der KI-Extraktion abholen: Bilder und Varianten kommen
     // zusaetzlich zu den Textfeldern, die der ExtractReviewLayer selbst setzt.
     document.addEventListener('siteExtractApplied', (e) => {
@@ -334,34 +481,46 @@ export class ProduktForm {
       this.applyExtractedVarianten(e.detail.varianten || []);
     }, opts);
 
+    // War die Produkt-URL vor dem PDF leer, darf der extrahierte Link sie
+    // als automatische Quelle markieren. Sonst bleibt Chat oder Handarbeit.
+    let urlLeerVorPdf = false;
+    document.addEventListener('siteExtractStarted', (e) => {
+      if (e.detail?.entity !== 'produkt' || e.detail?.via !== 'pdf') return;
+      urlLeerVorPdf = !form.querySelector('[name="url"]')?.value.trim();
+    }, opts);
+
     // Die uebernommenen Texte sind laenger als die leeren Felder - die
     // Abschnitte muessen danach auf ihre neue Hoehe wachsen.
     document.addEventListener('siteExtractFinished', (e) => {
       if (e.detail?.entity !== 'produkt') return;
       refreshDocHeights(form);
+      if (e.detail.ok && e.detail.via === 'pdf' && urlLeerVorPdf) {
+        markPdfUrlSource(
+          form.querySelector('[name="url"]'),
+          e.detail.fields?.url?.value,
+          { wasEmpty: true }
+        );
+      }
     }, opts);
 
     if (this.isEdit) {
-      this.injectDeleteButton(form, opts);
+      injectFormActions(form, {
+        onDelete: () => this.handleDelete(),
+        getPdfSource: () => this.pdfSource(),
+        signal
+      });
     }
   }
 
-  injectDeleteButton(form, opts) {
-    const actions = form.querySelector('.form-actions');
-    if (!actions || actions.querySelector('.produkt-delete-btn')) return;
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'mdc-btn mdc-btn--delete produkt-delete-btn';
-    btn.innerHTML = `
-      <span class="mdc-btn__icon" aria-hidden="true">
-        ${icon('trash-alt')}
-      </span>
-      <span class="mdc-btn__label">Löschen</span>
-    `;
-    btn.addEventListener('click', () => this.handleDelete(), opts);
-
-    actions.insertBefore(btn, actions.firstChild);
+  /** Quelle fuer das Produkt-PDF: der Live-Stand der Panels, nicht die Datenbank. */
+  pdfSource() {
+    return {
+      varianten: this.variantenPanel?.getVariantenMitBild() || [],
+      useCases: this.personaPanel?.getState().useCases || [],
+      uploader: this.getBilderUploader(),
+      unternehmenId: this.ctx.unternehmenId,
+      markeIds: this.currentMarkeIds()
+    };
   }
 
   async handleSubmit() {
@@ -374,11 +533,25 @@ export class ProduktForm {
     this.clearFieldErrors(form);
     const validation = window.validatorSystem.validateForm(data, {
       name: { type: 'text', minLength: 2, required: true },
+      url: { type: 'url', required: true },
       ...(this.zeigtUnternehmenFeld ? { unternehmen_id: { type: 'text', required: true } } : {})
     });
     if (!validation.isValid) {
+      if (validation.errors.url === 'url ist erforderlich') {
+        validation.errors.url = 'Produkt-URL ist erforderlich';
+      } else if (validation.errors.url === 'Ungültige URL') {
+        validation.errors.url = 'Produkt-URL ist keine gültige Adresse';
+      }
       this.showFieldErrors(form, validation.errors);
       window.toastSystem?.error?.('Bitte Pflichtfelder ausfüllen');
+      this.releaseSubmitBtn(submitBtn);
+      return;
+    }
+
+    const personaBlock = this.personaPanel?.saveBlockGrund?.();
+    if (personaBlock) {
+      window.toastSystem?.error?.(personaBlock);
+      this.personaPanel.scrollIntoView();
       this.releaseSubmitBtn(submitBtn);
       return;
     }
@@ -399,7 +572,11 @@ export class ProduktForm {
       if (this.isEdit) {
         await ProduktService.update(this.produktId, data);
       } else {
-        const unternehmenId = this.ctx.unternehmenId || data.unternehmen_id;
+        if (this.einreichung && !(await this.pruefeDublette())) {
+          this.releaseSubmitBtn(submitBtn);
+          return;
+        }
+        const unternehmenId = this.ctx.unternehmenId || data.unternehmen_id || this.createScope?.unternehmenId;
         if (!unternehmenId) {
           this.showFieldErrors(form, { unternehmen_id: 'Bitte ein Unternehmen wählen' });
           window.toastSystem?.error?.('Bitte ein Unternehmen wählen');
@@ -411,13 +588,25 @@ export class ProduktForm {
       }
 
       await ProduktService.saveMarken(produktId, this.collectMarkenIds(data));
+      await ProduktService.saveBriefings(produktId, this.collectBriefingIds(data));
+      if (!this.isEdit && this.createScope?.produktionId) {
+        await ProduktService.attachToProduktionIfEmpty(this.createScope.produktionId, produktId);
+      }
       await ProduktService.saveVarianten(produktId, this.variantenPanel?.getVarianten() || []);
       await this.saveBilder(produktId);
       await this.saveVariantenBilder(produktId);
       await this.flushPersonaPanel(produktId, data);
+      if (this.einreichung) {
+        try {
+          await markiereProduktAngelegt(this.einreichung.id, produktId);
+        } catch (err) {
+          console.error('Einreichung nicht als angelegt markiert:', err);
+          window.toastSystem?.warning?.('Produkt angelegt, aber die Einreichung blieb offen. Bitte im Eingang verwerfen.');
+        }
+      }
 
       window.toastSystem?.success?.(this.isEdit ? 'Produkt gespeichert' : 'Produkt angelegt');
-      window.navigateTo(this.returnRoute);
+      this._zurueck();
     } catch (err) {
       console.error('Produkt speichern fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Speichern: ' + err.message);
@@ -425,17 +614,43 @@ export class ProduktForm {
     }
   }
 
+  /** Tag-Feld ist in jedem Kontext sichtbar, leere Auswahl loest alle Briefings. */
+  collectBriefingIds(data) {
+    const werte = data.briefing_ids;
+    const fromForm = Array.isArray(werte) ? werte : (werte ? [werte] : []);
+    if (!this.isEdit && this.createScope?.briefingId) {
+      return [...new Set([...fromForm, this.createScope.briefingId].filter(Boolean))];
+    }
+    return fromForm;
+  }
+
   /**
    * Ohne sichtbares Feld bleibt die bestehende Zuordnung erhalten - aus einer
    * Marke heraus kommt sie nur dazu. Sonst zaehlt genau die Auswahl im Tag-Feld.
    */
   collectMarkenIds(data) {
+    let ids;
     if (!this.zeigtMarkenFeld) {
-      return [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
+      ids = [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
+    } else {
+      const werte = data.marke_ids;
+      ids = Array.isArray(werte) ? werte : (werte ? [werte] : []);
     }
-    const werte = data.marke_ids;
-    if (Array.isArray(werte)) return werte;
-    return werte ? [werte] : [];
+    if (!this.isEdit && this.createScope?.markeId) {
+      ids = [...new Set([...ids, this.createScope.markeId].filter(Boolean))];
+    }
+    return ids;
+  }
+
+  createFormData() {
+    if (this.einreichung) return einreichungFormData(this.einreichung);
+    const scope = this.createScope;
+    if (!scope?.unternehmenId && !scope?.markeId && !scope?.briefingId) return null;
+    return {
+      unternehmen_id: scope.unternehmenId || '',
+      marke_ids: scope.markeId ? [scope.markeId] : [],
+      briefing_ids: scope.briefingId ? [scope.briefingId] : []
+    };
   }
 
   /** Aktuelle Marken-Auswahl aus dem Formular (fuer den Persona-Job vor dem Save). */
@@ -443,6 +658,17 @@ export class ProduktForm {
     const form = document.getElementById('produkt-form');
     const data = form ? window.formSystem.collectSubmitData(form) : {};
     return this.collectMarkenIds(data);
+  }
+
+  /**
+   * Briefing-Kontext fuer die Personas: das Kontext-Briefing der Produktion
+   * plus die aktuell im Tag-Feld gewaehlten Briefings. Uebernehmen haengt
+   * die Persona an alle davon (Wasserfall Briefing -> Casting/Konzepte).
+   */
+  currentBriefingIds() {
+    const form = document.getElementById('produkt-form');
+    const data = form ? window.formSystem.collectSubmitData(form) : {};
+    return [...new Set([this.kontextBriefingId, ...this.collectBriefingIds(data)].filter(Boolean))];
   }
 
   /**
@@ -454,9 +680,22 @@ export class ProduktForm {
     if (!this.personaPanel?.isFlushBereit()) return;
     const saved = await ProduktPersonaService.flushOnSave(produktId, this.personaPanel.getState(), {
       unternehmenId: this.ctx.unternehmenId || data.unternehmen_id,
-      markeIds: this.collectMarkenIds(data)
+      markeIds: this.collectMarkenIds(data),
+      briefingIds: this.currentBriefingIds()
     });
     this.personaPanel.applySavedState(saved);
+    const anzahl = saved.neuAkzeptiert?.length
+      ? await ProduktPersonaService.starteAudienceSituationJobs(saved.neuAkzeptiert, {
+        produktId,
+        produkt: data
+      }).catch(err => {
+        console.error('Audience-Situation-Jobs:', err);
+        return 0;
+      })
+      : 0;
+    if (anzahl) {
+      window.toastSystem?.success?.('Audience Situations werden im Hintergrund angelegt');
+    }
   }
 
   /** @returns {{feld: string, text: string}|null} */
@@ -571,7 +810,7 @@ export class ProduktForm {
     try {
       await ProduktService.remove(this.produktId);
       window.toastSystem?.success?.('Produkt gelöscht');
-      window.navigateTo(this.returnRoute);
+      this._zurueck();
     } catch (err) {
       console.error('Produkt loeschen fehlgeschlagen:', err);
       window.toastSystem?.error?.('Fehler beim Löschen: ' + err.message);
@@ -611,19 +850,6 @@ export class ProduktForm {
   }
 }
 
-function standaloneProduktContext() {
-  return {
-    typ: 'produkt',
-    markeId: null,
-    unternehmenId: null,
-    owner: null,
-    basePath: '/produkt',
-    listPath: '/produkt',
-    listLabel: 'Produkte',
-    ownerLabel: null,
-    markenAnzahl: 0,
-    standalone: true
-  };
-}
+installProduktFormEinbettung(ProduktForm.prototype);
 
 export const produktForm = new ProduktForm();

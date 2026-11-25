@@ -1,154 +1,15 @@
 // Netlify Background Function: Briefing-PDF-Extract (Liky)
 // Zwei Modi: extract (PDF -> Felder) und chat (History + formData -> Patches).
-// Feature-Key: pdf_briefing (existiert in ki_requests).
+// Extract: Formularfelder des Creator-Briefing-PDFs werden direkt übernommen, Claude
+// belegt nur den Rest. Ist alles belegt, gibt es keinen Claude-Aufruf.
+// Die Spec kommt vom Client (briefingFelder.json). Feature-Key: pdf_briefing.
 
 const { callClaude, extractJson, repairJsonStrings, MODELS } = require('./_shared/anthropic');
+const { EXTRACT_TOOL, CHAT_TOOL, buildExtractPrompt, buildChatPrompt } = require('./_shared/briefing-pdf-prompt');
+const { formularFelder } = require('./_shared/briefing-pdf-formular');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
-
-// fieldConfig ist ESM; wir brauchen die Spec serverseitig. Der Client
-// schickt die Spec im Job-Payload mit — die Function vertraut ihr nicht
-// blind, sondern validiert die Feldnamen gegen die erlaubten Typen.
-const EXTRACT_TOOL = {
-  name: 'briefing_extract_abgeben',
-  description: 'Gibt die aus dem Kundenbriefing erkannten Felder ab.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      fields: {
-        type: 'object',
-        description: 'Feldname -> { value, kind: fact|guess, from }',
-        additionalProperties: {
-          type: 'object',
-          properties: {
-            value: {},
-            kind: { type: 'string', enum: ['fact', 'guess'] },
-            from: { type: 'string' }
-          },
-          required: ['value']
-        }
-      },
-      missing: { type: 'array', items: { type: 'string' } },
-      unternehmen_hint: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          passt: { type: 'boolean' }
-        }
-      },
-      produkte_hint: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            name: { type: 'string' },
-            produkt_id: { type: ['string', 'null'] }
-          }
-        }
-      }
-    },
-    required: ['fields']
-  }
-};
-
-const CHAT_TOOL = {
-  name: 'briefing_chat_abgeben',
-  description: 'Antwortet im Chat und liefert Feld-Patches.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      reply: { type: 'string' },
-      patches: {
-        type: 'object',
-        additionalProperties: {
-          type: 'object',
-          properties: {
-            value: {},
-            kind: { type: 'string', enum: ['fact', 'guess'] },
-            from: { type: 'string' },
-            force: { type: 'boolean' }
-          },
-          required: ['value']
-        }
-      }
-    },
-    required: ['reply']
-  }
-};
-
-function buildExtractPrompt({ spec, unternehmenName, markeName, produkte }) {
-  const stable = 'Du bist Liky, der KI-Assistent im CRM. Du liest ein Kundenbriefing '
-    + '(PDF) und fuellst damit das Briefing-Formular vor. Antworte ausschliesslich '
-    + 'ueber das Tool "briefing_extract_abgeben". Deutsch. Keine Floskeln.';
-
-  let task = '# AUFTRAG\n'
-    + 'Lies das PDF und belege die Felder der Spec. Nur was im PDF steht. '
-    + 'Enums auf options.value mappen. Nichts erfinden. Formular ist Deutsch.\n\n';
-
-  if (unternehmenName) task += `Unternehmen: ${unternehmenName}\n`;
-  if (markeName) task += `Marke: ${markeName}\n`;
-  if (produkte?.length) {
-    task += 'Bekannte Produkte (id + name; produkt_id nur aus dieser Liste):\n'
-      + JSON.stringify(produkte.map((p) => ({ id: p.id, name: p.name }))) + '\n';
-  }
-
-  task += '\n# SPEC\n' + JSON.stringify(spec, null, 2) + '\n\n';
-  task += '# REGELN\n'
-    + '- Spec ist geschlossen: nur Felder aus der Spec belegen. Was keinem Feld '
-    + 'zugeordnet werden kann, weglassen. Keine Rueckfragen, keine Extra-Keys. '
-    + 'Kunden-PDFs enthalten oft Irrelevantes (Scope, Kontakte, Zeitplaene).\n'
-    + '- Ignorieren: Ansprechpartner/Kontaktpersonen (sitzen nicht am Briefing), '
-    + 'Agentur-Leistungsbeschreibung, interne Projektplaene, Budget, Legal/'
-    + 'Boilerplate, Deckblatt-Metadaten. Einzelne Meilenstein-Zeilen nicht ablegen.\n'
-    + '- Zeitraum: Kampagnenlaufzeit oder grober Veroeffentlichungszeitraum kompakt '
-    + 'in veroeffentlichungszeitraum (z.B. "KW 46-48 / Go-Live 17.11.2026").\n'
-    + '- fields: Objekt Feldname -> { value, kind, from }. Nur Felder aus der Spec, '
-    + 'die im PDF belegt sind. kind=fact wenn direkt im Text, '
-    + 'kind=guess wenn abgeleitet. from = kurzer Quellverweis (Seite/Abschnitt).\n'
-    + '- value exakt in der Form, die valueShape des Feldes vorgibt. '
-    + 'Enums auf options.value mappen, Formate auf die format-values des Channels. '
-    + 'Keine zusaetzlichen Keys wie "anzahl" oder "vorgaben" in channelGroup-Werten.\n'
-    + '- missing: Pflichtfelder, die leer bleiben (z.B. aktivierung_name).\n'
-    + '- unternehmen_hint: Name aus dem PDF, passt = ob er zum gewaehlten Unternehmen passt.\n'
-    + '- produkte_hint: Produktnamen aus dem PDF. produkt_id NUR eine id aus '
-    + 'Bekannte Produkte, sonst null. Keine UUID erfinden.\n';
-
-  return { stable, task };
-}
-
-function normalizeProduktName(name) {
-  return String(name || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-// Spiegel von src/modules/briefing/create/produktHint.js - Claude liefert
-// IDs unzuverlaessig, deshalb serverseitig gegen den Katalog matchen.
-function resolveProduktHints(hints, katalog) {
-  const list = (katalog || []).filter((p) => p?.id);
-  const byId = new Map(list.map((p) => [String(p.id), p]));
-  return (hints || []).map((hint) => {
-    const name = String(hint?.name || '').trim();
-    const given = hint?.produkt_id ? String(hint.produkt_id).trim() : '';
-    if (given && (!list.length || byId.has(given))) {
-      return { name, produkt_id: given };
-    }
-    const key = normalizeProduktName(name);
-    if (!key) return { name, produkt_id: null };
-    const exact = list.filter((p) => normalizeProduktName(p.name) === key);
-    if (exact.length === 1) return { name, produkt_id: exact[0].id };
-    const contained = list.filter((p) => {
-      const k = normalizeProduktName(p.name);
-      return k && (key.includes(k) || k.includes(key));
-    });
-    if (contained.length === 1) return { name, produkt_id: contained[0].id };
-    return { name, produkt_id: null };
-  });
-}
 
 // Modelle liefern offene Maps gelegentlich als JSON-String oder als Array
 // (die API validiert tool_use.input nicht gegen input_schema). Einmal
@@ -204,37 +65,6 @@ function coerceMap(value, key) {
   return {};
 }
 
-function buildChatPrompt({ spec, history, formData, userText }) {
-  const stable = 'Du bist Liky, der KI-Assistent im CRM. Du hilfst beim Ausfuellen '
-    + 'des Briefing-Formulars. Antworte ausschliesslich ueber das Tool '
-    + '"briefing_chat_abgeben". Deutsch. Knapp.';
-
-  let task = '# KONTEXT\n';
-  task += 'Spec: ' + JSON.stringify(spec, null, 2) + '\n\n';
-  task += 'Aktueller Formularstand: ' + JSON.stringify(formData, null, 2) + '\n\n';
-  if (history?.length) {
-    task += 'Chat-Verlauf:\n';
-    for (const msg of history.slice(-10)) {
-      task += `${msg.rolle}: ${msg.inhalt}\n`;
-    }
-    task += '\n';
-  }
-  task += `User: ${userText}\n\n`;
-  task += '# REGELN\n'
-    + '- reply: deine Antwort an den User.\n'
-    + '- Du siehst KEIN PDF und kein Kundenbriefing. Dir liegen nur der '
-    + 'Formularstand und der Chat vor. Erfinde keine Briefing-Inhalte, Zahlen '
-    + 'oder Termine - wenn etwas fehlt, frag nach.\n'
-    + '- patches: nur Felder, die der User geaendert haben will. '
-    + 'patches.feldname = { value, kind, from }. value exakt in der Form, die '
-    + 'valueShape des Feldes vorgibt (Enums als options.value, KPIs als '
-    + '{ kpi, zielwert }, Channels als { key: [format-values] }).\n'
-    + '- force=true nur wenn der User explizit ueberschreiben will '
-    + '(z.B. "Deadline weg").\n';
-
-  return { stable, task };
-}
-
 exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   const { jobId, briefing_id: briefingId, modus, spec, formData, userText, history, pdfPath } = payload;
   if (!jobId) return { statusCode: 400, body: 'jobId fehlt' };
@@ -262,45 +92,33 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   let ki = null;
 
   try {
-    ki = await starteKiRequest(supabase, { userId: user.id, feature: 'pdf_briefing' });
-
     const { data: briefing, error: briefingError } = await supabase
       .from('campaign_briefings')
-      .select('id, unternehmen_id, marke_id, bereich')
+      .select('id, unternehmen_id, marke_id, bereich, ist_altbestand')
       .eq('id', briefingId)
       .single();
     if (briefingError || !briefing) throw new Error('Briefing nicht gefunden');
+    if (briefing.ist_altbestand) throw new Error('Altbestand-Linie ohne Briefing: bitte zuerst das Briefing ausfüllen');
 
-    let unternehmenName = null;
-    let markeName = null;
-    let produkte = [];
-
-    if (briefing.unternehmen_id) {
-      const { data: u } = await supabase
-        .from('unternehmen')
-        .select('firmenname')
-        .eq('id', briefing.unternehmen_id)
-        .maybeSingle();
-      unternehmenName = u?.firmenname || null;
-    }
-    if (briefing.marke_id) {
-      const { data: m } = await supabase
-        .from('marke')
-        .select('markenname')
-        .eq('id', briefing.marke_id)
-        .maybeSingle();
-      markeName = m?.markenname || null;
-    }
-    if (briefing.unternehmen_id) {
-      const { data: p } = await supabase
-        .from('produkt')
-        .select('id, name')
-        .eq('unternehmen_id', briefing.unternehmen_id);
-      produkte = p || [];
-    }
+    const unternehmenName = briefing.unternehmen_id
+      ? (await supabase.from('unternehmen').select('firmenname').eq('id', briefing.unternehmen_id).maybeSingle()).data?.firmenname || null
+      : null;
+    const markeName = briefing.marke_id
+      ? (await supabase.from('marke').select('markenname').eq('id', briefing.marke_id).maybeSingle()).data?.markenname || null
+      : null;
 
     const model = MODELS.extract_briefing;
-    let result;
+    const claude = async (opts) => {
+      ki = await starteKiRequest(supabase, { userId: user.id, feature: 'pdf_briefing' });
+      const antwort = await callClaude({ model, systemBlocks: [{ text: opts.stable, cache: true }], ...opts.call });
+      await ki.abschliessen(antwort);
+      const json = antwort.json || extractJson(antwort.text);
+      if (!json) throw new Error('Keine strukturierte Antwort von Claude');
+      return { json, usage: antwort.usage };
+    };
+
+    let json;
+    let usage = null;
 
     if (modus === 'extract') {
       job.step('lesen', 'Ich lese das Kundenbriefing…');
@@ -324,43 +142,40 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       if (downloadError || !fileData) {
         throw new Error(`PDF nicht lesbar: ${downloadError?.message || 'leer'}`);
       }
-      const pdfBase64 = Buffer.from(await fileData.arrayBuffer()).toString('base64');
+      const bytes = Buffer.from(await fileData.arrayBuffer());
 
-      const { stable, task } = buildExtractPrompt({
-        spec, unternehmenName, markeName, produkte
-      });
+      const formular = await formularFelder(bytes);
+      const rest = (Array.isArray(spec) ? spec : []).filter((f) => !(f.name in formular));
+      if (Object.keys(formular).length) job.step('formular', 'Ich übernehme die Formularfelder…');
 
-      job.step('auswerten', 'Ich werte das PDF aus…');
-      result = await callClaude({
-        model,
-        systemBlocks: [{ text: stable, cache: true }],
-        userPrompt: task,
-        maxTokens: 8192,
-        tool: EXTRACT_TOOL,
-        timeoutMs: 480000,
-        document: { base64: pdfBase64, mediaType: 'application/pdf' }
-      });
+      if (rest.length) {
+        const { stable, task } = buildExtractPrompt({
+          spec: rest, unternehmenName, markeName, schonGelesen: Object.keys(formular)
+        });
+        job.step('auswerten', 'Ich werte das PDF aus…');
+        ({ json, usage } = await claude({
+          stable,
+          call: {
+            userPrompt: task,
+            maxTokens: 8192,
+            tool: EXTRACT_TOOL,
+            timeoutMs: 480000,
+            document: { base64: bytes.toString('base64'), mediaType: 'application/pdf' }
+          }
+        }));
+      } else {
+        json = { fields: {}, missing: [] };
+      }
+      json.fields = { ...coerceMap(json.fields, 'fields'), ...formular };
     } else {
       job.step('antworten', 'Ich denke nach…');
-      const { stable, task } = buildChatPrompt({ spec, history, formData, userText });
-      result = await callClaude({
-        model,
-        systemBlocks: [{ text: stable, cache: true }],
-        userPrompt: task,
-        maxTokens: 4096,
-        tool: CHAT_TOOL,
-        timeoutMs: 120000
-      });
-    }
-
-    await ki.abschliessen(result);
-
-    const json = result.json || extractJson(result.text);
-    if (!json) throw new Error('Keine strukturierte Antwort von Claude');
-    json.fields = coerceMap(json.fields, 'fields');
-    if (modus === 'chat') json.patches = coerceMap(json.patches, 'patches');
-    if (modus === 'extract' && Array.isArray(json.produkte_hint)) {
-      json.produkte_hint = resolveProduktHints(json.produkte_hint, produkte);
+      const { stable, task, messages } = buildChatPrompt({ spec, history, formData, userText });
+      ({ json, usage } = await claude({
+        stable,
+        call: { userPrompt: task, messages, maxTokens: 4096, tool: CHAT_TOOL, timeoutMs: 120000 }
+      }));
+      json.fields = coerceMap(json.fields, 'fields');
+      json.patches = coerceMap(json.patches, 'patches');
     }
 
     await job.flushAndUpdate({
@@ -369,7 +184,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         success: true,
         modus,
         ...json,
-        cost: result.usage,
+        cost: usage,
         dauer_ms: Date.now() - startTime
       }
     });

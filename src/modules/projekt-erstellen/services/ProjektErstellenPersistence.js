@@ -13,7 +13,15 @@ import {
   mapBudgetsToDbColumns,
   normalizeCampaignBlocks
 } from '../logic/CampaignBudgetFields.js';
+import {
+  allocateCreatorBudgets,
+  flattenCampaignBlocks,
+  kampagneDisplayName,
+  normalizeKampagnenSlots
+} from '../logic/kampagnenSplit.js';
 import { uploadAuftragsbestaetigungen } from '../../../core/AuftragsbestaetigungUploader.js';
+import { budgetOrNull } from '../../produktion/produktionsbudget.js';
+import { geistProduktionName } from '../../produktion/produktionNames.js';
 
 const SUPABASE = () => window.supabase;
 
@@ -135,6 +143,7 @@ export class ProjektErstellenPersistence {
       ust_betrag: a.ust_betrag ?? null,
       bruttobetrag: a.bruttobetrag ?? null,
       anzahl_teilrechnungen: a.anzahl_teilrechnungen ?? null,
+      kampagnenanzahl: a.kampagnenanzahl ?? (Array.isArray(fd.kampagnen) && fd.kampagnen.length > 0 ? fd.kampagnen.length : 1),
       is_draft: false,
       status: 'Beauftragt'
     };
@@ -150,9 +159,20 @@ export class ProjektErstellenPersistence {
     return payload;
   }
 
+  _slotCampaignBlocks(fd, slot) {
+    const slotBlocks = Array.isArray(slot?.campaign_blocks) ? slot.campaign_blocks : [];
+    const anySlotBlocks = Array.isArray(fd?.kampagnen)
+      && fd.kampagnen.some(item => (item?.campaign_blocks || []).length > 0);
+    if (slotBlocks.length > 0) {
+      return normalizeCampaignBlocks({ campaign_blocks: slotBlocks });
+    }
+    if (anySlotBlocks) return [];
+    return normalizeCampaignBlocks(fd?.details || {});
+  }
+
   buildDetailsPayload(fd) {
     const d = fd.details || {};
-    const blocks = normalizeCampaignBlocks(d);
+    const blocks = flattenCampaignBlocks(fd);
     const campaignTypes = getCampaignTypesFromBlocks(blocks);
     const uniqueCampaignTypes = getCampaignTypesFromBlocks(blocks, { unique: true });
     const aggregatedBudgets = aggregateCampaignBlocksForLegacy(blocks);
@@ -178,30 +198,132 @@ export class ProjektErstellenPersistence {
     };
   }
 
-  buildKampagnePayload(fd) {
-    const k = fd.kampagne || {};
-    const d = fd.details || {};
+  buildKampagnePayload(fd, slot = null, { includePrefixColumns = true, creatorBudget = null, slotCount = null } = {}) {
     const a = fd.auftrag || {};
-    const blocks = normalizeCampaignBlocks(d);
+    const blocks = this._slotCampaignBlocks(fd, slot);
     const campaignTypes = getCampaignTypesFromBlocks(blocks);
     const uniqueCampaignTypes = getCampaignTypesFromBlocks(blocks, { unique: true });
     const aggregatedBudgets = aggregateCampaignBlocksForLegacy(blocks);
     const totals = this.calculateCampaignBlockTotals(blocks);
     const artDerKampagne = campaignTypes.map(v => CAMPAIGN_TYPES.find(t => t.value === v)?.label || v);
-    return {
-      kampagnenname: a.titel || null,
-      eigener_name: null,
+    const count = slotCount || (Array.isArray(fd.kampagnen) && fd.kampagnen.length > 0 ? fd.kampagnen.length : 1);
+    const index = slot ? Math.max(0, (slot.kampagnen_nummer || 1) - 1) : 0;
+    const hasSlotBlocks = Array.isArray(slot?.campaign_blocks) && slot.campaign_blocks.length > 0;
+    const videoanzahl = hasSlotBlocks
+      ? totals.videos
+      : (slot?.videoanzahl != null ? this.parseCount(slot.videoanzahl) : totals.videos);
+    const creatoranzahl = hasSlotBlocks
+      ? totals.creators
+      : (slot?.creatoranzahl != null ? this.parseCount(slot.creatoranzahl) : totals.creators);
+    const volumen = slot?.volumen != null ? this.roundMoney(slot.volumen) : this.roundMoney(a.nettobetrag);
+    const payload = {
+      kampagnenname: kampagneDisplayName(a.titel, index, count),
+      eigener_name: typeof slot?.eigener_name === 'string' ? (slot.eigener_name.trim() || null) : null,
       unternehmen_id: a.unternehmen_id || null,
       marke_id: a.marke_id || null,
       art_der_kampagne: artDerKampagne,
       start: a.start || null,
       deadline: a.ende || null,
       deadline_post_produktion: a.ende || null,
-      creatoranzahl: totals.creators,
-      videoanzahl: totals.videos,
-      ...this.mapCountsToKampagneColumns(aggregatedBudgets, uniqueCampaignTypes),
+      kampagnen_nummer: slot?.kampagnen_nummer || 1,
+      creatoranzahl,
+      videoanzahl,
+      volumen,
+      creator_budget: creatorBudget != null ? this.roundMoney(creatorBudget) : volumen,
       budget_info: null
     };
+    if (includePrefixColumns) {
+      Object.assign(payload, this.mapCountsToKampagneColumns(aggregatedBudgets, uniqueCampaignTypes));
+    }
+    return payload;
+  }
+
+  _asSingleKampagne(formData) {
+    const blocks = flattenCampaignBlocks(formData);
+    const slots = normalizeKampagnenSlots(formData);
+    const first = slots[0] || {};
+    return {
+      ...formData,
+      auftrag: { ...(formData.auftrag || {}), kampagnenanzahl: 1 },
+      kampagnen: [{
+        ...first,
+        kampagnen_nummer: 1,
+        volumen: this.roundMoney(formData?.auftrag?.nettobetrag),
+        eigener_name: first.eigener_name,
+        campaign_blocks: blocks
+      }]
+    };
+  }
+
+  _resolveKampagnenSlots(formData, { kampagneId = null, existingKampagnen = [] } = {}) {
+    const slots = normalizeKampagnenSlots(formData);
+    slots.forEach((slot, i) => {
+      if (slot.id) return;
+      slot.id = existingKampagnen[i]?.id || (i === 0 ? kampagneId : null) || null;
+    });
+    return slots;
+  }
+
+  async _insertKampagne(supabase, payload) {
+    const { data, error } = await supabase
+      .from('kampagne')
+      .insert(payload)
+      .select('id')
+      .single();
+    if (error) throw error;
+    return data?.id || null;
+  }
+
+  async _syncAnsprechpartner(supabase, kampagneIds, ansprechpartnerId, { deleteFirst = false } = {}) {
+    for (const kampagneId of kampagneIds.filter(Boolean)) {
+      if (deleteFirst) {
+        const { error: delApErr } = await supabase
+          .from('ansprechpartner_kampagne')
+          .delete()
+          .eq('kampagne_id', kampagneId);
+        if (delApErr) {
+          console.warn('⚠️ ansprechpartner_kampagne delete fehlgeschlagen:', delApErr);
+        }
+      }
+      if (!ansprechpartnerId) continue;
+      const { error: insApErr } = await supabase
+        .from('ansprechpartner_kampagne')
+        .insert({
+          kampagne_id: kampagneId,
+          ansprechpartner_id: ansprechpartnerId
+        });
+      if (insApErr) {
+        console.warn('⚠️ ansprechpartner_kampagne insert fehlgeschlagen:', insApErr);
+      }
+    }
+  }
+
+  async _deleteUnusedKampagnen(supabase, extraIds) {
+    const skipped = [];
+    for (const id of extraIds) {
+      const { count, error: countErr } = await supabase
+        .from('kooperationen')
+        .select('id', { count: 'exact', head: true })
+        .eq('kampagne_id', id);
+      if (countErr) throw countErr;
+      if ((count || 0) > 0) {
+        skipped.push(id);
+        continue;
+      }
+      const { error: delApErr } = await supabase
+        .from('ansprechpartner_kampagne')
+        .delete()
+        .eq('kampagne_id', id);
+      if (delApErr) {
+        console.warn('⚠️ ansprechpartner_kampagne delete fehlgeschlagen:', delApErr);
+      }
+      const { error: delErr } = await supabase
+        .from('kampagne')
+        .delete()
+        .eq('id', id);
+      if (delErr) throw delErr;
+    }
+    return skipped;
   }
 
   _pickWizardKampagneFields(fullPayload) {
@@ -214,7 +336,8 @@ export class ProjektErstellenPersistence {
     const WIZARD_OWNED_KEYS = [
       'kampagnenname', 'eigener_name', 'unternehmen_id', 'marke_id', 'art_der_kampagne',
       'start', 'deadline', 'deadline_post_produktion',
-      'creatoranzahl', 'videoanzahl',
+      'kampagnen_nummer', 'creatoranzahl', 'videoanzahl',
+      'volumen', 'creator_budget',
       ...campaignColumns
     ];
     const patch = {};
@@ -247,27 +370,34 @@ export class ProjektErstellenPersistence {
     }, {});
   }
 
-  buildTeilrechnungPayloads(fd, auftragId) {
+  // Zahlungsstand (ueberwiesen/ueberwiesen_am) gehoert der Liste, nicht dem Wizard.
+  // Beim Edit wird er deshalb nicht mitgeschrieben.
+  buildTeilrechnungPayloads(fd, auftragId, { includePaymentStatus = true } = {}) {
     const trs = fd?.auftrag?.teilrechnungen;
     if (!Array.isArray(trs) || trs.length === 0) return [];
 
-    return trs.map((tr, i) => ({
-      auftrag_id: auftragId,
-      position: tr.position ?? (i + 1),
-      nettobetrag: this.roundMoney(tr.nettobetrag),
-      ust_prozent: tr.ust_prozent ?? 19,
-      ust_betrag: this.roundMoney(tr.ust_betrag),
-      bruttobetrag: this.roundMoney(tr.bruttobetrag),
-      re_nr: this.normalizeTextValue(tr.re_nr),
-      externe_po: this.normalizeTextValue(tr.externe_po),
-      rechnung_gestellt: !!tr.rechnung_gestellt,
-      rechnung_gestellt_am: tr.rechnung_gestellt_am || null,
-      re_faelligkeit: tr.re_faelligkeit || null,
-      erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null,
-      ueberwiesen: !!tr.ueberwiesen,
-      ueberwiesen_am: tr.ueberwiesen_am || null,
-      notiz: this.normalizeTextValue(tr.notiz)
-    }));
+    return trs.map((tr, i) => {
+      const payload = {
+        auftrag_id: auftragId,
+        position: tr.position ?? (i + 1),
+        nettobetrag: this.roundMoney(tr.nettobetrag),
+        ust_prozent: tr.ust_prozent ?? 19,
+        ust_betrag: this.roundMoney(tr.ust_betrag),
+        bruttobetrag: this.roundMoney(tr.bruttobetrag),
+        re_nr: this.normalizeTextValue(tr.re_nr),
+        externe_po: this.normalizeTextValue(tr.externe_po),
+        rechnung_gestellt: !!tr.rechnung_gestellt,
+        rechnung_gestellt_am: tr.rechnung_gestellt_am || null,
+        re_faelligkeit: tr.re_faelligkeit || null,
+        erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null,
+        notiz: this.normalizeTextValue(tr.notiz)
+      };
+      if (includePaymentStatus) {
+        payload.ueberwiesen = !!tr.ueberwiesen;
+        payload.ueberwiesen_am = tr.ueberwiesen_am || null;
+      }
+      return payload;
+    });
   }
 
   async _saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst = false } = {}) {
@@ -288,6 +418,56 @@ export class ProjektErstellenPersistence {
     }
   }
 
+  // Edit: pro Position updaten, neue Positionen einfuegen, entfernte loeschen.
+  // Bestehende Positionen behalten ihren Zahlungsstand, damit ein in der Liste
+  // gesetztes ueberwiesen_am nicht durch den Formularstand beim Oeffnen
+  // ueberschrieben wird. Neue Positionen bekommen den Zahlungsstand aus dem
+  // Formular: bei alten Auftraegen ohne Teilrechnung stammt er aus dem Auftrag
+  // (EditLoader.mapTeilrechnungen). Ohne ihn wuerde die neue Teilrechnung
+  // unbezahlt starten und den bezahlten Auftrag in den Kundenrechnungen rot faerben.
+  async _syncTeilrechnungen(supabase, formData, auftragId) {
+    const payloads = this.buildTeilrechnungPayloads(formData, auftragId, { includePaymentStatus: false });
+    const vollePayloads = new Map(
+      this.buildTeilrechnungPayloads(formData, auftragId).map(p => [p.position, p])
+    );
+    const keepPositions = new Set(payloads.map(p => p.position));
+
+    const { data: existing, error: loadErr } = await supabase
+      .from('auftrag_teilrechnung')
+      .select('id, position')
+      .eq('auftrag_id', auftragId);
+    if (loadErr) throw loadErr;
+
+    const existingByPosition = new Map((existing || []).map(row => [row.position, row.id]));
+
+    for (const payload of payloads) {
+      const existingId = existingByPosition.get(payload.position);
+      if (existingId) {
+        const { error: updErr } = await supabase
+          .from('auftrag_teilrechnung')
+          .update(payload)
+          .eq('id', existingId);
+        if (updErr) throw updErr;
+      } else {
+        const { error: insErr } = await supabase
+          .from('auftrag_teilrechnung')
+          .insert(vollePayloads.get(payload.position) || payload);
+        if (insErr) throw insErr;
+      }
+    }
+
+    const removeIds = (existing || [])
+      .filter(row => !keepPositions.has(row.position))
+      .map(row => row.id);
+    if (removeIds.length > 0) {
+      const { error: delErr } = await supabase
+        .from('auftrag_teilrechnung')
+        .delete()
+        .in('id', removeIds);
+      if (delErr) throw delErr;
+    }
+  }
+
   // Contracting hat keine Kampagnenbloecke, aber sehr wohl Agenturleistungen, Fee und KSK.
   // Die Stakeholder-Uebersicht liest diese Werte aus auftrag_details, nicht aus auftrag.
   async _saveContractingDetails(supabase, formData, auftragId, { createdById = null } = {}) {
@@ -299,6 +479,28 @@ export class ProjektErstellenPersistence {
       .from('auftrag_details')
       .upsert([payload], { onConflict: 'auftrag_id' });
     if (error) throw error;
+  }
+
+  _buildAllCampaignBlockPayloads(formData, { auftragId, kampagneIds = [], createdById, campaignArtIdMap = {} } = {}) {
+    const slots = this._resolveKampagnenSlots(formData);
+    const anySlotBlocks = slots.some(slot => (slot.campaign_blocks || []).length > 0);
+    if (!anySlotBlocks) {
+      return this.buildCampaignBlockPayloads(formData, {
+        auftragId,
+        kampagneId: kampagneIds[0] || null,
+        createdById,
+        campaignArtIdMap
+      });
+    }
+    return slots.flatMap((slot, i) => this.buildCampaignBlockPayloads(
+      { details: { campaign_blocks: slot.campaign_blocks || [] } },
+      {
+        auftragId,
+        kampagneId: kampagneIds[i] || slot.id || null,
+        createdById,
+        campaignArtIdMap
+      }
+    ));
   }
 
   buildCampaignBlockPayloads(fd, { auftragId, kampagneId, createdById, campaignArtIdMap = {} } = {}) {
@@ -360,28 +562,14 @@ export class ProjektErstellenPersistence {
 
       await this._saveTeilrechnungen(supabase, formData, auftragId);
 
-      // Auftragsbestaetigungen nach Dropbox hochladen + DB-Eintraege anlegen
-      const uploadResult = await this.uploadAuftragsbestaetigungenIfAny({
+      const { uploadedDocuments, uploadErrors } = await this.uploadContractingDokumente({
         formData,
         auftragId,
         auftragPayload,
         currentBenutzerId
       });
 
-      // Rechnungen nach Dropbox hochladen + DB-Eintraege anlegen
-      const rechnungUploadResult = await this.uploadRechnungenIfAny({
-        formData,
-        auftragId,
-        auftragPayload,
-        currentBenutzerId
-      });
-
-      return {
-        success: true,
-        auftragId,
-        uploadedDocuments: [...uploadResult.successes, ...rechnungUploadResult.successes],
-        uploadErrors: [...uploadResult.errors, ...rechnungUploadResult.errors]
-      };
+      return { success: true, auftragId, uploadedDocuments, uploadErrors };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Contract konnte nicht angelegt werden');
       console.error('❌ submitContracting Fehler:', {
@@ -391,82 +579,45 @@ export class ProjektErstellenPersistence {
     }
   }
 
-  async uploadAuftragsbestaetigungenIfAny({ formData, auftragId, auftragPayload, currentBenutzerId }) {
+  // Auftragsbestaetigungen + Rechnungen nach SharePoint hochladen + DB-Eintraege anlegen.
+  // Fehler werden pro Dokumenttyp markiert, damit die UI AB und Rechnung unterscheiden kann.
+  async uploadContractingDokumente({ formData, auftragId, auftragPayload, currentBenutzerId }) {
+    const abResult = await this.uploadAuftragsbestaetigungenIfAny({
+      formData, auftragId, auftragPayload, currentBenutzerId
+    });
+    const rechnungResult = await this.uploadRechnungenIfAny({
+      formData, auftragId, auftragPayload, currentBenutzerId
+    });
+
+    return {
+      uploadedDocuments: [...abResult.successes, ...rechnungResult.successes],
+      uploadErrors: [
+        ...abResult.errors.map(e => ({ ...e, dokumentTyp: 'auftragsbestaetigung' })),
+        ...rechnungResult.errors.map(e => ({ ...e, dokumentTyp: 'rechnung' }))
+      ]
+    };
+  }
+
+  async uploadAuftragsbestaetigungenIfAny({ formData, auftragId, currentBenutzerId }) {
     const files = formData?.auftrag?.auftragsbestaetigungen_files;
     if (!Array.isArray(files) || files.length === 0) {
       return { successes: [], errors: [] };
     }
 
-    const supabase = SUPABASE();
-    let unternehmenName = '';
-    let markeName = '';
-
-    try {
-      if (auftragPayload.unternehmen_id) {
-        const { data: u } = await supabase
-          .from('unternehmen')
-          .select('firmenname')
-          .eq('id', auftragPayload.unternehmen_id)
-          .single();
-        unternehmenName = u?.firmenname || '';
-      }
-      if (auftragPayload.marke_id) {
-        const { data: m } = await supabase
-          .from('marke')
-          .select('markenname')
-          .eq('id', auftragPayload.marke_id)
-          .single();
-        markeName = m?.markenname || '';
-      }
-    } catch (lookupErr) {
-      console.warn('⚠️ Unternehmen/Marke fuer Dropbox-Pfad nicht ermittelbar:', lookupErr);
-    }
-
     return uploadAuftragsbestaetigungen(files, {
       auftragId,
-      unternehmen: unternehmenName,
-      marke: markeName,
-      auftragstitel: auftragPayload.titel || '',
       uploadedById: currentBenutzerId
     });
   }
 
-  async uploadRechnungenIfAny({ formData, auftragId, auftragPayload, currentBenutzerId }) {
+  async uploadRechnungenIfAny({ formData, auftragId, currentBenutzerId }) {
     const files = formData?.auftrag?.rechnungen_files;
     if (!Array.isArray(files) || files.length === 0) {
       return { successes: [], errors: [] };
     }
 
-    const supabase = SUPABASE();
-    let unternehmenName = '';
-    let markeName = '';
-
-    try {
-      if (auftragPayload.unternehmen_id) {
-        const { data: u } = await supabase
-          .from('unternehmen')
-          .select('firmenname')
-          .eq('id', auftragPayload.unternehmen_id)
-          .single();
-        unternehmenName = u?.firmenname || '';
-      }
-      if (auftragPayload.marke_id) {
-        const { data: m } = await supabase
-          .from('marke')
-          .select('markenname')
-          .eq('id', auftragPayload.marke_id)
-          .single();
-        markeName = m?.markenname || '';
-      }
-    } catch (lookupErr) {
-      console.warn('⚠️ Unternehmen/Marke fuer Dropbox-Pfad nicht ermittelbar:', lookupErr);
-    }
-
     return uploadAuftragsbestaetigungen(files, {
       auftragId,
-      unternehmen: unternehmenName,
-      marke: markeName,
-      auftragstitel: auftragPayload.titel || '',
       dokumentTyp: 'rechnung',
       uploadedById: currentBenutzerId
     });
@@ -512,27 +663,46 @@ export class ProjektErstellenPersistence {
         .upsert([detailsPayload], { onConflict: 'auftrag_id' });
       if (detailsErr) throw detailsErr;
 
-      // 3) Kampagne updaten oder neu anlegen – beim Update nur Wizard-Felder patchen
-      const kampagnePayload = this.buildKampagnePayload(formData);
-      let savedKampagneId = kampagneId || null;
+      // 3) Kampagnen updaten/anlegen
+      const existingKampagnen = existingRaw?.kampagnen
+        || (existingRaw?.kampagne ? [existingRaw.kampagne] : []);
+      const slots = this._resolveKampagnenSlots(formData, { kampagneId, existingKampagnen });
+      const includePrefixColumns = slots.length === 1;
+      const auftragCreatorBudget = this.calculateCreatorBudget(formData);
+      const creatorBudgets = auftragCreatorBudget == null
+        ? slots.map(slot => slot.volumen)
+        : allocateCreatorBudgets(slots, auftragCreatorBudget);
+      const savedIds = [];
 
-      if (savedKampagneId) {
-        const mergedPayload = this._pickWizardKampagneFields(kampagnePayload);
-        const { error: kampagneErr } = await supabase
-          .from('kampagne')
-          .update(mergedPayload)
-          .eq('id', savedKampagneId);
-        if (kampagneErr) throw kampagneErr;
-      } else {
-        kampagnePayload.auftrag_id = auftragId;
-        const { data: kampagneData, error: kampagneErr } = await supabase
-          .from('kampagne')
-          .insert(kampagnePayload)
-          .select('id')
-          .single();
-        if (kampagneErr) throw kampagneErr;
-        savedKampagneId = kampagneData?.id || null;
+      for (let i = 0; i < slots.length; i++) {
+        const slot = slots[i];
+        const kampagnePayload = this.buildKampagnePayload(formData, slot, {
+          includePrefixColumns,
+          creatorBudget: creatorBudgets[i],
+          slotCount: slots.length
+        });
+
+        if (slot.id) {
+          const mergedPayload = this._pickWizardKampagneFields(kampagnePayload);
+          const { error: kampagneErr } = await supabase
+            .from('kampagne')
+            .update(mergedPayload)
+            .eq('id', slot.id);
+          if (kampagneErr) throw kampagneErr;
+          savedIds.push(slot.id);
+        } else {
+          kampagnePayload.auftrag_id = auftragId;
+          const insertedId = await this._insertKampagne(supabase, kampagnePayload);
+          savedIds.push(insertedId);
+        }
       }
+
+      const savedKampagneId = savedIds[0] || null;
+      const keptIds = new Set(savedIds.filter(Boolean));
+      const extraIds = existingKampagnen.map(k => k.id).filter(id => id && !keptIds.has(id));
+      const skippedKampagnen = extraIds.length > 0
+        ? await this._deleteUnusedKampagnen(supabase, extraIds)
+        : [];
 
       // 4) auftrag_kampagnenart_blocks: delete + reinsert
       const { error: deleteBlocksErr } = await supabase
@@ -541,12 +711,12 @@ export class ProjektErstellenPersistence {
         .eq('auftrag_id', auftragId);
       if (deleteBlocksErr) throw deleteBlocksErr;
 
-      const blockLabels = normalizeCampaignBlocks(formData.details || {})
+      const blockLabels = flattenCampaignBlocks(formData)
         .map(block => CAMPAIGN_TYPES.find(t => t.value === block.campaign_type)?.label || block.campaign_type);
       const campaignArtIdMap = await this.loadCampaignArtIdMap(blockLabels);
-      const blockPayloads = this.buildCampaignBlockPayloads(formData, {
+      const blockPayloads = this._buildAllCampaignBlockPayloads(formData, {
         auftragId,
-        kampagneId: savedKampagneId,
+        kampagneIds: savedIds,
         createdById: currentBenutzerId,
         campaignArtIdMap
       });
@@ -558,34 +728,15 @@ export class ProjektErstellenPersistence {
         if (blocksErr) throw blocksErr;
       }
 
-      // 5) Teilrechnungen: delete + reinsert
-      await this._saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst: true });
+      // 5) Teilrechnungen: pro Position updaten, Zahlungsstand bleibt stehen
+      await this._syncTeilrechnungen(supabase, formData, auftragId);
 
       // 6) ansprechpartner_kampagne synchronisieren
-      const ansprechpartnerId = auftragPayload.ansprechpartner_id;
-      if (savedKampagneId) {
-        const { error: delApErr } = await supabase
-          .from('ansprechpartner_kampagne')
-          .delete()
-          .eq('kampagne_id', savedKampagneId);
-        if (delApErr) {
-          console.warn('⚠️ ansprechpartner_kampagne delete fehlgeschlagen:', delApErr);
-        }
+      await this._syncAnsprechpartner(supabase, savedIds, auftragPayload.ansprechpartner_id, { deleteFirst: true });
 
-        if (ansprechpartnerId) {
-          const { error: insApErr } = await supabase
-            .from('ansprechpartner_kampagne')
-            .insert({
-              kampagne_id: savedKampagneId,
-              ansprechpartner_id: ansprechpartnerId
-            });
-          if (insApErr) {
-            console.warn('⚠️ ansprechpartner_kampagne insert fehlgeschlagen:', insApErr);
-          }
-        }
-      }
+      await this._syncProduktionen(supabase, formData, slots, savedIds, existingRaw?.produktionen || []);
 
-      return { success: true, auftragId, kampagneId: savedKampagneId };
+      return { success: true, auftragId, kampagneId: savedKampagneId, skippedKampagnen };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Projekt konnte nicht aktualisiert werden');
       console.error('❌ submitEdit Fehler:', {
@@ -619,9 +770,16 @@ export class ProjektErstellenPersistence {
       const createdById = existingRaw?.details ? null : await getCurrentBenutzerId();
       await this._saveContractingDetails(supabase, formData, auftragId, { createdById });
 
-      await this._saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst: true });
+      await this._syncTeilrechnungen(supabase, formData, auftragId);
 
-      return { success: true, auftragId };
+      const { uploadedDocuments, uploadErrors } = await this.uploadContractingDokumente({
+        formData,
+        auftragId,
+        auftragPayload,
+        currentBenutzerId: createdById || await getCurrentBenutzerId()
+      });
+
+      return { success: true, auftragId, uploadedDocuments, uploadErrors };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Contract konnte nicht aktualisiert werden');
       console.error('❌ submitEditContracting Fehler:', {
@@ -634,6 +792,7 @@ export class ProjektErstellenPersistence {
   async submit({ formData }) {
     const isContracting = formData.auftrag?.auftragtype === 'Contracting';
     if (isContracting) return this.submitContracting({ formData });
+    formData = this._asSingleKampagne(formData);
 
     const supabase = SUPABASE();
     if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };
@@ -673,24 +832,33 @@ export class ProjektErstellenPersistence {
           .insert(detailsPayload);
         if (detailsErr) throw detailsErr;
 
-        const kampagnePayload = this.buildKampagnePayload(formData);
-        kampagnePayload.auftrag_id = savedAuftragId;
+        const slots = this._resolveKampagnenSlots(formData);
+        const includePrefixColumns = slots.length === 1;
+        const auftragCreatorBudget = this.calculateCreatorBudget(formData);
+        const creatorBudgets = auftragCreatorBudget == null
+          ? slots.map(slot => slot.volumen)
+          : allocateCreatorBudgets(slots, auftragCreatorBudget);
+        const savedIds = [];
 
-        const { data: kampagneData, error: kampagneErr } = await supabase
-          .from('kampagne')
-          .insert(kampagnePayload)
-          .select('id')
-          .single();
-        if (kampagneErr) throw kampagneErr;
+        for (let i = 0; i < slots.length; i++) {
+          const kampagnePayload = this.buildKampagnePayload(formData, slots[i], {
+            includePrefixColumns,
+            creatorBudget: creatorBudgets[i],
+            slotCount: slots.length
+          });
+          kampagnePayload.auftrag_id = savedAuftragId;
+          const insertedId = await this._insertKampagne(supabase, kampagnePayload);
+          savedIds.push(insertedId);
+        }
 
-        const savedKampagneId = kampagneData.id;
+        const savedKampagneId = savedIds[0] || null;
 
-        const blockLabels = normalizeCampaignBlocks(formData.details || {})
+        const blockLabels = flattenCampaignBlocks(formData)
           .map(block => CAMPAIGN_TYPES.find(t => t.value === block.campaign_type)?.label || block.campaign_type);
         const campaignArtIdMap = await this.loadCampaignArtIdMap(blockLabels);
-        const blockPayloads = this.buildCampaignBlockPayloads(formData, {
+        const blockPayloads = this._buildAllCampaignBlockPayloads(formData, {
           auftragId: savedAuftragId,
-          kampagneId: savedKampagneId,
+          kampagneIds: savedIds,
           createdById: currentBenutzerId,
           campaignArtIdMap
         });
@@ -704,16 +872,9 @@ export class ProjektErstellenPersistence {
 
         await this._saveTeilrechnungen(supabase, formData, savedAuftragId);
 
-        const ansprechpartnerId = auftragPayload.ansprechpartner_id;
-        if (ansprechpartnerId) {
-          const { error: ansprechpartnerErr } = await supabase
-            .from('ansprechpartner_kampagne')
-            .insert({
-              kampagne_id: savedKampagneId,
-              ansprechpartner_id: ansprechpartnerId
-            });
-          if (ansprechpartnerErr) throw ansprechpartnerErr;
-        }
+        await this._syncAnsprechpartner(supabase, savedIds, auftragPayload.ansprechpartner_id);
+
+        await this._syncProduktionen(supabase, formData, slots, savedIds, []);
 
         return { success: true, auftragId: savedAuftragId, kampagneId: savedKampagneId };
       } catch (innerErr) {
@@ -733,6 +894,58 @@ export class ProjektErstellenPersistence {
       });
       return { success: false, error: friendly };
     }
+  }
+
+  async _syncProduktionen(supabase, formData, slots, savedIds, existingRows = []) {
+    const idByNummer = new Map();
+    slots.forEach((slot, index) => {
+      idByNummer.set(slot.kampagnen_nummer || index + 1, savedIds[index] || slot.id || null);
+    });
+
+    // Basis je Kampagne = Projektname (Slot 2+: "Projektname (2)")
+    const basisByKampagne = new Map();
+    slots.forEach((slot, index) => {
+      const id = savedIds[index] || slot.id || null;
+      if (id) basisByKampagne.set(id, kampagneDisplayName(formData?.auftrag?.titel, index, slots.length) || '');
+    });
+    const fallbackCount = new Map();
+    const fallbackName = (kampagneId) => {
+      const n = (fallbackCount.get(kampagneId) || 0) + 1;
+      fallbackCount.set(kampagneId, n);
+      return geistProduktionName(basisByKampagne.get(kampagneId) || '', n);
+    };
+
+    const incoming = (formData.produktionen || []).map(row => ({
+      ...row,
+      kampagne_id: row.kampagne_id || idByNummer.get(row.kampagnen_nummer || 1) || null,
+      budget: budgetOrNull(row.budget)
+    })).filter(row => row.kampagne_id);
+
+    const previous = new Map((existingRows || []).map(row => [row.id, row]));
+    const updates = incoming.filter(row => row.id).sort((a, b) => {
+      const aOld = budgetOrNull(previous.get(a.id)?.budget) || 0;
+      const bOld = budgetOrNull(previous.get(b.id)?.budget) || 0;
+      return ((a.budget || 0) - aOld) - ((b.budget || 0) - bOld);
+    });
+    for (const row of updates) {
+      const patch = {
+        budget: row.budget,
+        name: (row.name || '').trim() || fallbackName(row.kampagne_id)
+      };
+      const { error } = await supabase.from('produktion').update(patch).eq('id', row.id);
+      if (error) throw error;
+    }
+
+    // Produktionen entstehen immer mit dem Auftrag, auch ohne Budget (ADR 0045).
+    for (const row of incoming.filter(item => !item.id)) {
+      const { error } = await supabase.from('produktion').insert({
+        kampagne_id: row.kampagne_id,
+        name: (row.name || '').trim() || fallbackName(row.kampagne_id),
+        budget: row.budget
+      });
+      if (error) throw error;
+    }
+    // Die Anzahl lässt sich nur erhöhen: bestehende Produktionen werden hier nie gelöscht.
   }
 
   friendlyError(e, fallback) {

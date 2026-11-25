@@ -2,7 +2,7 @@
 // Die eine Liky-Eingabekarte fuer alle Seiten: Feld oben, Footer mit Meta
 // links und rundem Absende-Button rechts. renderLikyColumn setzt die Karte
 // an den unteren Rand der Spalte, den Verlauf darueber. Produkt (URL),
-// Persona (URL oder Chat) und Briefing (PDF) rendern denselben Rahmen, damit
+// Persona (URL, PDF oder Chat) und Briefing (PDF) rendern denselben Rahmen, damit
 // Liky ueberall gleich aussieht. Styles: .doc__side .doc-chat__* in doc.css.
 
 import { icon } from '../icons/IconSystem.js';
@@ -95,9 +95,9 @@ export function renderLikyComposer({
 }
 
 /**
- * Die eine Liky-Spalte fuer alle Seiten: Verlauf oben (scrollt), Composer
- * unten (gepinnt). Produkt, Persona und Briefing bauen ihre Spalte nur noch
- * ueber diese Funktion - die Reihenfolge gibt es genau einmal.
+ * Die eine Liky-Spalte fuer alle Seiten: Verlauf (chat-log, Messages unten),
+ * Composer darunter gepinnt. Produkt, Persona und Briefing bauen ihre Spalte
+ * nur noch ueber diese Funktion - die Reihenfolge gibt es genau einmal.
  * @param {Object} opts
  * @param {string} [opts.feedId] - id auf dem Verlauf (Panel mounten darauf)
  * @param {string} [opts.feedHtml] - vorgerenderter Inhalt des Verlaufs
@@ -112,13 +112,15 @@ export function renderLikyColumn({
   feedClass = ''
 }) {
   return `
-    <div class="doc-chat__feed${feedClass ? ` ${feedClass}` : ''}"${feedId ? ` id="${feedId}"` : ''}>${feedHtml}</div>
+    <div class="doc-chat__feed chat-log${feedClass ? ` ${feedClass}` : ''}"${feedId ? ` id="${feedId}"` : ''}>${feedHtml}</div>
     ${composer}
   `;
 }
 
 /**
- * Runder Absende-Button mit Spinner (is-loading tauscht Icon gegen Kreis).
+ * Runder Absende-Button. Im Lauf (is-stop) zeigt er das Stopp-Icon statt des
+ * Pfeils und bleibt klickbar - der Klick bricht den Lauf ab. Der Spinner
+ * (is-loading) bleibt fuer die Extract-Buttons mit Label.
  * @param {Object} opts
  * @param {string} [opts.id]
  * @param {string} opts.title - title + aria-label
@@ -139,8 +141,26 @@ export function renderLikySend({
     <button type="button"${id ? ` id="${id}"` : ''}
             class="doc-chat__send${extraClasses ? ` ${extraClasses}` : ''}"
             title="${title}" aria-label="${title}"${attrs ? ` ${attrs}` : ''}${disabled ? ' disabled' : ''}>
-      ${icon('paper-airplane')}
+      <span class="doc-chat__send-icon doc-chat__send-icon--send">${icon('send')}</span>
+      <span class="doc-chat__send-icon doc-chat__send-icon--stop">${icon('stop')}</span>
       <span class="spinner-small${spinnerClass ? ` ${spinnerClass}` : ''}"></span>
     </button>
   `;
+}
+
+/**
+ * Busy-Zustand des runden Absende-Buttons: Pfeil -> Stopp-Icon, ausgegraut,
+ * klickbar (Klick = Abbruch). Rueckweg stellt Pfeil und title wieder her.
+ * @param {HTMLButtonElement|null} button
+ * @param {boolean} busy
+ */
+export function setLikySendBusy(button, busy) {
+  if (!button) return;
+  button.classList.toggle('is-stop', busy);
+  button.disabled = false;
+  const title = busy ? 'Antwort stoppen' : (button.dataset.sendTitle || button.title);
+  if (!busy) delete button.dataset.sendTitle;
+  else button.dataset.sendTitle = button.title;
+  button.title = title;
+  button.setAttribute('aria-label', title);
 }

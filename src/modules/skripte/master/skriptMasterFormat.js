@@ -2,8 +2,11 @@
 // Markdown-Sektionen fuer Master-Skripte: Split an ##-Ueberschriften,
 // Replace einer Sektion, leichtes HTML-Rendering (Tabellen/Listen).
 
+import { istMasterDokument } from './skriptCreatorFacing.js';
+
+/** Reines Markdown-Dokument ohne Grid. Grid + Zusatzinfos ist ein Grid-Skript. */
 export function istMasterSkript(skript) {
-  return Boolean(skript?.inhalt_md);
+  return istMasterDokument(skript);
 }
 
 export function slugifyHeading(title) {

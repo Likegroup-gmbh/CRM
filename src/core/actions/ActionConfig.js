@@ -26,6 +26,8 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      // Label/Sichtbarkeit je Kampagne: kampagneAbschlussOptions (kampagneAbschluss.js)
+      { id: 'abschliessen', icon: 'check', label: 'Als abgeschlossen markieren', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
@@ -55,6 +57,7 @@ export const ActionConfigs = {
         roles: ['admin', 'mitarbeiter']
       },
       { id: 'quickview', icon: 'quickview', label: 'Schnellansicht öffnen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'linie-verschieben', icon: 'arrows-right-left', label: 'In andere Linie verschieben', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
@@ -66,7 +69,8 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Profil ansehen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
-      { id: 'add_to_list', icon: 'add-to-list', label: 'Zur Liste hinzufügen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'add_to_list', icon: 'add-to-list', label: 'Zur Masterliste hinzufügen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'add_to_casting', icon: 'add-to-casting', label: 'Zu Casting hinzufügen', roles: ['admin', 'mitarbeiter'] },
       { id: 'connect', icon: 'connect', label: 'Connect', roles: ['admin'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
@@ -108,6 +112,8 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Öffnen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      // Nur auf dem Produkte-Tab einer Linie (Liste schaltet es per actionStates frei, ADR 0052)
+      { id: 'produkt-von-linie-loesen', icon: 'unlink', label: 'Von der Linie lösen', roles: ['admin', 'mitarbeiter'], optIn: true },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
@@ -252,6 +258,8 @@ export const ActionConfigs = {
     actions: [
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      // Neue Linie in derselben Produktion, Inhalt und Produkt-Verknüpfungen kommen mit
+      { id: 'briefing-duplizieren', icon: 'document-duplicate', label: 'Duplizieren', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
@@ -358,12 +366,23 @@ const ACTION_VERB = {
   'edit-liste': 'edit',
   'edit-strategie': 'edit',
   add_to_list: 'create',
+  add_to_casting: 'create',
   add_ansprechpartner: 'create',
   add_ansprechpartner_unternehmen: 'create',
   add_produkt: 'create',
   add_persona: 'create',
   rechnung: 'create',        // Rechnung anlegen aus Auftrag
   'task-create': 'create',
+};
+
+// Diese Aktionen legen eine andere Entitaet an als die, auf deren Menue sie
+// sitzen. Sonst prueft "Produkt anlegen" am Unternehmen unternehmen.can_create.
+// Mitarbeiter duerfen keine Firma anlegen, Produkte aber schon.
+const ACTION_ENTITY = {
+  add_produkt: 'produkt',
+  add_persona: 'persona',
+  add_ansprechpartner: 'ansprechpartner',
+  add_ansprechpartner_unternehmen: 'ansprechpartner',
 };
 
 function verbFor(action) {
@@ -406,9 +425,15 @@ function filterByCapability(entityType, userRole, actions, capEntity = entityTyp
       return false;
     }
 
+    // Abschluss ist kein Bearbeiten des Projekts. Wer die Kampagne löschen darf,
+    // darf sie weiter abschließen, auch ohne can_edit.
+    if (action.id === 'abschliessen') {
+      return ps.can(capEntity, 'edit') || ps.can(capEntity, 'delete');
+    }
+
     const verb = verbFor(action);
     if (verb === null) return true;
-    return ps.can(capEntity, verb);
+    return ps.can(ACTION_ENTITY[action.id] || capEntity, verb);
   }));
 }
 

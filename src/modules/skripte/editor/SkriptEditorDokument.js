@@ -1,0 +1,343 @@
+// SkriptEditorDokument.js
+// Mitte: Skript-Dokument, Kopf-Aktionen und Kooperation (Prototype-Mixin).
+
+import { skripteService } from '../SkripteService.js';
+import { PLACEHOLDER_DEFAULT, PLACEHOLDER_FRAGEN } from './skriptEditorKonstanten.js';
+import {
+  fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml,
+  verknuepfungenHtml, konzeptCreatorFromSkript, creatorsFuerKopf
+} from './SkriptEditorDocRenderer.js';
+import { bindToolbarMenu } from '../../../core/components/ToolbarMenu.js';
+import { SkriptKooperationDrawer } from '../SkriptKooperationDrawer.js';
+import { openCreatorTausch } from '../../creator-tausch/creatorTauschUi.js';
+import { findeAlterEintragFuerSkript } from '../../creator-tausch/CreatorTauschService.js';
+import { quittiereTausch } from './skriptTauschBanner.js';
+import { bindUploadHinweis } from './skriptUploadHinweis.js';
+import { SkriptEditorView } from './SkriptEditorViewCore.js';
+
+SkriptEditorView.prototype.bindDocHeadActions = function(el) {
+  el.querySelector('#ed-zurueck')?.addEventListener('click', () => {
+    window.moduleRegistry?.navigateTo('/skripte');
+  });
+  this.unbindKopfMenu();
+  const menu = el.querySelector('#ed-kopf-menu')?.closest('.toolbar-menu');
+  if (menu) this._kopfMenuCleanup = bindToolbarMenu(menu);
+  this.bindShareButton(el);
+  this.bindPdfButton(el);
+  this.bindAnschreibenButton(el);
+  this.bindFreigebenButton(el);
+  this.bindLoeschenButton(el);
+};
+
+/** Das "…"-Menü hängt Listener an document; jedes Neurendern des Doc-Kopfs räumt sie ab. */
+SkriptEditorView.prototype.unbindKopfMenu = function() {
+  this._kopfMenuCleanup?.();
+  this._kopfMenuCleanup = null;
+};
+
+SkriptEditorView.prototype.docHeadActions = function() {
+  return docHeadActionsHtml({
+    kannTeilen: this.kannTeilen,
+    kannAnschreiben: this.kannAnschreiben,
+    kannPdf: Boolean(this.skript?.id),
+    kannZurueck: window.guestShare?.entityType === 'skript_paket',
+    kannFreigeben: this.kannFreigeben,
+    kannLoeschen: this.kannLoeschen,
+    kannTauschen: this.kannZuweisen
+      && creatorsFuerKopf(this.verknuepfungen, konzeptCreatorFromSkript(this.skript)).length > 0,
+    kannKopieren: this.kannZuweisen && Boolean(this.skript?.kampagne_id),
+    status: this.skript?.status || '',
+    statusWahlHtml: this.statusWahlHtml(),
+    verknuepfungenHtml: this.renderVerknuepfungenHtml()
+  });
+};
+
+// Gleicher Pfad wie das Aktionsmenü (Dialog, Toasts, entityUpdated); die
+// Rückkehr zur Herkunft macht der entityUpdated-Listener in bindEvents.
+SkriptEditorView.prototype.bindLoeschenButton = function(el) {
+  el.querySelector('#ed-loeschen')?.addEventListener('click', async () => {
+    if (!this.kannLoeschen) return;
+    const { handleDelete } = await import('../../../core/actions/actionDelete.js');
+    await handleDelete(this.skript.id, 'skripte');
+  });
+};
+
+SkriptEditorView.prototype.bindFreigebenButton = function(el) {
+  el.querySelector('#ed-freigeben')?.addEventListener('click', () => this.freigeben());
+};
+
+SkriptEditorView.prototype.freigeben = async function() {
+  if (!this.kannFreigeben || !this.skript?.id) return;
+  const btn = document.getElementById('ed-freigeben');
+  if (btn) btn.disabled = true;
+  try {
+    await skripteService.freigebenSkriptGast(this.skript.id);
+    this.skript.status = 'freigegeben';
+    this.renderDoc();
+    window.toastSystem?.show('Skript freigegeben', 'success');
+  } catch (error) {
+    if (btn) btn.disabled = false;
+    window.toastSystem?.show(error.message || 'Freigabe fehlgeschlagen', 'error');
+  }
+};
+
+SkriptEditorView.prototype.copySkriptLink = async function() {
+  if (!this.skript?.id) return;
+  const url = `${window.location.origin}/skripte/${this.skript.id}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    window.toastSystem?.success('Link kopiert.');
+  } catch {
+    window.toastSystem?.error('Link konnte nicht kopiert werden.');
+  }
+};
+
+SkriptEditorView.prototype.bindShareButton = function(el) {
+  el.querySelector('#ed-copy-link')?.addEventListener('click', () => this.copySkriptLink());
+  el.querySelector('#ed-share')?.addEventListener('click', () => {
+    if (!this.kannTeilen) return;
+    window.skriptPaketDrawer?.open({
+      kampagneId: this.skript.kampagne_id,
+      kampagneName: this.skript.kampagne?.kampagnenname || this.skript.kampagne?.eigener_name || ''
+    });
+  });
+};
+
+SkriptEditorView.prototype.bindPdfButton = function(el) {
+  el.querySelector('#ed-pdf')?.addEventListener('click', () => this.downloadPdf());
+};
+
+SkriptEditorView.prototype.downloadPdf = async function() {
+  if (!this.skript?.id) return;
+  const { downloadSkriptePdf, sanitizeSkriptFilename } = await import('../skriptPdfDownload.js');
+  try {
+    await downloadSkriptePdf([this.skript], {
+      dateiname: sanitizeSkriptFilename(this.skript.titel),
+      verknuepfungenNachId: new Map([[this.skript.id, this.verknuepfungen || []]]),
+      mitHookVarianten: this.kannAiAktionen
+    });
+  } catch (err) {
+    window.toastSystem?.error(err.message || 'PDF konnte nicht erstellt werden.');
+  }
+};
+
+SkriptEditorView.prototype.bindAnschreibenButton = function(el) {
+  el.querySelector('#ed-anschreiben')?.addEventListener('click', () => {
+    if (!this.kannTeilen) return;
+    this.openSkriptAnschreiben();
+  });
+};
+
+SkriptEditorView.prototype.openSkriptAnschreiben = async function() {
+  const { openAnschreiben } = await import('../../../core/anschreiben/openAnschreiben.js');
+  await openAnschreiben({
+    dokumentTyp: 'skript',
+    dokumentId: this.skript.id,
+    skript: this.skript,
+  });
+};
+
+SkriptEditorView.prototype.warmSkriptAnschreiben = function() {
+  if (!this.kannTeilen) return;
+  import('../../../core/anschreiben/openAnschreiben.js').then(({ warmAnschreiben }) => {
+    warmAnschreiben({
+      dokumentTyp: 'skript',
+      dokumentId: this.skript.id,
+      skript: this.skript,
+    }).catch((err) => console.error('Anschreiben vorwärmen fehlgeschlagen:', err));
+  });
+};
+
+/** Generator-Vorgaben bleiben intern. In der geteilten Ansicht sieht der Gast sie nicht. */
+SkriptEditorView.prototype.vorgabenFuerAnsicht = function() {
+  if (window.isGast?.()) return '';
+  return vorgabenPanelHtml(this.skript, { kannPersonaSetzen: !this.isReadonly });
+};
+
+SkriptEditorView.prototype.renderDoc = function() {
+  const el = document.getElementById('ed-doc');
+  if (!el) return;
+
+  this.inlineEdit.detach();
+
+  // Rueckfragen-Phase: Vorgaben + Hinweis statt (noch leerem) Skript-Inhalt
+  if (this.istFragenModus()) {
+    el.innerHTML = fragenModusHtml({
+      skript: this.skript,
+      genStatus: this.genStatus,
+      docHeadActionsHtml: this.docHeadActions(),
+      vorgabenPanelHtml: this.vorgabenFuerAnsicht()
+    });
+    el.querySelectorAll('[data-aufbau-flag]').forEach((toggle) => {
+      toggle.addEventListener('change', () => this.saveGeneratorFlag(toggle.dataset.aufbauFlag, toggle.checked));
+    });
+    this.bindPersonaWahl(el);
+    this.bindDocHeadActions(el);
+    this.bindVerknuepfungen(el);
+    bindUploadHinweis(this, el);
+    const input = document.getElementById('ed-input');
+    if (input && !input.disabled) input.placeholder = PLACEHOLDER_FRAGEN;
+    this.renderVersionSelect();
+    return;
+  }
+
+  const inputEl = document.getElementById('ed-input');
+  if (inputEl && inputEl.placeholder === PLACEHOLDER_FRAGEN) inputEl.placeholder = PLACEHOLDER_DEFAULT;
+
+  this._blocks.sync(this.skript);
+  const bloeckeEditierbar = this.kannBloeckeEditieren;
+  el.innerHTML = skriptDocHtml({
+    skript: this.skript,
+    messages: this.messages,
+    isReadonly: this.isReadonly,
+    docHeadActionsHtml: this.docHeadActions(),
+    vorgabenPanelHtml: this.vorgabenFuerAnsicht(),
+    docTab: this.docTab || 'skript',
+    zeigeHookVarianten: this.kannAiAktionen,
+    bloeckeEditierbar,
+    mitIntern: this.siehtInterneBloecke,
+    toolbarHtml: bloeckeEditierbar ? this._toolbar.html() : ''
+  });
+  el.querySelectorAll('[data-editor-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      this.docTab = btn.dataset.editorTab;
+      this.renderDoc();
+    });
+  });
+  this.bindDocHeadActions(el);
+  this.bindPersonaWahl(el);
+  el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
+    btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
+  });
+  this.bindVerknuepfungen(el);
+  bindUploadHinweis(this, el);
+  this.inlineEdit.attach(el, { readonly: !this.kannDokumentEditieren });
+  this._blocks.attach(el);
+  if (bloeckeEditierbar) this._toolbar.attach(el);
+  this.renderVersionSelect();
+};
+
+/**
+ * Aufbau-Toggle in der Rueckfragen-Phase: Flag sofort lokal mitziehen
+ * (startGenerationAusFragen liest den Payload von hier) und in
+ * prompt_kontext.generator_payload persistieren, damit ein Reload den
+ * Stand haelt.
+ */
+SkriptEditorView.prototype.saveGeneratorFlag = async function(flag, wert) {
+  if (!this.skript?.id) return;
+  const pk = this.skript.prompt_kontext || {};
+  this.skript.prompt_kontext = {
+    ...pk,
+    generator_payload: { ...(pk.generator_payload || {}), [flag]: wert }
+  };
+  try {
+    await skripteService.updateGeneratorFlags(this.skript.id, { [flag]: wert });
+  } catch (err) {
+    window.toastSystem?.error(err.message);
+  }
+};
+
+SkriptEditorView.prototype.bindPersonaWahl = function(el) {
+  const select = el.querySelector('[data-persona-setzen]');
+  if (!select || this.isReadonly) return;
+  select.addEventListener('change', async () => {
+    const personaId = select.value;
+    if (!personaId || !this.skript?.id) return;
+    select.disabled = true;
+    try {
+      await skripteService.setzeSkriptPersona(this.skript, personaId);
+      const fresh = await skripteService.loadSkript(this.skript.id);
+      if (fresh) {
+        this.skript = fresh;
+        this.upsertSkriptInListe?.(fresh);
+      }
+      this.renderDoc();
+      window.toastSystem?.success('Persona gesetzt');
+    } catch (err) {
+      select.disabled = false;
+      window.toastSystem?.error(err.message);
+    }
+  });
+};
+
+SkriptEditorView.prototype.renderVerknuepfungenHtml = function() {
+  return verknuepfungenHtml({
+    verknuepfungen: this.verknuepfungen,
+    konzeptCreator: konzeptCreatorFromSkript(this.skript),
+    kannZuweisen: this.kannZuweisen
+  });
+};
+
+SkriptEditorView.prototype.bindVerknuepfungen = function(el) {
+  el.querySelector('#ed-skript-zuweisen')?.addEventListener('click', () => this.openKooperationDrawer());
+  el.querySelector('#ed-creator-tauschen')?.addEventListener('click', () => this.openCreatorTauschFuerSkript());
+  el.querySelector('#ed-kopieren')?.addEventListener('click', () => this.openKopierenDrawer());
+  el.querySelector('#ed-tausch-quittieren')?.addEventListener('click', () => quittiereTausch(this));
+};
+
+/** Creator tauschen: alten Casting-Eintrag aus dem Skript aufloesen, dann derselbe Dialog wie im Casting. */
+SkriptEditorView.prototype.openCreatorTauschFuerSkript = async function() {
+  if (!this.kannZuweisen || !this.skript?.id) return;
+  try {
+    const alterItemId = await findeAlterEintragFuerSkript(this.skript, this.verknuepfungen);
+    if (!alterItemId) {
+      window.toastSystem?.show('Zu diesem Skript gibt es keinen Casting-Eintrag (Altbestand). Tausch nicht möglich.', 'info');
+      return;
+    }
+    await openCreatorTausch({
+      alterItemId,
+      onSuccess: async () => {
+        const id = this.skript.id;
+        const fresh = await skripteService.loadSkript(id);
+        if (fresh) this.upsertSkriptInListe(fresh);
+        this.skript = null;
+        await this.switchSkript(id);
+      }
+    });
+  } catch (err) {
+    window.toastSystem?.error(err.message);
+  }
+};
+
+SkriptEditorView.prototype.reloadVerknuepfungen = async function() {
+  if (!this.skript?.id) {
+    this.verknuepfungen = [];
+    return;
+  }
+  try {
+    this.verknuepfungen = await skripteService.loadSkriptVerknuepfungen(this.skript.id);
+  } catch (err) {
+    console.warn('Skript-Verknüpfungen konnten nicht geladen werden:', err);
+    this.verknuepfungen = [];
+  }
+};
+
+/** Skript kopieren (ADR 0075): Video eines weiteren Creators wählen, danach die Kopie öffnen. */
+SkriptEditorView.prototype.openKopierenDrawer = function() {
+  if (!this.kannZuweisen || !this.skript?.kampagne_id) return;
+  if (!this._koopDrawer) this._koopDrawer = new SkriptKooperationDrawer();
+  this._koopDrawer.open({
+    skript: this.skript,
+    verknuepfungen: this.verknuepfungen,
+    modus: 'kopieren',
+    onSuccess: async (kopieId) => {
+      const kopie = await skripteService.loadSkript(kopieId);
+      if (kopie) this.upsertSkriptInListe(kopie);
+      await this.switchSkript(kopieId);
+    }
+  });
+};
+
+SkriptEditorView.prototype.openKooperationDrawer = function() {
+  if (!this.kannZuweisen || !this.skript) return;
+  if (!this._koopDrawer) this._koopDrawer = new SkriptKooperationDrawer();
+  this._koopDrawer.open({
+    skript: this.skript,
+    verknuepfungen: this.verknuepfungen,
+    onSuccess: async () => {
+      await this.reloadVerknuepfungen();
+      this.renderDoc();
+      this.renderListe();
+    }
+  });
+};

@@ -218,4 +218,50 @@ describe('ActionsDropdown – .submenu-item Isolation', () => {
 
     document.removeEventListener('click', lateSpy);
   });
+
+  it('verhindert href=# Default bei Custom-Actions bevor das Portal entfernt wird', () => {
+    document.body.innerHTML = `
+      <div class="actions-dropdown-container" data-entity-type="strategie_item">
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="connect-creator" data-id="i1">Creator verbinden</a>
+        </div>
+      </div>`;
+
+    dd = new ActionsDropdown();
+    dd.handleAction = vi.fn();
+    dd.bindGlobalEvents();
+
+    const link = document.querySelector('.action-item[data-action="connect-creator"]');
+    const evt = new MouseEvent('click', { bubbles: true, cancelable: true });
+    link.dispatchEvent(evt);
+
+    expect(evt.defaultPrevented).toBe(true);
+    expect(dd.handleAction).not.toHaveBeenCalled();
+  });
+
+  it('claimt generate-pdf als globale Action und reicht den Klick an handleAction', () => {
+    document.body.innerHTML = `
+      <div class="actions-dropdown-container" data-entity-type="vertraege">
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="generate-pdf" data-id="v1">PDF erzeugen</a>
+        </div>
+      </div>`;
+
+    dd = new ActionsDropdown();
+    dd.handleAction = vi.fn();
+    dd.closeAllDropdowns = vi.fn();
+    dd.bindGlobalEvents();
+
+    expect(dd.isKnownGlobalAction('generate-pdf')).toBe(true);
+
+    const lateSpy = vi.fn();
+    document.addEventListener('click', lateSpy);
+
+    clickOn(document.querySelector('.action-item[data-action="generate-pdf"]'));
+
+    expect(dd.handleAction).toHaveBeenCalledWith('generate-pdf', 'v1', 'vertraege', expect.anything());
+    expect(lateSpy).not.toHaveBeenCalled();
+
+    document.removeEventListener('click', lateSpy);
+  });
 });

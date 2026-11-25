@@ -17,11 +17,14 @@ const { detectPlatform, isMobilePlatform, VIEWPORTS } = require('./screenshot-ut
 const { launchBrowser, setupPage } = require('./screenshot-utils/browser-setup');
 const { handleInstagramPopups, takeInstagramScreenshot } = require('./screenshot-utils/platform-instagram');
 const { handleTikTokPopups, takeTikTokScreenshot } = require('./screenshot-utils/platform-tiktok');
+const { captureTikTokV2, isTikTokV2Enabled } = require('./screenshot-utils/platform-tiktok-v2');
 const { handleYouTubeInteraction, takeYouTubeScreenshot } = require('./screenshot-utils/platform-youtube');
-const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl } = require('./_shared/video-transcribe');
+const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl, cloudflareCredentials, fingerprint, PIPELINE_BUILD } = require('./_shared/video-transcribe');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { shouldApplyKiBeschreibung } = require('./_shared/ki-beschreibung');
+const { schreibeKundenadaptionWennLeer } = require('./_shared/kundenadaption');
+const { verarbeitungAbschluss } = require('./_shared/verarbeitung-abschluss');
 const {
   SCREENSHOT_BUCKET,
   deletePreviousScreenshot
@@ -39,7 +42,10 @@ function createItemUpdater(supabase, itemId) {
 
   const enqueue = (patch) => {
     queue = queue
-      .then(() => supabase.from('strategie_items').update(patch).eq('id', itemId))
+      .then(async () => {
+        const { error } = await supabase.from('strategie_items').update(patch).eq('id', itemId);
+        if (error) console.error(`[${itemId}] Item-Write fehlgeschlagen:`, error.message);
+      })
       .catch((e) => console.error(`[${itemId}] Item-Write fehlgeschlagen:`, e.message));
   };
 
@@ -47,7 +53,10 @@ function createItemUpdater(supabase, itemId) {
     if (!jobId) return;
     const id = jobId;
     queue = queue
-      .then(() => supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', id))
+      .then(async () => {
+        const { error } = await supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', id);
+        if (error) console.error(`[${itemId}] Job-Write fehlgeschlagen:`, error.message);
+      })
       .catch((e) => console.error(`[${itemId}] Job-Write fehlgeschlagen:`, e.message));
   };
 
@@ -75,18 +84,41 @@ function createItemUpdater(supabase, itemId) {
     },
     async flushItem(patch) {
       await queue;
-      await supabase.from('strategie_items').update(patch).eq('id', itemId);
+      const { error } = await supabase.from('strategie_items').update(patch).eq('id', itemId);
+      if (error) {
+        console.error(`[${itemId}] Item-Write fehlgeschlagen:`, error.message);
+        throw new Error(error.message);
+      }
     },
     async flushJob(patch) {
       if (!jobId) { await queue; return; }
       await queue;
-      await supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', jobId);
+      const { error } = await supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', jobId);
+      if (error) {
+        console.error(`[${itemId}] Job-Write fehlgeschlagen:`, error.message);
+        throw new Error(error.message);
+      }
     }
   };
 }
 
 /** Screenshot auf einer eigenen Page mit dem plattformgerechten Viewport. */
 async function captureScreenshot(browser, platform, navigateUrl) {
+  // TikTok V2: Desktop-Profil, klickt die neue Login-Wand durch. Bei Fehler
+  // greift unten das unveraenderte V1. Abschalten: TIKTOK_SCREENSHOT_V2=off.
+  if (platform === 'tiktok' && isTikTokV2Enabled()) {
+    const v2Page = await setupPage(browser, 'tiktok-v2');
+    try {
+      const result = await captureTikTokV2(v2Page, navigateUrl);
+      console.log(`TikTok V2 Strategie: ${result.strategy}`);
+      return result.screenshotBuffer;
+    } catch (e) {
+      console.warn(`TikTok V2 fehlgeschlagen, falle auf V1 zurueck: ${e.message}`);
+    } finally {
+      await v2Page.close().catch(() => {});
+    }
+  }
+
   const page = await setupPage(browser, platform);
   if (isMobilePlatform(platform)) {
     await page.setViewport(VIEWPORTS.mobile);
@@ -168,19 +200,19 @@ async function triggerNextPending(supabase, event, strategieId, currentItemId) {
 }
 
 exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) => {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const aiToken = process.env.CLOUDFLARE_AI_TOKEN;
+  const { accountId, aiToken } = cloudflareCredentials();
 
   const { itemId } = payload;
   if (!itemId) {
     return { statusCode: 400, body: 'itemId erforderlich' };
   }
 
-  const { data: item } = await supabase
+  const { data: item, error: loadError } = await supabase
     .from('strategie_items')
     .select('id, strategie_id, video_link, beschreibung, verarbeitung_status, screenshot_url')
     .eq('id', itemId)
     .maybeSingle();
+  if (loadError) throw new Error(loadError.message);
   if (!item) {
     return { statusCode: 404, body: 'Item nicht gefunden' };
   }
@@ -199,17 +231,20 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
   let browser;
   let screenshotError = null;
   let transcriptError = null;
-
-  await supabase.from('strategie_items')
-    .update({
-      verarbeitung_status: 'processing',
-      verarbeitung_step: 'browser',
-      verarbeitung_fehler: null,
-      plattform: platform
-    })
-    .eq('id', itemId);
+  let beschreibungFehler = null;
+  let result = null;
 
   try {
+    const { error: startError } = await supabase.from('strategie_items')
+      .update({
+        verarbeitung_status: 'processing',
+        verarbeitung_step: 'browser',
+        verarbeitung_fehler: null,
+        plattform: platform
+      })
+      .eq('id', itemId);
+    if (startError) throw new Error(startError.message);
+
     tracker.log(`Start: ${platform} - ${url}`);
 
     // Desktop-Default; die Screenshot-Page bekommt ihren Mobile-Viewport selbst
@@ -231,16 +266,17 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
     // --- Transkription ------------------------------------------------------
     if (!isTranscribablePlatform(platform)) {
       tracker.log(`Keine Transkription fuer ${platform} - nur Screenshot`);
+      const abschluss = verarbeitungAbschluss({ screenshotError });
       await tracker.flushItem({
-        verarbeitung_status: screenshotError ? 'error' : 'done',
+        verarbeitung_status: abschluss.verarbeitung_status,
         verarbeitung_step: 'done',
-        verarbeitung_fehler: screenshotError
+        verarbeitung_fehler: abschluss.verarbeitung_fehler
       });
       await triggerNextPending(supabase, event, item.strategie_id, itemId);
       return { statusCode: 200 };
     }
 
-    const { data: job } = await supabase
+    const { data: job, error: jobError } = await supabase
       .from('transcription_jobs')
       .insert({
         url,
@@ -251,10 +287,14 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
       })
       .select('id')
       .single();
+    if (jobError) throw new Error(jobError.message);
     if (job) {
       tracker.attachJob(job.id);
       tracker.updateItem({ transcription_job_id: job.id });
     }
+    const creds = cloudflareCredentials();
+    tracker.log(`Build ${PIPELINE_BUILD} | Cloudflare: Account ${fingerprint(creds.accountId)}, Token ${fingerprint(creds.aiToken)}`);
+    await tracker.flushJob({});
 
     // KI-Aufrufe (Whisper/Llama) zaehlen: Frequenz-Limit + Protokoll-Zeile.
     // Bei Limit das Item offen lassen und die Kette stoppen - spaeter
@@ -276,7 +316,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
     }
 
     try {
-      const result = await transcribeVideoOnPage({
+      result = await transcribeVideoOnPage({
         page: await setupPage(browser, 'other'),
         platform,
         url,
@@ -284,6 +324,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
         aiToken,
         onStep: (step, msg) => tracker.step(step, msg),
         onLog: (msg) => tracker.log(msg),
+        onCaption: (caption) => tracker.flushItem({ caption }),
+        onTranscript: (transcript, source) => tracker.flushItem({
+          transkript: transcript,
+          transkript_quelle: source
+        }),
         onVideoData: (videoData) => {
           if (videoData.durationSeconds) tracker.updateJob({ duration_seconds: videoData.durationSeconds });
         },
@@ -294,28 +339,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
       });
       await ki.abschliessen({ model: 'cloudflare-whisper-llama' });
 
-      tracker.updateItem({
+      await tracker.flushItem({
         transkript: result.transcript,
         transkript_quelle: result.transcriptSource,
         caption: result.caption
       });
-
-      // Vorhandene Beschreibungen bleiben unangetastet - die KI-Fassung steht
-      // weiterhin im Job. Frischer Read, falls zwischendurch jemand getippt hat.
-      if (result.description) {
-        const { data: current } = await supabase
-          .from('strategie_items')
-          .select('beschreibung')
-          .eq('id', itemId)
-          .maybeSingle();
-        if (shouldApplyKiBeschreibung(current?.beschreibung)) {
-          const { error: descError } = await supabase
-            .from('strategie_items')
-            .update({ beschreibung: result.description, beschreibung_quelle: 'ki' })
-            .eq('id', itemId);
-          if (descError) tracker.log(`Beschreibung nicht uebernommen: ${descError.message}`);
-        }
-      }
 
       await tracker.flushJob({
         status: 'done',
@@ -335,9 +363,14 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
         completed_at: new Date().toISOString()
       });
     } catch (e) {
-      transcriptError = e.message;
-      tracker.log(`FEHLER Transkription: ${e.message}`);
-      await ki.fehlgeschlagen(e);
+      if (e.descriptionFailed) {
+        beschreibungFehler = e.message;
+        tracker.log(`Beschreibung fehlgeschlagen: ${e.message}`);
+      } else {
+        transcriptError = e.message;
+        tracker.log(`FEHLER Transkription: ${e.message}`);
+      }
+      await ki?.fehlgeschlagen(e);
       await tracker.flushJob({
         status: 'error',
         error_message: e.message,
@@ -345,18 +378,62 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
       });
     }
 
-    const fehler = [
-      screenshotError ? `Screenshot: ${screenshotError}` : null,
-      transcriptError ? `Transkript: ${transcriptError}` : null
-    ].filter(Boolean).join(' | ') || null;
+    // Vorhandene Beschreibungen bleiben unangetastet. Die KI-Fassung steht
+    // weiterhin im Job. Frischer Read, falls zwischendurch jemand getippt hat.
+    if (!transcriptError && result?.description) {
+      try {
+        const { data: current, error: readError } = await supabase
+          .from('strategie_items')
+          .select('beschreibung')
+          .eq('id', itemId)
+          .maybeSingle();
+        if (readError) throw new Error(readError.message);
+        if (shouldApplyKiBeschreibung(current?.beschreibung)) {
+          const { error: descError } = await supabase
+            .from('strategie_items')
+            .update({
+              beschreibung: result.description,
+              beschreibung_quelle: 'ki',
+              beschreibung_struktur: result.beschreibungStruktur || null
+            })
+            .eq('id', itemId);
+          if (descError) throw new Error(descError.message);
+        }
+      } catch (e) {
+        beschreibungFehler = e.message;
+        tracker.log(`Beschreibung nicht uebernommen: ${e.message}`);
+      }
+    }
+
+    let adaptionFehler = null;
+    try {
+      await schreibeKundenadaptionWennLeer(supabase, {
+        userId: user.id,
+        itemId,
+        strategieId: item.strategie_id,
+        transkript: result?.transcript,
+        caption: result?.caption,
+        onStep: () => tracker.step('adaption', 'Kundenadaption')
+      });
+    } catch (e) {
+      adaptionFehler = e.message;
+      tracker.log(`Kundenadaption: ${e.message}`);
+    }
+
+    const abschluss = verarbeitungAbschluss({
+      screenshotError,
+      transcriptError,
+      beschreibungFehler,
+      adaptionFehler
+    });
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[${itemId}] Fertig in ${elapsed}s${fehler ? ` (${fehler})` : ''}`);
+    console.log(`[${itemId}] Fertig in ${elapsed}s${abschluss.verarbeitung_fehler ? ` (${abschluss.verarbeitung_fehler})` : ''}`);
 
     await tracker.flushItem({
-      verarbeitung_status: fehler ? 'error' : 'done',
+      verarbeitung_status: abschluss.verarbeitung_status,
       verarbeitung_step: 'done',
-      verarbeitung_fehler: fehler
+      verarbeitung_fehler: abschluss.verarbeitung_fehler
     });
 
     await triggerNextPending(supabase, event, item.strategie_id, itemId);

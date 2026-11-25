@@ -6,20 +6,11 @@ import { VideoideeVorschlagService } from './VideoideeVorschlagService.js';
 import { countVideoideeVorschlaege } from './videoideeVorschlag.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
-function esc(value) {
-  const div = document.createElement('div');
-  div.textContent = value ?? '';
-  return div.innerHTML;
-}
-
 export class VideoideeVorschlagPanel {
   constructor(detail) {
     this.detail = detail;
     this.laeuft = false;
-    this.fortschritt = '';
-    this.fehler = '';
     this._token = 0;
-    this._onProgress = null;
     this._onFinished = null;
     this._clickHandler = null;
     this._boundBlock = null;
@@ -31,12 +22,17 @@ export class VideoideeVorschlagPanel {
     return !!(this.detail.canCreate || this.detail.canEdit);
   }
 
+  _getBlock() {
+    return this.detail?._q?.('#videoidee-vorschlag-block')
+      || document.getElementById('videoidee-vorschlag-block');
+  }
+
   get count() {
     return countVideoideeVorschlaege(this.detail?.items);
   }
 
   async mount() {
-    const block = document.getElementById('videoidee-vorschlag-block');
+    const block = this._getBlock();
     if (!block) return;
     if (!this.sichtbar) {
       block.remove();
@@ -61,7 +57,7 @@ export class VideoideeVorschlagPanel {
   }
 
   render() {
-    const block = document.getElementById('videoidee-vorschlag-block');
+    const block = this._getBlock();
     if (!block || !this.sichtbar) return;
 
     const count = this.count;
@@ -70,15 +66,13 @@ export class VideoideeVorschlagPanel {
     const canEdit = !!this.detail.canEdit;
 
     const holenLabel = count ? 'Weitere Ideen' : 'Ideen vorschlagen';
-    const holenBtn = this.laeuft
-      ? `<span class="casting-vorschlag__progress">${esc(this.fortschritt || 'Läuft…')}</span>`
-      : (canCreate
-        ? `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-videoidee-vorschlag-holen"
-             ${hatBriefing ? '' : 'disabled title="Konzept ohne Briefing: ohne Briefing kein Lauf"'}>
-            ${icon('sparkles', { className: 'icon-16' })}
-            ${holenLabel}
-          </button>`
-        : '');
+    const holenBtn = canCreate
+      ? `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-videoidee-vorschlag-holen"
+           ${hatBriefing ? '' : 'disabled title="Konzept ohne Briefing: ohne Briefing kein Lauf"'}>
+          ${icon('sparkles', { className: 'icon-16' })}
+          ${holenLabel}
+        </button>`
+      : '';
 
     const bulk = (!this.laeuft && canEdit && count)
       ? `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-videoidee-vorschlag-alle-uebernehmen">
@@ -91,28 +85,11 @@ export class VideoideeVorschlagPanel {
          </button>`
       : '';
 
-    block.innerHTML = `
-      <div class="casting-vorschlag videoidee-vorschlag">
-        <div class="casting-vorschlag__kopf">
-          <div>
-            <span class="casting-vorschlag__titel">KI-Vorschläge ${count ? `(${count})` : ''}</span>
-            <p class="casting-vorschlag__sub">Aus Briefing, Produkt und Personas · in der Liste mit Rand markiert</p>
-          </div>
-          <div class="casting-vorschlag__aktionen">
-            ${holenBtn}
-            ${bulk}
-          </div>
-        </div>
-        ${this.fehler ? `<p class="casting-vorschlag__fehler">${esc(this.fehler)}</p>` : ''}
-        ${!hatBriefing && !count
-          ? '<p class="casting-vorschlag__hinweis">Dieses Konzept hat kein Briefing – ohne Briefing gibt es keine Vorschläge.</p>'
-          : ''}
-      </div>
-    `;
+    block.innerHTML = `${holenBtn}${bulk}`;
   }
 
   bind() {
-    const block = document.getElementById('videoidee-vorschlag-block');
+    const block = this._getBlock();
     if (!block) return;
     this.unbindClick();
     this._boundBlock = block;
@@ -122,24 +99,16 @@ export class VideoideeVorschlagPanel {
 
   bindProgress() {
     this.unbindProgress();
-    this._onProgress = (e) => {
-      this.fortschritt = e.detail?.label || 'Läuft…';
-      this.render();
-    };
     this._onFinished = () => {
       this.laeuft = false;
-      this.fortschritt = '';
       this.render();
       this.neuLaden();
     };
-    document.addEventListener('videoideeVorschlagProgress', this._onProgress);
     document.addEventListener('videoideeVorschlagFinished', this._onFinished);
   }
 
   unbindProgress() {
-    if (this._onProgress) document.removeEventListener('videoideeVorschlagProgress', this._onProgress);
     if (this._onFinished) document.removeEventListener('videoideeVorschlagFinished', this._onFinished);
-    this._onProgress = null;
     this._onFinished = null;
   }
 
@@ -161,25 +130,25 @@ export class VideoideeVorschlagPanel {
     }
   }
 
-  async holen() {
-    if (this.laeuft) return;
-    this.laeuft = true;
-    this.fehler = '';
-    this.fortschritt = 'Videoideen sind unterwegs…';
-    this.bindProgress();
-    this.render();
-    try {
-      await VideoideeVorschlagService.starteJob({ strategieId: this.detail.strategieId, input: {} });
-    } catch (error) {
-      console.error('Fehler bei den Videoidee-Vorschlägen:', error);
-      this.laeuft = false;
-      this.fortschritt = '';
-      this.fehler = error.message || 'Generierung fehlgeschlagen.';
-      this.unbindProgress();
-      this.render();
+  holen() {
+    const liky = this.detail.konzeptLiky;
+    if (!liky) return;
+    if (this.laeuft || liky.blockiert()) {
+      liky.fokussieren();
       return;
     }
-    if (!this.laeuft) return;
+    liky.fragAnzahl({
+      onStart: () => {
+        this.laeuft = true;
+        this.bindProgress();
+        this.render();
+      },
+      onSettled: () => {
+        this.laeuft = false;
+        this.unbindProgress();
+        this.render();
+      }
+    });
   }
 
   async neuLaden() {

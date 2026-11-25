@@ -2,6 +2,8 @@
 // Laedt Custom Column Definitionen, Dropdown-Optionen und Werte aus Supabase.
 // Speichert Werte und Reihenfolge zurueck.
 
+import { ablageEntityLoeschen } from '../../../core/ablage/ablageApi.js';
+
 export class CustomColumnDataLoader {
 
   /**
@@ -121,7 +123,7 @@ export class CustomColumnDataLoader {
   /**
    * Erstellt eine neue Custom Column Definition.
    */
-  static async createColumn(kampagneId, { name, field_type, entity_type, visible_for_kunden = false }) {
+  static async createColumn(kampagneId, { name, field_type, entity_type, visible_for_kunden = false, editable_by_kunden = false }) {
     const maxPosResult = await window.supabase
       .from('custom_columns')
       .select('position')
@@ -140,6 +142,7 @@ export class CustomColumnDataLoader {
         entity_type,
         position: nextPos,
         visible_for_kunden,
+        editable_by_kunden: visible_for_kunden && editable_by_kunden,
         created_by: window.currentUser?.auth_user_id || null
       })
       .select('*')
@@ -163,9 +166,11 @@ export class CustomColumnDataLoader {
   }
 
   /**
-   * Loescht eine Custom Column + alle Werte (CASCADE).
+   * Loescht eine Custom Column + alle Werte (CASCADE). Vorher die SharePoint-Ordner einer
+   * Upload-Spalte; ohne Bestand liefert der Server nur Nullen.
    */
   static async deleteColumn(columnId) {
+    await ablageEntityLoeschen('spalte', columnId);
     const { error } = await window.supabase
       .from('custom_columns')
       .delete()

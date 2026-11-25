@@ -1,0 +1,34 @@
+# 0042 Die Breadcrumb folgt dem Klickpfad
+
+Die Breadcrumb zeigte immer den offiziellen Weg einer Seite. Wer von einer Produktion ins Casting und dann zum Creator ging, landete in `Creator > Max` und kam nur umständlich zurück. Herkunft gab es nur als `?von=` und nur für Produktion/Kampagne. Jede so erreichte Seite lud Produktion und Kampagne nach (zwei serielle Queries nach dem eigentlichen Entitäts-Load), nur um die Breadcrumb zu beschriften.
+
+## Entscheidung
+
+- Der Klickpfad liegt in `history.state.trail` (Liste aus `{ label, url }`). Beim Navigieren legt der Router einen Schnappschuss der aktuellen Breadcrumb ab; die Labels kommen aus der gerenderten Breadcrumb, nicht aus der Datenbank.
+- Regeln (`src/core/breadcrumbTrail.js`, `nextTrail`):
+  - Formular-Routen (`/x/new`, `/x/:id/edit`, `/projekt-erstellen`) halten immer die Herkunft (siehe 0043).
+  - Ziel ohne ID (Liste, Sidebar) setzt den Pfad zurück.
+  - Gleicher Pfad (Tab-Wechsel, Reload) behält ihn.
+  - Ziel steht schon im Pfad: Pfad wird bis davor gekürzt (keine Zyklen).
+  - Liste derselben Entität → Detail: Steckt die Liste in einem Ordner (Breadcrumb mit mehr als dem Root-Crumb), läuft ihr Ordnerpfad mit (`Skripte > Firma > Kampagne > Skript`). Root-Listen und feste Unterseiten aus `children` (z. B. `/skripte/master`) nutzen den offiziellen Weg.
+  - Geschwister derselben Entität (Switcher) behalten den Pfad.
+  - Sonst: Pfad = Schnappschuss der verlassenen Seite (inkl. `?tab=`).
+- Module liefern weiter ihren offiziellen Weg (`updateBreadcrumb`) bzw. das Blatt (`updateDetailLabel`). Liegt ein Pfad vor, hängt das System nur das Blatt an — oder setzt den offiziellen Weg ab dem letzten Pfad-Crumb fort (Kampagne → Produktion, Unternehmen → Persona-Form).
+  - Andockpunkt: Endet der Pfad auf einer Entität (`/x/:id`), zählt ihr erster Treffer im offiziellen Weg. Endet er auf einer Liste, zählt der letzte Treffer, weil Ordner-Crumbs alle dieselbe Listen-Route tragen und nur so nichts doppelt erscheint.
+- Ordner-Listen (Skripte, Konzepte, Castings, Videos, Kampagnen-Grid) halten ihre Ebene in der Query (`unternehmen`, `marke`, `kampagne`, Videos zusätzlich `ebene`) und synchronisieren sie per `replaceRoute`. Detailseiten bauen daraus ihren offiziellen Weg mit Ordnern (`skriptCrumbs`, `kampagneDetailCrumbs`), sodass neuer Tab und geteilter Link denselben Weg zeigen.
+- `backTarget(fallback)` (Abbrechen/Speichern) nimmt die letzte Pfad-Ebene; Formulare springen über `navigateBack` (0043).
+- `?von=`/`returnTo` und `navHerkunft.js` entfallen vollständig.
+- URL-Rewrites ohne Navigation laufen über `replaceRoute`, damit der Pfad im History-Eintrag bleibt.
+- Ein Label-Cache (in-memory, nur Entitäts-Pfade) zeigt bekannte Namen sofort statt `...`.
+
+## Verworfen
+
+- `?von=` für alle Entitäten: lange URLs, und ein Kaltstart müsste alle Labels nachladen.
+- `?von=` als Fallback nur für Produktion: zwei Mechanismen für dieselbe Sache.
+
+## Folgen
+
+- Neuer Tab und geteilte Links zeigen den offiziellen Weg; Reload, Zurück und Vor behalten den Pfad.
+- Ab sieben Ebenen klappt die Mitte in `…` zusammen (Klick klappt auf).
+- Inline-Bearbeiten auf der Detailseite hängt `Bearbeiten` als eigenen Crumb an (`showEditLeaf`), statt das Entitäts-Label zu überschreiben.
+- Eine Produktion aus dem Produktions-Ordner zeigt den Ordnerpfad (`Produktionen > Firma > … > Produktion`) statt `Kampagnen > Kampagne > Produktion`.

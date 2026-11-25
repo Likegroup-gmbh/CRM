@@ -1,0 +1,397 @@
+/* ---------------------------------------------------------------------------
+   Skript-Editor (3 Spalten: Skriptliste | Skript | Feedback)
+   Der Liky-Chat liegt als aufklappbare Bubble ueber dem Dokument.
+--------------------------------------------------------------------------- */
+
+/* Editor nimmt exakt die sichtbare Hoehe ein - kein globaler Scroll,
+   nur die einzelnen Spalten (Liste / Doc / Feedback) scrollen intern. */
+.main-wrapper:has(.skripte-page--editor) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.skripte-page--editor {
+  max-width: none;
+  flex: 1;
+  min-height: 0;
+}
+
+.skripte-page--editor #skripte-tab-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.skripte-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+
+  flex: 1;
+  min-height: 0;
+}
+
+.skripte-editor-cost {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  padding: var(--space-xxs) var(--space-sm);
+  background: var(--gray-100);
+  border-radius: var(--radius-xl);
+}
+
+/* Shell: Liste | Dokument | Feedback. Gäste haben keine Feedback-Spalte. */
+.skripte-editor-shell {
+  display: grid;
+  grid-template-columns: calc(var(--panel-md) * 1.15) minmax(0, 1fr) var(--panel-lg);
+  grid-template-rows: minmax(0, 1fr);
+  transition: grid-template-columns 0.3s ease;
+
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.skripte-editor--liste-collapsed .skripte-editor-shell {
+  grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr) var(--panel-lg);
+}
+
+/* Geteilte Ansicht: keine Kommentare, keine Änderungen. */
+.skripte-editor--gast .skripte-editor-shell {
+  grid-template-columns: calc(var(--panel-md) * 1.15) minmax(0, 1fr);
+}
+
+.skripte-editor--gast.skripte-editor--liste-collapsed .skripte-editor-shell {
+  grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr);
+}
+
+@media (max-width: 1200px) {
+  .skripte-editor-shell,
+  .skripte-editor--liste-collapsed .skripte-editor-shell {
+    grid-template-columns: minmax(0, 1fr) var(--panel-lg);
+  }
+  .skripte-editor--gast .skripte-editor-shell,
+  .skripte-editor--gast.skripte-editor--liste-collapsed .skripte-editor-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .skripte-editor-liste {
+    display: none;
+  }
+}
+
+/* Skript-Wechsel: Inhalte dimmen statt Layout neu aufzubauen */
+.skripte-editor--laedt {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+/* Linke Spalte: Skriptliste */
+.skripte-editor-liste {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-primary);
+
+
+}
+
+.skripte-editor-liste-head,
+.skripte-editor-doc-head,
+.skripte-editor-fb-head {
+  min-height: calc(var(--space-sm) * 2 + var(--space-xs) * 2 + 1.5 * var(--text-sm) + var(--border-xs) * 3);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.skripte-editor-liste-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-800);
+}
+
+.skripte-editor-liste-head-start {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.skripte-editor--liste-collapsed .skripte-editor-liste {
+  overflow: hidden;
+}
+
+.skripte-editor--liste-collapsed .skripte-editor-liste-head {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: var(--space-md) var(--space-xs);
+  border-bottom: none;
+}
+
+.skripte-editor--liste-collapsed .skripte-editor-liste-head-start {
+  justify-content: center;
+}
+
+.skripte-editor--liste-collapsed .skripte-editor-liste-head-label,
+.skripte-editor--liste-collapsed #ed-liste-items,
+.skripte-editor--liste-collapsed #ed-neu .mdc-btn__label {
+  display: none;
+}
+
+.skripte-editor--liste-collapsed #ed-neu {
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+.skripte-editor-liste-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  text-decoration: none;
+  padding: var(--space-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.skripte-editor-liste-item + .skripte-editor-liste-item {
+  border-top: var(--border-xs) solid var(--border-primary);
+}
+
+.skripte-editor-liste-item:hover {
+  background: var(--bg-secondary);
+}
+
+.skripte-editor-liste-item.active {
+  background: var(--bg-tertiary);
+}
+
+.skripte-editor-liste-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.skripte-editor-liste-creator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  min-width: 0;
+  flex: 1;
+}
+
+.skripte-editor-liste-creator-bubbles {
+  --avatar-size: 28px;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.skripte-editor-liste-creator-bubbles .avatar-bubble {
+  border-width: var(--border-xxs);
+}
+
+.skripte-editor-liste-creator-name {
+  font-size: var(--text-xs);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skripte-editor-liste-datum {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+.skripte-editor-liste-titel {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skripte-editor-liste-nr {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.skripte-editor-liste-nr::after {
+  content: '.';
+}
+
+/* Video-Tag unter dem Titel ("Video 2/4") */
+.skripte-editor-liste-video {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 1px var(--space-sm);
+  border-radius: var(--radius-full, 999px);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skripte-editor-liste-item.active .skripte-editor-liste-video {
+  background: var(--bg-primary);
+}
+
+/* Mittlere Spalte: Skript-Dokument (kein Composer mehr) */
+.skripte-editor-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+
+
+  background: var(--bg-primary);
+}
+
+.skripte-editor-doc {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+
+  min-height: 0;
+
+}
+
+.skripte-editor-doc-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.skripte-editor-doc-head .toolbar-listen-kopf {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Creator-Button im Doc-Kopf: Standard-Bubble, Name gekuerzt */
+.skripte-editor-zuweisen-btn {
+  flex-shrink: 0;
+}
+
+.skripte-editor-zuweisen-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.skripte-editor-zuweisen-bubbles {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.skripte-editor-zuweisen-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  white-space: nowrap;
+}
+
+/* Videonummer-Chip direkt neben dem Creator-Chip */
+.skripte-editor-video-chip {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-full, 999px);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm, 0.875rem);
+  white-space: nowrap;
+}
+
+.skripte-editor-doc-tabs {
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+}
+
+.skripte-editor-doc-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.skripte-editor-doc-panel[hidden] {
+  display: none;
+}
+
+.skripte-editor-doc-panel--zusatz {
+  overflow-y: auto;
+}
+
+.skripte-editor-doc-panel:has(.skripte-editor-hook-varianten),
+.skripte-editor-doc-panel:has(.skripte-editor-tabelle-zusatz) {
+  overflow-y: auto;
+}
+
+.skripte-editor-doc-panel:has(.skripte-editor-hook-varianten) > .skripte-editor-doc-box,
+.skripte-editor-doc-panel:has(.skripte-editor-tabelle-zusatz) > .skripte-editor-doc-box {
+  flex: 0 0 auto;
+  min-height: unset;
+  height: auto;
+}
+
+/* Zusatzzeilen (Rezept, Caption): Tabelle waechst mit dem Inhalt, die
+   drei Hauptzeilen teilen sich keine feste Hoehe mehr */
+.skripte-editor-tabelle:has(.skripte-editor-tabelle-zusatz) {
+  height: auto;
+  flex: none;
+}
+
+.skripte-editor-tabelle:has(.skripte-editor-tabelle-zusatz) tbody tr {
+  height: auto;
+}
+
+.skripte-editor-hook-varianten {
+  flex: 0 0 auto;
+  margin-top: var(--space-lg);
+  padding: 0 var(--space-md) var(--space-md);
+}
+
+.skripte-editor-hook-varianten-titel {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+}
+
+.skripte-editor-tabelle--varianten {
+  height: auto;
+  flex: none;
+}

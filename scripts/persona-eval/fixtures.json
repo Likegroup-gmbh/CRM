@@ -1,0 +1,151 @@
+[
+  {
+    "produkt": "iPhone Duo",
+    "berufsgebunden": false,
+    "bisher_oberbegriff": "Mobil arbeitende Person mit hohem Produktivitäts- und Flexibilitätsanspruch",
+    "bisher_beruf": "Berufstätig in Beratung, Projektmanagement, Vertrieb oder selbstständig tätig",
+    "felder": {
+      "name": { "kind": "fact", "value": "iPhone Duo" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Das iPhone Duo ist Apples erstes faltbares iPhone mit flexiblem OLED-Display. Im geschlossenen Zustand bietet es ein 5,4 Zoll Außendisplay für die alltägliche Smartphone-Nutzung, aufgeklappt steht ein 7,6 Zoll großes Innendisplay zur Verfügung. Es verbindet die mobile Nutzung eines Smartphones mit der Bildschirmfläche eines kleinen Tablets." },
+      "usp": { "kind": "guess", "value": "Erstes faltbares iPhone mit zwei nutzbaren Displaygrößen in einem Gerät\nFlexibles OLED-Innendisplay mit 7,6 Zoll für Multitasking und parallele App-Nutzung\nNur 5,2 Millimeter dünn im aufgeklappten Zustand\nA20 Pro Chip für hohe Leistung und rechenintensive Anwendungen\nSpeichervarianten bis zu 2 TB für umfangreiche Daten, Fotos und Videos" },
+      "pain_points": { "kind": "guess", "value": "Das Smartphone-Display ist zu klein für produktive Arbeit unterwegs\nZwei Apps parallel nutzen ist auf einem normalen Smartphone nicht komfortabel möglich\nVideos und Spiele wirken auf kleinen Displays eingeschränkt\nFür Multitasking muss zwischen Apps hin- und hergewechselt werden\nEin Tablet zusätzlich zum Smartphone mitzuführen ist unpraktisch" },
+      "loesung": { "kind": "guess", "value": "Das iPhone Duo bietet zwei Displaygrößen in einem Gerät: Im geschlossenen Zustand funktioniert es wie ein klassisches Smartphone mit 5,4 Zoll Display. Wird es aufgeklappt, steht ein 7,6 Zoll großes Innendisplay zur Verfügung, das die parallele Nutzung von zwei Apps ermöglicht. Apps lassen sich auf dem Außendisplay starten und beim Aufklappen auf dem größeren Innendisplay weiternutzen. Damit vereint das Foldable die Mobilität eines Smartphones mit der Arbeitsfläche eines Tablets." },
+      "einsatzsituation": { "kind": "guess", "value": "Unterwegs für schnelle Nachrichten und Telefonate über das Außendisplay. Im Zug oder im Café aufgeklappt für E-Mails, Präsentationen oder Videokonferenzen. Während der Mittagspause für Videos und Streaming auf dem großen Innendisplay. Im Home-Office für parallele Nutzung von Kalender und Notizen beim Planen von Terminen." }
+    }
+  },
+  {
+    "produkt": "Samsung Galaxy S26",
+    "berufsgebunden": false,
+    "bisher_oberbegriff": "Mobil arbeitende Person mit kreativem und kommunikativem Alltag",
+    "bisher_beruf": "Freiberuflich Tätige, kreative Dienstleistung, Marketing, Content-Erstellung",
+    "felder": {
+      "name": { "kind": "fact", "value": "Samsung Galaxy S26" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Das Samsung Galaxy S26 ist ein 5G-Smartphone mit 6,3-Zoll-Display und 50-Megapixel-Kamera. Es verfügt über einen modernen 2-nm-Prozessor und AI-gestützte Funktionen wie einen Foto-Assistenten für Bildbearbeitung und NowNudge für proaktive Unterstützung bei der Smartphone-Nutzung." },
+      "usp": { "kind": "guess", "value": "AI-gestützter Foto-Assistent ermöglicht einfaches Entfernen, Verschieben, Generieren und Stylen von Bildinhalten\nProaktive AI-Unterstützung durch NowNudge für müheloses Antworten und Teilen\nModerner 2-nm-Prozessor bietet flüssige AI-Nutzung und starkes Gaming\n5G-Konnektivität für schnelle mobile Datenverbindungen\nBis zu 100 Euro Geräte-Rabatt beim Abschluss eines Tarifs" },
+      "pain_points": { "kind": "guess", "value": "Bildbearbeitung am Smartphone ist kompliziert und zeitaufwendig\nHäufiges manuelles Tippen und Suchen unterbricht den Workflow\nRuckelnde Performance bei anspruchsvollen Anwendungen und Spielen\nHohe Gerätekosten bei einmaliger Zahlung\nLangsame Datenübertragung bei älteren Mobilfunkstandards" },
+      "loesung": { "kind": "guess", "value": "Der AI-gestützte Foto-Assistent übernimmt Bildbearbeitungsaufgaben automatisch und ermöglicht intuitive Bearbeitung direkt am Gerät. Die NowNudge-Funktion erkennt Nutzungskontexte und schlägt proaktiv Aktionen vor, wodurch manuelle Eingaben reduziert werden. Der leistungsstarke 2-nm-Prozessor verarbeitet anspruchsvolle Aufgaben und AI-Funktionen ohne Verzögerungen. Die Ratenzahlung mit 0% Zinsen verteilt die Gerätekosten über bis zu 36 Monate, und der Tarif-Rabatt senkt den Gesamtpreis." },
+      "einsatzsituation": { "kind": "guess", "value": "Das Smartphone wird genutzt, wenn spontan unterwegs Fotos bearbeitet und in sozialen Medien geteilt werden sollen. Die AI-Unterstützung hilft beim schnellen Beantworten von Nachrichten während der Arbeit oder im Alltag. Gaming-Funktionen kommen abends oder in der Freizeit zum Einsatz. Die 5G-Konnektivität ist besonders wichtig beim Streaming von Inhalten oder Video-Calls unterwegs." },
+      "preis_von": { "kind": "fact", "value": "879" },
+      "preis_bis": { "kind": "fact", "value": "1059" }
+    }
+  },
+  {
+    "produkt": "Xiaomi 17T Pro",
+    "berufsgebunden": false,
+    "bisher_oberbegriff": "Kreativ arbeitende Person mit hohem Mobilitäts- und Qualitätsanspruch",
+    "bisher_beruf": "Freiberuflich oder angestellt in kreativen, kommunikativen oder Content-getriebenen Berufen",
+    "felder": {
+      "name": { "kind": "fact", "value": "Xiaomi 17T Pro" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Das Xiaomi 17T Pro ist ein Flagship-Smartphone mit Leica VARIO-SUMMILUX Objektivsystem, MediaTek Dimensity 9500 Prozessor und 7000 mAh Silizium-Kohlenstoff Akku. Es verbindet professionelle Fotografie- und Videofunktionen mit leistungsstarker Hardware und einem 6,83 Zoll AMOLED Display mit 144 Hz Bildwiederholrate." },
+      "usp": { "kind": "guess", "value": "Leica VARIO-SUMMILUX Objektivsystem mit 50 Megapixel Hauptkamera und 5x Teleobjektiv für professionelle Fotografie\n8K Videoaufnahme mit 30fps und 4K mit bis zu 120fps sowie Log-Videoaufnahme für flexible Nachbearbeitung\n7000 mAh Silizium-Kohlenstoff Akku mit 100W kabelgebundenem und 50W kabellosem HyperCharge\n6,83 Zoll AMOLED Display mit 144 Hz, bis zu 3500 Nits Spitzenhelligkeit und TÜV Rheinland zertifiziertem Augenschutz\nMediaTek Dimensity 9500 Prozessor im 3nm-Verfahren mit LPDDR5X RAM und UFS 4.1 Speicher für hohe Performance" },
+      "pain_points": { "kind": "guess", "value": "Smartphone-Akku reicht bei intensiver Nutzung nicht durch den Tag\nFotos und Videos mit dem Smartphone wirken nicht professionell genug\nDisplay ist bei Sonnenlicht schlecht ablesbar und strengt die Augen bei langer Nutzung an\nSmartphone reagiert bei anspruchsvollen Apps und Multitasking zu langsam\nLange Ladezeiten unterbrechen den Alltag" },
+      "loesung": { "kind": "guess", "value": "Der 7000 mAh Silizium-Kohlenstoff Akku bietet eine deutlich höhere Kapazität als Standard-Smartphones und ermöglicht lange Nutzungszeiten ohne Aufladen. Das Leica VARIO-SUMMILUX Objektivsystem mit präziser Lichtführung und natürlichen Farben sowie die Unterstützung von 8K Video und Log-Aufnahmen ermöglichen professionelle Aufnahmen. Das Display erreicht bis zu 3500 Nits Spitzenhelligkeit für gute Ablesbarkeit bei direktem Sonnenlicht und nutzt DC-Dimming, Low Blue Light und Flicker Free Technologie für augenschonende Nutzung. Der MediaTek Dimensity 9500 Prozessor in Kombination mit LPDDR5X Arbeitsspeicher und UFS 4.1 Speicher sorgt für flüssige Performance. Mit 100W kabelgebundenem und 50W kabellosem HyperCharge ist das Gerät schnell wieder einsatzbereit." },
+      "einsatzsituation": { "kind": "guess", "value": "Für Nutzer, die professionelle Foto- und Videoaufnahmen mit dem Smartphone erstellen möchten, etwa auf Reisen oder bei Events. Bei intensiver täglicher Nutzung mit vielen Apps, Games und Multitasking, wenn ein leistungsstarker Akku wichtig ist. Für Menschen, die ihr Smartphone den ganzen Tag nutzen und Wert auf augenschonendes Display legen. In Situationen mit wechselnden Lichtverhältnissen, wo die hohe Displayhelligkeit und IP68-Schutz gegen Staub und Wasser wichtig sind." },
+      "preis_von": { "kind": "fact", "value": "879" }
+    }
+  },
+  {
+    "produkt": "Oviva",
+    "berufsgebunden": false,
+    "bisher_oberbegriff": "Diäterfahrene Berufstätige mit Übergewicht und wenig Zeit für sich",
+    "bisher_beruf": "Berufstätige im Angestelltenverhältnis, oft mit familiären Verpflichtungen",
+    "felder": {
+      "name": { "kind": "fact", "value": "Oviva" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Oviva ist eine ärztlich verordnete, digitale Gesundheitsanwendung zur nachhaltigen Gewichtsreduktion für Menschen mit Übergewicht bzw. Adipositas (BMI 30–40). Das Programm setzt an den Ursachen an und hilft, tief verankerte Gewohnheiten und Verhaltensmuster im Alltag Schritt für Schritt zu durchbrechen, um dauerhaft abzunehmen und Gesundheit sowie Lebensqualität zurückzugewinnen." },
+      "usp": { "kind": "guess", "value": "Offiziell BfArM-gelistete DiGA mit klinischem Evidenznachweis statt Lifestyle-Versprechen\nHybrides Betreuungsmodell aus App-Begleitung (Persönlicher Plan, Mahlzeiten-Feedback, Health Compass, 24/7 KI-Begleiter Auri) und qualifizierten Ernährungsfachkräften\nKein Kalorienzählen und keine Verbote, Orientierung am wissenschaftlichen Tellermodell und an alltagstauglichen Routinen\nVollständig erstattungsfähig: 100 % Kostenübernahme über Kassenrezept, keine versteckten Abo-Kosten\nFokus auf die Veränderung der Gewohnheiten hinter dem Gewicht statt auf kurzfristige Diäten" },
+      "pain_points": { "kind": "guess", "value": "Jahrelange, frustrierende Versuche mit restriktiven Diäten, ständigem Kalorienzählen und dem Jo-Jo-Effekt\nSchuldgefühle bei Rückschlägen und das Gefühl, mit dem Problem allein zu sein oder zu wenig Willenskraft zu haben\nRigide Vorgaben und Verbote lassen sich im stressigen Berufs- und Familienalltag nicht durchhalten\nTief sitzende Alltagsmuster wie Stress- oder Frustessen und Heißhunger gewinnen gegen reine Willenskraft" },
+      "loesung": { "kind": "guess", "value": "Ein persönlicher Plan setzt an den Ursachen hinter dem Gewicht an und gibt jeden Tag kleine, machbare Aufgaben, sodass Schritt für Schritt dauerhafte Gewohnheiten entstehen. Mahlzeiten und Bewegung werden per Foto bzw. in der App festgehalten, ohne Kalorienzählen, und der Health Compass zeigt Ernährung, Bewegung und Trinken in einer Übersicht. Der KI-Begleiter Auri unterstützt rund um die Uhr und verbindet bei besonderen Herausforderungen mit einer Oviva-Fachkraft. Rezepte, flexible Ernährungspläne und kurze Lerneinheiten liefern Wissen und Werkzeuge für den Alltag." },
+      "einsatzsituation": { "kind": "guess", "value": "Morgens beim Start in den Tag: ein kurzer Blick in die App zeigt die ein bis zwei einfachen Tagesaufgaben, nachmittags oder abends prüft man den Tagesstand im Health Compass. Beim Essen und Kochen im Alltag: Auri schlägt aus den Zutaten im Kühlschrank ein Rezept vor, Mahlzeiten werden per Foto bewertet, und der wöchentliche Ernährungsplan liefert die Einkaufsliste. In Momenten von Heißhunger, Frust oder Stress: Auri hilft im Chat, echten Hunger von Emotionen zu unterscheiden, dazu gibt es Snack-Alternativen und kurze Atem- oder Achtsamkeitsübungen im Toolkit. Beim Pendeln oder Entspannen für kurze Lerneinheiten sowie vor dem Arztbesuch für den Therapiebericht als PDF zur Folgeverordnung." },
+      "preis_von": { "kind": "fact", "value": "0" }
+    }
+  },
+  {
+    "produkt": "CRISPi DualZone Glas-Air-Fryer mit 8 Funktionen",
+    "berufsgebunden": false,
+    "bisher_oberbegriff": "Organisierte Haushaltsführung mit Fokus auf Effizienz und Gesundheit",
+    "bisher_beruf": "Berufstätig in Vollzeit oder Teilzeit, z. B. Projektmanagement, Verwaltung, Gesundheitswesen, Bildung",
+    "felder": {
+      "name": { "kind": "fact", "value": "CRISPi DualZone Glas-Air-Fryer mit 8 Funktionen" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Deutschlands erster DualZone CleanCrisp-Glas-Air-Fryer, mit dem zwei Speisen auf zwei Arten gleichzeitig zubereitet werden können. Der Air-Fryer verfügt über zwei PFAS-freie Glas-Kochbehälter mit je 3,8 Litern Fassungsvermögen und bietet acht vielseitige Funktionen zum gesunden Kochen, Servieren und Aufbewahren." },
+      "usp": { "kind": "guess", "value": "DualZone-Technologie synchronisiert zwei Gerichte mit verschiedenen Garzeiten und Temperaturen, sodass beide gleichzeitig fertig werden\nTransparente PFAS-freie Glasbehälter ermöglichen das Beobachten des Garvorgangs in Echtzeit\nVon der Zubereitung bis zur Aufbewahrung alles in einem Behälter – weniger Geschirr, da die Glasbehälter zum Vorbereiten, Kochen, Servieren und mit Deckel zum Aufbewahren genutzt werden können\nAcht vielseitige Funktionen in einem Gerät: Heißluftfrittieren, Backen, Max Crisp, Braten, Dörren, Aufknuspern, Warmhalten und Teig gehen lassen\nGroßes Gesamtfassungsvermögen von 7,6 Litern für Familienessen, Gäste und Meal Prep" },
+      "pain_points": { "kind": "guess", "value": "Verschiedene Gerichte für eine Mahlzeit werden nicht gleichzeitig fertig\nZu viel Geschirr beim Kochen – Vorbereitung, Garen und Aufbewahren erfordern jeweils separate Behälter\nUnsicherheit beim Garen, wann das Essen den gewünschten Bräunungsgrad erreicht hat\nBeschichtete Behälter werfen Bedenken bezüglich gesundheitsschädlicher Stoffe auf\nBegrenzte Kochkapazität bei der Zubereitung für mehrere Personen oder beim Meal Prep" },
+      "loesung": { "kind": "guess", "value": "Die DualZone-Technologie mit Smart Finish synchronisiert zwei Garzonen mit unterschiedlichen Einstellungen automatisch, sodass beide Gerichte gleichzeitig fertig sind. Die transparenten Glasbehälter ermöglichen die Sichtkontrolle während des gesamten Garvorgangs, ohne den Deckel öffnen zu müssen. Der gleiche Behälter kann zur Vorbereitung, zum Garen, zum Servieren am Tisch dank hitzebeständiger Griffe und mit dem mitgelieferten Deckel zur Aufbewahrung im Kühlschrank verwendet werden. Die PFAS-freien Glasbehälter sind hitzebeständig und temperaturwechselbeständig – direkt vom Kühlschrank zum Kochen. Mit zwei 3,8-Liter-Behältern lassen sich ausreichend große Portionen für die ganze Familie oder für mehrere Tage zubereiten." },
+      "einsatzsituation": { "kind": "guess", "value": "Ideal für Dinnerpartys und Familienfeiern, bei denen verschiedene Gerichte gleichzeitig serviert werden sollen – beispielsweise ein Hauptgericht und eine Beilage. Beim wöchentlichen Meal Prep, wenn größere Mengen für mehrere Tage vorgekocht und portionsweise aufbewahrt werden. Beim schnellen Aufwärmen und Aufknuspern von Resten aus dem Kühlschrank im gleichen Glasbehälter. Für gesundheitsbewusste Haushalte, die mit wenig oder ohne Öl knusprige Ergebnisse erzielen möchten." },
+      "preis_von": { "kind": "fact", "value": "329.99" }
+    }
+  },
+  {
+    "produkt": "Autoversicherung",
+    "berufsgebunden": false,
+    "bisher_oberbegriff": "Der kosteneffiziente Berufspendler",
+    "bisher_beruf": "Angestellter in mittelständischen Unternehmen, z. B. Vertrieb, Technik, Verwaltung",
+    "felder": {
+      "name": { "kind": "fact", "value": "Autoversicherung" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Die Autoversicherung schützt vor finanziellen Folgen von Schäden im Zusammenhang mit einem Fahrzeug. Die gesetzlich vorgeschriebene Kfz-Haftpflicht deckt Schäden ab, die anderen durch das versicherte Fahrzeug entstehen. Freiwillige Teilkasko oder Vollkasko können zusätzlich Schäden am eigenen Fahrzeug absichern." },
+      "usp": { "kind": "guess", "value": "Als mehrfach ausgezeichneter Direktversicherer bis zu 45 Prozent günstiger als der Wettbewerb\n24/7 Schadenservice persönlich und online mit unkomplizierter Abwicklung\nIndividuell wählbare Zusatzleistungen wie Rabattschutz und Kfz-Schutzbrief\nKostenloser Reparatur- und Mobilitätsservice über großes Partnerwerkstatt-Netzwerk mit Ersatzfahrzeug\nUmfassender Versicherungsschutz mit 100 Mio. Euro Pauschaldeckung" },
+      "pain_points": { "kind": "guess", "value": "Hohe Beiträge bei herkömmlichen Versicherungen durch Außendienst und ineffiziente Prozesse\nLange Wartezeiten und komplizierte Abwicklung im Schadenfall\nUnklare Kostenfolgen nach einem selbstverschuldeten Unfall oder Schaden am eigenen Fahrzeug\nAngst vor Beitragserhöhung nach einem Schadensfall durch Rückstufung der Schadenfreiheitsklasse\nKeine Mobilität während der Reparatur nach einem Unfall" },
+      "loesung": { "kind": "guess", "value": "Als Direktversicherer ohne Außendienst arbeitet DA Direkt effizienter und gibt diese Kostenvorteile direkt an die Kunden weiter. Die Schadenabwicklung erfolgt über autorisierte Partnerwerkstätten mit regelmäßig überprüften Konditionen. Der 24/7-Service ermöglicht sofortige Schadenmeldung online oder telefonisch. Mit optionalem Rabattschutz bleibt die Schadenfreiheitsklasse trotz eines Schadens pro Jahr erhalten. Der kostenlose Reparatur- und Mobilitätsservice stellt für die Dauer der Reparatur ein Ersatzfahrzeug zur Verfügung." },
+      "einsatzsituation": { "kind": "guess", "value": "Die Versicherung wird beim Kauf oder bei der Zulassung eines Fahrzeugs abgeschlossen, da die Kfz-Haftpflicht gesetzlich vorgeschrieben ist. Ein Wechsel erfolgt typischerweise zum Jahresende, wenn Versicherte von günstigeren Konditionen oder besseren Leistungen profitieren möchten. Im Schadenfall – etwa nach einem Auffahrunfall im Berufsverkehr, einem Wildunfall auf Landstraßen oder Hagelschäden – greift der 24/7-Schadenservice. Bei Neuwagenbesitzern oder Leasingfahrern kommt die Vollkasko zum Einsatz, um das eigene Fahrzeug abzusichern." }
+    }
+  },
+  {
+    "produkt": "ImmoScout24 RLE",
+    "berufsgebunden": false,
+    "bisher_oberbegriff": "Immobilieneigentümer mit offener Wertfrage",
+    "bisher_beruf": "Berufstätiger Mensch mit geregeltem Einkommen, Eigentümer eines Hauses oder einer Wohnung",
+    "felder": {
+      "name": { "kind": "manual", "value": "ImmoScout24 RLE" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Kostenloser Online-Immobilienrechner, der den Marktwert von Häusern, Wohnungen, Grundstücken und Gewerbeimmobilien ermittelt. Die Bewertung basiert auf dem Vergleichswertverfahren und aktuellen Markt- und Vergleichsdaten. Das Ergebnis kommt als PDF per E-Mail, die Eingabe dauert wenige Minuten." },
+      "usp": { "kind": "guess", "value": "100% kostenlos und unverbindlich, ohne versteckte Gebühren\nErgebnis in 3 Minuten als PDF, ohne Termin und ohne Vor-Ort-Besichtigung\nBasiert auf Millionen echter Marktdaten aus Deutschlands größter Immobiliendatenbank\nRealistische Marktwertspanne mit Vergleichsobjekten aus der eigenen Region\nAuf Wunsch persönliche Einschätzung durch Expert:innen" },
+      "pain_points": { "kind": "guess", "value": "Ich weiß nicht, was meine Immobilie aktuell wert ist.\nEin Gutachten ist mir zu teuer und zu aufwendig, nur um eine erste Orientierung zu bekommen.\nIch habe Angst, beim Verkauf einen unrealistischen Preis anzusetzen und keine Käufer:innen zu finden oder unter Wert zu verkaufen.\nIch weiß nicht, wie sich die aktuelle Marktentwicklung auf den Wert meiner Immobilie auswirkt.\nFür Finanzierung, Erbschaft oder Schenkung fehlt mir eine verlässliche Wertgrundlage." },
+      "loesung": { "kind": "guess", "value": "Nutzer:innen geben Adresse, Wohnfläche, Baujahr und Ausstattung ihrer Immobilie online ein. Das System gleicht die Angaben mit aktuellen Marktdaten aus ganz Deutschland ab und berechnet den Marktwert nach dem Vergleichswertverfahren. Das Ergebnis erhalten sie als übersichtliches PDF per E-Mail, mit einer realistischen Marktwertspanne und Vergleichsobjekten aus der Region." },
+      "einsatzsituation": { "kind": "guess", "value": "Eigentümer:innen nutzen die Bewertung vor einem geplanten Hausverkauf, um den realistischen Preis und den passenden Zeitpunkt einzuschätzen. Sie hilft auch bei der ersten Orientierung vor einem Finanzierungsgespräch oder bei Erbschaft und Schenkung. Wer seine Immobilie behalten möchte, kann damit regelmäßig die Wertentwicklung beobachten oder den Effekt einer Modernisierung einordnen." },
+      "preis_von": { "kind": "fact", "value": "0" }
+    }
+  },
+  {
+    "produkt": "Abnehm-Shake² Starter-Set",
+    "berufsgebunden": false,
+    "bisher_oberbegriff": "Die gestresste Berufseinsteigerin",
+    "bisher_beruf": "Angestellte in Vollzeit (Marketing, Verwaltung, Projektmanagement)",
+    "felder": {
+      "name": { "kind": "fact", "value": "Abnehm-Shake² Starter-Set" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Das Starter-Set enthält vier Beutel Stoffwechsel-Shake mit je 22 g Eiweiß pro Portion, die aus über 19 Geschmacksrichtungen frei wählbar sind. Das Set bietet einen Einstieg in das MetaFlow-Konzept zum Mahlzeitenersatz und wird mit sieben Goodies geliefert: Rezeptbuch, Shaker, Genuss-Riegel, Zero-Sirup, Maßband, Ernährungsplan und Edelstahl-Messlöffel sowie Zugang zur MetaFlow App." },
+      "usp": { "kind": "guess", "value": "Wahl aus über 19 cremigen Geschmacksrichtungen sorgt für Abwechslung ohne Langeweile\nMit 2,49 Euro pro Shake eine der günstigsten Mahlzeitenalternativen\nBlitzschnelle Zubereitung in unter einer Minute ohne komplizierte Rezepte\nKostenlose App mit Phasenplan, Rezeptideen, Community und digitalem Coach\nKomplettes Starter-Set mit allen Goodies im Wert von über 70 Euro inklusive" },
+      "pain_points": { "kind": "guess", "value": "Keine Zeit für aufwendige Diätrezepte im stressigen Alltag\nKalorienzählen und ständiges Abwiegen macht keinen Spaß und kostet Nerven\nDiäten schmecken oft fade und man vermisst echten Genuss\nMan weiß nicht genau, wie man ein Abnehmkonzept richtig umsetzt und fühlt sich allein gelassen\nZwischen Arbeit, Familie und Alltag bleibt keine Zeit für komplizierte Ernährungspläne" },
+      "loesung": { "kind": "guess", "value": "Der Shake ersetzt an fünf Tagen pro Woche zwei reguläre Mahlzeiten und schafft so ein kontrolliertes Kaloriendefizit, ohne dass mühsam Kalorien gezählt werden müssen. Die Zubereitung dauert weniger als eine Minute: Pulver, Wasser und einen Teelöffel Rapsöl in den Shaker, fertig. Mit über 19 Geschmacksrichtungen lässt sich der Shake individuell kombinieren und bleibt abwechslungsreich. Die kostenlose App führt durch das Drei-Phasen-Konzept, liefert Rezeptideen für die Speise-Tage und bietet Community-Support sowie einen digitalen Coach." },
+      "einsatzsituation": { "kind": "guess", "value": "Morgens vor der Arbeit, wenn keine Zeit für ein aufwendiges Frühstück bleibt. Mittags im Büro oder unterwegs, wenn man keine Kantine oder gesunde Optionen in der Nähe hat. Abends nach einem langen Tag, wenn man zu erschöpft ist, um noch zu kochen. An fünf Tagen pro Woche ersetzt der Shake zwei Mahlzeiten, an zwei Speise-Tagen werden reguläre Mahlzeiten gegessen." },
+      "preis_von": { "kind": "fact", "value": "89.92" }
+    }
+  },
+  {
+    "produkt": "Digital PR campaign based on AppAnDa insights",
+    "berufsgebunden": true,
+    "bisher_oberbegriff": "Marketing- und PR-Verantwortliche mit Fokus auf datenbasierte Kampagnen",
+    "bisher_beruf": "Marketing Manager, PR Manager, Content Stratege oder Head of Communications",
+    "felder": {
+      "name": { "kind": "fact", "value": "Digital PR campaign based on AppAnDa insights" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Eine Dienstleistung von Liebherr, die Nutzungsdaten von vernetzten Kühlgeräten in medienrelevante Geschichten übersetzt. Das Konzept umfasst datengestützte Insights aus der AppAnDa-Plattform, Content-Formate für PR, Social Media und Website sowie einen zeitlichen Fahrplan für eine internationale Kampagne." },
+      "usp": { "kind": "guess", "value": "Wandelt reale Nutzungsdaten von Kühlgeräten in verifizierbare, zitierfähige Stories um.\nBietet exklusive Insights aus globalen Verbraucherdaten, die als vertrauenswürdige Quelle für Medien, Podcasts und Influencer dienen.\nErmöglicht regionalen Teams, die englischen und deutschen Master-Assets mit eigenem Budget zu übersetzen und lokal zu vermarkten.\nLiefert fertige Kampagnen-Assets: Landingpage, Pressemitteilung, Media Kit, Social-Media-Inhalte.\nBasiert auf konkreten Daten wie Türöffnungen, Feature-Nutzung und Temperatureinstellungen über das gesamte Jahr 2025." },
+      "pain_points": { "kind": "guess", "value": "Hausgerätemarken haben Schwierigkeiten, ihre Produktdaten in publikumswirksame Geschichten zu übersetzen.\nJournalisten und Content-Ersteller suchen vertrauenswürdige, belegbare Quellen für Verbrauchertrends.\nRegionale Marketing-Teams fehlen oft zentral produzierte, kampagnenfähige Inhalte.\nDaten aus vernetzten Geräten werden nicht systematisch für PR und Markenbekanntheit genutzt." },
+      "loesung": { "kind": "guess", "value": "Die Kampagne transformiert AppAnDa-Nutzungsdaten in publikationsreife Stories – etwa dass der 24. Dezember der Tag mit den meisten Türöffnungen ist oder dass Weinkühler durchschnittlich auf 11 Grad eingestellt sind. Diese Erkenntnisse werden in Form einer Landingpage, Pressemitteilungen, Media Kits und Social-Media-Formaten aufbereitet. Medien, Influencer und Podcaster erhalten zitierfähige Quellen. Regionale Teams können die Master-Assets übersetzen und mit eigenen PR-, Social- und Paid-Media-Ressourcen lokal ausspielen." },
+      "einsatzsituation": { "kind": "guess", "value": "Die Dienstleistung richtet sich an Marketing- und PR-Verantwortliche bei Liebherr und in regionalen Märkten, die datenbasierte Kampagnen planen. Sie wird eingesetzt, wenn eine Marke Thought Leadership aufbauen, Backlinks generieren, Brand Mentions steigern oder Verbrauchertrends publikumswirksam kommunizieren möchte. Typischer Ablauf: Datenvalidierung im August, Asset-Produktion im September, Launch der Landingpage und gezielte Medienansprache im Oktober/November, Review im Dezember." }
+    }
+  },
+  {
+    "produkt": "STAY LOOSE Collagen Joint Blend",
+    "berufsgebunden": false,
+    "bisher_oberbegriff": "Berufstätige mit regelmäßiger Trainingsbelastung ab 30",
+    "bisher_beruf": "Angestellte in Vollzeit oder Selbstständige",
+    "felder": {
+      "name": { "kind": "fact", "value": "STAY LOOSE Collagen Joint Blend" },
+      "kurzbeschreibung": { "kind": "fact", "value": "Täglich eingenommenes Nahrungsergänzungsmittel auf Basis von hydrolysiertem Kollagen und Vitamin C für Menschen mit regelmäßiger Trainingsbelastung. Das geschmacksneutrale Pulver wird in Kaffee, Tee oder Shake eingerührt und ist Teil der GRIT & CO. Recovery-Range als Gewohnheits-Produkt für die tägliche Routine." },
+      "usp": { "kind": "guess", "value": "Einziges Kollagen-Blend im Segment mit fein gemahlenem, komplett geschmacksneutralem Kollagenhydrolysat (Typ I & III) plus Vitamin C, das sich rückstandslos in heißem Kaffee auflöst — kein Fischgeschmack, kein Klumpen.\n10 g Kollagen + Vitamin C pro Portion, kombiniert in einer täglichen Dosis.\nGroße Dose für 30 Portionen, transparent portionierbar mit beiliegendem Messlöffel.\nFaires Preis-Leistungs-Verhältnis im Vergleich zu Premium-Wettbewerbern." },
+      "pain_points": { "kind": "guess", "value": "Klassische Kollagenpulver hinterlassen einen leichten Fischgeschmack oder -geruch.\nViele Pulver lösen sich schlecht in Kaffee auf und klumpen.\nUnsicherheit, ob die tägliche Einnahme überhaupt einen Unterschied macht.\nViele Kollagen-Produkte am Markt sind überteuert für eine geringe Kollagenmenge pro Portion." },
+      "loesung": { "kind": "guess", "value": "Das fein gemahlene, geschmacksneutrale Kollagenhydrolysat löst sich rückstandslos in heißen Getränken auf, ohne Fischgeschmack oder Klumpenbildung. Die Kombination aus 10 g Kollagen und Vitamin C in einer täglichen Dosis macht die Einnahme einfach und verlässlich. Die große Dose mit 30 Portionen und beiliegendem Messlöffel ermöglicht eine transparente Portionierung zu einem fairen Preis-Leistungs-Verhältnis." },
+      "einsatzsituation": { "kind": "guess", "value": "Teil der täglichen Morgenroutine — eingerührt in Kaffee, Tee oder Shake. Gedacht für Menschen ab 30 Jahren mit regelmäßiger Trainingsbelastung wie Laufen, Krafttraining oder Ausdauersport, die ihre Routine langfristig um Kollagen ergänzen möchten." },
+      "preis_von": { "kind": "fact", "value": "24.9" },
+      "preis_bis": { "kind": "fact", "value": "29.9" }
+    }
+  }
+]

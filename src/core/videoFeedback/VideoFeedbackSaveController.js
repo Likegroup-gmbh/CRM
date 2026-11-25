@@ -23,8 +23,19 @@ export class VideoFeedbackSaveController {
     this._dirty = new Set();     // keys mit ungespeicherten Aenderungen
   }
 
+  // Identitaet eines Feldes. Feedback-Felder: data-entity/-id/-field.
+  // Kommentarfelder eigener Spalten: data-custom-column-id + data-entity-id
+  // (gleiche Autosave-/Flush-Logik, eigener Key-Raum "custom").
+  _identity(field) {
+    if (field.dataset.customColumnId) {
+      return { entity: 'custom', id: field.dataset.entityId, field: field.dataset.customColumnId, attrs: 'data-custom-column-id' };
+    }
+    return { entity: field.dataset.entity || 'video', id: field.dataset.id, field: field.dataset.field, attrs: null };
+  }
+
   _key(field) {
-    return `${field.dataset.entity || 'video'}|${field.dataset.id}|${field.dataset.field}`;
+    const { entity, id, field: name } = this._identity(field);
+    return `${entity}|${id}|${name}`;
   }
 
   // Feld fokussiert: Status-Tag sofort anzeigen ("Bearbeiten"), ausser es laeuft
@@ -32,6 +43,13 @@ export class VideoFeedbackSaveController {
   // (dann darf der vorhandene Status-Text nicht ueberschrieben werden).
   onFocus(field) {
     const key = this._key(field);
+    // Ausgangswert merken, bevor jemand tippt. Die Tabelle zeichnet Feedback
+    // erst leer und laedt die Kommentare danach. Ein Klick ins noch leere Feld
+    // darf beim Verlassen nicht als "geleert" gespeichert werden — das wuerde
+    // Kunden- und eigenes Feedback soft-deleten.
+    if (!this._dirty.has(key) && !this._lastSaved.has(key)) {
+      this._lastSaved.set(key, field.value);
+    }
     if (this._dirty.has(key) || this._pending.get(key)?.saving) return;
     this.status.setEditing(field);
   }
@@ -40,6 +58,9 @@ export class VideoFeedbackSaveController {
   // verschwindet das "Bearbeiten"-Tag wieder.
   onBlur(field) {
     const key = this._key(field);
+    if (!this._dirty.has(key) && !this._lastSaved.has(key)) {
+      this._lastSaved.set(key, field.value);
+    }
     const p = this.flushField(field);
     if (!this._dirty.has(key) && !this._pending.has(key)) {
       this.status.clear(field);
@@ -134,14 +155,23 @@ export class VideoFeedbackSaveController {
     return this._dirty.has(`${entity}|${videoId}|${fieldName}`);
   }
 
+  // Realtime hat den Wert der anderen Seite ins Feld geschrieben: gilt als
+  // gespeichert, sonst schreibt ein spaeterer Blur ihn unnoetig zurueck.
+  acceptRemoteValue(field) {
+    const key = this._key(field);
+    if (this._dirty.has(key)) return;
+    this._lastSaved.set(key, field.value);
+  }
+
   // Haelt doppelte Textareas desselben Feldes (Tabelle <-> Player) in Sync.
   _syncSiblings(field) {
-    const id = field.dataset.id;
-    const fieldName = field.dataset.field;
+    const { entity, id, field: fieldName } = this._identity(field);
     if (!id || !fieldName) return;
-    const entity = field.dataset.entity || 'video';
+    const selector = entity === 'custom'
+      ? `textarea[data-custom-column-id="${fieldName}"][data-entity-id="${id}"]`
+      : `textarea[data-entity="${entity}"][data-id="${id}"][data-field="${fieldName}"]`;
     document
-      .querySelectorAll(`textarea[data-entity="${entity}"][data-id="${id}"][data-field="${fieldName}"]`)
+      .querySelectorAll(selector)
       .forEach(el => {
         if (el !== field && el.value !== field.value) el.value = field.value;
       });

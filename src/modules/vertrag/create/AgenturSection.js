@@ -1,239 +1,255 @@
 // AgenturSection.js
-// Render- und Refresh-Logik fuer den "Management-Vertretung"-Block
-// in UGC- und Influencer-Vertraegen.
+// Management-Vertretung in UGC-, Influencer- und Contracting-Verträgen.
+// Das Management kommt aus den Stammdaten. Vertreten durch ist ein Ansprechpartner.
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
+import { icon } from '../../../core/icons/IconSystem.js';
+import {
+  addressComplete,
+  legacyFreitextName,
+  personEmailLine,
+  personLabel
+} from './managementVertretung.js';
 
 function escapeAttr(value) {
-    return String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderPersonen(people, selectedId) {
+  if (!people.length) {
+    return '<p class="form-hint">Keine Ansprechperson hinterlegt.</p>';
+  }
+  const rows = people.map((person) => {
+    const selected = person.id === selectedId;
+    const name = personLabel(person) || 'Ohne Namen';
+    return `
+      <button type="button"
+        class="vertretung-person${selected ? ' is-selected' : ''}"
+        data-person-id="${escapeAttr(person.id)}"
+        aria-pressed="${selected ? 'true' : 'false'}">
+        <span class="vertretung-person__name">${escapeAttr(name)}</span>
+        <span class="vertretung-person__meta">${escapeAttr(personEmailLine(person))}</span>
+      </button>
+    `;
+  }).join('');
+  return `<div class="vertretung-personen">${rows}</div>`;
+}
+
+function addressFields(address) {
+  return `
+    <div class="form-two-col">
+      <div class="form-field">
+        <label for="vertrag_mgmt_strasse">Straße</label>
+        <input type="text" id="vertrag_mgmt_strasse" name="influencer_agentur_strasse" value="${escapeAttr(address.strasse || '')}">
+      </div>
+      <div class="form-field">
+        <label for="vertrag_mgmt_hausnummer">Nr.</label>
+        <input type="text" id="vertrag_mgmt_hausnummer" name="influencer_agentur_hausnummer" value="${escapeAttr(address.hausnummer || '')}">
+      </div>
+    </div>
+    <div class="form-two-col">
+      <div class="form-field">
+        <label for="vertrag_mgmt_plz">PLZ</label>
+        <input type="text" id="vertrag_mgmt_plz" name="influencer_agentur_plz" value="${escapeAttr(address.plz || '')}">
+      </div>
+      <div class="form-field">
+        <label for="vertrag_mgmt_stadt">Stadt</label>
+        <input type="text" id="vertrag_mgmt_stadt" name="influencer_agentur_stadt" value="${escapeAttr(address.stadt || '')}">
+      </div>
+    </div>
+    <div class="form-field">
+      <label for="vertrag_mgmt_land">Land</label>
+      <input type="text" id="vertrag_mgmt_land" name="influencer_agentur_land" value="${escapeAttr(address.land || 'Deutschland')}">
+    </div>
+  `;
 }
 
 VertraegeCreate.prototype.renderAgenturSection = function() {
-    const managements = this.creatorManagements || [];
-    const hasManagements = managements.length > 0;
+  const managements = this.alleManagements || [];
+  const selectedId = this.formData._management_id || '';
+  const selected = managements.find((item) => item.id === selectedId) || null;
+  const creating = !!this.formData._management_anlegen;
+  const legacy = legacyFreitextName(this.formData);
+  const options = [
+    `<option value="">Kein Management</option>`,
+    ...managements.map((item) => (
+      `<option value="${escapeAttr(item.id)}" ${item.id === selectedId ? 'selected' : ''}>${escapeAttr(item.firmenname || '—')}</option>`
+    ))
+  ].join('');
+  const people = this.vertretungPersonen || [];
+  const selectedPerson = people.find((person) => person.id === this.formData._ansprechpartner_id) || null;
+  const needsEmail = !!(selectedPerson && !String(selectedPerson.email || '').trim());
+  const needsAddress = !!(selected && !addressComplete(selected));
+  const address = selected || {};
+  const draftAddress = { strasse: '', hausnummer: '', plz: '', stadt: '', land: 'Deutschland' };
 
-    // Mehrfach-Management: Dropdown steuert Auswahl, Vertretung implizit, Schalter fuer Adresse
-    if (hasManagements) {
-      return this._renderAgenturSectionWithDropdown(managements);
-    }
+  return `
+    <div id="agentur-section-container" class="step-section">
+      <div class="step-section__header">
+        <h3>Management-Vertretung</h3>
+      </div>
 
-    // Kein Management am Creator: manuelle Eingabe wie bisher
-    const vertreten = !!this.formData.influencer_agentur_vertreten;
+      ${legacy ? `<p class="form-hint">Bisher als Freitext eingetragen: ${escapeAttr(legacy)}. Bitte ein Management aus den Stammdaten wählen oder neu anlegen.</p>` : ''}
 
-    return `
-      <div id="agentur-section-container" class="step-section">
-        <div class="step-section__header">
-          <h3>Management-Vertretung</h3>
+      <div class="form-field">
+        <label for="vertrag_management_select">Management</label>
+        <select id="vertrag_management_select" name="vertrag_management_select" data-searchable="true">
+          ${options}
+        </select>
+      </div>
+
+      ${creating ? `
+        <div class="form-field">
+          <label for="vertrag_mgmt_name">Name</label>
+          <input type="text" id="vertrag_mgmt_name" value="${escapeAttr(this.formData._neues_management_name || '')}" placeholder="Name des Managements">
+          <p class="form-hint hidden" id="vertretung-name-hinweis"></p>
         </div>
+        ${addressFields(draftAddress)}
+      ` : `
+        <div>
+          <button type="button" class="btn-inline-action" id="vertrag-management-anlegen">
+            ${icon('plus')}
+            <span>Management anlegen</span>
+          </button>
+        </div>
+      `}
+
+      ${!creating && selected ? `
+        ${addressComplete(selected) ? `<p class="form-hint">${escapeAttr(selected.firmenname || '')} · ${escapeAttr(`${selected.strasse || ''} ${selected.hausnummer || ''}, ${selected.plz || ''} ${selected.stadt || ''}`.replace(/\s+/g, ' ').trim())}</p>` : addressFields(address)}
 
         <div class="form-field">
-          <label>Wird der Influencer durch ein Management vertreten?</label>
-          <div class="radio-group">
-            <label class="radio-option">
-              <input type="radio" name="influencer_agentur_vertreten" value="false"
-                     ${!vertreten ? 'checked' : ''}>
-              <span>Nein</span>
-            </label>
-            <label class="radio-option">
-              <input type="radio" name="influencer_agentur_vertreten" value="true"
-                     ${vertreten ? 'checked' : ''}>
-              <span>Ja</span>
-            </label>
-          </div>
+          <span class="vertretung-person-label">Vertreten durch</span>
+          ${renderPersonen(people, this.formData._ansprechpartner_id)}
         </div>
+        ${needsEmail ? `
+          <div class="form-field">
+            <label for="vertretung_email_nachtrag">E-Mail</label>
+            <input type="email" id="vertretung_email_nachtrag" name="vertretung_email_nachtrag" value="${escapeAttr(this.formData.vertretung_email_nachtrag || '')}" placeholder="E-Mail nachtragen">
+          </div>
+        ` : ''}
 
-        <div id="agentur-felder" class="${vertreten ? '' : 'hidden'}">
+        <p class="form-hint">Oder neu anlegen</p>
+        <div class="form-two-col vertretung-person-names">
           <div class="form-field">
-            <label for="influencer_agentur_name">Managementname</label>
-            <input type="text" id="influencer_agentur_name" name="influencer_agentur_name"
-                   value="${this.formData.influencer_agentur_name || ''}"
-                   placeholder="Name des Managements">
-          </div>
-          <div class="form-field-row">
-            <div class="form-field flex-1">
-              <label for="influencer_agentur_strasse">Straße</label>
-              <input type="text" id="influencer_agentur_strasse" name="influencer_agentur_strasse"
-                     value="${this.formData.influencer_agentur_strasse || ''}"
-                    >
-            </div>
-            <div class="form-field agentur-field-nr">
-              <label for="influencer_agentur_hausnummer">Nr.</label>
-              <input type="text" id="influencer_agentur_hausnummer" name="influencer_agentur_hausnummer"
-                     value="${this.formData.influencer_agentur_hausnummer || ''}"
-                    >
-            </div>
-          </div>
-          <div class="form-field-row">
-            <div class="form-field agentur-field-plz">
-              <label for="influencer_agentur_plz">PLZ</label>
-              <input type="text" id="influencer_agentur_plz" name="influencer_agentur_plz"
-                     value="${this.formData.influencer_agentur_plz || ''}"
-                    >
-            </div>
-            <div class="form-field flex-1">
-              <label for="influencer_agentur_stadt">Stadt</label>
-              <input type="text" id="influencer_agentur_stadt" name="influencer_agentur_stadt"
-                     value="${this.formData.influencer_agentur_stadt || ''}"
-                    >
-            </div>
+            <label for="vertretung_vorname">Vorname</label>
+            <input type="text" id="vertretung_vorname" name="_vertretung_vorname" autocomplete="section-vertretung given-name" value="${escapeAttr(this.formData._vertretung_vorname || '')}">
           </div>
           <div class="form-field">
-            <label for="influencer_agentur_land">Land</label>
-            <input type="text" id="influencer_agentur_land" name="influencer_agentur_land"
-                   value="${this.formData.influencer_agentur_land || 'Deutschland'}"
-                  >
-          </div>
-          <div class="form-field">
-            <label for="influencer_agentur_vertretung">Vertreten durch</label>
-            <input type="text" id="influencer_agentur_vertretung" name="influencer_agentur_vertretung"
-                   value="${this.formData.influencer_agentur_vertretung || ''}"
-                   placeholder="Name des Vertreters">
+            <label for="vertretung_nachname">Nachname</label>
+            <input type="text" id="vertretung_nachname" name="_vertretung_nachname" autocomplete="section-vertretung family-name" value="${escapeAttr(this.formData._vertretung_nachname || '')}">
           </div>
         </div>
-      </div>
-    `;
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="vertretung_email">E-Mail</label>
+            <input type="email" id="vertretung_email" name="_vertretung_email" autocomplete="section-vertretung email" value="${escapeAttr(this.formData._vertretung_email || '')}">
+          </div>
+          <div class="form-field">
+            <label for="vertretung_telefon">Mobilnummer</label>
+            <input type="tel" id="vertretung_telefon" name="_vertretung_telefon" autocomplete="section-vertretung tel" value="${escapeAttr(this.formData._vertretung_telefon || '')}">
+          </div>
+        </div>
+      ` : ''}
+
+      <p class="form-hint form-hint--error hidden" id="vertretung-luecken"></p>
+    </div>
+  `;
 };
 
-
-// Mehrfach-Management: Dropdown-Auswahl + Schalter "nur Management-Adresse".
-// Die Auswahl fuellt implizit den Vertretungs-Block (readonly).
-VertraegeCreate.prototype._renderAgenturSectionWithDropdown = function(managements) {
-    const selectedId = this.formData._management_id || (managements[0] && managements[0].id);
-    const multi = managements.length > 1;
-    const nurMgmt = !!this.formData.nur_management_adresse;
-    const mgmtLink = selectedId ? `/management/${selectedId}` : '/management/new';
-
-    const options = managements.map(m =>
-      `<option value="${escapeAttr(m.id)}" ${m.id === selectedId ? 'selected' : ''}>${escapeAttr(m.firmenname || '—')}</option>`
-    ).join('');
-
-    const f = this.formData;
-
-    return `
-      <div id="agentur-section-container" class="step-section">
-        <div class="step-section__header">
-          <h3>Management-Vertretung</h3>
-        </div>
-
-        <div class="agentur-hint">
-          <span>Der Influencer wird durch ein Management vertreten. Die Auswahl bestimmt die Vertretungsdaten${nurMgmt ? ' und die Vertragsadresse' : ''}.</span>
-          <a href="${mgmtLink}" onclick="event.preventDefault(); window.navigateTo('${mgmtLink}')"
-             class="mdc-btn mdc-btn--sm agentur-hint-btn">
-            Management ansehen
-          </a>
-        </div>
-
-        <div class="form-field">
-          <label for="vertrag_management_select">Management${multi ? ' (Auswahl erforderlich)' : ''}</label>
-          <select id="vertrag_management_select" name="vertrag_management_select" ${multi ? 'required' : ''}>
-            ${options}
-          </select>
-        </div>
-
-        <div class="form-field">
-          <label class="checkbox-label agentur-checkbox-label">
-            <input type="checkbox" id="nur_management_adresse" name="nur_management_adresse" value="true" ${nurMgmt ? 'checked' : ''}>
-            <span>Nur Management-Adresse verwenden (Influencer-Adresse im Vertrag ausblenden)</span>
-          </label>
-        </div>
-
-        <div id="agentur-felder">
-          <div class="form-field">
-            <label for="influencer_agentur_name">Managementname</label>
-            <input type="text" id="influencer_agentur_name" name="influencer_agentur_name"
-                   value="${escapeAttr(f.influencer_agentur_name || '')}" readonly disabled class="readonly-field">
-          </div>
-          <div class="form-field-row">
-            <div class="form-field flex-1">
-              <label for="influencer_agentur_strasse">Straße</label>
-              <input type="text" id="influencer_agentur_strasse" name="influencer_agentur_strasse"
-                     value="${escapeAttr(f.influencer_agentur_strasse || '')}" readonly disabled class="readonly-field">
-            </div>
-            <div class="form-field agentur-field-nr">
-              <label for="influencer_agentur_hausnummer">Nr.</label>
-              <input type="text" id="influencer_agentur_hausnummer" name="influencer_agentur_hausnummer"
-                     value="${escapeAttr(f.influencer_agentur_hausnummer || '')}" readonly disabled class="readonly-field">
-            </div>
-          </div>
-          <div class="form-field-row">
-            <div class="form-field agentur-field-plz">
-              <label for="influencer_agentur_plz">PLZ</label>
-              <input type="text" id="influencer_agentur_plz" name="influencer_agentur_plz"
-                     value="${escapeAttr(f.influencer_agentur_plz || '')}" readonly disabled class="readonly-field">
-            </div>
-            <div class="form-field flex-1">
-              <label for="influencer_agentur_stadt">Stadt</label>
-              <input type="text" id="influencer_agentur_stadt" name="influencer_agentur_stadt"
-                     value="${escapeAttr(f.influencer_agentur_stadt || '')}" readonly disabled class="readonly-field">
-            </div>
-          </div>
-          <div class="form-field">
-            <label for="influencer_agentur_land">Land</label>
-            <input type="text" id="influencer_agentur_land" name="influencer_agentur_land"
-                   value="${escapeAttr(f.influencer_agentur_land || 'Deutschland')}" readonly disabled class="readonly-field">
-          </div>
-        </div>
-      </div>
-    `;
-};
-
-
-// Ersetzt die #agentur-section-container im DOM mit frischem HTML aus formData.
-// Wird vom Creator-Change-Flow ueber _syncAgenturDomFromFormData() aufgerufen.
 VertraegeCreate.prototype.refreshAgenturSection = function() {
-    const container = document.getElementById('agentur-section-container');
-    if (!container) return;
-
-    const fresh = this.renderAgenturSection();
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = fresh;
-    const newContainer = wrapper.querySelector('#agentur-section-container');
-    if (newContainer) {
-      container.replaceWith(newContainer);
-      // Events neu binden: Radio-Toggle fuer agentur-felder, Modal-Button
-      this._bindAgenturEvents();
-    }
+  const container = document.getElementById('agentur-section-container');
+  if (!container) return;
+  const fresh = this.renderAgenturSection();
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = fresh;
+  const next = wrapper.querySelector('#agentur-section-container');
+  if (!next) return;
+  container.replaceWith(next);
+  this._bindAgenturEvents();
 };
 
+VertraegeCreate.prototype._bindSearchable = function(select, options, placeholder) {
+  if (!select || !window.formSystem?.createSearchableSelect) return;
+  window.formSystem.createSearchableSelect(select, options, {
+    name: select.name,
+    placeholder
+  });
+};
 
 VertraegeCreate.prototype._bindAgenturEvents = function() {
-    // Toggle fuer #agentur-felder je nach Radio-Auswahl (nur bei manueller Eingabe relevant)
-    document.querySelectorAll('input[name="influencer_agentur_vertreten"]').forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        const agenturFelder = document.getElementById('agentur-felder');
-        if (agenturFelder) {
-          if (e.target.value === 'true') {
-            agenturFelder.classList.remove('hidden');
-          } else {
-            agenturFelder.classList.add('hidden');
-          }
+  const select = document.getElementById('vertrag_management_select');
+  if (select) {
+    const options = [
+      { value: '', label: 'Kein Management' },
+      ...(this.alleManagements || []).map((item) => ({ value: item.id, label: item.firmenname || '—' }))
+    ];
+    this._bindSearchable(select, options, 'Management suchen...');
+    if (this.formData._management_id && typeof this.setSearchableSelectValue === 'function') {
+      this.setSearchableSelectValue('vertrag_management_select', this.formData._management_id, options);
+    }
+    select.addEventListener('change', (event) => {
+      this.formData._management_anlegen = false;
+      this.selectVertragManagement(event.target.value);
+    });
+  }
+
+  document.querySelectorAll('#agentur-section-container .vertretung-person').forEach((button) => {
+    button.addEventListener('click', () => {
+      const id = button.dataset.personId || null;
+      if (!id || id === this.formData._ansprechpartner_id) return;
+      this.formData._ansprechpartner_id = id;
+      this.formData._vertretung_vorname = '';
+      this.formData._vertretung_nachname = '';
+      this.formData._vertretung_email = '';
+      this.formData._vertretung_telefon = '';
+      this.refreshAgenturSection();
+    });
+  });
+
+  document.getElementById('vertrag-management-anlegen')?.addEventListener('click', () => {
+    this.openVertragManagementForm();
+  });
+
+  document.getElementById('vertrag_mgmt_name')?.addEventListener('input', (event) => {
+    this.formData._neues_management_name = event.target.value;
+  });
+  document.getElementById('vertrag_mgmt_name')?.addEventListener('change', () => {
+    this.createVertragManagementFromForm();
+  });
+
+  ['vertrag_mgmt_strasse', 'vertrag_mgmt_hausnummer', 'vertrag_mgmt_plz', 'vertrag_mgmt_stadt', 'vertrag_mgmt_land']
+    .forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', async () => {
+        await this.saveVertretungAddress();
+        if (!this.formData._management_anlegen && addressComplete(this._selectedManagement())) {
+          this.refreshAgenturSection();
         }
-        this.formData.influencer_agentur_vertreten = (e.target.value === 'true');
       });
     });
 
-    // Mehrfach-Management: Dropdown wechselt das gewaehlte Management
-    const mgmtSelect = document.getElementById('vertrag_management_select');
-    if (mgmtSelect) {
-      mgmtSelect.addEventListener('change', (e) => {
-        this.selectVertragManagement(e.target.value);
-      });
-    }
+  document.getElementById('vertretung_email_nachtrag')?.addEventListener('change', () => {
+    this.saveVertretungEmail().then(() => this.refreshAgenturSection());
+  });
 
-    // Schalter "Nur Management-Adresse verwenden"
-    const nurMgmt = document.getElementById('nur_management_adresse');
-    if (nurMgmt) {
-      nurMgmt.addEventListener('change', (e) => {
-        this.formData.nur_management_adresse = !!e.target.checked;
-        const creator = this.creators.find(c => c.id === this.formData.creator_id);
-        if (creator) this.updateCreatorAddressPreview(creator);
+  ['vertretung_vorname', 'vertretung_nachname', 'vertretung_email', 'vertretung_telefon'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('input', (event) => {
+      this.formData[`_${id}`] = event.target.value;
+      if (!String(event.target.value || '').trim()) return;
+      this.formData._ansprechpartner_id = null;
+      document.querySelectorAll('#agentur-section-container .vertretung-person.is-selected').forEach((row) => {
+        row.classList.remove('is-selected');
+        row.setAttribute('aria-pressed', 'false');
       });
-    }
+    });
+  });
 
-    // Management-Link ist ein <a>-Tag mit onclick, kein JS-Handler noetig
+  if (this._pendingVertretungGaps?.length) {
+    this.showVertretungLuecken(this._pendingVertretungGaps);
+    this._pendingVertretungGaps = null;
+  }
 };

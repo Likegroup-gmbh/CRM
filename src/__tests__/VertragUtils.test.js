@@ -198,6 +198,14 @@ describe('VertragUtils', () => {
       expect(VertragUtils.getVertragStatus(vertrag)).toBe('entwurf');
     });
 
+    it('gibt gespeicherten Status wenn keine Signatur', () => {
+      expect(VertragUtils.getVertragStatus({
+        status: 'gesendet',
+        datei_url: 'https://x.pdf',
+        is_draft: false
+      })).toBe('gesendet');
+    });
+
     it('gibt "erstellt" bei generiertem PDF ohne Unterschrift', () => {
       const vertrag = { datei_url: 'https://supabase.co/generated.pdf', is_draft: false };
       expect(VertragUtils.getVertragStatus(vertrag)).toBe('erstellt');
@@ -253,54 +261,4 @@ describe('VertragUtils', () => {
     });
   });
 
-  // --- buildDropboxVertragPath ---
-
-  describe('buildDropboxVertragPath', () => {
-    it('baut vollständigen Pfad mit allen Parametern', () => {
-      const path = VertragUtils.buildDropboxVertragPath({
-        unternehmen: 'Acme GmbH',
-        kampagne: 'Sommer 2026',
-        creator: 'Max Mustermann',
-        vertragstyp: 'UGC',
-        fileName: 'Vertrag_Acme.pdf'
-      });
-      expect(path).toBe('/Vertraege/Acme GmbH/Sommer 2026/Max Mustermann/UGC/Vertrag_Acme.pdf');
-    });
-
-    it('lässt Vertragstyp weg wenn nicht angegeben', () => {
-      const path = VertragUtils.buildDropboxVertragPath({
-        unternehmen: 'Acme GmbH',
-        kampagne: 'Sommer 2026',
-        creator: 'Max Mustermann',
-        fileName: 'Vertrag.pdf'
-      });
-      expect(path).toBe('/Vertraege/Acme GmbH/Sommer 2026/Max Mustermann/Vertrag.pdf');
-    });
-
-    it('sanitiert Sonderzeichen im Pfad', () => {
-      const path = VertragUtils.buildDropboxVertragPath({
-        unternehmen: 'Firma <Test> "GmbH"',
-        kampagne: 'Kampagne',
-        creator: 'Creator',
-        fileName: 'file.pdf'
-      });
-      expect(path).not.toContain('<');
-      expect(path).not.toContain('>');
-      expect(path).not.toContain('"');
-    });
-
-    it('generiert Fallback-Dateinamen wenn keiner angegeben', () => {
-      const path = VertragUtils.buildDropboxVertragPath({
-        unternehmen: 'Acme',
-        kampagne: 'Test',
-        creator: 'Creator',
-      });
-      expect(path).toMatch(/^\/Vertraege\/Acme\/Test\/Creator\/Vertrag_\d+\.pdf$/);
-    });
-
-    it('gibt minimalen Pfad wenn nichts angegeben', () => {
-      const path = VertragUtils.buildDropboxVertragPath({});
-      expect(path).toMatch(/^\/Vertraege\/Vertrag_\d+\.pdf$/);
-    });
-  });
 });

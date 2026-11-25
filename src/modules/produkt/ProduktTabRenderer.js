@@ -7,25 +7,14 @@
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { ProduktService } from './ProduktService.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderTabellenTag, renderMarkenBubbles } from '../../core/ui/tabellenZellen.js';
 
 const CREATE_BTN_HTML = '<button type="button" class="mdc-btn mdc-btn--create produkt-create-btn">Produkt anlegen</button>';
 
 /** Ohne markeId sind wir auf der Unternehmensseite und zeigen die Marken-Spalte. */
 function zeigtMarkenSpalte(detail) {
   return !detail.markeId;
-}
-
-function renderThumb(detail, produkt) {
-  const bild = ProduktService.hauptbild(produkt);
-  const url = bild ? ProduktService.publicUrl(bild.storage_pfad) : null;
-  if (!url) return '-';
-  return `<img src="${detail.sanitize(url)}" class="table-logo" width="24" height="24" alt="" loading="lazy">`;
-}
-
-function renderMarkenZellen(detail, produkt) {
-  const namen = ProduktService.markenNamen(produkt);
-  if (!namen.length) return '<span class="text-muted">Nur Unternehmen</span>';
-  return namen.map(name => `<span class="status-badge">${detail.sanitize(name)}</span>`).join(' ');
 }
 
 export function renderProdukte(detail) {
@@ -46,16 +35,17 @@ export function renderProdukte(detail) {
     const variantenAnzahl = (produkt.varianten || []).length;
     return `
     <tr>
-      <td>${renderThumb(detail, produkt)}</td>
-      <td>
-        <a href="#" class="table-link produkt-row-open" data-produkt-id="${produkt.id}">
-          ${detail.sanitize(produkt.name)}
-        </a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: ProduktService.publicUrl(ProduktService.hauptbild(produkt)?.storage_pfad),
+          name: produkt.name,
+          nameHtml: `<a href="#" class="table-link produkt-row-open" data-produkt-id="${produkt.id}">${detail.sanitize(produkt.name)}</a>`
+        })}
       </td>
-      ${mitMarken ? `<td>${renderMarkenZellen(detail, produkt)}</td>` : ''}
-      <td>${detail.sanitize(ProduktService.preisLabel(produkt))}</td>
+      ${mitMarken ? `<td>${renderMarkenBubbles(produkt.marken)}</td>` : ''}
+      <td>${renderTabellenTag(ProduktService.preisLabel(produkt), (t) => detail.sanitize(t))}</td>
       <td>${variantenAnzahl > 0 ? variantenAnzahl : '-'}</td>
-      <td>${detail.formatDate(produkt.created_at)}</td>
+      <td>${renderTabellenTag(detail.formatDate(produkt.created_at), (t) => detail.sanitize(t))}</td>
       <td class="col-actions">${actionBuilder.create('produkt', produkt.id)}</td>
     </tr>
   `;
@@ -66,8 +56,7 @@ export function renderProdukte(detail) {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Bild</th>
-            <th>Produkt</th>
+            <th class="col-name">Produkt</th>
             ${mitMarken ? '<th>Marken</th>' : ''}
             <th>Preis</th>
             <th>Varianten</th>

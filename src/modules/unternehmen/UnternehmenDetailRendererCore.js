@@ -9,6 +9,7 @@ import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderPersonas } from '../persona/PersonaTabRenderer.js';
 import { renderProdukte } from '../produkt/ProduktTabRenderer.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { renderNotizDokument } from '../../core/components/NotizDokument.js';
 
 export function renderUnternehmenDetailPage(detail) {
@@ -16,13 +17,17 @@ export function renderUnternehmenDetailPage(detail) {
     detail.activeMainTab = 'informationen';
   }
 
-  window.setHeadline(`${detail.unternehmen?.firmenname || 'Unternehmen'} - Details`);
+  const name = detail.unternehmen?.firmenname || 'Unternehmen';
+  window.setHeadline(detail.unternehmen?.ist_test ? `${name} · Test - Details` : `${name} - Details`);
 
   const personConfig = {
     name: detail.unternehmen?.firmenname || 'Unbekannt',
     email: '',
-    subtitle: detail.unternehmen?.branchen_names?.join(', ') || 'Unternehmen',
+    subtitle: detail.unternehmen?.ist_test
+      ? 'Testunternehmen'
+      : (detail.unternehmen?.branchen_names?.join(', ') || 'Unternehmen'),
     avatarUrl: detail.unternehmen?.logo_url,
+    avatarLogo: true,
     avatarOnly: false
   };
 
@@ -33,6 +38,7 @@ export function renderUnternehmenDetailPage(detail) {
     : null;
 
   const sidebarInfo = detail.renderInfoItems([
+    ...(detail.unternehmen?.ist_test ? [{ icon: 'info', label: 'Testunternehmen', value: 'Nur Admins, nicht in den Zahlen' }] : []),
     ...(detail.unternehmen?.internes_kuerzel ? [{ icon: 'info', label: 'Internes Kürzel', value: detail.unternehmen.internes_kuerzel }] : []),
     ...(detail.unternehmen?.beschreibung ? [{ icon: 'info', label: 'Kurzbeschreibung', value: detail.unternehmen.beschreibung }] : []),
     { icon: 'tag', label: 'Branchen', value: detail.unternehmen?.branchen_names?.join(', ') || '-' },
@@ -176,13 +182,13 @@ export function renderMarken(detail) {
 
   const rows = detail.marken.map(marke => `
     <tr>
-      <td class="col-name-with-icon">
-        ${marke.logo_url
-          ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />`
-          : `<span class="table-avatar">${(marke.markenname || '?')[0].toUpperCase()}</span>`}
-        <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-          ${detail.sanitize(marke.markenname) || 'Unbekannte Marke'}
-        </a>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: marke.logo_url,
+          logo: true,
+          name: marke.markenname,
+          nameHtml: `<a href="#" class="table-link" data-table="marke" data-id="${marke.id}">${detail.sanitize(marke.markenname) || 'Unbekannte Marke'}</a>`
+        })}
       </td>
       <td class="col-webseite">${marke.webseite ? `<a href="${UnternehmenService.sanitizeUrl(marke.webseite)}" target="_blank" rel="noopener">${detail.sanitize(marke.webseite)}</a>` : '-'}</td>
       <td>${detail.sanitize(marke.branche) || '-'}</td>

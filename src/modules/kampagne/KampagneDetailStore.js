@@ -10,9 +10,14 @@ import {
 } from '../../core/VideoFeedbackBuckets.js';
 import { sortKooperationen } from './KooperationSortHelper.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
+import { summiereLivePerformance } from './kampagneLivePerformance.js';
+import { istPlatzhalter } from '../kooperation/platzhalter.js';
+import { filterRows } from '../../core/filterColumn/filterRows.js';
+import { isActive } from '../../core/filterColumn/filterColumnValues.js';
+import { DEFAULT_KOOPERATION_SORT, kooperationFilterDefs } from './kooperationFilterSpalte.js';
 
-
-const DEFAULT_KOOPERATION_SORT = 'created_desc';
+// Custom-Column-Typen, die in die Freitextsuche einfliessen.
+const SEARCHABLE_CUSTOM_TYPES = new Set(['text', 'comment', 'dropdown']);
 
 export class KampagneDetailStore {
   constructor(kampagneId) {
@@ -21,15 +26,16 @@ export class KampagneDetailStore {
     this.videos = {};
     this.videoComments = {};
     this.stillComments = {};
+    this.zeitkommentare = {};      // { [videoId]: [kommentar, ...] } aus dem Videos-Tab
     this.versandInfos = {};
     this.creators = new Map();
     this.creatorAdressen = {};
     this.kampagneInfo = null;
     this.statusOptions = [];
+    this.livePosts = [];           // bestätigte kooperation_post (Kachel Live-Performance)
 
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
-    this.selectedTags = [];
-    this.selectedStatuses = [];
+    this.columnFilters = {};       // Werte der Filterspalte, { [filterId]: value }
     this.searchQuery = '';
     this.rechnungStatusMap = {};
 
@@ -74,6 +80,8 @@ export class KampagneDetailStore {
 
   setVideos(videosByKoopId) {
     this.videos = videosByKoopId || {};
+    // Neue Video-Objekte tragen keine Assets: sonst ueberspringt das Nachladen sie (leere Finale-Spalte)
+    this._loadedAssetVideoIds.clear();
     this.emit('videos-changed', this.videos);
   }
 
@@ -151,7 +159,7 @@ export class KampagneDetailStore {
       ...(koop._tags || []),
     ];
     for (const col of this.customColumns) {
-      if (col.field_type !== 'text' && col.field_type !== 'dropdown') continue;
+      if (!SEARCHABLE_CUSTOM_TYPES.has(col.field_type)) continue;
       if (col.entity_type === 'video') continue;
       parts.push(this.getCustomColumnValue(koop.id, col.id));
     }
@@ -165,7 +173,7 @@ export class KampagneDetailStore {
       video.strategie_item?.beschreibung,
     ];
     for (const col of this.customColumns) {
-      if (col.field_type !== 'text' && col.field_type !== 'dropdown') continue;
+      if (!SEARCHABLE_CUSTOM_TYPES.has(col.field_type)) continue;
       if (col.entity_type !== 'video') continue;
       parts.push(this.getCustomColumnValue(video.id, col.id));
     }
@@ -185,15 +193,8 @@ export class KampagneDetailStore {
     } else if (tab === 'abgeschlossen') {
       filtered = filtered.filter(k => this.areAllVideosApproved(k.id));
     }
-    if (this.selectedTags.length > 0) {
-      filtered = filtered.filter(k =>
-        (k._tags || []).some(tag => this.selectedTags.includes(tag))
-      );
-    }
-    if (this.selectedStatuses.length > 0) {
-      filtered = filtered.filter(k =>
-        this.selectedStatuses.includes(k.status_name || k.status_ref?.name || '')
-      );
+    if (this.hasColumnFilters()) {
+      filtered = filterRows(filtered, kooperationFilterDefs({ store: this }), this.columnFilters);
     }
     if ((this.searchQuery || '').trim()) {
       filtered = filtered.filter(k => this.matchesSearch(k));
@@ -201,20 +202,28 @@ export class KampagneDetailStore {
     return filtered;
   }
 
-  setSelectedTags(tags) {
-    this.selectedTags = tags || [];
-    this.emit('tags-filter-changed', this.selectedTags);
+  /** Gewählte Tags der Filterspalte; danach rechnen auch die Summary-Karten. */
+  getSelectedTags() {
+    const tags = this.columnFilters.tag;
+    return Array.isArray(tags) ? tags : [];
+  }
+
+  /** Werte der Filterspalte übernehmen. Ändern sich die Tags, ziehen die Karten nach. */
+  setColumnFilters(values) {
+    const vorher = this.getSelectedTags().join('\u0000');
+    this.columnFilters = { ...(values || {}) };
+    this.emit('column-filters-changed', this.columnFilters);
+    if (this.getSelectedTags().join('\u0000') !== vorher) {
+      this.emit('tags-filter-changed', this.getSelectedTags());
+    }
+  }
+
+  hasColumnFilters() {
+    return Object.values(this.columnFilters).some(isActive);
   }
 
   hasActiveFilters() {
-    return this.selectedTags.length > 0
-      || this.selectedStatuses.length > 0
-      || (this.searchQuery || '').trim().length > 0;
-  }
-
-  setSelectedStatuses(statuses) {
-    this.selectedStatuses = statuses || [];
-    this.emit('status-filter-changed', this.selectedStatuses);
+    return this.hasColumnFilters() || (this.searchQuery || '').trim().length > 0;
   }
 
   setSearchQuery(query) {
@@ -287,9 +296,10 @@ export class KampagneDetailStore {
    * kskUmgebucht bleibt global, weil es die Budget-Basis (Soll) bildet.
    */
   calculateFilteredSummary() {
-    if (this.selectedTags.length === 0) return this.calculateSummary();
+    const tags = this.getSelectedTags();
+    if (tags.length === 0) return this.calculateSummary();
     const koops = this.kooperationen.filter(k =>
-      (k._tags || []).some(tag => this.selectedTags.includes(tag))
+      (k._tags || []).some(tag => tags.includes(tag))
     );
     const videosByKoopId = {};
     for (const k of koops) {
@@ -299,13 +309,15 @@ export class KampagneDetailStore {
   }
 
   _calculateSummaryFor(koops, videosByKoopId) {
-    const allVideos = Object.values(videosByKoopId).flat();
+    const gebucht = koops.filter(k => !istPlatzhalter(k));
+    const allVideos = gebucht.flatMap(k => videosByKoopId[k.id] || []);
     const koopBudgetSum = allVideos.reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
-    const koopVideosUsed = koops.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-    const extraKostenVkSum = koops.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
-    const koopCreatorsUsed = koops.filter(k => k.creator_id).length;
-    // KSK-Selbstzahler: aus dem KSK-Topf ins Creator-Budget umgebuchter Anteil
-    const kskUmgebucht = summeKskSelbstzahler(this.kooperationen);
+    const koopVideosUsed = gebucht.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
+    const extraKostenVkSum = gebucht.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
+    const koopCreatorsUsed = gebucht.filter(k => k.creator_id).length;
+    // KSK-Selbstzahler: aus dem KSK-Topf ins Creator-Budget umgebuchter Anteil.
+    // Platzhalter buchen erst um, wenn ein Creator gesetzt ist.
+    const kskUmgebucht = summeKskSelbstzahler((this.kooperationen || []).filter(k => !istPlatzhalter(k)));
 
     return {
       koopBudgetSum,
@@ -314,25 +326,18 @@ export class KampagneDetailStore {
       extraKostenVkSum,
       kskUmgebucht,
       ekVkMarginSum: 0,
-      videoStats: this.calculateVideoStats(allVideos)
+      videoStats: this.calculateVideoStats(gebucht.map(k => k.id))
     };
   }
 
-  /**
-   * Live-Performance der gesamten Kampagne: Summe ueber alle Videos, bei denen
-   * Zahlen hinterlegt sind (abgerufen oder von Hand eingetragen).
-   * Optional auf eine bestimmte Video-Menge einschraenkbar (z.B. Tag-Filter).
-   */
-  calculateVideoStats(videosList) {
-    const allVideos = videosList || Object.values(this.videos).flat();
-    const sum = (field) => allVideos.reduce((acc, v) => acc + (Number(v?.[field]) || 0), 0);
+  setLivePosts(posts) {
+    this.livePosts = posts || [];
+    this.emit('posts-changed');
+  }
 
-    return {
-      views: sum('stats_views'),
-      likes: sum('stats_likes'),
-      comments: sum('stats_comments'),
-      videosMitDaten: allVideos.filter(v => v?.stats_views != null || v?.stats_likes != null || v?.stats_comments != null).length
-    };
+  /** Live-Performance: bestätigte Posts der geladenen (oder der übergebenen) Kooperationen. */
+  calculateVideoStats(koopIds = this.kooperationen.map(k => k.id)) {
+    return summiereLivePerformance(this.livePosts, koopIds);
   }
 
   // ========================================
@@ -381,6 +386,7 @@ export class KampagneDetailStore {
     deletedVideoIds.forEach(vid => {
       delete this.videoComments[vid];
       delete this.stillComments[vid];
+      delete this.zeitkommentare[vid];
       delete this.versandInfos[vid];
       this._loadedAssetVideoIds.delete(vid);
     });
@@ -396,6 +402,11 @@ export class KampagneDetailStore {
   updateStillComments(videoId, commentsByBucket) {
     this.stillComments[videoId] = normalizeVideoFeedbackComments(commentsByBucket);
     this.emit('still-comments-updated', { videoId });
+  }
+
+  updateZeitkommentare(videoId, list) {
+    this.zeitkommentare[videoId] = list || [];
+    this.emit('zeitkommentare-updated', { videoId });
   }
 
   // ========================================
@@ -447,6 +458,10 @@ export class KampagneDetailStore {
       }
       this.stillComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
     }
+  }
+
+  applyZeitkommentare(byVideo) {
+    Object.assign(this.zeitkommentare, byVideo || {});
   }
 
   getVersandForVideo(videoId) {
@@ -593,6 +608,7 @@ export class KampagneDetailStore {
     this.videos = {};
     this.videoComments = {};
     this.stillComments = {};
+    this.zeitkommentare = {};
     this.versandInfos = {};
     this.creatorAdressen = {};
     this.creators.clear();
@@ -602,8 +618,7 @@ export class KampagneDetailStore {
     this.customColumnAssets = {};
     this.columnOrder = null;
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
-    this.selectedTags = [];
-    this.selectedStatuses = [];
+    this.columnFilters = {};
     this.searchQuery = '';
     this._loadedAssetVideoIds.clear();
   }

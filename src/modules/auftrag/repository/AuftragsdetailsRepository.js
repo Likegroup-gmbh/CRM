@@ -1,3 +1,5 @@
+import { applyFinalisiertFilter } from '../../../core/finalisiert.js';
+
 export class AuftragsdetailsRepository {
   get supabase() {
     return window.supabase;
@@ -61,11 +63,13 @@ export class AuftragsdetailsRepository {
 
   async loadAuftraegeForUnternehmen(unternehmenId) {
     if (!this.supabase || !unternehmenId) return [];
-    const { data, error } = await this.supabase
-      .from('auftrag')
-      .select('id, auftragsname, kampagnenanzahl, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
-      .eq('unternehmen_id', unternehmenId)
-      .order('created_at', { ascending: false });
+    const { data, error } = await applyFinalisiertFilter(
+      this.supabase
+        .from('auftrag')
+        .select('id, auftragsname, kampagnenanzahl, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
+        .eq('unternehmen_id', unternehmenId),
+      'auftrag'
+    ).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   }

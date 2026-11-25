@@ -5,10 +5,11 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
 import { shouldHideCompleted } from './kampagneListPrefs.js';
 import { debugLog } from './KampagneListUtils.js';
+import { swrKey, swrGet, swrSet } from '../../core/list/swrCache.js';
 
 /**
  * Konvertiert UI-Filter in das JSONB-Format der get_kampagnen_list RPC.
- * hide_completed hängt am Session-Switch + Suche, nicht am FilterSystem.
+ * hide_completed hängt am Nutzer-Schalter + Suche, nicht am FilterSystem.
  */
 export function buildRpcFilters(activeFilters, { searchQuery = '' } = {}) {
   const rpcFilters = {};
@@ -72,8 +73,12 @@ export function buildRpcFilters(activeFilters, { searchQuery = '' } = {}) {
 /**
  * Lädt Kampagnen mit allen Relationen über eine einzige RPC.
  * Gibt { data, count, kampagneArtMap } zurück.
+ *
+ * Stale-while-revalidate: Liegt fuer dieselbe Abfrage (User, Seite, Filter, Suche,
+ * Ordner) ein Ergebnis im Cache, wird `onCached(result)` sofort aufgerufen, noch vor
+ * dem Netzwerk-Request. Zurueckgegeben wird immer das frische Ergebnis.
  */
-export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQuery = '' } = {}) {
+export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQuery = '', folder = null, onCached = null } = {}) {
   const startTime = performance.now();
 
   try {
@@ -88,7 +93,36 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
     const searchParam = searchQuery || activeFilters.kampagnenname || null;
     const rpcFilters = buildRpcFilters(activeFilters, { searchQuery: searchParam || '' });
 
+    if (folder?.unternehmenId) {
+      rpcFilters.unternehmen_id = folder.unternehmenId;
+      if (folder.ohneMarke) {
+        rpcFilters.ohne_marke = true;
+        delete rpcFilters.marke_id;
+      } else if (folder.markeId) {
+        rpcFilters.marke_id = folder.markeId;
+      }
+    }
+
     debugLog('🔍 KAMPAGNELIST: RPC-Call mit filters:', rpcFilters, 'search:', searchParam);
+
+    // Stale-while-revalidate: gecachte Seite sofort melden, danach frisch laden.
+    const cacheKey = swrKey(['kampagne-list', page, limit, searchParam, rpcFilters, activeFilters]);
+    if (typeof onCached === 'function') {
+      const cached = swrGet(cacheKey);
+      if (cached) {
+        const warnCacheFail = (cacheErr) => console.warn('⚠️ KAMPAGNELIST: Cache-Render fehlgeschlagen', cacheErr);
+        try {
+          // Nicht abwarten: der Netzwerk-Request laeuft parallel zum Cache-Render.
+          Promise.resolve(onCached({
+            data: cached.data,
+            count: cached.count,
+            kampagneArtMap: new Map(cached.art || [])
+          })).catch(warnCacheFail);
+        } catch (cacheErr) {
+          warnCacheFail(cacheErr);
+        }
+      }
+    }
 
     const { data: result, error } = await window.supabase.rpc('get_kampagnen_list', {
       p_page: page,
@@ -102,7 +136,7 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
       throw error;
     }
 
-    const rows = result?.rows || [];
+    const rows = await attachCompletedFlags(result?.rows || []);
     const totalCount = result?.total_count || 0;
 
     // art_der_kampagne Typ-Map: zuerst aus RPC-Result, dann aus FilterSystem-Cache,
@@ -143,7 +177,6 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
           auftragsname: k.auftrag.auftragsname,
           details_id: null,
           creator_budget: k.auftrag.creator_budget,
-          gesamt_budget: k.auftrag.gesamt_budget,
           bruttobetrag: k.auftrag.bruttobetrag,
           nettobetrag: k.auftrag.nettobetrag
         } : null,
@@ -160,12 +193,44 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
     const loadTime = (performance.now() - startTime).toFixed(0);
     debugLog(`✅ KAMPAGNELIST: ${filtered.length} Kampagnen geladen in ${loadTime}ms (RPC single-roundtrip)`);
 
+    swrSet(cacheKey, { data: filtered, count: totalCount, art: Array.from(kampagneArtMap.entries()) });
+
     return { data: filtered, count: totalCount, kampagneArtMap };
 
   } catch (error) {
     console.error('❌ Fehler beim Laden der Kampagnen:', error);
     const data = await window.dataService.loadEntities('kampagne');
     return { data, count: data.length, kampagneArtMap: new Map() };
+  }
+}
+
+async function attachCompletedFlags(rows) {
+  const needsFlags = rows.some((row) =>
+    typeof row.is_completed !== 'boolean' || typeof row.abschluss_manuell !== 'boolean'
+  );
+  if (!rows.length || !needsFlags) return rows;
+  const ids = rows.map((row) => row.id).filter(Boolean);
+  if (!ids.length || !window.supabase?.from) return rows;
+  try {
+    const query = window.supabase.from('kampagne').select('id, is_completed, abschluss_manuell');
+    if (typeof query?.in !== 'function') return rows;
+    const { data, error } = await query.in('id', ids);
+    if (error || !Array.isArray(data)) return rows;
+    const flags = new Map(data.map((row) => [row.id, {
+      is_completed: row.is_completed === true,
+      abschluss_manuell: row.abschluss_manuell === true
+    }]));
+    return rows.map((row) => {
+      const extra = flags.get(row.id);
+      if (!extra) return row;
+      return {
+        ...row,
+        is_completed: typeof row.is_completed === 'boolean' ? row.is_completed : extra.is_completed,
+        abschluss_manuell: typeof row.abschluss_manuell === 'boolean' ? row.abschluss_manuell : extra.abschluss_manuell
+      };
+    });
+  } catch {
+    return rows;
   }
 }
 

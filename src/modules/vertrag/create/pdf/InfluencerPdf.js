@@ -3,10 +3,10 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
-import { createPdfLayout, ensureSpace } from './PdfTextFlow.js';
+import { drawDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
+import { createPdfLayout, ensureSpace } from '../../../../core/pdf/PdfTextFlow.js';
 import { KSK_SELBSTZAHLER_VERTRAGSTEXT_DE } from '../../../../core/budget/kskSelbstzahler.js';
 import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
-import { drawDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
 import { isKorrekturschleife } from '../pflichtAuswahlen.js';
 
 VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
@@ -595,7 +595,8 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
         firmenname: kunde?.firmenname,
         lang,
         y,
-        ...layout.flow
+        maxContentY: MAX_CONTENT_Y,
+        onPageBreak
       });
 
       // Unterschriften
@@ -615,19 +616,15 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       const filePrefix = lang === 'en' ? 'EN_Contract_Influencer' : 'Vertrag_Influencer';
       const fileName = `${filePrefix}_${vertrag.name || 'Kooperation'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-      const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-      if (uploadResult?.fileUrl) {
-        console.log('✅ Influencer-PDF nach Dropbox hochgeladen und URL gespeichert');
-      } else {
-        console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
-      }
+      const uploadResult = await uploadGeneratedVertragPdf(vertrag, pdfBlob, fileName);
+      console.log('✅ Influencer-PDF hochgeladen und URL gespeichert');
       doc.save(fileName);
-
-      console.log('✅ Influencer-PDF generiert');
+      return uploadResult;
 
     } catch (error) {
       console.error('❌ Fehler bei Influencer-PDF-Generierung:', error);
       window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
+      throw error;
     }
 };
 

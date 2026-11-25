@@ -7,7 +7,7 @@ import { renderFilterBar } from '../core/FilterUI.js';
 import { EmpfaengerComposer } from '../core/anschreiben/EmpfaengerComposer.js';
 import { DuplicateChecker } from '../core/validation/DuplicateChecker.js';
 import { KooperationEditLoader } from '../modules/kooperation/KooperationEditLoader.js';
-import { ManagementDetail } from '../modules/management/ManagementDetail.js';
+import { showAddCreatorDialog } from '../modules/management/ManagementDetailEdit.js';
 import { VertraegeCreate } from '../modules/vertrag/create/VertraegeCreateCore.js';
 
 const ZOE_ID = '8e94c941-b43b-460b-9538-22866844b1e2';
@@ -146,10 +146,7 @@ describe('Creator-Picker laden ueber die 1000-Zeilen-Grenze', () => {
   });
 
   it('bietet Zoe im Management-Dialog an', async () => {
-    const detail = new ManagementDetail();
-    detail.creators = [];
-    detail.managementId = 'm1';
-    await detail._showAddCreatorDialog();
+    await showAddCreatorDialog({ creators: [], managementId: 'm1' });
 
     const select = document.getElementById('mgmt-add-creator-select');
     expect([...select.options].some(option => option.value === ZOE_ID && option.textContent.includes('Zoe Bohnen'))).toBe(true);

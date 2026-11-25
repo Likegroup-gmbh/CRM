@@ -104,7 +104,8 @@ const TRIAL_MAX_PCT = 0.05;
 
 // Version der Rechenlogik. Landet in ig_stats.calc_version; eine aeltere
 // Version im Creator-Pool gilt als veraltet und erzwingt einen neuen Abruf.
-const CALC_VERSION = 7;
+// 8: die Rechnung sieht nur noch die letzten 30 Beitraege, nicht mehr bis zu 150.
+const CALC_VERSION = 8;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;

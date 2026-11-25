@@ -1,7 +1,8 @@
 // ProjektErstellenValidator.js
 // Per-Step Pflichtfeld- und Business-Rules-Validation.
 
-import { normalizeCampaignBlocks } from '../logic/CampaignBudgetFields.js';
+import { flattenCampaignBlocks } from '../logic/kampagnenSplit.js';
+import { validateAllProduktionsbudgets } from '../../produktion/produktionsbudget.js';
 
 const parseMoney = (value) => {
   if (value === '' || value == null) return 0;
@@ -20,6 +21,7 @@ export class ProjektErstellenValidator {
         : this.validateStepDetailsOnly(formData);
     }
     if (step === 4) return this.validateStepKampagne(formData);
+    if (step === 5) return this.validateStepProduktion(formData);
     return { valid: true, errors: [] };
   }
 
@@ -66,7 +68,7 @@ export class ProjektErstellenValidator {
     }
     this._validateDateRange(a, errors);
 
-    const blocks = normalizeCampaignBlocks(d);
+    const blocks = flattenCampaignBlocks(formData);
     if (!blocks.length) {
       errors.push('Mindestens eine Kampagnenart muss ausgewählt sein');
     }
@@ -117,10 +119,18 @@ export class ProjektErstellenValidator {
     if (!a.titel || !String(a.titel).trim()) {
       errors.push('Projektname ist ein Pflichtfeld');
     }
-    const blocks = normalizeCampaignBlocks(d);
-    if (!blocks.length) {
+    const slots = Array.isArray(formData.kampagnen) ? formData.kampagnen.filter(Boolean) : [];
+    if (!slots.length) {
       errors.push('Mindestens eine Kampagnenart muss ausgewählt sein');
+    } else {
+      slots.forEach((slot, i) => {
+        const slotBlocks = Array.isArray(slot.campaign_blocks) ? slot.campaign_blocks : [];
+        if (!slotBlocks.length) {
+          errors.push(`Kampagne ${slot.kampagnen_nummer || i + 1} braucht mindestens eine Kampagnenart`);
+        }
+      });
     }
+    const blocks = flattenCampaignBlocks(formData);
     blocks.forEach(block => {
       if (!block.campaign_type) {
         errors.push('Jeder Kampagnenblock braucht eine Kampagnenart');
@@ -147,6 +157,13 @@ export class ProjektErstellenValidator {
       this._validateAgencyFull(d, a, errors);
     }
     return { valid: errors.length === 0, errors };
+  }
+
+  validateStepProduktion(formData) {
+    const slots = Array.isArray(formData.kampagnen) && formData.kampagnen.length
+      ? formData.kampagnen
+      : [{ kampagnen_nummer: 1, volumen: formData.auftrag?.nettobetrag || 0 }];
+    return validateAllProduktionsbudgets(formData.produktionen || [], slots);
   }
 
   _validateDateRange(a, errors) {

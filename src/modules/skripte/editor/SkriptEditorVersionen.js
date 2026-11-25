@@ -37,7 +37,7 @@ export class SkriptEditorVersionen {
     const v = this.view;
     const wrap = document.getElementById('ed-version-wrap');
     if (!wrap) return;
-    if (!v.skript || !v.versionen.length) {
+    if (!v.skript || !v.versionen.length || window.permissionSystem?.isGastReadonly) {
       wrap.innerHTML = '';
       this.closeMenu();
       return;
@@ -139,6 +139,9 @@ export class SkriptEditorVersionen {
         hook_visuell: version.hook_visuell ?? null,
         hauptteil_visuell: version.hauptteil_visuell ?? null,
         cta_visuell: version.cta_visuell ?? null,
+        hook_variante_1: version.hook_variante_1 ?? null,
+        hook_variante_2: version.hook_variante_2 ?? null,
+        hook_variante_3: version.hook_variante_3 ?? null,
         rezept: version.rezept ?? null,
         text_hook: version.text_hook ?? null,
         caption: version.caption ?? null,

@@ -70,11 +70,11 @@ describe('KampagneDetailStore – Kooperationen-Namenssuche', () => {
 
   it('kombiniert Suche mit Status- und Tag-Filter', () => {
     store.setSearchQuery('anna');
-    store.setSelectedStatuses(['Gebucht']);
+    store.setColumnFilters({ status: ['Gebucht'] });
     expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k3']);
 
-    store.setSelectedStatuses([]);
-    store.setSelectedTags(['UGC']);
+    store.setColumnFilters({});
+    store.setColumnFilters({ tag: ['UGC'] });
     expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k1']);
   });
 

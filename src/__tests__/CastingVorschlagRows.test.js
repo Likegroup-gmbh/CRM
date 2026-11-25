@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderItemRow } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
+import { CastingVorschlagPanel } from '../modules/creator-auswahl/CastingVorschlagPanel.js';
 import {
   vorschlagToItem,
   CastingVorschlagService,
@@ -19,7 +20,8 @@ const vorschlag = {
   id: 'v-1',
   creator_id: 'c-1',
   fit_grund: 'Passt zur Zielgruppe Food 25-34.',
-  kategorie_hint: 'Reels',
+  persona_ids: ['p-food'],
+  kategorie_hint: null,
   scores: { fit: 58, track: 36, fresh: 100, castings: 4 },
   matching_score: 57,
   creator: {
@@ -51,7 +53,8 @@ describe('vorschlagToItem', () => {
     expect(item.wohnort).toBe('Köln');
     expect(item.email).toBe('jessie@example.com');
     expect(item.typ).toBe('UGC Paid');
-    expect(item.kategorie).toBe('Reels');
+    expect(item).not.toHaveProperty('persona_id');
+    expect(item.kategorie).toBeNull();
     expect(item.matching_score).toBe(57);
     expect(item.matching_scores).toEqual({ fit: 58, track: 36, fresh: 100, castings: 4 });
   });
@@ -72,13 +75,13 @@ describe('KI-Vorschlag als Tabellenzeile', () => {
 
     expect(tr.classList.contains('item-row--vorschlag')).toBe(true);
     expect(tr.getAttribute('data-vorschlag-id')).toBe('v-1');
-    expect(doc.querySelector('td.cp-col-bild img').getAttribute('src'))
+    expect(doc.querySelector('td.cp-col-name .table-identity__media img').getAttribute('src'))
       .toBe('https://cdn.test/jessie_thumb.avif');
     expect(doc.querySelector('td.cp-col-notiz').textContent)
       .toContain('Passt zur Zielgruppe Food 25-34.');
     expect(doc.querySelector('td.cp-col-matching .sourcing-matching__score').textContent)
       .toBe('57/100');
-    expect(doc.querySelector('td.cp-col-link-ig a').getAttribute('href'))
+    expect(doc.querySelector('td.cp-col-link [data-plattform="instagram"] a').getAttribute('href'))
       .toBe('https://instagram.com/hierkochtjessie');
   });
 
@@ -134,8 +137,7 @@ describe('CastingVorschlagService.aktivieren', () => {
 
     const item = await CastingVorschlagService.aktivieren(vorschlag, {
       listeId: 'liste-1',
-      listeTyp: 'ugc',
-      kategorien: ['Reels']
+      listeTyp: 'ugc'
     });
 
     expect(item).toEqual(created);
@@ -149,8 +151,9 @@ describe('CastingVorschlagService.aktivieren', () => {
       matching_score: 57,
       matching_scores: { fit: 58, track: 36, fresh: 100, castings: 4 },
       creator_id: 'c-1',
-      kategorie: 'Reels'
+      kategorie: null
     }));
+    expect(createItem.mock.calls[0][0]).not.toHaveProperty('persona_id');
     spy.mockRestore();
   });
 });
@@ -184,5 +187,28 @@ describe('CastingVorschlagService.starteJob', () => {
       .rejects.toThrow('Die Generierung ist nicht angelaufen');
     await vi.advanceTimersByTimeAsync(JOB_START_WATCHDOG_MS + 2000);
     await pending;
+  });
+});
+
+describe('CastingVorschlagPanel in der Aktionszeile', () => {
+  it('rendert nur den Holen-Button, ohne KI-Kopf', () => {
+    document.body.innerHTML = `
+      <div class="add-item-actions-right">
+        <button id="btn-open-add-drawer">Creator hinzufügen</button>
+        <div id="casting-vorschlag-block"></div>
+      </div>`;
+    const panel = new CastingVorschlagPanel({
+      isKunde: false,
+      liste: { briefing_id: 'b1' },
+      _q: (sel) => document.querySelector(sel)
+    });
+    panel.render();
+
+    const block = document.getElementById('casting-vorschlag-block');
+    expect(block.closest('.add-item-actions-right')).not.toBeNull();
+    expect(block.querySelector('#btn-casting-vorschlag-holen').textContent).toContain('Vorschläge holen');
+    expect(block.querySelector('.casting-vorschlag__titel')).toBeNull();
+    expect(block.textContent).not.toContain('KI-Vorschläge');
+    document.body.innerHTML = '';
   });
 });

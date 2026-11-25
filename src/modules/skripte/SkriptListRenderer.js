@@ -4,15 +4,20 @@
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderEmptyState, renderEmptyStateRow, resolveEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL } from './SkripteUtils.js';
+import { renderVerknuepfungen, namedLinks } from '../../core/ui/tableVerknuepfungen.js';
+import { skriptCreatorZelleHtml } from './editor/skriptDocCreatorHtml.js';
+import { renderCreatorName } from '../creator/CreatorTable.js';
+import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
 export function createButtonHtml() {
   if (!window.canCreate?.('skripte')) return '';
   return '<button id="btn-skript-new" class="mdc-btn">Neues Skript erstellen</button>'
-    + ' <a href="/skripte/dna" class="mdc-btn mdc-btn--secondary">DNA verwalten</a>'
     + ' <a href="/skripte/master" class="mdc-btn mdc-btn--secondary">Master-Regelwerk</a>';
 }
 
@@ -58,9 +63,7 @@ function countLabel(count) {
 }
 
 function folderIconHtml(list, folder, name) {
-  return folder.logo_url
-    ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(name)}" class="folder-logo">`
-    : `${icon('folder-open')}`;
+  return renderFolderAvatar({ url: folder.logo_url, name });
 }
 
 function emptyFoldersHtml({ title, text }) {
@@ -84,20 +87,27 @@ export function renderItemsRows(list, items) {
     const datum = s.created_at ? new Date(s.created_at).toLocaleDateString('de-DE') : '-';
     return `
       <tr class="table-row-clickable" data-id="${s.id}">
+        <td class="col-nr">${s.skript_nr || '–'}</td>
         <td class="col-name">
           <a href="#" class="table-link" data-table="skripte" data-id="${s.id}">
             ${list.sanitize(titel)}
           </a>
         </td>
+        ${skriptCreatorZelleHtml(s, renderCreatorName)}
         <td>${renderStatus(s.status)}</td>
         <td>${datum}</td>
+        ${renderLeistungszeitraumCell(s.kampagne)}
+        <td>${renderVerknuepfungen(namedLinks(s.briefing, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(s.produkt, { labelKey: 'name', kind: 'produkt' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(s.personas, { labelKey: 'name', kind: 'persona' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(s.strategie_item?.strategie, { labelKey: 'name', kind: 'konzept' }))}</td>
         <td class="col-actions">${actionBuilder.create('skripte', s.id)}</td>
       </tr>
     `;
   }).join('');
 }
 
-function itemsEmptyRow(list, title, colspan = 4) {
+function itemsEmptyRow(list, title, colspan = 11) {
   const html = resolveEmptyState({
     hasActiveFilters: list.hasActiveFilters(),
     states: {
@@ -124,15 +134,14 @@ function folderCard(list, folder, { idValue, name, extraAttrs = '' }) {
   `;
 }
 
+function folderNameCell(logoUrl, linkHtml) {
+  return `<td class="col-name">${renderTableIdentity({ url: logoUrl, logo: true, iconHtml: icon('folder-open'), nameHtml: linkHtml })}</td>`;
+}
+
 function folderTableRow(list, folder, { rowClass, idValue, name, extraAttrs = '', linkClass }) {
   return `
     <tr class="table-row-clickable ${rowClass}" data-folder-id="${idValue ?? ''}" data-folder-name="${list.sanitize(name)}" ${extraAttrs}>
-      <td>
-        ${folder.logo_url ? `<img src="${list.sanitize(folder.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link ${linkClass}" data-folder-id="${idValue ?? ''}" data-folder-name="${list.sanitize(name)}" ${extraAttrs}>
-          ${list.sanitize(name)}
-        </a>
-      </td>
+      ${folderNameCell(folder.logo_url, `<a href="#" class="table-link ${linkClass}" data-folder-id="${idValue ?? ''}" data-folder-name="${list.sanitize(name)}" ${extraAttrs}>${list.sanitize(name)}</a>`)}
       <td>${folder.count}</td>
     </tr>
   `;
@@ -206,12 +215,7 @@ export function updateCompaniesTable(list) {
 
   tbody.innerHTML = list.companyFolders.map((folder) => `
     <tr class="table-row-clickable company-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
-      <td>
-        ${folder.logo_url ? `<img src="${list.sanitize(folder.logo_url)}" class="table-logo" width="24" height="24" alt="" />` : ''}
-        <a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">
-          ${list.sanitize(folder.firmenname)}
-        </a>
-      </td>
+      ${folderNameCell(folder.logo_url, `<a href="#" class="table-link company-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${list.sanitize(folder.firmenname)}">${list.sanitize(folder.firmenname)}</a>`)}
       <td>${folder.count}</td>
     </tr>
   `).join('');
@@ -313,9 +317,16 @@ export function renderCampaignsView(list) {
           <table class="data-table">
             <thead>
               <tr>
-                <th class="col-name">Titel</th>
+                <th class="col-nr">Nr.</th>
+              <th class="col-name">Titel</th>
+                <th>Creator</th>
                 <th>Status</th>
-                <th>Datum</th>
+                <th>Erstellt am</th>
+                <th class="col-leistungszeitraum">Leistungszeitraum</th>
+                <th>Briefing</th>
+                <th>Produkt</th>
+                <th>Persona</th>
+                <th>Konzept</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
@@ -345,7 +356,7 @@ export function updateCampaignsGrid(list) {
 
   grid.innerHTML = list.campaignFolders.map((folder) => `
     <div class="folder-card" data-kampagne-id="${folder.id}" data-kampagne-name="${list.sanitize(folder.name)}">
-      <div class="folder-icon">${icon('folder-open')}</div>
+      <div class="folder-icon">${renderFolderAvatar()}</div>
       <div class="folder-info">
         <span class="folder-name">${list.sanitize(folder.name)}</span>
         <span class="folder-count">${countLabel(folder.count)}</span>
@@ -421,14 +432,21 @@ export function renderItemsView(list) {
         <table class="data-table">
           <thead>
             <tr>
+              <th class="col-nr">Nr.</th>
               <th class="col-name">Titel</th>
+              <th>Creator</th>
               <th>Status</th>
-              <th>Datum</th>
+              <th>Erstellt am</th>
+              <th class="col-leistungszeitraum">Leistungszeitraum</th>
+              <th>Briefing</th>
+              <th>Produkt</th>
+              <th>Persona</th>
+              <th>Konzept</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="skripte-table-body">
-            <tr><td colspan="4" class="loading">Lade Skripte...</td></tr>
+            <tr><td colspan="11" class="loading">Lade Skripte...</td></tr>
           </tbody>
         </table>
       </div>

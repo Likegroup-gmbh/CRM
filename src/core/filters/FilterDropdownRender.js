@@ -148,14 +148,25 @@ export function renderActiveFilters(ctx, entityType) {
 // Submenu
 // ---------------------------------------------------------------------------
 
+function escAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
+export function renderFilterControl(filterConfig, currentValue, options) {
+  return renderSubmenuInputHtml(filterConfig, currentValue, options);
+}
+
 function renderSubmenuInputHtml(filterConfig, currentValue, options) {
   switch (filterConfig.type) {
     case 'text':
       return `
         <input type="text" class="filter-submenu-input"
-               data-filter-id="${filterConfig.id}"
-               placeholder="${filterConfig.placeholder || 'Suchen...'}"
-               value="${currentValue || ''}" autocomplete="off">
+               data-filter-id="${escAttr(filterConfig.id)}"
+               placeholder="${escAttr(filterConfig.placeholder || 'Suchen...')}"
+               value="${escAttr(currentValue || '')}" autocomplete="off">
       `;
 
     case 'select': {
@@ -163,39 +174,42 @@ function renderSubmenuInputHtml(filterConfig, currentValue, options) {
         const value = opt.value || opt.id || '';
         const label = opt.label || opt.name || opt.value || 'Unbekannt';
         const selected = currentValue === value ? 'selected' : '';
-        return `<option value="${value}" ${selected}>${label}</option>`;
+        return `<option value="${escAttr(value)}" ${selected}>${escAttr(label)}</option>`;
       }).join('');
 
       return `
-        <select class="filter-submenu-select" data-filter-id="${filterConfig.id}">
-          <option value="">Bitte wählen...</option>
+        <select class="filter-submenu-select" data-filter-id="${escAttr(filterConfig.id)}">
+          <option value="">${escAttr(filterConfig.emptyLabel || 'Bitte wählen...')}</option>
           ${optionsHtml}
         </select>
       `;
     }
 
     case 'multiSelect': {
+      const searchHtml = filterConfig.searchable
+        ? `<input type="search" class="filter-submenu-input" data-filter-search="${escAttr(filterConfig.id)}" placeholder="${escAttr(filterConfig.placeholder || 'Suchen...')}" autocomplete="off">`
+        : '';
       const checkboxesHtml = options.map(opt => {
         const value = opt.value || opt.id;
         const label = opt.label || opt.name;
         const checked = Array.isArray(currentValue) && currentValue.includes(value) ? 'checked' : '';
         return `
           <label class="filter-checkbox-option">
-            <input type="checkbox" value="${value}"
-                   data-filter-id="${filterConfig.id}" ${checked}>
-            <span>${label}</span>
+            <input type="checkbox" value="${escAttr(value)}"
+                   data-filter-id="${escAttr(filterConfig.id)}" ${checked}>
+            <span>${escAttr(label)}</span>
           </label>
         `;
       }).join('');
 
-      return `<div class="filter-submenu-checkboxes">${checkboxesHtml}</div>`;
+      return `${searchHtml}<div class="filter-submenu-checkboxes">${checkboxesHtml}</div>`;
     }
 
     case 'date':
       return `
         <input type="date" class="filter-submenu-input"
-               data-filter-id="${filterConfig.id}"
-               value="${currentValue || ''}">
+               data-filter-id="${escAttr(filterConfig.id)}"
+               value="${escAttr(currentValue || '')}">
       `;
 
     case 'dateRange': {
@@ -205,10 +219,10 @@ function renderSubmenuInputHtml(filterConfig, currentValue, options) {
         <div class="filter-range-inputs">
           <label class="filter-range-label">Von:</label>
           <input type="date" class="filter-submenu-input"
-                 data-filter-id="${filterConfig.id}" data-range="from" value="${dateFrom}">
+                 data-filter-id="${escAttr(filterConfig.id)}" data-range="from" value="${escAttr(dateFrom)}">
           <label class="filter-range-label">Bis:</label>
           <input type="date" class="filter-submenu-input"
-                 data-filter-id="${filterConfig.id}" data-range="to" value="${dateTo}">
+                 data-filter-id="${escAttr(filterConfig.id)}" data-range="to" value="${escAttr(dateTo)}">
         </div>
       `;
     }
@@ -216,12 +230,12 @@ function renderSubmenuInputHtml(filterConfig, currentValue, options) {
     case 'number':
       return `
         <input type="number" class="filter-submenu-input"
-               data-filter-id="${filterConfig.id}"
-               placeholder="${filterConfig.placeholder || 'Zahl eingeben...'}"
-               min="${filterConfig.min || 0}"
-               max="${filterConfig.max || ''}"
-               step="${filterConfig.step || 1}"
-               value="${currentValue || ''}">
+               data-filter-id="${escAttr(filterConfig.id)}"
+               placeholder="${escAttr(filterConfig.placeholder || 'Zahl eingeben...')}"
+               min="${escAttr(filterConfig.min || 0)}"
+               max="${escAttr(filterConfig.max || '')}"
+               step="${escAttr(filterConfig.step || 1)}"
+               value="${escAttr(currentValue || '')}">
       `;
 
     case 'numberRange': {
@@ -231,14 +245,14 @@ function renderSubmenuInputHtml(filterConfig, currentValue, options) {
         <div class="filter-range-inputs">
           <label class="filter-range-label">Min:</label>
           <input type="number" class="filter-submenu-input"
-                 data-filter-id="${filterConfig.id}" data-range="min"
-                 min="${filterConfig.min || 0}" step="${filterConfig.step || 1}"
-                 placeholder="${filterConfig.min || 0}" value="${numMin}">
+                 data-filter-id="${escAttr(filterConfig.id)}" data-range="min"
+                 min="${escAttr(filterConfig.min || 0)}" step="${escAttr(filterConfig.step || 1)}"
+                 placeholder="${escAttr(filterConfig.min || 0)}" value="${escAttr(numMin)}">
           <label class="filter-range-label">Max:</label>
           <input type="number" class="filter-submenu-input"
-                 data-filter-id="${filterConfig.id}" data-range="max"
-                 max="${filterConfig.max || ''}" step="${filterConfig.step || 1}"
-                 placeholder="${filterConfig.max || ''}" value="${numMax}">
+                 data-filter-id="${escAttr(filterConfig.id)}" data-range="max"
+                 max="${escAttr(filterConfig.max || '')}" step="${escAttr(filterConfig.step || 1)}"
+                 placeholder="${escAttr(filterConfig.max || '')}" value="${escAttr(numMax)}">
         </div>
       `;
     }
@@ -246,7 +260,7 @@ function renderSubmenuInputHtml(filterConfig, currentValue, options) {
     case 'boolean': {
       const boolValue = currentValue === true ? 'true' : currentValue === false ? 'false' : '';
       return `
-        <select class="filter-submenu-select" data-filter-id="${filterConfig.id}">
+        <select class="filter-submenu-select" data-filter-id="${escAttr(filterConfig.id)}">
           <option value="">Alle</option>
           <option value="true" ${boolValue === 'true' ? 'selected' : ''}>Ja</option>
           <option value="false" ${boolValue === 'false' ? 'selected' : ''}>Nein</option>

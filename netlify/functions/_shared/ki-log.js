@@ -155,10 +155,18 @@ async function starteKiRequest(supabase, { userId, feature, pruefeLimit = true }
         cost_eur: kosten?.eur ?? null
       });
     },
-    fehlgeschlagen: async (error) => {
+    fehlgeschlagen: async (error, { model, usage } = {}) => {
+      const kosten = (model || usage) ? calculateCost(model, usage) : null;
       await update({
         status: 'error',
-        error_message: String(error?.message || error || 'Unbekannter Fehler').slice(0, 1000)
+        error_message: String(error?.message || error || 'Unbekannter Fehler').slice(0, 1000),
+        model: kosten?.model || model || null,
+        input_tokens: kosten?.tokens?.input ?? usage?.input_tokens ?? null,
+        output_tokens: kosten?.tokens?.output ?? usage?.output_tokens ?? null,
+        cache_read_tokens: kosten?.tokens?.cacheRead ?? usage?.cache_read_input_tokens ?? null,
+        cache_write_tokens: kosten?.tokens?.cacheWrite ?? usage?.cache_creation_input_tokens ?? null,
+        cost_usd: kosten?.usd ?? null,
+        cost_eur: kosten?.eur ?? null
       });
     }
   };

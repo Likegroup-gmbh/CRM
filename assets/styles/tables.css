@@ -19,11 +19,71 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-
+    border-bottom: 1px solid var(--border-primary);
     gap: var(--space-md);
     padding: var(--space-md);
     
   }
+
+.masterliste-kopf {
+  flex-wrap: wrap;
+}
+
+.masterliste-ig-vorschau {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.masterliste-ig-vorschau[hidden] {
+  display: none;
+}
+
+.masterliste-ig-vorschau__name {
+  font-weight: 600;
+}
+
+.casting-masterliste-liste {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow: auto;
+  margin-top: var(--space-sm);
+}
+
+.casting-masterliste-zeile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.casting-masterliste-zeile.is-disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.masterliste-beschreibung {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* Die Tabelle ist breiter als der Seitenbereich. .main-wrapper schneidet
+   horizontales Überlaufen sonst ab (overflow-x: hidden), Trackpad und
+   Touch kommen an die rechten Spalten nicht heran. clip auf der Y-Achse,
+   damit overflow-x: auto sie nicht zu auto macht: der Seitenbereich bleibt
+   der vertikale Scrollport und der Tabellenkopf klebt weiter oben. */
+#masterliste-page .data-table-container,
+#masterlisten-inhalt:has(.data-table) {
+  overflow-x: auto;
+  overflow-y: clip;
+  max-width: 100%;
+}
 
 .table-actions {
     display: flex;
@@ -891,12 +951,35 @@ thead {
   top: 0;
   z-index: 10;
   background: var(--bg-primary);
-  /* Schatten für visuelle Trennung beim Scrollen */
+  /* Schatten für visuelle Trennung beim Scrollen. Er ist die einzige Linie unter
+     dem Kopf: ein sticky th nimmt seine Border in der kollabierten Tabelle nicht
+     mit, deshalb wird die Kante darunter unterdrückt (hidden schlägt auch den
+     border-top der ersten Datenzeile) statt zweimal in anderer Farbe zu erscheinen. */
   box-shadow: inset 0 -1px 0 0 var(--gray-200);
+  border-bottom-style: hidden;
+  /* Oberkante liefert, was über der Tabelle steht (Reiter-Leiste, Seitenkopf).
+     Ein eigener border-top läge direkt daneben als zweite Linie in anderem Grau. */
+  border-top: none;
+  /* Fixierte Kopfzellen (Name, Checkbox, ...) ziehen dieselbe untere Linie */
+  --sticky-bottom-line: var(--gray-200);
 }
 
 .data-table tbody tr:hover {
   background-color: var(--gray-50);
+}
+
+/* Bild-Spalte der Upload- und Variantentabellen in Formularen. Listen zeigen das
+   Bild in der Namenszelle (tabelle-identitaet.css). */
+
+.data-table th.col-thumb,
+.data-table td.col-thumb {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.data-table--kampagne-folders .col-folder-count {
+  width: 1%;
+  white-space: nowrap;
 }
 
 /* ID/Nummer Spalten - kompakt */
@@ -1110,7 +1193,6 @@ thead {
   display: none;
 }
 
-.entity-list-item .table-logo,
 .entity-list-item .table-avatar {
   margin-right: var(--space-sm);
 }
@@ -1298,22 +1380,46 @@ thead {
 }
 
 .strategie-items-table .col-number {
-  width: var(--space-lg);
+  width: auto;
+  min-width: 2.75rem;
   text-align: center;
   font-weight: 600;
   color: var(--text-secondary);
 }
 
-.strategie-skript-badge {
+.col-number__stack {
   display: flex;
-  justify-content: center;
-  margin-top: 2px;
-  color: var(--success, #1b7f4e);
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
-.strategie-skript-badge svg {
-  width: 14px;
-  height: 14px;
+.videoidee-open-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.videoidee-open-btn:hover {
+  background: var(--gray-200);
+  color: var(--text-primary);
+}
+
+.videoidee-open-btn svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.strategie-items-table tr.item-row.is-videoidee-open {
+  box-shadow: inset 3px 0 0 var(--primary-600);
 }
 
 .strategie-items-table .col-drag,
@@ -1364,11 +1470,83 @@ thead {
 
 .strategie-items-table .col-prio {
   width: 11em;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .strategie-items-table td.col-prio {
   padding: var(--space-xs) var(--space-sm);
+}
+
+/* Funnel-Stufe: Select fuers Team, Badge fuer den Kunden */
+
+.strategie-items-table .col-funnel {
+  width: 11em;
+  vertical-align: middle;
+}
+
+.strategie-items-table td.col-funnel {
+  padding: var(--space-xs) var(--space-sm);
+}
+
+/* Dauer: Wert als Button, der den Slider (wie im Briefing) als Popover oeffnet */
+
+.strategie-items-table .col-dauer {
+  width: 9em;
+  vertical-align: middle;
+}
+
+.strategie-items-table td.col-dauer {
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.strategie-videolaenge-trigger {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+}
+
+.strategie-videolaenge-trigger:hover,
+.strategie-videolaenge-trigger:focus-visible {
+  background: var(--blue-50);
+  outline: none;
+}
+
+.strategie-videolaenge-trigger.is-empty {
+  color: var(--text-muted);
+}
+
+.strategie-videolaenge-popover {
+  position: fixed;
+  z-index: 1100;
+  width: min(22rem, calc(100vw - 16px));
+  padding: var(--space-md);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.strategie-videolaenge-popover__title {
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.strategie-items-table td.col-dauer .strategie-videolaenge-text {
+  display: inline-block;
+  padding: var(--space-xs) 0;
+  font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
 /* Beschreibung, Transkript, Caption: gleiche Breite, Clip in der Zelle */
@@ -1379,12 +1557,6 @@ thead {
   width: calc(var(--space-xxl) * 5);
   min-width: calc(var(--space-xxl) * 5);
   vertical-align: top;
-}
-
-.strategie-items-table tr.has-expanded-text td.col-beschreibung,
-.strategie-items-table tr.has-expanded-text td.col-transkript,
-.strategie-items-table tr.has-expanded-text td.col-caption {
-  height: 1px;
 }
 
 /* "Nicht umsetzen" Kategorie - rot/abgeschwächt */
@@ -1403,7 +1575,9 @@ thead {
   top: calc(var(--sticky-add-section-height, 0px) + var(--sticky-thead-height, 37px));
   z-index: 21;
   background: var(--gray-100);
-  box-shadow: inset 0 -1px 0 0 var(--gray-300);
+  /* Untere Linie kommt aus .kategorie-header-row td (border-bottom, die Tabelle
+     ist border-collapse: separate, die Border bleibt beim Sticky erhalten). Ein
+     zusätzlicher Inset-Schatten würde sie auf 2px verdoppeln. */
 }
 
 .creator-pool-table .kategorie-header-row > td.kategorie-header--default {
@@ -1428,57 +1602,24 @@ thead {
   background: var(--gray-50);
 }
 
-/* ============================================
-   TABLE USER CELL (für Mitarbeiter, etc.)
-   ============================================ */
-
-.table-user-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.table-user-cell .table-avatar {
-  margin-right: 0;
-}
-
-.table-avatar-placeholder {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  background: var(--primary-100);
-  color: var(--primary-700);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
 /* Zuordnungsart Badges */
 
 /* Role Badges */
 
 /* Rollen Badges (für Kampagne Mitarbeiter) */
 
-/* Runde Avatare in Tabellen */
-
-.table-avatar-round {
-  border-radius: 50%;
-}
-
 .add-item-section--compact + .table-container .strategie-items-table thead th,
 .sourcing-tab-navigation + .table-container .strategie-items-table thead th {
   top: var(--sticky-add-section-height);
 }
 
-/* z-index nur fuer die mitscrollenden Header. Die links fixierten Spalten sind
-   ausgenommen, damit ihre hoeheren Ebenen (col-sticky: 25-27) greifen -- bei
-   gleichem z-index gewinnt sonst die DOM-Reihenfolge und die scrollenden Header
-   legen sich beim horizontalen Scrollen ueber die fixierten. */
-.add-item-section--compact + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]),
-.sourcing-tab-navigation + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]) {
+/* z-index nur fuer die mitscrollenden Header. Die links fixierten Spalten
+   (col-sticky: 25-27) und die rechte Aktions-Spalte (cp-col-actions: 26) sind
+   ausgenommen -- bei gleichem z-index gewinnt sonst die DOM-Reihenfolge und
+   die scrollenden Header legen sich beim horizontalen Scrollen ueber die
+   fixierten. */
+.add-item-section--compact + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]):not(.cp-col-actions),
+.sourcing-tab-navigation + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]):not(.cp-col-actions) {
   z-index: 14;
 }
 
@@ -1546,9 +1687,20 @@ thead {
   max-width: var(--kampagne-col-name-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
+}
+
+/* Drag-to-Scroll setzt auf dem Container cursor: grab. Die Namenszelle soll
+   trotzdem die Hand zeigen, und der Link die ganze Zelle treffen. */
+.kampagne-table-container .data-table tbody td.col-name {
+  cursor: pointer;
+}
+
+.kampagne-table-container .data-table tbody td.col-name .table-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 
 .kampagne-table-container .data-table thead th.col-name {
@@ -1578,9 +1730,8 @@ thead {
   max-width: var(--auftragsdetails-col-auftrag-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 .auftragsdetails-table-container .data-table thead th.col-ad-auftrag {
@@ -1653,7 +1804,14 @@ thead {
 /* Umgesetzt (grün wie rechnung-row-paid) */
 
 .strategie-items-table .strategie-item-umgesetzt {
-  background-color: var(--green-100);
+  background-color: var(--success-row);
+}
+
+/* Marker als Inset-Schatten, nicht als tr-border-left: In der kollabierten
+   Tabelle würde der 3px-Rand den linken Tabellenrand um 1,5px verschieben und
+   alle Linien (Kopf, Gruppen) fingen versetzt zum Rest der Seite an. */
+.strategie-items-table .strategie-item-umgesetzt > td:first-child {
+  box-shadow: inset 3px 0 0 var(--green-500);
 }
 
 .strategie-items-table .strategie-item-umgesetzt td {
@@ -1661,13 +1819,40 @@ thead {
 }
 
 .strategie-items-table tbody tr.item-row.strategie-item-umgesetzt:hover {
-  background-color: var(--green-50);
+  background-color: var(--success-row);
 }
 
 /* Creator-Spalte */
 
-.strategie-items-table .col-creator {
+.strategie-items-table .col-produkt {
   min-width: calc(var(--space-xxl) * 3);
+}
+
+.strategie-items-table .col-creator {
+  min-width: calc(var(--space-xxl) * 3 + var(--size-table-avatar) + var(--space-sm));
+}
+
+/* Creator und Produkt mittig in der Zeile, wie Persona; Status auch horizontal zentriert */
+
+.strategie-items-table td.col-creator,
+.strategie-items-table td.col-produkt {
+  vertical-align: middle;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.strategie-items-table td.col-creator .creator-cell,
+.strategie-items-table td.col-produkt .creator-cell {
+  align-items: center;
+  justify-content: center;
+}
+
+/* Creator: Verknuepfung direkt neben dem Profilbild statt mittig in der Zelle */
+.strategie-items-table td.col-creator .creator-cell {
+  justify-content: flex-start;
+}
+
+.strategie-items-table .col-status {
+  text-align: center;
 }
 
 /* Umgesetzt-Spalte */
@@ -1692,29 +1877,30 @@ thead {
   overflow-y: visible;
 }
 
-/* main-wrapper muss horizontal scrollen können wenn creator-pool-table drin ist */
+/* main-wrapper muss horizontal scrollen können wenn creator-pool-table drin ist.
+   Im Kampagnen-Pane scrollt der Worksheet-Container selbst — sonst wächst
+   die ganze Kampagnen-View mit der Tabelle. */
 
-.main-wrapper:has(.creator-pool-table-container) {
+.main-wrapper:has(.creator-pool-table-container):not(:has(.kampagne-casting-worksheet)) {
   overflow-x: auto;
 }
 
 /* Alle Zellen - nur rechts+unten, mit !important um geerbte data-table Regeln zu überschreiben */
 
-.creator-pool-table thead th {
-  border-top: 1px solid var(--border-primary);
-  border-bottom: 1px solid var(--border-primary);
-}
+/* Alle Linien sind echte Borders in --border-primary (die Tabelle ist
+   border-collapse: separate, Borders bleiben auch an sticky Zellen erhalten).
+   Die Grundregeln stehen in kampagne-tabellen.css. */
 
 .creator-pool-table th:last-child,
 .creator-pool-table td:last-child {
   border-right: none;
 }
 
-/* Sticky-Spalten: Echte Borders werden durch box-shadow ersetzt (bleiben beim Scrollen sichtbar) */
+/* Sticky-Spalten: Borders bleiben beim Scrollen sichtbar (separate Tabelle) */
 
 /* Die linke Spaltengruppe bleibt beim Querscrollen stehen. Welche Spalte welche
-   Position einnimmt, entscheidet getStickyClasses() in CreatorAuswahlTemplates.js:
-   intern Checkbox > Bild > Name, in der Kundenansicht faellt die Checkbox weg.
+   Position einnimmt, entscheidet getStickyClasses() in sourcingSpaltenSichtbarkeit.js:
+   intern Checkbox > Name (mit Bild), in der Kundenansicht faellt die Checkbox weg.
    Die left-Offsets ergeben sich hier kumulativ aus den Spaltenbreiten. */
 
 .creator-pool-table {
@@ -1723,20 +1909,7 @@ thead {
   width: max-content;
   min-width: 100%;
   --cp-w-drag: 32px;
-  --cp-w-bild: 62px;
   --cp-sticky-2-left: var(--cp-w-drag);
-  --cp-sticky-3-left: calc(var(--cp-w-drag) + var(--cp-w-bild));
-}
-
-.creator-pool-table .cp-col-bild {
-  width: var(--cp-w-bild);
-  min-width: var(--cp-w-bild);
-  text-align: center;
-}
-
-.creator-pool-table td.cp-col-bild {
-  padding: var(--space-xs);
-  vertical-align: middle;
 }
 
 /* Position 1 - Sticky */
@@ -1748,11 +1921,6 @@ thead {
   z-index: 20;
   background: white;
   padding: 0 var(--space-xs);
-  border: none;
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-100),
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100);
 }
 
 /* Position 2 - Sticky */
@@ -1763,149 +1931,87 @@ thead {
   left: var(--cp-sticky-2-left);
   z-index: 20;
   background: white;
-  border: none;
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-100),
-    inset 0 1px 0 0 var(--gray-100),
-    inset 1px 0 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100);
-}
-
-/* Position 3 - Sticky, letzte fixierte Spalte */
-
-.creator-pool-table th.col-sticky-3,
-.creator-pool-table td.col-sticky-3 {
-  position: sticky;
-  left: var(--cp-sticky-3-left);
-  z-index: 20;
-  background: white;
-  border: none;
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-100),
-    inset 0 1px 0 0 var(--gray-100),
-    inset 1px 0 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-200);
 }
 
 /* Header der fixierten Spalten höherer z-index + konsistente Borders */
 
 .creator-pool-table thead th.col-sticky-1,
-.creator-pool-table thead th.col-sticky-2,
-.creator-pool-table thead th.col-sticky-3 {
+.creator-pool-table thead th.col-sticky-2 {
   z-index: 25;
   background: white;
 }
 
-.creator-pool-table thead th.col-sticky-1 {
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-200),
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100);
-}
-
-.creator-pool-table thead th.col-sticky-2 {
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-200),
-    inset 0 1px 0 0 var(--gray-100),
-    inset 1px 0 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100);
-}
-
-.creator-pool-table thead th.col-sticky-3 {
-  box-shadow: 
-    inset 0 -1px 0 0 var(--gray-200),
-    inset 0 1px 0 0 var(--gray-100),
-    inset 1px 0 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-200);
-}
-
-/* Schatten rechts von der dritten Spalte – entfernt für saubere Optik */
-
 /* Hover-Zustand für sticky Spalten */
 
 .creator-pool-table tbody tr:hover td.col-sticky-1,
-.creator-pool-table tbody tr:hover td.col-sticky-2,
-.creator-pool-table tbody tr:hover td.col-sticky-3 {
+.creator-pool-table tbody tr:hover td.col-sticky-2 {
   background: var(--gray-50);
 }
 
 /* Item-Gebucht für sticky Spalten */
 
 .creator-pool-table .item-gebucht td.col-sticky-1,
-.creator-pool-table .item-gebucht td.col-sticky-2,
-.creator-pool-table .item-gebucht td.col-sticky-3 {
+.creator-pool-table .item-gebucht td.col-sticky-2 {
   background: var(--green-50);
 }
 
 /* Hover auf gebuchte Zeilen bleibt grün */
 
 .creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-1,
-.creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-2,
-.creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-3 {
+.creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-2 {
   background: var(--green-50);
 }
 
 /* Item-Nicht-Umsetzen für sticky Spalten */
 
 .creator-pool-table .item-nicht-umsetzen td.col-sticky-1,
-.creator-pool-table .item-nicht-umsetzen td.col-sticky-2,
-.creator-pool-table .item-nicht-umsetzen td.col-sticky-3 {
+.creator-pool-table .item-nicht-umsetzen td.col-sticky-2 {
   background: var(--gray-100);
 }
 
 /* KI-Vorschlag: farbiger Rand + leichter Ton, damit die Zeile wie ein
-   Eintrag wirkt, aber als Vorschlag erkennbar bleibt. */
-.creator-pool-table tbody tr.item-row--vorschlag > td {
+   Eintrag wirkt, aber als Vorschlag erkennbar bleibt. Jede Zelle zeichnet nur
+   ihre Unterkante. Die Oberkante setzt nur der erste Vorschlag einer Folge
+   (--vs-oben): direkt aufeinanderfolgende Vorschlaege haetten sonst Unterkante
+   + Oberkante uebereinander, also eine doppelt dicke Linie. */
+.creator-pool-table tbody tr.item-row--vorschlag > td,
+.strategie-items-table tbody tr.item-row--vorschlag > td {
+  --vs-oben: 0 0 0 0 transparent;
+  --vs-links: 0 0 0 0 transparent;
+  --vs-rechts: 0 0 0 0 transparent;
   background: var(--orange-25);
-  box-shadow: inset 0 1px 0 0 var(--color-warning), inset 0 -1px 0 0 var(--color-warning);
-}
-
-.creator-pool-table tbody tr.item-row--vorschlag > td:first-child {
   box-shadow:
-    inset 2px 1px 0 0 var(--color-warning),
+    var(--vs-oben),
+    var(--vs-links),
+    var(--vs-rechts),
     inset 0 -1px 0 0 var(--color-warning);
 }
 
-.creator-pool-table tbody tr.item-row--vorschlag > td:last-child {
-  box-shadow:
-    inset -2px 1px 0 0 var(--color-warning),
-    inset 0 -1px 0 0 var(--color-warning);
+.creator-pool-table tbody tr.item-row--vorschlag > td:first-child,
+.strategie-items-table tbody tr.item-row--vorschlag > td:first-child {
+  --vs-links: inset 2px 0 0 0 var(--color-warning);
+}
+
+.creator-pool-table tbody tr.item-row--vorschlag > td:last-child,
+.strategie-items-table tbody tr.item-row--vorschlag > td:last-child {
+  --vs-rechts: inset -2px 0 0 0 var(--color-warning);
+}
+
+.creator-pool-table tbody > tr.item-row--vorschlag:first-child > td,
+.creator-pool-table tbody > tr:not(.item-row--vorschlag) + tr.item-row--vorschlag > td,
+.strategie-items-table tbody > tr.item-row--vorschlag:first-child > td,
+.strategie-items-table tbody > tr:not(.item-row--vorschlag) + tr.item-row--vorschlag > td {
+  --vs-oben: inset 0 1px 0 0 var(--color-warning);
 }
 
 .creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-1,
-.creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-2,
-.creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-3 {
+.creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-2 {
   background: var(--orange-25);
 }
 
 .creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-1,
-.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-2,
-.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-3 {
+.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-2 {
   background: var(--orange-50);
-}
-
-.casting-vorschlag__aktionen {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.strategie-items-table tbody tr.item-row--vorschlag > td {
-  background: var(--orange-25);
-  box-shadow: inset 0 1px 0 0 var(--color-warning), inset 0 -1px 0 0 var(--color-warning);
-}
-
-.strategie-items-table tbody tr.item-row--vorschlag > td:first-child {
-  box-shadow:
-    inset 2px 1px 0 0 var(--color-warning),
-    inset 0 -1px 0 0 var(--color-warning);
-}
-
-.strategie-items-table tbody tr.item-row--vorschlag > td:last-child {
-  box-shadow:
-    inset -2px 1px 0 0 var(--color-warning),
-    inset 0 -1px 0 0 var(--color-warning);
 }
 
 .casting-vorschlag {
@@ -1915,30 +2021,16 @@ thead {
   padding: var(--space-sm) 0 var(--space-md);
 }
 
-.casting-vorschlag__kopf {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-}
-
 .casting-vorschlag__titel {
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.casting-vorschlag__sub,
-.casting-vorschlag__hinweis,
-.casting-vorschlag__fehler,
 .casting-vorschlag__progress {
   margin: 0;
   font-size: var(--text-xs);
   color: var(--text-secondary);
-}
-
-.casting-vorschlag__fehler {
-  color: var(--color-error);
 }
 
 .creator-pool-table .cp-col-matching {
@@ -1995,8 +2087,8 @@ thead {
 }
 
 .creator-pool-table .cp-col-name {
-  width: 140px;
-  min-width: 140px;
+  width: calc(140px + var(--size-table-avatar) + var(--space-sm));
+  min-width: calc(140px + var(--size-table-avatar) + var(--space-sm));
 }
 
 /* Zellen mit einzeiligem Wert. Die Zeilenhoehe kommt vom Profilbild und von der
@@ -2009,13 +2101,15 @@ thead {
 .creator-pool-table td.cp-col-location,
 .creator-pool-table td.cp-col-mail,
 .creator-pool-table td.cp-col-telefon,
+.creator-pool-table td.cp-col-link,
+.creator-pool-table td.cp-col-engagement-ig,
 .creator-pool-table td.cp-col-reichweite-story,
-.creator-pool-table td.cp-col-preis-story,
+.creator-pool-table td.cp-col-story-preis,
 .creator-pool-table td.cp-col-reichweite-garantie,
 .creator-pool-table td.cp-col-pricing,
 .creator-pool-table td.cp-col-cpm-ig-8,
 .creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-preis-reels,
+.creator-pool-table td.cp-col-preis-video,
 .creator-pool-table td.cp-col-nutzungsrechte,
 .creator-pool-table td.cp-col-ek,
 .creator-pool-table td.cp-col-vk {
@@ -2027,8 +2121,7 @@ thead {
   min-width: 150px;
 }
 
-.creator-pool-table .cp-col-follower-ig,
-.creator-pool-table .cp-col-follower-tt {
+.creator-pool-table .cp-col-follower {
   width: 92px;
   min-width: 92px;
   text-align: center;
@@ -2058,14 +2151,123 @@ thead {
 }
 
 .creator-pool-table .cp-col-notiz {
-  width: clamp(150px, 17.5vw, 228px);
-  min-width: 150px;
-  max-width: 228px;
+  width: clamp(225px, 26.25vw, 342px);
+  min-width: 225px;
+  max-width: 342px;
 }
+
+/* Wie die Plattform-Zellen: Zelle ohne Padding, das Feld fuellt sie komplett.
+   height: 1px gibt min-height: 100% im Feld eine Bezugshoehe, die Zeile waechst
+   weiter nach dem hoechsten Inhalt (Bild, gestapelte Plattformzeilen). */
 
 .creator-pool-table td.cp-col-notiz {
   white-space: normal;
   vertical-align: top;
+  height: 1px;
+  padding: 0;
+}
+
+.creator-pool-table td.cp-col-notiz .strategie-textarea {
+  display: block;
+  min-height: max(100%, 3.9em);
+}
+
+/* Gleiches Prinzip fuer die uebrigen Freitext-Spalten: ganze Zelle ist das Feld.
+   :is() haelt die Spaltenliste an einer Stelle; "tbody" hebt die Spezifitaet
+   ueber die Einzelregeln in forms.css (Feedback, Euro-Feld). */
+
+.creator-pool-table tbody td:is(.cp-col-location, .cp-col-telefon, .cp-col-pricing, .cp-col-nutzungsrechte, .cp-col-reichweite-garantie, .cp-col-feedback, .cp-col-ek, .cp-col-vk) {
+  height: 1px;
+  padding: 0;
+}
+
+.creator-pool-table tbody td:is(.cp-col-location, .cp-col-nutzungsrechte, .cp-col-reichweite-garantie, .cp-col-feedback) > .strategie-textarea {
+  display: block;
+  min-height: max(100%, 3.9em);
+}
+
+/* Telefon: Feld fuellt die Zelle, der Anruf-Link sitzt rechts daneben */
+
+.creator-pool-table tbody td.cp-col-telefon > .links-compact-row {
+  height: 100%;
+  gap: 0;
+}
+
+.creator-pool-table tbody td.cp-col-telefon .links-compact-input {
+  align-self: stretch;
+  border-radius: 0;
+  padding: 0 var(--space-xs);
+}
+
+/* Preisfelder: Betrag rechts, Euro-Zeichen als Overlay, Feld = ganze Zelle */
+
+.creator-pool-table tbody td:is(.cp-col-pricing, .cp-col-ek, .cp-col-vk) > .cell-euro {
+  position: relative;
+  height: 100%;
+  padding: 0;
+}
+
+.creator-pool-table tbody td:is(.cp-col-pricing, .cp-col-ek, .cp-col-vk) .cell-euro .strategie-textarea.cell-euro__input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  min-height: 3.9em;
+  padding: 0 calc(var(--space-xs) + var(--space-sm)) 0 var(--space-xs);
+  field-sizing: fixed;
+  text-align: right;
+}
+
+.creator-pool-table tbody td:is(.cp-col-pricing, .cp-col-ek, .cp-col-vk) .cell-euro__suffix {
+  position: absolute;
+  top: 50%;
+  right: var(--space-xs);
+  padding: 0;
+  transform: translateY(-50%);
+}
+
+/* Fokus in der Tabelle: keine Hintergrundfarbe und kein Rand. Der blinkende
+   Cursor zeigt, wo getippt wird; die Zellkanten (und die Trenner der
+   fixierten Spalten) bleiben die einzigen Linien. */
+
+.strategie-items-table td .strategie-textarea:focus,
+.creator-pool-table .strategie-textarea:focus,
+.creator-pool-table .links-compact-input:focus,
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-input:focus {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Namenszelle: wie die Kurzbeschreibung ist die ganze Zelle das Feld.
+   Das Bild sitzt links davor und behaelt seinen Abstand, das Feld daneben
+   fuellt die volle Zellhoehe (mind. 3.9em wie die Kurzbeschreibung). */
+
+.creator-pool-table tbody td.cp-col-name {
+  height: 1px;
+  padding: 0;
+}
+
+.creator-pool-table tbody td.cp-col-name > .table-identity {
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  align-items: stretch;
+}
+
+.creator-pool-table tbody td.cp-col-name .table-identity__media {
+  align-self: center;
+  margin: var(--space-xs) 0 var(--space-xs) var(--space-sm);
+}
+
+.creator-pool-table tbody td.cp-col-name .table-identity__text {
+  display: flex;
+  flex-direction: column;
+}
+
+.creator-pool-table tbody td.cp-col-name .table-identity__text > .strategie-textarea {
+  flex: 1 1 auto;
+  min-height: 3.9em;
 }
 
 .creator-pool-table .cp-col-status {
@@ -2074,9 +2276,7 @@ thead {
 }
 
 .creator-pool-table td.cp-col-status,
-.creator-pool-table td.cp-col-typ,
-.creator-pool-table td.cp-col-follower-ig,
-.creator-pool-table td.cp-col-follower-tt {
+.creator-pool-table td.cp-col-typ {
   padding: var(--space-xs) var(--space-sm);
   vertical-align: middle;
 }
@@ -2093,14 +2293,9 @@ thead {
   min-width: 180px;
 }
 
-.creator-pool-table .cp-col-link-ig {
+.creator-pool-table .cp-col-link {
   width: 190px;
   min-width: 190px;
-}
-
-.creator-pool-table .cp-col-link-tt {
-  width: 155px;
-  min-width: 155px;
 }
 
 .creator-pool-table .cp-col-ek,
@@ -2110,7 +2305,6 @@ thead {
 }
 
 .creator-pool-table .cp-col-reichweite-story,
-.creator-pool-table .cp-col-preis-story,
 .creator-pool-table .cp-col-reichweite-garantie {
   width: 100px;
   min-width: 100px;
@@ -2120,12 +2314,12 @@ thead {
    kleben - betrifft Reichweiten, Garantie und alle Preisspalten */
 
 .creator-pool-table .cp-col-reichweite-story,
-.creator-pool-table .cp-col-preis-story,
+.creator-pool-table .cp-col-story-preis,
 .creator-pool-table .cp-col-reichweite-garantie,
 .creator-pool-table .cp-col-pricing,
 .creator-pool-table .cp-col-cpm-ig-8,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-preis-reels,
+.creator-pool-table .cp-col-preis-video,
 .creator-pool-table .cp-col-ek,
 .creator-pool-table .cp-col-vk {
   text-align: center;
@@ -2157,65 +2351,170 @@ thead {
   color: transparent;
 }
 
-/* Spaltenbloecke einfaerben: Reels, Story und TikTok stehen nebeneinander und
-   sind ohne Farbe kaum auseinanderzuhalten.
-
-   Die Toenung laeuft ueber background-image, nicht background-color: Zeilen
-   bringen ihre eigene Hintergrundfarbe mit (Hover, gebucht, Absage). Ein
-   halbtransparenter Layer legt sich darueber, statt sie zu ersetzen. */
+/* Preisspalten mit Icon und Euro-Zeichen brauchen etwas mehr Platz.
+   Keine Block-Toenung mehr: die Plattform steht als Icon in der Zelle. */
 
 .creator-pool-table .cp-col-cpm-ig-8,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-preis-reels {
+.creator-pool-table .cp-col-preis-video,
+.creator-pool-table .cp-col-story-preis {
   width: 108px;
   min-width: 108px;
-  --cp-block-tint: 129 140 248;  /* Gedaempftes Indigo - Reels */
 }
 
-.creator-pool-table .cp-col-reichweite-story,
-.creator-pool-table .cp-col-preis-story {
-  --cp-block-tint: 159 122 134;  /* Gedaempftes Rose - Story */
+/* Gestapelte Plattformzeilen: Instagram oben, TikTok darunter.
+
+   Die Zelle hat kein Padding, damit die Trennlinie von Rand zu Rand laeuft und
+   jede Spalte gleich aussieht. height: 1px gibt dem Raster eine Bezugshoehe:
+   so fuellt es die ganze Zeile, und beide Plattformzeilen sind exakt gleich
+   hoch (auch die leere TikTok-Zeile). Die Trennlinie liegt dadurch in allen
+   Spalten auf derselben Hoehe.
+
+   Jede Plattformzeile ist eine Excel-Zelle: der Input fuellt sie ganz aus, das
+   Plattform-Icon liegt als Overlay links darueber und der Wert hat dafuer
+   links Platz. */
+
+.creator-pool-table {
+  --plattform-icon-platz: calc(var(--space-xs) + var(--icon-xs) + var(--space-xxs));
 }
 
-/* Gesamtpreis und Nutzungsrechte bekommen bewusst keinen Tint: sie gehoeren zu
-   keinem Plattform-Block, sondern sind manuell gepflegte Felder wie Name oder
-   Status - und sehen deshalb aus wie die regulaeren Spalten. */
-
-.creator-pool-table .cp-col-link-tt,
-.creator-pool-table .cp-col-follower-tt {
-  --cp-block-tint: 71 85 105;    /* Slate - TikTok */
+.creator-pool-table td.plattform-zelle {
+  height: 1px;
+  padding: 0;
+  vertical-align: top;
 }
 
-.creator-pool-table th.cp-col-cpm-ig-8,
-.creator-pool-table th.cp-col-cpm-ig-30,
-.creator-pool-table th.cp-col-preis-reels,
-.creator-pool-table th.cp-col-reichweite-story,
-.creator-pool-table th.cp-col-preis-story,
-.creator-pool-table th.cp-col-link-tt,
-.creator-pool-table th.cp-col-follower-tt {
-  background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.1), rgb(var(--cp-block-tint) / 0.1));
-  color: rgb(var(--cp-block-tint));
+.creator-pool-table .plattform-zeilen {
+  display: grid;
+  grid-auto-rows: minmax(0, 1fr);
+  height: 100%;
 }
 
-.creator-pool-table td.cp-col-cpm-ig-8,
-.creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-preis-reels,
-.creator-pool-table td.cp-col-reichweite-story,
-.creator-pool-table td.cp-col-preis-story,
-.creator-pool-table td.cp-col-link-tt,
-.creator-pool-table td.cp-col-follower-tt {
-  background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.04), rgb(var(--cp-block-tint) / 0.04));
+.creator-pool-table .plattform-zeile {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--space-xl) + var(--space-md));
 }
 
-/* Blockanfang markieren, damit die Grenze zwischen den Bloecken sichtbar ist */
+.creator-pool-table .plattform-zeile + .plattform-zeile {
+  border-top: 1px solid var(--border-primary);
+}
 
-.creator-pool-table th.cp-col-cpm-ig-8,
-.creator-pool-table td.cp-col-cpm-ig-8,
-.creator-pool-table th.cp-col-reichweite-story,
-.creator-pool-table td.cp-col-reichweite-story,
-.creator-pool-table th.cp-col-link-tt,
-.creator-pool-table td.cp-col-link-tt {
-  border-left: 2px solid rgb(var(--cp-block-tint) / 0.35);
+.creator-pool-table .plattform-zeile__icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-xs);
+  z-index: 1;
+  display: inline-flex;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.creator-pool-table .plattform-zeile__icon .crm-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.creator-pool-table .plattform-zeile__inhalt {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* Links ist Platz fuer das Icon-Overlay: der Input selbst laeuft bis zum Rand,
+   nur sein Text beginnt hinter dem Icon. */
+
+.creator-pool-table .plattform-zeile {
+  --plattform-pad-links: var(--space-xs);
+}
+
+.creator-pool-table .plattform-zeile:has(> .plattform-zeile__icon) {
+  --plattform-pad-links: var(--plattform-icon-platz);
+}
+
+.creator-pool-table .plattform-zeile__inhalt > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Eingabefelder fuellen die Zelle und werden mit dem Raster nicht hoeher */
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .strategie-textarea,
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-input,
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-number__input {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0 var(--space-xs) 0 var(--plattform-pad-links);
+  border-radius: 0;
+  field-sizing: fixed;
+  text-align: center;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-input {
+  text-align: left;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .chip-cell,
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-number,
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-euro,
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-row {
+  height: 100%;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-row {
+  gap: 0;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-number__display {
+  padding-left: var(--plattform-pad-links);
+}
+
+/* Preisfeld: Betrag rechts, das Euro-Zeichen liegt als Overlay darueber, der
+   Input bleibt die ganze Zelle */
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-euro {
+  position: relative;
+  padding: 0;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-euro .strategie-textarea.cell-euro__input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  padding: 0 calc(var(--space-xs) + var(--space-sm)) 0 var(--plattform-pad-links);
+  field-sizing: fixed;
+  text-align: right;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-euro__suffix {
+  position: absolute;
+  top: 50%;
+  right: var(--space-xs);
+  padding: 0;
+  transform: translateY(-50%);
+}
+
+/* Reine Anzeige (Kunden, Berechnungen, leere Werte): mittig in der Zelle */
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-text-readonly,
+.creator-pool-table td.plattform-zelle .plattform-zeile .cell-number__static,
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-cell--readonly {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 var(--space-xs) 0 var(--plattform-pad-links);
+  text-align: center;
+}
+
+.creator-pool-table td.plattform-zelle .plattform-zeile .links-compact-cell--readonly {
+  flex-direction: row;
 }
 
 .creator-pool-table .cp-col-feedback {
@@ -2233,6 +2532,53 @@ thead {
   min-width: 70px;
 }
 
+/* Aktions-Spalte: sticky rechts, analog .kooperation-video-grid .col-actions */
+.creator-pool-table thead th.cp-col-actions,
+.creator-pool-table tbody td.cp-col-actions {
+  position: sticky;
+  right: 0;
+  z-index: 20;
+  background: white;
+  border-right: none;
+  border-left: 1px solid var(--border-primary);
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.04);
+  overflow: visible;
+}
+
+.creator-pool-table thead th.cp-col-actions {
+  z-index: 26;
+  background: white;
+}
+
+.creator-pool-table tbody tr:hover td.cp-col-actions {
+  background: var(--gray-50);
+}
+
+.creator-pool-table .item-gebucht td.cp-col-actions {
+  background: var(--green-50);
+}
+
+.creator-pool-table tbody tr.item-row.item-gebucht:hover td.cp-col-actions {
+  background: var(--green-50);
+}
+
+.creator-pool-table .item-nicht-umsetzen td.cp-col-actions {
+  background: var(--gray-100);
+}
+
+.creator-pool-table tbody tr.item-row--vorschlag > td.cp-col-actions {
+  background: var(--orange-25);
+  box-shadow:
+    var(--vs-oben),
+    inset -2px 0 0 0 var(--color-warning),
+    inset 0 -1px 0 0 var(--color-warning),
+    -4px 0 8px rgba(0, 0, 0, 0.04);
+}
+
+.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.cp-col-actions {
+  background: var(--orange-50);
+}
+
 .creator-pool-table .cell-text-readonly {
   min-height: 0;
   padding: var(--space-xs) var(--space-sm);
@@ -2241,43 +2587,6 @@ thead {
 /* Link-Input: versteckt hinter dem Icon, erscheint bei Focus */
 
 /* Wenn kein Link vorhanden, Input sofort anzeigen */
-
-/* Plus-Button am Tabellen-Ende */
-
-.creator-pool-table tfoot .add-row-footer td {
-  text-align: center;
-  padding: var(--space-sm);
-  background: var(--gray-50);
-  border-top: 2px dashed var(--gray-300);
-}
-
-.creator-pool-table .add-row-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--space-xl);
-  height: var(--space-xl);
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.creator-pool-table .add-row-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.creator-pool-table .add-row-btn:hover {
-  
-  transform: scale(1.1);
-}
-
-.creator-pool-table .add-row-btn:active {
-  transform: scale(0.95);
-}
 
 /* ===== FEEDBACK KANBAN ===== */
 
@@ -2324,9 +2633,8 @@ thead {
   min-width: var(--rechnung-col-name-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 /* Auftrag als zweite Sticky-Spalte -- z-index 20 (unter Name) */
@@ -2342,9 +2650,8 @@ thead {
   max-width: var(--rechnung-col-auftrag-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
 .rechnung-table-container .data-table thead th.col-name {
@@ -2469,55 +2776,30 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
 
 .ansprechpartner-table-container {
   --ap-col-checkbox-width: 2.5em;
-  --ap-col-vorname-width: 10em;
-  --ap-col-nachname-width: 10em;
+  --ap-col-name-width: calc(18em + var(--size-table-avatar));
   overflow-x: auto;
   overflow-y: visible;
 }
 
-/* Vorname-Spalte -- z-index 21 */
+/* Name-Spalte (Bild, Vor- und Nachname) -- z-index 21 */
 
-.ansprechpartner-table-container .data-table th.col-vorname,
-.ansprechpartner-table-container .data-table td.col-vorname {
+.ansprechpartner-table-container .data-table th.ap-col-name,
+.ansprechpartner-table-container .data-table td.ap-col-name {
   position: sticky;
   left: 0;
   z-index: 21;
   background: white;
-  width: var(--ap-col-vorname-width);
-  min-width: var(--ap-col-vorname-width);
-  max-width: var(--ap-col-vorname-width);
+  width: var(--ap-col-name-width);
+  min-width: var(--ap-col-name-width);
+  max-width: var(--ap-col-name-width);
   border: none;
   box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
-}
-
-/* Nachname-Spalte -- z-index 20 */
-
-.ansprechpartner-table-container .data-table th.col-nachname,
-.ansprechpartner-table-container .data-table td.col-nachname {
-  position: sticky;
-  left: var(--ap-col-vorname-width);
-  z-index: 20;
-  background: white;
-  width: var(--ap-col-nachname-width);
-  min-width: var(--ap-col-nachname-width);
-  max-width: var(--ap-col-nachname-width);
-  border: none;
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
+    inset 0 -1px 0 0 var(--sticky-bottom-line, var(--gray-100));
 }
 
-.ansprechpartner-table-container .data-table thead th.col-vorname {
+.ansprechpartner-table-container .data-table thead th.ap-col-name {
   z-index: 26;
-  background: white;
-}
-
-.ansprechpartner-table-container .data-table thead th.col-nachname {
-  z-index: 25;
   background: white;
 }
 
@@ -2542,6 +2824,24 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
   margin: 0;
   min-width: 680px;
   font-size: var(--text-xsm);
+}
+
+.pe-summary-table--compact {
+  min-width: 0;
+}
+
+.pe-summary-table .col-kampagne {
+  width: 72px;
+  font-weight: 500;
+}
+
+.pe-summary-table .col-volumen {
+  white-space: nowrap;
+}
+
+.pe-summary-table-rest td {
+  color: var(--gray-500);
+  font-style: italic;
 }
 
 .pe-summary-table th,
@@ -2586,38 +2886,10 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
   font-style: italic;
 }
 
-/* Bild-Spalte: keine rechte Kante, sie gehoert optisch zum Namen */
-
-.creator-pool-table th.cp-col-bild,
-.creator-pool-table td.cp-col-bild {
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-100);
-}
-
-.creator-pool-table thead th.cp-col-bild {
-  z-index: 26;
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset 0 -1px 0 0 var(--gray-200);
-}
-
-/* Name ist immer die letzte fixierte Spalte: rechte Kante als Trenner */
-
-.creator-pool-table th.cp-col-name,
-.creator-pool-table td.cp-col-name {
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
-}
+/* Name ist immer die letzte fixierte Spalte: ihr border-right ist der Trenner */
 
 .creator-pool-table thead th.cp-col-name {
   z-index: 26;
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-200);
 }
 
 /* Selektierte Zeilen visuell hervorheben */
@@ -2640,110 +2912,12 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
   width: 100%;
 }
 
-/* Kundenrechnungen: Kopfbereich (View-Toggle, Filter, Auftrag/Contract-Tabs,
-   Summen-Cards, Monats-Tabs) klebt sticky oben. Die Tabelle läuft im normalen
-   Seitenfluss – gescrollt wird die Seite, kein Innencontainer. */
-.main-wrapper:has(> .kundenrechnungen-page),
-.main-wrapper:has(> .rechnungen-page) {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.auftrag-netto-verteilung {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
-.kundenrechnungen-page,
-.rechnungen-page {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
-}
-
-.kundenrechnungen-page .kr-sticky-head,
-.rechnungen-page .kr-sticky-head {
-  flex: 0 0 auto;
-  z-index: 40;
-  background: var(--bg-primary);
-}
-
-.kundenrechnungen-page .kr-scroll-body,
-.rechnungen-page .kr-scroll-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.kundenrechnungen-page .kr-sticky-foot,
-.rechnungen-page .kr-sticky-foot {
-  flex: 0 0 auto;
-  z-index: 40;
-  background: var(--bg-primary);
-}
-
-/* Kopfzeile als eine Zeile: Suche + Filter links, Aktions-Buttons und
-   View-Toggle rechts – die separate Filter-Box entfällt auf dieser Seite.
-   Auf schmalen Viewports bricht die Zeile sauber um. */
-.kundenrechnungen-page .kr-sticky-head .page-header {
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-}
-
-.kundenrechnungen-page .page-header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.kundenrechnungen-page .page-header-right {
-  flex-wrap: wrap;
-  row-gap: var(--space-xs);
-}
-
-/* Feste Mindesthöhe der Tabellenfläche: Beim Monatswechsel (unterschiedlich
-   viele Zeilen) bleibt das Layout stehen – kein Sprung. */
-.kundenrechnungen-page #auftrag-table-container,
-.rechnungen-page .rechnung-table-container {
-  min-height: 60vh;
-}
-
-.ausgangsrechnungen-month-tabs,
-.rechnung-month-tabs {
-  background: var(--color-white);
-  border-top: 1px solid var(--border-primary);
-  overflow-x: auto;
-  flex-wrap: nowrap;
-}
-
-.ausgangsrechnungen-month-tabs .form-select,
-.rechnung-month-tabs .form-select {
-  flex-shrink: 0;
-  width: auto;
-  min-width: 5.5rem;
-}
-
-.ausgangsrechnungen-month-tabs .tab-button,
-.rechnung-month-tabs .tab-button {
-  gap: var(--space-xxs);
-  padding: var(--space-xxs) var(--space-xs);
-  border-radius: var(--radius-sm);
-}
-
-.ausgangsrechnungen-month-tabs .tab-button:hover,
-.rechnung-month-tabs .tab-button:hover {
-  background: var(--gray-50);
-}
-
-.ausgangsrechnungen-month-tabs .tab-button.active,
-.rechnung-month-tabs .tab-button.active {
-  color: var(--gray-900);
-  font-weight: 500;
-}
-
-.ausgangsrechnungen-month-tabs .tab-button.active::after,
-.rechnung-month-tabs .tab-button.active::after {
-  background-color: var(--gray-900);
-  height: 2px;
+.auftrag-netto-verteilung--warnung {
+  color: var(--color-warning);
 }

@@ -10,6 +10,7 @@ import {
   formatMonthEmptyText
 } from '../modules/auftrag/logic/InvoiceMonthFilter.js';
 import RechnungDataModule from '../core/data/entities/RechnungDataModule.js';
+import { EntityRegistry } from '../core/data/entities/index.js';
 import { RechnungList, getRechnungTabKey } from '../modules/rechnung/RechnungList.js';
 import { animateNumber } from '../core/animation/animateNumber.js';
 import {
@@ -67,15 +68,16 @@ describe('Rechnung Monatsfilter', () => {
     expect(undated2019.map(r => r.id)).toEqual(['r4', 'r5']);
   });
 
-  it('gibt im Alle-Tab jede Zeile jahr- und monatsunabhaengig zurueck', () => {
-    expect(filterRowsByMonthYear(rows, { year: 2026, month: ALL_TAB }, getRechnungTabKey)).toEqual(rows);
+  it('gibt im Alle-Tab nur Zeilen des gewaehlten Jahres zurueck', () => {
+    expect(filterRowsByMonthYear(rows, { year: 2026, month: ALL_TAB }, getRechnungTabKey).map(r => r.id)).toEqual(['r1', 'r2']);
+    expect(filterRowsByMonthYear(rows, { year: 2019, month: ALL_TAB }, getRechnungTabKey)).toEqual([]);
   });
 
   it('zaehlt Monate und Ohne-Datum separat', () => {
     expect(countRowsByMonth(rows, 2026, getRechnungTabKey)).toEqual({
       undated: 2,
       'no-renr': 0,
-      alle: rows.length,
+      alle: 2,
       months: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     });
   });
@@ -102,8 +104,8 @@ describe('RechnungDataModule Sortierung', () => {
   });
 
   it('hat gestellt_am als DB-Sort', () => {
-    expect(RechnungDataModule.config.sortBy).toBe('gestellt_am');
-    expect(RechnungDataModule.config.sortOrder).toBe('desc');
+    expect(EntityRegistry.rechnung.sortBy).toBe('gestellt_am');
+    expect(EntityRegistry.rechnung.sortOrder).toBe('desc');
   });
 });
 
@@ -202,7 +204,7 @@ describe('RechnungList Monatssheet', () => {
     list._blattCounts = {
       months: {
         undated: 2,
-        alle: rows.length,
+        alle: 2,
         months: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
       }
     };
@@ -212,7 +214,7 @@ describe('RechnungList Monatssheet', () => {
     expect(document.querySelector('#rechnung-month-tabs [data-month-count="0"]').textContent).toBe('2');
     expect(document.querySelector('#rechnung-month-tabs [data-month-count="2"]').textContent).toBe('0');
     expect(document.querySelector(`#rechnung-month-tabs [data-month-count="${UNDATED_TAB}"]`).textContent).toBe('2');
-    expect(document.querySelector(`#rechnung-month-tabs [data-month-count="${ALL_TAB}"]`).textContent).toBe(String(rows.length));
+    expect(document.querySelector(`#rechnung-month-tabs [data-month-count="${ALL_TAB}"]`).textContent).toBe('2');
     expect(document.querySelector('#rechnung-month-tabs .tab-button[data-tab="0"]').classList.contains('active')).toBe(true);
   });
 
@@ -301,9 +303,18 @@ describe('Rechnung-Monatssummen', () => {
     const cards = document.getElementById('rechnungen-summary-cards');
     const table = document.querySelector('.rechnung-table-container');
     expect(cards).toBeTruthy();
-    expect(cards.querySelector('[data-summary-card="nettobetrag"] .summary-label').textContent).toBe('Netto');
-    expect(cards.querySelector('[data-summary-card="ust_betrag"] .summary-label').textContent).toBe('Mehrwertsteuer');
-    expect(cards.querySelector('[data-summary-card="bruttobetrag"] .summary-label').textContent).toBe('Brutto');
+    const labels = [...cards.querySelectorAll('.summary-card .summary-label')].map(el => el.textContent);
+    expect(labels).toEqual([
+      'Netto Creator Kosten',
+      'Netto Creator Kosten gestellt',
+      'Netto Creator Kosten bezahlt',
+      'Netto Creator Kosten unbezahlt'
+    ]);
+    expect(cards.querySelector('[data-summary-card="gestellt_netto"] .summary-card-breakdown').textContent).toContain('abzuführende MwSt');
+    expect(cards.querySelector('[data-summary-card="offen_netto"] .summary-card-breakdown').textContent).toContain('davon überfällig');
+    expect(cards.querySelector('[data-summary-card="nettobetrag"]')).toBeNull();
+    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]')).toBeNull();
+    expect(cards.querySelectorAll('.summary-card')).toHaveLength(4);
     expect(cards.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const cells = [...document.querySelectorAll('#rechnungen-summary td')];
@@ -316,26 +327,31 @@ describe('Rechnung-Monatssummen', () => {
     list.render();
 
     updateInvoiceSummary([
-      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, status: 'Bezahlt' },
-      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, status: 'Offen' }
-    ]);
+      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, status: 'Bezahlt', gestellt_am: '2026-08-01', zahlungsziel: '2020-01-01' },
+      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, status: 'Offen', gestellt_am: '2026-08-15', zahlungsziel: '2020-01-01' },
+      { nettobetrag: 400, ust_betrag: 76, bruttobetrag: 476, status: 'Offen', gestellt_am: '2026-08-20', zahlungsziel: '2099-01-01' },
+      { nettobetrag: 50, ust_betrag: 9.5, bruttobetrag: 59.5, status: 'Offen', gestellt_am: null, zahlungsziel: '2020-01-01' }
+    ], { creatorKosten: 500000 });
 
     const cards = document.getElementById('rechnungen-summary-cards');
     const foot = document.getElementById('rechnungen-summary');
-    expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(3000));
-    expect(cards.querySelector('[data-summary-value="ust_betrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(570));
-    expect(cards.querySelector('[data-summary-value="bruttobetrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(3570));
+    expect(cards.querySelector('[data-summary-value="koop_creator_kosten"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(500000));
+    expect(cards.querySelector('[data-summary-value="gestellt_netto"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(3400));
+    expect(cards.querySelector('[data-summary-card="gestellt_netto"] [data-summary-value="gestellt_ust"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(646));
     expect(cards.querySelector('[data-summary-value="bezahlt_netto"]').textContent)
       .toBe(formatRechnungSummaryCurrency(1000));
-    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(1190));
+    expect(cards.querySelector('[data-summary-value="offen_netto"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(2400));
+    expect(cards.querySelector('[data-summary-value="ueberfaellig_netto"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(2000));
+    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]')).toBeNull();
     expect(foot.querySelector('[data-summary="nettobetrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(3000));
+      .toBe(formatRechnungSummaryCurrency(3450));
     expect(foot.querySelector('[data-summary="bruttobetrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(3570));
+      .toBe(formatRechnungSummaryCurrency(4105.5));
     expect(animateNumber).not.toHaveBeenCalled();
   });
 
@@ -351,6 +367,7 @@ describe('Rechnung-Monatssummen', () => {
     expect(document.getElementById('rechnungen-summary-cards')).toBeNull();
     expect(document.getElementById('rechnungen-summary')).toBeNull();
     expect(document.getElementById('rechnungen-table-body')).toBeTruthy();
+    expect(() => updateInvoiceSummary([{ nettobetrag: 100, status: 'Offen' }])).not.toThrow();
   });
 
   it('zeigt Cards und tfoot fuer Investoren', () => {

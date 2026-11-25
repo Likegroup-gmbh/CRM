@@ -2,6 +2,9 @@
 // Create/Edit/Delete Drawer und Handler für Strategien
 
 import { strategieService } from './StrategieService.js';
+import { prefillAndLockField } from '../../core/form/data/PrefillHandler.js';
+import { applyFinalisiertFilter } from '../../core/finalisiert.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export function showHowToModal() {
   if (window.modalSystem) {
@@ -10,7 +13,7 @@ export function showHowToModal() {
       content: `
         <div class="how-to-content">
           <p><strong>1. Konzept erstellen</strong></p>
-          <p>Klicke auf "Neues Konzept anlegen" und wähle Unternehmen, Marke und Kampagne aus.</p>
+          <p>Ein Konzept entsteht beim Finalisieren des Briefings.</p>
           <p><strong>2. Items hinzufügen</strong></p>
           <p>Füge Video-Konzepte, Hooks und andere Elemente zum Konzept hinzu.</p>
           <p><strong>3. Mit Kunden teilen</strong></p>
@@ -61,7 +64,7 @@ async function deleteStrategie(list, id) {
   }
 }
 
-export function openCreateDrawer(list) {
+export function openCreateDrawer(list, options = {}) {
   closeCreateDrawer();
 
   const overlay = document.createElement('div');
@@ -73,12 +76,13 @@ export function openCreateDrawer(list) {
   panel.className = 'drawer-panel';
   panel.id = 'strategie-create-drawer';
 
+  const fromKampagne = !!options.prefill?.kampagne_id;
   const header = document.createElement('div');
   header.className = 'drawer-header';
   header.innerHTML = `
     <div>
       <span class="drawer-title">Neues Konzept</span>
-      <p class="drawer-subtitle">Erstellen Sie ein neues Konzept für eine Kampagne</p>
+      <p class="drawer-subtitle">${fromKampagne ? 'Für diese Kampagne' : 'Erstellen Sie ein neues Konzept für eine Kampagne'}</p>
     </div>
     <div>
       <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
@@ -102,12 +106,16 @@ export function openCreateDrawer(list) {
     panel.classList.add('show');
   });
 
-  window.formSystem.bindFormEvents('strategie', null);
-  const form = panel.querySelector('#strategie-form');
-  if (form) {
+  void (async () => {
+    await window.formSystem.bindFormEvents('strategie', null);
+    const form = panel.querySelector('#strategie-form');
+    if (!form) return;
+
+    if (options.prefill) await applyStrategiePrefill(form, options.prefill);
+
     form.onsubmit = async (e) => {
       e.preventDefault();
-      await handleCreateFormSubmit(list, form);
+      await handleCreateFormSubmit(list, form, options);
     };
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
@@ -116,7 +124,23 @@ export function openCreateDrawer(list) {
         closeCreateDrawer();
       };
     }
+  })();
+}
+
+async function applyStrategiePrefill(form, prefill) {
+  if (prefill.unternehmen_id) {
+    await prefillAndLockField(form, 'unternehmen_id', prefill.unternehmen_id, prefill.unternehmenName || 'Unternehmen');
   }
+  if (prefill.marke_id) {
+    await prefillAndLockField(form, 'marke_id', prefill.marke_id, prefill.markeName || 'Marke');
+  }
+  if (prefill.kampagne_id) {
+    await prefillAndLockField(form, 'kampagne_id', prefill.kampagne_id, prefill.kampagneName || 'Kampagne');
+  }
+  if (prefill.creator_auswahl_id) {
+    await prefillAndLockField(form, 'creator_auswahl_id', prefill.creator_auswahl_id, prefill.creatorAuswahlName || 'Casting');
+  }
+  form.querySelector('#unternehmen_id')?.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 export function closeCreateDrawer() {
@@ -128,25 +152,41 @@ export function closeCreateDrawer() {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     overlay?.remove();
   }
 }
 
-async function handleCreateFormSubmit(list, form) {
+async function handleCreateFormSubmit(list, form, options = {}) {
   try {
     const submitData = window.formSystem.collectSubmitData(form);
+    if (options.prefill?.konzeptName) {
+      submitData.name = options.prefill.konzeptName;
+    }
     if (!submitData.name || submitData.name.trim() === '') {
       window.toastSystem?.show('Bitte geben Sie einen Konzeptnamen ein', 'error');
       return;
+    }
+
+    if (options.prefill?.produktion_id) submitData.produktion_id = options.prefill.produktion_id;
+    if (options.prefill?.briefing_id && !submitData.briefing_id) {
+      submitData.briefing_id = options.prefill.briefing_id;
+    }
+
+    if (!submitData.creator_auswahl_id && options.prefill?.creator_auswahl_id) {
+      submitData.creator_auswahl_id = options.prefill.creator_auswahl_id;
     }
 
     const newStrategie = await strategieService.createStrategie(submitData);
     if (newStrategie?.id) {
       window.toastSystem?.show('Konzept erfolgreich erstellt', 'success');
       closeCreateDrawer();
-      window.navigateTo(`/konzepte/${newStrategie.id}`);
+      if (typeof options.onCreated === 'function') {
+        await options.onCreated(newStrategie);
+      } else {
+        window.navigateTo(`/konzepte/${newStrategie.id}`);
+      }
     } else {
       throw new Error('Keine ID zurückgegeben');
     }
@@ -281,7 +321,7 @@ export function closeEditDrawer() {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 300);
+    }, DRAWER_EXIT_MS);
   } else {
     overlay?.remove();
   }
@@ -354,9 +394,8 @@ async function renderEditBriefingField(list, strategie) {
   let query = window.supabase
     .from('campaign_briefings')
     .select('id, aktivierung_name')
-    .eq('unternehmen_id', strategie.unternehmen_id)
-    .eq('is_draft', false)
-    .eq('ist_altbestand', false)
+    .eq('unternehmen_id', strategie.unternehmen_id);
+  query = applyFinalisiertFilter(query, 'campaign_briefings')
     .order('created_at', { ascending: false });
   if (strategie.marke_id) {
     query = query.eq('marke_id', strategie.marke_id);

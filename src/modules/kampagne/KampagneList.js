@@ -10,10 +10,19 @@ import { bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 
 import { debugLog, debounce, bindDragToScroll, destroyDragToScroll } from './KampagneListUtils.js';
 import { loadKampagnenWithRelations, loadUserPermissions } from './KampagneListDataLoader.js';
-import { renderPageHtml, updateTable } from './KampagneListRenderers.js';
+import { renderPageHtml, renderTableWrapper, updateTable, renderFolderRows } from './KampagneListRenderers.js';
 import { KampagneCreateHandler } from './KampagneCreateHandler.js';
 import { bindEmptyStateActions } from '../../core/components/EmptyState.js';
-import { getShowCompleted, setShowCompleted, shouldHideCompleted } from './kampagneListPrefs.js';
+import { getHideCompleted, setHideCompleted, shouldHideCompleted } from './kampagneListPrefs.js';
+import {
+  KampagneGridView,
+  initialKampagneView,
+  setKampagneAnsicht,
+  loadKampagnenGrid
+} from './KampagneGridView.js';
+import { parseFolderQuery, folderListUrl, folderCrumbs, NUR_UNTERNEHMEN_LABEL, markenEbeneEntfaellt } from '../../core/folderListNav.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
 
 const createHandler = new KampagneCreateHandler();
 
@@ -22,8 +31,9 @@ export class KampagneList {
     this.selectedKampagnen = new Set();
     this._boundEventListeners = new Set();
     this.kampagneArtMap = new Map();
-    this.currentView = 'list'; // 'list' oder 'calendar'
+    this.currentView = 'list'; // 'list' | 'calendar' | 'grid'
     this.calendarView = null;
+    this.gridView = null;
     
     // AbortController und Mount-Status für Race Condition Prevention
     this._abortController = null;
@@ -159,6 +169,8 @@ export class KampagneList {
     if (e.detail.entity === 'kampagne') {
       if (this.currentView === 'calendar' && this.calendarView) {
         this.calendarView.refresh();
+      } else if (this.currentView === 'grid' && this.gridView) {
+        this.gridView.reload();
       } else {
         this.loadData();
       }
@@ -168,6 +180,8 @@ export class KampagneList {
   _handleKampagneUpdated() {
     if (this.currentView === 'calendar' && this.calendarView) {
       this.calendarView.refresh();
+    } else if (this.currentView === 'grid' && this.gridView) {
+      this.gridView.reload();
     } else {
       this.loadData();
     }
@@ -184,6 +198,8 @@ export class KampagneList {
       this._abortController.abort();
     }
     this._abortController = new AbortController();
+
+    this.currentView = initialKampagneView();
     
     window.setHeadline('Kampagnen Übersicht');
     
@@ -233,17 +249,61 @@ export class KampagneList {
 
   async loadData() {
     const checkMounted = () => this._isMounted && !this._abortController?.signal.aborted;
-    
+
     try {
       if (!checkMounted()) return;
-      
+
+      if (this.currentView === 'grid') {
+        if (this.gridView) await this.gridView.reload();
+        else await this.initGridView();
+        return;
+      }
+
       if (this.currentView === 'list') {
+        const folder = parseFolderQuery(window.location.search);
+        const hasQuery = this.hasActiveFilters();
+
+        if (folder.viewMode !== 'items' && !hasQuery) {
+          await this._loadFolderRows(folder);
+          return;
+        }
+
+        if (folder.ohneMarke && !hasQuery && !this._markenEbeneBekannt(folder)) {
+          await this._resolveMarkenEbeneWeg(folder);
+          this.updateBreadcrumbForFolder(folder);
+        }
+
+        const scope = hasQuery ? null : folder;
+        const container = document.getElementById('kampagnen-content-container');
+        if (container && !container.querySelector('.data-table--kampagne')) {
+          container.innerHTML = renderTableWrapper();
+        }
+
+        const tableOptions = () => ({
+          bindDragToScroll: () => this.bindDragToScroll(),
+          hasActiveFilters: this.hasActiveFilters(),
+          hideCompletedActive: shouldHideCompleted(this.searchQuery)
+        });
+
+        // Stale-while-revalidate: gecachte Seite sofort zeigen, waehrend frisch geladen wird.
+        // Nur Tabelle + Pagination; Toolbar-Sync laeuft erst nach dem frischen Ergebnis.
+        let staleRender = null;
+        let staleData = null;
+        const renderCached = (cached) => {
+          if (!checkMounted()) return null;
+          staleData = cached.data;
+          if (cached.kampagneArtMap) this.kampagneArtMap = cached.kampagneArtMap;
+          this.pagination.updateTotal(cached.count ?? cached.data.length);
+          staleRender = updateTable(cached.data, tableOptions());
+          return staleRender;
+        };
+
         const [, result] = await Promise.all([
           this._shellRendered ? Promise.resolve() : this.initializeFilterBar(),
           loadKampagnenWithRelations(
             this.pagination.currentPage,
             this.pagination.itemsPerPage,
-            { searchQuery: this.searchQuery }
+            { searchQuery: this.searchQuery, folder: scope, onCached: renderCached }
           )
         ]);
 
@@ -255,12 +315,14 @@ export class KampagneList {
         const totalCount = result?.count ?? filteredKampagnen.length;
 
         this.pagination.updateTotal(totalCount);
-        await updateTable(filteredKampagnen, {
-          bindDragToScroll: () => this.bindDragToScroll(),
-          hasActiveFilters: this.hasActiveFilters(),
-          hideCompletedActive: shouldHideCompleted(this.searchQuery)
-        });
-        this.syncShowCompletedToggle();
+        // Cache-Render zu Ende laufen lassen, damit sich Animationen nicht ueberlappen.
+        if (staleRender) await staleRender.catch(() => {});
+        if (!checkMounted()) return;
+        const unchanged = staleData && JSON.stringify(staleData) === JSON.stringify(filteredKampagnen);
+        if (!unchanged) {
+          await updateTable(filteredKampagnen, tableOptions());
+        }
+        this.syncHideCompletedToggle();
         this.updateToolbarFilterBadge();
         this.pagination.render();
       }
@@ -268,6 +330,131 @@ export class KampagneList {
       if (error.name === 'AbortError') return;
       window.ErrorHandler.handle(error, 'KampagneList.loadData');
     }
+  }
+
+  _rememberMarkenEbene(unternehmenId, weg) {
+    this._markenEbeneWegFirma = unternehmenId;
+    this._markenEbeneWeg = !!weg;
+    this._markenEbeneWegKnown = true;
+  }
+
+  _markenEbeneBekannt(folder) {
+    return !!(this._markenEbeneWegKnown && this._markenEbeneWegFirma === folder?.unternehmenId);
+  }
+
+  _istMarkenEbeneWeg(folder) {
+    return !!(folder?.ohneMarke && this._markenEbeneBekannt(folder) && this._markenEbeneWeg);
+  }
+
+  async _resolveMarkenEbeneWeg(folder) {
+    if (!folder?.ohneMarke || !folder.unternehmenId) return false;
+    if (this._markenEbeneBekannt(folder)) return this._markenEbeneWeg;
+    const data = await loadKampagnenGrid(
+      { unternehmenId: folder.unternehmenId, viewMode: 'brands' },
+      shouldHideCompleted(this.searchQuery)
+    );
+    const weg = markenEbeneEntfaellt((data?.marken || []).length, data?.ohne_marke_count || 0);
+    this._rememberMarkenEbene(folder.unternehmenId, weg);
+    return weg;
+  }
+
+  async _loadFolderRows(folder) {
+    const container = document.getElementById('kampagnen-content-container');
+    if (!container) return;
+
+    const mode = folder.viewMode || 'companies';
+
+    try {
+      const data = await loadKampagnenGrid(folder, shouldHideCompleted(this.searchQuery));
+      if (!this._isMounted) return;
+
+      if (mode === 'brands') {
+        const weg = markenEbeneEntfaellt((data?.marken || []).length, data?.ohne_marke_count || 0);
+        this._rememberMarkenEbene(folder.unternehmenId, weg);
+        if (weg) {
+          return this._navigateFolder({
+            viewMode: 'items',
+            unternehmenId: folder.unternehmenId,
+            unternehmenName: folder.unternehmenName,
+            markeId: null,
+            markeName: NUR_UNTERNEHMEN_LABEL,
+            ohneMarke: true
+          });
+        }
+      }
+
+      container.innerHTML = this._folderShell(mode, '');
+      const tbody = document.getElementById('kampagnen-folder-body');
+      if (!tbody) return;
+
+      if (mode === 'companies') {
+        tbody.innerHTML = renderFolderRows(data?.unternehmen || [], { mode: 'companies' });
+      } else {
+        const folders = [...(data?.marken || [])];
+        if ((data?.ohne_marke_count || 0) > 0) {
+          folders.push({
+            id: null,
+            markenname: NUR_UNTERNEHMEN_LABEL,
+            logo_url: null,
+            count: data.ohne_marke_count,
+            virtual: true
+          });
+        }
+        tbody.innerHTML = renderFolderRows(folders, { mode: 'brands' });
+      }
+      this.pagination.updateTotal(0);
+      this.pagination.render();
+    } catch (error) {
+      if (!this._isMounted) return;
+      window.ErrorHandler?.handle(error, 'KampagneList._loadFolderRows');
+      const tbody = document.getElementById('kampagnen-folder-body');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="2" class="error-message">Ordner konnten nicht geladen werden.</td></tr>';
+    }
+  }
+
+  _folderShell(mode, rowsHtml) {
+    const back = mode === 'brands'
+      ? `<button type="button" id="btn-back-to-companies" class="mdc-btn mdc-btn--secondary">${icon('arrow-left')} Zurück</button>`
+      : '';
+    return `
+      <div class="list-container">
+        ${back ? `<div class="table-filter-wrapper"><div class="filter-bar"><div class="filter-left">${back}</div></div></div>` : ''}
+        <div class="table-container">
+          <table class="data-table data-table--kampagne-folders">
+            <thead>
+              <tr>
+                <th class="col-folder-name">Name</th>
+                <th class="col-folder-count">Anzahl</th>
+              </tr>
+            </thead>
+            <tbody id="kampagnen-folder-body">${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div class="pagination-container" id="pagination-kampagne"></div>
+      </div>
+    `;
+  }
+
+  updateBreadcrumbForFolder(folder) {
+    if (!window.breadcrumbSystem) return;
+    if (!folder?.unternehmenId || folder.viewMode === 'companies') {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Kampagnen', url: '/kampagne', clickable: false }
+      ]);
+      return;
+    }
+    const crumbs = folderCrumbs({
+      listLabel: 'Kampagnen',
+      basePath: '/kampagne',
+      folder,
+      markenEbeneWeg: this._istMarkenEbeneWeg(folder)
+    }).map((crumb) => {
+      if (!crumb.url || crumb.url === '#') return crumb;
+      const url = new URL(crumb.url, window.location.origin);
+      url.searchParams.delete('ansicht');
+      return { ...crumb, url: `${url.pathname}${url.search}` };
+    });
+    window.breadcrumbSystem.updateBreadcrumb(crumbs);
   }
 
   /**
@@ -296,8 +483,13 @@ export class KampagneList {
     if (this.currentView === 'calendar') {
       await this.initCalendarView();
     }
-    
+
+    this.syncShellForView(this.currentView);
     this.bindEvents();
+
+    if (this.currentView === 'list') {
+      this.updateBreadcrumbForFolder(parseFolderQuery(window.location.search));
+    }
   }
 
   // ========================================
@@ -320,6 +512,42 @@ export class KampagneList {
     }
   }
 
+  async initGridView() {
+    const container = document.getElementById('kampagnen-grid-root');
+    if (!container) return;
+
+    if (this.gridView) {
+      this.gridView.destroy();
+    }
+
+    this.gridView = new KampagneGridView(container);
+    await this.gridView.mount();
+    if (this.gridView) {
+      const folder = this.gridView.currentFolder();
+      if (folder.ohneMarke) {
+        this._rememberMarkenEbene(folder.unternehmenId, !!this.gridView.markenEbeneWeg);
+      }
+      this.updateBreadcrumbForFolder(folder);
+    }
+  }
+
+  destroyGridView() {
+    if (!this.gridView) return;
+    this.gridView.destroy();
+    this.gridView = null;
+  }
+
+  syncShellForView(view) {
+    const search = document.querySelector('.kampagne-list-page .search-input-container');
+    const filter = document.getElementById('filter-dropdown-container');
+    if (search) search.hidden = view === 'grid';
+    if (filter) filter.hidden = view === 'grid';
+
+    document.getElementById('btn-view-list')?.classList.toggle('active', view === 'list');
+    document.getElementById('btn-view-grid')?.classList.toggle('active', view === 'grid');
+    document.getElementById('btn-view-calendar')?.classList.toggle('active', view === 'calendar');
+  }
+
   async initializeFilterBar() {
     const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
@@ -339,6 +567,7 @@ export class KampagneList {
     filterSystem.applyFilters('kampagne', filters);
     this.pagination.currentPage = 1;
     this.updateToolbarFilterBadge();
+    this.updateBreadcrumbForFolder(null);
     this._debouncedLoadAndRender();
   }
 
@@ -347,6 +576,7 @@ export class KampagneList {
     filterSystem.resetFilters('kampagne');
     this.pagination.currentPage = 1;
     this.updateToolbarFilterBadge();
+    this.updateBreadcrumbForFolder(parseFolderQuery(window.location.search));
     this.loadData();
   }
 
@@ -373,13 +603,19 @@ export class KampagneList {
     if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
     this._searchDebounceTimer = setTimeout(() => {
       this.searchQuery = query.trim();
-      
+
       if (this.currentView === 'calendar' && this.calendarView) {
         void this.calendarView.setSearchQuery(this.searchQuery);
         return;
       }
-      
+      if (this.currentView === 'grid') return;
+
       this.pagination.currentPage = 1;
+      if (this.searchQuery) {
+        this.updateBreadcrumbForFolder(null);
+      } else {
+        this.updateBreadcrumbForFolder(parseFolderQuery(window.location.search));
+      }
       this.loadData();
     }, 300);
   }
@@ -391,8 +627,9 @@ export class KampagneList {
   bindEvents() {
     SearchInput.bind('kampagne', (value) => this.handleSearch(value));
     this._bindToolbarMenu();
+    this._bindFolderClicks();
 
-    // View-Toggle (list/calendar)
+    // View-Toggle (list/calendar/grid)
     const switchView = async (targetView) => {
       if (!this._isMounted || this.currentView === targetView) return;
 
@@ -400,29 +637,33 @@ export class KampagneList {
         this.calendarView.destroy();
         this.calendarView = null;
       }
+      if (targetView !== 'grid') {
+        this.destroyGridView();
+      }
 
       this.currentView = targetView;
       this.updateViewClass();
+      this.syncShellForView(targetView);
+      if (targetView !== 'calendar') {
+        setKampagneAnsicht(targetView);
+      }
 
-      // Content-Container updaten ohne Shell neu zu rendern
       const container = document.getElementById('kampagnen-content-container');
       if (container) {
         if (targetView === 'calendar') {
           container.innerHTML = '<div id="calendar-container"></div>';
           await this.initCalendarView();
+        } else if (targetView === 'grid') {
+          container.innerHTML = '<div id="kampagnen-grid-root"></div>';
+          await this.initGridView();
         } else {
-          const { renderTableWrapper } = await import('./KampagneListRenderers.js');
-          container.innerHTML = renderTableWrapper();
           await this.loadData();
         }
       }
-
-      // View-Toggle Buttons aktualisieren
-      document.getElementById('btn-view-list')?.classList.toggle('active', targetView === 'list');
-      document.getElementById('btn-view-calendar')?.classList.toggle('active', targetView === 'calendar');
     };
 
     document.getElementById('btn-view-list')?.addEventListener('click', () => switchView('list'));
+    document.getElementById('btn-view-grid')?.addEventListener('click', () => switchView('grid'));
     document.getElementById('btn-view-calendar')?.addEventListener('click', () => switchView('calendar'));
 
     if (this.currentView === 'list') {
@@ -439,8 +680,66 @@ export class KampagneList {
     // Empty-State-Actions (z.B. "Filter zurücksetzen")
     bindEmptyStateActions(document, {
       'reset-filters': () => this.onFiltersReset(),
-      'show-completed': () => this.applyShowCompleted(true)
+      'show-completed': () => this.applyHideCompleted(false)
     }, { signal: this._abortController.signal });
+  }
+
+  _bindFolderClicks() {
+    const container = document.getElementById('kampagnen-content-container');
+    if (!container) return;
+    container.addEventListener('click', (e) => {
+      if (this.currentView !== 'list') return;
+      const back = e.target.closest('#btn-back-to-companies');
+      if (back) {
+        e.preventDefault();
+        this._navigateFolder({ viewMode: 'companies' });
+        return;
+      }
+      const row = e.target.closest('.kampagne-folder-row');
+      if (!row) return;
+      e.preventDefault();
+      if (row.dataset.unternehmenId) {
+        this._navigateFolder({
+          viewMode: 'brands',
+          unternehmenId: row.dataset.unternehmenId,
+          unternehmenName: row.dataset.unternehmenName
+        });
+        return;
+      }
+      const current = parseFolderQuery(window.location.search);
+      if (row.dataset.ohneMarke === '1') {
+        this._navigateFolder({
+          viewMode: 'items',
+          unternehmenId: current.unternehmenId,
+          unternehmenName: current.unternehmenName,
+          markeId: null,
+          markeName: row.dataset.markeName,
+          ohneMarke: true
+        });
+        return;
+      }
+      if (row.dataset.markeId) {
+        this._navigateFolder({
+          viewMode: 'items',
+          unternehmenId: current.unternehmenId,
+          unternehmenName: current.unternehmenName,
+          markeId: row.dataset.markeId,
+          markeName: row.dataset.markeName,
+          ohneMarke: false
+        });
+      }
+    }, { signal: this._abortController.signal });
+  }
+
+  _navigateFolder(folder) {
+    const url = folderListUrl('/kampagne', folder, folder.viewMode);
+    const parsed = new URL(url, window.location.origin);
+    parsed.searchParams.delete('ansicht');
+    const clean = `${parsed.pathname}${parsed.search}`;
+    replaceRoute(clean);
+    this.pagination.currentPage = 1;
+    this.updateBreadcrumbForFolder(folder);
+    return this.loadData();
   }
 
   _bindToolbarMenu() {
@@ -449,10 +748,10 @@ export class KampagneList {
     const cleanup = bindToolbarMenu(menu);
     this._abortController.signal.addEventListener('abort', cleanup, { once: true });
 
-    const toggle = document.getElementById('kampagne-show-completed');
+    const toggle = document.getElementById('kampagne-hide-completed');
     if (toggle) {
       toggle.addEventListener('change', (e) => {
-        this.applyShowCompleted(e.target.checked);
+        this.applyHideCompleted(e.target.checked);
       }, { signal: this._abortController.signal });
     }
 
@@ -464,6 +763,7 @@ export class KampagneList {
         menu.querySelector('.toolbar-menu-dropdown')?.classList.remove('show');
         menu.querySelector('.toolbar-menu-toggle')?.setAttribute('aria-expanded', 'false');
         const plus = document.getElementById('btn-kampagne-list-toolbar-menu');
+        if (this.currentView === 'grid') return;
         filterDropdown.openFromAnchor('kampagne', plus || filterBtn);
       }, { signal: this._abortController.signal });
     }
@@ -471,20 +771,24 @@ export class KampagneList {
     this.updateToolbarFilterBadge();
   }
 
-  applyShowCompleted(value) {
-    setShowCompleted(value);
-    this.syncShowCompletedToggle();
+  applyHideCompleted(value) {
+    setHideCompleted(value);
+    this.syncHideCompletedToggle();
     this.pagination.currentPage = 1;
     if (this.currentView === 'calendar' && this.calendarView) {
       this.calendarView.reload();
       return;
     }
+    if (this.currentView === 'grid' && this.gridView) {
+      this.gridView.reload();
+      return;
+    }
     this.loadData();
   }
 
-  syncShowCompletedToggle() {
-    const toggle = document.getElementById('kampagne-show-completed');
-    if (toggle) toggle.checked = getShowCompleted();
+  syncHideCompletedToggle() {
+    const toggle = document.getElementById('kampagne-hide-completed');
+    if (toggle) toggle.checked = getHideCompleted();
   }
 
   updateToolbarFilterBadge() {
@@ -641,6 +945,7 @@ export class KampagneList {
       this.calendarView.destroy();
       this.calendarView = null;
     }
+    this.destroyGridView();
     
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {

@@ -22,7 +22,7 @@ in dieser Reihenfolge:
    verbindlichste Quelle (Ziele, Umsetzung, Situationen, CTA-URL/Code,
    Creator-Rolle, Sprache).
 2. CRM-Daten (Marken-Kickoff, Produktdaten, Kampagne, Persona,
-   Skript-DNA, Video-Idee, Location).
+   Master-Regelwerk, Video-Idee, Location).
 3. **Videovorlage (Referenzvideo)** – falls vorhanden, und NUR für kreative
    Fragen: Aufbau, Hook-Typ, Dramaturgie, Pace und CTA-Mechanik gelten durch
    die Vorlage als beantwortet – dazu keine Fragen stellen. Die Vorlage ist
@@ -33,7 +33,7 @@ in dieser Reihenfolge:
    bei uns gibt.
 
    Liegt keine Videovorlage vor, entscheidest du die kreative Bauweise selbst
-   aus der Skript-DNA – dazu keine Geschmacksfragen stellen.
+   aus dem Master-Regelwerk – dazu keine Geschmacksfragen stellen.
    Frag höchstens nach, wenn eine konkrete Referenz oder ein gewünschtes
    Format inhaltlich entscheidend ist.
 
@@ -65,7 +65,36 @@ ob es das wirklich gibt.
 4. **Zielgruppe/Ton:** Gibt es Widersprüche zwischen Persona, Tonalitäts-
    Vorgabe und Marken-Kickoff, die geklärt werden müssen?
 5. **Rechtliches/Must-haves:** Gibt es Pflicht-Aussagen oder No-Gos aus
-   Briefing/Kickoff, die mit der Video-Idee kollidieren?
+   Briefing/Kickoff, die mit der Video-Idee kollidieren? Was unter
+   „WICHTIGE VORGABEN“ im Campaign-Briefing steht, ist bekannt und wird nicht
+   erfragt, nur auf Kollision mit der Video-Idee geprüft.
+
+## Bereich bestimmt, was du fragst
+
+Der Bereich steht im Block „BEREICH DIESES SKRIPTS“ und ist gesetzt. Du
+fragst nie danach (außer dort steht „unbekannt“).
+
+- **Owned Social (Organic) und Influencer Marketing:** Das Skript ist eine
+  Empfehlung von Person zu Person. Der CTA ist eine Empfehlung (Profil
+  besuchen, Link in Bio, Code nennen), kein Verkaufsbefehl. Keine Fragen
+  nach Funnel-Stufe, Offer-Mechanik, Performance-Zielen oder Paid-Kanälen.
+  Prio 1 (CTA) heißt hier: Welche Empfehlung soll der Zuschauer mitnehmen,
+  und gibt es einen konkreten Link oder Code?
+- **Paid Creator Ads:** Performance-Creative. Offer und Conversion-Ziel sind
+  relevant, sofern sie nicht im Briefing stehen. Die Funnel-Stufe gilt nur, wenn sie unter „Vorgaben für dieses Video“ steht
+  (sie kommt aus dem Konzept). Fehlt sie dort, frage danach, auch wenn das
+  Briefing Stufen nennt: das Briefing zählt dafür nicht.
+- Steht im CRM mehr als eine Kampagnenart (z. B. UGC Paid und UGC Organic),
+  gilt trotzdem nur der Bereich dieses Skripts.
+
+**Creator-Status:** Steht in den CRM-Daten eine Creator-Sektion mit
+`status: zugewiesen`, ist der Creator final. Dazu keine Rückfrage stellen
+und keine creatorunabhängige Fassung anbieten.
+
+**Persona:** Steht der Block „PERSONA DIESES SKRIPTS: offen“ im Auftrag,
+ist die Persona die erste Frage nach dem Bereich. Ohne Persona fehlen Pain,
+Wünsche und Einwände, und das Produkt ist nicht eindeutig. Biete die
+Personas aus der Liste zur Auswahl an, wähle nie selbst.
 
 ## Regeln für die Fragen
 

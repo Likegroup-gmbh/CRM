@@ -4,25 +4,23 @@
 // Prototype-Extension angehangen (RenderShell, FormEvents, DataPersistence).
 // Struktur 1:1 wie src/modules/vertrag/create/.
 
-import { loadProdukteForBriefing } from '../BriefingProdukte.js';
-import { loadPersonasForBriefing } from '../BriefingPersonas.js';
 import { OHNE_QUERY } from '../BriefingFolders.js';
 
 export class BriefingCreate {
   constructor() {
-    this.currentStep = 1;      // 1 = Typ-Auswahl, 2..n = Content-Steps
+    this.currentStep = 1;
     this.selectedBereich = null;
     this.formData = {};
     this.unternehmen = [];
     this.marken = [];
-    this.benutzer = [];
-    this.produkte = [];
-    this.personas = [];
-    this.isGenerated = false;
+    this.kampagnen = [];
+    this._linieGesperrt = false;
     this.editId = null;
     this._isRendering = false;
     this._isInitializing = false;
     this.likyPanel = null;
+    this._einreichungId = null;
+    this._einreichungErledigt = false;
   }
 }
 
@@ -38,12 +36,13 @@ BriefingCreate.prototype.getBriefingPermissions = function() {
 
 BriefingCreate.prototype.init = async function(editId = null) {
   this.editId = editId;
+  this._einreichungId = null;
+  this._einreichungErledigt = false;
 
   window.setHeadline(editId ? 'Briefing bearbeiten' : 'Neues Briefing');
 
-  if (window.breadcrumbSystem) {
-    window.breadcrumbSystem.updateDetailLabel(editId ? 'Bearbeiten' : 'Neues Briefing');
-  }
+  const crumbLabel = editId ? 'Bearbeiten' : 'Neues Briefing';
+  window.breadcrumbSystem?.updateDetailLabel(crumbLabel);
 
   const { canEdit } = this.getBriefingPermissions();
   if (!canEdit) {
@@ -61,8 +60,14 @@ BriefingCreate.prototype.init = async function(editId = null) {
     await this.loadFromDB(editId);
   } else {
     this.applyQueryPrefill();
-    await this.refreshProdukte();
-    await this.refreshPersonas();
+    await this.resolveProduktionKontext();
+    this.formData.videolaenge = { von: 15, bis: 20 };
+    await this.applyEinreichung?.();
+    await this.vorbelegeKontextProdukt?.();
+    if (!String(this.formData.aktivierung_name || '').trim()) {
+      const name = this.resolveBriefingName();
+      if (name) this.formData.aktivierung_name = name;
+    }
   }
 
   this.render();
@@ -72,9 +77,57 @@ BriefingCreate.prototype.applyQueryPrefill = function() {
   const params = new URLSearchParams(window.location.search);
   const unternehmen = params.get('unternehmen');
   const marke = params.get('marke');
+  const kampagne = params.get('kampagne');
+  const produkt = params.get('produkt');
+  const titel = params.get('titel');
+  const produktion = params.get('produktion');
 
   if (unternehmen) this.formData.unternehmen_id = unternehmen;
   if (marke && marke !== OHNE_QUERY) this.formData.marke_id = marke;
+  if (titel) this.formData.aktivierung_name = titel;
+  if (kampagne) this.formData.kampagne_id = kampagne;
+  if (produktion) this.formData.produktion_id = produktion;
+  if (produkt) this.formData.produkt_id = produkt;
+  this._linieGesperrt = !!kampagne;
+  this._produktionKontext = kampagne
+    ? { kampagneId: kampagne, produktId: produkt || null, produktionId: produktion || null }
+    : null;
+  this.syncKontextAusKampagne();
+};
+
+// Gesperrter Kontext: Unternehmen und Marke gehören der Kampagne, nicht der URL.
+BriefingCreate.prototype.syncKontextAusKampagne = function() {
+  if (!this._linieGesperrt) return;
+  const kampagne = (this.kampagnen || []).find(k => k.id === this.formData.kampagne_id);
+  if (!kampagne) return;
+  if (kampagne.unternehmen_id) this.formData.unternehmen_id = kampagne.unternehmen_id;
+  if (kampagne.marke_id) this.formData.marke_id = kampagne.marke_id;
+  else delete this.formData.marke_id;
+};
+
+// Nur `produktion` in der URL: Kampagne kommt aus der Produktionszeile.
+BriefingCreate.prototype.resolveProduktionKontext = async function() {
+  const produktionId = this.formData.produktion_id;
+  if (!produktionId || this.formData.kampagne_id || !window.supabase) return;
+  try {
+    const { data } = await window.supabase
+      .from('produktion')
+      .select('id, kampagne_id, produkt_id')
+      .eq('id', produktionId)
+      .maybeSingle();
+    if (!data?.kampagne_id) return;
+    this.formData.kampagne_id = data.kampagne_id;
+    if (data.produkt_id && !this.formData.produkt_id) this.formData.produkt_id = data.produkt_id;
+    this._linieGesperrt = true;
+    this._produktionKontext = {
+      kampagneId: data.kampagne_id,
+      produktId: this.formData.produkt_id || null,
+      produktionId
+    };
+    this.syncKontextAusKampagne();
+  } catch (error) {
+    console.warn('Produktion für das Briefing nicht geladen', error);
+  }
 };
 
 BriefingCreate.prototype.loadStammdaten = async function() {
@@ -93,40 +146,19 @@ BriefingCreate.prototype.loadStammdaten = async function() {
       .order('markenname');
     this.marken = marken || [];
 
-    const { data: benutzer } = await window.supabase
-      .from('benutzer')
-      .select('id, name')
-      .order('name');
-    this.benutzer = benutzer || [];
-    await this.refreshProdukte();
-    await this.refreshPersonas();
+    const { data: kampagnen } = await window.supabase
+      .from('kampagne')
+      .select('id, kampagnenname, eigener_name, unternehmen_id, marke_id')
+      .order('kampagnenname');
+    this.kampagnen = (kampagnen || []).map(k => ({
+      id: k.id,
+      label: k.eigener_name || k.kampagnenname || 'Unbenannte Kampagne',
+      kampagnenname: k.kampagnenname || '',
+      unternehmen_id: k.unternehmen_id,
+      marke_id: k.marke_id
+    }));
   } catch (error) {
     console.error('Fehler beim Laden der Stammdaten:', error);
-  }
-};
-
-BriefingCreate.prototype.refreshProdukte = async function() {
-  try {
-    this.produkte = await loadProdukteForBriefing(
-      this.formData.unternehmen_id,
-      this.formData.marke_id
-    );
-  } catch (error) {
-    console.error('Fehler beim Laden der Produkte:', error);
-    this.produkte = [];
-  }
-};
-
-BriefingCreate.prototype.refreshPersonas = async function() {
-  try {
-    this.personas = await loadPersonasForBriefing(
-      this.formData.unternehmen_id,
-      this.formData.marke_id,
-      this.formData.produkt_ids
-    );
-  } catch (error) {
-    console.error('Fehler beim Laden der Personas:', error);
-    this.personas = [];
   }
 };
 
@@ -134,11 +166,14 @@ BriefingCreate.prototype.resetForm = function() {
   this.currentStep = 1;
   this.selectedBereich = null;
   this.formData = {};
-  this.isGenerated = false;
   this.editId = null;
+  this._linieGesperrt = false;
+  this._produktionKontext = null;
   this._isRendering = false;
   this._isInitializing = false;
   this.likyPanel = null;
+  this._einreichungId = null;
+  this._einreichungErledigt = false;
 };
 
 BriefingCreate.prototype.destroy = function() {

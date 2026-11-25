@@ -2,6 +2,8 @@
 // Wiederverwendbare Tabellen-Ausgabe für Creator
 import { creatorUtils } from './CreatorUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 function renderTags(items, tagClass) {
   if (!items || !items.length) return '-';
@@ -12,6 +14,62 @@ function renderTags(items, tagClass) {
     return `<span class="tag ${tagClass}">${safe}</span>`;
   }).join('');
   return `<div class="tags tags-compact">${tags}</div>`;
+}
+
+function escapeAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function canViewCreatorLink() {
+  const isKunde = window.isKunde?.() ?? false;
+  const canViewViaPage = window.canViewPage?.('creator');
+  const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
+  return !isKunde && canViewViaPage !== false && canViewViaPerm !== false;
+}
+
+/**
+ * Avatar (Thumb, sonst Initiale) + Name + optional Link, ohne Zelle. Ohne Name leer.
+ * creator: { id, vorname, nachname, name, profilbild_url, profilbild_thumb_url }
+ */
+export function renderCreatorName(creator) {
+  return creatorIdentity(creator, false);
+}
+
+/** Wie renderCreatorName, der Link als Verknüpfungs-Pill (Button-Optik wie Titel). */
+export function renderCreatorPillName(creator) {
+  return creatorIdentity(creator, true);
+}
+
+function creatorIdentity(creator, pill) {
+  if (!creator) return '';
+  const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || creator.name || '';
+  if (!name) return '';
+
+  const safeName = window.validatorSystem?.sanitizeHtml(name) || escapeAttr(name);
+  const id = creator.id;
+  const attrs = `data-table="creator" data-id="${escapeAttr(id)}"`;
+  let nameHtml = safeName;
+  if (id && canViewCreatorLink()) {
+    nameHtml = pill
+      ? renderVerknuepfungPill({ kind: 'creator', label: name, attrs })
+      : `<a href="#" class="table-link" ${attrs}>${safeName}</a>`;
+  }
+
+  return renderTableIdentity({
+    url: creator.profilbild_thumb_url || creator.profilbild_url,
+    name: creator.vorname || name,
+    nameHtml
+  });
+}
+
+/** Schlanke Tabellenzelle mit einem Creator, ohne Name "-". */
+export function renderCreatorNameCell(creator) {
+  const inhalt = renderCreatorName(creator);
+  return inhalt ? `<td class="col-name">${inhalt}</td>` : '<td>-</td>';
 }
 
 export function renderCreatorTable(creators, options = {}) {
@@ -33,13 +91,6 @@ export function renderCreatorTable(creators, options = {}) {
     const stadt = c.lieferadresse_stadt || '-';
     const land = c.lieferadresse_land || '-';
 
-    // Kleiner Tabellen-Avatar: 128px-Thumb reicht, Fallback fuer Altbestand
-    const avatarSource = c.profilbild_thumb_url || c.profilbild_url;
-    const safeAvatarUrl = avatarSource ? window.validatorSystem?.sanitizeUrl(avatarSource) : null;
-    const avatarHtml = safeAvatarUrl
-      ? `<img src="${safeAvatarUrl}" alt="${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}" class="table-avatar table-avatar-img" loading="lazy" />`
-      : `<span class="table-avatar">${(c.vorname || '?')[0].toUpperCase()}</span>`;
-
     const actionsCell = canShowActions && showRemoveAction
       ? `
         <td>
@@ -59,7 +110,7 @@ export function renderCreatorTable(creators, options = {}) {
               <a href="#" class="action-item" data-action="view" data-id="${id}">Details anzeigen</a>
               <a href="#" class="action-item" data-action="add_to_list" data-id="${id}">
                 ${icon('view-list', { className: 'size-6' })}
-                Zur Liste hinzufügen
+                Zur Masterliste hinzufügen
               </a>
               <a href="#" class="action-item" data-action="favorite" data-creator-id="${id}" data-kampagne-id="${kampagneId}">
                 ${icon('bookmark', { className: 'size-6' })}
@@ -97,9 +148,13 @@ export function renderCreatorTable(creators, options = {}) {
     return `
       <tr data-id="${id || ''}">
         ${showSelection ? `<td><input type=\"checkbox\" class=\"creator-check\" data-id=\"${id}\"></td>` : ''}
-        <td class="col-name-with-icon">
-          ${avatarHtml}
-          ${id && canViewCreator ? `<a href="#" class="table-link" data-table="creator" data-id="${id}">${name}</a>` : name}
+        <td class="col-name">
+          ${renderTableIdentity({
+            // Kleiner Tabellen-Avatar: 128px-Thumb reicht, Fallback fuer Altbestand
+            url: c.profilbild_thumb_url || c.profilbild_url,
+            name: c.vorname || name,
+            nameHtml: id && canViewCreator ? `<a href="#" class="table-link" data-table="creator" data-id="${id}">${name}</a>` : name
+          })}
         </td>
         <td>${typen}</td>
         <td>${sprachen}</td>

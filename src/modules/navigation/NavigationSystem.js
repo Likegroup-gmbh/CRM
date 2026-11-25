@@ -1,9 +1,10 @@
 // NavigationSystem.js (ES6-Modul)
 // Zentrale Navigation für das CRM
 
-import { bindCollapsible } from '../../core/collapsiblePanel.js';
+import { bindCollapsible, SIDEBAR_NARROW_QUERY } from '../../core/collapsiblePanel.js';
 import { entityIcon } from '../../core/icons/entityIcons.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { startHoverPrefetch } from '../../core/budget/finanzbestandBoot.js';
 
 export class NavigationSystem {
   constructor() {
@@ -21,15 +22,15 @@ export class NavigationSystem {
         title: 'Kundendaten',
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
-          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
-          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
-          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' }
+          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' }
         ]
       },
       {
         title: 'Creatordaten',
         items: [
           { id: 'creator', label: 'Creator', icon: 'creator', url: '/creator' },
+          { id: 'creator-casting', label: 'Creator Casting', icon: 'sourcing', url: '/creator-casting' },
+          { id: 'creator-lists', label: 'Masterlisten', icon: 'listen', url: '/creator-lists' },
           { id: 'management', label: 'Management', icon: 'management', url: '/management' }
         ]
       },
@@ -46,21 +47,17 @@ export class NavigationSystem {
         title: 'Kampagnenmanagement',
         items: [
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
+          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
+          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
           { id: 'sourcing', label: 'Castings', icon: 'sourcing', url: '/castings' },
           { id: 'strategie', label: 'Konzepte', icon: 'strategie', url: '/konzepte' },
           { id: 'skripte', label: 'Skripte', icon: 'skripte', url: '/skripte' },
+          { id: 'kooperation', label: 'Produktion', icon: 'kooperation', url: '/produktionen' },
           { id: 'vertraege', label: 'Verträge', icon: 'vertraege', url: '/vertraege' },
           { id: 'rechnung', label: 'Rechnung', icon: 'rechnung', url: '/rechnung' },
           { id: 'videos', label: 'Videos', icon: 'videos', url: '/videos' }
         ]
       },
-      // Ausgeblendet, aber nicht entfernt:
-      // {
-      //   title: 'Listen',
-      //   items: [
-      //     { id: 'creator-lists', label: 'Listen', icon: 'listen', url: '/creator-lists' }
-      //   ]
-      // },
       {
         title: 'Verwaltung',
         items: [
@@ -86,6 +83,9 @@ export class NavigationSystem {
         items: [
           { id: 'stakeholder', label: 'Dashboard', icon: 'stakeholder', url: '/admin' },
           { id: 'admin-datenqualitaet', label: 'Datenqualität', icon: 'admin-datenqualitaet', url: '/admin/datenqualitaet' },
+          { id: 'admin-medienablage', label: 'Medienablage', icon: 'admin-medienablage', url: '/admin/medienablage' },
+          { id: 'admin-teams-kanaele', label: 'Teams-Kanäle', icon: 'admin-teams-kanaele', url: '/admin/teams-kanaele' },
+          { id: 'admin-pdf-vorlagen', label: 'PDF-Vorlagen', icon: 'admin-pdf-vorlagen', url: '/admin/pdf-vorlagen' },
           { id: 'projekt-erstellen', label: 'Projekt anlegen', icon: 'projekt-erstellen', url: '/admin/projekt-erstellen' },
           { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/admin/auftrag' },
           { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/admin/ausgangsrechnungen' },
@@ -152,13 +152,13 @@ export class NavigationSystem {
       }
 
       // Accounting-Nav (ausser Zurück zur App): nur Admins und Investoren.
-      // Datenqualität bleibt Admin. Projekt anlegen nur, wer Accounting
-      // sehen darf und anlegen kann — nicht jeder interne Mitarbeiter.
+      // Datenqualität, Medienablage, Teams-Kanäle und PDF-Vorlagen bleiben Admin. Projekt anlegen nur, wer
+      // Accounting sehen darf und anlegen kann — nicht jeder interne Mitarbeiter.
       if (this.area === 'admin') {
         const accounting = (typeof window.canViewAccounting === 'function' && window.canViewAccounting())
           || (typeof window.isAdmin === 'function' && window.isAdmin());
         if (!accounting) return false;
-        if (id === 'admin-datenqualitaet') {
+        if (id === 'admin-datenqualitaet' || id === 'admin-medienablage' || id === 'admin-teams-kanaele' || id === 'admin-pdf-vorlagen') {
           return typeof window.isAdmin === 'function' && window.isAdmin();
         }
         if (id === 'projekt-erstellen') {
@@ -223,6 +223,7 @@ export class NavigationSystem {
         vertraege: 'vertraege',
         creator: 'creator',
         'creator-lists': 'creator',
+        'creator-casting': 'creator',
         'management-creator': 'creator',
         management: 'management',
         'sourcing': 'sourcing',
@@ -363,6 +364,16 @@ export class NavigationSystem {
         const route = link.getAttribute('data-route');
         this.navigateTo(route);
       });
+
+      // Dashboard/Datenqualitaet: Load schon beim Anvisieren starten.
+      const vorladen = () => {
+        // Schon auf dieser Seite: der Klick lädt nichts Neues.
+        if (link.getAttribute('data-route') === location.pathname) return;
+        const darf = !!(window.canViewAccounting?.() || window.isAdmin?.());
+        startHoverPrefetch(window.supabase, link.getAttribute('data-route'), darf);
+      };
+      link.addEventListener('pointerenter', vorladen);
+      link.addEventListener('pointerdown', vorladen);
     });
 
     // Section-Toggle Events
@@ -449,17 +460,19 @@ export class NavigationSystem {
     this._bindSidebarAutoCollapse('sidebar-collapsed');
   }
 
-  // Schmaler Viewport (≤768px, passt zur Media Query in components.css):
-  // Die Sidebar klappt von alleine zur Icon-Leiste ein, damit sie nicht
-  // über dem Inhalt liegt. Die gespeicherte Nutzer-Präferenz wird dabei
-  // nicht angefasst; zurück auf breitem Viewport gilt wieder sie (Default:
-  // ausgeklappt). Manuelles Auf-/Zuklappen per Toggle bleibt jederzeit
-  // möglich.
+  // Schmaler Viewport (SIDEBAR_NARROW_QUERY): Die Sidebar klappt von alleine
+  // zur Icon-Leiste ein, damit sie nicht über dem Inhalt liegt. Die
+  // gespeicherte Nutzer-Präferenz wird dabei nicht angefasst; zurück auf
+  // breitem Viewport gilt wieder sie (Default: ausgeklappt). Manuelles
+  // Auf-/Zuklappen per Toggle bleibt jederzeit möglich. Die Klasse
+  // sidebar-narrow steuert Overlay-Hintergrund und Content-Margin in layout.css.
   _bindSidebarAutoCollapse(storageKey) {
     if (!this._sidebarCollapse || this._sidebarAutoCollapseMq) return;
     if (typeof window.matchMedia !== 'function') return; // z. B. jsdom
-    const mq = window.matchMedia('(max-width: 768px)');
+    const mq = window.matchMedia(SIDEBAR_NARROW_QUERY);
     const sync = () => {
+      const root = document.getElementById('app-root');
+      root?.classList.toggle('sidebar-narrow', mq.matches);
       if (mq.matches) {
         this._sidebarCollapse.setCollapsed(true, { persist: false });
       } else {

@@ -1,15 +1,15 @@
 // _shared/creator-upload.js
-// Gemeinsame Server-Logik fuer den tokenisierten Creator-Upload.
+// Gemeinsame Server-Logik fuer den tokenisierten Creator-Upload: Token, Ziel, Datei-Regeln.
+// Hochgeladen wird direkt nach SharePoint (ablage/creator.js).
 // NUR service role. Kein Client-Zugriff auf Token-/Job-Tabellen (RLS deny-all).
 
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
-const { getAccessToken, sanitizePath, buildUnifiedBasePath } = require('./dropbox');
+const { loadMembership, resolveTarget } = require('./creator-upload-ziel');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const STAGING_BUCKET = 'creator-upload-staging';
 const TOKEN_TTL_DAYS = 90;
 const MAX_VERSIONS = 3;
 
@@ -29,7 +29,8 @@ const EXT_BY_TYPE = {
   video: ['mp4', 'mov', 'avi', 'mkv', 'webm'],
   story: ['mp4', 'mov', 'avi', 'mkv', 'webm'],
   bilder: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tiff', 'tif', 'avif'],
-  rohmaterial: ['mp4', 'mov', 'avi', 'mkv', 'webm', 'zip'],
+  rohmaterial: ['mp4', 'mov', 'avi', 'mkv', 'webm', 'zip',
+    'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tiff', 'tif', 'avif'],
 };
 
 const MIME_BY_EXT = {
@@ -134,162 +135,6 @@ async function resolveToken(supabase, raw) {
   return data;
 }
 
-// ─── Live-Membership ────────────────────────────────────────
-// Laedt die aktuellen Kooperationen des Creators in der Kampagne inkl. Slots
-// und belegten Feedbackschleifen. Keine URLs, keine Pfade, keine Preise.
-
-async function loadMembership(supabase, tokenRow) {
-  const { data: koops, error: koopErr } = await supabase
-    .from('kooperationen')
-    .select('id, name, kampagne:kampagne_id(id, kampagnenname, eigener_name)')
-    .eq('kampagne_id', tokenRow.kampagne_id)
-    .eq('creator_id', tokenRow.creator_id)
-    .order('created_at', { ascending: true });
-  if (koopErr) throw koopErr;
-
-  const koopList = koops || [];
-  if (koopList.length === 0) {
-    return { kampagne: '', kooperationen: [] };
-  }
-
-  const koopIds = koopList.map(k => k.id);
-
-  const { data: videos, error: vidErr } = await supabase
-    .from('kooperation_videos')
-    .select('id, kooperation_id, position, thema, video_name')
-    .in('kooperation_id', koopIds)
-    .order('position', { ascending: true });
-  if (vidErr) throw vidErr;
-
-  const videoList = videos || [];
-  const videoIds = videoList.map(v => v.id);
-
-  const { data: storySlotRows, error: storyErr } = videoIds.length
-    ? await supabase.from('kooperation_story').select('id, video_id, slot_index, slot_name').in('video_id', videoIds).order('slot_index', { ascending: true })
-    : { data: [], error: null };
-  if (storyErr) throw storyErr;
-
-  const storySlots = storySlotRows || [];
-  const storyIds = storySlots.map(s => s.id);
-
-  const [videoAssetsRes, storyAssetsRes, bilderRes, rohmaterialRes] = await Promise.all([
-    videoIds.length
-      ? supabase.from('kooperation_video_asset').select('video_id, version_number').in('video_id', videoIds).eq('is_final', false)
-      : Promise.resolve({ data: [], error: null }),
-    storyIds.length
-      ? supabase.from('kooperation_story_asset').select('story_id, version_number').in('story_id', storyIds).eq('is_final', false)
-      : Promise.resolve({ data: [], error: null }),
-    supabase.from('kooperation_bilder_asset').select('kooperation_id').in('kooperation_id', koopIds),
-    supabase
-      .from('kooperation_rohmaterial_asset')
-      .select('kooperation_id, file_name, file_size, created_at')
-      .in('kooperation_id', koopIds)
-      .order('created_at', { ascending: true }),
-  ]);
-
-  const storyAssets = storyAssetsRes.data || [];
-  const videoAssets = videoAssetsRes.data || [];
-  const bilderRows = bilderRes.data || [];
-  const rohmaterialRows = rohmaterialRes.data || [];
-
-  const fsByVideo = {};
-  videoAssets.forEach(a => {
-    if (!fsByVideo[a.video_id]) fsByVideo[a.video_id] = [];
-    if (a.version_number != null) fsByVideo[a.video_id].push(a.version_number);
-  });
-  const fsByStory = {};
-  storyAssets.forEach(a => {
-    if (!fsByStory[a.story_id]) fsByStory[a.story_id] = [];
-    if (a.version_number != null) fsByStory[a.story_id].push(a.version_number);
-  });
-  const bilderCountByKoop = {};
-  bilderRows.forEach(b => {
-    bilderCountByKoop[b.kooperation_id] = (bilderCountByKoop[b.kooperation_id] || 0) + 1;
-  });
-
-  // Nur Name/Groesse: der Creator soll sehen was angekommen ist, aber keine
-  // Dropbox-Pfade oder -Links.
-  const rohmaterialByKoop = {};
-  rohmaterialRows.forEach(r => {
-    if (!rohmaterialByKoop[r.kooperation_id]) rohmaterialByKoop[r.kooperation_id] = [];
-    rohmaterialByKoop[r.kooperation_id].push({
-      name: r.file_name || '',
-      size: r.file_size || 0,
-    });
-  });
-
-  const storysByVideo = {};
-  storySlots.forEach(s => {
-    if (!storysByVideo[s.video_id]) storysByVideo[s.video_id] = [];
-    storysByVideo[s.video_id].push({
-      id: s.id,
-      slotIndex: s.slot_index,
-      slotName: s.slot_name || null,
-      fs: (fsByStory[s.id] || []).sort((a, b) => a - b),
-    });
-  });
-
-  const videosByKoop = {};
-  videoList.forEach(v => {
-    if (!videosByKoop[v.kooperation_id]) videosByKoop[v.kooperation_id] = [];
-    videosByKoop[v.kooperation_id].push({
-      id: v.id,
-      position: v.position,
-      thema: v.thema || null,
-      titel: v.video_name || null,
-      fs: (fsByVideo[v.id] || []).sort((a, b) => a - b),
-      storys: storysByVideo[v.id] || [],
-    });
-  });
-
-  const firstKamp = koopList[0].kampagne;
-  return {
-    kampagne: firstKamp ? (firstKamp.kampagnenname || firstKamp.eigener_name || '') : '',
-    kooperationen: koopList.map(k => ({
-      id: k.id,
-      name: k.name || '',
-      videos: videosByKoop[k.id] || [],
-      bilderCount: bilderCountByKoop[k.id] || 0,
-      rohmaterial: rohmaterialByKoop[k.id] || [],
-    })),
-  };
-}
-
-// ─── Ziel-Validierung gegen Membership ──────────────────────
-// Gibt Kontext fuer Pfad/DB-Zeile zurueck oder null (Ziel gehoert nicht zum Token).
-
-async function resolveTarget(supabase, tokenRow, targetType, targetId) {
-  const membership = await loadMembership(supabase, tokenRow);
-  const koopIds = membership.kooperationen.map(k => k.id);
-
-  if (targetType === 'video') {
-    for (const koop of membership.kooperationen) {
-      const video = koop.videos.find(v => v.id === targetId);
-      if (video) return { kind: 'video', koop, video, membership };
-    }
-    return null;
-  }
-
-  if (targetType === 'story') {
-    for (const koop of membership.kooperationen) {
-      for (const video of koop.videos) {
-        const story = video.storys.find(s => s.id === targetId);
-        if (story) return { kind: 'story', koop, video, story, membership };
-      }
-    }
-    return null;
-  }
-
-  // bilder + rohmaterial haengen auf Kooperations-Ebene, nicht an einem Video-Slot
-  if (targetType === 'bilder' || targetType === 'rohmaterial') {
-    const koop = membership.kooperationen.find(k => k.id === targetId);
-    if (koop && koopIds.includes(targetId)) return { kind: targetType, koop, membership };
-    return null;
-  }
-
-  return null;
-}
-
 // ─── Datei-Validierung ──────────────────────────────────────
 
 function validateFile(targetType, fileName, fileSize, contentType) {
@@ -355,7 +200,7 @@ async function checkAndBumpMailRateLimit(supabase, tokenId, row) {
   return true;
 }
 
-// ─── Dropbox: Pfade + save_url + Links ──────────────────────
+// ─── Dateiname + Namen fuer die Ablage ──────────────────────
 
 function sanitizeFilePart(str) {
   return String(str || '')
@@ -373,7 +218,7 @@ function buildVersionedFileName(creatorName, unternehmen, kampagne, videoPositio
   return parts.join('_') + '.' + ext;
 }
 
-// Laedt die Namen fuer den Dropbox-Pfad (Unternehmen/Marke/Kampagne/Kooperation/Creator)
+// Namen fuer Dateiname und Creator-Ordner (Unternehmen/Marke/Kampagne/Kooperation/Creator)
 async function loadPathContext(supabase, tokenRow, koopId) {
   const { data: koop, error } = await supabase
     .from('kooperationen')
@@ -393,152 +238,6 @@ async function loadPathContext(supabase, tokenRow, koopId) {
     kooperation: koop.name || '',
     creatorName: [koop.creator?.vorname, koop.creator?.nachname].filter(Boolean).join(' '),
   };
-}
-
-function buildTargetPath(ctx, job, targetCtx) {
-  const base = buildUnifiedBasePath({
-    unternehmen: ctx.unternehmen,
-    marke: ctx.marke,
-    kampagne: ctx.kampagne,
-    kooperation: ctx.kooperation,
-  });
-
-  // Rohmaterial: Kooperations-Ebene, Geschwister von Videos/Storys/Bilder.
-  // Originalname bleibt erhalten (der Cutter erkennt seine Clips daran),
-  // nur Dropbox-verbotene Zeichen werden ersetzt. Kollision -> _n beim Finalize.
-  if (job.target_type === 'rohmaterial') {
-    const safeName = sanitizePath(job.file_name) || `rohmaterial.${job._ext}`;
-    return {
-      filePath: `${base}/Rohmaterial/${safeName}`,
-      folderPath: `${base}/Rohmaterial`,
-    };
-  }
-
-  const pos = targetCtx.video?.position || 1;
-  const thema = sanitizePath(targetCtx.video?.thema || '');
-  const videoFolder = thema ? `Video_${pos}_${thema}` : `Video_${pos}`;
-
-  if (job.target_type === 'video') {
-    const name = buildVersionedFileName(ctx.creatorName, ctx.unternehmen, ctx.kampagne, pos, job.version_number, job._ext);
-    return {
-      filePath: `${base}/Videos/${videoFolder}/Feedbackschleife_${job.version_number}/${name}`,
-      folderPath: `${base}/Videos/${videoFolder}`,
-    };
-  }
-
-  if (job.target_type === 'story') {
-    const slotIdx = targetCtx.story?.slotIndex || 1;
-    const name = buildVersionedFileName(ctx.creatorName, ctx.unternehmen, ctx.kampagne, pos, job.version_number, job._ext);
-    return {
-      filePath: `${base}/Storys/${videoFolder}/Story_${slotIdx}/Feedbackschleife_${job.version_number}/${name}`,
-      folderPath: `${base}/Storys/${videoFolder}`,
-    };
-  }
-
-  // bilder: Kooperations-Ebene, Originalname (sanitized), Kollision -> _n
-  const safeName = sanitizePath(job.file_name) || `bild.${job._ext}`;
-  return {
-    filePath: `${base}/Bilder/${safeName}`,
-    folderPath: `${base}/Bilder`,
-  };
-}
-
-async function dropboxSaveUrl(token, path, url) {
-  const resp = await fetch('https://api.dropboxapi.com/2/files/save_url', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, url }),
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    throw new Error(`Dropbox save_url fehlgeschlagen (${resp.status}): ${data.error_summary || 'unbekannt'}`);
-  }
-  return data; // { ".tag": "async_job_id", async_job_id } | { ".tag": "complete", ... }
-}
-
-async function dropboxCheckSaveUrl(token, asyncJobId) {
-  const resp = await fetch('https://api.dropboxapi.com/2/files/save_url/check_job_status', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ async_job_id: asyncJobId }),
-  });
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    throw new Error(`Dropbox save_url-Status fehlgeschlagen (${resp.status}): ${data.error_summary || 'unbekannt'}`);
-  }
-  return data; // in_progress | complete | failed
-}
-
-async function dropboxEnsureSharedLink(token, path) {
-  const create = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path }),
-  });
-  if (create.ok) {
-    const data = await create.json();
-    return data.url ? data.url.replace(/([?&])dl=0\b/i, '$1raw=1') : null;
-  }
-  const err = await create.json().catch(() => ({}));
-  if (!/shared_link_already_exists/i.test(err.error_summary || '')) {
-    console.warn('[creator-upload] shared-link fehlgeschlagen:', err.error_summary || create.status);
-    return null;
-  }
-  const list = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, direct_only: true }),
-  });
-  if (!list.ok) return null;
-  const data = await list.json();
-  const url = data.links?.[0]?.url || null;
-  return url ? url.replace(/([?&])dl=0\b/i, '$1raw=1') : null;
-}
-
-async function dropboxDelete(token, path) {
-  try {
-    await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
-    });
-  } catch (err) {
-    console.warn('[creator-upload] Dropbox-Delete fehlgeschlagen:', err.message || err);
-  }
-}
-
-// ─── Staging ────────────────────────────────────────────────
-
-async function createStagingUploadUrl(supabase, stagingKey) {
-  const { data, error } = await supabase.storage
-    .from(STAGING_BUCKET)
-    .createSignedUploadUrl(stagingKey);
-  if (error) throw error;
-  return data; // { signedUrl, token, path }
-}
-
-async function createStagingDownloadUrl(supabase, stagingKey, expiresInSeconds = 7200) {
-  const { data, error } = await supabase.storage
-    .from(STAGING_BUCKET)
-    .createSignedUrl(stagingKey, expiresInSeconds);
-  if (error) throw error;
-  return data?.signedUrl || null;
-}
-
-async function stagingObjectExists(supabase, stagingKey) {
-  const dir = stagingKey.substring(0, stagingKey.lastIndexOf('/'));
-  const name = stagingKey.substring(stagingKey.lastIndexOf('/') + 1);
-  const { data, error } = await supabase.storage.from(STAGING_BUCKET).list(dir, { search: name });
-  if (error) return false;
-  return (data || []).some(o => o.name === name);
-}
-
-async function deleteStagingObject(supabase, stagingKey) {
-  try {
-    await supabase.storage.from(STAGING_BUCKET).remove([stagingKey]);
-  } catch (err) {
-    console.warn('[creator-upload] Staging-Delete fehlgeschlagen:', err.message || err);
-  }
 }
 
 // ─── HTTP ───────────────────────────────────────────────────
@@ -568,7 +267,6 @@ function parseBody(event) {
 }
 
 module.exports = {
-  STAGING_BUCKET,
   SUPABASE_URL,
   TOKEN_TTL_DAYS,
   MAX_VERSIONS,
@@ -591,17 +289,7 @@ module.exports = {
   checkJobRateLimit,
   checkAndBumpMailRateLimit,
   loadPathContext,
-  buildTargetPath,
   buildVersionedFileName,
-  getAccessToken,
-  dropboxSaveUrl,
-  dropboxCheckSaveUrl,
-  dropboxEnsureSharedLink,
-  dropboxDelete,
-  createStagingUploadUrl,
-  createStagingDownloadUrl,
-  stagingObjectExists,
-  deleteStagingObject,
   json,
   methodGuard,
   parseBody,

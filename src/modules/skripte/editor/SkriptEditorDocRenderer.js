@@ -2,21 +2,72 @@
 // Reine Renderer fuer die Editor-Mitte: Neu-Modus (Generator), Rueckfragen-
 // Phase und das eigentliche Skript-Dokument (Hook/Hauptteil/CTA + Visual).
 // Alles pure Funktionen: State rein, HTML-String raus.
+// Teile: skriptDocCreatorHtml (Creator, Chips), skriptDocTabelleHtml (Grid),
+// skriptDocKopfHtml (Aktionen, Vorgaben); hier re-exportiert.
 
-import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE } from '../SkripteService.js';
+import { skripteService } from '../SkripteService.js';
 import { escapeHtml } from '../SkripteUtils.js';
-import { renderInlineMd } from '../../../core/utils/inlineFormat.js';
+import { skriptNrLabel } from '../skriptNummern.js';
 import { istMasterSkript, renderMasterMarkdownHtml } from '../master/skriptMasterFormat.js';
 import {
   hatGridInhalt, hatZusatzInfos, gridFelderFuerSkript, zusatzInfosMarkdown
 } from '../master/skriptCreatorFacing.js';
-import { icon } from '../../../core/icons/IconSystem.js';
 import { renderToolbarListenKopf } from '../../../core/components/ToolbarMenu.js';
-import { avatarBubbles } from '../../../core/components/AvatarBubbles.js';
-import {
-  SEKTION_LABELS_KURZ, VISUELL_FIELD
-} from './skriptEditorKonstanten.js';
-import { visuellGuardGrund, visuellVorgaengerTitle } from './skriptEditorVisuellHelfer.js';
+import { SEKTION_LABELS_KURZ, hatHookVarianten } from './skriptEditorKonstanten.js';
+import { tauschBannerHtml } from './skriptTauschBanner.js';
+import { uploadHinweisHtml } from './skriptUploadHinweis.js';
+import { dokumentHtml } from './dokument/blockRenderer.js';
+import { gridTabelleHtml, hookVariantenTabelleHtml } from './skriptDocTabelleHtml.js';
+
+export {
+  konzeptCreatorFromSkript, creatorsFuerListe, sortListeSkripte, creatorsFuerKopf, creatorDisplayName,
+  listeCreatorHtml, listeVideoHtml, verknuepfungenHtml
+} from './skriptDocCreatorHtml.js';
+export { docHeadActionsHtml, personaWahlHtml, vorgabenPanelHtml } from './skriptDocKopfHtml.js';
+
+function titelZelleHtml(skript) {
+  return `<div class="skripte-editor-titel skripte-editor-sektion-text" data-sektion="titel" data-feld="titel" data-placeholder="Skript-Titel">${escapeHtml(skript?.titel || '')}</div>`;
+}
+
+/** Video-URL der Videoidee: live aus dem Konzept, sonst Snapshot aus dem Generator. */
+export function videoIdeeUrl(skript) {
+  const url = skript?.strategie_item?.video_link
+    || skript?.prompt_kontext?.referenz_video?.url
+    || skript?.prompt_kontext?.generator_payload?.referenz_video?.url
+    || '';
+  return /^https?:\/\//i.test(String(url).trim()) ? String(url).trim() : '';
+}
+
+function videoIdeeZeileHtml(skript) {
+  if (window.isKunde?.() || window.isGast?.()) return '';
+  const url = videoIdeeUrl(skript);
+  if (!url) return '';
+  const u = escapeHtml(url);
+  return `<div class="skripte-editor-videoidee"><span class="skripte-editor-videoidee-label">Video-Idee</span> <a href="${u}" target="_blank" rel="noopener noreferrer" class="skripte-editor-videoidee-link">${u}</a></div>`;
+}
+
+function pruefungHtml(skript) {
+  const p = skript?.pruefung;
+  if (!p) return '';
+  const teile = [];
+  if (p.laenge && p.laenge.status && p.laenge.status !== 'ok') {
+    const richtung = p.laenge.status === 'ueber' ? 'darüber' : 'darunter';
+    const soll = p.laenge.max == null ? `mindestens ${p.laenge.min}` : `${p.laenge.min}–${p.laenge.max}`;
+    teile.push(`${p.laenge.worte} Wörter, ${richtung} von ${soll}.`);
+  }
+  if (p.hook_zeit?.status === 'ueber') {
+    teile.push(`Hook ca. ${p.hook_zeit.sekunden} Sek., Vorgabe bis ${p.hook_zeit.max} Sek.`);
+  }
+  if (Array.isArray(p.claims) && p.claims.length) {
+    teile.push(`Verbotene Claims: ${p.claims.join(', ')}.`);
+  }
+  for (const d of (Array.isArray(p.doppelungen) ? p.doppelungen : []).slice(0, 2)) {
+    const [a, b] = (d.zellen || []).map((z) => SEKTION_LABELS_KURZ[z] || z);
+    teile.push(`Steht doppelt in ${a} und ${b}: „${d.satz}“`);
+  }
+  if (!teile.length) return '';
+  return `<p class="skripte-editor-pruefung">${escapeHtml(teile.join(' '))}</p>`;
+}
 
 /** Logo (Marke, sonst Unternehmen) + Skripttitel – gleiche Klassen wie Strategie/Sourcing. */
 function docHeadHtml(skript, extraHtml = '', fallbackName = 'Skript') {
@@ -25,53 +76,15 @@ function docHeadHtml(skript, extraHtml = '', fallbackName = 'Skript') {
   return `
     <div class="skripte-editor-doc-head">
       ${renderToolbarListenKopf({
-        name: skript?.titel || fallbackName,
+        name: [skriptNrLabel(skript), skript?.titel].filter(Boolean).join(' · ') || fallbackName,
         logoUrl: marke?.logo_url || unternehmen?.logo_url || '',
         logoAlt: marke?.markenname || unternehmen?.firmenname || 'Logo'
       })}
       ${extraHtml}
-    </div>`;
+    </div>${uploadHinweisHtml(skript)}${tauschBannerHtml(skript)}`;
 }
 
-function creatorDisplayName(creator) {
-  return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || 'Creator';
-}
-
-/** Secondary-Button im Doc-Kopf: zuweisen bzw. Bubble + Creator-Name. */
-export function verknuepfungenHtml({ verknuepfungen = [], kannZuweisen = false } = {}) {
-  if (!kannZuweisen) return '';
-  if (!verknuepfungen.length) {
-    return `
-      <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-zuweisen-btn" id="ed-skript-zuweisen"
-        title="Creator zuweisen">
-        <span class="mdc-btn__icon">${icon('user-add')}</span>
-        <span class="mdc-btn__label">Creator zuweisen</span>
-      </button>`;
-  }
-
-  const proCreator = new Map();
-  for (const row of verknuepfungen) {
-    const creator = row.kooperation?.creator;
-    if (!creator) continue;
-    const key = creator.id || creatorDisplayName(creator);
-    if (!proCreator.has(key)) proCreator.set(key, creator);
-  }
-  const creators = [...proCreator.values()];
-  const namen = creators.map(creatorDisplayName).join(', ');
-  const bubbles = avatarBubbles.renderBubbles(creators.map((c) => ({
-    name: creatorDisplayName(c),
-    type: 'person',
-    profile_image_url: c.profilbild_thumb_url || c.profilbild_url || null
-  })), { maxVisible: creators.length });
-  return `
-    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-zuweisen-btn" id="ed-skript-zuweisen"
-      title="${escapeHtml(namen)}">
-      <span class="skripte-editor-zuweisen-bubbles">${bubbles}</span>
-      <span class="mdc-btn__label skripte-editor-zuweisen-name">${escapeHtml(namen)}</span>
-    </button>`;
-}
-
-/** Rueckfragen-Phase: Vorgaben + Aufbau-Toggles + Hinweis statt (noch leerem) Skript-Inhalt. */
+/** Rueckfragen-Phase: Vorgaben + Aufbau-Toggles statt (noch leerem) Skript-Inhalt. */
 export function fragenModusHtml({ skript, genStatus, docHeadActionsHtml, vorgabenPanelHtml }) {
   const payload = skript?.prompt_kontext?.generator_payload || {};
   const laeuft = Boolean(genStatus?.laeuft);
@@ -92,17 +105,12 @@ export function fragenModusHtml({ skript, genStatus, docHeadActionsHtml, vorgabe
     ${vorgabenPanelHtml}
     <div class="skripte-editor-fragen-info">
       <p>Liky prüft die Vorgaben und stellt dir rechts Rückfragen, bevor das Skript geschrieben wird.</p>
-      <p class="skripte-hint">Antworte unten im Chat. Du kannst die Fragen auch überspringen und sofort generieren lassen.</p>
+      <p class="skripte-hint">Antworte rechts im Chat. Sobald die Rückfragen geklärt sind, startest du die Generierung dort.</p>
     </div>
     <div class="skripte-editor-aufbau">
       ${aufbauToggle('ed-aufbau-rezept', 'mit_rezept', 'Rezept unter dem CTA')}
       ${aufbauToggle('ed-aufbau-text-hook', 'mit_text_hook', 'Text-Hook')}
       ${aufbauToggle('ed-aufbau-caption', 'mit_caption', 'Caption')}
-    </div>
-    <div class="skripte-actions-row">
-      <button id="ed-fragen-gen" class="mdc-btn" ${genStatus?.laeuft ? 'disabled' : ''}>
-        ${genStatus?.laeuft ? 'Läuft…' : 'Skript jetzt generieren'}
-      </button>
     </div>
   `;
 }
@@ -118,86 +126,6 @@ export function masterDocHtml({ skript, docHeadActionsHtml, vorgabenPanelHtml })
   `;
 }
 
-function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
-  // Aufbau-Optionen aus der Generierung: Flag im Payload ODER bereits
-  // vorhandener Inhalt zeigt die Zeile/den Block (leer = manuell fuellbar).
-  const genPayload = skript?.prompt_kontext?.generator_payload || {};
-  const zeigeTextHook = Boolean(genPayload.mit_text_hook) || Boolean((skript?.text_hook || '').trim());
-  const zeigeRezept = Boolean(genPayload.mit_rezept) || Boolean((skript?.rezept || '').trim());
-  const zeigeCaption = Boolean(genPayload.mit_caption) || Boolean((skript?.caption || '').trim());
-  return `
-    <div class="skripte-editor-doc-box">
-      <table class="skripte-editor-tabelle">
-        <colgroup>
-          <col class="skripte-editor-tabelle-col--label">
-          <col>
-          <col>
-        </colgroup>
-        <thead>
-          <tr>
-            <th scope="col"></th>
-            <th scope="col">Was gesagt wird</th>
-            <th scope="col">Was zu sehen ist</th>
-          </tr>
-        </thead>
-        <tbody>
-        ${['hook', 'hauptteil', 'cta'].map((sektion) => {
-          const visuellFeld = VISUELL_FIELD[sektion];
-          const visuellText = grid[visuellFeld] || '';
-          const gesprochen = grid[sektion] || '';
-          const visuellGrund = visuellGuardGrund(
-            { ...skript, ...grid },
-            sektion,
-            { readonly: isReadonly, messages }
-          );
-          const visuellTitle = visuellGrund === 'vorgaenger'
-            ? visuellVorgaengerTitle(sektion)
-            : 'Was zu sehen ist per KI generieren';
-          const textHookBlock = sektion === 'hook' && zeigeTextHook ? `
-              <div class="skripte-editor-text-hook">
-                <span class="skripte-editor-text-hook-label">Text-Hook</span>
-                <div class="skripte-editor-sektion-visual skripte-editor-text-hook-text" data-sektion="text_hook" data-feld="text_hook" data-placeholder="On-Screen-Text im Hook…">${renderInlineMd(skript.text_hook || '').html}</div>
-              </div>` : '';
-          return `
-          <tr data-sektion="${sektion}">
-            <th scope="row">${SEKTION_LABELS_KURZ[sektion]}</th>
-            <td>
-              <div class="skripte-editor-sektion-text" data-sektion="${sektion}" data-feld="${sektion}">${renderInlineMd(gesprochen).html}</div>
-            </td>
-            <td class="skripte-editor-tabelle-zelle--visual">
-              ${textHookBlock}
-              ${isReadonly ? '' : `
-              <button class="skripte-editor-visual-btn" data-sektion="${sektion}"
-                title="${escapeHtml(visuellTitle)}"
-                ${visuellGrund ? 'disabled' : ''}>
-                ${icon('ai-visual')}
-              </button>
-              `}
-              <div class="skripte-editor-sektion-visual" data-sektion="${sektion}" data-feld="${visuellFeld}">${renderInlineMd(visuellText).html}</div>
-            </td>
-          </tr>
-        `;
-        }).join('')}
-        ${zeigeRezept ? `
-          <tr data-sektion="rezept" class="skripte-editor-tabelle-zusatz">
-            <th scope="row">Rezept</th>
-            <td colspan="2">
-              <div class="skripte-editor-sektion-text" data-sektion="rezept" data-feld="rezept" data-placeholder="Rezept aus der Caption…">${renderInlineMd(skript.rezept || '').html}</div>
-            </td>
-          </tr>` : ''}
-        ${zeigeCaption ? `
-          <tr data-sektion="caption" class="skripte-editor-tabelle-zusatz">
-            <th scope="row">Caption</th>
-            <td colspan="2">
-              <div class="skripte-editor-sektion-text" data-sektion="caption" data-feld="caption" data-placeholder="Caption für den Post…">${renderInlineMd(skript.caption || '').html}</div>
-            </td>
-          </tr>` : ''}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
 function docTabsHtml(activeTab) {
   return `
     <div class="tab-navigation skripte-editor-doc-tabs" role="tablist">
@@ -209,12 +137,18 @@ function docTabsHtml(activeTab) {
   `;
 }
 
-/** Skript-Dokument: Kopf + Vorgaben + 2-Spalten-Tabelle (gesagt/visual). */
+/**
+ * Skript-Dokument (ADR 0062): Kopf + Vorgaben, darunter die Seite mit Titel
+ * und den Bloecken; die Skript-Tabelle (gesagt/visual) ist einer davon.
+ */
 export function skriptDocHtml({
-  skript, messages, isReadonly, docHeadActionsHtml, vorgabenPanelHtml, docTab = 'skript'
+  skript, messages, isReadonly, docHeadActionsHtml, vorgabenPanelHtml, docTab = 'skript',
+  zeigeHookVarianten = false, bloeckeEditierbar = false, mitIntern = false,
+  bildUrl = (pfad) => skripteService.skriptBildUrl(pfad), toolbarHtml = ''
 }) {
   const extraMd = skript.inhalt_md ? zusatzInfosMarkdown(skript.inhalt_md) : '';
-  const showExtra = hatZusatzInfos(skript.inhalt_md);
+  const pruefung = pruefungHtml(skript);
+  const showExtra = hatZusatzInfos(skript.inhalt_md) || Boolean(pruefung);
   const showGrid = hatGridInhalt(skript);
 
   if (istMasterSkript(skript) && !showGrid) {
@@ -227,102 +161,32 @@ export function skriptDocHtml({
     cta_visuell: skript.cta_visuell
   };
   const activeTab = showExtra && docTab === 'zusatz' ? 'zusatz' : 'skript';
+  const skriptTabelleHtml = gridTabelleHtml({ skript, grid, messages, isReadonly })
+    + (zeigeHookVarianten && hatHookVarianten(skript) ? hookVariantenTabelleHtml({ skript }) : '');
 
   return `
     ${docHeadHtml(skript, docHeadActionsHtml, 'Skript')}
     ${vorgabenPanelHtml}
     ${showExtra ? docTabsHtml(activeTab) : ''}
-    <div class="skripte-editor-doc-panel" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>
-      ${gridTabelleHtml({ skript, grid, messages, isReadonly })}
+    <div class="skripte-editor-doc-panel skripte-editor-doc-panel--seite" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>
+      ${toolbarHtml}
+      <div class="skripte-editor-seite-scroll">
+        <article class="skripte-editor-seite">
+          ${titelZelleHtml(skript)}
+          ${videoIdeeZeileHtml(skript)}
+          ${dokumentHtml(skript.dokument_bloecke, {
+            editierbar: bloeckeEditierbar, mitIntern, bildUrl, skriptTabelleHtml
+          })}
+        </article>
+      </div>
     </div>
     ${showExtra ? `
     <div class="skripte-editor-doc-panel skripte-editor-doc-panel--zusatz" data-editor-tab-panel="zusatz"${activeTab === 'skript' ? ' hidden' : ''}>
+      ${pruefung}
       <div class="skripte-editor-doc-box skripte-editor-doc-box--md">
         ${renderMasterMarkdownHtml(extraMd, escapeHtml, { feld: null })}
       </div>
     </div>
     ` : ''}
-  `;
-}
-
-/** Doc-Kopf: Version, optional Teilen, dann Creator-Zuweisen. */
-export function docHeadActionsHtml({ kannTeilen = false, verknuepfungenHtml = '' } = {}) {
-  return `
-    <div class="skripte-editor-version" id="ed-version-wrap"></div>
-    ${kannTeilen ? `
-    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-share"
-      title="Skript per Link teilen">
-      <span class="mdc-btn__icon">${icon('share-alt')}</span>
-      <span class="mdc-btn__label">Teilen</span>
-    </button>` : ''}
-    ${verknuepfungenHtml}
-  `;
-}
-
-/** Read-only Info: mit welchen Vorgaben das Skript generiert wurde. */
-export function vorgabenPanelHtml(skript) {
-  const s = skript;
-  if (!s) return '';
-  const briefingName = s.briefing?.aktivierung_name
-    || s.prompt_kontext?.briefing_name
-    || s.prompt_kontext?.generator_payload?.briefing_name
-    || s.prompt_kontext?.briefing_pdf?.name
-    || s.prompt_kontext?.generator_payload?.briefing_pdf?.name
-    || null;
-  // Videovorlage: nach der Generierung top-level Snapshot, davor im Payload
-  const referenz = s.prompt_kontext?.referenz_video
-    || s.prompt_kontext?.generator_payload?.referenz_video || null;
-  const referenzInfo = referenz ? [
-    referenz.platform === 'tiktok' ? 'TikTok' : referenz.platform === 'instagram' ? 'Instagram' : null,
-    referenz.author_name ? `@${referenz.author_name}` : null,
-    referenz.duration_seconds ? `${Math.round(referenz.duration_seconds)}s` : null,
-    referenz.url
-  ].filter(Boolean).join(' · ') : null;
-  const transkriptAuszug = referenz?.transkript_verwendet
-    ? (referenz.transkript_verwendet.length > 220
-      ? `${referenz.transkript_verwendet.slice(0, 220)}…`
-      : referenz.transkript_verwendet)
-    : null;
-  const genPayload = s.prompt_kontext?.generator_payload || {};
-  const zeilen = [
-    ['Unternehmen', s.unternehmen?.firmenname],
-    ['Briefing', briefingName],
-    ['Videovorlage', referenzInfo],
-    ['Vorlage-Transkript', transkriptAuszug],
-    ['Marke', s.marke?.markenname],
-    ['Kampagne', s.kampagne?.eigener_name || s.kampagne?.kampagnenname],
-    ['Produkt', s.produkt?.name],
-    ['Persona', s.personas ? skripteService.personaLabel(s.personas) : null],
-    ['Branche', s.branchen?.name],
-    ['Bereich', s.bereich ? (SKRIPT_BEREICHE[s.bereich] || s.bereich) : null],
-    ['Regie-Modus', s.prompt_kontext?.modus || s.prompt_kontext?.generator_payload?.modus || null],
-    ['Video-Länge', s.video_laenge ? (VIDEO_LAENGEN[s.video_laenge] || s.video_laenge) : null],
-    ['Funnel-Stufe', s.funnel_stufe ? (FUNNEL_STUFEN[s.funnel_stufe] || s.funnel_stufe) : null],
-    ['Tonalität', s.tonalitaet],
-    ['Skript-DNA', s.mit_dna === false ? 'Ohne DNA (Blindvergleich)' : 'Mit DNA'],
-    ['Video-Idee', s.video_idee],
-    ['Location', s.location],
-    ['Regieanweisung', s.regieanweisung],
-    ['Rezept unter dem CTA', genPayload.mit_rezept ? 'Ja' : null],
-    ['Text-Hook', genPayload.mit_text_hook ? 'Ja' : null],
-    ['Caption', genPayload.mit_caption ? 'Ja' : null]
-  ].filter(([, wert]) => wert);
-
-  if (!zeilen.length) return '';
-
-  return `
-    <div class="skripte-editor-vorgaben-wrap">
-      <details class="skripte-editor-vorgaben">
-        <summary>Vorgaben aus dem Generator</summary>
-        <dl class="skripte-editor-vorgaben-grid">
-          ${zeilen.map(([label, wert]) => `
-            <div class="skripte-editor-vorgaben-zeile">
-              <dt>${escapeHtml(label)}</dt>
-              <dd>${escapeHtml(String(wert))}</dd>
-            </div>
-          `).join('')}
-        </dl>
-      </details>
-    </div>
   `;
 }

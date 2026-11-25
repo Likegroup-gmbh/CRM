@@ -1,10 +1,12 @@
 // casting-match.js
-// Deterministischer Kern der Casting-Creator-Vorschlaege (ADR 0013/0014):
+// Deterministischer Kern der Casting-Creator-Vorschlaege (ADR 0013/0014/0020):
 // Bedarf bauen, Gates, drei Scores (Fit/Track/Fresh), finaler Matching-Score,
-// Top-N-Ranking, Validate. Reine Funktionen (testbar) plus die drei DB-Lader.
+// Quote 6 pro Casting (eine Liste, ein Score je Creator), Validate.
 // Das LLM schreibt nur fit_grund/risiken auf der Shortlist - es rankt nie.
 
 const config = require('./casting-match-config');
+const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
+const { wichtigeVorgabenAusBriefing } = require('./skript-context/briefing-felder');
 
 const {
   MATCHING_WEIGHTS,
@@ -39,14 +41,32 @@ function tokens(text) {
   return norm(text).split(/[^a-zäöüß0-9]+/i).filter(t => t.length > 2);
 }
 
-/** "25-34" / "25 bis 34" / 25 -> [von, bis] oder null */
+/** "25-34" / "25–34" / "25 bis 34" / "55+" (= 55-99) / 25 -> [von, bis] oder null */
 function parseAlterSpanne(value) {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number' && Number.isFinite(value)) return [value, value];
-  const m = String(value).match(/(\d{1,3})\s*(?:-|bis)\s*(\d{1,3})/);
+  const m = String(value).match(/(\d{1,3})\s*(?:[-–—]|bis)\s*(\d{1,3})/);
   if (m) return [Number(m[1]), Number(m[2])];
+  const offen = String(value).match(/(\d{1,3})\s*\+/);
+  if (offen) return [Number(offen[1]), 99];
   const einzeln = String(value).match(/(\d{1,3})/);
   return einzeln ? [Number(einzeln[1]), Number(einzeln[1])] : null;
+}
+
+/**
+ * Alter aus creator_merkmale: `alter` (Dropdown-Spanne oder alter Freitext).
+ * Fehlt es, spannen alter_von/alter_bis (Zwischenstand mit zwei Dropdowns,
+ * Reihenfolge egal) von der kleinsten Untergrenze bis zur groessten Obergrenze.
+ */
+function alterAusMerkmalen(merkmale = {}) {
+  const direkt = parseAlterSpanne(merkmale.alter);
+  if (direkt) return direkt;
+  const spannen = [merkmale.alter_von, merkmale.alter_bis].map(parseAlterSpanne).filter(Boolean);
+  if (!spannen.length) return null;
+  return [
+    Math.min(...spannen.map(s => s[0])),
+    Math.max(...spannen.map(s => s[1]))
+  ];
 }
 
 function spannenSchneiden(a, b) {
@@ -62,13 +82,16 @@ function bedarfFingerprint(bedarf) {
   const alter = bedarf.alter
     ? `${Math.floor(bedarf.alter[0] / 10) * 10}-${Math.floor(bedarf.alter[1] / 10) * 10}`
     : 'offen';
+  const personaKey = [...(bedarf.personas || []).map(p => p.id).filter(Boolean)].sort().join('+') || 'offen';
   return [
     bedarf.bereich || 'offen',
     [...(bedarf.nischen || [])].sort().join('+') || 'offen',
     [...(bedarf.groessen || [])].sort().join('+') || 'offen',
     [...(bedarf.geschlechter || [])].sort().join('+') || 'offen',
     alter,
-    [...(bedarf.maerkte || [])].sort().join('+') || 'offen'
+    [...(bedarf.maerkte || [])].sort().join('+') || 'offen',
+    personaKey,
+    norm(bedarf.vorgaben).slice(0, 80) || 'offen'
   ].join('|');
 }
 
@@ -86,7 +109,7 @@ function buildBedarf(briefing = {}, { produktIds = [], personas = [] } = {}) {
   const voraussetzungen = normListe(g('voraussetzungen'));
   const merkmale = g('creator_merkmale') && typeof g('creator_merkmale') === 'object' ? g('creator_merkmale') : {};
 
-  const alter = parseAlterSpanne(merkmale.alter);
+  const alter = alterAusMerkmalen(merkmale);
   const geschlechter = normListe(merkmale.geschlecht);
   const standort = String(merkmale.standort || '').trim() || null;
   const expertise = String(merkmale.expertise || '').trim() || null;
@@ -117,21 +140,75 @@ function buildBedarf(briefing = {}, { produktIds = [], personas = [] } = {}) {
     alwaysOnBestehend: briefing.always_on_bestehend || null,
     kampagnentypen: normListe(briefing.kampagnentypen),
     produktIds: [...new Set((produktIds || []).filter(Boolean))],
-    personas: (personas || []).map(p => ({
-      id: p.id || null,
-      name: p.name || null,
-      oberbegriff: p.oberbegriff || null,
-      alter: (p.alter_von != null || p.alter_bis != null)
-        ? [p.alter_von ?? 0, p.alter_bis ?? 99]
-        : parseAlterSpanne(null),
-      geschlecht: norm(p.geschlecht),
-      lebenssituation: norm(p.lebenssituation),
-      pain_points: p.pain_points || null,
-      beduerfnisse: p.beduerfnisse || null
-    }))
+    personas: (personas || []).map(mapPersona),
+    vorgaben: wichtigeVorgabenAusBriefing(briefing) || null,
+    hauttyp: String(briefing.hauttyp || '').trim() || null,
+    haartyp: String(briefing.haartyp || '').trim() || null
   };
   bedarf.fingerprint = bedarfFingerprint(bedarf);
   return bedarf;
+}
+
+function mapPersona(p = {}) {
+  const brancheName = p.branche_name || p.branche?.name || p.branchen?.name || null;
+  return {
+    id: p.id || null,
+    name: p.name || null,
+    oberbegriff: p.oberbegriff || null,
+    alter: Array.isArray(p.alter)
+      ? p.alter
+      : ((p.alter_von != null || p.alter_bis != null)
+        ? [p.alter_von ?? 0, p.alter_bis ?? 99]
+        : null),
+    geschlecht: norm(p.geschlecht),
+    wohnort_region: String(p.wohnort_region || '').trim() || null,
+    beruf: String(p.beruf || '').trim() || null,
+    budgetrahmen: p.budgetrahmen || null,
+    bildungsstand: String(p.bildungsstand || '').trim() || null,
+    lebenssituation: norm(p.lebenssituation),
+    branche_id: p.branche_id || null,
+    branche_name: brancheName,
+    pain_points: p.pain_points || null,
+    interessen: p.interessen || null,
+    beduerfnisse: p.beduerfnisse || null,
+    kaufmotive: p.kaufmotive || null,
+    einwaende: p.einwaende || null,
+    produkt_loesung: p.produkt_loesung || null,
+    produktvorteile: p.produktvorteile || null,
+    tonalitaet: p.tonalitaet || null,
+    plattformen: p.plattformen || null,
+    content_praeferenzen: p.content_praeferenzen || null,
+    beschreibung: p.beschreibung || null,
+    audience_situations: Array.isArray(p.audience_situations) ? p.audience_situations : [],
+    produktFits: Array.isArray(p.produktFits) ? p.produktFits : []
+  };
+}
+
+function personaFreitext(p) {
+  if (!p) return '';
+  const as = fmtAudienceSituations(p.audience_situations, 400);
+  const fits = (p.produktFits || [])
+    .map(f => [f.fit_grund, ...(f.use_case_namen || [])].filter(Boolean).join(' '))
+    .filter(Boolean)
+    .join(' ');
+  return [
+    p.oberbegriff, p.beruf, p.bildungsstand, p.budgetrahmen,
+    p.pain_points, p.interessen, p.beduerfnisse,
+    p.kaufmotive, p.einwaende, p.produkt_loesung, p.produktvorteile,
+    p.tonalitaet, p.plattformen, p.content_praeferenzen, p.beschreibung,
+    as, fits
+  ].filter(Boolean).join(' ');
+}
+
+/** Briefing-Bedarf plus genau eine Persona-Karte (Score + Explain). */
+function bedarfFuerPersona(bedarf, persona) {
+  const p = mapPersona(persona);
+  return {
+    ...bedarf,
+    persona: p,
+    personas: [p],
+    personaText: personaFreitext(p)
+  };
 }
 
 /** Kanaele aus im_channels/os_channels (instagram/tiktok) bzw. pa_channels (meta/tiktok). */
@@ -159,11 +236,8 @@ function kanaeleAusBriefing(briefing, prefix) {
   return [...out];
 }
 
-/** Offene Creator-Sollzahl -> Vorschlags-Anzahl (2-3x, gedeckelt). */
-function zielAnzahl(offen) {
-  const n = Number(offen);
-  if (!Number.isFinite(n) || n <= 0) return 12;
-  return Math.min(ANZAHL.max, Math.max(ANZAHL.min, Math.round(n * ANZAHL.faktor)));
+function quoteProCasting() {
+  return ANZAHL.proCasting;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,9 +282,135 @@ function normiereKandidat(c = {}) {
     budget: c.budget_letzte_buchung ?? null,
     bio: String(c.ig_biography || '').trim(),
     notiz: String(c.notiz || '').trim(),
+    captions: captionsAusPosts(c.ig_recent_posts),
     mentions: mentions.map(m => (typeof m === 'string' ? m : (m?.username || m?.name || ''))).filter(Boolean),
-    er: c.ig_engagement_rate_clean ?? c.ig_engagement_rate ?? null
+    er: c.ig_engagement_rate_clean ?? c.ig_engagement_rate ?? null,
+    followerFenster: followerFensterAus(c)
   };
+}
+
+function captionsAusPosts(posts) {
+  if (!Array.isArray(posts)) return [];
+  return posts.map(p => (typeof p === 'string' ? p : p?.caption)).map(s => String(s || '').trim()).filter(Boolean);
+}
+
+/** Zahl, "10000-25000" oder "1000000+" -> [von, bis]. Leer, wenn nichts Brauchbares da ist. */
+function followerFensterVonWert(raw) {
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return [raw, raw];
+  const s = String(raw).trim().replace(/\./g, '');
+  if (!s) return null;
+  if (s.endsWith('+')) {
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? [n, Infinity] : null;
+  }
+  const parts = s.split('-').map(p => parseInt(p, 10)).filter(n => Number.isFinite(n));
+  if (parts.length >= 2) return [parts[0], parts[1]];
+  if (parts.length === 1 && parts[0] > 0) return [parts[0], parts[0]];
+  return null;
+}
+
+function followerFensterAus(c) {
+  const fenster = [followerFensterVonWert(c.instagram_follower), followerFensterVonWert(c.tiktok_follower)].filter(Boolean);
+  if (!fenster.length) return null;
+  return [Math.min(...fenster.map(f => f[0])), Math.max(...fenster.map(f => f[1]))];
+}
+
+function gefragteGeschlechter(liste) {
+  return normListe(liste).filter(g => g && g !== 'keine vorgabe' && g !== 'gemischt');
+}
+
+function geschlechtTrifft(gefragt, kandidatGeschlecht) {
+  const liste = gefragteGeschlechter(gefragt);
+  if (!liste.length) return true;
+  const g = norm(kandidatGeschlecht);
+  if (!g) return false;
+  if (GESCHLECHT_SONDER.includes(g)) return true;
+  return liste.some(q => g.includes(q) || q.includes(g));
+}
+
+function standortTrifft(k, standort) {
+  const s = norm(standort);
+  if (!s) return true;
+  const trifft = (wert) => !!wert && (wert.includes(s) || s.includes(wert));
+  return trifft(k.stadt) || trifft(k.land) || (k.plz && s.includes(k.plz));
+}
+
+function plattformTrifft(k, kanaele) {
+  if (!kanaele?.length) return true;
+  const bekannt = kanaele.filter(ch => ch === 'instagram' || ch === 'tiktok');
+  if (!bekannt.length) return true;
+  return bekannt.some(ch => (ch === 'instagram' && k.instagram) || (ch === 'tiktok' && k.tiktok));
+}
+
+function fensterTrifftGroesse(fenster, groessen) {
+  if (!groessen?.length) return true;
+  if (!fenster) return false;
+  return groessen.some(g => {
+    const band = GROESSEN_BAENDER[g];
+    if (!band) return false;
+    return fenster[0] < band[1] && fenster[1] >= band[0];
+  });
+}
+
+function groessenBand(fenster) {
+  if (!fenster) return null;
+  const punkt = fenster[0];
+  for (const [name, band] of Object.entries(GROESSEN_BAENDER)) {
+    if (punkt >= band[0] && punkt < band[1]) return name;
+  }
+  return null;
+}
+
+function profiltext(k) {
+  return norm([k.bio, k.notiz, ...(k.captions || []), ...(k.mentions || [])].join(' \n '));
+}
+
+function suchbegriffTrifft(k, begriffe) {
+  const text = profiltext(k);
+  if (!text) return false;
+  return (begriffe || []).some(b => text.includes(norm(b)));
+}
+
+function leerLesung() {
+  return { suchbegriffe: [], satz: [], ausschluss: {} };
+}
+
+/** Dont-Lesung darf Checkboxen nicht umschreiben. Satzverbote sind kein Gate. */
+function sanitizeLesung(raw, bedarf = {}) {
+  const out = leerLesung();
+  const begriffe = Array.isArray(raw?.suchbegriffe) ? raw.suchbegriffe : [];
+  out.suchbegriffe = [...new Set(begriffe.map(b => norm(b)).filter(b => b.length >= 3))].slice(0, 12);
+  const satz = Array.isArray(raw?.satz) ? raw.satz : [];
+  out.satz = satz.map(s => String(s || '').trim()).filter(Boolean).slice(0, 12);
+  const a = raw?.ausschluss && typeof raw.ausschluss === 'object' ? raw.ausschluss : {};
+  if (!gefragteGeschlechter(bedarf.geschlechter).length) {
+    const g = normListe(a.geschlecht).filter(x => x && x !== 'keine vorgabe' && x !== 'gemischt');
+    if (g.length) out.ausschluss.geschlecht = g;
+  }
+  if (!bedarf.groessen?.length) {
+    const g = normListe(a.groesse).filter(x => GROESSEN_BAENDER[x]);
+    if (g.length) out.ausschluss.groesse = g;
+  }
+  if (!bedarf.nischen?.length) {
+    const n = normListe(a.nische);
+    if (n.length) out.ausschluss.nische = n;
+  }
+  const vor = new Set(normListe(bedarf.voraussetzungen));
+  for (const [key, feld] of [['haustier', 'haustier'], ['kinder', 'kind_familie'], ['instrument', 'instrument']]) {
+    if (vor.has(feld)) continue;
+    const wert = norm(a[key]);
+    if (wert === 'ja' || wert === 'nein') out.ausschluss[key] = wert;
+  }
+  return out;
+}
+
+function personaProfilPasst(k, persona) {
+  if (!persona) return true;
+  const alter = Array.isArray(persona.alter) && persona.alter.length === 2 ? persona.alter : null;
+  if (alter && (!k.alter || !spannenSchneiden(alter, k.alter))) return false;
+  if (!geschlechtTrifft([persona.geschlecht], k.geschlecht)) return false;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -219,18 +419,16 @@ function normiereKandidat(c = {}) {
 
 /**
  * buchungsbild: {
- *   aufDieserListe: Set(creator_id), parallelLive: Set(creator_id),
- *   abgelehntMarke: Set(creator_id),
- *   managementIds: Set(creator_id mit Management-Link)
+ *   aufDieserListe: Set(creator_id), parallelLive: Set(creator_id)
  * }
- * Harte Gates nur, wenn Bedarf UND Kandidat das Feld gesetzt haben.
- * Unbekannt = 0 auf der Dimension, nicht raus.
+ * Abgefragtes Profilfeld: leer oder daneben ist raus.
+ * Profiltext (Lesung.suchbegriffe): nur ein Beleg wirft raus.
+ * Satz-Donts sind kein Gate. Marken-Ablehnung und fehlende Mail gaten nicht.
  */
-function applyGates(kandidaten, bedarf, buchungsbild = {}) {
+function applyGates(kandidaten, bedarf, buchungsbild = {}, lesung = null) {
   const aufListe = buchungsbild.aufDieserListe || new Set();
   const parallel = buchungsbild.parallelLive || new Set();
-  const abgelehnt = buchungsbild.abgelehntMarke || new Set();
-  const mitManagement = buchungsbild.managementIds || new Set();
+  const lese = lesung || leerLesung();
 
   const pass = [];
   const raus = [];
@@ -240,22 +438,21 @@ function applyGates(kandidaten, bedarf, buchungsbild = {}) {
 
     if (aufListe.has(k.id)) { drop('bereits_auf_dieser_liste'); continue; }
     if (parallel.has(k.id)) { drop('auf_paralleler_live_liste'); continue; }
-    if (abgelehnt.has(k.id)) { drop('von_marke_abgelehnt'); continue; }
 
-    // Sprache: Bedarf gesetzt, Kandidat hat Sprachen, keine schneidet
-    if (bedarf.sprachen?.length && k.sprachen.length) {
+    if (bedarf.sprachen?.length) {
+      if (!k.sprachen.length) { drop('sprache_fehlt'); continue; }
       const hit = bedarf.sprachen.some(s => k.sprachen.some(ks => ks.includes(s) || s.includes(ks)));
       if (!hit) { drop('sprache_fehlt'); continue; }
     }
 
-    // Land: Bedarf gesetzt, Kandidat-Land gesetzt, kein Match
-    if (bedarf.maerkte?.length && k.land) {
+    if (bedarf.maerkte?.length) {
+      if (!k.land) { drop('land_fehlt'); continue; }
       const hit = bedarf.maerkte.some(m => k.land.includes(m) || m.includes(k.land));
       if (!hit) { drop('land_fehlt'); continue; }
     }
 
-    // Typ: Bedarf-Typ gegen Creator-Typen (contains, beide Richtungen)
-    if (bedarf.typ && k.typen.length) {
+    if (bedarf.typ) {
+      if (!k.typen.length) { drop('typ_passt_nicht'); continue; }
       const ziel = bedarf.typ === 'UGC Paid' || bedarf.typ === 'UGC Organic' ? 'ugc' : norm(bedarf.typ);
       const hit = k.typen.some(t => {
         const nt = norm(t);
@@ -264,8 +461,6 @@ function applyGates(kandidaten, bedarf, buchungsbild = {}) {
       if (!hit) { drop('typ_passt_nicht'); continue; }
     }
 
-    // Strukturierte Voraussetzungen: nur hart, wenn Bedarf gesetzt UND
-    // Kandidat das Feld kennt UND es false ist
     let voraussetzungOk = true;
     for (const v of (bedarf.voraussetzungen || [])) {
       const feld = VORAUSSETZUNG_FELDER[v];
@@ -273,22 +468,76 @@ function applyGates(kandidaten, bedarf, buchungsbild = {}) {
       const kandidatWert = feld === 'hat_haustier' ? k.hatHaustier
         : feld === 'hat_kinder' ? k.hatKinder
         : k.spieltInstrument;
-      if (kandidatWert === false) { voraussetzungOk = false; break; }
+      if (kandidatWert !== true) { voraussetzungOk = false; break; }
     }
     if (!voraussetzungOk) { drop('voraussetzung_fehlt'); continue; }
 
-    // Kontakt: weder Mail noch Management
-    if (!k.mail && !mitManagement.has(k.id)) { drop('nicht_anschreibbar'); continue; }
-
-    // Alter: Bedarf gesetzt, Kandidat bekannt, kein Schnitt
-    if (bedarf.alter && k.alter && !spannenSchneiden(bedarf.alter, k.alter)) {
+    if (bedarf.alter && (!k.alter || !spannenSchneiden(bedarf.alter, k.alter))) {
       drop('alter_ausserhalb'); continue;
     }
+
+    if (bedarf.nischen?.length && !nischenTreffer(k.branchenTokens, bedarf.nischen).primaer) {
+      drop('nische_fehlt'); continue;
+    }
+
+    if (bedarf.groessen?.length && !fensterTrifftGroesse(k.followerFenster, bedarf.groessen)) {
+      drop('groesse_fehlt'); continue;
+    }
+
+    if (!geschlechtTrifft(bedarf.geschlechter, k.geschlecht)) {
+      drop('geschlecht_fehlt'); continue;
+    }
+
+    if (bedarf.standort && !standortTrifft(k, bedarf.standort)) {
+      drop('standort_fehlt'); continue;
+    }
+
+    if (!plattformTrifft(k, bedarf.kanaele)) {
+      drop('plattform_fehlt'); continue;
+    }
+
+    if (lese.ausschluss?.geschlecht?.length && !geschlechtTrifft(
+      gefragteGeschlechter(bedarf.geschlechter).length ? [] : invertGeschlecht(lese.ausschluss.geschlecht),
+      k.geschlecht
+    ) && !GESCHLECHT_SONDER.includes(k.geschlecht)) {
+      drop('geschlecht_fehlt'); continue;
+    }
+
+    if (lese.ausschluss?.groesse?.length) {
+      const band = groessenBand(k.followerFenster);
+      if (!band || lese.ausschluss.groesse.includes(band)) { drop('groesse_fehlt'); continue; }
+    }
+
+    if (lese.ausschluss?.nische?.length && (
+      !k.branchen.length || nischenTreffer(k.branchenTokens, lese.ausschluss.nische).primaer
+    )) {
+      drop('nische_fehlt'); continue;
+    }
+
+    if (boolAusschluss(lese.ausschluss?.haustier, k.hatHaustier)) { drop('voraussetzung_fehlt'); continue; }
+    if (boolAusschluss(lese.ausschluss?.kinder, k.hatKinder)) { drop('voraussetzung_fehlt'); continue; }
+    if (boolAusschluss(lese.ausschluss?.instrument, k.spieltInstrument)) { drop('voraussetzung_fehlt'); continue; }
+
+    if (suchbegriffTrifft(k, lese.suchbegriffe)) { drop('profiltext'); continue; }
 
     pass.push(k);
   }
 
   return { pass, raus };
+}
+
+/** Ausschluss-Liste "keine Maenner" -> erlaubt ist alles andere. Leer bleibt raus. */
+function invertGeschlecht(verboten) {
+  const alle = ['männlich', 'weiblich', 'divers'];
+  const weg = new Set(normListe(verboten));
+  return alle.filter(g => !weg.has(g));
+}
+
+/** 'ja' wirft Belegte und Leere. 'nein' wirft Nein und Leere. */
+function boolAusschluss(pol, wert) {
+  if (pol !== 'ja' && pol !== 'nein') return false;
+  if (wert == null) return true;
+  return pol === 'ja' ? wert === true : wert === false;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,6 +558,18 @@ function nischenTreffer(kandidatTokens, nischen) {
   return { primaer, nachbar };
 }
 
+function personaLebenslageTrifft(lage, k) {
+  if (!lage) return false;
+  if (/familie|alleinerziehend|eltern/.test(lage)) return k.hatKinder === true;
+  if (lage.includes('ohne kinder') || lage === 'single') return k.hatKinder === false;
+  const profil = new Set([...tokens(k.bio), ...tokens(k.notiz), ...(k.branchen || []).flatMap(tokens)]);
+  if (lage.includes('student')) return ['student', 'studium', 'uni'].some(t => profil.has(t));
+  if (lage.includes('rentner')) return ['rentner', 'pension', 'ruhestand'].some(t => profil.has(t));
+  if (lage.includes('wg')) return profil.has('wg') || profil.has('wohngemeinschaft');
+  if (lage.includes('behinderung')) return ['behinderung', 'disability', 'rollstuhl'].some(t => profil.has(t));
+  return tokens(lage).some(t => profil.has(t));
+}
+
 function scoreFit(k, bedarf, gewichte) {
   const coverage = {};
   let punkte = 0;
@@ -319,36 +580,49 @@ function scoreFit(k, bedarf, gewichte) {
   else if (treffer.primaer) { punkte += gewichte.nische; coverage.nische = 'treffer'; }
   else { coverage.nische = 'kein_treffer'; }
 
-  // Persona-Demo: beste Persona zaehlt
-  if (!bedarf.personas?.length) { coverage.persona = 'offen'; }
-  else {
-    let best = 0;
+  // Persona: genau eine Karte (bedarf.persona bzw. einzige personas[0])
+  const personaKarte = bedarf.persona
+    || ((bedarf.personas || []).length === 1 ? bedarf.personas[0] : null);
+  const persona = personaKarte ? mapPersona(personaKarte) : null;
+  if (!persona || !(persona.alter || persona.geschlecht || persona.lebenssituation
+    || persona.branche_name || persona.wohnort_region)) {
+    coverage.persona = 'offen';
+  } else {
+    let s = 0;
+    const dim = [];
     let belegt = false;
-    for (const p of bedarf.personas) {
-      let s = 0;
-      const dim = [];
-      if (p.alter && k.alter) {
-        dim.push(1);
-        if (spannenSchneiden(p.alter, k.alter)) { s += 0.5; belegt = true; }
-      }
-      if (p.geschlecht) {
-        if (!GESCHLECHT_SONDER.includes(k.geschlecht)) {
-          dim.push(1);
-          const pg = norm(p.geschlecht);
-          if ((pg === 'gemischt') || k.geschlecht.includes(pg) || pg.includes(k.geschlecht)) { s += 0.3; belegt = true; }
-        }
-      }
-      if (p.lebenssituation) {
-        const willKinder = /familie|alleinerziehend|eltern/.test(p.lebenssituation);
-        if (willKinder && k.hatKinder !== null) {
-          dim.push(1);
-          if (k.hatKinder === true) { s += 0.2; belegt = true; }
-        }
-      }
-      if (dim.length) best = Math.max(best, s / dim.length);
+    if (persona.alter && k.alter) {
+      dim.push(1);
+      if (spannenSchneiden(persona.alter, k.alter)) { s += 0.3; belegt = true; }
     }
-    punkte += best * gewichte.persona;
-    coverage.persona = belegt ? 'treffer' : (best > 0 ? 'teil' : 'kein_treffer');
+    if (persona.geschlecht && !GESCHLECHT_SONDER.includes(k.geschlecht)) {
+      dim.push(1);
+      const pg = persona.geschlecht;
+      if ((pg === 'gemischt') || k.geschlecht.includes(pg) || pg.includes(k.geschlecht)) {
+        s += 0.25; belegt = true;
+      }
+    }
+    if (persona.lebenssituation) {
+      dim.push(1);
+      if (personaLebenslageTrifft(persona.lebenssituation, k)) { s += 0.2; belegt = true; }
+    }
+    if (persona.branche_name) {
+      dim.push(1);
+      const toks = tokens(persona.branche_name);
+      if (toks.some(t => k.branchenTokens.has(t))) { s += 0.15; belegt = true; }
+    }
+    if (persona.wohnort_region) {
+      dim.push(1);
+      const sOrt = norm(persona.wohnort_region);
+      const trifft = (wert) => !!wert && (wert.includes(sOrt) || sOrt.includes(wert));
+      if (trifft(k.stadt) || trifft(k.land) || (k.plz && sOrt.includes(k.plz))) {
+        s += 0.1; belegt = true;
+      }
+    }
+    if (dim.length) {
+      punkte += (s / dim.length) * gewichte.persona;
+    }
+    coverage.persona = belegt ? 'treffer' : (s > 0 ? 'teil' : 'kein_treffer');
   }
 
   // Groesse im Band (weicher Abfall ausserhalb)
@@ -411,7 +685,9 @@ function scoreFit(k, bedarf, gewichte) {
   }
 
   // Text-Naehe: Token-Schnitt Umsetzung/Situationen vs. Bio/Notiz (ein Signal)
-  const bedarfText = tokens([bedarf.umsetzung, bedarf.situationen, bedarf.expertise].filter(Boolean).join(' '));
+  const bedarfText = tokens([
+    bedarf.umsetzung, bedarf.situationen, bedarf.expertise, bedarf.personaText
+  ].filter(Boolean).join(' '));
   if (!bedarfText.length || !gewichte.text) { coverage.text = 'offen'; }
   else {
     const profil = new Set([...tokens(k.bio), ...tokens(k.notiz)]);
@@ -517,44 +793,81 @@ function profilFuer(k, listeTyp) {
 }
 
 // ---------------------------------------------------------------------------
-// Ranking (Top-N nach dem finalen Score, ADR 0014 - keine Slot-Quoten mehr)
+// Ranking: Top-N und Quote 6 pro Casting (eine Liste, keine Persona-Gruppen)
 // ---------------------------------------------------------------------------
+
+function nachMatching(a, b) {
+  return (b.matching - a.matching) || (b.fit - a.fit) || (b.fresh - a.fresh);
+}
 
 /**
  * scored: [{ k, fit, track, fresh, matching, hist, profileName }]
  * Sortiert streng nach Matching absteigend; Tiebreak Fit, dann Fresh.
  */
 function topNNachMatching(scored, { anzahl } = {}) {
-  const n = Math.max(1, anzahl || 12);
-  return [...scored]
-    .sort((a, b) => (b.matching - a.matching) || (b.fit - a.fit) || (b.fresh - a.fresh))
-    .slice(0, n);
+  const n = Math.max(1, anzahl || quoteProCasting());
+  return [...scored].sort(nachMatching).slice(0, n);
 }
 
-/** Kategorie-Match: Persona-Name/Oberbegriff oder Typ im Kategorienamen. */
-function matchKategorie(k, kategorien = [], personas = []) {
-  for (const kat of (kategorien || [])) {
-    const nk = norm(kat);
-    if (!nk || nk === 'nicht umsetzen' || nk === 'ohne kategorie') continue;
-    for (const p of (personas || [])) {
-      if (p.name && nk.includes(norm(p.name))) return kat;
-      if (p.oberbegriff && tokens(p.oberbegriff).some(t => nk.includes(t))) return kat;
-    }
-    for (const t of (k.typen || [])) {
-      const nt = norm(t);
-      if (nt && (nk.includes(nt) || nt.includes(nk))) return kat;
-    }
+/**
+ * Eine Zeile pro Creator: bei mehreren Persona-Treffern zaehlt das hoechste
+ * Matching. Die Persona bleibt als Hinweis am Paar, bildet aber keine Gruppe.
+ */
+function besteZeileJeCreator(scoredPairs) {
+  const beste = new Map();
+  for (const pair of scoredPairs || []) {
+    const cid = pair.k?.id || pair.creatorId;
+    if (!cid) continue;
+    const alt = beste.get(cid);
+    if (!alt || nachMatching(alt, pair) > 0) beste.set(cid, pair);
   }
-  return null;
+  return [...beste.values()];
+}
+
+/** Freie Plaetze der Casting-Quote nach Abzug der eingefrorenen pending-Zeilen. */
+function castingLuecke(pendingAnzahl, quote = ANZAHL.proCasting) {
+  return Math.max(0, quote - (Number(pendingAnzahl) || 0));
+}
+
+/**
+ * Greedy: hoechstes Matching zuerst, Unique creator_id, bis die Luecke zu ist.
+ * scoredPairs: [{ k, matching, fit, fresh, ... }]
+ */
+function fuelleCastingQuote(scoredPairs, { luecke = ANZAHL.proCasting, takenIds = new Set() } = {}) {
+  const taken = new Set(takenIds);
+  const assigned = [];
+
+  for (const pair of [...(scoredPairs || [])].sort(nachMatching)) {
+    if (assigned.length >= luecke) break;
+    const cid = pair.k?.id || pair.creatorId;
+    if (!cid || taken.has(cid)) continue;
+    taken.add(cid);
+    assigned.push(pair);
+  }
+  return { assigned, remaining: Math.max(0, luecke - assigned.length), taken };
+}
+
+function fitGrundDeterministisch(s, persona) {
+  const name = persona?.name || null;
+  const c = s?.coverage || {};
+  const bits = [];
+  if (c.nische === 'treffer') bits.push('Nische');
+  if (c.persona === 'treffer') bits.push('Persona-Demografie');
+  if (c.groesse === 'treffer') bits.push('Groesse');
+  if (c.plattform === 'treffer') bits.push('Plattform');
+  if (c.mentions === 'treffer') bits.push('Mentions');
+  if (c.standort === 'treffer') bits.push('Standort');
+  if (c.text === 'treffer') bits.push('Profiltext');
+  if (!bits.length) return name ? `Matching fuer ${name}.` : 'Passt zum Briefing.';
+  return `${name ? `${name}: ` : ''}${bits.join(', ')}.`;
 }
 
 // ---------------------------------------------------------------------------
 // Validate (Modell-Antwort gegen die Shortlist)
 // ---------------------------------------------------------------------------
 
-function validateVorschlaege(json, { shortlistIds = [], personaIds = [] } = {}) {
+function validateVorschlaege(json, { shortlistIds = [] } = {}) {
   const pool = new Set(shortlistIds);
-  const personaSet = new Set(personaIds);
   const roh = Array.isArray(json?.vorschlaege) ? json.vorschlaege : [];
   const sauber = [];
   const verworfen = [];
@@ -575,17 +888,77 @@ function validateVorschlaege(json, { shortlistIds = [], personaIds = [] } = {}) 
       verworfen.push({ grund: 'fit_grund ohne belegbares Feld', vorschlag: id });
       continue;
     }
-    const pIds = [...new Set((Array.isArray(v?.persona_ids) ? v.persona_ids : []).filter(p => personaSet.has(p)))];
     gesehen.add(id);
     sauber.push({
       creator_id: id,
       fit_grund: fitGrund,
-      risiken: v?.risiken ? String(v.risiken).trim() : null,
-      persona_ids: pIds
+      risiken: v?.risiken ? String(v.risiken).trim() : null
     });
   }
 
   return { vorschlaege: sauber, verworfen };
+}
+
+// ---------------------------------------------------------------------------
+// Donts einmal lesen: Profilfeld-Ausschluss oder Suchbegriffe. Satz bleibt Text.
+// ---------------------------------------------------------------------------
+
+const DONT_LESUNG_TOOL = {
+  name: 'donts_lesen',
+  description: 'Zerlegt die Verbote der Wichtigen Vorgaben in Personen-Ausschluesse, Profiltext-Begriffe und Satzverbote.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      suchbegriffe: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Woerter, deren Vorkommen in Bio, Caption oder Mention den Creator ausschliesst. Keine Wuensche.'
+      },
+      satz: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Formulierungsverbote. Werfen niemanden aus dem Pool.'
+      },
+      ausschluss: {
+        type: 'object',
+        properties: {
+          geschlecht: { type: 'array', items: { type: 'string' } },
+          groesse: { type: 'array', items: { type: 'string' }, description: 'nano, micro, mid_tier, macro, hero' },
+          nische: { type: 'array', items: { type: 'string' } },
+          haustier: { type: 'string', enum: ['ja', 'nein'] },
+          kinder: { type: 'string', enum: ['ja', 'nein'] },
+          instrument: { type: 'string', enum: ['ja', 'nein'] }
+        }
+      }
+    },
+    required: ['suchbegriffe', 'satz']
+  }
+};
+
+function buildDontLesungPrompt(bedarf = {}) {
+  const stable = 'Du liest die Wichtigen Vorgaben eines Kampagnen-Briefings. Darin stehen Pflichtinhalte, Do\'s, Don\'ts und Ausschluesse gemischt, '
+    + 'oft unter Ueberschriften wie "Pflichtinhalte:" oder "Don\'ts:". Du suchst keine Creator und erfindest keine Regeln. '
+    + 'Lies nur Zeilen, die ein Verbot sind (kein, nicht, nie, ohne, Verbot). '
+    + 'Pflichtinhalte, Do\'s und Wuensche ("Produktname nennen", "authentisch", "Haustier zeigen") sind nie ausschluss und nie suchbegriffe. '
+    + 'Anforderungen an den Creator ("Creator muss ...") gehoeren zu den Voraussetzungen und werden hier nicht gelesen. '
+    + 'suchbegriffe nur fuer das, was im Profiltext einen Verstoss belegt (Tattoo, Konkurrenzmarke). '
+    + 'Hauttyp und Haartyp sind Wuensche und keine suchbegriffe, ausser sie sind als Verbot formuliert. '
+    + 'satz sind Verbote der Formulierung oder des Videoinhalts: ein Claim, der nicht gesagt werden darf, '
+    + 'oder was im Bild, Video oder Content nicht vorkommen soll ("keine Kinder oder Tiere im Bild", "keine Konkurrenzprodukte"). '
+    + 'ausschluss nur fuer Profilfelder und nur, wenn das Verbot den Creator als Person meint '
+    + '("Creator ohne Kinder", "keine Haustierbesitzer", "keine Maenner"): geschlecht, groesse, nische, haustier, kinder, instrument. '
+    + 'haustier "ja" heisst: Creator mit Haustier raus. '
+    + 'Im Zweifel gehoert eine Zeile in satz, nie in ausschluss. Ist eine Checkbox schon gesetzt, widersprich ihr nicht.';
+  let task = '';
+  if (bedarf.vorgaben) task += `# WICHTIGE VORGABEN\n${bedarf.vorgaben}\n`;
+  if (bedarf.hauttyp) task += `Hauttyp (Wunsch): ${bedarf.hauttyp}\n`;
+  if (bedarf.haartyp) task += `Haartyp (Wunsch): ${bedarf.haartyp}\n`;
+  if (bedarf.groessen?.length) task += `Groesse ist gesetzt: ${bedarf.groessen.join(', ')}\n`;
+  if (bedarf.nischen?.length) task += `Nische ist gesetzt: ${bedarf.nischen.join(', ')}\n`;
+  const geschlecht = gefragteGeschlechter(bedarf.geschlechter);
+  if (geschlecht.length) task += `Geschlecht ist gesetzt: ${geschlecht.join(', ')}\n`;
+  task += 'Gib das Ergebnis nur ueber das Tool ab.';
+  return { stable, task };
 }
 
 // ---------------------------------------------------------------------------
@@ -606,8 +979,7 @@ const CASTING_TOOL = {
           properties: {
             creator_id: { type: 'string', description: 'ID aus der Shortlist, keine anderen.' },
             fit_grund: { type: 'string', description: 'Zwei bis drei Saetze, nur belegbare Felder (Branche, Alter, Typ, Mentions, Historie). Keine Lyrik, keine Score-Zahlen.' },
-            risiken: { type: ['string', 'null'], description: 'Offene Punkte, z.B. unverified Voraussetzung.' },
-            persona_ids: { type: 'array', items: { type: 'string' }, description: 'Welche Personas aus dem Bedarf treffen.' }
+            risiken: { type: ['string', 'null'], description: 'Offene Punkte, z.B. unverified Voraussetzung.' }
           },
           required: ['creator_id', 'fit_grund']
         }
@@ -626,8 +998,12 @@ function fmtKandidat(s) {
   const k = s.k;
   const name = `${k.vorname} ${k.nachname}`.trim() || 'Unbekannt';
   const alter = k.alter ? `${k.alter[0]}-${k.alter[1]}` : 'unbekannt';
+  const personaZeile = s.persona?.name
+    ? `Beste Passung zur Persona: ${s.persona.name}`
+    : null;
   return [
     `ID: ${k.id} | Matching ${s.matching}`,
+    personaZeile,
     `Name: ${name}, Geschlecht: ${k.geschlecht || 'unbekannt'}, Alter: ${alter}`,
     `Typen: ${(k.typen || []).join(', ') || 'unbekannt'} | Branchen: ${(k.branchen || []).join(', ') || 'unbekannt'}`,
     `Follower: ${k.follower || 'unbekannt'} | IG: ${k.instagram || '-'} | TT: ${k.tiktok || '-'}`,
@@ -637,7 +1013,41 @@ function fmtKandidat(s) {
   ].filter(Boolean).join('\n  ');
 }
 
-function buildPrompt(bedarf, { shortlist = [], kategorien = [] } = {}) {
+function fmtPersonaKarte(p) {
+  const persona = mapPersona(p);
+  const lines = [
+    `- ${persona.name || '?'}${persona.oberbegriff ? ` (${persona.oberbegriff})` : ''}`
+      + (persona.id ? ` [${persona.id}]` : '')
+  ];
+  if (persona.alter) lines.push(`  Alter: ${persona.alter[0]}-${persona.alter[1]}`);
+  if (persona.geschlecht) lines.push(`  Geschlecht: ${persona.geschlecht}`);
+  if (persona.wohnort_region) lines.push(`  Wohnort: ${cap(persona.wohnort_region, 120)}`);
+  if (persona.beruf) lines.push(`  Beruf: ${cap(persona.beruf, 120)}`);
+  if (persona.bildungsstand) lines.push(`  Bildung: ${cap(persona.bildungsstand, 80)}`);
+  if (persona.budgetrahmen) lines.push(`  Budgetrahmen: ${persona.budgetrahmen}`);
+  if (persona.lebenssituation) lines.push(`  Lebenssituation: ${persona.lebenssituation}`);
+  if (persona.branche_name) lines.push(`  Branche: ${persona.branche_name}`);
+  if (persona.pain_points) lines.push(`  Pain-Points: ${cap(persona.pain_points, 280)}`);
+  if (persona.interessen) lines.push(`  Interessen: ${cap(persona.interessen, 200)}`);
+  if (persona.beduerfnisse) lines.push(`  Beduerfnisse: ${cap(persona.beduerfnisse, 200)}`);
+  if (persona.kaufmotive) lines.push(`  Kaufmotive: ${cap(persona.kaufmotive, 200)}`);
+  if (persona.einwaende) lines.push(`  Einwaende: ${cap(persona.einwaende, 200)}`);
+  if (persona.produkt_loesung) lines.push(`  Produktloesung: ${cap(persona.produkt_loesung, 240)}`);
+  if (persona.produktvorteile) lines.push(`  Produktvorteile: ${cap(persona.produktvorteile, 200)}`);
+  if (persona.tonalitaet) lines.push(`  Tonalitaet: ${cap(persona.tonalitaet, 120)}`);
+  if (persona.plattformen) lines.push(`  Plattformen: ${cap(persona.plattformen, 160)}`);
+  if (persona.content_praeferenzen) lines.push(`  Content: ${cap(persona.content_praeferenzen, 200)}`);
+  if (persona.beschreibung) lines.push(`  Beschreibung: ${cap(persona.beschreibung, 280)}`);
+  const as = fmtAudienceSituations(persona.audience_situations, 240);
+  if (as) lines.push(`  Audience Situations: ${as}`);
+  for (const fit of (persona.produktFits || [])) {
+    if (fit.fit_grund) lines.push(`  Produkt-Fit: ${cap(fit.fit_grund, 240)}`);
+    if (fit.use_case_namen?.length) lines.push(`  Use Cases: ${fit.use_case_namen.join(', ')}`);
+  }
+  return lines.join('\n');
+}
+
+function buildPrompt(bedarf, { shortlist = [] } = {}) {
   const stable = 'Du bist Casting-Unterstuetzung einer Creator-Agentur. '
     + 'Du bekommst eine deterministisch erstellte Shortlist aus der eigenen Creator-Datenbank. '
     + 'Du waehlst NICHT aus und erfindest KEINE Creator - jede creator_id muss aus der Shortlist stammen.\n\n'
@@ -646,7 +1056,9 @@ function buildPrompt(bedarf, { shortlist = [], kategorien = [] } = {}) {
     + '2. KEINE LYRIK. "Wirkt authentisch" oder "gute Energy" ist ein Ausschlussgrund - nenne Fakten.\n'
     + '3. Unbelegte Voraussetzungen (unverified) gehoeren in risiken, nicht in fit_grund.\n'
     + '4. Weniger ist mehr: uebernimm nur Kandidaten mit tragfaehigem Fit, keine Quote um jeden Preis.\n'
-    + '5. KEINE SCORE-ZAHLEN im fit_grund: weder Matching noch Fit/Track/Fresh nennen - der Text erklaert die Passung in Worten.\n';
+    + '5. KEINE SCORE-ZAHLEN im fit_grund: weder Matching noch Fit/Track/Fresh nennen - der Text erklaert die Passung in Worten.\n'
+    + '6. Die Persona am Eintrag ist nur ein Hinweis auf die beste Passung; das Casting ist eine einzige Liste ohne Persona-Gruppen.\n'
+    + '7. WICHTIGE VORGABEN sind kein Streichgrund. Personen, die ein Verbot ueber die Person nicht erfuellen, sind schon raus.\n';
 
   let task = '# BEDARF\n';
   task += `Bereich: ${bedarf.bereich || 'offen'} | Typ: ${bedarf.typ || 'offen'}\n`;
@@ -657,21 +1069,19 @@ function buildPrompt(bedarf, { shortlist = [], kategorien = [] } = {}) {
   if (bedarf.voraussetzungen?.length) task += `Voraussetzungen: ${bedarf.voraussetzungen.join(', ')}\n`;
   if (bedarf.umsetzung) task += `Umsetzung: ${cap(bedarf.umsetzung, 500)}\n`;
   if (bedarf.learningsText) task += `Learnings: ${cap(bedarf.learningsText, 400)}\n`;
+  if (bedarf.vorgaben) task += `\n# WICHTIGE VORGABEN (Kontext, kein Streichgrund)\n${cap(bedarf.vorgaben, 2300)}\n`;
   if (bedarf.personas?.length) {
-    task += '\n# PERSONAS (nur akzeptierte)\n';
-    bedarf.personas.forEach(p => {
-      task += `- ${p.name || '?'}${p.oberbegriff ? ` (${p.oberbegriff})` : ''}`
-        + `${p.pain_points ? `: ${cap(p.pain_points, 200)}` : ''}\n`;
-    });
+    task += '\n# PERSONAS (Briefing)\n';
+    bedarf.personas.forEach(p => { task += `${fmtPersonaKarte(p)}\n`; });
   }
-  if (kategorien?.length) task += `\n# KATEGORIEN AUF DER LISTE\n${kategorien.join(', ')}\n`;
 
-  task += `\n# SHORTLIST (${shortlist.length} Kandidaten, IDs sind verbindlich)\n`;
+  task += `\n# SHORTLIST (${shortlist.length} Kandidaten, die IDs sind verbindlich)\n`;
   shortlist.slice(0, MAX_SHORTLIST_IM_PROMPT).forEach(s => { task += `\n---\n${fmtKandidat(s)}\n`; });
 
   task += '\n# AUFTRAG\nGib das Ergebnis AUSSCHLIESSLICH ueber das Tool '
     + '"casting_vorschlaege_abgeben" ab: ein Eintrag je uebernommener Shortlist-ID, '
-    + 'fit_grund mit belegbaren Feldern, risiken bei offenen Punkten.';
+    + 'fit_grund mit belegbaren Feldern, risiken bei offenen Punkten. '
+    + 'Streichen ist erlaubt; nicht genannte IDs gelten als verworfen.';
 
   return { stable, task };
 }
@@ -682,7 +1092,7 @@ function buildPrompt(bedarf, { shortlist = [], kategorien = [] } = {}) {
 
 const KANDIDAT_SELECT = `id,vorname,nachname,mail,telefonnummer,geschlecht,alter_jahre,alter_min,alter_max,
 instagram,instagram_follower,tiktok,tiktok_follower,ig_biography,ig_engagement_rate,ig_engagement_rate_clean,
-ig_brand_mentions,lieferadresse_stadt,lieferadresse_land,lieferadresse_plz,notiz,
+ig_brand_mentions,ig_recent_posts,lieferadresse_stadt,lieferadresse_land,lieferadresse_plz,notiz,
 hat_haustier,hat_kinder,spielt_instrument,budget_letzte_buchung,
 creator_creator_type(creator_type_id(id,name)),
 creator_branchen(branche_id(id,name)),
@@ -696,15 +1106,14 @@ async function loadCandidates(supabase, bedarf, { limit = 2000 } = {}) {
 }
 
 /**
- * Buchungsbild dieser Marke: Repeat-/Ablehnungs-Signale aus frueheren
- * Castings plus Kooperationen. Verbrannte IDs kommen in Sets, Kennzahlen
- * je Creator in histJeCreator.
+ * Buchungsbild dieser Marke: Repeat-Signale aus frueheren Castings plus
+ * Kooperationen. Doppelte IDs kommen in Sets, Kennzahlen je Creator in
+ * histJeCreator.
  */
 async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, fingerprint }) {
   const bild = {
     aufDieserListe: new Set(),
     parallelLive: new Set(),
-    abgelehntMarke: new Set(),
     managementIds: new Set(),
     histJeCreator: new Map(),
     vorgeschlageneFingerprints: new Map()
@@ -723,10 +1132,6 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
   const listenIds = (listen || []).map(l => l.id).filter(Boolean);
   if (!listenIds.length) return bild;
 
-  const stichtag = new Date();
-  stichtag.setMonth(stichtag.getMonth() - SCHWELLEN.abgelehntMonate);
-  const stichtagIso = stichtag.toISOString();
-
   const vor90d = new Date();
   vor90d.setDate(vor90d.getDate() - SCHWELLEN.repeatTage);
   const vor90dIso = vor90d.toISOString();
@@ -735,7 +1140,7 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
   const vor30dIso = vor30d.toISOString();
 
   const { data: items } = await supabase.from('creator_auswahl_items')
-    .select('creator_id, prio_1, prio_2, abgelehnt, gebucht, angefragt, absage, zusage, created_at, kategorie')
+    .select('creator_id, prio_1, prio_2, gebucht, angefragt, absage, zusage, created_at, kategorie')
     .in('creator_auswahl_id', listenIds);
   for (const it of (items || [])) {
     if (!it.creator_id) continue;
@@ -753,7 +1158,6 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
       if ((it.created_at || '') >= vor90dIso) h.markeBuchungen90d++;
     }
     if (it.absage) h.absagen++;
-    if (it.abgelehnt && (it.created_at || '') >= stichtagIso) bild.abgelehntMarke.add(it.creator_id);
     // Kuerzlich auf einer anderen Live-Liste derselben Marke: nicht doppelt
     if ((it.created_at || '') >= vor30dIso) bild.parallelLive.add(it.creator_id);
   }
@@ -786,45 +1190,83 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
   return bild;
 }
 
-/** Bedarf-Daten: Briefing, Produkte, akzeptierte Personas, Kategorien. */
+function orderPersonasByIds(rows, ids) {
+  const byId = new Map((rows || []).map(p => [p.id, p]));
+  return (ids || []).map(id => byId.get(id)).filter(Boolean);
+}
+
+/** Bedarf-Daten: Briefing, Produkte, Briefing-Personas. */
 async function loadBedarfData(supabase, casting) {
   const { data: briefing } = await supabase.from('campaign_briefings')
     .select('*').eq('id', casting.briefing_id).maybeSingle();
   if (!briefing) throw new Error('Casting ohne Briefing: ohne Bedarf kein Lauf');
+  if (briefing.ist_altbestand) throw new Error('Altbestand-Linie ohne Briefing: bitte zuerst das Briefing ausfüllen');
 
   const { data: links } = await supabase.from('campaign_briefing_produkt')
     .select('produkt_id').eq('briefing_id', briefing.id);
   const produktIds = (links || []).map(l => l.produkt_id).filter(Boolean);
 
-  const personas = [];
-  const gesehen = new Set();
-  const merke = (p) => {
-    if (p && p.id && !gesehen.has(p.id)) { gesehen.add(p.id); personas.push(p); }
-  };
-
-  if (produktIds.length) {
-    const { data: vorschlaege } = await supabase.from('produkt_persona_vorschlag')
-      .select('persona_id, persona:persona_id(id, name, oberbegriff, alter_von, alter_bis, geschlecht, lebenssituation, pain_points, beduerfnisse)')
-      .in('produkt_id', produktIds)
-      .eq('status', 'accepted');
-    for (const v of (vorschlaege || [])) merke(v.persona);
+  const personaIds = Array.isArray(briefing.persona_ids)
+    ? briefing.persona_ids.filter(Boolean)
+    : [];
+  let personas = [];
+  if (personaIds.length) {
+    const { data: rows } = await supabase.from('personas')
+      .select('id, name, oberbegriff, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, branche_id, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, produkt_loesung, produktvorteile, tonalitaet, plattformen, content_praeferenzen, beschreibung')
+      .in('id', personaIds);
+    personas = orderPersonasByIds(rows, personaIds);
+    await attachAudienceSituations(supabase, personas);
+    await attachBrancheNamen(supabase, personas);
+    await attachProduktFits(supabase, personas, produktIds);
   }
 
-  // Personas am Briefing gelten auch ohne Produkt. Leere Liste ist gültig.
-  const briefingPersonaIds = (Array.isArray(briefing.persona_ids) ? briefing.persona_ids : [])
-    .filter(id => id && !gesehen.has(id));
-  if (briefingPersonaIds.length) {
-    const { data: extra } = await supabase.from('personas')
-      .select('id, name, oberbegriff, alter_von, alter_bis, geschlecht, lebenssituation, pain_points, beduerfnisse')
-      .in('id', briefingPersonaIds);
-    for (const p of (extra || [])) merke(p);
+  return { briefing, produktIds, personas };
+}
+
+async function attachBrancheNamen(supabase, personas) {
+  const ids = [...new Set((personas || []).map(p => p.branche_id).filter(Boolean))];
+  if (!ids.length) return personas;
+  const { data } = await supabase.from('branchen').select('id, name').in('id', ids);
+  const byId = new Map((data || []).map(r => [r.id, r.name]));
+  for (const p of personas || []) {
+    p.branche_name = byId.get(p.branche_id) || null;
   }
+  return personas;
+}
 
-  const { data: kategorienZeilen } = await supabase.from('creator_auswahl')
-    .select('teilbereich').eq('id', casting.id).maybeSingle();
-  const kategorien = String(kategorienZeilen?.teilbereich || '').split(',').map(s => s.trim()).filter(Boolean);
-
-  return { briefing, produktIds, personas, kategorien };
+async function attachProduktFits(supabase, personas, produktIds) {
+  const personaIds = (personas || []).map(p => p.id).filter(Boolean);
+  const pids = (produktIds || []).filter(Boolean);
+  if (!personaIds.length || !pids.length) {
+    for (const p of personas || []) p.produktFits = p.produktFits || [];
+    return personas;
+  }
+  const { data: fits } = await supabase.from('produkt_persona_vorschlag')
+    .select('persona_id, produkt_id, fit_grund, use_case_ids')
+    .eq('status', 'accepted')
+    .in('persona_id', personaIds)
+    .in('produkt_id', pids);
+  const rows = fits || [];
+  const ucIds = [...new Set(rows.flatMap(r => r.use_case_ids || []).filter(Boolean))];
+  let ucById = new Map();
+  if (ucIds.length) {
+    const { data: ucs } = await supabase.from('produkt_use_case')
+      .select('id, name').in('id', ucIds);
+    ucById = new Map((ucs || []).map(u => [u.id, u.name]));
+  }
+  const byPersona = new Map();
+  for (const row of rows) {
+    if (!byPersona.has(row.persona_id)) byPersona.set(row.persona_id, []);
+    byPersona.get(row.persona_id).push({
+      produkt_id: row.produkt_id,
+      fit_grund: row.fit_grund || null,
+      use_case_namen: (row.use_case_ids || []).map(id => ucById.get(id)).filter(Boolean)
+    });
+  }
+  for (const p of personas || []) {
+    p.produktFits = byPersona.get(p.id) || [];
+  }
+  return personas;
 }
 
 module.exports = {
@@ -837,7 +1279,15 @@ module.exports = {
   bedarfFingerprint,
   buildBedarf,
   kanaeleAusBriefing,
-  zielAnzahl,
+  quoteProCasting,
+  mapPersona,
+  personaFreitext,
+  bedarfFuerPersona,
+  personaLebenslageTrifft,
+  besteZeileJeCreator,
+  castingLuecke,
+  fuelleCastingQuote,
+  fitGrundDeterministisch,
   normiereKandidat,
   nischenTreffer,
   applyGates,
@@ -848,10 +1298,15 @@ module.exports = {
   matchingScore,
   profilFuer,
   topNNachMatching,
-  matchKategorie,
+  orderPersonasByIds,
   validateVorschlaege,
   CASTING_TOOL,
   buildPrompt,
+  sanitizeLesung,
+  leerLesung,
+  personaProfilPasst,
+  DONT_LESUNG_TOOL,
+  buildDontLesungPrompt,
   loadCandidates,
   loadBuchungsbild,
   loadBedarfData

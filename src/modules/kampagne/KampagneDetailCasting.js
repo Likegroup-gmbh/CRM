@@ -1,0 +1,202 @@
+// KampagneDetailCasting.js
+// Mountet das volle Casting-Worksheet in den Kampagnen-Workflow-Pane.
+
+import { effectiveLinie, leerHinweis, renderListenSwitch, bindListenSwitch, placeListenSwitch, clearListenSwitch } from './linienScope.js';
+import { CreatorAuswahlDetail } from '../creator-auswahl/CreatorAuswahlDetail.js';
+import { creatorAuswahlService } from '../creator-auswahl/CreatorAuswahlService.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
+import { offeneId, setzeOffen } from './produktionTabDetail.js';
+
+const LISTE_ATTR = 'data-casting-liste';
+
+function getCastingTools() {
+  return document.getElementById('kampagne-casting-tools');
+}
+
+export function unmountCastingWorksheet(detail) {
+  bumpPaneGen(detail, 'casting');
+  if (detail.castingWorksheet) {
+    detail.castingWorksheet.destroy();
+    detail.castingWorksheet = null;
+  }
+  const tools = getCastingTools();
+  if (tools) tools.innerHTML = '';
+  clearListenSwitch();
+}
+
+const SPINNER = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
+
+function castingStillCurrent(detail, gen, pane) {
+  return isPaneGenCurrent(detail, 'casting', gen) && pane.isConnected;
+}
+
+function prefetchStillCurrent(detail, gen) {
+  return (detail._prefetchGen || 0) === gen && detail._isMounted !== false;
+}
+
+async function loadCastingListen(detail) {
+  return creatorAuswahlService.getListenByKampagneId(detail.kampagneId, {
+    produktionId: detail.produktionId || null,
+    briefingId: effectiveLinie(detail, 'casting')
+  });
+}
+
+/**
+ * Listen-Index und, wenn eine Liste da ist, die Worksheet-Daten. Fehler
+ * wirft der Aufrufer (trackPrefetch) weg. Eine veraltete Generation räumt
+ * das Worksheet ab und liefert null.
+ */
+export async function loadCastingPrefetch(detail, gen) {
+  const listen = await loadCastingListen(detail);
+  if (!prefetchStillCurrent(detail, gen)) return null;
+  if (!listen.length) return { listen, selectedId: null, worksheet: null };
+
+  const gemerkt = offeneId(detail, 'casting');
+  const selectedId = listen.some(l => l.id === gemerkt) ? gemerkt : listen[0].id;
+  const worksheet = new CreatorAuswahlDetail();
+  try {
+    worksheet._prefetchPayload = await worksheet._fetchDataStages(selectedId);
+  } catch (error) {
+    worksheet.destroy();
+    throw error;
+  }
+  if (!prefetchStillCurrent(detail, gen)) {
+    worksheet.destroy();
+    return null;
+  }
+  return { listen, selectedId, worksheet };
+}
+
+async function takeCastingPrefetch(detail) {
+  const tracked = detail._castingPrefetch;
+  if (!tracked) return null;
+  tracked.consumed = true;
+  detail._castingPrefetch = null;
+  return tracked.promise;
+}
+
+function dropWorksheet(worksheet, detail) {
+  if (worksheet && worksheet !== detail.castingWorksheet) worksheet.destroy();
+}
+
+export async function mountCastingPane(detail) {
+  const pane = document.getElementById('workflow-pane-casting');
+  if (!pane) return;
+  const gen = paneGeneration(detail, 'casting');
+
+  const tracked = detail._castingPrefetch;
+  const warm = !!(tracked?.settled && tracked.value);
+  if (!warm) pane.innerHTML = SPINNER;
+
+  let prefetched = null;
+  if (tracked) {
+    prefetched = await takeCastingPrefetch(detail);
+    if (!castingStillCurrent(detail, gen, pane)) {
+      dropWorksheet(prefetched?.worksheet, detail);
+      return;
+    }
+  }
+
+  try {
+    const listen = prefetched?.listen || await loadCastingListen(detail);
+    if (!castingStillCurrent(detail, gen, pane)) {
+      dropWorksheet(prefetched?.worksheet, detail);
+      return;
+    }
+    detail._castingListen = listen;
+    detail.sourcingListenCount = listen.length;
+
+    if (!listen.length) {
+      dropWorksheet(prefetched?.worksheet, detail);
+      clearListenSwitch();
+      pane.innerHTML = renderEmptyCasting(detail);
+      return;
+    }
+
+    const gemerkt = offeneId(detail, 'casting');
+    const selectedId = listen.some(l => l.id === gemerkt) ? gemerkt : listen[0].id;
+    // ?casting= nur, wenn es etwas zu wählen gibt
+    setzeOffen(detail, 'casting', selectedId, { url: listen.length > 1 });
+
+    const warmWorksheet = prefetched?.worksheet && prefetched.selectedId === selectedId
+      ? prefetched.worksheet
+      : null;
+    if (prefetched?.worksheet && !warmWorksheet) prefetched.worksheet.destroy();
+
+    const shell = renderCastingShell(listen, selectedId);
+    pane.innerHTML = shell.html;
+    bindSwitcher(detail, pane, shell.slot);
+    await mountWorksheet(detail, pane.querySelector('.kampagne-casting-worksheet'), selectedId, warmWorksheet);
+  } catch (error) {
+    console.error('❌ KAMPAGNEDETAIL: Casting-Pane fehlgeschlagen:', error);
+    if (pane.isConnected) {
+      clearListenSwitch();
+      pane.innerHTML = renderEmptyState({
+        icon: 'info',
+        title: 'Fehler beim Laden',
+        text: 'Die Casting-Liste konnte nicht geladen werden.'
+      });
+    }
+  }
+}
+
+function renderEmptyCasting(detail) {
+  return renderEmptyState({
+    icon: 'users',
+    title: 'Keine Casting-Liste',
+    text: leerHinweis(detail, 'casting', 'Für diese Linie wurde noch keine Casting-Liste angelegt.')
+  });
+}
+
+/** Dropdown in die Tab-Zeile (ganz rechts); ohne Slot als Zeile im Pane. */
+function renderCastingShell(listen, selectedId) {
+  const html = listen.length > 1
+    ? renderListenSwitch({ items: listen, activeId: selectedId, itemAttr: LISTE_ATTR, title: 'Casting-Liste wechseln' })
+    : '';
+  const { slot, inline } = placeListenSwitch(html, 'kampagne-casting-listen-switcher');
+
+  return {
+    slot,
+    html: `
+    ${inline}
+    <div class="kampagne-casting-worksheet"></div>
+  `
+  };
+}
+
+function bindSwitcher(detail, pane, slot) {
+  bindListenSwitch(slot || pane, LISTE_ATTR, async (listeId) => {
+    setzeOffen(detail, 'casting', listeId);
+    const root = pane.querySelector('.kampagne-casting-worksheet');
+    if (!root) return;
+    if (detail.castingWorksheet) {
+      detail.castingWorksheet.destroy();
+      detail.castingWorksheet = null;
+    }
+    await mountWorksheet(detail, root, listeId);
+  });
+}
+
+async function mountWorksheet(detail, root, listeId, existing) {
+  if (!root) return;
+  const gen = paneGeneration(detail, 'casting');
+  const worksheet = existing || new CreatorAuswahlDetail();
+  detail.castingWorksheet = worksheet;
+  try {
+    await worksheet.init(listeId, {
+      root,
+      chromeRoot: getCastingTools(),
+      embedded: true,
+      prefetched: existing?._prefetchPayload || null
+    });
+  } catch (error) {
+    worksheet.destroy();
+    if (detail.castingWorksheet === worksheet) detail.castingWorksheet = null;
+    throw error;
+  }
+  if (!isPaneGenCurrent(detail, 'casting', gen) || !root.isConnected) {
+    worksheet.destroy();
+    if (detail.castingWorksheet === worksheet) detail.castingWorksheet = null;
+  }
+}

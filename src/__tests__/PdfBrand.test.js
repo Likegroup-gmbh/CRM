@@ -3,7 +3,9 @@ import { describe, it, expect } from 'vitest';
 import {
   LIKEGROUP,
   LIKEGROUP_FOOTER_DE,
+  LIKEGROUP_LOGO_PX,
   likeGroupFooterLine,
+  containInBox,
   drawLikeGroupLogo,
   drawLikeGroupFooter,
   PDF_BRAND,
@@ -35,21 +37,29 @@ describe('PdfBrand', () => {
     expect(likeGroupFooterLine('en')).toContain('Germany');
   });
 
-  it('zeichnet Logo links oben', () => {
+  it('zeichnet Logo links oben im Verhältnis 120:66', () => {
     const doc = mockDoc();
+    const box = PDF_BRAND.logoLeft;
+    const fitted = containInBox(LIKEGROUP_LOGO_PX.w, LIKEGROUP_LOGO_PX.h, box.w, box.h);
     drawLikeGroupLogo(doc, 'data:image/png;base64,AAA', { align: 'left' });
+    expect(fitted.h).toBeCloseTo(box.w * (LIKEGROUP_LOGO_PX.h / LIKEGROUP_LOGO_PX.w));
     expect(doc.images[0]).toMatchObject({
-      x: PDF_BRAND.logoLeft.x,
-      y: PDF_BRAND.logoLeft.y,
-      w: PDF_BRAND.logoLeft.w,
-      h: PDF_BRAND.logoLeft.h,
+      x: box.x,
+      w: fitted.w,
+      h: fitted.h,
     });
+    expect(doc.images[0].y).toBeCloseTo(box.y + (box.h - fitted.h) / 2);
+    expect(doc.images[0].w / doc.images[0].h).toBeCloseTo(LIKEGROUP_LOGO_PX.w / LIKEGROUP_LOGO_PX.h);
   });
 
   it('zeichnet Logo zentriert (Vertraege)', () => {
     const doc = mockDoc();
+    const box = PDF_BRAND.logoCenter;
+    const fitted = containInBox(LIKEGROUP_LOGO_PX.w, LIKEGROUP_LOGO_PX.h, box.w, box.h);
     drawLikeGroupLogo(doc, 'data:image/png;base64,AAA', { align: 'center' });
-    expect(doc.images[0]).toMatchObject({ x: PDF_BRAND.logoCenter.x, y: PDF_BRAND.logoCenter.y });
+    expect(doc.images[0].x).toBeCloseTo(box.x + (box.w - fitted.w) / 2);
+    expect(doc.images[0].y).toBeCloseTo(box.y + (box.h - fitted.h) / 2);
+    expect(doc.images[0].w / doc.images[0].h).toBeCloseTo(LIKEGROUP_LOGO_PX.w / LIKEGROUP_LOGO_PX.h);
   });
 
   it('schreibt Adresse und Seitenzahl in die Fusszeile', () => {

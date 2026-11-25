@@ -2,6 +2,7 @@
 // Zentrale Tab-Utility mit Icon-Mapping, Permission-Prüfung und Rendering-Funktionen
 
 import { entityIcon } from './icons/entityIcons.js';
+import { refreshDocumentTitle } from './documentTitle.js';
 
 /**
  * Tab-Permission-Mapping
@@ -17,6 +18,7 @@ export const TAB_PERMISSION_MAP = {
   'auftragsdetails': 'auftragsdetails',
   'kampagnen': 'kampagne',
   'briefings': 'briefing',
+  'briefing': 'briefing',
   'kooperationen': 'kooperation',
   'rechnungen': 'rechnung',
   'strategien': 'strategie',
@@ -27,6 +29,14 @@ export const TAB_PERMISSION_MAP = {
   'vertraege': 'vertraege',
   'videos': 'briefing',    // nutzt briefing-Berechtigung (wie Navigation)
   'marken': 'marke',
+  // Workflow-Tabs auf der Kampagnen-Detailseite
+  'casting': 'sourcing',
+  'castings': 'sourcing',
+  'konzepte': 'strategie',
+  'skripte': 'skripte',
+  'produktion': 'kooperation', // Alias: altes ?tab=produktion
+  'auswertung': null,    // sichtbar für alle, die die Kampagne sehen
+  'budget': null,        // Gate ist die Preis-Sicht (canSeePricing), siehe WORKFLOW_TABS
   // Personas und Produkte gehoeren dem Unternehmen und stehen auch auf dessen
   // Detailseite - die Marke-Berechtigung waere dort der falsche Massstab.
   'personas': 'unternehmen',
@@ -238,7 +248,10 @@ export function syncTabQueryParam(tab) {
   if (!tab || typeof window === 'undefined' || !window.history?.replaceState) return;
   const url = new URL(window.location.href);
   url.searchParams.set('tab', tab);
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  const route = `${url.pathname}${url.search}${url.hash}`;
+  // route mitziehen: popstate navigiert nach state.route, nicht nach der URL
+  const state = window.history.state ? { ...window.history.state, route } : window.history.state;
+  window.history.replaceState(state, '', route);
 }
 
 /**
@@ -284,6 +297,7 @@ export function activateSecondaryNavTab(tab, { dataAttr = 'data-tab' } = {}) {
   const pane = document.getElementById(`${panePrefix}-${tab}`);
   if (pane) pane.classList.add('active');
   syncTabQueryParam(tab);
+  refreshDocumentTitle(tab);
   return pane;
 }
 

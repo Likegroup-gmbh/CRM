@@ -10,8 +10,18 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
 import { PersonaFilterLogic } from './filters/PersonaFilterLogic.js';
 import { PersonaService } from './PersonaService.js';
+import { renderTabellenTag, renderMarkenBubbles } from '../../core/ui/tabellenZellen.js';
+import {
+  renderVerknuepfungen,
+  namedLinks,
+  skriptLinks,
+  acceptedProduktLinks,
+  attachBriefingsToPersonas
+} from '../../core/ui/tableVerknuepfungen.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import {
   buildCompanyFolders,
   buildBrandFolders,
@@ -22,18 +32,22 @@ import {
   parseFolderQuery,
   folderListUrl,
   folderCrumbs,
-  withFolderQuery
+  withFolderQuery,
+  markenEbeneEntfaellt
 } from '../../core/folderListNav.js';
 import {
   renderCompaniesView, updateCompaniesGrid,
   renderBrandsView, updateBrandsGrid,
   renderItemsView, updateItemsTable as _updateItemsTable
 } from './PersonaFolderRenderer.js';
+import { openPersonaCreateDrawer } from './PersonaCreateDrawer.js';
 
 const PERSONA_LIST_SELECT = `
   *,
   unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
-  marken:persona_marke(marke_id, marke:marke_id(id, markenname, logo_url))
+  marken:persona_marke(marke_id, marke:marke_id(id, markenname, logo_url)),
+  produkte:produkt_persona_vorschlag(status, produkt:produkt_id(id, name)),
+  skripte(id, titel)
 `;
 
 export class PersonaList extends BasePaginatedList {
@@ -46,12 +60,14 @@ export class PersonaList extends BasePaginatedList {
       sortAscending: true,
       paginationContainerId: 'pagination-persona',
       tbodySelector: '.data-table tbody',
-      tableColspan: 10,
+      tableColspan: 13,
       checkboxClass: 'persona-check',
       selectAllId: 'select-all-personas'
     });
 
     this._allPersonas = null;
+    this.embedScope = null;
+    this._embedPersonaIds = null;
 
     this.viewMode = 'companies';
     this.listViewMode = 'grid';
@@ -80,6 +96,7 @@ export class PersonaList extends BasePaginatedList {
 
   resetEntityCaches() {
     this._allPersonas = null;
+    this._embedPersonaIds = null;
   }
 
   applyQueryParams(params) {
@@ -108,12 +125,13 @@ export class PersonaList extends BasePaginatedList {
   }
 
   syncListUrl() {
+    if (this.embedded) return;
     const url = this.listViewMode === 'list' ? '/persona' : this.listUrl();
-    window.history.replaceState({ route: url }, '', url);
+    replaceRoute(url);
   }
 
   updateBreadcrumbDisplay() {
-    if (!window.breadcrumbSystem) return;
+    if (this.embedded || !window.breadcrumbSystem) return;
 
     if (this.listViewMode === 'list' || this.viewMode === 'companies') {
       window.breadcrumbSystem.updateBreadcrumb([
@@ -125,11 +143,46 @@ export class PersonaList extends BasePaginatedList {
     window.breadcrumbSystem.updateBreadcrumb(folderCrumbs({
       listLabel: 'Personas',
       basePath: '/persona',
-      folder: this.currentFolder()
+      folder: this.currentFolder(),
+      markenEbeneWeg: this.markenEbeneWeg()
     }));
   }
 
+  async mountEmbedded(root, scope = {}) {
+    this.embedded = true;
+    this.embedScope = scope || {};
+    this._embedPersonaIds = null;
+    this.mountRoot = root;
+    this._destroyed = false;
+    this.options.enableDynamicResize = false;
+    this.viewMode = 'companies';
+    this.listViewMode = 'list';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this._shellRendered = false;
+    this._allPersonas = null;
+
+    const canView = await this.checkViewPermission();
+    if (this._destroyed || !canView) {
+      if (!this._destroyed && !canView) this.renderNoPermission();
+      return;
+    }
+
+    const additionalPermissions = await this.checkAdditionalPermissions();
+    if (this._destroyed || !additionalPermissions) return;
+
+    if (window.bulkActionSystem) {
+      window.bulkActionSystem.registerList(this.entityType, this);
+    }
+
+    await this.loadAndRender();
+  }
+
   async init() {
+    this._destroyed = false;
     this.applyQueryParams(new URLSearchParams(window.location.search));
 
     if (window.setHeadline) {
@@ -137,13 +190,13 @@ export class PersonaList extends BasePaginatedList {
     }
 
     const canView = await this.checkViewPermission();
-    if (!canView) {
-      this.renderNoPermission();
+    if (this._destroyed || !canView) {
+      if (!this._destroyed && !canView) this.renderNoPermission();
       return;
     }
 
     const additionalPermissions = await this.checkAdditionalPermissions();
-    if (!additionalPermissions) return;
+    if (this._destroyed || !additionalPermissions) return;
 
     if (window.bulkActionSystem) {
       window.bulkActionSystem.registerList(this.entityType, this);
@@ -157,6 +210,7 @@ export class PersonaList extends BasePaginatedList {
       this.viewMode = 'companies';
       this._shellRendered = false;
       await this.renderShell();
+      if (this._destroyed) return;
       this.initializePagination();
       this.bindEvents();
       this.updateBreadcrumbDisplay();
@@ -167,7 +221,9 @@ export class PersonaList extends BasePaginatedList {
 
     this._shellRendered = false;
     await this.ensureAllPersonas();
+    if (this._destroyed) return;
     this.buildCurrentFolders();
+    this.applyMarkenEbeneSprung();
     this.renderFolderView();
     this.bindEvents();
 
@@ -187,6 +243,7 @@ export class PersonaList extends BasePaginatedList {
       this._allPersonas = null;
       await this.ensureAllPersonas();
       this.buildCurrentFolders();
+      this.applyMarkenEbeneSprung();
       this.renderFolderView();
       if (this.viewMode === 'items') {
         this.pagination.init('pagination-persona-items', {
@@ -207,6 +264,23 @@ export class PersonaList extends BasePaginatedList {
     return this._allPersonas;
   }
 
+  async resolveEmbedPersonaIds() {
+    if (this._embedPersonaIds) return this._embedPersonaIds;
+    const briefingId = this.embedScope?.briefingId || null;
+    if (!briefingId || !window.supabase) {
+      this._embedPersonaIds = [];
+      return this._embedPersonaIds;
+    }
+    const { data, error } = await window.supabase
+      .from('campaign_briefings')
+      .select('persona_ids')
+      .eq('id', briefingId)
+      .maybeSingle();
+    if (error) throw error;
+    this._embedPersonaIds = (data?.persona_ids || []).filter(Boolean);
+    return this._embedPersonaIds;
+  }
+
   async loadAllPersonas() {
     if (!window.supabase) return [];
 
@@ -217,7 +291,26 @@ export class PersonaList extends BasePaginatedList {
       .order('name', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return this.attachBriefings(data || []);
+  }
+
+  async attachBriefings(personas) {
+    const ids = (personas || []).map((persona) => persona.id).filter(Boolean);
+    if (!ids.length || !window.supabase) return personas || [];
+
+    const briefings = [];
+    for (let i = 0; i < ids.length; i += 80) {
+      const chunk = ids.slice(i, i + 80);
+      const { data, error } = await window.supabase
+        .from('campaign_briefings')
+        .select('id, aktivierung_name, persona_ids')
+        .overlaps('persona_ids', chunk);
+      if (error) throw error;
+      briefings.push(...(data || []));
+    }
+
+    const unique = [...new Map(briefings.map((row) => [row.id, row])).values()];
+    return attachBriefingsToPersonas(personas, unique);
   }
 
   buildCurrentFolders() {
@@ -237,6 +330,33 @@ export class PersonaList extends BasePaginatedList {
     });
   }
 
+  markenEbeneWeg() {
+    if (!this._ohneMarke || !this.currentUnternehmenId) return false;
+    const folders = buildBrandFolders(this._allPersonas || [], this.currentUnternehmenId);
+    const echte = folders.filter((folder) => folder.id && !folder.virtual).length;
+    const ohne = folders.filter((folder) => folder.virtual).reduce((sum, folder) => sum + (folder.count || 0), 0);
+    return markenEbeneEntfaellt(echte, ohne);
+  }
+
+  applyMarkenEbeneSprung() {
+    if (this.viewMode !== 'brands' || !this.currentUnternehmenId) return;
+    const folders = buildBrandFolders(this._allPersonas || [], this.currentUnternehmenId);
+    const echte = folders.filter((folder) => folder.id && !folder.virtual).length;
+    const ohne = folders.filter((folder) => folder.virtual).reduce((sum, folder) => sum + (folder.count || 0), 0);
+    if (!markenEbeneEntfaellt(echte, ohne)) return;
+    this.viewMode = 'items';
+    this._ohneMarke = true;
+    this.currentMarkeId = null;
+    this.currentMarkeName = NUR_UNTERNEHMEN_LABEL;
+    if (this.pagination) this.pagination.currentPage = 1;
+    this.buildCurrentFolders();
+  }
+
+  backFromItems() {
+    if (this.markenEbeneWeg()) this.switchToCompaniesView();
+    else this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+  }
+
   renderFolderView() {
     this.updateBreadcrumbDisplay();
     this.syncListUrl();
@@ -246,7 +366,7 @@ export class PersonaList extends BasePaginatedList {
     else if (this.viewMode === 'brands') html = renderBrandsView(this);
     else html = renderItemsView(this);
 
-    window.setContentSafely(window.content, html);
+    this.writeContent(html);
 
     if (this.viewMode === 'companies') updateCompaniesGrid(this);
     else if (this.viewMode === 'brands') updateBrandsGrid(this);
@@ -284,6 +404,7 @@ export class PersonaList extends BasePaginatedList {
   }
 
   setListViewMode(mode) {
+    if (this.embedScope) return;
     if (this.listViewMode === mode && (mode === 'list' || this.viewMode === 'companies')) return;
     this.listViewMode = mode;
     this.viewMode = 'companies';
@@ -301,6 +422,9 @@ export class PersonaList extends BasePaginatedList {
     try {
       if (!window.supabase) return { data: [], total: 0 };
 
+      const embedIds = this.embedScope ? await this.resolveEmbedPersonaIds() : null;
+      if (embedIds && embedIds.length === 0) return { data: [], total: 0 };
+
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
@@ -309,6 +433,8 @@ export class PersonaList extends BasePaginatedList {
         .select(PERSONA_LIST_SELECT, { count: 'exact' })
         .not('unternehmen_id', 'is', null)
         .order(this.currentSort.field, { ascending: this.currentSort.ascending });
+
+      if (embedIds) query = query.in('id', embedIds);
 
       if (filters.marke_id) {
         const { data: markenTreffer } = await window.supabase
@@ -351,7 +477,7 @@ export class PersonaList extends BasePaginatedList {
       const { data, error, count } = await query;
       if (error) throw error;
 
-      return { data: data || [], total: count || 0 };
+      return { data: await this.attachBriefings(data || []), total: count || 0 };
     } catch (error) {
       console.error('❌ Fehler beim Laden der Personas:', error);
       throw error;
@@ -361,34 +487,33 @@ export class PersonaList extends BasePaginatedList {
   renderSingleRow(persona, options = {}) {
     const showCheckbox = options.checkbox !== false && this.canBulkDelete;
     const sanitize = this.sanitize.bind(this);
-    const marken = this.renderMarken(persona);
 
     return `
       <tr data-id="${persona.id}" data-unternehmen-id="${persona.unternehmen_id || ''}">
         ${showCheckbox ? `<td class="col-checkbox"><input type="checkbox" class="persona-check" data-id="${persona.id}"></td>` : ''}
         <td>${sanitize(persona.oberbegriff || '-')}</td>
         <td class="col-name">
-          <a href="#" class="table-link persona-row-open" data-persona-id="${persona.id}">
-            ${sanitize(persona.name || '')}
-          </a>
+          ${renderVerknuepfungPill({
+            kind: 'persona',
+            labelHtml: sanitize(persona.name || ''),
+            attrs: `data-persona-id="${persona.id}"`,
+            className: 'persona-row-open'
+          })}
         </td>
         <td>${this.renderUnternehmen(persona.unternehmen)}</td>
-        <td>${marken}</td>
-        <td>${sanitize(PersonaService.alterLabel(persona))}</td>
-        <td>${sanitize(persona.geschlecht || '-')}</td>
+        <td>${renderMarkenBubbles(persona.marken)}</td>
+        <td>${renderTabellenTag(PersonaService.alterLabel(persona), sanitize)}</td>
+        <td>${renderTabellenTag(persona.geschlecht, sanitize)}</td>
         <td>${sanitize(persona.wohnort_region || '-')}</td>
-        <td>${this._formatDate(persona.created_at)}</td>
+        <td>${renderTabellenTag(this._formatDate(persona.created_at), sanitize)}</td>
+        <td>${renderVerknuepfungen(acceptedProduktLinks(persona.produkte))}</td>
+        <td>${renderVerknuepfungen(namedLinks(persona.verknuepfte_briefings, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
+        <td>${renderVerknuepfungen(skriptLinks(persona.skripte))}</td>
         <td class="col-actions">
           ${actionBuilder.create('persona', persona.id)}
         </td>
       </tr>
     `;
-  }
-
-  renderMarken(persona) {
-    const namen = PersonaService.markenNamen(persona);
-    if (!namen.length) return `<span class="text-muted">${NUR_UNTERNEHMEN_LABEL}</span>`;
-    return namen.map(name => `<span class="status-badge">${this.sanitize(name)}</span>`).join(' ');
   }
 
   renderUnternehmen(unternehmen) {
@@ -418,7 +543,7 @@ export class PersonaList extends BasePaginatedList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
-            ${ViewModeToggle.render([
+            ${this.embedScope ? '' : ViewModeToggle.render([
               { buttonId: 'btn-view-list', label: 'Liste', icon: 'list', active: this.listViewMode === 'list' },
               { buttonId: 'btn-view-grid', label: 'Grid', icon: 'grid', active: this.listViewMode === 'grid' }
             ])}
@@ -451,12 +576,15 @@ export class PersonaList extends BasePaginatedList {
               <th>Geschlecht</th>
               <th>Region</th>
               <th>Erstellt</th>
+              <th>Produkte</th>
+              <th>Briefings</th>
+              <th>Skripte</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="${canBulkDelete ? '10' : '9'}" class="no-data">Lade Personas...</td>
+              <td colspan="${canBulkDelete ? '13' : '12'}" class="no-data">Lade Personas...</td>
             </tr>
           </tbody>
         </table>
@@ -466,8 +594,12 @@ export class PersonaList extends BasePaginatedList {
     `;
   }
 
+  resolveDetailRoute(itemId) {
+    return withFolderQuery(`/persona/${itemId}`);
+  }
+
   async initializeFilterBar() {
-    const sortContainer = document.getElementById('sort-dropdown-container');
+    const sortContainer = this.byId('sort-dropdown-container');
     if (sortContainer) {
       sortDropdown.init('persona', sortContainer, {
         nameField: 'name',
@@ -476,7 +608,7 @@ export class PersonaList extends BasePaginatedList {
       });
     }
 
-    const filterContainer = document.getElementById('filter-dropdown-container');
+    const filterContainer = this.byId('filter-dropdown-container');
     if (filterContainer) {
       await filterDropdown.init('persona', filterContainer, {
         onFilterApply: (filters) => this.onFiltersApplied(filters),
@@ -486,11 +618,11 @@ export class PersonaList extends BasePaginatedList {
   }
 
   bindAdditionalEvents(signal) {
-    if (document.getElementById('persona-search-input')) {
+    if (this.byId('persona-search-input')) {
       SearchInput.bind('persona', (value) => this.handleSearch(value), signal);
     }
 
-    document.addEventListener('click', (e) => {
+    this.eventRoot().addEventListener('click', (e) => {
       const listBtn = e.target.closest('#btn-view-list');
       if (listBtn) {
         e.preventDefault();
@@ -515,7 +647,7 @@ export class PersonaList extends BasePaginatedList {
       const backBrands = e.target.closest('#btn-back-to-brands');
       if (backBrands) {
         e.preventDefault();
-        this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+        this.backFromItems();
         return;
       }
 
@@ -544,22 +676,43 @@ export class PersonaList extends BasePaginatedList {
 
       if (e.target.id === 'btn-persona-new' || e.target.closest('#btn-persona-new')) {
         e.preventDefault();
-        window.navigateTo(withFolderQuery('/persona/new'));
+        this.openCreateDrawer();
       }
     }, { signal });
   }
 
   openPersona(personaId) {
     if (!personaId) return;
-    window.navigateTo(withFolderQuery(`/persona/${personaId}`));
+    window.navigateTo(this.resolveDetailRoute(personaId));
+  }
+
+  openCreateDrawer() {
+    const folder = this.currentFolder();
+    const scope = this.embedScope;
+    const prefill = {
+      origin: 'liste',
+      unternehmen_id: scope?.unternehmenId || folder.unternehmenId || null,
+      unternehmenName: scope?.unternehmenName || folder.unternehmenName || null,
+      marke_id: scope?.markeId || (folder.ohneMarke ? null : (folder.markeId || null)),
+      markeName: scope?.markeName || (folder.ohneMarke ? null : (folder.markeName || null))
+    };
+    if (scope?.briefingId) {
+      prefill.briefing_id = scope.briefingId;
+      prefill.briefingName = scope.briefingName || null;
+    }
+    if (scope?.produktId) {
+      prefill.produkt_id = scope.produktId;
+      prefill.produktName = scope.produktName || null;
+    }
+    openPersonaCreateDrawer(prefill);
   }
 
   showCreateForm() {
-    window.navigateTo(withFolderQuery('/persona/new'));
+    this.openCreateDrawer();
   }
 
   async updateTable(personas) {
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     if (!tbody) return;
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
@@ -578,6 +731,8 @@ export class PersonaList extends BasePaginatedList {
 
   destroy() {
     super.destroy();
+    this.embedScope = null;
+    this._embedPersonaIds = null;
     this._allPersonas = null;
     this.companyFolders = [];
     this.brandFolders = [];

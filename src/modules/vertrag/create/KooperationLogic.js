@@ -4,6 +4,9 @@
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
+import { vertragCreatorIds } from './vertragCreatorFilter.js';
+import { ladeVerknuepfbareVertraege, verknuepfeKooperation } from '../deckung/vertragDeckung.js';
+import { escapeHtml } from '../../../core/format.js';
 
 function koopLabel(k) {
   const name = k.name || k.id;
@@ -138,11 +141,15 @@ VertraegeCreate.prototype.updateKooperationField = function() {
     if (!this.formData.creator_id || koopForCreator.length === 0) {
       this.formData.kooperation_id = null;
       field.style.display = 'none';
+      select.required = false;
+      select.removeAttribute('required');
       select.innerHTML = '<option value="">Kooperation auswählen...</option>';
+      this.refreshBestehendeVertraege?.();
       return;
     }
 
     field.style.display = '';
+    select.required = true;
     select.innerHTML = `
       <option value="">Kooperation auswählen...</option>
       ${koopForCreator.map(k => `<option value="${k.id}">${koopLabel(k)}</option>`).join('')}
@@ -160,6 +167,7 @@ VertraegeCreate.prototype.updateKooperationField = function() {
         this.formData.kooperation_id = null;
       }
     }
+    this.refreshBestehendeVertraege?.();
 };
 
 VertraegeCreate.prototype.renderKooperationSelect = function() {
@@ -170,8 +178,8 @@ VertraegeCreate.prototype.renderKooperationSelect = function() {
 
     return `
       <div class="form-field" id="kooperation-field" style="${showField ? '' : 'display:none'}">
-        <label for="kooperation_id">Kooperation <span class="required">*</span></label>
-        <select id="kooperation_id" name="kooperation_id" required>
+        <label for="kooperation_id">Kooperation${showField ? ' <span class="required">*</span>' : ''}</label>
+        <select id="kooperation_id" name="kooperation_id"${showField ? ' required' : ''}>
           <option value="">Kooperation auswählen...</option>
           ${koopForCreator.map(k => `
             <option value="${k.id}" ${this.formData.kooperation_id === k.id ? 'selected' : ''}>
@@ -180,7 +188,68 @@ VertraegeCreate.prototype.renderKooperationSelect = function() {
           `).join('')}
         </select>
       </div>
+      <div class="form-field" id="bestehende-vertraege-box" style="display:none"></div>
     `;
+};
+
+// Bestehende Vertraege, die die gewaehlte Kooperation noch decken koennen (ADR 0047).
+// Wahl haengt die Kooperation an den Vertrag und erzeugt kein neues PDF.
+VertraegeCreate.prototype.refreshBestehendeVertraege = async function() {
+    const box = document.getElementById('bestehende-vertraege-box');
+    if (!box) return;
+
+    const verstecken = () => { box.style.display = 'none'; box.innerHTML = ''; };
+    const koopId = this.formData.kooperation_id;
+    const typ = this.formData.typ || this.selectedTyp;
+    if (!koopId || this.editId || typ === 'Contracting' || !window.supabase) {
+      verstecken();
+      return;
+    }
+
+    const gewaehlt = (this.filteredKooperationen || []).find(k => k.id === koopId);
+    if (!gewaehlt) {
+      verstecken();
+      return;
+    }
+    const koop = { ...gewaehlt, kampagne_id: gewaehlt.kampagne_id || this.formData.kampagne_id };
+
+    try {
+      const treffer = await ladeVerknuepfbareVertraege(koop);
+      // Auswahl koennte inzwischen gewechselt haben
+      if (this.formData.kooperation_id !== koopId) return;
+      if (!treffer.length) {
+        verstecken();
+        return;
+      }
+
+      box.style.display = '';
+      box.innerHTML = `
+        <label>Bestehender Vertrag dieses Creators</label>
+        <p class="field-hint">Statt eines neuen Vertrags kann die Kooperation an einen bestehenden hängen. Das PDF bleibt unverändert.</p>
+        ${treffer.map(({ vertrag, deckung }) => `
+          <div class="deckung-row" data-vertrag-id="${vertrag.id}">
+            <span>${escapeHtml(vertrag.name || 'Vertrag')} · ${escapeHtml(vertrag.typ || '')}${deckung.aktiv ? ` · mit dieser Kooperation ${deckung.summe} von ${deckung.limit} Videos` : ''}</span>
+            <button type="button" class="mdc-btn mdc-btn--primary" data-bestehender-vertrag="${vertrag.id}">An diesen Vertrag hängen</button>
+          </div>`).join('')}
+      `;
+
+      box.querySelectorAll('[data-bestehender-vertrag]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            await verknuepfeKooperation(btn.dataset.bestehenderVertrag, koopId);
+            window.toastSystem?.show('Kooperation an bestehenden Vertrag gehängt', 'success');
+            window.navigateTo?.('/vertraege');
+          } catch (err) {
+            btn.disabled = false;
+            window.toastSystem?.show(err.message || String(err), 'error');
+          }
+        });
+      });
+    } catch (err) {
+      console.warn('Bestehende Verträge konnten nicht geladen werden:', err);
+      verstecken();
+    }
 };
 
 // Der Toggle "Mehrere Rechnungen erlaubt" ist mit ADR 0004/0015 entfallen:
@@ -288,19 +357,30 @@ VertraegeCreate.prototype.updateFilteredCreators = async function() {
     }
 
     try {
-      const { data: kooperationen } = await window.supabase
-        .from('kooperationen')
-        .select('id, creator_id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, created_at')
-        .eq('kampagne_id', this.formData.kampagne_id);
+      const kampagneId = this.formData.kampagne_id;
 
-      this.filteredKooperationen = kooperationen || [];
+      const [koopResult, castingResult] = await Promise.all([
+        window.supabase
+          .from('kooperationen')
+          .select('id, creator_id, kampagne_id, name, videoanzahl, einkaufspreis_netto, einkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, created_at')
+          .eq('kampagne_id', kampagneId)
+          .not('creator_id', 'is', null),
+        window.supabase
+          .from('creator_auswahl')
+          .select('id, creator_auswahl_items(creator_id, zusage, gebucht)')
+          .eq('kampagne_id', kampagneId)
+      ]);
 
-      if (kooperationen && kooperationen.length > 0) {
-        const creatorIds = [...new Set(kooperationen.map(k => k.creator_id))];
-        this.filteredCreators = this.creators.filter(c => creatorIds.includes(c.id));
-      } else {
-        this.filteredCreators = [];
-      }
+      if (koopResult.error) throw koopResult.error;
+      if (castingResult.error) throw castingResult.error;
+
+      this.filteredKooperationen = koopResult.data || [];
+
+      const castingItems = (castingResult.data || []).flatMap(
+        liste => liste.creator_auswahl_items || []
+      );
+      const creatorIds = vertragCreatorIds(castingItems, this.filteredKooperationen);
+      this.filteredCreators = this.creators.filter(c => creatorIds.includes(c.id));
     } catch (error) {
       console.error('❌ Fehler beim Filtern der Creator:', error);
       this.filteredCreators = [];

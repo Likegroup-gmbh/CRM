@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { deleteVideoFile, deleteVideoFull } from '../core/VideoDeleteHelper.js';
+import { syncVideoAssetsAfterDelete, deleteVideoFull } from '../core/VideoDeleteHelper.js';
 
 function createTrackingSupabase(config = {}) {
   const log = [];
@@ -64,131 +64,95 @@ function createTrackingFetch(overrides = {}) {
 
 describe('VideoDeleteHelper', () => {
 
-  describe('deleteVideoFile (Soft-Delete)', () => {
+  describe('syncVideoAssetsAfterDelete', () => {
+    // Mock: select().eq() liefert die verbleibenden Assets bzw. die Videozeile (wie vom
+    // Trigger geschrieben), update(...).in/eq wird geloggt.
+    function createSyncSupabase(remaining, video = { link_content: null }) {
+      const log = [];
+      const sb = {
+        from: vi.fn((table) => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => table === 'kooperation_videos'
+              ? { maybeSingle: () => Promise.resolve({ data: video, error: null }) }
+              : Promise.resolve({ data: remaining, error: null })),
+          })),
+          delete: vi.fn(() => { log.push({ op: 'delete', table }); return { eq: vi.fn(), in: vi.fn() }; }),
+          update: vi.fn((data) => ({
+            in: vi.fn((col, ids) => { log.push({ op: 'update.in', table, data, ids }); return Promise.resolve({ error: null }); }),
+            eq: vi.fn((col, val) => { log.push({ op: 'update.eq', table, data, val }); return Promise.resolve({ error: null }); }),
+          })),
+        })),
+        _log: log,
+      };
+      return sb;
+    }
+    const videoUpdates = (sb) => sb._log.filter(e => e.op === 'update.eq' && e.table === 'kooperation_videos');
 
-    it('lädt Assets und löscht Dropbox-Datei via fetch', async () => {
-      const sb = createTrackingSupabase({
-        assets: [{ id: 'a1', video_id: 'v1', file_path: '/Videos/test/video.mp4', is_current: true }],
-      });
-      const ft = createTrackingFetch();
+    // is_current und link_content schreibt der DB-Trigger; der Abgleich darf sie nicht anfassen
+    const flagWrites = (sb) => sb._log.filter(e => e.table === 'kooperation_video_asset' && e.op.startsWith('update'));
 
-      await deleteVideoFile('v1', { supabase: sb, fetch: ft });
+    it('Geschwister derselben Schleife bleiben: andere Datei ist current, link_content zeigt auf sie', async () => {
+      const sb = createSyncSupabase([
+        { id: 'a2', version_number: 2, is_current: true, is_final: false, file_url: 'https://x/a2', created_at: '2026-02-01' },
+      ], { link_content: 'https://x/a2' });
 
-      expect(ft).toHaveBeenCalledWith(
-        '/.netlify/functions/dropbox-delete',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ filePath: '/Videos/test/video.mp4' }),
-        })
-      );
+      const res = await syncVideoAssetsAfterDelete('v1', { supabase: sb });
+
+      expect(sb._log.filter(e => e.op === 'delete')).toHaveLength(0);
+      expect(res.currentAsset.id).toBe('a2');
+      expect(res.linkContent).toBe('https://x/a2');
+      expect(videoUpdates(sb)).toHaveLength(0);
+      expect(flagWrites(sb)).toHaveLength(0);
     });
 
-    it('löscht current Asset aus kooperation_video_asset', async () => {
-      const sb = createTrackingSupabase({
-        assets: [{ id: 'a1', video_id: 'v1', file_path: '/path.mp4', is_current: true }],
-      });
-      const ft = createTrackingFetch();
+    it('höchste Schleife weg: neueste Datei der tieferen Schleife ist currentAsset', async () => {
+      const sb = createSyncSupabase([
+        { id: 'a1', version_number: 1, is_current: true, is_final: false, file_url: 'https://x/a1', created_at: '2026-01-01' },
+        { id: 'a1b', version_number: 1, is_current: true, is_final: false, file_url: 'https://x/a1b', created_at: '2026-01-02' },
+      ], { link_content: 'https://x/a1b' });
 
-      await deleteVideoFile('v1', { supabase: sb, fetch: ft });
+      const res = await syncVideoAssetsAfterDelete('v1', { supabase: sb });
 
-      const deleteOps = sb._log.filter(e => e.op === 'delete.eq' && e.table === 'kooperation_video_asset');
-      expect(deleteOps.length).toBeGreaterThanOrEqual(1);
-      expect(deleteOps[0]).toMatchObject({ col: 'video_id', val: 'v1' });
+      expect(res.currentAsset.id).toBe('a1b');
+      expect(res.linkContent).toBe('https://x/a1b');
+      expect(flagWrites(sb)).toHaveLength(0);
     });
 
-    it('setzt link_content auf null in kooperation_videos (NICHT file_url)', async () => {
-      const sb = createTrackingSupabase({
-        assets: [{ id: 'a1', video_id: 'v1', file_path: '/path.mp4', is_current: true }],
-      });
-      const ft = createTrackingFetch();
+    it('Finale weg bei Altbestand: link_content kommt aus der DB und bleibt erhalten', async () => {
+      const sb = createSyncSupabase([
+        { id: 'f2', version_number: 1, is_current: false, is_final: true, file_url: 'https://x/f2', created_at: '2026-01-01' },
+      ], { link_content: 'https://legacy/v.mp4' });
 
-      await deleteVideoFile('v1', { supabase: sb, fetch: ft });
+      const res = await syncVideoAssetsAfterDelete('v1', { supabase: sb });
 
-      const updateOps = sb._log.filter(e => e.op === 'update' && e.table === 'kooperation_videos');
-      expect(updateOps.length).toBe(1);
-      expect(updateOps[0].data.link_content).toBeNull();
-      expect(updateOps[0].data).not.toHaveProperty('file_url');
+      expect(res.currentAsset.id).toBe('f2');
+      expect(res.linkContent).toBe('https://legacy/v.mp4');
+      expect(res.hasRemainingAssets).toBe(true);
+      expect(videoUpdates(sb)).toHaveLength(0);
     });
 
-    it('funktioniert auch ohne Asset (kein Dropbox-Call)', async () => {
-      const sb = createTrackingSupabase({ assets: [] });
+    it('letztes Asset weg: nur folder_url wird geleert, kein Datei-Call', async () => {
+      const sb = createSyncSupabase([]);
       const ft = createTrackingFetch();
+      vi.stubGlobal('fetch', ft);
 
-      const result = await deleteVideoFile('v1', { supabase: sb, fetch: ft });
+      const res = await syncVideoAssetsAfterDelete('v1', { supabase: sb });
+      vi.unstubAllGlobals();
 
-      expect(result.success).toBe(true);
+      expect(res.hasRemainingAssets).toBe(false);
+      expect(res.currentAsset).toBeNull();
+      expect(res.linkContent).toBeNull();
+      expect(videoUpdates(sb)[0].data).toEqual({ folder_url: null });
       expect(ft).not.toHaveBeenCalled();
-      const deleteOps = sb._log.filter(e => e.op.startsWith('delete'));
-      expect(deleteOps.length).toBe(0);
-    });
-
-    it('überspringt Dropbox-Löschung bei file_path=null (externer Link)', async () => {
-      const sb = createTrackingSupabase({
-        assets: [{ id: 'a1', video_id: 'v1', file_path: null, file_url: 'https://drive.google.com/xyz', is_current: true }],
-      });
-      const ft = createTrackingFetch();
-
-      const result = await deleteVideoFile('v1', { supabase: sb, fetch: ft });
-
-      expect(result.success).toBe(true);
-      expect(ft).not.toHaveBeenCalled();
-      const deleteOps = sb._log.filter(e => e.op === 'delete.eq' && e.table === 'kooperation_video_asset');
-      expect(deleteOps.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('toleriert Dropbox-404 (Datei schon gelöscht)', async () => {
-      const sb = createTrackingSupabase({
-        assets: [{ id: 'a1', video_id: 'v1', file_path: '/gone.mp4', is_current: true }],
-      });
-      const ft = createTrackingFetch({
-        '/.netlify/functions/dropbox-delete': { ok: false, status: 404, json: async () => ({ error: 'not found' }) },
-      });
-
-      const result = await deleteVideoFile('v1', { supabase: sb, fetch: ft });
-
-      expect(result.success).toBe(true);
-      const deleteOps = sb._log.filter(e => e.op === 'delete.eq' && e.table === 'kooperation_video_asset');
-      expect(deleteOps.length).toBeGreaterThanOrEqual(1);
     });
   });
 
   describe('deleteVideoFull (Hard-Delete)', () => {
 
-    it('löscht Dropbox-Dateien + alle Assets + Video-Zeile', async () => {
+    it('Altbestand (nur Links): kein Datei-Call, alle Assets + Video-Zeile weg', async () => {
       const sb = createTrackingSupabase({
         assets: [
-          { id: 'a1', video_id: 'v1', file_path: '/path1.mp4', is_current: false },
-          { id: 'a2', video_id: 'v1', file_path: '/path2.mp4', is_current: true },
-        ],
-      });
-      const ft = createTrackingFetch();
-
-      const result = await deleteVideoFull('v1', { supabase: sb, fetch: ft });
-
-      expect(result).toEqual({ success: true });
-
-      expect(ft).toHaveBeenCalledTimes(2);
-      expect(ft).toHaveBeenCalledWith(
-        '/.netlify/functions/dropbox-delete',
-        expect.objectContaining({ body: JSON.stringify({ filePath: '/path1.mp4' }) })
-      );
-      expect(ft).toHaveBeenCalledWith(
-        '/.netlify/functions/dropbox-delete',
-        expect.objectContaining({ body: JSON.stringify({ filePath: '/path2.mp4' }) })
-      );
-
-      const assetDeleteOps = sb._log.filter(e => e.op === 'delete.in' && e.table === 'kooperation_video_asset');
-      expect(assetDeleteOps.length).toBe(1);
-
-      const videoDeleteOps = sb._log.filter(e => e.op === 'delete.eq' && e.table === 'kooperation_videos');
-      expect(videoDeleteOps.length).toBe(1);
-      expect(videoDeleteOps[0]).toMatchObject({ col: 'id', val: 'v1' });
-    });
-
-    it('löscht nur Dropbox-Dateien mit file_path, übergeht externe Links', async () => {
-      const sb = createTrackingSupabase({
-        assets: [
-          { id: 'a1', video_id: 'v1', file_path: '/path1.mp4', is_current: false },
+          { id: 'a1', video_id: 'v1', file_path: '/path1.mp4', ablage: 'dropbox', is_current: false },
           { id: 'a2', video_id: 'v1', file_path: null, file_url: 'https://ext.example.com/v', is_current: true },
         ],
       });
@@ -197,11 +161,33 @@ describe('VideoDeleteHelper', () => {
       const result = await deleteVideoFull('v1', { supabase: sb, fetch: ft });
 
       expect(result).toEqual({ success: true });
-      expect(ft).toHaveBeenCalledTimes(1);
-      expect(ft).toHaveBeenCalledWith(
-        '/.netlify/functions/dropbox-delete',
-        expect.objectContaining({ body: JSON.stringify({ filePath: '/path1.mp4' }) })
-      );
+      expect(ft).not.toHaveBeenCalled();
+      const assetDeleteOps = sb._log.filter(e => e.op === 'delete.in' && e.table === 'kooperation_video_asset');
+      expect(assetDeleteOps).toEqual([{ op: 'delete.in', table: 'kooperation_video_asset', col: 'video_id', vals: ['v1'] }]);
+      const videoDeleteOps = sb._log.filter(e => e.op === 'delete.eq' && e.table === 'kooperation_videos');
+      expect(videoDeleteOps).toHaveLength(1);
+      expect(videoDeleteOps[0]).toMatchObject({ col: 'id', val: 'v1' });
+    });
+
+    it('SharePoint: ablage-datei je Zeile, Zeile direkt danach (Quelle und Finale teilen sich die Datei)', async () => {
+      const sb = createTrackingSupabase({
+        assets: [
+          { id: 'a1', video_id: 'v1', file_path: '/Videos/alt.mp4', is_current: false },
+          { id: 'a2', video_id: 'v1', file_path: '/Ablage/Koop/v2.mp4', is_current: true, ablage: 'sharepoint' },
+          { id: 'a3', video_id: 'v1', file_path: '/Ablage/Koop/v2.mp4', is_current: false, ablage: 'sharepoint' },
+        ],
+      });
+      const ft = vi.fn(async (url, opts) => {
+        sb._log.push({ op: 'fetch', url, body: JSON.parse(opts.body) });
+        return { ok: true, status: 200, json: async () => ({ geloescht: true }) };
+      });
+
+      const result = await deleteVideoFull('v1', { supabase: sb, fetch: ft });
+
+      expect(result).toEqual({ success: true });
+      const calls = sb._log.filter(l => l.op === 'fetch' || l.op === 'delete.eq');
+      expect(calls.map(l => l.body?.id ?? `db:${l.val}`)).toEqual(['a2', 'db:a2', 'a3', 'db:a3', 'db:v1']);
+      expect(calls[0]).toEqual({ op: 'fetch', url: '/.netlify/functions/ablage-datei', body: { aktion: 'loeschen', typ: 'video', id: 'a2' } });
     });
 
     it('toleriert fehlende Assets – löscht trotzdem die Video-Zeile', async () => {
@@ -241,6 +227,21 @@ describe('VideoDeleteHelper', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('DB connection lost');
+    });
+
+    it('SharePoint-Datei lässt sich nicht löschen: Video-Zeile bleibt, Fehler kommt zurück', async () => {
+      const sb = createTrackingSupabase({
+        assets: [{ id: 'a1', video_id: 'v1', file_path: '/Ablage/v1.mp4', is_current: true, ablage: 'sharepoint' }],
+      });
+      const ft = createTrackingFetch({
+        '/.netlify/functions/ablage-datei': { ok: false, status: 502, json: async () => ({ error: 'Graph down' }) },
+      });
+
+      const result = await deleteVideoFull('v1', { supabase: sb, fetch: ft });
+
+      expect(result).toEqual({ success: false, error: 'Graph down' });
+      expect(ft._log.map(l => l.url)).toEqual(['/.netlify/functions/ablage-datei']);
+      expect(sb._log.filter(e => e.op.startsWith('delete'))).toEqual([]);
     });
   });
 });

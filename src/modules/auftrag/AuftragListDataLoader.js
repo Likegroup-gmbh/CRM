@@ -6,10 +6,9 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
 import { sortRowsByPrefixedNumberDesc } from './logic/PrefixedNumberSort.js';
+import { FINAL_AUFTRAG_OR_FILTER } from '../../core/finalisiert.js';
 
-// PostgREST-Filter gegen Entwuerfe: neq('is_draft', true) wuerde NULL-Zeilen
-// (Altbestand) mit ausblenden, darum explizit "null ODER false".
-export const FINAL_AUFTRAG_OR_FILTER = 'is_draft.is.null,is_draft.eq.false';
+export { FINAL_AUFTRAG_OR_FILTER };
 
 const AUFTRAG_LIST_SELECT = `
         id,
@@ -258,6 +257,10 @@ AuftragList.prototype.loadAuftraegeWithPagination = async function(filters = {},
 
     const createdByFallbacks = await this.loadCreatedByFallbacks(orderedData);
 
+    // Teilrechnungen der sichtbaren Seite laden — die Bezahlt-Zelle schreibt
+    // und liest die Teilrechnung, sobald welche existieren.
+    const teilrechnungenMap = await this.loadTeilrechnungenMap(pageIds);
+
     const formattedData = orderedData.map(auftrag => {
       const details = auftrag.auftrag_details;
       const detailsId = Array.isArray(details) ? details[0]?.id : details?.id;
@@ -266,6 +269,7 @@ AuftragList.prototype.loadAuftraegeWithPagination = async function(filters = {},
         ...auftrag,
         has_auftragsdetails: Boolean(detailsId),
         auftragsdetails_id: detailsId || null,
+        teilrechnungen: teilrechnungenMap.get(auftrag.id) || [],
         created_by: auftrag.created_by || createdByFallbacks.get(auftrag.created_by_id) || null,
         unternehmen: auftrag.unternehmen ? {
           id: auftrag.unternehmen.id,
@@ -292,6 +296,28 @@ AuftragList.prototype.loadAuftraegeWithPagination = async function(filters = {},
     console.error('❌ Fehler beim Laden der Aufträge:', error);
     throw error;
   }
+};
+
+AuftragList.prototype.loadTeilrechnungenMap = async function(auftragIds) {
+  const map = new Map();
+  if (!window.supabase || !Array.isArray(auftragIds) || auftragIds.length === 0) {
+    return map;
+  }
+  try {
+    const { data, error } = await window.supabase
+      .from('auftrag_teilrechnung')
+      .select('id, auftrag_id, position, nettobetrag, ueberwiesen, ueberwiesen_am, rechnung_gestellt, rechnung_gestellt_am')
+      .in('auftrag_id', auftragIds)
+      .order('position', { ascending: true });
+    if (error) throw error;
+    for (const tr of (data || [])) {
+      if (!map.has(tr.auftrag_id)) map.set(tr.auftrag_id, []);
+      map.get(tr.auftrag_id).push(tr);
+    }
+  } catch (error) {
+    console.warn('⚠️ Teilrechnungen konnten nicht geladen werden:', error);
+  }
+  return map;
 };
 
 AuftragList.prototype.loadCreatedByFallbacks = async function(auftraege) {

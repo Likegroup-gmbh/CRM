@@ -11,6 +11,7 @@ import { calculateDatenqualitaet, DATENQUALITAET_PRUEFUNGEN } from '../../core/b
 import { loadFinanzbestand } from '../../core/budget/finanzbestand.js';
 import { escapeHtml, formatEuro } from '../../core/format.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { navMark } from '../../core/dev/navTrace.js';
 
 const SUPABASE = () => window.supabase;
 
@@ -30,14 +31,27 @@ export class DatenqualitaetPage {
     this.data = null;
     this.ergebnis = null;
     this._docClickHandler = null;
+    // Abbruch-Token: init() und destroy() zaehlen hoch, ein laufender Load
+    // rendert nur, solange sein Token noch gilt.
+    this._ladeId = 0;
+    // Promise des laufenden Loads; Tests und Aufrufer awaiten dieses.
+    this.ready = Promise.resolve();
   }
 
+  // Kehrt nach dem Platzhalter zurueck, nicht nach dem Load: ModuleRegistry
+  // haelt waehrend init() die Navigationssperre.
   async init() {
+    this._ladeId += 1;
     window.setContentSafely(window.content, '<div class="admin-loading">Lade Datenqualitätsanzeige …</div>');
+    navMark('skeleton:shown');
+    this.ready = this.ladeInitial(this._ladeId);
+  }
 
+  async ladeInitial(ladeId) {
     try {
       await this.loadData();
     } catch (e) {
+      if (ladeId !== this._ladeId) return;
       console.error('❌ Datenqualität: Daten konnten nicht geladen werden', e);
       window.setContentSafely(window.content, `
         <div class="empty-state"><p>Fehler beim Laden: ${this.escape(e?.message || 'Unbekannt')}</p></div>
@@ -45,9 +59,12 @@ export class DatenqualitaetPage {
       return;
     }
 
+    navMark('daten:geladen');
+    if (ladeId !== this._ladeId) return;
     this.ergebnis = calculateDatenqualitaet(this.data);
     this.render();
     this.bindEvents();
+    navMark('render:done');
   }
 
   async loadData() {
@@ -243,6 +260,8 @@ export class DatenqualitaetPage {
   }
 
   destroy() {
+    // Ein noch laufender Load darf nicht mehr in die naechste Seite rendern.
+    this._ladeId += 1;
     if (this._docClickHandler) {
       document.removeEventListener('click', this._docClickHandler);
       this._docClickHandler = null;

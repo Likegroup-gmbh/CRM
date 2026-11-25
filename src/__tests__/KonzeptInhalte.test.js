@@ -1,0 +1,317 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { zuordnenKonzeptInhalte } from '../modules/kampagne/konzeptInhalte.js';
+import { renderIdeeStrategieInner, renderSkriptCell } from '../modules/kampagne/videoTableMediaCells.js';
+import { renderProduktInner } from '../modules/kampagne/videoTableKoopCells.js';
+
+function idee(overrides) {
+  return {
+    video_umgesetzt: true,
+    ist_vorschlag: false,
+    sortierung: 0,
+    konzeptIndex: 0,
+    ...overrides
+  };
+}
+
+function video(id, position, extra = {}) {
+  return { id, position, kooperation_id: 'koop-1', ...extra };
+}
+
+const KOOP = { id: 'koop-1', creator_id: 'c1' };
+
+beforeEach(() => {
+  window.permissionSystem = { canEditField: () => true };
+  window.isGast = () => false;
+});
+
+describe('zuordnenKonzeptInhalte', () => {
+  it('paart umgesetzte Ideen in Konzept-Reihenfolge auf die Videos', () => {
+    const videos = {
+      'koop-1': [video('v1', 1), video('v2', 2), video('v3', 3)]
+    };
+    const ideen = [
+      idee({ id: 'i2', sortierung: 2, beschreibung: 'Zwei', creator_id: 'c1', strategie_id: 's1' }),
+      idee({ id: 'i1', sortierung: 1, beschreibung: 'Eins', creator_id: 'c1', strategie_id: 's1' }),
+      idee({ id: 'i3', sortierung: 3, beschreibung: 'Drei', creator_id: 'c1', strategie_id: 's1' })
+    ];
+    const skripte = [
+      { id: 'sk1', titel: 'Skript Eins', strategie_item_id: 'i1', created_at: '2026-01-01T00:00:00Z' },
+      { id: 'sk2', titel: 'Skript Zwei', strategie_item_id: 'i2', created_at: '2026-01-01T00:00:00Z' },
+      { id: 'sk3', titel: 'Skript Drei', strategie_item_id: 'i3', created_at: '2026-01-01T00:00:00Z' }
+    ];
+
+    const result = zuordnenKonzeptInhalte([KOOP], videos, ideen, skripte);
+
+    expect(result['koop-1'].map(v => v.strategie_item.id)).toEqual(['i1', 'i2', 'i3']);
+    expect(result['koop-1'].map(v => v.skript.titel)).toEqual(['Skript Eins', 'Skript Zwei', 'Skript Drei']);
+    expect(result['koop-1'].every(v => v.strategie_item_id == null && v.skript_id == null)).toBe(true);
+    expect(videos['koop-1'][0].strategie_item).toBeUndefined();
+  });
+
+  it('leitet skript_freigegeben bei virtueller Zuordnung aus dem Skript-Status ab', () => {
+    const videos = { 'koop-1': [video('v1', 1), video('v2', 2)] };
+    const ideen = [
+      idee({ id: 'i1', sortierung: 1, creator_id: 'c1' }),
+      idee({ id: 'i2', sortierung: 2, creator_id: 'c1' })
+    ];
+    const skripte = [
+      { id: 'sk1', titel: 'Frei', status: 'freigegeben', strategie_item_id: 'i1', created_at: '2026-01-01T00:00:00Z' },
+      { id: 'sk2', titel: 'Entwurf', status: 'entwurf', strategie_item_id: 'i2', created_at: '2026-01-01T00:00:00Z' }
+    ];
+
+    const result = zuordnenKonzeptInhalte([KOOP], videos, ideen, skripte);
+
+    expect(result['koop-1'][0].skript_freigegeben).toBe(true);
+    expect(result['koop-1'][0]._skriptAusKonzept).toBe(true);
+    expect(result['koop-1'][1].skript_freigegeben).toBe(false);
+  });
+
+  it('lässt eine gespeicherte Idee gewinnen und vergibt sie nicht nochmal', () => {
+    const videos = {
+      'koop-1': [
+        video('v1', 1),
+        video('v2', 2, {
+          strategie_item_id: 'i2',
+          strategie_item: { id: 'i2', beschreibung: 'Gespeichert', strategie_id: 's1' }
+        })
+      ]
+    };
+    const ideen = [
+      idee({ id: 'i1', sortierung: 1, beschreibung: 'Eins', creator_id: 'c1' }),
+      idee({ id: 'i2', sortierung: 2, beschreibung: 'Zwei', creator_id: 'c1' })
+    ];
+
+    const result = zuordnenKonzeptInhalte([KOOP], videos, ideen, [
+      { id: 'sk2', titel: 'Zum gespeicherten', strategie_item_id: 'i2', created_at: '2026-01-01T00:00:00Z' }
+    ]);
+
+    expect(result['koop-1'][0].strategie_item.id).toBe('i1');
+    expect(result['koop-1'][0]._ideeAusKonzept).toBe(true);
+    expect(result['koop-1'][1].strategie_item.beschreibung).toBe('Gespeichert');
+    expect(result['koop-1'][1]._ideeAusKonzept).toBeUndefined();
+    expect(result['koop-1'][1].skript.titel).toBe('Zum gespeicherten');
+  });
+
+  it('ignoriert fremde Creator, Vorschläge und nicht umgesetzte Ideen', () => {
+    const videos = { 'koop-1': [video('v1', 1), video('v2', 2)] };
+    const ideen = [
+      idee({ id: 'fremd', sortierung: 1, creator_id: 'c2', beschreibung: 'Fremd' }),
+      idee({ id: 'vor', sortierung: 1, creator_id: 'c1', ist_vorschlag: true, beschreibung: 'Vorschlag' }),
+      idee({ id: 'aus', sortierung: 1, creator_id: 'c1', video_umgesetzt: false, beschreibung: 'Aus' }),
+      idee({
+        id: 'ok',
+        sortierung: 4,
+        beschreibung: 'Passt',
+        casting_eintrag: { creator_id: 'c1' }
+      })
+    ];
+
+    const result = zuordnenKonzeptInhalte([KOOP], videos, ideen, []);
+
+    expect(result['koop-1'][0].strategie_item.id).toBe('ok');
+    expect(result['koop-1'][1].strategie_item).toBeUndefined();
+  });
+
+  it('nimmt das neueste Skript der Idee und lässt eine gespeicherte skript_id stehen', () => {
+    const videos = {
+      'koop-1': [
+        video('v1', 1),
+        video('v2', 2, {
+          strategie_item_id: 'i2',
+          skript_id: 'alt',
+          skript: { id: 'alt', titel: 'Fest' }
+        })
+      ]
+    };
+    const ideen = [
+      idee({ id: 'i1', sortierung: 1, creator_id: 'c1' }),
+      idee({ id: 'i2', sortierung: 2, creator_id: 'c1' })
+    ];
+    const skripte = [
+      { id: 'alt-konzept', titel: 'Älter', strategie_item_id: 'i1', created_at: '2026-01-01T00:00:00Z' },
+      { id: 'neu', titel: 'Neuer', strategie_item_id: 'i1', created_at: '2026-06-01T00:00:00Z' },
+      { id: 'anderes', titel: 'Nicht das gespeicherte', strategie_item_id: 'i2', created_at: '2026-07-01T00:00:00Z' }
+    ];
+
+    const result = zuordnenKonzeptInhalte([KOOP], videos, ideen, skripte);
+
+    expect(result['koop-1'][0].skript).toEqual({ id: 'neu', titel: 'Neuer', status: undefined });
+    expect(result['koop-1'][1].skript.titel).toBe('Fest');
+    expect(result['koop-1'][1]._skriptAusKonzept).toBeUndefined();
+  });
+
+  it('lässt übrige Videos leer und vergibt nicht mehr Ideen als Videos da sind', () => {
+    const videos = { 'koop-1': [video('v1', 1)] };
+    const ideen = [
+      idee({ id: 'i1', sortierung: 1, creator_id: 'c1', beschreibung: 'Eins' }),
+      idee({ id: 'i2', sortierung: 2, creator_id: 'c1', beschreibung: 'Zwei' })
+    ];
+    const extra = {
+      'koop-1': [video('v1', 1), video('v2', 2), video('v3', 3)]
+    };
+
+    const nurEins = zuordnenKonzeptInhalte([KOOP], videos, ideen, []);
+    expect(nurEins['koop-1']).toHaveLength(1);
+    expect(nurEins['koop-1'][0].strategie_item.id).toBe('i1');
+
+    const mitLeer = zuordnenKonzeptInhalte([KOOP], extra, [ideen[0]], []);
+    expect(mitLeer['koop-1'][0].strategie_item.id).toBe('i1');
+    expect(mitLeer['koop-1'][1].strategie_item).toBeUndefined();
+    expect(mitLeer['koop-1'][2].strategie_item).toBeUndefined();
+  });
+
+  it('mischt Ideen einer anderen Produktion nicht in die Kooperation', () => {
+    const koop = { id: 'koop-1', creator_id: 'c1', produktion_id: 'p1' };
+    const videos = { 'koop-1': [video('v1', 1)] };
+    const ideen = [
+      idee({ id: 'andere', sortierung: 1, creator_id: 'c1', produktion_id: 'p2', beschreibung: 'Andere' }),
+      idee({ id: 'hier', sortierung: 2, creator_id: 'c1', produktion_id: 'p1', beschreibung: 'Hier' })
+    ];
+
+    const result = zuordnenKonzeptInhalte([koop], videos, ideen, []);
+    expect(result['koop-1'][0].strategie_item.id).toBe('hier');
+  });
+});
+
+describe('Idee- und Skript-Zelle', () => {
+  const ctx = { koop: { id: 'koop-1' }, t: { produktionId: null } };
+
+  it('zeigt die Beschreibung statt Idee verknüpfen', () => {
+    const html = renderIdeeStrategieInner(ctx, {
+      id: 'v1',
+      strategie_item: { id: 'i1', beschreibung: 'Hook mit Produkt', strategie_id: 's1' }
+    });
+    expect(html).toContain('Hook mit Produkt');
+    expect(html).toContain('/konzepte/s1');
+    expect(html).not.toContain('Idee verknüpfen');
+    expect(html).not.toContain('Verknüpfung ändern');
+    expect(html).not.toContain('link-strategie-item');
+  });
+
+  it('zeigt den Namen auch bei Screenshot und Referenzvideo', () => {
+    const html = renderIdeeStrategieInner(ctx, {
+      id: 'v1',
+      strategie_item: {
+        id: 'i1',
+        beschreibung: 'Hook mit Produkt',
+        strategie_id: 's1',
+        screenshot_url: 'https://cdn.example/shot.jpg',
+        video_link: 'https://tiktok.com/v/1'
+      }
+    });
+    expect(html).toContain('Hook mit Produkt');
+    expect(html).toContain('/konzepte/s1');
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('target="_blank"');
+    expect(html).not.toContain('https://tiktok.com/v/1');
+    expect(html).not.toContain('https://cdn.example/shot.jpg');
+  });
+
+  it('zeigt den Skript-Titel und öffnet den Editor', () => {
+    const html = renderSkriptCell({ id: 'koop-1' }, {
+      id: 'v1',
+      skript: { id: 'sk1', titel: 'Opener Final' }
+    }, { produktionId: null });
+    expect(html).toContain('Opener Final');
+    expect(html).toContain('data-skript-id="sk1"');
+    expect(html).not.toContain('Skript verknüpfen');
+    expect(html).not.toContain('Verknüpfung ändern');
+  });
+
+  it('zeigt bei Idee ohne Skript den Leerhinweis', () => {
+    const html = renderSkriptCell({ id: 'koop-1' }, {
+      id: 'v1',
+      strategie_item: { id: 'i1', beschreibung: 'Nur Idee' }
+    });
+    expect(html).toContain('Noch kein Skript verknüpft');
+    expect(html).not.toContain('Skript verknüpfen');
+  });
+
+  it('zeigt den Leerhinweis, wenn keine Idee auflöst, und den Skript-Button', () => {
+    const ideeHtml = renderIdeeStrategieInner(ctx, { id: 'v1' });
+    const skriptHtml = renderSkriptCell({ id: 'koop-1' }, { id: 'v1' });
+    expect(ideeHtml).toContain('Noch kein Thema/Konzept verknüpft');
+    expect(ideeHtml).not.toContain('Idee verknüpfen');
+    expect(skriptHtml).toContain('Skript verknüpfen');
+  });
+
+  it('rendert das verknüpfte Skript als Verknüpfungs-Pill mit Skript-Icon', () => {
+    document.body.innerHTML = renderSkriptCell({ id: 'koop-1' }, {
+      id: 'v1',
+      skript: { id: 'sk1', titel: 'Opener Final' }
+    });
+    const pill = document.querySelector('a.verknuepfung-pill[data-action="open-skript"]');
+    expect(pill.getAttribute('href')).toBe('/skripte/sk1');
+    expect(pill.querySelector('use').getAttribute('href')).toBe('#crm-icon-skripte');
+    expect(pill.textContent.trim()).toBe('Opener Final');
+  });
+
+  it('verlinkt das Skript direkt in den Skripte-Tab der offenen Produktion', () => {
+    window.isAdmin = () => true;
+    const zelle = (skript) => {
+      document.body.innerHTML = renderSkriptCell({ id: 'koop-1' }, { id: 'v1', skript_id: 'sk1', skript }, { produktionId: 'p1' });
+      return document.querySelector('a[data-action="open-skript"]').getAttribute('href');
+    };
+    expect(zelle({ id: 'sk1', titel: 'Opener', briefing_id: 'b1' })).toBe('/produktion/p1?tab=skripte&linie=b1&skript=sk1');
+    expect(zelle({ id: 'sk1', titel: 'Altbestand', briefing_id: null })).toBe('/skripte/sk1');
+    delete window.isAdmin;
+  });
+
+  it('rendert „Skript verknüpfen“ als Pill mit Plus-Icon', () => {
+    document.body.innerHTML = renderSkriptCell({ id: 'koop-1' }, { id: 'v1' });
+    const pill = document.querySelector('button.verknuepfung-pill[data-action="link-skript"]');
+    expect(pill.dataset.videoId).toBe('v1');
+    expect(pill.dataset.kooperationId).toBe('koop-1');
+    expect(pill.querySelector('use').getAttribute('href')).toBe('#crm-icon-plus-sign');
+    expect(pill.textContent.trim()).toBe('Skript verknüpfen');
+  });
+
+  it('zeigt Share-Gästen das Skript als statische Pill ohne Link', () => {
+    window.isGast = () => true;
+    document.body.innerHTML = renderSkriptCell({ id: 'koop-1' }, {
+      id: 'v1',
+      skript: { id: 'sk1', titel: 'Opener Final' }
+    });
+    expect(document.querySelector('a')).toBeNull();
+    expect(document.querySelector('span.verknuepfung-pill--statisch').textContent.trim()).toBe('Opener Final');
+  });
+});
+
+describe('Produkt-Zelle', () => {
+  it('reicht das Produkt der zugeordneten Idee bis in die Zelle durch', () => {
+    const videos = { 'koop-1': [video('v1', 1)] };
+    const ideen = [
+      idee({ id: 'i1', sortierung: 1, creator_id: 'c1', produkt: { id: 'p1', name: 'Serum' } })
+    ];
+
+    const result = zuordnenKonzeptInhalte([KOOP], videos, ideen, []);
+
+    expect(result['koop-1'][0].strategie_item.produkt).toEqual({ id: 'p1', name: 'Serum' });
+    const html = renderProduktInner(null, result['koop-1'][0]);
+    expect(html).toContain('Serum');
+    expect(html).toContain('href="/produkt/p1"');
+  });
+
+  it('verlinkt das Produkt der Videoidee', () => {
+    const html = renderProduktInner(null, {
+      id: 'v1',
+      strategie_item: { produkt: { id: 'p1', name: 'Serum' } }
+    });
+    expect(html).toContain('Serum');
+    expect(html).toContain('href="/produkt/p1"');
+    expect(html).toContain("navigateTo('/produkt/p1')");
+    expect(html).not.toContain('produkt-connect-btn');
+    expect(html).not.toContain('produkt-unlink-btn');
+  });
+
+  it('zeigt einen Strich ohne Produkt', () => {
+    const html = renderProduktInner(null, {
+      id: 'v1',
+      strategie_item: { id: 'i1' }
+    });
+    expect(html).toContain('–');
+    expect(html).not.toContain('/produkt/');
+    expect(html).not.toContain('produkt-connect-btn');
+    expect(html).not.toContain('produkt-unlink-btn');
+  });
+});

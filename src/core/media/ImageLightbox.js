@@ -1,20 +1,15 @@
 import { MediaLightbox } from './MediaLightbox.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { escapeHtml } from '../format.js';
 
 const EXTERNAL_ICON = `${icon('arrow-top-right')}`;
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
-}
 
 /**
  * Bild-Viewer auf Basis der MediaLightbox-Shell: ein Bild gross, Prev/Next
  * durch die uebergebene Liste, Escape/Backdrop schliessen.
  *
  * Bewusst duenn gehalten - im Gegensatz zum VideoPlayerLightbox gibt es hier
- * kein Feedback-Panel und keine Dropbox-Anbindung. Die Quellen sind einfache
+ * kein Feedback-Panel und keine Ablage-Anbindung. Die Quellen sind einfache
  * URLs (Supabase public oder blob: aus dem Uploader).
  */
 export class ImageLightbox {

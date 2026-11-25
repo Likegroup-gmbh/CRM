@@ -206,6 +206,10 @@ describe('ProduktDoc standalone vs Owner', () => {
     expect(html).toContain('data-doc-field="unternehmen_id"');
     expect(html).toContain('name="unternehmen_id"');
     expect(html).toMatch(/data-doc-field="marke_ids"[^>]*hidden/);
+    expect(html).toMatch(/data-doc-field="briefing_ids"[^>]*hidden/);
+    expect(html).toContain('data-table="campaign_briefings"');
+    expect(html).toContain('data-searchable="true"');
+    expect(html).toContain('data-tag-based="true"');
   });
 
   it('Owner-Kontext hat Hidden-Feld und keine Firmenwahl', () => {
@@ -218,6 +222,71 @@ describe('ProduktDoc standalone vs Owner', () => {
     expect(html).not.toContain('data-doc-field="unternehmen_id"');
     expect(html).toContain('data-doc-field="marke_ids"');
     expect(html).not.toMatch(/data-doc-field="marke_ids"[^>]*hidden/);
+    expect(html).toContain('data-doc-field="briefing_ids"');
+    expect(html).not.toMatch(/data-doc-field="briefing_ids"[^>]*hidden/);
+    expect(html).toContain('data-display-field="aktivierung_name"');
+  });
+
+  it('Marke-Kontext zeigt Briefings, kein Markenfeld', () => {
+    const html = renderProduktDoc(null, {
+      mitMarkenFeld: false,
+      mitUnternehmenFeld: false,
+      unternehmenId: 'u1'
+    });
+    expect(html).not.toContain('data-doc-field="marke_ids"');
+    expect(html).toContain('data-doc-field="briefing_ids"');
+    expect(html).not.toMatch(/data-doc-field="briefing_ids"[^>]*hidden/);
+  });
+});
+
+describe('ProduktService.saveBriefings', () => {
+  afterEach(() => {
+    delete window.supabase;
+  });
+
+  function junctionSupabase() {
+    const ops = [];
+    window.supabase = {
+      from: vi.fn((table) => {
+        const query = {
+          delete: vi.fn(() => query),
+          eq: vi.fn((col, val) => {
+            ops.push({ table, op: 'delete', col, val });
+            return Promise.resolve({ error: null });
+          }),
+          insert: vi.fn((rows) => {
+            ops.push({ table, op: 'insert', rows });
+            return Promise.resolve({ error: null });
+          })
+        };
+        return query;
+      })
+    };
+    return ops;
+  }
+
+  it('ersetzt die Junction-Zeilen und dedupliziert', async () => {
+    const ops = junctionSupabase();
+    await ProduktService.saveBriefings('p1', ['b1', 'b1', 'b2', null]);
+    expect(ops).toEqual([
+      { table: 'campaign_briefing_produkt', op: 'delete', col: 'produkt_id', val: 'p1' },
+      {
+        table: 'campaign_briefing_produkt',
+        op: 'insert',
+        rows: [
+          { produkt_id: 'p1', briefing_id: 'b1' },
+          { produkt_id: 'p1', briefing_id: 'b2' }
+        ]
+      }
+    ]);
+  });
+
+  it('leere Auswahl löscht nur', async () => {
+    const ops = junctionSupabase();
+    await ProduktService.saveBriefings('p1', []);
+    expect(ops).toEqual([
+      { table: 'campaign_briefing_produkt', op: 'delete', col: 'produkt_id', val: 'p1' }
+    ]);
   });
 });
 

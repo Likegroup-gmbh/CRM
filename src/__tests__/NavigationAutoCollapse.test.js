@@ -62,6 +62,7 @@ describe('NavigationSystem Sidebar-Auto-Collapse', () => {
     bindNav();
 
     expect(appRoot.classList.contains('sidebar-collapsed')).toBe(true);
+    expect(appRoot.classList.contains('sidebar-narrow')).toBe(true);
     expect(localStorage.getItem('sidebar-collapsed')).toBeNull();
   });
 
@@ -70,6 +71,7 @@ describe('NavigationSystem Sidebar-Auto-Collapse', () => {
     bindNav();
 
     expect(appRoot.classList.contains('sidebar-collapsed')).toBe(false);
+    expect(appRoot.classList.contains('sidebar-narrow')).toBe(false);
   });
 
   it('wendet bei breitem Viewport die gespeicherte Präferenz an', () => {
@@ -87,6 +89,7 @@ describe('NavigationSystem Sidebar-Auto-Collapse', () => {
 
     mm.setMatches(false); // Fenster wieder breit gezogen
     expect(appRoot.classList.contains('sidebar-collapsed')).toBe(false);
+    expect(appRoot.classList.contains('sidebar-narrow')).toBe(false);
     expect(localStorage.getItem('sidebar-collapsed')).toBeNull();
   });
 
@@ -133,5 +136,6 @@ describe('NavigationSystem Sidebar-Auto-Collapse', () => {
     mm.setMatches(false);
     // Kein Listener mehr: der Zustand darf sich nicht mehr ändern.
     expect(appRoot.classList.contains('sidebar-collapsed')).toBe(true);
+    expect(appRoot.classList.contains('sidebar-narrow')).toBe(true);
   });
 });

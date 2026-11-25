@@ -1,23 +1,25 @@
 // SkriptePage.js
-// /skripte = Table-Liste, /skripte/:id = 3-Spalten-Editor,
-// /skripte/dna|/master = Regelwerk-Liste, /:id = Dokument-Seite.
+// /skripte = Table-Liste, /skripte/:id = 3-Spalten-Editor (mit Linie: Umleitung in die Produktion),
+// /skripte/master = Regelwerk-Liste, /:id = Dokument-Seite.
+// /skripte/dna (Skript-DNA entfallen, ADR 0038) leitet auf /skripte/master um.
 
 import { SkriptEditorView } from './SkriptEditorView.js';
 import { SkriptList } from './SkriptList.js';
 import { SkriptRegelwerkList } from './regelwerk/SkriptRegelwerkList.js';
 import { SkriptRegelwerkDetail } from './regelwerk/SkriptRegelwerkDetail.js';
-import { dnaAdapter, masterAdapter } from './regelwerk/regelwerkAdapters.js';
+import { masterAdapter } from './regelwerk/regelwerkAdapters.js';
 import { replaceSkriptUrl } from './SkripteUtils.js';
+import { ladeSkriptFlowZiel } from './skriptFlowZiel.js';
+import { replaceRoute, replaceRouteForRedirect } from '../../core/breadcrumbTrail.js';
 
 const KONTEXT_KEY = 'skripte:kontext';
-const REGELWERK = { dna: dnaAdapter, master: masterAdapter };
+const REGELWERK = { master: masterAdapter };
 
 export class SkriptePage {
   constructor() {
     this.list = new SkriptList();
     this.editorView = new SkriptEditorView(this);
     this.regelwerkListen = {
-      dna: new SkriptRegelwerkList(dnaAdapter),
       master: new SkriptRegelwerkList(masterAdapter)
     };
     this.regelwerkDetail = new SkriptRegelwerkDetail();
@@ -37,13 +39,19 @@ export class SkriptePage {
 
     await this.editorView.cleanup?.();
     this.list.destroy?.();
-    this.regelwerkListen.dna.cleanup();
     this.regelwerkListen.master.cleanup();
     await this.regelwerkDetail.cleanup();
 
-    if (id === 'dna' || id === 'master') {
+    if (id === 'dna') {
+      // Alte Lesezeichen der entfallenen Skript-DNA
+      replaceRoute('/skripte/master');
+      id = 'master';
+      childId = null;
+    }
+
+    if (id === 'master') {
       if (window.isKunde?.()) {
-        window.history.replaceState({ route: '/skripte' }, '', '/skripte');
+        replaceRoute('/skripte');
         id = null;
       } else {
         await this.openRegelwerk(id, childId);
@@ -53,7 +61,7 @@ export class SkriptePage {
 
     // Legacy: /skripte/new und ?skript=neu → Liste (Create sitzt im Drawer)
     if (id === 'new' || id === 'neu') {
-      window.history.replaceState({ route: '/skripte' }, '', '/skripte');
+      replaceRoute('/skripte');
       id = null;
     }
 
@@ -64,6 +72,14 @@ export class SkriptePage {
         await this.openEditor(skriptParam);
         return;
       }
+    }
+
+    if (!id && window.guestShare?.entityType === 'skript_paket') {
+      const { renderGastSkriptListe } = await import('./GastSkriptListe.js');
+      window.setContentSafely(window.content, '<div class="skripte-page" id="skripte-gast-liste"></div>');
+      const container = document.getElementById('skripte-gast-liste');
+      if (container) await renderGastSkriptListe(container);
+      return;
     }
 
     if (id) {
@@ -105,6 +121,7 @@ export class SkriptePage {
   }
 
   async openEditor(skriptId) {
+    if (await this._oeffneImFlow(skriptId)) return;
     window.setHeadline('Skripte');
     window.setContentSafely(window.content, `
       <div class="skripte-page skripte-page--editor">
@@ -118,6 +135,23 @@ export class SkriptePage {
     replaceSkriptUrl(skriptId);
     this._merkeKontext({ skript: skriptId });
     await this.editorView.render(container, skriptId);
+  }
+
+  /** Skript mit Linie: Umleitung in die Produktion (ADR 0074). true = umgeleitet. */
+  async _oeffneImFlow(skriptId) {
+    const registry = window.moduleRegistry;
+    if (!registry?._redirect) return false;
+    let ziel = null;
+    try {
+      ziel = await ladeSkriptFlowZiel(skriptId);
+    } catch (error) {
+      console.warn('⚠️ Skript-Flow-Ziel nicht ermittelbar, bleibe im Tool:', error?.message || error);
+    }
+    // Inzwischen weiternavigiert: nicht umleiten
+    if (!ziel || registry.currentModule !== this) return false;
+    replaceRouteForRedirect(ziel);
+    await registry._redirect(ziel);
+    return true;
   }
 
   _merkeKontext(update) {
@@ -140,7 +174,6 @@ export class SkriptePage {
 
   destroy() {
     this.list.destroy?.();
-    this.regelwerkListen.dna.cleanup();
     this.regelwerkListen.master.cleanup();
     const detail = this.regelwerkDetail.cleanup();
     const editor = this.editorView.cleanup?.();

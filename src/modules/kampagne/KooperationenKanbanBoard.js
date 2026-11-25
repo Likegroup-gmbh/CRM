@@ -1,5 +1,6 @@
 import { SafeTimers } from '../../core/utils/SafeTimers.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { hinweisTexte, istPlatzhalter, PLATZHALTER_NAME } from '../kooperation/platzhalter.js';
 
 // KooperationenKanbanBoard.js
 // Kanban Board für Kooperationen auf der Kampagnen-Detail-Seite
@@ -105,8 +106,13 @@ export class KooperationenKanbanBoard {
           })}
         </div>
       `;
+      this.initFloatingScrollbar();
       return;
     }
+
+    this._hinweisMap = this.isKunde
+      ? new Map()
+      : hinweisTexte(this.store?.kooperationen || [], this.store?.videos || {}, this.deckenStand);
 
     const html = `
       <div class="kanban-board-wrapper kooperationen-kanban-wrapper${readonlyClass}">
@@ -124,6 +130,7 @@ export class KooperationenKanbanBoard {
     if (this.canDrag) {
       this.bindDragDropEvents();
     }
+    this.initFloatingScrollbar();
     this._timers.setTimeout(() => this.initDragToScroll(), 50);
   }
 
@@ -148,9 +155,12 @@ export class KooperationenKanbanBoard {
   _renderCard(koop) {
     const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
 
-    const creatorName = koop.creator
-      ? `${koop.creator.vorname || ''} ${koop.creator.nachname || ''}`.trim()
-      : 'Kein Creator';
+    const creatorName = istPlatzhalter(koop)
+      ? PLATZHALTER_NAME
+      : (koop.creator
+        ? `${koop.creator.vorname || ''} ${koop.creator.nachname || ''}`.trim()
+        : 'Kein Creator');
+    const hinweis = this._hinweisMap?.get(koop.id);
 
     const tags = (koop._tags || []).map(t =>
       `<span class="kooperation-card-tag">${safe(t)}</span>`
@@ -167,6 +177,7 @@ export class KooperationenKanbanBoard {
         <div class="kooperation-card-header">
           <span class="kooperation-card-creator">${safe(creatorName)}</span>
         </div>
+        ${hinweis ? `<p class="platzhalter-hinweis">${safe(hinweis)}</p>` : ''}
 
         ${tags ? `<div class="kooperation-card-tags">${tags}</div>` : ''}
       </div>
@@ -394,12 +405,15 @@ export class KooperationenKanbanBoard {
     checkVisibility();
     this._timers.setTimeout(() => { updateScrollbar(); checkVisibility(); }, 500);
 
+    this._scrollbarAbort?.abort();
+    this._scrollbarAbort = new AbortController();
     const handleResize = () => { updateScrollbar(); checkVisibility(); };
-    window.addEventListener('resize', handleResize, { signal: this._abortController?.signal });
+    window.addEventListener('resize', handleResize, { signal: this._scrollbarAbort.signal });
 
     this._cleanupFloatingScrollbar = () => {
       floatingScrollbar.remove();
-      window.removeEventListener('resize', handleResize);
+      this._scrollbarAbort?.abort();
+      this._scrollbarAbort = null;
       floatingScrollbar.removeEventListener('scroll', handleFloatingScroll);
       kanbanBoard.removeEventListener('scroll', handleBoardScroll);
     };

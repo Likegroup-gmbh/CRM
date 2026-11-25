@@ -1,15 +1,5 @@
 /* Tabellen Module Styles */
 
-/* === TABLE LOGO (Firmenlogo in Listen) === */
-.table-logo {
-  height: var(--space-lg);
-  width: var(--space-lg);
-  object-fit: contain;
-  border-radius: var(--radius-md);
-  vertical-align: middle;
-  margin-right: var(--space-sm);
-}
-
 /* === TABLE LINKS (klickbare Namen in Listen) === */
 .table-link {
   color: inherit;
@@ -17,10 +7,112 @@
   text-decoration-color: var(--gray-300);
   text-underline-offset: 2px;
   transition: text-decoration-color 0.15s ease;
+  cursor: pointer;
 }
 
 .table-link:hover {
   text-decoration-color: var(--gray-500);
+}
+
+.table-link-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xxs);
+  min-width: 8rem;
+  max-width: 100%;
+}
+
+/* Verknüpfungs-Pill: Rahmen, Hover und Icon-Größe kommen aus forms.css
+   (geteilt mit .creator-cell-select). Hier nur, was für Links in Zellen gilt. */
+a.verknuepfung-pill,
+button.verknuepfung-pill,
+span.verknuepfung-pill {
+  width: fit-content;
+  max-width: 14rem;
+  min-width: 0;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+span.verknuepfung-pill--statisch,
+span.verknuepfung-pill--statisch:hover {
+  cursor: default;
+  background: var(--bg-primary);
+  border-color: var(--border-primary);
+  box-shadow: none;
+}
+
+.verknuepfung-pill > * {
+  pointer-events: none;
+}
+
+.verknuepfung-pill__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ab zwei Verknüpfungen: Chip in der Zelle, Liste im Popover am body
+   (verknuepfungDropdown.js). Rahmen und Hover erbt der Chip von .verknuepfung-pill. */
+.verknuepfung-dropdown {
+  min-width: 8rem;
+  max-width: 100%;
+}
+
+.verknuepfung-chip[aria-expanded="true"] {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.verknuepfung-chip .crm-icon.verknuepfung-chip__chevron {
+  width: 12px;
+  height: 12px;
+  color: var(--text-secondary);
+  transition: transform 0.15s ease;
+}
+
+.verknuepfung-chip[aria-expanded="true"] .crm-icon.verknuepfung-chip__chevron {
+  transform: rotate(180deg);
+}
+
+/* Startzustand unsichtbar, playMenu blendet ein. */
+.verknuepfung-popover {
+  position: fixed;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  max-width: min(20rem, calc(100vw - 16px));
+  max-height: min(16rem, 60vh);
+  overflow-y: auto;
+  padding: var(--space-xs);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  scrollbar-width: thin;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.verknuepfung-popover a.verknuepfung-pill {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: none;
+  padding: var(--space-xs);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.verknuepfung-popover a.verknuepfung-pill:hover,
+.verknuepfung-popover a.verknuepfung-pill:focus-visible {
+  background: var(--gray-50);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .table-link.email-link {
@@ -34,7 +126,7 @@
 /* === KOOPERATION-VIDEO-TABELLE === */
 .kooperation-video-grid {
   --grid-col-nr: 3ch;
-  --grid-col-creator: 18ch;
+  --grid-col-creator: calc(18ch + var(--size-table-avatar) + var(--space-sm));
   --kampagne-grid-border: var(--border-primary);
   border-collapse: separate;
   border-spacing: 0;
@@ -52,32 +144,35 @@
 /* Standard-Spaltenbreiten für kooperation-video-grid (ch/rem, keine px) */
 .kooperation-video-grid .col-nr { width: var(--grid-col-nr); min-width: var(--grid-col-nr); }
 .kooperation-video-grid .col-creator { width: var(--grid-col-creator); min-width: var(--grid-col-creator); }
-.kooperation-video-grid .col-videoanzahl { width: 5ch; min-width: 5ch; }
 .kooperation-video-grid th.col-status,
 .kooperation-video-grid td.col-status {
   width: 1%;
   min-width: 18ch;
   white-space: nowrap;
-  text-align: left;
-}
-.kooperation-video-grid .col-status .status-badge,
-.kooperation-video-grid .col-status .status-select-trigger {
-  white-space: nowrap;
 }
 .kooperation-video-grid .col-tags { width: 12ch; min-width: 12ch; }
 .kooperation-video-grid .col-extra-kosten { width: 12ch; min-width: 12ch; }
-.kooperation-video-grid .col-start-datum { width: 10ch; min-width: 10ch; }
 .kooperation-video-grid .col-video-script-deadline { width: 12ch; min-width: 12ch; }
 .kooperation-video-grid .col-video-content-deadline { width: 12ch; min-width: 12ch; }
 .kooperation-video-grid .col-video-typ { width: 14ch; min-width: 14ch; }
 .kooperation-video-grid .col-organic-paid { width: 14ch; min-width: 14ch; }
 .kooperation-video-grid .col-kampagne { width: 16ch; min-width: 16ch; }
 .kooperation-video-grid .col-posting-datum { width: 14ch; min-width: 14ch; }
+.kooperation-video-grid .col-videoanzahl { width: 5ch; min-width: 5ch; }
+.kooperation-video-grid .col-start-datum { width: 10ch; min-width: 10ch; }
 .kooperation-video-grid .col-link-live { width: 24ch; min-width: 24ch; }
 .kooperation-video-grid .col-stats-views,
 .kooperation-video-grid .col-stats-likes,
 .kooperation-video-grid .col-stats-comments { width: 10ch; min-width: 10ch; }
-.kooperation-video-grid .col-vertrag { width: 4.5rem; min-width: 4.5rem; }
+.kooperation-video-grid .video-stats-text { font-variant-numeric: tabular-nums; }
+/* Live Link: ein Chip je Post (Reel und TikTok untereinander) */
+.kooperation-video-grid .video-post-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.kooperation-video-grid .col-vertrag { width: 18ch; min-width: 18ch; }
 .kooperation-video-grid .col-nutzungsrechte { width: 18ch; min-width: 18ch; }
 .kooperation-video-grid .col-lieferadresse { width: 24ch; min-width: 24ch; }
 .kooperation-video-grid .col-produkt { width: 24ch; min-width: 24ch; }
@@ -97,9 +192,20 @@
 .kooperation-video-grid .col-feedback-cj-2,
 .kooperation-video-grid .col-feedback-kunde-2,
 .kooperation-video-grid .col-feedback-cj-3,
-.kooperation-video-grid .col-feedback-kunde-3 {
+.kooperation-video-grid .col-feedback-kunde-3,
+.kooperation-video-grid .col-custom-comment {
   width: 16rem;
   min-width: 16rem;
+}
+/* Eigene Textspalte: feste Breite wie die Kommentarspalten, damit der Text
+   umbricht statt die Tabelle nach rechts aufzuziehen. Ein gezogener Rand
+   setzt width, min-width und max-width inline und der Text bricht neu um. */
+.kooperation-video-grid .col-custom-text {
+  width: 16rem;
+  min-width: 16rem;
+  max-width: 16rem;
+  white-space: normal;
+  vertical-align: top;
 }
 .kooperation-video-grid .col-finale-version { width: 16rem; min-width: 16rem; }
 .kooperation-video-grid .col-kosten,
@@ -270,7 +376,7 @@
 
 /* Sourcing bringt .links-compact-input mit (padding: 2px 4px) statt der
    Video-Tabelle mit var(--space-xs). */
-.cp-col-link-ig .chip-cell {
+.cp-col-link .chip-cell {
   --chip-cell-pad-left: 4px;
 }
 
@@ -323,8 +429,8 @@
   z-index: 10;
   background: white;
   border-right: none !important;
-  border-left: none !important;
-  box-shadow: inset 1px 0 0 0 var(--kampagne-grid-border), -4px 0 8px rgba(0, 0, 0, 0.04);
+  border-left: 1px solid var(--kampagne-grid-border) !important;
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.04);
   overflow: visible !important;
 }
 
@@ -348,12 +454,6 @@
   border: none;
   border-right: 1px solid var(--kampagne-grid-border);
   border-bottom: 1px solid var(--kampagne-grid-border);
-}
-
-/* Trennlinie zwischen Kooperationen. Dicker als die Linien zwischen den
-   Videos derselben Zeile, damit die Bloecke auseinanderfallen. */
-.grid-table.kooperation-video-grid tbody tr.kooperation-row > td {
-  border-bottom: 2px solid var(--gray-300);
 }
 
 /* Header zusaetzlich mit border-top (gilt auch fuer data-col 0/1,
@@ -505,6 +605,8 @@
 .kooperation-video-grid tbody tr td {
   background: white;
 }
+
+
 
 .kooperation-video-grid tbody tr:hover td,
 .kooperation-video-grid tbody tr:hover td.col-creator {
@@ -659,6 +761,200 @@
   field-sizing: content;
 }
 
+/* Kommentare aus dem Videos-Tab unter dem Feedback-Text, schreibgeschützt */
+.kooperation-video-grid .feedback-zeit-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  width: 100%;
+  padding: 0 var(--space-sm) var(--space-sm);
+  box-sizing: border-box;
+}
+
+.kooperation-video-grid .feedback-zeit-list:empty {
+  display: none;
+}
+
+.kooperation-video-grid .feedback-zeit-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xxs) var(--space-xs);
+  width: 100%;
+  padding: var(--space-xxs) var(--space-xs);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--gray-50);
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kooperation-video-grid .feedback-zeit-item:hover {
+  background: var(--gray-100);
+}
+
+.kooperation-video-grid .feedback-zeit-tc {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.kooperation-video-grid .feedback-zeit-art {
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
+.kooperation-video-grid .feedback-zeit-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--gray-900);
+  /* Voller Text im title des Eintrags */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.kooperation-video-grid .feedback-zeit-author {
+  color: var(--gray-500);
+}
+
+.kooperation-video-grid .feedback-zeit-quelle {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
+.kooperation-video-grid .feedback-zeit-mehr {
+  align-self: flex-start;
+  padding: 0 var(--space-xxs);
+  border: none;
+  background: none;
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+  cursor: pointer;
+}
+
+.kooperation-video-grid .feedback-zeit-mehr:hover {
+  color: var(--gray-900);
+  text-decoration: underline;
+}
+
+/* Zentrierte Spalten (horizontal und vertikal):
+   - Zellen der Kooperation (.cell-centered): Status, Extra Kosten, Vertrag,
+     Creator, Tags, Telefon, Nutzungsrechte
+   - Stack-Zellen (.video-stack-cell--center): je Video-Wrapper, dessen
+     min-height VideoRowHeightSync setzt, der Inhalt sitzt in der Mitte
+   Reine Texteingaben (Thema, Tracking, Drehort, Video-Name, Caption,
+   Feedback) bleiben linksbuendig. */
+.kooperation-video-grid td.cell-centered {
+  vertical-align: middle;
+  text-align: center;
+}
+
+/* Auswahl- und Nr-Spalte: horizontal und vertikal mittig (Padding symmetrisch) */
+.kooperation-video-grid thead th.col-header.col-nr,
+.kooperation-video-grid thead th.col-header.col-final-check,
+.kooperation-video-grid tbody td.grid-cell.col-nr,
+.kooperation-video-grid tbody td.grid-cell.col-final-check {
+  text-align: center;
+  vertical-align: middle;
+  padding-inline: 0;
+}
+
+.kooperation-video-grid td.cell-centered .table-select {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.kooperation-video-grid td.cell-centered .table-identity {
+  justify-content: center;
+}
+
+.kooperation-video-grid td.cell-centered .table-identity__text {
+  flex: 0 1 auto;
+}
+
+.kooperation-video-grid td.cell-centered .tags {
+  justify-content: center;
+}
+
+/* Creator-Spalte: linksbuendig, Bild immer an derselben Stelle.
+   Name-Pill und Social-Pills stehen in einer Reihe neben dem Bild. */
+.kooperation-video-grid td.col-creator.cell-centered {
+  text-align: left;
+}
+
+.kooperation-video-grid td.col-creator.cell-centered .table-identity {
+  justify-content: flex-start;
+}
+
+.kooperation-video-grid td.col-creator .creator-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.kooperation-video-grid td.col-creator .creator-name-row > .verknuepfung-pill {
+  flex: 0 1 auto;
+}
+
+.kooperation-video-grid td.col-actions {
+  vertical-align: middle;
+}
+
+.kooperation-video-grid td.col-actions .actions-dropdown-container {
+  display: flex;
+  justify-content: center;
+}
+
+.kooperation-video-grid .video-stack-cell--center .video-field-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.kooperation-video-grid .video-stack-cell--center .video-field-wrapper > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.kooperation-video-grid .video-stack-cell--center .content-cell-actions,
+.kooperation-video-grid .video-stack-cell--center .address-cell {
+  justify-content: center;
+}
+
+.kooperation-video-grid .video-stack-cell--center .address-cell .address-text {
+  flex: 0 1 auto;
+  width: auto;
+  text-align: center;
+}
+
+.kooperation-video-grid .video-stack-cell--center .stacked-video-select {
+  text-align: center;
+  text-align-last: center;
+}
+
+.kooperation-video-grid .video-stack-cell--center .video-date-cell {
+  justify-content: center;
+  width: 100%;
+}
+
+.kooperation-video-grid .video-stack-cell--center .video-date-cell .custom-date-picker {
+  width: auto;
+}
+
+.kooperation-video-grid .col-produkt .video-field-wrapper {
+  padding: var(--space-xs) var(--space-sm);
+}
+
 /* Anzeige-Inhalte in Stack-Zellen */
 .kooperation-video-grid .video-nr-text,
 .kooperation-video-grid .video-vk-text,
@@ -680,14 +976,7 @@
   display: block;
 }
 
-/* Gestapelte Video-Inputs innerhalb einer Kooperation */
-.stacked-video-input,
-.stacked-video-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  flex: 1; /* Inputs teilen sich den verfügbaren Platz gleichmäßig */
-  min-height: 0; /* Wichtig für flex-Kinder */
-}
+
 
 /* Lieferadresse: Straße / PLZ Stadt / Land untereinander, linksbündig */
 .address-text {
@@ -796,11 +1085,6 @@
   animation: spin 0.8s linear infinite;
 }
 
-.stacked-video-textarea {
-  min-height: 60px; /* Einheitliche Mindesthöhe für alle Video-Textareas */
-  flex: 0 0 auto; /* Höhe folgt dem Inhalt, nicht gleichmäßig gestreckt */
-}
-
 .grid-input.save-success,
 .grid-textarea.save-success,
 .grid-select.save-success {
@@ -879,6 +1163,7 @@
   margin: 0;
   padding: var(--space-sm);
   min-height: 60px;
+  height: 100%
   overflow: hidden;
   font-size: inherit; /* Erbt von th/td */
   font-weight: inherit; /* Erbt von th/td */
@@ -887,7 +1172,7 @@
   white-space: pre-wrap;
   word-break: break-word;
   border: none;
-  border-bottom: 1px solid var(--gray-300);
+  
   border-radius: 0;
   background: inherit; /* Erbt Zebra-Striping von tr */
   box-sizing: border-box;
@@ -1274,23 +1559,44 @@
    Der Sticky-Kopf klebt dann am oberen Rand dieses Bereichs. Summary, Titel
    und Tabs bleiben darüber. Die Kanban-Ansicht hat keine Tabelle und scrollt
    weiter die Seite. */
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) {
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Senkrecht darf die Seite mit scrollen, falls die Tabelle unter dem
+     sichtbaren Bereich liegt. Waagerecht bleibt sie im grid-wrapper. */
+  overflow-x: hidden;
+  overflow-y: auto;
   min-height: 0;
 }
 
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) > .auftragsdetails-summary,
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) > .page-header,
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .tab-navigation {
+/* Titel, Workflow-Tabs und die Tabelle stecken in .kampagne-detail-body,
+   nicht direkt im Wrapper. Ohne diese Kette schneidet overflow:hidden
+   die Zeilen ab und die Liste lässt sich nicht vertikal scrollen. */
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) > .kampagne-detail-body,
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) > .kampagne-detail-body > .content-section,
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .workflow-pane[data-pane="kooperationen"]:not([hidden]) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .page-header {
   flex-shrink: 0;
 }
 
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) > .content-section,
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .tab-content,
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .detail-section,
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) #kooperationen-videos-container {
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) > .auftragsdetails-summary,
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) > .page-header,
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .tab-navigation {
+  flex-shrink: 0;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) > .content-section,
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .tab-content,
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .detail-section,
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) #kooperationen-videos-container {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1298,34 +1604,70 @@
   margin-bottom: 0;
 }
 
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .tab-content,
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) #kooperationen-videos-container {
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .tab-content,
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) #kooperationen-videos-container {
   overflow: hidden;
 }
 
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .grid-wrapper {
-  flex: 1;
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper {
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  /* Deckel, falls ein Zwischenelement die Flex-Kette bricht: ohne begrenzte
+     Höhe ist scrollHeight = clientHeight und overflow:hidden darüber
+     schneidet die unteren Zeilen ab. */
+  max-height: calc(100dvh - 14rem);
+  overflow-x: auto;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--gray-400) transparent;
 }
 
 /* Senkrechte Leiste zeigen, waagerechte native Leiste ausblenden
-   (dafür gibt es die schwebende Leiste). */
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .grid-wrapper::-webkit-scrollbar {
+   (dafür gibt es die schwebende Leiste). height:0 nur an der waagerechten
+   Leiste, sonst verschwindet in WebKit auch die senkrechte. */
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar:vertical {
   display: block;
   width: 10px;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar:horizontal {
   height: 0;
 }
 
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .grid-wrapper::-webkit-scrollbar-thumb {
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar-thumb {
   background: var(--gray-400);
   border-radius: var(--radius-lg);
 }
 
-.kampagne-detail-grid-active .main-wrapper:has(.kooperation-video-grid) .grid-wrapper::-webkit-scrollbar-track {
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .grid-wrapper::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Filterspalte sitzt zwischen .detail-section und #kooperationen-videos-container.
+   Ohne diese Glieder wächst das Layout mit den Zeilen, overflow:hidden schneidet
+   sie ab und .grid-wrapper hat keine begrenzte Höhe, also nichts zu scrollen. */
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table .filter-column {
+  align-self: flex-start;
+  max-height: 100%;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table .filter-column-layout__main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.kampagne-detail-grid-active .main-wrapper:has(.kampagne-detail-body[data-workflow="kooperationen"] .kooperation-video-grid) .filter-column-layout--table .filter-column-chips {
+  flex-shrink: 0;
 }
 
 .grid-table {
@@ -1732,6 +2074,41 @@
   }
   100% {
     background-color: transparent;
+  }
+}
+
+/* Sprungziel aus einer Verknüpfung (produktionFlowFokus.js): Zeile bzw. Karte leuchtet kurz auf.
+   Nur "from", damit sticky Zellen am Ende in ihre eigene Hintergrundfarbe zurückfinden. */
+tr.is-flow-fokus > td {
+  animation: flow-fokus 2.4s ease-out;
+}
+
+.kooperation-card.is-flow-fokus {
+  animation: flow-fokus-karte 2.4s ease-out;
+}
+
+@keyframes flow-fokus {
+  from {
+    background-color: var(--primary-100);
+  }
+}
+
+@keyframes flow-fokus-karte {
+  from {
+    box-shadow: 0 0 0 2px var(--primary-500);
+    background-color: var(--primary-50);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  tr.is-flow-fokus > td {
+    animation: none;
+    background-color: var(--primary-50);
+  }
+
+  .kooperation-card.is-flow-fokus {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--primary-500);
   }
 }
 
@@ -2144,6 +2521,10 @@
 .data-table.data-table--kampagne th.col-marke,
 .data-table.data-table--kampagne td.col-marke { min-width: 10em; }
 
+/* Leistungszeitraum (einheitlich in allen Listen mit Kampagnenbezug) */
+.data-table th.col-leistungszeitraum,
+.data-table td.col-leistungszeitraum { min-width: 11em; white-space: nowrap; }
+
 .data-table.data-table--kampagne th.col-auftrag,
 .data-table.data-table--kampagne td.col-auftrag { min-width: 14em; }
 
@@ -2165,12 +2546,46 @@
 .data-table.data-table--kampagne th.col-actions,
 .data-table.data-table--kampagne td.col-actions { min-width: 5em; }
 
+.kampagne-table-container .data-table tbody tr.kampagne-row--completed > td,
+.kampagne-table-container .data-table tbody tr.kampagne-row--completed:hover > td {
+  background-color: var(--color-success-light);
+}
+
 /* Sticky-Spalten brauchen exakt fixierte Breiten (width + min + max) */
 .kampagne-table-container .data-table.data-table--kampagne th.col-name,
 .kampagne-table-container .data-table.data-table--kampagne td.col-name {
   width: var(--kampagne-col-name-width);
   min-width: var(--kampagne-col-name-width);
   max-width: var(--kampagne-col-name-width);
+}
+
+/* Skripte-Tab: Nr./Status/Erstellt schmal, Titel nimmt den Rest */
+.data-table.data-table--skripte { table-layout: fixed; }
+
+.data-table.data-table--skripte th.col-nr,
+.data-table.data-table--skripte td.col-nr { width: 4em; }
+
+/* Titel und Creator teilen sich den freien Platz im Verhältnis ca. 3 : 2
+   (Fixed-Layout verteilt Überschuss proportional zu diesen Breiten) */
+.data-table.data-table--skripte th.col-titel,
+.data-table.data-table--skripte td.col-titel { width: 30em; }
+
+/* Creator-Pill (Name komplett) neben dem Avatar */
+.data-table.data-table--skripte th.col-creator,
+.data-table.data-table--skripte td.col-creator { width: calc(20em + var(--size-table-avatar) + var(--space-sm)); }
+
+/* Titel- und Creator-Pill dürfen die ganze Spalte nutzen (Standard: max. 14rem) */
+.data-table.data-table--skripte td.col-titel a.verknuepfung-pill,
+.data-table.data-table--skripte td.col-creator a.verknuepfung-pill { max-width: 100%; }
+
+/* Breiteste Option ("Feedback gegeben" / "Rückfragen offen") plus Rand links und rechts */
+.data-table.data-table--skripte th.col-status,
+.data-table.data-table--skripte td.col-status { width: 12em; }
+
+.data-table.data-table--skripte th.col-erstellt-am,
+.data-table.data-table--skripte td.col-erstellt-am {
+  width: 7em;
+  white-space: nowrap;
 }
 
 /* Verträge: Name breiter, Kampagne/Unterschrieben/Erstellt kompakter */
@@ -2245,12 +2660,6 @@ width: 18em;
  
 }
 
-/* Ansprechpartner: Vorname-Spalte schmaler (Name ist auf 2 Spalten aufgeteilt) */
-#ansprechpartner-table th.col-name,
-#ansprechpartner-table td.col-name {
-  width: 12em;
-}
-
 /* Ansprechpartner: Kein Umbruch für Stadt, Land, Telefon, Status */
 #ansprechpartner-table .ap-col-nowrap {
   white-space: nowrap;
@@ -2299,9 +2708,9 @@ width: 18em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 1.5rem;
   height: 1.5rem;
-  margin-right: var(--space-xs, 0.25rem);
   padding: 0;
   border: 0;
   background: transparent;
@@ -2400,8 +2809,8 @@ width: 18em;
 /* === CREATOR-AUSWAHL: DETAIL (SPALTENBREITEN) === */
 .creator-pool-table th.cp-col-name,
 .creator-pool-table td.cp-col-name {
-  width: 15em;
-  min-width: 15em;
+  width: calc(15em + var(--size-table-avatar) + var(--space-sm));
+  min-width: calc(15em + var(--size-table-avatar) + var(--space-sm));
 }
 
 /* === TABLE STATES (loading / empty / error) === */
@@ -2435,25 +2844,56 @@ width: 18em;
   margin-left: 0.35em;
 }
 
+/* Social-Links als Icon-Pills im Look der Verknuepfungs-Pill (forms.css) */
 .creator-social-links {
   display: flex;
-  gap: 6px;
-  margin-top: var(--space-xs);
+  gap: var(--space-xxs);
+  flex-shrink: 0;
 }
 
 .creator-social-links a {
   display: inline-flex;
-  color: var(--gray-400);
-  transition: color 0.15s;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xxs) var(--space-xs);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+ 
+  color: var(--text-primary);
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .creator-social-links a:hover {
-  color: var(--gray-700);
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.creator-social-links a:focus-visible {
+  outline: none;
+  border-color: var(--gray-400);
+  box-shadow: 0 0 0 3px var(--gray-100);
 }
 
 .creator-social-links .platform-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Kooperationen-Tabelle: Icon-Pills so hoch wie die Namens-Pill, nicht höher */
+.kooperation-video-grid td.col-creator .creator-name-row {
+  align-items: stretch;
+}
+
+.kooperation-video-grid td.col-creator .creator-social-links a {
+  box-sizing: border-box;
+}
+
+.kooperation-video-grid td.col-creator .creator-social-links .platform-icon {
   width: 14px;
   height: 14px;
+  vertical-align: 0;
 }
 
 /* Icon/Boolean-Spalten (✅/❌) kompakt */
@@ -2580,43 +3020,16 @@ width: 18em;
   min-height: 60vh;
 }
 
-.ausgangsrechnungen-month-tabs,
-.rechnung-month-tabs {
-  background: var(--color-white);
+.monatsblatt-tabs {
   border-top: 1px solid var(--border-primary);
   overflow-x: auto;
   flex-wrap: nowrap;
 }
 
-.ausgangsrechnungen-month-tabs .form-select,
-.rechnung-month-tabs .form-select {
+.monatsblatt-tabs .form-select {
   flex-shrink: 0;
   width: auto;
   min-width: 5.5rem;
-}
-
-.ausgangsrechnungen-month-tabs .tab-button,
-.rechnung-month-tabs .tab-button {
-  gap: var(--space-xxs);
-  padding: var(--space-xxs) var(--space-xs);
-  border-radius: var(--radius-sm);
-}
-
-.ausgangsrechnungen-month-tabs .tab-button:hover,
-.rechnung-month-tabs .tab-button:hover {
-  background: var(--gray-50);
-}
-
-.ausgangsrechnungen-month-tabs .tab-button.active,
-.rechnung-month-tabs .tab-button.active {
-  color: var(--gray-900);
-  font-weight: 500;
-}
-
-.ausgangsrechnungen-month-tabs .tab-button.active::after,
-.rechnung-month-tabs .tab-button.active::after {
-  background-color: var(--gray-900);
-  height: 2px;
 }
 
 /* === READ-ONLY / DISABLED FELDER FÜR KUNDEN === */
@@ -2858,53 +3271,29 @@ width: 18em;
   text-overflow: ellipsis;
 }
 
-/* ========================================
-   Table Avatar (Initialen-Fallback für Logos)
-   ======================================== */
-.table-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  min-width: 24px;
-  border-radius: var(--radius-sm);
+/* Bild und Name der Namensspalten: tabelle-identitaet.css */
+
+/* Mehrere Creator in einer Zelle (geteiltes Skript): je Creator eine Zeile */
+.table-creator-zeile + .table-creator-zeile {
+  margin-top: var(--space-xxs);
+}
+
+/* Auswahlmodus (core/list/SelectionBar.js): Die Checkbox-Spalte steht immer im HTML und
+   erscheint mit .is-auswahl an der Tabelle. Klick auf die Zeile wählt, der Namenslink ist klicktot. */
+.data-table:not(.is-auswahl) .col-auswahl {
+  display: none;
+}
+
+.data-table.is-auswahl tbody tr[data-auswahl-key] {
+  cursor: pointer;
+}
+
+.data-table.is-auswahl .col-name .table-link {
+  pointer-events: none;
+}
+
+.data-table tbody tr.row-selected td {
   background: var(--gray-100);
-  color: var(--gray-900);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  margin-right: var(--space-sm);
-  flex-shrink: 0;
-  vertical-align: middle;
-}
-
-.table-avatar-img {
-  object-fit: cover;
-  background: var(--gray-100);
-  padding: 0;
-}
-
-/* Sourcing-Liste: groessere Avatare (4px-Grid: 44) */
-.table-avatar--sourcing {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  font-size: var(--text-md);
-  margin-right: 0;
-}
-
-/* TD-Zellen mit Logo/Avatar: Elemente nebeneinander anzeigen */
-.col-name-with-icon {
-  white-space: nowrap;
-}
-
-.col-name-with-icon .table-link {
-  vertical-align: middle;
-}
-
-.col-name-with-icon .table-logo,
-.col-name-with-icon .table-avatar {
-  margin-right: var(--space-sm);
 }
 
 /* External Link Icon für TikTok/Instagram */
@@ -2986,6 +3375,29 @@ width: 18em;
   width: 100%;
 }
 
+/* Text-Spalte: weicher Umbruch und gesetzte Zeilenumbrueche. Die Hoehe folgt
+   dem Inhalt (field-sizing), die Zeile der Kooperation waechst mit.
+   width:0 + min-width:100% haelt die Mindestbreite der Zelle an der Spalte,
+   nicht an der laengsten Zeile. */
+.kooperation-video-grid .col-custom-text .video-fields-stack,
+.kooperation-video-grid .col-custom-text .video-field-wrapper,
+.kooperation-video-grid .col-custom-text .custom-col-text-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+.kooperation-video-grid .col-custom-text .custom-col-text-wrap {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+}
+.kooperation-video-grid .col-custom-text .stacked-video-textarea.auto-resize-textarea {
+  min-height: 2.25rem;
+  min-width: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .custom-col-date {
   padding: var(--space-xxs) var(--space-xs);
 }
@@ -3058,7 +3470,60 @@ th[draggable="true"]:active {
   cursor: grabbing;
 }
 
-/* Custom Columns Drawer */
+/* Custom Columns Drawer
+   Body ohne Padding, damit die Tabelle randlos bis an die Drawer-Kanten reicht
+   (wie die Header-Linie). Abstand liefern die ersten/letzten Zellen sowie die
+   Bereiche darunter. Nur diese beiden Drawer betroffen, .drawer-body bleibt global. */
+#custom-columns-drawer .drawer-body,
+#entity-custom-columns-drawer .drawer-body {
+  padding: 0;
+}
+
+#custom-columns-drawer .cc-add-section,
+#entity-custom-columns-drawer .cc-add-section {
+  padding: var(--space-md);
+}
+
+#custom-columns-drawer #custom-column-form-area,
+#entity-custom-columns-drawer #entity-custom-column-form-area {
+  padding: 0 var(--space-md) var(--space-md);
+}
+
+#custom-columns-drawer .drawer-footer,
+#entity-custom-columns-drawer .drawer-footer {
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-primary);
+}
+
+.custom-columns-table th:first-child,
+.custom-columns-table td:first-child {
+  padding-left: var(--space-md);
+}
+
+.custom-columns-table th:last-child,
+.custom-columns-table td:last-child {
+  padding-right: var(--space-md);
+}
+
+/* Icon-Buttons (Bearbeiten/Loeschen) in der Tabelle: kein Hover-Effekt */
+.custom-columns-table .btn-icon:hover {
+  background: transparent;
+  color: var(--gray-400);
+  transform: none;
+}
+
+.cc-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+.cc-field-hint {
+  margin: var(--space-xxs) 0 0;
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
 .custom-columns-table {
   width: 100%;
   border-collapse: collapse;
@@ -3073,11 +3538,11 @@ th[draggable="true"]:active {
 }
 
 .custom-columns-table th {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--gray-500);
   font-size: var(--text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  
 }
 
 .custom-col-name-input {
@@ -3121,15 +3586,6 @@ th[draggable="true"]:active {
 
 .toggle-switch-small {
   transform: scale(0.85);
-}
-
-.badge-muted {
-  display: inline-block;
-  padding: var(--space-xxs) 6px;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  background: var(--gray-100);
-  color: var(--gray-600);
 }
 
 /* ========================================
@@ -3182,36 +3638,26 @@ th[draggable="true"]:active {
   gap: 6px;
 }
 
-.dd-opt-arrows {
+.dd-opt-row.is-dragging {
+  opacity: 0.5;
+}
+
+.dd-opt-row.is-dragging .sourcing-spalten-griff {
+  cursor: grabbing;
+}
+
+.tabelle-spalten-pflege {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--space-md);
 }
 
-.dd-opt-arrow {
-  width: 20px;
-  height: 15px;
-  padding: 0;
-  border: 1px solid var(--gray-300);
-  border-radius: 3px;
-  background: var(--white);
-  color: var(--gray-500);
-  font-size: 10px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.tabelle-spalten-pflege > [data-action="spalten-pflege-zurueck"] {
+  align-self: flex-start;
 }
 
-.dd-opt-arrow:hover:not(:disabled) {
-  background: var(--gray-100);
-  color: var(--gray-700);
-}
-
-.dd-opt-arrow:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+.tabelle-spalte-hinzufuegen {
+  margin-bottom: var(--space-md);
 }
 
 .dd-opt-input {
@@ -3374,13 +3820,70 @@ th[draggable="true"]:active {
 
 /* ── Generische Custom Columns (Sourcing/Strategie) ───────────────── */
 .entity-custom-col-header {
+  position: relative;
   white-space: nowrap;
+  box-sizing: border-box;
+  min-width: 10rem;
 }
 .entity-custom-col-header-inner {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
   min-width: 0;
+  padding-right: 6px;
+  overflow: hidden;
+}
+.entity-custom-cell {
+  overflow: hidden;
+  box-sizing: border-box;
+  min-width: 10rem;
+  white-space: normal;
+}
+/* Casting-Tabelle setzt nowrap auf alle th/td — eigene Spalten müssen
+   schmaler als ihr Inhalt werden können. */
+.creator-pool-table th.entity-custom-col-header,
+.strategie-items-table th.entity-custom-col-header {
+  white-space: nowrap;
+}
+.creator-pool-table td.entity-custom-cell,
+.strategie-items-table td.entity-custom-cell {
+  white-space: normal;
+  overflow: hidden;
+}
+/* Eigene Textspalte in Casting und Konzept: umbrechen, Zeilenumbrueche behalten,
+   Zeilenhoehe waechst mit. Die Spalte bleibt begrenzt, damit langer Text nicht
+   seitlich aus der Tabelle laeuft. Resize ueberschreibt die Breite inline. */
+.creator-pool-table th.entity-custom-col--text,
+.creator-pool-table td.entity-custom-col--text,
+.strategie-items-table th.entity-custom-col--text,
+.strategie-items-table td.entity-custom-col--text,
+.data-table th.entity-custom-col--text,
+.data-table td.entity-custom-col--text {
+  width: 16rem;
+  min-width: 16rem;
+  max-width: 16rem;
+  vertical-align: top;
+}
+.creator-pool-table td.entity-custom-col--text,
+.strategie-items-table td.entity-custom-col--text,
+.data-table td.entity-custom-col--text {
+  white-space: normal;
+}
+.entity-custom-col--text .entity-custom-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.entity-custom-text textarea,
+.entity-custom-text .cell-text-readonly {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
 }
 .entity-custom-col-header.dragging,
 .entity-custom-col-header.column-dragging {
@@ -3449,7 +3952,7 @@ th[draggable="true"]:active {
   color: var(--text-secondary);
 }
 
-/* Leerer Tabellen-Container (z.B. StrategieDetailRenderer, CreatorAuswahlTemplates) */
+/* Leerer Tabellen-Container (z.B. StrategieDetailRenderer, castingTableRender) */
 .table-container--empty {
   text-align: center;
   padding: var(--space-xxl);
@@ -3515,4 +4018,190 @@ th[draggable="true"]:active {
 /* Loading-Container mit Mindesthoehe (ContractDetail) */
 .table-loading-container--minh {
   min-height: 300px;
+}
+/* Sortierbare Spaltenköpfe (core/list/sortableHeader.js)
+   Zwei gestapelte Chevrons hinter dem Label; aria-sort waehlt die aktive Richtung. */
+.data-table th.th-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table th.th-sortable:hover,
+.data-table th.th-sortable:focus-visible,
+.data-table th.th-sortable[aria-sort="ascending"],
+.data-table th.th-sortable[aria-sort="descending"] {
+  color: var(--color-text-primary, var(--gray-900, inherit));
+}
+
+.data-table th.th-sortable:focus-visible {
+  outline: 2px solid var(--gray-300, currentColor);
+  outline-offset: -2px;
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+}
+
+.th-sort-icons {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.th-sort-icons .crm-icon {
+  --icon-size: 12px;
+  width: 12px;
+  height: 12px;
+  opacity: 0.35;
+}
+
+/* Die Chevrons ruecken zusammen, damit sie als ein Auf/Ab-Symbol lesbar sind */
+.th-sort-icons .th-sort-up {
+  margin-bottom: -4px;
+}
+
+.data-table th.th-sortable:hover .th-sort-icons .crm-icon {
+  opacity: 0.6;
+}
+
+.data-table th.th-sortable[aria-sort="ascending"] .th-sort-icons .th-sort-up.crm-icon,
+.data-table th.th-sortable[aria-sort="descending"] .th-sort-icons .th-sort-down.crm-icon {
+  opacity: 1;
+}
+
+/* === LINIEN-DROPDOWN (links in der Workflow-Tab-Zeile, ADR 0045) === */
+.linien-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: var(--space-sm);
+  /* Trennlinie läuft über die volle Höhe der Tab-Zeile: das Padding der Zeile (--space-xs) ausgleichen */
+  margin-block: calc(-1 * var(--space-xs));
+  padding-right: var(--space-sm);
+  border-right: 1px solid var(--border-primary);
+}
+
+/* Slot ganz rechts in der Workflow-Tab-Zeile (Casting-Listen, Konzepte) */
+.kampagne-workflow-tabs__liste {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Listen-Dropdown (Casting-Listen, Konzepte): ohne Trennstrich der Tab-Zeile */
+.linien-switch--liste {
+  margin-block: 0;
+  margin-right: 0;
+  padding-right: 0;
+  border-right: none;
+}
+
+.linien-switch__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 240px;
+  padding: var(--space-xxs) var(--space-sm);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.linien-switch__trigger:hover,
+.linien-switch.open .linien-switch__trigger {
+  background: var(--bg-secondary);
+}
+
+.linien-switch__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.linien-switch__chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.linien-switch.open .linien-switch__chevron {
+  transform: rotate(180deg);
+}
+
+.linien-switch__menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 340px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--space-xxs) 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+}
+
+.linien-switch.open .linien-switch__menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.linien-switch__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.linien-switch__item:hover {
+  background: var(--bg-secondary);
+}
+
+.linien-switch__item.active {
+  background: var(--bg-secondary);
+  font-weight: 500;
+}
+
+.linien-switch__item--neu {
+  border-top: 1px dashed var(--border-primary);
+  color: var(--text-secondary);
+}
+
+.linien-switch__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linien-switch__badge {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-xs);
 }

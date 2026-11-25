@@ -4,6 +4,7 @@
 // strategie_idee_jobs an, POSTet { jobId } hierher und pollt die Zeile.
 // Diese Function schreibt Fortschritt, Ergebnis oder Fehler per Service Role
 // und inseriert flagged strategie_items (ist_vorschlag). Additiv, kein Replace.
+// Verbindliche Umsetzungsideen des Briefings kommen vor dem KI-Lauf 1:1 dazu.
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, MODELS } = require('./_shared/anthropic');
@@ -11,19 +12,28 @@ const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { appendStep } = require('./_shared/thinking');
 const {
-  ANZAHL,
-  KONZEPT_TOOL,
   loadIdeeInput,
-  buildPrompt,
-  validateIdeen,
-  buildVorschlagInsert
+  planeLaeufe,
+  entwerfeLaeufe,
+  leereLaeufeFehler,
+  buildVorschlagInsert,
+  offeneVerbindlicheIdeen,
+  frueherAngelegt,
+  buildVerbindlichInsert,
+  starteReferenzVerarbeitung,
+  erstzeile
 } = require('./_shared/strategie-idee');
 
 const THINKING_LABELS = {
   start: 'Ich lese Briefing, Produkt und Personas',
   generieren: 'Ich entwerfe die Videoideen',
-  pruefen: 'Ich prüfe die Ideen gegen den Bestand'
+  pruefen: 'Ich prüfe die Ideen gegen den Bestand',
+  wiederholen: 'Ich versuche die Videoideen noch einmal'
 };
+
+function ideenWort(n) {
+  return n === 1 ? 'Videoidee' : 'Videoideen';
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405 };
@@ -68,7 +78,7 @@ exports.handler = async (event) => {
   const { user } = auth;
 
   const { data: job } = await supabase.from('strategie_idee_jobs')
-    .select('id, strategie_id, status, created_by')
+    .select('id, strategie_id, status, created_by, input')
     .eq('id', jobId).single();
   if (!job || job.created_by !== user.id) {
     console.error(`❌ strategie-idee-background: Job ${jobId} nicht gefunden oder fremd`);
@@ -79,13 +89,16 @@ exports.handler = async (event) => {
     return { statusCode: 409 };
   }
 
+  const hinweis = typeof job.input?.hinweis === 'string' ? job.input.hinweis.trim() : '';
+  const labels = { ...THINKING_LABELS };
+
   let queue = Promise.resolve();
   let progressSteps = [];
-  const schreibeStep = (step, msg) => {
+  const schreibeStep = (step, msg, label) => {
     if (msg) console.log(`[${jobId}] ${msg}`);
     progressSteps = appendStep(progressSteps, {
       step,
-      label: THINKING_LABELS[step] || msg || 'Ich arbeite'
+      label: label || labels[step] || msg || 'Ich arbeite'
     });
     const steps = progressSteps;
     queue = queue
@@ -100,44 +113,24 @@ exports.handler = async (event) => {
   schreibeStep('start', 'Videoideen-Vorschläge starten');
 
   let ki = null;
+  const zustand = { model: null, usage: null, letzterResult: null };
   try {
     const input = await loadIdeeInput(supabase, job.strategie_id);
-
-    ki = await starteKiRequest(supabase, {
-      userId: user.id,
-      feature: 'strategie_idee'
-    });
-
-    schreibeStep('generieren', `Claude entwirft ${ANZAHL} Videoideen`);
-    const { stable, task } = buildPrompt(input);
-
-    const result = await callClaude({
-      model: MODELS.konzept,
-      systemBlocks: [{ text: stable, cache: true }],
-      userPrompt: task,
-      maxTokens: 8000,
-      tool: KONZEPT_TOOL,
-      toolForced: true
-    });
-
-    if (!result.json) {
-      throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
+    // Vorschlaege lesen das Briefing; eine Altbestand-Linie hat keins (ADR 0058).
+    if (input.briefing?.ist_altbestand) throw new Error('Altbestand-Linie ohne Briefing: bitte zuerst das Briefing ausfüllen');
+    // Ein Lauf pro Produkt-Quote (oder ein Lauf fuer das eine/kein Produkt).
+    // Mehrere Produkte ohne Quote werfen hier, es wird nicht gemischt.
+    const laeufe = planeLaeufe({ input: job.input, produkte: input.produkte });
+    const mehrere = input.produkte.length > 1;
+    if (!input.personas.length) {
+      schreibeStep('start', 'Konzept ohne Personas', 'Ohne Personas werden die Ideen allgemein');
     }
-
-    schreibeStep('pruefen', 'Ideen werden validiert');
-    const geprueft = validateIdeen(result.json, { ausschluss: input.ausschluss, anzahl: ANZAHL });
-    if (!geprueft.ideen.length) {
-      throw new Error('Die KI konnte keine tragfähigen Videoideen liefern');
-    }
-
-    await ki.abschliessen({ model: result.model, usage: result.usage });
 
     // strategie_items.created_by -> benutzer(id), nicht auth.users
     const { data: benutzer } = await supabase.from('benutzer')
       .select('id')
       .eq('auth_user_id', user.id)
       .maybeSingle();
-
     const { data: maxRow } = await supabase.from('strategie_items')
       .select('sortierung')
       .eq('strategie_id', job.strategie_id)
@@ -146,20 +139,102 @@ exports.handler = async (event) => {
       .maybeSingle();
     let sortierung = Number.isFinite(maxRow?.sortierung) ? maxRow.sortierung + 1 : 0;
 
-    const rows = geprueft.ideen.map((idee) => buildVorschlagInsert({
-      strategieId: job.strategie_id,
-      idee,
-      sortierung: sortierung++,
-      createdBy: benutzer?.id || null
-    }));
+    const verbindlich = offeneVerbindlicheIdeen({
+      briefing: input.briefing,
+      items: input.items,
+      frueher: await frueherAngelegt(supabase, job.strategie_id)
+    });
+    const verbindlichSchluessel = verbindlich.map((idee) => idee.schluessel);
+    if (verbindlich.length) {
+      schreibeStep('verbindlich', 'Verbindliche Ideen anlegen', verbindlich.length === 1
+        ? 'Ich lege die verbindliche Idee aus dem Briefing an'
+        : `Ich lege ${verbindlich.length} verbindliche Ideen aus dem Briefing an`);
+      const produktId = input.produkte.length === 1 ? input.produkte[0].id : null;
+      const { data: angelegt, error: vErr } = await supabase.from('strategie_items')
+        .insert(verbindlich.map((idee) => buildVerbindlichInsert({
+          strategieId: job.strategie_id, idee, sortierung: sortierung++, createdBy: benutzer?.id || null, produktId
+        })))
+        .select('id, video_link');
+      if (vErr) throw new Error(`Verbindliche Ideen konnten nicht gespeichert werden: ${vErr.message}`);
+      // Sofort festhalten: scheitert der KI-Lauf, gelten sie trotzdem als angelegt.
+      queue = queue
+        .then(() => supabase.from('strategie_idee_jobs').update({ result: { verbindlich: verbindlichSchluessel } }).eq('id', jobId))
+        .catch((e) => console.error(`[${jobId}] Verbindliche Schluessel nicht gespeichert:`, e.message));
+      const referenz = (angelegt || []).find((row) => row.video_link);
+      if (referenz) await starteReferenzVerarbeitung(event, referenz.id);
+      input.ausschluss.push(...verbindlich.map((idee) => erstzeile(idee.rest || idee.text)).filter(Boolean));
+    }
+    const gesamt = laeufe.reduce((summe, lauf) => summe + lauf.anzahl, 0);
+    labels.generieren = `Liky entwirft ${gesamt} ${ideenWort(gesamt)}`;
+
+    ki = await starteKiRequest(supabase, {
+      userId: user.id,
+      feature: 'strategie_idee'
+    });
+
+    const rufeClaude = ({ stable, task, tool }) => callClaude({
+      model: MODELS.konzept,
+      systemBlocks: [{ text: stable, cache: true }],
+      userPrompt: task,
+      maxTokens: 8000,
+      tool,
+      toolForced: true
+    });
+
+    const geschrieben = await entwerfeLaeufe({
+      input,
+      laeufe,
+      hinweis,
+      rufe: rufeClaude,
+      zustand,
+      onStep: (step, lauf) => {
+        if (step === 'generieren') {
+          const label = mehrere && lauf.produkt?.name
+            ? `Liky entwirft ${lauf.anzahl} ${ideenWort(lauf.anzahl)} für ${lauf.produkt.name}`
+            : `Liky entwirft ${lauf.anzahl} ${ideenWort(lauf.anzahl)}`;
+          schreibeStep('generieren', label, label);
+        } else if (step === 'wiederholen') {
+          schreibeStep('generieren', 'Ich versuche die Videoideen noch einmal', labels.wiederholen);
+        } else {
+          schreibeStep('pruefen', 'Ideen werden validiert');
+        }
+      },
+      onDiagnose: (diagnose) => {
+        console.warn(`[${jobId}] Lauf ohne Ideen:`, diagnose);
+        queue = queue
+          .then(() => supabase.from('strategie_idee_jobs')
+            .update({ result: { ...diagnose, verbindlich: verbindlichSchluessel } })
+            .eq('id', jobId))
+          .catch((e) => console.error(`[${jobId}] Diagnose-Update fehlgeschlagen:`, e.message));
+      }
+    });
+
+    if (!geschrieben.ergebnisse.length) {
+      await queue;
+      throw leereLaeufeFehler(geschrieben);
+    }
+
+    await ki.abschliessen({ model: zustand.model, usage: zustand.usage });
+
+    const rows = geschrieben.ergebnisse.flatMap(({ produkt, ideen }) => ideen.map((idee) => (
+      buildVorschlagInsert({
+        strategieId: job.strategie_id,
+        idee,
+        sortierung: sortierung++,
+        createdBy: benutzer?.id || null,
+        produktId: produkt?.id || null
+      })
+    )));
 
     const { error: insertError } = await supabase.from('strategie_items').insert(rows);
     if (insertError) throw new Error(`Ideen konnten nicht gespeichert werden: ${insertError.message}`);
 
     const payload = {
       success: true,
-      anzahl: rows.length,
-      verworfen: geprueft.verworfen
+      anzahl: rows.length + verbindlich.length,
+      verbindlich: verbindlichSchluessel,
+      ohne_personas: !input.personas.length,
+      verworfen: geschrieben.verworfen
     };
 
     await queue;
@@ -169,7 +244,10 @@ exports.handler = async (event) => {
     return { statusCode: 200 };
   } catch (error) {
     console.error(`❌ strategie-idee-background [${jobId}]:`, error.message);
-    if (ki) await ki.fehlgeschlagen(error);
+    if (ki) await ki.fehlgeschlagen(error, {
+      model: zustand.model,
+      usage: zustand.usage
+    });
     try {
       await queue;
       await supabase.from('strategie_idee_jobs')

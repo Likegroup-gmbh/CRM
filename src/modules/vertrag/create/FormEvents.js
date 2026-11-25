@@ -6,6 +6,8 @@ import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
 import { SplitButtonConfig } from '../../../core/components/SplitButtonConfig.js';
+import { missingRequiredFields } from './vertragStepValidation.js';
+import { navigateBack } from '../../../core/breadcrumbTrail.js';
 
 VertraegeCreate.prototype.bindMultistepEvents = function() {
     const cancelBtn = document.getElementById('btn-cancel');
@@ -17,7 +19,7 @@ VertraegeCreate.prototype.bindMultistepEvents = function() {
     // Abbrechen
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
-        window.navigateTo('/vertraege');
+        navigateBack('/vertraege');
       });
     }
 
@@ -126,14 +128,7 @@ VertraegeCreate.prototype.updateSubmitDisabled = function() {
 };
 
 VertraegeCreate.prototype.getMissingRequiredFields = function() {
-    const form = document.getElementById('vertrag-form');
-    if (!form) return [];
-    const required = Array.from(form.querySelectorAll('[required]'));
-    return required.filter((field) => {
-      if (field.disabled || field.offsetParent === null) return false;
-      const value = (field.value ?? '').toString().trim();
-      return !value;
-    });
+    return missingRequiredFields(document.getElementById('vertrag-form'));
 };
 
 
@@ -186,7 +181,10 @@ VertraegeCreate.prototype.bindDynamicFieldEvents = function() {
       kooperationSelect.addEventListener('change', (e) => {
         this.formData.kooperation_id = e.target.value || null;
         this.applyKooperationVerguetung(e.target.value);
+        this.refreshBestehendeVertraege?.();
       });
+      // Beim Zurueckkehren in den Schritt ist die Kooperation schon gewaehlt
+      this.refreshBestehendeVertraege?.();
     }
 
     // Exklusivität Toggle

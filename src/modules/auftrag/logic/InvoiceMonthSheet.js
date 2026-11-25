@@ -1,7 +1,7 @@
 // InvoiceMonthSheet.js
 // Shared month-tab rendering + UI-update for RechnungList and AusgangsrechnungenList.
 
-import { ALL_TAB, MONTH_LABELS, UNDATED_TAB, parseMonthTab } from './InvoiceMonthFilter.js';
+import { ALL_TAB, MONTH_LABELS, NO_RENR_TAB, UNDATED_TAB, parseMonthTab } from './InvoiceMonthFilter.js';
 import { renderTabButton } from '../../../core/TabUtils.js';
 
 const YEAR_RANGE = 5;
@@ -51,7 +51,7 @@ export function renderInvoiceMonthSheet({ rootId, yearSelectId, year, month, ext
   })).join('');
 
   return `
-    <div class="tab-navigation ${rootId.replace(/-/g, '-')}" id="${rootId}">
+    <div class="tab-navigation tab-navigation--liste monatsblatt-tabs" id="${rootId}">
       <select id="${yearSelectId}" class="form-select" aria-label="Jahr">
         ${yearOptions.join('')}
       </select>
@@ -82,6 +82,9 @@ export function updateInvoiceMonthTabUI({ rootId, yearSelectId, year, month, cou
 
   const undatedEl = root.querySelector(`[data-month-count="${UNDATED_TAB}"]`);
   if (undatedEl) undatedEl.textContent = counts[UNDATED_TAB] || 0;
+
+  const noRenrEl = root.querySelector(`[data-month-count="${NO_RENR_TAB}"]`);
+  if (noRenrEl) noRenrEl.textContent = counts[NO_RENR_TAB] || 0;
 
   const allEl = root.querySelector(`[data-month-count="${ALL_TAB}"]`);
   if (allEl) allEl.textContent = counts[ALL_TAB] || 0;

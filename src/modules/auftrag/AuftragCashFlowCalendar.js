@@ -7,6 +7,8 @@ import { tableExport } from '../../core/TableExport.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { getInvoiceDisplayDate } from './logic/InvoiceDisplayDate.js';
+import { isTestUnternehmen } from '../../core/budget/testunternehmen.js';
+import { verteilungsStand } from '../../core/budget/teilrechnungVerteilung.js';
 
 export class AuftragCashFlowCalendar {
   constructor() {
@@ -55,7 +57,7 @@ export class AuftragCashFlowCalendar {
         .from('auftrag')
         .select(`
           *,
-          unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
+          unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url, ist_test),
           marke:marke_id(id, markenname, logo_url),
           teilrechnungen:auftrag_teilrechnung(id, position, nettobetrag, ust_betrag, bruttobetrag, re_nr, re_faelligkeit, erwarteter_monat_zahlungseingang, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am)
         `);
@@ -72,15 +74,23 @@ export class AuftragCashFlowCalendar {
       query = query.order('unternehmen_id', { ascending: true })
                    .order('marke_id', { ascending: true });
 
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('❌ Fehler beim Laden der Cash Flow Daten:', error);
-        this.auftraege = [];
-        return;
+      // Seitenweise laden: PostgREST kappt still bei 1000 Zeilen.
+      const pageSize = 1000;
+      const data = [];
+      let from = 0;
+      while (true) {
+        const { data: page, error } = await query.range(from, from + pageSize - 1);
+        if (error) {
+          console.error('❌ Fehler beim Laden der Cash Flow Daten:', error);
+          this.auftraege = [];
+          return;
+        }
+        data.push(...(page || []));
+        if ((page || []).length < pageSize) break;
+        from += pageSize;
       }
 
-      this.auftraege = data || [];
+      this.auftraege = data.filter((a) => !isTestUnternehmen(a.unternehmen));
       console.log(`✅ ${this.auftraege.length} Aufträge geladen`);
       
       // Daten gruppieren
@@ -108,6 +118,7 @@ export class AuftragCashFlowCalendar {
           unternehmen: auftrag.unternehmen,
           marke: auftrag.marke,
           auftraege: [],
+          nichtVerteilt: 0,
           months: Array(12).fill(null).map(() => ({
             auftraege: [], total: 0, totalUst: 0, totalBrutto: 0, status: null
           }))
@@ -116,6 +127,9 @@ export class AuftragCashFlowCalendar {
       
       const group = grouped.get(key);
       group.auftraege.push(auftrag);
+      if (auftrag.teilrechnungen?.length) {
+        group.nichtVerteilt += verteilungsStand(auftrag.nettobetrag, auftrag.teilrechnungen).offen;
+      }
       
       // Zuordnung zu Monaten
       this.assignToMonths(auftrag, group.months);
@@ -209,6 +223,15 @@ export class AuftragCashFlowCalendar {
     }
   }
 
+  // Nicht verteilter Netto-Rest hat keinen Termin und zaehlt daher unabhaengig vom Jahr.
+  showNichtVerteilt() {
+    return Boolean(window.isAdmin?.());
+  }
+
+  sumNichtVerteilt() {
+    return this.groupedData.reduce((sum, group) => sum + (group.nichtVerteilt || 0), 0);
+  }
+
   // Rendere Kalender
   render() {
     if (!this.container) return;
@@ -244,6 +267,7 @@ export class AuftragCashFlowCalendar {
                 <th class="sticky-col-2">Marke</th>
                 ${this.months.map(m => `<th>${m}</th>`).join('')}
                 <th class="total-col">TOTAL</th>
+                ${this.showNichtVerteilt() ? '<th class="total-col">Nicht verteilt</th>' : ''}
               </tr>
             </thead>
             <tbody>
@@ -267,10 +291,11 @@ export class AuftragCashFlowCalendar {
         icon: 'calendar',
         title: `Keine Daten für ${this.currentYear}`,
         text: 'Für dieses Jahr gibt es noch keine Aufträge mit relevanten Zahlungsdaten.'
-      }, 14);
+      }, this.showNichtVerteilt() ? 16 : 15);
     }
     
     let rows = [];
+    const showNichtVerteilt = this.showNichtVerteilt();
     
     this.groupedData.forEach((group, index) => {
       // Unternehmen als Avatar-Bubble mit Label rendern
@@ -302,6 +327,7 @@ export class AuftragCashFlowCalendar {
           <td class="sticky-col-2 marke-cell">${markeBubble}</td>
           ${group.months.map((month, monthIndex) => this.renderCell(month, index, monthIndex)).join('')}
           <td class="total-cell">${this.formatCurrency(yearTotal)}</td>
+          ${showNichtVerteilt ? `<td class="total-cell">${this.formatCurrency(group.nichtVerteilt)}</td>` : ''}
         </tr>
       `);
     });
@@ -368,14 +394,19 @@ export class AuftragCashFlowCalendar {
       { label: 'SUMME BRUTTO', field: 'totalBrutto', cls: 'cash-flow-totals cash-flow-totals--secondary' }
     ];
 
+    const showNichtVerteilt = this.showNichtVerteilt();
     return rows.map(({ label, field, cls }) => {
       const { monthTotals, grandTotal } = this.sumMonths(field);
+      const nichtVerteiltCell = field === 'total'
+        ? `<td class="total-cell grand-total">${this.formatCurrency(this.sumNichtVerteilt())}</td>`
+        : '<td class="total-cell"></td>';
       return `
       <tr class="${cls}">
         <td class="sticky-col">${label}</td>
         <td class="sticky-col-2"></td>
         ${monthTotals.map(total => `<td>${total > 0 ? this.formatCurrency(total) : ''}</td>`).join('')}
         <td class="total-cell grand-total">${this.formatCurrency(grandTotal)}</td>
+        ${showNichtVerteilt ? nichtVerteiltCell : ''}
       </tr>
     `;
     }).join('');
@@ -742,7 +773,8 @@ export class AuftragCashFlowCalendar {
       { key: 'unternehmen', label: 'Unternehmen' },
       { key: 'marke', label: 'Marke' },
       ...this.months.map((m, i) => ({ key: `month_${i}`, label: m, type: 'currency' })),
-      { key: 'total', label: 'TOTAL', type: 'currency' }
+      { key: 'total', label: 'TOTAL', type: 'currency' },
+      ...(this.showNichtVerteilt() ? [{ key: 'nicht_verteilt', label: 'Nicht verteilt', type: 'currency' }] : [])
     ];
   }
 
@@ -753,7 +785,8 @@ export class AuftragCashFlowCalendar {
       const row = {
         unternehmen: group.unternehmen?.firmenname || 'Unbekannt',
         marke: group.marke?.markenname || '',
-        total: group.months.reduce((sum, m) => sum + m.total, 0)
+        total: group.months.reduce((sum, m) => sum + m.total, 0),
+        nicht_verteilt: group.nichtVerteilt
       };
       
       // Monats-Werte hinzufügen
@@ -771,7 +804,8 @@ export class AuftragCashFlowCalendar {
     const sumRow = {
       unternehmen: 'SUMME',
       marke: '',
-      total: grandTotal
+      total: grandTotal,
+      nicht_verteilt: this.sumNichtVerteilt()
     };
     monthTotals.forEach((total, i) => {
       sumRow[`month_${i}`] = total;

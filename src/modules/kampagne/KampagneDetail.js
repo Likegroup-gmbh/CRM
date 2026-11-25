@@ -4,21 +4,52 @@
 
 import { KampagneKooperationenVideoTable } from './KampagneKooperationenVideoTable.js';
 import { KooperationenKanbanBoard } from './KooperationenKanbanBoard.js';
+import { deckenStandDerSeite } from '../kooperation/platzhalterKontext.js';
+import { setOffenePlatzhalterZahl } from '../kooperation/platzhalterAnlegen.js';
 import { KampagneUtils } from './KampagneUtils.js';
+import { kampagneDetailCrumbs } from './kampagneFolderCrumbs.js';
+import { getRouteConfig } from '../../core/breadcrumbRoutes.js';
 import { loadCriticalData as _loadCriticalData, loadFullTableData } from './KampagneDetailDataLoader.js';
 import { renderPageLoading, renderNotFound, renderMainPage } from './KampagneDetailMainRenderer.js';
 import { updateSummaryCardsDOM, updateVideoStatsCardDOM } from './KampagneDetailSummaryCards.js';
 import { setupEvents, teardownEvents } from './KampagneDetailEvents.js';
 import { showEditForm as _showEditForm } from './KampagneDetailEditHandler.js';
 import { KampagneDetailStore } from './KampagneDetailStore.js';
-
+import { destroyKooperationFilter, mountKooperationFilter, syncKooperationFilter } from './kooperationFilterSpalte.js';
+import {
+  activateWorkflowTab,
+  refreshWorkflowAfterRender,
+  resolveInitialWorkflowTab,
+  rewriteWorkflowTabAlias,
+  DEFAULT_WORKFLOW_TAB,
+  unmountVertraegePane,
+  startWorkflowPrefetch,
+  cancelWorkflowPrefetch
+} from './KampagneDetailWorkflow.js';
+import { openSkripteChannel, closeSkripteChannel } from './kampagneSkripteChannel.js';
+import { nutzungsrechteModal } from './NutzungsrechteModal.js';
+import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
+import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
+import { unmountKatalogPanes } from './KampagneDetailKatalog.js';
+import { unmountBriefingPane } from './KampagneDetailBriefing.js';
+import { unmountBudgetFilter } from '../produktion/budgetTabFilter.js';
+import { unmountSkriptePane } from './KampagneDetailSkripte.js';
+import { detailOffen, offenAusUrl, vergissAlle } from './produktionTabDetail.js';
+import { routeImFlow, zeigeTabListe } from './produktionFlowRoute.js';
+import {
+  ALLE,
+  koopLinie,
+  rememberLinie,
+  resolveLinie,
+  syncLinieQueryParam,
+  syncLinienSwitch
+} from './linienScope.js';
 export class KampagneDetail {
   constructor() {
     this.kampagneId = null;
     this.kampagneData = null;
     this.store = null;
-    this.creator = [];
-    this.kooperationen = [];
+    this.koopFilter = null;
     this.koopBudgetSum = 0;
     this.koopVideosUsed = 0;
     this.koopCreatorsUsed = 0;
@@ -26,37 +57,143 @@ export class KampagneDetail {
     this.ekVkMarginSum = 0;
     this.kskUmgebucht = 0;
     this.videoStats = { views: 0, likes: 0, comments: 0 };
-    this.sourcingCreators = [];
-    this.favoriten = [];
-    this.rechnungen = [];
-    this.vertraege = [];
     this.kooperationenVideoTable = null;
+    this.castingWorksheet = null;
+    this.konzeptWorksheet = null;
     this.kanbanBoard = null;
     this.currentView = 'table';
     this.videoColumnVisibilityDrawer = null;
     this._customColumnsDrawer = null;
     this.strategien = [];
-    this.briefings = [];
+    this.produktionen = [];
+    this.produktion = null;
+    this.produktionId = null;
+    this.linien = [];
+    this.linieId = null;
+    this.linieAlle = false;
+    this.mode = 'overview';
+    this.lineTitle = '';
     this.isKunde = false;
+    this.activeWorkflowTab = DEFAULT_WORKFLOW_TAB;
+    this.offen = {};
+    this.skriptEditor = null;
 
     this._isMounted = false;
     this._initPromise = null;
     this._visibilityHandler = null;
   }
 
+  /** Produktion, Titel und Linien übernehmen; aktive Linie nach URL, Merker, Reihenfolge. */
+  _applyProduktion(produktion) {
+    this.produktion = produktion;
+    this.produktionId = produktion.id;
+    this.lineTitle = produktion.name || '';
+    this.linien = produktion.linien || [];
+    const { linieId, alle } = resolveLinie(this.linien, produktion.id);
+    this.linieId = linieId;
+    this.linieAlle = alle;
+  }
+
+  /**
+   * Linien neu laden (z. B. nach dem Löschen eines Briefings). Fällt die aktive
+   * Linie weg, greift resolveLinie; Tabelle und Tabs laden mit der Linie neu.
+   * Mit `linieId` (z. B. die Kopie eines Briefings) wird diese Linie aktiv.
+   * @param {{ linieId?: string }} [opts]
+   */
+  async reloadLinien({ linieId = null } = {}) {
+    if (this.mode !== 'workflow' || !this.produktionId) return;
+    const { loadProduktion } = await import('../produktion/ProduktionService.js');
+    const produktion = await loadProduktion(this.produktionId);
+    if (!this._isMounted || !produktion) return;
+
+    this._applyProduktion(produktion);
+    if (linieId && this.linien.some(l => l.id === linieId)) {
+      this.linieId = linieId;
+      this.linieAlle = false;
+    }
+    await this._commitLinie();
+  }
+
+  /** Aktive Linie merken, in URL und Dropdown spiegeln, Tabelle und Tabs neu laden. */
+  async _commitLinie({ koopNeuLaden = true } = {}) {
+    vergissAlle(this);
+    rememberLinie(this.produktionId, this.linieId);
+    syncLinieQueryParam(this.linieId, this.linieAlle);
+    syncLinienSwitch(this, this.activeWorkflowTab);
+
+    if (this.kooperationenVideoTable) this.kooperationenVideoTable.briefingId = koopLinie(this);
+    cancelWorkflowPrefetch(this);
+    if (koopNeuLaden) await this.reloadKooperationTable();
+    if (!this._isMounted) return;
+    refreshWorkflowAfterRender(this);
+    if (this.activeWorkflowTab === 'kooperationen') startWorkflowPrefetch(this);
+  }
+
   async init(kampagneId) {
     console.log('🎯 KAMPAGNEDETAIL: Initialisiere Kampagnen-Detailseite für ID:', kampagneId);
 
+    const openAsProduktion = this._openAsProduktion === true;
+    this._openAsProduktion = false;
+    this.mode = 'overview';
+    this.produktion = null;
+    this.produktionId = null;
+    this.linien = [];
+    this.linieId = null;
+    this.linieAlle = false;
+    this.lineTitle = '';
+    this.offen = openAsProduktion ? offenAusUrl() : {};
+
+    if (openAsProduktion) {
+      // Loading sofort zeigen: das Quell-Modul ist schon zerstört, ohne
+      // Skeleton bliebe bei einem Fehler hier die alte (tote) Seite stehen.
+      this._showLoading();
+      let produktion = null;
+      try {
+        const { loadProduktion } = await import('../produktion/ProduktionService.js');
+        produktion = await loadProduktion(kampagneId);
+      } catch (error) {
+        console.error('❌ KAMPAGNEDETAIL: Produktion konnte nicht geladen werden:', error);
+        this._isMounted = true;
+        window.ErrorHandler?.handle?.(error, 'KampagneDetail.init');
+        window.toastSystem?.show('Produktion konnte nicht geladen werden. Bitte Seite neu laden.', 'error');
+        window.setHeadline('Produktion nicht erreichbar');
+        window.content.innerHTML = `
+          <div class="error-message">
+            <h2>Produktion konnte nicht geladen werden</h2>
+            <p>Bitte Seite neu laden oder später erneut versuchen.</p>
+          </div>
+        `;
+        return;
+      }
+      if (!produktion?.kampagne_id) {
+        this._isMounted = true;
+        renderNotFound('Produktion');
+        return;
+      }
+      this._applyProduktion(produktion);
+      this.mode = 'workflow';
+      kampagneId = produktion.kampagne_id;
+    }
+
     const previousKampagneId = this.kampagneId;
+    const routeKey = `${this.mode}:${this.produktionId || kampagneId}`;
     this.kampagneId = kampagneId;
 
-    if (this._initPromise && previousKampagneId === kampagneId) {
+    if (this._initPromise && this._routeKey === routeKey && previousKampagneId === kampagneId) {
       console.log('⚠️ KAMPAGNEDETAIL: Init bereits in Arbeit für diese Kampagne, warte...');
       return this._initPromise;
     }
+    this._routeKey = routeKey;
 
     this._isMounted = true;
+    cancelWorkflowPrefetch(this);
+    closeSkripteChannel(this);
     this._destroyDrawers();
+    void unmountSkriptePane(this);
+    unmountCastingWorksheet(this);
+    unmountKonzeptWorksheet(this);
+    unmountKatalogPanes(this);
+    unmountBriefingPane(this);
 
     if (this.kooperationenVideoTable) {
       if (typeof this.kooperationenVideoTable.destroy === 'function') {
@@ -75,6 +212,12 @@ export class KampagneDetail {
       this.store.destroy();
       this.store = null;
     }
+    destroyKooperationFilter(this);
+
+    // Workflow-Tab aus ?tab= (unbekannt/nicht erlaubt → Briefing).
+    // Alte Links ?tab=produktion und ?tab=kooperation werden auf Kooperationen gezogen.
+    this.activeWorkflowTab = resolveInitialWorkflowTab();
+    rewriteWorkflowTabAlias(this.activeWorkflowTab);
 
     if (window.moduleRegistry?.currentModule !== this) {
       this._isMounted = false;
@@ -90,40 +233,66 @@ export class KampagneDetail {
       try {
         const isKunde = window.isKunde();
 
-        const [, tableData] = await Promise.all([
-          this.loadCriticalData(),
-          loadFullTableData(this.kampagneId, this.store, isKunde)
-        ]);
+        const tablePromise = loadFullTableData(this.kampagneId, this.store, isKunde, {
+          produktionId: this.mode === 'workflow' ? this.produktionId : null,
+          briefingId: this.mode === 'workflow' ? koopLinie(this) : null
+        });
+        tablePromise.catch(() => {});
 
+        await this.loadCriticalData();
+        if (!this._isMounted) return;
+        this._updateBreadcrumb();
+
+        const tableData = await tablePromise;
         if (!this._isMounted) return;
 
-        if (window.breadcrumbSystem && this.kampagneData) {
-          const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
-          window.breadcrumbSystem.updateDetailLabel(KampagneUtils.getDisplayName(this.kampagneData), {
-            id: 'btn-edit-kampagne',
-            canEdit
-          });
-        }
-
-        this._prepareVideoTable(tableData, isKunde);
+        this._applySummaryFromStore();
+        if (this.mode !== 'overview') this._createVideoTable(tableData);
 
         await this.render();
 
         setupEvents(this);
 
-        await this._mountVideoTable();
+        if (this.mode !== 'overview') {
+          await this._mountVideoTable();
+        }
 
         const _renderTime = performance.now() - _initStart;
         console.log(`✅ KAMPAGNEDETAIL: Komplett geladen und gerendert in ${_renderTime.toFixed(0)}ms`);
       } catch (error) {
         console.error('❌ KAMPAGNEDETAIL: Fehler bei der Initialisierung:', error);
-        window.ErrorHandler.handle(error, 'KampagneDetail.init');
+        window.ErrorHandler?.handle?.(error, 'KampagneDetail.init');
       } finally {
         this._initPromise = null;
       }
     })();
 
     return this._initPromise;
+  }
+
+  /** @param {{ produktionUrl?: string }} [opts] Ziel des Produktions-Crumbs (offenes Skript: die Skripte-Tabelle) */
+  _updateBreadcrumb({ produktionUrl } = {}) {
+    if (!window.breadcrumbSystem || !this.kampagneData) return;
+    const kampagneName = KampagneUtils.getDisplayName(this.kampagneData) || 'Kampagne';
+    // Kunden sehen nur ihr eigenes Unternehmen: kein Firmen-Ordner im Weg.
+    const kampagneCrumbs = window.isKunde?.()
+      ? [
+          { label: getRouteConfig('kampagne', window.currentUser?.rolle?.toLowerCase()).label, url: '/kampagne', clickable: true },
+          { label: kampagneName, url: `/kampagne/${this.kampagneId}`, clickable: false }
+        ]
+      : kampagneDetailCrumbs(this.kampagneData, this.kampagneId, kampagneName);
+
+    if (this.mode === 'workflow') {
+      const kampagneCrumb = kampagneCrumbs[kampagneCrumbs.length - 1];
+      window.breadcrumbSystem.updateBreadcrumb([
+        ...kampagneCrumbs.slice(0, -1),
+        { ...kampagneCrumb, clickable: true },
+        { label: this.lineTitle || this.produktion?.name || 'Produktion', url: produktionUrl || `/produktion/${this.produktionId}`, clickable: false }
+      ], null, { switcher: { segment: 'produktion', id: this.produktionId, kampagneId: this.kampagneId } });
+      return;
+    }
+    const canEdit = window.canEdit?.('kampagne') ?? false;
+    window.breadcrumbSystem.updateBreadcrumb(kampagneCrumbs, { id: 'btn-edit-kampagne', canEdit });
   }
 
   _showLoading() {
@@ -135,14 +304,14 @@ export class KampagneDetail {
     console.log('🔄 KAMPAGNEDETAIL: Lade kritische Daten parallel...');
     const startTime = performance.now();
     try {
-      const data = await _loadCriticalData(this.kampagneId);
+      const data = await _loadCriticalData(this.kampagneId, {
+        produktionId: this.produktionId
+      });
 
       this.kampagneData = data.kampagneData;
       this.strategien = data.strategien;
-      this.briefings = data.briefings;
+      this.produktionen = data.produktionen || [];
       this.sourcingListenCount = data.sourcingListenCount;
-      this.vertraegeCount = data.vertraegeCount;
-      this.rechnungenCount = data.rechnungenCount;
 
       const loadTime = (performance.now() - startTime).toFixed(0);
       console.log(`✅ KAMPAGNEDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -158,9 +327,13 @@ export class KampagneDetail {
       return;
     }
 
-    window.setHeadline(`Kampagne: ${KampagneUtils.getDisplayName(this.kampagneData)}`);
+    const headlineName = this.mode === 'workflow'
+      ? (this.lineTitle || this.produktion?.name || 'Produktion')
+      : KampagneUtils.getDisplayName(this.kampagneData);
+    window.setHeadline(this.mode === 'workflow' ? `Produktion: ${headlineName}` : `Kampagne: ${headlineName}`);
 
     this.isKunde = window.isKunde();
+    syncKooperationFilter(this);
 
     const html = renderMainPage({
       kampagneData: this.kampagneData,
@@ -174,28 +347,27 @@ export class KampagneDetail {
       isKunde: this.isKunde,
       kampagneId: this.kampagneId,
       searchQuery: this.store?.searchQuery || '',
-      availableStatuses: this.store?.getAvailableStatuses() || [],
-      availableTags: this.store?.getAvailableTags() || [],
-      selectedStatuses: this.store?.selectedStatuses || [],
-      selectedTags: this.store?.selectedTags || [],
-      kooperationSort: this.store?.kooperationSort || 'created_desc'
+      kooperationFilter: this.koopFilter,
+      ...this._summaryRows(),
+      activeWorkflow: this.activeWorkflowTab,
+      strategien: this.strategien,
+      sourcingListenCount: this.sourcingListenCount,
+      mode: this.mode,
+      produktionen: this.produktionen || [],
+      produktion: this.produktion,
+      lineTitle: this.lineTitle,
+      linienDetail: this.mode === 'workflow' ? this : null
     });
 
     window.setContentSafely(window.content, html);
+    mountKooperationFilter(this);
+
+    if (this.mode !== 'overview') {
+      refreshWorkflowAfterRender(this);
+    }
   }
 
-  _prepareVideoTable(tableData, isKunde) {
-    this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
-    this.kooperationenVideoTable.statusOptions = tableData?.statusOptions || [];
-
-    const hiddenCols = this.kampagneData?.video_table_hidden_columns;
-    if (hiddenCols) {
-      this.kooperationenVideoTable.hiddenColumns = hiddenCols;
-    }
-
-    this.kooperationenVideoTable._dataLoaded = true;
-    this._pendingTableData = tableData;
-
+  _applySummaryFromStore() {
     const summary = this.store.calculateSummary();
     this.koopBudgetSum = summary.koopBudgetSum;
     this.koopVideosUsed = summary.koopVideosUsed;
@@ -207,6 +379,22 @@ export class KampagneDetail {
 
     this._bindVideoStatsCard();
     this._bindFilteredSummaryCards();
+  }
+
+  _createVideoTable(tableData) {
+    this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.deckenStand = deckenStandDerSeite(this);
+    this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
+    this.kooperationenVideoTable.briefingId = this.mode === 'workflow' ? koopLinie(this) : null;
+    this.kooperationenVideoTable.statusOptions = tableData?.statusOptions || [];
+
+    const hiddenCols = this.kampagneData?.video_table_hidden_columns;
+    if (hiddenCols) {
+      this.kooperationenVideoTable.hiddenColumns = hiddenCols;
+    }
+
+    this.kooperationenVideoTable.reloadKooperationen = () => this.reloadKooperationTable();
+    this.kooperationenVideoTable._dataLoaded = true;
   }
 
   /**
@@ -222,7 +410,7 @@ export class KampagneDetail {
       this._refreshSummaryCards({ animate: true });
     };
 
-    for (const event of ['video-updated', 'video-added', 'videos-changed', 'kooperation-removed']) {
+    for (const event of ['video-updated', 'video-added', 'videos-changed', 'posts-changed', 'kooperation-removed']) {
       this.store.on(event, refresh);
     }
   }
@@ -244,7 +432,7 @@ export class KampagneDetail {
    */
   _refreshSummaryCards({ animate = false } = {}) {
     if (!this.store) return;
-    const hasTagFilter = (this.store.selectedTags || []).length > 0;
+    const hasTagFilter = this.store.getSelectedTags().length > 0;
     const summary = hasTagFilter
       ? this.store.calculateFilteredSummary()
       : this.store.calculateSummary();
@@ -256,9 +444,49 @@ export class KampagneDetail {
       summary.extraKostenVkSum,
       summary.ekVkMarginSum,
       summary.kskUmgebucht,
-      { animate }
+      { animate, ...this._summaryRows() }
     );
+    setOffenePlatzhalterZahl(this.store.kooperationen);
     updateVideoStatsCardDOM(summary.videoStats, { animate });
+  }
+
+  /** Ungefilterte Kooperationen + Videos: der UGC-Rest ist der Auftragstopf, nicht der Tag-Filter. */
+  _summaryRows() {
+    return {
+      kooperationen: this.store?.kooperationen || [],
+      videos: Object.values(this.store?.videos || {}).flat()
+    };
+  }
+
+  // Nach Anlegen nachziehen. Läufe hintereinander: ein Realtime-Insert
+  // vor den Videos darf den späteren Stand (entityUpdated) nicht überschreiben.
+  async reloadKooperationTable() {
+    if (!this._isMounted || !this.store || !this.kampagneId) return;
+    if (this._koopReloadRunning) {
+      this._koopReloadQueued = true;
+      return;
+    }
+    this._koopReloadRunning = true;
+    try {
+      await loadFullTableData(this.kampagneId, this.store, this.isKunde, {
+        produktionId: this.mode === 'workflow' ? this.produktionId : null,
+        briefingId: this.mode === 'workflow' ? koopLinie(this) : null
+      });
+      if (!this._isMounted) return;
+      this._refreshSummaryCards();
+      if (syncKooperationFilter(this)) mountKooperationFilter(this);
+      if (this.currentView === 'kanban' && this.kanbanBoard) {
+        this.kanbanBoard.render();
+      } else {
+        await this.kooperationenVideoTable?.refilter();
+      }
+    } finally {
+      this._koopReloadRunning = false;
+      if (this._koopReloadQueued) {
+        this._koopReloadQueued = false;
+        void this.reloadKooperationTable();
+      }
+    }
   }
 
   async _mountVideoTable() {
@@ -274,6 +502,7 @@ export class KampagneDetail {
       this.kooperationenVideoTable.bindEvents();
       this.kooperationenVideoTable.initFloatingScrollbar();
       this.kooperationenVideoTable.initRealtimeSubscription();
+      void openSkripteChannel(this);
       this.kooperationenVideoTable.loadColumnWidths();
 
       if (this._visibilityHandler) {
@@ -287,31 +516,57 @@ export class KampagneDetail {
       };
       window.addEventListener('video-column-visibility-changed', this._visibilityHandler);
 
-      if (!this.kooperationenVideoTable._entityUpdatedHandler) {
-        this.kooperationenVideoTable._entityUpdatedHandler = async (e) => {
-          const evtDetail = e.detail || {};
-          if (evtDetail.entity === 'kooperation' && evtDetail.action === 'deleted' && evtDetail.id) {
-            await this.kooperationenVideoTable.handleKooperationDeletedById(evtDetail.id, 'entityUpdated');
-          }
-        };
-        window.addEventListener('entityUpdated', this.kooperationenVideoTable._entityUpdatedHandler);
-      }
-
+      this.kooperationenVideoTable.attachGlobalHandlers(this);
       this.kooperationenVideoTable.updateTabCounts();
     }
 
-    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht);
+    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht, this._summaryRows());
     updateVideoStatsCardDOM(this.videoStats);
 
-    this._pendingTableData = null;
     await this.kooperationenVideoTable.loadAssetsAndCommentsForVisible();
+    startWorkflowPrefetch(this);
+  }
+
+  switchWorkflowTab(tabId) {
+    // Klick auf den aktiven Tab mit offener Ansicht: zurück zur Liste
+    if (detailOffen(this, tabId)) {
+      zeigeTabListe(this, tabId);
+      return;
+    }
+    activateWorkflowTab(this, tabId);
+  }
+
+  /** Router-Hook: Ziele im Produktionsflow ohne Neuaufbau zeigen (ADR 0079). */
+  handleRouteInPlace(route, opts) {
+    return routeImFlow(this, route, opts);
+  }
+
+  /**
+   * Linie wechseln (Chip in der Leiste oder "Alle Linien"). Der Tab bleibt,
+   * die Tabs laden mit der neuen Linie neu. alleBehalten: "Alle Linien" der
+   * Kooperationstabelle bleibt an, nur die Linie der Einzel-Tabs wechselt.
+   */
+  async switchLinie(value, { alleBehalten = false } = {}) {
+    if (this.mode !== 'workflow' || !this.linien.length) return;
+    const zuAlle = value === ALLE;
+    if (!zuAlle && !this.linien.some(l => l.id === value)) return;
+    const alle = zuAlle || (alleBehalten && this.linieAlle);
+    const linieId = zuAlle ? this.linieId : value;
+    if (alle === this.linieAlle && linieId === this.linieId) return;
+
+    const koopVorher = koopLinie(this);
+    this.linieAlle = alle;
+    this.linieId = linieId;
+    await this._commitLinie({ koopNeuLaden: koopLinie(this) !== koopVorher });
   }
 
   switchTab(tabName) {
     if (!['offen', 'abgeschlossen', 'alle'].includes(tabName)) return;
 
-    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-    const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
+    // Scoped auf die Filter-Tabs — die Workflow-Tabs (data-workflow-tab)
+    // teilen sich die .tab-button-Klasse und dürfen hier nicht verlieren.
+    document.querySelectorAll('.kampagne-filter-tabs .tab-button').forEach(btn => btn.classList.remove('active'));
+    const activeButton = document.querySelector(`.kampagne-filter-tabs [data-tab="${tabName}"]`);
     if (activeButton) activeButton.classList.add('active');
 
     if (this.currentView === 'table' && this.kooperationenVideoTable) {
@@ -345,6 +600,10 @@ export class KampagneDetail {
   }
 
   _unmountVideoTable() {
+    if (this._visibilityHandler) {
+      window.removeEventListener('video-column-visibility-changed', this._visibilityHandler);
+      this._visibilityHandler = null;
+    }
     if (this.kooperationenVideoTable && typeof this.kooperationenVideoTable.destroy === 'function') {
       this.kooperationenVideoTable.destroy();
       this.kooperationenVideoTable = null;
@@ -371,8 +630,9 @@ export class KampagneDetail {
       store: this.store,
       kampagneId: this.kampagneId
     });
+    this.kanbanBoard.deckenStand = deckenStandDerSeite(this);
 
-    const activeTab = document.querySelector('.tab-button.active');
+    const activeTab = document.querySelector('.kampagne-filter-tabs .tab-button.active');
     const tabName = activeTab?.dataset?.tab || 'offen';
     this.kanbanBoard.activeFilterTab = tabName;
 
@@ -383,6 +643,10 @@ export class KampagneDetail {
   async _remountVideoTable() {
     if (!this.store) return;
     this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.deckenStand = deckenStandDerSeite(this);
+    this.kooperationenVideoTable.reloadKooperationen = () => this.reloadKooperationTable();
+    this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
+    this.kooperationenVideoTable.briefingId = this.mode === 'workflow' ? koopLinie(this) : null;
     this.kooperationenVideoTable.statusOptions = this.store.statusOptions || [];
 
     const hiddenCols = this.kampagneData?.video_table_hidden_columns;
@@ -411,6 +675,8 @@ export class KampagneDetail {
 
     this._isMounted = false;
     this._initPromise = null;
+    cancelWorkflowPrefetch(this);
+    closeSkripteChannel(this);
 
     teardownEvents();
     this._destroyDrawers();
@@ -430,10 +696,20 @@ export class KampagneDetail {
       this.kanbanBoard = null;
     }
 
+    void unmountSkriptePane(this);
+    unmountCastingWorksheet(this);
+    unmountKonzeptWorksheet(this);
+    unmountKatalogPanes(this);
+    unmountBriefingPane(this);
+    unmountVertraegePane(this);
+    unmountBudgetFilter(this);
+    nutzungsrechteModal._close();
+
     if (this.store) {
       this.store.destroy();
       this.store = null;
     }
+    destroyKooperationFilter(this);
 
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {

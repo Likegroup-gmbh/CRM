@@ -9,7 +9,27 @@ import {
   applyBrancheJunctionSelected,
   applyRelationTableSelected
 } from './EditModeSelectedHelper.js';
+import { applyFinalisiertFilter } from '../../finalisiert.js';
 import { loadAllCreators } from '../../creatorRows.js';
+import { applyPrefillSelected } from './PrefillSelected.js';
+
+const ORDER_BY_NAME = new Set([
+  'branchen',
+  'sprachen',
+  'plattform_typen',
+  'format_typen',
+  'drehort_typen',
+  'creator_type'
+]);
+
+function staticOrderColumn(table) {
+  return ORDER_BY_NAME.has(table) ? 'name' : 'sort_order';
+}
+
+function applyPickerFinalFilter(query, field) {
+  if (field.includeDrafts) return query;
+  return applyFinalisiertFilter(query, field.table);
+}
 
 export async function loadDirectQueryOptions(field, form) {
   try {
@@ -41,7 +61,7 @@ export async function loadDirectQueryOptions(field, form) {
       if (data === null) return [];
     }
     else if (staticTables.includes(field.table) && !field.filter) {
-      data = await this.cache.get(field.table, '*', 'sort_order');
+      data = await this.cache.get(field.table, '*', staticOrderColumn(field.table));
     }
     else if (field.table === 'marke') {
       data = await loadMarkenWithAccessFilter(field);
@@ -56,6 +76,7 @@ export async function loadDirectQueryOptions(field, form) {
 
     const options = data.map(item => mapRowToOption(item, field));
 
+    await applyPrefillSelected(form, field, options);
     await applyEditModeSelectedForDirectQuery(field, form, options);
 
     if (field.name === 'branche_id' && form.dataset.entityId && (form.dataset.entityType === 'unternehmen' || form.dataset.entityType === 'marke')) {
@@ -80,6 +101,15 @@ export async function loadDirectQueryOptions(field, form) {
 
     if (form.dataset.entityType === 'rechnung' && form.dataset.isEditMode === 'true') {
       await this.loadRechnungDependentFieldsImproved(field, form, options);
+    }
+
+    // Vorbelegung mit dem eingeloggten User, nur beim Anlegen und nur wenn nichts gewählt ist
+    if (field.defaultCurrentUser && form.dataset.isEditMode !== 'true') {
+      const currentUserId = window.currentUser?.id;
+      if (currentUserId && !options.some(o => o.selected)) {
+        const own = options.find(o => o.value === currentUserId);
+        if (own) own.selected = true;
+      }
     }
 
     if (field.type === 'phone' && field.defaultCountry && field.table === 'eu_laender') {
@@ -130,9 +160,7 @@ async function loadFilteredByParent(field, form) {
     .select('*')
     .eq(field.filterBy, parentValue);
 
-  if (field.table === 'vertraege') {
-    filteredQuery = filteredQuery.eq('is_draft', false);
-  }
+  filteredQuery = applyPickerFinalFilter(filteredQuery, field);
 
   const { data: filteredData, error } = await filteredQuery
     .order(field.displayField || 'name', { ascending: true });
@@ -237,7 +265,10 @@ async function loadGenericTable(field) {
     try {
       return await loadAllCreators(window.supabase, {
         select: '*',
-        refine: field.filter ? (query) => query.or(field.filter) : undefined
+        refine: (query) => {
+          const filtered = field.filter ? query.or(field.filter) : query;
+          return applyPickerFinalFilter(filtered, field);
+        }
       });
     } catch (error) {
       console.error('❌ Fehler beim Laden der Daten aus creator:', error);
@@ -278,6 +309,8 @@ async function loadGenericTable(field) {
   if (field.filter) {
     query = query.or(field.filter);
   }
+
+  query = applyPickerFinalFilter(query, field);
 
   const result = await query;
 

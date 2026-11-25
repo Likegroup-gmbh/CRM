@@ -10,20 +10,26 @@
 // Browser-Fallback und Claude-Call braucht real oft laenger.
 //
 // Freischalten eines weiteren Formulars: `aiExtract: true` am URL-Feld im
-// FormConfig plus ein Spec-Eintrag im Backend.
+// FormConfig plus ein Spec-Eintrag im Backend. Ohne URL-Feld (Persona)
+// ruft das Panel requestExtractJob direkt.
 
 import { ExtractReviewLayer } from './ExtractReviewLayer.js';
 import { applyExtractedLogo, clearExtractedLogo } from './ExtractLogoApplier.js';
 import { ExtractCostBadge } from './ExtractCostBadge.js';
 import { logExtractDiagnostics, nullergebnisHinweis } from './ExtractDiagnostics.js';
+import { likyCanExtractPdf } from '../../chat/likyCapabilities.js';
+import { likyPdfTagHtml, setLikySendBusy } from '../../chat/likyComposer.js';
 
 const ENDPOINT = '/.netlify/functions/site-extract-background';
+const PDF_ENDPOINT = '/.netlify/functions/produkt-pdf-background';
+const PDF_MAX_BYTES = 20 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 3 * 60 * 1000;
 
 // progress_step aus der Job-Zeile -> Kurztext am Button
 const STEP_LABELS = {
   start: 'Startet…',
+  suche: 'Sucht…',
   cache: 'Liest…',
   laden: 'Seite laden…',
   unterseite: 'Unterseiten…',
@@ -35,6 +41,7 @@ const STEP_LABELS = {
 // die Job-Zeile noch keine progress_steps hat.
 const STEP_CHAT_LABELS = {
   start: 'Ich schaue mir die Seite an',
+  suche: 'Ich suche die Agentur im Netz',
   cache: 'Die Seite kenne ich schon',
   laden: 'Seite wird geladen',
   unterseite: 'Ich gehe die Unterseiten durch',
@@ -62,7 +69,7 @@ function notifyWarning(message) {
 }
 
 /** Eingabe des Nutzers zu einer vollstaendigen URL machen. */
-function toAbsoluteUrl(rawValue) {
+export function toAbsoluteUrl(rawValue) {
   const value = (rawValue || '').trim();
   if (!value) return null;
   const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
@@ -83,14 +90,100 @@ function warte(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Job anlegen, Background Function anstossen, Ergebnis aus extract_jobs pollen.
+ * Ohne Formularfeld - PersonaLikyPanel ruft das direkt, der Handler am
+ * URL-Button ebenfalls.
+ * @param {Object} opts
+ * @param {string} opts.entity
+ * @param {string} [opts.url] - Pflicht, ausser es gibt eine entityId (dann sucht die Function die Homepage selbst)
+ * @param {string} [opts.entityId] - Datensatz, zu dem der Job gehoert (Management-Connect)
+ * @param {number} [opts.timeoutMs] - Poll-Limit, Default 3 Minuten; mit Suche davor knapp
+ * @param {string} [opts.endpoint] - Default Shop-URL. Produkt-PDF geht an produkt-pdf-background.
+ * @param {Function} [opts.onStep] - ({ step, label, steps }) => void
+ * @param {AbortSignal} [opts.signal] - Abbruch: Poll endet mit AbortError, das Ergebnis wird nicht angewendet
+ */
+export async function requestExtractJob({ entity, url, entityId = null, timeoutMs = POLL_TIMEOUT_MS, endpoint = ENDPOINT, onStep = () => {}, signal = null } = {}) {
+  const db = window.supabase;
+  const session = await getSession();
+  if (!db || !session) throw new Error('Keine aktive Sitzung');
+  if (!entity || (!url && !entityId)) throw new Error('Entity oder URL fehlt');
+
+  // Fuer die Console-Diagnose: ohne URL steht hier der Datensatz
+  const label = url || `${entity}:${entityId}`;
+
+  const { data: job, error: insertError } = await db.from('extract_jobs')
+    .insert({ url: url || null, entity_id: entityId, entity_type: entity, created_by: session.user.id })
+    .select('id').single();
+  if (insertError) throw new Error(`Job konnte nicht angelegt werden: ${insertError.message}`);
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ jobId: job.id })
+  });
+  if (response.status !== 202 && !response.ok) {
+    throw new Error(`Extraktion konnte nicht gestartet werden (HTTP ${response.status})`);
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  let letzterStep = null;
+
+  while (Date.now() < deadline) {
+    if (signal?.aborted) {
+      throw new DOMException('Vom Nutzer abgebrochen', 'AbortError');
+    }
+    await warte(POLL_INTERVAL_MS);
+
+    const { data: row, error: pollError } = await db.from('extract_jobs')
+      .select('status, progress_step, progress_steps, result, error_message')
+      .eq('id', job.id).maybeSingle();
+    if (pollError || !row) continue;
+
+    if (row.status === 'done') {
+      const payload = row.result || {};
+      logExtractDiagnostics({ url: label, entity, payload });
+      if (!payload.success) throw new Error(payload.error || 'Extraktion ohne Ergebnis beendet');
+      return payload;
+    }
+
+    if (row.status === 'error') {
+      logExtractDiagnostics({ url: label, entity, payload: row.result || null });
+      throw new Error(row.error_message || 'Extraktion fehlgeschlagen');
+    }
+
+    if (row.progress_step && row.progress_step !== letzterStep) {
+      letzterStep = row.progress_step;
+      const steps = Array.isArray(row.progress_steps) ? row.progress_steps : [];
+      const last = steps[steps.length - 1];
+      onStep({
+        step: last?.step || row.progress_step,
+        label: last?.label || STEP_CHAT_LABELS[row.progress_step] || 'Ich arbeite',
+        steps
+      });
+    }
+  }
+
+  throw new Error('Zeitlimit erreicht - die Extraktion läuft ungewöhnlich lange. Bitte später erneut versuchen.');
+}
+
 class ButtonState {
   constructor(button) {
     this.button = button;
     this.label = button.querySelector('.url-extract-btn__label');
     this.originalLabel = this.label?.textContent || '';
+    this.round = button.classList.contains('doc-chat__send');
   }
 
   busy() {
+    if (this.round) {
+      // Runder Liky-Button: Stopp-Icon statt Spinner, klickbar fuer Abbruch
+      setLikySendBusy(this.button, true);
+      return;
+    }
     this.button.disabled = true;
     this.button.classList.add('is-loading');
     if (this.label) this.label.textContent = 'Liest…';
@@ -101,6 +194,10 @@ class ButtonState {
   }
 
   idle() {
+    if (this.round) {
+      setLikySendBusy(this.button, false);
+      return;
+    }
     this.button.disabled = false;
     this.button.classList.remove('is-loading');
     if (this.label) this.label.textContent = this.originalLabel;
@@ -117,14 +214,150 @@ export class SiteExtractHandler {
     this.entity = entity;
     this.review = new ExtractReviewLayer(form);
     this.running = false;
+    this.pendingPdf = null;
+    this._laufAbort = null;
   }
 
   bind() {
     const buttons = this.form.querySelectorAll('[data-ai-extract]');
     buttons.forEach((button) => {
-      button.addEventListener('click', () => this.run(button));
+      button.addEventListener('click', () => {
+        // Runder Liky-Button im Lauf: Klick = Stopp, kein zweiter Job
+        if (this.running) {
+          this._laufAbort?.abort();
+          return;
+        }
+        if (this.pendingPdf) {
+          const file = this.pendingPdf;
+          this.clearPendingPdf();
+          this.runPdf(button, file);
+          return;
+        }
+        this.run(button);
+      });
     });
+    if (likyCanExtractPdf(this.entity)) this.bindPdfDrop();
     return buttons.length;
+  }
+
+  bindPdfDrop() {
+    const side = this.form.querySelector('.doc__side');
+    const composer = this.form.querySelector('#produkt-liky-composer');
+    if (!side || !composer) return;
+
+    side.addEventListener('dragover', (e) => {
+      if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+      e.preventDefault();
+      composer.classList.add('is-dragover');
+    });
+    side.addEventListener('dragleave', (e) => {
+      if (!side.contains(e.relatedTarget)) composer.classList.remove('is-dragover');
+    });
+    side.addEventListener('drop', (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      e.preventDefault();
+      composer.classList.remove('is-dragover');
+      this.attachPdf(file);
+    });
+
+    side.querySelector('[data-url-field="true"]')?.addEventListener('paste', (e) => {
+      const file = [...(e.clipboardData?.files || [])][0];
+      if (!file) return;
+      e.preventDefault();
+      this.attachPdf(file);
+    });
+  }
+
+  attachPdf(file) {
+    const istPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+    if (!istPdf) {
+      notifyError('Nur PDF.');
+      return;
+    }
+    if (file.size > PDF_MAX_BYTES) {
+      notifyError('PDF zu groß. Maximal 20 MB.');
+      return;
+    }
+    this.pendingPdf = file;
+    this.renderPdfChip();
+  }
+
+  clearPendingPdf() {
+    this.pendingPdf = null;
+    this.renderPdfChip();
+  }
+
+  renderPdfChip() {
+    const chips = this.form.querySelector('#produkt-liky-chips');
+    if (!chips) return;
+    if (!this.pendingPdf) {
+      chips.innerHTML = '';
+      return;
+    }
+    chips.innerHTML = likyPdfTagHtml(this.pendingPdf.name, { remove: true });
+    chips.querySelector('button')?.addEventListener('click', () => this.clearPendingPdf());
+  }
+
+  async runPdf(button, file) {
+    if (this.running) return;
+    const state = new ButtonState(button);
+    const session = await getSession();
+    if (!window.supabase || !session) {
+      notifyError('Keine aktive Sitzung');
+      return;
+    }
+
+    this.running = true;
+    this._laufAbort = new AbortController();
+    state.busy();
+    emit('siteExtractStarted', { entity: this.entity, form: this.form, url: file.name, via: 'pdf' });
+    emit('siteExtractProgress', { entity: this.entity, step: 'start', label: 'Ich lese das PDF' });
+
+    try {
+      this.review.revertAll();
+      const path = await this.uploadPdf(file, session.user.id);
+      const result = await this.request(`pdf:${path}`, state, PDF_ENDPOINT);
+      this.applyFields(result.fields || {}, null);
+      new ExtractCostBadge(this.form, button).show(result);
+      this.announce(result);
+      const felder = Object.keys(result.fields || {}).length;
+      if (!felder) notifyWarning(nullergebnisHinweis(result));
+      emit('siteExtractFinished', {
+        entity: this.entity,
+        form: this.form,
+        ok: true,
+        via: 'pdf',
+        felder,
+        fields: result.fields || {}
+      });
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        notifyError(`PDF konnte nicht ausgelesen werden: ${error.message}`);
+        emit('siteExtractFinished', {
+          entity: this.entity,
+          form: this.form,
+          ok: false,
+          via: 'pdf',
+          error: error.message
+        });
+      }
+    } finally {
+      state.idle();
+      this.running = false;
+      this._laufAbort = null;
+    }
+  }
+
+  async uploadPdf(file, userId) {
+    const safeName = String(file.name || 'produkt.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const dateiname = /\.pdf$/i.test(safeName) ? safeName : `${safeName}.pdf`;
+    const path = `produkt-pdfs/${userId}/${Date.now()}_${dateiname}`;
+    const { error } = await window.supabase.storage
+      .from('documents')
+      .upload(path, file, { upsert: false, contentType: 'application/pdf' });
+    if (error) throw new Error(`Upload fehlgeschlagen: ${error.message}`);
+    return path;
   }
 
   async run(button) {
@@ -143,6 +376,7 @@ export class SiteExtractHandler {
     const state = new ButtonState(button);
     const costBadge = new ExtractCostBadge(this.form, button);
     this.running = true;
+    this._laufAbort = new AbortController();
     state.busy();
     emit('siteExtractStarted', { entity: this.entity, form: this.form, url });
     emit('siteExtractProgress', {
@@ -180,16 +414,19 @@ export class SiteExtractHandler {
         fields: result.fields || {}
       });
     } catch (error) {
-      notifyError(`Webseite konnte nicht ausgelesen werden: ${error.message}`);
-      emit('siteExtractFinished', {
-        entity: this.entity,
-        form: this.form,
-        ok: false,
-        error: error.message
-      });
+      if (error?.name !== 'AbortError') {
+        notifyError(`Webseite konnte nicht ausgelesen werden: ${error.message}`);
+        emit('siteExtractFinished', {
+          entity: this.entity,
+          form: this.form,
+          ok: false,
+          error: error.message
+        });
+      }
     } finally {
       state.idle();
       this.running = false;
+      this._laufAbort = null;
     }
   }
 
@@ -197,75 +434,22 @@ export class SiteExtractHandler {
    * Job anlegen, Background Function anstossen, Ergebnis aus extract_jobs
    * pollen. Liefert dasselbe Antwortobjekt wie frueher die synchrone Function.
    */
-  async request(url, state) {
-    const db = window.supabase;
-    const session = await getSession();
-    if (!db || !session) throw new Error('Keine aktive Sitzung');
-
-    // 1. Job-Zeile anlegen (RLS: nur eigene Jobs lesbar). URL und Entitaet
-    //    stehen in der Zeile - die Function liest sie von dort, nicht aus
-    //    dem POST-Body.
-    const { data: job, error: insertError } = await db.from('extract_jobs')
-      .insert({ url, entity_type: this.entity, created_by: session.user.id })
-      .select('id').single();
-    if (insertError) throw new Error(`Job konnte nicht angelegt werden: ${insertError.message}`);
-
-    // 2. Background Function anstossen - sie antwortet sofort mit 202,
-    //    der eigentliche Lauf schreibt asynchron in die Job-Zeile
-    const response = await fetch(ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`
-      },
-      body: JSON.stringify({ jobId: job.id })
-    });
-    if (response.status !== 202 && !response.ok) {
-      throw new Error(`Extraktion konnte nicht gestartet werden (HTTP ${response.status})`);
-    }
-
-    // 3. Job-Zeile pollen, bis done oder error
-    const deadline = Date.now() + POLL_TIMEOUT_MS;
-    let letzterStep = null;
-
-    while (Date.now() < deadline) {
-      await warte(POLL_INTERVAL_MS);
-
-      const { data: row, error: pollError } = await db.from('extract_jobs')
-        .select('status, progress_step, progress_steps, result, error_message')
-        .eq('id', job.id).maybeSingle();
-      // Voruebergehende Poll-Fehler (Netz, Zeile noch nicht sichtbar)
-      // aussitzen - der naechste Umlauf kommt in 2s
-      if (pollError || !row) continue;
-
-      if (row.status === 'done') {
-        const payload = row.result || {};
-        logExtractDiagnostics({ url, entity: this.entity, payload });
-        if (!payload.success) throw new Error(payload.error || 'Extraktion ohne Ergebnis beendet');
-        return payload;
-      }
-
-      if (row.status === 'error') {
-        // Diagnose ist im Fehlerfall am wertvollsten
-        logExtractDiagnostics({ url, entity: this.entity, payload: row.result || null });
-        throw new Error(row.error_message || 'Extraktion fehlgeschlagen');
-      }
-
-      if (row.progress_step && row.progress_step !== letzterStep) {
-        letzterStep = row.progress_step;
-        state?.step(STEP_LABELS[row.progress_step] || 'Liest…');
-        const steps = Array.isArray(row.progress_steps) ? row.progress_steps : [];
-        const last = steps[steps.length - 1];
+  async request(url, state, endpoint = ENDPOINT) {
+    return requestExtractJob({
+      entity: this.entity,
+      url,
+      endpoint,
+      signal: this._laufAbort?.signal,
+      onStep: ({ step, label, steps }) => {
+        state?.step(STEP_LABELS[step] || 'Liest…');
         emit('siteExtractProgress', {
           entity: this.entity,
-          step: last?.step || row.progress_step,
-          label: last?.label || STEP_CHAT_LABELS[row.progress_step] || 'Ich arbeite',
+          step,
+          label,
           steps
         });
       }
-    }
-
-    throw new Error('Zeitlimit erreicht - die Extraktion laeuft ungewoehnlich lange. Bitte spaeter erneut versuchen.');
+    });
   }
 
   /**

@@ -110,6 +110,26 @@
   background: transparent;
   box-shadow: none;
 }
+
+/* Kompakte Variante: weniger Padding, kleinere Schrift und Icons (--vt-pad = Innenabstand der Leiste) */
+.view-toggle.view-toggle--sm {
+  --vt-pad: var(--space-xxxs);
+  gap: var(--space-xxxs);
+  padding: var(--vt-pad);
+}
+
+.view-toggle.view-toggle--sm .mdc-btn,
+.view-toggle.view-toggle--sm .secondary-btn {
+  gap: var(--space-xxs);
+  padding: calc(var(--space-xxs) + var(--space-xxxs)) calc(var(--space-xs) + var(--space-xxxs));
+  font-size: var(--text-xsm);
+}
+
+.view-toggle.view-toggle--sm .mdc-btn svg,
+.view-toggle.view-toggle--sm .secondary-btn svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
 /* ===== SIDEBAR ===== */
 .sidebar {
   width: var(--sidebar-width);
@@ -162,13 +182,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--space-xl);
+  height: var(--space-xl);
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--gray-500);
+  color: var(--gray-600);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
   position: relative;
@@ -180,9 +200,19 @@
   color: var(--gray-900);
 }
 
+/* Gleiche Groesse wie .nav-icon, damit der Button gleichwertig zu den Nav-Icons wirkt */
 .sidebar-toggle-btn svg {
-  width: 18px;
-  height: 18px;
+  width: var(--space-lm);
+  height: var(--space-lm);
+}
+
+.sidebar-toggle-static--open,
+.sidebar-collapsed .sidebar-toggle-static--close {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-toggle-static--open {
+  display: block;
 }
 
 .logo-image {
@@ -226,7 +256,9 @@
   display: none;
 }
 
+/* gap: 0, sonst schiebt der Abstand zum (unsichtbaren) Label das Icon aus der Mitte */
 .sidebar-collapsed .nav-link {
+  gap: 0;
   justify-content: center;
   padding: var(--space-xs);
   width: var(--space-xl);
@@ -236,6 +268,14 @@
 
 .sidebar-collapsed .nav-link::before {
   inset: 0;
+  border-radius: var(--radius-sm);
+}
+
+/* Hover wie beim Toggle-Button (.sidebar-toggle-btn:hover) */
+.sidebar-collapsed .nav-link:hover::before {
+  opacity: 1;
+  transform: none;
+  background: var(--gray-200);
 }
 
 .sidebar-collapsed .nav-icon {
@@ -250,20 +290,22 @@
   margin-left: var(--sidebar-width-collapsed);
 }
 
-/* ===== SIDEBAR BEI SCHMALEM VIEWPORT (≤768px) =====
+/* ===== SIDEBAR BEI SCHMALEM VIEWPORT =====
+   Klasse setzt das Pre-Paint-Script und NavigationSystem (SIDEBAR_NARROW_QUERY).
    Die Sidebar hat sonst keinen eigenen Hintergrund (die graue Fläche ist der
-   body, der durchscheint). Ausgeklappt liegt sie bei schmalem Viewport als
-   Overlay ÜBER dem Inhalt und braucht deshalb eine deckende Fläche plus
-   Schatten, damit die Menüpunkte lesbar bleiben. Eingeklappt ist gray-50
-   identisch zum body-Hintergrund — kein sichtbarer Unterschied. */
-@media (max-width: 768px) {
-  .sidebar {
-    background: var(--gray-50);
-  }
+   body, der durchscheint). Ausgeklappt liegt sie als Overlay ÜBER dem Inhalt
+   und braucht deshalb eine deckende Fläche plus Schatten. Der Inhalt rückt
+   nur bis zur Icon-Leiste auf, auch wenn die Sidebar darüber liegt. */
+.sidebar-narrow .main-content {
+  margin-left: var(--sidebar-width-collapsed);
+}
 
-  #app-root:not(.sidebar-collapsed) .sidebar {
-    box-shadow: var(--shadow-lg);
-  }
+.sidebar-narrow .sidebar {
+  background: var(--gray-50);
+}
+
+.sidebar-narrow:not(.sidebar-collapsed) .sidebar {
+  box-shadow: var(--shadow-lg);
 }
 
 /* ===== NAVIGATION ===== */
@@ -995,12 +1037,15 @@
   width: 80px;
   height: 80px;
   margin: 0 auto;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--gray-900);
 }
 
-.login-box h2.success,
+.login-box h2.success {
+  color: var(--gray-900);
+}
+
 .login-box h2.error {
-  color: var(--text-inverse);
+  color: var(--color-error);
 }
 
 .login-box-message {
@@ -1011,7 +1056,9 @@
 }
 
 .login-box-message strong {
-  color: var(--text-inverse);
+  color: var(--gray-900);
+  font-weight: 600;
+  word-break: break-all;
 }
 
 .login-box-hint {

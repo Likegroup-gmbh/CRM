@@ -72,6 +72,20 @@ describe('navigateToNewKooperationFromKampagne', () => {
     expect(window.navigateTo).toHaveBeenCalledWith('/kooperation/new?kampagne_id=kamp-1');
   });
 
+  it('gibt die Produktion als Prefill mit, die Herkunft steckt im Klickpfad', () => {
+    navigateToNewKooperationFromKampagne('kamp-1', {
+      kampagnenname: 'Sommer',
+      unternehmen_id: 'u1'
+    }, 'p1');
+
+    const route = window.navigateTo.mock.calls[0][0];
+    const url = new URL(route, 'http://local');
+    expect(url.pathname).toBe('/kooperation/new');
+    expect(url.searchParams.get('kampagne_id')).toBe('kamp-1');
+    expect(url.searchParams.get('produktion_id')).toBe('p1');
+    expect(url.searchParams.has('von')).toBe(false);
+  });
+
   it('nutzt kampagneDetail wenn keine Daten übergeben wurden', () => {
     window.kampagneDetail = {
       kampagneData: { kampagnenname: 'Herbst', unternehmen_id: 'u2' }

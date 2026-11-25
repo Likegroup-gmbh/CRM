@@ -2,8 +2,10 @@
 // Tab-Renderer: Aufträge, Auftragsdetails, Briefings, Kampagnen
 
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { kampagneAbschlussOptions } from '../../core/actions/kampagneAbschluss.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
+import { isInvoiceRowPaid } from '../auftrag/logic/PaymentRowStatus.js';
 import { formatZahlungsziel, formatBoolean, renderMarkeBubble, renderPersonBubble, renderArtTags, renderBudgetProgress } from './UnternehmenDetailRendererHelpers.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
@@ -26,6 +28,18 @@ export function renderAuftraege(detail) {
   const rows = detail.auftraege.map(auftrag => {
     const isContracting = auftrag.auftragtype === 'Contracting';
     const table = isContracting ? 'contracts' : 'auftrag';
+    // Zahlungsstand sitzt an der Teilrechnung, sobald welche existieren:
+    // bezahlt nur, wenn alle Teilrechnungen bezahlt sind.
+    const trs = auftrag.teilrechnungen || [];
+    const hatTeilrechnungen = trs.length > 0;
+    const ueberwiesenAnzeige = hatTeilrechnungen
+      ? trs.every(tr => isInvoiceRowPaid(tr))
+      : auftrag.ueberwiesen;
+    const ueberwiesenAmAnzeige = hatTeilrechnungen
+      ? (ueberwiesenAnzeige
+          ? trs.map(tr => tr.ueberwiesen_am).filter(Boolean).sort().slice(-1)[0]
+          : null)
+      : auftrag.ueberwiesen_am;
     return `
     <tr>
       <td>${renderMarkeBubble(detail, auftrag.marke)}</td>
@@ -44,8 +58,8 @@ export function renderAuftraege(detail) {
       <td>${detail.formatCurrency(auftrag.ust_betrag)}</td>
       <td>${detail.formatCurrency(auftrag.bruttobetrag)}</td>
       <td class="table-cell-center">${formatBoolean(auftrag.rechnung_gestellt)}</td>
-      <td class="table-cell-center">${formatBoolean(auftrag.ueberwiesen)}</td>
-      <td>${detail.formatDate(auftrag.ueberwiesen_am)}</td>
+      <td class="table-cell-center">${formatBoolean(ueberwiesenAnzeige)}</td>
+      <td>${detail.formatDate(ueberwiesenAmAnzeige)}</td>
       ${!isKunde ? `<td>${renderPersonBubble(detail, auftrag.ansprechpartner, 'ansprechpartner')}</td>` : ''}
       <td>${renderPersonBubble(detail, auftrag.created_by)}</td>
       <td>${renderAuftragAmpel(auftrag.status)}</td>
@@ -224,7 +238,7 @@ export function renderKampagnen(detail) {
       <td>${renderBudgetProgress(detail, k)}</td>
       <td>${k.creatoranzahl || 0}</td>
       <td>${k.videoanzahl || 0}</td>
-      ${!isKunde ? `<td>${actionBuilder.create('kampagne', k.id)}</td>` : ''}
+      ${!isKunde ? `<td>${actionBuilder.create('kampagne', k.id, window.currentUser, kampagneAbschlussOptions(k))}</td>` : ''}
     </tr>
   `).join('');
 

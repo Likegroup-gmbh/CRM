@@ -107,7 +107,7 @@ VertraegeCreate.prototype.rebuildCreatorSelect = function(enabled) {
     if (enabled && window.formSystem?.createSearchableSelect) {
       if (this.filteredCreators.length === 0) {
         creatorSelect.disabled = true;
-        creatorSelect.innerHTML = '<option value="">Keine Creator für diese Kampagne</option>';
+        creatorSelect.innerHTML = '<option value="">Keine zugesagten oder gebuchten Creator</option>';
         return;
       }
       
@@ -406,7 +406,7 @@ VertraegeCreate.prototype.initCreatorSearchableSelect = function() {
     
     if (this.filteredCreators.length === 0) {
       creatorSelect.disabled = true;
-      creatorSelect.innerHTML = '<option value="">Keine Creator für diese Kampagne</option>';
+      creatorSelect.innerHTML = '<option value="">Keine zugesagten oder gebuchten Creator</option>';
       return;
     }
     

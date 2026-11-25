@@ -131,7 +131,7 @@ export class PersonDetailBase {
       <div class="profile-sidebar-card">
         <div class="profile-avatar-wrapper">
           <div class="profile-avatar-section">
-            <div class="profile-avatar-large ${person.avatarClickable ? 'profile-avatar-clickable' : ''}" ${person.avatarClickable ? 'id="profile-avatar-upload"' : ''}>
+            <div class="profile-avatar-large ${person.avatarLogo ? 'profile-avatar-large--logo' : ''} ${person.avatarClickable ? 'profile-avatar-clickable' : ''}" ${person.avatarClickable ? 'id="profile-avatar-upload"' : ''}>
               ${avatarUrl
                 ? `<img src="${avatarUrl}" alt="${this.sanitize(name)}" />`
                 : `<div class="profile-initials-large">${initials}</div>`

@@ -5,22 +5,32 @@
 //   - Prompt-Regeln (fact/guess, Covered-Set, Karten-Modus)
 //   - Accept/Unlink (persona_marke-Attach, Materialisierung, Unused-Check)
 //   - Retry-Schutz des Save-Flushs
-//   - Panel: Regen-Exclusion, kein Auto-Reextract, Karten-Aktionen
+//   - Panel: Startrun=1, Weitere, Regen ohne Match-Fill, kein Auto-Reextract
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import produktPersona from '../../netlify/functions/_shared/produkt-persona.js';
+import {
+  UNISEX_VORNMEN, passtNameZu, jahrgangFuerAlter, passendeNamen
+} from '../../netlify/functions/_shared/unisex-vornamen.js';
 import { ProduktPersonaService } from '../modules/produkt/ProduktPersonaService.js';
 import { PersonaService } from '../modules/persona/PersonaService.js';
 import { ProduktPersonaPanel } from '../modules/produkt/ProduktPersonaPanel.js';
 
-const { loadPoolPersonas, buildPrompt, validateVorschlaege, sanitizePersonaPayload } = produktPersona;
+const {
+  loadPoolPersonas, buildPrompt, validateVorschlaege, sanitizePersonaPayload,
+  personaTool, gefilterteUnisexNamen, PERSONA_TOOL
+} = produktPersona;
 
 vi.mock('../modules/persona/PersonaService.js', () => ({
   PersonaService: {
     create: vi.fn(async () => ({ id: 'persona-neu-1' })),
     saveMarken: vi.fn(async () => {}),
-    remove: vi.fn(async () => {})
+    remove: vi.fn(async () => {}),
+    loadOne: vi.fn(async () => ({ id: 'persona-neu-1', name: 'Lena' })),
+    loadAudienceSituations: vi.fn(async () => []),
+    syncAudienceSituations: vi.fn(async () => {}),
+    update: vi.fn(async () => ({ id: 'persona-neu-1' }))
   }
 }));
 
@@ -30,6 +40,12 @@ vi.mock('../modules/produkt/ProduktPersonaDrawer.js', () => ({
     close() {}
     remove() {}
   }
+}));
+
+vi.mock('../modules/briefing/BriefingPersonas.js', () => ({
+  recomputeBriefingProdukteForPersona: vi.fn(async () => {}),
+  addPersonaToBriefing: vi.fn(async () => false),
+  removePersonaFromBriefing: vi.fn(async () => false)
 }));
 
 // ---------------------------------------------------------------------------
@@ -44,7 +60,7 @@ function createSupabaseMock(responder) {
     auth: { getSession: async () => ({ data: { session: null } }) },
     from(table) {
       const chain = { table, ops: [] };
-      for (const m of ['select', 'insert', 'update', 'delete', 'eq', 'neq', 'in', 'order', 'limit']) {
+      for (const m of ['select', 'insert', 'update', 'delete', 'eq', 'neq', 'in', 'contains', 'order', 'limit']) {
         chain[m] = (...args) => { chain.ops.push([m, ...args]); return chain; };
       }
       chain.single = () => { chain.ops.push(['single']); return chain; };
@@ -136,42 +152,158 @@ describe('validateVorschlaege (Quality-Mix)', () => {
     ]
   };
 
-  it('verwirft Halluzinations-Matches, Namenlose und Karten ohne Use-Case-Bezug', () => {
-    const out = validateVorschlaege(basis, { poolIds: ['p1'], useCaseCount: 2 });
+  it('verwirft KI-Matches, Namenlose und Karten ohne Use-Case-Bezug', () => {
+    const out = validateVorschlaege(basis, { useCaseCount: 2 });
 
-    expect(out.vorschlaege).toHaveLength(2);
-    expect(out.verworfen).toHaveLength(3);
+    expect(out.vorschlaege).toHaveLength(1);
+    expect(out.verworfen).toHaveLength(4);
+    expect(out.verworfen.filter(v => v.grund === 'KI-Match nicht erlaubt')).toHaveLength(2);
 
-    const match = out.vorschlaege.find(v => v.typ === 'match');
-    expect(match.persona_id).toBe('p1');
-    // Ungueltiger Index 99 ist raus, gueltige bleiben
-    expect(match.use_case_indices).toEqual([0, 1]);
-
-    const neu = out.vorschlaege.find(v => v.typ === 'neu');
+    const neu = out.vorschlaege[0];
+    expect(neu.typ).toBe('neu');
     expect(neu.persona.name).toBe('Lena');
     expect(neu.persona.alter_von).toBe(30);
-    // ausserhalb 0-120 -> null
     expect(neu.persona.alter_bis).toBeNull();
-    // unbekannte Felder kommen nicht durch
     expect(neu.persona.geheim).toBeUndefined();
     expect(neu.luecken_begruendung).toContain('Keine Bestehende');
 
-    // Use Cases: getrimmt, leere raus
     expect(out.use_cases).toEqual([{ name: 'Morgens vor der Arbeit', beschreibung: null }]);
   });
 
-  it('kappt die Kartenanzahl (Karten-Modus: genau eine)', () => {
-    const out = validateVorschlaege(basis, { poolIds: ['p1'], useCaseCount: 2, maxVorschlaege: 1 });
+  it('kappt die Kartenanzahl auf genau eine', () => {
+    const json = {
+      use_cases: [{ name: 'Morgens' }],
+      vorschlaege: [
+        { typ: 'neu', persona: { name: 'Lena' }, fit_grund: 'a', use_case_indices: [0] },
+        { typ: 'neu', persona: { name: 'Tim' }, fit_grund: 'b', use_case_indices: [0] }
+      ]
+    };
+    const out = validateVorschlaege(json, { useCaseCount: 1, maxVorschlaege: 1 });
     expect(out.vorschlaege).toHaveLength(1);
+    expect(out.vorschlaege[0].persona.name).toBe('Lena');
   });
 
-  it('sanitizePersonaPayload laesst nur bekannte Persona-Felder durch', () => {
-    const sauber = sanitizePersonaPayload({ name: 'Lena', marke_ids: ['m1'], _meta: 1, beruf: ' Pflegerin ' });
+  it('Unisex-Flag verwirft geschlechtliche Namen und kanonisiert Treffer', () => {
+    const verworfen = validateVorschlaege({
+      vorschlaege: [
+        { typ: 'neu', persona: { name: 'Lena', geschlecht: 'Weiblich' }, fit_grund: 'x', use_case_indices: [0] }
+      ]
+    }, { useCaseCount: 1, unisexNamen: true });
+    expect(verworfen.vorschlaege).toHaveLength(0);
+    expect(verworfen.verworfen).toEqual([{ grund: 'kein Unisex-Vorname', vorschlag: 'Lena' }]);
+
+    const treffer = validateVorschlaege({
+      vorschlaege: [
+        { typ: 'neu', persona: { name: ' luka ', geschlecht: 'Maennlich' }, fit_grund: 'x', use_case_indices: [0] }
+      ]
+    }, { useCaseCount: 1, unisexNamen: true });
+    expect(treffer.vorschlaege).toHaveLength(1);
+    expect(treffer.vorschlaege[0].persona.name).toBe('Luka');
+    expect(treffer.vorschlaege[0].persona.geschlecht).toBe('Gemischt');
+  });
+
+  it('Unisex-Name muss zu Register und Alter passen', () => {
+    const roh = (persona) => validateVorschlaege({
+      vorschlaege: [{ typ: 'neu', persona, fit_grund: 'x', use_case_indices: [0] }]
+    }, { useCaseCount: 1, unisexNamen: true });
+
+    // Kim: klassisch-bodenstaendig, mittel
+    expect(roh({ name: 'Kim', namensregister: 'klassisch-bodenständig', alter_von: 35, alter_bis: 45 }).vorschlaege)
+      .toHaveLength(1);
+
+    const falschesRegister = roh({ name: 'Kim', namensregister: 'modern-urban', alter_von: 35, alter_bis: 45 });
+    expect(falschesRegister.vorschlaege).toHaveLength(0);
+    expect(falschesRegister.verworfen[0]).toMatchObject({
+      grund: 'Name passt nicht zum Register', vorschlag: 'Kim', register: 'modern-urban', alter_von: 35, alter_bis: 45
+    });
+
+    // Luka ist nur jung: bei 58 bis 64 verworfen
+    const zuAlt = roh({ name: 'Luka', namensregister: 'modern-urban', alter_von: 58, alter_bis: 64 });
+    expect(zuAlt.verworfen[0].grund).toBe('Name passt nicht zum Alter');
+
+    // Spanne ueber zwei Jahrgaenge: ein passender reicht (Luca: jung, mittel)
+    expect(roh({ name: 'Luca', namensregister: 'modern-urban', alter_von: 26, alter_bis: 36 }).vorschlaege)
+      .toHaveLength(1);
+
+    // ohne Alter und Register keine Pruefung
+    expect(roh({ name: 'Luka' }).vorschlaege).toHaveLength(1);
+  });
+
+  it('namensregister wird nicht in die Persona gespeichert', () => {
+    const out = validateVorschlaege({
+      vorschlaege: [{
+        typ: 'neu',
+        persona: { name: 'Kim', namensregister: 'klassisch-bodenständig', alter_von: 40, alter_bis: 45 },
+        fit_grund: 'x',
+        use_case_indices: [0]
+      }]
+    }, { useCaseCount: 1, unisexNamen: true });
+    expect(out.vorschlaege[0].persona.namensregister).toBeUndefined();
+  });
+
+  it('Alter und Register stehen im Schema vor dem Namen', () => {
+    const tool = personaTool({ unisexNamen: true, namen: ['Lou'] });
+    const persona = tool.input_schema.properties.vorschlaege.items.properties.persona;
+    const keys = Object.keys(persona.properties);
+    expect(keys.indexOf('alter_von')).toBeLessThan(keys.indexOf('name'));
+    expect(keys.indexOf('alter_bis')).toBeLessThan(keys.indexOf('name'));
+    expect(keys.indexOf('namensregister')).toBeLessThan(keys.indexOf('name'));
+    expect(persona.required).toEqual(['namensregister', 'name']);
+  });
+
+  it('Namensliste: alle Namen getaggt, eindeutig, die bisherigen 19 sind drin', () => {
+    expect(UNISEX_VORNMEN.length).toBeGreaterThanOrEqual(55);
+    expect(new Set(UNISEX_VORNMEN.map((n) => n.toLowerCase())).size).toBe(UNISEX_VORNMEN.length);
+    for (const alt of ['Luca', 'Luka', 'Alex', 'Kim', 'Lou', 'Robin', 'Toni', 'Mika', 'Sascha', 'Eike',
+      'Dominique', 'Elia', 'Sam', 'Jamie', 'Kris', 'Charly', 'Micha', 'Noa', 'Lio']) {
+      expect(UNISEX_VORNMEN).toContain(alt);
+    }
+    expect(passtNameZu('Alex', { register: 'modern-urban', alterVon: 60, alterBis: 70 }).ok).toBe(true);
+    expect(passtNameZu('Lena').ok).toBe(false);
+    expect(jahrgangFuerAlter(30)).toBe('jung');
+    expect(jahrgangFuerAlter(31)).toBe('mittel');
+    expect(jahrgangFuerAlter(51)).toBe('aelter');
+    expect(jahrgangFuerAlter(null)).toBeNull();
+  });
+
+  it('Korrektur-Liste: passend zu Register und Alter, sonst nur Alter, sonst alle', () => {
+    const frei = ['Luka', 'Kim', 'Sam', 'Chris'];
+    expect(passendeNamen(frei, { register: 'klassisch-bodenständig', alterVon: 40, alterBis: 45 }))
+      .toEqual(['Kim', 'Chris']);
+    // Register ohne Treffer: nur Alter zaehlt
+    expect(passendeNamen(frei, { register: 'nordisch/international', alterVon: 55, alterBis: 60 }))
+      .toEqual(['Chris']);
+    // nichts passt: alle freien
+    expect(passendeNamen(['Luka'], { alterVon: 60, alterBis: 65 })).toEqual(['Luka']);
+  });
+
+  it('ohne Unisex-Flag bleibt ein geschlechtlicher Name gueltig', () => {
+    const out = validateVorschlaege({
+      vorschlaege: [
+        { typ: 'neu', persona: { name: 'Lena', geschlecht: 'Weiblich' }, fit_grund: 'x', use_case_indices: [0] }
+      ]
+    }, { useCaseCount: 1 });
+    expect(out.vorschlaege[0].persona.name).toBe('Lena');
+    expect(out.vorschlaege[0].persona.geschlecht).toBe('Weiblich');
+  });
+
+  it('personaTool setzt die Unisex-Liste nur wenn verlangt', () => {
+    const frei = personaTool();
+    const nameFeld = frei.input_schema.properties.vorschlaege.items.properties.persona.properties.name;
+    expect(nameFeld.enum).toBeUndefined();
+
+    const eng = personaTool({ unisexNamen: true, namen: ['Lou', 'Sam'] });
+    const engName = eng.input_schema.properties.vorschlaege.items.properties.persona.properties;
+    expect(engName.name.enum).toEqual(['Lou', 'Sam']);
+    expect(engName.geschlecht.enum).toEqual(['Gemischt']);
+    expect(PERSONA_TOOL.input_schema.properties.vorschlaege.items.properties.persona.properties.name.enum).toBeUndefined();
+  });
+
+  it('sanitizePersonaPayload laesst kontext fallen', () => {
+    const sauber = sanitizePersonaPayload({ name: 'Lena', kontext: 'Alltag', beruf: ' Pflegerin ' });
+    expect(sauber.kontext).toBeUndefined();
     expect(sauber.name).toBe('Lena');
     expect(sauber.beruf).toBe('Pflegerin');
-    expect(sauber.marke_ids).toBeUndefined();
-    expect(sauber._meta).toBeUndefined();
-    expect(sauber.alter_von).toBeNull();
   });
 
   it('sanitizePersonaPayload clampt budgetrahmen auf niedrig/mittel/hoch', () => {
@@ -181,6 +313,23 @@ describe('validateVorschlaege (Quality-Mix)', () => {
     expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: 'niedrig bis mittel' }).budgetrahmen).toBeNull();
     expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: '' }).budgetrahmen).toBeNull();
     expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: null }).budgetrahmen).toBeNull();
+  });
+
+  it('sanitizePersonaPayload uebernimmt Audience Situations und valide branche_id', () => {
+    const sauber = sanitizePersonaPayload({
+      name: 'Lena',
+      branche_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      _audience_situations: [
+        { name: ' morgens unter Zeitdruck ', beschreibung: 'Kind fertig machen' },
+        { name: 'morgens unter Zeitdruck' },
+        { name: '  ' }
+      ]
+    });
+    expect(sauber.branche_id).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+    expect(sauber._audience_situations).toEqual([
+      { name: 'morgens unter Zeitdruck', beschreibung: 'Kind fertig machen' }
+    ]);
+    expect(sanitizePersonaPayload({ name: 'A', branche_id: 'keine-uuid' }).branche_id).toBeNull();
   });
 });
 
@@ -197,8 +346,8 @@ describe('buildPrompt', () => {
     },
     markeNamen: ['Nordwind'],
     bestehendeUseCases: [{ name: 'Morgens vor der Arbeit', beschreibung: null }],
-    modus: 'alle',
-    anzahlZiel: 5,
+    modus: 'initial',
+    anzahlZiel: 1,
     behalten: [{ typ: 'match', name: 'Sandra' }]
   };
 
@@ -209,32 +358,312 @@ describe('buildPrompt', () => {
     expect(task).toContain('ABGELEITET');
     expect(task).toContain('MANUELL');
     expect(task).toContain('Sandra');
-    expect(task).toContain('BEREITS AKZEPTIERT');
+    expect(task).toContain('BEREITS AUF KARTEN');
     expect(stable).toContain('NICHTS ERFINDEN');
     expect(stable).toContain('KEINE KLISCHEES');
+    expect(stable).toContain('TYPEN MENSCH');
+    expect(stable).not.toContain('Zielgruppen-Stratege');
+    expect(stable).not.toContain('als Zielgruppe dienen');
+    expect(task).toContain('_audience_situations');
   });
 
-  it('nutzt bestehende Personas als House-Style und Match-Pool', () => {
-    const pool = [{ id: 'p1', name: 'Sandra', oberbegriff: 'Effiziente Mutter', pain_points: 'Zeitdruck' }];
-    const { stable, task } = buildPrompt(input, { pool, poolQuelle: 'marke' });
+  it('weitere/karte: Pool nur als Abgrenzungsliste aus Name und Oberbegriff, ohne Profil', () => {
+    const pool = [{
+      id: 'p1', name: 'Sandra', oberbegriff: 'Effiziente Mutter',
+      pain_points: 'Zeitdruck', beruf: 'Angestellte', kaufmotive: 'Statusgewinn'
+    }];
+    const { stable, task } = buildPrompt({ ...input, modus: 'weitere' }, { pool, poolQuelle: 'marke' });
 
-    expect(stable).toContain('HOUSE-STYLE');
-    expect(task).toContain('Sandra');
+    expect(stable).toContain('ABGRENZUNG ZU BESTEHENDEN PERSONAS');
+    expect(stable).not.toContain('HOUSE-STYLE');
+    expect(task).toContain('- Sandra (Effiziente Mutter)');
     expect(task).toContain('BESTEHENDE PERSONAS der Produkt-Marken');
+    expect(task).toContain('nicht klonen, keine Muster uebernehmen');
+    expect(task).not.toContain('Zeitdruck');
+    expect(task).not.toContain('Angestellte');
+    expect(task).not.toContain('Statusgewinn');
+    expect(task).not.toContain('Match-Pool');
   });
 
-  it('Karten-Modus Match: naechstbeste bestehende Persona, sonst Luecken-Persona', () => {
+  it('Startrun: kein Pool-Abschnitt und keine Pool-Profile im Prompt, Namen bleiben aus der Liste', () => {
+    const pool = [{ id: 'p1', name: 'Luca', oberbegriff: 'Mobil arbeitende Person', pain_points: 'Zeitdruck', beruf: 'Berater' }];
+    const { stable, task } = buildPrompt(input, { pool, poolQuelle: 'unternehmen' });
+
+    expect(stable).not.toContain('ABGRENZUNG');
+    expect(stable).not.toContain('HOUSE-STYLE');
+    expect(task).not.toContain('BESTEHENDE PERSONAS');
+    expect(task).not.toContain('Mobil arbeitende Person');
+    expect(task).not.toContain('Zeitdruck');
+    expect(task).not.toContain('Berater');
+    // Dubletten-Schutz: der Pool-Name ist nicht mehr in der Namensliste
+    expect(task).not.toMatch(/\bLuca \((jung|mittel|aelter)/);
+  });
+
+  it('Startrun und Weitere verlangen genau eine neue, breite Persona', () => {
+    const { stable, task } = buildPrompt(input, { pool: [], poolQuelle: 'leer' });
+    expect(stable).toContain('breiteste tragfaehige Typ');
+    expect(task).toContain('GENAU EINE neue Persona');
+    expect(task).toContain('Kein Szenen-Schnitt');
+    expect(task).toContain('kein Match');
+    expect(task).not.toContain('MATCHES auf bestehende');
+    expect(task).not.toContain('Ziel: 2-3');
+
+    const weitere = buildPrompt({ ...input, modus: 'weitere' }, { pool: [], poolQuelle: 'leer' });
+    expect(weitere.task).toContain('GENAU EINE weitere neue Persona');
+    expect(weitere.task).toContain('nur Orientierung');
+    expect(weitere.task).toContain('auch geschlechtlich');
+    expect(weitere.task).not.toContain('geschlecht ist "Gemischt"');
+  });
+
+  it('Startrun und Karten-Ersatz verlangen Unisex-Namen und Gemischt', () => {
+    const { task } = buildPrompt(input, { pool: [], poolQuelle: 'leer' });
+    // Namen nach Register gruppiert, mit Jahrgaengen
+    expect(task).toContain('- modern-urban: Alex (jung/mittel/aelter)');
+    for (const name of UNISEX_VORNMEN) expect(task).toContain(name);
+    expect(task).toContain('erst alter_von und alter_bis, dann namensregister');
+    expect(task).toContain('geschlecht ist "Gemischt"');
+    expect(task).toContain('Bestehende Personas sind fuer den Vornamen keine Vorlage');
+
+    const karte = buildPrompt(
+      { ...input, modus: 'karte', ersetzteKarte: { typ: 'neu', name: 'Lena' } },
+      { pool: [], poolQuelle: 'leer' }
+    );
+    for (const name of UNISEX_VORNMEN) expect(karte.task).toContain(name);
+    expect(karte.task).toContain('geschlecht ist "Gemischt"');
+    expect(karte.task).toContain('nicht enger');
+    expect(karte.task).toContain('Diesen Vornamen nicht wiederverwenden: Lena');
+  });
+
+  it('belegte Pool-Namen und der verworfene Vorname fehlen in der Unisex-Liste', () => {
+    const namen = gefilterteUnisexNamen({ poolNamen: ['Luca', 'Alex'], verworfenerName: 'kim' });
+    expect(namen).not.toContain('Luca');
+    expect(namen).not.toContain('Alex');
+    expect(namen).not.toContain('Kim');
+    expect(namen).toContain('Lou');
+
     const { task } = buildPrompt(
-      { ...input, modus: 'karte', ersetzteKarte: { typ: 'match' } },
+      { ...input, modus: 'karte', ersetzteKarte: { typ: 'neu', name: 'Sam' } },
+      { pool: [{ id: 'p1', name: 'Luca' }], poolQuelle: 'marke' }
+    );
+    expect(task).not.toMatch(/\bLuca \((jung|mittel|aelter)/);
+    expect(task).toContain('Diesen Vornamen nicht wiederverwenden: Sam');
+    expect(task).not.toMatch(/\bSam \((jung|mittel|aelter)/);
+  });
+
+  it('Namen aktiver Karten fehlen in der Liste, sind sie alle belegt, fallen Pool-Namen zurueck', () => {
+    const ohneKarte = gefilterteUnisexNamen({ belegteNamen: ['Alex', 'sam'] });
+    expect(ohneKarte).not.toContain('Alex');
+    expect(ohneKarte).not.toContain('Sam');
+
+    const { task } = buildPrompt(
+      { ...input, behalten: [{ typ: 'neu', name: 'Alex' }] },
+      { pool: [], poolQuelle: 'leer' }
+    );
+    expect(task).not.toMatch(/\bAlex \((jung|mittel|aelter)/);
+
+    const alleBelegt = gefilterteUnisexNamen({ poolNamen: UNISEX_VORNMEN, verworfenerName: 'Kim' });
+    expect(alleBelegt).toContain('Alex');
+    expect(alleBelegt).not.toContain('Kim');
+  });
+
+  it('das Briefing geht nicht in den Prompt, das Namensregister kommt aus Produkt und Marke', () => {
+    const { task } = buildPrompt(
+      { ...input, briefingText: '\n# CAMPAIGN-BRIEFING\n- Creator-Aufgabe: Skater-Look, rau, laut\n' },
+      { pool: [], poolQuelle: 'leer' }
+    );
+    expect(task).not.toContain('BRIEFING DER LINIE');
+    expect(task).not.toContain('Skater-Look');
+    expect(task).toContain('aus Produkt und Marke');
+  });
+
+  it('Karten-Modus ersetzt durch eine neue Persona, ohne Pool-Match', () => {
+    const { task } = buildPrompt(
+      { ...input, modus: 'karte', ersetzteKarte: { typ: 'match', name: 'Lena' } },
       { pool: [], poolQuelle: 'leer' }
     );
     expect(task).toContain('GENAU EINE');
-    expect(task).toContain('ANDERE bestehende Persona');
+    expect(task).toContain('typ immer "neu"');
+    expect(task).not.toContain('ANDERE bestehende Persona');
+    expect(task).toContain('nicht enger');
   });
 
   it('ohne bestehende Use Cases: erst Einsatzsituationen generieren, dann mappen', () => {
     const { task } = buildPrompt({ ...input, bestehendeUseCases: [] }, { pool: [], poolQuelle: 'leer' });
     expect(task).toContain('Generiere ZUERST 3 bis 6 benannte Einsatzsituationen');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Breiter Lauf: Kaeufergruppen statt Einzelkontext
+// ---------------------------------------------------------------------------
+
+describe('Breiter Lauf (Kaeufergruppen-Analyse)', () => {
+  const { istBreiterLauf, sanitizeAnalyse } = produktPersona;
+
+  const felder = {
+    name: { value: 'iPhone Duo', kind: 'fact' },
+    usp: { value: 'Faltbares Display\nA20 Pro Chip\n2 TB Speicher', kind: 'guess' }
+  };
+
+  const antwort = (extra = {}, persona = {}) => ({
+    produkt_kern: 'Faltbares Smartphone',
+    kaeufergruppen: [
+      { name: 'Early Adopter', kaufmotiv: 'Das Neueste besitzen' },
+      { name: 'Medien-Vielnutzer', kaufmotiv: 'Grosser Bildschirm' }
+    ],
+    gemeinsamer_nenner: 'Technikinteressierte mit Anspruch an den Bildschirm',
+    berufsgebunden: false,
+    use_cases: [{ name: 'Abends auf dem Sofa' }],
+    vorschlaege: [{
+      typ: 'neu',
+      fit_grund: 'Gruppen',
+      use_case_indices: [0],
+      persona: {
+        name: 'Mika',
+        oberbegriff: 'Technikinteressierte',
+        beruf: 'Berufstaetig in Vollzeit',
+        ...persona
+      }
+    }],
+    ...extra
+  });
+
+  it('breit nur bei initial und beim Ersatz der einzigen Karte', () => {
+    expect(istBreiterLauf({})).toBe(true);
+    expect(istBreiterLauf({ modus: 'initial' })).toBe(true);
+    expect(istBreiterLauf({ modus: 'karte', behalten: [] })).toBe(true);
+    expect(istBreiterLauf({ modus: 'karte' })).toBe(true);
+    expect(istBreiterLauf({ modus: 'karte', behalten: [{ typ: 'neu', name: 'Sam' }] })).toBe(false);
+    expect(istBreiterLauf({ modus: 'weitere', behalten: [] })).toBe(false);
+  });
+
+  it('Schema: Analyse vor use_cases vor vorschlaege, im breiten Lauf Pflicht', () => {
+    const tool = personaTool({ breit: true });
+    const keys = Object.keys(tool.input_schema.properties);
+    for (const feld of ['produkt_kern', 'kaeufergruppen', 'gemeinsamer_nenner', 'berufsgebunden']) {
+      expect(keys.indexOf(feld)).toBeGreaterThanOrEqual(0);
+      expect(keys.indexOf(feld)).toBeLessThan(keys.indexOf('use_cases'));
+      expect(tool.input_schema.required).toContain(feld);
+    }
+    expect(keys.indexOf('use_cases')).toBeLessThan(keys.indexOf('vorschlaege'));
+    expect(tool.input_schema.required).toContain('vorschlaege');
+
+    const eng = personaTool({ breit: false });
+    expect(Object.keys(eng.input_schema.properties)).toEqual(['use_cases', 'vorschlaege']);
+    expect(eng.input_schema.required).toEqual(['vorschlaege']);
+  });
+
+  it('Schema: keine Berufs-Anker in den Beispielen', () => {
+    for (const unisexNamen of [false, true]) {
+      const tool = personaTool({ unisexNamen, namen: ['Lou'] });
+      const text = JSON.stringify(tool);
+      expect(text).not.toContain('Berufstaetige mit wenig Zeit');
+      expect(text).not.toContain('effiziente Berufseinsteigerin');
+      expect(text).not.toContain('Morgens vor der Arbeit');
+    }
+  });
+
+  it('Startrun: Prompt verlangt Kaeufergruppen, Nenner und beruf nur bei berufsgebunden', () => {
+    const { task } = buildPrompt({ felder, modus: 'initial' }, { pool: [], poolQuelle: 'leer' });
+    expect(task).toContain('ANALYSE ZUERST');
+    expect(task).toContain('kaeufergruppen');
+    expect(task).toContain('gemeinsamer_nenner');
+    expect(task).toContain('Weder ein Nutzungskontext');
+    expect(task).toContain('bleibt beruf leer');
+    expect(task).toContain('nicht die Pain Points der Persona');
+    expect(task).toContain('fit_grund nennt die Kaeufergruppen');
+    // Karte als einzige: ebenfalls breit
+    expect(buildPrompt({ felder, modus: 'karte', behalten: [], ersetzteKarte: { name: 'Lena' } }, { pool: [] }).task)
+      .toContain('ANALYSE ZUERST');
+  });
+
+  it('weitere und Ersatz neben anderen Karten bleiben unveraendert (keine Analyse)', () => {
+    const weitere = buildPrompt({ felder, modus: 'weitere', behalten: [{ typ: 'neu', name: 'Mika' }] }, { pool: [] });
+    expect(weitere.task).not.toContain('ANALYSE ZUERST');
+    expect(weitere.task).toContain('fit_grund nennt konkret');
+
+    const karte = buildPrompt(
+      { felder, modus: 'karte', behalten: [{ typ: 'neu', name: 'Mika' }], ersetzteKarte: { name: 'Lena' } },
+      { pool: [] }
+    );
+    expect(karte.task).not.toContain('ANALYSE ZUERST');
+  });
+
+  it('Client-Input (snake_case) bringt bestehende Use Cases in den Prompt', () => {
+    const { task } = buildPrompt(
+      { felder, modus: 'weitere', bestehende_use_cases: [{ name: 'Abends auf dem Sofa', beschreibung: null }] },
+      { pool: [] }
+    );
+    expect(task).toContain('BESTEHENDE EINSATZSITUATIONEN');
+    expect(task).toContain('0. Abends auf dem Sofa');
+    expect(task).not.toContain('Generiere ZUERST');
+  });
+
+  it('breit: beruf wird geleert, wenn nicht berufsgebunden', () => {
+    const out = validateVorschlaege(antwort(), { useCaseCount: 1, unisexNamen: true, breit: true });
+    expect(out.vorschlaege).toHaveLength(1);
+    expect(out.vorschlaege[0].persona.beruf).toBeNull();
+    expect(out.breiteOk).toBe(true);
+    expect(out.analyse.kaeufergruppen).toHaveLength(2);
+    expect(out.analyse.gemeinsamer_nenner).toContain('Technikinteressierte');
+  });
+
+  it('breit: berufsgebundene Produkte behalten den Beruf (B2B-Gegenprobe)', () => {
+    const out = validateVorschlaege(
+      antwort({ berufsgebunden: true }, { beruf: 'Marketing Manager' }),
+      { useCaseCount: 1, breit: true }
+    );
+    expect(out.vorschlaege[0].persona.beruf).toBe('Marketing Manager');
+    expect(validateVorschlaege(antwort({ berufsgebunden: 'true' }), { useCaseCount: 1, breit: true })
+      .vorschlaege[0].persona.beruf).toBe('Berufstaetig in Vollzeit');
+  });
+
+  it('breit: weniger als zwei Kaeufergruppen verwirft die Karte (Retry-Signal)', () => {
+    const eine = antwort({ kaeufergruppen: [{ name: 'Early Adopter', kaufmotiv: 'neu' }, { name: ' early adopter ' }] });
+    const out = validateVorschlaege(eine, { useCaseCount: 1, breit: true });
+    expect(out.vorschlaege).toHaveLength(0);
+    expect(out.breiteOk).toBe(false);
+    expect(out.verworfen).toEqual([{ grund: produktPersona.GRUND_ZU_WENIG_GRUPPEN, vorschlag: 'Mika' }]);
+
+    const ohne = validateVorschlaege(antwort({ kaeufergruppen: undefined }), { useCaseCount: 1, breit: true });
+    expect(ohne.breiteOk).toBe(false);
+  });
+
+  it('ohne breit greift weder Beruf-Regel noch Gruppen-Pruefung', () => {
+    const out = validateVorschlaege(
+      antwort({ kaeufergruppen: [], berufsgebunden: false }),
+      { useCaseCount: 1 }
+    );
+    expect(out.vorschlaege).toHaveLength(1);
+    expect(out.vorschlaege[0].persona.beruf).toBe('Berufstaetig in Vollzeit');
+    expect(out.breiteOk).toBe(true);
+  });
+
+  it('Analysefelder landen nicht an der Persona', () => {
+    const out = validateVorschlaege(antwort(), { useCaseCount: 1, breit: true });
+    const persona = out.vorschlaege[0].persona;
+    for (const feld of ['produkt_kern', 'kaeufergruppen', 'gemeinsamer_nenner', 'berufsgebunden']) {
+      expect(persona[feld]).toBeUndefined();
+    }
+  });
+
+  it('sanitizeAnalyse kappt auf vier Gruppen und dedupliziert', () => {
+    const a = sanitizeAnalyse({
+      kaeufergruppen: ['A', 'B', 'a', 'C', 'D', 'E'].map((name) => ({ name, kaufmotiv: 'x' }))
+    });
+    expect(a.kaeufergruppen.map((g) => g.name)).toEqual(['A', 'B', 'C', 'D']);
+    expect(a.berufsgebunden).toBe(false);
+  });
+
+  it('Pool laedt nur Name und Oberbegriff, keine Profile', async () => {
+    const supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'persona_marke') return { data: [], error: null };
+      return { data: [{ id: 'p9', name: 'Luca', oberbegriff: 'X' }], error: null };
+    });
+    await loadPoolPersonas(supabase, { markeIds: ['m1'], unternehmenId: 'u1' });
+    const personaQuery = supabase.chains.find(c => c.table === 'personas');
+    expect(opArgs(personaQuery, 'select')).toEqual([['id, name, oberbegriff']]);
+    expect(supabase.chains.some(c => c.table === 'audience_situations')).toBe(false);
   });
 });
 
@@ -326,6 +755,201 @@ describe('ProduktPersonaService Accept/Unlink', () => {
 
     expect(PersonaService.remove).not.toHaveBeenCalled();
     expect(out.personaId).toBe('p-neu');
+  });
+
+  it('dematerialize (neu, in Briefing referenziert) behaelt die Persona', async () => {
+    window.supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'campaign_briefings') return { count: 1, error: null };
+      if (hatOp(chain, 'select') && chain.ops.some(o => o[0] === 'select' && o[2]?.head)) {
+        return { count: 0, error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    const karte = { id: 'v1', typ: 'neu', persona_id: 'p-neu', payload: { name: 'Lena' } };
+    const out = await ProduktPersonaService.dematerialize(karte);
+
+    expect(PersonaService.remove).not.toHaveBeenCalled();
+    expect(out.personaId).toBe('p-neu');
+  });
+
+  it('materialize (neu) schreibt Audience Situations aus dem Payload', async () => {
+    window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
+
+    await ProduktPersonaService.materialize({
+      typ: 'neu',
+      persona_id: null,
+      payload: {
+        name: 'Lena',
+        _audience_situations: [{ name: 'morgens unter Zeitdruck', beschreibung: 'Kind fertig machen' }]
+      }
+    }, { unternehmenId: 'u1', markeIds: [] });
+
+    expect(PersonaService.syncAudienceSituations).toHaveBeenCalledWith('persona-neu-1', [
+      { name: 'morgens unter Zeitdruck', beschreibung: 'Kind fertig machen', quelle: 'ki' }
+    ]);
+  });
+
+  it('flushKarte (accepted neu mit persona_id) legt nicht nochmal an', async () => {
+    window.supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'produkt_persona_vorschlag' && hatOp(chain, 'insert')) {
+        return { data: { id: 'v-1' }, error: null };
+      }
+      if (chain.table === 'persona_marke' && hatOp(chain, 'select')) {
+        return { data: [], error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    PersonaService.create.mockClear();
+    const karte = {
+      key: 'k1', id: null, typ: 'neu', status: 'accepted',
+      persona_id: 'persona-neu-1', payload: { name: 'Lena' }, fit_grund: 'fit',
+      useCaseKeys: [], persisted: null
+    };
+    await ProduktPersonaService.flushKarte('prod-1', karte, {
+      position: 0, keyToId: new Map(), unternehmenId: 'u1', markeIds: []
+    });
+
+    expect(PersonaService.create).not.toHaveBeenCalled();
+  });
+
+  it('uebernehmen ohne Produkt-Id legt die Persona an, schreibt aber keinen Vorschlag', async () => {
+    window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
+
+    const out = await ProduktPersonaService.uebernehmen({
+      key: 'k1', id: null, typ: 'neu', status: 'pending',
+      persona_id: null, payload: { name: 'Lena' }, fit_grund: 'fit',
+      useCaseKeys: [], position: 0
+    }, { produktId: null, unternehmenId: 'u1', markeIds: ['m1'] });
+
+    expect(out.status).toBe('accepted');
+    expect(out.persona_id).toBe('persona-neu-1');
+    expect(out.persisted).toBeNull();
+    expect(PersonaService.create).toHaveBeenCalled();
+    expect(window.supabase.chains.some(c => c.table === 'produkt_persona_vorschlag')).toBe(false);
+  });
+
+  it('uebernehmen mit briefingIds haengt die Persona ans Kontext-Briefing und protokolliert den Attach', async () => {
+    const { addPersonaToBriefing } = await import('../modules/briefing/BriefingPersonas.js');
+    addPersonaToBriefing.mockResolvedValue(true);
+    window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
+
+    const out = await ProduktPersonaService.uebernehmen({
+      key: 'k1', id: null, typ: 'neu', status: 'pending',
+      persona_id: null, payload: { name: 'Lena' }, fit_grund: 'fit',
+      useCaseKeys: [], position: 0
+    }, { produktId: null, unternehmenId: 'u1', markeIds: [], briefingIds: ['b1'] });
+
+    expect(addPersonaToBriefing).toHaveBeenCalledWith('b1', 'persona-neu-1');
+    expect(out.payload._attached_briefing_ids).toEqual(['b1']);
+  });
+
+  it('uebernehmen mit mehreren briefingIds haengt die Persona an alle Briefings', async () => {
+    const { addPersonaToBriefing } = await import('../modules/briefing/BriefingPersonas.js');
+    addPersonaToBriefing.mockResolvedValue(true);
+    window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
+
+    const out = await ProduktPersonaService.uebernehmen({
+      key: 'k1', id: null, typ: 'neu', status: 'pending',
+      persona_id: null, payload: { name: 'Lena' }, fit_grund: 'fit',
+      useCaseKeys: [], position: 0
+    }, { produktId: null, unternehmenId: 'u1', markeIds: [], briefingIds: ['b1', 'b2'] });
+
+    expect(addPersonaToBriefing).toHaveBeenCalledWith('b1', 'persona-neu-1');
+    expect(addPersonaToBriefing).toHaveBeenCalledWith('b2', 'persona-neu-1');
+    expect(out.payload._attached_briefing_ids).toEqual(['b1', 'b2']);
+  });
+
+  it('uebernehmen ohne briefingIds laesst das Briefing unangetastet', async () => {
+    const { addPersonaToBriefing } = await import('../modules/briefing/BriefingPersonas.js');
+    window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
+
+    const out = await ProduktPersonaService.uebernehmen({
+      key: 'k1', id: null, typ: 'neu', status: 'pending',
+      persona_id: null, payload: { name: 'Lena' }, fit_grund: 'fit',
+      useCaseKeys: [], position: 0
+    }, { produktId: null, unternehmenId: 'u1', markeIds: [] });
+
+    expect(addPersonaToBriefing).not.toHaveBeenCalled();
+    expect(out.payload._attached_briefing_ids).toBeUndefined();
+  });
+
+  it('uebernehmen protokolliert keinen Attach, wenn die Persona schon im Briefing war', async () => {
+    const { addPersonaToBriefing } = await import('../modules/briefing/BriefingPersonas.js');
+    addPersonaToBriefing.mockResolvedValue(false);
+    window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
+
+    const out = await ProduktPersonaService.uebernehmen({
+      key: 'k1', id: null, typ: 'match', status: 'pending',
+      persona_id: 'p-bekannt', payload: null, fit_grund: 'fit',
+      useCaseKeys: [], position: 0
+    }, { produktId: null, unternehmenId: 'u1', markeIds: [], briefingIds: ['b1'] });
+
+    expect(addPersonaToBriefing).toHaveBeenCalledWith('b1', 'p-bekannt');
+    expect(out.payload?._attached_briefing_ids).toBeUndefined();
+  });
+
+  it('dematerialize loest den Briefing-Link vor dem Unused-Check und loescht die Neu-Persona', async () => {
+    const { removePersonaFromBriefing } = await import('../modules/briefing/BriefingPersonas.js');
+    window.supabase = createSupabaseMock((chain) => {
+      if (hatOp(chain, 'select') && chain.ops.some(o => o[0] === 'select' && o[2]?.head)) {
+        return { count: 0, error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    const karte = {
+      id: 'v1',
+      typ: 'neu',
+      persona_id: 'p-neu',
+      payload: { name: 'Lena', _attached_briefing_ids: ['b1'] }
+    };
+    const out = await ProduktPersonaService.dematerialize(karte);
+
+    expect(removePersonaFromBriefing).toHaveBeenCalledWith('b1', 'p-neu');
+    expect(PersonaService.remove).toHaveBeenCalledWith('p-neu');
+    expect(out.personaId).toBeNull();
+    expect(out.payload._attached_briefing_ids).toBeUndefined();
+  });
+
+  it('flushOnSave attacht bei neu akzeptierter Karte die Briefings des Produkts', async () => {
+    const { addPersonaToBriefing } = await import('../modules/briefing/BriefingPersonas.js');
+    addPersonaToBriefing.mockResolvedValue(true);
+    window.supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'produkt_persona_vorschlag' && hatOp(chain, 'insert') && hatOp(chain, 'select')) {
+        return { data: { id: 'v-1' }, error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    const state = {
+      useCases: [],
+      karten: [{
+        key: 'k1', id: null, typ: 'neu', status: 'accepted',
+        persona_id: null, payload: { name: 'Lena' }, fit_grund: 'fit',
+        useCaseKeys: [], persisted: null
+      }],
+      verworfeneMatchIds: []
+    };
+
+    const out = await ProduktPersonaService.flushOnSave('prod-1', state, {
+      unternehmenId: 'u1', markeIds: [], briefingIds: ['b1', 'b2']
+    });
+
+    expect(addPersonaToBriefing).toHaveBeenCalledWith('b1', 'persona-neu-1');
+    expect(addPersonaToBriefing).toHaveBeenCalledWith('b2', 'persona-neu-1');
+    expect(out.karten[0].payload._attached_briefing_ids).toEqual(['b1', 'b2']);
+  });
+
+  it('drawerFields laesst Unternehmen/Marke/Briefing weg - der Kontext kommt vom Produkt', async () => {
+    const actual = await vi.importActual('../modules/produkt/ProduktPersonaDrawer.js');
+    const namen = actual.drawerFields().map(f => f.name);
+    expect(namen).not.toContain('unternehmen_id');
+    expect(namen).not.toContain('marke_ids');
+    expect(namen).not.toContain('briefing_ids');
+    expect(namen).not.toContain('_slot_produkte');
+    expect(namen).toContain('name');
   });
 
   it('flushKarte (accepted neu) mappt Use-Case-Keys auf echte IDs', async () => {
@@ -423,6 +1047,7 @@ describe('ProduktPersonaService Accept/Unlink', () => {
     expect(out.useCases[0].id).toBe('uc-real');
     expect(out.karten[0].id).toBe('v-1');
     expect(out.karten[0].persisted.status).toBe('accepted');
+    expect(out.neuAkzeptiert).toEqual(['persona-neu-1']);
 
     // deleted-Row fuer die verworfene Match-ID
     const deletedInsert = window.supabase.chains.find(c =>
@@ -579,7 +1204,62 @@ describe('ProduktPersonaPanel', () => {
 
   const tick = () => new Promise(r => setTimeout(r, 0));
 
-  it('Regen-Exclusion: verworfene und liegende Persona-IDs gehen in den Ausschluss', async () => {
+  it('Startrun fragt genau eine neue Karte ab', async () => {
+    form = mountPanel();
+    panel = await startePanel(form);
+
+    panel.regenAlle();
+    await tick();
+
+    const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
+    expect(input.modus).toBe('initial');
+    expect(input.anzahlZiel).toBe(1);
+  });
+
+  it('Kontext-Briefing geht als briefing_id in den Job, ohne Briefing null', async () => {
+    form = mountPanel();
+    panel = await startePanel(form, { briefingId: 'b-linie' });
+    panel.regenAlle();
+    await tick();
+    expect(ProduktPersonaService.starteJob.mock.calls[0][0].input.briefing_id).toBe('b-linie');
+
+    vi.clearAllMocks();
+    panel = await startePanel(mountPanel());
+    panel.regenAlle();
+    await tick();
+    expect(ProduktPersonaService.starteJob.mock.calls[0][0].input.briefing_id).toBeNull();
+  });
+
+  it('Weitere legt eine Karte dazu, ohne pending Matches zu loeschen', async () => {
+    form = mountPanel();
+    panel = await startePanel(form);
+
+    panel.karten = [
+      {
+        key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p-auf-karte',
+        persona: { name: 'Sandra' }, useCaseKeys: [], position: 0
+      },
+      { key: 'k2', id: null, typ: 'neu', status: 'accepted', persona_id: 'p-akzeptiert', payload: { name: 'Neu' }, useCaseKeys: [], position: 1 }
+    ];
+    panel.verworfeneMatchIds = ['p-verworfen'];
+
+    panel.weitereVorschlagen();
+    await tick();
+
+    const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
+    expect(input.modus).toBe('weitere');
+    expect(input.anzahlZiel).toBe(1);
+    expect(input.ausschluss_persona_ids).toEqual(
+      expect.arrayContaining(['p-verworfen', 'p-auf-karte', 'p-akzeptiert'])
+    );
+    expect(input.behalten).toEqual(expect.arrayContaining([
+      { typ: 'match', name: 'Sandra' },
+      { typ: 'neu', name: 'Neu' }
+    ]));
+    expect(panel.karten.some(k => k.persona_id === 'p-auf-karte' && k.status !== 'deleted')).toBe(true);
+  });
+
+  it('Regen-alle mit accepted startet keinen Job und fasst manuelle Matches nicht an', async () => {
     form = mountPanel();
     panel = await startePanel(form);
 
@@ -587,34 +1267,67 @@ describe('ProduktPersonaPanel', () => {
       { key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p-auf-karte', useCaseKeys: [], position: 0 },
       { key: 'k2', id: null, typ: 'neu', status: 'accepted', persona_id: 'p-akzeptiert', payload: { name: 'Neu' }, useCaseKeys: [], position: 1 }
     ];
-    panel.verworfeneMatchIds = ['p-verworfen'];
+
+    panel.regenAlle();
+    await tick();
+
+    expect(ProduktPersonaService.starteJob).not.toHaveBeenCalled();
+    expect(panel.karten.some(k => k.persona_id === 'p-auf-karte' && k.status !== 'deleted')).toBe(true);
+  });
+
+  it('Regen-alle ersetzt nur pending KI-Karten', async () => {
+    form = mountPanel();
+    panel = await startePanel(form);
+
+    panel.karten = [
+      { key: 'k1', id: null, typ: 'neu', status: 'pending', persona_id: null, payload: { name: 'Alt' }, useCaseKeys: [], position: 0 },
+      { key: 'k2', id: null, typ: 'match', status: 'pending', persona_id: 'p-manual', useCaseKeys: [], position: 1 }
+    ];
 
     panel.regenAlle();
     await tick();
 
     const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
-    expect(input.modus).toBe('alle');
-    expect(input.ausschluss_persona_ids).toEqual(
-      expect.arrayContaining(['p-verworfen', 'p-auf-karte', 'p-akzeptiert'])
-    );
-    // akzeptierte Karte bleibt als Freeze im Auftrag
-    expect(input.behalten).toEqual([{ typ: 'neu', name: 'Neu' }]);
-    // die pending Match-Karte wurde durch den Regen verworfen
-    expect(panel.karten.some(k => k.persona_id === 'p-auf-karte' && k.status !== 'deleted')).toBe(false);
+    expect(input.modus).toBe('initial');
+    expect(input.anzahlZiel).toBe(1);
+    expect(panel.karten.some(k => k.key === 'k1' && k.status !== 'deleted')).toBe(false);
+    expect(panel.karten.some(k => k.persona_id === 'p-manual' && k.status !== 'deleted')).toBe(true);
   });
 
   it('Karten-Modus fragt genau eine Karte ab', async () => {
     form = mountPanel();
     panel = await startePanel(form);
 
-    panel.karten = [{ key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p1', useCaseKeys: [], position: 0 }];
+    panel.karten = [{
+      key: 'k1', id: null, typ: 'neu', status: 'pending', persona_id: null,
+      payload: { name: 'Alt' }, useCaseKeys: [], position: 0
+    }];
     panel.regenKarte('k1');
     await tick();
 
     const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
     expect(input.modus).toBe('karte');
     expect(input.anzahlZiel).toBe(1);
-    expect(input.ersetzteKarte).toEqual({ typ: 'match' });
+    expect(input.ersetzteKarte).toEqual({ typ: 'neu', name: 'Alt' });
+  });
+
+  it('Startrun zeigt ein Skeleton, Weitere-Button erst mit Karte', async () => {
+    form = mountPanel();
+    panel = await startePanel(form);
+    panel.jobRunning = true;
+    panel.render();
+
+    expect(panel.root().querySelectorAll('.rel-card--skeleton')).toHaveLength(1);
+    expect(panel.root().querySelector('[data-persona-action="weitere"]').disabled).toBe(true);
+
+    panel.jobRunning = false;
+    panel.karten = [{
+      key: 'k1', id: null, typ: 'neu', status: 'accepted',
+      persona_id: 'p1', payload: { name: 'Lena' }, useCaseKeys: [], position: 0
+    }];
+    panel.render();
+    expect(panel.root().querySelector('[data-persona-action="weitere"]').disabled).toBe(false);
+    expect(panel.root().querySelector('[data-persona-action="regen-alle"]').disabled).toBe(true);
   });
 
   it('kein Auto-Reextract: das zweite siteExtractFinished startet keinen Job mehr', async () => {
@@ -628,6 +1341,8 @@ describe('ProduktPersonaPanel', () => {
     document.dispatchEvent(fertig());
     await tick();
     expect(ProduktPersonaService.starteJob).toHaveBeenCalledTimes(1);
+    expect(ProduktPersonaService.starteJob.mock.calls[0][0].input.modus).toBe('initial');
+    expect(ProduktPersonaService.starteJob.mock.calls[0][0].input.anzahlZiel).toBe(1);
     // der Extract-Guess landet als Seed
     expect(panel.extractSeed).toBe('morgens');
     // Karte aus dem Job-Ergebnis liegt vor
@@ -663,30 +1378,34 @@ describe('ProduktPersonaPanel', () => {
     expect(ProduktPersonaService.starteJob).not.toHaveBeenCalled();
   });
 
-  it('Annehmen/Zuruecknehmen/Verwerfen sind reine State-Wechsel vor dem Save', () => {
+  it('Save-Toast: pending-Karten und laufender Job blocken, Verwerfen ist ein State-Wechsel', async () => {
     form = mountPanel();
-    return startePanel(form).then(async (p) => {
-      panel = p;
-      panel.karten = [
-        { key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p1', useCaseKeys: [], position: 0 },
-        { key: 'k2', id: 'v2', typ: 'neu', status: 'pending', persona_id: 'p2', payload: { name: 'X' }, useCaseKeys: [], position: 1, persisted: { status: 'pending', persona_id: null } }
-      ];
+    panel = await startePanel(form);
+    panel.karten = [
+      { key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p1', useCaseKeys: [], position: 0 },
+      { key: 'k2', id: 'v2', typ: 'neu', status: 'pending', persona_id: null, payload: { name: 'X' }, useCaseKeys: [], position: 1, persisted: { status: 'pending', persona_id: null } }
+    ];
+    panel.render();
 
-      panel.acceptKarte('k1');
-      expect(panel.karten[0].status).toBe('accepted');
+    expect(panel.saveBlockGrund()).toContain('2 Persona-Vorschläge nicht übernommen');
+    expect(panel.root().querySelector('[data-persona-action="accept"]')).toBeNull();
+    expect(panel.root().querySelector('[data-persona-action="accept-alle"]')).toBeNull();
+    expect(panel.root().querySelector('[data-persona-action="open"]')).toBeTruthy();
 
-      panel.zurueckKarte('k1');
-      expect(panel.karten[0].status).toBe('pending');
+    panel.jobRunning = true;
+    expect(panel.saveBlockGrund()).toContain('noch generiert');
+    panel.jobRunning = false;
 
-      // unpersistierte Karte: Verwerfen entfernt sie und merkt die Match-ID
-      panel.verwerfKarte('k1');
-      expect(panel.karten.some(k => k.key === 'k1')).toBe(false);
-      expect(panel.verworfeneMatchIds).toContain('p1');
+    panel.karten[0].status = 'accepted';
+    expect(panel.saveBlockGrund()).toContain('1 Persona-Vorschlag nicht übernommen');
+    panel.karten[0].status = 'pending';
 
-      // persistierte Karte: Verwerfen markiert deleted, Zeile bleibt fuer den Flush
-      panel.verwerfKarte('k2');
-      expect(panel.karten[0].status).toBe('deleted');
-    });
+    await panel.verwerfKarte('k1');
+    expect(panel.karten.some(k => k.key === 'k1')).toBe(false);
+    expect(panel.verworfeneMatchIds).toContain('p1');
+
+    await panel.verwerfKarte('k2');
+    expect(panel.karten[0].status).toBe('deleted');
   });
 
   it('applySavedState mappt temp-Keys auf echte IDs, auch in den Karten-Refs', () => {
@@ -713,5 +1432,32 @@ describe('ProduktPersonaPanel', () => {
       expect(panel.karten[0].key).toBe('v-real');
       expect(panel.karten[0].useCaseKeys).toEqual(['uc-real']);
     });
+  });
+
+  it('Plus-Karte: Drawer bekommt die volle Persona, nicht den Such-Stub', async () => {
+    const voll = {
+      id: 'p-pdf',
+      name: 'Mutti am Morgen',
+      oberbegriff: 'Zeitgedrückte Mutter',
+      beschreibung: 'Zwei Kinder, 6:30-Chaos',
+      pain_points: 'Keine Zeit für sich'
+    };
+    PersonaService.loadOne.mockResolvedValue(voll);
+
+    form = mountPanel();
+    panel = await startePanel(form);
+    vi.spyOn(panel.drawer, 'open');
+
+    panel.addPersonaKarte({
+      id: 'p-pdf',
+      label: 'Mutti am Morgen',
+      data: { id: 'p-pdf', name: 'Mutti am Morgen', oberbegriff: 'Zeitgedrückte Mutter' }
+    });
+
+    await panel.openDrawer(panel.karten[0].key);
+
+    expect(PersonaService.loadOne).toHaveBeenCalledWith('p-pdf', { unternehmenId: 'u1' });
+    expect(panel.drawer.open).toHaveBeenCalledTimes(1);
+    expect(panel.drawer.open.mock.calls[0][0].persona).toEqual(voll);
   });
 });

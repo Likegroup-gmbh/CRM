@@ -2,14 +2,21 @@
 // Datenlade-Logik für die Kampagnen-Detail-Ansicht
 
 import { VideoTableDataLoader } from './VideoTableDataLoader.js';
+import { CREATOR_SELECT, VIDEO_SELECT } from './videoTableQueries.js';
+import { ladeLivePosts } from './kampagneLivePerformance.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
+import { vertraegeProKooperation, VERTRAG_ZELLE_COLS } from '../vertrag/deckung/vertragDeckung.js';
+import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
+import { filterBlocksForKampagne } from '../projekt-erstellen/logic/kampagnenSplit.js';
+import { listProduktionen, scopeKoopsByLinie, scopeByProduktion } from '../produktion/ProduktionService.js';
 
 /**
  * Lädt Kampagne-Metadaten (ohne Kooperationen/Videos — die kommen via loadFullTableData).
  */
-export async function loadCriticalData(kampagneId) {
+export async function loadCriticalData(kampagneId, scope = {}) {
   console.log('🔄 KAMPAGNEDETAIL: Lade kritische Daten parallel...');
   const startTime = performance.now();
+  const produktionId = scope.produktionId || null;
 
   const [
     kampagneResult,
@@ -23,7 +30,7 @@ export async function loadCriticalData(kampagneId) {
         *,
         unternehmen:unternehmen_id(firmenname, webseite, branche_id, logo_url),
         marke:marke_id(markenname, webseite, logo_url),
-        auftrag:auftrag_id(auftragsname, status, gesamt_budget, creator_budget, bruttobetrag, nettobetrag)
+        auftrag:auftrag_id(auftragsname, status, creator_budget, bruttobetrag, nettobetrag)
       `)
       .eq('id', kampagneId)
       .single(),
@@ -55,15 +62,19 @@ export async function loadCriticalData(kampagneId) {
         const [detailsRes, blocksRes] = await Promise.all([
           window.supabase
             .from('auftrag_details')
-            .select('agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services_enabled, extra_services, gesamt_videos, gesamt_creator, campaign_type')
+            // extra_services_enabled existiert nicht — Toggle steckt in extra_services.
+            .select('agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services, gesamt_videos, gesamt_creator, campaign_type')
             .eq('auftrag_id', auftragId)
             .maybeSingle(),
           window.supabase
             .from('auftrag_kampagnenart_blocks')
-            .select('video_anzahl, creator_anzahl, campaign_type, sort_order')
+            .select('video_anzahl, creator_anzahl, campaign_type, sort_order, kampagne_id')
             .eq('auftrag_id', auftragId)
             .order('sort_order', { ascending: true })
         ]);
+        if (detailsRes.error) {
+          console.error('❌ KAMPAGNEDETAIL: auftrag_details laden fehlgeschlagen:', detailsRes.error);
+        }
         return { data: detailsRes.data, error: detailsRes.error, blocks: blocksRes.data || [] };
       })
   ]);
@@ -77,7 +88,11 @@ export async function loadCriticalData(kampagneId) {
     .filter(Boolean) || [];
 
   kampagneData.auftragDetails = auftragDetailsResult?.data || null;
-  kampagneData.campaignBlocks = auftragDetailsResult?.blocks || [];
+  kampagneData.campaignBlocks = filterBlocksForKampagne(
+    auftragDetailsResult?.blocks || [],
+    kampagneData.id,
+    { kampagnenNummer: kampagneData.kampagnen_nummer }
+  );
 
   const mitarbeiterData = mitarbeiterResult.data || [];
   kampagneData.mitarbeiter = mitarbeiterData.map(m => ({
@@ -163,52 +178,39 @@ export async function loadCriticalData(kampagneId) {
     const { data: kampagneArten } = await window.supabase
       .from('kampagne_art_typen')
       .select('id, name, beschreibung')
-      .in('id', kampagneData.art_der_kampagne);
+      // art_der_kampagne ist text[] mit den Namen, nicht den UUIDs.
+      .in('name', kampagneData.art_der_kampagne);
     kampagneData.kampagne_art_typen = kampagneArten || [];
   }
 
-  // Notizen, Ratings, Strategien, Briefings & Tab-Counts parallel laden
-  const [strategienResult, briefingsResult, sourcingCountResult, vertraegeCountResult, rechnungenCountResult] = await Promise.all([
-    window.supabase
-      .from('strategie')
-      .select(`
-        id, name, beschreibung, created_at,
-        unternehmen:unternehmen_id(id, firmenname, logo_url, internes_kuerzel),
-        marke:marke_id(id, markenname, logo_url),
-        created_by_user:created_by(id, name, profile_image_url)
-      `)
-      .eq('kampagne_id', kampagneId)
-      .order('created_at', { ascending: false }),
-    window.supabase
-      .from('campaign_briefings')
-      .select('id, aktivierung_name, bereich, is_draft, content_deadline, created_at')
-      .eq('unternehmen_id', kampagneData.unternehmen_id)
-      .eq('ist_altbestand', false)
-      .order('created_at', { ascending: false }),
-    window.supabase
-      .from('creator_auswahl')
-      .select('id', { count: 'exact', head: true })
-      .eq('kampagne_id', kampagneId),
-    window.supabase
-      .from('vertraege')
-      .select('id', { count: 'exact', head: true })
-      .eq('kampagne_id', kampagneId),
-    window.supabase
-      .from('rechnung')
-      .select('id', { count: 'exact', head: true })
-      .eq('kampagne_id', kampagneId)
+  // Notizen, Ratings, Strategien & Tab-Counts parallel laden (Briefings stehen als Linien an der Produktion)
+  const [strategienResult, sourcingCountResult, produktionen] = await Promise.all([
+    scopeByProduktion(
+      window.supabase
+        .from('strategie')
+        .select(`
+          id, name, beschreibung, created_at,
+          unternehmen:unternehmen_id(id, firmenname, logo_url, internes_kuerzel),
+          marke:marke_id(id, markenname, logo_url),
+          created_by_user:created_by(id, name, profile_image_url)
+        `)
+        .eq('kampagne_id', kampagneId)
+        .order('created_at', { ascending: false }),
+      produktionId
+    ),
+    scopeByProduktion(
+      window.supabase
+        .from('creator_auswahl')
+        .select('id', { count: 'exact', head: true })
+        .eq('kampagne_id', kampagneId),
+      produktionId
+    ),
+    produktionId ? Promise.resolve([]) : listProduktionen(kampagneId)
   ]);
 
   const strategien = strategienResult.data || [];
 
-  if (briefingsResult.error) {
-    console.error('❌ KAMPAGNEDETAIL: Fehler beim Laden der Briefings:', briefingsResult.error);
-  }
-  const briefings = briefingsResult.data || [];
-
   const sourcingListenCount = sourcingCountResult.count || 0;
-  const vertraegeCount = vertraegeCountResult.count || 0;
-  const rechnungenCount = rechnungenCountResult.count || 0;
 
   const loadTime = (performance.now() - startTime).toFixed(0);
   console.log(`✅ KAMPAGNEDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -216,170 +218,32 @@ export async function loadCriticalData(kampagneId) {
   return {
     kampagneData,
     strategien,
-    briefings,
     sourcingListenCount,
-    vertraegeCount,
-    rechnungenCount
+    produktionen
   };
-}
-
-/**
- * Lädt Tab-spezifische Daten on-demand.
- * Gibt die geladenen Daten zurück.
- */
-export async function loadTabData(tabName, kampagneId) {
-  console.log(`🔄 KAMPAGNEDETAIL: Lade Daten für Tab: ${tabName}`);
-  const startTime = performance.now();
-
-  let result = null;
-
-  switch (tabName) {
-    case 'creators': {
-      const { data } = await window.supabase
-        .from('kampagne_creator')
-        .select(`
-          *,
-          creator:creator_id(
-            id, vorname, nachname, instagram, instagram_follower,
-            tiktok, tiktok_follower, mail, telefonnummer
-          )
-        `)
-        .eq('kampagne_id', kampagneId);
-      result = { creator: data || [] };
-      break;
-    }
-    case 'sourcing': {
-      const { data } = await window.supabase
-        .from('kampagne_creator_sourcing')
-        .select(`
-          id,
-          creator:creator_id (
-            id, vorname, nachname,
-            creator_types:creator_creator_type(creator_type:creator_type_id(name)),
-            sprachen:creator_sprachen(sprachen:sprache_id(name)),
-            branchen:creator_branchen(branchen_creator:branche_id(name)),
-            instagram_follower, tiktok_follower,
-            lieferadresse_stadt, lieferadresse_land
-          )
-        `)
-        .eq('kampagne_id', kampagneId);
-
-      result = {
-        sourcingCreators: (data || []).map(row => {
-          const c = row.creator || {};
-          return {
-            id: c.id, vorname: c.vorname, nachname: c.nachname,
-            creator_types: (c.creator_types || []).map(x => x.creator_type).filter(Boolean),
-            sprachen: (c.sprachen || []).map(x => x.sprachen).filter(Boolean),
-            branchen: (c.branchen || []).map(x => x.branchen_creator).filter(Boolean),
-            instagram_follower: c.instagram_follower, tiktok_follower: c.tiktok_follower,
-            lieferadresse_stadt: c.lieferadresse_stadt, lieferadresse_land: c.lieferadresse_land,
-          };
-        })
-      };
-      break;
-    }
-    case 'favs': {
-      const { data } = await window.supabase
-        .from('kampagne_creator_favoriten')
-        .select(`
-          id,
-          creator:creator_id (
-            id, vorname, nachname,
-            creator_types:creator_creator_type(creator_type:creator_type_id(name)),
-            sprachen:creator_sprachen(sprachen:sprache_id(name)),
-            branchen:creator_branchen(branchen_creator:branche_id(name)),
-            instagram_follower, tiktok_follower,
-            lieferadresse_stadt, lieferadresse_land
-          )
-        `)
-        .eq('kampagne_id', kampagneId);
-
-      result = {
-        favoriten: (data || []).map(row => {
-          const c = row.creator || {};
-          return {
-            id: c.id, vorname: c.vorname, nachname: c.nachname,
-            creator_types: (c.creator_types || []).map(x => x.creator_type).filter(Boolean),
-            sprachen: (c.sprachen || []).map(x => x.sprachen).filter(Boolean),
-            branchen: (c.branchen || []).map(x => x.branchen_creator).filter(Boolean),
-            instagram_follower: c.instagram_follower, tiktok_follower: c.tiktok_follower,
-            lieferadresse_stadt: c.lieferadresse_stadt, lieferadresse_land: c.lieferadresse_land,
-          };
-        })
-      };
-      break;
-    }
-    case 'rechnungen': {
-      const { data } = await window.supabase
-        .from('rechnung')
-        .select(`
-          id, rechnung_nr, status, nettobetrag, bruttobetrag,
-          gestellt_am, bezahlt_am, pdf_url,
-          kooperation:kooperation_id(id, name),
-          creator:creator_id(id, vorname, nachname)
-        `)
-        .eq('kampagne_id', kampagneId)
-        .order('gestellt_am', { ascending: false });
-      result = { rechnungen: data || [] };
-      break;
-    }
-    case 'vertraege': {
-      const { data } = await window.supabase
-        .from('vertraege')
-        .select(`
-          id, name, typ, is_draft, datei_url, datei_path,
-          dropbox_file_url, dropbox_file_path, kooperation_id,
-          unterschriebener_vertrag_url, created_at,
-          creator:creator_id(id, vorname, nachname),
-          kooperation:kooperation_id(id, name)
-        `)
-        .eq('kampagne_id', kampagneId)
-        .order('created_at', { ascending: false });
-      result = { vertraege: data || [] };
-      break;
-    }
-    case 'sourcing-listen': {
-      const { data } = await window.supabase
-        .from('creator_auswahl')
-        .select(`
-          id, name, created_at,
-          kampagne:kampagne_id(id, kampagnenname),
-          unternehmen:unternehmen_id(id, firmenname, logo_url, internes_kuerzel),
-          marke:marke_id(id, markenname, logo_url),
-          created_by_user:created_by(id, name, profile_image_url)
-        `)
-        .eq('kampagne_id', kampagneId)
-        .order('created_at', { ascending: false });
-      result = { sourcingListen: data || [] };
-      break;
-    }
-  }
-
-  const loadTime = (performance.now() - startTime).toFixed(0);
-  console.log(`✅ KAMPAGNEDETAIL: Tab ${tabName} Daten geladen in ${loadTime}ms`);
-
-  return result;
 }
 
 /**
  * Lädt Kooperationen + Videos + Satelliten-Daten in einem Durchgang direkt in den Store.
  * Ersetzt das doppelte Laden aus loadCriticalData (Summary) + VideoTableDataLoader.
  */
-export async function loadFullTableData(kampagneId, store, isKunde) {
+export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) {
   console.log('🔄 KAMPAGNEDETAIL: Lade vollständige Tabellendaten...');
   const startTime = performance.now();
 
   const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
   const koopSelect = isKunde
-    ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`
-    : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`;
+    ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, briefing_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`
+    : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, briefing_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`;
 
-  const kooperationenResult = await window.supabase
-    .from('kooperationen')
-    .select(koopSelect)
-    .eq('kampagne_id', kampagneId)
-    .order('created_at', { ascending: false });
+  const kooperationenResult = await scopeKoopsByLinie(scopeByProduktion(
+    window.supabase
+      .from('kooperationen')
+      .select(koopSelect)
+      .eq('kampagne_id', kampagneId)
+      .order('created_at', { ascending: false }),
+    scope.produktionId || null
+  ), scope.briefingId || null);
 
   if (kooperationenResult.error) throw kooperationenResult.error;
 
@@ -412,21 +276,21 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   const batchIn = VideoTableDataLoader.batchInQuery;
   const sb = window.supabase;
 
-  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult, rechnungResult, customColsResult, colOrderResult] = await Promise.allSettled([
+  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult, rechnungResult, customColsResult, colOrderResult, livePostsResult] = await Promise.allSettled([
     batchIn(
       sb.from('kooperation_videos'),
-      'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, link_live, stats_views, stats_likes, stats_comments, stats_fetched_at, stats_error, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link), skript_id, skript:skript_id(id, titel, status)',
+      VIDEO_SELECT,
       'kooperation_id', koopIds,
       q => q.order('position', { ascending: true })
     ),
     batchIn(
       sb.from('creator'),
-      'id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, telefonnummer, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land',
+      CREATOR_SELECT,
       'id', creatorIds
     ),
     batchIn(
       sb.from('vertraege'),
-      'id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft, created_at',
+      VERTRAG_ZELLE_COLS,
       'kooperation_id', koopIds
     ),
     batchIn(
@@ -446,7 +310,8 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
       .select('kooperation_id, status')
       .in('kooperation_id', koopIds),
     CustomColumnDataLoader.loadCustomColumns(kampagneId),
-    CustomColumnDataLoader.loadColumnOrder(kampagneId)
+    CustomColumnDataLoader.loadColumnOrder(kampagneId),
+    ladeLivePosts(kampagneId, { isKunde })
   ]);
 
   const allVideos = videosResult.status === 'fulfilled' ? (videosResult.value.data || []) : [];
@@ -467,11 +332,13 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   creators.forEach(c => creatorsMap.set(c.id, c));
   store.setCreators(creatorsMap);
 
+  const vertraegeNachKoop = await vertraegeProKooperation(vertraege, koopIds, { columns: VERTRAG_ZELLE_COLS });
+
   kooperationen.forEach(koop => {
     if (koop.creator_id) {
       koop.creator = creatorsMap.get(koop.creator_id) || null;
     }
-    koop._vertraege = vertraege.filter(v => v.kooperation_id === koop.id);
+    koop._vertraege = vertraegeNachKoop.get(koop.id) || [];
     koop.status_name = koop.status_ref?.name || koop.status || '';
     koop._tags = allTags
       .filter(tag => tag.kooperation_id === koop.id)
@@ -479,7 +346,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
       .filter(Boolean);
   });
 
-  const videosByKoopId = {};
+  let videosByKoopId = {};
   allVideos.forEach(video => {
     if (!videosByKoopId[video.kooperation_id]) {
       videosByKoopId[video.kooperation_id] = [];
@@ -490,6 +357,17 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
       file_url: video.asset_url || null
     });
   });
+
+  try {
+    const { ideen, skripte } = await loadKonzeptInhalte(sb, {
+      kampagneId,
+      produktionId: scope.produktionId || null,
+      briefingId: scope.briefingId || null
+    });
+    videosByKoopId = zuordnenKonzeptInhalte(kooperationen, videosByKoopId, ideen, skripte);
+  } catch (e) {
+    console.warn('⚠️ KAMPAGNEDETAIL: Konzept-Inhalte konnten nicht zugeordnet werden:', e);
+  }
 
   const versandMap = {};
   versandInfos.forEach(info => {
@@ -513,6 +391,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
 
   store.setKooperationen(kooperationen);
   store.setVideos(videosByKoopId);
+  store.setLivePosts(livePostsResult.status === 'fulfilled' ? livePostsResult.value : []);
   store.setVideoComments({});
   store.setVersandInfos(versandMap);
   store.setCreatorAdressen(creatorAdressenMap);

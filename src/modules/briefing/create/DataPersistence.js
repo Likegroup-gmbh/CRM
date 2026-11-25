@@ -1,36 +1,65 @@
 // DataPersistence.js
-// Persistierung des Briefing-Generators: Draft speichern, Submit,
-// DB-Payload, Validierung, Laden. Sammelt Formulardaten generisch
-// anhand der Feld-Definitionen aus fieldConfig.js.
+// Formular -> formData -> DB-Payload für das Creator-Briefing (ADR 0073), plus Validierung.
+// Geschrieben werden nur die Felder aus briefingFelder.json. Altfelder bleiben in der
+// Zeile unberührt (v1 liest sie weiter). Speichern und Laden: BriefingSpeichern.js.
 
 import { BriefingCreate } from './BriefingCreateCore.js';
-import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
-import { starteBriefingAuswertung } from './BriefingAuswertung.js';
-import { loadBriefingProdukte, syncBriefingProdukte } from '../BriefingProdukte.js';
+import { getAllFields, inhaltsFelder, FLOW_STEPS, flattenFields } from './fieldConfig.js';
+import { videolaengeOderNull, mindestlaengeOderNull } from '../videolaenge.js';
+import { sekundenSpanneWert } from '../../../core/components/SekundenSpanne.js';
+import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';
+import { leiteBereichAb } from './bereichAbleiten.js';
+import { mirrorLegacyColumns } from '../briefingLegacy.js';
+import './BriefingSpeichern.js';
 
-function collectableFields() {
-  const fields = [];
-  for (const step of FLOW_STEPS) {
-    for (const section of step.sections) {
-      fields.push(...flattenFields(section.fields).filter(f => f.type !== 'disclosure'));
-    }
+export { mirrorLegacyColumns } from '../briefingLegacy.js';
+
+const ZUORDNUNG = FLOW_STEPS.flatMap(s => s.sections)
+  .filter(s => s.id === 'zuordnung')
+  .flatMap(s => flattenFields(s.fields));
+
+function leseVideolaenge(form, field) {
+  const root = form.querySelector(`[data-videolaenge="${field.name}"]`);
+  if (!root) return undefined;
+  const modus = root.querySelector(`input[name="${field.name}__modus"]:checked`)?.value || 'keine';
+  if (modus === 'minimum') {
+    return { modus, wert: mindestlaengeOderNull(root.querySelector(`[name="${field.name}__minimum"]`)?.value, null) };
   }
-  const seen = new Set();
-  return fields.filter(f => {
-    if (seen.has(f.name)) return false;
-    seen.add(f.name);
-    return true;
-  });
+  if (modus === 'bereich') {
+    return { modus, wert: sekundenSpanneWert(root.querySelector('[data-sekunden-spanne]')) };
+  }
+  return { modus, wert: null };
 }
 
-// ---------------------------------------------------------------
-// Formular -> formData (generisch ueber Feld-Schema)
-// ---------------------------------------------------------------
+function leseIdeen(form, field) {
+  const container = form.querySelector(`[data-ideenliste="${field.name}"]`);
+  if (!container) return undefined;
+  return [...container.querySelectorAll('[data-idee-row]')]
+    .map(row => ({
+      text: row.querySelector('[data-idee-text]')?.value.trim() || '',
+      verbindlich: !!row.querySelector('[data-idee-verbindlich]')?.checked
+    }))
+    .filter(e => e.text);
+}
+
+/** Produktzeilen wie im DOM, leere Zeilen ohne verknüpftes Produkt fallen weg. */
+export function leseProdukte(form, field) {
+  const container = form.querySelector(`[data-produktliste="${field.name}"]`);
+  if (!container) return undefined;
+  return [...container.querySelectorAll('[data-produkt-row]')].map((row) => {
+    const entry = { produkt_id: row.dataset.produktId || null };
+    for (const sub of field.fields || []) {
+      entry[sub.name] = row.querySelector(`[data-produkt-feld="${sub.name}"]`)?.value.trim() || '';
+    }
+    return entry;
+  }).filter(e => e.produkt_id || (field.fields || []).some(sub => e[sub.name]));
+}
+
 BriefingCreate.prototype.saveCurrentStepData = function() {
   const form = document.getElementById('briefing-form');
   if (!form) return;
 
-  for (const field of collectableFields()) {
+  for (const field of [...ZUORDNUNG, ...inhaltsFelder()]) {
     switch (field.type) {
       case 'checkbox': {
         const input = form.querySelector(`input[name="${field.name}"]`);
@@ -39,112 +68,30 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
       }
       case 'checkboxes': {
         const inputs = form.querySelectorAll(`input[name="${field.name}"]`);
-        if (inputs.length > 0) {
-          this.formData[field.name] = Array.from(inputs).filter(cb => cb.checked).map(cb => cb.value);
+        if (inputs.length) this.formData[field.name] = [...inputs].filter(cb => cb.checked).map(cb => cb.value);
+        break;
+      }
+      case 'videolaenge': {
+        const gelesen = leseVideolaenge(form, field);
+        if (gelesen) {
+          this.formData[field.name] = gelesen.wert;
+          this.formData[`${field.name}_modus`] = gelesen.modus;
         }
         break;
       }
-      case 'customMulti': {
-        const inputs = form.querySelectorAll(`input[name="${field.name}"]`);
-        const customInput = form.querySelector(`input[name="${field.name}__custom"]`);
-        if (inputs.length > 0 || customInput) {
-          const checked = Array.from(inputs).filter(cb => cb.checked).map(cb => cb.value);
-          const custom = (customInput?.value || '')
-            .split(',')
-            .map(v => v.trim())
-            .filter(Boolean);
-          this.formData[field.name] = [...checked, ...custom];
-        }
+      case 'ideenListe': {
+        const ideen = leseIdeen(form, field);
+        if (ideen) this.formData[field.name] = ideen;
         break;
       }
-      case 'group': {
-        const firstSub = form.querySelector(`[name="${field.name}__${field.fields[0].name}"]`);
-        if (firstSub) {
-          const obj = {};
-          for (const sub of field.fields) {
-            const input = form.querySelector(`[name="${field.name}__${sub.name}"]`);
-            obj[sub.name] = input?.value || '';
-          }
-          this.formData[field.name] = obj;
-        }
+      case 'produktListe': {
+        const produkte = leseProdukte(form, field);
+        if (produkte) this.formData[field.name] = produkte;
         break;
       }
-      case 'channelGroup': {
-        const anyChannel = form.querySelector(`[name^="${field.name}__"]`);
-        if (anyChannel) {
-          const obj = {};
-          for (const channel of field.channels) {
-            const inputs = form.querySelectorAll(`input[name="${field.name}__${channel.key}"]`);
-            if (!channel.formats) {
-              const toggle = form.querySelector(`input[name="${field.name}__${channel.key}"]`);
-              if (toggle) obj[channel.key] = toggle.checked;
-            } else if (inputs.length > 0) {
-              obj[channel.key] = Array.from(inputs).filter(cb => cb.checked).map(cb => cb.value);
-            }
-          }
-          const weitere = form.querySelector(`input[name="${field.name}__weitere"]`);
-          if (weitere && weitere.value.trim()) obj.weitere = weitere.value.trim();
-          this.formData[field.name] = obj;
-        }
-        break;
-      }
-      case 'repeatableKpi': {
-        const container = form.querySelector(`[data-repeatable="${field.name}"]`);
-        if (container) {
-          this.formData[field.name] = Array.from(container.querySelectorAll('[data-repeatable-row]'))
-            .map(row => ({
-              kpi: row.querySelector('[data-kpi]')?.value || '',
-              zielwert: row.querySelector('[data-zielwert]')?.value || ''
-            }))
-            .filter(entry => entry.kpi || entry.zielwert);
-        }
-        break;
-      }
-      case 'repeatableText': {
-        const container = form.querySelector(`[data-repeatable="${field.name}"]`);
-        if (container) {
-          this.formData[field.name] = Array.from(container.querySelectorAll('[data-item]'))
-            .map(input => input.value.trim())
-            .filter(Boolean);
-        }
-        break;
-      }
-      case 'repeatableUpload': {
-        const container = form.querySelector(`[data-repeatable="${field.name}"]`);
-        if (container) {
-          this.formData[field.name] = Array.from(container.querySelectorAll('[data-repeatable-row]'))
-            .map(row => {
-              const typ = row.querySelector('[data-typ]')?.value || 'url';
-              if (typ === 'upload') {
-                return {
-                  typ,
-                  value: row.querySelector('[data-value]')?.value || '',
-                  label: row.querySelector('[data-label]')?.value || ''
-                };
-              }
-              return { typ, value: row.querySelector('[data-url]')?.value.trim() || '' };
-            })
-            .filter(entry => entry.value);
-        }
-        break;
-      }
-      case 'radio': {
-        const checked = form.querySelector(`input[name="${field.name}"]:checked`);
-        if (checked) {
-          this.formData[field.name] = checked.value === 'true' ? true : checked.value === 'false' ? false : checked.value;
-        } else if (form.querySelector(`input[name="${field.name}"]`)) {
-          this.formData[field.name] = null;
-        }
-        break;
-      }
-      case 'entityMulti': {
-        const select = form.querySelector(`#${field.name}_hidden`)
-          || form.querySelector(`select[name="${field.name}[]"]`)
-          || form.querySelector(`[data-entity-multi="${field.name}"] select[multiple]`)
-          || form.querySelector(`select#${field.name}`);
-        if (select) {
-          this.formData[field.name] = Array.from(select.selectedOptions).map(o => o.value);
-        }
+      case 'date': {
+        const input = form.querySelector(`[name="${field.name}"]`);
+        if (input) this.formData[field.name] = CustomDatePicker.getValue(input);
         break;
       }
       default: {
@@ -157,69 +104,72 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
   if (this.selectedBereich && !this.formData.bereich) {
     this.formData.bereich = this.selectedBereich;
   }
-
-  const produktSelect = form.querySelector('#produkt_ids_hidden')
-    || form.querySelector('select[name="produkt_ids[]"]')
-    || form.querySelector('[data-entity-multi="produkt_ids"] select[multiple]')
-    || form.querySelector('select#produkt_ids');
-  if (produktSelect) {
-    this.formData.produkt_ids = Array.from(produktSelect.selectedOptions).map(o => o.value);
-  }
-
-  if (this.formData.ohne_produkt) this.formData.produkt_ids = [];
-  if (this.formData.ohne_persona) this.formData.persona_ids = [];
 };
 
-// ---------------------------------------------------------------
-// formData -> DB-Payload
-// ---------------------------------------------------------------
-BriefingCreate.prototype.prepareDataForDB = function() {
-  const bereich = this.formData.bereich || this.selectedBereich;
+// Briefing-Name = Kampagnentitel. Leer und noch nie gesetzt fällt auf den
+// Kampagnennamen zurück (ADR 0041). Ein geleertes Feld bleibt leer.
+BriefingCreate.prototype.resolveBriefingName = function() {
+  const roh = this.formData.aktivierung_name;
+  const gesetzt = String(roh || '').trim();
+  if (gesetzt) return gesetzt;
+  if (roh !== undefined && roh !== null) return null;
+  const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
+  const kampagne = (this.kampagnen || []).find(k => k.id === kampagneId);
+  return String(kampagne?.kampagnenname || '').trim() || null;
+};
 
+function textOderNull(value) {
+  const s = typeof value === 'string' ? value.trim() : value;
+  return s === '' || s === undefined ? null : s;
+}
+
+/** Umsetzungsideen als [{ text, verbindlich }], leer: null. */
+export function ideenFuerDB(value) {
+  if (!Array.isArray(value)) return null;
+  const eintraege = value
+    .map(e => ({ text: String((typeof e === 'string' ? e : e?.text) ?? '').trim(), verbindlich: e?.verbindlich === true }))
+    .filter(e => e.text);
+  return eintraege.length ? eintraege : null;
+}
+
+BriefingCreate.prototype.prepareDataForDB = function() {
   const data = {
-    bereich,
     unternehmen_id: this.formData.unternehmen_id || null,
-    marke_id: this.formData.marke_id || null,
-    assignee_id: this.formData.assignee_id || null
+    marke_id: this.formData.marke_id || null
   };
 
   for (const field of getAllFields()) {
-    if (!isFieldActive(field.name, { ...this.formData, bereich })) {
-      data[field.name] = defaultForField(field);
-      continue;
-    }
-
-    let value = this.formData[field.name];
-
+    const value = this.formData[field.name];
     switch (field.type) {
       case 'checkbox':
         data[field.name] = value === true;
         break;
       case 'checkboxes':
-      case 'customMulti':
-      case 'entityMulti':
-        data[field.name] = Array.isArray(value) && value.length ? value : (field.name === 'persona_ids' ? [] : null);
-        break;
-      case 'group':
-      case 'channelGroup':
-        data[field.name] = value && Object.keys(value).length ? value : null;
-        break;
-      case 'repeatableKpi':
-      case 'repeatableText':
-      case 'repeatableUpload':
         data[field.name] = Array.isArray(value) && value.length ? value : null;
         break;
-      case 'radio':
-        data[field.name] = isBooleanRadio(field)
-          ? value === true
-          : ((value === '' || value === undefined) ? null : value);
+      case 'videolaenge': {
+        const laenge = videolaengeOderNull(value?.von, value?.bis);
+        data.videolaenge_von = laenge?.von ?? null;
+        data.videolaenge_bis = laenge?.bis ?? null;
         break;
+      }
+      case 'ideenListe':
+        data[field.name] = ideenFuerDB(value);
+        break;
+      case 'date': {
+        const datum = textOderNull(value);
+        const start = field.nachDatum ? data[field.nachDatum] : null;
+        data[field.name] = field.nachDatum && (!start || !datum || datum < start) ? null : datum;
+        break;
+      }
       default:
-        data[field.name] = (value === '' || value === undefined) ? null : value;
+        data[field.name] = textOderNull(value) ?? null;
     }
   }
 
-  mirrorLegacyColumns(data, bereich);
+  data.bereich = leiteBereichAb(data, this.formData.bereich || this.selectedBereich);
+  data.aktivierung_name = this.resolveBriefingName();
+  mirrorLegacyColumns(data, data.bereich);
   return data;
 };
 
@@ -228,245 +178,38 @@ export function isBooleanRadio(field) {
   return field.type === 'radio'
     && Array.isArray(field.options) && field.options.length > 0
     && field.options.every(o => o.value === 'true' || o.value === 'false');
-};
-
-function defaultForField(field) {
-  switch (field.type) {
-    case 'checkbox': return false;
-    case 'radio': return isBooleanRadio(field) ? false : null;
-    case 'checkboxes':
-    case 'customMulti': return null;
-    case 'entityMulti': return field.name === 'persona_ids' ? [] : null;
-    case 'group':
-    case 'channelGroup':
-    case 'repeatableKpi':
-    case 'repeatableText':
-    case 'repeatableUpload': return null;
-    default: return null;
-  }
 }
 
-function mirrorLegacyColumns(data, bereich) {
-  const prefix = { influencer_marketing: 'im_', paid_creator_ads: 'pa_', owned_social: 'os_' }[bereich];
-  if (!prefix) return;
-  data[`${prefix}nischen`] = data.nischen || null;
-  data[`${prefix}creator_groessen`] = data.creator_groessen || null;
-  data[`${prefix}creator_merkmale`] = data.creator_merkmale || null;
-  data[`${prefix}voraussetzungen`] = data.voraussetzungen || null;
-  data[`${prefix}voraussetzungen_custom`] = data.produkt_erfahrung || null;
-  data[`${prefix}umsetzung`] = data.aufgabe || null;
-  data[`${prefix}situationen`] = data.setting || null;
-  if (bereich === 'paid_creator_ads') {
-    data.pa_channels = data.ad_channels || null;
-    data.pa_funnel_stufen = data.funnel_stufen || null;
-    data.pa_objectives = data.paid_objectives || null;
-    data.pa_ziel_url = data.ziel_url || null;
-    data.pa_videolaengen = data.videolaengen || null;
-  } else if (bereich === 'owned_social') {
-    data.os_channels = data.publish_channels || null;
-    data.os_content_ziele = data.content_ziele || null;
-  } else {
-    data.im_channels = data.publish_channels || null;
-  }
-}
-
-// ---------------------------------------------------------------
-// Validierung (nur sichtbare Pflichtfelder)
-// ---------------------------------------------------------------
 BriefingCreate.prototype.validateCurrentStep = function() {
   const form = document.getElementById('briefing-form');
   if (!form) return true;
 
-  const requiredFields = form.querySelectorAll('[required]');
-  for (const field of requiredFields) {
-    if (field.closest('.hidden')) continue; // conditional-ausgeblendete Felder ignorieren
-    if (!field.value) {
+  for (const field of form.querySelectorAll('[required]')) {
+    if (field.closest('.hidden') || field.disabled) continue;
+    const wert = field.closest('[data-custom-datepicker]') ? CustomDatePicker.getValue(field) : field.value;
+    if (!wert) {
       field.focus();
       window.toastSystem?.show('Bitte füllen Sie alle Pflichtfelder aus.', 'warning');
       return false;
     }
   }
+  if (form.querySelector('[data-group="content-verwendung"]')) {
+    const gesetzt = [...form.querySelectorAll('[data-group="content-verwendung"] input[type="checkbox"]')]
+      .some(cb => cb.checked);
+    if (!gesetzt) {
+      window.toastSystem?.show('Bitte angeben, wie der Content verwendet wird.', 'warning');
+      return false;
+    }
+  }
+  for (const bis of form.querySelectorAll('input[data-nach-datum]')) {
+    const startInput = form.querySelector(`input[name="${bis.dataset.nachDatum}"]`);
+    const start = CustomDatePicker.getValue(startInput);
+    const bisWert = CustomDatePicker.getValue(bis);
+    if (bis.value && (!start || !bisWert || bisWert < start)) {
+      bis.focus();
+      window.toastSystem?.show('Das „bis“-Datum braucht ein Startdatum davor.', 'warning');
+      return false;
+    }
+  }
   return true;
-};
-
-// ---------------------------------------------------------------
-// Draft / Submit / Load
-// ---------------------------------------------------------------
-BriefingCreate.prototype.saveDraftToDB = async function() {
-  this.saveCurrentStepData();
-
-  const saveDraftBtn = document.getElementById('btn-save-draft');
-  const saveDraftLabel = saveDraftBtn?.querySelector('.btn-label');
-  if (saveDraftBtn) {
-    saveDraftBtn.disabled = true;
-    if (saveDraftLabel) saveDraftLabel.textContent = 'Speichert...';
-  }
-
-  try {
-    await this.persistDraft();
-    window.toastSystem?.show(this.editId ? 'Entwurf aktualisiert!' : 'Entwurf gespeichert!', 'success');
-    setTimeout(() => {
-      window.navigateTo('/briefing');
-    }, 500);
-  } catch (error) {
-    console.error('Fehler beim Speichern des Entwurfs:', error);
-    window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
-  } finally {
-    if (saveDraftBtn) {
-      saveDraftBtn.disabled = false;
-      if (saveDraftLabel) saveDraftLabel.textContent = 'Als Entwurf speichern';
-    }
-  }
-};
-
-/**
- * Interner Draft ohne Toast und ohne Navigation. Wird vom Liky-Panel
- * aufgerufen, wenn das erste Kundenbriefing hereinkommt und noch keine
- * Briefing-ID existiert.
- */
-BriefingCreate.prototype.persistDraft = async function() {
-  const data = this.prepareDataForDB();
-  data.is_draft = true;
-
-  if (this.editId) {
-    const { error } = await window.supabase
-      .from('campaign_briefings')
-      .update(data)
-      .eq('id', this.editId);
-    if (error) throw error;
-    await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
-    return this.editId;
-  }
-
-  const { data: created, error } = await window.supabase
-    .from('campaign_briefings')
-    .insert([data])
-    .select()
-    .single();
-  if (error) throw error;
-  this.editId = created.id;
-  await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
-  return created.id;
-};
-
-BriefingCreate.prototype.handleSubmit = async function() {
-  if (!this.validateCurrentStep()) return;
-  this.saveCurrentStepData();
-
-  if (!this.formData.unternehmen_id) {
-    window.toastSystem?.show('Bitte ein Unternehmen zuordnen (Schritt Grundlage).', 'warning');
-    return;
-  }
-  if (!this.formData.aktivierung_name) {
-    window.toastSystem?.show('Bitte einen Titel vergeben (Schritt Grundlage).', 'warning');
-    return;
-  }
-  if (this.formData.ohne_produkt) {
-    this.formData.produkt_ids = [];
-  } else if (!this.formData.produkt_ids?.length) {
-    window.toastSystem?.show('Bitte mindestens ein Produkt zuordnen.', 'warning');
-    return;
-  }
-  if (this.formData.ohne_persona) {
-    this.formData.persona_ids = [];
-  } else if (!this.formData.persona_ids?.length) {
-    window.toastSystem?.show('Bitte mindestens eine Persona zuordnen.', 'warning');
-    return;
-  }
-
-  const submitBtn = document.getElementById('btn-submit');
-  const isEdit = !!this.editId;
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = isEdit ? 'Wird aktualisiert...' : 'Wird erstellt...';
-  }
-
-  try {
-    const data = this.prepareDataForDB();
-    data.is_draft = false;
-
-    if (this.editId) {
-      const { error } = await window.supabase
-        .from('campaign_briefings')
-        .update(data)
-        .eq('id', this.editId);
-      if (error) throw error;
-    } else {
-      const { data: created, error } = await window.supabase
-        .from('campaign_briefings')
-        .insert([data])
-        .select('id')
-        .single();
-      if (error) throw error;
-      this.editId = created.id;
-    }
-
-    await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
-
-    let auswertungOk = false;
-    try {
-      await starteBriefingAuswertung({ briefingId: this.editId });
-      auswertungOk = true;
-    } catch (auswertungError) {
-      console.warn('KI-Auswertung:', auswertungError);
-    }
-
-    window.toastSystem?.show(
-      auswertungOk
-        ? 'Briefing gespeichert – KI-Auswertung läuft im Hintergrund'
-        : (isEdit ? 'Briefing aktualisiert!' : 'Briefing erfolgreich erstellt!'),
-      'success'
-    );
-
-    setTimeout(() => {
-      window.navigateTo('/briefing');
-    }, 500);
-  } catch (error) {
-    console.error('Fehler beim Speichern:', error);
-    window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = isEdit ? 'Briefing aktualisieren' : 'Briefing erstellen';
-    }
-  }
-};
-
-BriefingCreate.prototype.loadFromDB = async function(id) {
-  try {
-    const { data: briefing, error } = await window.supabase
-      .from('campaign_briefings')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) throw error;
-    if (!briefing) return;
-
-    // Alle bekannten Felder uebernehmen (Spaltennamen == formData-Keys)
-    this.formData = {};
-    for (const field of getAllFields()) {
-      if (briefing[field.name] !== undefined && briefing[field.name] !== null) {
-        this.formData[field.name] = briefing[field.name];
-      }
-    }
-    this.formData.bereich = briefing.bereich;
-    this.formData.unternehmen_id = briefing.unternehmen_id;
-    this.formData.marke_id = briefing.marke_id;
-    this.formData.assignee_id = briefing.assignee_id;
-    this.formData.persona_ids = briefing.persona_ids || [];
-
-    const produkte = await loadBriefingProdukte(id);
-    this.formData.produkt_ids = produkte.map(p => p.id);
-    this.formData.ohne_produkt = !this.formData.produkt_ids.length;
-    this.formData.ohne_persona = !this.formData.persona_ids.length;
-    await this.refreshProdukte();
-    await this.refreshPersonas();
-
-    this.selectedBereich = briefing.bereich;
-    this.isGenerated = true;
-    this.currentStep = 2;
-  } catch (error) {
-    console.error('Fehler beim Laden des Briefings:', error);
-    window.toastSystem?.show('Briefing konnte nicht geladen werden', 'error');
-  }
 };

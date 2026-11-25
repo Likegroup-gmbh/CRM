@@ -2,6 +2,7 @@
 // Shared helper for Agency Fee calculation incl. EK/VK margin aggregation.
 
 import { summeKskSelbstzahler, berechneKskBetrag, KSK_SATZ_PROZENT } from './kskSelbstzahler.js';
+import { CARD_HINTS, renderSummaryLabelHtml } from './cardHints.js';
 
 export function isFilledPrice(value) {
   const n = parseFloat(value);
@@ -14,7 +15,7 @@ export function isFilledPrice(value) {
  * werden aus dem KSK-Topf ins Creator-Budget umgebucht und erhoehen die Basis.
  */
 export function berechneVerfuegbaresBudget(auftrag, kooperationen = []) {
-  const basis = parseFloat(auftrag?.creator_budget ?? auftrag?.gesamt_budget ?? auftrag?.nettobetrag) || 0;
+  const basis = parseFloat(auftrag?.creator_budget ?? auftrag?.nettobetrag) || 0;
   const umgebucht = summeKskSelbstzahler(kooperationen);
   return { basis, umgebucht, verfuegbar: basis + umgebucht };
 }
@@ -137,7 +138,7 @@ export function resolveAgencyFeeForViewer(summary, canSeePricing) {
 /**
  * Renders the Agency Fee breakdown lines (always both rows).
  */
-export function renderAgencyFeeBreakdownHtml(summary, formatCurrency, { dataAttrs = false } = {}) {
+export function renderAgencyFeeBreakdownHtml(summary, formatCurrency, { dataAttrs = false, hideEkVk = false } = {}) {
   const baseAttr = dataAttrs ? ' data-summary-value="agentur-fee-base"' : '';
   const marginAttr = dataAttrs ? ' data-summary-value="agentur-fee-margin"' : '';
 
@@ -146,11 +147,11 @@ export function renderAgencyFeeBreakdownHtml(summary, formatCurrency, { dataAttr
         <div class="summary-card-breakdown-line">
           <span>Festgelegt</span>
           <span${baseAttr}>${formatCurrency(summary.baseFee)}</span>
-        </div>
+        </div>${hideEkVk ? '' : `
         <div class="summary-card-breakdown-line">
           <span>EK/VK-Differenz</span>
           <span${marginAttr}>${formatCurrency(summary.ekVkMargin)}</span>
-        </div>
+        </div>`}
       </div>`;
 }
 
@@ -160,7 +161,7 @@ export function renderAgencyFeeBreakdownHtml(summary, formatCurrency, { dataAttr
  * @param {function} formatCurrency
  * @param {{ dataAttrs?: boolean, canSeePricing?: boolean }} options
  */
-export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = false, canSeePricing = true } = {}) {
+export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = false, canSeePricing = true, hideEkVk = false } = {}) {
   const resolved = resolveAgencyFeeForViewer(summary, canSeePricing);
   if (!resolved.showAgencyFeeCard) return '';
 
@@ -170,8 +171,8 @@ export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = f
   return `
     <div class="summary-card"${cardAttr}>
       <div class="summary-value"${totalAttr}>${formatCurrency(resolved.total)}</div>
-      <div class="summary-label">Agenturanteil</div>
-      ${canSeePricing ? renderAgencyFeeBreakdownHtml(resolved, formatCurrency, { dataAttrs }) : ''}
+      ${renderSummaryLabelHtml('Agenturanteil', canSeePricing && !hideEkVk ? CARD_HINTS.agentur : null)}
+      ${canSeePricing ? renderAgencyFeeBreakdownHtml(resolved, formatCurrency, { dataAttrs, hideEkVk }) : ''}
     </div>`;
 }
 
@@ -218,7 +219,7 @@ export function renderCreatorAnteilCardHtml(creatorAnteil, payment, formatCurren
   return `
     <div class="summary-card"${cardAttr}>
       <div class="summary-value"${totalAttr}>${formatCurrency(total)}</div>
-      <div class="summary-label">${label}</div>
+      ${renderSummaryLabelHtml(label, CARD_HINTS.creator)}
       <div class="summary-card-breakdown">
         <div class="summary-card-breakdown-line">
           <span>Bezahlt</span>
@@ -264,7 +265,7 @@ export function renderKskCardHtml(summary, formatCurrency) {
     return `
     <div class="summary-card">
       <div class="summary-value">${formatCurrency(summary.kskValue)}</div>
-      <div class="summary-label">KSK</div>
+      ${renderSummaryLabelHtml('KSK', CARD_HINTS.ksk)}
       <div class="summary-card-breakdown">
         <div class="summary-card-breakdown-line">
           <span>${satzAnzeige} % vom Creator-Anteil</span>
@@ -294,7 +295,7 @@ export function renderKskCardHtml(summary, formatCurrency) {
   return `
     <div class="summary-card">
       <div class="summary-value">${formatCurrency(summary.kskValue)}</div>
-      <div class="summary-label">KSK</div>
+      ${renderSummaryLabelHtml('KSK', CARD_HINTS.ksk)}
       ${breakdown}
     </div>`;
 }

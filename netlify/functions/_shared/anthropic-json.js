@@ -1,0 +1,215 @@
+// _shared/anthropic-json.js
+// JSON aus Modell-Antworten bergen, wenn kein Tool-Call kam: Fences und Text drumherum, kaputtes
+// Quoting, Tool-XML. Aus anthropic.js herausgeloest; dort weiter exportiert, damit bestehende
+// Imports gleich bleiben.
+
+/**
+ * Repariert die typischen Fehler, die Modelle beim Schreiben von JSON-Text
+ * machen: unescapte Anfuehrungszeichen und rohe Zeilenumbrueche in Werten.
+ *
+ * Struktur-bewusster Automat statt reinem Lookahead: er fuehrt mit, ob der
+ * aktuelle String ein Key oder ein Value ist und in welchem Container
+ * (Objekt/Array) er steht. Ein " beendet den String nur, wenn an dieser
+ * Position auch strukturell ein String enden darf:
+ * - Key: danach muss ein Doppelpunkt kommen
+ * - Value: danach Komma oder der Closer des AKTUELLEN Containers
+ *   ('}' im Objekt, ']' im Array - ein ']' mitten im Objekt-Value wie in
+ *   '[Overlay: "Nur heute"]' ist damit kein String-Ende mehr)
+ * - nach einem Komma im Objekt muss ein Key folgen; ist knownKeys gesetzt,
+ *   zaehlt nur ein erwarteter Key (loest 'sagte "Hallo", "Tschuess": ...' auf)
+ */
+function repairJsonStrings(src, knownKeys = []) {
+  const keySet = new Set(knownKeys);
+  let out = '';
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+  let stringIsKey = false;
+  let expectKey = false;
+
+  const endsKey = (rest) => /^\s*:/.test(rest);
+
+  const endsValue = (rest) => {
+    // Abgeschnittene Antwort: Ende der Eingabe als String-Ende akzeptieren
+    if (/^\s*$/.test(rest)) return true;
+    const container = stack[stack.length - 1];
+    const closer = container === '[' ? ']' : '}';
+    if (rest.trimStart().startsWith(closer)) return true;
+    const comma = rest.match(/^\s*,\s*/);
+    if (!comma) return false;
+    const after = rest.slice(comma[0].length);
+    if (container === '[') {
+      // Naechstes Array-Element muss ein Wert-Anfang sein
+      return /^["{[\d\-tfn]/.test(after) || after.startsWith(']');
+    }
+    // Objekt: nach dem Komma muss ein Key folgen
+    const key = after.match(/^"([^"\\]*)"\s*:/);
+    if (!key) return false;
+    return keySet.size === 0 || keySet.has(key[1]);
+  };
+
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+
+    if (!inString) {
+      out += ch;
+      if (ch === '"') {
+        inString = true;
+        stringIsKey = stack[stack.length - 1] === '{' && expectKey;
+      } else if (ch === '{') { stack.push('{'); expectKey = true; }
+      else if (ch === '[') { stack.push('['); }
+      else if (ch === '}' || ch === ']') { stack.pop(); }
+      else if (ch === ':') { expectKey = false; }
+      else if (ch === ',') { expectKey = stack[stack.length - 1] === '{'; }
+      continue;
+    }
+    if (escaped) { out += ch; escaped = false; continue; }
+    if (ch === '\\') { out += ch; escaped = true; continue; }
+
+    if (ch === '"') {
+      const rest = src.slice(i + 1);
+      if (stringIsKey ? endsKey(rest) : endsValue(rest)) {
+        out += ch;
+        inString = false;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    if (ch === '\n') { out += '\\n'; continue; }
+    if (ch === '\r') { out += '\\r'; continue; }
+    if (ch === '\t') { out += '\\t'; continue; }
+    out += ch;
+  }
+
+  return out;
+}
+
+/**
+ * Letzte Rettung fuer flache Objekte mit bekannten Feldern: die Werte werden
+ * zwischen den "key":-Markern herausgeschnitten, statt das JSON zu parsen.
+ * Funktioniert auch bei hoffnungslos kaputtem Quoting, solange die Feldnamen
+ * selbst intakt sind. Gibt null zurueck, wenn kein Marker gefunden wurde.
+ */
+function extractByKeys(raw, keys) {
+  if (!keys || !keys.length) return null;
+
+  const marker = [];
+  for (const key of keys) {
+    const m = raw.match(new RegExp(`"${key}"\\s*:\\s*`));
+    if (m) marker.push({ key, start: m.index, valueStart: m.index + m[0].length });
+  }
+  if (!marker.length) return null;
+  marker.sort((a, b) => a.start - b.start);
+
+  const result = {};
+  for (let i = 0; i < marker.length; i++) {
+    const { key, valueStart } = marker[i];
+    const end = i + 1 < marker.length ? marker[i + 1].start : raw.length;
+    let segment = raw.slice(valueStart, end).trim();
+    // Trenner zum naechsten Feld bzw. die schliessende Klammer abschneiden
+    if (i === marker.length - 1) segment = segment.replace(/\}\s*$/, '');
+    segment = segment.replace(/,\s*$/, '').trim();
+
+    if (segment.startsWith('"')) {
+      let text = segment.slice(1);
+      if (text.endsWith('"')) text = text.slice(0, -1);
+      result[key] = text
+        .replace(/\\"/g, '"')
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\\\/g, '\\');
+    } else if (segment === 'null') {
+      result[key] = null;
+    } else if (segment === 'true' || segment === 'false') {
+      result[key] = segment === 'true';
+    } else if (segment !== '' && !Number.isNaN(Number(segment))) {
+      result[key] = Number(segment);
+    } else {
+      result[key] = segment || null;
+    }
+  }
+  return result;
+}
+
+/**
+ * Fallback fuer Anthropic-Tool-XML, wenn das Modell trotz tool_choice
+ * als Text dump't: <parameter name="feld">…</parameter> oder <feld>…</feld>.
+ */
+function extractXmlParameters(raw, keys) {
+  if (!raw || !keys?.length) return null;
+  const result = {};
+  for (const key of keys) {
+    const param = raw.match(new RegExp(
+      `<parameter\\s+name="${key}"\\s*>([\\s\\S]*?)(?:</parameter>|<(?:parameter|function)\\b)`,
+      'i'
+    ));
+    if (param) {
+      result[key] = param[1].trim();
+      continue;
+    }
+    const tag = raw.match(new RegExp(`<${key}>([\\s\\S]*?)</${key}>`, 'i'));
+    if (tag) result[key] = tag[1].trim();
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+/**
+ * Extrahiert ein JSON-Objekt aus einer Modell-Antwort
+ * (tolerant gegenueber ```json-Fences und Text drumherum).
+ * Scheitert das strikte Parsen, wird ein Reparaturlauf versucht - Modelle
+ * escapen Anfuehrungszeichen in laengeren deutschen Texten regelmaessig nicht.
+ * Optionen:
+ * - keys: erwartete Feldnamen des Schemas. Schaerft die Reparatur-Heuristik
+ *   und aktiviert die Feld-Extraktion als letzte Fallback-Schicht.
+ * - onWarn: Callback fuer Diagnose-Meldungen (z.B. job.log), damit stille
+ *   Reparaturen und Rohantworten nicht nur in den Netlify-Logs landen.
+ */
+function extractJson(text, { keys = [], onWarn } = {}) {
+  const warn = (msg) => {
+    console.warn(`[extractJson] ${msg}`);
+    if (onWarn) { try { onWarn(msg); } catch (_) { /* Diagnose darf nie werfen */ } }
+  };
+
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced ? fenced[1] : text;
+  const start = candidate.indexOf('{');
+  const end = candidate.lastIndexOf('}');
+  if (start === -1 || end === -1) {
+    const xml = extractXmlParameters(candidate, keys);
+    if (xml) {
+      warn('Hinweis: KI-Antwort als Tool-XML geborgen');
+      return xml;
+    }
+    throw new Error('Keine JSON-Struktur in der Antwort gefunden');
+  }
+  const raw = candidate.slice(start, end + 1);
+
+  try {
+    return JSON.parse(raw);
+  } catch (strictError) {
+    try {
+      const parsed = JSON.parse(repairJsonStrings(raw, keys));
+      warn(`Hinweis: KI-Antwort war kein valides JSON, automatisch repariert (${strictError.message})`);
+      return parsed;
+    } catch (_) {
+      const geborgen = extractByKeys(raw, keys);
+      if (geborgen && Object.keys(geborgen).length) {
+        warn(`Hinweis: KI-Antwort per Feld-Extraktion geborgen (${strictError.message})`);
+        return geborgen;
+      }
+      const xml = extractXmlParameters(candidate, keys);
+      if (xml) {
+        warn(`Hinweis: KI-Antwort als Tool-XML geborgen (${strictError.message})`);
+        return xml;
+      }
+      console.error(`[extractJson] Antwort nicht parsebar (${strictError.message}). Rohantwort: ${raw.slice(0, 600)}`);
+      if (onWarn) {
+        try { onWarn(`Rohantwort (gekuerzt): ${raw.slice(0, 800)}`); } catch (_) { /* noop */ }
+      }
+      throw strictError;
+    }
+  }
+}
+
+module.exports = { extractJson, repairJsonStrings, extractByKeys, extractXmlParameters };

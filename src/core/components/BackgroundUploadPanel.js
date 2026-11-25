@@ -242,6 +242,7 @@ export class BackgroundUploadPanel {
     if (job.kind === 'video-replace') return 'Video ersetzen';
     if (job.kind === 'custom') return `Datei${job.items.length > 1 ? `en (${job.items.length})` : ''}`;
     if (job.kind === 'custom-replace') return 'Datei ersetzen';
+    if (job.kind === 'rohmaterial') return `Rohmaterial${job.items.length > 1 ? ` (${job.items.length})` : ''}`;
     return `Video${job.items.length > 1 ? `s (${job.items.length})` : ''}`;
   }
 
@@ -251,15 +252,6 @@ export class BackgroundUploadPanel {
     const durMs = itemDurationMs(item);
     const durText = fmtDuration(durMs);
     const speedText = fmtSpeed(item);
-    let transportBadge = '';
-    if (item.transport === 'direct') {
-      transportBadge = '<span class="bg-upload-transport bg-upload-transport--direct" title="Direkt zu Dropbox">Direct</span>';
-    } else if (item.transport === 'proxy') {
-      transportBadge = '<span class="bg-upload-transport bg-upload-transport--proxy" title="Fallback ueber Netlify-Proxy (langsamer)">Proxy</span>';
-    }
-    const directWarn = item.directOk === false
-      ? `<div class="bg-upload-direct-warn">Direct fehlgeschlagen${item.directError ? `: ${escapeHtml(item.directError)}` : ''}. Upload laeuft ueber Proxy weiter.</div>`
-      : '';
     return `
       <div class="bg-upload-item bg-upload-item--${item.status}" data-item-id="${item.id}">
         <div class="bg-upload-item-row">
@@ -275,12 +267,10 @@ export class BackgroundUploadPanel {
         <div class="bg-upload-item-status">
           <span>${escapeHtml(statusLabel)}${item.error ? ` — ${escapeHtml(item.error)}` : ''}</span>
           <span class="bg-upload-item-stats">
-            ${transportBadge}
             <span class="bg-upload-item-speed">${speedText}</span>
             <span class="bg-upload-item-duration">${durText}</span>
           </span>
         </div>
-        ${directWarn}
       </div>
     `;
   }

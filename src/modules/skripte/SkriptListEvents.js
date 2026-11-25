@@ -35,7 +35,7 @@ export function bindEvents(list) {
 
   on(document.getElementById('btn-back-to-brands'), 'click', (e) => {
     e.preventDefault();
-    list.switchToBrandsView(list.currentUnternehmenId, list.currentUnternehmenName);
+    list.backFromMarken();
   });
 
   on(document.getElementById('btn-back-to-campaigns'), 'click', (e) => {
@@ -87,13 +87,6 @@ export function bindEvents(list) {
       e.preventDefault();
       if (window.isKunde?.()) return;
       openSkriptCreateDrawer();
-      return;
-    }
-
-    const dnaLink = e.target.closest('a[href="/skripte/dna"]');
-    if (dnaLink) {
-      e.preventDefault();
-      window.navigateTo('/skripte/dna');
       return;
     }
 

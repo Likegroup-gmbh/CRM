@@ -7,6 +7,8 @@
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PersonaService } from './PersonaService.js';
+import { renderTabellenTag, renderMarkenBubbles } from '../../core/ui/tabellenZellen.js';
+import { renderVerknuepfungen, acceptedProduktLinks } from '../../core/ui/tableVerknuepfungen.js';
 
 const CREATE_BTN_HTML = '<button type="button" class="mdc-btn mdc-btn--create persona-create-btn">Persona anlegen</button>';
 
@@ -15,16 +17,8 @@ function zeigtMarkenSpalte(detail) {
   return !detail.markeId;
 }
 
-function renderMarkenZellen(detail, persona) {
-  const namen = PersonaService.markenNamen(persona);
-  if (!namen.length) return '<span class="text-muted">Nur Unternehmen</span>';
-  return namen.map(name => `<span class="status-badge">${detail.sanitize(name)}</span>`).join(' ');
-}
-
-function renderProduktZellen(detail, persona) {
-  const namen = PersonaService.produktNamen(persona);
-  if (!namen.length) return '<span class="text-muted">-</span>';
-  return namen.map(name => `<span class="status-badge">${detail.sanitize(name)}</span>`).join(' ');
+function renderProduktZellen(persona) {
+  return renderVerknuepfungen(acceptedProduktLinks(persona.produkte));
 }
 
 export function renderPersonas(detail) {
@@ -51,13 +45,13 @@ export function renderPersonas(detail) {
         </a>
       </td>
       <td>${detail.sanitize(persona.name)}</td>
-      ${mitMarken ? `<td>${renderMarkenZellen(detail, persona)}</td>` : ''}
-      <td>${renderProduktZellen(detail, persona)}</td>
-      <td>${detail.sanitize(PersonaService.alterLabel(persona))}</td>
-      <td>${detail.sanitize(persona.geschlecht || '-')}</td>
+      ${mitMarken ? `<td>${renderMarkenBubbles(persona.marken)}</td>` : ''}
+      <td>${renderProduktZellen(persona)}</td>
+      <td>${renderTabellenTag(PersonaService.alterLabel(persona), (t) => detail.sanitize(t))}</td>
+      <td>${renderTabellenTag(persona.geschlecht, (t) => detail.sanitize(t))}</td>
       <td>${detail.sanitize(persona.wohnort_region || '-')}</td>
       <td>${detail.sanitize(persona.lebenssituation || '-')}</td>
-      <td>${detail.formatDate(persona.created_at)}</td>
+      <td>${renderTabellenTag(detail.formatDate(persona.created_at), (t) => detail.sanitize(t))}</td>
       <td class="col-actions">${actionBuilder.create('persona', persona.id)}</td>
     </tr>
   `).join('');

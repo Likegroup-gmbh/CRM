@@ -1,3 +1,5 @@
+import { lineNames } from '../../../modules/produktion/produktionNames.js';
+
 export class AutoGeneration {
   static MONTH_NAMES_DE = [
     'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -121,7 +123,7 @@ export class AutoGeneration {
     }
   }
 
-  // Kampagnenname automatisch generieren: "Kürzel - Startdatum - Kampagnentyp"
+  // Kampagnenname automatisch generieren: Projektname des Auftrags (Fallback: "Kürzel - Monat Jahr - Kampagnentyp")
   async autoGenerateKampagnenname(form, auftragId, excludeKampagneId = null) {
     try {
       if (!auftragId) return;
@@ -143,23 +145,28 @@ export class AutoGeneration {
         return;
       }
 
-      const displayName = auftrag.unternehmen?.internes_kuerzel || auftrag.unternehmen?.firmenname || 'Unbekannte Firma';
-      
-      const parts = [displayName];
-      
-      // Startdatum als Monat + Jahr aus dem Formular holen
-      const startInput = form.querySelector('input[name="start"]');
-      const formatted = AutoGeneration.formatStartMonthYear(startInput?.value);
-      if (formatted) parts.push(formatted);
-      
-      // Kampagnentyp aus dem Formular holen
-      const kampagneTypSelect = form.querySelector('select[name="kampagne_typ"]');
-      const kampagneTyp = kampagneTypSelect?.value;
-      if (kampagneTyp) {
-        const typLabels = { paid: 'Paid', organic: 'Organic', influencer_posting: 'Influencer Posting' };
-        parts.push(typLabels[kampagneTyp] || kampagneTyp);
+      // Projektname (auftrag.titel) ist die Basis. Nur ohne Projektname greift das alte Schema.
+      const projektname = String(auftrag.titel || auftrag.auftragsname || '').trim();
+      const parts = [];
+      if (projektname) {
+        parts.push(projektname);
+      } else {
+        parts.push(auftrag.unternehmen?.internes_kuerzel || auftrag.unternehmen?.firmenname || 'Unbekannte Firma');
+
+        // Startdatum als Monat + Jahr aus dem Formular holen
+        const startInput = form.querySelector('input[name="start"]');
+        const formatted = AutoGeneration.formatStartMonthYear(startInput?.value);
+        if (formatted) parts.push(formatted);
+
+        // Kampagnentyp aus dem Formular holen
+        const kampagneTypSelect = form.querySelector('select[name="kampagne_typ"]');
+        const kampagneTyp = kampagneTypSelect?.value;
+        if (kampagneTyp) {
+          const typLabels = { paid: 'Paid', organic: 'Organic', influencer_posting: 'Influencer Posting' };
+          parts.push(typLabels[kampagneTyp] || kampagneTyp);
+        }
       }
-      
+
       const kampagnenname = parts.join(' - ');
 
       const kampagnennameInput = form.querySelector('input[name="kampagnenname"]');
@@ -287,7 +294,7 @@ export class AutoGeneration {
     }
   }
 
-  // Sourcing-Name automatisch generieren: "Sourcing - Kampagnenname"
+  // Casting-Name automatisch generieren: "Kampagnenname Casting"
   // Akzeptiert entweder einen Kampagnennamen-String oder Kampagnen-ID zum Laden
   async autoGenerateSourcingName(kampagneIdOrName, markeId = null, unternehmenId = null) {
     try {
@@ -302,7 +309,7 @@ export class AutoGeneration {
         
         const { data: kampagne, error } = await window.supabase
           .from('kampagne')
-          .select('kampagnenname, eigener_name')
+          .select('kampagnenname')
           .eq('id', kampagneIdOrName)
           .single();
         
@@ -312,8 +319,8 @@ export class AutoGeneration {
           return this.generateFallbackSourcingName(markeId, unternehmenId);
         }
         
-        // Eigener Name hat Priorität, dann Kampagnenname
-        kampagnenname = kampagne.eigener_name || kampagne.kampagnenname;
+        // Basis ist der Projektname (Kampagnenname), nicht der eigene Name
+        kampagnenname = kampagne.kampagnenname;
       } else if (typeof kampagneIdOrName === 'string' && kampagneIdOrName.trim()) {
         // Es ist bereits ein Kampagnenname-String
         kampagnenname = kampagneIdOrName;
@@ -324,7 +331,7 @@ export class AutoGeneration {
         return this.generateFallbackSourcingName(markeId, unternehmenId);
       }
       
-      const sourcingName = `Sourcing - ${kampagnenname}`;
+      const sourcingName = lineNames(kampagnenname).casting;
       console.log(`✅ Sourcing-Name generiert: ${sourcingName}`);
       return sourcingName;
       
@@ -366,17 +373,17 @@ export class AutoGeneration {
       
       // Datum hinzufügen für Eindeutigkeit
       const today = new Date().toLocaleDateString('de-DE');
-      const sourcingName = `Sourcing - ${displayName} - ${today}`;
+      const sourcingName = `${displayName} Casting - ${today}`;
       console.log(`✅ Fallback Sourcing-Name generiert: ${sourcingName}`);
       return sourcingName;
       
     } catch (error) {
       console.error('❌ Fehler beim Generieren des Fallback-Namens:', error);
-      return `Sourcing - ${new Date().toLocaleDateString('de-DE')}`;
+      return `Casting - ${new Date().toLocaleDateString('de-DE')}`;
     }
   }
 
-  // Strategie-Name automatisch generieren: "Strategie - Kampagnenname"
+  // Konzept-Name automatisch generieren: "Kampagnenname Konzept"
   // Akzeptiert entweder einen Kampagnennamen-String oder Kampagnen-ID zum Laden
   async autoGenerateStrategieName(kampagneIdOrName, markeId = null, unternehmenId = null) {
     try {
@@ -391,7 +398,7 @@ export class AutoGeneration {
         
         const { data: kampagne, error } = await window.supabase
           .from('kampagne')
-          .select('kampagnenname, eigener_name')
+          .select('kampagnenname')
           .eq('id', kampagneIdOrName)
           .single();
         
@@ -401,8 +408,8 @@ export class AutoGeneration {
           return this.generateFallbackStrategieName(markeId, unternehmenId);
         }
         
-        // Eigener Name hat Priorität, dann Kampagnenname
-        kampagnenname = kampagne.eigener_name || kampagne.kampagnenname;
+        // Basis ist der Projektname (Kampagnenname), nicht der eigene Name
+        kampagnenname = kampagne.kampagnenname;
       } else if (typeof kampagneIdOrName === 'string' && kampagneIdOrName.trim()) {
         // Es ist bereits ein Kampagnenname-String
         kampagnenname = kampagneIdOrName;
@@ -413,7 +420,7 @@ export class AutoGeneration {
         return this.generateFallbackStrategieName(markeId, unternehmenId);
       }
       
-      const strategieName = `Strategie ${kampagnenname}`;
+      const strategieName = lineNames(kampagnenname).konzept;
       console.log(`✅ Strategie-Name generiert: ${strategieName}`);
       return strategieName;
       
@@ -455,13 +462,13 @@ export class AutoGeneration {
       
       // Datum hinzufügen für Eindeutigkeit
       const today = new Date().toLocaleDateString('de-DE');
-      const strategieName = `Strategie ${displayName} - ${today}`;
+      const strategieName = `${displayName} Konzept - ${today}`;
       console.log(`✅ Fallback Strategie-Name generiert: ${strategieName}`);
       return strategieName;
       
     } catch (error) {
       console.error('❌ Fehler beim Generieren des Fallback-Strategie-Namens:', error);
-      return `Strategie - ${new Date().toLocaleDateString('de-DE')}`;
+      return `Konzept - ${new Date().toLocaleDateString('de-DE')}`;
     }
   }
 

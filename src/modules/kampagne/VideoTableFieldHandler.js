@@ -1,4 +1,3 @@
-import { checkAuftragBudgetStatus } from '../auftrag/logic/AuftragStatusUtils.js';
 import {
   getVideoFeedbackSlotByField,
   replaceVideoFeedbackBucket
@@ -7,6 +6,11 @@ import { saveVideoFeedbackSlot } from '../../core/videoFeedback/VideoFeedbackRep
 import { saveStillFeedbackSlot } from '../../core/videoFeedback/StillFeedbackRepository.js';
 import { CustomColumnFieldHandler } from './columns/CustomColumnFieldHandler.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
+import { assertVerkaufspreisDelta } from '../produktion/produktionsbudget.js';
+import { skripteService } from '../skripte/SkripteService.js';
+import { patchWorkflowItem } from './KampagneDetailWorkflow.js';
+import { skriptStatusFuerCheckbox, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
+import { hasUnsavedTextEdit, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 
 /**
  * Overlay einer kompakt formatierten Zahlenzelle nachziehen. Der Input haelt
@@ -29,18 +33,117 @@ export class VideoTableFieldHandler {
     return this.table.store || null;
   }
 
-  async _triggerBudgetCheck() {
-    try {
-      const { data } = await window.supabase
-        .from('kampagne')
-        .select('auftrag_id')
-        .eq('id', this.table.kampagneId)
-        .single();
-      if (data?.auftrag_id) {
-        checkAuftragBudgetStatus(data.auftrag_id);
-      }
-    } catch (e) {
-      console.warn('⚠️ Budget-Check Trigger fehlgeschlagen:', e);
+  /**
+   * Checkbox „Skript freigegeben“ und skripte.status meinen dieselbe Freigabe:
+   * Anhaken gibt das verknüpfte Skript frei, Abhaken nimmt eine bestehende
+   * Freigabe zurück (Status 'final'). Alle Videos desselben Skripts ziehen mit.
+   */
+  async _syncSkriptStatusZurCheckbox(videoId, freigegeben) {
+    const t = this.table;
+    const store = this._getStore();
+    let video = null;
+    for (const koopId of Object.keys(t.videos || {})) {
+      video = t.videos[koopId].find((v) => v.id === videoId);
+      if (video) break;
+    }
+    const skriptId = video?.skript_id || video?.skript?.id || null;
+    if (!skriptId) {
+      window.toastSystem?.show('Kein Skript verknüpft – Haken gilt nur für dieses Video', 'info');
+      return;
+    }
+
+    let aktuellerStatus = video?.skript?.status;
+    if (!aktuellerStatus) {
+      const skript = await skripteService.loadSkript(skriptId);
+      aktuellerStatus = skript?.status || null;
+    }
+
+    const status = skriptStatusFuerCheckbox(freigegeben, aktuellerStatus);
+    if (status && status !== aktuellerStatus) {
+      await skripteService.updateSkript(skriptId, { status });
+    }
+    await skripteService.setVideosSkriptFreigegeben(skriptId, freigegeben);
+    syncSkriptFreigabeLocal(
+      t._detail,
+      skriptId,
+      { freigegeben, status: status || aktuellerStatus },
+      patchWorkflowItem
+    );
+  }
+
+  rememberVideoName(videoId, value) {
+    const t = this.table;
+    if (!t._videoNameEdits) t._videoNameEdits = new Map();
+    t._videoNameEdits.set(videoId, { value: value ?? '', at: Date.now() });
+  }
+
+  rememberCaption(videoId, value) {
+    const t = this.table;
+    if (!t._captionEdits) t._captionEdits = new Map();
+    t._captionEdits.set(videoId, { value: value ?? '', at: Date.now() });
+  }
+
+  _storedVideoField(videoId, fieldName) {
+    for (const list of Object.values(this.table.videos || {})) {
+      const video = list?.find(v => v.id === videoId);
+      if (video) return video[fieldName] ?? '';
+    }
+    return undefined;
+  }
+
+  // Namen, die noch im Input stehen und nicht im Store, vor einem Re-Render
+  // speichern. Sonst zeigt die Liste nach dem Upload wieder ein leeres Feld.
+  async flushVideoNameEdits() {
+    await this._flushDomFields(
+      'input[data-entity="video"][data-field="video_name"]',
+      'video_name'
+    );
+  }
+
+  // Caption speichert nur beim Verlassen des Feldes. Ein Neuzeichnen ersetzt
+  // die Textarea vorher mit dem Store-Wert und der getippte Text ist weg.
+  async flushCaptionEdits() {
+    await this._flushDomFields(
+      'textarea[data-entity="video"][data-field="caption"]',
+      'caption'
+    );
+  }
+
+  // Jede angefangene Textzelle, nicht nur Name und Caption. Sonst zeigt ein
+  // Neuzeichnen (Upload, Filter, Spalten) wieder den alten Store-Wert.
+  async flushEditedTextFields() {
+    const root = this.table.containerId
+      ? document.getElementById(this.table.containerId)
+      : document;
+    if (!root) return;
+
+    const fields = root.querySelectorAll(
+      'textarea[data-field], input[data-field], textarea[data-custom-column-id], input[data-custom-column-id]'
+    );
+    for (const field of fields) {
+      if (getVideoFeedbackSlotByField(field.getAttribute('data-field'))) continue;
+      if (!hasUnsavedTextEdit(field)) continue;
+      await this.handleFieldUpdate(field);
+      rememberTextBaseline(field);
+    }
+  }
+
+  async _flushDomFields(selector, fieldName) {
+    const root = this.table.containerId
+      ? document.getElementById(this.table.containerId)
+      : document;
+    if (!root) return;
+
+    const fields = root.querySelectorAll(selector);
+    for (const field of fields) {
+      const id = field.getAttribute('data-id');
+      const current = this._storedVideoField(id, fieldName);
+      if (current === undefined) continue;
+      if (current === field.value) continue;
+      // Nur eine echte Änderung seit dem Fokus sichern. Eine leer gezeichnete
+      // Zelle ohne Fokus darf die gespeicherte Caption oder den Namen nicht löschen.
+      if (!shouldPersistTextField(field)) continue;
+      await this.handleFieldUpdate(field);
     }
   }
 
@@ -198,7 +301,25 @@ export class VideoTableFieldHandler {
           console.log(`✅ Kooperation Status aktualisiert: ${statusName}`);
         } else {
           const tableName = entity === 'kooperation' ? 'kooperationen' : 'kooperation_videos';
-          
+
+          if (entity === 'video' && fieldName === 'verkaufspreis_netto') {
+            const { data: video, error: videoError } = await window.supabase
+              .from('kooperation_videos')
+              .select('verkaufspreis_netto, kooperation_id')
+              .eq('id', id)
+              .maybeSingle();
+            if (videoError) throw videoError;
+            const { data: koop, error: koopError } = await window.supabase
+              .from('kooperationen')
+              .select('produktion_id')
+              .eq('id', video?.kooperation_id || kooperationId)
+              .maybeSingle();
+            if (koopError) throw koopError;
+            const alt = parseFloat(video?.verkaufspreis_netto) || 0;
+            const neu = parseFloat(value) || 0;
+            await assertVerkaufspreisDelta(window.supabase, koop?.produktion_id, neu - alt);
+          }
+
           const { error } = await window.supabase
             .from(tableName)
             .update({ [fieldName]: value })
@@ -214,10 +335,17 @@ export class VideoTableFieldHandler {
             }
           }
 
+          if (entity === 'video' && fieldName === 'video_name') {
+            this.rememberVideoName(id, value);
+          }
+          if (entity === 'video' && fieldName === 'caption') {
+            this.rememberCaption(id, value);
+          }
+
           console.log(`✅ ${entity} aktualisiert`);
 
-          if (entity === 'video' && fieldName === 'verkaufspreis_netto') {
-            this._triggerBudgetCheck();
+          if (entity === 'video' && fieldName === 'skript_freigegeben') {
+            await this._syncSkriptStatusZurCheckbox(id, value);
           }
         }
       }
@@ -240,6 +368,9 @@ export class VideoTableFieldHandler {
 
     } catch (error) {
       console.error(`❌ Fehler beim Speichern von ${entity}.${fieldName}:`, error);
+      if (String(error?.message || '').startsWith('Verkaufspreis')) {
+        window.toastSystem?.show(error.message, 'error');
+      }
       field.classList.add('save-error');
       setTimeout(() => field.classList.remove('save-error'), 2000);
       

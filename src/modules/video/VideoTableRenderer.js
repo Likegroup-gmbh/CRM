@@ -4,6 +4,8 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
+import { ordnerLinkHtml } from '../../core/ablage/ablageOrdnerLink.js';
 
 const BACK_SVG = `${icon('arrow-left')}`;
 
@@ -94,23 +96,26 @@ export class VideoTableRenderer {
       ? `<div class="tags tags-compact"><span class="tag tag--type">${esc(video.content_art)}</span></div>`
       : '-';
 
-    const folderUrl = video.folder_url || '';
-    const contentLinkHtml = folderUrl
-      ? `<a href="${esc(folderUrl)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Ordner öffnen">${FOLDER_LINK_SVG}</a>`
-      : '–';
+    const contentLinkHtml = ordnerLinkHtml({
+      url: video.folder_url,
+      kooperationId: video.kooperation_id,
+      inhalt: FOLDER_LINK_SVG,
+      klasse: 'external-link-btn',
+      titel: 'Ordner öffnen',
+    }) || '–';
 
     const kampagneName = KampagneUtils.getDisplayName(kampagne) || '-';
     const kampagneHtml = kampagne.id
-      ? `<a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">${esc(kampagneName)}</a>`
+      ? renderVerknuepfungPill({ kind: 'kampagne', labelHtml: esc(kampagneName), attrs: `data-table="kampagne" data-id="${kampagne.id}"` })
       : '-';
 
     const kooperationTd = isKunde
       ? ''
-      : `<td>${kooperation.id ? `<a href="#" class="table-link" data-table="kooperation" data-id="${kooperation.id}">${esc(kooperation.name || '—')}</a>` : '-'}</td>`;
+      : `<td>${kooperation.id ? renderVerknuepfungPill({ kind: 'kooperation', labelHtml: esc(kooperation.name || '—'), attrs: `data-table="kooperation" data-id="${kooperation.id}"` }) : '-'}</td>`;
 
     const creatorTd = isKunde
       ? `<td>${creatorName}</td>`
-      : `<td>${creator.id ? `<a href="#" class="table-link" data-table="creator" data-id="${creator.id}">${creatorName}</a>` : '-'}</td>`;
+      : `<td>${creator.id ? renderVerknuepfungPill({ kind: 'creator', labelHtml: creatorName, attrs: `data-table="creator" data-id="${creator.id}"` }) : '-'}</td>`;
 
     return `
       <tr data-id="${video.id}">

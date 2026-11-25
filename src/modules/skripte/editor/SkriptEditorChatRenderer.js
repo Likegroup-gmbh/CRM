@@ -7,6 +7,7 @@ import { escapeHtml, badge } from '../SkripteUtils.js';
 import { AKTION_LABELS, AKTION_ICONS } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
 import { thinkingHtml } from '../../../core/chat/thinking.js';
+import { istAbgelaufen, istLangsam, ablaufFehlertext } from './skriptEditorMessages.js';
 
 const LIKY_HEAD = `
   <div class="skripte-editor-msg-head">
@@ -70,7 +71,7 @@ export function aktionTagHtml(m) {
   return `<span class="skripte-editor-tag">${iconHtml}${escapeHtml(AKTION_LABELS[m.aktion])}${sektion}</span>`;
 }
 
-export function messageHtml(m, { istFragenModus = false, genLaeuft = false } = {}) {
+export function messageHtml(m, { istFragenModus = false, genLaeuft = false, veraltet = false } = {}) {
   if (m.rolle === 'user') {
     return `
       <div class="skripte-editor-msg skripte-editor-msg--user" data-msg-row="${m.id}">
@@ -84,12 +85,31 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false } = {
   // Assistant ("Liky")
   const tag = aktionTagHtml(m);
 
+  // Abgelaufen (Invoke verloren / Function tot): sofort als Fehler mit Retry
+  // zeigen, ohne auf Watchdog und DB-Event zu warten
+  if (istAbgelaufen(m)) {
+    return `
+      <div class="skripte-editor-msg skripte-editor-msg--assistant" data-msg-row="${m.id}">
+        ${LIKY_HEAD}
+        ${tag}
+        <div class="skripte-editor-msg-error">Fehler: ${escapeHtml(ablaufFehlertext(m))}</div>
+        <div class="skripte-editor-msg-actions">
+          <button class="skripte-editor-pill-btn" data-msg-action="retry" data-msg-id="${m.id}">Nochmal versuchen</button>
+        </div>
+      </div>
+    `;
+  }
+
   if (m.status === 'pending' || m.status === 'running') {
+    const langsam = istLangsam(m)
+      ? '<p class="skripte-hint">Das dauert länger als üblich – du kannst abbrechen oder noch kurz warten.</p>'
+      : '';
     return `
       <div class="skripte-editor-msg skripte-editor-msg--assistant" data-msg-row="${m.id}">
         ${LIKY_HEAD}
         ${tag}
         ${thinkingHtml(m.progress_steps)}
+        ${langsam}
         <div class="skripte-editor-msg-actions">
           <button class="skripte-editor-pill-btn" data-msg-action="cancel" data-msg-id="${m.id}">Abbrechen</button>
         </div>
@@ -127,6 +147,19 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false } = {
     </div>
   ` : '';
 
+  const aenderungen = Array.isArray(m.aenderungen) ? m.aenderungen : [];
+  const aenderungenBlock = aenderungen.length ? `
+    <div class="skripte-editor-vorschlag ${m.status === 'angenommen' ? 'is-angenommen' : ''} ${m.status === 'abgelehnt' ? 'is-abgelehnt' : ''}">
+      <div class="skripte-editor-vorschlag-label">Vorschlag · ${aenderungen.length} Zellen</div>
+      ${aenderungen.map((a) => `
+        <div class="skripte-editor-vorschlag-zelle">
+          <div class="skripte-editor-vorschlag-label">${escapeHtml(sektionAnzeige(a.sektion, a.spalte === 'visuell'))}</div>
+          <div class="skripte-editor-vorschlag-text">${escapeHtml(a.vorschlag_text || '')}</div>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
   let footer = '';
   if (m.aktion === 'rueckfrage') {
     // status 'vorschlag' = alle Fragen geklaert -> Generierung anbieten
@@ -139,6 +172,15 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false } = {
     }
   } else if (m.aktion === 'visuell' && m.status === 'vorschlag') {
     footer = `<p class="skripte-hint">Visual wird automatisch übernommen …</p>`;
+  } else if (m.status === 'vorschlag' && veraltet) {
+    footer = `
+      <div class="skripte-editor-msg-state">${badge('Veraltet', 'neutral')}</div>
+      <p class="skripte-hint">Veraltet: Sektion wurde danach geändert.</p>
+      <div class="skripte-editor-msg-actions">
+        <button class="skripte-editor-pill-btn" data-msg-action="reject" data-msg-id="${m.id}">Änderung ablehnen</button>
+        <button class="skripte-editor-pill-btn" data-msg-action="retry" data-msg-id="${m.id}">Neu schreiben</button>
+      </div>
+    `;
   } else if (m.status === 'vorschlag') {
     footer = `
       <div class="skripte-editor-msg-actions">
@@ -162,6 +204,7 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false } = {
       ${tag}
       ${m.inhalt ? `<div class="skripte-editor-msg-text">${escapeHtml(m.inhalt)}</div>` : ''}
       ${vorschlagBlock}
+      ${aenderungenBlock}
       ${footer}
     </div>
   `;

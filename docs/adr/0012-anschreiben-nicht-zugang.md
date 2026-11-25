@@ -3,7 +3,7 @@
 Ein Briefing geht per E-Mail mit PDF-Anhang an Creator oder Management raus (Anschreiben).
 Das ist ein anderer Vorgang als der bestehende Zugang (Gast-Link + Code auf `list_shares`),
 und beide bleiben getrennt: das Anschreiben bekommt eigene Bausteine (Empfänger-Composer,
-Anschreiben-Drawer, Mailvorlagen, Versandprotokoll, Resend-Helper) statt den ShareListDialog
+Anschreiben-Drawer, Mailvorlagen, Versandprotokoll, Resend-Helper) statt den ShareListDrawer
 oder `list_shares` um PDF-Mails zu erweitern.
 
 ## Considered Options

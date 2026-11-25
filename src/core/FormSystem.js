@@ -1,3 +1,4 @@
+import { dataService } from './DataService.js';
 import { FormConfig } from './form/FormConfig.js';
 import { FormRenderer } from './form/FormRenderer.js';
 import { FormValidator } from './form/FormValidator.js';
@@ -57,8 +58,8 @@ export class FormSystem {
     // DynamicDataLoader für abhängige Felder injizieren
     this.dependentFields.dynamicDataLoader = this.dataLoader;
 
-    // DataService injizieren (wird später aufgerufen)
-    this.injectDataService();
+    // Modul-Singleton, nicht window.dataService: der wird in main.js erst nach dem Import gesetzt.
+    this.dataLoader.setDataService(dataService);
 
     this.currentForm = null;
     this.currentFormState = null; // Neue State-Referenz
@@ -210,19 +211,6 @@ export class FormSystem {
     return smartInitEntities.includes(entity);
   }
 
-  // DataService injizieren
-  injectDataService() {
-    if (window.dataService) {
-      this.dataLoader.setDataService(window.dataService);
-      console.log('✅ DataService erfolgreich injiziert');
-    } else {
-      console.warn('⚠️ DataService noch nicht verfügbar, wird später injiziert');
-      // Retry nach kurzer Verzögerung
-      setTimeout(() => this.injectDataService(), 100);
-    }
-  }
-
-
   // Formular-Submit verarbeiten
   async handleFormSubmit(entity, data, formOverride) {
     try {
@@ -248,7 +236,10 @@ export class FormSystem {
       console.log(`🧪 FORMSYSTEM: Submit-Daten fuer ${entity}:`, submitData);
 
       // Validierung
-      const errors = this.validator.validateFormData(entity, submitData);
+      let errors = this.validator.validateFormData(entity, submitData);
+      if (entity === 'kooperation' && form.dataset.platzhalter === '1') {
+        errors = errors.filter(message => message !== 'Creator ist erforderlich.');
+      }
       if (errors.length > 0) {
         this.validator.showValidationErrors(errors);
         return;
@@ -336,9 +327,11 @@ export class FormSystem {
         }
         
         // Event auslösen für List-Update (dbEntity: Listen hören auf 'rechnung')
+        const isPageForm = !form.closest('.modal-overlay, .modal-content, .drawer, [class*="drawer"], [class*="Drawer"]');
         window.dispatchEvent(new CustomEvent('entityUpdated', { 
-          detail: { entity: dbEntity, id: result.id, action: data ? 'updated' : 'created' } 
+          detail: { entity: dbEntity, id: result.id, action: data ? 'updated' : 'created', redirect: isPageForm } 
         }));
+        return { success: true, id: result.id };
       } else {
         this.validator.showErrorMessage(`Fehler beim ${data ? 'Aktualisieren' : 'Erstellen'}: ${result.error}`);
         return { success: false };

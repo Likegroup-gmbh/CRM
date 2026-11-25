@@ -91,6 +91,36 @@ describe('AuftragsdetailsDetail', () => {
     expect(html).toContain('Zusatzkosten');
   });
 
+  it('zeigt Formel-Tooltips auf den UGC-Budget-Kacheln', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.details = { campaign_type: ['ugc_paid'] };
+    instance.auftrag = { id: 'a1', po: 'PO-1' };
+    instance.budgetSummary = {
+      totalBudget: 10000,
+      verbrauchtesBudget: 2500,
+      verfuegbaresBudget: 7500,
+      creatorAnteil: 2000,
+      extraKostenVkSum: 500,
+      agencyFeeSummary: { baseFee: 500, ekVkMargin: 200, total: 700, showAgencyFeeCard: true, showKskCard: true, kskValue: 98, kskAuto: true, kskBasis: 2000 },
+      totalCreators: 2,
+      targetCreators: 4,
+      totalVideos: 3,
+      targetVideos: 6
+    };
+
+    const html = instance.renderInformationen();
+
+    expect(html).toContain('card-hint');
+    expect(html).toContain('Nettobetrag des Auftrags');
+    expect(html).toContain('Creatoranteil + Agenturanteil + KSK + Zusatzkosten');
+    expect(html).toContain('Auftragsvolumen − Zusatzleistungen − Verbrauchtes Budget');
+    expect(html).toContain('Σ Einkaufspreise (EK) der gebuchten Videos');
+    expect(html).toContain('Feste Fee + EK/VK-Differenz');
+    expect(html).toContain('Σ Zusatzkosten der Kooperationen');
+  });
+
   it('summiert Extra Kosten (VK) in der Tabelle einmal pro Kooperation', () => {
     window.currentUser = { rolle: 'mitarbeiter' };
     window.validatorSystem = { sanitizeHtml: (v) => v || '' };
@@ -333,6 +363,12 @@ describe('AuftragsdetailsDetail', () => {
       expect(instance.getBudgetCardVariant()).toBe('ugc');
     });
 
+    it('erkennt UGC auch mit Vor-Ort-Produktion daneben', () => {
+      const instance = new AuftragsdetailsDetail();
+      instance.details = { campaign_type: ['vorort_produktion', 'ugc_paid', 'ugc_organic'] };
+      expect(instance.getBudgetCardVariant()).toBe('ugc');
+    });
+
     it('gibt Influencer Vorrang bei gemischten Chips', () => {
       const instance = new AuftragsdetailsDetail();
       instance.details = { campaign_type: ['ugc_paid', 'influencer'] };
@@ -397,6 +433,10 @@ describe('AuftragsdetailsDetail', () => {
       // Creatorbudget 44.000, Offenes Creator Budget 43.000
       expect(html).toContain('44.000,00');
       expect(html).toContain('43.000,00');
+      // Formel-Tooltips der Influencer-Kacheln
+      expect(html).toContain('Creator-Budget + KSK-Selbstzahler-Umbuchungen');
+      expect(html).toContain('Σ Verkaufspreise (VK) der gebuchten Videos');
+      expect(html).toContain('Creator-Budget − gebuchte VK');
     });
 
     it('berechnet Budget-Progress bei Influencer VK-basiert', () => {
@@ -467,10 +507,12 @@ describe('AuftragsdetailsDetail', () => {
       instance.calculateBudgetSummary();
       const html = instance.renderInformationen();
 
-      const iCreator = html.indexOf('Creator-Anteil');
-      const iAgentur = html.indexOf('Agenturanteil');
-      const iKsk = html.indexOf('>KSK<');
-      const iZusatz = html.indexOf('Zusatzkosten');
+      // Labels sind seit den Formel-Tooltips als <span>Label</span> markiert;
+      // die Formeltexte selbst enthalten die Begriffe ebenfalls.
+      const iCreator = html.indexOf('<span>Creator-Anteil</span>');
+      const iAgentur = html.indexOf('<span>Agenturanteil</span>');
+      const iKsk = html.indexOf('<span>KSK</span>');
+      const iZusatz = html.indexOf('<span>Zusatzkosten</span>');
       expect(iCreator).toBeGreaterThan(-1);
       expect(iCreator).toBeLessThan(iAgentur);
       expect(iAgentur).toBeLessThan(iKsk);

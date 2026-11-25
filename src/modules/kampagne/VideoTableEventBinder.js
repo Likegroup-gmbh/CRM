@@ -1,16 +1,20 @@
 // VideoTableEventBinder
 // Buendelt das gesamte Event-Binding der Kampagnen-Video-Tabelle (Feld-Updates,
-// Feedback-Autosave, Upload/Settings/Media-Buttons, Status-Dropdown, Resize/Drag).
+// Feedback-Autosave, Upload/Settings/Media-Buttons, Status-Select, Resize/Drag).
 // Wird bei jedem (Re-)Render aufgerufen und nutzt einen frischen AbortController,
 // damit alte Listener sauber getrennt werden. Haelt den Orchestrator schlank.
 
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { VideoRowHeightSync } from './VideoRowHeightSync.js';
+import { VideoFeedbackBinding } from './VideoFeedbackBinding.js';
 import { getVideoFeedbackSlotByField } from '../../core/VideoFeedbackBuckets.js';
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
-import { applyLiveLinkCellState, findVideoInTable } from './liveLinkCell.js';
-
+import { KOOP_STATUS_FIELD } from './videoTableKoopCells.js';
+import { bindTextBaseline, isGuardedTextField, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
+import { openZeitkommentar } from './videoTableZeitkommentare.js';
+import { ablageLinkKlick } from '../../core/ablage/ablageOrdnerLink.js';
+import { oeffneCreatorSetzen } from '../kooperation/platzhalterSetzen.js';
 export class VideoTableEventBinder {
   constructor(table) {
     this.table = table;
@@ -27,6 +31,7 @@ export class VideoTableEventBinder {
 
     CustomDatePicker.destroy(container);
     CustomDatePicker.bind(container, signal);
+    bindTextBaseline(container, { signal });
 
     // Zeilen-Hoehen ueber Spalten angleichen (Feedback bestimmt die Reihenhoehe).
     // Tabelle wird bei jedem Render neu erzeugt -> alte Sync trennen, neu binden.
@@ -55,16 +60,12 @@ export class VideoTableEventBinder {
       // Feedback-Felder laufen ueber den VideoFeedbackSaveController (Autosave +
       // Flush), nicht ueber diesen generischen Handler -> Doppel-Save vermeiden.
       if (e.target.dataset?.entity === 'video' && getVideoFeedbackSlotByField(e.target.dataset.field)) return;
+      // Kommentar-Spalten (Typ "comment") nutzen denselben Controller.
+      if (VideoFeedbackBinding.isCustomCommentField(e.target)) return;
       if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea') || e.target.classList.contains('custom-col-input')) {
+        if (isGuardedTextField(e.target) && !shouldPersistTextField(e.target)) return;
+        if (isGuardedTextField(e.target)) rememberTextBaseline(e.target);
         await t.handleFieldUpdate(e.target);
-
-        // Chip der Live-Link-Zelle nachziehen: die Tabelle rendert einzelne
-        // Zellen nicht neu, sonst stuende dort noch der alte Link.
-        if (e.target.dataset?.field === 'link_live') {
-          const videoId = e.target.dataset.id;
-          const video = findVideoInTable(t, videoId) || { link_live: e.target.value.trim() };
-          applyLiveLinkCellState(e.target.closest('.chip-cell'), video);
-        }
       }
     }, { capture: true, signal });
 
@@ -124,9 +125,18 @@ export class VideoTableEventBinder {
       }
     }, { signal });
 
-    t.initAutoResizeTextareas();
-
     container.addEventListener('click', (e) => {
+      const platzhalterBtn = e.target.closest('[data-action="platzhalter-creator"]');
+      if (platzhalterBtn) {
+        e.preventDefault();
+        oeffneCreatorSetzen(platzhalterBtn, {
+          koopId: platzhalterBtn.dataset.id,
+          stand: t.deckenStand,
+          onDone: () => window.kampagneDetail?.reloadKooperationTable?.()
+        });
+        return;
+      }
+
       const uploadBtn = e.target.closest('.video-upload-btn');
       if (uploadBtn) {
         e.preventDefault();
@@ -161,6 +171,13 @@ export class VideoTableEventBinder {
     }, { signal });
 
     container.addEventListener('click', (e) => {
+      if (ablageLinkKlick(e)) return;
+      const zeitBtn = e.target.closest('[data-action="open-zeitkommentar"]');
+      if (zeitBtn) {
+        e.preventDefault();
+        openZeitkommentar(t._detail, zeitBtn);
+        return;
+      }
       const playBtn = e.target.closest('[data-action="play-video"]');
       if (playBtn) {
         e.preventDefault();
@@ -215,17 +232,13 @@ export class VideoTableEventBinder {
     }, { signal });
 
     container.addEventListener('click', (e) => {
-      const linkBtn = e.target.closest('[data-action="link-strategie-item"]');
-      if (linkBtn) {
-        e.preventDefault();
-        t._openLinkStrategieDrawer(linkBtn);
-        return;
-      }
       const openSkript = e.target.closest('[data-action="open-skript"]');
       if (openSkript) {
         e.preventDefault();
         const skriptId = openSkript.dataset.skriptId;
-        if (skriptId) window.navigateTo(`/skripte/${skriptId}`);
+        const ziel = openSkript.getAttribute('href');
+        if (ziel && ziel !== '#') window.navigateTo(ziel);
+        else if (skriptId) window.navigateTo(`/skripte/${skriptId}`);
         return;
       }
       const linkSkript = e.target.closest('[data-action="link-skript"]');
@@ -235,52 +248,18 @@ export class VideoTableEventBinder {
       }
     }, { signal });
 
-    container.addEventListener('click', (e) => {
-      const trigger = e.target.closest('.status-select-trigger');
-      if (trigger) {
-        e.preventDefault();
-        e.stopPropagation();
-        const wrapper = trigger.closest('.status-select-wrapper');
-        const isOpen = wrapper?.classList.contains('show');
-        t._closeStatusPortal();
-        if (wrapper && !isOpen) {
-          wrapper.classList.add('show');
-          t._openStatusPortal(wrapper);
-        }
-        return;
-      }
+    // Status-Select (TableSelect): Oeffnen/Schliessen erledigt die Komponente,
+    // die Optionsliste haengt als Portal an body -> Event kommt am document an.
+    document.addEventListener('table-select-change', (e) => {
+      const { field, itemId, value, element } = e.detail || {};
+      if (field !== KOOP_STATUS_FIELD || !element?.closest('.kooperation-video-grid')) return;
+      t._handleStatusDropdownChange(itemId, value || null);
     }, { signal });
-
-    // Item-Click an document, da Portal an document.body haengt (nicht im container)
-    document.addEventListener('click', (e) => {
-      const item = e.target.closest('.status-dropdown-portal .status-dropdown-item, .status-select-wrapper .status-dropdown-item');
-      if (!item) return;
-      // preventDefault: <a href="#"> wuerde sonst zum Seiten-Anfang scrollen
-      e.preventDefault();
-      e.stopPropagation();
-      const portal = item.closest('.status-dropdown-portal');
-      const wrapper = item.closest('.status-select-wrapper');
-      const koopId = portal?.dataset.kooperationId || wrapper?.dataset.kooperationId;
-      const newValue = item.dataset.value || null;
-      t._closeStatusPortal();
-      if (koopId) {
-        t._handleStatusDropdownChange(koopId, newValue);
-      }
-    }, { signal });
-
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('.status-select-wrapper') || e.target.closest('.status-dropdown-portal')) return;
-      t._closeStatusPortal();
-    }, { signal });
-
-    window.addEventListener('resize', () => t._closeStatusPortal(), { signal });
-    window.addEventListener('scroll', () => t._closeStatusPortal(), { signal, capture: true });
 
     t._finalBulkDownload?.bind(container, signal);
     t._finalBulkDownload?.syncAfterRender();
 
     t.bindResizeEvents();
-    t.bindDragToScroll();
     t.columnDragHandler.bind(container, signal);
   }
 }

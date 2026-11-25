@@ -48,6 +48,65 @@ async function beansprucheNachricht(supabase, messageId) {
   return data;
 }
 
+const OFFEN = ['pending', 'running'];
+
+function warte(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Schreibt ein Update auf eine Chat-Message MIT Fehlerpruefung (supabase-js
+ * wirft nicht, sondern liefert { error }) und einem Retry. Ohne das bleibt
+ * eine Message still auf 'running', wenn das finale Update scheitert.
+ * nurWennStatus (String oder Liste): Update nur, wenn die Row noch in diesem
+ * Status ist - ein Abbruch durch den Nutzer wird so nie ueberschrieben.
+ * Liefert true, wenn eine Row geschrieben wurde; false, wenn der Status-Filter
+ * nicht mehr griff (z.B. cancelled). Wirft nach allen Versuchen.
+ */
+async function schreibeNachricht(supabase, messageId, patch, { nurWennStatus = null, versuche = 2, pauseMs = 400 } = {}) {
+  let letzterFehler = null;
+  for (let versuch = 1; versuch <= versuche; versuch++) {
+    if (versuch > 1) await warte(pauseMs);
+    let q = supabase.from('skript_chat_messages').update(patch).eq('id', messageId);
+    if (Array.isArray(nurWennStatus)) q = q.in('status', nurWennStatus);
+    else if (nurWennStatus) q = q.eq('status', nurWennStatus);
+    const { data, error } = await q.select('id');
+    if (!error) return (data || []).length > 0;
+    letzterFehler = error;
+    console.error(`[skript-auftrag ${messageId}] Update-Versuch ${versuch} fehlgeschlagen:`, error.message);
+  }
+  throw new Error(`Message-Update fehlgeschlagen: ${letzterFehler?.message || 'unbekannt'}`);
+}
+
+/** Fehlerstatus setzen, ohne einen Abbruch oder ein fertiges Ergebnis zu ueberschreiben. */
+async function markiereNachrichtFehler(supabase, messageId, errorMessage) {
+  return schreibeNachricht(
+    supabase,
+    messageId,
+    { status: 'error', error_message: errorMessage },
+    { nurWennStatus: OFFEN }
+  );
+}
+
+/**
+ * Sicherheitsnetz im finally: steht die geclaimte Message nach dem Lauf noch
+ * auf 'running' (finales Update still gescheitert, Fehlerpfad selbst
+ * gescheitert), wird sie auf error gesetzt. Der Nutzer sieht dann "Nochmal
+ * versuchen" statt eines endlosen Wartens. Wirft nie.
+ */
+async function sichereNachrichtAbgeschlossen(supabase, messageId) {
+  try {
+    const { data } = await supabase.from('skript_chat_messages')
+      .select('status').eq('id', messageId).maybeSingle();
+    if (data?.status !== 'running') return false;
+    console.error(`[skript-auftrag ${messageId}] Message nach dem Lauf noch running - setze error`);
+    return await markiereNachrichtFehler(supabase, messageId, 'Antwort konnte nicht gespeichert werden – bitte nochmal versuchen.');
+  } catch (err) {
+    console.error(`[skript-auftrag ${messageId}] Sicherheitsnetz fehlgeschlagen:`, err.message);
+    return false;
+  }
+}
+
 /**
  * Scope-Pruefung serverseitig: requireInternal weist nur die Rolle nach,
  * RLS greift unter Service Role nicht. Ohne diesen Check koennte jeder
@@ -93,5 +152,6 @@ async function istNachrichtAbgebrochen(supabase, messageId) {
 
 module.exports = {
   beansprucheJob, beansprucheNachricht, autorisiereSkript, hatLaufendenJob,
-  istJobAbgebrochen, istNachrichtAbgebrochen
+  istJobAbgebrochen, istNachrichtAbgebrochen,
+  schreibeNachricht, markiereNachrichtFehler, sichereNachrichtAbgeschlossen
 };

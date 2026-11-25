@@ -1,4 +1,6 @@
 import { EntityRegistry } from './entities/index.js';
+import { sanitizeCreatorWrite } from '../../modules/creator/creatorProfil.js';
+import { dokumenteDerEntitaetLoeschen, hatEntitaetDokumente } from '../ablage/dokumentAblage.js';
 
 export class EntityMutator {
   constructor({ dataPreparer, relationManager }) {
@@ -9,6 +11,7 @@ export class EntityMutator {
 
   async createEntity(entityType, data) {
     try {
+      if (entityType === 'creator') data = sanitizeCreatorWrite(data);
       console.log(`✅ ${entityType} erstellt:`, data);
       
       if (!window.supabase || !window.supabase.auth) {
@@ -70,6 +73,7 @@ export class EntityMutator {
 
   async updateEntity(entityType, id, data) {
     try {
+      if (entityType === 'creator') data = sanitizeCreatorWrite(data);
       console.log(`✅ ${entityType} aktualisiert:`, id, data);
       
       if (!window.supabase) {
@@ -130,14 +134,27 @@ export class EntityMutator {
         throw new Error(`Unbekannte Entität: ${entityType}`);
       }
 
-      const { error } = await window.supabase
+      // Rechnungs-/Auftragsdokumente fallen per Cascade weg, ihre Dateien müssen vorher raus
+      if (hatEntitaetDokumente(entityType)) await dokumenteDerEntitaetLoeschen(entityType, [id]);
+
+      const { data, error } = await window.supabase
         .from(entityConfig.table)
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) {
         console.error(`❌ Supabase Fehler beim Löschen von ${entityType}:`, error);
         return { success: false, error: error.message };
+      }
+
+      // RLS blockiert ein Delete ohne Fehler: 0 Zeilen = nichts gelöscht.
+      if (!data?.length) {
+        console.error(`❌ ${entityType} nicht gelöscht (0 Zeilen):`, id);
+        return {
+          success: false,
+          error: 'Nicht gelöscht: keine Berechtigung oder der Eintrag existiert nicht mehr.'
+        };
       }
 
       console.log(`✅ ${entityType} erfolgreich gelöscht:`, id);
@@ -166,6 +183,8 @@ export class EntityMutator {
       if (!entityConfig) {
         throw new Error(`Unbekannte Entität: ${entityType}`);
       }
+
+      if (hatEntitaetDokumente(entityType)) await dokumenteDerEntitaetLoeschen(entityType, ids);
 
       const { error, count } = await window.supabase
         .from(entityConfig.table)

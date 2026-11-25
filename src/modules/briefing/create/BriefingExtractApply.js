@@ -1,25 +1,20 @@
 // BriefingExtractApply.js
-// Uebernimmt Likys Extrakt ins Briefing-Formular. Anders als am Produkt
-// (DOM-zuerst) wird hier formData zuerst geschrieben und das Formular dann
-// neu gerendert - die Custom-Widgets (entitySelect, repeatableKpi,
-// channelGroup) lassen sich nicht sinnvoll ueber DOM-Events befuellen.
-// Danach markiert der ExtractReviewLayer die sichtbaren Felder.
+// Übernimmt Likys Extrakt ins Briefing-Formular: formData zuerst, dann neu rendern,
+// danach markiert der ExtractReviewLayer die sichtbaren Felder.
+// Die Instanz lebt am BriefingLikyPanel und übersteht Step-Renders (aiFill bleibt).
 //
-// Die Instanz lebt am BriefingLikyPanel und uebersteht Step-Renders:
-// aiFill bleibt erhalten, setForm/markVisible werden nach jedem Render
-// erneut aufgerufen.
-//
-// Wichtig: Claude liefert die Werte nicht immer in der Shape, die die
-// Widgets erwarten (KPIs als { kpi, ziel }, Channels als
-// [{ format, anzahl, vorgaben }], Chat-Patches als { value, kind }-Wrapper).
-// normalizeValue bringt alles auf die Form, die FieldRenderer rendert und
-// saveCurrentStepData wieder einsammelt. Ohne das landet "[object Object]"
-// in Textfeldern und die Widgets zeigen leer, obwohl formData voll ist.
+// Claude liefert Werte nicht immer in der Shape der Widgets (Wrapper { value, kind },
+// Listen als Text, Videolänge als "mind. 30 Sek."). normalizeValue bringt alles auf die
+// Form, die FieldRenderer rendert und saveCurrentStepData wieder einsammelt.
+// Produkte: neue werden angehängt, vorhandene Einträge bleiben (der Produkt-Sync legt an).
 
 import { ExtractReviewLayer } from '../../../core/form/ai/ExtractReviewLayer.js';
-import { resolveProduktHints } from './produktHint.js';
+import { videolaengeOderNull, mindestlaengeOderNull, videolaengeAusAlt } from '../videolaenge.js';
+import { ideenListe } from '../ideenSplit.js';
+import { findeDublette, PRODUKT_EINGABE } from './briefingProduktSync.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TEXT_TYPEN = new Set(['text', 'textarea', 'url', 'date']);
 
 /** Alte Jobs / Modelle liefern fields als JSON-String oder Array. */
 export function coerceFieldMap(value) {
@@ -61,190 +56,97 @@ function unwrapEntry(entry) {
 
 function asText(value) {
   if (value == null) return '';
-  if (Array.isArray(value)) {
-    return value.map(asText).filter(Boolean).join('\n');
-  }
-  if (typeof value === 'object') {
-    // { label: ... } oder Reste eines Wrappers - nie "[object Object]"
-    return asText(value.label ?? value.text ?? value.value ?? '');
-  }
+  if (Array.isArray(value)) return value.map(asText).filter(Boolean).join('\n');
+  if (typeof value === 'object') return asText(value.label ?? value.text ?? value.value ?? '');
   return String(value);
 }
 
 function asDate(value) {
   const text = asText(value).trim();
   if (!text) return '';
-  // ISO passt direkt, deutsches Datum (17.11.2026) wird umgedreht
   const de = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
   if (de) return `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}`;
-  return text;
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
 }
 
-/** Wert auf einen der bekannten Option-values mappen (Label oder value). */
 function matchOption(options, raw) {
-  const text = asText(raw).trim();
-  if (!text) return null;
-  const lower = text.toLowerCase();
+  const lower = asText(raw).trim().toLowerCase();
+  if (!lower) return null;
   const hit = (options || []).find(
     (o) => String(o.value).toLowerCase() === lower || String(o.label).toLowerCase() === lower
   );
   return hit ? hit.value : null;
 }
 
-function asOptionValue(field, value) {
-  // Boolean-Radios (true/false-Optionen) als echte Booleans
-  const isBooleanRadio = field.type === 'radio'
-    && Array.isArray(field.options) && field.options.length > 0
-    && field.options.every((o) => o.value === 'true' || o.value === 'false');
-  if (isBooleanRadio) {
-    if (value === true || value === 'true') return true;
-    if (value === false || value === 'false') return false;
-    return null;
-  }
-  return matchOption(field.options, value);
-}
-
 function asOptionList(field, value) {
   const items = Array.isArray(value) ? value : [value];
-  const known = new Set((field.options || []).map((o) => String(o.value)));
-  const out = [];
-  for (const item of items) {
-    const matched = matchOption(field.options, item);
-    if (matched) {
-      out.push(matched);
-    } else if (field.type === 'customMulti') {
-      // Freitext bleibt bei customMulti erhalten (eigenes Eingabefeld)
-      const text = asText(item).trim();
-      if (text && !known.has(text)) out.push(text);
-    }
-    // bei checkboxes: Unbekanntes verwerfen, sonst haengt es unsichtbar im Wert
-  }
-  return [...new Set(out)];
+  return [...new Set(items.map((item) => matchOption(field.options, item)).filter(Boolean))];
 }
 
-function asKpiList(field, value) {
-  const items = Array.isArray(value) ? value : [];
-  const out = [];
-  for (const item of items) {
-    if (!item || typeof item !== 'object') continue;
-    const kpi = matchOption(field.kpiOptions, item.kpi) || asText(item.kpi).trim();
-    // Claude schreibt den Zielwert gern als "ziel" oder "wert"
-    const zielwert = asText(item.zielwert ?? item.ziel ?? item.wert ?? item.target).trim();
-    if (kpi || zielwert) out.push({ kpi, zielwert });
+function asVideolaenge(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const minimum = value.minimum ?? value.mindestlaenge ?? value.min;
+    if (minimum != null) return mindestlaengeOderNull(minimum, null);
+    return videolaengeOderNull(value.von, value.bis ?? null);
   }
-  return out;
+  const text = asText(value);
+  const min = text.match(/(?:mind(?:estens|\.)?|ab|min(?:imum)?\.?)\s*(\d+)/i);
+  if (min) return mindestlaengeOderNull(min[1], null);
+  return videolaengeAusAlt({ videolaenge_text: text });
 }
 
-function asChannelGroup(field, value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const out = {};
-  for (const channel of field.channels || []) {
-    const raw = value[channel.key];
-    if (raw == null || raw === false) continue;
-    if (!channel.formats) {
-      // Toggle-Plattform ohne Unterformate
-      if (raw === true || (Array.isArray(raw) && raw.length) || (typeof raw === 'object' && Object.keys(raw).length)) {
-        out[channel.key] = true;
-      }
+function asIdeen(value) {
+  const items = Array.isArray(value) ? value : [value];
+  const out = [];
+  for (const item of items) {
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const text = asText(item.text ?? item.value).trim();
+      if (text) out.push({ text, verbindlich: item.verbindlich === true || item.verbindlich === 'true' });
       continue;
     }
-    // Claude liefert gern [{ format, anzahl, vorgaben }] statt ['reel'],
-    // der Chat schickt { active: true, formats: ['reel'] }
-    const items = Array.isArray(raw)
-      ? raw
-      : (raw && typeof raw === 'object' && Array.isArray(raw.formats) ? raw.formats : [raw]);
-    const formats = [];
-    for (const item of items) {
-      const candidate = item && typeof item === 'object' ? (item.format ?? item.value ?? item.key) : item;
-      const matched = matchOption(channel.formats, candidate);
-      if (matched) formats.push(matched);
-    }
-    if (formats.length) out[channel.key] = [...new Set(formats)];
-  }
-  const weitere = asText(value.weitere).trim();
-  if (weitere) out.weitere = weitere;
-  return Object.keys(out).length ? out : null;
-}
-
-function asGroup(field, value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const out = {};
-  for (const sub of field.fields || []) {
-    out[sub.name] = asText(value[sub.name]);
-  }
-  return Object.values(out).some((v) => v.trim()) ? out : null;
-}
-
-function asTextList(value) {
-  const items = Array.isArray(value) ? value : [value];
-  return items.map(asText).map((s) => s.trim()).filter(Boolean);
-}
-
-function asUploadList(value) {
-  const items = Array.isArray(value) ? value : [];
-  const out = [];
-  for (const item of items) {
-    if (!item || typeof item !== 'object') continue;
-    const url = asText(item.value ?? item.url).trim();
-    if (!url) continue;
-    out.push({ typ: 'url', value: url });
+    for (const text of ideenListe(asText(item))) out.push({ text, verbindlich: false });
   }
   return out;
+}
+
+function asProdukte(value) {
+  const items = Array.isArray(value) ? value : [value];
+  return items
+    .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => Object.fromEntries(PRODUKT_EINGABE.map((f) => [f, asText(item[f]).trim()])))
+    .filter((p) => p.name || p.url);
 }
 
 /**
  * Wert auf die Shape bringen, die FieldRenderer/saveCurrentStepData erwarten.
- * Gibt null zurueck, wenn nichts Verwertbares dabei ist.
+ * Gibt null zurück, wenn nichts Verwertbares dabei ist.
  */
 export function normalizeValue(field, raw) {
   const value = unwrapEntry(raw);
   if (value == null) return null;
 
   switch (field.type) {
-    case 'text':
-    case 'textarea':
-    case 'url': {
-      const text = asText(value).trim();
-      return text || null;
-    }
-    case 'date': {
-      const date = asDate(value);
-      return date || null;
-    }
+    case 'date':
+      return asDate(value) || null;
     case 'checkbox':
       return value === true || value === 'true';
-    case 'radio':
-      return asOptionValue(field, value);
-    case 'checkboxes':
-    case 'customMulti': {
+    case 'checkboxes': {
       const list = asOptionList(field, value);
       return list.length ? list : null;
     }
-    case 'repeatableKpi': {
-      const list = asKpiList(field, value);
+    case 'videolaenge':
+      return asVideolaenge(value);
+    case 'ideenListe': {
+      const list = asIdeen(value);
       return list.length ? list : null;
     }
-    case 'repeatableText': {
-      const list = asTextList(value);
+    case 'produktListe': {
+      const list = asProdukte(value);
       return list.length ? list : null;
     }
-    case 'repeatableUpload': {
-      const list = asUploadList(value);
-      return list.length ? list : null;
-    }
-    case 'channelGroup':
-      return asChannelGroup(field, value);
-    case 'group':
-      return asGroup(field, value);
     case 'entitySelect':
-      // Extract/Chat liefern Namen ("FORGEWORKS AG"), keine IDs - nicht raten
+      // Extract/Chat liefern Namen, keine IDs - nicht raten
       return UUID_RE.test(asText(value).trim()) ? asText(value).trim() : null;
-    case 'entityMulti': {
-      const ids = (Array.isArray(value) ? value : [value])
-        .map((v) => asText(v).trim())
-        .filter((v) => UUID_RE.test(v));
-      return ids.length ? ids : null;
-    }
     default: {
       const text = asText(value).trim();
       return text || null;
@@ -252,12 +154,29 @@ export function normalizeValue(field, raw) {
   }
 }
 
+function istLeer(value) {
+  if (value == null || value === false) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  if (Array.isArray(value)) {
+    return value.every((item) => (item && typeof item === 'object')
+      ? Object.entries(item).every(([k, v]) => k === 'verbindlich' || v == null || String(v).trim() === '')
+      : String(item ?? '').trim() === '');
+  }
+  if (typeof value === 'object') return Object.values(value).every((v) => v == null || v === '');
+  return false;
+}
+
+function eintragInfo(entry, fallbackFrom = null) {
+  const obj = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {};
+  return { kind: obj.kind === 'guess' ? 'guess' : 'fact', from: obj.from || fallbackFrom };
+}
+
 export class BriefingExtractApply {
   constructor(briefingCreate) {
     this.briefing = briefingCreate;
     this.form = null;
     this.review = null;
-    // name -> { from, kind } fuer die Markierung (ueberlebt Step-Renders)
+    // name -> { from, kind } für die Markierung (übersteht Step-Renders)
     this.aiFill = new Map();
   }
 
@@ -266,92 +185,74 @@ export class BriefingExtractApply {
     this.review = form ? new ExtractReviewLayer(form) : null;
   }
 
+  /** Produkte aus dem Extrakt anhängen, die noch nicht in der Liste stehen. @returns {number} neue */
+  ergaenzeProdukte(neue) {
+    const vorhanden = (this.briefing.formData.produkte || []).filter((p) => !istLeer([p]) || p.produkt_id);
+    const dazu = neue.filter((p) => !findeDublette(vorhanden, p));
+    this.briefing.formData.produkte = [...vorhanden, ...dazu];
+    return dazu.length;
+  }
+
   /**
    * Extrahierte Felder in formData schreiben. Nur leere Felder - was der
-   * Nutzer selbst ausgefuellt hat, bleibt stehen.
+   * Nutzer selbst ausgefüllt hat, bleibt stehen.
    * @returns {{ applied: string[], skipped: string[] }}
    */
   apply(fields, spec) {
     const applied = [];
     const skipped = [];
     const specByName = new Map(spec.map((f) => [f.name, f]));
-    fields = coerceFieldMap(fields);
 
-    for (const [name, entry] of Object.entries(fields)) {
+    for (const [name, entry] of Object.entries(coerceFieldMap(fields))) {
       const specField = specByName.get(name);
       if (!specField || entry == null) continue;
-
       const value = normalizeValue(specField, entry);
-      if (value == null) continue;
+      if (value == null || value === false) continue;
 
-      const current = this.briefing.formData[name];
-      if (!this.isEmpty(current)) {
+      if (specField.type === 'produktListe') {
+        if (this.ergaenzeProdukte(value)) {
+          this.aiFill.set(name, eintragInfo(entry));
+          applied.push(specField.label || name);
+        }
+        continue;
+      }
+      if (!istLeer(this.briefing.formData[name])) {
         skipped.push(specField.label || name);
         continue;
       }
-
       this.briefing.formData[name] = value;
-      const kind = entry && typeof entry === 'object' && !Array.isArray(entry) && entry.kind === 'guess'
-        ? 'guess' : 'fact';
-      const from = entry && typeof entry === 'object' && !Array.isArray(entry) && entry.from
-        ? entry.from : null;
-      this.aiFill.set(name, { from, kind });
+      if (specField.type === 'videolaenge') this.briefing.formData[`${name}_modus`] = null;
+      this.aiFill.set(name, eintragInfo(entry));
       applied.push(specField.label || name);
     }
-
     return { applied, skipped };
   }
 
-  /**
-   * Bekannte Produkte aus produkte_hint in produkt_ids schreiben.
-   * Entity-Felder sind nicht in der Spec - ohne das landen existierende
-   * Produkte nie im Formular. Nur wenn produkt_ids noch leer ist.
-   * katalog: Produkte des Unternehmens (id + name), falls Claude die UUID
-   * nicht geliefert hat.
-   * @returns {{ applied: string[], hints: Array<{ name: string, produkt_id: string|null }> }}
-   */
-  applyProduktHints(hints, katalog = []) {
-    const resolved = resolveProduktHints(hints, katalog);
-    const ids = [...new Set(resolved
-      .map((p) => String(p.produkt_id || '').trim())
-      .filter((id) => UUID_RE.test(id)))];
-    if (!ids.length || !this.isEmpty(this.briefing.formData.produkt_ids)) {
-      return { applied: [], hints: resolved };
-    }
-
-    this.briefing.formData.produkt_ids = ids;
-    this.aiFill.set('produkt_ids', { from: 'PDF', kind: 'fact' });
-    return { applied: ['Produkte'], hints: resolved };
-  }
-
-  /** Chat-Patches: duerfen vorhandene Werte aendern (Explizite Steuerung). */
+  /** Chat-Patches: dürfen vorhandene Werte ändern (explizite Steuerung). */
   applyPatches(patches, spec) {
     const applied = [];
     const specByName = new Map(spec.map((f) => [f.name, f]));
-    patches = coerceFieldMap(patches);
 
-    for (const [name, entry] of Object.entries(patches)) {
+    for (const [name, entry] of Object.entries(coerceFieldMap(patches))) {
       const specField = specByName.get(name);
       if (!specField || entry == null) continue;
-
-      // Chat schickt { value, kind, from, force } - nur den Wert uebernehmen
       const value = normalizeValue(specField, entry);
       if (value == null) continue;
-
-      this.briefing.formData[name] = value;
-      const kind = entry && typeof entry === 'object' && entry.kind === 'guess' ? 'guess' : 'fact';
-      const from = entry && typeof entry === 'object' && entry.from ? entry.from : 'Chat';
-      this.aiFill.set(name, { from, kind });
+      if (specField.type === 'produktListe') {
+        this.ergaenzeProdukte(value);
+      } else {
+        this.briefing.formData[name] = value;
+        if (specField.type === 'videolaenge') this.briefing.formData[`${name}_modus`] = null;
+      }
+      this.aiFill.set(name, eintragInfo(entry, 'Chat'));
       applied.push(specField.label || name);
     }
-
     return { applied };
   }
 
   /** Neu rendern und die sichtbaren Felder markieren. */
   renderAndMark() {
     this.briefing.render();
-    // render() hat das DOM ersetzt - Referenzen neu holen
     this.setForm(document.getElementById('briefing-form'));
     this.markVisible();
   }
@@ -360,26 +261,24 @@ export class BriefingExtractApply {
   markVisible() {
     if (!this.form || !this.review) return;
     for (const [name, entry] of this.aiFill) {
-      // mark() schreibt den Wert selbst ins Feld - also aus formData mitgeben
-      this.review.mark(name, { ...entry, value: this.briefing.formData[name] });
+      const input = this.review.findInput(name);
+      if (input && TEXT_TYPEN.has(input.type)) {
+        // mark() schreibt den Wert selbst ins Feld - also aus formData mitgeben
+        this.review.mark(name, { ...entry, value: this.briefing.formData[name] });
+      } else {
+        this.markiereWrapper(name, entry);
+      }
     }
   }
 
-  isEmpty(value) {
-    if (value == null) return true;
-    if (typeof value === 'string') return value.trim() === '';
-    if (Array.isArray(value)) {
-      if (value.length === 0) return true;
-      // [{kpi, zielwert}] mit leeren Feldern gilt als leer
-      return value.every((item) =>
-        item && typeof item === 'object' && !Array.isArray(item)
-          ? Object.values(item).every((v) => v == null || String(v).trim() === '')
-          : false
-      );
-    }
-    if (typeof value === 'object') {
-      return Object.values(value).every((v) => this.isEmpty(v));
-    }
-    return false;
+  /** Checkboxen, Listen, Videolänge: nur markieren, Werte stehen schon im DOM. */
+  markiereWrapper(name, entry) {
+    const anker = this.form.querySelector(
+      `[data-videolaenge="${name}"], [data-ideenliste="${name}"], [data-produktliste="${name}"], [name="${name}"]`
+    );
+    const wrapper = anker?.closest('.form-field');
+    if (!wrapper || wrapper.classList.contains('ai-filled')) return;
+    wrapper.classList.add('ai-filled', entry.kind === 'guess' ? 'ai-filled--guess' : 'ai-filled--fact');
+    (this.review.labelOf(wrapper) || wrapper).appendChild(this.review.buildBadge(entry.kind, entry.from));
   }
 }

@@ -1,18 +1,26 @@
 // Netlify Background Function: Skript-Generierung (Layer 1)
 // Ablauf: Kontext per SQL sammeln (Pick-and-pull, kein LLM) ->
-//         DNA-Layer in den Prompt ->
+//         Master-Regelwerk in den Prompt ->
 //         Claude schreibt EIN drehfertiges Markdown-Dokument (inhalt_md) -> Supabase.
 // Background Function: antwortet sofort 202, Fortschritt kommt asynchron
 // ueber die skript_generation_jobs-Tabelle (Realtime in der UI).
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
-const { loadContext, loadReferenzVideo, buildKontextText, videoLaengeHinweis, briefingSkriptSprache, cap, KONTEXT_MAX } = require('./_shared/skript-context');
+const { loadContext, loadReferenzVideo, buildKontextText, videoLaengeHinweis, briefingSkriptSprache } = require('./_shared/skript-context');
+const { entferneZeitmarker, pruefeSkript, hookVorgabeText } = require('./_shared/skript-context/formatter');
+const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
 const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
+const { vertragBlock } = require('./_shared/skript-vertrag');
 const { extractSkriptAusMaster } = require('./_shared/skript-creator-facing');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
+const { logPrompt } = require('./_shared/prompt-log');
+const { loadRueckfragenDialog, fmtRueckfragenBlock } = require('./_shared/skript-rueckfragen');
 const { beansprucheJob, autorisiereSkript, hatLaufendenJob, istJobAbgebrochen } = require('./_shared/skript-auftrag');
+const { ladeGesperrtenHook, hookSperreGenerierungBlock, varianteOhneGesperrtenHook } = require('./_shared/hook-sperre');
+const { personaVomStub } = require('./_shared/skript-persona');
+const { bereichVomStub } = require('./_shared/skript-bereich');
 
 // Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
 // Anfuehrungszeichen im Skript-Text koennen das Parsen nicht mehr brechen
@@ -25,61 +33,47 @@ const SKRIPT_TOOL = {
       titel: { type: 'string', description: 'Kurzer Arbeitstitel' },
       inhalt_md: {
         type: 'string',
-        description: 'Nur Zusatzinfos (Produktionskopf, Timing, Shotlist, Brand-Hinweise). KEINE Creator-facing-Tabelle, KEINE Variantenuebersicht, KEINE alternativen Opener/Hooks/CTAs.'
+        description: 'Nur Zusatzinfos (Produktionskopf, Brand-Hinweise, Pflicht-Shots aus dem Briefing). KEINE Shotlist, KEINE Creator-facing-Tabelle, KEINE Variantenuebersicht, KEINE alternativen Opener/Hooks/CTAs.'
       },
-      hook: { type: 'string', description: 'Gesprochener Hook der Hauptvariante A. Jeder Zeitbeat eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hook_visuell.' },
-      hauptteil: { type: 'string', description: 'Gesprochener Hauptteil der Hauptvariante A. Jeder Zeitbeat eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hauptteil_visuell.' },
-      cta: { type: 'string', description: 'Gesprochener CTA der Hauptvariante A. Jeder Zeitbeat eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie cta_visuell.' },
-      hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Jeder Zeitmarker (Sek. 0–3:) beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
-      hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
-      cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
+      hook: { type: 'string', description: 'Gesprochener Hook der Hauptvariante A. Jeder Beat ein eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hook_visuell.' },
+      hauptteil: { type: 'string', description: 'Gesprochener Hauptteil der Hauptvariante A. Jeder Beat ein eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hauptteil_visuell.' },
+      cta: { type: 'string', description: 'Gesprochener CTA der Hauptvariante A. Jeder Beat ein eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie cta_visuell.' },
+      hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat. Die Person im Bild immer neutral "Creator" nennen, nie mit Namen oder Handle.' },
+      hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat. Die Person im Bild immer neutral "Creator" nennen, nie mit Namen oder Handle.' },
+      cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Ein schlichter Satz pro Beat, jeder Beat ein eigener Absatz, Leerzeile dazwischen. Keine Zeitmarker. On-Screen-Text am jeweiligen Beat. Die Person im Bild immer neutral "Creator" nennen, nie mit Namen oder Handle.' },
       rezept: { type: 'string', description: 'Rezept-Block unter dem CTA (volle Breite, kein Visual). Zutaten und Zubereitung kompakt aus der Caption der Videovorlage. NUR befuellen, wenn der Auftrag einen Rezept-Block waehlt - sonst weglassen.' },
       text_hook: { type: 'string', description: 'Kurzer On-Screen-Text-Hook (Texteinblendung im Hook, max. ca. 5 Woerter). NUR befuellen, wenn der Auftrag einen Text-Hook waehlt - sonst weglassen.' },
       caption: { type: 'string', description: 'Posting-Caption (Text unter dem Post, volle Breite unter dem Rezept bzw. CTA). NUR befuellen, wenn der Auftrag eine Caption waehlt - sonst weglassen.' },
-      varianten: {
+      hook_varianten: {
         type: 'array',
-        description: 'Genau zwei alternative Skript-Varianten (B und C). Nicht in inhalt_md wiederholen.',
-        items: {
-          type: 'object',
-          properties: {
-            label: { type: 'string', description: 'B oder C' },
-            beschreibung: { type: 'string', description: 'Kurzer Unterschied zur Hauptvariante' },
-            hook: { type: 'string' },
-            hauptteil: { type: 'string' },
-            cta: { type: 'string' },
-            hook_visuell: { type: 'string' },
-            hauptteil_visuell: { type: 'string' },
-            cta_visuell: { type: 'string' }
-          }
-        }
+        description: 'Zwei bis drei alternative gesprochene Hooks, deutlich anders als Variante A. Nur Sprechertext, kein Visual, kein Hauptteil/CTA. Nicht in inhalt_md wiederholen.',
+        items: { type: 'string' }
       }
     },
     required: ['titel', 'inhalt_md']
   }
 };
 
+const HARTE_GRENZEN_GENERIERUNG = 'Harte Grenzen: die Verbote (kein, nicht, nie, ohne) unter # WICHTIGE VORGABEN und jede Zeile mit HART: in # CREATOR-VORGABEN. '
+  + 'Die harten Grenzen schlagen auch die Video-Idee und jede Rueckfrage. '
+  + 'Widerspricht die Video-Idee einer harten Grenze: Grenze einhalten und den Konflikt in inhalt_md unter ## Abweichungen benennen.';
+
 // ---------------------------------------------------------------------------
 // Prompt-Bau (Kontext-Aufbau + Sektions-Formatierung: _shared/skript-context)
 // ---------------------------------------------------------------------------
-function buildPrompt(ctx, params, rueckfragenDialog = '') {
+function buildPrompt(ctx, params, rueckfragenDialog = '', { gesperrterHook = null } = {}) {
   const master = ctx.master || [];
-  const dna = ctx.dna || [];
 
-  // Block 1 (stabil, cachebar): Rolle + Master + DNA
+  // Block 1 (stabil, cachebar): Rolle + Master
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
     + '(Owned Media, Paid Ads, Influencer-Konzepte; TikTok, Instagram Reels). '
     + 'Du schreibst drehfertige Konzepte nach dem verbindlichen Master-Regelwerk. '
     + 'Die drei Systeme Owned, Paid und Influencer duerfen nicht vermischt werden. '
-    + 'Fehlende Produktfakten, Claims, Preise, Offers, Bewertungen oder Ergebnisse darfst du niemals erfinden.\n';
+    + 'Fehlende Produktfakten, Claims, Preise, Offers, Bewertungen oder Ergebnisse darfst du niemals erfinden. '
+    + 'Verbote im Block WICHTIGE VORGABEN duerfen im Skript nicht vorkommen. '
+    + 'Pflichtinhalte und Do\'s nur, wo der Fakt belegt ist; fehlt der Fakt, wird die Pflicht weggelassen und unter ## Abweichungen benannt.\n';
 
   stable += fmtMasterBlock(master);
-
-  if (dna.length) {
-    stable += '\n# SKRIPT-DNA (verbindliches Regelwerk, geschichtet - spaetere Layer haben Vorrang)\n';
-    for (const d of dna) {
-      stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${cap(d.inhalt, KONTEXT_MAX.dna)}\n`;
-    }
-  }
 
   // Block 2 (variabel): Auftrag dieser Generierung
   const sprache = briefingSkriptSprache(ctx.briefing);
@@ -93,12 +87,11 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     task += `\n# SKRIPT-SPRACHE\nLaut Campaign-Briefing: ${sprache}. Schreibe das Skript in dieser Sprache (nicht automatisch auf Deutsch).\n`;
   }
 
+  if (ctx.briefing) task += `\n${HARTE_GRENZEN_GENERIERUNG}\n`;
+
   // Vorab geklaerte Rueckfragen (Slot-Filling-Dialog vor der Generierung).
   // User-Freitext: delimitiert, damit daraus keine Prompt-Anweisung wird.
-  if (rueckfragenDialog) {
-    task += '\n# GEKLAERTE RUECKFRAGEN (verbindliche Antworten des Users - haben Vorrang vor widerspruechlichen CRM-Daten)\n'
-      + '<rueckfragen_dialog>\n' + rueckfragenDialog + '\n</rueckfragen_dialog>\n';
-  }
+  task += fmtRueckfragenBlock(rueckfragenDialog);
 
   const bereichLabel = MASTER_BEREICH_LABELS[ctx.bereich] || ctx.bereich || 'unbekannt';
   if (ctx.modus?.inhalt) {
@@ -110,24 +103,23 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
   if (params.mit_rezept) ausgabeFelder.push('rezept');
   if (params.mit_text_hook) ausgabeFelder.push('text_hook');
   if (params.mit_caption) ausgabeFelder.push('caption');
-  ausgabeFelder.push('varianten');
+  ausgabeFelder.push('hook_varianten');
   task += '\n# AUSGABEFORMAT\nGib das Dokument AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
     + `(Felder: ${ausgabeFelder.join(', ')}).\n`
-    + `Bereich: ${bereichLabel}. Folge dem drehfertigen Aufbau im MASTER-BEREICH-Dokument. `
-    + 'inhalt_md = NUR Zusatzinfos: Produktionskopf, Timing, Brand-Hinweise, Shotlist, Pflicht-Shots, '
-    + 'On-Screen-Liste, Schnitt/Sound. Mit ##-Ueberschriften nach den Hauptbloecken '
+    + `Bereich: ${bereichLabel}. `
+    + 'inhalt_md = NUR Zusatzinfos: Produktionskopf, Brand-Hinweise, Pflicht-Shots aus dem Briefing. '
+    + 'Keine Shotlist, kein Storyboard. Mit ##-Ueberschriften nach den Hauptbloecken '
     + '(nicht nach Unterpunkten A/B/C als ##).\n'
     + 'NICHT in inhalt_md: Creator-facing-Tabelle, Variantenuebersicht, alternative Opener/Hooks/CTAs, '
     + 'Zweispalter "gesprochen / zu sehen". Diese Inhalte gehoeren AUSSCHLIESSLICH in die Skript-Felder.\n'
     + 'Variante A: hook/hauptteil/cta (gesprochen) plus hook_visuell/hauptteil_visuell/cta_visuell '
     + '(was zu sehen ist) – direkt mitgenerieren.\n'
-    + 'ZEITMARKER: Jeder Beat beginnt einen neuen Absatz (Leerzeile dazwischen), '
-    + 'Format „Sek. 0–3: …“. Links (gesagt) und rechts (sehen) dieselbe Absatz-Anzahl. '
-    + 'On-Screen-Text gehoert zum Beat, nicht als Liste ans Ende. '
-    + 'Marker alle paar Sekunden, nicht sekündlich. Niemals alle Marker in einen Fliesstext packen.\n'
-    + 'Varianten B und C: Array "varianten" (label B/C, beschreibung, abweichende Felder). '
-    + 'Meist nur Hook/Opener anders, Hauptteil und CTA gleich. NICHT in inhalt_md wiederholen.\n'
-    + 'Tabellen als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
+    + 'WAS ZU SEHEN IST: ein schlichter Satz pro Beat, gleiche Absatz-Anzahl wie der gesprochene Text derselben Sektion. '
+    + 'Keine Zeitmarker, keine Shotlist, kein Produktions-Storyboard. '
+    + 'Die Person im Bild heisst dort immer neutral "Creator" - nie Name oder Handle aus dem Kontext.\n'
+    + 'hook_varianten: genau zwei oder drei alternative GESPROCHENE Hooks, deutlich anders als Variante A. '
+    + 'Nur Sprechertext, kein Visual, kein Hauptteil/CTA. NICHT in inhalt_md wiederholen.\n'
+    + 'Tabellen nur in den Zusatzinfos und nur wenn noetig, dann als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
     + (ctx.briefing ? 'im CAMPAIGN-BRIEFING, ' : '')
@@ -167,6 +159,9 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
       + 'nicht zum Abschreiben. Gibt es keine belastbare Grundlage, lasse caption leer.\n';
   }
 
+  // Hook-Sperre (ADR 0054): freigegebener Hook wird woertlich uebernommen
+  task += hookSperreGenerierungBlock(gesperrterHook);
+
   // Harte Laengen-Regel: Wort-Budget aus der gewaehlten Video-Laenge
   const laengenHinweis = videoLaengeHinweis(params.video_laenge);
   if (laengenHinweis) {
@@ -174,6 +169,8 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
       + 'Dieses Budget ist verbindlich - dimensioniere vor allem den Hauptteil entsprechend. '
       + 'Im Zweifel lieber knapp unter dem Budget bleiben als darueber.';
   }
+
+  task += vertragBlock(ctx.bereich);
 
   return { stable, task };
 }
@@ -214,10 +211,18 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     // anreichern. Der validierte Snapshot ersetzt die Client-Angaben.
     const referenzVideo = await loadReferenzVideo(supabase, payload);
     payload.referenz_video = referenzVideo;
+    payload.nur_karte = true;
+    if (referenzVideo) {
+      job.step('karte', 'Ich reduziere die Videovorlage auf die Bauweise…');
+      payload.referenz_karte = await karteAusReferenz(referenzVideo);
+      job.log(payload.referenz_karte ? 'Videovorlage als Karte' : 'Keine Karte aus der Videovorlage');
+    }
     job.log(referenzVideo
       ? `Videovorlage: ${referenzVideo.quelle === 'strategie_item' ? `Strategie-Item (${referenzVideo.platform || 'unbekannt'})` : referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`
-      : 'Keine Videovorlage - Aufbau kommt aus DNA');
+      : 'Keine Videovorlage - Aufbau kommt aus dem Master');
 
+    Object.assign(payload, await personaVomStub(supabase, payload));
+    Object.assign(payload, await bereichVomStub(supabase, payload));
     const ctx = await loadContext(supabase, payload);
     if (!ctx.bereich) {
       throw new Error('Bereich fehlt – bitte Owned Social, Paid Creator Ads oder Influencer Marketing wählen');
@@ -230,24 +235,22 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         .maybeSingle();
       ctx.modus = modus || null;
     }
-    job.log(`Kontext: Bereich ${ctx.bereich}, ${ctx.master.length} Master-Docs, ${ctx.dna.length} DNA-Layer`
+    job.log(`Kontext: Bereich ${ctx.bereich}, ${ctx.master.length} Master-Docs`
       + `${ctx.briefing ? ', Briefing' : ''}${ctx.produkt ? ', Produkt' : ''}${ctx.modus ? `, Modus ${ctx.modus.slug}` : ''}`);
 
     // Rueckfragen-Stub: geklaerten Frage/Antwort-Dialog in den Prompt aufnehmen
-    let rueckfragenDialog = '';
-    if (payload.skript_id) {
-      const { data: dialog } = await supabase.from('skript_chat_messages')
-        .select('rolle, inhalt')
-        .eq('skript_id', payload.skript_id).eq('aktion', 'rueckfrage')
-        .order('created_at');
-      rueckfragenDialog = (dialog || [])
-        .filter((m) => (m.inhalt || '').trim())
-        .map((m) => `${m.rolle === 'user' ? 'User' : 'Liky'}: ${m.inhalt.trim()}`)
-        .join('\n');
-      if (rueckfragenDialog) job.log('Geklaerte Rueckfragen fliessen in den Prompt ein');
-    }
+    const rueckfragenDialog = await loadRueckfragenDialog(supabase, payload.skript_id);
+    if (rueckfragenDialog) job.log('Geklaerte Rueckfragen fliessen in den Prompt ein');
 
-    const { stable, task } = buildPrompt(ctx, payload, rueckfragenDialog);
+    // Hook-Sperre (ADR 0054): gesprochener Hook der Videoidee, vom Kunden freigegeben
+    const gesperrterHook = await ladeGesperrtenHook(
+      supabase,
+      payload.strategie_item_id || referenzVideo?.strategie_item_id || null
+    );
+    if (gesperrterHook) job.log('Hook gesperrt - wird woertlich uebernommen');
+
+    const { stable, task } = buildPrompt(ctx, payload, rueckfragenDialog, { gesperrterHook });
+    logPrompt({ job: 'skript_generierung', id: payload.skript_id || `job:${jobId}`, stable, task });
     const model = MODELS.write;
 
     // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
@@ -262,7 +265,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       model,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      maxTokens: 8192,
+      // Opus 5.5 denkt immer; die Thinking-Tokens zaehlen in max_tokens mit
+      maxTokens: 16384,
       tool: SKRIPT_TOOL,
       // Konservativ: ein haengender Claude-Call soll nicht bis zum
       // Netlify-Limit blockieren, sondern als Job-Fehler sichtbar werden
@@ -279,26 +283,37 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     job.step('speichern', 'Fast fertig – ich speichere…');
     const parsed = result.json || extractJson(result.text, {
       keys: ['titel', 'inhalt_md', 'hook', 'hauptteil', 'cta',
-        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'rezept', 'text_hook', 'caption', 'varianten'],
+        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'rezept', 'text_hook', 'caption',
+        'hook_varianten', 'varianten'],
       onWarn: (msg) => job.log(msg)
     });
     if (!(parsed.inhalt_md || '').trim()) {
       throw new Error('Antwort unvollstaendig (inhalt_md fehlt)');
     }
-    const { felder: grundFelder, varianten, inhalt_md: extraMd } = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    const extrahiert = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    // Der Server setzt den gesperrten Hook hart, unabhaengig von der Modellantwort
+    if (gesperrterHook) {
+      extrahiert.felder.hook = gesperrterHook;
+      extrahiert.hook_varianten = varianteOhneGesperrtenHook(extrahiert.hook_varianten, gesperrterHook);
+    }
+    const felder = { ...extrahiert.felder, ...entferneZeitmarker(extrahiert.felder) };
     // Aufbau-Optionen: nur bei gesetztem Toggle uebernehmen, sonst hart null
-    const felder = {
-      ...grundFelder,
-      rezept: payload.mit_rezept ? (String(parsed.rezept || '').trim() || null) : null,
-      text_hook: payload.mit_text_hook ? (String(parsed.text_hook || '').trim() || null) : null,
-      caption: payload.mit_caption ? (String(parsed.caption || '').trim() || null) : null
-    };
+    felder.rezept = payload.mit_rezept ? (String(parsed.rezept || '').trim() || null) : null;
+    felder.text_hook = payload.mit_text_hook ? (String(parsed.text_hook || '').trim() || null) : null;
+    felder.caption = payload.mit_caption ? (String(parsed.caption || '').trim() || null) : null;
     if (payload.mit_caption) job.log(felder.caption ? 'Caption gesetzt' : 'Caption gewaehlt, aber keine geliefert');
     if (payload.mit_rezept) job.log(felder.rezept ? 'Rezept-Block aus der Caption' : 'Rezept gewaehlt, aber keins in der Caption gefunden');
     if (payload.mit_text_hook) job.log(felder.text_hook ? 'Text-Hook gesetzt' : 'Text-Hook gewaehlt, aber keiner geliefert');
+    const hook_varianten = extrahiert.hook_varianten;
+    const extraMd = extrahiert.inhalt_md;
     const inhaltMd = extraMd || '';
-    if (varianten.length) {
-      job.log(`${varianten.length} Alternative(n) als eigene Versionen`);
+    const hookSlots = [
+      hook_varianten?.hook_variante_1,
+      hook_varianten?.hook_variante_2,
+      hook_varianten?.hook_variante_3
+    ].filter(Boolean);
+    if (hookSlots.length) {
+      job.log(`${hookSlots.length} alternative Hook(s)`);
     }
 
     // Bestehendes prompt_kontext (Stub) fuer den Merge laden: der
@@ -333,6 +348,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       rezept: felder.rezept,
       text_hook: felder.text_hook,
       caption: felder.caption,
+      hook_variante_1: hook_varianten?.hook_variante_1 || null,
+      hook_variante_2: hook_varianten?.hook_variante_2 || null,
+      hook_variante_3: hook_varianten?.hook_variante_3 || null,
       aktive_version_nr: 1,
       aktive_sub_nr: 0,
       video_idee: payload.video_idee || null,
@@ -343,15 +361,19 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       tonalitaet: payload.tonalitaet || null,
       herkunft: 'generiert',
       status: 'entwurf',
-      mit_dna: payload.mit_dna !== false,
       model: result.model,
+      pruefung: pruefeSkript(felder, {
+        video_laenge: payload.video_laenge,
+        verbotene_claims: ctx.produkt?.verbotene_claims,
+        hook_vorgaben: hookVorgabeText(ctx.briefing)
+      }),
       // Merge statt Replace: generator_payload (Retry/Anzeige) und der
       // Referenz-Snapshot muessen die Generierung ueberleben
       prompt_kontext: {
         ...bestehenderKontext,
         generator_payload: generatorPayload,
         referenz_video: referenzVideo,
-        dna_versionen: ctx.dnaVersionen,
+        referenz_karte: payload.referenz_karte || null,
         master_versionen: ctx.masterVersionen,
         bereich: ctx.bereich,
         modus: payload.modus || null,
@@ -377,47 +399,27 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       skript = data;
     }
 
-    // v1 = Hauptvariante. Weitere Opener/Hooks/CTAs als v2, v3, …
-    const versionRows = [
-      {
-        skript_id: skript.id,
-        version_nr: 1,
-        sub_nr: 0,
-        titel: parsed.titel || null,
-        inhalt_md: inhaltMd,
-        hook: felder.hook,
-        hauptteil: felder.hauptteil,
-        cta: felder.cta,
-        hook_visuell: felder.hook_visuell,
-        hauptteil_visuell: felder.hauptteil_visuell,
-        cta_visuell: felder.cta_visuell,
-        rezept: felder.rezept,
-        text_hook: felder.text_hook,
-        caption: felder.caption,
-        aenderung_beschreibung: 'Erstgenerierung',
-        created_by: user.id
-      },
-      ...varianten.map((v, i) => ({
-        skript_id: skript.id,
-        version_nr: i + 2,
-        sub_nr: 0,
-        titel: parsed.titel || null,
-        inhalt_md: inhaltMd,
-        hook: v.felder.hook,
-        hauptteil: v.felder.hauptteil,
-        cta: v.felder.cta,
-        hook_visuell: v.felder.hook_visuell,
-        hauptteil_visuell: v.felder.hauptteil_visuell,
-        cta_visuell: v.felder.cta_visuell,
-        rezept: felder.rezept,
-        text_hook: felder.text_hook,
-        caption: felder.caption,
-        aenderung_beschreibung: v.beschreibung,
-        created_by: user.id
-      }))
-    ];
+    // v1 = Arbeitskopie inkl. Hook-Varianten. Keine Extra-Versionen fuer B/C.
+    const versionRows = [buildErstgenerierungVersionRow({
+      skriptId: skript.id,
+      parsed,
+      felder,
+      hook_varianten,
+      inhaltMd,
+      userId: user.id
+    })];
     const { error: versionError } = await supabase.from('skript_versionen').insert(versionRows);
     if (versionError) job.log(`Hinweis: Versions-Snapshots fehlgeschlagen (${versionError.message})`);
+
+    // Nach der Erstgenerierung fragt Liky von sich aus nach Feedback (nur Fragen-Flow).
+    // Nicht kritisch: ein Fehler hier darf die fertige Generierung nicht kippen.
+    if (payload.skript_id) {
+      try {
+        await legeFeedbackFrageAn(supabase, { skriptId: skript.id, userId: user.id });
+      } catch (feedbackErr) {
+        job.log(`Hinweis: Feedback-Frage nicht angelegt (${feedbackErr.message})`);
+      }
+    }
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     job.log(`Fertig in ${elapsed}s (Tokens: ${result.usage?.input_tokens ?? '?'} in / ${result.usage?.output_tokens ?? '?'} out)`);
@@ -435,4 +437,63 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   }
 });
 
+const FEEDBACK_FRAGE = 'Skript steht. Geht es in die richtige Richtung? '
+  + 'Sag mir alles, was dir nicht gefällt – Story, Figuren, Ort, Ton, Länge, einzelne Sätze. '
+  + 'Ich setze es im ganzen Skript um.';
+
+/**
+ * Feedback-Frage als normale Assistant-Message im freien Chat. Einmal pro
+ * Skript: gibt es schon eine Assistant-Message mit aktion 'chat', passiert nichts.
+ */
+async function legeFeedbackFrageAn(supabase, { skriptId, userId }) {
+  const { data: vorhanden, error } = await supabase.from('skript_chat_messages')
+    .select('id')
+    .eq('skript_id', skriptId)
+    .eq('rolle', 'assistant')
+    .eq('aktion', 'chat')
+    .limit(1);
+  if (error) throw new Error(error.message);
+  if (vorhanden?.length) return false;
+
+  const { error: insertError } = await supabase.from('skript_chat_messages').insert({
+    skript_id: skriptId,
+    rolle: 'assistant',
+    aktion: 'chat',
+    sektion: 'gesamt',
+    status: 'fertig',
+    inhalt: FEEDBACK_FRAGE,
+    created_by: userId
+  });
+  if (insertError) throw new Error(insertError.message);
+  return true;
+}
+
+function buildErstgenerierungVersionRow({ skriptId, parsed, felder, hook_varianten, inhaltMd, userId }) {
+  return {
+    skript_id: skriptId,
+    version_nr: 1,
+    sub_nr: 0,
+    titel: parsed.titel || null,
+    inhalt_md: inhaltMd,
+    hook: felder.hook,
+    hauptteil: felder.hauptteil,
+    cta: felder.cta,
+    hook_visuell: felder.hook_visuell,
+    hauptteil_visuell: felder.hauptteil_visuell,
+    cta_visuell: felder.cta_visuell,
+    rezept: felder.rezept || null,
+    text_hook: felder.text_hook || null,
+    caption: felder.caption || null,
+    hook_variante_1: hook_varianten?.hook_variante_1 || null,
+    hook_variante_2: hook_varianten?.hook_variante_2 || null,
+    hook_variante_3: hook_varianten?.hook_variante_3 || null,
+    aenderung_beschreibung: 'Erstgenerierung',
+    created_by: userId
+  };
+}
+
 exports.buildPrompt = buildPrompt;
+exports.SKRIPT_TOOL = SKRIPT_TOOL;
+exports.legeFeedbackFrageAn = legeFeedbackFrageAn;
+exports.FEEDBACK_FRAGE = FEEDBACK_FRAGE;
+exports.buildErstgenerierungVersionRow = buildErstgenerierungVersionRow;

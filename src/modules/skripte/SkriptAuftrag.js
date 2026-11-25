@@ -117,14 +117,19 @@ export class SkriptAuftrag {
     });
   }
 
+  /**
+   * Liefert true, wenn die Message abgebrochen wurde. false heisst: sie war
+   * schon fertig/fehlerhaft - das Ergebnis wird nicht ueberschrieben.
+   */
   async brichNachrichtAb(messageId) {
     // Erst den evtl. noch offenen Invoke killen, dann den Status setzen -
     // sonst kann der Fetch danach noch als Toast aufschlagen
     this.triggerController.get(messageId)?.abort();
-    await this.service.updateChatMessage(messageId, {
+    const uebernommen = await this.service.updateChatMessage(messageId, {
       status: 'cancelled',
       error_message: 'Vom Nutzer abgebrochen'
-    });
+    }, { nurWennStatus: ['pending', 'running'] });
+    return uebernommen !== false;
   }
 }
 

@@ -5,43 +5,20 @@
 // auftrag_details/kampagne-Spalten, damit bestehende Ansichten weiter Daten sehen.
 
 import { getKampagnenartConfig } from '../../auftrag/logic/KampagnenartenMapping.js';
+import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
+import { renderMoneyInput } from '../../../core/form/moneyInput.js';
+import {
+  CHIP_PREFIX_MAP,
+  PREFIX_TO_CHIP_MAP,
+  getChipFromKampagnenartName,
+  sumBlockUmsatz,
+} from '../../auftrag/logic/kampagnenartChip.js';
 
-export const CHIP_PREFIX_MAP = {
-  ugc_paid: 'ugc_paid',
-  ugc_organic: 'ugc_organic',
-  influencer: 'influencer',
-  vorort_produktion: 'vor_ort',
-  story: 'story',
-  event: 'event',
-  whitelisting: 'whitelisting',
-  darkposting: 'darkposting'
-};
+export { CHIP_PREFIX_MAP, PREFIX_TO_CHIP_MAP, getChipFromKampagnenartName, sumBlockUmsatz };
 
 // Chips die KEINE Legacy-Spalten in auftrag_details / kampagne haben.
 // Deren Daten werden ausschliesslich in auftrag_kampagnenart_blocks persistiert.
 export const CHIPS_WITHOUT_LEGACY_COLUMNS = new Set(['whitelisting', 'darkposting', 'event']);
-
-// Reverse-Map: prefix -> chipValue (z.B. 'vor_ort' -> 'vorort_produktion')
-export const PREFIX_TO_CHIP_MAP = Object.entries(CHIP_PREFIX_MAP).reduce((acc, [chip, prefix]) => {
-  acc[prefix] = chip;
-  return acc;
-}, {});
-
-/**
- * Wandelt einen kampagne_art_typen.name (z.B. "UGC Paid", "Vor-Ort-Produktion")
- * in den entsprechenden Wizard-Slug (CAMPAIGN_TYPES.value, z.B. "ugc_paid",
- * "vorort_produktion") um. Geht ueber das KAMPAGNENARTEN_MAPPING.prefix als
- * Bruecke und sucht den Chip im invertierten CHIP_PREFIX_MAP.
- *
- * @param {string} name DB-Anzeigename aus kampagne_art_typen
- * @returns {string|null} Wizard-Slug oder null wenn nicht zuordenbar
- */
-export function getChipFromKampagnenartName(name) {
-  if (!name) return null;
-  const config = getKampagnenartConfig(name);
-  if (!config?.prefix) return null;
-  return PREFIX_TO_CHIP_MAP[config.prefix] || null;
-}
 
 export const BUDGET_FIELD_SUFFIXES = [
   'einkaufspreis_netto_von',
@@ -149,21 +126,6 @@ export function normalizeCampaignBlocks(details = {}) {
   }, chipValue));
 }
 
-/**
- * Summiert die gepflegten Block-Umsaetze (umsatz_netto). Blocks ohne Wert
- * zaehlen als 0; hasAny zeigt an, ob ueberhaupt ein Wert gepflegt ist.
- */
-export function sumBlockUmsatz(blocks = []) {
-  return (blocks || []).reduce((acc, block) => {
-    const n = parseNum(block.umsatz_netto);
-    if (n != null) {
-      acc.sum += n;
-      acc.hasAny = true;
-    }
-    return acc;
-  }, { sum: 0, hasAny: false });
-}
-
 export function getCampaignTypesFromBlocks(blocks = [], { unique = false } = {}) {
   const types = (blocks || []).map(block => block.campaign_type).filter(Boolean);
   return unique ? Array.from(new Set(types)) : types;
@@ -218,9 +180,20 @@ export function aggregateCampaignBlocksForLegacy(blocks = []) {
 
 /**
  * Berechnet die Soll-Summen (videos, creators) aus der besten verfügbaren Quelle.
- * Priorität: blocks > auftragDetails.gesamt_* > Legacy-Spalten > kampagne-Spalten.
+ * Priorität: preferKampagne ? kampagne-Spalten : blocks > auftragDetails.gesamt_* > Legacy-Spalten > kampagne-Spalten.
  */
-export function getCampaignTargetTotals({ blocks = [], auftragDetails = null, kampagne = null } = {}) {
+export function getCampaignTargetTotals({ blocks = [], auftragDetails = null, kampagne = null, preferKampagne = false } = {}) {
+  if (preferKampagne) {
+    const videos = kampagne?.videoanzahl;
+    const creators = kampagne?.creatoranzahl;
+    if (videos != null || creators != null) {
+      return {
+        videos: parseInt(videos, 10) || 0,
+        creators: parseInt(creators, 10) || 0
+      };
+    }
+  }
+
   const sumBlocks = (blocks || []).reduce((sum, b) => {
     sum.videos += parseInt(b.video_anzahl, 10) || 0;
     sum.creators += parseInt(b.creator_anzahl, 10) || 0;
@@ -293,32 +266,27 @@ export function generateBudgetBlockHtml(block, campaignTypes = [], index = 0) {
         <div class="form-field form-field--half">
           <label>Einkaufspreis (Netto)</label>
           <div class="price-range-inputs">
-            <input type="number" id="${ids.ek_von}" data-block-id="${escapeHtml(blockId)}" data-field="einkaufspreis_netto_von"
-                   min="0" step="0.01" value="${v.einkaufspreis_netto_von ?? ''}" placeholder="Von">
+            ${renderMoneyInput({ id: ids.ek_von, value: v.einkaufspreis_netto_von, attrs: { 'data-block-id': blockId, 'data-field': 'einkaufspreis_netto_von' } })}
             <span class="range-separator">–</span>
-            <input type="number" id="${ids.ek_bis}" data-block-id="${escapeHtml(blockId)}" data-field="einkaufspreis_netto_bis"
-                   min="0" step="0.01" value="${v.einkaufspreis_netto_bis ?? ''}" placeholder="Bis">
+            ${renderMoneyInput({ id: ids.ek_bis, value: v.einkaufspreis_netto_bis, attrs: { 'data-block-id': blockId, 'data-field': 'einkaufspreis_netto_bis' } })}
           </div>
           <small class="form-hint">Preis pro Einheit</small>
         </div>
         <div class="form-field form-field--half">
           <label>Verkaufspreis (Netto)</label>
           <div class="price-range-inputs">
-            <input type="number" id="${ids.vk_von}" data-block-id="${escapeHtml(blockId)}" data-field="verkaufspreis_netto_von"
-                   min="0" step="0.01" value="${v.verkaufspreis_netto_von ?? ''}" placeholder="Von">
+            ${renderMoneyInput({ id: ids.vk_von, value: v.verkaufspreis_netto_von, attrs: { 'data-block-id': blockId, 'data-field': 'verkaufspreis_netto_von' } })}
             <span class="range-separator">–</span>
-            <input type="number" id="${ids.vk_bis}" data-block-id="${escapeHtml(blockId)}" data-field="verkaufspreis_netto_bis"
-                   min="0" step="0.01" value="${v.verkaufspreis_netto_bis ?? ''}" placeholder="Bis">
+            ${renderMoneyInput({ id: ids.vk_bis, value: v.verkaufspreis_netto_bis, attrs: { 'data-block-id': blockId, 'data-field': 'verkaufspreis_netto_bis' } })}
           </div>
           <small class="form-hint">Preis pro Einheit</small>
         </div>
       </div>
       <div class="form-two-col">
         <div class="form-field form-field--half">
-          <label for="${ids.umsatz}">Umsatz netto (€)</label>
-          <input type="number" id="${ids.umsatz}" data-block-id="${escapeHtml(blockId)}" data-field="umsatz_netto"
-                 min="0" step="0.01" value="${v.umsatz_netto ?? ''}" placeholder="z.B. 10000">
-          <small class="form-hint">Anteil dieser Kampagnenart am Auftrags-Nettobetrag</small>
+          <label for="${ids.umsatz}">Umsatz netto</label>
+          ${renderMoneyInput({ id: ids.umsatz, value: v.umsatz_netto, attrs: { 'data-block-id': blockId, 'data-field': 'umsatz_netto' } })}
+          <small class="form-hint">Anteil dieser Kampagnenart am Kampagnen-Volumen</small>
         </div>
       </div>
       <div class="form-field form-field--full">
@@ -348,8 +316,10 @@ export function readBudgetValuesFromDom(blockId) {
     }
     if (suffix === 'budget_info') {
       result[suffix] = el.value || '';
-    } else {
+    } else if (COUNT_FIELD_SUFFIXES.includes(suffix)) {
       result[suffix] = parseNum(el.value);
+    } else {
+      result[suffix] = parseCurrencyInput(el.value);
     }
   });
   return result;

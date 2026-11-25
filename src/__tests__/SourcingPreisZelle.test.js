@@ -1,19 +1,15 @@
 import { describe, it, expect } from 'vitest';
+import { renderCell, renderZeile } from './sourcingZelleKit.js';
+import { renderItemsTable, renderAddSection } from '../modules/creator-auswahl/castingTableRender.js';
 import {
-  renderItemRow,
-  renderItemsTable,
-  renderAddSection,
   berechnePreisAusViews,
+  bindListenTkpFeld,
   getListenTkp,
+  parseListenTkp,
   ohneEuroZeichen,
   DEFAULT_TKP
-} from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+} from '../modules/creator-auswahl/castingPreisZellen.js';
 
-function renderCell(columnClass, item, ctx = {}) {
-  const html = renderItemRow({ isKunde: false, hiddenColumns: [], ...ctx }, { id: 'i1', ...item }, 0);
-  const doc = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
-  return doc.querySelector(`td.${columnClass}`);
-}
 
 function tabelle(ctx = {}) {
   const html = renderItemsTable({
@@ -217,6 +213,60 @@ describe('Sourcing – TKP der Liste', () => {
     expect(berechnePreisAusViews(3333, 33.33)).toBe(111.09);
     expect(berechnePreisAusViews(null, 25)).toBeNull();
   });
+
+  it('liest 40, 12,5 und 12.5 und weist leer, 0 und negativ zurueck', () => {
+    expect(parseListenTkp('40')).toBe(40);
+    expect(parseListenTkp('12,5')).toBe(12.5);
+    expect(parseListenTkp('12.5')).toBe(12.5);
+    expect(parseListenTkp('12,555')).toBe(12.56);
+    expect(parseListenTkp('')).toBeNull();
+    expect(parseListenTkp('   ')).toBeNull();
+    expect(parseListenTkp('0')).toBeNull();
+    expect(parseListenTkp('-1')).toBeNull();
+    expect(parseListenTkp('abc')).toBeNull();
+  });
+
+  it('speichert einen neuen TKP beim Verlassen und laesst denselben Wert liegen', () => {
+    const input = document.createElement('input');
+    const saves = [];
+    const off = bindListenTkpFeld(input, {
+      getAktuell: () => 25,
+      onSave: (tkp) => saves.push(tkp)
+    });
+
+    input.value = '40';
+    input.dispatchEvent(new Event('blur'));
+    expect(saves).toEqual([40]);
+
+    input.value = '25,00';
+    input.dispatchEvent(new Event('blur'));
+    expect(saves).toEqual([40]);
+    expect(input.value).toBe('25');
+    off();
+  });
+
+  it('stellt 0 und leere Eingaben auf den bisherigen TKP zurueck', () => {
+    const input = document.createElement('input');
+    const meldungen = [];
+    window.toastSystem = { show: (msg) => meldungen.push(msg) };
+    const off = bindListenTkpFeld(input, {
+      getAktuell: () => 40,
+      onSave: () => { throw new Error('soll nicht speichern'); }
+    });
+
+    input.value = '0';
+    input.dispatchEvent(new Event('blur'));
+    input.value = '';
+    input.dispatchEvent(new Event('blur'));
+
+    expect(input.value).toBe('40');
+    expect(meldungen).toEqual([
+      'TKP muss größer als 0 sein',
+      'TKP muss größer als 0 sein'
+    ]);
+    off();
+    delete window.toastSystem;
+  });
 });
 
 describe('Sourcing – Kopfzeile der Detailtabelle', () => {
@@ -232,6 +282,23 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(doc.querySelector('#btn-sourcing-tabelle-anpassen').textContent.trim())
       .toBe('Tabelle anpassen');
     expect(doc.querySelector('#sourcing-tkp-input')).toBeNull();
+    expect(doc.querySelector('.add-item-actions-right > #sourcing-listen-tkp')).toBeNull();
+  });
+
+  it('zeigt den TKP oben im Plus-Menü, 40 wenn gesetzt und 25 sonst', () => {
+    const mit = kopf({ liste: { tkp: 40 } });
+    const feld = mit.querySelector('#sourcing-listen-tkp');
+
+    expect(feld.closest('.toolbar-menu-dropdown')).not.toBeNull();
+    expect(feld.closest('.toolbar-menu-dropdown').firstElementChild).toBe(feld.closest('.toolbar-tkp-zeile'));
+    expect(feld.classList.contains('form-input')).toBe(false);
+    expect(feld.closest('.toolbar-tkp-zeile').querySelector('svg')).not.toBeNull();
+    expect(feld.value).toBe('40');
+    expect(feld.parentElement.textContent).toContain('€');
+
+    expect(kopf({ liste: {} }).querySelector('#sourcing-listen-tkp').value).toBe('25');
+    expect(kopf({ liste: { tkp: null } }).querySelector('#sourcing-listen-tkp').value).toBe('25');
+    expect(kopf({ isKunde: true, canCreate: false }).querySelector('#sourcing-listen-tkp')).toBeNull();
   });
 
   it('zeigt das Logo des Unternehmens im linken Block', () => {
@@ -269,28 +336,29 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
 
     expect(kinder[0].querySelector('#sourcing-item-search-input')).not.toBeNull();
     expect(kinder[1].id).toBe('btn-open-add-drawer');
-    expect(kinder[2].classList.contains('toolbar-menu')).toBe(true);
+    expect(kinder[2].id).toBe('btn-management-anfrage');
+    expect(kinder[3].id).toBe('casting-vorschlag-block');
+    expect(kinder[3].closest('.add-item-actions-right')).not.toBeNull();
+    expect(kinder[4].classList.contains('toolbar-menu')).toBe(true);
 
     const kundenDoc = kopf({ isKunde: true, canCreate: false });
     expect(kundenDoc.querySelector('#sourcing-item-search-input')).not.toBeNull();
+    expect(kundenDoc.querySelector('#btn-management-anfrage')).toBeNull();
     expect(kundenDoc.querySelector('.toolbar-menu')).toBeNull();
     expect(kundenDoc.querySelector('.sourcing-status-filter-submenu')).toBeNull();
   });
 
-  it('legt Status-Filter und Toolbar-Actions ins Plus-Dropdown', () => {
-    const doc = kopf({ kundenCallActive: true, statusFilter: ['Zusage', 'Gebucht'] });
+  it('legt die Toolbar-Actions ins Plus-Dropdown, den Statusfilter nicht mehr', () => {
+    const doc = kopf({ kundenCallActive: true });
     const dropdown = doc.querySelector('.toolbar-menu-dropdown');
-    const statusSub = dropdown.querySelector('.sourcing-status-filter-submenu');
 
     expect(doc.getElementById('btn-sourcing-toolbar-menu')).not.toBeNull();
-    expect(statusSub.querySelector('[data-status-tag="Zusage"] .submenu-check')).not.toBeNull();
-    expect(statusSub.querySelector('[data-status-tag="Gebucht"] .submenu-check')).not.toBeNull();
-    expect(statusSub.querySelector('[data-status-tag="Angefragt"] .submenu-check')).toBeNull();
+    expect(dropdown.querySelector('.sourcing-status-filter-submenu')).toBeNull();
     expect(dropdown.querySelector('#btn-share-sourcing')).not.toBeNull();
     expect(dropdown.querySelector('#btn-kunden-call-toggle').classList.contains('active')).toBe(true);
     expect(dropdown.querySelector('#btn-sourcing-tabelle-anpassen')).not.toBeNull();
-    expect(dropdown.querySelector('#btn-sourcing-custom-columns')).not.toBeNull();
-    expect(dropdown.querySelector('#btn-manage-kategorien')).not.toBeNull();
+    expect(dropdown.querySelector('#btn-sourcing-custom-columns')).toBeNull();
+    expect(dropdown.querySelector('#btn-manage-kategorien')).toBeNull();
     expect(dropdown.querySelector('#btn-open-add-drawer')).toBeNull();
   });
 });
@@ -342,14 +410,14 @@ describe('Sourcing – TikTok-Preise (manuell)', () => {
     expect(story.querySelector('input[data-field="preis_tiktok_story"]').value).toBe('ca. 300');
   });
 
-  it('steht direkt hinter den TikTok-Followern und vor dem Gesamtpreis', () => {
+  it('steht als gemeinsame Spalte Preis Story direkt vor dem Gesamtpreis', () => {
     const kopf = Array.from(tabelle().querySelectorAll('thead th'))
       .map(th => Array.from(th.classList).find(c => c.startsWith('cp-col-')))
       .filter(Boolean);
 
-    expect(kopf[kopf.indexOf('cp-col-follower-tt') + 1]).toBe('cp-col-preis-tt-video');
-    expect(kopf[kopf.indexOf('cp-col-preis-tt-video') + 1]).toBe('cp-col-preis-tt-story');
-    expect(kopf[kopf.indexOf('cp-col-preis-tt-story') + 1]).toBe('cp-col-pricing');
+    expect(kopf[kopf.indexOf('cp-col-story-preis') + 1]).toBe('cp-col-pricing');
+    expect(kopf).not.toContain('cp-col-preis-tt-video');
+    expect(kopf).not.toContain('cp-col-preis-tt-story');
   });
 
   it('zeigt Kunden die Werte nur lesend', () => {
@@ -361,10 +429,19 @@ describe('Sourcing – TikTok-Preise (manuell)', () => {
     expect(story.querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
   });
 
-  it('blendet die Spalten aus, wenn sie versteckt sind', () => {
-    const video = renderCell('cp-col-preis-tt-video', {}, { hiddenColumns: ['cp-col-preis-tt-video'] });
+  it('blendet nur die TikTok-Zeile aus, wenn ihr Schluessel versteckt ist', () => {
+    const doc = renderZeile({ hiddenColumns: ['cp-col-preis-tt-video'] });
+    const td = doc.querySelector('td.cp-col-preis-video');
 
-    expect(video.getAttribute('style')).toContain('display:none');
+    expect(td.getAttribute('style') || '').not.toContain('display:none');
+    expect(td.querySelector('[data-plattform="instagram"] input[data-field="preis_reels"]')).not.toBeNull();
+    expect(td.querySelector('input[data-field="preis_tiktok_video"]')).toBeNull();
+  });
+
+  it('blendet die Spalte aus, wenn beide Plattformzeilen versteckt sind', () => {
+    const doc = renderZeile({ hiddenColumns: ['cp-col-preis-reels', 'cp-col-preis-tt-video'] });
+
+    expect(doc.querySelector('td.cp-col-preis-video').getAttribute('style')).toContain('display:none');
   });
 });
 
@@ -443,12 +520,13 @@ describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
 });
 
 describe('Sourcing – Nutzungsrechte', () => {
-  it('steht als Freitext direkt hinter dem Gesamtpreis', () => {
+  it('steht als Freitext hinter dem Kontakt-Block, der auf den Gesamtpreis folgt', () => {
     const kopf = Array.from(tabelle().querySelectorAll('thead th'))
       .map(th => Array.from(th.classList).find(c => c.startsWith('cp-col-')))
       .filter(Boolean);
 
-    expect(kopf[kopf.indexOf('cp-col-pricing') + 1]).toBe('cp-col-nutzungsrechte');
+    expect(kopf[kopf.indexOf('cp-col-telefon') + 1]).toBe('cp-col-nutzungsrechte');
+    expect(kopf.indexOf('cp-col-pricing')).toBeLessThan(kopf.indexOf('cp-col-nutzungsrechte'));
   });
 
   it('speichert in das Feld nutzungsrechte', () => {

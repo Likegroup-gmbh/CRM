@@ -3,9 +3,12 @@ import {
   LEISTUNGSBEREICHE,
   LEISTUNGSBEREICH_LABELS,
   bereichForCampaignType,
+  bereichForKampagnenart,
+  gehoertZuAuftragMode,
   leistungsbereichForAuftrag,
   primaerBereichForAuftrag,
 } from '../core/budget/leistungsbereich.js';
+import { NICHT_CONTRACTING_OR } from '../modules/rechnung/Monatsblatt.js';
 
 // ADR 0006 / PRD Schritt 2: Der Leistungsbereich ist die Achse der
 // Monatsauswertung. Eine einzige Quelle bildet Kampagnenarten auf Bereiche ab;
@@ -30,6 +33,52 @@ describe('bereichForCampaignType', () => {
     expect(bereichForCampaignType('sonstiges')).toBeNull();
     expect(bereichForCampaignType(null)).toBeNull();
     expect(bereichForCampaignType(undefined)).toBeNull();
+  });
+});
+
+describe('gehoertZuAuftragMode', () => {
+  it('lässt Aufträge ohne Typ in der Nicht-Contract-Menge', () => {
+    expect(gehoertZuAuftragMode({ auftragtype: null }, 'auftraege')).toBe(true);
+    expect(gehoertZuAuftragMode({}, 'auftraege')).toBe(true);
+    expect(gehoertZuAuftragMode({ auftragtype: null }, 'contracts')).toBe(false);
+  });
+
+  it('nimmt Contracting nur in den Contract-Modus, unabhängig von der Schreibweise', () => {
+    expect(gehoertZuAuftragMode({ auftragtype: 'Contracting' }, 'auftraege')).toBe(false);
+    expect(gehoertZuAuftragMode({ auftragtype: 'contracting' }, 'contracts')).toBe(true);
+    expect(gehoertZuAuftragMode({ auftragtype: 'UGC/Influencer' }, 'auftraege')).toBe(true);
+  });
+
+  it('verwirft NULL im PostgREST-Filter nicht', () => {
+    expect(NICHT_CONTRACTING_OR).toContain('auftragtype.is.null');
+    expect(NICHT_CONTRACTING_OR).toContain('auftragtype.not.ilike.%contracting%');
+  });
+});
+
+describe('bereichForKampagnenart', () => {
+  it('liest die Bezeichnungen am Video und fuehrt sie auf denselben Bereich wie die Bloecke', () => {
+    expect(bereichForKampagnenart('Influencer Kampagne')).toBe('influencer_marketing');
+    expect(bereichForKampagnenart('Influencer Story')).toBe('influencer_marketing');
+    expect(bereichForKampagnenart('Influencer Events')).toBe('influencer_marketing');
+    expect(bereichForKampagnenart('UGC Paid')).toBe('ugc_paid');
+    expect(bereichForKampagnenart('UGC Organic')).toBe('ugc_organic');
+    expect(bereichForKampagnenart('Vor-Ort-Produktion')).toBe('vorort_produktion');
+    expect(bereichForKampagnenart('Whitelisting')).toBe('whitelisting');
+    expect(bereichForKampagnenart('Darkposting')).toBe('darkposting');
+  });
+
+  it('akzeptiert Block-Schluessel und die alten Bezeichnungen', () => {
+    expect(bereichForKampagnenart('ugc_paid')).toBe('ugc_paid');
+    expect(bereichForKampagnenart('UGC Pro Paid')).toBe('ugc_paid');
+    expect(bereichForKampagnenart('Story')).toBe('influencer_marketing');
+    expect(bereichForKampagnenart('Vorort-Produktion')).toBe('vorort_produktion');
+  });
+
+  it('liefert null fuer leere oder unbekannte Arten', () => {
+    expect(bereichForKampagnenart('')).toBeNull();
+    expect(bereichForKampagnenart('   ')).toBeNull();
+    expect(bereichForKampagnenart(null)).toBeNull();
+    expect(bereichForKampagnenart('Sonstiges')).toBeNull();
   });
 });
 

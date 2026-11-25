@@ -30,6 +30,8 @@ describe('NavigationSystem Accounting-Bereich', () => {
     expect(html).toContain('/admin/ausgangsrechnungen');
     expect(html).toContain('/admin/rechnung');
     expect(html).toContain('Creatorrechnungen');
+    expect(html).toContain('/admin/pdf-vorlagen');
+    expect(html).toContain('PDF-Vorlagen');
     expect(html).toContain('Zurück zur App');
     expect(html).not.toContain('/admin/unternehmen');
     expect(html).not.toContain('Mitarbeiter');
@@ -100,6 +102,7 @@ describe('NavigationSystem Accounting-Bereich', () => {
     expect(html).toContain('Zurück zur App');
     expect(html).not.toContain('Datenqualität');
     expect(html).not.toContain('Creatorrechnungen');
+    expect(html).not.toContain('PDF-Vorlagen');
   });
 
   it('zeigt Mitarbeitern und Leads kein Accounting, auch mit canCreateProject', () => {
@@ -167,6 +170,7 @@ describe('NavigationSystem Accounting-Bereich', () => {
     expect(accounting).toContain('Creatorrechnungen');
     expect(accounting).toContain('Zurück zur App');
     expect(accounting).not.toContain('Datenqualität');
+    expect(accounting).not.toContain('PDF-Vorlagen');
     expect(accounting).not.toContain('/admin/projekt-erstellen');
 
     nav.renderNavigation('/dashboard');

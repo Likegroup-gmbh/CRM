@@ -1,0 +1,305 @@
+/* ==========================================================================
+   Videos-Tab: Vollansicht (videoBrowserVollansicht*.js, CONTEXT.md "Vollansicht").
+   Ausstehende Videos (Kachel und Bühne) stehen in video-browser-ausstehend.css,
+   die Details-Spalte in video-browser-vollansicht-details.css.
+   Die Vollansicht hängt als MediaLightbox am body, nicht in .vb: Box-Sizing setzt sie selbst.
+   Breiten: ab 1280px drei Spalten (Player | Feedback | Details), darunter Player und
+   eine Spalte mit Tabs, unter 768px alles untereinander.
+   ========================================================================== */
+
+/* --- Vollansicht: Hülle ----------------------------------------------- */
+
+/* Die Lightbox ist so breit wie ihr Inhalt: Bühne in Bildbreite plus Seitenspalten.
+   --vb-voll-max-w liest auch videoBrowserVollansicht.js (Obergrenze der Bildbreite). */
+.media-lightbox-overlay.vb-voll-lightbox {
+  --vb-voll-max-w: 1680px;
+  padding: var(--space-lg);
+}
+
+.vb-voll-lightbox .media-lightbox {
+  display: flex;
+  width: auto;
+  max-width: min(var(--vb-voll-max-w), 100%);
+  height: min(94vh, 1080px);
+  max-height: none;
+  overflow: hidden;
+}
+
+/* Auch scale(1) macht die Lightbox zum Bezugsrahmen für position: fixed (Datepicker-Popover) */
+.media-lightbox-overlay.vb-voll-lightbox.show .media-lightbox {
+  transform: none;
+}
+
+.vb-voll-lightbox .media-lightbox-content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+/* Geblättert wird über den Kopf und die Pfeiltasten */
+.vb-voll-lightbox .media-lightbox-nav {
+  display: none;
+}
+
+.vb-voll-lightbox .media-lightbox-close {
+  top: var(--space-sm);
+  right: var(--space-sm);
+}
+
+.vb-voll,
+.vb-voll *,
+.vb-voll *::before,
+.vb-voll *::after {
+  box-sizing: border-box;
+}
+
+.vb-voll {
+  --vb-voll-fb: clamp(18rem, 23vw, 24rem);
+  --vb-voll-det: clamp(20rem, 27vw, 28rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  color: var(--gray-900);
+  outline: none;
+}
+
+/* --- Kopf ------------------------------------------------------------- */
+
+/* Ein langer Titel darf die Lightbox nicht verbreitern (contain: kein Beitrag zur Inhaltsbreite) */
+.vb-voll__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  contain: inline-size;
+  min-height: 56px;
+  padding: var(--space-xs) calc(var(--space-sm) + 34px + var(--space-sm)) var(--space-xs) var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.vb-voll__nav {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+.vb-voll__count {
+  min-width: 3.5em;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--gray-600);
+}
+
+.vb-voll__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.vb-voll__context,
+.vb-voll__title {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-voll__context {
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+.vb-voll__title {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.vb-voll__title.is-editable {
+  margin-inline: calc(-1 * var(--space-xxs));
+  padding: 0 var(--space-xxs);
+  border-radius: var(--radius-md);
+  cursor: text;
+  transition: background .15s ease;
+}
+
+.vb-voll__title.is-editable:hover {
+  background: var(--gray-50);
+}
+
+.vb-voll__title.is-editable:focus-visible {
+  outline: 2px solid var(--gray-900);
+  outline-offset: 1px;
+}
+
+.vb-voll__title .vb-asset-head__input {
+  width: 100%;
+}
+
+.vb-voll__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+/* --- Körper: Bühne und Seitenspalten ---------------------------------- */
+
+.vb-voll__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+/* Die Bühne folgt der Bildbreite (Rahmenbreite setzt playerLayout.js über maxWidth) */
+.vb-voll__stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-md);
+  overflow-y: auto;
+  background: var(--gray-50);
+}
+
+.vb-voll__player {
+  flex: none;
+  width: 100%;
+  margin-block: auto;
+}
+
+.vb-voll__side {
+  display: grid;
+  grid-template-columns: var(--vb-voll-fb) var(--vb-voll-det);
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  border-left: 1px solid var(--border-primary);
+}
+
+/* Final-Leiste bzw. Kunden-Freigabe: Fuß über beide Spalten, in jedem Tab sichtbar */
+.vb-voll__final {
+  grid-column: 1 / -1;
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+.vb-voll__final:empty {
+  display: none;
+}
+
+/* Mit .vb-voll vorangestellt: .tab-navigation (display: flex) liegt im Prod-Build in einem
+   eigenen CSS-Chunk, der nach diesem Stylesheet greifen kann. Gleiche Spezifität verlöre. */
+.vb-voll .vb-voll__tabs {
+  display: none;
+}
+
+.vb-voll__tabs .tab-count {
+  margin-left: var(--space-xxs);
+}
+
+.vb-voll__feedback,
+.vb-voll__details {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-md);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.vb-voll__details {
+  border-left: 1px solid var(--border-primary);
+}
+
+/* Details (Eigenschaften, Posting-Datum, randlose Linien) stehen in video-browser-vollansicht-details.css */
+
+/* --- Mittlere Breite: Player und eine Spalte mit Tabs ----------------- */
+
+@media (max-width: 1279px) {
+  .vb-voll__side {
+    grid-template-columns: clamp(20rem, 40vw, 27rem);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .vb-voll .vb-voll__tabs {
+    display: flex;
+    padding: 0 var(--space-md);
+  }
+
+  /* Der Tab "Feedback" trägt schon Titel und Zähler */
+  .vb-voll .vb-comments__head {
+    display: none;
+  }
+
+  .vb-voll__details {
+    border-left: 0;
+  }
+
+  .vb-voll[data-tab="feedback"] .vb-voll__details,
+  .vb-voll[data-tab="details"] .vb-voll__feedback {
+    display: none;
+  }
+}
+
+/* --- Schmal: alles untereinander, die Hülle scrollt ------------------- */
+
+@media (max-width: 767px) {
+  .media-lightbox-overlay.vb-voll-lightbox {
+    padding: 0;
+  }
+
+  .vb-voll-lightbox .media-lightbox {
+    display: block;
+    height: 100%;
+    border-radius: 0;
+    overflow-y: auto;
+  }
+
+  .vb-voll-lightbox .media-lightbox-content,
+  .vb-voll,
+  .vb-voll__body,
+  .vb-voll__side {
+    display: block;
+  }
+
+  .vb-voll__head {
+    flex-wrap: wrap;
+  }
+
+  .vb-voll__actions {
+    flex-wrap: wrap;
+  }
+
+  .vb-voll__stage {
+    overflow: visible;
+  }
+
+  .vb-voll__side {
+    border-left: 0;
+  }
+
+  .vb-voll__final {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+  }
+
+  .vb-voll .vb-voll__tabs {
+    display: none;
+  }
+
+  .vb-voll .vb-comments__head {
+    display: flex;
+  }
+
+  .vb-voll[data-tab] .vb-voll__feedback,
+  .vb-voll[data-tab] .vb-voll__details {
+    display: block;
+    overflow: visible;
+    border-top: 1px solid var(--border-primary);
+  }
+}

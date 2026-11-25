@@ -1,0 +1,164 @@
+import { describe, it, expect } from 'vitest';
+import { CREATOR_FILTERS, CREATOR_FILTER_GROUPS } from '../modules/creator/filters/CreatorFilterConfig.js';
+import {
+  queryToSelection,
+  selectionToQuery,
+  formatCreatorSumme
+} from '../modules/creator/creatorFilterQuery.js';
+import {
+  renderColumnBody,
+  readFiltersFromColumn,
+  paintFilterValues,
+  groupColumnFilters,
+  countActiveByGroup
+} from '../modules/creator/creatorFilterColumn.js';
+import { GROESSEN, GENERATIONEN } from '../modules/creator/creatorProfil.js';
+
+const generationen = GENERATIONEN.map((entry) => entry.label);
+
+function selection(search) {
+  return queryToSelection(search, {
+    filters: CREATOR_FILTERS,
+    groessen: GROESSEN,
+    generationen
+  });
+}
+
+describe('Creator-Filter als Query', () => {
+  it('rundet Suche, Größe, Generation und Spaltenfilter', () => {
+    const params = selectionToQuery({
+      search: 'Anna',
+      groesse: ['Micro', 'Mid-Tier'],
+      generation: ['Generation Z', 'Millennials'],
+      filters: {
+        lieferadresse_stadt: 'Berlin',
+        alter: { min: '18', max: '30' },
+        hat_haustier: true,
+        besitz_id: ['a', 'b']
+      }
+    });
+
+    const back = selection(params);
+    expect(back.search).toBe('Anna');
+    expect(back.groesse).toEqual(['Micro', 'Mid-Tier']);
+    expect(back.generation).toEqual(['Generation Z', 'Millennials']);
+    expect(back.filters.lieferadresse_stadt).toBe('Berlin');
+    expect(back.filters.alter).toEqual({ min: '18', max: '30' });
+    expect(back.filters.hat_haustier).toBe(true);
+    expect(back.filters.besitz_id).toEqual(['a', 'b']);
+  });
+
+  it('lässt unbekannte Größe und Generation fallen', () => {
+    const back = selection('?groesse=Micro,Riese&generation=Zukunft');
+    expect(back.groesse).toEqual(['Micro']);
+    expect(back.generation).toEqual([]);
+    expect(selection('?generation=Generation Z').generation).toEqual(['Generation Z']);
+  });
+
+  it('Mindestwert gewinnt gegen Ohne Bewertung', () => {
+    const back = selection('?rezension_min=4&rezension_ohne=1');
+    expect(back.filters.rezension_min).toBe('4');
+    expect(back.filters.rezension_ohne).toBeUndefined();
+
+    const written = selectionToQuery({
+      filters: { rezension_min: '4', rezension_ohne: true }
+    });
+    expect(written.get('rezension_min')).toBe('4');
+    expect(written.has('rezension_ohne')).toBe(false);
+  });
+
+  it('formatiert die Summe', () => {
+    expect(formatCreatorSumme(1)).toBe('1 Creator');
+    expect(formatCreatorSumme(128)).toBe('128 Creator');
+    expect(formatCreatorSumme(1234)).toBe('1.234 Creator');
+    expect(formatCreatorSumme(null)).toBe('');
+  });
+});
+
+describe('Filterspalte', () => {
+  it('zeigt die Gruppen, Grundlagen offen, ohne Mehr anzeigen', () => {
+    const html = renderColumnBody(CREATOR_FILTERS, CREATOR_FILTER_GROUPS, {});
+    const root = document.createElement('div');
+    root.innerHTML = html;
+
+    const groups = [...root.querySelectorAll('.filter-column-group')];
+    expect(groups.map((group) => group.querySelector('.filter-column-group__title').textContent)).toEqual([
+      'Grundlagen', 'Social Media', 'Standort', 'Kontakt', 'Beziehungen', 'Zeit'
+    ]);
+    expect(groups.every((group) => group.querySelector('[data-group-count]').hidden)).toBe(true);
+    expect(groups[0].open).toBe(true);
+    expect(groups[1].open).toBe(false);
+    expect(root.textContent).toContain('Spielt Instrument');
+    expect(root.textContent).not.toContain('Mehr anzeigen');
+    expect(root.querySelector('.filter-column-reset').textContent).toBe('Zurücksetzen');
+    expect(root.querySelector('.filter-column-sort .filter-column-field__label').textContent).toBe('Sortieren nach');
+    expect(root.querySelector('input[name="creator-sort"]').value).toBe('name');
+    expect(root.querySelector('.filter-column-sort .table-select__label').textContent).toBe('Name, A–Z');
+    expect(root.querySelector('select')).toBeNull();
+    const sorted = document.createElement('div');
+    sorted.innerHTML = renderColumnBody(CREATOR_FILTERS, CREATOR_FILTER_GROUPS, {}, 'rezension');
+    expect(sorted.querySelector('input[name="creator-sort"]').value).toBe('rezension');
+    expect(sorted.querySelector('.filter-column-sort').nextElementSibling.classList.contains('filter-column-group')).toBe(true);
+  });
+
+  it('zählt aktive Filter je Gruppe', () => {
+    const sections = groupColumnFilters(CREATOR_FILTERS, CREATOR_FILTER_GROUPS);
+    const counts = countActiveByGroup(sections, { lieferadresse_stadt: 'Berlin', besitz_id: [], hat_haustier: false });
+    expect(counts.location).toBe(1);
+    expect(counts.basic).toBe(1);
+    expect(Object.values(counts).reduce((sum, n) => sum + n, 0)).toBe(2);
+
+    const root = document.createElement('div');
+    root.innerHTML = renderColumnBody(CREATOR_FILTERS, CREATOR_FILTER_GROUPS, { lieferadresse_stadt: 'Berlin' });
+    const badge = root.querySelector('.filter-column-group[data-group="location"] [data-group-count]');
+    expect(badge.hidden).toBe(false);
+    expect(badge.textContent).toBe('1');
+  });
+
+  it('liest gesetzte Steuerungen und schreibt sie zurück', () => {
+    const filters = CREATOR_FILTERS.filter((filter) =>
+      ['lieferadresse_stadt', 'geschlecht', 'hat_haustier', 'alter', 'besitz_id'].includes(filter.id)
+    );
+    const withOptions = filters.map((filter) => filter.id === 'besitz_id'
+      ? { ...filter, options: [{ value: 'p1', label: 'Kamera' }, { value: 'p2', label: 'Licht' }] }
+      : filter.id === 'geschlecht'
+        ? { ...filter, options: [{ value: 'weiblich', label: 'Weiblich' }] }
+        : filter);
+
+    const root = document.createElement('div');
+    root.innerHTML = renderColumnBody(withOptions, [{
+      id: 'basic',
+      label: 'Grundlagen',
+      expanded: true,
+      filters: withOptions.map((filter) => filter.id)
+    }], {
+      lieferadresse_stadt: 'Hamburg',
+      geschlecht: 'weiblich',
+      hat_haustier: true,
+      alter: { min: '20' },
+      besitz_id: ['p2']
+    });
+
+    expect(readFiltersFromColumn(root, withOptions)).toEqual({
+      lieferadresse_stadt: 'Hamburg',
+      geschlecht: 'weiblich',
+      hat_haustier: true,
+      alter: { min: '20' },
+      besitz_id: ['p2']
+    });
+
+    paintFilterValues(root, withOptions, { lieferadresse_stadt: 'Köln' });
+    expect(root.querySelector('[data-filter-id="lieferadresse_stadt"]').value).toBe('Köln');
+    expect(root.querySelector('[data-filter-id="geschlecht"]').value).toBe('');
+    expect(root.querySelector('[data-filter-id="hat_haustier"]').value).toBe('');
+    expect(root.querySelector('[data-filter-id="besitz_id"][value="p2"]').checked).toBe(false);
+  });
+
+  it('ordnet fehlende Filter den Grundlagen zu', () => {
+    const sections = groupColumnFilters(
+      [{ id: 'extra', label: 'Extra', type: 'text' }],
+      [{ id: 'basic', label: 'Grundlagen', expanded: true, filters: [] }]
+    );
+    expect(sections[0].items.map((filter) => filter.id)).toEqual(['extra']);
+  });
+});

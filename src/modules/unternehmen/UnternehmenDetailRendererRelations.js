@@ -11,6 +11,8 @@ import { renderMarkeBubble, renderPersonBubble } from './UnternehmenDetailRender
 import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 export function renderStrategien(detail) {
   if (!detail.strategien || detail.strategien.length === 0) {
@@ -166,14 +168,13 @@ export function renderAnsprechpartner(detail) {
 
   const rows = detail.ansprechpartner.map(ap => `
     <tr>
-      <td class="col-name-with-icon">
-        ${ap.profile_image_url
-          ? `<img src="${ap.profile_image_url}" class="table-logo" width="24" height="24" alt="" />`
-          : `<span class="table-avatar">${(ap.vorname || '?')[0].toUpperCase()}</span>`}
-        <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
-          ${detail.sanitize(ap.vorname)} ${detail.sanitize(ap.nachname)}
-        </a>
-        ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft">${icon('link')}</span>` : ''}
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: ap.profile_image_url,
+          name: ap.vorname || ap.nachname,
+          nameHtml: `<a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">${detail.sanitize(ap.vorname)} ${detail.sanitize(ap.nachname)}</a>`
+            + (ap.ist_verknuepft ? ` <span class="tag tag--verknuepft" title="verknüpft">${icon('link')}</span>` : '')
+        })}
       </td>
       <td>${detail.sanitize(ap.position?.name) || '-'}</td>
       <td>${ap.email ? `<a href="mailto:${ap.email}">${detail.sanitize(ap.email)}</a>` : '-'}</td>
@@ -234,10 +235,10 @@ export function renderRechnungen(detail) {
     <tr>
       <td><a href="/rechnung/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${detail.sanitize(r.rechnung_nr || '—')}</a></td>
       <td><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
-      <td>${r.auftrag ? `<a href="#" class="table-link" data-table="auftrag" data-id="${r.auftrag.id}">${detail.sanitize(r.auftrag.auftragsname || '-')}</a>` : '-'}</td>
+      <td>${r.auftrag ? renderVerknuepfungPill({ kind: 'auftrag', labelHtml: detail.sanitize(r.auftrag.auftragsname || '-'), attrs: `data-table="auftrag" data-id="${r.auftrag.id}"` }) : '-'}</td>
       <td>${detail.sanitize(r.po_nummer) || '-'}</td>
       <td>${detail.formatDate(r.created_at)}</td>
-      <td>${r.kampagne ? `<a href="#" class="table-link" data-table="kampagne" data-id="${r.kampagne.id}">${detail.sanitize(kampagneName)}</a>` : '-'}</td>
+      <td>${r.kampagne ? renderVerknuepfungPill({ kind: 'kampagne', labelHtml: detail.sanitize(kampagneName), attrs: `data-table="kampagne" data-id="${r.kampagne.id}"` }) : '-'}</td>
       <td>${detail.sanitize(r.land) || '-'}</td>
       <td>${creatorBubble}</td>
       <td>${detail.formatDate(r.gestellt_am)}</td>
@@ -388,7 +389,7 @@ export function renderVertraege(detail) {
         <td>${detail.sanitize(v.typ || '-')}</td>
         <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
         <td>${VertragUtils.renderVertragContextHtml(v, sanitize)}</td>
-        <td>${v.creator ? `<a href="/creator/${v.creator.id}" class="table-link" data-table="creator" data-id="${v.creator.id}">${detail.sanitize(creatorName)}</a>` : '-'}</td>
+        <td>${v.creator ? renderVerknuepfungPill({ kind: 'creator', labelHtml: detail.sanitize(creatorName), href: `/creator/${v.creator.id}`, attrs: `data-table="creator" data-id="${v.creator.id}"` }) : '-'}</td>
         <td>${renderPdfLinks(null, v.datei_url)}</td>
         <td>${detail.formatDate(v.created_at)}</td>
       </tr>

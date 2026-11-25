@@ -5,7 +5,7 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const {
-  buildEditPrompt, stripToolXml, letzterZeitstempel,
+  buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel,
   brauchtVisualStil, resolveModusSlug
 } = require('../../netlify/functions/skript-edit-background.js');
 
@@ -20,9 +20,13 @@ function baseCtx(overrides = {}) {
       prompt_kontext: {},
       ...(overrides.skript || {})
     },
-    history: [],
-    dna: [],
-    briefing: overrides.briefing ?? null,
+    history: overrides.history || [],
+    rueckfragen: overrides.rueckfragen || '',
+    kontext: {
+      master: [],
+      briefing: overrides.briefing ?? null,
+      ...(overrides.kontext || {})
+    },
     modus: overrides.modus ?? null
   };
 }
@@ -44,7 +48,6 @@ describe('buildEditPrompt Briefing-Pfade', () => {
     expect(task).toContain('Summer Glow');
     expect(task).toContain('https://shop.example/glow');
     expect(task).toContain('GLOW20');
-    expect(task).toContain('CAMPAIGN-BRIEFING bzw. Briefing-Extrakt');
     expect(task).not.toContain('PDF-BRIEFING');
     expect(task).not.toContain('BRIEFING-EXTRAKT');
   });
@@ -85,23 +88,17 @@ describe('buildEditPrompt aktion visuell', () => {
     expect(task).toContain('Aktion: Visual');
     expect(task).toContain('Sektion: HOOK');
     expect(task).toContain('Markierte Stelle:\n"""Kennst du das?"""');
-    expect(task).toContain('VISUELLE REGIE');
     expect(task).toContain('KEINEN zweiten Sprechertext');
-    expect(task).toContain('Der gesprochene Text bleibt unverändert');
-    expect(task).toContain('vorschlag_text = visuelle Regie fuer "Was zu sehen ist"');
+    expect(task).toContain('Der gesprochene Text bleibt unveraendert');
+    expect(task).toContain('vorschlag_text = ein schlichter Satz pro Beat');
     expect(task).toContain('KEIN gesprochener Text, keine Sprecher-Anweisungen');
-    expect(task).toContain('# ZEITPLAN UND KONTINUITAET');
-    expect(task).toContain('Beginne bei 0:00.');
-    expect(task).toContain('5–10');
-    expect(task).toContain('B-Roll (ca. 10 Sek.)');
-    expect(task).toContain('M:SS–M:SS');
-    expect(task).toContain('Text Overlay');
-    expect(task).toContain('Produktionsbriefing');
-    expect(task).toContain('Stil, Orte und Props konsistent halten');
+    expect(task).toContain('Ein schlichter Satz pro gesprochenem Beat');
+    expect(task).toContain('Keine Zeitmarker');
+    expect(task).not.toContain('# ZEITPLAN UND KONTINUITAET');
     expect(task).not.toContain('Jeder Shot MUSS einen Zeitstempel');
   });
 
-  it('visuell Hauptteil: Start = letzter Hook-Zeitstempel', () => {
+  it('visuell Hauptteil setzt keine Modell-Zeitmarker', () => {
     const { task } = buildEditPrompt(baseCtx({
       skript: { hook_visuell: '0:00–0:03 Close-up Gesicht' }
     }), {
@@ -111,13 +108,12 @@ describe('buildEditPrompt aktion visuell', () => {
       inhalt: 'Visual zu Hauptteil'
     });
 
-    expect(task).toContain('# ZEITPLAN UND KONTINUITAET');
-    expect(task).toContain('Die Sektion davor (Hook) endet bei 0:03.');
-    expect(task).toContain('Dein erster Block MUSS bei 0:03 beginnen');
+    expect(task).toContain('Keine Zeitmarker');
     expect(task).not.toContain('Beginne bei 0:00.');
+    expect(task).not.toContain('Dein erster Block MUSS bei 0:03 beginnen');
   });
 
-  it('visuell CTA: Start = Ende Hauptteil, letzter Shot = Video-Ende', () => {
+  it('visuell CTA setzt das Video-Ende nicht als Modell-Marker', () => {
     const { task } = buildEditPrompt(baseCtx({
       skript: {
         hook_visuell: '0:00–0:03 Close-up',
@@ -131,9 +127,8 @@ describe('buildEditPrompt aktion visuell', () => {
       inhalt: 'Visual zu CTA'
     });
 
-    expect(task).toContain('Die Sektion davor (Hauptteil) endet bei 0:12.');
-    expect(task).toContain('Dein erster Block MUSS bei 0:12 beginnen');
-    expect(task).toContain('Der letzte Block soll bei 0:30 enden');
+    expect(task).toContain('Keine Zeitmarker');
+    expect(task).not.toContain('Der letzte Block soll bei 0:30 enden');
   });
 
   it('visuell mit Modus: REGIE-MODUS-Block', () => {
@@ -202,9 +197,8 @@ describe('buildEditPrompt ist_visuell Rewrite', () => {
     expect(task).toContain('Close-up Gesicht');
     expect(task).toContain('stammt aus "Was zu sehen ist"');
     expect(task).toContain('KEINEN Sprechertext');
-    expect(task).toContain('Text Overlay, Visual, B-Roll');
-    expect(task).toContain('kein neues Storyboard');
-    expect(task).toContain('Zeitmarker und Blöcke stehen lassen');
+    expect(task).toContain('Keine Zeitmarker, keine Shotlist');
+    expect(task).not.toContain('Text Overlay, Visual, B-Roll');
     expect(task).not.toContain('HARTES WORT-BUDGET');
     expect(task).not.toContain('# ZEITPLAN UND KONTINUITAET');
   });
@@ -256,10 +250,9 @@ describe('buildEditPrompt Visual-Stil', () => {
   it('legt Stil-Dokument in den stable-Block', () => {
     const { stable } = buildEditPrompt(baseCtx(), VISUELL_MSG);
     expect(stable).toContain('# VISUELLER STIL');
-    expect(stable).toContain('Text Overlay');
-    expect(stable).toContain('B-Roll');
-    expect(stable).toContain('Anti-Beispiel');
-    expect(stable).toContain('Whip-Pan');
+    expect(stable).toContain('Ein schlichter Satz pro Beat');
+    expect(stable).toContain('Keine Zeitmarker');
+    expect(stable).not.toContain('Whip-Pan');
   });
 
   it('legt keine fremden Visual-Skripte in den Prompt', () => {
@@ -269,12 +262,137 @@ describe('buildEditPrompt Visual-Stil', () => {
     expect(stable).not.toContain('HOOK (was zu sehen ist)');
   });
 
-  it('chat ohne Markierung: Spoken-Pfad, kein Visual-Stil', () => {
+  it('chat auf Grid: Umfang statt Spaltenwahl, visueller Stil', () => {
     const { stable, task } = buildEditPrompt(baseCtx(), MESSAGE);
-    expect(task).toContain('# SPALTE: Was gesagt wird');
-    expect(stable).not.toContain('# VISUELLER STIL');
+    expect(task.indexOf('ist der Vorschlag die Basis')).toBeLessThan(task.indexOf('# AKTUELLES SKRIPT'));
+    expect(task).toContain('# UMFANG\n');
+    expect(task).toContain('aenderungen');
+    expect(task).toContain('„alles“');
+    expect(task).toContain('„nur Hauptteil“');
+    expect(task).toContain('„nicht erwähnen“');
+    expect(task).toContain('„nicht zeigen“');
+    expect(task).toContain('Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion, aenderungen');
+    expect(task).not.toContain('# SPALTE\n');
+    expect(task).not.toContain('kein neues Storyboard');
+    expect(stable).toContain('# VISUELLER STIL');
     expect(stable).not.toContain('VISUAL-BEISPIELE');
     expect(stable).not.toContain('DARF-NICHT-IM-CHAT');
+  });
+
+  it('chat: der Rückfragen-Dialog steht nicht im Edit-Prompt', () => {
+    const { task } = buildEditPrompt(baseCtx({
+      rueckfragen: 'User: Brot ist das Gericht\nLiky: notiert'
+    }), MESSAGE);
+    expect(task).not.toContain('GEKLAERTE RUECKFRAGEN');
+    expect(task).not.toContain('Brot ist das Gericht');
+  });
+
+  it('chat mit Visual-Markierung bleibt Neubau-fähig, kein Storyboard-Lock', () => {
+    const { task } = buildEditPrompt(baseCtx(), {
+      aktion: 'chat',
+      sektion: 'hook',
+      ist_visuell: true,
+      selektion_text: 'Alter Shot',
+      inhalt: 'Bitte nur das Visual an den gesprochenen Text anpassen'
+    });
+    expect(task).toContain('# UMFANG\n');
+    expect(task).toContain('Nur eine Markierung');
+    expect(task).not.toContain('kein neues Storyboard');
+    expect(task).not.toContain('Zeitmarker und Blöcke stehen lassen. Ändere nur was verlangt wird');
+  });
+
+  it('abgelehnter Vorschlag bleibt Assistant-Turn und ist im Auftrag verboten', () => {
+    const text = 'Kennst du das Gefuehl am Morgen';
+    const { task, messages } = buildEditPrompt({
+      ...baseCtx(),
+      history: [
+        { rolle: 'user', inhalt: 'Hook neu' },
+        { rolle: 'assistant', inhalt: 'Hier.', vorschlag_text: text, status: 'abgelehnt' }
+      ]
+    }, MESSAGE);
+    expect(task).toContain('Der letzte Vorschlag wurde abgelehnt');
+    expect(task).not.toContain(text);
+    expect(messages[1].content).toContain(`Vorschlag (abgelehnt):\n${text}`);
+  });
+
+  it('offener Vorschlag ist Assistant-Turn und steht nicht nochmal im Auftrag', () => {
+    const text = 'Stell dir vor der Wecker klingelt';
+    const { task, messages } = buildEditPrompt({
+      ...baseCtx(),
+      history: [
+        { rolle: 'user', inhalt: 'Hook neu' },
+        { rolle: 'assistant', inhalt: 'Neuer Versuch.', vorschlag_text: text, status: 'vorschlag' }
+      ]
+    }, MESSAGE);
+    expect(task).not.toContain('Der letzte Vorschlag wurde abgelehnt');
+    expect(task).not.toContain(text);
+    expect(messages.some((m) => m.role === 'assistant' && m.content.includes(text))).toBe(true);
+  });
+
+  it('pending Assistant kommt nicht in den Verlauf', () => {
+    const { messages } = buildEditPrompt({
+      ...baseCtx(),
+      history: [
+        { rolle: 'user', inhalt: 'Hook neu' },
+        { rolle: 'assistant', inhalt: 'warte', vorschlag_text: 'NICHT-ZEIGEN', status: 'pending' }
+      ]
+    }, MESSAGE);
+    expect(messages.some((m) => String(m.content).includes('NICHT-ZEIGEN'))).toBe(false);
+  });
+
+  it('chat: Wortbudget nur für Sprechertext', () => {
+    const { task } = buildEditPrompt(baseCtx({
+      skript: { video_laenge: '15-30' }
+    }), MESSAGE);
+    expect(task).toContain('HARTES WORT-BUDGET gilt nur für Sprechertext');
+    expect(task).toContain('Visuelle Regie zählt nicht ins Wortbudget');
+    expect(task).not.toContain('HARTES WORT-BUDGET: Das Gesamt-Skript');
+  });
+});
+
+describe('mapEditResult', () => {
+  const msg = {
+    aktion: 'chat',
+    ist_visuell: false,
+    selektion_text: 'Alter Shot'
+  };
+
+  it('spalte visuell setzt die Visual-Spalte', () => {
+    expect(mapEditResult(msg, { spalte: 'visuell', ganze_sektion: false })).toEqual({
+      ist_visuell: true,
+      selektion_text: 'Alter Shot'
+    });
+  });
+
+  it('ganze_sektion leert die Selektion', () => {
+    expect(mapEditResult(msg, { spalte: 'visuell', ganze_sektion: true })).toEqual({
+      ist_visuell: true,
+      selektion_text: null
+    });
+  });
+
+  it('spalte gesprochen setzt das Send-Flag zurück', () => {
+    expect(mapEditResult({ ...msg, ist_visuell: true }, { spalte: 'gesprochen' })).toEqual({
+      ist_visuell: false,
+      selektion_text: 'Alter Shot'
+    });
+  });
+
+  it('ohne spalte bleibt das Send-Flag', () => {
+    expect(mapEditResult({ ...msg, ist_visuell: true }, {})).toEqual({
+      ist_visuell: true,
+      selektion_text: 'Alter Shot'
+    });
+  });
+
+  it('Kuerzen ignoriert spalte und ganze_sektion', () => {
+    expect(mapEditResult(
+      { aktion: 'kuerzen', ist_visuell: false, selektion_text: 'Kennst du das?' },
+      { spalte: 'visuell', ganze_sektion: true }
+    )).toEqual({
+      ist_visuell: false,
+      selektion_text: 'Kennst du das?'
+    });
   });
 });
 

@@ -1,6 +1,20 @@
 import { permissionSystem } from '../../core/PermissionSystem.js';
 import { isDevModeEmail, isDevEnv } from '../../core/dev/DevModeAccess.js';
 import { ensureListenerMonitor, hideListenerMonitor } from '../../core/dev/ListenerMonitor.js';
+import { navMark } from '../../core/dev/navTrace.js';
+import { invalidateDashboard } from '../stakeholder/daten/dashboardLoad.js';
+import { INVESTOR_HINT_KEY } from '../../core/budget/finanzbestandBoot.js';
+import { swrClear } from '../../core/list/swrCache.js';
+import {
+  isAllowedEmployeeEmail,
+  isEmployeeDomainError,
+  createEmployeeDomainError
+} from './AllowedEmailDomains.js';
+import {
+  passwordPolicyError,
+  isWeakPasswordError,
+  PASSWORD_POLICY_MESSAGE
+} from '../../auth/password-hints.js';
 // AuthService.js (ES6-Modul)
 // Authentifizierung und Benutzer-Management
 
@@ -39,7 +53,14 @@ export class AuthService {
       // bis zum Ablauf signaturgueltig und der Nutzer landet in einer App, in
       // der jede Netlify Function 401 liefert. getUser() geht an GoTrue und
       // entlarvt genau das.
-      const { error: userError } = await window.supabase.auth.getUser();
+      // Die Benutzer-Zeile haengt nur an der auth_user_id aus der Session und
+      // laeuft deshalb parallel zu getUser(). Gerendert wird erst nach beiden,
+      // eine ungueltige Session zeigt also nie die App.
+      const [{ error: userError }, benutzerResult] = await Promise.all([
+        window.supabase.auth.getUser(),
+        this._fetchBenutzer(session.user.id),
+      ]);
+      navMark('auth:getUser+benutzer');
       if (userError) {
         console.warn(`❌ Session serverseitig ungültig (${userError.code || 'unbekannt'}): ${userError.message}`);
         await window.supabase.auth.signOut({ scope: 'local' });
@@ -47,7 +68,15 @@ export class AuthService {
       }
 
       console.log('✅ Session gefunden:', session.user.email);
-      await this.loadCurrentUser(session.user.id);
+      // boot: main.js initialisiert Navigation/Header und navigiert danach
+      // selbst; ein zweites navigateTo hier waere doppelte Arbeit.
+      await this.loadCurrentUser(session.user.id, { benutzerResult, boot: true });
+      navMark('auth:fertig');
+      // Hinweis fuer den naechsten Boot: Investoren landen auf dem Dashboard,
+      // dort startet der Finanzbestand-Prefetch schon vor der Auth-Kette.
+      try {
+        localStorage.setItem(INVESTOR_HINT_KEY, window.isInvestor?.() ? '1' : '0');
+      } catch { /* localStorage gesperrt: kein Hint */ }
       return true;
     } catch (error) {
       console.error('❌ Auth check failed:', error);
@@ -55,19 +84,31 @@ export class AuthService {
     }
   }
 
+  // Benutzer-Zeile holen. Liefert immer { data, error } und wirft nie, damit
+  // Promise.all in checkAuth nicht an einem Netzfehler hier abbricht.
+  async _fetchBenutzer(authUserId) {
+    try {
+      return await window.supabase
+        .from('benutzer')
+        .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
+        .eq('auth_user_id', authUserId)
+        .single();
+    } catch (e) {
+      return { data: null, error: e };
+    }
+  }
+
   // Aktuellen Benutzer laden
-  async loadCurrentUser(authUserId) {
+  // benutzerResult: schon geladene Zeile aus checkAuth (spart den Roundtrip).
+  // boot: Erstladung durch main.js, das UI-Init und Navigation selbst macht.
+  async loadCurrentUser(authUserId, { benutzerResult = null, boot = false } = {}) {
     try {
       if (!window.supabase) {
         console.error('❌ Supabase nicht verfügbar');
         return;
       }
 
-      const { data, error } = await window.supabase
-        .from('benutzer')
-        .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
-        .eq('auth_user_id', authUserId)
-        .single();
+      const { data, error } = benutzerResult || await this._fetchBenutzer(authUserId);
 
       if (error) {
         console.error('❌ Fehler beim Laden des Benutzers:', error);
@@ -75,7 +116,7 @@ export class AuthService {
       }
 
       if (data) {
-        // Prüfen ob Benutzer freigeschaltet ist. Alle Rollen (auch admin/investor/agent) brauchen
+        // Prüfen ob Benutzer freigeschaltet ist. Alle Rollen (auch admin/investor) brauchen
         // freigeschaltet = true, genau wie is_admin() in der Datenbank.
         const isFreigeschaltet = data.freigeschaltet === true;
         
@@ -124,160 +165,32 @@ export class AuthService {
         
         // 3) UI/Navigation/Dropdowns nach Rollenwechsel re-initialisieren
         try {
-          window.setupHeaderUI?.();
-          window.navigationSystem?.init?.();
-          window.actionsDropdown?.init?.();
-          window.bulkActionSystem?.init?.();
+          if (!boot) {
+            window.setupHeaderUI?.();
+            window.navigationSystem?.init?.();
+            window.actionsDropdown?.init?.();
+            window.bulkActionSystem?.init?.();
+          }
           
           // Header-Buttons basierend auf Rolle anpassen (Education, Notifications für Kunden ausblenden)
           this.updateHeaderForRole(data.rolle);
           
-          // Aktuelle Route neu navigieren, damit Berechtigungen greifen
-          const currentRoute = location.pathname;
-          if (currentRoute) {
+          // Aktuelle Route neu navigieren, damit Berechtigungen greifen.
+          // Query mitnehmen, sonst verschwindet eine geteilte Filter-Auswahl beim Laden.
+          const currentRoute = location.pathname + location.search;
+          if (!boot && currentRoute) {
             window.moduleRegistry?.navigateTo?.(currentRoute);
           }
         } catch (uiErr) {
           console.warn('⚠️ UI-Refresh nach loadCurrentUser fehlgeschlagen', uiErr);
         }
         
-        // 4) Realtime-Subscription für Benutzer-Updates (inkl. Rechte-Änderungen)
-        if (!this._userSubscription) {
-          this._userSubscription = window.supabase
-            .channel(`user-updates-${data.id}`)
-            .on('postgres_changes', {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'benutzer',
-              filter: `id=eq.${data.id}`
-            }, async (payload) => {
-              console.log('🔄 REALTIME: Benutzer-Daten wurden aktualisiert', payload.new);
-              
-              // Aktualisiere window.currentUser mit neuen Daten
-              const prev = window.currentUser || {};
-              const updatedUser = payload.new;
-              window.currentUser = {
-                ...prev,
-                ...updatedUser
-              };
-              if (
-                updatedUser.mitarbeiter_klasse_id === prev.mitarbeiter_klasse_id
-                && prev.mitarbeiter_klasse
-              ) {
-                window.currentUser.mitarbeiter_klasse = prev.mitarbeiter_klasse;
-              }
-
-              permissionSystem.setUserPermissions(window.currentUser);
-              
-              // Cache-Flag zurücksetzen für Scoped Permissions
-              window.currentUser._permissionsCached = false;
-              
-              // Scoped Permissions neu laden
-              try {
-                const { data: scoped } = await window.supabase
-                  .from('user_permissions')
-                  .select('page_id, table_id, can_view, can_edit, can_delete, data_filters')
-                  .eq('user_id', updatedUser.id);
-                permissionSystem.setScopedPermissions(scoped || []);
-                window.currentUser._permissionsCached = true;
-              } catch (e) {
-                console.warn('⚠️ Scoped Permissions reload failed', e);
-              }
-              
-              // UI aktualisieren
-              try {
-                window.setupHeaderUI?.();
-                window.navigationSystem?.init?.();
-                window.actionsDropdown?.init?.();
-                
-                // Header-Buttons basierend auf Rolle anpassen
-                this.updateHeaderForRole(updatedUser.rolle);
-                
-                // Soft-Refresh Event dispatchen statt Full Page Reload
-                // Module können selbst entscheiden ob sie updaten (z.B. wenn kein Formular aktiv)
-                window.dispatchEvent(new CustomEvent('softRefresh', {
-                  detail: { 
-                    reason: 'user-data-updated', 
-                    route: location.pathname,
-                    timestamp: Date.now()
-                  }
-                }));
-                console.log('🔄 REALTIME: softRefresh Event gesendet (kein Full Reload)');
-              } catch (uiErr) {
-                console.warn('⚠️ UI-Refresh nach Realtime-Update fehlgeschlagen', uiErr);
-              }
-            })
-            .subscribe();
-            
-          console.log('✅ Realtime-Subscription für Benutzer-Updates aktiv');
-        }
-        
-        // 5) Realtime-Subscription für Unternehmen-Zuordnungen (mitarbeiter_unternehmen)
-        if (!this._unternehmenSubscription) {
-          this._unternehmenSubscription = window.supabase
-            .channel(`unternehmen-zuordnung-${data.id}`)
-            .on('postgres_changes', {
-              event: '*', // INSERT, UPDATE, DELETE
-              schema: 'public',
-              table: 'mitarbeiter_unternehmen',
-              filter: `mitarbeiter_id=eq.${data.id}`
-            }, (payload) => {
-              console.log('🔄 REALTIME: Unternehmen-Zuordnung geändert', payload);
-              this._handlePermissionChange('unternehmen', payload);
-            })
-            .subscribe();
-            
-          console.log('✅ Realtime-Subscription für Unternehmen-Zuordnungen aktiv');
-        }
-        
-        // 6) Realtime-Subscription für Marken-Zuordnungen (marke_mitarbeiter)
-        if (!this._markenSubscription) {
-          this._markenSubscription = window.supabase
-            .channel(`marken-zuordnung-${data.id}`)
-            .on('postgres_changes', {
-              event: '*', // INSERT, UPDATE, DELETE
-              schema: 'public',
-              table: 'marke_mitarbeiter',
-              filter: `mitarbeiter_id=eq.${data.id}`
-            }, (payload) => {
-              console.log('🔄 REALTIME: Marken-Zuordnung geändert', payload);
-              this._handlePermissionChange('marke', payload);
-            })
-            .subscribe();
-            
-          console.log('✅ Realtime-Subscription für Marken-Zuordnungen aktiv');
-        }
-        
-        // 7) Realtime-Subscription für User-Permissions (user_permissions)
-        if (!this._permissionsSubscription) {
-          this._permissionsSubscription = window.supabase
-            .channel(`user-permissions-${data.id}`)
-            .on('postgres_changes', {
-              event: '*', // INSERT, UPDATE, DELETE
-              schema: 'public',
-              table: 'user_permissions',
-              filter: `user_id=eq.${data.id}`
-            }, async (payload) => {
-              console.log('🔄 REALTIME: User-Permissions geändert', payload);
-              
-              // Scoped Permissions neu laden
-              try {
-                const { data: scoped } = await window.supabase
-                  .from('user_permissions')
-                  .select('page_id, table_id, can_view, can_edit, can_delete, data_filters')
-                  .eq('user_id', data.id);
-                permissionSystem.setScopedPermissions(scoped || []);
-                console.log('✅ Scoped Permissions aktualisiert');
-              } catch (e) {
-                console.warn('⚠️ Scoped Permissions reload failed', e);
-              }
-              
-              this._handlePermissionChange('permissions', payload);
-            })
-            .subscribe();
-            
-          console.log('✅ Realtime-Subscription für User-Permissions aktiv');
-        }
+        // Hinweis: Live-Updates fuer benutzer, mitarbeiter_unternehmen, marke_mitarbeiter
+        // und user_permissions waren als Realtime-Subscriptions angelegt, die Tabellen
+        // stehen aber nicht in der Publication supabase_realtime. Die Channels haben nie
+        // ein Event geliefert, aber pro Login 4 Subscription-Zeilen erzeugt. Entfernt.
+        // Rechteaenderungen greifen beim naechsten Laden (permissionsChanged-Event bleibt
+        // als Hook erhalten, siehe _handlePermissionChange).
       }
     } catch (error) {
       console.error('❌ Fehler beim Laden des Benutzers:', error);
@@ -349,9 +262,15 @@ export class AuthService {
         throw new Error('Zu viele Registrierungsversuche. Bitte warten Sie 15 Minuten.');
       }
 
-      // Passwort-Stärke validieren
-      if (!this.validatePasswordStrength(password)) {
-        throw new Error('Passwort muss mindestens 4 Zeichen haben.');
+      // Nur Firmen-E-Mails dürfen sich als Mitarbeiter registrieren (zusätzlich DB-Trigger)
+      if (!isAllowedEmployeeEmail(email)) {
+        throw createEmployeeDomainError();
+      }
+
+      // Passwort-Regeln wie serverseitig (Supabase Auth)
+      const policyError = passwordPolicyError(password);
+      if (policyError) {
+        throw new Error(policyError);
       }
 
       if (!window.supabase) {
@@ -375,7 +294,16 @@ export class AuthService {
       });
 
       if (error) {
+        // Schwaches Passwort ist kein Fehlversuch und kein Duplikat
+        if (isWeakPasswordError(error)) {
+          throw new Error(PASSWORD_POLICY_MESSAGE);
+        }
+
         this.recordFailedAttempt(email);
+
+        if (isEmployeeDomainError(error)) {
+          throw createEmployeeDomainError();
+        }
 
         if (this.isDuplicateEmailError(error)) {
           throw this.createDuplicateEmailError();
@@ -538,25 +466,6 @@ export class AuthService {
   // Abmeldung
   async signOut() {
     try {
-      // Cleanup alle Realtime-Subscriptions
-      const subscriptions = [
-        { name: 'user', ref: this._userSubscription },
-        { name: 'unternehmen', ref: this._unternehmenSubscription },
-        { name: 'marken', ref: this._markenSubscription },
-        { name: 'permissions', ref: this._permissionsSubscription }
-      ];
-      
-      for (const sub of subscriptions) {
-        if (sub.ref) {
-          await window.supabase?.removeChannel(sub.ref);
-          console.log(`✅ ${sub.name}-Subscription entfernt`);
-        }
-      }
-      
-      this._userSubscription = null;
-      this._unternehmenSubscription = null;
-      this._markenSubscription = null;
-      this._permissionsSubscription = null;
       
       if (window.supabase) {
         // scope 'local': ohne das loescht GoTrue ALLE Sessions des Users, auch
@@ -567,6 +476,11 @@ export class AuthService {
       }
       
       window.currentUser = null;
+      // Keine gecachten Listen ueber den Logout hinaus.
+      swrClear();
+      // Keine Finanzzahlen und kein Rollen-Hint ueber den Logout hinaus.
+      invalidateDashboard();
+      try { localStorage.removeItem(INVESTOR_HINT_KEY); } catch { /* ignorieren */ }
       
       console.log('✅ Abmeldung erfolgreich');
       return { error: null };
@@ -618,9 +532,10 @@ export class AuthService {
   // Passwort aktualisieren (für Reset-Seite)
   async updatePassword(newPassword) {
     try {
-      // Passwort-Stärke validieren
-      if (!this.validatePasswordStrength(newPassword)) {
-        throw new Error('Passwort muss mindestens 4 Zeichen haben.');
+      // Passwort-Regeln wie serverseitig (Supabase Auth)
+      const policyError = passwordPolicyError(newPassword);
+      if (policyError) {
+        throw new Error(policyError);
       }
 
       if (!window.supabase) {
@@ -632,6 +547,9 @@ export class AuthService {
       });
 
       if (error) {
+        if (isWeakPasswordError(error)) {
+          throw new Error(PASSWORD_POLICY_MESSAGE);
+        }
         throw error;
       }
 
@@ -653,9 +571,9 @@ export class AuthService {
 
     const rawMessage = `${error.message || ''} ${error.error_description || ''}`.toLowerCase();
     const errorCode = `${error.code || ''}`.toLowerCase();
-    const status = Number(error.status || 0);
 
-    if (status === 422) return true;
+    // Status 422 allein ist kein Duplikat (auch schwaches Passwort liefert 422)
+    if (isWeakPasswordError(error)) return false;
     if (errorCode === 'user_already_exists' || errorCode === 'email_exists') return true;
 
     const duplicateMarkers = [

@@ -1,11 +1,12 @@
 // ContractDokumentDrawer.js
 // Drawer zum Hochladen neuer Dokumente (Auftragsbestaetigungen) fuer einen Contract.
-// Nutzt das bestehende AuftragsbestaetigungUploader-System (Dropbox via Netlify-Functions).
+// Nutzt das bestehende AuftragsbestaetigungUploader-System (SharePoint-Ablage).
 
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { uploadAuftragsbestaetigungen } from '../../core/AuftragsbestaetigungUploader.js';
 import { getCurrentBenutzerId } from '../auth/CurrentUser.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 const DOK_ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
 const DOK_MAX_SIZE = 25 * 1024 * 1024;
@@ -154,9 +155,6 @@ export class ContractDokumentDrawer {
 
       const { successes, errors } = await uploadAuftragsbestaetigungen(files, {
         auftragId: this.contract.id,
-        unternehmen: this.contract.unternehmen?.firmenname || '',
-        marke: this.contract.marke?.markenname || '',
-        auftragstitel: this.contract.titel || this.contract.auftragsname || '',
         uploadedById: benutzerId
       });
 
@@ -207,7 +205,7 @@ export class ContractDokumentDrawer {
     if (this._isUploading) return;
     const panel = document.getElementById(this.drawerId);
     panel?.classList.remove('show');
-    setTimeout(() => this.removeDrawer(), 300);
+    setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
   }
 
   removeDrawer() {

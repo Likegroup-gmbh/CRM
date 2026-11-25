@@ -6,6 +6,7 @@ import { renderEmptyState, resolveEmptyState } from '../../core/components/Empty
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { OHNE_MARKE_LABEL } from './BriefingFolders.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
 function canCreateBriefing() {
   return !window.isKunde?.() && (window.isAdmin?.() || window.currentUser?.permissions?.briefing?.can_edit);
@@ -58,9 +59,7 @@ function countLabel(count) {
 }
 
 function folderIconHtml(list, folder, name) {
-  return folder.logo_url
-    ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(name)}" class="folder-logo">`
-    : `${icon('folder-open')}`;
+  return renderFolderAvatar({ url: folder.logo_url, name });
 }
 
 function emptyFoldersHtml({ title, text }) {
@@ -167,14 +166,21 @@ export function renderItemsView(list) {
               <th class="col-name">Aktivierung</th>
               <th>Unternehmen</th>
               <th>Marke</th>
+              <th class="col-leistungszeitraum">Leistungszeitraum</th>
               <th>Bereich</th>
               <th>Status</th>
+              <th>Erstellt am</th>
               <th>Content Deadline</th>
+              <th>Produkte</th>
+              <th>Personas</th>
+              <th>Casting</th>
+              <th>Konzept</th>
+              <th>Skript</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="briefings-items-body">
-            <tr><td colspan="7" class="loading">Lade Briefings...</td></tr>
+            <tr><td colspan="14" class="loading">Lade Briefings...</td></tr>
           </tbody>
         </table>
       </div>
@@ -198,7 +204,7 @@ export function updateItemsTable(list) {
         }
       }
     }, 'default');
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-state-cell">${html}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="empty-state-cell">${html}</td></tr>`;
     return;
   }
 

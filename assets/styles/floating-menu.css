@@ -167,6 +167,13 @@
   margin-right: var(--space-xxs);
 }
 
+/* Trigger sitzt am unteren Rand: Flyout nach oben aufklappen, damit es
+   nicht unter der Fensterkante verschwindet. */
+.crm-fmenu-flyout--up {
+  top: auto;
+  bottom: calc(-1 * var(--space-xxs) - var(--border-xs));
+}
+
 .crm-fmenu-flyout--left::before {
   right: auto;
   left: 100%;

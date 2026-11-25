@@ -1,88 +1,22 @@
+const LINK_PAGE = 1000;
+
 export default {
   skipM2MForPagination: true,
   countMode: 'estimated',
-
-  config: {
-    table: 'creator',
-    displayField: 'vorname',
-    fields: {
-      vorname: 'string',
-      nachname: 'string',
-      instagram: 'string',
-      instagram_follower: 'number',
-      tiktok: 'string',
-      tiktok_follower: 'number',
-      telefonnummer: 'string',
-      mail: 'string',
-      portfolio_link: 'string',
-      budget_letzte_buchung: 'number',
-      lieferadresse_strasse: 'string',
-      lieferadresse_hausnummer: 'string',
-      lieferadresse_plz: 'string',
-      lieferadresse_stadt: 'string',
-      lieferadresse_land: 'string',
-      rechnungsadresse_abweichend: 'boolean',
-      rechnungsadresse_strasse: 'string',
-      rechnungsadresse_hausnummer: 'string',
-      rechnungsadresse_plz: 'string',
-      rechnungsadresse_stadt: 'string',
-      rechnungsadresse_land: 'string',
-      notiz: 'string',
-      geschlecht: 'string',
-      alter_jahre: 'number',
-      alter_min: 'number',
-      alter_max: 'number',
-      hat_haustier: 'boolean',
-      umsatzsteuerpflichtig: 'boolean',
-      ksk_selbstzahler: 'boolean',
-      haustier_beschreibung: 'string',
-      hat_kinder: 'boolean',
-      kinder_beschreibung: 'string',
-      spielt_instrument: 'boolean',
-      instrument_beschreibung: 'string',
-      hauptadresse_quelle: 'string'
-    },
-    relations: {},
-    manyToMany: {
-      sprachen: {
-        table: 'sprachen',
-        junctionTable: 'creator_sprachen',
-        localKey: 'creator_id',
-        foreignKey: 'sprache_id',
-        displayField: 'name'
-      },
-      branchen: {
-        table: 'branchen_creator',
-        junctionTable: 'creator_branchen',
-        localKey: 'creator_id',
-        foreignKey: 'branche_id',
-        displayField: 'name'
-      },
-      creator_types: {
-        table: 'creator_type',
-        junctionTable: 'creator_creator_type',
-        localKey: 'creator_id',
-        foreignKey: 'creator_type_id',
-        displayField: 'name'
-      }
-    },
-    filters: ['vorname', 'nachname'],
-    sortBy: 'created_at',
-    sortOrder: 'desc'
-  },
 
   buildSelectClause(context) {
     if (context === 'list') {
       return '*';
     }
     if (context === 'pagination') {
-      return `id,vorname,nachname,mail,telefonnummer,geschlecht,alter_jahre,alter_min,alter_max,
+      return `id,vorname,nachname,mail,telefonnummer,telefon_nicht_vorhanden,geschlecht,alter_jahre,alter_min,alter_max,geburtsdatum,hauptplattform,stilbeschreibung,groesse,
 instagram,instagram_follower,tiktok,tiktok_follower,ig_connected_at,profilbild_url,profilbild_thumb_url,
 portfolio_link,ig_biography,ig_engagement_rate,ig_media_count,ig_recent_posts,ig_brand_mentions,
-lieferadresse_stadt,lieferadresse_land,
+lieferadresse_stadt,lieferadresse_land,rezension_schnitt,
 creator_creator_type(creator_type_id(id,name)),
 creator_branchen(branche_id(id,name)),
-creator_sprachen(sprachen!sprache_id(id,name))`;
+creator_sprachen(sprachen!sprache_id(id,name)),
+creator_management(ist_aktiv, management:management_id(id, firmenname))`;
     }
     return '*';
   },
@@ -98,83 +32,67 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
         }
         return String(val);
       };
-      // Sprache
-      if (filters && filters.sprache_id) {
-        const selectedId = getIdFromFilter(filters.sprache_id);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_sprachen')
-          .select('creator_id')
-          .eq('sprache_id', selectedId);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
+      const idList = (raw) => (Array.isArray(raw) ? raw : [getIdFromFilter(raw)]).filter(Boolean);
+      // Mehrere Werte eines Filters: der Creator hat einen davon
+      const linkFilter = async (key, table, column, active = false) => {
+        const ids = idList(filters?.[key]);
+        delete filters[key];
+        if (!ids.length) return;
+        const found = new Set();
+        for (let from = 0; ; from += LINK_PAGE) {
+          let linkQuery = supabase.from(table).select('creator_id').in(column, ids);
+          if (active) linkQuery = linkQuery.eq('ist_aktiv', true);
+          const { data: links, error: lerr } = await linkQuery.order('creator_id').range(from, from + LINK_PAGE - 1);
+          if (lerr) return;
+          (links || []).forEach(r => found.add(r.creator_id));
+          if (!links || links.length < LINK_PAGE) break;
         }
-        delete filters.sprache_id;
-      }
-      // Branche
-      if (filters && (filters.branche_id || filters.branche)) {
-        const selectedId = getIdFromFilter(filters.branche_id || filters.branche);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_branchen')
-          .select('creator_id')
-          .eq('branche_id', selectedId);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
-        }
-        delete filters.branche_id;
+        idSets.push(found);
+      };
+      if (filters) {
+        if (filters.branche && !filters.branche_id) filters.branche_id = filters.branche;
         delete filters.branche;
+        await linkFilter('sprache_id', 'creator_sprachen', 'sprache_id');
+        await linkFilter('branche_id', 'creator_branchen', 'branche_id');
+        await linkFilter('creator_type_id', 'creator_creator_type', 'creator_type_id');
+        // Kunde: Creator mit mind. einer Kooperation fuer das Unternehmen
+        // (kooperationen.unternehmen_id ist zu 100% befuellt)
+        await linkFilter('kunde_id', 'kooperationen', 'unternehmen_id');
+        // Management/Firma: nur aktive Verknuepfungen zaehlen
+        await linkFilter('management_id', 'creator_management', 'management_id', true);
+        await linkFilter('firma_id', 'creator_firma', 'firma_id', true);
       }
-      // Creator-Typ
-      if (filters && filters.creator_type_id) {
-        const selectedId = getIdFromFilter(filters.creator_type_id);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_creator_type')
-          .select('creator_id')
-          .eq('creator_type_id', selectedId);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
+      if (filters && filters.besitz_id) {
+        for (const selectedId of idList(filters.besitz_id)) {
+          const { data: links, error: lerr } = await supabase
+            .from('creator_besitz')
+            .select('creator_id')
+            .eq('besitz_id', selectedId);
+          if (!lerr) idSets.push(new Set((links || []).map(r => r.creator_id)));
         }
-        delete filters.creator_type_id;
+        delete filters.besitz_id;
       }
-      // Kunde: Creator, die mind. eine Kooperation fuer dieses Unternehmen
-      // haben. kooperationen.unternehmen_id ist zu 100% befuellt, deshalb
-      // reicht der direkte Join, kein Fallback ueber kampagne.unternehmen_id
-      if (filters && filters.kunde_id) {
-        const selectedId = getIdFromFilter(filters.kunde_id);
-        const { data: links, error: lerr } = await supabase
-          .from('kooperationen')
-          .select('creator_id')
-          .eq('unternehmen_id', selectedId);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
+      if (filters && filters.favorit_von) {
+        const userIds = idList(filters.favorit_von);
+        delete filters.favorit_von;
+        if (userIds.length) {
+          const { data: links, error: lerr } = await supabase
+            .from('creator_favoriten')
+            .select('creator_id')
+            .in('user_id', userIds);
+          if (!lerr) idSets.push(new Set((links || []).map(r => r.creator_id)));
         }
-        delete filters.kunde_id;
       }
-      // Management: nur aktive Verknuepfungen zaehlen, damit beendete
-      // Vertretungen den Creator nicht mehr im Filter auftauchen lassen
-      if (filters && filters.management_id) {
-        const selectedId = getIdFromFilter(filters.management_id);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_management')
-          .select('creator_id')
-          .eq('management_id', selectedId)
-          .eq('ist_aktiv', true);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
+      if (filters && filters.creator_tag_id) {
+        const tagIds = idList(filters.creator_tag_id);
+        delete filters.creator_tag_id;
+        for (const selectedId of tagIds) {
+          const { data: links, error: lerr } = await supabase
+            .from('creator_tags')
+            .select('creator_id')
+            .eq('tag_id', selectedId);
+          if (!lerr) idSets.push(new Set((links || []).map(r => r.creator_id)));
         }
-        delete filters.management_id;
-      }
-      // Firma: analog zu Management ueber creator_firma
-      if (filters && filters.firma_id) {
-        const selectedId = getIdFromFilter(filters.firma_id);
-        const { data: links, error: lerr } = await supabase
-          .from('creator_firma')
-          .select('creator_id')
-          .eq('firma_id', selectedId)
-          .eq('ist_aktiv', true);
-        if (!lerr) {
-          idSets.push(new Set((links || []).map(r => r.creator_id)));
-        }
-        delete filters.firma_id;
       }
       // Schnittmenge bilden
       if (idSets.length > 0) {
@@ -236,6 +154,15 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
       } else {
         c.creator_types = c.creator_types || [];
       }
+
+      if (Array.isArray(c.creator_management)) {
+        c.managements = c.creator_management
+          .filter(row => row?.ist_aktiv !== false && row?.management?.firmenname)
+          .map(row => row.management.firmenname);
+        delete c.creator_management;
+      } else {
+        c.managements = c.managements || [];
+      }
     });
     return data;
   },
@@ -254,6 +181,9 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
       return true;
     }
     if (field === 'firma_ids' || field === 'firma_ids[]') {
+      return true;
+    }
+    if (field === 'besitz_ids' || field === 'besitz_ids[]') {
       return true;
     }
     return false;

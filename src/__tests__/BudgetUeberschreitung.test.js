@@ -53,6 +53,42 @@ describe('Ueberzahlung an Creator bleibt sichtbar', () => {
   });
 });
 
+describe('Zusatzleistungen mindern das verfuegbare Budget', () => {
+  it('zieht extra_services vom Rest ab, nicht vom Verbrauch', () => {
+    const result = calculateBudgetOverview({
+      auftrag: { nettobetrag: 10000 },
+      details: {
+        campaign_type: ['ugc_paid'],
+        extra_services_enabled: true,
+        extra_services: [{ name: 'Grafikdesign', amount: 2000 }]
+      },
+      kooperationen: [{ id: 'k1' }],
+      videos: [{ kooperation_id: 'k1', einkaufspreis_netto: 1000, verkaufspreis_netto: 1000 }],
+    });
+
+    expect(result.verbrauchtesBudget).toBe(1000 + 49); // EK + KSK
+    expect(result.extraServicesSum).toBe(2000);
+    expect(result.spendableBudget).toBe(8000);
+    expect(result.verfuegbaresBudget).toBe(10000 - 2000 - 1049);
+  });
+
+  it('ignoriert extra_services wenn deaktiviert oder ohne Namen', () => {
+    const result = calculateBudgetOverview({
+      auftrag: { nettobetrag: 10000 },
+      details: {
+        campaign_type: ['ugc_paid'],
+        extra_services_enabled: false,
+        extra_services: [{ name: 'Grafikdesign', amount: 2000 }]
+      },
+      kooperationen: [{ id: 'k1' }],
+      videos: [{ kooperation_id: 'k1', einkaufspreis_netto: 1000, verkaufspreis_netto: 1000 }],
+    });
+
+    expect(result.extraServicesSum).toBe(0);
+    expect(result.verfuegbaresBudget).toBe(10000 - 1049);
+  });
+});
+
 describe('EK/VK-Summen stimmen mit der Marge ueberein', () => {
   it('haelt die Identitaet auch bei halb bepreisten Zeilen ein', () => {
     const koops = [{ id: 'k1' }];

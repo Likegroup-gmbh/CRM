@@ -4,8 +4,12 @@
 import { CreatorDetail } from './CreatorDetailCore.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { firmaCreateDrawer, injectFirmaCreateButton } from './FirmaCreateDrawer.js';
+import { injectManagementCreateButton, managementCreateDrawer } from './ManagementCreateDrawer.js';
 import { HAUPTADRESSE_QUELLE, normalizeHauptadresseQuelle } from './hauptadresseQuelle.js';
 import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
+import { bindGenerationControls } from './creatorProfil.js';
+import { mountCreatorBetreuung } from '../ansprechpartner/betreuung.js';
+import { creatorReturnPath } from './masterliste.js';
 
 CreatorDetail.prototype.bindEvents = function() {
     if (this._abortController) {
@@ -60,6 +64,18 @@ CreatorDetail.prototype.bindEvents = function() {
         this._showAddManagementDialog();
         return;
       }
+      const createBtn = e.target.closest && e.target.closest('#btn-management-anlegen');
+      if (createBtn) {
+        e.preventDefault();
+        managementCreateDrawer.open({
+          creatorId: this.creatorId,
+          onCreated: async () => {
+            await this.loadManagements();
+            this.updateManagementTab();
+          }
+        });
+        return;
+      }
       const removeBtn = e.target.closest && e.target.closest('[data-remove-management]');
       if (removeBtn) {
         e.preventDefault();
@@ -107,6 +123,12 @@ CreatorDetail.prototype.bindEvents = function() {
         if (adresseTab) {
           adresseTab.innerHTML = this.renderAdresseContent();
           console.log('✅ CREATORDETAIL: Adresse-Tab erfolgreich aktualisiert');
+        }
+      }
+      if (e.detail?.entity === 'creator_auswahl' && e.detail?.creatorId === this.creatorId) {
+        tabDataCache.invalidate('creator', this.creatorId);
+        if (this.activeMainTab === 'castings') {
+          await this.loadTabData('castings');
         }
       }
     }, { signal });
@@ -199,134 +221,24 @@ CreatorDetail.prototype.showEditForm = async function() {
 
     window.formSystem.bindFormEvents('creator', editData);
     injectFirmaCreateButton();
+    injectManagementCreateButton();
     
     const form = document.getElementById('creator-form');
     if (form) {
+      bindGenerationControls(form);
+      mountCreatorBetreuung(form, { creatorId: this.creatorId });
       form.onsubmit = async (e) => {
         e.preventDefault();
         await this.handleEditFormSubmit();
       };
-    }
-};
-
-CreatorDetail.prototype.handleEditFormSubmit = async function() {
-    try {
-      const form = document.getElementById('creator-form');
-      const formData = new FormData(form);
-      const submitData = {};
-
-      const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
-      tagBasedSelects.forEach(select => {
-        const fieldName = select.name;
-        
-        let hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
-        if (!hiddenSelect) {
-          hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
-        }
-        
-        if (!hiddenSelect) {
-          const tagContainer = form.querySelector(`select[name="${fieldName}"]`)?.closest('.form-field')?.querySelector('.tag-based-select');
-          if (tagContainer) {
-            const tags = tagContainer.querySelectorAll('.tag[data-value]');
-            const tagValues = Array.from(tags).map(tag => tag.dataset.value).filter(Boolean);
-            if (tagValues.length > 0) {
-              submitData[fieldName] = tagValues;
-              console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Tags gesammelt:`, tagValues);
-              return;
-            }
-          }
-        }
-        
-        if (hiddenSelect) {
-          const values = Array.from(hiddenSelect.selectedOptions).map(opt => opt.value).filter(Boolean);
-          if (values.length > 0) {
-            submitData[fieldName] = values;
-            console.log(`🏷️ Tag-basiertes Feld ${fieldName} aus Hidden-Select gesammelt:`, values);
-          }
-        } else {
-          console.warn(`⚠️ Kein Hidden-Select oder Tags für ${fieldName} gefunden`);
-        }
-      });
-
-      for (const [key, value] of formData.entries()) {
-        if (submitData.hasOwnProperty(key) && Array.isArray(submitData[key])) {
-          continue;
-        }
-        if (key.includes('[]')) {
-          const cleanKey = key.replace('[]', '');
-          if (!submitData[cleanKey]) {
-            submitData[cleanKey] = [];
-          }
-          submitData[cleanKey].push(value);
-        } else {
-          submitData[key] = value;
-        }
+      const back = creatorReturnPath();
+      const cancel = form.querySelector('.mdc-btn--cancel');
+      if (back && cancel) {
+        cancel.onclick = (event) => {
+          event.preventDefault();
+          window.navigateTo(back);
+        };
       }
-
-      const toggleInputs = form.querySelectorAll('input[type="checkbox"][name]');
-      toggleInputs.forEach(input => {
-        submitData[input.name] = input.checked;
-      });
-
-      // management_ids autoritativ setzen, damit Entfernen/Hinzufuegen persistiert (auch leeres Array)
-      const mgmtField = form.querySelector('select[name="management_ids"], select[name="management_ids[]"]');
-      if (mgmtField) {
-        const formField = mgmtField.closest('.form-field');
-        let mgmtValues = Array.from(formField?.querySelectorAll('.tag-based-select .tag[data-value]') || [])
-          .map(t => t.dataset.value).filter(Boolean);
-        if (mgmtValues.length === 0) {
-          const hidden = formField?.querySelector('select[style*="display: none"]');
-          if (hidden) mgmtValues = Array.from(hidden.selectedOptions).map(o => o.value).filter(Boolean);
-        }
-        submitData.management_ids = [...new Set(mgmtValues)];
-      }
-
-      // firma_ids autoritativ setzen (auch leeres Array), damit Entfernen persistiert
-      const firmaField = form.querySelector('select[name="firma_ids"], select[name="firma_ids[]"]');
-      if (firmaField) {
-        const formField = firmaField.closest('.form-field');
-        let firmaValues = Array.from(formField?.querySelectorAll('.tag-based-select .tag[data-value]') || [])
-          .map(t => t.dataset.value).filter(Boolean);
-        if (firmaValues.length === 0) {
-          const hidden = formField?.querySelector('select[style*="display: none"]');
-          if (hidden) firmaValues = Array.from(hidden.selectedOptions).map(o => o.value).filter(Boolean);
-        }
-        submitData.firma_ids = [...new Set(firmaValues)];
-      }
-
-      const validation = window.validatorSystem.validateForm(submitData, {
-        vorname: { type: 'text', minLength: 2, required: true },
-        nachname: { type: 'text', minLength: 2, required: true },
-        mail: { type: 'email' },
-        telefonnummer: { type: 'phone' },
-        portfolio_link: { type: 'url' }
-      });
-      
-      if (!validation.isValid) {
-        this.showValidationErrors(validation.errors);
-        return;
-      }
-
-      const result = await window.dataService.updateEntity('creator', this.creatorId, submitData);
-
-      if (result.success) {
-        this.showSuccessMessage('Creator erfolgreich aktualisiert!');
-        
-        setTimeout(async () => {
-          tabDataCache.invalidate('creator', this.creatorId);
-          await this.loadCriticalData();
-          await this.loadManagements();
-          await this.loadFirmen();
-          await this.render();
-          window.navigateTo(`/creator/${this.creatorId}`);
-        }, 1500);
-      } else {
-        throw new Error(result.error || 'Unbekannter Fehler');
-      }
-
-    } catch (error) {
-      console.error('❌ Edit Formular-Submit Fehler:', error);
-      this.showErrorMessage(error.message);
     }
 };
 

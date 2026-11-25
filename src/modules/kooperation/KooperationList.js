@@ -7,11 +7,13 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KooperationFilterLogic } from './filters/KooperationFilterLogic.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 import {
   resolveKampagneIdFromCreateContext,
   resolveKooperationCreateRedirect
 } from './kooperationFromKampagne.js';
-import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
+import { navigateBack } from '../../core/breadcrumbTrail.js';
+import { ablageCascade } from '../../core/VideoDeleteHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 
 export class KooperationList {
@@ -195,7 +197,7 @@ export class KooperationList {
         if (kampagneIds.length > 0) {
           const { data: kampagnen } = await window.supabase
             .from('kampagne')
-            .select('id, kampagnenname, eigener_name, status, start, deadline')
+            .select('id, kampagnenname, eigener_name, status, start, deadline, auftrag:auftrag_id(start, ende)')
             .in('id', kampagneIds);
           kampagneMap = (kampagnen || []).reduce((acc, k) => { acc[k.id] = k; return acc; }, {});
         }
@@ -281,6 +283,7 @@ export class KooperationList {
               ${canBulkDelete ? '<th class="col-checkbox"><input type="checkbox" id="select-all-kooperationen"></th>' : ''}
               <th class="col-name">Name</th>
               <th>Kampagne</th>
+              <th class="col-leistungszeitraum">Leistungszeitraum</th>
               <th>Creator</th>
               <th>Videos</th>
               <th>Einkaufspreis</th>
@@ -292,7 +295,7 @@ export class KooperationList {
           </thead>
           <tbody id="kooperationen-table-body">
             <tr>
-              <td colspan="13" class="loading">Lade Kooperationen...</td>
+              <td colspan="14" class="loading">Lade Kooperationen...</td>
             </tr>
           </tbody>
         </table>
@@ -518,8 +521,11 @@ export class KooperationList {
             </a>
           </td>
           <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(kooperation.kampagne) !== 'Unbenannte Kampagne' ? KampagneUtils.getDisplayName(kooperation.kampagne) : (this._kampagneMap?.[kooperation.kampagne_id] ? KampagneUtils.getDisplayName(this._kampagneMap[kooperation.kampagne_id]) : 'Unbekannt'))}</td>
+          ${renderLeistungszeitraumCell(this._kampagneMap?.[kooperation.kampagne_id] || kooperation.kampagne)}
           <td>
-            ${window.validatorSystem.sanitizeHtml(kooperation.creator ? `${kooperation.creator.vorname} ${kooperation.creator.nachname}` : (this._creatorMap?.[kooperation.creator_id] ? `${this._creatorMap[kooperation.creator_id].vorname} ${this._creatorMap[kooperation.creator_id].nachname}` : 'Unbekannt'))}
+            ${window.validatorSystem.sanitizeHtml(kooperation.creator_id
+              ? (kooperation.creator ? `${kooperation.creator.vorname} ${kooperation.creator.nachname}` : (this._creatorMap?.[kooperation.creator_id] ? `${this._creatorMap[kooperation.creator_id].vorname} ${this._creatorMap[kooperation.creator_id].nachname}` : 'Unbekannt'))
+              : 'Platzhalter')}
           </td>
           <td>${kooperation.videoanzahl || 0}</td>
           <td>${formatCurrency(kooperation.einkaufspreis_gesamt)}</td>
@@ -649,7 +655,7 @@ export class KooperationList {
 
     try {
       await Promise.allSettled(
-        selectedIds.map(id => deleteDropboxCascade('kooperation', id))
+        selectedIds.map(id => ablageCascade('kooperation', id))
       );
 
       const result = await window.dataService.deleteEntities('kooperation', selectedIds);
@@ -710,6 +716,7 @@ export class KooperationList {
   async showCreateForm() {
     console.log('🎯 Zeige Kooperations-Erstellungsformular');
     window.setHeadline('Neue Kooperation anlegen');
+    window.breadcrumbSystem?.updateDetailLabel('Neue Kooperation');
     
     // Prüfe auf kampagne_id Query-Parameter
     const urlParams = new URLSearchParams(window.location.search);
@@ -732,7 +739,9 @@ export class KooperationList {
           unternehmen_id: cache.unternehmen_id,
           marke_id: cache.marke_id,
           unternehmen: cache.unternehmen,
-          marke: cache.marke
+          marke: cache.marke,
+          produktion_id: cache.produktion_id || urlParams.get('produktion_id') || null,
+          briefing_id: cache.briefing_id || urlParams.get('briefing_id') || null
         };
         // Cache leeren nach Verwendung
         delete window.kooperationPrefillCache;
@@ -760,13 +769,11 @@ export class KooperationList {
       
       // Wenn Kampagne verfügbar, formData erstellen
       if (kampagne) {
-        if (window.breadcrumbSystem) {
-          window.breadcrumbSystem.updateDetailLabel('Neue Kooperation');
-        }
-        
         // formData mit allen Prefill-Daten erstellen
         formData = {
           kampagne_id: kampagneId,
+          produktion_id: kampagne.produktion_id || urlParams.get('produktion_id') || null,
+          briefing_id: kampagne.briefing_id || urlParams.get('briefing_id') || null,
           unternehmen_id: kampagne.unternehmen_id,
           marke_id: kampagne.marke_id || null,
           _prefillFromKampagne: true,
@@ -777,14 +784,6 @@ export class KooperationList {
         };
         
         console.log('📦 KOOPERATION-PREFILL: formData erstellt:', formData);
-      } else {
-        if (window.breadcrumbSystem) {
-          window.breadcrumbSystem.updateDetailLabel('Neue Kooperation');
-        }
-      }
-    } else {
-      if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateDetailLabel('Neue Kooperation');
       }
     }
     
@@ -851,6 +850,8 @@ export class KooperationList {
           if (!submitData.marke_id && prefill._hasMarke && prefill.marke_id) {
             submitData.marke_id = prefill.marke_id;
           }
+          if (prefill.produktion_id) submitData.produktion_id = prefill.produktion_id;
+          if (prefill.briefing_id && !submitData.briefing_id) submitData.briefing_id = prefill.briefing_id;
         } catch (e) {
           console.warn('⚠️ KOOPERATION: Prefill-Daten konnten nicht gelesen werden', e);
         }
@@ -895,12 +896,13 @@ export class KooperationList {
           }
         }));
 
-        const redirect = resolveKooperationCreateRedirect({
+        const fallback = resolveKooperationCreateRedirect({
           kampagneId,
+          produktionId: submitData.produktion_id || new URLSearchParams(window.location.search).get('produktion_id'),
           newKooperationId: result.id
         });
         setTimeout(() => {
-          window.navigateTo(redirect);
+          navigateBack(fallback);
         }, 1500);
       } else {
         this.showErrorMessage(`Fehler beim Erstellen: ${result.error}`);
@@ -959,7 +961,7 @@ export class KooperationList {
     const form = document.getElementById('kooperation-form');
     if (form) {
       form.parentNode.insertBefore(alertDiv, form);
-      alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      alertDiv.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
       
       setTimeout(() => {
         alertDiv.remove();

@@ -7,7 +7,9 @@
 import { addVideoRow, buildVideoSelectOptions } from '../../core/form/logic/events/VideosFields.js';
 import { setup as setupKooperationTags } from '../../core/form/logic/events/KooperationTagsEvents.js';
 import { makeRecalcAllPrices, attachVideoStepper, refreshStepperUI } from './KooperationStepperBinder.js';
+import { applyFinalisiertFilter } from '../../core/finalisiert.js';
 import { loadAllCreators } from '../../core/creatorRows.js';
+import { zeigeFormularHinweis } from './platzhalterSetzen.js';
 
 export class KooperationEditLoader {
   // Einstiegspunkt: alle Daten parallel laden + Felder befüllen
@@ -38,12 +40,13 @@ export class KooperationEditLoader {
       andereKooperationen,
       kooperationVideos,
       tagTypen,
-      koopTags
+      koopTags,
+      mitarbeiter
     ] = await Promise.all([
       this._loadUnternehmen(unternehmenId),
       this._loadMarke(markeId),
       this._loadKampagne(kampagneId),
-      this._loadBriefings(unternehmenId),
+      this._loadBriefings(unternehmenId, kampagneId),
       this._loadCreators(),
       this._loadCurrentCreator(creatorId),
       this._loadAuftragKampagneArt(kampagneId),
@@ -51,7 +54,8 @@ export class KooperationEditLoader {
       this._loadAndereKooperationen(kampagneId, kooperationId),
       this._loadKooperationVideos(kooperationId),
       this._loadTagTypen(),
-      this._loadKoopTags(kooperationId)
+      this._loadKoopTags(kooperationId),
+      this._loadMitarbeiter()
     ]);
 
     const t1 = performance.now();
@@ -62,26 +66,34 @@ export class KooperationEditLoader {
     const readonlyLabels = {
       unternehmen: unternehmen?.firmenname || 'Unternehmen',
       marke: marke?.markenname || 'Keine Marke',
-      kampagne: kampagne?.kampagnenname || kampagne?.eigener_name || 'Kampagne'
+      kampagne: kampagne?.kampagnenname || kampagne?.eigener_name || 'Kampagne',
+      creator: `${currentCreator?.vorname || ''} ${currentCreator?.nachname || ''}`.trim() || 'Kein Creator'
     };
     this._setReadonlyField(form, 'unternehmen_id', unternehmenId, readonlyLabels.unternehmen);
     this._setReadonlyField(form, 'marke_id', markeId, readonlyLabels.marke, !markeId);
     this._setReadonlyField(form, 'kampagne_id', kampagneId, readonlyLabels.kampagne);
 
     this._fillSelectField(form, 'briefing_id', briefings, data?.briefing_id, { displayField: 'aktivierung_name' });
+    // Altbestand hat keinen Mitarbeiter: bleibt leer, bis jemand bewusst einen wählt (kein Default im Edit)
+    this._fillSelectField(form, 'assignee_id', mitarbeiter, data?.assignee_id || null);
     this._fillCreatorField(form, creators, creatorId, currentCreator);
-    // dependsOn rendert diese Selects disabled. Das Suchfeld merkt sich das
+    // Creator nur noch ueber den Creator-Tausch aenderbar (haelt Casting, Skript und Kooperation konsistent)
+    this._setReadonlyField(form, 'creator_id', creatorId, readonlyLabels.creator, !creatorId);
+    // dependsOn rendert das Briefing-Select disabled. Das Suchfeld merkt sich das
     // beim Aufbau, deshalb vor der Initialisierung wieder freigeben.
     this._enableNativeSelect(form, 'briefing_id');
-    this._enableNativeSelect(form, 'creator_id');
 
     const totalVideos = await this._getKampagneTotalVideosWithBlocks(kampagne);
     // usedVideos zählt nur die anderen Kooperationen (neq auf die eigene id).
     // Die eigene videoanzahl darf deshalb nicht noch einmal gutgeschrieben
     // werden, sonst lässt der Stepper mehr zu als die Limit-Prüfung beim Speichern.
-    const usedVideos = (andereKooperationen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
+    const usedVideos = (andereKooperationen || [])
+      .filter(k => k.creator_id)
+      .reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
     const remainingVideos = Math.max(0, totalVideos - usedVideos);
-    const isUnlimited = totalVideos === 0;
+    const isUnlimited = totalVideos === 0 || !creatorId;
+    if (!creatorId) form.dataset.platzhalter = '1';
+    else delete form.dataset.platzhalter;
 
     this._initVideoStepper(form, data?.videoanzahl, remainingVideos, isUnlimited);
 
@@ -100,6 +112,9 @@ export class KooperationEditLoader {
 
   // Events binden (Stepper + Video-Rows + Tags + Preise)
   async bindEvents(form, data) {
+    if (form?.dataset?.platzhalter === '1') {
+      void zeigeFormularHinweis(form, data?.id || data?._entityId);
+    }
     const ctx = form._kooperationEditCtx || {};
     const kampagnenartenOptions = ctx.kampagnenartenOptions || [];
 
@@ -112,11 +127,11 @@ export class KooperationEditLoader {
     // aktuellen Wert synchronisieren. initializeSearchableSelects setzt Hidden+Label nicht zuverlässig,
     // wenn der select-slice(1)-Trick Options ohne selected-Flag überträgt.
     this._syncSearchableContainerValue(form, 'briefing_id');
-    this._syncSearchableContainerValue(form, 'creator_id');
-    // dependsOn setzt diese Selects initial auf disabled. Im Edit sind die
+    this._syncSearchableContainerValue(form, 'assignee_id');
+    this._applyReadonlyToSearchableContainer(form, 'creator_id', ctx.readonlyLabels?.creator, !data?.creator_id);
+    // dependsOn setzt das Briefing-Select initial auf disabled. Im Edit sind die
     // Optionen schon geladen, deshalb wieder bedienbar machen.
     this._enableEditableSearchable(form, 'briefing_id');
-    this._enableEditableSearchable(form, 'creator_id');
 
     const videoInput = form.querySelector('input[name="videoanzahl"]');
     const videosList = form.querySelector('.videos-list');
@@ -201,14 +216,28 @@ export class KooperationEditLoader {
     return data;
   }
 
-  async _loadBriefings(unternehmenId) {
+  async _loadBriefings(unternehmenId, kampagneId = null) {
     if (!unternehmenId || !window.supabase) return [];
+    const { data } = await applyFinalisiertFilter(
+      window.supabase
+        .from('campaign_briefings')
+        .select('id, aktivierung_name')
+        .eq('unternehmen_id', unternehmenId),
+      'campaign_briefings',
+      { kampagneId }
+    ).order('aktivierung_name');
+    return data || [];
+  }
+
+  // Mitarbeiter wie im Create-Flow: intern, ohne Kunden und Gäste
+  async _loadMitarbeiter() {
+    if (!window.supabase) return [];
     const { data } = await window.supabase
-      .from('campaign_briefings')
-      .select('id, aktivierung_name')
-      .eq('unternehmen_id', unternehmenId)
-      .eq('ist_altbestand', false)
-      .order('aktivierung_name');
+      .from('benutzer')
+      .select('id, name')
+      .neq('rolle', 'kunde')
+      .neq('rolle', 'gast')
+      .order('name');
     return data || [];
   }
 
@@ -264,7 +293,7 @@ export class KooperationEditLoader {
     if (!kampagneId || !window.supabase) return [];
     let query = window.supabase
       .from('kooperationen')
-      .select('id, videoanzahl')
+      .select('id, videoanzahl, creator_id')
       .eq('kampagne_id', kampagneId);
     if (currentKoopId) query = query.neq('id', currentKoopId);
     const { data } = await query;
@@ -343,7 +372,6 @@ export class KooperationEditLoader {
     }
   }
 
-  // Nach initializeSearchableSelects: den searchable-Container readonly schalten.
   _enableNativeSelect(form, fieldName) {
     const select = form.querySelector(`select[name="${fieldName}"]`);
     if (!select) return;
@@ -356,6 +384,7 @@ export class KooperationEditLoader {
       || form.querySelector(`#field-${fieldName}`);
   }
 
+  // Nach initializeSearchableSelects: den searchable-Container readonly schalten.
   _applyReadonlyToSearchableContainer(form, fieldName, label, isEmpty = false) {
     const select = this._findFieldSelect(form, fieldName);
     if (!select) return;
@@ -534,7 +563,6 @@ export class KooperationEditLoader {
     });
   }
 
-  // Synct den searchable-Container (Input-Label + Hidden-Input) mit dem aktuellen Select-Value.
   _enableEditableSearchable(form, fieldName) {
     const select = this._findFieldSelect(form, fieldName);
     if (!select) return;
@@ -555,6 +583,7 @@ export class KooperationEditLoader {
     input.classList.remove('is-disabled');
   }
 
+  // Synct den searchable-Container (Input-Label + Hidden-Input) mit dem aktuellen Select-Value.
   _syncSearchableContainerValue(form, fieldName) {
     const select = this._findFieldSelect(form, fieldName);
     if (!select) return;

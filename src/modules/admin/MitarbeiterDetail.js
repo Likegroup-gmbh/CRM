@@ -17,7 +17,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
     this.user = null;
     this.assignments = { kampagnen: [], kooperationen: [], auftragsdetails: [] };
     this.zugeordnet = { unternehmen: [], marken: [] };
-    this.budget = { invoicesByKoop: {}, totals: { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 } };
+    this.budget = { invoicesByKoop: {}, eigeneKoops: [], totals: { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 } };
     this.statusOptions = [];
     this.euLaender = [];
     this.activeMainTab = 'informationen';

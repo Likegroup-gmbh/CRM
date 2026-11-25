@@ -1,32 +1,39 @@
 // SourcingTabelleAnpassenDrawer.js (ES6-Modul)
-// Drawer "Tabelle anpassen" der Sourcing-Detailseite. Zwei Bereiche:
-//   1. Listeneinstellungen - Art der Liste, Plattform, Format, TKP.
-//      Das sind genau die Felder aus dem Anlege-Formular, die nichts mit der
-//      Kampagnenzuordnung zu tun haben; Unternehmen, Marke und Kampagne
-//      bleiben bewusst draussen.
-//   2. Spalten - welche Spalte sichtbar ist.
-//
-// Beides speichert sofort (kein Speichern-Button). Aendert sich Typ, Plattform
-// oder Format, werden die zugehoerigen Spalten neu vorbelegt; von Hand
-// abgeschaltete Spalten wie Mail oder eigene Spalten bleiben erhalten.
+// Drawer "Tabelle anpassen" der Sourcing-Detailseite.
+// Spalten-Sichtbarkeit und Reihenfolge. Der TKP wird im Plus-Menü der Liste
+// geändert, nicht hier. Die Reihenfolge speichert sofort. Name und Aktionen
+// bleiben fest.
 
 import {
   DEAKTIVIERTE_SPALTEN,
-  getListenTkp,
+  PLATTFORM_ZEILEN,
   SOURCING_SPALTEN,
   SOURCING_SPALTEN_LABELS
-} from './CreatorAuswahlTemplates.js';
-import {
-  LISTE_TYP_OPTIONEN,
-  PLATTFORM_OPTIONEN,
-  IG_FORMAT_OPTIONEN,
-  wendePresetAn
-} from './sourcingSpaltenPreset.js';
+} from './sourcingSpaltenKatalog.js';
+import { baueBeweglicheSpalten } from './sourcingSpaltenfolge.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { renderSpalteHinzufuegen, renderSpaltenName } from '../../core/customColumns/tabelleSpaltenPflege.js';
+import { bindGripReorder } from '../../core/list/gripReorder.js';
 
-/** Spaltenreihenfolge im Drawer, abgeleitet aus SOURCING_SPALTEN */
-const SPALTEN_LABELS = SOURCING_SPALTEN
-  .filter(c => SOURCING_SPALTEN_LABELS[c])
-  .map(c => ({ className: c, label: SOURCING_SPALTEN_LABELS[c] }));
+const SPALTEN_LABELS = new Map(
+  SOURCING_SPALTEN
+    .filter(c => SOURCING_SPALTEN_LABELS[c])
+    .map(c => [c, SOURCING_SPALTEN_LABELS[c]])
+);
+
+function eigeneSpaltenFuerFolge(customColumns) {
+  return (customColumns || []).flatMap(col => {
+    const className = col.className || '';
+    if (!className.startsWith('custom:')) return [];
+    return [{
+      id: className.slice('custom:'.length),
+      _anchor: col.anchor ?? col._anchor ?? null,
+      name: col.label
+    }];
+  });
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -36,44 +43,65 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function renderSelect(name, label, optionen, value, sichtbar) {
-  const options = optionen.map(opt => (
-    `<option value="${escapeHtml(opt.value)}"${String(value) === String(opt.value) ? ' selected' : ''}>${escapeHtml(opt.label)}</option>`
-  )).join('');
-
-  return `
-    <div class="form-field${sichtbar ? '' : ' form-field--hidden'}" data-listen-feld="${name}">
-      <label class="form-label" for="sourcing-liste-${name}">${escapeHtml(label)}</label>
-      <select class="form-input" id="sourcing-liste-${name}" data-listen-einstellung="${name}">
-        <option value="">Bitte wählen...</option>
-        ${options}
-      </select>
-    </div>
-  `;
-}
-
 export class SourcingTabelleAnpassenDrawer {
   /**
    * @param {object} config
-   * @param {object} config.liste geladene Sourcing-Liste (tkp, liste_typ, ...)
+   * @param {object} config.liste geladene Sourcing-Liste
    * @param {string[]} config.hiddenColumns
-   * @param {Array<{className: string, label: string}>} [config.customColumns]
+   * @param {Array<{className: string, label: string, anchor?: string|null}>} [config.customColumns]
    * @param {(hiddenColumns: string[]) => Promise<void>|void} config.onHiddenColumnsChange
    * @param {(updates: object) => Promise<void>|void} config.onListeChange
+   * @param {(columnOrder: string[]) => Promise<void>|void} config.onColumnOrderChange
+   * @param {object} [config.spaltenPflege] EntityCustomColumnsManager
+   * @param {() => void} [config.onColumnsChanged]
    */
-  constructor({ liste, hiddenColumns, customColumns = [], onHiddenColumnsChange, onListeChange }) {
+  constructor({
+    liste,
+    hiddenColumns,
+    customColumns = [],
+    onHiddenColumnsChange,
+    onListeChange,
+    onColumnOrderChange,
+    spaltenPflege = null,
+    onColumnsChanged = null
+  }) {
     this.liste = liste || {};
     this.hiddenColumns = hiddenColumns || [];
     this.onHiddenColumnsChange = onHiddenColumnsChange;
     this.onListeChange = onListeChange;
+    this.onColumnOrderChange = onColumnOrderChange;
+    this.spaltenPflege = spaltenPflege;
+    this.onColumnsChanged = onColumnsChanged;
     this.drawerId = 'sourcing-tabelle-anpassen-drawer';
+    this._reorderUnbind = [];
+    this._draggedRow = null;
+    this._pflegeBound = false;
+    this._customColumns = spaltenPflege?.getOrderedColumns
+      ? this._aktuelleEigeneSpalten()
+      : (customColumns || []);
+    this.columns = this._composeColumns(this._customColumns);
+  }
 
-    // Name und Aktionen sind immer sichtbar und tauchen deshalb nicht auf
-    this.columns = [
-      ...SPALTEN_LABELS,
-      // Eigene Spalten (className = "custom:{uuid}")
-      ...(customColumns || []).map(c => ({ className: c.className, label: c.label }))
-    ].filter(c => !DEAKTIVIERTE_SPALTEN.includes(c.className));
+  _composeColumns(customColumns) {
+    const labels = new Map(SPALTEN_LABELS);
+    for (const col of customColumns || []) {
+      if (col.className && col.label) labels.set(col.className, col.label);
+    }
+    return baueBeweglicheSpalten({
+      columnOrder: this.liste.column_order,
+      customColumns: eigeneSpaltenFuerFolge(customColumns)
+    })
+      .filter(id => !DEAKTIVIERTE_SPALTEN.includes(id) && labels.has(id))
+      .map(id => ({ className: id, label: labels.get(id) }));
+  }
+
+  _aktuelleEigeneSpalten() {
+    if (!this.spaltenPflege?.getOrderedColumns) return this._customColumns;
+    return this.spaltenPflege.getOrderedColumns().map(col => ({
+      className: makeCustomColumnId(col.id),
+      label: col.name,
+      anchor: col._anchor ?? null
+    }));
   }
 
   open() {
@@ -98,7 +126,7 @@ export class SourcingTabelleAnpassenDrawer {
 
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Einstellungen der Liste und Sichtbarkeit der Spalten';
+    subtitle.textContent = 'Reihenfolge und Sichtbarkeit der Spalten';
 
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
@@ -136,9 +164,47 @@ export class SourcingTabelleAnpassenDrawer {
     });
 
     this.bindEvents();
+    this._bindPflegeOnce();
+  }
+
+  restoreList() {
+    this._customColumns = this._aktuelleEigeneSpalten();
+    this.columns = this._composeColumns(this._customColumns);
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    body.innerHTML = this.renderContent();
+    this.bindEvents();
+  }
+
+  openPflege(columnId) {
+    if (!this.spaltenPflege?.mountEditor) return;
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    this.unbindReorder();
+    this.spaltenPflege.mountEditor(body, {
+      columnId,
+      onChange: () => this.onColumnsChanged?.(),
+      onBack: () => this.restoreList()
+    });
+  }
+
+  _bindPflegeOnce() {
+    if (this._pflegeBound) return;
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+    this._pflegeBound = true;
+    body.addEventListener('click', (event) => {
+      const add = event.target.closest('[data-action="spalte-hinzufuegen"]');
+      const edit = event.target.closest('[data-action="spalte-bearbeiten"]');
+      if ((!add && !edit) || !body.contains(event.target)) return;
+      event.preventDefault();
+      this.openPflege(edit ? edit.dataset.column : null);
+    });
   }
 
   removeDrawer() {
+    this.unbindReorder();
+    this._pflegeBound = false;
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
     const panel = document.getElementById(this.drawerId);
     if (overlay) overlay.remove();
@@ -146,6 +212,7 @@ export class SourcingTabelleAnpassenDrawer {
   }
 
   close() {
+    this.unbindReorder();
     const panel = document.getElementById(this.drawerId);
     const overlay = document.getElementById(`${this.drawerId}-overlay`);
 
@@ -155,80 +222,58 @@ export class SourcingTabelleAnpassenDrawer {
     setTimeout(() => {
       if (overlay) overlay.remove();
       if (panel) panel.remove();
-    }, 300);
-  }
-
-  /** Plattform nur bei Influencer, Format nur wenn Instagram dabei ist */
-  zeigtPlattform() {
-    return this.liste.liste_typ === 'influencer';
-  }
-
-  zeigtIgFormat() {
-    return this.zeigtPlattform() && String(this.liste.plattformen || '').includes('instagram');
-  }
-
-  renderListenEinstellungen() {
-    return `
-      <div class="sourcing-listen-einstellungen">
-        ${renderSelect('liste_typ', 'Art der Liste', LISTE_TYP_OPTIONEN, this.liste.liste_typ, true)}
-        ${renderSelect('plattformen', 'Plattform', PLATTFORM_OPTIONEN, this.liste.plattformen, this.zeigtPlattform())}
-        ${renderSelect('ig_formate', 'Instagram-Format', IG_FORMAT_OPTIONEN, this.liste.ig_formate, this.zeigtIgFormat())}
-        <div class="form-field">
-          <label class="form-label" for="sourcing-liste-tkp">TKP (€ pro 1.000 Views)</label>
-          <input type="number" class="form-input" id="sourcing-liste-tkp"
-                 data-listen-einstellung="tkp" min="0" step="0.01"
-                 value="${getListenTkp(this.liste)}">
-        </div>
-      </div>
-      <p class="drawer-info-text">
-        Der TKP ist die Basis für Preis 8 / 30 / Ø Reels – eine Änderung rechnet
-        die Tabelle sofort neu. Art der Liste, Plattform und Format belegen die
-        zugehörigen Spalten unten neu vor.
-      </p>
-    `;
+    }, DRAWER_EXIT_MS);
   }
 
   renderContent() {
+    // Div-Liste statt <tr>: HTML5-Drag an Tabellenzeilen startet in Chrome
+    // oft nicht, obwohl der Griff den Grab-Cursor zeigt.
     const rows = this.columns.map(col => {
       const isVisible = !this.hiddenColumns.includes(col.className);
+      // Gemeinsame Spalte, deren Plattformzeilen das Briefing alle ausblendet:
+      // der Schalter allein macht sie nicht sichtbar
+      const zeilen = PLATTFORM_ZEILEN[col.className];
+      const vomBriefingLeer = !!zeilen && zeilen.every(z => this.hiddenColumns.includes(z.key));
+      const nameTitle = vomBriefingLeer ? ' title="Das Briefing blendet alle Plattformen dieser Spalte aus"' : '';
+      const nameHtml = renderSpaltenName(col.label, col.className);
+      const titledName = nameTitle
+        ? nameHtml.replace('class="sourcing-spalten-name"', `class="sourcing-spalten-name"${nameTitle}`)
+        : nameHtml;
       return `
-        <tr>
-          <td class="u-text-left">${escapeHtml(col.label)}</td>
-          <td class="u-text-right">
-            <label class="toggle-switch">
-              <input
-                type="checkbox"
-                class="column-visibility-toggle"
-                data-column="${escapeHtml(col.className)}"
-                ${isVisible ? 'checked' : ''}
-              >
-              <span class="toggle-slider"></span>
-            </label>
-          </td>
-        </tr>
+        <div class="sourcing-spalten-item" data-column="${escapeHtml(col.className)}" draggable="false">
+          <span class="sourcing-spalten-griff" data-action="drag-spalte" role="button" tabindex="0" title="Reihenfolge ändern" aria-label="Reihenfolge von ${escapeHtml(col.label)} ändern">
+            ${icon('bars-3', { className: 'icon-16' })}
+          </span>
+          ${titledName}
+          <label class="toggle-switch">
+            <input
+              type="checkbox"
+              class="column-visibility-toggle"
+              data-column="${escapeHtml(col.className)}"
+              ${isVisible ? 'checked' : ''}
+            >
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       `;
     }).join('');
 
     return `
-      <h4 class="drawer-section-title">Liste</h4>
-      ${this.renderListenEinstellungen()}
-
       <h4 class="drawer-section-title">Spalten</h4>
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th class="u-text-left">Spalte</th>
-              <th class="u-text-right">Sichtbar</th>
-            </tr>
-          </thead>
-          <tbody id="sourcing-tabelle-anpassen-spalten">
-            ${rows}
-          </tbody>
-        </table>
+      <div class="sourcing-spalten-kopf">
+        <span class="sourcing-spalten-kopf-griff" aria-hidden="true"></span>
+        <span>Spalte</span>
+        <span class="sourcing-spalten-kopf-sichtbar">Sichtbar</span>
       </div>
+      <div class="sourcing-spalten-liste" id="sourcing-tabelle-anpassen-spalten">
+        ${rows}
+      </div>
+      ${renderSpalteHinzufuegen()}
       <p class="drawer-info-text">
-        <strong>Hinweis:</strong> Die Spalten "Name" und "Aktionen" sind immer sichtbar und können nicht ausgeblendet werden.
+        <strong>Hinweis:</strong> Die Reihenfolge ändern Sie am Griff. „Name“ und „Aktionen“ bleiben fest und können nicht ausgeblendet werden.
+      </p>
+      <p class="drawer-info-text">
+        Link, Follower, Preis Video und Preis Story zeigen Instagram und TikTok untereinander. Welche Plattformen vorkommen, folgt dem Briefing der Liste. Der Schalter blendet die ganze Spalte ein oder aus.
       </p>
       <div class="drawer-footer">
         <button type="button" class="mdc-btn" id="btn-close-sourcing-tabelle-anpassen-drawer">
@@ -246,9 +291,60 @@ export class SourcingTabelleAnpassenDrawer {
       toggle.addEventListener('change', (e) => this.handleToggle(e));
     });
 
-    body.querySelectorAll('[data-listen-einstellung]').forEach(field => {
-      field.addEventListener('change', (e) => this.handleListenEinstellung(e));
-    });
+    this.bindReorder();
+  }
+
+  unbindReorder() {
+    this._reorderUnbind.forEach(fn => fn());
+    this._reorderUnbind = [];
+    this._draggedRow = null;
+  }
+
+  bindReorder() {
+    this.unbindReorder();
+    const list = document.getElementById('sourcing-tabelle-anpassen-spalten');
+    if (!list) return;
+    this._reorderUnbind.push(bindGripReorder(list, {
+      rowSelector: '.sourcing-spalten-item',
+      handleSelector: '[data-action="drag-spalte"]',
+      onCommit: () => this.commitReihenfolge()
+    }));
+  }
+
+  aktuelleReihenfolge() {
+    const list = document.getElementById('sourcing-tabelle-anpassen-spalten');
+    if (!list) return this.columns.map(col => col.className);
+    return Array.from(list.querySelectorAll('.sourcing-spalten-item')).map(row => row.dataset.column);
+  }
+
+  async commitReihenfolge() {
+    const next = this.aktuelleReihenfolge();
+    const vorher = this.columns.map(col => col.className);
+    if (next.join('|') === vorher.join('|')) return;
+
+    const nachSpalte = new Map(this.columns.map(col => [col.className, col]));
+    const neu = next.map(id => nachSpalte.get(id)).filter(Boolean);
+    if (neu.length !== this.columns.length) return;
+
+    this.columns = neu;
+    try {
+      await this.onColumnOrderChange?.(next);
+      if (this.liste) this.liste.column_order = next;
+    } catch (error) {
+      this.columns = vorher.map(id => nachSpalte.get(id)).filter(Boolean);
+      const list = document.getElementById('sourcing-tabelle-anpassen-spalten');
+      if (list) {
+        const zeilen = new Map(
+          Array.from(list.querySelectorAll('.sourcing-spalten-item')).map(row => [row.dataset.column, row])
+        );
+        for (const id of vorher) {
+          const row = zeilen.get(id);
+          if (row) list.appendChild(row);
+        }
+      }
+      console.error('Spalten-Reihenfolge speichern fehlgeschlagen:', error);
+      window.toastSystem?.show('Reihenfolge konnte nicht gespeichert werden', 'error');
+    }
   }
 
   handleToggle(event) {
@@ -262,64 +358,5 @@ export class SourcingTabelleAnpassenDrawer {
     }
 
     this.onHiddenColumnsChange?.(this.hiddenColumns);
-  }
-
-  async handleListenEinstellung(event) {
-    const feld = event.target.dataset.listenEinstellung;
-
-    if (feld === 'tkp') {
-      const tkp = Number(event.target.value);
-      if (!Number.isFinite(tkp) || tkp < 0) {
-        event.target.value = getListenTkp(this.liste);
-        return;
-      }
-      this.liste.tkp = tkp;
-      await this.onListeChange?.({ tkp });
-      return;
-    }
-
-    const wert = event.target.value || null;
-    const updates = { [feld]: wert };
-
-    // Ein anderer Typ macht die Folgefragen sinnlos: nur Influencer hat eine
-    // Plattform, nur Instagram ein Format. Sonst bliebe ein alter Wert stehen
-    // und das Preset wuerde falsche Spalten setzen.
-    if (feld === 'liste_typ' && wert !== 'influencer') {
-      updates.plattformen = null;
-      updates.ig_formate = null;
-    }
-    if (feld === 'plattformen' && !String(wert || '').includes('instagram')) {
-      updates.ig_formate = null;
-    }
-
-    Object.assign(this.liste, updates);
-    this.hiddenColumns = wendePresetAn(this.hiddenColumns, this.liste);
-
-    await this.onListeChange?.({ ...updates, hidden_columns: this.hiddenColumns });
-    this.refreshFelder();
-  }
-
-  /** Sichtbarkeit der Folgefelder und Spalten-Toggles neu setzen */
-  refreshFelder() {
-    const body = document.getElementById(`${this.drawerId}-body`);
-    if (!body) return;
-
-    const sichtbarkeit = {
-      plattformen: this.zeigtPlattform(),
-      ig_formate: this.zeigtIgFormat()
-    };
-
-    for (const [name, sichtbar] of Object.entries(sichtbarkeit)) {
-      const wrapper = body.querySelector(`[data-listen-feld="${name}"]`);
-      if (!wrapper) continue;
-      wrapper.classList.toggle('form-field--hidden', !sichtbar);
-
-      const select = wrapper.querySelector('select');
-      if (select) select.value = this.liste[name] || '';
-    }
-
-    body.querySelectorAll('.column-visibility-toggle').forEach(toggle => {
-      toggle.checked = !this.hiddenColumns.includes(toggle.dataset.column);
-    });
   }
 }

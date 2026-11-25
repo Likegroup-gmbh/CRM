@@ -1,0 +1,47 @@
+/* ==========================================================================
+   Kampagne (Produktion): ein Rahmensystem fuer alle Tabellen der Tabs
+   Budget, Briefing, Produkte, Personas, Casting, Konzepte, Skripte,
+   Vertraege, Kooperationen, Videos und Auswertung.
+
+   - Alle Linien sind echte Borders in --border-primary, kein box-shadow.
+   - Die Tabelle ist border-collapse: separate: eine kollabierte Tabelle
+     zeichnet ihre Borders nicht an sticky Zellen mit, deshalb wurden dort
+     bisher Schatten in Grautoenen verwendet.
+   - Jede Zelle zeichnet nur border-right + border-bottom. Die Oberkante liefert,
+     was ueber der Tabelle steht, die Linkskante der Seitenrand.
+   Die Videos-Tabelle (.kooperation-video-grid) hat dasselbe System in tabellen.css.
+   ========================================================================== */
+
+.kampagne-detail-body .data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.kampagne-detail-body .data-table th,
+.kampagne-detail-body .data-table td {
+  border: none;
+  border-right: 1px solid var(--border-primary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.kampagne-detail-body .data-table th:last-child,
+.kampagne-detail-body .data-table td:last-child,
+.kampagne-detail-body .data-table th.col-actions,
+.kampagne-detail-body .data-table td.col-actions {
+  border-right: none;
+}
+
+/* Kopfzeile: die Linie darunter ist die Border der Zelle, kein Schatten.
+   Eigene Regel, weil .table-container .data-table thead th (tables.css) sonst
+   mit border-bottom-style: hidden und Schatten gewinnt. */
+.kampagne-detail-body .data-table thead th,
+.kampagne-detail-body .data-table thead:has(+ tbody > .category-header-row:first-child) th {
+  box-shadow: none;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+/* Erste fixierte Spalte in scrollbaren Detail-Tabellen: Trenner ist ihr border-right */
+.kampagne-detail-body .data-table-container.drag-scroll-enabled .data-table th:first-child,
+.kampagne-detail-body .data-table-container.drag-scroll-enabled .data-table td:first-child {
+  box-shadow: none;
+}

@@ -6,7 +6,7 @@
 // Aufruf:
 //   node scripts/instagram-media-debug.mjs <handle> [--pages n] [--find <shortcode>] [--raw out.json]
 //
-//   --pages n        Media-Seiten a 50 (Default 3 = bis zu 150, wie Produktion)
+//   --pages n        Media-Seiten a 30 (Default 1 = die letzten 30, wie Produktion)
 //   --find <code>    Sucht einen Shortcode in der geladenen Media-Liste und
 //                    zeigt den kompletten Eintrag (klaert z.B., ob die
 //                    27M/76M-Reels ueberhaupt in ihrer Liste existieren)
@@ -48,10 +48,10 @@ function ladeEnv() {
 
 // --- CLI ---
 function parseArgs(argv) {
-  const args = { handle: null, pages: 3, find: null, raw: null };
+  const args = { handle: null, pages: 1, find: null, raw: null };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === '--pages') args.pages = Math.max(1, Number(argv[++i]) || 3);
+    if (a === '--pages') args.pages = Math.max(1, Number(argv[++i]) || 1);
     else if (a === '--find') args.find = argv[++i] || null;
     else if (a === '--raw') args.raw = argv[++i] || null;
     else if (!a.startsWith('--') && !args.handle) args.handle = a;
@@ -91,8 +91,8 @@ async function ladeProfilMitMedia(username, maxPages) {
 
   for (let page = 0; page < maxPages; page += 1) {
     const edge = after
-      ? `media.limit(50).after(${after}){${MEDIA_FIELDS}}`
-      : `media.limit(50){${MEDIA_FIELDS}}`;
+      ? `media.limit(30).after(${after}){${MEDIA_FIELDS}}`
+      : `media.limit(30){${MEDIA_FIELDS}}`;
     const fields = page === 0 ? `${PROFILE_FIELDS},${edge}` : edge;
     const data = await graphGet(igUserId, {
       fields: `business_discovery.username(${username}){${fields}}`

@@ -3,6 +3,8 @@
 // Kapselt: Toggle, Retainer, Zusatzleistungen, Agentur Fee, KSK.
 
 import { RETAINER_TYPES } from '../constants.js';
+import { bindMoneyInputs, renderMoneyInput } from '../../../core/form/moneyInput.js';
+import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
 
 export class AgencyServicesBlock {
   constructor({ hostId, data, onChange, mode }) {
@@ -59,6 +61,7 @@ export class AgencyServicesBlock {
     `;
 
     this.bind();
+    bindMoneyInputs(host);
   }
 
   renderRetainer() {
@@ -74,8 +77,8 @@ export class AgencyServicesBlock {
             </select>
           </div>
           <div class="form-field form-field--half" id="pe-retainer-amount-field" style="${d.retainer_type !== 'none' ? '' : 'display:none;'}">
-            <label for="field-pe-retainer_amount">Betrag (€ / Monat)</label>
-            <input type="number" id="field-pe-retainer_amount" name="retainer_amount" step="0.01" min="0" value="${d.retainer_amount || ''}">
+            <label for="field-pe-retainer_amount">Betrag / Monat</label>
+            ${renderMoneyInput({ id: 'field-pe-retainer_amount', name: 'retainer_amount', value: d.retainer_amount || '' })}
           </div>
         </div>
       </div>
@@ -116,8 +119,8 @@ export class AgencyServicesBlock {
           <input type="text" data-extra-field="name" value="${name}" placeholder="z.B. Grafikdesign">
         </div>
         <div class="form-field">
-          <label>Betrag (€)</label>
-          <input type="number" data-extra-field="amount" step="0.01" min="0" value="${amount}">
+          <label>Betrag</label>
+          ${renderMoneyInput({ value: amount || '', attrs: { 'data-extra-field': 'amount' } })}
         </div>
         <button type="button" class="projekt-erstellen-remove-btn" data-extra-remove="${idx}" title="Entfernen">✕</button>
       </div>
@@ -137,8 +140,8 @@ export class AgencyServicesBlock {
         </div>
         <div id="pe-percentage-body" style="${d.percentage_fee_enabled ? '' : 'display:none;'}">
           <div class="form-field">
-            <label for="field-pe-percentage_fee_value">Betrag (€)</label>
-            <input type="number" id="field-pe-percentage_fee_value" step="0.01" min="0" value="${d.percentage_fee_value || ''}">
+            <label for="field-pe-percentage_fee_value">Betrag</label>
+            ${renderMoneyInput({ id: 'field-pe-percentage_fee_value', value: d.percentage_fee_value || '' })}
           </div>
         </div>
       </div>
@@ -158,8 +161,8 @@ export class AgencyServicesBlock {
         </div>
         <div id="pe-ksk-body" style="${d.ksk_enabled ? '' : 'display:none;'}">
           <div class="form-field">
-            <label for="field-pe-ksk_value">Betrag (€)</label>
-            <input type="number" id="field-pe-ksk_value" step="0.01" min="0" value="${d.ksk_value || ''}">
+            <label for="field-pe-ksk_value">Betrag</label>
+            ${renderMoneyInput({ id: 'field-pe-ksk_value', value: d.ksk_value || '' })}
           </div>
         </div>
       </div>
@@ -187,7 +190,7 @@ export class AgencyServicesBlock {
         this.emit();
       });
       retainerAmount?.addEventListener('input', (e) => {
-        this.data.retainer_amount = parseFloat(e.target.value) || 0;
+        this.data.retainer_amount = parseCurrencyInput(e.target.value) || 0;
         this.emit();
       });
 
@@ -215,7 +218,7 @@ export class AgencyServicesBlock {
         const item = this.data.extra_services[idx];
         if (!item) return;
         if (field === 'name') item.name = e.target.value;
-        if (field === 'amount') item.amount = parseFloat(e.target.value) || 0;
+        if (field === 'amount') item.amount = parseCurrencyInput(e.target.value) || 0;
         this.emit();
       });
       extraList?.addEventListener('click', (e) => {
@@ -237,7 +240,7 @@ export class AgencyServicesBlock {
       this.emit();
     });
     document.getElementById('field-pe-percentage_fee_value')?.addEventListener('input', (e) => {
-      this.data.percentage_fee_value = parseFloat(e.target.value) || 0;
+      this.data.percentage_fee_value = parseCurrencyInput(e.target.value) || 0;
       this.emit();
     });
 
@@ -251,7 +254,7 @@ export class AgencyServicesBlock {
       this.emit();
     });
     document.getElementById('field-pe-ksk_value')?.addEventListener('input', (e) => {
-      this.data.ksk_value = parseFloat(e.target.value) || 0;
+      this.data.ksk_value = parseCurrencyInput(e.target.value) || 0;
       this.data.ksk_type = 'fixed';
       this.emit();
     });
@@ -264,6 +267,7 @@ export class AgencyServicesBlock {
       list.innerHTML = '<small class="projekt-erstellen-empty-note">Noch keine Zusatzleistung angelegt.</small>';
     } else {
       list.innerHTML = this.data.extra_services.map((ex, idx) => this.renderExtraRow(ex, idx)).join('');
+      bindMoneyInputs(list);
     }
   }
 

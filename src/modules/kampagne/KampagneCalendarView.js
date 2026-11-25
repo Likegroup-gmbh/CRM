@@ -1,15 +1,24 @@
 // KampagneCalendarView.js - Kalenderansicht für Kampagnen mit Sidebar
-// Zeigt Wochenkalender + Sidebar mit "Heute/Diese Woche/Dieser Monat" Gruppierung
+// Links "Heute | Woche | Monat" (kampagneCalendarSidebar.js), rechts das Kalendergitter (CalendarGrid).
+// Events sind die Deadlines der Kampagnen; Ziehen auf einen anderen Tag verschiebt die Deadline.
 
 import { KampagnePreviewDrawer } from './KampagnePreviewDrawer.js';
 import { KampagneUtils } from './KampagneUtils.js';
-import { renderEmptyState } from '../../core/components/EmptyState.js';
-import { icon } from '../../core/icons/IconSystem.js';
 import { shouldHideCompleted } from './kampagneListPrefs.js';
+import { sidebarGroups, sidebarHtml } from './kampagneCalendarSidebar.js';
+import { CalendarGrid } from '../../core/components/CalendarGrid.js';
+import { parseDateOnly } from '../../core/calendarDates.js';
+import { escapeHtml as esc } from '../../core/format.js';
 
-// Debug-Flag für Logging (Production: false)
-const DEBUG_CALENDAR = false;
-const debugLog = (...args) => DEBUG_CALENDAR && console.log(...args);
+const DEADLINE_TYPES = {
+  start: { label: 'Start', color: 'var(--color-info)' },
+  deadline_briefing: { label: 'Briefing', color: 'var(--color-accent)' },
+  deadline_strategie: { label: 'Konzepte', color: 'var(--color-warning)' },
+  deadline_skripte: { label: 'Skripte', color: 'var(--color-tertiary)' },
+  deadline_creator_sourcing: { label: 'Castings', color: 'var(--color-primary)' },
+  deadline_video_produktion: { label: 'Video Produktion', color: 'var(--color-success)' },
+  deadline_post_produktion: { label: 'Post Produktion', color: 'var(--color-secondary)' }
+};
 
 function normalizeUuidList(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
@@ -19,48 +28,31 @@ function normalizeUuidList(value) {
   return [];
 }
 
+function orgBubbleHtml(kampagne) {
+  const logoUrl = kampagne.marke?.logo_url || kampagne.unternehmen?.logo_url;
+  const name = kampagne.marke?.markenname || kampagne.unternehmen?.firmenname;
+  if (!logoUrl && !name) return '';
+  if (logoUrl) return `<img class="sidebar-item-logo" src="${esc(logoUrl)}" alt="${esc(name || '')}" />`;
+  return `<div class="sidebar-item-avatar">${esc((name || '?').substring(0, 2).toUpperCase())}</div>`;
+}
+
 export class KampagneCalendarView {
   constructor() {
     this.container = null;
     this.kampagnen = [];
-    this.currentWeekStart = this.getWeekStart(new Date());
-    this.currentMonthStart = this.getMonthStart(new Date());
     this.previewDrawer = null;
+    this.grid = null;
+    this.sidebarEl = null;
     this.currentSidebarTab = 'today'; // 'today', 'week', 'month'
-    this.currentView = 'week'; // 'week' oder 'month'
-    
-    // Suchfilter
     this.searchQuery = '';
-    
-    // Drag & Drop State
-    this.draggedEvent = null;
-    this.boundDragHandlers = {
-      dragStart: (e) => this.onDragStart(e),
-      dragEnd: (e) => this.onDragEnd(e),
-      dragOver: (e) => this.onDragOver(e),
-      drop: (e) => this.onDrop(e),
-      dragLeave: (e) => this.onDragLeave(e)
-    };
-    
-    // Deadline-Typ Mapping
-    this.deadlineTypes = {
-      start: { label: 'Start', color: 'var(--color-info)' },
-      deadline_briefing: { label: 'Briefing', color: 'var(--color-accent)' },
-      deadline_strategie: { label: 'Konzepte', color: 'var(--color-warning)' },
-      deadline_skripte: { label: 'Skripte', color: 'var(--color-tertiary)' },
-      deadline_creator_sourcing: { label: 'Castings', color: 'var(--color-primary)' },
-      deadline_video_produktion: { label: 'Video Produktion', color: 'var(--color-success)' },
-      deadline_post_produktion: { label: 'Post Produktion', color: 'var(--color-secondary)' }
-    };
+    this.deadlineTypes = DEADLINE_TYPES;
   }
 
   async init(containerElement) {
     this.container = containerElement;
     this.previewDrawer = new KampagnePreviewDrawer();
-    
     await this.loadKampagnen();
     this.render();
-    this.bindEvents();
   }
 
   async loadKampagnen() {
@@ -73,14 +65,13 @@ export class KampagneCalendarView {
 
       // Nutze zentralisierte Permission-Logik aus KampagneUtils
       const allowedIds = await KampagneUtils.loadAllowedKampagneIds();
-      
+
       // null = keine Filterung (Admin/Kunde), [] = kein Zugriff
       if (allowedIds !== null && allowedIds.length === 0) {
         this.kampagnen = [];
         return;
       }
 
-      // Kampagnen laden
       let query = window.supabase
         .from('kampagne')
         .select(`
@@ -99,7 +90,6 @@ export class KampagneCalendarView {
         `)
         .order('created_at', { ascending: false });
 
-      // Permission-Filterung anwenden (nur wenn allowedIds ein Array ist)
       if (allowedIds !== null && allowedIds.length > 0) {
         query = query.in('id', allowedIds);
       }
@@ -115,85 +105,34 @@ export class KampagneCalendarView {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
-
       this.kampagnen = data || [];
-
     } catch (error) {
       console.error('❌ CALENDAR: Fehler beim Laden:', error);
       this.kampagnen = [];
     }
   }
 
-  // Hilfsfunktionen für Datums-Berechnungen
-  getWeekStart(date) {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Montag als Wochenstart
-    return new Date(d.setDate(diff));
-  }
-
-  getWeekEnd(weekStart) {
-    const end = new Date(weekStart);
-    end.setDate(end.getDate() + 6);
-    return end;
-  }
-
-  getMonthStart(date) {
-    return new Date(date.getFullYear(), date.getMonth(), 1);
-  }
-
-  getMonthEnd(date) {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
-  }
-
-  isToday(date) {
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  }
-
-  isThisWeek(date) {
-    const today = new Date();
-    const weekStart = this.getWeekStart(today);
-    const weekEnd = this.getWeekEnd(weekStart);
-    return date >= weekStart && date <= weekEnd;
-  }
-
-  isThisMonth(date) {
-    const today = new Date();
-    return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
-  }
-
-  // Lokales Datum als YYYY-MM-DD (ohne UTC-Konvertierung)
-  formatDateLocal(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
   async reload() {
     await this.loadKampagnen();
     this.render();
-    this.bindEvents();
   }
 
-  // Suchbegriff setzen und View aktualisieren.
+  async refresh() {
+    await this.reload();
+  }
+
   // Hide-Completed hängt an leerer Suche — bei Leer/Nicht-leer nachladen.
   async setSearchQuery(query) {
     const next = (query || '').trim().toLowerCase();
     const hideBefore = shouldHideCompleted(this.searchQuery);
     this.searchQuery = next;
-    const hideAfter = shouldHideCompleted(this.searchQuery);
-    if (hideBefore !== hideAfter) {
+    if (hideBefore !== shouldHideCompleted(this.searchQuery)) {
       await this.loadKampagnen();
     }
     this.render();
-    this.bindEvents();
   }
 
-  // Kampagnen nach Suchbegriff filtern
   getFilteredKampagnen() {
     if (!this.searchQuery) return this.kampagnen;
     const q = this.searchQuery;
@@ -204,485 +143,80 @@ export class KampagneCalendarView {
     });
   }
 
-  // Kampagnen nach Deadline-Events gruppieren
+  /** Je Kampagne und gesetzter Deadline ein Event, nach Datum sortiert. */
   getKampagnenWithDeadlines() {
     const events = [];
-    const filteredKampagnen = this.getFilteredKampagnen();
-
-    filteredKampagnen.forEach(kampagne => {
+    this.getFilteredKampagnen().forEach(kampagne => {
       Object.keys(this.deadlineTypes).forEach(field => {
-        if (kampagne[field]) {
-          const date = new Date(kampagne[field]);
-          events.push({
-            kampagne,
-            deadlineType: field,
-            deadlineLabel: this.deadlineTypes[field].label,
-            deadlineColor: this.deadlineTypes[field].color,
-            date
-          });
-        }
-      });
-    });
-
-    return events.sort((a, b) => a.date - b.date);
-  }
-
-  // Sidebar-Daten gruppieren
-  getSidebarData() {
-    const events = this.getKampagnenWithDeadlines();
-    const today = [];
-    const thisWeek = [];
-    const thisMonth = [];
-
-    events.forEach(event => {
-      if (this.isToday(event.date)) {
-        today.push(event);
-      } else if (this.isThisWeek(event.date)) {
-        thisWeek.push(event);
-      } else if (this.isThisMonth(event.date)) {
-        thisMonth.push(event);
-      }
-    });
-
-    return { today, thisWeek, thisMonth };
-  }
-
-  // Kalender-Daten für die aktuelle Woche
-  getWeekData() {
-    const events = this.getKampagnenWithDeadlines();
-    const weekEnd = this.getWeekEnd(this.currentWeekStart);
-    
-    const weekEvents = events.filter(event => 
-      event.date >= this.currentWeekStart && event.date <= weekEnd
-    );
-
-    // Nach Tagen gruppieren
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const dayDate = new Date(this.currentWeekStart);
-      dayDate.setDate(dayDate.getDate() + i);
-      
-      const dayEvents = weekEvents.filter(event => 
-        event.date.toDateString() === dayDate.toDateString()
-      );
-
-      days.push({
-        date: dayDate,
-        events: dayEvents,
-        isToday: this.isToday(dayDate)
-      });
-    }
-
-    return days;
-  }
-
-  getMonthData() {
-    const events = this.getKampagnenWithDeadlines();
-    const monthEnd = this.getMonthEnd(this.currentMonthStart);
-    
-    const monthEvents = events.filter(event => 
-      event.date >= this.currentMonthStart && event.date <= monthEnd
-    );
-
-    // Ersten Wochentag des Monats ermitteln (0 = Sonntag, 1 = Montag, ...)
-    const firstDayOfMonth = this.currentMonthStart.getDay();
-    const startOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; // Montag = 0
-
-    // Alle Tage des Monats + Padding-Tage
-    const weeks = [];
-    let currentWeek = [];
-    
-    // Padding-Tage vom Vormonat
-    for (let i = 0; i < startOffset; i++) {
-      const paddingDate = new Date(this.currentMonthStart);
-      paddingDate.setDate(paddingDate.getDate() - (startOffset - i));
-      currentWeek.push({
-        date: paddingDate,
-        events: [],
-        isToday: false,
-        isCurrentMonth: false
-      });
-    }
-
-    // Tage des aktuellen Monats
-    const daysInMonth = monthEnd.getDate();
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dayDate = new Date(this.currentMonthStart.getFullYear(), this.currentMonthStart.getMonth(), day);
-      
-      const dayEvents = monthEvents.filter(event => 
-        event.date.toDateString() === dayDate.toDateString()
-      );
-
-      currentWeek.push({
-        date: dayDate,
-        events: dayEvents,
-        isToday: this.isToday(dayDate),
-        isCurrentMonth: true
-      });
-
-      if (currentWeek.length === 7) {
-        weeks.push(currentWeek);
-        currentWeek = [];
-      }
-    }
-
-    // Padding-Tage vom Folgemonat
-    if (currentWeek.length > 0) {
-      let nextDay = 1;
-      while (currentWeek.length < 7) {
-        const paddingDate = new Date(this.currentMonthStart.getFullYear(), this.currentMonthStart.getMonth() + 1, nextDay++);
-        currentWeek.push({
-          date: paddingDate,
-          events: [],
-          isToday: false,
-          isCurrentMonth: false
+        const date = parseDateOnly(kampagne[field]);
+        if (!date) return;
+        events.push({
+          id: `${kampagne.id}:${field}`,
+          kampagne,
+          deadlineType: field,
+          date,
+          title: KampagneUtils.getDisplayName(kampagne),
+          sub: this.deadlineTypes[field].label,
+          leadHtml: orgBubbleHtml(kampagne),
+          draggable: true
         });
-      }
-      weeks.push(currentWeek);
-    }
-
-    return weeks;
+      });
+    });
+    return events.sort((a, b) => a.date - b.date);
   }
 
   render() {
     if (!this.container) return;
+    if (!this.grid?.container || !this.container.contains(this.grid.container)) this.mountShell();
+    this.renderSidebar();
+    this.grid.render();
+  }
 
-    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
-    const sidebarData = this.getSidebarData();
-    const weekData = this.getWeekData();
-    const monthData = this.getMonthData();
-
-    // Aktuelle Tab-Daten
-    const currentTabData = this.currentSidebarTab === 'today' ? sidebarData.today :
-                           this.currentSidebarTab === 'week' ? sidebarData.thisWeek :
-                           sidebarData.thisMonth;
-
-    const html = `
+  /** Gerüst einmal aufbauen; danach rendern Seitenleiste und Gitter je für sich. */
+  mountShell() {
+    this.grid?.destroy();
+    this.container.innerHTML = `
       <div class="calendar-view-container">
-        <!-- Sidebar -->
-        <aside class="calendar-sidebar">
-          <!-- Tabs - nutzt bestehendes tab-navigation System -->
-          <div class="tab-navigation calendar-sidebar-tabs">
-            <button class="tab-button ${this.currentSidebarTab === 'today' ? 'active' : ''}" data-tab="today">
-              Heute
-            </button>
-            <button class="tab-button ${this.currentSidebarTab === 'week' ? 'active' : ''}" data-tab="week">
-              Woche
-            </button>
-            <button class="tab-button ${this.currentSidebarTab === 'month' ? 'active' : ''}" data-tab="month">
-              Monat
-            </button>
-          </div>
-
-          <!-- Tab Content -->
-          <div class="sidebar-content">
-            ${this.renderSidebarContent(currentTabData)}
-          </div>
-        </aside>
-
-        <!-- Kalender Hauptbereich -->
-        <main class="calendar-main">
-          <div class="calendar-header">
-            <button class="calendar-nav-btn" id="btn-prev">
-              ${icon('chevron-left')}
-            </button>
-            <h2 class="calendar-title">${this.currentView === 'week' ? this.formatWeekTitle() : this.formatMonthTitle()}</h2>
-            <button class="calendar-nav-btn" id="btn-next">
-              ${icon('chevron-right')}
-            </button>
-            <button class="mdc-btn mdc-btn--secondary calendar-today-btn" id="btn-today">Heute</button>
-            <button class="mdc-btn mdc-btn--secondary calendar-view-toggle-btn ${this.currentView === 'month' ? 'active' : ''}" id="btn-toggle-view">
-              ${this.currentView === 'week' ? 'Monat' : 'Woche'}
-            </button>
-          </div>
-
-          ${this.currentView === 'week' ? `
-            <div class="calendar-week-grid">
-              ${weekData.map(day => this.renderDayColumn(day)).join('')}
-            </div>
-          ` : `
-            <div class="calendar-month-grid">
-              <div class="calendar-month-header">
-                <span>MO</span><span>DI</span><span>MI</span><span>DO</span><span>FR</span><span>SA</span><span>SO</span>
-              </div>
-              <div class="calendar-month-body">
-                ${monthData.map(week => `
-                  <div class="calendar-month-week">
-                    ${week.map(day => this.renderMonthDay(day)).join('')}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `}
-        </main>
-      </div>
-    `;
-
-    this.container.innerHTML = html;
-  }
-
-  renderSidebarContent(events) {
-    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
-
-    if (events.length === 0) {
-      return renderEmptyState({ icon: 'calendar', title: 'Keine Deadlines', size: 'small' });
-    }
-
-    return `
-      <div class="sidebar-items">
-        ${events.map(event => `
-          <div class="sidebar-item" 
-               data-kampagne-id="${event.kampagne.id}"
-               data-deadline-type="${event.deadlineType}">
-            <div class="sidebar-item-content">
-              <div class="sidebar-item-name">${safe(KampagneUtils.getDisplayName(event.kampagne))}</div>
-              <div class="sidebar-item-deadline">${event.deadlineLabel}</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  renderOrgBubble(kampagne) {
-    const marke = kampagne.marke;
-    const unternehmen = kampagne.unternehmen;
-    const logoUrl = marke?.logo_url || unternehmen?.logo_url;
-    const name = marke?.markenname || unternehmen?.firmenname;
-
-    if (!logoUrl && !name) return '';
-
-    if (logoUrl) {
-      return `<img class="sidebar-item-logo" src="${logoUrl}" alt="${name || ''}" />`;
-    }
-
-    // Fallback: Initialen
-    const initials = (name || '?').substring(0, 2).toUpperCase();
-    return `<div class="sidebar-item-avatar">${initials}</div>`;
-  }
-
-  renderDayColumn(day) {
-    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
-    const dayNames = ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA'];
-    const dayName = dayNames[day.date.getDay()];
-    const dayNum = String(day.date.getDate()).padStart(2, '0');
-    const dateISO = this.formatDateLocal(day.date); // YYYY-MM-DD lokal (nicht UTC!)
-
-    return `
-      <div class="calendar-day ${day.isToday ? 'calendar-day--today' : ''}">
-        <div class="calendar-day-header">
-          <span class="calendar-day-label">${dayName} ${dayNum}</span>
-        </div>
-        <div class="calendar-day-events" data-date="${dateISO}">
-          ${day.events.map(event => `
-            <div class="calendar-event" 
-                 draggable="true"
-                 data-kampagne-id="${event.kampagne.id}"
-                 data-deadline-type="${event.deadlineType}"
-                 data-current-date="${this.formatDateLocal(event.date)}">
-              <div class="calendar-event-header">
-                ${this.renderOrgBubble(event.kampagne)}
-                <div class="calendar-event-name">${safe(KampagneUtils.getDisplayName(event.kampagne))}</div>
-              </div>
-              <div class="calendar-event-type">${event.deadlineLabel}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-  }
-
-  formatWeekTitle() {
-    const weekEnd = this.getWeekEnd(this.currentWeekStart);
-    const startStr = this.currentWeekStart.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
-    const endStr = weekEnd.toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' });
-    return `${startStr} – ${endStr}`;
-  }
-
-  formatMonthTitle() {
-    return this.currentMonthStart.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-  }
-
-  renderMonthDay(day) {
-    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
-    const dayNum = day.date.getDate();
-    const dateISO = this.formatDateLocal(day.date); // YYYY-MM-DD lokal (nicht UTC!)
-    
-    const classes = ['calendar-month-day'];
-    if (day.isToday) classes.push('calendar-month-day--today');
-    if (!day.isCurrentMonth) classes.push('calendar-month-day--other');
-
-    // Layout: max 3 links, max 2 rechts, bei >5 Events: "+X"
-    const leftEvents = day.events.slice(0, 3);
-    const rightEvents = day.events.slice(3, 5);
-    const moreCount = day.events.length > 5 ? day.events.length - 5 : 0;
-    const hasRightColumn = day.events.length > 3;
-
-    const renderEvent = (event) => `
-      <div class="calendar-month-event" 
-           draggable="true"
-           data-kampagne-id="${event.kampagne.id}"
-           data-deadline-type="${event.deadlineType}"
-           data-current-date="${this.formatDateLocal(event.date)}">
-        <span class="calendar-month-event-name">${safe(KampagneUtils.getDisplayName(event.kampagne))}</span>
-        <span class="calendar-month-event-type">${event.deadlineLabel}</span>
-      </div>
-    `;
-
-    return `
-      <div class="${classes.join(' ')}" data-date="${dateISO}">
-        <div class="calendar-month-day-num">${dayNum}</div>
-        <div class="calendar-month-day-events ${hasRightColumn ? 'calendar-month-day-events--split' : ''}">
-          <div class="calendar-month-day-col">
-            ${leftEvents.map(renderEvent).join('')}
-          </div>
-          ${hasRightColumn ? `
-            <div class="calendar-month-day-col">
-              ${rightEvents.map(renderEvent).join('')}
-              ${moreCount > 0 ? `
-                <div class="calendar-month-more" data-day-events='${JSON.stringify(day.events.map(e => ({ id: e.kampagne.id, name: KampagneUtils.getDisplayName(e.kampagne), type: e.deadlineType, label: e.deadlineLabel })))}'>
-                  +${moreCount}
-                </div>
-              ` : ''}
-            </div>
-          ` : ''}
-        </div>
-      </div>
-    `;
-  }
-
-  bindEvents() {
-    if (!this.container) return;
-
-    // Sidebar Tab-Wechsel (nutzt bestehendes tab-button System)
-    this.container.querySelectorAll('.calendar-sidebar-tabs .tab-button').forEach(tab => {
-      tab.addEventListener('click', () => {
-        const newTab = tab.dataset.tab;
-        if (newTab !== this.currentSidebarTab) {
-          this.currentSidebarTab = newTab;
-          this.render();
-          this.bindEvents();
-        }
-      });
+        <aside class="calendar-sidebar" data-kc-sidebar></aside>
+        <main data-kc-grid></main>
+      </div>`;
+    this.sidebarEl = this.container.querySelector('[data-kc-sidebar]');
+    this.sidebarEl.addEventListener('click', (e) => this.onSidebarClick(e));
+    this.grid = new CalendarGrid(this.container.querySelector('[data-kc-grid]'), {
+      view: 'week',
+      getEvents: () => this.getKampagnenWithDeadlines(),
+      onMove: (id, isoDate) => this.moveEvent(id, isoDate),
+      onSelect: (id) => this.openEvent(id)
     });
+  }
 
-    // Navigation
-    this.container.querySelector('#btn-prev')?.addEventListener('click', () => {
-      if (this.currentView === 'week') {
-        this.currentWeekStart.setDate(this.currentWeekStart.getDate() - 7);
-      } else {
-        this.currentMonthStart.setMonth(this.currentMonthStart.getMonth() - 1);
+  renderSidebar() {
+    if (!this.sidebarEl) return;
+    const groups = sidebarGroups(this.getKampagnenWithDeadlines());
+    this.sidebarEl.innerHTML = sidebarHtml(groups, this.currentSidebarTab);
+  }
+
+  onSidebarClick(e) {
+    const tab = e.target.closest('.calendar-sidebar-tabs .tab-button');
+    if (tab) {
+      if (tab.dataset.tab !== this.currentSidebarTab) {
+        this.currentSidebarTab = tab.dataset.tab;
+        this.renderSidebar();
       }
-      this.render();
-      this.bindEvents();
-    });
-
-    this.container.querySelector('#btn-next')?.addEventListener('click', () => {
-      if (this.currentView === 'week') {
-        this.currentWeekStart.setDate(this.currentWeekStart.getDate() + 7);
-      } else {
-        this.currentMonthStart.setMonth(this.currentMonthStart.getMonth() + 1);
-      }
-      this.render();
-      this.bindEvents();
-    });
-
-    this.container.querySelector('#btn-today')?.addEventListener('click', () => {
-      this.currentWeekStart = this.getWeekStart(new Date());
-      this.currentMonthStart = this.getMonthStart(new Date());
-      this.render();
-      this.bindEvents();
-    });
-
-    // View-Toggle (Woche/Monat)
-    this.container.querySelector('#btn-toggle-view')?.addEventListener('click', () => {
-      this.currentView = this.currentView === 'week' ? 'month' : 'week';
-      this.render();
-      this.bindEvents();
-    });
-
-    // Klick auf Sidebar-Items
-    this.container.querySelectorAll('.sidebar-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const kampagneId = item.dataset.kampagneId;
-        const deadlineType = item.dataset.deadlineType;
-        this.openPreviewDrawer(kampagneId, deadlineType);
-      });
-    });
-
-    // Klick auf Kalender-Events (Wochenansicht)
-    this.container.querySelectorAll('.calendar-event').forEach(event => {
-      event.addEventListener('click', () => {
-        const kampagneId = event.dataset.kampagneId;
-        const deadlineType = event.dataset.deadlineType;
-        this.openPreviewDrawer(kampagneId, deadlineType);
-      });
-    });
-
-    // Klick auf Monats-Events
-    this.container.querySelectorAll('.calendar-month-event').forEach(event => {
-      event.addEventListener('click', () => {
-        const kampagneId = event.dataset.kampagneId;
-        const deadlineType = event.dataset.deadlineType;
-        this.openPreviewDrawer(kampagneId, deadlineType);
-      });
-    });
-
-    // Klick auf "+X" mehr Events
-    this.container.querySelectorAll('.calendar-month-more').forEach(moreBtn => {
-      moreBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const eventsData = JSON.parse(moreBtn.dataset.dayEvents || '[]');
-        this.openDayEventsDrawer(eventsData);
-      });
-    });
-
-    // Drag & Drop Events binden
-    this.bindDragDropEvents();
+      return;
+    }
+    const item = e.target.closest('.sidebar-item');
+    if (item) this.openPreviewDrawer(item.dataset.kampagneId, item.dataset.deadlineType);
   }
 
-  openDayEventsDrawer(events) {
-    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
-    
-    // Existierenden Drawer entfernen
-    document.querySelector('.day-events-drawer-overlay')?.remove();
+  splitEventId(id) {
+    const [kampagneId, deadlineType] = String(id).split(':');
+    return { kampagneId, deadlineType };
+  }
 
-    const overlay = document.createElement('div');
-    overlay.className = 'day-events-drawer-overlay';
-    overlay.innerHTML = `
-      <div class="day-events-drawer">
-        <div class="day-events-drawer-header">
-          <h3>Alle Events an diesem Tag</h3>
-          <button class="day-events-drawer-close">&times;</button>
-        </div>
-        <div class="day-events-drawer-content">
-          ${events.map(ev => `
-            <div class="day-events-drawer-item" data-kampagne-id="${ev.id}" data-deadline-type="${ev.type}">
-              <span class="day-events-drawer-item-name">${safe(ev.name)}</span>
-              <span class="day-events-drawer-item-type">${ev.label}</span>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    // Close-Handler
-    overlay.querySelector('.day-events-drawer-close').addEventListener('click', () => overlay.remove());
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) overlay.remove();
-    });
-
-    // Klick auf einzelne Items öffnet Preview
-    overlay.querySelectorAll('.day-events-drawer-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const kampagneId = item.dataset.kampagneId;
-        const deadlineType = item.dataset.deadlineType;
-        overlay.remove();
-        this.openPreviewDrawer(kampagneId, deadlineType);
-      });
-    });
+  openEvent(id) {
+    const { kampagneId, deadlineType } = this.splitEventId(id);
+    this.openPreviewDrawer(kampagneId, deadlineType);
   }
 
   openPreviewDrawer(kampagneId, deadlineType) {
@@ -692,174 +226,39 @@ export class KampagneCalendarView {
     }
   }
 
-  // ==================== DRAG & DROP ====================
-
-  onDragStart(e) {
-    const eventEl = e.target.closest('.calendar-event, .calendar-month-event');
-    if (!eventEl) return;
-
-    console.log('🎯 CALENDAR DRAG START:', eventEl.dataset.kampagneId, eventEl.dataset.deadlineType);
-
-    this.draggedEvent = {
-      kampagneId: eventEl.dataset.kampagneId,
-      deadlineType: eventEl.dataset.deadlineType,
-      currentDate: eventEl.dataset.currentDate
-    };
-
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', this.draggedEvent.kampagneId);
-
-    eventEl.classList.add('dragging');
-  }
-
-  onDragEnd(e) {
-    const eventEl = e.target.closest('.calendar-event, .calendar-month-event');
-    if (eventEl) {
-      eventEl.classList.remove('dragging');
-    }
-    this.draggedEvent = null;
-
-    // Alle drag-over Klassen entfernen
-    this.container?.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-  }
-
-  onDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-
-    // Drop-Zone finden (Woche: calendar-day-events, Monat: calendar-month-day)
-    const dropZone = e.target.closest('.calendar-day-events, .calendar-month-day');
-    if (dropZone && dropZone.dataset.date) {
-      dropZone.classList.add('drag-over');
-    }
-  }
-
-  onDragLeave(e) {
-    const dropZone = e.target.closest('.calendar-day-events, .calendar-month-day');
-    if (dropZone) {
-      // Nur entfernen wenn wir wirklich die Zone verlassen
-      const relatedTarget = e.relatedTarget;
-      if (!dropZone.contains(relatedTarget)) {
-        dropZone.classList.remove('drag-over');
-      }
-    }
-  }
-
-  async onDrop(e) {
-    e.preventDefault();
-
-    // Drop-Zone finden
-    const dropZone = e.target.closest('.calendar-day-events, .calendar-month-day');
-    if (!dropZone || !dropZone.dataset.date) return;
-
-    dropZone.classList.remove('drag-over');
-
-    if (!this.draggedEvent) return;
-
-    const newDate = dropZone.dataset.date; // YYYY-MM-DD
-    const { kampagneId, deadlineType, currentDate } = this.draggedEvent;
-
-    // Datum gleich? Nichts tun
-    if (newDate === currentDate) {
-      console.log('📅 CALENDAR: Gleiches Datum, kein Update nötig');
-      this.draggedEvent = null;
-      return;
-    }
-
-    console.log(`📅 CALENDAR: Verschiebe ${deadlineType} von ${currentDate} nach ${newDate}`);
-
-    // Deadline aktualisieren
+  async moveEvent(id, newDate) {
+    const { kampagneId, deadlineType } = this.splitEventId(id);
+    if (!this.deadlineTypes[deadlineType]) return;
     await this.updateDeadline(kampagneId, deadlineType, newDate);
-
-    this.draggedEvent = null;
   }
 
   async updateDeadline(kampagneId, deadlineType, newDate) {
     try {
-      console.log(`🔄 CALENDAR: Update ${deadlineType} für Kampagne ${kampagneId} auf ${newDate}`);
-
       if (!window.supabase) {
         console.warn('⚠️ Supabase nicht verfügbar');
         return;
       }
 
-      // Nur das spezifische Deadline-Feld aktualisieren
-      const updateData = {
-        [deadlineType]: newDate,
-        updated_at: new Date().toISOString()
-      };
-
       const { error } = await window.supabase
         .from('kampagne')
-        .update(updateData)
+        .update({ [deadlineType]: newDate, updated_at: new Date().toISOString() })
         .eq('id', kampagneId);
-
       if (error) throw error;
 
-      console.log('✅ CALENDAR: Deadline erfolgreich aktualisiert');
-
-      // UI aktualisieren
       await this.refresh();
 
-      // Event für andere Komponenten dispatchen
       window.dispatchEvent(new CustomEvent('kampagneUpdated', {
         detail: { kampagneId, field: deadlineType, newValue: newDate }
       }));
-
     } catch (error) {
       console.error('❌ CALENDAR: Fehler beim Aktualisieren der Deadline:', error);
     }
   }
 
-  bindDragDropEvents() {
-    if (!this.container) return;
-
-    // Wochenansicht: Events in .calendar-event
-    this.container.querySelectorAll('.calendar-event').forEach(eventEl => {
-      if (eventEl.dataset.dragBound === 'true') return;
-
-      eventEl.addEventListener('dragstart', this.boundDragHandlers.dragStart);
-      eventEl.addEventListener('dragend', this.boundDragHandlers.dragEnd);
-      eventEl.dataset.dragBound = 'true';
-    });
-
-    // Monatsansicht: Events in .calendar-month-event
-    this.container.querySelectorAll('.calendar-month-event').forEach(eventEl => {
-      if (eventEl.dataset.dragBound === 'true') return;
-
-      eventEl.addEventListener('dragstart', this.boundDragHandlers.dragStart);
-      eventEl.addEventListener('dragend', this.boundDragHandlers.dragEnd);
-      eventEl.dataset.dragBound = 'true';
-    });
-
-    // Drop-Zonen: Wochenansicht (.calendar-day-events)
-    this.container.querySelectorAll('.calendar-day-events').forEach(zone => {
-      if (zone.dataset.dropBound === 'true') return;
-
-      zone.addEventListener('dragover', this.boundDragHandlers.dragOver);
-      zone.addEventListener('drop', this.boundDragHandlers.drop);
-      zone.addEventListener('dragleave', this.boundDragHandlers.dragLeave);
-      zone.dataset.dropBound = 'true';
-    });
-
-    // Drop-Zonen: Monatsansicht (.calendar-month-day)
-    this.container.querySelectorAll('.calendar-month-day').forEach(zone => {
-      if (zone.dataset.dropBound === 'true') return;
-
-      zone.addEventListener('dragover', this.boundDragHandlers.dragOver);
-      zone.addEventListener('drop', this.boundDragHandlers.drop);
-      zone.addEventListener('dragleave', this.boundDragHandlers.dragLeave);
-      zone.dataset.dropBound = 'true';
-    });
-  }
-
-  async refresh() {
-    await this.loadKampagnen();
-    this.render();
-    this.bindEvents();
-  }
-
   destroy() {
+    this.grid?.destroy();
+    this.grid = null;
+    this.sidebarEl = null;
     this.container = null;
     this.kampagnen = [];
     if (this.previewDrawer) {
@@ -868,4 +267,3 @@ export class KampagneCalendarView {
     }
   }
 }
-

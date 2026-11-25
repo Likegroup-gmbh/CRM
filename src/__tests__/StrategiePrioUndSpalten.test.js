@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderItemRow, renderItemsTable, reorderStrategieItemsByKategorien } from '../modules/strategie/StrategieDetailRenderer.js';
-import { syncRowTextClips, toggleTextClip } from '../modules/strategie/strategieTextClip.js';
+import { bindTextClipEvents, syncRowTextClips } from '../modules/strategie/strategieTextClip.js';
 import {
   getStrategiePrio,
   buildStrategiePrioUpdates,
@@ -10,16 +10,21 @@ import {
   isFixedColumnVisible,
   setFixedColumnVisibility
 } from '../modules/strategie/strategieColumns.js';
+import { standardBeweglicheSpalten } from '../modules/strategie/strategieSpaltenfolge.js';
 import { renderKategorienDrawerBody, applyKategorieOrder } from '../modules/strategie/StrategieDetailKategorienDrawer.js';
 import { strategieService } from '../modules/strategie/StrategieService.js';
 
 const FLAGS = ['prio_1', 'prio_2', 'nicht_umsetzen'];
 
+// Diese Spalten sind standardmaessig aus; die Zellen-Tests blenden sie explizit ein.
+const TEXTSPALTEN = ['beschreibung', 'umsetzungsvorgabe', 'kundenadaption', 'transkript', 'caption', 'anmerkung'];
+const TEXTSPALTEN_EIN = TEXTSPALTEN.map(key => `show:fixed:${key}`);
+
 function detailStub(overrides = {}) {
   return {
     isKunde: false,
     canEdit: true,
-    hiddenColumns: [],
+    hiddenColumns: TEXTSPALTEN_EIN,
     customColumns: null,
     items: [],
     getTeilbereicheFromStrategie: () => ['A'],
@@ -81,26 +86,34 @@ describe('buildStrategiePrioUpdates', () => {
 
 describe('Sichtbarkeit der festen Spalten', () => {
   it('zeigt normale Spalten ohne Eintrag und versteckt sie mit "fixed:"', () => {
-    expect(isFixedColumnVisible([], 'beschreibung')).toBe(true);
-    expect(isFixedColumnVisible(['fixed:beschreibung'], 'beschreibung')).toBe(false);
+    expect(isFixedColumnVisible([], 'prio')).toBe(true);
+    expect(isFixedColumnVisible([], 'dauer')).toBe(true);
+    expect(isFixedColumnVisible(['fixed:prio'], 'prio')).toBe(false);
+    expect(isFixedColumnVisible(['fixed:dauer'], 'dauer')).toBe(false);
   });
 
-  it('zeigt Transkript und Caption ohne Eintrag standardmaessig', () => {
-    expect(isFixedColumnVisible([], 'transkript')).toBe(true);
-    expect(isFixedColumnVisible([], 'caption')).toBe(true);
-    expect(isFixedColumnVisible(['fixed:transkript'], 'transkript')).toBe(false);
+  it('blendet die langen Textspalten standardmaessig aus (Inhalt liegt im Drawer)', () => {
+    for (const key of TEXTSPALTEN.filter(k => k !== 'beschreibung')) {
+      expect(isFixedColumnVisible([], key)).toBe(false);
+      expect(isFixedColumnVisible([`show:fixed:${key}`], key)).toBe(true);
+    }
+  });
+
+  it('zeigt die Beschreibung standardmaessig und versteckt sie mit "fixed:"', () => {
+    expect(isFixedColumnVisible([], 'beschreibung')).toBe(true);
+    expect(isFixedColumnVisible(['fixed:beschreibung'], 'beschreibung')).toBe(false);
   });
 
   it('laesst nach dem Umschalten nie widerspruechliche Eintraege zurueck', () => {
     let hidden = ['custom:abc'];
 
-    hidden = setFixedColumnVisibility(hidden, 'transkript', false);
-    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(false);
+    hidden = setFixedColumnVisibility(hidden, 'transkript', true);
+    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(true);
     // Pro Spalte hoechstens ein Eintrag - nie "fixed:" und "show:fixed:" zugleich
     expect(hidden.filter(e => e.includes('transkript'))).toHaveLength(1);
 
-    hidden = setFixedColumnVisibility(hidden, 'transkript', true);
-    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(true);
+    hidden = setFixedColumnVisibility(hidden, 'transkript', false);
+    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(false);
     expect(hidden.filter(e => e.includes('transkript'))).toHaveLength(0);
 
     hidden = setFixedColumnVisibility(hidden, 'prio', false);
@@ -108,6 +121,33 @@ describe('Sichtbarkeit der festen Spalten', () => {
 
     // Eigene Spalten bleiben unberuehrt
     expect(hidden).toContain('custom:abc');
+  });
+});
+
+describe('renderItemRow – Skript-Freigabe ohne Creator', () => {
+  function freigabeAction(item) {
+    const doc = renderRow(item);
+    return doc.querySelector('[data-action="toggle-skript-freigabe"]');
+  }
+
+  it('gibt die Aktion ohne Casting-Eintrag frei', () => {
+    const action = freigabeAction({ skript_freigabe: false });
+    expect(action).toBeTruthy();
+    expect(action.classList.contains('action-disabled')).toBe(false);
+    expect(action.textContent).toContain('Für Skript freigeben');
+    expect(action.getAttribute('title')).toBe('Für Skript freigeben');
+  });
+
+  it('sperrt die Aktion bei „Nicht umsetzen“', () => {
+    const action = freigabeAction({ nicht_umsetzen: true, skript_freigabe: false });
+    expect(action.classList.contains('action-disabled')).toBe(true);
+    expect(action.getAttribute('title')).toBe('Zuerst „Nicht umsetzen“ deaktivieren');
+  });
+
+  it('lässt eine bestehende Freigabe zurücknehmen', () => {
+    const action = freigabeAction({ skript_freigabe: true });
+    expect(action.classList.contains('action-disabled')).toBe(false);
+    expect(action.textContent).toContain('Skript-Freigabe zurücknehmen');
   });
 });
 
@@ -183,8 +223,21 @@ describe('renderItemRow – Fortschritt der Hintergrund-Verarbeitung', () => {
     });
 
     expect(doc.querySelector('img.strategie-screenshot')).toBeTruthy();
-    expect(doc.querySelector('.verarbeitung-status--fehler').getAttribute('title'))
-      .toBe('Transkript: Whisper fehlgeschlagen');
+    const fehler = doc.querySelector('.verarbeitung-status--fehler');
+    expect(fehler.getAttribute('title')).toBe('Transkript: Whisper fehlgeschlagen');
+    expect(fehler.querySelector('.verarbeitung-fehler-text').textContent).toBe('Transkript: Whisper fehlgeschlagen');
+  });
+
+  it('zeigt einen Adaptionsfehler als Hinweis, ohne den Lauf als fehlgeschlagen zu markieren', () => {
+    const doc = renderRow({
+      video_link: 'https://tiktok.com/x',
+      screenshot_url: 'https://cdn/bild.jpg',
+      verarbeitung_status: 'done',
+      verarbeitung_fehler: 'Kundenadaption: Die KI hat keine Kundenadaption geliefert'
+    });
+    expect(doc.querySelector('.verarbeitung-status--fehler')).toBeNull();
+    expect(doc.querySelector('.verarbeitung-status--hinweis').textContent)
+      .toBe('Kundenadaption: Die KI hat keine Kundenadaption geliefert');
   });
 
   it('zeigt nichts an, wenn die Verarbeitung durch ist', () => {
@@ -195,6 +248,45 @@ describe('renderItemRow – Fortschritt der Hintergrund-Verarbeitung', () => {
   it('bietet "Neu verarbeiten" nur fuer Items mit Video an', () => {
     expect(renderRow({ video_link: 'https://tiktok.com/x' }).querySelector('[data-action="reprocess-item"]')).toBeTruthy();
     expect(renderRow({ video_link: null }).querySelector('[data-action="reprocess-item"]')).toBeNull();
+  });
+
+  it('zeigt Umsetzungsvorgabe und Kundenadaption, die Vorgabe nur fuer das Team', () => {
+    const team = renderRow({
+      video_link: 'https://tiktok.com/x',
+      umsetzungsvorgabe: 'Nur die Hook',
+      kundenadaption: 'So laeuft es.',
+      transkript: 'Hook'
+    });
+    expect(team.querySelector('textarea[data-field="umsetzungsvorgabe"]').textContent).toBe('Nur die Hook');
+    expect(team.querySelector('textarea[data-field="kundenadaption"]').textContent).toBe('So laeuft es.');
+    expect(team.querySelector('[data-action="generiere-kundenadaption"]').classList.contains('action-disabled')).toBe(false);
+
+    const kunde = renderRow({
+      video_link: 'https://tiktok.com/x',
+      umsetzungsvorgabe: 'Nur die Hook',
+      kundenadaption: 'So laeuft es.'
+    }, { isKunde: true });
+    expect(kunde.querySelector('td.col-umsetzungsvorgabe')).toBeNull();
+    expect(kunde.querySelector('td.col-kundenadaption .cell-text-readonly').textContent).toBe('So laeuft es.');
+    expect(kunde.querySelector('[data-action="generiere-kundenadaption"]')).toBeNull();
+  });
+
+  it('sperrt die Vorgabe an einer Idee und Neu generieren ohne Transkript', () => {
+    const idee = renderRow({ video_link: null, umsetzungsvorgabe: 'sollte leer sein' });
+    expect(idee.querySelector('textarea[data-field="umsetzungsvorgabe"]').hasAttribute('readonly')).toBe(true);
+    expect(idee.querySelector('[data-action="generiere-kundenadaption"]')).toBeNull();
+
+    const ohneTranskript = renderRow({
+      video_link: 'https://tiktok.com/x',
+      umsetzungsvorgabe: 'Hook'
+    });
+    expect(ohneTranskript.querySelector('[data-action="generiere-kundenadaption"]').classList.contains('action-disabled')).toBe(true);
+  });
+
+  it('sperrt Kundenadaption und Vorgabe an einem Videoidee-Vorschlag', () => {
+    const doc = renderRow({ ist_vorschlag: true, video_link: null });
+    expect(doc.querySelector('textarea[data-field="kundenadaption"]').hasAttribute('readonly')).toBe(true);
+    expect(doc.querySelector('textarea[data-field="umsetzungsvorgabe"]').hasAttribute('readonly')).toBe(true);
   });
 
   it('zeigt bei Ideen ohne Link den Platzhalter, auch wenn ein Screenshot haengen geblieben ist', () => {
@@ -231,6 +323,54 @@ describe('renderItemsTable – Kopfzeile und colspan', () => {
     expect(Number(gruppe.getAttribute('colspan'))).toBe(spalten);
   });
 
+  it('setzt Status direkt nach Prio', () => {
+    const html = renderItemsTable(detailStub({ items }));
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const header = [...doc.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    const prio = header.indexOf('Prio');
+
+    expect(header[prio + 1]).toBe('Status');
+    expect(header[prio + 2]).toBe('Umsetzen');
+  });
+
+  it('stellt Spalten in der gespeicherten Reihenfolge', () => {
+    const folge = standardBeweglicheSpalten();
+    const prio = folge.indexOf('col-prio');
+    const status = folge.indexOf('col-status');
+    [folge[prio], folge[status]] = [folge[status], folge[prio]];
+
+    const html = renderItemsTable(detailStub({ items, columnOrder: folge }));
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const header = [...doc.querySelectorAll('thead th')].map(th => th.className);
+    const zellen = [...doc.querySelector('tr.item-row').children].map(td =>
+      [...td.classList].find(cls => cls.startsWith('col-'))
+    );
+
+    expect(header.indexOf('col-status')).toBeLessThan(header.indexOf('col-prio'));
+    expect(zellen.indexOf('col-status')).toBeLessThan(zellen.indexOf('col-prio'));
+    expect(header.indexOf('col-platform')).toBeLessThan(header.indexOf('col-status'));
+    expect(header.at(-1)).toBe('col-actions');
+  });
+
+  it('setzt eine eigene Spalte an die gespeicherte Stelle', () => {
+    const detail = detailStub({
+      items,
+      columnOrder: ['custom:abc', ...standardBeweglicheSpalten()],
+      customColumns: {
+        getOrderedColumns: () => [{ id: 'abc', name: 'Notiz', visible_for_kunden: true }],
+        visibleCount: () => 1,
+        renderHeaders: () => '<th class="entity-custom-col-header" data-custom-col-id="custom:abc">Notiz</th>',
+        renderCells: () => '<td class="entity-custom-cell" data-custom-col-id="custom:abc"></td>'
+      }
+    });
+    const doc = new DOMParser().parseFromString(renderItemsTable(detail), 'text/html');
+    const ids = [...doc.querySelectorAll('thead th')].map(th =>
+      th.dataset.customColId || [...th.classList].find(cls => cls.startsWith('col-'))
+    );
+
+    expect(ids[ids.indexOf('col-platform') + 1]).toBe('custom:abc');
+  });
+
   it('hat Plattform und keinen separaten Link-Header', () => {
     const html = renderItemsTable(detailStub({ items }));
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -239,6 +379,60 @@ describe('renderItemsTable – Kopfzeile und colspan', () => {
     expect(header).toContain('Plattform');
     expect(header).not.toContain('Link');
     expect(doc.querySelector('th.col-link')).toBeNull();
+  });
+});
+
+describe('renderItemRow – Skript-Freigabe ohne Creator', () => {
+  function freigabeAction(item) {
+    const doc = renderRow(item);
+    return doc.querySelector('[data-action="toggle-skript-freigabe"]');
+  }
+
+  it('gibt die Aktion ohne Casting-Eintrag frei', () => {
+    const action = freigabeAction({ skript_freigabe: false });
+    expect(action).toBeTruthy();
+    expect(action.classList.contains('action-disabled')).toBe(false);
+    expect(action.textContent).toContain('Für Skript freigeben');
+    expect(action.getAttribute('title')).toBe('Für Skript freigeben');
+  });
+
+  it('sperrt die Aktion bei „Nicht umsetzen“', () => {
+    const action = freigabeAction({ nicht_umsetzen: true, skript_freigabe: false });
+    expect(action.classList.contains('action-disabled')).toBe(true);
+    expect(action.getAttribute('title')).toBe('Zuerst „Nicht umsetzen“ deaktivieren');
+  });
+});
+
+describe('renderItemRow – Skript-Freigabe als Status', () => {
+  it('zeigt den Badge, wenn die Videoidee für ein Skript freigegeben ist', () => {
+    const doc = renderRow({ skript_freigabe: true });
+    const badge = doc.querySelector('td.col-status .status-badge');
+
+    expect(badge).toBeTruthy();
+    expect(badge.classList.contains('success')).toBe(true);
+    expect(badge.textContent).toBe('Freigegeben');
+    expect(doc.querySelector('.strategie-skript-badge')).toBeNull();
+    expect(doc.querySelector('.item-skript-freigabe')).toBeNull();
+  });
+
+  it('zeigt einen Gedankenstrich, wenn die Freigabe fehlt', () => {
+    const doc = renderRow({ skript_freigabe: false });
+
+    expect(doc.querySelector('td.col-status .status-badge')).toBeNull();
+    expect(doc.querySelector('td.col-status').textContent.trim()).toBe('–');
+  });
+
+  it('blendet die Spalte für den Kunden aus', () => {
+    const doc = renderRow({ skript_freigabe: true }, { isKunde: true });
+    const html = renderItemsTable(detailStub({
+      isKunde: true,
+      items: [{ id: 'i1', teilbereich: 'A', skript_freigabe: true }]
+    }));
+    const table = new DOMParser().parseFromString(html, 'text/html');
+
+    expect(doc.querySelector('td.col-status')).toBeNull();
+    expect(doc.querySelector('.strategie-skript-badge')).toBeNull();
+    expect([...table.querySelectorAll('thead th')].map(th => th.textContent.trim())).not.toContain('Status');
   });
 });
 
@@ -275,39 +469,19 @@ describe('renderItemRow – Text-Clips', () => {
     for (const sel of ['td.col-beschreibung', 'td.col-transkript', 'td.col-caption']) {
       const clip = doc.querySelector(`${sel} .strategie-text-clip`);
       expect(clip).toBeTruthy();
-      const btn = clip.querySelector('.strategie-text-more');
-      expect(btn).toBeTruthy();
-      expect(btn.getAttribute('aria-label')).toBe('Mehr anzeigen');
-      expect(btn.querySelector('.crm-icon')).toBeTruthy();
+      expect(clip.querySelector('.strategie-text-clip__toggle')).toBeNull();
+      expect(clip.querySelector('.strategie-text-clip__body').hidden).toBe(false);
+      expect(clip.querySelector('.strategie-text-more')).toBeNull();
     }
+
+    const open = doc.querySelector('[data-action="open-videoidee"]');
+    expect(open).toBeTruthy();
+    expect(open.getAttribute('aria-label')).toBe('Videoidee öffnen');
   });
 });
 
 describe('strategieTextClip', () => {
-  it('setzt die Row-Klasse wenn eine Zelle aufgeht', () => {
-    const doc = renderRow({ beschreibung: 'B', transkript: 'T', caption: 'C' });
-    const row = doc.querySelector('tr.item-row');
-    const beschreibung = row.querySelector('td.col-beschreibung .strategie-text-clip');
-    const transkript = row.querySelector('td.col-transkript .strategie-text-clip');
-
-    toggleTextClip(beschreibung);
-    expect(beschreibung.classList.contains('is-expanded')).toBe(true);
-    expect(row.classList.contains('has-expanded-text')).toBe(true);
-    expect(transkript.classList.contains('is-expanded')).toBe(false);
-    expect(beschreibung.querySelector('.strategie-text-more').getAttribute('aria-label')).toBe('Weniger anzeigen');
-
-    toggleTextClip(beschreibung);
-    expect(row.classList.contains('has-expanded-text')).toBe(false);
-  });
-
-  it('laesst den Mehr-Button bei kurzem Text versteckt', () => {
-    const doc = renderRow({ beschreibung: 'Kurz', transkript: 'Auch kurz', caption: 'C' });
-    const row = doc.querySelector('tr.item-row');
-    syncRowTextClips(row);
-    expect(row.querySelectorAll('.strategie-text-more:not([hidden])')).toHaveLength(0);
-  });
-
-  it('zeigt Mehr wenn der Inhalt die Clip-Hoehe sprengt', () => {
+  it('setzt is-truncated wenn der Inhalt die Clip-Hoehe sprengt', () => {
     const doc = renderRow({ transkript: 'Lang' });
     const clip = doc.querySelector('td.col-transkript .strategie-text-clip');
     const body = clip.querySelector('.strategie-text-clip__body');
@@ -318,11 +492,53 @@ describe('strategieTextClip', () => {
 
     syncRowTextClips(clip.closest('tr'));
 
-    const btn = clip.querySelector('.strategie-text-more');
-    expect(btn.hidden).toBe(false);
-    expect(btn.getAttribute('aria-label')).toBe('Mehr anzeigen');
-    expect(btn.querySelector('.crm-icon')).toBeTruthy();
     expect(clip.classList.contains('is-truncated')).toBe(true);
+    expect(clip.classList.contains('is-expanded')).toBe(false);
+    expect(clip.closest('tr').classList.contains('has-expanded-text')).toBe(false);
+  });
+
+  it('laesst kurzen Text ungeklappt', () => {
+    const doc = renderRow({ beschreibung: 'Kurz', transkript: 'Auch kurz', caption: 'C' });
+    const row = doc.querySelector('tr.item-row');
+    syncRowTextClips(row);
+    expect(row.querySelector('.is-truncated')).toBeNull();
+  });
+
+  it('zieht die Textarea auf die Inhaltshoehe, damit der Clip bis zur Bildhoehe fuellt', () => {
+    const doc = renderRow({ transkript: 'Lang' });
+    const clip = doc.querySelector('td.col-transkript .strategie-text-clip');
+    const textarea = clip.querySelector('textarea');
+
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, get: () => 420 });
+
+    syncRowTextClips(clip.closest('tr'));
+
+    expect(textarea.style.height).toBe('420px');
+    expect(clip.classList.contains('is-truncated')).toBe(true);
+  });
+
+  it('zieht die Hoehe beim Tippen nach', () => {
+    const html = renderItemRow(detailStub(), { id: 'i1', transkript: 'Lang' }, 0);
+    document.body.innerHTML = `<table class="strategie-items-table"><tbody>${html}</tbody></table>`;
+    const detail = { _tableEventListeners: new Set() };
+    bindTextClipEvents(detail);
+
+    const textarea = document.querySelector('td.col-transkript textarea');
+    let contentHeight = 40;
+    Object.defineProperty(textarea, 'scrollHeight', {
+      configurable: true,
+      get: () => contentHeight,
+    });
+
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(textarea.style.height).toBe('40px');
+
+    contentHeight = 360;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(textarea.style.height).toBe('360px');
+
+    detail._tableEventListeners.forEach((fn) => fn());
+    document.body.innerHTML = '';
   });
 });
 

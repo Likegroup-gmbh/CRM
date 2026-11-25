@@ -4,6 +4,7 @@
 import { buildVideoDisplayName } from '../strategie/VideoPickerOptions.js';
 import { skripteService } from './SkripteService.js';
 import { STATUS_LABELS, skriptEditorPath } from './SkripteUtils.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 function creatorDisplayName(creator) {
   return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || 'Unbekannt';
@@ -245,7 +246,10 @@ export class LinkSkriptDrawer {
         btn.classList.add('is-loading');
       }
 
-      await skripteService.verknuepfeMitVideo(this.video.id, this.selectedSkriptId);
+      const skript = this.skripte.find((s) => s.id === this.selectedSkriptId);
+      await skripteService.verknuepfeMitVideo(this.video.id, this.selectedSkriptId, {
+        freigegeben: skript ? skript.status === 'freigegeben' : undefined
+      });
 
       window.toastSystem?.show('Skript erfolgreich verknüpft', 'success');
       window.dispatchEvent(new CustomEvent('skriptLinked', {
@@ -292,7 +296,7 @@ export class LinkSkriptDrawer {
     const panel = document.getElementById(this.drawerId);
     if (panel) {
       panel.classList.remove('show');
-      setTimeout(() => this.removeDrawer(), 250);
+      setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
     } else {
       this.removeDrawer();
     }

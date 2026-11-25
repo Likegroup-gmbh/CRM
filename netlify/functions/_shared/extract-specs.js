@@ -17,10 +17,61 @@
 //   seitentyp - true: der Prompt bekommt einen Einordnungs-Block zum erkannten
 //               Seitentyp, und das Modell liefert _seitentyp und
 //               _vollstaendigkeit zurueck (beides nur fuer die Diagnose)
+//   contactLinks - true: mailto-, tel- und Instagram-Links der Seiten kommen
+//               als eigener Block in den Prompt (Mails und Telefonnummern
+//               stehen oft nur im href, nicht im sichtbaren Text)
+//   resolveUrl - true: der Job darf ohne URL starten, die Function sucht die
+//               Homepage selbst (agentur-resolver.js, Management-Connect)
 
 // Wird in den Cache-Key gehasht: Aenderungen an den Specs invalidieren
 // automatisch alte Extraktionen, statt veraltete Ergebnisse auszuliefern.
 const SPEC_VERSION = 5;
+
+// Anschrift aus dem Impressum. Gemeinsam fuer alle Entitaeten mit Adresse:
+// `prefix` ist der Spaltenpraefix des Formulars (unternehmen:
+// 'rechnungsadresse_', management: ''). Die Hints sind fuer alle gleich,
+// deshalb nur hier gepflegt.
+function adressFelder(prefix) {
+  return [
+    {
+      name: `${prefix}strasse`,
+      label: 'Strasse',
+      kind: 'fact',
+      hint: 'Nur der Strassenname ohne Hausnummer, z.B. "Musterweg". Aus der Anschrift im Impressum.'
+    },
+    {
+      name: `${prefix}hausnummer`,
+      label: 'Hausnummer',
+      kind: 'fact',
+      hint: 'Nur die Hausnummer, inklusive Zusatz wie "12a" oder "5-7". Getrennt vom Strassennamen.'
+    },
+    {
+      name: `${prefix}plz`,
+      label: 'PLZ',
+      kind: 'fact',
+      hint: 'Postleitzahl, z.B. "10115".'
+    },
+    {
+      name: `${prefix}stadt`,
+      label: 'Stadt',
+      kind: 'fact',
+      hint: 'Ort ohne PLZ und ohne Ortsteil-Zusatz in Klammern.'
+    },
+    {
+      name: `${prefix}land`,
+      label: 'Land',
+      kind: 'fact',
+      hint: 'Land ausgeschrieben auf Deutsch, z.B. "Deutschland", "Oesterreich", "Schweiz". Wenn die Adresse deutsch ist und kein Land genannt wird, "Deutschland".'
+    }
+  ];
+}
+
+const WEBSEITE_FELD = {
+  name: 'webseite',
+  label: 'Webseite',
+  kind: 'fact',
+  hint: 'Die Hauptdomain der Firma als vollstaendige URL mit https und ohne Pfad, Tracking-Parameter oder abschliessenden Slash, z.B. "https://www.muster.de".'
+};
 
 const SPECS = {
   unternehmen: {
@@ -34,42 +85,8 @@ const SPECS = {
         kind: 'fact',
         hint: 'Vollstaendiger rechtlicher Firmenname inklusive Rechtsform, z.B. "Muster Handels GmbH" oder "Beispiel AG". Bevorzugt aus dem Impressum. NICHT der verkuerzte Markenname aus dem Seitentitel oder Logo.'
       },
-      {
-        name: 'rechnungsadresse_strasse',
-        label: 'Strasse',
-        kind: 'fact',
-        hint: 'Nur der Strassenname ohne Hausnummer, z.B. "Musterweg". Aus der Anschrift im Impressum.'
-      },
-      {
-        name: 'rechnungsadresse_hausnummer',
-        label: 'Hausnummer',
-        kind: 'fact',
-        hint: 'Nur die Hausnummer, inklusive Zusatz wie "12a" oder "5-7". Getrennt vom Strassennamen.'
-      },
-      {
-        name: 'rechnungsadresse_plz',
-        label: 'PLZ',
-        kind: 'fact',
-        hint: 'Postleitzahl, z.B. "10115".'
-      },
-      {
-        name: 'rechnungsadresse_stadt',
-        label: 'Stadt',
-        kind: 'fact',
-        hint: 'Ort ohne PLZ und ohne Ortsteil-Zusatz in Klammern.'
-      },
-      {
-        name: 'rechnungsadresse_land',
-        label: 'Land',
-        kind: 'fact',
-        hint: 'Land ausgeschrieben auf Deutsch, z.B. "Deutschland", "Oesterreich", "Schweiz". Wenn die Adresse deutsch ist und kein Land genannt wird, "Deutschland".'
-      },
-      {
-        name: 'webseite',
-        label: 'Webseite',
-        kind: 'fact',
-        hint: 'Die Hauptdomain der Firma als vollstaendige URL mit https und ohne Pfad, Tracking-Parameter oder abschliessenden Slash, z.B. "https://www.muster.de".'
-      },
+      ...adressFelder('rechnungsadresse_'),
+      WEBSEITE_FELD,
       {
         name: 'invoice_email',
         label: 'Rechnungs-Email',
@@ -82,6 +99,46 @@ const SPECS = {
         kind: 'guess',
         hint: 'Zwei bis vier Saetze: was das Unternehmen tut, welche Produkte oder Leistungen es anbietet, in welchem Markt es taetig ist und welche Marken dazugehoeren, sofern die Seite das nennt. Sachlich zusammenfassen, keine Werbesprache. Nur was die Seite hergibt, nichts erfinden.'
       }
+    ]
+  },
+
+  // Management (Talent-Agentur). Die URL gibt hier niemand ein: sie kommt aus
+  // der Websuche (agentur-resolver.js, ausgeloest ueber resolveUrl). Alles
+  // BELEGBAR aus Impressum, Kontaktseite und den Kontakt-Links der Seite -
+  // "firmenname" dient nur dem Namensabgleich und wird nie gespeichert.
+  management: {
+    followLinks: ['impressum', 'kontakt'],
+    logo: false,
+    contactLinks: true,
+    resolveUrl: true,
+    preamble: 'Du liest die Stammdaten einer Talent- bzw. Influencer-Management-Agentur aus ihrer Webseite. Gesucht sind die Angaben der AGENTUR, nicht die ihrer Creator oder einzelner Mitarbeiter.',
+    fields: [
+      {
+        name: 'firmenname',
+        label: 'Firmenname',
+        kind: 'fact',
+        hint: 'Name der Agentur, wie er im Impressum oder im Seitentitel steht, mit Rechtsform wenn genannt. Dient nur dem Abgleich mit den Stammdaten.'
+      },
+      {
+        name: 'email',
+        label: 'E-Mail',
+        kind: 'fact',
+        hint: 'Allgemeine Kontakt-E-Mail der Agentur (z.B. info@, office@, hello@, kontakt@), bevorzugt aus Impressum oder Kontaktseite, sonst aus den Kontakt-Links der Seite (mailto). Keine Adresse einzelner Mitarbeiter oder Creator. Keine Adresse erfinden.'
+      },
+      {
+        name: 'telefonnummer',
+        label: 'Telefon',
+        kind: 'fact',
+        hint: 'Hauptrufnummer der Agentur im Wortlaut der Seite, mit Vorwahl, z.B. "+49 30 1234567". Aus Impressum, Kontaktseite oder den Kontakt-Links (tel). Keine Fax-Nummer, keine Durchwahl einzelner Personen.'
+      },
+      WEBSEITE_FELD,
+      {
+        name: 'instagram',
+        label: 'Instagram',
+        kind: 'fact',
+        hint: 'Instagram-Profil der Agentur selbst als @handle, nur wenn die Seite (Kontakt-Links, Footer) darauf verlinkt. Nicht das Profil eines Creators oder Mitarbeiters.'
+      },
+      ...adressFelder('')
     ]
   },
 
@@ -119,6 +176,12 @@ const SPECS = {
     model: 'extract_produkt',
     maxTokens: 4000,
     fields: [
+      {
+        name: 'url',
+        label: 'Produkt-URL',
+        kind: 'fact',
+        hint: 'Die kanonische Produkt- oder Shop-Seite genau dieses Produkts, als absolute https-URL. Nur wenn sie im Dokument steht (Produktlink, QR-Ziel, "online kaufen"). Sonst weglassen. Keine Social-Profile, kein Impressum, keine Footer-Links, keine Dateipfade.'
+      },
       {
         name: 'name',
         label: 'Produktname',
@@ -201,6 +264,148 @@ const SPECS = {
         hint: 'Pflichtangaben, Disclaimer oder Kennzeichnungspflichten von der Seite, z.B. "Nahrungsergaenzungsmittel sind kein Ersatz fuer eine ausgewogene Ernaehrung", Altersfreigaben, Warnhinweise. Im Wortlaut der Seite.'
       }
     ]
+  },
+
+  // Persona: typischer Mensch / Empfaenger, nicht das Produkt. Fast alles
+  // ABGELEITET, weil Shop- und Markenseiten die Zielperson selten beim Namen
+  // nennen. Sonnet, weil hier interpretiert werden muss.
+  persona: {
+    followLinks: [],
+    logo: false,
+    audienceSituations: true,
+    model: 'persona',
+    maxTokens: 4000,
+    preamble: 'Du beschreibst den TYP MENSCH, den diese Seite anspricht oder den sie als Persona ausformuliert. Nicht das Produkt, nicht die Firma. Die meisten Felder sind ABGELEITET: nur fuellen, wenn die Seite eine nachvollziehbare Grundlage hergibt (Ansprache, Benefits, Testimonials, About, Zielgruppen-Text). Keine Fantasie-Biografie.',
+    fields: [
+      {
+        name: 'name',
+        label: 'Name / Kurzcharakter',
+        kind: 'guess',
+        hint: 'Ein Vorname, der zu dieser Persona passt, z.B. "Sarah". Kein Firmenname, kein Produktname. Wenn die Seite eine konkrete Person beschreibt, deren Vornamen nehmen.'
+      },
+      {
+        name: 'oberbegriff',
+        label: 'Oberbegriff',
+        kind: 'guess',
+        hint: 'Kurze Kategorie zur Zuordnung, z.B. "Sparsame Studentin", "Berufstaetige Mutter". Kein Satz, kein Produktbezug.'
+      },
+      {
+        name: 'alter_von',
+        label: 'Alter von',
+        kind: 'guess',
+        type: 'number',
+        hint: 'Untere Grenze des Alters als ganze Zahl. Nur wenn die Seite eine Spanne oder ein typisches Alter hergibt.'
+      },
+      {
+        name: 'alter_bis',
+        label: 'Alter bis',
+        kind: 'guess',
+        type: 'number',
+        hint: 'Obere Grenze des Alters als ganze Zahl. Bei einem einzelnen typischen Alter denselben Wert wie alter_von.'
+      },
+      {
+        name: 'geschlecht',
+        label: 'Geschlecht',
+        kind: 'guess',
+        hint: 'Genau einer der Werte: "Weiblich", "Männlich", "Divers", "Gemischt". "Gemischt" wenn die Ansprache beide umfasst. Sonst null.'
+      },
+      {
+        name: 'wohnort_region',
+        label: 'Wohnort / Region',
+        kind: 'guess',
+        hint: 'Typische Region, z.B. "Grossstadt Sueddeutschland". Nur wenn die Seite das hergibt, sonst null.'
+      },
+      {
+        name: 'beruf',
+        label: 'Beruf',
+        kind: 'guess',
+        hint: 'Typischer Beruf oder Taetigkeit, z.B. "Pflegefachkraft", "Studentin BWL".'
+      },
+      {
+        name: 'budgetrahmen',
+        label: 'Budgetrahmen',
+        kind: 'guess',
+        hint: 'Genau einer der Werte: "niedrig", "mittel", "hoch". Aus Preisniveau und Ansprache ableiten.'
+      },
+      {
+        name: 'bildungsstand',
+        label: 'Bildungsstand',
+        kind: 'guess',
+        hint: 'z.B. "Abitur", "Studium", "Ausbildung". Nur bei klarer Grundlage.'
+      },
+      {
+        name: 'lebenssituation',
+        label: 'Lebenssituation',
+        kind: 'guess',
+        hint: 'Genau einer der Werte: "Single", "Familie", "Paar ohne Kinder", "Alleinerziehend", "Student/in", "Rentner/in", "Mensch mit Behinderung", "WG / Wohngemeinschaft".'
+      },
+      {
+        name: 'pain_points',
+        label: 'Pain-Points / Probleme',
+        kind: 'guess',
+        hint: 'Konkrete Probleme aus Sicht dieser Person. Ein Punkt pro Zeile, maximal fuenf. Keine Produktvorteile.'
+      },
+      {
+        name: 'interessen',
+        label: 'Interessen',
+        kind: 'guess',
+        hint: 'Hobbys, Themen, Communities. Ein Eintrag pro Zeile, maximal fuenf.'
+      },
+      {
+        name: 'beduerfnisse',
+        label: 'Beduerfnisse',
+        kind: 'guess',
+        hint: 'Was diese Person wirklich braucht. Ein Punkt pro Zeile, maximal fuenf.'
+      },
+      {
+        name: 'kaufmotive',
+        label: 'Kaufmotive',
+        kind: 'guess',
+        hint: 'Was eine Kaufentscheidung ausloest. Ein Motiv pro Zeile, maximal fuenf.'
+      },
+      {
+        name: 'einwaende',
+        label: 'Einwaende',
+        kind: 'guess',
+        hint: 'Zweifel und Bedenken vor dem Kauf. Ein Punkt pro Zeile, maximal fuenf.'
+      },
+      {
+        name: 'produkt_loesung',
+        label: 'Was loest das Produkt fuer sie/ihn?',
+        kind: 'guess',
+        hint: 'Nur fuellen, wenn die Seite ein konkretes Angebot beschreibt. Welches Problem verschwindet fuer DIESE Person. Sonst null.'
+      },
+      {
+        name: 'produktvorteile',
+        label: 'Relevante Produktvorteile',
+        kind: 'guess',
+        hint: 'Nur fuellen, wenn die Seite ein Angebot beschreibt. Vorteile, die fuer diesen Typ Mensch zaehlen. Ein Vorteil pro Zeile. Sonst null.'
+      },
+      {
+        name: 'tonalitaet',
+        label: 'Tonalitaet der Ansprache',
+        kind: 'guess',
+        hint: 'Wie man diese Person anspricht, z.B. "du, warm, augenzwinkernd". Aus der Tonalitaet der Seite ableiten.'
+      },
+      {
+        name: 'plattformen',
+        label: 'Relevante Plattformen',
+        kind: 'guess',
+        hint: 'Wo diese Person unterwegs ist. Ein Eintrag pro Zeile, z.B. "TikTok", "Instagram Reels".'
+      },
+      {
+        name: 'content_praeferenzen',
+        label: 'Content-Praeferenzen',
+        kind: 'guess',
+        hint: 'Welche Formate funktionieren. Ein Eintrag pro Zeile, z.B. "kurze Hooks", "Vorher-Nachher".'
+      },
+      {
+        name: 'beschreibung',
+        label: 'Beschreibung (frei)',
+        kind: 'guess',
+        hint: 'Zwei bis vier Saetze, wer diese Person ist. Sachlich, keine Werbesprache. Nur was die Seite hergibt.'
+      }
+    ]
   }
 };
 
@@ -214,6 +419,10 @@ VOLLSTAENDIGKEIT IST HIER DAS WICHTIGSTE:
 - "preis" nur setzen, wenn er von der Preisspanne der Kollektion abweicht. "uvp" nur, wenn fuer diese Variante ein Streichpreis genannt wird.
 
 Nur echte Varianten desselben Produkts aufnehmen - keine Mengenrabatte, keine Zubehoer-Empfehlungen, keine "Kunden kauften auch". Auf einer Sortiments- oder Kategorieseite sind die sichtbaren Produktlinien die Varianten. Bei einer Dienstleistung sind es die Tarif- oder Paketstufen. Wenn die Seite nichts dergleichen anbietet: leeres Array.`;
+
+const AUDIENCE_SITUATIONS_INSTRUCTION = `Zusaetzlich das Feld "_audience_situations": Array mit 2 bis 4 Audience Situations dieser Persona. Jeder Eintrag: { "name": <kurzer Titel, z.B. "morgens unter Zeitdruck">, "beschreibung": <ein bis zwei Saetze: wann und warum sie in diesem Moment empfänglich ist, oder null> }.
+
+Audience Situations sind konkrete Lebensmomente der PERSON, keine Einsatzsituationen eines Produkts und keine Demografie. Namen kurz und konkret, keine Produktnamen. QUALITAET VOR QUANTITAET, Ziel 3, distinkt. Wenn die Seite dafuer nichts hergibt: leeres Array.`;
 
 const SELBSTAUSKUNFT_INSTRUCTION = `Zusaetzlich diese zwei Meta-Felder, die nur der Diagnose dienen und nicht ins Formular wandern:
 - "_seitentyp": eines von "produktseite", "sortiment", "dienstleistung", "unternehmensseite", "blockiert" - was die Seite deiner Einschaetzung nach tatsaechlich ist.
@@ -267,11 +476,14 @@ function hasSpec(entityType) {
  * ein formales Schema, und die Hints stehen direkt am Feld.
  */
 function buildFieldInstructions(spec) {
-  const lines = spec.fields.map((f) => {
+  const lines = [];
+  if (spec.preamble) lines.push(spec.preamble, '');
+  for (const f of spec.fields) {
     const art = f.kind === 'fact' ? 'BELEGBAR' : 'ABGELEITET';
-    return `- "${f.name}" (${f.label}, ${art}): ${f.hint}`;
-  });
+    lines.push(`- "${f.name}" (${f.label}, ${art}): ${f.hint}`);
+  }
   if (spec.varianten) lines.push('', VARIANTEN_INSTRUCTION);
+  if (spec.audienceSituations) lines.push('', AUDIENCE_SITUATIONS_INSTRUCTION);
   if (spec.seitentyp) lines.push('', SELBSTAUSKUNFT_INSTRUCTION);
   return lines.join('\n');
 }

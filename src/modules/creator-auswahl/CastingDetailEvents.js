@@ -1,0 +1,372 @@
+// CastingDetailEvents.js
+// Event-Binding, eigene Spalten und Kategorie-Pill (Prototype-Mixin von CreatorAuswahlDetail)
+
+import { autoResizeTextarea } from '../feedback/FeedbackEventHandler.js';
+import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
+import { tableSelect } from '../../core/components/TableSelect.js';
+import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import { TAUSCH_ACTION, tauscheImCasting } from '../creator-tausch/creatorTauschUi.js';
+import { openManagementAnfrage } from './managementAnfrageDrawer.js';
+import { KONZEPT_EINHOLEN_ACTION } from '../einladung/kundeEinladen.js';
+import { aufnehmenBewerbung, verwerfenBewerbung } from './bewerbungAktionen.js';
+import {
+  OHNE_KATEGORIE,
+  OHNE_KATEGORIE_KEY,
+  kategorieGroupKey
+} from './castingKategorien.js';
+import { openCastingDetailDrawer } from './castingDetailDrawer.js';
+import { bindTextBaseline, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
+import { bindWrappingTextareas } from '../../core/table/fitTextareaHeight.js';
+import { bindListenTkpFeld, getListenTkp } from './castingPreisZellen.js';
+
+export function bindEvents() {
+  this._boundEventListeners.forEach(cleanup => cleanup());
+  this._boundEventListeners.clear();
+  bindTextBaseline(this._getRoot() || document, {
+    onCleanup: (fn) => this._boundEventListeners.add(fn)
+  });
+
+  const openDetail = (e) => {
+    const btn = e.target.closest('[data-open-casting-detail]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openCastingDetailDrawer(this, btn.dataset.openCastingDetail);
+  };
+  document.addEventListener('click', openDetail);
+  this._boundEventListeners.add(() => document.removeEventListener('click', openDetail));
+
+  if (!this.isKunde && (this._canSourcing('edit') || this._canSourcing('create') || this._canSourcing('delete'))) {
+    const actionClickHandler = (e) => {
+      const actionItem = e.target.closest('[data-action]');
+      if (!actionItem) return;
+      const container = actionItem.closest('[data-entity-type="creator_auswahl_item"], [data-entity-type="casting_vorschlag"]');
+      if (!container) return;
+
+      const action = actionItem.dataset.action;
+      const id = actionItem.dataset.id;
+
+      switch (action) {
+        case 'activate-vorschlag':
+          e.preventDefault();
+          this.vorschlagPanel?.aktivieren(id);
+          break;
+        case 'discard-vorschlag':
+          e.preventDefault();
+          this.vorschlagPanel?.verwerfen(id);
+          break;
+        case 'delete-item':
+          e.preventDefault();
+          this.handleDeleteItem(id);
+          break;
+        case 'create-creator':
+          e.preventDefault();
+          this.handleCreateCreator(id);
+          break;
+        case 'create-videoidee':
+          e.preventDefault();
+          this.handleCreateVideoidee(id);
+          break;
+        case 'connect-videoidee':
+          e.preventDefault();
+          this.handleConnectVideoidee(id);
+          break;
+        case KONZEPT_EINHOLEN_ACTION:
+          e.preventDefault();
+          this.handleKonzeptEinholen([id]);
+          break;
+        case TAUSCH_ACTION:
+          e.preventDefault();
+          tauscheImCasting(this, id);
+          break;
+      }
+    };
+    document.addEventListener('click', actionClickHandler);
+    this._boundEventListeners.add(() => document.removeEventListener('click', actionClickHandler));
+
+    const bewerbungClick = async (e) => {
+      const aufnehmen = e.target.closest('[data-action="aufnehmen-bewerbung"]');
+      const verwerfen = e.target.closest('[data-action="verwerfen-bewerbung"]');
+      const button = aufnehmen || verwerfen;
+      if (!button) return;
+      e.preventDefault();
+      if (aufnehmen) await aufnehmenBewerbung(this, button.dataset.id);
+      else await verwerfenBewerbung(this, button.dataset.id);
+    };
+    document.addEventListener('click', bewerbungClick);
+    this._boundEventListeners.add(() => document.removeEventListener('click', bewerbungClick));
+
+    const anfrageBtn = this._q('#btn-management-anfrage');
+    if (anfrageBtn && this._canSourcing('create')) {
+      const openAnfrage = () => openManagementAnfrage({ liste: this.liste });
+      anfrageBtn.addEventListener('click', openAnfrage);
+      this._boundEventListeners.add(() => anfrageBtn.removeEventListener('click', openAnfrage));
+    }
+
+    const igFetchHandler = (e) => {
+      const btn = e.target.closest('[data-ig-fetch]');
+      if (!btn || btn.disabled || btn.hidden) return;
+      e.preventDefault();
+      this.handleInstagramFetch(btn.dataset.itemId, btn);
+    };
+    document.addEventListener('click', igFetchHandler);
+    this._boundEventListeners.add(() => document.removeEventListener('click', igFetchHandler));
+  }
+
+  if (!this.isKunde && this._canSourcing('edit')) {
+    this.bindToolbarMenu();
+
+    const shareBtn = this._q('#btn-share-sourcing');
+    if (shareBtn) {
+      const handler = () => window.shareListDrawer?.open({
+        entityType: 'sourcing',
+        entityId: this.listeId,
+        entityName: this.liste?.name || ''
+      });
+      shareBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => shareBtn.removeEventListener('click', handler));
+    }
+
+    const kundenCallBtn = this._q('#btn-kunden-call-toggle');
+    if (kundenCallBtn) {
+      const handler = () => this.toggleKundenCall();
+      kundenCallBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => kundenCallBtn.removeEventListener('click', handler));
+    }
+
+    const tabelleAnpassenBtn = this._q('#btn-sourcing-tabelle-anpassen');
+    if (tabelleAnpassenBtn) {
+      const handler = () => this.showTabelleAnpassenDrawer();
+      tabelleAnpassenBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => tabelleAnpassenBtn.removeEventListener('click', handler));
+    }
+
+    const kategorienBtn = this._q('#btn-sourcing-kategorien');
+    if (kategorienBtn) {
+      const handler = () => this.openKategorienDrawer();
+      kategorienBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => kategorienBtn.removeEventListener('click', handler));
+    }
+
+    const konzeptLinkBtn = this._q('#btn-sourcing-konzept-link');
+    if (konzeptLinkBtn) {
+      const handler = () => this.handleKonzeptLink();
+      konzeptLinkBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => konzeptLinkBtn.removeEventListener('click', handler));
+    }
+
+    this._boundEventListeners.add(bindListenTkpFeld(this._q('#sourcing-listen-tkp'), {
+      getAktuell: () => getListenTkp(this.liste),
+      onSave: (tkp) => this.saveListenEinstellungen({ tkp })
+    }));
+
+    const addBtn = this._q('#btn-open-add-drawer');
+    if (addBtn) {
+      const handler = () => this.addDrawer.open();
+      addBtn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => addBtn.removeEventListener('click', handler));
+    }
+
+    this.bindDragAndDropEvents();
+    this.bindSelectionEvents();
+    this.bindPillEvents();
+    this._bindCustomColumnEvents();
+  }
+
+  // Namenssuche (auch fuer Kunden/Gaeste sichtbar)
+  const searchAbort = new AbortController();
+  SearchInput.bind('sourcing-item', (value) => this.handleSearch(value), searchAbort.signal);
+  this._boundEventListeners.add(() => searchAbort.abort());
+
+  // Status-Reiter (auch fuer Kunden sichtbar)
+  this._qq('.sourcing-tab-navigation .tab-button').forEach(btn => {
+    const handler = (e) => {
+      e.preventDefault();
+      this.switchTab(btn.dataset.sourcingTab);
+    };
+    btn.addEventListener('click', handler);
+    this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+  });
+
+  this.initFloatingScrollbar();
+  this.bindDragToScroll();
+
+  // Feld-Updates (Input/Textarea/Select)
+  this._qq('input[data-field], textarea[data-field], select[data-field]').forEach(el => {
+    const handler = () => this.handleFieldUpdate(el);
+    if (el.type === 'checkbox') {
+      el.addEventListener('change', handler);
+      this._boundEventListeners.add(() => el.removeEventListener('change', handler));
+    } else {
+      const onBlur = () => {
+        if (!shouldPersistTextField(el)) return;
+        handler();
+      };
+      el.addEventListener('blur', onBlur);
+      el.addEventListener('change', handler);
+      this._boundEventListeners.add(() => {
+        el.removeEventListener('blur', onBlur);
+        el.removeEventListener('change', handler);
+      });
+    }
+  });
+
+  // Select-Spalten der Tabelle (Portal-Dropdown ist global, nur der Change interessiert hier)
+  tableSelect.init();
+  const selectHandler = (e) => {
+    const { field, itemId, value, element } = e.detail || {};
+    const table = element?.closest('.creator-pool-table');
+    const imDrawer = element?.closest('#casting-detail-drawer');
+    if (!imDrawer && (!table || !this._getRoot()?.contains(table))) return;
+
+    if (field === 'sourcing_status') this.handleStatusChange(itemId, value);
+    else if (field === 'kunden_feedback') this.handleKundenFeedbackChange(itemId, value);
+    else if (field === 'creator_typ') this.handleTypChange(itemId, value);
+  };
+  document.addEventListener('table-select-change', selectHandler);
+  this._boundEventListeners.add(() => document.removeEventListener('table-select-change', selectHandler));
+
+  const supportsContentSizing = globalThis.CSS?.supports?.('field-sizing', 'content') === true;
+  if (!supportsContentSizing) {
+    this._qq('.cp-col-feedback textarea.auto-resize-textarea').forEach(el => {
+      autoResizeTextarea(el);
+      const handler = () => autoResizeTextarea(el);
+      el.addEventListener('input', handler);
+      this._boundEventListeners.add(() => el.removeEventListener('input', handler));
+    });
+  }
+}
+
+export function _bindCustomColumnEvents() {
+  if (!this.customColumns?.hasColumns) return;
+
+  // Inline-Edits der Custom-Felder
+  this._qq('.custom-col-input').forEach(el => {
+    const handler = () => this.customColumns.handleFieldUpdate(el);
+    const isChangeOnly = el.type === 'checkbox' || el.tagName === 'SELECT' || el.classList.contains('custom-col-date');
+    if (isChangeOnly) {
+      el.addEventListener('change', handler);
+      this._boundEventListeners.add(() => el.removeEventListener('change', handler));
+    } else {
+      const onBlur = () => {
+        if (!shouldPersistTextField(el)) return;
+        rememberTextBaseline(el);
+        handler();
+      };
+      el.addEventListener('blur', onBlur);
+      el.addEventListener('change', handler);
+      this._boundEventListeners.add(() => {
+        el.removeEventListener('blur', onBlur);
+        el.removeEventListener('change', handler);
+      });
+    }
+  });
+
+  // Header Drag&Drop ueber Hand-Griff (nur Custom-Spalten)
+  if (this._customHeaderDragCleanup) this._customHeaderDragCleanup();
+  const thead = this._q('.creator-pool-table thead');
+  this._customHeaderDragCleanup = this.customColumns.bindHeaderDragAndDrop(
+    thead,
+    () => {
+      this.uebernehmeKopfVerschiebung()
+        .catch(error => {
+          console.error('Spalten-Reihenfolge speichern fehlgeschlagen:', error);
+          window.toastSystem?.show('Reihenfolge konnte nicht gespeichert werden', 'error');
+        })
+        .finally(() => this.rerenderTable());
+    }
+  );
+  this._boundEventListeners.add(() => {
+    if (this._customHeaderDragCleanup) { this._customHeaderDragCleanup(); this._customHeaderDragCleanup = null; }
+  });
+
+  const table = this._q('.creator-pool-table');
+  if (this._customHeaderResizeCleanup) this._customHeaderResizeCleanup();
+  this._customHeaderResizeCleanup = this.customColumns.bindColumnResize(table);
+  this._boundEventListeners.add(() => {
+    if (this._customHeaderResizeCleanup) { this._customHeaderResizeCleanup(); this._customHeaderResizeCleanup = null; }
+  });
+
+  // Datepicker-Popover fuer Datums-Custom-Felder aktivieren
+  if (table) {
+    const cleanup = CustomDatePicker.bind(table);
+    if (cleanup) this._boundEventListeners.add(cleanup);
+    bindWrappingTextareas(table, (fn) => this._boundEventListeners.add(fn));
+  }
+}
+
+export function bindPillEvents() {
+  this._qq('.kategorie-pill').forEach(pill => {
+    const handler = (e) => {
+      e.stopPropagation();
+      this.openPillDropdown(pill.dataset.itemId, pill);
+    };
+    pill.addEventListener('click', handler);
+    this._boundEventListeners.add(() => pill.removeEventListener('click', handler));
+  });
+
+  const closeHandler = (e) => {
+    if (!e.target.closest('.kategorie-pill-dropdown') && !e.target.closest('.kategorie-pill')) {
+      this.closePillDropdown();
+    }
+  };
+  document.addEventListener('click', closeHandler);
+  this._boundEventListeners.add(() => document.removeEventListener('click', closeHandler));
+}
+
+export function openPillDropdown(itemId, pillElement) {
+  this.closePillDropdown();
+
+  const options = [
+    ...this.getTeilbereiche().map(name => ({ key: name, label: name })),
+    { key: OHNE_KATEGORIE_KEY, label: OHNE_KATEGORIE }
+  ];
+  const currentItem = this.items.find(i => i.id === itemId);
+  const currentKey = kategorieGroupKey(currentItem);
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'kategorie-pill-dropdown';
+  dropdown.innerHTML = options.map(opt =>
+    `<div class="kategorie-pill-option${opt.key === currentKey ? ' active' : ''}" data-group-key="${escapeAttr(opt.key)}">${escapeAttr(opt.label)}</div>`
+  ).join('');
+
+  const rect = pillElement.getBoundingClientRect();
+  dropdown.style.position = 'fixed';
+  dropdown.style.top = (rect.bottom + 4) + 'px';
+  dropdown.style.left = rect.left + 'px';
+  dropdown.style.zIndex = '9999';
+
+  document.body.appendChild(dropdown);
+
+  dropdown.querySelectorAll('.kategorie-pill-option').forEach(opt => {
+    opt.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const newKey = opt.dataset.groupKey;
+      if (newKey === currentKey) {
+        this.closePillDropdown();
+        return;
+      }
+      this.closePillDropdown();
+
+      const row = this._q(`.item-row[data-item-id="${itemId}"]`);
+      if (row) row.classList.add('kategorie-moving-out');
+      await new Promise(r => setTimeout(r, 300));
+
+      await this.handleKategorieChange(itemId, newKey);
+    });
+  });
+}
+
+export function closePillDropdown() {
+  const existing = document.querySelector('.kategorie-pill-dropdown');
+  if (existing) existing.remove();
+}
+
+export const castingDetailEventsMethods = {
+  bindEvents,
+  _bindCustomColumnEvents,
+  bindPillEvents,
+  openPillDropdown,
+  closePillDropdown
+};

@@ -1,42 +1,26 @@
 // ActionsDropdown.js — Fassade
-// Delegiert an ActionsDropdownHandlers, ActionsDropdownAnsprechpartner, ActionsDropdownModals
+// Delegiert an ActionsDropdownHandlers/-Effects und die Modal-Dateien
+// (ActionsDropdownAnsprechpartner, AnsprechpartnerRemoveModal, StaffAssignModals,
+// CreatorAssignModals, KooperationQuickView)
 
 import { iconRegistry } from './actions/IconRegistry.js';
 import { actionBuilder } from './actions/ActionBuilder.js';
+import { playMenu, closeMenu, discardMenu } from './animation/menu.js';
 
-import { handleAction, setField, addToFavorites } from './ActionsDropdownHandlers.js';
+import { handleAction, setField, GLOBAL_ACTIONS } from './ActionsDropdownHandlers.js';
+import { addToFavorites } from './ActionsDropdownEffects.js';
 import {
   openAddAnsprechpartnerModal,
   openAddAnsprechpartnerToUnternehmenModal,
-  openRemoveAnsprechpartnerFromUnternehmenModal,
-  removeAnsprechpartnerFromUnternehmen
+  openAddAnsprechpartnerToKampagneModal
 } from './ActionsDropdownAnsprechpartner.js';
 import {
-  openKooperationQuickView,
-  openAssignStaffModal,
-  openAssignMarkeStaffModal,
-  openAddToCampaignModal,
-  openAddToListModal,
-  openAddAnsprechpartnerToKampagneModal
-} from './ActionsDropdownModals.js';
-
-// Spiegel der Cases aus handleAction (ActionsDropdownHandlers.js).
-// Nur diese Actions darf der globale Click-Handler claimen.
-const KNOWN_GLOBAL_ACTIONS = new Set([
-  'view', 'edit', 'continue', 'delete', 'delete-liste', 'rename-liste',
-  'creator-upload-send', 'creator-upload-resend', 'creator-upload-copy', 'creator-upload-revoke',
-  'delete-strategie', 'view-strategie', 'edit-strategie', 'remove',
-  'rechnung_anpassen', 'download', 'marken', 'auftraege', 'kampagnen',
-  'task-create', 'quickview', 'assign-staff', 'assign_staff', 'rechnung',
-  'add_to_campaign', 'favorite', 'add_to_list', 'connect',
-  'add-signed', 'edit-signed', 'replace-signed', 'remove-signed',
-  'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
-  'add_produkt', 'add_persona',
-  'remove_ansprechpartner_unternehmen', 'remove_ansprechpartner_link',
-  'edit_creator_adresse', 'set_standard_adresse', 'set_hauptadresse_standard',
-  'delete_creator_adresse', 'unassign-kampagne',
-  'freischalten', 'details', 'auftrag-details'
-]);
+  openRemoveAnsprechpartnerFromUnternehmenModal,
+  removeAnsprechpartnerFromUnternehmen
+} from './AnsprechpartnerRemoveModal.js';
+import { openAssignStaffModal, openAssignMarkeStaffModal } from './StaffAssignModals.js';
+import { openAddToCampaignModal, openAddToListModal } from './CreatorAssignModals.js';
+import { openKooperationQuickView } from './KooperationQuickView.js';
 
 export class ActionsDropdown {
   constructor() {
@@ -110,7 +94,7 @@ export class ActionsDropdown {
   // Actions, die der globale Switch in ActionsDropdownHandlers wirklich bedient.
   // Alles andere ist page-eigen und wird nicht geclaimt.
   isKnownGlobalAction(action) {
-    return KNOWN_GLOBAL_ACTIONS.has(action);
+    return GLOBAL_ACTIONS.has(action);
   }
 
   // --- Portal-UI ---
@@ -135,6 +119,7 @@ export class ActionsDropdown {
         replaceIn('.action-item.action-danger[data-action="delete"]', 'delete');
         replaceIn('.action-item[data-action="rechnungen"]', 'rechnungen');
         replaceIn('.action-item[data-action="auftrag-details"]', 'details');
+        replaceIn('.action-item[data-action="anschreiben"]', 'anschreiben');
         dd.setAttribute('data-icons-normalized', '1');
       });
     } catch (err) {
@@ -176,9 +161,10 @@ export class ActionsDropdown {
   }
 
   toggleDropdown(toggleButton) {
-    const existingPortal = document.querySelector('.actions-dropdown-portal');
+    const existingPortal = document.querySelector('.actions-dropdown-portal:not([data-menu-state="closing"])');
     const wasOpenForThisButton = existingPortal && existingPortal._sourceToggle === toggleButton;
-    this.closeAllDropdowns();
+    // Selber Button: animiert zu. Anderer Button (oder Menue im Ausblenden): sofort weg, dann neu auf.
+    this.closeAllDropdowns({ immediate: !wasOpenForThisButton });
     if (wasOpenForThisButton) return;
 
     const sourceDropdown = toggleButton.nextElementSibling;
@@ -196,37 +182,123 @@ export class ActionsDropdown {
     }
 
     document.body.appendChild(portal);
+    this.positionPortal(portal, toggleButton.getBoundingClientRect());
 
-    const buttonRect = toggleButton.getBoundingClientRect();
-    const portalHeight = portal.offsetHeight || 300;
-    const viewportHeight = window.innerHeight;
-    const spaceBelow = viewportHeight - buttonRect.bottom;
-    const needsFlip = spaceBelow < portalHeight && buttonRect.top > portalHeight;
-
-    portal.style.right = (window.innerWidth - buttonRect.right) + 'px';
-
-    if (needsFlip) {
-      portal.style.bottom = (viewportHeight - buttonRect.top + 4) + 'px';
-      portal.style.transformOrigin = 'bottom right';
-    } else {
-      portal.style.top = (buttonRect.bottom + 4) + 'px';
-      portal.style.transformOrigin = 'top right';
-    }
-
-    requestAnimationFrame(() => portal.classList.add('show'));
+    portal.dataset.menuState = 'open';
+    playMenu(portal, true);
     toggleButton.setAttribute('aria-expanded', 'true');
   }
 
-  positionSubmenu(submenu, trigger) {
-    const triggerRect = trigger.getBoundingClientRect();
-    const submenuHeight = submenu.offsetHeight || submenu.scrollHeight || 300;
+  // Rechts am Button ausrichten, aber im Viewport halten. Die Aktions-Spalte
+  // im Kooperationen-Tab klebt am rechten Rand. Reicht die Hoehe nicht, wird
+  // das Menue zuerst enger gesetzt, damit Eintraege wie Loeschen sichtbar
+  // bleiben, und nur danach scrollbar.
+  positionPortal(portal, anchorRect) {
+    const margin = 8;
+    const gap = 4;
+    const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const overflow = (triggerRect.top + submenuHeight) - (viewportHeight - 20);
-    submenu.style.top = overflow > 0 ? -overflow + 'px' : '0px';
+    const maxWidth = Math.max(160, viewportWidth - margin * 2);
+
+    portal.style.maxWidth = `${maxWidth}px`;
+    portal.style.right = 'auto';
+    portal.style.bottom = 'auto';
+    portal.style.maxHeight = 'none';
+    portal.style.overflowY = 'visible';
+    portal.classList.remove('is-compact', 'is-scrollable');
+
+    const portalWidth = Math.min(portal.offsetWidth || portal.scrollWidth || 260, maxWidth);
+    let left = anchorRect.right - portalWidth;
+    left = Math.min(left, viewportWidth - portalWidth - margin);
+    left = Math.max(margin, left);
+    portal.style.left = `${left}px`;
+
+    const measure = () => Math.max(portal.offsetHeight, portal.scrollHeight) || 300;
+    let portalHeight = measure();
+    const roomBelow = () => viewportHeight - anchorRect.bottom - gap;
+    const roomAbove = () => anchorRect.top - gap;
+    let openUp = roomBelow() < portalHeight && roomAbove() > roomBelow();
+    let available = openUp
+      ? Math.max(0, anchorRect.top - gap - margin)
+      : Math.max(0, viewportHeight - (anchorRect.bottom + gap) - margin);
+
+    if (portalHeight > available) {
+      portal.classList.add('is-compact');
+      portalHeight = measure();
+      openUp = roomBelow() < portalHeight && roomAbove() > roomBelow();
+      available = openUp
+        ? Math.max(0, anchorRect.top - gap - margin)
+        : Math.max(0, viewportHeight - (anchorRect.bottom + gap) - margin);
+    }
+
+    if (openUp) {
+      const height = Math.min(portalHeight, available);
+      portal.style.top = `${Math.max(margin, anchorRect.top - gap - height)}px`;
+      portal.style.transformOrigin = 'bottom right';
+    } else {
+      portal.style.top = `${Math.max(margin, anchorRect.bottom + gap)}px`;
+      portal.style.transformOrigin = 'top right';
+    }
+
+    if (portalHeight > available) {
+      portal.style.maxHeight = `${available}px`;
+      portal.style.overflowY = 'scroll';
+      portal.classList.add('is-scrollable');
+    } else {
+      portal.style.maxHeight = '';
+      portal.style.overflowY = '';
+    }
   }
 
-  closeAllDropdowns() {
-    document.querySelectorAll('.actions-dropdown-portal').forEach(portal => portal.remove());
+  positionSubmenu(submenu, trigger) {
+    const margin = 8;
+    const triggerRect = trigger.getBoundingClientRect();
+    const submenuHeight = submenu.offsetHeight || submenu.scrollHeight || 300;
+    const submenuWidth = submenu.offsetWidth || submenu.scrollWidth || 240;
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+
+    submenu.style.maxHeight = '';
+    submenu.style.overflowY = '';
+    submenu.style.top = '';
+    submenu.classList.remove('submenu--flip-right', 'submenu--inline');
+    trigger.classList.remove('submenu-opens-right', 'submenu-opens-inline');
+
+    const spaceLeft = triggerRect.left - margin;
+    const spaceRight = viewportWidth - triggerRect.right - margin;
+    const fitsLeft = spaceLeft >= submenuWidth;
+    const fitsRight = spaceRight >= submenuWidth;
+
+    if (!fitsLeft && fitsRight) {
+      submenu.classList.add('submenu--flip-right');
+      trigger.classList.add('submenu-opens-right');
+    } else if (!fitsLeft && !fitsRight) {
+      submenu.classList.add('submenu--inline');
+      trigger.classList.add('submenu-opens-inline');
+      return;
+    }
+
+    const availableHeight = viewportHeight - margin * 2;
+    if (submenuHeight > availableHeight) {
+      submenu.style.maxHeight = `${availableHeight}px`;
+      submenu.style.overflowY = 'auto';
+      submenu.style.top = `${margin - triggerRect.top}px`;
+      return;
+    }
+
+    const overflowBottom = (triggerRect.top + submenuHeight) - (viewportHeight - margin);
+    let top = overflowBottom > 0 ? -overflowBottom : 0;
+    if (triggerRect.top + top < margin) top = margin - triggerRect.top;
+    submenu.style.top = `${top}px`;
+  }
+
+  // Standard: animiert zu (Portal verschwindet am Ende der Timeline).
+  // { immediate: true }: sofort weg (Wechsel auf anderen Button, Scroll, destroy).
+  closeAllDropdowns({ immediate = false } = {}) {
+    document.querySelectorAll('.actions-dropdown-portal').forEach(portal => {
+      if (immediate) discardMenu(portal);
+      else closeMenu(portal);
+    });
     document.querySelectorAll('.actions-toggle').forEach(toggle => {
       toggle.setAttribute('aria-expanded', 'false');
     });
@@ -303,12 +375,14 @@ export class ActionsDropdown {
       // Page-eigene Actions: nur Dropdown schliessen, Handler laeuft auf der Seite.
       const customActions = [
         'comment-delete', 'video-view', 'video-edit', 'video-delete',
-        'remove-zuordnung', 'add-to-video', 'unlink-from-video',
+        'remove-zuordnung',
         'edit-item', 'delete-item',
         'activate-vorschlag', 'discard-vorschlag',
-        'toggle-skript-freigabe', 'reprocess-item', 'connect-creator'
+        'toggle-skript-freigabe', 'reprocess-item', 'connect-creator',
+        'create-creator', 'create-videoidee', 'connect-videoidee', 'tausch-creator', 'konzept-einholen'
       ];
       if (customActions.includes(action) || !this.isKnownGlobalAction(action)) {
+        e.preventDefault();
         this.closeAllDropdowns();
         return;
       }
@@ -347,8 +421,15 @@ export class ActionsDropdown {
     }, { signal });
 
     window.addEventListener('scroll', () => {
-      if (document.querySelector('.actions-dropdown-portal')) this.closeAllDropdowns();
+      if (document.querySelector('.actions-dropdown-portal')) this.closeAllDropdowns({ immediate: true });
     }, { capture: true, signal });
+
+    window.addEventListener('resize', () => {
+      const portal = document.querySelector('.actions-dropdown-portal');
+      const toggle = portal?._sourceToggle;
+      if (!portal || !toggle?.isConnected) return;
+      this.positionPortal(portal, toggle.getBoundingClientRect());
+    }, { signal });
 
     document.addEventListener('mouseover', (e) => {
       const trigger = e.target.closest('.actions-dropdown-portal .action-item.has-submenu');
@@ -361,7 +442,7 @@ export class ActionsDropdown {
   }
 
   destroy() {
-    this.closeAllDropdowns();
+    this.closeAllDropdowns({ immediate: true });
     this._abortController?.abort();
     this._abortController = null;
     if (this._iconObserver) {

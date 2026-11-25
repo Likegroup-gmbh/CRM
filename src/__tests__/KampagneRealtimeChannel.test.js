@@ -1,0 +1,176 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import {
+  acquireKampagneChannel,
+  __resetKampagneChannels,
+  GRACE_MS,
+  RECONNECT_BASE_MS,
+  RESYNC_AFTER_HIDDEN_MS,
+  RESYNC_JITTER_MS
+} from '../modules/kampagne/kampagneRealtimeChannel.js';
+import { makeSupabase, setVisibility } from './kampagneRealtimeTestKit.js';
+
+describe('kampagneRealtimeChannel', () => {
+  let channels;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // Streuung auf die Mitte: Reconnect genau nach Basis, Resync nach halbem Jitter
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const made = makeSupabase();
+    channels = made.channels;
+    window.supabase = made.supabase;
+  });
+
+  afterEach(() => {
+    __resetKampagneChannels();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    delete window.supabase;
+    setVisibility('visible');
+  });
+
+  it('meldet pro Tabelle ein Event * an (statt je INSERT/UPDATE/DELETE)', () => {
+    acquireKampagneChannel('k1', { onChange: vi.fn() });
+
+    expect(channels.map(c => c.name)).toEqual(['kampagne-koops-videos-k1', 'kampagne-medien-k1']);
+    const { handlers } = channels[0];
+    expect(handlers.map(h => `${h.opts.table}:${h.opts.event}`)).toEqual([
+      'kooperation_videos:*',
+      'kooperation_video_comment:*',
+      'kooperation_video_zeitkommentar:*',
+      'kooperation_still_comment:*',
+      'custom_column_values:*',
+      'kooperationen:*',
+      'kooperationen:DELETE'
+    ]);
+    expect(handlers[5].opts.filter).toBe('kampagne_id=eq.k1');
+  });
+
+  it('abonniert den Medien-Stand in einem eigenen Channel, gefiltert nach Kampagne', () => {
+    acquireKampagneChannel('k1', { onChange: vi.fn() });
+
+    const { handlers } = channels[1];
+    expect(handlers.map(h => `${h.opts.table}:${h.opts.event}`)).toEqual(['kooperation_medien_stand:*']);
+    expect(handlers[0].opts.filter).toBe('kampagne_id=eq.k1');
+  });
+
+  it('stellt den Medien-Stand mit Tabellenname zu', () => {
+    const onChange = vi.fn();
+    acquireKampagneChannel('k1', { onChange });
+    const payload = { eventType: 'UPDATE', new: { kooperation_id: 'koop1', kampagne_id: 'k1' } };
+
+    channels[1].handlers[0].cb(payload);
+
+    expect(onChange).toHaveBeenCalledWith('kooperation_medien_stand', payload);
+  });
+
+  it('teilt die Channels zwischen Listenern und baut sie nach der Gnadenfrist ab', () => {
+    const releaseA = acquireKampagneChannel('k1', { onChange: vi.fn() });
+    releaseA();
+    // Kanban/Tabelle-Wechsel: neuer Listener innerhalb der Gnadenfrist
+    const releaseB = acquireKampagneChannel('k1', { onChange: vi.fn() });
+
+    expect(window.supabase.channel).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(GRACE_MS + 1000);
+    expect(window.supabase.removeChannel).not.toHaveBeenCalled();
+
+    releaseB();
+    vi.advanceTimersByTime(GRACE_MS - 1);
+    expect(window.supabase.removeChannel).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(2);
+    expect(window.supabase.removeChannel).toHaveBeenCalledTimes(2);
+  });
+
+  it('stellt Events dem Listener mit Tabellenname zu', () => {
+    const onChange = vi.fn();
+    acquireKampagneChannel('k1', { onChange });
+    const payload = { eventType: 'UPDATE', new: { id: 'v1' } };
+
+    channels[0].handlers[0].cb(payload);
+
+    expect(onChange).toHaveBeenCalledWith('kooperation_videos', payload);
+  });
+
+  it('baut nach Fehler mit Backoff neu auf und loest danach einen Resync aus', () => {
+    const onResync = vi.fn();
+    acquireKampagneChannel('k1', { onChange: vi.fn(), onResync });
+    const first = channels[0];
+
+    first.statusCb('SUBSCRIBED');
+    expect(onResync).not.toHaveBeenCalled();
+
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    first.statusCb('CHANNEL_ERROR', new Error('x'));
+    vi.advanceTimersByTime(RECONNECT_BASE_MS - 1);
+    expect(channels).toHaveLength(2);
+    vi.advanceTimersByTime(2);
+    expect(channels).toHaveLength(3);
+    expect(channels[2].name).toBe('kampagne-koops-videos-k1');
+    expect(window.supabase.removeChannel).toHaveBeenCalledWith(first);
+
+    channels[2].statusCb('SUBSCRIBED');
+    expect(onResync).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(RESYNC_JITTER_MS);
+    expect(onResync).toHaveBeenCalledTimes(1);
+  });
+
+  it('ein abgelehnter Medien-Channel laesst den Kern-Channel unberuehrt', () => {
+    const onResync = vi.fn();
+    const onChange = vi.fn();
+    acquireKampagneChannel('k1', { onChange, onResync });
+    const [kern, medien] = channels;
+    kern.statusCb('SUBSCRIBED');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    medien.statusCb('CHANNEL_ERROR', new Error('relation does not exist'));
+    vi.advanceTimersByTime(RECONNECT_BASE_MS + 1);
+    channels[2].statusCb('CHANNEL_ERROR', new Error('relation does not exist'));
+    vi.advanceTimersByTime(RECONNECT_BASE_MS * 2 + 1);
+
+    expect(channels.map(c => c.name)).toEqual([
+      'kampagne-koops-videos-k1',
+      'kampagne-medien-k1',
+      'kampagne-medien-k1',
+      'kampagne-medien-k1'
+    ]);
+    expect(window.supabase.removeChannel).not.toHaveBeenCalledWith(kern);
+    expect(onResync).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledTimes(1);
+
+    kern.handlers[0].cb({ eventType: 'UPDATE', new: { id: 'v1' } });
+    expect(onChange).toHaveBeenCalledWith('kooperation_videos', expect.anything());
+  });
+
+  it('ignoriert Status eines bereits abgebauten Channels', () => {
+    const onResync = vi.fn();
+    const release = acquireKampagneChannel('k1', { onChange: vi.fn(), onResync });
+    const [first, medien] = channels;
+    release();
+    vi.advanceTimersByTime(GRACE_MS + 1);
+
+    first.statusCb('CLOSED');
+    medien.statusCb('CHANNEL_ERROR', new Error('x'));
+    vi.advanceTimersByTime(RECONNECT_BASE_MS * 4);
+
+    expect(channels).toHaveLength(2);
+    expect(onResync).not.toHaveBeenCalled();
+  });
+
+  it('holt nach laengerem Hintergrund-Tab nach, nach kurzem nicht', () => {
+    const onResync = vi.fn();
+    acquireKampagneChannel('k1', { onChange: vi.fn(), onResync });
+
+    setVisibility('hidden');
+    vi.advanceTimersByTime(RESYNC_AFTER_HIDDEN_MS - 1000);
+    setVisibility('visible');
+    vi.advanceTimersByTime(RESYNC_JITTER_MS);
+    expect(onResync).not.toHaveBeenCalled();
+
+    setVisibility('hidden');
+    vi.advanceTimersByTime(RESYNC_AFTER_HIDDEN_MS + 1000);
+    setVisibility('visible');
+    expect(onResync).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(RESYNC_JITTER_MS);
+    expect(onResync).toHaveBeenCalledTimes(1);
+  });
+});

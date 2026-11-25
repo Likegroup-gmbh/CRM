@@ -9,7 +9,9 @@
 // unternehmen_id ist im Nested-Flow ein Hidden-Feld aus dem Kontext. Im
 // Standalone (/produkt/new, /produkt/:id) ist es ein sichtbares Select
 // (docRole 'owner'). marke_ids rendert nur im Unternehmens-Kontext und im
-// Standalone - aus einer Marke heraus ist die Zuordnung fix.
+// Standalone - aus einer Marke heraus ist die Zuordnung fix. briefing_ids
+// ist immer da (Tag-Multiselect, gefiltert nach Unternehmen) und landet
+// in campaign_briefing_produkt, nicht in der produkt-Zeile.
 //
 // Die doc*-Angaben steuern das Worksheet-Layout im geteilten Doc-Renderer
 // (core/doc/DocPage.js - dort ist der kanonische Ueberblick dokumentiert).
@@ -21,20 +23,20 @@
 export const produktConfig = {
   title: 'Neues Produkt anlegen',
   fields: [
-    // 1. Auslesen - steht ganz oben, damit die Shop-URL vor dem manuellen
-    // Tippen eingegeben wird und die Felder darunter fuellen kann.
+    // 1. Auslesen - nur der Chat-Trigger, nicht die gespeicherte Produkt-URL.
+    // name darf nicht "url" sein: sonst kollidiert das Composer-Input mit dem
+    // Dokumentfeld und collectSubmitData macht aus zwei Werten ein Array.
     {
-      name: 'url',
+      name: 'extract_quelle',
       label: 'Shop-URL',
       type: 'url',
       required: false,
-      validation: { type: 'url' },
       placeholder: 'https://muster-shop.de/products/produktname',
       aiExtract: true,
       docSlot: 'side',
       section: 'auslesen',
       sectionTitle: 'Mit der Produktseite starten',
-      sectionDescription: 'Adresse eintragen und "Auslesen" klicken: Beschreibung, USP, Preis und Produktbilder kommen aus der Shop-Seite. Nur leere Felder werden gefüllt, eigene Eingaben bleiben unangetastet.'
+      sectionDescription: 'Adresse eintragen und "Auslesen" klicken, oder ein Produkt-PDF auf Liky ziehen. Beschreibung, USP, Preis und Produktbilder kommen aus der Quelle. Nur leere Felder werden gefüllt, eigene Eingaben bleiben unangetastet.'
     },
 
     // 2. Was ist es
@@ -49,6 +51,18 @@ export const produktConfig = {
       section: 'basis',
       sectionTitle: 'Was ist das Produkt?',
       sectionDescription: 'Die Kollektion trägt die gemeinsame Basis. Unterschiede wie Farbe oder Modell kommen als Varianten dazu.'
+    },
+    {
+      name: 'url',
+      label: 'Produkt-URL',
+      type: 'url',
+      required: true,
+      validation: { type: 'url' },
+      placeholder: 'https://muster-shop.de/products/produktname',
+      docLabel: 'Produkt-URL',
+      docHint: 'Kommt aus der Shop-URL im Chat oder aus dem PDF. Sonst hier eintragen.',
+      docGroup: 'inhalt',
+      section: 'basis'
     },
     {
       name: 'unternehmen_id',
@@ -86,6 +100,30 @@ export const produktConfig = {
       docRole: 'relations',
       docLabel: 'Marken',
       docHint: 'Optional. Ohne Marke gehört das Produkt nur dem Unternehmen.',
+      docGroup: 'inhalt',
+      section: 'basis'
+    },
+    {
+      name: 'briefing_ids',
+      label: 'Briefings',
+      type: 'multiselect',
+      required: false,
+      dynamic: true,
+      searchable: true,
+      tagBased: true,
+      customField: true,
+      includeDrafts: true,
+      table: 'campaign_briefings',
+      displayField: 'aktivierung_name',
+      valueField: 'id',
+      filterBy: 'unternehmen_id',
+      relationTable: 'campaign_briefing_produkt',
+      relationField: 'briefing_id',
+      relationEntityField: 'produkt_id',
+      placeholder: 'Briefings suchen und hinzufügen...',
+      docRole: 'relations',
+      docLabel: 'Briefings',
+      docHint: 'Optional. Briefings dieses Unternehmens, auch Entwürfe.',
       docGroup: 'inhalt',
       section: 'basis'
     },

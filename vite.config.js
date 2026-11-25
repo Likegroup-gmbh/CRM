@@ -51,7 +51,8 @@ export default defineConfig({
         verifyEmail: 'src/auth/verify-email.html',
         confirmEmail: 'src/auth/confirm-email.html',
         resetPassword: 'src/auth/reset-password.html',
-        creatorUpload: 'src/upload/creator-upload.html'
+        creatorUpload: 'src/upload/creator-upload.html',
+        bewerbung: 'src/bewerbung/bewerbung.html'
       },
       output: {
         manualChunks: {
@@ -64,8 +65,11 @@ export default defineConfig({
   },
   publicDir: 'public',
   server: {
-    port: 3000,
-    open: true
+    port: 3001,
+    strictPort: true,
+    open: true,
+    // Functions lokal über `npm run dev:functions`; netlify dev scheitert am SPA-Fallback /* → index.html
+    proxy: { '/.netlify/functions': 'http://localhost:9999' }
   },
   resolve: {
     alias: {

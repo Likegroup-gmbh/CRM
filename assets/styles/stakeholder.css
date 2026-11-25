@@ -7,7 +7,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
-  max-width: var(--container-max-width);
+  max-width: 80%;
   /* #dashboard-content setzt .main-wrapper-Padding auf 0 – Abstand wie ueblich hier setzen */
   padding: var(--space-lg);
   box-sizing: border-box;
@@ -18,59 +18,53 @@
   color: var(--text-secondary);
 }
 
-.stakeholder-year-field {
-  min-width: var(--min-width-md);
+/* Skeleton waehrend der Finanzbestand laedt: gleiche Rasterung wie die echten
+   Karten, damit beim Rendern nichts springt. */
+@keyframes stakeholder-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
-/* Kategorie-Tabs mit Count-Badges */
+.stakeholder-skeleton-card,
+.stakeholder-skeleton-list,
+.stakeholder-skeleton-bar {
+  border-radius: var(--radius-xl);
+  background: var(--bg-secondary);
+  animation: stakeholder-skeleton-pulse 1.4s ease-in-out infinite;
+}
 
-.stakeholder-tabs {
+.stakeholder-skeleton-bar {
+  height: 2.5rem;
+}
+
+.stakeholder-skeleton-card {
+  min-height: 11rem;
+}
+
+.stakeholder-skeleton-list {
+  min-height: 18rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stakeholder-skeleton-card,
+  .stakeholder-skeleton-list,
+  .stakeholder-skeleton-bar {
+    animation: none;
+  }
+}
+
+/* Stand-Anzeige und Aktualisieren in der Toolbar */
+.stakeholder-stand {
   display: flex;
-  gap: var(--space-xs);
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--border-primary);
-}
-
-.stakeholder-tab {
-  display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-md);
-  border: none;
-  background: none;
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-}
-
-.stakeholder-tab:hover {
-  color: var(--text-primary);
-}
-
-.stakeholder-tab.active {
-  color: var(--text-primary);
-  border-bottom-color: var(--color-brand);
-}
-
-.stakeholder-tab-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 var(--space-xxs);
-  border-radius: var(--radius-sm);
-  background: var(--gray-100);
+  gap: var(--space-sm);
   color: var(--text-secondary);
   font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
-.stakeholder-tab.active .stakeholder-tab-badge {
-  background: var(--color-brand);
-  color: var(--text-inverse);
+.stakeholder-year-field {
+  min-width: var(--min-width-md);
 }
 
 /* Karten-Grid */
@@ -190,9 +184,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Die drei Haupt-KPIs duerfen groesser als die Breakdown-Karten */
+/* Die Haupt-KPIs duerfen groesser als die Breakdown-Karten */
 .stakeholder-cards:not(.stakeholder-cards--breakdown) .stakeholder-card-value {
   font-size: var(--text-xxxl);
+}
+
+.stakeholder-card--stack {
+  gap: 0;
+}
+
+.stakeholder-card-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.stakeholder-card-block + .stakeholder-card-block {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border-primary);
 }
 
 .stakeholder-card-sub {
@@ -216,6 +226,34 @@
   flex-wrap: wrap;
   gap: var(--space-sm);
   line-height: 1.6;
+}
+
+.stakeholder-card-breakdown-line--part {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stakeholder-card-breakdown-line--part:not(:first-child) {
+  margin-top: 6px;
+}
+
+.stakeholder-card-breakdown-line--sub {
+  padding-left: var(--space-sm);
+}
+
+.stakeholder-card-breakdown-line--deep {
+  padding-left: var(--space-lg);
+}
+
+.stakeholder-card-breakdown-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.stakeholder-card-info--inline {
+  margin: 0;
+  padding: 0;
 }
 
 .stakeholder-progress {
@@ -246,23 +284,6 @@
 .stakeholder-card-foot {
   font-size: var(--text-xs);
   color: var(--text-secondary);
-}
-
-/* Gestapelte Kachel: zwei Kennzahlen untereinander in einer Karte */
-.stakeholder-card--stack {
-  gap: 0;
-}
-
-.stakeholder-card-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.stakeholder-card-block + .stakeholder-card-block {
-  margin-top: var(--space-lg);
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--border-primary);
 }
 
 /* Kundenliste */
@@ -464,10 +485,16 @@
   font-size: var(--text-xs);
 }
 
+/* Trennlinie über der Summe = border-bottom der Zeile davor. Ein border-top
+   verliert in der kollabierten Tabelle gegen deren helle Unterkante. */
 .stakeholder-row--total td {
-  border-top: 1px solid var(--border-secondary);
+  border-top: none;
   border-bottom: none;
   font-weight: 600;
+}
+
+tr:has(+ .stakeholder-row--total) > td {
+  border-bottom-color: var(--border-secondary);
 }
 
 .stakeholder-empty {
@@ -674,63 +701,9 @@
   color: var(--text-secondary);
 }
 
-/* Zahlungsstand: acht Spalten wie die Kundenliste — Mindestbreite +
-   nowrap, der Scroll-Container (.stakeholder-scroll-x) fängt schmale
-   Screens ab. */
-.stakeholder-status-table {
-  min-width: 1200px;
-}
-
-.stakeholder-status-table th,
-.stakeholder-status-table td {
-  white-space: nowrap;
-}
-
-.stakeholder-status-table td:first-child {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
 .stakeholder-status-ueberfaellig {
   margin-top: 2px;
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--color-error, #c00);
-}
-
-.stakeholder-status-zelle {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  white-space: nowrap;
-}
-
-.stakeholder-status-zelle.is-open {
-  font-weight: 600;
-}
-
-.stakeholder-status-belege {
-  margin-top: var(--space-md);
-}
-
-.stakeholder-status-belege .stakeholder-list-hint {
-  margin-bottom: var(--space-sm);
-}
-
-.stakeholder-status-beleg-meta {
-  margin-top: 2px;
-  font-size: var(--text-xs);
-  font-weight: 400;
-  color: var(--text-secondary);
-}
-
-.stakeholder-status-belege-table tfoot th,
-.stakeholder-status-belege-table tfoot td {
-  border-bottom: none;
-  font-weight: 600;
 }

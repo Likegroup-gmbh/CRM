@@ -1,413 +1,173 @@
 // BriefingPersistence.test.js
-// Draft -> Laden -> Final-Lifecycle des Briefing-Generators.
-// Testet saveCurrentStepData (DOM -> formData), prepareDataForDB
-// (formData -> campaign_briefings-Payload) und loadFromDB gegen
-// gemocktes Supabase.
+// Formular -> formData (saveCurrentStepData) -> campaign_briefings-Payload (prepareDataForDB).
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { BriefingCreate } from '../modules/briefing/create/BriefingCreateCore.js';
-import { starteBriefingAuswertung } from '../modules/briefing/create/BriefingAuswertung.js';
-import '../modules/briefing/create/DataPersistence.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createInstance, renderFormular } from './briefingCreateTestKit.js';
+import { ideenFuerDB } from '../modules/briefing/create/DataPersistence.js';
 
-vi.mock('../modules/briefing/create/BriefingAuswertung.js', () => ({
-  starteBriefingAuswertung: vi.fn().mockResolvedValue({ id: 'job-1' })
-}));
-
-function createInstance() {
-  const instance = new BriefingCreate();
-  instance.selectedBereich = 'influencer_marketing';
-  return instance;
-}
-
-function mockSupabase({ row = null, produkte = [] } = {}) {
-  const calls = { insert: [], update: [], junctionInsert: [], junctionDelete: 0 };
-  const sb = {
-    from: vi.fn((table) => {
-      if (table === 'campaign_briefing_produkt') {
-        return {
-          delete: vi.fn(() => ({
-            eq: vi.fn(async () => {
-              calls.junctionDelete += 1;
-              return { error: null };
-            })
-          })),
-          insert: vi.fn(async (rows) => {
-            calls.junctionInsert.push(rows);
-            return { error: null };
-          }),
-          select: vi.fn(() => ({
-            eq: vi.fn(async () => ({
-              data: produkte.map(p => ({ produkt_id: p.id, produkt: p })),
-              error: null
-            }))
-          }))
-        };
-      }
-      if (table === 'personas') {
-        const chain = {
-          select: vi.fn(() => chain),
-          eq: vi.fn(() => chain),
-          not: vi.fn(() => chain),
-          order: vi.fn(() => chain),
-          then: (resolve) => resolve({ data: [], error: null })
-        };
-        return chain;
-      }
-      if (table === 'produkt') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              order: vi.fn(async () => ({ data: [], error: null }))
-            }))
-          }))
-        };
-      }
-      expect(table).toBe('campaign_briefings');
-      return {
-        insert: vi.fn((rows) => {
-          calls.insert.push(rows[0]);
-          return {
-            select: vi.fn(() => ({
-              single: vi.fn(async () => ({ data: { id: 'briefing-1' }, error: null }))
-            }))
-          };
-        }),
-        update: vi.fn((data) => {
-          calls.update.push(data);
-          return { eq: vi.fn(async () => ({ error: null })) };
-        }),
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            single: vi.fn(async () => ({ data: row, error: null }))
-          }))
-        }))
-      };
-    })
-  };
-  return { sb, calls };
-}
-
-describe('Briefing DataPersistence', () => {
+describe('saveCurrentStepData', () => {
   beforeEach(() => {
-    window.toastSystem = { show: vi.fn() };
-    window.navigateTo = vi.fn();
     document.body.innerHTML = '';
   });
 
-  afterEach(() => {
-    starteBriefingAuswertung.mockClear();
-    delete window.supabase;
-  });
-
-  it('saveCurrentStepData sammelt Felder typgerecht aus dem DOM', () => {
-    document.body.innerHTML = `
-      <form id="briefing-form">
-        <input type="text" name="aktivierung_name" value="Summer Glow">
-        <input type="checkbox" name="nischen" value="beauty" checked>
-        <input type="checkbox" name="nischen" value="fashion">
-        <input type="text" name="creator_merkmale__alter" value="25-34">
-        <input type="text" name="creator_merkmale__geschlecht" value="">
-        <input type="text" name="creator_merkmale__standort" value="">
-        <input type="checkbox" name="publish_channels__instagram" value="reel" checked>
-        <input type="checkbox" name="nutzung_markenkanal" value="true">
-      </form>
-    `;
-
+  it('liest das gerenderte Formular verlustfrei zurück', () => {
+    const formData = {
+      aktivierung_name: 'Sommer-Launch',
+      nutzung_markenkanal: true,
+      plattformen: ['instagram', 'tiktok'],
+      plattformen_weitere: 'Snapchat',
+      seitenverhaeltnisse: ['9:16'],
+      videolaenge: { von: 15, bis: 20 },
+      nutzungsrechte: '6 Monate',
+      content_deadline: '2026-12-01',
+      content_deadline_bis: '2026-12-05',
+      kernbotschaft: 'Spart Zeit',
+      vorgabe_donts: 'Keine Konkurrenz',
+      umsetzungsideen_eintraege: [{ text: 'Unboxing', verbindlich: true }, { text: 'Morgenroutine', verbindlich: false }]
+    };
+    renderFormular(formData, { bereich: 'influencer_marketing' });
     const instance = createInstance();
     instance.saveCurrentStepData();
 
-    expect(instance.formData.aktivierung_name).toBe('Summer Glow');
-    expect(instance.formData.nischen).toEqual(['beauty']);
-    expect(instance.formData.creator_merkmale).toEqual({
-      alter: '25-34', geschlecht: '', standort: ''
+    expect(instance.formData).toMatchObject({ ...formData, nutzung_creator_kanal: true, bereich: 'influencer_marketing' });
+    expect(instance.formData.videolaenge_modus).toBe('bereich');
+    expect(instance.formData.vorgabe_pflicht).toBe('');
+  });
+
+  it('Videolänge: Mindestlänge aus dem Zahlenfeld, keine Vorgabe ist null', () => {
+    const form = renderFormular({ videolaenge: { von: 30, bis: null } });
+    const instance = createInstance();
+    instance.saveCurrentStepData();
+    expect(instance.formData.videolaenge).toEqual({ von: 30, bis: null });
+    expect(instance.formData.videolaenge_modus).toBe('minimum');
+
+    form.querySelector('input[name="videolaenge__modus"][value="keine"]').checked = true;
+    instance.saveCurrentStepData();
+    expect(instance.formData.videolaenge).toBeNull();
+    expect(instance.formData.videolaenge_modus).toBe('keine');
+  });
+
+  it('Produkte: leere Zeilen fallen weg, verknüpfte bleiben mit ID', () => {
+    renderFormular({
+      produkte: [{ produkt_id: 'p1', name: 'Serum' }, {}, { url: 'https://shop.example/creme' }]
     });
-    expect(instance.formData.publish_channels).toEqual({ instagram: ['reel'] });
-    expect(instance.formData.nutzung_markenkanal).toBe(false);
-    expect(instance.formData.bereich).toBe('influencer_marketing');
-  });
-
-  it('saveCurrentStepData sammelt produkt_ids aus der Multi-Auswahl', () => {
-    document.body.innerHTML = `
-      <form id="briefing-form">
-        <div data-entity-multi="produkt_ids">
-          <select id="produkt_ids" name="produkt_ids" multiple>
-            <option value="p1" selected>Serum</option>
-            <option value="p2">Creme</option>
-            <option value="p3" selected>Toner</option>
-          </select>
-        </div>
-      </form>
-    `;
-
     const instance = createInstance();
     instance.saveCurrentStepData();
-    expect(instance.formData.produkt_ids).toEqual(['p1', 'p3']);
-  });
-
-  it('saveCurrentStepData liest produkt_ids aus dem Hidden-Select des Tag-Widgets', () => {
-    document.body.innerHTML = `
-      <form id="briefing-form">
-        <div data-entity-multi="produkt_ids">
-          <input type="text" id="produkt_ids" name="produkt_ids">
-          <select id="produkt_ids_hidden" name="produkt_ids[]" multiple>
-            <option value="p1" selected>Serum</option>
-            <option value="p3" selected>Toner</option>
-          </select>
-        </div>
-      </form>
-    `;
-
-    const instance = createInstance();
-    instance.saveCurrentStepData();
-    expect(instance.formData.produkt_ids).toEqual(['p1', 'p3']);
-  });
-
-  it('prepareDataForDB leert Paid-Felder im Influencer-Briefing und spiegelt Prefix-Spalten', () => {
-    const instance = createInstance();
-    instance.formData = {
-      bereich: 'influencer_marketing',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Test',
-      nischen: ['beauty'],
-      aufgabe: 'Routine filmen',
-      cta: 'Shop now',
-      funnel_stufen: ['upper']
-    };
-
-    const data = instance.prepareDataForDB();
-
-    expect(data.nischen).toEqual(['beauty']);
-    expect(data.aufgabe).toBe('Routine filmen');
-    expect(data.cta).toBeNull();
-    expect(data.funnel_stufen).toBeNull();
-    expect(data.im_nischen).toEqual(['beauty']);
-    expect(data.im_umsetzung).toBe('Routine filmen');
-    expect(data.persona_ids).toEqual([]);
-  });
-
-  it('prepareDataForDB speichert flache Voraussetzungen und Sonstige getrennt', () => {
-    const instance = createInstance();
-    instance.formData = {
-      bereich: 'influencer_marketing',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Test',
-      voraussetzungen: ['kind_familie', 'kueche'],
-      voraussetzungen_sonstiges: 'Wohnung mit Balkon',
-      produkt_erfahrung: 'kennt das Serum'
-    };
-
-    const data = instance.prepareDataForDB();
-
-    expect(data.voraussetzungen).toEqual(['kind_familie', 'kueche']);
-    expect(data.voraussetzungen_sonstiges).toBe('Wohnung mit Balkon');
-    expect(data.produkt_erfahrung).toBe('kennt das Serum');
-    expect(data.im_voraussetzungen).toEqual(['kind_familie', 'kueche']);
-    expect(data.im_voraussetzungen_custom).toBe('kennt das Serum');
-  });
-
-  it('prepareDataForDB mappt leere Werte auf null und Checkboxen auf boolean', () => {
-    const instance = createInstance();
-    instance.formData = {
-      bereich: 'influencer_marketing',
-      unternehmen_id: 'u1',
-      aktivierung_name: '',
-      nutzung_markenkanal: undefined
-    };
-
-    const data = instance.prepareDataForDB();
-
-    expect(data.aktivierung_name).toBeNull();
-    expect(data.nutzung_markenkanal).toBe(false);
-    expect(data.marke_id).toBeNull();
-  });
-
-  it('saveDraftToDB legt Entwurf an und setzt editId', async () => {
-    vi.useFakeTimers();
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
-    const instance = createInstance();
-    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Draft', produkt_ids: ['p1', 'p2'] };
-
-    await instance.saveDraftToDB();
-
-    expect(calls.insert.length).toBe(1);
-    expect(calls.insert[0].is_draft).toBe(true);
-    expect(calls.insert[0].aktivierung_name).toBe('Draft');
-    expect(calls.insert[0]).not.toHaveProperty('produkt_ids');
-    expect(instance.editId).toBe('briefing-1');
-    expect(calls.junctionDelete).toBe(1);
-    expect(calls.junctionInsert[0]).toEqual([
-      { briefing_id: 'briefing-1', produkt_id: 'p1' },
-      { briefing_id: 'briefing-1', produkt_id: 'p2' }
+    expect(instance.formData.produkte).toEqual([
+      { produkt_id: 'p1', name: 'Serum', url: '', kurzbeschreibung: '', usp: '', loesung: '' },
+      { produkt_id: null, name: '', url: 'https://shop.example/creme', kurzbeschreibung: '', usp: '', loesung: '' }
     ]);
-    vi.useRealTimers();
   });
 
-  it('handleSubmit aktualisiert bestehendes Briefing als final', async () => {
-    vi.useFakeTimers();
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
+  it('Ideen: leere Einträge fallen weg, der Schalter wird gelesen', () => {
+    const form = renderFormular({ umsetzungsideen_eintraege: [{ text: 'A' }, { text: 'B' }] });
+    const rows = form.querySelectorAll('[data-idee-row]');
+    rows[0].querySelector('[data-idee-text]').value = '  ';
+    rows[1].querySelector('[data-idee-verbindlich]').checked = true;
     const instance = createInstance();
-    instance.editId = 'briefing-1';
-    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Final', produkt_ids: ['p1'], persona_ids: ['pe1'] };
-
-    await instance.handleSubmit();
-
-    expect(calls.update.length).toBe(1);
-    expect(calls.update[0].is_draft).toBe(false);
-    expect(calls.insert.length).toBe(0);
-    expect(starteBriefingAuswertung).toHaveBeenCalledWith({ briefingId: 'briefing-1' });
-    expect(window.toastSystem.show).toHaveBeenCalledWith(
-      'Briefing gespeichert – KI-Auswertung läuft im Hintergrund',
-      'success'
-    );
-    vi.useRealTimers();
+    instance.saveCurrentStepData();
+    expect(instance.formData.umsetzungsideen_eintraege).toEqual([{ text: 'B', verbindlich: true }]);
   });
+});
 
-  it('handleSubmit bleibt ohne Produkt und Persona gesperrt', async () => {
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
-    const instance = createInstance();
-    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Ohne Produkt' };
-
-    await instance.handleSubmit();
-
-    expect(calls.insert.length).toBe(0);
-    expect(window.toastSystem.show).toHaveBeenCalledWith(
-      'Bitte mindestens ein Produkt zuordnen.',
-      'warning'
-    );
-  });
-
-  it('handleSubmit laesst nur die gesetzte Seite leer', async () => {
-    vi.useFakeTimers();
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
-    const nurOhneProdukt = createInstance();
-    nurOhneProdukt.formData = {
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Ohne Produkt',
-      ohne_produkt: true,
-      produkt_ids: ['p1'],
-      persona_ids: ['pe1']
-    };
-    await nurOhneProdukt.handleSubmit();
-
-    expect(calls.insert.length).toBe(1);
-    expect(calls.insert[0].persona_ids).toEqual(['pe1']);
-    expect(calls.insert[0]).not.toHaveProperty('ohne_produkt');
-    expect(calls.junctionInsert).toEqual([]);
-
-    const nurOhnePersona = createInstance();
-    nurOhnePersona.formData = {
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Ohne Persona',
-      ohne_persona: true,
-      produkt_ids: ['p1'],
-      persona_ids: ['pe1']
-    };
-    await nurOhnePersona.handleSubmit();
-
-    expect(calls.insert.length).toBe(2);
-    expect(calls.insert[1].persona_ids).toEqual([]);
-    expect(calls.junctionInsert[0]).toEqual([{ briefing_id: 'briefing-1', produkt_id: 'p1' }]);
-    vi.useRealTimers();
-  });
-
-  it('handleSubmit finalisiert ohne Produkt und ohne Persona', async () => {
-    vi.useFakeTimers();
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
-    const instance = createInstance();
+describe('prepareDataForDB', () => {
+  it('schreibt nur Felder des Creator-Briefings, Altfelder bleiben unberührt', () => {
+    const instance = createInstance('paid_creator_ads');
     instance.formData = {
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Ohne beides',
-      ohne_produkt: true,
-      ohne_persona: true,
-      produkt_ids: ['p1'],
-      persona_ids: ['pe1']
-    };
-
-    await instance.handleSubmit();
-
-    expect(calls.insert.length).toBe(1);
-    expect(calls.insert[0].is_draft).toBe(false);
-    expect(calls.insert[0].persona_ids).toEqual([]);
-    expect(calls.insert[0]).not.toHaveProperty('produkt_ids');
-    expect(calls.junctionInsert).toEqual([]);
-    vi.useRealTimers();
-  });
-
-  it('handleSubmit bricht ohne Pflichtfelder ab', async () => {
-    const { sb, calls } = mockSupabase();
-    window.supabase = sb;
-
-    const instance = createInstance();
-    instance.formData = { aktivierung_name: 'Ohne Unternehmen' };
-
-    await instance.handleSubmit();
-
-    expect(calls.insert.length).toBe(0);
-    expect(calls.update.length).toBe(0);
-    expect(starteBriefingAuswertung).not.toHaveBeenCalled();
-    expect(window.toastSystem.show).toHaveBeenCalledWith(expect.stringContaining('Unternehmen'), 'warning');
-  });
-
-  it('loadFromDB befuellt formData und springt in den Wizard', async () => {
-    const row = {
-      id: 'briefing-1',
       bereich: 'paid_creator_ads',
       unternehmen_id: 'u1',
-      marke_id: 'm1',
-      aktivierung_name: 'Paid Push',
-      beschreibung: 'Launch',
-      paid_objectives: ['sales'],
-      persona_ids: ['pe1'],
-      voraussetzungen: ['kind_familie', 'kueche']
+      aktivierung_name: 'Ads',
+      aufgabe: 'Produkt zeigen',
+      setting: 'Küche',
+      cta: 'Jetzt kaufen',
+      funnel_stufen: ['upper'],
+      tkp: 12,
+      produkte: [{ produkt_id: 'p1', name: 'Serum' }]
     };
-    const { sb } = mockSupabase({ row, produkte: [{ id: 'p1', name: 'Serum' }] });
-    window.supabase = sb;
+    const data = instance.prepareDataForDB();
 
-    const instance = new BriefingCreate();
-    await instance.loadFromDB('briefing-1');
-
-    expect(instance.selectedBereich).toBe('paid_creator_ads');
-    expect(instance.isGenerated).toBe(true);
-    expect(instance.currentStep).toBe(2);
-    expect(instance.formData.aktivierung_name).toBe('Paid Push');
-    expect(instance.formData.paid_objectives).toEqual(['sales']);
-    expect(instance.formData.beschreibung).toBe('Launch');
-    expect(instance.formData.voraussetzungen).toEqual(['kind_familie', 'kueche']);
-    expect(instance.formData.voraussetzungen_weiter).toBeUndefined();
-    expect(instance.formData.marke_id).toBe('m1');
-    expect(instance.formData.produkt_ids).toEqual(['p1']);
-    expect(instance.formData.persona_ids).toEqual(['pe1']);
-    expect(instance.formData.ohne_produkt).toBe(false);
-    expect(instance.formData.ohne_persona).toBe(false);
+    expect(data.aufgabe).toBe('Produkt zeigen');
+    for (const alt of ['cta', 'funnel_stufen', 'tkp', 'produkte', 'produkt_ids', 'persona_ids', 'videolaenge']) {
+      expect(data, alt).not.toHaveProperty(alt);
+    }
+    expect(data.pa_umsetzung).toBe('Produkt zeigen');
+    expect(data.pa_situationen).toBe('Küche');
   });
 
-  it('loadFromDB setzt nur die leere Seite', async () => {
-    const row = {
-      id: 'briefing-1',
-      bereich: 'influencer_marketing',
-      unternehmen_id: 'u1',
-      aktivierung_name: 'Nur Produkt',
-      persona_ids: []
-    };
-    const { sb } = mockSupabase({ row, produkte: [{ id: 'p1', name: 'Serum' }] });
-    window.supabase = sb;
+  it('Häkchen sind boolean, der Typ folgt aus der Content-Verwendung', () => {
+    const instance = createInstance(null);
+    instance.formData = { nutzung_markenkanal: undefined, nutzung_creator_kanal: true };
+    const data = instance.prepareDataForDB();
+    expect(data.nutzung_creator_kanal).toBe(true);
+    expect(data.nutzung_markenkanal).toBe(false);
+    expect(data.nutzung_paid_media).toBe(false);
+    expect(data.bereich).toBe('influencer_marketing');
+  });
 
-    const instance = new BriefingCreate();
-    await instance.loadFromDB('briefing-1');
+  it('der bisherige Typ bleibt, solange sein Häkchen gesetzt ist', () => {
+    const instance = createInstance(null);
+    instance.formData = { bereich: 'owned_social', nutzung_markenkanal: true, nutzung_paid_media: true };
+    expect(instance.prepareDataForDB().bereich).toBe('owned_social');
 
-    expect(instance.formData.ohne_produkt).toBe(false);
-    expect(instance.formData.ohne_persona).toBe(true);
-    expect(instance.formData.produkt_ids).toEqual(['p1']);
-    expect(instance.formData.persona_ids).toEqual([]);
+    instance.formData = { bereich: 'owned_social', nutzung_paid_media: true };
+    expect(instance.prepareDataForDB().bereich).toBe('paid_creator_ads');
+  });
+
+  it('leere Werte werden null', () => {
+    const instance = createInstance();
+    instance.formData = { unternehmen_id: 'u1', aktivierung_name: '', plattformen: [], kernbotschaft: '  ' };
+    const data = instance.prepareDataForDB();
+    expect(data.aktivierung_name).toBeNull();
+    expect(data.plattformen).toBeNull();
+    expect(data.kernbotschaft).toBeNull();
+    expect(data.marke_id).toBeNull();
+    expect(data.umsetzungsideen_eintraege).toBeNull();
+  });
+
+  it('Videolänge: Spanne und Mindestlänge in die zwei Spalten', () => {
+    const instance = createInstance('paid_creator_ads');
+    instance.formData = { videolaenge: { von: 8, bis: 17 } };
+    expect(instance.prepareDataForDB()).toMatchObject({ videolaenge_von: 8, videolaenge_bis: 17 });
+    instance.formData = { videolaenge: { von: 30, bis: null } };
+    expect(instance.prepareDataForDB()).toMatchObject({ videolaenge_von: 30, videolaenge_bis: null });
+    instance.formData = { videolaenge: null };
+    expect(instance.prepareDataForDB()).toMatchObject({ videolaenge_von: null, videolaenge_bis: null });
+  });
+
+  it('Bis-Datum nur mit Startdatum davor', () => {
+    const instance = createInstance();
+    instance.formData = { content_deadline: '2026-12-05', content_deadline_bis: '2026-12-01', go_live_bis: '2026-12-10' };
+    const data = instance.prepareDataForDB();
+    expect(data.content_deadline).toBe('2026-12-05');
+    expect(data.content_deadline_bis).toBeNull();
+    expect(data.go_live_bis).toBeNull();
+
+    instance.formData = { content_deadline: '2026-12-01', content_deadline_bis: '2026-12-05' };
+    expect(instance.prepareDataForDB().content_deadline_bis).toBe('2026-12-05');
+  });
+
+  it('Umsetzungsideen als { text, verbindlich }', () => {
+    expect(ideenFuerDB([{ text: ' A ', verbindlich: true }, 'B', { text: '' }, { text: 'C', verbindlich: 'ja' }])).toEqual([
+      { text: 'A', verbindlich: true },
+      { text: 'B', verbindlich: false },
+      { text: 'C', verbindlich: false }
+    ]);
+    expect(ideenFuerDB([])).toBeNull();
+    expect(ideenFuerDB(null)).toBeNull();
+  });
+
+  it('nimmt den Kampagnentitel aus formData, sonst den Kampagnennamen', () => {
+    const instance = createInstance();
+    instance.kampagnen = [{ id: 'k1', label: 'Anzeige', kampagnenname: 'Projekt A' }];
+
+    instance.formData = { kampagne_id: 'k1', aktivierung_name: 'Projekt A – Serum' };
+    expect(instance.prepareDataForDB().aktivierung_name).toBe('Projekt A – Serum');
+
+    instance.formData = { kampagne_id: 'k1' };
+    expect(instance.prepareDataForDB().aktivierung_name).toBe('Projekt A');
+
+    instance.formData = {};
+    instance._produktionKontext = { kampagneId: 'k1' };
+    expect(instance.prepareDataForDB().aktivierung_name).toBe('Projekt A');
   });
 });

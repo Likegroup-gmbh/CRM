@@ -1,0 +1,161 @@
+// VideoBrowserPlayer.js
+// Vorschau-Player des Videos-Tabs: Rahmen in Bildbreite und im Seitenverhältnis, die Steuerung
+// liegt im Bild (Zeitleiste mit Kommentar-Markern, Play/Pause, Ton, Zeit, Geschwindigkeit,
+// Vollbild). Ohne auflösbare Datei läuft ein Platzhalter (A7-Fallback über GSAP).
+// Standbilder werden nur angezeigt.
+//
+// Der Zustand liegt in einem Objekt `p`, das die Teilmodule in ./player/ bekommen:
+// playerLayout (Anzeige, Vollbild), playerControls (Steuerung), playerSource (Quelle laden),
+// playerEvents (Maus und Tastatur).
+
+import { ICON_PLAY, ICON_FS, ICON_VOLUME } from '../../core/media/mediaPlayerIcons.js';
+import { cssEscape } from './videoBrowserLogic.js';
+import { applySize, isFullscreen, onFullscreenChange, paintPlaying, paintTime, renderMarkers } from './player/playerLayout.js';
+import { paintControls, pause, play, seek, startAudio } from './player/playerControls.js';
+import { finishMessung, loadSource } from './player/playerSource.js';
+import { bindPlayerEvents } from './player/playerEvents.js';
+import { rohZielTyp } from './videoBrowserRohOrdner.js';
+
+const fsButton = (extra = '') => `<button type="button" class="vb-ctl${extra}" data-vb-fs aria-label="Vollbild" title="Vollbild (F)">${ICON_FS}</button>`;
+
+const chrome = () => `
+          <div class="vb-player__chrome">
+            <div class="vb-timeline__track" data-vb-track>
+              <input class="vpl-seek vb-timeline__seek" data-vb-slider type="range" min="0" max="0" step="0.1" value="0" aria-label="Wiedergabeposition" />
+              <div class="vb-timeline__markers" data-vb-markers></div>
+            </div>
+            <div class="vb-player__bar">
+              <button type="button" class="vb-ctl" data-vb-play aria-label="Abspielen">${ICON_PLAY}</button>
+              <div class="vb-player__volume">
+                <button type="button" class="vb-ctl" data-vb-mute title="Ton an/aus (M)">${ICON_VOLUME}</button>
+                <input class="vpl-seek vb-volume" type="range" min="0" max="1" step="0.05" value="1" data-vb-volume aria-label="Lautstärke" />
+              </div>
+              <span class="vb-player__time" data-vb-time>0:00 / 0:00</span>
+              <span class="vb-player__spacer"></span>
+              <button type="button" class="vb-ctl vb-ctl--text" data-vb-speed title="Wiedergabegeschwindigkeit">1×</button>
+              ${fsButton()}
+            </div>
+          </div>`;
+
+function shell(isStill) {
+  return `
+    <figure class="vb-player${isStill ? ' vb-player--still' : ''}" tabindex="-1">
+      <div class="vb-player__stage" data-vb-stage>
+        <div class="vb-player__frame" data-vb-frame>
+          <div class="vb-player__media" data-vb-media></div>
+          ${isStill ? fsButton(' vb-player__fs') : `<button type="button" class="vb-player__big" data-vb-play aria-label="Abspielen">${ICON_PLAY}</button>${chrome()}`}
+        </div>
+      </div>
+    </figure>`;
+}
+
+const withTimecode = (list) => list.filter(c => c.timecodeSec !== null && c.timecodeSec !== undefined);
+
+/**
+ * @param {HTMLElement} host
+ * @param {{ item: object, ratio?: string, comments?: Array, motion?: object,
+ *           onTime?: (sec: number) => void, onMarker?: (commentId: string) => void,
+ *           onMessung?: (row: object) => void, autoplay?: boolean,
+ *           maxHeight?: () => number, maxWidth?: () => number }} options
+ *        onMessung: eine Zeile je Wiedergabe (erstes Bild, Start, Stalls), beim Quellwechsel und Schließen
+ *        autoplay: startet mit Ton, sobald die Datei bereit ist; blockt der Browser das, stumm (Vollansicht)
+ *        maxHeight: Obergrenze der Rahmenhöhe statt der Standardhöhe des Detailbereichs
+ *        maxWidth: Obergrenze der Rahmenbreite statt der Breite des Hosts (Host folgt dem Bild)
+ */
+export function mountPlayer(host, { item, ratio, comments = [], motion = null, onTime = null, onMarker = null, onMessung = null, autoplay = false, maxHeight = null, maxWidth = null }) {
+  // Rohmaterial-Bilder (type 'roh') sind Standbilder: sonst landen sie in einem <video>-Element
+  const isStill = item.type === 'still'
+    || (item.type === 'roh' && rohZielTyp(item.asset?.file_name || item.name) === 'still');
+  host.innerHTML = shell(isStill);
+  const { volume, muted } = startAudio();
+
+  const p = {
+    host,
+    isStill,
+    motion,
+    onTime,
+    onMarker,
+    onMessung,
+    root: host.querySelector('.vb-player'),
+    stage: host.querySelector('[data-vb-stage]'),
+    frame: host.querySelector('[data-vb-frame]'),
+    mediaHost: host.querySelector('[data-vb-media]'),
+    playButtons: [...host.querySelectorAll('[data-vb-play]')],
+    timeEl: host.querySelector('[data-vb-time]'),
+    slider: host.querySelector('[data-vb-slider]'),
+    markersEl: host.querySelector('[data-vb-markers]'),
+    fsButton: host.querySelector('[data-vb-fs]'),
+    speedButton: host.querySelector('[data-vb-speed]'),
+    muteButton: host.querySelector('[data-vb-mute]'),
+    volumeInput: host.querySelector('[data-vb-volume]'),
+    destroyed: false,
+    rate: 1,
+    volume,
+    muted,
+    maxHeight,
+    maxWidth,
+    idleTimer: null,
+    currentRatio: ratio || item.ratio || '9:16',
+    dims: null,
+    video: null,
+    simulated: null,
+    simTween: null,
+    duration: 0,
+    time: 0,
+    playing: false,
+    markers: withTimecode(comments),
+    loadToken: 0,
+    messung: null,
+    ready: Promise.resolve(),
+    markReady: () => {}
+  };
+
+  applySize(p, false);
+  const resizeObserver = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(() => { if (!p.destroyed) applySize(p, false); })
+    : null;
+  resizeObserver?.observe(host);
+  const onWindowResize = () => { if (!p.destroyed) applySize(p, false); };
+  window.addEventListener('resize', onWindowResize);
+  const onFsChange = () => onFullscreenChange(p);
+  document.addEventListener('fullscreenchange', onFsChange);
+  document.addEventListener('webkitfullscreenchange', onFsChange);
+  const unbindEvents = bindPlayerEvents(p);
+
+  paintControls(p);
+  paintPlaying(p);
+  loadSource(p, item, { resumePlay: !!autoplay && !isStill });
+
+  return {
+    seek: (sec) => seek(p, sec),
+    getTime: () => p.time,
+    isPlaying: () => p.playing,
+    pause: () => pause(p),
+    play: () => play(p),
+    /** Resolved, sobald die aktuelle Quelle durchspielbar ist oder nicht lädt. */
+    whenReady: () => p.ready,
+    /** Pixelmaße der geladenen Datei, `null` solange die Metadaten fehlen. */
+    getDimensions: () => p.dims,
+    /** Dauer in Sekunden, 0 solange die Metadaten fehlen. */
+    getDuration: () => p.duration || 0,
+    setMarkers(list) {
+      p.markers = withTimecode(list);
+      renderMarkers(p);
+      paintTime(p);
+    },
+    markerEl: (commentId) => p.markersEl?.querySelector(`.vb-marker[data-comment-id="${cssEscape(String(commentId))}"]`) || null,
+    destroy() {
+      p.destroyed = true;
+      finishMessung(p);
+      resizeObserver?.disconnect();
+      if (isFullscreen(p)) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+      unbindEvents();
+      p.simTween?.kill();
+      if (p.video) { p.video.pause(); p.video.removeAttribute('src'); p.video.load(); }
+      window.removeEventListener('resize', onWindowResize);
+      host.innerHTML = '';
+    }
+  };
+}

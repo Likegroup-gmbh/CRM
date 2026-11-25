@@ -32,6 +32,46 @@ describe('NavigationGuard – Mehrfach-Klick-Schutz', () => {
     expect(initCallCount).toBe(1);
   });
 
+  it('fuehrt ein anderes Ziel waehrend der Navigation danach aus (latest wins)', async () => {
+    const first = registry.navigateTo('/kampagne/abc');
+    registry.navigateTo('/kampagne/zwei');
+    registry.navigateTo('/kampagne/drei');
+
+    await first;
+    await new Promise(resolve => setTimeout(resolve, 120));
+
+    expect(initCallCount).toBe(2);
+    expect(mockModule.init).toHaveBeenNthCalledWith(1, 'abc');
+    expect(mockModule.init).toHaveBeenNthCalledWith(2, 'drei');
+  });
+
+  it('verwirft das gequeute Ziel, wenn danach das laufende erneut angeklickt wird', async () => {
+    const first = registry.navigateTo('/kampagne/abc');
+    registry.navigateTo('/kampagne/zwei');
+    registry.navigateTo('/kampagne/abc');
+
+    await first;
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    expect(initCallCount).toBe(1);
+  });
+
+  it('fuehrt das gequeute Ziel auch nach fehlgeschlagenem init() aus', async () => {
+    const failModule = {
+      init: vi.fn(() => Promise.reject(new Error('init failed'))),
+      destroy: vi.fn(),
+    };
+    registry.register('kampagne-detail', failModule);
+    const first = registry.navigateTo('/kampagne/abc');
+    registry.register('kampagne-detail', mockModule);
+    registry.navigateTo('/kampagne/zwei');
+
+    await first;
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    expect(mockModule.init).toHaveBeenCalledWith('zwei');
+  });
+
   it('erlaubt nächsten navigateTo() nach erfolgreicher Navigation', async () => {
     await registry.navigateTo('/kampagne/abc');
     await registry.navigateTo('/kampagne/def');
@@ -122,5 +162,73 @@ describe('Accounting-Zugang', () => {
     await registry.navigateTo('/admin');
     expect(stakeholder.init).toHaveBeenCalled();
     expect(dashboard.init).not.toHaveBeenCalled();
+  });
+});
+
+describe('Seitenwechsel mit beforeLeave', () => {
+  let registry;
+  let nextPage;
+
+  beforeEach(() => {
+    registry = new ModuleRegistry();
+    nextPage = { init: vi.fn(() => Promise.resolve()), destroy: vi.fn() };
+    registry.register('kampagne-detail', nextPage);
+    window.currentUser = { rolle: 'admin' };
+    window.history.pushState = vi.fn();
+  });
+
+  it('bleibt auf der Seite, wenn beforeLeave ablehnt', async () => {
+    const page = {
+      init: vi.fn(() => Promise.resolve()),
+      destroy: vi.fn(),
+      beforeLeave: vi.fn(async () => false),
+      stayRoute: '/auftragsdetails/d1'
+    };
+    registry.currentModule = page;
+
+    await registry.navigateTo('/kampagne/abc', true);
+
+    expect(page.beforeLeave).toHaveBeenCalled();
+    expect(page.destroy).not.toHaveBeenCalled();
+    expect(nextPage.init).not.toHaveBeenCalled();
+    expect(window.history.pushState).toHaveBeenCalledWith(
+      { route: '/auftragsdetails/d1' },
+      '',
+      '/auftragsdetails/d1'
+    );
+  });
+
+  it('wechselt erst, wenn beforeLeave erlaubt', async () => {
+    const page = {
+      init: vi.fn(() => Promise.resolve()),
+      destroy: vi.fn(),
+      beforeLeave: vi.fn(async () => true)
+    };
+    registry.currentModule = page;
+
+    await registry.navigateTo('/kampagne/abc');
+
+    expect(page.beforeLeave).toHaveBeenCalled();
+    expect(page.destroy).toHaveBeenCalled();
+    expect(nextPage.init).toHaveBeenCalledWith('abc');
+  });
+
+  it('lässt eine Klassenmethode auf ihre Seite zugreifen', async () => {
+    class Page {
+      constructor() {
+        this._notiz = { beforeLeave: vi.fn(async () => true) };
+      }
+      destroy() {}
+      beforeLeave() {
+        return this._notiz.beforeLeave();
+      }
+    }
+    const page = new Page();
+    registry.currentModule = page;
+
+    await registry.navigateTo('/kampagne/abc', true);
+
+    expect(page._notiz.beforeLeave).toHaveBeenCalled();
+    expect(nextPage.init).toHaveBeenCalledWith('abc');
   });
 });

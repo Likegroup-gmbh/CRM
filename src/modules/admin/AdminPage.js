@@ -1,14 +1,30 @@
 // AdminPage.js
-// Huelle fuer die Datenqualitaetsanzeige im Accounting-Bereich
-// (/admin/datenqualitaet). Das Accounting-Dashboard (/admin) ist die
+// Huelle fuer die Admin-Unterseiten im Accounting-Bereich
+// (/admin/datenqualitaet, /admin/medienablage, /admin/teams-kanaele,
+// /admin/pdf-vorlagen). Das Accounting-Dashboard (/admin) ist die
 // Stakeholder-Uebersicht und laeuft nicht mehr durch diese Huelle.
 
 import { DatenqualitaetPage } from './DatenqualitaetPage.js';
+import { MedienablagePage } from './MedienablagePage.js';
+import { TeamsKanaelePage } from './TeamsKanaelePage.js';
+import { PdfVorlagenPage } from './PdfVorlagenPage.js';
 
 const SUB_PAGES = {
   datenqualitaet: {
     headline: 'Accounting – Datenqualität',
     create: () => new DatenqualitaetPage(),
+  },
+  medienablage: {
+    headline: 'Accounting – Medienablage',
+    create: () => new MedienablagePage(),
+  },
+  'teams-kanaele': {
+    headline: 'Accounting – Teams-Kanäle',
+    create: () => new TeamsKanaelePage(),
+  },
+  'pdf-vorlagen': {
+    headline: 'Accounting – PDF-Vorlagen',
+    create: () => new PdfVorlagenPage(),
   },
 };
 
@@ -34,6 +50,11 @@ export class AdminPage {
 
     this.activePage = SUB_PAGES[key].create();
     await this.activePage.init();
+  }
+
+  // Reicht das Ready der Unterseite durch (Skeleton-Muster, siehe ModuleRegistry).
+  get ready() {
+    return this.activePage?.ready ?? Promise.resolve();
   }
 
   destroy() {

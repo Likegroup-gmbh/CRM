@@ -1,4 +1,7 @@
 import { icon } from './icons/IconSystem.js';
+import { renderTableSelect } from './components/TableSelect.js';
+import { getVertragStatus, vertragStatusLabel } from '../modules/vertrag/vertragStatus.js';
+
 /**
  * VertragSyncHelper.js
  * Synchronisiert kooperationen.vertrag_unterschrieben mit dem tatsächlichen Vertragsstatus.
@@ -44,33 +47,52 @@ function escapeHtml(text) {
   return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+const STATUS_RANK = {
+  unterschrieben: 6,
+  gesendet: 5,
+  erstellt: 4,
+  verzoegert: 3,
+  abgelehnt: 2,
+  entwurf: 1,
+};
+
+// Dot-Farben der Vertrag-Status im TableSelect (Status ist systemgefuehrt, nie editierbar)
+const VERTRAG_OPTIONS = Object.freeze([
+  { value: 'entwurf', label: vertragStatusLabel('entwurf'), color: 'var(--warning)' },
+  { value: 'erstellt', label: vertragStatusLabel('erstellt'), color: 'var(--info)' },
+  { value: 'gesendet', label: vertragStatusLabel('gesendet'), color: 'var(--primary-500)' },
+  { value: 'verzoegert', label: vertragStatusLabel('verzoegert'), color: 'var(--warning-700)' },
+  { value: 'abgelehnt', label: vertragStatusLabel('abgelehnt'), color: 'var(--danger)' },
+  { value: 'unterschrieben', label: vertragStatusLabel('unterschrieben'), color: 'var(--color-success)' }
+]);
+
+export function pickVertragForAnzeige(vertraege) {
+  const list = vertraege || [];
+  if (!list.length) return null;
+  return list.slice().sort((a, b) => {
+    const ra = STATUS_RANK[getVertragStatus(a)] || 0;
+    const rb = STATUS_RANK[getVertragStatus(b)] || 0;
+    if (rb !== ra) return rb - ra;
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  })[0];
+}
+
 /**
  * Pure rendering function für die Vertrag-Zelle in der Kampagnen-Tabelle.
- * Zeigt ausschließlich Status-Badges (keine Checkbox).
+ * Zeigt den Vertrag-Status im TableSelect-Look (nicht klickbar: der Status
+ * entsteht aus dem Vertragslauf und wird nicht von Hand gesetzt, ADR 0026).
  */
 export function renderVertragCell(koop) {
-  const vertraege = koop._vertraege || [];
-  const signed = vertraege.find(v => v.dropbox_file_url || v.unterschriebener_vertrag_url);
+  const vertrag = pickVertragForAnzeige(koop._vertraege);
 
-  if (signed) {
-    const url = signed.dropbox_file_url || signed.unterschriebener_vertrag_url;
-    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="contract-signed-action contract-signed-action--open" title="${escapeHtml(signed.name || 'Vertrag')}">
-      ${icon('check-circle')}
-      Unterschrieben
-    </a>`;
-  }
-
-  const draft = vertraege.find(v => v.is_draft);
-  if (draft) {
-    return `<span class="vertrag-badge vertrag-badge--draft">Entwurf</span>`;
-  }
-
-  const generated = vertraege.find(v => v.datei_url && !v.is_draft);
-  if (generated) {
-    return `<span class="vertrag-badge vertrag-badge--created" title="${escapeHtml(generated.name || 'Vertrag')}">Erstellt</span>`;
-  }
-
-  return `<span class="vertrag-badge vertrag-badge--none">Noch nicht erstellt</span>`;
+  return renderTableSelect({
+    field: 'koop_vertrag',
+    itemId: koop.id,
+    value: vertrag ? getVertragStatus(vertrag) : '',
+    options: VERTRAG_OPTIONS,
+    placeholder: 'Noch nicht erstellt',
+    disabled: true
+  });
 }
 
 /**

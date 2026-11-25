@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 import {
   extractSkriptAusMaster as extractFromEsm,
+  mapHookVariantenSpalten as mapFromEsm,
   zusatzInfosMarkdown as extraFromEsm,
   hatZusatzInfos,
   hatGridInhalt as hatGridFromEsm,
@@ -12,6 +13,7 @@ import {
 const require = createRequire(import.meta.url);
 const {
   extractSkriptAusMaster,
+  mapHookVariantenSpalten,
   zusatzInfosMarkdown,
   hatGridInhalt,
   gridFelderFuerSkript,
@@ -51,6 +53,7 @@ Timing: 30 Sekunden.
 describe('skript-creator-facing', () => {
   it('ESM-Wrapper liefert Named Exports (Vite-Dev-Pfad)', () => {
     expect(typeof extractFromEsm).toBe('function');
+    expect(typeof mapFromEsm).toBe('function');
     expect(typeof extraFromEsm).toBe('function');
     expect(typeof hatZusatzInfos).toBe('function');
     expect(typeof hatGridFromEsm).toBe('function');
@@ -71,13 +74,46 @@ describe('skript-creator-facing', () => {
   });
 
   it('zieht Variante B/C als alternative Versionen (Hook-Visual, Rest gleich)', () => {
-    const { felder, varianten } = extractSkriptAusMaster(PAID_MD);
+    const { felder, varianten, hook_varianten } = extractSkriptAusMaster(PAID_MD);
     expect(varianten.map((v) => v.label)).toEqual(['B', 'C']);
     expect(varianten[0].felder.hauptteil).toBe(felder.hauptteil);
     expect(varianten[0].felder.cta).toBe(felder.cta);
     expect(varianten[0].felder.hook_visuell).toContain('Maßband');
     expect(varianten[1].felder.hook_visuell).toContain('Payoff-Pommes');
     expect(varianten[0].beschreibung).toMatch(/Variante B/);
+    expect(hook_varianten.hook_variante_1).toBeNull();
+    expect(hook_varianten.hook_variante_2).toBeNull();
+  });
+
+  it('mappt hook_varianten-Strings auf die drei Spalten', () => {
+    const { hook_varianten } = extractSkriptAusMaster('## Produktionskopf\nRest', {
+      hook: 'A-Hook',
+      hook_varianten: ['Zweiter Einstieg.', 'Payoff first.', 'Zu viel']
+    });
+    expect(hook_varianten).toEqual({
+      hook_variante_1: 'Zweiter Einstieg.',
+      hook_variante_2: 'Payoff first.',
+      hook_variante_3: 'Zu viel'
+    });
+  });
+
+  it('nimmt Spoken-Hooks aus dem alten varianten-Array als Fallback', () => {
+    const slots = mapHookVariantenSpalten({
+      varianten: [
+        { label: 'B', hook: 'Anderer Opener' },
+        { hook_visuell: 'Nur Bild' },
+        { hook: 'A-Hook' }
+      ]
+    }, '', { hook: 'A-Hook' });
+    expect(slots.hook_variante_1).toBe('Anderer Opener');
+    expect(slots.hook_variante_2).toBeNull();
+  });
+
+  it('zieht quoted Opener-Zeilen als Spoken-Hook-Varianten', () => {
+    const md = '## Kopf\nRest\n\nAlternativer Opener B: "Anderer Einstieg."\nAlternativer Opener C: "Payoff first."\n';
+    const { hook_varianten } = extractSkriptAusMaster(md, { hook: 'Haupt-Hook' });
+    expect(hook_varianten.hook_variante_1).toBe('Anderer Einstieg.');
+    expect(hook_varianten.hook_variante_2).toBe('Payoff first.');
   });
 
   it('laesst Creator-facing und Alternativen aus den Zusatzinfos raus', () => {

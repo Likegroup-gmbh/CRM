@@ -1,13 +1,12 @@
 // RenderShell.js
-// Render-Shell fuer den Briefing-Generator: Schritt 1 (Bereichswahl),
-// Multistep-Rahmen, Progress-Bar, Navigation, Dispatcher zu den
-// datengetriebenen Step-Renderern (fieldConfig + FieldRenderer).
+// Render-Shell fuer den Briefing-Generator: Multistep-Rahmen, Progress-Bar, Navigation,
+// Dispatcher zu den datengetriebenen Step-Renderern (fieldConfig + FieldRenderer).
 // 1:1-Pattern wie src/modules/vertrag/create/RenderShell.js.
 
 import { BriefingCreate } from './BriefingCreateCore.js';
 import { PageTransitionHelper } from '../../../core/PageTransitionHelper.js';
 import { icon } from '../../../core/icons/IconSystem.js';
-import { BEREICH_OPTIONS, getStepsForBereich } from './fieldConfig.js';
+import { getStepsForBereich } from './fieldConfig.js';
 import { renderStep } from './FieldRenderer.js';
 import { renderLikyComposer, renderLikySend, renderLikyColumn, renderLikyEingabe } from '../../../core/chat/likyComposer.js';
 import { likyCapability } from '../../../core/chat/likyCapabilities.js';
@@ -20,82 +19,11 @@ BriefingCreate.prototype.render = function() {
   this._isRendering = true;
 
   try {
-    if (!this.isGenerated) {
-      this.renderStep1();
-    } else {
-      this.renderMultistep();
-    }
+    this.renderMultistep();
   } finally {
     setTimeout(() => {
       this._isRendering = false;
     }, 50);
-  }
-};
-
-BriefingCreate.prototype.renderStep1 = function() {
-  const cards = BEREICH_OPTIONS.map(t => `
-    <label class="pe-type-card ${this.selectedBereich === t.value ? 'pe-type-card--selected' : ''}" data-value="${t.value}">
-      <input type="radio" name="briefing-bereich" value="${t.value}"
-             class="pe-type-card__radio" ${this.selectedBereich === t.value ? 'checked' : ''}>
-      <div class="pe-type-card__content">
-        <span class="pe-type-card__title">${t.label}</span>
-        <span class="pe-type-card__desc">${t.desc}</span>
-      </div>
-    </label>
-  `).join('');
-
-  const html = `
-    <div class="form-page form-page--briefing pe-fade-in">
-      <div class="pe-type-selection">
-        <h2 class="pe-type-selection__title">Briefing-Typ auswählen</h2>
-        <p class="pe-type-selection__subtitle">Paid, Organic oder Influencer – der primäre Produktionszweck.</p>
-        <div class="pe-type-card-list">
-          ${cards}
-        </div>
-        <div class="pe-type-selection__actions">
-          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/briefing')">
-            <span class="mdc-btn__label">Abbrechen</span>
-          </button>
-          <button type="button" id="btn-generate" class="mdc-btn" ${this.selectedBereich ? '' : 'disabled'}>
-            Generieren
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  window.setContentSafely(window.content, html);
-  this.bindStep1Events();
-};
-
-BriefingCreate.prototype.bindStep1Events = function() {
-  const cards = document.querySelectorAll('.pe-type-card');
-  const generateBtn = document.getElementById('btn-generate');
-
-  cards.forEach(card => {
-    card.addEventListener('click', () => {
-      const value = card.dataset.value;
-      if (!value) return;
-      cards.forEach(c => c.classList.remove('pe-type-card--selected'));
-      card.classList.add('pe-type-card--selected');
-      const radio = card.querySelector('input[type="radio"]');
-      if (radio) radio.checked = true;
-      this.selectedBereich = value;
-      if (generateBtn) generateBtn.disabled = false;
-    });
-  });
-
-  if (generateBtn) {
-    generateBtn.addEventListener('click', () => {
-      if (this.selectedBereich) {
-        this._animateAndRender(() => {
-          this.isGenerated = true;
-          this.currentStep = 2;
-          this.formData.bereich = this.selectedBereich;
-          this.render();
-        });
-      }
-    });
   }
 };
 
@@ -107,8 +35,7 @@ BriefingCreate.prototype._animateAndRender = function(renderFn) {
 };
 
 BriefingCreate.prototype.getTotalSteps = function() {
-  // Step 1 (Typ) + Master-Steps + Modul-Steps
-  return 1 + getStepsForBereich(this.selectedBereich).length;
+  return getStepsForBereich(this.selectedBereich).length;
 };
 
 BriefingCreate.prototype.renderMultistep = function() {
@@ -192,7 +119,7 @@ BriefingCreate.prototype.renderProgressBar = function() {
   return `
     <div class="progress-steps">
       ${steps.map((step, index) => {
-        const stepNum = index + 2; // Step 1 = Typ-Auswahl
+        const stepNum = index + 1;
         return `
           <div class="progress-step ${this.currentStep >= stepNum ? 'active' : ''} ${this.currentStep === stepNum ? 'current' : ''}"
                data-step="${stepNum}"
@@ -211,7 +138,7 @@ BriefingCreate.prototype.renderProgressBar = function() {
         ${icon('inbox')}
         <span class="btn-label">Als Entwurf speichern</span>
       </button>
-      ${this.currentStep >= 2 ? `
+      ${this.currentStep > 1 ? `
         <button type="button" id="btn-prev" class="mdc-btn mdc-btn--secondary">
           ${icon('arrow-left')}
           Zurück
@@ -255,7 +182,7 @@ BriefingCreate.prototype.goToStep = function(targetStep) {
 
 BriefingCreate.prototype.getStepContent = function() {
   const steps = getStepsForBereich(this.selectedBereich);
-  const stepDef = steps[this.currentStep - 2]; // Step 2 -> Index 0
+  const stepDef = steps[this.currentStep - 1];
   if (!stepDef) return '';
   return renderStep(stepDef, this.formData, this.getFieldContext());
 };
@@ -264,8 +191,10 @@ BriefingCreate.prototype.getFieldContext = function() {
   return {
     unternehmen: this.unternehmen,
     marke: this.marken,
-    benutzer: this.benutzer,
-    produkt: this.produkte,
-    persona: this.personas
+    kampagne: this.kampagnen,
+    // Kein gesperrtes Häkchen: der Typ folgt aus der Content-Verwendung (bereichAbleiten.js)
+    bereich: null,
+    linieGesperrt: !!this._linieGesperrt,
+    produktionGebunden: !!this._produktionKontext?.produktionId
   };
 };

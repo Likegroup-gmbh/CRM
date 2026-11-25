@@ -1,0 +1,367 @@
+// SkriptEditorLifecycle.js
+// Oeffnen, Wechseln und Abbauen des Skript-Editors (Prototype-Mixin).
+// Shell-Events (bindEvents) liegen in SkriptEditorEvents.
+
+import { icon } from '../../../core/icons/IconSystem.js';
+import { skripteService } from '../SkripteService.js';
+import { escapeHtml, replaceSkriptUrl, skriptCrumbs } from '../SkripteUtils.js';
+import { SkriptEditorView } from './SkriptEditorViewCore.js';
+
+/**
+ * Sidebar-Scope eines Skripts: die Linie (Briefing), sonst die Kampagne
+ * (Altbestand ohne Briefing, dort filtert renderListe auf "ohne Briefing").
+ */
+function listeScope(skript) {
+  if (skript.briefing_id) return { briefingId: skript.briefing_id };
+  return { kampagneId: skript.kampagne_id ?? null };
+}
+
+function istGastAnsicht() {
+  return Boolean(window.isGast?.());
+}
+
+SkriptEditorView.prototype.render = async function(container, skriptId) {
+  await this.cleanup();
+  this.container = container;
+
+  container.innerHTML = '<div class="empty-state"><p>Skript wird geladen...</p></div>';
+
+  const readonly = this.isReadonly;
+  try {
+    // Skript zuerst: die Sidebar wird auf dessen Kampagne gescoped
+    const skript = await skripteService.loadSkript(skriptId);
+
+    if (!skript) {
+      if (window.guestShare?.entityType === 'skript_paket') {
+        window.moduleRegistry?.navigateTo('/skripte');
+        return;
+      }
+      container.innerHTML = '<div class="empty-state"><p>Kein Zugriff auf dieses Skript.</p></div>';
+      return;
+    }
+
+    const [skripte, messages, versionen, modi, kommentare, verknuepfungen] = await Promise.all([
+      skripteService.loadSkripte(listeScope(skript)),
+      readonly ? Promise.resolve([]) : skripteService.getChatMessages(skriptId),
+      skripteService.getVersionen(skriptId),
+      readonly ? Promise.resolve([]) : this.loadModiCached(),
+      istGastAnsicht() ? Promise.resolve([]) : this._feedback.load(skriptId),
+      skripteService.loadSkriptVerknuepfungen(skriptId).catch(() => [])
+    ]);
+
+    this.skript = skript;
+    this.skripte = skripte;
+    this._listeKampagneId = skript.kampagne_id ?? null;
+    this._listeBriefingId = skript.briefing_id ?? null;
+    this.messages = messages;
+    this.kommentare = kommentare;
+    this.verknuepfungen = verknuepfungen || [];
+    this.setVersionsState(versionen);
+    if (!readonly) this.modi = modi || [];
+    this.updateBreadcrumb();
+    this.renderLayout();
+    this.warmSkriptAnschreiben();
+    this.bindEvents();
+    if (!istGastAnsicht()) this._feedback.subscribe();
+    if (!readonly) {
+      this.subscribe();
+      if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
+        this.ensurePolling();
+        // Laufender Job: Bubble aufmachen, sonst sieht der User den Fortschritt nicht
+        this.setLikyOffen(true, { persist: false });
+      } else if (this.sollFragenRundeStarten()) {
+        this.setLikyOffen(true, { persist: false });
+        this.startFragenRunde();
+      }
+      this.applyOffeneVisuellvorschlaege();
+    }
+  } catch (err) {
+    if (window.guestShare?.entityType === 'skript_paket') {
+      window.moduleRegistry?.navigateTo('/skripte');
+      return;
+    }
+    container.innerHTML = `
+      <div class="empty-state">
+        <p>Skript konnte nicht geladen werden.</p>
+        <p class="empty-state-detail" style="font-size: var(--text-sm); opacity: 0.7;">${escapeHtml(err.message)}</p>
+        <button type="button" class="mdc-btn mdc-btn--secondary" data-retry="${escapeHtml(skriptId)}">Erneut versuchen</button>
+      </div>
+    `;
+    container.querySelector('[data-retry]')?.addEventListener('click', () => {
+      this.render(container, skriptId);
+    });
+  }
+};
+
+function listeSpalteHtml(readonly) {
+  return `
+        <nav class="skripte-editor-liste" id="ed-liste" aria-label="Skripte">
+          <div class="skripte-editor-liste-head">
+            <div class="skripte-editor-liste-head-start">
+              <button type="button" class="sidebar-toggle-btn" id="ed-liste-toggle" title="Navigation verkleinern"></button>
+              <span class="skripte-editor-liste-head-label">Skripte</span>
+            </div>
+            ${readonly ? '' : `
+            <button type="button" class="mdc-btn mdc-btn--secondary" id="ed-neu" title="Neues Skript erstellen">
+              <span class="mdc-btn__icon">${icon('ai-visual')}</span>
+              <span class="mdc-btn__label">Neues Skript</span>
+            </button>
+            `}
+          </div>
+          <div id="ed-liste-items"></div>
+        </nav>`;
+}
+
+SkriptEditorView.prototype.renderLayout = function() {
+  const readonly = this.isReadonly;
+  const gast = istGastAnsicht();
+  // Eingebettet wählt das Dropdown in der Tab-Zeile das Skript, "Skript anlegen" sitzt im Produktionskopf.
+  const eingebettet = Boolean(this.einbettung);
+  const listeCollapsed = !eingebettet && this.sollListeStartCollapsed();
+  const modifier = [
+    readonly && 'skripte-editor--readonly',
+    gast && 'skripte-editor--gast',
+    listeCollapsed && 'skripte-editor--liste-collapsed',
+    eingebettet && 'skripte-editor--eingebettet'
+  ].filter(Boolean).map((c) => ` ${c}`).join('');
+  this.container.innerHTML = `
+    <div class="skripte-editor${modifier}">
+      <div class="skripte-editor-shell">
+        ${eingebettet ? '' : listeSpalteHtml(readonly)}
+        <main class="skripte-editor-main">
+          <div class="skripte-editor-doc" id="ed-doc"></div>
+        </main>
+        ${gast ? '' : `
+        <aside class="skripte-editor-fb" id="ed-fb" aria-label="Feedback">
+          <div class="skripte-editor-fb-head tab-navigation" role="tablist">
+            <button type="button" class="tab-button active" data-fb-tab="kommentare"
+              role="tab" aria-selected="true">Kommentare <span class="tab-count" hidden></span></button>
+            <button type="button" class="tab-button" data-fb-tab="aenderungen"
+              role="tab" aria-selected="false">Änderungen <span class="tab-count" hidden></span></button>
+          </div>
+          <div class="skripte-editor-fb-log" id="ed-fb-log"></div>
+        </aside>`}
+      </div>
+      <div class="crm-fmenu crm-fmenu--sm crm-fmenu--scroll skripte-editor-selmenu" id="ed-vermenu" hidden></div>
+      ${(this.kannKommentieren && !gast) || this.kannBloeckeEditieren ? `
+      <div class="crm-fmenu skripte-editor-selmenu" id="ed-selmenu" hidden></div>
+      ` : ''}
+      ${this.kannBloeckeEditieren ? `
+      <div class="crm-fmenu skripte-editor-selmenu" id="ed-blockmenu" hidden></div>
+      <div class="crm-fmenu skripte-editor-selmenu skripte-editor-toolbar-pop" id="ed-toolbar-pop" hidden></div>
+      ` : ''}
+      ${this.kannAiAktionen ? `
+      <div class="crm-fmenu skripte-editor-selmenu" id="ed-modmenu" hidden></div>
+      ` : ''}
+    </div>
+  `;
+
+  this.bindListeHead();
+  this.bindListeCollapse();
+  if (!gast) this.bindFeedbackTabs();
+  this.mountLikyChat();
+  this.renderListe();
+  this.renderDoc();
+  if (!gast) this._feedback.render();
+  if (!readonly) {
+    this.renderChat();
+    this.renderCost();
+  }
+};
+
+/** Breadcrumb: offizieller Weg (skriptCrumbs), mit Klickpfad hängt nur der Titel an. */
+SkriptEditorView.prototype.updateBreadcrumb = async function() {
+  if (this.einbettung) {
+    this.einbettung.zeigeSkript(this.skript);
+    return;
+  }
+  const label = this.skript?.titel || 'Skript';
+  window.setHeadline('Skripte');
+  // Gaeste duerfen nur die geteilte Route - kein Link auf die Gesamtliste
+  if (window.permissionSystem?.isGast) {
+    if (window.guestShare?.entityType === 'skript_paket') {
+      const kampagne = window.guestShare.entityName || 'Skripte';
+      window.breadcrumbSystem?.updateBreadcrumb([
+        { label: kampagne, url: '/skripte', clickable: true },
+        { label, clickable: false }
+      ]);
+      return;
+    }
+    window.breadcrumbSystem?.updateBreadcrumb([{ label, clickable: false }]);
+    return;
+  }
+  window.breadcrumbSystem?.updateBreadcrumb(skriptCrumbs(this.skript));
+};
+
+/**
+ * Skript-Wechsel in-place: Layout, Liste und Input bleiben stehen,
+ * nur Breadcrumb, Doc (inkl. Tags/Version) und Chat werden ausgetauscht.
+ */
+SkriptEditorView.prototype.switchSkript = async function(skriptId) {
+  if (this.skript && skriptId === this.skript.id) return;
+
+  try { await this.inlineEdit.flush(); } catch (_) { /* Wechsel trotzdem */ }
+  try { await this._blocks.flush(); } catch (_) { /* Wechsel trotzdem */ }
+  this._toolbar.schliessen();
+  const blockmenu = document.getElementById('ed-blockmenu');
+  if (blockmenu) blockmenu.hidden = true;
+
+  // Verbindungen des alten Skripts beenden (DOM und Maus-Listener bleiben)
+  if (this.channel) {
+    window.supabase.removeChannel(this.channel);
+    this.channel = null;
+  }
+  if (this.pollInterval) {
+    clearInterval(this.pollInterval);
+    this.pollInterval = null;
+  }
+  this._feedback.unsubscribe();
+  this.clearPending();
+  this.docTab = 'skript';
+  this.closeVersionMenu();
+  const selmenu = document.getElementById('ed-selmenu');
+  if (selmenu) selmenu.hidden = true;
+  const modmenu = document.getElementById('ed-modmenu');
+  if (modmenu) modmenu.hidden = true;
+
+  // Sofortiges Feedback: Active-State umschalten, Inhalte dimmen
+  this.container.querySelectorAll('.skripte-editor-liste-item').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.id === skriptId);
+  });
+  document.getElementById('ed-doc')?.classList.add('skripte-editor--laedt');
+  document.getElementById('ed-chat-log')?.classList.add('skripte-editor--laedt');
+  document.getElementById('ed-fb-log')?.classList.add('skripte-editor--laedt');
+
+  try {
+    const [skript, messages, versionen, , kommentare, verknuepfungen] = await Promise.all([
+      skripteService.loadSkript(skriptId),
+      skripteService.getChatMessages(skriptId),
+      skripteService.getVersionen(skriptId),
+      this.loadModiCached(),
+      istGastAnsicht() ? Promise.resolve([]) : this._feedback.load(skriptId),
+      skripteService.loadSkriptVerknuepfungen(skriptId).catch(() => [])
+    ]);
+
+    if (!skript) {
+      window.toastSystem?.error('Kein Zugriff auf dieses Skript');
+      this.renderListe(); // Active-State zuruecksetzen
+      return;
+    }
+
+    this.skript = skript;
+    this.messages = messages;
+    this.kommentare = kommentare;
+    this.verknuepfungen = verknuepfungen || [];
+    this.setVersionsState(versionen);
+
+    // Liste nachladen, wenn das neue Skript in einer anderen Kampagne oder
+    // Linie liegt als der bisherige Sidebar-Scope (z.B. Neu-Modus -> Kampagne B)
+    const neueKampagneId = skript.kampagne_id ?? null;
+    const neueBriefingId = skript.briefing_id ?? null;
+    if (neueKampagneId !== this._listeKampagneId || neueBriefingId !== this._listeBriefingId) {
+      this._listeKampagneId = neueKampagneId;
+      this._listeBriefingId = neueBriefingId;
+      this.skripte = await skripteService.loadSkripte(listeScope(skript));
+    }
+
+    if (this.einbettung) {
+      this.einbettung.skriptGewechselt(skriptId);
+    } else {
+      replaceSkriptUrl(skriptId);
+      this.page._merkeKontext({ skript: skriptId });
+    }
+
+    this.updateBreadcrumb();
+    this.renderListe();
+    this.renderDoc();
+    this.warmSkriptAnschreiben();
+    this.renderChat({ forceScroll: true });
+    this.renderCost();
+    if (!istGastAnsicht()) {
+      this._feedback.render();
+      this._feedback.subscribe();
+    }
+
+    this.subscribe();
+    if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
+      this.ensurePolling();
+    } else if (this.sollFragenRundeStarten()) {
+      this.setLikyOffen(true, { persist: false });
+      this.startFragenRunde();
+    }
+    this.applyOffeneVisuellvorschlaege();
+  } catch (err) {
+    window.toastSystem?.error(err.message);
+    this.renderListe();
+  } finally {
+    document.getElementById('ed-doc')?.classList.remove('skripte-editor--laedt');
+    document.getElementById('ed-chat-log')?.classList.remove('skripte-editor--laedt');
+    document.getElementById('ed-fb-log')?.classList.remove('skripte-editor--laedt');
+  }
+};
+
+SkriptEditorView.prototype.cleanup = async function() {
+  this._chatLog?.destroy();
+  this._chatLog = null;
+  this._likyShell?.destroy();
+  this._likyShell = null;
+  try { await this.inlineEdit.flush(); } catch (_) { /* Abbau trotzdem */ }
+  this.inlineEdit.detach();
+  try { await this._blocks.flush(); } catch (_) { /* Abbau trotzdem */ }
+  this._toolbar.destroy();
+  this.unbindKopfMenu();
+  this.unbindStatusWahl();
+  this.cleanupGenJob();
+  this.genStatus = null;
+  this._listeKampagneId = undefined;
+  this._listeBriefingId = undefined;
+  if (this.channel) {
+    window.supabase.removeChannel(this.channel);
+    this.channel = null;
+  }
+  if (this.pollInterval) {
+    clearInterval(this.pollInterval);
+    this.pollInterval = null;
+  }
+  this._realtime.destroy();
+  this._feedback.destroy();
+  this._koopDrawer?.destroy?.();
+  this._koopDrawer = null;
+  this.verknuepfungen = [];
+  if (this.onMouseUp) {
+    document.removeEventListener('mouseup', this.onMouseUp);
+    this.onMouseUp = null;
+  }
+  if (this.onDocMouseDown) {
+    document.removeEventListener('mousedown', this.onDocMouseDown);
+    this.onDocMouseDown = null;
+  }
+  if (this.onEntityUpdated) {
+    window.removeEventListener('entityUpdated', this.onEntityUpdated);
+    this.onEntityUpdated = null;
+  }
+  this.closeVersionMenu();
+  this._listeCollapse?.destroy();
+  this._listeCollapse = null;
+  this.kommentare = [];
+  this.selektion = null;
+  this.pendingAktion = null;
+  this.visuellApplyLaeuft = false;
+};
+
+SkriptEditorView.prototype.bindFeedbackTabs = function() {
+  this.container.querySelectorAll('[data-fb-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => this._feedback.setTab(btn.dataset.fbTab));
+  });
+};
+
+SkriptEditorView.prototype.loadModiCached = async function() {
+  if (this.isReadonly || this._modiGeladen) return this.modi;
+  try {
+    this.modi = await skripteService.loadAktiveModi() || [];
+  } catch (_) {
+    this.modi = [];
+  }
+  this._modiGeladen = true;
+  return this.modi;
+};

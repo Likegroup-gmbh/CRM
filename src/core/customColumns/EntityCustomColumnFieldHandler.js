@@ -20,7 +20,7 @@ export class EntityCustomColumnFieldHandler {
    * @param {(entityId:string, columnId:string, value:string)=>void} [ctx.onValueChange]
    * @returns {Promise<boolean>}
    */
-  static async handleUpdate(field, { dataLoader, columns, onValueChange }) {
+  static readUpdate(field) {
     let columnId = field.getAttribute('data-custom-column-id');
     let entityId = field.getAttribute('data-entity-id');
 
@@ -29,8 +29,7 @@ export class EntityCustomColumnFieldHandler {
       columnId = field.getAttribute('data-field');
       entityId = field.getAttribute('data-id');
     }
-
-    if (!columnId || !entityId) return false;
+    if (!columnId || !entityId) return null;
 
     let value;
     if (field.type === 'checkbox') {
@@ -40,9 +39,16 @@ export class EntityCustomColumnFieldHandler {
     } else {
       value = field.value;
     }
+    return { columnId, entityId, value };
+  }
 
-    await dataLoader.upsertValue(columnId, entityId, value);
+  static async handleUpdate(field, { dataLoader, columns, onValueChange }) {
+    const parsed = this.readUpdate(field);
+    if (!parsed) return false;
+    const { columnId, entityId, value } = parsed;
+
     onValueChange?.(entityId, columnId, value);
+    await dataLoader.upsertValue(columnId, entityId, value);
 
     if (field.classList.contains('custom-col-select') && value) {
       await this._ensureDropdownOption(columnId, value, columns, dataLoader);

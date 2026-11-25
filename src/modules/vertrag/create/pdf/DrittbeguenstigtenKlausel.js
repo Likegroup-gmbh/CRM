@@ -3,7 +3,7 @@
 // "EHG" ist der Kunden-Firmenname. Intern 1–3 nummeriert, ohne eigene §-Nummer,
 // damit bestehende Paragraphen in den Standardvertraegen nicht verschoben werden.
 
-import { ensureSpace, renderPaginatedText } from './PdfTextFlow.js';
+import { ensureSpace, renderPaginatedText } from '../../../../core/pdf/PdfTextFlow.js';
 
 const NAME_PLATZHALTER = '_'.repeat(20);
 

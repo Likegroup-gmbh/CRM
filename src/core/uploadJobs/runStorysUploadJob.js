@@ -1,50 +1,9 @@
 // runStorysUploadJob.js
 // Pure Job-Runner für Storys-Upload (StorysTabHandler).
 
-import { uploadFileDirect } from '../DropboxDirectUploader.js';
-import { createFolderSharedLink } from '../VideoUploadUtils.js';
-
-async function prepareStorysUpload({ metadaten, slotIndex, versionNumber, variantName, fileName, isFinal }) {
-  const payload = {
-    unternehmen: metadaten.unternehmen || '',
-    marke: metadaten.marke || '',
-    kampagne: metadaten.kampagne || '',
-    kooperation: metadaten.kooperationName || '',
-    videoPosition: metadaten.videoPosition || 1,
-    videoThema: metadaten.videoThema || '',
-    slotIndex,
-    versionNumber,
-    variantName,
-    fileName,
-    isFinal: !!isFinal,
-    action: 'prepare',
-  };
-  const resp = await fetch('/.netlify/functions/dropbox-upload-storys', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!resp.ok) {
-    const errData = await resp.json().catch(() => ({}));
-    throw new Error(errData.error || `Vorbereitung fehlgeschlagen (${resp.status})`);
-  }
-  return resp.json();
-}
-
-async function createSharedLink(token, dropboxPath) {
-  try {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token }),
-    });
-    if (!resp.ok) return null;
-    const { url } = await resp.json();
-    return url?.replace('?dl=0', '?raw=1') || null;
-  } catch {
-    return null;
-  }
-}
+import { nextFreeIndexedFileName, sanitizeFileName, fileBasename } from '../VideoUploadUtils.js';
+import { ablageZielHolen, hochladenNachSharePoint, sharePointAssetFelder, uploadVerwerfen } from '../ablage/ablageUpload.js';
+import { trackUploadProgress } from './uploadFortschritt.js';
 
 async function updateCurrentFlagsForSlot(slotId) {
   const { data: assets } = await window.supabase
@@ -80,7 +39,7 @@ export async function runStorysUploadJob(ctx) {
   if (!Array.isArray(queue) || queue.length === 0) throw new Error('queue leer');
 
   const storySlots = Array.isArray(initialSlots) ? [...initialSlots] : [];
-  let videoFolderUrl = null;
+  let storysFolderUrl = null;
   const slotsTouched = new Set();
   let uploaded = 0;
 
@@ -92,16 +51,14 @@ export async function runStorysUploadJob(ctx) {
     const isFinal = !!queueItem.isFinal;
     const versionNumber = isFinal ? 1 : queueItem.versionNumber;
     let slotId = queueItem.slotId;
-    let slotIndex;
     const variantName = (queueItem.variantName || '').trim();
     const item = job.items[i];
 
-    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
+    updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size });
 
     // Slot anlegen falls nötig
     if (slotId === '__new__') {
-      const maxIdx = storySlots.reduce((m, s) => Math.max(m, s.slot_index || 0), 0);
-      slotIndex = maxIdx + 1;
+      const slotIndex = storySlots.reduce((m, s) => Math.max(m, s.slot_index || 0), 0) + 1;
       const { data: newSlot, error: slotErr } = await window.supabase
         .from('kooperation_story')
         .insert({
@@ -120,64 +77,49 @@ export async function runStorysUploadJob(ctx) {
         currentVersion: 0,
         existingVersions: [],
       });
-    } else {
-      const slot = storySlots.find(s => s.id === slotId);
-      slotIndex = slot?.slot_index || 1;
     }
     slotsTouched.add(slotId);
 
-    const prep = await prepareStorysUpload({
-      metadaten, slotIndex, versionNumber, variantName, fileName: file.name, isFinal,
+    const slot = storySlots.find(s => s.id === slotId);
+    let fileName = file.name;
+    if (isFinal && slot) {
+      const base = sanitizeFileName(file.name) || 'story.mp4';
+      if (!slot._finalNamesByVariant) slot._finalNamesByVariant = {};
+      if (!slot._finalNamesByVariant[variantName]) {
+        slot._finalNamesByVariant[variantName] = (slot.assets || [])
+          .filter(a => a.is_final && (a.variant_name || '') === variantName)
+          .map(a => fileBasename(a.file_path) || sanitizeFileName(a.file_name || ''))
+          .filter(Boolean);
+      }
+      fileName = nextFreeIndexedFileName(base, slot._finalNamesByVariant[variantName]);
+      slot._finalNamesByVariant[variantName].push(fileName);
+    }
+
+    const ziel = await ablageZielHolen({
+      typ: 'story',
+      kooperation_id: metadaten?.kooperationId ?? null,
+      kooperation_video_id: videoId,
+      story_id: slotId,
+      version_number: parseInt(versionNumber, 10) || 1,
+      is_final: isFinal,
+      variant_name: variantName || null,
+      file_name: fileName,
+      file_size: file.size,
     });
-    const token = prep.token;
-    const dropboxPath = prep.dropboxPath;
-    if (prep.videoFolderPath) videoFolderUrl = prep.videoFolderPath;
-
-    const getToken = async () => {
-      const fresh = await prepareStorysUpload({
-        metadaten, slotIndex, versionNumber, variantName, fileName: file.name, isFinal,
-      });
-      return fresh.token;
-    };
-
-    await uploadFileDirect({
-      file,
-      dropboxPath,
-      token,
-      getToken,
-      signal,
-      onProgress: ({ loaded, total, phase, error }) => {
-        const patch = { loaded, total };
-        if (phase === 'direct-failed') {
-          patch.directOk = false;
-          patch.directError = error || 'Unbekannter Fehler';
-          patch.transport = 'proxy';
-          if (!item.directErrorNotified) {
-            item.directErrorNotified = true;
-            window.toastSystem?.warning?.(
-              `Direct-Upload fehlgeschlagen (${patch.directError}). Upload laeuft ueber Proxy weiter (langsamer).`
-            );
-          }
-        }
-        if (phase === 'proxy-fallback') patch.transport = 'proxy';
-        updateItem(item.id, patch);
-      },
-    });
-
-    if (item.directOk === null) updateItem(item.id, { directOk: true });
+    const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: trackUploadProgress(item, updateItem) });
     updateItem(item.id, { status: 'saving' });
+    if (!storysFolderUrl) storysFolderUrl = commit.folder_url || null;
+    if (isFinal && slot && commit.file_name) slot._finalNamesByVariant[variantName].push(commit.file_name);
 
-    const fileUrl = await createSharedLink(token, dropboxPath);
-
+    const felder = sharePointAssetFelder(commit);
     const { error: insertErr } = await window.supabase
       .from('kooperation_story_asset')
       .insert({
         story_id: slotId,
         video_id: videoId,
-        file_url: fileUrl,
-        file_path: dropboxPath,
-        file_name: file.name,
-        file_size: file.size,
+        ...felder,
+        file_name: felder.file_name || fileName,
+        file_size: felder.file_size ?? file.size,
         version_number: versionNumber,
         variant_name: variantName || null,
         is_current: !isFinal,
@@ -185,7 +127,10 @@ export async function runStorysUploadJob(ctx) {
         uploaded_by: window.currentUser?.id || null,
         created_at: new Date().toISOString(),
       });
-    if (insertErr) throw insertErr;
+    if (insertErr) {
+      await uploadVerwerfen(ziel.upload_id);
+      throw insertErr;
+    }
 
     updateItem(item.id, { status: 'done', loaded: file.size });
     uploaded++;
@@ -194,34 +139,6 @@ export async function runStorysUploadJob(ctx) {
   // is_current pro Slot aktualisieren
   for (const slotId of slotsTouched) {
     await updateCurrentFlagsForSlot(slotId);
-  }
-
-  // Storys-Folder-Link einmal anhängen
-  let storysFolderUrl = null;
-  if (videoFolderUrl) {
-    try {
-      const tokenResp = await fetch('/.netlify/functions/dropbox-upload-storys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          unternehmen: metadaten.unternehmen || '',
-          marke: metadaten.marke || '',
-          kampagne: metadaten.kampagne || '',
-          kooperation: metadaten.kooperationName || '',
-          videoPosition: metadaten.videoPosition || 1,
-          videoThema: metadaten.videoThema || '',
-          slotIndex: 1,
-          versionNumber: 1,
-          action: 'prepare',
-        }),
-      });
-      if (tokenResp.ok) {
-        const tokenData = await tokenResp.json();
-        storysFolderUrl = await createFolderSharedLink(tokenData.token, tokenData.videoFolderPath);
-      }
-    } catch (err) {
-      console.warn('[StorysUpload] Folder-Link fehlgeschlagen:', err);
-    }
   }
 
   if (storysFolderUrl) {

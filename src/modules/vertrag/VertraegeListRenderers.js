@@ -3,14 +3,21 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
+import {
+  getVertragStatus,
+  vertragStatusLabel,
+} from './vertragStatus.js';
 
 const escapeHtml = (text) => {
   if (!text) return '';
   return window.validatorSystem?.sanitizeHtml(text) || text;
 };
 
-export function renderFoldersView(listViewMode, canEdit) {
+export function renderFoldersView(listViewMode) {
   const viewToggleHtml = ViewModeToggle.render([
     { buttonId: 'btn-view-list', label: 'Liste', icon: 'list', active: listViewMode === 'list' },
     { buttonId: 'btn-view-grid', label: 'Grid', icon: 'grid', active: listViewMode === 'grid' }
@@ -23,9 +30,6 @@ export function renderFoldersView(listViewMode, canEdit) {
           <div class="filter-left">
             ${viewToggleHtml}
           </div>
-        </div>
-        <div class="table-actions">
-          ${canEdit ? '<button id="btn-vertrag-new" class="mdc-btn">Neuen Vertrag anlegen</button>' : ''}
         </div>
       </div>
 
@@ -75,10 +79,7 @@ export function updateFoldersGrid(folders) {
   grid.innerHTML = folders.map(folder => `
     <div class="folder-card" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">
       <div class="folder-icon">
-        ${folder.logo_url
-          ? `<img src="${escapeHtml(folder.logo_url)}" alt="${escapeHtml(folder.firmenname)}" class="folder-logo">`
-          : `${icon('folder-open')}`
-        }
+        ${renderFolderAvatar({ url: folder.logo_url, name: folder.firmenname })}
       </div>
       <div class="folder-info">
         <span class="folder-name">${escapeHtml(folder.firmenname)}</span>
@@ -104,21 +105,20 @@ export function updateUnternehmenListTableBody(folders) {
 
   tbody.innerHTML = folders.map(folder => `
     <tr class="table-row-clickable unternehmen-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">
-      <td>
-        <div class="flex-center-sm">
-          ${folder.logo_url
-            ? `<img src="${escapeHtml(folder.logo_url)}" alt="${escapeHtml(folder.firmenname)}" class="table-logo">`
-            : ''
-          }
-          <a href="#" class="table-link unternehmen-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">${escapeHtml(folder.firmenname)}</a>
-        </div>
+      <td class="col-name">
+        ${renderTableIdentity({
+          url: folder.logo_url,
+          logo: true,
+          iconHtml: icon('folder-open'),
+          nameHtml: `<a href="#" class="table-link unternehmen-link" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">${escapeHtml(folder.firmenname)}</a>`
+        })}
       </td>
       <td>${folder.count}</td>
     </tr>
   `).join('');
 }
 
-export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }, activeTypeTab = 'vertraege') {
+export function renderVertraegeView({ isAdmin, canBulkDelete }, activeTypeTab = 'vertraege') {
   const typeTabs = [
     { id: 'vertraege', label: 'Verträge' },
     { id: 'contracting', label: 'Contracting' }
@@ -146,7 +146,6 @@ export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }, activeT
           <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
           <button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>` : ''}
-          ${canEdit ? '<button id="btn-vertrag-new" class="mdc-btn">Neuen Vertrag anlegen</button>' : ''}
         </div>
       </div>
 
@@ -181,7 +180,7 @@ export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }, activeT
   `;
 }
 
-export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, isAdmin }) {
+export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, isAdmin, canDelete = canBulkDelete, canCreate = false }) {
   const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
 
   return vertraege.map(vertrag => {
@@ -189,8 +188,6 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
     const creatorName = creator.vorname
       ? `${escapeHtml(creator.vorname)} ${escapeHtml(creator.nachname || '')}`.trim()
       : '-';
-
-    const typClass = vertrag.typ ? `typ-${vertrag.typ.toLowerCase().replace(/\s+/g, '-')}` : '';
 
     const dateiHtml = vertrag.datei_url
       ? `<a href="${escapeHtml(vertrag.datei_url)}" target="_blank" class="datei-link datei-icon" title="PDF anzeigen">
@@ -214,11 +211,9 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
       unterschriebenHtml = '<span class="text-muted">—</span>';
     }
 
-    const statusBadge = vertrag.is_draft
-      ? '<span class="status-badge status-draft">Entwurf</span>'
-      : '<span class="status-badge status-final">Finalisiert</span>';
+    const statusHtml = renderVertragStatusCell(vertrag);
 
-    const actionsHtml = renderVertragActions(vertrag, isAdmin, canEdit, canBulkDelete);
+    const actionsHtml = renderVertragActions(vertrag, isAdmin, canEdit, canDelete, canCreate);
 
     return `
       <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}" data-vertrag-draft="${vertrag.is_draft ? '1' : '0'}">
@@ -229,18 +224,16 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
         <td class="col-kampagne">
           ${VertragUtils.renderVertragContextHtml(vertrag, escapeHtml)}
         </td>
-        <td class="col-status">${statusBadge}</td>
+        <td class="col-status">${statusHtml}</td>
         <td class="col-typ">
           ${vertrag.typ
-            ? `<span class="status-badge ${typClass}">${escapeHtml(vertrag.typ)}</span>`
+            ? `<span class="tag tag--type">${escapeHtml(vertrag.typ)}</span>`
             : '-'}
         </td>
         <td class="col-creator">
-          ${creator.id ? `
-            <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
-              ${creatorName}
-            </a>
-          ` : '-'}
+          ${creator.id
+            ? renderVerknuepfungPill({ kind: 'creator', labelHtml: creatorName, attrs: `data-table="creator" data-id="${creator.id}"` })
+            : '-'}
         </td>
         <td class="col-datei">${dateiHtml}</td>
         <td class="col-signed">${unterschriebenHtml}</td>
@@ -253,7 +246,15 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
   }).join('');
 }
 
-export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAdmin) {
+export function renderVertragStatusCell(vertrag) {
+  const status = getVertragStatus(vertrag);
+  const label = vertragStatusLabel(status);
+  if (status === 'kein_vertrag') return '<span class="text-muted">—</span>';
+  const text = label === status ? '—' : label;
+  return `<span class="status-badge status-${status}">${escapeHtml(text)}</span>`;
+}
+
+export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAdmin, canCreate = true) {
   const isDraft = vertrag.is_draft;
 
   let actions = '';
@@ -278,6 +279,15 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
         Unterschriebenen Vertrag hochladen
       </a>`;
 
+  // Kooperationen, die der Vertrag deckt (ADR 0047). Nur mit Creator und Kampagne, nie bei Contracting.
+  const deckungAction = canEdit && vertrag.creator_id && vertrag.kampagne_id
+    && vertrag.typ !== 'Contracting' && vertrag.status !== 'abgelehnt'
+    ? `<a href="#" class="action-item" data-action="vertrag-kooperationen" data-id="${vertrag.id}">
+        ${signedIcon}
+        Kooperationen verwalten
+      </a>`
+    : '';
+
   if (isDraft) {
     actions = `
       ${canEdit ? `
@@ -289,6 +299,7 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
         ${window.ActionsDropdown?.getHeroIcon('view') || ''}
         Details anzeigen
       </a>
+      ${deckungAction}
       ${signedActions}
     `;
   } else {
@@ -302,12 +313,30 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
         ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
         Bearbeiten
       </a>` : ''}
+      ${canEdit && canCreate ? `
+      <a href="#" class="action-item" data-action="vertrag-als-vorlage" data-id="${vertrag.id}">
+        ${window.ActionsDropdown?.getHeroIcon('document-duplicate') || icon('document-duplicate')}
+        Als Vorlage verwenden
+      </a>` : ''}
       ${vertrag.datei_url ? `
         <a href="#" class="action-item" data-action="download" data-id="${vertrag.id}">
           ${window.ActionsDropdown?.getHeroIcon('download') || ''}
           PDF herunterladen
         </a>
       ` : ''}
+      ${!vertrag.datei_url && canEdit ? `
+        <a href="#" class="action-item" data-action="generate-pdf" data-id="${vertrag.id}">
+          ${window.ActionsDropdown?.getHeroIcon('pdf') || icon('pdf')}
+          PDF erzeugen
+        </a>
+      ` : ''}
+      ${vertrag.datei_url && window.isInternal?.() ? `
+        <a href="#" class="action-item" data-action="anschreiben" data-id="${vertrag.id}">
+          ${window.ActionsDropdown?.getHeroIcon('anschreiben') || icon('mail-send')}
+          Vertrag verschicken
+        </a>
+      ` : ''}
+      ${deckungAction}
       ${signedActions}
     `;
   }

@@ -4,6 +4,8 @@
 
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { renderSecondaryNav, getTabQueryParam } from '../../core/TabUtils.js';
+import { darfRezensionSehen, formatRezension } from './rezension.js';
+import { merkmaleHtml, bindCreatorMerkmale } from './creatorMerkmale.js';
 
 export class CreatorDetail extends PersonDetailBase {
   constructor() {
@@ -19,12 +21,15 @@ export class CreatorDetail extends PersonDetailBase {
     this.creatorAdressen = [];
     this.managements = [];
     this.firmen = [];
+    this.castings = [];
     this.profileCounts = {
       kooperationen: 0,
       videos: 0
     };
     this.eventsBound = false;
     this._cacheInvalidationBound = false;
+    // Nur lesen, ohne Anlege-/Entfernen-Knoepfe (z. B. in der Creator-Schublade)
+    this.readOnly = false;
     this.activeMainTab = 'informationen';
     this._abortController = null;
     this._destroyed = false;
@@ -55,6 +60,15 @@ export class CreatorDetail extends PersonDetailBase {
     try {
       await this.loadCriticalData();
 
+      if (window.breadcrumbSystem && this.creator) {
+        const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Details';
+        const canEdit = window.canEdit?.('creator') ?? false;
+        window.breadcrumbSystem.updateDetailLabel(creatorName, {
+          id: 'btn-edit-creator',
+          canEdit: canEdit
+        });
+      }
+
       const tabParam = getTabQueryParam();
       if (tabParam) {
         this.activeMainTab = tabParam;
@@ -64,16 +78,7 @@ export class CreatorDetail extends PersonDetailBase {
 
       await this.loadKooperationen();
       await this.loadProfileCounts();
-      
-      if (window.breadcrumbSystem && this.creator) {
-        const creatorName = [this.creator.vorname, this.creator.nachname].filter(Boolean).join(' ') || 'Details';
-        const canEdit = window.canEdit?.('creator') ?? false;
-        window.breadcrumbSystem.updateDetailLabel(creatorName, {
-          id: 'btn-edit-creator',
-          canEdit: canEdit
-        });
-      }
-      
+
       await this.render();
       
       if (!this.eventsBound) {
@@ -129,6 +134,7 @@ export class CreatorDetail extends PersonDetailBase {
     });
 
     window.setContentSafely(window.content, html);
+    bindCreatorMerkmale(window.content);
   }
 
   renderSidebarInfo() {
@@ -149,9 +155,12 @@ export class CreatorDetail extends PersonDetailBase {
     const videosCount = this.profileCounts?.videos || 0;
 
     kpiItems.push(
-      { icon: 'kooperation', label: 'Kooperationen', value: kooperationenCount.toLocaleString('de-DE') },
+      { icon: 'users', label: 'Kooperationen', value: kooperationenCount.toLocaleString('de-DE') },
       { icon: 'video', label: 'Videos', value: videosCount.toLocaleString('de-DE') }
     );
+    if (darfRezensionSehen()) {
+      kpiItems.push({ icon: 'star', label: 'Rezension', value: formatRezension(this.creator?.rezension_schnitt) });
+    }
 
     if (instagramUrl) {
       detailItems.push({ icon: 'instagram', label: 'Instagram', rawHtml: `<a href="${instagramUrl}" target="_blank" rel="noopener noreferrer">@${this.sanitize(instagramHandle.replace('@', ''))}</a>` });
@@ -220,6 +229,7 @@ export class CreatorDetail extends PersonDetailBase {
     detailItems.push({ icon: 'clock', label: 'Erstellt', value: this.formatDate(this.creator.created_at) });
 
     return `
+      ${merkmaleHtml(this.creator.id)}
       <div class="detail-card">
         <h3 class="section-title">Kennzahlen</h3>
         ${this.renderInfoItems(kpiItems)}
@@ -236,10 +246,11 @@ export class CreatorDetail extends PersonDetailBase {
       { tab: 'instagram', label: 'Instagram', isActive: this.activeMainTab === 'instagram' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.unternehmen?.length || 0, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen?.length || 0, isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'castings', label: 'Castings', count: this.castings?.length || 0, isActive: this.activeMainTab === 'castings' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen?.length || 0, isActive: this.activeMainTab === 'kooperationen' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen?.length || 0, isActive: this.activeMainTab === 'rechnungen' },
       { tab: 'vertraege', label: 'Verträge', count: this.vertraege?.length || 0, isActive: this.activeMainTab === 'vertraege' },
-      { tab: 'listen', label: 'Listen', count: this.lists?.length || 0, isActive: this.activeMainTab === 'listen' },
+      { tab: 'listen', label: 'Masterlisten', count: this.lists?.length || 0, isActive: this.activeMainTab === 'listen' },
       { tab: 'management', label: 'Management', count: this.managements?.length || 0, isActive: this.activeMainTab === 'management' },
       { tab: 'firmen', label: 'Firmen', count: this.firmen?.length || 0, isActive: this.activeMainTab === 'firmen' },
       { tab: 'adresse', label: 'Adresse', isActive: this.activeMainTab === 'adresse' }
@@ -260,6 +271,10 @@ export class CreatorDetail extends PersonDetailBase {
 
         <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
           ${this.renderKampagnenContent()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'castings' ? 'active' : ''}" id="tab-castings">
+          ${this.renderCastingsContent()}
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">

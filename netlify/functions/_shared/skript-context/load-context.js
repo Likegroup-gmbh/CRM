@@ -4,15 +4,15 @@
 // Welle 1 haengt nur an den params-IDs, Welle 2 an den Ergebnissen aus 1.
 
 const { resolveSkriptBereich, loadMasterDocs } = require('../skript-master');
+const { attachAudienceSituations } = require('../audience-situation');
 
 // ---------------------------------------------------------------------------
 // Kontext-Aufbau
 // ---------------------------------------------------------------------------
-// options.schlank (Fragen-Pfad): DNA nur als Metadaten (Name/Typ/Version) -
-// der Fragen-Prompt braucht die Inhalte nicht, nur welche Layer aktiv sind.
-async function loadContext(supabase, params, { schlank = false } = {}) {
-  const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, briefing_id, mit_dna, dna_id } = params;
-  const ctx = { dnaVersionen: [], master: [], masterVersionen: [] };
+// Regelquelle ist das Master-Regelwerk (basis + Bereich), keine Skript-DNA mehr.
+async function loadContext(supabase, params) {
+  const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, briefing_id, strategie_item_id } = params;
+  const ctx = { master: [], masterVersionen: [] };
 
   // Welle 1: alle Quellen, die nur an params-IDs haengen (nicht voneinander)
   const unternehmenPromise = unternehmen_id
@@ -41,7 +41,7 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
 
   const personaPromise = persona_id
     ? supabase.from('personas')
-      .select('id, name, oberbegriff, beschreibung, branche_id, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, produkt_loesung, produktvorteile')
+      .select('id, name, oberbegriff, beschreibung, branche_id, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, produkt_loesung, produktvorteile')
       .eq('id', persona_id).single()
     : Promise.resolve({ data: null });
 
@@ -56,12 +56,20 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
       .select('*').eq('id', briefing_id).single()
     : Promise.resolve({ data: null });
 
+  // Zugewiesener Creator der Videoidee: Casting-Eintrag + CRM-Creator.
+  // Casting-notiz bleibt bewusst draussen (interne Notiz, kein Prompt-Stoff).
+  const creatorPromise = strategie_item_id
+    ? supabase.from('strategie_items')
+      .select('creator_name, casting_eintrag:creator_auswahl_item_id(name, creator:creator_id(vorname, nachname, instagram, tiktok, ig_biography))')
+      .eq('id', strategie_item_id).maybeSingle()
+    : Promise.resolve({ data: null });
+
   const [
     { data: unternehmen }, { data: marke }, { data: produkt }, { data: varianten },
-    { data: persona }, { data: kampagne }, { data: briefing }
+    { data: persona }, { data: kampagne }, { data: briefing }, { data: strategieItem }
   ] = await Promise.all([
     unternehmenPromise, markePromise, produktPromise, variantenPromise,
-    personaPromise, kampagnePromise, briefingPromise
+    personaPromise, kampagnePromise, briefingPromise, creatorPromise
   ]);
 
   ctx.unternehmen = unternehmen;
@@ -69,13 +77,30 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
   ctx.produkt = produkt;
   ctx.produktVarianten = varianten || [];
   ctx.persona = persona;
+  if (ctx.persona) await attachAudienceSituations(supabase, ctx.persona);
   ctx.kampagne = kampagne;
   ctx.briefing = briefing || null;
+
+  // Creator der Videoidee (Casting-Eintrag hat Vorrang vor dem Freitext-Feld).
+  const eintrag = strategieItem?.casting_eintrag || null;
+  const crmCreator = eintrag?.creator || null;
+  const creatorName = eintrag?.name
+    || [crmCreator?.vorname, crmCreator?.nachname].filter(Boolean).join(' ').trim()
+    || strategieItem?.creator_name
+    || null;
+  ctx.creator = creatorName
+    ? {
+        name: creatorName,
+        instagram: crmCreator?.instagram || null,
+        tiktok: crmCreator?.tiktok || null,
+        bio: crmCreator?.ig_biography || null
+      }
+    : null;
 
   // Branche: explizite Wahl aus der UI hat Vorrang vor Marke/Unternehmen/Persona
   ctx.brancheId = branche_id || ctx.marke?.branche_id || ctx.unternehmen?.branche_id || null;
 
-  ctx.bereich = resolveSkriptBereich(params, ctx.briefing);
+  ctx.bereich = resolveSkriptBereich(params, ctx.briefing, ctx.kampagne);
 
   // Welle 2: haengt an den Ergebnissen aus Welle 1 (brancheId, persona.branche_id, bereich)
   const branchePromise = ctx.brancheId
@@ -83,56 +108,15 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
       .select('id, name').eq('id', ctx.brancheId).single()
     : Promise.resolve({ data: null });
 
-  // DNA-Auswahl:
-  //   dna_id gesetzt   -> genau DIESES Dokument (gezielte Wahl in der UI)
-  //   mit_dna=false    -> keine DNA (Blindvergleich)
-  //   sonst            -> automatisch alle passenden aktiven Layer
-  //                       (global > branche > zielgruppe > marke)
-  const dnaPromise = (async () => {
-    if (mit_dna === false) return { dna: [], dnaVersionen: [] };
-    const dnaCols = schlank ? 'id, name, layer_typ, version' : 'id, name, layer_typ, version, inhalt';
-    if (dna_id) {
-      const { data } = await supabase.from('skript_dna')
-        .select(dnaCols)
-        .eq('id', dna_id).eq('status', 'aktiv').single();
-      if (!data) throw new Error('Gewaehlte DNA nicht gefunden oder nicht aktiv');
-      return {
-        dna: [data],
-        dnaVersionen: [{ id: data.id, name: data.name, layer: data.layer_typ, version: data.version }]
-      };
-    }
-    const brancheIdEff = ctx.brancheId || ctx.persona?.branche_id || null;
-    const orParts = ['layer_typ.eq.global'];
-    if (brancheIdEff) orParts.push(`and(layer_typ.eq.branche,branche_id.eq.${brancheIdEff})`);
-    if (persona_id) orParts.push(`and(layer_typ.eq.zielgruppe,persona_id.eq.${persona_id})`);
-    if (marke_id) orParts.push(`and(layer_typ.eq.marke,marke_id.eq.${marke_id})`);
-
-    const { data } = await supabase.from('skript_dna')
-      .select(dnaCols)
-      .eq('status', 'aktiv')
-      .or(orParts.join(','));
-
-    const order = { global: 0, branche: 1, zielgruppe: 2, marke: 3 };
-    const dna = (data || []).sort((a, b) => order[a.layer_typ] - order[b.layer_typ]);
-    return {
-      dna,
-      dnaVersionen: dna.map((d) => ({ id: d.id, name: d.name, layer: d.layer_typ, version: d.version }))
-    };
-  })();
-
-  // Master-Regelwerk: Basis immer + Bereichs-Doc. Auch im schlanken
-  // Fragen-Pfad voll laden - die Rueckfragen muessen die Ausgabestruktur kennen.
+  // Master-Regelwerk: Basis immer + Bereichs-Doc. Auch der Fragen-Pfad laedt
+  // es voll - die Rueckfragen muessen die Ausgabestruktur kennen.
   const masterPromise = loadMasterDocs(supabase, ctx.bereich, { schlank: false });
 
-  const [
-    { data: branche }, dnaResult, masterResult
-  ] = await Promise.all([
-    branchePromise, dnaPromise, masterPromise
+  const [{ data: branche }, masterResult] = await Promise.all([
+    branchePromise, masterPromise
   ]);
 
   ctx.branche = branche;
-  ctx.dna = dnaResult.dna;
-  ctx.dnaVersionen = dnaResult.dnaVersionen;
   ctx.master = masterResult.master;
   ctx.masterVersionen = masterResult.masterVersionen;
 

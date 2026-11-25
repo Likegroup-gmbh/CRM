@@ -1,6 +1,7 @@
 // InvoiceMonthFilter.js
 // Clientseitige Tab-Filterung fuer die Kundenrechnungen-Liste.
-// Exklusiv: kein re_nr → Ohne Rechnungsnummer; sonst kein Datum → Ohne Datum; sonst Monat.
+// Monat ist exklusiv. Ohne Nummer und ohne Datum duerfen sich ueberschneiden:
+// eine Zeile ohne re_nr und ohne Datum steht in beiden Tabs.
 
 import { getInvoiceMonthKey } from './InvoiceDisplayDate.js';
 
@@ -31,33 +32,59 @@ export function getCurrentMonthSelection(now = new Date()) {
   return { year: now.getFullYear(), month: now.getMonth() };
 }
 
+function isYearKey(key, year) {
+  return Boolean(key && typeof key === 'object' && key.year === year);
+}
+
+// Alle: Jahr reicht, re_nr ist egal. Ohne Nummer liegt das Datum in
+// getInvoiceMonthKey, weil getInvoiceTabKey vorher no-renr liefert.
+function isInYear(row, year, getTabKey) {
+  const key = getTabKey(row);
+  if (isYearKey(key, year)) return true;
+  if (key !== NO_RENR_TAB) return false;
+  return isYearKey(getInvoiceMonthKey(row), year);
+}
+
 export function filterRowsByMonthYear(rows, { year, month }, getTabKey = getInvoiceTabKey) {
   const list = rows || [];
-  if (month === ALL_TAB) return list;
-  if (month === NO_RENR_TAB || month === UNDATED_TAB) {
-    return list.filter(row => getTabKey(row) === month);
+  if (month === ALL_TAB) return list.filter(row => isInYear(row, year, getTabKey));
+  if (month === NO_RENR_TAB) return list.filter(row => getTabKey(row) === NO_RENR_TAB);
+  if (month === UNDATED_TAB) {
+    return list.filter(row => {
+      const key = getTabKey(row);
+      if (key === UNDATED_TAB) return true;
+      return key === NO_RENR_TAB && !getInvoiceMonthKey(row);
+    });
   }
   const monthIndex = Number(month);
   return list.filter(row => {
     const key = getTabKey(row);
-    return Boolean(key && typeof key === 'object' && key.year === year && key.month === monthIndex);
+    return isYearKey(key, year) && key.month === monthIndex;
   });
 }
 
 export function countRowsByMonth(rows, year, getTabKey = getInvoiceTabKey) {
   const list = rows || [];
-  const counts = { [UNDATED_TAB]: 0, [NO_RENR_TAB]: 0, [ALL_TAB]: list.length, months: Array(12).fill(0) };
+  const counts = { [UNDATED_TAB]: 0, [NO_RENR_TAB]: 0, [ALL_TAB]: 0, months: Array(12).fill(0) };
   for (const row of list) {
     const key = getTabKey(row);
-    if (key === NO_RENR_TAB) counts[NO_RENR_TAB] += 1;
+    if (key === NO_RENR_TAB) {
+      counts[NO_RENR_TAB] += 1;
+      const monthKey = getInvoiceMonthKey(row);
+      if (isYearKey(monthKey, year)) counts[ALL_TAB] += 1;
+      else if (!monthKey) counts[UNDATED_TAB] += 1;
+    }
     else if (key === UNDATED_TAB) counts[UNDATED_TAB] += 1;
-    else if (key && key.year === year) counts.months[key.month] += 1;
+    else if (isYearKey(key, year)) {
+      counts.months[key.month] += 1;
+      counts[ALL_TAB] += 1;
+    }
   }
   return counts;
 }
 
 export function formatMonthEmptyText(month, year) {
-  if (month === ALL_TAB) return 'Keine Rechnungen vorhanden.';
+  if (month === ALL_TAB) return `Keine Rechnungen in ${year}.`;
   if (month === NO_RENR_TAB) return 'Keine Rechnungen ohne Rechnungsnummer.';
   if (month === UNDATED_TAB) return 'Keine Rechnungen ohne Datum.';
   return `Keine Rechnungen im ${MONTH_FULL_NAMES[month]} ${year}.`;

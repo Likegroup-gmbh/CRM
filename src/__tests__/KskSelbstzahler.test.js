@@ -82,8 +82,7 @@ describe('berechneVerfuegbaresBudget (read-derived, Plan-Rechenmodell)', () => {
     expect(result.verfuegbar).toBe(9000);
   });
 
-  it('faellt auf gesamt_budget bzw. nettobetrag zurueck', () => {
-    expect(berechneVerfuegbaresBudget({ gesamt_budget: 5000 }, []).basis).toBe(5000);
+  it('faellt auf nettobetrag zurueck', () => {
     expect(berechneVerfuegbaresBudget({ nettobetrag: 10000 }, []).basis).toBe(10000);
     expect(berechneVerfuegbaresBudget(null, []).basis).toBe(0);
   });

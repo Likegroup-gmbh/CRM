@@ -1,0 +1,654 @@
+// Workflow-Tabs auf der Produktions-Detailseite:
+// Budget, Briefing, Produkte, Personas, Casting, Konzepte, Skripte, Verträge,
+// Kooperationen, Videos, Auswertung. Default beim Öffnen ist Briefing.
+//
+// Der Tab „Kooperationen“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
+// „Budget“ zeigt Preise und ist nur für Rollen mit Preis-Sicht da. „Videos“ sehen auch Gäste (ADR 0072).
+
+import { canViewTab, syncTabQueryParam, getTabQueryParam } from '../../core/TabUtils.js';
+import { refreshDocumentTitle } from '../../core/documentTitle.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { renderVertraegeTableBody } from '../vertrag/VertraegeListRenderers.js';
+import {
+  bindTableDelegation,
+  downloadVertrag,
+  deleteVertrag,
+  openVertragUploadDrawer
+} from '../vertrag/VertraegeListHandlers.js';
+import { skripteService } from '../skripte/SkripteService.js';
+import { scopeByProduktion, scopeKoopsByLinie } from '../produktion/ProduktionService.js';
+import { effectiveLinie, renderLinienSwitch, syncLinienSwitch } from './linienScope.js';
+import { mountVideoBrowserPane, unmountVideoBrowser, clearVideoBrowserUrl } from '../video-browser/VideoBrowser.js';
+import { mountCastingPane, unmountCastingWorksheet, loadCastingPrefetch } from './KampagneDetailCasting.js';
+import { mountSkriptePane, renderSkripteTabelle, unmountSkriptePane } from './KampagneDetailSkripte.js';
+import { detailOffen, syncDetailParam } from './produktionTabDetail.js';
+import { mountKonzeptPane, unmountKonzeptWorksheet, loadKonzeptPrefetch } from './KampagneDetailKonzept.js';
+import {
+  mountPersonasPane,
+  mountProduktePane,
+  unmountKatalogPanes
+} from './KampagneDetailKatalog.js';
+import { mountBriefingPane, unmountBriefingPane } from './KampagneDetailBriefing.js';
+import { syncBriefingZaehler } from '../einladung/briefingEinreichungen.js';
+import { syncEinreichungsZaehler } from '../einladung/EinreichungInbox.js';
+import { syncKonzeptZaehler } from '../einladung/konzeptEinreichungen.js';
+import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
+import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
+import { ladeBudgetDaten, renderBudgetTab } from '../produktion/budgetTab.js';
+import { aktuelleBudgetTags, mountBudgetFilter, unmountBudgetFilter } from '../produktion/budgetTabFilter.js';
+import { mountAuswertungPane, renderAuswertungPane, unmountAuswertungPane } from '../auswertung/auswertungPane.js';
+
+export const WORKFLOW_TABS = [
+  { id: 'budget', label: 'Budget', preise: true },
+  { id: 'briefing', label: 'Briefing' },
+  { id: 'produkte', label: 'Produkte' },
+  { id: 'personas', label: 'Personas' },
+  { id: 'casting', label: 'Casting' },
+  { id: 'konzepte', label: 'Konzepte' },
+  { id: 'skripte', label: 'Skripte' },
+  { id: 'vertraege', label: 'Verträge' },
+  { id: 'kooperationen', label: 'Kooperationen' },
+  { id: 'videos', label: 'Videos', gast: true },
+  { id: 'auswertung', label: 'Auswertung' }
+];
+
+export const DEFAULT_WORKFLOW_TAB = 'briefing';
+
+export const KOOPERATIONEN_TAB = 'kooperationen';
+
+// Alte Deeplinks, bevor der Tab Kooperationen hieß.
+const WORKFLOW_TAB_ALIASES = {
+  kooperation: KOOPERATIONEN_TAB,
+  produktion: KOOPERATIONEN_TAB
+};
+
+// Schreibt ?tab=produktion und ?tab=kooperation auf den aktuellen Link um.
+// Nur wenn der Tab auch wirklich offen ist — sonst bleibt der alte Query stehen.
+export function rewriteWorkflowTabAlias(resolvedTab) {
+  const fromUrl = getTabQueryParam();
+  if (!fromUrl || WORKFLOW_TAB_ALIASES[fromUrl] !== KOOPERATIONEN_TAB) return;
+  if (resolvedTab !== KOOPERATIONEN_TAB) return;
+  syncTabQueryParam(KOOPERATIONEN_TAB);
+}
+
+// table-link[data-table] → Route innerhalb der Workflow-Panes.
+// Deckt sich mit den Detailrouten der Nav-Seiten (/castings, /konzepte, ...).
+const WORKFLOW_TABLE_ROUTES = {
+  briefing: (id) => `/briefing/${id}`,
+  sourcing: (id) => `/castings/${id}`,
+  strategie: (id) => `/konzepte/${id}`,
+  skripte: (id) => `/skripte/${id}`,
+  kooperation: (id) => `/kooperation/${id}`,
+  creator: (id) => `/creator/${id}`
+};
+
+export function getWorkflowTableRoute(table, id) {
+  return WORKFLOW_TABLE_ROUTES[table]?.(id) || null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shell                                                               */
+/* ------------------------------------------------------------------ */
+
+export function getVisibleWorkflowTabs() {
+  return WORKFLOW_TABS.filter(t => (!t.preise || window.canSeePricing?.() === true) && (canViewTab(t.id) || (t.gast && window.isGast?.() === true)));
+}
+
+/**
+ * Initialen Tab bestimmen: ?tab= wenn bekannt + erlaubt, sonst Briefing, für Gäste
+ * Kooperationen (oder der erste sichtbare Tab, falls der nicht erlaubt ist).
+ */
+export function resolveInitialWorkflowTab() {
+  const fromUrl = getTabQueryParam();
+  const normalized = WORKFLOW_TAB_ALIASES[fromUrl] || fromUrl;
+  const visible = getVisibleWorkflowTabs().map(t => t.id);
+  if (visible.includes(normalized)) return normalized;
+  const start = window.isGast?.() ? KOOPERATIONEN_TAB : DEFAULT_WORKFLOW_TAB;
+  return visible.includes(start) ? start : (visible[0] || DEFAULT_WORKFLOW_TAB);
+}
+
+/**
+ * Workflow-Tab-Leiste. Bewusst kein renderTabButton aus TabUtils — der
+ * schreibt data-tab und würde mit den Offen/Abgeschlossen-Filter-Tabs
+ * kollidieren. Hier: data-workflow-tab.
+ */
+export function renderWorkflowTabBar(activeTab, detail = null) {
+  const buttons = getVisibleWorkflowTabs().map(t => `
+    <button class="tab-button${t.id === activeTab ? ' active' : ''}" data-workflow-tab="${t.id}">
+      ${t.label}
+    </button>
+  `).join('');
+  const linien = detail ? renderLinienSwitch(detail, activeTab) : '';
+  // Slot ganz rechts: Casting und Konzepte setzen hier ihr Listen-Dropdown ein.
+  const listeSlot = '<div class="kampagne-workflow-tabs__liste" data-workflow-liste-slot></div>';
+  return `<div class="tab-navigation kampagne-workflow-tabs">${linien}${buttons}${listeSlot}</div>`;
+}
+
+/**
+ * Leere Panes für alle Tabs außer Kooperationen. Der Kooperationen-Tab wird im
+ * MainRenderer mit dem bestehenden Inhalt gerendert.
+ * Videos ohne globales Einblenden (tabSlider.js): der VideoBrowser fliegt seine Spalten selbst ein.
+ */
+export function renderWorkflowPanes(activeTab) {
+  return getVisibleWorkflowTabs()
+    .filter(t => t.id !== KOOPERATIONEN_TAB)
+    .map(t => `<div class="workflow-pane" data-pane="${t.id}" id="workflow-pane-${t.id}"${t.id === 'videos' ? ' data-tab-fade="off"' : ''}${t.id === activeTab ? '' : ' hidden'}></div>`)
+    .join('');
+}
+
+/* ------------------------------------------------------------------ */
+/* Switch                                                              */
+/* ------------------------------------------------------------------ */
+
+// Pane-Generation: suspend/unmount zählt hoch. Ein Mount, der über einen
+// Tab-Wechsel oder Destroy hinweg awaited, sieht den alten Wert und räumt ab,
+// statt Listener an ein verwaistes Worksheet zu hängen.
+export function paneGeneration(detail, tabId) {
+  return detail._paneGen?.[tabId] || 0;
+}
+
+export function bumpPaneGen(detail, tabId) {
+  if (!tabId) return;
+  detail._paneGen = detail._paneGen || {};
+  detail._paneGen[tabId] = paneGeneration(detail, tabId) + 1;
+}
+
+export function isPaneGenCurrent(detail, tabId, gen) {
+  return paneGeneration(detail, tabId) === gen;
+}
+
+// Prefetch-Handle: settled/value lassen den Tab entscheiden, ob der Spinner
+// noch nötig ist. Die Promise ist dieselbe, die der Klick awaited.
+function trackPrefetch(factory) {
+  const tracked = { settled: false, value: null, consumed: false, promise: null };
+  tracked.promise = Promise.resolve()
+    .then(factory)
+    .then((value) => {
+      tracked.settled = true;
+      tracked.value = value;
+      return value;
+    })
+    .catch((error) => {
+      console.warn('⚠️ Workflow-Prefetch fehlgeschlagen:', error);
+      tracked.settled = true;
+      tracked.value = null;
+      return null;
+    });
+  return tracked;
+}
+
+function discardPrefetchWorksheet(detail, tracked, mountedKey) {
+  if (!tracked || tracked.consumed) return;
+  const drop = (value) => {
+    if (tracked.consumed) return;
+    const worksheet = value?.worksheet;
+    if (!worksheet || worksheet === detail[mountedKey]) return;
+    worksheet.destroy();
+  };
+  if (tracked.settled) drop(tracked.value);
+  else tracked.promise.then(drop);
+}
+
+/**
+ * Konzept- und Casting-Daten holen, sobald die Produktion steht und der
+ * aktive Tab Kooperationen ist. Ein zweiter Aufruf hängt sich nicht daneben.
+ */
+export function startWorkflowPrefetch(detail) {
+  if (!window.supabase) return;
+  if (detail.mode !== 'workflow') return;
+  if (detail.activeWorkflowTab !== KOOPERATIONEN_TAB) return;
+  if (detail._konzeptPrefetch || detail._castingPrefetch) return;
+  const gen = detail._prefetchGen || 0;
+  detail._konzeptPrefetch = trackPrefetch(() => loadKonzeptPrefetch(detail, gen));
+  detail._castingPrefetch = trackPrefetch(() => loadCastingPrefetch(detail, gen));
+}
+
+/**
+ * Laufenden Prefetch verwerfen. In-flight Fetches sehen die neue Generation
+ * und zerstören ihr Worksheet selbst. Schon fertige, ungenutzte Instanzen
+ * werden hier abgebaut.
+ */
+export function cancelWorkflowPrefetch(detail) {
+  detail._prefetchGen = (detail._prefetchGen || 0) + 1;
+  discardPrefetchWorksheet(detail, detail._konzeptPrefetch, 'konzeptWorksheet');
+  discardPrefetchWorksheet(detail, detail._castingPrefetch, 'castingWorksheet');
+  detail._konzeptPrefetch = null;
+  detail._castingPrefetch = null;
+}
+
+/**
+ * Workflow-Tab aktivieren: den verlassenen Tab schließen (Listener weg),
+ * Wrapper-Attribut (steuert den Kooperationen-Chrome via CSS), Button-States, Panes, URL.
+ * Die Kooperationstabelle auf „Kooperationen“ bleibt gemountet.
+ */
+export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
+  const visible = getVisibleWorkflowTabs().map(t => t.id);
+  if (!visible.includes(tabId)) return;
+
+  const previous = detail.activeWorkflowTab;
+  if (previous && previous !== tabId) suspendWorkflowTab(detail, previous);
+
+  detail.activeWorkflowTab = tabId;
+
+  const wrapper = document.querySelector('.kampagne-detail-body[data-workflow]');
+  if (wrapper) wrapper.dataset.workflow = tabId;
+
+  document.querySelectorAll('.kampagne-workflow-tabs [data-workflow-tab]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.workflowTab === tabId);
+  });
+
+  document.querySelectorAll('.workflow-pane').forEach(pane => {
+    pane.hidden = pane.dataset.pane !== tabId;
+  });
+
+  if (syncUrl) syncTabQueryParam(tabId);
+  refreshDocumentTitle(tabId);
+  syncLinienSwitch(detail, tabId);
+
+  if (tabId === KOOPERATIONEN_TAB) {
+    // Tabelle/Board wurden nur versteckt, nicht zerstört — Counts auffrischen.
+    if (detail.currentView === 'kanban') detail.kanbanBoard?.updateTabCounts();
+    else detail.kooperationenVideoTable?.updateTabCounts();
+    return;
+  }
+
+  return loadWorkflowPane(detail, tabId);
+}
+
+/**
+ * Verlassenen Workflow-Tab abbauen: eingebundene Seite destroyen, Pane leeren,
+ * Loaded-Flag zurück. Kooperationen wird nicht angefasst. Was der Tab offen hält,
+ * bleibt gemerkt, nur sein Parameter verlässt die URL.
+ */
+export function suspendWorkflowTab(detail, tabId) {
+  if (!tabId || tabId === KOOPERATIONEN_TAB) return;
+  syncDetailParam(tabId, null);
+  if (tabId === 'videos') clearVideoBrowserUrl();
+  return unmountPane(detail, tabId, { verlassen: true });
+}
+
+/** Pane mit neuem Zustand mounten (anderes Skript, Produkt …). Der alte räumt erst fertig ab. */
+export async function remountWorkflowPane(detail, tabId) {
+  await unmountPane(detail, tabId);
+  await loadWorkflowPane(detail, tabId);
+}
+
+function unmountPane(detail, tabId, { verlassen = false } = {}) {
+  // Panes mit eigenem Mount zählen in ihrem unmount mit, den übrigen reicht der Zähler
+  if (!PANE_MOUNTS[tabId]) bumpPaneGen(detail, tabId);
+
+  let fertig;
+  if (tabId === 'skripte') {
+    fertig = unmountSkriptePane(detail);
+  } else if (tabId === 'produkte' || tabId === 'personas') {
+    unmountKatalogPanes(detail);
+  } else if (tabId === 'briefing') {
+    unmountBriefingPane(detail);
+  } else if (tabId === 'casting') {
+    unmountCastingWorksheet(detail);
+  } else if (tabId === 'konzepte') {
+    unmountKonzeptWorksheet(detail);
+  } else if (tabId === 'vertraege') {
+    unmountVertraegePane(detail);
+  } else if (tabId === 'budget') {
+    unmountBudgetFilter(detail);
+  } else if (tabId === 'auswertung') {
+    unmountAuswertungPane(detail, { verlassen });
+  } else if (tabId === 'videos') {
+    unmountVideoBrowser(detail);
+  }
+
+  const pane = document.getElementById(`workflow-pane-${tabId}`);
+  if (pane) pane.innerHTML = '';
+
+  if (detail._workflowLoaded) detail._workflowLoaded[tabId] = false;
+  return fertig;
+}
+
+// Panes mit eigenem Mount; nachher läuft erst, wenn der Mount noch aktuell ist
+const PANE_MOUNTS = {
+  casting: { mount: (d) => mountCastingPane(d), nachher: (d) => syncWorkflowCreateChrome(d, 'casting') },
+  konzepte: { mount: (d) => mountKonzeptPane(d), nachher: (d) => syncWorkflowCreateChrome(d, 'konzepte') },
+  skripte: { mount: (d) => mountSkriptePane(d) },
+  briefing: { mount: (d) => mountBriefingPane(d) },
+  produkte: { mount: (d) => mountProduktePane(d) },
+  personas: { mount: (d) => mountPersonasPane(d) }
+};
+
+/**
+ * Pane füllen. Nach suspendWorkflowTab mountet der nächste Besuch neu.
+ * Liegt ein Prefetch, rendert der Pane daraus. Bei Fehler landet ein
+ * Empty-State im Pane.
+ */
+export async function loadWorkflowPane(detail, tabId) {
+  const pane = document.getElementById(`workflow-pane-${tabId}`);
+  if (!pane) return;
+
+  const eigener = PANE_MOUNTS[tabId];
+  if (eigener) {
+    detail._workflowLoaded = detail._workflowLoaded || {};
+    if (detail._workflowLoaded[tabId]) return;
+    const gen = paneGeneration(detail, tabId);
+    detail._workflowLoaded[tabId] = true;
+    await eigener.mount(detail);
+    if (!isPaneGenCurrent(detail, tabId, gen)) {
+      detail._workflowLoaded[tabId] = false;
+      return;
+    }
+    eigener.nachher?.(detail);
+    return;
+  }
+
+  if (tabId === 'videos') {
+    detail._workflowLoaded = detail._workflowLoaded || {};
+    if (detail._workflowLoaded.videos) return;
+    const gen = paneGeneration(detail, 'videos');
+    detail._workflowLoaded.videos = true;
+    pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
+    try {
+      await mountVideoBrowserPane(detail, pane, () => isPaneGenCurrent(detail, 'videos', gen));
+      if (!isPaneGenCurrent(detail, 'videos', gen)) detail._workflowLoaded.videos = false;
+    } catch (error) {
+      console.error('❌ KAMPAGNEDETAIL: Videos-Tab fehlgeschlagen:', error);
+      detail._workflowLoaded.videos = false;
+      if (pane.isConnected) {
+        pane.innerHTML = renderEmptyState({
+          icon: 'info',
+          title: 'Fehler beim Laden',
+          text: 'Die Videos konnten nicht geladen werden.'
+        });
+      }
+    }
+    return;
+  }
+
+  const renderer = PANE_RENDERERS[tabId];
+  if (!renderer) return;
+
+  detail._workflowLoaded = detail._workflowLoaded || {};
+  if (detail._workflowLoaded[tabId]) return;
+  const gen = paneGeneration(detail, tabId);
+  detail._workflowLoaded[tabId] = true;
+
+  pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
+
+  if (tabId === 'vertraege') unmountVertraegePane(detail);
+
+  try {
+    const html = await renderer(detail);
+    if (!isPaneGenCurrent(detail, tabId, gen) || !pane.isConnected) {
+      detail._workflowLoaded[tabId] = false;
+      return;
+    }
+    pane.innerHTML = html;
+    if (tabId === 'vertraege') mountVertraegePane(detail);
+    if (tabId === 'budget') mountBudgetPane(detail);
+    if (tabId === 'auswertung') mountAuswertungPane(detail, pane);
+  } catch (error) {
+    console.error(`❌ KAMPAGNEDETAIL: Workflow-Pane "${tabId}" fehlgeschlagen:`, error);
+    detail._workflowLoaded[tabId] = false;
+    if (pane.isConnected) {
+      pane.innerHTML = renderEmptyState({
+        icon: 'info',
+        title: 'Fehler beim Laden',
+        text: 'Die Inhalte konnten nicht geladen werden.'
+      });
+    }
+  }
+}
+
+/**
+ * Nach einem Full-Re-Render (init / softRefresh) sind alle Pane-DOMs und
+ * geladenen Daten weg: Flags zurücksetzen und den aktiven Pane neu füllen.
+ */
+export async function reloadWorkflowPane(detail, tabId) {
+  if (detail._workflowLoaded) detail._workflowLoaded[tabId] = false;
+  if (detail._workflowData) delete detail._workflowData[tabId];
+  await loadWorkflowPane(detail, tabId);
+}
+
+export function refreshWorkflowAfterRender(detail) {
+  void unmountSkriptePane(detail);
+  unmountCastingWorksheet(detail);
+  unmountKonzeptWorksheet(detail);
+  unmountVertraegePane(detail);
+  unmountBudgetFilter(detail);
+  unmountKatalogPanes(detail);
+  unmountBriefingPane(detail);
+  unmountVideoBrowser(detail);
+  unmountAuswertungPane(detail);
+  detail._workflowLoaded = {};
+  detail._workflowData = {};
+  const tab = detail.activeWorkflowTab;
+  if (tab && tab !== KOOPERATIONEN_TAB) {
+    void loadWorkflowPane(detail, tab);
+  }
+  // Briefing- und Produkte-Tab zeigen offene Kundeneinreichungen, auch wenn ein anderer Tab offen ist.
+  if (tab !== 'briefing') void syncBriefingZaehler(detail);
+  if (tab !== 'konzepte') void syncKonzeptZaehler(detail);
+  if (tab !== 'produkte') {
+    const linieId = effectiveLinie(detail, 'produkte');
+    void syncEinreichungsZaehler('produkt', detail.mode === 'workflow' && linieId ? { briefingId: linieId } : null);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Inline-Edits (table-select-change + Toggle-Actions)                 */
+/* ------------------------------------------------------------------ */
+
+// Item im gecachten Pane-Datensatz patchen und das Pane mit dem vorhandenen
+// Renderer neu schreiben — kein Refetch, Daten liegen schon im Cache.
+export async function patchWorkflowItem(detail, cacheKey, itemId, updates) {
+  const list = detail._workflowData?.[cacheKey];
+  const item = list?.find(i => i.id === itemId);
+  if (item) Object.assign(item, updates);
+  // Offene Ansicht (Skript-Editor …): die Tabelle kommt erst beim Schließen wieder
+  if (detailOffen(detail)) return;
+
+  const pane = document.getElementById(`workflow-pane-${detail.activeWorkflowTab}`);
+  const renderer = PANE_RENDERERS[detail.activeWorkflowTab];
+  if (pane && renderer) {
+    pane.innerHTML = await renderer(detail);
+  }
+}
+
+/**
+ * Zentraler Handler für table-select-change aus den Workflow-Panes.
+ * Casting-Status/Feedback laufen über CreatorAuswahlDetail, nicht hier.
+ */
+export async function handleWorkflowTableSelect(detail, { field, itemId, value }) {
+  if (!itemId) return;
+  if (field === 'sourcing_status' || field === 'kunden_feedback' || field === 'strategie_prio') return;
+
+  try {
+    if (field === 'skript_status') {
+      if (detail.isKunde) return;
+      await skripteService.setzeSkriptStatus(itemId, value);
+      const freigegeben = skriptFreigegebenFuerStatus(value);
+      syncSkriptFreigabeLocal(detail, itemId, { freigegeben, status: value }, patchWorkflowItem);
+      window.toastSystem?.show('Skript-Status aktualisiert', 'success');
+    }
+  } catch (error) {
+    console.error(`❌ KAMPAGNEDETAIL: Inline-Update "${field}" fehlgeschlagen:`, error);
+    window.toastSystem?.show(error.message || 'Fehler beim Speichern', 'error');
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Lazy-Daten (gecacht pro Detail-Instanz, Reset in refreshWorkflow)   */
+/* ------------------------------------------------------------------ */
+
+export async function getWorkflowData(detail, key, loader) {
+  detail._workflowData = detail._workflowData || {};
+  if (detail._workflowData[key] === undefined) {
+    detail._workflowData[key] = await loader();
+  }
+  return detail._workflowData[key];
+}
+
+async function loadVertraege(detail) {
+  // Verträge tragen keine Linie; sie hängen über ihre Kooperation daran.
+  // Mit nur einer Linie gehört jeder Vertrag der Produktion dazu, auch ohne Kooperation.
+  const einzigeLinie = (detail.linien || []).length <= 1;
+  const briefingId = einzigeLinie ? null : effectiveLinie(detail, 'vertraege');
+  let koopIds = null;
+  if (briefingId) {
+    let koopQuery = scopeKoopsByLinie(window.supabase.from('kooperationen').select('id'), briefingId);
+    if (detail.produktionId) koopQuery = koopQuery.eq('produktion_id', detail.produktionId);
+    const { data: koops, error: koopError } = await koopQuery;
+    if (koopError) throw new Error(koopError.message);
+    koopIds = (koops || []).map(k => k.id);
+    if (!koopIds.length) return [];
+  }
+  let query = scopeByProduktion(
+    window.supabase
+      .from('vertraege')
+      .select(`
+        id, name, typ, is_draft, status, gesendet_am,
+        datei_url, datei_path,
+        unterschriebener_vertrag_url, unterschriebener_vertrag_path,
+        dropbox_file_url, dropbox_file_path,
+        kooperation_id, created_at,
+        kunde_unternehmen_id, kampagne_id, creator_id, contracting_auftrag_id,
+        kunde:kunde_unternehmen_id (id, firmenname),
+        kampagne:kampagne_id (id, kampagnenname, eigener_name, marke:marke_id (id, markenname)),
+        kooperation:kooperation_id (id, name),
+        creator:creator_id (id, vorname, nachname, mail),
+        contracting_auftrag:contracting_auftrag_id (id, auftragsname, titel)
+      `)
+      .eq('kampagne_id', detail.kampagneId)
+      .order('created_at', { ascending: false }),
+    detail.produktionId
+  );
+  if (koopIds) query = query.in('kooperation_id', koopIds);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+function getKampagneVertragPermissions(detail) {
+  const isKunde = Boolean(detail.isKunde);
+  const isAdmin = !isKunde && window.isAdmin?.() === true;
+  const canEdit = !isKunde && (isAdmin || window.currentUser?.permissions?.vertraege?.can_edit === true);
+  const canDelete = !isKunde && window.canBulkDelete?.() === true;
+  return { isKunde, isAdmin, canEdit, canDelete };
+}
+
+export function createKampagneVertragListAdapter(detail) {
+  const adapter = {
+    get vertraege() { return detail._workflowData?.vertraege || []; },
+    get currentUnternehmenName() { return detail.kampagneData?.unternehmen?.firmenname || ''; },
+    _boundEventListeners: new Set(),
+    reloadData: () => reloadWorkflowPane(detail, 'vertraege'),
+    getVertragPermissions() {
+      const { isAdmin, canEdit, canDelete } = getKampagneVertragPermissions(detail);
+      return {
+        isAdmin,
+        canBulkDelete: canDelete,
+        canView: !detail.isKunde,
+        canEdit
+      };
+    },
+    downloadVertrag(id) { downloadVertrag(adapter, id); },
+    deleteVertrag(id) { return deleteVertrag(adapter, id); },
+    openVertragUploadDrawer(id) { return openVertragUploadDrawer(adapter, id); }
+  };
+  return adapter;
+}
+
+export function unmountVertraegePane(detail) {
+  const adapter = detail._vertragListAdapter;
+  if (!adapter) return;
+  adapter._boundEventListeners.forEach((cleanup) => cleanup());
+  adapter._boundEventListeners.clear();
+  detail._vertragListAdapter = null;
+}
+
+export function mountVertraegePane(detail) {
+  unmountVertraegePane(detail);
+  const adapter = createKampagneVertragListAdapter(detail);
+  detail._vertragListAdapter = adapter;
+  bindTableDelegation(adapter);
+}
+
+/* ------------------------------------------------------------------ */
+/* Pane-Renderer                                                       */
+/* ------------------------------------------------------------------ */
+
+export async function renderVertraegePane(detail) {
+  const vertraege = await getWorkflowData(detail, 'vertraege', () => loadVertraege(detail));
+
+  if (!vertraege.length) {
+    return renderEmptyState({
+      icon: 'document',
+      title: 'Keine Verträge vorhanden',
+      text: `Für ${effectiveLinie(detail, 'vertraege') ? 'diese Linie' : 'diese Produktion'} wurden noch keine Verträge erfasst.`
+    });
+  }
+
+  const { isAdmin, canEdit, canDelete } = getKampagneVertragPermissions(detail);
+  const rows = renderVertraegeTableBody(vertraege, {
+    canBulkDelete: false,
+    canEdit,
+    isAdmin,
+    canDelete,
+    canCreate: canEdit
+  });
+
+  return `
+    <div class="data-table-container">
+      <table class="data-table data-table--vertraege">
+        <thead>
+          <tr>
+            <th class="col-name">Name</th>
+            <th class="col-kampagne">Kontext</th>
+            <th class="col-status">Status</th>
+            <th class="col-typ">Typ</th>
+            <th class="col-creator">Creator</th>
+            <th class="col-datei">Datei</th>
+            <th class="col-signed">Unterschrieben</th>
+            <th class="col-erstellt-am">Erstellt am</th>
+            <th class="col-actions">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="vertraege-table-body">${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// Budget gilt für die ganze Produktion; die gewählte Linie wird nur hervorgehoben.
+// Mit nur einer Linie gibt es nichts zu unterscheiden.
+function budgetTabOptionen(detail) {
+  const linien = detail.linien || [];
+  const linieId = linien.length > 1 ? effectiveLinie(detail, 'budget') : null;
+  const linie = linien.find(l => l.id === linieId);
+  return {
+    linieId,
+    linieName: linie?.name || '',
+    eigenesBudget: detail.produktion?.budget,
+    tagIds: aktuelleBudgetTags(detail)
+  };
+}
+
+async function renderBudgetPane(detail) {
+  const daten = await getWorkflowData(detail, 'budget', () => ladeBudgetDaten(window.supabase, {
+    produktionId: detail.produktionId,
+    kampagneId: detail.kampagneId
+  }));
+  return renderBudgetTab(daten, budgetTabOptionen(detail));
+}
+
+function mountBudgetPane(detail) {
+  mountBudgetFilter(detail, {
+    daten: detail._workflowData?.budget,
+    optionen: () => budgetTabOptionen(detail)
+  });
+}
+
+const PANE_RENDERERS = {
+  budget: renderBudgetPane,
+  skripte: renderSkripteTabelle,
+  vertraege: renderVertraegePane,
+  auswertung: renderAuswertungPane
+};

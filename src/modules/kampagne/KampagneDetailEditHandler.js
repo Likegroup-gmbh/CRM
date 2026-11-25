@@ -2,6 +2,7 @@
 // Bearbeitungsformular und Form-Submission für Kampagnen
 
 import { transferKampagneDataToAuftragsdetails } from './KampagneDetailTransferService.js';
+import { navigateBack } from '../../core/breadcrumbTrail.js';
 
 export function showEditForm(detail) {
   console.log('🎯 KAMPAGNEDETAIL: Zeige Bearbeitungsformular');
@@ -233,7 +234,7 @@ async function handleEditFormSubmit(detail) {
       }));
 
       setTimeout(() => {
-        window.navigateTo(`/kampagne/${detail.kampagneId}`);
+        navigateBack(`/kampagne/${detail.kampagneId}`);
       }, 1500);
     }
   } catch (error) {

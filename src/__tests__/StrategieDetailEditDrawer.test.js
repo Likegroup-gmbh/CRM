@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { handleEditItemSubmit } from '../modules/strategie/StrategieDetailEditDrawer.js';
+import {
+  showEditItemDrawer,
+  removeEditItemDrawer,
+  visibleVideoideen
+} from '../modules/strategie/VideoideeDrawer.js';
+import { persistVideoideeEdit } from '../modules/strategie/videoideeEdit.js';
+import { detectPlatform, isTranscribableUrl } from '../modules/strategie/addItemPayload.js';
+import { syncVideoideeField } from '../modules/strategie/videoideeFieldSync.js';
 import { strategieService } from '../modules/strategie/StrategieService.js';
+import { skriptKommentarService } from '../modules/skripte/SkriptKommentarService.js';
 
 const SCREENSHOT_URL = 'https://xxx.supabase.co/storage/v1/object/public/strategie-screenshots/screenshots/shot.jpg';
-
-function formData(fields) {
-  const data = new FormData();
-  for (const [key, value] of Object.entries(fields)) {
-    data.set(key, value);
-  }
-  return data;
-}
 
 function detailStub(item) {
   return {
@@ -21,15 +21,11 @@ function detailStub(item) {
 }
 
 beforeEach(() => {
-  document.body.innerHTML = `
-    <form id="edit-item-form">
-      <button type="submit">Speichern</button>
-    </form>
-  `;
   window.toastSystem = { show: vi.fn() };
   vi.spyOn(strategieService, 'updateStrategieItem').mockResolvedValue({});
   vi.spyOn(strategieService, 'deleteScreenshot').mockResolvedValue();
   vi.spyOn(strategieService, 'enqueueItemProcessing').mockResolvedValue(true);
+  vi.spyOn(skriptKommentarService, 'loadTeamKommentareFuerItem').mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -38,7 +34,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
+describe('persistVideoideeEdit – Screenshot beim Link-Entfernen', () => {
   it('loescht den Screenshot und setzt screenshot_url auf null, wenn die URL geleert wird', async () => {
     const item = {
       id: 'i1',
@@ -49,20 +45,26 @@ describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
     };
     const detail = detailStub(item);
 
-    await handleEditItemSubmit(detail, 'i1', formData({
+    const result = await persistVideoideeEdit(detail, 'i1', {
+      art: 'idee',
       video_link: '',
       teilbereich: 'Reels',
-      beschreibung: 'Hook'
-    }));
+      beschreibung: 'Hook',
+      umsetzungsvorgabe: 'alte Vorgabe'
+    });
+
+    expect(result).toEqual({ ok: true });
 
     expect(strategieService.deleteScreenshot).toHaveBeenCalledWith(SCREENSHOT_URL);
     expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.objectContaining({
       video_link: null,
+      umsetzungsvorgabe: null,
       screenshot_url: null,
       transkript: null,
       caption: null,
       verarbeitung_status: null
     }));
+    expect(strategieService.updateStrategieItem.mock.calls[0][1].kundenadaption).toBeUndefined();
     expect(strategieService.enqueueItemProcessing).not.toHaveBeenCalled();
     expect(item.screenshot_url).toBeNull();
   });
@@ -77,15 +79,20 @@ describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
     };
     const detail = detailStub(item);
 
-    await handleEditItemSubmit(detail, 'i1', formData({
+    await persistVideoideeEdit(detail, 'i1', {
+      art: 'videoreferenz',
       video_link: 'https://instagram.com/reel/abc',
       teilbereich: '',
-      beschreibung: ''
-    }));
+      beschreibung: '',
+      umsetzungsvorgabe: 'Nur der Schnitt'
+    });
 
     expect(strategieService.deleteScreenshot).toHaveBeenCalledWith(SCREENSHOT_URL);
     expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.objectContaining({
       video_link: 'https://instagram.com/reel/abc',
+      umsetzungsvorgabe: 'Nur der Schnitt',
+      kundenadaption: null,
+      kundenadaption_quelle: null,
       screenshot_url: null,
       verarbeitung_status: 'pending'
     }));
@@ -101,15 +108,500 @@ describe('handleEditItemSubmit – Screenshot beim Link-Entfernen', () => {
       beschreibung: 'Neu'
     };
 
-    await handleEditItemSubmit(detailStub(item), 'i1', formData({
+    await persistVideoideeEdit(detailStub(item), 'i1', {
+      art: 'videoreferenz',
       video_link: 'https://tiktok.com/@x/video/1',
       teilbereich: 'Reels',
-      beschreibung: 'Neu'
-    }));
+      beschreibung: 'Neu',
+      umsetzungsvorgabe: 'Die Hook'
+    });
 
     expect(strategieService.deleteScreenshot).not.toHaveBeenCalled();
     expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.not.objectContaining({
       screenshot_url: null
     }));
+    expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.objectContaining({
+      umsetzungsvorgabe: 'Die Hook'
+    }));
+  });
+
+  it('speichert eine Videoreferenz nicht ohne Umsetzungsvorgabe', async () => {
+    const item = {
+      id: 'i1',
+      video_link: 'https://tiktok.com/@x/video/1',
+      screenshot_url: SCREENSHOT_URL,
+      beschreibung: 'Hook'
+    };
+
+    const result = await persistVideoideeEdit(detailStub(item), 'i1', {
+      art: 'videoreferenz',
+      video_link: 'https://tiktok.com/@x/video/1',
+      beschreibung: 'Hook',
+      umsetzungsvorgabe: '  '
+    });
+
+    expect(strategieService.updateStrategieItem).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, error: 'Was sollen wir von diesem Video umsetzen?' });
+  });
+
+  it('behaelt bei bestehenden YouTube-Links die Plattform und startet keine Verarbeitung', async () => {
+    const item = {
+      id: 'i1',
+      video_link: 'https://youtube.com/watch?v=1',
+      plattform: 'youtube',
+      beschreibung: 'Alt'
+    };
+
+    const result = await persistVideoideeEdit(detailStub(item), 'i1', {
+      art: 'videoreferenz',
+      video_link: 'https://youtube.com/watch?v=1',
+      kurzbeschreibung: 'Neu',
+      umsetzungsvorgabe: 'Die Hook'
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', expect.objectContaining({
+      plattform: 'youtube',
+      kurzbeschreibung: 'Neu'
+    }));
+    expect(strategieService.enqueueItemProcessing).not.toHaveBeenCalled();
+  });
+
+  it('lehnt einen neuen YouTube-Link ab', async () => {
+    const item = { id: 'i1', video_link: null, beschreibung: 'Idee' };
+
+    const result = await persistVideoideeEdit(detailStub(item), 'i1', {
+      art: 'videoreferenz',
+      video_link: 'https://youtube.com/watch?v=1',
+      beschreibung: 'Idee',
+      umsetzungsvorgabe: 'Die Hook'
+    });
+
+    expect(result).toEqual({ ok: false, error: 'Nur TikTok- und Instagram-Links sind erlaubt' });
+    expect(strategieService.updateStrategieItem).not.toHaveBeenCalled();
+  });
+
+  it('behaelt die Kundenadaption, wenn aus einer Idee eine Videoreferenz wird', async () => {
+    const item = {
+      id: 'i1',
+      video_link: null,
+      kundenadaption: 'Handgeschrieben',
+      beschreibung: 'Idee'
+    };
+
+    await persistVideoideeEdit(detailStub(item), 'i1', {
+      art: 'videoreferenz',
+      video_link: 'https://tiktok.com/@x/video/1',
+      beschreibung: 'Idee',
+      umsetzungsvorgabe: 'Die Hook'
+    });
+
+    const updates = strategieService.updateStrategieItem.mock.calls[0][1];
+    expect(updates.kundenadaption).toBeUndefined();
+    expect(updates.umsetzungsvorgabe).toBe('Die Hook');
+    expect(updates.verarbeitung_status).toBe('pending');
+  });
+});
+
+describe('detectPlatform / isTranscribableUrl', () => {
+  it('erkennt die Plattform und liefert ohne URL null', () => {
+    expect(detectPlatform('')).toBeNull();
+    expect(detectPlatform(null)).toBeNull();
+    expect(detectPlatform('https://www.tiktok.com/@x/video/1')).toBe('tiktok');
+    expect(detectPlatform('https://instagram.com/reel/abc')).toBe('instagram');
+    expect(detectPlatform('https://youtu.be/abc')).toBe('youtube');
+    expect(detectPlatform('https://example.com')).toBe('other');
+  });
+
+  it('erlaubt nur TikTok und Instagram', () => {
+    expect(isTranscribableUrl('https://tiktok.com/x')).toBe(true);
+    expect(isTranscribableUrl('https://INSTAGRAM.com/reel/x')).toBe(true);
+    expect(isTranscribableUrl('https://youtube.com/watch?v=1')).toBe(false);
+    expect(isTranscribableUrl('')).toBe(false);
+  });
+});
+
+describe('Videoidee-Drawer', () => {
+  afterEach(() => {
+    removeEditItemDrawer();
+  });
+
+  function open(items, extra = {}) {
+    showEditItemDrawer({
+      items,
+      canEdit: true,
+      isKunde: false,
+      getTeilbereicheFromStrategie: () => ['Reels'],
+      rerenderItemsTable: vi.fn(),
+      ...extra
+    }, items[0].id);
+  }
+
+  it('oeffnet eine Idee ohne Transkript und mit versteckter Umsetzungsvorgabe', () => {
+    open([{ id: 'i1', video_link: null, beschreibung: '' }]);
+
+    expect(document.querySelector('#edit-item-drawer button[type="submit"]')).toBeNull();
+    expect(document.getElementById('videoidee-drawer-title').textContent).toBe('Idee');
+    expect(document.querySelector('[data-videoidee-section="transkript"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="caption"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="umsetzungsvorgabe"]').hidden).toBe(true);
+    expect(document.querySelector('[data-videoidee-section="beschreibung"] textarea')).toBeTruthy();
+    expect(document.getElementById('videoidee-pos').textContent).toBe('1 von 1');
+    expect(document.querySelector('[data-action="videoidee-prev"]').disabled).toBe(true);
+    expect(document.querySelector('[data-action="videoidee-next"]').disabled).toBe(true);
+    expect(document.querySelector('.videoidee-props [data-videoidee-prio]')).toBeTruthy();
+    expect(document.querySelector('.videoidee-props [data-videoidee-prop="status"]')).toBeTruthy();
+    expect(document.querySelector('.videoidee-doc__shot')?.tagName).toBe('DIV');
+    expect(document.querySelector('.videoidee-props .strategie-umgesetzt-state, .videoidee-props [data-field="video_umgesetzt"]')).toBeTruthy();
+    expect(document.querySelector('.videoidee-drawer__header [data-videoidee-prio]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeTruthy();
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeTruthy();
+    expect(document.querySelector('.videoidee-drawer__footer').textContent).not.toContain('Anmerkung');
+  });
+
+  it('baut Idee und Videoreferenz gleich auf: dieselbe Beschreibungs-Tabelle', () => {
+    const zeilen = () => [...document.querySelectorAll('.videoidee-struktur [data-videoidee-struktur]')]
+      .map((row) => row.dataset.videoideeStruktur);
+
+    open([{ id: 'i1', video_link: null, beschreibung: '' }]);
+    const idee = zeilen();
+    expect(idee).toEqual(['titel', 'angle', 'hook', 'visual_hook', 'hauptteil', 'cta']);
+    expect(document.querySelector('textarea[data-field="beschreibung"]')).toBeNull();
+    const abschnitteIdee = [...document.querySelectorAll('[data-videoidee-section]')].map((el) => el.dataset.videoideeSection);
+
+    removeEditItemDrawer();
+    open([{ id: 'i1', video_link: 'https://tiktok.com/x', beschreibung: '' }]);
+    expect(zeilen()).toEqual(idee);
+    const abschnitteRef = [...document.querySelectorAll('[data-videoidee-section]')].map((el) => el.dataset.videoideeSection);
+    for (const name of abschnitteIdee) expect(abschnitteRef).toContain(name);
+  });
+
+  it('zeigt bei einer Idee die Kurzbeschreibung und zerlegt Labels im Fliesstext in Felder', () => {
+    open([{ id: 'i1', video_link: null, kurzbeschreibung: 'Knoblauch Chili-Öl', beschreibung: 'Einfach Kaffee trinken' }]);
+    expect(document.querySelector('[data-field="kurzbeschreibung"]').value).toBe('Knoblauch Chili-Öl');
+    expect(document.querySelector('[data-field="beschreibung_struktur.hauptteil"]').value).toBe('');
+
+    removeEditItemDrawer();
+    open([{ id: 'i1', video_link: null, beschreibung: 'Titel: Morgen\n\nHook: Wach?\n\nHauptteil: Kaffee' }]);
+    expect(document.querySelector('[data-field="beschreibung_struktur.hook"]').value).toBe('Wach?');
+  });
+
+  it('laedt Team-Kommentare nach und zeigt sie nur lesend', async () => {
+    skriptKommentarService.loadTeamKommentareFuerItem.mockResolvedValue([{
+      id: 'k1', typ: 'kommentar', skript_nr: null, sektion: 'hook', ist_antwort: true,
+      zitat: 'Der alte Hook', inhalt: 'Haben wir angepasst', autor: 'Anna Team', created_at: '2026-10-20T10:00:00Z'
+    }]);
+    open([{ id: 'i1', video_link: null, beschreibung: '' }]);
+
+    await vi.waitFor(() => expect(document.querySelector('[data-videoidee-section="kommentare"]')).toBeTruthy());
+    const eintrag = document.querySelector('[data-videoidee-section="kommentare"]');
+    expect(skriptKommentarService.loadTeamKommentareFuerItem).toHaveBeenCalledWith('i1');
+    expect(eintrag.textContent).toContain('Haben wir angepasst');
+    expect(eintrag.textContent).toContain('Anna Team');
+    expect(eintrag.textContent).toContain('Der alte Hook');
+    expect(eintrag.querySelector('textarea, input')).toBeNull();
+  });
+
+  it('zeigt keinen Kommentar-Abschnitt ohne Team-Kommentare und laedt fuer Vorschlaege nicht', async () => {
+    open([{ id: 'i1', video_link: null, beschreibung: '' }]);
+    await vi.waitFor(() => expect(skriptKommentarService.loadTeamKommentareFuerItem).toHaveBeenCalled());
+    expect(document.querySelector('[data-videoidee-section="kommentare"]')).toBeNull();
+
+    removeEditItemDrawer();
+    skriptKommentarService.loadTeamKommentareFuerItem.mockClear();
+    open([{ id: 'v1', ist_vorschlag: true, video_link: null, beschreibung: 'X' }]);
+    expect(skriptKommentarService.loadTeamKommentareFuerItem).not.toHaveBeenCalled();
+  });
+
+  it('waehlt die Kategorie ueber das zentrale TableSelect und speichert sie', async () => {
+    const items = [{ id: 'i1', video_link: null, beschreibung: '', teilbereich: null }];
+    open(items);
+
+    expect(document.querySelector('#edit-item-drawer select')).toBeNull();
+    const wrapper = document.querySelector('[data-videoidee-kategorie] [data-table-select]');
+    expect(wrapper.dataset.field).toBe('strategie_kategorie');
+
+    wrapper.querySelector('.table-select__trigger').click();
+    document.querySelector('.table-select__portal [data-value="Reels"]').click();
+    await vi.waitFor(() => expect(items[0].teilbereich).toBe('Reels'));
+
+    expect(strategieService.updateStrategieItem).toHaveBeenCalledWith('i1', { teilbereich: 'Reels' });
+    expect(document.querySelector('[data-videoidee-kategorie] [data-table-select]').dataset.value).toBe('Reels');
+  });
+
+  it('zeigt einen Altwert der Kategorie, der nicht mehr in der Strategie steht', () => {
+    open([{ id: 'i1', video_link: null, beschreibung: '', teilbereich: 'Alt' }]);
+
+    const labels = [...document.querySelectorAll('[data-videoidee-kategorie] .table-select__panel .table-select__item-label')]
+      .map((el) => el.textContent);
+    expect(labels).toEqual(['Ohne Kategorie', 'Reels', 'Alt']);
+  });
+
+  it('zeigt Feld-Icons an den Property-Labels', () => {
+    open([{ id: 'i1', video_link: null, beschreibung: '' }]);
+
+    const href = (prop) => document
+      .querySelector(`[data-videoidee-prop="${prop}"] .videoidee-props__label use`)
+      ?.getAttribute('href');
+
+    expect(href('video_link')).toBe('#crm-icon-video');
+    expect(href('teilbereich')).toBe('#crm-icon-tag');
+    expect(href('creator')).toBe('#crm-icon-creator');
+    expect(href('produkt')).toBe('#crm-icon-cube');
+    expect(href('prio')).toBe('#crm-icon-prio');
+    expect(href('status')).toBe('#crm-icon-status');
+    expect(href('umsetzen')).toBe('#crm-icon-check');
+  });
+
+  it('zeigt die Skript-Freigabe als erste Property und Prio direkt vor Umsetzen', () => {
+    open([{ id: 'i1', video_link: null, beschreibung: '', skript_freigabe: true }]);
+
+    const props = [...document.querySelectorAll('.videoidee-props [data-videoidee-prop]')]
+      .map((row) => row.dataset.videoideeProp);
+    const badge = document.querySelector('.videoidee-props [data-videoidee-status] .status-badge');
+
+    expect(props[0]).toBe('status');
+    expect(props.indexOf('umsetzen')).toBe(props.indexOf('prio') + 1);
+    expect(badge.classList.contains('success')).toBe(true);
+    expect(badge.textContent).toBe('Freigegeben');
+  });
+
+  it('zeigt einen Gedankenstrich, wenn die Freigabe fehlt, und zieht den Badge nach', () => {
+    const items = [{ id: 'i1', video_link: null, beschreibung: '' }];
+    const detail = {
+      items,
+      canEdit: true,
+      isKunde: false,
+      getTeilbereicheFromStrategie: () => ['Reels'],
+      rerenderItemsTable: vi.fn()
+    };
+    showEditItemDrawer(detail, items[0].id);
+
+    const slot = document.querySelector('[data-videoidee-status]');
+    expect(slot.textContent.trim()).toBe('–');
+    expect(slot.querySelector('.status-badge')).toBeNull();
+
+    items[0].skript_freigabe = true;
+    document.dispatchEvent(new CustomEvent('videoidee-table-rendered'));
+
+    expect(document.querySelector('[data-videoidee-status] .status-badge').textContent).toBe('Freigegeben');
+  });
+
+  it('zeigt dem Kunden und bei einem Vorschlag keine Status-Zeile', () => {
+    open([{ id: 'i1', video_link: null, beschreibung: '', skript_freigabe: true }], { isKunde: true });
+    expect(document.querySelector('[data-videoidee-prop="status"]')).toBeNull();
+
+    removeEditItemDrawer();
+    open([{ id: 'i1', ist_vorschlag: true, beschreibung: 'Sandwich', video_link: null, skript_freigabe: true }]);
+    expect(document.querySelector('[data-videoidee-prop="status"]')).toBeNull();
+  });
+
+  it('legt Zurück und Weiter in den Footer, beim Vorschlag die Aktionen in den Header', () => {
+    open([{ id: 'i1', video_link: null, beschreibung: '' }]);
+
+    const footer = document.querySelector('.videoidee-drawer__footer');
+    expect([...footer.children].map((el) => el.id || el.dataset.action)).toEqual([
+      'videoidee-prev',
+      'videoidee-pos',
+      'videoidee-next'
+    ]);
+    expect(footer.querySelector('[data-field]')).toBeNull();
+
+    removeEditItemDrawer();
+    open([{ id: 'i1', ist_vorschlag: true, beschreibung: 'Sandwich', video_link: null }]);
+
+    const header = document.querySelector('.videoidee-drawer__header');
+    expect(header.querySelector('[data-action="uebernehmen-vorschlag"]')).toBeTruthy();
+    expect(header.querySelector('[data-action="verwerfen-vorschlag"]')).toBeTruthy();
+    expect(header.querySelector('[data-videoidee-prio]')).toBeNull();
+    expect(header.textContent).not.toContain('Umsetzen');
+  });
+
+  it('oeffnet eine Videoreferenz mit Vorgabe', () => {
+    open([{ id: 'i1', video_link: 'https://tiktok.com/x', umsetzungsvorgabe: 'Nur die Hook', beschreibung: '' }]);
+
+    const shot = document.querySelector('.videoidee-doc__shot');
+    expect(shot.tagName).toBe('A');
+    expect(shot.getAttribute('href')).toBe('https://tiktok.com/x');
+    expect(shot.getAttribute('target')).toBe('_blank');
+
+    const block = document.querySelector('[data-videoidee-section="umsetzungsvorgabe"]');
+    expect(block.hidden).toBe(false);
+    expect(block.querySelector('textarea').value).toBe('Nur die Hook');
+    expect(document.querySelector('[data-videoidee-section="transkript"]')).toBeTruthy();
+    const caption = document.querySelector('[data-videoidee-section="caption"]');
+    expect(caption).toBeTruthy();
+    expect(caption.classList.contains('is-collapsed')).toBe(true);
+    expect(caption.querySelector('[data-videoidee-toggle="caption"]').getAttribute('aria-expanded')).toBe('false');
+    expect(caption.querySelector('.videoidee-doc__section-body').hidden).toBe(true);
+    expect([...document.querySelectorAll('[data-videoidee-section]')].map((el) => el.dataset.videoideeSection)).toEqual([
+      'kopf',
+      'kurzbeschreibung',
+      'beschreibung',
+      'kundenadaption',
+      'transkript',
+      'umsetzungsvorgabe',
+      'anmerkung',
+      'caption'
+    ]);
+  });
+
+  it('startet Transkript, Umsetzungsvorgabe, Anmerkung und Caption zugeklappt', () => {
+    open([{ id: 'i1', video_link: 'https://tiktok.com/x', caption: 'Hook #ad', transkript: 'T', umsetzungsvorgabe: 'U', beschreibung: 'B' }]);
+
+    for (const name of ['beschreibung', 'kundenadaption']) {
+      const section = document.querySelector(`[data-videoidee-section="${name}"]`);
+      expect(section?.querySelector('[data-videoidee-toggle]')).toBeNull();
+    }
+
+    for (const name of ['transkript', 'umsetzungsvorgabe', 'anmerkung', 'caption']) {
+      const section = document.querySelector(`[data-videoidee-section="${name}"]`);
+      expect(section.classList.contains('is-collapsed')).toBe(true);
+      expect(section.querySelector(`[data-videoidee-toggle="${name}"]`).getAttribute('aria-expanded')).toBe('false');
+      expect(section.querySelector('.videoidee-doc__section-body').hidden).toBe(true);
+    }
+  });
+
+  it('klappt jeden Akkordeon-Abschnitt auf und wieder zu', () => {
+    open([{ id: 'i1', video_link: 'https://tiktok.com/x', caption: 'Hook #ad', transkript: 'T', umsetzungsvorgabe: 'U', beschreibung: 'B' }]);
+
+    const expected = { transkript: 'T', umsetzungsvorgabe: 'U', caption: 'Hook #ad' };
+    for (const name of ['transkript', 'umsetzungsvorgabe', 'anmerkung', 'caption']) {
+      const section = document.querySelector(`[data-videoidee-section="${name}"]`);
+      const btn = section.querySelector(`[data-videoidee-toggle="${name}"]`);
+      const body = section.querySelector('.videoidee-doc__section-body');
+      if (expected[name]) expect(body.querySelector('textarea').value).toBe(expected[name]);
+
+      btn.click();
+      expect(section.classList.contains('is-collapsed')).toBe(false);
+      expect(section.classList.contains('is-expanded')).toBe(true);
+      expect(btn.getAttribute('aria-expanded')).toBe('true');
+      expect(body.hidden).toBe(false);
+
+      btn.click();
+      expect(section.classList.contains('is-collapsed')).toBe(true);
+      expect(section.classList.contains('is-expanded')).toBe(false);
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
+      expect(body.hidden).toBe(true);
+    }
+  });
+
+  it('zeigt einem Vorschlag Übernehmen und Verwerfen, der Inhalt bleibt lesbar', () => {
+    open([{ id: 'i1', ist_vorschlag: true, beschreibung: 'Sandwich', video_link: null }]);
+
+    expect(document.querySelector('[data-action="uebernehmen-vorschlag"]')).toBeTruthy();
+    expect(document.querySelector('[data-action="verwerfen-vorschlag"]')).toBeTruthy();
+    expect(document.querySelector('#edit-item-drawer textarea[data-field="beschreibung"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="beschreibung"]').textContent).toContain('Sandwich');
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeNull();
+  });
+
+  it('setzt Leerzeilen zwischen den Beschreibungs-Labels', () => {
+    open([{
+      id: 'i1',
+      ist_vorschlag: true,
+      video_link: null,
+      beschreibung: 'Titel\nPain Point: Müde\nHook: Aufwachen\nKernbotschaft: Kaffee\nAblauf: Trinken'
+    }]);
+
+    expect(document.querySelector('.videoidee-doc__prose').textContent).toBe([
+      'Titel',
+      'Pain Point: Müde',
+      'Hook: Aufwachen',
+      'Kernbotschaft: Kaffee',
+      'Ablauf: Trinken'
+    ].join('\n\n'));
+  });
+
+  it('zeigt Kundenadaption und Anmerkung bei Idee und Videoreferenz, beim Vorschlag nur mit Text', () => {
+    open([{ id: 'i1', video_link: null, beschreibung: 'Idee', kunde_anmerkung: 'Passt' }]);
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]').textContent).toContain('Passt');
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeTruthy();
+
+    removeEditItemDrawer();
+    open([{ id: 'v1', ist_vorschlag: true, video_link: null, beschreibung: 'Vorschlag' }]);
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeNull();
+
+    removeEditItemDrawer();
+    open([{ id: 'i1', video_link: 'https://tiktok.com/x', beschreibung: 'Ref' }]);
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeTruthy();
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeTruthy();
+  });
+
+  it('blendet leere Inhaltsabschnitte fuer den Kunden aus', () => {
+    open(
+      [{ id: 'i1', video_link: null, beschreibung: '', kundenadaption: 'So laeuft es' }],
+      { isKunde: true, canEdit: false }
+    );
+
+    expect(document.querySelector('[data-videoidee-section="beschreibung"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="umsetzungsvorgabe"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]').textContent).toContain('So laeuft es');
+    // Der Kunde darf an jeder Videoidee Feedback geben, auch an der Idee
+    expect(document.querySelector('[data-videoidee-section="anmerkung"] textarea')).toBeTruthy();
+  });
+
+  it('schaltet mit Weiter zur naechsten Videoidee', async () => {
+    open([
+      { id: 'i1', video_link: null, kurzbeschreibung: 'Eins' },
+      { id: 'i2', video_link: null, kurzbeschreibung: 'Zwei' }
+    ]);
+
+    expect(document.getElementById('videoidee-pos').textContent).toBe('1 von 2');
+    document.querySelector('[data-action="videoidee-next"]').click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(document.getElementById('videoidee-pos').textContent).toBe('2 von 2');
+    expect(document.querySelector('[data-field="kurzbeschreibung"]').value).toBe('Zwei');
+    expect(document.querySelector('[data-action="videoidee-next"]').disabled).toBe(true);
+  });
+
+  it('schaltet mit Pfeil rechts, solange kein Feld fokussiert ist', async () => {
+    open([
+      { id: 'i1', video_link: null, kurzbeschreibung: 'Eins' },
+      { id: 'i2', video_link: null, kurzbeschreibung: 'Zwei' }
+    ]);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(document.getElementById('videoidee-pos').textContent).toBe('2 von 2');
+
+    const field = document.querySelector('[data-field="beschreibung_struktur.hauptteil"]');
+    field.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await Promise.resolve();
+    expect(document.getElementById('edit-item-drawer').dataset.itemId).toBe('i2');
+  });
+});
+
+describe('visibleVideoideen', () => {
+  it('nimmt Vorschlaege zuerst, dann die Kategorien der Tabelle', () => {
+    const vorschlag = { id: 'v1', ist_vorschlag: true, teilbereich: null };
+    const a = { id: 'a1', teilbereich: 'A' };
+    const b = { id: 'b1', teilbereich: 'B' };
+    const detail = {
+      items: [b, vorschlag, a],
+      getTeilbereicheFromStrategie: () => ['A', 'B']
+    };
+    expect(visibleVideoideen(detail).map((item) => item.id)).toEqual(['v1', 'a1', 'b1']);
+  });
+});
+
+describe('syncVideoideeField', () => {
+  it('ueberschreibt das fokussierte Feld nicht', () => {
+    document.body.innerHTML = `
+      <textarea id="focused" data-field="beschreibung" data-item-id="i1">alt</textarea>
+      <textarea id="peer" data-field="beschreibung" data-item-id="i1">alt</textarea>
+    `;
+    const focused = document.getElementById('focused');
+    const peer = document.getElementById('peer');
+    focused.focus();
+    syncVideoideeField('i1', 'beschreibung', 'neu', null);
+    expect(focused.value).toBe('alt');
+    expect(peer.value).toBe('neu');
   });
 });

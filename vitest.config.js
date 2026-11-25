@@ -14,6 +14,7 @@ export default defineConfig({
     
     // Globale APIs (describe, it, expect, etc.) ohne Import
     globals: true,
+
     
     // Coverage-Konfiguration
     coverage: {

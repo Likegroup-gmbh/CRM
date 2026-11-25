@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>money preview</title>
+  <link rel="stylesheet" href="/assets/styles/variables.css">
+  <link rel="stylesheet" href="/assets/styles/base.css">
+  <link rel="stylesheet" href="/assets/styles/forms.css">
+  <link rel="stylesheet" href="/assets/styles/domain-projekt.css">
+</head>
+<body>
+  <div id="app" class="projekt-erstellen-step-host" style="max-width:720px;padding:24px"></div>
+  <script type="module">
+    import { bindMoneyInputs, renderMoneyInput } from '/src/core/form/moneyInput.js';
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div class="form-two-col">
+        <div class="form-field form-field--half">
+          <label for="netto">Netto</label>
+          ${renderMoneyInput({ id: 'netto', value: 12345.6 })}
+        </div>
+        <div class="form-field form-field--half">
+          <label for="ust">USt</label>
+          ${renderMoneyInput({ id: 'ust', value: 2345.66, readonly: true })}
+        </div>
+      </div>
+      <div class="form-field form-field--half">
+        <label for="brutto">Brutto</label>
+        ${renderMoneyInput({ id: 'brutto', value: 14691.26, readonly: true })}
+      </div>
+      <div class="form-field">
+        <label>Einkaufspreis (Netto)</label>
+        <div class="price-range-inputs">
+          ${renderMoneyInput({ value: 1000 })}
+          <span class="range-separator">–</span>
+          ${renderMoneyInput({ value: 2500.5 })}
+        </div>
+      </div>
+    `;
+    bindMoneyInputs(app);
+  </script>
+</body>
+</html>

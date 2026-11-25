@@ -6,14 +6,13 @@
 // "Tabelle anpassen" (SourcingTabelleAnpassenDrawer) - beide ziehen Optionen
 // und Preset aus dieser Datei, damit sie nicht auseinanderlaufen.
 //
-//   liste_typ   'ugc' | 'influencer' | 'mix'
+//   liste_typ   'ugc' | 'influencer' | 'mix' (mix nur noch Bestand)
 //   plattformen 'instagram' | 'tiktok' | 'instagram,tiktok'
 //   ig_formate  'reel' | 'story' | 'reel,story'
 
 export const LISTE_TYP_OPTIONEN = [
   { value: 'ugc', label: 'UGC' },
-  { value: 'influencer', label: 'Influencer' },
-  { value: 'mix', label: 'Mix' }
+  { value: 'influencer', label: 'Influencer' }
 ];
 
 // "Instagram + TikTok" statt "beides": DependentFields entscheidet anhand des

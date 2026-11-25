@@ -9,6 +9,9 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
+import { renderOrtTag } from '../../core/format/ortTag.js';
+import { ManagementConnect } from './ManagementConnect.js';
 
 export class ManagementList extends BasePaginatedList {
   constructor() {
@@ -26,6 +29,16 @@ export class ManagementList extends BasePaginatedList {
     });
 
     this.selectedManagement = this.selectedItems;
+
+    // Connect: Homepage suchen und leere Stammdaten befuellen (ausgewaehlte Zeilen)
+    this._connect = new ManagementConnect({
+      onProgress: (text) => this._setConnectLabel(text),
+      onFinish: () => {
+        // Auswahl ist abgearbeitet: leeren, sonst laufen alte IDs beim naechsten Connect unsichtbar mit
+        this.deselectAll();
+        this._syncConnectButton();
+      }
+    });
   }
 
   /**
@@ -105,16 +118,16 @@ export class ManagementList extends BasePaginatedList {
     return `
       <tr data-id="${m.id}">
         ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="management-check" data-id="${m.id}"></td>` : ''}
-        <td class="col-name col-name-with-icon">
-          ${m.logo_url
-            ? `<img src="${m.logo_url}" class="table-logo" width="24" height="24" alt="" />`
-            : `<span class="table-avatar">${(m.firmenname || '?')[0].toUpperCase()}</span>`}
-          <a href="#" class="table-link" data-table="management" data-id="${m.id}">
-            ${sanitize(m.firmenname || '')}
-          </a>
+        <td class="col-name">
+          ${renderTableIdentity({
+            url: m.logo_url,
+            logo: true,
+            name: m.firmenname,
+            nameHtml: `<a href="#" class="table-link" data-table="management" data-id="${m.id}">${sanitize(m.firmenname || '')}</a>`
+          })}
         </td>
-        <td class="col-stadt">${sanitize(m.stadt || '-')}</td>
-        <td>${sanitize(m.land || '-')}</td>
+        <td class="col-stadt">${renderOrtTag(m.stadt, 'stadt', sanitize)}</td>
+        <td class="col-land">${renderOrtTag(m.land, 'land', sanitize)}</td>
         <td class="col-webseite table-cell-center">${m.webseite ? `<a href="${this.sanitizeUrl(m.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${sanitize(m.webseite)}">${icon('external-link')}</a>` : '-'}</td>
         <td>${sanitize(m.email || '-')}</td>
         <td class="table-cell-center">${creatorCount > 0 ? `<span class="tag tag--branche">${creatorCount}</span>` : '-'}</td>
@@ -142,7 +155,8 @@ export class ManagementList extends BasePaginatedList {
         <div class="table-actions">
           ${canBulkDelete ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
           <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
-          <span id="selected-count" style="display:none;">0 ausgewählt</span>` : ''}
+          <span id="selected-count" style="display:none;">0 ausgewählt</span>
+          ${this.canEdit ? '<button id="btn-management-connect" class="mdc-btn mdc-btn--secondary" style="display:none;">Connect</button>' : ''}` : ''}
           ${this.canEdit ? '<button id="btn-management-new" class="mdc-btn">Neues Management anlegen</button>' : ''}
         </div>
       </div>
@@ -154,7 +168,7 @@ export class ManagementList extends BasePaginatedList {
               ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-management"></th>` : ''}
               <th class="col-name">Name</th>
               <th class="col-stadt">Stadt</th>
-              <th>Land</th>
+              <th class="col-land">Land</th>
               <th class="col-webseite table-cell-center">Webseite</th>
               <th>E-Mail</th>
               <th class="table-cell-center">Creator</th>
@@ -196,7 +210,45 @@ export class ManagementList extends BasePaginatedList {
         e.preventDefault();
         window.navigateTo('/management/new');
       }
+      if (e.target.id === 'btn-management-connect') {
+        e.preventDefault();
+        this._connect.toggle(Array.from(this.selectedItems));
+      }
     }, { signal });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONNECT (Auswahl-Button)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /** Auswahl-UI der Basisklasse plus Connect-Button. */
+  updateSelection() {
+    super.updateSelection();
+    this._syncConnectButton();
+  }
+
+  /** Sichtbar bei Auswahl (oder waehrend des Laufs, dann als Stopp), Label mit Anzahl. */
+  _syncConnectButton() {
+    const btn = document.getElementById('btn-management-connect');
+    if (!btn) return;
+    const running = this._connect.running;
+    const count = this.selectedItems.size;
+    btn.style.display = running || count > 0 ? 'inline-block' : 'none';
+    btn.classList.toggle('is-running', running);
+    if (!running) btn.textContent = count > 0 ? `Connect (${count})` : 'Connect';
+  }
+
+  /** Label waehrend des Laufs; die Klasse is-running zeigt Spinner, Klick = Abbruch. */
+  _setConnectLabel(text) {
+    const btn = document.getElementById('btn-management-connect');
+    if (!btn) return;
+    btn.classList.add('is-running');
+    btn.textContent = text;
+  }
+
+  destroy() {
+    this._connect.stop();
+    super.destroy();
   }
 
   async updateTable(managements) {

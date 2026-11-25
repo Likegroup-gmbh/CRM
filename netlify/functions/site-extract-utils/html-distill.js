@@ -590,10 +590,10 @@ function extractVariantOptions(html) {
  * Alles in einem Durchgang.
  * @param {string} html
  * @param {string} baseUrl - Finale URL nach Redirects, Basis fuer relative Pfade
- * @param {Object} options - { followLinks: string[], withLogo: boolean, withVarianten: boolean }
+ * @param {Object} options - { followLinks: string[], withLogo: boolean, withVarianten: boolean, withContactLinks: boolean }
  */
 function distill(html, baseUrl, options = {}) {
-  const { followLinks = [], withLogo = false, withVarianten = false } = options;
+  const { followLinks = [], withLogo = false, withVarianten = false, withContactLinks = false } = options;
   return {
     title: extractTitle(html),
     meta: extractMeta(html),
@@ -602,8 +602,55 @@ function distill(html, baseUrl, options = {}) {
     links: findLinks(html, baseUrl, followLinks),
     logoCandidates: withLogo ? findLogoCandidates(html, baseUrl) : [],
     shopJson: withVarianten ? extractShopJson(html) : '',
-    variantOptions: withVarianten ? extractVariantOptions(html) : []
+    variantOptions: withVarianten ? extractVariantOptions(html) : [],
+    contactLinks: withContactLinks ? extractContactLinks(html) : null
   };
+}
+
+// Pfade auf instagram.com, die kein Profil sind
+const INSTAGRAM_KEINE_PROFILE = new Set(['p', 'reel', 'reels', 'tv', 'explore', 'accounts', 'share', 'stories', 'direct', 'about', 'legal']);
+const CONTACT_LINKS_MAX = 8;
+
+/**
+ * mailto-, tel- und Instagram-Links einer Seite. Mails und Telefonnummern
+ * stehen im Impressum oft nur im href (Link-Text "Mail uns", "Anrufen") und
+ * gehen sonst beim Eindampfen auf Text verloren.
+ * @returns {{ mails: string[], tels: string[], instagram: string[] }}
+ */
+function extractContactLinks(html) {
+  const mails = new Set();
+  const tels = new Set();
+  const instagram = new Set();
+  const re = /<a\b([^>]*)>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const href = decodeEntities(parseAttributes(m[1]).href || '').trim();
+    if (!href) continue;
+
+    if (/^mailto:/i.test(href)) {
+      const address = safeDecode(href.slice(7).split('?')[0]).trim();
+      if (address) mails.add(address);
+    } else if (/^tel:/i.test(href)) {
+      const number = safeDecode(href.slice(4)).trim();
+      if (number) tels.add(number);
+    } else {
+      const ig = href.match(/^(?:https?:)?\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/i);
+      if (ig && !INSTAGRAM_KEINE_PROFILE.has(ig[1].toLowerCase())) instagram.add(`@${ig[1]}`);
+    }
+  }
+  return {
+    mails: [...mails].slice(0, CONTACT_LINKS_MAX),
+    tels: [...tels].slice(0, CONTACT_LINKS_MAX),
+    instagram: [...instagram].slice(0, CONTACT_LINKS_MAX)
+  };
+}
+
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 // Ein Product-Node mit einem Offer je Variante sprengt vier Kilozeichen muehelos -
@@ -662,6 +709,15 @@ function toPromptBlock(pages) {
         parts.push(`Auswaehlbare Optionen im Bestellformular (jeder Wert ist eine eigene Variante):\n${zeilen.join('\n')}`);
       }
 
+      const kontakt = page.contactLinks;
+      if (kontakt && (kontakt.mails.length || kontakt.tels.length || kontakt.instagram.length)) {
+        const zeilen = [];
+        if (kontakt.mails.length) zeilen.push(`E-Mail: ${kontakt.mails.join(' | ')}`);
+        if (kontakt.tels.length) zeilen.push(`Telefon: ${kontakt.tels.join(' | ')}`);
+        if (kontakt.instagram.length) zeilen.push(`Instagram: ${kontakt.instagram.join(' | ')}`);
+        parts.push(`Kontakt-Links der Seite (mailto, tel, Instagram):\n${zeilen.join('\n')}`);
+      }
+
       if (page.text) parts.push(`Text:\n${page.text}`);
       return parts.join('\n\n');
     })
@@ -676,6 +732,7 @@ module.exports = {
   extractMeta,
   extractJsonLd,
   findLinks,
+  extractContactLinks,
   findLogoCandidates,
   extractShopJson,
   extractVariantOptions,

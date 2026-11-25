@@ -1,0 +1,47 @@
+// skriptTauschBanner.js
+// Creator-Tausch im Skript-Editor: Button im Doc-Kopf und Hinweis-Banner, bis
+// er quittiert wird. Der Vermerk (skripte.creator_tausch) kommt aus der RPC creator_tausch.
+
+import { escapeHtml } from '../SkripteUtils.js';
+import { skripteService } from '../SkripteService.js';
+import { icon } from '../../../core/icons/IconSystem.js';
+
+/** Eintrag im "…"-Menü des Doc-Kopfs. */
+export function tauschSkriptButtonHtml() {
+  return `
+    <button type="button" class="action-item" id="ed-creator-tauschen" role="menuitem" title="Creator tauschen">
+      ${icon('arrows-right-left')}
+      Creator tauschen
+    </button>`;
+}
+
+export function tauschBannerHtml(skript) {
+  const t = skript?.creator_tausch;
+  if (!t || t.quittiert || !window.isInternal?.()) return '';
+  const hinweis = t.geteilt
+    ? 'Das Skript gilt auch für andere Creator, der Text bleibt für alle gleich. Braucht der neue Creator eine eigene Fassung, kopiere das Skript.'
+    : 'Prüfe Ansprache und Besetzung im Skript.';
+  return `
+    <div class="skripte-editor-tausch-banner" role="status">
+      <span>Creator getauscht: vorher <strong>${escapeHtml(t.vorher_name || 'Creator')}</strong>,
+        jetzt <strong>${escapeHtml(t.jetzt_name || 'Creator')}</strong>.
+        ${hinweis}</span>
+      <button type="button" class="mdc-btn mdc-btn--secondary" id="ed-tausch-quittieren">
+        <span class="mdc-btn__label">Passt so</span>
+      </button>
+    </div>`;
+}
+
+/** Quittieren: Vermerk bleibt als Historie am Skript, nur das Banner verschwindet. */
+export async function quittiereTausch(view) {
+  const skript = view?.skript;
+  if (!skript?.id || !skript.creator_tausch) return;
+  const vermerk = { ...skript.creator_tausch, quittiert: true };
+  try {
+    await skripteService.updateSkript(skript.id, { creator_tausch: vermerk });
+    skript.creator_tausch = vermerk;
+    view.renderDoc();
+  } catch (err) {
+    window.toastSystem?.error(err.message);
+  }
+}

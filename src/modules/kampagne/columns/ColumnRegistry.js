@@ -25,7 +25,7 @@ const DEFAULT_COLUMNS = [
   { id: 'col-idee-strategie', label: 'Idee/Konzept', dataCol: '11b', configurable: true },
   { id: 'col-skript', label: 'Skript', dataCol: '11c', configurable: true },
   { id: 'col-organic-paid', label: 'Content/Art', dataCol: '12', configurable: true },
-  { id: 'col-produkt', label: 'Produkte', dataCol: '13', configurable: true },
+  { id: 'col-produkt', label: 'Produkt', dataCol: '13', configurable: true },
   { id: 'col-lieferadresse', label: 'Lieferadresse', dataCol: '14', configurable: true },
   { id: 'col-telefon', label: 'Telefonnummer', dataCol: '14b', configurable: true },
   { id: 'col-paket-tracking', label: 'Tracking', dataCol: '15', configurable: true },
@@ -54,6 +54,34 @@ const DEFAULT_COLUMNS = [
 ];
 
 const BUILTIN_MAP = new Map(DEFAULT_COLUMNS.map(c => [c.id, c]));
+
+// Ohne Eintrag ausgeblendet. Sichtbar nur mit `show:${id}` in hidden_columns,
+// damit eine leere Liste sie nicht wieder aufblendet.
+const DEFAULT_HIDDEN_COLUMNS = new Set(['col-idee-strategie', 'col-skript', 'col-tags', 'col-thema', 'col-link-skript']);
+
+// Lesen aus kooperation_post, das Kunden per RLS nicht sehen.
+export const TEAM_ONLY_COLUMNS = new Set(['col-link-live', 'col-stats-views', 'col-stats-likes', 'col-stats-comments']);
+
+export function showColumnKey(colId) {
+  return `show:${colId}`;
+}
+
+export function isColumnPreferredVisible(colId, hiddenColumns) {
+  const list = hiddenColumns || [];
+  if (DEFAULT_HIDDEN_COLUMNS.has(colId)) return list.includes(showColumnKey(colId));
+  return !list.includes(colId);
+}
+
+export function setColumnPreferredVisible(hiddenColumns, colId, visible) {
+  const showKey = showColumnKey(colId);
+  const list = (hiddenColumns || []).filter(id => id !== colId && id !== showKey);
+  if (DEFAULT_HIDDEN_COLUMNS.has(colId)) {
+    list.push(visible ? showKey : colId);
+    return list;
+  }
+  if (!visible) list.push(colId);
+  return list;
+}
 
 const CUSTOM_COL_PREFIX = 'custom:';
 
@@ -177,6 +205,7 @@ function toColumnEntry(customCol) {
     fieldType: customCol.field_type,
     entityType: customCol.entity_type,
     visibleForKunden: customCol.visible_for_kunden,
+    editableByKunden: Boolean(customCol.visible_for_kunden && customCol.editable_by_kunden),
     dropdownOptions: customCol._dropdownOptions || []
   };
 }
@@ -193,6 +222,7 @@ export function isColumnVisible(colId, hiddenColumns, isKunde) {
   if (isKunde) {
     if (colId === 'col-kosten' || colId === 'col-ek-video') return false;
     if (colId === 'col-actions' || colId === 'col-vertrag') return false;
+    if (TEAM_ONLY_COLUMNS.has(colId)) return false;
   }
 
   // Aktionen/Vertrag sind Write-UI: view-only Rollen (Investor) sehen sie nicht
@@ -202,13 +232,7 @@ export function isColumnVisible(colId, hiddenColumns, isKunde) {
   // Aktionen immer fuer Nicht-Kunden sichtbar
   if (colId === 'col-actions') return true;
 
-  // Custom Columns: Kunden-Sichtbarkeit pruefen
-  if (isCustomColumnId(colId)) {
-    // hiddenColumns Check gilt auch fuer Custom Cols
-    return !hiddenColumns.includes(colId);
-  }
-
-  return !hiddenColumns.includes(colId);
+  return isColumnPreferredVisible(colId, hiddenColumns);
 }
 
 /**
@@ -216,6 +240,24 @@ export function isColumnVisible(colId, hiddenColumns, isKunde) {
  */
 export function getConfigurableColumns(store) {
   return getOrderedColumns(store).filter(c => c.configurable);
+}
+
+const LOCKED_HEAD = ['col-nr', 'col-creator'];
+const LOCKED_TAIL = 'col-actions';
+
+/**
+ * Volle Spaltenreihenfolge fuer die Kooperationstabelle.
+ * Nr und Creator bleiben vorne, Aktionen hinten. Dazwischen steht die
+ * Reihenfolge aus dem Drawer "Tabelle anpassen".
+ */
+export function orderWithMovableSequence(store, movableIds) {
+  const full = getOrderedColumns(store).map(col => col.id);
+  const head = LOCKED_HEAD.filter(id => full.includes(id));
+  const tail = full.includes(LOCKED_TAIL) ? [LOCKED_TAIL] : [];
+  const movable = (movableIds || []).filter(id => full.includes(id));
+  const placed = new Set([...head, ...tail, ...movable]);
+  const rest = full.filter(id => !placed.has(id));
+  return [...head, ...movable, ...rest, ...tail];
 }
 
 /**

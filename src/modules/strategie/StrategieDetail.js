@@ -3,19 +3,38 @@
 
 import { strategieService } from './StrategieService.js';
 import { AddItemDrawer } from './AddItemDrawer.js';
-import { renderItemsTable, rerenderItemsTable as _rerenderItemsTable, updateItemRow } from './StrategieDetailRenderer.js';
+import { renderItemsTable, rerenderItemsTable as _rerenderItemsTable, updateItemRow, refreshItemActions } from './StrategieDetailRenderer.js';
 import { bindTableEvents, cleanupTableEvents, destroyDragToScroll } from './StrategieDetailTableEvents.js';
-import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeEditItemDrawer as _closeEditItemDrawer } from './StrategieDetailEditDrawer.js';
+import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeEditItemDrawer as _closeEditItemDrawer } from './VideoideeDrawer.js';
 import { showKategorienModal as _showKategorienModal, removeKategorienDrawer } from './StrategieDetailKategorienDrawer.js';
-import { handleDeleteItem as _handleDeleteItem, handleAddToVideo as _handleAddToVideo, handleUnlinkFromVideo as _handleUnlinkFromVideo } from './StrategieDetailItemActions.js';
+import { handleDeleteItem as _handleDeleteItem } from './StrategieDetailItemActions.js';
 import { StrategieCreatorDrawer, removeStrategieCreatorDrawer } from './StrategieCreatorDrawer.js';
+import { StrategieProduktDrawer, removeStrategieProduktDrawer } from './StrategieProduktDrawer.js';
 import { StrategieDetailColumnVisibilityDrawer } from './StrategieDetailColumnVisibilityDrawer.js';
+import { buildColumnContext } from './strategieColumns.js';
+import { loadStrategiePersonas, strategiePersonaOptions } from './strategiePersonaOptions.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
-import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { isCustomColumnId, makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { hatEigeneReihenfolge, uebernehmeEigeneReihenfolge } from './strategieSpaltenfolge.js';
 import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { VideoideeVorschlagPanel } from './VideoideeVorschlagPanel.js';
+import { KonzeptLikyPanel } from './KonzeptLikyPanel.js';
 import { isVideoideeVorschlag } from './videoideeVorschlag.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
+import { mergeRealtimeRow as mergeProtectedText } from '../../core/table/textFieldBaseline.js';
+import { syncKonzeptTableFilter } from './strategieFilterSpalte.js';
+
+const REALTIME_JOINS = ['produkt', 'casting_eintrag', 'creator'];
+
+function mergeRealtimeRow(item, row) {
+  const kept = {};
+  for (const key of REALTIME_JOINS) {
+    if (row?.[key] == null && item?.[key] != null) kept[key] = item[key];
+  }
+  mergeProtectedText(item, row);
+  Object.assign(item, kept);
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -34,33 +53,95 @@ export class StrategieDetail {
     this._itemChannel = null;
     this.strategie = null;
     this.items = [];
+    this.personaById = new Map();
     this.draggedItem = null;
     this.isKunde = false;
     this.canEdit = false;
     this.canCreate = false;
     this.hiddenColumns = [];
+    this.columnOrder = null;
     this.customColumns = new EntityCustomColumnsManager({ parentType: 'strategie', parentTable: 'strategie' });
     this._customHeaderDragCleanup = null;
+    this._customHeaderResizeCleanup = null;
     this.vorschlagPanel = new VideoideeVorschlagPanel(this);
+    this.konzeptLiky = new KonzeptLikyPanel(this);
+    this.root = null;
+    this.chromeRoot = null;
+    this.embedded = false;
+    this.tableFilter = null;
   }
 
-  async init(strategieId) {
-    this.strategieId = strategieId;
+  _getRoot() {
+    return this.root || window.content;
+  }
+
+  _q(selector) {
+    return this._getRoot()?.querySelector(selector)
+      || this.chromeRoot?.querySelector(selector)
+      || null;
+  }
+
+  _qq(selector) {
+    const root = this._getRoot();
+    const fromRoot = root ? [...root.querySelectorAll(selector)] : [];
+    if (!this.chromeRoot) return fromRoot;
+    return fromRoot.concat([...this.chromeRoot.querySelectorAll(selector)]);
+  }
+
+  _getHScrollTarget(fallback) {
+    if (this.embedded) return fallback;
+    return document.querySelector('.main-wrapper') || fallback;
+  }
+
+  _applyCaps() {
     this.isKunde = window.isKunde();
     // Write-Capabilities einmal aufloesen: Investor/Finanzen ist intern
     // (isKunde=false), aber view-only — Editierbarkeit fragt canEdit, nie die Rolle.
     this.canEdit = window.canEdit?.('strategie') ?? false;
     this.canCreate = window.canCreate?.('strategie') ?? false;
+  }
+
+  // Stufe 1: Strategie, Items und Spaltendefinition parallel.
+  // Stufe 2: Zellwerte, die Spalten- und Item-IDs brauchen.
+  // Eingebettet überspringt die Kampagnen-Berechtigungsquery — die Produktion
+  // ist schon geladen, RLS gilt auf dem Select weiter.
+  async _loadStages(strategieId) {
+    const [strategie, items] = await Promise.all([
+      strategieService.getStrategieById(strategieId, { skipAccessCheck: !!this.embedded }),
+      strategieService.getStrategieItems(strategieId),
+      this.customColumns.init(strategieId)
+    ]);
+    this.strategie = strategie;
+    this.items = items;
+    this.hiddenColumns = Array.isArray(strategie?.hidden_columns) ? strategie.hidden_columns : [];
+    this.columnOrder = Array.isArray(strategie?.column_order) ? strategie.column_order : null;
+    await this.customColumns.loadValues(this.items.map(i => i.id));
+    await this.loadPersonas();
+    this._prepared = true;
+  }
+
+  // Prefetch: Daten laden, noch nicht rendern. init() sieht _prepared und
+  // überspringt den Fetch.
+  async prepareEmbedded(strategieId) {
+    this.strategieId = strategieId;
+    this.embedded = true;
+    this._applyCaps();
+    await this._loadStages(strategieId);
+  }
+
+  async init(strategieId, { root, chromeRoot, embedded } = {}) {
+    this.strategieId = strategieId;
+    this.tableFilter?.destroy();
+    this.tableFilter = null;
+    this.root = root || window.content;
+    this.chromeRoot = chromeRoot || null;
+    this.embedded = !!embedded;
+    this._applyCaps();
 
     try {
-      this.strategie = await strategieService.getStrategieById(strategieId);
-      this.items = await strategieService.getStrategieItems(strategieId);
+      if (!this._prepared) await this._loadStages(strategieId);
 
-      this.hiddenColumns = Array.isArray(this.strategie?.hidden_columns) ? this.strategie.hidden_columns : [];
-      await this.customColumns.init(strategieId);
-      await this.customColumns.loadValues(this.items.map(i => i.id));
-
-      if (window.breadcrumbSystem && this.strategie) {
+      if (!this.embedded && window.breadcrumbSystem && this.strategie) {
         const crumbs = [
           { label: 'Konzepte', url: '/konzepte', clickable: true }
         ];
@@ -87,41 +168,58 @@ export class StrategieDetail {
           });
         }
 
-        crumbs.push({ label: this.strategie.name, url: '#', clickable: false });
+        crumbs.push({ label: this.strategie.name, url: `/konzepte/${this.strategie.id}`, clickable: false });
         window.breadcrumbSystem.updateBreadcrumb(crumbs);
       }
 
-      window.setHeadline('');
+      if (!this.embedded) window.setHeadline('');
       await this.render();
       this.bindEvents();
-      await this.vorschlagPanel.mount();
+      void this.vorschlagPanel.mount();
+      this.konzeptLiky.mount();
 
     } catch (error) {
       console.error('Fehler beim Laden der Strategie:', error);
-      window.content.innerHTML = `
-        <div class="error-message">
-          <p>Fehler beim Laden des Konzepts</p>
-        </div>
-      `;
+      const rootEl = this._getRoot();
+      if (rootEl) {
+        rootEl.innerHTML = `
+          <div class="error-message">
+            <p>Fehler beim Laden des Konzepts</p>
+          </div>
+        `;
+      }
     }
   }
 
   async render() {
-    const canEdit = this.canEdit;
+    const rootEl = this._getRoot();
+    if (!rootEl) return;
+    syncKonzeptTableFilter(this);
+    const table = this.tableFilter.renderLayout(this.renderItemsTable());
+    const mountFilter = () => this.tableFilter.mount({
+      root: rootEl,
+      toggleRoot: this.chromeRoot,
+      onChange: () => this.rerenderItemsTable()
+    });
 
-    const html = `
+    if (this.embedded && this.chromeRoot) {
+      this.chromeRoot.innerHTML = this.renderAddItemActions();
+      rootEl.innerHTML = table;
+      mountFilter();
+      return;
+    }
+
+    rootEl.innerHTML = `
       ${this.renderHeader()}
-      ${canEdit ? this.renderAddItemSection() : ''}
-      <div id="videoidee-vorschlag-block"></div>
-      ${this.renderItemsTable()}
+      ${this.renderAddItemSection()}
+      ${table}
     `;
+    mountFilter();
 
-    window.content.innerHTML = html;
-
-    const addSection = window.content.querySelector('.add-item-section--compact');
+    const addSection = rootEl.querySelector('.add-item-section--compact');
     if (addSection) {
       const h = addSection.offsetHeight;
-      window.content.style.setProperty('--sticky-add-section-height', h + 'px');
+      rootEl.style.setProperty('--sticky-add-section-height', h + 'px');
     }
   }
 
@@ -129,18 +227,41 @@ export class StrategieDetail {
     return '';
   }
 
-  renderAddItemSection() {
+  renderAddItemActions() {
+    const toggle = this.tableFilter?.renderToggle() || '';
+    if (!this.canEdit && !this.canCreate) return toggle;
     const shareIcon = `
       <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
-        <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
+        <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1-11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
       </svg>`;
-    const kategorienIcon = `
-      ${icon('tag')}`;
-    const sichtbarkeitIcon = `
-      ${icon('eye-outline')}`;
-    const customColumnsIcon = `
-      ${icon('bars-3')}`;
+    const kategorienIcon = `${icon('tag')}`;
+    const tabelleAnpassenIcon = `${icon('adjustments-horizontal')}`;
 
+    const primary = this.canEdit ? `
+          <button type="button" class="mdc-btn" id="btn-open-add-drawer">
+            ${icon('plus-lg', { className: 'icon-16' })}
+            Hinzufügen
+          </button>
+    ` : '';
+    const menu = this.canEdit ? renderToolbarMenu({
+      toggleId: 'btn-strategie-toolbar-menu',
+      itemsHtml: `
+              ${renderToolbarMenuItem({ id: 'btn-share-strategie', title: 'Liste per E-Mail teilen', icon: shareIcon, label: 'Teilen' })}
+              ${renderToolbarMenuItem({ id: 'btn-strategie-casting-link', title: this.strategie?.creator_auswahl_id ? 'Casting-Verknüpfung lösen' : 'Casting verknüpfen', icon: icon('link'), label: this.strategie?.creator_auswahl_id ? 'Casting lösen' : 'Casting verknüpfen' })}
+              ${renderToolbarMenuItem({ id: 'btn-manage-kategorien', title: 'Kategorien verwalten', icon: kategorienIcon, label: 'Kategorien' })}
+              ${renderToolbarMenuItem({ id: 'btn-strategie-detail-column-visibility', title: 'Spaltenreihenfolge und Sichtbarkeit', icon: tabelleAnpassenIcon, label: 'Tabelle anpassen' })}
+            `
+    }) : '';
+
+    return `
+          ${toggle}
+          ${primary}
+          <div id="videoidee-vorschlag-block"></div>
+          ${menu}
+    `;
+  }
+
+  renderAddItemSection() {
     const marke = this.strategie?.marke;
     const unternehmen = this.strategie?.unternehmen;
     // Marke hat Vorrang, wenn die Strategie einer Marke haengt – sonst Unternehmen.
@@ -157,20 +278,7 @@ export class StrategieDetail {
           })}
         </div>
         <div class="add-item-actions-right">
-          <button type="button" class="mdc-btn" id="btn-open-add-drawer">
-            ${icon('plus-lg', { className: 'icon-16' })}
-            Hinzufügen
-          </button>
-          ${renderToolbarMenu({
-            toggleId: 'btn-strategie-toolbar-menu',
-            itemsHtml: `
-              ${renderToolbarMenuItem({ id: 'btn-share-strategie', title: 'Liste per E-Mail teilen', icon: shareIcon, label: 'Teilen' })}
-              ${renderToolbarMenuItem({ id: 'btn-strategie-casting-link', title: this.strategie?.creator_auswahl_id ? 'Casting-Verknüpfung lösen' : 'Casting verknüpfen', icon: icon('link'), label: this.strategie?.creator_auswahl_id ? 'Casting lösen' : 'Casting verknüpfen' })}
-              ${renderToolbarMenuItem({ id: 'btn-manage-kategorien', title: 'Kategorien verwalten', icon: kategorienIcon, label: 'Kategorien' })}
-              ${renderToolbarMenuItem({ id: 'btn-strategie-detail-column-visibility', title: 'Spalten-Sichtbarkeit', icon: sichtbarkeitIcon, label: 'Sichtbarkeit anpassen' })}
-              ${renderToolbarMenuItem({ id: 'btn-strategie-custom-columns', title: 'Eigene Spalten verwalten', icon: customColumnsIcon, label: 'Eigene Spalten' })}
-            `
-          })}
+          ${this.renderAddItemActions()}
         </div>
       </div>
     `;
@@ -185,6 +293,31 @@ export class StrategieDetail {
     }
   }
 
+  async saveColumnOrder(order) {
+    await strategieService.updateStrategie(this.strategieId, { column_order: order });
+    this.columnOrder = order;
+    if (this.strategie) this.strategie.column_order = order;
+    const eigene = (order || []).filter(id => isCustomColumnId(id));
+    if (this.customColumns) this.customColumns.order = eigene;
+    if (!eigene.length || !this.customColumns?.dataLoader) return;
+    try {
+      await this.customColumns.dataLoader.saveColumnOrder(eigene);
+    } catch (error) {
+      console.error('Eigene Spaltenreihenfolge speichern fehlgeschlagen:', error);
+    }
+  }
+
+  /** Kopf-Griff einer eigenen Spalte: Plaetze in der gespeicherten Folge nachziehen. */
+  async applyCustomColumnReorder() {
+    if (!hatEigeneReihenfolge(this.columnOrder) || !this.customColumns?.getOrderedColumns) return;
+    const eigene = this.customColumns.getOrderedColumns().map(col => makeCustomColumnId(col.id));
+    const next = uebernehmeEigeneReihenfolge(this.columnOrder, eigene);
+    if (next.join('|') === this.columnOrder.join('|')) return;
+    await strategieService.updateStrategie(this.strategieId, { column_order: next });
+    this.columnOrder = next;
+    if (this.strategie) this.strategie.column_order = next;
+  }
+
   showColumnVisibilityDrawer() {
     const customColumns = this.customColumns.getOrderedColumns().map(c => ({
       className: makeCustomColumnId(c.id),
@@ -197,9 +330,36 @@ export class StrategieDetail {
         await this.saveColumnVisibilitySettings();
         this.rerenderItemsTable();
       },
-      customColumns
+      customColumns,
+      this.columnContext(),
+      this.columnOrder,
+      async (order) => {
+        await this.saveColumnOrder(order);
+        this.rerenderItemsTable();
+      },
+      {
+        spaltenPflege: this.customColumns,
+        onColumnsChanged: () => this.rerenderItemsTable()
+      }
     );
     drawer.open();
+  }
+
+  /** Default-Sichtbarkeit von Spalten, die vom Konzept abhaengen (Funnel-Stufe, Persona). */
+  columnContext() {
+    return buildColumnContext(this.strategie, this.items);
+  }
+
+  /** Personas des Briefings und der gesetzten Videoideen. Kunden lesen sie nicht. */
+  async loadPersonas() {
+    this.personaById = this.isKunde
+      ? new Map()
+      : await loadStrategiePersonas(window.supabase, this.strategie, this.items);
+  }
+
+  /** Select-Optionen der Persona-Spalte fuer eine Videoidee. */
+  personaOptions(item = null) {
+    return strategiePersonaOptions(this.strategie?.briefing, this.personaById, item);
   }
 
   getTeilbereicheFromStrategie() {
@@ -232,12 +392,15 @@ export class StrategieDetail {
 
   // --- Delegations-Methoden (Item Actions) ---
   handleDeleteItem(itemId) { return _handleDeleteItem(this, itemId); }
-  handleAddToVideo(itemId) { return _handleAddToVideo(this, itemId); }
-  handleUnlinkFromVideo(itemId, videoId) { return _handleUnlinkFromVideo(this, itemId, videoId); }
 
   // --- Creator-Verknüpfung ---
   showCreatorDrawer(itemId) {
     const drawer = new StrategieCreatorDrawer(this);
+    drawer.open(itemId);
+  }
+
+  showProduktDrawer(itemId) {
+    const drawer = new StrategieProduktDrawer(this);
     drawer.open(itemId);
   }
 
@@ -263,6 +426,7 @@ export class StrategieDetail {
         window.toastSystem?.show('Casting-Verknüpfung gelöst', 'success');
         await this.render();
         this.bindEvents();
+        await this.vorschlagPanel.mount();
       } catch (error) {
         console.error('Fehler beim Lösen der Casting-Verknüpfung:', error);
         window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');
@@ -336,7 +500,7 @@ export class StrategieDetail {
     const close = () => {
       panel.classList.remove('show');
       overlay.classList.remove('active');
-      setTimeout(() => { overlay.remove(); panel.remove(); }, 250);
+      setTimeout(() => { overlay.remove(); panel.remove(); }, DRAWER_EXIT_MS);
     };
 
     overlay.addEventListener('click', close);
@@ -357,6 +521,7 @@ export class StrategieDetail {
         close();
         await this.render();
         this.bindEvents();
+        await this.vorschlagPanel.mount();
       } catch (error) {
         console.error('Fehler beim Verknüpfen:', error);
         window.toastSystem?.show(error.message || 'Fehler beim Verknüpfen', 'error');
@@ -375,21 +540,13 @@ export class StrategieDetail {
   openAddItemDrawer() {
     const teilbereiche = this.getTeilbereicheFromStrategie();
     const drawer = new AddItemDrawer();
-    drawer.open(this.strategie, teilbereiche);
+    drawer.open(this.strategie, teilbereiche, this.personaOptions());
   }
 
   bindEvents() {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this._cleanupTableEvents();
-
-    const linkHandler = async (event) => {
-      const { itemId } = event.detail;
-      this.items = await strategieService.getStrategieItems(this.strategieId);
-      this.rerenderItemsTable();
-    };
-    window.addEventListener('strategieItemLinked', linkHandler);
-    this._boundEventListeners.add(() => window.removeEventListener('strategieItemLinked', linkHandler));
 
     const itemCreatedHandler = async (event) => {
       if (event.detail?.strategieId === this.strategieId) {
@@ -403,14 +560,14 @@ export class StrategieDetail {
     // Toolbar, Teilen, Drawer und Kategorien sind Write-/Config-Aktionen:
     // nur intern UND mit edit-Recht (Investor ist view-only).
     if (!this.isKunde && this.canEdit) {
-      const toolbarMenu = window.content.querySelector('.toolbar-menu');
+      const toolbarMenu = this._q('.toolbar-menu');
       if (toolbarMenu) {
         this._boundEventListeners.add(bindToolbarMenu(toolbarMenu));
       }
 
-      const shareBtn = document.getElementById('btn-share-strategie');
+      const shareBtn = this._q('#btn-share-strategie');
       if (shareBtn) {
-        const handler = () => window.shareListDialog?.open({
+        const handler = () => window.shareListDrawer?.open({
           entityType: 'strategie',
           entityId: this.strategieId,
           entityName: this.strategie?.name || ''
@@ -419,35 +576,28 @@ export class StrategieDetail {
         this._boundEventListeners.add(() => shareBtn.removeEventListener('click', handler));
       }
 
-      const openDrawerBtn = document.getElementById('btn-open-add-drawer');
+      const openDrawerBtn = this._q('#btn-open-add-drawer');
       if (openDrawerBtn) {
         const handler = () => this.openAddItemDrawer();
         openDrawerBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => openDrawerBtn.removeEventListener('click', handler));
       }
 
-      const manageKategorienBtn = document.getElementById('btn-manage-kategorien');
+      const manageKategorienBtn = this._q('#btn-manage-kategorien');
       if (manageKategorienBtn) {
         const handler = () => this.showKategorienModal();
         manageKategorienBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => manageKategorienBtn.removeEventListener('click', handler));
       }
 
-      const visibilityBtn = document.getElementById('btn-strategie-detail-column-visibility');
+      const visibilityBtn = this._q('#btn-strategie-detail-column-visibility');
       if (visibilityBtn) {
         const handler = () => this.showColumnVisibilityDrawer();
         visibilityBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => visibilityBtn.removeEventListener('click', handler));
       }
 
-      const customColumnsBtn = document.getElementById('btn-strategie-custom-columns');
-      if (customColumnsBtn) {
-        const handler = () => this.customColumns.openManagementDrawer(() => this.rerenderItemsTable());
-        customColumnsBtn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => customColumnsBtn.removeEventListener('click', handler));
-      }
-
-      const castingLinkBtn = document.getElementById('btn-strategie-casting-link');
+      const castingLinkBtn = this._q('#btn-strategie-casting-link');
       if (castingLinkBtn) {
         const handler = () => this.handleCastingLink();
         castingLinkBtn.addEventListener('click', handler);
@@ -490,10 +640,21 @@ export class StrategieDetail {
       }, (payload) => this.handleItemRealtimeDelete(payload.old))
       .subscribe();
 
+    this._releaseCustomValues = this.customColumns?.subscribeValues({
+      root: () => this.root,
+      onRerender: () => {
+        const active = document.activeElement;
+        if (this.root?.contains(active) && active.matches?.('input, textarea, select')) return;
+        this.rerenderItemsTable();
+      }
+    });
+
     this._boundEventListeners.add(() => this.unsubscribeFromItemUpdates());
   }
 
   unsubscribeFromItemUpdates() {
+    this._releaseCustomValues?.();
+    this._releaseCustomValues = null;
     if (!this._itemChannel) return;
     window.supabase.removeChannel(this._itemChannel);
     this._itemChannel = null;
@@ -501,6 +662,7 @@ export class StrategieDetail {
 
   handleItemRealtimeInsert(row) {
     if (!row?.id) return;
+    if (this.isKunde) { delete row.umsetzungsvorgabe; delete row.einreichung_id; }
     if (this.isKunde && isVideoideeVorschlag(row)) return;
     if (this.items.some((i) => i.id === row.id)) return;
     this.items.push(row);
@@ -519,6 +681,7 @@ export class StrategieDetail {
 
   handleItemRealtimeUpdate(row) {
     if (!row?.id) return;
+    if (this.isKunde) { delete row.umsetzungsvorgabe; delete row.einreichung_id; }
     if (this.isKunde && isVideoideeVorschlag(row)) return;
     const item = this.items.find(i => i.id === row.id);
     if (!item) {
@@ -527,25 +690,30 @@ export class StrategieDetail {
     }
 
     const warVorschlag = !!item.ist_vorschlag;
-    Object.assign(item, row);
+    mergeRealtimeRow(item, row);
     if (warVorschlag !== !!item.ist_vorschlag) {
       this.rerenderItemsTable();
       this.vorschlagPanel?.render?.();
       return;
     }
-    updateItemRow(this, row.id);
+    if (!updateItemRow(this, row.id)) refreshItemActions(this, row.id);
   }
 
   destroy() {
+    if (this._tornDown) return;
+    this._tornDown = true;
+    this.tableFilter?.destroy();
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this._cleanupTableEvents();
     this._destroyDragToScroll();
     this.unsubscribeFromItemUpdates();
     this.vorschlagPanel?.unmount?.();
+    this.konzeptLiky?.destroy();
     this.removeKategorienDrawer();
     this.removeEditItemDrawer();
     removeStrategieCreatorDrawer();
+    removeStrategieProduktDrawer();
   }
 }
 

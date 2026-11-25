@@ -1,10 +1,5 @@
-function sanitizePath(str) {
-  if (!str) return '';
-  return str
-    .replace(/[<>:"|?*\\/]/g, '-')
-    .replace(/-{2,}/g, '-')
-    .trim();
-}
+import { getVertragStatus as readVertragStatus } from './vertragStatus.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 export class VertragUtils {
 
@@ -60,7 +55,12 @@ export class VertragUtils {
     const fallback = ctx.kind === 'auftrag' ? 'Contracting-Auftrag' : 'Kampagne';
     const label = sanitize(ctx.label || fallback);
     if (!ctx.href) return label;
-    return `<a href="${ctx.href}" class="table-link" data-table="${ctx.dataTable}" data-id="${ctx.id}">${label}</a>`;
+    return renderVerknuepfungPill({
+      kind: ctx.kind,
+      labelHtml: label,
+      href: ctx.href,
+      attrs: `data-table="${ctx.dataTable}" data-id="${ctx.id}"`
+    });
   }
 
   /**
@@ -90,15 +90,7 @@ export class VertragUtils {
   }
 
   static getVertragStatus(vertrag) {
-    if (!vertrag) return 'kein_vertrag';
-
-    if (vertrag.dropbox_file_url || vertrag.unterschriebener_vertrag_url) {
-      return 'unterschrieben';
-    }
-    if (vertrag.is_draft) return 'entwurf';
-    if (vertrag.datei_url) return 'erstellt';
-
-    return 'kein_vertrag';
+    return readVertragStatus(vertrag);
   }
 
   static shouldShowVertragstyp(vertraege, creatorId) {
@@ -111,18 +103,5 @@ export class VertragUtils {
     );
 
     return typen.size > 1;
-  }
-
-  static buildDropboxVertragPath({ unternehmen, kampagne, creator, vertragstyp, fileName } = {}) {
-    const parts = ['/Vertraege'];
-    if (unternehmen) parts.push(sanitizePath(unternehmen));
-    if (kampagne) parts.push(sanitizePath(kampagne));
-    if (creator) parts.push(sanitizePath(creator));
-    if (vertragstyp) parts.push(sanitizePath(vertragstyp));
-
-    const name = sanitizePath(fileName) || `Vertrag_${Date.now()}.pdf`;
-    parts.push(name);
-
-    return parts.join('/');
   }
 }

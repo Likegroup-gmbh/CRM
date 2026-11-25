@@ -1,3 +1,5 @@
+import { ablageEntityLoeschen } from '../../../core/ablage/ablageApi.js';
+
 const DELETE_ORDER = [
   { table: 'vertraege', fk: 'kunde_unternehmen_id' },
   { table: 'campaign_briefings', fk: 'unternehmen_id' },
@@ -78,43 +80,14 @@ export async function cleanupStorage(unternehmenId, { supabase } = {}) {
   return { errors };
 }
 
-export async function cleanupDropbox(kampagneIds, kooperationIds, { fetch: fetchFn } = {}) {
-  const _fetch = fetchFn || globalThis.fetch;
-  const errors = [];
-
-  for (const id of kampagneIds) {
-    try {
-      const resp = await _fetch('/.netlify/functions/dropbox-delete-cascade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entityType: 'kampagne', entityId: id }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        errors.push({ step: `dropbox_kampagne_${id}`, error: err.error || `HTTP ${resp.status}` });
-      }
-    } catch (err) {
-      errors.push({ step: `dropbox_kampagne_${id}`, error: err.message || String(err) });
-    }
+/** SharePoint-Ordner des Unternehmens; muss vor den DB-Deletes laufen, sonst findet der Server sie nicht mehr. */
+export async function cleanupAblage(unternehmenId, { fetch: fetchFn } = {}) {
+  try {
+    const res = await ablageEntityLoeschen('unternehmen', unternehmenId, { fetch: fetchFn });
+    return { errors: (res?.fehler || []).map(f => ({ step: 'ablage', error: `${f.pfad || f.item_id}: ${f.fehler}` })) };
+  } catch (err) {
+    return { errors: [{ step: 'ablage', error: err.message || String(err) }] };
   }
-
-  for (const id of kooperationIds) {
-    try {
-      const resp = await _fetch('/.netlify/functions/dropbox-delete-cascade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entityType: 'kooperation', entityId: id }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        errors.push({ step: `dropbox_kooperation_${id}`, error: err.error || `HTTP ${resp.status}` });
-      }
-    } catch (err) {
-      errors.push({ step: `dropbox_kooperation_${id}`, error: err.message || String(err) });
-    }
-  }
-
-  return { errors };
 }
 
 export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProgress, userId, fetch: fetchFn } = {}) {
@@ -123,6 +96,10 @@ export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProg
   const result = { success: true, deleted: {}, errors: [] };
 
   const deps = await collectDependentIds(unternehmenId, { supabase: sb });
+
+  progress({ step: 'ablage', count: 1 });
+  const ablageResult = await cleanupAblage(unternehmenId, { fetch: fetchFn });
+  result.errors.push(...ablageResult.errors);
 
   for (const { table } of DELETE_ORDER) {
     const ids = deps[table] || [];
@@ -140,14 +117,6 @@ export async function deleteUnternehmenCascade(unternehmenId, { supabase, onProg
     } catch (err) {
       result.errors.push({ step: table, error: err.message || String(err) });
     }
-  }
-
-  const kampagneIds = deps.kampagne || [];
-  const kooperationIds = (deps._kooperationen || []);
-  if (kampagneIds.length > 0 || kooperationIds.length > 0) {
-    progress({ step: 'dropbox', count: kampagneIds.length + kooperationIds.length });
-    const dropboxResult = await cleanupDropbox(kampagneIds, kooperationIds, { fetch: fetchFn });
-    result.errors.push(...dropboxResult.errors);
   }
 
   progress({ step: 'storage', count: STORAGE_PATHS.length });

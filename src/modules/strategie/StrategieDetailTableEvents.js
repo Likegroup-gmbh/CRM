@@ -5,7 +5,40 @@ import { strategieService } from './StrategieService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
+import { buildStrategieFunnelUpdates, isStrategieFunnel } from './strategieFunnelOptions.js';
+import { buildStrategiePersonaUpdates, isStrategiePersona } from './strategiePersonaOptions.js';
+import { buildStrategieVideolaengeUpdates, getStrategieVideolaenge } from './strategieVideolaenge.js';
+import { openVideolaengePopover, closeVideolaengePopover } from './StrategieVideolaengePopover.js';
 import { bindTextClipEvents } from './strategieTextClip.js';
+import { startProduktionFromItem } from '../kooperation/produktionStart.js';
+import { refreshItemActions, updateItemRow } from './StrategieDetailRenderer.js';
+import { syncCustomPeer, syncVideoideeField } from './videoideeFieldSync.js';
+import { absorbEditedTextFields, bindTextBaseline, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
+import { bindWrappingTextareas } from '../../core/table/fitTextareaHeight.js';
+
+function tableRoot(detail) {
+  return detail._getRoot?.() || window.content;
+}
+
+function q(detail, selector) {
+  if (typeof detail._q === 'function') return detail._q(selector);
+  return tableRoot(detail)?.querySelector(selector) || document.querySelector(selector);
+}
+
+function qAll(detail, selector) {
+  if (typeof detail._qq === 'function') return detail._qq(selector);
+  return [...(tableRoot(detail)?.querySelectorAll(selector) || [])];
+}
+
+function isFromThisWorksheet(detail, el) {
+  if (!el) return false;
+  const root = tableRoot(detail);
+  if (root?.contains(el)) return true;
+  const portal = el.closest?.('.actions-dropdown-portal');
+  if (!portal) return false;
+  const type = portal.dataset?.entityType;
+  return type === 'strategie_item' || type === 'videoidee_vorschlag';
+}
 
 export function cleanupTableEvents(detail) {
   detail._tableEventListeners.forEach(cleanup => cleanup());
@@ -14,6 +47,9 @@ export function cleanupTableEvents(detail) {
 
 export function bindTableEvents(detail) {
   cleanupTableEvents(detail);
+  bindTextBaseline(tableRoot(detail), {
+    onCleanup: (fn) => detail._tableEventListeners.add(fn)
+  });
 
   // Write-Interaktionen (Drag, Aktionsmenü) nur intern UND mit edit-Recht.
   const canWrite = !detail.isKunde && !!detail.canEdit;
@@ -22,25 +58,56 @@ export function bindTableEvents(detail) {
     bindDragAndDropEvents(detail);
   }
 
-  document.querySelectorAll('input[data-field], textarea[data-field]').forEach(input => {
+  qAll(detail, 'input[data-field], textarea[data-field]').forEach(input => {
     const handler = () => handleFieldUpdate(detail, input);
     input.addEventListener('blur', handler);
     detail._tableEventListeners.add(() => input.removeEventListener('blur', handler));
   });
 
-  document.querySelectorAll('input[type="checkbox"][data-field]').forEach(checkbox => {
+  qAll(detail, 'input[type="checkbox"][data-field]').forEach(checkbox => {
     const handler = () => handleFieldUpdate(detail, checkbox);
     checkbox.addEventListener('change', handler);
     detail._tableEventListeners.add(() => checkbox.removeEventListener('change', handler));
   });
 
+  const openVideoidee = (e) => {
+    const btn = e.target.closest?.('[data-action="open-videoidee"]');
+    if (btn && isFromThisWorksheet(detail, btn)) {
+      e.preventDefault();
+      detail.showEditItemDrawer(btn.dataset.itemId);
+      return;
+    }
+    if (!detail.isKunde) return;
+    const cell = e.target.closest?.('.cell-text-readonly');
+    if (!cell || !isFromThisWorksheet(detail, cell)) return;
+    if (e.target.closest('a, button')) return;
+    const row = cell.closest('tr.item-row');
+    if (!row?.dataset.itemId) return;
+    detail.showEditItemDrawer(row.dataset.itemId);
+  };
+  document.addEventListener('click', openVideoidee);
+  detail._tableEventListeners.add(() => document.removeEventListener('click', openVideoidee));
+
   bindCustomColumnEvents(detail);
   bindPrioSelect(detail);
+  bindFunnelSelect(detail);
+  bindPersonaSelect(detail);
+  bindVideolaengeInputs(detail);
+
+  const refreshOnOpen = (e) => {
+    const toggle = e.target.closest?.('.actions-toggle');
+    if (!toggle || !isFromThisWorksheet(detail, toggle)) return;
+    const itemId = toggle.closest('tr.item-row')?.dataset.itemId;
+    if (itemId) refreshItemActions(detail, itemId);
+  };
+  document.addEventListener('click', refreshOnOpen, true);
+  detail._tableEventListeners.add(() => document.removeEventListener('click', refreshOnOpen, true));
 
   if (canWrite) {
     const actionHandler = (e) => {
       const actionItem = e.target.closest('[data-action]');
       if (!actionItem) return;
+      if (!isFromThisWorksheet(detail, actionItem)) return;
 
       const action = actionItem.dataset.action;
       const id = actionItem.dataset.id;
@@ -54,26 +121,32 @@ export function bindTableEvents(detail) {
           e.preventDefault();
           detail.showCreatorDrawer(id);
           break;
+        case 'connect-produkt':
+          e.preventDefault();
+          detail.showProduktDrawer(id);
+          break;
         case 'reprocess-item':
           e.preventDefault();
           handleReprocessItem(detail, id);
+          break;
+        case 'generiere-kundenadaption':
+          e.preventDefault();
+          if (actionItem.classList.contains('action-disabled')) return;
+          handleKundenadaption(detail, id);
           break;
         case 'delete-item':
           e.preventDefault();
           detail.handleDeleteItem(id);
           break;
-        case 'add-to-video':
-          e.preventDefault();
-          detail.handleAddToVideo(id);
-          break;
-        case 'unlink-from-video':
-          e.preventDefault();
-          detail.handleUnlinkFromVideo(id, actionItem.dataset.videoId);
-          break;
         case 'toggle-skript-freigabe':
           e.preventDefault();
           if (actionItem.classList.contains('action-disabled')) return;
           handleSkriptFreigabeToggle(detail, id);
+          break;
+        case 'start-produktion':
+          e.preventDefault();
+          if (actionItem.classList.contains('action-disabled')) return;
+          startProduktionFromItem(detail, id);
           break;
         case 'uebernehmen-vorschlag':
           e.preventDefault();
@@ -92,6 +165,7 @@ export function bindTableEvents(detail) {
     // Edit-Drawer bindet seine eigenen Buttons)
     const creatorCellHandler = (e) => {
       if (e.target.closest('#edit-item-drawer')) return;
+      if (!isFromThisWorksheet(detail, e.target)) return;
 
       const connectBtn = e.target.closest('.creator-connect-btn');
       if (connectBtn) {
@@ -108,6 +182,26 @@ export function bindTableEvents(detail) {
     };
     document.addEventListener('click', creatorCellHandler);
     detail._tableEventListeners.add(() => document.removeEventListener('click', creatorCellHandler));
+
+    const produktCellHandler = (e) => {
+      if (e.target.closest('#edit-item-drawer')) return;
+      if (!isFromThisWorksheet(detail, e.target)) return;
+
+      const connectBtn = e.target.closest('.produkt-connect-btn');
+      if (connectBtn) {
+        e.preventDefault();
+        detail.showProduktDrawer(connectBtn.dataset.itemId);
+        return;
+      }
+
+      const unlinkBtn = e.target.closest('.produkt-unlink-btn');
+      if (unlinkBtn) {
+        e.preventDefault();
+        handleProduktUnlink(detail, unlinkBtn.dataset.itemId);
+      }
+    };
+    document.addEventListener('click', produktCellHandler);
+    detail._tableEventListeners.add(() => document.removeEventListener('click', produktCellHandler));
   }
 
   bindDragToScroll(detail);
@@ -115,7 +209,8 @@ export function bindTableEvents(detail) {
 }
 
 export function bindDragToScroll(detail) {
-  const container = document.querySelector('.main-wrapper');
+  const fallback = tableRoot(detail)?.querySelector('.table-container');
+  const container = detail._getHScrollTarget?.(fallback) ?? document.querySelector('.main-wrapper');
   if (!container) return;
 
   detail._dragScrollAbort?.abort();
@@ -177,11 +272,11 @@ export function destroyDragToScroll(detail) {
 }
 
 export function bindDragAndDropEvents(detail) {
-  const rows = document.querySelectorAll('.item-row.draggable');
-  const categoryHeaders = document.querySelectorAll('.category-header-row');
+  const rows = qAll(detail, '.item-row.draggable');
+  const categoryHeaders = qAll(detail, '.category-header-row');
 
   // Drag nur über Handle aktivieren
-  const handles = document.querySelectorAll('.drag-handle');
+  const handles = qAll(detail, '.drag-handle');
   handles.forEach(handle => {
     const mousedownHandler = () => {
       const row = handle.closest('.item-row');
@@ -213,7 +308,7 @@ export function bindDragAndDropEvents(detail) {
       row.draggable = false;
       detail.draggedItem = null;
       detail.draggedItemId = null;
-      document.querySelectorAll('.category-header-row').forEach(h => {
+      qAll(detail, '.category-header-row').forEach(h => {
         h.classList.remove('drag-over');
       });
     };
@@ -288,7 +383,10 @@ export function bindPrioSelect(detail) {
   const handler = (e) => {
     const { field, itemId, value, element } = e.detail || {};
     if (field !== 'strategie_prio') return;
-    if (!element?.closest('.strategie-items-table')) return;
+    const inTable = element?.closest('.strategie-items-table');
+    const inDrawer = element?.closest('#edit-item-drawer');
+    if (!inTable && !inDrawer) return;
+    if (inTable && tableRoot(detail) && !tableRoot(detail).contains(inTable)) return;
     if (!isStrategiePrio(value)) return;
 
     handlePrioChange(detail, itemId, value);
@@ -307,7 +405,7 @@ export async function handlePrioChange(detail, itemId, value) {
   if (item?.ist_vorschlag) return;
 
   if (value === 'nicht_umsetzen' && item?.video_umgesetzt) {
-    window.toastSystem?.show('Zuerst „Umgesetzt" deaktivieren', 'warning');
+    window.toastSystem?.show('Zuerst „Umsetzen" deaktivieren', 'warning');
     detail.rerenderItemsTable();
     return;
   }
@@ -325,6 +423,150 @@ export async function handlePrioChange(detail, itemId, value) {
     detail.rerenderItemsTable();
   } catch (error) {
     console.error('Fehler beim Speichern der Prio:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    detail.rerenderItemsTable();
+  }
+}
+
+/**
+ * Funnel-Stufe-Select: gleiche Anbindung wie Prio (Portal an body, Listener am
+ * document), aber nur fuers Team. Gespeichert wird strategie_items.funnel_stufe.
+ */
+export function bindFunnelSelect(detail) {
+  tableSelect.init();
+
+  const handler = (e) => {
+    const { field, itemId, value, element } = e.detail || {};
+    if (field !== 'strategie_funnel') return;
+    const inTable = element?.closest('.strategie-items-table');
+    const inDrawer = element?.closest('#edit-item-drawer');
+    if (!inTable && !inDrawer) return;
+    if (inTable && tableRoot(detail) && !tableRoot(detail).contains(inTable)) return;
+    if (!isStrategieFunnel(value)) return;
+
+    handleFunnelChange(detail, itemId, value);
+  };
+
+  document.addEventListener('table-select-change', handler);
+  detail._tableEventListeners.add(() => document.removeEventListener('table-select-change', handler));
+}
+
+export async function handleFunnelChange(detail, itemId, value) {
+  // Nur intern mit Edit-Recht: Kunden sehen die Stufe, setzen sie nicht.
+  if (detail.isKunde || !detail.canEdit) return;
+  if (typeof window.permissionSystem?.canEditField === 'function'
+    && !window.permissionSystem.canEditField('strategie', 'strategie_funnel')) return;
+  const item = detail.items.find(i => String(i.id) === String(itemId));
+  if (!item) return;
+
+  const updates = buildStrategieFunnelUpdates(value);
+  try {
+    await strategieService.updateStrategieItem(itemId, updates);
+    Object.assign(item, updates);
+    detail.rerenderItemsTable();
+  } catch (error) {
+    console.error('Fehler beim Speichern der Funnel-Stufe:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    detail.rerenderItemsTable();
+  }
+}
+
+/**
+ * Dauer in der Tabelle: ein Klick auf den Wert oeffnet den Slider (wie im
+ * Briefing) als Popover. Jeder abgeschlossene Zug speichert
+ * strategie_items.videolaenge_von/bis.
+ */
+export function bindVideolaengeInputs(detail) {
+  const handler = (e) => {
+    const trigger = e.target.closest?.('[data-videolaenge-trigger]');
+    if (!trigger || !isFromThisWorksheet(detail, trigger)) return;
+    e.preventDefault();
+    const itemId = trigger.dataset.itemId;
+    const aktuell = () => getStrategieVideolaenge(detail.items.find(i => String(i.id) === String(itemId)));
+    openVideolaengePopover({
+      trigger,
+      iv: aktuell(),
+      aktuell,
+      onCommit: (iv) => handleVideolaengeChange(detail, itemId, iv)
+    });
+  };
+  document.addEventListener('click', handler);
+  detail._tableEventListeners.add(() => {
+    document.removeEventListener('click', handler);
+    closeVideolaengePopover();
+  });
+}
+
+/**
+ * Speichert die Dauer einer Videoidee. Unveraenderter Wert schreibt nichts.
+ * @param {{von:number,bis:number}|null} iv  null leert die Dauer
+ * @returns {Promise<boolean>} true, wenn gespeichert wurde
+ */
+export async function handleVideolaengeChange(detail, itemId, iv) {
+  // Nur intern mit Edit-Recht: Kunden sehen die Dauer, setzen sie nicht.
+  if (detail.isKunde || !detail.canEdit) return false;
+  if (typeof window.permissionSystem?.canEditField === 'function'
+    && !window.permissionSystem.canEditField('strategie', 'strategie_videolaenge')) return false;
+  const item = detail.items.find(i => String(i.id) === String(itemId));
+  if (!item) return false;
+
+  const updates = buildStrategieVideolaengeUpdates(iv);
+  const alt = getStrategieVideolaenge(item);
+  if ((alt?.von ?? null) === updates.videolaenge_von && (alt?.bis ?? null) === updates.videolaenge_bis) {
+    return false;
+  }
+
+  try {
+    await strategieService.updateStrategieItem(itemId, updates);
+    Object.assign(item, updates);
+    detail.rerenderItemsTable();
+    return true;
+  } catch (error) {
+    console.error('Fehler beim Speichern der Dauer:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    return false;
+  }
+}
+
+/**
+ * Persona-Select: gleiche Anbindung wie Funnel-Stufe, nur fuers Team.
+ * Gespeichert wird strategie_items.persona_id.
+ */
+export function bindPersonaSelect(detail) {
+  tableSelect.init();
+
+  const handler = (e) => {
+    const { field, itemId, value, element } = e.detail || {};
+    if (field !== 'strategie_persona') return;
+    const inTable = element?.closest('.strategie-items-table');
+    const inDrawer = element?.closest('#edit-item-drawer');
+    if (!inTable && !inDrawer) return;
+    if (inTable && tableRoot(detail) && !tableRoot(detail).contains(inTable)) return;
+    const item = detail.items.find(i => String(i.id) === String(itemId));
+    if (!isStrategiePersona(value, detail.personaOptions?.(item))) return;
+
+    handlePersonaChange(detail, itemId, value);
+  };
+
+  document.addEventListener('table-select-change', handler);
+  detail._tableEventListeners.add(() => document.removeEventListener('table-select-change', handler));
+}
+
+export async function handlePersonaChange(detail, itemId, value) {
+  // Nur intern mit Edit-Recht: Kunden sehen die Persona nicht.
+  if (detail.isKunde || !detail.canEdit) return;
+  if (typeof window.permissionSystem?.canEditField === 'function'
+    && !window.permissionSystem.canEditField('strategie', 'strategie_persona')) return;
+  const item = detail.items.find(i => String(i.id) === String(itemId));
+  if (!item) return;
+
+  const updates = buildStrategiePersonaUpdates(value);
+  try {
+    await strategieService.updateStrategieItem(itemId, updates);
+    Object.assign(item, updates);
+    detail.rerenderItemsTable();
+  } catch (error) {
+    console.error('Fehler beim Speichern der Persona:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
     detail.rerenderItemsTable();
   }
@@ -352,14 +594,43 @@ export async function handleCreatorUnlink(detail, itemId) {
     await strategieService.unassignCastingItem(itemId);
     item.creator_auswahl_item_id = null;
     item.casting_eintrag = null;
-    item.skript_freigabe = false;
-    item.skript_freigabe_am = null;
-    item.skript_freigabe_von = null;
+    refreshItemActions(detail, itemId);
     detail.rerenderItemsTable();
     window.toastSystem?.show('Zuordnung gelöst', 'success');
     return true;
   } catch (error) {
     console.error('Fehler beim Lösen der Zuordnung:', error);
+    window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');
+    return false;
+  }
+}
+
+export async function handleProduktUnlink(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  if (!item?.produkt_id) return false;
+
+  const result = await window.confirmationModal?.open({
+    title: 'Zuordnung lösen?',
+    message: 'Die Zuordnung zum Produkt wird gelöst.',
+    confirmText: 'Lösen',
+    cancelText: 'Abbrechen',
+    danger: true
+  });
+  if (!result?.confirmed) return false;
+
+  try {
+    await strategieService.unassignProdukt(itemId);
+    item.produkt_id = null;
+    item.produkt = null;
+    item.skript_freigabe = false;
+    item.skript_freigabe_am = null;
+    item.skript_freigabe_von = null;
+    refreshItemActions(detail, itemId);
+    detail.rerenderItemsTable();
+    window.toastSystem?.show('Zuordnung gelöst', 'success');
+    return true;
+  } catch (error) {
+    console.error('Fehler beim Lösen der Produkt-Zuordnung:', error);
     window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');
     return false;
   }
@@ -371,10 +642,14 @@ export async function handleSkriptFreigabeToggle(detail, itemId) {
 
   const next = !item.skript_freigabe;
   try {
-    await strategieService.setSkriptFreigabe(itemId, next);
+    const produkt = await strategieService.setSkriptFreigabe(itemId, next);
     item.skript_freigabe = next;
     item.skript_freigabe_am = next ? new Date().toISOString() : null;
     item.skript_freigabe_von = next ? (window.currentUser?.id || null) : null;
+    if (produkt) {
+      item.produkt_id = produkt.id;
+      item.produkt = produkt;
+    }
     detail.rerenderItemsTable();
     window.toastSystem?.show(
       next ? 'Für Skript freigegeben' : 'Skript-Freigabe zurückgenommen',
@@ -387,6 +662,23 @@ export async function handleSkriptFreigabeToggle(detail, itemId) {
 }
 
 /** Screenshot und Transkript neu holen - auch fuer Items aus der Zeit davor. */
+export async function handleKundenadaption(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  if (!item?.video_link) return;
+  if (!String(item.umsetzungsvorgabe || '').trim() || !String(item.transkript || '').trim()) return;
+
+  try {
+    window.toastSystem?.show('Kundenadaption wird geschrieben', 'info');
+    const text = await strategieService.generiereKundenadaption(itemId);
+    Object.assign(item, { kundenadaption: text, kundenadaption_quelle: 'ki' });
+    if (!updateItemRow(detail, itemId)) detail.rerenderItemsTable();
+    window.toastSystem?.show('Kundenadaption aktualisiert', 'success');
+  } catch (error) {
+    console.error('Kundenadaption fehlgeschlagen:', error);
+    window.toastSystem?.show(error.message || 'Kundenadaption fehlgeschlagen', 'error');
+  }
+}
+
 export async function handleReprocessItem(detail, itemId) {
   const item = detail.items.find(i => i.id === itemId);
   if (!item?.video_link) return;
@@ -427,52 +719,54 @@ export async function handleCategoryChange(detail, itemId, newKategorie) {
   }
 }
 
-function buildUploadMetadaten(detail) {
-  const s = detail.strategie || {};
-  return {
-    unternehmen: s.unternehmen?.firmenname || '',
-    marke: s.marke?.markenname || '',
-    kampagne: s.kampagne?.kampagnenname || '',
-    kooperationName: s.name || 'Konzept',
-  };
-}
-
 export function bindCustomColumnEvents(detail) {
   if (!detail.customColumns?.hasColumns) return;
 
-  document.querySelectorAll('.custom-col-input').forEach(el => {
-    const handler = () => detail.customColumns.handleFieldUpdate(el);
+  qAll(detail, '.custom-col-input').forEach(el => {
+    const handler = async () => {
+      const ok = await detail.customColumns.handleFieldUpdate(el);
+      if (ok) syncCustomPeer(el);
+    };
     const isChangeOnly = el.type === 'checkbox' || el.tagName === 'SELECT' || el.classList.contains('custom-col-date');
     if (isChangeOnly) {
       el.addEventListener('change', handler);
       detail._tableEventListeners.add(() => el.removeEventListener('change', handler));
     } else {
-      el.addEventListener('blur', handler);
+      const onBlur = () => {
+        if (!shouldPersistTextField(el)) return;
+        rememberTextBaseline(el);
+        handler();
+      };
+      el.addEventListener('blur', onBlur);
       el.addEventListener('change', handler);
       detail._tableEventListeners.add(() => {
-        el.removeEventListener('blur', handler);
+        el.removeEventListener('blur', onBlur);
         el.removeEventListener('change', handler);
       });
     }
   });
 
-  document.querySelectorAll('.custom-upload-btn').forEach(btn => {
-    const handler = () => detail.customColumns.openUploadDrawer(btn, buildUploadMetadaten(detail), () => detail.rerenderItemsTable());
-    btn.addEventListener('click', handler);
-    detail._tableEventListeners.add(() => btn.removeEventListener('click', handler));
-  });
-
   if (detail._customHeaderDragCleanup) detail._customHeaderDragCleanup();
-  const thead = document.querySelector('.strategie-items-table thead');
-  detail._customHeaderDragCleanup = detail.customColumns.bindHeaderDragAndDrop(thead, () => detail.rerenderItemsTable());
+  const thead = q(detail, '.strategie-items-table thead');
+  detail._customHeaderDragCleanup = detail.customColumns.bindHeaderDragAndDrop(thead, () => {
+    const danach = detail.applyCustomColumnReorder?.() || Promise.resolve();
+    void danach.finally(() => detail.rerenderItemsTable());
+  });
   detail._tableEventListeners.add(() => {
     if (detail._customHeaderDragCleanup) { detail._customHeaderDragCleanup(); detail._customHeaderDragCleanup = null; }
   });
 
-  const table = document.querySelector('.strategie-items-table');
+  const table = q(detail, '.strategie-items-table');
+  if (detail._customHeaderResizeCleanup) detail._customHeaderResizeCleanup();
+  detail._customHeaderResizeCleanup = detail.customColumns.bindColumnResize(table);
+  detail._tableEventListeners.add(() => {
+    if (detail._customHeaderResizeCleanup) { detail._customHeaderResizeCleanup(); detail._customHeaderResizeCleanup = null; }
+  });
+
   if (table) {
     const cleanup = CustomDatePicker.bind(table);
     if (cleanup) detail._tableEventListeners.add(cleanup);
+    bindWrappingTextareas(table, (fn) => detail._tableEventListeners.add(fn));
   }
 }
 
@@ -487,6 +781,10 @@ export async function handleFieldUpdate(detail, element) {
   if (!detail.isKunde && !detail.canEdit) return;
   if (field === 'video_umgesetzt' && typeof window.permissionSystem?.canEditField === 'function'
     && !window.permissionSystem.canEditField('strategie', 'video_umgesetzt')) return;
+  // Schreibgeschuetzte Zellen (z. B. strukturierte Beschreibung) spiegeln nur; ein Blur darf sie nie zurueckschreiben.
+  if (element.readOnly) return;
+  if (!shouldPersistTextField(element)) return;
+  rememberTextBaseline(element);
   const itemId = element.dataset.itemId;
   let value = element.type === 'checkbox' ? element.checked : element.value;
 
@@ -499,14 +797,27 @@ export async function handleFieldUpdate(detail, element) {
     return;
   }
 
-  await updateItemField(detail, itemId, field, value);
+  await updateItemField(detail, itemId, field, value, element);
 
   if (field === 'video_umgesetzt') {
     element.closest('tr.item-row')?.classList.toggle('strategie-item-umgesetzt', !!value);
   }
 }
 
-export async function updateItemField(detail, itemId, field, value) {
+export function absorbStrategieEdits(detail, root) {
+  absorbEditedTextFields(root, (el) => {
+    if (el.hasAttribute('data-custom-column-id') || el.getAttribute('data-entity') === 'custom') {
+      rememberTextBaseline(el);
+      detail.customColumns?.handleFieldUpdate(el);
+      return;
+    }
+    handleFieldUpdate(detail, el);
+  });
+}
+
+export async function updateItemField(detail, itemId, field, value, sourceEl) {
+  const item = detail.items.find(i => i.id === itemId);
+  const previous = {};
   try {
     const updates = { [field]: value };
 
@@ -520,20 +831,35 @@ export async function updateItemField(detail, itemId, field, value) {
     // Von Hand geschriebene Beschreibungen werden als solche markiert
     if (field === 'beschreibung') {
       updates.beschreibung_quelle = value ? 'user' : null;
+      // Freitext ersetzt die strukturierte Analyse.
+      const vorhanden = detail.items.find(i => i.id === itemId);
+      if (vorhanden?.beschreibung_struktur) updates.beschreibung_struktur = null;
+      // Ohne Struktur gibt es keinen Hook mehr (ADR 0054)
+      if (vorhanden?.hook_gesperrt) updates.hook_gesperrt = false;
+    }
+    if (field === 'kundenadaption') {
+      updates.kundenadaption_quelle = value ? 'user' : null;
+    }
+
+    if (item) {
+      for (const key of Object.keys(updates)) previous[key] = item[key];
+      Object.assign(item, updates);
     }
 
     await strategieService.updateStrategieItem(itemId, updates);
 
-    const item = detail.items.find(i => i.id === itemId);
-    if (item) Object.assign(item, updates);
+    syncVideoideeField(itemId, field, value, sourceEl);
+    if (field === 'video_umgesetzt') refreshItemActions(detail, itemId);
   } catch (error) {
+    if (item) Object.assign(item, previous);
     console.error('Fehler beim Aktualisieren des Items:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
   }
 }
 
 export async function handleSortUpdate(detail) {
-  const tbody = document.getElementById('items-table-body');
+  const tbody = q(detail, '#items-table-body');
+  if (!tbody) return;
   const allRows = Array.from(tbody.querySelectorAll('tr'));
   
   let currentKategorie = null;
@@ -541,14 +867,14 @@ export async function handleSortUpdate(detail) {
   
   allRows.forEach(row => {
     if (row.classList.contains('category-header-row')) {
-      if (row.dataset.vorschlagGroup === 'true') {
-        currentKategorie = '__vorschlag__';
-        return;
-      }
+      // Die Vorschlagsgruppe ist keine Kategorie. Sie darf die folgende
+      // Zeile nicht verschlucken: ohne definierte Kategorien steht unter
+      // den Vorschlägen kein weiterer Header, der den Zustand zurücksetzt.
+      if (row.dataset.vorschlagGroup === 'true') return;
       const kategorieFromData = row.dataset.kategorie;
       currentKategorie = kategorieFromData === 'Ohne Kategorie' ? null : kategorieFromData;
     } else if (row.classList.contains('item-row')) {
-      if (row.dataset.vorschlagId || currentKategorie === '__vorschlag__') return;
+      if (row.dataset.vorschlagId) return;
       const itemId = row.dataset.itemId;
       const item = detail.items.find(i => i.id === itemId);
       if (item) {
@@ -560,10 +886,18 @@ export async function handleSortUpdate(detail) {
     }
   });
 
+  // Von der Filterspalte ausgeblendete Videoideen behalten ihren Platz,
+  // die sichtbaren rücken in der neuen DOM-Reihenfolge in ihre Lücken.
+  const visibleIds = new Set(updatedItems.map(i => i.id));
+  let visibleIndex = 0;
+  const ordered = detail.items
+    .filter(i => !i.ist_vorschlag)
+    .map(item => (visibleIds.has(item.id) ? updatedItems[visibleIndex++] : item));
+
   try {
-    await strategieService.updateItemsSortierungWithTeilbereich(updatedItems);
+    await strategieService.updateItemsSortierungWithTeilbereich(ordered);
     const vorschlaege = detail.items.filter(i => i.ist_vorschlag);
-    detail.items = [...vorschlaege, ...updatedItems];
+    detail.items = [...vorschlaege, ...ordered];
     
     detail.rerenderItemsTable();
     

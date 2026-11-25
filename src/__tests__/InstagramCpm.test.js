@@ -867,7 +867,7 @@ describe('formatCpmReport', () => {
     });
 
     expect(report).toContain('@demo_user');
-    expect(report).toContain('calc_v7');
+    expect(report).toContain(`calc_v${CALC_VERSION}`);
     expect(report).toContain('GATE   reg_median=502,5K >= 50.000');
     expect(report).toContain('boden_median=3,0K < 5% reg_median');
     expect(report).toContain('AKTIV, Schwelle=25,1K');

@@ -2,6 +2,7 @@
 // Reine Datendatei, wird von FormConfig.js eingesammelt.
 
 import { HAUPTADRESSE_QUELLE_OPTIONS } from '../../../modules/creator/hauptadresseQuelle.js';
+import { GENERATIONEN } from '../../../modules/creator/creatorProfil.js';
 
 // Auch von CreatorFilterConfig.js genutzt, damit Formular und Filter dieselben
 // Werte anbieten. Paar/Familie/Tier bilden Accounts ab, hinter denen keine
@@ -165,7 +166,36 @@ export const creatorConfig = {
       section: 'profil'
     },
     { name: 'telefonnummer', label: 'Telefonnummer', type: 'tel', required: false, validation: { type: 'phone' }, section: 'kontakt' },
+    { name: 'telefon_nicht_vorhanden', label: 'Telefon nicht vorhanden', type: 'toggle', required: false, section: 'kontakt' },
     { name: 'mail', label: 'Email', type: 'email', required: false, validation: { type: 'email' }, section: 'kontakt' },
+    { name: 'geburtsdatum', label: 'Geburtsdatum', type: 'date', required: false, section: 'profil' },
+    { name: 'generation_override', label: 'Generation', type: 'select', required: false, section: 'profil', options: [
+      { value: '', label: 'Aus dem Geburtsdatum' },
+      ...GENERATIONEN.map((entry) => ({ value: entry.label, label: entry.label }))
+    ] },
+    { name: 'hauptplattform', label: 'Hauptplattform', type: 'select', required: false, section: 'social', options: [
+      { value: '', label: 'Automatisch (meiste Follower)' },
+      { value: 'instagram', label: 'Instagram' },
+      { value: 'tiktok', label: 'TikTok' }
+    ] },
+    { name: 'stilbeschreibung', label: 'Stilbeschreibung', type: 'textarea', required: false, section: 'profil' },
+    {
+      name: 'besitz_ids',
+      label: 'Besitz',
+      type: 'multiselect',
+      required: false,
+      options: [],
+      dynamic: true,
+      searchable: true,
+      tagBased: true,
+      allowCreate: true,
+      placeholder: 'Besitz suchen oder anlegen...',
+      table: 'besitz',
+      displayField: 'name',
+      valueField: 'id',
+      customField: true,
+      section: 'profil'
+    },
     { name: 'portfolio_link', label: 'Portfolio Link', type: 'url', required: false, validation: { type: 'url' }, section: 'kontakt' },
     { name: 'notiz', label: 'Notizen', type: 'textarea', required: false, section: 'kontakt' }
   ]

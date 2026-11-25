@@ -1,0 +1,377 @@
+/* Prüfbereich der Erfassen-Ansicht (auswertungPruefbereich.js, auswertungFormular.js, Spec 7.5):
+   Kopf, Formular, Warnung, Aktionen (rechte Spalte); dazu die Screenshots im Detail-Panel.
+   Nur Grauskala. Liste und Animationen stehen in auswertung-erfassen.css, die Mitte (Link, Blatt,
+   Ablage, Screenshots) in auswertung-blatt.css. */
+
+/* Prüfbereich: Zelle rechts der Liste, darin Blatt-Spalte und Formular-Spalte */
+.erfassen-pruefung {
+  display: flex;
+  min-width: 0;
+}
+
+.erfassen-pruefung.is-wechsel {
+  animation: erfassen-wechsel var(--motion-duration-fast) var(--motion-ease-in-out);
+}
+
+/* Leere Zustände („Links einen Post wählen“, „Alles erfasst“) füllen die Zelle */
+.erfassen-pruefung > .empty-state {
+  flex: 1;
+  align-self: center;
+}
+
+.erfassen-form {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(21rem, 26rem);
+  min-width: 0;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-in-out);
+}
+
+.erfassen-form[aria-busy="true"] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Rechte Spalte: Kopf, Hinweise, Felder, Aktionen; Bereiche durch Linien getrennt */
+.erfassen-rechts {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-primary);
+}
+
+.erfassen-kopf {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-sm);
+  height: var(--erfassen-kopf-h);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.erfassen-kopf__text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Titel und zweite Zeile einzeilig, damit der Kopf die feste Höhe nie sprengt */
+.erfassen-kopf__titel,
+.erfassen-kopf__sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.erfassen-kopf__titel {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.erfassen-kopf__sub,
+.erfassen-kopf__herkunft {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+}
+
+.erfassen-kopf__herkunft {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Formular: Felder paarweise wie in sevdesk, Kennzahlen zweispaltig unter eigener Überschrift */
+.erfassen-felder {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+}
+
+.erfassen-felder__reihe,
+.erfassen-kennzahlen {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm) var(--space-md);
+}
+
+/* Die Auswahl der geposteten Datei steht allein in einer Zeile */
+.erfassen-felder__reihe > .erfassen-feld:has([name="dateiId"]) {
+  grid-column: 1 / -1;
+}
+
+.erfassen-abschnitt {
+  margin: var(--space-xs) 0 calc(-1 * var(--space-xs));
+  padding-top: var(--space-md);
+  border-top: var(--border-xs) solid var(--border-primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-800);
+}
+
+.erfassen-feld {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.erfassen-feld__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 1.25rem;
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+.erfassen-feld .form-input,
+.erfassen-feld .custom-date-picker {
+  width: 100%;
+}
+
+/* Eigenes Dropdown (TableSelect) in Optik der Eingabefelder */
+.erfassen-feld .table-select__trigger {
+  padding: var(--space-xs);
+  border-color: var(--gray-300);
+  border-radius: var(--radius-xl);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.erfassen-feld .table-select__trigger:hover,
+.erfassen-feld .table-select.show .table-select__trigger {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+  box-shadow: none;
+}
+
+.erfassen-feld .form-input {
+  cursor: text;
+}
+
+.erfassen-feld__eingabe {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.erfassen-feld__eingabe .form-input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.erfassen-feld__eingabe:has(.erfassen-feld__einheit) .form-input {
+  padding-right: 2.75rem;
+}
+
+.erfassen-feld__einheit {
+  position: absolute;
+  right: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--gray-400);
+  pointer-events: none;
+}
+
+/* Von der KI unsicher gelesen: gestrichelt, bis jemand den Wert anfasst */
+.erfassen-feld.is-unsicher .form-input {
+  border-style: dashed;
+  border-color: var(--gray-900);
+  background: var(--gray-50);
+}
+
+.erfassen-feld__pruefen {
+  padding: 0 var(--space-xxs);
+  border-radius: var(--radius-sm);
+  background: var(--gray-900);
+  color: var(--color-white);
+  font-size: var(--text-xxs);
+  font-weight: 600;
+}
+
+.erfassen-feld [aria-invalid="true"] {
+  border-color: var(--gray-900);
+  box-shadow: 0 0 0 3px rgba(23, 23, 23, 0.12);
+}
+
+.erfassen-warnung,
+.erfassen-fehler {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  margin: 0;
+  border-radius: var(--radius-md);
+  color: var(--gray-800);
+}
+
+.erfassen-warnung {
+  padding: var(--space-xs) var(--space-sm);
+  border: var(--border-xs) solid var(--gray-200);
+  background: var(--gray-50);
+  font-size: var(--text-xs);
+}
+
+.erfassen-warnung[hidden] {
+  display: none;
+}
+
+/* Fehler und KI-Lauf als Band über die ganze Spalte, mit Linie darunter */
+.erfassen-fehler {
+  flex-wrap: wrap;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border: 0;
+  border-bottom: var(--border-xs) solid var(--gray-900);
+  border-radius: 0;
+  font-size: var(--text-sm);
+}
+
+.erfassen-fehler p {
+  flex: 1;
+  min-width: 12rem;
+  margin: 0;
+}
+
+.erfassen-fehler__schritt {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+/* KI-Lauf: Schritt, Sekunden, Abbrechen */
+.erfassen-ki-lauf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  background: var(--gray-50);
+  color: var(--gray-800);
+  font-size: var(--text-sm);
+}
+
+.erfassen-ki-lauf p {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xxs) var(--space-sm);
+  min-width: 12rem;
+  margin: 0;
+}
+
+.erfassen-ki-lauf__zeit {
+  font-variant-numeric: tabular-nums;
+  color: var(--gray-500);
+}
+
+.erfassen-ki-lauf__langsam {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.erfassen-ki-lauf__langsam[hidden] {
+  display: none;
+}
+
+.erfassen-fehlt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+}
+
+.erfassen-fehlt p {
+  margin: 0;
+}
+
+/* Aktionen: Fußleiste der Spalte, bleibt am unteren Fensterrand stehen */
+.erfassen-aktionen {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-top: var(--border-xs) solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+.erfassen-aktionen .auswertung-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  font-size: var(--text-sm);
+}
+
+.erfassen-hinweis {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-900);
+}
+
+.erfassen-aktionen__rechts {
+  display: flex;
+  gap: var(--space-xs);
+  margin-left: auto;
+}
+
+/* Eine Feldmeldung steht über den Knöpfen */
+.erfassen-hinweis:not([hidden]) {
+  order: -1;
+  flex: 1 0 100%;
+}
+
+.erfassen-kbd {
+  margin-left: var(--space-xxs);
+  padding: 0 var(--space-xxs);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.16);
+  font: inherit;
+  font-size: 0.75em;
+}
+
+/* Screenshots im Detail-Panel */
+.auswertung-panel__shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.auswertung-panel__shot {
+  width: 4.5rem;
+  height: 8rem;
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--gray-50);
+  overflow: hidden;
+}
+
+.auswertung-panel__shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* Schmal: Blatt über dem Formular (Linie zwischen beiden steht in auswertung-blatt.css) */
+@container auswertung (max-width: 62rem) {
+  .erfassen-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -3,6 +3,7 @@
 
 import { KampagneUtils } from './KampagneUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class KampagnePreviewDrawer {
   constructor() {
@@ -242,7 +243,7 @@ export class KampagnePreviewDrawer {
     setTimeout(() => {
       overlay?.remove();
       panel?.remove();
-    }, 250);
+    }, DRAWER_EXIT_MS);
 
     // ESC-Handler entfernen
     if (this._escHandler) {

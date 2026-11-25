@@ -15,10 +15,11 @@ vi.mock('./VideoTableUIHelpers.js', () => ({
 }));
 vi.mock('./VideoUploadDrawer.js', () => ({ VideoUploadDrawer: class {} }));
 vi.mock('./VideoSettingsDrawer.js', () => ({ VideoSettingsDrawer: class {} }));
-vi.mock('../../core/VideoDeleteHelper.js', () => ({ deleteVideoFile: vi.fn() }));
+vi.mock('../../core/VideoDeleteHelper.js', () => ({ syncVideoAssetsAfterDelete: vi.fn() }));
 vi.mock('../../core/VertragSyncHelper.js', () => ({ renderVertragCell: vi.fn() }));
 
 import { KampagneKooperationenVideoTable } from '../modules/kampagne/KampagneKooperationenVideoTable.js';
+import { renderStatusSelect, KOOP_STATUS_FIELD } from '../modules/kampagne/videoTableKoopCells.js';
 
 function createChainableQuery(result = { data: [], error: null }) {
   const mock = {
@@ -102,50 +103,39 @@ describe('KampagneKooperationenVideoTable – Ladeoptimierung', () => {
     expect(queriedTables).not.toContain('kooperationen');
   });
 
-  it('positioniert das Portal nach oben wenn unten zu wenig Platz ist', () => {
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 });
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+  describe('Status-Spalte als TableSelect', () => {
+    const koop = { id: 'k-1', status_id: 's2', status_name: 'Aktiv' };
+    const optionen = [{ id: 's1', name: 'Neu' }, { id: 's2', name: 'Aktiv' }];
 
-    const trigger = document.createElement('span');
-    trigger.className = 'status-select-trigger';
-    trigger.getBoundingClientRect = () => ({ top: 540, bottom: 570, left: 100, right: 280 });
+    it('rendert den zentralen TableSelect mit aktuellem Status', () => {
+      window.permissionSystem = { canEditField: () => true };
+      const doc = new DOMParser().parseFromString(renderStatusSelect({ statusOptions: optionen }, koop), 'text/html');
 
-    const portal = document.createElement('div');
-    portal.className = 'status-dropdown-portal';
-    Object.defineProperty(portal, 'offsetHeight', { configurable: true, value: 180 });
-    Object.defineProperty(portal, 'offsetWidth', { configurable: true, value: 180 });
-    document.body.appendChild(portal);
+      const select = doc.querySelector('.table-select');
+      expect(select.dataset.field).toBe(KOOP_STATUS_FIELD);
+      expect(select.dataset.itemId).toBe('k-1');
+      expect(select.querySelector('.table-select__label').textContent.trim()).toBe('Aktiv');
+      expect(select.querySelector('button.table-select__trigger')).not.toBeNull();
+      expect(select.querySelectorAll('.table-select__item').length).toBe(3);
+      expect(select.querySelector('.table-select__item.is-active').dataset.value).toBe('s2');
+    });
 
-    table._positionStatusPortal(trigger, portal);
+    it('zeigt ohne Status den Platzhalter und markiert keinen Eintrag', () => {
+      window.permissionSystem = { canEditField: () => true };
+      const doc = new DOMParser().parseFromString(
+        renderStatusSelect({ statusOptions: optionen }, { id: 'k-2', status_id: null }), 'text/html');
 
-    // Unten 540+180 > 600 -> oeffnet nach oben: top = 540 - 180 - 4 = 356
-    expect(portal.style.top).toBe('356px');
-  });
+      expect(doc.querySelector('.table-select__label').textContent.trim()).toBe('–');
+      expect(doc.querySelector('.table-select__item.is-active')).toBeNull();
+    });
 
-  it('oeffnet das Status-Portal an document.body und schliesst es wieder', () => {
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+    it('rendert ohne Edit-Recht einen nicht klickbaren Trigger', () => {
+      window.permissionSystem = { canEditField: () => false };
+      const doc = new DOMParser().parseFromString(renderStatusSelect({ statusOptions: optionen }, koop), 'text/html');
 
-    document.body.innerHTML = `
-      <div class="status-select-wrapper" data-kooperation-id="k-1">
-        <span class="status-select-trigger"></span>
-        <div class="status-dropdown">
-          <a href="#" class="status-dropdown-item" data-value="">kein Status</a>
-        </div>
-      </div>
-    `;
-
-    const wrapper = document.querySelector('.status-select-wrapper');
-    const trigger = wrapper.querySelector('.status-select-trigger');
-    trigger.getBoundingClientRect = () => ({ top: 100, bottom: 130, left: 50, right: 200 });
-
-    const portal = table._openStatusPortal(wrapper);
-    expect(portal).not.toBeNull();
-    expect(document.querySelectorAll('.status-dropdown-portal').length).toBe(1);
-    expect(portal.dataset.kooperationId).toBe('k-1');
-
-    table._closeStatusPortal();
-    expect(document.querySelectorAll('.status-dropdown-portal').length).toBe(0);
-    expect(wrapper.classList.contains('show')).toBe(false);
+      expect(doc.querySelector('button.table-select__trigger')).toBeNull();
+      expect(doc.querySelector('.table-select__trigger--disabled')).not.toBeNull();
+      expect(doc.querySelector('.table-select__label').textContent.trim()).toBe('Aktiv');
+    });
   });
 });

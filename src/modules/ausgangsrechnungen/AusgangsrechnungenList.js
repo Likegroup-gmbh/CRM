@@ -13,14 +13,15 @@ import {
   parseMonthTab
 } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { renderInvoiceMonthSheet, updateInvoiceMonthTabUI } from '../auftrag/logic/InvoiceMonthSheet.js';
-import { ENTITY_KUNDENRECHNUNG, isFinalAuftrag as isFinalAuftragRow, loadCounts, loadRows } from '../rechnung/Monatsblatt.js';
+import { ENTITY_KUNDENRECHNUNG, applyAuftragMode, isFinalAuftrag as isFinalAuftragRow, loadCounts, loadRows } from '../rechnung/Monatsblatt.js';
 import { animateNumber } from '../../core/animation/animateNumber.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
-import { getPaymentRowStatusClass, sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
+import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
+import { summarizeKundenrechnungRows } from '../rechnung/invoiceCardTotals.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { AuftragCashFlowCalendar } from '../auftrag/AuftragCashFlowCalendar.js';
@@ -198,7 +199,7 @@ export class AusgangsrechnungenList {
     if (!window.canViewContracts?.()) return '';
     const isContracts = this.activeTab === 'contracts';
     return `
-      <div class="tab-navigation auftrag-tabs">
+      <div class="tab-navigation tab-navigation--liste auftrag-tabs">
         <button class="tab-button ${!isContracts ? 'active' : ''}" data-tab="auftraege">
           Aufträge<span class="tab-count" data-tab-count="auftraege">0</span>
         </button>
@@ -259,29 +260,34 @@ export class AusgangsrechnungenList {
   renderInvoiceSummaryCards() {
     const zero = this.formatSummaryCurrency(0);
     const cards = [
-      { field: 'nettobetrag', label: 'Netto' },
-      { field: 'ust_betrag', label: 'Mehrwertsteuer' },
-      { field: 'bruttobetrag', label: 'Brutto' }
+      { field: 'nettobetrag', label: 'Netto Umsatz', mwst: true },
+      { field: 're_datum_netto', label: 'Netto Rechnungen gestellt' },
+      { field: 'bezahlt_netto', label: 'Netto Rechnungen bereits bezahlt' },
+      { field: 'unbezahlt_netto', label: 'Netto Rechnungen unbezahlt', ueberfaellig: true }
     ];
     return `
       <div class="auftragsdetails-summary" id="ausgangsrechnungen-summary-cards">
         <div class="summary-cards">
-          <div class="summary-card summary-card--wide" data-summary-card="bezahlt">
-            <div class="summary-card-values">
-              <div class="summary-card-value-block">
-                <div class="summary-value" data-summary-value="bezahlt_netto">${zero}</div>
-                <div class="summary-label">Bereits bezahlt (Netto)</div>
-              </div>
-              <div class="summary-card-value-block">
-                <div class="summary-value" data-summary-value="bezahlt_brutto">${zero}</div>
-                <div class="summary-label">Bereits bezahlt (Brutto)</div>
-              </div>
-            </div>
-          </div>
-          ${cards.map(({ field, label }) => `
+          ${cards.map(({ field, label, mwst, ueberfaellig }) => `
             <div class="summary-card" data-summary-card="${field}">
               <div class="summary-value" data-summary-value="${field}">${zero}</div>
               <div class="summary-label">${label}</div>
+              ${mwst ? `
+                <div class="summary-card-breakdown">
+                  <div class="summary-card-breakdown-line">
+                    <span>abzuführende MwSt</span>
+                    <span data-summary-value="ust_betrag">${zero}</span>
+                  </div>
+                </div>
+              ` : ''}
+              ${ueberfaellig ? `
+                <div class="summary-card-breakdown">
+                  <div class="summary-card-breakdown-line summary-card-breakdown-line--overdue">
+                    <span>davon überfällig</span>
+                    <span data-summary-value="ueberfaellig_netto">${zero}</span>
+                  </div>
+                </div>
+              ` : ''}
             </div>
           `).join('')}
         </div>
@@ -372,24 +378,27 @@ export class AusgangsrechnungenList {
   }
 
   sumInvoiceRows(rows) {
-    return (rows || []).reduce((acc, row) => {
-      acc.nettobetrag += parseFloat(row.nettobetrag) || 0;
-      acc.ust_betrag += parseFloat(row.ust_betrag) || 0;
-      acc.bruttobetrag += parseFloat(row.bruttobetrag) || 0;
-      return acc;
-    }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
+    const summary = summarizeKundenrechnungRows(rows);
+    return {
+      nettobetrag: summary.nettobetrag,
+      ust_betrag: summary.ust_betrag,
+      bruttobetrag: summary.bruttobetrag
+    };
   }
 
   updateInvoiceSummary(rows, { animate = false } = {}) {
-    const totals = this.sumInvoiceRows(rows);
-    const paid = sumPaidInvoiceRows(rows);
+    const summary = summarizeKundenrechnungRows(rows);
     const foot = document.getElementById('ausgangsrechnungen-summary');
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     const format = (v) => this.formatSummaryCurrency(v);
     const entries = {
-      ...totals,
-      bezahlt_netto: paid.netto,
-      bezahlt_brutto: paid.brutto
+      nettobetrag: summary.nettobetrag,
+      ust_betrag: summary.ust_betrag,
+      bruttobetrag: summary.bruttobetrag,
+      re_datum_netto: summary.re_datum_netto,
+      bezahlt_netto: summary.bezahlt_netto,
+      unbezahlt_netto: summary.unbezahlt_netto,
+      ueberfaellig_netto: summary.ueberfaellig_netto
     };
     Object.entries(entries).forEach(([field, value]) => {
       const targets = [
@@ -505,7 +514,8 @@ export class AusgangsrechnungenList {
           <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
           ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create(actionEntity, auftrag.id, window.currentUser, {
             statusOptions: this.statusOptions,
-            currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' }
+            currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' },
+            dataset: auftrag.teilrechnung_id ? { teilrechnungId: auftrag.teilrechnung_id } : null
           })}</td>` : ''}
         </tr>
       `;
@@ -593,6 +603,7 @@ export class AusgangsrechnungenList {
     if (Number.isNaN(next) && next !== UNDATED_TAB && next !== NO_RENR_TAB && next !== ALL_TAB) return;
     if (next === this.currentMonth) return;
     this.currentMonth = next;
+    this.updateMonthTabUI();
     this.reloadBlatt({ withCounts: false, animate: true });
   }
 
@@ -600,6 +611,7 @@ export class AusgangsrechnungenList {
     const nextYear = parseInt(year, 10);
     if (Number.isNaN(nextYear) || nextYear === this.currentYear) return;
     this.currentYear = nextYear;
+    this.updateMonthTabUI();
     this.reloadBlatt({ withCounts: true, animate: true });
   }
 
@@ -613,9 +625,7 @@ export class AusgangsrechnungenList {
     try {
       const inactiveTab = this.activeTab === 'contracts' ? 'auftraege' : 'contracts';
       let query = window.supabase.from('auftrag').select('*', { count: 'estimated', head: true });
-      query = inactiveTab === 'contracts'
-        ? query.eq('auftragtype', 'Contracting')
-        : query.neq('auftragtype', 'Contracting');
+      query = applyAuftragMode(query, inactiveTab === 'contracts' ? 'contracts' : 'auftraege');
       const { count } = await query;
       this.updateTabCount(inactiveTab, count || 0);
     } catch (error) {

@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 3001 --strictPort",
+    "dev:functions": "netlify functions:serve --port 9999",
+    "dev:all": "node scripts/dev-all.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
@@ -19,11 +21,13 @@
     "@supabase/supabase-js": "^2.39.0",
     "busboy": "^1.6.0",
     "fuse.js": "^7.1.0",
+    "gsap": "^3.15.0",
+    "mammoth": "^1.13.0",
+    "pdf-lib": "^1.17.1",
     "puppeteer-core": "^23.0.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "sharp": "^0.34.5",
-    "tus-js-client": "^4.3.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

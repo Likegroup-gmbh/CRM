@@ -1,0 +1,27 @@
+/* Empfänger-Vorschau im Teilen-Dialog und Rückweg aus der Gast-Ansicht. */
+
+#app-root.guest-mode .guest-account-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-sm) var(--space-md) 0;
+}
+
+.share-recipient-plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
+.share-plan-row,
+.share-plan-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.share-plan-email {
+  color: var(--text-primary);
+  font-weight: 600;
+}

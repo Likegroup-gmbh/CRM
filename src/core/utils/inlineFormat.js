@@ -3,8 +3,22 @@
 // WYSIWYG-Bruecke: Rendert nach HTML inkl. Offset-Maps (sichtbarer Text <->
 // Raw-String) und serialisiert contenteditable-HTML zurueck nach Markdown.
 // Fachlich ungebunden - Skript-Editor und spaetere Stellen teilen sich das.
+// Mit { erweitert: true } kommen ==Highlight== und [Link](https://…) dazu;
+// ohne Option bleiben beide Literal (Skript-Tabelle, Liky-Zellen).
+// Mit { hervorheben: true } kommt nur die Hervorhebung dazu (Links bleiben
+// Literal) - so rendert die Skript-Tabelle.
+// Farbige Hervorhebung: =={id}Text== mit id aus HIGHLIGHT_FARBEN; ohne id
+// (==Text==) gilt der Standardton. Unbekannte ids bleiben Literal im Text.
+// Teile: inlineFormatParser (Token-Baum), inlineFormatEdit (Toggle, Laeufe),
+// inlineFormatDom (Selektion). Diese Datei rendert, serialisiert und
+// re-exportiert alles.
 
-const MARKER = { bold: '**', italic: '*' };
+import { istHighlightFarbe, highlightHex } from './highlightFarben.js';
+import { istSichereLinkUrl, parseTokens } from './inlineFormatParser.js';
+
+export { istSichereLinkUrl } from './inlineFormatParser.js';
+export * from './inlineFormatEdit.js';
+export * from './inlineFormatDom.js';
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -15,57 +29,20 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-// ---------- Parser (Raw-String -> Token-Baum, absolute Offsets) ----------
-
-const OPEN_TAGS = { bold: '<strong>', italic: '<em>', bolditalic: '<strong><em>', code: '<code>' };
-const CLOSE_TAGS = { bold: '</strong>', italic: '</em>', bolditalic: '</em></strong>', code: '</code>' };
-
-function parseInline(raw, start, end, tokens) {
-  let i = start;
-  let litStart = start;
-  while (i < end) {
-    const three = raw.startsWith('***', i);
-    const two = !three && raw.startsWith('**', i);
-    const one = !three && !two && raw[i] === '*';
-    const code = !three && !two && !one && raw[i] === '`';
-    if (!three && !two && !one && !code) { i += 1; continue; }
-    const marker = three ? '***' : two ? '**' : one ? '*' : '`';
-    const closeIdx = raw.indexOf(marker, i + marker.length);
-    // Kein schliessender Marker oder leerer Inhalt -> Marker ist Literal
-    if (closeIdx === -1 || closeIdx + marker.length > end || closeIdx === i + marker.length) {
-      i += marker.length;
-      continue;
-    }
-    if (litStart < i) tokens.push({ type: 'text', start: litStart, end: i });
-    const type = three ? 'bolditalic' : two ? 'bold' : one ? 'italic' : 'code';
-    const token = {
-      type,
-      start: i,
-      contentStart: i + marker.length,
-      contentEnd: closeIdx,
-      end: closeIdx + marker.length,
-      children: []
-    };
-    if (type !== 'code') parseInline(raw, token.contentStart, token.contentEnd, token.children);
-    tokens.push(token);
-    i = token.end;
-    litStart = i;
-  }
-  if (litStart < end) tokens.push({ type: 'text', start: litStart, end });
-}
-
 // ---------- Renderer: Raw -> HTML + Offset-Maps ----------
+
+const OPEN_TAGS = { bold: '<strong>', italic: '<em>', bolditalic: '<strong><em>', code: '<code>', highlight: '<mark>' };
+const CLOSE_TAGS = { bold: '</strong>', italic: '</em>', bolditalic: '</em></strong>', code: '</code>', highlight: '</mark>', link: '</a>' };
 
 /**
  * @param {string} raw Markdown-String
+ * @param {{ erweitert?: boolean }} [opts] erweitert: ==Highlight== und [Link](url)
  * @returns {{ html: string, toRaw: number[], toRendered: number[] }}
  *   toRaw[sichtbarerIdx] = rawIdx (inkl. Sentinel: toRaw[len] = raw.length),
  *   toRendered[rawIdx] = sichtbarerIdx (Marker zeigen auf die Inhaltsposition).
  */
-export function renderInlineMd(raw) {
-  const text = String(raw ?? '');
-  const tokens = [];
-  parseInline(text, 0, text.length, tokens);
+export function renderInlineMd(raw, opts) {
+  const { text, tokens } = parseTokens(raw, opts);
 
   const toRaw = [];
   const toRendered = new Array(text.length + 1).fill(0);
@@ -85,7 +62,13 @@ export function renderInlineMd(raw) {
     for (const t of list) {
       if (t.type === 'text') { emitText(t.start, t.end); continue; }
       for (let i = t.start; i < t.contentStart; i++) toRendered[i] = renderedLen;
-      html += OPEN_TAGS[t.type];
+      if (t.type === 'link') {
+        html += `<a href="${escapeHtml(t.href)}" target="_blank" rel="noopener noreferrer">`;
+      } else if (t.type === 'highlight' && t.farbe) {
+        html += `<mark data-farbe="${t.farbe}" style="background-color:${highlightHex(t.farbe)}">`;
+      } else {
+        html += OPEN_TAGS[t.type];
+      }
       if (t.type === 'code') emitText(t.contentStart, t.contentEnd);
       else emitTokens(t.children);
       html += CLOSE_TAGS[t.type];
@@ -125,6 +108,14 @@ function serializeNode(node) {
     return `*${inner}*`;
   }
   if (tag === 'CODE') return `\`${inner}\``;
+  if (tag === 'MARK') {
+    const farbe = node.getAttribute('data-farbe') || '';
+    return `==${istHighlightFarbe(farbe) ? `{${farbe}}` : ''}${inner}==`;
+  }
+  if (tag === 'A') {
+    const href = node.getAttribute('href') || '';
+    return istSichereLinkUrl(href) ? `[${inner}](${href})` : inner;
+  }
   // Block-Container (Browser-Enter in contenteditable): Umbruch davor
   if (tag === 'DIV' || tag === 'P') return `\n${inner}`;
   return inner;
@@ -136,183 +127,4 @@ export function htmlToInlineMd(el) {
   if (out.startsWith('\n')) out = out.slice(1);
   if (out === '\n') out = '';
   return out;
-}
-
-// ---------- Detect / Toggle auf Raw-String ----------
-
-function runBefore(text, idx) {
-  let n = 0;
-  while (idx - 1 - n >= 0 && text[idx - 1 - n] === '*') n += 1;
-  return n;
-}
-
-function runAfter(text, idx) {
-  let n = 0;
-  while (idx + n < text.length && text[idx + n] === '*') n += 1;
-  return n;
-}
-
-/**
- * Prueft, ob die Auswahl [start, end) von Markern umschlossen ist
- * (Marker direkt ausserhalb oder als Teil der Auswahl selbst).
- * Bei *** zaehlt beides: bold (>=2) und italic (ungerade Anzahl).
- */
-export function detectInlineFormat(raw, start, end) {
-  const text = String(raw ?? '');
-  if (start > end) [start, end] = [end, start];
-  const nPre = runBefore(text, start);
-  const nPost = runAfter(text, end);
-  let bold = nPre >= 2 && nPost >= 2;
-  let italic = nPre >= 1 && nPost >= 1 && nPre % 2 === 1 && nPost % 2 === 1;
-
-  const nLeadIn = runAfter(text, start);
-  const nTrailIn = runBefore(text, end);
-  if (!bold && nLeadIn >= 2 && nTrailIn >= 2 && end - start > 4) bold = true;
-  if (!italic && nLeadIn >= 1 && nTrailIn >= 1 && nLeadIn % 2 === 1 && nTrailIn % 2 === 1 && end - start > 2) {
-    italic = true;
-  }
-  return { bold, italic };
-}
-
-/**
- * Wrap/Unwrap der Auswahl. Rueckgabe: neuer String + Auswahl-Offsets,
- * die den (formatierten) Inhalt ohne Marker umfassen.
- */
-export function toggleInlineFormat(raw, start, end, format) {
-  const text = String(raw ?? '');
-  const m = MARKER[format];
-  if (!m) return { text, start, end };
-  if (start > end) [start, end] = [end, start];
-  if (start === end) return { text, start, end };
-
-  const { bold, italic } = detectInlineFormat(text, start, end);
-  const active = format === 'bold' ? bold : italic;
-
-  if (active) {
-    const nPre = runBefore(text, start);
-    const nPost = runAfter(text, end);
-    if (nPre >= m.length && nPost >= m.length) {
-      // Marker ausserhalb der Auswahl entfernen
-      const neu = text.slice(0, start - m.length) + text.slice(start, end) + text.slice(end + m.length);
-      return { text: neu, start: start - m.length, end: end - m.length };
-    }
-    // Marker liegen innerhalb der Auswahl
-    const inner = text.slice(start + m.length, end - m.length);
-    return { text: text.slice(0, start) + inner + text.slice(end), start, end: start + inner.length };
-  }
-
-  const neu = text.slice(0, start) + m + text.slice(start, end) + m + text.slice(end);
-  return { text: neu, start: start + m.length, end: end + m.length };
-}
-
-// ---------- DOM-Bruecke (contenteditable-Zellen) ----------
-
-function nodeTextLen(node) {
-  if (node.nodeType === Node.TEXT_NODE) return node.nodeValue.length;
-  if (node.nodeType !== Node.ELEMENT_NODE) return 0;
-  if (node.tagName === 'BR') return 1;
-  let n = 0;
-  for (const c of node.childNodes) n += nodeTextLen(c);
-  return n;
-}
-
-function prefixLen(el, childCount) {
-  let n = 0;
-  const max = Math.min(childCount, el.childNodes.length);
-  for (let i = 0; i < max; i++) n += nodeTextLen(el.childNodes[i]);
-  return n;
-}
-
-/** Sichtbarer Text-Offset einer DOM-Position (BR zaehlt als 1 Zeichen). */
-function renderedOffset(cell, node, offset) {
-  if (node === cell) return prefixLen(cell, offset);
-  let found = -1;
-  const walk = (el, acc) => {
-    let total = acc;
-    for (const child of el.childNodes) {
-      if (found >= 0) break;
-      if (child === node) {
-        found = node.nodeType === Node.TEXT_NODE ? total + offset : total + prefixLen(node, offset);
-        break;
-      }
-      if (child.nodeType === Node.ELEMENT_NODE && child.contains(node)) {
-        total = walk(child, total);
-      } else {
-        total += nodeTextLen(child);
-      }
-    }
-    return total;
-  };
-  walk(cell, 0);
-  return found >= 0 ? found : null;
-}
-
-/**
- * Aktuelle DOM-Selektion in der Zelle -> Raw-Offsets.
- * Nutzt die toRaw-Map aus renderInlineMd(raw) der Zelle.
- */
-export function domSelectionToRaw(cell, toRaw) {
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0) return null;
-  const range = sel.getRangeAt(0);
-  if (!cell.contains(range.startContainer) || !cell.contains(range.endContainer)) return null;
-  const startVis = renderedOffset(cell, range.startContainer, range.startOffset);
-  const endVis = renderedOffset(cell, range.endContainer, range.endOffset);
-  if (startVis == null || endVis == null) return null;
-  const clamp = (idx) => Math.max(0, Math.min(idx, toRaw.length - 1));
-  // Start = Raw-Idx des ersten sichtbaren Zeichens; Ende = Raw-Idx HINTER dem
-  // letzten sichtbaren Zeichen (sonst wuerde die Grenze auf evtl. folgende
-  // Marker bzw. das naechste Zeichen zeigen).
-  const start = toRaw[clamp(startVis)];
-  const end = endVis === 0 ? toRaw[0] : toRaw[clamp(endVis - 1)] + 1;
-  return { start, end };
-}
-
-function locateRenderedPos(cell, pos) {
-  let total = 0;
-  let result = null;
-  const walk = (el) => {
-    for (const child of el.childNodes) {
-      if (result) return;
-      if (child.nodeType === Node.TEXT_NODE) {
-        const len = child.nodeValue.length;
-        if (pos <= total + len) {
-          result = { node: child, offset: pos - total };
-          return;
-        }
-        total += len;
-      } else if (child.nodeType === Node.ELEMENT_NODE) {
-        if (child.tagName === 'BR') {
-          if (pos === total) {
-            const idx = [...el.childNodes].indexOf(child);
-            result = { node: el, offset: idx };
-            return;
-          }
-          total += 1;
-        } else {
-          walk(child);
-        }
-      }
-    }
-  };
-  walk(cell);
-  if (result) return result;
-  // Fallback: ans Ende des letzten Textknotens
-  const last = cell.lastChild;
-  if (last?.nodeType === Node.TEXT_NODE) return { node: last, offset: last.nodeValue.length };
-  return { node: cell, offset: cell.childNodes.length };
-}
-
-/** Setzt die DOM-Selektion auf einen Raw-Bereich (via toRendered-Map). */
-export function selectRawRange(cell, toRendered, startRaw, endRaw) {
-  const startVis = toRendered[Math.max(0, Math.min(startRaw, toRendered.length - 1))];
-  const endVis = toRendered[Math.max(0, Math.min(endRaw, toRendered.length - 1))];
-  const start = locateRenderedPos(cell, startVis);
-  const end = locateRenderedPos(cell, endVis);
-  const sel = window.getSelection();
-  const range = document.createRange();
-  range.setStart(start.node, start.offset);
-  range.setEnd(end.node, end.offset);
-  sel.removeAllRanges();
-  sel.addRange(range);
 }

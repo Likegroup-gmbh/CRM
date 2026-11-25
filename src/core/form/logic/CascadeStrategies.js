@@ -1,4 +1,5 @@
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
+import { applyFinalisiertFilter } from '../../finalisiert.js';
 import { creatorDisplayName, loadAllCreators } from '../../creatorRows.js';
 
 function getKampagneTotalVideosSimple(k) {
@@ -70,11 +71,12 @@ export const cascadeStrategies = {
   },
 
   'auftrag_id:marke_id': async (parentValue, form, field, fieldConfig, ctx) => {
-    const { data: auftraege, error } = await window.supabase
+    let query = window.supabase
       .from('auftrag')
       .select('id, auftragsname')
-      .eq('marke_id', parentValue)
-      .order('auftragsname');
+      .eq('marke_id', parentValue);
+    query = applyFinalisiertFilter(query, 'auftrag');
+    const { data: auftraege, error } = await query.order('auftragsname');
 
     if (error) {
       console.error('❌ Fehler beim Laden der Aufträge:', error);
@@ -94,11 +96,13 @@ export const cascadeStrategies = {
     const markeField = form.querySelector('[name="marke_id"]');
     const markeValue = markeField?.value;
 
-    const { data: alleAuftraege, error: checkError } = await window.supabase
-      .from('auftrag')
-      .select('id, auftragsname, marke_id')
-      .eq('unternehmen_id', parentValue)
-      .order('auftragsname');
+    const { data: alleAuftraege, error: checkError } = await applyFinalisiertFilter(
+      window.supabase
+        .from('auftrag')
+        .select('id, auftragsname, marke_id')
+        .eq('unternehmen_id', parentValue),
+      'auftrag'
+    ).order('auftragsname');
 
     if (checkError) {
       console.error('❌ Fehler beim Prüfen der Aufträge:', checkError);
@@ -164,11 +168,12 @@ export const cascadeStrategies = {
       if (kampagneIds.length > 0) {
         const { data: koops, error: koopErr } = await window.supabase
           .from('kooperationen')
-          .select('kampagne_id, videoanzahl')
+          .select('kampagne_id, videoanzahl, creator_id')
           .in('kampagne_id', kampagneIds);
         if (!koopErr && koops) {
           const usedMap = {};
           koops.forEach(row => {
+            if (!row.creator_id) return;
             const key = row.kampagne_id;
             const val = parseInt(row.videoanzahl, 10) || 0;
             usedMap[key] = (usedMap[key] || 0) + val;
@@ -245,11 +250,12 @@ export const cascadeStrategies = {
       if (kampagneIds.length > 0) {
         const { data: koops, error: koopErr } = await window.supabase
           .from('kooperationen')
-          .select('kampagne_id, videoanzahl')
+          .select('kampagne_id, videoanzahl, creator_id')
           .in('kampagne_id', kampagneIds);
         if (!koopErr && koops) {
           const usedMap = {};
           koops.forEach(row => {
+            if (!row.creator_id) return;
             const key = row.kampagne_id;
             const val = parseInt(row.videoanzahl, 10) || 0;
             usedMap[key] = (usedMap[key] || 0) + val;
@@ -342,12 +348,14 @@ export const cascadeStrategies = {
         if (kampagneError) console.error('❌ Fehler beim Laden der Kampagne für Briefings:', kampagneError);
         return;
       }
-      const { data: briefings, error } = await window.supabase
-        .from('campaign_briefings')
-        .select('id, aktivierung_name')
-        .eq('unternehmen_id', kampagne.unternehmen_id)
-        .eq('ist_altbestand', false)
-        .order('created_at', { ascending: false });
+      const { data: briefings, error } = await applyFinalisiertFilter(
+        window.supabase
+          .from('campaign_briefings')
+          .select('id, aktivierung_name')
+          .eq('unternehmen_id', kampagne.unternehmen_id),
+        'campaign_briefings',
+        { kampagneId: parentValue }
+      ).order('created_at', { ascending: false });
       if (error) {
         console.error('❌ Fehler beim Laden der Briefings für Kampagne:', error);
         return;
@@ -364,11 +372,11 @@ export const cascadeStrategies = {
   },
 
   // Briefing-Pflicht fuer Casting (sourcing) und Konzept (strategie).
-  // Nur finalisierte Briefings (is_draft = false) des Unternehmens; bei
-  // gesetzter Marke nur Briefings genau dieser Marke. Der Kooperation-Picker
-  // ('briefing_id:kampagne_id') bleibt bewusst ungehaertet (optional, Drafts
-  // inklusive). Leerer Schnitt: Hinweis + Link zum Briefing-Anlegen mit
-  // vorausgefuelltem Unternehmen/Marke, Submit bleibt blockiert.
+  // Nur finalisierte Briefings des Unternehmens; bei gesetzter Marke nur
+  // Briefings genau dieser Marke. Kooperation nutzt denselben Final-Filter
+  // ueber briefing_id:kampagne_id (ADR 0022). Leerer Schnitt: Hinweis + Link
+  // zum Briefing-Anlegen mit vorausgefuelltem Unternehmen/Marke, Submit bleibt
+  // blockiert.
   'briefing_id:unternehmen_id': async (parentValue, form, field, fieldConfig, ctx) => {
     try {
       const markeField = form?.querySelector('[name="marke_id"]');
@@ -377,9 +385,8 @@ export const cascadeStrategies = {
       let query = window.supabase
         .from('campaign_briefings')
         .select('id, aktivierung_name')
-        .eq('unternehmen_id', parentValue)
-        .eq('is_draft', false)
-        .eq('ist_altbestand', false)
+        .eq('unternehmen_id', parentValue);
+      query = applyFinalisiertFilter(query, 'campaign_briefings')
         .order('created_at', { ascending: false });
 
       if (markeId) {

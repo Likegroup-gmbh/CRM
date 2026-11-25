@@ -1,6 +1,14 @@
 // ContractTranslations.js
 // Uebersetzungstabelle DE -> EN fuer Vertragstexte (PDF) + Localize-Helfer
 // Methoden werden per Prototype-Extension an VertraegeCreate gehangen.
+//
+// Regeln, damit englische Fassungen keine deutschen Satzreste behalten:
+// - Schluessel ist der genaue deutsche String, den das PDF an doc.text gibt.
+// - '' ist ein gueltiger Treffer und heisst: Zeile nicht drucken. Nur fuer
+//   deutsche Umbruchreste, deren Inhalt schon in der vorherigen Uebersetzung
+//   steckt. Im PDF dafuer drawContractLine() nutzen, sonst bleibt eine Leerzeile.
+// - Variable Namen nicht in den String einbauen. Vorlage mit {platzhaltern}
+//   in die Tabelle, dann localizeContractTemplate().
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import {
@@ -210,9 +218,11 @@ const CONTRACT_TEXT_TRANSLATIONS = {
     'Die Agentur beauftragt Creator im eigenen Namen und auf eigene Rechnung; Vertragspartner des': 'The Agency engages creators in its own name and for its own account. The creator\'s sole',
     'Creators ist ausschließlich die Agentur.': 'contractual partner is the Agency.',
     'Der Creator räumt der Agentur die zur Durchführung der Beauftragung erforderlichen': 'The creator grants the Agency the rights necessary to perform the engagement.',
+    // Umbruchrest: steht schon im englischen Satz darüber.
     'Nutzungsrechte ein.': '',
     'Die Agentur ist berechtigt, diese Rechte im Umfang der ihr eingeräumten Rechte ganz oder': 'The Agency is entitled to transfer these rights, in whole or in part and to the extent granted,',
     'teilweise auf den in diesem Vertrag genannten Kunden zu übertragen oder diesem entsprechende': 'to the client named in this agreement or to grant corresponding rights of use.',
+    // Umbruchrest: steht schon im englischen Satz darüber.
     'Nutzungsrechte einzuräumen.': '',
     'Der Influencer verpflichtet sich zur Erstellung und Veröffentlichung werblicher Inhalte zugunsten des Auftraggebers bzw. eines von der LikeGroup GmbH betreuten Kunden.': 'The influencer commits to creating and publishing promotional content for the client or a customer managed by LikeGroup GmbH.',
     'Der Content ist der LikeGroup GmbH vor Veröffentlichung zur Freigabe vorzulegen. Produktion und Veröffentlichung dürfen erst nach Freigabe erfolgen.': 'The content must be submitted to LikeGroup GmbH for approval before publication. Production and publication may only occur after approval.',
@@ -368,23 +378,129 @@ const CONTRACT_TEXT_TRANSLATIONS = {
 
     // Unterschriften
     'Unterschrift Auftraggeber: ___________________________': 'Signature client: ___________________________',
-    'Model: ___________________________': 'Model: ___________________________'
+    'Model: ___________________________': 'Model: ___________________________',
+
+    'Organisch': 'Organic',
+    'Veröffentlichung ausschließlich über den Influencer': 'Publication exclusively via the influencer',
+    'Sonstiges': 'Other',
+    'Weitere Bestimmungen': 'Additional provisions',
+    'Foto': 'Photo',
+    'Video & Foto': 'Video & photo',
+
+    // === CONTRACTING (Influencer-Marketing-Vertrag) ===
+    'INFLUENCER-MARKETING-VERTRAG': 'INFLUENCER MARKETING AGREEMENT',
+    'Vertragspartner': 'Contracting parties',
+    'Auftraggeber / Durchführer:': 'Client / contracting party:',
+    'Auftragnehmer / Influencer:': 'Contractor / influencer:',
+    'Begünstigter Dritter (Unternehmen):': 'Third-party beneficiary (company):',
+    'Auftragsbezug:': 'Order reference:',
+    'Andere': 'Other',
+    'Werbeanzeigen (Unternehmenskanal)': 'Ads (company channel)',
+    'Europa': 'Europe',
+    '§2 Plattformen & Veröffentlichung': '§2 Platforms & publication',
+    'Die Veröffentlichung der Inhalte erfolgt auf folgenden Social-Media-Kanälen:': 'The content is published on the following social media channels:',
+    '§2a Inhalte & Kooperationsdetails Influencer-Posting & Storys': '§2a Content & cooperation details for influencer posts & stories',
+    'Plattformen:': 'Platforms:',
+    'Content-Formate:': 'Content formats:',
+    'Art:': 'Type:',
+    'Geografisch:': 'Territory:',
+    'Besonderheiten / Absprachen:': 'Special terms / arrangements:',
+    '§3 Nutzung für zusätzliche Ad-Ausspielung / Werbung (Media Buyout)': '§3 Use for additional ad delivery / advertising (media buyout)',
+    '§4 Rechteübertragung': '§4 Transfer of rights',
+    '§5 Produktion & Freigabe': '§5 Production & approval',
+    '§7 Bereitstellung von Produkten / Arbeitsmitteln': '§7 Provision of products / work equipment',
+    '§8 Steuerliche Behandlung': '§8 Tax treatment',
+    '§9 Pflichten des Influencers': '§9 Obligations of the influencer',
+    '§10 Exklusivität': '§10 Exclusivity',
+    '§11 Leistungsstörungen': '§11 Non-performance',
+    '§12 Haftung': '§12 Liability',
+    '§13 Datenschutz & Vertraulichkeit': '§13 Data protection & confidentiality',
+    '§14 Schlussbestimmungen & Zusätzliche Informationen': '§14 Final provisions & additional information',
+    'Unterschrift LikeGroup GmbH: _______________________________': 'Signature LikeGroup GmbH: _______________________________',
+    'Unterschrift Auftragnehmer: _______________________________': 'Signature contractor: _______________________________',
+
+    '(1) Der Influencer verpflichtet sich zur Erstellung und Veröffentlichung werblicher Inhalte (nachfolgend "Content") zugunsten des Unternehmens {firma}, {strasse}, {plzStadt}, {land}.': '(1) The influencer undertakes to create and publish promotional content (hereinafter "Content") for the company {firma}, {strasse}, {plzStadt}, {land}.',
+    '(2) Vertragspartner dieses Vertrages sind ausschließlich der Auftraggeber LikeGroup GmbH und der Auftragnehmer {creator}. Das Unternehmen {firma} ist nicht Vertragspartei.': '(2) The only parties to this agreement are the client LikeGroup GmbH and the contractor {creator}. The company {firma} is not a party.',
+    '(2) Vertragspartner dieses Vertrages sind ausschließlich der Auftraggeber LikeGroup GmbH und der Auftragnehmer {creator}, vertreten durch die {agentur}. Das Unternehmen {firma} ist nicht Vertragspartei.': '(2) The only parties to this agreement are the client LikeGroup GmbH and the contractor {creator}, represented by {agentur}. The company {firma} is not a party.',
+    '(3) Das Unternehmen {firma} erhält jedoch als begünstigter Dritter im Sinne des § 328 BGB die in diesem Vertrag geregelten Nutzungsrechte.': '(3) The company {firma} nevertheless acquires, as a third-party beneficiary within the meaning of § 328 BGB (German Civil Code), the usage rights set out in this agreement.',
+    '(4) Die gesamte Abwicklung der Kooperation, insbesondere Vergütung, erfolgt über den Auftraggeber LikeGroup GmbH.': '(4) The cooperation is handled entirely through the client LikeGroup GmbH, in particular the compensation.',
+    '(1) Wird dem § 3 des Vertrages zur Nutzung für Werbung zugestimmt, überträgt der Influencer dem Unternehmen {firma}, als begünstigtem Dritten, für die gewählte Nutzungsdauer ein einfaches Nutzungsrecht am erstellten Content.': '(1) If § 3 of this agreement consents to use for advertising, the influencer grants the company {firma}, as third-party beneficiary, a non-exclusive right to use the created content for the selected usage period.',
+    '(2) Die Nutzungsdauer und Verwendung des einfachen Nutzungsrechts am erstellten Content richten sich dabei nach den Angaben und Markierungen im § 3 des Vertrages.': '(2) The usage period and the use of the non-exclusive right in the created content follow the details and selections in § 3 of this agreement.',
+    '(3) Die Inhalte dürfen zum Zwecke der vertragsgemäßen Nutzung technisch bearbeitet und angepasst werden. Inhaltliche Veränderungen, die den Charakter, die Aussage oder den wirtschaftlichen Zweck der Inhalte wesentlich beeinträchtigen oder entstellen, sind unzulässig.': '(3) The content may be technically edited and adapted for use in accordance with this agreement. Changes of substance that materially impair or distort the character, message, or commercial purpose of the content are not permitted.',
+    '(4) Nach Ablauf der Nutzungsdauer erlischt das Nutzungsrecht.': '(4) The usage right expires at the end of the usage period.',
+    '(5) Eine Weitergabe an Dritte erfolgt nur mit Zustimmung des Influencers.': '(5) Transfer to third parties requires the influencer\'s consent.',
+    '(1) Der Influencer erstellt den Content eigenständig unter Beachtung der Briefings und Skripts, die mit den Ansprechpartner {firma} oder LikeGroup GmbH abgestimmt wurden oder werden.': '(1) The influencer creates the content independently, following the briefings and scripts agreed or to be agreed with the contacts of {firma} or LikeGroup GmbH.',
+    '(2) Der Content ist vor Veröffentlichung zur Freigabe vorzulegen.': '(2) The content must be submitted for approval before publication.',
+    '(3) Deadlines und Inhalte richten sich nach dem Unternehmen {firma} oder dem Auftraggeber LikeGroup GmbH und sind einzuhalten.': '(3) Deadlines and content are set by the company {firma} or the client LikeGroup GmbH and must be met.',
+    '(4) Es werden maximal zwei Korrekturschleifen vereinbart.': '(4) A maximum of two revision rounds is agreed.',
+    '(4) Es werden maximal {anzahl} Korrekturschleife vereinbart.': '(4) A maximum of {anzahl} revision round is agreed.',
+    '(4) Es werden maximal {anzahl} Korrekturschleifen vereinbart.': '(4) A maximum of {anzahl} revision rounds is agreed.',
+    '(1) Der Influencer erhält für die vertragsgemäße Leistungserbringung eine Geldvergütung in Höhe von {betrag} EUR netto.': '(1) For performance in accordance with this agreement, the influencer receives monetary compensation of {betrag} EUR net.',
+    '(2) Ein Anspruch auf darüberhinausgehende Vergütung, insbesondere in Form von Sachleistungen, besteht nicht.': '(2) There is no entitlement to compensation beyond this, in particular in the form of benefits in kind.',
+    '(3) Die Zahlung erfolgt innerhalb von {ziel} nach Leistungserbringung und Rechnungsstellung.': '(3) Payment is made within {ziel} after performance and invoicing.',
+    '(4) Der Auftraggeber führt die gesetzlich vorgeschriebene Künstlersozialabgabe gemäß § 24 KSVG ab, soweit erforderlich.': '(4) The client pays the statutory German artists\' social security levy under § 24 KSVG where required.',
+    '(1) Zur Durchführung der vertraglich geschuldeten Leistungen können dem Influencer Produkte zur Verfügung gestellt werden.': '(1) Products may be provided to the influencer in order to perform the services owed under this agreement.',
+    '(2) Die Bereitstellung erfolgt im Rahmen der Zusammenarbeit regelmäßig durch das Unternehmen {firma}. Der Auftraggeber LikeGroup GmbH übernimmt insoweit keine Verpflichtung zur Bereitstellung bestimmter Produkte.': '(2) Products are regularly provided in the course of the cooperation by the company {firma}. LikeGroup GmbH as client assumes no obligation to provide specific products.',
+    '(3) Der Versand der Produkte und die dazugehörige Abwicklung erfolgt durch den Auftraggeber LikeGroup GmbH.': '(3) Shipping of the products and the related handling are carried out by the client LikeGroup GmbH.',
+    '(4) Die zur Verfügung gestellten Produkte dienen ausschließlich der Unterstützung der Leistungserbringung und stellen keine Vergütung dar.': '(4) The products provided serve solely to support performance and do not constitute compensation.',
+    '(5) Ein Anspruch des Influencers auf Bereitstellung bestimmter Produkte besteht nicht. Ebenso wird durch die Bereitstellung kein eigenständiges Vertragsverhältnis zwischen Influencer und dem Unternehmen {firma} begründet.': '(5) The influencer has no entitlement to the provision of specific products. Provision does not create a separate contractual relationship between the influencer and the company {firma}.',
+    '(6) Sofern nicht ausdrücklich etwas anderes vereinbart wird, ist der Influencer berechtigt, die überlassenen Produkte nach Durchführung der Zusammenarbeit zu behalten. Ein Anspruch hierauf besteht jedoch nicht.': '(6) Unless expressly agreed otherwise, the influencer may keep the products provided after the cooperation has been carried out. There is, however, no entitlement to do so.',
+    '(1) Der Influencer ist für die ordnungsgemäße Versteuerung seiner Einnahmen selbst verantwortlich.': '(1) The influencer is solely responsible for properly taxing their income.',
+    '(2) Die Parteien sind sich einig, dass die Bereitstellung von Produkten grundsätzlich zur Unterstützung der Leistungserbringung erfolgt und keinen Vergütungscharakter hat.': '(2) The parties agree that products are provided in principle to support performance and do not have the character of compensation.',
+    '(3) Soweit die Überlassung von Produkten im Einzelfall als geldwerter Vorteil oder steuerpflichtige Einnahme zu qualifizieren ist, obliegt die steuerliche Behandlung allein beim Influencer.': '(3) Where the provision of products is in an individual case to be treated as a benefit in kind or taxable income, the tax treatment is solely the influencer\'s responsibility.',
+    '(4) Eine pauschale Versteuerung durch die Agentur oder das Unternehmen, insbesondere nach § 37b EStG, erfolgt nicht.': '(4) Flat-rate taxation by the agency or the company, in particular under § 37b EStG, does not take place.',
+    '(1) Der Influencer verpflichtet sich:': '(1) The influencer undertakes:',
+    '- zur vertragsgemäßen Content-Erstellung': '- to create the content in accordance with the agreement',
+    '- zur Einhaltung des Briefings, Dos and Donts sowie Skript': '- to comply with the briefing, dos and don\'ts, and the script',
+    '- Inhalte in hochwertiger Bild- und Tonqualität zu erstellen und': '- to produce the content in high image and audio quality, and',
+    '- den Upload via (z.B. Drive / WeTransfer / E-Mail) zu tätigen.': '- to upload the files (e.g. via Drive / WeTransfer / email).',
+    '  Der Datentransfer via Social Media oder WhatsApp ist nicht gestattet.': '  File transfer via social media or WhatsApp is not permitted.',
+    '- wenn möglich, die Form der Dateibenennung zu berücksichtigen:': '- where possible, to follow this file-naming pattern:',
+    '- zur ordnungsgemäßen Werbekennzeichnung („Werbung" / „Anzeige")': '- to label advertising properly ("advertisement" / "ad")',
+    '- zur Beachtung von Urheber-, Marken- und Persönlichkeitsrechten.': '- to respect copyright, trademark, and personality rights.',
+    '(2) Der Influencer verwendet keine fremden Inhalte ohne entsprechende Rechte.': '(2) The influencer does not use third-party content without the corresponding rights.',
+    'Der Influencer verpflichtet sich für den Zeitraum vom {von} bis {bis}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "{bereich}" einzugehen.': 'From {von} to {bis}, the influencer undertakes not to enter into cooperations with direct competitors in the field "{bereich}".',
+    'Der Influencer verpflichtet sich ab dem {von}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "{bereich}" einzugehen.': 'From {von}, the influencer undertakes not to enter into cooperations with direct competitors in the field "{bereich}".',
+    'Der Influencer verpflichtet sich bis zum {bis}, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "{bereich}" einzugehen.': 'Until {bis}, the influencer undertakes not to enter into cooperations with direct competitors in the field "{bereich}".',
+    'Der Influencer verpflichtet sich für die Dauer von zwei Wochen nach Veröffentlichung des Contents, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "{bereich}" einzugehen.': 'For two weeks after publication of the content, the influencer undertakes not to enter into cooperations with direct competitors in the field "{bereich}".',
+    '(1) Der Auftraggeber LikeGroup GmbH und das Unternehmen {firma} sind berechtigt, im Rahmen der Abstimmung der Inhalte Nachbesserungen und Anpassungen zu verlangen.': '(1) The client LikeGroup GmbH and the company {firma} are entitled to require rework and adjustments when aligning on the content.',
+    '(2) Die Geltendmachung weitergehender Rechte, insbesondere Vergütungskürzung, Rücktritt oder Schadensersatz, erfolgt ausschließlich durch den Auftraggeber LikeGroup GmbH.': '(2) Further rights, in particular reduction of compensation, withdrawal, or damages, may be asserted solely by the client LikeGroup GmbH.',
+    '(3) Bei vollständiger Nichterfüllung entfällt der Vergütungsanspruch.': '(3) In the event of complete non-performance, the entitlement to compensation lapses.',
+    '(1) Der Influencer haftet für Schäden aus der Verletzung wesentlicher Vertragspflichten.': '(1) The influencer is liable for damage arising from the breach of material contractual duties.',
+    '(2) Der Influencer stellt den Auftraggeber und das Unternehmen {firma} von sämtlichen Ansprüchen Dritter frei, die aus einer Verletzung der Urheber-, Marken- und Persönlichkeitsrechten resultieren, sofern der Influencer die Rechtsverletzung zu vertreten hat.': '(2) The influencer shall indemnify the client and the company {firma} against all third-party claims arising from an infringement of copyright, trademark, or personality rights, where the influencer is responsible for the infringement.',
+    '(3) Die Haftung ist auf Vorsatz und grobe Fahrlässigkeit beschränkt, soweit gesetzlich zulässig.': '(3) Liability is limited to intent and gross negligence, to the extent permitted by law.',
+    '(1) Beide Parteien halten die DSGVO ein.': '(1) Both parties comply with the GDPR.',
+    '(2) Vertraulichkeit gilt auch über das Vertragsende hinaus.': '(2) Confidentiality continues after the agreement ends.',
+    '(1) Änderungen bedürfen der Schriftform.': '(1) Amendments must be in writing.',
+    '(2) Es gilt deutsches Recht.': '(2) German law applies.',
+    '(3) Gerichtsstand: Frankfurt am Main.': '(3) Place of jurisdiction: Frankfurt am Main.',
+    '(4) Der Auftragnehmer handelt als Unternehmer im Sinne des § 14 BGB.': '(4) The contractor acts as an entrepreneur within the meaning of § 14 BGB.',
+    '(5) Sollten einzelne Bestimmungen unwirksam sein, bleibt der Vertrag im Übrigen wirksam.': '(5) If individual provisions are invalid, the remainder of the agreement remains in effect.'
   }
 };
 
 export { CONTRACT_TEXT_TRANSLATIONS };
 
+function mappedContractText(map, value) {
+    if (!Object.prototype.hasOwnProperty.call(map, value)) return undefined;
+    return map[value];
+}
+
 VertraegeCreate.prototype.localizeContractText = function(text, lang) {
     if (lang !== 'en' || typeof text !== 'string') return text;
 
     const directMap = CONTRACT_TEXT_TRANSLATIONS.en;
-    if (directMap[text]) return directMap[text];
+    // '' ist ein Treffer (Zeile weglassen) und darf nicht als "kein Eintrag" durchfallen.
+    const exact = mappedContractText(directMap, text);
+    if (exact !== undefined) return exact;
 
     const leadingWhitespace = text.match(/^\s*/)?.[0] || '';
     const trimmedText = text.trimStart();
+    const trimmedExact = mappedContractText(directMap, trimmedText);
+    if (trimmedExact !== undefined) return `${leadingWhitespace}${trimmedExact}`;
 
-    if (directMap[trimmedText]) {
-      return `${leadingWhitespace}${directMap[trimmedText]}`;
+    if (trimmedText.startsWith('Seite ') && trimmedText.includes(' von ')) {
+      return `${leadingWhitespace}${trimmedText.replace(/^Seite\s+/, 'Page ').replace(' von ', ' of ')}`;
     }
 
     const prefixMap = [
@@ -393,6 +509,7 @@ VertraegeCreate.prototype.localizeContractText = function(text, lang) {
       ['Name: ', 'Name: '],
       ['Agenturname: ', 'Agency name: '],
       ['Adresse: ', 'Address: '],
+      ['Vertreten durch Agentur: ', 'Represented by agency: '],
       ['Vertreten durch: ', 'Represented by: '],
       ['Profil(e): ', 'Profile(s): '],
       ['Sonstige: ', 'Other: '],
@@ -437,7 +554,20 @@ VertraegeCreate.prototype.localizeContractText = function(text, lang) {
       ['Fitting-Termin vereinbart am: ', 'Fitting appointment scheduled for: '],
       ['Beginn der Nutzungsdauer: ', 'Start of usage period: '],
       ['Zusätzliches Buyout-Honorar: ', 'Additional buyout fee: '],
-      ['Zahlungsziel: ', 'Payment term: '],
+      ['Beschränkt auf: ', 'Restricted to: '],
+      ['Reisepauschale: ', 'Travel allowance: '],
+      ['Zusatzkosten (z.B. Reisekosten, Requisiten): ', 'Additional costs (e.g. travel expenses, props): '],
+      ['Firma: ', 'Company: '],
+      ['Agentur: ', 'Agency: '],
+      ['Influencer: ', 'Influencer: '],
+      ['Weitere Kanäle: ', 'Additional channels: '],
+      ['Anzahl Inhalte: ', 'Number of content pieces: '],
+      ['Datum / Zeitraum der Veröffentlichung: ', 'Date / period of publication: '],
+      ['Voraussichtliche Veröffentlichung des Inhaltes: ', 'Expected publication of the content: '],
+      ['Contracting-Auftrag: ', 'Contracting order: '],
+      ['Angebotsnummer: ', 'Quote number: '],
+      ['PO / Auftragsnummer: ', 'PO / order number: '],
+      ['Datum: ', 'Date: '],
       ['€ ', '€ '],
       ['Seite ', 'Page ']
     ];
@@ -449,8 +579,10 @@ VertraegeCreate.prototype.localizeContractText = function(text, lang) {
       }
     }
 
-    if (trimmedText.startsWith('Seite ') && trimmedText.includes(' von ')) {
-      return `${leadingWhitespace}${trimmedText.replace(/^Seite\s+/, 'Page ').replace(' von ', ' of ')}`;
+    const dauerMatch = trimmedText.match(/^(.*) [\u2013-] Dauer: (\d+) Monate$/);
+    if (dauerMatch) {
+      const label = this.localizeContractText(dauerMatch[1], lang);
+      return `${leadingWhitespace}${label} - duration: ${dauerMatch[2]} months`;
     }
 
     const localizedText = trimmedText
@@ -461,25 +593,55 @@ VertraegeCreate.prototype.localizeContractText = function(text, lang) {
       .replace(' Werktage ', ' business days ')
       .replace(' Korrekturschleife(n)', ' revision round(s)')
       .replace(' zzgl. USt.', ' excl. VAT.')
+      .replace(/zzgl\. gesetzlicher Umsatzsteuer/g, 'plus statutory VAT')
       .replace(' € netto', ' EUR net')
+      .replace(/ netto\b/g, ' net')
       .replace(/(\d+)\s+Jahre\b/g, '$1 years')
       .replace(/(\d+)\s+Monate\b/g, '$1 months')
       .replace(/(\d+)\s+Wochen\b/g, '$1 weeks')
-      .replace(/(\d+)\s+Tage\b/g, '$1 days');
+      .replace(/(\d+)\s+Tage\b/g, '$1 days')
+      .replace(/(\d+)\s+Stunden\b/g, '$1 hours')
+      .replace(/Fotos:/g, 'Photos:')
+      .replace(/Storys:/g, 'Stories:');
 
     return `${leadingWhitespace}${localizedText}`;
+};
+
+// Vorlage mit {platzhaltern} übersetzen, danach die Werte einsetzen.
+// Werte, die selbst Vertragsvokabular sind (z.B. "30 Tage"), vorher lokalisieren.
+VertraegeCreate.prototype.localizeContractTemplate = function(template, vars, lang) {
+    const localized = this.localizeContractText(template, lang);
+    return String(localized).replace(/\{([A-Za-z0-9_]+)\}/g, (match, key) => (
+      Object.prototype.hasOwnProperty.call(vars || {}, key) ? String(vars[key] ?? '') : match
+    ));
 };
 
 VertraegeCreate.prototype.localizeDocText = function(doc, lang) {
     if (lang !== 'en') return;
     const originalText = doc.text.bind(doc);
+    const paint = (text, args) => {
+      if (text === '') return doc;
+      return originalText(text, ...args);
+    };
     doc.text = (text, ...args) => {
       if (typeof text === 'string') {
-        return originalText(this.localizeContractText(text, lang), ...args);
+        return paint(this.localizeContractText(text, lang), args);
       }
       if (Array.isArray(text)) {
-        return originalText(text.map((line) => this.localizeContractText(line, lang)), ...args);
+        const lines = text
+          .map((line) => this.localizeContractText(line, lang))
+          .filter((line) => line !== '');
+        if (lines.length === 0) return doc;
+        return originalText(lines, ...args);
       }
       return originalText(text, ...args);
     };
+};
+
+// true, wenn die Zeile gedruckt wurde. false bei absichtlich leerer Übersetzung,
+// damit der Aufrufer y nicht um eine Leerzeile weiterschiebt.
+VertraegeCreate.prototype.drawContractLine = function(doc, text, x, y, lang) {
+    if (this.localizeContractText(text, lang) === '') return false;
+    doc.text(text, x, y);
+    return true;
 };

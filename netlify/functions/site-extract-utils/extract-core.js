@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const { callClaude, extractJson, MODELS, ClaudeTimeoutError } = require('../_shared/anthropic');
 const { calculateCost } = require('../_shared/claude-cost');
 const { SPEC_VERSION, getSpec, buildFieldInstructions, buildSeitentypInstruction, getFieldKinds } = require('../_shared/extract-specs');
+const { validateSituationen } = require('../_shared/audience-situation');
 const { createPageFetcher } = require('./page-fetcher');
 const { distill, toPromptBlock } = require('./html-distill');
 const { classifyPage, TYPEN } = require('./page-classify');
@@ -109,7 +110,23 @@ function normalizeFields(raw, spec) {
       value = normalizeWebsite(value);
       if (!value) continue;
     }
+    if (field.name === 'url') {
+      value = normalizeProduktUrl(value);
+      if (!value) continue;
+    }
     if (field.name === 'invoice_email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) continue;
+    if (field.name === 'email') {
+      value = normalizeEmail(value);
+      if (!value) continue;
+    }
+    if (field.name === 'telefonnummer') {
+      value = normalizeTelefon(value);
+      if (!value) continue;
+    }
+    if (field.name === 'instagram') {
+      value = normalizeInstagram(value);
+      if (!value) continue;
+    }
     if (field.type === 'number') {
       value = normalizeNumber(value);
       if (!value) continue;
@@ -123,6 +140,45 @@ function normalizeFields(raw, spec) {
   }
 
   return fields;
+}
+
+/** Produkt-URL behaelt den Pfad. Ohne echten Host (Punkt in der Domain) fliegt sie raus. */
+function normalizeProduktUrl(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const explicit = text.match(/https?:\/\/[^\s<>"']+/i);
+  const bare = text.match(/(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s<>"']*)?/i);
+  const raw = (explicit || bare)?.[0]?.replace(/[),.;]+$/, '') || '';
+  if (!raw) return '';
+  try {
+    const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (!['http:', 'https:'].includes(u.protocol)) return '';
+    if (!u.hostname.includes('.')) return '';
+    return u.href;
+  } catch {
+    return '';
+  }
+}
+
+/** "mailto:" abziehen, nur eine echte Adresse durchlassen. */
+function normalizeEmail(value) {
+  const text = String(value || '').trim().replace(/^mailto:/i, '').split('?')[0].trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) ? text : '';
+}
+
+/** Wortlaut der Seite behalten, aber Muell ohne Rufnummer verwerfen (mind. 6 Ziffern). */
+function normalizeTelefon(value) {
+  const text = String(value || '').trim().replace(/^tel:/i, '').trim();
+  const ziffern = text.replace(/\D/g, '');
+  return ziffern.length >= 6 && ziffern.length <= 15 ? text : '';
+}
+
+/** Profil-URL, "@handle" oder "handle" zu "@handle". */
+function normalizeInstagram(value) {
+  const text = String(value || '').trim();
+  const fromUrl = text.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  const handle = (fromUrl ? fromUrl[1] : text.replace(/^@/, '')).replace(/\/+$/, '');
+  return /^[A-Za-z0-9._]{1,30}$/.test(handle) ? `@${handle}` : '';
 }
 
 function normalizeWebsite(value) {
@@ -204,6 +260,13 @@ function normalizeVarianten(raw, spec) {
   }
 
   return out;
+}
+
+/** Audience Situations des Modells saeubern (2-4, unique Namen). */
+function normalizeAudienceSituations(raw, spec) {
+  if (!spec.audienceSituations) return [];
+  const list = Array.isArray(raw) ? raw : [];
+  return validateSituationen({ situationen: list }).situationen;
 }
 
 /**
@@ -291,6 +354,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
         logo,
         images,
         varianten: cached.varianten || [],
+        audience_situations: cached.audience_situations || [],
         notes: cached.notes || [],
         cost: { usd: 0, eur: 0, cached: true, saved: cached.cost || null },
         diagnostics: abschluss()
@@ -317,7 +381,8 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
     const mainDistilled = distill(main.html, main.finalUrl, {
       followLinks: spec.followLinks || [],
       withLogo: Boolean(spec.logo),
-      withVarianten: Boolean(spec.varianten)
+      withVarianten: Boolean(spec.varianten),
+      withContactLinks: Boolean(spec.contactLinks)
     });
 
     // --- Einordnen ---------------------------------------------------------
@@ -360,7 +425,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
       try {
         onStep('laden', `${kind}-Seite laden...`);
         const sub = await fetcher.load(subUrl, { remainingMs: remaining() });
-        pages.push({ url: sub.finalUrl, role: kind, ...distill(sub.html, sub.finalUrl) });
+        pages.push({ url: sub.finalUrl, role: kind, ...distill(sub.html, sub.finalUrl, { withContactLinks: Boolean(spec.contactLinks) }) });
         diagnostics.seiten.push({ url: sub.finalUrl, rolle: kind, quelle: sub.source, zeichenHtml: sub.html.length, ...sub.timings });
       } catch (err) {
         notes.push(`${kind}-Seite nicht ladbar: ${err.message}`);
@@ -427,6 +492,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
         logo: null,
         images: [],
         varianten: [],
+        audience_situations: [],
         notes,
         cost: null,
         diagnostics: abschluss()
@@ -475,6 +541,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
 
     const fields = normalizeFields(parsed, spec);
     const varianten = normalizeVarianten(parsed._varianten, spec);
+    const audience_situations = normalizeAudienceSituations(parsed._audience_situations, spec);
     if (Array.isArray(parsed._hinweise)) {
       notes.push(...parsed._hinweise.filter((n) => typeof n === 'string').slice(0, 5));
     }
@@ -538,6 +605,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
         result: {
           fields,
           varianten,
+          audience_situations,
           notes,
           source: main.source,
           seitentyp: klassifikation.typ,
@@ -550,7 +618,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
       diagnostics.cacheGeschrieben = true;
     }
 
-    return { success: true, cached: false, source: main.source, fields, logo, images, varianten, notes, cost, diagnostics: abschluss() };
+    return { success: true, cached: false, source: main.source, fields, logo, images, varianten, audience_situations, notes, cost, diagnostics: abschluss() };
   } catch (error) {
     diagnostics.abbruch = 'fehler';
     diagnostics.fehler = error.message;
@@ -561,4 +629,4 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
   }
 }
 
-module.exports = { runExtraction };
+module.exports = { runExtraction, normalizeFields, normalizeVarianten };

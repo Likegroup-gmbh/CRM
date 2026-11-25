@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { buildPrompt } = require('../../netlify/functions/skript-generate-background.js');
+const { buildPrompt, SKRIPT_TOOL } = require('../../netlify/functions/skript-generate-background.js');
 const { fmtMasterBlock } = require('../../netlify/functions/_shared/skript-master.js');
 
 const seedDir = join(dirname(fileURLToPath(import.meta.url)), '../modules/skripte/master/seed');
@@ -21,12 +21,28 @@ const SEEDS = {
   influencer_marketing: loadSeed('03-influencer-marketing.md')
 };
 
+function docsFor(bereich) {
+  return [
+    { bereich: 'basis', name: 'Basis', version: 1, inhalt: SEEDS.basis },
+    { bereich, name: bereich, version: 1, inhalt: SEEDS[bereich] }
+  ];
+}
+
 describe('Master-Seed-Templates', () => {
   it('Basis enthaelt Schutzregeln und Kategorie-Schicht', () => {
     expect(SEEDS.basis).toContain('Schutzregeln');
     expect(SEEDS.basis).toContain('Strategische Übergabe');
     expect(SEEDS.basis).toMatch(/Kategorie/i);
     expect(SEEDS.basis.length).toBeGreaterThan(10000);
+  });
+
+  it('Basis enthaelt visuelle Leitplanken fuer die Creator-Spalte', () => {
+    expect(SEEDS.basis).toContain('## Visuelle Leitplanken für die Creator-Spalte');
+    expect(SEEDS.basis).toContain('Creator spricht direkt in die Kamera.');
+    expect(SEEDS.basis).toContain('unpassendes Stockmaterial');
+    expect(SEEDS.basis).toContain('Bitte setze das Video natürlich');
+    expect(SEEDS.basis).toContain('Cuts, Zooms und Übergänge gehören nicht in die Creator-Spalte');
+    expect(SEEDS.basis).not.toMatch(/Zeitmarker,\s+Text Overlay/);
   });
 
   it('Owned liefert Szenenplan-Tabelle als Ausgabe-Template', () => {
@@ -53,30 +69,30 @@ describe('Master-Seed-Templates', () => {
 });
 
 describe('Prompt-Assembly mit echten Seeds', () => {
-  function docsFor(bereich) {
-    return [
-      { bereich: 'basis', name: 'Basis', version: 1, inhalt: SEEDS.basis },
-      { bereich, name: bereich, version: 1, inhalt: SEEDS[bereich] }
-    ];
-  }
-
   it.each([
     ['owned_social', '1.14', 'Szenenplan'],
     ['paid_creator_ads', '2.19', 'Variantenübersicht'],
     ['influencer_marketing', '3.13', 'Konzeptkarte']
-  ])('%s: Template landet im cachebaren Stable-Block, nicht im Task', (bereich, nr, marker) => {
+  ])('%s: Ausgabe-Template fliegt aus dem Prompt, Leiter bleibt', (bereich, nr, marker) => {
     const master = docsFor(bereich);
     const { stable, task } = buildPrompt({
-      dna: [{ name: 'Global', layer_typ: 'global', version: 1, inhalt: 'DNA-Regel' }],
       beispiele: [],
       antiPatterns: [],
       master,
       bereich
     }, { video_idee: 'Testdreh', modus: 'dynamisch' });
 
-    expect(stable).toContain(nr);
-    expect(stable).toContain(marker);
-    expect(stable.indexOf('MASTER-REGELWERK')).toBeLessThan(stable.indexOf('SKRIPT-DNA'));
+    expect(stable).not.toContain(nr);
+    expect(stable).not.toContain(marker);
+    expect(task).toContain('# LEITER');
+    if (bereich === 'paid_creator_ads') {
+      expect(task).toContain('# PAID');
+      expect(task).not.toContain('Empfehlung von Person zu Person');
+    } else {
+      expect(task).toContain('Empfehlung von Person zu Person');
+    }
+    expect(stable).toContain('MASTER-REGELWERK');
+    expect(stable).not.toContain('SKRIPT-DNA');
     expect(fmtMasterBlock(master).length).toBeGreaterThan(20000);
     expect(task).not.toContain(SEEDS.basis.slice(0, 80));
     expect(task).toContain('inhalt_md');
@@ -87,7 +103,6 @@ describe('Prompt-Assembly mit echten Seeds', () => {
 
   it('Regie-Modus bleibt im variablen Task (Cache-Prefix bleibt stabil)', () => {
     const { stable, task } = buildPrompt({
-      dna: [],
       beispiele: [],
       antiPatterns: [],
       master: docsFor('owned_social'),
@@ -98,6 +113,50 @@ describe('Prompt-Assembly mit echten Seeds', () => {
     expect(task).toContain('REGIE-MODUS: Klassisch');
     expect(task).toContain('Ruhige Bloecke, 5-10s.');
     expect(stable).not.toContain('Ruhige Bloecke, 5-10s.');
-    expect(stable).toContain('## 1.14');
+    expect(stable).not.toContain('## 1.14');
+    expect(task).toContain('# STANDARDTON UND AUFBAU');
+  });
+
+  it('visuelle Leitplanken landen im Stable-Block, nicht im Task', () => {
+    const master = docsFor('paid_creator_ads');
+    const { stable, task } = buildPrompt({
+      beispiele: [],
+      antiPatterns: [],
+      master,
+      bereich: 'paid_creator_ads'
+    }, { video_idee: 'Testdreh' });
+
+    expect(stable).toContain('## Visuelle Leitplanken für die Creator-Spalte');
+    expect(stable).toContain('Creator spricht direkt in die Kamera.');
+    expect(fmtMasterBlock(master)).toContain('unpassendes Stockmaterial');
+    expect(task).not.toContain('## Visuelle Leitplanken für die Creator-Spalte');
+    expect(task).not.toContain('Creator spricht direkt in die Kamera.');
+  });
+});
+
+describe('Ausgabeformat: Master, Task und Tool-Schema widersprechen sich nicht', () => {
+  it.each(['owned_social', 'paid_creator_ads', 'influencer_marketing'])(
+    '%s: Master im Stable-Block ohne Zeitmarker-Pflicht und Shot-Vorschlags-Vorgaben',
+    (bereich) => {
+      const { stable } = buildPrompt({
+        beispiele: [], antiPatterns: [], master: docsFor(bereich), bereich
+      }, { video_idee: 'Testdreh' });
+      expect(stable).not.toMatch(/Zeitmarker,\s+Text Overlay/);
+      expect(stable).not.toMatch(/verbindlich \(Zeitmarker/);
+      expect(stable).not.toContain('Shot-/Text-Vorschläge');
+      expect(stable).not.toContain('Shot-/Visual-Vorschläge');
+      expect(stable).not.toContain('bestehenden Produktionsformat');
+      expect(stable).toContain('regelt der AUSGABEFORMAT-Block');
+    }
+  );
+
+  it('Tool-Schema: inhalt_md ohne Shotlist-Auftrag, *_visuell ohne Zeitmarker-Auftrag', () => {
+    const props = SKRIPT_TOOL.input_schema.properties;
+    expect(props.inhalt_md.description).not.toMatch(/Timing, Shotlist/);
+    expect(props.inhalt_md.description).toContain('KEINE Shotlist');
+    for (const k of ['hook_visuell', 'hauptteil_visuell', 'cta_visuell']) {
+      expect(props[k].description).toContain('Keine Zeitmarker');
+      expect(props[k].description).not.toMatch(/Zeitmarker[^.]*beginnt einen neuen Absatz/);
+    }
   });
 });

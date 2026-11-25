@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ensureSpace, renderPaginatedText, renderZusatzBestimmung, createPdfLayout } from '../modules/vertrag/create/pdf/PdfTextFlow.js';
+import { ensureSpace, renderPaginatedText, renderZusatzBestimmung, createPdfLayout } from '../core/pdf/PdfTextFlow.js';
 
 /** Mock-jsPDF: splitTextToSize bricht bei \n und alle `charsPerLine` Zeichen um */
 function createMockDoc(charsPerLine = 100) {

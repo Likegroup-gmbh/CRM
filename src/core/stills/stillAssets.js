@@ -1,7 +1,9 @@
+import { mitAblage } from '../ablage/ablageLink.js';
+
 export const STILL_FINAL_VARIANT = 'Still';
 
 export const BILDER_ASSET_SELECT =
-  'id, kooperation_id, video_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, source_asset_id, created_at';
+  mitAblage('id, kooperation_id, video_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, source_asset_id, created_at');
 
 export function loopStills(images) {
   return (images || []).filter(a => !a.is_final);

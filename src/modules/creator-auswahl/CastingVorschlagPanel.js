@@ -4,8 +4,11 @@
 // sehen den Block nie.
 
 import { CastingVorschlagService } from './CastingVorschlagService.js';
-import { getTeilbereicheFromListe } from './CreatorAuswahlTemplates.js';
 import { icon } from '../../core/icons/IconSystem.js';
+
+// Pausiert (ADR 0073): das Briefing ist keine Grundlage mehr fuers Casting.
+// Bestehende Vorschlaege bleiben in der Tabelle; leer ('') schaltet wieder frei.
+const PAUSIERT = 'Casting-Vorschläge sind pausiert: das Briefing ist keine Grundlage mehr fürs Casting.';
 
 function esc(value) {
   const div = document.createElement('div');
@@ -19,7 +22,6 @@ export class CastingVorschlagPanel {
     this.vorschlaege = [];
     this.laeuft = false;
     this.fortschritt = '';
-    this.fehler = '';
     this._token = 0;
     this._onProgress = null;
     this._onFinished = null;
@@ -36,8 +38,13 @@ export class CastingVorschlagPanel {
     return true;
   }
 
+  _getBlock() {
+    return this.detail?._q?.('#casting-vorschlag-block')
+      || document.getElementById('casting-vorschlag-block');
+  }
+
   async mount() {
-    const block = document.getElementById('casting-vorschlag-block');
+    const block = this._getBlock();
     if (!block) return;
     if (!this.sichtbar) {
       block.remove();
@@ -55,8 +62,7 @@ export class CastingVorschlagPanel {
     } catch (error) {
       if (token !== this._token) return;
       console.error('Fehler beim Laden der Casting-Vorschläge:', error);
-      this.fehler = 'Vorschläge konnten nicht geladen werden.';
-      this.render();
+      window.toastSystem?.show('Vorschläge konnten nicht geladen werden.', 'error');
     }
   }
 
@@ -77,35 +83,20 @@ export class CastingVorschlagPanel {
   // --- Rendering ---
 
   render() {
-    const block = document.getElementById('casting-vorschlag-block');
+    const block = this._getBlock();
     if (!block || !this.sichtbar) return;
 
     const count = this.vorschlaege.length;
     const hatListeBriefing = !!this.detail.liste?.briefing_id;
-
-    block.innerHTML = `
-      <div class="casting-vorschlag">
-        <div class="casting-vorschlag__kopf">
-          <div>
-            <span class="casting-vorschlag__titel">KI-Vorschläge ${count ? `(${count})` : ''}</span>
-            <p class="casting-vorschlag__sub">Aus der eigenen Creator-Datenbank · in der Liste mit Rand markiert</p>
-          </div>
-          <div class="casting-vorschlag__aktionen">
-            ${this.laeuft
-              ? `<span class="casting-vorschlag__progress">${esc(this.fortschritt || 'Läuft…')}</span>`
-              : `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-casting-vorschlag-holen"
-                   ${hatListeBriefing ? '' : 'disabled title="Casting ohne Briefing: ohne Bedarf kein Lauf"'}>
-                  ${icon('sparkles', { className: 'icon-16' })}
-                  ${count ? 'Neu vorschlagen' : 'Vorschläge holen'}
-                </button>`}
-          </div>
-        </div>
-        ${this.fehler ? `<p class="casting-vorschlag__fehler">${esc(this.fehler)}</p>` : ''}
-        ${!hatListeBriefing && !count
-          ? '<p class="casting-vorschlag__hinweis">Dieses Casting hat kein Briefing – ohne Bedarf gibt es keine Vorschläge.</p>'
-          : ''}
-      </div>
-    `;
+    let btnTitle = '';
+    if (PAUSIERT) btnTitle = ` disabled title="${esc(PAUSIERT)}"`;
+    else if (!hatListeBriefing) btnTitle = ' disabled title="Casting ohne Briefing: ohne Bedarf kein Lauf"';
+    block.innerHTML = this.laeuft
+      ? `<span class="casting-vorschlag__progress">${esc(this.fortschritt || 'Läuft…')}</span>`
+      : `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-casting-vorschlag-holen"${btnTitle}>
+          ${icon('sparkles', { className: 'icon-16' })}
+          ${count ? 'Neu vorschlagen' : 'Vorschläge holen'}
+        </button>`;
   }
 
   syncTable() {
@@ -115,7 +106,7 @@ export class CastingVorschlagPanel {
   // --- Events ---
 
   bind() {
-    const block = document.getElementById('casting-vorschlag-block');
+    const block = this._getBlock();
     if (!block) return;
     // Alter Block (falls noch referenziert) loest seinen Handler selbst;
     // der neue Block bekommt genau einen. Das Shared-Set des Details wird
@@ -158,9 +149,8 @@ export class CastingVorschlagPanel {
   }
 
   async holen() {
-    if (this.laeuft) return;
+    if (this.laeuft || PAUSIERT) return;
     this.laeuft = true;
-    this.fehler = '';
     this.fortschritt = 'Vorschläge sind unterwegs…';
     this.bindProgress();
     this.render();
@@ -170,9 +160,9 @@ export class CastingVorschlagPanel {
       console.error('Fehler bei den Casting-Vorschlägen:', error);
       this.laeuft = false;
       this.fortschritt = '';
-      this.fehler = error.message || 'Generierung fehlgeschlagen.';
       this.unbindProgress();
       this.render();
+      window.toastSystem?.show(error.message || 'Generierung fehlgeschlagen.', 'error');
       return;
     }
     // Erfolgspfad: _onFinished setzt laeuft zurueck und laedt neu
@@ -199,8 +189,7 @@ export class CastingVorschlagPanel {
     try {
       const item = await CastingVorschlagService.aktivieren(vorschlag, {
         listeId: this.detail.listeId,
-        listeTyp: this.detail.liste?.liste_typ,
-        kategorien: getTeilbereicheFromListe(this.detail.liste)
+        listeTyp: this.detail.liste?.liste_typ
       });
       this.vorschlaege = this.vorschlaege.filter(v => v.id !== vorschlagId);
       this.detail.items.push(item);

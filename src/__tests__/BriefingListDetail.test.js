@@ -94,14 +94,21 @@ describe('BriefingDetail formatValue', () => {
     expect(html).toContain('tag--type');
   });
 
-  it('repeatableKpi zeigt KPI-Label und Zielwert', () => {
-    const field = {
-      name: 'im_kpis', type: 'repeatableKpi',
-      kpiOptions: [{ value: 'reichweite', label: 'Reichweite' }]
-    };
-    const html = detail.formatValue(field, [{ kpi: 'reichweite', zielwert: '100k' }]);
-    expect(html).toContain('Reichweite');
-    expect(html).toContain('100k');
+  it('Videolänge als Spanne oder Mindestlänge', () => {
+    const field = { name: 'videolaenge', type: 'videolaenge' };
+    expect(detail.formatValue(field, { art: 'intervall', von: 15, bis: 20 })).toBe('15–20 Sek.');
+    expect(detail.formatValue(field, { art: 'minimum', von: 30, bis: null })).toBe('ab 30 Sek.');
+  });
+
+  it('Ideenliste markiert verbindlich und verlinkt Links', () => {
+    const html = detail.formatValue({ name: 'umsetzungsideen_eintraege', type: 'ideenListe' }, [
+      { text: 'https://www.tiktok.com/@x/video/1', verbindlich: true },
+      { text: 'Unboxing', verbindlich: false },
+      { text: '' }
+    ]);
+    expect(html).toContain('<a href="https://www.tiktok.com/@x/video/1"');
+    expect(html.split('<br>')).toHaveLength(2);
+    expect(html.indexOf('Verbindlich')).toBeLessThan(html.indexOf('Inspiration'));
   });
 
   it('channelGroup zeigt nur belegte Channels', () => {
@@ -144,16 +151,13 @@ describe('BriefingDocView', () => {
     aktivierung_name: 'Sommer-Launch TEWH',
     beschreibung: 'Barrier Repair Serum Launch',
     aufgabe: 'Serum in der Abendroutine zeigen',
+    plattformen: ['instagram'],
+    content_deadline: '2023-08-01',
     learnings_text: 'Hook in den ersten zwei Sekunden',
-    nischen: ['beauty'],
-    creator_groessen: ['micro'],
-    funnel_stufen: ['upper'],
+    verhandlungshinweis: 'Nutzungsdauer auf 6 Monate herunterhandeln',
     unternehmen: { firmenname: 'Skincare Brand' },
     marke: { markenname: 'Skincare', logo_url: 'https://cdn.test/skincare.svg' },
     produkte: [{ id: 'p1', name: 'Barrier Repair Serum' }, { id: 'p2', name: 'Night Cream' }],
-    personas: [{ name: 'Abendroutine', oberbegriff: 'Skincare Enthusiastin' }],
-    verhandlungshinweis: 'Nutzungsdauer auf 6 Monate herunterhandeln',
-    hauttyp: 'Mischhaut',
     created_at: '2023-07-01T10:00:00.000Z',
     updated_at: '2023-07-15T10:00:00.000Z'
   };
@@ -176,106 +180,196 @@ describe('BriefingDocView', () => {
     };
   });
 
-  it('klassifiziert Thema als Callout und Learnings als sekundaer', async () => {
-    const { classifyField } = await import('../modules/briefing/BriefingDocView.js');
-    expect(classifyField({ name: 'beschreibung', type: 'textarea' })).toBe('callout');
-    expect(classifyField({ name: 'kampagne_thema', type: 'textarea' })).toBe('callout');
-    expect(classifyField({ name: 'aufgabe', type: 'textarea' })).toBe('prose');
-    expect(classifyField({ name: 'nischen', type: 'checkboxes' }, 'Welche Creator suchen wir?')).toBe('creator');
-    expect(classifyField({ name: 'creator_groessen', type: 'checkboxes' }, 'Welche Creator suchen wir?')).toBe('creator');
-    expect(classifyField({ name: 'voraussetzungen_sonstiges', type: 'textarea' }, 'Welche Creator suchen wir?')).toBe('creator');
-    expect(classifyField({ name: 'learnings_text', type: 'textarea' })).toBe('secondary');
-    expect(classifyField({ name: 'verhandlungshinweis', type: 'textarea' })).toBe('secondary');
-    expect(classifyField({ name: 'hauttyp', type: 'text' }, 'Welche Creator suchen wir?')).toBe('secondary');
-    expect(classifyField({ name: 'aktivierung_name', type: 'text' })).toBe('hero');
-  });
-
-  it('Kompakt filtert Sekundaerfelder, Alle Felder zeigt sie', async () => {
-    const { collectPresentation, renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
-    const presentation = collectPresentation(detail);
-
-    expect(presentation.callout.map(i => i.field.name)).toContain('beschreibung');
-    expect(presentation.prose.some(g => g.items.some(i => i.field.name === 'aufgabe'))).toBe(true);
-    expect(presentation.creator.some(g => g.items.some(i => i.field.name === 'creator_groessen'))).toBe(true);
-    expect(presentation.secondary.some(g => g.items.some(i => i.field.name === 'learnings_text'))).toBe(true);
-
-    const compact = renderBriefingDoc({ detail, compact: true });
-    expect(compact).toContain('Barrier Repair Serum Launch');
-    expect(compact).toContain('Sommer-Launch TEWH');
-    expect(compact).toContain('Serum in der Abendroutine zeigen');
-    expect(compact).toContain('Welche Creator suchen wir?');
-    expect(compact).toContain('Komprimierte Ansicht');
-    expect(compact).toContain('LikeGroup');
-    expect(compact).toContain('https://cdn.test/skincare.svg');
-    expect(compact).toContain('Skincare Enthusiastin (Abendroutine)');
-    expect(compact).not.toContain('Hook in den ersten zwei Sekunden');
-    expect(compact).not.toContain('Nutzungsdauer auf 6 Monate herunterhandeln');
-    expect(compact).not.toContain('Mischhaut');
-    expect(compact).toContain('Alle Felder');
-    expect(compact).not.toContain('Erstellt');
-
-    const allFields = renderBriefingDoc({ detail, compact: false });
-    expect(allFields).toContain('Hook in den ersten zwei Sekunden');
-    expect(allFields).toContain('Nutzungsdauer auf 6 Monate herunterhandeln');
-    expect(allFields).toContain('Mischhaut');
-    expect(allFields).toContain('Erstellt');
-    expect(allFields).toContain('Komprimiert');
-    expect(allFields).not.toContain('Komprimierte Ansicht');
-    expect(allFields.match(/Konkrete Ideen fuer die Umsetzung/g)?.length || 0).toBeLessThanOrEqual(1);
-  });
-
-  it('Alle Felder zeigt Learnings und Admin-Meta', async () => {
+  it('zeigt die befüllten Sektionen des Creator-Briefings in PDF-Reihenfolge', async () => {
     const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
-    const html = renderBriefingDoc({ detail, compact: false });
-    expect(html).toContain('Hook in den ersten zwei Sekunden');
-    expect(html).toContain('Erstellt');
-    expect(html).toContain('Komprimiert');
-    expect(html).not.toContain('Komprimierte Ansicht');
+    const html = renderBriefingDoc({ detail, compact: true });
+    const sektionen = [...html.matchAll(/data-sektion="([^"]+)"/g)].map(m => m[1]);
+    expect(sektionen).toEqual(['rahmen', 'produkt', 'umsetzung']);
+    expect(html).toContain('Kampagnenübersicht &amp; Rahmen');
+    expect(html).toContain('Barrier Repair Serum Launch');
+    expect(html).toContain('Serum in der Abendroutine zeigen');
+    expect(html).toContain('Verbindliche Vorgaben und freie Inspiration bitte klar unterscheiden.');
   });
 
-  it('Hero zeigt Badges, Unterzeile und Meta-Chips', async () => {
+  it('Kompakt ohne leere Felder und Admin-Meta, Alle Felder mit beidem', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    const compact = renderBriefingDoc({ detail, compact: true, canEdit: true });
+    expect(compact).toContain('Komprimierte Ansicht');
+    expect(compact).not.toContain('data-feld="kernbotschaft"');
+    expect(compact).not.toContain('Erstellt');
+    expect(compact).toContain('Alle Felder');
+
+    const alle = renderBriefingDoc({ detail, compact: false, canEdit: true });
+    expect(alle).toContain('data-feld="kernbotschaft"');
+    expect(alle).toContain('data-placeholder="Was soll beim Publikum hängen bleiben?"');
+    expect(alle).toContain('Erstellt');
+    expect(alle).toContain('Komprimiert');
+    expect(alle).not.toContain('Komprimierte Ansicht');
+  });
+
+  it('Altfelder nur unter Frühere Angaben und nur mit Recht', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    expect(renderBriefingDoc({ detail, compact: false })).not.toContain('Hook in den ersten zwei Sekunden');
+    const mit = renderBriefingDoc({ detail, compact: true, fruehereAngaben: true });
+    expect(mit).toContain('Frühere Angaben');
+    expect(mit).toContain('Hook in den ersten zwei Sekunden');
+    expect(mit).toContain('Nutzungsdauer auf 6 Monate herunterhandeln');
+    expect(mit).not.toMatch(/briefing-doc__alt" open/);
+    expect(renderBriefingDoc({ detail, compact: false, fruehereAngaben: true })).toMatch(/briefing-doc__alt" open/);
+  });
+
+  it('Hero zeigt Badges, Unterzeile, Produkte und Meta-Chips', async () => {
     const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
     const html = renderBriefingDoc({ detail, compact: true, canDelete: true });
     expect(html).toContain('Final');
     expect(html).toContain('Influencer');
     expect(html).toContain('Skincare Brand');
-    expect(html).toContain('Skincare');
     expect(html).toContain('briefing-doc__lockup');
-    expect(html).toContain('LikeGroup');
     expect(html).toContain('briefing-doc__lockup-x');
     expect(html).toContain('https://cdn.test/skincare.svg');
-    expect(html).toContain('briefing-doc__callout');
-    expect(html).toContain('Thema');
+    expect(html).toContain('Abgabe');
     expect(html).toContain('briefing-doc__products');
     expect(html.indexOf('Barrier Repair Serum')).toBeLessThan(html.indexOf('Sommer-Launch TEWH'));
     expect(html.indexOf('Night Cream')).toBeLessThan(html.indexOf('Sommer-Launch TEWH'));
-    expect(html).toContain('mdc-btn--delete mdc-btn--sm');
+    expect(html).toContain('mdc-btn mdc-btn--delete');
+    expect(html).toContain('#crm-icon-trash');
+    expect(html).not.toContain('mdc-btn--sm');
   });
 
-  it('ohne Produkte und Personas keine Zeile ueber der Headline', async () => {
+  it('ohne Produkte keine Zeile über der Headline', async () => {
     const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
-    detail.briefing = { ...detail.briefing, produkte: [], personas: [] };
+    detail.briefing = { ...detail.briefing, produkte: [] };
     const html = renderBriefingDoc({ detail, compact: true, canDelete: false });
     expect(html).not.toContain('briefing-doc__products');
+  });
+
+  it('Titel ist nur mit Bearbeiten-Recht ein Feld, nicht im Druck', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    const editable = renderBriefingDoc({ detail, canEdit: true });
+    expect(editable).toContain('data-feld="aktivierung_name"');
+    expect(editable).toContain('Sommer-Launch TEWH');
+
+    const readonly = renderBriefingDoc({ detail });
+    expect(readonly).not.toContain('data-feld="aktivierung_name"');
+    expect(readonly).toContain('Sommer-Launch TEWH');
+
+    const print = renderBriefingDoc({ detail, canEdit: true, print: true });
+    expect(print).not.toContain('data-feld="aktivierung_name"');
+    expect(print).toContain('Sommer-Launch TEWH');
+  });
+
+  it('leerer Titel bleibt der letzte Name und wird nicht geschrieben', async () => {
+    const { renderBriefingDoc, bindBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    document.body.innerHTML = renderBriefingDoc({ detail, canEdit: true });
+    const root = document.querySelector('.briefing-doc');
+    const updates = [];
+    window.toastSystem = { show: () => {} };
+    window.supabase = {
+      from: () => ({
+        update: (payload) => {
+          updates.push(payload);
+          return { eq: () => Promise.resolve({ error: null }) };
+        }
+      })
+    };
+    const handle = bindBriefingDoc(root, { briefingId: 'b1', canEdit: true });
+    const title = root.querySelector('[data-feld="aktivierung_name"]');
+    title.textContent = '   ';
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    await handle.inlineEdit.flush();
+    expect(updates).toEqual([]);
+    expect(title.textContent).toBe('Sommer-Launch TEWH');
+    await handle.destroy();
+  });
+
+  it('Titel speichert getrimmt und ohne Zeilenumbrueche', async () => {
+    const { renderBriefingDoc, bindBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    document.body.innerHTML = renderBriefingDoc({ detail, canEdit: true });
+    const root = document.querySelector('.briefing-doc');
+    const updates = [];
+    const saved = [];
+    window.toastSystem = { show: () => {} };
+    window.supabase = {
+      from: () => ({
+        update: (payload) => {
+          updates.push(payload);
+          return { eq: () => Promise.resolve({ error: null }) };
+        }
+      })
+    };
+    const handle = bindBriefingDoc(root, {
+      briefingId: 'b1',
+      canEdit: true,
+      onSaved: (feld, text) => saved.push([feld, text])
+    });
+    const title = root.querySelector('[data-feld="aktivierung_name"]');
+    title.textContent = '  Herbst\nLaunch  ';
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    await handle.inlineEdit.flush();
+    expect(updates).toEqual([{ aktivierung_name: 'Herbst Launch' }]);
+    expect(saved).toEqual([['aktivierung_name', 'Herbst Launch']]);
+    await handle.destroy();
   });
 
   it('Anschreiben sitzt zwischen Alle Felder und Loeschen, nicht im Print', async () => {
     const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
     const withBtn = renderBriefingDoc({ detail, canAnschreiben: true, canDelete: true });
+    expect(withBtn).toContain('briefing-doc-head');
     expect(withBtn).toContain('btn-anschreiben-briefing');
-    expect(withBtn).toContain('briefing-doc__top');
-    expect(withBtn.indexOf('briefing-doc__badges')).toBeLessThan(withBtn.indexOf('btn-briefing-fields-toggle'));
+    expect(withBtn).toContain('mdc-btn__icon');
+    expect(withBtn).toContain('mdc-btn__label');
+    expect(withBtn).toContain('#crm-icon-list-bullet');
+    expect(withBtn).toContain('#crm-icon-mail-send');
+    expect(withBtn).toContain('#crm-icon-trash');
+    expect(withBtn).not.toContain('mdc-btn--sm');
+    expect(withBtn.indexOf('briefing-doc-head')).toBeLessThan(withBtn.indexOf('btn-briefing-fields-toggle'));
     expect(withBtn.indexOf('btn-briefing-fields-toggle')).toBeLessThan(withBtn.indexOf('btn-anschreiben-briefing'));
     expect(withBtn.indexOf('btn-anschreiben-briefing')).toBeLessThan(withBtn.indexOf('btn-delete-briefing'));
+    expect(withBtn.indexOf('btn-delete-briefing')).toBeLessThan(withBtn.indexOf('briefing-doc__badges'));
     expect(withBtn).not.toContain('briefing-doc__title-row');
     expect(withBtn).not.toContain('briefing-doc__toolbar');
+
+    const expanded = renderBriefingDoc({ detail, compact: false, canAnschreiben: true });
+    expect(expanded).toContain('#crm-icon-arrows-collapse');
 
     const without = renderBriefingDoc({ detail, canAnschreiben: false });
     expect(without).not.toContain('btn-anschreiben-briefing');
 
     const print = renderBriefingDoc({ detail, canAnschreiben: true, canDelete: true, print: true });
+    expect(print).not.toContain('briefing-doc-head');
     expect(print).not.toContain('btn-anschreiben-briefing');
     expect(print).not.toContain('btn-briefing-fields-toggle');
     expect(print).not.toContain('btn-delete-briefing');
+  });
+
+  it('Bearbeiten sitzt nur mit showEdit und canEdit zwischen Alle Felder und Anschreiben', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    const html = renderBriefingDoc({ detail, canEdit: true, showEdit: true, canAnschreiben: true, canDelete: true });
+    expect(html).toContain('btn-edit-briefing');
+    expect(html).toContain('#crm-icon-pencil-square');
+    expect(html.indexOf('btn-briefing-fields-toggle')).toBeLessThan(html.indexOf('btn-edit-briefing'));
+    expect(html.indexOf('btn-edit-briefing')).toBeLessThan(html.indexOf('btn-anschreiben-briefing'));
+
+    expect(renderBriefingDoc({ detail, canEdit: true })).not.toContain('btn-edit-briefing');
+    expect(renderBriefingDoc({ detail, canEdit: false, showEdit: true })).not.toContain('btn-edit-briefing');
+    expect(renderBriefingDoc({ detail, canEdit: true, showEdit: true, print: true })).not.toContain('btn-edit-briefing');
+  });
+
+  it('Duplizieren erscheint nur mit canDuplicate und nicht im Druck', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    const html = renderBriefingDoc({ detail, canEdit: true, showEdit: true, canAnschreiben: true, canDuplicate: true });
+    expect(html).toContain('btn-duplicate-briefing');
+    expect(html).toContain('#crm-icon-document-duplicate');
+    expect(html.indexOf('btn-edit-briefing')).toBeLessThan(html.indexOf('btn-duplicate-briefing'));
+    expect(html.indexOf('btn-duplicate-briefing')).toBeLessThan(html.indexOf('btn-anschreiben-briefing'));
+
+    expect(renderBriefingDoc({ detail, canEdit: true })).not.toContain('btn-duplicate-briefing');
+    expect(renderBriefingDoc({ detail, canDuplicate: true, print: true })).not.toContain('btn-duplicate-briefing');
+  });
+
+  it('embedded setzt den Modifier für den Produktions-Tab', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    expect(renderBriefingDoc({ detail, embedded: true })).toContain('briefing-detail--embedded');
+    expect(renderBriefingDoc({ detail })).not.toContain('briefing-detail--embedded');
   });
 });

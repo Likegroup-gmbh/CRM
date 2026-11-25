@@ -70,6 +70,27 @@ describe('fmtCampaignBriefing', () => {
     expect(text).not.toContain('SOLL-FEHLEN');
   });
 
+  it('Flow-Briefing: jede Umsetzungsidee steht in einer eigenen Zeile', () => {
+    const text = fmtCampaignBriefing({
+      bereich: 'paid_creator_ads',
+      aktivierung_name: 'Flow Push',
+      aufgabe: 'Produkt im Alltag zeigen',
+      umsetzungsideen: ['Vorher-Nachher in 20 Sekunden', 'Problem-Lösung, Kabel vs. Kabellos', '  ']
+    });
+    expect(text).toContain('- Umsetzungsideen - Inspiration (frei interpretierbar, kein Muss):\n  - Vorher-Nachher in 20 Sekunden\n  - Problem-Lösung, Kabel vs. Kabellos');
+    expect(text).not.toContain('Vorher-Nachher in 20 Sekunden;');
+  });
+
+  it('Flow-Briefing: leere Ideenliste erzeugt keine Zeile', () => {
+    const text = fmtCampaignBriefing({
+      bereich: 'paid_creator_ads',
+      aktivierung_name: 'Flow Push',
+      aufgabe: 'Produkt im Alltag zeigen',
+      umsetzungsideen: []
+    });
+    expect(text).not.toContain('Umsetzungsideen');
+  });
+
   it('liefert leer ohne Briefing oder ohne befuellte Felder', () => {
     expect(fmtCampaignBriefing(null)).toBe('');
     expect(fmtCampaignBriefing({ bereich: 'owned_social' })).toContain('Owned Social');
@@ -90,6 +111,28 @@ describe('fmtCampaignBriefing', () => {
     expect(text).toContain('Kurzname');
     expect(text).toContain('Muss bleiben');
     expect(text).toContain('https://cta.example');
+  });
+
+  it('Wichtige Vorgaben stehen vor dem Budget und werden nicht gekuerzt', () => {
+    const vorgaben = 'VERBOT '.repeat(40).trim();
+    const text = fmtCampaignBriefing({
+      bereich: 'influencer_marketing',
+      aktivierung_name: 'Kurz',
+      im_learnings_text: 'y'.repeat(5000),
+      wichtige_vorgaben: vorgaben
+    }, { max: 400 });
+    expect(text).toContain(vorgaben);
+    expect(text.indexOf('# WICHTIGE VORGABEN')).toBeLessThan(text.indexOf('# CAMPAIGN-BRIEFING'));
+  });
+
+  it('Alt-Spalten dos, donts und dos_donts werden nicht mehr gelesen', () => {
+    const text = fmtCampaignBriefing({
+      bereich: 'influencer_marketing',
+      aktivierung_name: 'Alt',
+      dos_donts: 'Do: authentisch. Dont: kein Sales-Pitch'
+    });
+    expect(text).not.toContain('Sales-Pitch');
+    expect(text).not.toContain('# WICHTIGE VORGABEN');
   });
 
   it('Default-Budget ist BRIEFING_MAX', () => {
@@ -138,7 +181,7 @@ describe('briefingSkriptSprache', () => {
 describe('buildKontextText mit Campaign-Briefing', () => {
   it('setzt Briefing-Sektion VOR den Video-Vorgaben', () => {
     const text = buildKontextText(
-      { dna: [], briefing: IM_BRIEFING },
+      { briefing: IM_BRIEFING },
       { video_idee: 'Morgenroutine', funnel_stufe: 'bottom' }
     );
     expect(text).toContain('# CAMPAIGN-BRIEFING');
@@ -147,14 +190,14 @@ describe('buildKontextText mit Campaign-Briefing', () => {
   });
 
   it('ohne Briefing keine Sektion (Legacy/ohne Auswahl)', () => {
-    const text = buildKontextText({ dna: [] }, { video_idee: 'x' });
+    const text = buildKontextText({}, { video_idee: 'x' });
     expect(text).not.toContain('CAMPAIGN-BRIEFING');
   });
 });
 
 describe('buildPrompt Vorrang + Sprache + Anti-Erfindung', () => {
   it('nennt CAMPAIGN-BRIEFING statt PDF und setzt Vorrang-Regel', () => {
-    const { task } = buildPrompt({ dna: [], beispiele: [], antiPatterns: [], briefing: IM_BRIEFING }, {
+    const { task } = buildPrompt({ beispiele: [], antiPatterns: [], briefing: IM_BRIEFING }, {
       video_idee: 'Glow Routine',
       video_laenge: '30-45',
       funnel_stufe: 'bottom'
@@ -166,7 +209,7 @@ describe('buildPrompt Vorrang + Sprache + Anti-Erfindung', () => {
   });
 
   it('ohne Briefing keine Vorrang-/Briefing-Regel', () => {
-    const { task } = buildPrompt({ dna: [], beispiele: [], antiPatterns: [] }, { video_idee: 'x' });
+    const { task } = buildPrompt({ beispiele: [], antiPatterns: [] }, { video_idee: 'x' });
     expect(task).not.toContain('CAMPAIGN-BRIEFING');
     expect(task).not.toContain('Vorrang vor Briefing-Defaults');
     expect(task).toContain('auf Deutsch');
@@ -174,7 +217,7 @@ describe('buildPrompt Vorrang + Sprache + Anti-Erfindung', () => {
 
   it('setzt Skript-Sprache wenn Briefing nicht nur Deutsch ist', () => {
     const { task } = buildPrompt({
-      dna: [], beispiele: [], antiPatterns: [],
+      beispiele: [], antiPatterns: [],
       briefing: { ...IM_BRIEFING, sprachen: ['englisch'] }
     }, { video_idee: 'Glow' });
     expect(task).toContain('auf Englisch');

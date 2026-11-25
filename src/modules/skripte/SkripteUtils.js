@@ -1,5 +1,8 @@
 // SkripteUtils.js - kleine Helfer fuer das Skripte-Modul
 
+import { replaceRoute } from '../../core/breadcrumbTrail.js';
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+
 export function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -68,6 +71,7 @@ export const STATUS_LABELS = {
   entwurf: 'Entwurf',
   feedback_gegeben: 'Feedback gegeben',
   final: 'Final',
+  freigegeben: 'Freigegeben',
   archiviert: 'Archiviert'
 };
 
@@ -76,6 +80,7 @@ export const STATUS_TAG_VARIANT = {
   entwurf: 'tag--warning',
   feedback_gegeben: 'tag--type',
   final: 'tag--success',
+  freigegeben: 'tag--success',
   archiviert: 'tag--type'
 };
 
@@ -89,12 +94,72 @@ export function replaceSkriptUrl(skriptId) {
   // den Zugang (kein /share/:token-Match mehr nach dem Umschreiben).
   if (window.permissionSystem?.isGast) return;
   const path = skriptEditorPath(skriptId);
-  window.history.replaceState({ route: path }, '', path);
+  replaceRoute(path);
 }
 
 export const OHNE_QUERY = 'ohne';
 export const OHNE_MARKE_LABEL = 'Ohne Marke';
 export const OHNE_KAMPAGNE_LABEL = 'Ohne Kampagne';
+
+/**
+ * Listen-URL eines Skripte-Ordners.
+ * ebene: 'companies' | 'brands' | 'campaigns' | 'items'.
+ * Ohne Marke/Kampagne steht "ohne" in der Query (eigener Ordner der Liste).
+ */
+export function skriptListUrl(scope = {}, ebene = 'items') {
+  if (ebene === 'companies' || !scope.unternehmenId) return '/skripte';
+
+  const params = new URLSearchParams();
+  params.set('unternehmen', scope.unternehmenId);
+  params.set('unternehmen_name', scope.unternehmenName || '');
+  if (ebene === 'brands') return `/skripte?${params}`;
+
+  if (scope.markeId) {
+    params.set('marke', scope.markeId);
+    params.set('marke_name', scope.markeName || '');
+  } else {
+    params.set('marke', OHNE_QUERY);
+    params.set('marke_name', OHNE_MARKE_LABEL);
+  }
+  if (ebene === 'campaigns') return `/skripte?${params}`;
+
+  if (scope.kampagneId) {
+    params.set('kampagne', scope.kampagneId);
+    params.set('kampagne_name', scope.kampagneName || '');
+  } else {
+    params.set('kampagne', OHNE_QUERY);
+    params.set('kampagne_name', OHNE_KAMPAGNE_LABEL);
+  }
+  return `/skripte?${params}`;
+}
+
+/** Offizieller Weg eines Skripts: Skripte > Firma > [Marke] > [Kampagne] > Titel. */
+export function skriptCrumbs(skript) {
+  const scope = {
+    unternehmenId: skript?.unternehmen_id || null,
+    unternehmenName: skript?.unternehmen?.firmenname || 'Unternehmen',
+    markeId: skript?.marke_id || null,
+    markeName: skript?.marke?.markenname || 'Marke',
+    kampagneId: skript?.kampagne_id || null,
+    kampagneName: skript?.kampagne ? KampagneUtils.getDisplayName(skript.kampagne) : 'Kampagne'
+  };
+  const crumbs = [{ label: 'Skripte', url: '/skripte', clickable: true }];
+  if (scope.unternehmenId) {
+    crumbs.push({ label: scope.unternehmenName, url: skriptListUrl(scope, 'brands'), clickable: true });
+    if (scope.markeId) {
+      crumbs.push({ label: scope.markeName, url: skriptListUrl(scope, 'campaigns'), clickable: true });
+    }
+    if (scope.kampagneId) {
+      crumbs.push({ label: scope.kampagneName, url: skriptListUrl(scope, 'items'), clickable: true });
+    }
+  }
+  crumbs.push({
+    label: skript?.titel || 'Skript',
+    url: skript?.id ? `/skripte/${skript.id}` : null,
+    clickable: false
+  });
+  return crumbs;
+}
 
 // ---------------------------------------------------------------------------
 // Kosten-Schaetzung aus prompt_kontext.usage (Anthropic Messages API)
@@ -102,6 +167,7 @@ export const OHNE_KAMPAGNE_LABEL = 'Ohne Kampagne';
 
 // USD pro 1M Tokens (Stand Juli 2026, Anthropic-Preisliste)
 const MODEL_PRICING = [
+  { match: 'opus-5-5', input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
   { match: 'opus', input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
   { match: 'sonnet', input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
   { match: 'haiku', input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 }

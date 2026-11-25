@@ -1,11 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SourcingTabelleAnpassenDrawer } from '../modules/creator-auswahl/SourcingTabelleAnpassenDrawer.js';
-import {
-  wendePresetAn,
-  IG_REELS_SPALTEN,
-  IG_STORY_SPALTEN,
-  TT_SPALTEN
-} from '../modules/creator-auswahl/sourcingSpaltenPreset.js';
+import { EntityCustomColumnsDrawer } from '../core/customColumns/EntityCustomColumnsDrawer.js';
+import { wendePresetAn, TT_SPALTEN } from '../modules/creator-auswahl/sourcingSpaltenPreset.js';
 
 /** Drawer oeffnen und die Callbacks mitgeben */
 function oeffne(liste = {}, hiddenColumns = [], customColumns = []) {
@@ -18,140 +14,20 @@ function oeffne(liste = {}, hiddenColumns = [], customColumns = []) {
   return { drawer, onHiddenColumnsChange, onListeChange };
 }
 
-function feld(name) {
-  return document.querySelector(`[data-listen-einstellung="${name}"]`);
-}
-
-function istSichtbar(name) {
-  const wrapper = document.querySelector(`[data-listen-feld="${name}"]`);
-  return !wrapper.classList.contains('form-field--hidden');
-}
-
-/** change-Event feuern und die async-Handler abwarten */
-async function setze(name, wert) {
-  const el = feld(name);
-  el.value = wert;
-  el.dispatchEvent(new Event('change'));
-  await Promise.resolve();
-  await Promise.resolve();
-}
-
 beforeEach(() => {
   document.body.innerHTML = '';
   // open() nutzt requestAnimationFrame nur fuer die Slide-in-Klassen
   vi.stubGlobal('requestAnimationFrame', (cb) => cb());
 });
 
-describe('Drawer "Tabelle anpassen" – Listeneinstellungen', () => {
-  it('zeigt Typ, Plattform, Format und TKP mit den Werten der Liste', () => {
+describe('Drawer "Tabelle anpassen"', () => {
+  it('zeigt nur Spalten, nicht Typ, Plattform, Format oder TKP', () => {
     oeffne({ liste_typ: 'influencer', plattformen: 'instagram', ig_formate: 'story', tkp: 40 });
 
     expect(document.querySelector('.drawer-title').textContent).toBe('Tabelle anpassen');
-    expect(feld('liste_typ').value).toBe('influencer');
-    expect(feld('plattformen').value).toBe('instagram');
-    expect(feld('ig_formate').value).toBe('story');
-    expect(feld('tkp').value).toBe('40');
-  });
-
-  it('nennt keine Kampagnenfelder – die gehoeren zum Anlegen', () => {
-    oeffne({ liste_typ: 'mix' });
-
-    for (const name of ['unternehmen_id', 'marke_id', 'kampagne_id', 'name']) {
-      expect(feld(name)).toBeNull();
+    for (const name of ['liste_typ', 'plattformen', 'ig_formate', 'tkp']) {
+      expect(document.querySelector(`[data-listen-einstellung="${name}"]`)).toBeNull();
     }
-  });
-
-  it('zeigt fuer Bestandslisten ohne TKP die 25', () => {
-    oeffne({});
-
-    expect(feld('tkp').value).toBe('25');
-  });
-
-  it('blendet Plattform und Format aus, solange kein Influencer gewaehlt ist', () => {
-    oeffne({ liste_typ: 'ugc' });
-
-    expect(istSichtbar('liste_typ')).toBe(true);
-    expect(istSichtbar('plattformen')).toBe(false);
-    expect(istSichtbar('ig_formate')).toBe(false);
-  });
-
-  it('zeigt das Format nur, wenn Instagram dabei ist', () => {
-    oeffne({ liste_typ: 'influencer', plattformen: 'tiktok' });
-
-    expect(istSichtbar('plattformen')).toBe(true);
-    expect(istSichtbar('ig_formate')).toBe(false);
-  });
-
-  it('speichert einen neuen TKP sofort', async () => {
-    const { onListeChange } = oeffne({ tkp: 25 });
-
-    await setze('tkp', '32.5');
-
-    expect(onListeChange).toHaveBeenCalledWith({ tkp: 32.5 });
-  });
-
-  it('setzt einen ungueltigen TKP auf den gespeicherten Wert zurueck', async () => {
-    const { onListeChange } = oeffne({ tkp: 30 });
-
-    await setze('tkp', '-5');
-
-    expect(onListeChange).not.toHaveBeenCalled();
-    expect(feld('tkp').value).toBe('30');
-  });
-});
-
-describe('Drawer "Tabelle anpassen" – Typwechsel', () => {
-  it('belegt die Spalten neu vor und schaltet die Folgefelder frei', async () => {
-    const { onListeChange } = oeffne({ liste_typ: 'ugc' }, [...IG_REELS_SPALTEN]);
-
-    await setze('liste_typ', 'influencer');
-
-    expect(onListeChange).toHaveBeenCalledWith({
-      liste_typ: 'influencer', hidden_columns: []
-    });
-    expect(istSichtbar('plattformen')).toBe(true);
-    // Reels-Spalten sind wieder an
-    expect(document.querySelector('[data-column="cp-col-cpm-ig-8"]').checked).toBe(true);
-  });
-
-  it('vergisst Plattform und Format, wenn der Typ kein Influencer mehr ist', async () => {
-    const { onListeChange } = oeffne({
-      liste_typ: 'influencer', plattformen: 'instagram', ig_formate: 'reel'
-    });
-
-    await setze('liste_typ', 'ugc');
-
-    expect(onListeChange).toHaveBeenCalledWith({
-      liste_typ: 'ugc',
-      plattformen: null,
-      ig_formate: null,
-      hidden_columns: [
-        ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...TT_SPALTEN
-      ]
-    });
-    expect(istSichtbar('plattformen')).toBe(false);
-  });
-
-  it('vergisst das Format, wenn Instagram wegfaellt', async () => {
-    const { onListeChange } = oeffne({
-      liste_typ: 'influencer', plattformen: 'instagram,tiktok', ig_formate: 'story'
-    });
-
-    await setze('plattformen', 'tiktok');
-
-    const updates = onListeChange.mock.calls[0][0];
-    expect(updates.plattformen).toBe('tiktok');
-    expect(updates.ig_formate).toBeNull();
-    expect(updates.hidden_columns).toContain('cp-col-link-ig');
-    expect(updates.hidden_columns).not.toContain('cp-col-link-tt');
-  });
-
-  it('laesst von Hand abgeschaltete Spalten in Ruhe', async () => {
-    const { onListeChange } = oeffne({ liste_typ: 'mix' }, ['cp-col-mail', 'custom:abc']);
-
-    await setze('liste_typ', 'influencer');
-
-    expect(onListeChange.mock.calls[0][0].hidden_columns).toEqual(['cp-col-mail', 'custom:abc']);
   });
 });
 
@@ -159,7 +35,7 @@ describe('Drawer "Tabelle anpassen" – Spalten', () => {
   it('meldet eine abgeschaltete Spalte an den Callback', () => {
     const { onHiddenColumnsChange } = oeffne({ liste_typ: 'mix' });
 
-    const toggle = document.querySelector('[data-column="cp-col-location"]');
+    const toggle = document.querySelector('.column-visibility-toggle[data-column="cp-col-location"]');
     toggle.checked = false;
     toggle.dispatchEvent(new Event('change'));
 
@@ -170,6 +46,108 @@ describe('Drawer "Tabelle anpassen" – Spalten', () => {
     oeffne({ liste_typ: 'mix' }, [], [{ className: 'custom:abc', label: 'Eigene Notiz' }]);
 
     expect(document.querySelector('[data-column="custom:abc"]')).not.toBeNull();
+    expect(document.querySelector('[data-action="spalte-hinzufuegen"]')).not.toBeNull();
+    expect(document.querySelector('[data-action="spalte-bearbeiten"][data-column="custom:abc"]')).not.toBeNull();
+    expect(document.querySelector('[data-column="cp-col-notiz"] [data-action="spalte-bearbeiten"]')).toBeNull();
+  });
+
+  it('wechselt im selben Drawer zwischen Liste, Bearbeiten und Anlegen', () => {
+    const columns = [{ id: 'abc', name: 'Eigene Notiz', field_type: 'text', visible_for_kunden: true }];
+    const drawer = new SourcingTabelleAnpassenDrawer({
+      liste: { liste_typ: 'mix' },
+      hiddenColumns: [],
+      onHiddenColumnsChange: vi.fn(),
+      onListeChange: vi.fn(),
+      spaltenPflege: {
+        getOrderedColumns: () => columns,
+        mountEditor(host, opts) {
+          const editor = new EntityCustomColumnsDrawer({ dataLoader: {}, columns, order: [] });
+          editor.mountIn(host, opts);
+        }
+      }
+    });
+    drawer.open();
+
+    document.querySelector('[data-action="spalte-bearbeiten"]').click();
+    const body = document.getElementById('sourcing-tabelle-anpassen-drawer-body');
+    expect(body.querySelector('#sourcing-tabelle-anpassen-spalten')).toBeNull();
+    expect(body.querySelector('.custom-col-name-input').value).toBe('Eigene Notiz');
+    expect(document.getElementById('sourcing-tabelle-anpassen-drawer')).not.toBeNull();
+
+    body.querySelector('[data-action="spalten-pflege-zurueck"]').click();
+    expect(document.querySelector('#sourcing-tabelle-anpassen-spalten')).not.toBeNull();
+
+    document.querySelector('[data-action="spalte-hinzufuegen"]').click();
+    expect(body.querySelector('.cc-add-form-title').textContent).toBe('Neue Spalte');
+    expect(document.querySelector('#entity-custom-columns-drawer')).toBeNull();
+  });
+
+  it('zeigt jede Spalte mit Griff, in der Standardreihenfolge', () => {
+    oeffne({ liste_typ: 'mix' });
+
+    const ids = Array.from(document.querySelectorAll('#sourcing-tabelle-anpassen-spalten .sourcing-spalten-item'))
+      .map(row => row.dataset.column);
+
+    expect(ids.slice(0, 4)).toEqual([
+      'cp-col-notiz', 'cp-col-link', 'cp-col-follower', 'cp-col-engagement-ig'
+    ]);
+    expect(document.querySelectorAll('.sourcing-spalten-griff').length).toBe(ids.length);
+    expect(ids).not.toContain('cp-col-bild');
+    expect(ids).not.toContain('cp-col-name');
+    expect(ids).not.toContain('cp-col-actions');
+  });
+
+  it('oeffnet mit einer gespeicherten Reihenfolge und laesst die alte Bild-Spalte weg', () => {
+    oeffne({ column_order: ['cp-col-status', 'cp-col-bild', 'cp-col-notiz'] });
+
+    const ids = Array.from(document.querySelectorAll('#sourcing-tabelle-anpassen-spalten .sourcing-spalten-item'))
+      .map(row => row.dataset.column);
+
+    expect(ids.slice(0, 2)).toEqual(['cp-col-status', 'cp-col-notiz']);
+    expect(ids).not.toContain('cp-col-bild');
+  });
+
+  it('meldet die neue Reihenfolge nach dem Ziehen', async () => {
+    const onColumnOrderChange = vi.fn();
+    const drawer = new SourcingTabelleAnpassenDrawer({
+      liste: { liste_typ: 'mix' },
+      hiddenColumns: [],
+      onHiddenColumnsChange: vi.fn(),
+      onListeChange: vi.fn(),
+      onColumnOrderChange
+    });
+    drawer.open();
+
+    const list = document.getElementById('sourcing-tabelle-anpassen-spalten');
+    const status = list.querySelector('.sourcing-spalten-item[data-column="cp-col-status"]');
+    const notiz = list.querySelector('.sourcing-spalten-item[data-column="cp-col-notiz"]');
+    const griff = status.querySelector('.sourcing-spalten-griff');
+
+    griff.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData() {},
+      setDragImage() {}
+    };
+    const ziehEvent = (type, target) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      event.dataTransfer = dataTransfer;
+      target.dispatchEvent(event);
+    };
+    // dragstart/end am Item selbst – so wie der Browser es nach mousedown am Griff feuert
+    ziehEvent('dragstart', status);
+    ziehEvent('dragover', notiz);
+    ziehEvent('dragend', status);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const ids = Array.from(list.querySelectorAll('.sourcing-spalten-item')).map(row => row.dataset.column);
+    expect(ids.indexOf('cp-col-status')).toBeLessThan(ids.indexOf('cp-col-notiz'));
+    expect(onColumnOrderChange).toHaveBeenCalledTimes(1);
+    const gemeldet = onColumnOrderChange.mock.calls[0][0];
+    expect(gemeldet.indexOf('cp-col-status')).toBeLessThan(gemeldet.indexOf('cp-col-notiz'));
+    expect(gemeldet[0]).toBe('cp-col-status');
   });
 });
 

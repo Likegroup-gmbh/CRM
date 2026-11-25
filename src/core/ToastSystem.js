@@ -3,6 +3,9 @@
 
 import { icon } from './icons/IconSystem.js';
 
+/** Standzeit eines Toasts mit Aktion in ms. */
+const ACTION_DURATION = 5000;
+
 export class ToastSystem {
   constructor() {
     this.toasts = [];
@@ -22,8 +25,16 @@ export class ToastSystem {
   }
 
   // Haupt-Methode zum Anzeigen von Toasts
-  show(message, type = 'info', duration = 3000) {
-    const toast = this.createToast(message, type, duration);
+  // options.action = { label, onClick }: Aktions-Button (z. B. "Rückgängig"). Ohne explizite
+  // Dauer bleibt ein Toast mit Aktion länger stehen (ACTION_DURATION), damit man sie erreicht.
+  show(message, type = 'info', duration = 3000, options = {}) {
+    const action = options?.action?.label && typeof options.action.onClick === 'function'
+      ? options.action
+      : null;
+    const effective = action && (duration === undefined || duration === null || duration < ACTION_DURATION)
+      ? ACTION_DURATION
+      : duration;
+    const toast = this.createToast(message, type, effective, action);
     this.addToast(toast);
     return toast.id;
   }
@@ -46,7 +57,7 @@ export class ToastSystem {
   }
 
   // Toast erstellen
-  createToast(message, type, duration) {
+  createToast(message, type, duration, action = null) {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     const toastEl = document.createElement('div');
@@ -61,12 +72,28 @@ export class ToastSystem {
     toastEl.innerHTML = `
       <div class="toast-icon">${icon}</div>
       <div class="toast-message">${this.escapeHtml(message)}</div>
+      ${action ? `<button type="button" class="toast-action">${this.escapeHtml(action.label)}</button>` : ''}
       <button class="toast-close" aria-label="Schließen">×</button>
     `;
 
     // Close-Button Event
     const closeBtn = toastEl.querySelector('.toast-close');
     closeBtn.addEventListener('click', () => this.removeToast(id));
+
+    if (action) {
+      let used = false;
+      toastEl.querySelector('.toast-action').addEventListener('click', () => {
+        // Der Toast bleibt während des Ausblendens im DOM: ein zweiter Klick darf nichts auslösen
+        if (used) return;
+        used = true;
+        this.removeToast(id);
+        try {
+          action.onClick();
+        } catch (err) {
+          console.error('ToastSystem: Aktion fehlgeschlagen', err);
+        }
+      });
+    }
 
     return {
       id,

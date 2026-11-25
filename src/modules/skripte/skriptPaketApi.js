@@ -1,0 +1,113 @@
+// Laden und Speichern eines Skript-Pakets. Der Drawer und die Gastliste
+// lesen hier, nicht über die übrigen Skript-Queries.
+
+import { skripteService } from './SkripteService.js';
+import { creatorenAusZeile } from './skriptPaketModel.js';
+import { loadAnsprechpartnerRows } from '../../core/anschreiben/snapshot.js';
+
+function db() {
+  return skripteService.db;
+}
+
+/** Ansprechpartner von Unternehmen und Marke der Kampagne, nur mit Mail. */
+export async function loadKampagneAnsprechpartner(kampagneId) {
+  const { data: kampagne, error } = await db().from('kampagne')
+    .select('unternehmen_id, marke_id')
+    .eq('id', kampagneId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!kampagne) return [];
+  const { rows } = await loadAnsprechpartnerRows(db(), {
+    unternehmenId: kampagne.unternehmen_id,
+    markeId: kampagne.marke_id,
+  });
+  return rows;
+}
+
+/** Skripte der Kampagne, Creator wie in der Skripte-Tabelle, sortiert nach Nr. */
+export async function loadKampagneSkripteFuerPaket(kampagneId) {
+  const rows = await skripteService.loadSkripte({ kampagneId });
+  return rows.map((row) => {
+    const creators = creatorenAusZeile(row);
+    return {
+      id: row.id,
+      titel: row.titel || row.hook || 'Ohne Titel',
+      status: row.status,
+      nr: row.skript_nr ?? null,
+      creator: creators[0] || null,
+      creators,
+      creatorIds: creators.map((c) => c.id)
+    };
+  }).sort((a, b) => (a.nr ?? 9999) - (b.nr ?? 9999) || String(a.titel).localeCompare(String(b.titel), 'de'));
+}
+
+/** Ohne creatorId ist es das Kampagnen-Paket (creator_id IS NULL). */
+export async function loadSkriptPaket(kampagneId, creatorId = null) {
+  let query = db().from('skript_pakete')
+    .select('id')
+    .eq('kampagne_id', kampagneId);
+  query = creatorId ? query.eq('creator_id', creatorId) : query.is('creator_id', null);
+  const { data: paket, error } = await query.maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!paket) return { paket: null, share: null, skriptIds: [] };
+  const [eintraegeRes, shareRes] = await Promise.all([
+    db().from('skript_paket_eintraege').select('skript_id').eq('paket_id', paket.id),
+    db().from('list_shares')
+      .select('id, token, label, rechte, empfaenger_emails')
+      .eq('entity_type', 'skript_paket')
+      .eq('entity_id', paket.id)
+      .is('revoked_at', null)
+      .maybeSingle()
+  ]);
+  if (eintraegeRes.error) throw new Error(eintraegeRes.error.message);
+  if (shareRes.error) throw new Error(shareRes.error.message);
+  return {
+    paket,
+    share: shareRes.data || null,
+    skriptIds: (eintraegeRes.data || []).map((row) => row.skript_id)
+  };
+}
+
+export async function ensureSkriptPaket(kampagneId, creatorId = null) {
+  const vorhanden = await loadSkriptPaket(kampagneId, creatorId);
+  if (vorhanden.paket) return vorhanden.paket;
+  const { data, error } = await db().from('skript_pakete')
+    .insert({ kampagne_id: kampagneId, creator_id: creatorId || null })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function setPaketSkripte(paketId, skriptIds) {
+  const { error: deleteError } = await db().from('skript_paket_eintraege')
+    .delete()
+    .eq('paket_id', paketId);
+  if (deleteError) throw new Error(deleteError.message);
+  if (!skriptIds.length) return;
+  const zeilen = [...new Set(skriptIds)].map((skriptId) => ({ paket_id: paketId, skript_id: skriptId }));
+  const { error } = await db().from('skript_paket_eintraege').insert(zeilen);
+  if (error) throw new Error(error.message);
+}
+
+/** Skripte, die der Gast-JWT sehen darf (RLS über can_gast_access_skript), in Nr.-Reihenfolge. */
+export async function loadGastPaketSkripte() {
+  const { data, error } = await db().from('skripte')
+    .select(`id, titel, status, created_at, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, rezept, caption, text_hook, dokument_bloecke,
+      marke:marke_id(markenname, logo_url), unternehmen:unternehmen_id(firmenname, logo_url),
+      produkt:produkt_id(name), kampagne:kampagne_id(kampagnenname, eigener_name),
+      strategie_item:strategie_item_id(id, strategie_id, creator_name, video_link, casting_eintrag:creator_auswahl_item_id(id, name, link_instagram, creator:creator_id(id, vorname, nachname, profilbild_url, instagram)))`)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(error.message);
+  const rows = data || [];
+  const ids = rows.map((row) => row.id).filter(Boolean);
+  const nummern = new Map();
+  if (ids.length) {
+    const { data: nrRows, error: nrError } = await db().rpc('skript_nr_fuer_zugang', { p_ids: ids });
+    if (nrError) console.warn('Skript-Nummern für den Gast fehlen:', nrError.message);
+    else for (const row of nrRows || []) nummern.set(row.skript_id, row.nr);
+  }
+  return rows
+    .map((row) => ({ ...row, skript_nr: nummern.get(row.id) ?? null }))
+    .sort((a, b) => (a.skript_nr ?? 9999) - (b.skript_nr ?? 9999) || String(a.titel || '').localeCompare(String(b.titel || ''), 'de'));
+}

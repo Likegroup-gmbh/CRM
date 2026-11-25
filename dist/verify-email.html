@@ -2,7 +2,6 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=/src/auth/verify-email.html">
     <title>Weiterleitung...</title>
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -11,7 +10,7 @@
 <body>
     <p>Weiterleitung zur E-Mail-Verifikation...</p>
     <script>
-        window.location.href = '/src/auth/verify-email.html' + window.location.search;
+        window.location.href = '/src/auth/verify-email.html' + window.location.search + window.location.hash;
     </script>
 </body>
 </html>

@@ -4,16 +4,16 @@ import {
   buildFinalFileName,
   buildAssetDownloadName,
   getAvailableVersions,
-  normalizeExternalUrl,
-  isValidExternalUrl,
   getAssetDisplayLabel,
   isExternalAsset,
   isDirectImageUrl,
   canPreviewImageAsset,
-  toRawDropboxUrl,
   withStillIndex,
   countStillNameUsage,
   createStillIndexCounter,
+  nextFreeIndexedFileName,
+  renamedFilePath,
+  splitFileName,
 } from '../core/VideoUploadUtils.js';
 
 describe('buildVersionedFileName', () => {
@@ -64,6 +64,36 @@ describe('buildFinalFileName', () => {
     const name = buildFinalFileName('Creator', 'Firma', 'Kampagne', undefined, '4:5', 'mov');
     expect(name).toBe('creator_firma_kampagne_1_final_4_5.mov');
   });
+
+  it('schreibt 1:1 als 1_1', () => {
+    const name = buildFinalFileName('Creator', 'Firma', 'Kampagne', 1, '1:1', 'mp4');
+    expect(name).toBe('creator_firma_kampagne_1_final_1_1.mp4');
+  });
+});
+
+describe('nextFreeIndexedFileName', () => {
+  const base = 'creator_firma_kampagne_1_final_1_1.mp4';
+
+  it('behaelt den Basisnamen, wenn er frei ist', () => {
+    expect(nextFreeIndexedFileName(base, [])).toBe(base);
+  });
+
+  it('haengt _02 an, wenn der Basisname belegt ist', () => {
+    expect(nextFreeIndexedFileName(base, [`/Finale/1_1/${base}`])).toBe(
+      'creator_firma_kampagne_1_final_1_1_02.mp4'
+    );
+  });
+
+  it('springt auf _03, wenn _02 schon existiert', () => {
+    expect(nextFreeIndexedFileName(base, [
+      base,
+      'creator_firma_kampagne_1_final_1_1_02.mp4',
+    ])).toBe('creator_firma_kampagne_1_final_1_1_03.mp4');
+  });
+
+  it('vergibt den Basisnamen neu, wenn nur _02 noch da ist', () => {
+    expect(nextFreeIndexedFileName(base, ['creator_firma_kampagne_1_final_1_1_02.mp4'])).toBe(base);
+  });
 });
 
 describe('buildAssetDownloadName', () => {
@@ -81,6 +111,15 @@ describe('buildAssetDownloadName', () => {
       is_final: true, variant_name: '9:16', file_path: '/x/y/alt.mov',
     });
     expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_1_final_9_16.mov');
+  });
+
+  it('behaelt den Index einer zweiten finalen Datei beim Download', () => {
+    const name = buildAssetDownloadName(meta, { position: 1 }, {
+      is_final: true,
+      variant_name: '1:1',
+      file_path: '/Finale_Version/1_1/max_mueller_firma_gmbh_sommer_2025_1_final_1_1_02.mp4',
+    });
+    expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_1_final_1_1_02.mp4');
   });
 
   it('nutzt die Extension aus file_url, wenn kein file_path vorhanden', () => {
@@ -117,53 +156,6 @@ describe('getAvailableVersions', () => {
 
   it('nutzt Default maxVersions=3', () => {
     expect(getAvailableVersions([])).toEqual([1, 2, 3]);
-  });
-});
-
-describe('normalizeExternalUrl', () => {
-  it('fügt https:// hinzu wenn Protokoll fehlt', () => {
-    expect(normalizeExternalUrl('drive.google.com/file/123')).toBe('https://drive.google.com/file/123');
-  });
-
-  it('lässt bestehende https:// URL unverändert', () => {
-    expect(normalizeExternalUrl('https://example.com/video')).toBe('https://example.com/video');
-  });
-
-  it('lässt http:// URL unverändert', () => {
-    expect(normalizeExternalUrl('http://example.com/video')).toBe('http://example.com/video');
-  });
-
-  it('trimmt Whitespace', () => {
-    expect(normalizeExternalUrl('  https://example.com  ')).toBe('https://example.com');
-  });
-
-  it('gibt leeren String für null/undefined zurück', () => {
-    expect(normalizeExternalUrl(null)).toBe('');
-    expect(normalizeExternalUrl(undefined)).toBe('');
-    expect(normalizeExternalUrl('')).toBe('');
-  });
-});
-
-describe('isValidExternalUrl', () => {
-  it('akzeptiert gültige https URL', () => {
-    expect(isValidExternalUrl('https://drive.google.com/file/123')).toBe(true);
-  });
-
-  it('akzeptiert gültige http URL', () => {
-    expect(isValidExternalUrl('http://example.com')).toBe(true);
-  });
-
-  it('lehnt ftp-Protokoll ab', () => {
-    expect(isValidExternalUrl('ftp://files.example.com')).toBe(false);
-  });
-
-  it('lehnt ungültige URL ab', () => {
-    expect(isValidExternalUrl('not a url')).toBe(false);
-  });
-
-  it('lehnt leere/null Werte ab', () => {
-    expect(isValidExternalUrl('')).toBe(false);
-    expect(isValidExternalUrl(null)).toBe(false);
   });
 });
 
@@ -234,13 +226,6 @@ describe('canPreviewImageAsset', () => {
   it('lehnt leere Assets ab', () => {
     expect(canPreviewImageAsset(null)).toBe(false);
     expect(canPreviewImageAsset({})).toBe(false);
-  });
-});
-
-describe('toRawDropboxUrl', () => {
-  it('veraendert SharePoint-Links nicht', () => {
-    const url = 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc';
-    expect(toRawDropboxUrl(url)).toBe(url);
   });
 });
 
@@ -346,5 +331,28 @@ describe('createStillIndexCounter', () => {
     expect(next(other)).toBe(1);
     expect(next(base)).toBe(2);
     expect(next(other)).toBe(2);
+  });
+});
+
+describe('Ad-Manager-Dateiname', () => {
+  it('splitFileName trennt Name und Endung', () => {
+    expect(splitFileName('/K/Videos/spot.v1.mp4')).toEqual({ stem: 'spot.v1', ext: '.mp4' });
+    expect(splitFileName('/K/ohne')).toEqual({ stem: 'ohne', ext: '' });
+  });
+
+  it('renamedFilePath behält Ordner und Endung, tippt man sie mit, wird sie nicht doppelt', () => {
+    expect(renamedFilePath('/K/V/a.mp4', 'Neuer Name')).toBe('/K/V/Neuer Name.mp4');
+    expect(renamedFilePath('/K/V/a.mp4', 'Neuer Name.MP4')).toBe('/K/V/Neuer Name.mp4');
+  });
+
+  it('renamedFilePath entfernt Zeichen, die die Ablage ablehnt, und meldet leere Namen', () => {
+    expect(renamedFilePath('/K/a.mp4', 'a/b:c')).toBe('/K/a-b-c.mp4');
+    expect(renamedFilePath('/K/a.mp4', '  .mp4')).toBeNull();
+  });
+
+  it('Download nutzt den Ad-Manager-Namen, auch bei Finale Versionen', () => {
+    const meta = { creatorName: 'Max', unternehmen: 'Acme', kampagne: 'K' };
+    expect(buildAssetDownloadName(meta, { position: 1 }, { file_path: '/K/x.mov', ad_manager_name: 'Acme_Spot_9x16' })).toBe('Acme_Spot_9x16.mov');
+    expect(buildAssetDownloadName(meta, { position: 1 }, { is_final: true, variant_name: '9:16', file_path: '/K/x.mp4', ad_manager_name: 'Fertig' })).toBe('Fertig.mp4');
   });
 });

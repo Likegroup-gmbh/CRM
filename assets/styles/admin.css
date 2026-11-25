@@ -313,3 +313,168 @@
 .dq-leer--ok {
   color: var(--color-success-dark);
 }
+
+/* --- Medienablage (SharePoint neben Dropbox) --- */
+
+.ma-stand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.ma-karte {
+  border-left-width: 3px;
+}
+
+.ma-karte--ok {
+  border-left-color: var(--color-success);
+}
+
+.ma-karte--warn {
+  border-left-color: var(--color-warning);
+}
+
+.ma-karte--fehler {
+  border-left-color: var(--color-error);
+}
+
+.ma-karte-label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.ma-karte-wert {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ma-karte--fehler .ma-karte-wert {
+  color: var(--color-error);
+}
+
+.ma-karte-meta {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.ma-aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.ma-aktionen-hint,
+.ma-leise {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.ma-list-header {
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.ma-suche {
+  width: 16rem;
+  max-width: 100%;
+  padding: var(--space-xs);
+  font-size: var(--text-xs);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.ma-table td {
+  vertical-align: top;
+}
+
+.ma-badge {
+  margin-left: var(--space-xs);
+}
+
+.ma-umzug {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xxs);
+}
+
+.ma-umzug-balken {
+  width: 10rem;
+  height: 6px;
+  accent-color: var(--color-brand);
+}
+
+.ma-umzug-text {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ma-pfad {
+  max-width: 28rem;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.ma-fehler-text {
+  color: var(--color-error);
+}
+
+.ma-zeilen-aktionen {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.ma-zeilen-aktionen .mdc-btn + .mdc-btn {
+  margin-left: var(--space-xs);
+}
+
+/* Teams-Kanäle (ADR 0066) */
+.tk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xxs);
+  max-width: 32rem;
+}
+
+.tk-liste {
+  display: flex;
+  flex-direction: column;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: var(--space-xxs);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.tk-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-xs);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.tk-option[hidden] {
+  display: none;
+}
+
+.tk-option input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.tk-aktiv {
+  margin-bottom: var(--space-md);
+  padding: 0;
+}

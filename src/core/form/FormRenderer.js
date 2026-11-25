@@ -3,6 +3,7 @@ import { icon } from '../icons/IconSystem.js';
 import { UploaderField } from './fields/UploaderField.js';
 import { PhoneNumberField } from './fields/PhoneNumberField.js';
 import { CountryField } from './fields/CountryField.js';
+import { applyKontextAnlage } from '../../modules/kooperation/produktionStart.js';
 
 export class FormRenderer {
   constructor() {
@@ -73,7 +74,7 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
     const config = this.getFormConfig(entity);
     if (!config) return '';
 
-    const fields = config.fields || [];
+    const fields = data?._kontextAnlage ? applyKontextAnlage(config.fields || []) : (config.fields || []);
     // Zweispaltige Gruppen: Video-/Preisfelder und Budget-Paare (USt und Deckungsbeitrag)
     const twoColNames = new Set([
       'influencer','influencer_preis','ugc','ugc_preis','vor_ort_produktion','vor_ort_preis',
@@ -108,6 +109,8 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
       
       // Felder mit editOnly nur im Edit-Modus anzeigen
       if (field.editOnly && !data?._isEditMode) continue;
+      if (field.createOnly && data?._isEditMode) continue;
+      if (field.adminOnly && !window.isAdmin?.()) continue;
 
       // readonlyExceptEdit: Im Edit-Mode readonly aufheben, im Create-Mode readonly setzen
       if (field.readonlyExceptEdit && data?._isEditMode) {
@@ -230,11 +233,14 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
     if (currentRow !== null) parts.push('</div>');
     if (currentSection !== null) parts.push('</div>');
 
+    const routeEntity = entity === 'rechnung_contracting' ? 'rechnung' : entity;
+    const entityId = data?.id || data?._entityId || '';
+    const cancelFallback = data?._isEditMode && entityId ? `/${routeEntity}/${entityId}` : `/${routeEntity}`;
     return `
-      <form id="${entity}-form" data-entity="${entity}" data-entity-id="${data?.id || data?._entityId || ''}" data-is-edit-mode="${data?._isEditMode ? 'true' : 'false'}">
+      <form id="${entity}-form" data-entity="${entity}" data-entity-id="${entityId}" data-is-edit-mode="${data?._isEditMode ? 'true' : 'false'}">
         ${parts.join('')}
         <div class="form-actions">
-          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/${entity}')">
+          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateBack('${cancelFallback.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
             <span class="mdc-btn__icon" aria-hidden="true">${this.getCancelIcon()}</span>
             <span class="mdc-btn__label">Abbrechen</span>
           </button>
@@ -257,7 +263,12 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
 
     switch (field.type) {
       case 'hidden':
-        return `<input type="hidden" name="${field.name}" id="${fieldId}" value="${value || field.defaultValue || ''}">`;
+        return `<input type="hidden" name="${field.name}" id="${fieldId}" value="${this.validator.sanitizeHtml(value || field.defaultValue || '')}">`;
+
+      case 'hidden-select': {
+        const selected = this.validator.sanitizeHtml(value || '');
+        return `<select name="${field.name}" id="${fieldId}" hidden><option value="${selected}" selected>${selected}</option></select>`;
+      }
 
       case 'text':
       case 'email':
@@ -510,6 +521,9 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
 
       case 'toggle':
         const isToggled = value === 'on' || value === true || value === 'true' || value === 1 ? 'checked' : '';
+        const toggleHelp = field.helpText
+          ? `<p class="form-section__description">${this.validator.sanitizeHtml(field.helpText)}</p>`
+          : '';
         return `
           <div class="form-field">
             <label class="toggle-container">
@@ -519,6 +533,7 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
                 <span class="toggle-slider"></span>
               </div>
             </label>
+            ${toggleHelp}
           </div>
         `;
 

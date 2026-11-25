@@ -58,6 +58,7 @@ function buildPrompt({ briefingText, firma, marke, branche, beschreibung }) {
     + '(Influencer Marketing, Paid Creator Ads, Owned Social). '
     + 'Du schreibst knappe, umsetzbare Auswertungen auf Deutsch. '
     + 'Nichts erfinden: nur aus Briefing und Stammdaten ableiten. '
+    + 'Verbote im Block WICHTIGE VORGABEN (kein, nicht, nie, ohne) duerfen in der Empfehlung nicht gebrochen werden. '
     + 'Was fehlt, gehoert in Offene Punkte – nicht als Fakt behaupten.';
 
   let task = '# AUFTRAG\nWerte das Campaign-Briefing aus und liefere vier Sektionen '
@@ -103,6 +104,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     if (briefingError || !briefing) {
       throw new Error(`Briefing nicht gefunden: ${briefingError?.message || briefingId}`);
     }
+    if (briefing.ist_altbestand) throw new Error('Altbestand-Linie ohne Briefing: bitte zuerst das Briefing ausfüllen');
 
     const ziel = resolveZielEntity(briefing);
     if (!ziel) throw new Error('Briefing hat weder Marke noch Unternehmen');
@@ -150,7 +152,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       model,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      maxTokens: 4096,
+      maxTokens: 8192,
       tool: AUSWERTUNG_TOOL,
       timeoutMs: 480000
     });

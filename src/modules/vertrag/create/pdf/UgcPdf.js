@@ -3,9 +3,9 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
-import { createPdfLayout } from './PdfTextFlow.js';
-import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
 import { drawDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
+import { createPdfLayout } from '../../../../core/pdf/PdfTextFlow.js';
+import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
 
 VertraegeCreate.prototype.generatePDF = async function(vertrag) {
     const lang = this.getContractLanguage(vertrag);
@@ -24,7 +24,7 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       } catch (e) {
         console.warn('⚠️ jsPDF konnte nicht geladen werden:', e);
         window.toastSystem?.show('PDF-Bibliothek konnte nicht geladen werden', 'warning');
-        return;
+        throw new Error('PDF-Bibliothek konnte nicht geladen werden');
       }
     }
 
@@ -616,14 +616,12 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
         doc.text('Creators ist ausschließlich die Agentur.', 14, y);
         y += 8;
         doc.text('Der Creator räumt der Agentur die zur Durchführung der Beauftragung erforderlichen', 14, y);
-        y += 5;
-        doc.text('Nutzungsrechte ein.', 14, y);
+        if (this.drawContractLine(doc, 'Nutzungsrechte ein.', 14, y + 5, lang)) y += 5;
         y += 8;
         doc.text('Die Agentur ist berechtigt, diese Rechte im Umfang der ihr eingeräumten Rechte ganz oder', 14, y);
         y += 5;
         doc.text('teilweise auf den in diesem Vertrag genannten Kunden zu übertragen oder diesem entsprechende', 14, y);
-        y += 5;
-        doc.text('Nutzungsrechte einzuräumen.', 14, y);
+        if (this.drawContractLine(doc, 'Nutzungsrechte einzuräumen.', 14, y + 5, lang)) y += 5;
         return y;
       }, { gap: 14 });
 
@@ -674,7 +672,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
         firmenname: kunde?.firmenname,
         lang,
         y,
-        ...layout.flow
+        maxContentY: MAX_CONTENT_Y,
+        onPageBreak
       });
 
       // Unterschrift (nur Creator erforderlich) - garantiert genug Platz vor der Fußzeile
@@ -697,19 +696,15 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
         : (lang === 'en' ? 'EN_Contract' : 'Vertrag');
       const fileName = `${filePrefix}_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-      const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-      if (uploadResult?.fileUrl) {
-        console.log('✅ PDF nach Dropbox hochgeladen und URL gespeichert');
-      } else {
-        console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
-      }
+      const uploadResult = await uploadGeneratedVertragPdf(vertrag, pdfBlob, fileName);
+      console.log('✅ PDF hochgeladen und URL gespeichert');
       doc.save(fileName);
-
-      console.log('✅ PDF generiert');
+      return uploadResult;
 
     } catch (error) {
       console.error('❌ Fehler bei PDF-Generierung:', error);
       window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
+      throw error;
     }
 };
 

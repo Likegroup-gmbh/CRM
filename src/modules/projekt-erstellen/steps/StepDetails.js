@@ -2,12 +2,19 @@
 // Step 2 des Projekt-Erstellen-Flows:
 // Block 1: Angebot & Budget (inkl. Leistungszeitraum)
 // Block 2: Dynamische Teilrechnungs-Blöcke (basierend auf anzahl_teilrechnungen)
-// Agenturleistungen nur bei Contracting (bei UGC/Vorort -> StepKampagnenarten)
+// Agenturleistungen nur bei Contracting (bei UGC/Vorort -> StepKampagne)
 
 import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
 import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';
 import { generateAuftragTitle } from '../components/TitelGenerator.js';
 import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
+import { verteilungsHinweis, verteilungsStand } from '../../../core/budget/teilrechnungVerteilung.js';
+import {
+  bindMoneyInputs,
+  editMoneyInput,
+  renderMoneyInput,
+  setMoneyInputValue
+} from '../../../core/form/moneyInput.js';
 
 const DEFAULT_UST_PROZENT = 19;
 
@@ -56,6 +63,7 @@ export class StepDetails {
 
   // Bestehende Teilrechnungen bleiben komplett stehen: Betraege, Rechnungsnummern,
   // Daten und Bezahlt-Flags. Nur neu hinzugekommene teilen sich den Restbetrag.
+  // Das Angebotsnetto bleibt unveraendert, auch beim Verkleinern.
   _resizeTeilrechnungen(newCount) {
     const a = this.wizard.formData.auftrag;
     const bestehend = (a.teilrechnungen || []).slice(0, newCount);
@@ -69,8 +77,6 @@ export class StepDetails {
         ? { ...bestehend[i], position: i + 1 }
         : this._makeTeilrechnung(i + 1, perTR)
     ));
-
-    this._sumUpFromTeilrechnungen();
   }
 
   _recalcTRBrutto(tr) {
@@ -79,35 +85,33 @@ export class StepDetails {
     tr.bruttobetrag = +(net + tr.ust_betrag).toFixed(2);
   }
 
+  // Fixierte Teilrechnungen (gespeichert oder von Hand bearbeitet) behalten
+  // ihren Betrag; nur die uebrigen teilen sich den Rest des Angebotsnettos.
   _distributeEvenly() {
     const a = this.wizard.formData.auftrag;
     const netto = parseCurrencyInput(a.nettobetrag) || 0;
     const trs = a.teilrechnungen || [];
-    if (trs.length === 0) return;
-    const perTR = +(netto / trs.length).toFixed(2);
-    trs.forEach(tr => {
+    const frei = trs.filter(tr => !tr.fixiert);
+    if (frei.length === 0) return;
+    const fixiertSumme = trs
+      .filter(tr => tr.fixiert)
+      .reduce((sum, tr) => sum + (parseCurrencyInput(tr.nettobetrag) || 0), 0);
+    const perTR = +(Math.max(0, netto - fixiertSumme) / frei.length).toFixed(2);
+    frei.forEach(tr => {
       tr.nettobetrag = perTR;
       this._recalcTRBrutto(tr);
     });
   }
 
-  _sumUpFromTeilrechnungen() {
+  _renderVerteilungsHinweis() {
+    const el = this.host?.querySelector('#pe-netto-verteilung-hint')
+      || document.getElementById('pe-netto-verteilung-hint');
+    if (!el) return;
     const a = this.wizard.formData.auftrag;
-    const trs = a.teilrechnungen || [];
-    const totalNetto = trs.reduce((sum, tr) => sum + (parseCurrencyInput(tr.nettobetrag) || 0), 0);
-    a.nettobetrag = +totalNetto.toFixed(2);
-    a.ust_betrag = +(totalNetto * DEFAULT_UST_PROZENT / 100).toFixed(2);
-    a.bruttobetrag = +(totalNetto + a.ust_betrag).toFixed(2);
-  }
-
-  _updateAuftragBruttoFields() {
-    const a = this.wizard.formData.auftrag;
-    const nettoEl = document.getElementById('field-pe-nettobetrag');
-    const ustEl = document.getElementById('field-pe-ust_betrag');
-    const bruttoEl = document.getElementById('field-pe-bruttobetrag');
-    if (nettoEl) nettoEl.value = a.nettobetrag ?? '';
-    if (ustEl) ustEl.value = a.ust_betrag ?? '';
-    if (bruttoEl) bruttoEl.value = a.bruttobetrag ?? '';
+    const hinweis = verteilungsHinweis(verteilungsStand(parseCurrencyInput(a.nettobetrag), a.teilrechnungen));
+    el.textContent = hinweis?.text || '';
+    el.hidden = !hinweis;
+    el.classList.toggle('pe-netto-verteilung-hint--warnung', hinweis?.ton === 'warnung');
   }
 
   render(host) {
@@ -161,17 +165,18 @@ export class StepDetails {
 
           <div class="form-two-col">
             <div class="form-field form-field--half">
-              <label for="field-pe-nettobetrag">Netto (€)</label>
-              <input type="text" inputmode="decimal" id="field-pe-nettobetrag" value="${a.nettobetrag ?? ''}">
+              <label for="field-pe-nettobetrag">Netto</label>
+              ${renderMoneyInput({ id: 'field-pe-nettobetrag', value: a.nettobetrag })}
+              <p id="pe-netto-verteilung-hint" class="pe-netto-verteilung-hint" hidden></p>
             </div>
             <div class="form-field form-field--half">
-              <label for="field-pe-ust_betrag">MwSt-Gesamtbetrag (€)</label>
-              <input type="text" inputmode="decimal" id="field-pe-ust_betrag" value="${a.ust_betrag ?? ''}" readonly>
+              <label for="field-pe-ust_betrag">USt</label>
+              ${renderMoneyInput({ id: 'field-pe-ust_betrag', value: a.ust_betrag, readonly: true })}
             </div>
           </div>
           <div class="form-field form-field--half">
-            <label for="field-pe-bruttobetrag">Bruttobetrag (€)</label>
-            <input type="text" inputmode="decimal" id="field-pe-bruttobetrag" value="${a.bruttobetrag ?? ''}" readonly>
+            <label for="field-pe-bruttobetrag">Brutto</label>
+            ${renderMoneyInput({ id: 'field-pe-bruttobetrag', value: a.bruttobetrag, readonly: true })}
           </div>
         </div>
 
@@ -183,6 +188,8 @@ export class StepDetails {
     `;
 
     this._renderTeilrechnungsBlocks();
+    this._renderVerteilungsHinweis();
+    bindMoneyInputs(host);
   }
 
   _renderTeilrechnungsBlocks() {
@@ -199,17 +206,17 @@ export class StepDetails {
 
         <div class="form-two-col">
           <div class="form-field form-field--half">
-            <label>Netto (€)</label>
-            <input type="text" inputmode="decimal" class="pe-tr-nettobetrag" data-tr-index="${i}" value="${tr.nettobetrag ?? ''}">
+            <label>Netto</label>
+            ${renderMoneyInput({ className: 'pe-tr-nettobetrag', value: tr.nettobetrag, attrs: { 'data-tr-index': i } })}
           </div>
           <div class="form-field form-field--half">
-            <label>USt-Betrag (€)</label>
-            <input type="text" inputmode="decimal" class="pe-tr-ust_betrag" data-tr-index="${i}" value="${tr.ust_betrag ?? ''}" readonly>
+            <label>USt</label>
+            ${renderMoneyInput({ className: 'pe-tr-ust_betrag', value: tr.ust_betrag, readonly: true, attrs: { 'data-tr-index': i } })}
           </div>
         </div>
         <div class="form-field form-field--half">
-          <label>Bruttobetrag (€)</label>
-          <input type="text" inputmode="decimal" class="pe-tr-bruttobetrag" data-tr-index="${i}" value="${tr.bruttobetrag ?? ''}" readonly>
+          <label>Brutto</label>
+          ${renderMoneyInput({ className: 'pe-tr-bruttobetrag', value: tr.bruttobetrag, readonly: true, attrs: { 'data-tr-index': i } })}
         </div>
 
         <div class="form-two-col">
@@ -240,6 +247,7 @@ export class StepDetails {
     `).join('');
 
     this._bindTeilrechnungsEvents(host);
+    bindMoneyInputs(host);
   }
 
   _bindTeilrechnungsEvents(host) {
@@ -247,7 +255,7 @@ export class StepDetails {
       input.addEventListener('paste', () => {
         setTimeout(() => {
           const parsed = parseCurrencyInput(input.value);
-          if (parsed != null) input.value = parsed;
+          if (parsed != null) input.value = editMoneyInput(parsed);
           input.dispatchEvent(new Event('input', { bubbles: true }));
         }, 0);
       });
@@ -257,16 +265,16 @@ export class StepDetails {
         if (!tr) return;
 
         tr.nettobetrag = parseCurrencyInput(input.value) || 0;
+        tr.fixiert = true;
         this._recalcTRBrutto(tr);
 
         const block = input.closest('.pe-teilrechnung-block');
         const ustEl = block?.querySelector('.pe-tr-ust_betrag');
         const bruttoEl = block?.querySelector('.pe-tr-bruttobetrag');
-        if (ustEl) ustEl.value = tr.ust_betrag;
-        if (bruttoEl) bruttoEl.value = tr.bruttobetrag;
+        setMoneyInputValue(ustEl, tr.ust_betrag);
+        setMoneyInputValue(bruttoEl, tr.bruttobetrag);
 
-        this._sumUpFromTeilrechnungen();
-        this._updateAuftragBruttoFields();
+        this._renderVerteilungsHinweis();
         this.wizard.onFormDataChange();
       });
     });
@@ -389,6 +397,14 @@ export class StepDetails {
           color: var(--text-primary);
           margin: 0 0 var(--space-xs) 0;
         }
+        .pe-netto-verteilung-hint {
+          margin: var(--space-xs) 0 0 0;
+          font-size: var(--text-xs);
+          color: var(--text-secondary);
+        }
+        .pe-netto-verteilung-hint--warnung {
+          color: var(--color-warning);
+        }
         .projekt-erstellen-extras-toolbar {
           display: flex;
           justify-content: flex-end;
@@ -461,8 +477,8 @@ export class StepDetails {
       if (net != null) {
         const u = +(net * DEFAULT_UST_PROZENT / 100).toFixed(2);
         const b = +(net + u).toFixed(2);
-        if (ustBetragEl) ustBetragEl.value = u;
-        if (bruttoEl) bruttoEl.value = b;
+        setMoneyInputValue(ustBetragEl, u);
+        setMoneyInputValue(bruttoEl, b);
         this.wizard.formData.auftrag.ust_prozent = DEFAULT_UST_PROZENT;
         this.wizard.formData.auftrag.ust_betrag = u;
         this.wizard.formData.auftrag.bruttobetrag = b;
@@ -473,7 +489,7 @@ export class StepDetails {
     const handleNettoPaste = () => {
       setTimeout(() => {
         const parsed = parseCurrencyInput(nettoEl.value);
-        if (parsed != null) nettoEl.value = parsed;
+        if (parsed != null) nettoEl.value = editMoneyInput(parsed);
         nettoEl.dispatchEvent(new Event('input', { bubbles: true }));
       }, 0);
     };
@@ -487,6 +503,7 @@ export class StepDetails {
       recalcBrutto();
       this._distributeEvenly();
       this._renderTeilrechnungsBlocks();
+      this._renderVerteilungsHinweis();
       this.wizard.onFormDataChange();
     });
     recalcBrutto();
@@ -497,8 +514,8 @@ export class StepDetails {
       a.anzahl_teilrechnungen = newCount;
 
       this._resizeTeilrechnungen(newCount);
-      this._updateAuftragBruttoFields();
       this._renderTeilrechnungsBlocks();
+      this._renderVerteilungsHinweis();
       this.wizard.onFormDataChange();
     });
 
@@ -649,7 +666,8 @@ export class StepDetails {
         erwarteter_monat_zahlungseingang: reFaelligkeit,
         notiz: block.querySelector('.pe-tr-notiz')?.value || '',
         ueberwiesen: existing.ueberwiesen || false,
-        ueberwiesen_am: existing.ueberwiesen_am || null
+        ueberwiesen_am: existing.ueberwiesen_am || null,
+        fixiert: Boolean(existing.fixiert)
       };
     });
   }

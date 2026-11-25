@@ -9,6 +9,22 @@
 export const NUR_UNTERNEHMEN_LABEL = 'Nur Unternehmen';
 export const OHNE_QUERY = 'ohne';
 
+// Marken-Ordner nur zeigen, wenn es mindestens eine echte Marke gibt.
+// Sonst ist „Nur Unternehmen“ / „Ohne Marke“ die einzige Zeile und fällt weg.
+export function markenEbeneEntfaellt(echteMarkenAnzahl, ohneMarkeAnzahl) {
+  return echteMarkenAnzahl === 0 && ohneMarkeAnzahl > 0;
+}
+
+export function markenEbeneEntfaelltAusOrdnern(folders = []) {
+  let echte = 0;
+  let ohne = 0;
+  for (const folder of folders) {
+    if (folder?.id && !folder.virtual) echte += 1;
+    else ohne += Number(folder?.count) || 0;
+  }
+  return markenEbeneEntfaellt(echte, ohne);
+}
+
 const LEERER_FOLDER = {
   unternehmenId: null,
   unternehmenName: null,
@@ -105,13 +121,27 @@ export function folderFromEntity(entity) {
 
 // Mit detailLabel für das Formular (Ordner klickbar, Detail aktuell),
 // ohne für die Liste (letzte erreichte Ebene aktuell, nicht klickbar).
-export function folderCrumbs({ listLabel, basePath, folder = null, detailLabel = null }) {
+// markenEbeneWeg: keine echte Marke, „Nur Unternehmen“ ist keine eigene Ebene.
+export function folderCrumbs({ listLabel, basePath, folder = null, detailLabel = null, markenEbeneWeg = false }) {
   const root = { label: listLabel, url: basePath, clickable: true };
 
   if (!folder?.unternehmenId) {
     return detailLabel
       ? [root, { label: detailLabel, clickable: false }]
       : [{ ...root, clickable: false }];
+  }
+
+  if (markenEbeneWeg) {
+    const firma = {
+      label: folder.unternehmenName || 'Unternehmen',
+      url: detailLabel
+        ? folderListUrl(basePath, { ...folder, ohneMarke: true, markeId: null }, 'items')
+        : '#',
+      clickable: Boolean(detailLabel)
+    };
+    return detailLabel
+      ? [root, firma, { label: detailLabel, clickable: false }]
+      : [root, firma];
   }
 
   const firmaCrumb = {

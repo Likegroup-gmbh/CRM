@@ -1,4 +1,5 @@
 import { deleteVideoFull } from '../../VideoDeleteHelper.js';
+import { assertVerkaufspreisDelta } from '../../../modules/produktion/produktionsbudget.js';
 
 // Kapselt die gesamte Video-Logik für Kooperationen (Create, Edit-Merge, Validation).
 // Wird von FormSystem per Delegation genutzt.
@@ -62,7 +63,7 @@ export class FormVideoHandler {
 
       let koopQuery = window.supabase
         .from('kooperationen')
-        .select('id, videoanzahl')
+        .select('id, videoanzahl, creator_id')
         .eq('kampagne_id', kampagneId);
 
       if (kooperationId) {
@@ -82,7 +83,11 @@ export class FormVideoHandler {
         return { isValid: true };
       }
 
-      const usedVideos = (existingKoops || []).reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
+      if (!submitData?.creator_id) return { isValid: true };
+
+      const usedVideos = (existingKoops || [])
+        .filter(koop => koop.creator_id)
+        .reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
       const remainingVideos = Math.max(0, totalVideos - usedVideos);
 
       if (desiredVideos > remainingVideos) {
@@ -125,6 +130,17 @@ export class FormVideoHandler {
       console.error('❌ Fehler in handleKooperationVideos:', error);
       return { success: false, error: error.message || 'Videos konnten nicht gespeichert werden' };
     }
+  }
+
+  async _assertPreise(kooperationId, delta) {
+    if (!window.supabase || !delta || delta <= 0) return;
+    const { data, error } = await window.supabase
+      .from('kooperationen')
+      .select('produktion_id')
+      .eq('id', kooperationId)
+      .maybeSingle();
+    if (error) throw error;
+    await assertVerkaufspreisDelta(window.supabase, data?.produktion_id, delta);
   }
 
   // Stepper-Daten aus dem Formular auslesen
@@ -178,6 +194,9 @@ export class FormVideoHandler {
       });
     }
 
+    const summe = rows.reduce((sum, row) => sum + (parseFloat(row.verkaufspreis_netto) || 0), 0);
+    await this._assertPreise(kooperationId, summe);
+
     const { data: inserted, error } = await window.supabase
       .from('kooperation_videos')
       .insert(rows)
@@ -224,6 +243,11 @@ export class FormVideoHandler {
         content_deadline: null
       });
     }
+
+    // Entfernte Videos geben ihren VK frei, neue und geaenderte belasten das Budget.
+    const alt = existingVideos.reduce((sum, video) => sum + (parseFloat(video.verkaufspreis_netto) || 0), 0);
+    const neu = [...persisted, ...fresh].reduce((sum, row) => sum + (parseFloat(row?.verkaufspreis_netto) || 0), 0);
+    await this._assertPreise(kooperationId, neu - alt);
 
     const updatePromises = persisted.map(manual => {
       const video = existingById.get(String(manual.id));
@@ -273,7 +297,7 @@ export class FormVideoHandler {
       if (failed.length > 0) {
         throw new Error(`${failed.length} von ${toRemove.length} Videos konnten nicht gelöscht werden`);
       }
-      console.log(`✅ ${toRemove.length} überzählige Videos entfernt (inkl. Dropbox + Assets)`);
+      console.log(`✅ ${toRemove.length} überzählige Videos entfernt (inkl. Dateien + Assets)`);
     }
 
     if (fresh.length > 0) {

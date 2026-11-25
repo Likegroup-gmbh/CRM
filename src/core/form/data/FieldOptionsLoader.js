@@ -4,10 +4,13 @@
 // `this` als DynamicDataLoader-Instanz (für Zugriff auf cache, dataService, etc.).
 
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
-import { fetchAllRows } from '../../fetchAllRows.js';
+import { isFinalisiert } from '../../finalisiert.js';
+import { fetchAllRows, fetchAllRowsWave } from '../../fetchAllRows.js';
 import { creatorDisplayName, loadAllCreators } from '../../creatorRows.js';
-
-const formatEuro = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v ?? 0);
+import { calculateKoopAbrechenbarkeit } from '../../budget/koopFakturierung.js';
+import { RECHNUNG_ABRECHEN_SELECT, VIDEO_ABRECHEN_SELECT } from '../../budget/koopAbrechenbarkeitLaden.js';
+import { koopsMitUpload } from '../../budget/koopVideoUpload.js';
+import { formatEuro } from '../../format.js';
 
 // Feldoptionen laden - grosser Dispatcher je nach Feld-Typ
 // `this` = DynamicDataLoader
@@ -17,6 +20,13 @@ export async function loadFieldOptions(entity, field, form) {
       return;
     }
     if (field.type === 'country') {
+      return;
+    }
+
+    // Kontext-Anlage: Zuordnung ist ein Hidden-Input oder verstecktes Select.
+    // Optionen nachladen würde den schon gesetzten Wert überschreiben.
+    const mounted = form?.querySelector?.(`[name="${field.name}"]`);
+    if (mounted && (mounted.tagName !== 'SELECT' || mounted.hasAttribute('hidden'))) {
       return;
     }
 
@@ -220,7 +230,7 @@ async function loadSwitchCaseOptions(entity, field, form) {
 
     case 'auftrag_id': {
       const auftraege = await this.dataService.loadEntities('auftrag');
-      options = auftraege.map(a => ({
+      options = auftraege.filter(isFinalisiert).map(a => ({
         value: a.id,
         label: a.auftragsname || 'Unbekannter Auftrag'
       }));
@@ -327,10 +337,10 @@ async function loadSwitchCaseOptions(entity, field, form) {
 }
 
 // Kooperationen fuer das Rechnung-Formular laden (mit Mitarbeiter-Filterung).
-// Freigabe ueber den Restbetrag (ADR 0004/0015): solange die gestellten
-// Rechnungen das Soll nicht erreichen und keine Schlussrechnung existiert,
-// bleibt die Kooperation abrechenbar. Das Vertrags-Flag
-// mehrere_rechnungen_erlaubt hat keine Funktion mehr.
+// Nur Kooperationen mit hochgeladenem Video. Freigabe ueber den Restbetrag
+// (ADR 0004/0015): solange die gestellten Rechnungen das Soll nicht erreichen
+// und keine Schlussrechnung existiert, bleibt die Kooperation abrechenbar.
+// Das Vertrags-Flag mehrere_rechnungen_erlaubt hat keine Funktion mehr.
 export async function loadKooperationenOhneRechnung() {
   if (!window.supabase) return [];
   try {
@@ -341,51 +351,49 @@ export async function loadKooperationenOhneRechnung() {
       return [];
     }
 
-    // Seitenweise laden (fetchAllRows), damit das PostgREST-Limit aeltere
-    // Zeilen nicht still abschneidet.
-    let rechnungen;
-    try {
-      rechnungen = await fetchAllRows(
-        window.supabase,
-        'rechnung',
-        'kooperation_id, nettobetrag, nettobetrag_steuerfrei, ksk_betrag, ist_schlussrechnung'
-      );
-    } catch (rErr) {
-      console.error('❌ Fehler beim Laden vorhandener Rechnungen:', rErr);
-      return [];
-    }
-    const mitRechnung = new Set((rechnungen || []).map(r => r.kooperation_id).filter(Boolean));
-
-    let alleKoops;
-    try {
-      alleKoops = await fetchAllRows(
+    // Seitenweise laden (fetchAllRows / fetchAllRowsWave), damit das PostgREST-Limit
+    // aeltere Zeilen nicht still abschneidet. Die drei Ladungen sind voneinander
+    // unabhaengig und laufen parallel statt als Wasserfall. Grosse Tabellen
+    // (kooperationen, kooperation_videos) ohne COUNT(*) per Welle.
+    const [rechnungenRes, koopsRes, videosRes] = await Promise.allSettled([
+      fetchAllRows(window.supabase, 'rechnung', RECHNUNG_ABRECHEN_SELECT),
+      fetchAllRowsWave(
         window.supabase,
         'kooperationen',
         'id, name, kampagne_id, creator_id, created_at, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag'
-      );
-    } catch (kErr) {
-      console.error('❌ Fehler beim Laden der Kooperationen:', kErr);
+      ),
+      fetchAllRowsWave(window.supabase, 'kooperation_videos', VIDEO_ABRECHEN_SELECT)
+    ]);
+
+    if (rechnungenRes.status === 'rejected') {
+      console.error('❌ Fehler beim Laden vorhandener Rechnungen:', rechnungenRes.reason);
       return [];
     }
+    const rechnungen = rechnungenRes.value;
+    const mitRechnung = new Set((rechnungen || []).map(r => r.kooperation_id).filter(Boolean));
+
+    if (koopsRes.status === 'rejected') {
+      console.error('❌ Fehler beim Laden der Kooperationen:', koopsRes.reason);
+      return [];
+    }
+    const alleKoops = koopsRes.value;
     alleKoops.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    // Video-EK schlaegt den Kooperations-EK (Konvention aus koopFakturierung).
-    let videos = [];
-    if (mitRechnung.size > 0) {
-      try {
-        videos = await fetchAllRows(window.supabase, 'kooperation_videos', 'kooperation_id, einkaufspreis_netto');
-      } catch (vErr) {
-        console.warn('⚠️ Kooperations-Videos konnten nicht geladen werden:', vErr);
-      }
+    // Ohne Videos ist der Upload-Stand unbekannt: dann bleibt der Selektor leer.
+    if (videosRes.status === 'rejected') {
+      console.error('❌ Fehler beim Laden der Kooperations-Videos:', videosRes.reason);
+      return [];
     }
+    const videos = videosRes.value;
+    const mitUpload = koopsMitUpload(videos);
 
-    const { calculateKoopAbrechenbarkeit } = await import('../../budget/koopFakturierung.js');
+    // Video-EK schlaegt den Kooperations-EK (Konvention aus koopFakturierung).
     const abrechenbarkeit = calculateKoopAbrechenbarkeit({
-      kooperationen: alleKoops || [],
+      kooperationen: alleKoops,
       videos,
-      rechnungen: rechnungen || []
+      rechnungen
     });
-    const koops = (alleKoops || []).filter(k => abrechenbarkeit.get(k.id)?.abrechenbar !== false);
+    const koops = alleKoops.filter(k => mitUpload.has(k.id) && abrechenbarkeit.get(k.id)?.abrechenbar !== false);
 
     let kampagneMap = {};
     let kampagneUnternehmenMap = {};
@@ -467,6 +475,9 @@ export async function loadKooperationenOhneRechnung() {
           subtitleParts.push(`Bereits fakturiert: ${formatEuro(info.fakturiert)} · Noch abrechenbar: ${formatEuro(Math.max(info.rest, 0))}`);
         } else {
           subtitleParts.push('Bereits fakturiert – Soll nicht gepflegt');
+        }
+        if (info?.fakturiertKsk > 0) {
+          subtitleParts.push(`KSK (Creator führt selbst ab): ${formatEuro(info.fakturiertKsk)}`);
         }
       }
 

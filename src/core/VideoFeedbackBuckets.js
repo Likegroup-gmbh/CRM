@@ -1,9 +1,9 @@
 export const VIDEO_FEEDBACK_FIELDS = [
-  { field: 'feedback_cj_r1', bucket: 'cjR1', runde: 1, feedback_typ: 'cj', label: 'CJ Feedback 1', colClass: 'col-feedback-cj-1' },
+  { field: 'feedback_cj_r1', bucket: 'cjR1', runde: 1, feedback_typ: 'cj', label: 'LG Feedback 1', colClass: 'col-feedback-cj-1' },
   { field: 'feedback_kunde_r1', bucket: 'kundeR1', runde: 1, feedback_typ: 'kunde', label: 'Kunde Feedback 1', colClass: 'col-feedback-kunde-1' },
-  { field: 'feedback_cj_r2', bucket: 'cjR2', runde: 2, feedback_typ: 'cj', label: 'CJ Feedback 2', colClass: 'col-feedback-cj-2' },
+  { field: 'feedback_cj_r2', bucket: 'cjR2', runde: 2, feedback_typ: 'cj', label: 'LG Feedback 2', colClass: 'col-feedback-cj-2' },
   { field: 'feedback_kunde_r2', bucket: 'kundeR2', runde: 2, feedback_typ: 'kunde', label: 'Kunde Feedback 2', colClass: 'col-feedback-kunde-2' },
-  { field: 'feedback_cj_r3', bucket: 'cjR3', runde: 3, feedback_typ: 'cj', label: 'CJ Feedback 3', colClass: 'col-feedback-cj-3' },
+  { field: 'feedback_cj_r3', bucket: 'cjR3', runde: 3, feedback_typ: 'cj', label: 'LG Feedback 3', colClass: 'col-feedback-cj-3' },
   { field: 'feedback_kunde_r3', bucket: 'kundeR3', runde: 3, feedback_typ: 'kunde', label: 'Kunde Feedback 3', colClass: 'col-feedback-kunde-3' }
 ];
 
@@ -42,8 +42,8 @@ export function getVideoFeedbackSlot(runde, feedbackTyp) {
  * Mappt eine Video-Version (Feedbackschleife) + Rolle auf das passende
  * Feedback-Ziel im Player.
  *  - Version 1 -> Runde 1, Version 2 -> Runde 2, Version 3+ -> Runde 3.
- *  - Alle Feedbackschleifen sind editierbar; die finale Version laeuft
- *    separat ueber is_final-Assets (dort gibt es keinen Feedback-Slot).
+ *  - Alle Feedbackschleifen sind editierbar; eine finale Version schreibt in
+ *    die Runde ihrer Quelle (playerFeedbackTarget.versionFuerFinal).
  *  - feedback_typ: Kunde -> 'kunde', sonst 'cj'.
  * @param {number} version
  * @param {boolean} isKunde

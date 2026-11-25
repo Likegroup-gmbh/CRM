@@ -1,20 +1,24 @@
 // BriefingFieldConfig.test.js
-// Guard fuer den FLOW-Briefing-Fragenkatalog.
+// Guard: das Formular fragt genau das Creator-Briefing-PDF ab (ADR 0073).
 
 import { describe, it, expect } from 'vitest';
 import {
   BEREICH_OPTIONS,
-  CREATOR_GROESSEN_UGC,
   FLOW_STEPS,
-  IM_CHANNELS,
-  OWNED_CHANNELS,
-  PAID_CHANNELS,
+  SEKTIONEN,
   getStepsForBereich,
   getAllFields,
+  inhaltsFelder,
+  feldNachName,
   flattenFields,
-  evaluateCondition,
-  isFieldActive
+  optionWert
 } from '../modules/briefing/create/fieldConfig.js';
+import { ALTFELD_NAMEN } from '../modules/briefing/briefingAltfelder.js';
+
+const namenIn = (stepId) => FLOW_STEPS
+  .find(s => s.id === stepId)
+  .sections
+  .flatMap(s => flattenFields(s.fields).map(f => f.name));
 
 describe('Briefing fieldConfig Schema', () => {
   it('hat genau die drei Typen Paid, Organic, Influencer', () => {
@@ -26,167 +30,119 @@ describe('Briefing fieldConfig Schema', () => {
     expect(BEREICH_OPTIONS.map(b => b.label)).toEqual(['Paid', 'Organic', 'Influencer']);
   });
 
-  it('alle persistierten Feldnamen sind eindeutig', () => {
-    const names = getAllFields().map(f => f.name);
-    const dupes = names.filter((n, i) => names.indexOf(n) !== i);
-    expect(dupes).toEqual([]);
+  it('alle Feldnamen sind eindeutig', () => {
+    const names = inhaltsFelder().map(f => f.name);
+    expect(names.filter((n, i) => names.indexOf(n) !== i)).toEqual([]);
   });
 
-  it('Schritte sind Grundlage, Casting, Aufgabe, Konzepte, Vertrag', () => {
-    expect(FLOW_STEPS.map(s => s.id)).toEqual([
-      'grundlage', 'casting', 'aufgabe', 'konzepte', 'vertrag'
+  it('Schritte sind die drei PDF-Sektionen, für jeden Typ gleich', () => {
+    expect(FLOW_STEPS.map(s => s.id)).toEqual(['rahmen', 'produkt', 'umsetzung']);
+    expect(FLOW_STEPS.map(s => s.label)).toEqual(['Rahmen', 'Produkt & Idee', 'Umsetzung']);
+    expect(SEKTIONEN.map(s => s.titel)).toEqual([
+      'Kampagnenübersicht & Rahmen', 'Produkt & Kampagnenidee', 'Deine Aufgabe & Umsetzung'
     ]);
     for (const b of BEREICH_OPTIONS.map(x => x.value)) {
-      expect(getStepsForBereich(b).map(s => s.id)).toEqual(FLOW_STEPS.map(s => s.id));
+      expect(getStepsForBereich(b)).toBe(FLOW_STEPS);
     }
   });
 
-  it('Pflichtfelder sitzen in Grundlage', () => {
-    const fields = flattenFields(FLOW_STEPS[0].sections.flatMap(s => s.fields));
-    const required = fields.filter(f => f.required).map(f => f.name);
-    expect(required).toContain('unternehmen_id');
-    expect(required).toContain('aktivierung_name');
-    expect(required).toContain('produkt_ids');
-    expect(required).toContain('persona_ids');
+  it('jede Section hat eine eindeutige id, die Zuordnung steht vor dem Rahmen', () => {
+    const ids = FLOW_STEPS.flatMap(s => s.sections.map(sec => sec.id));
+    expect(ids).toEqual(['zuordnung', 'rahmen', 'produkt', 'umsetzung']);
   });
 
-  it('Kein Produkt und Keine Persona sind getrennte Checkboxen und keine DB-Felder', () => {
-    const fields = flattenFields(FLOW_STEPS[0].sections.flatMap(s => s.fields));
-    const names = getAllFields().map(f => f.name);
-    expect(fields.find(f => f.name === 'ohne_produkt')).toMatchObject({ type: 'checkbox', persist: false });
-    expect(fields.find(f => f.name === 'ohne_persona')).toMatchObject({ type: 'checkbox', persist: false });
-    expect(names).not.toContain('ohne_produkt');
-    expect(names).not.toContain('ohne_persona');
-    expect(fields.find(f => f.name === 'produkt_ids').condition).toEqual({
-      field: 'ohne_produkt', notEquals: true
-    });
-    expect(fields.find(f => f.name === 'persona_ids').condition).toEqual({
-      field: 'ohne_persona', notEquals: true
+  it('fragt die Felder in der Reihenfolge des PDFs', () => {
+    expect(namenIn('rahmen')).toEqual([
+      'unternehmen_id', 'marke_id', 'kampagne_id', 'produktion_id',
+      'aktivierung_name',
+      'nutzung_markenkanal', 'nutzung_paid_media', 'nutzung_creator_kanal',
+      'plattformen', 'plattformen_weitere',
+      'seitenverhaeltnisse', 'seitenverhaeltnis_weitere',
+      'videolaenge', 'nutzungsrechte',
+      'content_deadline', 'content_deadline_bis', 'go_live', 'go_live_bis'
+    ]);
+    expect(namenIn('produkt')).toEqual(['produkte', 'beschreibung', 'kernbotschaft']);
+    expect(namenIn('umsetzung')).toEqual([
+      'aufgabe', 'vorgabe_pflicht', 'setting', 'vorgabe_donts', 'vorgabe_dos', 'umsetzungsideen_eintraege'
+    ]);
+  });
+
+  it('Pflicht sind nur Zuordnung und Kampagnentitel', () => {
+    const required = flattenFields(FLOW_STEPS.flatMap(s => s.sections.flatMap(sec => sec.fields)))
+      .filter(f => f.required)
+      .map(f => f.name);
+    expect(required).toEqual(['unternehmen_id', 'kampagne_id', 'produktion_id', 'aktivierung_name']);
+    expect(feldNachName('aktivierung_name').label).toBe('Kampagnentitel');
+  });
+
+  it('blendet bekannte Zuordnung aus, die Produktion bleibt wählbar', () => {
+    const zuordnung = FLOW_STEPS[0].sections[0];
+    expect(zuordnung.hideWhenKnown).toBe(true);
+    const felder = flattenFields(zuordnung.fields);
+    expect(felder.filter(f => f.hideWhenKnown).map(f => f.name)).toEqual(['unternehmen_id', 'marke_id', 'kampagne_id']);
+  });
+
+  it('kein Feld außerhalb des PDFs, auch keine Altfelder', () => {
+    const names = inhaltsFelder().map(f => f.name);
+    for (const alt of [
+      ...ALTFELD_NAMEN, 'tkp', 'verhandlungshinweis', 'produkt_id', 'produkt_ids', 'persona_ids', 'assignee_id',
+      'funnel_stufen', 'publish_channels', 'ad_channels', 'cta', 'hook_vorgaben', 'wichtige_vorgaben', 'referenzen'
+    ]) {
+      expect(names, alt).not.toContain(alt);
+    }
+  });
+
+  it('Produkte haben keine Spalte, stehen aber in den Inhaltsfeldern', () => {
+    expect(getAllFields().map(f => f.name)).not.toContain('produkte');
+    const produkte = inhaltsFelder().find(f => f.name === 'produkte');
+    expect(produkte).toMatchObject({ type: 'produktListe', persist: false });
+    expect(produkte.fields.map(f => f.name)).toEqual(['name', 'url', 'kurzbeschreibung', 'usp', 'loesung']);
+  });
+
+  it('jeder Typ sperrt genau sein Häkchen der Content-Verwendung', () => {
+    const gesperrt = inhaltsFelder().filter(f => f.lockForBereich);
+    expect(Object.fromEntries(gesperrt.map(f => [f.lockForBereich, f.name]))).toEqual({
+      owned_social: 'nutzung_markenkanal',
+      paid_creator_ads: 'nutzung_paid_media',
+      influencer_marketing: 'nutzung_creator_kanal'
     });
   });
 
-  it('produkt_ids liegt nicht in getAllFields (kein DB-Feld)', () => {
-    expect(getAllFields().map(f => f.name)).not.toContain('produkt_ids');
-    expect(getAllFields().map(f => f.name)).toContain('persona_ids');
+  it('jedes Bis-Datum hängt an seinem Von-Datum', () => {
+    const bis = inhaltsFelder().filter(f => f.nachDatum);
+    expect(bis.map(f => [f.name, f.nachDatum])).toEqual([
+      ['content_deadline_bis', 'content_deadline'],
+      ['go_live_bis', 'go_live']
+    ]);
+    for (const f of bis) expect(feldNachName(f.nachDatum).type).toBe('date');
+  });
+
+  it('Videolänge schreibt in die zwei Spalten', () => {
+    expect(feldNachName('videolaenge')).toMatchObject({ columns: ['videolaenge_von', 'videolaenge_bis'], min: 1, max: 180 });
   });
 
   it('Optionslisten haben value + label', () => {
-    for (const field of getAllFields()) {
-      if (field.options) {
-        for (const opt of field.options) {
-          expect(opt.value, `Option ohne value bei ${field.name}`).toBeTruthy();
-          expect(opt.label, `Option ohne label bei ${field.name}`).toBeTruthy();
-        }
+    for (const field of inhaltsFelder()) {
+      for (const opt of field.options || []) {
+        expect(opt.value, `Option ohne value bei ${field.name}`).toBeTruthy();
+        expect(opt.label, `Option ohne label bei ${field.name}`).toBeTruthy();
       }
     }
   });
 });
 
-describe('Briefing evaluateCondition', () => {
-  it('ohne Condition immer true', () => {
-    expect(evaluateCondition(null, {})).toBe(true);
+describe('optionWert', () => {
+  const plattformen = feldNachName('plattformen').options;
+
+  it('findet Wert und Label ohne Groß/klein', () => {
+    expect(optionWert(plattformen, 'TikTok')).toBe('tiktok');
+    expect(optionWert(plattformen, 'youtube')).toBe('youtube');
+    expect(optionWert(feldNachName('seitenverhaeltnisse').options, '9:16 (Hochformat)')).toBe('9:16');
   });
 
-  it('equals, in, all, any', () => {
-    expect(evaluateCondition({ field: 'bereich', equals: 'paid_creator_ads' }, { bereich: 'paid_creator_ads' })).toBe(true);
-    expect(evaluateCondition({ field: 'bereich', in: ['owned_social', 'influencer_marketing'] }, { bereich: 'owned_social' })).toBe(true);
-    expect(evaluateCondition({
-      all: [
-        { field: 'bereich', equals: 'paid_creator_ads' },
-        { any: [
-          { field: 'nutzung_markenkanal', equals: true },
-          { field: 'nutzung_creator_kanal', equals: true }
-        ] }
-      ]
-    }, { bereich: 'paid_creator_ads', nutzung_markenkanal: true })).toBe(true);
-    expect(evaluateCondition({
-      all: [
-        { field: 'bereich', equals: 'paid_creator_ads' },
-        { any: [
-          { field: 'nutzung_markenkanal', equals: true },
-          { field: 'nutzung_creator_kanal', equals: true }
-        ] }
-      ]
-    }, { bereich: 'paid_creator_ads' })).toBe(false);
-  });
-
-  it('Typ-Felder sitzen in A, C, D und Vertrag, nicht als Extra-Schritt', () => {
-    const namesIn = (stepId) => FLOW_STEPS
-      .find(s => s.id === stepId)
-      .sections
-      .flatMap(s => flattenFields(s.fields).map(f => f.name));
-
-    expect(namesIn('grundlage')).toEqual(expect.arrayContaining([
-      'funnel_stufen', 'paid_objectives', 'content_ziele', 'veroeffentlichungszeitraum',
-      'plattformmechanik', 'freigabeprozess', 'content_deadline', 'go_live'
-    ]));
-    expect(namesIn('aufgabe')).toContain('art_der_integration');
-    expect(namesIn('konzepte')).toEqual(expect.arrayContaining([
-      'ad_channels', 'publish_channels', 'cta', 'ziel_url', 'hook_vorgaben',
-      'unterschiedliche_hooks', 'hooks_anzahl',
-      'trendkontext', 'posting_anforderungen'
-    ]));
-    expect(namesIn('konzepte')).not.toContain('plattformmechanik');
-    expect(namesIn('konzepte')).not.toContain('freigabeprozess');
-    expect(namesIn('casting')).toEqual(expect.arrayContaining([
-      'voraussetzungen', 'voraussetzungen_sonstiges', 'produkt_erfahrung'
-    ]));
-    expect(namesIn('casting')).not.toContain('voraussetzungen_weiter');
-    const castingFields = FLOW_STEPS.find(s => s.id === 'casting').sections[0].fields.map(f => f.name);
-    expect(castingFields.indexOf('produkt_erfahrung')).toBeLessThan(castingFields.indexOf('aussehen'));
-    expect(namesIn('vertrag')).toEqual(expect.arrayContaining([
-      'nutzung_markenkanal', 'nutzung_paid_media', 'verhandlungshinweis'
-    ]));
-    expect(FLOW_STEPS.map(s => s.id)).not.toContain('extras');
-  });
-
-  it('isFieldActive erkennt die zweite Plattform nur bei Misch-Nutzung', () => {
-    expect(isFieldActive('ad_channels', { bereich: 'paid_creator_ads' })).toBe(true);
-    expect(isFieldActive('publish_channels', { bereich: 'paid_creator_ads' })).toBe(false);
-    expect(isFieldActive('publish_channels', {
-      bereich: 'paid_creator_ads',
-      nutzung_markenkanal: true
-    })).toBe(true);
-  });
-
-  it('Influencer-Plattformen enthalten Facebook, Pinterest und Live-Formate, nicht LinkedIn', () => {
-    expect(IM_CHANNELS.map(c => c.key)).toEqual([
-      'instagram', 'tiktok', 'youtube', 'facebook', 'pinterest'
-    ]);
-    expect(IM_CHANNELS.find(c => c.key === 'instagram').formats.map(f => f.value)).toContain('live');
-    expect(IM_CHANNELS.find(c => c.key === 'facebook').formats).toBeNull();
-    expect(IM_CHANNELS.some(c => c.key === 'linkedin')).toBe(false);
-    expect(PAID_CHANNELS.some(c => c.key === 'linkedin')).toBe(false);
-    expect(OWNED_CHANNELS.some(c => c.key === 'linkedin')).toBe(false);
-  });
-
-  it('Deadlines nur bei Paid und Influencer, Hook-Anzahl nur bei Checkbox', () => {
-    expect(isFieldActive('content_deadline', { bereich: 'paid_creator_ads' })).toBe(true);
-    expect(isFieldActive('go_live', { bereich: 'influencer_marketing' })).toBe(true);
-    expect(isFieldActive('content_deadline', { bereich: 'owned_social' })).toBe(false);
-    expect(isFieldActive('unterschiedliche_hooks', { bereich: 'owned_social' })).toBe(true);
-    expect(isFieldActive('hooks_anzahl', { bereich: 'paid_creator_ads' })).toBe(false);
-    expect(isFieldActive('hooks_anzahl', {
-      bereich: 'paid_creator_ads',
-      unterschiedliche_hooks: true
-    })).toBe(true);
-  });
-
-  it('Creator-Größe zeigt Follower-Bänder, Werte bleiben intern', () => {
-    const byValue = Object.fromEntries(CREATOR_GROESSEN_UGC.map(o => [o.value, o.label]));
-    expect(byValue.ugc_creator).toBe('UGC Creator (keine Zahl)');
-    expect(byValue.nano).toBe('Nano (0–10K)');
-    expect(byValue.micro).toBe('Micro (10K–100K)');
-    expect(byValue.mid_tier).toBe('Mid-Tier (100K–500K)');
-    expect(byValue.macro).toBe('Macro (500K–1Mio)');
-    expect(byValue.hero).toBe('Hero (1Mio+)');
-  });
-
-  it('channelGroup nutzt Sonstige Plattformen statt Sonstiges', () => {
-    const groups = FLOW_STEPS.flatMap(s => s.sections)
-      .flatMap(sec => flattenFields(sec.fields))
-      .filter(f => f.type === 'channelGroup');
-    expect(groups.length).toBeGreaterThan(0);
-    expect(groups.every(f => f.customLabel === 'Sonstige Plattformen')).toBe(true);
+  it('liefert null für Unbekanntes und leer', () => {
+    expect(optionWert(plattformen, 'LinkedIn')).toBeNull();
+    expect(optionWert(plattformen, '')).toBeNull();
+    expect(optionWert(null, 'tiktok')).toBeNull();
   });
 });

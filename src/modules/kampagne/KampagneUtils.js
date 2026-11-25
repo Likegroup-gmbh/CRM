@@ -213,54 +213,6 @@ export class KampagneUtils {
     }
   }
 
-  /**
-   * Lädt Kampagnen mit Permission-Filterung
-   * @param {object} options - Query-Optionen
-   * @param {string} options.selectFields - Felder für SELECT (default: *)
-   * @param {string} options.orderBy - Sortierfeld (default: created_at)
-   * @param {boolean} options.ascending - Sortierrichtung (default: false)
-   * @returns {Promise<{data: Array, error: Error|null}>}
-   */
-  static async loadKampagnenWithPermissions(options = {}) {
-    const { 
-      selectFields = '*', 
-      orderBy = 'created_at', 
-      ascending = false 
-    } = options;
-    
-    try {
-      const allowedIds = await this.loadAllowedKampagneIds();
-      
-      let query = window.supabase
-        .from('kampagne')
-        .select(selectFields)
-        .order(orderBy, { ascending });
-      
-      // Nur filtern wenn allowedIds ein Array ist (nicht null)
-      if (allowedIds !== null) {
-        if (allowedIds.length === 0) {
-          return { data: [], error: null };
-        }
-        query = query.in('id', allowedIds);
-      }
-      
-      return await query;
-      
-    } catch (error) {
-      console.error('❌ KampagneUtils.loadKampagnenWithPermissions Fehler:', error);
-      return { data: [], error };
-    }
-  }
-
-  // ========================================
-  // UUID VALIDIERUNG
-  // ========================================
-
-  /**
-   * Validiert ob ein String eine gültige UUID ist
-   * @param {string} str - Zu validierende Zeichenkette
-   * @returns {boolean}
-   */
   static isValidUUID(str) {
     if (!str || typeof str !== 'string') return false;
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -285,100 +237,6 @@ export class KampagneUtils {
     return kampagne?.eigener_name || kampagne?.kampagnenname || 'Unbenannte Kampagne';
   }
 
-  // Formatiere Kampagnen-Art
-  static formatKampagnenArt(art) {
-    if (!art) return '-';
-    
-    if (Array.isArray(art)) {
-      return art.join(', ');
-    }
-    
-    const artMap = {
-      'ugc_paid': 'UGC Paid',
-      'ugc_organic': 'UGC Organic',
-      'influencer': 'Influencer Kampagne',
-      'story': 'Influencer Story',
-      'event': 'Influencer Events',
-      'vor_ort_produktion': 'Vor-Ort-Produktion',
-      'vorort_produktion': 'Vor-Ort-Produktion',
-      'whitelisting': 'Whitelisting',
-      'darkposting': 'Darkposting',
-      // Legacy-Slugs (vor der Zusammenführung 2026-08)
-      'ugc_pro_paid': 'UGC Paid',
-      'ugc_pro_organic': 'UGC Organic',
-      'ugc_video_paid': 'UGC Paid',
-      'ugc_video_organic': 'UGC Organic',
-      'ugc': 'UGC Organic',
-      'igc': 'UGC Organic',
-      'ai': 'AI'
-    };
-    
-    return artMap[art] || art || 'Unbekannt';
-  }
-
-  // Berechne Kampagnen-Fortschritt
-  static calculateProgress(kampagne) {
-    if (!kampagne.start || !kampagne.deadline) {
-      return 0;
-    }
-
-    const start = new Date(kampagne.start);
-    const deadline = new Date(kampagne.deadline);
-    const now = new Date();
-
-    if (now < start) {
-      return 0;
-    }
-
-    if (now > deadline) {
-      return 100;
-    }
-
-    const totalDuration = deadline - start;
-    const elapsed = now - start;
-    
-    return Math.round((elapsed / totalDuration) * 100);
-  }
-
-  // Prüfe ob Kampagne aktiv ist
-  static isKampagneActive(kampagne) {
-    if (!kampagne.start || !kampagne.deadline) {
-      return false;
-    }
-
-    const now = new Date();
-    const start = new Date(kampagne.start);
-    const deadline = new Date(kampagne.deadline);
-
-    return now >= start && now <= deadline;
-  }
-
-  // Prüfe ob Kampagne abgelaufen ist
-  static isKampagneExpired(kampagne) {
-    if (!kampagne.deadline) {
-      return false;
-    }
-
-    const now = new Date();
-    const deadline = new Date(kampagne.deadline);
-
-    return now > deadline;
-  }
-
-  // Berechne verbleibende Tage
-  static getRemainingDays(kampagne) {
-    if (!kampagne.deadline) {
-      return null;
-    }
-
-    const now = new Date();
-    const deadline = new Date(kampagne.deadline);
-    const diffTime = deadline - now;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    return diffDays;
-  }
-
   static formatCurrency(value) {
     if (value === null || value === undefined || value === '') return '-';
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value);
@@ -398,11 +256,6 @@ export class KampagneUtils {
     return new Date(date).toLocaleDateString('de-DE');
   }
 
-  static formatDateFull(dateStr) {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  }
-
   static formatDateTime(date) {
     if (!date) return '-';
     return new Date(date).toLocaleString('de-DE');
@@ -419,53 +272,6 @@ export class KampagneUtils {
     return Math.min(100, Math.round((current / total) * 100));
   }
 
-  // Validiere Kampagnen-Daten
-  static validateKampagneData(data) {
-    const errors = {};
-
-    // Pflichtfelder prüfen
-    if (!data.kampagnenname || data.kampagnenname.trim() === '') {
-      errors.kampagnenname = 'Kampagnenname ist erforderlich';
-    }
-
-    if (!data.unternehmen_id) {
-      errors.unternehmen_id = 'Unternehmen ist erforderlich';
-    }
-
-    if (!data.start) {
-      errors.start = 'Startdatum ist erforderlich';
-    }
-
-    if (!data.deadline) {
-      errors.deadline = 'Deadline ist erforderlich';
-    }
-
-    // Datum-Logik prüfen
-    if (data.start && data.deadline) {
-      const start = new Date(data.start);
-      const deadline = new Date(data.deadline);
-
-      if (start >= deadline) {
-        errors.deadline = 'Deadline muss nach dem Startdatum liegen';
-      }
-    }
-
-    // Zahlen validieren
-    if (data.creatoranzahl && (isNaN(data.creatoranzahl) || data.creatoranzahl < 0)) {
-      errors.creatoranzahl = 'Creator Anzahl muss eine positive Zahl sein';
-    }
-
-    if (data.videoanzahl && (isNaN(data.videoanzahl) || data.videoanzahl < 0)) {
-      errors.videoanzahl = 'Video Anzahl muss eine positive Zahl sein';
-    }
-
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    };
-  }
-
-  // Berechne Gesamt-Videoanzahl einer Kampagne (nur neue Subfield-Spalten)
   static getKampagneTotalVideosSimple(k) {
     const subfieldsSum =
       (parseInt(k.ugc_paid_video_anzahl, 10) || 0) +
@@ -492,113 +298,6 @@ export class KampagneUtils {
     return newSum || legacySum || (k.videoanzahl ?? 0);
   }
 
-  // Erstelle Kampagnen-Summary
-  static createKampagneSummary(kampagne) {
-    const progress = this.calculateProgress(kampagne);
-    const isActive = this.isKampagneActive(kampagne);
-    const remainingDays = this.getRemainingDays(kampagne);
-
-    return {
-      id: kampagne.id,
-      name: kampagne.kampagnenname,
-      status: kampagne.status,
-      progress,
-      isActive,
-      remainingDays,
-      creatorCount: kampagne.creatoranzahl || 0,
-      videoCount: kampagne.videoanzahl || 0,
-      start: this.formatDate(kampagne.start),
-      deadline: this.formatDate(kampagne.deadline)
-    };
-  }
-
-  // Erstelle Kampagnen-Filter-Optionen
-  static getFilterOptions() {
-    return {
-      status: [
-        { value: 'active', label: 'Aktiv' },
-        { value: 'inactive', label: 'Inaktiv' },
-        { value: 'completed', label: 'Abgeschlossen' },
-        { value: 'cancelled', label: 'Storniert' },
-        { value: 'draft', label: 'Entwurf' },
-        { value: 'pending', label: 'Ausstehend' }
-      ],
-      art_der_kampagne: [
-        { value: 'UGC Paid', label: 'UGC Paid' },
-        { value: 'UGC Organic', label: 'UGC Organic' },
-        { value: 'Influencer Kampagne', label: 'Influencer Kampagne' },
-        { value: 'Influencer Story', label: 'Influencer Story' },
-        { value: 'Vor-Ort-Produktion', label: 'Vor-Ort-Produktion' },
-        { value: 'Whitelisting', label: 'Whitelisting' },
-        { value: 'Darkposting', label: 'Darkposting' }
-      ]
-    };
-  }
-
-  // Erstelle Kampagnen-Export-Daten
-  static createExportData(kampagnen) {
-    return kampagnen.map(kampagne => ({
-      'Kampagnenname': this.getDisplayName(kampagne),
-      'Status': kampagne.status || '-',
-      'Art der Kampagne': this.formatKampagnenArt(kampagne.art_der_kampagne),
-      'Start': this.formatDate(kampagne.start),
-      'Deadline': this.formatDate(kampagne.deadline),
-      'Creator Anzahl': kampagne.creatoranzahl || 0,
-      'Video Anzahl': kampagne.videoanzahl || 0,
-      'Drehort': kampagne.drehort || '-',
-      'Ziele': kampagne.ziele || '-',
-      'Budget Info': kampagne.budget_info || '-',
-      'Unternehmen': kampagne.unternehmen?.firmenname || 'Unbekannt',
-      'Marke': kampagne.marke?.markenname || 'Unbekannt',
-      'Auftrag': kampagne.auftrag?.auftragsname || 'Unbekannt',
-      'Erstellt am': this.formatDateTime(kampagne.created_at),
-      'Aktualisiert am': this.formatDateTime(kampagne.updated_at)
-    }));
-  }
-
-  // Erstelle Kampagnen-Statistiken
-  static createKampagneStats(kampagnen) {
-    const stats = {
-      total: kampagnen.length,
-      active: 0,
-      completed: 0,
-      cancelled: 0,
-      draft: 0,
-      totalCreators: 0,
-      totalVideos: 0,
-      totalBudget: 0
-    };
-
-    kampagnen.forEach(kampagne => {
-      // Status zählen
-      switch (kampagne.status) {
-        case 'active':
-          stats.active++;
-          break;
-        case 'completed':
-          stats.completed++;
-          break;
-        case 'cancelled':
-          stats.cancelled++;
-          break;
-        case 'draft':
-          stats.draft++;
-          break;
-      }
-
-      // Summen berechnen
-      stats.totalCreators += kampagne.creatoranzahl || 0;
-      stats.totalVideos += kampagne.videoanzahl || 0;
-      
-      // Budget summieren (falls verfügbar)
-      if (kampagne.budget_info) {
-        // Hier könnte eine Logik zur Extraktion des Budgets implementiert werden
-        // stats.totalBudget += extractedBudget;
-      }
-    });
-
-    return stats;
-  }
 }
 
 // Exportiere Instanz für globale Nutzung

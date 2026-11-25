@@ -2,6 +2,9 @@
 // Kunden-Portal: Kooperation-Detail (Uploads read-only)
 
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { mitAblage } from '../../core/ablage/ablageLink.js';
+import { istSharePointUrl } from '../../core/ablage/dokumentAblage.js';
+import { ablageLinkKlick, dateiLinkHtml, ordnerLinkHtml } from '../../core/ablage/ablageOrdnerLink.js';
 
 export class KundenKooperationDetail {
   _abortController = null;
@@ -42,7 +45,7 @@ export class KundenKooperationDetail {
         const videoIds = this.videos.map(v => v.id);
         const { data: assets } = await window.supabase
           .from('kooperation_video_asset')
-          .select('id, video_id, file_url, file_path, version_number, variant_name, is_current, description, created_at')
+          .select(mitAblage('id, video_id, file_url, file_path, version_number, variant_name, is_current, description, created_at', 'ablage, etag'))
           .in('video_id', videoIds)
           .order('version_number', { ascending: false });
         
@@ -116,12 +119,11 @@ export class KundenKooperationDetail {
 
     let contentHtml = '';
     if (video.folder_url) {
-      contentHtml = `<a href="${video.folder_url}" target="_blank" rel="noopener" class="link-btn">Ordner öffnen</a>`;
+      contentHtml = ordnerLinkHtml({ url: video.folder_url, kooperationId: this.koopId, inhalt: 'Ordner öffnen', klasse: 'link-btn' });
     } else if (hasAnyLinks) {
       contentHtml = currentAssets.map(a => {
-        if (!a.file_url) return '';
         const label = a.description || a.variant_name || `Version ${a.version_number || 1}`;
-        return `<a href="${a.file_url}" target="_blank" rel="noopener" class="link-btn kunden-koop-link-btn">${safe(label)}</a>`;
+        return dateiLinkHtml({ asset: a, typ: 'video', inhalt: safe(label), klasse: 'link-btn kunden-koop-link-btn' });
       }).join('');
     } else {
       contentHtml = renderEmptyState({ icon: 'folder', title: 'Kein Content hinterlegt' });
@@ -136,9 +138,12 @@ export class KundenKooperationDetail {
         </div>
         
         ${contentHtml}
-        ${video.story_folder_url
-          ? `<a href="${video.story_folder_url}" target="_blank" rel="noopener" class="link-btn">Storys-Ordner öffnen</a>`
-          : ''}
+        ${ordnerLinkHtml({
+          url: video.story_folder_url,
+          kooperationId: this.koopId,
+          inhalt: istSharePointUrl(video.story_folder_url) ? 'Ordner mit Storys öffnen' : 'Storys-Ordner öffnen',
+          klasse: 'link-btn',
+        })}
       </div>
     `;
   }
@@ -154,6 +159,7 @@ export class KundenKooperationDetail {
         window.history.back();
         return;
       }
+      if (ablageLinkKlick(e)) return;
       const dl = e.target.closest('[data-action="download"]');
       if (dl) {
         e.preventDefault();

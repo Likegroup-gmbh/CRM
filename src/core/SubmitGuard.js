@@ -1,6 +1,8 @@
 // SubmitGuard.js
 // Globaler Schutz gegen Doppelklicks auf Submit-Buttons + einheitliche Navigation
 
+import { isFormRoute, navigateBack } from './breadcrumbTrail.js';
+
 class SubmitGuard {
   constructor() {
     this.TIMEOUT_MS = 30000; // 30s Fallback
@@ -16,7 +18,7 @@ class SubmitGuard {
     this._onButtonClick = this.handleButtonClick.bind(this);
     document.addEventListener('click', this._onButtonClick, true);
     
-    // Globale Navigation bei erfolgreichem Erstellen (NUR für Seiten, nicht Modals/Drawers)
+    // Rücksprung nach Speichern (nur Seitenformulare, siehe handleEntityCreated)
     window.addEventListener('entityUpdated', this.handleEntityCreated.bind(this));
     window.addEventListener('entityCreated', this.handleEntityCreated.bind(this));
     
@@ -66,36 +68,17 @@ class SubmitGuard {
     }
   }
 
-  // Bei erfolgreichem Erstellen zur Listenseite navigieren
+  // Nach Speichern eines Seitenformulars zurück zur Herkunft.
+  // Opt-in über detail.redirect: entityUpdated feuert auch bei Inline-Edits,
+  // Wizard-Schritten und Drawern, die nicht wegnavigieren dürfen.
   handleEntityCreated(e) {
-    const { entity, action, skipListRedirect } = e.detail || {};
-    
-    // Nur bei 'created' Action
-    if (action !== 'created') return;
-    if (skipListRedirect) return;
-    
-    // Prüfen ob das Formular in einem Modal/Drawer ist
-    // Wenn ja, NICHT zur Liste navigieren (Modal/Drawer schließt sich selbst)
-    const activeForm = document.querySelector('form[data-entity]');
-    if (activeForm) {
-      const isInModal = activeForm.closest('.modal-overlay, .modal-content');
-      const isInDrawer = activeForm.closest('.drawer, [class*="drawer"], [class*="Drawer"]');
-      
-      if (isInModal || isInDrawer) {
-        console.log('📍 SubmitGuard: Formular in Modal/Drawer - keine Navigation');
-        return;
-      }
-    }
-    
-    // Zur Listenseite navigieren
-    if (entity && window.navigateTo) {
-      console.log(`📍 SubmitGuard: Navigiere zu /${entity}`);
-      
-      // Kurze Verzögerung für Success-Animation
-      setTimeout(() => {
-        window.navigateTo(`/${entity}`);
-      }, 300);
-    }
+    const { entity, id, action, redirect } = e.detail || {};
+    if (!redirect || !entity) return;
+    if (action !== 'created' && action !== 'updated') return;
+    if (!isFormRoute(window.location.pathname)) return;
+
+    const fallback = action === 'updated' && id ? `/${entity}/${id}` : `/${entity}`;
+    setTimeout(() => navigateBack(fallback), 300);
   }
 
   // Prüfen ob Button gesperrt ist

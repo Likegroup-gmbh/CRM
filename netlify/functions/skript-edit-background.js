@@ -1,19 +1,26 @@
 // Netlify Background Function: Skript-Editor (Chat-basierte Ueberarbeitung)
 // Die pending Assistant-Message in skript_chat_messages IST der Job:
 //   pending -> running -> vorschlag (mit vorschlag_text) | fertig (nur Antwort) | error
-// Modellwahl: alle Schreib-Aktionen (Neu schreiben / Kuerzen / Laenger /
-// Anderer Ton) -> edit_write (Opus mit Extended Thinking),
-// freier Chat / Rueckfragen -> edit_fast (Haiku).
+// Modellwahl: nur neue_geschichte auf edit_write mit Thinking.
+// Alles andere edit_fast, ohne Thinking. Rueckfragen laufen woanders.
 // Kontext + Prompt-Bau: _shared/skript-edit-prompt.js
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
-const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
-const { setThinking } = require('./_shared/thinking');
 const {
-  loadEditContext, buildEditPrompt, stripToolXml, letzterZeitstempel, formatZeitstempel,
-  ladeVisuellStil, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX
+  beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen,
+  schreibeNachricht, markiereNachrichtFehler, sichereNachrichtAbgeschlossen
+} = require('./_shared/skript-auftrag');
+const { setThinking } = require('./_shared/thinking');
+const { istMasterDokument } = require('./_shared/skript-creator-facing');
+const { logPrompt } = require('./_shared/prompt-log');
+const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
+const { visuellOhneZeitmarker, pruefeSkript, pruefHinweis, neueBefunde, hookVorgabeText } = require('./_shared/skript-context/formatter');
+const { filtereHookSperre, trifftGesprochenenHook, hookLagImAuftrag, mitHookHinweis } = require('./_shared/hook-sperre');
+const {
+  loadEditContext, buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel, formatZeitstempel,
+  ladeVisuellStil, brauchtVisualStil, resolveModusSlug, editParams, filtereFestgezogen, GRID_SEKTIONEN
 } = require('./_shared/skript-edit-prompt');
 
 // Tool-Call fuer strukturierte Antworten. Bei Schreib-Aktionen laeuft
@@ -25,13 +32,75 @@ const EDIT_TOOL = {
   input_schema: {
     type: 'object',
     properties: {
-      antwort: { type: 'string', description: 'Kurze Erklaerung fuer den User (1-3 Saetze, Deutsch)' },
-      sektion: { type: ['string', 'null'], description: 'Betroffene Sektion (hook/hauptteil/cta oder ##-Slug) oder null' },
-      vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null' }
+      antwort: { type: 'string', description: 'Kurze Erklaerung fuer den User (1-3 Saetze, Deutsch): Basis, Aenderung, jede Abweichung vom Kontext mit „Abweichung: …“' },
+      sektion: { type: ['string', 'null'], description: 'Betroffene Sektion (hook/hauptteil/cta/titel oder ##-Slug) oder null' },
+      vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null. Bei sektion=titel der neue Skript-Titel.' },
+      titel: { type: ['string', 'null'], description: 'Neuer Skript-Titel, nur wenn der Titel sich aendern soll. Sonst null.' },
+      festlegung: { type: ['string', 'null'], description: 'Dauerhafte Vorgabe aus der Anweisung, sonst null. Nicht der vorgeschlagene Wortlaut.' },
+      festlegungen: {
+        type: ['array', 'null'],
+        description: 'Mehrere dauerhafte Vorgaben aus der Anweisung (z. B. Besetzung und Ort), je ein kurzer Satz. Sonst null.',
+        items: { type: 'string' }
+      },
+      spalte: {
+        type: ['string', 'null'],
+        description: 'Nur freier Chat: gesprochen, visuell oder null. Welche Spalte vorschlag_text ersetzt.'
+      },
+      ganze_sektion: {
+        type: 'boolean',
+        description: 'Nur freier Chat: true = vorschlag_text ersetzt die ganze Zelle der Sektion, nicht nur die markierte Stelle.'
+      },
+      umfang: {
+        type: ['string', 'null'],
+        enum: ['alles', 'teil', 'markierung', 'keiner', null],
+        description: 'Nur freier Chat: Umfang der Anweisung. alles, teil (benannte Sektion), markierung (nur markierte Stelle) oder keiner.'
+      },
+      umfang_sektion: {
+        type: ['string', 'null'],
+        description: 'Nur bei umfang=teil: hook, hauptteil oder cta. Sonst null.'
+      },
+      aenderungen: {
+        type: ['array', 'null'],
+        description: 'Nur freier Chat bei Umfang alles oder benannter Teil: ein Eintrag pro geaenderter Zelle.',
+        items: {
+          type: 'object',
+          properties: {
+            sektion: { type: 'string', description: 'hook, hauptteil, cta, hook_variante_1..3 oder titel' },
+            spalte: { type: 'string', description: 'gesprochen oder visuell' },
+            vorschlag_text: { type: 'string', description: 'Komplette neue Zelle' }
+          },
+          required: ['sektion', 'spalte', 'vorschlag_text']
+        }
+      }
     },
     required: ['antwort', 'sektion', 'vorschlag_text']
   }
 };
+
+const GESPROCHEN = ['hook', 'hauptteil', 'cta'];
+
+/**
+ * Gesprochener Stand nach dem Vorschlag (wie beim Annehmen): markierte Stelle
+ * ersetzt, sonst die ganze Zelle. null, wenn der Vorschlag keinen gesprochenen
+ * Text aendert.
+ */
+function gesprochenerEntwurf(skript, { sektion, vorschlag, ist_visuell, selektion_text, aenderungen }) {
+  const felder = { hook: skript.hook, hauptteil: skript.hauptteil, cta: skript.cta };
+  let geaendert = false;
+  for (const a of aenderungen || []) {
+    if (a.spalte !== 'gesprochen' || !GESPROCHEN.includes(a.sektion)) continue;
+    felder[a.sektion] = a.vorschlag_text;
+    geaendert = true;
+  }
+  if (vorschlag && !ist_visuell && GESPROCHEN.includes(sektion)) {
+    const alt = felder[sektion] || '';
+    felder[sektion] = selektion_text && alt.includes(selektion_text)
+      ? alt.replace(selektion_text, vorschlag)
+      : vorschlag;
+    geaendert = true;
+  }
+  return geaendert ? felder : null;
+}
 
 // ---------------------------------------------------------------------------
 // Handler
@@ -40,13 +109,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   const { messageId } = payload;
   if (!messageId) return { statusCode: 400, body: 'messageId fehlt' };
 
-  const fail = async (msg) => {
-    await supabase.from('skript_chat_messages')
-      .update({ status: 'error', error_message: msg })
-      .eq('id', messageId);
-  };
+  // Fehler-Update mit Pruefung/Retry; ueberschreibt weder Abbruch noch fertiges Ergebnis
+  const fail = (msg) => markiereNachrichtFehler(supabase, messageId, msg);
 
   let ki = null;
+  let geclaimt = false;
 
   try {
     const { data: message } = await supabase.from('skript_chat_messages')
@@ -65,47 +132,60 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     // null und no-opt, statt Claude zweimal auf dieselbe Message zu rufen
     const claimed = await beansprucheNachricht(supabase, messageId);
     if (!claimed) return { statusCode: 409, body: 'Message bereits claimed oder beendet' };
+    geclaimt = true;
+    console.log(`[skript-edit ${messageId}] geclaimt (${message.aktion}/${message.sektion})`);
 
     // Frequenz-Limit pruefen + Protokoll-Zeile anlegen (Fehlermeldung
     // landet ueber den catch als error_message in der Chat-Message)
     ki = await starteKiRequest(supabase, { userId: user.id, feature: 'skript_editor' });
 
     const ctx = await loadEditContext(supabase, message);
-    if (ctx.masterVersionen?.length) {
+    if (message.aktion === 'neue_geschichte') {
+      const pk = ctx.skript.prompt_kontext || {};
+      const video = pk.referenz_video || pk.generator_payload?.referenz_video;
+      if (!pk.referenz_karte && video) {
+        const karte = await karteAusReferenz(video);
+        if (karte) {
+          ctx.skript.prompt_kontext = { ...pk, referenz_karte: karte };
+          await supabase.from('skripte').update({
+            prompt_kontext: ctx.skript.prompt_kontext
+          }).eq('id', ctx.skript.id);
+        }
+      }
+    }
+    if (ctx.kontext.masterVersionen?.length) {
       const bestehend = ctx.skript.prompt_kontext || {};
       await supabase.from('skripte').update({
         prompt_kontext: {
           ...bestehend,
-          master_versionen: ctx.masterVersionen,
-          bereich: ctx.skript.bereich || bestehend.bereich || null
+          master_versionen: ctx.kontext.masterVersionen,
+          bereich: ctx.skript.bereich || ctx.kontext.bereich || bestehend.bereich || null
         }
       }).eq('id', ctx.skript.id);
     }
-    const { stable, task } = buildEditPrompt(ctx, message);
+    const { stable, task, messages } = buildEditPrompt(ctx, message);
+    logPrompt({ job: 'skript_editor', id: message.skript_id, aktion: message.aktion, stable, task, messages });
 
     // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
     if (await istNachrichtAbgebrochen(supabase, messageId)) {
       return { statusCode: 200 };
     }
 
-    // Modellwahl: Schreiben immer mit dem starken Modell + Extended Thinking,
-    // nur freier Chat (Fragen/Rueckfragen) mit dem guenstigen
-    const istSchreibAktion = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback', 'visuell'].includes(message.aktion);
+    const stark = message.aktion === 'neue_geschichte';
 
     await setThinking(supabase, 'skript_chat_messages', messageId, {
       step: 'schreiben',
-      label: istSchreibAktion ? 'Ich formuliere den Vorschlag…' : 'Ich formuliere die Antwort…'
+      label: 'Ich formuliere den Vorschlag…'
     });
 
     const result = await callClaude({
-      model: istSchreibAktion ? MODELS.edit_write : MODELS.edit_fast,
+      model: stark ? MODELS.edit_write : MODELS.edit_fast,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      // Schreib-Aktionen brauchen Luft: max_tokens umfasst auch die
-      // Thinking-Tokens - 2048 wuerde bei langem Hauptteil truncaten
-      maxTokens: istSchreibAktion ? 8192 : 2048,
-      thinking: istSchreibAktion,
-      thinkingBudget: 2048,
+      messages,
+      maxTokens: stark ? 16384 : 4096,
+      thinking: stark,
+      thinkingBudget: stark ? 2048 : undefined,
       tool: EDIT_TOOL,
       // Konservativ: ein haengender Claude-Call soll nicht bis zum
       // Netlify-Limit blockieren, sondern als Chat-Fehler sichtbar werden
@@ -118,45 +198,170 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       return { statusCode: 200 };
     }
 
-    const parsed = result.json || extractJson(result.text, { keys: ['antwort', 'sektion', 'vorschlag_text'] });
-    const vorschlag = stripToolXml(parsed.vorschlag_text);
+    const parsed = result.json || extractJson(result.text, {
+      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion', 'titel', 'festlegung', 'festlegungen', 'umfang', 'umfang_sektion', 'aenderungen']
+    });
+    let vorschlag = stripToolXml(parsed.vorschlag_text);
     const antwort = stripToolXml(parsed.antwort);
-    const istMaster = Boolean(ctx.skript?.inhalt_md);
+    const istMaster = istMasterDokument(ctx.skript);
     const parsedSektion = (parsed.sektion || '').trim() || null;
-    const sektion = istMaster
+    const titelWunsch = stripToolXml(parsed.titel);
+    let sektion = istMaster
       ? (parsedSektion || message.sektion)
-      : (['hook', 'hauptteil', 'cta'].includes(parsedSektion) ? parsedSektion : message.sektion);
+      : (GRID_SEKTIONEN.includes(parsedSektion) || parsedSektion === 'titel'
+        ? parsedSektion
+        : message.sektion);
+    if (titelWunsch && (sektion === 'titel' || !vorschlag)) {
+      vorschlag = titelWunsch;
+      sektion = 'titel';
+    }
+    const spalte = mapEditResult(message, parsed);
+    const gezogen = Array.isArray(ctx.skript.festgezogen) ? ctx.skript.festgezogen : [];
+    const getroffen = sektion === 'titel'
+      ? 'titel'
+      : (spalte.ist_visuell ? `${sektion}_visuell` : sektion);
+    const ziel = message.ist_visuell || message.aktion === 'visuell'
+      ? `${message.sektion}_visuell`
+      : message.sektion;
+    // Umfang vom Modell: alles oder der benannte Teil oeffnet Festgezogen
+    const umfang = message.aktion === 'chat' ? (parsed.umfang || null) : null;
+    const umfangSektion = String(parsed.umfang_sektion || '').trim().toLowerCase();
+    const umfangOeffnet = umfang === 'alles' || (umfang === 'teil' && sektion === umfangSektion);
+    if (gezogen.includes(getroffen) && getroffen !== ziel && !umfangOeffnet) vorschlag = null;
+
+    // Hook-Sperre (ADR 0054): der gesprochene Hook bleibt in jedem Auftrag, auch bei Umfang alles.
+    // Master-Dokumente haben keinen Grid-Hook.
+    const hookGesperrt = istMaster ? null : ctx.gesperrterHook;
+    let hookBetroffen = false;
+    if (hookGesperrt) {
+      hookBetroffen = hookLagImAuftrag({ message, umfang, umfangSektion });
+      // Der Visual-Button (aktion visuell) schreibt immer die Spalte „Was zu sehen ist“
+      if (vorschlag && trifftGesprochenenHook({
+        sektion,
+        ist_visuell: spalte.ist_visuell || message.aktion === 'visuell'
+      })) {
+        vorschlag = null;
+        hookBetroffen = true;
+      }
+    }
+    if (spalte.ist_visuell && vorschlag && !spalte.selektion_text && ['hook', 'hauptteil', 'cta'].includes(sektion)) {
+      vorschlag = visuellOhneZeitmarker(vorschlag) || vorschlag;
+    }
+
+    // Freier Chat mit Umfang: Liste der geaenderten Zellen. Jede wird wie
+    // eine einzelne Zelle geprueft.
+    const aenderungenRoh = (message.aktion === 'chat' && Array.isArray(parsed.aenderungen))
+      ? parsed.aenderungen
+          .filter((a) => a && typeof a === 'object')
+          .map((a) => ({
+            sektion: String(a.sektion || '').trim(),
+            spalte: a.spalte === 'visuell' ? 'visuell' : 'gesprochen',
+            vorschlag_text: stripToolXml(a.vorschlag_text)
+          }))
+          .filter((a) => a.vorschlag_text && (GRID_SEKTIONEN.includes(a.sektion) || a.sektion === 'titel'))
+      : null;
+    // Festgezogene Zellen ausserhalb des Umfangs verwirft der Server
+    let ausgelassen = 0;
+    let aenderungen = aenderungenRoh;
+    if (aenderungenRoh) {
+      const ohneHook = filtereHookSperre(aenderungenRoh, hookGesperrt);
+      if (ohneHook.verworfen.length) hookBetroffen = true;
+      const gefiltert = filtereFestgezogen(ohneHook.behalten, gezogen, { umfang, umfang_sektion: umfangSektion });
+      aenderungen = gefiltert.behalten;
+      ausgelassen = gefiltert.verworfen.length;
+    }
+    if (aenderungen && aenderungen.length) {
+      for (const a of aenderungen) {
+        if (a.spalte === 'visuell' && ['hook', 'hauptteil', 'cta'].includes(a.sektion)) {
+          a.vorschlag_text = visuellOhneZeitmarker(a.vorschlag_text) || a.vorschlag_text;
+        }
+      }
+      vorschlag = null;
+      sektion = null;
+    }
+
+    const festlegungTexte = [
+      stripToolXml(parsed.festlegung),
+      ...(Array.isArray(parsed.festlegungen) ? parsed.festlegungen.map(stripToolXml) : [])
+    ].filter(Boolean);
+    if (festlegungTexte.length) {
+      const liste = Array.isArray(ctx.skript.festlegungen) ? ctx.skript.festlegungen.slice() : [];
+      let neu = false;
+      for (const text of festlegungTexte) {
+        if (liste.some((f) => (typeof f === 'string' ? f : f?.text) === text)) continue;
+        liste.push({ text, quelle: 'anweisung' });
+        neu = true;
+      }
+      if (neu) await supabase.from('skripte').update({ festlegungen: liste }).eq('id', ctx.skript.id);
+    }
+    // Pruefung nach jedem Edit (ADR 0035/0056): nur markieren, nichts umschreiben
+    const pruefOpts = {
+      video_laenge: ctx.skript.video_laenge,
+      verbotene_claims: ctx.kontext?.produkt?.verbotene_claims,
+      hook_vorgaben: hookVorgabeText(ctx.kontext?.briefing)
+    };
+    const entwurf = gesprochenerEntwurf(ctx.skript, {
+      sektion, vorschlag, ist_visuell: spalte.ist_visuell, selektion_text: spalte.selektion_text, aenderungen
+    });
+    const pruefHinweisText = entwurf
+      ? pruefHinweis(neueBefunde(pruefeSkript(ctx.skript, pruefOpts), pruefeSkript(entwurf, pruefOpts)))
+      : '';
+    if (message.aktion === 'neue_geschichte' && entwurf) {
+      await supabase.from('skripte').update({ pruefung: pruefeSkript(entwurf, pruefOpts) }).eq('id', ctx.skript.id);
+    }
 
     await setThinking(supabase, 'skript_chat_messages', messageId, {
       step: 'speichern',
       label: 'Ich speichere die Antwort…'
     });
 
-    await supabase.from('skript_chat_messages').update({
-      // Vorschlag ohne konkrete Sektion kann nicht angewendet werden -> nur Antwort
-      status: vorschlag && sektion && sektion !== 'gesamt' ? 'vorschlag' : 'fertig',
-      inhalt: antwort,
+    // Hook-Sperre: der Mitarbeiter erfaehrt immer, dass der gesprochene Hook geblieben ist
+    const antwortMitHinweis = [
+      mitHookHinweis(antwort, hookBetroffen),
+      pruefHinweisText ? `Prüfung: ${pruefHinweisText}` : null
+    ].filter(Boolean).join('\n\n') || null;
+
+    // Nur schreiben, solange die Message noch running ist: ein Abbruch waehrend
+    // der Nachbearbeitung gewinnt. Fehler werfen (-> catch -> error), statt still zu verpuffen.
+    console.log(`[skript-edit ${messageId}] schreibe Ergebnis`);
+    const geschrieben = await schreibeNachricht(supabase, messageId, {
+      status: (aenderungen && aenderungen.length) || (vorschlag && sektion && sektion !== 'gesamt') ? 'vorschlag' : 'fertig',
+      inhalt: ausgelassen
+        ? [antwortMitHinweis, `${ausgelassen} festgezogene ${ausgelassen === 1 ? 'Zelle' : 'Zellen'} ausgelassen (nicht im Umfang).`].filter(Boolean).join(' ')
+        : antwortMitHinweis,
       vorschlag_text: vorschlag,
-      sektion: sektion || message.sektion,
+      // Nur mitschicken, wenn es Zellen gibt: Einzel-Edits haengen so nicht an der Spalte (Deploy vor Migration)
+      ...(aenderungen && aenderungen.length ? { aenderungen } : {}),
+      sektion: (aenderungen && aenderungen.length) ? 'gesamt' : (sektion || message.sektion),
+      ist_visuell: sektion === 'titel' ? false : spalte.ist_visuell,
+      selektion_text: sektion === 'titel' ? null : spalte.selektion_text,
       model: result.model,
       usage: result.usage
-    }).eq('id', messageId);
+    }, { nurWennStatus: 'running' });
+    console.log(`[skript-edit ${messageId}] Ergebnis ${geschrieben ? 'geschrieben' : 'verworfen (Message nicht mehr running)'}`);
 
     return { statusCode: 200 };
   } catch (error) {
     console.error(`[skript-edit ${messageId}] Fehler:`, error.message);
     if (ki) await ki.fehlgeschlagen(error);
-    try { await fail(error.message); } catch (_) { /* noop */ }
+    try { await fail(error.message); } catch (err) {
+      console.error(`[skript-edit ${messageId}] Fehlerstatus nicht gesetzt:`, err.message);
+    }
     return { statusCode: 500 };
+  } finally {
+    // Sicherheitsnetz: keine geclaimte Message bleibt auf running haengen
+    if (geclaimt) await sichereNachrichtAbgeschlossen(supabase, messageId);
   }
 });
 
 // Re-Exports fuer die Tests (SkriptEditPrompt.test.js importiert von hier)
 exports.buildEditPrompt = buildEditPrompt;
+exports.mapEditResult = mapEditResult;
 exports.stripToolXml = stripToolXml;
 exports.letzterZeitstempel = letzterZeitstempel;
 exports.formatZeitstempel = formatZeitstempel;
 exports.ladeVisuellStil = ladeVisuellStil;
 exports.brauchtVisualStil = brauchtVisualStil;
 exports.resolveModusSlug = resolveModusSlug;
-exports.EDIT_BRIEFING_MAX = EDIT_BRIEFING_MAX;
+exports.editParams = editParams;
+exports.gesprochenerEntwurf = gesprochenerEntwurf;

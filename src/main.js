@@ -1,27 +1,39 @@
 // Performance Monitor – muss erster Import sein (self-initialising side-effect)
-import './core/PerformanceMonitor.js';
+import { navMark, tracedFetch } from './core/dev/navTrace.js';
 
 // Dev-Mode Listener Monitor (muss vor allen anderen addEventListener-Aufrufen laufen)
 import { initListenerMonitor } from './core/dev/ListenerMonitor.js';
 initListenerMonitor();
 
 import { initVersionCheck } from './core/VersionCheck.js';
+import { bindCpmRechner } from './modules/creator/CpmRechner.js';
 initVersionCheck();
+import { initChannelBadge } from './core/parallelbetrieb/ChannelBadge.js';
+initChannelBadge();
 
 // CSS Imports - müssen für Vite-Build hier sein
+import '../assets/styles/fonts.css';
 import '../assets/styles/variables.css';
 import '../assets/styles/base.css';
 import '../assets/styles/layout.css';
 import '../assets/styles/buttons.css';
 import '../assets/styles/forms.css';
+import '../assets/styles/briefing-formular.css';
 import '../assets/styles/dropdowns.css';
 import '../assets/styles/badges-tags.css';
+import '../assets/styles/tag-frist.css';
 import '../assets/styles/tables.css';
 import '../assets/styles/cards.css';
+import '../assets/styles/creator-card.css';
+import '../assets/styles/filter-column.css';
+import '../assets/styles/creator-filter-column.css';
+import '../assets/styles/filter-select.css';
 import '../assets/styles/modals-drawers.css';
 import '../assets/styles/domain-video.css';
 import '../assets/styles/domain-feedback.css';
 import '../assets/styles/domain-profile.css';
+import '../assets/styles/betreuung.css';
+import '../assets/styles/profile-secondary-nav.css';
 import '../assets/styles/domain-calendar.css';
 import '../assets/styles/domain-queue.css';
 import '../assets/styles/domain-projekt.css';
@@ -31,30 +43,56 @@ import '../assets/styles/global-search.css';
 import '../assets/styles/dashboard.css';
 import '../assets/styles/addresses.css';
 import '../assets/styles/tabellen.css';
+import '../assets/styles/kampagne-tabellen.css';
+import '../assets/styles/tabelle-identitaet.css';
+import '../assets/styles/segment-switch.css';
 import '../assets/styles/toast.css';
 import '../assets/styles/version-check.css';
 import '../assets/styles/share.css';
+import '../assets/styles/share-recipient.css';
+import '../assets/styles/einladung.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/admin.css';
+import '../assets/styles/pdf-vorlagen.css';
+import '../assets/styles/ablage-ordner-link.css';
 import '../assets/styles/skripte.css';
 import '../assets/styles/chat-thinking.css';
 import '../assets/styles/chat-panel.css';
+import '../assets/styles/chat-inline-question.css';
 import '../assets/styles/doc.css';
 import '../assets/styles/produkt-doc.css';
+import '../assets/styles/video-browser.css';
+import '../assets/styles/video-browser-kommentare.css';
+import '../assets/styles/video-browser-kalender.css';
+import '../assets/styles/video-browser-vollansicht.css';
+import '../assets/styles/video-browser-vollansicht-details.css';
+import '../assets/styles/video-browser-ausstehend.css';
+import '../assets/styles/video-browser-showcase-gruppen.css';
+import '../assets/styles/video-browser-suche.css';
+import '../assets/styles/auswertung.css';
+import '../assets/styles/auswertung-erfassen.css';
+import '../assets/styles/auswertung-pruefung.css';
+import '../assets/styles/auswertung-blatt.css';
 import '../assets/styles/notiz-dokument.css';
+import '../assets/styles/auftrag-notiz.css';
 import '../assets/styles/regelwerk-dokument.css';
 import '../assets/styles/briefing-doc.css';
 import '../assets/styles/anschreiben.css';
 import '../assets/styles/utilities.css';
 import '../assets/styles/icons.css';
+import '../assets/styles/motion.css';
 import '../assets/styles/floating-menu.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
 import { toastSystem } from './core/ToastSystem.js';
+import { initDrawerMotion } from './core/animation/drawer.js';
+import { initTabSlider } from './core/animation/tabSlider.js';
+import { initViewToggleSlider } from './core/animation/viewToggleSlider.js';
 import { installDocumentLinkInterceptor } from './core/DocumentUrlHelper.js';
 import { creatorList, managementCreatorList } from './modules/creator/CreatorList.js';
 import { creatorListPage } from './modules/creator/CreatorListPage.js';
+import { castingBestandList } from './modules/creator-casting/CastingBestandList.js';
 import { creatorDetail } from './modules/creator/CreatorDetail.js';
 import { creatorListDetail } from './modules/creator/CreatorListDetail.js';
 import { CreatorAdressenManager } from './modules/creator/CreatorAdressenManager.js';
@@ -83,6 +121,7 @@ import { formSystem } from './core/FormSystem.js';
 import { unternehmenDetail } from './modules/unternehmen/UnternehmenDetail.js';
 import { auftragDetail } from './modules/auftrag/AuftragDetail.js';
 import { kooperationList } from './modules/kooperation/KooperationList.js';
+import { produktionList } from './modules/produktion/ProduktionList.js';
 import { kooperationDetail } from './modules/kooperation/KooperationDetail.js';
 import { kooperationVideoDetail } from './modules/kooperation/KooperationVideoDetail.js';
 import { kampagneList } from './modules/kampagne/KampagneList.js';
@@ -112,6 +151,7 @@ import { bulkActionSystem } from './core/BulkActionSystem.js';
 import { AvatarBubbles } from './core/components/AvatarBubbles.js';
 import { dashboardModule } from './modules/dashboard/DashboardModule.js';
 import { breadcrumbSystem } from './core/BreadcrumbSystem.js';
+import { navigateBack } from './core/breadcrumbTrail.js';
 import { TaskDetailDrawer } from './modules/tasks/TaskDetailDrawer.js';
 import { taskListPage } from './modules/tasks/TaskListPage.js';
 import { tabellenModule } from './modules/tabellen/TabellenModule.js';
@@ -131,17 +171,17 @@ import { vertraegeList } from './modules/vertrag/VertraegeList.js';
 import { vertraegeCreate } from './modules/vertrag/create/VertraegeCreate.js';
 import { projektErstellenModule } from './modules/projekt-erstellen/ProjektErstellenModule.js';
 import { transcribeTestPage } from './modules/transcribe/TranscribeTestPage.js';
-import { stakeholderOverviewPage } from './modules/stakeholder/StakeholderOverviewPage.js';
+import { stakeholderOverviewPage } from './modules/stakeholder/kern/StakeholderOverviewPage.js';
+import { startFinanzbestandPrefetch } from './core/budget/finanzbestandBoot.js';
 import { adminPage } from './modules/admin/AdminPage.js';
 import { skriptePage } from './modules/skripte/SkriptePage.js';
 import { sharesAdminPage } from './modules/shares/SharesAdminPage.js';
 import { kiUsagePage } from './modules/ki-usage/KiUsagePage.js';
-import './core/components/ShareListDialog.js';
+import './core/components/ShareListDrawer.js';
+import './modules/skripte/SkriptPaketDrawer.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
 import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
 import { backgroundUploadService } from './core/BackgroundUploadService.js';
-import { DROPBOX_DIRECT_UPLOAD_VERSION } from './core/DropboxDirectUploader.js';
-console.log(`[App] DirectUpload version: ${DROPBOX_DIRECT_UPLOAD_VERSION}`);
 // Zentrales Bestätigungs-Modal (side-effect Import, hängt window.confirmationModal an)
 import './core/ConfirmationModal.js';
 // Duplicate Checker für Creator, Marke, Unternehmen
@@ -149,6 +189,7 @@ import { DuplicateChecker } from './core/validation/DuplicateChecker.js';
 // SubmitGuard für globalen Doppelklick-Schutz + Navigation
 import { submitGuard } from './core/SubmitGuard.js';
 import { enableManualScrollRestoration } from './core/NavigationScroll.js';
+import { parseAuthCallbackParams, isPasswordRecoveryCallback, buildPasswordResetUrl } from './auth/authCallbackParams.js';
 import './modules/kooperation/kooperationFromKampagne.js';
 // App Service Locator
 import App from './core/App.js';
@@ -162,6 +203,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('creator', creatorList);
   moduleRegistry.register('management-creator', managementCreatorList);
   moduleRegistry.register('creator-detail', creatorDetail);
+  moduleRegistry.register('creator-casting', castingBestandList);
   moduleRegistry.register('creator-lists', creatorListPage);
   moduleRegistry.register('creator-list-detail', creatorListDetail);
   moduleRegistry.register('unternehmen', unternehmenList);
@@ -181,6 +223,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('unternehmen-detail', unternehmenDetail);
   moduleRegistry.register('auftrag-detail', auftragDetail);
   moduleRegistry.register('kooperation', kooperationList);
+  moduleRegistry.register('produktionen', produktionList);
   moduleRegistry.register('kooperation-detail', kooperationDetail);
   moduleRegistry.register('kooperation-video-detail', kooperationVideoDetail);
   moduleRegistry.register('kampagne', kampagneList);
@@ -239,10 +282,13 @@ window.moduleRegistry = moduleRegistry;
 window.navigateTo = (route, skipPushState = false) => {
   moduleRegistry.navigateTo(route, skipPushState);
 };
+window.navigateReplace = (route) => moduleRegistry.navigateTo(route, false, { replace: true });
+// Für Abbrechen-Buttons in Template-Strings (onclick)
+window.navigateBack = navigateBack;
 
 // Browser-Zurück/-Vor: URL ist bereits geändert, nur Inhalt synchronisieren
 window.addEventListener('popstate', (event) => {
-  const route = (event.state && event.state.route) || window.location.pathname || '/';
+  const route = (event.state && event.state.route) || (window.location.pathname + window.location.search) || '/';
   moduleRegistry.navigateTo(route, true);
 });
 
@@ -261,6 +307,7 @@ window.markeCreate = markeCreate;
 window.unternehmenDetail = unternehmenDetail;
 window.auftragDetail = auftragDetail;
 window.kooperationList = kooperationList;
+window.produktionList = produktionList;
 window.kooperationDetail = kooperationDetail;
 window.kooperationVideoDetail = kooperationVideoDetail;
 window.kampagneList = kampagneList;
@@ -345,6 +392,7 @@ if (import.meta.env.DEV) {
 // Initialisiere nach DOM-Load
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('🎯 Initialisiere Event-basiertes Modul-System...');
+  navMark('boot:start');
 
   // Mausrad-Schutz: verhindert versehentliche Wertaenderung bei fokussierten number-Inputs
   document.addEventListener('wheel', () => {
@@ -353,11 +401,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }, { passive: true });
 
+  // Slide-Effekt fuer alle Drawer (.drawer-panel), einmal zentral
+  initDrawerMotion();
+  // Gleitender Unterstrich und Einblenden des Inhalts fuer alle Tab-Leisten, einmal zentral
+  initTabSlider();
+  // Gleitender Hintergrund fuer alle View-Toggles (Liste/Grid/Kalender ...), einmal zentral
+  initViewToggleSlider();
+
   // Globale DOM-Variablen setzen
   window.appRoot = document.getElementById('app-root');
   window.loginRoot = document.getElementById('login-root');
   window.content = document.getElementById('dashboard-content');
   window.nav = document.getElementById('main-nav');
+  bindCpmRechner();
 
   // App Bridge: DOM-Refs registrieren
   App.set('content', window.content);
@@ -374,7 +430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.CONFIG.SUPABASE.KEY,
         {
           global: {
-            fetch: (...args) => window.fetch(...args),
+            fetch: tracedFetch((...args) => window.fetch(...args)),
           },
         }
       );
@@ -393,16 +449,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Password Recovery Flow abfangen - BEVOR Auth-Check
   // Wenn ein Recovery-Token in der URL ist, zur Reset-Seite weiterleiten
-  const hashParams = new URLSearchParams(window.location.hash.substring(1));
-  const urlParams = new URLSearchParams(window.location.search);
-  const isRecoveryFlow = hashParams.get('type') === 'recovery' || 
-                         urlParams.get('type') === 'recovery' ||
-                         window.location.hash.includes('type=recovery');
-  
+  const authParams = parseAuthCallbackParams(window.location.search, window.location.hash);
+  const isRecoveryFlow = isPasswordRecoveryCallback(authParams);
+
   if (isRecoveryFlow) {
     console.log('🔑 Password Recovery Flow erkannt - leite zur Reset-Seite weiter');
-    // Token im Hash beibehalten für die Reset-Seite
-    window.location.href = '/src/auth/reset-password.html' + window.location.hash;
+    // Query UND Hash behalten, damit keine Token verloren gehen
+    window.location.href = buildPasswordResetUrl(window.location.search, window.location.hash);
     return; // Stoppe weitere Ausführung
   }
 
@@ -414,6 +467,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initGuestShare(shareMatch[1]);
     return; // Kein normaler Auth-Flow
   }
+
+  // Kunden-Einladung (/einladung/:token): Formular ohne Konto - VOR dem Auth-Gate
+  const einladungMatch = window.location.pathname.match(/^\/einladung\/([0-9a-f]{32,})$/i);
+  if (einladungMatch) {
+    const { initEinladung } = await import('./modules/einladung/EinladungApp.js');
+    await initEinladung(einladungMatch[1]);
+    return; // Kein normaler Auth-Flow
+  }
+
+  // Finanzbestand schon jetzt anfragen, wenn das Dashboard das Ziel ist: der
+  // RPC laeuft dann parallel zur Auth-Kette statt danach. Spekulativ — der
+  // Bestand wird nur uebernommen, wenn das Dashboard binnen Sekunden laedt.
+  startFinanzbestandPrefetch(window.supabase, location.pathname);
 
   // Auth-Check durchführen
   const isAuthenticated = await authService.checkAuth();
@@ -481,6 +547,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Query-String mitnehmen, damit Deep-Links wie /skripte?skript=<id>
     // einen Reload ueberleben (_doNavigate strippt Query fuers Matching selbst)
     let initialRoute = location.pathname + location.search;
+    const rolle = window.currentUser?.rolle;
+    const istKunde = rolle === 'kunde' || rolle === 'kunde_editor';
+    if (istKunde && (await import('./modules/share/accountReturn.js')).isConcreteListPath(initialRoute.split(/[?#]/)[0])) {
+      const { customerCanOpenList, rememberAccountNotice, SCOPE_NOTICE } = await import('./modules/share/accountReturn.js');
+      const sichtbar = await customerCanOpenList(window.supabase, initialRoute);
+      if (!sichtbar) {
+        rememberAccountNotice(SCOPE_NOTICE);
+        initialRoute = '/dashboard';
+      }
+    }
     
     // Hash-Support für Deep-Links (z.B. aus Duplicate-Check oder Bookmarks)
     // Wenn Pfad "/" ist, aber ein Hash existiert, nutze den Hash als Route
@@ -508,9 +584,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Header/UI-Setup (Initialen, Quick-Menu etc.)
     window.setupHeaderUI?.();
+    const { takeAccountNotice } = await import('./modules/share/accountReturn.js');
+    const hinweis = takeAccountNotice();
+    if (hinweis) window.toastSystem?.warning?.(hinweis) || window.toastSystem?.show?.(hinweis, 'warning');
   } else {
     const { hasStoredGuestSessions } = await import('./modules/share/guestSession.js');
-    if (hasStoredGuestSessions()) {
+    const { isConcreteListPath, readAccountReturn } = await import('./modules/share/accountReturn.js');
+    if (hasStoredGuestSessions() && !isConcreteListPath(location.pathname) && !readAccountReturn()) {
       console.log('🔒 Gast-JWT ohne Share-Link - zeige Sperrseite');
       const { renderGuestNoAccess } = await import('./modules/share/GuestShareApp.js');
       await renderGuestNoAccess();

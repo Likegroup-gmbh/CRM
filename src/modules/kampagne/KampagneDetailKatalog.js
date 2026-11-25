@@ -1,0 +1,87 @@
+// KampagneDetailKatalog.js
+// Produkte- und Personas-Tab der Produktion: die flache Liste, nur das
+// Produkt und die Personas dieses Briefings. Ist eins offen (?produkt=, ?persona=),
+// zeigt der Tab sein Formular (KampagneDetailKatalogDetail, ADR 0079).
+
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { ProduktList } from '../produkt/ProduktList.js';
+import { PersonaList } from '../persona/PersonaList.js';
+import { effectiveLinie } from './linienScope.js';
+import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
+import { mountKatalogDetail, unmountKatalogDetail } from './KampagneDetailKatalogDetail.js';
+import { offeneId } from './produktionTabDetail.js';
+
+export function katalogScope(detail) {
+  const produktion = detail?.produktion || {};
+  const kampagne = detail?.kampagneData || {};
+  const briefingId = effectiveLinie(detail, 'produkte');
+  const linie = (detail?.linien || []).find(l => l.id === briefingId) || null;
+
+  return {
+    briefingId: briefingId || null,
+    briefingName: linie?.name || null,
+    produktId: null,
+    produktName: null,
+    produktionId: detail?.produktionId || produktion.id || null,
+    unternehmenId: kampagne.unternehmen_id || null,
+    unternehmenName: kampagne.unternehmen?.firmenname || null,
+    markeId: kampagne.marke_id || null,
+    markeName: kampagne.marke?.markenname || null
+  };
+}
+
+function unmountList(detail, key) {
+  const list = detail[key];
+  if (!list) return;
+  list.destroy();
+  detail[key] = null;
+}
+
+export function unmountKatalogPanes(detail) {
+  bumpPaneGen(detail, 'produkte');
+  bumpPaneGen(detail, 'personas');
+  unmountList(detail, 'produktList');
+  unmountList(detail, 'personaList');
+  unmountKatalogDetail(detail);
+}
+
+async function mountList(detail, { tabId, key, List }) {
+  const pane = document.getElementById(`workflow-pane-${tabId}`);
+  if (!pane) return;
+  const gen = paneGeneration(detail, tabId);
+
+  unmountList(detail, key);
+  if (offeneId(detail, tabId)) {
+    await mountKatalogDetail(detail, tabId, pane, gen);
+    return;
+  }
+  pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
+
+  const list = new List();
+  detail[key] = list;
+
+  try {
+    await list.mountEmbedded(pane, katalogScope(detail));
+    if (!isPaneGenCurrent(detail, tabId, gen) || !pane.isConnected) {
+      list.destroy();
+      if (detail[key] === list) detail[key] = null;
+    }
+  } catch (error) {
+    console.error(`❌ KAMPAGNEDETAIL: ${tabId}-Pane fehlgeschlagen:`, error);
+    if (pane.isConnected) {
+      pane.innerHTML = renderEmptyState({
+        icon: 'info',
+        title: 'Fehler beim Laden',
+        text: 'Die Liste konnte nicht geladen werden.'
+      });
+    }
+  }
+}
+
+export function mountProduktePane(detail) {
+  return mountList(detail, { tabId: 'produkte', key: 'produktList', List: ProduktList });
+}
+
+export function mountPersonasPane(detail) {
+  return mountList(detail, { tabId: 'personas', key: 'personaList', List: PersonaList });
+}

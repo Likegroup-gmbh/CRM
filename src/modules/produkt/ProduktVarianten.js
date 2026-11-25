@@ -21,6 +21,18 @@ const ICONS = {
   caret: icon('chevron-down-bold')
 };
 
+function toRow(e) {
+  return {
+    id: e.id || null,
+    name: e.name.trim(),
+    modell_kompatibilitaet: e.modell_kompatibilitaet.trim() || null,
+    farbe: e.farbe.trim() || null,
+    preis: e.preis === '' ? null : e.preis,
+    uvp: e.uvp === '' ? null : e.uvp,
+    merkmal: e.merkmal.trim() || null
+  };
+}
+
 export class ProduktVariantenPanel {
   constructor() {
     this.root = null;
@@ -60,17 +72,14 @@ export class ProduktVariantenPanel {
 
   /** Varianten im aktuellen Zustand, leere Zeilen ohne Namen fallen raus. */
   getVarianten() {
+    return this.entries.filter(e => e.name.trim()).map(toRow);
+  }
+
+  /** Wie getVarianten, dazu das Bild (gespeichert oder frisch gewaehlt) fuers PDF. */
+  getVariantenMitBild() {
     return this.entries
       .filter(e => e.name.trim())
-      .map(e => ({
-        id: e.id || null,
-        name: e.name.trim(),
-        modell_kompatibilitaet: e.modell_kompatibilitaet.trim() || null,
-        farbe: e.farbe.trim() || null,
-        preis: e.preis === '' ? null : e.preis,
-        uvp: e.uvp === '' ? null : e.uvp,
-        merkmal: e.merkmal.trim() || null
-      }));
+      .map(e => ({ ...toRow(e), bildUrl: this.thumbUrlFor(e) || null }));
   }
 
   /** Variantenbilder, die nach dem Speichern der Varianten hochgeladen werden. */

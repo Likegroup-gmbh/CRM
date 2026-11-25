@@ -1,7 +1,8 @@
 // KooperationDetail.js (ES6-Modul)
 // Kooperations-Detailseite – migriert auf PersonDetailBase (Standard-Layout)
-import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { kooperationVersandManager } from './VersandManager.js';
+import { renderKooperationVideos } from './kooperationVideosTab.js';
+import { ladeKooperationVideos } from './kooperationVideosLaden.js';
 import { TaskKanbanBoard } from '../tasks/TaskKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
@@ -10,21 +11,16 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { deleteVideoFull } from '../../core/VideoDeleteHelper.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
-import {
-  createEmptyVideoFeedbackComments,
-  getVideoFeedbackBucket,
-  isMissingFeedbackTypeError,
-  VIDEO_FEEDBACK_LEGACY_SELECT,
-  VIDEO_FEEDBACK_FIELDS
-} from '../../core/VideoFeedbackBuckets.js';
+import { ablageLinkKlick } from '../../core/ablage/ablageOrdnerLink.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
+import { navigateBack, trailProduktion } from '../../core/breadcrumbTrail.js';
+import { mountCreatorSetzen } from './platzhalterSetzen.js';
 
 export class KooperationDetail extends PersonDetailBase {
   constructor() {
     super();
     this.kooperationId = null;
     this.kooperation = null;
-    this.returnToRoute = null;
     this.creator = null;
     this.kampagne = null;
     this.rechnungen = [];
@@ -50,8 +46,6 @@ export class KooperationDetail extends PersonDetailBase {
   async init(kooperationId) {
     console.log('🎯 KOOPERATIONDETAIL: Initialisiere für ID:', kooperationId);
 
-    const currentUrl = new URL(window.location.href);
-    this.returnToRoute = currentUrl.searchParams.get('returnTo') || null;
     this.kooperationId = kooperationId;
     this.activeMainTab = getTabQueryParam() || 'informationen';
 
@@ -65,10 +59,8 @@ export class KooperationDetail extends PersonDetailBase {
 
       if (window.breadcrumbSystem && this.kooperation) {
         const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || false;
-        window.breadcrumbSystem.updateDetailLabel(this.kooperation.name || 'Details', {
-          id: 'btn-edit-kooperation',
-          canEdit: canEdit
-        });
+        const label = this.kooperation.name || 'Details';
+        window.breadcrumbSystem.updateDetailLabel(label, { id: 'btn-edit-kooperation', canEdit });
       }
 
       this.render();
@@ -89,8 +81,6 @@ export class KooperationDetail extends PersonDetailBase {
   async initForEdit(kooperationId) {
     console.log('⚡ KOOPERATIONDETAIL: Fast-Path initForEdit für ID:', kooperationId);
 
-    const currentUrl = new URL(window.location.href);
-    this.returnToRoute = currentUrl.searchParams.get('returnTo') || null;
     this.kooperationId = kooperationId;
 
     if (window.moduleRegistry?.currentModule !== this) {
@@ -106,7 +96,7 @@ export class KooperationDetail extends PersonDetailBase {
           einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, einkaufspreis_gesamt,
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
           ksk_selbstzahler, ksk_betrag, ksk_prozent,
-          creator_id, kampagne_id, unternehmen_id, briefing_id,
+          creator_id, kampagne_id, unternehmen_id, briefing_id, assignee_id,
           kampagne:kampagne_id ( id, marke:marke_id ( id ) )
         `)
         .eq('id', kooperationId)
@@ -119,10 +109,6 @@ export class KooperationDetail extends PersonDetailBase {
       }
 
       this.kooperation = data;
-
-      if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateDetailLabel(data.name || 'Bearbeiten', { canEdit: false });
-      }
 
       await this.showEditForm();
       console.log('✅ KOOPERATIONDETAIL: Fast-Path abgeschlossen');
@@ -152,7 +138,8 @@ export class KooperationDetail extends PersonDetailBase {
           verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, verkaufspreis_gesamt,
           ksk_selbstzahler, ksk_betrag, ksk_prozent,
           videoanzahl,
-          creator_id, kampagne_id, unternehmen_id, briefing_id,
+          creator_id, kampagne_id, unternehmen_id, briefing_id, assignee_id,
+          assignee:assignee_id ( id, name ),
           creator:creator_id (
             id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, mail,
             lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land
@@ -227,81 +214,7 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   async loadVideos() {
-    try {
-      const { data: videos } = await window.supabase
-        .from('kooperation_videos')
-        .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, skript_deadline, content_deadline, titel, asset_url, folder_url, kommentar, status, position, created_at')
-        .eq('kooperation_id', this.kooperationId)
-        .order('position', { ascending: true });
-
-      this.videos = videos || [];
-
-      if (this.videos.length > 0) {
-        const videoIds = this.videos.map(v => v.id);
-        const { data: assets } = await window.supabase
-          .from('kooperation_video_asset')
-          .select('id, video_id, file_url, version_number, is_current, created_at')
-          .in('video_id', videoIds)
-          .eq('is_current', true);
-
-        this.videos = this.videos.map(v => ({
-          ...v,
-          currentAsset: (assets || []).find(a => a.video_id === v.id) || null
-        }));
-      }
-
-      try {
-        const kampId = this.kooperation?.kampagne?.id || this.kooperation?.kampagne_id;
-        if (kampId) {
-          const { data: koopCounts } = await window.supabase
-            .from('kooperationen')
-            .select('videoanzahl')
-            .eq('kampagne_id', kampId);
-          const used = (koopCounts || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-          const total = parseInt(this.kooperation?.kampagne?.videoanzahl, 10) || null;
-          this.campaignVideoTotals = { total, used, remaining: total != null ? Math.max(0, total - used) : null };
-        } else {
-          this.campaignVideoTotals = null;
-        }
-      } catch (_) {
-        this.campaignVideoTotals = null;
-      }
-
-      try {
-        const videoIds = (this.videos || []).map(v => v.id);
-        if (videoIds.length > 0) {
-          let { data: comments, error: commentsError } = await window.supabase
-            .from('kooperation_video_comment')
-            .select('id, video_id, runde, feedback_typ, text, created_at, author_name, deleted_at')
-            .in('video_id', videoIds)
-            .order('created_at', { ascending: true });
-          if (commentsError && isMissingFeedbackTypeError(commentsError)) {
-            const legacyResult = await window.supabase
-              .from('kooperation_video_comment')
-              .select(`${VIDEO_FEEDBACK_LEGACY_SELECT}, deleted_at`)
-              .in('video_id', videoIds)
-              .order('created_at', { ascending: true });
-            comments = legacyResult.data || [];
-            commentsError = legacyResult.error;
-          }
-          if (commentsError) throw commentsError;
-          const byVideo = {};
-          (comments || []).forEach(c => {
-            if (!byVideo[c.video_id]) byVideo[c.video_id] = createEmptyVideoFeedbackComments();
-            byVideo[c.video_id][getVideoFeedbackBucket(c)].push(c);
-          });
-          this.videos = (this.videos || []).map(v => ({
-            ...v,
-            feedback: byVideo[v.id] || createEmptyVideoFeedbackComments()
-          }));
-        }
-      } catch (err) {
-        console.warn('⚠️ Fehler beim Laden der Video-Kommentare:', err?.message);
-      }
-    } catch (err) {
-      console.warn('⚠️ Fehler beim Laden der Videos:', err?.message);
-      this.videos = [];
-    }
+    await ladeKooperationVideos(this);
   }
 
   async loadRechnungen() {
@@ -383,6 +296,17 @@ export class KooperationDetail extends PersonDetailBase {
     });
 
     window.setContentSafely(window.content, html);
+    const slot = document.getElementById('platzhalter-creator-setzen');
+    if (slot) {
+      mountCreatorSetzen(slot, {
+        koopId: this.kooperationId,
+        persistent: true,
+        onDone: async () => {
+          await this.loadCriticalData();
+          this.render();
+        }
+      });
+    }
   }
 
   // ============================================
@@ -398,7 +322,7 @@ export class KooperationDetail extends PersonDetailBase {
     return {
       name: title,
       email: '',
-      subtitle: creatorName ? `Creator: ${creatorName}` : 'Kooperation',
+      subtitle: creatorName ? `Creator: ${creatorName}` : (this.kooperation?.creator_id ? 'Kooperation' : 'Platzhalter'),
       avatarUrl: null,
       avatarOnly: false
     };
@@ -417,6 +341,7 @@ export class KooperationDetail extends PersonDetailBase {
     ];
     const items = [
       ...campaignItems,
+      ...(!isKunde ? [{ icon: 'creator', label: 'Verantwortlich', value: this.kooperation?.assignee?.name || '-' }] : []),
       ...(!isKunde ? [{ icon: 'currency', label: 'EK Gesamt', value: this.formatCurrency(this.kooperation?.einkaufspreis_gesamt) }] : []),
       ...(!isKunde ? [{ icon: 'currency', label: 'VK Gesamt', value: this.formatCurrency(this.kooperation?.verkaufspreis_gesamt) }] : []),
       { icon: 'info', label: 'Videoanzahl', value: this.kooperation?.videoanzahl || '-' }
@@ -493,8 +418,20 @@ export class KooperationDetail extends PersonDetailBase {
   // INFO TAB (rendered into Sidebar via PersonDetailBase)
   // ============================================
 
+  _kampagneZiel() {
+    const produktion = trailProduktion();
+    if (produktion) {
+      return { route: produktion.url, label: 'Produktion anzeigen' };
+    }
+    return {
+      route: `/kampagne/${this.kampagne?.id || ''}`,
+      label: 'Kampagne Details anzeigen'
+    };
+  }
+
   renderInfoDetails() {
     const isKunde = window.isKunde();
+    const kampagneZiel = this._kampagneZiel();
     const allgemeinItems = this.renderInfoItems([
       ...(!isKunde ? [{ icon: 'currency', label: 'Einkaufspreis', value: this.formatCurrency(this.kooperation.einkaufspreis_gesamt) }] : []),
       { icon: 'currency', label: 'Verkaufspreis', value: this.formatCurrency(this.kooperation.verkaufspreis_gesamt) }
@@ -519,7 +456,13 @@ export class KooperationDetail extends PersonDetailBase {
           <button onclick="window.navigateTo('/creator/${this.creator.id}')" class="mdc-btn mdc-btn--secondary">Creator Details anzeigen</button>
         </div>` : ''}
       </div>
-    ` : '';
+    ` : (!this.kooperation?.creator_id ? `
+      <div class="detail-card">
+        <h3 class="section-title">Creator</h3>
+        <p>Platzhalter. Der Creator ist noch offen.</p>
+        ${!isKunde && (window.permissionSystem?.canEdit('kooperation') ?? false) ? '<div id="platzhalter-creator-setzen"></div>' : ''}
+      </div>
+    ` : '');
 
     const kampagneHtml = this.kampagne ? `
       <div class="detail-card">
@@ -530,7 +473,7 @@ export class KooperationDetail extends PersonDetailBase {
           { icon: 'tag', label: 'Marke', value: this.kampagne.marke?.markenname || '-' }
         ])}
         <div class="detail-actions">
-          <button onclick="window.navigateTo('/kampagne/${this.kampagne.id}')" class="mdc-btn mdc-btn--secondary">Kampagne Details anzeigen</button>
+          <button onclick="window.navigateTo('${kampagneZiel.route}')" class="mdc-btn mdc-btn--secondary">${kampagneZiel.label}</button>
         </div>
       </div>
     ` : '';
@@ -616,132 +559,7 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   renderVideos() {
-    if (!this.videos || this.videos.length === 0) {
-      return renderEmptyState({
-        icon: 'film',
-        title: 'Keine Videos angelegt',
-        text: 'Videos werden automatisch beim Erstellen/Bearbeiten der Kooperation generiert.'
-      });
-    }
-
-    const isKundeRole = window.isKunde();
-
-    const rows = this.videos.map(v => {
-      const formatList = (arr) => {
-        if (!arr || arr.length === 0) return '-';
-        return arr.map(c => {
-          const date = c.created_at ? new Date(c.created_at).toLocaleDateString('de-DE') : '';
-          const author = c.author_name || '';
-          const text = this.sanitize(c.text || '');
-          return `<div class="fb-line"><span class="fb-meta">${author}${date ? ' • ' + date : ''}</span><div class="fb-text">${text}</div></div>`;
-        }).join('');
-      };
-
-      const isKunde = window.isKunde();
-      const isAdmin = window.isAdmin();
-
-      const menu = `
-        <div class="actions-dropdown-container" data-entity-type="kooperation_videos">
-          <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-            ${icon('dots-vertical-filled')}
-          </button>
-          <div class="actions-dropdown">
-            ${!isKunde ? `
-            <div class="action-submenu">
-              <a href="#" class="action-item has-submenu" data-submenu="status">
-                ${actionsDropdown.getHeroIcon('invoice')}
-                <span>Status ändern</span>
-              </a>
-              <div class="submenu" data-submenu="status">
-                <a href="#" class="submenu-item" data-action="set-field" data-field="status" data-value="produktion" data-id="${v.id}">
-                  ${actionsDropdown.getStatusIcon('Strategiebriefing')}
-                  <span>Produktion</span>
-                  ${(v.status || 'produktion') === 'produktion' ? '<span class="submenu-check">✓</span>' : ''}
-                </a>
-                <a href="#" class="submenu-item" data-action="set-field" data-field="status" data-value="abgeschlossen" data-id="${v.id}">
-                  ${actionsDropdown.getHeroIcon('check')}
-                  <span>Abgeschlossen</span>
-                  ${v.status === 'abgeschlossen' ? '<span class="submenu-check">✓</span>' : ''}
-                </a>
-              </div>
-            </div>
-            ` : ''}
-            <a href="#" class="action-item" data-action="video-view" data-id="${v.id}">
-              ${icon('eye-outline', { className: 'size-6' })}
-              Details ansehen
-            </a>
-            ${!isKunde ? `
-            <a href="#" class="action-item" data-action="video-edit" data-id="${v.id}">
-              ${icon('pencil-square', { className: 'size-6' })}
-              Bearbeiten
-            </a>
-            ` : ''}
-            ${isAdmin ? `
-            <div class="action-separator"></div>
-            <a href="#" class="action-item action-danger" data-action="video-delete" data-id="${v.id}">
-              ${icon('trash-alt', { className: 'size-6' })}
-              Löschen
-            </a>
-            ` : ''}
-          </div>
-        </div>`;
-
-      const vkFormatted = v.verkaufspreis_netto != null ? parseFloat(v.verkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
-      const ekFormatted = v.einkaufspreis_netto != null ? parseFloat(v.einkaufspreis_netto).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '-';
-      const skriptDeadlineFormatted = v.skript_deadline ? new Date(v.skript_deadline).toLocaleDateString('de-DE') : '-';
-      const contentDeadlineFormatted = v.content_deadline ? new Date(v.content_deadline).toLocaleDateString('de-DE') : '-';
-
-      return `
-        <tr>
-          <td>${v.position || '-'}</td>
-          <td>${this.sanitize(v.kampagnenart || '-')}</td>
-          <td>${this.sanitize(v.content_art || '-')}</td>
-          <td>${skriptDeadlineFormatted}</td>
-          <td>${contentDeadlineFormatted}</td>
-          <td class="text-right">${vkFormatted}</td>
-          ${!isKundeRole ? `<td class="text-right">${ekFormatted}</td>` : ''}
-          <td>
-            ${v.folder_url
-              ? `<a href="${v.folder_url}" target="_blank" rel="noopener">Ordner öffnen</a>`
-              : (v.titel ? `<a href="/video/${v.id}" class="table-link" data-table="video" data-id="${v.id}">${this.sanitize(v.titel)}</a>` : '-')}
-            ${v.currentAsset ? `<span class="version-badge koop-version-badge">V${v.currentAsset.version_number || 1}</span>` : ''}
-          </td>
-          ${VIDEO_FEEDBACK_FIELDS.map(slot => `<td class="feedback-cell">${formatList(v.feedback?.[slot.bucket])}</td>`).join('')}
-          <td><span class="status-badge status-${(v.status || 'produktion').toLowerCase()}">${v.status === 'abgeschlossen' ? 'Abgeschlossen' : 'Produktion'}</span></td>
-          <td>${menu}</td>
-        </tr>`;
-    }).join('');
-
-    return `
-      ${actionsHtml}
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Kampagnenart</th>
-              <th>Content Art</th>
-              <th>Skript Deadline</th>
-              <th>Content Deadline</th>
-              <th class="text-right">VK Netto</th>
-              ${!isKundeRole ? '<th class="text-right">EK Netto</th>' : ''}
-              <th>URL</th>
-              ${VIDEO_FEEDBACK_FIELDS.map(slot => `<th>${slot.label}</th>`).join('')}
-              <th>Status</th>
-              <th>Aktion</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-          <tfoot>
-            <tr>
-              <td colspan="3" class="u-text-right fw-semibold">Gesamt VK Netto:</td>
-              <td class="text-right fw-semibold">${(this.videos || []).reduce((s, v) => s + (parseFloat(v.verkaufspreis_netto) || 0), 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</td>
-              <td colspan="${!isKundeRole ? '10' : '9'}"></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    `;
+    return renderKooperationVideos(this);
   }
 
   renderVersand() {
@@ -825,6 +643,8 @@ export class KooperationDetail extends PersonDetailBase {
   // ============================================
 
   async _handleDocumentClick(e) {
+    if (ablageLinkKlick(e)) return;
+
     // Tab-Button (robust via closest)
     const tab = getSecondaryNavTabFromEvent(e);
     if (tab) {
@@ -847,6 +667,14 @@ export class KooperationDetail extends PersonDetailBase {
     if (tableLink && tableLink.dataset.table === 'video' && tableLink.dataset.id) {
       e.preventDefault();
       window.navigateTo(`/video/${tableLink.dataset.id}`);
+      return;
+    }
+
+    // Kommentar aus dem Videos-Tab: Datei in der Kampagne öffnen (Cmd/Strg-Klick bleibt neuer Tab)
+    const zeitLink = e.target.closest('.fb-zeit-link');
+    if (zeitLink && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      window.navigateTo(zeitLink.getAttribute('href'));
       return;
     }
 
@@ -973,9 +801,7 @@ export class KooperationDetail extends PersonDetailBase {
     console.log('🎯 KOOPERATIONDETAIL: Zeige Bearbeitungsformular');
     window.setHeadline('Kooperation bearbeiten');
 
-    if (window.breadcrumbSystem && this.kooperation) {
-      window.breadcrumbSystem.updateDetailLabel('Bearbeiten', { canEdit: false });
-    }
+    if (this.kooperation) window.breadcrumbSystem?.showEditLeaf();
 
     const formData = { ...this.kooperation };
     formData._isEditMode = true;
@@ -1079,7 +905,7 @@ export class KooperationDetail extends PersonDetailBase {
         }));
 
         setTimeout(() => {
-          window.navigateTo(this.returnToRoute || `/kooperation/${this.kooperationId}`);
+          navigateBack(`/kooperation/${this.kooperationId}`);
         }, 1500);
       } else {
         this.showErrorMessage(`Fehler beim Aktualisieren: ${result.error}`);
@@ -1140,7 +966,7 @@ export class KooperationDetail extends PersonDetailBase {
     const form = document.getElementById('kooperation-form');
     if (form) {
       form.parentNode.insertBefore(alertDiv, form);
-      alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      alertDiv.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
       setTimeout(() => alertDiv.remove(), 5000);
     }
   }

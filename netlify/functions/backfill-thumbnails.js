@@ -6,12 +6,16 @@
  * in die neuen DB-Spalten (logo_thumb_url, profile_image_thumb_url, etc.).
  *
  * Aufruf: POST /.netlify/functions/backfill-thumbnails
+ *         Header: Authorization: Bearer <Access-Token eines Admins/Mitarbeiters>
+ *         (Token z.B. in der Browser-Konsole:
+ *          (await window.supabase.auth.getSession()).data.session.access_token)
  * Optional: ?table=unternehmen  (nur eine Tabelle bearbeiten)
  *           ?dryRun=true         (nur zählen, nicht hochladen)
  */
 
 const { createClient } = require('@supabase/supabase-js');
 const sharp = require('sharp');
+const { requireStaff } = require('./_shared/verify-auth');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -168,6 +172,10 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ error: 'POST only' }) };
   }
+
+  // Nur Admin/Mitarbeiter: Authorization: Bearer <Supabase-Access-Token>
+  const staff = await requireStaff(event);
+  if (!staff.ok) return staff.response;
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
     return {

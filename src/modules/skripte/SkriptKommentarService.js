@@ -5,6 +5,48 @@
 
 const AUTOR_SELECT = 'created_by:benutzer!skript_kommentare_created_by_fkey(id, name, vorname, nachname, profile_image_url, rolle)';
 
+const TEAM_ROLLEN = new Set(['admin', 'mitarbeiter']);
+
+/**
+ * Reine Auswahl: Team-Beitraege (Kommentar und Aenderung) mit Skript-Titel und,
+ * bei Antworten, dem Anker des Threads. Kunden- und Gast-Beitraege fallen weg.
+ */
+export function waehleTeamKommentare(rows, skripte = []) {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const titel = new Map(skripte.map((s) => [s.id, s.titel || '']));
+  const nummer = new Map(skripte.map((s, i) => [s.id, i + 1]));
+
+  const wurzel = (row) => {
+    let cur = row;
+    for (let i = 0; cur?.parent_id && i < 20; i += 1) cur = byId.get(cur.parent_id);
+    return cur || null;
+  };
+
+  return rows
+    .filter((r) => TEAM_ROLLEN.has(r.created_by?.rolle) && String(r.inhalt || r.nachher_text || '').trim())
+    .map((r) => {
+      const anker = r.parent_id ? wurzel(r) : null;
+      return {
+        id: r.id,
+        typ: r.typ || 'kommentar',
+        skript_id: r.skript_id,
+        skript_titel: titel.get(r.skript_id) || '',
+        skript_nr: skripte.length > 1 ? nummer.get(r.skript_id) : null,
+        sektion: r.parent_id ? (anker?.sektion || null) : (r.sektion || null),
+        ist_antwort: !!r.parent_id,
+        zitat: (r.parent_id ? anker?.selektion_text : r.selektion_text) || null,
+        inhalt: r.inhalt || '',
+        vorher_text: r.vorher_text || null,
+        nachher_text: r.nachher_text || null,
+        autor: r.created_by?.name
+          || `${r.created_by?.vorname || ''} ${r.created_by?.nachname || ''}`.trim()
+          || r.author_name
+          || 'Team',
+        created_at: r.created_at
+      };
+    });
+}
+
 export class SkriptKommentarService {
   get db() {
     return window.supabase;
@@ -22,6 +64,29 @@ export class SkriptKommentarService {
       .order('created_at');
     if (error) throw new Error(error.message);
     return this.ergaenzeAnsprechpartnerBilder(data || []);
+  }
+
+  /**
+   * Kommentare des Teams (admin/mitarbeiter) zu allen Skripten einer Videoidee,
+   * aelteste zuerst. Antworten tragen den Anker ihres Threads (`thread`), damit sie
+   * ohne den Kommentar des Kunden verstaendlich bleiben.
+   * Leer, wenn es kein Skript gibt oder RLS (Gast ohne Skript-Zugriff) nichts liefert.
+   */
+  async loadTeamKommentareFuerItem(itemId) {
+    if (!itemId) return [];
+    const { data: skripte, error: skriptError } = await this.db.from('skripte')
+      .select('id, titel')
+      .eq('strategie_item_id', itemId)
+      .order('created_at', { ascending: true });
+    if (skriptError) throw new Error(skriptError.message);
+    if (!skripte?.length) return [];
+
+    const { data, error } = await this.db.from('skript_kommentare')
+      .select(`*, ${AUTOR_SELECT}`)
+      .in('skript_id', skripte.map((s) => s.id))
+      .order('created_at');
+    if (error) throw new Error(error.message);
+    return waehleTeamKommentare(data || [], skripte);
   }
 
   /** Nachladen einer einzelnen Zeile inkl. Autor (Realtime liefert nur die rohen Spalten). */

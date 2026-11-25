@@ -5,10 +5,10 @@
 import { CustomDatePicker } from '../components/CustomDatePicker.js';
 import { escapeHtml, makeCustomColumnId } from './entityColumnUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderCustomTableSelect } from './customColumnSelect.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 const FOLDER_ICON = `${icon('folder')}`;
-const GEAR_ICON = `${icon('cog')}`;
 /** Phosphor Hand – Griff zum Verschieben eigener Spalten */
 const COLUMN_GRIP_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M188,80a27.79,27.79,0,0,0-13.36,3.4,28,28,0,0,0-46.64-11A28,28,0,0,0,80,92v20H68a28,28,0,0,0-28,28v12a88,88,0,0,0,176,0V108A28,28,0,0,0,188,80Zm12,72a72,72,0,0,1-144,0V140a12,12,0,0,1,12-12H80v24a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V92a12,12,0,0,1,24,0v28a8,8,0,0,0,16,0V108a12,12,0,0,1,24,0Z"></path></svg>`;
 
@@ -30,10 +30,13 @@ export function renderCustomHeaders(orderedCols, hiddenColumns, isKunde) {
     // Nur der Hand-Griff ist draggable – der Spaltenname bleibt normal klickbar.
     const grip = isKunde ? '' : `<span class="entity-custom-col-grip" draggable="true"
       data-custom-col-grip="${colId}" title="Spalte verschieben" aria-label="Spalte verschieben" role="button">${COLUMN_GRIP_ICON}</span>`;
-    return `<th class="entity-custom-col-header" data-custom-col-id="${colId}"${hide}>` +
+    const textMark = col.field_type === 'text' ? ' entity-custom-col--text' : '';
+    return `<th class="entity-custom-col-header${textMark}" data-custom-col-id="${colId}"${hide}>` +
       `<div class="entity-custom-col-header-inner">` +
       `${grip}<span class="entity-custom-col-title">${escapeHtml(col.name)}</span>` +
-      `</div></th>`;
+      `</div>` +
+      `<div class="resize-handle resize-handle-col" data-col="${colId}"></div>` +
+      `</th>`;
   }).join('');
 }
 
@@ -46,34 +49,44 @@ export function renderCustomHeaders(orderedCols, hiddenColumns, isKunde) {
  * @param {boolean} canEdit - false = view-only Rollen (Investor): Werte lesbar, nicht editierbar
  * @returns {string} aneinandergereihte <td>
  */
-export function renderCustomCells(orderedCols, entityId, getValue, hiddenColumns, isKunde, canEdit = true) {
+export function renderCustomCells(orderedCols, entityId, getValue, hiddenColumns, isKunde, canEdit = true, { tableSelect = false } = {}) {
   return (orderedCols || []).map(col => {
     if (isKunde && !col.visible_for_kunden) return '';
     const hide = isHidden(col, hiddenColumns) ? ' style="display:none;"' : '';
     const value = getValue(entityId, col.id) ?? '';
     const isEditable = !isKunde && canEdit;
-    const content = renderFieldByType(col, entityId, value, isEditable);
-    return `<td class="entity-custom-cell cell-textarea" data-custom-col-id="${makeCustomColumnId(col.id)}"${hide}>${content}</td>`;
+    const content = renderFieldByType(col, entityId, value, isEditable, { tableSelect });
+    const textMark = col.field_type === 'text' ? ' entity-custom-col--text' : '';
+    return `<td class="entity-custom-cell cell-textarea${textMark}" data-custom-col-id="${makeCustomColumnId(col.id)}"${hide}>${content}</td>`;
   }).join('');
 }
 
-function renderFieldByType(col, entityId, value, isEditable) {
+export function renderCustomField(col, entityId, value, isEditable) {
+  return renderFieldByType(col, entityId, value, isEditable);
+}
+
+function renderFieldByType(col, entityId, value, isEditable, { tableSelect = false } = {}) {
   const attrs = `data-custom-column-id="${col.id}" data-entity-id="${entityId}"`;
   switch (col.field_type) {
     case 'text': return renderTextField(attrs, value, isEditable, col.name);
     case 'link': return renderLinkField(attrs, value, isEditable);
     case 'date': return renderDateField(col, entityId, value, isEditable);
     case 'boolean': return renderBooleanField(attrs, value, isEditable);
-    case 'dropdown': return renderDropdownField(attrs, value, isEditable, col);
+    case 'dropdown':
+      return tableSelect && isEditable
+        ? renderCustomTableSelect(col, entityId, value)
+        : renderDropdownField(attrs, value, isEditable, col);
     case 'number': return renderNumberField(attrs, value, isEditable, col.name);
-    case 'upload': return renderUploadField(col, entityId, value, isEditable);
+    case 'upload': return renderUploadField(value);
     default: return renderTextField(attrs, value, isEditable, col.name);
   }
 }
 
 function renderTextField(attrs, value, isEditable, placeholder) {
-  if (!isEditable) return `<div class="cell-text-readonly">${escapeHtml(value) || '-'}</div>`;
-  return `<textarea class="strategie-textarea custom-col-input" ${attrs} placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea>`;
+  const body = !isEditable
+    ? `<div class="cell-text-readonly">${escapeHtml(value) || '-'}</div>`
+    : `<textarea class="strategie-textarea custom-col-input" ${attrs} placeholder="${escapeHtml(placeholder)}" rows="1">${escapeHtml(value)}</textarea>`;
+  return `<div class="entity-custom-text">${body}</div>`;
 }
 
 function renderLinkField(attrs, value, isEditable) {
@@ -130,16 +143,8 @@ function renderNumberField(attrs, value, isEditable, placeholder) {
   return `<input type="number" class="strategie-textarea custom-col-input custom-col-number" ${attrs} value="${escapeHtml(value != null ? String(value) : '')}" placeholder="${escapeHtml(placeholder)}" step="any"/>`;
 }
 
-function renderUploadField(col, entityId, value, isEditable) {
-  if (value) {
-    const folderLink = `<a href="${escapeHtml(value)}" target="_blank" rel="noopener noreferrer" class="link-icon-btn custom-upload-folder-link" title="Ordner öffnen">${FOLDER_ICON}</a>`;
-    if (!isEditable) return folderLink;
-    return `${folderLink}<button type="button" class="custom-upload-btn custom-upload-settings-btn" data-custom-column-id="${col.id}" data-entity-id="${entityId}" data-column-name="${escapeHtml(col.name)}" title="Dateien verwalten">${GEAR_ICON}</button>`;
-  }
-  if (!isEditable) return `<div class="cell-text-readonly">-</div>`;
-
-  return `<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm custom-upload-btn" data-custom-column-id="${col.id}" data-entity-id="${entityId}" data-column-name="${escapeHtml(col.name)}" title="Dateien hochladen">
-    ${icon('upload', { className: 'icon-16' })}
-    Upload
-  </button>`;
+/** Alte Upload-Spalten (Typ abgeschafft): nur noch der gespeicherte Ordner-Link. */
+function renderUploadField(value) {
+  if (!value) return `<div class="cell-text-readonly">-</div>`;
+  return `<a href="${escapeHtml(value)}" target="_blank" rel="noopener noreferrer" class="link-icon-btn custom-upload-folder-link" title="Ordner öffnen">${FOLDER_ICON}</a>`;
 }

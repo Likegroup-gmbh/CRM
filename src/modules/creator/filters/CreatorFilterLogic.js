@@ -2,6 +2,15 @@
 // Creator-spezifische Filter-Verarbeitungslogik
 
 import { BASE_VALIDATORS } from '../../../core/filters/BaseFilterConfig.js';
+import {
+  GENERATIONEN,
+  groesseOf,
+  generationOf,
+  matchesTokens,
+  searchTokens
+} from '../creatorProfil.js';
+import { matchesRezension } from '../rezension.js';
+import { processCreatorFilters } from './creatorFilterProcess.js';
 
 /**
  * Creator-spezifische Filter-Verarbeitung
@@ -12,141 +21,7 @@ export class CreatorFilterLogic {
    * Verarbeite Creator-spezifische Filter
    */
   static processFilters(filters, rawData = null) {
-    const processedFilters = {};
-
-    for (const [key, value] of Object.entries(filters)) {
-      if (key.startsWith('_')) continue;
-      // false ist ein gültiger Boolean-Filter ("Hat kein Haustier")
-      if (value === '' || value === null || value === undefined) continue;
-
-      switch (key) {
-        case 'name':
-          processedFilters[key] = {
-            type: 'name_search',
-            value: value,
-            searchFields: ['vorname', 'nachname']
-          };
-          break;
-
-        case 'instagram_follower':
-        case 'tiktok_follower':
-          // Follower-Range Filter
-          if (typeof value === 'object') {
-            processedFilters[key] = {
-              type: 'number_range',
-              min: value.min || 0,
-              max: value.max || null
-            };
-          } else {
-            processedFilters[key] = {
-              type: 'number_min',
-              value: parseInt(value)
-            };
-          }
-          break;
-
-        case 'alter':
-          // Spezielle Alters-Range Filter (mappt auf alter_min/alter_max)
-          if (typeof value === 'object') {
-            processedFilters[key] = {
-              type: 'age_range',
-              min: value.min != null && value.min !== '' ? parseInt(value.min) : null,
-              max: value.max != null && value.max !== '' ? parseInt(value.max) : null
-            };
-          }
-          break;
-
-        case 'has_email':
-          // Virtual Filter: Email vorhanden
-          processedFilters['mail'] = {
-            type: 'not_null',
-            value: value
-          };
-          break;
-
-        case 'has_instagram':
-          processedFilters['instagram'] = {
-            type: 'not_null',
-            value: value
-          };
-          break;
-
-        case 'has_tiktok':
-          processedFilters['tiktok'] = {
-            type: 'not_null',
-            value: value
-          };
-          break;
-
-        case 'has_phone':
-          // Virtual Filter: Telefon vorhanden
-          processedFilters['telefonnummer'] = {
-            type: 'not_null',
-            value: value
-          };
-          break;
-
-        case 'has_portfolio':
-          // Virtual Filter: Portfolio vorhanden
-          processedFilters['portfolio_link'] = {
-            type: 'not_null',
-            value: value
-          };
-          break;
-
-        case 'created_at':
-        case 'updated_at':
-          // Datum-Range Filter
-          if (typeof value === 'object') {
-            processedFilters[key] = {
-              type: 'date_range',
-              from: value.from || null,
-              to: value.to || null
-            };
-          }
-          break;
-
-        case 'lieferadresse_stadt':
-        case 'lieferadresse_plz':
-          // Stadt-/PLZ-Filter mit Like-Suche
-          processedFilters[key] = {
-            type: 'text_search',
-            value: value
-          };
-          break;
-
-        case 'ig_engagement_rate':
-        case 'budget_letzte_buchung':
-          if (typeof value === 'object') {
-            processedFilters[key] = {
-              type: 'number_range',
-              min: value.min ?? null,
-              max: value.max ?? null
-            };
-          }
-          break;
-
-        case 'sprache_id':
-        case 'branche_id':
-        case 'branche':
-        case 'creator_type_id':
-        case 'kunde_id':
-        case 'management_id':
-        case 'firma_id':
-          // M:N-Filter werden in DataService über Junction-Tabellen aufgelöst
-          break;
-
-        default:
-          // Standard-Filter (Select, etc.)
-          processedFilters[key] = {
-            type: 'equals',
-            value: value
-          };
-          break;
-      }
-    }
-
-    return processedFilters;
+    return processCreatorFilters(filters);
   }
 
   /**
@@ -219,7 +94,23 @@ export class CreatorFilterLogic {
     for (const [field, filter] of Object.entries(processedFilters)) {
       switch (filter.type) {
         case 'name_search':
-          query = query.or(`vorname.ilike.%${filter.value}%,nachname.ilike.%${filter.value}%,instagram.ilike.%${filter.value}%,tiktok.ilike.%${filter.value}%,mail.ilike.%${filter.value}%`);
+          query = applyNameTokens(query, filter.value);
+          break;
+
+        case 'groesse_in':
+          if (filter.value?.length) query = query.in('groesse', filter.value);
+          break;
+
+        case 'generation':
+          query = applyGeneration(query, filter.value);
+          break;
+
+        case 'rezension_min':
+          query = query.gte('rezension_schnitt', filter.value);
+          break;
+
+        case 'rezension_ohne':
+          query = query.is('rezension_schnitt', null);
           break;
 
         case 'number_range':
@@ -277,6 +168,10 @@ export class CreatorFilterLogic {
         case 'equals':
           query = query.eq(field, filter.value);
           break;
+
+        case 'in':
+          if (filter.value.length) query = query.in(field, filter.value);
+          break;
       }
     }
 
@@ -307,9 +202,17 @@ export class CreatorFilterLogic {
 
     switch (filter.type) {
       case 'name_search':
-        const searchValue = filter.value.toLowerCase();
-        return ['vorname', 'nachname', 'instagram', 'tiktok', 'mail']
-          .some(f => (item[f] || '').toLowerCase().includes(searchValue));
+        return matchesTokens(item, searchTokens(filter.value));
+
+      case 'groesse_in':
+        return filter.value.includes(item.groesse || groesseOf(item));
+
+      case 'generation':
+        return [].concat(filter.value).includes(generationOf(item));
+
+      case 'rezension_min':
+      case 'rezension_ohne':
+        return matchesRezension(item.rezension_schnitt, filter);
 
       case 'number_range':
         if (filter.min !== null && (value === null || value < filter.min)) return false;
@@ -334,6 +237,9 @@ export class CreatorFilterLogic {
 
       case 'equals':
         return value === filter.value;
+
+      case 'in':
+        return !filter.value.length || filter.value.includes(value);
 
       default:
         return true;
@@ -379,6 +285,31 @@ export class CreatorFilterLogic {
 
     return summary;
   }
+}
+
+function applyNameTokens(query, raw) {
+  const tokens = searchTokens(raw);
+  for (const token of tokens) {
+    const safe = token.replace(/[%_,.()]/g, '');
+    if (!safe) continue;
+    query = query.or(
+      `vorname.ilike.${safe}%,nachname.ilike.${safe}%,instagram.ilike.${safe}%,tiktok.ilike.${safe}%,instagram.ilike.@${safe}%,tiktok.ilike.@${safe}%`
+    );
+  }
+  return query;
+}
+
+// Mehrere Generationen: der Creator gehört zu einer davon.
+function applyGeneration(query, labels) {
+  const clauses = [].concat(labels || []).flatMap((label) => {
+    const band = GENERATIONEN.find((entry) => entry.label === label);
+    if (!band) return [];
+    const quoted = /[^a-zA-Z0-9_]/.test(label) ? `"${label.replace(/"/g, '')}"` : label;
+    const until = band.to == null ? '2999-12-31' : `${band.to}-12-31`;
+    const derived = `and(generation_override.is.null,geburtsdatum.gte.${band.from}-01-01,geburtsdatum.lte.${until},or(geschlecht.is.null,geschlecht.not.in.(paar,familie,tier)))`;
+    return [`generation_override.eq.${quoted}`, derived];
+  });
+  return clauses.length ? query.or(clauses.join(',')) : query;
 }
 
 export default CreatorFilterLogic;

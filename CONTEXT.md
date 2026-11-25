@@ -8,19 +8,53 @@ Stammdaten und operative Arbeit rund um Firmen, ihre Marken und die Kampagnen da
 Die juristische oder organisatorische Einheit, Parent von Marken. Kann ohne Marke existieren.
 _Avoid_: Firma, Company, Account
 
+**Testunternehmen**:
+Ein Unternehmen, das beim Anlegen als Test markiert ist. Nur Admins sehen es und seinen Unterbaum; Investor-Zahlen enthalten es nicht.
+_Avoid_: Sandbox, intern, Demo, hidden, Stakeholder-Exclude
+
 **Marke**:
 Eine Marke unter genau einem Unternehmen. Hat keine eigene Rechnungsadresse.
 _Avoid_: Brand, Label
 
 **Auftrag**:
-Das Kundenprojekt mit Volumen, Laufzeit und Teilrechnungen. Parent der Kampagnen.
+Das Kundenprojekt mit Volumen, Laufzeit und Teilrechnungen. Ein neuer Auftrag hat genau eine Kampagne. Bestand darf mehrere Kampagnen aus dem früheren Split haben; deren Volumen wird nicht zusammengelegt.
 _Avoid_: Deal, Job, Projekt (in der UI heisst der Anlege-Flow so, die Entity bleibt Auftrag)
 
+**Projektname**:
+Der Titel des Auftrags (`auftrag.titel`) und Basisname der Namenskette. Die Kampagne trägt ihn als Kampagnenname; Produktion, Briefing, Casting und Konzept leiten ihre Namen davon ab (ADR 0041). Eine Umbenennung zieht Bestand nicht nach.
+_Avoid_: Eigener Name der Kampagne als Basis
+
 **Kampagne**:
-Die operative Einheit unter einem Auftrag. Ein Auftrag kann mehrere Kampagnen haben;
-jede hat eigenes Volumen (aus dem Auftrags-Netto, muss ihn nicht ausschöpfen)
-und eigene Kampagnenarten (Video- und Creator-Soll).
-_Avoid_: Auftrag
+Überübersicht unter einem Auftrag. Hält den Budget-Topf, die Kampagnenarten und das Video- und Creator-Soll. Parent der Produktionen. Die Seite zeigt Summe und Soll, keine Workflow-Tabs.
+_Avoid_: Überkampagne, Auftrag
+
+**Produktion**:
+Container unter genau einer Kampagne, immer sichtbar, auch ohne Briefing. Entsteht mit dem Auftrag (so viele, wie dort geplant) oder jederzeit von Hand. Heißt `Projektname – Produktion N` (frei änderbar); der Titel des ersten finalisierten Briefings wird einmalig übernommen, danach ist der Name eigenständig. Hat ein optionales Produktionsbudget, das alle Linien teilen. Kein eigenes Soll. Enthält null bis beliebig viele Linien; darunter hängen Verträge, Kooperationen, Videos und Auswertung über die Linien. Bei übernommenen V1-Kampagnen wurde jede inhaltliche Tag-Gruppe zu einer Produktion (`Projektname – Tagname`), Restbestand ohne Tag liegt in `Projektname – Altbestand`.
+_Avoid_: Kooperation, Vor-Ort-Produktion, Geist
+
+**Produktionsbudget**:
+Betrag, mit dem eine Produktion arbeitet, geschnitten aus dem Volumen ihrer Kampagne. Leer heißt, sie teilt sich das Volumen mit den anderen ohne Budget.
+_Avoid_: Creator-Budget, Kooperation, Geist, Anteil
+
+**Verbrauch**:
+Was eine Produktion vom Budget aufgebraucht hat: Verkaufspreise der Videos netto plus Zusatzkosten ihrer Kooperationen, über alle Linien. Zählt, was an der Kooperation hinterlegt ist, unabhängig von Vertrag-Status und Rechnungen. Gelesen gegen das Produktionsbudget, sonst gegen das Creator-Budget der Kampagne. Was davon übrig bleibt, heißt „Noch frei“ und wird bei Überschreitung negativ.
+_Avoid_: Bezahlt, Gebunden, Geplant (Vertrag und Rechnung spielen für den Verbrauch keine Rolle), Ausgaben
+
+**Budget-Tab**:
+Tab der Produktion, nur für interne Rollen (nicht Kunde), steht vor Briefing; geöffnet wird weiter Briefing. Zeigt Verbrauch und Noch frei der ganzen Produktion und die Aufteilung auf die Creator. Die gewählte Linie wird hervorgehoben, nichts wird auf sie gefiltert; bei „Alle Linien“ ist nichts hervorgehoben.
+_Avoid_: Budget der Kampagne (so hieß die Kopfzeile, die er ersetzt), Kategorien-Ansicht
+
+**Linie**:
+Ein Strang innerhalb einer Produktion: ein Briefing plus sein Casting, sein Konzept, seine Skripte und seine Kooperationen. Entsteht mit dem Finalisieren des Briefings; ein Entwurf erscheint schon als Linie mit Badge. Casting und Konzept lesen nur das Briefing ihrer Linie, nie das einer anderen. Eine Produktion kann mehrere Linien haben, etwa Nano-Influencer und UGC-Creator mit 20.000 Followern. Das Produkt sitzt an der Linie; dasselbe Produkt kann an mehreren Linien hängen, auch in verschiedenen Produktionen. Eine Linie mit Kooperationen lässt sich nicht löschen.
+_Avoid_: Strang, Briefing-Line, Geist, Zweig
+
+**Altbestand-Linie**:
+Linie ohne eigenes Briefing-Dokument, aus V1 übernommen. Technisch ein Briefing mit `ist_altbestand = true`, nie ein Entwurf, Titel ist der alte Casting- oder Konzept-Name ohne Präfix. Jede hat ein Casting und ein Konzept (fehlt eines, wird es leer angelegt) sowie die Kooperationen, Skripte und Verträge der alten Tag-Gruppe. Briefing-Tab, Briefing-Listen und Picker zeigen sie nicht als Briefing; Casting-Vorschläge und Liky-Vorschläge sind gesperrt, bis jemand „Briefing ausfüllen“ wählt. Danach ist sie eine normale Linie. Im Linien-Wechsler trägt sie das Badge „Altbestand“ (Kunden sehen es nicht).
+_Avoid_: Legacy-Linie, Platzhalter-Briefing
+
+**Kooperation**:
+Creator-Buchung innerhalb einer Linie. Dieselbe Person in einer zweiten Linie, auch derselben Produktion, ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Kooperationen. Ein bestehender Vertrag desselben Creators in derselben Kampagne kann sie mitdecken, statt einen neuen Vertrag zu verlangen.
+_Avoid_: Produktion als Name der Buchung
 
 **Neuigkeit**:
 Kurzmitteilung über eine Produkt-Änderung an Mitarbeiter (titel + kurztext, Du-Form).
@@ -29,33 +63,63 @@ Es gibt keine Detail-Seite, kein Archiv und keine Screenshots.
 _Avoid_: Report, News, Update-Post, Release-Notes
 
 **Persona**:
-Typ Mensch auf Unternehmensebene, optional mehreren Marken und Produkten zugeordnet.
+Typ Mensch auf Unternehmensebene, optional mehreren Marken, Produkten und Briefings zugeordnet.
+Liky am Produkt legt zuerst den breitesten tragfähigen Typ vor: der gemeinsame Nenner mehrerer **Käufergruppen** des Gesamtprodukts, nie ein Nutzungskontext (Arbeit, Sport, Reisen) und nie ein Beruf, außer das Produkt ist berufsgebunden (B2B). Engere Typen sind eigene Personas.
 Hat Audience Situations als Bestandteil, keine eigene Prozessstufe.
 Der produkt-spezifische Fit (warum, welche Use Cases) sitzt nicht an der Persona, sondern an der Zuordnung.
 _Avoid_: Zielgruppe, Buyer-Persona, Kunde
+
+**Käufergruppe**:
+Gruppe, die ein Produkt aus einem gemeinsamen Kaufmotiv kauft (z. B. Early Adopter, Medien-Vielnutzer). Unterscheidet sich von der anderen im Kaufmotiv, nicht in Ort oder Anlass der Nutzung. Hilfsmittel der Persona-Generierung am Produkt: 2 bis 4 Käufergruppen, die Persona ist ihr gemeinsamer Nenner. Wird nicht gespeichert.
+_Avoid_: Zielgruppe, Segment, Persona (die Persona ist der Nenner, nicht die Gruppe)
 
 **Audience Situation**:
 Bestandteil einer Persona. Konkreter Moment, in dem diese Persona empfänglich sein kann.
 Wiederverwendet über die Persona, nicht pro Produkt.
 _Avoid_: Situation, Einsatzsituation, Use Case, Lebenssituation, Setting, Kontext
 
+**Namensregister**:
+Stilrichtung (klassisch-bodenständig, modern-urban, kurz-verspielt, nordisch/international), an der sich der Vorname einer neuen Persona ausrichtet; zusammen mit dem Jahrgang des Alters. Die KI leitet es aus Produkt und Marke ab, das Briefing liest sie dafür nicht (ADR 0073). Betrifft nur den Vornamen, nie andere Persona-Felder. Der Vorname funktioniert weiterhin für Frauen und Männer.
+_Avoid_: Tonalität (das ist das Persona-Feld für die Ansprache), Namensstil, Namenston
+
 **Produkt**:
 Angebot eines Unternehmens, optional mehreren Marken zugeordnet.
-Personas hängen über die Zuordnung, nicht als Eigentum des Produkts.
+Personas hängen über die Zuordnung, nicht als Eigentum des Produkts. Der Inhalt (Beschreibung, USP, Bilder, Varianten, Preis, Use Cases) liegt einmal am Produkt und gilt auf jeder Linie, die es hat; was je Linie anders ist, steht am Briefing und seinen Personas.
 _Avoid_: Artikel, SKU, Offer
+
+**Produkt übernehmen**:
+Ein vorhandenes Produkt des Unternehmens an die aktuelle Linie hängen. Es entsteht keine Kopie, andere Linien und der Katalog bleiben unverändert. Personas, Briefings und Skripte der Herkunftslinie kommen nicht mit: auf dem Produkte-Tab zeigt ein übernommenes Produkt die Personas, das Briefing und die Skripte der aktuellen Linie, das Standardprodukt der Linie (Produkt der Produktion) seine eigenen. Gegenstück ist „Von der Linie lösen“: nur diese Verknüpfung fällt weg.
+_Avoid_: Übertragen, Kopieren, Verschieben
 
 **Use Case**:
 Benannte Einsatzsituation eines Produkts. Sitzt am Produkt, nicht an der Persona.
 _Avoid_: Audience Situation, Situation
 
 **Liky**:
-Der KI-Assistent. Liest Shop-URLs und Kundenbriefings aus, schlägt Personas, Creator für ein Casting und Videoideen für ein Konzept vor und schreibt im Skript-Editor.
+Der KI-Assistent. Liest Shop-URLs und Kundenbriefings aus (ein ausgefülltes Creator-Briefing-PDF übernimmt das CRM ohne Liky aus seinen Formularfeldern), schlägt Personas und Videoideen für ein Konzept vor und schreibt im Skript-Editor. Creator-Vorschläge für ein Casting sind pausiert.
 Sitzt in der rechten Spalte der Detail-Worksheets (Produkt, Persona).
 _Avoid_: Bot, Chatbot, Copilot
 
 **Vertrag**:
-Rechtliches Dokument zwischen Parteien, wird als PDF generiert. Hat genau einen Vertragstyp.
-_Avoid_: Agreement, Kontrakt
+Rechtliches Dokument zwischen Parteien, wird als PDF generiert. Hat genau einen Vertragstyp. Deckt eine oder mehrere Kooperationen desselben Creators in derselben Kampagne, auch über Linien und Produktionen hinweg; das PDF ändert sich dadurch nicht. Eine Kooperation hat höchstens einen Vertrag, der nicht Abgelehnt ist. Die Summe der Videoanzahl der gedeckten Kooperationen darf `anzahl_videos` des Vertrags nicht übersteigen (gilt nur, wenn der Vertrag eine Videoanzahl nennt). Übersteigt die Summe der Einkaufspreise die Vergütung, wird das angezeigt, aber nicht gesperrt. Rechnungen laufen nur über gedeckte Kooperationen auf den Vertrag.
+_Avoid_: Agreement, Kontrakt, Rahmenvertrag, Nachtrag, Verträge kombinieren
+
+**Erzeuger-Kooperation**:
+Die Kooperation, an der ein Vertrag entstanden ist. Weitere Kooperationen, die derselbe Vertrag deckt, sind keine.
+_Avoid_: Hauptkooperation, Ursprungs-Kooperation
+
+**Vertrag-Status**:
+Lebenszyklus des Vertragsdokuments: Entwurf, Erstellt, Gesendet, Unterschrieben, Verzögert, Abgelehnt.
+Sitzt am Vertrag, nicht an der Kooperation. Wird nicht manuell gesetzt.
+_Avoid_: Finalisiert, Kooperation-Status, Produktionsstatus
+
+**Gesendet**:
+Vertrag-Status nach erfolgreichem Anschreiben mit generiertem PDF.
+_Avoid_: Verschickt, An Creator gesendet, Geöffnet
+
+**Verzögert**:
+Vertrag-Status, 30 Tage nach Anschreiben ohne unterschriebenes PDF.
+_Avoid_: Überfällig, Ausstehend
 
 **Vertragstyp**:
 Art des Vertrags: UGC, Influencer Kooperation, Videograph, Model oder Contracting.
@@ -89,35 +153,105 @@ geht es dem Vertragstext vor.
 _Avoid_: Anhang, Briefing
 
 **Briefing**:
-Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Verbindliche Grundlage
-für Casting und Konzept; wählt mindestens ein Produkt und eine Persona, jedes kann ausdrücklich entfallen, hängt nicht an einer Kampagne
-und trägt keinen Ansprechpartner (der sitzt am Unternehmen, der Marke oder der Kampagne).
-_Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
+Das Creator-Briefing eines Unternehmens, optional einer Marke: genau die Fragen des LikeGroup-Creator-Briefing-PDFs in dessen drei Sektionen (Kampagnenübersicht & Rahmen, Produkt & Kampagnenidee, Deine Aufgabe & Umsetzung), für alle Briefing-Typen gleich (ADR 0073). Ablage bleibt dort, die Firmenliste zeigt alle. Operativ genau einer Produktion zugeordnet (Pflicht, schon beim Anlegen; aus der Produktion heraus ist die Zuordnung gesetzt und nicht sichtbar) und nicht wiederverwendet; eine Produktion kann mehrere Briefings haben, jedes ist eine eigene Linie. Die Produkte trägt das Team im Briefing ein, sie werden dabei als Produkte angelegt oder verknüpft (ADR 0074). Titel ist der Projektname, optional mit Zusatz (`Projektname – Zusatz`); hat die Produktion einen eigenen Namen, ersetzt er den Projektnamen als Basis; im Formular als „Kampagnentitel“ weiter änderbar, die Kampagne wird dadurch nicht umbenannt. Verbindliche Grundlage für Konzept und Skript seiner Linie.
+_Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing, internes Briefing
+
+**Altfeld**:
+Feld eines Briefings, das das Formular seit dem Creator-Briefing nicht mehr abfragt (etwa Nische, Voraussetzungen, TKP, Verhandlungshinweis, Hook-Vorgaben, Learnings). Der Wert bleibt in der Datenbank; das Team sieht ihn im Briefing-Dokument unter „Frühere Angaben“, Kunde und Creator-PDF nie. Die KI liest ihn als Fallback, solange das neue Feld leer ist.
+_Avoid_: Legacy-Feld, Weitere Angaben (das sind die Reste beim Zusammenlegen von Managements)
+
+**Content-Verwendung**:
+Die Häkchen „Owned Media“, „Paid Ads“ und „Influencer-Marketing“ am Briefing: wo der Content laufen darf. Das Häkchen des Briefing-Typs ist gesetzt und gesperrt, die übrigen sind zusätzliche Nutzung.
+_Avoid_: Briefing-Typ (das ist der primäre Zweck), Kampagnenart, Nutzungsrechte
+
+**Nutzungsrechte**:
+Freitext am Briefing zu Nutzungsdauer, Accounts, Collab-Post, Partnership- oder Spark Ads und Rohmaterial. Der Vertrag liest ihn nicht; Nutzungsdauer und Rohmaterial setzt das Team am Vertrag.
+_Avoid_: Nutzungsdauer (das ist das Vertragsfeld), Verhandlungshinweis
+
+**Kampagnenidee**:
+Freitext am Briefing: kreativer Gedanke, angesprochene Zielgruppe, Rolle des Produkts und Kampagnenziel. Die Zielgruppe darin ist Beschreibung, keine Persona; Personas entstehen nicht daraus.
+_Avoid_: Idee (das ist die Videoidee ohne Link), Konzept, Schwerpunkt
+
+**Kernbotschaft**:
+Was beim Publikum nach dem Content hängen bleiben soll, ein Text am Briefing. Anker für die Kernbotschaft jeder Videoidee: die Videoidee macht sie konkret und widerspricht ihr nicht.
+_Avoid_: Claim, Message, Hook
+
+**Umsetzungsidee**:
+Ein Eintrag unter „Umsetzungsideen & Referenzen“ am Briefing: Text oder Link, als verbindlich oder Inspiration markiert. Eine verbindliche Umsetzungsidee wird einmalig 1:1 zum Videoidee-Vorschlag im Konzept der Linie (Link als Videoreferenz). An einer Inspiration darf Liky anknüpfen, schreibt sie aber nicht ab.
+_Avoid_: Videoidee (die entsteht erst im Konzept), Referenzvideo, Kundenidee
+
+**Briefing duplizieren**:
+Legt aus einem Briefing eine neue Linie an. Quelle kann jedes Briefing derselben Kampagne sein, das Duplikat landet in der gewählten Produktion (am geöffneten Briefing: in dessen eigener). Inhalt und Produkt-Verknüpfungen kommen mit, die Produkte selbst bleiben dieselben. Casting, Konzept, Skripte, Kooperationen und Liky-Daten der Herkunft bleiben dort; ein finalisiertes Duplikat bekommt ein eigenes leeres Casting und Konzept, ein Entwurf bleibt Entwurf. Titel `Titel – Kopie`, bei Belegung `Titel – Kopie 2`.
+_Avoid_: Produkt übernehmen, Linie kopieren, Briefing wiederverwenden
+
+**Entwurf**:
+Briefing, Vertrag oder Auftrag, der noch nicht verbindlich ist. Andere Entities
+verknüpfen ihn nicht über Picker; der eigene Editor bleibt beschreibbar.
+_Avoid_: Draft, unpublished, nicht live
+
+**Finalisiert**:
+Briefing, Vertrag oder Auftrag, der kein Entwurf mehr ist. Auftrag-Altbestand ohne Flag
+gilt als finalisiert.
+_Avoid_: Final, published, live, aktiv (Prozessstatus bzw. Regelwerk)
 
 **Briefing-Typ**:
 Paid, Organic oder Influencer. Der primäre Produktionszweck eines Briefings, nicht die
-spätere Nutzung und nicht die Kampagnenart.
+spätere Nutzung (**Content-Verwendung**) und nicht die Kampagnenart. Wird vor dem Formular gewählt;
+danach ist das Formular für alle Typen gleich. Er steuert nur den Skript-Ton, ob die Casting-Liste
+UGC oder Influencer ist, und das gesperrte Häkchen der Content-Verwendung.
 _Avoid_: Bereich, Kampagnenart, Paid Creator Ads, Owned Social
 
+**Videolänge**:
+Länge in ganzen Sekunden am Briefing, entweder als Intervall (von und bis inklusive, von darf gleich bis sein) oder als **Mindestlänge** (nur von, „ab X Sekunden“; ADR 0075). Leer heißt, es ist keine Videolänge vorgegeben. Beim Anlegen eines Skripts wird sie kopiert, eine Mindestlänge als `X+`; das Skript plant mit X Sekunden und zeigt die Vorgabe an. Eine spätere Änderung am Briefing gilt für neue Skripte. Ältere Paid-Briefings haben zusätzlich je **Funnel-Stufe** ein eigenes Intervall; es bleibt lesbar, wird aber nicht mehr abgefragt.
+_Avoid_: Videolängen, Nutzungsdauer
+
+**Dauer (Konzept)**:
+Videolänge an einer Videoidee, Intervall in ganzen Sekunden wie am Briefing (`strategie_items.videolaenge_von/bis`). Das Briefing nennt die Videolänge global, die Dauer der Videoidee ist die heruntergebrochene, finale Angabe und schlägt das Briefing für das Skript. Beim Anlegen einer Videoidee wird sie aus dem Briefing vorbelegt (bei Paid nach Funnel-Stufe). Leer heißt, es ist keine Dauer an der Videoidee gesetzt; das Skript nimmt dann die **Videolänge** des Briefings. Das Team setzt sie in der Spalte „Dauer“ oder im Videoidee-Drawer, der Kunde sieht sie. Die Konzept-Tabelle zeigt die Beschreibung standardmäßig und blendet Umsetzungsvorgabe, Kundenadaption, Transkript, Caption und Anmerkung Kunde standardmäßig aus; sie stehen im Videoidee-Drawer.
+_Avoid_: Videolänge (als Name der Spalte im Konzept), Laufzeit
+
 **Verhandlungshinweis**:
-Interner Hinweis am Briefing für die Vertragsverhandlung, etwa die Nutzungsdauer wenn
-ein Full Buyout nicht möglich ist. Steht nicht auf dem Creator-PDF.
+Altfeld: interner Hinweis am Briefing für die Vertragsverhandlung, etwa die Nutzungsdauer wenn
+ein Full Buyout nicht möglich ist. Wird nicht mehr abgefragt; vorhandene Werte sieht nur das Team. Steht nicht auf dem Creator-PDF.
 _Avoid_: Verhandlungsspielraum (das sitzt an den Auftragsdetails)
 
+**Pflichtinhalte**:
+Text am Briefing: was gesagt oder gezeigt werden muss (Produktintegration, sichtbare Elemente, Pflichtaussagen, CTA, Rabatt, rechtliche Hinweise, Hook-Vorgaben wie „Produkt in den ersten 3 Sekunden“). Jede Videoidee und jedes Skript muss sie erfüllen. Nie ein Ausschluss.
+_Avoid_: Wichtige Vorgaben, Do’s, Hook-Vorgaben (eigenes Feld gibt es nicht mehr)
+
+**Do’s**:
+Text am Briefing: was bei der Umsetzung gewünscht ist. Ein Soll für Konzept und Skript, kein Lock und nie ein Ausschluss.
+_Avoid_: Pflichtinhalte, Voraussetzung
+
+**Don’ts**:
+Text am Briefing: was im Content vermieden werden muss. Hart für Konzept und Skript: eine Videoidee oder ein Skript, das ein Don’t bricht, wird nicht abgegeben. Betrifft nur den Inhalt (Bild, Ton, Formulierung), nie die Person; Ausschlüsse zur Person gibt es am Briefing nicht mehr.
+_Avoid_: Ausschluss, Personenfilter, Verbote
+
+**Do’s und Don’ts (alt)**:
+Altfeld `wichtige_vorgaben`: ein Text mit Pflichtinhalten, Do’s, Don’ts und Ausschlüssen aus Briefings vor dem Creator-Briefing. Gilt als Fallback, solange **Pflichtinhalte**, **Do’s** und **Don’ts** leer sind. Verbote (kein, nicht, nie, ohne) sind hart; meint ein Verbot die Person, war es ein Personenfilter des (pausierten) Matchings.
+_Avoid_: Wichtige Vorgaben, Vorgaben und Ausschlüsse, EHG-Unterlage Do’s & Don’ts
+
+**Profilfeld**:
+Vordefiniertes Feld am Creator, das eine Suche abfragen kann: Alter, Geschlecht, Branche, Creator-Typ, Sprache, Follower-Größe, Standort, Plattform, Hat Kinder, Hat Haustier, Spielt Instrument. Leer oder daneben schließt aus.
+_Avoid_: Profiltext
+
+**Profiltext**:
+Freitext am Creator, den er selbst schreibt oder der von Instagram kommt: Bio, Notiz, Captions, Mentions. Ein Treffer belegt ein Personen-Verbot aus den **Do’s und Don’ts (alt)**, ein fehlender Treffer ist kein K.-o.
+_Avoid_: Profilfeld
+
 **Voraussetzungen**:
-Checkbox-Liste der gesuchten Casting-Bedingungen am Briefing.
-_Avoid_: Sonstige Voraussetzungen, Produktspezifische Erfahrung
+Altfeld: Checkbox-Liste der gesuchten Casting-Bedingungen am Briefing.
+_Avoid_: Sonstige Voraussetzungen, Produktspezifische Erfahrung, Do’s und Don’ts
 
 **Sonstige Voraussetzungen**:
-Freitext für Casting-Bedingungen, die in keine Checkbox passen.
+Altfeld: Freitext für Casting-Bedingungen, die in keine Checkbox passen.
 _Avoid_: Voraussetzungen, Produktspezifische Erfahrung
 
 **Produktspezifische Erfahrung**:
-Ob der Creator die Marke oder das Produkt schon kennt oder selbst genutzt hat.
+Altfeld: ob der Creator die Marke oder das Produkt schon kennt oder selbst genutzt hat.
 _Avoid_: Sonstige Voraussetzungen, Voraussetzungen
 
 **Freigabeprozess**:
-Kundenfreigabe der Inhalte vor Veröffentlichung, am Influencer-Briefing.
+Altfeld: Kundenfreigabe der Inhalte vor Veröffentlichung, am Influencer-Briefing.
 _Avoid_: Skript-Freigabe, Video-Freigabe
 
 **Kundenbriefing**:
@@ -127,25 +261,59 @@ Nicht das Briefing selbst.
 _Avoid_: Briefing, Quelldokument, Kundendokument
 
 **Casting**:
-Die Creator-Auswahlliste einer Kampagne. Unverknüpft oder 1:1 mit einem Konzept.
-_Avoid_: Sourcing (außer Code/Route), Creator-Liste
+Die Creator-Auswahlliste einer Linie. Entsteht mit dem Finalisieren des Briefings. Heißt `{Briefing-Titel} Casting` und folgt der Umbenennung des Briefings. 1:1 mit dem Konzept dieser Linie.
+_Avoid_: Sourcing (außer Code/Route), Creator-Liste, Art der Liste
 
 **Konzept**:
-Das Strategie-Dokument einer Kampagne. Sammlung von Videoideen. Unverknüpft oder 1:1 mit einem Casting.
+Das Strategie-Dokument einer Produktion. Entsteht mit dem Finalisieren des Briefings. Heißt `{Briefing-Titel} Konzept` und folgt der Umbenennung des Briefings. Sammlung von Videoideen. 1:1 mit dem Casting dieser Linie. Alte Konzepte ohne Linie (V1, nicht in eine Altbestand-Linie übernommen) gehören wie Kooperationen ohne Linie zur ganzen Produktion: Der Tab Konzepte zeigt sie in jeder Linie, hinter den Konzepten der Linie.
 _Avoid_: Strategie (außer Tabelle `strategie`), Strategie-Doc
 
 **Casting-Eintrag**:
-Eine Person auf einem Casting. Nicht der CRM-Creator; die Stammdaten-Identität kann später entstehen.
+Eine Person auf einem Casting, optional einer eigenen Kategorie des Castings zugeordnet.
+Ohne Kategorie steht sie unter „Ohne Kategorie“; „Nicht umsetzen“ ist ein reservierter Eimer.
+Nicht der CRM-Creator; die Stammdaten-Identität kann später entstehen.
 Darf an mehreren Videoideen des verknüpften Konzepts hängen.
 _Avoid_: Casting-Item, Kandidat, Sourcing-Creator
+
+**Plattformzeile**:
+Eine Zeile je Plattform in einer gemeinsamen Casting-Spalte (Link, Follower, Preis Video, Preis Story): Instagram oben, TikTok darunter, mit kleinem Plattform-Icon. Welche Zeilen eine Liste zeigt, folgt beim ersten Finalisieren den Plattformen des Briefings, danach der Einstellung der Liste; der Schalter in „Tabelle anpassen“ blendet nur die ganze Spalte ein oder aus. Hat die Liste TikTok, haben alle gestapelten Zellen beide Zeilen, bei reinen Instagram-Spalten ist die TikTok-Zeile leer.
+_Avoid_: Untertabelle, Lane
+
+**Management-Anfrage**:
+Ein Casting schickt einem Ansprechpartner eines Managements eine eigene Mail mit eigenem Link, ohne Anhang. Über den Link schlägt diese Person Creator vor. Zwei Personen desselben Managements bekommen zwei Links und sehen die Vorschläge der anderen nicht.
+_Avoid_: Briefing-Anschreiben, Selbst-Bewerbung
+
+**Bewerbung**:
+Ein Creator-Vorschlag über eine Management-Anfrage: Vorname, Nachname und mindestens ein Profil-Link. Liegt im Reiter Bewerbung und ist für den Kunden unsichtbar, auch unter Alle. Aufnehmen macht daraus einen Casting-Eintrag mit Status Offen, ohne Creator-Datensatz. Verwerfen entfernt sie. Dieselbe Person von zwei Managements bleibt zweimal liegen, bis das Team eine aufnimmt.
+_Avoid_: Casting-Vorschlag, Casting-Eintrag, Selbst-Bewerbung
+
+**Kundenfeedback**:
+Die Kundenbewertung eines Casting-Eintrags: Prio 1, Prio 2 oder Abgelehnt.
+Unabhängig vom internen Prozessstatus (Angefragt … Gebucht).
+_Avoid_: Freigabe, Freigabeprozess, Status
 
 **Creator**:
 Stammdaten-Entity einer Person (Tabelle `creator`), mit Mail (`mail`) und Management-Zuordnung.
 Nicht der Casting-Eintrag; der kann später zum Creator werden.
 _Avoid_: Casting-Eintrag, Influencer, Kandidat
 
+**Masterliste**:
+Wiederverwendbare Sammlung von Creatorn, die die Agentur gemeinsam pflegt.
+Optional gehört sie einem Unternehmen; die Übersicht zeigt einen Ordner je Unternehmen und „Ohne Unternehmen“ für Listen der ganzen Agentur (ADR 0076). Eine Marken-Ebene gibt es nicht.
+Profilfelder kommen live aus den Stammdaten. Was nur für diese Liste gilt, liegt in eigenen Spalten.
+Die Reihenfolge zieht das Team selbst. Die Tabelle filtert und sortiert über die Filterspalte, wie Casting und Konzept; Standard bleibt die gezogene Reihenfolge. Eine Masterliste ist kein Casting.
+Per Instagram-Profil-Link (auch mehrere auf einmal) oder von Hand (Creator Art, Name und Profilfelder wie im Casting, ohne Preise) kommt auch eine Person ohne Creator-Datensatz auf die Liste. Im Casting einer Produktion übernimmt der Tab „Aus Masterliste“ die angehakten Creator ins Casting: mit Datensatz aus den Stammdaten, ohne Datensatz mit den Werten der Zeile. Preise bleiben leer. Von Hand Eingetragenes gilt vor dem Creator-Pool, Bild und Instagram-Zahlen kommen aus dem Pool; ein Punkt am Bild zeigt, ob der Datensatz da ist (grün) oder fehlt (rot). Gehört der Handle genau einem Creator, wird die Zeile mit ihm verknüpft; „Creator anlegen“ macht aus einer roten Zeile eine grüne. Derselbe Handle steht höchstens einmal auf einer Liste.
+_Avoid_: Creator-Liste, Casting, Excel-Liste
+
+**Casting-Bestand**:
+Die Personen, die auf mindestens einem Casting standen, auch ohne Creator-Datensatz. Eine Zeile pro Person: mit Datensatz die des Creators, ohne Datensatz gruppiert über den Instagram-Handle, sonst über den Namen. Ein Eintrag ohne Datensatz, dessen Handle zu einem Creator gehört, zählt auf dessen Zeile. Ein Punkt am Bild zeigt, ob der Datensatz da ist (grün) oder fehlt (rot); nur grüne Zeilen öffnen den Creator. Zähler für Castings (je Casting einmal), Prio 1, Prio 2, Abgelehnt und Produktion zählen die ganze Historie. Produktion ist die Zahl der Kooperationsdatensätze des Creators, unabhängig von Rechnungen. Dazu zeigt die Zeile die Branchen des Creators. Sortierbar über die Spaltenköpfe; Filter-Chips gibt es vorerst nicht, nur die Namenssuche. Zeilen lassen sich markieren und auf ein Casting legen („Zu Casting hinzufügen“, Kategorie optional): jede markierte Person wird dort ein neuer Casting-Eintrag, mit Creator-Verknüpfung bei grünem Punkt, sonst ohne. Wer schon auf diesem Casting steht (Creator, sonst Instagram-Handle, sonst Name), wird übersprungen. Die Zeile im Bestand bleibt.
+_Avoid_: Casting, Creator-Liste, Creator Casting, Übernehmen, Verschieben
+
 **Bedarf**:
-Das gesuchte Creator-Profil eines Castings, abgeleitet aus Briefing, Produkt und akzeptierten Personas.
+Das gesuchte Creator-Profil eines Castings, abgeleitet aus Briefing, Produkt
+und den Briefing-Personas. Ein Bedarf je Casting; die Personas des Briefings
+fließen als Hinweis in den Fit ein, gruppieren aber nichts. Seit dem Creator-Briefing
+fehlen dem Bedarf die strukturierten Kriterien; Casting-Vorschläge sind deshalb pausiert (ADR 0073).
 _Avoid_: Suche, Zielgruppe, Filter
 
 **Buchungsbild**:
@@ -153,21 +321,59 @@ Die historisch gebuchten bzw. bewerteten Creator zu Marke und Kampagnenart.
 Dient als Wiederholungs- und Ablehnungsfilter (Gates) und liefert die Historie für Track.
 _Avoid_: Qualitätsurteil, Proven-Slot
 
+**Videozahl**:
+Die Anzahl der Kooperationsvideos eines Creators in den letzten 30 Tagen oder den letzten 90 Tagen, ab heute.
+Gezählt wird jedes Video an dem Tag, an dem es angelegt wurde.
+_Avoid_: Buchungshäufigkeit, Buchungsbild, Track, Instagram-Reel
+
+**Creator-Tag**:
+Ein frei benanntes Merkmal am Creator, aus einer eigenen Liste. Mehrfach.
+Vom Creator wieder lösbar. Nicht der Besitz und nicht der Tag einer Kooperation.
+_Avoid_: Besitz, Kooperation-Tag, Nische, Branche
+
+**Video-Tag**:
+Ein frei benanntes Merkmal an einer Datei im Video-Tab (Hook, Plattform, Stil …), aus einem Katalog, optional auf eine Kampagne begrenzt. Mehrfach. Neue Dateien in einer Feedbackschleife haben keine Variante (kein A/B/C), das Tag hängt an der Datei (`variant_key` = `datei<Asset-ID>`); ältere Dateien mit Variantenbuchstaben behalten ihren Schlüssel. Finale Versionen erben die Tags ihrer Quelldatei. Nicht der Creator-Tag und nicht der Tag einer Kooperation.
+_Avoid_: Label, Kategorie, Creator-Tag
+
 **Casting-Vorschlag**:
-Ein für ein Casting vorgeschlagener Creator. Wird durch Aktivieren zum Casting-Eintrag.
-Auswahl und Reihenfolge folgen streng dem Matching, höchster Match oben.
+Ein für ein Casting vorgeschlagener Creator.
+Wird durch Aktivieren zum Casting-Eintrag unter „Ohne Kategorie“.
+Pro Casting stehen bis zu sechs pending Vorschläge in einer Liste, Ranking nach Matching.
+Pausiert für alle Castings, bis der Bedarf eine neue Quelle hat (ADR 0073); vorhandene Vorschläge bleiben aktivierbar.
 _Avoid_: Casting-Eintrag, Kategorie „Vorschläge“, Kandidat, Slot-Portfolio
 
 **Fit**:
 Briefing-Passung eines Creators (0-100): Nische, Persona, Voraussetzungen, Größe,
-Plattform, Mentions, Standort, Text. Unbelegte Dimensionen geben 0 Punkte –
-bewusster Anreiz, Creator-Profile vollständig zu pflegen.
-_Avoid_: Fit Score als eigenständige Kennzahl (ist Bestandteil von Matching)
+Plattform, Mentions, Standort, Text. Eine abgefragte Angabe, die der Datensatz nicht
+beantworten kann oder die nicht trifft, schließt den Creator aus.
+_Avoid_: Fit Score als eigenständige Kennzahl (ist Bestandteil von Matching), 0 Punkte bei unbelegt, Raten
 
 **Track**:
 Erfolgs-Historie eines Creators im eigenen System (0-100): Prio-Platzierungen,
 Buchungsquote aus Anfragen, Videos, Engagement-Rate, Erreichbarkeit; Absagen ziehen ab.
-_Avoid_: Qualitätsurteil, Erfahrung allgemein
+Nicht die Rezension.
+_Avoid_: Qualitätsurteil, Erfahrung allgemein, Rezension
+
+**Rezension**:
+Das Urteil des Teams zu genau einer Kooperation. Zwei Achsen mit ganzen Sternen von 1 bis 5:
+Produktionsqualität, sowie Kommunikation und Verlässlichkeit.
+Der Wert der Rezension ist der Mittelwert der beiden Achsen.
+Der Creator-Wert ist der Mittelwert seiner Rezensionen, gezeigt mit einer Nachkommastelle.
+Ohne Rezension gibt es keinen Wert, nicht die Note 0.
+Der Kommentar ist optional. Eine Kooperation hat höchstens eine Rezension.
+Jede interne Person mit Bearbeitungsrecht darf sie anlegen und anpassen, Sterne wie Kommentar.
+Sichtbar bleiben, wer sie angelegt und wer sie zuletzt geändert hat.
+Sie wird nicht gelöscht. Kunden sehen sie nicht.
+Sie kann ab Bestehen der Kooperation geschrieben werden.
+Track und Matching bleiben davon unberührt.
+_Avoid_: Track, Feedback, Feedbackschleife, Kommentar
+
+**Favorit**:
+Die Markierung eines Creators durch genau eine interne Person.
+Mehrere Personen können denselben Creator markieren. Die Markierung bleibt dieser Person zugeordnet.
+Die Person kann ihre eigene Markierung zurücknehmen.
+Nicht der Favorit an einer Kampagne.
+_Avoid_: Kampagnen-Favorit, Team-Stern
 
 **Fresh**:
 Nicht-Abnutzung eines Creators (0-100): startet bei 100, Abzüge für
@@ -185,8 +391,12 @@ _Avoid_: Fit Score, LLM-Ranking, position als Sortierung
 **Aktivieren**:
 Einen Casting-Vorschlag zum Casting-Eintrag mit `creator_id` machen.
 
+**Creator-Tausch**:
+Ein abspringender Creator wird in einer Produktion durch einen anderen Casting-Eintrag desselben Castings ersetzt. Videoideen, Skripte und Kooperation wechseln zum Ersatz, der alte Eintrag gilt als Abgesagt und zählt in Track. Der Ersatz muss vorher selbst im Casting stehen und die Gates erfüllen (Kunden-Prio, Zusage oder Gebucht). Nicht tauschbar ist, sobald ein Vertrag unterschrieben ist, eine Rechnung existiert oder ein Video hochgeladen wurde. Ein unterschriebener Vertrag sperrt den Tausch auf jeder Kooperation, die er deckt. Nicht unterschriebene Verträge des Abspringers bleiben als Abgelehnt in der Historie, außer sie decken noch eine Kooperation, die nicht getauscht wird: dann bleibt der Vertrag und verliert nur die getauschte Kooperation. Das Skript behält Text und Kundenfreigabe, bekommt aber einen Hinweis und eine Festlegung zur neuen Besetzung. Hängt das Skript auch an Videos anderer Creator, bleibt es beim Hinweis, ohne Festlegung.
+_Avoid_: Ersetzen (das ist Videoidee-Vorschläge ablösen), Wechsel, Absage-Flow, Umbesetzen
+
 **Übernehmen**:
-Einen Videoidee-Vorschlag zur normalen Videoidee machen (Flag weg, Ohne Kategorie).
+Einen KI-Vorschlag zur Stammdaten-Entity machen: Videoidee-Vorschlag wird zur normalen Videoidee (Flag weg, Ohne Kategorie); Persona-Vorschlag `typ=neu` wird zur Persona unter Unternehmen/Marke. Speichern des Produkts allein übernimmt keine Persona.
 _Avoid_: Aktivieren (Casting), Annehmen (Persona)
 
 **Management**:
@@ -194,68 +404,320 @@ Die Talent-Agentur als Stammdaten-Entity (Tabelle `management`), n:m zu Creator 
 Nicht die Mitarbeiter-Rolle `management`.
 _Avoid_: Agentur-Rolle, Mitarbeiter-Klasse Management
 
+**Namensgleich**:
+Zwei Managements mit demselben Kernnamen: Groß/Klein, Leerzeichen, Satzzeichen und eine Rechtsform (GmbH, GmbH & Co. KG, UG, AG, e.K., Ltd, Inc u. a.) zählen nicht. „Company XY“ und „Company XY GmbH“ sind namensgleich, „Company XY Management“ nicht (Management ist keine Rechtsform). Beim Anlegen sperrt Namensgleich das Speichern; ein nur ähnlicher Name warnt.
+_Avoid_: Duplikat (zu unscharf: ähnlich ist keins), Dublette
+
+**Zusammenlegen**:
+Mehrere namensgleiche Managements werden ein Datensatz: Creator, Ansprechpartner, Verträge und Anschreiben hängen danach am bleibenden, leere Felder füllt der andere, Notizen werden aneinandergehängt. Es bleibt der Datensatz mit den meisten Verknüpfungen, bei Gleichstand der ältere. Es geht nichts verloren: abweichende Angaben stehen als Weitere Angaben in der Notiz. Nur zwei verschiedene Rechtsformen (GmbH gegen AG) halten eine Gruppe zurück.
+_Avoid_: Mergen, Übernehmen (das ist KI-Vorschlag zur Stammdaten-Entity), Bereinigen
+
+**Weitere Angaben**:
+Abweichende Werte aus zusammengelegten Managements (zweite Mail, zweite Telefonnummer, zweite Adresse), die nicht ins Feld passen, weil es nur einen Wert aufnimmt. Das Feld behält den Wert des bleibenden Datensatzes, der Rest steht als Liste in der Notiz. Dieselbe Angabe in anderer Schreibweise (Straße/Strasse, Köln/Cologne, Instagram-Link/Handle, Straße mit oder ohne Hausnummer) ist keine abweichende Angabe; es gilt die vollständigere Form.
+_Avoid_: Feldkonflikt, Abweichung
+
 **Videoidee**:
-Eintrag in einem Konzept: verlinkte Videoidee oder reine Idee. Genau eine Umsetzung, nicht
+Eintrag in einem Konzept: Videoreferenz oder Idee. Genau eine Umsetzung, nicht
 eine Kernidee mit mehreren Creatorn. Höchstens ein Casting-Eintrag aus dem verknüpften Casting;
 zuordenbar einem Kooperationsvideo. Kann als Videoidee-Vorschlag entstehen.
-_Avoid_: Idee/Strategie, Referenzvideo, Kernidee
+Das Produkt (aus den Produkten des Briefings der Linie) lässt sich schon beim Anlegen wählen, im
+Drawer „Hinzufügen“ für Videoreferenz und Idee; bei genau einem Briefing-Produkt ist es vorbelegt.
+_Avoid_: Konzeptidee, Kernidee
+
+**Kurzbeschreibung**:
+Freier Kurztext an einer Videoidee (`strategie_items.kurzbeschreibung`). Steht in der Konzept-Tabelle in der Spalte „Beschreibung“ und im Drawer als eigener Bereich über der Beschreibung. Unabhängig von der strukturierten **Beschreibung** (Titel, Angle, Hook, Visual Hook, Hauptteil, CTA), die Skript und Liky lesen; bei Idee ohne strukturierte Beschreibung greift das Skript auf die Kurzbeschreibung zurück. Beim Hinzufügen einer Idee Pflicht, bei Videoreferenz optional. Bei Videoidee-Vorschlägen zeigt die Spalte weiter deren Beschreibung; beim Übernehmen einer Idee wird sie in die Kurzbeschreibung kopiert.
+_Avoid_: Beschreibung (das ist die strukturierte im Drawer)
+
+**Videoreferenz**:
+Videoidee mit Videolink. Trägt eine Umsetzungsvorgabe. Der Videoidee-Drawer baut Videoreferenz und Idee gleich auf (Kurzbeschreibung, strukturierte Beschreibung, Kundenadaption, Anmerkung, Team-Kommentare); Video-URL, Transkript, Caption und Umsetzungsvorgabe gibt es nur mit Link.
+_Avoid_: Referenzvideo, verlinkte Videoidee
+
+**Funnel-Stufe**:
+Upper, Mid oder Lower Funnel an einer Videoidee, genau eine. Leer heißt, es ist keine Stufe vorgegeben. Einzige Quelle für das Skript ist die Stufe der Videoidee; das Briefing fragt keine Stufen mehr ab (ADR 0073). Das Team setzt sie, der Kunde sieht sie als Tag. Liky wählt sie bei Vorschlägen aus allen drei Stufen, bei älteren Briefings mit Stufen nur aus diesen.
+_Avoid_: Funnel-Level, Awareness-Level, Tag (als Name der Eigenschaft)
+
+**Persona (am Konzept)**:
+Genau eine **Persona** an einer Videoidee, gewählt aus den Personas des Briefings der Linie. Leer heißt, die Videoidee nennt keine. Für das Skript ist sie die Quelle der Wahrheit: sie schlägt die Persona des Casting-Eintrags, bei leerer Persona gilt der Casting-Eintrag (Altbestand). Beim Anlegen wird sie ins Skript kopiert, eine spätere Änderung im Konzept gilt für neue Skripte. Nur das Team sieht und setzt sie, der Kunde nicht.
+Nennen weder Videoidee noch Casting-Eintrag eine Persona, das Briefing aber welche, warnt der Create-Drawer (kein Gate) und Liky fragt in den Rückfragen, welche Persona aus dem Briefing gilt. Liky wählt nie selbst. Bestehende Skripte ohne Persona bekommen sie im Editor über die Vorgaben. Mit der Persona kommt das Produkt, wenn sie genau einen akzeptierten Fit hat.
+_Avoid_: Zielgruppe (die Persona ist ein Typ Mensch, keine Zielgruppe)
+
+**Idee**:
+Videoidee ohne Videolink. Tab beim Hinzufügen, nicht das Konzept und nicht der Videoidee-Vorschlag.
+_Avoid_: Konzeptidee, Konzept
+
+**Umsetzungsvorgabe**:
+Pflichttext an einer Videoreferenz: was davon umgesetzt werden soll. Sieht nur das Team.
+_Avoid_: Was gefällt dir
+
+**Kundenadaption**:
+Text an einer Videoidee, wie eine Videoreferenz für diesen Kunden laufen könnte. An einer Idee bleibt sie leer, bis jemand sie schreibt.
+_Avoid_: Beschreibung, Videoidee-Vorschlag
+
+**Umsetzen**:
+Markierung an einer Videoidee, dass für den zugeordneten Creator die Kooperation dieser
+Produktion gestartet werden darf. Pro Creator eine Kooperation.
+_Avoid_: Umgesetzt
 
 **Videoidee-Vorschlag**:
 KI-generierte Videoidee in einem Konzept, noch nicht übernommen. Dieselbe Zeile wie die
 Videoidee, visuell abgetrennt. Übernehmen macht sie zur normalen Videoidee; Verwerfen löscht sie.
 _Avoid_: Creative Angle, Grobkonzept, Casting-Vorschlag
 
+**Umschreiben**:
+Die Beschreibung eines Videoidee-Vorschlags neu schreiben. Dieselbe Zeile, das Flag bleibt.
+_Avoid_: Neu generieren (das ist Ersetzen), Bearbeiten im Drawer
+
+**Ersetzen**:
+Die genannten Videoidee-Vorschläge durch neu entworfene ablösen. Die alten bleiben,
+bis die neuen in der Tabelle liegen.
+_Avoid_: Umschreiben (dieselbe Zeile bleibt), Neu entwerfen (addiert, verwirft nichts)
+
+**Skript**:
+Text für ein oder mehrere Videos. Die Creator des Skripts sind die der verknüpften Kooperationsvideos, sonst der Creator der Videoidee; mehrere Creator drehen dann wörtlich denselben Text. Geschrieben wird für die **Hauptbesetzung**. Braucht ein Creator eine eigene Fassung, ist das **Skript kopieren**. Organic und Influencer sind eine Empfehlung von Person zu Person, außer die **Don’ts** oder das Briefing verlangen etwas anderes. Paid bleibt ein Performance-Creative. Beim Anlegen wird die **Funnel-Stufe** der Videoidee kopiert, dazu die **Videolänge**; bei Paid ist es die Länge dieser Stufe. Eine spätere Änderung im Konzept gilt für neue Skripte, der Editor weist auf die Abweichung hin.
+_Avoid_: Drehbuch, Copy
+
+**Hauptbesetzung**:
+Der Creator, für den Liky ein Skript schreibt: der Creator der Videoidee, außer eine **Festlegung** nennt eine andere Besetzung. Weitere Creator an einem Skript übernehmen den Text.
+_Avoid_: Haupt-Creator, Lead-Creator
+
+**Skript kopieren**:
+Legt für einen weiteren Creator ein eigenes Skript an derselben Videoidee an, damit seine Fassung abweichen darf. Die Kopie übernimmt Text, Hook-Varianten, Freie Blöcke und Festlegungen, beginnt aber als Entwurf ohne Kundenfreigabe und mit der Besetzung des neuen Creators.
+_Avoid_: Duplizieren (das ist das Briefing), Skript teilen (das ist der Link)
+
 **Skript-Freigabe**:
-Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: zugeordneter
-Casting-Eintrag und nicht „Nicht umsetzen“. Gate nur für Neuanlage, nicht für bestehende Skripte.
+Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: nicht
+„Nicht umsetzen“. Ein Casting-Eintrag ist keine Voraussetzung; der Creator kann später
+zugeordnet werden. Gate nur für Neuanlage an einer Videoidee, nicht für bestehende Skripte und nicht für einen **Skript-Upload** ohne Videoidee.
 _Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperationsvideo), Freigabeprozess
 
+**Skript-Upload**:
+Ein Skript, das aus einer Word- oder PDF-Datei entsteht, statt von Liky geschrieben zu werden. Der Wortlaut wird übernommen und füllt die **Skript-Tabelle** und die Hook-Varianten: bei Word über die Beschriftung der Tabelle, beim PDF und bei Word mit **Hinweis für Liky** ordnet Liky zu, ohne umzuformulieren. Alles andere samt Bildern steht als **Freie Blöcke** darunter. Es gehört zum Konzept der Linie und beginnt als Entwurf; die Videoidee ist optional und lässt sich später setzen.
+_Avoid_: Import (das ist die Übernahme historischer Skripte), Word-Skript
+
+**Hinweis für Liky**:
+Freitext beim Anlegen eines Skripts. Ohne Datei geht er in Rückfragen und Erstellung, damit Liky Geklärtes nicht erfragt. Mit Datei sagt er, was übernommen wird, etwa welches von mehreren Skripten. Gilt nur beim Anlegen, spätere Liky-Aufträge im Editor sehen ihn nicht.
+_Avoid_: Regieanweisung (die ist für die Umsetzung am Set), Notiz
+
+**Kundenfreigabe**:
+Der Kunde gibt ein Skript frei, das intern bereits Final ist. Danach gilt das Skript als freigegeben für weitere Aktionen, und die Skript-Freigabe an allen verknüpften Kooperationsvideos ist gesetzt. Sie gilt für den Text, also für alle Creator des Skripts gemeinsam.
+_Avoid_: Skript-Freigabe, Final, Video-Freigabe (das ist das fertige Video)
+
+**Video-Freigabe**:
+Die Kundenseite (Kunde oder Gast mit Feedback-Recht) gibt im Videos-Tab mit einem Klick „Video freigeben“ die aktuelle Feedbackschleife eines Kooperationsvideos frei. In einem Schritt entsteht aus jeder Datei der Schleife eine Finale Version (Videos und Stories im erkannten Seitenverhältnis, Bilder ohne), und das Flag `freigabe` am Kooperationsvideo ist gesetzt (Checkbox „Freigabe“ hinter Kunde Feedback 3 in der Kooperationstabelle). Dateien ohne Standardformat bleiben in der Schleife. Kurz danach per „Rückgängig“ zurücknehmbar, später nur durchs Team (ADR 0072).
+_Avoid_: Kundenfreigabe (das ist das Skript), Skript-Freigabe, Final markieren (das ist der Weg des Teams)
+
+**Hook-Variante**:
+Alternativer gesprochener Opener am selben Skript (Hook 1–3). Keine eigene Version.
+_Avoid_: Variante, Alternative Version, Hook-Option
+
+**Skript-Titel**:
+Arbeitstitel des Skripts. Eigene Zelle im Editor, nicht der On-Screen-Text.
+_Avoid_: Headline, On-Screen-Text
+
+**Skript-Dokument**:
+Die Seite eines Skripts im Editor, aufgebaut aus Blöcken: genau eine **Skript-Tabelle** und beliebig viele **Freie Blöcke** davor und danach. Die Position der Skript-Tabelle ist frei.
+_Avoid_: Doc, Worksheet (das ist das Layout von Persona und Produkt), Skript-Seite
+
+**Skript-Tabelle**:
+Der feste Block des Skript-Dokuments mit Hook, Hauptteil und CTA (Was gesagt wird, Was zu sehen ist) samt Text-Hook, Rezept und Caption. Nicht löschbar, nur einmal je Skript. Liky, Versionen, Festgezogen und Prüfung lesen und schreiben nur sie.
+_Avoid_: Strip-Tabelle, Grid, Skript-Grid
+
+**Freier Block**:
+Beliebiger Inhalt im Skript-Dokument außerhalb der Skript-Tabelle: Text, Überschrift, Liste, Bild, Tabelle. Nur das Team ändert ihn. Kunde, Gast und Creator sehen ihn wie die Skript-Tabelle, außer er ist als **intern** markiert; PDF und Skript-Paket enthalten die sichtbaren. Liky ignoriert ihn vollständig: kein Kontext, kein Auftragsziel, nie überschrieben. Der Tab „Zusätzliche Infos“ ist davon getrennt. Gehört nicht zu den Skript-Versionen: ein Versionswechsel lässt die Freien Blöcke stehen. In ihnen gibt es nur Formatierung, kein Kommentieren und keine Liky-Aktionen.
+_Avoid_: Zusatzblock, Anhang, Zusätzliche Infos
+
+**Neuformulierung**:
+Auftrag im Editor, dieselbe Geschichte neu zu formulieren. Funktion, Figuren, Setting und Aussage bleiben.
+_Avoid_: Neu schreiben, Neue Geschichte, Hook-Variante
+
+**Neue Geschichte**:
+Auftrag im Editor, Situation und Einstieg zu wechseln. Claims, **Pflichtinhalte**, **Don’ts** und Besetzung bleiben.
+_Avoid_: Neuformulierung, Hook-Variante, Videoidee
+
+**Festgezogen**:
+Zelle eines Skripts, die ein späterer Auftrag nicht ersetzen darf, solange der Auftrag nicht genau diese Zelle verlangt. Ein Satz darin ist nur geschützt, wenn er markiert ist. Ein Auftrag mit Umfang Alles oder ein benannter Teil öffnet die Zellen in diesem Umfang; eine Markierung allein nicht.
+_Avoid_: Freigabe, Skript-Freigabe, Kundenfreigabe
+
+**Hook-Sperre**:
+Schloss am gesprochenen Hook einer Videoidee im Konzept. Der Hook ist vom Kunden freigegeben; Liky übernimmt ihn wörtlich ins Skript und ändert ihn in keinem Auftrag, auch nicht bei Umfang Alles oder Hook, sondern sagt im Chat, dass er bleibt. Das Team ändert den Text von Hand weiter und öffnet das Schloss am Konzept. Visual Hook, Text-Hook und Hook-Varianten bleiben für Liky offen.
+_Avoid_: Festgezogen (öffnet sich bei Umfang), Skript-Freigabe, Kundenfreigabe, Hook-Lock
+
+**Umfang**:
+Reichweite eines Auftrags im Editor. Steht im Text: Alles, ein benannter Teil (Hook, Hauptteil, CTA) oder eine Markierung. Alles und ein benannter Teil schlagen die Markierung und öffnen Festgezogen in diesem Umfang. Benannter Teil meint Was gesagt wird und Was zu sehen ist derselben Sektion. Ohne Umfang und ohne Markierung fragt Liky einmal nach der Sektion. Ein Wechsel von Figur, Besetzung, Ort oder Geschichte im freien Chat hat immer den Umfang Alles, auch ohne das Wort.
+_Avoid_: Sektion, Spalte, Kontext
+
+**Festlegung**:
+Fakt am Skript, der ab dann in jedem weiteren Auftrag gilt, ohne ihn neu zu nennen. Entsteht aus einer ausdrücklichen Anweisung oder einer Ablehnung, nicht aus dem angenommenen Wortlaut. Zum Beispiel die Besetzung, ein abgelehnter Ansatz oder ein Tarifverbot. Aus einer Ablehnung entsteht nur „Abgelehnt für <Zelle>“ mit dem abgelehnten Stück, nie die Anweisung dieses Auftrags.
+_Avoid_: Feedback, Kundenfeedback, Feedbackschleife
+
+**Auftrag im Kontext**:
+Ein Auftrag im Editor sagt, was sich ändert, nicht alles, was gilt. Was er nicht nennt, bleibt verbindlich: die Rolle der Zelle im Skript, die Kernidee der Videoidee, Persona, Produkt, Briefing und der Anschluss an die Nachbarzellen. Geht beides nicht zusammen, gilt der Auftrag, und Liky nennt jede Abweichung in der Antwort.
+_Avoid_: Prompt, Feedback, Neu schreiben
+
+**Offener Vorschlag**:
+Vorschlag von Liky, der weder angenommen noch abgelehnt ist. Pro Zelle höchstens einer, der neueste; ältere sind veraltet. Ein Auftrag ohne Bezug aufs Dokument und ohne Markierung baut auf dem offenen Vorschlag auf, nicht auf dem Dokument. Was der Mitarbeiter daran gutheißt, bleibt wörtlich.
+_Avoid_: Entwurf, Version, letzter Vorschlag
+
+**Skript-Aufbau**:
+Gesprochene Reihenfolge bei Organic und Influencer: Alltag, Problem, Produkt, CTA. Das Produkt kommt erst danach und sagt, was es ist, wie es funktioniert und warum es hilft. Der CTA ist eine Empfehlung. Tarife nur, wenn das Briefing sie zum Thema macht. Paid folgt dem Funnel-Aufbau des Masters.
+_Avoid_: Storytelling, Story, Beat
+
+**Alltag**:
+Der konkrete Moment am Anfang des Skripts, bevor das Produkt vorkommt. Eine Audience Situation der Persona, wenn sie eine hat.
+_Avoid_: Situation, Setting, Audience Situation
+
 **Kooperationsvideo**:
-Das hochgeladene Videofile in einer Kooperation (Dropbox-Asset), wird in der
-VideoPlayerLightbox abgespielt. Nicht zu verwechseln mit der Videoidee.
+Das hochgeladene Videofile in einer Kooperation (Datei in SharePoint), wird in der
+VideoPlayerLightbox abgespielt. Es gibt nur Uploads, keine externen Links (ADR 0082). Nicht zu verwechseln mit der Videoidee.
 _Avoid_: Upload, Videodatei
 
 **Video-Nr**:
 Positionsnummer des Kooperationsvideos in der Kooperation (1, 2, 3), Feld `position`.
-Steht im Dropbox-Ordner (`Video_2_...`) und im Dateinamen vor `v{n}` bzw. `final`.
+Steht im Ordner (`Video_2_...`) und im Dateinamen vor `v{n}` bzw. `final`.
 Nicht die Feedbackschleife.
 _Avoid_: Version (das ist die Feedbackschleife), Videoversion
+
+**Ausstehendes Video**:
+Ein Kooperationsvideo, zu dem noch keine Datei in einer Feedbackschleife oder Finalen Version liegt. Eine Kooperation hat so viele Kooperationsvideos, wie der Creator liefern soll; jedes ohne solche Datei ist ausstehend. Rohmaterial der Kooperation ändert daran nichts, wird aber als Hinweis genannt ("Rohmaterial liegt vor"). Der Showcase zeigt es bei "Aktueller Stand" als leere Kachel, die Kundenseite sieht dort "In Produktion". Nur das Team sieht den **Frist-Tag** gegen die Content-Deadline des jeweiligen Kooperationsvideos (jedes hat eine eigene): ab 7 Tagen vorher "Fällig in n Tagen" bzw. "Morgen fällig" (amber), am Tag "Heute fällig", danach "n Tage überfällig" (rot). Davor, ohne Deadline und auf Videos mit Datei gibt es keinen Tag; die Vollansicht nennt das Datum zusätzlich als Eigenschaft "Content-Deadline".
+_Avoid_: Platzhalter (das ist die Kooperation ohne Creator), Slot, leeres Video
 
 **Feedbackschleife**:
 Eine Überarbeitungsrunde desselben Kooperationsvideos (`version_number`, max 3).
 Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
+Alle Dateien (Videos und Bilder) liegen flach im Ordner, ohne Varianten-Ordner (A/B/C). Der Typ kommt aus der Dateiendung, auch bei Ablage im Finder bzw. SharePoint. Der Name ist der Dateiname (Titel).
+In SharePoint liegt eine Runde als `Daten/<Firma>/Medien/…/<Kampagne>/[<Produktion>/]<Kooperation>/Videos/Video_N/Feedbackschleife_K` (bzw. `Finale_Version`) und enthält alles, was der Creator in dieser Runde liefert: Videos und Bilder flach, Stories im Unterordner `Story_K` (ADR 0065). Neben `Medien/` liegen je Unternehmen `Verträge/` (ADR 0067), `Rechnungen/` und `Aufträge/` (ADR 0068). Es gibt keine eigenen Ordner `Storys/` oder `Bilder/` mehr. Bekannte Abweichung: der Altbestand in Dropbox behält seine alte Struktur.
 _Avoid_: Version (alleinstehend), Revision
 
+**Story**:
+Ein Story-File zu einem Kooperationsvideo. Liegt im Videos-Tab in derselben Feedbackschleife und derselben Finalen Version wie das Video (gleiche `version_number`), gruppiert unter "Stories". In SharePoint im Ordner `Story_K` (K = Story-Nr. des Slots) innerhalb der Runde; der Ordner trägt die Zuordnung zum Slot, weil Story und Video beide `.mp4` sein können. Finale Stories liegen ohne Format-Ordner in `Finale_Version/Story_K`, ihr Seitenverhältnis kommt aus den Pixelmaßen.
+Nicht die Kampagnenart Influencer Story.
+_Avoid_: Influencer Story, Slot
+
+**Still**:
+Ein Standbild zu einem Kooperationsvideo (Feedbackschleife oder final). Liegt im Videos-Tab in derselben Runde wie das Video, gruppiert unter "Bilder". Trägt kein Seitenverhältnis. Altbilder ohne Video hängen am ersten Video der Kooperation; in SharePoint liegen sie auch in dessen Runde, und Uploads ohne Video bekommen beim Ablegen dieses Video.
+_Avoid_: Thumbnail, Cover
+
+**Rohmaterial-Ordner**:
+Unterordner in `<Kooperation>/Rohmaterial/`, in dem der Cutter arbeitet (Creator-Name, „final“, beliebig tief). Dateien darin sind Rohmaterial der Kooperation, im Videos-Tab nach Ordner gruppiert. Creator-Abgaben landen in `Rohmaterial/<Creator-Name>/`. Das Team legt Ordner im Finder oder im CRM an, umbenannt und gelöscht wird nur im Finder. Videos und Bilder daraus lassen sich in eine Feedbackschleife verschieben, dann sind sie kein Rohmaterial mehr (ADR 0070).
+_Avoid_: Creator-Ordner (das ist der Gruppenkopf), freier Ordner (das sind die Weiteren Ordner)
+
+**Finale Version**:
+Das ausgelieferte File eines Kooperationsvideos oder einer Story, in genau einem Seitenverhältnis.
+Liegt neben der Feedbackschleife, nicht in ihr. Entsteht auf drei Wegen: das Team markiert eine vorhandene Datei einer Feedbackschleife per Klick "Als finale Version freigeben" (die Finale Version verweist auf sie, die Datei bleibt in der Schleife), das Team lädt eine Datei direkt in den Ordner Finale Version hoch (ohne Feedbackschleife davor, z. B. wenn schon die erste Schleife final ist), oder die Kundenseite gibt das Video frei (Video-Freigabe, alle Dateien der aktuellen Schleife auf einmal). Der Ordner ist für das Team immer da, auch leer; Kunden sehen ihn erst mit Inhalt. Die Finale Version setzt keinen Status von Hand, der Status folgt aus den Dateien; sie sperrt auch keine weitere Feedbackschleife.
+_Avoid_: Final, Master, Export
+
+**Dateititel**:
+Anzeigename einer Datei im Videos-Tab (Spalte `titel`). Beim Upload eines Videos oder Bildes (CRM oder Finder) der Name der hochgeladenen Datei ohne Endung, danach vom Team im Detailkopf inline änderbar. Ohne Titel gilt der abgeleitete Name (Video A, Bild 1, Story 1, Finale Version 9:16, Dateiname beim Rohmaterial). Ändert weder Dateipfad noch Download-Namen noch die Variante.
+_Avoid_: Dateiname (das ist `file_name`), Variante, Video-Name (das ist `video_name` am Kooperationsvideo)
+
+**Seitenverhältnis**:
+9:16, 4:5 oder 1:1 an einer finalen Version von Kooperationsvideo oder Story. Am Briefing nennt das Feld „Seitenverhältnis“ die gewünschten Verhältnisse (9:16, 4:5, 1:1, 16:9, dazu Freitext); eine 16:9-Datei lässt sich trotzdem nicht als Finale Version ablegen. Jedes Verhältnis ist eine eigene, eigens geschnittene Datei, kein Beschnitt der anderen: Der Player zeigt jede Datei in ihrem echten Verhältnis, es gibt im Detailbereich keinen Umschalter und nirgends einen automatischen Crop (der Showcase wählt nur die passende Datei). Das Verhältnis erkennt das System aus den Pixelmaßen der Datei (beim Freigeben und beim Hochladen); eine Datei ohne Standardformat (z. B. 16:9) lässt sich nicht als Finale Version ablegen. Mehrere finale Versionen desselben Verhältnisses können nebeneinander liegen.
+_Avoid_: Format (Kollision mit Kampagnenart, auch im Briefing heißt das Feld Seitenverhältnis), Ratio, 4:3
+
+**Showcase**:
+Erste Darstellung und Standard im Videos-Tab, für Team und Kundenseite (Umschalter "Showcase | Ordner | Kalender" als ViewModeToggle rechts in der Workflow-Tab-Zeile, ebenso Inhalt, Gruppieren, Status und Größe, mit gleitendem Indikator): die Videos der Produktion bzw. der gewählten Linie nebeneinander in einem Grid, für Überblick und Abschlusstermin. Links auf eine bestimmte Datei (Teams-Meldung, Auswertung) öffnen weiter den Ordner. Kein eigener Tab, kein eigener Datenstand: der Baum des Spaltenbrowsers wird nur anders gezeigt, Tags und Filter-Chips sind dieselben. Die Filterzeile nennt neben Videos, Bildern und Stories alle vergebenen Tags der Datenmenge: die Video-Tags der Dateien und, nur fürs Team, die Tags der Kooperationen aus dem Kooperationsformular; gleichnamige stehen als ein Chip da. Ein Tag der Kooperation trifft alle ihre Kacheln, auch Ausstehende Videos. Der Showcase zeigt je Variante die Datei in 9:16 (hat die Variante sie nicht, die vorhandene), er schneidet nichts zu; einen Umschalter für das Seitenverhältnis gibt es nicht. Der Umschalter "Status" filtert nach dem Status der Kachel, mit Anzahl je Option und den Labels der Rolle: Team "Feedback erhalten" (dazu "Änderungen angefordert"), "Wartet auf Kunde", "Ausstehend", "Freigegeben"; Kundenseite "Zu prüfen", "Feedback gegeben", "In Produktion", "Freigegeben". Was die Rolle selbst tun muss, steht vorn. Bei "Nur final" ist er gesperrt und steht auf "Alle". Der Umschalter "Inhalt" wählt die Datenmenge: "Aktueller Stand" (Standard: je Variante die Finale Version, sonst die Datei der letzten Feedbackschleife, also alle Videos; Kacheln zeigen dort Stern bei Finalen und Status bei den übrigen, Ausstehende Videos stehen als leere Kachel dabei) oder "Nur final" (nur Finale Versionen, keine Ausstehenden Videos). Gruppierung nach Creator oder ohne; Creator gruppiert über den Creator-Datensatz wie der Gruppenkopf, der Kopf nennt, wie viele seiner Kooperationsvideos hochgeladen sind ("3 von 5 hochgeladen"). Einstellungen stehen in der URL (`ansicht=showcase`). Ohne ZIP-Download und ohne Link für Kunden.
+_Avoid_: Galerie, Übersicht, eigener Tab
+
+**Vollansicht**:
+Große Ansicht einer Datei oder eines Ausstehenden Videos im Videos-Tab: der Player mit allen Steuerelementen, daneben die Video-Kommentare zum Lesen und schnellen Schreiben und die Details mit den Eigenschaften und Verknüpfungen (Creator, Kooperation, Linie, Videoidee, Skript, Produkt). Öffnet aus dem Showcase per Klick auf eine Kachel und aus dem Ordner über das Datei-Detail; im Showcase blättert sie durch alle Kacheln, auch die Ausstehenden Videos, aus dem Ordner durch die Dateien desselben Ordners. Bei einem Ausstehenden Video zeigt sie statt des Players die Upload-Zone für die erste Feedbackschleife (nur Team), so groß wie ein 9:16-Player, damit die Breite beim Blättern gleich bleibt. Freigeben geht dort wie im Ordner, Löschen und Verschieben nicht. Nicht der Player der Kooperationstabelle: der schreibt in die Feedback-Felder. Die Verknüpfungen bleiben in der Produktion: Kooperation springt im Tab Kooperationen an ihre Zeile, Videoidee im Tab Konzepte an ihre Zeile mit offenem Drawer, Linie, Skript und Produkt öffnen in ihrem Tab. Nur der Creator öffnet seine Seite.
+_Avoid_: Lightbox, Großansicht, Review-Ansicht, Vollbild (das ist der Player im Vollbildmodus)
+
+**Kalender (Videos-Tab)**:
+Dritte Darstellung im Videos-Tab: jedes Kooperationsvideo mit Posting-Datum als Eintrag an seinem Tag, im Monat oder in der Woche. Der Umschalter „Umfang“ wählt die gewählte Linie bzw. Produktion oder die Gesamte Kampagne. Stories und Stills stehen nicht drin. Videos ohne Posting-Datum stehen für das Team in einer Liste daneben: in den Kalender gezogen bekommen sie ein Posting-Datum, zurückgezogen verlieren sie es. Das Team verschiebt Einträge und ändert damit das Posting-Datum; Kunden sehen den Kalender nur lesend und ohne die Liste. Nicht der Kalender der Kampagnen-Übersicht, der zeigt Deadlines der Kampagnen.
+_Avoid_: Posting-Kalender, Redaktionsplan, Posting-Plan, Content-Kalender
+
+**Suche (Videos-Tab)**:
+Ein Textfeld vor dem Ansicht-Umschalter, das in allen drei Darstellungen gleichzeitig filtert, während man tippt. Es durchsucht Creator, Handle, Kooperation, Linie, Produkte, Tags der Kooperation (nur Team), Videotitel und die Namen und Tags der Dateien. Jedes Wort muss treffen, Groß- und Kleinschreibung sowie Akzente zählen nicht, eine Zahl trifft nur als ganze Zahl („Video 1“ trifft nicht „Video 12“). Die Suche wirkt zusätzlich zu den Chips und dem Status-Filter, die Zähler zählen nur die Treffer. Im Ordner filtert sie die Kooperationen und die Videos der gewählten Kooperation, eine offene Auswahl bleibt stehen. Sie steht nicht in der URL und gilt nur, solange der Tab offen ist.
+_Avoid_: Filter (das sind die Chips), Volltextsuche
+
+**Kooperationszeile**:
+Eintrag einer Kooperation in der ersten Spalte des Videos-Tabs. Ein Klick wählt die Kooperation und zeigt ihre Videos. Bei Alle Linien benennt der Titel die Linie, nicht den Creator, wenn der Creator mehrfach vorkommt.
+_Avoid_: Kooperationsgruppe, Creator-Zeile
+
+**Ordner-Link / Produktions-Link**:
+Kunden-Leselink in SharePoint, ohne Anmeldung, nur Ansicht, 365 Tage gültig. Der Ordner-Link zeigt auf `Videos/` einer Kooperation, Team und Kunden erzeugen ihn im Detail der Kooperation oder im Showcase im Kopf des Creators. Einen Creator-Ordner gibt es nicht: Hat ein Creator mehrere Kooperationen, kopiert der Kopf je Kooperation eine Zeile „Creator – Linie: Link“. Der Produktions-Link zeigt auf den ganzen Produktions-Ordner mit allen Kooperationen, Rohmaterial eingeschlossen. Ihn erzeugt nur das Team, über den Link-Knopf in der Spalte „Kooperationen“ oder in der Showcase-Leiste (ADR 0071).
+_Avoid_: Freigabe (Kollision mit Freigegeben über die Finale Version), Share-Link, Gast-Link (das ist der Zugang)
+
+**Gruppenkopf**:
+Überschrift über den Kooperationszeilen eines Creators (bei Alle Linien) bzw. einer Linie, wenn nach Linie gruppiert wird. Fasst die Zähler seiner Zeilen zusammen und lässt sich ein- und ausklappen, wählt aber nie eine Kooperation. Ein Creator mit nur einer Kooperation hat keinen Gruppenkopf. Gruppiert wird immer über den Creator-Datensatz, nie über den Namen; eine Kooperation ohne Creator-Datensatz steht allein.
+_Avoid_: Creator-Ordner, Ebene, Spalte
+
+**Poster**:
+Standbild einer Datei im Videos-Tab (Video, Story, Still, Rohmaterial), das der Showcase als Kachel und der Player im Ordner vor dem ersten Frame zeigt. Abgeleitete Datei: entsteht auf dem Server aus dem Original, gehört zu Pfad und Revision der Datei und ist nach einem Replace neu. Fehlt es noch, zeigt der Tab das Original. Der Browser behält die Bytes, nicht den Link (ADR 0064).
+Nicht der Still: der ist eine hochgeladene Datei und hat selbst ein Poster.
+_Avoid_: Thumbnail, Cover, Vorschau, Vorschaudatei (ADR 0061, verworfen)
+
+**Abwählen**:
+Eine markierte finale Version zurücknehmen ("Final aufheben"). Trifft nur diese eine Datei; die Feedbackschleife, aus der sie stammt, bleibt. Gilt nur für freigegebene Dateien aus einer Feedbackschleife; direkt hochgeladene Finale haben keine Quelle und werden gelöscht.
+_Avoid_: Löschen, Ersetzen
+
 **Kooperationstabelle**:
-Tabelle auf der Kampagne mit Kooperationen und Video-Stacks.
+Tabelle auf der Produktion mit Kooperationen und Video-Stacks. Tab-Label innerhalb der Produktion ist Kooperationen.
 _Avoid_: Kampagnen-Tabelle
 
 **Eigene Spalte**:
 User-definierte Spalte in der Kooperationstabelle.
+Eine Upload-Spalte (Typ Datei-Upload) legt ihre Dateien in SharePoint unter `<Kooperation>/<Spaltenname>/` ab, bei Spalten auf Videoebene je Video in `Video_<N>_<Thema>/` darunter. Die Zelle zeigt den Ordner-Link. Wird die Spalte gelöscht, ist ihr Ordner endgültig weg. In Konzept- und Casting-Listen gibt es keinen Upload-Typ (ADR 0082).
 _Avoid_: Custom Column (in der UI)
 
+**Altbestand (Ablage)**:
+Datei-Zeile, deren Datei nicht in SharePoint liegt (`ablage = 'dropbox'`): alte Uploads, Dokumente und Spalten-Dateien aus Dropbox oder externe Links. Öffnet nur als Link in einem neuen Tab, spielt nicht im Player, hat kein Poster und lässt sich weder verschieben noch umbenennen. Löschen entfernt nur die Zeile. Mit dem Ende des Dropbox-Kontos sind die Links tot (ADR 0082).
+Nicht die Altbestand-Linie (übernommene V1-Linie ohne Briefing).
+_Avoid_: Dropbox-Asset, Legacy, externer Link (alleinstehend)
+
 **Anschreiben**:
-E-Mail mit Dokumentanhang (z.B. Briefing-PDF) an adressierbare Empfänger. Kein CRM-Login,
-kein Link. Pro Empfänger eine eigene Mail.
+E-Mail mit Dokumentanhang (Briefing-PDF, Vertrags-PDF oder Skript-PDF) an adressierbare Empfänger.
+Kein CRM-Login, kein Link. Pro Empfänger eine eigene Mail. Ein Modul, mehrere Dokumenttypen.
 _Avoid_: Versand (das ist der Paketversand an Kooperationen), Teilen, Einladen
 
 **Empfänger**:
 Wer ein Anschreiben bekommt: CRM-Creator (`creator.mail`) oder Management (`management.email`),
-jeweils mit ID und Mail. Kein Casting-Eintrag ohne CRM, keine freie Adresse ohne Datensatz.
+jeweils mit ID und Mail. Am Skript-Anschreiben auch ein Ansprechpartner (`ansprechpartner.email`)
+des Unternehmens, und der Marke wenn das Skript eine hat.
+Kann am Dokument feststehen (dann Anzeige) oder im Anschreiben gewählt
+werden — gesteuert am Anschreiben-Kernel, nicht pro Seite.
+Am Skript-Anschreiben sind die wählbaren Creator die, denen ein Skript im aktuellen Umfang gehört:
+das Kooperation-Video, sonst der Casting-Creator der Videoidee. Das Management ist nur deren aktive
+Zuordnung, die Kampagne nur die des Skripts. Der Anhang eines Creators sind nur seine Skripte,
+der eines Managements die seiner Creator, der eines Ansprechpartners der ganze Umfang.
+Kein Casting-Eintrag ohne CRM, keine freie Adresse ohne Datensatz.
 _Avoid_: Casting-Eintrag, freie E-Mail
 
 **Mailvorlage**:
-Gespeicherter Betreff und Body mit Platzhaltern für ein Anschreiben. Ein Standard für alle;
-weitere sind privat, optional „für alle nutzbar“.
+Gespeicherter Betreff und Body mit Platzhaltern für ein Anschreiben. Ein Standard pro Dokumenttyp
+(Briefing, Vertrag, Skript); weitere sind privat, optional „für alle nutzbar“.
 _Avoid_: Template (Kollision mit Vertragstemplate), E-Mail-Template
 
 **Zugang**:
-Gast-Link plus Code auf eine geteilte Liste (`list_shares`). Live-Sicht im CRM, kein Anhang.
+Gast-Link plus Code auf eine geteilte Liste (`list_shares`). Bei einem Skript wahlweise dieses Skript oder alle Skripte derselben Kampagne, auch später entstandene. Live-Sicht im CRM, kein Anhang.
 _Avoid_: Anschreiben, Teilen
+
+**Einladung**:
+Link plus Code ohne Konto, mit dem ein Kunde oder Creator ein Formular ausfüllt und abschickt. Eine Produkt-Einladung hängt an einer Marke, ohne Marke am Unternehmen. Geht sie vom Produkte-Tab einer Linie aus, hängt sie zusätzlich an dieser Linie; ihre Einreichungen sieht man auf dem Produkte-Tab der Linie und in der Produktliste der Marke (dort mit Hinweis auf die Linie). Fällt die Linie weg, bleibt es eine Marken-Einladung. Eine Briefing-Einladung hängt an einer Produktion und trägt den Briefing-Typ. Eine **Konzept-Einladung** hängt an einem Casting-Eintrag. Widerruf beendet sie.
+_Avoid_: Zugang (der liest nur), Magic Link, Kunden-Login
+
+**Konzept-Einladung**:
+Einladung an genau einen Casting-Eintrag, über die dieser Creator eine Videoidee im Konzept der Linie einreicht. Ein Link pro Person, nie ein allgemeiner Link pro Linie. Der Eintrag steht fest, der Creator tippt seinen Namen nicht. Ein Eintrag hat höchstens eine aktive Konzept-Einladung; erneutes Einladen löst die alte ab. Möglich für Einträge, die weder vom Kunden abgelehnt noch „Nicht umsetzen“ sind, einzeln oder für mehrere markierte Einträge. Die Mail geht an die Creator-Mail, sonst an die Management-Mail der aktiven Zuordnung; ohne beides bleibt Link und Code zum Kopieren. Der Creator darf nach dem Absenden weitere Ideen schicken, jede ist eine eigene Einreichung. Verschwindet der Casting-Eintrag (Creator-Tausch, Löschen), wird die Einladung widerrufen, offene Einreichungen bleiben.
+_Avoid_: Creator-Einladung, Konzept-Anfrage (die **Management-Anfrage** ist etwas anderes), Briefing-Anschreiben
+
+**Einreichung**:
+Das, was über eine Einladung abgeschickt wurde. Noch kein Produkt, kein Briefing und keine Videoidee. Bleibt offen, bis ein Mitarbeiter sie anlegt oder verwirft. Die Produkte einer Briefing-Einreichung entstehen erst beim Anlegen, mit derselben Dubletten-Regel wie im Briefing (ADR 0074). Hängt die Einladung an einer Linie, wird das angelegte Produkt an diese Linie übernommen (**Produkt übernehmen**); bei „Vorhandenes nehmen“ gilt das für das vorhandene Produkt. Eine Einreichung über eine Konzept-Einladung wird beim Anlegen zu genau einer Videoidee im Konzept der Linie, mit dem Casting-Eintrag der Einladung; der Kunde sieht sie nie, auch unter Alle. Ist der Eintrag nicht mehr im Casting, legt das Team ohne Zuordnung an und wählt den Eintrag im Drawer.
+_Avoid_: Entwurf, Kundenbriefing, Produkt extern, Bewerbung (das ist der Vorschlag über eine Management-Anfrage)
+
+**Creator-Sheet**:
+Das Formular der Konzept-Einladung, das PDF „Creator Concept Sheet“ als Webformular: 01 Idee mit Arbeitstitel, 02 Einstieg / Hook, 03 Ablauf mit CTA, 04 So kommt die Marke rein (optional), dazu optional ein eigenes Video, ein Referenzvideo und eine alternative Idee. Pflicht sind 01 bis 03. Beim Anlegen wird die Idee zur Kurzbeschreibung, der Arbeitstitel zum Titel, der Hook zum Hook und der Ablauf (mit CTA) zum Hauptteil der strukturierten Beschreibung der Videoidee; das Sheet selbst bleibt als Block an der Videoidee stehen, wie der Creator es geschrieben hat, und ist nur für das Team sichtbar. Die alternative Idee bleibt Text darin und wird nicht automatisch zur zweiten Videoidee.
+_Avoid_: Konzept (das ist das Dokument der Linie), Konzeptidee, Creator-Briefing
 
 **Rechnung**:
 Eingangsrechnung eines Creators. Der Monat sitzt am Rechnungsdatum.
+Anlegen setzt einen Video-Upload zur Kooperation voraus: mindestens eine Datei an einem ihrer Videos (Feedbackschleife oder Finale Version). Ein externer Link zählt nicht. Contracting-Rechnungen sind ausgenommen, bestehende Rechnungen bleiben bearbeitbar.
 _Avoid_: Eingangsrechnung, Invoice, Beleg (das ist die PDF)
+
+**Dokument (Ablage)**:
+Eine Vertrags-, Rechnungs-, Beleg- oder Auftragsdatei, die zu einer CRM-Zeile gehört. Ein Dokument ist weder Medium noch freie Datei.
+Liegt in SharePoint unter `Daten/<Firma>/Verträge|Rechnungen|Aufträge/…` (ADR 0068). Neue Dokumente gehen immer dorthin, ältere außerhalb von SharePoint sind Altbestand (ADR 0082).
+Eine Rechnung muss angelegt sein, bevor ihre PDFs hochgeladen werden, denn der Ordner hängt an der Rechnung.
+_Avoid_: Anhang, Upload, Datei (alleinstehend)
 
 **Kundenrechnung**:
 Ausgangsrechnung an den Kunden. Eine Zeile ist ein Auftrag × Teilrechnung, nicht der Auftrag selbst.
@@ -272,9 +734,12 @@ Die Unternehmen-/Kampagnen-Hierarchie der Videos-Nav. Zählt Kooperationsvideos,
 _Avoid_: Video-Liste (das ist die paginierte Tabelle), Kooperationstabelle (sitzt auf der Kampagne)
 
 **Kampagnen-Ordnerblatt**:
-Grid-Ansicht der Kampagnen-Übersicht: Unternehmen-/Marken-Hierarchie als Ordner.
+Die Unternehmen-/Marken-Hierarchie der Kampagnen-Übersicht. Liste zeigt die Ordner
+als Zeilen, Grid als Karten; die letzte Ebene ist in beiden die Kampagnen-Übersicht.
 Zählt Kampagnen pro Ordner, lädt sie erst auf der letzten Ebene. Flach unter der
-Marke — der Auftrag ist Spalte, keine eigene Ebene.
+Marke — der Auftrag ist weder Ebene noch Spalte. Gibt es unter dem Unternehmen keine
+Marke, entfällt diese Ebene und die Liste öffnet direkt. Gesetzte Suche hebt die Ordner nur
+auf der Liste in der Anzeige auf; das Grid hat keine Suche.
 _Avoid_: Ordneransicht, Kampagnen-Explorer
 
 ### Rechnungswesen
@@ -320,7 +785,7 @@ _Avoid_: Rabatt, Nachlass, Differenz
 **Kampagnenart**:
 Die Leistungsform einer Kampagne: UGC Paid, UGC Organic, Influencer Kampagne, Influencer Story,
 Influencer Events, Vor-Ort-Produktion, Whitelisting oder Darkposting. Sitzt an der Kampagne,
-nicht am Auftrag; ein Auftrag aggregiert die Arten seiner Kampagnen.
+nicht an der Produktion und nicht am Auftrag. Video-Soll und Creator-Soll gelten für die ganze Kampagne; jede Kooperation zählt, auch wenn dieselbe Person in zwei Produktionen gebucht ist.
 _Avoid_: Kampagnentyp, Format, Chip
 
 **Leistungsbereich**:
@@ -337,13 +802,41 @@ _Avoid_: Direkte Kosten, Creator-Kosten, COGS
 **Bezahlt**:
 Eine gestellte Rechnung, deren Zahlung eingegangen ist. Derselbe Begriff gilt fuer Kunden- und
 Creatorrechnungen, auch wenn die Speicherung ihn in zwei Woertern festhaelt.
+Bei Kundenrechnungen sitzt der Zahlungsstand an der Teilrechnung, nicht am Auftrag, sobald Teilrechnungen existieren.
 _Avoid_: Überwiesen, beglichen, erledigt
+
+**Unbezahlt**:
+Eine gestellte Rechnung, deren Zahlung noch nicht eingegangen ist.
+_Avoid_: Offen, ausstehend
+
+**Überfällig**:
+Eine unbezahlte Rechnung, deren Zahlungsziel überschritten ist. Teilmenge von Unbezahlt, kein eigener Summand.
+_Avoid_: Mahnung, Verzug
+
+**Offen**:
+Unbezahlt plus noch nicht gestellter Restbetrag auf der Creatoranteil-Kachel. Überfällig steckt in Unbezahlt.
+_Avoid_: Offener Posten, Rest
 
 **Berichtsstand**:
 Ein eingefrorener Stand des Investor-Dashboards (Monatsauswertung und Zahlungsstand), der
 belegt, worauf ein verschicktes Update beruhte. Die Ansicht rechnet immer live; ein Berichtsstand
 wird nie korrigiert, sondern durch einen neuen Stand ersetzt.
 _Avoid_: Snapshot, Report, Export
+
+**Dashboard-Ergebnis**:
+Das fertig gerechnete Ergebnis fuer das Investor-Dashboard: je Auftrag und Jahr eine Zeile plus die
+Monatsauswertung. Es entsteht in `berechneDashboard` (eine Implementation), normalerweise in der
+Netlify-Function `stakeholder-dashboard`, sonst im Browser. Jahr und Leistungsbereich filtert der
+Browser nur noch auf den Zeilen. Wird nie gecacht (ADR 0040).
+_Avoid_: Finanzbestand (das sind die Rohzeilen, die Datenqualitaet braucht), Aggregat, Snapshot
+
+**Jahreszuordnung**:
+In welchem Jahr das Investor-Dashboard Volumen und Kosten eines Auftrags zeigt. Ein Auftrag mit
+Teilrechnungen verteilt sich anteilig (Netto der Kundenrechnung) auf deren Jahre; massgeblich ist
+das Rechnungsdatum der Teilrechnung, auch das geplante einer noch nicht gestellten, geklemmt auf die
+Laufzeit des Auftrags. Ohne Teilrechnungen gilt das Startjahr. Die Monatsauswertung periodisiert
+davon unabhaengig nach Rechnungsdatum (ADR 0006, ADR 0060).
+_Avoid_: Leistungsjahr, Abgrenzung, Periodisierung (das ist die Monatsauswertung)
 
 **Investor**:
 View-only Lesezugang auf Finanzuebersicht und operative Plattform. Zwei Wege, dieselbe
@@ -373,6 +866,23 @@ Admin-Toggles schlagen die Klassen-Zeile (Klasse ist Default, kein hartes Preset
 bleibt die Server-Wahrheit; die UI versteckt nur, was ohne Recht eh fehlschluege.
 _Avoid_: Rolle-Check im Renderer, `!isKunde` als Write-Gate, `can_edit !== false`
 
+**Berechtigung**:
+Das Modul in `src/core/PermissionSystem.js`. UI fragt Capabilities ueber `can(entity, verb)`
+mit den vier Verben `view / create / edit / delete` — nie Rollen wie `isKunde`/`isMitarbeiter`
+und nie Roh-Flags wie `permissions?.x?.can_edit`. Rolle, Mitarbeiter-Klasse, zugriffsrechte
+und das user_permissions-Overlay bleiben Implementation des Moduls. Eine neue Rolle oder
+Klasse ist eine Zeile True/False in der Matrix, kein neuer Code-Pfad. Admin-Toggles schlagen
+die Klassen-Zeile (Klasse ist Default, kein hartes Preset). RLS bleibt die Server-Wahrheit;
+die UI versteckt nur, was ohne Recht eh fehlschluege.
+_Avoid_: Rolle-Check im Renderer, `!isKunde` als Write-Gate, `can_edit !== false`
+
+**Investor**:
+Die Mitarbeiter-Klasse Finanzen. Intern (`rolle = mitarbeiter`, sieht Preise), aber
+view-only: `create`/`edit`/`delete` ueberall false. Buttons und Aktionsmenüs, die nur
+`!isKunde` fragen, sind genau deshalb die Leak-Stellen — die Investor-Ansicht laeuft ueber
+Capabilities, nicht ueber die Rolle.
+_Avoid_: Stakeholder (das ist die Finanzuebersicht), Finanzen-Rolle (das ist die Klasse)
+
 **Datenqualitaetsanzeige**:
 Seite im Accounting-Bereich, die Pflegemaengel an Finanzdaten nach Kampagne gruppiert und nach
 betroffenem Geldvolumen sortiert zeigt. Sie benennt die Faelle; korrigiert wird von den Teams.
@@ -383,3 +893,74 @@ _Avoid_: Qualitaetsdashboard, Fehlerliste, Audit
 Anteil fehlerfreier gepruefter Einheiten (Videos, Kooperationen, Auftraege, Rechnungen) einer
 Kampagne in der Datenqualitaetsanzeige. 100 % heisst: alles Gepruefte ist vollstaendig gepflegt.
 _Avoid_: Score, Qualitaetsindex, Ampel
+
+**Navigations-Spur**:
+Eine Konsolen-Tabelle pro Navigation, von Klick bis fertigem Render: Phasen (Marken) und Supabase-Requests
+mit Header-Zeit, Body-Zeit und dekodierten Bytes. Aktiv in DEV, mit `?perf=1` oder
+`localStorage.perfMonitor = '1'`; `crmPerf()` gibt die letzte Spur erneut aus. Komprimierte Groessen
+liefert nur DevTools Network (Supabase sendet kein Timing-Allow-Origin).
+_Avoid_: PerformanceMonitor-Session, Perf-Log
+
+**Klickpfad**:
+Die Ebenen in der Breadcrumb, über die man auf die aktuelle Seite gekommen ist (z. B. Produktion > Casting > Creator).
+Ersetzt den offiziellen Weg, solange man sich durch Detailseiten klickt; ein Sprung auf eine Liste oder über die
+Sidebar beginnt neu. Abbrechen und Speichern führen auf die vorige Ebene zurück. Ein neuer Tab oder geteilter Link
+zeigt den offiziellen Weg (ADR 0042).
+_Avoid_: Herkunft, `von`, Return-To, Brotkrumen-Historie
+
+**Offizieller Weg**:
+Die feste Breadcrumb-Kette einer Seite aus ihrer Stammdaten-Hierarchie (z. B. Kampagnen > Kampagne > Produktion),
+unabhängig davon, woher man kam.
+_Avoid_: Standard-Breadcrumb, statische Kette
+
+**Bearbeitungsart**:
+Wer das Video schneidet, abgeleitet aus den Daten der Kooperation: liegt Rohmaterial vor, ist sie intern (der Cutter schneidet), sonst extern (der Creator liefert ein fertiges Video, wir sichten und machen den Feinschliff). Wird nicht gespeichert und nicht von Hand gesetzt.
+_Avoid_: Schnittart, Workflow-Typ, Modus
+
+**Ablaufschritt**:
+Wo ein Kooperationsvideo oder eine Story im Ablauf steht, abgeleitet aus den Dateien: Finale Version vorhanden = Freigegeben (außer eine neuere Schleife kam danach), mindestens eine Feedbackschleife = Beim Kunden, nur Rohmaterial = Rohmaterial liegt vor, sonst noch kein Upload. Steuert Hinweise und Zähler im Videos-Tab, es gibt dafür keine eigene Leiste. Nicht zu verwechseln mit dem Status am Video und nicht von Hand gesetzt.
+_Avoid_: Stage, Status, Phase
+
+**Status (Videos-Tab)**:
+Sagt, wer am Zug ist bzw. wie eine Feedbackschleife ausging. Immer aus den Dateien und Kommentaren abgeleitet, nie gespeichert. In der aktuellen Feedbackschleife hat jede Datei ihren eigenen Status: *Wartet auf Kunde* (Kundenansicht: *Zu prüfen*), solange sie kein Kundenfeedback hat, sonst *Feedback erhalten* (Kundenansicht: *Feedback gegeben*). Kundenfeedback ist ein Kommentar der Kundenseite, der für die Datei gilt und nach ihrem Upload geschrieben wurde; dazu zählen Video-Kommentare, Runden- und Bild-Notizen (auch die Spalten „Kunde Feedback N“), aber keine Team-Kommentare. Die Schleife wartet, solange eine Datei wartet; haben alle Feedback, ist das Team am Zug (Überarbeitung in der nächsten Schleife). Ältere Schleifen: *Änderungen angefordert* bei einer Schleife mit Nachfolger, *Freigegeben* für die Schleife, aus der die Finale Version stammt (Finale Version ohne Quelle: die letzte Schleife davor). Eine leere Schleife hat keinen Status; besteht die jüngste Runde nur aus Kommentaren, zählt für das Video die letzte Schleife mit Dateien. Lädt das Team nach der Finalen Version eine neue Schleife hoch, wartet diese wieder auf den Kunden. Eine Finale Version sperrt nichts: die nächste leere Schleife bleibt für das Team da, die letzte bleibt kommentierbar. Der Zähler an der Kooperation zählt Dateien, die beim Kunden liegen und noch kein Kundenfeedback haben; Ordner und Dateien tragen keinen eigenen Zähler. Freigeben kann das Team (Als finale Version freigeben) oder die Kundenseite (Video-Freigabe), die Kundenseite auch nach ihrem Feedback.
+_Avoid_: Offen, Abgeschlossen (als Status einer Schleife)
+
+**Video-Kommentar**:
+Kommentar an einer Datei der letzten Feedbackschleife im Videos-Tab (auch nach einer Finalen Version), optional an einer Stelle im Video (Timecode). Schreibt die Kundenseite (Kunde oder Gast mit Feedback-Recht) oder das Team. Nicht die Feedback-Felder der Kooperationstabelle und nicht die Notiz an einem Still.
+_Avoid_: Zeitkommentar (Name im Code), Feedback (das sind die Felder der Tabelle), Rezension
+
+**Posting-Datum**:
+Geplanter Veröffentlichungstag eines Kooperationsvideos, einer je Video. Ist er erreicht und das Video freigegeben, gilt das Video als live. Stories und Stills haben keins; das Posting-Datum an der Kooperation ist ein Altfeld. Nicht der Post: der hält fest, was tatsächlich wo veröffentlicht wurde.
+_Avoid_: GoLive, Veröffentlichungsdatum, Post-Datum
+
+**Post**:
+Ein Kooperationsvideo, eine Story oder ein Still, veröffentlicht auf genau einer Plattform (Instagram-Reel, Instagram-Story, Instagram-Post, TikTok) und einem Account. Gehört zu genau einem davon und nennt die gepostete Finale Version; dieselbe Datei kann mehrere Posts haben, verschiedene Seitenverhältnisse desselben Videos ergeben eigene Posts (4:5 auf TikTok, 9:16 auf Instagram). Ein Video, eine Story oder ein Still ohne bestätigten Post steht in der Auswertung auf „Fehlt“; ein nie gepostetes Seitenverhältnis zählt nicht. Linien mit Briefing-Typ Paid erwarten keine Posts, lassen sich aber nachtragen. Wird die genannte Datei ersetzt oder abgewählt, bleibt der Post am Video (ADR 0076). Erfasst wird auf zwei Wegen: per Link zum Instagram-Reel oder -Post (die Zahlen gelten sofort als bestätigt) oder per Insights-Screenshot, den die KI liest (Entwurf, das Team prüft und bestätigt); Stories und TikTok gehen nur per Screenshot oder von Hand. Liegen für dasselbe Feld Werte aus beiden Wegen vor, gilt der Screenshot (ADR 0078). Die Kachel Live-Performance der Kampagnenseite summiert die bestätigten Posts. Live-Link und `stats_*` am Kooperationsvideo sind Altfelder aus der Zeit vor dem Post und werden nicht mehr gepflegt.
+_Avoid_: Video (für den Post), Veröffentlichung, Asset, Upload
+
+**Betrachter**:
+Konten, die einen Post gesehen haben, jedes einmal gezählt (Feld `reach`). Nicht Aufrufe: die zählen jede Wiedergabe und sind fast immer höher. Nur Instagram weist sie aus (ADR 0078). Eine Engagement-Rate gibt es in der Auswertung nicht mehr (ADR 0081).
+_Avoid_: Reichweite, Erreichte Konten (alter Instagram-Name), Views für Betrachter
+
+**Auswertung**:
+Tab der Produktion mit den bestätigten Zahlen der Posts: je Linie, für alle Linien der Produktion oder für die ganze Kampagne mit allen Produktionen (Umschalter „Linie | Produktion | Gesamte Kampagne“, „Linie“ erst ab zwei Linien; welche Linie, wählt das Linien-Dropdown). Auf der Kampagnenseite dieselbe Ansicht mit der Ebene Kampagne. Das Team sieht live und erfasst dort; Kunde und Gast sehen nur die letzte Report-Freigabe. Oben stehen immer alle Kennzahlen als Kacheln, in der Reihenfolge der Spalten der Post-Tabelle (ohne Wert mit „–“). Die Post-Tabelle bündelt die Posts je Creator wie die Kooperationstabelle; die Creator-Zelle nennt Aufrufe und Stand der Gruppe (ADR 0081).
+_Avoid_: Reporting, Statistik, Live-Performance (das ist die Kachel der Kampagnenseite), Monatsauswertung
+
+**Report-Freigabe**:
+Das Team friert den Report einer Produktion für Kunde und Gast ein: Kennzahlen und Posts mit Werten. Kunde und Gast sehen immer die letzte Report-Freigabe, nie die Live-Daten. Die Linien-Sicht filtert sie; die Kampagnen-Sicht setzt sich aus den letzten Report-Freigaben ihrer Produktionen zusammen (ADR 0077). Aufschlüsselung und Zusammenfassung gibt es im Report nicht mehr; Creator, Ansatz und Plattform filtern die Post-Tabelle.
+_Avoid_: Freigabe (alleinstehend), Snapshot, Berichtsstand (das ist das Investor-Dashboard), Veröffentlichen (das tut der Creator mit dem Post)
+
+**Report-PDF**:
+PDF der Auswertung für den Kunden, A4 quer: ein Deckblatt mit allen acht Kennzahlen der Auswertung (ohne Kosten), danach je bestätigtem Post eine Kachel mit dem Poster der geposteten Datei (füllt die Kachel, Ränder werden beschnitten) und vier Werten der Plattform (Reel, Post, TikTok: Aufrufe, Likes, Kommentare, Interaktionen; Story: Aufrufe, Betrachter, Link-Klicks, Sticker-Taps), nach Aufrufen sortiert. Die Kacheln stehen in einer Reihe je Seite und verteilen sich gleichmäßig (8 Posts bei höchstens 5 je Seite: 4 + 4). Kosten stehen nie darin. Gedruckt wird die Vorlage aus dem Code mit Chromium, nicht nachgebaut (ADR 0080).
+_Avoid_: Export (alleinstehend), Report (alleinstehend), Berichtsstand, Snapshot
+
+**PDF-Vorlagen**:
+Seite im Accounting-Bereich, nur für Admins: zeigt die Vorlage des Report-PDF mit Beispieldaten oder einer echten Produktion (nur Kampagnen und Produktionen mit bestätigten Posts), mit Reglern für die Anzahl der Posts und die Kacheln je Seite, und erzeugt probeweise das PDF. Die Vorlage selbst ist Code, die Seite bearbeitet sie nicht; Vorschau und PDF sind dasselbe HTML.
+_Avoid_: Sandbox (das Wort meint sonst das Testunternehmen), Template-Editor, Spielwiese
+
+**Teams-Kanal**:
+Ein Kanal in Microsoft Teams, den ein Admin im CRM mit Namen und Workflow-Link hinterlegt. Deckt eine feste Liste von Unternehmen ab, mit allen Marken und Kampagnen darunter; ein Unternehmen darf in mehreren Teams-Kanälen stehen. Angelegt und besetzt wird er in Teams, nicht im CRM (ADR 0066).
+_Avoid_: Channel, Kanal allein (auch Realtime-Channel und Social-Media-Kanal im Briefing), Benachrichtigungskanal
+
+**Teams-Meldung**:
+Nachricht des CRM in jeden Teams-Kanal, der das Unternehmen abdeckt, sobald die Kundenseite einen Video-Kommentar schreibt. Eine je Kommentar, sofort; nennt Unternehmen und Marke, Kampagne, Produktion, Creator mit Video-Nr, Feedbackschleife, Autor und Text und verlinkt aufs Video. Wird der Kommentar entfernt, folgt ein Nachtrag (beim Löschen einer Datei einer für alle ihre Kommentare); eine Bearbeitung ändert nichts. Ohne passenden Teams-Kanal gibt es keine.
+_Avoid_: Neuigkeit (das ist die Produkt-Änderung), Benachrichtigung, Notification, Update

@@ -13,7 +13,8 @@
 /* Eine flache Shell ueber die volle Hoehe mit Hairline-Trennern, genau wie
    .skripte-editor-shell. Gescrollt wird nur innerhalb der Spalten - deshalb
    gibt der Wrapper seinen eigenen Scroll ab. */
-.main-wrapper:has(> .doc) {
+.main-wrapper:has(> .doc),
+.main-wrapper:has(.form-page > .doc__shell) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -41,16 +42,20 @@
 }
 
 /* Multistep in der linken Spalte (Briefing): gleiche Shell wie .doc,
-   Formular statt .doc__main. Seitenrand kommt von --doc-pad-x. */
+   Formular statt .doc__main. Seitenrand kommt von --doc-pad-x.
+   Die Seite fuellt die Restflaeche unter der Progress-Leiste, damit
+   Formular und Chat intern scrollen statt den Wrapper mitzuziehen. */
 .form-page:has(> .doc__shell) {
   padding: 0;
   border-right: none;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 128px);
+  flex: 1;
+  min-height: 0;
 }
 
 .main-wrapper:has(.doc__shell) > .multistep-progress {
+  flex-shrink: 0;
   padding-left: var(--space-md);
   padding-right: var(--space-md);
 }
@@ -63,6 +68,13 @@
   border-right: var(--border-xs) solid var(--border-primary);
   overflow-y: auto;
   padding: var(--space-xxl);
+}
+
+/* Kinder dürfen nicht unter ihre Inhaltshöhe schrumpfen (z. B. .multistep-content
+   mit min-height): sonst läuft der Inhalt über die Box hinaus und das
+   Padding unten klebt am letzten Feld. */
+.doc__shell > form > * {
+  flex-shrink: 0;
 }
 
 .doc__main {
@@ -869,11 +881,13 @@
   opacity: 0.75;
 }
 
-/* Der Chat lebt immer in der Seitenspalte (.doc__side) - am Doc-Worksheet
-   (Produkt, Persona) genauso wie am Briefing-Multistep. Deshalb haengen die
-   Styles an .doc__side, nicht an .doc: sonst muesste jede Seite ein .doc
-   vortaeuschen, nur damit Liky aussieht wie Liky. */
-.doc__side .doc-chat__field {
+/* Der Chat lebt in der Seitenspalte (.doc__side) und im Konzept-Panel
+   (.konzept-liky, chat-inline-question.css) - am Doc-Worksheet (Produkt,
+   Persona) genauso wie am Briefing-Multistep und am Konzept-Drawer. Deshalb
+   haengen die Styles an den Hosts, nicht an .doc: sonst muesste jede Seite
+   ein .doc vortaeuschen, nur damit Liky aussieht wie Liky. */
+.doc__side .doc-chat__field,
+.konzept-liky .doc-chat__field {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
@@ -881,7 +895,8 @@
   margin: 0;
 }
 
-.doc__side .doc-chat__field > label {
+.doc__side .doc-chat__field > label,
+.konzept-liky .doc-chat__field > label {
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--text-xs);
@@ -889,7 +904,9 @@
 
 /* Die Karte ist der Rahmen, deshalb tritt das Feld selbst komplett zurueck */
 .doc__side .doc-chat__input,
-.doc__side .doc-chat__input:focus-within {
+.doc__side .doc-chat__input:focus-within,
+.konzept-liky .doc-chat__input,
+.konzept-liky .doc-chat__input:focus-within {
   min-width: 0;
   border: none;
   border-radius: 0;
@@ -897,7 +914,8 @@
   box-shadow: none;
 }
 
-.doc__side .doc-chat__input .url-input {
+.doc__side .doc-chat__input .url-input,
+.konzept-liky .doc-chat__input .url-input {
   min-width: 0;
   padding: 0;
   font-size: var(--text-sm);
@@ -905,7 +923,8 @@
 
 /* Schlichte Eingabezeile ohne eigenes Feld-Chrome (Liky-Slot).
    Textarea bricht um und waechst mit (field-sizing), bis max-height. */
-.doc__side .doc-chat__eingabe {
+.doc__side .doc-chat__eingabe,
+.konzept-liky .doc-chat__eingabe {
   display: block;
   width: 100%;
   min-width: 0;
@@ -928,13 +947,15 @@
   field-sizing: content;
 }
 
-.doc__side .doc-chat__eingabe:focus {
+.doc__side .doc-chat__eingabe:focus,
+.konzept-liky .doc-chat__eingabe:focus {
   border: none;
   outline: none;
   box-shadow: none;
 }
 
-.doc__side .doc-chat__eingabe:disabled {
+.doc__side .doc-chat__eingabe:disabled,
+.konzept-liky .doc-chat__eingabe:disabled {
   color: var(--gray-400);
   cursor: default;
 }
@@ -958,8 +979,11 @@
   display: none;
 }
 
-/* Runder Absende-Button, Werte wie .skripte-editor-send */
-.doc__side .doc-chat__send {
+/* Runder Absende-Button, Werte wie .skripte-editor-send.
+   Hosts: die Seitenspalte (.doc__side) und das Konzept-Panel (.konzept-liky,
+   chat-inline-question.css) - beide rendern denselben Button aus renderLikySend. */
+.doc__side .doc-chat__send,
+.konzept-liky .doc-chat__send {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -975,45 +999,75 @@
   transition: opacity 0.15s ease;
 }
 
-.doc__side .doc-chat__send svg {
+.doc__side .doc-chat__send svg,
+.konzept-liky .doc-chat__send svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
 }
 
-.doc__side .doc-chat__send:hover:not(:disabled) {
+.doc__side .doc-chat__send:hover:not(:disabled),
+.konzept-liky .doc-chat__send:hover:not(:disabled) {
   background: var(--gray-900);
   color: var(--text-inverse);
   opacity: 0.85;
 }
 
-.doc__side .doc-chat__send:disabled {
+.doc__side .doc-chat__send:disabled,
+.konzept-liky .doc-chat__send:disabled {
   background: var(--gray-300);
   color: var(--text-inverse);
 }
 
+/* Lauf: Pfeil weicht dem Stopp-Icon, Button bleibt klickbar (Klick = Abbruch) */
+.doc__side .doc-chat__send .doc-chat__send-icon--stop,
+.konzept-liky .doc-chat__send .doc-chat__send-icon--stop {
+  display: none;
+}
+
+.doc__side .doc-chat__send.is-stop,
+.konzept-liky .doc-chat__send.is-stop {
+  background: var(--gray-300);
+  color: var(--text-inverse);
+}
+
+.doc__side .doc-chat__send.is-stop .doc-chat__send-icon--send,
+.konzept-liky .doc-chat__send.is-stop .doc-chat__send-icon--send {
+  display: none;
+}
+
+.doc__side .doc-chat__send.is-stop .doc-chat__send-icon--stop,
+.konzept-liky .doc-chat__send.is-stop .doc-chat__send-icon--stop {
+  display: inline-flex;
+}
+
 /* Beim Laden tritt der Kreis-Spinner an die Stelle des Icons
    (gleiches Verhalten wie .url-extract-btn in components.css) */
-.doc__side .doc-chat__send .spinner-small {
+.doc__side .doc-chat__send .spinner-small,
+.konzept-liky .doc-chat__send .spinner-small {
   display: none;
   margin: 0;
 }
 
-.doc__side .doc-chat__send.is-loading svg {
+.doc__side .doc-chat__send.is-loading .doc-chat__send-icon,
+.konzept-liky .doc-chat__send.is-loading .doc-chat__send-icon {
   display: none;
 }
 
-.doc__side .doc-chat__send.is-loading .spinner-small {
+.doc__side .doc-chat__send.is-loading .spinner-small,
+.konzept-liky .doc-chat__send.is-loading .spinner-small {
   display: inline-block;
 }
 
 /* Abgelegte Datei (z.B. Kundenbriefing-PDF) als Chip ueber der Eingabe */
-.doc__side .doc-chat__chips {
+.doc__side .doc-chat__chips,
+.konzept-liky .doc-chat__chips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-xxs);
 }
 
-.doc__side .doc-chat__chips:empty {
+.doc__side .doc-chat__chips:empty,
+.konzept-liky .doc-chat__chips:empty {
   display: none;
 }
 
@@ -1467,13 +1521,16 @@
    Dokument neben dem Panel zu wenig Platz fuer die Tabellen. Einspaltig
    verliert die Shell ihre Vollhoehe, gescrollt wird wieder die ganze Seite. */
 @media (max-width: 1280px) {
-  .main-wrapper:has(> .doc) {
+  .main-wrapper:has(> .doc),
+  .main-wrapper:has(.form-page > .doc__shell) {
     display: block;
     overflow-y: auto;
   }
 
-  .doc {
+  .doc,
+  .form-page:has(> .doc__shell) {
     display: block;
+    flex: none;
     min-height: 0;
   }
 

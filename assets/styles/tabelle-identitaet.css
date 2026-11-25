@@ -1,0 +1,104 @@
+/* Namenszelle in Tabellen (src/core/format/tableIdentity.js):
+   Bild links, Name rechts. Eine Bildgroesse fuer alle Listen ueber
+   --size-table-avatar (variables.css); sie wird nirgends lokal überschrieben. */
+
+.table-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.table-identity__media {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.table-identity__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Bild: Foto, Logo, Icon oder Initial */
+
+.table-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--size-table-avatar);
+  height: var(--size-table-avatar);
+  min-width: var(--size-table-avatar);
+  border-radius: var(--radius-sm);
+  background: var(--gray-100);
+  color: var(--gray-900);
+  font-size: var(--text-md);
+  font-weight: 600;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* Fotos fuellen die Kachel (Hoch- und Querformat werden mittig beschnitten) */
+
+.table-avatar-img {
+  object-fit: cover;
+  object-position: center;
+  padding: 0;
+}
+
+/* Logo-Kachel: Logos liegen immer ganz in einer gleich grossen, abgerundeten Box
+   mit weissem Grund. So sieht man die Rundung auch bei Logos mit
+   eigenem Hintergrund, und weisse Logos verschwinden nicht im Seitenhintergrund.
+   Breite und hohe Logos werden verkleinert, nie beschnitten oder gestreckt. */
+
+.table-avatar--logo,
+.entity-logo,
+.toolbar-entity-logo,
+.sidebar-item-logo,
+.preview-org-logo,
+.form-logo-image {
+  box-sizing: border-box;
+  object-fit: contain;
+  object-position: center;
+  
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+}
+
+.table-avatar--logo {
+  --logo-padding: var(--space-xxs);
+}
+
+.table-avatar--icon {
+  color: var(--text-secondary);
+}
+
+.table-avatar--icon svg {
+  width: 50%;
+  height: 50%;
+}
+
+/* Status-Punkt oben rechts am Bild (Casting, Masterliste) */
+
+.sourcing-avatar__dot {
+  position: absolute;
+  top: calc(var(--space-xxxs) * -1);
+  right: calc(var(--space-xxxs) * -1);
+  width: var(--space-xs);
+  height: var(--space-xs);
+}
+
+/* Textarea-Zellen (Casting, Strategie-Creator) haben padding: 0, weil das Feld die
+   ganze Zelle fuellt. Der Abstand zum Bild kommt dann von der Identitaet selbst. */
+
+.strategie-items-table td.cell-textarea > .table-identity {
+  padding: var(--space-xs) var(--space-sm);
+}
+
+/* Name in der Zelle ohne Umbruch, wie zuvor bei den Namensspalten */
+
+.data-table .table-identity__text > .table-link,
+.data-table .table-identity__text > .table-text {
+  white-space: nowrap;
+}

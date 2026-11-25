@@ -23,7 +23,7 @@ export async function fetchAllRows(supabase, table, select, pageSize = 1000, ref
 
   // Volle erste Seite: der Gesamt-Count reicht, um die restlichen Seiten
   // ohne Wasserfall zu bestimmen.
-  const total = Number.isFinite(first.count) ? first.count : pageSize;
+  const total = typeof first.count === 'number' ? first.count : pageSize;
   const fetches = [];
   for (let offset = pageSize; offset < total; offset += pageSize) {
     fetches.push(page(false).range(offset, offset + pageSize - 1));
@@ -33,4 +33,43 @@ export async function fetchAllRows(supabase, table, select, pageSize = 1000, ref
     rows.push(...(pageData || []));
   }
   return rows;
+}
+
+// Grosse Tabellen (kooperation_videos, kooperationen) nicht erst nach
+// COUNT(*) paginieren: eine Welle startet sofort parallel, ohne Count.
+// Volle letzte Seite → nächste Welle. Kurze Seite → Stopp, spätere Seiten
+// dieser Welle verwerfen. Ein Fehler wirft, es gibt keine Teildaten.
+export async function fetchAllRowsWave(supabase, table, select, options = {}) {
+  const pageSize = options.pageSize ?? 1000;
+  const wave = options.wave ?? 3;
+
+  const fetchPage = (offset) =>
+    supabase
+      .from(table)
+      .select(select)
+      .order('id', { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+  const rows = [];
+  let offset = 0;
+  while (true) {
+    const results = await Promise.all(
+      Array.from({ length: wave }, (_, i) => fetchPage(offset + i * pageSize)),
+    );
+    for (const result of results) {
+      if (result.error) throw result.error;
+    }
+
+    let short = false;
+    for (const result of results) {
+      const page = result.data || [];
+      rows.push(...page);
+      if (page.length < pageSize) {
+        short = true;
+        break;
+      }
+    }
+    if (short) return rows;
+    offset += wave * pageSize;
+  }
 }

@@ -12,17 +12,33 @@
 // Formular.
 
 const { createClient } = require('@supabase/supabase-js');
-const { callClaude, MODELS } = require('./_shared/anthropic');
+const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { appendStep } = require('./_shared/thinking');
 const {
-  PERSONA_TOOL,
+  personaTool,
+  modusBrauchtUnisexName,
+  gefilterteUnisexNamen,
   buildPrompt,
   loadPoolPersonas,
   validateVorschlaege,
-  MAX_VORSCHLAEGE
+  istBreiterLauf,
+  GRUND_ZU_WENIG_GRUPPEN
 } = require('./_shared/produkt-persona');
+const { passendeNamen } = require('./_shared/unisex-vornamen');
+
+function usageZusammen(a, b) {
+  if (!b) return a || null;
+  if (!a) return b;
+  const sum = { ...b };
+  for (const key of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) {
+    if (typeof a[key] === 'number' || typeof b[key] === 'number') {
+      sum[key] = (a[key] || 0) + (b[key] || 0);
+    }
+  }
+  return sum;
+}
 
 const THINKING_LABELS = {
   start: 'Ich lese das Produkt',
@@ -112,7 +128,7 @@ exports.handler = async (event) => {
       feature: 'produkt_persona'
     });
 
-    schreibeStep('pool', 'Match-Pool wird geladen');
+    schreibeStep('pool', 'Bestehende Personas werden geladen');
     const { pool, quelle } = await loadPoolPersonas(supabase, {
       markeIds: input.marke_ids || [],
       unternehmenId: job.unternehmen_id || null
@@ -123,29 +139,89 @@ exports.handler = async (event) => {
     const ausgeschlossen = new Set(input.ausschluss_persona_ids || []);
     const matchPool = pool.filter(p => !ausgeschlossen.has(p.id));
 
-    schreibeStep('generieren', `Claude entwirft (Pool: ${matchPool.length} aus ${quelle})`);
-    const { stable, task } = buildPrompt(input, { pool: matchPool, poolQuelle: quelle });
-
-    const result = await callClaude({
-      model: MODELS.persona,
-      systemBlocks: [{ text: stable, cache: true }],
-      userPrompt: task,
-      maxTokens: 8000,
-      tool: PERSONA_TOOL,
-      toolForced: true
+    schreibeStep('generieren', `Liky entwirft (Pool: ${matchPool.length} aus ${quelle})`);
+    const unisexNamen = modusBrauchtUnisexName(input.modus);
+    const verworfenerName = input.ersetzteKarte?.name || null;
+    const erlaubteNamen = gefilterteUnisexNamen({
+      poolNamen: matchPool.map((p) => p.name),
+      belegteNamen: (input.behalten || []).map((b) => b?.name),
+      verworfenerName
     });
+    const { stable, task } = buildPrompt(input, { pool: matchPool, poolQuelle: quelle });
+    // Breiter Lauf (initial, Ersatz der einzigen Karte): Kaeufergruppen-Analyse
+    // vor der Persona, Beruf nur bei berufsgebundenen Produkten
+    const breit = istBreiterLauf(input);
+    const tool = personaTool({ unisexNamen, namen: erlaubteNamen, breit });
+    const bestehendeCount = Array.isArray(input.bestehende_use_cases) ? input.bestehende_use_cases.length : 0;
 
-    if (!result.json) {
-      throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
+    const entwerfen = async (userPrompt) => {
+      const antwort = await callClaude({
+        model: MODELS.persona,
+        systemBlocks: [{ text: stable, cache: true }],
+        userPrompt,
+        // Denkphase vor dem Tool-Call. Bei adaptivem Thinking (Sonnet 5.5) hebt
+        // shapeRequest das Limit nicht an: Reserve, damit die Tool-Antwort
+        // nicht abgeschnitten wird.
+        maxTokens: 12000,
+        thinking: true,
+        tool,
+        toolForced: true
+      });
+      // Mit Thinking ist der Tool-Call nur 'auto': ersatzweise Text-JSON lesen
+      const json = antwort.json || extractJson(antwort.text);
+      if (!json) {
+        throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
+      }
+      return {
+        antwort,
+        geprueft: validateVorschlaege(json, {
+          useCaseCount: bestehendeCount + (Array.isArray(json?.use_cases) ? json.use_cases.length : 0),
+          maxVorschlaege: 1,
+          unisexNamen,
+          breit
+        })
+      };
+    };
+
+    let { antwort: result, geprueft } = await entwerfen(task);
+
+    // Ein gemeinsamer Korrektur-Retry fuer Namens- und Breiten-Fehler
+    const namensGruende = new Set(['kein Unisex-Vorname', 'Name passt nicht zum Register', 'Name passt nicht zum Alter']);
+    const namenAbgelehnt = unisexNamen
+      && !geprueft.vorschlaege.length
+      && geprueft.verworfen.some((v) => namensGruende.has(v.grund));
+    const breiteAbgelehnt = breit
+      && !geprueft.breiteOk
+      && geprueft.verworfen.some((v) => v.grund === GRUND_ZU_WENIG_GRUPPEN || namensGruende.has(v.grund));
+    if (namenAbgelehnt || breiteAbgelehnt) {
+      let korrektur = `${task}\n\n# KORREKTUR\n`;
+      if (namenAbgelehnt) {
+        const abgelehnte = geprueft.verworfen.filter((v) => namensGruende.has(v.grund) && v.vorschlag);
+        const letzter = abgelehnte[0] || null;
+        const grund = letzter?.grund === 'Name passt nicht zum Register'
+          ? 'passt nicht zum gewaehlten Register'
+          : letzter?.grund === 'Name passt nicht zum Alter'
+            ? 'passt nicht zum Alter der Persona'
+            : 'ist nicht erlaubt';
+        const passende = passendeNamen(erlaubteNamen, {
+          register: letzter?.register || null,
+          alterVon: letzter?.alter_von ?? null,
+          alterBis: letzter?.alter_bis ?? null
+        });
+        korrektur += `Der Vorname ${abgelehnte.map((v) => v.vorschlag).join(', ') || 'des letzten Entwurfs'} ${grund}. `
+          + `Nimm genau einen aus dieser Liste: ${passende.join(', ')}. Kein anderer Name.\n`;
+      }
+      if (breiteAbgelehnt) {
+        korrektur += 'kaeufergruppen enthielt weniger als zwei verschiedene Gruppen. '
+          + 'Nenne 2 bis 4 Kaeufergruppen des Gesamtprodukts mit unterschiedlichem Kaufmotiv und leite die Persona aus ihrem gemeinsamen Nenner ab, '
+          + 'nicht aus einem einzelnen Nutzungskontext.\n';
+      }
+      const zweiter = await entwerfen(korrektur);
+      result = { ...zweiter.antwort, usage: usageZusammen(result.usage, zweiter.antwort.usage) };
+      geprueft = zweiter.geprueft;
     }
 
     schreibeStep('pruefen', 'Vorschlaege werden validiert');
-    const bestehendeCount = Array.isArray(input.bestehende_use_cases) ? input.bestehende_use_cases.length : 0;
-    const geprueft = validateVorschlaege(result.json, {
-      poolIds: matchPool.map(p => p.id),
-      useCaseCount: bestehendeCount + (Array.isArray(result.json?.use_cases) ? result.json.use_cases.length : 0),
-      maxVorschlaege: input.modus === 'karte' ? 1 : MAX_VORSCHLAEGE
-    });
 
     if (!geprueft.vorschlaege.length) {
       throw new Error('Die KI konnte aus den Produktdaten keine tragfähigen Persona-Vorschläge ableiten');
@@ -159,6 +235,8 @@ exports.handler = async (event) => {
       use_cases: geprueft.use_cases,
       vorschlaege: geprueft.vorschlaege,
       verworfen: geprueft.verworfen,
+      // Diagnose: Kaeufergruppen-Analyse des breiten Laufs (null in weitere/karte)
+      analyse: breit ? geprueft.analyse : null,
       pool_groesse: matchPool.length,
       pool_quelle: quelle
     };

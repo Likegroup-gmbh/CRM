@@ -8,7 +8,7 @@ import {
   saveBerichtsstand,
   fetchBerichtsstaende,
   fetchBerichtsstand,
-} from '../modules/stakeholder/berichtsstandStore.js';
+} from '../core/budget/berichtsstandStore.js';
 
 function mockSupabase({ insertResult, listResult, singleResult } = {}) {
   const insert = vi.fn(() => ({
@@ -40,7 +40,7 @@ describe('buildBerichtsstandPayload', () => {
   it('laesst alte Stände ohne contracting-Seite unverändert (Version 1)', () => {
     const zahlungsstand = { kunden: { gestellt: 100 }, creator: { gestellt: 50 } };
     const payload = buildBerichtsstandPayload({ monatsauswertung: {}, zahlungsstand });
-    expect(payload.version).toBe(1);
+    expect(payload.version).toBe(BERICHTSSTAND_VERSION);
     expect(payload.zahlungsstand.contracting).toBeUndefined();
   });
 

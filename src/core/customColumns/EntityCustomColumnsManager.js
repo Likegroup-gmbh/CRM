@@ -7,10 +7,17 @@ import { EntityCustomColumnDataLoader } from './EntityCustomColumnDataLoader.js'
 import { EntityCustomColumnsDrawer } from './EntityCustomColumnsDrawer.js';
 import { EntityCustomColumnFieldHandler } from './EntityCustomColumnFieldHandler.js';
 import { renderCustomHeaders, renderCustomCells } from './EntityCustomColumnRenderer.js';
+import { bindColumnResize as bindEntityColumnResize, applySavedWidths } from './EntityCustomColumnResize.js';
 import {
   orderCustomColumns, makeCustomColumnId, groupCustomColumnsByAnchor, toOrderEntry,
   isCustomColumnId
 } from './entityColumnUtils.js';
+import {
+  customValueFields,
+  isEditingCustomValue,
+  readCustomValueChange,
+  writeCustomValue
+} from './remoteCustomValue.js';
 
 /** Randzone in px, in der beim Spalten-Ziehen auto-gescrollt wird */
 const DRAG_SCROLL_EDGE = 64;
@@ -32,8 +39,12 @@ export class EntityCustomColumnsManager {
     orderColumn = 'custom_column_order',
     anchorColumns = [],
     anchorLabels = {},
-    disabledAnchors = []
+    disabledAnchors = [],
+    anchorAliases = {},
+    tableSelect = false
   }) {
+    // true: Dropdown-Spalten als internes Dropdown (TableSelect), Speichern per table-select-change
+    this.tableSelect = tableSelect;
     this.parentType = parentType;
     this.parentTable = parentTable;
     this.orderColumn = orderColumn;
@@ -42,11 +53,12 @@ export class EntityCustomColumnsManager {
     this.anchorColumns = anchorColumns;
     this.anchorLabels = anchorLabels || {};
     this.disabledAnchors = disabledAnchors || [];
+    // Alte Anker aus gespeicherten Reihenfolgen -> Spalte, in der sie aufgegangen sind
+    this.anchorAliases = anchorAliases || {};
     this.dataLoader = null;
     this.columns = [];
     this.order = [];
     this.values = {};   // { [entityId]: { [columnId]: value } }
-    this._uploadDrawer = null;
   }
 
   async init(parentId) {
@@ -57,8 +69,12 @@ export class EntityCustomColumnsManager {
       parentTable: this.parentTable,
       orderColumn: this.orderColumn
     });
-    this.columns = await this.dataLoader.loadColumns();
-    this.order = (await this.dataLoader.loadColumnOrder()) || this.columns.map(c => makeCustomColumnId(c.id));
+    const [columns, order] = await Promise.all([
+      this.dataLoader.loadColumns(),
+      this.dataLoader.loadColumnOrder()
+    ]);
+    this.columns = columns;
+    this.order = order || columns.map(c => makeCustomColumnId(c.id));
   }
 
   async loadValues(entityIds) {
@@ -69,7 +85,11 @@ export class EntityCustomColumnsManager {
   get hasColumns() { return this.columns.length > 0; }
 
   getOrderedColumns() {
-    return orderCustomColumns(this.columns, this.order);
+    const ordered = orderCustomColumns(this.columns, this.order);
+    return ordered.map(col => {
+      const alias = col._anchor && this.anchorAliases[col._anchor];
+      return alias ? { ...col, _anchor: alias } : col;
+    });
   }
 
   /** Anzahl Custom-Spalten, die fuer die aktuelle Rolle sichtbar sind (fuer colspan). */
@@ -98,7 +118,8 @@ export class EntityCustomColumnsManager {
       (eId, uuid) => this.getValue(eId, uuid),
       hiddenColumns,
       isKunde,
-      canEdit
+      canEdit,
+      { tableSelect: this.tableSelect }
     );
   }
 
@@ -119,7 +140,8 @@ export class EntityCustomColumnsManager {
       (eId, uuid) => this.getValue(eId, uuid),
       hiddenColumns,
       isKunde,
-      canEdit
+      canEdit,
+      { tableSelect: this.tableSelect }
     );
   }
 
@@ -129,6 +151,38 @@ export class EntityCustomColumnsManager {
 
   setValue(entityId, uuid, value) {
     (this.values[entityId] ||= {})[uuid] = value;
+  }
+
+  /**
+   * Werte, die jemand anderes speichert, live übernehmen.
+   * @param {{ root: () => HTMLElement|null, onRerender: () => void }} opts
+   * @returns {() => void} cleanup
+   */
+  subscribeValues({ root, onRerender }) {
+    if (!window.supabase?.channel || !this.dataLoader || !this.parentId) return () => {};
+    const channel = window.supabase
+      .channel(`entity-cc-values-${this.parentType}-${this.parentId}`)
+      // Die Werte-Tabelle kennt den Parent nicht. Zugehörigkeit über die Spalten-ID.
+      .on('postgres_changes', { event: '*', schema: 'public', table: this.dataLoader.valueTable },
+        (payload) => this.applyRemoteChange(payload, { root: root?.(), onRerender }))
+      .subscribe();
+    return () => window.supabase.removeChannel(channel);
+  }
+
+  /** @returns {boolean} true, wenn der Wert übernommen wurde */
+  applyRemoteChange(payload, { root, onRerender } = {}) {
+    const change = readCustomValueChange(payload);
+    if (!change || !this.columns.some(c => c.id === change.columnId)) return false;
+    const { columnId, entityId, value } = change;
+    const fields = customValueFields(root, columnId, entityId);
+    if (isEditingCustomValue(fields)) return false;
+
+    this.setValue(entityId, columnId, value);
+    if (writeCustomValue(fields, value)) return true;
+    const cellSelector = `td[data-custom-col-id="${makeCustomColumnId(columnId)}"]`;
+    const visible = [...(root?.querySelectorAll?.(cellSelector) || [])].some(td => !td.hidden && td.style.display !== 'none');
+    if (visible) onRerender?.();
+    return true;
   }
 
   openManagementDrawer(onChange) {
@@ -141,18 +195,44 @@ export class EntityCustomColumnsManager {
     drawer.open();
   }
 
+  /** Formular im schon offenen Drawer "Tabelle anpassen", ohne zweites Overlay. */
+  mountEditor(host, { columnId = null, onBack, onChange } = {}) {
+    this._editor?.unmount?.();
+    const drawer = new EntityCustomColumnsDrawer({
+      dataLoader: this.dataLoader,
+      columns: this.columns,
+      order: this.order,
+      onChange: () => onChange?.()
+    });
+    this._editor = drawer;
+    drawer.mountIn(host, { columnId, onBack });
+  }
+
   isCustomField(el) {
     return EntityCustomColumnFieldHandler.isCustomColumnField(el);
   }
 
   async handleFieldUpdate(el, onChange) {
-    const ok = await EntityCustomColumnFieldHandler.handleUpdate(el, {
-      dataLoader: this.dataLoader,
-      columns: this.columns,
-      onValueChange: (entityId, columnId, value) => this.setValue(entityId, columnId, value)
-    });
-    if (ok) onChange?.();
-    return ok;
+    const parsed = EntityCustomColumnFieldHandler.readUpdate(el);
+    if (!parsed) return false;
+    const previous = this.getValue(parsed.entityId, parsed.columnId);
+    this.setValue(parsed.entityId, parsed.columnId, parsed.value);
+    try {
+      const ok = await EntityCustomColumnFieldHandler.handleUpdate(el, {
+        dataLoader: this.dataLoader,
+        columns: this.columns,
+        onValueChange: (entityId, columnId, value) => this.setValue(entityId, columnId, value)
+      });
+      if (!ok) {
+        this.setValue(parsed.entityId, parsed.columnId, previous);
+        return false;
+      }
+      onChange?.();
+      return true;
+    } catch (error) {
+      this.setValue(parsed.entityId, parsed.columnId, previous);
+      throw error;
+    }
   }
 
   /**
@@ -262,6 +342,32 @@ export class EntityCustomColumnsManager {
       document.removeEventListener('drop', onDrop);
       root.removeEventListener('dragend', onDragEnd);
     };
+  }
+
+  /** table, die th+td enthaelt — thead allein reicht nicht fuer die Zellen. */
+  _resizeRoot(root) {
+    if (!root) return null;
+    return root.matches?.('table') ? root : (root.closest?.('table') || root);
+  }
+
+  /**
+   * Bindet Resize an eigene Spalten und spielt gespeicherte Breiten ein.
+   * @param {HTMLElement} root  table oder thead
+   * @returns {() => void} cleanup
+   */
+  bindColumnResize(root) {
+    const table = this._resizeRoot(root);
+    if (!table) return () => {};
+    return bindEntityColumnResize(table, {
+      parentType: this.parentType,
+      parentId: this.parentId
+    });
+  }
+
+  applyColumnWidths(root) {
+    const table = this._resizeRoot(root);
+    if (!table) return;
+    applySavedWidths(table, this.parentType, this.parentId);
   }
 
   _istDropZiel(th) {
@@ -480,38 +586,5 @@ export class EntityCustomColumnsManager {
   _vorherigerAnchor(anchor) {
     const idx = this.anchorColumns.indexOf(anchor);
     return idx > 0 ? this.anchorColumns[idx - 1] : null;
-  }
-
-  /**
-   * Oeffnet den (kampagnen-eigenen) VideoUploadDrawer im custom-Tab fuer ein Upload-Feld.
-   * Schreibt ueber valueTable/assetTable in die entity_custom_column*-Tabellen.
-   */
-  async openUploadDrawer(btn, metadaten, onChange) {
-    const columnId = btn.dataset.customColumnId;
-    const entityId = btn.dataset.entityId;
-    const columnName = btn.dataset.columnName || 'Upload';
-
-    if (!this._uploadDrawer) {
-      const mod = await import('../../modules/kampagne/VideoUploadDrawer.js');
-      this._uploadDrawer = new mod.VideoUploadDrawer();
-    }
-
-    this._uploadDrawer.open(null, metadaten || {}, null, null, null, {
-      initialTab: 'custom',
-      customMeta: {
-        columnId,
-        entityId,
-        columnName,
-        folderName: columnName,
-        valueTable: this.dataLoader.valueTable,
-        assetTable: this.dataLoader.assetTable,
-        currentValue: this.getValue(entityId, columnId) || null,
-        onSuccess: (folderUrl) => {
-          // folderUrl === null: alle Dateien geloescht -> Zelle zeigt wieder Upload-Button
-          this.setValue(entityId, columnId, folderUrl || null);
-          onChange?.();
-        }
-      }
-    });
   }
 }

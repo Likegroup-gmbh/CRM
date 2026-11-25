@@ -6,6 +6,7 @@ import { renderEmptyState, resolveEmptyState } from '../../core/components/Empty
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { NUR_UNTERNEHMEN_LABEL } from './PersonaFolders.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
 function canCreatePersona() {
   return !window.isKunde?.() && (window.isAdmin?.() || window.currentUser?.permissions?.persona?.can_edit);
@@ -53,14 +54,17 @@ function folderToolbar({ backId, listViewMode }) {
   `;
 }
 
+function nodeById(list, id) {
+  if (typeof list?.byId === 'function') return list.byId(id);
+  return document.getElementById(id);
+}
+
 function countLabel(count) {
   return `${count} ${count === 1 ? 'Persona' : 'Personas'}`;
 }
 
 function folderIconHtml(list, folder, name) {
-  return folder.logo_url
-    ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(name)}" class="folder-logo">`
-    : `${icon('folder-open')}`;
+  return renderFolderAvatar({ url: folder.logo_url, name });
 }
 
 function emptyFoldersHtml({ title, text }) {
@@ -96,7 +100,7 @@ export function renderCompaniesView(list) {
 }
 
 export function updateCompaniesGrid(list) {
-  const grid = document.getElementById('companies-grid');
+  const grid = nodeById(list, 'companies-grid');
   if (!grid) return;
 
   if (!list.companyFolders.length) {
@@ -126,7 +130,7 @@ export function renderBrandsView(list) {
 }
 
 export function updateBrandsGrid(list) {
-  const grid = document.getElementById('brands-grid');
+  const grid = nodeById(list, 'brands-grid');
   if (!grid) return;
 
   if (!list.brandFolders.length) {
@@ -172,11 +176,14 @@ export function renderItemsView(list) {
               <th>Geschlecht</th>
               <th>Region</th>
               <th>Erstellt</th>
+              <th>Produkte</th>
+              <th>Briefings</th>
+              <th>Skripte</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="personas-items-body">
-            <tr><td colspan="9" class="no-data">Lade Personas...</td></tr>
+            <tr><td colspan="12" class="no-data">Lade Personas...</td></tr>
           </tbody>
         </table>
       </div>
@@ -186,7 +193,7 @@ export function renderItemsView(list) {
 }
 
 export function updateItemsTable(list) {
-  const tbody = document.getElementById('personas-items-body');
+  const tbody = nodeById(list, 'personas-items-body');
   if (!tbody) return;
 
   if (!list.currentItems.length) {
@@ -201,7 +208,7 @@ export function updateItemsTable(list) {
         }
       }
     }, 'default');
-    tbody.innerHTML = `<tr><td colspan="9" class="empty-state-cell">${html}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="empty-state-cell">${html}</td></tr>`;
     list.pagination.updateTotal(0);
     list.pagination.render();
     return;

@@ -27,14 +27,41 @@ function chain(result) {
   return c;
 }
 
-function makeSupabase({ briefing = BRIEFING, creator, management } = {}) {
+function makeSupabase({ briefing = BRIEFING, creator, management, vertrag, ansprechpartner, skript } = {}) {
   const logUpdates = [];
   const logInserts = [];
+  const vertragUpdates = [];
   const supabase = {
     from: vi.fn((table) => {
       if (table === 'campaign_briefings') return chain({ data: briefing, error: null });
+      if (table === 'vertraege') {
+        const c = chain({ data: vertrag, error: null });
+        c.update = vi.fn((fields) => {
+          vertragUpdates.push(fields);
+          return { eq: vi.fn(() => Promise.resolve({ error: null })) };
+        });
+        return c;
+      }
       if (table === 'creator') return chain({ data: creator ?? { id: 'c1', vorname: 'Lisa', nachname: 'K', mail: 'lisa@x.de' }, error: null });
       if (table === 'management') return chain({ data: management ?? { id: 'm1', firmenname: 'Agentur', email: 'info@a.de' }, error: null });
+      if (table === 'ansprechpartner') {
+        return chain({
+          data: ansprechpartner ?? { id: 'ap1', vorname: 'Kim', nachname: 'S', email: 'kim@firma.de' },
+          error: null,
+        });
+      }
+      if (table === 'skripte') {
+        return chain({
+          data: skript ?? {
+            id: 's1',
+            titel: 'Hook A',
+            kampagne: { kampagnenname: 'Sommer' },
+            unternehmen: { firmenname: 'VHV' },
+            marke: { markenname: 'Arena' },
+          },
+          error: null,
+        });
+      }
       if (table === 'anschreiben_log') {
         return {
           insert: vi.fn((rows) => {
@@ -56,6 +83,7 @@ function makeSupabase({ briefing = BRIEFING, creator, management } = {}) {
     }),
     _logUpdates: logUpdates,
     _logInserts: logInserts,
+    _vertragUpdates: vertragUpdates,
   };
   return supabase;
 }
@@ -173,6 +201,192 @@ describe('sendAnschreiben', () => {
     expect((await sendAnschreiben({ supabase, sendMail, benutzerId: 'b' }, payload({ empfaenger: [] }))).status).toBe(400);
     expect((await sendAnschreiben({ supabase, sendMail, benutzerId: 'b' }, payload({ betreff: ' ' }))).status).toBe(400);
     expect((await sendAnschreiben({ supabase, sendMail, benutzerId: 'b' }, payload({ pdfBase64: '' }))).status).toBe(400);
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
+  it('lehnt unbekannten dokument_typ ab', async () => {
+    const supabase = makeSupabase();
+    const sendMail = vi.fn();
+    const res = await sendAnschreiben(
+      { supabase, sendMail, benutzerId: 'b' },
+      payload({ dokumentTyp: 'rechnung' })
+    );
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('Unbekannter');
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
+  it('setzt Vertrag auf gesendet nach erfolgreichem Versand', async () => {
+    const VERTRAG = {
+      id: 'v1',
+      name: 'UGC Max',
+      is_draft: false,
+      datei_url: 'https://x.pdf',
+      status: 'erstellt',
+      creator: { vorname: 'Max', nachname: 'M' },
+      kunde: { firmenname: 'Acme' },
+      kampagne: { marke: { markenname: 'Marke' } },
+    };
+    const supabase = makeSupabase({ vertrag: VERTRAG });
+    const sendMail = vi.fn(async () => ({ ok: true, id: 'r1' }));
+    const res = await sendAnschreiben(
+      { supabase, sendMail, benutzerId: 'ben1' },
+      payload({ dokumentTyp: 'vertrag', dokumentId: 'v1' })
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.sent).toBe(1);
+    expect(supabase._vertragUpdates).toHaveLength(1);
+    expect(supabase._vertragUpdates[0]).toEqual(expect.objectContaining({ status: 'gesendet' }));
+    expect(Date.parse(supabase._vertragUpdates[0].gesendet_am)).not.toBeNaN();
+  });
+
+  it('lehnt Vertrags-Entwurf ab', async () => {
+    const supabase = makeSupabase({
+      vertrag: { id: 'v1', is_draft: true, datei_url: 'https://x.pdf', name: 'X' },
+    });
+    const sendMail = vi.fn();
+    const res = await sendAnschreiben(
+      { supabase, sendMail, benutzerId: 'b' },
+      payload({ dokumentTyp: 'vertrag', dokumentId: 'v1' })
+    );
+    expect(res.status).toBe(400);
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
+  it('ueberschreibt unterschrieben nicht nach Versand', async () => {
+    const VERTRAG = {
+      id: 'v1',
+      name: 'UGC Max',
+      is_draft: false,
+      datei_url: 'https://x.pdf',
+      status: 'unterschrieben',
+      creator: { vorname: 'Max', nachname: 'M' },
+      kunde: { firmenname: 'Acme' },
+    };
+    const supabase = makeSupabase({ vertrag: VERTRAG });
+    const sendMail = vi.fn(async () => ({ ok: true, id: 'r1' }));
+    const res = await sendAnschreiben(
+      { supabase, sendMail, benutzerId: 'ben1' },
+      payload({ dokumentTyp: 'vertrag', dokumentId: 'v1' })
+    );
+    expect(res.status).toBe(200);
+    expect(supabase._vertragUpdates).toEqual([]);
+  });
+
+  it('laedt Vertrags-PDF serverseitig wenn pdfBase64 fehlt', async () => {
+    const VERTRAG = {
+      id: 'v1',
+      name: 'UGC Max',
+      is_draft: false,
+      datei_url: 'https://dropbox.com/v?dl=0',
+      status: 'erstellt',
+      creator: { vorname: 'Max', nachname: 'M' },
+      kunde: { firmenname: 'Acme' },
+    };
+    const supabase = makeSupabase({ vertrag: VERTRAG });
+    const sendMail = vi.fn(async () => ({ ok: true, id: 'r1' }));
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      arrayBuffer: async () => Uint8Array.from([37, 80, 68, 70]).buffer,
+    })));
+    try {
+      const res = await sendAnschreiben(
+        { supabase, sendMail, benutzerId: 'ben1' },
+        payload({ dokumentTyp: 'vertrag', dokumentId: 'v1', pdfBase64: '' })
+      );
+      expect(res.status).toBe(200);
+      expect(sendMail).toHaveBeenCalledTimes(1);
+      expect(fetch).toHaveBeenCalledWith('https://dropbox.com/v?raw=1');
+      expect(supabase._vertragUpdates).toHaveLength(1);
+      expect(supabase._vertragUpdates[0]).toEqual(expect.objectContaining({ status: 'gesendet' }));
+      expect(Date.parse(supabase._vertragUpdates[0].gesendet_am)).not.toBeNaN();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('loest Ansprechpartner serverseitig auf', async () => {
+    const supabase = makeSupabase();
+    const sendMail = vi.fn(async () => ({ ok: true, id: 'r1' }));
+    const res = await sendAnschreiben(
+      { supabase, sendMail, benutzerId: 'ben1' },
+      payload({
+        dokumentTyp: 'skript',
+        dokumentId: 's1',
+        empfaenger: [{ typ: 'ansprechpartner', id: 'ap1' }],
+        betreff: 'Skript: {{skript}}',
+        body: 'Hallo {{vorname}}, Kampagne {{kampagne}}',
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(sendMail.mock.calls[0][0].to).toBe('kim@firma.de');
+    expect(sendMail.mock.calls[0][0].subject).toBe('Skript: Hook A');
+    expect(sendMail.mock.calls[0][0].html).toContain('Hallo Kim,');
+    expect(sendMail.mock.calls[0][0].html).toContain('Kampagne Sommer');
+    expect(supabase._logInserts[0][0]).toMatchObject({
+      dokument_typ: 'skript',
+      dokument_id: 's1',
+      empfaenger_typ: 'ansprechpartner',
+    });
+  });
+
+  it('haengt mehrere PDFs an dieselbe Mail', async () => {
+    const supabase = makeSupabase();
+    const sendMail = vi.fn(async () => ({ ok: true, id: 'r1' }));
+    const res = await sendAnschreiben(
+      { supabase, sendMail, benutzerId: 'ben1' },
+      payload({
+        pdfBase64: '',
+        pdfs: [
+          { dateiname: 'a.pdf', pdfBase64: 'QQ' },
+          { dateiname: 'b.pdf', pdfBase64: 'Qg' },
+        ],
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(sendMail.mock.calls[0][0].attachments).toEqual([
+      { filename: 'a.pdf', content: 'QQ' },
+      { filename: 'b.pdf', content: 'Qg' },
+    ]);
+  });
+
+  it('schickt jedem Empfaenger seine eigenen PDFs', async () => {
+    const supabase = makeSupabase();
+    const sendMail = vi.fn(async () => ({ ok: true, id: 'r1' }));
+    const res = await sendAnschreiben(
+      { supabase, sendMail, benutzerId: 'ben1' },
+      payload({
+        dokumentTyp: 'skript',
+        dokumentId: 's1',
+        pdfBase64: '',
+        empfaenger: [
+          { typ: 'creator', id: 'c1', pdfs: [{ dateiname: 'anna.pdf', pdfBase64: 'QQ' }] },
+          { typ: 'creator', id: 'c2', pdfs: [{ dateiname: 'bea.pdf', pdfBase64: 'Qg' }] },
+        ],
+      })
+    );
+    expect(res.status).toBe(200);
+    const files = sendMail.mock.calls.map((call) => call[0].attachments);
+    expect(files).toEqual(expect.arrayContaining([
+      [{ filename: 'anna.pdf', content: 'QQ' }],
+      [{ filename: 'bea.pdf', content: 'Qg' }],
+    ]));
+  });
+
+  it('lehnt die Summe der Anhaenge ueber dem Limit ab', async () => {
+    const supabase = makeSupabase();
+    const sendMail = vi.fn();
+    const res = await sendAnschreiben(
+      { supabase, sendMail, benutzerId: 'ben1' },
+      payload({
+        pdfBase64: '',
+        pdfs: [
+          { dateiname: 'a.pdf', pdfBase64: 'a'.repeat(2_300_000) },
+          { dateiname: 'b.pdf', pdfBase64: 'b'.repeat(2_300_000) },
+        ],
+      })
+    );
+    expect(res.status).toBe(413);
     expect(sendMail).not.toHaveBeenCalled();
   });
 });

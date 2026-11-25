@@ -1,9 +1,10 @@
 // VideoTableDrawerActions
-// Upload-/Settings-/Strategie-Link-Drawer und Video-Delete der Kampagnen-Video-
+// Upload-/Settings-/Strategie-Link-Drawer und Asset-Delete-Sync der Kampagnen-Video-
 // Tabelle. Kapselt die Drawer-Verdrahtung (Callbacks -> Store/refilter), damit
 // der Orchestrator (KampagneKooperationenVideoTable) schlank bleibt.
 
-import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
+import { syncVideoAssetsAfterDelete } from '../../core/VideoDeleteHelper.js';
+import { mitAblage } from '../../core/ablage/ablageLink.js';
 
 export class VideoTableDrawerActions {
   constructor(table) {
@@ -27,10 +28,10 @@ export class VideoTableDrawerActions {
       videoThema: video?.thema || '',
       unternehmen: t.kampagneInfo?.unternehmen || '',
       unternehmenId: t.kampagneInfo?.unternehmenId || null,
-      keinDropbox: t.kampagneInfo?.keinDropbox || false,
       marke: t.kampagneInfo?.marke || '',
       kampagne: t.kampagneInfo?.name || '',
       creatorName,
+      folderUrl: video?.folder_url || '',
       bilderFolderUrl: koop?.bilder_folder_url || null,
       videos: videos.map(v => ({ id: v.id, position: v.position || 1, thema: v.thema || '' }))
     };
@@ -38,14 +39,17 @@ export class VideoTableDrawerActions {
     t._uploadDrawer.open(videoId, metadaten, (fileUrl, filePath, videoName, folderUrl) => {
       this.updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl);
     }, (bilderFolderUrl) => {
-      if (koop) koop.bilder_folder_url = bilderFolderUrl;
+      // SharePoint liefert keinen Bilder-Ordner (Bilder liegen in der Video-Runde): alten Link behalten
+      if (koop && bilderFolderUrl) koop.bilder_folder_url = bilderFolderUrl;
       this.refreshBilderForKoop(kooperationId);
     }, (storysFolderUrl) => {
-      const patch = { story_folder_url: storysFolderUrl };
-      if (t.store) {
-        t.store.updateVideo(videoId, patch);
-      } else {
-        if (video) video.story_folder_url = storysFolderUrl;
+      if (storysFolderUrl) {
+        const patch = { story_folder_url: storysFolderUrl };
+        if (t.store) {
+          t.store.updateVideo(videoId, patch);
+        } else if (video) {
+          video.story_folder_url = storysFolderUrl;
+        }
       }
       t.refilter();
     }, { initialTab, preselectFinal,
@@ -60,6 +64,7 @@ export class VideoTableDrawerActions {
         t.refilter();
       },
       onFinaleChanged: () => this.refreshFinalAssetsForVideo(videoId, kooperationId),
+      onVideoAssetDeleted: () => this.syncAfterAssetDelete(videoId, kooperationId),
     });
   }
 
@@ -68,7 +73,7 @@ export class VideoTableDrawerActions {
     try {
       const { data } = await window.supabase
         .from('kooperation_video_asset')
-        .select('id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at')
+        .select(mitAblage('id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at'))
         .eq('video_id', videoId)
         .eq('is_final', true)
         .order('created_at', { ascending: true });
@@ -95,7 +100,7 @@ export class VideoTableDrawerActions {
     t.refilter();
   }
 
-  updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl) {
+  updateContentCellAfterUpload(videoId, kooperationId, fileUrl, _videoName, folderUrl) {
     const t = this.table;
     // fileUrl kann null sein (z. B. reiner Finale-Upload) -> bestehenden
     // Content-Link nicht ueberschreiben.
@@ -105,7 +110,8 @@ export class VideoTableDrawerActions {
       patch.link_content = fileUrl;
     }
     if (folderUrl) patch.folder_url = folderUrl;
-    if (videoName) patch.video_name = videoName;
+    // _videoName ist der Stand vom Oeffnen des Drawers und wird nicht
+    // zurueckgeschrieben. Der Name lebt in der Kooperationsliste.
 
     if (t.store) {
       t.store.updateVideo(videoId, patch);
@@ -135,7 +141,6 @@ export class VideoTableDrawerActions {
       unternehmen: t.kampagneInfo?.unternehmen || '',
       marke: t.kampagneInfo?.marke || '',
       kampagne: t.kampagneInfo?.name || '',
-      keinDropbox: t.kampagneInfo?.keinDropbox || false,
     };
 
     t._uploadDrawer.open(null, metadaten, null, null, null, {
@@ -144,8 +149,6 @@ export class VideoTableDrawerActions {
         columnId,
         entityId,
         columnName,
-        folderName: columnName,
-        currentValue: t.store?.getCustomColumnValue(entityId, columnId) || null,
         onSuccess: (folderUrl) => {
           // folderUrl === null: alle Dateien geloescht -> Zelle zeigt wieder Upload-Button
           if (t.store) {
@@ -172,35 +175,20 @@ export class VideoTableDrawerActions {
       videoUrl,
       filePath,
       videoTitel: video?.thema || 'Video',
+      folderUrl: video?.folder_url || '',
       videos: videos.map(v => ({ id: v.id, position: v.position || 1, thema: v.thema || '' })),
       initialTab,
       onReupload: () => this.openUploadDrawer(videoId, kooperationId),
       onStorysReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'storys' }),
       onBilderReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'bilder' }),
-      onDelete: () => this.executeVideoDelete(videoId, kooperationId),
+      onDelete: () => this.syncAfterAssetDelete(videoId, kooperationId),
       onBilderChanged: () => this.refreshBilderForKoop(kooperationId),
       onFinaleChanged: () => this.refreshFinalAssetsForVideo(videoId, kooperationId),
-    });
-  }
-
-  async openLinkStrategieDrawer(btn) {
-    const t = this.table;
-    const videoId = btn.dataset.videoId;
-    const kooperationId = btn.dataset.kooperationId;
-    const koop = t.kooperationen.find(k => k.id === kooperationId);
-    const videos = t.videos[kooperationId] || [];
-    const video = videos.find(v => v.id === videoId);
-
-    if (!video || !koop) {
-      window.toastSystem?.show('Video nicht gefunden', 'error');
-      return;
-    }
-
-    await t._linkStrategieDrawer.open({
-      video,
-      kooperation: koop,
-      kampagneId: t.kampagneId,
-      onSuccess: () => this.reloadAfterStrategieLink()
+      onFolderCleared: () => {
+        if (t.store) t.store.updateVideo(videoId, { folder_url: null });
+        else if (video) video.folder_url = null;
+        t.refilter();
+      },
     });
   }
 
@@ -236,7 +224,7 @@ export class VideoTableDrawerActions {
     try {
       const { data } = await window.supabase
         .from('kooperation_videos')
-        .select('skript_id, skript:skript_id(id, titel, status)')
+        .select('skript_id, skript:skript_id(id, titel, status, briefing_id)')
         .eq('id', videoId)
         .single();
       const patch = {
@@ -257,10 +245,10 @@ export class VideoTableDrawerActions {
     t.refilter();
   }
 
-  async executeVideoDelete(videoId, kooperationId) {
+  async syncAfterAssetDelete(videoId, kooperationId) {
     const t = this.table;
-    const { hasRemainingAssets } = await deleteVideoFile(videoId);
-    const patch = { file_url: null, link_content: null, currentAsset: null };
+    const { currentAsset, linkContent, hasRemainingAssets } = await syncVideoAssetsAfterDelete(videoId);
+    const patch = { currentAsset, file_url: currentAsset?.file_url || null, link_content: linkContent };
     if (!hasRemainingAssets) patch.folder_url = null;
     if (t.store) {
       t.store.updateVideo(videoId, patch);

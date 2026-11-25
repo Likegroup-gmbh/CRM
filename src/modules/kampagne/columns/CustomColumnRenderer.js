@@ -5,6 +5,8 @@
 import { isColumnVisible } from './ColumnRegistry.js';
 import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';
 import { icon } from '../../../core/icons/IconSystem.js';
+import { renderStackedTextarea } from '../videoTableFieldCells.js';
+import { ordnerLinkHtml } from '../../../core/ablage/ablageOrdnerLink.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 
@@ -21,10 +23,18 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Typabhaengige Zusatzklassen: Checkbox-Stack, Kommentar- bzw. Text-Spaltenbreite.
+function typeClass(col) {
+  if (col.fieldType === 'boolean') return ' checkbox-stack';
+  if (col.fieldType === 'comment') return ' col-custom-comment';
+  if (col.fieldType === 'text') return ' col-custom-text';
+  return '';
+}
+
 export function renderCustomHeader(col, hiddenColumns, isKunde) {
   const vis = isColumnVisible(col.id, hiddenColumns, isKunde) ? '' : 'style="display:none;"';
   const drag = (window.canFeature?.('kampagneTableLayout') ?? false) ? 'draggable="true"' : '';
-  return `<th class="col-header ${col.id}" ${vis} data-col="${col.dataCol}" data-col-id="${col.id}" ${drag}>
+  return `<th class="col-header ${col.id}${typeClass(col)}" ${vis} data-col="${col.dataCol}" data-col-id="${col.id}" ${drag}>
     ${escapeHtml(col.label)}
     <div class="resize-handle resize-handle-col" data-col="${col.dataCol}"></div>
   </th>`;
@@ -41,7 +51,9 @@ export function renderCustomCell(col, koop, videos, store, table) {
 
   // Editierbarkeit ist eine Capability: Investor (intern, view-only) sperrt
   // genau wie der Kunde — nur ueber das Entity-Edit-Recht, nicht die Rolle.
-  const isEditable = window.permissionSystem?.canEdit('kooperation') ?? false;
+  // Ausnahme: Spalten mit "Kunde darf bearbeiten" (nicht bei Upload, RLS sperrt das ebenfalls).
+  const kundeDarfEditieren = isKunde && col.editableByKunden === true && col.fieldType !== 'upload';
+  const isEditable = kundeDarfEditieren || (window.permissionSystem?.canEdit('kooperation') ?? false);
 
   if (col.entityType === 'video') {
     return renderVideoLevelCell(col, koop, videos, store, vis, isEditable, table);
@@ -52,8 +64,7 @@ export function renderCustomCell(col, koop, videos, store, table) {
 function renderKooperationLevelCell(col, koop, store, vis, isEditable) {
   const value = store?.getCustomColumnValue(koop.id, col.uuid) ?? '';
   const content = renderFieldByType(col, koop.id, value, isEditable);
-  const extraClass = col.fieldType === 'boolean' ? ' checkbox-stack' : '';
-  return `<td class="grid-cell ${col.id}${extraClass}" data-col-id="${col.id}" ${vis}>${content}</td>`;
+  return `<td class="grid-cell ${col.id}${typeClass(col)}" data-col-id="${col.id}" ${vis}>${content}</td>`;
 }
 
 function renderVideoLevelCell(col, koop, videos, store, vis, isEditable, table) {
@@ -68,8 +79,7 @@ function renderVideoLevelCell(col, koop, videos, store, vis, isEditable, table) 
     return `<div class="video-field-wrapper ${approvedClass}" data-video-id="${video.id}">${content}</div>`;
   }).join('');
 
-  const extraClass = col.fieldType === 'boolean' ? ' checkbox-stack' : '';
-  return `<td class="grid-cell video-stack-cell ${col.id}${extraClass}" data-col-id="${col.id}" ${vis}><div class="video-fields-stack">${stack}</div></td>`;
+  return `<td class="grid-cell video-stack-cell ${col.id}${typeClass(col)}" data-col-id="${col.id}" ${vis}><div class="video-fields-stack">${stack}</div></td>`;
 }
 
 function renderFieldByType(col, entityId, value, isEditable) {
@@ -78,6 +88,8 @@ function renderFieldByType(col, entityId, value, isEditable) {
   switch (col.fieldType) {
     case 'text':
       return renderTextField(attrs, value, isEditable, col.label);
+    case 'comment':
+      return renderStackedTextarea({ attrs, value, placeholder: col.label, readonly: !isEditable });
     case 'link':
       return renderLinkField(attrs, value, isEditable);
     case 'date':
@@ -96,10 +108,15 @@ function renderFieldByType(col, entityId, value, isEditable) {
 }
 
 function renderTextField(attrs, value, isEditable, placeholder) {
-  return `<input type="text" class="grid-input stacked-video-input custom-col-input" 
-    ${attrs} value="${escapeHtml(value)}" 
-    ${!isEditable ? 'readonly' : ''} 
-    placeholder="${escapeHtml(placeholder)}"/>`;
+  // Textarea, kein einzeiliges Input: weicher Umbruch und Enter als Zeilenumbruch.
+  // custom-col-text haelt das Feld aus der Kommentar-Autosave-Pipeline heraus.
+  return `<div class="custom-col-text-wrap">${renderStackedTextarea({
+    attrs,
+    value,
+    placeholder,
+    readonly: !isEditable,
+    className: 'custom-col-input custom-col-text'
+  })}</div>`;
 }
 
 function renderLinkField(attrs, value, isEditable) {
@@ -173,8 +190,14 @@ function renderNumberField(attrs, value, isEditable, placeholder) {
 
 function renderUploadField(attrs, col, entityId, value, isEditable) {
   if (value) {
-    const folderLink = `<a href="${escapeHtml(value)}" target="_blank" rel="noopener noreferrer" 
-      class="external-link-btn stacked-video-link-btn custom-upload-folder-link" title="Ordner öffnen">${FOLDER_ICON}</a>`;
+    // SharePoint-Ordner: Kunden bekommen einen Leselink auf den Spalten-Ordner, alte Links bleiben <a href>
+    const folderLink = ordnerLinkHtml({
+      url: value,
+      spalte: { customColumnId: col.uuid, entityId },
+      inhalt: FOLDER_ICON,
+      klasse: 'external-link-btn stacked-video-link-btn custom-upload-folder-link',
+      titel: 'Ordner öffnen',
+    }) || `<span class="stacked-video-empty">-</span>`;
     if (!isEditable) return folderLink;
     return `${folderLink}<button type="button" class="custom-upload-btn custom-upload-settings-btn" 
       data-custom-column-id="${col.uuid}" data-entity-id="${entityId}" data-column-name="${escapeHtml(col.label)}"

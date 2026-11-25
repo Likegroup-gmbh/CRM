@@ -1,50 +1,3 @@
-const config = {
-  table: 'unternehmen',
-  displayField: 'firmenname',
-  fields: [
-    { name: 'firmenname', type: 'string' },
-    { name: 'internes_kuerzel', type: 'string' },
-    { name: 'branche', type: 'string' },
-    { name: 'branche_id', type: 'uuid', relationTable: 'unternehmen_branchen', relationField: 'branche_id' },
-    { name: 'ansprechpartner', type: 'string' },
-    { name: 'telefonnummer', type: 'string' },
-    { name: 'invoice_email', type: 'string' },
-    { name: 'rechnungsadresse_strasse', type: 'string' },
-    { name: 'rechnungsadresse_hausnummer', type: 'string' },
-    { name: 'rechnungsadresse_plz', type: 'string' },
-    { name: 'rechnungsadresse_stadt', type: 'string' },
-    { name: 'rechnungsadresse_land', type: 'string' },
-    { name: 'webseite', type: 'string' },
-    { name: 'status', type: 'string' },
-    { name: 'notiz', type: 'string' },
-    { name: 'logo_url', type: 'string' },
-    { name: 'logo_path', type: 'string' },
-    { name: 'kein_dropbox', type: 'boolean' }
-  ],
-  relations: {
-    branche: { table: 'branchen', foreignKey: 'branche_id', displayField: 'name' }
-  },
-  manyToMany: {
-    branchen: {
-      table: 'branchen',
-      junctionTable: 'unternehmen_branchen',
-      localKey: 'unternehmen_id',
-      foreignKey: 'branche_id',
-      displayField: 'name'
-    },
-    ansprechpartner: {
-      table: 'ansprechpartner',
-      junctionTable: 'ansprechpartner_unternehmen',
-      localKey: 'unternehmen_id',
-      foreignKey: 'ansprechpartner_id',
-      displayField: 'vorname'
-    }
-  },
-  filters: ['firmenname', 'branche_id', 'status', 'rechnungsadresse_stadt', 'rechnungsadresse_land'],
-  sortBy: 'created_at',
-  sortOrder: 'desc'
-};
-
 function buildSelectClause(context) {
   if (context === 'list' || context === 'pagination') {
     return `*,
@@ -212,7 +165,6 @@ async function loadExtraFilterData(filterOptions, supabase) {
 }
 
 export default {
-  config,
   buildSelectClause,
   applyJunctionFilters,
   transformResult,

@@ -7,7 +7,25 @@
 import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import { buildAddItemQueueEntry, buildStrategieItemInsert } from './addItemPayload.js';
+import { renderTableSelect, tableSelect } from '../../core/components/TableSelect.js';
+import { FUNNEL_WERTE, FUNNEL_LABELS } from './strategieFunnelOptions.js';
+import { briefingEinzigePersonaId, STRATEGIE_PERSONA_OFFEN } from './strategiePersonaOptions.js';
+import {
+  buildAddItemQueueEntry,
+  buildStrategieItemInsert,
+  detectPlatform,
+  isTranscribableUrl,
+  resolveVideoideeForm
+} from './addItemPayload.js';
+import { videolaengeFuerStufe } from '../briefing/videolaenge.js';
+import {
+  bindSekundenSpanne,
+  renderSekundenSpanne,
+  sekundenSpanneAttrs,
+  sekundenSpanneWert,
+  setSekundenSpanne
+} from '../../core/components/SekundenSpanne.js';
+import { DRAWER_EXIT_MS } from '../../core/animation/drawer.js';
 
 export class AddItemDrawer {
   constructor() {
@@ -15,23 +33,39 @@ export class AddItemDrawer {
     this.strategie = null;
     this.strategieId = null;
     this.teilbereiche = [];
+    this.personaOptionen = [];
+    this.produktOptionen = [];
+    this.art = 'videoreferenz';
 
     // Queue System: { id, url, kategorie, beschreibung, platform,
     //                 status: 'pending'|'processing'|'done'|'error', error }
     this.queue = [];
     this.isProcessing = false;
+    this.abort = null;
   }
 
   /**
    * Drawer öffnen
    */
-  async open(strategie, teilbereiche = []) {
+  async open(strategie, teilbereiche = [], personaOptionen = []) {
     this.strategie = strategie;
     this.strategieId = strategie.id;
     this.teilbereiche = teilbereiche;
+    // Select-Optionen der Briefing-Personas ("Keine Persona" inklusive).
+    this.personaOptionen = (personaOptionen || []).filter(o => o.value !== STRATEGIE_PERSONA_OFFEN);
+    this.art = 'videoreferenz';
     this.queue = [];
     this.isProcessing = false;
-    
+
+    // Produkte des Briefings dieser Linie. Fehler: Feld entfaellt, Drawer geht trotzdem auf.
+    try {
+      this.produktOptionen = await strategieService.getBriefingProdukte(strategie.id);
+    } catch (error) {
+      console.error('Fehler beim Laden der Briefing-Produkte:', error);
+      this.produktOptionen = [];
+    }
+
+    tableSelect.init();
     this.createDrawer();
     this.renderBody();
     this.bindEvents();
@@ -61,11 +95,12 @@ export class AddItemDrawer {
     const headerLeft = document.createElement('div');
     const title = document.createElement('span');
     title.className = 'drawer-title';
-    title.textContent = 'Video/Idee hinzufügen';
+    title.textContent = 'Hinzufügen';
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Video-URL oder Idee. Screenshot und Transkript entstehen automatisch. Beschreibung nur, wenn das Feld leer bleibt.';
+    subtitle.id = 'add-item-drawer-subtitle';
+    subtitle.textContent = 'Videoreferenz: Link und was wir davon umsetzen. Idee: nur die Beschreibung.';
     
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
@@ -86,8 +121,14 @@ export class AddItemDrawer {
     body.className = 'drawer-body';
     body.id = `${this.drawerId}-body`;
 
+    // Footer als Geschwister des Bodys: bleibt unten stehen, der Body scrollt
+    const footer = document.createElement('div');
+    footer.className = 'drawer-footer';
+    footer.innerHTML = '<button type="button" class="mdc-btn" id="btn-close-drawer">Fertig</button>';
+
     panel.appendChild(header);
     panel.appendChild(body);
+    panel.appendChild(footer);
 
     // Events
     overlay.addEventListener('click', () => this.handleClose());
@@ -110,43 +151,62 @@ export class AddItemDrawer {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
 
+    const referenz = this.art !== 'idee';
     body.innerHTML = `
-      <!-- Input-Bereich -->
       <form id="add-item-form" class="add-item-drawer-form" data-no-submit-guard="true">
-        <div class="add-item-drawer-form-row">
-          <div class="form-field form-field--grow">
-            <label for="drawer-video-url">Video-URL</label>
-            <input 
-              type="url" 
-              id="drawer-video-url" 
-              class="form-input" 
-              placeholder="https://tiktok.com/... oder https://instagram.com/reel/... – leer lassen für eine Idee"
-              autocomplete="off"
-            >
-          </div>
-          
-          <div class="form-field">
-            <label for="drawer-kategorie">Kategorie</label>
-            <select id="drawer-kategorie" class="form-input">
-              <option value="">Ohne Kategorie</option>
-              ${this.teilbereiche.map(tb => `<option value="${escapeAttr(tb)}">${escapeAttr(tb)}</option>`).join('')}
-            </select>
-          </div>
+        <div class="drawer-tab-nav" role="tablist">
+          <button type="button" class="drawer-tab-btn ${referenz ? 'active' : ''}" data-add-art="videoreferenz" role="tab" aria-selected="${referenz ? 'true' : 'false'}">Videoreferenz</button>
+          <button type="button" class="drawer-tab-btn ${referenz ? '' : 'active'}" data-add-art="idee" role="tab" aria-selected="${referenz ? 'false' : 'true'}">Idee</button>
         </div>
 
-        <div class="add-item-drawer-form-row add-item-drawer-form-row--full" id="drawer-beschreibung-row">
-          <div class="form-field form-field--full">
-            <label for="drawer-beschreibung">Beschreibung</label>
-            <textarea
-              id="drawer-beschreibung"
-              class="form-input"
-              rows="2"
-              placeholder="Eigene Worte bleiben. Leer lassen – dann füllt die KI."
-            ></textarea>
+        <section class="add-item-section" data-add-section="inhalt">
+          <h3 class="drawer-section-title">Inhalt</h3>
+          <div class="add-item-section__body">
+            <div class="add-item-section__body" data-art-panel="videoreferenz" ${referenz ? '' : 'hidden'}>
+              <div class="form-field">
+                <label for="drawer-video-url">Video-URL</label>
+                <input
+                  type="url"
+                  id="drawer-video-url"
+                  class="form-input"
+                  placeholder="https://tiktok.com/... oder https://instagram.com/reel/..."
+                  autocomplete="off"
+                >
+              </div>
+              <div class="form-field">
+                <label for="drawer-umsetzungsvorgabe">Was sollen wir von diesem Video umsetzen?</label>
+                <textarea
+                  id="drawer-umsetzungsvorgabe"
+                  class="form-input"
+                  rows="3"
+                  placeholder="Zum Beispiel nur die Hook, der Schnitt oder die Situation."
+                ></textarea>
+              </div>
+            </div>
+            <div class="form-field" id="drawer-beschreibung-row">
+              <label for="drawer-beschreibung">Kurzbeschreibung</label>
+              <textarea
+                id="drawer-beschreibung"
+                class="form-input"
+                rows="3"
+                placeholder="${referenz ? 'Kurz in eigenen Worten für die Tabelle (optional).' : 'Worum geht es in der Idee?'}"
+              ></textarea>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="add-item-drawer-form-row add-item-drawer-form-row--actions">
+        <section class="add-item-section" data-add-section="einordnung">
+          <h3 class="drawer-section-title">Einordnung</h3>
+          <div class="add-item-section__grid">
+            ${this.renderKategorieField()}
+            ${this.renderFunnelField()}
+            ${this.renderPersonaField()}
+            ${this.renderProduktField()}
+            ${this.renderDauerField()}
+          </div>
+        </section>
+
+        <div class="add-item-actions">
           <button type="submit" class="mdc-btn mdc-btn--create" id="btn-add-to-queue">
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
               ${icon('plus-lg')}
@@ -161,10 +221,9 @@ export class AddItemDrawer {
         </div>
       </form>
 
-      <!-- Queue-Liste -->
-      <div class="add-item-queue" id="add-item-queue">
+      <section class="add-item-queue" id="add-item-queue" data-add-section="queue">
         <div class="queue-header">
-          <span class="queue-title">Queue</span>
+          <h3 class="drawer-section-title">Queue</h3>
           <span class="queue-counter" id="queue-counter">0 Einträge</span>
         </div>
         <div class="queue-list" id="queue-list">
@@ -173,15 +232,106 @@ export class AddItemDrawer {
             <p>Noch keine Einträge in der Queue</p>
           </div>
         </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="drawer-footer">
-        <button type="button" class="mdc-btn" id="btn-close-drawer">
-          Fertig
-        </button>
-      </div>
+      </section>
     `;
+  }
+
+  /**
+   * Ein Select-Feld mit dem zentralen TableSelect. Der Wert steht im hidden input
+   * mit dem Namen `name`; `field` ist der Name im table-select-change-Event.
+   */
+  renderSelectField({ label, field, name, value = '', options, placeholder }) {
+    return `
+          <div class="form-field">
+            <label>${escapeAttr(label)}</label>
+            ${renderTableSelect({
+              field,
+              itemId: 'add-item',
+              value,
+              options: [{ value: '', label: placeholder }, ...options],
+              placeholder,
+              input: name,
+              matchWidth: true
+            })}
+          </div>`;
+  }
+
+  /** Wert eines Select-Felds aus dem hidden input. */
+  selectValue(name) {
+    return document.querySelector(`#add-item-form [name="${name}"]`)?.value || null;
+  }
+
+  renderKategorieField() {
+    return this.renderSelectField({
+      label: 'Kategorie',
+      field: 'add_kategorie',
+      name: 'kategorie',
+      options: this.teilbereiche.map(tb => ({ value: tb, label: tb })),
+      placeholder: 'Ohne Kategorie'
+    });
+  }
+
+  /** Funnel-Stufe nur bei Paid. */
+  funnelFeldSichtbar() {
+    return this.strategie?.briefing?.bereich === 'paid_creator_ads';
+  }
+
+  /** Startet leer: die Stufe waehlt der Mensch je Videoidee. */
+  renderFunnelField() {
+    if (!this.funnelFeldSichtbar()) return '';
+    return this.renderSelectField({
+      label: 'Funnel-Stufe',
+      field: 'add_funnel',
+      name: 'funnel_stufe',
+      value: '',
+      options: FUNNEL_WERTE.map(w => ({ value: w, label: FUNNEL_LABELS[w] })),
+      placeholder: 'Keine Stufe'
+    });
+  }
+
+  /** Vorbelegung der Dauer aus dem Briefing (bei Paid je nach gewaehlter Stufe). */
+  dauerVorbelegung(funnelStufe) {
+    return videolaengeFuerStufe(this.strategie?.briefing, funnelStufe || null);
+  }
+
+  /** Dauer als Slider (wie im Briefing), vorbelegt aus dem Briefing. Leer = keine Vorgabe. */
+  renderDauerField() {
+    this.dauerDirty = false;
+    const iv = this.dauerVorbelegung(null);
+    const spanne = { von: iv?.von, bis: iv?.bis };
+    return `
+          <div class="form-field add-item-section__full">
+            <label>Dauer</label>
+            <div id="drawer-dauer" class="videoidee-dauer" ${sekundenSpanneAttrs({ name: 'videolaenge', ...spanne })}>${renderSekundenSpanne(spanne)}</div>
+          </div>`;
+  }
+
+  /** Persona nur, wenn das Briefing Personas nennt. Vorbelegt bei genau einer. */
+  renderPersonaField() {
+    if (!this.personaOptionen.length) return '';
+    const vorbelegt = briefingEinzigePersonaId(this.strategie?.briefing);
+    return this.renderSelectField({
+      label: 'Persona',
+      field: 'add_persona',
+      name: 'persona_id',
+      value: vorbelegt || '',
+      options: this.personaOptionen.map(o => ({ value: o.value, label: o.label })),
+      placeholder: 'Keine Persona'
+    });
+  }
+
+  /** Produkt nur, wenn am Briefing eines hängt. Vorbelegt bei genau einem. */
+  renderProduktField() {
+    if (!this.produktOptionen.length) return '';
+    const vorbelegt = this.produktOptionen.length === 1 ? this.produktOptionen[0].id : null;
+    return this.renderSelectField({
+      label: 'Produkt',
+      field: 'add_produkt',
+      name: 'produkt_id',
+      value: vorbelegt || '',
+      options: this.produktOptionen.map(p => ({ value: p.id, label: p.name || 'Unbenannt' })),
+      placeholder: 'Kein Produkt'
+    });
   }
 
   /**
@@ -196,7 +346,43 @@ export class AddItemDrawer {
       this.handleAddToQueue();
     });
 
-    closeBtn?.addEventListener('click', () => this.handleClose());
+    form?.querySelectorAll('[data-add-art]').forEach(btn => {
+      btn.addEventListener('click', () => this.setArt(btn.dataset.addArt));
+    });
+
+    closeBtn?.addEventListener('click', () => this.handleFertig());
+
+    // Dauer folgt der Funnel-Stufe (Paid), solange sie nicht von Hand geaendert wurde.
+    const dauerRoot = document.getElementById('drawer-dauer');
+    bindSekundenSpanne(dauerRoot, { onCommit: () => { this.dauerDirty = true; } });
+    // Das Optionspanel rendert als Portal an body, deshalb haengt der Listener an document.
+    this.abort?.abort();
+    this.abort = new AbortController();
+    document.addEventListener('table-select-change', (e) => {
+      const { field, value, element } = e.detail || {};
+      if (field !== 'add_funnel' || !element?.closest(`#${this.drawerId}`)) return;
+      if (this.dauerDirty || !dauerRoot) return;
+      setSekundenSpanne(dauerRoot, this.dauerVorbelegung(value), { forceInputs: true });
+    }, { signal: this.abort.signal });
+  }
+
+  setArt(art) {
+    this.art = art === 'idee' ? 'idee' : 'videoreferenz';
+    const referenz = this.art === 'videoreferenz';
+    const form = document.getElementById('add-item-form');
+    form?.querySelectorAll('[data-add-art]').forEach(btn => {
+      const active = btn.dataset.addArt === this.art;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    const panel = form?.querySelector('[data-art-panel="videoreferenz"]');
+    if (panel) panel.hidden = !referenz;
+    const beschreibung = document.getElementById('drawer-beschreibung');
+    if (beschreibung) {
+      beschreibung.placeholder = referenz
+        ? 'Kurz in eigenen Worten für die Tabelle (optional).'
+        : 'Worum geht es in der Idee?';
+    }
   }
 
   /**
@@ -204,23 +390,35 @@ export class AddItemDrawer {
    */
   handleAddToQueue() {
     const urlInput = document.getElementById('drawer-video-url');
-    const kategorieSelect = document.getElementById('drawer-kategorie');
     const beschreibungInput = document.getElementById('drawer-beschreibung');
-    
-    const url = urlInput?.value?.trim() || null;
-    const kategorie = kategorieSelect?.value || null;
-    const beschreibung = beschreibungInput?.value?.trim() || null;
+    const vorgabeInput = document.getElementById('drawer-umsetzungsvorgabe');
 
-    // URL-Validierung: Nur TikTok, Instagram oder leer (Idee)
-    if (url && !this.isAllowedUrl(url)) {
-      window.toastSystem?.show('Nur TikTok- und Instagram-Links sind erlaubt', 'warning');
+    const resolved = resolveVideoideeForm({
+      art: this.art,
+      url: urlInput?.value,
+      beschreibung: beschreibungInput?.value,
+      umsetzungsvorgabe: vorgabeInput?.value,
+      kategorie: this.selectValue('kategorie'),
+      funnelStufe: this.selectValue('funnel_stufe'),
+      personaId: this.selectValue('persona_id'),
+      produktId: this.selectValue('produkt_id'),
+      videolaenge: sekundenSpanneWert(document.getElementById('drawer-dauer'))
+    });
+    if (!resolved.ok) {
+      window.toastSystem?.show(resolved.error, 'warning');
+      const focus = resolved.error.includes('URL')
+        ? urlInput
+        : (resolved.error.includes('umsetzen') ? vorgabeInput : beschreibungInput);
+      focus?.focus();
       return;
     }
 
-    // Ohne URL ist eine Beschreibung Pflicht
-    if (!url && !beschreibung) {
-      window.toastSystem?.show('Ohne Video-URL bitte eine Beschreibung angeben', 'warning');
-      beschreibungInput?.focus();
+    const { url, kategorie, beschreibung, umsetzungsvorgabe, funnelStufe, personaId, produktId, videolaenge } = resolved;
+    const produktName = this.produktOptionen.find(p => p.id === produktId)?.name || null;
+
+    if (url && !this.isAllowedUrl(url)) {
+      window.toastSystem?.show('Nur TikTok- und Instagram-Links sind erlaubt', 'warning');
+      urlInput?.focus();
       return;
     }
 
@@ -240,13 +438,19 @@ export class AddItemDrawer {
       url,
       kategorie,
       beschreibung,
+      umsetzungsvorgabe,
+      funnelStufe,
+      personaId,
+      produktId,
+      produktName,
+      videolaenge,
       platform: this.detectPlatform(url)
     }));
 
-    // Inputs leeren
-    urlInput.value = '';
+    if (urlInput) urlInput.value = '';
+    if (vorgabeInput) vorgabeInput.value = '';
     if (beschreibungInput) beschreibungInput.value = '';
-    urlInput.focus();
+    (url ? urlInput : beschreibungInput)?.focus();
 
     // Queue rendern
     this.renderQueue();
@@ -263,20 +467,14 @@ export class AddItemDrawer {
    */
   isAllowedUrl(url) {
     if (!url) return true; // Leere URL = Idee, erlaubt
-    const urlLower = url.toLowerCase();
-    return ['tiktok.com', 'instagram.com'].some(domain => urlLower.includes(domain));
+    return isTranscribableUrl(url);
   }
 
   /**
    * Plattform aus URL erkennen
    */
   detectPlatform(url) {
-    if (!url) return 'idea';
-    const urlLower = url.toLowerCase();
-    if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) return 'youtube';
-    if (urlLower.includes('tiktok.com')) return 'tiktok';
-    if (urlLower.includes('instagram.com')) return 'instagram';
-    return 'other';
+    return detectPlatform(url) || 'idea';
   }
 
   /**
@@ -387,7 +585,7 @@ export class AddItemDrawer {
       tiktok: `${icon('tiktok')}`,
       instagram: `${icon('instagram')}`,
       other: `${icon('globe')}`,
-      idea: `${icon('light-bulb')}`
+      idea: `${icon('videoidee')}`
     };
 
     // Status-Icons (rechts)
@@ -411,7 +609,7 @@ export class AddItemDrawer {
     // Die eigentliche Arbeit passiert danach in der Background Function; hier
     // wird nur angelegt und angestossen, deshalb kein Zeit-Balken mehr.
     const statusText = item.status === 'done'
-      ? (item.url ? 'Angelegt – Screenshot & Transkript laufen im Hintergrund' : 'Idee angelegt')
+      ? (item.url ? 'Angelegt – Screenshot, Transkript und Kundenadaption laufen' : 'Idee angelegt')
       : item.status === 'error' ? (item.error || 'Fehlgeschlagen')
         : item.status === 'processing' ? 'Wird angelegt...' : 'Wartet...';
 
@@ -439,7 +637,9 @@ export class AddItemDrawer {
           <div class="queue-item-center">
             <span class="queue-item-url">${this.escapeHtml(displayUrl)}</span>
             ${item.kategorie ? `<span class="queue-item-kategorie">${this.escapeHtml(item.kategorie)}</span>` : ''}
+            ${item.produktName ? `<span class="queue-item-kategorie">${this.escapeHtml(item.produktName)}</span>` : ''}
             ${item.beschreibung ? `<span class="queue-item-beschreibung">${this.escapeHtml(item.beschreibung)}</span>` : ''}
+            ${item.umsetzungsvorgabe ? `<span class="queue-item-beschreibung">${this.escapeHtml(item.umsetzungsvorgabe)}</span>` : ''}
             ${progressHtml}
           </div>
           <div class="queue-item-right">
@@ -495,13 +695,21 @@ export class AddItemDrawer {
         })
       );
 
+      let processingFailed = false;
       if (nextItem.url) {
-        // Schlaegt der Trigger fehl, bleibt das Item auf 'pending' und laesst
-        // sich ueber "Neu verarbeiten" nachziehen - das Item selbst ist da.
+        // Schlaegt der Trigger fehl (z.B. 404, weil die Function nicht deployed
+        // ist), bleibt das Item sonst ewig auf 'pending'. Stattdessen Fehler
+        // schreiben — "Neu verarbeiten" zieht es danach nach.
         try {
           await strategieService.enqueueItemProcessing(this.strategieId, created.id);
         } catch (e) {
+          processingFailed = true;
           console.warn('Verarbeitung konnte nicht gestartet werden:', e);
+          await strategieService.updateStrategieItem(created.id, {
+            verarbeitung_status: 'error',
+            verarbeitung_fehler: `Verarbeitung konnte nicht gestartet werden (${e.message}) – bitte neu verarbeiten`
+          });
+          window.toastSystem?.show('Videoreferenz angelegt, Verarbeitung fehlgeschlagen – bitte neu verarbeiten', 'warning');
         }
       }
 
@@ -513,8 +721,10 @@ export class AddItemDrawer {
         detail: { strategieId: this.strategieId }
       }));
 
-      const msg = nextItem.url ? 'Video hinzugefügt – Verarbeitung läuft' : 'Idee hinzugefügt';
-      window.toastSystem?.show(msg, 'success');
+      if (!processingFailed) {
+        const msg = nextItem.url ? 'Videoreferenz hinzugefügt – Verarbeitung läuft' : 'Idee hinzugefügt';
+        window.toastSystem?.show(msg, 'success');
+      }
 
     } catch (error) {
       console.error('Fehler beim Verarbeiten:', error);
@@ -529,6 +739,30 @@ export class AddItemDrawer {
 
     // Nächstes Item verarbeiten
     this.processQueue();
+  }
+
+  /**
+   * Text im Formular, der noch nicht in der Queue liegt.
+   * Vorbelegte Selects (ein Produkt, eine Funnel-Stufe) zaehlen nicht.
+   */
+  formularHatEntwurf() {
+    return ['drawer-video-url', 'drawer-umsetzungsvorgabe', 'drawer-beschreibung']
+      .some(id => (document.getElementById(id)?.value || '').trim());
+  }
+
+  /**
+   * Fertig: ein ausgefuelter Entwurf geht mit in die Queue, statt zu verfallen.
+   * Unvollstaendig bleibt der Drawer offen und zeigt denselben Hinweis wie der Queue-Button.
+   */
+  handleFertig() {
+    if (this.formularHatEntwurf()) {
+      const vorher = this.queue.length;
+      this.handleAddToQueue();
+      if (this.queue.length === vorher) return;
+      this.close();
+      return;
+    }
+    this.handleClose();
   }
 
   /**
@@ -553,7 +787,7 @@ export class AddItemDrawer {
     const panel = document.getElementById(this.drawerId);
     if (panel) {
       panel.classList.remove('show');
-      setTimeout(() => this.removeDrawer(), 250);
+      setTimeout(() => this.removeDrawer(), DRAWER_EXIT_MS);
     } else {
       this.removeDrawer();
     }
@@ -563,6 +797,8 @@ export class AddItemDrawer {
    * Drawer entfernen
    */
   removeDrawer() {
+    this.abort?.abort();
+    this.abort = null;
     document.getElementById(`${this.drawerId}-overlay`)?.remove();
     document.getElementById(this.drawerId)?.remove();
   }

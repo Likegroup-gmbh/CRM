@@ -88,7 +88,7 @@ export function isStandaloneProduktPath(pathname = window.location?.pathname || 
   return pathname.split('/').filter(Boolean)[0] === 'produkt';
 }
 
-const MARKEN_SELECT = 'marken:produkt_marke(marke_id, marke:marke_id(id, markenname))';
+const MARKEN_SELECT = 'marken:produkt_marke(marke_id, marke:marke_id(id, markenname, logo_url))';
 
 const TABELLEN_SELECT = `
   varianten:produkt_variante(id),
@@ -331,6 +331,7 @@ export class ProduktService {
   static async create(data, { unternehmenId = null } = {}) {
     const payload = { ...data, unternehmen_id: unternehmenId };
     delete payload.marke_ids;
+    delete payload.briefing_ids;
 
     const result = await window.dataService.createEntity('produkt', payload);
     if (!result.success) throw new Error(result.error || 'Produkt konnte nicht angelegt werden');
@@ -340,6 +341,7 @@ export class ProduktService {
   static async update(id, data) {
     const payload = { ...data };
     delete payload.marke_ids;
+    delete payload.briefing_ids;
     // unternehmen_id steht als Hidden-Feld im Formular und darf nicht wandern
     delete payload.unternehmen_id;
 
@@ -362,6 +364,56 @@ export class ProduktService {
     const { error } = await window.supabase
       .from('produkt_marke')
       .insert(eindeutige.map(marke_id => ({ produkt_id: produktId, marke_id })));
+    if (error) throw error;
+  }
+
+  /** Briefing-IDs eines Produkts, fuer die Vorbelegung des Multiselects. */
+  static async loadBriefingIds(produktId) {
+    const { data, error } = await window.supabase
+      .from('campaign_briefing_produkt')
+      .select('briefing_id')
+      .eq('produkt_id', produktId);
+
+    if (error) throw error;
+    return (data || []).map(row => row.briefing_id);
+  }
+
+  /**
+   * Hängt das Produkt an die Produktion, solange dort noch keins steht.
+   * Ein gesetztes Produkt bleibt.
+   */
+  static async attachToProduktionIfEmpty(produktionId, produktId) {
+    if (!produktionId || !produktId || !window.supabase) return;
+    const { data, error } = await window.supabase
+      .from('produktion')
+      .select('produkt_id')
+      .eq('id', produktionId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.produkt_id) return;
+
+    const { error: updateError } = await window.supabase
+      .from('produktion')
+      .update({ produkt_id: produktId })
+      .eq('id', produktionId)
+      .is('produkt_id', null);
+    if (updateError) throw updateError;
+  }
+
+  /** Setzt die Briefing-Zuordnung auf genau diese Liste. Leer loescht alle. */
+  static async saveBriefings(produktId, briefingIds = []) {
+    const { error: deleteError } = await window.supabase
+      .from('campaign_briefing_produkt')
+      .delete()
+      .eq('produkt_id', produktId);
+    if (deleteError) throw deleteError;
+
+    const eindeutige = [...new Set(briefingIds.filter(Boolean))];
+    if (!eindeutige.length) return;
+
+    const { error } = await window.supabase
+      .from('campaign_briefing_produkt')
+      .insert(eindeutige.map(briefing_id => ({ produkt_id: produktId, briefing_id })));
     if (error) throw error;
   }
 

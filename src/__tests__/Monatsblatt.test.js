@@ -68,6 +68,13 @@ describe('Monatsblatt Rechnung', () => {
     delete window.supabase;
   });
 
+  it('laedt das Skonto-Flag mit den Zeilen', async () => {
+    const queries = installSupabase({ rows: [{ id: 'r1', skonto: true }] });
+    await loadRows({ year: 2026, month: 0, typeTab: 'rechnung' });
+    const rowQuery = rechnungQueries(queries).find(query => !query.calls.selectOpts?.head);
+    expect(String(rowQuery.calls.select)).toContain('skonto');
+  });
+
   it('wendet typeTab in der Query an', async () => {
     const queries = installSupabase({ rows: [{ id: 'r1' }] });
     await loadRows({ year: 2026, month: 0, typeTab: 'contracting' });
@@ -91,6 +98,28 @@ describe('Monatsblatt Rechnung', () => {
     expect(rowQuery.calls.or.some(value => String(value).includes('unternehmen_id.in.(u1)'))).toBe(true);
   });
 
+  it('haengt keine Mitarbeiter-ID-Listen an die Query', async () => {
+    const queries = installSupabase({ rows: [{ id: 'r1' }] });
+    await loadRows({
+      year: 2026,
+      month: 9,
+      typeTab: 'rechnung',
+      allowed: {
+        kampagneIds: ['k1'],
+        koopIds: ['c1'],
+        unternehmenIds: ['u1']
+      }
+    });
+
+    const rowQuery = rechnungQueries(queries).find(query => !query.calls.selectOpts?.head);
+    const filters = rowQuery.calls.or.map(String).join(' ');
+    expect(filters).not.toContain('kooperation_id.in');
+    expect(filters).not.toContain('kampagne_id.in');
+    expect(filters).not.toContain('unternehmen_id.in');
+    expect(filters).not.toContain('rechnungstyp.eq.contracting');
+    expect(rowQuery.calls.gte).toContainEqual(['gestellt_am', '2026-10-01']);
+  });
+
   it('wendet den Monatsfilter an wenn search leer ist', async () => {
     const queries = installSupabase({ rows: [{ id: 'r1' }] });
     await loadRows({ year: 2026, month: 0, search: '', typeTab: 'rechnung' });
@@ -98,6 +127,27 @@ describe('Monatsblatt Rechnung', () => {
     const rowQuery = rechnungQueries(queries).find(query => !query.calls.selectOpts?.head);
     expect(rowQuery.calls.gte).toContainEqual(['gestellt_am', '2026-01-01']);
     expect(rowQuery.calls.lt).toContainEqual(['gestellt_am', '2026-02-01']);
+  });
+
+  it('begrenzt Alle auf das gewaehlte Jahr', async () => {
+    const queries = installSupabase({ rows: [{ id: 'r1' }], count: 4 });
+    await loadRows({ year: 2026, month: ALL_TAB, typeTab: 'rechnung' });
+    const result = await loadCounts({
+      year: 2026,
+      month: ALL_TAB,
+      typeTab: 'rechnung',
+      statusIds: ['alle', 'Offen']
+    });
+
+    const rowQuery = rechnungQueries(queries).find(query => !query.calls.selectOpts?.head);
+    expect(rowQuery.calls.gte).toContainEqual(['gestellt_am', '2026-01-01']);
+    expect(rowQuery.calls.lt).toContainEqual(['gestellt_am', '2027-01-01']);
+
+    const alleQuery = rechnungQueries(queries).find(query =>
+      query.calls.selectOpts?.head && query.calls.gte.some(args => args[0] === 'gestellt_am' && args[1] === '2026-01-01')
+    );
+    expect(alleQuery.calls.lt).toContainEqual(['gestellt_am', '2027-01-01']);
+    expect(result.months.alle).toBe(4);
   });
 
   it('laedt PDFs separat und nicht im Row-Select', async () => {
@@ -132,5 +182,77 @@ describe('Monatsblatt Rechnung', () => {
     expect(result.months.alle).toBe(4);
     expect(result.type.rechnung).toBe(4);
     expect(result.type.contracting).toBe(4);
+  });
+});
+
+describe('Monatsblatt Kundenrechnung', () => {
+  beforeEach(() => {
+    delete window.supabase;
+  });
+
+  it('filtert ueberwiesen auf den explodierten Zeilen, nicht auf dem Auftragskopf', async () => {
+    const auftraege = [
+      { id: 'a1', re_nr: 'RE-1', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: null, auftragtype: 'UGC', is_draft: false }
+    ];
+    const teilrechnungen = [
+      { id: 'tr-1', auftrag_id: 'a1', position: 1, re_nr: 'RE-1-1', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: '2026-01-20', ueberwiesen: true },
+      { id: 'tr-2', auftrag_id: 'a1', position: 2, re_nr: 'RE-1-2', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: null, ueberwiesen: false }
+    ];
+
+    window.supabase = {
+      from(table) {
+        if (table === 'auftrag') {
+          return createChain(table, () => ({ data: auftraege, error: null }));
+        }
+        if (table === 'auftrag_teilrechnung') {
+          return createChain(table, () => ({ data: teilrechnungen, error: null }));
+        }
+        return createChain(table, () => ({ data: [], error: null }));
+      }
+    };
+
+    const { rows } = await loadRows({
+      entity: 'kundenrechnung',
+      year: 2026,
+      month: 0,
+      filters: { ueberwiesen: true },
+      mode: 'auftraege'
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].teilrechnung_id).toBe('tr-1');
+  });
+
+  it('zeigt unbezahlte Teilrechnungen bei ueberwiesen=false', async () => {
+    const auftraege = [
+      { id: 'a1', re_nr: 'RE-1', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: null, auftragtype: 'UGC', is_draft: false }
+    ];
+    const teilrechnungen = [
+      { id: 'tr-1', auftrag_id: 'a1', position: 1, re_nr: 'RE-1-1', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: '2026-01-20', ueberwiesen: true },
+      { id: 'tr-2', auftrag_id: 'a1', position: 2, re_nr: 'RE-1-2', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: null, ueberwiesen: false }
+    ];
+
+    window.supabase = {
+      from(table) {
+        if (table === 'auftrag') {
+          return createChain(table, () => ({ data: auftraege, error: null }));
+        }
+        if (table === 'auftrag_teilrechnung') {
+          return createChain(table, () => ({ data: teilrechnungen, error: null }));
+        }
+        return createChain(table, () => ({ data: [], error: null }));
+      }
+    };
+
+    const { rows } = await loadRows({
+      entity: 'kundenrechnung',
+      year: 2026,
+      month: 0,
+      filters: { ueberwiesen: false },
+      mode: 'auftraege'
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].teilrechnung_id).toBe('tr-2');
   });
 });

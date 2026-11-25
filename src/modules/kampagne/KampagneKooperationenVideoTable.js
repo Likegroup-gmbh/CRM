@@ -5,22 +5,19 @@ import { VideoTableDataLoader } from './VideoTableDataLoader.js';
 import { VideoTableFieldHandler } from './VideoTableFieldHandler.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
-import { LinkStrategieItemDrawer } from '../strategie/LinkStrategieItemDrawer.js';
 import { LinkSkriptDrawer } from '../skripte/LinkSkriptDrawer.js';
-import { VideoPlayerLightbox } from '../../core/media/VideoPlayerLightbox.js';
+import { VideoPlayerLightbox } from '../../core/media/player/VideoPlayerLightbox.js';
 import { VideoFeedbackSaveController } from '../../core/videoFeedback/VideoFeedbackSaveController.js';
 import { VideoFeedbackBinding } from './VideoFeedbackBinding.js';
 import { VideoTableEventBinder } from './VideoTableEventBinder.js';
 import { VideoTableStatusDropdown } from './VideoTableStatusDropdown.js';
+import { tableSelect } from '../../core/components/TableSelect.js';
 import { VideoTableDrawerActions } from './VideoTableDrawerActions.js';
-import { VideoStatsFetcher } from './VideoStatsFetcher.js';
-import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
-import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
-import { createLiveLinkToolbarConfig } from './liveLinkToolbarConfig.js';
-import { LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
+import { isColumnVisible } from './columns/ColumnRegistry.js';
+import { bindPostZellen } from './videoTablePostCells.js';
 import { FinalVideoBulkDownload } from './FinalVideoBulkDownload.js';
 import { preserveScroll } from '../../core/dom/preserveScroll.js';
 
@@ -49,10 +46,6 @@ export class KampagneKooperationenVideoTable {
       errors: []
     };
     
-    this.isDragging = false;
-    this.startX = 0;
-    this.scrollLeft = 0;
-    this.dragScrollContainer = null;
     this._entityUpdatedHandler = null;
 
     this.realtimeHandler = new VideoTableRealtimeHandler(this);
@@ -65,19 +58,13 @@ export class KampagneKooperationenVideoTable {
     this._eventBinder = new VideoTableEventBinder(this);
     this._statusDropdown = new VideoTableStatusDropdown(this);
     this._drawerActions = new VideoTableDrawerActions(this);
-    this._statsFetcher = new VideoStatsFetcher(this);
     this.columnDragHandler = new ColumnDragHandler(this);
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
-    this._linkStrategieDrawer = new LinkStrategieItemDrawer();
     this._linkSkriptDrawer = new LinkSkriptDrawer();
     this._mediaViewer = new VideoPlayerLightbox(this);
     this._finalBulkDownload = new FinalVideoBulkDownload(this);
-
-    // Die Hover-Toolbar der Live-Link-Spalte laeuft ueber die zentrale Engine.
-    // Ihre Aktionen brauchen den StatsFetcher dieser Instanz, also wird die
-    // Config hier mit Kontext angemeldet statt global deklariert.
-    registerHoverToolbar(LIVE_LINK_TOOLBAR, createLiveLinkToolbarConfig(this));
+    this._unsubPosts = bindPostZellen(this);
   }
 
   // Store-backed getters (Proxy zum Store, Fallback auf lokale Daten für Kompatibilität)
@@ -93,6 +80,8 @@ export class KampagneKooperationenVideoTable {
   get stillComments() { return this.store?.stillComments || this._stillComments || {}; }
   set stillComments(val) { if (this.store) this.store.setStillComments(val); else this._stillComments = val; }
 
+  get zeitkommentare() { return this.store?.zeitkommentare || (this._zeitkommentare ||= {}); }
+
   get versandInfos() { return this.store?.versandInfos || this._versandInfos || {}; }
   set versandInfos(val) { if (this.store) this.store.setVersandInfos(val); else this._versandInfos = val; }
 
@@ -105,10 +94,6 @@ export class KampagneKooperationenVideoTable {
   // ========================================
   // PERMISSIONS / ROLE
   // ========================================
-
-  getCurrentUserRole() {
-    return String(window.currentUser?.rolle || '').trim().toLowerCase();
-  }
 
   isKundeRole() {
     return window.isKunde();
@@ -150,31 +135,22 @@ export class KampagneKooperationenVideoTable {
       || sort === 'content_deadline_asc' || sort === 'content_deadline_desc';
   }
 
-  _applyTagFilter(list) {
-    const tags = this.store?.selectedTags;
-    if (!tags || tags.length === 0) return list;
-    return list.filter(k => (k._tags || []).some(t => tags.includes(t)));
-  }
-
-  _applySearchFilter(list) {
-    if (!this.store || !(this.store.searchQuery || '').trim()) return list;
-    return list.filter(k => this.store.matchesSearch(k));
+  // Reiter-Zähler zählen nach Filterspalte und Suche, wie die Tabelle selbst.
+  _countTab(tab, predicate) {
+    if (this.store) return this.store.getFiltered(tab).length;
+    return this.kooperationen.filter(predicate).length;
   }
 
   getOpenCount() {
-    return this._applySearchFilter(this._applyTagFilter(
-      this.kooperationen.filter(koop => !this.areAllVideosApproved(koop.id))
-    )).length;
+    return this._countTab('offen', koop => !this.areAllVideosApproved(koop.id));
   }
 
   getClosedCount() {
-    return this._applySearchFilter(this._applyTagFilter(
-      this.kooperationen.filter(koop => this.areAllVideosApproved(koop.id))
-    )).length;
+    return this._countTab('abgeschlossen', koop => this.areAllVideosApproved(koop.id));
   }
 
   getAllCount() {
-    return this._applySearchFilter(this._applyTagFilter(this.kooperationen)).length;
+    return this._countTab('alle', () => true);
   }
 
   updateTabCounts() {
@@ -187,14 +163,7 @@ export class KampagneKooperationenVideoTable {
   }
 
   isColumnVisibleForCustomer(columnClass) {
-    if (columnClass === 'col-nr' || columnClass === 'col-creator' || columnClass === 'col-status') return true;
-    if ((columnClass === 'col-kosten' || columnClass === 'col-ek-video') && this.isKundeRole()) return false;
-    // Aktionen/Vertrag sind Write-UI: Kunde und view-only Rollen (Investor)
-    // sehen sie nicht.
-    const canEdit = window.permissionSystem?.canEdit('kooperation') ?? false;
-    if ((columnClass === 'col-actions' || columnClass === 'col-vertrag') && (this.isKundeRole() || !canEdit)) return false;
-    if (columnClass === 'col-actions') return true;
-    return !this.hiddenColumns.includes(columnClass);
+    return isColumnVisible(columnClass, this.hiddenColumns, this.isKundeRole());
   }
 
   // ========================================
@@ -257,11 +226,7 @@ export class KampagneKooperationenVideoTable {
 
   bindEvents() { this._eventBinder.bind(); }
 
-  // Status-Dropdown delegiert an VideoTableStatusDropdown (Portal + Update).
-  positionStatusDropdown(wrapper) { return this._statusDropdown.positionStatusDropdown(wrapper); }
-  _closeStatusPortal() { return this._statusDropdown.closePortal(); }
-  _openStatusPortal(wrapper) { return this._statusDropdown.openPortal(wrapper); }
-  _positionStatusPortal(trigger, portal) { return this._statusDropdown._positionPortal(trigger, portal); }
+  // Status-Update delegiert an VideoTableStatusDropdown.
   _updateStatusInline(kooperationId, statusId, statusName) {
     return this._statusDropdown.updateInline(kooperationId, statusId, statusName);
   }
@@ -273,7 +238,6 @@ export class KampagneKooperationenVideoTable {
   _openUploadDrawer(videoId, kooperationId, opts) { return this._drawerActions.openUploadDrawer(videoId, kooperationId, opts); }
   _openCustomUploadDrawer(btn) { return this._drawerActions.openCustomUploadDrawer(btn); }
   _openSettingsDrawer(btn, opts) { return this._drawerActions.openSettingsDrawer(btn, opts); }
-  _openLinkStrategieDrawer(btn) { return this._drawerActions.openLinkStrategieDrawer(btn); }
   _openLinkSkriptDrawer(btn) { return this._drawerActions.openLinkSkriptDrawer(btn); }
   _reloadAfterStrategieLink() { return this._drawerActions.reloadAfterStrategieLink(); }
 
@@ -281,9 +245,7 @@ export class KampagneKooperationenVideoTable {
   // UI HELPERS (delegiert)
   // ========================================
 
-  initAutoResizeTextareas() { /* Feste Höhe via CSS */ }
   bindResizeEvents() { this.uiHelpers.bindResizeEvents(); }
-  bindDragToScroll() { this.uiHelpers.bindDragToScroll(); }
   loadColumnWidths() { this.uiHelpers.loadColumnWidths(); }
   initFloatingScrollbar() { this.uiHelpers.initFloatingScrollbar(); }
 
@@ -292,7 +254,7 @@ export class KampagneKooperationenVideoTable {
   // ========================================
 
   initRealtimeSubscription() { this.realtimeHandler.initRealtimeSubscription(); }
-  cleanupRealtimeSubscription() { this.realtimeHandler.cleanup(); }
+  cleanupRealtimeSubscription() { this.realtimeHandler.destroy(); }
   toggleVideoRowApproval(videoId, isApproved) { this.realtimeHandler.toggleVideoRowApproval(videoId, isApproved); }
   async handleKooperationDeletedById(id, source) { await this.realtimeHandler.handleKooperationDeletedById(id, source); }
 
@@ -300,10 +262,9 @@ export class KampagneKooperationenVideoTable {
   // LIFECYCLE
   // ========================================
 
-  async init(containerId) {
-    if (this._isLoading && this.containerId === containerId) return;
-
-    // Background-Upload-Done Listener registrieren (einmalig pro init)
+  // window-Listener, die der Produktions-Mount braucht. init() läuft dort nicht.
+  attachGlobalHandlers(detail) {
+    this._detail = detail || null;
     if (!this._uploadDoneHandler) {
       this._uploadDoneHandler = () => {
         this._reloadAfterStrategieLink();
@@ -323,61 +284,17 @@ export class KampagneKooperationenVideoTable {
       window.addEventListener(UPLOAD_EVENTS.CUSTOM_DONE, this._customUploadDoneHandler);
     }
 
-    if (this._dataLoaded && this.containerId === containerId) {
-      await this.refresh();
-      return;
-    }
-
-    if (this.containerId !== containerId) {
-      this._isLoading = false;
-      this._dataLoaded = false;
-    }
-
-    this.containerId = containerId;
-    let container = document.getElementById(containerId);
-    
-    if (container) {
-      container.innerHTML = this.renderSkeletonLoading();
-    } else {
-      console.error('❌ Container nicht gefunden:', containerId);
-      return;
-    }
-    
-    await Promise.all([
-      this.loadData(),
-      this.loadColumnVisibilitySettings()
-    ]);
-    
-    const html = this.render();
-    const currentContainer = document.getElementById(containerId);
-    if (currentContainer) {
-      currentContainer.innerHTML = html;
-      container = currentContainer;
-      
-      this.bindEvents();
-      
-      window.addEventListener('video-column-visibility-changed', (e) => {
-        if (e.detail.kampagneId === this.kampagneId) {
-          this.hiddenColumns = e.detail.hiddenColumns;
-          this.refilter();
+    if (!this._entityUpdatedHandler) {
+      this._entityUpdatedHandler = async (e) => {
+        const evtDetail = e.detail || {};
+        if (evtDetail.entity === 'kooperation' && evtDetail.action === 'deleted' && evtDetail.id) {
+          await this.handleKooperationDeletedById(evtDetail.id, 'entityUpdated');
         }
-      }, { signal: this._abortController.signal });
-
-      if (!this._entityUpdatedHandler) {
-        this._entityUpdatedHandler = async (e) => {
-          const detail = e.detail || {};
-          if (detail.entity === 'kooperation' && detail.action === 'deleted' && detail.id) {
-            await this.handleKooperationDeletedById(detail.id, 'entityUpdated');
-          }
-        };
-        window.addEventListener('entityUpdated', this._entityUpdatedHandler);
-      }
-      
-      this.initFloatingScrollbar();
-      this.initRealtimeSubscription();
-      this.loadColumnWidths();
-    } else {
-      console.error('❌ Container nicht mehr im DOM nach async Laden:', containerId);
+        if (evtDetail.entity === 'kooperation' && evtDetail.action === 'created') {
+          await detail?.reloadKooperationTable?.();
+        }
+      };
+      window.addEventListener('entityUpdated', this._entityUpdatedHandler);
     }
   }
 
@@ -398,11 +315,15 @@ export class KampagneKooperationenVideoTable {
       if (this.feedbackSaveController?.hasPending()) {
         await this.feedbackSaveController.flushAll();
       }
+      // Video-Name wird oft waehrend des Uploads getippt und ist dann noch
+      // nicht per Blur gespeichert. Vor dem Neuzeichnen uebernehmen, sonst
+      // ersetzt der Abschluss-Render das Feld mit dem alten Store-Wert.
+      await this.fieldHandler.flushEditedTextFields();
 
       const container = this.containerId ? document.getElementById(this.containerId) : null;
       if (!container) return;
 
-      this._closeStatusPortal();
+      tableSelect.closeAll();
 
       // container selbst ueberlebt den innerHTML-Tausch (lebender Node),
       // .grid-wrapper und die Floating-Bar werden neu gebaut -> Selektoren.
@@ -430,34 +351,12 @@ export class KampagneKooperationenVideoTable {
     }
   }
 
-  async refresh() {
-    const container = this.containerId ? document.getElementById(this.containerId) : null;
-    if (!container) return;
-
-    if (this.store) {
-      this.refilter();
-      return;
-    }
-    
-    this._dataLoaded = false;
-    await this.loadData();
-    
-    container.innerHTML = this.render();
-    this.bindEvents();
-    this.initFloatingScrollbar();
-    this.loadColumnWidths();
-    this.updateTabCounts();
-  }
-
   destroy() {
-    // Offene Feedback-Saves noch ausloesen, bevor State/Listener abgebaut werden.
+    // Offenen Text und Feedback noch ausloesen, bevor State/Listener abgebaut werden.
+    this.fieldHandler?.flushEditedTextFields();
     this.feedbackSaveController?.flushAll();
 
-    this._closeStatusPortal();
-    // Die Engine selbst bleibt stehen, sie gehoert der Anwendung. Nur diese
-    // Config verweist auf eine Tabelle, die es gleich nicht mehr gibt.
-    unregisterHoverToolbar(LIVE_LINK_TOOLBAR);
-    hoverToolbar.close();
+    tableSelect.closeAll();
 
     this._rowHeightSync?.disconnect();
     this._rowHeightSync = null;
@@ -467,17 +366,12 @@ export class KampagneKooperationenVideoTable {
     // Drawer-eigene window-Listener (VIDEO_DONE/STORYS_DONE/CUSTOM_DONE,
     // QUEUE_CHANGED) freigeben, sonst bleiben sie pro Tabellen-Instanz haengen.
     this._uploadDrawer?.destroy();
-    this._linkStrategieDrawer?.destroy?.();
     this._linkSkriptDrawer?.destroy?.();
+    this._settingsDrawer?.removeDrawer();
 
     const container = document.querySelector('.kooperation-video-grid');
     if (container) CustomDatePicker.destroy(container);
 
-    if (this.dragScrollContainer) {
-      this.dragScrollContainer.style.cursor = '';
-      this.isDragging = false;
-      this.dragScrollContainer = null;
-    }
 
     this.uiHelpers.destroy();
     this.columnDragHandler.destroy();
@@ -485,7 +379,7 @@ export class KampagneKooperationenVideoTable {
     clearTimeout(this._refilterTimer);
     clearTimeout(this._loadingProgressTimer);
     
-    this.cleanupRealtimeSubscription();
+    this.realtimeHandler.destroy();
 
     if (this._abortController) {
       this._abortController.abort();
@@ -507,6 +401,8 @@ export class KampagneKooperationenVideoTable {
       this._customUploadDoneHandler = null;
     }
 
+    this._unsubPosts?.();
+    this._unsubPosts = null;
     this.store = null;
 
     const floatingScrollbar = document.getElementById('floating-scrollbar-kampagne');
@@ -516,8 +412,3 @@ export class KampagneKooperationenVideoTable {
   }
 }
 
-export async function renderKooperationenVideoTable(kampagneId, containerId) {
-  const table = new KampagneKooperationenVideoTable(kampagneId);
-  await table.init(containerId);
-  return table;
-}

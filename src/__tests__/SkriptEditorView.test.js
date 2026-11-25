@@ -17,6 +17,7 @@ const { mockService } = vi.hoisted(() => ({
     updateChatMessage: vi.fn(),
     createChatMessage: vi.fn(),
     createVersion: vi.fn(),
+    quittiereUploadPruefung: vi.fn(async () => {}),
     wechsleVersion: vi.fn(),
     triggerFunction: vi.fn(),
     personaLabel: vi.fn((p) => p?.name || ''),
@@ -44,6 +45,10 @@ vi.mock('../modules/skripte/SkriptList.js', () => ({
   matchesKampagne: (item, kampagneId) => {
     if (kampagneId == null) return !item.kampagne_id;
     return item.kampagne_id === kampagneId;
+  },
+  matchesLinie: (item, briefingId) => {
+    if (briefingId == null) return !item.briefing_id;
+    return item.briefing_id === briefingId;
   }
 }));
 
@@ -53,7 +58,9 @@ vi.mock('../modules/skripte/SkripteUtils.js', () => ({
   badge: (text, variant = 'neutral') => `<span class="skripte-badge skripte-badge--${variant}">${text}</span>`,
   formatUsageCost: () => null,
   replaceSkriptUrl: () => {},
+  STATUS_LABELS: { entwurf: 'Entwurf', final: 'Final', freigegeben: 'Freigegeben' },
   skriptEditorPath: (id) => (!id || id === 'neu' || id === 'new') ? '/skripte' : `/skripte/${id}`,
+  skriptCrumbs: () => [],
   relativeZeit: () => 'Vor 4 Stunden',
   initialen: (name) => String(name || '?')[0].toUpperCase()
 }));
@@ -63,10 +70,28 @@ vi.mock('../core/icons/IconSystem.js', () => ({
 }));
 
 import { SkriptEditorView } from '../modules/skripte/SkriptEditorView.js';
+import { festlegungAusAblehnungText } from '../modules/skripte/editor/SkriptEditorChatActions.js';
+
+function ensureLocalStorage() {
+  if (typeof globalThis.localStorage?.clear === 'function') return;
+  const store = Object.create(null);
+  const api = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; },
+    clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); },
+    key: (i) => Object.keys(store)[i] ?? null,
+    get length() { return Object.keys(store).length; }
+  };
+  Object.defineProperty(globalThis, 'localStorage', { value: api, configurable: true, writable: true });
+}
 
 function setupWindow() {
+  ensureLocalStorage();
   window.isKunde = vi.fn(() => false);
   window.isAdmin = vi.fn(() => true);
+  window.isInternal = vi.fn(() => true);
+  window.canEdit = vi.fn(() => true);
   window.currentUser = { id: 'user-1', rolle: 'admin' };
   window.setHeadline = vi.fn();
   window.breadcrumbSystem = { updateBreadcrumb: vi.fn() };
@@ -175,8 +200,9 @@ describe('SkriptEditorView Layout', () => {
     mockService.getVersionen.mockResolvedValue([]);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     view._likyShell?.destroy();
+    await view.cleanup();
     container.remove();
     localStorage.clear();
     vi.clearAllMocks();
@@ -207,7 +233,8 @@ describe('SkriptEditorView Layout', () => {
 
     // Linke Zelle selektierbar, rechte nicht
     const textZellen = container.querySelectorAll('.skripte-editor-sektion-text');
-    expect(textZellen.length).toBe(3);
+    expect(textZellen.length).toBe(4);
+    expect(container.querySelector('.skripte-editor-titel[data-feld="titel"]')).not.toBeNull();
     const visualZellen = container.querySelectorAll('.skripte-editor-sektion-visual');
     expect(visualZellen.length).toBe(3);
     expect(visualZellen[0].classList.contains('skripte-editor-sektion-text')).toBe(false);
@@ -218,6 +245,37 @@ describe('SkriptEditorView Layout', () => {
     // Wand-Button in jeder rechten Zelle
     const visualBtns = container.querySelectorAll('.skripte-editor-visual-btn');
     expect(visualBtns.length).toBe(3);
+  });
+
+  it('zeigt Festlegungen und Pruefung, Entfernen leert die Zeile', async () => {
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      festlegungen: [{ text: 'nur ein Creator', quelle: 'anweisung' }],
+      pruefung: {
+        laenge: { status: 'ueber', worte: 90, min: 35, max: 70 },
+        claims: ['heilt alles'],
+        hook_zeit: { sekunden: 6, max: 3, status: 'ueber' },
+        doppelungen: [{ satz: 'Vier Veränderungen erleben die meisten Frauen.', zellen: ['hook', 'hauptteil'] }]
+      }
+    });
+    mockService.updateSkript.mockResolvedValue({});
+    await view.render(container, 's1');
+
+    expect(document.querySelector('.skripte-editor-festlegungen').textContent).toContain('nur ein Creator');
+    const zusatzPanel = container.querySelector('[data-editor-tab-panel="zusatz"]');
+    expect(zusatzPanel).not.toBeNull();
+    const pruefung = zusatzPanel.querySelector('.skripte-editor-pruefung').textContent;
+    expect(pruefung).toContain('90 Wörter');
+    expect(pruefung).toContain('heilt alles');
+    expect(pruefung).toContain('Hook ca. 6 Sek., Vorgabe bis 3 Sek.');
+    expect(pruefung).toContain('Steht doppelt in Hook und Hauptteil: „Vier Veränderungen erleben die meisten Frauen.“');
+    expect(container.querySelector('[data-editor-tab-panel="skript"] .skripte-editor-pruefung')).toBeNull();
+
+    document.querySelector('[data-msg-action="festlegung-loeschen"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { festlegungen: [] });
+    expect(document.querySelector('.skripte-editor-festlegungen')).toBeNull();
   });
 
   it('Sidebar rendert nur Skripte derselben Kampagne', async () => {
@@ -254,6 +312,29 @@ describe('SkriptEditorView Layout', () => {
   it('loadSkripte wird mit der Kampagne des geoeffneten Skripts aufgerufen', async () => {
     await view.render(container, 's1');
     expect(mockService.loadSkripte).toHaveBeenCalledWith({ kampagneId: 'k1' });
+  });
+
+  it('loadSkripte wird mit der Linie (Briefing) des geoeffneten Skripts aufgerufen', async () => {
+    mockService.loadSkript.mockResolvedValue({ ...skript, briefing_id: 'b1' });
+    await view.render(container, 's1');
+    expect(mockService.loadSkripte).toHaveBeenCalledWith({ briefingId: 'b1' });
+  });
+
+  it('Sidebar zeigt nur Skripte derselben Linie, auch in derselben Kampagne', async () => {
+    mockService.loadSkript.mockResolvedValue({ ...skript, briefing_id: 'b1' });
+    mockService.loadSkripte.mockResolvedValue([
+      { ...skript, id: 's1', titel: 'Aktiv', briefing_id: 'b1' },
+      { ...skript, id: 's2', titel: 'Gleiche Linie', briefing_id: 'b1' },
+      { ...skript, id: 's3', titel: 'Andere Linie', briefing_id: 'b2' },
+      { ...skript, id: 's4', titel: 'Ohne Linie', briefing_id: null }
+    ]);
+    await view.render(container, 's1');
+
+    const items = container.querySelectorAll('#ed-liste-items .skripte-editor-liste-item');
+    expect(items.length).toBe(2);
+    expect(container.textContent).toContain('Gleiche Linie');
+    expect(container.textContent).not.toContain('Andere Linie');
+    expect(container.textContent).not.toContain('Ohne Linie');
   });
 
   it('Master mit Creator-facing rendert Grid, Visual-Buttons und Zusatz-Tab', async () => {
@@ -308,6 +389,7 @@ describe('SkriptEditorView Layout', () => {
     const chat = document.getElementById('ed-chat');
     expect(chat).not.toBeNull();
     expect(chat.querySelector('#ed-chat-log')).not.toBeNull();
+    expect(chat.querySelector('#ed-chat-log').classList.contains('chat-log')).toBe(true);
     expect(chat.querySelector('.skripte-editor-inputwrap')).not.toBeNull();
     expect(chat.querySelector('#ed-input')).not.toBeNull();
     expect(chat.querySelector('#ed-send')).not.toBeNull();
@@ -444,7 +526,7 @@ describe('SkriptEditorView Layout', () => {
     mockService.versionLabel.mockImplementation((v) => `v${v?.version_nr || 1}`);
   });
 
-  it('Liste rendert Mini-Cards mit pinker Badge und Datum', async () => {
+  it('Liste rendert Mini-Cards mit Datum, ohne Marken-Tag', async () => {
     await view.render(container, 's1');
 
     const nav = container.querySelector('nav.skripte-editor-liste');
@@ -456,9 +538,9 @@ describe('SkriptEditorView Layout', () => {
     expect(item.tagName).toBe('A');
     expect(item.getAttribute('href')).toBe('/skripte/s1');
     expect(item.getAttribute('aria-current')).toBe('page');
-    const badge = item.querySelector('.skripte-badge--pink');
-    expect(badge).not.toBeNull();
-    expect(badge.textContent).toBe('MUS');
+    expect(item.querySelector('.skripte-badge--pink')).toBeNull();
+    expect(item.querySelector('.skripte-editor-liste-creator-name')).toBeNull();
+    expect(item.textContent).not.toContain('MUS');
     expect(item.querySelector('.skripte-editor-liste-datum')).not.toBeNull();
     expect(item.querySelector('.skripte-editor-liste-titel').textContent).toBe('Test-Skript');
 
@@ -476,11 +558,162 @@ describe('SkriptEditorView Layout', () => {
     expect(localStorage.getItem('skripte-liste-collapsed')).toBeNull();
   });
 
+  it('Liste zeigt Creator-Bubble, Video-Creator schlaegt Konzept-Creator', async () => {
+    const offen = {
+      ...skript,
+      strategie_item: { creator_name: 'Tim Berg' },
+      kooperation_videos: [{
+        kooperation: { creator: { id: 'c9', vorname: 'Lea', nachname: 'Alt' } }
+      }]
+    };
+    const konzept = {
+      ...skript,
+      id: 's2',
+      titel: 'Konzept-Skript',
+      strategie_item: { creator_name: 'Tim Berg' }
+    };
+    const zugewiesen = {
+      ...skript,
+      id: 's3',
+      titel: 'Zugewiesen',
+      strategie_item: { creator_name: 'Tim Berg' },
+      kooperation_videos: [{
+        kooperation: { creator: { id: 'c3', vorname: 'Lea', nachname: 'Alt' } }
+      }]
+    };
+    mockService.loadSkript.mockResolvedValue({ ...offen });
+    mockService.loadSkriptVerknuepfungen.mockResolvedValueOnce([{
+      kooperation: { creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+    }]);
+    mockService.loadSkripte.mockResolvedValue([offen, konzept, zugewiesen]);
+
+    await view.render(container, 's1');
+
+    expect(container.querySelector('.skripte-badge--pink')).toBeNull();
+
+    const offenEl = container.querySelector('.skripte-editor-liste-item[data-id="s1"]');
+    expect(offenEl.querySelector('.skripte-editor-liste-creator-name').textContent).toBe('Anna Meyer');
+    expect(offenEl.querySelector('.avatar-bubble')).not.toBeNull();
+    expect(offenEl.textContent).not.toContain('Tim Berg');
+    expect(offenEl.textContent).not.toContain('Lea Alt');
+
+    const konzeptEl = container.querySelector('.skripte-editor-liste-item[data-id="s2"]');
+    expect(konzeptEl.querySelector('.skripte-editor-liste-creator-name').textContent).toBe('Tim Berg');
+    expect(konzeptEl.querySelector('.avatar-bubble')).not.toBeNull();
+    expect(konzeptEl.querySelector('.skripte-badge--pink')).toBeNull();
+
+    const zugewiesenEl = container.querySelector('.skripte-editor-liste-item[data-id="s3"]');
+    expect(zugewiesenEl.querySelector('.skripte-editor-liste-creator-name').textContent).toBe('Lea Alt');
+    expect(zugewiesenEl.textContent).not.toContain('Tim Berg');
+  });
+
+  it('Liste zeigt Video-Tag unter dem Titel, ohne Position keinen', async () => {
+    const offen = { ...skript };
+    const andere = {
+      ...skript,
+      id: 's2',
+      titel: 'Anderes',
+      kooperation_videos: [{ position: 2, kooperation: { videoanzahl: 3 } }]
+    };
+    const ohnePos = {
+      ...skript,
+      id: 's3',
+      titel: 'Ohne Position',
+      kooperation_videos: [{ position: null, kooperation: { videoanzahl: 3 } }]
+    };
+    mockService.loadSkript.mockResolvedValue({ ...offen });
+    mockService.loadSkriptVerknuepfungen.mockResolvedValueOnce([
+      { position: 1, kooperation: { videoanzahl: 3 } }
+    ]);
+    mockService.loadSkripte.mockResolvedValue([offen, andere, ohnePos]);
+
+    await view.render(container, 's1');
+
+    const tag = (id) => container.querySelector(`.skripte-editor-liste-item[data-id="${id}"] .skripte-editor-liste-video`);
+    expect(tag('s1').textContent).toBe('Video 1/3');
+    expect(tag('s2').textContent).toBe('Video 2/3');
+    expect(tag('s3')).toBeNull();
+  });
+
+  it('Liste sortiert nach Creator und Videonummer, offenes Skript inklusive', async () => {
+    const creator = (id, vorname) => ({ id, vorname, nachname: 'X' });
+    const vid = (position, c) => ({ position, kooperation: { videoanzahl: 3, creator: c } });
+    const anna = creator('c1', 'Anna');
+    const bea = creator('c2', 'Bea');
+    const offen = { ...skript, id: 's1', titel: 'Bea 2' };
+    const bea3 = { ...skript, id: 's2', titel: 'Bea 3', kooperation_videos: [vid(3, bea)] };
+    const anna1 = { ...skript, id: 's3', titel: 'Anna 1', kooperation_videos: [vid(1, anna)] };
+    const bea1 = { ...skript, id: 's4', titel: 'Bea 1', kooperation_videos: [vid(1, bea)] };
+    mockService.loadSkript.mockResolvedValue({ ...offen });
+    mockService.loadSkriptVerknuepfungen.mockResolvedValueOnce([vid(2, bea)]);
+    mockService.loadSkripte.mockResolvedValue([offen, bea3, anna1, bea1]);
+
+    await view.render(container, 's1');
+
+    const titel = [...container.querySelectorAll('.skripte-editor-liste-titel')].map((el) => el.textContent);
+    expect(titel).toEqual(['Anna 1', 'Bea 1', 'Bea 2', 'Bea 3']);
+  });
+
+  it('Liste zeigt Gast-Creator wenn die Joins leer sind', async () => {
+    mockService.loadSkript.mockResolvedValue({ ...skript });
+    mockService.loadSkripte.mockResolvedValue([{
+      ...skript,
+      liste_creators: [{
+        vorname: 'Anna',
+        nachname: 'Meyer',
+        name: 'Anna Meyer',
+        profilbild_thumb_url: 'https://cdn.example/a.webp'
+      }]
+    }]);
+
+    await view.render(container, 's1');
+
+    const item = container.querySelector('.skripte-editor-liste-item');
+    expect(item.querySelector('.skripte-badge--pink')).toBeNull();
+    expect(item.querySelector('.skripte-editor-liste-creator-name').textContent).toBe('Anna Meyer');
+    expect(item.querySelector('.avatar-bubble img')?.getAttribute('src')).toBe('https://cdn.example/a.webp');
+  });
+
   it('bestehendes Skript stellt collapsed-Pref aus Storage wieder her', async () => {
     localStorage.setItem('skripte-liste-collapsed', 'true');
     await view.render(container, 's1');
 
     expect(container.querySelector('.skripte-editor').classList.contains('skripte-editor--liste-collapsed')).toBe(true);
+  });
+
+  it('Loeschen-Button nur mit can_delete', async () => {
+    const vorher = window.canDelete;
+    window.canDelete = vi.fn(() => false);
+    await view.render(container, 's1');
+    expect(container.querySelector('#ed-loeschen')).toBeNull();
+    view._likyShell?.destroy();
+
+    window.canDelete = vi.fn(() => true);
+    await view.render(container, 's1');
+    expect(container.querySelector('#ed-loeschen')).not.toBeNull();
+    window.canDelete = vorher;
+  });
+
+  it('entityUpdated deleted: fremdes Skript nur aus der Sidebar, offenes zurueck zur Herkunft', async () => {
+    window.navigateTo = vi.fn();
+    mockService.loadSkripte.mockResolvedValue([{ ...skript }, { ...skript, id: 's2', titel: 'Zweites' }]);
+    await view.render(container, 's1');
+    expect(container.querySelectorAll('.skripte-editor-liste-item')).toHaveLength(2);
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'skripte', action: 'deleted', id: 's2' } }));
+    expect(container.querySelectorAll('.skripte-editor-liste-item')).toHaveLength(1);
+    expect(window.navigateTo).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'briefing', action: 'deleted', id: 's1' } }));
+    expect(window.navigateTo).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'skripte', action: 'deleted', id: 's1' } }));
+    expect(window.navigateTo).toHaveBeenCalledWith('/skripte');
+
+    await view.cleanup();
+    window.navigateTo.mockClear();
+    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'skripte', action: 'deleted', id: 's1' } }));
+    expect(window.navigateTo).not.toHaveBeenCalled();
   });
 
   it('Visual-Button oeffnet Modus-Menue statt Direktstart', async () => {
@@ -574,7 +807,10 @@ describe('SkriptEditorView Layout', () => {
     await view.render(container, 's1');
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook_visuell: 'Reload-Visual' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook_visuell: 'Reload-Visual',
+      festgezogen: ['hook_visuell']
+    });
     expect(view.skript.hook_visuell).toBe('Reload-Visual');
     expect(view.skript.hook).toBe('Hook-Text');
   });
@@ -603,7 +839,10 @@ describe('SkriptEditorView Layout', () => {
     view.applyMessageUpdate(msg, 'UPDATE');
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook_visuell: 'Neuer Visual-Text' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook_visuell: 'Neuer Visual-Text',
+      festgezogen: ['hook_visuell']
+    });
     expect(mockService.createVersion).toHaveBeenCalled();
     expect(mockService.updateChatMessage).toHaveBeenCalledWith('m1', { status: 'angenommen' });
     expect(view.skript.hook_visuell).toBe('Neuer Visual-Text');
@@ -703,12 +942,12 @@ describe('SkriptEditorView Inline-Edit', () => {
     vi.clearAllMocks();
   });
 
-  it('Nicht-Kunde: 6 Zellen editable, leerer Hook ohne Gedankenstrich', async () => {
+  it('Nicht-Kunde: Titel plus 6 Zellen editable, leerer Hook ohne Gedankenstrich', async () => {
     mockService.loadSkript.mockResolvedValue({ ...skript, hook: '' });
     await view.render(container, 's1');
 
     const zellen = container.querySelectorAll('[data-feld]');
-    expect(zellen.length).toBe(6);
+    expect(zellen.length).toBe(7);
     zellen.forEach((el) => {
       expect(el.getAttribute('contenteditable')).toBe('plaintext-only');
     });
@@ -722,7 +961,7 @@ describe('SkriptEditorView Inline-Edit', () => {
     await view.render(container, 's1');
 
     const zellen = container.querySelectorAll('[data-feld]');
-    expect(zellen.length).toBe(6);
+    expect(zellen.length).toBe(7);
     zellen.forEach((el) => {
       expect(el.getAttribute('contenteditable')).toBe('plaintext-only');
     });
@@ -763,7 +1002,10 @@ describe('SkriptEditorView Inline-Edit', () => {
       vorschlag_text: 'Close-up Pfanne'
     });
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hauptteil_visuell: 'Close-up Pfanne' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hauptteil_visuell: 'Close-up Pfanne',
+      festgezogen: ['hauptteil_visuell']
+    });
     expect(mockService.updateSkript).not.toHaveBeenCalledWith('s1', expect.objectContaining({ hauptteil: expect.anything() }));
     expect(view.skript.hauptteil_visuell).toBe('Close-up Pfanne');
     expect(view.skript.hauptteil).toBe('Hauptteil-Text');
@@ -783,10 +1025,124 @@ describe('SkriptEditorView Inline-Edit', () => {
       vorschlag_text: 'Neuer Shot'
     });
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook_visuell: 'Neuer Shot' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook_visuell: 'Neuer Shot',
+      festgezogen: ['hook_visuell']
+    });
     expect(view.skript.hook_visuell).toBe('Neuer Shot');
     expect(view.skript.hook).toBe('Hook-Text');
     expect(mockService.createVersion.mock.calls[0][1]).toBe('Kürzen · Hook Visual');
+  });
+
+  it('acceptVorschlag mit ist_visuell und ohne Selektion ersetzt die ganze Visual-Zelle', async () => {
+    window.toastSystem = { success: vi.fn(), error: vi.fn() };
+    await view.render(container, 's1');
+    view.skript.hook_visuell = 'Alter Shot und noch eine Szene';
+    view.skript.hook = 'Hook-Text';
+
+    await view.acceptVorschlag({
+      id: 'm3',
+      sektion: 'hook',
+      ist_visuell: true,
+      aktion: 'chat',
+      selektion_text: null,
+      vorschlag_text: 'Text Overlay: Neu\n\nVisual: Creator zeigt das Serum.'
+    });
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook_visuell: 'Text Overlay: Neu\n\nVisual: Creator zeigt das Serum.',
+      festgezogen: ['hook_visuell']
+    });
+    expect(view.skript.hook).toBe('Hook-Text');
+    expect(view.skript.hook_visuell).not.toContain('Alter Shot');
+  });
+
+  it('acceptVorschlag auf den Hook nimmt alte Zeitmarker aus allen Visual-Zellen', async () => {
+    window.toastSystem = { success: vi.fn(), error: vi.fn() };
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      hook: 'eins zwei drei vier fuenf',
+      hook_visuell: 'Sek. 0–2: Gesicht',
+      hauptteil: 'sechs sieben acht neun zehn',
+      hauptteil_visuell: 'Sek. 2–4: Dose'
+    });
+    await view.render(container, 's1');
+    mockService.updateSkript.mockClear();
+
+    await view.acceptVorschlag({
+      id: 'm-hook', sektion: 'hook', ist_visuell: false, aktion: 'chat', status: 'vorschlag',
+      selektion_text: null,
+      vorschlag_text: 'eins zwei drei vier fuenf sechs sieben acht neun zehn elf zwoelf'
+    });
+
+    const patch = mockService.updateSkript.mock.calls[0][1];
+    expect(patch.hook).toContain('zwoelf');
+    expect(patch.hook_visuell).toBe('Gesicht');
+    expect(patch.hauptteil_visuell).toBe('Dose');
+    expect(patch.pruefung).toBeDefined();
+    expect(view.skript.hauptteil_visuell).toBe('Dose');
+  });
+
+  it('Ablehnen speichert nur das abgelehnte Stueck als Festlegung, nicht die Anweisung', async () => {
+    await view.render(container, 's1');
+    mockService.updateSkript.mockClear();
+    mockService.updateChatMessage.mockResolvedValue({});
+    view.messages = [
+      { id: 'u1', rolle: 'user', inhalt: 'Erster Satz ist gut, die Frage am Ende sollte lauten: Erkennst du dich wieder?' },
+      { id: 'a1', rolle: 'assistant', status: 'vorschlag', aktion: 'chat', sektion: 'hook', ist_visuell: false,
+        vorschlag_text: 'Kennst du diese vier Veränderungen? Erkennst du dich wieder?' }
+    ];
+
+    await view._chatActions.handleMessageAction('reject', 'a1');
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      festlegungen: [{ text: 'Abgelehnt für Hook: „Kennst du diese vier Veränderungen? Erkennst du dich wieder?“', quelle: 'ablehnung' }]
+    });
+  });
+
+  it('festlegungAusAblehnungText: Visual, Bundle, ohne Text', () => {
+    expect(festlegungAusAblehnungText({ sektion: 'cta', ist_visuell: true, vorschlag_text: 'Zeigt nach unten' }))
+      .toBe('Abgelehnt für CTA Visual: „Zeigt nach unten“');
+    expect(festlegungAusAblehnungText({
+      sektion: 'gesamt',
+      aenderungen: [
+        { sektion: 'hook', spalte: 'gesprochen', vorschlag_text: 'H' },
+        { sektion: 'hook', spalte: 'visuell', vorschlag_text: 'V' }
+      ]
+    })).toBe('Abgelehnt für Hook, Hook Visual: „H / V“');
+    expect(festlegungAusAblehnungText({ sektion: 'hook', vorschlag_text: '' })).toBe('');
+  });
+
+  it('acceptVorschlag mit aenderungen schreibt alle Zellen und eine Version', async () => {
+    window.toastSystem = { success: vi.fn(), error: vi.fn() };
+    await view.render(container, 's1');
+    mockService.updateSkript.mockClear();
+    mockService.createVersion.mockClear();
+
+    await view.acceptVorschlag({
+      id: 'm-bundle',
+      sektion: 'gesamt',
+      ist_visuell: false,
+      aktion: 'chat',
+      status: 'vorschlag',
+      selektion_text: null,
+      vorschlag_text: null,
+      aenderungen: [
+        { sektion: 'hook', spalte: 'gesprochen', vorschlag_text: 'Neuer Hook' },
+        { sektion: 'hauptteil', spalte: 'visuell', vorschlag_text: 'Neue Regie' }
+      ]
+    });
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook: 'Neuer Hook',
+      hauptteil_visuell: 'Neue Regie',
+      pruefung: expect.objectContaining({ doppelungen: [] }),
+      festgezogen: ['hook', 'hauptteil_visuell']
+    });
+    expect(view.skript.hook).toBe('Neuer Hook');
+    expect(view.skript.hauptteil_visuell).toBe('Neue Regie');
+    expect(mockService.createVersion).toHaveBeenCalledTimes(1);
+    expect(mockService.createVersion.mock.calls[0][1]).toBe('Chat · 2 Zellen');
   });
 
   it('Tippen in Zelle loescht pending Selektion', async () => {
@@ -812,9 +1168,45 @@ describe('SkriptEditorView Inline-Edit', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook: 'Neuer Hook' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook: 'Neuer Hook',
+      pruefung: expect.objectContaining({ doppelungen: [] })
+    });
     expect(mockService.createVersion).toHaveBeenCalled();
     expect(mockService.createVersion.mock.calls[0][1]).toBe('Manuell · Hook');
+  });
+
+  it('hookUebertragen tauscht Spoken-Hook, Visual bleibt, eine Version', async () => {
+    window.canEdit = vi.fn(() => true);
+    window.toastSystem = { success: vi.fn(), error: vi.fn() };
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      hook: 'Haupt-Hook',
+      hook_visuell: 'Haupt-Bild',
+      hook_variante_1: 'Alt-Hook'
+    });
+    mockService.createVersion.mockResolvedValue({ version_nr: 2, sub_nr: 0 });
+    mockService.getVersionen.mockResolvedValue([
+      { version_nr: 1, sub_nr: 0 },
+      { version_nr: 2, sub_nr: 0, aenderung_beschreibung: 'Hook übertragen · Hook 1' }
+    ]);
+
+    await view.render(container, 's1');
+    expect(container.querySelector('.skripte-editor-hook-varianten')).not.toBeNull();
+    expect(container.querySelector('[data-feld="hook_variante_1"]').textContent).toContain('Alt-Hook');
+
+    await view.hookUebertragen('hook_variante_1');
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook: 'Alt-Hook',
+      hook_variante_1: 'Haupt-Hook',
+      pruefung: expect.objectContaining({ doppelungen: [] })
+    });
+    expect(view.skript.hook).toBe('Alt-Hook');
+    expect(view.skript.hook_variante_1).toBe('Haupt-Hook');
+    expect(view.skript.hook_visuell).toBe('Haupt-Bild');
+    expect(mockService.createVersion).toHaveBeenCalledTimes(1);
+    expect(mockService.createVersion.mock.calls[0][1]).toBe('Hook übertragen · Hook 1');
   });
 
   it('applyVisuellVorschlag waehrend Hook-Focus laesst Hook-DOM stehen', async () => {
@@ -879,6 +1271,25 @@ describe('SkriptEditorView Trigger-Fehler (502/503 am Gateway)', () => {
     if (view.pollInterval) { clearInterval(view.pollInterval); view.pollInterval = null; }
     container.remove();
     vi.clearAllMocks();
+  });
+
+  it('flusht Inline-Edits vor dem Anlegen der Chat-Messages', async () => {
+    await view.render(container, 's1');
+    const order = [];
+    vi.spyOn(view.inlineEdit, 'flush').mockImplementation(async () => { order.push('flush'); });
+    mockService.createChatMessage.mockReset();
+    mockService.createChatMessage.mockImplementation(async (row) => {
+      order.push('create');
+      return { id: row.rolle === 'user' ? 'u1' : 'a1', skript_id: 's1', ...row };
+    });
+
+    await view.sendMessagePair({
+      aktion: 'chat', sektion: 'gesamt', selektion_text: null, inhalt: 'hi'
+    });
+
+    expect(order[0]).toBe('flush');
+    expect(order.indexOf('flush')).toBeLessThan(order.indexOf('create'));
+    expect(order.filter((step) => step === 'create')).toHaveLength(2);
   });
 
   it('transienter Invoke-Fehler: kein Toast, Message bleibt pending (Poll regelt)', async () => {

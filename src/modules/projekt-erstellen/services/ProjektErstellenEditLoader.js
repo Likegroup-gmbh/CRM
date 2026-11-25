@@ -70,7 +70,12 @@ export class ProjektErstellenEditLoader {
 
     const auftrag = auftragResult.data;
     const details = detailsResult.error ? null : detailsResult.data;
-    const kampagnen = kampagneResult.error ? [] : (kampagneResult.data || []);
+    const kampagnen = (kampagneResult.error ? [] : (kampagneResult.data || [])).slice().sort((a, b) => {
+      const na = parseInt(a.kampagnen_nummer, 10) || 0;
+      const nb = parseInt(b.kampagnen_nummer, 10) || 0;
+      if (na !== nb) return na - nb;
+      return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+    });
     const blocks = blocksResult.error ? [] : (blocksResult.data || []);
     const junctionRows = junctionResult.error ? [] : (junctionResult.data || []);
     const junctionArtNames = junctionRows
@@ -78,25 +83,55 @@ export class ProjektErstellenEditLoader {
       .filter(Boolean);
 
     const teilrechnungen = teilrechnungenResult.error ? [] : (teilrechnungenResult.data || []);
+    const produktionen = await this._loadProduktionen(supabase, kampagnen);
 
     const kampagne = kampagnen[0] || null;
-    const formData = this.toFormData({ auftrag, details, kampagne, blocks, junctionArtNames, teilrechnungen });
+    const formData = this.toFormData({ auftrag, details, kampagne, kampagnen, blocks, junctionArtNames, teilrechnungen, produktionen });
 
     return {
       formData,
-      raw: { auftrag, details, kampagne, kampagnen, blocks, junctionArtNames, teilrechnungen }
+      raw: { auftrag, details, kampagne, kampagnen, blocks, junctionArtNames, teilrechnungen, produktionen }
     };
   }
 
-  toFormData({ auftrag, details, kampagne, blocks, junctionArtNames = [], teilrechnungen = [] }) {
+  async _loadProduktionen(supabase, kampagnen) {
+    const ids = (kampagnen || []).map(row => row.id).filter(Boolean);
+    if (!ids.length) return [];
+    const { data, error } = await supabase
+      .from('produktion')
+      .select('id, name, kampagne_id, budget')
+      .in('kampagne_id', ids)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    const rows = data || [];
+    const produktionIds = rows.map(row => row.id);
+    if (!produktionIds.length) return [];
+    const { data: verbrauch, error: verbrauchError } = await supabase
+      .from('produktion_verbrauch')
+      .select('produktion_id, budget_used')
+      .in('produktion_id', produktionIds);
+    if (verbrauchError) throw verbrauchError;
+    const used = new Map((verbrauch || []).map(row => [row.produktion_id, parseFloat(row.budget_used) || 0]));
+    const nummerById = new Map((kampagnen || []).map(row => [row.id, row.kampagnen_nummer || 1]));
+    return rows.map(row => ({
+      ...row,
+      kampagnen_nummer: nummerById.get(row.kampagne_id) || 1,
+      verbrauch: used.get(row.id) || 0
+    }));
+  }
+
+  toFormData({ auftrag, details, kampagne, kampagnen = [], blocks, junctionArtNames = [], teilrechnungen = [], produktionen = [] }) {
+    const mappedKampagnen = this.mapKampagnen(kampagnen, auftrag, blocks);
     return {
-      auftrag: this.mapAuftrag(auftrag, teilrechnungen),
+      auftrag: this.mapAuftrag(auftrag, teilrechnungen, mappedKampagnen.length),
       details: this.mapDetails(details, blocks, junctionArtNames, kampagne, auftrag),
-      kampagne: this.mapKampagne(kampagne, auftrag)
+      kampagne: this.mapKampagne(kampagne, auftrag),
+      kampagnen: mappedKampagnen,
+      produktionen
     };
   }
 
-  mapAuftrag(auftrag, teilrechnungen = []) {
+  mapAuftrag(auftrag, teilrechnungen = [], kampagnenCount = 1) {
     const titel = auftrag.titel || auftrag.auftragsname || '';
     const mapped = {
       unternehmen_id: auftrag.unternehmen_id || null,
@@ -124,6 +159,7 @@ export class ProjektErstellenEditLoader {
       ust_betrag: auftrag.ust_betrag ?? null,
       bruttobetrag: auftrag.bruttobetrag ?? null,
       anzahl_teilrechnungen: auftrag.anzahl_teilrechnungen ?? 1,
+      kampagnenanzahl: auftrag.kampagnenanzahl || kampagnenCount || 1,
       teilrechnungen: this.mapTeilrechnungen(teilrechnungen, auftrag),
 
       auftragsbestaetigungen_files: [],
@@ -149,7 +185,8 @@ export class ProjektErstellenEditLoader {
         erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null,
         notiz: tr.notiz || '',
         ueberwiesen: !!tr.ueberwiesen,
-        ueberwiesen_am: tr.ueberwiesen_am || null
+        ueberwiesen_am: tr.ueberwiesen_am || null,
+        fixiert: true
       }));
     }
 
@@ -171,7 +208,8 @@ export class ProjektErstellenEditLoader {
       erwarteter_monat_zahlungseingang: auftrag.erwarteter_monat_zahlungseingang || null,
       notiz: '',
       ueberwiesen: !!auftrag.ueberwiesen,
-      ueberwiesen_am: auftrag.ueberwiesen_am || null
+      ueberwiesen_am: auftrag.ueberwiesen_am || null,
+      fixiert: true
     }];
   }
 
@@ -292,6 +330,7 @@ export class ProjektErstellenEditLoader {
     return (blocks || []).map(b => ({
       // ID aus DB uebernehmen, damit DOM-Elemente und Diffs konsistent bleiben
       id: b.id,
+      kampagne_id: b.kampagne_id || null,
       campaign_type: b.campaign_type,
       video_anzahl: b.video_anzahl ?? null,
       creator_anzahl: b.creator_anzahl ?? null,
@@ -314,6 +353,41 @@ export class ProjektErstellenEditLoader {
       id: kampagne.id,
       kampagnenname: kampagne.eigener_name || kampagne.kampagnenname || fallbackName
     };
+  }
+
+  mapKampagnen(kampagnen, auftrag, blocks = []) {
+    const rows = Array.isArray(kampagnen) ? kampagnen : [];
+    const netto = parseFloat(auftrag?.nettobetrag) || 0;
+    const mappedBlocks = this.mapBlocks(blocks);
+    const byKampagneId = new Map();
+    const unassigned = [];
+    mappedBlocks.forEach(block => {
+      if (!block.kampagne_id) {
+        unassigned.push(block);
+        return;
+      }
+      if (!byKampagneId.has(block.kampagne_id)) byKampagneId.set(block.kampagne_id, []);
+      byKampagneId.get(block.kampagne_id).push(block);
+    });
+
+    return rows.map((k, i) => {
+      let slotBlocks = (byKampagneId.get(k.id) || []).slice();
+      if (i === 0 && unassigned.length) slotBlocks = slotBlocks.concat(unassigned);
+      const counts = slotBlocks.reduce((sum, block) => {
+        sum.videos += parseInt(block.video_anzahl, 10) || 0;
+        sum.creators += parseInt(block.creator_anzahl, 10) || 0;
+        return sum;
+      }, { videos: 0, creators: 0 });
+      return {
+        id: k.id,
+        kampagnen_nummer: k.kampagnen_nummer || i + 1,
+        eigener_name: k.eigener_name || null,
+        volumen: k.volumen != null ? parseFloat(k.volumen) : (rows.length === 1 ? netto : 0),
+        campaign_blocks: slotBlocks.map(({ kampagne_id, ...rest }) => rest),
+        videoanzahl: slotBlocks.length ? counts.videos : (parseInt(k.videoanzahl, 10) || 0),
+        creatoranzahl: slotBlocks.length ? counts.creators : (parseInt(k.creatoranzahl, 10) || 0)
+      };
+    });
   }
 }
 

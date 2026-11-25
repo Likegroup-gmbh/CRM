@@ -12,13 +12,38 @@ import { GESCHLECHT_OPTIONS } from '../../../core/form/config/CreatorFormConfig.
  * Creator-spezifische Filter-Konfiguration
  */
 export const CREATOR_FILTERS = [
-  // Name-Filter (sucht in vorname UND nachname)
-  createFilterConfig('text', {
-    id: 'name',
-    label: 'Creator Name',
-    placeholder: 'Nach Creator-Namen suchen...',
-    searchFields: ['vorname', 'nachname'], // Creator-spezifisch
+  createFilterConfig('multiSelect', {
+    id: 'favorit_von',
+    label: 'Favorit von',
+    type: 'multiSelect',
+    searchable: true,
+    placeholder: 'Person suchen...',
     priority: 1
+  }),
+  createFilterConfig('multiSelect', {
+    id: 'creator_tag_id',
+    label: 'Creator-Tag',
+    type: 'multiSelect',
+    table: 'creator_tag_typen',
+    displayField: 'name',
+    valueField: 'id',
+    dynamic: true,
+    searchable: true,
+    placeholder: 'Tag suchen...',
+    priority: 1
+  }),
+
+  createFilterConfig('multiSelect', {
+    id: 'besitz_id',
+    label: 'Besitz',
+    type: 'multiSelect',
+    searchable: true,
+    table: 'besitz',
+    displayField: 'name',
+    valueField: 'id',
+    dynamic: true,
+    placeholder: 'Besitz suchen...',
+    priority: 2
   }),
 
   // Creator-Typ Filter (M:N)
@@ -182,6 +207,23 @@ export const CREATOR_FILTERS = [
     priority: 11
   }),
 
+  createFilterConfig('select', {
+    id: 'rezension_min',
+    label: 'Rezension',
+    options: [1, 2, 3, 4, 5].map((n) => ({
+      value: String(n),
+      label: `Mindestens ${n} ${n === 1 ? 'Stern' : 'Sterne'}`
+    })),
+    placeholder: 'Mindestens…',
+    priority: 6
+  }),
+  createFilterConfig('boolean', {
+    id: 'rezension_ohne',
+    label: 'Ohne Bewertung',
+    virtual: true,
+    priority: 6
+  }),
+
   createFilterConfig('boolean', {
     id: 'hat_haustier',
     label: 'Hat Haustier',
@@ -267,7 +309,7 @@ export const CREATOR_FILTER_GROUPS = [
   {
     id: 'basic',
     label: 'Grundlagen',
-    filters: ['name', 'creator_type_id', 'sprache_id', 'branche_id', 'kunde_id', 'geschlecht', 'alter', 'hat_haustier', 'hat_kinder', 'spielt_instrument'],
+    filters: ['groesse', 'generation', 'favorit_von', 'creator_tag_id', 'besitz_id', 'creator_type_id', 'sprache_id', 'branche_id', 'kunde_id', 'geschlecht', 'alter', 'rezension_min', 'rezension_ohne', 'hat_haustier', 'hat_kinder', 'spielt_instrument'],
     expanded: true
   },
   {

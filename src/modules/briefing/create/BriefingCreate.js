@@ -9,6 +9,7 @@ import { BriefingCreate } from './BriefingCreateCore.js';
 import './RenderShell.js';
 import './FormEvents.js';
 import './DataPersistence.js';
+import './EinreichungAnlegen.js';
 
 export { BriefingCreate };
 export const briefingCreate = new BriefingCreate();

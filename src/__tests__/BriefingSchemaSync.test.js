@@ -68,11 +68,46 @@ describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
     join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260917_briefing_hooks_varianten.sql'),
     'utf8'
   );
+  const linieSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260925_briefing_linie_tkp.sql'),
+    'utf8'
+  );
+  const dosSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260926_briefing_dos_donts.sql'),
+    'utf8'
+  );
+  const laengeSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260924124935_videolaenge_sekundenintervall.sql'),
+    'utf8'
+  );
+  const produktionLinienSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261008_produktion_linien.sql'),
+    'utf8'
+  );
+  const vorgabenSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261027_briefing_wichtige_vorgaben.sql'),
+    'utf8'
+  );
+  const laengeFunnelSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261028_briefing_videolaenge_funnel.sql'),
+    'utf8'
+  );
+  const creatorPdfSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20261221_briefing_creator_pdf.sql'),
+    'utf8'
+  );
   const columns = new Set([
     ...extractColumns(sql),
+    ...extractAlterColumns(creatorPdfSql),
+    ...extractAlterColumns(laengeFunnelSql),
+    ...extractAlterColumns(vorgabenSql),
     ...extractAlterColumns(flowSql),
     ...extractAlterColumns(sonstigesSql),
-    ...extractAlterColumns(hooksSql)
+    ...extractAlterColumns(hooksSql),
+    ...extractAlterColumns(linieSql),
+    ...extractAlterColumns(dosSql),
+    ...extractAlterColumns(laengeSql),
+    ...extractAlterColumns(produktionLinienSql)
   ]);
   const notNullColumns = extractNotNullColumns(sql);
 
@@ -81,7 +116,7 @@ describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
   });
 
   it('jeder Feldname aus getAllFields() existiert als Spalte', () => {
-    const fieldNames = getAllFields().map(f => f.name);
+    const fieldNames = getAllFields().flatMap(f => f.columns || [f.name]);
     const missing = fieldNames.filter(name => !columns.has(name));
     expect(missing).toEqual([]);
   });

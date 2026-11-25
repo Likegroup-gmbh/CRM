@@ -11,6 +11,8 @@
 // (renderIgFetchButton) und hat den Input zerdrueckt; der Fehlertext eines
 // gescheiterten Abrufs stand nur in seinem title-Attribut.
 
+import { socialHref } from '../../core/format/socialLink.js';
+
 /** Zeitstempel eines Abrufs in der Form, in der er auch im Punkt-Tooltip steht. */
 function formatStand(wert) {
   return new Date(wert).toLocaleString('de-DE');
@@ -73,8 +75,9 @@ export function createSourcingIgToolbarConfig(detail) {
         type: 'link',
         variant: 'icon',
         icon: 'external',
-        href: (ctx) => ctx.url,
-        visible: (ctx) => !!ctx.url,
+        // Handle ohne Schema wuerde als relativer Link /castings/<handle> oeffnen.
+        href: (ctx) => socialHref(ctx.url, 'instagram'),
+        visible: (ctx) => !!socialHref(ctx.url, 'instagram'),
         title: 'Profil in neuem Tab öffnen',
         ariaLabel: 'Instagram-Profil öffnen'
       }

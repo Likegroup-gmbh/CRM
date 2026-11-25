@@ -7,7 +7,6 @@ export class VideoTableUIHelpers {
     this.table = table;
     this._resizeAbort = null;
     this._scrollbarAbort = null;
-    this._dragScrollAbort = null;
   }
 
   // --- Performance Tracking ---
@@ -215,6 +214,9 @@ export class VideoTableUIHelpers {
     document.querySelectorAll(`th.col-header[data-col="${colKey}"]`).forEach(header => {
       header.style.width = remStr;
       header.style.minWidth = remStr;
+      // Textspalten haben ein CSS-max-width, sonst bleibt der gezogene Rand wirkungslos.
+      const lockWidth = header.classList.contains('col-custom-text');
+      if (lockWidth) header.style.maxWidth = remStr;
 
       const table = header.closest('table');
       const row = header.parentElement;
@@ -225,6 +227,7 @@ export class VideoTableUIHelpers {
         if (!cell) return;
         cell.style.width = remStr;
         cell.style.minWidth = remStr;
+        if (lockWidth) cell.style.maxWidth = remStr;
       });
     });
 
@@ -244,6 +247,8 @@ export class VideoTableUIHelpers {
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     this.saveColumnWidths();
+    // Schmalere Textspalte bricht mehr um, die Zeilenhoehe muss nachziehen.
+    this.table._rowHeightSync?.schedule();
   }
 
   saveColumnWidths() {
@@ -265,21 +270,6 @@ export class VideoTableUIHelpers {
         });
       }
     } catch { /* ignore */ }
-  }
-
-  // Drag-to-Scroll absichtlich nicht gebunden: horizontales Scrollen geht
-  // ueber die Floating-Leiste, Trackpad und Shift+Mausrad. Zellen bleiben
-  // markier- und kopierbar.
-  bindDragToScroll() {
-    this._dragScrollAbort?.abort();
-    this._dragScrollAbort = null;
-    const container = document.querySelector('.grid-wrapper');
-    if (container) {
-      container.style.cursor = '';
-      container.style.userSelect = '';
-    }
-    this.table.isDragging = false;
-    this.table.dragScrollContainer = null;
   }
 
   // --- Floating Scrollbar ---
@@ -345,7 +335,7 @@ export class VideoTableUIHelpers {
 
     const toggleVisibility = () => {
       const tableRect = gridWrapper.getBoundingClientRect();
-      const isOnPage = window.location.pathname.includes('/kampagne/');
+      const isOnPage = gridWrapper.isConnected;
       const needsScroll = tableEl.scrollWidth > gridWrapper.clientWidth;
       const isVisible = tableRect.top < window.innerHeight && tableRect.bottom > 0;
 
@@ -367,8 +357,6 @@ export class VideoTableUIHelpers {
     const cleanup = () => {
       floatingScrollbar.classList.remove('visible');
       resizeObserver.disconnect();
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onResize);
       floatingScrollbar.removeEventListener('scroll', onFloatingScroll);
       gridWrapper.removeEventListener('scroll', onTableScroll);
     };
@@ -376,9 +364,9 @@ export class VideoTableUIHelpers {
     document.addEventListener('tab-changed', cleanup, { signal: abortSignal });
 
     const navCleanup = () => {
-      if (!window.location.pathname.includes('/kampagne/')) {
+      if (!gridWrapper.isConnected) {
         cleanup();
-        if (floatingScrollbar?.parentNode) floatingScrollbar.parentNode.removeChild(floatingScrollbar);
+        floatingScrollbar.remove();
       }
     };
     window.addEventListener('popstate', navCleanup, { signal: abortSignal });
@@ -389,8 +377,6 @@ export class VideoTableUIHelpers {
   destroy() {
     this._resizeAbort?.abort();
     this._resizeAbort = null;
-    this._dragScrollAbort?.abort();
-    this._dragScrollAbort = null;
     this._scrollbarAbort?.abort();
     this._scrollbarAbort = null;
     if (this.table.cleanupFloatingScrollbar) {

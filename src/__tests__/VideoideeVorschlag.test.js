@@ -1,18 +1,36 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRequire } from 'module';
 import { renderItemRow, renderItemsTable, reorderStrategieItemsByKategorien } from '../modules/strategie/StrategieDetailRenderer.js';
+import { handleSortUpdate } from '../modules/strategie/StrategieDetailTableEvents.js';
 import {
   isVideoideeVorschlag,
   beschreibungErstzeile,
+  beschreibungMitAbsaetzen,
   splitVideoideeVorschlaege,
   VIDEOIDEE_VORSCHLAG_ERROR
 } from '../modules/strategie/videoideeVorschlag.js';
 import { truncateText, buildFreigegebeneVideoideePickerOptions } from '../modules/strategie/strategieItemPicker.js';
 import { strategieService } from '../modules/strategie/StrategieService.js';
 import { VideoideeVorschlagService, JOB_START_WATCHDOG_MS } from '../modules/strategie/VideoideeVorschlagService.js';
+import { StrategieDetail } from '../modules/strategie/StrategieDetail.js';
 
 const require = createRequire(import.meta.url);
-const { formatBeschreibung, validateIdeen, erstzeile, ANZAHL, buildPrompt, buildVorschlagInsert } = require('../../netlify/functions/_shared/strategie-idee.js');
+const {
+  formatBeschreibung,
+  validateIdeen,
+  erstzeile,
+  ANZAHL,
+  buildPrompt,
+  normalisiereAnzahl,
+  konzeptTool,
+  buildVorschlagInsert,
+  normalizeIdeenJson,
+  leerFehler,
+  ideenDiagnose
+} = require('../../netlify/functions/_shared/strategie-idee.js');
+const { parseToolInput } = require('../../netlify/functions/_shared/anthropic.js');
+
+const VOLL = { pain_point: 'x', hook: 'h', kernbotschaft: 'k', ablauf: 'a' };
 
 function detailStub(overrides = {}) {
   return {
@@ -51,11 +69,27 @@ describe('beschreibungErstzeile / formatBeschreibung', () => {
       kernbotschaft: 'Protein zum Frühstück',
       ablauf: 'Aufwachen, Mix, Trinken'
     });
-    expect(text.startsWith('Morgens ohne Kaffee')).toBe(true);
-    expect(text).toContain('Pain Point: Kein Kick');
-    expect(text).toContain('Hook: Ich bin 11 und fertig');
-    expect(text).toContain('Kernbotschaft: Protein zum Frühstück');
-    expect(text).toContain('Ablauf: Aufwachen, Mix, Trinken');
+    expect(text).toBe([
+      'Morgens ohne Kaffee',
+      'Pain Point: Kein Kick',
+      'Hook: Ich bin 11 und fertig',
+      'Kernbotschaft: Protein zum Frühstück',
+      'Ablauf: Aufwachen, Mix, Trinken'
+    ].join('\n\n'));
+  });
+
+  it('setzt Leerzeilen vor die Labels und laesst gesetzte stehen', () => {
+    const eng = 'Titel\nPain Point: x\nHook: y\nKernbotschaft: z\nAblauf: a';
+    const weit = beschreibungMitAbsaetzen(eng);
+    expect(weit).toBe([
+      'Titel',
+      'Pain Point: x',
+      'Hook: y',
+      'Kernbotschaft: z',
+      'Ablauf: a'
+    ].join('\n\n'));
+    expect(beschreibungMitAbsaetzen(weit)).toBe(weit);
+    expect(beschreibungErstzeile(weit)).toBe('Titel');
   });
 });
 
@@ -90,6 +124,30 @@ describe('validateIdeen', () => {
     expect(row.created_by).toBe('u1');
   });
 
+  it('normalisiert die Anzahl: fehlend 5, Clamp 1–12', () => {
+    expect(normalisiereAnzahl()).toBe(5);
+    expect(normalisiereAnzahl({})).toBe(5);
+    expect(normalisiereAnzahl({ anzahl: null })).toBe(5);
+    expect(normalisiereAnzahl({ anzahl: 0 })).toBe(1);
+    expect(normalisiereAnzahl({ anzahl: 99 })).toBe(12);
+    expect(normalisiereAnzahl({ anzahl: 7 })).toBe(7);
+    expect(normalisiereAnzahl({ anzahl: 1.5 })).toBe(5);
+  });
+
+  it('schreibt die Anzahl in Prompt und Tool', () => {
+    const { stable, task } = buildPrompt({
+      briefing: {},
+      produkte: [],
+      personas: [],
+      ausschluss: [],
+      anzahl: 8
+    });
+    expect(stable).toContain('Genau 8 Ideen');
+    expect(task).toContain('Gib 8 neue Videoideen');
+    expect(konzeptTool(8).input_schema.properties.ideen.description).toContain('Genau 8');
+    expect(konzeptTool().input_schema.properties.ideen.description).toContain('Genau 5');
+  });
+
   it('baut den Prompt mit Ausschluss und ohne Produkte', () => {
     const { stable, task } = buildPrompt({
       briefing: { bereich: 'influencer_marketing', aktivierung_name: 'Meggle Always-on' },
@@ -97,9 +155,82 @@ describe('validateIdeen', () => {
       personas: [],
       ausschluss: ['Alte Idee']
     });
-    expect(stable).toContain('Creative Angle');
+    expect(stable).toContain('neue Situation');
+    expect(stable).toContain('nicht die Geschichte');
     expect(task).toContain('Alte Idee');
     expect(task).toContain('keine Produkte');
+  });
+
+  it('haelt die Faktengrenze hart und stellt Personas vor das Briefing', () => {
+    const { stable, task } = buildPrompt({
+      briefing: { bereich: 'influencer_marketing', wichtige_vorgaben: 'Keine Heilversprechen' },
+      produkte: [{ name: 'Protein' }],
+      personas: [{ name: 'Mara', audience_situations: [] }],
+      ausschluss: []
+    });
+    expect(stable).toContain('Keine erfundenen Produktfeatures');
+    expect(stable).toContain("Don'ts unter WICHTIGE VORGABEN sind hart");
+    expect(stable).toContain('Pflichtinhalte unter WICHTIGE VORGABEN muessen in jeder Idee vorkommen');
+    expect(task).toContain('# WICHTIGE VORGABEN');
+    expect(task).toContain('Keine Heilversprechen');
+    expect(stable).toContain('Audience Situations');
+    expect(stable).toContain('nicht umformulieren');
+    expect(stable).toContain('Anderer Drehort');
+    expect(task.indexOf('Personas:')).toBeLessThan(task.indexOf('Briefing'));
+    expect(task).toContain('Grenze und Kontext');
+  });
+
+  it('nimmt ideas/title statt ideen/titel', () => {
+    const { ideen } = validateIdeen({
+      ideas: [{ title: 'Squat zeigt den Bund', ...VOLL }]
+    });
+    expect(ideen.map((i) => i.titel)).toEqual(['Squat zeigt den Bund']);
+  });
+
+  it('nimmt Titel-Alias und JSON-String plus Tool-Wrapper', () => {
+    const payload = {
+      videoideen_abgeben: {
+        ideen: [{ Titel: 'Aus dem String', ...VOLL }]
+      }
+    };
+    const { ideen: fromString } = validateIdeen(JSON.stringify(payload));
+    expect(fromString.map((i) => i.titel)).toEqual(['Aus dem String']);
+
+    const { ideen: fromWrap } = validateIdeen(payload);
+    expect(fromWrap.map((i) => i.titel)).toEqual(['Aus dem String']);
+  });
+
+  it('laesst leeres ideen-Array leer', () => {
+    const { ideen, verworfen } = validateIdeen({ ideen: [] });
+    expect(ideen).toEqual([]);
+    expect(verworfen).toEqual([]);
+    expect(leerFehler({ verworfen: [] })).toContain('leeres Array');
+  });
+
+  it('benennt ohne-Titel und Ausschluss im Fehler', () => {
+    expect(leerFehler({ verworfen: [{ grund: 'ohne_titel' }] })).toContain('ohne Titel');
+    expect(leerFehler({ verworfen: [{ grund: 'ausschluss', titel: 'X' }] })).toContain('alles Ausschluss');
+  });
+});
+
+describe('normalizeIdeenJson / parseToolInput', () => {
+  it('zieht ein Array oben und videoideen-Key', () => {
+    expect(normalizeIdeenJson([{ titel: 'A' }])).toEqual([{ titel: 'A' }]);
+    expect(normalizeIdeenJson({ videoideen: [{ titel: 'B' }] })).toEqual([{ titel: 'B' }]);
+  });
+
+  it('parst tool_use.input als JSON-String, sonst null', () => {
+    expect(parseToolInput('{"ideen":[]}')).toEqual({ ideen: [] });
+    expect(parseToolInput({ ideen: [] })).toEqual({ ideen: [] });
+    expect(parseToolInput('kein json')).toBeNull();
+    expect(parseToolInput('')).toBeNull();
+  });
+
+  it('packt Diagnose mit Keys und stop_reason', () => {
+    const d = ideenDiagnose({ ideas: [] }, { verworfen: [{ grund: 'ohne_titel' }] }, { stop_reason: 'max_tokens' });
+    expect(d.json_keys).toEqual(['ideas']);
+    expect(d.stop_reason).toBe('max_tokens');
+    expect(d.verworfen[0].grund).toBe('ohne_titel');
   });
 });
 
@@ -121,7 +252,7 @@ describe('KI-Vorschlag als Tabellenzeile', () => {
     const doc = renderRow({
       ist_vorschlag: true,
       beschreibung: 'Titel\n\nPain Point: x'
-    });
+    }, { hiddenColumns: ['show:fixed:beschreibung', 'show:fixed:transkript'] });
     const tr = doc.querySelector('tr.item-row');
 
     expect(tr.classList.contains('item-row--vorschlag')).toBe(true);
@@ -146,6 +277,71 @@ describe('KI-Vorschlag als Tabellenzeile', () => {
   });
 });
 
+describe('VideoideeVorschlagPanel in der Aktionszeile', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('legt den Block zwischen Hinzufügen und Plus-Menü, ohne KI-Kopf', () => {
+    const detail = new StrategieDetail();
+    detail.canEdit = true;
+    detail.canCreate = true;
+    detail.strategie = { name: 'Sommer', briefing_id: 'b1' };
+    const html = detail.renderAddItemSection();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const rechts = doc.querySelector('.add-item-actions-right');
+    const kinder = Array.from(rechts.children);
+
+    expect(kinder[0].id).toBe('btn-open-add-drawer');
+    expect(kinder[1].id).toBe('videoidee-vorschlag-block');
+    expect(kinder[2].classList.contains('toolbar-menu')).toBe(true);
+
+    document.body.innerHTML = html;
+    detail.items = [{ id: 'v1', ist_vorschlag: true }];
+    detail.vorschlagPanel.render();
+
+    const block = document.getElementById('videoidee-vorschlag-block');
+    expect(block.querySelector('#btn-videoidee-vorschlag-holen').textContent).toContain('Weitere Ideen');
+    expect(block.querySelector('#btn-videoidee-vorschlag-alle-uebernehmen')).not.toBeNull();
+    expect(block.querySelector('#btn-videoidee-vorschlag-alle-verwerfen')).not.toBeNull();
+    expect(block.querySelector('.casting-vorschlag__titel')).toBeNull();
+    expect(block.textContent).not.toContain('KI-Vorschläge');
+  });
+
+  it('öffnet die Anzahl-Frage, statt den Job sofort zu starten', () => {
+    const detail = new StrategieDetail();
+    const fragAnzahl = vi.fn();
+    detail.konzeptLiky = {
+      blockiert: () => false,
+      fokussieren: vi.fn(),
+      fragAnzahl
+    };
+    detail.vorschlagPanel.holen();
+    expect(fragAnzahl).toHaveBeenCalledTimes(1);
+  });
+
+  it('fokussiert nur, solange Frage oder Job läuft', () => {
+    const detail = new StrategieDetail();
+    const fragAnzahl = vi.fn();
+    const fokussieren = vi.fn();
+    detail.konzeptLiky = { blockiert: () => true, fokussieren, fragAnzahl };
+    detail.vorschlagPanel.holen();
+    expect(fokussieren).toHaveBeenCalledTimes(1);
+    expect(fragAnzahl).not.toHaveBeenCalled();
+  });
+
+  it('zeigt bei nur canCreate die Zeile mit dem Block, ohne Hinzufügen', () => {
+    const detail = new StrategieDetail();
+    detail.canEdit = false;
+    detail.canCreate = true;
+    detail.strategie = { name: 'Sommer' };
+    const doc = new DOMParser().parseFromString(detail.renderAddItemSection(), 'text/html');
+
+    expect(doc.querySelector('#btn-open-add-drawer')).toBeNull();
+    expect(doc.querySelector('#videoidee-vorschlag-block').closest('.add-item-actions-right')).not.toBeNull();
+  });
+});
+
 describe('renderItemsTable – KI-Vorschläge oben', () => {
   it('setzt Flag-Zeilen in die synthetische Gruppe, Rest nach Kategorie', () => {
     const html = renderItemsTable(detailStub({
@@ -161,6 +357,71 @@ describe('renderItemsTable – KI-Vorschläge oben', () => {
     expect(gruppen).toContain('Hooks');
     expect(doc.querySelector('[data-vorschlag-group="true"]')).not.toBeNull();
     expect(doc.querySelector('tr.item-row--vorschlag')).not.toBeNull();
+  });
+});
+
+describe('Sortierung bei offenen Videoidee-Vorschlaegen', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    delete window.toastSystem;
+    vi.restoreAllMocks();
+  });
+
+  it('behaelt eigene Konzepte, wenn ihre Reihenfolge unter offenen Vorschlaegen geaendert wird', async () => {
+    window.toastSystem = { show: vi.fn() };
+    const items = [
+      { id: 'v1', ist_vorschlag: true, beschreibung: 'KI', teilbereich: null },
+      { id: 'e1', ist_vorschlag: false, beschreibung: 'Eigen 1', teilbereich: null },
+      { id: 'e2', ist_vorschlag: false, beschreibung: 'Eigen 2', teilbereich: null }
+    ];
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const detail = detailStub({
+      items: items.map((item) => ({ ...item })),
+      _getRoot: () => root,
+      rerenderItemsTable: vi.fn()
+    });
+    root.innerHTML = renderItemsTable(detail);
+
+    const tbody = root.querySelector('#items-table-body');
+    const eigene = tbody.querySelector('[data-item-id="e1"]');
+    const spaeter = tbody.querySelector('[data-item-id="e2"]');
+    tbody.insertBefore(spaeter, eigene);
+
+    vi.spyOn(strategieService, 'updateItemsSortierungWithTeilbereich').mockResolvedValue();
+
+    await handleSortUpdate(detail);
+
+    expect(detail.items.map((item) => item.id)).toEqual(['v1', 'e2', 'e1']);
+    expect(detail.items.filter((item) => !item.ist_vorschlag).map((item) => item.teilbereich)).toEqual([null, null]);
+    expect(strategieService.updateItemsSortierungWithTeilbereich).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'e2', teilbereich: null }),
+      expect.objectContaining({ id: 'e1', teilbereich: null })
+    ]);
+  });
+
+  it('laesst die Kategorie eigener Konzepte stehen, wenn Vorschlaege darueber stehen', async () => {
+    window.toastSystem = { show: vi.fn() };
+    const items = [
+      { id: 'v1', ist_vorschlag: true, beschreibung: 'KI', teilbereich: null },
+      { id: 'e1', ist_vorschlag: false, beschreibung: 'Eigen', teilbereich: 'Hooks' }
+    ];
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const detail = detailStub({
+      items: items.map((item) => ({ ...item })),
+      getTeilbereicheFromStrategie: () => ['Hooks'],
+      _getRoot: () => root,
+      rerenderItemsTable: vi.fn()
+    });
+    root.innerHTML = renderItemsTable(detail);
+
+    vi.spyOn(strategieService, 'updateItemsSortierungWithTeilbereich').mockResolvedValue();
+
+    await handleSortUpdate(detail);
+
+    expect(detail.items.map((item) => item.id)).toEqual(['v1', 'e1']);
+    expect(detail.items.find((item) => item.id === 'e1').teilbereich).toBe('Hooks');
   });
 });
 

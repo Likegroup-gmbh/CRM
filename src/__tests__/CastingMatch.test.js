@@ -1,7 +1,7 @@
 // CastingMatch.test.js
 // Deterministischer Kern der Casting-Vorschlaege (ADR 0013/0014):
 //   - Bedarf aus dem aktiven Briefing-Bereich, Fingerprint
-//   - Gates: hart nur bei gesetztem Feld, Unbekannt ist kein Rauswurf
+//   - Gates: abgefragtes Profilfeld, leer oder daneben ist raus
 //   - Scores: Fit/Track/Fresh, Wilson statt 1/1 = 100
 //   - Matching: ein finaler Score (80/15/5), Renorm bei Cold-Start
 //   - Ranking: Top-N nach Matching, kein Slot-Portfolio mehr
@@ -12,9 +12,13 @@ import castingMatch from '../../netlify/functions/_shared/casting-match.js';
 
 const {
   buildBedarf,
-  loadBedarfData,
   bedarfFingerprint,
-  zielAnzahl,
+  quoteProCasting,
+  besteZeileJeCreator,
+  castingLuecke,
+  fuelleCastingQuote,
+  bedarfFuerPersona,
+  fitGrundDeterministisch,
   normiereKandidat,
   applyGates,
   scoreFit,
@@ -23,9 +27,13 @@ const {
   matchingScore,
   wilson,
   topNNachMatching,
-  matchKategorie,
+  orderPersonasByIds,
   validateVorschlaege,
-  PROFILES
+  PROFILES,
+  sanitizeLesung,
+  personaProfilPasst,
+  buildDontLesungPrompt,
+  buildPrompt: buildCastingPrompt
 } = castingMatch;
 
 // ---------------------------------------------------------------------------
@@ -103,23 +111,69 @@ describe('buildBedarf', () => {
     expect(b.voraussetzungen).toEqual(['haustier']);
   });
 
+  it('Alter aus dem Dropdown: Spanne, 55+ ist offen nach oben', () => {
+    const merkmale = (m) => buildBedarf({ bereich: 'paid_creator_ads', pa_creator_merkmale: m });
+    expect(merkmale({ alter: '18-24' }).alter).toEqual([18, 24]);
+    expect(merkmale({ alter: '55+' }).alter).toEqual([55, 99]);
+    expect(merkmale({ alter: '25–34' }).alter).toEqual([25, 34]);
+    expect(merkmale({ geschlecht: 'weiblich' }).alter).toBeNull();
+  });
+
+  it('Zwischenstand alter_von/alter_bis: kleinste Untergrenze bis groesste Obergrenze, alter hat Vorrang', () => {
+    const merkmale = (m) => buildBedarf({ bereich: 'paid_creator_ads', pa_creator_merkmale: m });
+    expect(merkmale({ alter_von: '18-24', alter_bis: '35-44' }).alter).toEqual([18, 44]);
+    expect(merkmale({ alter_von: '35-44', alter_bis: '18-24' }).alter).toEqual([18, 44]);
+    expect(merkmale({ alter_von: '45-54', alter_bis: '55+' }).alter).toEqual([45, 99]);
+    expect(merkmale({ alter: '60', alter_von: '18-24', alter_bis: '18-24' }).alter).toEqual([60, 60]);
+  });
+
+  it('Wichtige Vorgaben kommen als ein Text, Alt-Spalten zaehlen nicht', () => {
+    const b = buildBedarf({
+      bereich: 'paid_creator_ads',
+      wichtige_vorgaben: 'Pflichtinhalte:\nProduktname nennen\n\nDon’ts:\nIm Bild keine Kinder',
+      donts: 'ALT-DONT',
+      dos: 'ALT-DO',
+      dos_donts: 'ALT-MISCH'
+    });
+    expect(b.vorgaben).toContain('Im Bild keine Kinder');
+    expect(b.vorgaben).not.toContain('ALT-');
+    expect(b.donts).toBeUndefined();
+    expect(b.dos).toBeUndefined();
+    expect(buildBedarf({ bereich: 'paid_creator_ads', donts: 'ALT-DONT' }).vorgaben).toBeNull();
+  });
+
+  it('Lese-Prompt trennt Verbote von Pflichten und Bild- von Personenverboten', () => {
+    const b = buildBedarf({
+      bereich: 'paid_creator_ads',
+      wichtige_vorgaben: 'Haustier zeigen\nIm Bild keine Kinder oder Tiere\nCreator ohne Tattoos'
+    });
+    const { stable, task } = buildDontLesungPrompt(b);
+    expect(task).toContain('# WICHTIGE VORGABEN');
+    expect(task).toContain('Haustier zeigen');
+    expect(task).toContain('Im Bild keine Kinder oder Tiere');
+    expect(stable).toContain('nie ausschluss und nie suchbegriffe');
+    expect(stable).toContain('"keine Kinder oder Tiere im Bild"');
+    expect(stable).toContain('nur, wenn das Verbot den Creator als Person meint');
+    expect(stable).toContain('Im Zweifel gehoert eine Zeile in satz');
+  });
+
+  it('Casting-Prompt: Wichtige Vorgaben sind Kontext, kein Streichgrund', () => {
+    const b = buildBedarf({ bereich: 'paid_creator_ads', wichtige_vorgaben: 'Produktname nennen' });
+    const { stable, task } = buildCastingPrompt(b, { shortlist: [] });
+    expect(task).toContain('# WICHTIGE VORGABEN (Kontext, kein Streichgrund)');
+    expect(stable).toContain('WICHTIGE VORGABEN sind kein Streichgrund');
+  });
+
+  it('Fingerprint folgt den Wichtigen Vorgaben', () => {
+    const a = buildBedarf({ bereich: 'paid_creator_ads', wichtige_vorgaben: 'Kein Sales-Pitch' });
+    const b = buildBedarf({ bereich: 'paid_creator_ads', wichtige_vorgaben: 'Kein Heilversprechen' });
+    expect(a.fingerprint).not.toBe(b.fingerprint);
+  });
+
   it('mappt bereich auf Typ (im -> Influencer)', () => {
     const b = buildBedarf({ bereich: 'influencer_marketing', im_nischen: ['fashion'] });
     expect(b.typ).toBe('Influencer');
     expect(b.nischen).toEqual(['fashion']);
-  });
-
-  it('ohne Produkt und ohne Persona bleibt ein gueltiger Casting-Bedarf', () => {
-    const b = buildBedarf(
-      { bereich: 'influencer_marketing' },
-      { produktIds: [], personas: [] }
-    );
-    const hatBedarf = Boolean(
-      b.nischen?.length || b.groessen?.length || b.voraussetzungen?.length || b.personas?.length || b.typ
-    );
-    expect(hatBedarf).toBe(true);
-    expect(b.produktIds).toEqual([]);
-    expect(b.personas).toEqual([]);
   });
 
   it('fingerprint ist stabil gegen Umordnung und unterscheidet Jobs', () => {
@@ -129,63 +183,39 @@ describe('buildBedarf', () => {
     expect(bedarfFingerprint(a)).toBe(bedarfFingerprint(b));
     expect(bedarfFingerprint(a)).not.toBe(bedarfFingerprint(c));
   });
-});
 
-describe('loadBedarfData', () => {
-  function supabaseFor({ briefing, links = [], vorschlaege = [], personas = [] }) {
-    const tables = {
-      campaign_briefings: { data: briefing },
-      campaign_briefing_produkt: { data: links },
-      produkt_persona_vorschlag: { data: vorschlaege },
-      personas: { data: personas },
-      creator_auswahl: { data: { teilbereich: '' } }
-    };
-    return {
-      from(table) {
-        const result = tables[table] || { data: null };
-        const chain = {
-          select() { return chain; },
-          eq() { return chain; },
-          in() { return chain; },
-          maybeSingle: async () => result,
-          then(resolve, reject) { return Promise.resolve(result).then(resolve, reject); }
-        };
-        return chain;
+  it('fingerprint unterscheidet Briefing-Personas', () => {
+    const a = bedarf({ personas: [{ id: 'p1' }, { id: 'p2' }] });
+    const b = bedarf({ personas: [{ id: 'p2' }, { id: 'p1' }] });
+    const c = bedarf({ personas: [{ id: 'p1' }] });
+    expect(bedarfFingerprint(a)).toBe(bedarfFingerprint(b));
+    expect(bedarfFingerprint(a)).not.toBe(bedarfFingerprint(c));
+  });
+
+  it('mappt die volle Persona-Karte inkl. Produkt-Fit in den Freitext', () => {
+    const b = buildBedarf(
+      { bereich: 'paid_creator_ads', pa_nischen: ['beauty'] },
+      {
+        personas: [{
+          id: 'p1',
+          name: 'Lena',
+          pain_points: 'keine Zeit am Morgen',
+          interessen: 'Skincare',
+          produktFits: [{ fit_grund: 'Serum fuer den Alltag', use_case_namen: ['morgens'] }]
+        }]
       }
-    };
-  }
-
-  it('nimmt Personas vom Briefing, auch ohne Produkt', async () => {
-    const persona = { id: 'pe1', name: 'Sportliche', oberbegriff: 'Active' };
-    const { personas, produktIds } = await loadBedarfData(
-      supabaseFor({
-        briefing: { id: 'b1', bereich: 'influencer_marketing', persona_ids: ['pe1'] },
-        personas: [persona]
-      }),
-      { id: 'c1', briefing_id: 'b1' }
     );
-    expect(produktIds).toEqual([]);
-    expect(personas).toEqual([persona]);
-  });
-
-  it('laesst Personas leer, wenn das Briefing keine nennt und kein Produkt haengt', async () => {
-    const { personas, produktIds } = await loadBedarfData(
-      supabaseFor({
-        briefing: { id: 'b1', bereich: 'owned_social', persona_ids: [] }
-      }),
-      { id: 'c1', briefing_id: 'b1' }
-    );
-    expect(produktIds).toEqual([]);
-    expect(personas).toEqual([]);
+    expect(b.personas[0].pain_points).toBe('keine Zeit am Morgen');
+    const sliced = bedarfFuerPersona(b, b.personas[0]);
+    expect(sliced.personaText).toContain('keine Zeit am Morgen');
+    expect(sliced.personaText).toContain('Skincare');
+    expect(sliced.personaText).toContain('Serum fuer den Alltag');
   });
 });
 
-describe('zielAnzahl', () => {
-  it('2.5x offen, gedeckelt 6-20, Fallback 12', () => {
-    expect(zielAnzahl(4)).toBe(10);
-    expect(zielAnzahl(1)).toBe(6);
-    expect(zielAnzahl(40)).toBe(20);
-    expect(zielAnzahl(null)).toBe(12);
+describe('quoteProCasting', () => {
+  it('ist 6, unabhaengig vom Kampagnen-Soll und von der Persona-Zahl', () => {
+    expect(quoteProCasting()).toBe(6);
   });
 });
 
@@ -206,49 +236,87 @@ describe('applyGates', () => {
     expect(pass).toHaveLength(1);
   });
 
-  it('wirft bereits gelistete und marken-abgelehnte raus', () => {
+  it('wirft bereits gelistete raus, Marken-Ablehnung gatet nicht', () => {
     const ks = [kandidat({ id: 'a' }), kandidat({ id: 'b' })];
     const { pass, raus } = applyGates(ks, bedarf(), {
       aufDieserListe: new Set(['a']),
       abgelehntMarke: new Set(['b'])
     });
-    expect(pass).toHaveLength(0);
-    expect(raus.map(r => r.grund).sort()).toEqual(['bereits_auf_dieser_liste', 'von_marke_abgelehnt']);
+    expect(pass.map(k => k.id)).toEqual(['b']);
+    expect(raus.map(r => r.grund)).toEqual(['bereits_auf_dieser_liste']);
   });
 
-  it('Sprache und Land gaten nur bei beidseitig gesetztem Feld', () => {
+  it('Sprache und Land: falsch oder leer fliegt, sobald danach gefragt wird', () => {
     const englisch = kandidat({ creator_sprachen: [{ sprachen: { id: 's2', name: 'Englisch' } }] });
     expect(applyGates([englisch], bedarf(), {}).raus[0].grund).toBe('sprache_fehlt');
 
     const oesterreich = kandidat({ lieferadresse_land: 'Österreich' });
     expect(applyGates([oesterreich], bedarf(), {}).raus[0].grund).toBe('land_fehlt');
 
-    // Kandidat ohne Land-Angabe bleibt drin
     const ohneLand = kandidat({ lieferadresse_land: null });
-    expect(applyGates([ohneLand], bedarf(), {}).pass).toHaveLength(1);
+    expect(applyGates([ohneLand], bedarf(), {}).raus[0].grund).toBe('land_fehlt');
+    expect(applyGates([ohneLand], bedarf({ maerkte: [] }), {}).pass).toHaveLength(1);
   });
 
-  it('Voraussetzung: false fliegt, null bleibt mit unverified-Flag', () => {
+  it('Voraussetzung: false und null fliegen, true bleibt', () => {
     const b = bedarf({ voraussetzungen: ['haustier'] });
     const nein = kandidat({ hat_haustier: false });
     expect(applyGates([nein], b, {}).raus[0].grund).toBe('voraussetzung_fehlt');
     const unbekannt = kandidat({ hat_haustier: null });
-    const { pass } = applyGates([unbekannt], b, {});
-    expect(pass).toHaveLength(1);
-    const fit = scoreFit(pass[0], b, PROFILES.ugc.fit);
-    expect(fit.coverage.voraussetzung).toBe('unverified');
+    expect(applyGates([unbekannt], b, {}).raus[0].grund).toBe('voraussetzung_fehlt');
+    expect(applyGates([kandidat({ hat_haustier: true })], b, {}).pass).toHaveLength(1);
   });
 
-  it('Kontakt: Mail oder Management, sonst raus', () => {
+  it('Kontakt: fehlende Mail gatet nicht', () => {
     const ohneMail = kandidat({ mail: '' });
-    expect(applyGates([ohneMail], bedarf(), {}).raus[0].grund).toBe('nicht_anschreibbar');
-    const mitManagement = applyGates([ohneMail], bedarf(), { managementIds: new Set(['c1']) });
-    expect(mitManagement.pass).toHaveLength(1);
+    const { pass, raus } = applyGates([ohneMail], bedarf(), {});
+    expect(pass).toHaveLength(1);
+    expect(raus).toHaveLength(0);
   });
 
   it('Alter ohne Schnitt fliegt', () => {
     const alt = kandidat({ alter_min: 50, alter_max: 60 });
     expect(applyGates([alt], bedarf(), {}).raus[0].grund).toBe('alter_ausserhalb');
+  });
+
+  it('leeres Alter, falsches Geschlecht, falsche und benachbarte Nische, unbekannte Groesse fliegen', () => {
+    expect(applyGates([kandidat({ alter_min: null, alter_max: null, alter_jahre: null })], bedarf(), {}).raus[0].grund)
+      .toBe('alter_ausserhalb');
+    expect(applyGates([kandidat({ geschlecht: 'männlich' })], bedarf(), {}).raus[0].grund)
+      .toBe('geschlecht_fehlt');
+    const lifestyle = kandidat({ creator_branchen: [{ branche_id: { id: 'b2', name: 'Lifestyle' } }] });
+    expect(applyGates([lifestyle], bedarf(), {}).raus[0].grund).toBe('nische_fehlt');
+    const ohneBranche = kandidat({ creator_branchen: [] });
+    expect(applyGates([ohneBranche], bedarf(), {}).raus[0].grund).toBe('nische_fehlt');
+    const ohneFollower = kandidat({ instagram_follower: null, tiktok_follower: null });
+    expect(applyGates([ohneFollower], bedarf(), {}).raus[0].grund).toBe('groesse_fehlt');
+  });
+
+  it('Tattoo in der Caption fliegt, leere Bio bleibt, Satzverbot wirft niemanden', () => {
+    const tattoo = kandidat({ ig_recent_posts: [{ caption: 'Mein neues Tattoo' }] });
+    expect(applyGates([tattoo], bedarf(), {}, { suchbegriffe: ['tattoo'], satz: [], ausschluss: {} }).raus[0].grund)
+      .toBe('profiltext');
+    const leer = kandidat({ ig_biography: '', notiz: '', ig_recent_posts: [] });
+    expect(applyGates([leer], bedarf(), {}, { suchbegriffe: ['tattoo'], satz: ['nicht klinisch getestet'], ausschluss: {} }).pass)
+      .toHaveLength(1);
+  });
+
+  it('Persona-Alter und Geschlecht gelten nur fuer diese Karte', () => {
+    const frau = kandidat();
+    expect(personaProfilPasst(frau, { alter: [25, 34], geschlecht: 'männlich' })).toBe(false);
+    expect(personaProfilPasst(frau, { alter: [25, 34], geschlecht: 'weiblich' })).toBe(true);
+    const ohneAlter = kandidat({ alter_min: null, alter_max: null, alter_jahre: null });
+    expect(personaProfilPasst(ohneAlter, { alter: [25, 34], geschlecht: 'weiblich' })).toBe(false);
+  });
+
+  it('Dont keine Macros dreht angehaktes Micro nicht um', () => {
+    const lesung = sanitizeLesung({
+      suchbegriffe: [],
+      satz: [],
+      ausschluss: { groesse: ['micro', 'macro'] }
+    }, bedarf({ groessen: ['micro'] }));
+    expect(lesung.ausschluss.groesse).toBeUndefined();
+    expect(applyGates([kandidat()], bedarf({ groessen: ['micro'] }), {}, lesung).pass).toHaveLength(1);
   });
 });
 
@@ -266,15 +334,24 @@ describe('scoreFit', () => {
     expect(ohne.wert).toBeLessThan(voll.wert);
   });
 
-  it('Persona-Demo zaehlt (Alter + Geschlecht)', () => {
-    const b = bedarf({
-      nischen: [],
-      personas: [{ id: 'p1', name: 'Lena', alter_von: 25, alter_bis: 34, geschlecht: 'weiblich' }]
+  it('Persona-Demo zaehlt (Alter + Geschlecht) gegen eine Karte', () => {
+    const b = bedarfFuerPersona(bedarf({ nischen: [] }), {
+      id: 'p1', name: 'Lena', alter_von: 25, alter_bis: 34, geschlecht: 'weiblich'
     });
     const passt = scoreFit(kandidat(), b, PROFILES.ugc.fit);
     expect(passt.coverage.persona).toBe('treffer');
     const passtNicht = scoreFit(kandidat({ geschlecht: 'männlich', alter_min: 50, alter_max: 55 }), b, PROFILES.ugc.fit);
     expect(passtNicht.wert).toBeLessThan(passt.wert);
+  });
+
+  it('Persona-Freitext geht in die Text-Dimension', () => {
+    const roh = bedarf({ nischen: [], umsetzung: null, situationen: null, expertise: null });
+    const mitPain = bedarfFuerPersona(roh, {
+      id: 'p1', name: 'Lena', pain_points: 'skincare routine berlin'
+    });
+    const k = kandidat({ ig_biography: 'Meine skincare routine in Berlin' });
+    const fit = scoreFit(k, mitPain, PROFILES.ugc.fit);
+    expect(fit.coverage.text).toBe('treffer');
   });
 
   it('Standort: Laender-Bedarf matcht das Creator-Land (Regression ADR 0014)', () => {
@@ -404,31 +481,84 @@ describe('topNNachMatching', () => {
   });
 });
 
+function pair(creatorId, personaId, matching, extra = {}) {
+  return scored(creatorId, { matching, personaId, ...extra });
+}
+
+describe('castingLuecke / fuelleCastingQuote', () => {
+  it('fuellt die Quote auf 6, egal wie viele Personas das Briefing hat', () => {
+    const zeilen = Array.from({ length: 10 }, (_, i) => pair(`c${i}`, 'p1', 90 - i));
+    const { assigned } = fuelleCastingQuote(zeilen, { luecke: castingLuecke(0) });
+    expect(assigned.map(a => a.k.id)).toEqual(['c0', 'c1', 'c2', 'c3', 'c4', 'c5']);
+  });
+
+  it('Freeze 4 => Luecke 2', () => {
+    expect(castingLuecke(4)).toBe(2);
+    expect(castingLuecke(9)).toBe(0);
+    const pairs = Array.from({ length: 8 }, (_, i) => pair(`n${i}`, 'p1', 90 - i));
+    const { assigned } = fuelleCastingQuote(pairs, {
+      luecke: castingLuecke(4),
+      takenIds: new Set(['a', 'b', 'c', 'd'])
+    });
+    expect(assigned).toHaveLength(2);
+  });
+
+  it('besteZeileJeCreator: pro Creator zaehlt der hoechste Persona-Treffer', () => {
+    const zeilen = besteZeileJeCreator([
+      pair('c1', 'pA', 90),
+      pair('c1', 'pB', 80),
+      pair('c2', 'pA', 70),
+      pair('c2', 'pB', 75)
+    ]);
+    expect(zeilen).toHaveLength(2);
+    const byCreator = Object.fromEntries(zeilen.map(z => [z.k.id, z.personaId]));
+    expect(byCreator).toEqual({ c1: 'pA', c2: 'pB' });
+  });
+
+  it('Creator mit zwei Persona-Treffern belegt nur einen Platz', () => {
+    const zeilen = besteZeileJeCreator([
+      ...Array.from({ length: 4 }, (_, i) => pair(`c${i}`, 'pA', 90 - i)),
+      ...Array.from({ length: 4 }, (_, i) => pair(`c${i}`, 'pB', 80 - i))
+    ]);
+    const { assigned } = fuelleCastingQuote(zeilen, { luecke: 6 });
+    expect(assigned).toHaveLength(4);
+    expect(new Set(assigned.map(a => a.k.id)).size).toBe(4);
+  });
+
+  it('LLM streicht 2 => Backfill auf 6 aus derselben Liste', () => {
+    const pairs = Array.from({ length: 10 }, (_, i) => pair(`c${i}`, 'p1', 90 - i));
+    const { assigned: primary } = fuelleCastingQuote(pairs, { luecke: 6 });
+    expect(primary.map(a => a.k.id)).toEqual(['c0', 'c1', 'c2', 'c3', 'c4', 'c5']);
+    const keptIds = new Set(['c0', 'c1', 'c2', 'c3']);
+    const struck = new Set(['c4', 'c5']);
+    const { assigned: backfill } = fuelleCastingQuote(pairs, {
+      luecke: 2,
+      takenIds: new Set([...keptIds, ...struck])
+    });
+    expect(backfill.map(a => a.k.id)).toEqual(['c6', 'c7']);
+    expect(fitGrundDeterministisch(backfill[0], { name: 'Lena' })).toContain('Lena');
+    expect(fitGrundDeterministisch(backfill[0], null)).toBeTruthy();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Kategorie + Validate (Covered-Set)
 // ---------------------------------------------------------------------------
 
-describe('matchKategorie', () => {
-  it('Persona-Name schlägt, "Nicht umsetzen" nie', () => {
-    const k = kandidat();
-    expect(matchKategorie(k, ['Lenas Welt', 'Reels'], [{ name: 'Lena' }])).toBe('Lenas Welt');
-    expect(matchKategorie(k, ['Nicht umsetzen', 'Ohne Kategorie'], [{ name: 'Lena' }])).toBeNull();
-  });
-
-  it('Typ matcht UGC-Kategorien', () => {
-    const k = kandidat();
-    expect(matchKategorie(k, ['UGC Creator', 'Reels'], [])).toBe('UGC Creator');
-    expect(matchKategorie(k, ['Reels', 'Stories'], [])).toBeNull();
+describe('orderPersonasByIds', () => {
+  it('haelt die Briefing-Reihenfolge', () => {
+    const rows = [{ id: 'p2', name: 'B' }, { id: 'p1', name: 'A' }];
+    expect(orderPersonasByIds(rows, ['p1', 'p2']).map(p => p.id)).toEqual(['p1', 'p2']);
   });
 });
 
 describe('validateVorschlaege', () => {
-  const ctx = { shortlistIds: ['c1', 'c2'], personaIds: ['p1'] };
+  const ctx = { shortlistIds: ['c1', 'c2'] };
 
   it('nimmt nur Shortlist-IDs mit belegtem fit_grund', () => {
     const { vorschlaege, verworfen } = validateVorschlaege({
       vorschlaege: [
-        { creator_id: 'c1', fit_grund: 'Beauty-Branche, 30k Follower', persona_ids: ['p1'] },
+        { creator_id: 'c1', fit_grund: 'Beauty-Branche, 30k Follower' },
         { creator_id: 'fremd', fit_grund: 'Halluziniert' },
         { creator_id: 'c2', fit_grund: '   ' }
       ]
@@ -438,16 +568,16 @@ describe('validateVorschlaege', () => {
     expect(verworfen).toHaveLength(2);
   });
 
-  it('Covered-Set: Doppelte fliegen, fremde persona_ids werden gefiltert', () => {
+  it('Covered-Set: Doppelte fliegen, persona_ids tauchen nicht mehr auf', () => {
     const { vorschlaege, verworfen } = validateVorschlaege({
       vorschlaege: [
-        { creator_id: 'c1', fit_grund: 'Passt', persona_ids: ['p1', 'fremd'] },
+        { creator_id: 'c1', fit_grund: 'Passt', persona_ids: ['p1'] },
         { creator_id: 'c1', fit_grund: 'Doppelt' },
         { creator_id: 'c2', fit_grund: 'Passt auch' }
       ]
     }, ctx);
     expect(vorschlaege).toHaveLength(2);
-    expect(vorschlaege[0].persona_ids).toEqual(['p1']);
+    expect(vorschlaege[0]).not.toHaveProperty('persona_ids');
     expect(verworfen.some(v => v.grund === 'doppelter Vorschlag')).toBe(true);
   });
 });

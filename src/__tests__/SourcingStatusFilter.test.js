@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  renderAddSection, renderItemsTable,
-  SOURCING_TABS, getSourcingTabForItem
-} from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { renderAddSection, renderItemsTable } from '../modules/creator-auswahl/castingTableRender.js';
+import { SOURCING_TABS, getSourcingTabForItem } from '../modules/creator-auswahl/sourcingTabs.js';
 import {
   SOURCING_STATUS_FILTER_TAGS,
   SOURCING_STATUS_OPTIONS,
@@ -117,32 +115,28 @@ describe('matchesStatusFilter', () => {
   });
 });
 
-describe('Statusfilter in der Toolbar', () => {
-  it('legt Status filtern als Submenu ins Plus-Dropdown', () => {
-    const doc = parse(renderAddSection({ isKunde: false, canCreate: true, statusFilter: ['Angefragt'] }));
-    const submenu = doc.querySelector('.sourcing-status-filter-submenu');
-    const dropdown = doc.querySelector('.toolbar-menu-dropdown');
+describe('Filter-Button in der Toolbar', () => {
+  it('setzt den Button der Filterspalte neben die Suche, das Plus-Menü hat keinen Statusfilter mehr', () => {
+    const doc = parse(renderAddSection({
+      isKunde: false,
+      canCreate: true,
+      filterToggleHtml: '<button id="casting-filter-toggle"></button>'
+    }));
 
-    expect(submenu).not.toBeNull();
-    expect(submenu.closest('.toolbar-menu-dropdown')).toBe(dropdown);
-    expect(submenu.querySelector('.action-item.has-submenu').textContent).toContain('Status filtern');
-    expect(submenu.querySelector('[data-status-tag="Angefragt"] .submenu-check')).not.toBeNull();
-    expect(submenu.querySelector('[data-status-filter-reset]')).not.toBeNull();
-
-    const shareBtn = doc.getElementById('btn-share-sourcing');
-    expect(shareBtn.closest('.toolbar-menu-dropdown')).not.toBeNull();
+    expect(doc.getElementById('casting-filter-toggle')).not.toBeNull();
+    expect(doc.querySelector('.sourcing-status-filter-submenu')).toBeNull();
+    expect(doc.getElementById('btn-share-sourcing').closest('.toolbar-menu-dropdown')).not.toBeNull();
   });
 
-  it('rendert fuer Kunden kein Status-Submenu und kein Plus-Menü', () => {
-    const doc = parse(renderAddSection({ isKunde: true }));
+  it('zeigt Kunden den Filter-Button, aber kein Plus-Menü', () => {
+    const doc = parse(renderAddSection({ isKunde: true, filterToggleHtml: '<button id="casting-filter-toggle"></button>' }));
 
-    expect(doc.querySelector('.sourcing-status-filter-submenu')).toBeNull();
+    expect(doc.getElementById('casting-filter-toggle')).not.toBeNull();
     expect(doc.querySelector('.toolbar-menu')).toBeNull();
-    expect(doc.getElementById('sourcing-status-filter-container')).toBeNull();
   });
 });
 
-describe('Empty-State bei aktivem Statusfilter', () => {
+describe('Empty-State bei aktiven Filtern', () => {
   const leererCtx = {
     items: [],
     hasAnyItems: true,
@@ -151,21 +145,21 @@ describe('Empty-State bei aktivem Statusfilter', () => {
     tabCounts: { alle: 0 }
   };
 
-  it('nennt den Filter statt den Reiter', () => {
-    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'offen', statusFilter: ['Prio 1'] }));
+  it('nennt die Filter und den Reiter', () => {
+    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'offen', filterActive: true }));
 
-    expect(doc.body.textContent).toContain('Keine Creator mit Status Prio 1 im Reiter "Offen"');
+    expect(doc.body.textContent).toContain('Keine Creator für die gewählten Filter im Reiter "Offen"');
   });
 
-  it('listet mehrere gewaehlte Status auf und laesst den Reiter bei "alle" weg', () => {
-    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'alle', statusFilter: ['On Hold', 'Gebucht'] }));
+  it('laesst den Reiter bei "alle" weg', () => {
+    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'alle', filterActive: true }));
 
-    expect(doc.body.textContent).toContain('Keine Creator mit Status On Hold oder Gebucht');
+    expect(doc.body.textContent).toContain('Keine Creator für die gewählten Filter');
     expect(doc.body.textContent).not.toContain('Reiter');
   });
 
   it('faellt ohne Filter auf die Reiter-Meldung zurueck', () => {
-    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'gebucht', statusFilter: [] }));
+    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'gebucht', filterActive: false }));
 
     expect(doc.body.textContent).toContain('Keine Creator im Reiter "Gebucht"');
   });

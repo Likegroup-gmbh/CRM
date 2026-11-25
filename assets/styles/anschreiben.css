@@ -39,6 +39,20 @@
   flex: 1;
 }
 
+.anschreiben-extras {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.anschreiben-schalter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
 .anschreiben-anhang {
   display: flex;
   align-items: center;
@@ -111,6 +125,40 @@
 
 .empfaenger-composer__skipped {
   margin: var(--space-xs) 0 0;
+  font-size: var(--text-xsm);
+  color: var(--text-tertiary);
+}
+
+.empfaenger-fest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.empfaenger-fest__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.empfaenger-fest__row .table-avatar {
+  font-size: var(--text-xs);
+}
+
+.empfaenger-fest__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.empfaenger-fest__name {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.empfaenger-fest__mail,
+.empfaenger-fest__leer {
   font-size: var(--text-xsm);
   color: var(--text-tertiary);
 }

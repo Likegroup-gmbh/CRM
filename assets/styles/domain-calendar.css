@@ -151,8 +151,6 @@
 
 .calendar-sidebar-tabs {
   flex-direction: row;
-  border: none;
-  border-bottom: 1px solid var(--border-primary);
   overflow-x: visible;
   gap: 0;
   padding: 0;
@@ -182,11 +180,6 @@
 .calendar-sidebar-tabs .tab-button.active {
   color: var(--gray-900);
   background: transparent;
-  border-bottom: 1px solid var(--gray-900);
-}
-
-.calendar-sidebar-tabs .tab-button.active::after {
-  display: none;
 }
 
 /* ===== CALENDAR MAIN ===== */
@@ -241,6 +234,13 @@
 
 .calendar-today-btn {
   margin-left: auto;
+}
+
+/* Slot des Aufrufers zwischen Navigation und "Heute" (z. B. Umfang im Videos-Tab) */
+.calendar-header-extra {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
 /* Calendar Week Grid */
@@ -377,7 +377,7 @@
 
 .calendar-month-more {
   font-size: 10px;
-  color: var(--primary-color);
+  color: var(--text-secondary);
   padding: var(--space-xxs) var(--space-xs);
   cursor: pointer;
   font-weight: 500;
@@ -387,8 +387,8 @@
 }
 
 .calendar-month-more:hover {
-  background: var(--primary-100);
-  color: var(--primary-700);
+  background: var(--gray-200);
+  color: var(--text-primary);
 }
 
 /* Calendar Day Column */
@@ -406,16 +406,18 @@
   border-left: none;
 }
 
+/* Heute: nur leicht abgesetzt, das rote Label trägt die Markierung (wie die rote Zahl im Monat) */
 .calendar-day--today {
-  border: 2px solid var(--primary-color);
-  background: var(--primary-50);
+  background: var(--bg-secondary);
 }
 
+/* Schriftgröße am Kopf selbst, nicht nur am Label: sonst bestimmt die Grundschrift die Zeilenhöhe
+   und der Kopf wird höher als die Wochentage der Monatsansicht */
 .calendar-day-header {
   padding: var(--space-xs);
   text-align: center;
   border-bottom: 1px solid var(--border-primary);
-  
+  font-size: var(--text-sm);
 }
 
 .calendar-day-label {
@@ -493,6 +495,12 @@
   cursor: grabbing;
 }
 
+/* Weder klickbar noch verschiebbar (z. B. Kundenansicht im Videos-Tab) */
+.calendar-event.is-static,
+.calendar-month-event.is-static {
+  cursor: default;
+}
+
 .calendar-event.dragging,
 .calendar-month-event.dragging {
   opacity: 0.5;
@@ -500,17 +508,13 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Drop-Zone Highlighting */
+/* Drop-Zone: Outline statt Border, damit die Zelle beim Ziehen nicht springt */
 
 .calendar-day-events.drag-over,
 .calendar-month-day.drag-over {
-  background: var(--primary-color-light);
-  border: 2px dashed var(--primary-color);
-  border-radius: var(--radius-md);
-}
-
-.calendar-month-day.drag-over {
-  background: var(--primary-color-light);
+  outline: 1px dashed var(--border-focus);
+  outline-offset: -2px;
+  background: var(--gray-100);
 }
 
 /* Responsive: Mobile */

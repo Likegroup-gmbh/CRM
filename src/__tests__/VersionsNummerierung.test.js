@@ -96,5 +96,23 @@ describe('planeVersionsRows', () => {
     expect(rows[0].hauptteil).toBeNull();
     expect(rows[0].cta).toBeNull();
     expect(rows[0].hook_visuell).toBeNull();
+    expect(rows[0].hook_variante_1).toBeNull();
+    expect(rows[0].hook_variante_2).toBeNull();
+    expect(rows[0].hook_variante_3).toBeNull();
+  });
+
+  it('hook_variante-Spalten gehen in den Snapshot', () => {
+    const { rows } = planeVersionsRows({
+      versionen: [],
+      skript: {
+        id: 's1', hook: 'A',
+        hook_variante_1: 'Zweiter',
+        hook_variante_2: 'Dritter',
+        hook_variante_3: 'Vierter'
+      }
+    });
+    expect(rows[0].hook_variante_1).toBe('Zweiter');
+    expect(rows[0].hook_variante_2).toBe('Dritter');
+    expect(rows[0].hook_variante_3).toBe('Vierter');
   });
 });

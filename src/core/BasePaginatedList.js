@@ -6,7 +6,11 @@ import { PaginationSystem } from './PaginationSystem.js';
 import { TableAnimationHelper } from './TableAnimationHelper.js';
 import { modularFilterSystem as filterSystem } from './filters/ModularFilterSystem.js';
 import { getSearchConfig } from './config/ListSearchConfig.js';
-import { resolveEmptyState, bindEmptyStateActions } from './components/EmptyState.js';
+import { bindEmptyStateActions } from './components/EmptyState.js';
+import { renderEmptyRow, renderErrorRow } from './list/tableStates.js';
+import { ListScope } from './list/ListScope.js';
+import { createLatestOnly, STALE } from './list/latestOnly.js';
+import { TableSelection } from './list/TableSelection.js';
 
 /**
  * Abstrakte Basisklasse für paginierte Listen
@@ -42,10 +46,9 @@ export class BasePaginatedList {
     
     this.entityType = entityType;
     this.pagination = new PaginationSystem();
-    this.selectedItems = new Set();
     
-    // Race-Condition Prevention
-    this._requestCounter = 0;
+    // Race-Condition Prevention (siehe list/latestOnly.js)
+    this._latest = createLatestOnly();
     
     // Debouncing
     this._loadDebounceTimer = null;
@@ -93,6 +96,45 @@ export class BasePaginatedList {
     // Gecachte Werte
     this._isAdmin = null;
     this._canEdit = null;
+
+    // Embedded: Liste rendert in ein fremdes Root (Produktions-Tab), nicht in window.content.
+    this.embedded = false;
+    this.mountRoot = null;
+
+    // DOM-Scoping liest mountRoot lazy, Unterklassen setzen es direkt (mountEmbedded).
+    this._scope = new ListScope(() => this.mountRoot);
+
+    // Auswahl (Set bleibt dieselbe Instanz: Unterklassen halten Aliase darauf, z.B. selectedMarken)
+    this._selection = new TableSelection({ scope: this._scope, getConfig: () => this.options });
+    this.selectedItems = this._selection.items;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DOM-SCOPING (Delegation an list/ListScope.js)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  byId(id) {
+    return this._scope.byId(id);
+  }
+
+  query(selector) {
+    return this._scope.query(selector);
+  }
+
+  queryAll(selector) {
+    return this._scope.queryAll(selector);
+  }
+
+  eventRoot() {
+    return this._scope.eventRoot();
+  }
+
+  contentTarget() {
+    return this._scope.contentTarget();
+  }
+
+  writeContent(html) {
+    this._scope.writeContent(html);
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -212,7 +254,7 @@ export class BasePaginatedList {
     
     // 3) Tabelle komplett verstecken um Flackern zu verhindern
     // Verwendet spezielle Klasse die Daten vollständig ausblendet (nicht nur dimmt)
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     if (tbody) {
       tbody.classList.add('table-permission-loading');
       tbody.classList.remove('table-loading-overlay'); // Falls gesetzt
@@ -223,7 +265,7 @@ export class BasePaginatedList {
       await this.loadData();
       
       // 5) Nach dem Laden: Permission-Loading entfernen
-      const tbodyAfter = document.querySelector(this.options.tbodySelector);
+      const tbodyAfter = this.query(this.options.tbodySelector);
       if (tbodyAfter) {
         tbodyAfter.classList.remove('table-permission-loading');
       }
@@ -247,6 +289,8 @@ export class BasePaginatedList {
    * Hauptinitialisierung - wird von außen aufgerufen
    */
   async init() {
+    this._destroyed = false;
+
     // Headline setzen
     if (window.setHeadline) {
       window.setHeadline(this.options.headline);
@@ -309,14 +353,11 @@ export class BasePaginatedList {
    * Rendert die "Keine Berechtigung"-Meldung
    */
   renderNoPermission() {
-    const content = window.content || document.getElementById('dashboard-content');
-    if (content) {
-      content.innerHTML = `
-        <div class="error-message">
-          <p>Sie haben keine Berechtigung, ${this.options.breadcrumbLabel} anzuzeigen.</p>
-        </div>
-      `;
-    }
+    this.writeContent(`
+      <div class="error-message">
+        <p>Sie haben keine Berechtigung, ${this.options.breadcrumbLabel} anzuzeigen.</p>
+      </div>
+    `);
   }
   
   /**
@@ -325,16 +366,7 @@ export class BasePaginatedList {
   async renderShell() {
     if (this._shellRendered) return;
     
-    const shellHtml = this.renderShellContent();
-    const content = window.content || document.getElementById('dashboard-content');
-    
-    if (content) {
-      if (window.setContentSafely) {
-        window.setContentSafely(content, shellHtml);
-      } else {
-        content.innerHTML = shellHtml;
-      }
-    }
+    this.writeContent(this.renderShellContent());
     
     this._shellRendered = true;
     
@@ -401,24 +433,24 @@ export class BasePaginatedList {
    * Lädt die Daten mit Race-Condition Prevention
    */
   async loadData() {
-    // Race Condition Prevention: Neuer Request-Counter für jede Anfrage
-    const currentRequestId = ++this._requestCounter;
+    // Race Condition Prevention: nur der zuletzt gestartete Request zählt
+    const request = this._latest.start();
     
     this._loadingInProgress = true;
     const startTime = performance.now();
     
     // Loading-Overlay anzeigen
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     TableAnimationHelper.showLoadingOverlay(tbody);
     
     try {
       const { currentPage, itemsPerPage } = this.pagination.getState();
       const filters = this.buildFilters();
       
-      const result = await this.loadPageData(currentPage, itemsPerPage, filters);
+      const result = await request.resolve(this.loadPageData(currentPage, itemsPerPage, filters));
       
       // Race Condition Check: Verwerfe veraltete Ergebnisse
-      if (currentRequestId !== this._requestCounter) {
+      if (result === STALE) {
         console.log(`⏳ ${this.entityType.toUpperCase()}LIST: Veralteter Request, verwerfe Ergebnis`);
         return;
       }
@@ -435,6 +467,10 @@ export class BasePaginatedList {
       
       // Tabelle aktualisieren
       await this.updateTable(result.data || []);
+
+      // Neu gerenderte Zeilen haben leere Checkboxen: an selectedItems angleichen,
+      // sonst zeigt der Zaehler eine Auswahl, die man nicht sieht
+      this.restoreSelectionState();
       
       // Callback
       this.onDataLoaded(result.data || []);
@@ -444,7 +480,7 @@ export class BasePaginatedList {
       
     } catch (error) {
       // Ignoriere Fehler wenn neuerer Request existiert
-      if (currentRequestId !== this._requestCounter) return;
+      if (!request.isCurrent()) return;
       
       console.error(`${this.entityType}List.loadData Error:`, error);
       
@@ -458,10 +494,10 @@ export class BasePaginatedList {
       
     } finally {
       // Nur Loading-Flag zurücksetzen wenn dies der aktuelle Request ist
-      if (currentRequestId === this._requestCounter) {
+      if (request.isCurrent()) {
         this._loadingInProgress = false;
         // Loading-Overlay ausblenden (Safety-Net)
-        const tbodyFinal = document.querySelector(this.options.tbodySelector);
+        const tbodyFinal = this.query(this.options.tbodySelector);
         TableAnimationHelper.hideLoadingOverlay(tbodyFinal);
       }
     }
@@ -481,7 +517,7 @@ export class BasePaginatedList {
    * Aktualisiert die Tabelle mit neuen Daten
    */
   async updateTable(items) {
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     if (!tbody) return;
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
@@ -527,26 +563,23 @@ export class BasePaginatedList {
    * @param {HTMLElement} tbody
    */
   renderEmptyTable(tbody) {
-    const html = resolveEmptyState({
+    tbody.innerHTML = renderEmptyRow({
+      colspan: this.options.tableColspan,
       hasActiveFilters: this.hasActiveFilters(),
-      states: { default: this.getEmptyState() }
-    }, 'default');
-    tbody.innerHTML = `<tr><td colspan="${this.options.tableColspan}" class="empty-state-cell">${html}</td></tr>`;
+      state: this.getEmptyState()
+    });
   }
   
   /**
    * Zeigt einen Fehler in der Tabelle an
    */
   showErrorInTable(message) {
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     if (tbody) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="${this.options.tableColspan}" class="table-state-cell table-state-cell--error">
-            Fehler beim Laden: ${message || 'Unbekannter Fehler'}
-          </td>
-        </tr>
-      `;
+      tbody.innerHTML = renderErrorRow({
+        colspan: this.options.tableColspan,
+        message
+      });
     }
   }
   
@@ -558,81 +591,85 @@ export class BasePaginatedList {
    * Bindet alle Event-Listener
    */
   bindEvents() {
+    if (this._destroyed) return;
+
     // Cleanup vorheriger Listener
     if (this._abortController) {
       this._abortController.abort();
     }
     this._abortController = new AbortController();
     const signal = this._abortController.signal;
+    const root = this.eventRoot();
+
+    this._bindCoreEvents(root, signal);
     
+    // Zusätzliche Events aus Unterklasse
+    this.bindAdditionalEvents(signal);
+  }
+
+  /**
+   * Standard-Events der Basisklasse (Reihenfolge der Registrierung bleibt stabil).
+   * @private
+   */
+  _bindCoreEvents(root, signal) {
+    this._bindNavigationEvents(root, signal);
+    this._bindSelectionEvents(root, signal);
+    this._bindGlobalEvents(signal);
+    this._bindFilterEvents(root, signal);
+  }
+
+  /** @private Detail-Links */
+  _bindNavigationEvents(root, signal) {
     // Entity-spezifische Detail-Links
-    document.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
       if (e.target.classList.contains('table-link') && e.target.dataset.table === this.entityType) {
         e.preventDefault();
         const itemId = e.target.dataset.id;
         console.log(`🎯 ${this.entityType.toUpperCase()}LIST: Navigiere zu Details:`, itemId);
-        window.navigateTo(`/${this.entityType}/${itemId}`);
+        window.navigateTo(this.resolveDetailRoute(itemId));
       }
     }, { signal });
-    
+  }
+
+  /** @private Checkboxen und Auswahl-Buttons */
+  _bindSelectionEvents(root, signal) {
     // Select-All Checkbox
-    document.addEventListener('change', (e) => {
+    root.addEventListener('change', (e) => {
       if (e.target.id === this.options.selectAllId) {
-        const checkboxes = document.querySelectorAll(`.${this.options.checkboxClass}`);
-        const isChecked = e.target.checked;
-        
-        checkboxes.forEach(cb => {
-          cb.checked = isChecked;
-          if (isChecked && cb.dataset.id) {
-            this.selectedItems.add(cb.dataset.id);
-          } else if (cb.dataset.id) {
-            this.selectedItems.delete(cb.dataset.id);
-          }
-        });
-        
+        this._selection.setAllVisible(e.target.checked);
         this.updateSelection();
       }
     }, { signal });
     
     // Einzelne Checkboxen
-    document.addEventListener('change', (e) => {
+    root.addEventListener('change', (e) => {
       if (e.target.classList.contains(this.options.checkboxClass)) {
-        if (e.target.checked && e.target.dataset.id) {
-          this.selectedItems.add(e.target.dataset.id);
-        } else if (e.target.dataset.id) {
-          this.selectedItems.delete(e.target.dataset.id);
-        }
+        this._selection.toggle(e.target.dataset.id, e.target.checked);
         this.updateSelection();
         this.updateSelectAllCheckbox();
       }
     }, { signal });
     
     // Alle auswählen Button
-    document.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
       if (e.target.id === 'btn-select-all') {
         e.preventDefault();
-        const checkboxes = document.querySelectorAll(`.${this.options.checkboxClass}`);
-        checkboxes.forEach(cb => {
-          cb.checked = true;
-          if (cb.dataset.id) this.selectedItems.add(cb.dataset.id);
-        });
-        const selectAllHeader = document.getElementById(this.options.selectAllId);
-        if (selectAllHeader) {
-          selectAllHeader.indeterminate = false;
-          selectAllHeader.checked = true;
-        }
+        this._selection.selectAllVisible();
         this.updateSelection();
       }
     }, { signal });
     
     // Auswahl aufheben Button
-    document.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
       if (e.target.id === 'btn-deselect-all') {
         e.preventDefault();
         this.deselectAll();
       }
     }, { signal });
-    
+  }
+
+  /** @private Window-Events (entityUpdated, permissionsChanged) */
+  _bindGlobalEvents(signal) {
     // Entity Updated Event
     // Unterklassen können handleEntityUpdated(detail) implementieren und true
     // zurückgeben, um den Full-Reload zu unterdrücken (z.B. Soft-Update einer Karte).
@@ -654,14 +691,17 @@ export class BasePaginatedList {
       console.log(`🔔 ${this.entityType.toUpperCase()}LIST: permissionsChanged Event empfangen`, e.detail);
       this.handlePermissionsChanged(e.detail);
     }, { signal });
-    
+  }
+
+  /** @private Empty-State-Actions und Filter-Tags */
+  _bindFilterEvents(root, signal) {
     // Empty-State-Actions (z.B. "Filter zurücksetzen" im filtered-State)
-    bindEmptyStateActions(document, {
+    bindEmptyStateActions(root, {
       'reset-filters': () => this.onFiltersReset()
     }, { signal });
 
     // Filter-Tag X-Buttons
-    document.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
       if (e.target.classList.contains('tag-x')) {
         e.preventDefault();
         e.stopPropagation();
@@ -677,9 +717,6 @@ export class BasePaginatedList {
         }
       }
     }, { signal });
-    
-    // Zusätzliche Events aus Unterklasse
-    this.bindAdditionalEvents(signal);
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -690,62 +727,32 @@ export class BasePaginatedList {
    * Aktualisiert die Auswahl-UI
    */
   updateSelection() {
-    const selectedCount = this.selectedItems.size;
-    const selectedCountElement = document.getElementById('selected-count');
-    const selectBtn = document.getElementById('btn-select-all');
-    const deselectBtn = document.getElementById('btn-deselect-all');
-    const deleteBtn = document.getElementById('btn-delete-selected');
-    
-    if (selectedCountElement) {
-      selectedCountElement.textContent = `${selectedCount} ausgewählt`;
-      selectedCountElement.style.display = selectedCount > 0 ? 'inline' : 'none';
-    }
-    
-    if (selectBtn) {
-      selectBtn.style.display = selectedCount > 0 ? 'none' : 'inline-block';
-    }
-    
-    if (deselectBtn) {
-      deselectBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
-    }
-    
-    if (deleteBtn) {
-      deleteBtn.style.display = selectedCount > 0 ? 'inline-block' : 'none';
-    }
+    this._selection.renderSummary();
   }
   
   /**
    * Aktualisiert den Status der Select-All Checkbox
    */
   updateSelectAllCheckbox() {
-    const selectAllCheckbox = document.getElementById(this.options.selectAllId);
-    const individualCheckboxes = document.querySelectorAll(`.${this.options.checkboxClass}`);
-    
-    if (!selectAllCheckbox || individualCheckboxes.length === 0) return;
-    
-    const checkedBoxes = document.querySelectorAll(`.${this.options.checkboxClass}:checked`);
-    const allChecked = checkedBoxes.length === individualCheckboxes.length;
-    const someChecked = checkedBoxes.length > 0;
-    
-    selectAllCheckbox.checked = allChecked;
-    selectAllCheckbox.indeterminate = someChecked && !allChecked;
+    this._selection.syncSelectAll();
   }
   
+  /**
+   * Gleicht die sichtbaren Checkboxen nach einem Reload an die Auswahl an.
+   */
+  restoreSelectionState() {
+    this.queryAll(`.${this.options.checkboxClass}`).forEach(cb => {
+      cb.checked = this.selectedItems.has(cb.dataset.id);
+    });
+    this.updateSelectAllCheckbox();
+    this.updateSelection();
+  }
+
   /**
    * Hebt alle Auswahlen auf
    */
   deselectAll() {
-    this.selectedItems.clear();
-    
-    const checkboxes = document.querySelectorAll(`.${this.options.checkboxClass}`);
-    checkboxes.forEach(cb => { cb.checked = false; });
-    
-    const selectAllCheckbox = document.getElementById(this.options.selectAllId);
-    if (selectAllCheckbox) {
-      selectAllCheckbox.checked = false;
-      selectAllCheckbox.indeterminate = false;
-    }
-    
+    this._selection.clear();
     this.updateSelection();
     console.log(`✅ Alle ${this.entityType}-Auswahlen aufgehoben`);
   }
@@ -843,6 +850,10 @@ export class BasePaginatedList {
   /**
    * Sanitize-Helper
    */
+  resolveDetailRoute(itemId) {
+    return `/${this.entityType}/${itemId}`;
+  }
+
   sanitize(value) {
     return window.validatorSystem?.sanitizeHtml(value) || value || '';
   }
@@ -862,9 +873,11 @@ export class BasePaginatedList {
    * Cleanup-Methode für Komponenten-Zerstörung
    */
   destroy() {
+    if (this._destroyed) return;
     console.log(`${this.entityType}List: Cleaning up...`);
-    
-    // Markiere als zerstört um laufende async Operationen zu stoppen
+
+    // Bleibt true, bis init()/mountEmbedded neu startet. Sonst bindet ein
+    // noch laufender Mount nach dem Destroy wieder Listener.
     this._destroyed = true;
     
     // AbortController alle Event-Listener auf einmal entfernen
@@ -900,10 +913,7 @@ export class BasePaginatedList {
     
     // Shell-Flag zurücksetzen
     this._shellRendered = false;
-    
-    // Destroyed-Flag zurücksetzen für Wiederverwendung
-    this._destroyed = false;
-    
+
     // Permission-Cache invalidieren
     this.invalidatePermissionCache();
   }

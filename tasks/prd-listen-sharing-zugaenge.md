@@ -35,7 +35,7 @@ Kein Supabase-Account, keine E-Mail-Verifizierung, kein Freischalte-Schritt, kei
 **Folge:** `auth.users`-Eintrag und `benutzer`-Zeile für Gäste entfallen komplett. Der `handle_new_auth_user`-Trigger läuft für Gäste nie mehr — der Eileen-Bug kann strukturell nicht wieder auftreten.
 
 ```
-Staff: ShareListDialog ──► share-list create ──► Zugang (token+code) ──► Resend-Mail (Link+Code)
+Staff: ShareListDrawer ──► share-list create ──► Zugang (token+code) ──► Resend-Mail (Link+Code)
 Gast:  /share/:token ──► resolve ──► Code+Name ──► verify ──► Gast-JWT (30d)
                                                           │
                           PostgREST mit Gast-JWT ──► RLS: share_claim_has_access(share_id, entity)
@@ -94,7 +94,7 @@ Keine Session-Tabelle: JWT ist stateless; Widerruf wirkt sofort, weil die RLS-Pr
 - **Detail-Module:** unverändert — sie fragen `window.supabase`, RLS begrenzt auf die geteilte Entität.
 - **Feedback-Pfade** (`CreatorAuswahlDetail`, `StrategieDetailTableEvents`, `VideoFeedbackRepository`, `StillFeedbackRepository`): Autor aus synthetischem User (`<name> (Gast)`), `author_benutzer_id = null` (Spalten sind nullable — geprüft).
 - **Sperrseite `renderGuestNoAccess`:** ohne Auth-Session keine DB-Abfrage eigener Shares mehr — stattdessen lokal gespeicherte Zugänge (Token aus localStorage) als Link-Liste anzeigen.
-- **`ShareListDialog`:** statt E-Mail-Feld → Zugänge verwalten: Label, Rechte, Ablaufdatum, „endet mit Kampagne"-Checkbox, Code anzeigen/kopieren/rotieren, Einladungs-Mail an freie Adressen absenden, Teilnehmer-Liste.
+- **`ShareListDrawer`:** statt E-Mail-Feld → Zugänge verwalten: Label, Rechte, Ablaufdatum, „endet mit Kampagne"-Checkbox, Code anzeigen/kopieren/rotieren, Einladungs-Mail an freie Adressen absenden, Teilnehmer-Liste.
 - **`SharesAdminPage`:** Zugänge statt E-Mail-Shares; Teilnehmer einsehbar.
 
 ## 8. Cutover / Migration
@@ -116,7 +116,7 @@ Keine Session-Tabelle: JWT ist stateless; Widerruf wirkt sofort, weil die RLS-Pr
 
 1. **DB:** Schema-Migration + `share_claim_has_access` + Policy-Rumpf-Tausch + anon/authenticated-Audit.
 2. **Edge Function:** v2-Actions (create/resolve/verify/rotate/revoke/participants) + Resend-Mail mit Code.
-3. **Frontend:** GuestShareApp-Flow, JWT-Client-Wiring, ShareListDialog, SharesAdminPage, Sperrseite.
+3. **Frontend:** GuestShareApp-Flow, JWT-Client-Wiring, ShareListDrawer, SharesAdminPage, Sperrseite.
 4. **Cutover:** alte Shares widerrufen, Gast-User löschen, Eileen-Cleanup.
 5. **Tests:** RLS (Gast sieht nur geteilte Entität; Write nur mit `feedback`; revoked/expired/completed = kein Zugriff), verify-Rate-Limit, Code-Rotation.
 

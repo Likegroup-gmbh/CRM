@@ -15,8 +15,9 @@ function createQueryMock(result = { data: [], error: null }) {
   return mock;
 }
 
-function setupSupabaseMock(mitarbeiterByRoleData = []) {
+function setupSupabaseMock(mitarbeiterByRoleData = [], artDerKampagne = []) {
   const fromCalls = {};
+  const filters = [];
 
   const kampagneData = {
     id: 'k1',
@@ -24,10 +25,10 @@ function setupSupabaseMock(mitarbeiterByRoleData = []) {
     unternehmen_id: 'u1',
     marke_id: 'm1',
     auftrag_id: 'a1',
-    art_der_kampagne: [],
+    art_der_kampagne: artDerKampagne,
     unternehmen: { firmenname: 'TestGmbH', webseite: null, branche_id: null },
     marke: { markenname: 'TestMarke', webseite: null },
-    auftrag: { auftragsname: 'Auftrag1', status: 'aktiv', gesamt_budget: 1000, creator_budget: 500, bruttobetrag: 1190, nettobetrag: 1000 },
+    auftrag: { auftragsname: 'Auftrag1', status: 'aktiv', creator_budget: 500, bruttobetrag: 1190, nettobetrag: 1000 },
   };
 
   window.supabase = {
@@ -48,9 +49,16 @@ function setupSupabaseMock(mitarbeiterByRoleData = []) {
         return createQueryMock({ data: null, error: null, count: 0 });
       }
 
-      return createQueryMock({ data: [], error: null });
+      const q = createQueryMock({ data: [], error: null });
+      q.in = vi.fn((col, vals) => {
+        filters.push({ table, col, vals });
+        return q;
+      });
+      return q;
     }),
   };
+
+  fromCalls.filters = filters;
 
   window.currentUser = { rolle: 'admin' };
 
@@ -103,12 +111,49 @@ describe('KampagneDetail – Mitarbeiter-Rollen Query-Konsolidierung', () => {
     expect(detail.kampagneData.creator_sourcing_ids).toEqual(['cs1']);
   });
 
-  it('lädt Kooperationen-Summary in loadCriticalData (für Summary Cards)', async () => {
+  it('lädt Kampagnenarten über den Namen, nicht über die UUID', async () => {
+    const fromCalls = setupSupabaseMock([], ['UGC Paid']);
+
+    await detail.loadCriticalData();
+
+    expect(fromCalls.filters).toContainEqual({
+      table: 'kampagne_art_typen',
+      col: 'name',
+      vals: ['UGC Paid']
+    });
+  });
+
+  it('lädt Kooperationen nicht in loadCriticalData (die kommen über loadFullTableData)', async () => {
     const fromCalls = setupSupabaseMock([]);
 
     await detail.loadCriticalData();
 
-    expect(fromCalls['kooperationen']).toBe(1);
+    expect(fromCalls['kooperationen']).toBeUndefined();
+    expect(fromCalls['vertraege']).toBeUndefined();
+    expect(fromCalls['rechnung']).toBeUndefined();
+  });
+
+  it('fragt auftrag_details ohne extra_services_enabled (Spalte existiert nicht)', async () => {
+    let detailsSelect = null;
+    setupSupabaseMock([]);
+    const originalFrom = window.supabase.from;
+    window.supabase.from = vi.fn((table) => {
+      const q = originalFrom(table);
+      if (table === 'auftrag_details') {
+        const innerSelect = q.select;
+        q.select = vi.fn((cols) => {
+          detailsSelect = cols;
+          return innerSelect.call(q, cols);
+        });
+      }
+      return q;
+    });
+
+    await detail.loadCriticalData();
+
+    expect(detailsSelect).toEqual(expect.stringContaining('campaign_type'));
+    expect(detailsSelect).toEqual(expect.stringContaining('extra_services'));
+    expect(detailsSelect).not.toEqual(expect.stringContaining('extra_services_enabled'));
   });
 
   it('referenziert kein nicht-existierendes loadKampagneData in Event-Handlern', async () => {

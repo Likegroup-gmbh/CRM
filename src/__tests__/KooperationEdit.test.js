@@ -34,8 +34,19 @@ function createSupabase(tables) {
         eq(col, val) { filters.push({ op: 'eq', col, val }); return builder; },
         neq(col, val) { filters.push({ op: 'neq', col, val }); return builder; },
         order() { return builder; },
-        range() { return builder; },
         in() { return builder; },
+        or() { return builder; },
+        is() { return builder; },
+        not() { return builder; },
+        limit() { return builder; },
+        range(from, to) {
+          const rows = applyFilters(tables[table] || [], filters).slice(from, to + 1);
+          return Promise.resolve({ data: rows, error: null });
+        },
+        maybeSingle() {
+          const rows = applyFilters(tables[table] || [], filters);
+          return Promise.resolve({ data: rows[0] || null, error: null });
+        },
         single() {
           const rows = applyFilters(tables[table] || [], filters);
           return Promise.resolve({
@@ -71,7 +82,7 @@ function editTables() {
       ugc_video_anzahl: 0,
       igc_video_anzahl: 0
     }],
-    campaign_briefings: [{ id: IDS.briefing, aktivierung_name: 'Launch' }],
+    campaign_briefings: [{ id: IDS.briefing, aktivierung_name: 'Launch', unternehmen_id: IDS.unternehmen, is_draft: false, ist_altbestand: false }],
     creator: [{ id: IDS.creator, vorname: 'Mia', nachname: 'Sommer', umsatzsteuerpflichtig: true }],
     auftrag_kampagne_art: [],
     kampagne_art_typen: [{ id: 'art-1', name: 'Influencer' }],
@@ -152,7 +163,10 @@ describe('Kooperation bearbeiten', () => {
     expect(visibleInput(form, 'kampagne_id').value).toBe('Sommerkampagne');
     expect(visibleInput(form, 'kampagne_id').disabled).toBe(true);
     expect(visibleInput(form, 'creator_id').value).toBe('Mia Sommer');
-    expect(visibleInput(form, 'creator_id').disabled).toBe(false);
+    // Creator wechselt nur ueber den Creator-Tausch.
+    expect(visibleInput(form, 'creator_id').disabled).toBe(true);
+    expect(visibleInput(form, 'briefing_id').value).toBe('Launch');
+    expect(visibleInput(form, 'briefing_id').disabled).toBe(false);
 
     const video = form.querySelector('.video-item');
     expect(video).not.toBeNull();

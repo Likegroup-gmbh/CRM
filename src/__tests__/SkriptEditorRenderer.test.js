@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   messageHtml, genStatusBubbleHtml, aktionTagHtml, chatLeerHtml, versionsHinweisHtml
 } from '../modules/skripte/editor/SkriptEditorChatRenderer.js';
-import { fragenModusHtml, skriptDocHtml, masterDocHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
+import { fragenModusHtml, skriptDocHtml, masterDocHtml, verknuepfungenHtml, konzeptCreatorFromSkript, docHeadActionsHtml, listeVideoHtml, sortListeSkripte, vorgabenPanelHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
 
 describe('SkriptEditorChatRenderer', () => {
   it('User-Message rendert Inhalt und Selektion, escaped HTML', () => {
@@ -88,7 +88,7 @@ describe('SkriptEditorChatRenderer', () => {
     expect(aktionTagHtml({ aktion: 'chat' })).toBe('');
     expect(aktionTagHtml({})).toBe('');
     const tag = aktionTagHtml({ aktion: 'neu_schreiben', sektion: 'cta' });
-    expect(tag).toContain('Neu schreiben');
+    expect(tag).toContain('Neu formulieren');
     expect(tag).toContain('CTA');
   });
 
@@ -119,7 +119,26 @@ describe('SkriptEditorChatRenderer', () => {
 });
 
 describe('SkriptEditorDocRenderer', () => {
-  it('fragenModusHtml zeigt Titel, Rueckfragen-Badge und Generieren-Button', () => {
+  it('vorgabenPanelHtml zeigt Textwerte und nur die Video-URL als Link', () => {
+    const html = vorgabenPanelHtml({
+      unternehmen: { firmenname: 'John Deere' },
+      video_idee: 'Hook in 5 Sekunden',
+      prompt_kontext: {
+        referenz_video: {
+          platform: 'tiktok',
+          url: 'https://www.tiktok.com/video/1',
+          transkript_verwendet: 'Transkript hier'
+        }
+      }
+    });
+    expect(html).toContain('John Deere');
+    expect(html).toContain('Hook in 5 Sekunden');
+    expect(html).toContain('Transkript hier');
+    expect(html).toContain('href="https://www.tiktok.com/video/1"');
+    expect(html).not.toContain('function link');
+  });
+
+  it('fragenModusHtml zeigt Titel, Rueckfragen-Badge und Aufbau-Toggles statt Generieren-Button', () => {
     const html = fragenModusHtml({
       skript: { titel: 'Mein <Skript>' },
       genStatus: null,
@@ -128,17 +147,30 @@ describe('SkriptEditorDocRenderer', () => {
     });
     expect(html).toContain('Mein &lt;Skript&gt;');
     expect(html).toContain('Rückfragen');
-    expect(html).toContain('id="ed-fragen-gen"');
+    expect(html).not.toContain('id="ed-fragen-gen"');
+    expect(html).toContain('data-aufbau-flag="mit_rezept"');
+    expect(html).toContain('data-aufbau-flag="mit_text_hook"');
     expect(html).toContain('<div>Vorgaben</div>');
     expect(html).not.toContain('skripte-actions-row--sticky');
   });
 
-  it('fragenModusHtml deaktiviert den Button waehrend Generierung', () => {
+  it('fragenModusHtml spiegelt gesetzte Aufbau-Flags aus dem generator_payload', () => {
+    const html = fragenModusHtml({
+      skript: { prompt_kontext: { generator_payload: { mit_rezept: true, mit_text_hook: false } } },
+      genStatus: null, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    const rezept = html.match(/<input[^>]*data-aufbau-flag="mit_rezept"[^>]*>/)?.[0] || '';
+    const textHook = html.match(/<input[^>]*data-aufbau-flag="mit_text_hook"[^>]*>/)?.[0] || '';
+    expect(rezept).toContain('checked');
+    expect(textHook).not.toContain('checked');
+  });
+
+  it('fragenModusHtml deaktiviert die Toggles waehrend Generierung', () => {
     const html = fragenModusHtml({
       skript: {}, genStatus: { laeuft: true }, docHeadActionsHtml: '', vorgabenPanelHtml: ''
     });
     expect(html).toContain('disabled');
-    expect(html).toContain('Läuft…');
+    expect(html).not.toContain('id="ed-fragen-gen"');
   });
 
   it('skriptDocHtml rendert Sektionen mit gesprochenem Text', () => {
@@ -187,6 +219,87 @@ describe('SkriptEditorDocRenderer', () => {
     expect(html).not.toContain('Creator-facing');
   });
 
+  it('skriptDocHtml zeigt Hook-Varianten intern nur wenn befuellt', () => {
+    const leer = skriptDocHtml({
+      skript: { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E' },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: '',
+      zeigeHookVarianten: true
+    });
+    expect(leer).not.toContain('Hook-Varianten');
+    expect(leer).not.toContain('data-feld="hook_variante_1"');
+
+    const html = skriptDocHtml({
+      skript: { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E', hook_variante_1: 'Zweiter Einstieg' },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: '',
+      zeigeHookVarianten: true
+    });
+    expect(html).toContain('Hook-Varianten');
+    expect(html).toContain('Zweiter Einstieg');
+    expect(html).toContain('data-feld="hook_variante_1"');
+    expect(html).toContain('Was gesagt wird');
+  });
+
+  it('skriptDocHtml blendet Hook-Varianten bei readonly aus', () => {
+    const html = skriptDocHtml({
+      skript: { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E', hook_variante_1: 'Zweiter' },
+      messages: [], isReadonly: true, docHeadActionsHtml: '', vorgabenPanelHtml: '',
+      zeigeHookVarianten: false
+    });
+    expect(html).not.toContain('Hook-Varianten');
+    expect(html).not.toContain('Zweiter');
+  });
+
+  it('skriptDocHtml zeigt Rezept-Zeile und Text-Hook nur bei Flag oder Inhalt', () => {
+    const basis = { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E' };
+    const ohne = skriptDocHtml({
+      skript: { ...basis },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    expect(ohne).not.toContain('data-sektion="rezept"');
+    expect(ohne).not.toContain('data-feld="text_hook"');
+
+    const mitFlags = skriptDocHtml({
+      skript: { ...basis, prompt_kontext: { generator_payload: { mit_rezept: true, mit_text_hook: true } } },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    expect(mitFlags).toContain('data-sektion="rezept"');
+    expect(mitFlags).toContain('colspan="2"');
+    expect(mitFlags).toContain('data-feld="rezept"');
+    expect(mitFlags).toContain('data-feld="text_hook"');
+    expect(mitFlags).toContain('Text-Hook');
+
+    const mitInhalt = skriptDocHtml({
+      skript: { ...basis, rezept: '200g Mehl', text_hook: 'Nur 3 Zutaten' },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    expect(mitInhalt).toContain('200g Mehl');
+    expect(mitInhalt).toContain('Nur 3 Zutaten');
+  });
+
+  it('skriptDocHtml zeigt die Caption-Zeile nur bei Flag oder Inhalt', () => {
+    const basis = { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E' };
+    const render = (skript) => skriptDocHtml({
+      skript, messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    expect(render({ ...basis })).not.toContain('data-feld="caption"');
+
+    const mitFlag = render({ ...basis, prompt_kontext: { generator_payload: { mit_caption: true } } });
+    expect(mitFlag).toContain('data-sektion="caption"');
+    expect(mitFlag).toContain('data-feld="caption"');
+    expect(mitFlag).toContain('skripte-editor-tabelle-zusatz');
+
+    expect(render({ ...basis, caption: 'Heute gibt es Brot' })).toContain('Heute gibt es Brot');
+  });
+
+  it('fragenModusHtml bietet den Caption-Toggle an', () => {
+    const html = fragenModusHtml({
+      skript: { prompt_kontext: { generator_payload: { mit_caption: true } } },
+      genStatus: null, docHeadActionsHtml: '', vorgabenPanelHtml: ''
+    });
+    const caption = html.match(/<input[^>]*data-aufbau-flag="mit_caption"[^>]*>/)?.[0] || '';
+    expect(caption).toContain('checked');
+  });
+
   it('skriptDocHtml wechselt bei inhalt_md auf Markdown-Sektionen', () => {
     const html = skriptDocHtml({
       skript: { titel: 'T', inhalt_md: '## Produktionskopf\nArbeitstitel: X' },
@@ -208,5 +321,243 @@ describe('SkriptEditorDocRenderer', () => {
     });
     expect(html).toContain('<table');
     expect(html).toContain('gesagt');
+  });
+});
+
+describe('verknuepfungenHtml', () => {
+  it('ohne Creator: CTA Creator zuweisen', () => {
+    const html = verknuepfungenHtml({ kannZuweisen: true });
+    expect(html).toContain('Creator zuweisen');
+    expect(html).toContain('id="ed-skript-zuweisen"');
+    expect(html).toContain('skripte-editor-zuweisen-btn');
+    expect(html).not.toContain('skripte-editor-zuweisen-chip');
+  });
+
+  it('Video-Creator: Chip mit Name, kein CTA', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      verknuepfungen: [{
+        kooperation: { creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+      }]
+    });
+    expect(html).toContain('Anna Meyer');
+    expect(html).toContain('skripte-editor-zuweisen-chip');
+    expect(html).not.toContain('Creator zuweisen');
+  });
+
+  it('nur Konzept-Creator: Chip mit Name, kein CTA', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      konzeptCreator: { vorname: 'Tim', nachname: 'Berg', name: 'Tim Berg' }
+    });
+    expect(html).toContain('Tim Berg');
+    expect(html).toContain('skripte-editor-zuweisen-chip');
+    expect(html).not.toContain('Creator zuweisen');
+  });
+
+  it('Video-Creator schlaegt Konzept-Creator', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      verknuepfungen: [{
+        kooperation: { creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+      }],
+      konzeptCreator: { vorname: 'Tim', nachname: 'Berg', name: 'Tim Berg' }
+    });
+    expect(html).toContain('Anna Meyer');
+    expect(html).not.toContain('Tim Berg');
+  });
+
+  it('Video-Chip zeigt Position/Anzahl neben dem Creator-Chip', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      verknuepfungen: [{
+        position: 2,
+        kooperation: { videoanzahl: 4, creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+      }]
+    });
+    expect(html).toContain('skripte-editor-video-chip');
+    expect(html).toContain('Video 2/4');
+    expect(html.indexOf('skripte-editor-zuweisen-chip')).toBeLessThan(html.indexOf('skripte-editor-video-chip'));
+  });
+
+  it('Video-Chip ohne videoanzahl nur mit Position', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      verknuepfungen: [{
+        position: 3,
+        kooperation: { creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+      }]
+    });
+    expect(html).toContain('Video 3<');
+  });
+
+  it('kein Video-Chip beim reinen Konzept-Creator', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      konzeptCreator: { vorname: 'Tim', nachname: 'Berg', name: 'Tim Berg' }
+    });
+    expect(html).not.toContain('skripte-editor-video-chip');
+  });
+
+  it('ohne kannZuweisen leer', () => {
+    expect(verknuepfungenHtml({
+      kannZuweisen: false,
+      konzeptCreator: { name: 'Tim Berg' }
+    })).toBe('');
+  });
+});
+
+describe('listeVideoHtml', () => {
+  it('baut "Video 2/4", mehrere Videos kommagetrennt', () => {
+    const html = listeVideoHtml([
+      { position: 2, kooperation: { videoanzahl: 4 } },
+      { position: 3, kooperation: { videoanzahl: 4 } }
+    ]);
+    expect(html).toContain('skripte-editor-liste-video');
+    expect(html).toContain('Video 2/4, Video 3/4');
+  });
+
+  it('ohne Position oder Verknuepfung leer, ohne Anzahl nur "Video 2"', () => {
+    expect(listeVideoHtml([])).toBe('');
+    expect(listeVideoHtml(undefined)).toBe('');
+    expect(listeVideoHtml([{ position: null, kooperation: { videoanzahl: 3 } }])).toBe('');
+    expect(listeVideoHtml([{ position: 2, kooperation: {} }])).toContain('>Video 2<');
+  });
+});
+
+describe('sortListeSkripte', () => {
+  const video = (name, position) => ([{
+    position,
+    kooperation: { videoanzahl: 3, creator: { id: name, vorname: name, nachname: '' } }
+  }]);
+  const skript = (id, name, position) => ({
+    id,
+    kooperation_videos: name ? video(name, position) : []
+  });
+  const ids = (list) => list.map((s) => s.id);
+  const sortiere = (list) => sortListeSkripte(list, (s) => s.kooperation_videos);
+
+  it('gruppiert nach Creator A-Z, darin Video 1, 2, 3', () => {
+    const sorted = sortiere([
+      skript('b3', 'Bea', 3), skript('a2', 'Anna', 2),
+      skript('b1', 'Bea', 1), skript('a1', 'Anna', 1),
+      skript('b2', 'Bea', 2), skript('a3', 'Anna', 3)
+    ]);
+    expect(ids(sorted)).toEqual(['a1', 'a2', 'a3', 'b1', 'b2', 'b3']);
+  });
+
+  it('ohne Creator ans Ende, ohne Nummer hinter die nummerierten, sonst stabil', () => {
+    const sorted = sortiere([
+      skript('frei1', null), skript('a-ohne', 'Anna', null),
+      skript('a2', 'Anna', 2), skript('frei2', null), skript('a1', 'Anna', 1)
+    ]);
+    expect(ids(sorted)).toEqual(['a1', 'a2', 'a-ohne', 'frei1', 'frei2']);
+  });
+
+  it('Position als String wird numerisch sortiert (10 nach 2)', () => {
+    const sorted = sortiere([skript('x10', 'Anna', '10'), skript('x2', 'Anna', '2')]);
+    expect(ids(sorted)).toEqual(['x2', 'x10']);
+  });
+});
+
+describe('konzeptCreatorFromSkript', () => {
+  it('nimmt den Casting-Namen vor den Stammdaten', () => {
+    const creator = konzeptCreatorFromSkript({
+      strategie_item: {
+        creator_name: 'Fallback',
+        casting_eintrag: {
+          name: 'Casting Name',
+          creator: {
+            id: 'c1', vorname: 'Lea', nachname: 'Hoff',
+            profilbild_url: 'https://img/full.jpg',
+            profilbild_thumb_url: 'https://img/thumb.jpg'
+          }
+        }
+      }
+    });
+    expect(creator).toMatchObject({
+      id: 'c1',
+      vorname: '',
+      nachname: '',
+      name: 'Casting Name',
+      profilbild_thumb_url: 'https://img/thumb.jpg'
+    });
+  });
+
+  it('faellt auf Casting-Name zurueck', () => {
+    const creator = konzeptCreatorFromSkript({
+      strategie_item: {
+        creator_name: 'Alt',
+        casting_eintrag: { name: 'Casting Name', creator: null }
+      }
+    });
+    expect(creator.name).toBe('Casting Name');
+    expect(creator.id).toBeNull();
+  });
+
+  it('faellt auf creator_name zurueck', () => {
+    expect(konzeptCreatorFromSkript({
+      strategie_item: { creator_name: 'Nur Name' }
+    })?.name).toBe('Nur Name');
+  });
+
+  it('ohne strategie_item null', () => {
+    expect(konzeptCreatorFromSkript({ titel: 'X' })).toBeNull();
+  });
+});
+
+describe('docHeadActionsHtml', () => {
+  const menuDrin = (html, id) => {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return Boolean(div.querySelector(`.toolbar-menu-dropdown #${id}`));
+  };
+
+  it('zeigt Senden sichtbar und Teilen im Menü unter demselben Gate', () => {
+    const html = docHeadActionsHtml({ kannTeilen: true });
+    expect(html).toContain('>Senden<');
+    expect(menuDrin(html, 'ed-anschreiben')).toBe(false);
+    expect(menuDrin(html, 'ed-share')).toBe(true);
+
+    const ohne = docHeadActionsHtml({ kannTeilen: false });
+    expect(ohne).not.toContain('id="ed-share"');
+    expect(ohne).not.toContain('id="ed-anschreiben"');
+  });
+
+  it('legt PDF, Link kopieren und Creator tauschen ins Menü', () => {
+    const html = docHeadActionsHtml({ kannPdf: true, kannTeilen: true, kannTauschen: true });
+    expect(menuDrin(html, 'ed-pdf')).toBe(true);
+    expect(menuDrin(html, 'ed-copy-link')).toBe(true);
+    expect(menuDrin(html, 'ed-creator-tauschen')).toBe(true);
+
+    expect(docHeadActionsHtml({ kannTauschen: false })).not.toContain('id="ed-creator-tauschen"');
+  });
+
+  it('zeigt kein Menü, wenn nichts drin wäre', () => {
+    expect(docHeadActionsHtml({})).not.toContain('id="ed-kopf-menu"');
+  });
+
+  it('zeigt Freigeben nur mit kannFreigeben', () => {
+    const html = docHeadActionsHtml({ kannFreigeben: true });
+    expect(html).toContain('id="ed-freigeben"');
+    expect(html).toContain('>Freigeben<');
+
+    const ohne = docHeadActionsHtml({ kannFreigeben: false });
+    expect(ohne).not.toContain('id="ed-freigeben"');
+  });
+
+  it('zeigt Löschen nur mit kannLoeschen', () => {
+    const html = docHeadActionsHtml({ kannLoeschen: true });
+    expect(menuDrin(html, 'ed-loeschen')).toBe(true);
+    expect(html).toContain('action-danger');
+
+    const ohne = docHeadActionsHtml({ kannLoeschen: false });
+    expect(ohne).not.toContain('id="ed-loeschen"');
+  });
+
+  it('zeigt bei Status freigegeben ein Badge und keinen Button', () => {
+    const html = docHeadActionsHtml({ status: 'freigegeben', kannFreigeben: false });
+    expect(html).toContain('Freigegeben');
+    expect(html).not.toContain('id="ed-freigeben"');
   });
 });

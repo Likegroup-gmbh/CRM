@@ -3,18 +3,21 @@
 
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { kampagneAbschlussOptions } from '../../core/actions/kampagneAbschluss.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { resolveEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
-import { getShowCompleted } from './kampagneListPrefs.js';
+import { getHideCompleted } from './kampagneListPrefs.js';
+import { renderLeistungszeitraumCell } from '../../core/utils/leistungszeitraum.js';
 
 const FILTER_ICON = `${icon('filter-alt')}`;
-const EYE_ICON = `${icon('eye-outline')}`;
+const EYE_ICON = `${icon('eye-closed')}`;
 
-export function renderKampagneListToolbarMenu({ isKunde = false, showCompleted = false } = {}) {
+export function renderKampagneListToolbarMenu({ isKunde = false, hideCompleted = false } = {}) {
   return renderToolbarMenu({
     toggleId: 'btn-kampagne-list-toolbar-menu',
     badgeHtml: '<span class="filter-count-badge" id="kampagne-list-plus-badge" hidden></span>',
@@ -22,10 +25,10 @@ export function renderKampagneListToolbarMenu({ isKunde = false, showCompleted =
       <div class="action-submenu toolbar-completed-toggle">
         <span class="toolbar-completed-toggle-label">
           ${EYE_ICON}
-          <span>Abgeschlossene anzeigen</span>
+          <span>Abgeschlossene verbergen</span>
         </span>
         <label class="toggle-switch toggle-switch-small">
-          <input type="checkbox" id="kampagne-show-completed"${showCompleted ? ' checked' : ''}>
+          <input type="checkbox" id="kampagne-hide-completed"${hideCompleted ? ' checked' : ''}>
           <span class="toggle-slider"></span>
         </label>
       </div>
@@ -47,7 +50,7 @@ export function renderPageHtml({ currentView, searchQuery }) {
   const isKunde = window.isKunde();
   const isMitarbeiter = window.isMitarbeiter();
   const canBulkDelete = window.canBulkDelete();
-  const showCompleted = getShowCompleted();
+  const hideCompleted = getHideCompleted();
 
   return `
     <div class="table-filter-wrapper kampagne-list-page">
@@ -61,6 +64,10 @@ export function renderPageHtml({ currentView, searchQuery }) {
             <button id="btn-view-list" class="mdc-btn mdc-btn--secondary ${currentView === 'list' ? 'active' : ''}">
               ${icon('table-grid')}
               Liste
+            </button>
+            <button id="btn-view-grid" class="mdc-btn mdc-btn--secondary ${currentView === 'grid' ? 'active' : ''}">
+              ${icon('folder')}
+              Grid
             </button>
             ${!isKunde ? `<button id="btn-view-calendar" class="mdc-btn mdc-btn--secondary ${currentView === 'calendar' ? 'active' : ''}">
               ${icon('calendar-days')}
@@ -76,14 +83,15 @@ export function renderPageHtml({ currentView, searchQuery }) {
         ${!isKunde && currentView === 'list' && canBulkDelete ? '<span id="selected-count" style="display:none;">0 ausgewählt</span>' : ''}
         ${!isKunde && currentView === 'list' && canBulkDelete ? '<button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>' : ''}
         ${!isKunde && canEdit && !isMitarbeiter ? '<button id="btn-kampagne-new" class="mdc-btn">Neue Kampagne anlegen</button>' : ''}
-        ${renderKampagneListToolbarMenu({ isKunde, showCompleted })}
+        ${renderKampagneListToolbarMenu({ isKunde, hideCompleted })}
       </div>
     </div>
 
     <div class="content-section">
       <div id="kampagnen-content-container">
-        ${currentView === 'calendar' ? '<div id="calendar-container"></div>' : 
-          renderTableWrapper()}
+        ${currentView === 'calendar' ? '<div id="calendar-container"></div>'
+          : currentView === 'grid' ? '<div id="kampagnen-grid-root"></div>'
+          : renderTableWrapper()}
       </div>
     </div>
   `;
@@ -105,6 +113,7 @@ export function renderTableWrapper() {
             <th class="col-name">Kampagnenname</th>
             <th class="col-unternehmen">Unternehmen</th>
             <th class="col-marke">Marke</th>
+            <th class="col-leistungszeitraum">Leistungszeitraum</th>
             <th class="col-art">Art der Kampagne</th>
             <th class="col-budget">Budget</th>
             <th class="col-creator-anzahl">Creator Anzahl</th>
@@ -116,7 +125,7 @@ export function renderTableWrapper() {
         </thead>
         <tbody id="kampagnen-table-body">
           <tr>
-            <td colspan="${isKunde ? '7' : '12'}" class="loading">Lade Kampagnen...</td>
+            <td colspan="${isKunde ? '8' : '13'}" class="loading">Lade Kampagnen...</td>
           </tr>
         </tbody>
       </table>
@@ -163,8 +172,10 @@ export async function updateTable(kampagnen, { bindDragToScroll, hasActiveFilter
       return;
     }
 
-    tbody.innerHTML = kampagnen.map(kampagne => `
-      <tr data-id="${kampagne.id}">
+    tbody.innerHTML = kampagnen.map(kampagne => {
+      const completed = kampagne.is_completed === true;
+      return `
+      <tr data-id="${kampagne.id}"${completed ? ' class="kampagne-row--completed"' : ''}>
         ${!isKunde && canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="kampagne-check" data-id="${kampagne.id}"></td>` : ''}
         <td class="col-name">
           <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
@@ -173,6 +184,7 @@ export async function updateTable(kampagnen, { bindDragToScroll, hasActiveFilter
         </td>
         <td class="col-unternehmen">${renderUnternehmen(kampagne.unternehmen)}</td>
         <td class="col-marke">${renderMarke(kampagne.marke)}</td>
+        ${renderLeistungszeitraumCell(kampagne)}
         <td class="col-art">${renderArtTags(kampagne.art_der_kampagne_display || kampagne.art_der_kampagne)}</td>
         <td class="col-budget">${renderBudgetProgress(kampagne)}</td>
         <td class="col-creator-anzahl">${kampagne.creatoranzahl || 0}</td>
@@ -180,10 +192,11 @@ export async function updateTable(kampagnen, { bindDragToScroll, hasActiveFilter
         ${!isKunde ? `<td class="col-ansprechpartner">${renderAnsprechpartner(kampagne.ansprechpartner)}</td>` : ''}
         ${!isKunde ? `<td class="col-mitarbeiter">${renderMitarbeiter(kampagne.mitarbeiter)}</td>` : ''}
         ${!isKunde ? `<td class="col-actions">
-          ${actionBuilder.create('kampagne', kampagne.id, window.currentUser)}
+          ${actionBuilder.create('kampagne', kampagne.id, window.currentUser, kampagneAbschlussOptions(kampagne))}
         </td>` : ''}
       </tr>
-    `).join('');
+    `;
+    }).join('');
   });
 
   bindDragToScroll();
@@ -277,6 +290,45 @@ export function renderArtTags(artArray) {
     return `<span class="tag tag--type">${window.validatorSystem?.sanitizeHtml(shortArt) || shortArt}</span>`;
   }).join('');
   return `<div class="tags tags-compact">${inner}</div>`;
+}
+
+export function renderFolderRows(folders, { mode }) {
+  if (!folders.length) {
+    const html = resolveEmptyState({
+      hasActiveFilters: false,
+      states: {
+        default: {
+          icon: 'megaphone',
+          title: mode === 'companies' ? 'Keine Kampagnen vorhanden' : 'Keine Marken mit Kampagnen',
+          text: mode === 'companies'
+            ? 'Es wurden noch keine Kampagnen angelegt.'
+            : 'Für dieses Unternehmen gibt es noch keine Kampagnen.'
+        }
+      }
+    }, 'default');
+    return `<tr><td colspan="2" class="empty-state-cell">${html}</td></tr>`;
+  }
+
+  return folders.map((folder) => {
+    const name = mode === 'companies' ? folder.firmenname : folder.markenname;
+    const countLabel = `${folder.count} ${folder.count === 1 ? 'Kampagne' : 'Kampagnen'}`;
+    const attrs = mode === 'companies'
+      ? `data-unternehmen-id="${folder.id}" data-unternehmen-name="${window.validatorSystem.sanitizeHtml(name)}"`
+      : folder.virtual
+        ? `data-ohne-marke="1" data-marke-name="${window.validatorSystem.sanitizeHtml(name)}"`
+        : `data-marke-id="${folder.id}" data-marke-name="${window.validatorSystem.sanitizeHtml(name)}"`;
+    return `
+      <tr class="kampagne-folder-row" ${attrs}>
+        <td class="col-folder-name">${renderTableIdentity({
+          url: folder.logo_url,
+          logo: true,
+          iconHtml: icon('folder-open'),
+          nameHtml: `<span class="table-link">${window.validatorSystem.sanitizeHtml(name)}</span>`
+        })}</td>
+        <td class="col-folder-count">${countLabel}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 export function renderMitarbeiter(users) {

@@ -31,4 +31,20 @@ describe('ModuleRegistry Gast-Routensperre', () => {
     expect(window.toastSystem.show).not.toHaveBeenCalled();
     expect(init).toHaveBeenCalledWith('abc');
   });
+
+  it('lässt Produktionen nur bei geteilten Kampagnen durch', async () => {
+    const registry = new ModuleRegistry();
+    const init = vi.fn();
+    registry.register('kampagne-detail', { init });
+    await registry.navigateTo('/produktion/p1');
+    expect(init).not.toHaveBeenCalled();
+
+    window.guestShare = { allowedRoute: '/kampagne/k1', entityType: 'kampagne', entityId: 'k1', rechte: 'feedback' };
+    await registry.navigateTo('/produktion/p1');
+    expect(init).toHaveBeenCalledWith('p1');
+    expect(window.toastSystem.show).toHaveBeenCalledTimes(1);
+
+    await registry.navigateTo('/produktion/p1/edit');
+    expect(init).toHaveBeenCalledTimes(1);
+  });
 });

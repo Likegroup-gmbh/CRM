@@ -4,9 +4,10 @@
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
+import { renderFolderAvatar } from '../../core/format/folderAvatar.js';
 
-const FOLDER_SVG = `${icon('folder-open')}`;
 
 const BACK_SVG = `${icon('arrow-left')}`;
 
@@ -77,10 +78,7 @@ export class VideoFolderRenderer {
     grid.innerHTML = folders.map(f => `
       <div class="folder-card" data-unternehmen-id="${f.id}" data-unternehmen-name="${esc(f.firmenname)}">
         <div class="folder-icon">
-          ${f.logo_url
-            ? `<img src="${esc(f.logo_url)}" alt="${esc(f.firmenname)}" class="folder-logo">`
-            : FOLDER_SVG
-          }
+          ${renderFolderAvatar({ url: f.logo_url, name: f.firmenname })}
         </div>
         <div class="folder-info">
           <span class="folder-name">${esc(f.firmenname)}</span>
@@ -106,11 +104,13 @@ export class VideoFolderRenderer {
 
     tbody.innerHTML = folders.map(f => `
       <tr class="table-row-clickable unternehmen-row" data-unternehmen-id="${f.id}" data-unternehmen-name="${esc(f.firmenname)}">
-        <td>
-          <div class="flex-center-sm">
-            ${f.logo_url ? `<img src="${esc(f.logo_url)}" alt="${esc(f.firmenname)}" class="table-logo">` : ''}
-            <a href="#" class="table-link unternehmen-link" data-unternehmen-id="${f.id}" data-unternehmen-name="${esc(f.firmenname)}">${esc(f.firmenname)}</a>
-          </div>
+        <td class="col-name">
+          ${renderTableIdentity({
+            url: f.logo_url,
+            logo: true,
+            iconHtml: icon('folder-open'),
+            nameHtml: `<a href="#" class="table-link unternehmen-link" data-unternehmen-id="${f.id}" data-unternehmen-name="${esc(f.firmenname)}">${esc(f.firmenname)}</a>`
+          })}
         </td>
         <td>${f.count}</td>
       </tr>
@@ -178,7 +178,7 @@ export class VideoFolderRenderer {
 
     grid.innerHTML = folders.map(f => `
       <div class="folder-card" data-kampagne-id="${f.id}" data-kampagne-name="${esc(f.name)}">
-        <div class="folder-icon">${FOLDER_SVG}</div>
+        <div class="folder-icon">${renderFolderAvatar()}</div>
         <div class="folder-info">
           <span class="folder-name">${esc(f.name)}</span>
           <span class="folder-count">${f.count} ${f.count === 1 ? 'Video' : 'Videos'}</span>
@@ -229,14 +229,14 @@ export class VideoFolderRenderer {
         <div class="table-container">
           <div class="folders-grid" id="kampagne-root-grid">
             <div class="folder-card" data-root-target="videos">
-              <div class="folder-icon">${FOLDER_SVG}</div>
+              <div class="folder-icon">${renderFolderAvatar()}</div>
               <div class="folder-info">
                 <span class="folder-name">Videos</span>
                 <span class="folder-count">Feedbackschleifen &amp; Finale</span>
               </div>
             </div>
             <div class="folder-card" data-root-target="rohmaterial">
-              <div class="folder-icon">${FOLDER_SVG}</div>
+              <div class="folder-icon">${renderFolderAvatar()}</div>
               <div class="folder-info">
                 <span class="folder-name">Rohmaterial</span>
                 <span class="folder-count">Abgaben der Creator</span>

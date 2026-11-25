@@ -7,13 +7,14 @@
 import { escapeHtml } from '../SkripteUtils.js';
 import {
   AKTION_LABELS, AKTION_ICONS, AI_SELEKTION_AKTIONEN, FORMAT_AKTIONEN,
-    PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
+  PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT, HOOK_VARIANTE_FELDER, GRID_MD
 } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
 import {
-  renderInlineMd, htmlToInlineMd, detectInlineFormat, domSelectionToRaw
+  renderInlineMd, htmlToInlineMd, detectInlineFormat, detectErweitert, domSelectionToRaw
 } from '../../../core/utils/inlineFormat.js';
+import { renderBlockMd } from './dokument/blockRenderer.js';
 
 export class SkriptEditorSelection {
   constructor(view) {
@@ -28,7 +29,25 @@ export class SkriptEditorSelection {
 
     const sel = window.getSelection();
     const text = sel?.toString().trim();
+    v.blockSelektion = null;
     if (!sel || sel.isCollapsed || !text) {
+      menu.hidden = true;
+      return;
+    }
+
+    // Freie Bloecke (ADR 0062): nur Formatierung, kein Kommentar, keine Liky-Aktion
+    const blockZelle = (node) => {
+      const el = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+      return el?.closest?.('.skripte-editor-block-text') || null;
+    };
+    const blockStart = blockZelle(sel.anchorNode);
+    const blockEnde = blockZelle(sel.focusNode);
+    if (blockStart || blockEnde) {
+      if (blockStart === blockEnde && v.kannBloeckeEditieren) this.openBlockFormatMenu(menu, blockStart, sel);
+      else menu.hidden = true;
+      return;
+    }
+    if (!v.kannKommentieren) {
       menu.hidden = true;
       return;
     }
@@ -58,19 +77,23 @@ export class SkriptEditorSelection {
     const istMasterZelle = start.classList.contains('skripte-editor-sektion-text--md');
     if (v.kannAiAktionen && !istMasterZelle) {
       const raw = htmlToInlineMd(start);
-      const { toRaw } = renderInlineMd(raw);
+      const { toRaw } = renderInlineMd(raw, GRID_MD);
       const offsets = domSelectionToRaw(start, toRaw);
       if (offsets && offsets.start !== offsets.end) {
         v.selektion.start = offsets.start;
         v.selektion.end = offsets.end;
         const { bold, italic } = detectInlineFormat(raw, offsets.start, offsets.end);
+        const { highlight } = detectErweitert(raw, offsets.start, offsets.end);
         const fettId = bold ? 'fett_entfernen' : 'fett';
         const kursivId = italic ? 'kursiv_entfernen' : 'kursiv';
+        // Titel ist Klartext (Liste, PDF-Dateiname): keine Hervorhebung
+        const ids = [fettId, kursivId];
+        if (feld !== 'titel') ids.push(highlight ? 'highlight_entfernen' : 'highlight');
         formatierungItem = {
           id: 'formatierung',
           iconHtml: AKTION_ICONS.formatierung,
           label: AKTION_LABELS.formatierung,
-          children: [fettId, kursivId].map((id) => ({
+          children: ids.map((id) => ({
             id,
             iconHtml: AKTION_ICONS[id],
             label: AKTION_LABELS[id]
@@ -96,6 +119,14 @@ export class SkriptEditorSelection {
     }));
     // Formatierung ganz oben im Menue
     if (formatierungItem) items.unshift(formatierungItem);
+    if (v.kannAiAktionen && HOOK_VARIANTE_FELDER.includes(feld)) {
+      items.push({
+        id: 'hook_uebertragen',
+        iconHtml: AKTION_ICONS.hook_uebertragen,
+        label: AKTION_LABELS.hook_uebertragen,
+        data: { aktion: 'hook_uebertragen' }
+      });
+    }
 
     openFloatingMenu({
       el: menu,
@@ -107,6 +138,48 @@ export class SkriptEditorSelection {
     });
   }
 
+  /** Selektions-Menue in einem Freien Block: Fett, Kursiv, Hervorheben. */
+  openBlockFormatMenu(menu, zelle, sel) {
+    const v = this.view;
+    const raw = htmlToInlineMd(zelle);
+    const offsets = domSelectionToRaw(zelle, renderBlockMd(raw).toRaw);
+    if (!offsets || offsets.start === offsets.end) {
+      menu.hidden = true;
+      return;
+    }
+    // Ein offener Grid-Chip gehoert nicht zu dieser Auswahl
+    if (v.selektion || v.pendingAktion) this.clearPendingOhneAuswahl();
+    v.blockSelektion = { ort: v._blocks.ortVon(zelle), start: offsets.start, end: offsets.end };
+    const { bold, italic } = detectInlineFormat(raw, offsets.start, offsets.end);
+    const { highlight } = detectErweitert(raw, offsets.start, offsets.end);
+    const ids = [
+      bold ? 'fett_entfernen' : 'fett',
+      italic ? 'kursiv_entfernen' : 'kursiv',
+      highlight ? 'highlight_entfernen' : 'highlight'
+    ];
+    const modmenu = document.getElementById('ed-modmenu');
+    if (modmenu) modmenu.hidden = true;
+    v.closeVersionMenu();
+    openFloatingMenu({
+      el: menu,
+      anchor: sel.getRangeAt(0),
+      wrap: v.container.querySelector('.skripte-editor'),
+      layout: 'icon-label',
+      items: ids.map((id) => ({ id, iconHtml: AKTION_ICONS[id], label: AKTION_LABELS[id] })),
+      onSelect: (aktion) => this.view.formatiereSelektion(aktion)
+    });
+  }
+
+  /** Chip und vorgemerkte Aktion weg, die DOM-Auswahl bleibt stehen. */
+  clearPendingOhneAuswahl() {
+    const v = this.view;
+    v.selektion = null;
+    v.pendingAktion = null;
+    this.updateChip();
+    const input = document.getElementById('ed-input');
+    if (input) input.placeholder = PLACEHOLDER_DEFAULT;
+  }
+
   /** "Kommentieren" geht ins Feedback-Panel, Formatierung direkt an die
    *  Zelle, alles andere in den Liky-Chat. */
   onAktion(aktion) {
@@ -115,6 +188,11 @@ export class SkriptEditorSelection {
       this.clearPending();
       this.view.startNeuerKommentar(selektion);
       return;
+    }
+    if (aktion === 'hook_uebertragen') {
+      const feld = this.view.selektion?.feld;
+      this.clearPending();
+      return this.view.hookUebertragen(feld);
     }
     if (FORMAT_AKTIONEN[aktion]) {
       this.view.formatiereSelektion(aktion);

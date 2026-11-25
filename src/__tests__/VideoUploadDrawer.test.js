@@ -23,31 +23,26 @@ function createMockSupabase(assets = []) {
   };
 }
 
-function createTrackingSupabase(assets = [], opts = {}) {
+function createTrackingSupabase(assets = [], { video = {} } = {}) {
   const log = [];
 
-  function makeSelectChain(data) {
+  function chainOf(data) {
     const result = Promise.resolve({ data, error: null });
     const chain = {
-      eq: vi.fn(() => chain),
-      order: vi.fn(() => chain),
-      in: vi.fn(() => chain),
       maybeSingle: vi.fn(() => Promise.resolve({ data: data?.[0] || null, error: null })),
       single: vi.fn(() => Promise.resolve({ data: data?.[0] || null, error: null })),
       then: result.then.bind(result),
     };
+    for (const m of ['eq', 'in', 'is', 'order', 'limit', 'select']) chain[m] = vi.fn(() => chain);
     return chain;
   }
 
   return {
     from: vi.fn((table) => ({
-      select: vi.fn(() => makeSelectChain(assets)),
+      select: vi.fn(() => chainOf(table === 'kooperation_videos' ? [video] : assets)),
       update: vi.fn((data) => {
         log.push({ op: 'update', table, data });
-        return {
-          eq: vi.fn(() => Promise.resolve({ error: null })),
-          in: vi.fn(() => Promise.resolve({ error: null })),
-        };
+        return chainOf(null);
       }),
       insert: vi.fn((data) => {
         log.push({ op: 'insert', table, data });
@@ -55,11 +50,7 @@ function createTrackingSupabase(assets = [], opts = {}) {
       }),
       delete: vi.fn(() => {
         log.push({ op: 'delete', table });
-        return {
-          eq: vi.fn(() => ({
-            eq: vi.fn(() => Promise.resolve({ error: null })),
-          })),
-        };
+        return chainOf([{ id: 'deleted' }]);
       }),
     })),
     _log: log,
@@ -170,7 +161,7 @@ describe('VideoUploadDrawer', () => {
 
       const variantSelect = queueEl.querySelector('.video-final-variant-select');
       expect(variantSelect).not.toBeNull();
-      expect([...variantSelect.options].map(o => o.value)).toEqual(['9:16', '4:5']);
+      expect([...variantSelect.options].map(o => o.value)).toEqual(['9:16', '4:5', '1:1']);
       expect(queueEl.querySelector('.video-variant-name-input')).toBeNull();
 
       // Zurueck zu Feedbackschleife -> Freitext wieder da, Flag zurueckgesetzt
@@ -183,55 +174,28 @@ describe('VideoUploadDrawer', () => {
     });
   });
 
-  describe('saveAssetVersion', () => {
-    it('speichert korrekte version_number statt hardcoded 1', async () => {
-      const sb = createTrackingSupabase([]);
+  describe('Abgeleitete Felder kommen aus der DB', () => {
+    it('Löschen: Kommentare weg, Zeile weg, Abgleich über onVideoAssetDeleted', async () => {
+      const finale = {
+        id: 'a-final', file_url: 'https://dl/x', file_path: '/x/v1.mp4', version_number: 1,
+        variant_name: '9:16', is_current: false, is_final: true, created_at: '2026-01-01T00:00:00Z',
+      };
+      const sb = createTrackingSupabase([finale]);
       window.supabase = sb;
+      const onVideoAssetDeleted = vi.fn();
+      const onFinaleChanged = vi.fn();
+      await drawer.open('video-1', defaultMetadaten, vi.fn(), null, null, { onVideoAssetDeleted, onFinaleChanged });
 
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-      await drawer.saveAssetVersion('https://file.url', '/path/to/file', 'videoname', 'https://folder.url', 2);
+      await vi.waitFor(() => expect(document.querySelector('.existing-video-delete[data-id="a-final"]')).not.toBeNull());
+      document.querySelector('.existing-video-delete[data-id="a-final"]').click();
+      await vi.waitFor(() => expect(onFinaleChanged).toHaveBeenCalledWith('video-1'));
 
-      const assetInsert = sb._log.find(e => e.op === 'insert' && e.table === 'kooperation_video_asset');
-      expect(assetInsert).toBeDefined();
-      expect(assetInsert.data.version_number).toBe(2);
-    });
-
-    it('aktualisiert folder_url immer (nicht nur wenn leer)', async () => {
-      const sb = createTrackingSupabase([]);
-      window.supabase = sb;
-
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-      await drawer.saveAssetVersion('https://file.url', '/path', 'name', 'https://new-folder.url', 1);
-
-      const videoUpdate = sb._log.find(e => e.op === 'update' && e.table === 'kooperation_videos');
-      expect(videoUpdate).toBeDefined();
-      expect(videoUpdate.data.folder_url).toBe('https://new-folder.url');
-    });
-
-    it('fügt neuen Asset hinzu ohne alten zu löschen (Append-Modus)', async () => {
-      const sb = createTrackingSupabase([{ version_number: 1 }]);
-      window.supabase = sb;
-
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-      await drawer.saveAssetVersion('https://new.url', '/new/path', 'name', 'https://folder.url', 1);
-
-      const deleteOps = sb._log.filter(e => e.op === 'delete' && e.table === 'kooperation_video_asset');
-      expect(deleteOps.length).toBe(0);
-
-      const assetInsert = sb._log.find(e => e.op === 'insert' && e.table === 'kooperation_video_asset');
-      expect(assetInsert).toBeDefined();
-      expect(assetInsert.data.version_number).toBe(1);
-    });
-
-    it('ruft _updateCurrentFlags nach dem Speichern auf', async () => {
-      const sb = createTrackingSupabase([{ version_number: 1 }]);
-      window.supabase = sb;
-
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-      await drawer.saveAssetVersion('https://new.url', '/new/path', 'name', null, 1);
-
-      const updateOps = sb._log.filter(e => e.op === 'update');
-      expect(updateOps.length).toBeGreaterThanOrEqual(1);
+      expect(sb._log).toContainEqual({
+        op: 'update', table: 'kooperation_video_zeitkommentar', data: { deleted_at: expect.any(String) },
+      });
+      expect(sb._log).toContainEqual({ op: 'delete', table: 'kooperation_video_asset' });
+      expect(onVideoAssetDeleted).toHaveBeenCalledWith(finale);
+      expect(sb._log.filter(e => e.op === 'update' && e.table === 'kooperation_video_asset')).toEqual([]);
     });
   });
 
@@ -244,56 +208,16 @@ describe('VideoUploadDrawer', () => {
       expect(panel?.classList.contains('drawer-panel--upload')).toBe(true);
     });
 
-    it('Link-Modus: Speichern-Button nutzt Check-Icon, kein Link-Ketten-SVG', async () => {
+    it('kein Link-Modus mehr: immer Dropzone, kein Chip, keine Link- oder Ordner-Felder', async () => {
       window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true, folderUrl: 'https://contoso.sharepoint.com/:f:/g/abc' }, vi.fn());
 
-      const submitBtn = document.getElementById('video-upload-submit-btn');
-      expect(submitBtn?.innerHTML).toContain('#crm-icon-check-filled');
-      expect(submitBtn?.innerHTML).not.toContain('#crm-icon-link');
-      expect(submitBtn?.querySelector('.mdc-btn__icon')).not.toBeNull();
-    });
-
-    it('Link-Modus: Link-hinzufügen nutzt Plus-Icon in mdc-btn__icon', async () => {
-      window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
-
-      const addBtn = document.getElementById('video-link-add-btn');
-      expect(addBtn?.innerHTML).toContain('#crm-icon-plus-lg');
-      expect(addBtn?.classList.contains('upload-drawer-btn--secondary')).toBe(true);
-    });
-  });
-
-  describe('Kein-Dropbox Header-Chip', () => {
-    it('zeigt aktiven Chip wenn keinDropbox in Metadaten gesetzt ist', async () => {
-      window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
-
-      const chip = document.getElementById('external-links-chip');
-      expect(chip).not.toBeNull();
-      expect(chip.classList.contains('is-active')).toBe(true);
-      expect(chip.getAttribute('aria-pressed')).toBe('true');
-      expect(document.getElementById('external-links-toggle')).toBeNull();
-    });
-
-    it('toggelt useExternalLinks beim Klick auf den Chip', async () => {
-      window.supabase = createMockSupabase([]);
-      await drawer.open('video-1', defaultMetadaten, vi.fn());
-
-      const chip = document.getElementById('external-links-chip');
-      expect(drawer.useExternalLinks).toBe(false);
-      expect(chip.classList.contains('is-active')).toBe(false);
-
-      chip.click();
-      expect(drawer.useExternalLinks).toBe(true);
-      expect(chip.classList.contains('is-active')).toBe(true);
-      expect(chip.getAttribute('aria-pressed')).toBe('true');
-      expect(document.getElementById('video-upload-dropzone')).toBeNull();
-
-      chip.click();
-      expect(drawer.useExternalLinks).toBe(false);
-      expect(chip.classList.contains('is-active')).toBe(false);
       expect(document.getElementById('video-upload-dropzone')).not.toBeNull();
+      expect(document.getElementById('external-links-chip')).toBeNull();
+      expect(document.getElementById('video-link-add-btn')).toBeNull();
+      expect(document.getElementById('video-folder-url-input')).toBeNull();
+      expect(document.querySelector('[data-link-mode]')).toBeNull();
+      expect(drawer.useExternalLinks).toBeUndefined();
     });
   });
 

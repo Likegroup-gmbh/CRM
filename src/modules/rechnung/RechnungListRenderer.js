@@ -12,19 +12,25 @@ import { animateNumber } from '../../core/animation/animateNumber.js';
 import { ALL_TAB, formatMonthEmptyText } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 import { renderVertragCell } from './RechnungVertragColumn.js';
-import { sumInvoiceRows, sumPaidRechnungRows } from './Monatsblatt.js';
+import { summarizeRechnungRows } from './invoiceCardTotals.js';
+import { renderVerknuepfungPill } from '../../core/ui/verknuepfungPill.js';
 
 const currencyFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
-const summaryFormatter = new Intl.NumberFormat('de-DE', {
-  style: 'currency', currency: 'EUR',
-  minimumFractionDigits: 0, maximumFractionDigits: 0
-});
+const summaryFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 const dateFormatter = new Intl.DateTimeFormat('de-DE');
 
 function formatCurrency(v) { return v == null ? '-' : currencyFormatter.format(v); }
 function formatDate(v) { return v ? dateFormatter.format(new Date(v)) : '-'; }
 export function formatRechnungSummaryCurrency(value) {
   return summaryFormatter.format(Number(value) || 0);
+}
+
+export const SKONTO_STATUS_TAB = 'skonto';
+
+export function rechnungMatchesStatusTab(rechnung, tabId) {
+  if (!tabId || tabId === 'alle') return true;
+  if (tabId === SKONTO_STATUS_TAB) return rechnung?.skonto === true;
+  return rechnung?.status === tabId;
 }
 
 export function getRechnungColumnCount(isAdmin) {
@@ -92,7 +98,7 @@ export function renderPageShell({ isAdmin, canEdit, showSummary, searchQuery, st
     </div>
 
     <div class="tab-navigation rechnung-type-tabs">${typeTabsHtml}</div>
-    <div class="tab-navigation rechnung-status-tabs">${statusTabsHtml}</div>
+    <div class="tab-navigation tab-navigation--liste rechnung-status-tabs">${statusTabsHtml}</div>
     </div>
 
     <div class="kr-scroll-body">
@@ -142,29 +148,34 @@ export function renderPageShell({ isAdmin, canEdit, showSummary, searchQuery, st
 export function renderInvoiceSummaryCards() {
   const zero = formatRechnungSummaryCurrency(0);
   const cards = [
-    { field: 'nettobetrag', label: 'Netto' },
-    { field: 'ust_betrag', label: 'Mehrwertsteuer' },
-    { field: 'bruttobetrag', label: 'Brutto' }
+    { field: 'koop_creator_kosten', label: 'Netto Creator Kosten' },
+    { field: 'gestellt_netto', label: 'Netto Creator Kosten gestellt', mwst: true },
+    { field: 'bezahlt_netto', label: 'Netto Creator Kosten bezahlt' },
+    { field: 'offen_netto', label: 'Netto Creator Kosten unbezahlt', ueberfaellig: true }
   ];
   return `
     <div class="auftragsdetails-summary" id="rechnungen-summary-cards">
       <div class="summary-cards">
-        <div class="summary-card summary-card--wide" data-summary-card="bezahlt">
-          <div class="summary-card-values">
-            <div class="summary-card-value-block">
-              <div class="summary-value" data-summary-value="bezahlt_netto">${zero}</div>
-              <div class="summary-label">Bereits bezahlt (Netto)</div>
-            </div>
-            <div class="summary-card-value-block">
-              <div class="summary-value" data-summary-value="bezahlt_brutto">${zero}</div>
-              <div class="summary-label">Bereits bezahlt (Brutto)</div>
-            </div>
-          </div>
-        </div>
-        ${cards.map(({ field, label }) => `
+        ${cards.map(({ field, label, mwst, ueberfaellig }) => `
           <div class="summary-card" data-summary-card="${field}">
             <div class="summary-value" data-summary-value="${field}">${zero}</div>
             <div class="summary-label">${label}</div>
+            ${mwst ? `
+              <div class="summary-card-breakdown">
+                <div class="summary-card-breakdown-line">
+                  <span>abzuführende MwSt</span>
+                  <span data-summary-value="gestellt_ust">${zero}</span>
+                </div>
+              </div>
+            ` : ''}
+            ${ueberfaellig ? `
+              <div class="summary-card-breakdown">
+                <div class="summary-card-breakdown-line summary-card-breakdown-line--overdue">
+                  <span>davon überfällig</span>
+                  <span data-summary-value="ueberfaellig_netto">${zero}</span>
+                </div>
+              </div>
+            ` : ''}
           </div>
         `).join('')}
       </div>
@@ -189,16 +200,20 @@ export function renderInvoiceSummaryFoot(isAdmin) {
   `;
 }
 
-export function updateInvoiceSummary(rows, { animate = false } = {}) {
-  const totals = sumInvoiceRows(rows);
-  const paid = sumPaidRechnungRows(rows);
+export function updateInvoiceSummary(rows, { animate = false, creatorKosten = 0 } = {}) {
+  const summary = summarizeRechnungRows(rows);
   const foot = document.getElementById('rechnungen-summary');
   const cards = document.getElementById('rechnungen-summary-cards');
   const format = formatRechnungSummaryCurrency;
   const entries = {
-    ...totals,
-    bezahlt_netto: paid.netto,
-    bezahlt_brutto: paid.brutto
+    nettobetrag: summary.nettobetrag,
+    bruttobetrag: summary.bruttobetrag,
+    koop_creator_kosten: Number(creatorKosten) || 0,
+    gestellt_netto: summary.gestellt_netto,
+    gestellt_ust: summary.gestellt_ust,
+    bezahlt_netto: summary.bezahlt_netto,
+    offen_netto: summary.offen_netto,
+    ueberfaellig_netto: summary.ueberfaellig_netto
   };
   Object.entries(entries).forEach(([field, value]) => {
     const targets = [
@@ -215,12 +230,12 @@ export function updateInvoiceSummary(rows, { animate = false } = {}) {
 
 // ────────────────────────── Table rows ──────────────────────────
 
-export async function updateTableRows(rechnungen, { isAdmin, statusOptions, activeStatusTab, activeTypeTab, currentMonth, currentYear, notizMap, hasActiveFilters, animate = false }) {
+export async function updateTableRows(rechnungen, { isAdmin, statusOptions, activeStatusTab, activeTypeTab, currentMonth, currentYear, notizMap, hasActiveFilters, animate = false, creatorKosten = 0 }) {
   const tbody = document.getElementById('rechnungen-table-body');
   if (!tbody) return;
 
   const canToggleBezahlt = isAdmin;
-  updateInvoiceSummary(rechnungen, { animate });
+  updateInvoiceSummary(rechnungen, { animate, creatorKosten });
 
   await TableAnimationHelper.animatedUpdate(tbody, async () => {
     if (!rechnungen || rechnungen.length === 0) {
@@ -228,8 +243,11 @@ export async function updateTableRows(rechnungen, { isAdmin, statusOptions, acti
       const isContract = activeTypeTab === 'contracting';
       const entityLabel = isContract ? 'Contracts' : 'Rechnungen';
       const hasMonthFilter = currentMonth !== ALL_TAB;
+      const emptyTitle = activeStatusTab === SKONTO_STATUS_TAB
+        ? `Keine ${entityLabel} mit Skonto`
+        : `Keine ${entityLabel} vorhanden`;
       const html = hasMonthFilter
-        ? renderEmptyState({ icon: 'invoice', title: `Keine ${entityLabel} vorhanden`, text: formatMonthEmptyText(currentMonth, currentYear) })
+        ? renderEmptyState({ icon: 'invoice', title: emptyTitle, text: formatMonthEmptyText(currentMonth, currentYear) })
         : resolveEmptyState({
             hasActiveFilters: hasActiveFilters,
             states: {
@@ -238,7 +256,8 @@ export async function updateTableRows(rechnungen, { isAdmin, statusOptions, acti
               'Rückfrage': { icon: 'invoice', title: `Keine ${entityLabel} in Rückfrage` },
               Bezahlt: { icon: 'check', title: `Keine bezahlten ${entityLabel}`, text: 'Noch ist nichts bezahlt worden.' },
               'An Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} an Qonto gesendet` },
-              'Marc an Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} von Marc an Qonto gesendet` }
+              'Marc an Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} von Marc an Qonto gesendet` },
+              [SKONTO_STATUS_TAB]: { icon: 'invoice', title: `Keine ${entityLabel} mit Skonto`, text: 'Bei keiner Rechnung ist Skonto gesetzt.' }
             }
           }, activeStatusTab);
       tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state-cell">${html}</td></tr>`;
@@ -252,7 +271,7 @@ export async function updateTableRows(rechnungen, { isAdmin, statusOptions, acti
       <tr data-id="${r.id}" class="${getRowClass(r, today)}">
         ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
         <td class="col-name"><span class="col-name-inner">${r.rechnung_nr || '-'}${renderNotizIndicator(r.id, activeStatusTab, notizMap)}</span></td>
-        <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="${r.rechnungstyp === 'contracting' ? 'contracts' : 'auftragsdetails'}" data-id="${r.rechnungstyp === 'contracting' ? r.auftrag_id : (r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id)}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
+        <td class="col-auftrag">${r.auftrag_id ? renderVerknuepfungPill({ kind: r.rechnungstyp === 'contracting' ? 'contract' : 'auftragsdetails', label: r.auftrag?.auftragsname || '-', attrs: `data-table="${r.rechnungstyp === 'contracting' ? 'contracts' : 'auftragsdetails'}" data-id="${r.rechnungstyp === 'contracting' ? r.auftrag_id : (r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id)}"` }) : '-'}</td>
         <td class="col-po">${r.po_nummer || '-'}</td>
         <td class="col-created-at">${formatDate(r.created_at)}</td>
         <td class="col-unternehmen">${r.unternehmen?.firmenname || '-'}</td>
@@ -264,7 +283,7 @@ export async function updateTableRows(rechnungen, { isAdmin, statusOptions, acti
         <td class="col-videos">${r.videoanzahl || '-'}</td>
         <td class="col-preis-video">${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
         <td class="col-brutto">${formatCurrency(r.bruttobetrag)}</td>
-        <td class="col-ksk">${r.rechnungstyp === 'contracting' ? (r.ksk_pflichtig ? '<span class="status-badge status-erfolg">Ja</span>' : '<span class="status-badge status-inactive">Nein</span>') : ((parseFloat(r.ksk_betrag) || 0) > 0 ? `<span title="KSK-Selbstzahler: Betrag geht an den Creator — keine separate Abgabe an die Künstlersozialkasse">${formatCurrency(r.ksk_betrag)} · Creator führt ab</span>` : '—')}</td>
+        <td class="col-ksk">${r.rechnungstyp === 'contracting' ? (r.ksk_pflichtig ? '<span class="status-badge status-erfolg">Ja</span>' : '<span class="status-badge status-inactive">Nein</span>') : ((parseFloat(r.ksk_betrag) || 0) > 0 ? `<span title="KSK-Selbstzahler: Betrag geht an den Creator — keine separate Abgabe an die Künstlersozialkasse">${formatCurrency(r.ksk_betrag)} · Creator führt selbst ab</span>` : '—')}</td>
         <td class="col-beleg">${renderPdfLinks(r.rechnung_pdfs, r.pdf_url)}</td>
         <td class="col-vertrag">${renderVertragCell(r)}</td>
         <td class="col-status" data-col="status">${r.status || '-'}</td>
@@ -324,7 +343,10 @@ export function updateSingleRow(id, newStatus, { rechnungen, statusOptions, acti
   }
 
   updateStatusTabCounts(rechnungen, statusTabs, blattCounts, typeTabs);
-  if (activeStatusTab !== 'alle' && newStatus !== activeStatusTab) row.remove();
+  const stillVisible = rechnung
+    ? rechnungMatchesStatusTab(rechnung, activeStatusTab)
+    : activeStatusTab === 'alle' || activeStatusTab === SKONTO_STATUS_TAB || newStatus === activeStatusTab;
+  if (!stillVisible) row.remove();
 }
 
 // ────────────────────────── Tab counts ──────────────────────────
@@ -333,7 +355,7 @@ export function updateStatusTabCounts(rechnungen, statusTabs, blattCounts, typeT
   const monthRows = rechnungen || [];
   const counts = { alle: monthRows.length };
   statusTabs.forEach(t => {
-    if (t.id !== 'alle') counts[t.id] = monthRows.filter(r => r.status === t.id).length;
+    if (t.id !== 'alle') counts[t.id] = monthRows.filter(r => rechnungMatchesStatusTab(r, t.id)).length;
   });
   statusTabs.forEach(t => {
     const el = document.querySelector(`[data-status-count="${t.id}"]`);

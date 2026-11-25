@@ -1,0 +1,84 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('../core/actions/ActionBuilder.js', () => ({
+  actionBuilder: { create: () => '<div class="actions-stub"></div>' }
+}));
+
+import { renderItemsRows, renderItemsView } from '../modules/skripte/SkriptListRenderer.js';
+
+function parseTable(html) {
+  return new DOMParser().parseFromString(html, 'text/html');
+}
+
+function listStub() {
+  return {
+    sanitize: (value) => String(value ?? ''),
+    hasActiveFilters: () => false,
+    listViewMode: 'list'
+  };
+}
+
+function skript(overrides = {}) {
+  return {
+    id: 's1',
+    titel: 'Hook Test',
+    status: 'entwurf',
+    created_at: '2026-09-01T10:00:00Z',
+    ...overrides
+  };
+}
+
+describe('SkriptListRenderer Items', () => {
+  beforeEach(() => {
+    window.validatorSystem = {
+      sanitizeHtml: (value) => value,
+      sanitizeUrl: (value) => value
+    };
+    window.isKunde = vi.fn(() => false);
+    window.canViewPage = vi.fn(() => true);
+    window.canCreate = vi.fn(() => false);
+    window.currentUser = { permissions: { creator: { can_view: true } } };
+  });
+
+  it('Header-Reihenfolge Nr. Titel Creator Status Erstellt am ... Aktionen', () => {
+    const doc = parseTable(renderItemsView(listStub()));
+    const headers = Array.from(doc.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+    expect(headers).toEqual(['Nr.', 'Titel', 'Creator', 'Status', 'Erstellt am', 'Leistungszeitraum', 'Briefing', 'Produkt', 'Persona', 'Konzept', 'Aktionen']);
+    expect(doc.querySelector('.loading').getAttribute('colspan')).toBe('11');
+  });
+
+  it('Creator-Zelle steht an Position 3 mit Avatar und Link', () => {
+    const html = renderItemsRows(listStub(), [skript({
+      strategie_item: {
+        casting_eintrag: {
+          name: 'Casting',
+          creator: {
+            id: 'c1',
+            vorname: 'Lea',
+            nachname: 'Hoff',
+            profilbild_thumb_url: 'https://cdn.example/thumb.jpg'
+          }
+        }
+      }
+    })]);
+    const doc = parseTable(`<table><tbody>${html}</tbody></table>`);
+    const cells = doc.querySelectorAll('td');
+    expect(cells).toHaveLength(11);
+    expect(cells[1].textContent.trim()).toBe('Hook Test');
+    expect(cells[2].classList.contains('col-name')).toBe(true);
+    const link = cells[2].querySelector('a.table-link');
+    expect(link.dataset.table).toBe('creator');
+    expect(link.dataset.id).toBe('c1');
+    expect(link.textContent).toBe('Casting');
+    expect(cells[2].querySelector('.table-identity__media img.table-avatar')).not.toBeNull();
+  });
+
+  it('ohne Creator Dash in Spalte 3, Nr. in Spalte 1', () => {
+    const html = renderItemsRows(listStub(), [skript()]);
+    const doc = parseTable(`<table><tbody>${html}</tbody></table>`);
+    const cells = doc.querySelectorAll('td');
+    expect(cells[0].textContent).toBe('–');
+    expect(cells[2].textContent).toBe('-');
+    expect(cells[2].querySelector('a')).toBeNull();
+  });
+});

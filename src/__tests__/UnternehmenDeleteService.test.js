@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { deleteUnternehmenCascade, collectDependentIds, persistDeleteErrors, cleanupStorage, cleanupDropbox } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
+import { deleteUnternehmenCascade, collectDependentIds, persistDeleteErrors, cleanupStorage } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
 
 function createTrackingSupabase(config = {}) {
   const log = [];
@@ -375,7 +375,8 @@ describe('UnternehmenDeleteService', () => {
         })),
       };
 
-      await deleteUnternehmenCascade('u1', { supabase: sb, userId: 'admin-1' });
+      const okFetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ success: true, fehler: [] }) }));
+      await deleteUnternehmenCascade('u1', { supabase: sb, userId: 'admin-1', fetch: okFetch });
 
       const logInserts = log.filter(e => e.table === 'delete_logs');
       expect(logInserts).toHaveLength(1);
@@ -405,10 +406,42 @@ describe('UnternehmenDeleteService', () => {
         },
       };
 
-      await deleteUnternehmenCascade('u1', { supabase: sb });
+      const okFetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ nicht_konfiguriert: true, fehler: [] }) }));
+      await deleteUnternehmenCascade('u1', { supabase: sb, fetch: okFetch });
 
       const logInserts = log.filter(e => e.table === 'delete_logs');
       expect(logInserts).toHaveLength(0);
+    });
+
+    it('räumt die SharePoint-Ablage vor allen DB-Deletes ab und protokolliert ihre Fehler', async () => {
+      const sb = createTrackingSupabase({ entities: { kampagne: [{ id: 'k1' }] } });
+      const fetchFn = vi.fn(async (url, opts) => {
+        sb._log.push({ op: 'fetch', url, body: JSON.parse(opts.body) });
+        const json = url.endsWith('ablage-loeschen')
+          ? { ordner: 1, dateien: 3, fehler: [{ item_id: 'o1', pfad: '/Firma', fehler: 'Ordner gesperrt' }] }
+          : { success: true };
+        return { ok: true, status: 200, json: async () => json };
+      });
+
+      const result = await deleteUnternehmenCascade('u1', { supabase: sb, fetch: fetchFn });
+
+      const ablageIdx = sb._log.findIndex(e => e.op === 'fetch' && e.url === '/.netlify/functions/ablage-loeschen');
+      const firstDeleteIdx = sb._log.findIndex(e => e.op === 'delete' || e.op === 'delete.in');
+      expect(sb._log[ablageIdx].body).toEqual({ entity: 'unternehmen', id: 'u1' });
+      expect(ablageIdx).toBeLessThan(firstDeleteIdx);
+      expect(result.errors).toContainEqual({ step: 'ablage', error: '/Firma: Ordner gesperrt' });
+      expect(result.success).toBe(true);
+    });
+
+    it('ein Ausfall von ablage-loeschen stoppt das Löschen nicht', async () => {
+      const sb = createTrackingSupabase({ entities: {} });
+      const fetchFn = vi.fn(async () => ({ ok: false, status: 502, json: async () => ({ error: 'Graph down' }) }));
+
+      const result = await deleteUnternehmenCascade('u1', { supabase: sb, fetch: fetchFn });
+
+      expect(result.success).toBe(true);
+      expect(result.deleted.unternehmen).toBe(1);
+      expect(result.errors).toContainEqual({ step: 'ablage', error: 'Graph down' });
     });
   });
 
@@ -532,61 +565,6 @@ describe('UnternehmenDeleteService', () => {
 
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0].step).toContain('storage');
-    });
-  });
-
-  describe('cleanupDropbox', () => {
-
-    it('ruft deleteDropboxCascade für jede Kampagne auf', async () => {
-      const fetchLog = [];
-      const mockFetch = vi.fn(async (url, opts) => {
-        fetchLog.push({ url, body: opts?.body ? JSON.parse(opts.body) : null });
-        return { ok: true, status: 200, json: async () => ({ success: true }) };
-      });
-
-      const result = await cleanupDropbox(['k1', 'k2'], [], { fetch: mockFetch });
-
-      expect(fetchLog).toHaveLength(2);
-      expect(fetchLog[0].body).toEqual({ entityType: 'kampagne', entityId: 'k1' });
-      expect(fetchLog[1].body).toEqual({ entityType: 'kampagne', entityId: 'k2' });
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('ruft deleteDropboxCascade für verwaiste Kooperationen auf', async () => {
-      const fetchLog = [];
-      const mockFetch = vi.fn(async (url, opts) => {
-        fetchLog.push({ url, body: opts?.body ? JSON.parse(opts.body) : null });
-        return { ok: true, status: 200, json: async () => ({ success: true }) };
-      });
-
-      const result = await cleanupDropbox([], ['koop1', 'koop2'], { fetch: mockFetch });
-
-      expect(fetchLog).toHaveLength(2);
-      expect(fetchLog[0].body).toEqual({ entityType: 'kooperation', entityId: 'koop1' });
-      expect(fetchLog[1].body).toEqual({ entityType: 'kooperation', entityId: 'koop2' });
-    });
-
-    it('sammelt Dropbox-Fehler statt abzubrechen', async () => {
-      const mockFetch = vi.fn(async () => ({
-        ok: false,
-        status: 500,
-        json: async () => ({ error: 'Dropbox API down' }),
-      }));
-
-      const result = await cleanupDropbox(['k1', 'k2'], [], { fetch: mockFetch });
-
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      expect(result.errors).toHaveLength(2);
-      expect(result.errors[0].step).toBe('dropbox_kampagne_k1');
-    });
-
-    it('macht nichts wenn keine Kampagnen und keine Kooperationen', async () => {
-      const mockFetch = vi.fn();
-
-      const result = await cleanupDropbox([], [], { fetch: mockFetch });
-
-      expect(mockFetch).not.toHaveBeenCalled();
-      expect(result.errors).toHaveLength(0);
     });
   });
 });

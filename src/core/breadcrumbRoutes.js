@@ -13,12 +13,13 @@ const ROUTE_CONFIG = {
   produkt:            { label: 'Produkte',           entity: 'produkt' },
   persona:            { label: 'Personas',           entity: 'persona' },
   creator:            { label: 'Creator',            entity: 'creator' },
+  'creator-casting':  { label: 'Creator Casting',    entity: 'creator-casting' },
   auftrag:            { label: 'Aufträge',          entity: 'auftrag' },
   'projekt-erstellen': { label: 'Projekt anlegen',   entity: 'projekt-erstellen' },
   auftragsdetails:    { label: 'Auftragsdetails',   entity: 'auftragsdetails' },
-  kampagne:           { label: 'Kampagne',          entity: 'kampagne' },
-  strategie:          { label: 'Strategien',        entity: 'strategie' },
-  sourcing:           { label: 'Sourcing',          entity: 'sourcing' },
+  kampagne:           { label: 'Kampagnen',         entity: 'kampagne' },
+  produktion:         { label: 'Produktion',        entity: 'kampagne' },
+  produktionen:       { label: 'Produktion',        entity: 'kampagne' },
   konzepte:           { label: 'Konzepte',          entity: 'strategie' },
   castings:           { label: 'Castings',          entity: 'sourcing' },
   vertraege:          { label: 'Verträge',          entity: 'vertraege' },
@@ -28,13 +29,11 @@ const ROUTE_CONFIG = {
   briefing:           { label: 'Briefing',          entity: 'briefing' },
   mitarbeiter:        { label: 'Mitarbeiter',       entity: 'mitarbeiter' },
   'kunden-admin':     { label: 'Kunden',            entity: 'kunden-admin' },
-  'admin/kunden':     { label: 'Kunden',            entity: 'kunden-admin' },
-  kunde:              { label: 'Kunden',            entity: 'kunden-admin' },
   kunden:             { label: 'Übersicht',         entity: 'kunden' },
   tabellen:           { label: 'Tabellen',          entity: 'tabellen' },
   feedback:           { label: 'Feedback',          entity: 'feedback' },
   education:          { label: 'Education',          entity: 'education' },
-  'creator-lists':    { label: 'Listen',            entity: 'creator-lists' },
+  'creator-lists':    { label: 'Masterlisten',      entity: 'creator-lists' },
   contracts:          { label: 'Contracts',          entity: 'vertraege' },
   ausgangsrechnungen: { label: 'Kundenrechnungen', entity: 'ausgangsrechnungen' },
   profile:            { label: 'Profil',            entity: 'profile' },
@@ -44,7 +43,6 @@ const ROUTE_CONFIG = {
     label: 'Skripte',
     entity: 'skripte',
     children: {
-      dna:    { label: 'DNA' },
       master: { label: 'Master-Regelwerk' }
     }
   },
@@ -80,10 +78,6 @@ export function getRouteConfig(segment, rolle) {
   if (base) return { ...base };
 
   return { label: capitalize(segment), entity: null };
-}
-
-export function getRouteLabel(segment, rolle) {
-  return getRouteConfig(segment, rolle).label;
 }
 
 function capitalize(str) {

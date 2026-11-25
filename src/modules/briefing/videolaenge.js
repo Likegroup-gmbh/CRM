@@ -1,0 +1,274 @@
+// videolaenge.js
+// Videolänge: geschlossenes Intervall in ganzen Sekunden, von und bis inklusive, oder
+// eine Mindestlänge (von ohne bis, ADR 0075). Leer heißt, es ist keine Videolänge vorgegeben.
+
+export const VIDEOLAENGE_MIN = 1;
+export const VIDEOLAENGE_MAX = 180;
+
+// Videolänge je Funnel-Stufe (Paid): Spalte campaign_briefings.videolaenge_funnel,
+// Keys im Briefing-Vokabular upper/mid/lower (nicht top/mid/bottom des Skripts).
+// Formularfeld je Stufe, Wert { von, bis }.
+export const VIDEOLAENGE_FUNNEL_FELD = Object.freeze({
+  upper: 'videolaenge_funnel_upper',
+  mid: 'videolaenge_funnel_mid',
+  lower: 'videolaenge_funnel_lower'
+});
+
+const FUNNEL_KEYS = Object.keys(VIDEOLAENGE_FUNNEL_FELD);
+
+const TOKEN_SECONDS = {
+  '6s': 6,
+  '10s': 10,
+  '15s': 15,
+  '20s': 20,
+  '30s': 30,
+  '60s': 60
+};
+
+const TOKEN_LABELS = {
+  '6s': '6 Sek.',
+  '10s': '10 Sek.',
+  '15s': '15 Sek.',
+  '20s': '20 Sek.',
+  '30s': '30 Sek.',
+  '60s': '60 Sek.',
+  individuell: 'Individuell',
+  agenturempfehlung: 'Agenturempfehlung'
+};
+
+const OHNE_SEKUNDEN = new Set(['individuell', 'agenturempfehlung']);
+
+export function clampSekunde(n) {
+  const x = Math.round(Number(String(n).replace(',', '.')));
+  if (!Number.isFinite(x)) return null;
+  return Math.min(VIDEOLAENGE_MAX, Math.max(VIDEOLAENGE_MIN, x));
+}
+
+export function intervallOderNull(von, bis) {
+  if (von == null || bis == null || von === '' || bis === '') return null;
+  const a = clampSekunde(von);
+  const b = clampSekunde(bis);
+  if (a == null || b == null) return null;
+  return a <= b ? { von: a, bis: b } : { von: b, bis: a };
+}
+
+function leer(v) {
+  return v == null || v === '';
+}
+
+/** Mindestlänge { von, bis: null }: von gesetzt, bis leer. Sonst null. */
+export function mindestlaengeOderNull(von, bis) {
+  if (leer(von) || !leer(bis)) return null;
+  const a = clampSekunde(von);
+  return a == null ? null : { von: a, bis: null };
+}
+
+/** Intervall oder Mindestlänge, sonst null. */
+export function videolaengeOderNull(von, bis) {
+  return intervallOderNull(von, bis) || mindestlaengeOderNull(von, bis);
+}
+
+export function formatVideolaenge(von, bis) {
+  const min = mindestlaengeOderNull(von, bis);
+  if (min) return `ab ${min.von} Sek.`;
+  const iv = intervallOderNull(von, bis);
+  if (!iv) return null;
+  if (iv.von === iv.bis) return `${iv.von} Sek.`;
+  return `${iv.von}–${iv.bis} Sek.`;
+}
+
+/** Skript-Schlüssel: "15-20", bei einer Mindestlänge "15+". */
+export function skriptSchluessel(von, bis) {
+  const min = mindestlaengeOderNull(von, bis);
+  if (min) return `${min.von}+`;
+  const iv = intervallOderNull(von, bis);
+  if (!iv) return null;
+  return `${iv.von}-${iv.bis}`;
+}
+
+/** Anzeige eines gespeicherten Skript-Schlüssels. Alte Eimer wie 0-15 bleiben Rohtext. */
+export function formatVideoLaengeSchluessel(schluessel) {
+  if (schluessel == null || schluessel === '') return null;
+  const raw = String(schluessel).trim();
+  const plus = raw.match(/^(\d+)\+$/);
+  if (plus) return formatVideolaenge(parseInt(plus[1], 10), null);
+  const match = raw.match(/^(\d+)-(\d+)$/);
+  if (!match) return raw;
+  const von = parseInt(match[1], 10);
+  const bis = parseInt(match[2], 10);
+  if (von < VIDEOLAENGE_MIN || bis > VIDEOLAENGE_MAX || von > bis) return raw;
+  return formatVideolaenge(von, bis);
+}
+
+export function tokenLabel(value) {
+  return TOKEN_LABELS[value] || String(value);
+}
+
+function alsListe(value) {
+  if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  return [];
+}
+
+function sekundenAusText(text) {
+  if (text == null) return [];
+  const raw = String(text).trim();
+  if (!raw || OHNE_SEKUNDEN.has(raw)) return [];
+  if (TOKEN_SECONDS[raw] != null) return [TOKEN_SECONDS[raw]];
+  const nums = raw.match(/\d+/g);
+  if (!nums) return [];
+  return nums.map(n => parseInt(n, 10)).filter(n => Number.isFinite(n));
+}
+
+function intervallAusSekunden(secs) {
+  const clamped = secs.map(clampSekunde).filter(n => n != null);
+  if (!clamped.length) return null;
+  return { von: Math.min(...clamped), bis: Math.max(...clamped) };
+}
+
+function intervallAusListe(value) {
+  const secs = alsListe(value).flatMap(sekundenAusText);
+  return intervallAusSekunden(secs);
+}
+
+function intervallAusText(value) {
+  return intervallAusSekunden(sekundenAusText(value));
+}
+
+export function videolaengeAusAlt({
+  videolaengen = null,
+  pa_videolaengen = null,
+  videolaenge_text = null,
+  formatText = null
+} = {}) {
+  return intervallAusListe(videolaengen)
+    || intervallAusListe(pa_videolaengen)
+    || intervallAusText(videolaenge_text)
+    || intervallAusText(formatText)
+    || null;
+}
+
+function formatTextAusBriefing(briefing) {
+  if (briefing.bereich === 'influencer_marketing') return briefing.im_formatvorgaben?.videolaenge ?? null;
+  if (briefing.bereich === 'owned_social') return briefing.os_formatvorgaben?.videolaenge ?? null;
+  return null;
+}
+
+function gespeichertesIntervall(briefing) {
+  return videolaengeOderNull(briefing.videolaenge_von, briefing.videolaenge_bis);
+}
+
+export function videolaengeAusBriefing(briefing) {
+  if (!briefing) return null;
+  return gespeichertesIntervall(briefing) || videolaengeAusAlt({
+    videolaengen: briefing.videolaengen,
+    pa_videolaengen: briefing.pa_videolaengen,
+    videolaenge_text: briefing.videolaenge_text,
+    formatText: formatTextAusBriefing(briefing)
+  });
+}
+
+/** Intervall einer Stufe aus videolaenge_funnel. Fehlt es oder ist es ungültig: null. */
+export function funnelIntervall(map, stufe) {
+  if (!FUNNEL_KEYS.includes(stufe)) return null;
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return null;
+  const iv = map[stufe];
+  if (!iv || typeof iv !== 'object') return null;
+  return intervallOderNull(iv.von, iv.bis);
+}
+
+/**
+ * Formularwerte -> videolaenge_funnel. Nur die angehakten Stufen kommen mit
+ * (versteckte Slider behalten sonst ihren Wert). Kein Intervall: null.
+ */
+export function funnelMapAusFormData(formData, stufen) {
+  const aktiv = Array.isArray(stufen) ? stufen : [];
+  const out = {};
+  for (const stufe of FUNNEL_KEYS) {
+    if (!aktiv.includes(stufe)) continue;
+    const raw = formData?.[VIDEOLAENGE_FUNNEL_FELD[stufe]];
+    const iv = intervallOderNull(raw?.von, raw?.bis);
+    if (iv) out[stufe] = iv;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** videolaenge_funnel -> Formularwerte (nur gültige Intervalle). */
+export function funnelFormDataAusMap(map) {
+  const out = {};
+  for (const stufe of FUNNEL_KEYS) {
+    const iv = funnelIntervall(map, stufe);
+    if (iv) out[VIDEOLAENGE_FUNNEL_FELD[stufe]] = iv;
+  }
+  return out;
+}
+
+/**
+ * Videolänge für ein Skript: bei Paid das Intervall der Stufe der Videoidee
+ * (upper/mid/lower), sonst - ohne Stufe, ohne Intervall der Stufe, Organic,
+ * Influencer - die allgemeine Videolänge des Briefings.
+ */
+export function videolaengeFuerStufe(briefing, stufe) {
+  if (!briefing) return null;
+  if (briefing.bereich === 'paid_creator_ads') {
+    const iv = funnelIntervall(briefing.videolaenge_funnel, stufe);
+    if (iv) return iv;
+  }
+  return videolaengeAusBriefing(briefing);
+}
+
+function ersterText(value) {
+  const text = String(value ?? '').trim();
+  return text || null;
+}
+
+/** Doc/PDF: gespeichertes Intervall, sonst die alte Quelle unverändert. */
+export function anzeigeWert(briefing) {
+  if (!briefing) return null;
+  const stored = gespeichertesIntervall(briefing);
+  if (stored) return { art: stored.bis == null ? 'minimum' : 'intervall', ...stored };
+
+  const tokens = alsListe(briefing.videolaengen);
+  if (tokens.length) return { art: 'tokens', values: tokens };
+  const legacy = alsListe(briefing.pa_videolaengen);
+  if (legacy.length) return { art: 'tokens', values: legacy };
+
+  const text = ersterText(briefing.videolaenge_text) || ersterText(formatTextAusBriefing(briefing));
+  if (text) return { art: 'text', text };
+  return null;
+}
+
+export function sekundeAnPosition(ratio, min = VIDEOLAENGE_MIN, max = VIDEOLAENGE_MAX) {
+  const r = Math.min(1, Math.max(0, Number(ratio) || 0));
+  return min + Math.round(r * (max - min));
+}
+
+export function spreize(origin, jetzt) {
+  return intervallOderNull(origin, jetzt);
+}
+
+export function zieheGriff({ von, bis, seite, sekunde }) {
+  const n = clampSekunde(sekunde);
+  if (n == null || von == null || bis == null) return null;
+  if (seite === 'von') return { von: Math.min(n, bis), bis };
+  return { von, bis: Math.max(n, von) };
+}
+
+/**
+ * Zahl beim Verlassen des Feldes.
+ * Leeres Feld leert das Intervall. Die andere Seite wird nur gesetzt, wenn sie leer ist.
+ * Ungültiger Text lässt den bisherigen Stand stehen.
+ */
+export function commitZahl({ von = null, bis = null, seite, roh }) {
+  const text = String(roh ?? '').trim();
+  if (!text) return null;
+  const n = clampSekunde(text);
+  if (n == null) {
+    if (von == null || bis == null) return null;
+    return { von, bis };
+  }
+  const otherLeer = seite === 'von' ? bis == null : von == null;
+  if (otherLeer) return { von: n, bis: n };
+  if (seite === 'von') return { von: Math.min(n, bis), bis };
+  return { von, bis: Math.max(n, von) };
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSocialLink, formatLinkLabel } from '../core/format/socialLink.js';
+import { parseSocialLink, formatLinkLabel, socialHref, bareInstagramHandle } from '../core/format/socialLink.js';
 
 describe('parseSocialLink', () => {
   it('liest Reel-Links inklusive Query-Parametern', () => {
@@ -139,5 +139,37 @@ describe('formatLinkLabel', () => {
 
   it('gibt nicht parsebare Eingaben unveraendert zurueck', () => {
     expect(formatLinkLabel('nur text', '')).toBe('nur text');
+  });
+});
+
+
+describe('bareInstagramHandle', () => {
+  it('liest @Handle und Handle, nicht Links oder reservierte Pfade', () => {
+    expect(bareInstagramHandle('@Pauline.Mary')).toBe('pauline.mary');
+    expect(bareInstagramHandle('paulinemary')).toBe('paulinemary');
+    expect(bareInstagramHandle('https://instagram.com/paulinemary')).toBeNull();
+    expect(bareInstagramHandle('reel')).toBeNull();
+    expect(bareInstagramHandle('kein Link')).toBeNull();
+  });
+});
+
+describe('socialHref', () => {
+  it('macht aus einem Handle eine absolute Profil-URL (kein relativer Link)', () => {
+    expect(socialHref('elnimabella', 'instagram')).toBe('https://www.instagram.com/elnimabella');
+    expect(socialHref('@max.mustermann', 'instagram')).toBe('https://www.instagram.com/max.mustermann');
+    expect(socialHref('abnehmenmitjessy_z89', 'tiktok')).toBe('https://www.tiktok.com/@abnehmenmitjessy_z89');
+  });
+
+  it('laesst absolute URLs stehen und ergaenzt fehlendes Schema', () => {
+    expect(socialHref('https://www.instagram.com/paulinemary/', 'instagram')).toBe('https://www.instagram.com/paulinemary/');
+    expect(socialHref('instagram.com/paulinemary', 'instagram')).toBe('https://instagram.com/paulinemary');
+    expect(socialHref('www.tiktok.com/@name', 'tiktok')).toBe('https://www.tiktok.com/@name');
+  });
+
+  it('verwirft leere Werte und gefaehrliche Schemas', () => {
+    expect(socialHref('', 'instagram')).toBe('');
+    expect(socialHref(null, 'tiktok')).toBe('');
+    expect(socialHref('javascript:alert(1)', 'instagram')).toBe('');
+    expect(socialHref('data:text/html,x', 'instagram')).toBe('');
   });
 });

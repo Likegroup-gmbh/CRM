@@ -5,7 +5,6 @@ import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { modularFilterSystem } from '../../core/filters/ModularFilterSystem.js';
-import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
 import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 import { VertragUtils } from './VertragUtils.js';
@@ -22,8 +21,13 @@ import {
   bindTableDelegation,
   bindSelectionEvents,
   openVertragUploadDrawer as _openVertragUploadDrawer,
-  removeSignedContract as _removeSignedContract
+  removeSignedContract as _removeSignedContract,
+  openVertragAnschreiben as _openVertragAnschreiben,
+  handleVertragListAction,
+  downloadVertrag as _downloadVertrag,
+  deleteVertrag as _deleteVertrag
 } from './VertraegeListHandlers.js';
+import { vertragDateienLoeschen } from '../../core/ablage/dokumentAblage.js';
 
 export class VertraegeList {
   constructor() {
@@ -166,9 +170,10 @@ export class VertraegeList {
   // RENDER
   // ============================================
 
+  // Anlegen passiert im Tab Verträge der Produktion, nicht auf dieser Liste.
   _render() {
     const html = this.viewMode === 'folders'
-      ? renderFoldersView(this.listViewMode, this.getVertragPermissions().canEdit)
+      ? renderFoldersView(this.listViewMode)
       : renderVertraegeView(this.getVertragPermissions(), this.activeTypeTab);
     window.setContentSafely(window.content, html);
   }
@@ -196,9 +201,6 @@ export class VertraegeList {
       const isContracting = this.activeTypeTab === 'contracting';
       const filters = modularFilterSystem.getFilters('vertrag') || {};
       const hasActiveFilters = Object.values(filters).some(v => v && (Array.isArray(v) ? v.length > 0 : v !== ''));
-      const createUrl = this.currentUnternehmenId
-        ? `/vertraege/new?unternehmen=${this.currentUnternehmenId}`
-        : '/vertraege/new';
       const html = resolveEmptyState({
         hasActiveFilters,
         states: {
@@ -207,10 +209,7 @@ export class VertraegeList {
             title: isContracting ? 'Keine Contracts vorhanden' : 'Keine Verträge vorhanden',
             text: isContracting
               ? 'Es wurden noch keine Contracts erstellt.'
-              : 'Für dieses Unternehmen wurden noch keine Verträge erstellt.',
-            actionsHtml: perms.canEdit
-              ? `<button class="mdc-btn" onclick="window.navigateTo('${createUrl}')">Neuen Vertrag anlegen</button>`
-              : ''
+              : 'Für dieses Unternehmen wurden noch keine Verträge erstellt.'
           }
         }
       }, 'default');
@@ -272,21 +271,6 @@ export class VertraegeList {
       };
       btnViewGrid.addEventListener('click', handler);
       this._boundEventListeners.add(() => btnViewGrid.removeEventListener('click', handler));
-    }
-
-    // Neuer Vertrag
-    const newBtn = document.getElementById('btn-vertrag-new');
-    if (newBtn) {
-      const handler = (e) => {
-        e.preventDefault();
-        if (this.currentUnternehmenId) {
-          window.navigateTo(`/vertraege/new?unternehmen=${this.currentUnternehmenId}`);
-        } else {
-          window.navigateTo('/vertraege/new');
-        }
-      };
-      newBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => newBtn.removeEventListener('click', handler));
     }
 
     // Empty-State-Action "Filter zurücksetzen"
@@ -355,6 +339,44 @@ export class VertraegeList {
     };
     window.addEventListener('vertrag-signed-action', signedActionHandler);
     this._boundEventListeners.add(() => window.removeEventListener('vertrag-signed-action', signedActionHandler));
+
+    const warmVertragAnschreiben = (e) => {
+      const toggle = e.target.closest?.('.actions-toggle');
+      if (!toggle) return;
+      const container = toggle.closest('[data-entity-type="vertraege"]');
+      if (!container || !window.isInternal?.()) return;
+      const id = container.querySelector('[data-action="anschreiben"]')?.dataset.id;
+      if (!id) return;
+      const vertrag = this.vertraege?.find((row) => row.id === id);
+      if (!vertrag || vertrag.is_draft || !vertrag.datei_url) return;
+      import('../../core/anschreiben/openAnschreiben.js').then(({ warmAnschreiben }) => {
+        warmAnschreiben({ dokumentTyp: 'vertrag', dokumentId: id, vertrag }).catch((err) => {
+          console.error('Anschreiben vorwärmen fehlgeschlagen:', err);
+        });
+      });
+    };
+    document.addEventListener('click', warmVertragAnschreiben, true);
+    this._boundEventListeners.add(() => document.removeEventListener('click', warmVertragAnschreiben, true));
+
+    const anschreibenActionHandler = async (e) => {
+      const id = e.detail?.vertragId;
+      if (id) await _openVertragAnschreiben(this, id);
+    };
+    window.addEventListener('vertrag-anschreiben-action', anschreibenActionHandler);
+    this._boundEventListeners.add(() => window.removeEventListener('vertrag-anschreiben-action', anschreibenActionHandler));
+
+    const anschreibenHandler = (e) => {
+      if (e.detail?.dokumentTyp === 'vertrag') this.reloadData();
+    };
+    window.addEventListener('anschreibenSent', anschreibenHandler);
+    this._boundEventListeners.add(() => window.removeEventListener('anschreibenSent', anschreibenHandler));
+
+    const listActionHandler = async (e) => {
+      const { action, vertragId } = e.detail || {};
+      if (vertragId) await handleVertragListAction(this, action, vertragId);
+    };
+    window.addEventListener('vertrag-list-action', listActionHandler);
+    this._boundEventListeners.add(() => window.removeEventListener('vertrag-list-action', listActionHandler));
   }
 
   _bindUnternehmenRowEvents() {
@@ -469,74 +491,11 @@ export class VertraegeList {
   // ============================================
 
   downloadVertrag(id) {
-    const vertrag = this.vertraege.find(v => v.id === id);
-    if (!vertrag?.datei_url) {
-      window.toastSystem?.show('Keine PDF-Datei vorhanden', 'warning');
-      return;
-    }
-    // Privater Bucket: on-demand Signed URL statt gespeicherter Public URL
-    openDocumentUrl(vertrag.datei_url);
+    return _downloadVertrag(this, id);
   }
 
   async deleteVertrag(id) {
-    const result = await window.confirmationModal?.open({
-      title: 'Vertrag löschen?',
-      message: 'Möchten Sie diesen Vertrag wirklich löschen?',
-      confirmText: 'Löschen',
-      cancelText: 'Abbrechen',
-      danger: true
-    });
-    if (!result?.confirmed) return;
-
-    try {
-      const vertrag = this.vertraege.find(v => v.id === id);
-
-      // datei_path kann jetzt entweder ein Supabase-Pfad (legacy) oder
-      // ein Dropbox-Pfad (neu, beginnt mit "/") sein.
-      if (vertrag?.datei_path) {
-        if (vertrag.datei_path.startsWith('/')) {
-          try {
-            await fetch('/.netlify/functions/dropbox-delete-vertrag', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filePath: vertrag.datei_path })
-            });
-          } catch (dbxErr) {
-            console.warn('Dropbox-Löschung (datei_path) fehlgeschlagen:', dbxErr);
-          }
-        } else {
-          await window.supabase.storage.from('vertraege').remove([vertrag.datei_path]);
-        }
-      }
-      if (vertrag?.unterschriebener_vertrag_path) {
-        await window.supabase.storage.from('unterschriebene-vertraege').remove([vertrag.unterschriebener_vertrag_path]);
-      }
-      if (vertrag?.dropbox_file_path) {
-        try {
-          await fetch('/.netlify/functions/dropbox-delete-vertrag', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: vertrag.dropbox_file_path })
-          });
-        } catch (dbxErr) {
-          console.warn('Dropbox-Löschung fehlgeschlagen (wird ignoriert):', dbxErr);
-        }
-      }
-
-      const { error } = await window.supabase.from('vertraege').delete().eq('id', id);
-      if (error) throw error;
-
-      const hadSigned = vertrag?.unterschriebener_vertrag_url || vertrag?.dropbox_file_url;
-      if (hadSigned && vertrag?.kooperation_id) {
-        await syncVertragCheckbox(vertrag.kooperation_id, false);
-      }
-
-      window.toastSystem?.show('Vertrag gelöscht', 'success');
-      await this.loadAndRender();
-    } catch (error) {
-      console.error('❌ Fehler beim Löschen:', error);
-      window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
-    }
+    return _deleteVertrag(this, id);
   }
 
   async showDeleteSelectedConfirmation() {
@@ -562,30 +521,8 @@ export class VertraegeList {
 
     const selectedIds = Array.from(this.selectedVertraege);
     try {
-      const vertraegeToDelete = this.vertraege.filter(v => selectedIds.includes(v.id) && v.datei_path);
-
-      // Aufteilen: Dropbox-Pfade (beginnen mit "/") vs Supabase-Pfade
-      const supabasePaths = vertraegeToDelete
-        .filter(v => !v.datei_path.startsWith('/'))
-        .map(v => v.datei_path);
-      const dropboxPaths = vertraegeToDelete
-        .filter(v => v.datei_path.startsWith('/'))
-        .map(v => v.datei_path);
-
-      if (supabasePaths.length > 0) {
-        await window.supabase.storage.from('vertraege').remove(supabasePaths);
-      }
-      for (const path of dropboxPaths) {
-        try {
-          await fetch('/.netlify/functions/dropbox-delete-vertrag', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: path })
-          });
-        } catch (dbxErr) {
-          console.warn('Bulk-Dropbox-Löschung fehlgeschlagen:', dbxErr);
-        }
-      }
+      // Erzeugt + unterschrieben (+ Storage-Altbestand), egal wo die Datei liegt
+      for (const id of selectedIds) await vertragDateienLoeschen(id);
 
       const { error } = await window.supabase.from('vertraege').delete().in('id', selectedIds);
       if (error) throw error;

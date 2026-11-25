@@ -2,15 +2,38 @@
 // Tabellen-Rendering für die Strategie-Detail-Ansicht
 
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import { renderTableAvatar, renderTableIdentity } from '../../core/format/tableIdentity.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions.js';
 import { isFixedColumnVisible } from './strategieColumns.js';
+import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import {
+  baueStrategieSpaltenfolge,
+  fixedSpaltenId,
+  ordneStrategieTabellenHtml,
+  ordneStrategieZeileHtml
+} from './strategieSpaltenfolge.js';
+import { formatStrategieVideolaenge, getStrategieVideolaenge } from './strategieVideolaenge.js';
+import { renderSekundenSpanne, sekundenSpanneAttrs } from '../../core/components/SekundenSpanne.js';
+import {
+  STRATEGIE_FUNNEL_OPTIONS,
+  getStrategieFunnel,
+  renderFunnelBadge,
+  funnelSpalteStandardSichtbar
+} from './strategieFunnelOptions.js';
+import {
+  getStrategiePersona,
+  renderPersonaName
+} from './strategiePersonaOptions.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { isVideoideeVorschlag, splitVideoideeVorschlaege } from './videoideeVorschlag.js';
+import { actionState } from '../../core/actions/actionState.js';
+import { produktionStartChecks } from '../kooperation/produktionStart.js';
+import { absorbStrategieEdits } from './StrategieDetailTableEvents.js';
 
 /** Klartext zu verarbeitung_step fuer die Fortschrittsanzeige in der Zeile. */
-const VERARBEITUNG_LABELS = {
+export const VERARBEITUNG_LABELS = {
   browser: 'Browser startet...',
   screenshot: 'Screenshot...',
   navigation: 'Seite laden...',
@@ -18,6 +41,7 @@ const VERARBEITUNG_LABELS = {
   download: 'Video laden...',
   whisper: 'Transkription...',
   description: 'Beschreibung...',
+  adaption: 'Kundenadaption...',
   done: 'Fertig'
 };
 
@@ -32,28 +56,79 @@ function escapeHtml(value) {
 
 /** Welche festen Spalten diese Ansicht zeigt. */
 function visibleFixedColumns(detail) {
-  const visible = (key) => isFixedColumnVisible(detail.hiddenColumns, key);
+  const context = detail.columnContext
+    ? detail.columnContext()
+    : { funnelStandardSichtbar: funnelSpalteStandardSichtbar(detail.strategie, detail.items) };
+  const visible = (key) => isFixedColumnVisible(detail.hiddenColumns, key, context);
   return {
     creator: visible('creator'),
+    produkt: visible('produkt'),
+    // Persona ist interne Strategie: Kunden dürfen personas nicht lesen.
+    persona: !detail.isKunde && visible('persona'),
+    funnel: visible('funnel'),
+    dauer: visible('dauer'),
     beschreibung: visible('beschreibung'),
+    umsetzungsvorgabe: !detail.isKunde && visible('umsetzungsvorgabe'),
+    kundenadaption: visible('kundenadaption'),
     transkript: visible('transkript'),
     caption: visible('caption'),
     anmerkung: visible('anmerkung'),
     prio: visible('prio'),
+    status: !detail.isKunde && visible('status'),
     umgesetzt: visible('umgesetzt')
   };
 }
 
+/** Volle Zellenfolge inklusive der festen Spalten, die nicht im Drawer stehen. */
+function domSpaltenfolge(detail) {
+  const customCols = detail.customColumns?.getOrderedColumns?.() || [];
+  const imDom = new Set(
+    customCols
+      .filter(col => !(detail.isKunde && !col.visible_for_kunden))
+      .map(col => makeCustomColumnId(col.id))
+  );
+  const beweglich = baueStrategieSpaltenfolge({
+    columnOrder: detail.columnOrder || null,
+    customColumnIds: customCols.map(col => makeCustomColumnId(col.id))
+  });
+  const cols = visibleFixedColumns(detail);
+  const fixedSichtbar = new Set(
+    Object.entries(cols).filter(([, sichtbar]) => sichtbar).map(([key]) => fixedSpaltenId(key))
+  );
+  const beweglichImDom = beweglich
+    .filter(id => fixedSichtbar.has(id) || imDom.has(id))
+    .filter(id => id !== 'col-creator');
+  const showWriteCols = !detail.isKunde && !!detail.canEdit;
+  // Creator bleibt links, vor Bild und Plattform.
+  return [
+    'col-number',
+    ...(showWriteCols ? ['col-drag'] : []),
+    ...(cols.creator ? ['col-creator'] : []),
+    'col-image',
+    'col-platform',
+    ...beweglichImDom,
+    ...(showWriteCols ? ['col-actions'] : [])
+  ];
+}
+
 export function renderItemsTable(detail) {
-  const { vorschlaege, rest } = splitVideoideeVorschlaege(detail.items);
-  if (rest.length === 0 && vorschlaege.length === 0) {
+  const { vorschlaege, rest: alle } = splitVideoideeVorschlaege(detail.items);
+  const rest = detail.tableFilter ? detail.tableFilter.apply(alle) : alle;
+  if (alle.length === 0 && vorschlaege.length === 0) {
     return `
       <div class="table-container table-container--empty">
         ${renderEmptyState({
           icon: 'film',
           title: 'Noch keine Videos hinzugefügt',
-          text: !detail.isKunde ? 'Fügen Sie oben eine Video-URL ein, um zu starten' : ''
+          text: !detail.isKunde ? 'Über Hinzufügen oder Ideen vorschlagen' : ''
         })}
+      </div>
+    `;
+  }
+  if (rest.length === 0 && vorschlaege.length === 0) {
+    return `
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({ icon: 'filter', title: 'Keine Videoideen für die gewählten Filter' })}
       </div>
     `;
   }
@@ -72,22 +147,29 @@ export function renderItemsTable(detail) {
     + Object.values(cols).filter(Boolean).length;
   const colCount = fixedCount + customCount;
 
-  return `
+  const html = `
     <div class="table-container">
       <table class="data-table strategie-items-table">
         <thead>
           <tr>
             <th class="col-number">#</th>
             ${showWriteCols ? '<th class="col-drag"></th>' : ''}
+            ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
             <th class="col-image">Bild</th>
             <th class="col-platform">Plattform</th>
-            ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
             ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
+            ${cols.produkt ? '<th class="col-produkt">Produkt</th>' : ''}
+            ${cols.persona ? '<th class="col-persona">Persona</th>' : ''}
+            ${cols.funnel ? '<th class="col-funnel">Funnel-Stufe</th>' : ''}
+            ${cols.dauer ? '<th class="col-dauer">Dauer</th>' : ''}
+            ${cols.umsetzungsvorgabe ? '<th class="col-umsetzungsvorgabe">Umsetzungsvorgabe</th>' : ''}
+            ${cols.kundenadaption ? '<th class="col-kundenadaption">Kundenadaption</th>' : ''}
             ${cols.transkript ? '<th class="col-transkript">Transkript</th>' : ''}
             ${cols.caption ? '<th class="col-caption">Caption</th>' : ''}
             ${cols.anmerkung ? '<th class="col-anmerkung">Anmerkung Kunde</th>' : ''}
             ${cols.prio ? '<th class="col-prio">Prio</th>' : ''}
-            ${cols.umgesetzt ? '<th class="col-umgesetzt">Umgesetzt</th>' : ''}
+            ${cols.status ? '<th class="col-status">Status</th>' : ''}
+            ${cols.umgesetzt ? '<th class="col-umgesetzt">Umsetzen</th>' : ''}
             ${detail.customColumns ? detail.customColumns.renderHeaders(detail.hiddenColumns, detail.isKunde) : ''}
             ${showWriteCols ? '<th class="col-actions">Aktionen</th>' : ''}
           </tr>
@@ -98,6 +180,7 @@ export function renderItemsTable(detail) {
       </table>
     </div>
   `;
+  return ordneStrategieTabellenHtml(html, domSpaltenfolge(detail));
 }
 
 export function groupItemsByTeilbereich(items) {
@@ -169,10 +252,12 @@ export function renderGroupedItems(detail, groupedItems, colCount, vorschlaege =
   if (!alleKategorien.includes('Ohne Kategorie')) {
     alleKategorien.push('Ohne Kategorie');
   }
-  
+  const gefiltert = !!detail.tableFilter?.hasActiveFilters();
+
   return vorschlagBlock + alleKategorien.map(kategorie => {
     const items = groupedItems[kategorie] || [];
     const isEmpty = items.length === 0;
+    if (isEmpty && gefiltert) return '';
     
     return `
       <tr class="category-header-row ${isEmpty ? 'category-empty' : ''}" data-kategorie="${escapeAttr(kategorie)}">
@@ -219,12 +304,23 @@ function renderBildCell(item, isIdea, ideaIcon) {
   }
 
   if (status === 'error') {
+    const fehler = item.verarbeitung_fehler || 'Unbekannter Fehler';
     return `
       <td class="col-image">
         ${bild}
-        <div class="verarbeitung-status verarbeitung-status--fehler" title="${escapeAttr(item.verarbeitung_fehler || 'Unbekannter Fehler')}">
-          Verarbeitung fehlgeschlagen
+        <div class="verarbeitung-status verarbeitung-status--fehler" title="${escapeAttr(fehler)}">
+          <span>Verarbeitung fehlgeschlagen</span>
+          <span class="verarbeitung-fehler-text">${escapeHtml(fehler)}</span>
         </div>
+      </td>
+    `;
+  }
+
+  if (status === 'done' && item.verarbeitung_fehler) {
+    return `
+      <td class="col-image">
+        ${bild}
+        <div class="verarbeitung-status verarbeitung-status--hinweis">${escapeHtml(item.verarbeitung_fehler)}</div>
       </td>
     `;
   }
@@ -232,21 +328,26 @@ function renderBildCell(item, isIdea, ideaIcon) {
   return `<td class="col-image">${bild}</td>`;
 }
 
+function openVideoideeId() {
+  if (typeof document === 'undefined') return null;
+  return document.getElementById('edit-item-drawer')?.dataset.itemId || null;
+}
+
 /**
- * Beschreibung, Transkript und Caption: Clip mit Mehr/Weniger.
- * Der Quellen-Tag zeigt, ob Whisper transkribiert oder die Untertitel
- * des Posts mitgenommen wurden.
+ * Beschreibung, Transkript und Caption bleiben auf Bildhöhe abgeschnitten.
+ * Der volle Text liegt zusätzlich im Videoidee-Drawer.
  */
 function renderClippedTextCell(detail, item, field, cssClass, placeholder, readonly) {
   const value = item[field] || '';
+  const locked = readonly;
 
   const inner = !detail.isKunde
     ? `<textarea
-          class="strategie-textarea${readonly ? ' readonly-textarea' : ''}"
+          class="strategie-textarea${locked ? ' readonly-textarea' : ''}"
           placeholder="${placeholder}"
           data-field="${field}"
           data-item-id="${item.id}"
-          ${readonly ? 'readonly' : ''}
+          ${locked ? 'readonly' : ''}
         >${escapeHtml(value)}</textarea>`
     : `<div class="cell-text-readonly">${escapeHtml(value) || '-'}</div>`;
 
@@ -256,7 +357,6 @@ function renderClippedTextCell(detail, item, field, cssClass, placeholder, reado
         <div class="strategie-text-clip__body">
           ${inner}
         </div>
-        <button type="button" class="strategie-text-more" hidden aria-expanded="false" aria-label="Mehr anzeigen" title="Mehr anzeigen">${icon('eye')}</button>
       </div>
     </td>
   `;
@@ -281,19 +381,38 @@ function renderPlatformCell(item, platformIcon, fallbackIcon) {
 }
 
 /**
- * Creator-Zelle: zeigt den zugeordneten Casting-Eintrag (neu) oder den
- * Altbestand (creator_id/creator_name, nur Anzeige). Der Plus-Button oeffnet
- * den Casting-Drawer, das x loest die Zuordnung. Freitext wird nicht mehr
+ * Profilbild vor dem Creator-Namen: Thumb vor Hauptbild, sonst der Initial des Namens.
+ * Quelle: Casting-Eintrag, dann dessen Creator, dann der Altbestand-Creator.
+ * Ohne Zuordnung bleibt das Bild weg.
+ */
+function creatorAvatar(item) {
+  const eintrag = item.casting_eintrag;
+  const creator = eintrag?.creator || item.creator;
+  const creatorName = creator ? `${creator.vorname || ''} ${creator.nachname || ''}`.trim() : '';
+  const name = eintrag?.name || creatorName || item.creator_name || '';
+  const url = eintrag?.profile_image_thumb_url || eintrag?.profile_image_url
+    || creator?.profilbild_thumb_url || creator?.profilbild_url;
+  return url || name ? renderTableAvatar({ url, name }) : '';
+}
+
+/** Creator-Zelle: Profilbild links, rechts die Verknuepfung (siehe creatorVerknuepfung). */
+function renderCreatorCell(detail, item, readonly) {
+  return `<td class="cell-textarea col-creator">${renderTableIdentity({
+    avatarHtml: creatorAvatar(item),
+    nameHtml: `<div class="creator-cell">${creatorVerknuepfung(detail, item, readonly)}</div>`
+  })}</td>`;
+}
+
+/**
+ * Zeigt den zugeordneten Casting-Eintrag (neu) oder den Altbestand
+ * (creator_id/creator_name, nur Anzeige). Der Plus-Button oeffnet den
+ * Casting-Drawer, das x loest die Zuordnung. Freitext wird nicht mehr
  * geschrieben.
  */
-function renderCreatorCell(detail, item, readonly) {
+function creatorVerknuepfung(detail, item, readonly) {
   const canEdit = !detail.isKunde && !readonly;
   const eintrag = item.casting_eintrag;
   const hatEintrag = !!item.creator_auswahl_item_id;
-
-  const connectBtn = canEdit
-    ? `<button type="button" class="creator-cell-btn creator-connect-btn" data-item-id="${item.id}" title="Casting-Eintrag zuordnen" aria-label="Casting-Eintrag zuordnen">${icon('user-add')}</button>`
-    : '';
 
   if (hatEintrag) {
     const name = eintrag?.name
@@ -302,46 +421,186 @@ function renderCreatorCell(detail, item, readonly) {
     const label = escapeHtml(name);
 
     const nameHtml = eintrag?.creator_id
-      ? `<a href="/creator/${eintrag.creator_id}" class="table-link creator-cell-link" onclick="event.preventDefault(); window.navigateTo('/creator/${eintrag.creator_id}')">${label}</a>`
-      : `<span class="creator-cell-name">${label}</span>`;
+      ? `<a href="/creator/${eintrag.creator_id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/creator/${eintrag.creator_id}')">${label}</a>`
+      : label;
 
     const unlinkBtn = canEdit
       ? `<button type="button" class="creator-cell-btn creator-unlink-btn" data-item-id="${item.id}" title="Zuordnung lösen" aria-label="Zuordnung lösen">${icon('x-mark')}</button>`
       : '';
 
+    return renderVerknuepftPill('creator', nameHtml, unlinkBtn);
+  }
+
+  // Altbestand: creator_id/creator_name nur noch Anzeige, kein Freitext-Input.
+  // Mit Edit-Recht ist der Name der Button zum Zuordnen eines Casting-Eintrags.
+  const legacyName = item.creator
+    ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
+    : (item.creator_name || '');
+
+  if (canEdit) {
+    return renderVerknuepfenBtn('creator-connect-btn', item.id, 'creator', legacyName ? escapeHtml(legacyName) : 'Creator verknüpfen', 'Casting-Eintrag zuordnen');
+  }
+
+  return legacyName ? renderVerknuepftPill('creator', escapeHtml(legacyName)) : '<span class="strategie-cell-muted">–</span>';
+}
+
+/**
+ * Creator-/Produkt-Zelle im Look der Tabellen-Selects (Persona, Funnel): ein Container
+ * mit Icon und Text, der nur so breit ist wie sein Inhalt. Die Klick-Klasse
+ * (…-connect-btn) hängt am Handler.
+ */
+function renderVerknuepfenBtn(klasse, itemId, iconName, label, title = label) {
+  return `<button type="button" class="creator-cell-select ${klasse}" data-item-id="${itemId}" title="${title}" aria-label="${title}">${icon(iconName)}<span class="table-select__label">${label}</span></button>`;
+}
+
+/** Verknüpfter Eintrag im selben Container: Icon, Name (ggf. Link), rechts das x zum Lösen. */
+function renderVerknuepftPill(iconName, nameHtml, unlinkBtn = '') {
+  return `<div class="creator-cell-select">${icon(iconName)}<span class="table-select__label">${nameHtml}</span>${unlinkBtn}</div>`;
+}
+
+/**
+ * Produkt-Zelle: ein Produkt aus dem Briefing der Produktion. Plus oeffnet
+ * den Produkt-Drawer, x loest die Zuordnung.
+ */
+function renderProduktCell(detail, item, readonly) {
+  const canEdit = !detail.isKunde && !readonly;
+  const name = (item.produkt?.name || '').trim();
+  const hatProdukt = !!item.produkt_id;
+
+  if (hatProdukt) {
+    const label = escapeHtml(name || 'Unbekannt');
+    const nameHtml = `<a href="/produkt/${item.produkt_id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/produkt/${item.produkt_id}')">${label}</a>`;
+    const unlinkBtn = canEdit
+      ? `<button type="button" class="creator-cell-btn produkt-unlink-btn" data-item-id="${item.id}" title="Zuordnung lösen" aria-label="Zuordnung lösen">${icon('x-mark')}</button>`
+      : '';
+
     return `
-      <td class="cell-textarea col-creator">
+      <td class="cell-textarea col-produkt">
+        <div class="creator-cell">${renderVerknuepftPill('cube', nameHtml, unlinkBtn)}</div>
+      </td>
+    `;
+  }
+
+  if (canEdit) {
+    return `
+      <td class="cell-textarea col-produkt">
         <div class="creator-cell">
-          ${nameHtml}
-          <span class="creator-cell-actions">${connectBtn}${unlinkBtn}</span>
+          ${renderVerknuepfenBtn('produkt-connect-btn', item.id, 'cube', 'Produkt verknüpfen')}
         </div>
       </td>
     `;
   }
 
-  // Altbestand: creator_id/creator_name nur noch Anzeige, kein Freitext-Input
-  const legacyName = item.creator
-    ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
-    : (item.creator_name || '');
-
   return `
-    <td class="cell-textarea col-creator">
+    <td class="cell-textarea col-produkt">
       <div class="creator-cell">
-        ${legacyName ? `<span class="creator-cell-name">${escapeHtml(legacyName)}</span>` : '<span class="strategie-cell-muted">–</span>'}
-        ${connectBtn}
+        <span class="strategie-cell-muted">–</span>
       </div>
     </td>
   `;
 }
 
 /**
+ * Funnel-Stufe: intern mit Edit-Recht ein Select, sonst (Kunde, Gast, Investor)
+ * der Wert als Badge im Tag-Stil. Ein Videoidee-Vorschlag bleibt fuers Team
+ * editierbar, das Team passt die Stufe vor dem Uebernehmen an.
+ */
+export function funnelEditable(detail) {
+  if (detail.isKunde) return false;
+  if (window.isGastReadonly?.()) return false;
+  if (!detail.canEdit) return false;
+  return typeof window.permissionSystem?.canEditField === 'function'
+    ? window.permissionSystem.canEditField('strategie', 'strategie_funnel')
+    : true;
+}
+
+export function renderFunnelControl(detail, item) {
+  const value = getStrategieFunnel(item);
+  if (!funnelEditable(detail)) return renderFunnelBadge(value);
+  return renderTableSelect({
+    field: 'strategie_funnel',
+    itemId: item.id,
+    value,
+    options: STRATEGIE_FUNNEL_OPTIONS
+  });
+}
+
+/**
+ * Dauer: intern mit Edit-Recht der Slider aus dem Briefing (von/bis in Sekunden),
+ * sonst (Kunde, Gast, Investor) der Wert als Text. Ein Videoidee-Vorschlag bleibt
+ * fuers Team editierbar, wie Funnel-Stufe.
+ *   zelle:  in der Tabelle ein Button mit dem Wert, der den Slider als Popover oeffnet
+ *   drawer: im Videoidee-Drawer der Slider direkt
+ */
+export function videolaengeEditable(detail) {
+  if (detail.isKunde) return false;
+  if (window.isGastReadonly?.()) return false;
+  if (!detail.canEdit) return false;
+  return typeof window.permissionSystem?.canEditField === 'function'
+    ? window.permissionSystem.canEditField('strategie', 'strategie_videolaenge')
+    : true;
+}
+
+export function renderVideolaengeControl(detail, item, { variant = 'zelle' } = {}) {
+  const iv = getStrategieVideolaenge(item);
+  const text = formatStrategieVideolaenge(item);
+
+  if (!videolaengeEditable(detail)) {
+    return text ? `<span class="strategie-videolaenge-text">${escapeHtml(text)}</span>` : '–';
+  }
+
+  if (variant === 'drawer') {
+    const spanne = { von: iv?.von, bis: iv?.bis };
+    return `<div class="videoidee-dauer" ${sekundenSpanneAttrs({ name: 'videolaenge', ...spanne })} data-item-id="${escapeAttr(item.id)}">${renderSekundenSpanne(spanne)}</div>`;
+  }
+
+  return `<button type="button" class="strategie-videolaenge-trigger${text ? '' : ' is-empty'}"
+      data-videolaenge-trigger
+      data-item-id="${escapeAttr(item.id)}"
+      aria-haspopup="dialog"
+      aria-label="Dauer wählen">${text ? escapeHtml(text) : 'Dauer wählen'}</button>`;
+}
+
+/**
+ * Persona: intern mit Edit-Recht ein Select aus den Briefing-Personas, sonst
+ * (Gast, Investor) der Name. Ein Videoidee-Vorschlag bleibt fuers Team editierbar.
+ */
+export function personaEditable(detail) {
+  if (detail.isKunde) return false;
+  if (window.isGastReadonly?.()) return false;
+  if (!detail.canEdit) return false;
+  return typeof window.permissionSystem?.canEditField === 'function'
+    ? window.permissionSystem.canEditField('strategie', 'strategie_persona')
+    : true;
+}
+
+export function renderPersonaControl(detail, item) {
+  const value = getStrategiePersona(item);
+  if (!personaEditable(detail)) {
+    return renderPersonaName(value ? detail.personaById?.get(value) : null);
+  }
+  return renderTableSelect({
+    field: 'strategie_persona',
+    itemId: item.id,
+    value,
+    options: detail.personaOptions ? detail.personaOptions(item) : []
+  });
+}
+
+/**
  * Umgesetzt-Zelle: Klickbar nur mit Feld-Edit-Recht (Kunde darf, Investor
  * nicht). Ohne Recht steht da nur der Zustand, kein disabled-Toggle.
  */
+/** Freigabe als Badge. Leer heißt Gedankenstrich, kein Status „Offen“. */
+export function renderSkriptFreigabeStatus(item) {
+  if (!item?.skript_freigabe) return '–';
+  return '<span class="status-badge success">Freigegeben</span>';
+}
+
 function renderUmgesetztCell(item, readonly) {
   const isUmgesetzt = !!item.video_umgesetzt;
   if (readonly) {
-    return `<span class="strategie-umgesetzt-state${isUmgesetzt ? ' is-active' : ''}" title="${isUmgesetzt ? 'Umgesetzt' : 'Nicht umgesetzt'}">${isUmgesetzt ? '✓' : '–'}</span>`;
+    return `<span class="strategie-umgesetzt-state${isUmgesetzt ? ' is-active' : ''}" title="${isUmgesetzt ? 'Umsetzen' : 'Nicht umsetzen'}">${isUmgesetzt ? '✓' : '–'}</span>`;
   }
   return `
     <label class="toggle-switch strategie-umgesetzt-toggle-wrapper">
@@ -357,9 +616,8 @@ function renderUmgesetztCell(item, readonly) {
 export function renderItemRow(detail, item, index) {
   const platformIcon = getPlatformIcon(item.plattform);
   const externalLinkIcon = `${icon('external-link', { className: 'icon-20' })}`;
-  const ideaIcon = `${icon('light-bulb')}`;
+  const ideaIcon = `${icon('videoidee')}`;
   const isIdea = !item.video_link;
-  const isLinked = !!item.linked_video;
   const isUmgesetzt = !!item.video_umgesetzt;
   const isVorschlag = isVideoideeVorschlag(item);
   const cols = visibleFixedColumns(detail);
@@ -368,6 +626,8 @@ export function renderItemRow(detail, item, index) {
   // deckt beide ab, deshalb blockt !canEdit nur Nicht-Kunden.
   const readonly = !!window.isGastReadonly?.() || (!detail.isKunde && !detail.canEdit);
   const showWriteCols = !detail.isKunde && !!detail.canEdit;
+  // Eine andere Sortierung als „Manuell“ ordnet nur die Ansicht; Ziehen würde sie speichern.
+  const canDrag = showWriteCols && !isVorschlag && (detail.tableFilter?.isManualSort() ?? true);
   const vorschlagReadonly = readonly || isVorschlag;
   // Umgesetzt-Toggle: eigene Feld-Capability (Kunde darf, Investor nicht).
   // Fallback auf das bisherige Verhalten, wenn das PermissionSystem die
@@ -378,33 +638,41 @@ export function renderItemRow(detail, item, index) {
 
   const rowClasses = [
     'item-row',
-    showWriteCols && !isVorschlag ? 'draggable' : '',
+    canDrag ? 'draggable' : '',
     isIdea ? 'idea-row' : '',
     isUmgesetzt ? 'strategie-item-umgesetzt' : '',
     item.nicht_umsetzen ? 'item-nicht-umsetzen' : '',
-    item.skript_freigabe ? 'item-skript-freigabe' : '',
     isVorschlag ? 'item-row--vorschlag' : '',
+    openVideoideeId() === String(item.id) ? 'is-videoidee-open' : '',
   ].filter(Boolean).join(' ');
 
-  return `
+  const html = `
     <tr class="${rowClasses}" data-item-id="${item.id}" ${isVorschlag ? 'data-vorschlag-id="' + item.id + '"' : ''} draggable="false">
       <td class="col-number">
-        ${index + 1}
-        ${item.skript_freigabe ? `<span class="strategie-skript-badge" title="Für Skript freigegeben">${icon('document-text')}</span>` : ''}
+        <span class="col-number__stack">
+          <span class="col-number__index">${index + 1}</span>
+          <button type="button" class="videoidee-open-btn" data-action="open-videoidee" data-item-id="${item.id}" aria-label="Videoidee öffnen" title="Videoidee öffnen">${icon('arrows-expand')}</button>
+        </span>
       </td>
       ${showWriteCols ? `
-        <td class="col-drag ${isVorschlag ? '' : 'drag-handle'}">
-          ${isVorschlag ? '' : icon('bars-3')}
+        <td class="col-drag ${canDrag ? 'drag-handle' : ''}">
+          ${canDrag ? icon('bars-3') : ''}
         </td>
       ` : ''}
+      ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
       ${renderBildCell(item, isIdea, ideaIcon)}
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
-      ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
-      ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
+      ${cols.beschreibung ? renderClippedTextCell(detail, item, isVorschlag ? 'beschreibung' : 'kurzbeschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
+      ${cols.produkt ? renderProduktCell(detail, item, vorschlagReadonly) : ''}
+      ${cols.persona ? `<td class="col-persona">${renderPersonaControl(detail, item)}</td>` : ''}
+      ${cols.funnel ? `<td class="col-funnel">${renderFunnelControl(detail, item)}</td>` : ''}
+      ${cols.dauer ? `<td class="col-dauer">${renderVideolaengeControl(detail, item)}</td>` : ''}
+      ${cols.umsetzungsvorgabe ? renderClippedTextCell(detail, item, 'umsetzungsvorgabe', 'col-umsetzungsvorgabe', 'Was sollen wir umsetzen?', vorschlagReadonly || !item.video_link) : ''}
+      ${cols.kundenadaption ? renderClippedTextCell(detail, item, 'kundenadaption', 'col-kundenadaption', 'Kundenadaption...', vorschlagReadonly) : ''}
       ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', vorschlagReadonly) : ''}
       ${cols.caption ? renderClippedTextCell(detail, item, 'caption', 'col-caption', 'Caption...', vorschlagReadonly) : ''}
       ${cols.anmerkung ? `
-        <td class="cell-textarea">
+        <td class="cell-textarea col-anmerkung">
           <textarea 
             class="strategie-textarea ${(detail.isKunde && !readonly && !isVorschlag) ? '' : 'readonly-textarea'}" 
             placeholder="${(detail.isKunde && !readonly) ? 'Ihre Anmerkung...' : 'Anmerkung Kunde...'}"
@@ -436,6 +704,7 @@ export function renderItemRow(detail, item, index) {
           })}
         </td>
       ` : ''}
+      ${cols.status ? `<td class="col-status">${renderSkriptFreigabeStatus(item)}</td>` : ''}
       ${cols.umgesetzt ? `
         <td class="col-umgesetzt u-text-center">
           ${renderUmgesetztCell(item, umgesetztReadonly)}
@@ -444,11 +713,12 @@ export function renderItemRow(detail, item, index) {
       ${detail.customColumns ? detail.customColumns.renderCells(item.id, detail.hiddenColumns, detail.isKunde, isVorschlag ? false : detail.canEdit) : ''}
       ${showWriteCols ? `
         <td class="col-actions">
-          ${isVorschlag ? renderVorschlagActions(item) : renderItemActions(detail, item, isLinked)}
+          ${isVorschlag ? renderVorschlagActions(item) : renderItemActions(detail, item)}
         </td>
       ` : ''}
     </tr>
   `;
+  return ordneStrategieZeileHtml(html, domSpaltenfolge(detail));
 }
 
 function renderVorschlagActions(item) {
@@ -471,7 +741,25 @@ function renderVorschlagActions(item) {
   `;
 }
 
-function renderItemActions(detail, item, isLinked) {
+function renderKundenadaptionAction(item) {
+  const vorgabe = String(item.umsetzungsvorgabe || '').trim();
+  const transkript = String(item.transkript || '').trim();
+  const disabled = !vorgabe || !transkript;
+  const title = !vorgabe
+    ? 'Zuerst die Umsetzungsvorgabe setzen'
+    : (!transkript ? 'Zuerst das Transkript abwarten' : 'Kundenadaption neu generieren');
+  return `
+                <a href="#" class="action-item${disabled ? ' action-disabled' : ''}"
+                  data-action="generiere-kundenadaption" data-id="${item.id}"
+                  ${disabled ? 'aria-disabled="true"' : ''}
+                  title="${escapeAttr(title)}">
+                  ${icon('sparkles')}
+                  Neu generieren
+                </a>
+  `;
+}
+
+export function renderItemActions(detail, item) {
   return `
           <div class="actions-dropdown-container" data-entity-type="strategie_item">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -484,26 +772,21 @@ function renderItemActions(detail, item, isLinked) {
               </a>
               <a href="#" class="action-item" data-action="connect-creator" data-id="${item.id}">
                 ${icon('user-add')}
-                ${item.creator_id ? 'Creator ändern' : 'Creator verbinden'}
+                ${item.creator_auswahl_item_id ? 'Creator ändern' : 'Creator verbinden'}
+              </a>
+              <a href="#" class="action-item" data-action="connect-produkt" data-id="${item.id}">
+                ${icon('cube')}
+                ${item.produkt_id ? 'Produkt ändern' : 'Produkt verbinden'}
               </a>
               ${item.video_link ? `
                 <a href="#" class="action-item" data-action="reprocess-item" data-id="${item.id}">
                   ${window.ActionsDropdown?.getHeroIcon('refresh') || ''}
                   Neu verarbeiten
                 </a>
+                ${renderKundenadaptionAction(item)}
               ` : ''}
               ${renderSkriptFreigabeAction(item)}
-              ${isLinked ? `
-                <a href="#" class="action-item action-warning" data-action="unlink-from-video" data-id="${item.id}" data-video-id="${item.linked_video.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('unlink') || ''}
-                  Idee von Video entfernen
-                </a>
-              ` : `
-                <a href="#" class="action-item" data-action="add-to-video" data-id="${item.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('add-to-list') || ''}
-                  Zu Video hinzufügen
-                </a>
-              `}
+              ${renderProduktionStartAction(item)}
               <div class="action-separator"></div>
               <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
                 ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
@@ -514,66 +797,123 @@ function renderItemActions(detail, item, isLinked) {
   `;
 }
 
+function renderProduktionStartAction(item) {
+  const state = actionState(produktionStartChecks(item));
+  if (state.mode === 'hidden') return '';
+  const disabled = state.mode === 'disabled';
+  const title = disabled ? state.title : 'Produktion starten';
+  return `
+              <a href="#" class="action-item${disabled ? ' action-disabled' : ''}"
+                data-action="start-produktion" data-id="${item.id}"
+                ${disabled ? 'aria-disabled="true"' : ''}
+                title="${escapeAttr(title)}">
+                ${icon('rocket')}
+                Produktion starten
+              </a>
+  `;
+}
+
 function renderSkriptFreigabeAction(item) {
-  const kannFreigeben = !!item.creator_auswahl_item_id && !item.nicht_umsetzen;
+  const kannFreigeben = !item.nicht_umsetzen;
   const aktiv = !!item.skript_freigabe;
   const disabled = !aktiv && !kannFreigeben;
   const title = aktiv
     ? 'Skript-Freigabe zurücknehmen'
     : (item.nicht_umsetzen
       ? 'Zuerst „Nicht umsetzen“ deaktivieren'
-      : (item.creator_auswahl_item_id
-        ? 'Für Skript freigeben'
-        : 'Zuerst einen Casting-Eintrag zuordnen'));
+      : 'Für Skript freigeben');
 
   return `
               <a href="#" class="action-item${disabled ? ' action-disabled' : ''}"
                 data-action="toggle-skript-freigabe" data-id="${item.id}"
                 ${disabled ? 'aria-disabled="true"' : ''}
                 title="${escapeAttr(title)}">
-                ${icon('document-text')}
+                ${icon('skript-freigabe')}
                 ${aktiv ? 'Skript-Freigabe zurücknehmen' : 'Für Skript freigeben'}
               </a>
   `;
 }
 
 export function getPlatformIcon(platform) {
-  const icons = {
-    youtube: `${icon('youtube', { className: 'icon-20' })}`,
-    tiktok: `${icon('tiktok', { className: 'icon-20' })}`,
-    instagram: `${icon('instagram', { className: 'icon-20' })}`
-  };
-  return icons[platform] || '';
+  // Nur das Icon der gewuenschten Plattform bauen, sonst meldet das IconSystem
+  // bei jedem Aufruf die uebrigen (z. B. das fehlende youtube-Icon).
+  if (!['youtube', 'tiktok', 'instagram'].includes(platform)) return '';
+  return icon(platform, { className: 'icon-20' });
+}
+
+function findItemRow(detail, itemId) {
+  const selector = `.strategie-items-table tr.item-row[data-item-id="${itemId}"]`;
+  return detail._q?.(selector) || document.querySelector(selector);
+}
+
+/**
+ * Nur das Aktionsmenü der Zeile neu bauen, plus ein offenes Portal derselben
+ * Zeile. Textfelder bleiben stehen.
+ */
+export function refreshItemActions(detail, itemId) {
+  if (!detail || itemId == null) return false;
+  const item = detail.items?.find(i => i.id === itemId);
+  const row = findItemRow(detail, itemId);
+  const dropdown = row?.querySelector('.actions-dropdown');
+  if (!item || !dropdown) return false;
+
+  const html = isVideoideeVorschlag(item)
+    ? renderVorschlagActions(item)
+    : renderItemActions(detail, item);
+  const next = document.createElement('div');
+  next.innerHTML = html;
+  const fresh = next.querySelector('.actions-dropdown');
+  if (!fresh) return false;
+
+  dropdown.innerHTML = fresh.innerHTML;
+
+  const toggle = row.querySelector('.actions-toggle');
+  const portal = document.querySelector('.actions-dropdown-portal');
+  if (portal && toggle && portal._sourceToggle === toggle) {
+    portal.innerHTML = fresh.innerHTML;
+  }
+  return true;
 }
 
 /**
  * Nur eine Zeile neu zeichnen - fuer Realtime-Updates aus der Background
  * Function. Ein Komplett-Rerender wuerde offene Textareas mitsamt Eingabe
  * wegwerfen; aus demselben Grund bleibt eine Zeile mit Fokus unangetastet.
+ * Das Aktionsmenü wird trotzdem nachgezogen.
  *
  * @returns {boolean} false, wenn die Zeile gerade bearbeitet wird oder fehlt
  */
 export function updateItemRow(detail, itemId) {
-  const row = document.querySelector(`.strategie-items-table tr.item-row[data-item-id="${itemId}"]`);
-  if (!row || row.contains(document.activeElement)) return false;
+  const row = findItemRow(detail, itemId);
+  if (!row) return false;
 
   const item = detail.items.find(i => i.id === itemId);
   if (!item) return false;
+
+  if (row.contains(document.activeElement)) {
+    refreshItemActions(detail, itemId);
+    return false;
+  }
 
   // Die laufende Nummer haengt an der Gruppierung, nicht am Array-Index
   const angezeigteNummer = parseInt(row.querySelector('.col-number')?.textContent ?? '', 10);
   const index = Number.isFinite(angezeigteNummer) ? angezeigteNummer - 1 : detail.items.indexOf(item);
 
+  absorbStrategieEdits(detail, row);
   row.outerHTML = renderItemRow(detail, item, index);
   detail._bindTableEvents();
+  document.dispatchEvent(new CustomEvent('videoidee-table-rendered'));
   return true;
 }
 
 export function rerenderItemsTable(detail) {
-  const tableContainer = document.querySelector('.table-container');
+  const tableContainer = detail._q?.('.table-container')
+    || document.querySelector('.table-container');
   if (!tableContainer) return;
 
+  absorbStrategieEdits(detail, tableContainer);
   tableContainer.outerHTML = renderItemsTable(detail);
-  
+
   detail._bindTableEvents();
+  document.dispatchEvent(new CustomEvent('videoidee-table-rendered'));
 }

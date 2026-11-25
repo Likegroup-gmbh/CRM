@@ -1,0 +1,259 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { renderMainPage } from '../modules/kampagne/KampagneDetailMainRenderer.js';
+
+const kampagneData = {
+  kampagnenname: 'Burger',
+  auftrag: { nettobetrag: 90000, creator_budget: 40000 }
+};
+
+describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
+  beforeEach(() => {
+    window.validatorSystem = {
+      sanitizeHtml: (value) => String(value ?? ''),
+      sanitizeUrl: (value) => String(value ?? '')
+    };
+    window.isAdmin = () => true;
+    window.isKunde = () => false;
+    window.isInternal = () => false;
+    window.canCreate = () => true;
+    window.canFeature = () => false;
+  });
+
+  it('zeigt Soll-Karten und die Produktionsliste ohne Workflow-Tabs', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{
+        id: 'p1',
+        name: 'Neuer Süßer Senf 2.0',
+        produkt: { name: 'Senf' },
+        briefing: { aktivierung_name: 'Neuer Süßer Senf 2.0' }
+      }]
+    });
+
+    expect(html).toContain('id="btn-new-produktion"');
+    expect(html).toContain('href="/produktion/p1"');
+    expect(html).toContain('Neuer Süßer Senf 2.0');
+    expect(html).toContain('summary-cards');
+    expect(html).not.toContain('data-tab="casting"');
+  });
+
+  it('zeigt auf der Produktion den Briefing-Titel und den Tab Kooperationen', () => {
+    const html = renderMainPage({
+      mode: 'workflow',
+      lineTitle: 'Neuer Süßer Senf 2.0',
+      kampagneData,
+      activeWorkflow: 'kooperationen'
+    });
+
+    expect(html).toContain('Neuer Süßer Senf 2.0');
+    expect(html).toContain('data-workflow-tab="kooperationen"');
+    expect(html).toMatch(/data-workflow-tab="kooperationen">\s*Kooperationen\s*</);
+    expect(html).toContain('data-workflow-tab="casting"');
+    const briefing = html.indexOf('data-workflow-tab="briefing"');
+    const produkte = html.indexOf('data-workflow-tab="produkte"');
+    const personas = html.indexOf('data-workflow-tab="personas"');
+    const casting = html.indexOf('data-workflow-tab="casting"');
+    expect(briefing).toBeGreaterThan(-1);
+    expect(briefing).toBeLessThan(produkte);
+    expect(produkte).toBeLessThan(personas);
+    expect(personas).toBeLessThan(casting);
+    expect(html).not.toContain('summary-cards');
+  });
+
+  it('zeigt Produkt, Briefing und den Verbrauch am Kampagnen-Topf', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{
+        id: 'p1',
+        name: 'Next Magenta',
+        produkt: { name: 'Magenta' },
+        briefing: { aktivierung_name: 'Next Magenta' },
+        budgetUsed: 12500
+      }]
+    });
+
+    expect(html).toContain('Magenta');
+    expect(html).toContain('Next Magenta');
+    expect(html).toContain('Verbrauch');
+    expect(html).toContain('budget-progress-cell');
+    expect(html).toContain('style="width: 31%"');
+    expect(html).toContain('31%');
+  });
+
+  it('rechnet den Balken gegen das Budget der Kampagne statt des Auftrags', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData: {
+        kampagnenname: 'Burger',
+        volumen: 25000,
+        auftrag: { nettobetrag: 90000, creator_budget: 40000 }
+      },
+      produktionen: [{
+        id: 'p1',
+        name: 'Next Magenta',
+        briefing: { aktivierung_name: 'Next Magenta' },
+        budgetUsed: 12500
+      }]
+    });
+
+    expect(html).toContain('style="width: 50%"');
+    expect(html).toContain('50%');
+  });
+
+  it('zeigt im geteilten Topf den eigenen Verbrauch je Produktion', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [
+        { id: 'p1', name: 'Produktion A', briefing: { aktivierung_name: 'A' }, budgetUsed: 12500 },
+        { id: 'p2', name: 'Produktion B', briefing: { aktivierung_name: 'B' }, budgetUsed: 7500 }
+      ]
+    });
+
+    // 12.500 / 40.000 = 31%, 7.500 / 40.000 = 19%
+    expect(html).toContain('style="width: 31%"');
+    expect(html).toContain('style="width: 19%"');
+    expect(html).toContain('12.500,00');
+    expect(html).toContain('7.500,00');
+    expect(html).not.toContain('20.000,00');
+  });
+
+  it('zeigt die Budget-Spalte mit eigenem Budget oder Platzhalter', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [
+        { id: 'p1', name: 'Produktion A', briefing: { aktivierung_name: 'A' }, budget: 15000, budgetUsed: 1000 },
+        { id: 'p2', name: 'Produktion B', briefing: { aktivierung_name: 'B' }, budgetUsed: 500 }
+      ]
+    });
+
+    expect(html).toContain('<th>Budget</th>');
+    expect(html).toContain('15.000,00');
+    expect(html).toContain('<span class="text-muted">–</span>');
+    // Eigenes Budget: nur eigener Verbrauch (1.000 / 15.000 = 7%)
+    expect(html).toContain('style="width: 7%"');
+  });
+
+  it('zeigt Produkte und Briefings als Pill-Links statt als Text', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{
+        id: 'p1',
+        name: 'Next Magenta',
+        linien: [
+          { id: 'b1', name: 'Serum', briefing: { produkte: [{ produkt: { id: 'pr1', name: 'Serum 30ml' } }] } },
+          { id: 'b2', name: 'Kur', is_draft: true, briefing: { produkte: [{ produkt: { id: 'pr1', name: 'Serum 30ml' } }] } }
+        ]
+      }]
+    });
+
+    expect(html).toContain('href="/produkt/pr1"');
+    expect(html.match(/href="\/produkt\/pr1"/g)).toHaveLength(1);
+    expect(html).toContain('href="/briefing/b1"');
+    expect(html).toContain('href="/briefing/b2"');
+    expect(html).toContain('Kur (Entwurf)');
+    expect(html).toContain('verknuepfung-pill');
+  });
+
+  it('legt Mitarbeitern rechts ein Menü für Name und Produktionsbudget hin', () => {
+    window.isAdmin = () => false;
+    window.isInternal = () => true;
+    window.isKunde = () => false;
+    window.isInvestor = () => false;
+    window.canCreate = () => true;
+
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{
+        id: 'p1',
+        name: 'Next Magenta',
+        koopAnzahl: 0,
+        linien: [{ id: 'l1', name: 'Linie' }]
+      }]
+    });
+
+    const menu = html.slice(html.lastIndexOf('<td class="col-actions">'));
+    expect(menu).toContain('aria-label="Aktionen"');
+    expect(menu).toContain('data-action="produktion-name"');
+    expect(menu).toContain('Name bearbeiten');
+    expect(menu).toContain('data-action="produktion-budget"');
+    expect(menu).toContain('Produktionsbudget anpassen');
+    expect(menu).toContain('data-produktion-loeschen="p1"');
+    expect(menu).toContain('Löschen');
+  });
+
+  it('bietet Löschen im Aktionsmenü, wenn keine Kooperationen da sind', () => {
+    window.isAdmin = () => false;
+    window.isInternal = () => true;
+    window.canCreate = () => true;
+
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{ id: 'p1', name: 'Leer', linien: [], koopAnzahl: 0 }]
+    });
+
+    expect(html).toContain('data-produktion-loeschen="p1"');
+    expect(html).toContain('Löschen');
+  });
+
+  it('versteckt Löschen im Aktionsmenü, solange Kooperationen hängen', () => {
+    window.isAdmin = () => false;
+    window.isInternal = () => true;
+    window.canCreate = () => true;
+
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{
+        id: 'p1',
+        name: 'Belegt',
+        koopAnzahl: 3,
+        linien: [{ id: 'l1', name: 'Linie' }]
+      }]
+    });
+
+    expect(html).not.toContain('data-produktion-loeschen');
+  });
+
+  it('zeigt das Aktionsmenü mit Löschen auch auf der Produktionsseite', () => {
+    const html = renderMainPage({
+      mode: 'workflow',
+      lineTitle: 'SELPHY Drucker',
+      kampagneData,
+      activeWorkflow: 'briefing',
+      produktion: { id: 'p1', name: 'SELPHY Drucker', koopAnzahl: 0, linien: [{ id: 'b1' }] }
+    });
+
+    expect(html).toContain('aria-label="Aktionen"');
+    expect(html).toContain('data-produktion-loeschen="p1"');
+    expect(html).toContain('Löschen');
+  });
+
+  it('versteckt das Menü vor Kunden und der Finanzen-Sicht', () => {
+    window.isAdmin = () => false;
+    window.isInternal = () => false;
+    window.isKunde = () => true;
+    const kunde = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{ id: 'p1', name: 'Next Magenta' }]
+    });
+    expect(kunde).not.toContain('data-action="produktion-name"');
+
+    window.isKunde = () => false;
+    window.isInternal = () => true;
+    window.isInvestor = () => true;
+    const finanzen = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [{ id: 'p1', name: 'Next Magenta' }]
+    });
+    expect(finanzen).not.toContain('data-action="produktion-name"');
+  });
+});

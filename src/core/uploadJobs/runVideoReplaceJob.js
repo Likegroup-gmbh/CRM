@@ -1,62 +1,20 @@
 // runVideoReplaceJob.js
 // Ersetzt eine bestehende Asset-Datei (gleiche version_number) durch eine neue Datei.
+// Die alte SharePoint-Datei räumt der Server ab (ersetzen im Ziel-Request). Altbestand
+// außerhalb von SharePoint bleibt liegen, die Zeile zeigt danach auf die neue Datei.
 
-import { uploadFileDirect } from '../DropboxDirectUploader.js';
 import { buildVersionedFileName } from '../VideoUploadUtils.js';
-
-async function fetchTokenAndPath({ metadaten, versionNumber, variantName, fileName }) {
-  const resp = await fetch('/.netlify/functions/dropbox-upload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      unternehmen: metadaten.unternehmen || '',
-      marke: metadaten.marke || '',
-      kampagne: metadaten.kampagne || '',
-      kooperation: metadaten.kooperationName || '',
-      videoPosition: metadaten.videoPosition || 1,
-      videoThema: metadaten.videoThema || '',
-      videoTitel: metadaten.videoTitel || 'Video',
-      versionNumber: String(versionNumber),
-      variantName,
-      fileName,
-    }),
-  });
-  if (!resp.ok) {
-    const errData = await resp.json().catch(() => ({}));
-    throw new Error(errData.error || `Token-Abruf fehlgeschlagen (${resp.status})`);
-  }
-  return resp.json();
-}
-
-async function createSharedLink(token, dropboxPath) {
-  try {
-    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'shared-link', path: dropboxPath, token }),
-    });
-    if (!resp.ok) return null;
-    const { url } = await resp.json();
-    return url?.replace('?dl=0', '?raw=1') || null;
-  } catch {
-    return null;
-  }
-}
+import { ablageZielHolen, hochladenNachSharePoint, sharePointAssetFelder, uploadVerwerfen } from '../ablage/ablageUpload.js';
+import { trackUploadProgress } from './uploadFortschritt.js';
 
 export async function runVideoReplaceJob(ctx) {
   const { job, signal, updateItem } = ctx;
-  const { videoId, metadaten, file, assetId, oldFilePath, versionNumber, variantName } = job.payload;
+  const { videoId, metadaten, file, assetId, versionNumber, variantName } = job.payload;
   const item = job.items[0];
 
   if (!videoId) throw new Error('videoId fehlt');
   if (!file) throw new Error('file fehlt');
   if (!assetId) throw new Error('assetId fehlt');
-
-  // HINWEIS: Die alte Dropbox-Datei wird bewusst NICHT vor dem Upload geloescht.
-  // Schlaegt der Upload fehl oder wird abgebrochen, bleibt alte Datei + DB-Row
-  // intakt und das Video "verschwindet" nicht. Der Upload schreibt ohnehin mit
-  // mode:'overwrite' auf denselben Pfad; abweichende alte Pfade werden erst
-  // nach erfolgreichem Upload + DB-Update aufgeraeumt (siehe unten).
 
   const ext = file.name.split('.').pop() || 'mp4';
   const fileName = buildVersionedFileName(
@@ -68,75 +26,40 @@ export async function runVideoReplaceJob(ctx) {
     ext
   );
 
-  updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
+  updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size });
 
-  const { token, dropboxPath } = await fetchTokenAndPath({
-    metadaten, versionNumber, variantName, fileName,
+  const ziel = await ablageZielHolen({
+    typ: 'video',
+    kooperation_id: metadaten?.kooperationId ?? null,
+    kooperation_video_id: videoId,
+    version_number: parseInt(versionNumber, 10) || 1,
+    is_final: false,
+    variant_name: variantName || null,
+    file_name: fileName,
+    file_size: file.size,
+    ersetzen: { typ: 'video', id: assetId },
   });
 
-  const getToken = async () => {
-    const fresh = await fetchTokenAndPath({ metadaten, versionNumber, variantName, fileName });
-    return fresh.token;
-  };
-
-  const uploadResult = await uploadFileDirect({
-    file,
-    dropboxPath,
-    token,
-    getToken,
-    signal,
-    onProgress: ({ loaded, total, phase, error }) => {
-      const patch = { loaded, total };
-      if (phase === 'direct-failed') {
-        patch.directOk = false;
-        patch.directError = error || 'Unbekannter Fehler';
-        patch.transport = 'proxy';
-        if (!item.directErrorNotified) {
-          item.directErrorNotified = true;
-          window.toastSystem?.warning?.(
-            `Direct-Upload fehlgeschlagen (${patch.directError}). Upload laeuft ueber Proxy weiter (langsamer).`
-          );
-        }
-      }
-      if (phase === 'proxy-fallback') patch.transport = 'proxy';
-      updateItem(item.id, patch);
-    },
-  });
-
-  const actualPath = uploadResult.path_display || dropboxPath;
-  if (item.directOk === null) updateItem(item.id, { directOk: true });
+  const commit = await hochladenNachSharePoint({ ziel, file, signal, onProgress: trackUploadProgress(item, updateItem) });
   updateItem(item.id, { status: 'saving' });
 
-  const sharedLink = await createSharedLink(token, actualPath);
-  // Kein Roh-Pfad als URL-Fallback (toter Play-Button); Wiedergabe ueber file_path.
-  const fileUrl = sharedLink || null;
-
+  const felder = sharePointAssetFelder(commit);
   const { error: updateErr } = await window.supabase
     .from('kooperation_video_asset')
-    .update({
-      file_url: fileUrl,
-      file_path: actualPath,
-      created_at: new Date().toISOString(),
-    })
+    .update({ ...felder, created_at: new Date().toISOString() })
     .eq('id', assetId);
-  if (updateErr) throw updateErr;
-
-  // Alte Datei erst NACH erfolgreichem Upload + DB-Update loeschen (best effort).
-  // Gleicher Pfad wurde durch mode:'overwrite' bereits ersetzt – nur abweichende
-  // Pfade (z.B. andere Extension) muessen aufgeraeumt werden.
-  if (oldFilePath && oldFilePath !== actualPath) {
-    try {
-      await fetch('/.netlify/functions/dropbox-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: oldFilePath }),
-      });
-    } catch (err) {
-      console.warn('[VideoReplace] Dropbox-Löschung fehlgeschlagen:', err);
-    }
+  if (updateErr) {
+    await uploadVerwerfen(ziel.upload_id);
+    throw updateErr;
   }
 
-  updateItem(item.id, { status: 'done', loaded: file.size });
+  // Finale Versionen dieser Datei zeigen auf dieselbe Datei und ziehen mit
+  const { error: finalsErr } = await window.supabase
+    .from('kooperation_video_asset')
+    .update(felder)
+    .eq('source_asset_id', assetId);
+  if (finalsErr) console.warn('[VideoReplace] Finale Versionen nicht nachgezogen:', finalsErr.message || finalsErr);
 
-  return { assetId, fileUrl, filePath: actualPath };
+  updateItem(item.id, { status: 'done', loaded: file.size });
+  return { assetId, fileUrl: felder.file_url, filePath: felder.file_path };
 }

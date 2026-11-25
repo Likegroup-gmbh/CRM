@@ -130,7 +130,7 @@ async function loadFilterOptions(filter) {
     if (tableName === 'creator') {
       const creators = await loadAllCreators(window.supabase);
       return creators.map(creator => ({
-        value: creator[valueField] || creator.id,
+        value: creator.id,
         label: creatorDisplayName(creator) || 'Unbekannt'
       }));
     }

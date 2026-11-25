@@ -1,107 +1,235 @@
 // VideoTableRealtimeHandler.js
 // Realtime-Subscriptions und Live-DOM-Updates fuer die Kampagnen-Video-Tabelle
 
-import { checkAuftragBudgetStatus } from '../auftrag/logic/AuftragStatusUtils.js';
 import {
   formatVideoFeedbackValue,
+  getVideoFeedbackSlot,
   getVideoFeedbackSlotByField,
   groupVideoFeedbackComments,
   isMissingFeedbackTypeError,
+  replaceVideoFeedbackBucket,
   VIDEO_FEEDBACK_FIELDS,
   VIDEO_FEEDBACK_LEGACY_SELECT,
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
-import { applyLiveLinkCellState, findLiveLinkCell } from './liveLinkCell.js';
+import { acquireKampagneChannel } from './kampagneRealtimeChannel.js';
+import { koopGehoertZurLinie } from '../produktion/ProduktionService.js';
+import { mergeKeepingFilled, shouldKeepDisplayedText } from '../../core/table/textFieldBaseline.js';
+import {
+  customValueFields,
+  isEditingCustomValue,
+  readCustomValueChange,
+  writeCustomValue
+} from '../../core/customColumns/remoteCustomValue.js';
+import { applyZeitkommentarChange, patchZeitkommentarLists } from './videoTableZeitkommentare.js';
+import { makeCustomColumnId } from './columns/ColumnRegistry.js';
+import { refreshKoopMedia } from './videoTableMediaRefresh.js';
+
+// Eine Datei erzeugt mehrere Writes (Insert, Flags, Echo nach dem Verschieben)
+export const MEDIEN_DEBOUNCE_MS = 700;
 
 export class VideoTableRealtimeHandler {
   constructor(table) {
     this.table = table;
-  }
-
-  async _triggerBudgetCheck() {
-    try {
-      const { data } = await window.supabase
-        .from('kampagne')
-        .select('auftrag_id')
-        .eq('id', this.table.kampagneId)
-        .single();
-      if (data?.auftrag_id) {
-        checkAuftragBudgetStatus(data.auftrag_id);
-      }
-    } catch (e) {
-      console.warn('⚠️ Budget-Check Trigger fehlgeschlagen:', e);
-    }
+    this._medienTimers = new Map();
+    // koopId -> true, wenn waehrend des Laufs ein weiteres Event kam
+    this._medienLaeufe = new Map();
   }
 
   initRealtimeSubscription() {
-    if (this.table._realtimeChannel) return;
+    if (this._destroyed) return;
+    if (this._releaseChannel) return;
+    if (!window.supabase?.channel) return;
 
-    if (!this.table.kooperationen || this.table.kooperationen.length === 0) {
+    // Der Channel gehoert dem gemeinsamen Modul und ueberlebt Kanban/Tabelle-
+    // Wechsel und kurze Navigationen (Gnadenfrist). Hier nur Listener anmelden.
+    this._releaseChannel = acquireKampagneChannel(this.table.kampagneId, {
+      onChange: (tableName, payload) => this._onRealtimeChange(tableName, payload),
+      onResync: () => this._resync()
+    });
+  }
+
+  _onRealtimeChange(tableName, payload) {
+    if (this._destroyed) return;
+    const type = payload?.eventType;
+    const koops = this.table.kooperationen || [];
+
+    if (tableName === 'kooperation_videos') {
+      if (!payload?.new || !koops.some(k => k.id === payload.new.kooperation_id)) return;
+      if (type === 'UPDATE') this.handleVideoUpdate(payload);
+      else if (type === 'INSERT') this.handleNewVideo(payload);
       return;
     }
 
-    this.table._realtimeChannel = window.supabase
-      .channel(`kampagne-koops-videos-${this.table.kampagneId}`, {
-        config: { broadcast: { self: false } }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'kooperation_videos'
-      }, (payload) => {
-        if (this.table.kooperationen.some(k => k.id === payload.new.kooperation_id)) {
-          this.handleVideoUpdate(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'kooperation_videos'
-      }, (payload) => {
-        if (this.table.kooperationen.some(k => k.id === payload.new.kooperation_id)) {
-          this.handleNewVideo(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'kooperationen'
-      }, (payload) => {
-        if (payload.new.kampagne_id === this.table.kampagneId) {
-          this.handleNewKooperation(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'kooperationen'
-      }, (payload) => {
-        if (payload.new.kampagne_id === this.table.kampagneId) {
-          this.handleKooperationUpdate(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'DELETE', schema: 'public', table: 'kooperationen'
-      }, (payload) => {
+    if (tableName === 'kooperationen') {
+      if (type === 'DELETE') {
         const deletedId = payload?.old?.id;
         const belongsByKampagne = payload?.old?.kampagne_id === this.table.kampagneId;
-        const belongsByLocal = deletedId
-          ? this.table.kooperationen.some(k => k.id === deletedId)
-          : false;
-        if (belongsByKampagne || belongsByLocal) {
-          this.handleKooperationDelete(payload);
-        }
-      })
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'kooperation_video_comment'
-      }, (payload) => this.handleCommentChange(payload))
-      .on('postgres_changes', {
-        event: 'DELETE', schema: 'public', table: 'kooperation_video_comment'
-      }, (payload) => this.handleCommentChange(payload))
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'kooperation_video_comment'
-      }, (payload) => this.handleCommentChange(payload))
-      .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.error('REALTIME: Channel Error:', err);
-          setTimeout(() => {
-            this.cleanup();
-            this.initRealtimeSubscription();
-          }, 5000);
-        }
-      });
+        const belongsByLocal = deletedId ? koops.some(k => k.id === deletedId) : false;
+        if (belongsByKampagne || belongsByLocal) this.handleKooperationDelete(payload);
+        return;
+      }
+      if (payload?.new?.kampagne_id !== this.table.kampagneId) return;
+      if (type === 'INSERT') this.handleNewKooperation(payload);
+      else if (type === 'UPDATE') this.handleKooperationUpdate(payload);
+      return;
+    }
+
+    if (tableName === 'kooperation_video_comment') {
+      this.handleCommentChange(payload);
+      return;
+    }
+
+    if (tableName === 'kooperation_video_zeitkommentar') {
+      this.handleZeitkommentarChange(payload);
+      return;
+    }
+
+    if (tableName === 'kooperation_still_comment') {
+      this.handleStillCommentChange(payload);
+      return;
+    }
+
+    if (tableName === 'custom_column_values') {
+      this.handleCustomValueChange(payload);
+      return;
+    }
+
+    if (tableName === 'kooperation_medien_stand') {
+      const koopId = payload?.new?.kooperation_id;
+      if (koopId && koops.some(k => k.id === koopId)) this.scheduleMedienRefresh(koopId);
+    }
+  }
+
+  scheduleMedienRefresh(koopId) {
+    clearTimeout(this._medienTimers.get(koopId));
+    this._medienTimers.set(koopId, setTimeout(() => {
+      this._medienTimers.delete(koopId);
+      this._runMedienRefresh(koopId);
+    }, MEDIEN_DEBOUNCE_MS));
+  }
+
+  async _runMedienRefresh(koopId) {
+    if (this._destroyed) return;
+    if (this._medienLaeufe.has(koopId)) {
+      this._medienLaeufe.set(koopId, true);
+      return;
+    }
+    this._medienLaeufe.set(koopId, false);
+    try {
+      await refreshKoopMedia(this.table, koopId);
+    } catch (err) {
+      console.warn('REALTIME: Medien-Refresh fehlgeschlagen:', err);
+    } finally {
+      const nochmal = this._medienLaeufe.get(koopId);
+      this._medienLaeufe.delete(koopId);
+      if (nochmal && !this._destroyed) this._runMedienRefresh(koopId);
+    }
+  }
+
+  // DELETE liefert payload.new = {}, die Spalten stehen dann nur in payload.old.
+  _changedRow(payload, key) {
+    return payload?.new?.[key] ? payload.new : payload?.old;
+  }
+
+  _typingInGrid() {
+    const active = document.activeElement;
+    return !!(active?.matches?.('input, textarea, select, [contenteditable="true"]')
+      && active.closest?.('.kooperation-video-grid'));
+  }
+
+  _flash(field) {
+    field.classList.add('field-updated');
+    setTimeout(() => field.classList.remove('field-updated'), 2000);
+  }
+
+  handleZeitkommentarChange(payload) {
+    const row = this._changedRow(payload, 'video_id');
+    if (!row?.video_id || !this._knowsVideo(row.video_id)) return;
+    const videoId = row.video_id;
+    const next = applyZeitkommentarChange(this.table.zeitkommentare[videoId], row, {
+      removed: payload.eventType === 'DELETE'
+    });
+    if (this.table.store) this.table.store.updateZeitkommentare(videoId, next);
+    else this.table.zeitkommentare[videoId] = next;
+    patchZeitkommentarLists(document, this._findVideo(videoId), next);
+    this.table._rowHeightSync?.schedule();
+  }
+
+  // Bild-Feedback steht nur im Player. Store und offener Player ziehen mit.
+  handleStillCommentChange(payload) {
+    const row = this._changedRow(payload, 'video_id');
+    if (!row?.video_id || !this._knowsVideo(row.video_id)) return;
+    const slot = getVideoFeedbackSlot(row.runde, row.feedback_typ);
+    if (!slot) return;
+    const videoId = row.video_id;
+    const live = payload.eventType !== 'DELETE' && !row.deleted_at && String(row.text || '').trim();
+    const next = replaceVideoFeedbackBucket(this.table.stillComments?.[videoId], slot.bucket, live ? [row] : []);
+    if (this.table.store) this.table.store.updateStillComments(videoId, next);
+    else this.table.stillComments[videoId] = next;
+
+    if (this.table.feedbackSaveController?.isDirty(videoId, slot.field, 'still')) return;
+    const text = formatVideoFeedbackValue(next, slot.bucket);
+    document.querySelectorAll(`[data-entity="still"][data-id="${videoId}"][data-field="${slot.field}"]`).forEach(field => {
+      if (field === document.activeElement || field.value === text) return;
+      field.value = text;
+      this._flash(field);
+    });
+  }
+
+  handleCustomValueChange(payload) {
+    const store = this.table.store;
+    const change = readCustomValueChange(payload);
+    if (!store || !change) return;
+    const { columnId, entityId, value } = change;
+    if (!store.customColumns.some(c => c.id === columnId)) return;
+    const known = this.table.kooperationen.some(k => k.id === entityId) || this._knowsVideo(entityId);
+    if (!known) return;
+
+    const controller = this.table.feedbackSaveController;
+    const fields = customValueFields(document, columnId, entityId);
+    // Ungespeicherter oder gerade getippter Text hat Vorrang. Sein Save schreibt danach ohnehin.
+    if (controller?.isDirty(entityId, columnId, 'custom') || isEditingCustomValue(fields)) return;
+
+    store.setCustomColumnValue(entityId, columnId, value);
+    const patched = writeCustomValue(fields, value, { onPatched: f => controller?.acceptRemoteValue?.(f) });
+    if (patched) {
+      this.table._rowHeightSync?.schedule();
+      return;
+    }
+    const visible = [...document.querySelectorAll(`td[data-col-id="${makeCustomColumnId(columnId)}"]`)]
+      .some(td => td.style.display !== 'none');
+    if (visible && !this._typingInGrid()) this.table.refilter?.();
+  }
+
+  // Nach Reconnect oder laengerem Hintergrund-Tab: verpasste Events nachholen.
+  // Wer gerade in ein Feld der Tabelle tippt, wird nicht durch ein Neuzeichnen
+  // gestoert; dann zieht das naechste Event oder der naechste Resync nach.
+  async _resync() {
+    if (this._destroyed || this._resyncRunning) return;
+    if (typeof this.table.reloadKooperationen !== 'function') return;
+    const active = document.activeElement;
+    if (active?.matches?.('input, textarea, select, [contenteditable="true"]')
+      && active.closest?.('.kooperation-video-grid')) {
+      return;
+    }
+    this._resyncRunning = true;
+    try {
+      await this.table.reloadKooperationen();
+    } catch (err) {
+      console.warn('REALTIME: Resync fehlgeschlagen:', err);
+    } finally {
+      this._resyncRunning = false;
+    }
+  }
+
+  _knowsVideo(videoId) {
+    const videos = this.table.videos;
+    if (!videos || !videoId) return false;
+    for (const koopId in videos) {
+      if (videos[koopId]?.some(v => v.id === videoId)) return true;
+    }
+    return false;
   }
 
   _isOwnUpdate(koopId) {
@@ -118,10 +246,47 @@ export class VideoTableRealtimeHandler {
       Date.now() - this.table._lastUpdateTime < 2000;
   }
 
+  // Ein Upload-Abschluss aktualisiert die Zeile, bevor das Feld geblurrt
+  // ist. Der Payload traegt dann noch den alten oder leeren Text und wuerde
+  // den gerade gesetzten Namen oder die Caption loeschen.
+  _keepRecentText(incoming, fieldName, edits) {
+    if (!incoming?.id) return incoming;
+    const kept = edits?.get(incoming.id);
+    if (!kept || Date.now() - kept.at >= 15000) return incoming;
+    if ((incoming[fieldName] ?? '') === kept.value) return incoming;
+    return { ...incoming, [fieldName]: kept.value };
+  }
+
+  _keepRecentVideoName(incoming) {
+    return this._keepRecentText(incoming, 'video_name', this.table._videoNameEdits);
+  }
+
+  _keepRecentCaption(incoming) {
+    return this._keepRecentText(incoming, 'caption', this.table._captionEdits);
+  }
+
+  _findVideo(videoId) {
+    for (const list of Object.values(this.table.videos || {})) {
+      const video = list?.find(v => v.id === videoId);
+      if (video) return video;
+    }
+    return null;
+  }
+
   async handleVideoUpdate(payload) {
     if (this._isOwnUpdate(payload.new?.id)) return;
 
-    const updatedVideo = payload.new;
+    const incoming = this._keepRecentCaption(this._keepRecentVideoName(payload.new));
+    const updatedVideo = mergeKeepingFilled(this._findVideo(incoming?.id), incoming);
+
+    // Virtuell über das Konzept zugeordnete Videos haben keine skript_id in
+    // der DB — ihre Freigabe-Checkbox folgt dem Skript-Status, nicht der
+    // Spalte. Das Payload traegt den rohen Spaltenwert, also ableiten.
+    const existing = this._findVideo(updatedVideo.id);
+    if (existing?._skriptAusKonzept && existing.skript) {
+      updatedVideo.skript_freigegeben = existing.skript.status === 'freigegeben';
+    }
+
     if (this.table.store) {
       this.table.store.updateVideo(updatedVideo.id, updatedVideo);
     } else {
@@ -134,9 +299,6 @@ export class VideoTableRealtimeHandler {
       }
     }
     await this.updateVideoRow(updatedVideo.id);
-    if ('verkaufspreis_netto' in updatedVideo) {
-      this._triggerBudgetCheck();
-    }
   }
 
   async handleNewVideo(payload) {
@@ -153,8 +315,15 @@ export class VideoTableRealtimeHandler {
     this.table.refilter();
   }
 
-  async handleNewKooperation() {
-    if (this._isOwnUpdate()) return;
+  async handleNewKooperation(payload) {
+    const row = payload?.new || {};
+    if (row.kampagne_id !== this.table.kampagneId) return;
+    if (this.table.produktionId && row.produktion_id !== this.table.produktionId) return;
+    if (!koopGehoertZurLinie(row, this.table.briefingId)) return;
+    if (typeof this.table.reloadKooperationen === 'function') {
+      await this.table.reloadKooperationen();
+      return;
+    }
     this.table.refilter();
   }
 
@@ -245,15 +414,30 @@ export class VideoTableRealtimeHandler {
 
     console.log(`Kooperation ${kooperationId} lokal entfernt (Quelle: ${source})`);
     this.table.refilter();
-    this._triggerBudgetCheck();
   }
 
   async handleCommentChange(payload) {
-    const comment = payload.new || payload.old;
+    const comment = this._changedRow(payload, 'video_id');
     if (!comment?.video_id) return;
-    if (this._isOwnUpdate(comment.video_id)) return;
+    // Kommentare lassen sich serverseitig nicht nach Kampagne filtern: Fremde
+    // Kampagnen hier verwerfen, statt pro Event eine Query abzusetzen.
+    if (!this._knowsVideo(comment.video_id)) return;
 
     const videoId = comment.video_id;
+    // Das Event trägt den Text schon. Damit sieht die andere Seite das Feedback
+    // nach dem Autosave, ohne die Seite neu zu laden. Ein Zeilen-Update der
+    // Video-Tabelle enthält diesen Text nicht und darf die Zelle nicht leeren.
+    const slot = getVideoFeedbackSlot(comment.runde, comment.feedback_typ);
+    const liveText = payload.eventType !== 'DELETE' && !comment.deleted_at && String(comment.text || '').trim();
+    if (slot) {
+      const next = replaceVideoFeedbackBucket(
+        this.table.videoComments?.[videoId],
+        slot.bucket,
+        liveText ? [comment] : []
+      );
+      this._storeFeedback(videoId, next);
+      this.updateVideoFeedbackFields(videoId);
+    }
 
     let { data: comments, error } = await window.supabase
       .from('kooperation_video_comment')
@@ -279,14 +463,17 @@ export class VideoTableRealtimeHandler {
     }
 
     const groupedComments = groupVideoFeedbackComments(comments);
-
-    if (this.table.store) {
-      this.table.store.updateVideoComments(videoId, groupedComments);
-    } else {
-      this.table.videoComments[videoId] = groupedComments;
+    // Eine leere Nachlese darf einen gerade angekommenen Text nicht wieder löschen.
+    if (slot && liveText && !formatVideoFeedbackValue(groupedComments, slot.bucket).trim()) {
+      groupedComments[slot.bucket] = this.table.videoComments[videoId][slot.bucket];
     }
-
+    this._storeFeedback(videoId, groupedComments);
     this.updateVideoFeedbackFields(videoId);
+  }
+
+  _storeFeedback(videoId, grouped) {
+    if (this.table.store) this.table.store.updateVideoComments(videoId, grouped);
+    else this.table.videoComments[videoId] = grouped;
   }
 
   updateVideoFeedbackFields(videoId) {
@@ -297,11 +484,17 @@ export class VideoTableRealtimeHandler {
       document.querySelectorAll(`[data-entity="video"][data-id="${videoId}"][data-field="${slot.field}"]`).forEach(field => {
         // Niemals das Feld ueberschreiben, in dem der Nutzer gerade tippt.
         if (field === document.activeElement) return;
-        field.value = formatVideoFeedbackValue(this.table.videoComments[videoId], slot.bucket);
-        field.classList.add('field-updated');
-        setTimeout(() => field.classList.remove('field-updated'), 2000);
+        // Kommentare dieser Zeile sind noch nicht da. Sonst leert das Update
+        // ein Feld, dessen Text erst im naechsten Ladezyklus ankommt.
+        if (!Object.prototype.hasOwnProperty.call(this.table.videoComments || {}, videoId)) return;
+        const text = formatVideoFeedbackValue(this.table.videoComments[videoId], slot.bucket);
+        if (field.value === text) return;
+        field.value = text;
+        controller?.acceptRemoteValue?.(field);
+        this._flash(field);
       });
     });
+    this.table._rowHeightSync?.schedule();
   }
 
   async updateVideoRow(videoId) {
@@ -324,11 +517,10 @@ export class VideoTableRealtimeHandler {
       let shouldUpdate = false;
 
       if (feedbackSlot) {
-        // Fokussiertes oder noch nicht gespeichertes Feld nicht ueberschreiben.
-        if (field === document.activeElement) return;
-        if (this.table.feedbackSaveController?.isDirty(videoId, fieldName)) return;
-        const val = formatVideoFeedbackValue(this.table.videoComments[videoId], feedbackSlot.bucket);
-        if (field.value !== val) { field.value = val; shouldUpdate = true; }
+        // Feedback steht nicht in der Video-Zeile. Ein Zeilen-Update würde die
+        // Zelle leeren, bis jemand die Seite neu lädt. Der Kommentar-Kanal
+        // schreibt diese Felder.
+        return;
       } else switch (fieldName) {
         case 'freigabe': {
           const v = video.freigabe || false;
@@ -345,7 +537,12 @@ export class VideoTableRealtimeHandler {
           break;
         }
         default: {
-          const newVal = video[fieldName] || '';
+          // Feld, in dem gerade getippt wird, nicht leeren. Ein veraltetes
+          // Payload mit null oder "" darf gefuellten Text ebenfalls nicht
+          // ersetzen. 0 bleibt 0 (|| '' wuerde daraus einen leeren String).
+          if (field === document.activeElement || shouldKeepDisplayedText(field, video[fieldName])) break;
+          const raw = video[fieldName];
+          const newVal = raw == null ? '' : String(raw);
           if (field.value !== undefined && field.value !== newVal) {
             field.value = newVal;
             shouldUpdate = true;
@@ -360,13 +557,6 @@ export class VideoTableRealtimeHandler {
         anyUpdated = true;
       }
     });
-
-    // Chip und Status-Punkt der Live-Link-Zelle mitziehen. Der generische
-    // Feld-Loop oben setzt nur den Input-Wert; das Overlay darueber wuerde
-    // sonst den Link vor der Fremd-Aenderung zeigen. Laeuft auch bei
-    // unveraendertem Link, weil stats_fetched_at und stats_error kein eigenes
-    // Feld in der Zeile haben und den Punkt umfaerben.
-    applyLiveLinkCellState(findLiveLinkCell(videoId), video);
 
     if (anyUpdated) {
       const row = document.querySelector(`tr:has([data-id="${videoId}"])`);
@@ -387,10 +577,17 @@ export class VideoTableRealtimeHandler {
     });
   }
 
+  destroy() {
+    this._destroyed = true;
+    for (const timer of this._medienTimers.values()) clearTimeout(timer);
+    this._medienTimers.clear();
+    this.cleanup();
+  }
+
   cleanup() {
-    if (this.table._realtimeChannel) {
-      window.supabase.removeChannel(this.table._realtimeChannel);
-      this.table._realtimeChannel = null;
+    if (this._releaseChannel) {
+      this._releaseChannel();
+      this._releaseChannel = null;
     }
   }
 }

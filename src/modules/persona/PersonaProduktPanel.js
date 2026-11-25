@@ -50,6 +50,15 @@ export class PersonaProduktPanel {
     this.produkte = [];
     this.loadFehler = false;
 
+    if (kontext.initialProdukt?.id) {
+      this.produkte = [{
+        key: tempKey(),
+        produkt_id: kontext.initialProdukt.id,
+        name: kontext.initialProdukt.label || 'Produkt',
+        sub: kontext.initialProdukt.sub || ''
+      }];
+    }
+
     this.render();
 
     if (kontext.personaId) {
@@ -177,21 +186,24 @@ export class PersonaProduktPanel {
 
   renderPanel() {
     const karten = this.produkte.map(p => this.renderKarte(p)).join('');
+    const gesperrt = !!this.kontext?.gesperrt;
 
     return `
       <div class="rel-panel">
         <div class="rel-panel__head">
           <span class="rel-panel__title">Produkte</span>
           <div class="rel-panel__aktionen">
-            <button type="button" class="rel-icon-btn" data-rel-action="add-produkt"
-                    title="Produkt hinzufügen" aria-label="Produkt hinzufügen">${icon('plus-sign')}</button>
+            ${gesperrt ? '' : `<button type="button" class="rel-icon-btn" data-rel-action="add-produkt"
+                    title="Produkt hinzufügen" aria-label="Produkt hinzufügen">${icon('plus-sign')}</button>`}
           </div>
         </div>
         <div class="rel-panel__suche"></div>
         ${this.produkte.length
           ? `<div class="rel-grid">${karten}</div>`
           : `<div class="rel-grid rel-grid--leer">
-               <p class="rel-grid__leer">Noch keine Produkte verknüpft – über die Suche oben rechts hinzufügen.</p>
+               <p class="rel-grid__leer">${this.kontext?.gesperrt
+                 ? 'Kein Produkt zugeordnet.'
+                 : 'Noch keine Produkte verknüpft – über die Suche oben rechts hinzufügen.'}</p>
              </div>`}
       </div>
     `;
@@ -205,8 +217,8 @@ export class PersonaProduktPanel {
           <div class="rel-card__aktionen">
             <button type="button" class="rel-icon-btn" data-rel-action="open"
                     title="Produkt öffnen" aria-label="Produkt öffnen">${icon('arrow-top-right-on-square')}</button>
-            <button type="button" class="rel-icon-btn" data-rel-action="entfernen"
-                    title="Verknüpfung entfernen" aria-label="Verknüpfung entfernen">${icon('trash')}</button>
+            ${this.kontext?.gesperrt ? '' : `<button type="button" class="rel-icon-btn" data-rel-action="entfernen"
+                    title="Verknüpfung entfernen" aria-label="Verknüpfung entfernen">${icon('trash')}</button>`}
           </div>
         </header>
         ${produkt.sub ? `<p class="rel-card__text">${escapeHtml(produkt.sub)}</p>` : ''}

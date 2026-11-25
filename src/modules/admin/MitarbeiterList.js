@@ -5,6 +5,7 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderTableIdentity } from '../../core/format/tableIdentity.js';
 
 export class MitarbeiterList {
   constructor() {
@@ -96,10 +97,7 @@ export class MitarbeiterList {
 
   // Hilfsfunktion: Vollständigen Namen aus Vorname/Nachname oder Fallback auf name
   getDisplayName(user) {
-    if (user?.vorname && user?.nachname) {
-      return `${user.vorname} ${user.nachname}`;
-    }
-    return user?.name || 'Unbekannt';
+    return [user?.vorname, user?.nachname].filter(Boolean).join(' ') || user?.name || 'Unbekannt';
   }
 
   // Rolle anzeigen: Systemrolle, sonst Mitarbeiter-Klasse
@@ -124,25 +122,18 @@ export class MitarbeiterList {
 
     const actionsMenu = this.renderActionsMenu(u);
     
-    const vorname = u.vorname || (u.name ? u.name.split(' ')[0] : '—');
-    const nachname = u.nachname || (u.name && u.name.includes(' ') ? u.name.split(' ').slice(1).join(' ') : '—');
-    
-    const initials = `${vorname[0] || ''}${nachname[0] || ''}`.toUpperCase() || '?';
-    const avatarSource = u.profile_image_thumb_url || u.profile_image_url;
-    const safeAvatarUrl = avatarSource ? window.validatorSystem?.sanitizeUrl?.(avatarSource) : null;
-    const avatar = safeAvatarUrl
-      ? `<img src="${safeAvatarUrl}" alt="${window.validatorSystem.sanitizeHtml(`${vorname} ${nachname}`.trim())}" class="table-avatar table-avatar-img" loading="lazy" />`
-      : `<span class="table-avatar">${window.validatorSystem.sanitizeHtml(initials[0] || '?')}</span>`;
+    const name = this.getDisplayName(u);
+    const safeName = window.validatorSystem.sanitizeHtml(name);
 
     return `
       <tr data-id="${u.id}">
-        <td class="col-vorname">
-          <div class="table-user-cell">
-            ${avatar}
-            ${u.id ? `<a href="#" class="table-link" data-table="mitarbeiter" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(vorname)}</a>` : window.validatorSystem.sanitizeHtml(vorname)}
-          </div>
+        <td class="col-name">
+          ${renderTableIdentity({
+            url: u.profile_image_thumb_url || u.profile_image_url,
+            name: u.vorname || name,
+            nameHtml: u.id ? `<a href="#" class="table-link" data-table="mitarbeiter" data-id="${u.id}">${safeName}</a>` : safeName
+          })}
         </td>
-        <td class="col-nachname">${window.validatorSystem.sanitizeHtml(nachname)}</td>
         <td>${u.email ? `<a href="mailto:${u.email}" class="table-link email-link">${window.validatorSystem.sanitizeHtml(u.email)}</a>` : '—'}</td>
         <td>${freigeschaltetIcon}</td>
         <td class="col-actions">${actionsMenu}</td>
@@ -177,7 +168,7 @@ export class MitarbeiterList {
       // Gruppen-Header
       tbody += `
         <tr class="table-group-header">
-          <td colspan="5">
+          <td colspan="4">
             <div class="table-group-title">
               <span class="table-group-label">${gruppe.label}</span>
               <span class="table-group-count">${mitarbeiter.length}</span>
@@ -199,7 +190,7 @@ export class MitarbeiterList {
     }
 
     if (!tbody) {
-      tbody = renderEmptyStateRow({ icon: 'users', title: 'Keine Mitarbeiter vorhanden' }, 5);
+      tbody = renderEmptyStateRow({ icon: 'users', title: 'Keine Mitarbeiter vorhanden' }, 4);
     }
 
     const html = `
@@ -212,8 +203,7 @@ export class MitarbeiterList {
         <table class="data-table data-table--grouped">
           <thead>
             <tr>
-              <th class="col-vorname">Vorname</th>
-              <th class="col-nachname">Nachname</th>
+              <th class="col-name">Name</th>
               <th>E-Mail</th>
               <th>Status</th>
               <th class="col-actions">Aktionen</th>
@@ -306,8 +296,8 @@ export class MitarbeiterList {
       if (field === 'freigeschaltet') {
         const row = document.querySelector(`tr[data-id="${id}"]`);
         if (!row) return;
-        // Spalten: Vorname(0), Nachname(1), E-Mail(2), Status(3), Aktionen(4)
-        const statusCell = row.children[3];
+        // Spalten: Name(0), E-Mail(1), Status(2), Aktionen(3)
+        const statusCell = row.children[2];
         if (statusCell) {
           statusCell.innerHTML = value
             ? '<span class="status-badge success">FREIGESCHALTET</span>'

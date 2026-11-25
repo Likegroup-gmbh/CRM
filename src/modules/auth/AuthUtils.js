@@ -4,6 +4,16 @@
 import { authService } from './AuthService.js';
 import { initPasswordHints } from '../../auth/password-hints.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { ALLOWED_EMPLOYEE_DOMAINS } from './AllowedEmailDomains.js';
+import {
+  accountLoginBackUrl,
+  clearAccountReturn,
+  finishSuccessfulLogin,
+  readAccountReturn,
+  rememberAccountNotice,
+  takeAccountNotice,
+} from '../share/accountReturn.js';
 
 export class AuthUtils {
   constructor() {
@@ -58,6 +68,7 @@ export class AuthUtils {
                 </div>
               </div>
               <div id="loginError" class="text-error" style="display: none;"></div>
+              ${readAccountReturn()?.back ? '<button type="button" id="guest-account-back" class="resend-button">Zurück</button>' : ''}
             </form>
           </div>
         </div>
@@ -72,6 +83,11 @@ export class AuthUtils {
     if (loginForm) {
       loginForm.onsubmit = (e) => this.handleLoginSubmit(e);
     }
+    document.getElementById('guest-account-back')?.addEventListener('click', () => {
+      const back = accountLoginBackUrl(readAccountReturn());
+      clearAccountReturn();
+      window.location.href = back;
+    });
   }
 
   // Supabase-Auth-Fehler auf Deutsch übersetzen
@@ -120,6 +136,12 @@ export class AuthUtils {
 
       if (user) {
         console.log('✅ Login erfolgreich');
+        const next = finishSuccessfulLogin(window.location.pathname);
+        if (next.reload) {
+          window.location.assign(next.reload);
+          return;
+        }
+        if (next.notice) rememberAccountNotice(next.notice);
         this.showApp();
       }
     } catch (error) {
@@ -181,11 +203,23 @@ export class AuthUtils {
               <div class="form-box">
                 <label for="registerEmail" class="label label-register">E-Mail *</label>
                 <input type="email" id="registerEmail" class="input" placeholder="ihre@email.com" required>
+                <small class="form-hint">Nur Firmen-E-Mails: ${ALLOWED_EMPLOYEE_DOMAINS.map((d) => `@${d}`).join(', ')}</small>
                 <div id="registerEmailError" class="text-error" style="display: none;"></div>
               </div>
               <div class="form-box">
                 <label for="registerGeburtsdatum" class="label label-register">Geburtsdatum *</label>
-                <input type="date" id="registerGeburtsdatum" class="input" required>
+                ${CustomDatePicker.render({
+                  inputId: 'registerGeburtsdatum',
+                  field: 'geburtsdatum',
+                  label: 'Geburtsdatum',
+                  variant: 'text',
+                  inputClass: 'input',
+                  yearSelect: true,
+                  min: '1900-01-01',
+                  max: CustomDatePicker.formatISO(new Date()),
+                  showToday: false,
+                  required: true
+                })}
               </div>
               <div class="form-box">
                 <label for="registerFirmenhandy" class="label label-register">Firmenhandy <span class="label-optional">(optional)</span></label>
@@ -232,6 +266,7 @@ export class AuthUtils {
     if (registerForm) {
       registerForm.onsubmit = (e) => this.handleRegisterSubmit(e);
       initPasswordHints('registerPassword');
+      CustomDatePicker.bind(registerForm);
     }
   }
 
@@ -243,7 +278,8 @@ export class AuthUtils {
     const nachname = document.getElementById('registerNachname').value.trim();
     const emailInput = document.getElementById('registerEmail');
     const email = emailInput.value;
-    const geburtsdatum = document.getElementById('registerGeburtsdatum')?.value || '';
+    const geburtsdatumInput = document.getElementById('registerGeburtsdatum');
+    const geburtsdatum = CustomDatePicker.getValue(geburtsdatumInput);
     const firmenhandy = document.getElementById('registerFirmenhandy')?.value?.trim() || '';
     const password = document.getElementById('registerPassword').value;
     const errorDiv = document.getElementById('registerError');
@@ -259,7 +295,9 @@ export class AuthUtils {
       }
 
       if (!geburtsdatum) {
-        throw new Error('Bitte geben Sie Ihr Geburtsdatum ein.');
+        throw new Error(geburtsdatumInput?.value.trim()
+          ? 'Bitte geben Sie ein gültiges Geburtsdatum (TT.MM.JJJJ) ein.'
+          : 'Bitte geben Sie Ihr Geburtsdatum ein.');
       }
 
       const result = await authService.signUp(
@@ -538,6 +576,8 @@ export class AuthUtils {
     
     // Header-UI initialisieren
     window.setupHeaderUI?.();
+    const notice = takeAccountNotice();
+    if (notice) window.toastSystem?.warning?.(notice) || window.toastSystem?.show?.(notice, 'warning');
   }
 
   // Logout behandeln

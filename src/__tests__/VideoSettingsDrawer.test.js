@@ -16,6 +16,11 @@ function createSettingsSupabase({
   storyAssets = [],
   bilderAssets = [],
 } = {}) {
+  const update = vi.fn(() => {
+    const result = Promise.resolve({ error: null });
+    const chain = { eq: vi.fn(() => chain), is: vi.fn(() => chain), then: result.then.bind(result) };
+    return chain;
+  });
   return {
     from: vi.fn((table) => ({
       select: vi.fn(() => {
@@ -24,10 +29,12 @@ function createSettingsSupabase({
         if (table === 'kooperation_bilder_asset') return makeSelectChain(bilderAssets);
         return makeSelectChain([]);
       }),
+      update,
       delete: vi.fn(() => ({
         eq: vi.fn(() => Promise.resolve({ error: null })),
       })),
     })),
+    _update: update,
   };
 }
 
@@ -43,6 +50,33 @@ describe('VideoSettingsDrawer', () => {
   afterEach(() => {
     drawer.removeDrawer();
     vi.unstubAllGlobals();
+  });
+
+  it('zeigt geteilten Ordner und entfernt ihn', async () => {
+    window.supabase = createSettingsSupabase();
+    const onFolderCleared = vi.fn();
+    const url = 'https://contoso.sharepoint.com/:f:/g/abc';
+
+    await drawer.open({
+      videoId: 'vid-1',
+      kooperationId: 'koop-1',
+      folderUrl: url,
+      onFolderCleared,
+    });
+
+    const body = document.getElementById('video-settings-drawer-body');
+    expect(body.textContent).toContain('Geteilter Ordner');
+    expect(body.textContent).not.toContain('Noch kein Video vorhanden');
+    expect(body.querySelector('.video-settings-file-link')?.getAttribute('href')).toBe(url);
+
+    document.getElementById('video-settings-folder-remove').click();
+    await vi.waitFor(() => expect(onFolderCleared).toHaveBeenCalled());
+
+    expect(window.supabase._update).toHaveBeenCalledWith({ folder_url: null });
+    expect(window.supabase.from).toHaveBeenCalledWith('kooperation_videos');
+    const after = document.getElementById('video-settings-drawer-body');
+    expect(after.textContent).toContain('Noch kein Video vorhanden');
+    expect(document.getElementById('video-settings-folder-remove')).toBeNull();
   });
 
   it('zeigt externen Video-Link mit Label und URL-Zeile', async () => {
@@ -241,6 +275,67 @@ describe('VideoSettingsDrawer', () => {
     expect(nineBySixteen.getAttribute('title')).toBe('Als finale Version auswählen (9:16)');
     expect(body.querySelector('.promote-final-btn[data-slot="4:5"]')?.getAttribute('title'))
       .toBe('Als finale Version auswählen (4:5)');
+    expect(body.querySelector('.promote-final-btn[data-slot="1:1"]')?.getAttribute('title'))
+      .toBe('Als finale Version auswählen (1:1)');
+  });
+
+  describe('Video-Datei löschen', () => {
+    const asset = (id, extra = {}) => ({
+      id, file_url: `https://example.com/${id}.mp4`, file_path: null, version_number: 2,
+      is_current: true, is_final: false, variant_name: id, created_at: '2026-01-15T10:00:00Z', ...extra,
+    });
+
+    async function openWith(videoAssets, callbacks) {
+      const sb = createSettingsSupabase({ videoAssets });
+      const deleteEq = vi.fn((_col, id) => ({
+        select: vi.fn(() => Promise.resolve({ data: [{ id }], error: null })),
+      }));
+      const origFrom = sb.from;
+      sb.from = vi.fn((table) => {
+        const api = origFrom(table);
+        if (table === 'kooperation_video_asset') api.delete = vi.fn(() => ({ eq: deleteEq }));
+        return api;
+      });
+      window.supabase = sb;
+      await drawer.open({ videoId: 'vid-1', kooperationId: 'koop-1', videoTitel: 'Testvideo', ...callbacks });
+      return deleteEq;
+    }
+
+    it('löscht genau eine Zeile und übergibt sie an onDelete', async () => {
+      const onDelete = vi.fn();
+      const deleteEq = await openWith([asset('va-1'), asset('va-2')], { onDelete });
+
+      document.querySelector('.video-version-delete-btn[data-asset-id="va-2"]').click();
+      await vi.waitFor(() => expect(onDelete).toHaveBeenCalled());
+
+      expect(deleteEq).toHaveBeenCalledTimes(1);
+      expect(deleteEq).toHaveBeenCalledWith('id', 'va-2');
+      expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'va-2', is_final: false }));
+      expect(drawer.assets.map(a => a.id)).toEqual(['va-1']);
+    });
+
+    it('ruft bei Finale zusätzlich onFinaleChanged', async () => {
+      const onDelete = vi.fn();
+      const onFinaleChanged = vi.fn();
+      await openWith([asset('va-1'), asset('fin-1', { is_final: true, is_current: false, version_number: 1 })], { onDelete, onFinaleChanged });
+
+      document.querySelector('.video-version-delete-btn[data-asset-id="fin-1"]').click();
+      await vi.waitFor(() => expect(onDelete).toHaveBeenCalled());
+
+      expect(onFinaleChanged).toHaveBeenCalledTimes(1);
+      expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'fin-1', is_final: true }));
+    });
+
+    it('nimmt die Kommentare der Datei mit', async () => {
+      const onDelete = vi.fn();
+      await openWith([asset('va-1')], { onDelete });
+
+      document.querySelector('.video-version-delete-btn[data-asset-id="va-1"]').click();
+      await vi.waitFor(() => expect(onDelete).toHaveBeenCalled());
+
+      expect(window.supabase.from).toHaveBeenCalledWith('kooperation_video_zeitkommentar');
+      expect(window.supabase._update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
+    });
   });
 
   it('zeigt Legacy-Video-Link wenn keine Assets aber videoUrl gesetzt', async () => {
