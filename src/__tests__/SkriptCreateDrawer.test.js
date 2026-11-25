@@ -46,6 +46,7 @@ describe('SkriptCreateDrawer', () => {
     const master = document.querySelector('#skcreate-master');
     expect(master).not.toBeNull();
     expect(master.checked).toBe(true);
+    expect(master.closest('label.toggle-label')?.textContent).toContain('Master-Regelwerk verwenden');
   });
 
   it('Kampagnen-Prefill: ein Konzept wird gesetzt und gelockt', async () => {

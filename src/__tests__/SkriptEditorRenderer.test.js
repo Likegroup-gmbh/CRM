@@ -137,11 +137,11 @@ describe('SkriptEditorDocRenderer', () => {
     expect(html).toContain('href="https://www.tiktok.com/video/1"');
     expect(html).not.toContain('function link');
     expect(html).toContain('Master-Regelwerk');
-    expect(html).toContain('>an<');
+    expect(html).toContain('>An<');
   });
 
   it('vorgabenPanelHtml zeigt das Master-Regelwerk als aus', () => {
-    expect(vorgabenPanelHtml({ master_regelwerk: false })).toContain('>aus<');
+    expect(vorgabenPanelHtml({ master_regelwerk: false })).toContain('>Aus<');
   });
 
   it('fragenModusHtml zeigt Titel, Rueckfragen-Badge und Aufbau-Toggles statt Generieren-Button', () => {
