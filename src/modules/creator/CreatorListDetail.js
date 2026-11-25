@@ -167,8 +167,8 @@ export class CreatorListDetail {
           ${beschreibung}
         </div>
         ${this.tableFilter.renderLayout(`
-          <div class="table-container data-table-container">
-            <table class="data-table" id="masterliste-table">
+          <div class="table-container creator-pool-table-container">
+            <table class="data-table strategie-items-table creator-pool-table" id="masterliste-table">
               <thead><tr id="masterliste-head"></tr></thead>
               <tbody id="masterliste-body"></tbody>
             </table>
@@ -184,6 +184,7 @@ export class CreatorListDetail {
     this.bindEvents(signal);
     this.mountLinkBar();
     this.renderTable();
+    this.bindTableScroll(signal);
   }
 
   bindEvents(signal) {
@@ -272,8 +273,8 @@ export class CreatorListDetail {
     head.innerHTML = actionsIndex === -1
       ? headHtml + parkedHeader
       : headHtml.replace(
-        `<th class="ml-col-actions">Aktionen</th>`,
-        `${parkedHeader}<th class="ml-col-actions">Aktionen</th>`
+        /(<th\b[^>]*data-col="ml-col-actions"[^>]*>)/,
+        `${parkedHeader}$1`
       );
 
     syncMasterlisteTableFilter(this);
@@ -301,8 +302,8 @@ export class CreatorListDetail {
       const row = renderMasterlisteRow(member, columns, this.listId, customAt);
       if (actionsIndex === -1) return row.replace('</tr>', `${parkedCells(member.memberId)}</tr>`);
       return row.replace(
-        `<td class="col-actions ml-col-actions">`,
-        `${parkedCells(member.memberId)}<td class="col-actions ml-col-actions">`
+        /(<td class="col-actions ml-col-actions[^"]*">)/,
+        `${parkedCells(member.memberId)}$1`
       );
     }).join('');
 

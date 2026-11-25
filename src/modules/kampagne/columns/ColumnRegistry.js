@@ -9,6 +9,7 @@ import { VIDEO_FEEDBACK_FIELDS } from '../../../core/VideoFeedbackBuckets.js';
 const DEFAULT_COLUMNS = [
   { id: 'col-nr', label: 'Nr', dataCol: '0', configurable: false },
   { id: 'col-creator', label: 'Creator', dataCol: '1', configurable: false },
+  { id: 'col-koop-name', label: 'Kooperation', dataCol: '1a', configurable: true },
   { id: 'col-status', label: 'Status', dataCol: '1b', configurable: true },
   { id: 'col-tags', label: 'Tags', dataCol: '1c', configurable: true },
   { id: 'col-extra-kosten', label: 'Extra Kosten', dataCol: '1d', configurable: true },

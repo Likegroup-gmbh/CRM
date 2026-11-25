@@ -133,7 +133,7 @@ describe('Drawer Kooperation „Tabelle anpassen“', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(store.columnOrder.slice(0, 4)).toEqual(['col-nr', 'col-creator', 'col-vertrag', 'col-status']);
+    expect(store.columnOrder.slice(0, 5)).toEqual(['col-nr', 'col-creator', 'col-koop-name', 'col-vertrag', 'col-status']);
     expect(store.columnOrder.at(-1)).toBe('col-actions');
     expect(onTableRefresh).toHaveBeenCalledTimes(1);
   });

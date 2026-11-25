@@ -3,6 +3,7 @@
 // Nutzt die data-Attribute / CSS-Klassen, die EntityCustomColumnFieldHandler erkennt.
 
 import { CustomDatePicker } from '../components/CustomDatePicker.js';
+import { renderTableSelect } from '../components/TableSelect.js';
 import { escapeHtml, makeCustomColumnId } from './entityColumnUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { renderCustomTableSelect } from './customColumnSelect.js';
@@ -72,10 +73,7 @@ function renderFieldByType(col, entityId, value, isEditable, { tableSelect = fal
     case 'link': return renderLinkField(attrs, value, isEditable);
     case 'date': return renderDateField(col, entityId, value, isEditable);
     case 'boolean': return renderBooleanField(attrs, value, isEditable);
-    case 'dropdown':
-      return tableSelect && isEditable
-        ? renderCustomTableSelect(col, entityId, value)
-        : renderDropdownField(attrs, value, isEditable, col);
+    case 'dropdown': return renderDropdownField(value, isEditable, col, entityId);
     case 'number': return renderNumberField(attrs, value, isEditable, col.name);
     case 'upload': return renderUploadField(value);
     default: return renderTextField(attrs, value, isEditable, col.name);
@@ -122,20 +120,31 @@ function renderBooleanField(attrs, value, isEditable) {
   return `<input type="checkbox" class="cp-checkbox custom-col-input custom-col-checkbox" ${attrs} ${checked ? 'checked' : ''} ${!isEditable ? 'disabled' : ''}/>`;
 }
 
-function renderDropdownField(attrs, value, isEditable, col) {
-  const options = col._dropdownOptions || [];
-  if (!isEditable) return `<div class="cell-text-readonly">${escapeHtml(value || '-')}</div>`;
-
-  const optionHtml = options
-    .slice()
+function renderDropdownField(value, isEditable, col, entityId) {
+  const options = [...(col._dropdownOptions || [])]
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .map(opt => `<option value="${escapeHtml(opt.label)}" ${opt.label === value ? 'selected' : ''}>${escapeHtml(opt.label)}</option>`)
-    .join('');
+    .map(opt => ({ value: opt.label, label: opt.label, color: opt.color || '' }));
 
-  return `<select class="strategie-textarea custom-col-input custom-col-select entity-custom-col-select" ${attrs}>
-    <option value="">– wählen –</option>
-    ${optionHtml}
-  </select>`;
+  return renderTableSelect({
+    field: `custom-col:${col.id}`,
+    itemId: entityId,
+    value: value || '',
+    options: [{ value: '', label: '– wählen –' }, ...options],
+    placeholder: '– wählen –',
+    disabled: !isEditable,
+    input: isEditable ? `custom-col-${col.id}` : '',
+    inputClass: isEditable ? 'custom-col-input custom-col-select' : '',
+    inputData: isEditable ? { 'custom-column-id': col.id, 'entity-id': entityId } : null
+  });
+}
+
+if (typeof document !== 'undefined' && !globalThis.__customDropdownBridge) {
+  globalThis.__customDropdownBridge = true;
+  document.addEventListener('table-select-change', (event) => {
+    const input = event.detail?.element?.querySelector?.('input.custom-col-select');
+    if (!input) return;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
 }
 
 function renderNumberField(attrs, value, isEditable, placeholder) {

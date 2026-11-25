@@ -203,6 +203,18 @@ function stripGroupMeta(list) {
 }
 
 /**
+ * Anzeigereihenfolge der Gruppen: definierte Kategorien (auch leer),
+ * dann Kategorien, die nur an Videos stehen, dann Ohne Kategorie.
+ */
+export function anzeigeKategorien(groupedItems, definierteKategorien = []) {
+  const known = new Set([...(definierteKategorien || []), 'Ohne Kategorie']);
+  const orphans = Object.keys(groupedItems || {}).filter((name) => !known.has(name));
+  const alle = [...(definierteKategorien || []), ...orphans];
+  if (!alle.includes('Ohne Kategorie')) alle.push('Ohne Kategorie');
+  return alle;
+}
+
+/**
  * Schreibt Items in die Anzeigereihenfolge der Tabelle:
  * definierte Kategorien → Orphans → Ohne Kategorie.
  */
@@ -248,10 +260,7 @@ export function renderGroupedItems(detail, groupedItems, colCount, vorschlaege =
       .join('');
   }
   
-  const alleKategorien = [...definierteKategorien];
-  if (!alleKategorien.includes('Ohne Kategorie')) {
-    alleKategorien.push('Ohne Kategorie');
-  }
+  const alleKategorien = anzeigeKategorien(groupedItems, definierteKategorien);
   const gefiltert = !!detail.tableFilter?.hasActiveFilters();
 
   return vorschlagBlock + alleKategorien.map(kategorie => {

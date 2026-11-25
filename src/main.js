@@ -87,6 +87,7 @@ import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
 import { toastSystem } from './core/ToastSystem.js';
 import { initDrawerMotion } from './core/animation/drawer.js';
+import { bindHorizontalClipWheel } from './core/horizontalClipWheel.js';
 import { initTabSlider } from './core/animation/tabSlider.js';
 import { initViewToggleSlider } from './core/animation/viewToggleSlider.js';
 import { installDocumentLinkInterceptor } from './core/DocumentUrlHelper.js';
@@ -393,6 +394,9 @@ if (import.meta.env.DEV) {
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('🎯 Initialisiere Event-basiertes Modul-System...');
   navMark('boot:start');
+
+  // Trackpad-Scroll in Tabellen, deren Y-Achse clip ist (Kopf bleibt kleben)
+  bindHorizontalClipWheel();
 
   // Mausrad-Schutz: verhindert versehentliche Wertaenderung bei fokussierten number-Inputs
   document.addEventListener('wheel', () => {

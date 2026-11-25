@@ -21,6 +21,13 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+function renderInputData(data) {
+  return Object.entries(data || {})
+    .filter(([, val]) => val != null)
+    .map(([key, val]) => ` data-${key}="${escapeHtml(val)}"`)
+    .join('');
+}
+
 function renderDot(option) {
   if (!option?.color) return '';
   return `<span class="table-select__dot" style="background:${escapeHtml(option.color)}"></span>`;
@@ -80,6 +87,8 @@ export function tableSelectDisabled({ gastReadonly = false, isKunde = false, kun
  * @param {boolean}  [config.matchWidth] Optionsliste so breit wie der Trigger (statt
  *                                       Mindestbreite 180px). Default aus, damit
  *                                       bestehende Tabellen unveraendert bleiben.
+ * @param {string}   [config.inputClass] Klassen am hidden input
+ * @param {object}   [config.inputData]  data-* am hidden input, Schluessel ohne data-
  */
 export function renderTableSelect({
   field,
@@ -90,6 +99,8 @@ export function renderTableSelect({
   placeholder = '–',
   meta = '',
   input = '',
+  inputClass = '',
+  inputData = null,
   matchWidth = false
 } = {}) {
   const active = options.find(o => String(o.value) === String(value));
@@ -120,7 +131,7 @@ export function renderTableSelect({
          data-item-id="${escapeHtml(itemId)}"
          data-value="${escapeHtml(value ?? '')}"
          ${matchWidth ? 'data-match-width' : ''}>
-      ${input ? `<input type="hidden" name="${escapeHtml(input)}" value="${escapeHtml(value ?? '')}" data-table-select-input>` : ''}
+      ${input ? `<input type="hidden" name="${escapeHtml(input)}" value="${escapeHtml(value ?? '')}" data-table-select-input${inputClass ? ` class="${escapeHtml(inputClass)}"` : ''}${renderInputData(inputData)}>` : ''}
       ${meta ? `<div class="table-select__meta">${escapeHtml(meta)}</div>` : ''}
       ${trigger}
       ${disabled ? '' : `

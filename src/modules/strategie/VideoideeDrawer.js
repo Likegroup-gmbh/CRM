@@ -2,7 +2,7 @@
 // Lese- und Schreibansicht einer Videoidee. Die Tabelle bleibt editierbar;
 // dieser Drawer ist die zweite Fläche, mit Zurück/Weiter und Autosave.
 
-import { groupItemsByTeilbereich } from './StrategieDetailRenderer.js';
+import { anzeigeKategorien, groupItemsByTeilbereich } from './StrategieDetailRenderer.js';
 import { splitVideoideeVorschlaege } from './videoideeVorschlag.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
@@ -58,8 +58,7 @@ export function visibleVideoideen(detail) {
   const { vorschlaege, rest } = splitVideoideeVorschlaege(detail?.items || []);
   const groups = groupItemsByTeilbereich(rest);
   const definierte = detail?.getTeilbereicheFromStrategie?.() || [];
-  const kategorien = [...definierte];
-  if (!kategorien.includes('Ohne Kategorie')) kategorien.push('Ohne Kategorie');
+  const kategorien = anzeigeKategorien(groups, definierte);
 
   const ordered = [...vorschlaege];
   for (const kategorie of kategorien) {

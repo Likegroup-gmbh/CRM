@@ -144,6 +144,7 @@ span.verknuepfung-pill--statisch:hover {
 /* Standard-Spaltenbreiten für kooperation-video-grid (ch/rem, keine px) */
 .kooperation-video-grid .col-nr { width: var(--grid-col-nr); min-width: var(--grid-col-nr); }
 .kooperation-video-grid .col-creator { width: var(--grid-col-creator); min-width: var(--grid-col-creator); }
+.kooperation-video-grid .col-koop-name { width: 22ch; min-width: 22ch; }
 .kooperation-video-grid th.col-status,
 .kooperation-video-grid td.col-status {
   width: 1%;
@@ -888,6 +889,15 @@ span.verknuepfung-pill--statisch:hover {
    Name-Pill und Social-Pills stehen in einer Reihe neben dem Bild. */
 .kooperation-video-grid td.col-creator.cell-centered {
   text-align: left;
+}
+
+.kooperation-video-grid td.col-koop-name.cell-centered {
+  text-align: left;
+}
+
+.kooperation-video-grid td.col-koop-name .table-link {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .kooperation-video-grid td.col-creator.cell-centered .table-identity {
@@ -2565,6 +2575,18 @@ tr.is-flow-fokus > td {
 .data-table.data-table--skripte th.col-nr,
 .data-table.data-table--skripte td.col-nr { width: 4em; }
 
+.data-table.data-table--skripte th.col-drag,
+.data-table.data-table--skripte td.col-drag {
+  width: 2.5em;
+  text-align: center;
+  padding-inline: 0;
+  color: var(--text-muted);
+}
+
+.data-table.data-table--skripte td.drag-handle { cursor: grab; }
+.data-table.data-table--skripte td.drag-handle:active { cursor: grabbing; }
+.data-table.data-table--skripte tr.skripte-row.is-dragging { opacity: 0.5; }
+
 /* Titel und Creator teilen sich den freien Platz im Verhältnis ca. 3 : 2
    (Fixed-Layout verteilt Überschuss proportional zu diesen Breiten) */
 .data-table.data-table--skripte th.col-titel,
@@ -2631,6 +2653,36 @@ tr.is-flow-fokus > td {
   width: 7em;
   min-width: 7em;
   white-space: nowrap;
+}
+
+/* Verträge-Liste: die Seite selbst scrollt quer. Ein Scroll nur in der
+   Tabelle kommt am Trackpad nicht an, solange der Seitenbereich
+   overflow-x: hidden hat. Die Leiste bleibt in der sichtbaren Breite. */
+.main-wrapper:has(.list-container > .table-container > .data-table--vertraege) {
+  overflow-x: auto;
+  container-type: inline-size;
+}
+
+.list-container:has(> .table-container > .data-table--vertraege) {
+  width: max-content;
+  min-width: 100%;
+}
+
+.list-container:has(> .table-container > .data-table--vertraege) > .table-container {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+.list-container:has(> .table-container > .data-table--vertraege) > .table-filter-wrapper,
+.list-container:has(> .table-container > .data-table--vertraege) > .tab-navigation,
+.list-container:has(> .table-container > .data-table--vertraege) > .pagination-container {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  width: 100cqi;
+  max-width: 100cqi;
+  box-sizing: border-box;
+  background: var(--bg-primary);
 }
 
 /* === EXPLIZITE SPALTEN-KLASSEN (statt :first-child/:nth-child) === */
@@ -2905,7 +2957,9 @@ width: 18em;
   max-width: 100px;
 }
 
-/* Table Container: Nutzt globalen Scroll */
+/* Tabellen scrollen selbst quer (siehe tables.css). Ohne Tabelle bleibt
+   der Container sichtbar, damit Karten und leere Zustände nicht abgeschnitten
+   werden. */
 .table-container {
   overflow-x: visible;
   overflow-y: visible;
@@ -3849,6 +3903,12 @@ th[draggable="true"]:active {
 .strategie-items-table td.entity-custom-cell {
   white-space: normal;
   overflow: hidden;
+}
+
+.creator-pool-table td.entity-custom-cell:has(.table-select),
+.strategie-items-table td.entity-custom-cell:has(.table-select) {
+  padding: var(--space-xs) var(--space-sm);
+  vertical-align: middle;
 }
 /* Eigene Textspalte in Casting und Konzept: umbrechen, Zeilenumbrueche behalten,
    Zeilenhoehe waechst mit. Die Spalte bleibt begrenzt, damit langer Text nicht

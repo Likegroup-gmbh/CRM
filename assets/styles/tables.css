@@ -73,16 +73,78 @@
   color: var(--text-secondary);
 }
 
-/* Die Tabelle ist breiter als der Seitenbereich. .main-wrapper schneidet
-   horizontales Überlaufen sonst ab (overflow-x: hidden), Trackpad und
-   Touch kommen an die rechten Spalten nicht heran. clip auf der Y-Achse,
-   damit overflow-x: auto sie nicht zu auto macht: der Seitenbereich bleibt
-   der vertikale Scrollport und der Tabellenkopf klebt weiter oben. */
-#masterliste-page .data-table-container,
+.masterliste-listen-beschreibung {
+  margin-top: var(--space-xxxs);
+  max-width: 36em;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#masterlisten-inhalt td.col-name .table-link {
+  display: inline-block;
+  max-width: 28em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+#masterlisten-inhalt td.col-unternehmen {
+  white-space: nowrap;
+}
+
 #masterlisten-inhalt:has(.data-table) {
   overflow-x: auto;
   overflow-y: clip;
   max-width: 100%;
+}
+
+#masterlisten-inhalt .ml-list-count,
+#masterlisten-inhalt .ml-list-datum {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Dieselbe Tabelle wie die Casting-Liste. Der Seitenbereich scrollt quer,
+   der Container selbst nicht. */
+#masterliste-page .creator-pool-table-container.drag-scroll-enabled {
+  cursor: grab;
+}
+
+#masterliste-page .creator-pool-table-container.is-grabbing {
+  cursor: grabbing;
+  user-select: none;
+}
+
+#masterliste-table td.cp-col-name .table-identity__text > .cell-text-readonly {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+#masterliste-table td.cp-col-name .table-link,
+#masterliste-table td.cp-col-name .table-text {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#masterliste-table td.ml-col-branchen,
+#masterliste-table td.ml-col-art,
+#masterliste-table td.ml-col-sprachen {
+  white-space: normal;
+  max-width: 16rem;
+  vertical-align: middle;
 }
 
 .table-actions {
@@ -1115,15 +1177,26 @@ thead {
 
 /* Auftrags-Tabelle: Fixed positioning für Dropdown (wird per JS gesetzt) */
 
-/* Table Container - Clean Design für Listen-Seiten */
+/* Table Container - Clean Design für Listen-Seiten.
+   .main-wrapper schneidet waagerechten Überstand ab (overflow-x: hidden).
+   Die Tabelle scrollt deshalb selbst, sobald die Spalten nicht mehr passen.
+   clip auf der Y-Achse, damit overflow-x: auto sie nicht zu auto macht:
+   senkrecht scrollt weiter der Seitenbereich, der Kopf klebt dort.
+   Chrome verwirft dabei die waagerechte Trackpad-Geste; horizontalClipWheel.js
+   schiebt sie nach. hidden statt clip würde den Kopf vom Seitenbereich lösen. */
 
 .table-container,
 .data-table-container {
-  overflow: visible; /* Kein Scroll innerhalb der Tabelle */
+  overflow: visible;
   max-width: 100%;
-  
-  background: transparent; /* Transparenter Hintergrund */
+  background: transparent;
+}
 
+.table-container:has(> .data-table):not(.creator-pool-table-container),
+.data-table-container:has(> .data-table):not(.creator-pool-table-container) {
+  overflow-x: auto;
+  overflow-y: clip;
+  min-width: 0;
 }
 
 /* Responsive Table Improvements */

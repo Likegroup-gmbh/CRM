@@ -55,7 +55,7 @@ describe('SkripteService.loadSkripte', () => {
     expect(select).toHaveBeenCalledWith(expect.stringContaining('marke(id, markenname, logo_url)'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('kampagne(id, kampagnenname, eigener_name, start, deadline, auftrag:auftrag_id(start, ende))'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('strategie_item:strategie_item_id'));
-    expect(select).toHaveBeenCalledWith(expect.stringContaining('creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)'));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('creator:creator_id(id, vorname, nachname, mail, profilbild_url, profilbild_thumb_url)'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('kooperation_videos('));
     // Listen-Loader zieht die dicken Content-Felder nicht mit
     const selectArg = select.mock.calls[0][0];
@@ -126,13 +126,15 @@ describe('SkripteService.loadSkripte', () => {
     const rows = [skript({ id: 'a', kampagne_id: 'k1' })];
     const eq = vi.fn(() => Promise.resolve({ data: rows, error: null }));
     const limit = vi.fn(() => ({ eq }));
-    const order = vi.fn(() => ({ limit }));
+    const order = vi.fn(() => ({ order, limit }));
     const select = vi.fn(() => ({ order }));
     window.supabase.from = vi.fn(() => ({ select }));
 
     const result = await service.loadSkripte({ kampagneId: 'k1' });
     expect(result).toHaveLength(1);
     expect(eq).toHaveBeenCalledWith('kampagne_id', 'k1');
+    expect(order).toHaveBeenCalledWith('sortierung', { ascending: true });
+    expect(order).toHaveBeenCalledWith('created_at', { ascending: false });
   });
 
   it('filtert mit { kampagneId: null } per is auf „ohne Kampagne“', async () => {
@@ -141,13 +143,14 @@ describe('SkripteService.loadSkripte', () => {
     const rows = [skript({ id: 'a', kampagne_id: null })];
     const is = vi.fn(() => Promise.resolve({ data: rows, error: null }));
     const limit = vi.fn(() => ({ is }));
-    const order = vi.fn(() => ({ limit }));
+    const order = vi.fn(() => ({ order, limit }));
     const select = vi.fn(() => ({ order }));
     window.supabase.from = vi.fn(() => ({ select }));
 
     const result = await service.loadSkripte({ kampagneId: null });
     expect(result).toHaveLength(1);
     expect(is).toHaveBeenCalledWith('kampagne_id', null);
+    expect(order).toHaveBeenCalledWith('sortierung', { ascending: true });
   });
 
   it('haengt fuer Gaeste liste_creators aus skript_creator_anzeige an', async () => {
@@ -194,7 +197,21 @@ describe('SkripteService.loadSkripte', () => {
 
     const result = await service.loadSkripte();
     expect(result).toHaveLength(2);
-    expect(order).toHaveBeenCalled();
+    expect(order).toHaveBeenCalledTimes(1);
+    expect(order).toHaveBeenCalledWith('created_at', { ascending: false });
+  });
+
+  it('schreibt die Tabellenreihenfolge als sortierung ab 0', async () => {
+    setupWindow({ isAdmin: true });
+    const eq = vi.fn(() => Promise.resolve({ error: null }));
+    const update = vi.fn(() => ({ eq }));
+    window.supabase.from = vi.fn(() => ({ update }));
+
+    await service.updateSkripteSortierung(['b', 'a']);
+    expect(update).toHaveBeenNthCalledWith(1, { sortierung: 0 });
+    expect(update).toHaveBeenNthCalledWith(2, { sortierung: 1 });
+    expect(eq).toHaveBeenNthCalledWith(1, 'id', 'b');
+    expect(eq).toHaveBeenNthCalledWith(2, 'id', 'a');
   });
 });
 

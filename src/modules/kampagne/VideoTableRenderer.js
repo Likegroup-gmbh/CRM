@@ -34,6 +34,7 @@ import {
   COPY_ICON,
   CHECK_ICON,
   renderCreatorInner,
+  renderKoopNameInner,
   renderTagsInner,
   renderProduktInner,
   renderLieferadresseInner,
@@ -253,6 +254,7 @@ export class VideoTableRenderer {
     const map = {
       'col-nr': (c) => this._td(c, 'col-nr', `${c.rowNumber}`, 'read-only'),
       'col-creator': (c) => this._td(c, 'col-creator', renderCreatorInner(c), 'read-only cell-centered'),
+      'col-koop-name': (c) => this._td(c, 'col-koop-name', renderKoopNameInner(c.koop), 'read-only cell-centered'),
       'col-status': (c) => this._td(c, 'col-status', renderStatusSelectCell(c.t, c.koop), 'cell-centered'),
       'col-tags': (c) => this._td(c, 'col-tags', renderTagsInner(c.koop), 'cell-centered'),
       'col-extra-kosten': (c) => this._td(c, 'col-extra-kosten', renderExtraKostenInner(c.koop), 'read-only cell-centered'),

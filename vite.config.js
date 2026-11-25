@@ -65,10 +65,11 @@ export default defineConfig({
   },
   publicDir: 'public',
   server: {
-    port: 3001,
+    port: 3000,
     strictPort: true,
     open: true,
-    // Functions lokal über `npm run dev:functions`; netlify dev scheitert am SPA-Fallback /* → index.html
+    // Functions lokal über `npm run dev:functions` (scripts/functions-serve.mjs).
+    // netlify dev scheitert am SPA-Fallback /* → index.html.
     proxy: { '/.netlify/functions': 'http://localhost:9999' }
   },
   resolve: {
