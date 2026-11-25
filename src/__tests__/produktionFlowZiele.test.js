@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import {
-  erkenneZiel, flowUrl, hatAbfrage, linieAbfragen, linieSync
+  erkenneZiel, flowUrl, hatAbfrage, linieAbfragen, linieSync, OHNE_LINIE
 } from '../modules/kampagne/produktionFlowZiele.js';
 
 function produktion(overrides = {}) {
@@ -45,12 +45,20 @@ describe('Flow-Adresse', () => {
     expect(flowUrl({ produktionId: 'p1', tab: 'briefing', linieId: 'b2', id: 'b2' }))
       .toBe('/produktion/p1?tab=briefing&linie=b2');
   });
+
+  it('hängt das Sprungziel im Tab an', () => {
+    expect(flowUrl({ produktionId: 'p1', tab: 'konzepte', linieId: 'b1', id: 'k1', fokus: 'i1' }))
+      .toBe('/produktion/p1?tab=konzepte&linie=b1&konzept=k1&fokus=i1');
+    expect(flowUrl({ produktionId: 'p1', tab: 'kooperationen', linieId: 'alle', fokus: 'ko1' }))
+      .toBe('/produktion/p1?tab=kooperationen&linie=alle&fokus=ko1');
+  });
 });
 
 describe('Entity hinter einer Route', () => {
   it('erkennt Einzelseiten und Besitzer-Seiten', () => {
-    expect(erkenneZiel('/briefing/b2')).toEqual({ kind: 'briefing', tab: 'briefing', id: 'b2', hinweis: null });
-    expect(erkenneZiel('/produkt/x1?briefing=b2')).toEqual({ kind: 'produkt', tab: 'produkte', id: 'x1', hinweis: 'b2' });
+    expect(erkenneZiel('/briefing/b2')).toEqual({ kind: 'briefing', tab: 'briefing', id: 'b2', hinweis: null, fokus: null });
+    expect(erkenneZiel('/produkt/x1?briefing=b2')).toEqual({ kind: 'produkt', tab: 'produkte', id: 'x1', hinweis: 'b2', fokus: null });
+    expect(erkenneZiel('/konzepte/k1?fokus=i1')).toMatchObject({ kind: 'konzept', id: 'k1', fokus: 'i1' });
     expect(erkenneZiel('/marke/m1/produkt?produkt=x1')?.id).toBe('x1');
     expect(erkenneZiel('/unternehmen/u1/persona?persona=y1')).toMatchObject({ kind: 'persona', tab: 'personas', id: 'y1' });
     expect(erkenneZiel('/skripte/s1')).toMatchObject({ kind: 'skript', tab: 'skripte' });
@@ -113,6 +121,18 @@ describe('Linie per Abfrage', () => {
     const ohne = fakeDb({ data: { briefing_id: null }, error: null });
     expect(await linieAbfragen(produktion(), erkenneZiel('/skripte/s1'), ohne)).toBeNull();
     expect(await linieAbfragen(produktion({ linien: [] }), erkenneZiel('/skripte/s1'), ohne)).toBeNull();
+  });
+
+  it('ohne Linien zählt nur die Produktion', async () => {
+    const ohneLinien = produktion({ linien: [], linieId: null });
+    const eigen = fakeDb({ data: { briefing_id: null, produktion_id: 'p1' }, error: null });
+    expect(await linieAbfragen(ohneLinien, erkenneZiel('/konzepte/k1'), eigen)).toBe(OHNE_LINIE);
+    expect(eigen.chain.select).toHaveBeenCalledWith('briefing_id, produktion_id');
+    const fremd = fakeDb({ data: { briefing_id: null, produktion_id: 'p7' }, error: null });
+    expect(await linieAbfragen(ohneLinien, erkenneZiel('/skripte/s1'), fremd)).toBeNull();
+    const produkt = fakeDb({ data: [], error: null });
+    expect(await linieAbfragen(ohneLinien, erkenneZiel('/produkt/x1'), produkt)).toBeNull();
+    expect(produkt.from).not.toHaveBeenCalled();
   });
 
   it('wirft Abfragefehler weiter', async () => {

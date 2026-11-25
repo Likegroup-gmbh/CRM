@@ -1,9 +1,11 @@
 // videoBrowserCommentData.js
 // Kommentare des Videos-Tabs: Runden-Notizen, Bild-Notizen und Zeitkommentare in einer Liste.
 
-const authorOf = (c) => ({ name: c.author_name || 'Unbekannt', role: c.feedback_typ === 'kunde' ? 'kunde' : 'team' });
+import { autorName } from './videoBrowserKommentarAutoren.js';
 
-export function normalizeComments(slotNotes, zeitkommentare, stillNotes) {
+/** @param {string} [kundenName] Ansprechpartner der Kampagne (loadKundenName) */
+export function normalizeComments(slotNotes, zeitkommentare, stillNotes, kundenName = '') {
+  const authorOf = (c) => ({ name: autorName(c, kundenName), role: c.feedback_typ === 'kunde' ? 'kunde' : 'team' });
   const slots = (slotNotes || []).filter(c => !c.deleted_at && c.text).map(c => ({
     id: `slot-${c.id}`,
     author: authorOf(c),

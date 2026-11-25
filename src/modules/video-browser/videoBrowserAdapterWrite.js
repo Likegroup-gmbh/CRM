@@ -9,7 +9,7 @@ import { renamedFilePath, splitFileName } from '../../core/videoFileNames.js';
 import { istSharePoint } from '../../core/ablage/ablageLink.js';
 import { ablageDateiUmbenennen } from '../../core/ablage/ablageApi.js';
 
-export const ZEIT_SELECT = 'id, video_id, runde, feedback_typ, text, timecode_sec, asset_id, story_asset_id, still_asset_id, author_name, created_at, deleted_at';
+export const ZEIT_SELECT = 'id, video_id, runde, feedback_typ, text, timecode_sec, asset_id, story_asset_id, still_asset_id, author_name, author_rolle, created_at, deleted_at';
 
 /**
  * Kommentar an einer Datei der aktuellen Feedbackschleife anlegen.

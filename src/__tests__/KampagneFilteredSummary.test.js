@@ -115,6 +115,19 @@ describe('Live-Performance aus der Auswertung', () => {
     expect(store.calculateVideoStats()).toMatchObject({ views: 250, posts: 2 });
   });
 
+  it('nimmt Video, Link, Plattform und Handle für die Kooperationstabelle mit', () => {
+    const post = {
+      id: 'p5', einheitId: 'video:v1', kooperationId: 'k1', status: 'confirmed',
+      plattform: 'ig_reel', accountHandle: 'lena', link: 'https://www.instagram.com/reel/ABC/',
+      measuredAt: '2026-11-20', metrics: { views: 10 }
+    };
+    expect(mitLivePost([], post)).toEqual([{
+      id: 'p5', kooperation_id: 'k1', video_id: 'v1', plattform: 'ig_reel', account_handle: 'lena',
+      link: 'https://www.instagram.com/reel/ABC/', measured_at: '2026-11-20', metrics: { views: 10 }
+    }]);
+    expect(mitLivePost([], { ...post, einheitId: 'story:s1' })[0].video_id).toBeNull();
+  });
+
   it('ignoriert fehlende oder kaputte Werte', () => {
     expect(summiereLivePerformance([{ kooperation_id: 'k1', metrics: { views: '12', likes: null } }, { kooperation_id: 'k1' }]))
       .toEqual({ views: 0, likes: 0, comments: 0, posts: 2 });

@@ -27,16 +27,23 @@ export function tagChipHtml(tag, { removable = false } = {}) {
   return `<span class="tag vb-tag" data-tag-id="${esc(tag.id)}"><span class="vb-tag__label">${esc(tag.label)}</span>${remove}</span>`;
 }
 
+/** Tag aus dem Kooperationsformular: nur lesbar, gilt für die ganze Kooperation. */
+export function koopTagChipHtml(tag) {
+  return `<span class="tag vb-tag vb-tag--koop" data-koop-tag-id="${esc(tag.id)}" title="Tag der Kooperation"><span class="vb-tag__label">${esc(tag.label)}</span></span>`;
+}
+
 /** "+ Tag"-Knopf, der die Combobox öffnet. Sitzt im Slot des Tag-Feldes, auch nach dem Schließen der Combobox. */
 export function tagTriggerHtml() {
   return `<button type="button" class="vb-tag-trigger" data-vb-tag-open aria-label="Tag hinzufügen (T)" title="Tag hinzufügen (T)">${icon('plus')}<span>Tag</span></button>`;
 }
 
 /** Inhalt des Tag-Feldes ohne den äußeren Rahmen, damit der Controller ihn gezielt ersetzen kann. */
-export function tagFieldInnerHtml(item, catalog, { editable }) {
+export function tagFieldInnerHtml(item, catalog, { editable, koopTags = [] }) {
   const chips = tagsOf(item, catalog).map(tag => tagChipHtml(tag, { removable: editable })).join('');
-  if (!editable) return `<div class="vb-tagfield__row" data-vb-tag-chips>${chips}</div>`;
+  const koop = koopTags.length ? `<div class="vb-tagfield__row">${koopTags.map(koopTagChipHtml).join('')}</div>` : '';
+  if (!editable) return `${koop}<div class="vb-tagfield__row" data-vb-tag-chips>${chips}</div>`;
   return `
+    ${koop}
     <div class="vb-tagfield__row" data-vb-tag-chips>${chips}</div>
     <span class="vb-tagfield__slot" data-vb-tag-slot>${tagTriggerHtml()}</span>`;
 }
@@ -49,10 +56,12 @@ export function tagFieldHtml(ctx, item) {
   if (!item?.variantKey) return '';
   const catalog = ctx.tagCatalog || [];
   const editable = !!ctx.canUpload;
-  if (!editable && !(item.tagIds || []).length) return '';
+  // Koop-Tags nur fürs Team (der Adapter lädt sie für Kunden gar nicht)
+  const koopTags = ctx.resolved?.koop?.tags || [];
+  if (!editable && !(item.tagIds || []).length && !koopTags.length) return '';
   return `
     <div class="vb-tagfield" data-vb-tagfield>
-      <div class="vb-tagfield__main" data-vb-tagfield-main>${tagFieldInnerHtml(item, catalog, { editable })}</div>
+      <div class="vb-tagfield__main" data-vb-tagfield-main>${tagFieldInnerHtml(item, catalog, { editable, koopTags })}</div>
       ${editable ? `<p class="vb-tagfield__hint" data-vb-tag-hint>${esc(tagHint(item))}</p>` : ''}
     </div>`;
 }

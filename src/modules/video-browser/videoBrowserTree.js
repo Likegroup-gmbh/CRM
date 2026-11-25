@@ -6,7 +6,7 @@ import { FINAL_ID, FINAL_NAME, toHandle, videoName } from './videoBrowserFormat.
 import { deriveBearbeitungsart } from './videoBrowserStatus.js';
 import { normalizeComments } from './videoBrowserCommentData.js';
 import { buildRow, sortBy } from './videoBrowserRow.js';
-import { attachTags } from './videoBrowserTagLogic.js';
+import { attachKoopTags, attachTags } from './videoBrowserTagLogic.js';
 
 const byKey = (list, key) => {
   const map = new Map();
@@ -82,7 +82,7 @@ export function buildTree(raw, { team }) {
         storyInfo,
         stillLoop: stills.filter(a => !a.is_final),
         stillFinals: stills.filter(a => a.is_final),
-        comments: normalizeComments(notesByVideo.get(v.id), zeitByVideo.get(v.id), stillNotesByVideo.get(v.id)),
+        comments: normalizeComments(notesByVideo.get(v.id), zeitByVideo.get(v.id), stillNotesByVideo.get(v.id), raw.kundenName),
         slotLabel: videoName(number)
       });
     });
@@ -111,6 +111,7 @@ export function buildTree(raw, { team }) {
   });
 
   attachTags(kooperationen, { tagTypen: raw.tagTypen, varianteTags: raw.varianteTags });
+  attachKoopTags(kooperationen, { koopTagTypen: raw.koopTagTypen, koopTags: raw.koopTags });
 
   return { kooperationen };
 }

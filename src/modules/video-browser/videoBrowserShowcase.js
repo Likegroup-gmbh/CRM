@@ -23,6 +23,7 @@ import { closeVollansicht, openVollansicht, syncVollansicht } from './videoBrows
 import { bindAusstehendDrop, paintAusstehendUploads } from './videoBrowserShowcaseUpload.js';
 import { downloadItems } from './videoBrowserDownload.js';
 import { downloadMeta } from './videoBrowserActions.js';
+import { creatorLinkErstellen, produktionLinkButton } from './videoBrowserAblage.js';
 import { VB_SEG_ATTR } from './videoBrowserRenderParts.js';
 import { onSegmentKeydown as segmentKeydown, setSegmentValue } from '../../core/components/SegmentSwitch.js';
 
@@ -55,6 +56,7 @@ export function mountShowcase(vb) {
   vb.scGridEl = vb.scEl.querySelector('[data-vb-sc-grid]');
   vb.scChipsEl = vb.scEl.querySelector('[data-vb-sc-chips]');
   vb.scSummaryEl = vb.scEl.querySelector('[data-vb-sc-summary]');
+  vb.scTeilenEl = vb.scEl.querySelector('[data-vb-sc-teilen]');
   vb.scMedia = createShowcaseMedia({ motion: vb.motion });
 
   // Hover per Delegation am Grid, nicht ein Listener je Kachel
@@ -105,6 +107,14 @@ function paintStatusSegment(vb, sc) {
   vb.motion?.tabIndicator(group, { animate: false });
 }
 
+/** Produktions-Link in der Leiste: hängt am Baum. Bleibt derselbe Knopf stehen, behält er seinen Busy-Zustand. */
+function paintTeilen(vb) {
+  const html = produktionLinkButton({ team: vb.team, produktionId: vb.detail?.produktionId || null, tree: vb.tree }, { text: true });
+  if (!vb.scTeilenEl || vb._scTeilen === html) return;
+  vb._scTeilen = html;
+  vb.scTeilenEl.innerHTML = html;
+}
+
 /**
  * Datenmenge neu berechnen und Chips und Grid ersetzen, danach die Textsuche anwenden. Die Umschalter
  * bleiben stehen. `scResult.alle` ist die gerenderte Liste, `scResult.list` die Treffer daraus.
@@ -117,7 +127,8 @@ export function renderShowcase(vb) {
   const scroll = vb.scScrollEl.scrollTop;
   vb.scEl.style.setProperty('--tile', `${sizePx(sc.state.size)}px`);
   vb.scChipsEl.innerHTML = chipsHtml(sc);
-  vb.scGridEl.innerHTML = gridHtml(sc, { catalog: vb.raw?.tagTypen || [], team: vb.team, canUpload: vb.canUpload });
+  vb.scGridEl.innerHTML = gridHtml(sc, { catalog: vb.raw?.tagTypen || [], team: vb.team, canUpload: vb.canUpload, tree: vb.tree });
+  paintTeilen(vb);
   sucheShowcase(vb);
   vb.scScrollEl.scrollTop = scroll;
 
@@ -313,6 +324,11 @@ export function onShowcaseClick(vb, e) {
   const download = e.target.closest('[data-vb-sc-download]');
   if (download) {
     void downloadAll(vb, download);
+    return true;
+  }
+  const creatorLink = e.target.closest('[data-vb-creatorlink]');
+  if (creatorLink) {
+    void creatorLinkErstellen(vb, creatorLink);
     return true;
   }
   return false;

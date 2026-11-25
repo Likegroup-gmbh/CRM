@@ -138,16 +138,17 @@ describe('Drawer Kooperation „Tabelle anpassen“', () => {
     expect(onTableRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it('listet nur Spalten, die die Tabelle noch hat', () => {
+  it('listet alle Spalten', () => {
     const store = { columnOrder: null, customColumns: [], setColumnOrder() {} };
     new VideoTableColumnVisibilityDrawer('kampagne-a', store).open();
 
     const labels = [...document.querySelectorAll('#video-tabelle-anpassen-spalten .sourcing-spalten-name')]
       .map(el => el.textContent.trim());
-    const weg = ['Tags', 'Thema', 'Idee/Konzept', 'Link Skript / Briefing',
-      'Content', 'Caption', 'Finale Version', 'CJ Feedback 1', 'Kunde Feedback 3'];
-    for (const label of weg) expect(labels, label).not.toContain(label);
-    for (const label of ['Skript', 'Stills', 'Freigabe']) expect(labels, label).toContain(label);
+    const erwartet = ['Tags', 'Thema', 'Idee/Konzept', 'Link Skript / Briefing', 'Skript', 'Stills', 'Freigabe',
+      'Content', 'Caption', 'Finale Version', 'LG Feedback 1', 'Kunde Feedback 1', 'LG Feedback 3', 'Kunde Feedback 3',
+      'Erstellt', 'Videos', 'Live Link', 'Views', 'Likes', 'Kommentare'];
+    for (const label of erwartet) expect(labels, label).toContain(label);
+    expect(labels.filter(label => label.startsWith('CJ'))).toEqual([]);
   });
 });
 

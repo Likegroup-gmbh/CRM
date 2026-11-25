@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { einheitenAusBaum, einheitInLinie, verbrauchFuer } from '../modules/auswertung/auswertungEinheiten.js';
 import { plattformAusLink } from '../modules/auswertung/auswertungKonfig.js';
+import { postDatei } from '../modules/auswertung/auswertungTabelle.js';
 
 const finalOrdner = (items) => ({ id: 'final', kind: 'final', items });
 const item = (id, type, extra = {}) => ({ id, type, ratio: '9:16', name: `${type} ${id}`, tagIds: [], ...extra });
@@ -20,7 +21,13 @@ const tree = {
           item('b1', 'still')
         ])]
       },
-      { id: 'v2', number: 2, title: 'Ohne Final', folders: [{ id: 's1', kind: 'schleife', items: [item('x', 'video')] }] }
+      {
+        id: 'v2', number: 2, title: 'Ohne Final',
+        folders: [
+          { id: 's1', kind: 'schleife', items: [item('x', 'video'), item('xs', 'story', { storyId: 'st2' })] },
+          { id: 's2', kind: 'schleife', items: [item('ys', 'story', { storyId: 'st-fremd' }), item('y', 'video')] }
+        ]
+      }
     ]
   }, {
     id: 'k2', creatorId: 'c2', name: 'Max', handle: '@max', avatarUrl: null,
@@ -51,6 +58,15 @@ describe('Einheiten aus dem Baum', () => {
     expect(einheiten.find(e => e.id === 'story:st1').label).toBe('Story 2');
     expect(einheiten.find(e => e.id === 'video:v2')).toMatchObject({ titel: 'Ohne Final', dateien: [] });
     expect(einheiten.find(e => e.id === 'story:st2')).toMatchObject({ label: 'Story 1', bezug: 'Video 2', dateien: [] });
+  });
+
+  it('ohne Finale Version kommt das Poster aus der jüngsten Feedbackschleife mit passender Datei', () => {
+    const v2 = einheiten.find(e => e.id === 'video:v2');
+    expect(v2.vorschau.id).toBe('y');
+    expect(einheiten.find(e => e.id === 'story:st2').vorschau.id).toBe('xs');
+    expect(einheiten.find(e => e.id === 'video:v1').vorschau).toBeNull();
+    expect(postDatei(v2, null).id).toBe('y');
+    expect(postDatei(einheiten.find(e => e.id === 'video:v1'), { dateiId: 'a2' }).id).toBe('a2');
   });
 
   it('übernimmt nur das Posting-Datum; Link und Zahlen der Altfelder stehen am Post', () => {

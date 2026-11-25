@@ -4,7 +4,8 @@
 // kooperation_post nicht (RLS), für sie bleibt die Kachel weg. Ohne Imports, damit die Auswertung
 // das Modul ohne Zyklus nutzen kann.
 
-export const LIVE_POST_SELECT = 'id, kooperation_id, metrics';
+// video_id, plattform, account_handle, link und measured_at für Live Link und Zahlen in der Kooperationstabelle
+export const LIVE_POST_SELECT = 'id, kooperation_id, video_id, plattform, account_handle, link, measured_at, metrics';
 
 /** Bestätigte Posts der Kampagne; der Scope (Produktion, Linie, Tags) filtert später über die Kooperationen. */
 export async function ladeLivePosts(kampagneId, { isKunde = false } = {}) {
@@ -37,5 +38,15 @@ export function summiereLivePerformance(posts, koopIds = null) {
 export function mitLivePost(posts, post, { weg = false } = {}) {
   const rest = (posts || []).filter(p => p.id !== post.id);
   if (weg || post.status !== 'confirmed') return rest;
-  return [...rest, { id: post.id, kooperation_id: post.kooperationId, metrics: post.metrics || {} }];
+  const [art, ankerId] = String(post.einheitId || '').split(':');
+  return [...rest, {
+    id: post.id,
+    kooperation_id: post.kooperationId,
+    video_id: art === 'video' && ankerId ? ankerId : null,
+    plattform: post.plattform || null,
+    account_handle: post.accountHandle || null,
+    link: post.link || null,
+    measured_at: post.measuredAt || null,
+    metrics: post.metrics || {}
+  }];
 }

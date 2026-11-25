@@ -101,6 +101,30 @@ export function attachTags(kooperationen, { tagTypen = [], varianteTags = [] } =
   }
 }
 
+/** Präfix der IDs von Koop-Tags in der Auswahl: sie sind noch keine Video-Tags. */
+export const KOOP_OPTION_PREFIX = 'koop:';
+export const KOOP_GROUP = 'Aus Kooperationen';
+
+/**
+ * Hängt `tags` ([{ id, label }], nach Namen sortiert) an jede Kooperation: die Tags, die im
+ * Kooperationsformular vergeben wurden. Sie gelten für die ganze Kooperation, nicht für eine Variante.
+ */
+export function attachKoopTags(kooperationen, { koopTagTypen = [], koopTags = [] } = {}) {
+  const names = new Map(koopTagTypen.map(t => [String(t.id), t.name]));
+  const byKoop = new Map();
+  for (const row of koopTags) {
+    const id = String(row.tag_id);
+    const label = names.get(id);
+    if (!label) continue;
+    const list = byKoop.get(row.kooperation_id) || [];
+    if (!list.some(t => t.id === id)) list.push({ id, label });
+    byKoop.set(row.kooperation_id, list);
+  }
+  for (const koop of kooperationen) {
+    koop.tags = (byKoop.get(koop.id) || []).sort((a, b) => a.label.localeCompare(b.label, 'de'));
+  }
+}
+
 /** Katalog als Liste nach Gruppen: [{ group, tags }], leere Gruppen fehlen. */
 export function groupTags(tags) {
   const order = new Map(TAG_GROUPS.map((g, i) => [g, i]));
@@ -118,20 +142,33 @@ export function groupTags(tags) {
 /**
  * Optionen der Tag-Auswahl für eine Eingabe: noch nicht vergebene Tags, gefiltert nach Teilstring,
  * gruppiert, plus "Neu anlegen", wenn es keinen exakten Treffer gibt.
+ * `koop` bringt den Vorrat der Kooperations-Tags mit: Namen, die es als Video-Tag noch nicht gibt
+ * und die an dieser Kooperation nicht ohnehin schon hängen, erscheinen als Gruppe "Aus Kooperationen"
+ * (ID mit Präfix `koop:`). Die Auswahl legt daraus ein Video-Tag gleichen Namens an.
+ * @param {{ typen?: Array<{ id: string, name: string }>, assigned?: Array<{ label: string }> }} [koop]
  * @returns {{ groups: Array<{ group: string, tags: Array }>, create: string|null, empty: boolean }}
  */
-export function tagOptions(catalog, takenIds, query) {
+export function tagOptions(catalog, takenIds, query, koop = {}) {
   const taken = new Set(takenIds || []);
   const free = (catalog || []).filter(t => !taken.has(t.id));
   const needle = normalizeTagLabel(query);
   const hits = needle ? free.filter(t => normalizeTagLabel(t.label).includes(needle)) : free;
   const clean = cleanTagLabel(query);
+
+  const known = new Set([...(catalog || []), ...(koop.assigned || [])].map(t => normalizeTagLabel(t.label)));
+  const koopFree = (koop.typen || [])
+    .map(t => ({ id: `${KOOP_OPTION_PREFIX}${t.id}`, label: t.name, gruppe: KOOP_GROUP }))
+    .filter(t => t.label && !known.has(normalizeTagLabel(t.label)));
+  const koopHits = needle ? koopFree.filter(t => normalizeTagLabel(t.label).includes(needle)) : koopFree;
+
   // Ein exakter Treffer, auch unter den schon vergebenen, verhindert "Neu anlegen"
-  const exists = !!clean && !!findTagByLabel(catalog, clean);
+  const exists = !!clean && !!(findTagByLabel(catalog, clean) || findTagByLabel(koopFree, clean));
+  const groups = groupTags(hits);
+  if (koopHits.length) groups.push({ group: KOOP_GROUP, tags: koopHits });
   return {
-    groups: groupTags(hits),
+    groups,
     create: clean && !exists ? clean : null,
-    empty: !free.length && !clean
+    empty: !free.length && !koopFree.length && !clean
   };
 }
 

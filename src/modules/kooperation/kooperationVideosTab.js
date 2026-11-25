@@ -6,6 +6,12 @@ import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { ordnerLinkHtml } from '../../core/ablage/ablageOrdnerLink.js';
+import {
+  formatTimecode,
+  ZEIT_SICHTBAR,
+  zeitkommentareFuerSlot,
+  zeitkommentarHref
+} from '../kampagne/videoTableZeitkommentare.js';
 
 const euro = (wert) => wert != null
   ? parseFloat(wert).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
@@ -13,13 +19,38 @@ const euro = (wert) => wert != null
 const datum = (wert) => wert ? new Date(wert).toLocaleDateString('de-DE') : '-';
 
 function feedbackListe(detail, kommentare) {
-  if (!kommentare || kommentare.length === 0) return '-';
-  return kommentare.map(c => {
+  return (kommentare || []).map(c => {
     const date = c.created_at ? new Date(c.created_at).toLocaleDateString('de-DE') : '';
-    const author = c.author_name || '';
+    const author = detail.sanitize(c.author_name || '');
     const text = detail.sanitize(c.text || '');
     return `<div class="fb-line"><span class="fb-meta">${author}${date ? ' • ' + date : ''}</span><div class="fb-text">${text}</div></div>`;
   }).join('');
+}
+
+// Kommentare aus dem Videos-Tab der Kampagne, die neuesten ZEIT_SICHTBAR. Ohne Kampagne ohne Link.
+function zeitListe(detail, v, slot, kampagneId) {
+  const alle = zeitkommentareFuerSlot(v.zeitkommentare, slot);
+  if (!alle.length) return '';
+  const koopId = v.kooperation_id || detail.kooperationId;
+  const zeile = (c) => {
+    const tc = formatTimecode(c.timecode_sec);
+    const author = detail.sanitize(c.author_name || '');
+    const inhalt = `<span class="fb-meta">${author}${tc ? ' • ' + tc : ''}</span><div class="fb-text">${detail.sanitize(String(c.text).trim())}</div>`;
+    const href = zeitkommentarHref(kampagneId, koopId, c);
+    return href
+      ? `<a class="fb-line fb-zeit-link" href="${href}">${inhalt}</a>`
+      : `<div class="fb-line">${inhalt}</div>`;
+  };
+  const rest = alle.length - ZEIT_SICHTBAR;
+  const mehrHref = zeitkommentarHref(kampagneId, koopId, { video_id: v.id, runde: slot.runde });
+  const mehr = rest <= 0 ? ''
+    : mehrHref ? `<a class="fb-zeit-link fb-zeit-mehr" href="${mehrHref}">+${rest} weitere</a>`
+    : `<span class="fb-meta">+${rest} weitere</span>`;
+  return `<div class="fb-quelle">Videos-Tab</div>${alle.slice(-ZEIT_SICHTBAR).map(zeile).join('')}${mehr}`;
+}
+
+function feedbackZelle(detail, v, slot, kampagneId) {
+  return (feedbackListe(detail, v.feedback?.[slot.bucket]) + zeitListe(detail, v, slot, kampagneId)) || '-';
 }
 
 function aktionsMenu(v, { isKunde, isAdmin }) {
@@ -83,7 +114,7 @@ function urlZelle(detail, v) {
     : '-';
 }
 
-function videoZeile(detail, v, rolle) {
+function videoZeile(detail, v, rolle, kampagneId) {
   return `
     <tr>
       <td>${v.position || '-'}</td>
@@ -97,7 +128,7 @@ function videoZeile(detail, v, rolle) {
         ${urlZelle(detail, v)}
         ${v.currentAsset ? `<span class="version-badge koop-version-badge">V${v.currentAsset.version_number || 1}</span>` : ''}
       </td>
-      ${VIDEO_FEEDBACK_FIELDS.map(slot => `<td class="feedback-cell">${feedbackListe(detail, v.feedback?.[slot.bucket])}</td>`).join('')}
+      ${VIDEO_FEEDBACK_FIELDS.map(slot => `<td class="feedback-cell">${feedbackZelle(detail, v, slot, kampagneId)}</td>`).join('')}
       <td><span class="status-badge status-${(v.status || 'produktion').toLowerCase()}">${v.status === 'abgeschlossen' ? 'Abgeschlossen' : 'Produktion'}</span></td>
       <td>${aktionsMenu(v, rolle)}</td>
     </tr>`;
@@ -115,6 +146,7 @@ export function renderKooperationVideos(detail) {
   }
 
   const rolle = { isKunde: !!window.isKunde?.(), isAdmin: !!window.isAdmin?.() };
+  const kampagneId = detail.kampagne?.id || detail.kooperation?.kampagne?.id || detail.kooperation?.kampagne_id || null;
   const summeVk = videos.reduce((s, v) => s + (parseFloat(v.verkaufspreis_netto) || 0), 0);
 
   return `
@@ -135,7 +167,7 @@ export function renderKooperationVideos(detail) {
             <th>Aktion</th>
           </tr>
         </thead>
-        <tbody>${videos.map(v => videoZeile(detail, v, rolle)).join('')}</tbody>
+        <tbody>${videos.map(v => videoZeile(detail, v, rolle, kampagneId)).join('')}</tbody>
         <tfoot>
           <tr>
             <td colspan="3" class="u-text-right fw-semibold">Gesamt VK Netto:</td>

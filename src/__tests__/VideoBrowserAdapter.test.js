@@ -85,6 +85,49 @@ describe('VideoBrowserAdapter: Produkte der Videoideen', () => {
   });
 });
 
+describe('VideoBrowserAdapter: Autoren von Kunden-Feedback', () => {
+  const results = {
+    'kooperationen:select': () => ({ data: [{ id: 'k1', name: 'Koop' }], error: null }),
+    'kooperation_videos:select': () => ({ data: [{ id: 'v1', kooperation_id: 'k1' }], error: null }),
+    'kooperation_video_comment:select': () => ({ data: [
+      { id: 'n1', video_id: 'v1', runde: 1, feedback_typ: 'kunde', text: 'Dynamischer', author_name: 'Svenja', author_rolle: 'mitarbeiter' },
+      { id: 'n2', video_id: 'v1', runde: 1, feedback_typ: 'cj', text: 'Schneller', author_name: 'Ben', author_rolle: 'mitarbeiter' }
+    ], error: null }),
+    'kooperation_video_zeitkommentar:select': () => ({ data: [], error: null }),
+    'kooperation_still_comment:select': () => ({ data: [], error: null }),
+    'ansprechpartner_kampagne:select': () => ({ data: [
+      { ansprechpartner: { vorname: 'Laura', nachname: 'Collik' } },
+      { ansprechpartner: { vorname: 'Cosima', nachname: 'Kitze' } }
+    ], error: null })
+  };
+  afterEach(() => { delete window.supabase; });
+
+  it.each([true, false])('team=%s: Rolle steht auf der Zeile, Ansprechpartner der Kampagne als kundenName', async (team) => {
+    window.supabase = mockSupabase(results);
+    const raw = await loadVideoBrowserData({ kampagneId: 'c1', team });
+    for (const t of ['kooperation_video_comment', 'kooperation_video_zeitkommentar', 'kooperation_still_comment']) {
+      expect(window.supabase.calls.find(q => q.table === t).select).toContain('author_rolle');
+    }
+    expect(window.supabase.calls.find(q => q.table === 'ansprechpartner_kampagne').filters).toContainEqual(['kampagne_id', 'c1']);
+    expect(window.supabase.calls.map(q => q.table)).not.toContain('benutzer');
+    expect(raw.kundenName).toBe('Cosima Kitze, Laura Collik');
+  });
+
+  it('ohne Kunden-Feedback vom Team keine Abfrage, Fehler heißt gespeicherte Namen', async () => {
+    window.supabase = mockSupabase({ ...results, 'kooperation_video_comment:select': () => ({ data: [
+      { id: 'n1', video_id: 'v1', runde: 1, feedback_typ: 'kunde', text: 'Eigenes', author_name: 'Kai', author_rolle: 'kunde' }
+    ], error: null }) });
+    const ohne = await loadVideoBrowserData({ kampagneId: 'c1', team: true });
+    expect(window.supabase.calls.map(q => q.table)).not.toContain('ansprechpartner_kampagne');
+    expect(ohne.kundenName).toBe('');
+
+    window.supabase = mockSupabase({ ...results, 'ansprechpartner_kampagne:select': () => ({ data: null, error: { message: 'RLS' } }) });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect((await loadVideoBrowserData({ kampagneId: 'c1', team: false })).kundenName).toBe('');
+    warn.mockRestore();
+  });
+});
+
 describe('VideoBrowserAdapter: Dateititel', () => {
   afterEach(() => { delete window.supabase; });
 

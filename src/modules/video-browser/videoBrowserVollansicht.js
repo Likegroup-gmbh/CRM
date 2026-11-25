@@ -21,6 +21,7 @@ import { paintAusstehendUploads, uploadZiel } from './videoBrowserShowcaseUpload
 import { bodyHtml, feedbackCount, feedbackHtml, headHtml } from './videoBrowserVollansichtRender.js';
 import { vollDetailsHtml } from './videoBrowserVollansichtDetails.js';
 import { bindVollansichtEvents } from './videoBrowserVollansichtEvents.js';
+import { activeChip } from '../kampagne/linienScope.js';
 
 const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
 const exitFs = () => { if (fsElement()) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); };
@@ -46,7 +47,10 @@ const sameKey = (a, b) => a.videoId === b.videoId && (a.itemId || null) === (b.i
 export const vollansichtSel = (vb) => vb.voll?.sel || null;
 
 function vollCtx(vb) {
-  return { ...vb._ctx(), sel: vb.voll.sel, resolved: detailResolved(vb), idPrefix: 'vb-voll', ohneAdManager: true };
+  return {
+    ...vb._ctx(), sel: vb.voll.sel, resolved: detailResolved(vb), idPrefix: 'vb-voll', ohneAdManager: true,
+    flowLinie: activeChip(vb.detail, 'videos')
+  };
 }
 
 /** Die Steuerung liegt im Bild: der Rahmen darf die ganze Bühne nutzen. */

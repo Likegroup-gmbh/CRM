@@ -16,7 +16,8 @@ import { VideoTableDrawerActions } from './VideoTableDrawerActions.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
-import { isColumnPreferredVisible } from './columns/ColumnRegistry.js';
+import { isColumnVisible } from './columns/ColumnRegistry.js';
+import { bindPostZellen } from './videoTablePostCells.js';
 import { FinalVideoBulkDownload } from './FinalVideoBulkDownload.js';
 import { preserveScroll } from '../../core/dom/preserveScroll.js';
 
@@ -63,6 +64,7 @@ export class KampagneKooperationenVideoTable {
     this._linkSkriptDrawer = new LinkSkriptDrawer();
     this._mediaViewer = new VideoPlayerLightbox(this);
     this._finalBulkDownload = new FinalVideoBulkDownload(this);
+    this._unsubPosts = bindPostZellen(this);
   }
 
   // Store-backed getters (Proxy zum Store, Fallback auf lokale Daten für Kompatibilität)
@@ -161,14 +163,7 @@ export class KampagneKooperationenVideoTable {
   }
 
   isColumnVisibleForCustomer(columnClass) {
-    if (columnClass === 'col-nr' || columnClass === 'col-creator' || columnClass === 'col-status') return true;
-    if ((columnClass === 'col-kosten' || columnClass === 'col-ek-video') && this.isKundeRole()) return false;
-    // Aktionen/Vertrag sind Write-UI: Kunde und view-only Rollen (Investor)
-    // sehen sie nicht.
-    const canEdit = window.permissionSystem?.canEdit('kooperation') ?? false;
-    if ((columnClass === 'col-actions' || columnClass === 'col-vertrag') && (this.isKundeRole() || !canEdit)) return false;
-    if (columnClass === 'col-actions') return true;
-    return isColumnPreferredVisible(columnClass, this.hiddenColumns);
+    return isColumnVisible(columnClass, this.hiddenColumns, this.isKundeRole());
   }
 
   // ========================================
@@ -406,6 +401,8 @@ export class KampagneKooperationenVideoTable {
       this._customUploadDoneHandler = null;
     }
 
+    this._unsubPosts?.();
+    this._unsubPosts = null;
     this.store = null;
 
     const floatingScrollbar = document.getElementById('floating-scrollbar-kampagne');

@@ -68,6 +68,7 @@ import '../assets/styles/video-browser-kalender.css';
 import '../assets/styles/video-browser-vollansicht.css';
 import '../assets/styles/video-browser-vollansicht-details.css';
 import '../assets/styles/video-browser-ausstehend.css';
+import '../assets/styles/video-browser-showcase-gruppen.css';
 import '../assets/styles/video-browser-suche.css';
 import '../assets/styles/auswertung.css';
 import '../assets/styles/auswertung-erfassen.css';

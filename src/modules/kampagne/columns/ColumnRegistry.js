@@ -14,6 +14,8 @@ const DEFAULT_COLUMNS = [
   { id: 'col-extra-kosten', label: 'Extra Kosten', dataCol: '1d', configurable: true },
   { id: 'col-vertrag', label: 'Vertrag', dataCol: '4', configurable: true },
   { id: 'col-nutzungsrechte', label: 'Nutzungsrechte', dataCol: '5', configurable: true },
+  { id: 'col-start-datum', label: 'Erstellt', dataCol: '6', configurable: true },
+  { id: 'col-videoanzahl', label: 'Videos', dataCol: '9', configurable: true },
   { id: 'col-video-nr', label: 'Video-Nr', dataCol: '10', configurable: true },
   { id: 'col-vk-video', label: 'Kosten', dataCol: '10b', configurable: true },
   { id: 'col-video-script-deadline', label: 'Script Deadline', dataCol: '10d', configurable: true },
@@ -44,32 +46,27 @@ const DEFAULT_COLUMNS = [
   { id: 'col-caption', label: 'Caption', dataCol: '27', configurable: true },
   { id: 'col-finale-version', label: 'Finale Version', dataCol: '28', configurable: true },
   { id: 'col-posting-datum', label: 'Posting Datum', dataCol: '29', configurable: true },
+  { id: 'col-link-live', label: 'Live Link', dataCol: '29b', configurable: true },
+  { id: 'col-stats-views', label: 'Views', dataCol: '29c', configurable: true },
+  { id: 'col-stats-likes', label: 'Likes', dataCol: '29d', configurable: true },
+  { id: 'col-stats-comments', label: 'Kommentare', dataCol: '29e', configurable: true },
   { id: 'col-actions', label: 'Aktionen', dataCol: '30', configurable: false }
 ];
 
-// Stillgelegt: weder in der Tabelle noch in „Tabelle anpassen“. Definition und
-// Renderer bleiben stehen; Zurückholen = ID hier streichen.
-const RETIRED_COLUMN_IDS = new Set([
-  'col-tags', 'col-thema', 'col-idee-strategie', 'col-link-skript',
-  // pflegt der Video-Tab
-  'col-link-content', 'col-caption', 'col-finale-version',
-  ...VIDEO_FEEDBACK_FIELDS.map(slot => slot.colClass)
-]);
-
-const ACTIVE_COLUMNS = DEFAULT_COLUMNS.filter(c => !RETIRED_COLUMN_IDS.has(c.id));
-
-const BUILTIN_MAP = new Map(ACTIVE_COLUMNS.map(c => [c.id, c]));
+const BUILTIN_MAP = new Map(DEFAULT_COLUMNS.map(c => [c.id, c]));
 
 // Ohne Eintrag ausgeblendet. Sichtbar nur mit `show:${id}` in hidden_columns,
 // damit eine leere Liste sie nicht wieder aufblendet.
-const DEFAULT_HIDDEN_COLUMNS = new Set(['col-skript']);
+const DEFAULT_HIDDEN_COLUMNS = new Set(['col-idee-strategie', 'col-skript', 'col-tags', 'col-thema', 'col-link-skript']);
+
+// Lesen aus kooperation_post, das Kunden per RLS nicht sehen.
+export const TEAM_ONLY_COLUMNS = new Set(['col-link-live', 'col-stats-views', 'col-stats-likes', 'col-stats-comments']);
 
 export function showColumnKey(colId) {
   return `show:${colId}`;
 }
 
 export function isColumnPreferredVisible(colId, hiddenColumns) {
-  if (RETIRED_COLUMN_IDS.has(colId)) return false;
   const list = hiddenColumns || [];
   if (DEFAULT_HIDDEN_COLUMNS.has(colId)) return list.includes(showColumnKey(colId));
   return !list.includes(colId);
@@ -89,7 +86,7 @@ export function setColumnPreferredVisible(hiddenColumns, colId, visible) {
 const CUSTOM_COL_PREFIX = 'custom:';
 
 export function getDefaultColumnIds() {
-  return ACTIVE_COLUMNS.map(c => c.id);
+  return DEFAULT_COLUMNS.map(c => c.id);
 }
 
 export function getBuiltinColumn(colId) {
@@ -144,13 +141,13 @@ export function getOrderedColumns(store) {
   // an ihrer Default-Position einfuegen (direkt hinter dem naechsten
   // vorangehenden Default-Nachbarn), damit Header und hart codierte
   // Body-Zellen zusammenpassen.
-  for (let defIdx = 0; defIdx < ACTIVE_COLUMNS.length; defIdx++) {
-    const col = ACTIVE_COLUMNS[defIdx];
+  for (let defIdx = 0; defIdx < DEFAULT_COLUMNS.length; defIdx++) {
+    const col = DEFAULT_COLUMNS[defIdx];
     if (usedIds.has(col.id)) continue;
 
     let insertIdx = -1;
     for (let prev = defIdx - 1; prev >= 0; prev--) {
-      const prevIdx = result.findIndex(c => c.id === ACTIVE_COLUMNS[prev].id);
+      const prevIdx = result.findIndex(c => c.id === DEFAULT_COLUMNS[prev].id);
       if (prevIdx >= 0) {
         insertIdx = prevIdx + 1;
         break;
@@ -181,7 +178,7 @@ export function getOrderedColumns(store) {
 }
 
 function buildDefaultOrderWithCustom(customColumns) {
-  const result = ACTIVE_COLUMNS.map(c => ({ ...c, isCustom: false }));
+  const result = DEFAULT_COLUMNS.map(c => ({ ...c, isCustom: false }));
 
   if (customColumns.length === 0) return result;
 
@@ -225,6 +222,7 @@ export function isColumnVisible(colId, hiddenColumns, isKunde) {
   if (isKunde) {
     if (colId === 'col-kosten' || colId === 'col-ek-video') return false;
     if (colId === 'col-actions' || colId === 'col-vertrag') return false;
+    if (TEAM_ONLY_COLUMNS.has(colId)) return false;
   }
 
   // Aktionen/Vertrag sind Write-UI: view-only Rollen (Investor) sehen sie nicht

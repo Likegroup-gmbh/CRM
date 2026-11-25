@@ -2,10 +2,11 @@
 // Reine Logik der Showcase-Ansicht (Grid der Videos einer Produktion): aktuellen Stand samt
 // Ausstehender Videos oder nur Finale sammeln, je Variante die 9:16-Datei wählen, nach Status,
 // Typ und Tag filtern, je Creator gruppieren, flache Anzeigeliste.
-// Kein DOM, kein Supabase. Tags und Katalog kommen aus videoBrowserTagLogic (item.tagIds).
+// Kein DOM, kein Supabase. Tags und Katalog kommen aus videoBrowserTagLogic (item.tagIds, koop.tags).
 
 import { FINAL_ID, plural } from './videoBrowserFormat.js';
 import { statusOf } from './videoBrowserStatus.js';
+import { KOOP_OPTION_PREFIX, normalizeTagLabel } from './videoBrowserTagLogic.js';
 
 /** Datenmenge: der aktuelle Stand (Finale, sonst die letzte Runde, sonst Ausstehend) oder nur Finale Versionen. */
 export const SHOWCASE_INHALT = [
@@ -166,32 +167,74 @@ export function statusCounts(entries) {
   return counts;
 }
 
+const isKoopTag = (id) => String(id).startsWith(KOOP_OPTION_PREFIX);
+const catalogById = (catalog) => new Map((catalog || []).map(t => [t.id, t]));
+
 /**
- * Status-, Typ- und Tag-Filter, UND-verknüpft. Ausstehende Videos zählen als Video ohne Tags:
- * sie bleiben bei "Videos" und ohne Filter, ein Tag-Filter blendet sie aus.
+ * Tags einer Kachel: die Video-Tags der Datei und die Tags ihrer Kooperation (Kooperationsformular,
+ * nur fürs Team geladen). Gleichnamige zählen einmal, das Video-Tag hat Vorrang.
+ * @returns {Map<string, { id: string, label: string }>} normalisiertes Label -> Tag, Koop-Tags mit Id `koop:<id>`
  */
-export function filterShowcase(entries, { status = 'alle', typ = null, tag = null } = {}) {
-  return entries.filter(({ item }) => {
+function kachelTags({ koop, item }, byId) {
+  const out = new Map();
+  for (const id of item.tagIds || []) {
+    const tag = byId.get(id);
+    if (tag) out.set(normalizeTagLabel(tag.label), { id, label: tag.label });
+  }
+  for (const tag of koop?.tags || []) {
+    const key = normalizeTagLabel(tag.label);
+    if (key && !out.has(key)) out.set(key, { id: `${KOOP_OPTION_PREFIX}${tag.id}`, label: tag.label });
+  }
+  return out;
+}
+
+/** Normalisiertes Label des gewählten Tags: aus dem Katalog, bei Koop-Tags aus den Kooperationen der Kacheln. */
+function tagKey(tag, entries, byId) {
+  if (!isKoopTag(tag)) return byId.has(tag) ? normalizeTagLabel(byId.get(tag).label) : null;
+  const id = tag.slice(KOOP_OPTION_PREFIX.length);
+  for (const { koop } of entries) {
+    const hit = (koop?.tags || []).find(t => String(t.id) === id);
+    if (hit) return normalizeTagLabel(hit.label);
+  }
+  return null;
+}
+
+/**
+ * Status-, Typ- und Tag-Filter, UND-verknüpft. Ein Tag trifft über die Datei oder ihre Kooperation,
+ * gleichnamige Video- und Koop-Tags filtern gleich. Ausstehende Videos zählen als Video ohne eigene
+ * Tags: sie bleiben bei "Videos" und ohne Filter, ein Tag-Filter zeigt sie nur über ihre Kooperation.
+ */
+export function filterShowcase(entries, { status = 'alle', typ = null, tag = null } = {}, catalog = []) {
+  const byId = catalogById(catalog);
+  const key = tag ? tagKey(tag, entries, byId) : null;
+  const hatTag = (entry) => (entry.item.tagIds || []).includes(tag) || (!!key && kachelTags(entry, byId).has(key));
+  return entries.filter((entry) => {
+    const { item } = entry;
     if (status && status !== 'alle' && kachelStatus(item) !== status) return false;
-    if (isAusstehend(item)) return !tag && (!typ || typ === 'video');
-    return (!typ || item.type === typ) && (!tag || (item.tagIds || []).includes(tag));
+    const typOk = !typ || (isAusstehend(item) ? typ === 'video' : item.type === typ);
+    return typOk && (!tag || hatTag(entry));
   });
 }
 
 /**
- * Chips der Filterzeile: Typen, Trenner, Tags der Datenmenge (alphabetisch).
- * Ids: "typ:video" und "tag:<id>", damit beide Kategorien in einer Chip-Liste stehen.
+ * Chips der Filterzeile: Typen, Trenner, Tags der Datenmenge (Video- und Koop-Tags, je Label einmal,
+ * alphabetisch). Ids: "typ:video", "tag:<id>" und "tag:koop:<id>", damit alles in einer Chip-Liste steht.
  * @returns {Array<{ id?: string, label?: string, kind: 'typ'|'sep'|'tag' }>}
  */
 export function showcaseChips(entries, catalog) {
   const types = SHOWCASE_TYPES
     .filter(t => entries.some(e => e.item.type === t.id))
     .map(t => ({ id: `${TYP_PREFIX}${t.id}`, label: t.label, kind: 'typ' }));
-  const byId = new Map((catalog || []).map(t => [t.id, t]));
-  const seen = new Set();
-  for (const { item } of entries) for (const id of item.tagIds || []) if (byId.has(id)) seen.add(id);
-  const tags = [...seen]
-    .map(id => ({ id: `${TAG_PREFIX}${id}`, label: byId.get(id).label, kind: 'tag' }))
+  const byId = catalogById(catalog);
+  const seen = new Map();
+  for (const entry of entries) {
+    for (const [key, tag] of kachelTags(entry, byId)) {
+      const known = seen.get(key);
+      if (!known || (isKoopTag(known.id) && !isKoopTag(tag.id))) seen.set(key, tag);
+    }
+  }
+  const tags = [...seen.values()]
+    .map(t => ({ id: `${TAG_PREFIX}${t.id}`, label: t.label, kind: 'tag' }))
     .sort(byLabel);
   if (!types.length && !tags.length) return [];
   return [...types, ...(types.length && tags.length ? [{ kind: 'sep' }] : []), ...tags];
@@ -292,9 +335,9 @@ export function buildShowcase(tree, state, catalog) {
   const collect = state.inhalt === 'aktuell' ? collectCurrent : collectFinals;
   const base = pickFormat(collect(tree), SHOWCASE_RATIO);
   const filters = reconcileState(state, base, catalog);
-  const filtered = filterShowcase(base, filters);
+  const filtered = filterShowcase(base, filters, catalog);
   const groups = groupShowcase(filtered, filters.group, uploadCounts(tree));
-  const statusBasis = filterShowcase(base, { ...filters, status: 'alle' });
+  const statusBasis = filterShowcase(base, { ...filters, status: 'alle' }, catalog);
   return {
     state: filters,
     total: base.length,

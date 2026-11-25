@@ -26,6 +26,16 @@ function tagsAus(items, tagById) {
 
 const datei = (item) => ({ id: item.id, ratio: item.type === 'still' ? null : item.ratio, name: item.name, item });
 
+/**
+ * Ohne Finale Version zeigt das Poster die passende Datei der jüngsten Feedbackschleife.
+ * Nur fürs Poster: `dateien` bleiben die Finalen Versionen (Hinweis, Auswahl der geposteten Datei).
+ */
+function vorschauAus(row, passt) {
+  const item = (row.folders || []).filter(f => f.kind === 'schleife').reverse()
+    .map(f => (f.items || []).find(passt)).find(Boolean);
+  return item ? datei(item) : null;
+}
+
 function gruppiereNach(list, key) {
   const map = new Map();
   list.forEach((item) => {
@@ -67,6 +77,7 @@ export function einheitenAusBaum(tree, { produktion, tagTypen = [], stories = []
       out.push({
         ...basis, id: `video:${row.id}`, art: 'video', videoId: row.id, nr: row.number,
         label: videoName(row.number), titel: row.title || '', dateien: finalVideos.map(datei), tags: tagsAus(finalVideos, tagById),
+        vorschau: finalVideos.length ? null : vorschauAus(row, i => i.type === 'video'),
         ...vorbelegung(videoById.get(row.id))
       });
 
@@ -84,7 +95,8 @@ export function einheitenAusBaum(tree, { produktion, tagTypen = [], stories = []
         const items = jeStory.get(storyId) || [];
         out.push({
           ...basis, id: `story:${storyId}`, art: 'story', videoId: row.id, nr,
-          label: storyName(nr), titel: '', bezug: videoName(row.number), dateien: items.map(datei), tags: tagsAus(items, tagById)
+          label: storyName(nr), titel: '', bezug: videoName(row.number), dateien: items.map(datei), tags: tagsAus(items, tagById),
+          vorschau: items.length ? null : vorschauAus(row, i => i.type === 'story' && (i.storyId || i.asset?.story_id) === storyId)
         });
       });
 

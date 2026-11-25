@@ -1983,6 +1983,11 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   min-width: 0;
 }
 
+/* Offene Combobox nimmt eine eigene Zeile in voller Spaltenbreite */
+.vb-tagfield__slot:has(.tag-combo) {
+  flex: 1 1 100%;
+}
+
 .vb-tagfield__hint {
   margin: 0;
   font-size: var(--text-xs);
@@ -1992,6 +1997,13 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
 .vb-tag {
   gap: var(--space-xxs);
   white-space: nowrap;
+}
+
+/* Tag aus der Kooperation: nur lesbar, dezenter als ein Video-Tag */
+.vb-tag--koop {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  cursor: default;
 }
 
 .vb-tag-trigger {
@@ -2026,7 +2038,8 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
 /* Tag-Combobox */
 .tag-combo {
   position: relative;
-  min-width: 12rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .tag-combo__input {
@@ -2038,14 +2051,15 @@ body:has(.kampagne-detail-body[data-workflow="videos"]) {
   position: absolute;
   top: calc(100% + var(--space-xxs));
   left: 0;
+  right: 0;
   z-index: 20;
-  min-width: 100%;
-  width: max-content;
-  max-width: 20rem;
+  /* Genau so breit wie das Feld: ragt die Liste über die Spalte hinaus, scrollt das Detail seitlich */
   max-height: 14rem;
   margin: 0;
   padding: var(--space-xxs);
+  overflow-x: hidden;
   overflow-y: auto;
+  overflow-wrap: anywhere;
   list-style: none;
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);

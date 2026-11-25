@@ -33,8 +33,8 @@ export function trifft(text, begriffe) {
 const text = (...teile) => sucheNormal(teile.flat().filter(Boolean).join(' '));
 const tagLabels = (item, catalog) => tagsOf(item, catalog).map(t => t.label);
 
-/** Kooperation: Creator, Handle, Kooperationsname, Linie, Produkte. */
-export const koopText = (koop) => text(koop?.name, koop?.handle, koop?.kooperationName, koop?.linieName, koop?.produkte || []);
+/** Kooperation: Creator, Handle, Kooperationsname, Linie, Produkte, Tags aus dem Kooperationsformular. */
+export const koopText = (koop) => text(koop?.name, koop?.handle, koop?.kooperationName, koop?.linieName, koop?.produkte || [], (koop?.tags || []).map(t => t.label));
 
 /** Kooperationsvideo: Nr. und Titel, dazu Namen und Tags seiner Dateien (ohne Rohmaterial). */
 export function rowText(row, catalog) {

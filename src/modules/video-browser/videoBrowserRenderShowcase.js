@@ -11,9 +11,11 @@ import {
   SHOWCASE_RATIO,
   SHOWCASE_SIZES,
   activeChipIds,
+  creatorKey,
   isAusstehend,
   showcaseStatusOptions
 } from './videoBrowserShowcaseLogic.js';
+import { creatorLinkButton } from './videoBrowserAblage.js';
 import { formatDatum } from './videoBrowserFormat.js';
 import { fristAriaLabel, fristTagHtml } from './videoBrowserDeadline.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
@@ -64,6 +66,7 @@ export function showcaseShellHtml(state, { canDownload, team = true }) {
           ${controlsHtml(state, { team })}
           <div class="vb-sc-bar__actions">
             <p class="vb-sc-bar__sub" data-vb-sc-summary aria-live="polite"></p>
+            <span class="vb-sc-bar__teilen" data-vb-sc-teilen></span>
             ${canDownload ? `<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm vb-download" data-vb-sc-download>${icon('download')}<span>Alle herunterladen</span></button>` : ''}
           </div>
         </div>
@@ -148,7 +151,8 @@ export function tileHtml({ koop, row, item }, index, catalog, { marks = false, m
     </button>`;
 }
 
-function groupHeadHtml(group) {
+/** Kopf je Creator. `koops` sind alle seine Kooperationen im Baum, auch die ohne Kachel im Filter. */
+function groupHeadHtml(group, koops) {
   const n = group.entries.filter(e => !isAusstehend(e.item)).length;
   const anteil = group.soll ? Math.round((group.hochgeladen / group.soll) * 100) : 0;
   return `
@@ -156,6 +160,7 @@ function groupHeadHtml(group) {
       ${group.koop ? avatar(group.koop) : ''}
       <h4 class="vb-sc-group__name">${esc(group.label)}</h4>
       <span class="vb-sc-group__count">${n} ${n === 1 ? 'Inhalt' : 'Inhalte'}</span>
+      ${creatorLinkButton(koops, group.label)}
       ${group.soll ? `
         <span class="vb-sc-group__upload${group.hochgeladen >= group.soll ? ' is-complete' : ''}" data-vb-sc-upload-count style="--anteil: ${anteil}%">
           <span class="vb-sc-group__upload-bar" aria-hidden="true"></span>
@@ -168,7 +173,7 @@ function groupHeadHtml(group) {
  * Grid mit Abschnitten oder ein leerer Zustand.
  * @param {{ groups: Array, total: number, state: object }} sc Ergebnis von buildShowcase
  */
-export function gridHtml(sc, { catalog, team, canUpload = false }) {
+export function gridHtml(sc, { catalog, team, canUpload = false, tree = null }) {
   if (!sc.total) {
     const text = sc.state.inhalt === 'aktuell'
       ? 'Noch keine Videos angelegt.'
@@ -185,9 +190,10 @@ export function gridHtml(sc, { catalog, team, canUpload = false }) {
     const tiles = group.entries.map(entry => (isAusstehend(entry.item)
       ? ausstehendTileHtml(entry, index++, { team, canUpload, mehrere })
       : tileHtml(entry, index++, catalog, { marks, mehrere }))).join('');
+    const koops = group.head ? (tree?.kooperationen || []).filter(k => creatorKey(k) === group.id) : [];
     return `
     <section class="vb-sc-group" data-vb-sc-group="${esc(group.id)}">
-      ${group.head ? groupHeadHtml(group) : ''}
+      ${group.head ? groupHeadHtml(group, koops) : ''}
       <div class="vb-sc-grid">${tiles}</div>
     </section>`;
   }).join('');

@@ -15,22 +15,36 @@ export const TAB_PARAM = {
   casting: { param: 'casting', ansicht: false }
 };
 
-export function flowUrl({ produktionId, tab, linieId = null, id = null }) {
+/** Sprungziel im Tab (Kooperation, Videoidee). Einmalig: die URL verliert es, sobald es angesprungen ist. */
+export const FOKUS_PARAM = 'fokus';
+
+/** Linie eines Ziels in einer Produktion ohne Linien: es gehört zur Produktion. */
+export const OHNE_LINIE = '';
+
+export function flowUrl({ produktionId, tab, linieId = null, id = null, fokus = null }) {
   const params = new URLSearchParams({ tab });
   if (linieId) params.set('linie', linieId);
   const param = TAB_PARAM[tab]?.param;
   if (param && id) params.set(param, id);
+  if (fokus) params.set(FOKUS_PARAM, fokus);
   return `/produktion/${produktionId}?${params}`;
 }
 
 const linienIds = (detail) => (detail?.linien || []).map(l => l.id);
 
-/** Linien-IDs aus einer Zeile mit briefing_id (Skript, Konzept, Casting-Liste). */
-function briefingIdAus(tabelle) {
+/**
+ * Linien-IDs aus einer Zeile mit briefing_id (Skript, Konzept, Casting-Liste).
+ * Ohne Linien lädt der Tab nach Produktion, dann zählt nur produktion_id.
+ * altbestand: der Tab zeigt Zeilen ohne Linie in jeder Linie, sie bleiben in der aktiven.
+ */
+function briefingIdAus(tabelle, { altbestand = false } = {}) {
   return async (db, detail, id) => {
-    const { data, error } = await db.from(tabelle).select('briefing_id').eq('id', id).maybeSingle();
+    const { data, error } = await db.from(tabelle).select('briefing_id, produktion_id').eq('id', id).maybeSingle();
     if (error) throw error;
-    return data?.briefing_id ? [data.briefing_id] : [];
+    const eigene = Boolean(data?.produktion_id) && data.produktion_id === detail.produktionId;
+    if (!linienIds(detail).length) return eigene ? [OHNE_LINIE] : [];
+    if (data?.briefing_id) return [data.briefing_id];
+    return altbestand && eigene && detail.linieId ? [detail.linieId] : [];
   };
 }
 
@@ -51,6 +65,7 @@ export const FLOW_ZIELE = {
       .filter(l => (l.briefing?.produkte || []).some(row => row?.produkt?.id === id))
       .map(l => l.id),
     abfrage: async (db, detail, id) => {
+      if (!linienIds(detail).length) return [];
       const { data, error } = await db.from('campaign_briefing_produkt')
         .select('briefing_id').eq('produkt_id', id).in('briefing_id', linienIds(detail));
       if (error) throw error;
@@ -64,6 +79,7 @@ export const FLOW_ZIELE = {
       .filter(l => (l.briefing?.persona_ids || []).includes(id))
       .map(l => l.id),
     abfrage: async (db, detail, id) => {
+      if (!linienIds(detail).length) return [];
       const { data, error } = await db.from('campaign_briefings')
         .select('id').in('id', linienIds(detail)).contains('persona_ids', [id]);
       if (error) throw error;
@@ -71,13 +87,14 @@ export const FLOW_ZIELE = {
     }
   },
   skript: { tab: 'skripte', muster: [{ pfad: segment('skripte') }], abfrage: briefingIdAus('skripte') },
-  konzept: { tab: 'konzepte', muster: [{ pfad: segment('konzepte') }], abfrage: briefingIdAus('strategie') },
+  konzept: { tab: 'konzepte', muster: [{ pfad: segment('konzepte') }], abfrage: briefingIdAus('strategie', { altbestand: true }) },
   casting: { tab: 'casting', muster: [{ pfad: segment('castings') }], abfrage: briefingIdAus('creator_auswahl') }
 };
 
 /**
- * Entity hinter einer Adresse. hinweis: ?briefing= (ProduktList hängt die Linie an).
- * @returns {{ kind: string, tab: string, id: string, hinweis: string|null }|null}
+ * Entity hinter einer Adresse. hinweis: ?briefing= (ProduktList hängt die Linie an),
+ * fokus: ?fokus= (Sprungziel im Tab, z. B. die Videoidee im Konzept).
+ * @returns {{ kind: string, tab: string, id: string, hinweis: string|null, fokus: string|null }|null}
  */
 export function erkenneZiel(route) {
   let url;
@@ -93,7 +110,7 @@ export function erkenneZiel(route) {
       if (!treffer) continue;
       const id = query ? url.searchParams.get(query) : decodeURIComponent(treffer[1]);
       if (!id || NICHT_ID.has(id)) return null;
-      return { kind, tab: ziel.tab, id, hinweis: url.searchParams.get('briefing') };
+      return { kind, tab: ziel.tab, id, hinweis: url.searchParams.get('briefing'), fokus: url.searchParams.get(FOKUS_PARAM) };
     }
   }
   return null;
@@ -120,9 +137,14 @@ export function hatAbfrage(treffer) {
   return Boolean(FLOW_ZIELE[treffer?.kind]?.abfrage);
 }
 
-/** Linie per Abfrage. null = gehört nicht zu dieser Produktion oder ist nicht lesbar. */
+/**
+ * Linie per Abfrage. OHNE_LINIE = gehört zu dieser Produktion, die keine Linien hat.
+ * null = gehört nicht zu dieser Produktion oder ist nicht lesbar.
+ */
 export async function linieAbfragen(detail, treffer, db = window.supabase) {
   const ziel = FLOW_ZIELE[treffer?.kind];
-  if (!ziel?.abfrage || !db || !linienIds(detail).length) return null;
-  return waehleLinie(detail, await ziel.abfrage(db, detail, treffer.id), treffer.hinweis);
+  if (!ziel?.abfrage || !db) return null;
+  const kandidaten = await ziel.abfrage(db, detail, treffer.id);
+  if (!linienIds(detail).length) return kandidaten.includes(OHNE_LINIE) ? OHNE_LINIE : null;
+  return waehleLinie(detail, kandidaten, treffer.hinweis);
 }

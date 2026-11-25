@@ -78,6 +78,61 @@ describe('Kommentar-Panel', () => {
     expect(render({ type: 'still' }).querySelector('[data-vb-pin]')).toBeNull();
   });
 
+  describe('Kunden-Feedback, das das Team eingetragen hat', () => {
+    const AP = 'Cosima Kitze';
+    const zeile = (id, extra) => ({ id, runde: 1, asset_id: 'a1', text: id, timecode_sec: null, created_at: `2026-05-21T10:0${id.length}:00Z`, ...extra });
+    const namen = (kommentare, kundenName = AP) => normalizeComments([], kommentare, [], kundenName)
+      .map(c => [c.text, c.author.name, c.author.role]);
+
+    it('zeigt den Ansprechpartner der Kampagne, das Team-Feedback bleibt beim Autor', () => {
+      expect(namen([
+        zeile('k', { feedback_typ: 'kunde', author_name: 'Svenja', author_rolle: 'mitarbeiter' }),
+        zeile('tm', { feedback_typ: 'cj', author_name: 'Svenja', author_rolle: 'mitarbeiter' }),
+        zeile('adm', { feedback_typ: 'kunde', author_name: 'Chef', author_rolle: 'admin' })
+      ])).toEqual([
+        ['k', 'Cosima Kitze', 'kunde'],
+        ['tm', 'Svenja', 'team'],
+        ['adm', 'Cosima Kitze', 'kunde']
+      ]);
+    });
+
+    it('Kunden-Login, Gast und unbekannte Rolle behalten den gespeicherten Namen', () => {
+      expect(namen([
+        zeile('kai', { feedback_typ: 'kunde', author_name: 'Kai Kunde', author_rolle: 'kunde' }),
+        zeile('gast', { feedback_typ: 'kunde', author_name: 'Pat (Gast)', author_rolle: null }),
+        zeile('altes', { feedback_typ: 'kunde', author_name: 'Svenja' })
+      ]).map(([, name]) => name)).toEqual(['Kai Kunde', 'Pat (Gast)', 'Svenja']);
+    });
+
+    it('ohne Ansprechpartner bleibt der gespeicherte Name', () => {
+      const k = zeile('k', { feedback_typ: 'kunde', author_name: 'Svenja', author_rolle: 'mitarbeiter' });
+      expect(namen([k], '')[0][1]).toBe('Svenja');
+      expect(normalizeComments([], [k], [])[0].author.name).toBe('Svenja');
+    });
+
+    it('Kopf und Avatar im Panel zeigen den Ansprechpartner', () => {
+      const host = document.createElement('div');
+      host.innerHTML = commentsPanelHtml({
+        resolved: {
+          row: {
+            comments: normalizeComments([], [zeile('k', { feedback_typ: 'kunde', author_name: 'Svenja', author_rolle: 'mitarbeiter' })], [], AP),
+            kannKommentieren: true,
+            folders: []
+          },
+          folder: { offen: true },
+          item: { id: 'a1', type: 'video', runde: 1, isFinal: false }
+        },
+        canComment: false,
+        drafts: {},
+        idPrefix: 't'
+      });
+      const kommentar = host.querySelector('.vb-comment');
+      expect(kommentar.querySelector('.vb-comment__author').textContent).toBe('Cosima Kitze');
+      expect(kommentar.querySelector('.vb-comment__avatar').textContent).toBe('C');
+      expect(kommentar.querySelector('.vb-comment__role').textContent).toBe('Kunde');
+    });
+  });
+
   it('leer: Hinweis mit Hook, ohne Schreibrecht ohne Eingabe', () => {
     const offen = render({ kommentare: [] });
     expect(offen.querySelector('[data-vb-comments-empty]').textContent).toContain('Noch kein Feedback');

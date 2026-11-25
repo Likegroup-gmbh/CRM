@@ -4,7 +4,7 @@
 
 import { TagCombobox } from '../../core/components/TagCombobox.js';
 import { detailResolved, detailRoot } from './videoBrowserHost.js';
-import { tagOptions } from './videoBrowserTagLogic.js';
+import { KOOP_OPTION_PREFIX, tagOptions } from './videoBrowserTagLogic.js';
 import { tagChipHtml, tagTriggerHtml, tagsOf } from './videoBrowserRenderTags.js';
 import { addTag, createTag, removeTag } from './videoBrowserTags.js';
 import { setDetailTab } from './videoBrowserTabs.js';
@@ -12,8 +12,11 @@ import { setDetailTab } from './videoBrowserTabs.js';
 const slotOf = (vb) => detailRoot(vb)?.querySelector('[data-vb-tag-slot]') || null;
 
 function optionsFor(vb, query) {
-  const { item } = detailResolved(vb);
-  const opts = tagOptions(vb.raw?.tagTypen || [], item?.tagIds || [], query);
+  const { item, koop } = detailResolved(vb);
+  const opts = tagOptions(vb.raw?.tagTypen || [], item?.tagIds || [], query, {
+    typen: vb.raw?.koopTagTypen || [],
+    assigned: koop?.tags || []
+  });
   return {
     groups: opts.groups.map(g => ({ label: g.group, items: g.tags.map(t => ({ id: t.id, label: t.label })) })),
     create: opts.create,
@@ -37,7 +40,11 @@ export function openTagField(vb) {
     host,
     label: 'Tag hinzufügen',
     getOptions: (query) => optionsFor(vb, query),
-    onSelect: (entry) => { void addTag(vb, entry.id); },
+    // Koop-Tags sind noch keine Video-Tags: createTag legt das Tag gleichen Namens an und vergibt es
+    onSelect: (entry) => {
+      if (entry.id.startsWith(KOOP_OPTION_PREFIX)) void createTag(vb, entry.label);
+      else void addTag(vb, entry.id);
+    },
     onCreate: (label) => { void createTag(vb, label); },
     onRemoveLast: () => {
       const current = detailResolved(vb).item;

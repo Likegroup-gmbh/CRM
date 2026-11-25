@@ -8,8 +8,9 @@
 import { pathOf, replaceRoute } from '../../core/breadcrumbTrail.js';
 import { ALLE, tabHatAlleLinien } from './linienScope.js';
 import { activateWorkflowTab, getVisibleWorkflowTabs, remountWorkflowPane } from './KampagneDetailWorkflow.js';
-import { erkenneZiel, flowUrl, hatAbfrage, linieAbfragen, linieSync, TAB_PARAM } from './produktionFlowZiele.js';
+import { erkenneZiel, flowUrl, FOKUS_PARAM, hatAbfrage, linieAbfragen, linieSync, TAB_PARAM } from './produktionFlowZiele.js';
 import { offeneId, setzeOffen, tabUrl } from './produktionTabDetail.js';
+import { fokussiere } from './produktionFlowFokus.js';
 
 function imFlow(detail) {
   return detail.mode === 'workflow' && Boolean(detail._isMounted && detail.produktionId) && !window.guestShare;
@@ -50,10 +51,14 @@ function anzeigen(detail, tab, id) {
   }
 }
 
-function zeige(detail, { tab, id, wechsel }, { push, adresse }) {
+function zeige(detail, { tab, id, wechsel, fokus = null }, { push, adresse }) {
   if (push) window.history.pushState({ ...(window.history.state || {}), route: adresse }, '', adresse);
-  if (!wechsel.noetig) {
+  const zeigen = () => {
     anzeigen(detail, tab, id);
+    if (fokus) fokussiere(detail, tab, fokus);
+  };
+  if (!wechsel.noetig) {
+    zeigen();
     return;
   }
   // Der Linienwechsel schließt alles Offene, danach öffnet das Ziel
@@ -64,27 +69,28 @@ function zeige(detail, { tab, id, wechsel }, { push, adresse }) {
       console.error('❌ PRODUKTION: Linienwechsel im Flow fehlgeschlagen:', error);
       return;
     }
-    if (detail._isMounted) anzeigen(detail, tab, id);
+    if (detail._isMounted) zeigen();
   })();
 }
 
-/** /produktion/<diese>?tab=…: nur tab, linie und der Parameter des Tabs, sonst Router. */
+/** /produktion/<diese>?tab=…: nur tab, linie, fokus und der Parameter des Tabs, sonst Router. */
 function produktionsZiel(detail, url) {
   const tab = url.searchParams.get('tab');
   if (!tab || !tabSichtbar(tab)) return null;
   const param = TAB_PARAM[tab]?.param;
-  const erlaubt = new Set(['tab', 'linie', param].filter(Boolean));
+  const erlaubt = new Set(['tab', 'linie', FOKUS_PARAM, param].filter(Boolean));
   if ([...url.searchParams.keys()].some(key => !erlaubt.has(key))) return null;
   const wechsel = linienWechsel(detail, tab, url.searchParams.get('linie'));
   if (!wechsel) return null;
-  return { tab, id: param ? url.searchParams.get(param) : null, wechsel };
+  return { tab, id: param ? url.searchParams.get(param) : null, wechsel, fokus: url.searchParams.get(FOKUS_PARAM) };
 }
 
 function zeigeTreffer(detail, treffer, linieId) {
   const wechsel = linienWechsel(detail, treffer.tab, linieId);
   if (!wechsel) return false;
-  const adresse = flowUrl({ produktionId: detail.produktionId, tab: treffer.tab, linieId, id: treffer.id });
-  zeige(detail, { tab: treffer.tab, id: treffer.id, wechsel }, { push: true, adresse });
+  const { tab, id, fokus } = treffer;
+  const adresse = flowUrl({ produktionId: detail.produktionId, tab, linieId, id, fokus });
+  zeige(detail, { tab, id, wechsel, fokus }, { push: true, adresse });
   return true;
 }
 
@@ -101,7 +107,7 @@ function uebersetzeNachAbfrage(detail, route, treffer) {
       console.warn('⚠️ PRODUKTION: Flow-Ziel nicht ermittelbar, öffne die Seite:', error?.message || error);
     }
     if (!aktuell()) return;
-    if (linieId && zeigeTreffer(detail, treffer, linieId)) return;
+    if (linieId !== null && zeigeTreffer(detail, treffer, linieId)) return;
     window.moduleRegistry?.navigateTo(route, false, { ohneModulRoute: true });
   })();
 }

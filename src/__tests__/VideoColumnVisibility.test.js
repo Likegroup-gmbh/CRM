@@ -7,7 +7,8 @@ import {
   orderWithMovableSequence,
   getOrderedColumns,
   getConfigurableColumns,
-  getDefaultColumnIds
+  getDefaultColumnIds,
+  TEAM_ONLY_COLUMNS
 } from '../modules/kampagne/columns/ColumnRegistry.js';
 
 describe('Video-Spalten Sichtbarkeit', () => {
@@ -44,39 +45,67 @@ describe('Video-Spalten Sichtbarkeit', () => {
   });
 });
 
-describe('Stillgelegte Spalten', () => {
-  const STILLGELEGT = [
-    'col-tags', 'col-thema', 'col-idee-strategie', 'col-link-skript',
+describe('Zurückgeholte Spalten', () => {
+  const STANDARD_AUS = ['col-tags', 'col-thema', 'col-idee-strategie', 'col-link-skript'];
+  const STANDARD_AN = [
+    'col-start-datum', 'col-videoanzahl',
     'col-link-content', 'col-caption', 'col-finale-version',
     'col-feedback-cj-1', 'col-feedback-kunde-1',
     'col-feedback-cj-2', 'col-feedback-kunde-2',
-    'col-feedback-cj-3', 'col-feedback-kunde-3'
+    'col-feedback-cj-3', 'col-feedback-kunde-3',
+    'col-link-live', 'col-stats-views', 'col-stats-likes', 'col-stats-comments'
   ];
+  const ALLE = [...STANDARD_AUS, ...STANDARD_AN];
 
-  it('fehlen in Tabelle, Standard-Reihenfolge und „Tabelle anpassen“', () => {
+  it('stehen in Tabelle, Standard-Reihenfolge und „Tabelle anpassen“', () => {
     const store = { columnOrder: null, customColumns: [] };
-    const ids = [
-      ...getOrderedColumns(store).map(c => c.id),
-      ...getConfigurableColumns(store).map(c => c.id),
-      ...getDefaultColumnIds()
-    ];
-    for (const id of STILLGELEGT) expect(ids, id).not.toContain(id);
-    for (const id of ['col-skript', 'col-stills', 'col-freigabe']) expect(ids, id).toContain(id);
-  });
-
-  it('fehlen auch, wenn eine gespeicherte Reihenfolge sie noch enthält', () => {
-    const store = { columnOrder: ['col-nr', 'col-creator', 'col-caption', 'col-stills', 'col-actions'], customColumns: [] };
-    const ids = getOrderedColumns(store).map(c => c.id);
-    expect(ids).not.toContain('col-caption');
-    expect(ids).toContain('col-stills');
-    expect(orderWithMovableSequence(store, ['col-stills'])).not.toContain('col-caption');
-  });
-
-  it('bleiben unsichtbar, selbst mit altem show-Marker', () => {
-    for (const id of STILLGELEGT) {
-      expect(isColumnVisible(id, [], false), id).toBe(false);
-      expect(isColumnVisible(id, [showColumnKey(id)], false), id).toBe(false);
+    for (const ids of [
+      getOrderedColumns(store).map(c => c.id),
+      getConfigurableColumns(store).map(c => c.id),
+      getDefaultColumnIds()
+    ]) {
+      for (const id of ALLE) expect(ids, id).toContain(id);
     }
+  });
+
+  it('kommen an ihre Default-Position, wenn eine gespeicherte Reihenfolge sie nicht kennt', () => {
+    const gespeichert = ['col-nr', 'col-creator', 'col-vertrag', 'col-status', 'col-nutzungsrechte',
+      'col-video-name', 'col-stills', 'col-freigabe', 'col-posting-datum', 'col-actions'];
+    const store = { columnOrder: gespeichert, customColumns: [] };
+    const ids = getOrderedColumns(store).map(c => c.id);
+
+    for (const id of ALLE) expect(ids, id).toContain(id);
+    expect(ids.filter(id => gespeichert.includes(id))).toEqual(gespeichert);
+    expect(ids.indexOf('col-start-datum')).toBe(ids.indexOf('col-nutzungsrechte') + 1);
+    expect(ids.indexOf('col-link-content')).toBe(ids.indexOf('col-video-name') + 1);
+    expect(ids.indexOf('col-feedback-cj-1')).toBe(ids.indexOf('col-stills') + 1);
+    expect(ids.indexOf('col-link-live')).toBe(ids.indexOf('col-posting-datum') + 1);
+    expect(ids.at(-1)).toBe('col-actions');
+  });
+
+  it('Upload-, Feedback- und Auswertungs-Spalten sind ohne Eintrag sichtbar', () => {
+    for (const id of STANDARD_AN) {
+      expect(isColumnVisible(id, [], false), id).toBe(true);
+      expect(isColumnVisible(id, [id], false), id).toBe(false);
+    }
+  });
+
+  it('Tags, Thema, Idee und Link Skript nur mit show-Marker', () => {
+    for (const id of STANDARD_AUS) {
+      expect(isColumnPreferredVisible(id, []), id).toBe(false);
+      expect(isColumnPreferredVisible(id, [id]), id).toBe(false);
+      expect(isColumnVisible(id, null, false), id).toBe(false);
+      expect(isColumnVisible(id, [showColumnKey(id)], false), id).toBe(true);
+    }
+  });
+
+  it('Live Link und Zahlen nur fürs Team, Kunden lesen kooperation_post nicht', () => {
+    expect([...TEAM_ONLY_COLUMNS].sort()).toEqual(['col-link-live', 'col-stats-comments', 'col-stats-likes', 'col-stats-views']);
+    for (const id of TEAM_ONLY_COLUMNS) {
+      expect(isColumnVisible(id, [], false), id).toBe(true);
+      expect(isColumnVisible(id, [], true), id).toBe(false);
+    }
+    expect(isColumnVisible('col-start-datum', [], true)).toBe(true);
   });
 });
 

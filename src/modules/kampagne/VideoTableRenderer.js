@@ -40,6 +40,7 @@ import {
   renderActionsInner,
   renderStatusSelect as renderStatusSelectCell
 } from './videoTableKoopCells.js';
+import { POST_ZAHL_SPALTEN, postsDesVideos, renderLivePostsInner, renderPostZahlInner } from './videoTablePostCells.js';
 
 export { COPY_ICON, CHECK_ICON };
 
@@ -257,6 +258,8 @@ export class VideoTableRenderer {
       'col-extra-kosten': (c) => this._td(c, 'col-extra-kosten', renderExtraKostenInner(c.koop), 'read-only cell-centered'),
       'col-vertrag': (c) => this._td(c, 'col-vertrag', renderVertragCell(c.koop), 'cell-centered'),
       'col-nutzungsrechte': (c) => this._td(c, 'col-nutzungsrechte', renderNutzungsrechteCell(c.koop), 'cell-centered'),
+      'col-start-datum': (c) => this._td(c, 'col-start-datum', c.formatDate(c.koop.created_at), 'read-only cell-centered'),
+      'col-videoanzahl': (c) => this._td(c, 'col-videoanzahl', `${c.koop.videoanzahl || 0}`, 'read-only cell-centered'),
       'col-video-nr': (c) => this._stackTd(c, 'col-video-nr', (video, index) => renderVideoNrInner(c, video, index)),
       'col-vk-video': (c) => this._stackTd(c, 'col-vk-video', (video) => renderVkInner(video), 'video-stack-cell video-stack-cell--center'),
       'col-video-script-deadline': (c) => this._stackTd(c, 'col-video-script-deadline', (video) => renderVideoDatePicker(c.t, video, 'skript_deadline', 'Script Deadline'), 'video-stack-cell video-stack-cell--center'),
@@ -280,6 +283,7 @@ export class VideoTableRenderer {
       'col-caption': (c) => this._stackTd(c, 'col-caption', (video) => renderCaptionInner(c, video), 'video-stack-cell wide-field'),
       'col-finale-version': (c) => this._stackTd(c, 'col-finale-version', (video) => renderFinaleVersionCell(c.koop, video), 'video-stack-cell video-stack-cell--center'),
       'col-posting-datum': (c) => this._stackTd(c, 'col-posting-datum', (video) => renderVideoDatePicker(c.t, video, 'posting_datum', 'Posting Datum'), 'video-stack-cell video-stack-cell--center'),
+      'col-link-live': (c) => this._stackTd(c, 'col-link-live', (video) => renderLivePostsInner(postsDesVideos(c.t.store, video.id), c.koop), 'video-stack-cell read-only'),
       'col-actions': (c) => this._td(c, 'col-actions', renderActionsInner(c))
     };
 
@@ -289,6 +293,15 @@ export class VideoTableRenderer {
         slot.colClass,
         (video) => renderFeedbackInner(c, video, slot),
         'video-stack-cell wide-field'
+      );
+    }
+
+    for (const [colId, key] of Object.entries(POST_ZAHL_SPALTEN)) {
+      map[colId] = (c) => this._stackTd(
+        c,
+        colId,
+        (video) => renderPostZahlInner(postsDesVideos(c.t.store, video.id), key),
+        'video-stack-cell video-stack-cell--center read-only'
       );
     }
 

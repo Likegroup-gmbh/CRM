@@ -1,20 +1,15 @@
 // videoTableZeitkommentare.js
 // Kommentare aus dem Videos-Tab (mit oder ohne Zeitstempel) stehen in eigener Tabelle.
-// Die Feedback-Zelle ihrer Runde zeigt sie schreibgeschützt unter dem Text, ein Klick
-// öffnet die Datei im Videos-Tab.
+// Die Feedback-Zelle ihrer Runde zeigt sie schreibgeschützt unter dem Text (die neuesten
+// ZEIT_SICHTBAR, der Rest als "+N weitere"), ein Klick öffnet die Datei im Videos-Tab.
 
 import { VIDEO_FEEDBACK_FIELDS, VIDEO_FEEDBACK_MAX_RUNDE } from '../../core/VideoFeedbackBuckets.js';
+import { escapeHtml } from '../../core/format.js';
 import { selectionToSearch } from '../video-browser/videoBrowserSelection.js';
 
 export const ZEITKOMMENTAR_SELECT = 'id, video_id, runde, feedback_typ, text, timecode_sec, asset_id, story_asset_id, still_asset_id, author_name, created_at, deleted_at';
 
-function escapeHtml(text) {
-  return String(text ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+export const ZEIT_SICHTBAR = 3;
 
 // Ab Version 3 legt der Videos-Tab weitere Schleifen an, die Tabelle hat drei Runden.
 function slotRunde(runde) {
@@ -66,21 +61,36 @@ export function zeitkommentarArt(c) {
   return '';
 }
 
-export function renderZeitkommentarList(list, video, slot) {
-  const items = zeitkommentareFuerSlot(list, slot).map(c => {
-    const tc = formatTimecode(c.timecode_sec);
-    const art = zeitkommentarArt(c);
-    return `<button type="button" class="feedback-zeit-item" data-action="open-zeitkommentar"
+function openAttrs(video, runde, assetId = '') {
+  return `data-action="open-zeitkommentar"
         data-video-id="${escapeHtml(video.id)}" data-kooperation-id="${escapeHtml(video.kooperation_id || '')}"
-        data-runde="${escapeHtml(c.runde)}" data-asset-id="${escapeHtml(zeitkommentarAssetId(c) || '')}"
-        title="Im Videos-Tab öffnen">
+        data-runde="${escapeHtml(runde)}" data-asset-id="${escapeHtml(assetId)}"`;
+}
+
+function zeitItem(c, video) {
+  const tc = formatTimecode(c.timecode_sec);
+  const art = zeitkommentarArt(c);
+  const text = String(c.text).trim();
+  return `<button type="button" class="feedback-zeit-item" ${openAttrs(video, c.runde, zeitkommentarAssetId(c) || '')}
+        title="${escapeHtml(text)}">
         ${art ? `<span class="feedback-zeit-art">${art}</span>` : ''}
         ${tc ? `<span class="feedback-zeit-tc">${tc}</span>` : ''}
-        <span class="feedback-zeit-text">${escapeHtml(String(c.text).trim())}</span>
+        <span class="feedback-zeit-text">${escapeHtml(text)}</span>
         <span class="feedback-zeit-author">${escapeHtml(c.author_name || '')}</span>
       </button>`;
-  }).join('');
-  return `<div class="feedback-zeit-list" data-zeit-video-id="${escapeHtml(video.id)}" data-zeit-field="${slot.field}">${items}</div>`;
+}
+
+export function renderZeitkommentarList(list, video, slot) {
+  const alle = zeitkommentareFuerSlot(list, slot);
+  const attrs = `data-zeit-video-id="${escapeHtml(video.id)}" data-zeit-field="${slot.field}"`;
+  // Ohne Kinder, damit :empty die leere Liste ausblendet
+  if (!alle.length) return `<div class="feedback-zeit-list" ${attrs}></div>`;
+  const rest = alle.length - ZEIT_SICHTBAR;
+  const items = alle.slice(-ZEIT_SICHTBAR).map(c => zeitItem(c, video)).join('');
+  const mehr = rest > 0
+    ? `<button type="button" class="feedback-zeit-mehr" ${openAttrs(video, slot.runde)}>+${rest} weitere</button>`
+    : '';
+  return `<div class="feedback-zeit-list" ${attrs}><span class="feedback-zeit-quelle">Videos-Tab</span>${items}${mehr}</div>`;
 }
 
 /** Tauscht die Listen eines Videos im DOM aus, ohne die Textareas anzufassen. */
@@ -93,8 +103,7 @@ export function patchZeitkommentarLists(root, video, list) {
   }
 }
 
-export function zeitkommentarSelection(btn) {
-  const { kooperationId, videoId, runde, assetId } = btn?.dataset || {};
+function zeitSelection(kooperationId, videoId, runde, assetId) {
   if (!kooperationId || !videoId) return null;
   return {
     kooperationId,
@@ -102,6 +111,22 @@ export function zeitkommentarSelection(btn) {
     folderId: `s${Number(runde) || 1}`,
     itemId: assetId || null
   };
+}
+
+export function zeitkommentarSelection(btn) {
+  const { kooperationId, videoId, runde, assetId } = btn?.dataset || {};
+  return zeitSelection(kooperationId, videoId, runde, assetId);
+}
+
+/**
+ * Link von außerhalb der Kampagne (Kooperations-Detailseite) auf die Datei im Videos-Tab.
+ * `c` ist ein Kommentar oder nur `{ video_id, runde }` für die ganze Schleife.
+ * @returns {string|null}
+ */
+export function zeitkommentarHref(kampagneId, kooperationId, c) {
+  const sel = zeitSelection(kooperationId, c?.video_id, c?.runde, zeitkommentarAssetId(c));
+  if (!kampagneId || !sel) return null;
+  return `/kampagne/${encodeURIComponent(kampagneId)}${selectionToSearch('?tab=videos', sel)}`;
 }
 
 /** Videos-Tab mit der Datei des Kommentars öffnen. */

@@ -77,6 +77,9 @@ const MIT_AUSSTEHEND = {
   links: LINKS
 };
 
+// Die Links in die Produktion fragen die Tab-Rechte ab
+window.isAdmin = () => true;
+
 const voll = () => document.querySelector('.vb-voll-lightbox');
 const count = () => voll()?.querySelector('.vb-voll__count')?.textContent;
 const prop = (label) => [...voll().querySelectorAll('.vb-prop')]
@@ -144,8 +147,8 @@ describe('Vollansicht', () => {
     await mount();
     await openTile(0);
     expect(prop('Creator').querySelector('a[data-vb-voll-link]').getAttribute('href')).toBe('/creator/c1');
-    expect(prop('Kooperation').querySelector('a').getAttribute('href')).toBe('/kooperation/k1');
-    expect(prop('Videoidee').querySelector('a').getAttribute('href')).toBe('/konzepte/s1');
+    expect(prop('Kooperation').querySelector('a').getAttribute('href')).toBe('/produktion/p1?tab=kooperationen&fokus=k1');
+    expect(prop('Videoidee').querySelector('a').getAttribute('href')).toBe('/konzepte/s1?fokus=i1');
     expect(prop('Videoidee').textContent).toContain('automatisch');
     expect(prop('Skript').querySelector('a').getAttribute('href')).toBe('/skripte/sk1');
     expect(prop('Produkt').querySelector('a').getAttribute('href')).toBe('/produkt/pr1');
@@ -159,6 +162,13 @@ describe('Vollansicht', () => {
     await settle();
     expect(voll()).toBeNull();
     expect(window.navigateTo).toHaveBeenCalledWith('/creator/c1');
+  });
+
+  it('Team: Kooperation springt in der Linie der Videos an, auch unter "Alle Linien"', async () => {
+    await mount();
+    Object.assign(ctx.detail, { linien: [{ id: 'b1' }, { id: 'b2' }], linieId: 'b2', linieAlle: true });
+    await openTile(0);
+    expect(prop('Kooperation').querySelector('a').getAttribute('href')).toBe('/produktion/p1?tab=kooperationen&linie=alle&fokus=k1');
   });
 
   it('Kunde: Creator und Skript ohne Link, keine Videoidee, Kooperation und Produkt', async () => {

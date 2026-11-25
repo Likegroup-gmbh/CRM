@@ -50,17 +50,14 @@ export function sourceFolder(row, item) {
   return row.folders.find(f => f.kind === 'schleife' && f.items.some(i => i.id === sourceId)) || null;
 }
 
-/** Der Status der Datei, nicht der Schleife: in der aktuellen Schleife hat jede Datei ihren eigenen. */
+/**
+ * Zusatzhinweis unter dem Status-Badge. Was das Badge schon sagt (Feedback, Änderungen,
+ * Freigabe), wird nicht wiederholt; nur "wartet seit ..." bringt eine neue Information.
+ */
 function decisionText(ctx, folder, item) {
-  if (item.isFinal) return 'Freigegeben als Finale Version.';
-  const key = item.status?.key;
-  if (key === 'wartet') return ctx.team ? wartetKurz(folder) : '';
-  if (key === 'feedback') return ctx.team ? 'Kundenfeedback liegt vor.' : 'Dein Feedback ist beim Team.';
-  if (key === 'aenderungen') return 'Änderungen angefordert.';
-  return '';
+  if (item.isFinal || item.status?.key !== 'wartet' || !ctx.team || !folder.since) return '';
+  return `Wartet seit ${formatDatum(folder.since)} auf den Kunden.`;
 }
-
-const wartetKurz = (folder) => (folder.since ? `Wartet seit ${formatDatum(folder.since)} auf den Kunden.` : 'Wartet auf den Kunden.');
 
 function rundeText(row, folder, item) {
   if (item.type === 'roh') return 'Rohmaterial';

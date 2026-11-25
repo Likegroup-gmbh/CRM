@@ -1,10 +1,12 @@
 // videoBrowserAblage.js
 // SharePoint-Medienablage im Videos-Tab: Leselinks ohne Anmeldung, 365 Tage gültig – auf den
-// Videos-Ordner einer Kooperation (Team und Kunden) und auf den ganzen Produktions-Ordner mit
-// Rohmaterial (nur Team, ADR 0071) – sowie die "Weiteren Ordner", die das Team im Finder neben
-// der festen Struktur anlegt (nur intern). Alle Funktionen bekommen den Controller (`vb`).
+// Videos-Ordner einer Kooperation bzw. aller Kooperationen eines Creators (Team und Kunden) und
+// auf den ganzen Produktions-Ordner mit Rohmaterial (nur Team, ADR 0071) – sowie die "Weiteren
+// Ordner", die das Team im Finder neben der festen Struktur anlegt (nur intern). Alle Funktionen
+// bekommen den Controller (`vb`).
 
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import { DROPBOX_UPLOAD } from '../../core/ablage/schalter.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml as esc } from '../../core/format.js';
 import { formatBytes, formatDatum, plural } from './videoBrowserLogic.js';
@@ -29,21 +31,49 @@ export function hatSharepoint(koop) {
   return !!koop?.rows?.some(r => r.folders.some(f => f.items.some(i => i.asset?.ablage === 'sharepoint')));
 }
 
+const hatDateien = (koop) => !!koop?.rows?.some(r => r.folders.some(f => f.items.length));
+
+/**
+ * Hat die Kooperation einen SharePoint-Ordner? Sicher, sobald eine Datei dort liegt. Ohne Dateien legt
+ * der Abgleich bei aktiver SharePoint-Ablage das Gerüst an; fehlt es noch, antwortet ablage-freigabe 409.
+ */
+export const liegtInSharepoint = (koop) => hatSharepoint(koop) || (!DROPBOX_UPLOAD && !hatDateien(koop));
+
 /** Gäste (Share-Links) bekommen keinen eigenen Ordner-Link. */
 const istGast = () => !!(window.isGast?.() || window.guestShare);
 
 /* ---- Ordner-Link ---- */
 
 export function ordnerLinkButton(koop) {
-  if (istGast() || !hatSharepoint(koop)) return '';
+  if (istGast() || !liegtInSharepoint(koop)) return '';
   return `<button type="button" class="mdc-btn mdc-btn--secondary" data-vb-ordnerlink="${esc(koop.id)}">${icon('link')}<span>Ordner-Link (1 Jahr)</span></button>`;
 }
 
-/** Link auf den ganzen Produktions-Ordner: nur Team, sobald eine Kooperation der Produktion in SharePoint liegt. */
-export function produktionLinkButton(ctx) {
-  if (!ctx.team || istGast() || !ctx.produktionId || !ctx.tree.kooperationen.some(hatSharepoint)) return '';
-  return iconButton('link', 'Produktions-Link (1 Jahr): ganzer Ordner mit allen Creatorn, Feedbackschleifen und Rohmaterial',
-    `data-vb-produktionlink="${esc(ctx.produktionId)}"`);
+/**
+ * Ordner-Link im Kopf eines Creators im Showcase. Einen Creator-Ordner gibt es in SharePoint nicht
+ * (Kampagne/Produktion/Kooperation): bei mehreren Kooperationen kopiert der Knopf je eine Zeile.
+ */
+export function creatorLinkButton(koops, name) {
+  const ziele = istGast() ? [] : koops.filter(liegtInSharepoint);
+  if (!ziele.length) return '';
+  const n = ziele.length;
+  const titel = n > 1
+    ? `${n} Ordner-Links kopieren (1 Jahr): je Kooperation von ${name} der Videos-Ordner, ohne Rohmaterial`
+    : `Ordner-Link kopieren (1 Jahr): Videos-Ordner von ${name}, ohne Rohmaterial`;
+  return `<button type="button" class="vb-sc-group__link" data-vb-creatorlink="${esc(ziele.map(k => k.id).join(' '))}" title="${esc(titel)}" aria-label="${esc(titel)}">${icon('link')}<span>${n > 1 ? `${n} Ordner-Links` : 'Ordner-Link'}</span></button>`;
+}
+
+const PRODUKTION_TITEL = 'Produktions-Link (1 Jahr): ganzer Ordner mit allen Creatorn, Feedbackschleifen und Rohmaterial';
+
+/**
+ * Link auf den ganzen Produktions-Ordner: nur Team, sobald eine Kooperation der Produktion in SharePoint liegt.
+ * Als Icon in der Spalte "Kooperationen", mit `text` als Knopf in der Showcase-Leiste.
+ */
+export function produktionLinkButton(ctx, { text = false } = {}) {
+  if (!ctx.team || istGast() || !ctx.produktionId || !ctx.tree?.kooperationen.some(liegtInSharepoint)) return '';
+  const attr = `data-vb-produktionlink="${esc(ctx.produktionId)}"`;
+  if (!text) return iconButton('link', PRODUKTION_TITEL, attr);
+  return `<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm vb-sc-bar__link" ${attr} title="${esc(PRODUKTION_TITEL)}">${icon('link')}<span>Produktions-Link</span></button>`;
 }
 
 /**
@@ -70,25 +100,51 @@ async function kopieren(url, imKlick) {
     await navigator.clipboard.writeText(url);
     return true;
   } catch {
-    window.prompt('Link kopieren:', url);
+    // Das Prompt-Feld ist einzeilig
+    window.prompt('Link kopieren:', url.replace(/\n/g, '  '));
     return false;
   }
 }
 
-/** Leselink holen (der Server nimmt einen aktiven wieder) und kopieren. */
-async function linkErstellen(vb, button, bezug, texte) {
+/** Der Server nimmt einen aktiven Link wieder, statt einen neuen anzulegen. */
+const freigabe = (bezug) => post(FREIGABE, { aktion: 'erstellen', ...bezug });
+
+const linkTitel = (koop) => [koop.name, koop.linieName || koop.kooperationName].filter(Boolean).join(' – ');
+
+/**
+ * Je Kooperation ein Link. Bei mehreren steht vor jedem Creator und Linie, die Gültigkeit ist die
+ * kürzeste. Scheitern einzelne, kommen die übrigen trotzdem (`anzahl` von `gesamt`).
+ */
+async function creatorLinks(koops) {
+  const res = await Promise.allSettled(koops.map(k => freigabe({ kooperation_id: k.id })));
+  const links = res.flatMap((r, i) => (r.status === 'fulfilled' && r.value?.url ? [{ koop: koops[i], ...r.value }] : []));
+  if (!links.length) throw res.find(r => r.status === 'rejected')?.reason || new Error('Kein Link erhalten');
+  return {
+    url: koops.length === 1 ? links[0].url : links.map(l => `${linkTitel(l.koop)}: ${l.url}`).join('\n'),
+    laeuft_ab_at: links.map(l => l.laeuft_ab_at).filter(Boolean).sort()[0] || null,
+    anzahl: links.length,
+    gesamt: koops.length
+  };
+}
+
+/**
+ * Leselink(s) holen und kopieren. `holen` läuft noch im Klick (Safari-Clipboard) und liefert
+ * `{ url, laeuft_ab_at, anzahl?, gesamt? }`.
+ */
+async function linkErstellen(vb, button, holen, texte) {
   if (!button || button.disabled) return;
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
-  const anfrage = post(FREIGABE, { aktion: 'erstellen', ...bezug });
+  const anfrage = holen();
   const imKlick = kopierenImKlick(anfrage);
   try {
-    const { url, laeuft_ab_at: ablauf } = await anfrage;
+    const { url, laeuft_ab_at: ablauf, anzahl = 1, gesamt = anzahl } = await anfrage;
     if (!url) throw new Error('Kein Link erhalten');
     const kopiert = await kopieren(url, imKlick);
     if (vb.destroyed) return;
     const bis = formatDatum(ablauf);
-    vb.toast('success', `${kopiert ? 'Link kopiert' : 'Link erstellt'}${bis ? ` – gültig bis ${bis}` : ''}`);
+    const was = gesamt > 1 ? `${anzahl < gesamt ? `${anzahl} von ${gesamt}` : anzahl} Links` : 'Link';
+    vb.toast(anzahl < gesamt ? 'warning' : 'success', `${was} ${kopiert ? 'kopiert' : 'erstellt'}${bis ? ` – gültig bis ${bis}` : ''}`);
   } catch (err) {
     console.error(`VideoBrowser: ${texte.name} fehlgeschlagen`, err);
     if (vb.destroyed) return;
@@ -107,9 +163,20 @@ async function linkErstellen(vb, button, bezug, texte) {
 export function ordnerLinkErstellen(vb, button) {
   const kooperationId = button?.dataset.vbOrdnerlink;
   if (!kooperationId) return Promise.resolve();
-  return linkErstellen(vb, button, { kooperation_id: kooperationId }, {
+  return linkErstellen(vb, button, () => freigabe({ kooperation_id: kooperationId }), {
     name: 'Ordner-Link',
     ohneOrdner: 'Für diese Kooperation gibt es noch keinen SharePoint-Ordner.'
+  });
+}
+
+/** Leselinks auf die Videos-Ordner aller Kooperationen eines Creators (Kopf im Showcase). */
+export function creatorLinkErstellen(vb, button) {
+  const ids = new Set((button?.dataset.vbCreatorlink || '').split(' ').filter(Boolean));
+  const koops = (vb.tree?.kooperationen || []).filter(k => ids.has(k.id));
+  if (!koops.length) return Promise.resolve();
+  return linkErstellen(vb, button, () => creatorLinks(koops), {
+    name: 'Ordner-Link',
+    ohneOrdner: 'Für diesen Creator gibt es noch keinen SharePoint-Ordner.'
   });
 }
 
@@ -117,7 +184,7 @@ export function ordnerLinkErstellen(vb, button) {
 export function produktionLinkErstellen(vb, button) {
   const produktionId = button?.dataset.vbProduktionlink;
   if (!produktionId) return Promise.resolve();
-  return linkErstellen(vb, button, { produktion_id: produktionId }, {
+  return linkErstellen(vb, button, () => freigabe({ produktion_id: produktionId }), {
     name: 'Produktions-Link',
     ohneOrdner: 'Für diese Produktion gibt es noch keinen SharePoint-Ordner.'
   });

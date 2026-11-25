@@ -84,6 +84,29 @@ describe('Kommentare aus dem Videos-Tab in der Feedback-Zelle', () => {
     expect(document.querySelector('.feedback-zeit-art')).toBeNull();
   });
 
+  it('markiert die Liste einmal als Videos-Tab und lässt eine leere Liste ohne Kinder', () => {
+    document.body.innerHTML = renderZeitkommentarList([zeit({ id: 'a' }), zeit({ id: 'b' })], { id: 'v1', kooperation_id: 'koop1' }, kundeR1);
+    expect(document.querySelectorAll('.feedback-zeit-quelle')).toHaveLength(1);
+    expect(document.querySelector('.feedback-zeit-quelle').textContent).toBe('Videos-Tab');
+    document.body.innerHTML = renderZeitkommentarList([], { id: 'v1', kooperation_id: 'koop1' }, kundeR1);
+    expect(document.querySelector('.feedback-zeit-list').childNodes).toHaveLength(0);
+  });
+
+  it('zeigt die drei neuesten und den Rest als "+N weitere" auf die Schleife', () => {
+    const list = [1, 2, 3, 4, 5].map(n => zeit({ id: `z${n}`, text: `K${n}`, created_at: `2026-11-0${n}T10:00:00Z` }));
+    document.body.innerHTML = renderZeitkommentarList(list, { id: 'v1', kooperation_id: 'koop1' }, kundeR1);
+    const texte = [...document.querySelectorAll('.feedback-zeit-item .feedback-zeit-text')].map(el => el.textContent);
+    expect(texte).toEqual(['K3', 'K4', 'K5']);
+    const mehr = document.querySelector('.feedback-zeit-mehr');
+    expect(mehr.textContent).toBe('+2 weitere');
+    expect(zeitkommentarSelection(mehr)).toEqual({ kooperationId: 'koop1', videoId: 'v1', folderId: 's1', itemId: null });
+  });
+
+  it('ohne Überlauf kein "+N weitere"', () => {
+    document.body.innerHTML = renderZeitkommentarList([zeit()], { id: 'v1', kooperation_id: 'koop1' }, kundeR1);
+    expect(document.querySelector('.feedback-zeit-mehr')).toBeNull();
+  });
+
   it('erscheint live und verschwindet beim Löschen', () => {
     const table = videoTable();
     document.body.innerHTML = `<div class="feedback-zeit-list" data-zeit-video-id="v1" data-zeit-field="feedback_kunde_r1"></div>`;

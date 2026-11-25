@@ -2,6 +2,7 @@
 // Kooperations-Detailseite – migriert auf PersonDetailBase (Standard-Layout)
 import { kooperationVersandManager } from './VersandManager.js';
 import { renderKooperationVideos } from './kooperationVideosTab.js';
+import { ladeKooperationVideos } from './kooperationVideosLaden.js';
 import { TaskKanbanBoard } from '../tasks/TaskKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
@@ -10,12 +11,6 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { deleteVideoFull } from '../../core/VideoDeleteHelper.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
-import {
-  createEmptyVideoFeedbackComments,
-  getVideoFeedbackBucket,
-  isMissingFeedbackTypeError,
-  VIDEO_FEEDBACK_LEGACY_SELECT
-} from '../../core/VideoFeedbackBuckets.js';
 import { ablageLinkKlick } from '../../core/ablage/ablageOrdnerLink.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 import { navigateBack, trailProduktion } from '../../core/breadcrumbTrail.js';
@@ -219,81 +214,7 @@ export class KooperationDetail extends PersonDetailBase {
   }
 
   async loadVideos() {
-    try {
-      const { data: videos } = await window.supabase
-        .from('kooperation_videos')
-        .select('id, content_art, kampagnenart, einkaufspreis_netto, verkaufspreis_netto, skript_deadline, content_deadline, titel, asset_url, folder_url, kommentar, status, position, created_at')
-        .eq('kooperation_id', this.kooperationId)
-        .order('position', { ascending: true });
-
-      this.videos = videos || [];
-
-      if (this.videos.length > 0) {
-        const videoIds = this.videos.map(v => v.id);
-        const { data: assets } = await window.supabase
-          .from('kooperation_video_asset')
-          .select('id, video_id, file_url, version_number, is_current, created_at')
-          .in('video_id', videoIds)
-          .eq('is_current', true);
-
-        this.videos = this.videos.map(v => ({
-          ...v,
-          currentAsset: (assets || []).find(a => a.video_id === v.id) || null
-        }));
-      }
-
-      try {
-        const kampId = this.kooperation?.kampagne?.id || this.kooperation?.kampagne_id;
-        if (kampId) {
-          const { data: koopCounts } = await window.supabase
-            .from('kooperationen')
-            .select('videoanzahl')
-            .eq('kampagne_id', kampId);
-          const used = (koopCounts || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-          const total = parseInt(this.kooperation?.kampagne?.videoanzahl, 10) || null;
-          this.campaignVideoTotals = { total, used, remaining: total != null ? Math.max(0, total - used) : null };
-        } else {
-          this.campaignVideoTotals = null;
-        }
-      } catch (_) {
-        this.campaignVideoTotals = null;
-      }
-
-      try {
-        const videoIds = (this.videos || []).map(v => v.id);
-        if (videoIds.length > 0) {
-          let { data: comments, error: commentsError } = await window.supabase
-            .from('kooperation_video_comment')
-            .select('id, video_id, runde, feedback_typ, text, created_at, author_name, deleted_at')
-            .in('video_id', videoIds)
-            .order('created_at', { ascending: true });
-          if (commentsError && isMissingFeedbackTypeError(commentsError)) {
-            const legacyResult = await window.supabase
-              .from('kooperation_video_comment')
-              .select(`${VIDEO_FEEDBACK_LEGACY_SELECT}, deleted_at`)
-              .in('video_id', videoIds)
-              .order('created_at', { ascending: true });
-            comments = legacyResult.data || [];
-            commentsError = legacyResult.error;
-          }
-          if (commentsError) throw commentsError;
-          const byVideo = {};
-          (comments || []).forEach(c => {
-            if (!byVideo[c.video_id]) byVideo[c.video_id] = createEmptyVideoFeedbackComments();
-            byVideo[c.video_id][getVideoFeedbackBucket(c)].push(c);
-          });
-          this.videos = (this.videos || []).map(v => ({
-            ...v,
-            feedback: byVideo[v.id] || createEmptyVideoFeedbackComments()
-          }));
-        }
-      } catch (err) {
-        console.warn('⚠️ Fehler beim Laden der Video-Kommentare:', err?.message);
-      }
-    } catch (err) {
-      console.warn('⚠️ Fehler beim Laden der Videos:', err?.message);
-      this.videos = [];
-    }
+    await ladeKooperationVideos(this);
   }
 
   async loadRechnungen() {
@@ -746,6 +667,14 @@ export class KooperationDetail extends PersonDetailBase {
     if (tableLink && tableLink.dataset.table === 'video' && tableLink.dataset.id) {
       e.preventDefault();
       window.navigateTo(`/video/${tableLink.dataset.id}`);
+      return;
+    }
+
+    // Kommentar aus dem Videos-Tab: Datei in der Kampagne öffnen (Cmd/Strg-Klick bleibt neuer Tab)
+    const zeitLink = e.target.closest('.fb-zeit-link');
+    if (zeitLink && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      window.navigateTo(zeitLink.getAttribute('href'));
       return;
     }
 

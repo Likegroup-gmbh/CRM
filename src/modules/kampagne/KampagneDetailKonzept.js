@@ -9,6 +9,7 @@ import { istStaff } from '../einladung/EinreichungInbox.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 import { offeneId, setzeOffen } from './produktionTabDetail.js';
+import { scopeKoopsByLinie as scopeMitAltbestand } from '../produktion/ProduktionService.js';
 
 const LISTE_ATTR = 'data-konzept-liste';
 const ANSICHT_KONZEPT = 'konzept';
@@ -195,18 +196,19 @@ export async function mountKonzeptPane(detail) {
   }
 }
 
+/** Konzepte der Linie, dahinter Altbestand ohne Linie (gehört zur ganzen Produktion, wie bei Kooperationen). */
 async function loadKonzepte(detail) {
   let query = window.supabase
     .from('strategie')
-    .select('id, name')
+    .select('id, name, briefing_id')
     .eq('kampagne_id', detail.kampagneId)
     .order('created_at', { ascending: true });
   if (detail.produktionId) query = query.eq('produktion_id', detail.produktionId);
-  const briefingId = effectiveLinie(detail, 'konzepte');
-  if (briefingId) query = query.eq('briefing_id', briefingId);
+  query = scopeMitAltbestand(query, effectiveLinie(detail, 'konzepte'));
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return data || [];
+  const liste = data || [];
+  return [...liste.filter(k => k.briefing_id), ...liste.filter(k => !k.briefing_id)];
 }
 
 function renderEmptyKonzept(detail) {

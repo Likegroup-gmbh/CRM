@@ -1,7 +1,8 @@
 // auswertungTabelle.js
 // Post-Tabelle des Reports je Creator (ADR 0081), aufgebaut wie die Kooperationstabelle: je Creator
 // ein <tbody>, Rang und Creator stehen einmal links über alle seine Zeilen. Darin die bestätigten
-// Posts nach der Sortierung mit dem Poster der geposteten Datei, für das Team danach alle Einheiten
+// Posts nach der Sortierung mit dem Poster der geposteten Datei (ohne Finale Version das der
+// jüngsten Feedbackschleife), für das Team danach alle Einheiten
 // ohne bestätigte Auswertung (ein Entwurf mit seinem Link und den schon gelesenen Zahlen). Eine
 // bestätigte Zeile öffnet per Klick oder Enter das Detail-Panel, eine offene Erfassen. Die Filter
 // (auswertungFilter) gelten für beide Arten von Zeilen; ist einer aktiv, nennt der Kopf die
@@ -53,9 +54,10 @@ function statZellen(post, { voll }) {
   ].join('');
 }
 
+/** Datei fürs Poster: die gepostete Finale Version, sonst die erste, ohne Finale die Vorschau. */
 export function postDatei(einheit, post) {
   const dateien = einheit?.dateien || [];
-  return dateien.find(d => d.id === post?.dateiId) || dateien[0] || null;
+  return dateien.find(d => d.id === post?.dateiId) || dateien[0] || einheit?.vorschau || null;
 }
 
 function poster(einheit, datei) {
@@ -234,7 +236,7 @@ export function renderTabelle(modell, { sort = STANDARD_SORT, team = false, filt
  * Sortieren oder das Panel sie ohne zweiten Abruf zeigt. Fehlt ein Poster, bleibt das Icon.
  */
 export function ladePoster(root, modell, cache) {
-  const items = new Map(modell.einheiten.flatMap(e => (e.dateien || []).map(d => [d.id, d.item])));
+  const items = new Map(modell.einheiten.flatMap(e => [...(e.dateien || []), e.vorschau].filter(Boolean).map(d => [d.id, d.item])));
   root?.querySelectorAll('[data-poster]').forEach((slot) => {
     const id = slot.dataset.poster;
     if (!cache.has(id)) {

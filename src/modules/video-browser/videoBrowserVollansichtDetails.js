@@ -4,11 +4,15 @@
 // darunter die Datei (Status, Tags, Verlauf, Runde, Format, Caption aus videoBrowserRenderTabs.js).
 // Die Kundenseite sieht weniger: Creator ohne Link, Skript als Pill ohne Ziel, keine Videoidee.
 // Links tragen `data-vb-voll-link`: die Vollansicht schließt und die App navigiert dorthin.
+// Kooperation, Linie, Videoidee, Skript und Produkt bleiben in der Produktion (ADR 0079): die
+// Kooperation springt im Tab Kooperationen an ihre Zeile, die Videoidee im Konzept an ihre Zeile.
 
 import { escapeHtml as esc } from '../../core/format.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { renderVerknuepfungPill, renderVerknuepfungPillStatisch } from '../../core/ui/verknuepfungPill.js';
 import { skriptFlowUrlSync } from '../skripte/skriptFlowZiel.js';
+import { kooperationFlowUrl } from '../kampagne/kooperationFlowZiel.js';
+import { FOKUS_PARAM } from '../kampagne/produktionFlowZiele.js';
 import { formatDatum } from './videoBrowserFormat.js';
 import { detailsPanelHtml, propHtml } from './videoBrowserRenderTabs.js';
 import { captionFieldHtml } from './videoBrowserCaption.js';
@@ -29,6 +33,9 @@ const virtuellHint = (on) => (on
   : '');
 
 const kurz = (text) => (text.length > IDEE_MAX ? `${text.slice(0, IDEE_MAX - 1)}…` : text);
+
+/** Konzept mit Sprung zur Idee; die Produktion übersetzt es in ihren Tab Konzepte. */
+const ideeHref = (idee) => `/konzepte/${encodeURIComponent(idee.strategieId)}${idee.id ? `?${new URLSearchParams({ [FOKUS_PARAM]: idee.id })}` : ''}`;
 
 function skriptHtml(ctx, links) {
   const skript = links.skript;
@@ -68,7 +75,10 @@ export function videoPropsHtml(ctx) {
   rows.push(propHtml('Creator', 'creator', team && koop.creatorId
     ? link('creator', koop.name, `/creator/${koop.creatorId}`)
     : statisch('creator', koop.name)));
-  if (team) rows.push(propHtml('Kooperation', 'users', link('kooperation', koop.kooperationName || koop.name, `/kooperation/${koop.id}`)));
+  if (team) {
+    const href = kooperationFlowUrl({ produktionId: ctx.produktionId, linieId: ctx.flowLinie, kooperationId: koop.id });
+    rows.push(propHtml('Kooperation', 'users', link('kooperation', koop.kooperationName || koop.name, href)));
+  }
   if (koop.linie) {
     rows.push(propHtml('Linie', 'briefing', team
       ? link('briefing', koop.linieName, `/briefing/${koop.linieId}`)
@@ -77,7 +87,7 @@ export function videoPropsHtml(ctx) {
   if (team) {
     const idee = links.idee;
     const ideeHtml = idee?.strategieId
-      ? `<span class="vb-voll-prop__stack">${link('videoidee', kurz(idee.beschreibung || 'Videoidee'), `/konzepte/${idee.strategieId}`)}${virtuellHint(links.ideeVirtuell)}</span>`
+      ? `<span class="vb-voll-prop__stack">${link('videoidee', kurz(idee.beschreibung || 'Videoidee'), ideeHref(idee))}${virtuellHint(links.ideeVirtuell)}</span>`
       : (idee ? esc(kurz(idee.beschreibung || 'Videoidee')) : LEER);
     rows.push(propHtml('Videoidee', 'videoidee', ideeHtml));
   }

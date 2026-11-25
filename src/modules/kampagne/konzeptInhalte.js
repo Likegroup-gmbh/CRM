@@ -2,6 +2,8 @@
 // Anzeige only: umgesetzte Videoidee und ihr Skript hängen über den Creator,
 // nicht über strategie_item_id / skript_id am Kooperationsvideo.
 
+import { scopeKoopsByLinie as scopeMitAltbestand } from '../produktion/ProduktionService.js';
+
 export function creatorIdOfIdee(idee) {
   return idee?.casting_eintrag?.creator_id || idee?.creator_id || null;
 }
@@ -137,7 +139,8 @@ export async function loadKonzeptInhalte(client, { kampagneId, produktionId = nu
   if (produktionId) query = query.eq('produktion_id', produktionId);
   else if (kampagneId) query = query.eq('kampagne_id', kampagneId);
   else return { ideen: [], skripte: [] };
-  if (briefingId) query = query.eq('briefing_id', briefingId);
+  // Konzepte ohne Linie (Altbestand) gehören zur ganzen Produktion, wie ihre Kooperationen
+  query = scopeMitAltbestand(query, briefingId);
 
   const { data: strategien, error } = await query;
   if (error) throw new Error(error.message || 'Konzepte konnten nicht geladen werden');

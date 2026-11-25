@@ -9,6 +9,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { mitAblage } from '../../core/ablage/ablageLink.js';
 import { ZEIT_SELECT } from './videoBrowserAdapterWrite.js';
 import { loadVerknuepfungen } from './videoBrowserVerknuepfungen.js';
+import { loadKundenName } from './videoBrowserKommentarAutoren.js';
 
 export { deleteAsset } from '../../core/assetDelete.js';
 export * from './videoBrowserAdapterWrite.js';
@@ -32,8 +33,8 @@ const ROH_SELECT = mitAblage('id, kooperation_id, file_name, file_path, file_url
 const ROH_ORDNER_SELECT = 'item_id, parent_item_id, name, pfad, art, kooperation_id';
 const TAG_TYP_SELECT = 'id, label, gruppe, kampagne_id';
 const VARIANTE_TAG_SELECT = 'video_id, variant_key, tag_typ_id, created_at';
-const NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at';
-const STILL_NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, created_at, deleted_at';
+const NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, author_rolle, created_at, deleted_at';
+const STILL_NOTE_SELECT = 'id, video_id, runde, feedback_typ, text, author_name, author_rolle, created_at, deleted_at';
 
 function chunks(list, size = CHUNK) {
   const out = [];
@@ -118,14 +119,18 @@ export async function loadVideoBrowserData({ kampagneId, produktionId = null, br
   ]);
 
   const storyAssets = await readIn('kooperation_story_asset', STORY_ASSET_SELECT, 'story_id', stories.map(s => s.id));
-  const [tagTypen, varianteTags] = await Promise.all([
+  const [tagTypen, varianteTags, koopTagData, kundenName] = await Promise.all([
     loadTagTypen(kampagneId),
-    readIn('video_variante_tags', VARIANTE_TAG_SELECT, 'video_id', videoIds)
+    readIn('video_variante_tags', VARIANTE_TAG_SELECT, 'video_id', videoIds),
+    team ? loadKoopTags(kampagneId) : Promise.resolve(EMPTY_KOOP_TAGS),
+    loadKundenName({ client: window.supabase, kampagneId, kommentare: [...slotNotes, ...zeitkommentare, ...stillNotes] })
   ]);
 
   return {
     tagTypen,
     varianteTags,
+    ...koopTagData,
+    kundenName,
     kooperationen: kooperationen || [],
     linien,
     videos,
@@ -157,8 +162,34 @@ function emptyRaw(linien) {
   return {
     kooperationen: [], linien, videos: [], stories: [], videoAssets: [],
     storyAssets: [], stillAssets: [], rohmaterial: [], rohOrdner: [], slotNotes: [], zeitkommentare: [], stillNotes: [],
-    tagTypen: [], varianteTags: [], ideen: [], produkte: [], links: {}
+    tagTypen: [], varianteTags: [], ...EMPTY_KOOP_TAGS, kundenName: '', ideen: [], produkte: [], links: {}
   };
+}
+
+const EMPTY_KOOP_TAGS = { koopTagTypen: [], koopTags: [] };
+
+/**
+ * Tags aus dem Kooperationsformular (kooperation_tags): was je Kooperation vergeben ist (`koopTags`)
+ * und als Vorrat für die Auswahl die Tag-Namen, die in irgendeiner Kooperation dieser Kampagne
+ * hängen (`koopTagTypen`), also auch aus anderen Produktionen und Linien. Nicht der ganze Katalog.
+ * Nur fürs Team, diese Tags sind intern. Fehler = keine Koop-Tags.
+ */
+async function loadKoopTags(kampagneId) {
+  try {
+    const { data: koops, error } = await window.supabase.from('kooperationen').select('id').eq('kampagne_id', kampagneId);
+    if (error) throw error;
+    const koopTags = await readIn('kooperation_tags', 'kooperation_id, tag_id, kooperation_tag_typen(id, name)', 'kooperation_id',
+      (koops || []).map(k => k.id), { optional: false });
+    const typen = new Map();
+    for (const row of koopTags) {
+      const typ = row.kooperation_tag_typen;
+      if (typ?.name) typen.set(String(typ.id), { id: typ.id, name: typ.name });
+    }
+    return { koopTagTypen: [...typen.values()], koopTags };
+  } catch (err) {
+    console.warn('VideoBrowserAdapter: kooperation_tags nicht lesbar', err?.message || err);
+    return EMPTY_KOOP_TAGS;
+  }
 }
 
 /** Katalog: globale Tags und die dieser Kampagne. Fehlt die Tabelle noch, gibt es keine Tags. */
