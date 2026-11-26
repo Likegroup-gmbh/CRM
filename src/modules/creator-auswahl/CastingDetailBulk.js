@@ -136,12 +136,14 @@ export function bindSelectionEvents() {
       const checked = groupCb.checked;
       const headerRow = groupCb.closest('.kategorie-header-row');
       let sibling = headerRow?.nextElementSibling;
-      while (sibling && sibling.classList.contains('item-row')) {
-        const cb = sibling.querySelector('.sourcing-item-check');
-        if (cb) {
-          cb.checked = checked;
-          if (checked) this.selectedItems.add(cb.dataset.itemId);
-          else this.selectedItems.delete(cb.dataset.itemId);
+      while (sibling && !sibling.classList.contains('kategorie-header-row')) {
+        if (sibling.classList.contains('item-row')) {
+          const cb = sibling.querySelector('.sourcing-item-check');
+          if (cb) {
+            cb.checked = checked;
+            if (checked) this.selectedItems.add(cb.dataset.itemId);
+            else this.selectedItems.delete(cb.dataset.itemId);
+          }
         }
         sibling = sibling.nextElementSibling;
       }
@@ -177,11 +179,13 @@ export function updateGroupSelectState(changedCheckbox) {
 
   let sibling = headerRow.nextElementSibling;
   let total = 0, checkedCount = 0;
-  while (sibling && sibling.classList.contains('item-row')) {
-    const cb = sibling.querySelector('.sourcing-item-check');
-    if (cb) {
-      total++;
-      if (cb.checked) checkedCount++;
+  while (sibling && !sibling.classList.contains('kategorie-header-row')) {
+    if (sibling.classList.contains('item-row')) {
+      const cb = sibling.querySelector('.sourcing-item-check');
+      if (cb) {
+        total++;
+        if (cb.checked) checkedCount++;
+      }
     }
     sibling = sibling.nextElementSibling;
   }

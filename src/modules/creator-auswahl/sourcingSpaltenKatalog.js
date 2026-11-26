@@ -12,7 +12,7 @@ export const DEAKTIVIERTE_SPALTEN = ['cp-col-ek', 'cp-col-vk'];
 export const TIKTOK_SPALTEN = [
   'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-engagement-tt',
   'cp-col-views-tt-12', 'cp-col-cpm-tt-12', 'cp-col-views-tt-30', 'cp-col-cpm-tt-30',
-  'cp-col-preis-tt-video', 'cp-col-preis-tt-story'
+  'cp-col-preis-tt-video', 'cp-col-preis-tt-story', 'cp-col-pricing-tt'
 ];
 
 /**
@@ -76,6 +76,10 @@ export const PLATTFORM_ZEILEN = {
   'cp-col-story-preis': [
     { plattform: 'instagram', key: 'cp-col-preis-story' },
     { plattform: 'tiktok', key: 'cp-col-preis-tt-story' }
+  ],
+  'cp-col-pricing': [
+    { plattform: 'instagram', key: 'cp-col-pricing-ig' },
+    { plattform: 'tiktok', key: 'cp-col-pricing-tt' }
   ]
 };
 
@@ -108,25 +112,22 @@ export const ANKER_ALIASE = {
 
 /**
  * Alle Standardspalten in Renderreihenfolge. Link, Follower, Engagement,
- * Views und Preis je Fenster (12, 30), Preis Video und Preis Story fassen
- * Instagram und TikTok als Plattformzeilen zusammen.
+ * Views und Preis je Fenster (12, 30), Preis Video, Preis Story und Gesamtpreis
+ * fassen Instagram und TikTok als Plattformzeilen zusammen.
  *
- * Die Kurzbeschreibung steht direkt hinter dem Namen: sie sagt, wer der
- * Creator ueberhaupt ist. Danach kommen Link, Reichweite und Preise; Matching,
- * Creator Art, Status, Kundenfeedback und Kontakt stehen hinter dem Gesamtpreis.
+ * Nach dem Gesamtpreis folgen Kurzbeschreibung, Kundenfeedback, Rückmeldung Kunde,
+ * Status, Location und Mail; Creator Art (standardmaessig ausgeblendet)
+ * steht dahinter.
  */
 export const SOURCING_SPALTEN = [
-  'cp-col-drag', 'cp-col-name', 'cp-col-notiz',
+  'cp-col-drag', 'cp-col-name',
   'cp-col-link', 'cp-col-follower', 'cp-col-engagement',
   'cp-col-views-12', 'cp-col-cpm-12', 'cp-col-views-30', 'cp-col-cpm-30',
   'cp-col-preis-video',
   'cp-col-reichweite-story', 'cp-col-story-preis',
-  'cp-col-pricing',
-  'cp-col-matching', 'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
-  'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
-  'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie',
+  'cp-col-pricing', 'cp-col-notiz', 'cp-col-kunden-feedback', 'cp-col-feedback', 'cp-col-status',
+  'cp-col-location', 'cp-col-mail', 'cp-col-typ',
   'cp-col-ek', 'cp-col-vk',
-  'cp-col-feedback',
   'cp-col-actions'
 ];
 
@@ -147,14 +148,11 @@ export const SOURCING_ANKER_SPALTEN = SOURCING_SPALTEN.filter(
  */
 export const SOURCING_SPALTEN_LABELS = {
   'cp-col-notiz': 'Kurzbeschreibung',
-  'cp-col-matching': 'Matching',
   'cp-col-typ': 'Creator Art',
   'cp-col-status': 'Status',
   'cp-col-kunden-feedback': 'Kundenfeedback',
-  'cp-col-nutzungsrechte': 'Nutzungsrechte',
   'cp-col-location': 'Location',
   'cp-col-mail': 'Mail (nur intern)',
-  'cp-col-telefon': 'Telefon (nur intern)',
   'cp-col-link': 'Link',
   'cp-col-follower': 'Follower',
   'cp-col-engagement': 'Engagement',
@@ -166,7 +164,6 @@ export const SOURCING_SPALTEN_LABELS = {
   'cp-col-reichweite-story': 'Reichweite Story (Instagram)',
   'cp-col-story-preis': 'Preis Story',
   'cp-col-pricing': 'Gesamtpreis',
-  'cp-col-reichweite-garantie': 'Reichweitengarantie',
   'cp-col-ek': 'EK (Einkaufspreis)',
   'cp-col-vk': 'VK (Verkaufspreis)',
   'cp-col-feedback': 'Rückmeldung Kunde'

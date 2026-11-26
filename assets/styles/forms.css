@@ -3791,7 +3791,8 @@ input.readonly-field {
   border-right: none;
 }
 
-.creator-pool-table.has-bulk-select thead th.col-sticky-1 {
+.creator-pool-table.has-bulk-select thead th.col-sticky-1,
+.creator-pool-table.has-bulk-select tbody tr.kategorie-col-header-row > th.col-sticky-1 {
   z-index: 27;
 }
 

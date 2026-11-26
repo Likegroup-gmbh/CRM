@@ -66,10 +66,10 @@ describe('Zusatzleistungen mindern das verfuegbare Budget', () => {
       videos: [{ kooperation_id: 'k1', einkaufspreis_netto: 1000, verkaufspreis_netto: 1000 }],
     });
 
-    expect(result.verbrauchtesBudget).toBe(1000 + 49); // EK + KSK
+    expect(result.verbrauchtesBudget).toBe(1000);
     expect(result.extraServicesSum).toBe(2000);
     expect(result.spendableBudget).toBe(8000);
-    expect(result.verfuegbaresBudget).toBe(10000 - 2000 - 1049);
+    expect(result.verfuegbaresBudget).toBe(10000 - 2000 - 1000);
   });
 
   it('ignoriert extra_services wenn deaktiviert oder ohne Namen', () => {
@@ -85,7 +85,7 @@ describe('Zusatzleistungen mindern das verfuegbare Budget', () => {
     });
 
     expect(result.extraServicesSum).toBe(0);
-    expect(result.verfuegbaresBudget).toBe(10000 - 1049);
+    expect(result.verfuegbaresBudget).toBe(10000 - 1000);
   });
 });
 

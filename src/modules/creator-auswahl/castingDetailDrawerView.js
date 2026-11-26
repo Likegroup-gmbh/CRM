@@ -283,6 +283,7 @@ export function renderBody(detail, item) {
       ${textFeld(item, { label: 'Preis Reels', field: 'preis_reels', value: item.preis_reels, schreiben, placeholder: 'Preis…' })}
       ${textFeld(item, { label: 'Reichweite Story', field: 'reichweite_story', value: item.reichweite_story, schreiben, placeholder: 'z.B. 10K' })}
       ${textFeld(item, { label: 'Preis Story', field: 'preis_story', value: item.preis_story, schreiben, placeholder: 'Preis…' })}
+      ${textFeld(item, { label: tiktok ? 'Gesamtpreis Instagram' : 'Gesamtpreis', field: 'pricing', value: item.pricing, schreiben, placeholder: 'Preis…' })}
       ${tiktok ? `
         ${linkFeld(item, { label: 'Link TikTok', plattform: 'tiktok', field: 'link_tiktok', schreiben, placeholder: 'https://tiktok.com/@…' })}
         ${textFeld(item, { label: 'Follower TikTok', field: 'follower_tiktok', value: item.follower_tiktok ?? '', schreiben })}
@@ -292,8 +293,8 @@ export function renderBody(detail, item) {
         </div>
         ${textFeld(item, { label: 'Preis Video TikTok', field: 'preis_tiktok_video', value: item.preis_tiktok_video, schreiben })}
         ${textFeld(item, { label: 'Preis Story TikTok', field: 'preis_tiktok_story', value: item.preis_tiktok_story, schreiben })}
+        ${textFeld(item, { label: 'Gesamtpreis TikTok', field: 'pricing_tiktok', value: item.pricing_tiktok, schreiben, placeholder: 'Preis…' })}
       ` : ''}
-      ${textFeld(item, { label: 'Gesamtpreis', field: 'pricing', value: item.pricing, schreiben })}
       ${textFeld(item, { label: 'Nutzungsrechte', field: 'nutzungsrechte', value: item.nutzungsrechte, schreiben, rows: 2 })}
       ${textFeld(item, { label: 'Reichweitengarantie', field: 'reichweite_garantie', value: item.reichweite_garantie, schreiben, placeholder: 'z.B. 50K' })}
       ${feld('Matching', renderMatchingCell(item.matching_score, item.matching_scores || item.scores || {}))}

@@ -24,7 +24,8 @@ describe('CreatorAuswahlDetail – Namenssuche', () => {
       makeItem({ id: '2', name: 'Ben Schulz', gebucht: true }),
       makeItem({ id: '3', name: 'annalena.creator', on_hold: true }),
       makeItem({ id: '4', name: null, notiz: 'Anna im Notizfeld' }),
-      makeItem({ id: '5', name: 'Chris', absage: true })
+      makeItem({ id: '5', name: 'Chris', absage: true }),
+      makeItem({ id: '6', name: 'Anna Abgelehnt', abgelehnt: true })
     ];
     detail.activeTab = 'alle';
   });
@@ -33,8 +34,9 @@ describe('CreatorAuswahlDetail – Namenssuche', () => {
     detail.searchQuery = 'anna';
     const result = detail.getFilteredItems();
     expect(result.map(i => i.id)).toEqual(['1', '3']);
-    // Item 4 matcht nur in der Notiz und darf nicht erscheinen
+    // Item 4 matcht nur in der Notiz, Item 6 ist im Reiter Abgelehnt
     expect(result.some(i => i.id === '4')).toBe(false);
+    expect(result.some(i => i.id === '6')).toBe(false);
   });
 
   it('ignoriert führende/nachgestellte Leerzeichen im Suchbegriff', () => {
@@ -42,20 +44,20 @@ describe('CreatorAuswahlDetail – Namenssuche', () => {
     expect(detail.getFilteredItems().map(i => i.id)).toEqual(['1', '3']);
   });
 
-  it('liefert bei leerer Suche alle Items des aktiven Reiters', () => {
+  it('liefert bei leerer Suche aktive Items unter Alle und Abgesagt/Abgelehnt unter Abgelehnt', () => {
     detail.searchQuery = '';
-    expect(detail.getFilteredItems()).toHaveLength(5);
+    expect(detail.getFilteredItems().map(i => i.id)).toEqual(['1', '2', '3', '4']);
 
-    detail.activeTab = 'gebucht';
-    expect(detail.getFilteredItems().map(i => i.id)).toEqual(['2']);
+    detail.activeTab = 'abgelehnt';
+    expect(detail.getFilteredItems().map(i => i.id)).toEqual(['5', '6']);
   });
 
-  it('kombiniert Suche und Status-Reiter', () => {
+  it('kombiniert Suche und Reiter Alle/Abgelehnt', () => {
     detail.searchQuery = 'anna';
-    detail.activeTab = 'on_hold';
-    expect(detail.getFilteredItems().map(i => i.id)).toEqual(['3']);
+    detail.activeTab = 'abgelehnt';
+    expect(detail.getFilteredItems().map(i => i.id)).toEqual(['6']);
 
-    detail.activeTab = 'gebucht';
+    detail.searchQuery = 'ben';
     expect(detail.getFilteredItems()).toHaveLength(0);
   });
 
@@ -69,10 +71,47 @@ describe('CreatorAuswahlDetail – Namenssuche', () => {
     detail.searchQuery = 'anna';
     const counts = detail.getTabCounts();
     expect(counts).toEqual({
-      alle: 2, offen: 1, angefragt: 0, on_hold: 1,
-      in_verhandlung: 0, absage: 0, zusage: 0, gebucht: 0,
+      alle: 2,
+      abgelehnt: 1,
       bewerbung: 0
     });
+  });
+
+  it('wechselt bei ensureNewItemVisible nach Alle bzw. in den Reiter eines vorhandenen Eintrags', () => {
+    const spy = vi.spyOn(detail, 'rerenderTable').mockImplementation(() => {});
+    detail.activeTab = 'abgelehnt';
+    detail.ensureNewItemVisible();
+    expect(detail.activeTab).toBe('alle');
+
+    detail.ensureNewItemVisible({ id: '6', abgelehnt: true });
+    expect(detail.activeTab).toBe('abgelehnt');
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('platziert die Tab-Leiste im Footer unter dem Tabellenbereich (standalone und embedded)', async () => {
+    const root = document.createElement('div');
+    const chrome = document.createElement('div');
+    detail.root = root;
+    detail.liste = { name: 'Casting', teilbereich: '' };
+    detail.vorschlagPanel = { mount: vi.fn(), vorschlaege: [] };
+
+    await detail.render();
+    const page = root.querySelector('.casting-page');
+    expect([...page.children].map(el => el.className)).toEqual([
+      'casting-sticky-head',
+      'casting-body',
+      'casting-sticky-foot'
+    ]);
+    expect(page.querySelector('.casting-sticky-foot .sourcing-tab-navigation.monatsblatt-tabs')).not.toBeNull();
+
+    detail.embedded = true;
+    detail.chromeRoot = chrome;
+    await detail.render();
+    expect([...root.children].map(el => el.className)).toEqual([
+      'casting-body',
+      'casting-sticky-foot'
+    ]);
+    expect(root.querySelector('.casting-sticky-foot .sourcing-tab-navigation.monatsblatt-tabs')).not.toBeNull();
   });
 
   it('rendert bei aktiver Suche neu und ignoriert identische Eingaben', () => {
@@ -117,7 +156,7 @@ describe('CreatorAuswahlTemplates – Suche im UI', () => {
     items: [],
     hasAnyItems: true,
     activeTab: 'alle',
-    tabCounts: { offen: 0, on_hold: 0, gebucht: 0, nicht_buchen: 0, alle: 0 },
+    tabCounts: { alle: 0, abgelehnt: 0, bewerbung: 0 },
     liste: { teilbereich: '' },
     isKunde: false,
     gastReadonly: false,
@@ -139,15 +178,24 @@ describe('CreatorAuswahlTemplates – Suche im UI', () => {
     expect(html).toContain('&lt;img src=x&gt;');
   });
 
-  it('zeigt weiterhin den Reiter-Empty-State, wenn die Suche in anderen Reitern Treffer hat', () => {
-    const html = renderItemsTable({
+  it('zeigt weiterhin den Reiter-Empty-State, wenn die Suche im anderen Reiter Treffer hat', () => {
+    const htmlAbgelehnt = renderItemsTable({
       ...baseCtx,
-      activeTab: 'gebucht',
+      activeTab: 'abgelehnt',
       searchQuery: 'anna',
-      tabCounts: { offen: 2, on_hold: 0, gebucht: 0, nicht_buchen: 0, alle: 2 }
+      tabCounts: { alle: 2, abgelehnt: 0, bewerbung: 0 }
     });
-    expect(html).toContain('Keine Creator im Reiter "Gebucht"');
-    expect(html).not.toContain('Keine Treffer');
+    expect(htmlAbgelehnt).toContain('Keine Creator im Reiter "Abgelehnt"');
+    expect(htmlAbgelehnt).not.toContain('Keine Treffer');
+
+    const htmlAlle = renderItemsTable({
+      ...baseCtx,
+      activeTab: 'alle',
+      searchQuery: 'chris',
+      tabCounts: { alle: 0, abgelehnt: 1, bewerbung: 0 }
+    });
+    expect(htmlAlle).toContain('Keine Creator im Reiter "Alle"');
+    expect(htmlAlle).not.toContain('Keine Treffer');
   });
 
   it('rendert das Suchfeld im rechten Aktions-Block für alle Rollen', () => {
@@ -164,13 +212,15 @@ describe('CreatorAuswahlTemplates – Suche im UI', () => {
     }
   });
 
-  it('zeigt die Aktions-Buttons nur mit sourcing.can_create', () => {
-    // Investor/Kunde: create=false → kein Add-Drawer, aber Toolbar (Teilen etc.) bleibt.
+  it('zeigt die Aktions-Buttons nur mit sourcing.can_create (Creator hinzufügen kommt aus der Floating Bar)', () => {
     const htmlIntern = renderAddSection({ ...baseCtx, isKunde: false, canCreate: true });
-    expect(htmlIntern).toContain('btn-open-add-drawer');
+    expect(htmlIntern).not.toContain('btn-open-add-drawer');
+    expect(htmlIntern).toContain('btn-management-anfrage');
+    expect(htmlIntern).toContain('btn-sourcing-toolbar-menu');
 
     const htmlKunde = renderAddSection({ ...baseCtx, isKunde: true, canCreate: false });
     expect(htmlKunde).not.toContain('btn-open-add-drawer');
+    expect(htmlKunde).not.toContain('btn-management-anfrage');
   });
 
   it('übernimmt den aktuellen Suchwert escaped ins Input', () => {

@@ -229,7 +229,7 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('Bisher erkannt + Fee bis Kampagnenende + Aus offenem Creator-Budget');
     expect(html).not.toContain('eingelöst');
     expect(html).toContain('von');
-    expect(html).toContain('UGC: 4,9 % auf EK · Influencer: KSK-Topf');
+    expect(html).toContain('KSK-Topf (Auftragsdetails)');
     expect(html).toContain('Σ Nettobetrag aller Aufträge');
     expect(html).toContain('Gestellt, Bezahlt und Unbezahlt aus den Kundenrechnungen');
     expect(html).toContain('Auftragsvolumen − Zusatzleistungen − Verbrauchtes Budget');
@@ -821,13 +821,13 @@ describe('StakeholderOverviewPage', () => {
 
     const { totals } = page.aggregate();
     // UGC: Creator = 400 (Video-EK), Agentur = 500 + (800-400) = 900,
-    // KSK = 4,9 % von 400 = 19,60 (auto), Zusatz = 100
-    // Verbraucht = 400 + 900 + 19,60 + 100 = 1419,60; DB = Agenturanteil = 900
+    // KSK = 250 (KSK-Topf aus Auftragsdetails), Zusatz = 100
+    // Verbraucht = 400 + 900 + 250 + 100 = 1650; DB = Agenturanteil = 900
     expect(totals.creator).toBe(400);
     expect(totals.agentur).toBe(900);
-    expect(totals.ksk).toBeCloseTo(19.6, 2);
+    expect(totals.ksk).toBeCloseTo(250, 2);
     expect(totals.zusatz).toBe(100);
-    expect(totals.verbraucht).toBeCloseTo(1419.6, 2);
+    expect(totals.verbraucht).toBeCloseTo(1650, 2);
     expect(totals.db).toBe(900);
     expect(totals.creatorPaid).toBe(0);
     expect(totals.creatorOpen).toBe(400);
@@ -864,11 +864,11 @@ describe('StakeholderOverviewPage', () => {
     await page.ready;
 
     const { rows, totals } = page.aggregate();
-    // Verbraucht wie ohne Extras: 400 + 900 + 19,60 + 100 = 1419,60
-    expect(totals.verbraucht).toBeCloseTo(1419.6, 2);
+    // Verbraucht wie ohne Extras: 400 + 900 + 250 + 100 = 1650
+    expect(totals.verbraucht).toBeCloseTo(1650, 2);
     expect(totals.extras).toBe(2000);
     // Dieselbe Restformel wie Auftragsdetails/Kampagne.
-    expect(totals.verfuegbar).toBeCloseTo(10000 - 2000 - 1419.6, 2);
+    expect(totals.verfuegbar).toBeCloseTo(10000 - 2000 - 1650, 2);
     expect(rows[0].extras).toBe(2000);
 
     const html = window.content.innerHTML;
@@ -889,7 +889,7 @@ describe('StakeholderOverviewPage', () => {
 
     const { totals } = page.aggregate();
     expect(totals.extras).toBe(0);
-    expect(totals.verfuegbar).toBeCloseTo(10000 - 1419.6, 2);
+    expect(totals.verfuegbar).toBeCloseTo(10000 - 1650, 2);
   });
 
   it('lässt das Offene Creator Budget im Influencer-Tab trotz extra_services unverändert', async () => {
@@ -1390,7 +1390,7 @@ describe('StakeholderOverviewPage', () => {
       id: 'koop1', kampagne_id: 'k1', einkaufspreis_netto: 5000,
       verkaufspreis_zusatzkosten: 200, ksk_selbstzahler: false
     }];
-    const details = [{ auftrag_id: 'a1', campaign_type: ['ugc_paid'] }];
+    const details = [{ auftrag_id: 'a1', campaign_type: ['ugc_paid'], agency_services_enabled: true, ksk_enabled: true, ksk_value: '245' }];
     const rechnungen = [{
       id: 'r1', auftrag_id: 'a1', kooperation_id: 'koop1', rechnungstyp: 'kampagne',
       status: 'Offen', nettobetrag: 2000, nettobetrag_steuerfrei: 0, zusatzkosten: 50

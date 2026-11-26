@@ -22,37 +22,35 @@ describe('Sourcing – Spaltenreihenfolge', () => {
       .filter(Boolean);
   }
 
-  it('stellt den Namen mit Bild direkt hinter die Checkbox, danach Kurzbeschreibung und Link', () => {
+  it('stellt den Namen mit Bild direkt hinter die Checkbox, danach Link und Follower', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
     expect(spalten.slice(0, 4)).toEqual([
-      'cp-col-drag', 'cp-col-name', 'cp-col-notiz', 'cp-col-link'
+      'cp-col-drag', 'cp-col-name', 'cp-col-link', 'cp-col-follower'
     ]);
     expect(SOURCING_SPALTEN).not.toContain('cp-col-bild');
   });
 
-  it('stellt die Kurzbeschreibung direkt hinter den Namen, den Link direkt dahinter', () => {
+  it('stellt den Link direkt hinter den Namen, den Follower direkt dahinter', () => {
     expect(SOURCING_SPALTEN[SOURCING_SPALTEN.indexOf('cp-col-name') + 1])
-      .toBe('cp-col-notiz');
-    expect(SOURCING_SPALTEN[SOURCING_SPALTEN.indexOf('cp-col-notiz') + 1])
       .toBe('cp-col-link');
+    expect(SOURCING_SPALTEN[SOURCING_SPALTEN.indexOf('cp-col-link') + 1])
+      .toBe('cp-col-follower');
   });
 
-  it('zieht die Kurzbeschreibung auch im Kopf nach vorne', () => {
+  it('rendert Namen und Link auch im Kopf direkt nebeneinander', () => {
     const kopf = reihenfolge(tableDoc([{ id: 'i1' }]).querySelectorAll('thead th'));
     const ab = kopf.indexOf('cp-col-name');
 
     expect(kopf.slice(ab, ab + 3)).toEqual([
-      'cp-col-name', 'cp-col-notiz', 'cp-col-link'
+      'cp-col-name', 'cp-col-link', 'cp-col-follower'
     ]);
   });
 
-  it('setzt Matching, Creator Art, Status, Kundenfeedback und Kontakt zwischen Gesamtpreis und Nutzungsrechte', () => {
+  it('ordnet Gesamtpreis, Kurzbeschreibung, Kundenfeedback, Rückmeldung Kunde, Status, Location und Mail in dieser Folge an', () => {
     const block = [
-      'cp-col-pricing',
-      'cp-col-matching', 'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
-      'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
-      'cp-col-nutzungsrechte'
+      'cp-col-pricing', 'cp-col-notiz', 'cp-col-kunden-feedback', 'cp-col-feedback',
+      'cp-col-status', 'cp-col-location', 'cp-col-mail'
     ];
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const kopf = reihenfolge(tableDoc([{ id: 'i1' }]).querySelectorAll('thead th'));
@@ -63,29 +61,32 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     expect(ausschnitt(SOURCING_SPALTEN)).toEqual(block);
   });
 
-  it('haelt die Kurzbeschreibung nicht mehr am Ende bei der Rueckmeldung', () => {
+  it('haelt die Kurzbeschreibung genau einmal direkt hinter dem Gesamtpreis', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
     expect(spalten.filter(c => c === 'cp-col-notiz')).toHaveLength(1);
-    expect(spalten[spalten.indexOf('cp-col-vk') + 1]).toBe('cp-col-feedback');
+    expect(spalten[spalten.indexOf('cp-col-pricing') + 1]).toBe('cp-col-notiz');
   });
 
-  it('fasst Instagram und TikTok zu zehn gemeinsamen Spalten zusammen', () => {
+  it('fasst Instagram und TikTok zu elf gemeinsamen Spalten zusammen', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const ab = spalten.indexOf('cp-col-link');
 
-    expect(spalten.slice(ab, ab + 10)).toEqual([
+    expect(spalten.slice(ab, ab + 11)).toEqual([
       'cp-col-link', 'cp-col-follower', 'cp-col-engagement',
       'cp-col-views-12', 'cp-col-cpm-12', 'cp-col-views-30', 'cp-col-cpm-30', 'cp-col-preis-video',
-      'cp-col-reichweite-story', 'cp-col-story-preis'
+      'cp-col-reichweite-story', 'cp-col-story-preis', 'cp-col-pricing'
     ]);
   });
 
-  it('setzt hinter Preis Story den Gesamtpreis, hinter die Nutzungsrechte die Garantie', () => {
+  it('setzt hinter Preis Story den Gesamtpreis und fuehrt Telefon, Nutzungsrechte, Garantie und Matching nicht mehr als Standardspalten', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
     expect(spalten[spalten.indexOf('cp-col-story-preis') + 1]).toBe('cp-col-pricing');
-    expect(spalten[spalten.indexOf('cp-col-nutzungsrechte') + 1]).toBe('cp-col-reichweite-garantie');
+    for (const weg of ['cp-col-telefon', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie', 'cp-col-matching']) {
+      expect(spalten, weg).not.toContain(weg);
+      expect(SOURCING_SPALTEN, weg).not.toContain(weg);
+    }
   });
 
   it('kennt die alten Plattform-Spalten nicht mehr als eigene Zellen', () => {
@@ -94,7 +95,8 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     for (const alt of ['cp-col-link-ig', 'cp-col-link-tt', 'cp-col-follower-ig', 'cp-col-follower-tt',
       'cp-col-engagement-ig', 'cp-col-cpm-ig-8', 'cp-col-cpm-ig-12', 'cp-col-cpm-ig-30',
       'cp-col-cpm-8', 'cp-col-views-ig-12', 'cp-col-views-ig-30',
-      'cp-col-preis-reels', 'cp-col-preis-story', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story']) {
+      'cp-col-preis-reels', 'cp-col-preis-story', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story',
+      'cp-col-pricing-ig', 'cp-col-pricing-tt']) {
       expect(spalten, alt).not.toContain(alt);
       expect(SOURCING_SPALTEN, alt).not.toContain(alt);
     }
@@ -119,12 +121,12 @@ describe('Sourcing – Spaltenreihenfolge', () => {
 
   it('folgt einer gespeicherten Reihenfolge und laesst den Namen fest', () => {
     const columnOrder = standardBeweglicheSpalten().filter(id => id !== 'cp-col-status');
-    columnOrder.splice(columnOrder.indexOf('cp-col-notiz'), 0, 'cp-col-status');
+    columnOrder.splice(columnOrder.indexOf('cp-col-link'), 0, 'cp-col-status');
     const doc = tableDoc([{ id: 'i1' }], { columnOrder });
     const kopf = reihenfolge(doc.querySelectorAll('thead th'));
     const ab = kopf.indexOf('cp-col-name');
 
-    expect(kopf.slice(ab, ab + 3)).toEqual(['cp-col-name', 'cp-col-status', 'cp-col-notiz']);
+    expect(kopf.slice(ab, ab + 3)).toEqual(['cp-col-name', 'cp-col-status', 'cp-col-link']);
     expect(reihenfolge(doc.querySelectorAll('tbody tr.item-row > td'))).toEqual(kopf);
     expect(getStickyClasses(baseCtx({ columnOrder }))).toEqual({ name: 'col-sticky-2' });
   });
@@ -163,7 +165,7 @@ describe('Sourcing – Spaltenreihenfolge', () => {
 
     for (const col of ['cp-col-link', 'cp-col-follower', 'cp-col-engagement', 'cp-col-views-12',
       'cp-col-cpm-12', 'cp-col-views-30', 'cp-col-cpm-30', 'cp-col-preis-video',
-      'cp-col-reichweite-story', 'cp-col-story-preis']) {
+      'cp-col-reichweite-story', 'cp-col-story-preis', 'cp-col-pricing']) {
       expect(kopf.querySelector(`thead th.${col} svg`), col).toBeNull();
     }
   });
@@ -206,10 +208,13 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     expect(doc.querySelector('thead th.cp-col-story-preis').textContent.trim()).toBe('Preis Story');
   });
 
-  it('benennt die Matching-Spalte', () => {
+  it('rendert Matching, Telefon, Nutzungsrechte und Reichweitengarantie nicht mehr als Standardspalten', () => {
     const doc = tableDoc([{ id: 'i1' }]);
 
-    expect(doc.querySelector('thead th.cp-col-matching').textContent.trim()).toBe('Matching');
+    expect(doc.querySelector('thead th.cp-col-matching')).toBeNull();
+    expect(doc.querySelector('thead th.cp-col-telefon')).toBeNull();
+    expect(doc.querySelector('thead th.cp-col-nutzungsrechte')).toBeNull();
+    expect(doc.querySelector('thead th.cp-col-reichweite-garantie')).toBeNull();
   });
 
   it('benennt die Kundenfeedback-Spalte', () => {
@@ -247,7 +252,7 @@ describe('Sourcing – deaktivierte Spalten (EK/VK)', () => {
       teilbereiche: ['Food']
     });
     const colspan = Number(doc.querySelector('.kategorie-header').getAttribute('colspan'));
-    const sichtbar = Array.from(doc.querySelectorAll('thead th'))
+    const sichtbar = Array.from(doc.querySelectorAll('.kategorie-col-header-row th'))
       .filter(th => !th.getAttribute('style')?.includes('display:none')).length;
 
     expect(colspan).toBe(sichtbar);
@@ -293,14 +298,7 @@ describe('Sourcing – Mail und Telefon nur intern', () => {
     expect(mail.textContent.trim()).toBe('-');
   });
 
-  it('laesst Telefonnummern in der Tabelle editierbar und verlinkt sie per tel-Schema', () => {
-    const tel = cell('cp-col-telefon', { telefon: '+49 170 1234567' });
-
-    expect(tel.querySelector('input[data-field="telefon"]').value).toBe('+49 170 1234567');
-    expect(tel.querySelector('a').getAttribute('href')).toBe('tel:+49 170 1234567');
-  });
-
-  it('haelt beide Spalten fuer Kunden und Gaeste verborgen', () => {
+  it('haelt Mail fuer Kunden und Gaeste verborgen', () => {
     expect(isColumnVisibleForCustomer('cp-col-mail', true, [])).toBe(false);
     expect(isColumnVisibleForCustomer('cp-col-telefon', true, [])).toBe(false);
   });
@@ -320,11 +318,11 @@ describe('Sourcing – Mail und Telefon nur intern', () => {
 });
 
 describe('Sourcing – TikTok-Spalten', () => {
-  it('umfasst Link, Follower, die Abruf-Werte und die beiden Preis-Spalten', () => {
+  it('umfasst Link, Follower, die Abruf-Werte und die drei Preis-Spalten', () => {
     expect(TIKTOK_SPALTEN).toEqual([
       'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-engagement-tt',
       'cp-col-views-tt-12', 'cp-col-cpm-tt-12', 'cp-col-views-tt-30', 'cp-col-cpm-tt-30',
-      'cp-col-preis-tt-video', 'cp-col-preis-tt-story'
+      'cp-col-preis-tt-video', 'cp-col-preis-tt-story', 'cp-col-pricing-tt'
     ]);
   });
 

@@ -46,9 +46,12 @@ export const IG_REELS_SPALTEN = [
 /** Manuell gepflegte Story-Spalten */
 export const IG_STORY_SPALTEN = ['cp-col-reichweite-story', 'cp-col-preis-story'];
 
+/** Instagram-Gesamtpreis: bleibt auch bei UGC sichtbar (Pauschale), nur in reinen TikTok-Listen aus */
+export const IG_GESAMTPREIS_SPALTE = 'cp-col-pricing-ig';
+
 /**
  * TikTok-Zeilen: Link, Follower, Engagement, Views und Preis 12/30 aus dem Profilabruf,
- * dazu die beiden manuell gepflegten Preise
+ * dazu die manuell gepflegten Preise samt Gesamtpreis
  */
 export const TT_SPALTEN = TIKTOK_SPALTEN;
 
@@ -62,7 +65,7 @@ export const STANDARD_VERSTECKTE_SPALTEN = ['cp-col-typ'];
 
 /** Alle Spalten, die das Preset ueberhaupt steuert */
 export const PRESET_SPALTEN = [
-  ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...TT_SPALTEN
+  ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, IG_GESAMTPREIS_SPALTE, ...TT_SPALTEN
 ];
 
 function toListe(value) {
@@ -100,7 +103,7 @@ export function berechneHiddenColumns(auswahl = {}) {
   const hidden = [];
 
   if (!hatInstagram) {
-    hidden.push(...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN);
+    hidden.push(...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, IG_GESAMTPREIS_SPALTE);
   } else {
     if (!hatReel) hidden.push(...IG_REELS_SPALTEN);
     if (!hatStory) hidden.push(...IG_STORY_SPALTEN);

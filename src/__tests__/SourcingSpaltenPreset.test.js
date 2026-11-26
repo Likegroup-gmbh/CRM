@@ -5,6 +5,7 @@ import {
   IG_BASIS_SPALTEN,
   IG_REELS_SPALTEN,
   IG_STORY_SPALTEN,
+  IG_GESAMTPREIS_SPALTE,
   TT_SPALTEN,
   PRESET_SPALTEN,
   STANDARD_VERSTECKTE_SPALTEN
@@ -12,7 +13,9 @@ import {
 import { PLATTFORM_ZEILEN, SOURCING_SPALTEN } from '../modules/creator-auswahl/sourcingSpaltenKatalog.js';
 
 /** Alle Spalten, die das Preset ueberhaupt anfassen kann */
-const STEUERBAR = [...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...TT_SPALTEN];
+const STEUERBAR = [
+  ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, IG_GESAMTPREIS_SPALTE, ...TT_SPALTEN
+];
 
 /** Was von den steuerbaren Spalten sichtbar bleibt */
 function sichtbar(auswahl) {
@@ -21,8 +24,8 @@ function sichtbar(auswahl) {
 }
 
 describe('Sourcing-Spalten-Preset – Matrix', () => {
-  it('UGC: nur Link und Follower Instagram, keine Preise, keine Story, kein TikTok', () => {
-    expect(sichtbar({ liste_typ: 'ugc' })).toEqual(IG_BASIS_SPALTEN);
+  it('UGC: Link/Follower Instagram und Gesamtpreis-Pauschale, keine Reels/Story-Preise, kein TikTok', () => {
+    expect(sichtbar({ liste_typ: 'ugc' })).toEqual([...IG_BASIS_SPALTEN, IG_GESAMTPREIS_SPALTE]);
   });
 
   it('Mix: blendet nichts aus', () => {
@@ -39,20 +42,20 @@ describe('Sourcing-Spalten-Preset – Matrix', () => {
   it('Influencer + Instagram + nur Reel: Story aus, TikTok aus', () => {
     const auswahl = { liste_typ: 'influencer', plattformen: 'instagram', ig_formate: 'reel' };
 
-    expect(sichtbar(auswahl)).toEqual([...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN]);
+    expect(sichtbar(auswahl)).toEqual([...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, IG_GESAMTPREIS_SPALTE]);
   });
 
   it('Influencer + Instagram + nur Story: die Reels-Preise sind aus', () => {
     const auswahl = { liste_typ: 'influencer', plattformen: 'instagram', ig_formate: 'story' };
 
-    expect(sichtbar(auswahl)).toEqual([...IG_BASIS_SPALTEN, ...IG_STORY_SPALTEN]);
+    expect(sichtbar(auswahl)).toEqual([...IG_BASIS_SPALTEN, ...IG_STORY_SPALTEN, IG_GESAMTPREIS_SPALTE]);
   });
 
   it('Influencer + Instagram + Reel und Story: kompletter Instagram-Block', () => {
     const auswahl = { liste_typ: 'influencer', plattformen: 'instagram', ig_formate: 'reel,story' };
 
     expect(sichtbar(auswahl)).toEqual([
-      ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN
+      ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, IG_GESAMTPREIS_SPALTE
     ]);
   });
 
@@ -64,7 +67,7 @@ describe('Sourcing-Spalten-Preset – Matrix', () => {
     };
 
     expect(sichtbar(auswahl)).toEqual([
-      ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...TT_SPALTEN
+      ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, IG_GESAMTPREIS_SPALTE, ...TT_SPALTEN
     ]);
   });
 });

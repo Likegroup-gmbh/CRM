@@ -165,13 +165,6 @@ export function bindEvents() {
       onSave: (tkp) => this.saveListenEinstellungen({ tkp })
     }));
 
-    const addBtn = this._q('#btn-open-add-drawer');
-    if (addBtn) {
-      const handler = () => this.addDrawer.open();
-      addBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => addBtn.removeEventListener('click', handler));
-    }
-
     this.bindDragAndDropEvents();
     this.bindSelectionEvents();
     this.bindPillEvents();
@@ -231,6 +224,8 @@ export function bindEvents() {
   document.addEventListener('table-select-change', selectHandler);
   this._boundEventListeners.add(() => document.removeEventListener('table-select-change', selectHandler));
 
+  this.bindFreigabeEvents();
+
   const supportsContentSizing = globalThis.CSS?.supports?.('field-sizing', 'content') === true;
   if (!supportsContentSizing) {
     this._qq('.cp-col-feedback textarea.auto-resize-textarea').forEach(el => {
@@ -267,11 +262,11 @@ export function _bindCustomColumnEvents() {
     }
   });
 
-  // Header Drag&Drop ueber Hand-Griff (nur Custom-Spalten)
+  // Header Drag&Drop ueber Hand-Griff (nur Custom-Spalten; auch fuer Kategorie-Spaltenkoepfe)
   if (this._customHeaderDragCleanup) this._customHeaderDragCleanup();
-  const thead = this._q('.creator-pool-table thead');
+  const table = this._q('.creator-pool-table');
   this._customHeaderDragCleanup = this.customColumns.bindHeaderDragAndDrop(
-    thead,
+    table,
     () => {
       this.uebernehmeKopfVerschiebung()
         .catch(error => {
@@ -285,7 +280,6 @@ export function _bindCustomColumnEvents() {
     if (this._customHeaderDragCleanup) { this._customHeaderDragCleanup(); this._customHeaderDragCleanup = null; }
   });
 
-  const table = this._q('.creator-pool-table');
   if (this._customHeaderResizeCleanup) this._customHeaderResizeCleanup();
   this._customHeaderResizeCleanup = this.customColumns.bindColumnResize(table);
   this._boundEventListeners.add(() => {

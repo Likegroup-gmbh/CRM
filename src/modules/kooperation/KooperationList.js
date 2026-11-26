@@ -814,6 +814,8 @@ export class KooperationList {
 
   // Handle Form Submit für Seiten-Formular
   async handleFormSubmit() {
+    if (this._isSubmitting) return;
+    this._isSubmitting = true;
     try {
       const form = document.getElementById('kooperation-form');
       const formData = new FormData(form);
@@ -866,16 +868,35 @@ export class KooperationList {
         return;
       }
 
-      // Erstelle Kooperation
-      const result = await window.dataService.createEntity('kooperation', submitData);
-      // Speichere Video-Items in Verknüpfungstabelle
-      if (result.success && window.formSystem) {
-        const videoResult = await window.formSystem.handleKooperationVideos(result.id, form);
-        await window.formSystem.handleKooperationTags(result.id, form);
-        if (videoResult && videoResult.success === false) {
-          this.showErrorMessage(`Kooperation gespeichert, Videos fehlgeschlagen: ${videoResult.error || 'Videos konnten nicht gespeichert werden'}`);
+      if (window.formSystem?.videoHandler) {
+        const briefingCheck = await window.formSystem.videoHandler.validateKooperationBriefingProduktion(submitData);
+        if (!briefingCheck.isValid) {
+          this.showErrorMessage(briefingCheck.message);
           return;
         }
+        const videoLimit = await window.formSystem.validateKooperationVideoLimit(form, submitData, null);
+        if (!videoLimit.isValid) {
+          this.showErrorMessage(videoLimit.message);
+          return;
+        }
+        const budgetCheck = await window.formSystem.videoHandler.validateKooperationBudgetBeforeCreate(form, submitData);
+        if (!budgetCheck.isValid) {
+          this.showErrorMessage(budgetCheck.message);
+          return;
+        }
+      }
+
+      // Erstelle Kooperation
+      const result = await window.dataService.createEntity('kooperation', submitData);
+      // Speichere Video-Items in Verknüpfungstabelle (Alles-oder-nichts)
+      if (result.success && window.formSystem) {
+        const videoResult = await window.formSystem.handleKooperationVideos(result.id, form);
+        if (videoResult && videoResult.success === false) {
+          await window.formSystem.videoHandler?.rollbackCreatedKooperation(result.id);
+          this.showErrorMessage(videoResult.error || 'Kooperation konnte nicht gespeichert werden.');
+          return;
+        }
+        await window.formSystem.handleKooperationTags(result.id, form);
       }
       
       if (result.success) {
@@ -911,6 +932,8 @@ export class KooperationList {
     } catch (error) {
       console.error('❌ Fehler beim Erstellen der Kooperation:', error);
       this.showErrorMessage('Ein unerwarteter Fehler ist aufgetreten.');
+    } finally {
+      this._isSubmitting = false;
     }
   }
 

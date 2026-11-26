@@ -5,6 +5,7 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { renderItemRow } from './castingItemRow.js';
+import { initFreigabeButtonsInRoot } from './castingFreigabeZelle.js';
 import { refreshCastingDrawer } from './castingDetailDrawer.js';
 import { applyProfilZelleState } from './sourcingProfilZelle.js';
 import { linkZiel, plattformDesFelds, profilPlattform } from './sourcingProfilPlattformen.js';
@@ -65,7 +66,11 @@ export function refreshItemRow(itemId) {
   if (!row || !item) return;
 
   absorbCastingEdits(this, row);
+  const freigabeZelle = row.querySelector('td.cp-col-freigabe');
   row.outerHTML = renderItemRow(this.getRenderContext(), item, 0);
+  const neueZeile = this._q(`.item-row[data-item-id="${itemId}"]`);
+  initFreigabeButtonsInRoot(neueZeile);
+  this.uebernimmFreigabeZelle?.(neueZeile, freigabeZelle, itemId);
   this.bindEvents();
 }
 

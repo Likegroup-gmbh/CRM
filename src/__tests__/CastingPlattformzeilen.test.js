@@ -24,7 +24,7 @@ import { EntityCustomColumnsManager } from '../core/customColumns/EntityCustomCo
 const GEMEINSAM = [
   'cp-col-link', 'cp-col-follower', 'cp-col-engagement',
   'cp-col-views-12', 'cp-col-cpm-12', 'cp-col-views-30', 'cp-col-cpm-30',
-  'cp-col-preis-video', 'cp-col-story-preis'
+  'cp-col-preis-video', 'cp-col-story-preis', 'cp-col-pricing'
 ];
 const NUR_INSTAGRAM = ['cp-col-reichweite-story'];
 
@@ -38,6 +38,8 @@ const ITEM = {
   preis_tiktok_video: '800',
   preis_story: '250',
   preis_tiktok_story: '300',
+  pricing: '1.500',
+  pricing_tiktok: '1.200',
   ig_views_12: 6029,
   tt_views_12: 12000,
   tt_stats: { engagement_rate: 4.5 }
@@ -68,9 +70,12 @@ describe('Casting – Plattformzeilen: Zeilen je Zelle', () => {
   it('legt die Werte beider Plattformen in dieselbe Zelle', () => {
     const doc = zeile();
     const preis = doc.querySelector('td.cp-col-preis-video');
+    const gesamt = doc.querySelector('td.cp-col-pricing');
 
     expect(preis.querySelector('[data-plattform="instagram"] input').value).toBe('900');
     expect(preis.querySelector('[data-plattform="tiktok"] input').value).toBe('800');
+    expect(gesamt.querySelector('[data-plattform="instagram"] input').value).toBe('1.500');
+    expect(gesamt.querySelector('[data-plattform="tiktok"] input').value).toBe('1.200');
   });
 
   it('zeigt in Listen ohne TikTok nur die Instagram-Zeile', () => {
@@ -115,7 +120,7 @@ describe('Casting – Plattformzeilen: Zeilen je Zelle', () => {
     const hidden = berechneHiddenColumns({ liste_typ: 'influencer', plattformen: 'tiktok' });
     const doc = zeile({ hiddenColumns: hidden });
 
-    for (const spalte of ['cp-col-link', 'cp-col-follower', 'cp-col-preis-video']) {
+    for (const spalte of ['cp-col-link', 'cp-col-follower', 'cp-col-preis-video', 'cp-col-pricing']) {
       expect(plattformen(doc, spalte), spalte).toEqual(['tiktok']);
     }
   });

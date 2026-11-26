@@ -5,6 +5,7 @@
 
 import { hasUnsavedTextEdit, rememberTextBaseline } from '../../core/table/textFieldBaseline.js';
 import { plattformenDerEintraege } from './sourcingSpaltenSichtbarkeit.js';
+import { getSourcingTabForItem } from './sourcingTabs.js';
 
 const IGNORED_KEYS = new Set(['updated_at']);
 const NUMBER_DISPLAY_KEYS = new Set(['follower_instagram', 'follower_tiktok']);
@@ -64,6 +65,7 @@ export function applyCastingRowUpdate(detail, row) {
 
   const rowEl = detail._q(`.item-row[data-item-id="${row.id}"]`);
   const plattformenVorher = plattformenDerEintraege(detail.items).join();
+  const tabVorher = getSourcingTabForItem(item);
   let needsRow = false;
   for (const key of keys) {
     // Tabelle und offener Detail-Drawer zeigen dieselben Felder.
@@ -75,6 +77,10 @@ export function applyCastingRowUpdate(detail, row) {
     inputs.forEach(el => patchField(detail, el, row[key]));
   }
 
+  // Wechsel zwischen Alle und Abgelehnt (abgelehnt / absage): Tabelle + Zaehler nachziehen
+  if (getSourcingTabForItem(item) !== tabVorher) {
+    return rerenderUnlessTyping(detail) ? 'applied' : 'deferred';
+  }
   if (!needsRow || !rowEl) return 'applied';
   // Erster Link einer Plattform: deren Zeilen erscheinen in allen Zeilen und im Kopf
   if (plattformenDerEintraege(detail.items).join() !== plattformenVorher) {

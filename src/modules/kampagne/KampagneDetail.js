@@ -214,7 +214,7 @@ export class KampagneDetail {
     }
     destroyKooperationFilter(this);
 
-    // Workflow-Tab aus ?tab= (unbekannt/nicht erlaubt → Briefing).
+    // Workflow-Tab aus ?tab= (unbekannt/nicht erlaubt → Kooperationen).
     // Alte Links ?tab=produktion und ?tab=kooperation werden auf Kooperationen gezogen.
     this.activeWorkflowTab = resolveInitialWorkflowTab();
     rewriteWorkflowTabAlias(this.activeWorkflowTab);

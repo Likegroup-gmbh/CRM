@@ -82,7 +82,7 @@ describe('Sourcing – eigene Spalten mit Anker', () => {
     const mgr = manager([spalte('a', 'Briefing')], ['custom:a']);
     const kopf = reihenfolge(tableDoc(mgr).querySelectorAll('thead th'));
 
-    expect(kopf[kopf.indexOf('cp-col-feedback') + 1]).toBe('custom:a');
+    expect(kopf[kopf.indexOf('cp-col-vk') + 1]).toBe('custom:a');
     expect(kopf[kopf.length - 1]).toBe('cp-col-actions');
   });
 
@@ -93,7 +93,7 @@ describe('Sourcing – eigene Spalten mit Anker', () => {
     );
     const kopf = reihenfolge(tableDoc(mgr).querySelectorAll('thead th'));
 
-    expect(kopf[kopf.indexOf('cp-col-feedback') + 1]).toBe('custom:a');
+    expect(kopf[kopf.indexOf('cp-col-vk') + 1]).toBe('custom:a');
   });
 
   it('legt eine eigene Spalte an die gespeicherte Stelle statt an den Anker', () => {

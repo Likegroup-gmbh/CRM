@@ -5,11 +5,16 @@ import { DependentFields } from '../core/form/logic/DependentFields.js';
 
 function createQuery({ data = [], error = null } = {}) {
   const eqs = [];
+  const ins = [];
   const ors = [];
   const query = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn((column, value) => {
       eqs.push([column, value]);
+      return query;
+    }),
+    in: vi.fn((column, values) => {
+      ins.push([column, values]);
       return query;
     }),
     or: vi.fn((expr) => {
@@ -19,7 +24,7 @@ function createQuery({ data = [], error = null } = {}) {
     order: vi.fn().mockReturnThis(),
     then: (resolve, reject) => Promise.resolve({ data, error }).then(resolve, reject)
   };
-  return { query, eqs, ors };
+  return { query, eqs, ins, ors };
 }
 
 describe('briefing_id:unternehmen_id cascade', () => {
@@ -182,28 +187,49 @@ describe('briefing_id:kampagne_id cascade', () => {
     vi.restoreAllMocks();
   });
 
-  it('laedt nur finalisierte Briefings', async () => {
+  it('filtert auf die Produktion, wenn prefillData eine produktion_id traegt', async () => {
+    const briefing = createQuery({
+      data: [{ id: 'br-1', aktivierung_name: 'Linie 1' }]
+    });
+    window.supabase = {
+      from: vi.fn(() => briefing.query)
+    };
+
+    const form = { dataset: { prefillData: JSON.stringify({ produktion_id: 'p15', briefing_id: 'br-1' }) } };
+    const field = { disabled: true, value: '' };
+    const ctx = { updateDependentFieldOptions: vi.fn() };
+    const strategy = findStrategy({ name: 'briefing_id', dependsOn: 'kampagne_id' });
+    await strategy('k1', form, field, { name: 'briefing_id' }, ctx);
+
+    expect(briefing.eqs).toEqual([
+      ['produktion_id', 'p15'],
+      ['is_draft', false]
+    ]);
+    expect(field.value).toBe('br-1');
+    expect(ctx.updateDependentFieldOptions).toHaveBeenCalledWith(
+      field,
+      { name: 'briefing_id' },
+      [{ value: 'br-1', label: 'Linie 1' }]
+    );
+  });
+
+  it('laedt ohne produktion_id nur finalisierte Briefings der Produktionen dieser Kampagne', async () => {
     const briefing = createQuery({
       data: [{ id: 'br-1', aktivierung_name: 'Final' }]
     });
-    const kampagneQuery = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn(async () => ({ data: { unternehmen_id: 'u1' }, error: null }))
-    };
+    const prodQuery = createQuery({ data: [{ id: 'p1' }, { id: 'p2' }] });
     window.supabase = {
-      from: vi.fn((table) => (table === 'kampagne' ? kampagneQuery : briefing.query))
+      from: vi.fn((table) => (table === 'produktion' ? prodQuery.query : briefing.query))
     };
 
-    const field = { disabled: true };
+    const field = { disabled: true, value: '' };
     const ctx = { updateDependentFieldOptions: vi.fn() };
     const strategy = findStrategy({ name: 'briefing_id', dependsOn: 'kampagne_id' });
     await strategy('k1', {}, field, { name: 'briefing_id' }, ctx);
 
-    expect(briefing.eqs).toEqual([
-      ['unternehmen_id', 'u1'],
-      ['is_draft', false]
-    ]);
+    expect(prodQuery.eqs).toEqual([['kampagne_id', 'k1']]);
+    expect(briefing.ins).toEqual([['produktion_id', ['p1', 'p2']]]);
+    expect(briefing.eqs).toEqual([['is_draft', false]]);
     expect(ctx.updateDependentFieldOptions).toHaveBeenCalledWith(
       field,
       { name: 'briefing_id' },

@@ -12,9 +12,9 @@ function spalte(id, anchor) {
 }
 
 describe('Sourcing-Spaltenfolge', () => {
-  it('beginnt ohne gespeicherte Folge mit Kurzbeschreibung, Link, Follower', () => {
+  it('beginnt ohne gespeicherte Folge mit Link, Follower, Engagement', () => {
     expect(baueBeweglicheSpalten().slice(0, 3)).toEqual([
-      'cp-col-notiz', 'cp-col-link', 'cp-col-follower'
+      'cp-col-link', 'cp-col-follower', 'cp-col-engagement'
     ]);
   });
 
@@ -28,17 +28,17 @@ describe('Sourcing-Spaltenfolge', () => {
 
   it('haelt eine gespeicherte Folge, laesst die alte Bild-Spalte weg und haengt neue Spalten an der Vorlage ein', () => {
     const folge = baueBeweglicheSpalten({
-      columnOrder: ['cp-col-status', 'cp-col-bild', 'cp-col-notiz'],
+      columnOrder: ['cp-col-status', 'cp-col-bild', 'cp-col-link'],
       customColumns: [spalte('a', 'cp-col-status')]
     });
 
-    expect(folge.slice(0, 3)).toEqual(['cp-col-status', 'custom:a', 'cp-col-notiz']);
+    expect(folge.slice(0, 3)).toEqual(['cp-col-status', 'custom:a', 'cp-col-link']);
     expect(folge).not.toContain('cp-col-bild');
   });
 
   it('stellt den Namen fest hinter Drag, auch bei eigener Reihenfolge', () => {
     expect(baueSourcingSpaltenfolge().slice(0, 3)).toEqual([
-      'cp-col-drag', 'cp-col-name', 'cp-col-notiz'
+      'cp-col-drag', 'cp-col-name', 'cp-col-link'
     ]);
 
     const umsortiert = baueSourcingSpaltenfolge({

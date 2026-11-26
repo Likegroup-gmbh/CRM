@@ -1,7 +1,7 @@
 // EkVkAgencyFeeHelper.js
 // Shared helper for Agency Fee calculation incl. EK/VK margin aggregation.
 
-import { summeKskSelbstzahler, berechneKskBetrag, KSK_SATZ_PROZENT } from './kskSelbstzahler.js';
+import { summeKskSelbstzahler } from './kskSelbstzahler.js';
 import { CARD_HINTS, renderSummaryLabelHtml } from './cardHints.js';
 
 export function isFilledPrice(value) {
@@ -21,37 +21,25 @@ export function berechneVerfuegbaresBudget(auftrag, kooperationen = []) {
 }
 
 /**
- * Collects price rows at the same granularity as renderCreatorVideosTable:
- * - Video-level when videos exist for a kooperation
- * - Kooperation-level fallback otherwise
+ * Preiszeilen je Video. Kooperationen ohne Video-Zeilen tragen nichts bei,
+ * wie im Produktions-Budget-Tab, in produktion_verbrauch und im DB-Guard
+ * guard_video_verkaufspreis. Sonst zeigt die Kampagne weniger frei als ihre
+ * Produktionen.
  *
  * @param {Array} kooperationen
  * @param {Array} videos - flat array of videos (caller flattens if needed)
  * @returns {{ ekNetto: number|null, vkNetto: number|null }[]}
  */
 export function collectEkVkPriceRows(kooperationen, videos) {
-  const rows = [];
   const videoList = Array.isArray(videos) ? videos : [];
+  const koopIds = new Set((kooperationen || []).map(koop => koop.id));
 
-  (kooperationen || []).forEach(koop => {
-    const koopVideos = videoList.filter(v => v.kooperation_id === koop.id);
-
-    if (koopVideos.length === 0) {
-      rows.push({
-        ekNetto: koop.einkaufspreis_netto ?? null,
-        vkNetto: koop.verkaufspreis_netto ?? null,
-      });
-    } else {
-      koopVideos.forEach(video => {
-        rows.push({
-          ekNetto: video.einkaufspreis_netto ?? null,
-          vkNetto: video.verkaufspreis_netto ?? null,
-        });
-      });
-    }
-  });
-
-  return rows;
+  return videoList
+    .filter(video => koopIds.has(video.kooperation_id))
+    .map(video => ({
+      ekNetto: video.einkaufspreis_netto ?? null,
+      vkNetto: video.verkaufspreis_netto ?? null,
+    }));
 }
 
 /**
@@ -105,19 +93,16 @@ export function calculateAgencyFeeSummary(details, kooperationen, videos, { vari
   // KSK-Selbstzahler: umgebuchter Anteil aus dem KSK-Topf ins Creator-Budget
   const kskUmgebucht = summeKskSelbstzahler(kooperationen);
 
-  // UGC traegt die KSK nicht manuell ein: sie wird immer aus dem
-  // Creator-Anteil (EK-Summe) gerechnet. Influencer nutzt den manuellen Topf.
-  const kskAuto = variant === 'ugc';
-  const kskValue = kskAuto
-    ? berechneKskBetrag(ekSum)
-    : ((d.agency_services_enabled && d.ksk_enabled) ? (parseFloat(d.ksk_value) || 0) : 0);
+  // Einheitlich fuer UGC und Influencer: der im Auftrag gepflegte KSK-Topf.
+  const kskAuto = false;
+  const kskValue = (d.agency_services_enabled && d.ksk_enabled)
+    ? (parseFloat(d.ksk_value) || 0)
+    : 0;
 
   const showAgencyFeeCard = true;
-  const showKskCard = kskAuto
-    ? kskValue > 0
-    : (d.agency_services_enabled && d.ksk_enabled && kskValue > 0);
+  const showKskCard = Boolean(d.agency_services_enabled && d.ksk_enabled && kskValue > 0);
 
-  return { baseFee, ekVkMargin: marginSum, total, kskValue, kskUmgebucht, kskAuto, kskBasis: kskAuto ? ekSum : 0, showAgencyFeeCard, showKskCard, ekSum, vkSum };
+  return { baseFee, ekVkMargin: marginSum, total, kskValue, kskUmgebucht, kskAuto, kskBasis: 0, showAgencyFeeCard, showKskCard, ekSum, vkSum };
 }
 
 /**
@@ -259,21 +244,6 @@ export function filterPaidKooperationen(kooperationen, videos, rechnungStatusMap
  */
 export function renderKskCardHtml(summary, formatCurrency) {
   if (!summary.showKskCard) return '';
-
-  if (summary.kskAuto) {
-    const satzAnzeige = String(KSK_SATZ_PROZENT).replace('.', ',');
-    return `
-    <div class="summary-card">
-      <div class="summary-value">${formatCurrency(summary.kskValue)}</div>
-      ${renderSummaryLabelHtml('KSK', CARD_HINTS.ksk)}
-      <div class="summary-card-breakdown">
-        <div class="summary-card-breakdown-line">
-          <span>${satzAnzeige} % vom Creator-Anteil</span>
-          <span>${formatCurrency(parseFloat(summary.kskBasis) || 0)}</span>
-        </div>
-      </div>
-    </div>`;
-  }
 
   const umgebucht = parseFloat(summary.kskUmgebucht) || 0;
   const verbleibend = (parseFloat(summary.kskValue) || 0) - umgebucht;

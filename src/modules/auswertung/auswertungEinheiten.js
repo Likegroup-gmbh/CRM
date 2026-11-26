@@ -9,7 +9,7 @@ import { loadVideoBrowserData } from '../video-browser/VideoBrowserAdapter.js';
 import { buildTree } from '../video-browser/videoBrowserTree.js';
 import { FINAL_ID, storyName, videoName } from '../video-browser/videoBrowserFormat.js';
 import { listProduktionen } from '../produktion/ProduktionService.js';
-import { koopBetrag } from '../produktion/budgetTab.js';
+import { koopBetrag } from '../produktion/budgetTabModel.js';
 
 const PAID = 'paid_creator_ads';
 const TAG_GRUPPEN = { Persona: 'persona', Ansatz: 'ansatz', Plattform: 'plattform' };

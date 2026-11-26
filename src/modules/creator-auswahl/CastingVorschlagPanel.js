@@ -10,6 +10,10 @@ import { icon } from '../../core/icons/IconSystem.js';
 // Bestehende Vorschlaege bleiben in der Tabelle; leer ('') schaltet wieder frei.
 const PAUSIERT = 'Casting-Vorschläge sind pausiert: das Briefing ist keine Grundlage mehr fürs Casting.';
 
+// Vorerst ausgeblendet: Button bleibt verborgen, bestehender Code und
+// DB-Daten bleiben erhalten (false schaltet den Button wieder frei).
+export const VORSCHLAEGE_BUTTON_AUSGEBLENDET = true;
+
 function esc(value) {
   const div = document.createElement('div');
   div.textContent = value ?? '';
@@ -85,6 +89,11 @@ export class CastingVorschlagPanel {
   render() {
     const block = this._getBlock();
     if (!block || !this.sichtbar) return;
+
+    if (VORSCHLAEGE_BUTTON_AUSGEBLENDET && !this.laeuft) {
+      block.innerHTML = '';
+      return;
+    }
 
     const count = this.vorschlaege.length;
     const hatListeBriefing = !!this.detail.liste?.briefing_id;

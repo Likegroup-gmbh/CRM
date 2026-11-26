@@ -23,7 +23,9 @@ const PLATTFORMZEILE = {
   'cp-col-preis-reels': ['cp-col-preis-video', 'instagram'],
   'cp-col-preis-tt-video': ['cp-col-preis-video', 'tiktok'],
   'cp-col-preis-story': ['cp-col-story-preis', 'instagram'],
-  'cp-col-preis-tt-story': ['cp-col-story-preis', 'tiktok']
+  'cp-col-preis-tt-story': ['cp-col-story-preis', 'tiktok'],
+  'cp-col-pricing-ig': ['cp-col-pricing', 'instagram'],
+  'cp-col-pricing-tt': ['cp-col-pricing', 'tiktok']
 };
 
 export function renderZeile(ctx = {}, item = {}) {

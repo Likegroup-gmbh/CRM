@@ -33,9 +33,12 @@ describe('migrateHiddenColumns', () => {
   it('versteckt die neuen Plattformzeilen mit, wenn die Liste die Plattform nicht hat', () => {
     expect(migrateHiddenColumns(['cp-col-link-tt', 'cp-col-follower-tt'])).toEqual([
       'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-engagement-tt',
-      'cp-col-views-tt-12', 'cp-col-cpm-tt-12', 'cp-col-views-tt-30', 'cp-col-cpm-tt-30'
+      'cp-col-views-tt-12', 'cp-col-cpm-tt-12', 'cp-col-views-tt-30', 'cp-col-cpm-tt-30',
+      'cp-col-pricing-tt'
     ]);
-    expect(migrateHiddenColumns(['cp-col-link-ig'])).toEqual(['cp-col-link-ig', 'cp-col-engagement-ig']);
+    expect(migrateHiddenColumns(['cp-col-link-ig'])).toEqual([
+      'cp-col-link-ig', 'cp-col-engagement-ig', 'cp-col-pricing-ig'
+    ]);
     expect(migrateHiddenColumns(['cp-col-notiz'])).toEqual(['cp-col-notiz']);
   });
 
@@ -50,6 +53,15 @@ describe('migrateHiddenColumns', () => {
 
   it('laesst die Views ohne 8er-Schluessel frei, damit sie einzeln einblendbar bleiben', () => {
     expect(migrateHiddenColumns(['cp-col-cpm-12', 'cp-col-cpm-ig-30'])).toEqual(['cp-col-cpm-12', 'cp-col-cpm-ig-30']);
+  });
+
+  it('entfernt Telefon, Nutzungsrechte, Reichweitengarantie und Matching aus gespeicherten hidden_columns', () => {
+    const alt = [
+      'cp-col-telefon', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie',
+      'cp-col-matching', 'cp-col-notiz'
+    ];
+
+    expect(migrateHiddenColumns(alt)).toEqual(['cp-col-notiz']);
   });
 
   it('kommt mit fehlenden Werten klar', () => {

@@ -1,6 +1,6 @@
 // Workflow-Tabs auf der Produktions-Detailseite:
 // Budget, Briefing, Produkte, Personas, Casting, Konzepte, Skripte, Verträge,
-// Kooperationen, Videos, Auswertung. Default beim Öffnen ist Briefing.
+// Kooperationen, Videos, Auswertung. Default beim Öffnen ist Kooperationen.
 //
 // Der Tab „Kooperationen“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
 // „Budget“ zeigt Preise und ist nur für Rollen mit Preis-Sicht da. „Videos“ sehen auch Gäste (ADR 0072).
@@ -34,7 +34,8 @@ import { syncEinreichungsZaehler } from '../einladung/EinreichungInbox.js';
 import { syncKonzeptZaehler } from '../einladung/konzeptEinreichungen.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
-import { ladeBudgetDaten, renderBudgetTab } from '../produktion/budgetTab.js';
+import { renderBudgetTab } from '../produktion/budgetTab.js';
+import { ladeBudgetDaten } from '../produktion/budgetTabModel.js';
 import { aktuelleBudgetTags, mountBudgetFilter, unmountBudgetFilter } from '../produktion/budgetTabFilter.js';
 import { mountAuswertungPane, renderAuswertungPane, unmountAuswertungPane } from '../auswertung/auswertungPane.js';
 
@@ -52,9 +53,9 @@ export const WORKFLOW_TABS = [
   { id: 'auswertung', label: 'Auswertung' }
 ];
 
-export const DEFAULT_WORKFLOW_TAB = 'briefing';
-
 export const KOOPERATIONEN_TAB = 'kooperationen';
+
+export const DEFAULT_WORKFLOW_TAB = KOOPERATIONEN_TAB;
 
 // Alte Deeplinks, bevor der Tab Kooperationen hieß.
 const WORKFLOW_TAB_ALIASES = {
@@ -95,16 +96,15 @@ export function getVisibleWorkflowTabs() {
 }
 
 /**
- * Initialen Tab bestimmen: ?tab= wenn bekannt + erlaubt, sonst Briefing, für Gäste
- * Kooperationen (oder der erste sichtbare Tab, falls der nicht erlaubt ist).
+ * Initialen Tab bestimmen: ?tab= wenn bekannt + erlaubt, sonst Kooperationen
+ * (oder der erste sichtbare Tab, falls Kooperationen nicht erlaubt ist).
  */
 export function resolveInitialWorkflowTab() {
   const fromUrl = getTabQueryParam();
   const normalized = WORKFLOW_TAB_ALIASES[fromUrl] || fromUrl;
   const visible = getVisibleWorkflowTabs().map(t => t.id);
   if (visible.includes(normalized)) return normalized;
-  const start = window.isGast?.() ? KOOPERATIONEN_TAB : DEFAULT_WORKFLOW_TAB;
-  return visible.includes(start) ? start : (visible[0] || DEFAULT_WORKFLOW_TAB);
+  return visible.includes(DEFAULT_WORKFLOW_TAB) ? DEFAULT_WORKFLOW_TAB : (visible[0] || DEFAULT_WORKFLOW_TAB);
 }
 
 /**

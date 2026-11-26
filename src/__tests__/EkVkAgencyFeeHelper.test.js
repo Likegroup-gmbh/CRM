@@ -42,10 +42,9 @@ describe('collectEkVkPriceRows', () => {
     ]);
   });
 
-  it('falls back to kooperation-level when no videos', () => {
-    const koops = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 200 }];
-    const rows = collectEkVkPriceRows(koops, []);
-    expect(rows).toEqual([{ ekNetto: 100, vkNetto: 200 }]);
+  it('zaehlt Kooperationen ohne Video-Zeilen nicht (wie Produktions-Budget und DB-Guard)', () => {
+    const koops = [{ id: 'k1', einkaufspreis_netto: 1575, verkaufspreis_netto: 4550 }];
+    expect(collectEkVkPriceRows(koops, [])).toEqual([]);
   });
 
   it('handles mixed: some koops with videos, some without', () => {
@@ -55,9 +54,16 @@ describe('collectEkVkPriceRows', () => {
     ];
     const videos = [{ kooperation_id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 200 }];
     const rows = collectEkVkPriceRows(koops, videos);
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toEqual({ ekNetto: 100, vkNetto: 200 });
-    expect(rows[1]).toEqual({ ekNetto: 50, vkNetto: 80 });
+    expect(rows).toEqual([{ ekNetto: 100, vkNetto: 200 }]);
+  });
+
+  it('ignoriert Videos fremder Kooperationen', () => {
+    const koops = [{ id: 'k1' }];
+    const videos = [
+      { kooperation_id: 'k1', einkaufspreis_netto: 10, verkaufspreis_netto: 20 },
+      { kooperation_id: 'k9', einkaufspreis_netto: 99, verkaufspreis_netto: 99 },
+    ];
+    expect(collectEkVkPriceRows(koops, videos)).toEqual([{ ekNetto: 10, vkNetto: 20 }]);
   });
 });
 
@@ -75,8 +81,8 @@ describe('calculateEkVkTotals', () => {
   });
 
   it('ignores margin when EK is 0 and VK is set', () => {
-    const koops = [{ id: 'k1', einkaufspreis_netto: 0, verkaufspreis_netto: 2000 }];
-    const result = calculateEkVkTotals(koops, []);
+    const koops = [{ id: 'k1' }];
+    const result = calculateEkVkTotals(koops, [{ kooperation_id: 'k1', einkaufspreis_netto: 0, verkaufspreis_netto: 2000 }]);
     expect(result.ekSum).toBe(0);
     expect(result.vkSum).toBe(2000);
     expect(result.marginSum).toBe(0);
@@ -85,8 +91,8 @@ describe('calculateEkVkTotals', () => {
   });
 
   it('ignores margin when VK is null', () => {
-    const koops = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: null }];
-    const result = calculateEkVkTotals(koops, []);
+    const koops = [{ id: 'k1' }];
+    const result = calculateEkVkTotals(koops, [{ kooperation_id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: null }]);
     expect(result.marginSum).toBe(0);
     expect(result.incompleteSum).toBe(-100);
     expect(result.incompleteRows).toBe(1);
@@ -100,8 +106,8 @@ describe('calculateEkVkTotals', () => {
   });
 
   it('zaehlt vollstaendige Zeilen nicht als unvollstaendig', () => {
-    const koops = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300 }];
-    const result = calculateEkVkTotals(koops, []);
+    const koops = [{ id: 'k1' }];
+    const result = calculateEkVkTotals(koops, [{ kooperation_id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300 }]);
     expect(result.marginSum).toBe(200);
     expect(result.incompleteSum).toBe(0);
     expect(result.incompleteRows).toBe(0);
@@ -124,8 +130,9 @@ describe('calculateEkVkTotals', () => {
 describe('calculateAgencyFeeSummary', () => {
   it('combines base fee and EK/VK margin', () => {
     const details = { agency_services_enabled: true, percentage_fee_enabled: true, percentage_fee_value: '500' };
-    const koops = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300 }];
-    const result = calculateAgencyFeeSummary(details, koops, []);
+    const koops = [{ id: 'k1' }];
+    const videos = [{ kooperation_id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300 }];
+    const result = calculateAgencyFeeSummary(details, koops, videos);
     expect(result.baseFee).toBe(500);
     expect(result.ekVkMargin).toBe(200);
     expect(result.total).toBe(700);
@@ -134,8 +141,9 @@ describe('calculateAgencyFeeSummary', () => {
 
   it('shows card when only margin exists (no base fee)', () => {
     const details = {};
-    const koops = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300 }];
-    const result = calculateAgencyFeeSummary(details, koops, []);
+    const koops = [{ id: 'k1' }];
+    const videos = [{ kooperation_id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300 }];
+    const result = calculateAgencyFeeSummary(details, koops, videos);
     expect(result.baseFee).toBe(0);
     expect(result.ekVkMargin).toBe(200);
     expect(result.total).toBe(200);
@@ -162,24 +170,19 @@ describe('calculateAgencyFeeSummary', () => {
     expect(result.showKskCard).toBe(false);
   });
 
-  it('UGC: berechnet KSK automatisch aus der EK-Summe (4,9 %)', () => {
+  it('UGC: nutzt den manuell hinterlegten KSK-Topf statt 4,9 %-Auto-Rechnung', () => {
+    const details = { agency_services_enabled: true, ksk_enabled: true, ksk_value: '250' };
     const koops = [{ id: 'k1', einkaufspreis_netto: 2730, verkaufspreis_netto: 8000 }];
-    const result = calculateAgencyFeeSummary({}, koops, [], { variant: 'ugc' });
-    expect(result.kskAuto).toBe(true);
-    expect(result.kskValue).toBe(133.77);
-    expect(result.kskBasis).toBe(2730);
+    const result = calculateAgencyFeeSummary(details, koops, [], { variant: 'ugc' });
+    expect(result.kskAuto).toBe(false);
+    expect(result.kskValue).toBe(250);
+    expect(result.kskBasis).toBe(0);
     expect(result.showKskCard).toBe(true);
   });
 
-  it('UGC: ignoriert manuell hinterlegten ksk_value', () => {
-    const details = { agency_services_enabled: true, ksk_enabled: true, ksk_value: '250' };
-    const koops = [{ id: 'k1', einkaufspreis_netto: 1000, verkaufspreis_netto: 2000 }];
-    const result = calculateAgencyFeeSummary(details, koops, [], { variant: 'ugc' });
-    expect(result.kskValue).toBe(49);
-  });
-
-  it('UGC: versteckt KSK-Card ohne Creator-Kosten', () => {
-    const result = calculateAgencyFeeSummary({}, [], [], { variant: 'ugc' });
+  it('UGC: versteckt KSK-Card ohne manuellen KSK-Topf', () => {
+    const koops = [{ id: 'k1', einkaufspreis_netto: 2730, verkaufspreis_netto: 8000 }];
+    const result = calculateAgencyFeeSummary({}, koops, [], { variant: 'ugc' });
     expect(result.kskValue).toBe(0);
     expect(result.showKskCard).toBe(false);
   });
@@ -410,12 +413,9 @@ describe('renderKskCardHtml', () => {
     expect(html).toContain('KSK');
   });
 
-  it('rendert UGC-Auto-KSK mit Prozent-Breakdown statt Topf-Logik', () => {
-    const html = renderKskCardHtml({ showKskCard: true, kskValue: 133.77, kskAuto: true, kskBasis: 2730 }, fmt);
-    expect(html).toContain('133.77 €');
-    expect(html).toContain('4,9 % vom Creator-Anteil');
-    expect(html).toContain('2730 €');
-    expect(html).not.toContain('Umgebucht');
-    expect(html).not.toContain('Verbleibend');
+  it('rendert KSK-Card immer ueber den Topf (kein 4,9 %-Auto-Breakdown)', () => {
+    const html = renderKskCardHtml({ showKskCard: true, kskValue: 250, kskUmgebucht: 0 }, fmt);
+    expect(html).toContain('250 €');
+    expect(html).not.toContain('4,9 % vom Creator-Anteil');
   });
 });

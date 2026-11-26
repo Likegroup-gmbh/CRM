@@ -34,6 +34,8 @@ import { castingDetailSpaltenMethods } from './CastingDetailSpalten.js';
 import { parseTeilbereiche } from './castingKategorien.js';
 import { loadBewerbungen } from './bewerbungTab.js';
 import { showCastingKategorienDrawer } from './CastingKategorienDrawer.js';
+import { castingDetailFreigabeMethods } from './CastingDetailFreigabe.js';
+import { initFreigabeButtonsInRoot } from './castingFreigabeZelle.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -86,10 +88,9 @@ export class CreatorAuswahlDetail {
     return fromRoot.concat([...this.chromeRoot.querySelectorAll(selector)]);
   }
 
-  // Standalone: main-wrapper ist der horizontale Scrollport (sticky Header).
-  // Embedded: der Tabellen-Container, sonst wächst die Kampagnen-View mit.
+  // In der Casting-Shell (standalone und embedded) scrollt .table-container selbst.
   _getHScrollTarget(fallback) {
-    if (this.embedded) return fallback;
+    if (this.embedded || this._q('.casting-body')) return fallback;
     return document.querySelector('.main-wrapper') || fallback;
   }
 
@@ -155,6 +156,8 @@ export class CreatorAuswahlDetail {
       this.bewerbungen = this.isKunde ? [] : await loadBewerbungen(listeId);
       if (veraltet()) return;
       await this._verknuepfeBekannteCreator();
+      if (veraltet()) return;
+      await this._ladeFreigegebeneCreatorIds();
       if (veraltet()) return;
 
       this.loadColumnVisibilitySettings();
@@ -306,6 +309,9 @@ export class CreatorAuswahlDetail {
       canCreate,
       canEdit: can('edit'),
       canDelete: can('delete'),
+      canCreateKooperation: this._canCreateKooperation(),
+      freigegebeneCreatorIds: this.freigegebeneCreatorIds,
+      freigabeLaeuft: this._freigabeLaeuft,
       gastReadonly: window.isGastReadonly?.() || false,
       hiddenColumns: mitPlattformenDerEintraege(this.hiddenColumns, this.items),
       columnOrder: Array.isArray(this.liste?.column_order) ? this.liste.column_order : null,
@@ -326,14 +332,16 @@ export class CreatorAuswahlDetail {
     if (this.embedded && this.chromeRoot) {
       this.chromeRoot.innerHTML = renderAddSection(ctx);
       rootEl.innerHTML = `
-        ${renderTabNavigation(ctx)}
-        ${table}
+        <div class="casting-body">${table}</div>
+        <div class="casting-sticky-foot">${renderTabNavigation(ctx)}</div>
       `;
     } else {
       rootEl.innerHTML = `
-        ${renderAddSection(ctx)}
-        ${renderTabNavigation(ctx)}
-        ${table}
+        <div class="casting-page">
+          <div class="casting-sticky-head">${renderAddSection(ctx)}</div>
+          <div class="casting-body">${table}</div>
+          <div class="casting-sticky-foot">${renderTabNavigation(ctx)}</div>
+        </div>
       `;
     }
     this.tableFilter.mount({
@@ -343,6 +351,7 @@ export class CreatorAuswahlDetail {
     });
     // Eigene Vorschlag-Zeilen ueber der Liste (nie fuer Kunden/Gaeste)
     this.vorschlagPanel?.mount?.();
+    initFreigabeButtonsInRoot(rootEl);
     updateStickyHeights(this._getRoot());
 
     if (!this.isKunde && this._canSourcing('edit')) {
@@ -355,6 +364,7 @@ export class CreatorAuswahlDetail {
     if (tableContainer) {
       absorbCastingEdits(this, tableContainer);
       tableContainer.outerHTML = renderItemsTable(this.getRenderContext());
+      initFreigabeButtonsInRoot(this._getRoot());
       this.bindEvents();
       updateStickyHeights(this._getRoot());
       this.updateTabCounts();
@@ -381,7 +391,8 @@ Object.assign(
   castingDetailLinksMethods,
   castingDetailBulkMethods,
   castingDetailQuickAddMethods,
-  castingDetailSpaltenMethods
+  castingDetailSpaltenMethods,
+  castingDetailFreigabeMethods
 );
 
 export const creatorAuswahlDetail = new CreatorAuswahlDetail();

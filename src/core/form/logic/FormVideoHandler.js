@@ -107,6 +107,68 @@ export class FormVideoHandler {
     }
   }
 
+  // Hierarchie erzwingen: briefing_id darf nie zu einer anderen Produktion gehoeren.
+  // Fehlt produktion_id beim freien Anlegen, wird sie vom gewaehlten Briefing uebernommen.
+  async validateKooperationBriefingProduktion(submitData) {
+    if (!window.supabase || !submitData?.briefing_id) return { isValid: true };
+    try {
+      const { data: briefing, error } = await window.supabase
+        .from('campaign_briefings')
+        .select('produktion_id')
+        .eq('id', submitData.briefing_id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!briefing?.produktion_id) return { isValid: true };
+
+      if (submitData.produktion_id && submitData.produktion_id !== briefing.produktion_id) {
+        return {
+          isValid: false,
+          message: 'Das gewählte Briefing gehört zu einer anderen Produktion.'
+        };
+      }
+      if (!submitData.produktion_id) {
+        submitData.produktion_id = briefing.produktion_id;
+      }
+      return { isValid: true };
+    } catch (error) {
+      console.error('❌ FORMSYSTEM: Fehler bei Briefing/Produktion-Prüfung:', error);
+      return {
+        isValid: false,
+        message: 'Zuordnung von Briefing und Produktion konnte nicht geprüft werden.'
+      };
+    }
+  }
+
+  // Budget-Decke vor dem Anlegen der Kooperation pruefen, damit keine leere
+  // Kooperation ohne Videos entsteht, wenn der Verkaufspreis das Budget sprengt.
+  async validateKooperationBudgetBeforeCreate(form, submitData) {
+    if (!window.supabase || !submitData?.creator_id || !submitData?.produktion_id) {
+      return { isValid: true };
+    }
+    const manualRows = this._collectStepperVideos(null, form);
+    const summe = manualRows.reduce((sum, row) => sum + (parseFloat(row?.verkaufspreis_netto) || 0), 0);
+    if (!(summe > 0)) return { isValid: true };
+    try {
+      await assertVerkaufspreisDelta(window.supabase, submitData.produktion_id, summe);
+      return { isValid: true };
+    } catch (error) {
+      return {
+        isValid: false,
+        message: error?.message || 'Verkaufspreis übersteigt das verfügbare Budget.'
+      };
+    }
+  }
+
+  // Rollback fuer frisch angelegte Kooperation ohne Videos (Alles-oder-nichts).
+  async rollbackCreatedKooperation(kooperationId) {
+    if (!window.supabase || !kooperationId) return;
+    try {
+      await window.supabase.from('kooperationen').delete().eq('id', kooperationId);
+    } catch (error) {
+      console.error('❌ Rollback der unvollständigen Kooperation fehlgeschlagen:', error);
+    }
+  }
+
   // Haupt-Einstiegspunkt: Videos anlegen (Create) oder mit Stepper-Daten mergen (Edit).
   async handleKooperationVideos(kooperationId, form) {
     try {

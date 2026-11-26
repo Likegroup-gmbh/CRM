@@ -30,7 +30,10 @@ const ENTFERNTE_SPALTEN = [
   // fuehrt jetzt die frueher "Tatsächlicher Preis" genannte Spalte cp-col-pricing.
   'cp-col-gesamtpreis',
   // Das Profilbild steht jetzt in der Namenszelle und ist nicht mehr ausblendbar.
-  'cp-col-bild'
+  'cp-col-bild',
+  // Telefon, Nutzungsrechte, Reichweitengarantie und Matching sind keine
+  // Standardspalten mehr (bei Bedarf als eigene Spalten anlegbar).
+  'cp-col-matching', 'cp-col-telefon', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie'
 ];
 
 /** Die fuenf Status-Checkbox-Spalten, die zur Select-Spalte cp-col-status wurden */
@@ -83,11 +86,11 @@ export function migrateHiddenColumns(hiddenColumns) {
       .concat('cp-col-link-ig', 'cp-col-link-tt');
   }
 
-  // Engagement, Views und Preis 12/30 haben jetzt Plattformzeilen. Listen ohne TikTok
-  // (Link-Zeile versteckt) bekaemen sonst leere TikTok-Zeilen, Listen ohne
-  // Instagram eine leere Engagement-Zeile (die Preise steuert das Reels-Preset).
-  if (cols.includes('cp-col-link-tt')) cols.push(...TIKTOK_ABRUF_ZEILEN);
-  if (cols.includes('cp-col-link-ig')) cols.push('cp-col-engagement-ig');
+  // Engagement, Views, Preis 12/30 und Gesamtpreis haben Plattformzeilen. Listen ohne
+  // TikTok (Link-Zeile versteckt) bekaemen sonst leere TikTok-Zeilen, Listen ohne
+  // Instagram leere Engagement- und Gesamtpreis-Zeilen (Reels/Story steuert das Preset).
+  if (cols.includes('cp-col-link-tt')) cols.push(...TIKTOK_ABRUF_ZEILEN, 'cp-col-pricing-tt');
+  if (cols.includes('cp-col-link-ig')) cols.push('cp-col-engagement-ig', 'cp-col-pricing-ig');
 
   const alleStatusVersteckt = ALTE_STATUS_SPALTEN.every(c => cols.includes(c));
   if (alleStatusVersteckt) cols.push('cp-col-status');
@@ -115,10 +118,12 @@ export function mitPlattformenDerEintraege(hiddenColumns, items) {
 }
 
 /** Spalten mit internen Daten, die Kunden und Gaeste nie sehen duerfen */
-const NUR_INTERN = ['cp-col-vk', 'cp-col-mail', 'cp-col-telefon'];
+const NUR_INTERN = ['cp-col-vk', 'cp-col-mail'];
 
 export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) {
-  if (DEAKTIVIERTE_SPALTEN.includes(columnClass)) return false;
+  if (DEAKTIVIERTE_SPALTEN.includes(columnClass) || ENTFERNTE_SPALTEN.includes(columnClass)) {
+    return false;
+  }
 
   if (columnClass === 'cp-col-name' || columnClass === 'cp-col-actions' || columnClass === 'cp-col-drag') {
     return true;
@@ -154,13 +159,15 @@ export function listeZeigtTiktok(hiddenColumns) {
   return TIKTOK_SPALTEN.some(key => !hidden.includes(key));
 }
 
-export function getVisibleColumnCount(isKunde, hiddenColumns, { canEdit = true, hasActions = true } = {}) {
+export function getVisibleColumnCount(isKunde, hiddenColumns, { canEdit = true, hasActions = true, hasFreigabe = false } = {}) {
   let count = 0;
   for (const col of SOURCING_SPALTEN) {
     if (col === 'cp-col-drag' && (isKunde || !canEdit)) continue;
     if (col === 'cp-col-actions' && (isKunde || !hasActions)) continue;
     if (isColumnVisibleForCustomer(col, isKunde, hiddenColumns)) count++;
   }
+  // Freigabe steht nicht im Katalog: fest rechts, nie ausblendbar, nur intern
+  if (hasFreigabe && !isKunde) count++;
   return count;
 }
 

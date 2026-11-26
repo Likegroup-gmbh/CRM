@@ -264,12 +264,12 @@ describe('Sourcing-Zeile – Status-Spalte', () => {
     expect(doc.querySelector('td.cp-col-check')).toBeNull();
   });
 
-  it('steht direkt hinter der Creator Art, gefolgt vom Kundenfeedback', () => {
+  it('steht direkt hinter der Rückmeldung Kunde, Kundenfeedback davor', () => {
     const spalten = Array.from(renderRow({}).querySelectorAll('tr > td'))
       .map(el => Array.from(el.classList).find(c => c.startsWith('cp-col-')));
 
-    expect(spalten[spalten.indexOf('cp-col-typ') + 1]).toBe('cp-col-status');
-    expect(spalten[spalten.indexOf('cp-col-status') + 1]).toBe('cp-col-kunden-feedback');
+    expect(spalten[spalten.indexOf('cp-col-kunden-feedback') + 1]).toBe('cp-col-feedback');
+    expect(spalten[spalten.indexOf('cp-col-feedback') + 1]).toBe('cp-col-status');
   });
 
   it('bietet nur die Prozess-Stufen an - Prio und Abgelehnt sind ins Feedback gewandert', () => {

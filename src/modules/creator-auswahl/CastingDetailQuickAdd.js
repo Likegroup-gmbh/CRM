@@ -64,7 +64,7 @@ export async function handleQuickAdd(raw) {
 
   const vorhanden = findeQuickAddDuplikat(this.items, link);
   if (vorhanden) {
-    this.ensureNewItemVisible();
+    this.ensureNewItemVisible(vorhanden);
     this.rerenderTable();
     scrolleZuZeile(this, vorhanden.id);
     window.toastSystem?.show('Dieser Creator steht schon in der Liste', 'info');

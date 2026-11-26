@@ -43,9 +43,10 @@ describe('TikTok im Casting – Drawer', () => {
   const detail = (liste, item) => ({ isKunde: false, canEdit: true, gastReadonly: false, liste, items: [{ id: 'i1', ...item }] });
   afterEach(() => closeCastingDetailDrawer({ immediate: true }));
 
-  it('zeigt Engagement, Preis 12/30 und den Abruf-Button am TikTok-Link', () => {
+  it('zeigt Engagement, Preis 12/30, Gesamtpreis TikTok und den Abruf-Button am TikTok-Link', () => {
     openCastingDetailDrawer(detail({ plattformen: 'instagram,tiktok' }, {
       link_tiktok: TT_URL, tt_views_12: 2000, tt_stats: { engagement_rate: 4.5 },
+      pricing: '1.500', pricing_tiktok: '1.200',
     }), 'i1');
     const drawer = document.getElementById('casting-detail-drawer');
 
@@ -53,6 +54,10 @@ describe('TikTok im Casting – Drawer', () => {
     expect(drawer.textContent).toContain('4,5 %');
     expect(drawer.textContent).toContain('Preis 12 Videos TikTok');
     expect(drawer.textContent).toContain('50,00 €');
+    expect(drawer.textContent).toContain('Gesamtpreis Instagram');
+    expect(drawer.textContent).toContain('Gesamtpreis TikTok');
+    expect(drawer.querySelector('input[data-field="pricing"]').value).toBe('1.500');
+    expect(drawer.querySelector('input[data-field="pricing_tiktok"]').value).toBe('1.200');
     const btn = drawer.querySelector('.casting-detail-link [data-profil-abruf="tiktok"]');
     expect(btn.hidden).toBe(false);
     expect(drawer.querySelector('.casting-detail-link input').dataset.field).toBe('link_tiktok');
@@ -63,6 +68,8 @@ describe('TikTok im Casting – Drawer', () => {
     const drawer = document.getElementById('casting-detail-drawer');
 
     expect(drawer.textContent).not.toContain('Preis 12 Videos TikTok');
+    expect(drawer.textContent).not.toContain('Gesamtpreis TikTok');
+    expect(drawer.querySelector('input[data-field="pricing_tiktok"]')).toBeNull();
     expect(drawer.querySelector('[data-profil-abruf="tiktok"]')).toBeNull();
   });
 });

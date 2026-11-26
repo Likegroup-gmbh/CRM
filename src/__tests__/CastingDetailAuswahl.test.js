@@ -13,6 +13,7 @@ describe('Casting-Detail Auswahl und Leiste', () => {
         <thead><tr><th><input type="checkbox" class="sourcing-select-all"></th></tr></thead>
         <tbody>
           <tr class="kategorie-header-row"><td><input type="checkbox" class="sourcing-group-select"></td></tr>
+          <tr class="kategorie-col-header-row"><th class="cp-col-drag"></th></tr>
           <tr class="item-row" data-item-id="i1"><td><input type="checkbox" class="sourcing-item-check" data-item-id="i1"></td></tr>
           <tr class="item-row" data-item-id="i2"><td><input type="checkbox" class="sourcing-item-check" data-item-id="i2"></td></tr>
         </tbody>
@@ -75,6 +76,11 @@ describe('Casting-Detail Auswahl und Leiste', () => {
     all.dispatchEvent(new Event('change', { bubbles: true }));
     expect(detail.selectedItems.size).toBe(0);
     expect(group.checked).toBe(false);
+
+    // Gruppen-Checkbox wählt alle Zeilen der Kategorie auch mit Spaltenkopf dazwischen aus
+    group.checked = true;
+    group.dispatchEvent(new Event('change', { bubbles: true }));
+    expect([...detail.selectedItems]).toEqual(['i1', 'i2']);
   });
 
   it('behält die Auswahl nach dem Neurendern und verwirft verschwundene Zeilen', () => {

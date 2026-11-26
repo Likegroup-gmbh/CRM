@@ -2903,7 +2903,8 @@ width: 18em;
   fill: currentColor;
 }
 
-.creator-pool-table thead th .crm-icon {
+.creator-pool-table thead th .crm-icon,
+.creator-pool-table tbody tr.kategorie-col-header-row th .crm-icon {
   width: var(--space-md);
   height: var(--space-md);
   display: inline-block;
@@ -3099,6 +3100,122 @@ width: 18em;
   flex-shrink: 0;
   width: auto;
   min-width: 5.5rem;
+}
+
+/* Casting (Standalone und Kampagnen-Tab): App-Shell-Layout wie Rechnungen.
+   Kopf (Toolbar bzw. Kampagnen-Header + Workflow-Tabs) und Fuss (Reiter-Leiste
+   im Monatsblatt-Stil) bleiben stehen, dazwischen scrollt die Tabelle. */
+.main-wrapper:has(> .casting-page),
+.main-wrapper:has(> .kampagne-detail-body[data-workflow="casting"]) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.casting-page,
+.kampagne-detail-body[data-workflow="casting"],
+.kampagne-detail-body[data-workflow="casting"] > .content-section,
+.kampagne-detail-body[data-workflow="casting"] .workflow-pane[data-pane="casting"]:not([hidden]),
+.kampagne-casting-worksheet {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.casting-page {
+  height: 100%;
+}
+
+.kampagne-detail-body[data-workflow="casting"] > .content-section {
+  margin-bottom: 0;
+}
+
+.casting-sticky-head,
+.casting-sticky-foot,
+.kampagne-detail-body[data-workflow="casting"] > .page-header,
+.kampagne-detail-body[data-workflow="casting"] > .tab-navigation,
+.kampagne-casting-listen-switcher {
+  flex: 0 0 auto;
+}
+
+.casting-sticky-head,
+.casting-sticky-foot {
+  z-index: 40;
+  background: var(--bg-primary);
+}
+
+.casting-sticky-head {
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.casting-sticky-head .add-item-section--compact {
+  position: static;
+}
+
+.casting-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.casting-body .filter-column-layout--table {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.casting-body .filter-column-layout--table .filter-column {
+  align-self: flex-start;
+  max-height: 100%;
+  top: 0;
+}
+
+.casting-body .filter-column-layout--table .filter-column-layout__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.casting-body .filter-column-layout--table .filter-column-chips {
+  flex: 0 0 auto;
+}
+
+.casting-body .table-container,
+.casting-body .creator-pool-table-container,
+.casting-body .creator-pool-table-container.drag-scroll-enabled {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-width: 100%;
+}
+
+.casting-body .creator-pool-table thead th {
+  position: sticky;
+  top: 0;
+}
+
+.casting-body .creator-pool-table thead th:not([class*="col-sticky-"]):not(.cp-col-actions):not(.cp-col-freigabe) {
+  z-index: 14;
+}
+
+.casting-body .creator-pool-table .kategorie-header-row > td {
+  top: var(--sticky-thead-height, 37px);
+}
+
+.casting-body .creator-pool-table.has-kategorie-headers .kategorie-header-row > td {
+  top: 0;
+}
+
+.casting-body .creator-pool-table tbody tr.kategorie-col-header-row > th {
+  top: var(--sticky-kategorie-header-height, 37px);
 }
 
 /* === READ-ONLY / DISABLED FELDER FÜR KUNDEN === */

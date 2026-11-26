@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { renderAddSection, renderItemsTable } from '../modules/creator-auswahl/castingTableRender.js';
-import { SOURCING_TABS, getSourcingTabForItem } from '../modules/creator-auswahl/sourcingTabs.js';
+import {
+  SOURCING_TABS,
+  getSourcingTabForItem,
+  istAbgelehntOderAbgesagt,
+  renderTabNavigation
+} from '../modules/creator-auswahl/sourcingTabs.js';
 import {
   SOURCING_STATUS_FILTER_TAGS,
   SOURCING_STATUS_OPTIONS,
@@ -15,28 +20,48 @@ function parse(html) {
 }
 
 describe('SOURCING_TABS', () => {
-  it('startet mit "Alle" und fuehrt dann die sieben Prozess-Stufen', () => {
-    expect(SOURCING_TABS.map(t => t.key)).toEqual([
-      'alle', 'offen', 'angefragt', 'on_hold', 'in_verhandlung', 'absage', 'zusage', 'gebucht'
-    ]);
-    expect(SOURCING_TABS.map(t => t.label)).toEqual([
-      'Alle', 'Offen', 'Angefragt', 'On Hold', 'In Verhandlung', 'Abgesagt', 'Zusage', 'Gebucht'
-    ]);
+  it('hat nur noch "Alle" und "Abgelehnt"', () => {
+    expect(SOURCING_TABS.map(t => t.key)).toEqual(['alle', 'abgelehnt']);
+    expect(SOURCING_TABS.map(t => t.label)).toEqual(['Alle', 'Abgelehnt']);
   });
 
-  it('mappt ein Item auf seinen Prozess-Status, Feedback-Flags spielen keine Rolle', () => {
-    expect(getSourcingTabForItem({})).toBe('offen');
-    expect(getSourcingTabForItem({ angefragt: true })).toBe('angefragt');
-    expect(getSourcingTabForItem({ on_hold: true })).toBe('on_hold');
-    expect(getSourcingTabForItem({ in_verhandlung: true })).toBe('in_verhandlung');
-    expect(getSourcingTabForItem({ absage: true })).toBe('absage');
-    expect(getSourcingTabForItem({ zusage: true })).toBe('zusage');
-    expect(getSourcingTabForItem({ gebucht: true })).toBe('gebucht');
+  it('sortiert Kundenfeedback Abgelehnt und Status Abgesagt in "Abgelehnt", alles andere in "Alle"', () => {
+    expect(getSourcingTabForItem({})).toBe('alle');
+    expect(getSourcingTabForItem({ angefragt: true })).toBe('alle');
+    expect(getSourcingTabForItem({ on_hold: true })).toBe('alle');
+    expect(getSourcingTabForItem({ in_verhandlung: true })).toBe('alle');
+    expect(getSourcingTabForItem({ preis_zugesagt: true })).toBe('alle');
+    expect(getSourcingTabForItem({ zusage: true })).toBe('alle');
+    expect(getSourcingTabForItem({ gebucht: true })).toBe('alle');
+    expect(getSourcingTabForItem({ prio_1: true })).toBe('alle');
+    expect(getSourcingTabForItem({ angefragt: true, prio_1: true })).toBe('alle');
 
-    // Prio und Abgelehnt sind Kundenfeedback und aendern den Reiter nicht
-    expect(getSourcingTabForItem({ prio_1: true })).toBe('offen');
-    expect(getSourcingTabForItem({ abgelehnt: true })).toBe('offen');
-    expect(getSourcingTabForItem({ angefragt: true, prio_1: true })).toBe('angefragt');
+    expect(getSourcingTabForItem({ abgelehnt: true })).toBe('abgelehnt');
+    expect(getSourcingTabForItem({ absage: true })).toBe('abgelehnt');
+    expect(getSourcingTabForItem({ abgelehnt: true, absage: true })).toBe('abgelehnt');
+    expect(getSourcingTabForItem({ angefragt: true, abgelehnt: true })).toBe('abgelehnt');
+    expect(getSourcingTabForItem({ prio_1: true, absage: true })).toBe('abgelehnt');
+    expect(istAbgelehntOderAbgesagt({ abgelehnt: true })).toBe(true);
+    expect(istAbgelehntOderAbgesagt({ absage: true })).toBe(true);
+    expect(istAbgelehntOderAbgesagt({ gebucht: true })).toBe(false);
+  });
+
+  it('rendert die Reiter im Monatsblatt-Stil fuer unten', () => {
+    const doc = parse(renderTabNavigation({
+      activeTab: 'alle',
+      tabCounts: { alle: 4, abgelehnt: 2, bewerbung: 1 },
+      isKunde: false
+    }));
+    const nav = doc.querySelector('.sourcing-tab-navigation');
+    expect(nav.classList.contains('tab-navigation')).toBe(true);
+    expect(nav.classList.contains('tab-navigation--liste')).toBe(true);
+    expect(nav.classList.contains('monatsblatt-tabs')).toBe(true);
+
+    const tabs = [...nav.querySelectorAll('.tab-button')].map(btn => btn.dataset.sourcingTab);
+    expect(tabs).toEqual(['alle', 'abgelehnt', 'bewerbung']);
+    expect(nav.querySelector('[data-sourcing-tab-count="alle"]').textContent).toBe('4');
+    expect(nav.querySelector('[data-sourcing-tab-count="abgelehnt"]').textContent).toBe('2');
+    expect(nav.querySelector('[data-sourcing-tab-count="bewerbung"]').textContent).toBe('1');
   });
 });
 
@@ -146,9 +171,9 @@ describe('Empty-State bei aktiven Filtern', () => {
   };
 
   it('nennt die Filter und den Reiter', () => {
-    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'offen', filterActive: true }));
+    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'abgelehnt', filterActive: true }));
 
-    expect(doc.body.textContent).toContain('Keine Creator für die gewählten Filter im Reiter "Offen"');
+    expect(doc.body.textContent).toContain('Keine Creator für die gewählten Filter im Reiter "Abgelehnt"');
   });
 
   it('laesst den Reiter bei "alle" weg', () => {
@@ -159,8 +184,8 @@ describe('Empty-State bei aktiven Filtern', () => {
   });
 
   it('faellt ohne Filter auf die Reiter-Meldung zurueck', () => {
-    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'gebucht', filterActive: false }));
+    const doc = parse(renderItemsTable({ ...leererCtx, activeTab: 'abgelehnt', filterActive: false }));
 
-    expect(doc.body.textContent).toContain('Keine Creator im Reiter "Gebucht"');
+    expect(doc.body.textContent).toContain('Keine Creator im Reiter "Abgelehnt"');
   });
 });

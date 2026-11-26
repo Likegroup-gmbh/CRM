@@ -10,26 +10,26 @@ describe('Start-Tab der Produktion-Detailseite', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it('Default ist Briefing', () => {
-    expect(DEFAULT_WORKFLOW_TAB).toBe('briefing');
+  it('Default ist Kooperationen', () => {
+    expect(DEFAULT_WORKFLOW_TAB).toBe('kooperationen');
   });
 
-  it('startet ohne ?tab= im Briefing', () => {
+  it('startet ohne ?tab= in Kooperationen', () => {
     window.isAdmin = () => true;
     window.history.replaceState(null, '', '/produktion/p1');
-    expect(resolveInitialWorkflowTab()).toBe('briefing');
+    expect(resolveInitialWorkflowTab()).toBe('kooperationen');
   });
 
-  it('unbekannter ?tab= fällt auf Briefing zurück', () => {
+  it('unbekannter ?tab= fällt auf Kooperationen zurück', () => {
     window.isAdmin = () => true;
     window.history.replaceState(null, '', '/produktion/p1?tab=gibtsnicht');
-    expect(resolveInitialWorkflowTab()).toBe('briefing');
+    expect(resolveInitialWorkflowTab()).toBe('kooperationen');
   });
 
-  it('?tab=kooperationen bleibt als Deeplink erhalten', () => {
+  it('?tab=briefing bleibt als Deeplink erhalten', () => {
     window.isAdmin = () => true;
-    window.history.replaceState(null, '', '/produktion/p1?tab=kooperationen');
-    expect(resolveInitialWorkflowTab()).toBe('kooperationen');
+    window.history.replaceState(null, '', '/produktion/p1?tab=briefing');
+    expect(resolveInitialWorkflowTab()).toBe('briefing');
   });
 
   it('altes ?tab=produktion landet auf Kooperationen und wird umgeschrieben', () => {

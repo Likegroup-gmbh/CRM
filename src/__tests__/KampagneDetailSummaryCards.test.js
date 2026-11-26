@@ -104,9 +104,9 @@ describe('UGC Budget-Kacheln', () => {
       { kooperationen, videos, isKunde: false }
     );
 
-    // EK 1000 + Marge 1000 + KSK 49 = 2049 verbraucht, Rest 7951
-    expect(html).toContain('2.049,00');
-    expect(html).toContain('7.951,00');
+    // EK 1000 + Marge 1000 + KSK 0 (kein KSK-Topf) = 2000 verbraucht, Rest 8000
+    expect(html).toContain('2.000,00');
+    expect(html).toContain('8.000,00');
   });
 
   it('zeigt Kunde keine Creator-Anteil/Agenturanteil/KSK', () => {
@@ -178,7 +178,7 @@ describe('UGC Budget-Kacheln', () => {
 
     updateSummaryCardsDOM(ugcKampagneData, 2000, 1, 1, 0, 0, 0, { kooperationen, videos });
 
-    expect(document.querySelector('[data-summary-value="open-budget"]').textContent).toBe('7.951,00\u00A0€');
+    expect(document.querySelector('[data-summary-value="open-budget"]').textContent).toBe('8.000,00\u00A0€');
   });
 
   it('UGC-Karten rechnen mit dem Kampagnen-Volumen statt dem ganzen Auftrag', () => {

@@ -98,8 +98,8 @@ describe('AuftragDetail (Split in Core + Mixins)', () => {
     expect(html).toContain('Auftragsvolumen');
     expect(html).toContain('Verfügbares Budget');
     expect(html).not.toContain('Offenes Creator Budget');
-    // 10.000 − 2.000 Extras − (1.000 EK + 49 KSK + 100 Zusatzkosten)
-    expect(html).toContain('6.851,00');
+    // 10.000 − 2.000 Extras − (1.000 VK + 100 Zusatzkosten), ohne Auto-KSK
+    expect(html).toContain('6.900,00');
   });
 
   it('Influencer: Summary-Cards bleiben bei creator_budget − Σ EK', () => {

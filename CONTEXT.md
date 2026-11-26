@@ -41,7 +41,7 @@ Was eine Produktion vom Budget aufgebraucht hat: Verkaufspreise der Videos netto
 _Avoid_: Bezahlt, Gebunden, Geplant (Vertrag und Rechnung spielen für den Verbrauch keine Rolle), Ausgaben
 
 **Budget-Tab**:
-Tab der Produktion, nur für interne Rollen (nicht Kunde), steht vor Briefing; geöffnet wird weiter Briefing. Zeigt Verbrauch und Noch frei der ganzen Produktion und die Aufteilung auf die Creator. Die gewählte Linie wird hervorgehoben, nichts wird auf sie gefiltert; bei „Alle Linien“ ist nichts hervorgehoben.
+Tab der Produktion, nur für interne Rollen (nicht Kunde), steht vor Briefing; geöffnet wird weiter Kooperationen. Zeigt Verbrauch und Noch frei der ganzen Produktion und die Aufteilung auf die Creator. Die gewählte Linie wird hervorgehoben, nichts wird auf sie gefiltert; bei „Alle Linien“ ist nichts hervorgehoben.
 _Avoid_: Budget der Kampagne (so hieß die Kopfzeile, die er ersetzt), Kategorien-Ansicht
 
 **Linie**:
@@ -291,6 +291,10 @@ _Avoid_: Casting-Vorschlag, Casting-Eintrag, Selbst-Bewerbung
 Die Kundenbewertung eines Casting-Eintrags: Prio 1, Prio 2 oder Abgelehnt.
 Unabhängig vom internen Prozessstatus (Angefragt … Gebucht).
 _Avoid_: Freigabe, Freigabeprozess, Status
+
+**Kooperationsfreigabe**:
+Ein Klick in der Spalte „Freigabe“ des Castings macht aus einem Casting-Eintrag die Kooperation seiner Linie. Freigeben lässt sich, sobald das Kundenfeedback Prio 1 oder Prio 2 ist und der Status Zusage oder Gebucht und das Casting an einer Produktion hängt. Fehlt der Creator, wird er über den Instagram-Handle verknüpft oder aus den Angaben des Eintrags angelegt. Die Kooperation entsteht ohne Videos und Preise, der Status des Eintrags wird Gebucht. Freigegeben ist ein Eintrag, solange sein Creator in dieser Linie eine Kooperation hat, egal auf welchem Weg sie entstand. Konzept, Videoidee und Skript sind keine Voraussetzung und kommen später dazu; „Produktion starten“ im Konzept bleibt ein zweiter Weg.
+_Avoid_: Freigabe (alleinstehend), Skript-Freigabe, Video-Freigabe, Umsetzen, Buchen
 
 **Creator**:
 Stammdaten-Entity einer Person (Tabelle `creator`), mit Mail (`mail`) und Management-Zuordnung.

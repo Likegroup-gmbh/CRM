@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderGroupedItems } from '../modules/creator-auswahl/castingTableRender.js';
+import { renderGroupedItems, renderItemsTable } from '../modules/creator-auswahl/castingTableRender.js';
 import { CreatorAuswahlAddDrawer } from '../modules/creator-auswahl/CreatorAuswahlAddDrawer.js';
 import { AddCreatorToCastingDrawer } from '../modules/creator-auswahl/AddCreatorToCastingDrawer.js';
 import { CreatorAuswahlDetail } from '../modules/creator-auswahl/CreatorAuswahlDetail.js';
@@ -157,6 +157,60 @@ describe('renderGroupedItems nach Kategorie', () => {
     expect(tbodys).toHaveLength(1);
     expect(tbodys[0].dataset.groupKey).toBe(OHNE_KATEGORIE_KEY);
     expect(tbodys[0].querySelector('.kategorie-header-row')).toBeNull();
+    expect(tbodys[0].querySelector('.kategorie-col-header-row')).toBeNull();
+  });
+
+  it('rendert direkt unter jeder grauen Kategorie-Leiste die Spaltenüberschriften und spart das doppelte thead', () => {
+    const html = renderItemsTable({
+      liste: {},
+      items: [
+        { id: 'a1', name: 'Anna', kategorie: 'Food' },
+        { id: 'b1', name: 'Ben', kategorie: 'Sport' }
+      ],
+      hasAnyItems: true,
+      teilbereiche: KATEGORIEN,
+      isKunde: false,
+      hiddenColumns: [],
+      customManager: null
+    });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const table = doc.querySelector('table.creator-pool-table');
+
+    expect(table.classList.contains('has-kategorie-headers')).toBe(true);
+    expect(table.querySelector('thead')).toBeNull();
+
+    const tbodys = Array.from(table.querySelectorAll('tbody.kategorie-group-tbody'));
+    expect(tbodys).toHaveLength(2);
+    for (const tbody of tbodys) {
+      const headerRow = tbody.children[0];
+      const colHeaderRow = tbody.children[1];
+      const itemRow = tbody.children[2];
+      expect(headerRow.classList.contains('kategorie-header-row')).toBe(true);
+      expect(colHeaderRow.classList.contains('kategorie-col-header-row')).toBe(true);
+      expect(colHeaderRow.querySelector('th.cp-col-name').textContent.trim()).toBe('Name');
+      expect(itemRow.classList.contains('item-row')).toBe(true);
+    }
+  });
+
+  it('sortiert auch die Spaltenüberschriften unter den Kategorie-Leisten nach columnOrder', () => {
+    const html = renderItemsTable({
+      liste: {},
+      items: [{ id: 'a1', name: 'Anna', kategorie: 'Food' }],
+      hasAnyItems: true,
+      teilbereiche: ['Food'],
+      isKunde: false,
+      hiddenColumns: [],
+      columnOrder: ['cp-col-status', 'cp-col-link'],
+      customManager: null
+    });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const ths = Array.from(doc.querySelectorAll('.kategorie-col-header-row th'))
+      .map(el => Array.from(el.classList).find(c => c.startsWith('cp-col-')));
+    const tds = Array.from(doc.querySelectorAll('tr.item-row > td'))
+      .map(el => Array.from(el.classList).find(c => c.startsWith('cp-col-')));
+
+    expect(ths.slice(0, 4)).toEqual(['cp-col-drag', 'cp-col-name', 'cp-col-status', 'cp-col-link']);
+    expect(tds).toEqual(ths);
   });
 });
 

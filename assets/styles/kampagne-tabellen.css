@@ -35,6 +35,7 @@
    Eigene Regel, weil .table-container .data-table thead th (tables.css) sonst
    mit border-bottom-style: hidden und Schatten gewinnt. */
 .kampagne-detail-body .data-table thead th,
+.kampagne-detail-body .data-table tbody tr.kategorie-col-header-row > th,
 .kampagne-detail-body .data-table thead:has(+ tbody > .category-header-row:first-child) th {
   box-shadow: none;
   border-bottom: 1px solid var(--border-primary);

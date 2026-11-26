@@ -216,6 +216,16 @@ describe('Casting live', () => {
     expect(detail.refreshItemRow).toHaveBeenCalledWith('i1');
   });
 
+  it('rendert die Tabelle neu, wenn ein Update zwischen Alle und Abgelehnt wechselt', () => {
+    document.body.innerHTML = `<div class="table-container"><table><tr class="item-row" data-item-id="i1"><td></td></tr></table></div>`;
+    const detail = casting([{ id: 'i1', abgelehnt: false, absage: false }]);
+    expect(applyCastingRowUpdate(detail, { id: 'i1', abgelehnt: true, absage: false })).toBe('applied');
+    expect(detail.rerenderTable).toHaveBeenCalledTimes(1);
+
+    expect(applyCastingRowUpdate(detail, { id: 'i1', abgelehnt: false, absage: false })).toBe('applied');
+    expect(detail.rerenderTable).toHaveBeenCalledTimes(2);
+  });
+
   it('tut beim eigenen Echo nichts', () => {
     const detail = casting([{ id: 'i1', feedback_kunde: 'Gleich' }]);
     expect(applyCastingRowUpdate(detail, { id: 'i1', feedback_kunde: 'Gleich', updated_at: 'neu' })).toBe('unchanged');

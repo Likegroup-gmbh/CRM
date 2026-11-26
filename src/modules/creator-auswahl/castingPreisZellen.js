@@ -202,14 +202,6 @@ export function renderPreisFreitextInhalt(ctx, item, field) {
       ` : `<div class="cell-text-readonly">${wert ? `${escapeHtml(wert)} €` : '-'}</div>`;
 }
 
-export function renderPreisFreitextCell(ctx, item, columnClass, field, hide) {
-  return `
-    <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
-      ${renderPreisFreitextInhalt(ctx, item, field)}
-    </td>
-  `;
-}
-
 const euro = (n) => `${n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 /**

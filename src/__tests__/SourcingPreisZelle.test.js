@@ -165,17 +165,17 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(name.closest('.add-item-actions-left')).not.toBeNull();
   });
 
-  it('stellt die Suche vor Creator hinzufügen und Plus-Menü; Kunden sehen nur die Suche', () => {
+  it('stellt die Suche vor Managements anfragen und Plus-Menü (ohne Creator hinzufügen); Kunden sehen nur die Suche', () => {
     const doc = kopf();
     const rechts = doc.querySelector('.add-item-actions-right');
     const kinder = Array.from(rechts.children);
 
+    expect(doc.querySelector('#btn-open-add-drawer')).toBeNull();
     expect(kinder[0].querySelector('#sourcing-item-search-input')).not.toBeNull();
-    expect(kinder[1].id).toBe('btn-open-add-drawer');
-    expect(kinder[2].id).toBe('btn-management-anfrage');
-    expect(kinder[3].id).toBe('casting-vorschlag-block');
-    expect(kinder[3].closest('.add-item-actions-right')).not.toBeNull();
-    expect(kinder[4].classList.contains('toolbar-menu')).toBe(true);
+    expect(kinder[1].id).toBe('btn-management-anfrage');
+    expect(kinder[2].id).toBe('casting-vorschlag-block');
+    expect(kinder[2].closest('.add-item-actions-right')).not.toBeNull();
+    expect(kinder[3].classList.contains('toolbar-menu')).toBe(true);
 
     const kundenDoc = kopf({ isKunde: true, canCreate: false });
     expect(kundenDoc.querySelector('#sourcing-item-search-input')).not.toBeNull();
@@ -289,10 +289,22 @@ describe('Sourcing – Gesamtpreis', () => {
     expect(doc.querySelector('thead th.cp-col-gesamtpreis')).toBeNull();
   });
 
-  it('nimmt den Gesamtpreis als Freitext im Feld pricing auf', () => {
-    const cell = renderCell('cp-col-pricing', { pricing: '1.500' });
+  it('nimmt den Gesamtpreis je Plattform als Freitext in pricing und pricing_tiktok auf', () => {
+    const ig = renderCell('cp-col-pricing-ig', { pricing: '1.500', pricing_tiktok: '1.200' });
+    const tt = renderCell('cp-col-pricing-tt', { pricing: '1.500', pricing_tiktok: '1.200' });
 
-    expect(cell.querySelector('input[data-field="pricing"]').value).toBe('1.500');
+    expect(ig.querySelector('input[data-field="pricing"]').value).toBe('1.500');
+    expect(tt.querySelector('input[data-field="pricing_tiktok"]').value).toBe('1.200');
+  });
+
+  it('blendet die TikTok-Zeile im Gesamtpreis einzeln aus und die Spalte erst bei beiden', () => {
+    const nurIg = renderZeile({ hiddenColumns: ['cp-col-pricing-tt'] }).querySelector('td.cp-col-pricing');
+    expect(nurIg.getAttribute('style') || '').not.toContain('display:none');
+    expect(nurIg.querySelector('input[data-field="pricing"]')).not.toBeNull();
+    expect(nurIg.querySelector('input[data-field="pricing_tiktok"]')).toBeNull();
+
+    const aus = renderZeile({ hiddenColumns: ['cp-col-pricing-ig', 'cp-col-pricing-tt'] }).querySelector('td.cp-col-pricing');
+    expect(aus.getAttribute('style')).toContain('display:none');
   });
 
   it('zeigt die alte Gesamtpreis-Spalte nicht mehr in der Zeile', () => {
@@ -306,7 +318,8 @@ describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
     ['cp-col-preis-story', 'preis_story'],
     ['cp-col-preis-tt-video', 'preis_tiktok_video'],
     ['cp-col-preis-tt-story', 'preis_tiktok_story'],
-    ['cp-col-pricing', 'pricing'],
+    ['cp-col-pricing-ig', 'pricing'],
+    ['cp-col-pricing-tt', 'pricing_tiktok'],
     ['cp-col-ek', 'preis_ek'],
     ['cp-col-vk', 'preis_vk']
   ];
@@ -335,15 +348,16 @@ describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
   });
 
   it('haengt das Zeichen in der Kundenansicht an den Wert', () => {
-    const cell = renderCell('cp-col-pricing', { pricing: '1.500' }, { isKunde: true });
+    const ig = renderCell('cp-col-pricing-ig', { pricing: '1.500' }, { isKunde: true });
+    const tt = renderCell('cp-col-pricing-tt', { pricing_tiktok: '1.200' }, { isKunde: true });
 
-    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('1.500 €');
+    expect(ig.querySelector('.cell-text-readonly').textContent.trim()).toBe('1.500 €');
+    expect(tt.querySelector('.cell-text-readonly').textContent.trim()).toBe('1.200 €');
   });
 
   it('zeigt in der Kundenansicht ohne Wert einen Strich statt eines einsamen Euro', () => {
-    const cell = renderCell('cp-col-pricing', {}, { isKunde: true });
-
-    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
+    expect(renderCell('cp-col-pricing-ig', {}, { isKunde: true }).querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
+    expect(renderCell('cp-col-pricing-tt', {}, { isKunde: true }).querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
   });
 
   it('blurrt den EK im Kunden-Call weiterhin', () => {
@@ -355,27 +369,16 @@ describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
   });
 });
 
-describe('Sourcing – Nutzungsrechte', () => {
-  it('steht als Freitext hinter dem Kontakt-Block, der auf den Gesamtpreis folgt', () => {
+describe('Sourcing – entfernte Standardspalten', () => {
+  it('rendert Telefon, Nutzungsrechte, Reichweitengarantie und Matching nicht mehr', () => {
     const kopf = Array.from(tabelle().querySelectorAll('thead th'))
       .map(th => Array.from(th.classList).find(c => c.startsWith('cp-col-')))
       .filter(Boolean);
 
-    expect(kopf[kopf.indexOf('cp-col-telefon') + 1]).toBe('cp-col-nutzungsrechte');
-    expect(kopf.indexOf('cp-col-pricing')).toBeLessThan(kopf.indexOf('cp-col-nutzungsrechte'));
-  });
-
-  it('speichert in das Feld nutzungsrechte', () => {
-    const cell = renderCell('cp-col-nutzungsrechte', { nutzungsrechte: '6 Monate Paid Social' });
-
-    expect(cell.querySelector('textarea[data-field="nutzungsrechte"]').value)
-      .toBe('6 Monate Paid Social');
-  });
-
-  it('zeigt Kunden den Wert nur lesend', () => {
-    const cell = renderCell('cp-col-nutzungsrechte', { nutzungsrechte: 'IG + TikTok' }, { isKunde: true });
-
-    expect(cell.querySelector('textarea')).toBeNull();
-    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('IG + TikTok');
+    expect(kopf).not.toContain('cp-col-telefon');
+    expect(kopf).not.toContain('cp-col-nutzungsrechte');
+    expect(kopf).not.toContain('cp-col-reichweite-garantie');
+    expect(kopf).not.toContain('cp-col-matching');
+    expect(renderCell('cp-col-nutzungsrechte', { nutzungsrechte: '6 Monate Paid Social' })).toBeNull();
   });
 });

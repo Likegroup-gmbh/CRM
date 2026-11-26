@@ -20,10 +20,10 @@ export async function aufnehmenBewerbung(detail, id) {
     if (error) throw error;
     detail.items = await creatorAuswahlService.getItems(detail.listeId);
     detail.bewerbungen = await loadBewerbungen(detail.listeId);
-    detail.activeTab = 'offen';
+    detail.activeTab = 'alle';
     await detail.render();
     detail.bindEvents();
-    window.toastSystem?.show('In Offen aufgenommen', 'success');
+    window.toastSystem?.show('In Casting aufgenommen', 'success');
   } catch (error) {
     window.toastSystem?.show(error.message || 'Aufnehmen fehlgeschlagen', 'error');
   }

@@ -31,7 +31,7 @@ export const CARD_HINTS = {
     hint: 'festgelegte Fee plus Marge aus voll bepreisten Videos'
   },
   ksk: {
-    formula: 'UGC: 4,9 % auf EK · Influencer: KSK-Topf',
+    formula: 'KSK-Topf (Auftragsdetails)',
     hint: 'Künstlersozialabgabe auf Honorare'
   },
   zusatz: {
