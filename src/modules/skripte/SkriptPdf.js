@@ -4,7 +4,8 @@
 // Hook-Varianten folgen der Tabelle, wenn das Item sie mitbringt.
 // Mit Skript-Dokument (ADR 0062) stehen die sichtbaren Freien Bloecke davor
 // und danach; item.dokument_bloecke kommt bereits ohne interne Bloecke.
-// Teile in ./pdf: Layout (Masse, Farben), Social (Creator, Links), Bloecke.
+// Teile in ./pdf: Layout (Masse, Farben), Social (Creator, Links), Tabelle, Bloecke.
+// Die Tabelle uebernimmt Fett, Kursiv und Hervorhebung aus dem Editor.
 
 import { loadCustomerLogoPng, toPdfImageDataUrl } from '../../core/pdf/pdfImage.js';
 import { loadJsPdf } from '../../core/pdf/loadJsPdf.js';
@@ -20,43 +21,22 @@ import {
   MARGIN_X,
   TABLE_W,
   MAX_CONTENT_Y,
-  CELL_PAD,
   RULE,
-  HEADER_FILL,
   MUTED,
-  ascentMm,
-  descentMm,
   httpUrl,
 } from './pdf/skriptPdfLayout.js';
 import { socialKarteLinks } from './pdf/skriptPdfSocial.js';
 import { drawFreierBlock } from './pdf/skriptPdfBloecke.js';
+import { drawTable } from './pdf/skriptPdfTabelle.js';
 
 export { anschreibenCreatorId, castingGiltFuerAnschreiben, creatorFuerAnschreiben, instagramZeile } from './pdf/skriptPdfSocial.js';
 export { layoutRuns } from './pdf/skriptPdfBloecke.js';
 
-const COLS = [{ w: 33 }, { w: 74.5 }, { w: 74.5 }];
 const CREATOR_SIZE = 12;
 const CARD_H = 16;
-const LINE = 4.2;
 const LOCKUP_SCALE = 0.85;
 const LOCKUP_GAP = 6;
 const LOCKUP_GAP_AFTER_X = 8;
-const HEADER_TEXT = [92, 87, 98];
-const ROWS = [
-  ['HOOK', 'hook', 'hook_visuell'],
-  ['HAUPTTEIL', 'hauptteil', 'hauptteil_visuell'],
-  ['CTA', 'cta', 'cta_visuell'],
-];
-const ZUSATZ_ROWS = [
-  ['REZEPT', 'rezept'],
-  ['CAPTION', 'caption'],
-];
-const HOOK_VARIANTEN = [
-  ['HOOK 1', 'hook_variante_1'],
-  ['HOOK 2', 'hook_variante_2'],
-  ['HOOK 3', 'hook_variante_3'],
-];
-
 export function sanitizeSkriptFilename(name) {
   const base = String(name || 'Skript')
     .replace(/[\\/:*?"<>|]/g, '')
@@ -96,155 +76,6 @@ function headlineOf(item) {
   const creator = plain(item.creator?.name);
   if (brand && creator) return `${brand} × ${creator} –`;
   return brand;
-}
-
-function drawHeader(doc, y, newPage) {
-  const pt = 8;
-  const h = CELL_PAD + ascentMm(pt) + descentMm(pt) + CELL_PAD;
-  if (y + h > MAX_CONTENT_Y) y = newPage();
-  doc.setFillColor(...HEADER_FILL);
-  doc.setDrawColor(...RULE);
-  if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
-  let x = MARGIN_X;
-  COLS.forEach((col) => {
-    doc.rect(x, y, col.w, h, 'FD');
-    x += col.w;
-  });
-  const headers = ['WAS GESAGT WIRD', 'WAS ZU SEHEN IST'];
-  const baseline = y + CELL_PAD + ascentMm(pt);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(pt);
-  doc.setTextColor(...HEADER_TEXT);
-  doc.text(headers[0], MARGIN_X + COLS[0].w + CELL_PAD, baseline);
-  doc.text(headers[1], MARGIN_X + COLS[0].w + COLS[1].w + CELL_PAD, baseline);
-  doc.setTextColor(0);
-  return y + h;
-}
-
-function drawRow(doc, y, h, cells, widths = COLS.map((col) => col.w)) {
-  doc.setDrawColor(...RULE);
-  if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
-  let x = MARGIN_X;
-  cells.forEach((lines, i) => {
-    doc.rect(x, y, widths[i], h);
-    if (i === 0) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(0);
-    } else {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(0);
-    }
-    const baseline = y + CELL_PAD + ascentMm(9);
-    lines.forEach((line, li) => {
-      if (line) doc.text(line, x + CELL_PAD, baseline + li * LINE);
-    });
-    x += widths[i];
-  });
-}
-
-function rowHeight(lineCount) {
-  return CELL_PAD + ascentMm(9) + (Math.max(lineCount, 1) - 1) * LINE + descentMm(9) + CELL_PAD;
-}
-
-/** Text-Hook steht im Dokument oben in der Hook-Zelle "Was zu sehen ist". */
-function gesehenText(item, gesehenKey) {
-  const textHook = plain(item.text_hook);
-  if (gesehenKey !== 'hook_visuell' || !textHook) return item[gesehenKey];
-  return `TEXT-HOOK: ${textHook}\n\n${item[gesehenKey] || ''}`.trim();
-}
-
-/** Rezept/Caption: eine Zelle ueber beide Inhaltsspalten, bricht ueber Seiten um. */
-function drawZusatzRow(doc, y, label, text, newPage) {
-  const widths = [COLS[0].w, COLS[1].w + COLS[2].w];
-  const lines = linesOf(doc, text, widths[1] - CELL_PAD * 2);
-  let rest = lines;
-  let first = true;
-  let cursor = y;
-  while (rest.length) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    const maxLines = Math.floor((MAX_CONTENT_Y - cursor - rowHeight(1)) / LINE) + 1;
-    if (maxLines < 2 && rest.length > 1) {
-      cursor = newPage();
-      continue;
-    }
-    const chunk = rest.slice(0, Math.max(maxLines, 1));
-    rest = rest.slice(chunk.length);
-    const h = rowHeight(chunk.length);
-    drawRow(doc, cursor, h, [first ? [label] : [''], chunk], widths);
-    cursor += h;
-    first = false;
-    if (rest.length) cursor = newPage();
-  }
-  return cursor;
-}
-
-/** Zweite Tabelle, nur gesprochen. Leere Slots fallen weg. */
-function drawHookVarianten(doc, item, y, newPage) {
-  const rows = HOOK_VARIANTEN.filter(([, key]) => plain(item[key]));
-  if (!rows.length) return y;
-  const titlePt = 11;
-  const titleH = ascentMm(titlePt) + descentMm(titlePt);
-  y += 5;
-  if (y + titleH + rowHeight(2) > MAX_CONTENT_Y) y = newPage();
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(titlePt);
-  doc.setTextColor(0);
-  doc.text('Hook-Varianten', MARGIN_X, y + ascentMm(titlePt));
-  y += titleH + 2;
-
-  const pt = 8;
-  const headerH = CELL_PAD + ascentMm(pt) + descentMm(pt) + CELL_PAD;
-  if (y + headerH > MAX_CONTENT_Y) y = newPage();
-  const widths = [COLS[0].w, COLS[1].w + COLS[2].w];
-  doc.setFillColor(...HEADER_FILL);
-  doc.setDrawColor(...RULE);
-  if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
-  let x = MARGIN_X;
-  widths.forEach((w) => {
-    doc.rect(x, y, w, headerH, 'FD');
-    x += w;
-  });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(pt);
-  doc.setTextColor(...HEADER_TEXT);
-  doc.text('WAS GESAGT WIRD', MARGIN_X + widths[0] + CELL_PAD, y + CELL_PAD + ascentMm(pt));
-  doc.setTextColor(0);
-  y += headerH;
-
-  for (const [label, key] of rows) {
-    y = drawZusatzRow(doc, y, label, item[key], newPage);
-  }
-  return y;
-}
-
-function drawTable(doc, item, startY, newPage) {
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  let y = drawHeader(doc, startY, newPage);
-  for (const [label, gesagtKey, gesehenKey] of ROWS) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    const inner = (col) => col.w - CELL_PAD * 2;
-    const gesagt = linesOf(doc, item[gesagtKey], inner(COLS[1]));
-    const gesehen = linesOf(doc, gesehenText(item, gesehenKey), inner(COLS[2]));
-    const cells = [[label], gesagt, gesehen];
-    const lines = Math.max(gesagt.length, gesehen.length, 1);
-    const h = CELL_PAD + ascentMm(9) + (lines - 1) * LINE + descentMm(9) + CELL_PAD;
-    if (y + h > MAX_CONTENT_Y) {
-      y = newPage();
-      y = drawHeader(doc, y, newPage);
-    }
-    drawRow(doc, y, h, cells);
-    y += h;
-  }
-  for (const [label, key] of ZUSATZ_ROWS) {
-    if (!plain(item[key])) continue;
-    y = drawZusatzRow(doc, y, label, item[key], newPage);
-  }
-  return drawHookVarianten(doc, item, y, newPage);
 }
 
 function placeImage(doc, dataUrl, x, y, w, h) {

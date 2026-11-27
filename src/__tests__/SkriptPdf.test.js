@@ -14,6 +14,7 @@ vi.mock('../core/pdf/pdfImage.js', async (importOriginal) => {
 });
 
 import { loadCustomerLogoPng, toPdfImageDataUrl } from '../core/pdf/pdfImage.js';
+import { highlightRgb } from '../core/utils/highlightFarben.js';
 import { createSkriptAnhang, creatorFuerAnschreiben } from '../modules/skripte/SkriptPdf.js';
 import { PDF_BRAND } from '../core/pdf/PdfBrand.js';
 
@@ -21,24 +22,34 @@ class MockJsPDF {
   static last = null;
   constructor() {
     this.textCalls = [];
+    this.textRuns = [];
+    this.fills = [];
     this.images = [];
     this.links = [];
     this.addPageCount = 0;
     this._size = 10;
+    this._font = { name: 'helvetica', style: 'normal' };
+    this._fill = [0, 0, 0];
     MockJsPDF.last = this;
   }
-  setFont() {}
+  setFont(name, style) { this._font = { name, style: style || 'normal' }; }
   setFontSize(size) { this._size = size; }
   getFontSize() { return this._size; }
-  getFont() { return { fontName: 'helvetica', fontStyle: 'normal' }; }
+  getFont() { return { fontName: this._font.name, fontStyle: this._font.style }; }
   setTextColor() {}
   setDrawColor() {}
-  setFillColor() {}
+  setFillColor(...rgb) { this._fill = rgb; }
   setLineWidth() {}
   setCharSpace() {}
   line() {}
-  rect() {}
-  text(value) { this.textCalls.push(String(value ?? '')); }
+  rect(_x, _y, _w, _h, style) {
+    if (style === 'F' || style === 'FD') this.fills.push(this._fill.map(Number));
+  }
+  text(value) {
+    const text = String(value ?? '');
+    this.textCalls.push(text);
+    this.textRuns.push({ text, font: { ...this._font } });
+  }
   getTextWidth(value) { return String(value ?? '').length * 1.6; }
   link(x, y, w, h, options) { this.links.push({ x, y, w, h, url: options?.url }); }
   splitTextToSize(text) { return [String(text ?? '')]; }
@@ -396,9 +407,33 @@ describe('createSkriptAnhang', () => {
     const idx = (s) => calls.indexOf(s);
     expect(idx('Hook-Varianten')).toBeGreaterThan(idx('CTA'));
     expect(idx('HOOK 1')).toBeGreaterThan(idx('Hook-Varianten'));
-    expect(calls).toEqual(expect.arrayContaining(['HOOK 1', 'HOOK 3', 'Zweiter Einstieg', 'Dritter Einstieg']));
+    expect(calls).toEqual(expect.arrayContaining(['HOOK 1', 'HOOK 3', 'Zweiter Einstieg']));
+    expect(calls.map((c) => c.trim())).toEqual(expect.arrayContaining(['Dritter', 'Einstieg']));
     expect(calls).not.toContain('HOOK 2');
     expect(calls.join('\n')).not.toContain('==');
+    expect(MockJsPDF.last.textRuns.find((r) => r.text.trim() === 'Einstieg').font.style).toBe('normal');
+    expect(MockJsPDF.last.fills).toEqual(expect.arrayContaining([highlightRgb(true)]));
+  });
+
+  it('uebernimmt Fett, Kursiv und Hervorhebung aus der Skript-Tabelle', async () => {
+    await createSkriptAnhang([{
+      ...ANNA,
+      hook: 'Sag **genau** das *leise* und **=={rose}Wort==**',
+      hauptteil: '***beides***',
+      cta: 'jetzt',
+      caption: 'Heute *gibt* es Brot',
+      hook_variante_1: '=={minze}Zweiter==',
+    }], { dateiname: 'Eins.pdf' });
+    const doc = MockJsPDF.last;
+    const lauf = (wort) => doc.textRuns.find((r) => r.text.trim() === wort);
+    expect(lauf('genau').font).toMatchObject({ name: 'helvetica', style: 'bold' });
+    expect(lauf('Wort').font.style).toBe('bold');
+    expect(lauf('leise').font.style).toBe('italic');
+    expect(lauf('beides').font.style).toBe('bolditalic');
+    expect(lauf('gibt').font.style).toBe('italic');
+    expect(lauf('Zweiter').font.style).toBe('normal');
+    expect(doc.fills).toEqual(expect.arrayContaining([highlightRgb('rose'), highlightRgb('minze')]));
+    expect(doc.textCalls.join(' ')).not.toMatch(/\*\*|==/);
   });
 
   it('zeichnet Rezept, Caption und Text-Hook, wenn sie gesetzt sind', async () => {
@@ -465,6 +500,8 @@ describe('createSkriptAnhang mit Skript-Dokument (ADR 0062)', () => {
       expect(t).not.toContain('3.');
       expect(t.join(' ')).not.toMatch(/\*\*|==|\]\(/);
       expect(doc.links.map((l) => l.url)).toContain('https://a.de');
+      expect(doc.textRuns.find((r) => r.text.trim() === 'genau').font.style).toBe('bold');
+      expect(doc.fills).toEqual(expect.arrayContaining([highlightRgb(true)]));
       const bild = doc.images.find((img) => img.w > 100);
       expect(bild).toMatchObject({ type: 'JPEG' });
       expect(bild.w).toBeCloseTo(182);
