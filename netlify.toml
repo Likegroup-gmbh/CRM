@@ -125,6 +125,10 @@
 [functions."tiktok-scraper"]
   timeout = 26
 
+# Instagram-CPM (Admin, ADR 0087): wie tiktok-scraper, Actor apify/instagram-reel-scraper
+[functions."instagram-reels-scraper"]
+  timeout = 26
+
 # TikTok-Profilabruf im Casting (ADR 0083): wie tiktok-scraper, je Aufruf bis zu 10 s Warten auf
 # Apify, danach Dataset, Profilbild und Speichern
 [functions."tiktok-profil"]

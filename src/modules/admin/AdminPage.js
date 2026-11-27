@@ -1,7 +1,7 @@
 // AdminPage.js
 // Huelle fuer die Admin-Unterseiten im Accounting-Bereich
 // (/admin/datenqualitaet, /admin/medienablage, /admin/teams-kanaele,
-// /admin/pdf-vorlagen, /admin/tiktok-api). Das Accounting-Dashboard (/admin) ist die
+// /admin/pdf-vorlagen, /admin/tiktok-api, /admin/instagram-cpm). Das Accounting-Dashboard (/admin) ist die
 // Stakeholder-Uebersicht und laeuft nicht mehr durch diese Huelle.
 
 import { DatenqualitaetPage } from './DatenqualitaetPage.js';
@@ -9,6 +9,7 @@ import { MedienablagePage } from './MedienablagePage.js';
 import { TeamsKanaelePage } from './TeamsKanaelePage.js';
 import { PdfVorlagenPage } from './PdfVorlagenPage.js';
 import { TikTokApiPage } from './TikTokApiPage.js';
+import { InstagramCpmPage } from './InstagramCpmPage.js';
 
 const SUB_PAGES = {
   datenqualitaet: {
@@ -30,6 +31,10 @@ const SUB_PAGES = {
   'tiktok-api': {
     headline: 'Accounting – TikTok-API',
     create: () => new TikTokApiPage(),
+  },
+  'instagram-cpm': {
+    headline: 'Accounting – Instagram-CPM',
+    create: () => new InstagramCpmPage(),
   },
 };
 

@@ -1,0 +1,277 @@
+/* instagram-cpm.css
+   Instagram-CPM im Accounting-Bereich (InstagramCpmPage.js, instagramCpmRender.js, instagramCpmGrid.js).
+   Formular, Lauf-Karte und Roh-JSON teilen sich die tt-*-Klassen aus tiktok-api.css, Karten und
+   Badges kommen aus admin.css; hier stehen Range-Leiste, Kachel-Grid und Berechnung. */
+
+.ig-felder {
+  grid-template-columns: minmax(240px, 2fr) repeat(2, minmax(140px, 1fr));
+}
+
+.ig-profil {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+/* --- Range --- */
+
+.ig-range-inhalt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 0 var(--space-md) var(--space-md);
+}
+
+.ig-range-werte {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-sm) var(--space-md);
+}
+
+.ig-regeln > summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.ig-regeln-felder {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-sm) var(--space-md);
+  margin-top: var(--space-sm);
+}
+
+.ig-regeln-felder .form-field {
+  margin: 0;
+}
+
+.ig-regeln-aktionen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+/* --- Leiste --- */
+
+.ig-leiste {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: 0 var(--space-md) var(--space-sm);
+}
+
+.ig-leiste-aktionen {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+/* --- Grid --- */
+
+.ig-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-sm);
+  padding: 0 var(--space-md) var(--space-md);
+}
+
+.ig-grid--klein {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+
+.ig-kachel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s ease, border-color 0.15s ease, filter 0.15s ease;
+}
+
+.ig-kachel:hover {
+  border-color: var(--text-secondary);
+}
+
+.ig-kachel:focus-visible {
+  outline: 2px solid var(--primary-500, currentColor);
+  outline-offset: 2px;
+}
+
+.ig-kachel.is-kurz {
+  border-color: var(--success-500, var(--border-primary));
+}
+
+.ig-kachel.is-aus {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.ig-kachel.is-gefiltert {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.ig-kachel-bild {
+  position: relative;
+  display: block;
+  aspect-ratio: 9 / 16;
+  background: var(--bg-secondary);
+}
+
+.ig-kachel-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ig-kachel-img--leer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.ig-kachel-nr {
+  position: absolute;
+  top: var(--space-xxs, 4px);
+  left: var(--space-xxs, 4px);
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.ig-kachel-badges {
+  position: absolute;
+  right: var(--space-xxs, 4px);
+  bottom: var(--space-xxs, 4px);
+  left: var(--space-xxs, 4px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.ig-badge {
+  font-size: 10px;
+}
+
+.ig-kachel-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs);
+}
+
+.ig-kachel-views {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.ig-kachel-views small {
+  margin-left: 4px;
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.ig-kachel-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-xs);
+  font-size: var(--text-xs);
+}
+
+.ig-kachel-datum,
+.ig-kachel-wer {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.ig-kachel-link {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+}
+
+/* --- Berechnung --- */
+
+.ig-berechnung-leer {
+  padding: var(--space-md);
+}
+
+.ig-berechnung.is-veraltet .ig-auswertungen {
+  opacity: 0.55;
+}
+
+.ig-auswertungen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-md);
+  padding: 0 var(--space-md) var(--space-md);
+}
+
+.ig-auswertung-preis {
+  font-size: var(--text-2xl, 1.5rem);
+  font-weight: 700;
+}
+
+.ig-auswertung-views {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.ig-rechenweg {
+  margin: var(--space-xs) 0 0;
+  padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.ig-hinweis {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-warning-dark, var(--text-secondary));
+}
+
+.ig-posten {
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+}
+
+.ig-posten > summary {
+  cursor: pointer;
+}
+
+.ig-posten ol {
+  margin: var(--space-xs) 0 0;
+  padding-left: 1.5rem;
+  max-height: 16rem;
+  overflow: auto;
+}
+
+.ig-posten li span:first-child {
+  display: inline-block;
+  min-width: 5.5rem;
+  color: var(--text-secondary);
+}
+
+.ig-gefiltert > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.ig-gefiltert > summary::-webkit-details-marker {
+  display: none;
+}

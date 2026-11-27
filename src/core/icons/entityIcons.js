@@ -55,6 +55,7 @@ export const ENTITY_ICONS = {
   'admin-teams-kanaele': 'chat-bubble-left',
   'admin-pdf-vorlagen': 'document-chart',
   'admin-tiktok-api': 'play-circle',
+  'admin-instagram-cpm': 'currency-euro',
   transcribe: 'video',
   kunden: 'home',
   adresse: 'map-pin',

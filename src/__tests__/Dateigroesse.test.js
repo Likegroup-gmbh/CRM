@@ -18,6 +18,8 @@ const ORDNER = [
   'netlify/functions/_shared/ablage',
   'netlify/functions/_shared/tiktok',
   'src/core/tiktok',
+  'src/core/instagram',
+  'netlify/functions/_shared/instagram-reels',
   'src/core/uploadJobs',
 ];
 
@@ -35,11 +37,11 @@ const DATEI_MUSTER = [
   { ordner: 'src/modules/persona', muster: /^personaFormEinbettung/i },
   { ordner: 'src/core/doc', muster: /^docEinbettung/i },
   { ordner: 'src/modules/video-browser', muster: /^(videoBrowserKalender|videoBrowserView|videoBrowserVollansicht|videoBrowserVerknuepfungen|videoBrowserAdapterWrite|videoBrowserHost|videoBrowserDetailEvents|videoBrowserShowcase|videoBrowserRenderShowcase|videoBrowserSuche|videoBrowserKommentarAutoren)/i },
-  { ordner: 'src/modules/admin', muster: /^(PdfVorlagen|medienablage|TikTokApi|tiktokApi)/i },
-  { ordner: 'netlify/functions', muster: /^tiktok-/i },
+  { ordner: 'src/modules/admin', muster: /^(PdfVorlagen|medienablage|TikTokApi|tiktokApi|InstagramCpm|instagramCpm)/i },
+  { ordner: 'netlify/functions', muster: /^(tiktok-|instagram-reels-|instagram-bild)/i },
   { ordner: 'src/modules/creator', muster: /^(CreatorListForm|creatorTiktokPrefill|creatorProfilLaden|creatorInstagramPrefill)/ },
   { ordner: 'src/modules/creator-auswahl', muster: /^(sourcingProfil|sourcingSpalten|CastingDetail(ProfilAbruf|QuickAdd|RowActions|Events|Bulk|Freigabe|ZeilenStatus)|CreatorAuswahlDetail|castingDetailDrawer|castingEngagement|castingPlattformZellen|castingPreisZellen|castingItem|castingTableRender|castingRealtime|castingFreigabe)/ },
-  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender|videoBrowserShowcase|videoBrowserVollansicht|videoBrowserVerknuepfungen|videoBrowserSuche|searchableSelect|verknuepfung|tableVerknuepfungen|ablageOrdnerLink|tabSlider|viewToggleSlider|produktionFlow|docEinbettung|skriptImFlow|reportPdf|VerifyAuthStaffCache|AblageCascade|AblageSpalte|CustomUploadJob|MediaSrc|RohmaterialService|VideoRohmaterialRenderer|VertragPdfUpload|medienablage|TikTok|sourcingZelleKit|CastingPlattformzeilen|creatorTiktokPrefill|creatorInstagramPrefill|CreatorAnlegen|InstagramCpm|SourcingPreisZelle|SourcingViewsPreisZelle|SourcingHiddenColumnsMigration|CastingFreigabe)/i },
+  { ordner: 'src/__tests__', muster: /^(share|guest|einladung|skriptPaket|accountReturn|zugang|dateigroesse|briefing|auswertung|calendar|videoBrowserKalender|videoBrowserShowcase|videoBrowserVollansicht|videoBrowserVerknuepfungen|videoBrowserSuche|searchableSelect|verknuepfung|tableVerknuepfungen|ablageOrdnerLink|tabSlider|viewToggleSlider|produktionFlow|docEinbettung|skriptImFlow|reportPdf|VerifyAuthStaffCache|AblageCascade|AblageSpalte|CustomUploadJob|MediaSrc|RohmaterialService|VideoRohmaterialRenderer|VertragPdfUpload|medienablage|TikTok|sourcingZelleKit|CastingPlattformzeilen|creatorTiktokPrefill|creatorInstagramPrefill|CreatorAnlegen|InstagramCpm|InstagramReels|SourcingPreisZelle|SourcingViewsPreisZelle|SourcingHiddenColumnsMigration|CastingFreigabe)/i },
   { ordner: 'netlify/functions/_shared', muster: /^instagram-cpm-/ },
 ];
 
