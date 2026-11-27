@@ -55,6 +55,7 @@ import '../assets/styles/stakeholder.css';
 import '../assets/styles/admin.css';
 import '../assets/styles/pdf-vorlagen.css';
 import '../assets/styles/tiktok-api.css';
+import '../assets/styles/instagram-cpm.css';
 import '../assets/styles/ablage-ordner-link.css';
 import '../assets/styles/skripte.css';
 import '../assets/styles/chat-thinking.css';

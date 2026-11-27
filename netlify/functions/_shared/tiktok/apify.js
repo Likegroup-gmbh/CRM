@@ -1,5 +1,6 @@
 // _shared/tiktok/apify.js
-// Apify API v2 fuer den TikTok-Scraper (Admin-Seite TikTok-API, Profilabruf im Casting). Ein Lauf
+// Apify API v2 fuer den TikTok-Scraper (Admin-Seite TikTok-API, Profilabruf im Casting) und den
+// Instagram-Reel-Scraper (Admin-Seite Instagram-CPM). Ein Lauf
 // wird gestartet und gepollt, nicht synchron abgewartet: Sync-Functions haben 26 s, Profil-Laeufe
 // dauern laenger. Die Wartezeiten sind so knapp, dass Lauf-Abfrage plus Dataset-Abruf in diese
 // 26 s passen. Wer danach noch rechnet und speichert, gibt eine kuerzere Wartezeit mit (wartenS).
@@ -17,9 +18,10 @@ const ENDSTATUS = new Set(['SUCCEEDED', 'FAILED', 'TIMED-OUT', 'ABORTED']);
 const RUN_ID_RE = /^[A-Za-z0-9]{10,32}$/;
 const istRunId = (v) => typeof v === 'string' && RUN_ID_RE.test(v);
 
-function apifyKonfig(env = process.env) {
+/** Der Token gilt fuer jeden Actor; actorVar/actorStandard waehlen den Scraper (TikTok ist Standard). */
+function apifyKonfig(env = process.env, { actorVar = 'APIFY_TIKTOK_ACTOR', actorStandard = ACTOR_STANDARD } = {}) {
   const token = String(env.APIFY_TOKEN || '').trim();
-  const actor = String(env.APIFY_TIKTOK_ACTOR || ACTOR_STANDARD).trim().replace('/', '~');
+  const actor = String(env[actorVar] || actorStandard).trim().replace('/', '~');
   const maxUsd = Number(env.APIFY_MAX_USD);
   return { token, actor, maxUsd: Number.isFinite(maxUsd) && maxUsd > 0 ? maxUsd : MAX_USD_STANDARD };
 }
