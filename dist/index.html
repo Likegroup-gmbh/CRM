@@ -21,8 +21,8 @@
                  script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; 
                  style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; 
                  img-src 'self' data: blob: https: cdn.jsdelivr.net; 
-                 media-src 'self' blob: https://*.dropbox.com https://www.dropbox.com https://*.dropboxusercontent.com https://*.sharepoint.com; 
-                 connect-src 'self' https://cdn.jsdelivr.net https://yktycclozgsgaasduyol.supabase.co wss://yktycclozgsgaasduyol.supabase.co https://*.supabase.co wss://*.supabase.co https://content.dropboxapi.com https://api.dropboxapi.com https://*.dropboxusercontent.com https://www.dropbox.com https://*.dropbox.com https://*.sharepoint.com; 
+                 media-src 'self' blob: https://*.sharepoint.com; 
+                 connect-src 'self' https://cdn.jsdelivr.net https://yktycclozgsgaasduyol.supabase.co wss://yktycclozgsgaasduyol.supabase.co https://*.supabase.co wss://*.supabase.co https://*.sharepoint.com; 
                  font-src 'self' cdn.jsdelivr.net data:;">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-XSS-Protection" content="1; mode=block">
@@ -31,16 +31,16 @@
   <!-- Flag Icons Library -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css" />
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0" as="script">
-  <script type="module" crossorigin src="/assets/main-Uz6y9fSJ.js"></script>
+  <script type="module" crossorigin src="/assets/main-D7HOk4qY.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/fonts-BsohutUs.js">
   <link rel="modulepreload" crossorigin href="/assets/core-RtgtRPof.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-RI7w5ECq.js">
-  <link rel="modulepreload" crossorigin href="/assets/modules-Ba0vsnKR.js">
+  <link rel="modulepreload" crossorigin href="/assets/auth-C95npyBF.js">
+  <link rel="modulepreload" crossorigin href="/assets/modules-BEpiSdFi.js">
   <link rel="modulepreload" crossorigin href="/assets/authCallbackParams-CCPF9FWi.js">
   <link rel="stylesheet" crossorigin href="/assets/fonts-BOa7Q1VF.css">
-  <link rel="stylesheet" crossorigin href="/assets/main-7PlB7ylp.css">
-  <link rel="stylesheet" crossorigin href="/assets/buttons-BTO1ui1o.css">
-  <link rel="stylesheet" crossorigin href="/assets/components-_rm0P7Ea.css">
+  <link rel="stylesheet" crossorigin href="/assets/main-C_Z1kH46.css">
+  <link rel="stylesheet" crossorigin href="/assets/buttons-Ghrr1dSO.css">
+  <link rel="stylesheet" crossorigin href="/assets/components-Bt36CDTU.css">
   <link rel="stylesheet" crossorigin href="/assets/icons-B3MT8Jt5.css">
 </head>
 <body>
@@ -62,7 +62,9 @@
           <img src="/assets/like-base-Bm8xfJk8.svg" alt="LIKEBASE Logo" class="logo-image">
         </a>
         <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle" title="Navigation verkleinern">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+          <!-- Platzhalter bis bindCollapsible das Icon setzt; beide Varianten, damit der gespeicherte Zustand ohne Sprung passt -->
+          <svg class="sidebar-toggle-static sidebar-toggle-static--close" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11Z" /><path d="M15 3V21" /><path d="M10 9L8.8918 9.87868C7.6306 10.8787 7 11.3787 7 12C7 12.6213 7.6306 13.1213 8.8918 14.1213L10 15" /></svg>
+          <svg class="sidebar-toggle-static sidebar-toggle-static--open" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11Z" /><path d="M9 3V21" /><path d="M14 9L15.1082 9.87868C16.3694 10.8787 17 11.3787 17 12C17 12.6213 16.3694 13.1213 15.1082 14.1213L14 15" /></svg>
         </button>
       </div>
       <nav id="main-nav" class="main-nav"></nav>

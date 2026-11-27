@@ -136,6 +136,23 @@ button.is-submit-locked,
   border: 1px solid var(--gray-400);
 }
 
+/* ===== MDC DISABLED (Combo-Class) =====
+   Ausgegraut fuer jede Variante: .mdc-btn .mdc-btn--secondary .mdc-btn--disabled.
+   Optik nur ueber die Klasse; das disabled-Attribut sperrt den Klick zusaetzlich. */
+
+.mdc-btn.mdc-btn--disabled,
+.mdc-btn.mdc-btn--disabled:hover {
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  color: var(--gray-400);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.mdc-btn.mdc-btn--disabled[disabled] { opacity: 1; }
+
+.mdc-btn.mdc-btn--disabled .mdc-btn__icon { opacity: 1; }
+
 /* ===== MDC PRIMARY BUTTON ===== */
 
 .mdc-btn--primary {
@@ -406,7 +423,7 @@ button.is-submit-locked,
 }
 
 .links-compact-cell--readonly .link-icon-btn:hover {
-  background: var(--gray-100);
+  background: var(--gray-200);
 }
 
 /* Link-Zellen mit Icon */
@@ -423,7 +440,7 @@ button.is-submit-locked,
 }
 
 .creator-pool-table .link-icon-btn:hover {
-  background: var(--blue-50);
+  background: var(--gray-200);
 }
 
 .creator-pool-table .link-icon-btn svg {
@@ -517,11 +534,6 @@ button.is-submit-locked,
 
 .content-cell-actions .media-action-btn {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-primary);
-  border-color: var(--border-secondary);
 }
 
 .content-cell-actions .media-action-btn .filter-count-badge {
@@ -534,10 +546,4 @@ button.is-submit-locked,
   font-size: 10px;
   line-height: 14px;
   pointer-events: none;
-}
-
-.content-cell-actions .media-action-btn:hover {
-  color: var(--gray-700);
-  border-color: var(--border-focus);
-  background: var(--bg-secondary);
 }

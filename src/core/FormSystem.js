@@ -246,10 +246,22 @@ export class FormSystem {
       }
 
       if (entity === 'kooperation') {
+        const briefingCheck = await this.videoHandler.validateKooperationBriefingProduktion(submitData);
+        if (!briefingCheck.isValid) {
+          this.validator.showErrorMessage(briefingCheck.message);
+          return { success: false };
+        }
         const videoLimitValidation = await this.validateKooperationVideoLimit(form, submitData, data?.id || data?._entityId || null);
         if (!videoLimitValidation.isValid) {
           this.validator.showErrorMessage(videoLimitValidation.message);
           return { success: false };
+        }
+        if (!(data && data.id)) {
+          const budgetCheck = await this.videoHandler.validateKooperationBudgetBeforeCreate(form, submitData);
+          if (!budgetCheck.isValid) {
+            this.validator.showErrorMessage(budgetCheck.message);
+            return { success: false };
+          }
         }
       }
 
@@ -286,11 +298,16 @@ export class FormSystem {
         // Spezielle Behandlung: Kooperation → Videos-Repeater speichern
         if (entity === 'kooperation') {
           const videoResult = await this.handleKooperationVideos(result.id, form);
-          await this.handleKooperationTags(result.id, form);
           if (videoResult && videoResult.success === false) {
-            this.validator.showErrorMessage(`Kooperation gespeichert, Videos fehlgeschlagen: ${videoResult.error || 'Videos konnten nicht gespeichert werden'}`);
+            if (!(data && data.id)) {
+              await this.videoHandler.rollbackCreatedKooperation(result.id);
+              this.validator.showErrorMessage(videoResult.error || 'Kooperation konnte nicht gespeichert werden.');
+            } else {
+              this.validator.showErrorMessage(`Kooperation gespeichert, Videos fehlgeschlagen: ${videoResult.error || 'Videos konnten nicht gespeichert werden'}`);
+            }
             return { success: false };
           }
+          await this.handleKooperationTags(result.id, form);
         }
 
         // File-Upload für Ansprechpartner Profilbild

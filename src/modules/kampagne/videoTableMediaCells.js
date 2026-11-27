@@ -21,6 +21,7 @@ const BILDER_ICON = `${icon('photo')}`;
 const GEAR_ICON = `${icon('cog')}`;
 const UPLOAD_ICON = `${icon('upload')}`;
 const IDEE_ICON = `${icon('lightbulb', { className: 'w-4 h-4' })}`;
+const UPLOAD_BTN = 'mdc-btn mdc-btn--secondary mdc-btn--sm video-upload-btn';
 
 function renderIdeeInhalt(ctx, item) {
   const beschreibung = item.beschreibung || 'Konzept-Idee';
@@ -85,21 +86,21 @@ export function renderContentCell(koop, video) {
   const buttons = [];
 
   if (hasPlayable) {
-    buttons.push(`<button type="button" class="external-link-btn media-action-btn play-btn" data-action="play-video" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Video abspielen">${PLAY_ICON}</button>`);
+    buttons.push(`<button type="button" class="media-pill-btn media-action-btn play-btn" data-action="play-video" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Video abspielen">${PLAY_ICON}</button>`);
   } else if (folderUrl) {
-    const ordner = ordnerLinkHtml({ url: folderUrl, kooperationId: koop.id, inhalt: FOLDER_ICON, klasse: 'external-link-btn', titel: 'Ordner öffnen' });
+    const ordner = ordnerLinkHtml({ url: folderUrl, kooperationId: koop.id, inhalt: FOLDER_ICON, klasse: 'media-pill-btn', titel: 'Ordner öffnen' });
     if (ordner) buttons.push(ordner);
   }
 
   if (hasStorys) {
-    buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-storys" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Storys ansehen">${STORYS_ICON}</button>`);
+    buttons.push(`<button type="button" class="media-pill-btn media-action-btn" data-action="view-storys" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Storys ansehen">${STORYS_ICON}</button>`);
   }
 
   if (canUpload) {
     if (hasContent) {
-      buttons.push(`<button type="button" class="video-settings-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-file-path="${video.currentAsset?.file_path || ''}" data-video-url="${videoUrl || ''}" title="Video verwalten">${GEAR_ICON}</button>`);
+      buttons.push(`<button type="button" class="media-pill-btn video-settings-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-file-path="${video.currentAsset?.file_path || ''}" data-video-url="${videoUrl || ''}" title="Video verwalten">${GEAR_ICON}</button>`);
     } else {
-      buttons.push(`<button type="button" class="video-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Video hochladen">${UPLOAD_ICON} Upload</button>`);
+      buttons.push(`<button type="button" class="${UPLOAD_BTN}" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Video hochladen">${UPLOAD_ICON} Upload</button>`);
     }
   }
 
@@ -122,14 +123,14 @@ export function renderStillsCell(koop, video) {
     const stillsTitle = stills.length > 0
       ? `${stills.length} Still${stills.length !== 1 ? 's' : ''} ansehen`
       : 'Stills ansehen';
-    buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="${stillsTitle}">${BILDER_ICON}${countBadge}</button>`);
+    buttons.push(`<button type="button" class="media-pill-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="${stillsTitle}">${BILDER_ICON}${countBadge}</button>`);
   }
 
   if (canUpload) {
     if (hasStills) {
-      buttons.push(`<button type="button" class="video-settings-btn stills-settings-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-file-path="" data-video-url="" title="Stills verwalten">${GEAR_ICON}</button>`);
+      buttons.push(`<button type="button" class="media-pill-btn video-settings-btn stills-settings-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-file-path="" data-video-url="" title="Stills verwalten">${GEAR_ICON}</button>`);
     } else {
-      buttons.push(`<button type="button" class="video-upload-btn stills-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Stills hochladen">${UPLOAD_ICON} Upload</button>`);
+      buttons.push(`<button type="button" class="${UPLOAD_BTN} stills-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Stills hochladen">${UPLOAD_ICON} Upload</button>`);
     }
   }
 
@@ -147,7 +148,7 @@ export function renderFinaleVersionCell(koop, video) {
 
   const buttons = finals.map(asset => {
     const label = asset.variant_name || 'Final';
-    return `<button type="button" class="external-link-btn media-action-btn finale-play-btn" data-action="play-final" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finale Version ${escapeHtml(label)} abspielen">${PLAY_ICON}<span class="finale-variant-label">${escapeHtml(label)}</span></button>`;
+    return `<button type="button" class="media-pill-btn media-action-btn finale-play-btn" data-action="play-final" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finale Version ${escapeHtml(label)} abspielen">${PLAY_ICON}<span class="finale-variant-label">${escapeHtml(label)}</span></button>`;
   });
 
   stillFinals.forEach(asset => {
@@ -158,11 +159,11 @@ export function renderFinaleVersionCell(koop, video) {
     const thumb = canPreviewImageAsset(asset) && !istSharePoint(asset)
       ? `<span class="finale-still-media">${BILDER_ICON}<img class="finale-still-thumb" src="${escapeHtml(asset.file_url || '')}" alt="" loading="lazy" onerror="this.remove()"></span>`
       : BILDER_ICON;
-    buttons.push(`<button type="button" class="external-link-btn media-action-btn finale-play-btn finale-still-btn" data-action="play-final-still" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finales Still ansehen">${thumb}<span class="finale-variant-label">${escapeHtml(label)}</span></button>`);
+    buttons.push(`<button type="button" class="media-pill-btn media-action-btn finale-play-btn finale-still-btn" data-action="play-final-still" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finales Still ansehen">${thumb}<span class="finale-variant-label">${escapeHtml(label)}</span></button>`);
   });
 
   if (canUpload) {
-    buttons.push(`<button type="button" class="video-upload-btn finale-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Finale Version hochladen">${UPLOAD_ICON}${finals.length === 0 && stillFinals.length === 0 ? ' Upload' : ''}</button>`);
+    buttons.push(`<button type="button" class="${UPLOAD_BTN} finale-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Finale Version hochladen">${UPLOAD_ICON}${finals.length === 0 && stillFinals.length === 0 ? ' Upload' : ''}</button>`);
   }
 
   if (buttons.length === 0) {

@@ -26,6 +26,12 @@ export function engagementDesEintrags(item) {
   return { rate, clean, showClean };
 }
 
+/** TikTok-Engagement aus dem Profilabruf (tt_stats); TikTok kennt keine Trials. */
+export function tiktokEngagement(item) {
+  const rate = item?.tt_stats?.engagement_rate;
+  return { rate: rate ?? null, clean: null, showClean: false };
+}
+
 /** Bio aus dem Abruf. Aeltere Zeilen haben sie schon in ig_stats. Sonst die Bio des Creators. */
 export function bioDesEintrags(item) {
   const stats = item?.ig_stats;

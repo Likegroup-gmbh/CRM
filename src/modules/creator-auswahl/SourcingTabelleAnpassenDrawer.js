@@ -273,7 +273,7 @@ export class SourcingTabelleAnpassenDrawer {
         <strong>Hinweis:</strong> Die Reihenfolge ändern Sie am Griff. „Name“ und „Aktionen“ bleiben fest und können nicht ausgeblendet werden.
       </p>
       <p class="drawer-info-text">
-        Link, Follower, Preis Video und Preis Story zeigen Instagram und TikTok untereinander. Welche Plattformen vorkommen, folgt dem Briefing der Liste. Der Schalter blendet die ganze Spalte ein oder aus.
+        Link, Follower, Engagement, Views, Preise und Gesamtpreis zeigen Instagram und TikTok untereinander. Welche Plattformen vorkommen, folgt dem Briefing der Liste. Der Schalter blendet die ganze Spalte ein oder aus.
       </p>
       <div class="drawer-footer">
         <button type="button" class="mdc-btn" id="btn-close-sourcing-tabelle-anpassen-drawer">

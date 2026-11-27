@@ -4,7 +4,6 @@
 import { CREATOR_TYP_SELECT_OPTIONS } from './creatorTypeOptions.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { escapeHtml } from '../../core/format.js';
-import { renderMatchingCell } from './sourcingMatching.js';
 import { castingUmsetzungGate } from './sourcingStatusOptions.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { isColumnVisibleForCustomer, getStickyClasses } from './sourcingSpaltenSichtbarkeit.js';
@@ -17,8 +16,8 @@ import {
 } from './castingPlattformZellen.js';
 import {
   rowCanWrite,
-  renderPreisFreitextCell,
   renderPreisFreitextInhalt,
+  renderAutoViewsInhalt,
   renderAutoCpmInhalt,
   beschreibeAusreisser
 } from './castingPreisZellen.js';
@@ -33,6 +32,8 @@ import {
   renderEngagementInhalt,
   herkunftZeile
 } from './castingItemZellen.js';
+import { tiktokEngagement } from './castingEngagement.js';
+import { renderFreigabeZelle } from './castingFreigabeZelle.js';
 
 export function renderItemRow(ctx, item, index) {
   const isLinkedToCRM = !!item.creator_id;
@@ -80,34 +81,37 @@ export function renderItemRow(ctx, item, index) {
           subHtml: ctx.isKunde ? '' : herkunftZeile(item)
         })}
       </td>
-      <td class="cell-textarea cp-col-notiz" style="${hide('cp-col-notiz')}">
-        ${canWrite ? `
-          <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${escapeHtml(item.notiz || '-')}</div>`}
-      </td>
-      ${customAt('cp-col-notiz')}
       ${renderPlattformZelle(ctx, 'cp-col-link', {
         instagram: renderLinkInstagramInhalt(item, canWrite),
         tiktok: renderLinkTiktokInhalt(item, canWrite)
-      }, { hide, mitIcon: false })}
+      }, { hide, mitIcon: true })}
       ${customAt('cp-col-link')}
       ${renderPlattformZelle(ctx, 'cp-col-follower', {
         instagram: renderFollowerInhalt(ctx, item, 'follower_instagram'),
         tiktok: renderFollowerInhalt(ctx, item, 'follower_tiktok')
       }, { hide })}
       ${customAt('cp-col-follower')}
-      ${renderPlattformZelle(ctx, 'cp-col-engagement-ig', {
-        instagram: renderEngagementInhalt(item)
+      ${renderPlattformZelle(ctx, 'cp-col-engagement', {
+        instagram: renderEngagementInhalt(item),
+        tiktok: renderEngagementInhalt(item, tiktokEngagement(item))
       }, { hide })}
-      ${customAt('cp-col-engagement-ig')}
-      ${renderPlattformZelle(ctx, 'cp-col-cpm-ig-8', {
-        instagram: renderAutoCpmInhalt(ctx, item, item.ig_views_8, true, beschreibeAusreisser(item, 8), item.ig_stats?.ohne_trials?.views_8)
+      ${customAt('cp-col-engagement')}
+      ${[12, 30].map(fenster => {
+        const igViews = item[`ig_views_${fenster}`];
+        const igOhneTrials = item.ig_stats?.ohne_trials?.[`views_${fenster}`];
+        const ttViews = item[`tt_views_${fenster}`];
+        return `
+      ${renderPlattformZelle(ctx, `cp-col-views-${fenster}`, {
+        instagram: renderAutoViewsInhalt(igViews, beschreibeAusreisser(item.ig_stats, fenster), igOhneTrials),
+        tiktok: renderAutoViewsInhalt(ttViews, beschreibeAusreisser(item.tt_stats, fenster, 'Video'))
       }, { hide, klassen: 'cell-textarea' })}
-      ${customAt('cp-col-cpm-ig-8')}
-      ${renderPlattformZelle(ctx, 'cp-col-cpm-ig-30', {
-        instagram: renderAutoCpmInhalt(ctx, item, item.ig_views_30, true, beschreibeAusreisser(item, 30), item.ig_stats?.ohne_trials?.views_30)
+      ${customAt(`cp-col-views-${fenster}`)}
+      ${renderPlattformZelle(ctx, `cp-col-cpm-${fenster}`, {
+        instagram: renderAutoCpmInhalt(ctx, igViews, igOhneTrials),
+        tiktok: renderAutoCpmInhalt(ctx, ttViews)
       }, { hide, klassen: 'cell-textarea' })}
-      ${customAt('cp-col-cpm-ig-30')}
+      ${customAt(`cp-col-cpm-${fenster}`)}`;
+      }).join('')}
       ${renderPlattformZelle(ctx, 'cp-col-preis-video', {
         instagram: renderPreisFreitextInhalt(ctx, item, 'preis_reels'),
         tiktok: renderPreisFreitextInhalt(ctx, item, 'preis_tiktok_video')
@@ -122,12 +126,47 @@ export function renderItemRow(ctx, item, index) {
         tiktok: renderPreisFreitextInhalt(ctx, item, 'preis_tiktok_story')
       }, { hide, klassen: 'cell-textarea' })}
       ${customAt('cp-col-story-preis')}
-      ${renderPreisFreitextCell(ctx, item, 'cp-col-pricing', 'pricing', hide)}
+      ${renderPlattformZelle(ctx, 'cp-col-pricing', {
+        instagram: renderPreisFreitextInhalt(ctx, item, 'pricing'),
+        tiktok: renderPreisFreitextInhalt(ctx, item, 'pricing_tiktok')
+      }, { hide, klassen: 'cell-textarea' })}
       ${customAt('cp-col-pricing')}
-      <td class="cp-col-matching" style="${hide('cp-col-matching')}">
-        ${renderMatchingCell(item.matching_score, item.matching_scores || item.scores || {})}
+      <td class="cell-textarea cp-col-notiz" style="${hide('cp-col-notiz')}">
+        ${canWrite ? `
+          <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
+        ` : `<div class="cell-text-readonly">${escapeHtml(item.notiz || '-')}</div>`}
       </td>
-      ${customAt('cp-col-matching')}
+      ${customAt('cp-col-notiz')}
+      <td class="cp-col-kunden-feedback" style="${hide('cp-col-kunden-feedback')}">
+        ${renderKundenFeedbackCell(ctx, item)}
+      </td>
+      ${customAt('cp-col-kunden-feedback')}
+      <td class="cell-textarea cp-col-feedback" style="${hide('cp-col-feedback')}">
+        <textarea
+          class="strategie-textarea auto-resize-textarea ${(ctx.isKunde && !ctx.gastReadonly) ? '' : 'readonly-textarea'}"
+          data-field="feedback_kunde"
+          data-item-id="${item.id}"
+          placeholder="${(ctx.isKunde && !ctx.gastReadonly) ? 'Ihr Feedback...' : 'Rückmeldung Kunde...'}"
+          ${(ctx.isKunde && !ctx.gastReadonly) ? '' : 'readonly'}
+        >${item.feedback_kunde || ''}</textarea>
+        ${item.feedback_kunde && item.feedback_kunde_author_name ? `
+          <div class="feedback-author-meta">
+            ${item.feedback_kunde_author_name}${item.feedback_kunde_updated_at ? ` · ${new Date(item.feedback_kunde_updated_at).toLocaleDateString('de-DE')}` : ''}
+          </div>` : ''}
+      </td>
+      ${customAt('cp-col-feedback')}
+      <td class="cp-col-status" style="${hide('cp-col-status')}">
+        ${renderSourcingStatusCell(ctx, item)}
+      </td>
+      ${customAt('cp-col-status')}
+      <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
+        ${canWrite ? `
+          <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
+        ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
+      </td>
+      ${customAt('cp-col-location')}
+      ${renderKontaktCell(ctx, item, 'cp-col-mail', 'email', hide)}
+      ${customAt('cp-col-mail')}
       <td class="cp-col-typ" style="${hide('cp-col-typ')}">
         ${canWrite ? renderTableSelect({
           field: 'creator_typ',
@@ -138,36 +177,6 @@ export function renderItemRow(ctx, item, index) {
         }) : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
       </td>
       ${customAt('cp-col-typ')}
-      <td class="cp-col-status" style="${hide('cp-col-status')}">
-        ${renderSourcingStatusCell(ctx, item)}
-      </td>
-      ${customAt('cp-col-status')}
-      <td class="cp-col-kunden-feedback" style="${hide('cp-col-kunden-feedback')}">
-        ${renderKundenFeedbackCell(ctx, item)}
-      </td>
-      ${customAt('cp-col-kunden-feedback')}
-      <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
-        ${canWrite ? `
-          <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
-      </td>
-      ${customAt('cp-col-location')}
-      ${renderKontaktCell(ctx, item, 'cp-col-mail', 'email', hide)}
-      ${customAt('cp-col-mail')}
-      ${renderKontaktCell(ctx, item, 'cp-col-telefon', 'telefon', hide)}
-      ${customAt('cp-col-telefon')}
-      <td class="cell-textarea cp-col-nutzungsrechte" style="${hide('cp-col-nutzungsrechte')}">
-        ${canWrite ? `
-          <textarea class="strategie-textarea" data-field="nutzungsrechte" data-item-id="${item.id}" placeholder="Nutzungsrechte...">${escapeHtml(item.nutzungsrechte || '')}</textarea>
-        ` : `<div class="cell-text-readonly">${escapeHtml(item.nutzungsrechte || '-')}</div>`}
-      </td>
-      ${customAt('cp-col-nutzungsrechte')}
-      <td class="cell-textarea cp-col-reichweite-garantie" style="${hide('cp-col-reichweite-garantie')}">
-        ${canWrite ? `
-          <input type="text" class="strategie-textarea" data-field="reichweite_garantie" data-item-id="${item.id}" placeholder="z.B. 50K" value="${item.reichweite_garantie || ''}">
-        ` : `<div class="cell-text-readonly">${item.reichweite_garantie || '-'}</div>`}
-      </td>
-      ${customAt('cp-col-reichweite-garantie')}
       <td class="cell-textarea cp-col-ek" style="${hide('cp-col-ek')}">
         ${canWrite ? `
           <div class="cell-euro">
@@ -186,21 +195,8 @@ export function renderItemRow(ctx, item, index) {
         ` : `<div class="cell-text-readonly">${item.preis_vk != null ? Number(item.preis_vk).toLocaleString('de-DE', {minimumFractionDigits: 0}) + ' €' : '-'}</div>`}
       </td>
       ${customAt('cp-col-vk')}
-      <td class="cell-textarea cp-col-feedback" style="${hide('cp-col-feedback')}">
-        <textarea
-          class="strategie-textarea auto-resize-textarea ${(ctx.isKunde && !ctx.gastReadonly) ? '' : 'readonly-textarea'}"
-          data-field="feedback_kunde"
-          data-item-id="${item.id}"
-          placeholder="${(ctx.isKunde && !ctx.gastReadonly) ? 'Ihr Feedback...' : 'Rückmeldung Kunde...'}"
-          ${(ctx.isKunde && !ctx.gastReadonly) ? '' : 'readonly'}
-        >${item.feedback_kunde || ''}</textarea>
-        ${item.feedback_kunde && item.feedback_kunde_author_name ? `
-          <div class="feedback-author-meta">
-            ${item.feedback_kunde_author_name}${item.feedback_kunde_updated_at ? ` · ${new Date(item.feedback_kunde_updated_at).toLocaleDateString('de-DE')}` : ''}
-          </div>` : ''}
-      </td>
-      ${customAt('cp-col-feedback')}
       ${ctx.customManager ? ctx.customManager.renderCells(item.id, ctx.hiddenColumns, ctx.isKunde, canWrite) : ''}
+      ${renderFreigabeZelle(ctx, item)}
       ${hasActions ? `
         <td class="col-actions cp-col-actions">
           <div class="actions-dropdown-container" data-entity-type="${isVorschlag ? 'casting_vorschlag' : 'creator_auswahl_item'}">

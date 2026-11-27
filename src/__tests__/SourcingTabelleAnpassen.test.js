@@ -89,21 +89,26 @@ describe('Drawer "Tabelle anpassen" – Spalten', () => {
       .map(row => row.dataset.column);
 
     expect(ids.slice(0, 4)).toEqual([
-      'cp-col-notiz', 'cp-col-link', 'cp-col-follower', 'cp-col-engagement-ig'
+      'cp-col-link', 'cp-col-follower', 'cp-col-engagement', 'cp-col-views-12'
+    ]);
+    const abPreis = ids.indexOf('cp-col-pricing');
+    expect(ids.slice(abPreis, abPreis + 7)).toEqual([
+      'cp-col-pricing', 'cp-col-notiz', 'cp-col-kunden-feedback', 'cp-col-feedback',
+      'cp-col-status', 'cp-col-location', 'cp-col-mail'
     ]);
     expect(document.querySelectorAll('.sourcing-spalten-griff').length).toBe(ids.length);
-    expect(ids).not.toContain('cp-col-bild');
-    expect(ids).not.toContain('cp-col-name');
-    expect(ids).not.toContain('cp-col-actions');
+    for (const weg of ['cp-col-bild', 'cp-col-name', 'cp-col-actions', 'cp-col-telefon', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie', 'cp-col-matching']) {
+      expect(ids, weg).not.toContain(weg);
+    }
   });
 
   it('oeffnet mit einer gespeicherten Reihenfolge und laesst die alte Bild-Spalte weg', () => {
-    oeffne({ column_order: ['cp-col-status', 'cp-col-bild', 'cp-col-notiz'] });
+    oeffne({ column_order: ['cp-col-status', 'cp-col-bild', 'cp-col-link'] });
 
     const ids = Array.from(document.querySelectorAll('#sourcing-tabelle-anpassen-spalten .sourcing-spalten-item'))
       .map(row => row.dataset.column);
 
-    expect(ids.slice(0, 2)).toEqual(['cp-col-status', 'cp-col-notiz']);
+    expect(ids.slice(0, 2)).toEqual(['cp-col-status', 'cp-col-link']);
     expect(ids).not.toContain('cp-col-bild');
   });
 
@@ -120,7 +125,7 @@ describe('Drawer "Tabelle anpassen" – Spalten', () => {
 
     const list = document.getElementById('sourcing-tabelle-anpassen-spalten');
     const status = list.querySelector('.sourcing-spalten-item[data-column="cp-col-status"]');
-    const notiz = list.querySelector('.sourcing-spalten-item[data-column="cp-col-notiz"]');
+    const link = list.querySelector('.sourcing-spalten-item[data-column="cp-col-link"]');
     const griff = status.querySelector('.sourcing-spalten-griff');
 
     griff.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
@@ -137,16 +142,16 @@ describe('Drawer "Tabelle anpassen" – Spalten', () => {
     };
     // dragstart/end am Item selbst – so wie der Browser es nach mousedown am Griff feuert
     ziehEvent('dragstart', status);
-    ziehEvent('dragover', notiz);
+    ziehEvent('dragover', link);
     ziehEvent('dragend', status);
     await Promise.resolve();
     await Promise.resolve();
 
     const ids = Array.from(list.querySelectorAll('.sourcing-spalten-item')).map(row => row.dataset.column);
-    expect(ids.indexOf('cp-col-status')).toBeLessThan(ids.indexOf('cp-col-notiz'));
+    expect(ids.indexOf('cp-col-status')).toBeLessThan(ids.indexOf('cp-col-link'));
     expect(onColumnOrderChange).toHaveBeenCalledTimes(1);
     const gemeldet = onColumnOrderChange.mock.calls[0][0];
-    expect(gemeldet.indexOf('cp-col-status')).toBeLessThan(gemeldet.indexOf('cp-col-notiz'));
+    expect(gemeldet.indexOf('cp-col-status')).toBeLessThan(gemeldet.indexOf('cp-col-link'));
     expect(gemeldet[0]).toBe('cp-col-status');
   });
 });

@@ -589,6 +589,18 @@ describe('visibleVideoideen', () => {
     };
     expect(visibleVideoideen(detail).map((item) => item.id)).toEqual(['v1', 'a1', 'b1']);
   });
+
+  it('nimmt Videos mit, deren Kategorie nicht in der Konzept-Liste steht', () => {
+    const detail = {
+      items: [
+        { id: 'a1', teilbereich: 'A' },
+        { id: 'w1', teilbereich: 'Tubing Mascara' },
+        { id: 'o1', teilbereich: null }
+      ],
+      getTeilbereicheFromStrategie: () => ['A']
+    };
+    expect(visibleVideoideen(detail).map((item) => item.id)).toEqual(['a1', 'w1', 'o1']);
+  });
 });
 
 describe('syncVideoideeField', () => {

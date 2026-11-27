@@ -68,7 +68,7 @@ describe('vorschlagToItem', () => {
 });
 
 describe('KI-Vorschlag als Tabellenzeile', () => {
-  it('markiert die Zeile und fuellt Bild, Notiz, Matching und IG-Link', () => {
+  it('markiert die Zeile und fuellt Bild, Notiz und IG-Link', () => {
     const item = vorschlagToItem(vorschlag);
     const doc = rowDoc(item);
     const tr = doc.querySelector('tr.item-row');
@@ -79,8 +79,6 @@ describe('KI-Vorschlag als Tabellenzeile', () => {
       .toBe('https://cdn.test/jessie_thumb.avif');
     expect(doc.querySelector('td.cp-col-notiz').textContent)
       .toContain('Passt zur Zielgruppe Food 25-34.');
-    expect(doc.querySelector('td.cp-col-matching .sourcing-matching__score').textContent)
-      .toBe('57/100');
     expect(doc.querySelector('td.cp-col-link [data-plattform="instagram"] a').getAttribute('href'))
       .toBe('https://instagram.com/hierkochtjessie');
   });
@@ -191,10 +189,9 @@ describe('CastingVorschlagService.starteJob', () => {
 });
 
 describe('CastingVorschlagPanel in der Aktionszeile', () => {
-  it('rendert nur den Holen-Button, ohne KI-Kopf', () => {
+  it('blendet den Holen-Button vorerst aus und laesst den Container leer', () => {
     document.body.innerHTML = `
       <div class="add-item-actions-right">
-        <button id="btn-open-add-drawer">Creator hinzufügen</button>
         <div id="casting-vorschlag-block"></div>
       </div>`;
     const panel = new CastingVorschlagPanel({
@@ -206,9 +203,8 @@ describe('CastingVorschlagPanel in der Aktionszeile', () => {
 
     const block = document.getElementById('casting-vorschlag-block');
     expect(block.closest('.add-item-actions-right')).not.toBeNull();
-    expect(block.querySelector('#btn-casting-vorschlag-holen').textContent).toContain('Vorschläge holen');
-    expect(block.querySelector('.casting-vorschlag__titel')).toBeNull();
-    expect(block.textContent).not.toContain('KI-Vorschläge');
+    expect(block.querySelector('#btn-casting-vorschlag-holen')).toBeNull();
+    expect(block.innerHTML).toBe('');
     document.body.innerHTML = '';
   });
 });

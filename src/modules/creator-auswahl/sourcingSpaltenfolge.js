@@ -3,7 +3,7 @@
 //
 // Gespeichert wird sie als column_order auf der Liste: ein Array aus
 // "cp-col-…" und "custom:{uuid}". Null oder leer heisst Standardreihenfolge.
-// Drag, Name (mit Profilbild) und Aktionen stehen nicht in dem Array – die bleiben fest.
+// Drag, Name (mit Profilbild), Freigabe und Aktionen stehen nicht in dem Array – die bleiben fest.
 
 import {
   groupCustomColumnsByAnchor,
@@ -20,6 +20,7 @@ import {
 
 const FEST_LINKS = new Set(['cp-col-drag', 'cp-col-name']);
 const FEST_RECHTS = 'cp-col-actions';
+const FREIGABE = 'cp-col-freigabe';
 
 export function hatEigeneReihenfolge(columnOrder) {
   return Array.isArray(columnOrder) && columnOrder.length > 0;
@@ -134,17 +135,19 @@ export function baueSourcingSpaltenfolge({
   columnOrder = null,
   customColumns = [],
   includeDrag = true,
+  includeFreigabe = false,
   includeActions = true
 } = {}) {
   const folge = [];
   if (includeDrag) folge.push('cp-col-drag');
   folge.push('cp-col-name');
   folge.push(...baueBeweglicheSpalten({ columnOrder, customColumns }));
+  if (includeFreigabe) folge.push(FREIGABE);
   if (includeActions) folge.push(FEST_RECHTS);
   return folge;
 }
 
-/** Dieselbe Rollenregel wie im Tabellenmarkup: Drag und Aktionen nur, wenn sie gerendert werden. */
+/** Dieselbe Rollenregel wie im Tabellenmarkup: Drag, Freigabe und Aktionen nur, wenn sie gerendert werden. */
 export function spaltenfolgeFuerKontext(ctx) {
   const canWrite = !ctx?.isKunde && (ctx?.canEdit ?? true);
   const hasActions = !ctx?.isKunde && ((ctx?.canCreate ?? true) || (ctx?.canDelete ?? true));
@@ -152,6 +155,7 @@ export function spaltenfolgeFuerKontext(ctx) {
     columnOrder: ctx?.columnOrder,
     customColumns: ctx?.customManager?.getOrderedColumns?.() || [],
     includeDrag: canWrite,
+    includeFreigabe: !ctx?.isKunde && !!ctx?.canCreateKooperation,
     includeActions: hasActions
   });
 }
@@ -237,8 +241,8 @@ export function ordneSourcingTabellenHtml(html, folge) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const container = doc.querySelector('.table-container');
   if (!container) return html;
-  const kopf = container.querySelector('thead tr');
-  if (kopf) ordneZellen(kopf, folge);
+  container.querySelectorAll('thead tr, tbody tr.kategorie-col-header-row')
+    .forEach(tr => ordneZellen(tr, folge));
   container.querySelectorAll('tbody tr.item-row').forEach(tr => ordneZellen(tr, folge));
   return container.outerHTML;
 }

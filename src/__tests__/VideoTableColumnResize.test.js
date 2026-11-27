@@ -143,7 +143,12 @@ describe('Kooperationstabelle: Body folgt der Spaltenreihenfolge', () => {
     const bodyIds = [...host.querySelectorAll('tbody tr td')].map(td => td.dataset.colId);
     expect(bodyIds[0]).toBe('col-nr');
     expect(bodyIds[1]).toBe('col-creator');
+    expect(bodyIds[2]).toBe('col-koop-name');
     expect(bodyIds[bodyIds.length - 1]).toBe('col-actions');
+
+    const nameCell = host.querySelector('td.col-koop-name');
+    expect(nameCell.classList.contains('read-only')).toBe(true);
+    expect(nameCell.querySelector('input, textarea, select')).toBeNull();
 
     for (const td of host.querySelectorAll('tbody tr td')) {
       const id = td.dataset.colId;
@@ -152,6 +157,41 @@ describe('Kooperationstabelle: Body folgt der Spaltenreihenfolge', () => {
       if (!id.startsWith('custom:')) {
         expect(td.classList.contains(id)).toBe(true);
       }
+    }
+  });
+
+  it('zeigt den Kooperationsnamen als Link und ohne Eingabe', () => {
+    const vorher = window.canViewPage;
+    window.canViewPage = () => true;
+    try {
+      const store = makeOrderStore(null, []);
+      const renderer = new VideoTableRenderer(makeVideoTable({ store }));
+      const host = document.createElement('div');
+      host.innerHTML = `<table><tbody>${renderer.renderKooperationWithVideos({ ...makeKoop(), name: 'Sommer <Reel>' }, 1)}</tbody></table>`;
+
+      const cell = host.querySelector('td.col-koop-name');
+      expect(cell.textContent).toBe('Sommer <Reel>');
+      expect(cell.querySelector('a.table-link')?.getAttribute('href')).toBe('/kooperation/koop-1');
+      expect(cell.querySelector('input, textarea')).toBeNull();
+    } finally {
+      window.canViewPage = vorher;
+    }
+  });
+
+  it('lässt den Namen als Text stehen, wenn die Kooperation nicht geöffnet werden darf', () => {
+    const vorher = window.canViewPage;
+    window.canViewPage = () => false;
+    try {
+      const store = makeOrderStore(null, []);
+      const renderer = new VideoTableRenderer(makeVideoTable({ store }));
+      const host = document.createElement('div');
+      host.innerHTML = `<table><tbody>${renderer.renderKooperationWithVideos({ ...makeKoop(), name: 'Sommer Reel' }, 1)}</tbody></table>`;
+
+      const cell = host.querySelector('td.col-koop-name');
+      expect(cell.textContent).toBe('Sommer Reel');
+      expect(cell.querySelector('a')).toBeNull();
+    } finally {
+      window.canViewPage = vorher;
     }
   });
 });

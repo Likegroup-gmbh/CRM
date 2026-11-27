@@ -180,6 +180,7 @@ export class CreatorAuswahlAddDrawer {
         telefon: formData.get('telefon')?.trim() || null,
         notiz: formData.get('notiz')?.trim() || null,
         pricing: formData.get('pricing')?.trim() || null,
+        pricing_tiktok: formData.get('pricing_tiktok')?.trim() || null,
         nutzungsrechte: formData.get('nutzungsrechte')?.trim() || null,
         preis_ek: formData.get('preis_ek') ? parseFloat(formData.get('preis_ek')) : null,
         preis_vk: formData.get('preis_vk') ? parseFloat(formData.get('preis_vk')) : null,

@@ -19,6 +19,7 @@ import { openCastingDetailDrawer } from './castingDetailDrawer.js';
 import { bindTextBaseline, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
 import { bindWrappingTextareas } from '../../core/table/fitTextareaHeight.js';
 import { bindListenTkpFeld, getListenTkp } from './castingPreisZellen.js';
+import { PROFIL_PLATTFORMEN } from './sourcingProfilPlattformen.js';
 
 export function bindEvents() {
   this._boundEventListeners.forEach(cleanup => cleanup());
@@ -104,14 +105,17 @@ export function bindEvents() {
       this._boundEventListeners.add(() => anfrageBtn.removeEventListener('click', openAnfrage));
     }
 
-    const igFetchHandler = (e) => {
-      const btn = e.target.closest('[data-ig-fetch]');
+    // Abruf-Buttons in Zelle und Drawer; der Drawer haengt an body, daher document
+    const profilAbrufHandler = (e) => {
+      const btn = e.target.closest('[data-profil-abruf]');
       if (!btn || btn.disabled || btn.hidden) return;
+      const handler = PROFIL_PLATTFORMEN[btn.dataset.profilAbruf]?.handler;
+      if (!handler) return;
       e.preventDefault();
-      this.handleInstagramFetch(btn.dataset.itemId, btn);
+      this[handler](btn.dataset.itemId, btn);
     };
-    document.addEventListener('click', igFetchHandler);
-    this._boundEventListeners.add(() => document.removeEventListener('click', igFetchHandler));
+    document.addEventListener('click', profilAbrufHandler);
+    this._boundEventListeners.add(() => document.removeEventListener('click', profilAbrufHandler));
   }
 
   if (!this.isKunde && this._canSourcing('edit')) {
@@ -160,13 +164,6 @@ export function bindEvents() {
       getAktuell: () => getListenTkp(this.liste),
       onSave: (tkp) => this.saveListenEinstellungen({ tkp })
     }));
-
-    const addBtn = this._q('#btn-open-add-drawer');
-    if (addBtn) {
-      const handler = () => this.addDrawer.open();
-      addBtn.addEventListener('click', handler);
-      this._boundEventListeners.add(() => addBtn.removeEventListener('click', handler));
-    }
 
     this.bindDragAndDropEvents();
     this.bindSelectionEvents();
@@ -227,6 +224,8 @@ export function bindEvents() {
   document.addEventListener('table-select-change', selectHandler);
   this._boundEventListeners.add(() => document.removeEventListener('table-select-change', selectHandler));
 
+  this.bindFreigabeEvents();
+
   const supportsContentSizing = globalThis.CSS?.supports?.('field-sizing', 'content') === true;
   if (!supportsContentSizing) {
     this._qq('.cp-col-feedback textarea.auto-resize-textarea').forEach(el => {
@@ -263,11 +262,11 @@ export function _bindCustomColumnEvents() {
     }
   });
 
-  // Header Drag&Drop ueber Hand-Griff (nur Custom-Spalten)
+  // Header Drag&Drop ueber Hand-Griff (nur Custom-Spalten; auch fuer Kategorie-Spaltenkoepfe)
   if (this._customHeaderDragCleanup) this._customHeaderDragCleanup();
-  const thead = this._q('.creator-pool-table thead');
+  const table = this._q('.creator-pool-table');
   this._customHeaderDragCleanup = this.customColumns.bindHeaderDragAndDrop(
-    thead,
+    table,
     () => {
       this.uebernehmeKopfVerschiebung()
         .catch(error => {
@@ -281,7 +280,6 @@ export function _bindCustomColumnEvents() {
     if (this._customHeaderDragCleanup) { this._customHeaderDragCleanup(); this._customHeaderDragCleanup = null; }
   });
 
-  const table = this._q('.creator-pool-table');
   if (this._customHeaderResizeCleanup) this._customHeaderResizeCleanup();
   this._customHeaderResizeCleanup = this.customColumns.bindColumnResize(table);
   this._boundEventListeners.add(() => {

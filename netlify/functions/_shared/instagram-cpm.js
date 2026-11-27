@@ -27,7 +27,7 @@
 
 const CPM_RATE = 25;        // EUR pro 1000 Views
 const MIN_AGE_HOURS = 96;   // Videos juenger als 4 Tage ignorieren
-const WINDOW_SHORT = 8;
+const WINDOW_SHORT = 12;
 const WINDOW_LONG = 30;
 
 // Ausreisser-Erkennung als Prozessregel statt als Statistik: die Reihe wird
@@ -39,7 +39,7 @@ const WINDOW_LONG = 30;
 //
 // Ein durchgefallener Reel wird nicht einfach abgezogen, sondern durch den
 // naechst-aelteren organischen Reel ersetzt (pickWindow). Damit bleibt die
-// Stichprobe konstant bei 8 bzw. 30 Reels, statt bei jedem Ausreisser zu
+// Stichprobe konstant bei 12 bzw. 30 Reels, statt bei jedem Ausreisser zu
 // schrumpfen.
 //
 // Der Vorgaenger (modifizierter Z-Score ueber Median/MAD auf log10) war
@@ -105,7 +105,9 @@ const TRIAL_MAX_PCT = 0.05;
 // Version der Rechenlogik. Landet in ig_stats.calc_version; eine aeltere
 // Version im Creator-Pool gilt als veraltet und erzwingt einen neuen Abruf.
 // 8: die Rechnung sieht nur noch die letzten 30 Beitraege, nicht mehr bis zu 150.
-const CALC_VERSION = 8;
+// 9: Engagement-Rate ohne Werbung, frische Posts und Ausreisser; TikTok auf Views (instagram-engagement.js).
+// 10: kurzes Fenster 12 statt 8 Reels (views_12, used_12, outliers_12).
+const CALC_VERSION = 10;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -400,7 +402,8 @@ function classifyVideos(media, now) {
       caption: m.caption || null
     };
 
-    const adMarker = istWerbePost(m.caption);
+    // ad_marker setzt ein Aufrufer, der ein echtes Werbe-Flag hat (TikTok: isAd/isSponsored)
+    const adMarker = m.ad_marker || istWerbePost(m.caption);
     if (adMarker) {
       skipped.push({ ...entry, reason: 'ad_post', ad_marker: adMarker });
     } else {
@@ -599,7 +602,7 @@ function pickWindow(videos, size) {
  * Ein Fenster auswerten: arithmetischer Schnitt aus `size` sauberen Reels.
  *
  * Liegen von Anfang an weniger als `size` Reels vor, gibt es keinen Wert - ein
- * "8er-Schnitt" aus 3 Videos waere irrefuehrend. Gehen erst beim Nachruecken
+ * "12er-Schnitt" aus 3 Videos waere irrefuehrend. Gehen erst beim Nachruecken
  * die Kandidaten aus, wird mit dem kleineren Fenster gerechnet und `sample`
  * weist die tatsaechliche Groesse aus.
  *
@@ -617,7 +620,8 @@ function evaluateWindow(videos, size) {
     sample: indices.length,
     used: indices,
     // Bis hierhin wurde in die Zeitleiste geschaut - inklusive Nachruecker, die
-    // selbst wieder durchgefallen sind. formatCpmDebug braucht die Reels dazu.
+    // selbst wieder durchgefallen sind. formatCpmDebug (instagram-cpm-report.js)
+    // braucht die Reels dazu.
     maxIndex: Math.max(...indices, ...outliers.map((o) => o.videoIndex)),
     outliers: outliers.map((o) => {
       const video = videos[o.videoIndex];
@@ -637,19 +641,19 @@ function evaluateWindow(videos, size) {
 /**
  * Kennzahlen aus einer Media-Liste der Business Discovery API.
  *
- * views_8 und views_30 sind der Schnitt aus genau 8 bzw. 30 sauberen Reels:
+ * views_12 und views_30 sind der Schnitt aus genau 12 bzw. 30 sauberen Reels:
  * Ausreisser werden nicht einfach abgezogen, sondern durch den naechst-aelteren
  * organischen Reel ersetzt (siehe pickWindow). Was rausgefallen ist, steht in
- * outliers_8 / outliers_30, was verwendet wurde in used_8 / used_30.
+ * outliers_12 / outliers_30, was verwendet wurde in used_12 / used_30.
  *
  * @param {Array} media   Rohe media.data-Eintraege
  * @param {object} [opts] { now: number } - Zeitbasis fuer die 4-Tage-Regel
  * @returns {{
- *   views_8: number|null, views_30: number|null,
- *   cpm_8: number|null, cpm_30: number|null,
- *   sample_8: number, sample_30: number,
- *   used_8: number[], used_30: number[],
- *   outliers_8: Array, outliers_30: Array,
+ *   views_12: number|null, views_30: number|null,
+ *   cpm_12: number|null, cpm_30: number|null,
+ *   sample_12: number, sample_30: number,
+ *   used_12: number[], used_30: number[],
+ *   outliers_12: Array, outliers_30: Array,
  *   ohne_trials: object|null, trial_gate: object,
  *   videos_available: number, skipped_too_recent: number,
  *   skipped_ads: number, skipped_trials: number, skipped_trial_views: number,
@@ -667,7 +671,7 @@ function computeInstagramCpm(media, opts = {}) {
   // ueber das Fenster hinaus nachruecken koennen.
   // Variante A: exakt das bisherige Verhalten - markierte Trials bleiben
   // enthalten, die Bestandsspalten (ig_views_*, cpm_ig_*) aendern sich nicht.
-  const window8 = evaluateWindow(videos, WINDOW_SHORT);
+  const window12 = evaluateWindow(videos, WINDOW_SHORT);
   const window30 = evaluateWindow(videos, WINDOW_LONG);
 
   // Variante B: ohne die per View-Luecke markierten Trials. Nur wenn das Gate
@@ -684,24 +688,24 @@ function computeInstagramCpm(media, opts = {}) {
         gefiltert.push(v);
       }
     });
-    const b8 = evaluateWindow(gefiltert, WINDOW_SHORT);
+    const b12 = evaluateWindow(gefiltert, WINDOW_SHORT);
     const b30 = evaluateWindow(gefiltert, WINDOW_LONG);
     // used_* und maxIndex zeigen auf `gefiltert` - fuer eine einheitliche
     // Aufloesung ueber stats.videos auf die Indizes der vollen Liste mappen.
     const mapIdx = (arr) => arr.map((gi) => gefiltertIdx[gi]);
     ohneTrials = {
-      views_8: roundViews(b8.views),
+      views_12: roundViews(b12.views),
       views_30: roundViews(b30.views),
-      cpm_8: toCpm(b8.views),
+      cpm_12: toCpm(b12.views),
       cpm_30: toCpm(b30.views),
-      sample_8: b8.sample,
+      sample_12: b12.sample,
       sample_30: b30.sample,
-      used_8: mapIdx(b8.used),
+      used_12: mapIdx(b12.used),
       used_30: mapIdx(b30.used),
-      outliers_8: b8.outliers,
+      outliers_12: b12.outliers,
       outliers_30: b30.outliers
     };
-    const bMaxGefiltert = Math.max(b8.maxIndex, b30.maxIndex);
+    const bMaxGefiltert = Math.max(b12.maxIndex, b30.maxIndex);
     if (bMaxGefiltert >= 0) bMaxIndexInVideos = gefiltertIdx[bMaxGefiltert];
   }
 
@@ -709,7 +713,7 @@ function computeInstagramCpm(media, opts = {}) {
   // formatCpmDebug einen Nachruecker jenseits von Index 30 nicht wieder.
   const debugBis = Math.max(
     WINDOW_LONG,
-    window8.maxIndex + 1,
+    window12.maxIndex + 1,
     window30.maxIndex + 1,
     bMaxIndexInVideos + 1
   );
@@ -732,16 +736,16 @@ function computeInstagramCpm(media, opts = {}) {
     .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
 
   return {
-    views_8: roundViews(window8.views),
+    views_12: roundViews(window12.views),
     views_30: roundViews(window30.views),
-    cpm_8: toCpm(window8.views),
+    cpm_12: toCpm(window12.views),
     cpm_30: toCpm(window30.views),
-    sample_8: window8.sample,
+    sample_12: window12.sample,
     sample_30: window30.sample,
     // Indizes in videos statt permalinks: haelt ig_stats klein
-    used_8: window8.used,
+    used_12: window12.used,
     used_30: window30.used,
-    outliers_8: window8.outliers,
+    outliers_12: window12.outliers,
     outliers_30: window30.outliers,
     ohne_trials: ohneTrials,
     trial_gate: serialisiereTrialGate(trialGate),
@@ -769,276 +773,6 @@ function computeInstagramCpm(media, opts = {}) {
   };
 }
 
-/**
- * Strukturierter Debug-Payload fuer Server-/Browser-Konsole.
- * @param {string} username
- * @param {object} stats  Ergebnis von computeInstagramCpm oder Pool-Spiegel
- * @param {object} [meta] { source, pool_fetched_at, image_error }
- */
-function formatCpmDebug(username, stats, meta = {}) {
-  // Zwei getrennte Bloecke: exakt die Reels, die in den 8er- bzw. 30er-Schnitt
-  // eingeflossen sind. used_8 / used_30 sind Indizes in stats.videos, damit sind
-  // auch Nachruecker jenseits des Fensters korrekt aufgeloest.
-  const alle = stats.videos || [];
-  const mapVideo = (v, i) => ({
-    index: i,
-    views: v.views,
-    timestamp: v.timestamp,
-    permalink: v.permalink
-  });
-
-  // Fallback nur fuer Pool-Eintraege aus einer Zeit ohne used_*: Fenster ueber
-  // den permalink der Ausreisser rekonstruieren. Nachruecker fehlen dort, das
-  // ist hinnehmbar - CALC_VERSION erzwingt sowieso einen frischen Abruf.
-  // Ein leeres used_* ist dagegen eine echte Aussage ("Fenster nicht voll"),
-  // darf also nicht in den Fallback laufen.
-  const fensterAus = (used, size, outliers) => {
-    if (Array.isArray(used)) {
-      return used
-        .map((i) => alle[i])
-        .filter(Boolean)
-        .map(mapVideo);
-    }
-    const raus = new Set((outliers || []).map((o) => o.permalink));
-    return alle
-      .slice(0, size)
-      .filter((v) => !raus.has(v.permalink))
-      .map(mapVideo);
-  };
-
-  const included_8 = fensterAus(stats.used_8, WINDOW_SHORT, stats.outliers_8);
-  const included_30 = fensterAus(stats.used_30, WINDOW_LONG, stats.outliers_30);
-
-  const skipped = (stats.skipped_videos || []).map((v) => ({
-    views: v.views,
-    age_hours: v.age_hours,
-    timestamp: v.timestamp,
-    permalink: v.permalink,
-    reason: v.reason || 'too_recent',
-    ad_marker: v.ad_marker || null,
-    ...(v.trial_detail ? { trial_detail: v.trial_detail } : {})
-  }));
-
-  return {
-    username: username || null,
-    source: meta.source || null,
-    pool_fetched_at: meta.pool_fetched_at || null,
-    image_error: meta.image_error || null,
-    rules: {
-      MIN_AGE_HOURS,
-      CPM_RATE,
-      WINDOW_SHORT,
-      WINDOW_LONG,
-      OUTLIER_RATIO,
-      OUTLIER_MIN_SAMPLE,
-      AD_HASHTAGS,
-      TRIAL_EXACT_MIN_LEN,
-      TRIAL_EXACT_MAX_GAP_DAYS,
-      TRIAL_FUZZY_MIN_LEN,
-      TRIAL_FUZZY_MAX_GAP_DAYS,
-      TRIAL_FUZZY_JACCARD,
-      TRIAL_GAP_RATIO,
-      TRIAL_MIN_CLUSTER,
-      TRIAL_MIN_REGULAR,
-      TRIAL_MIN_REGULAR_MEDIAN,
-      TRIAL_MAX_PCT,
-      CALC_VERSION,
-      note: 'UI-Preis = views × Listen-TKP; cpm_* hier immer × CPM_RATE'
-    },
-    trial_gate: stats.trial_gate || null,
-    ohne_trials: stats.ohne_trials
-      ? {
-          views_8: stats.ohne_trials.views_8 ?? null,
-          views_30: stats.ohne_trials.views_30 ?? null,
-          cpm_8: stats.ohne_trials.cpm_8 ?? null,
-          cpm_30: stats.ohne_trials.cpm_30 ?? null,
-          sample_8: stats.ohne_trials.sample_8 ?? null,
-          sample_30: stats.ohne_trials.sample_30 ?? null
-        }
-      : null,
-    skipped,
-    included_8,
-    included_30,
-    outliers: {
-      window_8: stats.outliers_8 || [],
-      window_30: stats.outliers_30 || []
-    },
-    summary: {
-      non_video_skipped: stats.non_video_skipped ?? null,
-      skipped_too_recent: stats.skipped_too_recent ?? null,
-      skipped_ads: stats.skipped_ads ?? null,
-      skipped_trials: stats.skipped_trials ?? null,
-      skipped_trial_views: stats.skipped_trial_views ?? null,
-      videos_available: stats.videos_available ?? null,
-      sample_8: stats.sample_8 ?? null,
-      sample_30: stats.sample_30 ?? null,
-      window_8_full: stats.sample_8 === WINDOW_SHORT,
-      window_30_full: stats.sample_30 === WINDOW_LONG,
-      views_8: stats.views_8 ?? null,
-      views_30: stats.views_30 ?? null,
-      cpm_8: stats.cpm_8 ?? null,
-      cpm_30: stats.cpm_30 ?? null,
-      formula: `views / 1000 * ${CPM_RATE}`
-    }
-  };
-}
-
-/** 850 -> "850", 3600 -> "3,6K", 1200000 -> "1,2M" (Report-Kurzform) */
-function kurzZahl(n) {
-  if (n == null || !Number.isFinite(n)) return '-';
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1).replace('.', ',')}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1).replace('.', ',')}K`;
-  return String(Math.round(n));
-}
-
-/** 50000 -> "50.000" (de-DE Tausenderpunkt) */
-function deZahl(n) {
-  if (n == null || !Number.isFinite(n)) return '-';
-  return Math.round(n).toLocaleString('de-DE');
-}
-
-/** 14.7 -> "14,70 €" */
-function eur(n) {
-  if (n == null || !Number.isFinite(n)) return '-';
-  return `${n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-}
-
-/** Shortcode aus einem Instagram-Permalink ziehen */
-function shortcode(permalink) {
-  const m = String(permalink || '').match(/\/(?:reel|reels|p)\/([^/?#]+)/i);
-  return m ? m[1] : String(permalink || '?');
-}
-
-/** Alter eines Posts kompakt: "29h" unter 48h, sonst "4d" */
-function alterVon(timestamp, now) {
-  const h = (now - Date.parse(timestamp)) / 3600000;
-  if (!Number.isFinite(h)) return '?';
-  if (h < 48) return `${Math.max(0, Math.round(h))}h`;
-  return `${Math.round(h / 24)}d`;
-}
-
-/**
- * Menschenlesbarer Report ueber die komplette CPM-Rechnung: Regeln, Datenlage,
- * Luecken-Gate, Verdict je Reel und duale SUMMARY (A mit / B ohne Trials).
- * Dieselbe Funktion schreibt das Netlify-Log (emitCpmDebug) und das lokale
- * Verifikations-Script (scripts/instagram-media-debug.mjs) - identischer
- * Output, damit Zeilen stichprobenartig gegen das eingeloggte Grid pruefbar
- * sind.
- *
- * @param {string} username
- * @param {object} stats   Rueckgabe von computeInstagramCpm (oder Pool-Spiegel)
- * @param {object} [meta]  { source, pool_fetched_at, follower, media_total, now }
- * @returns {string}
- */
-function formatCpmReport(username, stats, meta = {}) {
-  const now = meta.now ?? Date.now();
-  const videos = stats.videos || [];
-  const skipped = stats.skipped_videos || [];
-  const gate = stats.trial_gate || null;
-  const ohne = stats.ohne_trials || null;
-  const z = [];
-
-  const follower = meta.follower != null ? deZahl(meta.follower) : '-';
-  z.push(`[IG-CPM] @${username || '?'}  source=${meta.source || '?'}  fetched=${meta.pool_fetched_at || '-'}  follower=${follower}`);
-
-  z.push(`RULES  age>=${MIN_AGE_HOURS}h  gap>=${TRIAL_GAP_RATIO}x  cluster>=${TRIAL_MIN_CLUSTER}  regular>=${TRIAL_MIN_REGULAR}  reg_median>=${deZahl(TRIAL_MIN_REGULAR_MEDIAN)}  boden<${TRIAL_MAX_PCT * 100}% reg_median  flag<${TRIAL_MAX_PCT * 100}% reg_median  outlier>=${OUTLIER_RATIO}x  calc_v${CALC_VERSION}`);
-
-  const mediaTotal = meta.media_total
-    ?? (videos.length + skipped.length + (stats.non_video_skipped ?? 0));
-  z.push(`FETCH  media=${mediaTotal}  usable=${stats.videos_available ?? videos.length}  (ads=${stats.skipped_ads ?? 0}, dup=${stats.skipped_trials ?? 0}, recent=${stats.skipped_too_recent ?? 0}, trial_views=${stats.skipped_trial_views ?? 0}, non_video=${stats.non_video_skipped ?? 0})`);
-
-  const viewsSort = videos.map((v) => v.views).filter(Number.isFinite).sort((a, b) => a - b);
-  if (viewsSort.length) {
-    const q = (p) => viewsSort[Math.min(viewsSort.length - 1, Math.floor(p * viewsSort.length))];
-    z.push(`DIST   min=${kurzZahl(viewsSort[0])}  p25=${kurzZahl(q(0.25))}  median=${kurzZahl(median(viewsSort))}  p75=${kurzZahl(q(0.75))}  max=${kurzZahl(viewsSort[viewsSort.length - 1])}`);
-  }
-
-  if (gate?.aktiv) {
-    const lows = viewsSort.filter((v) => v < gate.schwelle);
-    const highs = viewsSort.filter((v) => v >= gate.schwelle);
-    const lowsTxt = lows.slice(0, 12).map(kurzZahl).join('  ')
-      + (lows.length > 12 ? `  …+${lows.length - 12}` : '');
-    const highsTxt = highs.slice(0, 5).map(kurzZahl).join('  ')
-      + (highs.length > 5 ? `  …  ${kurzZahl(highs[highs.length - 1])}` : '');
-    z.push(`LADDER ${lowsTxt} | ${highsTxt}`);
-    const splitUnten = lows.length ? kurzZahl(lows[lows.length - 1]) : '?';
-    const splitOben = highs.length ? kurzZahl(highs[0]) : '?';
-    z.push(`        └─ low cluster n=${lows.length} ─┘  ↑ SPLIT ${splitUnten} -> ${splitOben} (ratio ${String(gate.gap_ratio ?? '?').replace('.', ',')}x)`);
-    z.push(`GATE   reg_median=${kurzZahl(gate.reg_median)} >= ${deZahl(TRIAL_MIN_REGULAR_MEDIAN)}  boden_median=${kurzZahl(gate.boden_median)} < ${TRIAL_MAX_PCT * 100}% reg_median  cluster=${gate.cluster_size} >= ${TRIAL_MIN_CLUSTER}  => AKTIV, Schwelle=${kurzZahl(gate.schwelle)}`);
-  } else {
-    z.push(`GATE   INAKTIV (${gate?.grund || 'keine Daten'}) => B = A`);
-  }
-
-  // --- Verdict je Reel ---
-  const idxA8 = new Set(stats.used_8 || []);
-  const idxA30 = new Set(stats.used_30 || []);
-  const idxB8 = new Set(ohne?.used_8 || []);
-  const idxB30 = new Set(ohne?.used_30 || []);
-  const outlierTags = new Map();
-  const addOutlier = (o, tag) => {
-    if (!o?.permalink) return;
-    const ratio = o.ratio == null ? '∞' : String(o.ratio).replace('.', ',');
-    const list = outlierTags.get(o.permalink) || [];
-    list.push(`${tag}_${o.side === 'high' ? 'HIGH' : 'LOW'} ${ratio}x`);
-    outlierTags.set(o.permalink, list);
-  };
-  (stats.outliers_8 || []).forEach((o) => addOutlier(o, 'A8'));
-  (stats.outliers_30 || []).forEach((o) => addOutlier(o, 'A30'));
-  (ohne?.outliers_8 || []).forEach((o) => addOutlier(o, 'B8'));
-  (ohne?.outliers_30 || []).forEach((o) => addOutlier(o, 'B30'));
-  const trialByLink = new Map(
-    skipped.filter((s) => s.reason === 'trial_views').map((s) => [s.permalink, s])
-  );
-
-  const zeilen = [];
-  videos.forEach((v, i) => {
-    const tags = [];
-    if (idxA8.has(i)) tags.push('A8');
-    if (idxA30.has(i)) tags.push('A30');
-    if (idxB8.has(i)) tags.push('B8');
-    if (idxB30.has(i)) tags.push('B30');
-    const trial = trialByLink.get(v.permalink);
-    const out = outlierTags.get(v.permalink);
-    let verdict;
-    if (trial) {
-      const d = trial.trial_detail || {};
-      const fenster = tags.length ? `  [${tags.join(' ')}]` : '  [A-Pool, B exkludiert]';
-      verdict = `TRIAL_VIEWS (${kurzZahl(v.views)} < ${kurzZahl(d.schwelle)} = ${TRIAL_MAX_PCT * 100}% von ${kurzZahl(d.reg_median)})${fenster}`;
-    } else if (out) {
-      verdict = `OUTLIER ${out.join(', ')} -> ersetzt`;
-    } else {
-      verdict = tags.length ? `USED ${tags.join(' ')}` : 'im Pool (ausserhalb der Fenster)';
-    }
-    zeilen.push({
-      ts: v.timestamp,
-      txt: `  ${String(v.timestamp || '').slice(0, 10)}  ${kurzZahl(v.views).padStart(6)}  ${alterVon(v.timestamp, now).padStart(4)}  ${shortcode(v.permalink)}  ${verdict}`
-    });
-  });
-  skipped.filter((s) => s.reason !== 'trial_views').forEach((s) => {
-    let verdict;
-    if (s.reason === 'ad_post') verdict = `AD (${s.ad_marker || 'Caption'})`;
-    else if (s.reason === 'trial_duplicate') verdict = 'TRIAL_DUP (Caption-Paar)';
-    else if (s.reason === 'too_recent') verdict = `TOO_RECENT (${Math.round(s.age_hours ?? 0)}h < ${MIN_AGE_HOURS}h)`;
-    else verdict = String(s.reason || '?').toUpperCase();
-    zeilen.push({
-      ts: s.timestamp,
-      txt: `  ${String(s.timestamp || '').slice(0, 10)}  ${kurzZahl(s.views).padStart(6)}  ${alterVon(s.timestamp, now).padStart(4)}  ${shortcode(s.permalink)}  ${verdict}`
-    });
-  });
-  zeilen.sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts));
-  z.push(`VERDICTS (neueste zuerst, ${zeilen.length}):`);
-  const MAX_VERDICTS = 80;
-  zeilen.slice(0, MAX_VERDICTS).forEach((zl) => z.push(zl.txt));
-  if (zeilen.length > MAX_VERDICTS) z.push(`  … +${zeilen.length - MAX_VERDICTS} weitere`);
-
-  // --- Duale Summary ---
-  z.push(`SUMMARY  A mit Trials:   views_8=${kurzZahl(stats.views_8)}  views_30=${kurzZahl(stats.views_30)}  (cpm ${eur(stats.cpm_8)} / ${eur(stats.cpm_30)})  sample=${stats.sample_8 ?? 0}/${stats.sample_30 ?? 0}`);
-  if (ohne) {
-    z.push(`         B ohne Trials:  views_8=${kurzZahl(ohne.views_8)}  views_30=${kurzZahl(ohne.views_30)}  (cpm ${eur(ohne.cpm_8)} / ${eur(ohne.cpm_30)})  sample=${ohne.sample_8 ?? 0}/${ohne.sample_30 ?? 0}`);
-  }
-  return z.join('\n');
-}
-
 module.exports = {
   CPM_RATE,
   MIN_AGE_HOURS,
@@ -1064,6 +798,8 @@ module.exports = {
   average,
   detectOutliers,
   pickWindow,
+  evaluateWindow,
+  median,
   istWerbePost,
   normCaption,
   captionJaccard,
@@ -1072,7 +808,5 @@ module.exports = {
   findeTrialLuecke,
   serialisiereTrialGate,
   toCpm,
-  computeInstagramCpm,
-  formatCpmDebug,
-  formatCpmReport
+  computeInstagramCpm
 };

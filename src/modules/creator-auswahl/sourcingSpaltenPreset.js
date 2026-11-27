@@ -10,6 +10,8 @@
 //   plattformen 'instagram' | 'tiktok' | 'instagram,tiktok'
 //   ig_formate  'reel' | 'story' | 'reel,story'
 
+import { BASIS_ZEILEN, TIKTOK_SPALTEN } from './sourcingSpaltenKatalog.js';
+
 export const LISTE_TYP_OPTIONEN = [
   { value: 'ugc', label: 'UGC' },
   { value: 'influencer', label: 'Influencer' }
@@ -29,24 +31,29 @@ export const IG_FORMAT_OPTIONEN = [
   { value: 'reel,story', label: 'Reel + Story' }
 ];
 
-/** Instagram-Basisspalten: Link und Follower */
-export const IG_BASIS_SPALTEN = ['cp-col-link-ig', 'cp-col-follower-ig'];
+/** Instagram-Basiszeilen: Link, Follower und Engagement */
+export const IG_BASIS_SPALTEN = BASIS_ZEILEN.instagram;
 
 /**
- * Reels-Spalten: die beiden berechneten Preise (8er- und 30er-Fenster, jeweils
+ * Reels-Spalten: Views und berechneter Preis des 12er- und 30er-Fensters (jeweils
  * ohne Ausreisser und ohne Werbe-Reels) plus der von Hand gepflegte Reel-Preis.
  */
 export const IG_REELS_SPALTEN = [
-  'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-reels'
+  'cp-col-views-ig-12', 'cp-col-cpm-ig-12', 'cp-col-views-ig-30', 'cp-col-cpm-ig-30',
+  'cp-col-preis-reels'
 ];
 
 /** Manuell gepflegte Story-Spalten */
 export const IG_STORY_SPALTEN = ['cp-col-reichweite-story', 'cp-col-preis-story'];
 
-/** TikTok-Spalten: Link, Follower und die beiden manuell gepflegten Preise */
-export const TT_SPALTEN = [
-  'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story'
-];
+/** Instagram-Gesamtpreis: bleibt auch bei UGC sichtbar (Pauschale), nur in reinen TikTok-Listen aus */
+export const IG_GESAMTPREIS_SPALTE = 'cp-col-pricing-ig';
+
+/**
+ * TikTok-Zeilen: Link, Follower, Engagement, Views und Preis 12/30 aus dem Profilabruf,
+ * dazu die manuell gepflegten Preise samt Gesamtpreis
+ */
+export const TT_SPALTEN = TIKTOK_SPALTEN;
 
 /**
  * Spalten, die eine neue Liste ausgeblendet startet, obwohl das Preset sie
@@ -58,7 +65,7 @@ export const STANDARD_VERSTECKTE_SPALTEN = ['cp-col-typ'];
 
 /** Alle Spalten, die das Preset ueberhaupt steuert */
 export const PRESET_SPALTEN = [
-  ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...TT_SPALTEN
+  ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, IG_GESAMTPREIS_SPALTE, ...TT_SPALTEN
 ];
 
 function toListe(value) {
@@ -96,7 +103,7 @@ export function berechneHiddenColumns(auswahl = {}) {
   const hidden = [];
 
   if (!hatInstagram) {
-    hidden.push(...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN);
+    hidden.push(...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, IG_GESAMTPREIS_SPALTE);
   } else {
     if (!hatReel) hidden.push(...IG_REELS_SPALTEN);
     if (!hatStory) hidden.push(...IG_STORY_SPALTEN);

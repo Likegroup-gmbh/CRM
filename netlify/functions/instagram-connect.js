@@ -31,6 +31,7 @@ const {
   istWerbePost
 } = require('./_shared/instagram-cpm');
 const { waehleAnzeigeReels } = require('./_shared/instagram-reels');
+const { computeEngagementRate } = require('./_shared/instagram-engagement');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 const { erkenneGeschlecht } = require('./_shared/geschlecht-erkennen');
 
@@ -129,20 +130,6 @@ async function fetchProfileWithMedia(username) {
     return { ok: false, error: 'Profil konnte nicht geladen werden', error_code: null, rate_limited: false };
   }
   return { ok: true, profile, media };
-}
-
-/** Engagement Rate = Durchschnitt (Likes + Kommentare) / Follower ueber die geladenen Posts, in Prozent */
-function computeEngagementRate(mediaData, followers) {
-  if (!followers || followers <= 0 || !mediaData?.length) return null;
-  let sum = 0;
-  let counted = 0;
-  for (const m of mediaData) {
-    if (m.like_count === undefined && m.comments_count === undefined) continue;
-    sum += (Number(m.like_count) || 0) + (Number(m.comments_count) || 0);
-    counted += 1;
-  }
-  if (counted === 0) return null;
-  return Number((((sum / counted) / followers) * 100).toFixed(3));
 }
 
 /** Brand-Mentions aus Captions: @handles in Posts mit Werbe-Kennzeichnung */

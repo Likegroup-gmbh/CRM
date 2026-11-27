@@ -126,6 +126,12 @@ describe('Masterliste', () => {
     const columns = visibleColumns(resolveHidden(null), { canManage: true });
     const html = renderMasterlisteRow(member, columns, 'liste-1');
     expect(html).toContain('href="https://instagram.com/ada"');
+    expect(html).toContain('class="link-icon-btn"');
+    expect(html).toContain('plattform-zeile');
+    expect(html).toContain('crm-icon-instagram');
+    expect(html).toContain('crm-icon-bars-3');
+    expect(html).toContain('12,0K');
+    expect(html).toContain('Wien, Österreich');
     expect(html).toContain(formatEngagement(3.2));
     expect(html).toContain('data-return-to="/creator-lists/liste-1"');
     expect(html).toContain('Von der Liste nehmen');

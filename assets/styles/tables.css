@@ -73,16 +73,78 @@
   color: var(--text-secondary);
 }
 
-/* Die Tabelle ist breiter als der Seitenbereich. .main-wrapper schneidet
-   horizontales Überlaufen sonst ab (overflow-x: hidden), Trackpad und
-   Touch kommen an die rechten Spalten nicht heran. clip auf der Y-Achse,
-   damit overflow-x: auto sie nicht zu auto macht: der Seitenbereich bleibt
-   der vertikale Scrollport und der Tabellenkopf klebt weiter oben. */
-#masterliste-page .data-table-container,
+.masterliste-listen-beschreibung {
+  margin-top: var(--space-xxxs);
+  max-width: 36em;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#masterlisten-inhalt td.col-name .table-link {
+  display: inline-block;
+  max-width: 28em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+#masterlisten-inhalt td.col-unternehmen {
+  white-space: nowrap;
+}
+
 #masterlisten-inhalt:has(.data-table) {
   overflow-x: auto;
   overflow-y: clip;
   max-width: 100%;
+}
+
+#masterlisten-inhalt .ml-list-count,
+#masterlisten-inhalt .ml-list-datum {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Dieselbe Tabelle wie die Casting-Liste. Der Seitenbereich scrollt quer,
+   der Container selbst nicht. */
+#masterliste-page .creator-pool-table-container.drag-scroll-enabled {
+  cursor: grab;
+}
+
+#masterliste-page .creator-pool-table-container.is-grabbing {
+  cursor: grabbing;
+  user-select: none;
+}
+
+#masterliste-table td.cp-col-name .table-identity__text > .cell-text-readonly {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+#masterliste-table td.cp-col-name .table-link,
+#masterliste-table td.cp-col-name .table-text {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#masterliste-table td.ml-col-branchen,
+#masterliste-table td.ml-col-art,
+#masterliste-table td.ml-col-sprachen {
+  white-space: normal;
+  max-width: 16rem;
+  vertical-align: middle;
 }
 
 .table-actions {
@@ -484,8 +546,9 @@ thead {
 
 .data-table .custom-date-picker.has-value .custom-date-picker__trigger,
 .kooperation-video-grid .custom-date-picker.has-value .custom-date-picker__trigger {
-  background: var(--color-success);
-  color: var(--bg-primary);
+  background: var(--success-100);
+  border-color: var(--success-300);
+  color: var(--success-700);
 }
 
 .data-table .custom-date-picker__trigger svg,
@@ -1115,15 +1178,26 @@ thead {
 
 /* Auftrags-Tabelle: Fixed positioning für Dropdown (wird per JS gesetzt) */
 
-/* Table Container - Clean Design für Listen-Seiten */
+/* Table Container - Clean Design für Listen-Seiten.
+   .main-wrapper schneidet waagerechten Überstand ab (overflow-x: hidden).
+   Die Tabelle scrollt deshalb selbst, sobald die Spalten nicht mehr passen.
+   clip auf der Y-Achse, damit overflow-x: auto sie nicht zu auto macht:
+   senkrecht scrollt weiter der Seitenbereich, der Kopf klebt dort.
+   Chrome verwirft dabei die waagerechte Trackpad-Geste; horizontalClipWheel.js
+   schiebt sie nach. hidden statt clip würde den Kopf vom Seitenbereich lösen. */
 
 .table-container,
 .data-table-container {
-  overflow: visible; /* Kein Scroll innerhalb der Tabelle */
+  overflow: visible;
   max-width: 100%;
-  
-  background: transparent; /* Transparenter Hintergrund */
+  background: transparent;
+}
 
+.table-container:has(> .data-table):not(.creator-pool-table-container),
+.data-table-container:has(> .data-table):not(.creator-pool-table-container) {
+  overflow-x: auto;
+  overflow-y: clip;
+  min-width: 0;
 }
 
 /* Responsive Table Improvements */
@@ -1580,6 +1654,33 @@ thead {
      zusätzlicher Inset-Schatten würde sie auf 2px verdoppeln. */
 }
 
+.creator-pool-table.has-kategorie-headers .kategorie-header-row > td {
+  top: var(--sticky-add-section-height, 0px);
+  z-index: 28;
+}
+
+.creator-pool-table tbody tr.kategorie-col-header-row > th {
+  position: sticky;
+  top: calc(var(--sticky-add-section-height, 0px) + var(--sticky-kategorie-header-height, 37px));
+  z-index: 14;
+  background: var(--bg-primary);
+  font-weight: 400;
+  color: var(--gray-500);
+  box-shadow: inset 0 -1px 0 0 var(--gray-200);
+  border-bottom-style: hidden;
+  border-top: none;
+  --sticky-bottom-line: var(--gray-200);
+}
+
+.creator-pool-table tbody tr.kategorie-col-header-row:hover,
+.creator-pool-table tbody tr.kategorie-col-header-row:hover > th {
+  background: var(--bg-primary);
+}
+
+.creator-pool-table tbody tr.kategorie-header-row:hover {
+  background: var(--gray-100);
+}
+
 .creator-pool-table .kategorie-header-row > td.kategorie-header--default {
   background: var(--gray-50);
 }
@@ -1595,7 +1696,7 @@ thead {
 }
 
 .strategie-items-table tbody tr.item-row.item-gebucht:hover {
-  background-color: var(--green-50);
+  background-color: var(--success-row);
 }
 
 .strategie-items-table tbody tr.idea-row:hover {
@@ -1608,18 +1709,16 @@ thead {
 
 /* Rollen Badges (für Kampagne Mitarbeiter) */
 
-.add-item-section--compact + .table-container .strategie-items-table thead th,
-.sourcing-tab-navigation + .table-container .strategie-items-table thead th {
+.add-item-section--compact + .table-container .strategie-items-table thead th {
   top: var(--sticky-add-section-height);
 }
 
 /* z-index nur fuer die mitscrollenden Header. Die links fixierten Spalten
-   (col-sticky: 25-27) und die rechte Aktions-Spalte (cp-col-actions: 26) sind
+   (col-sticky: 25-27) und die rechten Spalten Freigabe und Aktionen (26) sind
    ausgenommen -- bei gleichem z-index gewinnt sonst die DOM-Reihenfolge und
    die scrollenden Header legen sich beim horizontalen Scrollen ueber die
    fixierten. */
-.add-item-section--compact + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]):not(.cp-col-actions),
-.sourcing-tab-navigation + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]):not(.cp-col-actions) {
+.add-item-section--compact + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]):not(.cp-col-actions):not(.cp-col-freigabe) {
   z-index: 14;
 }
 
@@ -1793,7 +1892,7 @@ thead {
 /* Item-Zeilen-Zustände */
 
 .strategie-items-table .item-gebucht {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 .strategie-items-table .item-nicht-umsetzen {
@@ -1881,7 +1980,7 @@ thead {
    Im Kampagnen-Pane scrollt der Worksheet-Container selbst — sonst wächst
    die ganze Kampagnen-View mit der Tabelle. */
 
-.main-wrapper:has(.creator-pool-table-container):not(:has(.kampagne-casting-worksheet)) {
+.main-wrapper:has(.creator-pool-table-container):not(:has(.kampagne-casting-worksheet, .casting-page)) {
   overflow-x: auto;
 }
 
@@ -1936,7 +2035,9 @@ thead {
 /* Header der fixierten Spalten höherer z-index + konsistente Borders */
 
 .creator-pool-table thead th.col-sticky-1,
-.creator-pool-table thead th.col-sticky-2 {
+.creator-pool-table thead th.col-sticky-2,
+.creator-pool-table tbody tr.kategorie-col-header-row > th.col-sticky-1,
+.creator-pool-table tbody tr.kategorie-col-header-row > th.col-sticky-2 {
   z-index: 25;
   background: white;
 }
@@ -1952,14 +2053,14 @@ thead {
 
 .creator-pool-table .item-gebucht td.col-sticky-1,
 .creator-pool-table .item-gebucht td.col-sticky-2 {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 /* Hover auf gebuchte Zeilen bleibt grün */
 
 .creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-1,
 .creator-pool-table tbody tr.item-row.item-gebucht:hover td.col-sticky-2 {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 /* Item-Nicht-Umsetzen für sticky Spalten */
@@ -2102,13 +2203,15 @@ thead {
 .creator-pool-table td.cp-col-mail,
 .creator-pool-table td.cp-col-telefon,
 .creator-pool-table td.cp-col-link,
-.creator-pool-table td.cp-col-engagement-ig,
+.creator-pool-table td.cp-col-engagement,
 .creator-pool-table td.cp-col-reichweite-story,
 .creator-pool-table td.cp-col-story-preis,
 .creator-pool-table td.cp-col-reichweite-garantie,
 .creator-pool-table td.cp-col-pricing,
-.creator-pool-table td.cp-col-cpm-ig-8,
-.creator-pool-table td.cp-col-cpm-ig-30,
+.creator-pool-table td.cp-col-views-12,
+.creator-pool-table td.cp-col-cpm-12,
+.creator-pool-table td.cp-col-views-30,
+.creator-pool-table td.cp-col-cpm-30,
 .creator-pool-table td.cp-col-preis-video,
 .creator-pool-table td.cp-col-nutzungsrechte,
 .creator-pool-table td.cp-col-ek,
@@ -2176,7 +2279,7 @@ thead {
    :is() haelt die Spaltenliste an einer Stelle; "tbody" hebt die Spezifitaet
    ueber die Einzelregeln in forms.css (Feedback, Euro-Feld). */
 
-.creator-pool-table tbody td:is(.cp-col-location, .cp-col-telefon, .cp-col-pricing, .cp-col-nutzungsrechte, .cp-col-reichweite-garantie, .cp-col-feedback, .cp-col-ek, .cp-col-vk) {
+.creator-pool-table tbody td:is(.cp-col-location, .cp-col-telefon, .cp-col-nutzungsrechte, .cp-col-reichweite-garantie, .cp-col-feedback, .cp-col-ek, .cp-col-vk) {
   height: 1px;
   padding: 0;
 }
@@ -2201,13 +2304,13 @@ thead {
 
 /* Preisfelder: Betrag rechts, Euro-Zeichen als Overlay, Feld = ganze Zelle */
 
-.creator-pool-table tbody td:is(.cp-col-pricing, .cp-col-ek, .cp-col-vk) > .cell-euro {
+.creator-pool-table tbody td:is(.cp-col-ek, .cp-col-vk) > .cell-euro {
   position: relative;
   height: 100%;
   padding: 0;
 }
 
-.creator-pool-table tbody td:is(.cp-col-pricing, .cp-col-ek, .cp-col-vk) .cell-euro .strategie-textarea.cell-euro__input {
+.creator-pool-table tbody td:is(.cp-col-ek, .cp-col-vk) .cell-euro .strategie-textarea.cell-euro__input {
   flex: 1;
   width: 100%;
   min-width: 0;
@@ -2219,7 +2322,7 @@ thead {
   text-align: right;
 }
 
-.creator-pool-table tbody td:is(.cp-col-pricing, .cp-col-ek, .cp-col-vk) .cell-euro__suffix {
+.creator-pool-table tbody td:is(.cp-col-ek, .cp-col-vk) .cell-euro__suffix {
   position: absolute;
   top: 50%;
   right: var(--space-xs);
@@ -2317,8 +2420,10 @@ thead {
 .creator-pool-table .cp-col-story-preis,
 .creator-pool-table .cp-col-reichweite-garantie,
 .creator-pool-table .cp-col-pricing,
-.creator-pool-table .cp-col-cpm-ig-8,
-.creator-pool-table .cp-col-cpm-ig-30,
+.creator-pool-table .cp-col-views-12,
+.creator-pool-table .cp-col-cpm-12,
+.creator-pool-table .cp-col-views-30,
+.creator-pool-table .cp-col-cpm-30,
 .creator-pool-table .cp-col-preis-video,
 .creator-pool-table .cp-col-ek,
 .creator-pool-table .cp-col-vk {
@@ -2329,6 +2434,14 @@ thead {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   line-height: 1.25;
+}
+
+/* Jede Zeile bleibt in ihrer Spalte: lieber abgeschnitten (der Tooltip hat den
+   vollen Wert) als in die Nachbarspalte laufen */
+.creator-pool-table .cpm-auto-value > div {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .creator-pool-table .cpm-auto-reach {
@@ -2345,17 +2458,24 @@ thead {
   padding-top: 2px;
 }
 
-/* Blur setzt color nur auf dem Wrapper - die Views-Zeile braucht sie explizit */
+.creator-pool-table .cpm-auto-tag {
+  color: var(--text-tertiary);
+}
 
-.creator-pool-table .cpm-auto-value.kunden-call-blur .cpm-auto-reach {
+/* Blur setzt color nur auf dem Wrapper - die Zeile ohne Trials braucht sie explizit */
+
+.creator-pool-table .cpm-auto-value.kunden-call-blur .cpm-auto-reach,
+.creator-pool-table .cpm-auto-value.kunden-call-blur .cpm-auto-tag {
   color: transparent;
 }
 
 /* Preisspalten mit Icon und Euro-Zeichen brauchen etwas mehr Platz.
    Keine Block-Toenung mehr: die Plattform steht als Icon in der Zelle. */
 
-.creator-pool-table .cp-col-cpm-ig-8,
-.creator-pool-table .cp-col-cpm-ig-30,
+.creator-pool-table .cp-col-views-12,
+.creator-pool-table .cp-col-cpm-12,
+.creator-pool-table .cp-col-views-30,
+.creator-pool-table .cp-col-cpm-30,
 .creator-pool-table .cp-col-preis-video,
 .creator-pool-table .cp-col-story-preis {
   width: 108px;
@@ -2433,6 +2553,11 @@ thead {
 
 .creator-pool-table .plattform-zeile:has(> .plattform-zeile__icon) {
   --plattform-pad-links: var(--plattform-icon-platz);
+}
+
+/* Link-Chip ohne eigenes Icon: die Beschriftung beginnt hinter dem Overlay-Icon */
+.creator-pool-table .plattform-zeile .chip-cell {
+  --chip-cell-pad-left: var(--plattform-pad-links);
 }
 
 .creator-pool-table .plattform-zeile__inhalt > * {
@@ -2534,6 +2659,7 @@ thead {
 
 /* Aktions-Spalte: sticky rechts, analog .kooperation-video-grid .col-actions */
 .creator-pool-table thead th.cp-col-actions,
+.creator-pool-table tbody tr.kategorie-col-header-row > th.cp-col-actions,
 .creator-pool-table tbody td.cp-col-actions {
   position: sticky;
   right: 0;
@@ -2545,7 +2671,8 @@ thead {
   overflow: visible;
 }
 
-.creator-pool-table thead th.cp-col-actions {
+.creator-pool-table thead th.cp-col-actions,
+.creator-pool-table tbody tr.kategorie-col-header-row > th.cp-col-actions {
   z-index: 26;
   background: white;
 }
@@ -2555,11 +2682,11 @@ thead {
 }
 
 .creator-pool-table .item-gebucht td.cp-col-actions {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 .creator-pool-table tbody tr.item-row.item-gebucht:hover td.cp-col-actions {
-  background: var(--green-50);
+  background: var(--success-row);
 }
 
 .creator-pool-table .item-nicht-umsetzen td.cp-col-actions {
@@ -2576,6 +2703,61 @@ thead {
 }
 
 .creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.cp-col-actions {
+  background: var(--orange-50);
+}
+
+/* Freigabe-Spalte: sticky rechts direkt vor den Aktionen (Breite = .cp-col-actions) */
+.creator-pool-table .cp-col-freigabe {
+  width: 132px;
+  min-width: 132px;
+  text-align: center;
+}
+
+.creator-pool-table thead th.cp-col-freigabe,
+.creator-pool-table tbody tr.kategorie-col-header-row > th.cp-col-freigabe,
+.creator-pool-table tbody td.cp-col-freigabe {
+  position: sticky;
+  right: 70px;
+  z-index: 20;
+  background: white;
+  border-left: 1px solid var(--border-primary);
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.04);
+  overflow: visible;
+}
+
+.creator-pool-table.ohne-aktionen thead th.cp-col-freigabe,
+.creator-pool-table.ohne-aktionen tbody tr.kategorie-col-header-row > th.cp-col-freigabe,
+.creator-pool-table.ohne-aktionen tbody td.cp-col-freigabe {
+  right: 0;
+}
+
+.creator-pool-table thead th.cp-col-freigabe,
+.creator-pool-table tbody tr.kategorie-col-header-row > th.cp-col-freigabe {
+  z-index: 26;
+}
+
+.creator-pool-table tbody tr:hover td.cp-col-freigabe {
+  background: var(--gray-50);
+}
+
+.creator-pool-table .item-gebucht td.cp-col-freigabe,
+.creator-pool-table tbody tr.item-row.item-gebucht:hover td.cp-col-freigabe {
+  background: var(--success-row);
+}
+
+.creator-pool-table .item-nicht-umsetzen td.cp-col-freigabe {
+  background: var(--gray-100);
+}
+
+.creator-pool-table tbody tr.item-row--vorschlag > td.cp-col-freigabe {
+  background: var(--orange-25);
+  box-shadow:
+    var(--vs-oben),
+    inset 0 -1px 0 0 var(--color-warning),
+    -4px 0 8px rgba(0, 0, 0, 0.04);
+}
+
+.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.cp-col-freigabe {
   background: var(--orange-50);
 }
 
@@ -2888,7 +3070,8 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
 
 /* Name ist immer die letzte fixierte Spalte: ihr border-right ist der Trenner */
 
-.creator-pool-table thead th.cp-col-name {
+.creator-pool-table thead th.cp-col-name,
+.creator-pool-table tbody tr.kategorie-col-header-row > th.cp-col-name {
   z-index: 26;
 }
 

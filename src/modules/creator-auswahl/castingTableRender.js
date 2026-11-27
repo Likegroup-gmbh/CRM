@@ -15,8 +15,10 @@ import {
 } from './sourcingSpaltenSichtbarkeit.js';
 import { SOURCING_TABS } from './sourcingTabs.js';
 import { NICHT_UMSETZEN_ICON } from './sourcingIcons.js';
-import { getListenTkp, reelsPreisTooltip, tkpAlsEingabe } from './castingPreisZellen.js';
+import { getListenTkp, reelsPreisTooltip, tkpAlsEingabe, viewsTooltip } from './castingPreisZellen.js';
+import { SOURCING_SPALTEN_LABELS } from './sourcingSpaltenKatalog.js';
 import { renderItemRow } from './castingItemRow.js';
+import { zeigtFreigabeSpalte } from './castingFreigabeLogik.js';
 import { hatEigeneReihenfolge, ordneSourcingTabellenHtml, spaltenfolgeFuerKontext } from './sourcingSpaltenfolge.js';
 import { renderBewerbungTable } from './bewerbungTab.js';
 
@@ -76,10 +78,6 @@ function renderAddSectionActions(ctx = {}) {
         })}
         ${ctx.filterToggleHtml || ''}
         ${ctx.canCreate ? `
-        <button type="button" class="mdc-btn" id="btn-open-add-drawer">
-          ${icon('plus-lg')}
-          Creator hinzufügen
-        </button>
         <button type="button" class="mdc-btn mdc-btn--secondary" id="btn-management-anfrage">
           Managements anfragen
         </button>
@@ -120,8 +118,9 @@ export function renderAddSection(ctx = {}) {
 export function renderItemsTable(ctx) {
   if (ctx.activeTab === 'bewerbung' && !ctx.isKunde) return renderBewerbungTable(ctx.bewerbungen || []);
   const searchQuery = (ctx.searchQuery || '').trim();
+  const gesamtTreffer = (ctx.tabCounts?.alle ?? 0) + (ctx.tabCounts?.abgelehnt ?? 0);
   // Suche aktiv und gar kein Name matcht (unabhaengig vom Reiter)
-  if (ctx.items.length === 0 && ctx.hasAnyItems && searchQuery && (ctx.tabCounts?.alle ?? 0) === 0) {
+  if (ctx.items.length === 0 && ctx.hasAnyItems && searchQuery && gesamtTreffer === 0) {
     return `
       <div class="table-container table-container--empty">
         ${renderEmptyState({ icon: 'search', title: `Keine Treffer für "${searchQuery}"` })}
@@ -138,7 +137,7 @@ export function renderItemsTable(ctx) {
       </div>
     `;
   }
-  if (ctx.items.length === 0 && ctx.hasAnyItems && ctx.activeTab && ctx.activeTab !== 'alle') {
+  if (ctx.items.length === 0 && ctx.hasAnyItems && ctx.activeTab) {
     const tabLabel = SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab;
     return `
       <div class="table-container table-container--empty">
@@ -158,6 +157,43 @@ export function renderItemsTable(ctx) {
     `;
   }
 
+  const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
+  const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
+  const mitKategorien = hatKategorieGruppen(ctx);
+  const tableClasses = [
+    'data-table',
+    'strategie-items-table',
+    'creator-pool-table',
+    canWrite ? 'has-bulk-select' : '',
+    mitKategorien ? 'has-kategorie-headers' : '',
+    hasActions ? '' : 'ohne-aktionen'
+  ].filter(Boolean).join(' ');
+
+  const html = `
+    <div class="table-container creator-pool-table-container">
+      <table class="${tableClasses}">
+        ${mitKategorien ? '' : `
+        <thead>
+          <tr>
+            ${renderColumnHeaderCells(ctx, { includeSelectAll: true })}
+          </tr>
+        </thead>`}
+        ${renderGroupedItems(ctx)}
+      </table>
+    </div>
+  `;
+  if (!hatEigeneReihenfolge(ctx.columnOrder)) return html;
+  return ordneSourcingTabellenHtml(html, spaltenfolgeFuerKontext(ctx));
+}
+
+function hatKategorieGruppen(ctx) {
+  const teilbereiche = ctx.teilbereiche || [];
+  if (teilbereiche.length > 0) return true;
+  const gruppen = orderedKategorieGroups(ctx.items || [], []);
+  return !(gruppen.length <= 1 && gruppen[0]?.key === OHNE_KATEGORIE_KEY);
+}
+
+function renderColumnHeaderCells(ctx, { includeSelectAll = true } = {}) {
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
   // Write-Faehigkeiten: Sichtbarkeit interner Spalten bleibt Rollen-Sache
   // (!isKunde), Editierbarkeit ist Capability (Investor: sehen ja, anfassen nein).
@@ -171,26 +207,24 @@ export function renderItemsTable(ctx) {
   const customAt = (anchor) => ctx.customManager
     ? ctx.customManager.renderHeadersAt(anchor, ctx.hiddenColumns, ctx.isKunde)
     : '';
+  const dragCell = canWrite
+    ? `<th class="col-drag col-sticky-1 cp-col-drag">${includeSelectAll ? '<input type="checkbox" class="sourcing-select-all" title="Alle auswählen">' : ''}</th>`
+    : '';
 
-  const html = `
-    <div class="table-container creator-pool-table-container">
-      <table class="data-table strategie-items-table creator-pool-table${canWrite ? ' has-bulk-select' : ''}">
-        <thead>
-          <tr>
-            ${canWrite ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
+  return `
+            ${dragCell}
             <th class="${sticky.name} cp-col-name">Name</th>
-            <th class="cp-col-notiz" ${hide('cp-col-notiz')} title="Startet mit der Instagram-Bio, sobald der Creator abgerufen wurde">Kurzbeschreibung</th>
-            ${customAt('cp-col-notiz')}
             <th class="cp-col-link" ${hide('cp-col-link')}>Link</th>
             ${customAt('cp-col-link')}
             <th class="cp-col-follower" ${hide('cp-col-follower')}>Follower</th>
             ${customAt('cp-col-follower')}
-            <th class="cp-col-engagement-ig" ${hide('cp-col-engagement-ig')} title="Durchschnitt aus Likes und Kommentaren, geteilt durch Follower. Zweite Zeile ohne Trial-Reels, wenn das Gate greift.">Engagement</th>
-            ${customAt('cp-col-engagement-ig')}
-            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 8))}">Preis 8 Videos</th>
-            ${customAt('cp-col-cpm-ig-8')}
-            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 30))}">Preis 30 Videos</th>
-            ${customAt('cp-col-cpm-ig-30')}
+            <th class="cp-col-engagement" ${hide('cp-col-engagement')} title="Likes und Kommentare je Post. Instagram: geteilt durch Follower, zweite Zeile ohne Trial-Reels, wenn das Gate greift. TikTok: geteilt durch Views. Ohne Werbung, Posts jünger als 4 Tage und Ausreißer.">Engagement</th>
+            ${customAt('cp-col-engagement')}
+            ${[12, 30].map(fenster => `
+            <th class="cp-col-views-${fenster}" ${hide(`cp-col-views-${fenster}`)} title="${escapeHtml(viewsTooltip(fenster))}">${SOURCING_SPALTEN_LABELS[`cp-col-views-${fenster}`]}</th>
+            ${customAt(`cp-col-views-${fenster}`)}
+            <th class="cp-col-cpm-${fenster}" ${hide(`cp-col-cpm-${fenster}`)} title="${escapeHtml(reelsPreisTooltip(tkpLabel, fenster))}">${SOURCING_SPALTEN_LABELS[`cp-col-cpm-${fenster}`]}</th>
+            ${customAt(`cp-col-cpm-${fenster}`)}`).join('')}
             <th class="cp-col-preis-video" ${hide('cp-col-preis-video')} title="Manuell gepflegt – der tatsächlich verhandelte Preis pro Video (Reel bzw. TikTok-Video)">Preis Video</th>
             ${customAt('cp-col-preis-video')}
             <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story</th>
@@ -199,40 +233,28 @@ export function renderItemsTable(ctx) {
             ${customAt('cp-col-story-preis')}
             <th class="cp-col-pricing" ${hide('cp-col-pricing')} title="Der verhandelte Gesamtpreis">Gesamtpreis</th>
             ${customAt('cp-col-pricing')}
-            <th class="cp-col-matching" ${hide('cp-col-matching')} title="Gesamtscore aus Fit, Track und Fresh – wie gut der Creator zum Briefing passt">Matching</th>
-            ${customAt('cp-col-matching')}
-            <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
-            ${customAt('cp-col-typ')}
-            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
-            ${customAt('cp-col-status')}
+            <th class="cp-col-notiz" ${hide('cp-col-notiz')} title="Startet mit der Instagram-Bio, sobald der Creator abgerufen wurde">Kurzbeschreibung</th>
+            ${customAt('cp-col-notiz')}
             <th class="cp-col-kunden-feedback" ${hide('cp-col-kunden-feedback')} title="Die Bewertung des Kunden: Prio oder Abgelehnt">Kundenfeedback</th>
             ${customAt('cp-col-kunden-feedback')}
+            <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
+            ${customAt('cp-col-feedback')}
+            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
+            ${customAt('cp-col-status')}
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             ${customAt('cp-col-location')}
             <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
             ${customAt('cp-col-mail')}
-            <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
-            ${customAt('cp-col-telefon')}
-            <th class="cp-col-nutzungsrechte" ${hide('cp-col-nutzungsrechte')} title="Laufzeit, Kanäle und Sonderabsprachen">Nutzungsrechte</th>
-            ${customAt('cp-col-nutzungsrechte')}
-            <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
-            ${customAt('cp-col-reichweite-garantie')}
+            <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
+            ${customAt('cp-col-typ')}
             <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
             ${customAt('cp-col-ek')}
             <th class="cp-col-vk" ${hide('cp-col-vk')}>VK</th>
             ${customAt('cp-col-vk')}
-            <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
-            ${customAt('cp-col-feedback')}
             ${ctx.customManager ? ctx.customManager.renderHeaders(ctx.hiddenColumns, ctx.isKunde) : ''}
+            ${zeigtFreigabeSpalte(ctx) ? '<th class="cp-col-freigabe">Freigabe</th>' : ''}
             ${hasActions ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
-          </tr>
-        </thead>
-        ${renderGroupedItems(ctx)}
-      </table>
-    </div>
   `;
-  if (!hatEigeneReihenfolge(ctx.columnOrder)) return html;
-  return ordneSourcingTabellenHtml(html, spaltenfolgeFuerKontext(ctx));
 }
 
 function renderKategorieHeaderRow(group, colCount, ctx) {
@@ -276,23 +298,25 @@ export function renderGroupedItems(ctx) {
   const items = ctx.items || [];
 
   // Ohne definierte Kategorien und ohne Kategorie an den Zeilen: flache Liste ohne Gruppenkopf
-  if (!teilbereiche.length) {
-    const gruppen = orderedKategorieGroups(items, []);
-    if (gruppen.length <= 1 && gruppen[0]?.key === OHNE_KATEGORIE_KEY) {
-      const rows = items.map((item, index) => renderItemRow(ctx, item, index)).join('');
-      return wrapGroupTbody(OHNE_KATEGORIE_KEY, rows);
-    }
+  if (!hatKategorieGruppen(ctx)) {
+    const rows = items.map((item, index) => renderItemRow(ctx, item, index)).join('');
+    return wrapGroupTbody(OHNE_KATEGORIE_KEY, rows);
   }
 
   const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
   const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
   const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
-  const colCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns, { canEdit: canWrite, hasActions }) + customCount;
+  const colCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns, {
+    canEdit: canWrite,
+    hasActions,
+    hasFreigabe: zeigtFreigabeSpalte(ctx)
+  }) + customCount;
+  const colHeaderRow = `<tr class="kategorie-col-header-row">${renderColumnHeaderCells(ctx, { includeSelectAll: false })}</tr>`;
 
   let html = '';
   let globalIndex = 0;
   for (const group of orderedKategorieGroups(items, teilbereiche)) {
-    let inner = renderKategorieHeaderRow(group, colCount, ctx);
+    let inner = renderKategorieHeaderRow(group, colCount, ctx) + colHeaderRow;
     for (const item of group.items) {
       inner += renderItemRow(ctx, item, globalIndex++);
     }
@@ -304,16 +328,19 @@ export function renderGroupedItems(ctx) {
 
 export function updateStickyHeights(rootEl) {
   if (!rootEl) return;
-  const addSection = rootEl.querySelector('.add-item-section--compact');
+  const inShell = Boolean(rootEl.querySelector('.casting-body'));
+  const addSection = inShell ? null : rootEl.querySelector('.add-item-section--compact');
   const addH = addSection ? addSection.offsetHeight : 0;
-  const tabNav = rootEl.querySelector('.sourcing-tab-navigation');
-  const tabH = tabNav ? tabNav.offsetHeight : 0;
   rootEl.style.setProperty('--sticky-addbar-height', addH + 'px');
-  rootEl.style.setProperty('--sticky-add-section-height', (addH + tabH) + 'px');
+  rootEl.style.setProperty('--sticky-add-section-height', addH + 'px');
 
   const thead = rootEl.querySelector('.creator-pool-table thead');
   if (thead) {
     rootEl.style.setProperty('--sticky-thead-height', thead.offsetHeight + 'px');
+  }
+  const katHeader = rootEl.querySelector('.creator-pool-table .kategorie-header-row');
+  if (katHeader) {
+    rootEl.style.setProperty('--sticky-kategorie-header-height', katHeader.offsetHeight + 'px');
   }
 }
 

@@ -12,6 +12,10 @@
 
 import { fitCustomTextareas } from '../../core/table/fitTextareaHeight.js';
 
+// Schaltet das Auffuellen bis zur Zellenhoehe (flex-grow, tabellen.css) waehrend
+// der Messung ab, sonst gehen gestreckte Wrapper als Inhaltshoehe in den Angleich.
+const MESS_KLASSE = 'is-hoehen-messung';
+
 export class VideoRowHeightSync {
   /** @param {HTMLElement} container - Element, das die .kooperation-row Zeilen enthaelt */
   constructor(container) {
@@ -69,6 +73,7 @@ export class VideoRowHeightSync {
     const rowWrappers = rows.map(row => Array.from(row.querySelectorAll('.video-field-wrapper')));
 
     // Phase 1 (write): alle min-height zuruecksetzen, damit Schrumpfen moeglich ist.
+    for (const row of rows) row.classList.add(MESS_KLASSE);
     for (const wrappers of rowWrappers) {
       for (const w of wrappers) w.style.minHeight = '';
     }
@@ -86,6 +91,7 @@ export class VideoRowHeightSync {
     });
 
     // Phase 3 (write): allen Wrappern einer Gruppe die Gruppenhoehe als min-height geben.
+    for (const row of rows) row.classList.remove(MESS_KLASSE);
     rowWrappers.forEach((wrappers, i) => {
       const maxByVideo = plans[i];
       for (const w of wrappers) {

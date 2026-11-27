@@ -21,6 +21,8 @@ import {
 } from './KampagneDetailWorkflow.js';
 import { detailOffen, markiereAnsicht, offeneId, setzeOffen, tabUrl } from './produktionTabDetail.js';
 import { zeigeImTab, zeigeTabListe } from './produktionFlowRoute.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { bindSkripteReihenfolge, loeseSkripteReihenfolge } from './skripteTabelleDrag.js';
 
 export const SKRIPTE_TAB = 'skripte';
 
@@ -60,7 +62,8 @@ export async function renderSkripteTabelle(detail) {
       ? renderTableSelect({ field: 'skript_status', itemId: s.id, value: s.status || '', options: skriptStatusOptions(s.status) })
       : `<span class="tag tag--status ${statusVariant}">${esc(statusLabel)}</span>`;
     return `
-      <tr>
+      <tr class="skripte-row" data-id="${s.id}" draggable="false">
+        ${canEditStatus ? `<td class="col-drag drag-handle" title="Reihenfolge ändern">${icon('bars-3')}</td>` : ''}
         <td class="col-nr">${s.skript_nr || '–'}</td>
         <td class="col-titel">${renderVerknuepfungPill({
           kind: 'skript',
@@ -81,6 +84,7 @@ export async function renderSkripteTabelle(detail) {
       <table class="data-table data-table--skripte">
         <thead>
           <tr>
+            ${canEditStatus ? '<th class="col-drag"></th>' : ''}
             <th class="col-nr">Nr.</th>
             <th class="col-titel">Titel</th>
             <th class="col-creator">Creator</th>
@@ -150,6 +154,7 @@ export async function mountSkriptePane(detail) {
     const html = await renderSkripteTabelle(detail);
     if (!isPaneGenCurrent(detail, SKRIPTE_TAB, gen) || !pane.isConnected) return;
     pane.innerHTML = html;
+    bindSkripteReihenfolge(detail);
   } catch (error) {
     console.error('❌ KAMPAGNEDETAIL: Skripte-Pane fehlgeschlagen:', error);
     if (!pane.isConnected) return;
@@ -166,6 +171,7 @@ export async function mountSkriptePane(detail) {
  * gemerkt (detail.offen), damit der Tab es beim nächsten Besuch wieder öffnet.
  */
 export function unmountSkriptePane(detail) {
+  loeseSkripteReihenfolge(detail);
   bumpPaneGen(detail, SKRIPTE_TAB);
   const view = detail.skriptEditor;
   detail.skriptEditor = null;

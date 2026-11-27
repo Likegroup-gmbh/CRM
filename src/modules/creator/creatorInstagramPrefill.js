@@ -2,6 +2,7 @@
 // Felder fuer das Creator-Formular aus der Instagram-Vorschau.
 // Die Vorschau laeuft vor dem Speichern, derselbe Abruf wie im Casting-Drawer.
 // Der Connect nach dem Anlegen schreibt Bio, Posts und die genaue Followerzahl.
+// Die Pruefregeln fuer Mail, Telefon, Ort und Bild nutzt auch creatorTiktokPrefill.js.
 
 import { instagramProfilHandle } from '../creator-auswahl/instagramDrawerFill.js';
 
@@ -28,7 +29,9 @@ function leereFelder(instagram) {
     mail: '',
     telefonnummer: '',
     lieferadresse_stadt: '',
-    instagram_follower: ''
+    instagram_follower: '',
+    profilbild_url: '',
+    profilbild_thumb_url: ''
   };
 }
 
@@ -48,26 +51,31 @@ export function nameZuVorNachname(name) {
   return { vorname: parts[0], nachname: parts[1] };
 }
 
-function gueltigeMail(value) {
+export function gueltigeMail(value) {
   const mail = String(value || '').trim();
   if (!mail || mail.length > 320) return '';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return '';
   return mail;
 }
 
-function telefonOderLeer(value) {
+export function telefonOderLeer(value) {
   const telefon = String(value || '').trim();
   const ziffern = telefon.replace(/\D/g, '');
   if (ziffern.length < 6 || ziffern.length > 15) return '';
   return telefon;
 }
 
-function ortOderLeer(value) {
+export function ortOderLeer(value) {
   const ort = String(value || '').trim();
   if (ort.length < 2 || ort.length > 80) return '';
   if (!/\p{L}/u.test(ort)) return '';
   if (/https?:|www\./i.test(ort)) return '';
   return ort;
+}
+
+export function bildOderLeer(value) {
+  const url = String(value || '').trim();
+  return /^https:\/\/\S+$/i.test(url) ? url : '';
 }
 
 /**
@@ -114,6 +122,8 @@ export function formularAusInstagramVorschau(raw, result) {
     mail: gueltigeMail(fields.email),
     telefonnummer: telefonOderLeer(fields.telefon),
     lieferadresse_stadt: ortOderLeer(fields.wohnort),
-    instagram_follower: followerStufe(fields.follower_instagram)
+    instagram_follower: followerStufe(fields.follower_instagram),
+    profilbild_url: bildOderLeer(fields.profile_image_url),
+    profilbild_thumb_url: bildOderLeer(fields.profile_image_thumb_url)
   };
 }

@@ -339,20 +339,36 @@ export const cascadeStrategies = {
 
   'briefing_id:kampagne_id': async (parentValue, form, field, fieldConfig, ctx) => {
     try {
-      const { data: kampagne, error: kampagneError } = await window.supabase
-        .from('kampagne')
-        .select('unternehmen_id')
-        .eq('id', parentValue)
-        .single();
-      if (kampagneError || !kampagne?.unternehmen_id) {
-        if (kampagneError) console.error('❌ Fehler beim Laden der Kampagne für Briefings:', kampagneError);
-        return;
+      let prefill = {};
+      if (form?.dataset?.prefillData) {
+        try { prefill = JSON.parse(form.dataset.prefillData) || {}; } catch (_) { /* ignore */ }
       }
+      const prodInput = form?.querySelector?.('[name="produktion_id"]');
+      const produktionId = prefill.produktion_id || prodInput?.value || null;
+
+      let query = window.supabase
+        .from('campaign_briefings')
+        .select('id, aktivierung_name');
+
+      if (produktionId) {
+        query = query.eq('produktion_id', produktionId);
+      } else {
+        const { data: produktionen, error: prodError } = await window.supabase
+          .from('produktion')
+          .select('id')
+          .eq('kampagne_id', parentValue);
+        if (prodError) {
+          console.error('❌ Fehler beim Laden der Produktionen für Briefings:', prodError);
+          return;
+        }
+        const prodIds = (produktionen || []).map(p => p.id).filter(Boolean);
+        query = prodIds.length > 0
+          ? query.in('produktion_id', prodIds)
+          : query.eq('kampagne_id', parentValue);
+      }
+
       const { data: briefings, error } = await applyFinalisiertFilter(
-        window.supabase
-          .from('campaign_briefings')
-          .select('id, aktivierung_name')
-          .eq('unternehmen_id', kampagne.unternehmen_id),
+        query,
         'campaign_briefings',
         { kampagneId: parentValue }
       ).order('created_at', { ascending: false });
@@ -366,6 +382,22 @@ export const cascadeStrategies = {
       }));
       field.disabled = false;
       ctx.updateDependentFieldOptions(field, fieldConfig, options);
+
+      const prefillBriefing = prefill.briefing_id
+        ? options.find(o => o.value === prefill.briefing_id)
+        : (options.length === 1 && produktionId ? options[0] : null);
+      if (prefillBriefing && !field.value) {
+        field.value = prefillBriefing.value;
+        const container = field.nextElementSibling?.classList?.contains('searchable-select-container')
+          ? field.nextElementSibling
+          : form?.querySelector?.(`input[type="hidden"][name="briefing_id"]`)?.closest?.('.searchable-select-container');
+        if (container) {
+          const input = container.querySelector('.searchable-select-input');
+          if (input) input.value = prefillBriefing.label;
+          const hidden = container.querySelector('input[type="hidden"][name="briefing_id"]');
+          if (hidden) hidden.value = prefillBriefing.value;
+        }
+      }
     } catch (e) {
       console.error('❌ Unerwarteter Fehler beim Laden der Briefings:', e);
     }

@@ -1,5 +1,5 @@
 // dev-all.mjs
-// Vite (3001) und Netlify-Functions (9999) zusammen starten. Endet einer der beiden, stoppt
+// Vite (3000) und Netlify-Functions (9999) zusammen starten. Endet einer der beiden, stoppt
 // auch der andere: Vite ohne Functions sieht aus wie kaputte Daten (keine Lese-Links, keine
 // Poster, überall „Vorschau nicht verfügbar“).
 

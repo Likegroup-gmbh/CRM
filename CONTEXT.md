@@ -41,7 +41,7 @@ Was eine Produktion vom Budget aufgebraucht hat: Verkaufspreise der Videos netto
 _Avoid_: Bezahlt, Gebunden, Geplant (Vertrag und Rechnung spielen für den Verbrauch keine Rolle), Ausgaben
 
 **Budget-Tab**:
-Tab der Produktion, nur für interne Rollen (nicht Kunde), steht vor Briefing; geöffnet wird weiter Briefing. Zeigt Verbrauch und Noch frei der ganzen Produktion und die Aufteilung auf die Creator. Die gewählte Linie wird hervorgehoben, nichts wird auf sie gefiltert; bei „Alle Linien“ ist nichts hervorgehoben.
+Tab der Produktion, nur für interne Rollen (nicht Kunde), steht vor Briefing; geöffnet wird weiter Kooperationen. Zeigt Verbrauch und Noch frei der ganzen Produktion und die Aufteilung auf die Creator. Die gewählte Linie wird hervorgehoben, nichts wird auf sie gefiltert; bei „Alle Linien“ ist nichts hervorgehoben.
 _Avoid_: Budget der Kampagne (so hieß die Kopfzeile, die er ersetzt), Kategorien-Ansicht
 
 **Linie**:
@@ -276,7 +276,7 @@ Darf an mehreren Videoideen des verknüpften Konzepts hängen.
 _Avoid_: Casting-Item, Kandidat, Sourcing-Creator
 
 **Plattformzeile**:
-Eine Zeile je Plattform in einer gemeinsamen Casting-Spalte (Link, Follower, Preis Video, Preis Story): Instagram oben, TikTok darunter, mit kleinem Plattform-Icon. Welche Zeilen eine Liste zeigt, folgt beim ersten Finalisieren den Plattformen des Briefings, danach der Einstellung der Liste; der Schalter in „Tabelle anpassen“ blendet nur die ganze Spalte ein oder aus. Hat die Liste TikTok, haben alle gestapelten Zellen beide Zeilen, bei reinen Instagram-Spalten ist die TikTok-Zeile leer.
+Eine Zeile je Plattform in einer gemeinsamen Casting-Spalte (Link, Follower, Engagement, Ø Views 12, Preis 12 Videos, Ø Views 30, Preis 30 Videos, Preis Video, Preis Story): Instagram oben, TikTok darunter, mit kleinem Plattform-Icon. Follower, Engagement, die Ø Views und die beiden Preise aus Views kommen per Profilabruf, auf TikTok nur über den Profil-Link (ADR 0083). Views und Preis eines Fensters stehen in getrennten Spalten; der Wert ohne Trial-Reels steht als zweite Zeile „o. T.“ darunter (ADR 0084). Welche Zeilen eine Liste zeigt, folgt beim ersten Finalisieren den Plattformen des Briefings, danach der Einstellung der Liste; der Schalter in „Tabelle anpassen“ blendet nur die ganze Spalte ein oder aus. Hat die Liste TikTok, haben alle gestapelten Zellen beide Zeilen, bei reinen Instagram-Spalten ist die TikTok-Zeile leer.
 _Avoid_: Untertabelle, Lane
 
 **Management-Anfrage**:
@@ -291,6 +291,10 @@ _Avoid_: Casting-Vorschlag, Casting-Eintrag, Selbst-Bewerbung
 Die Kundenbewertung eines Casting-Eintrags: Prio 1, Prio 2 oder Abgelehnt.
 Unabhängig vom internen Prozessstatus (Angefragt … Gebucht).
 _Avoid_: Freigabe, Freigabeprozess, Status
+
+**Kooperationsfreigabe**:
+Ein Klick in der Spalte „Freigabe“ des Castings macht aus einem Casting-Eintrag die Kooperation seiner Linie. Freigeben lässt sich, sobald das Kundenfeedback Prio 1 oder Prio 2 ist und der Status Zusage oder Gebucht und das Casting an einer Produktion hängt. Fehlt der Creator, wird er über den Instagram-Handle verknüpft oder aus den Angaben des Eintrags angelegt. Die Kooperation entsteht ohne Videos und Preise, der Status des Eintrags wird Gebucht. Freigegeben ist ein Eintrag, solange sein Creator in dieser Linie eine Kooperation hat, egal auf welchem Weg sie entstand. Konzept, Videoidee und Skript sind keine Voraussetzung und kommen später dazu; „Produktion starten“ im Konzept bleibt ein zweiter Weg.
+_Avoid_: Freigabe (alleinstehend), Skript-Freigabe, Video-Freigabe, Umsetzen, Buchen
 
 **Creator**:
 Stammdaten-Entity einer Person (Tabelle `creator`), mit Mail (`mail`) und Management-Zuordnung.

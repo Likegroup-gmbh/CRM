@@ -554,17 +554,8 @@ h3.section-title,
   margin-bottom: var(--space-sm);
 }
 
-.kampagne-casting-worksheet .add-item-section--compact,
-.kampagne-casting-worksheet .sourcing-tab-navigation {
+.kampagne-casting-worksheet .add-item-section--compact {
   position: static;
-}
-
-.kampagne-casting-worksheet .sourcing-tab-navigation + .table-container .strategie-items-table thead th {
-  top: 0;
-}
-
-.kampagne-casting-worksheet .creator-pool-table .kategorie-header-row > td {
-  top: var(--sticky-thead-height, 37px);
 }
 
 .kampagne-konzept-worksheet .add-item-section--compact {
@@ -587,18 +578,6 @@ h3.section-title,
 .kampagne-konzept-worksheet {
   min-width: 0;
   max-width: 100%;
-}
-
-.kampagne-casting-worksheet .creator-pool-table-container,
-.kampagne-casting-worksheet .creator-pool-table-container.drag-scroll-enabled {
-  overflow-x: auto;
-  overflow-y: visible;
-  max-width: 100%;
-  scrollbar-width: none;
-}
-
-.kampagne-casting-worksheet .creator-pool-table-container::-webkit-scrollbar {
-  display: none;
 }
 
 .kampagne-konzept-worksheet .table-container,
@@ -3751,8 +3730,8 @@ tr:has(+ .category-header-row) > td {
 
 .cell-text-readonly {
   padding: var(--space-sm);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
+  
+ 
   min-height: 60px;
 }
 
@@ -4012,6 +3991,15 @@ tr:has(+ .category-header-row) > td {
   padding: 0;
 }
 
+.data-table .kategorie-header-row > td.kategorie-header {
+  text-align: left;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  border-right: none;
+}
+
 .kategorie-header {
   padding: 0;
   font-weight: 600;
@@ -4023,7 +4011,8 @@ tr:has(+ .category-header-row) > td {
 .kategorie-header .kategorie-header-content {
   position: sticky;
   left: 0;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding: var(--space-sm) var(--space-md);
 }
 
@@ -4325,41 +4314,6 @@ tr:has(+ .category-header-row) > td {
   background: var(--bg-primary);
 }
 
-/* Sourcing: Status-Reiter zwischen Add-Section und Tabelle (sticky) */
-
-/* z-index muss ueber den sticky Spalten der Tabelle liegen (col-sticky: 20-27) */
-
-.sourcing-tab-navigation {
-  --tab-indicator-offset: calc(-1 * (var(--space-xs) + 2 * var(--border-xs)));
-  position: sticky;
-  left: 0;
-  top: var(--sticky-addbar-height);
-  z-index: 28;
-  background: var(--bg-primary);
-}
-
-/* Direkt darunter folgt die Oberkante des Tabellenkopfs als zweite Linie: Der Balken
-   reicht 1px darüber und muss über den sticky th liegen (auch wenn die Leiste im
-   Kampagnen-Worksheet static ist und keinen eigenen z-index hat) */
-.sourcing-tab-navigation .tab-button.active::after {
-  z-index: 30;
-}
-
-.sourcing-tab-navigation > [data-tab-slider-bar] {
-  bottom: calc(-1 * var(--border-xs));
-}
-
-/* Mobil scrollt die Leiste (overflow-x: auto) und schneidet den Überstand ab */
-@media (max-width: 768px) {
-  .sourcing-tab-navigation {
-    --tab-indicator-offset: initial;
-  }
-
-  .sourcing-tab-navigation > [data-tab-slider-bar] {
-    bottom: 0;
-  }
-}
-
 /* Namenssuche links in der Sourcing-Aktions-Zeile */
 
 .add-item-actions-left {
@@ -4390,12 +4344,6 @@ tr:has(+ .category-header-row) > td {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* Muss ueber der Reiter-Leiste liegen, sonst schneidet sie offene Dropdowns ab */
-
-.add-item-section--compact:has(+ .sourcing-tab-navigation) {
-  z-index: 29;
 }
 
 .add-item-actions-right {
@@ -4457,11 +4405,11 @@ tr:has(+ .category-header-row) > td {
   padding-right: var(--space-xxs);
 }
 
-/* IG-Fetch-Button in der Sourcing-Zelle. Sitzt fest rechts im Chip, damit
-   Hover sofort "frisch bei Instagram abrufen" zeigt - ohne auf die
-   schwebende Toolbar zu warten. */
+/* Profil-Abruf-Button (Instagram, TikTok) in der Sourcing-Zelle. Sitzt fest rechts
+   im Chip, damit Hover sofort "frisch abrufen" zeigt - ohne auf die schwebende
+   Toolbar zu warten. */
 
-.ig-fetch-btn {
+.profil-abruf-btn {
   position: absolute;
   top: 50%;
   right: 2px;
@@ -4480,52 +4428,52 @@ tr:has(+ .category-header-row) > td {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.ig-fetch-btn svg {
+.profil-abruf-btn svg {
   width: 13px;
   height: 13px;
 }
 
-.ig-fetch-btn.is-refresh svg {
+.profil-abruf-btn.is-refresh svg {
   width: 14px;
   height: 14px;
 }
 
-.ig-fetch-btn.is-empty {
+.profil-abruf-btn.is-empty {
   display: none;
 }
 
-.ig-fetch-btn:hover:not(:disabled) {
+.profil-abruf-btn:hover:not(:disabled) {
   background: var(--gray-100);
   color: var(--color-primary);
 }
 
-.ig-fetch-btn:disabled {
+.profil-abruf-btn:disabled {
   cursor: default;
 }
 
-.ig-fetch-btn.is-loading svg {
+.profil-abruf-btn.is-loading svg {
   display: none;
 }
 
-.ig-fetch-btn.is-loading::after {
+.profil-abruf-btn.is-loading::after {
   content: '';
   width: 12px;
   height: 12px;
   border: 2px solid var(--gray-300, #d1d5db);
   border-top-color: var(--color-primary);
   border-radius: 50%;
-  animation: ig-fetch-spin 0.7s linear infinite;
+  animation: profil-abruf-spin 0.7s linear infinite;
 }
 
-.ig-fetch-btn.is-success {
+.profil-abruf-btn.is-success {
   color: var(--color-success);
 }
 
-.ig-fetch-btn.is-error {
+.profil-abruf-btn.is-error {
   color: var(--color-danger, #dc2626);
 }
 
-@keyframes ig-fetch-spin {
+@keyframes profil-abruf-spin {
   to { transform: rotate(360deg); }
 }
 
@@ -4639,7 +4587,7 @@ tr:has(+ .category-header-row) > td {
   border: 2px solid var(--gray-300);
   border-top-color: var(--color-primary);
   border-radius: 50%;
-  animation: ig-fetch-spin 0.7s linear infinite;
+  animation: profil-abruf-spin 0.7s linear infinite;
 }
 
 .hover-toolbar__divider {
@@ -5982,16 +5930,6 @@ progress.upload-progress-bar::-moz-progress-bar {
   gap: var(--space-sm);
 }
 
-.finale-play-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  width: auto;
-  height: auto;
-  flex-shrink: 0;
-  padding: var(--space-xxs) var(--space-sm);
-}
-
 .finale-variant-label {
   font-size: 11px; font-weight: 600; white-space: nowrap;
 }
@@ -6056,28 +5994,6 @@ progress.upload-progress-bar::-moz-progress-bar {
 }
 
 .content-cell-actions { display: flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap; }
-
-/* Settings/Gear-Button neben dem Ordner-Link in Custom-Upload-Zellen */
-
-.custom-upload-settings-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent;
-  border: var(--border-xs) solid var(--border-secondary);
-  color: var(--text-tertiary);
-  border-radius: var(--radius-md);
-  padding: var(--space-xxs) var(--space-xs);
-  cursor: pointer;
-  margin-left: var(--space-xxs);
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-
-.custom-upload-settings-btn:hover {
-  border-color: var(--border-focus);
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-}
-
-.custom-upload-settings-btn svg { width: var(--icon-xs); height: var(--icon-xs); }
 
 /* Platzhalter wenn kein Content vorhanden (Kunden-Ansicht) */
 
@@ -6227,14 +6143,21 @@ progress.upload-progress-bar::-moz-progress-bar {
 /* --- Floating Auswahl-Leiste (core/list/SelectionBar.js) --- */
 
 /* Leiste sitzt fest über dem Seitenende. #dashboard-content hat sonst
-   Padding 0, deshalb liegen die letzten Zeilen darunter (Casting und
-   Masterliste). Der Zusatzabstand lässt die Seite so weit scrollen,
-   dass die letzte Zeile über der Leiste steht. Der Scrollport endet
-   um den unteren Rand von .main-content (space-sm) über dem Viewport. */
-body.has-selection-bar:has(.creator-pool-table-container, #masterliste-page) #dashboard-content {
+   Padding 0, deshalb liegen die letzten Zeilen darunter (Masterliste). Im
+   Casting scrollt .casting-body .table-container über der unteren Tab-Leiste,
+   also bekommt der Container den Abstand und die Leiste schwebt darüber. */
+body.has-selection-bar:has(#masterliste-page) #dashboard-content {
   padding-bottom: calc(
     var(--space-xxl) - var(--space-sm) + var(--selection-bar-height, 4.5rem) + var(--space-lg)
   );
+}
+
+body.has-selection-bar .casting-body .table-container {
+  padding-bottom: calc(var(--selection-bar-height, 4.5rem) + var(--space-xl));
+}
+
+body:has(.casting-sticky-foot) #sourcing-bulk-bar {
+  bottom: calc(var(--space-xxxl) + var(--space-xs));
 }
 
 .selection-bar {

@@ -41,6 +41,12 @@ describe('leseQuickAddLink', () => {
       platform: 'tiktok', handle: 'creator.x', field: 'link_tiktok'
     });
   });
+
+  it('nimmt TikTok nur per Link: ein Handle in einer reinen TikTok-Liste gibt einen Hinweis', () => {
+    expect(leseQuickAddLink('@creator.x', { tiktok: true, instagram: false }).error)
+      .toBe('Für TikTok bitte den Profil-Link einfügen');
+    expect(leseQuickAddLink('@creator.x', { tiktok: true }).platform).toBe('instagram');
+  });
 });
 
 describe('findeQuickAddDuplikat', () => {
@@ -98,7 +104,7 @@ describe('Casting-Detail Quick-Add', () => {
 
   it('legt Eintrag an, holt die Instagram-Daten und leert das Feld', async () => {
     const create = vi.spyOn(creatorAuswahlService, 'createItem').mockResolvedValue({ id: 'neu' });
-    document.getElementById('root').innerHTML = '<button class="ig-fetch-btn" data-item-id="neu"></button>';
+    document.getElementById('root').innerHTML = '<button class="profil-abruf-btn" data-profil-abruf="instagram" data-item-id="neu"></button>';
 
     await detail.handleQuickAdd('https://instagram.com/bert');
 
@@ -110,6 +116,31 @@ describe('Casting-Detail Quick-Add', () => {
     expect(detail.items.map(i => i.id)).toEqual(['vorhanden', 'neu']);
     expect(detail._meldeBekanntenCreator).toHaveBeenCalled();
     expect(detail.handleInstagramFetch).toHaveBeenCalledWith('neu', expect.any(HTMLElement));
+  });
+
+  it('startet bei einem TikTok-Link den TikTok-Abruf, ohne die Leiste zu blockieren', async () => {
+    detail.liste = { plattformen: 'instagram,tiktok' };
+    vi.spyOn(creatorAuswahlService, 'createItem').mockResolvedValue({ id: 'tt' });
+    detail.handleTiktokFetch = vi.fn(() => new Promise(() => {}));
+
+    await detail.handleQuickAdd('https://www.tiktok.com/@Lea.M?lang=de');
+
+    expect(creatorAuswahlService.createItem).toHaveBeenCalledWith(expect.objectContaining({ link_tiktok: 'https://www.tiktok.com/@lea.m' }));
+    expect(detail.handleTiktokFetch).toHaveBeenCalledWith('tt', expect.any(HTMLElement));
+    expect(detail.handleInstagramFetch).not.toHaveBeenCalled();
+    expect(detail._quickAddBusy).toBe(false);
+  });
+
+  it('passt den Platzhalter an die Plattformen der Liste an', () => {
+    const platzhalter = (plattformen) => {
+      detail.selectionBar.destroy();
+      detail.selectionBar = null;
+      detail.liste = { plattformen };
+      detail.renderBulkBar();
+      return document.querySelector('#quick-add-link').placeholder;
+    };
+    expect(platzhalter('instagram,tiktok')).toBe('Instagram-Link, @Handle oder TikTok-Link einfügen');
+    expect(platzhalter('tiktok')).toBe('TikTok-Link einfügen');
   });
 
   it('legt bei Reel-Link und Duplikat nichts an', async () => {

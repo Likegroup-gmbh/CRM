@@ -14,6 +14,7 @@ const LEER = {
   wohnort: null,
   notiz: null,
   pricing: null,
+  pricing_tiktok: null,
   preis_ek: null,
   preis_vk: null,
   reichweite_story: null,

@@ -5,7 +5,7 @@
 import { icon } from '../../core/icons/IconSystem.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 import { escapeHtml as esc } from '../../core/format.js';
-import { formatEuro } from '../produktion/budgetTab.js';
+import { formatEuro } from '../produktion/budgetTabModel.js';
 import { KI_SCHWELLE, PLATTFORMEN } from './auswertungKonfig.js';
 
 export const LEER = '–';

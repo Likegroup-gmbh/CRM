@@ -131,7 +131,7 @@ export function renderForm() {
         ${preisFelder}
 
         <div class="form-field">
-          <label class="form-label">Gesamtpreis</label>
+          <label class="form-label">${this.zeigtTikTokPreise() ? 'Gesamtpreis Instagram' : 'Gesamtpreis'}</label>
           <input type="text" name="pricing" class="form-input" placeholder="z.B. 500">
         </div>
 
@@ -161,6 +161,10 @@ export function renderForm() {
             <label class="form-label">Preis TikTok Story</label>
             <input type="text" name="preis_tiktok_story" class="form-input" placeholder="z.B. 200€">
           </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Gesamtpreis TikTok</label>
+          <input type="text" name="pricing_tiktok" class="form-input" placeholder="z.B. 500">
         </div>
         ` : ''}
 

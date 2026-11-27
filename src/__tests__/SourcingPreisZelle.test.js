@@ -18,175 +18,11 @@ function tabelle(ctx = {}) {
   return new DOMParser().parseFromString(html, 'text/html');
 }
 
-describe('Sourcing – Preis-Zellen mit View-Basis', () => {
-  it('zeigt Preis und View-Basis zweizeilig', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', { ig_views_8: 6029 });
-
-    expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('150,73 €');
-    expect(cell.querySelector('.cpm-auto-reach').textContent.trim()).toBe('Ø 6,0K Views');
-  });
-
-  it('formatiert die View-Basis unter 1.000, ab 1.000 und ab 1 Mio.', () => {
-    const reach = (views) => renderCell('cp-col-cpm-ig-30', { ig_views_30: views })
-      .querySelector('.cpm-auto-reach').textContent.trim();
-
-    expect(reach(850)).toBe('Ø 850 Views');
-    expect(reach(12200)).toBe('Ø 12,2K Views');
-    expect(reach(1450000)).toBe('Ø 1,5M Views');
-  });
-
-  it('zeigt ohne View-Basis nur einen Strich und keine leere zweite Zeile', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', {});
-
-    expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('-');
-    expect(cell.querySelector('.cpm-auto-reach')).toBeNull();
-  });
-
-  it('zeigt die View-Basis auch im 30er-Fenster', () => {
-    const cell = renderCell('cp-col-cpm-ig-30', { ig_views_30: 3980 });
-
-    expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('99,50 €');
-    expect(cell.querySelector('.cpm-auto-reach').textContent.trim()).toBe('Ø 4,0K Views');
-    expect(cell.querySelector('.cpm-auto-value').title).toBe('3.980 Views im Schnitt × 25 € TKP');
-  });
-});
-
-describe('Sourcing – Ausreißer-Hinweis im Tooltip', () => {
-  it('nennt Anzahl, Richtung und Reichweite der entfernten Ausreißer', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', {
-      ig_views_8: 50000,
-      ig_stats: {
-        outliers_8: [
-          { views: 1000000, side: 'high' },
-          { views: 10, side: 'low' }
-        ]
-      }
-    });
-
-    expect(cell.querySelector('.cpm-auto-value').title).toBe(
-      '50.000 Views im Schnitt × 25 € TKP\n2 Ausreißer entfernt'
-      + '\nnach oben: 1.000.000 Views\nnach unten: 10 Views'
-    );
-  });
-
-  it('sagt es auch, wenn nichts entfernt wurde', () => {
-    const cell = renderCell('cp-col-cpm-ig-30', {
-      ig_views_30: 50000,
-      ig_stats: { outliers_30: [] }
-    });
-
-    expect(cell.querySelector('.cpm-auto-value').title).toContain('Keine Ausreißer erkannt');
-  });
-
-  it('weist die ausgeschlossenen Werbe-Reels aus', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', {
-      ig_views_8: 50000,
-      ig_stats: { outliers_8: [], skipped_ads: 3 }
-    });
-
-    expect(cell.querySelector('.cpm-auto-value').title)
-      .toContain('3 Reels mit Werbe-Kennzeichnung ausgeschlossen');
-  });
-
-  it('setzt den Singular bei genau einem Werbe-Reel', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', {
-      ig_views_8: 50000,
-      ig_stats: { outliers_8: [], skipped_ads: 1 }
-    });
-
-    expect(cell.querySelector('.cpm-auto-value').title)
-      .toContain('1 Reel mit Werbe-Kennzeichnung ausgeschlossen');
-  });
-
-  it('laesst den Hinweis weg, solange keine Statistik vorliegt', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', { ig_views_8: 50000 });
-
-    expect(cell.querySelector('.cpm-auto-value').title).toBe('50.000 Views im Schnitt × 25 € TKP');
-  });
-
-  it('haengt den Hinweis nicht an eine leere Zelle', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', { ig_stats: { outliers_8: [] } });
-
-    expect(cell.querySelector('.cpm-auto-value').title).toBe('Noch nicht abgerufen');
-  });
-
-  it('blurrt im Kunden-Call Preis und View-Basis gemeinsam', () => {
-    const cell = renderCell(
-      'cp-col-cpm-ig-8',
-      { ig_views_8: 6029 },
-      { kundenCallActive: true }
-    );
-    const wrapper = cell.querySelector('.cpm-auto-value');
-
-    expect(wrapper.classList.contains('kunden-call-blur')).toBe(true);
-    expect(wrapper.querySelector('.cpm-auto-price')).not.toBeNull();
-    expect(wrapper.querySelector('.cpm-auto-reach')).not.toBeNull();
-  });
-});
-
-describe('Sourcing – Zweitwert ohne Trials', () => {
-  const itemMitGate = {
-    ig_views_8: 189375,
-    ig_stats: {
-      outliers_8: [],
-      skipped_trial_views: 5,
-      ohne_trials: { views_8: 501875, cpm_8: 12546.88 },
-      trial_gate: { aktiv: true, schwelle: 25125, gap_ratio: 150, cluster_size: 5 }
-    }
-  };
-
-  it('zeigt eine zweite Zeile, wenn ig_stats.ohne_trials vorliegt', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', itemMitGate);
-
-    // Hauptwert bleibt die bisherige Rechnung (mit Trials)
-    expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('4.734,38 €');
-    expect(cell.querySelector('.cpm-auto-reach').textContent.trim()).toBe('Ø 189,4K Views');
-
-    const clean = cell.querySelector('.cpm-auto-reach--clean');
-    expect(clean).not.toBeNull();
-    expect(clean.textContent).toContain('12.546,88 €');
-    expect(clean.textContent).toContain('Ø 501,9K ohne Trials');
-  });
-
-  it('zeigt ohne Gate keine zweite Zeile', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', {
-      ig_views_8: 50000,
-      ig_stats: { outliers_8: [] }
-    });
-
-    expect(cell.querySelector('.cpm-auto-reach--clean')).toBeNull();
-  });
-
-  it('zeigt keine zweite Zeile, wenn B dem A-Wert entspricht', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', {
-      ig_views_8: 50000,
-      ig_stats: { outliers_8: [], ohne_trials: { views_8: 50000 } }
-    });
-
-    expect(cell.querySelector('.cpm-auto-reach--clean')).toBeNull();
-  });
-
-  it('rechnet den Zweitwert mit dem TKP der Liste', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', itemMitGate, { liste: { tkp: 40 } });
-
-    // 501875 / 1000 * 40 = 20075
-    expect(cell.querySelector('.cpm-auto-reach--clean').textContent).toContain('20.075,00 €');
-  });
-
-  it('nennt erkannte Trials und den bereinigten Schnitt im Tooltip', () => {
-    const cell = renderCell('cp-col-cpm-ig-8', itemMitGate);
-    const title = cell.querySelector('.cpm-auto-value').title;
-
-    expect(title).toContain('5 Trial-Reels per View-Lücke erkannt (im Hauptwert enthalten)');
-    expect(title).toContain('Ohne Trials: Ø 501.875 Views (Schwelle 25.125, Lücke 150x)');
-  });
-});
-
 describe('Sourcing – TKP der Liste', () => {
   it('rechnet den Preis mit dem TKP der Liste, nicht mit den gespeicherten cpm_ig_*', () => {
     const cell = renderCell(
-      'cp-col-cpm-ig-8',
-      { ig_views_8: 6029, cpm_ig_8: 150.73 },
+      'cp-col-cpm-ig-12',
+      { ig_views_12: 6029, cpm_ig_12: 150.73 },
       { liste: { tkp: 40 } }
     );
 
@@ -329,17 +165,17 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(name.closest('.add-item-actions-left')).not.toBeNull();
   });
 
-  it('stellt die Suche vor Creator hinzufügen und Plus-Menü; Kunden sehen nur die Suche', () => {
+  it('stellt die Suche vor Managements anfragen und Plus-Menü (ohne Creator hinzufügen); Kunden sehen nur die Suche', () => {
     const doc = kopf();
     const rechts = doc.querySelector('.add-item-actions-right');
     const kinder = Array.from(rechts.children);
 
+    expect(doc.querySelector('#btn-open-add-drawer')).toBeNull();
     expect(kinder[0].querySelector('#sourcing-item-search-input')).not.toBeNull();
-    expect(kinder[1].id).toBe('btn-open-add-drawer');
-    expect(kinder[2].id).toBe('btn-management-anfrage');
-    expect(kinder[3].id).toBe('casting-vorschlag-block');
-    expect(kinder[3].closest('.add-item-actions-right')).not.toBeNull();
-    expect(kinder[4].classList.contains('toolbar-menu')).toBe(true);
+    expect(kinder[1].id).toBe('btn-management-anfrage');
+    expect(kinder[2].id).toBe('casting-vorschlag-block');
+    expect(kinder[2].closest('.add-item-actions-right')).not.toBeNull();
+    expect(kinder[3].classList.contains('toolbar-menu')).toBe(true);
 
     const kundenDoc = kopf({ isKunde: true, canCreate: false });
     expect(kundenDoc.querySelector('#sourcing-item-search-input')).not.toBeNull();
@@ -453,10 +289,22 @@ describe('Sourcing – Gesamtpreis', () => {
     expect(doc.querySelector('thead th.cp-col-gesamtpreis')).toBeNull();
   });
 
-  it('nimmt den Gesamtpreis als Freitext im Feld pricing auf', () => {
-    const cell = renderCell('cp-col-pricing', { pricing: '1.500' });
+  it('nimmt den Gesamtpreis je Plattform als Freitext in pricing und pricing_tiktok auf', () => {
+    const ig = renderCell('cp-col-pricing-ig', { pricing: '1.500', pricing_tiktok: '1.200' });
+    const tt = renderCell('cp-col-pricing-tt', { pricing: '1.500', pricing_tiktok: '1.200' });
 
-    expect(cell.querySelector('input[data-field="pricing"]').value).toBe('1.500');
+    expect(ig.querySelector('input[data-field="pricing"]').value).toBe('1.500');
+    expect(tt.querySelector('input[data-field="pricing_tiktok"]').value).toBe('1.200');
+  });
+
+  it('blendet die TikTok-Zeile im Gesamtpreis einzeln aus und die Spalte erst bei beiden', () => {
+    const nurIg = renderZeile({ hiddenColumns: ['cp-col-pricing-tt'] }).querySelector('td.cp-col-pricing');
+    expect(nurIg.getAttribute('style') || '').not.toContain('display:none');
+    expect(nurIg.querySelector('input[data-field="pricing"]')).not.toBeNull();
+    expect(nurIg.querySelector('input[data-field="pricing_tiktok"]')).toBeNull();
+
+    const aus = renderZeile({ hiddenColumns: ['cp-col-pricing-ig', 'cp-col-pricing-tt'] }).querySelector('td.cp-col-pricing');
+    expect(aus.getAttribute('style')).toContain('display:none');
   });
 
   it('zeigt die alte Gesamtpreis-Spalte nicht mehr in der Zeile', () => {
@@ -470,7 +318,8 @@ describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
     ['cp-col-preis-story', 'preis_story'],
     ['cp-col-preis-tt-video', 'preis_tiktok_video'],
     ['cp-col-preis-tt-story', 'preis_tiktok_story'],
-    ['cp-col-pricing', 'pricing'],
+    ['cp-col-pricing-ig', 'pricing'],
+    ['cp-col-pricing-tt', 'pricing_tiktok'],
     ['cp-col-ek', 'preis_ek'],
     ['cp-col-vk', 'preis_vk']
   ];
@@ -499,15 +348,16 @@ describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
   });
 
   it('haengt das Zeichen in der Kundenansicht an den Wert', () => {
-    const cell = renderCell('cp-col-pricing', { pricing: '1.500' }, { isKunde: true });
+    const ig = renderCell('cp-col-pricing-ig', { pricing: '1.500' }, { isKunde: true });
+    const tt = renderCell('cp-col-pricing-tt', { pricing_tiktok: '1.200' }, { isKunde: true });
 
-    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('1.500 €');
+    expect(ig.querySelector('.cell-text-readonly').textContent.trim()).toBe('1.500 €');
+    expect(tt.querySelector('.cell-text-readonly').textContent.trim()).toBe('1.200 €');
   });
 
   it('zeigt in der Kundenansicht ohne Wert einen Strich statt eines einsamen Euro', () => {
-    const cell = renderCell('cp-col-pricing', {}, { isKunde: true });
-
-    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
+    expect(renderCell('cp-col-pricing-ig', {}, { isKunde: true }).querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
+    expect(renderCell('cp-col-pricing-tt', {}, { isKunde: true }).querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
   });
 
   it('blurrt den EK im Kunden-Call weiterhin', () => {
@@ -519,27 +369,16 @@ describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
   });
 });
 
-describe('Sourcing – Nutzungsrechte', () => {
-  it('steht als Freitext hinter dem Kontakt-Block, der auf den Gesamtpreis folgt', () => {
+describe('Sourcing – entfernte Standardspalten', () => {
+  it('rendert Telefon, Nutzungsrechte, Reichweitengarantie und Matching nicht mehr', () => {
     const kopf = Array.from(tabelle().querySelectorAll('thead th'))
       .map(th => Array.from(th.classList).find(c => c.startsWith('cp-col-')))
       .filter(Boolean);
 
-    expect(kopf[kopf.indexOf('cp-col-telefon') + 1]).toBe('cp-col-nutzungsrechte');
-    expect(kopf.indexOf('cp-col-pricing')).toBeLessThan(kopf.indexOf('cp-col-nutzungsrechte'));
-  });
-
-  it('speichert in das Feld nutzungsrechte', () => {
-    const cell = renderCell('cp-col-nutzungsrechte', { nutzungsrechte: '6 Monate Paid Social' });
-
-    expect(cell.querySelector('textarea[data-field="nutzungsrechte"]').value)
-      .toBe('6 Monate Paid Social');
-  });
-
-  it('zeigt Kunden den Wert nur lesend', () => {
-    const cell = renderCell('cp-col-nutzungsrechte', { nutzungsrechte: 'IG + TikTok' }, { isKunde: true });
-
-    expect(cell.querySelector('textarea')).toBeNull();
-    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('IG + TikTok');
+    expect(kopf).not.toContain('cp-col-telefon');
+    expect(kopf).not.toContain('cp-col-nutzungsrechte');
+    expect(kopf).not.toContain('cp-col-reichweite-garantie');
+    expect(kopf).not.toContain('cp-col-matching');
+    expect(renderCell('cp-col-nutzungsrechte', { nutzungsrechte: '6 Monate Paid Social' })).toBeNull();
   });
 });

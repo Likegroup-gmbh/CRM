@@ -58,20 +58,30 @@ function rowMenu(list, canManage) {
         ${icon('dots-grid', { className: 'w-5 h-5' })}
       </button>
       <div class="actions-dropdown">
-        <a href="#" class="action-item" data-action="view-masterliste" data-id="${id}">Öffnen</a>
-        <a href="#" class="action-item" data-action="rename-masterliste" data-id="${id}">Bearbeiten</a>
+        <a href="#" class="action-item" data-action="view-masterliste" data-id="${id}">${icon('eye')}Öffnen</a>
+        <a href="#" class="action-item" data-action="rename-masterliste" data-id="${id}">${icon('pencil-square')}Bearbeiten</a>
         <div class="action-separator"></div>
-        <a href="#" class="action-item action-danger" data-action="delete-masterliste" data-id="${id}">Löschen</a>
+        <a href="#" class="action-item action-danger" data-action="delete-masterliste" data-id="${id}">${icon('trash')}Löschen</a>
       </div>
     </div>
   `;
 }
 
+function unternehmenZelle(list) {
+  if (!list.unternehmenName) return '-';
+  return renderTableIdentity({
+    url: list.unternehmenLogo,
+    logo: true,
+    name: list.unternehmenName,
+    nameHtml: `<span class="table-text">${escapeHtml(list.unternehmenName)}</span>`
+  });
+}
+
 function listenZeile(list, { mitUnternehmen, canManage }) {
   const beschreibung = list.beschreibung
-    ? `<div class="text-muted">${escapeHtml(list.beschreibung)}</div>`
+    ? `<div class="masterliste-listen-beschreibung">${escapeHtml(list.beschreibung)}</div>`
     : '';
-  const unternehmen = mitUnternehmen ? `<td>${escapeHtml(list.unternehmenName || '-')}</td>` : '';
+  const unternehmen = mitUnternehmen ? `<td class="col-unternehmen">${unternehmenZelle(list)}</td>` : '';
   return `
     <tr class="table-row-clickable" data-list-id="${escapeHtml(list.id)}">
       <td class="col-name">
@@ -79,9 +89,9 @@ function listenZeile(list, { mitUnternehmen, canManage }) {
         ${beschreibung}
       </td>
       ${unternehmen}
-      <td>${list.count}</td>
-      <td>${escapeHtml(list.autor || '-')}</td>
-      <td>${formatDate(list.createdAt)}</td>
+      <td class="ml-list-count">${list.count}</td>
+      <td class="col-erstellt-von">${escapeHtml(list.autor || '-')}</td>
+      <td class="ml-list-datum">${formatDate(list.createdAt)}</td>
       <td class="col-actions">${rowMenu(list, canManage)}</td>
     </tr>
   `;
@@ -95,14 +105,14 @@ export function listenSpaltenAnzahl({ mitUnternehmen }) {
 export function renderListenTabelle(lists, { mitUnternehmen = false, canManage = false, bodyHtml = null } = {}) {
   const rows = bodyHtml ?? lists.map(list => listenZeile(list, { mitUnternehmen, canManage })).join('');
   return `
-    <table class="data-table data-table--creator-auswahl-list">
+    <table class="data-table">
       <thead>
         <tr>
           <th class="col-name">Name</th>
-          ${mitUnternehmen ? '<th>Unternehmen</th>' : ''}
-          <th>Creator</th>
-          <th>Erstellt von</th>
-          <th>Erstellt am</th>
+          ${mitUnternehmen ? '<th class="col-unternehmen">Unternehmen</th>' : ''}
+          <th class="ml-list-count">Creator</th>
+          <th class="col-erstellt-von">Erstellt von</th>
+          <th class="ml-list-datum">Erstellt am</th>
           <th class="col-actions">Aktionen</th>
         </tr>
       </thead>

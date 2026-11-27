@@ -5,6 +5,46 @@ import { renderSpalteHinzufuegen, renderSpaltenName } from '../../core/customCol
 
 export function installMasterlisteSpalten(proto) {
   Object.assign(proto, {
+    bindTableScroll(signal) {
+      const container = document.querySelector('#masterliste-page .creator-pool-table-container');
+      const scroller = document.querySelector('.main-wrapper') || container;
+      if (!container || !scroller) return;
+      container.classList.add('drag-scroll-enabled');
+      const state = { active: false, moved: false, x: 0, left: 0 };
+      const block = 'a, button, input, textarea, select, .drag-handle, .actions-dropdown-container';
+
+      container.addEventListener('mousedown', (event) => {
+        if (event.button !== 0 || event.target.closest(block)) return;
+        if (scroller.scrollWidth <= scroller.clientWidth + 1) return;
+        state.active = true;
+        state.moved = false;
+        state.x = event.pageX;
+        state.left = scroller.scrollLeft;
+      }, { signal });
+
+      window.addEventListener('mousemove', (event) => {
+        if (!state.active) return;
+        const dx = event.pageX - state.x;
+        if (Math.abs(dx) < 4) return;
+        state.moved = true;
+        container.classList.add('is-grabbing');
+        scroller.scrollLeft = state.left - dx;
+        event.preventDefault();
+      }, { signal });
+
+      window.addEventListener('mouseup', () => {
+        state.active = false;
+        container.classList.remove('is-grabbing');
+      }, { signal });
+
+      container.addEventListener('click', (event) => {
+        if (!state.moved) return;
+        state.moved = false;
+        event.preventDefault();
+        event.stopPropagation();
+      }, { signal, capture: true });
+    },
+
     bindRowDrag() {
       const tbody = document.getElementById('masterliste-body');
       if (!tbody) return;

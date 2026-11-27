@@ -15,7 +15,7 @@ import {
 } from './sourcingStatusOptions.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { EXTERNAL_LINK_ICON, MAIL_ICON } from './sourcingIcons.js';
-import { rowCanWrite } from './castingPreisZellen.js';
+import { rowCanWrite, ohneTrialsZeile } from './castingPreisZellen.js';
 import { engagementDesEintrags, formatEngagement } from './castingEngagement.js';
 
 const FOLLOWER_LABELS = {
@@ -190,12 +190,11 @@ function renderDetailOpen(item) {
   return `<button type="button" class="sourcing-avatar__open" data-open-casting-detail="${escapeHtml(item.id)}" aria-label="Details" title="Details">${icon('eye')}</button>`;
 }
 
-export function renderEngagementInhalt(item) {
-  const { rate, clean, showClean } = engagementDesEintrags(item);
+/** @param {{ rate, clean, showClean }} [engagement] Standard: Instagram (engagementDesEintrags) */
+export function renderEngagementInhalt(item, engagement = engagementDesEintrags(item)) {
+  const { rate, clean, showClean } = engagement;
   const text = formatEngagement(rate);
-  const zweit = showClean
-    ? `<div class="cpm-auto-reach cpm-auto-reach--clean">${formatEngagement(clean)} ohne Trials</div>`
-    : '';
+  const zweit = showClean ? ohneTrialsZeile(formatEngagement(clean)) : '';
   return `
       <div class="cell-text-readonly cpm-auto-value">
         <div>${text || '–'}</div>

@@ -48,7 +48,7 @@ describe('Video-Spalten Sichtbarkeit', () => {
 describe('Zurückgeholte Spalten', () => {
   const STANDARD_AUS = ['col-tags', 'col-thema', 'col-idee-strategie', 'col-link-skript'];
   const STANDARD_AN = [
-    'col-start-datum', 'col-videoanzahl',
+    'col-start-datum', 'col-video-nr',
     'col-link-content', 'col-caption', 'col-finale-version',
     'col-feedback-cj-1', 'col-feedback-kunde-1',
     'col-feedback-cj-2', 'col-feedback-kunde-2',
@@ -81,6 +81,13 @@ describe('Zurückgeholte Spalten', () => {
     expect(ids.indexOf('col-feedback-cj-1')).toBe(ids.indexOf('col-stills') + 1);
     expect(ids.indexOf('col-link-live')).toBe(ids.indexOf('col-posting-datum') + 1);
     expect(ids.at(-1)).toBe('col-actions');
+  });
+
+  it('Gesamtanzahl „Videos“ ist raus, auch aus einer gespeicherten Reihenfolge', () => {
+    const store = { columnOrder: ['col-nr', 'col-creator', 'col-videoanzahl', 'col-video-nr', 'col-actions'], customColumns: [] };
+    expect(getDefaultColumnIds()).not.toContain('col-videoanzahl');
+    expect(getOrderedColumns(store).map(c => c.id)).not.toContain('col-videoanzahl');
+    expect(getOrderedColumns(store).map(c => c.id)).toContain('col-video-nr');
   });
 
   it('Upload-, Feedback- und Auswertungs-Spalten sind ohne Eintrag sichtbar', () => {

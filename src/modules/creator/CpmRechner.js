@@ -62,7 +62,7 @@ export function openCpmRechner() {
       <div class="form-field">
         <label for="cpm-fenster">Fenster</label>
         <select id="cpm-fenster" class="form-input">
-          <option value="8">Schnitt der letzten 8 Reels</option>
+          <option value="12">Schnitt der letzten 12 Reels</option>
           <option value="30">Schnitt der letzten 30 Reels</option>
         </select>
       </div>
@@ -140,7 +140,7 @@ export function openCpmRechner() {
   // Gesetzt wird nur die Reichweite, der Preis rechnet neu, der TKP bleibt.
   const uebernehmeQuelle = () => {
     if (!quelle) return;
-    const wert = fenster.value === '30' ? quelle.ig_views_30 : quelle.ig_views_8;
+    const wert = fenster.value === '30' ? quelle.ig_views_30 : quelle.ig_views_12;
     if (wert == null) {
       zeigeHinweis(`Für ${quelle.name} liegt kein ${fenster.value}er-Schnitt vor`);
       return;
@@ -197,12 +197,12 @@ export function openCpmRechner() {
     // Die Reels-Schnitte liegen an den Sourcing-Eintraegen, nicht am Creator
     const { data } = await window.supabase
       .from('creator_auswahl_items')
-      .select('ig_views_8, ig_views_30, created_at')
+      .select('ig_views_12, ig_views_30, created_at')
       .eq('creator_id', option.dataset.id)
       .order('created_at', { ascending: false })
       .limit(1);
     const row = data?.[0] || {};
-    quelle = { name, ig_views_8: row.ig_views_8 ?? null, ig_views_30: row.ig_views_30 ?? null };
+    quelle = { name, ig_views_12: row.ig_views_12 ?? null, ig_views_30: row.ig_views_30 ?? null };
     uebernehmeQuelle();
   });
 

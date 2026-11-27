@@ -1,169 +1,18 @@
 // CastingDetailRowActions.js
-// Zeilenaenderungen: Instagram-Abruf, Felder, Status, Feedback, Art, Kategorie, Loeschen
+// Zeilenaenderungen: Felder, Status, Feedback, Art, Kategorie, Loeschen. Der Profilabruf
+// (Instagram, TikTok) liegt in CastingDetailProfilAbruf.js.
 // (Prototype-Mixin von CreatorAuswahlDetail)
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { refreshCastingDrawer } from './castingDetailDrawer.js';
 import { renderItemRow } from './castingItemRow.js';
-import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
-import { setChipCellLoading } from '../../core/components/chipCell.js';
-import { applySourcingIgCellState, findSourcingIgCell } from './sourcingIgCell.js';
+import { initFreigabeButtonsInRoot } from './castingFreigabeZelle.js';
+import { refreshCastingDrawer } from './castingDetailDrawer.js';
+import { applyProfilZelleState } from './sourcingProfilZelle.js';
+import { linkZiel, plattformDesFelds, profilPlattform } from './sourcingProfilPlattformen.js';
+import { plattformenDerEintraege } from './sourcingSpaltenSichtbarkeit.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { verknuepfeEintrag, verknuepfungsText } from './castingCreatorVerknuepfung.js';
 import { absorbEditedTextFields, rememberTextBaseline, shouldPersistTextField } from '../../core/table/textFieldBaseline.js';
-import { enqueueIgFetch } from './igFetchBudget.js';
-
-const IG_FETCH_FLASH_MS = 2000;
-
-/**
- * Hauptaktion der Instagram-Hover-Toolbar: Profil, Follower und CPM-Werte
- * nachladen und die Zeile aktualisieren.
- *
- * Erster Klick fragt den Creator-Pool: steckt der Handle schon in einer
- * anderen Liste, kommen die Werte von dort. Steht die Zeile danach im
- * Refresh-Zustand, erzwingt der naechste Klick einen echten Meta-Abruf.
- *
- * Die itemId kommt als Argument, weil der Button in der Leiste an
- * document.body haengt - von dort findet closest() keine Zeile mehr.
- */
-export async function handleInstagramFetch(itemId, button) {
-  if (button.disabled) return;
-
-  const item = this.items.find(i => i.id === itemId);
-  if (!item) return;
-
-  const linkInput = this._q(`input[data-field="link_instagram"][data-item-id="${itemId}"]`);
-  const link = linkInput?.value?.trim();
-  // canOpen der Config laesst die Leiste ohne Link nicht aufgehen; kommt hier
-  // trotzdem keiner an, ist die Zeile inzwischen weg.
-  if (!link) return;
-
-  // Noch nicht gespeicherte Eingabe zuerst persistieren, sonst liest die
-  // Function den alten Wert aus der DB
-  if (link !== item.link_instagram) {
-    try {
-      await creatorAuswahlService.updateItem(itemId, { link_instagram: link });
-      item.link_instagram = link;
-      await this._meldeBekanntenCreator(item);
-    } catch (error) {
-      console.error('Fehler beim Speichern des Instagram-Links:', error);
-      window.toastSystem?.show('Instagram-Link konnte nicht gespeichert werden', 'error');
-      return;
-    }
-  }
-
-  // Zeile hat schon Daten -> der Button zeigt Refresh, dieser Klick soll
-  // also frisch bei Meta holen statt den Pool-Stand zu wiederholen
-  const force = !!item.ig_fetched_at && !item.ig_fetch_error;
-
-  button.disabled = true;
-  button.classList.remove('is-error', 'is-success', 'is-refresh');
-  button.classList.add('is-loading');
-  // Der Abruf dauert; die Leiste muss offen bleiben, auch wenn der Zeiger sie
-  // in der Zwischenzeit verlaesst.
-  hoverToolbar.pin();
-  setChipCellLoading(findSourcingIgCell(itemId), true);
-
-  try {
-    const { item: updated, source, poolFetchedAt, debug, rateLimited } = await enqueueIgFetch((usage) => (
-      creatorAuswahlService.fetchInstagramStats(itemId, { force, usage })
-    ));
-    Object.assign(item, updated);
-    this.refreshItemRow(itemId);
-    refreshCastingDrawer(this, itemId);
-    // Die Zeile ist per outerHTML ersetzt, die Zelle unter der Leiste also
-    // eine andere. rebind() verankert sie neu und zeigt jetzt "Frisch abrufen".
-    hoverToolbar.rebind();
-    this._flashIgFetchSuccess(itemId);
-
-    if (debug) {
-      const handle = debug.username || 'unknown';
-      console.group(`[IG-CPM] @${handle} (${debug.source || source})`);
-      console.log('Regeln', debug.rules);
-      if (debug.skipped?.length) console.table(debug.skipped);
-      else console.log('Skipped (zu frisch / manuell ausgeschlossen): keine');
-      if (debug.included_8?.length) {
-        console.log(`Included 8er (${debug.included_8.length} Reels im Schnitt)`);
-        console.table(debug.included_8);
-      } else console.log('Included 8er: keine');
-      if (debug.included_30?.length) {
-        console.log(`Included 30er (${debug.included_30.length} Reels im Schnitt)`);
-        console.table(debug.included_30);
-      } else console.log('Included 30er: keine');
-      if (debug.outliers?.window_8?.length) console.table(debug.outliers.window_8);
-      if (debug.outliers?.window_30?.length) console.table(debug.outliers.window_30);
-      console.log('Fenster / Preis', debug.summary);
-      if (debug.pool_fetched_at) console.log('Pool-Stand', debug.pool_fetched_at);
-      if (debug.image_error) console.warn('Profilbild', debug.image_error);
-      console.groupEnd();
-    }
-
-    if (rateLimited) {
-      window.toastSystem?.show(
-        'Meta-Rate-Limit erreicht – vorhandene Zahlen aus dem Pool übernommen.',
-        'info'
-      );
-    } else if (source === 'pool') {
-      const stand = poolFetchedAt ? new Date(poolFetchedAt).toLocaleDateString('de-DE') : null;
-      window.toastSystem?.show(
-        stand
-          ? `Aus dem Creator-Pool übernommen (Stand ${stand}) – nochmal klicken für frische Instagram-Daten`
-          : 'Aus dem Creator-Pool übernommen – nochmal klicken für frische Instagram-Daten',
-        'info'
-      );
-    } else {
-      // Der 30er-Schnitt ist der belastbarste Wert; hat der Creator dafuer zu
-      // wenige Feed-Reels, greift der 8er-Schnitt
-      const views = updated.ig_views_30 ?? updated.ig_views_8;
-      window.toastSystem?.show(
-        views != null
-          ? `Instagram-Daten aktualisiert (${Number(views).toLocaleString('de-DE')} Views im Schnitt)`
-          : 'Instagram-Daten aktualisiert – zu wenige Reels für eine CPM-Berechnung',
-        views != null ? 'success' : 'info'
-      );
-    }
-
-    this.warnBeiDoppeltemCreator(item);
-  } catch (error) {
-    console.error('Fehler beim Instagram-Abruf:', error);
-    // Bei toter Session hat authorizedFetch schon Hinweis und Logout uebernommen;
-    // der Abbruch gehoert dann nicht als Abruf-Fehler an die Zeile
-    if (error.sessionDead) {
-      button.disabled = false;
-      button.classList.remove('is-loading');
-      setChipCellLoading(findSourcingIgCell(itemId), false);
-      hoverToolbar.unpin();
-      return;
-    }
-    item.ig_fetch_error = error.message;
-    this.refreshItemRow(itemId);
-    // Die Leiste zeigt danach "Erneut versuchen" plus den Fehlertext als Zeile
-    hoverToolbar.rebind();
-    hoverToolbar.unpin();
-    window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');
-  }
-}
-
-/**
- * Kurz gruen quittieren. Der Button aus dem Klick ist nach dem Zeilen-Neuaufbau
- * ein toter Knoten - der Flash muss den treffen, den rebind() gerade neu
- * gerendert hat. Das unpin() haengt hinten dran, damit die Leiste den Flash
- * ueberdauert, auch wenn der Zeiger inzwischen weitergewandert ist.
- */
-export function _flashIgFetchSuccess(itemId) {
-  const button = this._q(`.ig-fetch-btn[data-item-id="${itemId}"]`)
-    || document.querySelector('.hover-toolbar [data-hover-action="ig-fetch"]');
-  if (!button) {
-    hoverToolbar.unpin();
-    return;
-  }
-
-  button.classList.add('is-success');
-  setTimeout(() => {
-    button.classList.remove('is-success');
-    hoverToolbar.unpin();
-  }, IG_FETCH_FLASH_MS);
-}
 
 /**
  * Hinweis, wenn derselbe Creator (gleicher Pool-Eintrag) schon in dieser
@@ -181,12 +30,7 @@ export function warnBeiDoppeltemCreator(item) {
   window.toastSystem?.show(`${name} steht in dieser Liste bereits ein weiteres Mal`, 'warning');
 }
 
-/**
- * Eine einzelne Tabellenzeile neu rendern, ohne die ganze Tabelle anzufassen.
- * Die Rueckmeldung eines Abrufs uebernimmt die Hover-Toolbar (siehe
- * _flashIgFetchSuccess) - sie liegt ausserhalb der Zeile und uebersteht den
- * Austausch.
- */
+/** Zeile mit einem bekannten Creator (gleicher Instagram-Handle) verknuepfen und das melden. */
 export async function _meldeBekanntenCreator(item) {
   if (!item || this.isKunde || !this._canSourcing('edit')) return [];
   const links = await verknuepfeEintrag(
@@ -210,13 +54,23 @@ export function absorbCastingEdits(detail, root) {
   });
 }
 
+/**
+ * Eine einzelne Tabellenzeile neu rendern, ohne die ganze Tabelle anzufassen.
+ * Die Rueckmeldung eines Abrufs uebernimmt die Hover-Toolbar (siehe
+ * _flashProfilAbruf) - sie liegt ausserhalb der Zeile und uebersteht den
+ * Austausch.
+ */
 export function refreshItemRow(itemId) {
   const row = this._q(`.item-row[data-item-id="${itemId}"]`);
   const item = this.items.find(i => i.id === itemId);
   if (!row || !item) return;
 
   absorbCastingEdits(this, row);
+  const freigabeZelle = row.querySelector('td.cp-col-freigabe');
   row.outerHTML = renderItemRow(this.getRenderContext(), item, 0);
+  const neueZeile = this._q(`.item-row[data-item-id="${itemId}"]`);
+  initFreigabeButtonsInRoot(neueZeile);
+  this.uebernimmFreigabeZelle?.(neueZeile, freigabeZelle, itemId);
   this.bindEvents();
 }
 
@@ -246,6 +100,16 @@ export async function handleFieldUpdate(element) {
     value = element.value?.trim() || null;
   }
 
+  if (plattformDesFelds(field)) {
+    try {
+      await this._speichereLink(itemId, field, value, element);
+    } catch (error) {
+      console.error('Fehler beim Speichern des Links:', error);
+      window.toastSystem?.show('Fehler beim Speichern', 'error');
+    }
+    return;
+  }
+
   const item = this.items.find(i => i.id === itemId);
   const previous = {};
   try {
@@ -268,23 +132,59 @@ export async function handleFieldUpdate(element) {
     if (field === 'follower_instagram' || field === 'follower_tiktok') {
       this.refreshNumberCell(element, value);
     }
-
-    // Chip und Status-Punkt gehoeren zum eingetragenen Link. Ohne das bleibt
-    // die Zelle nach dem Einfuegen optisch leer und der Punkt, der auf die
-    // Aktionen hinweist, unsichtbar.
-    if (field === 'link_instagram') {
-      const links = item ? await this._meldeBekanntenCreator(item) : [];
-      if (links.length) {
-        this.refreshItemRow(itemId);
-      } else {
-        applySourcingIgCellState(element.closest('.chip-cell'), item || { link_instagram: value });
-      }
-    }
   } catch (error) {
     if (item) Object.assign(item, previous);
     console.error('Fehler beim Aktualisieren:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
   }
+}
+
+/**
+ * Link speichern, und zwar im Feld seiner Plattform (linkZiel): ein TikTok-Link im Instagram-Feld
+ * zieht ins TikTok-Feld um und umgekehrt. Das Feld, in das er kam, behaelt seinen Wert, ausser
+ * der war selbst ein Link der falschen Plattform. Bringt der Eintrag die ersten Links einer
+ * Plattform in die Liste, zeichnet die ganze Tabelle neu, damit deren Zeilen erscheinen.
+ * @param {HTMLInputElement|null} element Feld, in das der Link eingegeben wurde
+ * @returns {Promise<string|null>} Feld, in dem der Link jetzt steht; null, wenn nichts gespeichert wurde
+ */
+export async function _speichereLink(itemId, feld, wert, element = null) {
+  const item = this.items.find(i => i.id === itemId);
+  const ziel = linkZiel(feld, wert);
+  const umgezogen = ziel.feld !== feld;
+  const alt = item?.[feld] ?? null;
+  const name = profilPlattform(ziel.plattform).name;
+
+  if (umgezogen && wert === alt && item?.[ziel.feld] && item[ziel.feld] !== ziel.wert) {
+    window.toastSystem?.show(`Hier steht ein ${name}-Link, beim ${name}-Profil ist aber schon ein anderer eingetragen`, 'info');
+    return null;
+  }
+  const updates = { [ziel.feld]: ziel.wert };
+  if (umgezogen && alt && linkZiel(feld, alt).feld !== feld) updates[feld] = null;
+
+  const vorher = plattformenDerEintraege(this.items).join();
+  const previous = Object.fromEntries(Object.keys(updates).map(k => [k, item?.[k]]));
+  if (item) Object.assign(item, updates);
+  try {
+    await creatorAuswahlService.updateItem(itemId, updates);
+  } catch (error) {
+    if (item) Object.assign(item, previous);
+    throw error;
+  }
+
+  if (element) {
+    element.value = (umgezogen ? item?.[feld] : ziel.wert) || '';
+    rememberTextBaseline(element);
+  }
+  const links = ziel.plattform === 'instagram' && item ? await this._meldeBekanntenCreator(item) : [];
+  if (umgezogen) {
+    window.toastSystem?.show(`${name}-Link erkannt und beim ${name}-Profil eingetragen`, 'info');
+    refreshCastingDrawer(this, itemId);
+  }
+  // Chip und Abruf-Button gehoeren zum eingetragenen Link, sonst bleibt die Zelle optisch leer
+  if (plattformenDerEintraege(this.items).join() !== vorher) this.rerenderTable();
+  else if (umgezogen || links.length) this.refreshItemRow(itemId);
+  else applyProfilZelleState(element?.closest('.chip-cell'), item || { id: itemId, [feld]: ziel.wert }, ziel.plattform);
+  return ziel.feld;
 }
 
 /**
@@ -324,12 +224,11 @@ export async function handleDeleteItem(itemId) {
 }
 
 export const castingDetailRowActionsMethods = {
-  handleInstagramFetch,
-  _flashIgFetchSuccess,
   _meldeBekanntenCreator,
   warnBeiDoppeltemCreator,
   refreshItemRow,
   handleFieldUpdate,
+  _speichereLink,
   refreshNumberCell,
   handleDeleteItem
 };

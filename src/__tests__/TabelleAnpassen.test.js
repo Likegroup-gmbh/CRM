@@ -133,7 +133,7 @@ describe('Drawer Kooperation „Tabelle anpassen“', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(store.columnOrder.slice(0, 4)).toEqual(['col-nr', 'col-creator', 'col-vertrag', 'col-status']);
+    expect(store.columnOrder.slice(0, 5)).toEqual(['col-nr', 'col-creator', 'col-koop-name', 'col-vertrag', 'col-status']);
     expect(store.columnOrder.at(-1)).toBe('col-actions');
     expect(onTableRefresh).toHaveBeenCalledTimes(1);
   });
@@ -146,8 +146,9 @@ describe('Drawer Kooperation „Tabelle anpassen“', () => {
       .map(el => el.textContent.trim());
     const erwartet = ['Tags', 'Thema', 'Idee/Konzept', 'Link Skript / Briefing', 'Skript', 'Stills', 'Freigabe',
       'Content', 'Caption', 'Finale Version', 'LG Feedback 1', 'Kunde Feedback 1', 'LG Feedback 3', 'Kunde Feedback 3',
-      'Erstellt', 'Videos', 'Live Link', 'Views', 'Likes', 'Kommentare'];
+      'Erstellt', 'Video-Nr', 'Live Link', 'Views', 'Likes', 'Kommentare'];
     for (const label of erwartet) expect(labels, label).toContain(label);
+    expect(labels).not.toContain('Videos');
     expect(labels.filter(label => label.startsWith('CJ'))).toEqual([]);
   });
 });

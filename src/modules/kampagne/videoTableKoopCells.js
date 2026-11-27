@@ -16,6 +16,20 @@ const TIKTOK_ICON = `${icon('tiktok')}`;
 export const COPY_ICON = `${icon('squares-2x2')}`;
 export const CHECK_ICON = `${icon('check')}`;
 
+function darfKooperationOeffnen() {
+  const seite = window.canViewPage?.('kooperation');
+  const recht = window.currentUser?.permissions?.kooperation?.can_view;
+  return seite !== false && recht !== false;
+}
+
+/** Name der Kooperation. Kein Eingabefeld: der Name wird woanders gepflegt. */
+export function renderKoopNameInner(koop) {
+  const text = escapeHtml(String(koop?.name || '').trim() || '—');
+  if (!koop?.id || !darfKooperationOeffnen()) return text;
+  const href = `/kooperation/${encodeURIComponent(koop.id)}`;
+  return `<a href="${href}" class="table-link" onclick="event.preventDefault(); window.navigateTo('${href}')">${text}</a>`;
+}
+
 export function renderCreatorInner(ctx) {
   if (istPlatzhalter(ctx.koop)) {
     const canEdit = window.permissionSystem?.canEdit('kooperation') ?? false;

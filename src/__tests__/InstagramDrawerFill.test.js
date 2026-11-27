@@ -23,9 +23,9 @@ function vorschau(handle, extra = {}) {
       wohnort: 'Hamburg',
       notiz: 'Bio',
       sourcing_creator_id: 'pool-1',
-      ig_views_8: 1000,
+      ig_views_12: 1000,
       ig_views_30: 2000,
-      cpm_ig_8: 5,
+      cpm_ig_12: 5,
       cpm_ig_30: 4,
       ig_stats: { username: handle, biography: 'Bio' },
       ig_fetched_at: '2026-10-12T00:00:00.000Z',
@@ -94,8 +94,8 @@ describe('instagramDrawerFill', () => {
     expect(owners.email).toBeNull();
     expect(owners.wohnort).toBe('user');
 
-    const payload = { username: 'ada', ig_views_8: 1000, profile_image_url: 'https://cdn.example/a.avif' };
-    expect(statsForSave(payload, 'https://www.instagram.com/ada/').ig_views_8).toBe(1000);
+    const payload = { username: 'ada', ig_views_12: 1000, profile_image_url: 'https://cdn.example/a.avif' };
+    expect(statsForSave(payload, 'https://www.instagram.com/ada/').ig_views_12).toBe(1000);
     expect(statsForSave(payload, 'https://www.instagram.com/bob/')).toBeNull();
     expect(statsForSave(payload, 'kein link')).toBeNull();
   });
@@ -166,7 +166,7 @@ describe('Creator hinzufuegen liest den Instagram-Link', () => {
     expect(saved.name).toBe('Ada IG');
     expect(saved.follower_instagram).toBe(55);
     expect(saved.link_instagram).toBe('https://www.instagram.com/ada/');
-    expect(saved.ig_views_8).toBe(1000);
+    expect(saved.ig_views_12).toBe(1000);
     expect(saved.ig_views_30).toBe(2000);
     expect(saved.profile_image_url).toBe('https://cdn.example/a.avif');
     expect(saved.sourcing_creator_id).toBe('pool-1');
@@ -241,7 +241,7 @@ describe('Creator hinzufuegen liest den Instagram-Link', () => {
     await vi.waitFor(() => expect(creatorAuswahlService.createItem).toHaveBeenCalledTimes(1));
     const saved = creatorAuswahlService.createItem.mock.calls[0][0];
     expect(saved.link_instagram).toBe('https://instagram.com/bob');
-    expect(saved.ig_views_8).toBeUndefined();
+    expect(saved.ig_views_12).toBeUndefined();
     expect(saved.profile_image_url).toBeUndefined();
   });
 

@@ -1,5 +1,5 @@
 // castingPreisZellen.js
-// TKP, Reels-Preis und die Preis-Zellen der Casting-Tabelle
+// TKP, Reels-Preis und die Views- und Preis-Zellen der Casting-Tabelle
 
 import { formatExactNumber } from '../../core/format/compactNumber.js';
 import { escapeHtml } from '../../core/format.js';
@@ -78,17 +78,29 @@ export function bindListenTkpFeld(input, { getAktuell, onSave }) {
 }
 
 /**
- * Kopf-Tooltip der berechneten Reels-Preise. Beschreibt die Rechenregel in der
- * Form, in der sie auch dem Kunden erklaert wird - die Spalte ist sonst eine
- * Blackbox aus Views und TKP.
+ * Regel hinter den Views- und Preisspalten eines Fensters (Instagram-Reels und
+ * TikTok-Videos, dieselbe Regel). Beschreibt sie in der Form, in der sie auch dem
+ * Kunden erklaert wird - die Spalten sind sonst eine Blackbox.
  */
-export function reelsPreisTooltip(tkpLabel, fenster) {
-  return `Geschätzter Preis bei ${tkpLabel} € TKP\n`
-    + `Durchschnitt der letzten ${fenster} Feed-Reels, ohne Reels mit Werbe-Kennzeichnung.\n`
-    + 'Ausgeschlossen wird zusätzlich das stärkste Reel, wenn es mindestens doppelt so viele '
-    + 'Aufrufe hat wie das zweitstärkste, und das schwächste Reel, wenn das zweitschwächste '
+function fensterRegel(fenster) {
+  return `Durchschnitt der letzten ${fenster} Videos (Instagram: Feed-Reels), ohne Werbung, `
+    + 'ohne Videos jünger als 4 Tage und ohne angepinnte TikToks.\n'
+    + 'Ausgeschlossen wird zusätzlich das stärkste Video, wenn es mindestens doppelt so viele '
+    + 'Aufrufe hat wie das zweitstärkste, und das schwächste Video, wenn das zweitschwächste '
     + 'mindestens doppelt so viele Aufrufe hat.';
 }
+
+/** Kopf-Tooltip der Views-Spalten */
+export function viewsTooltip(fenster) {
+  return `Views im Schnitt\n${fensterRegel(fenster)}`;
+}
+
+/** Kopf-Tooltip der berechneten Preise */
+export function reelsPreisTooltip(tkpLabel, fenster) {
+  return `Geschätzter Preis bei ${tkpLabel} € TKP: Ø Views / 1.000 × TKP\n${fensterRegel(fenster)}`;
+}
+
+const anzahl = (n, einzahl, mehrzahl) => `${n} ${n === 1 ? einzahl : mehrzahl}`;
 
 /** Views-Schnitt -> Preis in Euro, auf Cent gerundet */
 export function berechnePreisAusViews(views, tkp) {
@@ -100,17 +112,20 @@ export function berechnePreisAusViews(views, tkp) {
 }
 
 /**
- * Zusatz fuer den Tooltip der Preis-Spalten: was aus der Rechnung geflogen ist.
- * Beides muss nachvollziehbar sein, sonst wirkt der Preis wie eine Blackbox -
- * die konkreten Reichweiten der Ausreisser und die Zahl der Werbe-Reels.
+ * Zusatz fuer den Tooltip der Views-Spalten: was aus der Rechnung geflogen ist.
+ * Beides muss nachvollziehbar sein, sonst wirkt der Schnitt wie eine Blackbox -
+ * die konkreten Reichweiten der Ausreisser und die Zahl der Werbe-Videos.
+ * @param {object} stats ig_stats oder tt_stats der Zeile
+ * @param {'Reel'|'Video'} [einheit]
  */
-export function beschreibeAusreisser(item, fenster) {
-  const outliers = item?.ig_stats?.[`outliers_${fenster}`];
-  const werbung = Number(item?.ig_stats?.skipped_ads) || 0;
-  const trials = Number(item?.ig_stats?.skipped_trials) || 0;
-  const trialViews = Number(item?.ig_stats?.skipped_trial_views) || 0;
-  const gate = item?.ig_stats?.trial_gate;
-  const ohne = item?.ig_stats?.ohne_trials;
+export function beschreibeAusreisser(stats, fenster, einheit = 'Reel') {
+  const outliers = stats?.[`outliers_${fenster}`];
+  const werbung = Number(stats?.skipped_ads) || 0;
+  const trials = Number(stats?.skipped_trials) || 0;
+  const trialViews = Number(stats?.skipped_trial_views) || 0;
+  const angepinnt = Number(stats?.skipped_pinned) || 0;
+  const gate = stats?.trial_gate;
+  const ohne = stats?.ohne_trials;
   if (!Array.isArray(outliers)) return null;
 
   const zeilen = [];
@@ -130,11 +145,16 @@ export function beschreibeAusreisser(item, fenster) {
   }
 
   if (werbung) {
-    zeilen.push(`${werbung} Reel${werbung === 1 ? '' : 's'} mit Werbe-Kennzeichnung ausgeschlossen`);
+    zeilen.push(`${anzahl(werbung, einheit, `${einheit}s`)} mit Werbe-Kennzeichnung ausgeschlossen`);
+  }
+
+  if (angepinnt) {
+    zeilen.push(`${anzahl(angepinnt, 'angepinntes Video', 'angepinnte Videos')} ausgeschlossen`);
   }
 
   if (trials) {
-    zeilen.push(`${trials} Trial-Reel${trials === 1 ? '' : 's'} als Duplikat ausgeschlossen`);
+    const wort = einheit === 'Reel' ? 'Trial-Reel' : einheit;
+    zeilen.push(`${anzahl(trials, wort, `${wort}s`)} als Duplikat ausgeschlossen`);
   }
 
   // Per View-Luecke erkannte Trials bleiben im Hauptwert enthalten (Variante
@@ -182,11 +202,40 @@ export function renderPreisFreitextInhalt(ctx, item, field) {
       ` : `<div class="cell-text-readonly">${wert ? `${escapeHtml(wert)} €` : '-'}</div>`;
 }
 
-export function renderPreisFreitextCell(ctx, item, columnClass, field, hide) {
+const euro = (n) => `${n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+
+/**
+ * Zweitwert ohne Trial-Reels (Variante B) als kurze zweite Zeile. Auch die
+ * Engagement-Zelle nutzt sie, damit die Zeile in jeder Spalte gleich aussieht.
+ */
+export function ohneTrialsZeile(text, title = 'ohne Trial-Reels') {
+  return `<div class="cpm-auto-reach cpm-auto-reach--clean" title="${escapeHtml(title)}"><span class="cpm-auto-tag">o. T.</span> ${escapeHtml(text)}</div>`;
+}
+
+/** Variante B nur, wenn das Gate aktiv war und sich der Wert unterscheidet */
+function zeigtOhneTrials(views, cleanViews) {
+  return cleanViews != null && views != null && Number(cleanViews) !== Number(views);
+}
+
+/**
+ * Inhalt der Views-Zelle eines Fensters (read-only): Schnitt in Kurzform, die exakte
+ * Zahl und was aus der Rechnung geflogen ist im Tooltip. Views sind oeffentlich und
+ * bleiben im Kunden-Call sichtbar, anders als der Preis daneben.
+ */
+export function renderAutoViewsInhalt(views, hinweis = null, cleanViews = null) {
+  const basis = views != null
+    ? `${Number(views).toLocaleString('de-DE')} Views im Schnitt`
+    : 'Noch nicht abgerufen';
+  const title = views != null && hinweis ? `${basis}\n${hinweis}` : basis;
+  const zweit = zeigtOhneTrials(views, cleanViews)
+    ? ohneTrialsZeile(formatReachShort(cleanViews), `ohne Trial-Reels: ${Number(cleanViews).toLocaleString('de-DE')} Views im Schnitt`)
+    : '';
+
   return `
-    <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
-      ${renderPreisFreitextInhalt(ctx, item, field)}
-    </td>
+      <div class="cell-text-readonly cpm-auto-value" title="${escapeHtml(title)}">
+        <div class="cpm-auto-views">${views != null ? formatReachShort(views) : '-'}</div>
+        ${zweit}
+      </div>
   `;
 }
 
@@ -194,39 +243,25 @@ export function renderPreisFreitextCell(ctx, item, columnClass, field, hide) {
  * Inhalt der automatisch berechneten Preis-Zelle (read-only). Der Preis entsteht hier aus
  * Views x Listen-TKP, nicht aus den gespeicherten cpm_ig_* - so wirkt eine
  * TKP-Aenderung sofort, ohne die Instagram-Daten neu abzurufen.
- * Mit showViews steht unter dem Preis die View-Basis, sonst waere in der
- * Tabelle nicht erkennbar, worauf sich der 8er- bzw. 30er-Wert bezieht.
  */
-export function renderAutoCpmInhalt(ctx, item, views, showViews = false, hinweis = null, cleanViews = null) {
+export function renderAutoCpmInhalt(ctx, views, cleanViews = null) {
   const tkp = getListenTkp(ctx.liste);
+  const tkpText = `${tkp.toLocaleString('de-DE')} € TKP`;
   const cpm = berechnePreisAusViews(views, tkp);
-
-  const value = cpm != null
-    ? `${cpm.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-    : '-';
-  const basis = views != null
-    ? `${Number(views).toLocaleString('de-DE')} Views im Schnitt × ${tkp.toLocaleString('de-DE')} € TKP`
+  const title = views != null
+    ? `${Number(views).toLocaleString('de-DE')} Views im Schnitt × ${tkpText}`
     : 'Noch nicht abgerufen';
-  const title = views != null && hinweis ? `${basis}\n${hinweis}` : basis;
-
-  const reach = showViews && views != null ? formatReachShort(views) : null;
-
-  // Zweitwert ohne Trial-Reels (Variante B): nur wenn das Gate aktiv war und
-  // sich der Wert unterscheidet - sonst exakt die bisherige Zelle.
   const cleanCpm = berechnePreisAusViews(cleanViews, tkp);
-  const cleanReach = cleanViews != null ? formatReachShort(cleanViews) : null;
-  const showClean = cleanViews != null && views != null && Number(cleanViews) !== Number(views);
-  const cleanLine = showClean
-    ? `<div class="cpm-auto-reach cpm-auto-reach--clean">${cleanCpm != null ? `${cleanCpm.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € · ` : ''}Ø ${cleanReach} ohne Trials</div>`
+  const zweit = zeigtOhneTrials(views, cleanViews) && cleanCpm != null
+    ? ohneTrialsZeile(euro(cleanCpm), `ohne Trial-Reels: ${Number(cleanViews).toLocaleString('de-DE')} Views im Schnitt × ${tkpText}`)
     : '';
 
   return `
       <div class="cell-text-readonly cpm-auto-value${ctx.kundenCallActive ? ' kunden-call-blur' : ''}"
            data-blur-target
            title="${escapeHtml(title)}">
-        <div class="cpm-auto-price">${value}</div>
-        ${reach ? `<div class="cpm-auto-reach">Ø ${reach} Views</div>` : ''}
-        ${cleanLine}
+        <div class="cpm-auto-price">${cpm != null ? euro(cpm) : '-'}</div>
+        ${zweit}
       </div>
   `;
 }

@@ -140,7 +140,7 @@ export class KampagneDetailStore {
 
   /**
    * Videos, die die Tabelle fuer diese Kooperation rendert. Matcht die Suche
-   * auf Koop-Ebene (Creator/Status/Tags), bleiben alle Videos sichtbar; matcht
+   * auf Koop-Ebene (Name/Creator/Status/Tags), bleiben alle Videos sichtbar; matcht
    * sie nur einzelne Videos, werden die anderen Zeilen ausgeblendet.
    */
   getVisibleVideos(koop) {
@@ -151,9 +151,10 @@ export class KampagneDetailStore {
     return videos.filter(v => this._matchesVideoLevel(v, query));
   }
 
-  /** Koop-Ebene: Creator-Name, Status, Tags, Koop-Custom (text/dropdown). */
+  /** Koop-Ebene: Kooperationsname, Creator-Name, Status, Tags, Koop-Custom (text/dropdown). */
   _matchesKoopLevel(koop, query) {
     const parts = [
+      koop.name,
       this.getKoopCreatorName(koop),
       koop.status_name || koop.status_ref?.name || '',
       ...(koop._tags || []),

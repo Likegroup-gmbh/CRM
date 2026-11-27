@@ -86,6 +86,7 @@ export class NavigationSystem {
           { id: 'admin-medienablage', label: 'Medienablage', icon: 'admin-medienablage', url: '/admin/medienablage' },
           { id: 'admin-teams-kanaele', label: 'Teams-Kanäle', icon: 'admin-teams-kanaele', url: '/admin/teams-kanaele' },
           { id: 'admin-pdf-vorlagen', label: 'PDF-Vorlagen', icon: 'admin-pdf-vorlagen', url: '/admin/pdf-vorlagen' },
+          { id: 'admin-tiktok-api', label: 'TikTok-API', icon: 'admin-tiktok-api', url: '/admin/tiktok-api' },
           { id: 'projekt-erstellen', label: 'Projekt anlegen', icon: 'projekt-erstellen', url: '/admin/projekt-erstellen' },
           { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/admin/auftrag' },
           { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/admin/ausgangsrechnungen' },
@@ -152,13 +153,14 @@ export class NavigationSystem {
       }
 
       // Accounting-Nav (ausser Zurück zur App): nur Admins und Investoren.
-      // Datenqualität, Medienablage, Teams-Kanäle und PDF-Vorlagen bleiben Admin. Projekt anlegen nur, wer
+      // Datenqualität, Medienablage, Teams-Kanäle, PDF-Vorlagen und TikTok-API bleiben Admin. Projekt anlegen nur, wer
       // Accounting sehen darf und anlegen kann — nicht jeder interne Mitarbeiter.
       if (this.area === 'admin') {
         const accounting = (typeof window.canViewAccounting === 'function' && window.canViewAccounting())
           || (typeof window.isAdmin === 'function' && window.isAdmin());
         if (!accounting) return false;
-        if (id === 'admin-datenqualitaet' || id === 'admin-medienablage' || id === 'admin-teams-kanaele' || id === 'admin-pdf-vorlagen') {
+        if (id === 'admin-datenqualitaet' || id === 'admin-medienablage' || id === 'admin-teams-kanaele'
+          || id === 'admin-pdf-vorlagen' || id === 'admin-tiktok-api') {
           return typeof window.isAdmin === 'function' && window.isAdmin();
         }
         if (id === 'projekt-erstellen') {

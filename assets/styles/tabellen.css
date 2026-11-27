@@ -35,6 +35,15 @@ span.verknuepfung-pill {
   color: var(--text-primary);
 }
 
+/* Medien-Buttons in Zellen (Play, Verwalten, Stills, Finale): Pill-Look aus
+   forms.css, so breit wie Icon und Label. */
+.media-pill-btn {
+  width: auto;
+  flex-shrink: 0;
+  justify-content: center;
+  text-decoration: none;
+}
+
 span.verknuepfung-pill--statisch,
 span.verknuepfung-pill--statisch:hover {
   cursor: default;
@@ -144,6 +153,7 @@ span.verknuepfung-pill--statisch:hover {
 /* Standard-Spaltenbreiten für kooperation-video-grid (ch/rem, keine px) */
 .kooperation-video-grid .col-nr { width: var(--grid-col-nr); min-width: var(--grid-col-nr); }
 .kooperation-video-grid .col-creator { width: var(--grid-col-creator); min-width: var(--grid-col-creator); }
+.kooperation-video-grid .col-koop-name { width: 22ch; min-width: 22ch; }
 .kooperation-video-grid th.col-status,
 .kooperation-video-grid td.col-status {
   width: 1%;
@@ -158,7 +168,6 @@ span.verknuepfung-pill--statisch:hover {
 .kooperation-video-grid .col-organic-paid { width: 14ch; min-width: 14ch; }
 .kooperation-video-grid .col-kampagne { width: 16ch; min-width: 16ch; }
 .kooperation-video-grid .col-posting-datum { width: 14ch; min-width: 14ch; }
-.kooperation-video-grid .col-videoanzahl { width: 5ch; min-width: 5ch; }
 .kooperation-video-grid .col-start-datum { width: 10ch; min-width: 10ch; }
 .kooperation-video-grid .col-link-live { width: 24ch; min-width: 24ch; }
 .kooperation-video-grid .col-stats-views,
@@ -171,6 +180,7 @@ span.verknuepfung-pill--statisch:hover {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  padding: var(--space-md);
 }
 .kooperation-video-grid .col-vertrag { width: 18ch; min-width: 18ch; }
 .kooperation-video-grid .col-nutzungsrechte { width: 18ch; min-width: 18ch; }
@@ -241,11 +251,11 @@ span.verknuepfung-pill--statisch:hover {
   padding-right: 18px;
 }
 
-.chip-cell--ig-fetch .chip-cell__input {
+.chip-cell--profil-abruf .chip-cell__input {
   padding-right: 26px;
 }
 
-.chip-cell--ig-fetch .chip-cell__chip {
+.chip-cell--profil-abruf .chip-cell__chip {
   inset: 0 26px 1px var(--chip-cell-pad-left);
 }
 
@@ -593,7 +603,7 @@ span.verknuepfung-pill--statisch:hover {
 }
 
 /* Anzeige-Zellen ohne direktes Eingabefeld */
-.kooperation-video-grid .grid-cell.read-only,
+.kooperation-video-grid .grid-cell.read-only:not(.video-stack-cell),
 .kooperation-video-grid .grid-cell.col-status,
 .kooperation-video-grid .grid-cell.col-tags,
 .kooperation-video-grid .grid-cell.col-actions,
@@ -726,12 +736,26 @@ span.verknuepfung-pill--statisch:hover {
   border-bottom: none;
 }
 
+/* height:1px laesst height:100% des Stacks gegen die Zeilenhoehe aufloesen.
+   Ist eine Kooperations-Zelle (Creator, Tags ...) hoeher als die Videos,
+   fuellen die Wrapper den Rest; sonst endeten Spalte und Hintergrund zu frueh
+   und der Inhalt saesse hoeher als in den mittigen Kooperations-Zellen. */
 .kooperation-video-grid .video-stack-cell {
+  height: 1px;
   padding: 0;
   vertical-align: top;
 }
 
-.kooperation-video-grid .video-stack-cell .video-field-wrapper:has([readonly]),
+.kooperation-video-grid .video-stack-cell .video-field-wrapper {
+  flex: 1 0 auto;
+}
+
+.kooperation-video-grid .kooperation-row.is-hoehen-messung .video-field-wrapper {
+  flex-grow: 0;
+}
+
+/* Das versteckte Input des Datepickers ist immer readonly, die Zelle bleibt editierbar */
+.kooperation-video-grid .video-stack-cell .video-field-wrapper:has([readonly]:not(.custom-date-picker__input)),
 .kooperation-video-grid .video-stack-cell .video-field-wrapper:has([disabled]) {
   padding: 0;
   background: var(--readonly-bg);
@@ -890,6 +914,15 @@ span.verknuepfung-pill--statisch:hover {
   text-align: left;
 }
 
+.kooperation-video-grid td.col-koop-name.cell-centered {
+  text-align: left;
+}
+
+.kooperation-video-grid td.col-koop-name .table-link {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .kooperation-video-grid td.col-creator.cell-centered .table-identity {
   justify-content: flex-start;
 }
@@ -914,7 +947,8 @@ span.verknuepfung-pill--statisch:hover {
   justify-content: center;
 }
 
-.kooperation-video-grid .video-stack-cell--center .video-field-wrapper {
+.kooperation-video-grid .video-stack-cell--center .video-field-wrapper,
+.kooperation-video-grid .checkbox-stack .video-field-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1135,15 +1169,6 @@ span.verknuepfung-pill--statisch:hover {
   border-radius: 0;
   background: inherit; /* Erbt Zebra-Striping von tr */
   box-sizing: border-box;
-}
-
-/* Video-Nr Spalte: Zentrierte Nummerierung */
-.kooperation-video-grid .col-video-nr .video-field-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 0;
 }
 
 .kooperation-video-grid .col-video-nr .video-nr-text {
@@ -2565,6 +2590,18 @@ tr.is-flow-fokus > td {
 .data-table.data-table--skripte th.col-nr,
 .data-table.data-table--skripte td.col-nr { width: 4em; }
 
+.data-table.data-table--skripte th.col-drag,
+.data-table.data-table--skripte td.col-drag {
+  width: 2.5em;
+  text-align: center;
+  padding-inline: 0;
+  color: var(--text-muted);
+}
+
+.data-table.data-table--skripte td.drag-handle { cursor: grab; }
+.data-table.data-table--skripte td.drag-handle:active { cursor: grabbing; }
+.data-table.data-table--skripte tr.skripte-row.is-dragging { opacity: 0.5; }
+
 /* Titel und Creator teilen sich den freien Platz im Verhältnis ca. 3 : 2
    (Fixed-Layout verteilt Überschuss proportional zu diesen Breiten) */
 .data-table.data-table--skripte th.col-titel,
@@ -2631,6 +2668,36 @@ tr.is-flow-fokus > td {
   width: 7em;
   min-width: 7em;
   white-space: nowrap;
+}
+
+/* Verträge-Liste: die Seite selbst scrollt quer. Ein Scroll nur in der
+   Tabelle kommt am Trackpad nicht an, solange der Seitenbereich
+   overflow-x: hidden hat. Die Leiste bleibt in der sichtbaren Breite. */
+.main-wrapper:has(.list-container > .table-container > .data-table--vertraege) {
+  overflow-x: auto;
+  container-type: inline-size;
+}
+
+.list-container:has(> .table-container > .data-table--vertraege) {
+  width: max-content;
+  min-width: 100%;
+}
+
+.list-container:has(> .table-container > .data-table--vertraege) > .table-container {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+.list-container:has(> .table-container > .data-table--vertraege) > .table-filter-wrapper,
+.list-container:has(> .table-container > .data-table--vertraege) > .tab-navigation,
+.list-container:has(> .table-container > .data-table--vertraege) > .pagination-container {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  width: 100cqi;
+  max-width: 100cqi;
+  box-sizing: border-box;
+  background: var(--bg-primary);
 }
 
 /* === EXPLIZITE SPALTEN-KLASSEN (statt :first-child/:nth-child) === */
@@ -2836,7 +2903,8 @@ width: 18em;
   fill: currentColor;
 }
 
-.creator-pool-table thead th .crm-icon {
+.creator-pool-table thead th .crm-icon,
+.creator-pool-table tbody tr.kategorie-col-header-row th .crm-icon {
   width: var(--space-md);
   height: var(--space-md);
   display: inline-block;
@@ -2905,7 +2973,9 @@ width: 18em;
   max-width: 100px;
 }
 
-/* Table Container: Nutzt globalen Scroll */
+/* Tabellen scrollen selbst quer (siehe tables.css). Ohne Tabelle bleibt
+   der Container sichtbar, damit Karten und leere Zustände nicht abgeschnitten
+   werden. */
 .table-container {
   overflow-x: visible;
   overflow-y: visible;
@@ -3032,6 +3102,122 @@ width: 18em;
   min-width: 5.5rem;
 }
 
+/* Casting (Standalone und Kampagnen-Tab): App-Shell-Layout wie Rechnungen.
+   Kopf (Toolbar bzw. Kampagnen-Header + Workflow-Tabs) und Fuss (Reiter-Leiste
+   im Monatsblatt-Stil) bleiben stehen, dazwischen scrollt die Tabelle. */
+.main-wrapper:has(> .casting-page),
+.main-wrapper:has(> .kampagne-detail-body[data-workflow="casting"]) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.casting-page,
+.kampagne-detail-body[data-workflow="casting"],
+.kampagne-detail-body[data-workflow="casting"] > .content-section,
+.kampagne-detail-body[data-workflow="casting"] .workflow-pane[data-pane="casting"]:not([hidden]),
+.kampagne-casting-worksheet {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.casting-page {
+  height: 100%;
+}
+
+.kampagne-detail-body[data-workflow="casting"] > .content-section {
+  margin-bottom: 0;
+}
+
+.casting-sticky-head,
+.casting-sticky-foot,
+.kampagne-detail-body[data-workflow="casting"] > .page-header,
+.kampagne-detail-body[data-workflow="casting"] > .tab-navigation,
+.kampagne-casting-listen-switcher {
+  flex: 0 0 auto;
+}
+
+.casting-sticky-head,
+.casting-sticky-foot {
+  z-index: 40;
+  background: var(--bg-primary);
+}
+
+.casting-sticky-head {
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.casting-sticky-head .add-item-section--compact {
+  position: static;
+}
+
+.casting-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.casting-body .filter-column-layout--table {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.casting-body .filter-column-layout--table .filter-column {
+  align-self: flex-start;
+  max-height: 100%;
+  top: 0;
+}
+
+.casting-body .filter-column-layout--table .filter-column-layout__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.casting-body .filter-column-layout--table .filter-column-chips {
+  flex: 0 0 auto;
+}
+
+.casting-body .table-container,
+.casting-body .creator-pool-table-container,
+.casting-body .creator-pool-table-container.drag-scroll-enabled {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-width: 100%;
+}
+
+.casting-body .creator-pool-table thead th {
+  position: sticky;
+  top: 0;
+}
+
+.casting-body .creator-pool-table thead th:not([class*="col-sticky-"]):not(.cp-col-actions):not(.cp-col-freigabe) {
+  z-index: 14;
+}
+
+.casting-body .creator-pool-table .kategorie-header-row > td {
+  top: var(--sticky-thead-height, 37px);
+}
+
+.casting-body .creator-pool-table.has-kategorie-headers .kategorie-header-row > td {
+  top: 0;
+}
+
+.casting-body .creator-pool-table tbody tr.kategorie-col-header-row > th {
+  top: var(--sticky-kategorie-header-height, 37px);
+}
+
 /* === READ-ONLY / DISABLED FELDER FÜR KUNDEN === */
 /* Gemeinsame Readonly/Disabled-Styles (Farben via --readonly-bg / --readonly-text in variables.css) */
 .grid-input[readonly],
@@ -3113,29 +3299,13 @@ width: 18em;
   margin: auto;
 }
 
-/* Play+Label in der Finale-Spalte: nicht auf das 32px-Quadrat von
-   .external-link-btn zwingen, sonst laeuft "9:16" in den Upload-Button. */
 .kooperation-video-grid .finale-cell-actions {
   gap: var(--space-sm);
   flex-wrap: nowrap;
 }
 
-.kooperation-video-grid .finale-cell-actions .finale-play-btn {
-  width: auto;
-  height: auto;
-  min-height: var(--space-xl);
-  padding: var(--space-xxs) var(--space-sm);
-  gap: var(--space-xs);
-  flex-shrink: 0;
-  margin: 0;
-  border: var(--border-xs) solid var(--border-secondary);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-}
-
 .kooperation-video-grid .finale-cell-actions .finale-upload-btn {
   flex-shrink: 0;
-  margin: 0;
 }
 
 /* === SKELETON LOADING SYSTEM === */
@@ -3849,6 +4019,12 @@ th[draggable="true"]:active {
 .strategie-items-table td.entity-custom-cell {
   white-space: normal;
   overflow: hidden;
+}
+
+.creator-pool-table td.entity-custom-cell:has(.table-select),
+.strategie-items-table td.entity-custom-cell:has(.table-select) {
+  padding: var(--space-xs) var(--space-sm);
+  vertical-align: middle;
 }
 /* Eigene Textspalte in Casting und Konzept: umbrechen, Zeilenumbrueche behalten,
    Zeilenhoehe waechst mit. Die Spalte bleibt begrenzt, damit langer Text nicht

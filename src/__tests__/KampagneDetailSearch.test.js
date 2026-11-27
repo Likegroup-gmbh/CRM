@@ -105,6 +105,12 @@ describe('KampagneDetailStore – Kooperationen-Namenssuche', () => {
     expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k1']);
   });
 
+  it('matcht über den Kooperationsnamen', () => {
+    store.kooperationen[1].name = 'Sommer Reel Lena';
+    store.setSearchQuery('sommer reel');
+    expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k2']);
+  });
+
   it('matcht über den Status', () => {
     store.setSearchQuery('angefragt');
     expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k1']);

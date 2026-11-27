@@ -8,11 +8,47 @@ import {
   buildKundenFeedbackUpdates, isKundenFeedback
 } from './sourcingStatusOptions.js';
 import { preserveScroll } from '../../core/dom/preserveScroll.js';
+import { getSourcingTabForItem } from './sourcingTabs.js';
+import { istFreigabeBereit } from './castingFreigabeLogik.js';
 import {
   NICHT_UMSETZEN_KATEGORIE,
   kategorieGroupKey,
   updatesForGroupKey
 } from './castingKategorien.js';
+
+function rerenderMitScrollErhalt(detail) {
+  const hScroll = detail._getHScrollTarget(detail._q('.table-container'));
+  const keep = hScroll
+    ? [hScroll.classList?.contains('table-container') ? { sel: '.table-container', scope: detail._getRoot() } : hScroll]
+    : [];
+  preserveScroll(() => detail.rerenderTable(), { keep });
+}
+
+/**
+ * Nach Status oder Kundenfeedback: bleibt die Zeile in Reiter, Filter und
+ * Sortierung, reicht die Zeile (Freigabe-Zelle schaltet in-place). Sonst
+ * Tabelle neu und den Freigabe-Uebergang nachspielen.
+ */
+function aktualisiereNachStatus(detail, itemId, { warBereit, tabVorher, tabelleNeu = false }) {
+  const item = detail.items.find(i => i.id === itemId);
+  const bleibtStehen = !tabelleNeu && item
+    && getSourcingTabForItem(item) === tabVorher
+    && !detail.hasColumnFilters()
+    && (detail.tableFilter?.isManualSort() ?? true)
+    && detail._q(`.item-row[data-item-id="${itemId}"]`);
+  if (bleibtStehen) {
+    detail.refreshItemRow(itemId);
+    detail.updateTabCounts();
+    return;
+  }
+  rerenderMitScrollErhalt(detail);
+  detail.animiereFreigabeNachRender?.(itemId, warBereit);
+}
+
+function freigabeVorher(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  return { warBereit: istFreigabeBereit(item), tabVorher: item ? getSourcingTabForItem(item) : null };
+}
 
 /**
  * Status-Select der Tabelle: setzt genau eines der Prozess-Flags angefragt /
@@ -27,6 +63,7 @@ export async function handleStatusChange(itemId, status) {
   if (!itemId || !isSourcingStatus(status)) return;
 
   const updates = buildSourcingStatusUpdates(status);
+  const vorher = freigabeVorher(this, itemId);
 
   try {
     // Absage loest die Zuordnung an Videoideen; blockt, wenn eine davon
@@ -47,7 +84,7 @@ export async function handleStatusChange(itemId, status) {
       this.items = reorderedItems.map((entry, index) => ({ ...entry, sortierung: index }));
     }
 
-    this.rerenderTable();
+    aktualisiereNachStatus(this, itemId, { ...vorher, tabelleNeu: status === 'gebucht' });
   } catch (error) {
     console.error('Fehler beim Status-Update:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
@@ -63,6 +100,7 @@ export async function handleKundenFeedbackChange(itemId, feedback) {
   if (!itemId || !isKundenFeedback(feedback)) return;
 
   const updates = buildKundenFeedbackUpdates(feedback);
+  const vorher = freigabeVorher(this, itemId);
 
   try {
     await creatorAuswahlService.updateItem(itemId, updates);
@@ -70,12 +108,8 @@ export async function handleKundenFeedbackChange(itemId, feedback) {
     const item = this.items.find(i => i.id === itemId);
     if (item) Object.assign(item, updates);
 
-    // Feedback ist Teil des Toolbar-Filters - ein Wechsel kann die Zeile
-    // aus der gefilterten Ansicht nehmen, deshalb die ganze Tabelle neu.
-    // preserveScroll: vertikal das Fenster, horizontal der Scrollport
-    // (main-wrapper standalone, Tabellen-Container embedded).
-    const hScroll = this._getHScrollTarget(this._q('.table-container'));
-    preserveScroll(() => this.rerenderTable(), { keep: hScroll ? [hScroll] : [] });
+    // Feedback entscheidet ueber den Reiter (Alle vs. Abgelehnt) und den Filter
+    aktualisiereNachStatus(this, itemId, vorher);
   } catch (error) {
     console.error('Fehler beim Feedback-Update:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');

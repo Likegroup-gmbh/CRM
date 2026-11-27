@@ -542,6 +542,26 @@ describe('strategieTextClip', () => {
   });
 });
 
+describe('Konzept-Tabelle und Kategorien nur an Videos', () => {
+  it('zeigt Videos, deren Kategorie nicht in der Konzept-Liste steht', () => {
+    const detail = detailStub({
+      getTeilbereicheFromStrategie: () => ['essence', 'catrice'],
+      items: [
+        { id: 'e1', teilbereich: 'essence' },
+        { id: 't1', teilbereich: 'Tubing Mascara' },
+        { id: 't2', teilbereich: 'Tubing Mascara' },
+        { id: 'l1', teilbereich: 'Lip Stain' },
+        { id: 'o1', teilbereich: null }
+      ]
+    });
+    const doc = new DOMParser().parseFromString(renderItemsTable(detail), 'text/html');
+    const names = [...doc.querySelectorAll('.category-name')].map((el) => el.textContent);
+    expect(names).toEqual(['essence', 'catrice', 'Tubing Mascara', 'Lip Stain', 'Ohne Kategorie']);
+    const ids = [...doc.querySelectorAll('tr.item-row')].map((row) => row.dataset.itemId);
+    expect(ids).toEqual(['e1', 't1', 't2', 'l1', 'o1']);
+  });
+});
+
 describe('reorderStrategieItemsByKategorien', () => {
   it('verschiebt Videos mit ihrer Kategorie und behaelt die Reihenfolge in der Gruppe', () => {
     const items = [

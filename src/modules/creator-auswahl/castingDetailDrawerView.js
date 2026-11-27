@@ -12,7 +12,8 @@ import {
   getKundenFeedback,
   getSourcingStatus
 } from './sourcingStatusOptions.js';
-import { renderIgFetchButton, sourcingIgHandle } from './sourcingIgCell.js';
+import { renderAbrufButton } from './sourcingProfilZelle.js';
+import { profilHandle } from './sourcingProfilPlattformen.js';
 import { renderMatchingCell } from './sourcingMatching.js';
 import { berechnePreisAusViews, getListenTkp, rowCanWrite } from './castingPreisZellen.js';
 import {
@@ -20,7 +21,8 @@ import {
   engagementDesEintrags,
   formatEngagement,
   mediaCountDesEintrags,
-  reelsQuelle
+  reelsQuelle,
+  tiktokEngagement
 } from './castingEngagement.js';
 
 function esc(value) {
@@ -31,14 +33,17 @@ function esc(value) {
     .replace(/"/g, '&quot;');
 }
 
-export function listeHatTiktok(liste) {
+/** Ohne Angabe gelten beide Plattformen. */
+function listeHat(liste, plattform) {
   const raw = liste?.plattformen;
   const list = (Array.isArray(raw) ? raw : String(raw || '').split(','))
     .map(s => String(s).trim().toLowerCase())
     .filter(Boolean);
-  if (!list.length) return true;
-  return list.includes('tiktok');
+  return !list.length || list.includes(plattform);
 }
+
+export const listeHatTiktok = (liste) => listeHat(liste, 'tiktok');
+export const listeHatInstagram = (liste) => listeHat(liste, 'instagram');
 
 function darfSchreiben(detail, item, { kundeDarf = false } = {}) {
   if (item?.isVorschlag || detail.gastReadonly) return false;
@@ -60,6 +65,15 @@ function textFeld(item, { label, field, value, schreiben, placeholder = '', rows
     ? `<textarea class="form-input" rows="${rows}" ${attrs}>${esc(text)}</textarea>`
     : `<input class="form-input" type="text" ${attrs} value="${esc(text)}">`;
   return feld(label, control);
+}
+
+/** Link-Feld; mit Schreibrecht sitzt der Abruf-Button der Plattform rechts im Feld. */
+function linkFeld(item, { label, plattform, field, schreiben, placeholder }) {
+  if (!schreiben) return textFeld(item, { label, field, value: item[field], schreiben, placeholder });
+  return feld(label, `<div class="casting-detail-link">
+    <input class="form-input" type="text" data-field="${field}" data-item-id="${esc(item.id)}" placeholder="${esc(placeholder)}" value="${esc(item[field] ?? '')}">
+    ${renderAbrufButton(item, plattform)}
+  </div>`);
 }
 
 function auswahlFeld(item, { label, field, value, options, disabled, meta = '' }) {
@@ -108,7 +122,7 @@ function profilBlock(detail, item) {
   const clean = engagement.showClean
     ? `<div class="casting-detail-er-clean">${formatEngagement(engagement.clean)} ohne Trials</div>`
     : '';
-  const handle = sourcingIgHandle(item);
+  const handle = profilHandle(item, 'instagram');
   const profilUrl = handle ? `https://www.instagram.com/${encodeURIComponent(handle)}/` : '';
   const bio = bioDesEintrags(item);
   const count = mediaCountDesEintrags(item);
@@ -146,18 +160,25 @@ function profilBlock(detail, item) {
   `;
 }
 
+function preisZeile(detail, label, views, clean = null) {
+  const zweit = clean != null && views != null && Number(clean) !== Number(views)
+    ? `<div class="casting-detail-er-clean">${preisText(clean, detail.liste)} ohne Trials</div>`
+    : '';
+  return feld(label, `<div class="cell-text-readonly">${preisText(views, detail.liste)}</div>${zweit}`);
+}
+
 function preisBlock(detail, item) {
-  const clean8 = item.ig_stats?.ohne_trials?.views_8;
-  const clean30 = item.ig_stats?.ohne_trials?.views_30;
-  const zeile = (label, views, clean) => {
-    const zweit = clean != null && views != null && Number(clean) !== Number(views)
-      ? `<div class="casting-detail-er-clean">${preisText(clean, detail.liste)} ohne Trials</div>`
-      : '';
-    return feld(label, `<div class="cell-text-readonly">${preisText(views, detail.liste)}</div>${zweit}`);
-  };
+  const ohneTrials = item.ig_stats?.ohne_trials;
   return `
-    ${zeile('Preis 8 Reels', item.ig_views_8, clean8)}
-    ${zeile('Preis 30 Reels', item.ig_views_30, clean30)}
+    ${preisZeile(detail, 'Preis 12 Reels', item.ig_views_12, ohneTrials?.views_12)}
+    ${preisZeile(detail, 'Preis 30 Reels', item.ig_views_30, ohneTrials?.views_30)}
+  `;
+}
+
+function tiktokPreisBlock(detail, item) {
+  return `
+    ${preisZeile(detail, 'Preis 12 Videos TikTok', item.tt_views_12)}
+    ${preisZeile(detail, 'Preis 30 Videos TikTok', item.tt_views_30)}
   `;
 }
 
@@ -189,7 +210,7 @@ export function renderBody(detail, item) {
   const schreiben = rowCanWrite(detail, item);
   const feedbackSchreiben = darfSchreiben(detail, item, { kundeDarf: true });
   const internSichtbar = !detail.isKunde;
-  const tiktok = listeHatTiktok(detail.liste);
+  const tiktok = listeHatTiktok(detail.liste) || !!item.link_tiktok;
   const blur = detail.kundenCallActive ? ' kunden-call-blur' : '';
 
   return `
@@ -262,13 +283,18 @@ export function renderBody(detail, item) {
       ${textFeld(item, { label: 'Preis Reels', field: 'preis_reels', value: item.preis_reels, schreiben, placeholder: 'Preis…' })}
       ${textFeld(item, { label: 'Reichweite Story', field: 'reichweite_story', value: item.reichweite_story, schreiben, placeholder: 'z.B. 10K' })}
       ${textFeld(item, { label: 'Preis Story', field: 'preis_story', value: item.preis_story, schreiben, placeholder: 'Preis…' })}
+      ${textFeld(item, { label: tiktok ? 'Gesamtpreis Instagram' : 'Gesamtpreis', field: 'pricing', value: item.pricing, schreiben, placeholder: 'Preis…' })}
       ${tiktok ? `
-        ${textFeld(item, { label: 'Link TikTok', field: 'link_tiktok', value: item.link_tiktok, schreiben, placeholder: 'https://tiktok.com/…' })}
+        ${linkFeld(item, { label: 'Link TikTok', plattform: 'tiktok', field: 'link_tiktok', schreiben, placeholder: 'https://tiktok.com/@…' })}
         ${textFeld(item, { label: 'Follower TikTok', field: 'follower_tiktok', value: item.follower_tiktok ?? '', schreiben })}
+        ${feld('Engagement TikTok', `<div class="cell-text-readonly">${esc(formatEngagement(tiktokEngagement(item).rate) || '–')}</div>`)}
+        <div class="${blur}">
+          ${tiktokPreisBlock(detail, item)}
+        </div>
         ${textFeld(item, { label: 'Preis Video TikTok', field: 'preis_tiktok_video', value: item.preis_tiktok_video, schreiben })}
         ${textFeld(item, { label: 'Preis Story TikTok', field: 'preis_tiktok_story', value: item.preis_tiktok_story, schreiben })}
+        ${textFeld(item, { label: 'Gesamtpreis TikTok', field: 'pricing_tiktok', value: item.pricing_tiktok, schreiben, placeholder: 'Preis…' })}
       ` : ''}
-      ${textFeld(item, { label: 'Gesamtpreis', field: 'pricing', value: item.pricing, schreiben })}
       ${textFeld(item, { label: 'Nutzungsrechte', field: 'nutzungsrechte', value: item.nutzungsrechte, schreiben, rows: 2 })}
       ${textFeld(item, { label: 'Reichweitengarantie', field: 'reichweite_garantie', value: item.reichweite_garantie, schreiben, placeholder: 'z.B. 50K' })}
       ${feld('Matching', renderMatchingCell(item.matching_score, item.matching_scores || item.scores || {}))}
@@ -282,7 +308,7 @@ export function renderHeader(detail, item) {
   const name = schreiben
     ? `<textarea class="casting-detail-name" data-field="name" data-item-id="${esc(item.id)}" placeholder="Name…" rows="1">${esc(item.name || '')}</textarea>`
     : `<span class="drawer-title">${esc(item.name || 'Creator')}</span>`;
-  const abruf = schreiben ? renderIgFetchButton(item) : '';
+  const abruf = schreiben ? renderAbrufButton(item, 'instagram') : '';
   return `
     <div class="drawer-header casting-detail-drawer__header">
       <div class="casting-detail-drawer__title">${name}</div>

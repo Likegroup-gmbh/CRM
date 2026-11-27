@@ -35,9 +35,12 @@ export const skripteSkriptDatenMethoden = {
             videoanzahl,
             creator:creator_id(id, vorname, nachname, mail, profilbild_url, profilbild_thumb_url)
           )
-        )`)
-      .order('created_at', { ascending: false })
-      .limit(200);
+        )`);
+    // Im Tab (Kampagne, Produktion, Linie) gilt die gezogene Reihenfolge.
+    // Die globale Liste bleibt bei „neueste zuerst“.
+    const imScope = kampagneId !== undefined || Boolean(produktionId) || Boolean(briefingId);
+    if (imScope) query = query.order('sortierung', { ascending: true });
+    query = query.order('created_at', { ascending: false }).limit(200);
 
     if (kampagneId) query = query.eq('kampagne_id', kampagneId);
     else if (kampagneId === null) query = query.is('kampagne_id', null);
@@ -49,6 +52,16 @@ export const skripteSkriptDatenMethoden = {
     if (error) throw new Error(error.message);
     const mitNr = await this.attachSkriptNummern(data || []);
     return this.attachListeCreators(mitNr);
+  },
+
+  /** Sichtbare Tabellenreihenfolge einer Linie: Index 0 steht oben. */
+  async updateSkripteSortierung(ids) {
+    const liste = (ids || []).filter(Boolean);
+    const results = await Promise.all(liste.map((id, index) =>
+      this.db.from('skripte').update({ sortierung: index }).eq('id', id)
+    ));
+    const fehler = results.find((r) => r.error);
+    if (fehler) throw new Error(fehler.error.message || 'Sortierung konnte nicht gespeichert werden');
   },
 
   /**

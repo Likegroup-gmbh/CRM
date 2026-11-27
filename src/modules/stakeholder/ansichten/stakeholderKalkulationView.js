@@ -39,7 +39,7 @@ const CARD_HINTS = {
     hint: 'Offenes Creator-Budget mal Spanne der bereits bepreisten Kooperationen in diesem Filter'
   },
   ksk: {
-    formula: 'UGC: 4,9 % auf EK · Influencer: KSK-Topf',
+    formula: 'KSK-Topf (Auftragsdetails)',
     hint: 'Künstlersozialabgabe auf Honorare'
   },
   zusatz: {

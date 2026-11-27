@@ -42,9 +42,7 @@ export function getBaseFilteredItems() {
 // Vorschläge bleiben oben stehen, sortiert werden nur die Einträge darunter.
 export function getFilteredItems() {
   const base = this.getBaseFilteredItems();
-  const items = this.activeTab === 'alle'
-    ? base
-    : base.filter(item => getSourcingTabForItem(item) === this.activeTab);
+  const items = base.filter(item => getSourcingTabForItem(item) === this.activeTab);
   if (!this.tableFilter || this.tableFilter.isManualSort()) return items;
   const vorschlaege = items.filter(item => item.isVorschlag);
   const eintraege = items.filter(item => !item.isVorschlag);
@@ -75,7 +73,6 @@ export function syncTableFilter() {
 export function getTabCounts() {
   const baseItems = this.getBaseFilteredItems();
   const counts = Object.fromEntries(SOURCING_TABS.map(t => [t.key, 0]));
-  counts.alle = baseItems.length;
   counts.bewerbung = this.isKunde ? 0 : (this.bewerbungen || []).length;
   baseItems.forEach(item => {
     counts[getSourcingTabForItem(item)]++;
@@ -122,12 +119,13 @@ export function updateTabCounts() {
   });
 }
 
-// Nach dem Anlegen eines neuen Items zum "Offen"-Reiter wechseln,
-// damit die neue Zeile sichtbar ist
-export function ensureNewItemVisible() {
+// Nach dem Anlegen zum "Alle"-Reiter wechseln (oder bei vorhandenem Eintrag zu dessen Reiter),
+// damit die Zeile sichtbar ist
+export function ensureNewItemVisible(item = null) {
   this.clearSearch();
-  if (this.activeTab !== 'offen' && this.activeTab !== 'alle') {
-    this.switchTab('offen');
+  const zielTab = item ? getSourcingTabForItem(item) : 'alle';
+  if (this.activeTab !== zielTab) {
+    this.switchTab(zielTab);
   }
 }
 

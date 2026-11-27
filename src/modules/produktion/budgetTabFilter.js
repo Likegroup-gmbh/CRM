@@ -9,7 +9,8 @@ import {
   renderFilterSelect,
   syncFilterSelect
 } from '../../core/filters/FilterSelect.js';
-import { updateBudgetTab, verfuegbareTags } from './budgetTab.js';
+import { updateBudgetTab } from './budgetTab.js';
+import { verfuegbareTags } from './budgetTabModel.js';
 
 const FILTER_ID = 'budget-tags';
 const WRAPPER_ID = `filter-select-${FILTER_ID}`;

@@ -5,10 +5,12 @@ import {
   CREATOR_TYP_SELECT_OPTIONS,
   canonicalizeCreatorTyp
 } from '../modules/creator-auswahl/creatorTypeOptions.js';
-import { createSourcingIgToolbarConfig } from '../modules/creator-auswahl/sourcingIgToolbarConfig.js';
-import {
-  applySourcingIgCellState, SOURCING_IG_TOOLBAR
-} from '../modules/creator-auswahl/sourcingIgCell.js';
+import { createSourcingProfilToolbarConfig } from '../modules/creator-auswahl/sourcingProfilToolbar.js';
+import { applyProfilZelleState } from '../modules/creator-auswahl/sourcingProfilZelle.js';
+import { PROFIL_PLATTFORMEN } from '../modules/creator-auswahl/sourcingProfilPlattformen.js';
+
+const SOURCING_IG_TOOLBAR = PROFIL_PLATTFORMEN.instagram.toolbar;
+const createSourcingIgToolbarConfig = (detail) => createSourcingProfilToolbarConfig(detail, 'instagram');
 
 
 describe('Sourcing – Follower-Zellen', () => {
@@ -89,7 +91,7 @@ describe('Sourcing – IG-Zelle', () => {
   it('legt den Abruf-Button in die Zelle, keinen Extern-Link', () => {
     const cell = zelle({ link_instagram: IG_URL });
 
-    expect(cell.querySelector('[data-ig-fetch]')).not.toBeNull();
+    expect(cell.querySelector('[data-profil-abruf="instagram"]')).not.toBeNull();
     expect(cell.querySelector('a')).toBeNull();
   });
 
@@ -97,7 +99,7 @@ describe('Sourcing – IG-Zelle', () => {
     const btn = zelle({
       link_instagram: IG_URL,
       ig_fetched_at: '2026-07-20T10:00:00.000Z'
-    }).querySelector('[data-ig-fetch]');
+    }).querySelector('[data-profil-abruf="instagram"]');
 
     expect(btn.getAttribute('aria-label')).toBe('Instagram-Daten frisch abrufen');
     expect(btn.title).toContain('frisch bei Instagram abrufen');
@@ -114,7 +116,7 @@ describe('Sourcing – IG-Zelle', () => {
   });
 
   it('faerbt den Abruf-Button nach dem Zustand', () => {
-    const cls = (item) => zelle(item).querySelector('[data-ig-fetch]').className;
+    const cls = (item) => zelle(item).querySelector('[data-profil-abruf="instagram"]').className;
 
     expect(cls({})).toContain('is-empty');
     expect(cls({ link_instagram: IG_URL })).not.toContain('is-refresh');
@@ -124,23 +126,26 @@ describe('Sourcing – IG-Zelle', () => {
       .toContain('is-error');
   });
 
-  it('zeigt Kunden weiter nur das anklickbare Icon', () => {
+  it('zeigt Kunden den Handle als anklickbaren Link, das Icon setzt die Zeile', () => {
     const cell = renderCell('cp-col-link-ig', { link_instagram: IG_URL }, { isKunde: true });
 
     expect(cell.querySelector('.chip-cell')).toBeNull();
-    expect(cell.querySelector('a.link-icon-btn').getAttribute('href')).toBe(IG_URL);
+    const link = cell.querySelector('a.chip-cell__chip--static');
+    expect(link.getAttribute('href')).toBe(IG_URL);
+    expect(link.querySelector('svg')).toBeNull();
+    expect(link.textContent).toBe('@paulinemary');
   });
 
   it('zieht Chip und Punkt nach einer Eingabe im Feld nach', () => {
     // Ohne das bleibt die Zelle nach dem Einfuegen eines Links optisch leer
     const cell = zelle({});
 
-    applySourcingIgCellState(cell, { id: 'i1', link_instagram: IG_URL });
+    applyProfilZelleState(cell, { id: 'i1', link_instagram: IG_URL }, 'instagram');
 
     expect(cell.querySelector('[data-chip-cell-chip]').hidden).toBe(false);
     expect(cell.querySelector('.chip-cell__label').textContent).toBe('@paulinemary');
-    expect(cell.querySelector('[data-ig-fetch]').hidden).toBe(false);
-    expect(cell.querySelector('[data-ig-fetch]').classList.contains('is-empty')).toBe(false);
+    expect(cell.querySelector('[data-profil-abruf="instagram"]').hidden).toBe(false);
+    expect(cell.querySelector('[data-profil-abruf="instagram"]').classList.contains('is-empty')).toBe(false);
   });
 });
 
@@ -194,6 +199,46 @@ describe('Sourcing – IG-Toolbar-Config', () => {
 
     cfg.actions[0].onClick({ id: 'i1' }, button);
     expect(aufrufe).toEqual([['i1', button]]);
+  });
+});
+
+const TT_URL = 'https://www.tiktok.com/@lea.m';
+
+describe('Sourcing – TikTok-Zelle und -Toolbar', () => {
+  const zelle = (item) => renderCell('cp-col-link-tt', item).querySelector('.chip-cell');
+  const button = (item) => zelle(item).querySelector('[data-profil-abruf="tiktok"]');
+
+  it('nutzt dieselbe Chip-Zelle mit eigenem Feld, eigener Toolbar und Abruf-Button', () => {
+    const cell = zelle({ link_tiktok: TT_URL });
+
+    expect(cell.dataset.hoverToolbar).toBe(PROFIL_PLATTFORMEN.tiktok.toolbar);
+    expect(cell.querySelector('input[data-field="link_tiktok"]').value).toBe(TT_URL);
+    expect(cell.querySelector('.chip-cell__label').textContent).toBe('@lea.m');
+    expect(button({ link_tiktok: TT_URL }).dataset.itemId).toBe('i1');
+    expect(button({}).hidden).toBe(true);
+  });
+
+  it('nimmt den Handle aus dem letzten Abruf und zeigt dessen Zustand', () => {
+    expect(zelle({ link_tiktok: TT_URL, tt_stats: { username: 'echt' } }).querySelector('.chip-cell__label').textContent).toBe('@echt');
+
+    const frisch = button({ link_tiktok: TT_URL, tt_fetched_at: '2026-11-20T10:00:00.000Z' });
+    expect(frisch.classList.contains('is-refresh')).toBe(true);
+    expect(frisch.getAttribute('aria-label')).toBe('TikTok-Daten frisch abrufen');
+    expect(button({ link_tiktok: TT_URL, tt_fetch_error: 'Profil ist privat' }).title).toBe('Abruf fehlgeschlagen: Profil ist privat');
+    // Instagram-Zustand faerbt die TikTok-Zelle nicht
+    expect(button({ link_tiktok: TT_URL, ig_fetch_error: 'x' }).className).not.toContain('is-error');
+  });
+
+  it('leitet die Toolbar-Aktion an handleTiktokFetch und öffnet das TikTok-Profil', () => {
+    const aufrufe = [];
+    const detail = { items: [{ id: 'i1', link_tiktok: TT_URL }], handleTiktokFetch: (id) => aufrufe.push(id) };
+    const config = createSourcingProfilToolbarConfig(detail, 'tiktok');
+    const ctx = config.resolveContext(zelle({ link_tiktok: TT_URL }));
+
+    expect(config.actions[0].label(ctx)).toBe('TikTok-Daten abrufen');
+    expect(config.actions[1].href(ctx)).toBe(TT_URL);
+    config.actions[0].onClick(ctx, {});
+    expect(aufrufe).toEqual(['i1']);
   });
 });
 

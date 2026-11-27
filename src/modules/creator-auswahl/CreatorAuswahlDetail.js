@@ -15,14 +15,16 @@ import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
 import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
-import { createSourcingIgToolbarConfig } from './sourcingIgToolbarConfig.js';
-import { SOURCING_IG_TOOLBAR } from './sourcingIgCell.js';
+import { createSourcingProfilToolbarConfig } from './sourcingProfilToolbar.js';
+import { PROFIL_PLATTFORMEN } from './sourcingProfilPlattformen.js';
+import { mitPlattformenDerEintraege } from './sourcingSpaltenSichtbarkeit.js';
 import { verknuepfeOffeneEintraege, verknuepfungsText } from './castingCreatorVerknuepfung.js';
 import { CastingVorschlagPanel } from './CastingVorschlagPanel.js';
 import { castingDetailEventsMethods } from './CastingDetailEvents.js';
 import { castingDetailFilterMethods } from './CastingDetailFilter.js';
 import { castingDetailTableUxMethods } from './CastingDetailTableUx.js';
 import { absorbCastingEdits, castingDetailRowActionsMethods } from './CastingDetailRowActions.js';
+import { castingDetailProfilAbrufMethods } from './CastingDetailProfilAbruf.js';
 import { castingDetailZeilenStatusMethods } from './CastingDetailZeilenStatus.js';
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
@@ -32,6 +34,8 @@ import { castingDetailSpaltenMethods } from './CastingDetailSpalten.js';
 import { parseTeilbereiche } from './castingKategorien.js';
 import { loadBewerbungen } from './bewerbungTab.js';
 import { showCastingKategorienDrawer } from './CastingKategorienDrawer.js';
+import { castingDetailFreigabeMethods } from './CastingDetailFreigabe.js';
+import { initFreigabeButtonsInRoot } from './castingFreigabeZelle.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -84,10 +88,9 @@ export class CreatorAuswahlDetail {
     return fromRoot.concat([...this.chromeRoot.querySelectorAll(selector)]);
   }
 
-  // Standalone: main-wrapper ist der horizontale Scrollport (sticky Header).
-  // Embedded: der Tabellen-Container, sonst wächst die Kampagnen-View mit.
+  // In der Casting-Shell (standalone und embedded) scrollt .table-container selbst.
   _getHScrollTarget(fallback) {
-    if (this.embedded) return fallback;
+    if (this.embedded || this._q('.casting-body')) return fallback;
     return document.querySelector('.main-wrapper') || fallback;
   }
 
@@ -132,10 +135,12 @@ export class CreatorAuswahlDetail {
     this.tableFilter?.destroy();
     this.tableFilter = null;
 
-    // Die Hover-Toolbar der Instagram-Spalte laeuft ueber die zentrale Engine.
-    // Ihre Abruf-Aktion braucht diese Instanz, also wird die Config hier mit
-    // Kontext angemeldet statt global deklariert.
-    registerHoverToolbar(SOURCING_IG_TOOLBAR, createSourcingIgToolbarConfig(this));
+    // Die Hover-Toolbars der Link-Spalten (Instagram, TikTok) laufen ueber die
+    // zentrale Engine. Ihre Abruf-Aktion braucht diese Instanz, also werden die
+    // Configs hier mit Kontext angemeldet statt global deklariert.
+    for (const p of Object.values(PROFIL_PLATTFORMEN)) {
+      registerHoverToolbar(p.toolbar, createSourcingProfilToolbarConfig(this, p.plattform));
+    }
     this._hoverRegistered = true;
 
     if (!this.embedded && this.isKunde) {
@@ -151,6 +156,8 @@ export class CreatorAuswahlDetail {
       this.bewerbungen = this.isKunde ? [] : await loadBewerbungen(listeId);
       if (veraltet()) return;
       await this._verknuepfeBekannteCreator();
+      if (veraltet()) return;
+      await this._ladeFreigegebeneCreatorIds();
       if (veraltet()) return;
 
       this.loadColumnVisibilitySettings();
@@ -236,7 +243,7 @@ export class CreatorAuswahlDetail {
     // Config verweist auf eine Instanz, die es gleich nicht mehr gibt.
     // Prefetch-Instanzen, die nie gemountet wurden, haben nichts angemeldet.
     if (this._hoverRegistered) {
-      unregisterHoverToolbar(SOURCING_IG_TOOLBAR);
+      Object.values(PROFIL_PLATTFORMEN).forEach(p => unregisterHoverToolbar(p.toolbar));
       this._hoverRegistered = false;
     }
     hoverToolbar.close();
@@ -302,8 +309,11 @@ export class CreatorAuswahlDetail {
       canCreate,
       canEdit: can('edit'),
       canDelete: can('delete'),
+      canCreateKooperation: this._canCreateKooperation(),
+      freigegebeneCreatorIds: this.freigegebeneCreatorIds,
+      freigabeLaeuft: this._freigabeLaeuft,
       gastReadonly: window.isGastReadonly?.() || false,
-      hiddenColumns: this.hiddenColumns,
+      hiddenColumns: mitPlattformenDerEintraege(this.hiddenColumns, this.items),
       columnOrder: Array.isArray(this.liste?.column_order) ? this.liste.column_order : null,
       kundenCallActive: this.kundenCallActive,
       teilbereiche: this.getTeilbereiche(),
@@ -322,14 +332,16 @@ export class CreatorAuswahlDetail {
     if (this.embedded && this.chromeRoot) {
       this.chromeRoot.innerHTML = renderAddSection(ctx);
       rootEl.innerHTML = `
-        ${renderTabNavigation(ctx)}
-        ${table}
+        <div class="casting-body">${table}</div>
+        <div class="casting-sticky-foot">${renderTabNavigation(ctx)}</div>
       `;
     } else {
       rootEl.innerHTML = `
-        ${renderAddSection(ctx)}
-        ${renderTabNavigation(ctx)}
-        ${table}
+        <div class="casting-page">
+          <div class="casting-sticky-head">${renderAddSection(ctx)}</div>
+          <div class="casting-body">${table}</div>
+          <div class="casting-sticky-foot">${renderTabNavigation(ctx)}</div>
+        </div>
       `;
     }
     this.tableFilter.mount({
@@ -339,6 +351,7 @@ export class CreatorAuswahlDetail {
     });
     // Eigene Vorschlag-Zeilen ueber der Liste (nie fuer Kunden/Gaeste)
     this.vorschlagPanel?.mount?.();
+    initFreigabeButtonsInRoot(rootEl);
     updateStickyHeights(this._getRoot());
 
     if (!this.isKunde && this._canSourcing('edit')) {
@@ -351,6 +364,7 @@ export class CreatorAuswahlDetail {
     if (tableContainer) {
       absorbCastingEdits(this, tableContainer);
       tableContainer.outerHTML = renderItemsTable(this.getRenderContext());
+      initFreigabeButtonsInRoot(this._getRoot());
       this.bindEvents();
       updateStickyHeights(this._getRoot());
       this.updateTabCounts();
@@ -372,11 +386,13 @@ Object.assign(
   castingDetailEventsMethods,
   castingDetailTableUxMethods,
   castingDetailRowActionsMethods,
+  castingDetailProfilAbrufMethods,
   castingDetailZeilenStatusMethods,
   castingDetailLinksMethods,
   castingDetailBulkMethods,
   castingDetailQuickAddMethods,
-  castingDetailSpaltenMethods
+  castingDetailSpaltenMethods,
+  castingDetailFreigabeMethods
 );
 
 export const creatorAuswahlDetail = new CreatorAuswahlDetail();

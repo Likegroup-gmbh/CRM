@@ -1,6 +1,7 @@
 // castingPlattformZellen.js
 // Gemeinsame Casting-Spalten mit gestapelten Plattformzeilen: Instagram oben,
-// TikTok darunter, je Zeile ein kleines graues Plattform-Icon.
+// TikTok darunter. Das kleine graue Plattform-Icon steht nur in der Link-Spalte,
+// in den anderen Spalten zeigt die durchgezogene Trennlinie die Zuordnung.
 //
 // Welche Zeilen eine Zelle zeigt, folgt der Liste (hidden_columns aus den
 // Presets, siehe sourcingSpaltenSichtbarkeit): Instagram, solange die Zeile
@@ -12,7 +13,9 @@ import { socialHref } from '../../core/format/socialLink.js';
 import { INSTAGRAM_ICON, TIKTOK_ICON } from './sourcingIcons.js';
 import { PLATTFORM_ZEILEN } from './sourcingSpaltenKatalog.js';
 import { listeZeigtTiktok, sichtbarePlattformZeilen } from './sourcingSpaltenSichtbarkeit.js';
-import { renderSourcingIgCell } from './sourcingIgCell.js';
+import { renderProfilZelle } from './sourcingProfilZelle.js';
+import { profilHandle, profilPlattform } from './sourcingProfilPlattformen.js';
+import { renderPlatformChip, renderStaticChip } from '../../core/components/chipCell.js';
 
 const PLATTFORMEN = {
   instagram: { icon: INSTAGRAM_ICON, name: 'Instagram' },
@@ -52,9 +55,10 @@ export function plattformZeilenFuer(spalte, hiddenColumns) {
  * @param {object} opts
  * @param {(col: string) => string} opts.hide
  * @param {string} [opts.klassen] zusaetzliche td-Klassen
- * @param {boolean} [opts.mitIcon=true] false, wenn der Inhalt die Plattform selbst zeigt (Link)
+ * @param {boolean} [opts.mitIcon=false] Plattform-Icon vor dem Wert; nur die Link-Spalte, die
+ *   Trennlinie zeigt in den uebrigen Spalten, welche Zeile welche Plattform ist
  */
-export function renderPlattformZelle(ctx, spalte, inhalte, { hide, klassen = '', mitIcon = true }) {
+export function renderPlattformZelle(ctx, spalte, inhalte, { hide, klassen = '', mitIcon = false }) {
   const zeilen = plattformZeilenFuer(spalte, ctx.hiddenColumns);
   const html = [];
   if (zeilen.instagram) html.push(renderZeile('instagram', inhalte.instagram ?? '', mitIcon));
@@ -69,34 +73,27 @@ export function renderPlattformZelle(ctx, spalte, inhalte, { hide, klassen = '',
   `;
 }
 
-/** Instagram-Link: Chip mit Abruf-Button, ohne Schreibrecht nur das Icon als Link. */
-export function renderLinkInstagramInhalt(item, canWrite) {
-  if (canWrite) return renderSourcingIgCell(item);
-  const href = socialHref(item.link_instagram, 'instagram');
+/** Link-Zelle: Chip mit Abruf-Button, ohne Schreibrecht der Chip als Link. Das Icon setzt die Zeile. */
+function renderLinkInhalt(item, canWrite, plattform) {
+  if (canWrite) return renderProfilZelle(item, plattform);
+  const { linkFeld } = profilPlattform(plattform);
+  const { name } = PLATTFORMEN[plattform];
+  const url = item[linkFeld];
+  const href = socialHref(url, plattform);
+  const chip = renderStaticChip({
+    href,
+    chip: renderPlatformChip(url, profilHandle(item, plattform), { ohneIcon: true }),
+    title: name
+  });
   return `
           <div class="links-compact-cell links-compact-cell--readonly">
-            ${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="link-icon-btn" title="Instagram">${INSTAGRAM_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
+            ${chip || '<span class="cell-text-readonly">-</span>'}
           </div>
   `;
 }
 
-/** TikTok-Link: Eingabefeld mit Link-Button, ohne Schreibrecht nur das Icon als Link. */
-export function renderLinkTiktokInhalt(item, canWrite) {
-  const href = socialHref(item.link_tiktok, 'tiktok');
-  if (canWrite) {
-    return `
-          <div class="links-compact-row">
-            <input type="text" class="links-compact-input" data-field="link_tiktok" data-item-id="${item.id}" placeholder="TT Link..." value="${item.link_tiktok || ''}">
-            ${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="link-icon-btn" title="${escapeHtml(item.link_tiktok)}">${TIKTOK_ICON}</a>` : ''}
-          </div>
-    `;
-  }
-  return `
-          <div class="links-compact-cell links-compact-cell--readonly">
-            ${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="link-icon-btn" title="TikTok">${TIKTOK_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
-          </div>
-  `;
-}
+export const renderLinkInstagramInhalt = (item, canWrite) => renderLinkInhalt(item, canWrite, 'instagram');
+export const renderLinkTiktokInhalt = (item, canWrite) => renderLinkInhalt(item, canWrite, 'tiktok');
 
 /** Reichweite Story (nur Instagram): Eingabefeld oder Text. */
 export function renderReichweiteStoryInhalt(item, canWrite) {
